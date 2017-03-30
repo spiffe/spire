@@ -1,4 +1,4 @@
-#ref_impl_spiffe_server 
+#Cluster CA 
 
 Installation
 ------------
