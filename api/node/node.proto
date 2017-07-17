@@ -1,0 +1,53 @@
+syntax = "proto3";
+package proto;
+
+message FetchNodeSVIDRequest {
+    string attestedData = 1;
+    repeated SpiffeIdCsr csrList = 2;
+
+    message SpiffeIdCsr {
+        string spiffeId = 1;
+        string csr = 2;
+    }
+}
+
+message FetchNodeSVIDResponse {
+    message Tuple {
+        string v1 = 1;
+        string v2 = 2;
+        string v3 = 3;
+    }
+
+    repeated string certList = 1;
+    repeated Tuple tupleList = 2;
+    int64 nonce = 3;
+}
+
+message FetchWorkloadSVIDRequest {
+    repeated SpiffeIdCsr csrList = 1;
+
+    message SpiffeIdCsr {
+        string spiffeId = 1;
+        string csr = 2;
+    }
+}
+
+message FetchWorkloadSVIDResponse{
+    repeated Bundle bundleList = 2;
+
+    message Bundle {
+        string spiffeId = 1;
+        string svid = 2;
+        string trust = 3;
+    }
+}
+
+message Empty {}
+
+service node {
+    rpc FetchNodeSVID(FetchNodeSVIDRequest) returns (FetchNodeSVIDResponse);
+    rpc FetchWorkloadSVID(FetchWorkloadSVIDRequest) returns (FetchWorkloadSVIDResponse);
+}
+
+
+
