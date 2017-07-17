@@ -1,0 +1,39 @@
+syntax = "proto3";
+package proto;
+
+message SvidBundle {
+    string spiffeId = 1;
+    bytes svid = 2;
+    bytes privateKey = 3;
+    int32 ttl = 4;
+}
+
+message FetchSVIDBundleRequest {
+    string selectorType = 1;
+    string spiffeId = 2;
+}
+
+message FetchSVIDBundleResponse {
+    SvidBundle svidBundle = 1;
+}
+
+message FetchSVIDBundlesRequest {
+    string selectorType = 1;
+}
+
+message FetchSVIDBundlesResponse {
+    repeated SvidBundle svidBundle = 1;
+    bytes cpBundle = 2;
+}
+
+message FetchFederatedBundlesRequest {}
+
+message FetchFederatedBundlesResponse {
+    //TODO
+}
+
+service Workload {
+    rpc FetchSVIDBundle(FetchSVIDBundleRequest) returns (FetchSVIDBundleResponse);
+    rpc FetchSVIDBundles(FetchSVIDBundlesRequest) returns (FetchSVIDBundlesResponse);
+    rpc FetchFederatedBundles(FetchFederatedBundlesRequest) returns (FetchFederatedBundlesResponse);
+}
