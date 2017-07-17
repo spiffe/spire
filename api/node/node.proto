@@ -1,52 +1,64 @@
 syntax = "proto3";
 package proto;
 
-message FetchNodeSVIDRequest {
-    string attestedData = 1;
-    repeated SpiffeIdCsr csrList = 2;
-
-    message SpiffeIdCsr {
-        string spiffeId = 1;
-        string csr = 2;
-    }
+message RegistrationEntry {
+    string selectorType = 1;
+    string selector = 2;
+    string attestor = 3;
+    string spiffeId = 4;
+    string federatedBundle = 5;
+    int32 ttl = 6;
 }
 
-message FetchNodeSVIDResponse {
-    message Tuple {
-        string v1 = 1;
-        string v2 = 2;
-        string v3 = 3;
+message FetchBootstrapSVIDRequest {
+    message AttestedData {
+        string selector = 1;
+        string data = 2;
     }
 
-    repeated string certList = 1;
-    repeated Tuple tupleList = 2;
+    AttestedData attestedData = 1;
+    bytes csr = 2;
+}
+
+message FetchBootstrapSVIDResponse {
+    bytes cert = 1;
+    repeated RegistrationEntry registrationEntryList = 2;
     int64 nonce = 3;
 }
 
-message FetchWorkloadSVIDRequest {
-    repeated SpiffeIdCsr csrList = 1;
+message FetchNodeSVIDRequest {
+    int64 nonce = 1;
+    repeated bytes csrList = 2;
+}
 
-    message SpiffeIdCsr {
-        string spiffeId = 1;
-        string csr = 2;
-    }
+message FetchNodeSVIDResponse{
+    repeated bytes certList = 1;
+    repeated RegistrationEntry registrationEntryList = 2;
+}
+
+message FetchWorkloadSVIDRequest {
+    repeated bytes csrList = 2;
 }
 
 message FetchWorkloadSVIDResponse{
-    repeated Bundle bundleList = 2;
+    repeated bytes certList = 1;
+    repeated RegistrationEntry registrationEntryList = 2;
+}
 
-    message Bundle {
-        string spiffeId = 1;
-        string svid = 2;
-        string trust = 3;
-    }
+message FetchCPBundleRequest {
+}
+
+message FetchCPBundleResponse{
+    bytes cpBundle = 1;
 }
 
 message Empty {}
 
 service node {
+    rpc FetchBootstrapSVID(FetchBootstrapSVIDRequest) returns (FetchBootstrapSVIDResponse);
     rpc FetchNodeSVID(FetchNodeSVIDRequest) returns (FetchNodeSVIDResponse);
     rpc FetchWorkloadSVID(FetchWorkloadSVIDRequest) returns (FetchWorkloadSVIDResponse);
+    rpc FetchCPBundle(FetchCPBundleRequest) returns (FetchCPBundleResponse);
 }
 
 
