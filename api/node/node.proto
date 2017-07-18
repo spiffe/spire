@@ -6,13 +6,13 @@ message RegistrationEntry {
     string selector = 2;
     string attestor = 3;
     string spiffeId = 4;
-    string federatedBundle = 5;
+    bytes federatedBundle = 5;
     int32 ttl = 6;
 }
 
 message FetchBootstrapSVIDRequest {
     message AttestedData {
-        string selector = 1;
+        string type = 1;
         string data = 2;
     }
 
@@ -32,7 +32,7 @@ message FetchNodeSVIDRequest {
 }
 
 message FetchNodeSVIDResponse{
-    repeated bytes certList = 1;
+    map<string, bytes> certMap = 1;
     repeated RegistrationEntry registrationEntryList = 2;
 }
 
@@ -41,7 +41,7 @@ message FetchWorkloadSVIDRequest {
 }
 
 message FetchWorkloadSVIDResponse{
-    repeated bytes certList = 1;
+    map<string, bytes> certMap = 1;
     repeated RegistrationEntry registrationEntryList = 2;
 }
 
