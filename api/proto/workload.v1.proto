@@ -8,6 +8,12 @@ message SvidBundle {
     int32 ttl = 4;
 }
 
+message FederatedBundle {
+    string spiffeId = 1;
+    bytes caTrustBundle = 2;
+    int32 ttl = 3;
+}
+
 message FetchSVIDBundleRequest {
     string selectorType = 1;
     string spiffeId = 2;
@@ -15,6 +21,7 @@ message FetchSVIDBundleRequest {
 
 message FetchSVIDBundleResponse {
     SvidBundle svidBundle = 1;
+    bytes cpBundle = 2;
 }
 
 message FetchSVIDBundlesRequest {
@@ -26,14 +33,23 @@ message FetchSVIDBundlesResponse {
     bytes cpBundle = 2;
 }
 
+message FetchFederatedBundleRequest {
+    string spiffeId = 1;
+}
+
+message FetchFederatedBundleResponse {
+    FederatedBundle federatedBundle = 1;
+}
+
 message FetchFederatedBundlesRequest {}
 
 message FetchFederatedBundlesResponse {
-    //TODO
+    repeated FederatedBundle federatedBundle = 1;
 }
 
 service Workload {
     rpc FetchSVIDBundle(FetchSVIDBundleRequest) returns (FetchSVIDBundleResponse);
     rpc FetchSVIDBundles(FetchSVIDBundlesRequest) returns (FetchSVIDBundlesResponse);
+    rpc FetchFederatedBundle(FetchFederatedBundleRequest) returns (FetchFederatedBundleResponse);
     rpc FetchFederatedBundles(FetchFederatedBundlesRequest) returns (FetchFederatedBundlesResponse);
 }
