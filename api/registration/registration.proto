@@ -1,0 +1,121 @@
+syntax = "proto3";
+package proto;
+
+message RegisteredEntry {
+    string selectorType = 1;
+    string selector = 2;
+    string attestor = 3;
+    string spiffeId = 4;
+    int32 ttl = 5;
+}
+
+message FederatedEntry {
+    RegisteredEntry registeredEntry = 1;
+    repeated string federateBundleSpiffeIdList = 2;
+}
+
+message FederatedBundle {
+    string federateBundleSpiffeId = 1;
+    bytes federatedBundle = 2;
+    int32 ttl = 3;
+}
+
+
+message CreateFederatedEntryRequest {
+    FederatedEntry federatedEntry = 1;
+}
+
+message CreateFederatedEntryResponse {
+}
+
+
+message CreateFederatedBundleRequest {
+    FederatedBundle federatedBundle = 1;
+}
+
+message CreateFederatedBundleResponse {
+}
+
+
+message ListFederatedBundlesRequest {
+}
+
+message ListFederatedBundlesResponse {
+    repeated string federateBundleSpiffeIdList = 1;
+}
+
+
+message UpdateFederatedBundleRequest {
+    FederatedBundle federatedBundle = 1;
+}
+
+message UpdateFederatedBundleResponse {
+}
+
+
+message DeleteFederatedBundleRequest {
+    string federateBundleSpiffeId  = 1;
+}
+
+message DeleteFederatedBundleResponse {
+}
+
+
+message CreateEntryRequest {
+    RegisteredEntry registeredEntry  = 1;
+}
+
+message CreateEntryResponse {
+}
+
+
+message ListAttestorEntriesRequest {
+    string attestor  = 1;
+}
+
+message ListAttestorEntriesResponse {
+    repeated FederatedEntry federatedEntryList = 1;
+}
+
+
+message ListSelectorEntriesRequest {
+    string selectorType = 1;
+    string selector = 2;
+}
+
+message ListSelectorEntriesResponse {
+    repeated FederatedEntry federatedEntryList = 1;
+}
+
+
+message ListSpiffeEntriesRequest {
+    string spiffeId = 1;
+}
+
+message ListSpiffeEntriesResponse {
+    repeated FederatedEntry federatedEntryList = 1;
+}
+
+
+message DeleteEntryRequest {
+    string selectorType = 1;
+    string selector = 2;
+}
+
+message DeleteEntryResponse {
+    repeated FederatedEntry federatedEntryList = 1;
+}
+
+
+service node {
+    rpc CreateFederatedEntry(CreateFederatedEntryRequest) returns (CreateFederatedEntryResponse);
+    rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (CreateFederatedBundleResponse);
+    rpc ListFederatedBundles(ListFederatedBundlesRequest) returns (ListFederatedBundlesResponse);
+    rpc UpdateFederatedBundle(UpdateFederatedBundleRequest) returns (UpdateFederatedBundleResponse);
+    rpc DeleteFederatedBundle(DeleteFederatedBundleRequest) returns (DeleteFederatedBundleResponse);
+    rpc CreateEntry(CreateEntryRequest) returns (CreateEntryResponse);
+    rpc ListAttestorEntries(ListAttestorEntriesRequest) returns (ListAttestorEntriesResponse);
+    rpc ListSelectorEntries(ListSelectorEntriesRequest) returns (ListSelectorEntriesResponse);
+    rpc ListSpiffeEntries(ListSpiffeEntriesRequest) returns (ListSpiffeEntriesResponse);
+    rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse);
+}
