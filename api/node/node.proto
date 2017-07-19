@@ -10,21 +10,36 @@ message RegistrationEntry {
     int32 ttl = 6;
 }
 
-message FetchBootstrapSVIDRequest {
-    message AttestedData {
-        string type = 1;
-        string data = 2;
-    }
+message SvidEntry {
+    bytes cert = 1;
+    int32 ttl = 2;
+}
 
+message SpiffeMap {
+    map<string, SvidEntry> map = 1;
+}
+
+message SpiffeEntry {
+    SpiffeMap spiffeMap = 1;
+    repeated RegistrationEntry registrationEntryList = 2;
+}
+
+message AttestedData {
+    string type = 1;
+    string data = 2;
+}
+
+
+message FetchBootstrapSVIDRequest {
     AttestedData attestedData = 1;
     bytes csr = 2;
 }
 
 message FetchBootstrapSVIDResponse {
-    bytes cert = 1;
-    repeated RegistrationEntry registrationEntryList = 2;
+    SpiffeEntry spiffeEntry = 1;
     int64 nonce = 3;
 }
+
 
 message FetchNodeSVIDRequest {
     int64 nonce = 1;
@@ -32,18 +47,18 @@ message FetchNodeSVIDRequest {
 }
 
 message FetchNodeSVIDResponse{
-    map<string, bytes> certMap = 1;
-    repeated RegistrationEntry registrationEntryList = 2;
+    SpiffeEntry spiffeEntry = 1;
 }
 
-message FetchWorkloadSVIDRequest {
+
+message FetchSVIDRequest {
     repeated bytes csrList = 2;
 }
 
-message FetchWorkloadSVIDResponse{
-    map<string, bytes> certMap = 1;
-    repeated RegistrationEntry registrationEntryList = 2;
+message FetchSVIDResponse{
+    SpiffeEntry spiffeEntry = 1;
 }
+
 
 message FetchCPBundleRequest {
 }
@@ -52,12 +67,11 @@ message FetchCPBundleResponse{
     bytes cpBundle = 1;
 }
 
-message Empty {}
 
 service node {
     rpc FetchBootstrapSVID(FetchBootstrapSVIDRequest) returns (FetchBootstrapSVIDResponse);
     rpc FetchNodeSVID(FetchNodeSVIDRequest) returns (FetchNodeSVIDResponse);
-    rpc FetchWorkloadSVID(FetchWorkloadSVIDRequest) returns (FetchWorkloadSVIDResponse);
+    rpc FetchSVID(FetchSVIDRequest) returns (FetchSVIDResponse);
     rpc FetchCPBundle(FetchCPBundleRequest) returns (FetchCPBundleResponse);
 }
 
