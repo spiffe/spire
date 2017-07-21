@@ -1,14 +1,14 @@
 syntax = "proto3";
 package proto;
 
-message SvidBundle {
+message SvidPair {
     string spiffeId = 1;
     bytes svid = 2;
     bytes privateKey = 3;
     int32 ttl = 4;
 }
 
-message FederatedBundle {
+message FederateEntry {
     string spiffeId = 1;
     bytes caTrustBundle = 2;
     int32 ttl = 3;
@@ -20,7 +20,7 @@ message FetchSVIDBundleRequest {
 }
 
 message FetchSVIDBundleResponse {
-    SvidBundle svidBundle = 1;
+    SvidPair SvidPair = 1;
     bytes cpBundle = 2;
 }
 
@@ -29,7 +29,7 @@ message FetchSVIDBundlesRequest {
 }
 
 message FetchSVIDBundlesResponse {
-    repeated SvidBundle svidBundle = 1;
+    repeated SvidPair SvidPair = 1;
     bytes cpBundle = 2;
 }
 
@@ -38,13 +38,13 @@ message FetchFederatedBundleRequest {
 }
 
 message FetchFederatedBundleResponse {
-    FederatedBundle federatedBundle = 1;
+    FederateEntry FederateEntry = 1;
 }
 
 message FetchFederatedBundlesRequest {}
 
 message FetchFederatedBundlesResponse {
-    repeated FederatedBundle federatedBundle = 1;
+    repeated FederateEntry FederateEntry = 1;
 }
 
 service Workload {

@@ -1,0 +1,12 @@
+syntax = "proto3";
+package proto;
+
+message FetchAttestationDataRequest {}
+
+message FetchAttestationDataResponse {
+    bytes attestationData = 1;
+}
+
+service NodeAttestor {
+    rpc FetchAttestationData(FetchAttestationDataRequest) returns (FetchAttestationDataResponse);
+}
