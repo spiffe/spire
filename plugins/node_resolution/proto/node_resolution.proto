@@ -1,0 +1,28 @@
+syntax = "proto3";
+package proto;
+
+message NodeResolution {
+    string selectorType = 1;
+    string selector = 2;
+}
+
+message NodeResolutionList {
+    repeated NodeResolution list = 1;
+}
+
+
+message ResolveRequest {
+    repeated string physicalSpiffeIdList = 1;
+}
+
+message ResolveResponse {
+    map<string, NodeResolutionList> map = 1;
+}
+
+
+service node {
+    rpc Resolve(ResolveRequest) returns (ResolveResponse);
+}
+
+
+
