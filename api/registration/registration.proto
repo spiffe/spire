@@ -1,6 +1,7 @@
 syntax = "proto3";
 package proto;
 
+
 message RegisteredEntry {
     string selectorType = 1;
     string selector = 2;

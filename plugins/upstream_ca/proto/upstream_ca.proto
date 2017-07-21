@@ -1,0 +1,20 @@
+syntax = "proto3";
+package proto;
+
+
+message SubmitCSRRequest {
+    bytes csr = 1;
+}
+
+message SubmitCSRResponse {
+    bytes cert = 1;
+    bytes upstreamTrustBundle = 2;
+}
+
+
+service node {
+    rpc SubmitCSR(SubmitCSRRequest) returns (SubmitCSRResponse);
+}
+
+
+
