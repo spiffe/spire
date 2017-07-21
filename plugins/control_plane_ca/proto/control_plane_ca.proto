@@ -1,0 +1,38 @@
+syntax = "proto3";
+package proto;
+
+message SignCsrRequest {
+    bytes csr = 1;
+}
+
+message SignCsrResponse {
+    bytes signedCertificate = 1;
+}
+
+message GenerateCsrRequest {
+}
+
+message GenerateCsrResponse {
+    bytes csr = 1;
+}
+
+message FetchCertificateRequest {
+}
+
+message FetchCertificateResponse {
+    bytes storedIntermediateCert = 1;
+}
+
+message LoadCertificateRequest {
+    bytes signedIntermediateCert = 1;
+}
+
+message LoadCertificateResponse {
+}
+
+service ControlPlaneCA {
+    rpc SignCsr(SignCsrRequest) returns (SignCsrResponse);
+    rpc GenerateCsr(GenerateCsrRequest) returns (GenerateCsrResponse);
+    rpc FetchCertificate(FetchCertificateRequest) returns (FetchCertificateResponse);
+    rpc LoadCertificate(LoadCertificateRequest) returns (LoadCertificateResponse);
+}
