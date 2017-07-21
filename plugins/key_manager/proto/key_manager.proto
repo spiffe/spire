@@ -1,0 +1,12 @@
+syntax = "proto3";
+package proto;
+
+message GenerateKeyPairRequest {}
+
+message GenerateKeyPairResponse {
+    bytes publicKey = 1;
+}
+
+service KeyManager {
+    rpc GenerateKeyPair(GenerateKeyPairRequest) returns (GenerateKeyPairResponse);
+}
