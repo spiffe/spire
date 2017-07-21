@@ -1,0 +1,14 @@
+syntax = "proto3";
+package proto;
+
+message AttestRequest {
+    int32 pid = 1;
+}
+
+message AttestResponse {
+    repeated string selector = 1;
+}
+
+service WorkloadAttestor {
+    rpc Attest(AttestRequest) returns (AttestResponse);
+}
