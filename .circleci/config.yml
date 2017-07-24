@@ -1,0 +1,19 @@
+version: 2
+
+jobs:
+  build:
+    machine: true
+    working_directory: ~/node-agent
+    steps:
+      - checkout
+      - restore_cache:
+          key: v1-node-agent-{{ checksum "build_setup.sh" }}
+      - run: ./build_setup.sh
+      - run: make generate_all_pb
+      - save_cache:
+          key: v1-node-agent-{{ checksum "build_setup.sh" }}
+          paths:
+            - .cache
+
+
+      
