@@ -1,0 +1,16 @@
+syntax = "proto3";
+package proto;
+
+message AttestedData {
+    string attestedDataType = 1;
+    bytes attestedData = 2;
+}
+
+message AttestResponse {
+    bool valid = 1;
+    string physicalSPIFFEID  = 2;
+}
+
+service NodeAttestor {
+    rpc Attest(AttestedData) returns (AttestResponse);
+}
