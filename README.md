@@ -1,4 +1,6 @@
-# NODE CA
+[![CircleCI](https://circleci.com/gh/spiffe/node-agent/tree/master.svg?style=svg&circle-token=56d43d8aeefcc217c02c3cb6525047a4804a8daa)](https://circleci.com/gh/spiffe/node-agent/tree/master)
+
+# node-agent
 
 Installation
 ------------
