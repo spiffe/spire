@@ -2,21 +2,41 @@
 // source: plugins/data_store/proto/data_store.proto
 
 /*
-Package data_store is a generated protocol buffer package.
+Package proto is a generated protocol buffer package.
 
 It is generated from these files:
 	plugins/data_store/proto/data_store.proto
 
 It has these top-level messages:
+	Key
+	AttestorKey
+	SelectorKey
+	GroupedRegistrationKey
+	RegisteredEntryKey
+	RegisteredEntry
+	FederatedEntry
+	FederatedBundle
+	SelectorMapEntry
+	AttestedNodeEntry
+	AttestedNodeUpdate
+	AttestedNodes
+	FederatedEntries
+	RegisteredEntries
+	Empty
 */
-package data_store
+package proto
 
-import proto "github.com/golang/protobuf/proto"
+import proto1 "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
 
+import (
+	context "golang.org/x/net/context"
+	grpc "google.golang.org/grpc"
+)
+
 // Reference imports to suppress errors if they are not otherwise used.
-var _ = proto.Marshal
+var _ = proto1.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
@@ -24,14 +44,1150 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto1.ProtoPackageIsVersion2 // please upgrade the proto package
 
-func init() { proto.RegisterFile("plugins/data_store/proto/data_store.proto", fileDescriptor0) }
+type Key struct {
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
+}
+
+func (m *Key) Reset()                    { *m = Key{} }
+func (m *Key) String() string            { return proto1.CompactTextString(m) }
+func (*Key) ProtoMessage()               {}
+func (*Key) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+
+func (m *Key) GetSpiffeId() string {
+	if m != nil {
+		return m.SpiffeId
+	}
+	return ""
+}
+
+type AttestorKey struct {
+	Attestor string `protobuf:"bytes,1,opt,name=attestor" json:"attestor,omitempty"`
+}
+
+func (m *AttestorKey) Reset()                    { *m = AttestorKey{} }
+func (m *AttestorKey) String() string            { return proto1.CompactTextString(m) }
+func (*AttestorKey) ProtoMessage()               {}
+func (*AttestorKey) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+
+func (m *AttestorKey) GetAttestor() string {
+	if m != nil {
+		return m.Attestor
+	}
+	return ""
+}
+
+type SelectorKey struct {
+	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
+	Selector     string `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
+}
+
+func (m *SelectorKey) Reset()                    { *m = SelectorKey{} }
+func (m *SelectorKey) String() string            { return proto1.CompactTextString(m) }
+func (*SelectorKey) ProtoMessage()               {}
+func (*SelectorKey) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
+func (m *SelectorKey) GetSelectorType() string {
+	if m != nil {
+		return m.SelectorType
+	}
+	return ""
+}
+
+func (m *SelectorKey) GetSelector() string {
+	if m != nil {
+		return m.Selector
+	}
+	return ""
+}
+
+type GroupedRegistrationKey struct {
+	Guid string `protobuf:"bytes,1,opt,name=guid" json:"guid,omitempty"`
+}
+
+func (m *GroupedRegistrationKey) Reset()                    { *m = GroupedRegistrationKey{} }
+func (m *GroupedRegistrationKey) String() string            { return proto1.CompactTextString(m) }
+func (*GroupedRegistrationKey) ProtoMessage()               {}
+func (*GroupedRegistrationKey) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+
+func (m *GroupedRegistrationKey) GetGuid() string {
+	if m != nil {
+		return m.Guid
+	}
+	return ""
+}
+
+type RegisteredEntryKey struct {
+	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
+	Selector     string `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
+	SpiffeId     string `protobuf:"bytes,3,opt,name=spiffeId" json:"spiffeId,omitempty"`
+}
+
+func (m *RegisteredEntryKey) Reset()                    { *m = RegisteredEntryKey{} }
+func (m *RegisteredEntryKey) String() string            { return proto1.CompactTextString(m) }
+func (*RegisteredEntryKey) ProtoMessage()               {}
+func (*RegisteredEntryKey) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+
+func (m *RegisteredEntryKey) GetSelectorType() string {
+	if m != nil {
+		return m.SelectorType
+	}
+	return ""
+}
+
+func (m *RegisteredEntryKey) GetSelector() string {
+	if m != nil {
+		return m.Selector
+	}
+	return ""
+}
+
+func (m *RegisteredEntryKey) GetSpiffeId() string {
+	if m != nil {
+		return m.SpiffeId
+	}
+	return ""
+}
+
+type RegisteredEntry struct {
+	SelectorType  string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
+	Selector      string `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
+	Attestor      string `protobuf:"bytes,3,opt,name=attestor" json:"attestor,omitempty"`
+	SpiffeId      string `protobuf:"bytes,4,opt,name=spiffeId" json:"spiffeId,omitempty"`
+	Ttl           int32  `protobuf:"varint,5,opt,name=ttl" json:"ttl,omitempty"`
+	SelectorGroup string `protobuf:"bytes,6,opt,name=selectorGroup" json:"selectorGroup,omitempty"`
+}
+
+func (m *RegisteredEntry) Reset()                    { *m = RegisteredEntry{} }
+func (m *RegisteredEntry) String() string            { return proto1.CompactTextString(m) }
+func (*RegisteredEntry) ProtoMessage()               {}
+func (*RegisteredEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+
+func (m *RegisteredEntry) GetSelectorType() string {
+	if m != nil {
+		return m.SelectorType
+	}
+	return ""
+}
+
+func (m *RegisteredEntry) GetSelector() string {
+	if m != nil {
+		return m.Selector
+	}
+	return ""
+}
+
+func (m *RegisteredEntry) GetAttestor() string {
+	if m != nil {
+		return m.Attestor
+	}
+	return ""
+}
+
+func (m *RegisteredEntry) GetSpiffeId() string {
+	if m != nil {
+		return m.SpiffeId
+	}
+	return ""
+}
+
+func (m *RegisteredEntry) GetTtl() int32 {
+	if m != nil {
+		return m.Ttl
+	}
+	return 0
+}
+
+func (m *RegisteredEntry) GetSelectorGroup() string {
+	if m != nil {
+		return m.SelectorGroup
+	}
+	return ""
+}
+
+type FederatedEntry struct {
+	RegisteredEntryKey string   `protobuf:"bytes,1,opt,name=registeredEntryKey" json:"registeredEntryKey,omitempty"`
+	SpiffeId           []string `protobuf:"bytes,2,rep,name=spiffeId" json:"spiffeId,omitempty"`
+}
+
+func (m *FederatedEntry) Reset()                    { *m = FederatedEntry{} }
+func (m *FederatedEntry) String() string            { return proto1.CompactTextString(m) }
+func (*FederatedEntry) ProtoMessage()               {}
+func (*FederatedEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+
+func (m *FederatedEntry) GetRegisteredEntryKey() string {
+	if m != nil {
+		return m.RegisteredEntryKey
+	}
+	return ""
+}
+
+func (m *FederatedEntry) GetSpiffeId() []string {
+	if m != nil {
+		return m.SpiffeId
+	}
+	return nil
+}
+
+type FederatedBundle struct {
+	SpiffeId    string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
+	TrustBundle string `protobuf:"bytes,2,opt,name=trustBundle" json:"trustBundle,omitempty"`
+	Ttl         int32  `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
+}
+
+func (m *FederatedBundle) Reset()                    { *m = FederatedBundle{} }
+func (m *FederatedBundle) String() string            { return proto1.CompactTextString(m) }
+func (*FederatedBundle) ProtoMessage()               {}
+func (*FederatedBundle) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+
+func (m *FederatedBundle) GetSpiffeId() string {
+	if m != nil {
+		return m.SpiffeId
+	}
+	return ""
+}
+
+func (m *FederatedBundle) GetTrustBundle() string {
+	if m != nil {
+		return m.TrustBundle
+	}
+	return ""
+}
+
+func (m *FederatedBundle) GetTtl() int32 {
+	if m != nil {
+		return m.Ttl
+	}
+	return 0
+}
+
+type SelectorMapEntry struct {
+	PhysicalSpiffeId string `protobuf:"bytes,1,opt,name=physicalSpiffeId" json:"physicalSpiffeId,omitempty"`
+	SelectorType     string `protobuf:"bytes,2,opt,name=selectorType" json:"selectorType,omitempty"`
+	Selector         string `protobuf:"bytes,3,opt,name=selector" json:"selector,omitempty"`
+}
+
+func (m *SelectorMapEntry) Reset()                    { *m = SelectorMapEntry{} }
+func (m *SelectorMapEntry) String() string            { return proto1.CompactTextString(m) }
+func (*SelectorMapEntry) ProtoMessage()               {}
+func (*SelectorMapEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+
+func (m *SelectorMapEntry) GetPhysicalSpiffeId() string {
+	if m != nil {
+		return m.PhysicalSpiffeId
+	}
+	return ""
+}
+
+func (m *SelectorMapEntry) GetSelectorType() string {
+	if m != nil {
+		return m.SelectorType
+	}
+	return ""
+}
+
+func (m *SelectorMapEntry) GetSelector() string {
+	if m != nil {
+		return m.Selector
+	}
+	return ""
+}
+
+type AttestedNodeEntry struct {
+	PhysicalSpiffeId string `protobuf:"bytes,1,opt,name=physicalSpiffeId" json:"physicalSpiffeId,omitempty"`
+	AttestedDataType string `protobuf:"bytes,2,opt,name=attestedDataType" json:"attestedDataType,omitempty"`
+	CertSerialNumber string `protobuf:"bytes,3,opt,name=certSerialNumber" json:"certSerialNumber,omitempty"`
+	CertExpiration   int32  `protobuf:"varint,4,opt,name=certExpiration" json:"certExpiration,omitempty"`
+}
+
+func (m *AttestedNodeEntry) Reset()                    { *m = AttestedNodeEntry{} }
+func (m *AttestedNodeEntry) String() string            { return proto1.CompactTextString(m) }
+func (*AttestedNodeEntry) ProtoMessage()               {}
+func (*AttestedNodeEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
+
+func (m *AttestedNodeEntry) GetPhysicalSpiffeId() string {
+	if m != nil {
+		return m.PhysicalSpiffeId
+	}
+	return ""
+}
+
+func (m *AttestedNodeEntry) GetAttestedDataType() string {
+	if m != nil {
+		return m.AttestedDataType
+	}
+	return ""
+}
+
+func (m *AttestedNodeEntry) GetCertSerialNumber() string {
+	if m != nil {
+		return m.CertSerialNumber
+	}
+	return ""
+}
+
+func (m *AttestedNodeEntry) GetCertExpiration() int32 {
+	if m != nil {
+		return m.CertExpiration
+	}
+	return 0
+}
+
+type AttestedNodeUpdate struct {
+	PhysicalSpiffeId string `protobuf:"bytes,1,opt,name=physicalSpiffeId" json:"physicalSpiffeId,omitempty"`
+	CertSerialNumber string `protobuf:"bytes,3,opt,name=certSerialNumber" json:"certSerialNumber,omitempty"`
+	CertExpiration   int32  `protobuf:"varint,4,opt,name=certExpiration" json:"certExpiration,omitempty"`
+}
+
+func (m *AttestedNodeUpdate) Reset()                    { *m = AttestedNodeUpdate{} }
+func (m *AttestedNodeUpdate) String() string            { return proto1.CompactTextString(m) }
+func (*AttestedNodeUpdate) ProtoMessage()               {}
+func (*AttestedNodeUpdate) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
+
+func (m *AttestedNodeUpdate) GetPhysicalSpiffeId() string {
+	if m != nil {
+		return m.PhysicalSpiffeId
+	}
+	return ""
+}
+
+func (m *AttestedNodeUpdate) GetCertSerialNumber() string {
+	if m != nil {
+		return m.CertSerialNumber
+	}
+	return ""
+}
+
+func (m *AttestedNodeUpdate) GetCertExpiration() int32 {
+	if m != nil {
+		return m.CertExpiration
+	}
+	return 0
+}
+
+type AttestedNodes struct {
+	List []*AttestedNodeEntry `protobuf:"bytes,1,rep,name=list" json:"list,omitempty"`
+}
+
+func (m *AttestedNodes) Reset()                    { *m = AttestedNodes{} }
+func (m *AttestedNodes) String() string            { return proto1.CompactTextString(m) }
+func (*AttestedNodes) ProtoMessage()               {}
+func (*AttestedNodes) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
+
+func (m *AttestedNodes) GetList() []*AttestedNodeEntry {
+	if m != nil {
+		return m.List
+	}
+	return nil
+}
+
+type FederatedEntries struct {
+	List []*FederatedEntry `protobuf:"bytes,1,rep,name=list" json:"list,omitempty"`
+}
+
+func (m *FederatedEntries) Reset()                    { *m = FederatedEntries{} }
+func (m *FederatedEntries) String() string            { return proto1.CompactTextString(m) }
+func (*FederatedEntries) ProtoMessage()               {}
+func (*FederatedEntries) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
+
+func (m *FederatedEntries) GetList() []*FederatedEntry {
+	if m != nil {
+		return m.List
+	}
+	return nil
+}
+
+type RegisteredEntries struct {
+	List []*RegisteredEntry `protobuf:"bytes,1,rep,name=list" json:"list,omitempty"`
+}
+
+func (m *RegisteredEntries) Reset()                    { *m = RegisteredEntries{} }
+func (m *RegisteredEntries) String() string            { return proto1.CompactTextString(m) }
+func (*RegisteredEntries) ProtoMessage()               {}
+func (*RegisteredEntries) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
+
+func (m *RegisteredEntries) GetList() []*RegisteredEntry {
+	if m != nil {
+		return m.List
+	}
+	return nil
+}
+
+type Empty struct {
+}
+
+func (m *Empty) Reset()                    { *m = Empty{} }
+func (m *Empty) String() string            { return proto1.CompactTextString(m) }
+func (*Empty) ProtoMessage()               {}
+func (*Empty) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
+
+func init() {
+	proto1.RegisterType((*Key)(nil), "proto.Key")
+	proto1.RegisterType((*AttestorKey)(nil), "proto.AttestorKey")
+	proto1.RegisterType((*SelectorKey)(nil), "proto.SelectorKey")
+	proto1.RegisterType((*GroupedRegistrationKey)(nil), "proto.GroupedRegistrationKey")
+	proto1.RegisterType((*RegisteredEntryKey)(nil), "proto.RegisteredEntryKey")
+	proto1.RegisterType((*RegisteredEntry)(nil), "proto.RegisteredEntry")
+	proto1.RegisterType((*FederatedEntry)(nil), "proto.FederatedEntry")
+	proto1.RegisterType((*FederatedBundle)(nil), "proto.FederatedBundle")
+	proto1.RegisterType((*SelectorMapEntry)(nil), "proto.SelectorMapEntry")
+	proto1.RegisterType((*AttestedNodeEntry)(nil), "proto.AttestedNodeEntry")
+	proto1.RegisterType((*AttestedNodeUpdate)(nil), "proto.AttestedNodeUpdate")
+	proto1.RegisterType((*AttestedNodes)(nil), "proto.AttestedNodes")
+	proto1.RegisterType((*FederatedEntries)(nil), "proto.FederatedEntries")
+	proto1.RegisterType((*RegisteredEntries)(nil), "proto.RegisteredEntries")
+	proto1.RegisterType((*Empty)(nil), "proto.Empty")
+}
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ context.Context
+var _ grpc.ClientConn
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+const _ = grpc.SupportPackageIsVersion4
+
+// Client API for DataStore service
+
+type DataStoreClient interface {
+	CreateFederatedEntry(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*Empty, error)
+	ListFederatedEntry(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*FederatedEntries, error)
+	UpdateFederatedEntry(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*Empty, error)
+	DeleteFederatedEntry(ctx context.Context, in *Key, opts ...grpc.CallOption) (*Empty, error)
+	CreateAttestedNodeEntry(ctx context.Context, in *AttestedNodeEntry, opts ...grpc.CallOption) (*Empty, error)
+	FetchAttestedNodeEntry(ctx context.Context, in *Key, opts ...grpc.CallOption) (*AttestedNodeEntry, error)
+	FetchStaleNodeEntries(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*AttestedNodes, error)
+	UpdateAttestedNodeEntry(ctx context.Context, in *AttestedNodeUpdate, opts ...grpc.CallOption) (*Empty, error)
+	DeleteAttestedNodeEntry(ctx context.Context, in *Key, opts ...grpc.CallOption) (*Empty, error)
+	CreateSelectorMapEntry(ctx context.Context, in *SelectorMapEntry, opts ...grpc.CallOption) (*Empty, error)
+	FetchSelectorMapEntry(ctx context.Context, in *Key, opts ...grpc.CallOption) (*Empty, error)
+	DeleteSelectorMapEntry(ctx context.Context, in *SelectorMapEntry, opts ...grpc.CallOption) (*Empty, error)
+	CreateRegistrationEntry(ctx context.Context, in *RegisteredEntry, opts ...grpc.CallOption) (*Empty, error)
+	FetchRegistrationEntry(ctx context.Context, in *RegisteredEntryKey, opts ...grpc.CallOption) (*RegisteredEntry, error)
+	UpdateRegistrationEntry(ctx context.Context, in *RegisteredEntry, opts ...grpc.CallOption) (*Empty, error)
+	DeleteRegistrationEntry(ctx context.Context, in *RegisteredEntryKey, opts ...grpc.CallOption) (*Empty, error)
+	FetchGroupedRegistrationEntries(ctx context.Context, in *GroupedRegistrationKey, opts ...grpc.CallOption) (*RegisteredEntries, error)
+	ListAttestorEntries(ctx context.Context, in *AttestorKey, opts ...grpc.CallOption) (*FederatedEntries, error)
+	ListSelectorEntries(ctx context.Context, in *SelectorKey, opts ...grpc.CallOption) (*FederatedEntries, error)
+	ListSpiffeEntries(ctx context.Context, in *Key, opts ...grpc.CallOption) (*FederatedEntries, error)
+}
+
+type dataStoreClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewDataStoreClient(cc *grpc.ClientConn) DataStoreClient {
+	return &dataStoreClient{cc}
+}
+
+func (c *dataStoreClient) CreateFederatedEntry(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/CreateFederatedEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) ListFederatedEntry(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*FederatedEntries, error) {
+	out := new(FederatedEntries)
+	err := grpc.Invoke(ctx, "/proto.DataStore/ListFederatedEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) UpdateFederatedEntry(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/UpdateFederatedEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) DeleteFederatedEntry(ctx context.Context, in *Key, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/DeleteFederatedEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) CreateAttestedNodeEntry(ctx context.Context, in *AttestedNodeEntry, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/CreateAttestedNodeEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) FetchAttestedNodeEntry(ctx context.Context, in *Key, opts ...grpc.CallOption) (*AttestedNodeEntry, error) {
+	out := new(AttestedNodeEntry)
+	err := grpc.Invoke(ctx, "/proto.DataStore/FetchAttestedNodeEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) FetchStaleNodeEntries(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*AttestedNodes, error) {
+	out := new(AttestedNodes)
+	err := grpc.Invoke(ctx, "/proto.DataStore/FetchStaleNodeEntries", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) UpdateAttestedNodeEntry(ctx context.Context, in *AttestedNodeUpdate, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/UpdateAttestedNodeEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) DeleteAttestedNodeEntry(ctx context.Context, in *Key, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/DeleteAttestedNodeEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) CreateSelectorMapEntry(ctx context.Context, in *SelectorMapEntry, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/CreateSelectorMapEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) FetchSelectorMapEntry(ctx context.Context, in *Key, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/FetchSelectorMapEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) DeleteSelectorMapEntry(ctx context.Context, in *SelectorMapEntry, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/DeleteSelectorMapEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) CreateRegistrationEntry(ctx context.Context, in *RegisteredEntry, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/CreateRegistrationEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) FetchRegistrationEntry(ctx context.Context, in *RegisteredEntryKey, opts ...grpc.CallOption) (*RegisteredEntry, error) {
+	out := new(RegisteredEntry)
+	err := grpc.Invoke(ctx, "/proto.DataStore/FetchRegistrationEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) UpdateRegistrationEntry(ctx context.Context, in *RegisteredEntry, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/UpdateRegistrationEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) DeleteRegistrationEntry(ctx context.Context, in *RegisteredEntryKey, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.DataStore/DeleteRegistrationEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) FetchGroupedRegistrationEntries(ctx context.Context, in *GroupedRegistrationKey, opts ...grpc.CallOption) (*RegisteredEntries, error) {
+	out := new(RegisteredEntries)
+	err := grpc.Invoke(ctx, "/proto.DataStore/FetchGroupedRegistrationEntries", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) ListAttestorEntries(ctx context.Context, in *AttestorKey, opts ...grpc.CallOption) (*FederatedEntries, error) {
+	out := new(FederatedEntries)
+	err := grpc.Invoke(ctx, "/proto.DataStore/ListAttestorEntries", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) ListSelectorEntries(ctx context.Context, in *SelectorKey, opts ...grpc.CallOption) (*FederatedEntries, error) {
+	out := new(FederatedEntries)
+	err := grpc.Invoke(ctx, "/proto.DataStore/ListSelectorEntries", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) ListSpiffeEntries(ctx context.Context, in *Key, opts ...grpc.CallOption) (*FederatedEntries, error) {
+	out := new(FederatedEntries)
+	err := grpc.Invoke(ctx, "/proto.DataStore/ListSpiffeEntries", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Server API for DataStore service
+
+type DataStoreServer interface {
+	CreateFederatedEntry(context.Context, *FederatedBundle) (*Empty, error)
+	ListFederatedEntry(context.Context, *Empty) (*FederatedEntries, error)
+	UpdateFederatedEntry(context.Context, *FederatedBundle) (*Empty, error)
+	DeleteFederatedEntry(context.Context, *Key) (*Empty, error)
+	CreateAttestedNodeEntry(context.Context, *AttestedNodeEntry) (*Empty, error)
+	FetchAttestedNodeEntry(context.Context, *Key) (*AttestedNodeEntry, error)
+	FetchStaleNodeEntries(context.Context, *Empty) (*AttestedNodes, error)
+	UpdateAttestedNodeEntry(context.Context, *AttestedNodeUpdate) (*Empty, error)
+	DeleteAttestedNodeEntry(context.Context, *Key) (*Empty, error)
+	CreateSelectorMapEntry(context.Context, *SelectorMapEntry) (*Empty, error)
+	FetchSelectorMapEntry(context.Context, *Key) (*Empty, error)
+	DeleteSelectorMapEntry(context.Context, *SelectorMapEntry) (*Empty, error)
+	CreateRegistrationEntry(context.Context, *RegisteredEntry) (*Empty, error)
+	FetchRegistrationEntry(context.Context, *RegisteredEntryKey) (*RegisteredEntry, error)
+	UpdateRegistrationEntry(context.Context, *RegisteredEntry) (*Empty, error)
+	DeleteRegistrationEntry(context.Context, *RegisteredEntryKey) (*Empty, error)
+	FetchGroupedRegistrationEntries(context.Context, *GroupedRegistrationKey) (*RegisteredEntries, error)
+	ListAttestorEntries(context.Context, *AttestorKey) (*FederatedEntries, error)
+	ListSelectorEntries(context.Context, *SelectorKey) (*FederatedEntries, error)
+	ListSpiffeEntries(context.Context, *Key) (*FederatedEntries, error)
+}
+
+func RegisterDataStoreServer(s *grpc.Server, srv DataStoreServer) {
+	s.RegisterService(&_DataStore_serviceDesc, srv)
+}
+
+func _DataStore_CreateFederatedEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FederatedBundle)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).CreateFederatedEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/CreateFederatedEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).CreateFederatedEntry(ctx, req.(*FederatedBundle))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_ListFederatedEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).ListFederatedEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/ListFederatedEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).ListFederatedEntry(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_UpdateFederatedEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FederatedBundle)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).UpdateFederatedEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/UpdateFederatedEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).UpdateFederatedEntry(ctx, req.(*FederatedBundle))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_DeleteFederatedEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Key)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).DeleteFederatedEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/DeleteFederatedEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).DeleteFederatedEntry(ctx, req.(*Key))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_CreateAttestedNodeEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AttestedNodeEntry)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).CreateAttestedNodeEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/CreateAttestedNodeEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).CreateAttestedNodeEntry(ctx, req.(*AttestedNodeEntry))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_FetchAttestedNodeEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Key)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).FetchAttestedNodeEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/FetchAttestedNodeEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).FetchAttestedNodeEntry(ctx, req.(*Key))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_FetchStaleNodeEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).FetchStaleNodeEntries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/FetchStaleNodeEntries",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).FetchStaleNodeEntries(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_UpdateAttestedNodeEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AttestedNodeUpdate)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).UpdateAttestedNodeEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/UpdateAttestedNodeEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).UpdateAttestedNodeEntry(ctx, req.(*AttestedNodeUpdate))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_DeleteAttestedNodeEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Key)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).DeleteAttestedNodeEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/DeleteAttestedNodeEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).DeleteAttestedNodeEntry(ctx, req.(*Key))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_CreateSelectorMapEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SelectorMapEntry)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).CreateSelectorMapEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/CreateSelectorMapEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).CreateSelectorMapEntry(ctx, req.(*SelectorMapEntry))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_FetchSelectorMapEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Key)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).FetchSelectorMapEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/FetchSelectorMapEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).FetchSelectorMapEntry(ctx, req.(*Key))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_DeleteSelectorMapEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SelectorMapEntry)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).DeleteSelectorMapEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/DeleteSelectorMapEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).DeleteSelectorMapEntry(ctx, req.(*SelectorMapEntry))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_CreateRegistrationEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisteredEntry)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).CreateRegistrationEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/CreateRegistrationEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).CreateRegistrationEntry(ctx, req.(*RegisteredEntry))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_FetchRegistrationEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisteredEntryKey)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).FetchRegistrationEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/FetchRegistrationEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).FetchRegistrationEntry(ctx, req.(*RegisteredEntryKey))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_UpdateRegistrationEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisteredEntry)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).UpdateRegistrationEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/UpdateRegistrationEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).UpdateRegistrationEntry(ctx, req.(*RegisteredEntry))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_DeleteRegistrationEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisteredEntryKey)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).DeleteRegistrationEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/DeleteRegistrationEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).DeleteRegistrationEntry(ctx, req.(*RegisteredEntryKey))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_FetchGroupedRegistrationEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GroupedRegistrationKey)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).FetchGroupedRegistrationEntries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/FetchGroupedRegistrationEntries",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).FetchGroupedRegistrationEntries(ctx, req.(*GroupedRegistrationKey))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_ListAttestorEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AttestorKey)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).ListAttestorEntries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/ListAttestorEntries",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).ListAttestorEntries(ctx, req.(*AttestorKey))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_ListSelectorEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SelectorKey)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).ListSelectorEntries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/ListSelectorEntries",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).ListSelectorEntries(ctx, req.(*SelectorKey))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_ListSpiffeEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Key)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).ListSpiffeEntries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataStore/ListSpiffeEntries",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).ListSpiffeEntries(ctx, req.(*Key))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _DataStore_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.DataStore",
+	HandlerType: (*DataStoreServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateFederatedEntry",
+			Handler:    _DataStore_CreateFederatedEntry_Handler,
+		},
+		{
+			MethodName: "ListFederatedEntry",
+			Handler:    _DataStore_ListFederatedEntry_Handler,
+		},
+		{
+			MethodName: "UpdateFederatedEntry",
+			Handler:    _DataStore_UpdateFederatedEntry_Handler,
+		},
+		{
+			MethodName: "DeleteFederatedEntry",
+			Handler:    _DataStore_DeleteFederatedEntry_Handler,
+		},
+		{
+			MethodName: "CreateAttestedNodeEntry",
+			Handler:    _DataStore_CreateAttestedNodeEntry_Handler,
+		},
+		{
+			MethodName: "FetchAttestedNodeEntry",
+			Handler:    _DataStore_FetchAttestedNodeEntry_Handler,
+		},
+		{
+			MethodName: "FetchStaleNodeEntries",
+			Handler:    _DataStore_FetchStaleNodeEntries_Handler,
+		},
+		{
+			MethodName: "UpdateAttestedNodeEntry",
+			Handler:    _DataStore_UpdateAttestedNodeEntry_Handler,
+		},
+		{
+			MethodName: "DeleteAttestedNodeEntry",
+			Handler:    _DataStore_DeleteAttestedNodeEntry_Handler,
+		},
+		{
+			MethodName: "CreateSelectorMapEntry",
+			Handler:    _DataStore_CreateSelectorMapEntry_Handler,
+		},
+		{
+			MethodName: "FetchSelectorMapEntry",
+			Handler:    _DataStore_FetchSelectorMapEntry_Handler,
+		},
+		{
+			MethodName: "DeleteSelectorMapEntry",
+			Handler:    _DataStore_DeleteSelectorMapEntry_Handler,
+		},
+		{
+			MethodName: "CreateRegistrationEntry",
+			Handler:    _DataStore_CreateRegistrationEntry_Handler,
+		},
+		{
+			MethodName: "FetchRegistrationEntry",
+			Handler:    _DataStore_FetchRegistrationEntry_Handler,
+		},
+		{
+			MethodName: "UpdateRegistrationEntry",
+			Handler:    _DataStore_UpdateRegistrationEntry_Handler,
+		},
+		{
+			MethodName: "DeleteRegistrationEntry",
+			Handler:    _DataStore_DeleteRegistrationEntry_Handler,
+		},
+		{
+			MethodName: "FetchGroupedRegistrationEntries",
+			Handler:    _DataStore_FetchGroupedRegistrationEntries_Handler,
+		},
+		{
+			MethodName: "ListAttestorEntries",
+			Handler:    _DataStore_ListAttestorEntries_Handler,
+		},
+		{
+			MethodName: "ListSelectorEntries",
+			Handler:    _DataStore_ListSelectorEntries_Handler,
+		},
+		{
+			MethodName: "ListSpiffeEntries",
+			Handler:    _DataStore_ListSpiffeEntries_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "plugins/data_store/proto/data_store.proto",
+}
+
+func init() { proto1.RegisterFile("plugins/data_store/proto/data_store.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 55 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xd2, 0x2c, 0xc8, 0x29, 0x4d,
-	0xcf, 0xcc, 0x2b, 0xd6, 0x4f, 0x49, 0x2c, 0x49, 0x8c, 0x2f, 0x2e, 0xc9, 0x2f, 0x4a, 0xd5, 0x2f,
-	0x28, 0xca, 0x2f, 0xc9, 0x47, 0x12, 0xd0, 0x03, 0x0b, 0x00, 0x02, 0x00, 0x00, 0xff, 0xff, 0x30,
-	0xfc, 0xc4, 0x59, 0x2b, 0x00, 0x00, 0x00,
+	// 752 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0x5d, 0x4b, 0x1b, 0x4d,
+	0x14, 0x66, 0x5d, 0xe3, 0xfb, 0x7a, 0xe2, 0x47, 0x9c, 0xc6, 0x24, 0x0a, 0xa5, 0xe9, 0x52, 0x8a,
+	0x8a, 0x68, 0xab, 0x37, 0x05, 0xb5, 0x62, 0xaa, 0x96, 0x62, 0xf5, 0x22, 0x69, 0x6f, 0x4a, 0xa1,
+	0x8c, 0xd9, 0xa3, 0x2e, 0xac, 0xc9, 0xb2, 0x3b, 0x81, 0xe6, 0xa6, 0xbf, 0xa2, 0xfd, 0x3d, 0xa5,
+	0xff, 0xac, 0xcc, 0x57, 0xd8, 0x99, 0xd9, 0xb5, 0x28, 0x5e, 0x25, 0x73, 0x72, 0x9e, 0xe7, 0x3c,
+	0xe7, 0x63, 0x4e, 0x06, 0xd6, 0x93, 0x78, 0x74, 0x1d, 0x0d, 0xb2, 0xed, 0x90, 0x32, 0xfa, 0x2d,
+	0x63, 0xc3, 0x14, 0xb7, 0x93, 0x74, 0xc8, 0x86, 0x39, 0xc3, 0x96, 0x30, 0x90, 0x8a, 0xf8, 0x08,
+	0x9e, 0x83, 0x7f, 0x86, 0x63, 0xb2, 0x0a, 0xff, 0x67, 0x49, 0x74, 0x75, 0x85, 0x1f, 0xc2, 0x96,
+	0xd7, 0xf6, 0xd6, 0x66, 0xbb, 0x93, 0x73, 0xb0, 0x0e, 0xd5, 0x23, 0xc6, 0x90, 0x83, 0x95, 0x2b,
+	0x55, 0x47, 0xed, 0xaa, 0xcf, 0xc1, 0x39, 0x54, 0x7b, 0x18, 0x63, 0x5f, 0xb9, 0x06, 0x30, 0x97,
+	0xa9, 0xe3, 0xa7, 0x71, 0x82, 0xca, 0xdd, 0xb0, 0x89, 0xc8, 0xea, 0xdc, 0x9a, 0x52, 0x91, 0xd5,
+	0x39, 0xd8, 0x84, 0xc6, 0xfb, 0x74, 0x38, 0x4a, 0x30, 0xec, 0xe2, 0x75, 0x94, 0xb1, 0x94, 0xb2,
+	0x68, 0x38, 0xe0, 0xcc, 0x04, 0xa6, 0xaf, 0x47, 0x91, 0xd6, 0x2a, 0xbe, 0x07, 0x09, 0x10, 0xe9,
+	0x86, 0x29, 0x86, 0x27, 0x03, 0x96, 0x8e, 0x1f, 0x41, 0x83, 0x51, 0x19, 0xdf, 0xaa, 0xcc, 0x1f,
+	0x0f, 0x16, 0xad, 0x90, 0x8f, 0x11, 0x6f, 0x52, 0x5e, 0xdf, 0x2c, 0xaf, 0xa1, 0x65, 0xda, 0xd4,
+	0x42, 0x6a, 0xe0, 0x33, 0x16, 0xb7, 0x2a, 0x6d, 0x6f, 0xad, 0xd2, 0xe5, 0x5f, 0xc9, 0x0b, 0x98,
+	0xd7, 0xac, 0xa2, 0x8a, 0xad, 0x19, 0x01, 0x31, 0x8d, 0xc1, 0x57, 0x58, 0x38, 0xc5, 0x10, 0x53,
+	0xca, 0x74, 0x06, 0x5b, 0x40, 0x52, 0xa7, 0x8e, 0x2a, 0x8f, 0x82, 0x5f, 0x0c, 0x55, 0x53, 0x6d,
+	0xdf, 0xa8, 0x10, 0x85, 0xc5, 0x09, 0x7b, 0x67, 0x34, 0x08, 0x63, 0xbc, 0x6b, 0xd4, 0x48, 0x1b,
+	0xaa, 0x2c, 0x1d, 0x65, 0x4c, 0xba, 0xaa, 0xda, 0xe4, 0x4d, 0x3a, 0x4d, 0x7f, 0x92, 0x66, 0xf0,
+	0x03, 0x6a, 0x7a, 0xe6, 0xce, 0x69, 0x22, 0x53, 0xd8, 0x80, 0x5a, 0x72, 0x33, 0xce, 0xa2, 0x3e,
+	0x8d, 0x7b, 0x66, 0x2c, 0xc7, 0xee, 0x34, 0x6c, 0xea, 0x1f, 0x0d, 0xf3, 0xad, 0x21, 0xfd, 0xed,
+	0xc1, 0x92, 0xbc, 0x1f, 0x18, 0x5e, 0x0c, 0x43, 0xbc, 0xbf, 0x82, 0x0d, 0xa8, 0x51, 0x45, 0x70,
+	0x4c, 0x19, 0xcd, 0xa9, 0x70, 0xec, 0xdc, 0xb7, 0x8f, 0x29, 0xeb, 0x61, 0x1a, 0xd1, 0xf8, 0x62,
+	0x74, 0x7b, 0x89, 0x5a, 0x91, 0x63, 0x27, 0x2f, 0x61, 0x81, 0xdb, 0x4e, 0xbe, 0x27, 0x91, 0xbc,
+	0x39, 0x62, 0x68, 0x2a, 0x5d, 0xcb, 0x1a, 0xfc, 0xf4, 0x80, 0xe4, 0x33, 0xf8, 0x9c, 0x84, 0x94,
+	0xe1, 0x7d, 0x53, 0x78, 0x74, 0x59, 0x07, 0x30, 0x9f, 0x57, 0x95, 0x91, 0x4d, 0x98, 0x8e, 0xa3,
+	0x8c, 0xb5, 0xbc, 0xb6, 0xbf, 0x56, 0xdd, 0x69, 0xc9, 0x45, 0xb6, 0xe5, 0xd4, 0xbe, 0x2b, 0xbc,
+	0x82, 0x03, 0xa8, 0x19, 0x83, 0x1d, 0x61, 0x46, 0xd6, 0x0d, 0x86, 0x65, 0xc5, 0x60, 0xce, 0xbf,
+	0x82, 0x1f, 0xc2, 0x92, 0x79, 0xb5, 0x39, 0x7e, 0xc3, 0xc0, 0x37, 0x14, 0xde, 0x5a, 0x01, 0x8a,
+	0xe0, 0x3f, 0xa8, 0x9c, 0xdc, 0x26, 0x6c, 0xbc, 0xf3, 0x0b, 0x60, 0x96, 0xf7, 0xaf, 0xc7, 0xb7,
+	0x2f, 0xd9, 0x87, 0xfa, 0xbb, 0x14, 0x29, 0x43, 0xeb, 0xd6, 0x35, 0x6c, 0x31, 0x72, 0xe0, 0x57,
+	0xe7, 0x94, 0x5d, 0x70, 0x91, 0x3d, 0x20, 0x1f, 0xa3, 0x8c, 0x59, 0x58, 0xc3, 0x67, 0xb5, 0x59,
+	0x94, 0x16, 0x57, 0xbf, 0x0f, 0x75, 0xd9, 0xda, 0x07, 0x85, 0x7e, 0x05, 0xf5, 0x63, 0x8c, 0xd1,
+	0x41, 0x83, 0xf2, 0x3a, 0xc3, 0xb1, 0x85, 0x38, 0x82, 0xa6, 0x4c, 0xd5, 0xbd, 0x1e, 0xa5, 0xcd,
+	0xb3, 0x28, 0xde, 0x42, 0xe3, 0x14, 0x59, 0xff, 0xc6, 0x65, 0xc8, 0x87, 0x2d, 0x65, 0x23, 0x7b,
+	0xb0, 0x2c, 0xf0, 0x3d, 0x46, 0x63, 0xd4, 0x66, 0x5e, 0x0b, 0xb3, 0x64, 0xf5, 0x02, 0x82, 0x8c,
+	0x74, 0xa0, 0x29, 0xeb, 0xe5, 0xf2, 0xae, 0x14, 0x00, 0xa4, 0xaf, 0x95, 0xc0, 0x2e, 0x34, 0x65,
+	0xd5, 0xee, 0xce, 0xc0, 0x04, 0x1d, 0x42, 0x43, 0x16, 0xce, 0x59, 0x6c, 0xba, 0xb7, 0xf6, 0x0f,
+	0x16, 0xc1, 0x6b, 0x9d, 0xb6, 0x8d, 0xbf, 0x33, 0xa6, 0x14, 0xfa, 0xd0, 0x98, 0x87, 0xba, 0xdb,
+	0xf9, 0xff, 0x6a, 0x73, 0xc0, 0xac, 0x8b, 0x62, 0x11, 0x9c, 0xa9, 0x5e, 0xbb, 0xf8, 0x95, 0x62,
+	0x3c, 0x4f, 0xa2, 0x84, 0x9a, 0xab, 0x91, 0xfd, 0x78, 0xa8, 0x9a, 0x8e, 0x6e, 0xdc, 0xbd, 0xe4,
+	0x98, 0x1c, 0x5f, 0xe0, 0x99, 0xc8, 0xa8, 0xe0, 0x11, 0xa3, 0xe7, 0xf0, 0xa9, 0x02, 0x14, 0xbf,
+	0x73, 0x26, 0x93, 0xed, 0xae, 0xa2, 0x0e, 0x3c, 0xe1, 0x9b, 0x40, 0xbf, 0xcc, 0xb4, 0x99, 0x18,
+	0x83, 0x29, 0x9e, 0x61, 0xe5, 0x0b, 0x41, 0x71, 0xe8, 0xc6, 0xda, 0x1c, 0xb9, 0xa7, 0x5c, 0x39,
+	0xc7, 0x1b, 0x58, 0x12, 0x1c, 0xe2, 0x9f, 0x40, 0x1b, 0xf3, 0x63, 0x56, 0x86, 0xbc, 0x9c, 0x11,
+	0xf6, 0xdd, 0xbf, 0x01, 0x00, 0x00, 0xff, 0xff, 0x06, 0x8c, 0xba, 0x69, 0xb5, 0x0a, 0x00, 0x00,
 }

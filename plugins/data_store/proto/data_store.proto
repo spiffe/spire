@@ -1,0 +1,107 @@
+syntax = "proto3";
+package proto;
+
+message Key {
+    string spiffeId = 1;
+}
+
+message AttestorKey {
+    string attestor = 1;
+}
+
+message SelectorKey {
+    string selectorType = 1;
+    string selector = 2;
+}
+
+message GroupedRegistrationKey {
+    string guid = 1;
+}
+
+message RegisteredEntryKey {
+    string selectorType = 1;
+    string selector = 2;
+    string spiffeId = 3;
+}
+
+message RegisteredEntry {
+    string selectorType = 1;
+    string selector = 2;
+    string attestor = 3;
+    string spiffeId = 4;
+    int32 ttl = 5;
+    string selectorGroup = 6;
+}
+
+message FederatedEntry {
+    string registeredEntryKey = 1;
+    repeated string spiffeId = 2;
+}
+
+message FederatedBundle {
+    string spiffeId = 1;
+    string trustBundle = 2;
+    int32 ttl = 3;
+}
+
+message SelectorMapEntry {
+    string physicalSpiffeId = 1;
+    string selectorType = 2;
+    string selector = 3;
+}
+
+message AttestedNodeEntry {
+    string physicalSpiffeId = 1;
+    string attestedDataType = 2;
+    string certSerialNumber = 3;
+    int32 certExpiration = 4;
+}
+
+message AttestedNodeUpdate {
+    string physicalSpiffeId = 1;
+    string certSerialNumber = 3;
+    int32 certExpiration = 4;
+}
+
+message AttestedNodes {
+    repeated AttestedNodeEntry list = 1;
+}
+
+message FederatedEntries {
+    repeated FederatedEntry list = 1;
+}
+
+message RegisteredEntries {
+    repeated RegisteredEntry list = 1;
+}
+
+message Empty { }
+
+
+service DataStore {
+    rpc CreateFederatedEntry(FederatedBundle) returns (Empty);
+    rpc ListFederatedEntry(Empty) returns (FederatedEntries);
+    rpc UpdateFederatedEntry(FederatedBundle) returns (Empty);
+    rpc DeleteFederatedEntry(Key) returns (Empty);
+
+    rpc CreateAttestedNodeEntry(AttestedNodeEntry) returns (Empty);
+    rpc FetchAttestedNodeEntry(Key) returns (AttestedNodeEntry);
+    rpc FetchStaleNodeEntries(Empty) returns (AttestedNodes);
+    rpc UpdateAttestedNodeEntry(AttestedNodeUpdate) returns (Empty);
+    rpc DeleteAttestedNodeEntry(Key) returns (Empty);
+
+    rpc CreateSelectorMapEntry(SelectorMapEntry) returns (Empty);
+    rpc FetchSelectorMapEntry(Key) returns (Empty);
+    rpc DeleteSelectorMapEntry(SelectorMapEntry) returns (Empty);
+
+    rpc CreateRegistrationEntry(RegisteredEntry) returns (Empty);
+    rpc FetchRegistrationEntry(RegisteredEntryKey) returns (RegisteredEntry);
+    rpc UpdateRegistrationEntry(RegisteredEntry) returns (Empty);
+    rpc DeleteRegistrationEntry(RegisteredEntryKey) returns (Empty);
+
+    rpc FetchGroupedRegistrationEntries(GroupedRegistrationKey) returns (RegisteredEntries);
+
+    rpc ListAttestorEntries(AttestorKey) returns (FederatedEntries);
+    rpc ListSelectorEntries(SelectorKey) returns (FederatedEntries);
+    rpc ListSpiffeEntries(Key) returns (FederatedEntries);
+}
