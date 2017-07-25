@@ -23,7 +23,7 @@ var PluginMap = map[string]plugin.Plugin{
 }
 
 type NodeAttestor interface {
-	FetchAttestationData(request proto.FetchAttestationDataRequest) (proto.FetchAttestationDataResponse, error)
+	FetchAttestationData() ([]byte, error)
 	Configure(config string) error
 }
 

@@ -10,8 +10,8 @@ type GRPCServer struct {
 }
 
 func (m *GRPCServer) FetchAttestationData(ctx context.Context, req *proto.FetchAttestationDataRequest) (*proto.FetchAttestationDataResponse, error) {
-	response, err := m.NodeAttestorImpl.FetchAttestationData(proto.FetchAttestationDataRequest{})
-	return &proto.FetchAttestationDataResponse{AttestationData: response.AttestationData}, err
+	attestationData, err := m.NodeAttestorImpl.FetchAttestationData()
+	return &proto.FetchAttestationDataResponse{AttestationData: attestationData}, err
 }
 
 func (m *GRPCServer) Configure(ctx context.Context, req *proto.ConfigureRequest) (*proto.Empty, error) {
