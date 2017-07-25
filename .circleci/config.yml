@@ -9,11 +9,11 @@ jobs:
       - restore_cache:
           key: v1-control-plane-{{ checksum "build_setup.sh" }}
       - run: ./build_setup.sh
-      - run: make generate_all_pb
+      - run: make build
       - save_cache:
           key: v1-control-plane-{{ checksum "build_setup.sh" }}
           paths:
             - .cache
 
 
-      
+
