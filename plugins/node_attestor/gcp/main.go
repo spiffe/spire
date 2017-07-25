@@ -5,13 +5,13 @@ import (
 	"github.com/spiffe/node-agent/plugins/node_attestor"
 )
 
-type AwsPlugin struct{}
+type GcpPlugin struct{}
 
-func (AwsPlugin) FetchAttestationData() (attestationData []byte, err error) {
+func (GcpPlugin) FetchAttestationData() (attestationData []byte, err error) {
 	return []byte{}, nil
 }
 
-func (AwsPlugin) Configure(configuration string) error {
+func (GcpPlugin) Configure(configuration string) error {
 	return nil
 }
 
@@ -19,7 +19,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: nodeattestor.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"nodeattestor": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: &AwsPlugin{}},
+			"nodeattestor": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: &GcpPlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

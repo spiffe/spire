@@ -8,6 +8,7 @@ endif
 build: generate_all_pb
 	go build -o ./nodeagent ./node_agent/node_agent.go
 	go build -o ./plugins/node_attestor_aws ./plugins/node_attestor/aws/main.go
+	go build -o ./plugins/node_attestor_gcp ./plugins/node_attestor/gcp/main.go
 	go build -o ./plugins/key_manager_memory ./plugins/key_manager/memory/memory.go
 	go build -o ./plugins/node_attestor_secret_file ./plugins/node_attestor/secret_file/secret_file.go
 	go build -o ./plugins/workload_attestor_secret_file ./plugins/workload_attestor/secret_file/secret_file.go
