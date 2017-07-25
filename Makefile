@@ -1,4 +1,9 @@
+ifdef CI
+SHELL := /bin/bash
 export PATH := .build/go/bin:.build/protobuf/bin:.build/bin:$(PATH)
+export GOROOT := $(PWD)/.build/go
+export GOPATH := $(PWD)/.build
+endif
 
 build: generate_all_pb
 	go build -o ./nodeagent ./node_agent/node_agent.go
