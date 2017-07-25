@@ -7,6 +7,13 @@ message FetchAttestationDataResponse {
     bytes attestationData = 1;
 }
 
+message ConfigureRequest {
+    string configuration = 1;
+}
+
+message Empty { }
+
 service NodeAttestor {
     rpc FetchAttestationData(FetchAttestationDataRequest) returns (FetchAttestationDataResponse);
+    rpc Configure(ConfigureRequest) returns (Empty);
 }
