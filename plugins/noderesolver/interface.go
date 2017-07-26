@@ -1,16 +1,14 @@
 package noderesolver
 
-
 import (
-"net/rpc"
+	"net/rpc"
 
-"google.golang.org/grpc"
+	"google.golang.org/grpc"
 
-"github.com/hashicorp/go-plugin"
-"github.com/spiffe/control-plane/plugins/noderesolver/proto"
-"github.com/golang/protobuf/ptypes/empty"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/hashicorp/go-plugin"
+	"github.com/spiffe/control-plane/plugins/noderesolver/proto"
 )
-
 
 // Handshake is a common handshake that is shared between noderesolution and host.
 var Handshake = plugin.HandshakeConfig{
@@ -25,10 +23,9 @@ var PluginMap = map[string]plugin.Plugin{
 }
 
 type NodeResolution interface {
-	Resolve([] string) (map[string]*proto.NodeResolutionList, error)
+	Resolve([]string) (map[string]*proto.NodeResolutionList, error)
 	Configure(config string) error
 }
-
 
 type NodeResolutionPlugin struct {
 	NodeResolutionImpl NodeResolution
@@ -43,7 +40,7 @@ func (p NodeResolutionPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interf
 }
 
 func (p NodeResolutionPlugin) GRPCServer(s *grpc.Server) error {
-	proto.RegisterNodeServer(s,&GRPCServer{NodeResolutionImpl:p.NodeResolutionImpl})
+	proto.RegisterNodeServer(s, &GRPCServer{NodeResolutionImpl: p.NodeResolutionImpl})
 	return nil
 }
 
