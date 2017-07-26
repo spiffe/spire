@@ -19,9 +19,14 @@ message ResolveResponse {
     map<string, NodeResolutionList> map = 1;
 }
 
+message ConfigureRequest {
+    string configuration = 1;
+}
+message Empty{}
 
 service node {
     rpc Resolve(ResolveRequest) returns (ResolveResponse);
+    rpc Configure(ConfigureRequest) returns (Empty);
 }
 
 

@@ -3,7 +3,11 @@ import:
 - package: github.com/golang/protobuf
   subpackages:
   - proto
+  - ptypes/empty
+- package: github.com/hashicorp/go-plugin
 - package: golang.org/x/net
   subpackages:
   - context
 - package: google.golang.org/grpc
+  version: ^1.5.0
+- package: github.com/hashicorp/go-plugin
