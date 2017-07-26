@@ -5,8 +5,6 @@ export GOROOT := $(HOME)/golang
 export GOPATH := $(HOME)/go
 endif
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 BUILD_DIRS = control_plane $(shell find plugins/*/* -maxdepth 1 -type d -not -name 'proto')
 BINARIES = $(foreach d,$(BUILD_DIRS),$(d)/$(notdir $(d)))
 
