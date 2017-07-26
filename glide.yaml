@@ -1,4 +1,4 @@
-package: .
+package: github.com/spiffe/node-agent
 import:
 - package: github.com/golang/protobuf
   subpackages:
