@@ -3,7 +3,7 @@ version: 2
 jobs:
   build:
     machine: true
-    working_directory: ~/node-agent
+    working_directory: ~/go/src/github.com/spiffe/node-agent
     steps:
       - checkout
       - restore_cache:
