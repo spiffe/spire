@@ -5,20 +5,38 @@ export GOROOT := $(HOME)/golang
 export GOPATH := $(HOME)/go
 endif
 
-build: generate_pb
-	glide install
-	go build -o ./nodeagent ./node_agent/node_agent.go
-	go build -o ./plugins/node_attestor_aws ./plugins/node_attestor/aws/aws.go
-	go build -o ./plugins/node_attestor_gcp ./plugins/node_attestor/gcp/gcp.go
-	go build -o ./plugins/key_manager_memory ./plugins/key_manager/memory/memory.go
-	go build -o ./plugins/node_attestor_secret_file ./plugins/node_attestor/secret_file/secret_file.go
-	go build -o ./plugins/workload_attestor_secret_file ./plugins/workload_attestor/secret_file/secret_file.go
+BUILD_DIRS = node_agent $(shell find plugins/*/* -maxdepth 1 -type d -not -name 'proto')
+BINARIES = $(foreach d,$(BUILD_DIRS),$(d)/$(notdir $(d)))
 
-generate_pb:
-	protoc ./api/workload/*.proto --go_out=plugins=grpc:.
-	protoc ./plugins/key_manager/proto/*.proto --go_out=plugins=grpc:.
-	protoc ./plugins/node_attestor/proto/*.proto --go_out=plugins=grpc:.
-	protoc ./plugins/workload_attestor/proto/*.proto --go_out=plugins=grpc:.
+PROTOBUF_SRC = $(shell find plugins api -name '*.proto')
+PROTOBUF_GO = $(foreach p,$(PROTOBUF_SRC:.proto=),$(p).pb.go)
 
+all: build
+
+setup:
+	./build_setup.sh
+
+build: deps protobuf binaries
+
+deps:
+	glide --home .cache install
+
+protobuf: $(PROTOBUF_GO)
+$(PROTOBUF_GO): %.pb.go: %.proto
+	protoc $(@:.pb.go=.proto) --go_out=plugins=grpc:.
+
+binaries: $(BINARIES)
+$(BINARIES): %: %.go
+	go build -o $(@) $(@).go
+
+# PATH=PATH is to get around a gmake issue
 test:
-	go test -v ./...
+	go test -v $(shell PATH=$(PATH); glide novendor)
+
+clean:
+	rm -f $(BINARIES) $(PROTOBUF_GO)
+
+distclean: clean
+	rm -rf .cache .build 
+
+.PHONY: clean distclean build protobuf binaries setup deps

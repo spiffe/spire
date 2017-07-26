@@ -7,10 +7,11 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: v1-node-agent-{{ checksum "build_setup.sh" }}
-      - run: ./build_setup.sh
+          key: v1-{{ checksum "build_setup.sh" }}{{ checksum "glide.lock" }}
+      - run: make setup
       - run: make build
+      - run: make test
       - save_cache:
-          key: v1-node-agent-{{ checksum "build_setup.sh" }}
+          key: v1-{{ checksum "build_setup.sh" }}{{ checksum "glide.lock" }}
           paths:
             - .cache
