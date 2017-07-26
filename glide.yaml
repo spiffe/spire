@@ -1,0 +1,22 @@
+package: github.com/spiffe/node-agent
+import:
+- package: github.com/golang/protobuf
+  subpackages:
+  - proto
+  - ptypes/empty
+- package: github.com/hashicorp/go-plugin
+- package: github.com/spiffe/node-agent
+  subpackages:
+  - plugins/node_attestor
+  - plugins/node_attestor/proto
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  version: ~1.5.0
+testImport:
+- package: github.com/stretchr/testify
+  version: ~1.1.4
+  subpackages:
+  - assert
+  - mock
