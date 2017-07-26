@@ -6,7 +6,6 @@ import (
 	"github.com/spiffe/control-plane/plugins/noderesolver/proto"
 )
 
-
 func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: noderesolver.Handshake,

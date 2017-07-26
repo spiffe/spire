@@ -2,7 +2,6 @@ package main_test
 
 import "testing"
 
-
 func TestNoOp_Resolve(t *testing.T) {
 }
 
