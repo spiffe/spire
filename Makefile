@@ -1,23 +1,42 @@
 ifdef CI
 SHELL := /bin/bash
-export PATH := .build/go/bin:.build/protobuf/bin:.build/bin:$(PATH)
-export GOROOT := $(PWD)/.build/go
-export GOPATH := $(PWD)/.build
+export PATH := $(HOME)/golang/bin:$(HOME)/protobuf/bin:$(HOME)/go/bin:$(HOME)/glide/bin:$(PATH)
+export GOROOT := $(HOME)/golang
+export GOPATH := $(HOME)/go
 endif
 
-build: generate_all_pb
-	go build -o ./controlplane ./control_plane/control_plane.go
-	go build -o ./plugins/control_plane_ca_memory ./plugins/control_plane_ca/memory/memory.go
-	go build -o ./plugins/data_store_sqlite ./plugins/data_store/sqlite/sqlite.go
-	go build -o ./plugins/node_attestor_secret_file ./plugins/node_attestor/secret_file/secret_file.go
-	go build -o ./plugins/node_resolution_noop ./plugins/node_resolution/noop/noop.go
-	go build -o ./plugins/upstream_ca_memory ./plugins/upstream_ca/memory/memory.go
+BUILD_DIRS = control_plane $(shell find plugins/*/* -maxdepth 1 -type d -not -name 'proto')
+BINARIES = $(foreach d,$(BUILD_DIRS),$(d)/$(notdir $(d)))
 
-generate_all_pb:
-	protoc ./api/node/*.proto --go_out=plugins=grpc:.
-	protoc ./api/registration/*.proto --go_out=plugins=grpc:.
-	protoc ./plugins/control_plane_ca/proto/*.proto --go_out=plugins=grpc:.
-	protoc ./plugins/data_store/proto/*.proto --go_out=plugins=grpc:.
-	protoc ./plugins/node_attestor/proto/*.proto --go_out=plugins=grpc:.
-	protoc ./plugins/node_resolution/proto/*.proto --go_out=plugins=grpc:.
-	protoc ./plugins/upstream_ca/proto/*.proto --go_out=plugins=grpc:.
+PROTOBUF_SRC = $(shell find plugins api -name '*.proto')
+PROTOBUF_GO = $(foreach p,$(PROTOBUF_SRC:.proto=),$(p).pb.go)
+
+all: build
+
+setup:
+	./build_setup.sh
+
+build: deps protobuf binaries
+
+deps:
+	glide --home .cache install
+
+protobuf: $(PROTOBUF_GO)
+$(PROTOBUF_GO): %.pb.go: %.proto
+	protoc $(@:.pb.go=.proto) --go_out=plugins=grpc:.
+
+binaries: $(BINARIES)
+$(BINARIES): %: %.go
+	go build -o $(@) $(@).go
+
+# PATH=PATH is to get around a gmake issue
+test:
+	go test -v $(shell PATH=$(PATH); glide novendor)
+
+clean:
+	rm -f $(BINARIES) $(PROTOBUF_GO)
+
+distclean: clean
+	rm -rf .cache .build 
+
+.PHONY: clean distclean build protobuf binaries setup deps

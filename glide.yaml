@@ -1,0 +1,9 @@
+package: github.com/spiffe/control-plane
+import:
+- package: github.com/golang/protobuf
+  subpackages:
+  - proto
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
