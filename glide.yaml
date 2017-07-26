@@ -3,6 +3,11 @@ import:
 - package: github.com/golang/protobuf
   subpackages:
   - proto
+<<<<<<< HEAD
+=======
+  - ptypes/empty
+- package: github.com/hashicorp/go-plugin
+>>>>>>> 1341f9a... add glide for control plane
 - package: golang.org/x/net
   subpackages:
   - context
