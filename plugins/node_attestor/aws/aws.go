@@ -1,4 +1,4 @@
-package main
+package aws
 
 import (
 	"github.com/hashicorp/go-plugin"

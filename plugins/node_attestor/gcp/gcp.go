@@ -1,4 +1,4 @@
-package main
+package gcp
 
 import (
 	"github.com/hashicorp/go-plugin"
