@@ -10,3 +10,4 @@ import:
   - context
 - package: google.golang.org/grpc
   version: ^1.5.0
+- package: github.com/hashicorp/go-plugin
