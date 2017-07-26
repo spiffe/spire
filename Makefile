@@ -1,11 +1,12 @@
 ifdef CI
 SHELL := /bin/bash
-export PATH := .build/go/bin:.build/protobuf/bin:.build/bin:$(PATH)
-export GOROOT := $(PWD)/.build/go
-export GOPATH := $(PWD)/.build
+export PATH := $(HOME)/golang/bin:$(HOME)/protobuf/bin:$(HOME)/go/bin:$(HOME)/glide/bin:$(PATH)
+export GOROOT := $(HOME)/golang
+export GOPATH := $(HOME)/go
 endif
 
 build: generate_pb
+	glide install
 	go build -o ./nodeagent ./node_agent/node_agent.go
 	go build -o ./plugins/node_attestor_aws ./plugins/node_attestor/aws/aws.go
 	go build -o ./plugins/node_attestor_gcp ./plugins/node_attestor/gcp/gcp.go
