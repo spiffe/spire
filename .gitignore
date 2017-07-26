@@ -1,3 +1,11 @@
 .artifacts
 .cache
 .build
+/vendor
+
+control_plane/control_plane
+plugins/control_plane_ca/memory/memory
+plugins/data_store/sqlite/sqlite
+plugins/node_attestor/secret_file/secret_file
+plugins/noderesolver/noop/noop
+plugins/upstream_ca/memory/memory
