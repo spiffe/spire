@@ -31,7 +31,16 @@ $(BINARIES): %: %.go
 
 # PATH=PATH is to get around a gmake issue
 test:
+ifdef CI
+	mkdir -p .test_results/junit .test_results/coverage
+	go test -v $(shell PATH=$(PATH); glide novendor) | go-junit-report > .test_results/junit/report.xml
+	gocovermerge -coverprofile=.test_results/coverage/cover.out test -covermode=count $(shell PATH=$(PATH); glide novendor)
+ifdef COVERALLS_TOKEN
+	goveralls -coverprofile=.test_results/coverage/cover.out -service=circle-ci -repotoken=$(COVERALLS_TOKEN)
+endif
+else
 	go test -v $(shell PATH=$(PATH); glide novendor)
+endif
 
 clean:
 	rm -f $(BINARIES) $(PROTOBUF_GO)
