@@ -22,7 +22,7 @@ It has these top-level messages:
 	FetchCPBundleRequest
 	FetchCPBundleResponse
 */
-package proto
+package pb
 
 import proto1 "github.com/golang/protobuf/proto"
 import fmt "fmt"

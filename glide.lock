@@ -1,6 +1,16 @@
 hash: 52c05a28e9902977859645196d085c85c3a560bf9e99061bea535db006890ce5
-updated: 2017-07-26T15:25:31.0464417-07:00
+updated: 2017-07-27T10:57:05.5249628-07:00
 imports:
+- name: github.com/go-kit/kit
+  version: 19463ea8b215413a29c3513aa3a76181f4bac58d
+  subpackages:
+  - endpoint
+  - log
+  - transport/grpc
+- name: github.com/go-logfmt/logfmt
+  version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
+- name: github.com/go-stack/stack
+  version: 817915b46b97fd7bb80e8ab6b69f01a53ac3eebf
 - name: github.com/golang/protobuf
   version: 748d386b5c1ea99658fd69fe9f03991ce86a90c1
   subpackages:
@@ -13,6 +23,8 @@ imports:
   version: 4e5a3725c607a756be8d35bf3a521c0f9c422666
 - name: github.com/hashicorp/yamux
   version: d1caa6c97c9fc1cc9e83bbe34d0603f9ff0ce8bd
+- name: github.com/kr/logfmt
+  version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/mitchellh/go-testing-interface
   version: e1449340a7b207d8ca90d41466272ece75cbb5b5
 - name: golang.org/x/net
@@ -37,7 +49,7 @@ imports:
   subpackages:
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 172ccacff3cfbddedcf1ba5ea06cda943bc976c1
+  version: b8669c35455183da6d5c474ea6e72fbf55183274
   subpackages:
   - codes
   - credentials
