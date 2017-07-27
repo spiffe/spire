@@ -2,6 +2,7 @@
 .cache
 .build
 /vendor
+.test_results
 
 node_agent/node_agent
 plugins/key_manager/memory/memory

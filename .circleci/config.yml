@@ -11,6 +11,8 @@ jobs:
       - run: make setup
       - run: make build
       - run: make test
+      - store_test_results:
+          path: .test_results
       - save_cache:
           key: v1-{{ checksum "build_setup.sh" }}{{ checksum "glide.lock" }}
           paths:

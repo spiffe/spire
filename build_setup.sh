@@ -39,5 +39,9 @@ mkdir -p $HOME/go/src
 export GOPATH=$HOME/go
 export GOROOT=$HOME/golang
 export PATH=$GOROOT/bin:$HOME/glide/bin:$HOME/protobuf/bin:$PATH
+
 go get github.com/golang/protobuf/protoc-gen-go
+go get github.com/jstemmer/go-junit-report
+go get github.com/AlekSi/gocovermerge
+go get github.com/mattn/goveralls
 
