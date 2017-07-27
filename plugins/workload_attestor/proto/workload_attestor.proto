@@ -6,9 +6,16 @@ message AttestRequest {
 }
 
 message AttestResponse {
-    repeated string selector = 1;
+    repeated string selectors = 1;
 }
+
+message ConfigureRequest {
+    string configuration = 1;
+}
+
+message Empty { }
 
 service WorkloadAttestor {
     rpc Attest(AttestRequest) returns (AttestResponse);
+    rpc Configure(ConfigureRequest) returns (Empty);
 }
