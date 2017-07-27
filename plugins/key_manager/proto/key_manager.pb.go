@@ -10,6 +10,8 @@ It is generated from these files:
 It has these top-level messages:
 	GenerateKeyPairRequest
 	GenerateKeyPairResponse
+	ConfigureRequest
+	Empty
 */
 package proto
 
@@ -57,9 +59,35 @@ func (m *GenerateKeyPairResponse) GetPublicKey() []byte {
 	return nil
 }
 
+type ConfigureRequest struct {
+	Configuration string `protobuf:"bytes,1,opt,name=configuration" json:"configuration,omitempty"`
+}
+
+func (m *ConfigureRequest) Reset()                    { *m = ConfigureRequest{} }
+func (m *ConfigureRequest) String() string            { return proto1.CompactTextString(m) }
+func (*ConfigureRequest) ProtoMessage()               {}
+func (*ConfigureRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
+func (m *ConfigureRequest) GetConfiguration() string {
+	if m != nil {
+		return m.Configuration
+	}
+	return ""
+}
+
+type Empty struct {
+}
+
+func (m *Empty) Reset()                    { *m = Empty{} }
+func (m *Empty) String() string            { return proto1.CompactTextString(m) }
+func (*Empty) ProtoMessage()               {}
+func (*Empty) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+
 func init() {
 	proto1.RegisterType((*GenerateKeyPairRequest)(nil), "proto.GenerateKeyPairRequest")
 	proto1.RegisterType((*GenerateKeyPairResponse)(nil), "proto.GenerateKeyPairResponse")
+	proto1.RegisterType((*ConfigureRequest)(nil), "proto.ConfigureRequest")
+	proto1.RegisterType((*Empty)(nil), "proto.Empty")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -74,6 +102,7 @@ const _ = grpc.SupportPackageIsVersion4
 
 type KeyManagerClient interface {
 	GenerateKeyPair(ctx context.Context, in *GenerateKeyPairRequest, opts ...grpc.CallOption) (*GenerateKeyPairResponse, error)
+	Configure(ctx context.Context, in *ConfigureRequest, opts ...grpc.CallOption) (*Empty, error)
 }
 
 type keyManagerClient struct {
@@ -93,10 +122,20 @@ func (c *keyManagerClient) GenerateKeyPair(ctx context.Context, in *GenerateKeyP
 	return out, nil
 }
 
+func (c *keyManagerClient) Configure(ctx context.Context, in *ConfigureRequest, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := grpc.Invoke(ctx, "/proto.KeyManager/Configure", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for KeyManager service
 
 type KeyManagerServer interface {
 	GenerateKeyPair(context.Context, *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
+	Configure(context.Context, *ConfigureRequest) (*Empty, error)
 }
 
 func RegisterKeyManagerServer(s *grpc.Server, srv KeyManagerServer) {
@@ -121,6 +160,24 @@ func _KeyManager_GenerateKeyPair_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _KeyManager_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfigureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KeyManagerServer).Configure(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.KeyManager/Configure",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KeyManagerServer).Configure(ctx, req.(*ConfigureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _KeyManager_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.KeyManager",
 	HandlerType: (*KeyManagerServer)(nil),
@@ -128,6 +185,10 @@ var _KeyManager_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GenerateKeyPair",
 			Handler:    _KeyManager_GenerateKeyPair_Handler,
+		},
+		{
+			MethodName: "Configure",
+			Handler:    _KeyManager_Configure_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -137,15 +198,19 @@ var _KeyManager_serviceDesc = grpc.ServiceDesc{
 func init() { proto1.RegisterFile("plugins/key_manager/proto/key_manager.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 155 bytes of a gzipped FileDescriptorProto
+	// 216 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xd2, 0x2e, 0xc8, 0x29, 0x4d,
 	0xcf, 0xcc, 0x2b, 0xd6, 0xcf, 0x4e, 0xad, 0x8c, 0xcf, 0x4d, 0xcc, 0x4b, 0x4c, 0x4f, 0x2d, 0xd2,
 	0x2f, 0x28, 0xca, 0x2f, 0xc9, 0x47, 0x16, 0xd1, 0x03, 0x8b, 0x08, 0xb1, 0x82, 0x29, 0x25, 0x09,
 	0x2e, 0x31, 0xf7, 0xd4, 0xbc, 0xd4, 0xa2, 0xc4, 0x92, 0x54, 0xef, 0xd4, 0xca, 0x80, 0xc4, 0xcc,
 	0xa2, 0xa0, 0xd4, 0xc2, 0xd2, 0xd4, 0xe2, 0x12, 0x25, 0x73, 0x2e, 0x71, 0x0c, 0x99, 0xe2, 0x82,
 	0xfc, 0xbc, 0xe2, 0x54, 0x21, 0x19, 0x2e, 0xce, 0x82, 0xd2, 0xa4, 0x9c, 0xcc, 0x64, 0xef, 0xd4,
-	0x4a, 0x09, 0x46, 0x05, 0x46, 0x0d, 0x9e, 0x20, 0x84, 0x80, 0x51, 0x1c, 0x17, 0x97, 0x77, 0x6a,
-	0xa5, 0x2f, 0xc4, 0x36, 0xa1, 0x00, 0x2e, 0x7e, 0x34, 0x63, 0x84, 0x64, 0x21, 0x4e, 0xd0, 0xc3,
-	0x6e, 0xb1, 0x94, 0x1c, 0x2e, 0x69, 0x88, 0xed, 0x49, 0x6c, 0x60, 0x69, 0x63, 0x40, 0x00, 0x00,
-	0x00, 0xff, 0xff, 0x48, 0xbf, 0x8a, 0x3f, 0xef, 0x00, 0x00, 0x00,
+	0x4a, 0x09, 0x46, 0x05, 0x46, 0x0d, 0x9e, 0x20, 0x84, 0x80, 0x92, 0x05, 0x97, 0x80, 0x73, 0x7e,
+	0x5e, 0x5a, 0x66, 0x7a, 0x69, 0x51, 0x2a, 0xd4, 0x30, 0x21, 0x15, 0x2e, 0xde, 0x64, 0xa8, 0x58,
+	0x62, 0x49, 0x66, 0x7e, 0x1e, 0x58, 0x17, 0x67, 0x10, 0xaa, 0xa0, 0x12, 0x3b, 0x17, 0xab, 0x6b,
+	0x6e, 0x41, 0x49, 0xa5, 0xd1, 0x24, 0x46, 0x2e, 0x2e, 0xef, 0xd4, 0x4a, 0x5f, 0x88, 0x8b, 0x85,
+	0x02, 0xb8, 0xf8, 0xd1, 0x9c, 0x22, 0x24, 0x0b, 0xf1, 0x86, 0x1e, 0x76, 0xc7, 0x4b, 0xc9, 0xe1,
+	0x92, 0x86, 0xfa, 0xc0, 0x88, 0x8b, 0x13, 0xee, 0x46, 0x21, 0x71, 0xa8, 0x62, 0x74, 0x57, 0x4b,
+	0xf1, 0x40, 0x25, 0xc0, 0x8e, 0x4a, 0x62, 0x03, 0x73, 0x8c, 0x01, 0x01, 0x00, 0x00, 0xff, 0xff,
+	0xb8, 0xba, 0x2e, 0x30, 0x67, 0x01, 0x00, 0x00,
 }
