@@ -9,6 +9,7 @@ import:
   subpackages:
   - context
 - package: google.golang.org/grpc
+- package: github.com/go-kit/kit
 testImport:
 - package: github.com/stretchr/testify
   subpackages:
