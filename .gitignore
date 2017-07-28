@@ -2,6 +2,7 @@
 .cache
 .build
 /vendor
+.test_results
 
 control_plane/control_plane
 plugins/control_plane_ca/memory/memory
