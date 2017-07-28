@@ -3,11 +3,11 @@ package noderesolver
 import (
 	"net/rpc"
 
-	"google.golang.org/grpc"
-
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	common "github.com/spiffe/control-plane/plugins/common/proto"
 	"github.com/spiffe/control-plane/plugins/noderesolver/proto"
+	"google.golang.org/grpc"
 )
 
 // Handshake is a common handshake that is shared between noderesolution and host.
@@ -23,8 +23,9 @@ var PluginMap = map[string]plugin.Plugin{
 }
 
 type NodeResolution interface {
+	Configure(config string) ([]string, error)
+	GetPluginInfo() (*common.GetPluginInfoResponse, error)
 	Resolve([]string) (map[string]*proto.NodeResolutionList, error)
-	Configure(config string) error
 }
 
 type NodeResolutionPlugin struct {

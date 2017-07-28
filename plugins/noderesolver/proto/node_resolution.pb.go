@@ -12,7 +12,6 @@ It has these top-level messages:
 	NodeResolutionList
 	ResolveRequest
 	ResolveResponse
-	ConfigureRequest
 	Empty
 */
 package proto
@@ -20,6 +19,7 @@ package proto
 import proto1 "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
+import proto2 "github.com/spiffe/control-plane/plugins/common/proto"
 
 import (
 	context "golang.org/x/net/context"
@@ -36,6 +36,61 @@ var _ = math.Inf
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
 const _ = proto1.ProtoPackageIsVersion2 // please upgrade the proto package
+
+// ConfigureRequest from public import github.com/spiffe/control-plane/plugins/common/proto/common.proto
+type ConfigureRequest proto2.ConfigureRequest
+
+func (m *ConfigureRequest) Reset()         { (*proto2.ConfigureRequest)(m).Reset() }
+func (m *ConfigureRequest) String() string { return (*proto2.ConfigureRequest)(m).String() }
+func (*ConfigureRequest) ProtoMessage()    {}
+func (m *ConfigureRequest) GetConfiguration() string {
+	return (*proto2.ConfigureRequest)(m).GetConfiguration()
+}
+
+// ConfigureResponse from public import github.com/spiffe/control-plane/plugins/common/proto/common.proto
+type ConfigureResponse proto2.ConfigureResponse
+
+func (m *ConfigureResponse) Reset()         { (*proto2.ConfigureResponse)(m).Reset() }
+func (m *ConfigureResponse) String() string { return (*proto2.ConfigureResponse)(m).String() }
+func (*ConfigureResponse) ProtoMessage()    {}
+func (m *ConfigureResponse) GetErrorList() []string {
+	return (*proto2.ConfigureResponse)(m).GetErrorList()
+}
+
+// GetPluginInfoRequest from public import github.com/spiffe/control-plane/plugins/common/proto/common.proto
+type GetPluginInfoRequest proto2.GetPluginInfoRequest
+
+func (m *GetPluginInfoRequest) Reset()         { (*proto2.GetPluginInfoRequest)(m).Reset() }
+func (m *GetPluginInfoRequest) String() string { return (*proto2.GetPluginInfoRequest)(m).String() }
+func (*GetPluginInfoRequest) ProtoMessage()    {}
+
+// GetPluginInfoResponse from public import github.com/spiffe/control-plane/plugins/common/proto/common.proto
+type GetPluginInfoResponse proto2.GetPluginInfoResponse
+
+func (m *GetPluginInfoResponse) Reset()         { (*proto2.GetPluginInfoResponse)(m).Reset() }
+func (m *GetPluginInfoResponse) String() string { return (*proto2.GetPluginInfoResponse)(m).String() }
+func (*GetPluginInfoResponse) ProtoMessage()    {}
+func (m *GetPluginInfoResponse) GetPluginName() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetPluginName()
+}
+func (m *GetPluginInfoResponse) GetDescription() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetDescription()
+}
+func (m *GetPluginInfoResponse) GetDateCreated() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetDateCreated()
+}
+func (m *GetPluginInfoResponse) GetLocation() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetLocation()
+}
+func (m *GetPluginInfoResponse) GetVersion() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetVersion()
+}
+func (m *GetPluginInfoResponse) GetAuthor() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetAuthor()
+}
+func (m *GetPluginInfoResponse) GetCompany() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetCompany()
+}
 
 type NodeResolution struct {
 	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
@@ -109,36 +164,19 @@ func (m *ResolveResponse) GetMap() map[string]*NodeResolutionList {
 	return nil
 }
 
-type ConfigureRequest struct {
-	Configuration string `protobuf:"bytes,1,opt,name=configuration" json:"configuration,omitempty"`
-}
-
-func (m *ConfigureRequest) Reset()                    { *m = ConfigureRequest{} }
-func (m *ConfigureRequest) String() string            { return proto1.CompactTextString(m) }
-func (*ConfigureRequest) ProtoMessage()               {}
-func (*ConfigureRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
-
-func (m *ConfigureRequest) GetConfiguration() string {
-	if m != nil {
-		return m.Configuration
-	}
-	return ""
-}
-
 type Empty struct {
 }
 
 func (m *Empty) Reset()                    { *m = Empty{} }
 func (m *Empty) String() string            { return proto1.CompactTextString(m) }
 func (*Empty) ProtoMessage()               {}
-func (*Empty) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+func (*Empty) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 func init() {
 	proto1.RegisterType((*NodeResolution)(nil), "proto.NodeResolution")
 	proto1.RegisterType((*NodeResolutionList)(nil), "proto.NodeResolutionList")
 	proto1.RegisterType((*ResolveRequest)(nil), "proto.ResolveRequest")
 	proto1.RegisterType((*ResolveResponse)(nil), "proto.ResolveResponse")
-	proto1.RegisterType((*ConfigureRequest)(nil), "proto.ConfigureRequest")
 	proto1.RegisterType((*Empty)(nil), "proto.Empty")
 }
 
@@ -153,8 +191,9 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for Node service
 
 type NodeClient interface {
+	Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error)
+	GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error)
 	Resolve(ctx context.Context, in *ResolveRequest, opts ...grpc.CallOption) (*ResolveResponse, error)
-	Configure(ctx context.Context, in *ConfigureRequest, opts ...grpc.CallOption) (*Empty, error)
 }
 
 type nodeClient struct {
@@ -163,6 +202,24 @@ type nodeClient struct {
 
 func NewNodeClient(cc *grpc.ClientConn) NodeClient {
 	return &nodeClient{cc}
+}
+
+func (c *nodeClient) Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error) {
+	out := new(proto2.ConfigureResponse)
+	err := grpc.Invoke(ctx, "/proto.node/Configure", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error) {
+	out := new(proto2.GetPluginInfoResponse)
+	err := grpc.Invoke(ctx, "/proto.node/GetPluginInfo", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *nodeClient) Resolve(ctx context.Context, in *ResolveRequest, opts ...grpc.CallOption) (*ResolveResponse, error) {
@@ -174,24 +231,52 @@ func (c *nodeClient) Resolve(ctx context.Context, in *ResolveRequest, opts ...gr
 	return out, nil
 }
 
-func (c *nodeClient) Configure(ctx context.Context, in *ConfigureRequest, opts ...grpc.CallOption) (*Empty, error) {
-	out := new(Empty)
-	err := grpc.Invoke(ctx, "/proto.node/Configure", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // Server API for Node service
 
 type NodeServer interface {
+	Configure(context.Context, *proto2.ConfigureRequest) (*proto2.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *proto2.GetPluginInfoRequest) (*proto2.GetPluginInfoResponse, error)
 	Resolve(context.Context, *ResolveRequest) (*ResolveResponse, error)
-	Configure(context.Context, *ConfigureRequest) (*Empty, error)
 }
 
 func RegisterNodeServer(s *grpc.Server, srv NodeServer) {
 	s.RegisterService(&_Node_serviceDesc, srv)
+}
+
+func _Node_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(proto2.ConfigureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).Configure(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.node/Configure",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).Configure(ctx, req.(*proto2.ConfigureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Node_GetPluginInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(proto2.GetPluginInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).GetPluginInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.node/GetPluginInfo",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).GetPluginInfo(ctx, req.(*proto2.GetPluginInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Node_Resolve_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -212,35 +297,21 @@ func _Node_Resolve_Handler(srv interface{}, ctx context.Context, dec func(interf
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Node_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ConfigureRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeServer).Configure(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/proto.node/Configure",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).Configure(ctx, req.(*ConfigureRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 var _Node_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.node",
 	HandlerType: (*NodeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Resolve",
-			Handler:    _Node_Resolve_Handler,
-		},
-		{
 			MethodName: "Configure",
 			Handler:    _Node_Configure_Handler,
+		},
+		{
+			MethodName: "GetPluginInfo",
+			Handler:    _Node_GetPluginInfo_Handler,
+		},
+		{
+			MethodName: "Resolve",
+			Handler:    _Node_Resolve_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -250,27 +321,30 @@ var _Node_serviceDesc = grpc.ServiceDesc{
 func init() { proto1.RegisterFile("plugins/noderesolver/proto/node_resolution.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 340 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x51, 0x4d, 0x4f, 0xea, 0x40,
-	0x14, 0x4d, 0xf9, 0x78, 0xc0, 0x85, 0xc7, 0x23, 0x37, 0x8f, 0xf7, 0xb0, 0x1b, 0xc9, 0xc4, 0x05,
-	0x6e, 0x40, 0xeb, 0x86, 0xb8, 0x71, 0xa1, 0x2c, 0x4c, 0xd0, 0xe8, 0xe8, 0xde, 0x54, 0xb8, 0xe0,
-	0xc4, 0xd2, 0x19, 0x3b, 0x53, 0x92, 0xfe, 0x12, 0xff, 0xae, 0xe9, 0x30, 0x34, 0x29, 0x61, 0xd5,
-	0xde, 0x73, 0x4e, 0xcf, 0x3d, 0xe7, 0x16, 0x2e, 0x54, 0x94, 0xae, 0x45, 0xac, 0x27, 0xb1, 0x5c,
-	0x52, 0x42, 0x5a, 0x46, 0x5b, 0x4a, 0x26, 0x2a, 0x91, 0x46, 0x5a, 0xe8, 0xcd, 0x62, 0xa9, 0x11,
-	0x32, 0x1e, 0x5b, 0x14, 0xeb, 0xf6, 0xc1, 0x9e, 0xa0, 0xfb, 0x28, 0x97, 0xc4, 0x0b, 0x1a, 0x19,
-	0x74, 0x34, 0x45, 0xb4, 0x30, 0x32, 0x79, 0xcd, 0x14, 0x0d, 0xbc, 0xa1, 0x37, 0x6a, 0xf1, 0x12,
-	0x86, 0x3e, 0x34, 0xf7, 0xf3, 0xa0, 0x62, 0xf9, 0x62, 0x66, 0x37, 0x80, 0x65, 0xc7, 0xb9, 0xd0,
-	0x06, 0xcf, 0xa1, 0x16, 0x09, 0x6d, 0x06, 0xde, 0xb0, 0x3a, 0x6a, 0x07, 0xfd, 0x5d, 0x88, 0x71,
-	0x59, 0xc8, 0xad, 0x84, 0xdd, 0x41, 0x97, 0xef, 0x1a, 0x70, 0xfa, 0x4a, 0x49, 0x1b, 0x0c, 0xe0,
-	0xaf, 0xfa, 0xc8, 0xb4, 0x58, 0x84, 0xd1, 0x8b, 0x12, 0xab, 0x15, 0xdd, 0x2f, 0xe7, 0x7b, 0xb3,
-	0x16, 0x3f, 0xca, 0xb1, 0x6f, 0x0f, 0xfe, 0x14, 0x36, 0x5a, 0xc9, 0x58, 0x13, 0x5e, 0x42, 0x75,
-	0x13, 0x2a, 0x97, 0xe1, 0xd4, 0x65, 0x38, 0x10, 0x8d, 0x1f, 0x42, 0x35, 0x8b, 0x4d, 0x92, 0xf1,
-	0x5c, 0xeb, 0x3f, 0x43, 0x73, 0x0f, 0x60, 0x0f, 0xaa, 0x9f, 0x94, 0xb9, 0x83, 0xe4, 0xaf, 0x38,
-	0x81, 0xfa, 0x36, 0x8c, 0x52, 0xb2, 0x47, 0x68, 0x07, 0x27, 0x47, 0x6b, 0xe5, 0x71, 0xf8, 0x4e,
-	0x77, 0x5d, 0x99, 0x7a, 0x6c, 0x0a, 0xbd, 0x5b, 0x19, 0xaf, 0xc4, 0x3a, 0x4d, 0x8a, 0x86, 0x67,
-	0xf0, 0x7b, 0xe1, 0xb0, 0x30, 0xff, 0xc6, 0x2d, 0x29, 0x83, 0xac, 0x01, 0xf5, 0xd9, 0x46, 0x99,
-	0x2c, 0x30, 0x50, 0xcb, 0xff, 0x2a, 0x4e, 0xa1, 0xe1, 0xe2, 0x63, 0xff, 0xb0, 0x8e, 0x35, 0xf6,
-	0xff, 0x1d, 0x6f, 0x89, 0x01, 0xb4, 0x8a, 0x10, 0xf8, 0xdf, 0x89, 0x0e, 0x63, 0xf9, 0x1d, 0x47,
-	0xd8, 0xad, 0xef, 0xbf, 0xec, 0x70, 0xf5, 0x13, 0x00, 0x00, 0xff, 0xff, 0x93, 0x22, 0x5d, 0x49,
-	0x6d, 0x02, 0x00, 0x00,
+	// 390 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x91, 0xc1, 0x8e, 0xd3, 0x30,
+	0x10, 0x86, 0xc9, 0x76, 0xcb, 0x6e, 0x67, 0x61, 0x41, 0x16, 0x0b, 0x21, 0x20, 0xb1, 0xca, 0x69,
+	0x39, 0x90, 0x40, 0xb8, 0x54, 0x1c, 0x40, 0x08, 0x2a, 0x54, 0x54, 0x50, 0x31, 0xdc, 0x51, 0x9a,
+	0x4e, 0x5a, 0x0b, 0xc7, 0x36, 0xb1, 0x53, 0x29, 0x4f, 0xc2, 0x4b, 0xf1, 0x50, 0x28, 0x8e, 0x13,
+	0x29, 0x25, 0xa7, 0x64, 0xfe, 0xf9, 0xfd, 0x79, 0xe6, 0x37, 0xbc, 0x54, 0xbc, 0xda, 0x31, 0xa1,
+	0x63, 0x21, 0xb7, 0x58, 0xa2, 0x96, 0xfc, 0x80, 0x65, 0xac, 0x4a, 0x69, 0xa4, 0x95, 0x7e, 0x5a,
+	0xad, 0x32, 0x4c, 0x8a, 0xc8, 0xaa, 0x64, 0x6a, 0x3f, 0xc1, 0xfb, 0x1d, 0x33, 0xfb, 0x6a, 0x13,
+	0x65, 0xb2, 0x88, 0xb5, 0x62, 0x79, 0x8e, 0x71, 0x26, 0x85, 0x29, 0x25, 0x7f, 0xa1, 0x78, 0x2a,
+	0x30, 0xee, 0xc0, 0x99, 0x2c, 0x0a, 0x29, 0x1c, 0xb2, 0x2d, 0x5a, 0x52, 0xb8, 0x86, 0xcb, 0xaf,
+	0x72, 0x8b, 0xb4, 0xbf, 0x81, 0x84, 0x70, 0x47, 0x23, 0xc7, 0xcc, 0xc8, 0xf2, 0x47, 0xad, 0xd0,
+	0xf7, 0xae, 0xbd, 0x9b, 0x19, 0x1d, 0x68, 0x24, 0x80, 0xf3, 0xae, 0xf6, 0x4f, 0x6c, 0xbf, 0xaf,
+	0xc3, 0x77, 0x40, 0x86, 0xc4, 0x15, 0xd3, 0x86, 0x3c, 0x87, 0x53, 0xce, 0xb4, 0xf1, 0xbd, 0xeb,
+	0xc9, 0xcd, 0x45, 0x72, 0xd5, 0xde, 0x1e, 0x0d, 0x8d, 0xd4, 0x5a, 0xc2, 0x8f, 0x70, 0x49, 0xdb,
+	0x10, 0x28, 0xfe, 0xae, 0x50, 0x1b, 0x92, 0xc0, 0x03, 0xb5, 0xaf, 0x35, 0xcb, 0x52, 0xfe, 0xdd,
+	0xae, 0xb9, 0xdc, 0xae, 0x3a, 0xd8, 0x8c, 0x8e, 0xf6, 0xc2, 0x3f, 0x1e, 0xdc, 0xeb, 0x31, 0x5a,
+	0x49, 0xa1, 0x91, 0xbc, 0x82, 0x49, 0x91, 0x2a, 0x37, 0xc3, 0x33, 0x37, 0xc3, 0x91, 0x29, 0xfa,
+	0x92, 0xaa, 0x85, 0x30, 0x65, 0x4d, 0x1b, 0x6f, 0xf0, 0x0d, 0xce, 0x3b, 0x81, 0xdc, 0x87, 0xc9,
+	0x2f, 0xac, 0x5d, 0x20, 0xcd, 0x2f, 0x89, 0x61, 0x7a, 0x48, 0x79, 0x85, 0x36, 0x84, 0x8b, 0xe4,
+	0xf1, 0xe8, 0x5a, 0xcd, 0x38, 0xb4, 0xf5, 0xbd, 0x39, 0x99, 0x7b, 0xe1, 0x19, 0x4c, 0x17, 0x85,
+	0x32, 0x75, 0xf2, 0xd7, 0x83, 0xd3, 0xe6, 0x7d, 0xc9, 0x5b, 0x98, 0x7d, 0x90, 0x22, 0x67, 0xbb,
+	0xaa, 0x44, 0xf2, 0xc8, 0x41, 0x7a, 0xc5, 0xa5, 0x10, 0xf8, 0xff, 0x37, 0xdc, 0x5e, 0x9f, 0xe1,
+	0xee, 0x27, 0x34, 0x6b, 0xfb, 0xd8, 0x4b, 0x91, 0x4b, 0xf2, 0xc4, 0x59, 0x07, 0x6a, 0xc7, 0x79,
+	0x3a, 0xde, 0x74, 0xac, 0x39, 0x9c, 0xb9, 0x44, 0xc8, 0xd5, 0x71, 0x42, 0xed, 0xf9, 0x87, 0xe3,
+	0xc1, 0xad, 0x6f, 0x6d, 0x6e, 0xdb, 0xc6, 0xeb, 0x7f, 0x01, 0x00, 0x00, 0xff, 0xff, 0x0f, 0x47,
+	0xab, 0x2e, 0xd1, 0x02, 0x00, 0x00,
 }
