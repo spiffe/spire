@@ -4,6 +4,14 @@ import (
 	"testing"
 )
 
+func Sqlite_Configure(t *testing.T) {
+
+}
+
+func Sqlite_GetPluginInfo(t *testing.T) {
+
+}
+
 func Sqlite_CreateFederatedEntry(t *testing.T) {
 
 }

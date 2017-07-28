@@ -2,11 +2,20 @@ package sqlite
 
 import (
 	"github.com/hashicorp/go-plugin"
+	common "github.com/spiffe/control-plane/plugins/common/proto"
 	"github.com/spiffe/control-plane/plugins/data_store"
 	"github.com/spiffe/control-plane/plugins/data_store/proto"
 )
 
 type SqlitePlugin struct{}
+
+func (SqlitePlugin) Configure(config string) ([]string, error) {
+	return []string{}, nil
+}
+
+func (SqlitePlugin) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
+	return nil, nil
+}
 
 func (SqlitePlugin) CreateFederatedEntry(federatedBundle *proto.FederatedBundle) error {
 	return nil

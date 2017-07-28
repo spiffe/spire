@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	common "github.com/spiffe/control-plane/plugins/common/proto"
 	"github.com/spiffe/control-plane/plugins/data_store/proto"
 )
 
@@ -23,6 +24,8 @@ var PluginMap = map[string]plugin.Plugin{
 }
 
 type DataStore interface {
+	Configure(config string) ([]string, error)
+	GetPluginInfo() (*common.GetPluginInfoResponse, error)
 	CreateFederatedEntry(*proto.FederatedBundle) error
 	ListFederatedEntry() (*proto.FederatedEntries, error)
 	UpdateFederatedEntry(*proto.FederatedBundle) error
