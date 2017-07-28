@@ -1,6 +1,7 @@
 package nodeattestor
 
 import (
+	common "github.com/spiffe/node-agent/plugins/common/proto"
 	"github.com/spiffe/node-agent/plugins/node_attestor/proto"
 	"golang.org/x/net/context"
 )
@@ -14,9 +15,9 @@ func (m *GRPCServer) FetchAttestationData(ctx context.Context, req *proto.FetchA
 	return &proto.FetchAttestationDataResponse{AttestationData: attestationData}, err
 }
 
-func (m *GRPCServer) Configure(ctx context.Context, req *proto.ConfigureRequest) (*proto.Empty, error) {
+func (m *GRPCServer) Configure(ctx context.Context, req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
 	err := m.NodeAttestorImpl.Configure(req.Configuration)
-	return &proto.Empty{}, err
+	return &common.ConfigureResponse{}, err
 }
 
 type GRPCClient struct {
@@ -32,7 +33,7 @@ func (m *GRPCClient) FetchAttestationData() ([]byte, error) {
 }
 
 func (m *GRPCClient) Configure(configuration string) error {
-	_, err := m.client.Configure(context.Background(), &proto.ConfigureRequest{
+	_, err := m.client.Configure(context.Background(), &common.ConfigureRequest{
 		Configuration: configuration,
 	})
 	return err
