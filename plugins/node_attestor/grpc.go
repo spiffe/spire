@@ -16,8 +16,8 @@ func (m *GRPCServer) FetchAttestationData(ctx context.Context, req *proto.FetchA
 }
 
 func (m *GRPCServer) Configure(ctx context.Context, req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
-	err := m.NodeAttestorImpl.Configure(req.Configuration)
-	return &common.ConfigureResponse{}, err
+	errorList, err := m.NodeAttestorImpl.Configure(req.Configuration)
+	return &common.ConfigureResponse{ErrorList: errorList}, err
 }
 
 type GRPCClient struct {
@@ -32,9 +32,12 @@ func (m *GRPCClient) FetchAttestationData() ([]byte, error) {
 	return res.AttestationData, err
 }
 
-func (m *GRPCClient) Configure(configuration string) error {
-	_, err := m.client.Configure(context.Background(), &common.ConfigureRequest{
+func (m *GRPCClient) Configure(configuration string) ([]string, error) {
+	res, err := m.client.Configure(context.Background(), &common.ConfigureRequest{
 		Configuration: configuration,
 	})
-	return err
+	if err != nil {
+		return []string{}, err
+	}
+	return res.ErrorList, err
 }

@@ -6,6 +6,7 @@ message ConfigureRequest {
 }
 
 message ConfigureResponse {
+    repeated string errorList = 1;
 }
 
 

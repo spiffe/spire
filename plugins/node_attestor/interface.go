@@ -24,7 +24,7 @@ var PluginMap = map[string]plugin.Plugin{
 
 type NodeAttestor interface {
 	FetchAttestationData() ([]byte, error)
-	Configure(config string) error
+	Configure(config string) ([]string, error)
 }
 
 type NodeAttestorPlugin struct {

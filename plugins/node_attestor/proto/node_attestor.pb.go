@@ -50,6 +50,9 @@ type ConfigureResponse proto2.ConfigureResponse
 func (m *ConfigureResponse) Reset()         { (*proto2.ConfigureResponse)(m).Reset() }
 func (m *ConfigureResponse) String() string { return (*proto2.ConfigureResponse)(m).String() }
 func (*ConfigureResponse) ProtoMessage()    {}
+func (m *ConfigureResponse) GetErrorList() []string {
+	return (*proto2.ConfigureResponse)(m).GetErrorList()
+}
 
 // GetPluginInfoRequest from public import github.com/spiffe/node-agent/plugins/common/proto/common.proto
 type GetPluginInfoRequest proto2.GetPluginInfoRequest
