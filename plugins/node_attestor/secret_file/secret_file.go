@@ -11,8 +11,8 @@ func (SecretFilePlugin) FetchAttestationData() (attestationData []byte, err erro
 	return []byte{}, nil
 }
 
-func (SecretFilePlugin) Configure(configuration string) error {
-	return nil
+func (SecretFilePlugin) Configure(configuration string) (errorList []string, err error) {
+	return []string{}, nil
 }
 
 func main() {
