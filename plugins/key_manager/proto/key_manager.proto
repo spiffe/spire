@@ -7,6 +7,13 @@ message GenerateKeyPairResponse {
     bytes publicKey = 1;
 }
 
+message ConfigureRequest {
+    string configuration = 1;
+}
+
+message Empty { }
+
 service KeyManager {
     rpc GenerateKeyPair(GenerateKeyPairRequest) returns (GenerateKeyPairResponse);
+    rpc Configure(ConfigureRequest) returns (Empty);
 }
