@@ -7,6 +7,8 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	common "github.com/spiffe/control-plane/plugins/common/proto"
+
 	"github.com/spiffe/control-plane/plugins/node_attestor/proto"
 )
 
@@ -23,6 +25,8 @@ var PluginMap = map[string]plugin.Plugin{
 }
 
 type NodeAttestor interface {
+	Configure(config string) ([]string, error)
+	GetPluginInfo() (*common.GetPluginInfoResponse, error)
 	Attest(*proto.AttestedData) (*proto.AttestResponse, error)
 }
 
