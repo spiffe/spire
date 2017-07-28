@@ -1,0 +1,24 @@
+syntax = "proto3";
+package proto;
+
+message ConfigureRequest {
+    string configuration = 1;
+}
+
+message ConfigureResponse {
+    repeated string errorList = 1;
+}
+
+
+message GetPluginInfoRequest {}
+
+message GetPluginInfoResponse {
+    string pluginName = 1;
+    string description = 2;
+    string dateCreated = 3;
+    string location = 4;
+    string version = 5;
+    string author = 6;
+    string company = 7;
+}
+

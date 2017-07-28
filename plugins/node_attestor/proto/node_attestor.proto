@@ -1,19 +1,15 @@
 syntax = "proto3";
 package proto;
 
+import public "github.com/spiffe/node-agent/plugins/common/proto/common.proto";
+
 message FetchAttestationDataRequest {}
 
 message FetchAttestationDataResponse {
     bytes attestationData = 1;
 }
 
-message ConfigureRequest {
-    string configuration = 1;
-}
-
-message Empty { }
-
 service NodeAttestor {
     rpc FetchAttestationData(FetchAttestationDataRequest) returns (FetchAttestationDataResponse);
-    rpc Configure(ConfigureRequest) returns (Empty);
+    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
 }

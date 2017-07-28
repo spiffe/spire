@@ -15,6 +15,7 @@ func TestSecretFile_FetchAttestationData(t *testing.T) {
 
 func TestSecretFile_Configure(t *testing.T) {
 	var plugin SecretFilePlugin
-	e := plugin.Configure("foo")
+	errorList, e := plugin.Configure("foo")
+	assert.Equal(t, []string{}, errorList)
 	assert.Equal(t, nil, e)
 }

@@ -10,14 +10,13 @@ It is generated from these files:
 It has these top-level messages:
 	FetchAttestationDataRequest
 	FetchAttestationDataResponse
-	ConfigureRequest
-	Empty
 */
 package proto
 
 import proto1 "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
+import proto2 "github.com/spiffe/node-agent/plugins/common/proto"
 
 import (
 	context "golang.org/x/net/context"
@@ -34,6 +33,61 @@ var _ = math.Inf
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
 const _ = proto1.ProtoPackageIsVersion2 // please upgrade the proto package
+
+// ConfigureRequest from public import github.com/spiffe/node-agent/plugins/common/proto/common.proto
+type ConfigureRequest proto2.ConfigureRequest
+
+func (m *ConfigureRequest) Reset()         { (*proto2.ConfigureRequest)(m).Reset() }
+func (m *ConfigureRequest) String() string { return (*proto2.ConfigureRequest)(m).String() }
+func (*ConfigureRequest) ProtoMessage()    {}
+func (m *ConfigureRequest) GetConfiguration() string {
+	return (*proto2.ConfigureRequest)(m).GetConfiguration()
+}
+
+// ConfigureResponse from public import github.com/spiffe/node-agent/plugins/common/proto/common.proto
+type ConfigureResponse proto2.ConfigureResponse
+
+func (m *ConfigureResponse) Reset()         { (*proto2.ConfigureResponse)(m).Reset() }
+func (m *ConfigureResponse) String() string { return (*proto2.ConfigureResponse)(m).String() }
+func (*ConfigureResponse) ProtoMessage()    {}
+func (m *ConfigureResponse) GetErrorList() []string {
+	return (*proto2.ConfigureResponse)(m).GetErrorList()
+}
+
+// GetPluginInfoRequest from public import github.com/spiffe/node-agent/plugins/common/proto/common.proto
+type GetPluginInfoRequest proto2.GetPluginInfoRequest
+
+func (m *GetPluginInfoRequest) Reset()         { (*proto2.GetPluginInfoRequest)(m).Reset() }
+func (m *GetPluginInfoRequest) String() string { return (*proto2.GetPluginInfoRequest)(m).String() }
+func (*GetPluginInfoRequest) ProtoMessage()    {}
+
+// GetPluginInfoResponse from public import github.com/spiffe/node-agent/plugins/common/proto/common.proto
+type GetPluginInfoResponse proto2.GetPluginInfoResponse
+
+func (m *GetPluginInfoResponse) Reset()         { (*proto2.GetPluginInfoResponse)(m).Reset() }
+func (m *GetPluginInfoResponse) String() string { return (*proto2.GetPluginInfoResponse)(m).String() }
+func (*GetPluginInfoResponse) ProtoMessage()    {}
+func (m *GetPluginInfoResponse) GetPluginName() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetPluginName()
+}
+func (m *GetPluginInfoResponse) GetDescription() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetDescription()
+}
+func (m *GetPluginInfoResponse) GetDateCreated() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetDateCreated()
+}
+func (m *GetPluginInfoResponse) GetLocation() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetLocation()
+}
+func (m *GetPluginInfoResponse) GetVersion() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetVersion()
+}
+func (m *GetPluginInfoResponse) GetAuthor() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetAuthor()
+}
+func (m *GetPluginInfoResponse) GetCompany() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetCompany()
+}
 
 type FetchAttestationDataRequest struct {
 }
@@ -59,35 +113,9 @@ func (m *FetchAttestationDataResponse) GetAttestationData() []byte {
 	return nil
 }
 
-type ConfigureRequest struct {
-	Configuration string `protobuf:"bytes,1,opt,name=configuration" json:"configuration,omitempty"`
-}
-
-func (m *ConfigureRequest) Reset()                    { *m = ConfigureRequest{} }
-func (m *ConfigureRequest) String() string            { return proto1.CompactTextString(m) }
-func (*ConfigureRequest) ProtoMessage()               {}
-func (*ConfigureRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
-
-func (m *ConfigureRequest) GetConfiguration() string {
-	if m != nil {
-		return m.Configuration
-	}
-	return ""
-}
-
-type Empty struct {
-}
-
-func (m *Empty) Reset()                    { *m = Empty{} }
-func (m *Empty) String() string            { return proto1.CompactTextString(m) }
-func (*Empty) ProtoMessage()               {}
-func (*Empty) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
-
 func init() {
 	proto1.RegisterType((*FetchAttestationDataRequest)(nil), "proto.FetchAttestationDataRequest")
 	proto1.RegisterType((*FetchAttestationDataResponse)(nil), "proto.FetchAttestationDataResponse")
-	proto1.RegisterType((*ConfigureRequest)(nil), "proto.ConfigureRequest")
-	proto1.RegisterType((*Empty)(nil), "proto.Empty")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -102,7 +130,7 @@ const _ = grpc.SupportPackageIsVersion4
 
 type NodeAttestorClient interface {
 	FetchAttestationData(ctx context.Context, in *FetchAttestationDataRequest, opts ...grpc.CallOption) (*FetchAttestationDataResponse, error)
-	Configure(ctx context.Context, in *ConfigureRequest, opts ...grpc.CallOption) (*Empty, error)
+	Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error)
 }
 
 type nodeAttestorClient struct {
@@ -122,8 +150,8 @@ func (c *nodeAttestorClient) FetchAttestationData(ctx context.Context, in *Fetch
 	return out, nil
 }
 
-func (c *nodeAttestorClient) Configure(ctx context.Context, in *ConfigureRequest, opts ...grpc.CallOption) (*Empty, error) {
-	out := new(Empty)
+func (c *nodeAttestorClient) Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error) {
+	out := new(proto2.ConfigureResponse)
 	err := grpc.Invoke(ctx, "/proto.NodeAttestor/Configure", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -135,7 +163,7 @@ func (c *nodeAttestorClient) Configure(ctx context.Context, in *ConfigureRequest
 
 type NodeAttestorServer interface {
 	FetchAttestationData(context.Context, *FetchAttestationDataRequest) (*FetchAttestationDataResponse, error)
-	Configure(context.Context, *ConfigureRequest) (*Empty, error)
+	Configure(context.Context, *proto2.ConfigureRequest) (*proto2.ConfigureResponse, error)
 }
 
 func RegisterNodeAttestorServer(s *grpc.Server, srv NodeAttestorServer) {
@@ -161,7 +189,7 @@ func _NodeAttestor_FetchAttestationData_Handler(srv interface{}, ctx context.Con
 }
 
 func _NodeAttestor_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ConfigureRequest)
+	in := new(proto2.ConfigureRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -173,7 +201,7 @@ func _NodeAttestor_Configure_Handler(srv interface{}, ctx context.Context, dec f
 		FullMethod: "/proto.NodeAttestor/Configure",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAttestorServer).Configure(ctx, req.(*ConfigureRequest))
+		return srv.(NodeAttestorServer).Configure(ctx, req.(*proto2.ConfigureRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -198,19 +226,19 @@ var _NodeAttestor_serviceDesc = grpc.ServiceDesc{
 func init() { proto1.RegisterFile("plugins/node_attestor/proto/node_attestor.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 212 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xd2, 0x2f, 0xc8, 0x29, 0x4d,
-	0xcf, 0xcc, 0x2b, 0xd6, 0xcf, 0xcb, 0x4f, 0x49, 0x8d, 0x4f, 0x2c, 0x29, 0x49, 0x2d, 0x2e, 0xc9,
-	0x2f, 0xd2, 0x2f, 0x28, 0xca, 0x2f, 0xc9, 0x47, 0x15, 0xd3, 0x03, 0x8b, 0x09, 0xb1, 0x82, 0x29,
-	0x25, 0x59, 0x2e, 0x69, 0xb7, 0xd4, 0x92, 0xe4, 0x0c, 0x47, 0xb0, 0x6c, 0x62, 0x49, 0x66, 0x7e,
-	0x9e, 0x4b, 0x62, 0x49, 0x62, 0x50, 0x6a, 0x61, 0x69, 0x6a, 0x71, 0x89, 0x92, 0x07, 0x97, 0x0c,
-	0x76, 0xe9, 0xe2, 0x82, 0xfc, 0xbc, 0xe2, 0x54, 0x21, 0x0d, 0x2e, 0xfe, 0x44, 0x54, 0x29, 0x09,
-	0x46, 0x05, 0x46, 0x0d, 0x9e, 0x20, 0x74, 0x61, 0x25, 0x0b, 0x2e, 0x01, 0xe7, 0xfc, 0xbc, 0xb4,
-	0xcc, 0xf4, 0xd2, 0xa2, 0x54, 0xa8, 0xe9, 0x42, 0x2a, 0x5c, 0xbc, 0xc9, 0x50, 0x31, 0xb0, 0x42,
-	0xb0, 0x5e, 0xce, 0x20, 0x54, 0x41, 0x25, 0x76, 0x2e, 0x56, 0xd7, 0xdc, 0x82, 0x92, 0x4a, 0xa3,
-	0xc5, 0x8c, 0x5c, 0x3c, 0x7e, 0xf9, 0x29, 0xa9, 0x8e, 0x50, 0x9f, 0x08, 0xc5, 0x73, 0x89, 0x60,
-	0x73, 0x9d, 0x90, 0x12, 0xc4, 0x8f, 0x7a, 0x78, 0x7c, 0x26, 0xa5, 0x8c, 0x57, 0x0d, 0xd4, 0x7b,
-	0x46, 0x5c, 0x9c, 0x70, 0x47, 0x0b, 0x89, 0x43, 0x75, 0xa0, 0x7b, 0x43, 0x8a, 0x07, 0x2a, 0x01,
-	0x76, 0x65, 0x12, 0x1b, 0x98, 0x63, 0x0c, 0x08, 0x00, 0x00, 0xff, 0xff, 0xb1, 0x87, 0xde, 0x36,
-	0x92, 0x01, 0x00, 0x00,
+	// 223 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x8f, 0xc1, 0x4a, 0xc4, 0x30,
+	0x10, 0x86, 0xed, 0x41, 0xc1, 0xb0, 0x20, 0x04, 0xc1, 0x65, 0x55, 0x90, 0x7a, 0xd9, 0x8b, 0x0d,
+	0xe8, 0x7d, 0x61, 0x51, 0xc4, 0x93, 0x48, 0x5f, 0xa0, 0xa4, 0xed, 0x34, 0x0d, 0xd8, 0x4c, 0x6c,
+	0x26, 0xcf, 0xe5, 0x2b, 0x0a, 0x49, 0x2c, 0x54, 0x4b, 0x4f, 0x21, 0xff, 0x37, 0xf3, 0xf1, 0x0f,
+	0x13, 0xf6, 0xd3, 0x2b, 0x6d, 0x9c, 0x30, 0xd8, 0x42, 0x25, 0x89, 0xc0, 0x11, 0x8e, 0xc2, 0x8e,
+	0x48, 0x38, 0xcf, 0x8a, 0x90, 0xf1, 0xd3, 0xf0, 0xec, 0x0e, 0x4a, 0x53, 0xef, 0xeb, 0xa2, 0xc1,
+	0x41, 0x38, 0xab, 0xbb, 0x0e, 0xc2, 0xf4, 0x83, 0x54, 0x60, 0x68, 0x92, 0x36, 0x38, 0x0c, 0x68,
+	0x92, 0x2d, 0x7e, 0xa2, 0x26, 0xbf, 0x65, 0xd7, 0xaf, 0x40, 0x4d, 0x7f, 0x0c, 0x76, 0x49, 0x1a,
+	0xcd, 0x8b, 0x24, 0x59, 0xc2, 0x97, 0x07, 0x47, 0xf9, 0x1b, 0xbb, 0x59, 0xc6, 0xce, 0xa2, 0x71,
+	0xc0, 0xf7, 0xec, 0x42, 0xce, 0xd1, 0x36, 0xbb, 0xcb, 0xf6, 0x9b, 0xf2, 0x6f, 0xfc, 0xf8, 0x9d,
+	0xb1, 0xcd, 0x3b, 0xb6, 0x70, 0x4c, 0x67, 0xf0, 0x8a, 0x5d, 0x2e, 0xa9, 0x79, 0x1e, 0x9b, 0x15,
+	0x2b, 0xb5, 0x76, 0xf7, 0xab, 0x33, 0xa9, 0xdb, 0x81, 0x9d, 0x3f, 0xa3, 0xe9, 0xb4, 0xf2, 0x23,
+	0xf0, 0xab, 0xb4, 0x31, 0x25, 0xbf, 0xaa, 0xed, 0x7f, 0x10, 0xf7, 0x3f, 0x4e, 0xea, 0xb3, 0x80,
+	0x9e, 0x7e, 0x02, 0x00, 0x00, 0xff, 0xff, 0xa4, 0xe5, 0x0e, 0x26, 0x9d, 0x01, 0x00, 0x00,
 }

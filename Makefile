@@ -23,7 +23,7 @@ deps:
 
 protobuf: $(PROTOBUF_GO)
 $(PROTOBUF_GO): %.pb.go: %.proto
-	protoc $(@:.pb.go=.proto) --go_out=plugins=grpc:.
+	protoc $(@:.pb.go=.proto) --go_out=plugins=grpc:. -I../../.. -I.
 
 binaries: $(BINARIES)
 $(BINARIES): %: %.go
