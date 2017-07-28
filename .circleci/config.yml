@@ -7,13 +7,14 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: v1-{{ checksum "build_setup.sh" }}{{ checksum "glide.lock" }}
-      - run: make setup
-      - run: make build
-      - run: make test
+          key: v1-{{ checksum "build.sh" }}{{ checksum "glide.lock" }}
+      - run: ./build.sh setup
+      - run: ./build.sh deps
+      - run: ./build.sh binaries
+      - run: ./build.sh test
       - store_test_results:
           path: .test_results
       - save_cache:
-          key: v1-{{ checksum "build_setup.sh" }}{{ checksum "glide.lock" }}
+          key: v1-{{ checksum "build.sh" }}{{ checksum "glide.lock" }}
           paths:
             - .cache
