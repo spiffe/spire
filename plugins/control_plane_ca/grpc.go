@@ -1,12 +1,23 @@
 package controlplaneca
 
 import (
+	common "github.com/spiffe/control-plane/plugins/common/proto"
 	"github.com/spiffe/control-plane/plugins/control_plane_ca/proto"
 	"golang.org/x/net/context"
 )
 
 type GRPCServer struct {
 	ControlPlaneCaImpl ControlPlaneCa
+}
+
+func (m *GRPCServer) Configure(ctx context.Context, req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
+	response, err := m.ControlPlaneCaImpl.Configure(req.Configuration)
+	return &common.ConfigureResponse{ErrorList: response}, err
+}
+
+func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
+	response, err := m.ControlPlaneCaImpl.GetPluginInfo()
+	return response, err
 }
 
 func (m *GRPCServer) SignCsr(ctx context.Context, req *proto.SignCsrRequest) (*proto.SignCsrResponse, error) {
@@ -31,6 +42,19 @@ func (m *GRPCServer) LoadCertificate(ctx context.Context, req *proto.LoadCertifi
 
 type GRPCClient struct {
 	client proto.ControlPlaneCAClient
+}
+
+func (m *GRPCClient) Configure(configuration string) ([]string, error) {
+	response, err := m.client.Configure(context.Background(), &common.ConfigureRequest{configuration})
+	if err != nil {
+		return []string{}, err
+	}
+	return response.ErrorList, err
+}
+
+func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
+	response, err := m.client.GetPluginInfo(context.Background(), &common.GetPluginInfoRequest{})
+	return response, err
 }
 
 func (m *GRPCClient) SignCsr(csr []byte) (signedCertificate []byte, err error) {

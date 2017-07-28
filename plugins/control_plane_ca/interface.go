@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	common "github.com/spiffe/control-plane/plugins/common/proto"
 	"github.com/spiffe/control-plane/plugins/control_plane_ca/proto"
 )
 
@@ -23,11 +24,12 @@ var PluginMap = map[string]plugin.Plugin{
 }
 
 type ControlPlaneCa interface {
+	Configure(config string) ([]string, error)
+	GetPluginInfo() (*common.GetPluginInfoResponse, error)
 	SignCsr([]byte) ([]byte, error)
 	GenerateCsr() ([]byte, error)
 	FetchCertificate() ([]byte, error)
 	LoadCertificate([]byte) error
-	//Configure(config string) ([]string, error)
 }
 
 type ControlPlaneCaPlugin struct {
