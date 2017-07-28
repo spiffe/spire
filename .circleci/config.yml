@@ -10,7 +10,6 @@ jobs:
           key: v1-{{ checksum "build_setup.sh" }}{{ checksum "glide.lock" }}
       - run: ./build.sh setup
       - run: ./build.sh deps
-      - run: ./build.sh protobuf
       - run: ./build.sh binaries
       - run: ./build.sh test
       - store_test_results:

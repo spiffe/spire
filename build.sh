@@ -97,10 +97,10 @@ case $1 in
     setup) build_setup ;;
     deps) build_deps ;;
     protobuf) build_protobuf ;;
-    binaries) build_binaries ;;
+    binaries|bin) build_binaries ;;
     test) build_test ;;
     clean) build_clean ;;
     distclean) build_clean; build_distclean ;;
-    all) build_deps; build_protobuf; build_binaries ;;
+    all) build_deps; build_binaries ;;
 esac
 
