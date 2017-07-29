@@ -1,6 +1,7 @@
 syntax = "proto3";
 package proto;
 
+import public "github.com/spiffe/control-plane/plugins/common/proto/common.proto";
 
 message SubmitCSRRequest {
     bytes csr = 1;
@@ -13,6 +14,8 @@ message SubmitCSRResponse {
 
 
 service node {
+    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
     rpc SubmitCSR(SubmitCSRRequest) returns (SubmitCSRResponse);
 }
 

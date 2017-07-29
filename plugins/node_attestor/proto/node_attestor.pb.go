@@ -16,6 +16,7 @@ package proto
 import proto1 "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
+import proto2 "github.com/spiffe/control-plane/plugins/common/proto"
 
 import (
 	context "golang.org/x/net/context"
@@ -32,6 +33,61 @@ var _ = math.Inf
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
 const _ = proto1.ProtoPackageIsVersion2 // please upgrade the proto package
+
+// ConfigureRequest from public import github.com/spiffe/control-plane/plugins/common/proto/common.proto
+type ConfigureRequest proto2.ConfigureRequest
+
+func (m *ConfigureRequest) Reset()         { (*proto2.ConfigureRequest)(m).Reset() }
+func (m *ConfigureRequest) String() string { return (*proto2.ConfigureRequest)(m).String() }
+func (*ConfigureRequest) ProtoMessage()    {}
+func (m *ConfigureRequest) GetConfiguration() string {
+	return (*proto2.ConfigureRequest)(m).GetConfiguration()
+}
+
+// ConfigureResponse from public import github.com/spiffe/control-plane/plugins/common/proto/common.proto
+type ConfigureResponse proto2.ConfigureResponse
+
+func (m *ConfigureResponse) Reset()         { (*proto2.ConfigureResponse)(m).Reset() }
+func (m *ConfigureResponse) String() string { return (*proto2.ConfigureResponse)(m).String() }
+func (*ConfigureResponse) ProtoMessage()    {}
+func (m *ConfigureResponse) GetErrorList() []string {
+	return (*proto2.ConfigureResponse)(m).GetErrorList()
+}
+
+// GetPluginInfoRequest from public import github.com/spiffe/control-plane/plugins/common/proto/common.proto
+type GetPluginInfoRequest proto2.GetPluginInfoRequest
+
+func (m *GetPluginInfoRequest) Reset()         { (*proto2.GetPluginInfoRequest)(m).Reset() }
+func (m *GetPluginInfoRequest) String() string { return (*proto2.GetPluginInfoRequest)(m).String() }
+func (*GetPluginInfoRequest) ProtoMessage()    {}
+
+// GetPluginInfoResponse from public import github.com/spiffe/control-plane/plugins/common/proto/common.proto
+type GetPluginInfoResponse proto2.GetPluginInfoResponse
+
+func (m *GetPluginInfoResponse) Reset()         { (*proto2.GetPluginInfoResponse)(m).Reset() }
+func (m *GetPluginInfoResponse) String() string { return (*proto2.GetPluginInfoResponse)(m).String() }
+func (*GetPluginInfoResponse) ProtoMessage()    {}
+func (m *GetPluginInfoResponse) GetPluginName() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetPluginName()
+}
+func (m *GetPluginInfoResponse) GetDescription() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetDescription()
+}
+func (m *GetPluginInfoResponse) GetDateCreated() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetDateCreated()
+}
+func (m *GetPluginInfoResponse) GetLocation() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetLocation()
+}
+func (m *GetPluginInfoResponse) GetVersion() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetVersion()
+}
+func (m *GetPluginInfoResponse) GetAuthor() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetAuthor()
+}
+func (m *GetPluginInfoResponse) GetCompany() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetCompany()
+}
 
 type AttestedData struct {
 	AttestedDataType string `protobuf:"bytes,1,opt,name=attestedDataType" json:"attestedDataType,omitempty"`
@@ -97,6 +153,8 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for NodeAttestor service
 
 type NodeAttestorClient interface {
+	Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error)
+	GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error)
 	Attest(ctx context.Context, in *AttestedData, opts ...grpc.CallOption) (*AttestResponse, error)
 }
 
@@ -106,6 +164,24 @@ type nodeAttestorClient struct {
 
 func NewNodeAttestorClient(cc *grpc.ClientConn) NodeAttestorClient {
 	return &nodeAttestorClient{cc}
+}
+
+func (c *nodeAttestorClient) Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error) {
+	out := new(proto2.ConfigureResponse)
+	err := grpc.Invoke(ctx, "/proto.NodeAttestor/Configure", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeAttestorClient) GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error) {
+	out := new(proto2.GetPluginInfoResponse)
+	err := grpc.Invoke(ctx, "/proto.NodeAttestor/GetPluginInfo", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *nodeAttestorClient) Attest(ctx context.Context, in *AttestedData, opts ...grpc.CallOption) (*AttestResponse, error) {
@@ -120,11 +196,49 @@ func (c *nodeAttestorClient) Attest(ctx context.Context, in *AttestedData, opts 
 // Server API for NodeAttestor service
 
 type NodeAttestorServer interface {
+	Configure(context.Context, *proto2.ConfigureRequest) (*proto2.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *proto2.GetPluginInfoRequest) (*proto2.GetPluginInfoResponse, error)
 	Attest(context.Context, *AttestedData) (*AttestResponse, error)
 }
 
 func RegisterNodeAttestorServer(s *grpc.Server, srv NodeAttestorServer) {
 	s.RegisterService(&_NodeAttestor_serviceDesc, srv)
+}
+
+func _NodeAttestor_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(proto2.ConfigureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAttestorServer).Configure(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.NodeAttestor/Configure",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAttestorServer).Configure(ctx, req.(*proto2.ConfigureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeAttestor_GetPluginInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(proto2.GetPluginInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAttestorServer).GetPluginInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.NodeAttestor/GetPluginInfo",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAttestorServer).GetPluginInfo(ctx, req.(*proto2.GetPluginInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _NodeAttestor_Attest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -150,6 +264,14 @@ var _NodeAttestor_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*NodeAttestorServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "Configure",
+			Handler:    _NodeAttestor_Configure_Handler,
+		},
+		{
+			MethodName: "GetPluginInfo",
+			Handler:    _NodeAttestor_GetPluginInfo_Handler,
+		},
+		{
 			MethodName: "Attest",
 			Handler:    _NodeAttestor_Attest_Handler,
 		},
@@ -161,18 +283,24 @@ var _NodeAttestor_serviceDesc = grpc.ServiceDesc{
 func init() { proto1.RegisterFile("plugins/node_attestor/proto/node_attestor.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 198 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xd2, 0x2f, 0xc8, 0x29, 0x4d,
-	0xcf, 0xcc, 0x2b, 0xd6, 0xcf, 0xcb, 0x4f, 0x49, 0x8d, 0x4f, 0x2c, 0x29, 0x49, 0x2d, 0x2e, 0xc9,
-	0x2f, 0xd2, 0x2f, 0x28, 0xca, 0x2f, 0xc9, 0x47, 0x15, 0xd3, 0x03, 0x8b, 0x09, 0xb1, 0x82, 0x29,
-	0xa5, 0x38, 0x2e, 0x1e, 0x47, 0xb0, 0x44, 0x6a, 0x8a, 0x4b, 0x62, 0x49, 0xa2, 0x90, 0x16, 0x97,
-	0x40, 0x22, 0x12, 0x3f, 0xa4, 0xb2, 0x20, 0x55, 0x82, 0x51, 0x81, 0x51, 0x83, 0x33, 0x08, 0x43,
-	0x5c, 0x48, 0x89, 0x8b, 0x07, 0x59, 0x4c, 0x82, 0x49, 0x81, 0x51, 0x83, 0x27, 0x08, 0x45, 0x4c,
-	0x29, 0x88, 0x8b, 0x0f, 0x62, 0x7e, 0x50, 0x6a, 0x71, 0x41, 0x7e, 0x5e, 0x71, 0xaa, 0x90, 0x08,
-	0x17, 0x6b, 0x59, 0x62, 0x4e, 0x66, 0x0a, 0xd8, 0x58, 0x8e, 0x20, 0x08, 0x07, 0x64, 0x6f, 0x41,
-	0x46, 0x65, 0x71, 0x66, 0x72, 0x62, 0x4e, 0x70, 0x80, 0xa7, 0x9b, 0x9b, 0xab, 0xa7, 0x0b, 0xd8,
-	0x3c, 0xce, 0x20, 0x0c, 0x71, 0x23, 0x17, 0x2e, 0x1e, 0xbf, 0xfc, 0x94, 0x54, 0x47, 0xa8, 0x87,
-	0x84, 0x4c, 0xb8, 0xd8, 0x20, 0x6c, 0x21, 0x61, 0x88, 0xe7, 0xf4, 0x90, 0xbd, 0x24, 0x25, 0x8a,
-	0x22, 0x08, 0x73, 0x47, 0x12, 0x1b, 0x58, 0xd4, 0x18, 0x10, 0x00, 0x00, 0xff, 0xff, 0x45, 0x08,
-	0xf0, 0xf3, 0x3a, 0x01, 0x00, 0x00,
+	// 295 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x90, 0x51, 0x4b, 0xf3, 0x30,
+	0x14, 0x86, 0xbf, 0x7e, 0xb0, 0xe1, 0x42, 0x15, 0x89, 0x8a, 0x63, 0x7a, 0x31, 0x76, 0x35, 0x04,
+	0x57, 0x50, 0xaf, 0x85, 0xe1, 0x9c, 0xcc, 0x0b, 0x29, 0xd1, 0x6b, 0x25, 0x6b, 0x4f, 0xbb, 0x40,
+	0x9b, 0x13, 0x9b, 0x54, 0xd8, 0xbf, 0xf4, 0x27, 0x89, 0x49, 0x36, 0x5a, 0xea, 0x55, 0x38, 0xcf,
+	0x39, 0x79, 0x72, 0xf2, 0x92, 0x48, 0x15, 0x75, 0x2e, 0xa4, 0x8e, 0x24, 0xa6, 0xf0, 0xc1, 0x8d,
+	0x01, 0x6d, 0xb0, 0x8a, 0x54, 0x85, 0x06, 0xdb, 0x6c, 0x66, 0x19, 0xed, 0xd9, 0x63, 0x34, 0xcf,
+	0x85, 0xd9, 0xd4, 0xeb, 0x59, 0x82, 0x65, 0xa4, 0x95, 0xc8, 0x32, 0x88, 0x12, 0x94, 0xa6, 0xc2,
+	0xe2, 0x5a, 0x15, 0x5c, 0xc2, 0xde, 0x9b, 0x60, 0x59, 0xa2, 0xf4, 0x42, 0x57, 0x38, 0xd3, 0xe4,
+	0x9d, 0x84, 0x73, 0xeb, 0x86, 0x74, 0xc1, 0x0d, 0xa7, 0x57, 0xe4, 0x98, 0x37, 0xea, 0xb7, 0xad,
+	0x82, 0x61, 0x30, 0x0e, 0xa6, 0x03, 0xd6, 0xe1, 0x74, 0x42, 0xc2, 0x26, 0x1b, 0xfe, 0x1f, 0x07,
+	0xd3, 0x90, 0xb5, 0xd8, 0x84, 0x91, 0x23, 0xe7, 0x67, 0xa0, 0x15, 0x4a, 0x0d, 0xf4, 0x94, 0xf4,
+	0xbe, 0x78, 0x21, 0x52, 0xab, 0x3d, 0x60, 0xae, 0xf8, 0x7d, 0x57, 0x6d, 0xb6, 0x5a, 0x24, 0xbc,
+	0x78, 0x8d, 0x57, 0xcb, 0xe5, 0xe3, 0x6a, 0x61, 0x7d, 0x03, 0xd6, 0xe1, 0x37, 0xdf, 0x01, 0x09,
+	0x5f, 0x30, 0x85, 0xb9, 0x0f, 0x85, 0xde, 0x93, 0xc1, 0x03, 0xca, 0x4c, 0xe4, 0x75, 0x05, 0xf4,
+	0xdc, 0xfd, 0x6c, 0xb6, 0x27, 0x0c, 0x3e, 0x6b, 0xd0, 0x66, 0x34, 0xec, 0x36, 0xfc, 0x4a, 0xcf,
+	0xe4, 0xf0, 0x09, 0x4c, 0x6c, 0xc3, 0x5a, 0xc9, 0x0c, 0xe9, 0x85, 0x1f, 0x6d, 0xd1, 0x9d, 0xe7,
+	0xf2, 0xef, 0xa6, 0x77, 0xdd, 0x91, 0xbe, 0xdb, 0x8b, 0x9e, 0xf8, 0xb9, 0x66, 0xbe, 0xa3, 0xb3,
+	0x16, 0xdc, 0xdd, 0x8a, 0xff, 0xad, 0xfb, 0x96, 0xdf, 0xfe, 0x04, 0x00, 0x00, 0xff, 0xff, 0x57,
+	0x14, 0x06, 0xcb, 0x0c, 0x02, 0x00, 0x00,
 }

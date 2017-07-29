@@ -1,6 +1,8 @@
 syntax = "proto3";
 package proto;
 
+import public "github.com/spiffe/control-plane/plugins/common/proto/common.proto";
+
 message SignCsrRequest {
     bytes csr = 1;
 }
@@ -31,6 +33,8 @@ message LoadCertificateResponse {
 }
 
 service ControlPlaneCA {
+    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
     rpc SignCsr(SignCsrRequest) returns (SignCsrResponse);
     rpc GenerateCsr(GenerateCsrRequest) returns (GenerateCsrResponse);
     rpc FetchCertificate(FetchCertificateRequest) returns (FetchCertificateResponse);

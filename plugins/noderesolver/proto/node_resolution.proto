@@ -1,6 +1,8 @@
 syntax = "proto3";
 package proto;
 
+import public "github.com/spiffe/control-plane/plugins/common/proto/common.proto";
+
 message NodeResolution {
     string selectorType = 1;
     string selector = 2;
@@ -10,7 +12,6 @@ message NodeResolutionList {
     repeated NodeResolution list = 1;
 }
 
-
 message ResolveRequest {
     repeated string physicalSpiffeIdList = 1;
 }
@@ -19,14 +20,12 @@ message ResolveResponse {
     map<string, NodeResolutionList> map = 1;
 }
 
-message ConfigureRequest {
-    string configuration = 1;
-}
 message Empty{}
 
 service node {
+    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
     rpc Resolve(ResolveRequest) returns (ResolveResponse);
-    rpc Configure(ConfigureRequest) returns (Empty);
 }
 
 

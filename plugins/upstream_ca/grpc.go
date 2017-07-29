@@ -1,28 +1,28 @@
-package noderesolver
+package upstreamca
 
 import (
 	common "github.com/spiffe/control-plane/plugins/common/proto"
-	"github.com/spiffe/control-plane/plugins/noderesolver/proto"
+	"github.com/spiffe/control-plane/plugins/upstream_ca/proto"
 	"golang.org/x/net/context"
 )
 
 type GRPCServer struct {
-	NodeResolutionImpl NodeResolution
+	UpstreamCaImpl UpstreamCa
 }
 
 func (m *GRPCServer) Configure(ctx context.Context, req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
-	response, err := m.NodeResolutionImpl.Configure(req.Configuration)
+	response, err := m.UpstreamCaImpl.Configure(req.Configuration)
 	return &common.ConfigureResponse{ErrorList: response}, err
 }
 
 func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
-	response, err := m.NodeResolutionImpl.GetPluginInfo()
+	response, err := m.UpstreamCaImpl.GetPluginInfo()
 	return response, err
 }
 
-func (m *GRPCServer) Resolve(ctx context.Context, req *proto.ResolveRequest) (*proto.ResolveResponse, error) {
-	resolutionMap, err := m.NodeResolutionImpl.Resolve(req.PhysicalSpiffeIdList)
-	return &proto.ResolveResponse{Map: resolutionMap}, err
+func (m *GRPCServer) SubmitCSR(ctx context.Context, req *proto.SubmitCSRRequest) (*proto.SubmitCSRResponse, error) {
+	response, err := m.UpstreamCaImpl.SubmitCSR(req.Csr)
+	return response, err
 }
 
 type GRPCClient struct {
@@ -42,8 +42,7 @@ func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
 	return response, err
 }
 
-func (m *GRPCClient) Resolve(physicalSpiffeIdList []string) (map[string]*proto.NodeResolutionList, error) {
-	node_res, err := m.client.Resolve(context.Background(), &proto.ResolveRequest{
-		physicalSpiffeIdList})
-	return node_res.Map, err
+func (m *GRPCClient) SubmitCSR(csr []byte) (*proto.SubmitCSRResponse, error) {
+	response, err := m.client.SubmitCSR(context.Background(), &proto.SubmitCSRRequest{Csr: csr})
+	return response, err
 }
