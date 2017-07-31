@@ -64,7 +64,7 @@ message FetchFederatedBundlesResponse {
 }
 
 /**
- * Represents a message with no fields
+ * @exclude Represents a message with no fields
  */
 message Empty {  }
 
