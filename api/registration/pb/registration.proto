@@ -1,5 +1,5 @@
 syntax = "proto3";
-package proto;
+package pb;
 
 
 message RegisteredEntry {
@@ -108,7 +108,7 @@ message DeleteEntryResponse {
 }
 
 
-service node {
+service registration {
     rpc CreateFederatedEntry(CreateFederatedEntryRequest) returns (CreateFederatedEntryResponse);
     rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (CreateFederatedBundleResponse);
     rpc ListFederatedBundles(ListFederatedBundlesRequest) returns (ListFederatedBundlesResponse);
