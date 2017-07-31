@@ -3,7 +3,6 @@
 
 ## Table of Contents
 * [workload.proto](#workload.proto)
- * [Empty](#proto.Empty)
  * [FederateEntry](#proto.FederateEntry)
  * [FetchFederatedBundleRequest](#proto.FetchFederatedBundleRequest)
  * [FetchFederatedBundleResponse](#proto.FetchFederatedBundleResponse)
@@ -27,16 +26,9 @@ SPIFFE Verifiable Identity Documents(SVID) ) that can be used to prove those ide
 Finally, the API can also be used to retrieve trust bundles that can be used to
 verify SVIDs from other SPIFFE-identified workloads.
 
-<a name="proto.Empty"/>
-### Empty
-Represents a message with no fields
-
-
-
 <a name="proto.FederateEntry"/>
-### FederateEntry
-represents cert bundle of a remote control plane for the purposes of trusting remote workloads
 
+### FederateEntry
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | spiffeId | [string](#string) | optional | spiffeid of the remote workload |
@@ -45,6 +37,7 @@ represents cert bundle of a remote control plane for the purposes of trusting re
 
 
 <a name="proto.FetchFederatedBundleRequest"/>
+
 ### FetchFederatedBundleRequest
 represents a Federated cert Bundle request corresponding to a specific SPIFFEId
 
@@ -54,6 +47,7 @@ represents a Federated cert Bundle request corresponding to a specific SPIFFEId
 
 
 <a name="proto.FetchFederatedBundleResponse"/>
+
 ### FetchFederatedBundleResponse
 represents cert Bundles that a specific workload's SPIFFEId is registered to trust
 
@@ -63,6 +57,7 @@ represents cert Bundles that a specific workload's SPIFFEId is registered to tru
 
 
 <a name="proto.FetchFederatedBundlesResponse"/>
+
 ### FetchFederatedBundlesResponse
 represents all the cert Bundles that a workload is registered to trust
 
@@ -72,6 +67,7 @@ represents all the cert Bundles that a workload is registered to trust
 
 
 <a name="proto.FetchSVIDBundleRequest"/>
+
 ### FetchSVIDBundleRequest
 represents a workload request for a SVID and the control plane's cert bundle of a specific SPIFFEID
 
@@ -81,6 +77,7 @@ represents a workload request for a SVID and the control plane's cert bundle of 
 
 
 <a name="proto.FetchSVIDBundleResponse"/>
+
 ### FetchSVIDBundleResponse
 represents a response specific to the requesting workload SPIFFEId,
 Includes the workload's SVID Entry(SVID and its corresponding information )
@@ -93,6 +90,7 @@ and the Control Plane's trusted cert bundle
 
 
 <a name="proto.FetchSVIDBundlesResponse"/>
+
 ### FetchSVIDBundlesResponse
 represents response the includes all the SVIDs the and Control Plane's trusted cert bundle workload
 
@@ -103,6 +101,7 @@ represents response the includes all the SVIDs the and Control Plane's trusted c
 
 
 <a name="proto.WLSVIDEntry"/>
+
 ### WLSVIDEntry
 A WLSVIDEntry represents a Workload's SVID and its associated information
 
@@ -118,9 +117,8 @@ A WLSVIDEntry represents a Workload's SVID and its associated information
 
 
 <a name="proto.Workload"/>
+
 ### Workload
-
-
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
 | FetchSVIDBundle | [FetchSVIDBundleRequest](#proto.FetchSVIDBundleRequest) | [FetchSVIDBundleResponse](#proto.FetchSVIDBundleResponse) | Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation) |
@@ -131,8 +129,8 @@ A WLSVIDEntry represents a Workload's SVID and its associated information
 
 
 <a name="scalar-value-types"/>
-## Scalar Value Types
 
+## Scalar Value Types
 | .proto Type | Notes | C++ Type | Java Type | Python Type |
 | ----------- | ----- | -------- | --------- | ----------- |
 | <a name="double"/> double |  | double | double | float |
