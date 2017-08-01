@@ -30,6 +30,7 @@ The Registration API is used to register SPIFFE IDs, and the attestation logic
 that should be performed on a workload before those IDs can be issued.
 
 <a name="pb.CreateEntryRequest"/>
+
 ### CreateEntryRequest
 
 represents an entity to be created
@@ -40,6 +41,7 @@ represents an entity to be created
 
 
 <a name="pb.CreateFederatedBundleRequest"/>
+
 ### CreateFederatedBundleRequest
 
 represents a federated bundle to be added
@@ -50,6 +52,7 @@ represents a federated bundle to be added
 
 
 <a name="pb.DeleteEntryRequest"/>
+
 ### DeleteEntryRequest
 
 represents the criteria that will be used to delete entries
@@ -61,6 +64,7 @@ represents the criteria that will be used to delete entries
 
 
 <a name="pb.DeleteEntryResponse"/>
+
 ### DeleteEntryResponse
 
 represents the entities deleted
@@ -71,6 +75,7 @@ represents the entities deleted
 
 
 <a name="pb.DeleteFederatedBundleRequest"/>
+
 ### DeleteFederatedBundleRequest
 
 represents a federated bundle to be deleted
@@ -81,6 +86,7 @@ represents a federated bundle to be deleted
 
 
 <a name="pb.FederatedBundle"/>
+
 ### FederatedBundle
 
 A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
@@ -93,6 +99,7 @@ A CA bundle for a different Trust Domain than the one used and managed by the Co
 
 
 <a name="pb.ListByParentIDRequest"/>
+
 ### ListByParentIDRequest
 
 represents a ParentID whose children entities will be listed
@@ -103,6 +110,7 @@ represents a ParentID whose children entities will be listed
 
 
 <a name="pb.ListByParentIDResponse"/>
+
 ### ListByParentIDResponse
 
 represents a list of entities associated with a given ParentID
@@ -113,6 +121,7 @@ represents a list of entities associated with a given ParentID
 
 
 <a name="pb.ListBySelectorRequest"/>
+
 ### ListBySelectorRequest
 
 represents a selector and type to be used as the criteria to list entities
@@ -124,6 +133,7 @@ represents a selector and type to be used as the criteria to list entities
 
 
 <a name="pb.ListBySelectorResponse"/>
+
 ### ListBySelectorResponse
 
 represents a list of entities associated with a given selector and type
@@ -134,6 +144,7 @@ represents a list of entities associated with a given selector and type
 
 
 <a name="pb.ListBySpiffeIDRequest"/>
+
 ### ListBySpiffeIDRequest
 
 represents a Spiffe ID to be used as the criteria to list entities
@@ -144,6 +155,7 @@ represents a Spiffe ID to be used as the criteria to list entities
 
 
 <a name="pb.ListBySpiffeIDResponse"/>
+
 ### ListBySpiffeIDResponse
 
 represents a list of entities associated with a given Spiffe ID
@@ -154,6 +166,7 @@ represents a list of entities associated with a given Spiffe ID
 
 
 <a name="pb.ListFederatedBundlesResponse"/>
+
 ### ListFederatedBundlesResponse
 
 represents all the federated bundles
@@ -164,6 +177,7 @@ represents all the federated bundles
 
 
 <a name="pb.RegisteredEntry"/>
+
 ### RegisteredEntry
 
 This is a curated record that the Control Plane uses to set up and manage
@@ -180,6 +194,7 @@ the various registered nodes and workloads that are controlled by it.
 
 
 <a name="pb.UpdateFederatedBundleRequest"/>
+
 ### UpdateFederatedBundleRequest
 
 represents a federated bundle to be updated
@@ -193,6 +208,7 @@ represents a federated bundle to be updated
 
 
 <a name="pb.registration"/>
+
 ### registration
 
 
@@ -211,6 +227,7 @@ represents a federated bundle to be updated
 
 
 <a name="scalar-value-types"/>
+
 ## Scalar Value Types
 
 | .proto Type | Notes | C++ Type | Java Type | Python Type |
