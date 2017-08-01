@@ -12,22 +12,45 @@ import (
 // single parameter.
 
 type Endpoints struct {
-	CreateFederatedEntryEndpoint  endpoint.Endpoint
+	CreateEntryEndpoint           endpoint.Endpoint
+	DeleteEntryEndpoint           endpoint.Endpoint
+	ListByAttestorEndpoint        endpoint.Endpoint
+	ListBySelectorEndpoint        endpoint.Endpoint
+	ListBySpiffeIDEndpoint        endpoint.Endpoint
 	CreateFederatedBundleEndpoint endpoint.Endpoint
 	ListFederatedBundlesEndpoint  endpoint.Endpoint
 	UpdateFederatedBundleEndpoint endpoint.Endpoint
 	DeleteFederatedBundleEndpoint endpoint.Endpoint
-	CreateEntryEndpoint           endpoint.Endpoint
-	ListAttestorEntriesEndpoint   endpoint.Endpoint
-	ListSelectorEntriesEndpoint   endpoint.Endpoint
-	ListSpiffeEntriesEndpoint     endpoint.Endpoint
-	DeleteEntryEndpoint           endpoint.Endpoint
 }
-type CreateFederatedEntryRequest struct {
-	Request pb.CreateFederatedEntryRequest
+type CreateEntryRequest struct {
+	Request pb.CreateEntryRequest
 }
-type CreateFederatedEntryResponse struct {
-	Response pb.CreateFederatedEntryResponse
+type CreateEntryResponse struct {
+	Response pb.CreateEntryResponse
+}
+type DeleteEntryRequest struct {
+	Request pb.DeleteEntryRequest
+}
+type DeleteEntryResponse struct {
+	Response pb.DeleteEntryResponse
+}
+type ListByAttestorRequest struct {
+	Request pb.ListByAttestorRequest
+}
+type ListByAttestorResponse struct {
+	Response pb.ListByAttestorResponse
+}
+type ListBySelectorRequest struct {
+	Request pb.ListBySelectorRequest
+}
+type ListBySelectorResponse struct {
+	Response pb.ListBySelectorResponse
+}
+type ListBySpiffeIDRequest struct {
+	Request pb.ListBySpiffeIDRequest
+}
+type ListBySpiffeIDResponse struct {
+	Response pb.ListBySpiffeIDResponse
 }
 type CreateFederatedBundleRequest struct {
 	Request pb.CreateFederatedBundleRequest
@@ -53,58 +76,67 @@ type DeleteFederatedBundleRequest struct {
 type DeleteFederatedBundleResponse struct {
 	Response pb.DeleteFederatedBundleResponse
 }
-type CreateEntryRequest struct {
-	Request pb.CreateEntryRequest
-}
-type CreateEntryResponse struct {
-	Response pb.CreateEntryResponse
-}
-type ListAttestorEntriesRequest struct {
-	Request pb.ListAttestorEntriesRequest
-}
-type ListAttestorEntriesResponse struct {
-	Response pb.ListAttestorEntriesResponse
-}
-type ListSelectorEntriesRequest struct {
-	Request pb.ListSelectorEntriesRequest
-}
-type ListSelectorEntriesResponse struct {
-	Response pb.ListSelectorEntriesResponse
-}
-type ListSpiffeEntriesRequest struct {
-	Request pb.ListSpiffeEntriesRequest
-}
-type ListSpiffeEntriesResponse struct {
-	Response pb.ListSpiffeEntriesResponse
-}
-type DeleteEntryRequest struct {
-	Request pb.DeleteEntryRequest
-}
-type DeleteEntryResponse struct {
-	Response pb.DeleteEntryResponse
-}
 
 func NewEndpoint(svc RegistrationService) (ep Endpoints) {
-	ep.CreateFederatedEntryEndpoint = MakeCreateFederatedEntryEndpoint(svc)
+	ep.CreateEntryEndpoint = MakeCreateEntryEndpoint(svc)
+	ep.DeleteEntryEndpoint = MakeDeleteEntryEndpoint(svc)
+	ep.ListByAttestorEndpoint = MakeListByAttestorEndpoint(svc)
+	ep.ListBySelectorEndpoint = MakeListBySelectorEndpoint(svc)
+	ep.ListBySpiffeIDEndpoint = MakeListBySpiffeIDEndpoint(svc)
 	ep.CreateFederatedBundleEndpoint = MakeCreateFederatedBundleEndpoint(svc)
 	ep.ListFederatedBundlesEndpoint = MakeListFederatedBundlesEndpoint(svc)
 	ep.UpdateFederatedBundleEndpoint = MakeUpdateFederatedBundleEndpoint(svc)
 	ep.DeleteFederatedBundleEndpoint = MakeDeleteFederatedBundleEndpoint(svc)
-	ep.CreateEntryEndpoint = MakeCreateEntryEndpoint(svc)
-	ep.ListAttestorEntriesEndpoint = MakeListAttestorEntriesEndpoint(svc)
-	ep.ListSelectorEntriesEndpoint = MakeListSelectorEntriesEndpoint(svc)
-	ep.ListSpiffeEntriesEndpoint = MakeListSpiffeEntriesEndpoint(svc)
-	ep.DeleteEntryEndpoint = MakeDeleteEntryEndpoint(svc)
 	return ep
 }
 
-// MakeCreateFederatedEntryEndpoint returns an endpoint that invokes CreateFederatedEntry on the service.
+// MakeCreateEntryEndpoint returns an endpoint that invokes CreateEntry on the service.
 // Primarily useful in a server.
-func MakeCreateFederatedEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeCreateEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(CreateFederatedEntryRequest)
-		response := svc.CreateFederatedEntry(ctx, req.Request)
-		return CreateFederatedEntryResponse{Response: response}, nil
+		req := request.(CreateEntryRequest)
+		response := svc.CreateEntry(ctx, req.Request)
+		return CreateEntryResponse{Response: response}, nil
+	}
+}
+
+// MakeDeleteEntryEndpoint returns an endpoint that invokes DeleteEntry on the service.
+// Primarily useful in a server.
+func MakeDeleteEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(DeleteEntryRequest)
+		response := svc.DeleteEntry(ctx, req.Request)
+		return DeleteEntryResponse{Response: response}, nil
+	}
+}
+
+// MakeListByAttestorEndpoint returns an endpoint that invokes ListByAttestor on the service.
+// Primarily useful in a server.
+func MakeListByAttestorEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(ListByAttestorRequest)
+		response := svc.ListByAttestor(ctx, req.Request)
+		return ListByAttestorResponse{Response: response}, nil
+	}
+}
+
+// MakeListBySelectorEndpoint returns an endpoint that invokes ListBySelector on the service.
+// Primarily useful in a server.
+func MakeListBySelectorEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(ListBySelectorRequest)
+		response := svc.ListBySelector(ctx, req.Request)
+		return ListBySelectorResponse{Response: response}, nil
+	}
+}
+
+// MakeListBySpiffeIDEndpoint returns an endpoint that invokes ListBySpiffeID on the service.
+// Primarily useful in a server.
+func MakeListBySpiffeIDEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(ListBySpiffeIDRequest)
+		response := svc.ListBySpiffeID(ctx, req.Request)
+		return ListBySpiffeIDResponse{Response: response}, nil
 	}
 }
 
@@ -145,55 +177,5 @@ func MakeDeleteFederatedBundleEndpoint(svc RegistrationService) (ep endpoint.End
 		req := request.(DeleteFederatedBundleRequest)
 		response := svc.DeleteFederatedBundle(ctx, req.Request)
 		return DeleteFederatedBundleResponse{Response: response}, nil
-	}
-}
-
-// MakeCreateEntryEndpoint returns an endpoint that invokes CreateEntry on the service.
-// Primarily useful in a server.
-func MakeCreateEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(CreateEntryRequest)
-		response := svc.CreateEntry(ctx, req.Request)
-		return CreateEntryResponse{Response: response}, nil
-	}
-}
-
-// MakeListAttestorEntriesEndpoint returns an endpoint that invokes ListAttestorEntries on the service.
-// Primarily useful in a server.
-func MakeListAttestorEntriesEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(ListAttestorEntriesRequest)
-		response := svc.ListAttestorEntries(ctx, req.Request)
-		return ListAttestorEntriesResponse{Response: response}, nil
-	}
-}
-
-// MakeListSelectorEntriesEndpoint returns an endpoint that invokes ListSelectorEntries on the service.
-// Primarily useful in a server.
-func MakeListSelectorEntriesEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(ListSelectorEntriesRequest)
-		response := svc.ListSelectorEntries(ctx, req.Request)
-		return ListSelectorEntriesResponse{Response: response}, nil
-	}
-}
-
-// MakeListSpiffeEntriesEndpoint returns an endpoint that invokes ListSpiffeEntries on the service.
-// Primarily useful in a server.
-func MakeListSpiffeEntriesEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(ListSpiffeEntriesRequest)
-		response := svc.ListSpiffeEntries(ctx, req.Request)
-		return ListSpiffeEntriesResponse{Response: response}, nil
-	}
-}
-
-// MakeDeleteEntryEndpoint returns an endpoint that invokes DeleteEntry on the service.
-// Primarily useful in a server.
-func MakeDeleteEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(DeleteEntryRequest)
-		response := svc.DeleteEntry(ctx, req.Request)
-		return DeleteEntryResponse{Response: response}, nil
 	}
 }

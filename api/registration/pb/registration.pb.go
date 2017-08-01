@@ -9,10 +9,17 @@ It is generated from these files:
 
 It has these top-level messages:
 	RegisteredEntry
-	FederatedEntry
 	FederatedBundle
-	CreateFederatedEntryRequest
-	CreateFederatedEntryResponse
+	CreateEntryRequest
+	CreateEntryResponse
+	DeleteEntryRequest
+	DeleteEntryResponse
+	ListByAttestorRequest
+	ListByAttestorResponse
+	ListBySelectorRequest
+	ListBySelectorResponse
+	ListBySpiffeIDRequest
+	ListBySpiffeIDResponse
 	CreateFederatedBundleRequest
 	CreateFederatedBundleResponse
 	ListFederatedBundlesRequest
@@ -21,16 +28,6 @@ It has these top-level messages:
 	UpdateFederatedBundleResponse
 	DeleteFederatedBundleRequest
 	DeleteFederatedBundleResponse
-	CreateEntryRequest
-	CreateEntryResponse
-	ListAttestorEntriesRequest
-	ListAttestorEntriesResponse
-	ListSelectorEntriesRequest
-	ListSelectorEntriesResponse
-	ListSpiffeEntriesRequest
-	ListSpiffeEntriesResponse
-	DeleteEntryRequest
-	DeleteEntryResponse
 */
 package pb
 
@@ -55,11 +52,12 @@ var _ = math.Inf
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 type RegisteredEntry struct {
-	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
-	Selector     string `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
-	Attestor     string `protobuf:"bytes,3,opt,name=attestor" json:"attestor,omitempty"`
-	SpiffeId     string `protobuf:"bytes,4,opt,name=spiffeId" json:"spiffeId,omitempty"`
-	Ttl          int32  `protobuf:"varint,5,opt,name=ttl" json:"ttl,omitempty"`
+	SelectorType               string   `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
+	Selector                   string   `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
+	Attestor                   string   `protobuf:"bytes,3,opt,name=attestor" json:"attestor,omitempty"`
+	SpiffeId                   string   `protobuf:"bytes,4,opt,name=spiffeId" json:"spiffeId,omitempty"`
+	Ttl                        int32    `protobuf:"varint,5,opt,name=ttl" json:"ttl,omitempty"`
+	FederateBundleSpiffeIdList []string `protobuf:"bytes,6,rep,name=federateBundleSpiffeIdList" json:"federateBundleSpiffeIdList,omitempty"`
 }
 
 func (m *RegisteredEntry) Reset()                    { *m = RegisteredEntry{} }
@@ -102,24 +100,7 @@ func (m *RegisteredEntry) GetTtl() int32 {
 	return 0
 }
 
-type FederatedEntry struct {
-	RegisteredEntry            *RegisteredEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
-	FederateBundleSpiffeIdList []string         `protobuf:"bytes,2,rep,name=federateBundleSpiffeIdList" json:"federateBundleSpiffeIdList,omitempty"`
-}
-
-func (m *FederatedEntry) Reset()                    { *m = FederatedEntry{} }
-func (m *FederatedEntry) String() string            { return proto.CompactTextString(m) }
-func (*FederatedEntry) ProtoMessage()               {}
-func (*FederatedEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
-
-func (m *FederatedEntry) GetRegisteredEntry() *RegisteredEntry {
-	if m != nil {
-		return m.RegisteredEntry
-	}
-	return nil
-}
-
-func (m *FederatedEntry) GetFederateBundleSpiffeIdList() []string {
+func (m *RegisteredEntry) GetFederateBundleSpiffeIdList() []string {
 	if m != nil {
 		return m.FederateBundleSpiffeIdList
 	}
@@ -128,14 +109,14 @@ func (m *FederatedEntry) GetFederateBundleSpiffeIdList() []string {
 
 type FederatedBundle struct {
 	FederateBundleSpiffeId string `protobuf:"bytes,1,opt,name=federateBundleSpiffeId" json:"federateBundleSpiffeId,omitempty"`
-	FederatedBundle        []byte `protobuf:"bytes,2,opt,name=federatedBundle,proto3" json:"federatedBundle,omitempty"`
+	FederateBundle         []byte `protobuf:"bytes,2,opt,name=federateBundle,proto3" json:"federateBundle,omitempty"`
 	Ttl                    int32  `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
 }
 
 func (m *FederatedBundle) Reset()                    { *m = FederatedBundle{} }
 func (m *FederatedBundle) String() string            { return proto.CompactTextString(m) }
 func (*FederatedBundle) ProtoMessage()               {}
-func (*FederatedBundle) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (*FederatedBundle) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
 func (m *FederatedBundle) GetFederateBundleSpiffeId() string {
 	if m != nil {
@@ -144,9 +125,9 @@ func (m *FederatedBundle) GetFederateBundleSpiffeId() string {
 	return ""
 }
 
-func (m *FederatedBundle) GetFederatedBundle() []byte {
+func (m *FederatedBundle) GetFederateBundle() []byte {
 	if m != nil {
-		return m.FederatedBundle
+		return m.FederateBundle
 	}
 	return nil
 }
@@ -158,126 +139,6 @@ func (m *FederatedBundle) GetTtl() int32 {
 	return 0
 }
 
-type CreateFederatedEntryRequest struct {
-	FederatedEntry *FederatedEntry `protobuf:"bytes,1,opt,name=federatedEntry" json:"federatedEntry,omitempty"`
-}
-
-func (m *CreateFederatedEntryRequest) Reset()                    { *m = CreateFederatedEntryRequest{} }
-func (m *CreateFederatedEntryRequest) String() string            { return proto.CompactTextString(m) }
-func (*CreateFederatedEntryRequest) ProtoMessage()               {}
-func (*CreateFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
-
-func (m *CreateFederatedEntryRequest) GetFederatedEntry() *FederatedEntry {
-	if m != nil {
-		return m.FederatedEntry
-	}
-	return nil
-}
-
-type CreateFederatedEntryResponse struct {
-}
-
-func (m *CreateFederatedEntryResponse) Reset()                    { *m = CreateFederatedEntryResponse{} }
-func (m *CreateFederatedEntryResponse) String() string            { return proto.CompactTextString(m) }
-func (*CreateFederatedEntryResponse) ProtoMessage()               {}
-func (*CreateFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
-
-type CreateFederatedBundleRequest struct {
-	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
-}
-
-func (m *CreateFederatedBundleRequest) Reset()                    { *m = CreateFederatedBundleRequest{} }
-func (m *CreateFederatedBundleRequest) String() string            { return proto.CompactTextString(m) }
-func (*CreateFederatedBundleRequest) ProtoMessage()               {}
-func (*CreateFederatedBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
-
-func (m *CreateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
-	if m != nil {
-		return m.FederatedBundle
-	}
-	return nil
-}
-
-type CreateFederatedBundleResponse struct {
-}
-
-func (m *CreateFederatedBundleResponse) Reset()                    { *m = CreateFederatedBundleResponse{} }
-func (m *CreateFederatedBundleResponse) String() string            { return proto.CompactTextString(m) }
-func (*CreateFederatedBundleResponse) ProtoMessage()               {}
-func (*CreateFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
-
-type ListFederatedBundlesRequest struct {
-}
-
-func (m *ListFederatedBundlesRequest) Reset()                    { *m = ListFederatedBundlesRequest{} }
-func (m *ListFederatedBundlesRequest) String() string            { return proto.CompactTextString(m) }
-func (*ListFederatedBundlesRequest) ProtoMessage()               {}
-func (*ListFederatedBundlesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
-
-type ListFederatedBundlesResponse struct {
-	FederateBundleSpiffeIdList []string `protobuf:"bytes,1,rep,name=federateBundleSpiffeIdList" json:"federateBundleSpiffeIdList,omitempty"`
-}
-
-func (m *ListFederatedBundlesResponse) Reset()                    { *m = ListFederatedBundlesResponse{} }
-func (m *ListFederatedBundlesResponse) String() string            { return proto.CompactTextString(m) }
-func (*ListFederatedBundlesResponse) ProtoMessage()               {}
-func (*ListFederatedBundlesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
-
-func (m *ListFederatedBundlesResponse) GetFederateBundleSpiffeIdList() []string {
-	if m != nil {
-		return m.FederateBundleSpiffeIdList
-	}
-	return nil
-}
-
-type UpdateFederatedBundleRequest struct {
-	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
-}
-
-func (m *UpdateFederatedBundleRequest) Reset()                    { *m = UpdateFederatedBundleRequest{} }
-func (m *UpdateFederatedBundleRequest) String() string            { return proto.CompactTextString(m) }
-func (*UpdateFederatedBundleRequest) ProtoMessage()               {}
-func (*UpdateFederatedBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
-
-func (m *UpdateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
-	if m != nil {
-		return m.FederatedBundle
-	}
-	return nil
-}
-
-type UpdateFederatedBundleResponse struct {
-}
-
-func (m *UpdateFederatedBundleResponse) Reset()                    { *m = UpdateFederatedBundleResponse{} }
-func (m *UpdateFederatedBundleResponse) String() string            { return proto.CompactTextString(m) }
-func (*UpdateFederatedBundleResponse) ProtoMessage()               {}
-func (*UpdateFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
-
-type DeleteFederatedBundleRequest struct {
-	FederateBundleSpiffeId string `protobuf:"bytes,1,opt,name=federateBundleSpiffeId" json:"federateBundleSpiffeId,omitempty"`
-}
-
-func (m *DeleteFederatedBundleRequest) Reset()                    { *m = DeleteFederatedBundleRequest{} }
-func (m *DeleteFederatedBundleRequest) String() string            { return proto.CompactTextString(m) }
-func (*DeleteFederatedBundleRequest) ProtoMessage()               {}
-func (*DeleteFederatedBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
-
-func (m *DeleteFederatedBundleRequest) GetFederateBundleSpiffeId() string {
-	if m != nil {
-		return m.FederateBundleSpiffeId
-	}
-	return ""
-}
-
-type DeleteFederatedBundleResponse struct {
-}
-
-func (m *DeleteFederatedBundleResponse) Reset()                    { *m = DeleteFederatedBundleResponse{} }
-func (m *DeleteFederatedBundleResponse) String() string            { return proto.CompactTextString(m) }
-func (*DeleteFederatedBundleResponse) ProtoMessage()               {}
-func (*DeleteFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
-
 type CreateEntryRequest struct {
 	RegisteredEntry *RegisteredEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
@@ -285,7 +146,7 @@ type CreateEntryRequest struct {
 func (m *CreateEntryRequest) Reset()                    { *m = CreateEntryRequest{} }
 func (m *CreateEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateEntryRequest) ProtoMessage()               {}
-func (*CreateEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
+func (*CreateEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
 func (m *CreateEntryRequest) GetRegisteredEntry() *RegisteredEntry {
 	if m != nil {
@@ -300,111 +161,7 @@ type CreateEntryResponse struct {
 func (m *CreateEntryResponse) Reset()                    { *m = CreateEntryResponse{} }
 func (m *CreateEntryResponse) String() string            { return proto.CompactTextString(m) }
 func (*CreateEntryResponse) ProtoMessage()               {}
-func (*CreateEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
-
-type ListAttestorEntriesRequest struct {
-	Attestor string `protobuf:"bytes,1,opt,name=attestor" json:"attestor,omitempty"`
-}
-
-func (m *ListAttestorEntriesRequest) Reset()                    { *m = ListAttestorEntriesRequest{} }
-func (m *ListAttestorEntriesRequest) String() string            { return proto.CompactTextString(m) }
-func (*ListAttestorEntriesRequest) ProtoMessage()               {}
-func (*ListAttestorEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
-
-func (m *ListAttestorEntriesRequest) GetAttestor() string {
-	if m != nil {
-		return m.Attestor
-	}
-	return ""
-}
-
-type ListAttestorEntriesResponse struct {
-	FederatedEntryList []*FederatedEntry `protobuf:"bytes,1,rep,name=federatedEntryList" json:"federatedEntryList,omitempty"`
-}
-
-func (m *ListAttestorEntriesResponse) Reset()                    { *m = ListAttestorEntriesResponse{} }
-func (m *ListAttestorEntriesResponse) String() string            { return proto.CompactTextString(m) }
-func (*ListAttestorEntriesResponse) ProtoMessage()               {}
-func (*ListAttestorEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
-
-func (m *ListAttestorEntriesResponse) GetFederatedEntryList() []*FederatedEntry {
-	if m != nil {
-		return m.FederatedEntryList
-	}
-	return nil
-}
-
-type ListSelectorEntriesRequest struct {
-	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
-	Selector     string `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
-}
-
-func (m *ListSelectorEntriesRequest) Reset()                    { *m = ListSelectorEntriesRequest{} }
-func (m *ListSelectorEntriesRequest) String() string            { return proto.CompactTextString(m) }
-func (*ListSelectorEntriesRequest) ProtoMessage()               {}
-func (*ListSelectorEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
-
-func (m *ListSelectorEntriesRequest) GetSelectorType() string {
-	if m != nil {
-		return m.SelectorType
-	}
-	return ""
-}
-
-func (m *ListSelectorEntriesRequest) GetSelector() string {
-	if m != nil {
-		return m.Selector
-	}
-	return ""
-}
-
-type ListSelectorEntriesResponse struct {
-	FederatedEntryList []*FederatedEntry `protobuf:"bytes,1,rep,name=federatedEntryList" json:"federatedEntryList,omitempty"`
-}
-
-func (m *ListSelectorEntriesResponse) Reset()                    { *m = ListSelectorEntriesResponse{} }
-func (m *ListSelectorEntriesResponse) String() string            { return proto.CompactTextString(m) }
-func (*ListSelectorEntriesResponse) ProtoMessage()               {}
-func (*ListSelectorEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{18} }
-
-func (m *ListSelectorEntriesResponse) GetFederatedEntryList() []*FederatedEntry {
-	if m != nil {
-		return m.FederatedEntryList
-	}
-	return nil
-}
-
-type ListSpiffeEntriesRequest struct {
-	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
-}
-
-func (m *ListSpiffeEntriesRequest) Reset()                    { *m = ListSpiffeEntriesRequest{} }
-func (m *ListSpiffeEntriesRequest) String() string            { return proto.CompactTextString(m) }
-func (*ListSpiffeEntriesRequest) ProtoMessage()               {}
-func (*ListSpiffeEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
-
-func (m *ListSpiffeEntriesRequest) GetSpiffeId() string {
-	if m != nil {
-		return m.SpiffeId
-	}
-	return ""
-}
-
-type ListSpiffeEntriesResponse struct {
-	FederatedEntryList []*FederatedEntry `protobuf:"bytes,1,rep,name=federatedEntryList" json:"federatedEntryList,omitempty"`
-}
-
-func (m *ListSpiffeEntriesResponse) Reset()                    { *m = ListSpiffeEntriesResponse{} }
-func (m *ListSpiffeEntriesResponse) String() string            { return proto.CompactTextString(m) }
-func (*ListSpiffeEntriesResponse) ProtoMessage()               {}
-func (*ListSpiffeEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{20} }
-
-func (m *ListSpiffeEntriesResponse) GetFederatedEntryList() []*FederatedEntry {
-	if m != nil {
-		return m.FederatedEntryList
-	}
-	return nil
-}
+func (*CreateEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
 type DeleteEntryRequest struct {
 	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
@@ -414,7 +171,7 @@ type DeleteEntryRequest struct {
 func (m *DeleteEntryRequest) Reset()                    { *m = DeleteEntryRequest{} }
 func (m *DeleteEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*DeleteEntryRequest) ProtoMessage()               {}
-func (*DeleteEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{21} }
+func (*DeleteEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 func (m *DeleteEntryRequest) GetSelectorType() string {
 	if m != nil {
@@ -431,27 +188,234 @@ func (m *DeleteEntryRequest) GetSelector() string {
 }
 
 type DeleteEntryResponse struct {
-	FederatedEntryList []*FederatedEntry `protobuf:"bytes,1,rep,name=federatedEntryList" json:"federatedEntryList,omitempty"`
+	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
 
 func (m *DeleteEntryResponse) Reset()                    { *m = DeleteEntryResponse{} }
 func (m *DeleteEntryResponse) String() string            { return proto.CompactTextString(m) }
 func (*DeleteEntryResponse) ProtoMessage()               {}
-func (*DeleteEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{22} }
+func (*DeleteEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
 
-func (m *DeleteEntryResponse) GetFederatedEntryList() []*FederatedEntry {
+func (m *DeleteEntryResponse) GetRegisteredEntryList() []*RegisteredEntry {
 	if m != nil {
-		return m.FederatedEntryList
+		return m.RegisteredEntryList
 	}
 	return nil
 }
 
+type ListByAttestorRequest struct {
+	Attestor string `protobuf:"bytes,1,opt,name=attestor" json:"attestor,omitempty"`
+}
+
+func (m *ListByAttestorRequest) Reset()                    { *m = ListByAttestorRequest{} }
+func (m *ListByAttestorRequest) String() string            { return proto.CompactTextString(m) }
+func (*ListByAttestorRequest) ProtoMessage()               {}
+func (*ListByAttestorRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+
+func (m *ListByAttestorRequest) GetAttestor() string {
+	if m != nil {
+		return m.Attestor
+	}
+	return ""
+}
+
+type ListByAttestorResponse struct {
+	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
+}
+
+func (m *ListByAttestorResponse) Reset()                    { *m = ListByAttestorResponse{} }
+func (m *ListByAttestorResponse) String() string            { return proto.CompactTextString(m) }
+func (*ListByAttestorResponse) ProtoMessage()               {}
+func (*ListByAttestorResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+
+func (m *ListByAttestorResponse) GetRegisteredEntryList() []*RegisteredEntry {
+	if m != nil {
+		return m.RegisteredEntryList
+	}
+	return nil
+}
+
+type ListBySelectorRequest struct {
+	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
+	Selector     string `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
+}
+
+func (m *ListBySelectorRequest) Reset()                    { *m = ListBySelectorRequest{} }
+func (m *ListBySelectorRequest) String() string            { return proto.CompactTextString(m) }
+func (*ListBySelectorRequest) ProtoMessage()               {}
+func (*ListBySelectorRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+
+func (m *ListBySelectorRequest) GetSelectorType() string {
+	if m != nil {
+		return m.SelectorType
+	}
+	return ""
+}
+
+func (m *ListBySelectorRequest) GetSelector() string {
+	if m != nil {
+		return m.Selector
+	}
+	return ""
+}
+
+type ListBySelectorResponse struct {
+	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
+}
+
+func (m *ListBySelectorResponse) Reset()                    { *m = ListBySelectorResponse{} }
+func (m *ListBySelectorResponse) String() string            { return proto.CompactTextString(m) }
+func (*ListBySelectorResponse) ProtoMessage()               {}
+func (*ListBySelectorResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
+
+func (m *ListBySelectorResponse) GetRegisteredEntryList() []*RegisteredEntry {
+	if m != nil {
+		return m.RegisteredEntryList
+	}
+	return nil
+}
+
+type ListBySpiffeIDRequest struct {
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
+}
+
+func (m *ListBySpiffeIDRequest) Reset()                    { *m = ListBySpiffeIDRequest{} }
+func (m *ListBySpiffeIDRequest) String() string            { return proto.CompactTextString(m) }
+func (*ListBySpiffeIDRequest) ProtoMessage()               {}
+func (*ListBySpiffeIDRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
+
+func (m *ListBySpiffeIDRequest) GetSpiffeId() string {
+	if m != nil {
+		return m.SpiffeId
+	}
+	return ""
+}
+
+type ListBySpiffeIDResponse struct {
+	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
+}
+
+func (m *ListBySpiffeIDResponse) Reset()                    { *m = ListBySpiffeIDResponse{} }
+func (m *ListBySpiffeIDResponse) String() string            { return proto.CompactTextString(m) }
+func (*ListBySpiffeIDResponse) ProtoMessage()               {}
+func (*ListBySpiffeIDResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
+
+func (m *ListBySpiffeIDResponse) GetRegisteredEntryList() []*RegisteredEntry {
+	if m != nil {
+		return m.RegisteredEntryList
+	}
+	return nil
+}
+
+type CreateFederatedBundleRequest struct {
+	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
+}
+
+func (m *CreateFederatedBundleRequest) Reset()                    { *m = CreateFederatedBundleRequest{} }
+func (m *CreateFederatedBundleRequest) String() string            { return proto.CompactTextString(m) }
+func (*CreateFederatedBundleRequest) ProtoMessage()               {}
+func (*CreateFederatedBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
+
+func (m *CreateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
+	if m != nil {
+		return m.FederatedBundle
+	}
+	return nil
+}
+
+type CreateFederatedBundleResponse struct {
+}
+
+func (m *CreateFederatedBundleResponse) Reset()                    { *m = CreateFederatedBundleResponse{} }
+func (m *CreateFederatedBundleResponse) String() string            { return proto.CompactTextString(m) }
+func (*CreateFederatedBundleResponse) ProtoMessage()               {}
+func (*CreateFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
+
+type ListFederatedBundlesRequest struct {
+}
+
+func (m *ListFederatedBundlesRequest) Reset()                    { *m = ListFederatedBundlesRequest{} }
+func (m *ListFederatedBundlesRequest) String() string            { return proto.CompactTextString(m) }
+func (*ListFederatedBundlesRequest) ProtoMessage()               {}
+func (*ListFederatedBundlesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
+
+type ListFederatedBundlesResponse struct {
+	FederatedBundleList []*FederatedBundle `protobuf:"bytes,1,rep,name=federatedBundleList" json:"federatedBundleList,omitempty"`
+}
+
+func (m *ListFederatedBundlesResponse) Reset()                    { *m = ListFederatedBundlesResponse{} }
+func (m *ListFederatedBundlesResponse) String() string            { return proto.CompactTextString(m) }
+func (*ListFederatedBundlesResponse) ProtoMessage()               {}
+func (*ListFederatedBundlesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
+
+func (m *ListFederatedBundlesResponse) GetFederatedBundleList() []*FederatedBundle {
+	if m != nil {
+		return m.FederatedBundleList
+	}
+	return nil
+}
+
+type UpdateFederatedBundleRequest struct {
+	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
+}
+
+func (m *UpdateFederatedBundleRequest) Reset()                    { *m = UpdateFederatedBundleRequest{} }
+func (m *UpdateFederatedBundleRequest) String() string            { return proto.CompactTextString(m) }
+func (*UpdateFederatedBundleRequest) ProtoMessage()               {}
+func (*UpdateFederatedBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
+
+func (m *UpdateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
+	if m != nil {
+		return m.FederatedBundle
+	}
+	return nil
+}
+
+type UpdateFederatedBundleResponse struct {
+}
+
+func (m *UpdateFederatedBundleResponse) Reset()                    { *m = UpdateFederatedBundleResponse{} }
+func (m *UpdateFederatedBundleResponse) String() string            { return proto.CompactTextString(m) }
+func (*UpdateFederatedBundleResponse) ProtoMessage()               {}
+func (*UpdateFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
+
+type DeleteFederatedBundleRequest struct {
+	FederateBundleSpiffeId string `protobuf:"bytes,1,opt,name=federateBundleSpiffeId" json:"federateBundleSpiffeId,omitempty"`
+}
+
+func (m *DeleteFederatedBundleRequest) Reset()                    { *m = DeleteFederatedBundleRequest{} }
+func (m *DeleteFederatedBundleRequest) String() string            { return proto.CompactTextString(m) }
+func (*DeleteFederatedBundleRequest) ProtoMessage()               {}
+func (*DeleteFederatedBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{18} }
+
+func (m *DeleteFederatedBundleRequest) GetFederateBundleSpiffeId() string {
+	if m != nil {
+		return m.FederateBundleSpiffeId
+	}
+	return ""
+}
+
+type DeleteFederatedBundleResponse struct {
+}
+
+func (m *DeleteFederatedBundleResponse) Reset()                    { *m = DeleteFederatedBundleResponse{} }
+func (m *DeleteFederatedBundleResponse) String() string            { return proto.CompactTextString(m) }
+func (*DeleteFederatedBundleResponse) ProtoMessage()               {}
+func (*DeleteFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
+
 func init() {
 	proto.RegisterType((*RegisteredEntry)(nil), "pb.RegisteredEntry")
-	proto.RegisterType((*FederatedEntry)(nil), "pb.FederatedEntry")
 	proto.RegisterType((*FederatedBundle)(nil), "pb.FederatedBundle")
-	proto.RegisterType((*CreateFederatedEntryRequest)(nil), "pb.CreateFederatedEntryRequest")
-	proto.RegisterType((*CreateFederatedEntryResponse)(nil), "pb.CreateFederatedEntryResponse")
+	proto.RegisterType((*CreateEntryRequest)(nil), "pb.CreateEntryRequest")
+	proto.RegisterType((*CreateEntryResponse)(nil), "pb.CreateEntryResponse")
+	proto.RegisterType((*DeleteEntryRequest)(nil), "pb.DeleteEntryRequest")
+	proto.RegisterType((*DeleteEntryResponse)(nil), "pb.DeleteEntryResponse")
+	proto.RegisterType((*ListByAttestorRequest)(nil), "pb.ListByAttestorRequest")
+	proto.RegisterType((*ListByAttestorResponse)(nil), "pb.ListByAttestorResponse")
+	proto.RegisterType((*ListBySelectorRequest)(nil), "pb.ListBySelectorRequest")
+	proto.RegisterType((*ListBySelectorResponse)(nil), "pb.ListBySelectorResponse")
+	proto.RegisterType((*ListBySpiffeIDRequest)(nil), "pb.ListBySpiffeIDRequest")
+	proto.RegisterType((*ListBySpiffeIDResponse)(nil), "pb.ListBySpiffeIDResponse")
 	proto.RegisterType((*CreateFederatedBundleRequest)(nil), "pb.CreateFederatedBundleRequest")
 	proto.RegisterType((*CreateFederatedBundleResponse)(nil), "pb.CreateFederatedBundleResponse")
 	proto.RegisterType((*ListFederatedBundlesRequest)(nil), "pb.ListFederatedBundlesRequest")
@@ -460,16 +424,6 @@ func init() {
 	proto.RegisterType((*UpdateFederatedBundleResponse)(nil), "pb.UpdateFederatedBundleResponse")
 	proto.RegisterType((*DeleteFederatedBundleRequest)(nil), "pb.DeleteFederatedBundleRequest")
 	proto.RegisterType((*DeleteFederatedBundleResponse)(nil), "pb.DeleteFederatedBundleResponse")
-	proto.RegisterType((*CreateEntryRequest)(nil), "pb.CreateEntryRequest")
-	proto.RegisterType((*CreateEntryResponse)(nil), "pb.CreateEntryResponse")
-	proto.RegisterType((*ListAttestorEntriesRequest)(nil), "pb.ListAttestorEntriesRequest")
-	proto.RegisterType((*ListAttestorEntriesResponse)(nil), "pb.ListAttestorEntriesResponse")
-	proto.RegisterType((*ListSelectorEntriesRequest)(nil), "pb.ListSelectorEntriesRequest")
-	proto.RegisterType((*ListSelectorEntriesResponse)(nil), "pb.ListSelectorEntriesResponse")
-	proto.RegisterType((*ListSpiffeEntriesRequest)(nil), "pb.ListSpiffeEntriesRequest")
-	proto.RegisterType((*ListSpiffeEntriesResponse)(nil), "pb.ListSpiffeEntriesResponse")
-	proto.RegisterType((*DeleteEntryRequest)(nil), "pb.DeleteEntryRequest")
-	proto.RegisterType((*DeleteEntryResponse)(nil), "pb.DeleteEntryResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -483,16 +437,15 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for Registration service
 
 type RegistrationClient interface {
-	CreateFederatedEntry(ctx context.Context, in *CreateFederatedEntryRequest, opts ...grpc.CallOption) (*CreateFederatedEntryResponse, error)
+	CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*CreateEntryResponse, error)
+	DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error)
+	ListByAttestor(ctx context.Context, in *ListByAttestorRequest, opts ...grpc.CallOption) (*ListByAttestorResponse, error)
+	ListBySelector(ctx context.Context, in *ListBySelectorRequest, opts ...grpc.CallOption) (*ListBySelectorResponse, error)
+	ListBySpiffeID(ctx context.Context, in *ListBySpiffeIDRequest, opts ...grpc.CallOption) (*ListBySpiffeIDResponse, error)
 	CreateFederatedBundle(ctx context.Context, in *CreateFederatedBundleRequest, opts ...grpc.CallOption) (*CreateFederatedBundleResponse, error)
 	ListFederatedBundles(ctx context.Context, in *ListFederatedBundlesRequest, opts ...grpc.CallOption) (*ListFederatedBundlesResponse, error)
 	UpdateFederatedBundle(ctx context.Context, in *UpdateFederatedBundleRequest, opts ...grpc.CallOption) (*UpdateFederatedBundleResponse, error)
 	DeleteFederatedBundle(ctx context.Context, in *DeleteFederatedBundleRequest, opts ...grpc.CallOption) (*DeleteFederatedBundleResponse, error)
-	CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*CreateEntryResponse, error)
-	ListAttestorEntries(ctx context.Context, in *ListAttestorEntriesRequest, opts ...grpc.CallOption) (*ListAttestorEntriesResponse, error)
-	ListSelectorEntries(ctx context.Context, in *ListSelectorEntriesRequest, opts ...grpc.CallOption) (*ListSelectorEntriesResponse, error)
-	ListSpiffeEntries(ctx context.Context, in *ListSpiffeEntriesRequest, opts ...grpc.CallOption) (*ListSpiffeEntriesResponse, error)
-	DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error)
 }
 
 type registrationClient struct {
@@ -503,9 +456,45 @@ func NewRegistrationClient(cc *grpc.ClientConn) RegistrationClient {
 	return &registrationClient{cc}
 }
 
-func (c *registrationClient) CreateFederatedEntry(ctx context.Context, in *CreateFederatedEntryRequest, opts ...grpc.CallOption) (*CreateFederatedEntryResponse, error) {
-	out := new(CreateFederatedEntryResponse)
-	err := grpc.Invoke(ctx, "/pb.registration/CreateFederatedEntry", in, out, c.cc, opts...)
+func (c *registrationClient) CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*CreateEntryResponse, error) {
+	out := new(CreateEntryResponse)
+	err := grpc.Invoke(ctx, "/pb.registration/CreateEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *registrationClient) DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error) {
+	out := new(DeleteEntryResponse)
+	err := grpc.Invoke(ctx, "/pb.registration/DeleteEntry", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *registrationClient) ListByAttestor(ctx context.Context, in *ListByAttestorRequest, opts ...grpc.CallOption) (*ListByAttestorResponse, error) {
+	out := new(ListByAttestorResponse)
+	err := grpc.Invoke(ctx, "/pb.registration/ListByAttestor", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *registrationClient) ListBySelector(ctx context.Context, in *ListBySelectorRequest, opts ...grpc.CallOption) (*ListBySelectorResponse, error) {
+	out := new(ListBySelectorResponse)
+	err := grpc.Invoke(ctx, "/pb.registration/ListBySelector", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *registrationClient) ListBySpiffeID(ctx context.Context, in *ListBySpiffeIDRequest, opts ...grpc.CallOption) (*ListBySpiffeIDResponse, error) {
+	out := new(ListBySpiffeIDResponse)
+	err := grpc.Invoke(ctx, "/pb.registration/ListBySpiffeID", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -548,84 +537,110 @@ func (c *registrationClient) DeleteFederatedBundle(ctx context.Context, in *Dele
 	return out, nil
 }
 
-func (c *registrationClient) CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*CreateEntryResponse, error) {
-	out := new(CreateEntryResponse)
-	err := grpc.Invoke(ctx, "/pb.registration/CreateEntry", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *registrationClient) ListAttestorEntries(ctx context.Context, in *ListAttestorEntriesRequest, opts ...grpc.CallOption) (*ListAttestorEntriesResponse, error) {
-	out := new(ListAttestorEntriesResponse)
-	err := grpc.Invoke(ctx, "/pb.registration/ListAttestorEntries", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *registrationClient) ListSelectorEntries(ctx context.Context, in *ListSelectorEntriesRequest, opts ...grpc.CallOption) (*ListSelectorEntriesResponse, error) {
-	out := new(ListSelectorEntriesResponse)
-	err := grpc.Invoke(ctx, "/pb.registration/ListSelectorEntries", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *registrationClient) ListSpiffeEntries(ctx context.Context, in *ListSpiffeEntriesRequest, opts ...grpc.CallOption) (*ListSpiffeEntriesResponse, error) {
-	out := new(ListSpiffeEntriesResponse)
-	err := grpc.Invoke(ctx, "/pb.registration/ListSpiffeEntries", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *registrationClient) DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error) {
-	out := new(DeleteEntryResponse)
-	err := grpc.Invoke(ctx, "/pb.registration/DeleteEntry", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // Server API for Registration service
 
 type RegistrationServer interface {
-	CreateFederatedEntry(context.Context, *CreateFederatedEntryRequest) (*CreateFederatedEntryResponse, error)
+	CreateEntry(context.Context, *CreateEntryRequest) (*CreateEntryResponse, error)
+	DeleteEntry(context.Context, *DeleteEntryRequest) (*DeleteEntryResponse, error)
+	ListByAttestor(context.Context, *ListByAttestorRequest) (*ListByAttestorResponse, error)
+	ListBySelector(context.Context, *ListBySelectorRequest) (*ListBySelectorResponse, error)
+	ListBySpiffeID(context.Context, *ListBySpiffeIDRequest) (*ListBySpiffeIDResponse, error)
 	CreateFederatedBundle(context.Context, *CreateFederatedBundleRequest) (*CreateFederatedBundleResponse, error)
 	ListFederatedBundles(context.Context, *ListFederatedBundlesRequest) (*ListFederatedBundlesResponse, error)
 	UpdateFederatedBundle(context.Context, *UpdateFederatedBundleRequest) (*UpdateFederatedBundleResponse, error)
 	DeleteFederatedBundle(context.Context, *DeleteFederatedBundleRequest) (*DeleteFederatedBundleResponse, error)
-	CreateEntry(context.Context, *CreateEntryRequest) (*CreateEntryResponse, error)
-	ListAttestorEntries(context.Context, *ListAttestorEntriesRequest) (*ListAttestorEntriesResponse, error)
-	ListSelectorEntries(context.Context, *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
-	ListSpiffeEntries(context.Context, *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error)
-	DeleteEntry(context.Context, *DeleteEntryRequest) (*DeleteEntryResponse, error)
 }
 
 func RegisterRegistrationServer(s *grpc.Server, srv RegistrationServer) {
 	s.RegisterService(&_Registration_serviceDesc, srv)
 }
 
-func _Registration_CreateFederatedEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateFederatedEntryRequest)
+func _Registration_CreateEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateEntryRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(RegistrationServer).CreateFederatedEntry(ctx, in)
+		return srv.(RegistrationServer).CreateEntry(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/pb.registration/CreateFederatedEntry",
+		FullMethod: "/pb.registration/CreateEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).CreateFederatedEntry(ctx, req.(*CreateFederatedEntryRequest))
+		return srv.(RegistrationServer).CreateEntry(ctx, req.(*CreateEntryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Registration_DeleteEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteEntryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RegistrationServer).DeleteEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.registration/DeleteEntry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RegistrationServer).DeleteEntry(ctx, req.(*DeleteEntryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Registration_ListByAttestor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListByAttestorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RegistrationServer).ListByAttestor(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.registration/ListByAttestor",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RegistrationServer).ListByAttestor(ctx, req.(*ListByAttestorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Registration_ListBySelector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBySelectorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RegistrationServer).ListBySelector(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.registration/ListBySelector",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RegistrationServer).ListBySelector(ctx, req.(*ListBySelectorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Registration_ListBySpiffeID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBySpiffeIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RegistrationServer).ListBySpiffeID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.registration/ListBySpiffeID",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RegistrationServer).ListBySpiffeID(ctx, req.(*ListBySpiffeIDRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -702,103 +717,29 @@ func _Registration_DeleteFederatedBundle_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Registration_CreateEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateEntryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RegistrationServer).CreateEntry(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/pb.registration/CreateEntry",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).CreateEntry(ctx, req.(*CreateEntryRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Registration_ListAttestorEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListAttestorEntriesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RegistrationServer).ListAttestorEntries(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/pb.registration/ListAttestorEntries",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).ListAttestorEntries(ctx, req.(*ListAttestorEntriesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Registration_ListSelectorEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListSelectorEntriesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RegistrationServer).ListSelectorEntries(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/pb.registration/ListSelectorEntries",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).ListSelectorEntries(ctx, req.(*ListSelectorEntriesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Registration_ListSpiffeEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListSpiffeEntriesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RegistrationServer).ListSpiffeEntries(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/pb.registration/ListSpiffeEntries",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).ListSpiffeEntries(ctx, req.(*ListSpiffeEntriesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Registration_DeleteEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteEntryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RegistrationServer).DeleteEntry(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/pb.registration/DeleteEntry",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).DeleteEntry(ctx, req.(*DeleteEntryRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 var _Registration_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "pb.registration",
 	HandlerType: (*RegistrationServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateFederatedEntry",
-			Handler:    _Registration_CreateFederatedEntry_Handler,
+			MethodName: "CreateEntry",
+			Handler:    _Registration_CreateEntry_Handler,
+		},
+		{
+			MethodName: "DeleteEntry",
+			Handler:    _Registration_DeleteEntry_Handler,
+		},
+		{
+			MethodName: "ListByAttestor",
+			Handler:    _Registration_ListByAttestor_Handler,
+		},
+		{
+			MethodName: "ListBySelector",
+			Handler:    _Registration_ListBySelector_Handler,
+		},
+		{
+			MethodName: "ListBySpiffeID",
+			Handler:    _Registration_ListBySpiffeID_Handler,
 		},
 		{
 			MethodName: "CreateFederatedBundle",
@@ -816,26 +757,6 @@ var _Registration_serviceDesc = grpc.ServiceDesc{
 			MethodName: "DeleteFederatedBundle",
 			Handler:    _Registration_DeleteFederatedBundle_Handler,
 		},
-		{
-			MethodName: "CreateEntry",
-			Handler:    _Registration_CreateEntry_Handler,
-		},
-		{
-			MethodName: "ListAttestorEntries",
-			Handler:    _Registration_ListAttestorEntries_Handler,
-		},
-		{
-			MethodName: "ListSelectorEntries",
-			Handler:    _Registration_ListSelectorEntries_Handler,
-		},
-		{
-			MethodName: "ListSpiffeEntries",
-			Handler:    _Registration_ListSpiffeEntries_Handler,
-		},
-		{
-			MethodName: "DeleteEntry",
-			Handler:    _Registration_DeleteEntry_Handler,
-		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "registration.proto",
@@ -844,46 +765,42 @@ var _Registration_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("registration.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 646 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0xcd, 0x6a, 0xdb, 0x40,
-	0x10, 0x46, 0x76, 0x13, 0x9a, 0x89, 0x89, 0xdb, 0x71, 0x9c, 0xaa, 0x8a, 0x1d, 0xbb, 0x7b, 0xf2,
-	0xc9, 0x87, 0x14, 0x42, 0x29, 0x24, 0xd0, 0xf4, 0x07, 0x0a, 0x3d, 0x14, 0x39, 0x0d, 0x18, 0x9c,
-	0x16, 0xbb, 0x5a, 0x15, 0x81, 0xb1, 0x54, 0x69, 0x73, 0xc8, 0x03, 0xf4, 0xdc, 0x07, 0xe8, 0xcb,
-	0xf5, 0x51, 0xca, 0x6a, 0x57, 0x92, 0x77, 0xb5, 0x52, 0xa0, 0x76, 0x6e, 0x59, 0xcd, 0xcc, 0x37,
-	0xdf, 0x7e, 0x33, 0xfb, 0xc5, 0x80, 0x31, 0xfd, 0x11, 0x24, 0x2c, 0x9e, 0xb3, 0x20, 0x5c, 0x8d,
-	0xa3, 0x38, 0x64, 0x21, 0x36, 0xa2, 0x05, 0xf9, 0x63, 0x41, 0xdb, 0x4d, 0x43, 0x34, 0xa6, 0xde,
-	0xfb, 0x15, 0x8b, 0xef, 0x90, 0x40, 0x2b, 0xa1, 0x4b, 0xfa, 0x9d, 0x85, 0xf1, 0xd5, 0x5d, 0x44,
-	0x6d, 0x6b, 0x68, 0x8d, 0xf6, 0x5c, 0xe5, 0x1b, 0x3a, 0xf0, 0x38, 0x3b, 0xdb, 0x8d, 0x34, 0x9e,
-	0x9f, 0x79, 0x6c, 0xce, 0x18, 0x4d, 0x78, 0xac, 0x29, 0x62, 0xd9, 0x39, 0xad, 0x8b, 0x02, 0xdf,
-	0xa7, 0x1f, 0x3d, 0xfb, 0x91, 0xac, 0x93, 0x67, 0x7c, 0x02, 0x4d, 0xc6, 0x96, 0xf6, 0xce, 0xd0,
-	0x1a, 0xed, 0xb8, 0xfc, 0x4f, 0xf2, 0xdb, 0x82, 0x83, 0x0f, 0xd4, 0xa3, 0xf1, 0x9c, 0x65, 0xe4,
-	0xce, 0xa1, 0x1d, 0xab, 0x7c, 0x53, 0x7e, 0xfb, 0xa7, 0x9d, 0x71, 0xb4, 0x18, 0x6b, 0x57, 0x71,
-	0xf5, 0x5c, 0xbc, 0x00, 0xc7, 0x97, 0x80, 0x97, 0xb7, 0x2b, 0x6f, 0x49, 0x27, 0xb2, 0xfb, 0xa7,
-	0x20, 0x61, 0x76, 0x63, 0xd8, 0x1c, 0xed, 0xb9, 0x35, 0x19, 0xe4, 0x97, 0x05, 0xed, 0x9c, 0x91,
-	0x88, 0xe3, 0x19, 0x1c, 0x99, 0x2b, 0xa4, 0x72, 0x15, 0x51, 0x1c, 0x41, 0xdb, 0x57, 0xa1, 0x52,
-	0x29, 0x5b, 0xae, 0xfe, 0x39, 0x53, 0xa6, 0x59, 0x28, 0x33, 0x85, 0xe3, 0xb7, 0x31, 0x9d, 0x33,
-	0xaa, 0xca, 0xe3, 0xd2, 0x9f, 0xb7, 0x34, 0x61, 0xf8, 0x1a, 0x0e, 0x7c, 0x25, 0x20, 0x45, 0x42,
-	0x2e, 0x92, 0x56, 0xa2, 0x65, 0x92, 0x13, 0xe8, 0x99, 0xa1, 0x93, 0x28, 0x5c, 0x25, 0x94, 0xdc,
-	0x94, 0xe2, 0x82, 0x65, 0xd6, 0xfb, 0xbc, 0x7c, 0xad, 0xb5, 0x09, 0xe9, 0x45, 0x7a, 0x2e, 0x19,
-	0x40, 0xbf, 0x02, 0x5e, 0xf6, 0xef, 0xc3, 0x31, 0x1f, 0x85, 0x16, 0x4e, 0x64, 0x7b, 0xf2, 0x15,
-	0x7a, 0xe6, 0xb0, 0x28, 0xbf, 0x67, 0x03, 0xac, 0x7b, 0x37, 0xe0, 0x06, 0x7a, 0x5f, 0x22, 0xef,
-	0x21, 0xaf, 0x5f, 0x01, 0x2f, 0xaf, 0x7f, 0x0d, 0xbd, 0x77, 0x74, 0x49, 0x2b, 0xfb, 0xff, 0xe7,
-	0x36, 0xf2, 0xc6, 0x15, 0xb8, 0xb2, 0xf1, 0x04, 0x50, 0x0c, 0x46, 0xd9, 0xb4, 0xcd, 0xde, 0x23,
-	0xe9, 0x42, 0x47, 0x01, 0x95, 0xbd, 0x5e, 0x81, 0xc3, 0xc5, 0x7e, 0x23, 0x6d, 0x83, 0x07, 0x83,
-	0x7c, 0xc4, 0x8a, 0xc1, 0x58, 0xaa, 0xc1, 0x90, 0xb9, 0xd8, 0x8e, 0x52, 0xa5, 0x9c, 0xfe, 0x25,
-	0xa0, 0xba, 0xee, 0xf9, 0xd4, 0xcd, 0x8f, 0xc3, 0x90, 0x4d, 0x66, 0x82, 0xdc, 0x44, 0xfa, 0x9d,
-	0x46, 0x6e, 0x43, 0xf7, 0xcc, 0x2e, 0x50, 0x42, 0xdf, 0xe2, 0x05, 0xce, 0xc0, 0x4e, 0x5b, 0xa4,
-	0xa3, 0x2f, 0x6b, 0x9b, 0xa8, 0x0b, 0x93, 0x9f, 0xc9, 0x37, 0x78, 0x6e, 0xa8, 0xdb, 0x22, 0xb1,
-	0x2b, 0x40, 0xb1, 0x83, 0xca, 0x8a, 0x6d, 0xaa, 0xe8, 0x14, 0x3a, 0x0a, 0xea, 0xf6, 0x08, 0x9f,
-	0xfe, 0xdd, 0x85, 0xd6, 0xfa, 0x7f, 0x56, 0x9c, 0xc2, 0xa1, 0xc9, 0x3c, 0x71, 0xc0, 0x01, 0x6b,
-	0x1c, 0xdb, 0x19, 0x56, 0x27, 0x48, 0xbe, 0x33, 0xe8, 0x1a, 0x8d, 0x11, 0x4d, 0xa5, 0x8a, 0x27,
-	0x38, 0x2f, 0x6a, 0x32, 0x24, 0xfa, 0x14, 0x0e, 0x4d, 0xb6, 0x29, 0x88, 0xd7, 0xf8, 0xad, 0x20,
-	0x5e, 0xeb, 0xb8, 0x33, 0xe8, 0x1a, 0x2d, 0x4d, 0x10, 0xaf, 0x33, 0x53, 0x41, 0xbc, 0xd6, 0x0f,
-	0x39, 0xba, 0xd1, 0xb7, 0x04, 0x7a, 0x9d, 0x55, 0x0a, 0xf4, 0x5a, 0xd3, 0xc3, 0x0b, 0xd8, 0x5f,
-	0xf3, 0x27, 0x3c, 0x2a, 0x84, 0x54, 0xa6, 0xf7, 0xac, 0xf4, 0x5d, 0xd6, 0x5f, 0x43, 0xc7, 0x60,
-	0x47, 0x78, 0x92, 0x89, 0x66, 0x76, 0x38, 0x67, 0x50, 0x19, 0x57, 0x71, 0x35, 0x97, 0x28, 0x70,
-	0xcd, 0xe6, 0x54, 0xe0, 0x56, 0xd9, 0xcb, 0x67, 0x78, 0x5a, 0x7a, 0xe2, 0xd8, 0xcb, 0xab, 0x0c,
-	0x8e, 0xe1, 0xf4, 0x2b, 0xa2, 0x85, 0x82, 0x6b, 0xaf, 0x4f, 0x28, 0x58, 0x7e, 0xe4, 0x42, 0x41,
-	0xc3, 0x33, 0x5d, 0xec, 0xa6, 0x3f, 0x56, 0x5f, 0xfe, 0x0b, 0x00, 0x00, 0xff, 0xff, 0x31, 0xc1,
-	0xcd, 0x26, 0xc2, 0x0a, 0x00, 0x00,
+	// 586 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0x41, 0x6f, 0xd3, 0x30,
+	0x14, 0x56, 0x16, 0x36, 0xb1, 0xd7, 0x6a, 0x45, 0x2e, 0x2d, 0x21, 0x74, 0x5a, 0xf0, 0x01, 0xf5,
+	0xd4, 0xc3, 0x26, 0x71, 0xa3, 0x12, 0x63, 0x03, 0x21, 0x71, 0x4a, 0x07, 0x08, 0x69, 0x08, 0xb5,
+	0xe4, 0x15, 0x55, 0xaa, 0x9a, 0x10, 0x7b, 0x87, 0x9e, 0xf9, 0x99, 0x48, 0xfc, 0x16, 0xe4, 0xd8,
+	0x49, 0x6c, 0xd7, 0xc9, 0x01, 0xba, 0xd3, 0xe6, 0x7c, 0xef, 0x7d, 0xef, 0xf3, 0xf3, 0xfb, 0xde,
+	0x06, 0x24, 0xc7, 0x1f, 0x2b, 0xc6, 0xf3, 0x39, 0x5f, 0xa5, 0x9b, 0x49, 0x96, 0xa7, 0x3c, 0x25,
+	0x07, 0xd9, 0x82, 0xfe, 0xf6, 0xa0, 0x17, 0x17, 0x10, 0xe6, 0x98, 0x5c, 0x6f, 0x78, 0xbe, 0x25,
+	0x14, 0xba, 0x0c, 0xd7, 0xf8, 0x9d, 0xa7, 0xf9, 0xcd, 0x36, 0xc3, 0xc0, 0x8b, 0xbc, 0xf1, 0x71,
+	0x6c, 0x7c, 0x23, 0x21, 0x3c, 0x2c, 0xcf, 0xc1, 0x41, 0x81, 0x57, 0x67, 0x81, 0xcd, 0x39, 0x47,
+	0x26, 0x30, 0x5f, 0x62, 0xe5, 0xb9, 0xc8, 0xcb, 0x56, 0xcb, 0x25, 0xbe, 0x4f, 0x82, 0x07, 0x2a,
+	0x4f, 0x9d, 0xc9, 0x23, 0xf0, 0x39, 0x5f, 0x07, 0x87, 0x91, 0x37, 0x3e, 0x8c, 0xc5, 0xaf, 0x64,
+	0x0a, 0xe1, 0x12, 0x13, 0xcc, 0xe7, 0x1c, 0x2f, 0xef, 0x36, 0xc9, 0x1a, 0x67, 0x2a, 0xf6, 0xc3,
+	0x8a, 0xf1, 0xe0, 0x28, 0xf2, 0xc7, 0xc7, 0x71, 0x4b, 0x04, 0xfd, 0xe5, 0x41, 0xef, 0xad, 0x82,
+	0x13, 0x89, 0x93, 0x97, 0x30, 0x74, 0x67, 0xa8, 0x7b, 0x36, 0xa0, 0xe4, 0x05, 0x9c, 0x98, 0x48,
+	0x71, 0xef, 0x6e, 0x6c, 0x7d, 0x2d, 0x6f, 0xe1, 0x57, 0xb7, 0xa0, 0x33, 0x20, 0x6f, 0x72, 0x9c,
+	0x73, 0x2c, 0xda, 0x1b, 0xe3, 0xcf, 0x3b, 0x64, 0x9c, 0xbc, 0x82, 0x5e, 0x6e, 0x36, 0xbe, 0x10,
+	0xd0, 0x39, 0xef, 0x4f, 0xb2, 0xc5, 0xc4, 0x7a, 0x93, 0xd8, 0x8e, 0xa5, 0x03, 0xe8, 0x1b, 0xa4,
+	0x2c, 0x4b, 0x37, 0x0c, 0xe9, 0x0d, 0x90, 0x2b, 0x5c, 0xa3, 0x55, 0xeb, 0x3f, 0x5f, 0x94, 0xde,
+	0x42, 0xdf, 0x60, 0x95, 0xc5, 0xc8, 0x35, 0xf4, 0x2d, 0x59, 0xc5, 0xbb, 0x78, 0x91, 0xdf, 0x74,
+	0x0d, 0x57, 0x3c, 0xbd, 0x80, 0x81, 0xf8, 0x79, 0xb9, 0x7d, 0xad, 0xa6, 0xa4, 0x94, 0xad, 0x0f,
+	0x92, 0x67, 0x0e, 0x12, 0xfd, 0x06, 0x43, 0x3b, 0x69, 0xbf, 0xaa, 0x3e, 0x97, 0xaa, 0x66, 0xaa,
+	0x0b, 0xfb, 0x6a, 0x66, 0xa5, 0xbc, 0x26, 0xbe, 0xa7, 0x7e, 0xaa, 0xd9, 0xbd, 0xd2, 0xfa, 0xc9,
+	0xcc, 0x61, 0xaf, 0xce, 0x9a, 0xaa, 0x2a, 0x69, 0xbf, 0xaa, 0xbe, 0xc2, 0x48, 0x0e, 0xac, 0x65,
+	0x48, 0xcd, 0x0f, 0x4b, 0x13, 0xd1, 0xfd, 0x60, 0x27, 0xd9, 0xb1, 0xf4, 0x0c, 0x4e, 0x1b, 0xe8,
+	0x95, 0x33, 0x4e, 0xe1, 0x99, 0xd0, 0x61, 0xc1, 0x4c, 0x95, 0xa7, 0x08, 0x23, 0x37, 0x5c, 0x77,
+	0xc1, 0x2a, 0x69, 0x77, 0xc1, 0x2e, 0xec, 0x8a, 0x17, 0x5d, 0xf8, 0x98, 0x25, 0xf7, 0xd9, 0x85,
+	0x06, 0x7a, 0xd5, 0x85, 0x4f, 0x30, 0x92, 0x4e, 0x6e, 0xa8, 0xff, 0x8f, 0xdb, 0x51, 0x14, 0x6e,
+	0xe0, 0x95, 0x85, 0xcf, 0xff, 0x1c, 0x42, 0x57, 0xff, 0x1b, 0x44, 0xa6, 0xd0, 0xd1, 0x16, 0x18,
+	0x19, 0x8a, 0xfb, 0xed, 0xae, 0xc9, 0xf0, 0xc9, 0xce, 0x77, 0xf5, 0x20, 0x53, 0xe8, 0x68, 0x3b,
+	0x49, 0xe6, 0xef, 0xae, 0x3e, 0x99, 0xef, 0x5a, 0x5e, 0xef, 0xe0, 0xc4, 0x5c, 0x20, 0xe4, 0xa9,
+	0x08, 0x75, 0x6e, 0xa2, 0x30, 0x74, 0x41, 0x36, 0x51, 0xe9, 0x67, 0x9d, 0xc8, 0x5a, 0x1e, 0x3a,
+	0xd1, 0x8e, 0xfd, 0x6b, 0x22, 0x65, 0x41, 0x83, 0xc8, 0xf4, 0xb2, 0x41, 0x64, 0x3b, 0xf6, 0x16,
+	0x06, 0x4e, 0x2f, 0x90, 0xa8, 0x6e, 0xa6, 0xfb, 0xfd, 0xc3, 0xe7, 0x2d, 0x11, 0x8a, 0xfd, 0x0b,
+	0x3c, 0x76, 0x39, 0x85, 0x9c, 0x95, 0x8a, 0x1a, 0x2c, 0x16, 0x46, 0xcd, 0x01, 0xb5, 0x70, 0xe7,
+	0xf8, 0x4a, 0xe1, 0x6d, 0xc6, 0x91, 0xc2, 0x5b, 0x67, 0x5f, 0xb0, 0x3b, 0x67, 0x54, 0xb2, 0xb7,
+	0xd9, 0x42, 0xb2, 0xb7, 0x0e, 0xf8, 0xe2, 0xa8, 0xf8, 0xa7, 0xea, 0xe2, 0x6f, 0x00, 0x00, 0x00,
+	0xff, 0xff, 0xa9, 0xfc, 0x59, 0xf9, 0x6a, 0x09, 0x00, 0x00,
 }

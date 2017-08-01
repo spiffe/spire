@@ -9,18 +9,18 @@ import (
 // Implement yor service methods methods.
 // e.x: Foo(ctx context.Context,s string)(rs string, err error)
 type RegistrationService interface {
-	CreateFederatedEntry(ctx context.Context, request pb.CreateFederatedEntryRequest) (response pb.CreateFederatedEntryResponse)
+	CreateEntry(ctx context.Context, request pb.CreateEntryRequest) (response pb.CreateEntryResponse)
+	DeleteEntry(ctx context.Context, request pb.DeleteEntryRequest) (response pb.DeleteEntryResponse)
+
+	ListByAttestor(ctx context.Context, request pb.ListByAttestorRequest) (response pb.ListByAttestorResponse)
+	ListBySelector(ctx context.Context, request pb.ListBySelectorRequest) (response pb.ListBySelectorResponse)
+	ListBySpiffeID(ctx context.Context, request pb.ListBySpiffeIDRequest) (response pb.ListBySpiffeIDResponse)
+
 	CreateFederatedBundle(ctx context.Context, request pb.CreateFederatedBundleRequest) (response pb.CreateFederatedBundleResponse)
 	ListFederatedBundles(ctx context.Context, request pb.ListFederatedBundlesRequest) (response pb.ListFederatedBundlesResponse)
 	UpdateFederatedBundle(ctx context.Context, request pb.UpdateFederatedBundleRequest) (response pb.UpdateFederatedBundleResponse)
 	DeleteFederatedBundle(ctx context.Context, request pb.DeleteFederatedBundleRequest) (response pb.DeleteFederatedBundleResponse)
-	CreateEntry(ctx context.Context, request pb.CreateEntryRequest) (response pb.CreateEntryResponse)
-	ListAttestorEntries(ctx context.Context, request pb.ListAttestorEntriesRequest) (response pb.ListAttestorEntriesResponse)
-	ListSelectorEntries(ctx context.Context, request pb.ListSelectorEntriesRequest) (response pb.ListSelectorEntriesResponse)
-	ListSpiffeEntries(ctx context.Context, request pb.ListSpiffeEntriesRequest) (response pb.ListSpiffeEntriesResponse)
-	DeleteEntry(ctx context.Context, request pb.DeleteEntryRequest) (response pb.DeleteEntryResponse)
 }
-
 type stubRegistrationService struct{}
 
 // Get a new instance of the service.
@@ -30,8 +30,28 @@ func NewService() (s *stubRegistrationService) {
 	return s
 }
 
-// Implement the business logic of CreateFederatedEntry
-func (re *stubRegistrationService) CreateFederatedEntry(ctx context.Context, request pb.CreateFederatedEntryRequest) (response pb.CreateFederatedEntryResponse) {
+// Implement the business logic of CreateEntry
+func (re *stubRegistrationService) CreateEntry(ctx context.Context, request pb.CreateEntryRequest) (response pb.CreateEntryResponse) {
+	return response
+}
+
+// Implement the business logic of DeleteEntry
+func (re *stubRegistrationService) DeleteEntry(ctx context.Context, request pb.DeleteEntryRequest) (response pb.DeleteEntryResponse) {
+	return response
+}
+
+// Implement the business logic of ListByAttestor
+func (re *stubRegistrationService) ListByAttestor(ctx context.Context, request pb.ListByAttestorRequest) (response pb.ListByAttestorResponse) {
+	return response
+}
+
+// Implement the business logic of ListBySelector
+func (re *stubRegistrationService) ListBySelector(ctx context.Context, request pb.ListBySelectorRequest) (response pb.ListBySelectorResponse) {
+	return response
+}
+
+// Implement the business logic of ListBySpiffeID
+func (re *stubRegistrationService) ListBySpiffeID(ctx context.Context, request pb.ListBySpiffeIDRequest) (response pb.ListBySpiffeIDResponse) {
 	return response
 }
 
@@ -52,30 +72,5 @@ func (re *stubRegistrationService) UpdateFederatedBundle(ctx context.Context, re
 
 // Implement the business logic of DeleteFederatedBundle
 func (re *stubRegistrationService) DeleteFederatedBundle(ctx context.Context, request pb.DeleteFederatedBundleRequest) (response pb.DeleteFederatedBundleResponse) {
-	return response
-}
-
-// Implement the business logic of CreateEntry
-func (re *stubRegistrationService) CreateEntry(ctx context.Context, request pb.CreateEntryRequest) (response pb.CreateEntryResponse) {
-	return response
-}
-
-// Implement the business logic of ListAttestorEntries
-func (re *stubRegistrationService) ListAttestorEntries(ctx context.Context, request pb.ListAttestorEntriesRequest) (response pb.ListAttestorEntriesResponse) {
-	return response
-}
-
-// Implement the business logic of ListSelectorEntries
-func (re *stubRegistrationService) ListSelectorEntries(ctx context.Context, request pb.ListSelectorEntriesRequest) (response pb.ListSelectorEntriesResponse) {
-	return response
-}
-
-// Implement the business logic of ListSpiffeEntries
-func (re *stubRegistrationService) ListSpiffeEntries(ctx context.Context, request pb.ListSpiffeEntriesRequest) (response pb.ListSpiffeEntriesResponse) {
-	return response
-}
-
-// Implement the business logic of DeleteEntry
-func (re *stubRegistrationService) DeleteEntry(ctx context.Context, request pb.DeleteEntryRequest) (response pb.DeleteEntryResponse) {
 	return response
 }
