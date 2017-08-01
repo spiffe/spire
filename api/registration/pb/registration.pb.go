@@ -142,7 +142,7 @@ func (m *FederatedBundle) GetTtl() int32 {
 	return 0
 }
 
-// * Represents an entity to be created
+// * represents an entity to be created
 type CreateEntryRequest struct {
 	RegisteredEntry *RegisteredEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
@@ -159,7 +159,7 @@ func (m *CreateEntryRequest) GetRegisteredEntry() *RegisteredEntry {
 	return nil
 }
 
-// * No return value
+// * @exclude
 type CreateEntryResponse struct {
 }
 
@@ -168,7 +168,7 @@ func (m *CreateEntryResponse) String() string            { return proto.CompactT
 func (*CreateEntryResponse) ProtoMessage()               {}
 func (*CreateEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
-// * Represents the criteria that will be used to delete entries
+// * represents the criteria that will be used to delete entries
 type DeleteEntryRequest struct {
 	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
 	Selector     string `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
@@ -193,7 +193,7 @@ func (m *DeleteEntryRequest) GetSelector() string {
 	return ""
 }
 
-// * Represents the entities deleted
+// * represents the entities deleted
 type DeleteEntryResponse struct {
 	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
@@ -210,7 +210,7 @@ func (m *DeleteEntryResponse) GetRegisteredEntryList() []*RegisteredEntry {
 	return nil
 }
 
-// * Represents a ParentID whose children entities will be listed
+// * represents a ParentID whose children entities will be listed
 type ListByParentIDRequest struct {
 	ParentID string `protobuf:"bytes,1,opt,name=parentID" json:"parentID,omitempty"`
 }
@@ -227,7 +227,7 @@ func (m *ListByParentIDRequest) GetParentID() string {
 	return ""
 }
 
-// * Represents a list of entities associated with a given ParentID
+// * represents a list of entities associated with a given ParentID
 type ListByParentIDResponse struct {
 	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
@@ -244,7 +244,7 @@ func (m *ListByParentIDResponse) GetRegisteredEntryList() []*RegisteredEntry {
 	return nil
 }
 
-// * Represents a selector and type to be used as the criteria to list entities
+// * represents a selector and type to be used as the criteria to list entities
 type ListBySelectorRequest struct {
 	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
 	Selector     string `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
@@ -269,7 +269,7 @@ func (m *ListBySelectorRequest) GetSelector() string {
 	return ""
 }
 
-// * Represents a list of entities associated with a given selector and type
+// * represents a list of entities associated with a given selector and type
 type ListBySelectorResponse struct {
 	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
@@ -286,7 +286,7 @@ func (m *ListBySelectorResponse) GetRegisteredEntryList() []*RegisteredEntry {
 	return nil
 }
 
-// * Represents a Spiffe ID to be used as the criteria to list entities
+// * represents a Spiffe ID to be used as the criteria to list entities
 type ListBySpiffeIDRequest struct {
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
 }
@@ -303,7 +303,7 @@ func (m *ListBySpiffeIDRequest) GetSpiffeId() string {
 	return ""
 }
 
-// * Represents a list of entities associated with a given Spiffe ID
+// * represents a list of entities associated with a given Spiffe ID
 type ListBySpiffeIDResponse struct {
 	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
@@ -320,7 +320,7 @@ func (m *ListBySpiffeIDResponse) GetRegisteredEntryList() []*RegisteredEntry {
 	return nil
 }
 
-// * Represents a federated bundle to be added
+// * represents a federated bundle to be added
 type CreateFederatedBundleRequest struct {
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
@@ -337,7 +337,7 @@ func (m *CreateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
 	return nil
 }
 
-// * No return value
+// * @exclude
 type CreateFederatedBundleResponse struct {
 }
 
@@ -346,7 +346,7 @@ func (m *CreateFederatedBundleResponse) String() string            { return prot
 func (*CreateFederatedBundleResponse) ProtoMessage()               {}
 func (*CreateFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
 
-// * No input parameter
+// * @exclude
 type ListFederatedBundlesRequest struct {
 }
 
@@ -355,7 +355,7 @@ func (m *ListFederatedBundlesRequest) String() string            { return proto.
 func (*ListFederatedBundlesRequest) ProtoMessage()               {}
 func (*ListFederatedBundlesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
 
-// * Represents all the federated bundles
+// * represents all the federated bundles
 type ListFederatedBundlesResponse struct {
 	FederatedBundleList []*FederatedBundle `protobuf:"bytes,1,rep,name=federatedBundleList" json:"federatedBundleList,omitempty"`
 }
@@ -372,7 +372,7 @@ func (m *ListFederatedBundlesResponse) GetFederatedBundleList() []*FederatedBund
 	return nil
 }
 
-// * Represents a federated bundle to be updated
+// * represents a federated bundle to be updated
 type UpdateFederatedBundleRequest struct {
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
@@ -389,7 +389,7 @@ func (m *UpdateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
 	return nil
 }
 
-// * No return value
+// * @exclude
 type UpdateFederatedBundleResponse struct {
 }
 
@@ -398,7 +398,7 @@ func (m *UpdateFederatedBundleResponse) String() string            { return prot
 func (*UpdateFederatedBundleResponse) ProtoMessage()               {}
 func (*UpdateFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
 
-// * Represents a federated bundle to be deleted
+// * represents a federated bundle to be deleted
 type DeleteFederatedBundleRequest struct {
 	FederateBundleSpiffeId string `protobuf:"bytes,1,opt,name=federateBundleSpiffeId" json:"federateBundleSpiffeId,omitempty"`
 }
@@ -415,7 +415,7 @@ func (m *DeleteFederatedBundleRequest) GetFederateBundleSpiffeId() string {
 	return ""
 }
 
-// * No return value
+// * @exclude
 type DeleteFederatedBundleResponse struct {
 }
 

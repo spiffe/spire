@@ -27,116 +27,111 @@ message FederatedBundle {
 }
 
 
-/** Represents an entity to be created
+/** represents an entity to be created
 */
 message CreateEntryRequest {
     RegisteredEntry registeredEntry  = 1;
 }
 
-/** No return value
-*/
+/** @exclude */
 message CreateEntryResponse {
 }
 
 
-/** Represents the criteria that will be used to delete entries
+/** represents the criteria that will be used to delete entries
 */
 message DeleteEntryRequest {
     string selectorType = 1;
     string selector = 2;
 }
 
-/** Represents the entities deleted
+/** represents the entities deleted
 */
 message DeleteEntryResponse {
     repeated RegisteredEntry registeredEntryList = 1;
 }
 
 
-/** Represents a ParentID whose children entities will be listed
+/** represents a ParentID whose children entities will be listed
 */
 message ListByParentIDRequest {
     string parentID  = 1;
 }
 
-/** Represents a list of entities associated with a given ParentID
+/** represents a list of entities associated with a given ParentID
 */
 message ListByParentIDResponse {
     repeated RegisteredEntry registeredEntryList = 1;
 }
 
 
-/** Represents a selector and type to be used as the criteria to list entities
+/** represents a selector and type to be used as the criteria to list entities
 */
 message ListBySelectorRequest {
     string selectorType = 1;
     string selector = 2;
 }
 
-/** Represents a list of entities associated with a given selector and type
+/** represents a list of entities associated with a given selector and type
 */
 message ListBySelectorResponse {
     repeated RegisteredEntry registeredEntryList = 1;
 }
 
 
-/** Represents a Spiffe ID to be used as the criteria to list entities
+/** represents a Spiffe ID to be used as the criteria to list entities
 */
 message ListBySpiffeIDRequest {
     string spiffeId = 1;
 }
 
-/** Represents a list of entities associated with a given Spiffe ID
+/** represents a list of entities associated with a given Spiffe ID
 */
 message ListBySpiffeIDResponse {
     repeated RegisteredEntry registeredEntryList = 1;
 }
 
 
-/** Represents a federated bundle to be added
+/** represents a federated bundle to be added
 */
 message CreateFederatedBundleRequest {
     FederatedBundle federatedBundle = 1;
 }
 
-/** No return value
-*/
+/** @exclude */
 message CreateFederatedBundleResponse {
 }
 
 
-/** No input parameter
-*/
+/** @exclude */
 message ListFederatedBundlesRequest {
 }
 
-/** Represents all the federated bundles
+/** represents all the federated bundles
 */
 message ListFederatedBundlesResponse {
     repeated FederatedBundle federatedBundleList = 1;
 }
 
 
-/** Represents a federated bundle to be updated
+/** represents a federated bundle to be updated
 */
 message UpdateFederatedBundleRequest {
     FederatedBundle federatedBundle = 1;
 }
 
-/** No return value
-*/
+/** @exclude */
 message UpdateFederatedBundleResponse {
 }
 
 
-/** Represents a federated bundle to be deleted
+/** represents a federated bundle to be deleted
 */
 message DeleteFederatedBundleRequest {
     string federateBundleSpiffeId  = 1;
 }
 
-/** No return value
-*/
+/** @exclude */
 message DeleteFederatedBundleResponse {
 }
 

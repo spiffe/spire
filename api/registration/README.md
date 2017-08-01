@@ -4,13 +4,10 @@
 ## Table of Contents
 * [registration.proto](#registration.proto)
  * [CreateEntryRequest](#pb.CreateEntryRequest)
- * [CreateEntryResponse](#pb.CreateEntryResponse)
  * [CreateFederatedBundleRequest](#pb.CreateFederatedBundleRequest)
- * [CreateFederatedBundleResponse](#pb.CreateFederatedBundleResponse)
  * [DeleteEntryRequest](#pb.DeleteEntryRequest)
  * [DeleteEntryResponse](#pb.DeleteEntryResponse)
  * [DeleteFederatedBundleRequest](#pb.DeleteFederatedBundleRequest)
- * [DeleteFederatedBundleResponse](#pb.DeleteFederatedBundleResponse)
  * [FederatedBundle](#pb.FederatedBundle)
  * [ListByParentIDRequest](#pb.ListByParentIDRequest)
  * [ListByParentIDResponse](#pb.ListByParentIDResponse)
@@ -18,11 +15,9 @@
  * [ListBySelectorResponse](#pb.ListBySelectorResponse)
  * [ListBySpiffeIDRequest](#pb.ListBySpiffeIDRequest)
  * [ListBySpiffeIDResponse](#pb.ListBySpiffeIDResponse)
- * [ListFederatedBundlesRequest](#pb.ListFederatedBundlesRequest)
  * [ListFederatedBundlesResponse](#pb.ListFederatedBundlesResponse)
  * [RegisteredEntry](#pb.RegisteredEntry)
  * [UpdateFederatedBundleRequest](#pb.UpdateFederatedBundleRequest)
- * [UpdateFederatedBundleResponse](#pb.UpdateFederatedBundleResponse)
  * [registration](#pb.registration)
 * [Scalar Value Types](#scalar-value-types)
 
@@ -36,37 +31,25 @@ that should be performed on a workload before those IDs can be issued.
 
 <a name="pb.CreateEntryRequest"/>
 ### CreateEntryRequest
-Represents an entity to be created
+represents an entity to be created
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | registeredEntry | [RegisteredEntry](#pb.RegisteredEntry) | optional |  |
 
 
-<a name="pb.CreateEntryResponse"/>
-### CreateEntryResponse
-No return value
-
-
-
 <a name="pb.CreateFederatedBundleRequest"/>
 ### CreateFederatedBundleRequest
-Represents a federated bundle to be added
+represents a federated bundle to be added
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | federatedBundle | [FederatedBundle](#pb.FederatedBundle) | optional |  |
 
 
-<a name="pb.CreateFederatedBundleResponse"/>
-### CreateFederatedBundleResponse
-No return value
-
-
-
 <a name="pb.DeleteEntryRequest"/>
 ### DeleteEntryRequest
-Represents the criteria that will be used to delete entries
+represents the criteria that will be used to delete entries
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
@@ -76,7 +59,7 @@ Represents the criteria that will be used to delete entries
 
 <a name="pb.DeleteEntryResponse"/>
 ### DeleteEntryResponse
-Represents the entities deleted
+represents the entities deleted
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
@@ -85,17 +68,11 @@ Represents the entities deleted
 
 <a name="pb.DeleteFederatedBundleRequest"/>
 ### DeleteFederatedBundleRequest
-Represents a federated bundle to be deleted
+represents a federated bundle to be deleted
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | federateBundleSpiffeId | [string](#string) | optional |  |
-
-
-<a name="pb.DeleteFederatedBundleResponse"/>
-### DeleteFederatedBundleResponse
-No return value
-
 
 
 <a name="pb.FederatedBundle"/>
@@ -111,7 +88,7 @@ A CA bundle for a different Trust Domain than the one used and managed by the Co
 
 <a name="pb.ListByParentIDRequest"/>
 ### ListByParentIDRequest
-Represents a ParentID whose children entities will be listed
+represents a ParentID whose children entities will be listed
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
@@ -120,7 +97,7 @@ Represents a ParentID whose children entities will be listed
 
 <a name="pb.ListByParentIDResponse"/>
 ### ListByParentIDResponse
-Represents a list of entities associated with a given ParentID
+represents a list of entities associated with a given ParentID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
@@ -129,7 +106,7 @@ Represents a list of entities associated with a given ParentID
 
 <a name="pb.ListBySelectorRequest"/>
 ### ListBySelectorRequest
-Represents a selector and type to be used as the criteria to list entities
+represents a selector and type to be used as the criteria to list entities
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
@@ -139,7 +116,7 @@ Represents a selector and type to be used as the criteria to list entities
 
 <a name="pb.ListBySelectorResponse"/>
 ### ListBySelectorResponse
-Represents a list of entities associated with a given selector and type
+represents a list of entities associated with a given selector and type
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
@@ -148,7 +125,7 @@ Represents a list of entities associated with a given selector and type
 
 <a name="pb.ListBySpiffeIDRequest"/>
 ### ListBySpiffeIDRequest
-Represents a Spiffe ID to be used as the criteria to list entities
+represents a Spiffe ID to be used as the criteria to list entities
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
@@ -157,22 +134,16 @@ Represents a Spiffe ID to be used as the criteria to list entities
 
 <a name="pb.ListBySpiffeIDResponse"/>
 ### ListBySpiffeIDResponse
-Represents a list of entities associated with a given Spiffe ID
+represents a list of entities associated with a given Spiffe ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | registeredEntryList | [RegisteredEntry](#pb.RegisteredEntry) | repeated |  |
 
 
-<a name="pb.ListFederatedBundlesRequest"/>
-### ListFederatedBundlesRequest
-No input parameter
-
-
-
 <a name="pb.ListFederatedBundlesResponse"/>
 ### ListFederatedBundlesResponse
-Represents all the federated bundles
+represents all the federated bundles
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
@@ -196,17 +167,11 @@ the various registered nodes and workloads that are controlled by it.
 
 <a name="pb.UpdateFederatedBundleRequest"/>
 ### UpdateFederatedBundleRequest
-Represents a federated bundle to be updated
+represents a federated bundle to be updated
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | federatedBundle | [FederatedBundle](#pb.FederatedBundle) | optional |  |
-
-
-<a name="pb.UpdateFederatedBundleResponse"/>
-### UpdateFederatedBundleResponse
-No return value
-
 
 
 
