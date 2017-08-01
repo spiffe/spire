@@ -51,6 +51,8 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
+// * This is a curated record that the Control Plane uses to set up and manage
+// the various registered nodes and workloads that are controlled by it.
 type RegisteredEntry struct {
 	SelectorType               string   `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
 	Selector                   string   `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
@@ -107,6 +109,7 @@ func (m *RegisteredEntry) GetFederateBundleSpiffeIdList() []string {
 	return nil
 }
 
+// * A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
 type FederatedBundle struct {
 	FederateBundleSpiffeId string `protobuf:"bytes,1,opt,name=federateBundleSpiffeId" json:"federateBundleSpiffeId,omitempty"`
 	FederateBundle         []byte `protobuf:"bytes,2,opt,name=federateBundle,proto3" json:"federateBundle,omitempty"`
@@ -139,6 +142,7 @@ func (m *FederatedBundle) GetTtl() int32 {
 	return 0
 }
 
+// * Represents an entity to be created
 type CreateEntryRequest struct {
 	RegisteredEntry *RegisteredEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
@@ -155,6 +159,7 @@ func (m *CreateEntryRequest) GetRegisteredEntry() *RegisteredEntry {
 	return nil
 }
 
+// * No return value
 type CreateEntryResponse struct {
 }
 
@@ -163,6 +168,7 @@ func (m *CreateEntryResponse) String() string            { return proto.CompactT
 func (*CreateEntryResponse) ProtoMessage()               {}
 func (*CreateEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
+// * Represents the criteria that will be used to delete entries
 type DeleteEntryRequest struct {
 	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
 	Selector     string `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
@@ -187,6 +193,7 @@ func (m *DeleteEntryRequest) GetSelector() string {
 	return ""
 }
 
+// * Represents the entities deleted
 type DeleteEntryResponse struct {
 	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
@@ -203,6 +210,7 @@ func (m *DeleteEntryResponse) GetRegisteredEntryList() []*RegisteredEntry {
 	return nil
 }
 
+// * Represents an attestor whose entities will be listed
 type ListByAttestorRequest struct {
 	Attestor string `protobuf:"bytes,1,opt,name=attestor" json:"attestor,omitempty"`
 }
@@ -219,6 +227,7 @@ func (m *ListByAttestorRequest) GetAttestor() string {
 	return ""
 }
 
+// * Represents a list of entities associated with a given attestor
 type ListByAttestorResponse struct {
 	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
@@ -235,6 +244,7 @@ func (m *ListByAttestorResponse) GetRegisteredEntryList() []*RegisteredEntry {
 	return nil
 }
 
+// * Represents a selector and type to be used as the criteria to list entities
 type ListBySelectorRequest struct {
 	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
 	Selector     string `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
@@ -259,6 +269,7 @@ func (m *ListBySelectorRequest) GetSelector() string {
 	return ""
 }
 
+// * Represents a list of entities associated with a given selector and type
 type ListBySelectorResponse struct {
 	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
@@ -275,6 +286,7 @@ func (m *ListBySelectorResponse) GetRegisteredEntryList() []*RegisteredEntry {
 	return nil
 }
 
+// * Represents a Spiffe ID to be used as the criteria to list entities
 type ListBySpiffeIDRequest struct {
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
 }
@@ -291,6 +303,7 @@ func (m *ListBySpiffeIDRequest) GetSpiffeId() string {
 	return ""
 }
 
+// * Represents a list of entities associated with a given Spiffe ID
 type ListBySpiffeIDResponse struct {
 	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
@@ -307,6 +320,7 @@ func (m *ListBySpiffeIDResponse) GetRegisteredEntryList() []*RegisteredEntry {
 	return nil
 }
 
+// * Represents a federated bundle to be added
 type CreateFederatedBundleRequest struct {
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
@@ -323,6 +337,7 @@ func (m *CreateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
 	return nil
 }
 
+// * No return value
 type CreateFederatedBundleResponse struct {
 }
 
@@ -331,6 +346,7 @@ func (m *CreateFederatedBundleResponse) String() string            { return prot
 func (*CreateFederatedBundleResponse) ProtoMessage()               {}
 func (*CreateFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
 
+// * No input parameter
 type ListFederatedBundlesRequest struct {
 }
 
@@ -339,6 +355,7 @@ func (m *ListFederatedBundlesRequest) String() string            { return proto.
 func (*ListFederatedBundlesRequest) ProtoMessage()               {}
 func (*ListFederatedBundlesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
 
+// * Represents all the federated bundles
 type ListFederatedBundlesResponse struct {
 	FederatedBundleList []*FederatedBundle `protobuf:"bytes,1,rep,name=federatedBundleList" json:"federatedBundleList,omitempty"`
 }
@@ -355,6 +372,7 @@ func (m *ListFederatedBundlesResponse) GetFederatedBundleList() []*FederatedBund
 	return nil
 }
 
+// * Represents a federated bundle to be updated
 type UpdateFederatedBundleRequest struct {
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
@@ -371,6 +389,7 @@ func (m *UpdateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
 	return nil
 }
 
+// * No return value
 type UpdateFederatedBundleResponse struct {
 }
 
@@ -379,6 +398,7 @@ func (m *UpdateFederatedBundleResponse) String() string            { return prot
 func (*UpdateFederatedBundleResponse) ProtoMessage()               {}
 func (*UpdateFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
 
+// * Represents a federated bundle to be deleted
 type DeleteFederatedBundleRequest struct {
 	FederateBundleSpiffeId string `protobuf:"bytes,1,opt,name=federateBundleSpiffeId" json:"federateBundleSpiffeId,omitempty"`
 }
@@ -395,6 +415,7 @@ func (m *DeleteFederatedBundleRequest) GetFederateBundleSpiffeId() string {
 	return ""
 }
 
+// * No return value
 type DeleteFederatedBundleResponse struct {
 }
 
@@ -437,14 +458,23 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for Registration service
 
 type RegistrationClient interface {
+	// / Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads
 	CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*CreateEntryResponse, error)
+	// / Deletes a set of entries that match a given criteria
 	DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error)
+	// / Returns all the Entries associated with the SPIFFE ID Attestor value
 	ListByAttestor(ctx context.Context, in *ListByAttestorRequest, opts ...grpc.CallOption) (*ListByAttestorResponse, error)
+	// / Returns all the entries associated with a selector value
 	ListBySelector(ctx context.Context, in *ListBySelectorRequest, opts ...grpc.CallOption) (*ListBySelectorResponse, error)
+	// / Return all registration entries for which SPIFFE ID matches
 	ListBySpiffeID(ctx context.Context, in *ListBySpiffeIDRequest, opts ...grpc.CallOption) (*ListBySpiffeIDResponse, error)
+	// / Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFEIds and their associated CA bundle
 	CreateFederatedBundle(ctx context.Context, in *CreateFederatedBundleRequest, opts ...grpc.CallOption) (*CreateFederatedBundleResponse, error)
+	// / Retrieve Federated bundles for all the Federated SPIFFEIds
 	ListFederatedBundles(ctx context.Context, in *ListFederatedBundlesRequest, opts ...grpc.CallOption) (*ListFederatedBundlesResponse, error)
+	// / Updates a particular Federated Bundle. Useful for rotation.
 	UpdateFederatedBundle(ctx context.Context, in *UpdateFederatedBundleRequest, opts ...grpc.CallOption) (*UpdateFederatedBundleResponse, error)
+	// / Delete a particular Federated Bundle. Used to destroy inter-domain trust.
 	DeleteFederatedBundle(ctx context.Context, in *DeleteFederatedBundleRequest, opts ...grpc.CallOption) (*DeleteFederatedBundleResponse, error)
 }
 
@@ -540,14 +570,23 @@ func (c *registrationClient) DeleteFederatedBundle(ctx context.Context, in *Dele
 // Server API for Registration service
 
 type RegistrationServer interface {
+	// / Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads
 	CreateEntry(context.Context, *CreateEntryRequest) (*CreateEntryResponse, error)
+	// / Deletes a set of entries that match a given criteria
 	DeleteEntry(context.Context, *DeleteEntryRequest) (*DeleteEntryResponse, error)
+	// / Returns all the Entries associated with the SPIFFE ID Attestor value
 	ListByAttestor(context.Context, *ListByAttestorRequest) (*ListByAttestorResponse, error)
+	// / Returns all the entries associated with a selector value
 	ListBySelector(context.Context, *ListBySelectorRequest) (*ListBySelectorResponse, error)
+	// / Return all registration entries for which SPIFFE ID matches
 	ListBySpiffeID(context.Context, *ListBySpiffeIDRequest) (*ListBySpiffeIDResponse, error)
+	// / Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFEIds and their associated CA bundle
 	CreateFederatedBundle(context.Context, *CreateFederatedBundleRequest) (*CreateFederatedBundleResponse, error)
+	// / Retrieve Federated bundles for all the Federated SPIFFEIds
 	ListFederatedBundles(context.Context, *ListFederatedBundlesRequest) (*ListFederatedBundlesResponse, error)
+	// / Updates a particular Federated Bundle. Useful for rotation.
 	UpdateFederatedBundle(context.Context, *UpdateFederatedBundleRequest) (*UpdateFederatedBundleResponse, error)
+	// / Delete a particular Federated Bundle. Used to destroy inter-domain trust.
 	DeleteFederatedBundle(context.Context, *DeleteFederatedBundleRequest) (*DeleteFederatedBundleResponse, error)
 }
 

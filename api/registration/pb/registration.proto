@@ -1,7 +1,14 @@
+/**
+The Registration API is used to register SPIFFE IDs, and the attestation logic
+that should be performed on a workload before those IDs can be issued. 
+*/
 syntax = "proto3";
 package pb;
 
 
+/** This is a curated record that the Control Plane uses to set up and manage
+the various registered nodes and workloads that are controlled by it.
+*/
 message RegisteredEntry {
     string selectorType = 1;
     string selector = 2;
@@ -11,6 +18,8 @@ message RegisteredEntry {
     repeated string federateBundleSpiffeIdList = 6;
 }
 
+/** A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
+*/
 message FederatedBundle {
     string federateBundleSpiffeId = 1;
     bytes federateBundle = 2;
@@ -18,94 +27,139 @@ message FederatedBundle {
 }
 
 
+/** Represents an entity to be created
+*/
 message CreateEntryRequest {
     RegisteredEntry registeredEntry  = 1;
 }
 
+/** No return value
+*/
 message CreateEntryResponse {
 }
 
 
+/** Represents the criteria that will be used to delete entries
+*/
 message DeleteEntryRequest {
     string selectorType = 1;
     string selector = 2;
 }
 
+/** Represents the entities deleted
+*/
 message DeleteEntryResponse {
     repeated RegisteredEntry registeredEntryList = 1;
 }
 
 
+/** Represents an attestor whose entities will be listed
+*/
 message ListByAttestorRequest {
     string attestor  = 1;
 }
 
+/** Represents a list of entities associated with a given attestor
+*/
 message ListByAttestorResponse {
     repeated RegisteredEntry registeredEntryList = 1;
 }
 
 
+/** Represents a selector and type to be used as the criteria to list entities
+*/
 message ListBySelectorRequest {
     string selectorType = 1;
     string selector = 2;
 }
 
+/** Represents a list of entities associated with a given selector and type
+*/
 message ListBySelectorResponse {
     repeated RegisteredEntry registeredEntryList = 1;
 }
 
 
+/** Represents a Spiffe ID to be used as the criteria to list entities
+*/
 message ListBySpiffeIDRequest {
     string spiffeId = 1;
 }
 
+/** Represents a list of entities associated with a given Spiffe ID
+*/
 message ListBySpiffeIDResponse {
     repeated RegisteredEntry registeredEntryList = 1;
 }
 
 
+/** Represents a federated bundle to be added
+*/
 message CreateFederatedBundleRequest {
     FederatedBundle federatedBundle = 1;
 }
 
+/** No return value
+*/
 message CreateFederatedBundleResponse {
 }
 
 
+/** No input parameter
+*/
 message ListFederatedBundlesRequest {
 }
 
+/** Represents all the federated bundles
+*/
 message ListFederatedBundlesResponse {
     repeated FederatedBundle federatedBundleList = 1;
 }
 
 
+/** Represents a federated bundle to be updated
+*/
 message UpdateFederatedBundleRequest {
     FederatedBundle federatedBundle = 1;
 }
 
+/** No return value
+*/
 message UpdateFederatedBundleResponse {
 }
 
 
+/** Represents a federated bundle to be deleted
+*/
 message DeleteFederatedBundleRequest {
     string federateBundleSpiffeId  = 1;
 }
 
+/** No return value
+*/
 message DeleteFederatedBundleResponse {
 }
 
 
 service registration {
+    /// Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads
     rpc CreateEntry(CreateEntryRequest) returns (CreateEntryResponse);
+    /// Deletes a set of entries that match a given criteria
     rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse);
 
+    /// Returns all the Entries associated with the SPIFFE ID Attestor value
     rpc ListByAttestor(ListByAttestorRequest) returns (ListByAttestorResponse);
+    /// Returns all the entries associated with a selector value
     rpc ListBySelector(ListBySelectorRequest) returns (ListBySelectorResponse);
+    /// Return all registration entries for which SPIFFE ID matches
     rpc ListBySpiffeID(ListBySpiffeIDRequest) returns (ListBySpiffeIDResponse);
 
+    /// Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFEIds and their associated CA bundle
     rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (CreateFederatedBundleResponse);
+    /// Retrieve Federated bundles for all the Federated SPIFFEIds
     rpc ListFederatedBundles(ListFederatedBundlesRequest) returns (ListFederatedBundlesResponse);
+    /// Updates a particular Federated Bundle. Useful for rotation.
     rpc UpdateFederatedBundle(UpdateFederatedBundleRequest) returns (UpdateFederatedBundleResponse);
+    /// Delete a particular Federated Bundle. Used to destroy inter-domain trust.
     rpc DeleteFederatedBundle(DeleteFederatedBundleRequest) returns (DeleteFederatedBundleResponse);
 }
