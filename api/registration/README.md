@@ -31,6 +31,7 @@ that should be performed on a workload before those IDs can be issued.
 
 <a name="pb.CreateEntryRequest"/>
 ### CreateEntryRequest
+
 represents an entity to be created
 
 | Field | Type | Label | Description |
@@ -40,6 +41,7 @@ represents an entity to be created
 
 <a name="pb.CreateFederatedBundleRequest"/>
 ### CreateFederatedBundleRequest
+
 represents a federated bundle to be added
 
 | Field | Type | Label | Description |
@@ -49,6 +51,7 @@ represents a federated bundle to be added
 
 <a name="pb.DeleteEntryRequest"/>
 ### DeleteEntryRequest
+
 represents the criteria that will be used to delete entries
 
 | Field | Type | Label | Description |
@@ -59,6 +62,7 @@ represents the criteria that will be used to delete entries
 
 <a name="pb.DeleteEntryResponse"/>
 ### DeleteEntryResponse
+
 represents the entities deleted
 
 | Field | Type | Label | Description |
@@ -68,6 +72,7 @@ represents the entities deleted
 
 <a name="pb.DeleteFederatedBundleRequest"/>
 ### DeleteFederatedBundleRequest
+
 represents a federated bundle to be deleted
 
 | Field | Type | Label | Description |
@@ -77,6 +82,7 @@ represents a federated bundle to be deleted
 
 <a name="pb.FederatedBundle"/>
 ### FederatedBundle
+
 A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
 
 | Field | Type | Label | Description |
@@ -88,6 +94,7 @@ A CA bundle for a different Trust Domain than the one used and managed by the Co
 
 <a name="pb.ListByParentIDRequest"/>
 ### ListByParentIDRequest
+
 represents a ParentID whose children entities will be listed
 
 | Field | Type | Label | Description |
@@ -97,6 +104,7 @@ represents a ParentID whose children entities will be listed
 
 <a name="pb.ListByParentIDResponse"/>
 ### ListByParentIDResponse
+
 represents a list of entities associated with a given ParentID
 
 | Field | Type | Label | Description |
@@ -106,6 +114,7 @@ represents a list of entities associated with a given ParentID
 
 <a name="pb.ListBySelectorRequest"/>
 ### ListBySelectorRequest
+
 represents a selector and type to be used as the criteria to list entities
 
 | Field | Type | Label | Description |
@@ -116,6 +125,7 @@ represents a selector and type to be used as the criteria to list entities
 
 <a name="pb.ListBySelectorResponse"/>
 ### ListBySelectorResponse
+
 represents a list of entities associated with a given selector and type
 
 | Field | Type | Label | Description |
@@ -125,6 +135,7 @@ represents a list of entities associated with a given selector and type
 
 <a name="pb.ListBySpiffeIDRequest"/>
 ### ListBySpiffeIDRequest
+
 represents a Spiffe ID to be used as the criteria to list entities
 
 | Field | Type | Label | Description |
@@ -134,6 +145,7 @@ represents a Spiffe ID to be used as the criteria to list entities
 
 <a name="pb.ListBySpiffeIDResponse"/>
 ### ListBySpiffeIDResponse
+
 represents a list of entities associated with a given Spiffe ID
 
 | Field | Type | Label | Description |
@@ -143,6 +155,7 @@ represents a list of entities associated with a given Spiffe ID
 
 <a name="pb.ListFederatedBundlesResponse"/>
 ### ListFederatedBundlesResponse
+
 represents all the federated bundles
 
 | Field | Type | Label | Description |
@@ -152,6 +165,7 @@ represents all the federated bundles
 
 <a name="pb.RegisteredEntry"/>
 ### RegisteredEntry
+
 This is a curated record that the Control Plane uses to set up and manage
 the various registered nodes and workloads that are controlled by it.
 
@@ -167,6 +181,7 @@ the various registered nodes and workloads that are controlled by it.
 
 <a name="pb.UpdateFederatedBundleRequest"/>
 ### UpdateFederatedBundleRequest
+
 represents a federated bundle to be updated
 
 | Field | Type | Label | Description |
