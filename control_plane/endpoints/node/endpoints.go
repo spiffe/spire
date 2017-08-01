@@ -12,22 +12,16 @@ import (
 // single parameter.
 
 type Endpoints struct {
-	FetchBootstrapSVIDEndpoint endpoint.Endpoint
-	FetchNodeSVIDEndpoint      endpoint.Endpoint
-	FetchSVIDEndpoint          endpoint.Endpoint
-	FetchCPBundleEndpoint      endpoint.Endpoint
+	FetchBaseSVIDEndpoint        endpoint.Endpoint
+	FetchSVIDEndpoint            endpoint.Endpoint
+	FetchCPBundleEndpoint        endpoint.Endpoint
+	FetchFederatedBundleEndpoint endpoint.Endpoint
 }
-type FetchBootstrapSVIDRequest struct {
-	Request pb.FetchBootstrapSVIDRequest
+type FetchBaseSVIDRequest struct {
+	Request pb.FetchBaseSVIDRequest
 }
-type FetchBootstrapSVIDResponse struct {
-	Response pb.FetchBootstrapSVIDResponse
-}
-type FetchNodeSVIDRequest struct {
-	Request pb.FetchNodeSVIDRequest
-}
-type FetchNodeSVIDResponse struct {
-	Response pb.FetchBootstrapSVIDResponse
+type FetchBaseSVIDResponse struct {
+	Response pb.FetchBaseSVIDResponse
 }
 type FetchSVIDRequest struct {
 	Request pb.FetchSVIDRequest
@@ -41,32 +35,28 @@ type FetchCPBundleRequest struct {
 type FetchCPBundleResponse struct {
 	Response pb.FetchCPBundleResponse
 }
+type FetchFederatedBundleRequest struct {
+	Request pb.FetchFederatedBundleRequest
+}
+type FetchFederatedBundleResponse struct {
+	Response pb.FetchFederatedBundleResponse
+}
 
 func NewEndpoint(svc NodeService) (ep Endpoints) {
-	ep.FetchBootstrapSVIDEndpoint = MakeFetchBootstrapSVIDEndpoint(svc)
-	ep.FetchNodeSVIDEndpoint = MakeFetchNodeSVIDEndpoint(svc)
+	ep.FetchBaseSVIDEndpoint = MakeFetchBaseSVIDEndpoint(svc)
 	ep.FetchSVIDEndpoint = MakeFetchSVIDEndpoint(svc)
 	ep.FetchCPBundleEndpoint = MakeFetchCPBundleEndpoint(svc)
+	ep.FetchFederatedBundleEndpoint = MakeFetchFederatedBundleEndpoint(svc)
 	return ep
 }
 
-// MakeFetchBootstrapSVIDEndpoint returns an endpoint that invokes FetchBootstrapSVID on the service.
+// MakeFetchBaseSVIDEndpoint returns an endpoint that invokes FetchBaseSVID on the service.
 // Primarily useful in a server.
-func MakeFetchBootstrapSVIDEndpoint(svc NodeService) (ep endpoint.Endpoint) {
+func MakeFetchBaseSVIDEndpoint(svc NodeService) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(FetchBootstrapSVIDRequest)
-		response := svc.FetchBootstrapSVID(ctx, req.Request)
-		return FetchBootstrapSVIDResponse{Response: response}, nil
-	}
-}
-
-// MakeFetchNodeSVIDEndpoint returns an endpoint that invokes FetchNodeSVID on the service.
-// Primarily useful in a server.
-func MakeFetchNodeSVIDEndpoint(svc NodeService) (ep endpoint.Endpoint) {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(FetchNodeSVIDRequest)
-		response := svc.FetchNodeSVID(ctx, req.Request)
-		return FetchNodeSVIDResponse{Response: response}, nil
+		req := request.(FetchBaseSVIDRequest)
+		response := svc.FetchBaseSVID(ctx, req.Request)
+		return FetchBaseSVIDResponse{Response: response}, nil
 	}
 }
 
@@ -87,5 +77,15 @@ func MakeFetchCPBundleEndpoint(svc NodeService) (ep endpoint.Endpoint) {
 		req := request.(FetchCPBundleRequest)
 		response := svc.FetchCPBundle(ctx, req.Request)
 		return FetchCPBundleResponse{Response: response}, nil
+	}
+}
+
+// MakeFetchFederatedBundleEndpoint returns an endpoint that invokes FetchFederatedBundle on the service.
+// Primarily useful in a server.
+func MakeFetchFederatedBundleEndpoint(svc NodeService) (ep endpoint.Endpoint) {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(FetchFederatedBundleRequest)
+		response := svc.FetchFederatedBundle(ctx, req.Request)
+		return FetchFederatedBundleResponse{Response: response}, nil
 	}
 }
