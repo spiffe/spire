@@ -12,8 +12,8 @@
  * [DeleteFederatedBundleRequest](#pb.DeleteFederatedBundleRequest)
  * [DeleteFederatedBundleResponse](#pb.DeleteFederatedBundleResponse)
  * [FederatedBundle](#pb.FederatedBundle)
- * [ListByAttestorRequest](#pb.ListByAttestorRequest)
- * [ListByAttestorResponse](#pb.ListByAttestorResponse)
+ * [ListByParentIDRequest](#pb.ListByParentIDRequest)
+ * [ListByParentIDResponse](#pb.ListByParentIDResponse)
  * [ListBySelectorRequest](#pb.ListBySelectorRequest)
  * [ListBySelectorResponse](#pb.ListBySelectorResponse)
  * [ListBySpiffeIDRequest](#pb.ListBySpiffeIDRequest)
@@ -109,18 +109,18 @@ A CA bundle for a different Trust Domain than the one used and managed by the Co
 | ttl | [int32](#int32) | optional |  |
 
 
-<a name="pb.ListByAttestorRequest"/>
-### ListByAttestorRequest
-Represents an attestor whose entities will be listed
+<a name="pb.ListByParentIDRequest"/>
+### ListByParentIDRequest
+Represents a ParentID whose children entities will be listed
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestor | [string](#string) | optional |  |
+| parentID | [string](#string) | optional |  |
 
 
-<a name="pb.ListByAttestorResponse"/>
-### ListByAttestorResponse
-Represents a list of entities associated with a given attestor
+<a name="pb.ListByParentIDResponse"/>
+### ListByParentIDResponse
+Represents a list of entities associated with a given ParentID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
@@ -188,7 +188,7 @@ the various registered nodes and workloads that are controlled by it.
 | ----- | ---- | ----- | ----------- |
 | selectorType | [string](#string) | optional |  |
 | selector | [string](#string) | optional |  |
-| attestor | [string](#string) | optional |  |
+| parentID | [string](#string) | optional |  |
 | spiffeId | [string](#string) | optional |  |
 | ttl | [int32](#int32) | optional |  |
 | federateBundleSpiffeIdList | [string](#string) | repeated |  |
@@ -220,7 +220,7 @@ No return value
 | ----------- | ------------ | ------------- | ------------|
 | CreateEntry | [CreateEntryRequest](#pb.CreateEntryRequest) | [CreateEntryResponse](#pb.CreateEntryResponse) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads |
 | DeleteEntry | [DeleteEntryRequest](#pb.DeleteEntryRequest) | [DeleteEntryResponse](#pb.DeleteEntryResponse) | Deletes a set of entries that match a given criteria |
-| ListByAttestor | [ListByAttestorRequest](#pb.ListByAttestorRequest) | [ListByAttestorResponse](#pb.ListByAttestorResponse) | Returns all the Entries associated with the SPIFFE ID Attestor value |
+| ListByParentID | [ListByParentIDRequest](#pb.ListByParentIDRequest) | [ListByParentIDResponse](#pb.ListByParentIDResponse) | Returns all the Entries associated with the ParentID value |
 | ListBySelector | [ListBySelectorRequest](#pb.ListBySelectorRequest) | [ListBySelectorResponse](#pb.ListBySelectorResponse) | Returns all the entries associated with a selector value |
 | ListBySpiffeID | [ListBySpiffeIDRequest](#pb.ListBySpiffeIDRequest) | [ListBySpiffeIDResponse](#pb.ListBySpiffeIDResponse) | Return all registration entries for which SPIFFE ID matches |
 | CreateFederatedBundle | [CreateFederatedBundleRequest](#pb.CreateFederatedBundleRequest) | [CreateFederatedBundleResponse](#pb.CreateFederatedBundleResponse) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFEIds and their associated CA bundle |

@@ -12,7 +12,7 @@ import (
 type grpcServer struct {
 	createEntry           grpctransport.Handler
 	deleteEntry           grpctransport.Handler
-	listByAttestor        grpctransport.Handler
+	listByParentID        grpctransport.Handler
 	listBySelector        grpctransport.Handler
 	listBySpiffeID        grpctransport.Handler
 	createFederatedBundle grpctransport.Handler
@@ -36,10 +36,10 @@ func MakeGRPCServer(endpoints Endpoints) (req pb.RegistrationServer) {
 			EncodeGRPCDeleteEntryResponse,
 		),
 
-		listByAttestor: grpctransport.NewServer(
-			endpoints.ListByAttestorEndpoint,
-			DecodeGRPCListByAttestorRequest,
-			EncodeGRPCListByAttestorResponse,
+		listByParentID: grpctransport.NewServer(
+			endpoints.ListByParentIDEndpoint,
+			DecodeGRPCListByParentIDRequest,
+			EncodeGRPCListByParentIDResponse,
 		),
 
 		listBySelector: grpctransport.NewServer(
@@ -135,30 +135,30 @@ func (s *grpcServer) DeleteEntry(ctx oldcontext.Context, req *pb.DeleteEntryRequ
 	return rep, err
 }
 
-// DecodeGRPCListByAttestorRequest is a transport/grpc.DecodeRequestFunc that converts a
+// DecodeGRPCListByParentIDRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
 // TODO: Do not forget to implement the decoder, you can find an example here :
 // https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func DecodeGRPCListByAttestorRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'ListByAttestor' Decoder is not impelement")
+func DecodeGRPCListByParentIDRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
+	err = errors.New("'ListByParentID' Decoder is not impelement")
 	return req, err
 }
 
-// EncodeGRPCListByAttestorResponse is a transport/grpc.EncodeResponseFunc that converts a
+// EncodeGRPCListByParentIDResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
 // TODO: Do not forget to implement the encoder, you can find an example here :
 // https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func EncodeGRPCListByAttestorResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'ListByAttestor' Encoder is not impelement")
+func EncodeGRPCListByParentIDResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
+	err = errors.New("'ListByParentID' Encoder is not impelement")
 	return res, err
 }
 
-func (s *grpcServer) ListByAttestor(ctx oldcontext.Context, req *pb.ListByAttestorRequest) (rep *pb.ListByAttestorResponse, err error) {
-	_, rp, err := s.listByAttestor.ServeGRPC(ctx, req)
+func (s *grpcServer) ListByParentID(ctx oldcontext.Context, req *pb.ListByParentIDRequest) (rep *pb.ListByParentIDResponse, err error) {
+	_, rp, err := s.listByParentID.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rep = rp.(*pb.ListByAttestorResponse)
+	rep = rp.(*pb.ListByParentIDResponse)
 	return rep, err
 }
 

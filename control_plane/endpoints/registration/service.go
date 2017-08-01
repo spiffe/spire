@@ -12,7 +12,7 @@ type RegistrationService interface {
 	CreateEntry(ctx context.Context, request pb.CreateEntryRequest) (response pb.CreateEntryResponse)
 	DeleteEntry(ctx context.Context, request pb.DeleteEntryRequest) (response pb.DeleteEntryResponse)
 
-	ListByAttestor(ctx context.Context, request pb.ListByAttestorRequest) (response pb.ListByAttestorResponse)
+	ListByParentID(ctx context.Context, request pb.ListByParentIDRequest) (response pb.ListByParentIDResponse)
 	ListBySelector(ctx context.Context, request pb.ListBySelectorRequest) (response pb.ListBySelectorResponse)
 	ListBySpiffeID(ctx context.Context, request pb.ListBySpiffeIDRequest) (response pb.ListBySpiffeIDResponse)
 
@@ -21,11 +21,12 @@ type RegistrationService interface {
 	UpdateFederatedBundle(ctx context.Context, request pb.UpdateFederatedBundleRequest) (response pb.UpdateFederatedBundleResponse)
 	DeleteFederatedBundle(ctx context.Context, request pb.DeleteFederatedBundleRequest) (response pb.DeleteFederatedBundleResponse)
 }
+
 type stubRegistrationService struct{}
 
 // Get a new instance of the service.
 // If you want to add service middleware this is the place to put them.
-func NewService() (s *stubRegistrationService) {
+func New() (s *stubRegistrationService) {
 	s = &stubRegistrationService{}
 	return s
 }
@@ -40,8 +41,8 @@ func (re *stubRegistrationService) DeleteEntry(ctx context.Context, request pb.D
 	return response
 }
 
-// Implement the business logic of ListByAttestor
-func (re *stubRegistrationService) ListByAttestor(ctx context.Context, request pb.ListByAttestorRequest) (response pb.ListByAttestorResponse) {
+// Implement the business logic of ListByParentID
+func (re *stubRegistrationService) ListByParentID(ctx context.Context, request pb.ListByParentIDRequest) (response pb.ListByParentIDResponse) {
 	return response
 }
 

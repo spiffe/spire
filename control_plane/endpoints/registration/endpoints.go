@@ -14,7 +14,7 @@ import (
 type Endpoints struct {
 	CreateEntryEndpoint           endpoint.Endpoint
 	DeleteEntryEndpoint           endpoint.Endpoint
-	ListByAttestorEndpoint        endpoint.Endpoint
+	ListByParentIDEndpoint        endpoint.Endpoint
 	ListBySelectorEndpoint        endpoint.Endpoint
 	ListBySpiffeIDEndpoint        endpoint.Endpoint
 	CreateFederatedBundleEndpoint endpoint.Endpoint
@@ -34,11 +34,11 @@ type DeleteEntryRequest struct {
 type DeleteEntryResponse struct {
 	Response pb.DeleteEntryResponse
 }
-type ListByAttestorRequest struct {
-	Request pb.ListByAttestorRequest
+type ListByParentIDRequest struct {
+	Request pb.ListByParentIDRequest
 }
-type ListByAttestorResponse struct {
-	Response pb.ListByAttestorResponse
+type ListByParentIDResponse struct {
+	Response pb.ListByParentIDResponse
 }
 type ListBySelectorRequest struct {
 	Request pb.ListBySelectorRequest
@@ -80,7 +80,7 @@ type DeleteFederatedBundleResponse struct {
 func NewEndpoint(svc RegistrationService) (ep Endpoints) {
 	ep.CreateEntryEndpoint = MakeCreateEntryEndpoint(svc)
 	ep.DeleteEntryEndpoint = MakeDeleteEntryEndpoint(svc)
-	ep.ListByAttestorEndpoint = MakeListByAttestorEndpoint(svc)
+	ep.ListByParentIDEndpoint = MakeListByParentIDEndpoint(svc)
 	ep.ListBySelectorEndpoint = MakeListBySelectorEndpoint(svc)
 	ep.ListBySpiffeIDEndpoint = MakeListBySpiffeIDEndpoint(svc)
 	ep.CreateFederatedBundleEndpoint = MakeCreateFederatedBundleEndpoint(svc)
@@ -110,13 +110,13 @@ func MakeDeleteEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
 	}
 }
 
-// MakeListByAttestorEndpoint returns an endpoint that invokes ListByAttestor on the service.
+// MakeListByParentIDEndpoint returns an endpoint that invokes ListByParentID on the service.
 // Primarily useful in a server.
-func MakeListByAttestorEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeListByParentIDEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(ListByAttestorRequest)
-		response := svc.ListByAttestor(ctx, req.Request)
-		return ListByAttestorResponse{Response: response}, nil
+		req := request.(ListByParentIDRequest)
+		response := svc.ListByParentID(ctx, req.Request)
+		return ListByParentIDResponse{Response: response}, nil
 	}
 }
 

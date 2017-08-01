@@ -12,7 +12,7 @@ the various registered nodes and workloads that are controlled by it.
 message RegisteredEntry {
     string selectorType = 1;
     string selector = 2;
-    string attestor = 3;
+    string parentID = 3;
     string spiffeId = 4;
     int32 ttl = 5;
     repeated string federateBundleSpiffeIdList = 6;
@@ -53,15 +53,15 @@ message DeleteEntryResponse {
 }
 
 
-/** Represents an attestor whose entities will be listed
+/** Represents a ParentID whose children entities will be listed
 */
-message ListByAttestorRequest {
-    string attestor  = 1;
+message ListByParentIDRequest {
+    string parentID  = 1;
 }
 
-/** Represents a list of entities associated with a given attestor
+/** Represents a list of entities associated with a given ParentID
 */
-message ListByAttestorResponse {
+message ListByParentIDResponse {
     repeated RegisteredEntry registeredEntryList = 1;
 }
 
@@ -147,8 +147,8 @@ service registration {
     /// Deletes a set of entries that match a given criteria
     rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse);
 
-    /// Returns all the Entries associated with the SPIFFE ID Attestor value
-    rpc ListByAttestor(ListByAttestorRequest) returns (ListByAttestorResponse);
+    /// Returns all the Entries associated with the ParentID value
+    rpc ListByParentID(ListByParentIDRequest) returns (ListByParentIDResponse);
     /// Returns all the entries associated with a selector value
     rpc ListBySelector(ListBySelectorRequest) returns (ListBySelectorResponse);
     /// Return all registration entries for which SPIFFE ID matches
