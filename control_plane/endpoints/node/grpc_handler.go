@@ -3,31 +3,26 @@ package node
 import (
 	"context"
 	"errors"
+
 	grpctransport "github.com/go-kit/kit/transport/grpc"
 	"github.com/spiffe/control-plane/api/node/pb"
 	oldcontext "golang.org/x/net/context"
 )
 
 type grpcServer struct {
-	fetchBootstrapSVID grpctransport.Handler
-	fetchNodeSVID      grpctransport.Handler
-	fetchSVID          grpctransport.Handler
-	fetchCPBundle      grpctransport.Handler
+	fetchBaseSVID        grpctransport.Handler
+	fetchSVID            grpctransport.Handler
+	fetchCPBundle        grpctransport.Handler
+	fetchFederatedBundle grpctransport.Handler
 }
 
 // MakeGRPCServer makes a set of endpoints available as a gRPC server.
 func MakeGRPCServer(endpoints Endpoints) (req pb.NodeServer) {
 	req = &grpcServer{
-		fetchBootstrapSVID: grpctransport.NewServer(
-			endpoints.FetchBootstrapSVIDEndpoint,
-			DecodeGRPCFetchBootstrapSVIDRequest,
-			EncodeGRPCFetchBootstrapSVIDResponse,
-		),
-
-		fetchNodeSVID: grpctransport.NewServer(
-			endpoints.FetchNodeSVIDEndpoint,
-			DecodeGRPCFetchNodeSVIDRequest,
-			EncodeGRPCFetchNodeSVIDResponse,
+		fetchBaseSVID: grpctransport.NewServer(
+			endpoints.FetchBaseSVIDEndpoint,
+			DecodeGRPCFetchBaseSVIDRequest,
+			EncodeGRPCFetchBaseSVIDResponse,
 		),
 
 		fetchSVID: grpctransport.NewServer(
@@ -41,61 +36,40 @@ func MakeGRPCServer(endpoints Endpoints) (req pb.NodeServer) {
 			DecodeGRPCFetchCPBundleRequest,
 			EncodeGRPCFetchCPBundleResponse,
 		),
+
+		fetchFederatedBundle: grpctransport.NewServer(
+			endpoints.FetchFederatedBundleEndpoint,
+			DecodeGRPCFetchFederatedBundleRequest,
+			EncodeGRPCFetchFederatedBundleResponse,
+		),
 	}
 	return req
 }
 
-// DecodeGRPCFetchBootstrapSVIDRequest is a transport/grpc.DecodeRequestFunc that converts a
+// DecodeGRPCFetchBaseSVIDRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
 // TODO: Do not forget to implement the decoder, you can find an example here :
 // https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func DecodeGRPCFetchBootstrapSVIDRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'FetchBootstrapSVID' Decoder is not impelement")
+func DecodeGRPCFetchBaseSVIDRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
+	err = errors.New("'FetchBaseSVID' Decoder is not impelement")
 	return req, err
 }
 
-// EncodeGRPCFetchBootstrapSVIDResponse is a transport/grpc.EncodeResponseFunc that converts a
+// EncodeGRPCFetchBaseSVIDResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
 // TODO: Do not forget to implement the encoder, you can find an example here :
 // https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func EncodeGRPCFetchBootstrapSVIDResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'FetchBootstrapSVID' Encoder is not impelement")
+func EncodeGRPCFetchBaseSVIDResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
+	err = errors.New("'FetchBaseSVID' Encoder is not impelement")
 	return res, err
 }
 
-func (s *grpcServer) FetchBootstrapSVID(ctx oldcontext.Context, req *pb.FetchBootstrapSVIDRequest) (rep *pb.FetchBootstrapSVIDResponse, err error) {
-	_, rp, err := s.fetchBootstrapSVID.ServeGRPC(ctx, req)
+func (s *grpcServer) FetchBaseSVID(ctx oldcontext.Context, req *pb.FetchBaseSVIDRequest) (rep *pb.FetchBaseSVIDResponse, err error) {
+	_, rp, err := s.fetchBaseSVID.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rep = rp.(*pb.FetchBootstrapSVIDResponse)
-	return rep, err
-}
-
-// DecodeGRPCFetchNodeSVIDRequest is a transport/grpc.DecodeRequestFunc that converts a
-// gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func DecodeGRPCFetchNodeSVIDRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'FetchNodeSVID' Decoder is not impelement")
-	return req, err
-}
-
-// EncodeGRPCFetchNodeSVIDResponse is a transport/grpc.EncodeResponseFunc that converts a
-// user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func EncodeGRPCFetchNodeSVIDResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'FetchNodeSVID' Encoder is not impelement")
-	return res, err
-}
-
-func (s *grpcServer) FetchNodeSVID(ctx oldcontext.Context, req *pb.FetchNodeSVIDRequest) (rep *pb.FetchNodeSVIDResponse, err error) {
-	_, rp, err := s.fetchNodeSVID.ServeGRPC(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	rep = rp.(*pb.FetchNodeSVIDResponse)
+	rep = rp.(*pb.FetchBaseSVIDResponse)
 	return rep, err
 }
 
@@ -150,5 +124,32 @@ func (s *grpcServer) FetchCPBundle(ctx oldcontext.Context, req *pb.FetchCPBundle
 		return nil, err
 	}
 	rep = rp.(*pb.FetchCPBundleResponse)
+	return rep, err
+}
+
+// DecodeGRPCFetchFederatedBundleRequest is a transport/grpc.DecodeRequestFunc that converts a
+// gRPC request to a user-domain request. Primarily useful in a server.
+// TODO: Do not forget to implement the decoder, you can find an example here :
+// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
+func DecodeGRPCFetchFederatedBundleRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
+	err = errors.New("'FetchFederatedBundle' Decoder is not impelement")
+	return req, err
+}
+
+// EncodeGRPCFetchFederatedBundleResponse is a transport/grpc.EncodeResponseFunc that converts a
+// user-domain response to a gRPC reply. Primarily useful in a server.
+// TODO: Do not forget to implement the encoder, you can find an example here :
+// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
+func EncodeGRPCFetchFederatedBundleResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
+	err = errors.New("'FetchFederatedBundle' Encoder is not impelement")
+	return res, err
+}
+
+func (s *grpcServer) FetchFederatedBundle(ctx oldcontext.Context, req *pb.FetchFederatedBundleRequest) (rep *pb.FetchFederatedBundleResponse, err error) {
+	_, rp, err := s.fetchFederatedBundle.ServeGRPC(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	rep = rp.(*pb.FetchFederatedBundleResponse)
 	return rep, err
 }

@@ -2,16 +2,17 @@ package node
 
 import (
 	"context"
+
 	"github.com/spiffe/control-plane/api/node/pb"
 )
 
 // Implement yor service methods methods.
 // e.x: Foo(ctx context.Context,s string)(rs string, err error)
 type NodeService interface {
-	FetchBootstrapSVID(ctx context.Context, request pb.FetchBootstrapSVIDRequest) (response pb.FetchBootstrapSVIDResponse)
-	FetchNodeSVID(ctx context.Context, request pb.FetchNodeSVIDRequest) (response pb.FetchBootstrapSVIDResponse)
+	FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse)
 	FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse)
 	FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse)
+	FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse)
 }
 
 type stubNodeService struct{}
@@ -23,13 +24,8 @@ func NewService() (s *stubNodeService) {
 	return s
 }
 
-// Implement the business logic of FetchBootstrapSVID
-func (no *stubNodeService) FetchBootstrapSVID(ctx context.Context, request pb.FetchBootstrapSVIDRequest) (response pb.FetchBootstrapSVIDResponse) {
-	return response
-}
-
-// Implement the business logic of FetchNodeSVID
-func (no *stubNodeService) FetchNodeSVID(ctx context.Context, request pb.FetchNodeSVIDRequest) (response pb.FetchBootstrapSVIDResponse) {
+// Implement the business logic of FetchBaseSVID
+func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse) {
 	return response
 }
 
@@ -40,5 +36,10 @@ func (no *stubNodeService) FetchSVID(ctx context.Context, request pb.FetchSVIDRe
 
 // Implement the business logic of FetchCPBundle
 func (no *stubNodeService) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse) {
+	return response
+}
+
+// Implement the business logic of FetchFederatedBundle
+func (no *stubNodeService) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse) {
 	return response
 }
