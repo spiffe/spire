@@ -11,33 +11,35 @@ type GRPCServer struct {
 }
 
 func (m *GRPCServer) FetchAttestationData(ctx context.Context, req *proto.FetchAttestationDataRequest) (*proto.FetchAttestationDataResponse, error) {
-	attestationData, err := m.NodeAttestorImpl.FetchAttestationData()
-	return &proto.FetchAttestationDataResponse{AttestationData: attestationData}, err
+	response, err := m.NodeAttestorImpl.FetchAttestationData(req)
+	return response, err
 }
 
 func (m *GRPCServer) Configure(ctx context.Context, req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
-	errorList, err := m.NodeAttestorImpl.Configure(req.Configuration)
-	return &common.ConfigureResponse{ErrorList: errorList}, err
+	response, err := m.NodeAttestorImpl.Configure(req)
+	return response, err
+}
+
+func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
+	response, err := m.NodeAttestorImpl.GetPluginInfo(req)
+	return response, err
 }
 
 type GRPCClient struct {
 	client proto.NodeAttestorClient
 }
 
-func (m *GRPCClient) FetchAttestationData() ([]byte, error) {
-	res, err := m.client.FetchAttestationData(context.Background(), &proto.FetchAttestationDataRequest{})
-	if err != nil {
-		return []byte{}, err
-	}
-	return res.AttestationData, err
+func (m *GRPCClient) FetchAttestationData(req *proto.FetchAttestationDataRequest) (*proto.FetchAttestationDataResponse, error) {
+	res, err := m.client.FetchAttestationData(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) Configure(configuration string) ([]string, error) {
-	res, err := m.client.Configure(context.Background(), &common.ConfigureRequest{
-		Configuration: configuration,
-	})
-	if err != nil {
-		return []string{}, err
-	}
-	return res.ErrorList, err
+func (m *GRPCClient) Configure(req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
+	res, err := m.client.Configure(context.Background(), req)
+	return res, err
+}
+
+func (m *GRPCClient) GetPluginInfo(req *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
+	res, err := m.client.GetPluginInfo(context.Background(), req)
+	return res, err
 }

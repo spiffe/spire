@@ -1,15 +1,30 @@
 syntax = "proto3";
 package proto;
 
-import public "plugins/common/proto/common.proto";
+import public "github.com/spiffe/node-agent/plugins/common/proto/common.proto";
 
+/** represents the attested data
+*/
+message AttestedData {
+    string type = 1;
+    bytes data = 2;
+}
+
+/** @exclude */
 message FetchAttestationDataRequest {}
 
+/** represents the attested data and base SPIFFE ID
+*/
 message FetchAttestationDataResponse {
-    bytes attestationData = 1;
+    AttestedData attestedData = 1;
+    string spiffeId = 2;
 }
 
 service NodeAttestor {
+    /// Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation
     rpc FetchAttestationData(FetchAttestationDataRequest) returns (FetchAttestationDataResponse);
+    /// Applies the plugin configuration and returns configuration errors
     rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    /// Returns the version and related metadata of the plugin
+    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
 }
