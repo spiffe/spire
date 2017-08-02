@@ -19,7 +19,8 @@
 
 ## control_plane_ca.proto
 
-
+Responsible for processing CSR requests from Node Agents if the Control Plane is configured to carry an intermediate signing certificate.
+This plugin is also responsible for generating the CSR necessary for an intermediate signing cert, as well as storing the key in memory or hardware.
 
 <a name="proto.FetchCertificateRequest"/>
 
