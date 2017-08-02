@@ -2,8 +2,10 @@
 <a name="top"/>
 
 ## Table of Contents
+
 * [node.proto](#node.proto)
 * [AttestedData](#pb.AttestedData)
+* [Empty](#pb.Empty)
 * [FetchBaseSVIDRequest](#pb.FetchBaseSVIDRequest)
 * [FetchBaseSVIDResponse](#pb.FetchBaseSVIDResponse)
 * [FetchCPBundleResponse](#pb.FetchCPBundleResponse)
@@ -33,22 +35,24 @@ and to retrieve SVIDs by presenting certificate signing requests to the Control 
 <a name="pb.AttestedData"/>
 
 ### AttestedData
+
 A type which contains attestation data for specific platform.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) | optional |  |
-| data | [string](#string) | optional |  |
+| type | [string](#string) | optional | Type of attestation to perform. |
+| data | [string](#string) | optional | The attestetion data. |
 
 
 <a name="pb.FetchBaseSVIDRequest"/>
 
 ### FetchBaseSVIDRequest
 
+Represents a request to attest the node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [AttestedData](#pb.AttestedData) | optional |  |
+| attestedData | [AttestedData](#pb.AttestedData) | optional | A type which contains attestation data for specific platform. |
 | csr | [bytes](#bytes) | optional |  |
 
 
@@ -56,40 +60,54 @@ A type which contains attestation data for specific platform.
 
 ### FetchBaseSVIDResponse
 
+Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeEntry | [SvidUpdate](#pb.SvidUpdate) | optional |  |
+| spiffeEntry | [SvidUpdate](#pb.SvidUpdate) | optional | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
+
+
+<a name="pb.FetchCPBundleRequest"/>
+
+### FetchCPBundleRequest
+
+Represents an empty message.
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
 
 
 <a name="pb.FetchCPBundleResponse"/>
 
 ### FetchCPBundleResponse
 
+Represents a response with a Control Plane certificate bundle.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| cpBundle | [bytes](#bytes) | optional |  |
+| cpBundle | [bytes](#bytes) | optional | Control Plane certificate bundle. |
 
 
 <a name="pb.FetchFederatedBundleRequest"/>
 
 ### FetchFederatedBundleRequest
 
+Represents a request with an array of SPIFFE Ids.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) | repeated |  |
+| spiffeId | [string](#string) | repeated | An array of SPIFFE Ids. |
 
 
 <a name="pb.FetchFederatedBundleResponse"/>
 
 ### FetchFederatedBundleResponse
 
+Represents a response with a map of SPIFFE Id, Federated CA Bundle.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [FetchFederatedBundleResponse.MapEntry](#pb.FetchFederatedBundleResponse.MapEntry) | repeated |  |
+| map | [FetchFederatedBundleResponse.MapEntry](#pb.FetchFederatedBundleResponse.MapEntry) | repeated | Map [ SPIFFE ID ] => Federated CA Bundle |
 
 
 <a name="pb.FetchFederatedBundleResponse.MapEntry"/>
@@ -107,56 +125,62 @@ A type which contains attestation data for specific platform.
 
 ### FetchSVIDRequest
 
+Represents a request with a list of CSR.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| csrList | [bytes](#bytes) | repeated |  |
+| csrList | [bytes](#bytes) | repeated | A list of CSRs. |
 
 
 <a name="pb.FetchSVIDResponse"/>
 
 ### FetchSVIDResponse
 
+Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeEntry | [SvidUpdate](#pb.SvidUpdate) | optional |  |
+| spiffeEntry | [SvidUpdate](#pb.SvidUpdate) | optional | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
 
 
 <a name="pb.RegistrationEntry"/>
 
 ### RegistrationEntry
-A type representing a single Registration Entry. It is used when creating or updating a Registration Entry.
+
+A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectorType | [string](#string) | optional |  |
-| selector | [string](#string) | optional |  |
-| attestor | [string](#string) | optional |  |
-| spiffeId | [string](#string) | optional |  |
-| federatedBundle | [bytes](#bytes) | optional |  |
-| ttl | [int32](#int32) | optional |  |
+| selectorType | [string](#string) | optional | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| selector | [string](#string) | optional | A native property of an entity. |
+| spiffeId | [string](#string) | optional | An SPIFFE Id. |
+| parentId | [string](#string) | optional | The SPIFFE ID of an entity that is authorized to attest the validity of a selector. |
+| federatedSpiffeId | [string](#string) | repeated | A SPIFFE ID that has a Federated Bundle. |
+| ttl | [int32](#int32) | optional | Time to live. |
+| selectorGroup | [string](#string) | optional | Selector Group contains a GUID which allows for compounding selectors. In the case where a workload must satisfy multiple selectors in order to be issued a SPIFFE ID, the Registration Entries will share a Selector Group GUID. |
 
 
 <a name="pb.Svid"/>
 
 ### Svid
-A type which contains the SVID and a TTL indicating when the SVID expires.
+
+A type which contains the "Spiffe Verifiable Identity Document" and a TTL indicating when the SVID expires.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svidCert | [bytes](#bytes) | optional |  |
-| ttl | [int32](#int32) | optional |  |
+| svidCert | [bytes](#bytes) | optional | Spiffe Verifiable Identity Document. |
+| ttl | [int32](#int32) | optional | SVID expiration. |
 
 
 <a name="pb.SvidMap"/>
 
 ### SvidMap
+
 A map containing SVID values and corresponding SPIFFE IDs as the keys.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [SvidMap.MapEntry](#pb.SvidMap.MapEntry) | repeated |  |
+| map | [SvidMap.MapEntry](#pb.SvidMap.MapEntry) | repeated | Map[SPIFFE_ID] => SVID |
 
 
 <a name="pb.SvidMap.MapEntry"/>
@@ -173,13 +197,14 @@ A map containing SVID values and corresponding SPIFFE IDs as the keys.
 <a name="pb.SvidUpdate"/>
 
 ### SvidUpdate
+
 A message returned by the Control Plane, which includes a map of signed SVIDs and
 an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svidMap | [SvidMap](#pb.SvidMap) | optional |  |
-| registrationEntryList | [RegistrationEntry](#pb.RegistrationEntry) | repeated |  |
+| svidMap | [SvidMap](#pb.SvidMap) | optional | A map containing SVID values and corresponding SPIFFE IDs as the keys. |
+| registrationEntryList | [RegistrationEntry](#pb.RegistrationEntry) | repeated | A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 
 <a name="pb.node"/>
 
@@ -190,8 +215,8 @@ an array of all current Registration Entries which are relevant to the caller SP
 | ----------- | ------------ | ------------- | ------------|
 | FetchBaseSVID | [FetchBaseSVIDRequest](#pb.FetchBaseSVIDRequest) | [FetchBaseSVIDResponse](#pb.FetchBaseSVIDResponse) | Attest the node, get base node SVID. |
 | FetchSVID | [FetchSVIDRequest](#pb.FetchSVIDRequest) | [FetchSVIDResponse](#pb.FetchSVIDResponse) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation/(Base Node SVID or the Registered Node SVID used for this call)/(List can be empty to allow Node Agent cache refresh). |
-| FetchCPBundle | [FetchCPBundleRequest](#pb.FetchCPBundleRequest) | [FetchCPBundleResponse](#pb.FetchCPBundleResponse) | Called by NA periodically to support CP cert rotation. Cached in NA memory for WLs as well. |
-| FetchFederatedBundle | [FetchFederatedBundleRequest](#pb.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#pb.FetchFederatedBundleResponse) | Called by the NA to fetch the named Federated CA Bundle./Used in the event that authorized workloads reference a Federated Bundle. |
+| FetchCPBundle | [Empty](#pb.Empty) | [FetchCPBundleResponse](#pb.FetchCPBundleResponse) | Called by Node Agent periodically to support Control Plane certificate rotation. Cached in Node Agent memory for WorkLoads as well. |
+| FetchFederatedBundle | [FetchFederatedBundleRequest](#pb.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#pb.FetchFederatedBundleResponse) | Called by the Node Agent to fetch the named Federated CA Bundle./Used in the event that authorized workloads reference a Federated Bundle. |
 
 
 
