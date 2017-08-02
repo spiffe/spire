@@ -5,7 +5,6 @@
 
 * [node.proto](#node.proto)
 * [AttestedData](#pb.AttestedData)
-* [Empty](#pb.Empty)
 * [FetchBaseSVIDRequest](#pb.FetchBaseSVIDRequest)
 * [FetchBaseSVIDResponse](#pb.FetchBaseSVIDResponse)
 * [FetchCPBundleResponse](#pb.FetchCPBundleResponse)
