@@ -27,7 +27,7 @@ var PluginMap = map[string]plugin.Plugin{
 type NodeAttestor interface {
 	Configure(config string) ([]string, error)
 	GetPluginInfo() (*common.GetPluginInfoResponse, error)
-	Attest(*proto.AttestedData) (*proto.AttestResponse, error)
+	Attest(request *proto.AttestRequest) (*proto.AttestResponse, error)
 }
 
 type NodeAttestorPlugin struct {
