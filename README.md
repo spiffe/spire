@@ -13,8 +13,7 @@ into the directory `.build/`
 
 `deps` processes the `glide.lock` file
 
-`protobuf` and `docs` will regenerate the gRPC pb.go and README.md files 
-respectively
+`protobuf` will regenerate the gRPC pb.go and README.md files 
 
 `binaries` will build the main binary and the plugins
 
