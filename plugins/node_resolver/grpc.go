@@ -2,7 +2,7 @@ package noderesolver
 
 import (
 	common "github.com/spiffe/control-plane/plugins/common/proto"
-	"github.com/spiffe/control-plane/plugins/noderesolver/proto"
+	"github.com/spiffe/control-plane/plugins/node_resolver/proto"
 	"golang.org/x/net/context"
 )
 
@@ -21,12 +21,12 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInf
 }
 
 func (m *GRPCServer) Resolve(ctx context.Context, req *proto.ResolveRequest) (*proto.ResolveResponse, error) {
-	resolutionMap, err := m.NodeResolutionImpl.Resolve(req.PhysicalSpiffeIdList)
+	resolutionMap, err := m.NodeResolutionImpl.Resolve(req.BaseSpiffeIdList)
 	return &proto.ResolveResponse{Map: resolutionMap}, err
 }
 
 type GRPCClient struct {
-	client proto.NodeClient
+	client proto.NodeResolverClient
 }
 
 func (m *GRPCClient) Configure(configuration string) ([]string, error) {
