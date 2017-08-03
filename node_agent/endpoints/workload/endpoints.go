@@ -24,7 +24,7 @@ type FetchSVIDBundleResponse struct {
 	Response pb.FetchSVIDBundleResponse
 }
 type FetchSVIDBundlesRequest struct {
-	Request pb.FetchSVIDBundlesRequest
+	Request pb.Empty
 }
 type FetchSVIDBundlesResponse struct {
 	Response pb.FetchSVIDBundlesResponse
@@ -36,7 +36,7 @@ type FetchFederatedBundleResponse struct {
 	Response pb.FetchFederatedBundleResponse
 }
 type FetchFederatedBundlesRequest struct {
-	Request pb.FetchFederatedBundlesRequest
+	Request pb.Empty
 }
 type FetchFederatedBundlesResponse struct {
 	Response pb.FetchFederatedBundlesResponse

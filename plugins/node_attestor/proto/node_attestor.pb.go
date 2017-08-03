@@ -92,6 +92,7 @@ func (m *GetPluginInfoResponse) GetCompany() string {
 	return (*proto2.GetPluginInfoResponse)(m).GetCompany()
 }
 
+// * represents the attested data
 type AttestedData struct {
 	Type string `protobuf:"bytes,1,opt,name=type" json:"type,omitempty"`
 	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
@@ -116,6 +117,7 @@ func (m *AttestedData) GetData() []byte {
 	return nil
 }
 
+// * @exclude
 type FetchAttestationDataRequest struct {
 }
 
@@ -124,6 +126,7 @@ func (m *FetchAttestationDataRequest) String() string            { return proto1
 func (*FetchAttestationDataRequest) ProtoMessage()               {}
 func (*FetchAttestationDataRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
+// * represents the attested data and base SPIFFE ID
 type FetchAttestationDataResponse struct {
 	AttestedData *AttestedData `protobuf:"bytes,1,opt,name=attestedData" json:"attestedData,omitempty"`
 	SpiffeId     string        `protobuf:"bytes,2,opt,name=spiffeId" json:"spiffeId,omitempty"`
@@ -165,8 +168,11 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for NodeAttestor service
 
 type NodeAttestorClient interface {
+	// / Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation
 	FetchAttestationData(ctx context.Context, in *FetchAttestationDataRequest, opts ...grpc.CallOption) (*FetchAttestationDataResponse, error)
+	// / Applies the plugin configuration and returns configuration errors
 	Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error)
+	// / Returns the version and related metadata of the plugin
 	GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error)
 }
 
@@ -208,8 +214,11 @@ func (c *nodeAttestorClient) GetPluginInfo(ctx context.Context, in *proto2.GetPl
 // Server API for NodeAttestor service
 
 type NodeAttestorServer interface {
+	// / Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation
 	FetchAttestationData(context.Context, *FetchAttestationDataRequest) (*FetchAttestationDataResponse, error)
+	// / Applies the plugin configuration and returns configuration errors
 	Configure(context.Context, *proto2.ConfigureRequest) (*proto2.ConfigureResponse, error)
+	// / Returns the version and related metadata of the plugin
 	GetPluginInfo(context.Context, *proto2.GetPluginInfoRequest) (*proto2.GetPluginInfoResponse, error)
 }
 

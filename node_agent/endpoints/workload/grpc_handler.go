@@ -91,7 +91,7 @@ func EncodeGRPCFetchSVIDBundlesResponse(_ context.Context, grpcReply interface{}
 	return res, err
 }
 
-func (s *grpcServer) FetchSVIDBundles(ctx oldcontext.Context, req *pb.FetchSVIDBundlesRequest) (rep *pb.FetchSVIDBundlesResponse, err error) {
+func (s *grpcServer) FetchSVIDBundles(ctx oldcontext.Context, req *pb.Empty) (rep *pb.FetchSVIDBundlesResponse, err error) {
 	_, rp, err := s.fetchSVIDBundles.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
@@ -145,7 +145,7 @@ func EncodeGRPCFetchFederatedBundlesResponse(_ context.Context, grpcReply interf
 	return res, err
 }
 
-func (s *grpcServer) FetchFederatedBundles(ctx oldcontext.Context, req *pb.FetchFederatedBundlesRequest) (rep *pb.FetchFederatedBundlesResponse, err error) {
+func (s *grpcServer) FetchFederatedBundles(ctx oldcontext.Context, req *pb.Empty) (rep *pb.FetchFederatedBundlesResponse, err error) {
 	_, rp, err := s.fetchFederatedBundles.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err

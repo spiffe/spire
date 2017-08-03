@@ -10,9 +10,9 @@ import (
 // e.x: Foo(ctx context.Context,s string)(rs string, err error)
 type WorkloadService interface {
 	FetchSVIDBundle(ctx context.Context, request pb.FetchSVIDBundleRequest) (response pb.FetchSVIDBundleResponse)
-	FetchSVIDBundles(ctx context.Context, request pb.FetchSVIDBundlesRequest) (response pb.FetchSVIDBundlesResponse)
+	FetchSVIDBundles(ctx context.Context, request pb.Empty) (response pb.FetchSVIDBundlesResponse)
 	FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse)
-	FetchFederatedBundles(ctx context.Context, request pb.FetchFederatedBundlesRequest) (response pb.FetchFederatedBundlesResponse)
+	FetchFederatedBundles(ctx context.Context, request pb.Empty) (response pb.FetchFederatedBundlesResponse)
 }
 
 type stubWorkloadService struct{}
@@ -30,7 +30,7 @@ func (wo *stubWorkloadService) FetchSVIDBundle(ctx context.Context, request pb.F
 }
 
 // Implement the business logic of FetchSVIDBundles
-func (wo *stubWorkloadService) FetchSVIDBundles(ctx context.Context, request pb.FetchSVIDBundlesRequest) (response pb.FetchSVIDBundlesResponse) {
+func (wo *stubWorkloadService) FetchSVIDBundles(ctx context.Context, request pb.Empty) (response pb.FetchSVIDBundlesResponse) {
 	return response
 }
 
@@ -40,6 +40,6 @@ func (wo *stubWorkloadService) FetchFederatedBundle(ctx context.Context, request
 }
 
 // Implement the business logic of FetchFederatedBundles
-func (wo *stubWorkloadService) FetchFederatedBundles(ctx context.Context, request pb.FetchFederatedBundlesRequest) (response pb.FetchFederatedBundlesResponse) {
+func (wo *stubWorkloadService) FetchFederatedBundles(ctx context.Context, request pb.Empty) (response pb.FetchFederatedBundlesResponse) {
 	return response
 }
