@@ -3,13 +3,33 @@
 
 # control-plane
 
-Installation
+Build Environment
 ------------
-TODO
+The script `build.sh` manages the build process and can be used for development. It expects
+this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/control-plane`.
 
+`build.sh setup` will download and install necessary dependancies (including golang)
+into the directory `.build/`
 
+`deps` processes the `glide.lock` file
 
-Prerequisites
+`protobuf` and `docs` will regenerate the gRPC pb.go and README.md files 
+respectively
+
+`binaries` will build the main binary and the plugins
+
+`test` will run the tests
+
+`clean` remove built binaries and 
+
+`distclean` remove built binaries as well as the `.build` directory
+
+`build.sh` with no options will list available functions
+
+`eval $(build.sh env)` will configure GOPATH, GOROOT and PATH for development outside
+of `build.sh`
+
+Prerequisites when not using build.sh
 -------------
 
 * The Go compiler and tools from https://golang.org/
