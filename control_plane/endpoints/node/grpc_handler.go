@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	grpctransport "github.com/go-kit/kit/transport/grpc"
-	"github.com/spiffe/control-plane/api/node/pb"
+	"github.com/spiffe/control-plane/api/node/proto"
 	oldcontext "golang.org/x/net/context"
 )
 
