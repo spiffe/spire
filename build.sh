@@ -85,7 +85,6 @@ build_protobuf() {
     local _n _d _dir _prefix="$1"
 
     for _n in ${PROTO_FILES}; do
-        _log_info "running protoc on \"${_n}\""
         _dir="$(dirname ${_n})"
         if [[ ${_prefix} ]]; then
             _d=${_prefix}/${_dir}
@@ -93,7 +92,11 @@ build_protobuf() {
         else
             _d=${_dir}
         fi
+        _docdir="$(dirname ${_d})"
+        _log_info "processing \"${_n}\""
         protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --go_out=plugins=grpc:${_d} ${_n}
+        _log_info "creating \"${_docdir}/README.md\""
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --doc_out=markdown,README.md:${_docdir} ${_n}
     done
 }
 
@@ -104,7 +107,7 @@ build_protobuf_verify() {
 
     for _n in $(cd $_tmp; find * -type f); do
         if ! diff ${_tmp}/${_n} ${_n} >/dev/null; then
-            _log_info "proto \"${_n}\" needs regeneration"
+            _log_info "\"${_n}\" needs regeneration"
             _result=1
         fi
     done
@@ -139,16 +142,6 @@ build_test() {
     fi
 }
 
-build_docs() {
-    local _n _dir _doc
-    for _n in ${PROTO_FILES}; do
-        _dir="$(dirname ${_n})"
-        _docdir="$(dirname ${_dir})"
-        _log_info "creating \"${_docdir}/README.md\""
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --doc_out=markdown,README.md:${_docdir} ${_n}
-    done
-}
-
 build_clean() {
     rm -f $(find ${BINARY_DIRS} -type f -executable)
 }
@@ -175,7 +168,6 @@ case "$1" in
     protobuf_verify) build_protobuf_verify ;;
     binaries|bin) build_binaries $2 ;;
     test) build_test ;;
-    docs) build_docs ;;
     clean) build_clean ;;
     distclean) build_distclean ;;
     all) build_all ;;
