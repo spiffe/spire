@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/hashicorp/go-plugin"
 	common "github.com/spiffe/control-plane/plugins/common/proto"
-	"github.com/spiffe/control-plane/plugins/noderesolver"
-	"github.com/spiffe/control-plane/plugins/noderesolver/proto"
+	"github.com/spiffe/control-plane/plugins/node_resolver"
+	"github.com/spiffe/control-plane/plugins/node_resolver/proto"
 )
 
 type NoOp struct{}
