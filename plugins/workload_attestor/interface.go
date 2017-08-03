@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	common "github.com/spiffe/node-agent/plugins/common/proto"
 	"github.com/spiffe/node-agent/plugins/workload_attestor/proto"
 )
 
@@ -23,8 +24,9 @@ var PluginMap = map[string]plugin.Plugin{
 }
 
 type WorkloadAttestor interface {
-	Attest(pid int32) ([]string, error)
-	Configure(config string) error
+	Attest(*proto.AttestRequest) (*proto.AttestResponse, error)
+	Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error)
+	GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
 }
 
 type WorkloadAttestorPlugin struct {
