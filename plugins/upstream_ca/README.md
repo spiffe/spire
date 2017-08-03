@@ -19,28 +19,16 @@
   
 
 
-* [control_plane_ca.proto](#control_plane_ca.proto)
+* [upstream_ca.proto](#upstream_ca.proto)
   
-    * [FetchCertificateRequest](#proto.FetchCertificateRequest)
+    * [SubmitCSRRequest](#proto.SubmitCSRRequest)
   
-    * [FetchCertificateResponse](#proto.FetchCertificateResponse)
-  
-    * [GenerateCsrRequest](#proto.GenerateCsrRequest)
-  
-    * [GenerateCsrResponse](#proto.GenerateCsrResponse)
-  
-    * [LoadCertificateRequest](#proto.LoadCertificateRequest)
-  
-    * [LoadCertificateResponse](#proto.LoadCertificateResponse)
-  
-    * [SignCsrRequest](#proto.SignCsrRequest)
-  
-    * [SignCsrResponse](#proto.SignCsrResponse)
+    * [SubmitCSRResponse](#proto.SubmitCSRResponse)
   
   
   
   
-    * [ControlPlaneCA](#proto.ControlPlaneCA)
+    * [node](#proto.node)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -124,113 +112,38 @@
 
 
 
-<a name="control_plane_ca.proto"/>
+<a name="upstream_ca.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## control_plane_ca.proto
-Responsible for processing CSR requests from Node Agents if the Control Plane is configured to carry an intermediate signing certificate.
-This plugin is also responsible for generating the CSR necessary for an intermediate signing cert, as well as storing the key in memory or hardware.
-
-
-<a name="proto.FetchCertificateRequest"/>
-
-### FetchCertificateRequest
-Represents an empty request.
+## upstream_ca.proto
 
 
 
+<a name="proto.SubmitCSRRequest"/>
 
+### SubmitCSRRequest
 
-
-<a name="proto.FetchCertificateResponse"/>
-
-### FetchCertificateResponse
-Represents a response with a stored intermediate certificate.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| storedIntermediateCert | [bytes](#bytes) |  | Stored intermediate certificate. |
+| csr | [bytes](#bytes) |  |  |
 
 
 
 
 
 
-<a name="proto.GenerateCsrRequest"/>
+<a name="proto.SubmitCSRResponse"/>
 
-### GenerateCsrRequest
-Represents an empty request.
+### SubmitCSRResponse
 
-
-
-
-
-
-<a name="proto.GenerateCsrResponse"/>
-
-### GenerateCsrResponse
-Represents a response with a certificate signing request.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| csr | [bytes](#bytes) |  | Certificate signing request. |
-
-
-
-
-
-
-<a name="proto.LoadCertificateRequest"/>
-
-### LoadCertificateRequest
-Represents a request with a signed intermediate certificate.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| signedIntermediateCert | [bytes](#bytes) |  | Signed intermediate certificate. |
-
-
-
-
-
-
-<a name="proto.LoadCertificateResponse"/>
-
-### LoadCertificateResponse
-Represents an empty response.
-
-
-
-
-
-
-<a name="proto.SignCsrRequest"/>
-
-### SignCsrRequest
-Represents a request with a certificate signing request.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| csr | [bytes](#bytes) |  | Certificate signing request. |
-
-
-
-
-
-
-<a name="proto.SignCsrResponse"/>
-
-### SignCsrResponse
-Represents a response with a signed certificate.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| signedCertificate | [bytes](#bytes) |  | Signed certificate. |
+| cert | [bytes](#bytes) |  |  |
+| upstreamTrustBundle | [bytes](#bytes) |  |  |
 
 
 
@@ -243,19 +156,16 @@ Represents a response with a signed certificate.
  
 
 
-<a name="proto.ControlPlaneCA"/>
+<a name="proto.node"/>
 
-### ControlPlaneCA
+### node
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| SignCsr | [SignCsrRequest](#proto.SignCsrRequest) | [SignCsrResponse](#proto.SignCsrRequest) | Interface will take in a CSR and sign it with the stored intermediate certificate. |
-| GenerateCsr | [GenerateCsrRequest](#proto.GenerateCsrRequest) | [GenerateCsrResponse](#proto.GenerateCsrRequest) | Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. |
-| FetchCertificate | [FetchCertificateRequest](#proto.FetchCertificateRequest) | [FetchCertificateResponse](#proto.FetchCertificateRequest) | Used to read the stored Intermediate CP cert. |
-| LoadCertificate | [LoadCertificateRequest](#proto.LoadCertificateRequest) | [LoadCertificateResponse](#proto.LoadCertificateRequest) | Used for setting/storing the signed intermediate certificate. |
+| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) |  |
+| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) |  |
+| SubmitCSR | [SubmitCSRRequest](#proto.SubmitCSRRequest) | [SubmitCSRResponse](#proto.SubmitCSRRequest) |  |
 
  
 
