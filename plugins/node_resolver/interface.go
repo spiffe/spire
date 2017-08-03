@@ -6,7 +6,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
 	common "github.com/spiffe/control-plane/plugins/common/proto"
-	"github.com/spiffe/control-plane/plugins/noderesolver/proto"
+	"github.com/spiffe/control-plane/plugins/node_resolver/proto"
 	"google.golang.org/grpc"
 )
 
@@ -41,10 +41,10 @@ func (p NodeResolutionPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interf
 }
 
 func (p NodeResolutionPlugin) GRPCServer(s *grpc.Server) error {
-	proto.RegisterNodeServer(s, &GRPCServer{NodeResolutionImpl: p.NodeResolutionImpl})
+	proto.RegisterNodeResolverServer(s, &GRPCServer{NodeResolutionImpl: p.NodeResolutionImpl})
 	return nil
 }
 
 func (p NodeResolutionPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: proto.NewNodeClient(c)}, nil
+	return &GRPCClient{client: proto.NewNodeResolverClient(c)}, nil
 }
