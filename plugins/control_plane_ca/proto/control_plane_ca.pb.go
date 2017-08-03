@@ -95,6 +95,7 @@ func (m *GetPluginInfoResponse) GetCompany() string {
 	return (*proto2.GetPluginInfoResponse)(m).GetCompany()
 }
 
+// *Represents a request with a certificate signing request.
 type SignCsrRequest struct {
 	Csr []byte `protobuf:"bytes,1,opt,name=csr,proto3" json:"csr,omitempty"`
 }
@@ -111,6 +112,7 @@ func (m *SignCsrRequest) GetCsr() []byte {
 	return nil
 }
 
+// *Represents a response with a signed certificate.
 type SignCsrResponse struct {
 	SignedCertificate []byte `protobuf:"bytes,1,opt,name=signedCertificate,proto3" json:"signedCertificate,omitempty"`
 }
@@ -127,6 +129,7 @@ func (m *SignCsrResponse) GetSignedCertificate() []byte {
 	return nil
 }
 
+// *Represents an empty request.
 type GenerateCsrRequest struct {
 }
 
@@ -135,6 +138,7 @@ func (m *GenerateCsrRequest) String() string            { return proto1.CompactT
 func (*GenerateCsrRequest) ProtoMessage()               {}
 func (*GenerateCsrRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
+// *Represents a response with a certificate signing request.
 type GenerateCsrResponse struct {
 	Csr []byte `protobuf:"bytes,1,opt,name=csr,proto3" json:"csr,omitempty"`
 }
@@ -151,6 +155,7 @@ func (m *GenerateCsrResponse) GetCsr() []byte {
 	return nil
 }
 
+// *Represents an empty request.
 type FetchCertificateRequest struct {
 }
 
@@ -159,6 +164,7 @@ func (m *FetchCertificateRequest) String() string            { return proto1.Com
 func (*FetchCertificateRequest) ProtoMessage()               {}
 func (*FetchCertificateRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
+// *Represents a response with a stored intermediate certificate.
 type FetchCertificateResponse struct {
 	StoredIntermediateCert []byte `protobuf:"bytes,1,opt,name=storedIntermediateCert,proto3" json:"storedIntermediateCert,omitempty"`
 }
@@ -175,6 +181,7 @@ func (m *FetchCertificateResponse) GetStoredIntermediateCert() []byte {
 	return nil
 }
 
+// *Represents a request with a signed intermediate certificate.
 type LoadCertificateRequest struct {
 	SignedIntermediateCert []byte `protobuf:"bytes,1,opt,name=signedIntermediateCert,proto3" json:"signedIntermediateCert,omitempty"`
 }
@@ -191,6 +198,7 @@ func (m *LoadCertificateRequest) GetSignedIntermediateCert() []byte {
 	return nil
 }
 
+// *Represents an empty response.
 type LoadCertificateResponse struct {
 }
 
@@ -221,11 +229,17 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for ControlPlaneCA service
 
 type ControlPlaneCAClient interface {
+	// * Responsible for configuration of the plugin.
 	Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error)
+	// * Returns the  version and related metadata of the installed plugin.
 	GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error)
+	// * Interface will take in a CSR and sign it with the stored intermediate certificate.
 	SignCsr(ctx context.Context, in *SignCsrRequest, opts ...grpc.CallOption) (*SignCsrResponse, error)
+	// * Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing.
 	GenerateCsr(ctx context.Context, in *GenerateCsrRequest, opts ...grpc.CallOption) (*GenerateCsrResponse, error)
+	// * Used to read the stored Intermediate CP cert.
 	FetchCertificate(ctx context.Context, in *FetchCertificateRequest, opts ...grpc.CallOption) (*FetchCertificateResponse, error)
+	// * Used for setting/storing the signed intermediate certificate.
 	LoadCertificate(ctx context.Context, in *LoadCertificateRequest, opts ...grpc.CallOption) (*LoadCertificateResponse, error)
 }
 
@@ -294,11 +308,17 @@ func (c *controlPlaneCAClient) LoadCertificate(ctx context.Context, in *LoadCert
 // Server API for ControlPlaneCA service
 
 type ControlPlaneCAServer interface {
+	// * Responsible for configuration of the plugin.
 	Configure(context.Context, *proto2.ConfigureRequest) (*proto2.ConfigureResponse, error)
+	// * Returns the  version and related metadata of the installed plugin.
 	GetPluginInfo(context.Context, *proto2.GetPluginInfoRequest) (*proto2.GetPluginInfoResponse, error)
+	// * Interface will take in a CSR and sign it with the stored intermediate certificate.
 	SignCsr(context.Context, *SignCsrRequest) (*SignCsrResponse, error)
+	// * Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing.
 	GenerateCsr(context.Context, *GenerateCsrRequest) (*GenerateCsrResponse, error)
+	// * Used to read the stored Intermediate CP cert.
 	FetchCertificate(context.Context, *FetchCertificateRequest) (*FetchCertificateResponse, error)
+	// * Used for setting/storing the signed intermediate certificate.
 	LoadCertificate(context.Context, *LoadCertificateRequest) (*LoadCertificateResponse, error)
 }
 
