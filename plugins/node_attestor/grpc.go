@@ -20,7 +20,7 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInf
 	return response, err
 }
 
-func (m *GRPCServer) Attest(ctx context.Context, req *proto.AttestedData) (*proto.AttestResponse, error) {
+func (m *GRPCServer) Attest(ctx context.Context, req *proto.AttestRequest) (*proto.AttestResponse, error) {
 	response, err := m.NodeAttestorImpl.Attest(req)
 	return response, err
 }
@@ -42,7 +42,7 @@ func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
 	return response, err
 }
 
-func (m *GRPCClient) Attest(attestedData *proto.AttestedData) (*proto.AttestResponse, error) {
-	response, err := m.client.Attest(context.Background(), attestedData)
+func (m *GRPCClient) Attest(attestRequest *proto.AttestRequest) (*proto.AttestResponse, error) {
+	response, err := m.client.Attest(context.Background(), attestRequest)
 	return response, err
 }
