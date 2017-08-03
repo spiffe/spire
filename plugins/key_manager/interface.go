@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	common "github.com/spiffe/node-agent/plugins/common/proto"
 	"github.com/spiffe/node-agent/plugins/key_manager/proto"
 )
 
@@ -23,8 +24,10 @@ var PluginMap = map[string]plugin.Plugin{
 }
 
 type KeyManager interface {
-	GenerateKeyPair() ([]byte, error)
-	Configure(config string) error
+	GenerateKeyPair(*proto.GenerateKeyPairRequest) (*proto.GenerateKeyPairResponse, error)
+	FetchPrivateKey(*proto.FetchPrivateKeyRequest) (*proto.FetchPrivateKeyResponse, error)
+	Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error)
+	GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
 }
 
 type KeyManagerPlugin struct {
