@@ -28,7 +28,7 @@
   
   
   
-    * [node](#proto.node)
+    * [UpstreamCA](#proto.UpstreamCA)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -116,7 +116,9 @@
 <p align="right"><a href="#top">Top</a></p>
 
 ## upstream_ca.proto
-
+Responsible for processing Certificate Signing Requests for intermediate signing certificates
+(or from Node Agents if the user does not want the Control Plane to retain signing material).
+This plugin will manage/own the Trust Bundles for the Control Plane, and act as the interface for upstream CAs.
 
 
 <a name="proto.SubmitCSRRequest"/>
@@ -127,7 +129,7 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| csr | [bytes](#bytes) |  |  |
+| csr | [bytes](#bytes) |  | Certificate signing request. |
 
 
 
@@ -142,8 +144,8 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| cert | [bytes](#bytes) |  |  |
-| upstreamTrustBundle | [bytes](#bytes) |  |  |
+| cert | [bytes](#bytes) |  | Signed certificate |
+| upstreamTrustBundle | [bytes](#bytes) |  | Upstream trust bundle. |
 
 
 
@@ -156,16 +158,16 @@
  
 
 
-<a name="proto.node"/>
+<a name="proto.UpstreamCA"/>
 
-### node
+### UpstreamCA
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) |  |
-| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) |  |
-| SubmitCSR | [SubmitCSRRequest](#proto.SubmitCSRRequest) | [SubmitCSRResponse](#proto.SubmitCSRRequest) |  |
+| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| SubmitCSR | [SubmitCSRRequest](#proto.SubmitCSRRequest) | [SubmitCSRResponse](#proto.SubmitCSRRequest) | Will take in a CSR and submit it to the upstream CA for signing(“upstream” CA can be local self-signed root in simple case). |
 
  
 
