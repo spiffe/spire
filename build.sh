@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -o errexit
-[[ $DEBUG ]] && set -o xtrace
+[[ -n $DEBUG ]] && set -o xtrace
 
 declare -r BINARY_DIRS="control_plane $(find plugins/*/* -maxdepth 1 -type d -not -name 'proto')"
 declare -r PROTO_FILES="$(find plugins api -name '*.proto')"
@@ -15,14 +15,14 @@ declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-linux-x86_64.zip"
 declare -r GLIDE_VERSION=${GLIDE_VERSION:-0.12.3}
 declare -r GLIDE_URL="https://github.com/Masterminds/glide/releases/download/v${GLIDE_VERSION}"
 declare -r GLIDE_TGZ="glide-v${GLIDE_VERSION}-linux-amd64.tar.gz"
-declare -r PROTOC_GEN_DOCS_VERSION=${PROTOC_GEN_DOCS_VERSION:-1.0.0}
-declare -r PROTOC_GEN_DOCS_URL="https://github.com/pseudomuto/protoc-gen-doc/releases/download/v${PROTOC_GEN_DOCS_VERSION}-beta/"
-declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}-beta.linux-amd64.go1.8.1.tar.gz"
+declare -r PROTOC_GEN_DOCS_VERSION=${PROTOC_GEN_DOCS_VERSION:-1.0.0-beta}
+declare -r PROTOC_GEN_DOCS_URL="https://github.com/pseudomuto/protoc-gen-doc/releases/download/v${PROTOC_GEN_DOCS_VERSION}"
+declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}.linux-amd64.go1.8.1.tar.gz"
 
 declare -r BUILD_DIR=${BUILD_DIR:-$PWD/.build}
 declare -r BUILD_CACHE=${BUILD_CACHE:-$PWD/.cache}
 
-[[ $CIRCLECI ]] && unset GOPATH
+[[ -n $CIRCLECI ]] && unset GOPATH
 
 _exit_error() { echo "ERROR: $*" 1>&2; exit 1; }
 _log_info() { echo "INFO: $*"; }
@@ -37,12 +37,12 @@ _fetch_url() {
 }
 
 build_env() {
-    local GOPATH GOROOT
-    GOPATH="${GOPATH:-$HOME/go}"
-    GOROOT="${BUILD_DIR}/golang-${GO_VERSION}"
-    echo "export GOPATH=${GOPATH:-$HOME/go}"
+    local _gp _gr
+    _gp="${GOPATH:-$HOME/go}"
+    _gr="${BUILD_DIR}/golang-${GO_VERSION}"
+    echo "export GOPATH=${_gp}"
     echo "export GOROOT=${BUILD_DIR}/golang-${GO_VERSION}"
-    echo "export PATH=${GOROOT}/bin:${GOPATH}/bin:$(ls -d ${BUILD_DIR}/*/bin 2>/dev/null | tr '\n' ':')${PATH}"
+    echo "export PATH=${_gr}/bin:${_gp}/bin:$(ls -d ${BUILD_DIR}/*/bin 2>/dev/null | tr '\n' ':')${PATH}"
 }
 
 build_setup() {
@@ -86,7 +86,7 @@ build_protobuf() {
 
     for _n in ${PROTO_FILES}; do
         _dir="$(dirname ${_n})"
-        if [[ ${_prefix} ]]; then
+        if [[ -n ${_prefix} ]]; then
             _d=${_prefix}/${_dir}
             mkdir -p ${_d}
         else
@@ -130,10 +130,10 @@ build_binaries() {
 
 build_test() {
     test_path=$(go list ./... | grep -v -e'/vendor' -e'/proto$')
-    if [[ ${CI} ]]; then
+    if [[ -n ${CI} ]]; then
         mkdir -p .test_results/junit .test_results/coverage
         go test ${DEBUG+-v} ${test_path} | go-junit-report > .test_results/junit/report.xml
-        if [[ ${COVERALLS_TOKEN} ]]; then
+        if [[ -n ${COVERALLS_TOKEN} ]]; then
             gocovermerge -coverprofile=.test_results/coverage/cover.out test -covermode=count ${test_path}
             goveralls -coverprofile=.test_results/coverage/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
         fi                
@@ -152,10 +152,10 @@ build_distclean() {
 }
 
 build_all() {
+    build_setup
     build_deps
-    build_protobuf
-    build_docs
     build_binaries 
+    build_test
 }
 
 eval $(build_env)
