@@ -93,7 +93,7 @@ func (m *GetPluginInfoResponse) GetCompany() string {
 	return (*proto2.GetPluginInfoResponse)(m).GetCompany()
 }
 
-// * @exclude
+// * Represents an empty request.
 type GenerateKeyPairRequest struct {
 }
 
@@ -102,7 +102,7 @@ func (m *GenerateKeyPairRequest) String() string            { return proto1.Comp
 func (*GenerateKeyPairRequest) ProtoMessage()               {}
 func (*GenerateKeyPairRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
-// * represents a public and private key pair
+// * Represents a public and private key pair.
 type GenerateKeyPairResponse struct {
 	PublicKey  []byte `protobuf:"bytes,1,opt,name=publicKey,proto3" json:"publicKey,omitempty"`
 	PrivateKey []byte `protobuf:"bytes,2,opt,name=privateKey,proto3" json:"privateKey,omitempty"`
@@ -127,7 +127,7 @@ func (m *GenerateKeyPairResponse) GetPrivateKey() []byte {
 	return nil
 }
 
-// * @exclude
+// * Represents an empty request.
 type FetchPrivateKeyRequest struct {
 }
 
@@ -136,7 +136,7 @@ func (m *FetchPrivateKeyRequest) String() string            { return proto1.Comp
 func (*FetchPrivateKeyRequest) ProtoMessage()               {}
 func (*FetchPrivateKeyRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
-// * represents a private key
+// * Represents a private key.
 type FetchPrivateKeyResponse struct {
 	PrivateKey []byte `protobuf:"bytes,1,opt,name=privateKey,proto3" json:"privateKey,omitempty"`
 }
@@ -171,13 +171,13 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for KeyManager service
 
 type KeyManagerClient interface {
-	// / Creates a key pair that is bound to hardware
+	// / Creates a key pair that is bound to hardware.
 	GenerateKeyPair(ctx context.Context, in *GenerateKeyPairRequest, opts ...grpc.CallOption) (*GenerateKeyPairResponse, error)
-	// / Returns previously generated private key. For use after node restarts
+	// / Returns previously generated private key. For use after node restarts.
 	FetchPrivateKey(ctx context.Context, in *FetchPrivateKeyRequest, opts ...grpc.CallOption) (*FetchPrivateKeyResponse, error)
-	// / Applies the plugin configuration and returns configuration errors
+	// / Applies the plugin configuration and returns configuration errors.
 	Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error)
-	// / Returns the version and related metadata of the plugin
+	// / Returns the version and related metadata of the plugin.
 	GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error)
 }
 
@@ -228,13 +228,13 @@ func (c *keyManagerClient) GetPluginInfo(ctx context.Context, in *proto2.GetPlug
 // Server API for KeyManager service
 
 type KeyManagerServer interface {
-	// / Creates a key pair that is bound to hardware
+	// / Creates a key pair that is bound to hardware.
 	GenerateKeyPair(context.Context, *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
-	// / Returns previously generated private key. For use after node restarts
+	// / Returns previously generated private key. For use after node restarts.
 	FetchPrivateKey(context.Context, *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
-	// / Applies the plugin configuration and returns configuration errors
+	// / Applies the plugin configuration and returns configuration errors.
 	Configure(context.Context, *proto2.ConfigureRequest) (*proto2.ConfigureResponse, error)
-	// / Returns the version and related metadata of the plugin
+	// / Returns the version and related metadata of the plugin.
 	GetPluginInfo(context.Context, *proto2.GetPluginInfoRequest) (*proto2.GetPluginInfoResponse, error)
 }
 
