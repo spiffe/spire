@@ -10,3 +10,4 @@ plugins/data_store/sqlite/sqlite
 plugins/node_attestor/secret_file/secret_file
 plugins/noderesolver/noop/noop
 plugins/upstream_ca/memory/memory
+plugins/node_resolver/noop/noop
