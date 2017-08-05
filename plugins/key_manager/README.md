@@ -49,12 +49,12 @@
 <a name="proto.ConfigureRequest"/>
 
 ### ConfigureRequest
-represents the plugin-specific configuration string
+Represents the plugin-specific configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| configuration | [string](#string) |  |  |
+| configuration | [string](#string) |  | The configuration for the plugin. |
 
 
 
@@ -64,12 +64,12 @@ represents the plugin-specific configuration string
 <a name="proto.ConfigureResponse"/>
 
 ### ConfigureResponse
-represents a list of configuration problems found in the configuration string
+Represents a list of configuration problems found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated |  |
+| errorList | [string](#string) | repeated | A list of errors. |
 
 
 
@@ -79,7 +79,7 @@ represents a list of configuration problems found in the configuration string
 <a name="proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
-
+Represents an empty request.
 
 
 
@@ -89,7 +89,7 @@ represents a list of configuration problems found in the configuration string
 <a name="proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
-represents the plugin metadata
+Represents the plugin metadata.
 
 
 | Field | Type | Label | Description |
@@ -128,7 +128,7 @@ represents the plugin metadata
 <a name="proto.FetchPrivateKeyRequest"/>
 
 ### FetchPrivateKeyRequest
-
+Represents an empty request.
 
 
 
@@ -138,12 +138,12 @@ represents the plugin metadata
 <a name="proto.FetchPrivateKeyResponse"/>
 
 ### FetchPrivateKeyResponse
-represents a private key
+Represents a private key.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| privateKey | [bytes](#bytes) |  |  |
+| privateKey | [bytes](#bytes) |  | Private key. |
 
 
 
@@ -153,7 +153,7 @@ represents a private key
 <a name="proto.GenerateKeyPairRequest"/>
 
 ### GenerateKeyPairRequest
-
+Represents an empty request.
 
 
 
@@ -163,13 +163,13 @@ represents a private key
 <a name="proto.GenerateKeyPairResponse"/>
 
 ### GenerateKeyPairResponse
-represents a public and private key pair
+Represents a public and private key pair.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| publicKey | [bytes](#bytes) |  |  |
-| privateKey | [bytes](#bytes) |  |  |
+| publicKey | [bytes](#bytes) |  | Public key. |
+| privateKey | [bytes](#bytes) |  | Private key. |
 
 
 
@@ -189,10 +189,10 @@ represents a public and private key pair
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| GenerateKeyPair | [GenerateKeyPairRequest](#proto.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#proto.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware |
-| FetchPrivateKey | [FetchPrivateKeyRequest](#proto.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#proto.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts |
-| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors |
-| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin |
+| GenerateKeyPair | [GenerateKeyPairRequest](#proto.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#proto.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware. |
+| FetchPrivateKey | [FetchPrivateKeyRequest](#proto.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#proto.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts. |
+| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
+| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
 
  
 

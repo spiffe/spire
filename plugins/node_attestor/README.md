@@ -47,12 +47,12 @@
 <a name="proto.ConfigureRequest"/>
 
 ### ConfigureRequest
-represents the plugin-specific configuration string
+Represents the plugin-specific configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| configuration | [string](#string) |  |  |
+| configuration | [string](#string) |  | The configuration for the plugin. |
 
 
 
@@ -62,12 +62,12 @@ represents the plugin-specific configuration string
 <a name="proto.ConfigureResponse"/>
 
 ### ConfigureResponse
-represents a list of configuration problems found in the configuration string
+Represents a list of configuration problems found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated |  |
+| errorList | [string](#string) | repeated | A list of errors. |
 
 
 
@@ -77,7 +77,7 @@ represents a list of configuration problems found in the configuration string
 <a name="proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
-
+Represents an empty request.
 
 
 
@@ -87,7 +87,7 @@ represents a list of configuration problems found in the configuration string
 <a name="proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
-represents the plugin metadata
+Represents the plugin metadata.
 
 
 | Field | Type | Label | Description |
@@ -120,19 +120,21 @@ represents the plugin metadata
 <p align="right"><a href="#top">Top</a></p>
 
 ## node_attestor.proto
-
+Responsible for attesting the physical nodes identity.
+The plugin will be responsible to retrieve an identity document or data associated with the physical node.
+This data will be used when calling the NodeAPI on the Control Plane.
 
 
 <a name="proto.AttestedData"/>
 
 ### AttestedData
-represents the attested data
+A type which contains attestation data for specific platform.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  |  |
-| data | [bytes](#bytes) |  |  |
+| type | [string](#string) |  | Type of attestation to perform. |
+| data | [bytes](#bytes) |  | The attestetion data. |
 
 
 
@@ -142,7 +144,7 @@ represents the attested data
 <a name="proto.FetchAttestationDataRequest"/>
 
 ### FetchAttestationDataRequest
-
+Represents an empty request.
 
 
 
@@ -152,13 +154,13 @@ represents the attested data
 <a name="proto.FetchAttestationDataResponse"/>
 
 ### FetchAttestationDataResponse
-represents the attested data and base SPIFFE ID
+Represents the attested data and base SPIFFE ID.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [AttestedData](#proto.AttestedData) |  |  |
-| spiffeId | [string](#string) |  |  |
+| attestedData | [AttestedData](#proto.AttestedData) |  | A type which contains attestation data for specific platform. |
+| spiffeId | [string](#string) |  | SPIFFE ID. |
 
 
 
@@ -178,9 +180,9 @@ represents the attested data and base SPIFFE ID
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchAttestationData | [FetchAttestationDataRequest](#proto.FetchAttestationDataRequest) | [FetchAttestationDataResponse](#proto.FetchAttestationDataRequest) | Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation |
-| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors |
-| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin |
+| FetchAttestationData | [FetchAttestationDataRequest](#proto.FetchAttestationDataRequest) | [FetchAttestationDataResponse](#proto.FetchAttestationDataRequest) | Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation. |
+| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
+| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
 
  
 
