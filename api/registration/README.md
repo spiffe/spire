@@ -6,50 +6,56 @@
 
 * [registration.proto](#registration.proto)
   
-    * [CreateEntryRequest](#pb.CreateEntryRequest)
+    * [CreateEntryRequest](#proto.CreateEntryRequest)
   
-    * [CreateEntryResponse](#pb.CreateEntryResponse)
+    * [CreateEntryResponse](#proto.CreateEntryResponse)
   
-    * [CreateFederatedBundleRequest](#pb.CreateFederatedBundleRequest)
+    * [CreateFederatedBundleRequest](#proto.CreateFederatedBundleRequest)
   
-    * [CreateFederatedBundleResponse](#pb.CreateFederatedBundleResponse)
+    * [CreateFederatedBundleResponse](#proto.CreateFederatedBundleResponse)
   
-    * [DeleteEntryRequest](#pb.DeleteEntryRequest)
+    * [CreateFederatedEntryRequest](#proto.CreateFederatedEntryRequest)
   
-    * [DeleteEntryResponse](#pb.DeleteEntryResponse)
+    * [CreateFederatedEntryResponse](#proto.CreateFederatedEntryResponse)
   
-    * [DeleteFederatedBundleRequest](#pb.DeleteFederatedBundleRequest)
+    * [DeleteEntryRequest](#proto.DeleteEntryRequest)
   
-    * [DeleteFederatedBundleResponse](#pb.DeleteFederatedBundleResponse)
+    * [DeleteEntryResponse](#proto.DeleteEntryResponse)
   
-    * [FederatedBundle](#pb.FederatedBundle)
+    * [DeleteFederatedBundleRequest](#proto.DeleteFederatedBundleRequest)
   
-    * [ListByParentIDRequest](#pb.ListByParentIDRequest)
+    * [DeleteFederatedBundleResponse](#proto.DeleteFederatedBundleResponse)
   
-    * [ListByParentIDResponse](#pb.ListByParentIDResponse)
+    * [FederatedBundle](#proto.FederatedBundle)
   
-    * [ListBySelectorRequest](#pb.ListBySelectorRequest)
+    * [FederatedEntry](#proto.FederatedEntry)
   
-    * [ListBySelectorResponse](#pb.ListBySelectorResponse)
+    * [ListAttestorEntriesRequest](#proto.ListAttestorEntriesRequest)
   
-    * [ListBySpiffeIDRequest](#pb.ListBySpiffeIDRequest)
+    * [ListAttestorEntriesResponse](#proto.ListAttestorEntriesResponse)
   
-    * [ListBySpiffeIDResponse](#pb.ListBySpiffeIDResponse)
+    * [ListFederatedBundlesRequest](#proto.ListFederatedBundlesRequest)
   
-    * [ListFederatedBundlesRequest](#pb.ListFederatedBundlesRequest)
+    * [ListFederatedBundlesResponse](#proto.ListFederatedBundlesResponse)
   
-    * [ListFederatedBundlesResponse](#pb.ListFederatedBundlesResponse)
+    * [ListSelectorEntriesRequest](#proto.ListSelectorEntriesRequest)
   
-    * [RegisteredEntry](#pb.RegisteredEntry)
+    * [ListSelectorEntriesResponse](#proto.ListSelectorEntriesResponse)
   
-    * [UpdateFederatedBundleRequest](#pb.UpdateFederatedBundleRequest)
+    * [ListSpiffeEntriesRequest](#proto.ListSpiffeEntriesRequest)
   
-    * [UpdateFederatedBundleResponse](#pb.UpdateFederatedBundleResponse)
+    * [ListSpiffeEntriesResponse](#proto.ListSpiffeEntriesResponse)
+  
+    * [RegisteredEntry](#proto.RegisteredEntry)
+  
+    * [UpdateFederatedBundleRequest](#proto.UpdateFederatedBundleRequest)
+  
+    * [UpdateFederatedBundleResponse](#proto.UpdateFederatedBundleResponse)
   
   
   
   
-    * [registration](#pb.registration)
+    * [node](#proto.node)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -60,26 +66,25 @@
 <p align="right"><a href="#top">Top</a></p>
 
 ## registration.proto
-The Registration API is used to register SPIFFE IDs, and the attestation logic
-that should be performed on a workload before those IDs can be issued.
 
 
-<a name="pb.CreateEntryRequest"/>
+
+<a name="proto.CreateEntryRequest"/>
 
 ### CreateEntryRequest
-represents an entity to be created
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#pb.RegisteredEntry) |  |  |
+| registeredEntry | [RegisteredEntry](#proto.RegisteredEntry) |  |  |
 
 
 
 
 
 
-<a name="pb.CreateEntryResponse"/>
+<a name="proto.CreateEntryResponse"/>
 
 ### CreateEntryResponse
 
@@ -89,22 +94,22 @@ represents an entity to be created
 
 
 
-<a name="pb.CreateFederatedBundleRequest"/>
+<a name="proto.CreateFederatedBundleRequest"/>
 
 ### CreateFederatedBundleRequest
-represents a federated bundle to be added
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#pb.FederatedBundle) |  |  |
+| federatedBundle | [FederatedBundle](#proto.FederatedBundle) |  |  |
 
 
 
 
 
 
-<a name="pb.CreateFederatedBundleResponse"/>
+<a name="proto.CreateFederatedBundleResponse"/>
 
 ### CreateFederatedBundleResponse
 
@@ -114,10 +119,35 @@ represents a federated bundle to be added
 
 
 
-<a name="pb.DeleteEntryRequest"/>
+<a name="proto.CreateFederatedEntryRequest"/>
+
+### CreateFederatedEntryRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| federatedEntry | [FederatedEntry](#proto.FederatedEntry) |  |  |
+
+
+
+
+
+
+<a name="proto.CreateFederatedEntryResponse"/>
+
+### CreateFederatedEntryResponse
+
+
+
+
+
+
+
+<a name="proto.DeleteEntryRequest"/>
 
 ### DeleteEntryRequest
-represents the criteria that will be used to delete entries
+
 
 
 | Field | Type | Label | Description |
@@ -130,25 +160,25 @@ represents the criteria that will be used to delete entries
 
 
 
-<a name="pb.DeleteEntryResponse"/>
+<a name="proto.DeleteEntryResponse"/>
 
 ### DeleteEntryResponse
-represents the entities deleted
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [RegisteredEntry](#pb.RegisteredEntry) | repeated |  |
+| federatedEntryList | [FederatedEntry](#proto.FederatedEntry) | repeated |  |
 
 
 
 
 
 
-<a name="pb.DeleteFederatedBundleRequest"/>
+<a name="proto.DeleteFederatedBundleRequest"/>
 
 ### DeleteFederatedBundleRequest
-represents a federated bundle to be deleted
+
 
 
 | Field | Type | Label | Description |
@@ -160,7 +190,7 @@ represents a federated bundle to be deleted
 
 
 
-<a name="pb.DeleteFederatedBundleResponse"/>
+<a name="proto.DeleteFederatedBundleResponse"/>
 
 ### DeleteFederatedBundleResponse
 
@@ -170,16 +200,16 @@ represents a federated bundle to be deleted
 
 
 
-<a name="pb.FederatedBundle"/>
+<a name="proto.FederatedBundle"/>
 
 ### FederatedBundle
-A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | federateBundleSpiffeId | [string](#string) |  |  |
-| federateBundle | [bytes](#bytes) |  |  |
+| federatedBundle | [bytes](#bytes) |  |  |
 | ttl | [int32](#int32) |  |  |
 
 
@@ -187,98 +217,53 @@ A CA bundle for a different Trust Domain than the one used and managed by the Co
 
 
 
-<a name="pb.ListByParentIDRequest"/>
+<a name="proto.FederatedEntry"/>
 
-### ListByParentIDRequest
-represents a ParentID whose children entities will be listed
+### FederatedEntry
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| parentID | [string](#string) |  |  |
+| registeredEntry | [RegisteredEntry](#proto.RegisteredEntry) |  |  |
+| federateBundleSpiffeIdList | [string](#string) | repeated |  |
 
 
 
 
 
 
-<a name="pb.ListByParentIDResponse"/>
+<a name="proto.ListAttestorEntriesRequest"/>
 
-### ListByParentIDResponse
-represents a list of entities associated with a given ParentID
+### ListAttestorEntriesRequest
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [RegisteredEntry](#pb.RegisteredEntry) | repeated |  |
+| attestor | [string](#string) |  |  |
 
 
 
 
 
 
-<a name="pb.ListBySelectorRequest"/>
+<a name="proto.ListAttestorEntriesResponse"/>
 
-### ListBySelectorRequest
-represents a selector and type to be used as the criteria to list entities
+### ListAttestorEntriesResponse
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectorType | [string](#string) |  |  |
-| selector | [string](#string) |  |  |
+| federatedEntryList | [FederatedEntry](#proto.FederatedEntry) | repeated |  |
 
 
 
 
 
 
-<a name="pb.ListBySelectorResponse"/>
-
-### ListBySelectorResponse
-represents a list of entities associated with a given selector and type
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntryList | [RegisteredEntry](#pb.RegisteredEntry) | repeated |  |
-
-
-
-
-
-
-<a name="pb.ListBySpiffeIDRequest"/>
-
-### ListBySpiffeIDRequest
-represents a Spiffe ID to be used as the criteria to list entities
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="pb.ListBySpiffeIDResponse"/>
-
-### ListBySpiffeIDResponse
-represents a list of entities associated with a given Spiffe ID
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntryList | [RegisteredEntry](#pb.RegisteredEntry) | repeated |  |
-
-
-
-
-
-
-<a name="pb.ListFederatedBundlesRequest"/>
+<a name="proto.ListFederatedBundlesRequest"/>
 
 ### ListFederatedBundlesRequest
 
@@ -288,35 +273,14 @@ represents a list of entities associated with a given Spiffe ID
 
 
 
-<a name="pb.ListFederatedBundlesResponse"/>
+<a name="proto.ListFederatedBundlesResponse"/>
 
 ### ListFederatedBundlesResponse
-represents all the federated bundles
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundleList | [FederatedBundle](#pb.FederatedBundle) | repeated |  |
-
-
-
-
-
-
-<a name="pb.RegisteredEntry"/>
-
-### RegisteredEntry
-This is a curated record that the Control Plane uses to set up and manage
-the various registered nodes and workloads that are controlled by it.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| selectorType | [string](#string) |  |  |
-| selector | [string](#string) |  |  |
-| parentID | [string](#string) |  |  |
-| spiffeId | [string](#string) |  |  |
-| ttl | [int32](#int32) |  |  |
 | federateBundleSpiffeIdList | [string](#string) | repeated |  |
 
 
@@ -324,22 +288,102 @@ the various registered nodes and workloads that are controlled by it.
 
 
 
-<a name="pb.UpdateFederatedBundleRequest"/>
+<a name="proto.ListSelectorEntriesRequest"/>
 
-### UpdateFederatedBundleRequest
-represents a federated bundle to be updated
+### ListSelectorEntriesRequest
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#pb.FederatedBundle) |  |  |
+| selectorType | [string](#string) |  |  |
+| selector | [string](#string) |  |  |
 
 
 
 
 
 
-<a name="pb.UpdateFederatedBundleResponse"/>
+<a name="proto.ListSelectorEntriesResponse"/>
+
+### ListSelectorEntriesResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| federatedEntryList | [FederatedEntry](#proto.FederatedEntry) | repeated |  |
+
+
+
+
+
+
+<a name="proto.ListSpiffeEntriesRequest"/>
+
+### ListSpiffeEntriesRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffeId | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="proto.ListSpiffeEntriesResponse"/>
+
+### ListSpiffeEntriesResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| federatedEntryList | [FederatedEntry](#proto.FederatedEntry) | repeated |  |
+
+
+
+
+
+
+<a name="proto.RegisteredEntry"/>
+
+### RegisteredEntry
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| selectorType | [string](#string) |  |  |
+| selector | [string](#string) |  |  |
+| attestor | [string](#string) |  |  |
+| spiffeId | [string](#string) |  |  |
+| ttl | [int32](#int32) |  |  |
+
+
+
+
+
+
+<a name="proto.UpdateFederatedBundleRequest"/>
+
+### UpdateFederatedBundleRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| federatedBundle | [FederatedBundle](#proto.FederatedBundle) |  |  |
+
+
+
+
+
+
+<a name="proto.UpdateFederatedBundleResponse"/>
 
 ### UpdateFederatedBundleResponse
 
@@ -355,22 +399,23 @@ represents a federated bundle to be updated
  
 
 
-<a name="pb.registration"/>
+<a name="proto.node"/>
 
-### registration
+### node
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateEntry | [CreateEntryRequest](#pb.CreateEntryRequest) | [CreateEntryResponse](#pb.CreateEntryRequest) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads |
-| DeleteEntry | [DeleteEntryRequest](#pb.DeleteEntryRequest) | [DeleteEntryResponse](#pb.DeleteEntryRequest) | Deletes a set of entries that match a given criteria |
-| ListByParentID | [ListByParentIDRequest](#pb.ListByParentIDRequest) | [ListByParentIDResponse](#pb.ListByParentIDRequest) | Returns all the Entries associated with the ParentID value |
-| ListBySelector | [ListBySelectorRequest](#pb.ListBySelectorRequest) | [ListBySelectorResponse](#pb.ListBySelectorRequest) | Returns all the entries associated with a selector value |
-| ListBySpiffeID | [ListBySpiffeIDRequest](#pb.ListBySpiffeIDRequest) | [ListBySpiffeIDResponse](#pb.ListBySpiffeIDRequest) | Return all registration entries for which SPIFFE ID matches |
-| CreateFederatedBundle | [CreateFederatedBundleRequest](#pb.CreateFederatedBundleRequest) | [CreateFederatedBundleResponse](#pb.CreateFederatedBundleRequest) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFEIds and their associated CA bundle |
-| ListFederatedBundles | [ListFederatedBundlesRequest](#pb.ListFederatedBundlesRequest) | [ListFederatedBundlesResponse](#pb.ListFederatedBundlesRequest) | Retrieve Federated bundles for all the Federated SPIFFEIds |
-| UpdateFederatedBundle | [UpdateFederatedBundleRequest](#pb.UpdateFederatedBundleRequest) | [UpdateFederatedBundleResponse](#pb.UpdateFederatedBundleRequest) | Updates a particular Federated Bundle. Useful for rotation. |
-| DeleteFederatedBundle | [DeleteFederatedBundleRequest](#pb.DeleteFederatedBundleRequest) | [DeleteFederatedBundleResponse](#pb.DeleteFederatedBundleRequest) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
+| CreateFederatedEntry | [CreateFederatedEntryRequest](#proto.CreateFederatedEntryRequest) | [CreateFederatedEntryResponse](#proto.CreateFederatedEntryRequest) |  |
+| CreateFederatedBundle | [CreateFederatedBundleRequest](#proto.CreateFederatedBundleRequest) | [CreateFederatedBundleResponse](#proto.CreateFederatedBundleRequest) |  |
+| ListFederatedBundles | [ListFederatedBundlesRequest](#proto.ListFederatedBundlesRequest) | [ListFederatedBundlesResponse](#proto.ListFederatedBundlesRequest) |  |
+| UpdateFederatedBundle | [UpdateFederatedBundleRequest](#proto.UpdateFederatedBundleRequest) | [UpdateFederatedBundleResponse](#proto.UpdateFederatedBundleRequest) |  |
+| DeleteFederatedBundle | [DeleteFederatedBundleRequest](#proto.DeleteFederatedBundleRequest) | [DeleteFederatedBundleResponse](#proto.DeleteFederatedBundleRequest) |  |
+| CreateEntry | [CreateEntryRequest](#proto.CreateEntryRequest) | [CreateEntryResponse](#proto.CreateEntryRequest) |  |
+| ListAttestorEntries | [ListAttestorEntriesRequest](#proto.ListAttestorEntriesRequest) | [ListAttestorEntriesResponse](#proto.ListAttestorEntriesRequest) |  |
+| ListSelectorEntries | [ListSelectorEntriesRequest](#proto.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#proto.ListSelectorEntriesRequest) |  |
+| ListSpiffeEntries | [ListSpiffeEntriesRequest](#proto.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#proto.ListSpiffeEntriesRequest) |  |
+| DeleteEntry | [DeleteEntryRequest](#proto.DeleteEntryRequest) | [DeleteEntryResponse](#proto.DeleteEntryRequest) |  |
 
  
 

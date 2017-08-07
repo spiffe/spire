@@ -9,92 +9,102 @@ import (
 
 type SqlitePlugin struct{}
 
-func (SqlitePlugin) Configure(config string) ([]string, error) {
-	return []string{}, nil
+func (SqlitePlugin) CreateFederatedEntry(*proto.CreateFederatedEntryRequest) (*proto.CreateFederatedEntryResponse, error) {
+	return &proto.CreateFederatedEntryResponse{}, nil
 }
 
-func (SqlitePlugin) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
-	return nil, nil
+func (SqlitePlugin) ListFederatedEntry(*proto.ListFederatedEntryRequest) (*proto.ListFederatedEntryResponse, error) {
+	return &proto.ListFederatedEntryResponse{}, nil
 }
 
-func (SqlitePlugin) CreateFederatedEntry(federatedBundle *proto.FederatedBundle) error {
-	return nil
+func (SqlitePlugin) UpdateFederatedEntry(*proto.UpdateFederatedEntryRequest) (*proto.UpdateFederatedEntryResponse, error) {
+	return &proto.UpdateFederatedEntryResponse{}, nil
 }
 
-func (SqlitePlugin) ListFederatedEntry() (*proto.FederatedEntries, error) {
-	return nil, nil
+func (SqlitePlugin) DeleteFederatedEntry(*proto.DeleteFederatedEntryRequest) (*proto.DeleteFederatedEntryResponse, error) {
+	return &proto.DeleteFederatedEntryResponse{}, nil
 }
 
-func (SqlitePlugin) UpdateFederatedEntry(federatedBundle *proto.FederatedBundle) error {
-	return nil
+//
+
+func (SqlitePlugin) CreateAttestedNodeEntry(*proto.CreateAttestedNodeEntryRequest) (*proto.CreateAttestedNodeEntryResponse, error) {
+	return &proto.CreateAttestedNodeEntryResponse{}, nil
 }
 
-func (SqlitePlugin) DeleteFederatedEntry(key *proto.Key) error {
-	return nil
+func (SqlitePlugin) FetchAttestedNodeEntry(*proto.FetchAttestedNodeEntryRequest) (*proto.FetchAttestedNodeEntryResponse, error) {
+	return &proto.FetchAttestedNodeEntryResponse{}, nil
 }
 
-func (SqlitePlugin) CreateAttestedNodeEntry(attestedNodeEntry *proto.AttestedNodeEntry) error {
-	return nil
+func (SqlitePlugin) FetchStaleNodeEntries(*proto.FetchStaleNodeEntriesRequest) (*proto.FetchStaleNodeEntriesResponse, error) {
+	return &proto.FetchStaleNodeEntriesResponse{}, nil
 }
 
-func (SqlitePlugin) FetchAttestedNodeEntry(*proto.Key) (*proto.AttestedNodeEntry, error) {
-	return nil, nil
+func (SqlitePlugin) UpdateAttestedNodeEntry(*proto.UpdateAttestedNodeEntryRequest) (*proto.UpdateAttestedNodeEntryResponse, error) {
+	return &proto.UpdateAttestedNodeEntryResponse{}, nil
 }
 
-func (SqlitePlugin) FetchStaleNodeEntries() (*proto.AttestedNodes, error) {
-	return nil, nil
+func (SqlitePlugin) DeleteAttestedNodeEntry(*proto.DeleteAttestedNodeEntryRequest) (*proto.DeleteAttestedNodeEntryResponse, error) {
+	return &proto.DeleteAttestedNodeEntryResponse{}, nil
 }
 
-func (SqlitePlugin) UpdateAttestedNodeEntry(attestedNodeUpdate *proto.AttestedNodeUpdate) error {
-	return nil
+//
+
+func (SqlitePlugin) CreateNodeResolverMapEntry(*proto.CreateNodeResolverMapEntryRequest) (*proto.CreateNodeResolverMapEntryResponse, error) {
+	return &proto.CreateNodeResolverMapEntryResponse{}, nil
 }
 
-func (SqlitePlugin) DeleteAttestedNodeEntry(key *proto.Key) error {
-	return nil
+func (SqlitePlugin) FetchNodeResolverMapEntry(*proto.FetchNodeResolverMapEntryRequest) (*proto.FetchNodeResolverMapEntryResponse, error) {
+	return &proto.FetchNodeResolverMapEntryResponse{}, nil
 }
 
-func (SqlitePlugin) CreateSelectorMapEntry(selectorMapEntry *proto.SelectorMapEntry) error {
-	return nil
+func (SqlitePlugin) DeleteNodeResolverMapEntry(*proto.DeleteNodeResolverMapEntryRequest) (*proto.DeleteNodeResolverMapEntryResponse, error) {
+	return &proto.DeleteNodeResolverMapEntryResponse{}, nil
 }
 
-func (SqlitePlugin) FetchSelectorMapEntry(key *proto.Key) error {
-	return nil
+func (SqlitePlugin) RectifyNodeResolverMapEntries(*proto.RectifyNodeResolverMapEntriesRequest) (*proto.RectifyNodeResolverMapEntriesResponse, error) {
+	return &proto.RectifyNodeResolverMapEntriesResponse{}, nil
 }
 
-func (SqlitePlugin) DeleteSelectorMapEntry(selectorMapEntry *proto.SelectorMapEntry) error {
-	return nil
+//
+
+func (SqlitePlugin) CreateRegistrationEntry(*proto.CreateRegistrationEntryRequest) (*proto.CreateRegistrationEntryResponse, error) {
+	return &proto.CreateRegistrationEntryResponse{}, nil
 }
 
-func (SqlitePlugin) CreateRegistrationEntry(registeredEntry *proto.RegisteredEntry) error {
-	return nil
+func (SqlitePlugin) FetchRegistrationEntry(*proto.FetchRegistrationEntryRequest) (*proto.FetchRegistrationEntryResponse, error) {
+	return &proto.FetchRegistrationEntryResponse{}, nil
 }
 
-func (SqlitePlugin) FetchRegistrationEntry(registeredEntryKey *proto.RegisteredEntryKey) (*proto.RegisteredEntry, error) {
-	return nil, nil
+func (SqlitePlugin) UpdateRegistrationEntry(*proto.UpdateRegistrationEntryRequest) (*proto.UpdateRegistrationEntryResponse, error) {
+	return &proto.UpdateRegistrationEntryResponse{}, nil
 }
 
-func (SqlitePlugin) UpdateRegistrationEntry(registeredEntry *proto.RegisteredEntry) error {
-	return nil
+func (SqlitePlugin) DeleteRegistrationEntry(*proto.DeleteRegistrationEntryRequest) (*proto.DeleteRegistrationEntryResponse, error) {
+	return &proto.DeleteRegistrationEntryResponse{}, nil
 }
 
-func (SqlitePlugin) DeleteRegistrationEntry(registeredEntryKey *proto.RegisteredEntryKey) error {
-	return nil
+//
+
+func (SqlitePlugin) ListParentIDEntries(*proto.ListParentIDEntriesRequest) (*proto.ListParentIDEntriesResponse, error) {
+	return &proto.ListParentIDEntriesResponse{}, nil
 }
 
-func (SqlitePlugin) FetchGroupedRegistrationEntries(groupedRegistrationKey *proto.GroupedRegistrationKey) (*proto.RegisteredEntries, error) {
-	return nil, nil
+func (SqlitePlugin) ListSelectorEntries(*proto.ListSelectorEntriesRequest) (*proto.ListSelectorEntriesResponse, error) {
+	return &proto.ListSelectorEntriesResponse{}, nil
 }
 
-func (SqlitePlugin) ListAttestorEntries(attestorKey *proto.AttestorKey) (*proto.FederatedEntries, error) {
-	return nil, nil
+func (SqlitePlugin) ListSpiffeEntries(*proto.ListSpiffeEntriesRequest) (*proto.ListSpiffeEntriesResponse, error) {
+	return &proto.ListSpiffeEntriesResponse{}, nil
 }
 
-func (SqlitePlugin) ListSelectorEntries(selectorKey *proto.SelectorKey) (*proto.FederatedEntries, error) {
-	return nil, nil
+//
+
+func (SqlitePlugin) Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error) {
+	return &common.ConfigureResponse{}, nil
 }
 
-func (SqlitePlugin) ListSpiffeEntries(federatedEntries *proto.Key) (*proto.FederatedEntries, error) {
-	return nil, nil
+func (SqlitePlugin) GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
+	return &common.GetPluginInfoResponse{}, nil
 }
 
 func main() {

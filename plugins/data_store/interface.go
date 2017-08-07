@@ -24,28 +24,33 @@ var PluginMap = map[string]plugin.Plugin{
 }
 
 type DataStore interface {
-	Configure(config string) ([]string, error)
-	GetPluginInfo() (*common.GetPluginInfoResponse, error)
-	CreateFederatedEntry(*proto.FederatedBundle) error
-	ListFederatedEntry() (*proto.FederatedEntries, error)
-	UpdateFederatedEntry(*proto.FederatedBundle) error
-	DeleteFederatedEntry(*proto.Key) error
-	CreateAttestedNodeEntry(*proto.AttestedNodeEntry) error
-	FetchAttestedNodeEntry(*proto.Key) (*proto.AttestedNodeEntry, error)
-	FetchStaleNodeEntries() (*proto.AttestedNodes, error)
-	UpdateAttestedNodeEntry(*proto.AttestedNodeUpdate) error
-	DeleteAttestedNodeEntry(*proto.Key) error
-	CreateSelectorMapEntry(*proto.SelectorMapEntry) error
-	FetchSelectorMapEntry(*proto.Key) error
-	DeleteSelectorMapEntry(*proto.SelectorMapEntry) error
-	CreateRegistrationEntry(*proto.RegisteredEntry) error
-	FetchRegistrationEntry(*proto.RegisteredEntryKey) (*proto.RegisteredEntry, error)
-	UpdateRegistrationEntry(*proto.RegisteredEntry) error
-	DeleteRegistrationEntry(*proto.RegisteredEntryKey) error
-	FetchGroupedRegistrationEntries(*proto.GroupedRegistrationKey) (*proto.RegisteredEntries, error)
-	ListAttestorEntries(*proto.AttestorKey) (*proto.FederatedEntries, error)
-	ListSelectorEntries(*proto.SelectorKey) (*proto.FederatedEntries, error)
-	ListSpiffeEntries(*proto.Key) (*proto.FederatedEntries, error)
+	CreateFederatedEntry(request *proto.CreateFederatedEntryRequest) (*proto.CreateFederatedEntryResponse, error)
+	ListFederatedEntry(request *proto.ListFederatedEntryRequest) (*proto.ListFederatedEntryResponse, error)
+	UpdateFederatedEntry(request *proto.UpdateFederatedEntryRequest) (*proto.UpdateFederatedEntryResponse, error)
+	DeleteFederatedEntry(request *proto.DeleteFederatedEntryRequest) (*proto.DeleteFederatedEntryResponse, error)
+
+	CreateAttestedNodeEntry(request *proto.CreateAttestedNodeEntryRequest) (*proto.CreateAttestedNodeEntryResponse, error)
+	FetchAttestedNodeEntry(request *proto.FetchAttestedNodeEntryRequest) (*proto.FetchAttestedNodeEntryResponse, error)
+	FetchStaleNodeEntries(request *proto.FetchStaleNodeEntriesRequest) (*proto.FetchStaleNodeEntriesResponse, error)
+	UpdateAttestedNodeEntry(request *proto.UpdateAttestedNodeEntryRequest) (*proto.UpdateAttestedNodeEntryResponse, error)
+	DeleteAttestedNodeEntry(request *proto.DeleteAttestedNodeEntryRequest) (*proto.DeleteAttestedNodeEntryResponse, error)
+
+	CreateNodeResolverMapEntry(request *proto.CreateNodeResolverMapEntryRequest) (*proto.CreateNodeResolverMapEntryResponse, error)
+	FetchNodeResolverMapEntry(request *proto.FetchNodeResolverMapEntryRequest) (*proto.FetchNodeResolverMapEntryResponse, error)
+	DeleteNodeResolverMapEntry(request *proto.DeleteNodeResolverMapEntryRequest) (*proto.DeleteNodeResolverMapEntryResponse, error)
+	RectifyNodeResolverMapEntries(request *proto.RectifyNodeResolverMapEntriesRequest) (*proto.RectifyNodeResolverMapEntriesResponse, error)
+
+	CreateRegistrationEntry(request *proto.CreateRegistrationEntryRequest) (*proto.CreateRegistrationEntryResponse, error)
+	FetchRegistrationEntry(request *proto.FetchRegistrationEntryRequest) (*proto.FetchRegistrationEntryResponse, error)
+	UpdateRegistrationEntry(request *proto.UpdateRegistrationEntryRequest) (*proto.UpdateRegistrationEntryResponse, error)
+	DeleteRegistrationEntry(request *proto.DeleteRegistrationEntryRequest) (*proto.DeleteRegistrationEntryResponse, error)
+
+	ListParentIDEntries(request *proto.ListParentIDEntriesRequest) (*proto.ListParentIDEntriesResponse, error)
+	ListSelectorEntries(request *proto.ListSelectorEntriesRequest) (*proto.ListSelectorEntriesResponse, error)
+	ListSpiffeEntries(request *proto.ListSpiffeEntriesRequest) (*proto.ListSpiffeEntriesResponse, error)
+
+	Configure(request *common.ConfigureRequest) (*common.ConfigureResponse, error)
+	GetPluginInfo(request *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
 }
 
 type DataStorePlugin struct {
