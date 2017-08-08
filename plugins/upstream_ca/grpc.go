@@ -26,7 +26,7 @@ func (m *GRPCServer) SubmitCSR(ctx context.Context, req *proto.SubmitCSRRequest)
 }
 
 type GRPCClient struct {
-	client proto.NodeClient
+	client proto.UpstreamCAClient
 }
 
 func (m *GRPCClient) Configure(configuration string) ([]string, error) {
