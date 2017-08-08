@@ -131,11 +131,11 @@ build_binaries() {
 build_test() {
     test_path=$(go list ./... | grep -v -e'/vendor' -e'/proto$')
     if [[ -n ${CI} ]]; then
-        mkdir -p .test_results/junit .test_results/coverage
-        go test ${DEBUG+-v} ${test_path} | go-junit-report > .test_results/junit/report.xml
+        mkdir -p test_results
+        go test ${DEBUG+-v} ${test_path} | go-junit-report > test_results/report.xml
         if [[ -n ${COVERALLS_TOKEN} ]]; then
-            gocovermerge -coverprofile=.test_results/coverage/cover.out test -covermode=count ${test_path}
-            goveralls -coverprofile=.test_results/coverage/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
+            gocovermerge -coverprofile=test_results/cover.out test -covermode=count ${test_path}
+            goveralls -coverprofile=test_results/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
         fi                
     else
         go test ${DEBUG+-v} ${test_path}
