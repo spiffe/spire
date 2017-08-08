@@ -142,130 +142,138 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for Node service
+// Client API for UpstreamCA service
 
-type NodeClient interface {
+type UpstreamCAClient interface {
+	// *Responsible for configuration of the plugin.
 	Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error)
+	// *Returns the  version and related metadata of the installed plugin.
 	GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error)
+	// *Will take in a CSR and submit it to the upstream CA for signing
+	// (“upstream” CA can be local self-signed root in simple case).
 	SubmitCSR(ctx context.Context, in *SubmitCSRRequest, opts ...grpc.CallOption) (*SubmitCSRResponse, error)
 }
 
-type nodeClient struct {
+type upstreamCAClient struct {
 	cc *grpc.ClientConn
 }
 
-func NewNodeClient(cc *grpc.ClientConn) NodeClient {
-	return &nodeClient{cc}
+func NewUpstreamCAClient(cc *grpc.ClientConn) UpstreamCAClient {
+	return &upstreamCAClient{cc}
 }
 
-func (c *nodeClient) Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error) {
+func (c *upstreamCAClient) Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error) {
 	out := new(proto2.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/proto.node/Configure", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/proto.UpstreamCA/Configure", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nodeClient) GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error) {
+func (c *upstreamCAClient) GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error) {
 	out := new(proto2.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/proto.node/GetPluginInfo", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/proto.UpstreamCA/GetPluginInfo", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nodeClient) SubmitCSR(ctx context.Context, in *SubmitCSRRequest, opts ...grpc.CallOption) (*SubmitCSRResponse, error) {
+func (c *upstreamCAClient) SubmitCSR(ctx context.Context, in *SubmitCSRRequest, opts ...grpc.CallOption) (*SubmitCSRResponse, error) {
 	out := new(SubmitCSRResponse)
-	err := grpc.Invoke(ctx, "/proto.node/SubmitCSR", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/proto.UpstreamCA/SubmitCSR", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for Node service
+// Server API for UpstreamCA service
 
-type NodeServer interface {
+type UpstreamCAServer interface {
+	// *Responsible for configuration of the plugin.
 	Configure(context.Context, *proto2.ConfigureRequest) (*proto2.ConfigureResponse, error)
+	// *Returns the  version and related metadata of the installed plugin.
 	GetPluginInfo(context.Context, *proto2.GetPluginInfoRequest) (*proto2.GetPluginInfoResponse, error)
+	// *Will take in a CSR and submit it to the upstream CA for signing
+	// (“upstream” CA can be local self-signed root in simple case).
 	SubmitCSR(context.Context, *SubmitCSRRequest) (*SubmitCSRResponse, error)
 }
 
-func RegisterNodeServer(s *grpc.Server, srv NodeServer) {
-	s.RegisterService(&_Node_serviceDesc, srv)
+func RegisterUpstreamCAServer(s *grpc.Server, srv UpstreamCAServer) {
+	s.RegisterService(&_UpstreamCA_serviceDesc, srv)
 }
 
-func _Node_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _UpstreamCA_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(proto2.ConfigureRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeServer).Configure(ctx, in)
+		return srv.(UpstreamCAServer).Configure(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/proto.node/Configure",
+		FullMethod: "/proto.UpstreamCA/Configure",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).Configure(ctx, req.(*proto2.ConfigureRequest))
+		return srv.(UpstreamCAServer).Configure(ctx, req.(*proto2.ConfigureRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Node_GetPluginInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _UpstreamCA_GetPluginInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(proto2.GetPluginInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeServer).GetPluginInfo(ctx, in)
+		return srv.(UpstreamCAServer).GetPluginInfo(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/proto.node/GetPluginInfo",
+		FullMethod: "/proto.UpstreamCA/GetPluginInfo",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).GetPluginInfo(ctx, req.(*proto2.GetPluginInfoRequest))
+		return srv.(UpstreamCAServer).GetPluginInfo(ctx, req.(*proto2.GetPluginInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Node_SubmitCSR_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _UpstreamCA_SubmitCSR_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SubmitCSRRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeServer).SubmitCSR(ctx, in)
+		return srv.(UpstreamCAServer).SubmitCSR(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/proto.node/SubmitCSR",
+		FullMethod: "/proto.UpstreamCA/SubmitCSR",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).SubmitCSR(ctx, req.(*SubmitCSRRequest))
+		return srv.(UpstreamCAServer).SubmitCSR(ctx, req.(*SubmitCSRRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-var _Node_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.node",
-	HandlerType: (*NodeServer)(nil),
+var _UpstreamCA_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.UpstreamCA",
+	HandlerType: (*UpstreamCAServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "Configure",
-			Handler:    _Node_Configure_Handler,
+			Handler:    _UpstreamCA_Configure_Handler,
 		},
 		{
 			MethodName: "GetPluginInfo",
-			Handler:    _Node_GetPluginInfo_Handler,
+			Handler:    _UpstreamCA_GetPluginInfo_Handler,
 		},
 		{
 			MethodName: "SubmitCSR",
-			Handler:    _Node_SubmitCSR_Handler,
+			Handler:    _UpstreamCA_SubmitCSR_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -275,22 +283,22 @@ var _Node_serviceDesc = grpc.ServiceDesc{
 func init() { proto1.RegisterFile("upstream_ca.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 263 bytes of a gzipped FileDescriptorProto
+	// 265 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x90, 0x3f, 0x4f, 0xc3, 0x30,
-	0x10, 0xc5, 0x09, 0x14, 0xa4, 0x9e, 0x40, 0x6a, 0xcd, 0x40, 0x54, 0x18, 0x50, 0xc5, 0xc0, 0x42,
-	0x8c, 0x60, 0xaf, 0x04, 0x1d, 0x10, 0x4c, 0x55, 0xca, 0xc2, 0x84, 0x12, 0xf7, 0x12, 0x2c, 0xc5,
-	0x3e, 0xe3, 0x3f, 0x5f, 0x94, 0x4f, 0x84, 0x70, 0xdd, 0x08, 0x68, 0x27, 0x9f, 0xef, 0xbd, 0x7b,
-	0xfa, 0xdd, 0xc1, 0x38, 0x18, 0xe7, 0x2d, 0x56, 0xea, 0x5d, 0x54, 0x85, 0xb1, 0xe4, 0x89, 0x1d,
-	0xc6, 0x67, 0xf2, 0xd0, 0x4a, 0xff, 0x11, 0xea, 0x42, 0x90, 0xe2, 0xce, 0xc8, 0xa6, 0x41, 0x2e,
-	0x48, 0x7b, 0x4b, 0xdd, 0x8d, 0xe9, 0x2a, 0x8d, 0xdc, 0x74, 0xa1, 0x95, 0xda, 0x71, 0x41, 0x4a,
-	0x91, 0xe6, 0x71, 0x2a, 0x7d, 0xd6, 0x49, 0xd3, 0x2b, 0x18, 0x2d, 0x43, 0xad, 0xa4, 0x9f, 0x2f,
-	0xcb, 0x12, 0x3f, 0x03, 0x3a, 0xcf, 0x46, 0x70, 0x20, 0x9c, 0xcd, 0xb3, 0xcb, 0xec, 0xfa, 0xb8,
-	0xfc, 0x29, 0xa7, 0x6f, 0x30, 0xfe, 0xe5, 0x72, 0x86, 0xb4, 0x43, 0xc6, 0x60, 0x20, 0xd0, 0xfa,
-	0xe4, 0x8b, 0x35, 0xbb, 0x85, 0xd3, 0x0d, 0xed, 0xab, 0x0d, 0xce, 0x3f, 0x06, 0xbd, 0xea, 0x30,
-	0xdf, 0x8f, 0x96, 0x5d, 0xd2, 0xdd, 0x57, 0x06, 0x03, 0x4d, 0x2b, 0x64, 0x33, 0x18, 0xce, 0x49,
-	0x37, 0xb2, 0x0d, 0x16, 0xd9, 0xd9, 0x1a, 0xaf, 0xe8, 0x3b, 0x89, 0x6d, 0x92, 0x6f, 0x0b, 0x09,
-	0xe7, 0x05, 0x4e, 0x9e, 0xd0, 0x2f, 0xe2, 0xc6, 0xcf, 0xba, 0x21, 0x76, 0x9e, 0xac, 0x7f, 0xba,
-	0x9b, 0x9c, 0x8b, 0xdd, 0x62, 0xca, 0x9a, 0xc1, 0xb0, 0xdf, 0xb7, 0x67, 0xf9, 0x7f, 0xa7, 0x9e,
-	0x65, 0xeb, 0x34, 0x8b, 0xbd, 0xfa, 0x28, 0x4a, 0xf7, 0xdf, 0x01, 0x00, 0x00, 0xff, 0xff, 0xba,
-	0x99, 0xd9, 0xa9, 0xbd, 0x01, 0x00, 0x00,
+	0x10, 0xc5, 0x29, 0xff, 0xa4, 0x9e, 0x40, 0x6a, 0xcd, 0x40, 0x54, 0x18, 0x50, 0xc5, 0xc0, 0x42,
+	0x8c, 0x60, 0xaf, 0x54, 0x32, 0x20, 0x98, 0xaa, 0x14, 0x06, 0x26, 0x94, 0x98, 0x4b, 0xb0, 0x14,
+	0xfb, 0x8c, 0xff, 0x7c, 0x57, 0x3e, 0x0e, 0xc2, 0x75, 0x23, 0xa0, 0x9d, 0x72, 0x79, 0xef, 0xf9,
+	0xe9, 0x77, 0x07, 0xe3, 0x60, 0x9c, 0xb7, 0x58, 0xa9, 0x37, 0x51, 0xe5, 0xc6, 0x92, 0x27, 0x76,
+	0x10, 0x3f, 0x93, 0x79, 0x2b, 0xfd, 0x47, 0xa8, 0x73, 0x41, 0x8a, 0x3b, 0x23, 0x9b, 0x06, 0xb9,
+	0x20, 0xed, 0x2d, 0x75, 0xd7, 0xa6, 0xab, 0x34, 0x72, 0xd3, 0x85, 0x56, 0x6a, 0xc7, 0x05, 0x29,
+	0x45, 0x9a, 0xc7, 0x57, 0xe9, 0x67, 0xd5, 0x34, 0xbd, 0x84, 0xd1, 0x32, 0xd4, 0x4a, 0xfa, 0x62,
+	0x59, 0x96, 0xf8, 0x19, 0xd0, 0x79, 0x36, 0x82, 0x3d, 0xe1, 0x6c, 0x36, 0xb8, 0x18, 0x5c, 0x1d,
+	0x95, 0x3f, 0xe3, 0xf4, 0x15, 0xc6, 0xbf, 0x52, 0xce, 0x90, 0x76, 0xc8, 0x18, 0xec, 0x0b, 0xb4,
+	0x3e, 0xe5, 0xe2, 0xcc, 0x6e, 0xe0, 0x64, 0x4d, 0xfb, 0x6c, 0x83, 0xf3, 0xf7, 0x41, 0xbf, 0x77,
+	0x98, 0xed, 0xc6, 0xc8, 0x36, 0xeb, 0xf6, 0x6b, 0x00, 0xf0, 0x92, 0xf4, 0x62, 0xce, 0x66, 0x30,
+	0x2c, 0x48, 0x37, 0xb2, 0x0d, 0x16, 0xd9, 0xe9, 0x0a, 0x32, 0xef, 0x95, 0x44, 0x38, 0xc9, 0x36,
+	0x8d, 0x04, 0xf5, 0x04, 0xc7, 0x0f, 0xe8, 0x17, 0x71, 0xef, 0x47, 0xdd, 0x10, 0x3b, 0x4b, 0xd1,
+	0x3f, 0xea, 0xba, 0xe7, 0x7c, 0xbb, 0x99, 0xba, 0x66, 0x30, 0xec, 0xb7, 0xee, 0x59, 0xfe, 0x5f,
+	0xab, 0x67, 0xd9, 0x38, 0xd0, 0x62, 0xa7, 0x3e, 0x8c, 0xd6, 0xdd, 0x77, 0x00, 0x00, 0x00, 0xff,
+	0xff, 0xb7, 0x77, 0xc1, 0x3d, 0xc3, 0x01, 0x00, 0x00,
 }
