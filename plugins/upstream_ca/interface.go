@@ -41,10 +41,10 @@ func (p UpstreamCaPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{
 }
 
 func (p UpstreamCaPlugin) GRPCServer(s *grpc.Server) error {
-	proto.RegisterNodeServer(s, &GRPCServer{UpstreamCaImpl: p.UpstreamCaImpl})
+	proto.RegisterUpstreamCAServer(s, &GRPCServer{UpstreamCaImpl: p.UpstreamCaImpl})
 	return nil
 }
 
 func (p UpstreamCaPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: proto.NewNodeClient(c)}, nil
+	return &GRPCClient{client: proto.NewUpstreamCAClient(c)}, nil
 }

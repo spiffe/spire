@@ -10,227 +10,246 @@ type GRPCServer struct {
 	DataStoreImpl DataStore
 }
 
+func (m *GRPCServer) CreateFederatedEntry(ctx context.Context, req *proto.CreateFederatedEntryRequest) (*proto.CreateFederatedEntryResponse, error) {
+	res, err := m.DataStoreImpl.CreateFederatedEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) ListFederatedEntry(ctx context.Context, req *proto.ListFederatedEntryRequest) (*proto.ListFederatedEntryResponse, error) {
+	res, err := m.DataStoreImpl.ListFederatedEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) UpdateFederatedEntry(ctx context.Context, req *proto.UpdateFederatedEntryRequest) (*proto.UpdateFederatedEntryResponse, error) {
+	res, err := m.DataStoreImpl.UpdateFederatedEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) DeleteFederatedEntry(ctx context.Context, req *proto.DeleteFederatedEntryRequest) (*proto.DeleteFederatedEntryResponse, error) {
+	res, err := m.DataStoreImpl.DeleteFederatedEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) CreateAttestedNodeEntry(ctx context.Context, req *proto.CreateAttestedNodeEntryRequest) (*proto.CreateAttestedNodeEntryResponse, error) {
+	res, err := m.DataStoreImpl.CreateAttestedNodeEntry(req)
+	return res, err
+}
+
+//
+
+func (m *GRPCServer) FetchAttestedNodeEntry(ctx context.Context, req *proto.FetchAttestedNodeEntryRequest) (*proto.FetchAttestedNodeEntryResponse, error) {
+	res, err := m.DataStoreImpl.FetchAttestedNodeEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) FetchStaleNodeEntries(ctx context.Context, req *proto.FetchStaleNodeEntriesRequest) (*proto.FetchStaleNodeEntriesResponse, error) {
+	res, err := m.DataStoreImpl.FetchStaleNodeEntries(req)
+	return res, err
+}
+
+func (m *GRPCServer) UpdateAttestedNodeEntry(ctx context.Context, req *proto.UpdateAttestedNodeEntryRequest) (*proto.UpdateAttestedNodeEntryResponse, error) {
+	res, err := m.DataStoreImpl.UpdateAttestedNodeEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) DeleteAttestedNodeEntry(ctx context.Context, req *proto.DeleteAttestedNodeEntryRequest) (*proto.DeleteAttestedNodeEntryResponse, error) {
+	res, err := m.DataStoreImpl.DeleteAttestedNodeEntry(req)
+	return res, err
+}
+
+//
+
+func (m *GRPCServer) CreateNodeResolverMapEntry(ctx context.Context, req *proto.CreateNodeResolverMapEntryRequest) (*proto.CreateNodeResolverMapEntryResponse, error) {
+	res, err := m.DataStoreImpl.CreateNodeResolverMapEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) FetchNodeResolverMapEntry(ctx context.Context, req *proto.FetchNodeResolverMapEntryRequest) (*proto.FetchNodeResolverMapEntryResponse, error) {
+	res, err := m.DataStoreImpl.FetchNodeResolverMapEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) DeleteNodeResolverMapEntry(ctx context.Context, req *proto.DeleteNodeResolverMapEntryRequest) (*proto.DeleteNodeResolverMapEntryResponse, error) {
+	res, err := m.DataStoreImpl.DeleteNodeResolverMapEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) RectifyNodeResolverMapEntries(ctx context.Context, req *proto.RectifyNodeResolverMapEntriesRequest) (*proto.RectifyNodeResolverMapEntriesResponse, error) {
+	res, err := m.DataStoreImpl.RectifyNodeResolverMapEntries(req)
+	return res, err
+}
+
+//
+
+func (m *GRPCServer) CreateRegistrationEntry(ctx context.Context, req *proto.CreateRegistrationEntryRequest) (*proto.CreateRegistrationEntryResponse, error) {
+	res, err := m.DataStoreImpl.CreateRegistrationEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) FetchRegistrationEntry(ctx context.Context, req *proto.FetchRegistrationEntryRequest) (*proto.FetchRegistrationEntryResponse, error) {
+	res, err := m.DataStoreImpl.FetchRegistrationEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) UpdateRegistrationEntry(ctx context.Context, req *proto.UpdateRegistrationEntryRequest) (*proto.UpdateRegistrationEntryResponse, error) {
+	res, err := m.DataStoreImpl.UpdateRegistrationEntry(req)
+	return res, err
+}
+
+func (m *GRPCServer) DeleteRegistrationEntry(ctx context.Context, req *proto.DeleteRegistrationEntryRequest) (*proto.DeleteRegistrationEntryResponse, error) {
+	res, err := m.DataStoreImpl.DeleteRegistrationEntry(req)
+	return res, err
+}
+
+//
+
+func (m *GRPCServer) ListParentIDEntries(ctx context.Context, req *proto.ListParentIDEntriesRequest) (*proto.ListParentIDEntriesResponse, error) {
+	res, err := m.DataStoreImpl.ListParentIDEntries(req)
+	return res, err
+}
+
+func (m *GRPCServer) ListSelectorEntries(ctx context.Context, req *proto.ListSelectorEntriesRequest) (*proto.ListSelectorEntriesResponse, error) {
+	res, err := m.DataStoreImpl.ListSelectorEntries(req)
+	return res, err
+}
+
+func (m *GRPCServer) ListSpiffeEntries(ctx context.Context, req *proto.ListSpiffeEntriesRequest) (*proto.ListSpiffeEntriesResponse, error) {
+	res, err := m.DataStoreImpl.ListSpiffeEntries(req)
+	return res, err
+}
+
+//
+
 func (m *GRPCServer) Configure(ctx context.Context, req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
-	response, err := m.DataStoreImpl.Configure(req.Configuration)
-	return &common.ConfigureResponse{ErrorList: response}, err
+	res, err := m.DataStoreImpl.Configure(req)
+	return res, err
 }
 
 func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
-	response, err := m.DataStoreImpl.GetPluginInfo()
-	return response, err
-}
-
-func (m *GRPCServer) CreateFederatedEntry(ctx context.Context, federatedBundle *proto.FederatedBundle) (*proto.Empty, error) {
-	err := m.DataStoreImpl.CreateFederatedEntry(federatedBundle)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) ListFederatedEntry(ctx context.Context, _ *proto.Empty) (*proto.FederatedEntries, error) {
-	response, err := m.DataStoreImpl.ListFederatedEntry()
-	return response, err
-}
-
-func (m *GRPCServer) UpdateFederatedEntry(ctx context.Context, federatedBundle *proto.FederatedBundle) (*proto.Empty, error) {
-	err := m.DataStoreImpl.UpdateFederatedEntry(federatedBundle)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) DeleteFederatedEntry(ctx context.Context, key *proto.Key) (*proto.Empty, error) {
-	err := m.DataStoreImpl.DeleteFederatedEntry(key)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) CreateAttestedNodeEntry(ctx context.Context, attestedNodeEntry *proto.AttestedNodeEntry) (*proto.Empty, error) {
-	err := m.DataStoreImpl.CreateAttestedNodeEntry(attestedNodeEntry)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) FetchAttestedNodeEntry(ctx context.Context, key *proto.Key) (*proto.AttestedNodeEntry, error) {
-	response, err := m.DataStoreImpl.FetchAttestedNodeEntry(key)
-	return response, err
-}
-
-func (m *GRPCServer) FetchStaleNodeEntries(ctx context.Context, _ *proto.Empty) (*proto.AttestedNodes, error) {
-	response, err := m.DataStoreImpl.FetchStaleNodeEntries()
-	return response, err
-}
-func (m *GRPCServer) UpdateAttestedNodeEntry(ctx context.Context, attestedNodeUpdate *proto.AttestedNodeUpdate) (*proto.Empty, error) {
-	err := m.DataStoreImpl.UpdateAttestedNodeEntry(attestedNodeUpdate)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) DeleteAttestedNodeEntry(ctx context.Context, key *proto.Key) (*proto.Empty, error) {
-	err := m.DataStoreImpl.DeleteAttestedNodeEntry(key)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) CreateSelectorMapEntry(ctx context.Context, selectorMapEntry *proto.SelectorMapEntry) (*proto.Empty, error) {
-	err := m.DataStoreImpl.CreateSelectorMapEntry(selectorMapEntry)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) FetchSelectorMapEntry(ctx context.Context, key *proto.Key) (*proto.Empty, error) {
-	err := m.DataStoreImpl.FetchSelectorMapEntry(key)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) DeleteSelectorMapEntry(ctx context.Context, selectorMapEntry *proto.SelectorMapEntry) (*proto.Empty, error) {
-	err := m.DataStoreImpl.DeleteSelectorMapEntry(selectorMapEntry)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) CreateRegistrationEntry(ctx context.Context, registeredEntry *proto.RegisteredEntry) (*proto.Empty, error) {
-	err := m.DataStoreImpl.CreateRegistrationEntry(registeredEntry)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) FetchRegistrationEntry(ctx context.Context, registeredEntryKey *proto.RegisteredEntryKey) (*proto.RegisteredEntry, error) {
-	response, err := m.DataStoreImpl.FetchRegistrationEntry(registeredEntryKey)
-	return response, err
-}
-
-func (m *GRPCServer) UpdateRegistrationEntry(ctx context.Context, registeredEntry *proto.RegisteredEntry) (*proto.Empty, error) {
-	err := m.DataStoreImpl.UpdateRegistrationEntry(registeredEntry)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) DeleteRegistrationEntry(ctx context.Context, registeredEntryKey *proto.RegisteredEntryKey) (*proto.Empty, error) {
-	err := m.DataStoreImpl.DeleteRegistrationEntry(registeredEntryKey)
-	return &proto.Empty{}, err
-}
-
-func (m *GRPCServer) FetchGroupedRegistrationEntries(ctx context.Context, groupedRegistrationKey *proto.GroupedRegistrationKey) (*proto.RegisteredEntries, error) {
-	response, err := m.DataStoreImpl.FetchGroupedRegistrationEntries(groupedRegistrationKey)
-	return response, err
-}
-
-func (m *GRPCServer) ListAttestorEntries(ctx context.Context, attestorKey *proto.AttestorKey) (*proto.FederatedEntries, error) {
-	response, err := m.DataStoreImpl.ListAttestorEntries(attestorKey)
-	return response, err
-}
-
-func (m *GRPCServer) ListSelectorEntries(ctx context.Context, selectorKey *proto.SelectorKey) (*proto.FederatedEntries, error) {
-	response, err := m.DataStoreImpl.ListSelectorEntries(selectorKey)
-	return response, err
-}
-
-func (m *GRPCServer) ListSpiffeEntries(ctx context.Context, key *proto.Key) (*proto.FederatedEntries, error) {
-	response, err := m.DataStoreImpl.ListSpiffeEntries(key)
-	return response, err
+	res, err := m.DataStoreImpl.GetPluginInfo(req)
+	return res, err
 }
 
 type GRPCClient struct {
 	client proto.DataStoreClient
 }
 
-func (m *GRPCClient) Configure(configuration string) ([]string, error) {
-	response, err := m.client.Configure(context.Background(), &common.ConfigureRequest{configuration})
-	if err != nil {
-		return []string{}, err
-	}
-	return response.ErrorList, err
+func (m *GRPCClient) CreateFederatedEntry(req *proto.CreateFederatedEntryRequest) (*proto.CreateFederatedEntryResponse, error) {
+	res, err := m.client.CreateFederatedEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
-	response, err := m.client.GetPluginInfo(context.Background(), &common.GetPluginInfoRequest{})
-	return response, err
+func (m *GRPCClient) ListFederatedEntry(req *proto.ListFederatedEntryRequest) (*proto.ListFederatedEntryResponse, error) {
+	res, err := m.client.ListFederatedEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) CreateFederatedEntry(federatedBundle *proto.FederatedBundle) error {
-	_, err := m.client.CreateFederatedEntry(context.Background(), federatedBundle)
-	return err
+func (m *GRPCClient) UpdateFederatedEntry(req *proto.UpdateFederatedEntryRequest) (*proto.UpdateFederatedEntryResponse, error) {
+	res, err := m.client.UpdateFederatedEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) ListFederatedEntry(empty *proto.Empty) (*proto.FederatedEntries, error) {
-	response, err := m.client.ListFederatedEntry(context.Background(), empty)
-	return response, err
+func (m *GRPCClient) DeleteFederatedEntry(req *proto.DeleteFederatedEntryRequest) (*proto.DeleteFederatedEntryResponse, error) {
+	res, err := m.client.DeleteFederatedEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) UpdateFederatedEntry(ctx context.Context, federatedBundle *proto.FederatedBundle) (*proto.Empty, error) {
-	response, err := m.client.UpdateFederatedEntry(context.Background(), federatedBundle)
-	return response, err
+//
+
+func (m *GRPCClient) CreateAttestedNodeEntry(req *proto.CreateAttestedNodeEntryRequest) (*proto.CreateAttestedNodeEntryResponse, error) {
+	res, err := m.client.CreateAttestedNodeEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) DeleteFederatedEntry(ctx context.Context, key *proto.Key) (*proto.Empty, error) {
-	response, err := m.client.DeleteFederatedEntry(context.Background(), key)
-	return response, err
+func (m *GRPCClient) FetchAttestedNodeEntry(req *proto.FetchAttestedNodeEntryRequest) (*proto.FetchAttestedNodeEntryResponse, error) {
+	res, err := m.client.FetchAttestedNodeEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) CreateAttestedNodeEntry(ctx context.Context, attestedNodeEntry *proto.AttestedNodeEntry) (*proto.Empty, error) {
-	response, err := m.client.CreateAttestedNodeEntry(context.Background(), attestedNodeEntry)
-	return response, err
+func (m *GRPCClient) FetchStaleNodeEntries(req *proto.FetchStaleNodeEntriesRequest) (*proto.FetchStaleNodeEntriesResponse, error) {
+	res, err := m.client.FetchStaleNodeEntries(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) FetchAttestedNodeEntry(ctx context.Context, key *proto.Key) (*proto.AttestedNodeEntry, error) {
-	response, err := m.client.FetchAttestedNodeEntry(context.Background(), key)
-	return response, err
+func (m *GRPCClient) UpdateAttestedNodeEntryEntry(req *proto.UpdateAttestedNodeEntryRequest) (*proto.UpdateAttestedNodeEntryResponse, error) {
+	res, err := m.client.UpdateAttestedNodeEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) FetchStaleNodeEntries(ctx context.Context, empty *proto.Empty) (*proto.AttestedNodes, error) {
-	response, err := m.client.FetchStaleNodeEntries(context.Background(), empty)
-	return response, err
-}
-func (m *GRPCClient) UpdateAttestedNodeEntry(ctx context.Context, attestedNodeUpdate *proto.AttestedNodeUpdate) (*proto.Empty, error) {
-	response, err := m.client.UpdateAttestedNodeEntry(context.Background(), attestedNodeUpdate)
-	return response, err
+func (m *GRPCClient) DeleteAttestedNodeEntry(req *proto.DeleteAttestedNodeEntryRequest) (*proto.DeleteAttestedNodeEntryResponse, error) {
+	res, err := m.client.DeleteAttestedNodeEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) DeleteAttestedNodeEntry(ctx context.Context, key *proto.Key) (*proto.Empty, error) {
-	response, err := m.client.DeleteAttestedNodeEntry(context.Background(), key)
-	return response, err
+//
+
+func (m *GRPCClient) CreateNodeResolverMapEntry(req *proto.CreateNodeResolverMapEntryRequest) (*proto.CreateNodeResolverMapEntryResponse, error) {
+	res, err := m.client.CreateNodeResolverMapEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) CreateSelectorMapEntry(ctx context.Context, selectorMapEntry *proto.SelectorMapEntry) (*proto.Empty, error) {
-	response, err := m.client.CreateSelectorMapEntry(context.Background(), selectorMapEntry)
-	return response, err
+func (m *GRPCClient) FetchNodeResolverMapEntry(req *proto.FetchNodeResolverMapEntryRequest) (*proto.FetchNodeResolverMapEntryResponse, error) {
+	res, err := m.client.FetchNodeResolverMapEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) FetchSelectorMapEntry(ctx context.Context, key *proto.Key) (*proto.Empty, error) {
-	response, err := m.client.FetchSelectorMapEntry(context.Background(), key)
-	return response, err
+func (m *GRPCClient) DeleteNodeResolverMapEntry(req *proto.DeleteNodeResolverMapEntryRequest) (*proto.DeleteNodeResolverMapEntryResponse, error) {
+	res, err := m.client.DeleteNodeResolverMapEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) DeleteSelectorMapEntry(ctx context.Context, selectorMapEntry *proto.SelectorMapEntry) (*proto.Empty, error) {
-	response, err := m.client.DeleteSelectorMapEntry(context.Background(), selectorMapEntry)
-	return response, err
+func (m *GRPCClient) RectifyNodeResolverMapEntries(req *proto.RectifyNodeResolverMapEntriesRequest) (*proto.RectifyNodeResolverMapEntriesResponse, error) {
+	res, err := m.client.RectifyNodeResolverMapEntries(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) CreateRegistrationEntry(ctx context.Context, registeredEntry *proto.RegisteredEntry) (*proto.Empty, error) {
-	response, err := m.client.CreateRegistrationEntry(context.Background(), registeredEntry)
-	return response, err
+//
+
+func (m *GRPCClient) CreateRegistrationEntry(req *proto.CreateRegistrationEntryRequest) (*proto.CreateRegistrationEntryResponse, error) {
+	res, err := m.client.CreateRegistrationEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) FetchRegistrationEntry(ctx context.Context, registeredEntryKey *proto.RegisteredEntryKey) (*proto.RegisteredEntry, error) {
-	response, err := m.client.FetchRegistrationEntry(context.Background(), registeredEntryKey)
-	return response, err
+func (m *GRPCClient) FetchRegistrationEntry(req *proto.FetchRegistrationEntryRequest) (*proto.FetchRegistrationEntryResponse, error) {
+	res, err := m.client.FetchRegistrationEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) UpdateRegistrationEntry(ctx context.Context, registeredEntry *proto.RegisteredEntry) (*proto.Empty, error) {
-	response, err := m.client.UpdateRegistrationEntry(context.Background(), registeredEntry)
-	return response, err
+func (m *GRPCClient) UpdateRegistrationEntry(req *proto.UpdateRegistrationEntryRequest) (*proto.UpdateRegistrationEntryResponse, error) {
+	res, err := m.client.UpdateRegistrationEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) DeleteRegistrationEntry(ctx context.Context, registeredEntryKey *proto.RegisteredEntryKey) (*proto.Empty, error) {
-	response, err := m.client.DeleteRegistrationEntry(context.Background(), registeredEntryKey)
-	return response, err
+func (m *GRPCClient) DeleteRegistrationEntry(req *proto.DeleteRegistrationEntryRequest) (*proto.DeleteRegistrationEntryResponse, error) {
+	res, err := m.client.DeleteRegistrationEntry(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) FetchGroupedRegistrationEntries(ctx context.Context, groupedRegistrationKey *proto.GroupedRegistrationKey) (*proto.RegisteredEntries, error) {
-	response, err := m.client.FetchGroupedRegistrationEntries(context.Background(), groupedRegistrationKey)
-	return response, err
+//
+
+func (m *GRPCClient) ListParentIDEntries(req *proto.ListParentIDEntriesRequest) (*proto.ListParentIDEntriesResponse, error) {
+	res, err := m.client.ListParentIDEntries(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) ListAttestorEntries(ctx context.Context, attestorKey *proto.AttestorKey) (*proto.FederatedEntries, error) {
-	response, err := m.client.ListAttestorEntries(context.Background(), attestorKey)
-	return response, err
+func (m *GRPCClient) ListSelectorEntries(req *proto.ListSelectorEntriesRequest) (*proto.ListSelectorEntriesResponse, error) {
+	res, err := m.client.ListSelectorEntries(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) ListSelectorEntries(ctx context.Context, selectorKey *proto.SelectorKey) (*proto.FederatedEntries, error) {
-	response, err := m.client.ListSelectorEntries(context.Background(), selectorKey)
-	return response, err
+func (m *GRPCClient) ListSpiffeEntries(req *proto.ListSpiffeEntriesRequest) (*proto.ListSpiffeEntriesResponse, error) {
+	res, err := m.client.ListSpiffeEntries(context.Background(), req)
+	return res, err
 }
 
-func (m *GRPCClient) ListSpiffeEntries(ctx context.Context, key *proto.Key) (*proto.FederatedEntries, error) {
-	response, err := m.client.ListSpiffeEntries(context.Background(), key)
-	return response, err
+//
+
+func (m *GRPCClient) Configure(req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
+	res, err := m.client.Configure(context.Background(), req)
+	return res, err
+}
+
+func (m *GRPCClient) GetPluginInfo(req *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
+	res, err := m.client.GetPluginInfo(context.Background(), req)
+	return res, err
 }
