@@ -91,7 +91,7 @@ func (m *GetPluginInfoResponse) GetCompany() string {
 	return (*proto2.GetPluginInfoResponse)(m).GetCompany()
 }
 
-// * represents the workload PID
+// * Represents the workload PID.
 type AttestRequest struct {
 	Pid int32 `protobuf:"varint,1,opt,name=pid" json:"pid,omitempty"`
 }
@@ -108,7 +108,7 @@ func (m *AttestRequest) GetPid() int32 {
 	return 0
 }
 
-// * represents a list of selectors resolved for a given PID
+// * Represents a list of selectors resolved for a given PID.
 type AttestResponse struct {
 	Selectors []string `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
 }
