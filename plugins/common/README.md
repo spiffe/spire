@@ -32,12 +32,12 @@
 <a name="proto.ConfigureRequest"/>
 
 ### ConfigureRequest
-represents the plugin-specific configuration string
+Represents the plugin-specific configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| configuration | [string](#string) |  |  |
+| configuration | [string](#string) |  | The configuration for the plugin. |
 
 
 
@@ -47,12 +47,12 @@ represents the plugin-specific configuration string
 <a name="proto.ConfigureResponse"/>
 
 ### ConfigureResponse
-represents a list of configuration problems found in the configuration string
+Represents a list of configuration problems found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated |  |
+| errorList | [string](#string) | repeated | A list of errors. |
 
 
 
@@ -62,7 +62,7 @@ represents a list of configuration problems found in the configuration string
 <a name="proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
-
+Represents an empty request.
 
 
 
@@ -72,7 +72,7 @@ represents a list of configuration problems found in the configuration string
 <a name="proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
-represents the plugin metadata
+Represents the plugin metadata.
 
 
 | Field | Type | Label | Description |

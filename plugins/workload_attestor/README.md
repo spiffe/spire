@@ -45,12 +45,12 @@
 <a name="proto.ConfigureRequest"/>
 
 ### ConfigureRequest
-represents the plugin-specific configuration string
+Represents the plugin-specific configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| configuration | [string](#string) |  |  |
+| configuration | [string](#string) |  | The configuration for the plugin. |
 
 
 
@@ -60,12 +60,12 @@ represents the plugin-specific configuration string
 <a name="proto.ConfigureResponse"/>
 
 ### ConfigureResponse
-represents a list of configuration problems found in the configuration string
+Represents a list of configuration problems found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated |  |
+| errorList | [string](#string) | repeated | A list of errors. |
 
 
 
@@ -75,7 +75,7 @@ represents a list of configuration problems found in the configuration string
 <a name="proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
-
+Represents an empty request.
 
 
 
@@ -85,7 +85,7 @@ represents a list of configuration problems found in the configuration string
 <a name="proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
-represents the plugin metadata
+Represents the plugin metadata.
 
 
 | Field | Type | Label | Description |
@@ -118,13 +118,13 @@ represents the plugin metadata
 <p align="right"><a href="#top">Top</a></p>
 
 ## workload_attestor.proto
-
+Environment specific plugin to attest a workloads “selector” data.
 
 
 <a name="proto.AttestRequest"/>
 
 ### AttestRequest
-represents the workload PID
+Represents the workload PID.
 
 
 | Field | Type | Label | Description |
@@ -139,7 +139,7 @@ represents the workload PID
 <a name="proto.AttestResponse"/>
 
 ### AttestResponse
-represents a list of selectors resolved for a given PID
+Represents a list of selectors resolved for a given PID.
 
 
 | Field | Type | Label | Description |

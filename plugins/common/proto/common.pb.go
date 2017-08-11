@@ -30,7 +30,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto1.ProtoPackageIsVersion2 // please upgrade the proto package
 
-// * represents the plugin-specific configuration string
+// * Represents the plugin-specific configuration string.
 type ConfigureRequest struct {
 	Configuration string `protobuf:"bytes,1,opt,name=configuration" json:"configuration,omitempty"`
 }
@@ -47,7 +47,7 @@ func (m *ConfigureRequest) GetConfiguration() string {
 	return ""
 }
 
-// * represents a list of configuration problems found in the configuration string
+// * Represents a list of configuration problems found in the configuration string.
 type ConfigureResponse struct {
 	ErrorList []string `protobuf:"bytes,1,rep,name=errorList" json:"errorList,omitempty"`
 }
@@ -64,7 +64,7 @@ func (m *ConfigureResponse) GetErrorList() []string {
 	return nil
 }
 
-// * @exclude
+// * Represents an empty request.
 type GetPluginInfoRequest struct {
 }
 
@@ -73,7 +73,7 @@ func (m *GetPluginInfoRequest) String() string            { return proto1.Compac
 func (*GetPluginInfoRequest) ProtoMessage()               {}
 func (*GetPluginInfoRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
-// * represents the plugin metadata
+// * Represents the plugin metadata.
 type GetPluginInfoResponse struct {
 	Name        string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
 	Category    string `protobuf:"bytes,2,opt,name=category" json:"category,omitempty"`
