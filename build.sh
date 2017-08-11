@@ -38,6 +38,7 @@ _fetch_url() {
 
 build_env() {
     local _gp _gr
+
     _gp="${GOPATH:-$HOME/go}"
     _gr="${BUILD_DIR}/golang-${GO_VERSION}"
     echo "export GOPATH=${_gp}"
@@ -46,6 +47,8 @@ build_env() {
 }
 
 build_setup() {
+    eval $(build_env)
+
     mkdir -p ${BUILD_CACHE} ${BUILD_DIR}
 
     rm -rf ${GOROOT}
@@ -75,6 +78,8 @@ build_setup() {
 }
 
 build_deps() {
+    eval $(build_env)
+
     glide --home ${BUILD_CACHE} install 2>&1 | tee /tmp/glide.out
     if grep -q "Lock file may be out of date" /tmp/glide.out; then
         _exit_error "glide.lock file may be out of date"
@@ -83,6 +88,7 @@ build_deps() {
     
 build_protobuf() {
     local _n _d _dir _prefix="$1"
+    eval $(build_env)
 
     for _n in ${PROTO_FILES}; do
         _dir="$(dirname ${_n})"
@@ -102,6 +108,7 @@ build_protobuf() {
 
 build_protobuf_verify() {
     local _n _result _tmp="$(mktemp -d)"
+    eval $(build_env)
 
     build_protobuf ${_tmp} >/dev/null
 
@@ -121,6 +128,7 @@ build_protobuf_verify() {
 
 build_binaries() {
     local _n _dirs="${1:-$BINARY_DIRS}"
+    eval $(build_env)
 
     for _n in ${_dirs}; do
         _log_info "building in directory \"${_n}\""
@@ -129,16 +137,19 @@ build_binaries() {
 }
 
 build_test() {
-    test_path=$(go list ./... | grep -v -e'/vendor' -e'/proto$')
+    local _test_path
+    eval $(build_env)
+
+    _test_path=$(go list ./... | grep -v -e'/vendor' -e'/proto$')
     if [[ -n ${CI} ]]; then
-        mkdir -p .test_results/junit .test_results/coverage
-        go test ${DEBUG+-v} ${test_path} | go-junit-report > .test_results/junit/report.xml
+        mkdir -p test_results
+        go test ${DEBUG+-v} ${_test_path} | go-junit-report > test_results/report.xml
         if [[ -n ${COVERALLS_TOKEN} ]]; then
-            gocovermerge -coverprofile=.test_results/coverage/cover.out test -covermode=count ${test_path}
-            goveralls -coverprofile=.test_results/coverage/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
+            gocovermerge -coverprofile=test_results/cover.out test -covermode=count ${_test_path}
+            goveralls -coverprofile=test_results/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
         fi                
     else
-        go test ${DEBUG+-v} ${test_path}
+        go test ${DEBUG+-v} ${_test_path}
     fi
 }
 
@@ -158,7 +169,6 @@ build_all() {
     build_test
 }
 
-eval $(build_env)
 
 case "$1" in
     env) build_env ;;
