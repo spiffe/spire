@@ -1,8 +1,8 @@
 hash: d55f7866f481ff1204feb9fc3b86ab7dc7dcefc6ba904de8f90b3069ec708f59
-updated: 2017-07-28T17:22:44.849233694Z
+updated: 2017-08-11T19:48:26.126018722-03:00
 imports:
 - name: github.com/go-kit/kit
-  version: 19463ea8b215413a29c3513aa3a76181f4bac58d
+  version: 7c0038db5f6361f85f612e4154f61e4f6d6a83b2
   subpackages:
   - endpoint
   - log
@@ -12,7 +12,7 @@ imports:
 - name: github.com/go-stack/stack
   version: 817915b46b97fd7bb80e8ab6b69f01a53ac3eebf
 - name: github.com/golang/protobuf
-  version: 748d386b5c1ea99658fd69fe9f03991ce86a90c1
+  version: 0a4f71a498b7c4812f64969510bcb4eca251e33a
   subpackages:
   - proto
   - ptypes/any
@@ -24,7 +24,7 @@ imports:
 - name: github.com/hashicorp/yamux
   version: d1caa6c97c9fc1cc9e83bbe34d0603f9ff0ce8bd
 - name: github.com/jstemmer/go-junit-report
-  version: 15422cf504f9dc030386499a5c68053a38763e58
+  version: a009038a6334cbda8dd5984dfd2f387a2ce9fdbf
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/mitchellh/go-testing-interface
