@@ -6,12 +6,24 @@ import (
 	"github.com/hashicorp/go-plugin"
 
 	"github.com/spiffe/control-plane/helpers"
+
+	"github.com/spiffe/control-plane/plugins/control_plane_ca"
+	"github.com/spiffe/control-plane/plugins/data_store"
+	"github.com/spiffe/control-plane/plugins/node_attestor"
+	"github.com/spiffe/control-plane/plugins/node_resolver"
+	"github.com/spiffe/control-plane/plugins/upstream_ca"
 )
 
 type ServerCommand struct {
 }
 
-var CP_PLUGIN_TYPE_MAP = map[string]plugin.Plugin{}
+var CP_PLUGIN_TYPE_MAP = map[string]plugin.Plugin{
+	"ControlPlaneCa": &controlplaneca.ControlPlaneCaPlugin{},
+	"DataStore":      &datastore.DataStorePlugin{},
+	"NodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
+	"NodeResolution": &noderesolver.NodeResolutionPlugin{},
+	"UpstreamCa":     &upstreamca.UpstreamCaPlugin{},
+}
 
 func (*ServerCommand) Help() string {
 	return "Usage: control-plane server"

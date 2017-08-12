@@ -10,16 +10,12 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/node-agent/plugins/key_manager"
-	"github.com/spiffe/node-agent/plugins/node_attestor"
-	"github.com/spiffe/node-agent/plugins/workload_attestor"
+	"github.com/spiffe/control-plane/plugins/control_plane_ca"
+	"github.com/spiffe/control-plane/plugins/data_store"
+	"github.com/spiffe/control-plane/plugins/node_attestor"
+	"github.com/spiffe/control-plane/plugins/node_resolver"
+	"github.com/spiffe/control-plane/plugins/upstream_ca"
 )
-
-/*var NA_PLUGIN_TYPE_MAP = map[string]plugin.Plugin{
-	"WorkloadAttestor": &workloadattestor.WorkloadAttestorPlugin{},
-	"KeyManager":       &keymanager.KeyManagerPlugin{},
-	"NodeAttestor":     &nodeattestor.NodeAttestorPlugin{},
-}*/
 
 type PluginCatalog struct {
 	PluginConfDirectory string
@@ -111,12 +107,16 @@ func (c *PluginCatalog) Run(pluginMap map[string]plugin.Plugin) (err error) {
 		}
 
 		switch pl.(type) {
+		case controlplaneca.ControlPlaneCa:
+			c.Plugins[pluginName] = pl.(controlplaneca.ControlPlaneCa)
+		case datastore.DataStore:
+			c.Plugins[pluginName] = pl.(datastore.DataStore)
 		case nodeattestor.NodeAttestor:
 			c.Plugins[pluginName] = pl.(nodeattestor.NodeAttestor)
-		case workloadattestor.WorkloadAttestor:
-			c.Plugins[pluginName] = pl.(workloadattestor.WorkloadAttestor)
-		case keymanager.KeyManager:
-			c.Plugins[pluginName] = pl.(keymanager.KeyManager)
+		case noderesolver.NodeResolution:
+			c.Plugins[pluginName] = pl.(noderesolver.NodeResolution)
+		case upstreamca.UpstreamCa:
+			c.Plugins[pluginName] = pl.(upstreamca.UpstreamCa)
 		default:
 		}
 

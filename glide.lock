@@ -1,6 +1,10 @@
 hash: d55f7866f481ff1204feb9fc3b86ab7dc7dcefc6ba904de8f90b3069ec708f59
-updated: 2017-08-11T19:48:26.126018722-03:00
+updated: 2017-08-12T19:03:22.300631559-03:00
 imports:
+- name: github.com/armon/go-radix
+  version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
+- name: github.com/bgentry/speakeasy
+  version: 4aabc24848ce5fd31929f7d1e4ea74d3709c14cd
 - name: github.com/go-kit/kit
   version: 7c0038db5f6361f85f612e4154f61e4f6d6a83b2
   subpackages:
@@ -17,18 +21,44 @@ imports:
   - proto
   - ptypes/any
   - ptypes/empty
+- name: github.com/hashicorp/errwrap
+  version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
 - name: github.com/hashicorp/go-hclog
   version: b4e5765d1e5f00a0550911084f45f8214b5b83b9
+- name: github.com/hashicorp/go-multierror
+  version: 83588e72410abfbe4df460eeb6f30841ae47d4c4
 - name: github.com/hashicorp/go-plugin
   version: 4e5a3725c607a756be8d35bf3a521c0f9c422666
+- name: github.com/hashicorp/hcl
+  version: 392dba7d905ed5d04a5794ba89f558b27e2ba1ca
+  subpackages:
+  - hcl/ast
+  - hcl/parser
+  - hcl/printer
+  - hcl/scanner
+  - hcl/strconv
+  - hcl/token
+  - json/parser
+  - json/scanner
+  - json/token
 - name: github.com/hashicorp/yamux
   version: d1caa6c97c9fc1cc9e83bbe34d0603f9ff0ce8bd
 - name: github.com/jstemmer/go-junit-report
   version: a009038a6334cbda8dd5984dfd2f387a2ce9fdbf
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
+- name: github.com/mattn/go-isatty
+  version: fc9e8d8ef48496124e79ae0df75490096eccf6fe
+- name: github.com/mitchellh/cli
+  version: 8a539dbef410aa4191e0bcc7a6246c104b313009
 - name: github.com/mitchellh/go-testing-interface
   version: e1449340a7b207d8ca90d41466272ece75cbb5b5
+- name: github.com/posener/complete
+  version: f4461a52b6329c11190f11fe3384ec8aa964e21c
+  subpackages:
+  - cmd
+  - cmd/install
+  - match
 - name: golang.org/x/net
   version: f5079bd7f6f74e23c4d65efa0f4ce14cbd6a3c0f
   subpackages:
@@ -39,6 +69,10 @@ imports:
   - internal/timeseries
   - lex/httplex
   - trace
+- name: golang.org/x/sys
+  version: e42485b6e20ae7d2304ec72e535b103ed350cc02
+  subpackages:
+  - unix
 - name: golang.org/x/text
   version: 836efe42bb4aa16aaa17b9c155d8813d336ed720
   subpackages:
