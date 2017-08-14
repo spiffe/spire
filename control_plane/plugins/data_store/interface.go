@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"net/rpc"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -10,6 +11,8 @@ import (
 	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
 	"github.com/spiffe/sri/control_plane/plugins/data_store/proto"
 )
+
+const TimeFormat = time.RFC1123Z
 
 // Handshake is a common handshake that is shared between noderesolution and host.
 var Handshake = plugin.HandshakeConfig{

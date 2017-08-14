@@ -1,5 +1,5 @@
-hash: 07f7ed1f48e6e8cbe96ff164101cfcea00df3820f2c62615bd2c2c3b9ce7f7af
-updated: 2017-08-14T20:52:15.249869747Z
+hash: e1c775c6ccb0156433969f5e0c7cfe6aec03d5c0f43c106896743b5416a51dec
+updated: 2017-08-14T15:03:04.963649058-07:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -43,12 +43,20 @@ imports:
   - json/token
 - name: github.com/hashicorp/yamux
   version: d1caa6c97c9fc1cc9e83bbe34d0603f9ff0ce8bd
+- name: github.com/jinzhu/gorm
+  version: 5174cc5c242a728b435ea2be8a2f7f998e15429b
+- name: github.com/jinzhu/inflection
+  version: 1c35d901db3da928c72a72d8458480cc9ade058f
 - name: github.com/jstemmer/go-junit-report
   version: a009038a6334cbda8dd5984dfd2f387a2ce9fdbf
+- name: github.com/jteeuwen/go-bindata
+  version: bbd0c6e271208dce66d8fda4bc536453cd27fc4a
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/mattn/go-isatty
   version: fc9e8d8ef48496124e79ae0df75490096eccf6fe
+- name: github.com/mattn/go-sqlite3
+  version: ca5e3819723d8eeaf170ad510e7da1d6d2e94a08
 - name: github.com/mitchellh/cli
   version: b633c78680fa6fb27ac81694f38c28f79602ebd9
 - name: github.com/mitchellh/go-testing-interface
@@ -114,7 +122,7 @@ testImports:
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
-  version: 890a5c3458b43e6104ff5da8dfa139d013d77544
+  version: 18a02ba4a312f95da08ff4cfc0055750ce50ae9e
   subpackages:
   - assert
   - mock

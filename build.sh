@@ -3,7 +3,7 @@
 set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
-declare -r BINARY_DIRS="control_plane node_agent $(find */plugins/*/* -maxdepth 1 -type d -not -name 'proto')"
+declare -r BINARY_DIRS="control_plane node_agent $(find */plugins/*/* -maxdepth 1 -type d -not -name 'proto' -not -name '_*')"
 declare -r PROTO_FILES="$(find */plugins */api -name '*.proto')"
 
 declare -r GO_VERSION=${GO_VERSION:-1.8.3}
@@ -75,6 +75,7 @@ build_setup() {
     go get github.com/jstemmer/go-junit-report
     go get github.com/AlekSi/gocovermerge
     go get github.com/mattn/goveralls
+    go get github.com/jteeuwen/go-bindata/...
 }
 
 build_deps() {
@@ -154,7 +155,7 @@ build_test() {
 }
 
 build_clean() {
-    rm -f $(find ${BINARY_DIRS} -type f -executable)
+    rm -f $(find ${BINARY_DIRS} -type f -perm '-u+x')
 }
 
 build_distclean() {

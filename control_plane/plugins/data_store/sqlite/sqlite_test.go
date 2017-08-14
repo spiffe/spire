@@ -2,102 +2,377 @@ package main
 
 import (
 	"testing"
+	"time"
+
+	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	datastore "github.com/spiffe/sri/control_plane/plugins/data_store"
+	"github.com/spiffe/sri/control_plane/plugins/data_store/proto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func Sqlite_CreateFederatedEntry(t *testing.T) {
+func TestFederatedEntry_CRUD(t *testing.T) {
+	ds := createDefault(t)
 
+	bundle := &proto.FederatedBundle{
+		FederatedBundleSpiffeId: "foo",
+		FederatedTrustBundle:    []byte("bar"),
+		Ttl:                     10,
+	}
+
+	// create
+	_, err := ds.CreateFederatedEntry(&proto.CreateFederatedEntryRequest{bundle})
+	require.NoError(t, err)
+
+	// list
+	lresp, err := ds.ListFederatedEntry(&proto.ListFederatedEntryRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{bundle.FederatedBundleSpiffeId}, lresp.FederatedBundleSpiffeIdList)
+
+	// update
+	bundle2 := &proto.FederatedBundle{
+		FederatedBundleSpiffeId: bundle.FederatedBundleSpiffeId,
+		FederatedTrustBundle:    []byte("baz"),
+		Ttl:                     20,
+	}
+
+	uresp, err := ds.UpdateFederatedEntry(&proto.UpdateFederatedEntryRequest{bundle2})
+	require.NoError(t, err)
+	assert.Equal(t, bundle2, uresp.FederatedBundle)
+
+	lresp, err = ds.ListFederatedEntry(&proto.ListFederatedEntryRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{bundle.FederatedBundleSpiffeId}, lresp.FederatedBundleSpiffeIdList)
+
+	// delete
+	dresp, err := ds.DeleteFederatedEntry(&proto.DeleteFederatedEntryRequest{
+		FederatedBundleSpiffeId: bundle.FederatedBundleSpiffeId,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, bundle2, dresp.FederatedBundle)
+
+	lresp, err = ds.ListFederatedEntry(&proto.ListFederatedEntryRequest{})
+	require.NoError(t, err)
+	assert.Len(t, lresp.FederatedBundleSpiffeIdList, 0)
 }
 
-func Sqlite_ListFederatedEntry(t *testing.T) {
+func Test_ListFederatedEntry(t *testing.T) {
+	ds := createDefault(t)
 
-}
-
-func Sqlite_UpdateFederatedEntry(t *testing.T) {
-
-}
-
-func Sqlite_DeleteFederatedEntry(t *testing.T) {
-
-}
-
-//
-
-func Sqlite_CreateAttestedNodeEntry(t *testing.T) {
-
-}
-
-func Sqlite_FetchAttestedNodeEntry(t *testing.T) {
-
-}
-
-func Sqlite_FetchStaleNodeEntries(t *testing.T) {
-
-}
-
-func Sqlite_UpdateAttestedNodeEntry(t *testing.T) {
-
-}
-
-func Sqlite_DeleteAttestedNodeEntry(t *testing.T) {
-
-}
-
-//
-
-func Sqlite_CreateNodeResolverMapEntry(t *testing.T) {
-
-}
-
-func Sqlite_FetchNodeResolverMapEntry(t *testing.T) {
-
-}
-
-func Sqlite_DeleteNodeResolverMapEntry(t *testing.T) {
-
-}
-
-func Sqlite_RectifyNodeResolverMapEntries(t *testing.T) {
-
+	lresp, err := ds.ListFederatedEntry(&proto.ListFederatedEntryRequest{})
+	require.NoError(t, err)
+	assert.Empty(t, lresp.FederatedBundleSpiffeIdList)
 }
 
 //
 
-func Sqlite_CreateRegistrationEntry(t *testing.T) {
+func Test_CreateAttestedNodeEntry(t *testing.T) {
+	ds := createDefault(t)
 
+	entry := &proto.AttestedNodeEntry{
+		BaseSpiffeId:       "foo",
+		AttestedDataType:   "aws-tag",
+		CertSerialNumber:   "badcafe",
+		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+	}
+
+	cresp, err := ds.CreateAttestedNodeEntry(&proto.CreateAttestedNodeEntryRequest{entry})
+	require.NoError(t, err)
+	assert.Equal(t, entry, cresp.AttestedNodeEntry)
+
+	fresp, err := ds.FetchAttestedNodeEntry(&proto.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
+	require.NoError(t, err)
+	assert.Equal(t, entry, fresp.AttestedNodeEntry)
+
+	sresp, err := ds.FetchStaleNodeEntries(&proto.FetchStaleNodeEntriesRequest{})
+	require.NoError(t, err)
+	assert.Empty(t, sresp.AttestedNodeEntryList)
 }
 
-func Sqlite_FetchRegistrationEntry(t *testing.T) {
-
+func Test_FetchAttestedNodeEntry_missing(t *testing.T) {
+	ds := createDefault(t)
+	fresp, err := ds.FetchAttestedNodeEntry(&proto.FetchAttestedNodeEntryRequest{"missing"})
+	require.NoError(t, err)
+	require.Nil(t, fresp.AttestedNodeEntry)
 }
 
-func Sqlite_UpdateRegistrationEntry(t *testing.T) {
+func Test_FetchStaleNodeEntries(t *testing.T) {
+	ds := createDefault(t)
 
+	efuture := &proto.AttestedNodeEntry{
+		BaseSpiffeId:       "foo",
+		AttestedDataType:   "aws-tag",
+		CertSerialNumber:   "badcafe",
+		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+	}
+
+	epast := &proto.AttestedNodeEntry{
+		BaseSpiffeId:       "bar",
+		AttestedDataType:   "aws-tag",
+		CertSerialNumber:   "deadbeef",
+		CertExpirationDate: time.Now().Add(-time.Hour).Format(datastore.TimeFormat),
+	}
+
+	_, err := ds.CreateAttestedNodeEntry(&proto.CreateAttestedNodeEntryRequest{efuture})
+	require.NoError(t, err)
+
+	_, err = ds.CreateAttestedNodeEntry(&proto.CreateAttestedNodeEntryRequest{epast})
+	require.NoError(t, err)
+
+	sresp, err := ds.FetchStaleNodeEntries(&proto.FetchStaleNodeEntriesRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, []*proto.AttestedNodeEntry{epast}, sresp.AttestedNodeEntryList)
 }
 
-func Sqlite_DeleteRegistrationEntry(t *testing.T) {
+func Test_UpdateAttestedNodeEntry(t *testing.T) {
+	ds := createDefault(t)
 
+	entry := &proto.AttestedNodeEntry{
+		BaseSpiffeId:       "foo",
+		AttestedDataType:   "aws-tag",
+		CertSerialNumber:   "badcafe",
+		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+	}
+
+	userial := "deadbeef"
+	uexpires := time.Now().Add(time.Hour * 2).Format(datastore.TimeFormat)
+
+	_, err := ds.CreateAttestedNodeEntry(&proto.CreateAttestedNodeEntryRequest{entry})
+	require.NoError(t, err)
+
+	uresp, err := ds.UpdateAttestedNodeEntry(&proto.UpdateAttestedNodeEntryRequest{
+		BaseSpiffeId:       entry.BaseSpiffeId,
+		CertSerialNumber:   userial,
+		CertExpirationDate: uexpires,
+	})
+	require.NoError(t, err)
+
+	uentry := uresp.AttestedNodeEntry
+	require.NotNil(t, uentry)
+
+	assert.Equal(t, entry.BaseSpiffeId, uentry.BaseSpiffeId)
+	assert.Equal(t, entry.AttestedDataType, uentry.AttestedDataType)
+	assert.Equal(t, userial, uentry.CertSerialNumber)
+	assert.Equal(t, uexpires, uentry.CertExpirationDate)
+
+	fresp, err := ds.FetchAttestedNodeEntry(&proto.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
+	require.NoError(t, err)
+
+	fentry := fresp.AttestedNodeEntry
+	require.NotNil(t, fentry)
+
+	assert.Equal(t, entry.BaseSpiffeId, fentry.BaseSpiffeId)
+	assert.Equal(t, entry.AttestedDataType, fentry.AttestedDataType)
+	assert.Equal(t, userial, fentry.CertSerialNumber)
+	assert.Equal(t, uexpires, fentry.CertExpirationDate)
+}
+
+func Test_DeleteAttestedNodeEntry(t *testing.T) {
+	ds := createDefault(t)
+
+	entry := &proto.AttestedNodeEntry{
+		BaseSpiffeId:       "foo",
+		AttestedDataType:   "aws-tag",
+		CertSerialNumber:   "badcafe",
+		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+	}
+
+	_, err := ds.CreateAttestedNodeEntry(&proto.CreateAttestedNodeEntryRequest{entry})
+	require.NoError(t, err)
+
+	dresp, err := ds.DeleteAttestedNodeEntry(&proto.DeleteAttestedNodeEntryRequest{entry.BaseSpiffeId})
+	require.NoError(t, err)
+	assert.Equal(t, entry, dresp.AttestedNodeEntry)
+
+	fresp, err := ds.FetchAttestedNodeEntry(&proto.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
+	require.NoError(t, err)
+	assert.Nil(t, fresp.AttestedNodeEntry)
 }
 
 //
 
-func Sqlite_ListParentIDEntries(t *testing.T) {
+func Test_CreateNodeResolverMapEntry(t *testing.T) {
+	ds := createDefault(t)
 
+	entry := &proto.NodeResolverMapEntry{
+		BaseSpiffeId: "main",
+		Selector: &proto.Selector{
+			Type:  "aws-tag",
+			Value: "a",
+		},
+	}
+
+	cresp, err := ds.CreateNodeResolverMapEntry(&proto.CreateNodeResolverMapEntryRequest{entry})
+	require.NoError(t, err)
+
+	centry := cresp.NodeResolverMapEntry
+	assert.Equal(t, entry, centry)
 }
 
-func Sqlite_ListSelectorEntries(t *testing.T) {
+func Test_CreateNodeResolverMapEntry_dupe(t *testing.T) {
+	ds := createDefault(t)
+	entries := createNodeResolverMapEntries(t, ds)
 
+	entry := entries[0]
+	cresp, err := ds.CreateNodeResolverMapEntry(&proto.CreateNodeResolverMapEntryRequest{entry})
+	assert.Error(t, err)
+	require.Nil(t, cresp)
 }
 
-func Sqlite_ListSpiffeEntriesEntry(t *testing.T) {
+func Test_FetchNodeResolverMapEntry(t *testing.T) {
+	ds := createDefault(t)
 
+	entry := &proto.NodeResolverMapEntry{
+		BaseSpiffeId: "main",
+		Selector: &proto.Selector{
+			Type:  "aws-tag",
+			Value: "a",
+		},
+	}
+
+	cresp, err := ds.CreateNodeResolverMapEntry(&proto.CreateNodeResolverMapEntryRequest{entry})
+	require.NoError(t, err)
+
+	centry := cresp.NodeResolverMapEntry
+	assert.Equal(t, entry, centry)
+}
+
+func Test_DeleteNodeResolverMapEntry_specific(t *testing.T) {
+	// remove entries for the specific (spiffe_id,type,value)
+
+	ds := createDefault(t)
+	entries := createNodeResolverMapEntries(t, ds)
+
+	entry_removed := entries[0]
+
+	dresp, err := ds.DeleteNodeResolverMapEntry(&proto.DeleteNodeResolverMapEntryRequest{entry_removed})
+	require.NoError(t, err)
+
+	assert.Equal(t, entries[0:1], dresp.NodeResolverMapEntryList)
+
+	for idx, entry := range entries[1:] {
+		fresp, err := ds.FetchNodeResolverMapEntry(&proto.FetchNodeResolverMapEntryRequest{entry.BaseSpiffeId})
+		require.NoError(t, err, idx)
+		require.Len(t, fresp.NodeResolverMapEntryList, 1, "%v", idx)
+		assert.Equal(t, entry, fresp.NodeResolverMapEntryList[0], "%v", idx)
+	}
+}
+
+func Test_DeleteNodeResolverMapEntry_all(t *testing.T) {
+	// remove all entries for the spiffe_id
+
+	ds := createDefault(t)
+	entries := createNodeResolverMapEntries(t, ds)
+
+	entry_removed := &proto.NodeResolverMapEntry{
+		BaseSpiffeId: entries[0].BaseSpiffeId,
+	}
+
+	dresp, err := ds.DeleteNodeResolverMapEntry(&proto.DeleteNodeResolverMapEntryRequest{entry_removed})
+	require.NoError(t, err)
+
+	assert.Equal(t, entries[0:2], dresp.NodeResolverMapEntryList)
+
+	{
+		entry := entry_removed
+		fresp, err := ds.FetchNodeResolverMapEntry(&proto.FetchNodeResolverMapEntryRequest{entry.BaseSpiffeId})
+		require.NoError(t, err)
+		assert.Empty(t, fresp.NodeResolverMapEntryList)
+	}
+
+	{
+		entry := entries[2]
+		fresp, err := ds.FetchNodeResolverMapEntry(&proto.FetchNodeResolverMapEntryRequest{entry.BaseSpiffeId})
+		require.NoError(t, err)
+		assert.NotEmpty(t, fresp.NodeResolverMapEntryList)
+	}
+}
+
+func Test_RectifyNodeResolverMapEntries(t *testing.T) {
+}
+
+func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*proto.NodeResolverMapEntry {
+	entries := []*proto.NodeResolverMapEntry{
+		{
+			BaseSpiffeId: "main",
+			Selector: &proto.Selector{
+				Type:  "aws-tag",
+				Value: "a",
+			},
+		},
+		{
+			BaseSpiffeId: "main",
+			Selector: &proto.Selector{
+				Type:  "aws-tag",
+				Value: "b",
+			},
+		},
+		{
+			BaseSpiffeId: "other",
+			Selector: &proto.Selector{
+				Type:  "aws-tag",
+				Value: "a",
+			},
+		},
+	}
+
+	for idx, entry := range entries {
+		_, err := ds.CreateNodeResolverMapEntry(&proto.CreateNodeResolverMapEntryRequest{entry})
+		require.NoError(t, err, "%v", idx)
+	}
+
+	return entries
 }
 
 //
 
-func Sqlite_Configure(t *testing.T) {
-
+func Test_CreateRegistrationEntry(t *testing.T) {
+	t.Skipf("TODO")
 }
 
-func Sqlite_GetPluginInfo(t *testing.T) {
+func Test_FetchRegistrationEntry(t *testing.T) {
+	t.Skipf("TODO")
+}
 
+func Test_UpdateRegistrationEntry(t *testing.T) {
+	t.Skipf("TODO")
+}
+
+func Test_DeleteRegistrationEntry(t *testing.T) {
+	t.Skipf("TODO")
+}
+
+//
+
+func Test_ListParentIDEntries(t *testing.T) {
+	t.Skipf("TODO")
+}
+
+func Test_ListSelectorEntries(t *testing.T) {
+	t.Skipf("TODO")
+}
+
+func Test_ListSpiffeEntriesEntry(t *testing.T) {
+	t.Skipf("TODO")
+}
+
+//
+
+func Test_Configure(t *testing.T) {
+	t.Skipf("TODO")
+}
+
+func Test_GetPluginInfo(t *testing.T) {
+	ds := createDefault(t)
+	resp, err := ds.GetPluginInfo(&common.GetPluginInfoRequest{})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+}
+
+func createDefault(t *testing.T) datastore.DataStore {
+	ds, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ds
 }
