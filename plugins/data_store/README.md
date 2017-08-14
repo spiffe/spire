@@ -131,12 +131,12 @@
 <a name="proto.ConfigureRequest"/>
 
 ### ConfigureRequest
-
+Represents the plugin-specific configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| configuration | [string](#string) |  |  |
+| configuration | [string](#string) |  | The configuration for the plugin. |
 
 
 
@@ -146,12 +146,12 @@
 <a name="proto.ConfigureResponse"/>
 
 ### ConfigureResponse
-
+Represents a list of configuration problems found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated |  |
+| errorList | [string](#string) | repeated | A list of errors. |
 
 
 
@@ -161,7 +161,7 @@
 <a name="proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
-
+Represents an empty request.
 
 
 
@@ -171,12 +171,14 @@
 <a name="proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
-
+Represents the plugin metadata.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginName | [string](#string) |  |  |
+| name | [string](#string) |  |  |
+| category | [string](#string) |  |  |
+| type | [string](#string) |  |  |
 | description | [string](#string) |  |  |
 | dateCreated | [string](#string) |  |  |
 | location | [string](#string) |  |  |

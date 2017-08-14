@@ -15,13 +15,8 @@ import (
 //Handshake is a common handshake that is shared by the plugin and host.
 var Handshake = plugin.HandshakeConfig{
 	ProtocolVersion:  1,
-	MagicCookieKey:   "nodeattestor_handshake",
-	MagicCookieValue: "nodeattestor",
-}
-
-//PluginMap is the map of plugins we can dispense.
-var PluginMap = map[string]plugin.Plugin{
-	"nodeattestor": &NodeAttestorPlugin{},
+	MagicCookieKey:   "NodeAttestor",
+	MagicCookieValue: "NodeAttestor",
 }
 
 type NodeAttestor interface {

@@ -1,4 +1,4 @@
-package sqlite
+package main
 
 import (
 	"github.com/hashicorp/go-plugin"
@@ -111,7 +111,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: datastore.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"datastore": datastore.DataStorePlugin{DataStoreImpl: &SqlitePlugin{}},
+			"ds_sqlite": datastore.DataStorePlugin{DataStoreImpl: &SqlitePlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

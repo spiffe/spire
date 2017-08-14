@@ -1,4 +1,4 @@
-package memory
+package main
 
 import (
 	"github.com/hashicorp/go-plugin"
@@ -36,7 +36,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: controlplaneca.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"controlplaneca": controlplaneca.ControlPlaneCaPlugin{ControlPlaneCaImpl: &MemoryPlugin{}},
+			"cpca_memory": controlplaneca.ControlPlaneCaPlugin{ControlPlaneCaImpl: &MemoryPlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

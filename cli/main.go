@@ -16,6 +16,12 @@ func Run(args []string) int {
 		"server": func() (cli.Command, error) {
 			return &command.ServerCommand{}, nil
 		},
+		"stop": func() (cli.Command, error) {
+			return &command.StopCommand{}, nil
+		},
+		"plugin-info": func() (cli.Command, error) {
+			return &command.PluginInfoCommand{}, nil
+		},
 	}
 
 	exitStatus, err := c.Run()

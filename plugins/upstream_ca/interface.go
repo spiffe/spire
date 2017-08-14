@@ -13,13 +13,8 @@ import (
 // Handshake is a common handshake that is shared between noderesolution and host.
 var Handshake = plugin.HandshakeConfig{
 	ProtocolVersion:  1,
-	MagicCookieKey:   "upstreamca_handshake",
-	MagicCookieValue: "upstreamca",
-}
-
-// PluginMap is the map of plugins we can dispense.
-var PluginMap = map[string]plugin.Plugin{
-	"upstreamca": &UpstreamCaPlugin{},
+	MagicCookieKey:   "UpstreamCA",
+	MagicCookieValue: "UpstreamCA",
 }
 
 type UpstreamCa interface {

@@ -1,4 +1,4 @@
-package helpers
+package pluginhelper
 
 import (
 	"crypto/sha256"
@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/spiffe/control-plane/plugins/control_plane_ca"
@@ -16,6 +17,22 @@ import (
 	"github.com/spiffe/control-plane/plugins/node_resolver"
 	"github.com/spiffe/control-plane/plugins/upstream_ca"
 )
+
+var NA_PLUGIN_TYPE_MAP = map[string]plugin.Plugin{
+	"ControlPlaneCA": &controlplaneca.ControlPlaneCaPlugin{},
+	"DataStore":      &datastore.DataStorePlugin{},
+	"NodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
+	"NodeResolver":   &noderesolver.NodeResolutionPlugin{},
+	"UpstreamCA":     &upstreamca.UpstreamCaPlugin{},
+}
+
+var MaxPlugins = map[string]int{
+	"ControlPlaneCA": 1,
+	"DataStore":      1,
+	"NodeAttestor":   1,
+	"NodeResolver":   1,
+	"UpstreamCA":     1,
+}
 
 type PluginCatalog struct {
 	PluginConfDirectory string
@@ -26,6 +43,7 @@ type PluginCatalog struct {
 
 func (c *PluginCatalog) loadConfig() (err error) {
 	c.PluginConfigs = make(map[string]*PluginConfig)
+	PluginTypeCount := make(map[string]int)
 	configFiles, err := ioutil.ReadDir(c.PluginConfDirectory)
 	if err != nil {
 		return err
@@ -37,8 +55,18 @@ func (c *PluginCatalog) loadConfig() (err error) {
 		if err != nil {
 			return err
 		}
+		PluginTypeCount[config.PluginType] = +1
+		if PluginTypeCount[config.PluginType] > MaxPlugins[config.PluginType] {
+			return errors.New(fmt.Sprintf("Cannot have more than max_plugins:%v plugins of type plugin_type:%v",
+				MaxPlugins[config.PluginType], config.PluginType))
+		}
+
+		if NA_PLUGIN_TYPE_MAP[config.PluginType] == nil {
+			return errors.New(fmt.Sprintf("Plugin Type plugin_type:%v not supported", config.PluginType))
+		}
+
 		if c.PluginConfigs[config.PluginName] != nil {
-			return errors.New(fmt.Sprintf("PluginName:%s should be unique", config.PluginName))
+			return errors.New(fmt.Sprintf("plugin_name:%s should be unique", config.PluginName))
 		}
 		c.PluginConfigs[config.PluginName] = config
 
@@ -51,15 +79,23 @@ func (c *PluginCatalog) GetPlugin(pluginName string) (plugin interface{}) {
 	return
 }
 
-func (c *PluginCatalog) initClients(pluginMap map[string]plugin.Plugin) (err error) {
+func (c *PluginCatalog) initClients() (err error) {
 
 	c.PluginClients = make(map[string]*plugin.Client)
 
 	for _, pluginconfig := range c.PluginConfigs {
 		if pluginconfig.Enabled {
-			hexChecksum, err := hex.DecodeString(pluginconfig.PluginChecksum)
-			if err != nil {
-				return err
+
+			var secureConfig *plugin.SecureConfig
+			if pluginconfig.PluginChecksum != "" {
+				hexChecksum, err := hex.DecodeString(pluginconfig.PluginChecksum)
+				if err != nil {
+					return err
+				}
+				secureConfig = &plugin.SecureConfig{
+					Checksum: hexChecksum,
+					Hash:     sha256.New(),
+				}
 			}
 
 			client := plugin.NewClient(&plugin.ClientConfig{
@@ -70,13 +106,12 @@ func (c *PluginCatalog) initClients(pluginMap map[string]plugin.Plugin) (err err
 				},
 				Plugins: map[string]plugin.Plugin{
 					pluginconfig.PluginName: plugin.Plugin(
-						pluginMap[pluginconfig.PluginType]),
+						NA_PLUGIN_TYPE_MAP[pluginconfig.PluginType]),
 				},
 				Cmd:              exec.Command(pluginconfig.PluginCmd),
 				AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 				Managed:          true,
-				SecureConfig: &plugin.SecureConfig{Checksum: hexChecksum,
-					Hash: sha256.New()},
+				SecureConfig:     secureConfig,
 			})
 
 			c.PluginClients[pluginconfig.PluginName] = client
@@ -85,22 +120,23 @@ func (c *PluginCatalog) initClients(pluginMap map[string]plugin.Plugin) (err err
 	return
 }
 
-func (c *PluginCatalog) Run(pluginMap map[string]plugin.Plugin) (err error) {
+func (c *PluginCatalog) Run() (err error) {
 	err = c.loadConfig()
 	if err != nil {
 		return err
 	}
-	err = c.initClients(pluginMap)
+	err = c.initClients()
 	if err != nil {
 		return err
 	}
 	c.Plugins = make(map[string]interface{})
-
 	for pluginName, client := range c.PluginClients {
 		protocolClient, err := client.Client()
 		if err != nil {
 			return err
 		}
+		fmt.Print("PluginName:")
+		fmt.Print(pluginName)
 		pl, err := protocolClient.Dispense(pluginName)
 		if err != nil {
 			return err
@@ -117,7 +153,9 @@ func (c *PluginCatalog) Run(pluginMap map[string]plugin.Plugin) (err error) {
 			c.Plugins[pluginName] = pl.(noderesolver.NodeResolution)
 		case upstreamca.UpstreamCa:
 			c.Plugins[pluginName] = pl.(upstreamca.UpstreamCa)
+
 		default:
+			return errors.New(fmt.Sprintf("Plugin Unsupported pluginType:%v", reflect.TypeOf(pl)))
 		}
 
 	}

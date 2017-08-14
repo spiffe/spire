@@ -1,4 +1,4 @@
-package helpers
+package pluginhelper
 
 import (
 	"bytes"

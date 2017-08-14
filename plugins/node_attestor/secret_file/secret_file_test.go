@@ -1,4 +1,4 @@
-package secretfile
+package main
 
 import (
 	"testing"
