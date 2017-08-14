@@ -1,4 +1,4 @@
-package secretfile
+package main
 
 import (
 	"github.com/hashicorp/go-plugin"
@@ -25,7 +25,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: workloadattestor.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"workloadattestor": workloadattestor.WorkloadAttestorPlugin{WorkloadAttestorImpl: &SecretFilePlugin{}},
+			"wla_secret_file": workloadattestor.WorkloadAttestorPlugin{WorkloadAttestorImpl: &SecretFilePlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

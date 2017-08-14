@@ -1,4 +1,4 @@
-package memory
+package main
 
 import (
 	"github.com/hashicorp/go-plugin"
@@ -29,7 +29,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: keymanager.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"keymanager": keymanager.KeyManagerPlugin{KeyManagerImpl: &MemoryPlugin{}},
+			"km_memory": keymanager.KeyManagerPlugin{KeyManagerImpl: &MemoryPlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

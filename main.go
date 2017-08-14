@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	cli "github.com/spiffe/node-agent/cli"
+	"github.com/spiffe/node-agent/cli"
 )
 
 func main() {

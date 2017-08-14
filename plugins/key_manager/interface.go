@@ -14,14 +14,10 @@ import (
 //Handshake is a common handshake that is shared by the plugin and host.
 var Handshake = plugin.HandshakeConfig{
 	ProtocolVersion:  1,
-	MagicCookieKey:   "keymanager_handshake",
-	MagicCookieValue: "keymanager",
+	MagicCookieKey:   "KeyManager",
+	MagicCookieValue: "KeyManager",
 }
 
-//PluginMap is the map of plugins we can dispense.
-var PluginMap = map[string]plugin.Plugin{
-	"keymanager": &KeyManagerPlugin{},
-}
 
 type KeyManager interface {
 	GenerateKeyPair(*proto.GenerateKeyPairRequest) (*proto.GenerateKeyPairResponse, error)

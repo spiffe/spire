@@ -1,4 +1,4 @@
-package secretfile
+package main
 
 import (
 	"github.com/hashicorp/go-plugin"
@@ -25,7 +25,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: nodeattestor.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"nodeattestor": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: &SecretFilePlugin{}},
+			"na_secret_file": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: &SecretFilePlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})
