@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#proto.ConfigureRequest)
+    * [ConfigureRequest](#node_agent_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#proto.ConfigureResponse)
+    * [ConfigureResponse](#node_agent_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoResponse)
   
   
   
@@ -21,18 +21,18 @@
 
 * [key_manager.proto](#key_manager.proto)
   
-    * [FetchPrivateKeyRequest](#proto.FetchPrivateKeyRequest)
+    * [FetchPrivateKeyRequest](#node_agent_proto.FetchPrivateKeyRequest)
   
-    * [FetchPrivateKeyResponse](#proto.FetchPrivateKeyResponse)
+    * [FetchPrivateKeyResponse](#node_agent_proto.FetchPrivateKeyResponse)
   
-    * [GenerateKeyPairRequest](#proto.GenerateKeyPairRequest)
+    * [GenerateKeyPairRequest](#node_agent_proto.GenerateKeyPairRequest)
   
-    * [GenerateKeyPairResponse](#proto.GenerateKeyPairResponse)
-  
-  
+    * [GenerateKeyPairResponse](#node_agent_proto.GenerateKeyPairResponse)
   
   
-    * [KeyManager](#proto.KeyManager)
+  
+  
+    * [KeyManager](#node_agent_proto.KeyManager)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -46,7 +46,7 @@
 
 
 
-<a name="proto.ConfigureRequest"/>
+<a name="node_agent_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -61,7 +61,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="proto.ConfigureResponse"/>
+<a name="node_agent_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -76,7 +76,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="proto.GetPluginInfoRequest"/>
+<a name="node_agent_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -86,7 +86,7 @@ Represents an empty request.
 
 
 
-<a name="proto.GetPluginInfoResponse"/>
+<a name="node_agent_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -125,7 +125,7 @@ Represents the plugin metadata.
 
 
 
-<a name="proto.FetchPrivateKeyRequest"/>
+<a name="node_agent_proto.FetchPrivateKeyRequest"/>
 
 ### FetchPrivateKeyRequest
 Represents an empty request.
@@ -135,7 +135,7 @@ Represents an empty request.
 
 
 
-<a name="proto.FetchPrivateKeyResponse"/>
+<a name="node_agent_proto.FetchPrivateKeyResponse"/>
 
 ### FetchPrivateKeyResponse
 Represents a private key.
@@ -150,7 +150,7 @@ Represents a private key.
 
 
 
-<a name="proto.GenerateKeyPairRequest"/>
+<a name="node_agent_proto.GenerateKeyPairRequest"/>
 
 ### GenerateKeyPairRequest
 Represents an empty request.
@@ -160,7 +160,7 @@ Represents an empty request.
 
 
 
-<a name="proto.GenerateKeyPairResponse"/>
+<a name="node_agent_proto.GenerateKeyPairResponse"/>
 
 ### GenerateKeyPairResponse
 Represents a public and private key pair.
@@ -182,17 +182,17 @@ Represents a public and private key pair.
  
 
 
-<a name="proto.KeyManager"/>
+<a name="node_agent_proto.KeyManager"/>
 
 ### KeyManager
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| GenerateKeyPair | [GenerateKeyPairRequest](#proto.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#proto.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware. |
-| FetchPrivateKey | [FetchPrivateKeyRequest](#proto.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#proto.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts. |
-| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
-| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
+| GenerateKeyPair | [GenerateKeyPairRequest](#node_agent_proto.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#node_agent_proto.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware. |
+| FetchPrivateKey | [FetchPrivateKeyRequest](#node_agent_proto.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#node_agent_proto.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts. |
+| Configure | [ConfigureRequest](#node_agent_proto.ConfigureRequest) | [ConfigureResponse](#node_agent_proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
+| GetPluginInfo | [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
 
  
 

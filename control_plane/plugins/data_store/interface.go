@@ -19,30 +19,30 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type DataStore interface {
-	CreateFederatedEntry(request *proto.CreateFederatedEntryRequest) (*proto.CreateFederatedEntryResponse, error)
-	ListFederatedEntry(request *proto.ListFederatedEntryRequest) (*proto.ListFederatedEntryResponse, error)
-	UpdateFederatedEntry(request *proto.UpdateFederatedEntryRequest) (*proto.UpdateFederatedEntryResponse, error)
-	DeleteFederatedEntry(request *proto.DeleteFederatedEntryRequest) (*proto.DeleteFederatedEntryResponse, error)
+	CreateFederatedEntry(request *control_plane_proto.CreateFederatedEntryRequest) (*control_plane_proto.CreateFederatedEntryResponse, error)
+	ListFederatedEntry(request *control_plane_proto.ListFederatedEntryRequest) (*control_plane_proto.ListFederatedEntryResponse, error)
+	UpdateFederatedEntry(request *control_plane_proto.UpdateFederatedEntryRequest) (*control_plane_proto.UpdateFederatedEntryResponse, error)
+	DeleteFederatedEntry(request *control_plane_proto.DeleteFederatedEntryRequest) (*control_plane_proto.DeleteFederatedEntryResponse, error)
 
-	CreateAttestedNodeEntry(request *proto.CreateAttestedNodeEntryRequest) (*proto.CreateAttestedNodeEntryResponse, error)
-	FetchAttestedNodeEntry(request *proto.FetchAttestedNodeEntryRequest) (*proto.FetchAttestedNodeEntryResponse, error)
-	FetchStaleNodeEntries(request *proto.FetchStaleNodeEntriesRequest) (*proto.FetchStaleNodeEntriesResponse, error)
-	UpdateAttestedNodeEntry(request *proto.UpdateAttestedNodeEntryRequest) (*proto.UpdateAttestedNodeEntryResponse, error)
-	DeleteAttestedNodeEntry(request *proto.DeleteAttestedNodeEntryRequest) (*proto.DeleteAttestedNodeEntryResponse, error)
+	CreateAttestedNodeEntry(request *control_plane_proto.CreateAttestedNodeEntryRequest) (*control_plane_proto.CreateAttestedNodeEntryResponse, error)
+	FetchAttestedNodeEntry(request *control_plane_proto.FetchAttestedNodeEntryRequest) (*control_plane_proto.FetchAttestedNodeEntryResponse, error)
+	FetchStaleNodeEntries(request *control_plane_proto.FetchStaleNodeEntriesRequest) (*control_plane_proto.FetchStaleNodeEntriesResponse, error)
+	UpdateAttestedNodeEntry(request *control_plane_proto.UpdateAttestedNodeEntryRequest) (*control_plane_proto.UpdateAttestedNodeEntryResponse, error)
+	DeleteAttestedNodeEntry(request *control_plane_proto.DeleteAttestedNodeEntryRequest) (*control_plane_proto.DeleteAttestedNodeEntryResponse, error)
 
-	CreateNodeResolverMapEntry(request *proto.CreateNodeResolverMapEntryRequest) (*proto.CreateNodeResolverMapEntryResponse, error)
-	FetchNodeResolverMapEntry(request *proto.FetchNodeResolverMapEntryRequest) (*proto.FetchNodeResolverMapEntryResponse, error)
-	DeleteNodeResolverMapEntry(request *proto.DeleteNodeResolverMapEntryRequest) (*proto.DeleteNodeResolverMapEntryResponse, error)
-	RectifyNodeResolverMapEntries(request *proto.RectifyNodeResolverMapEntriesRequest) (*proto.RectifyNodeResolverMapEntriesResponse, error)
+	CreateNodeResolverMapEntry(request *control_plane_proto.CreateNodeResolverMapEntryRequest) (*control_plane_proto.CreateNodeResolverMapEntryResponse, error)
+	FetchNodeResolverMapEntry(request *control_plane_proto.FetchNodeResolverMapEntryRequest) (*control_plane_proto.FetchNodeResolverMapEntryResponse, error)
+	DeleteNodeResolverMapEntry(request *control_plane_proto.DeleteNodeResolverMapEntryRequest) (*control_plane_proto.DeleteNodeResolverMapEntryResponse, error)
+	RectifyNodeResolverMapEntries(request *control_plane_proto.RectifyNodeResolverMapEntriesRequest) (*control_plane_proto.RectifyNodeResolverMapEntriesResponse, error)
 
-	CreateRegistrationEntry(request *proto.CreateRegistrationEntryRequest) (*proto.CreateRegistrationEntryResponse, error)
-	FetchRegistrationEntry(request *proto.FetchRegistrationEntryRequest) (*proto.FetchRegistrationEntryResponse, error)
-	UpdateRegistrationEntry(request *proto.UpdateRegistrationEntryRequest) (*proto.UpdateRegistrationEntryResponse, error)
-	DeleteRegistrationEntry(request *proto.DeleteRegistrationEntryRequest) (*proto.DeleteRegistrationEntryResponse, error)
+	CreateRegistrationEntry(request *control_plane_proto.CreateRegistrationEntryRequest) (*control_plane_proto.CreateRegistrationEntryResponse, error)
+	FetchRegistrationEntry(request *control_plane_proto.FetchRegistrationEntryRequest) (*control_plane_proto.FetchRegistrationEntryResponse, error)
+	UpdateRegistrationEntry(request *control_plane_proto.UpdateRegistrationEntryRequest) (*control_plane_proto.UpdateRegistrationEntryResponse, error)
+	DeleteRegistrationEntry(request *control_plane_proto.DeleteRegistrationEntryRequest) (*control_plane_proto.DeleteRegistrationEntryResponse, error)
 
-	ListParentIDEntries(request *proto.ListParentIDEntriesRequest) (*proto.ListParentIDEntriesResponse, error)
-	ListSelectorEntries(request *proto.ListSelectorEntriesRequest) (*proto.ListSelectorEntriesResponse, error)
-	ListSpiffeEntries(request *proto.ListSpiffeEntriesRequest) (*proto.ListSpiffeEntriesResponse, error)
+	ListParentIDEntries(request *control_plane_proto.ListParentIDEntriesRequest) (*control_plane_proto.ListParentIDEntriesResponse, error)
+	ListSelectorEntries(request *control_plane_proto.ListSelectorEntriesRequest) (*control_plane_proto.ListSelectorEntriesResponse, error)
+	ListSpiffeEntries(request *control_plane_proto.ListSpiffeEntriesRequest) (*control_plane_proto.ListSpiffeEntriesResponse, error)
 
 	Configure(request *common.ConfigureRequest) (*common.ConfigureResponse, error)
 	GetPluginInfo(request *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
@@ -61,10 +61,10 @@ func (p DataStorePlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}
 }
 
 func (p DataStorePlugin) GRPCServer(s *grpc.Server) error {
-	proto.RegisterDataStoreServer(s, &GRPCServer{DataStoreImpl: p.DataStoreImpl})
+	control_plane_proto.RegisterDataStoreServer(s, &GRPCServer{DataStoreImpl: p.DataStoreImpl})
 	return nil
 }
 
 func (p DataStorePlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: proto.NewDataStoreClient(c)}, nil
+	return &GRPCClient{client: control_plane_proto.NewDataStoreClient(c)}, nil
 }

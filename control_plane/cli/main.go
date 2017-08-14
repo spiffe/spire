@@ -1,4 +1,4 @@
-package cli
+package control_plane_cli
 
 import (
 	"log"

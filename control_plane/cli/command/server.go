@@ -78,7 +78,7 @@ func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 
 		handler := server.MakeGRPCServer(endpoints)
 		gRPCServer := grpc.NewServer()
-		proto.RegisterServerServer(gRPCServer, handler)
+		control_plane_proto.RegisterServerServer(gRPCServer, handler)
 		errChan <- gRPCServer.Serve(listener)
 	}()
 

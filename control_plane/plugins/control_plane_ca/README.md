@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#proto.ConfigureRequest)
+    * [ConfigureRequest](#control_plane_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#proto.ConfigureResponse)
+    * [ConfigureResponse](#control_plane_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoResponse)
   
   
   
@@ -21,26 +21,26 @@
 
 * [control_plane_ca.proto](#control_plane_ca.proto)
   
-    * [FetchCertificateRequest](#proto.FetchCertificateRequest)
+    * [FetchCertificateRequest](#control_plane_proto.FetchCertificateRequest)
   
-    * [FetchCertificateResponse](#proto.FetchCertificateResponse)
+    * [FetchCertificateResponse](#control_plane_proto.FetchCertificateResponse)
   
-    * [GenerateCsrRequest](#proto.GenerateCsrRequest)
+    * [GenerateCsrRequest](#control_plane_proto.GenerateCsrRequest)
   
-    * [GenerateCsrResponse](#proto.GenerateCsrResponse)
+    * [GenerateCsrResponse](#control_plane_proto.GenerateCsrResponse)
   
-    * [LoadCertificateRequest](#proto.LoadCertificateRequest)
+    * [LoadCertificateRequest](#control_plane_proto.LoadCertificateRequest)
   
-    * [LoadCertificateResponse](#proto.LoadCertificateResponse)
+    * [LoadCertificateResponse](#control_plane_proto.LoadCertificateResponse)
   
-    * [SignCsrRequest](#proto.SignCsrRequest)
+    * [SignCsrRequest](#control_plane_proto.SignCsrRequest)
   
-    * [SignCsrResponse](#proto.SignCsrResponse)
-  
-  
+    * [SignCsrResponse](#control_plane_proto.SignCsrResponse)
   
   
-    * [ControlPlaneCA](#proto.ControlPlaneCA)
+  
+  
+    * [ControlPlaneCA](#control_plane_proto.ControlPlaneCA)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -54,7 +54,7 @@
 
 
 
-<a name="proto.ConfigureRequest"/>
+<a name="control_plane_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -69,7 +69,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="proto.ConfigureResponse"/>
+<a name="control_plane_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -84,7 +84,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="proto.GetPluginInfoRequest"/>
+<a name="control_plane_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -94,7 +94,7 @@ Represents an empty request.
 
 
 
-<a name="proto.GetPluginInfoResponse"/>
+<a name="control_plane_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -134,7 +134,7 @@ Responsible for processing CSR requests from Node Agents if the Control Plane is
 This plugin is also responsible for generating the CSR necessary for an intermediate signing cert, as well as storing the key in memory or hardware.
 
 
-<a name="proto.FetchCertificateRequest"/>
+<a name="control_plane_proto.FetchCertificateRequest"/>
 
 ### FetchCertificateRequest
 Represents an empty request.
@@ -144,7 +144,7 @@ Represents an empty request.
 
 
 
-<a name="proto.FetchCertificateResponse"/>
+<a name="control_plane_proto.FetchCertificateResponse"/>
 
 ### FetchCertificateResponse
 Represents a response with a stored intermediate certificate.
@@ -159,7 +159,7 @@ Represents a response with a stored intermediate certificate.
 
 
 
-<a name="proto.GenerateCsrRequest"/>
+<a name="control_plane_proto.GenerateCsrRequest"/>
 
 ### GenerateCsrRequest
 Represents an empty request.
@@ -169,7 +169,7 @@ Represents an empty request.
 
 
 
-<a name="proto.GenerateCsrResponse"/>
+<a name="control_plane_proto.GenerateCsrResponse"/>
 
 ### GenerateCsrResponse
 Represents a response with a certificate signing request.
@@ -184,7 +184,7 @@ Represents a response with a certificate signing request.
 
 
 
-<a name="proto.LoadCertificateRequest"/>
+<a name="control_plane_proto.LoadCertificateRequest"/>
 
 ### LoadCertificateRequest
 Represents a request with a signed intermediate certificate.
@@ -199,7 +199,7 @@ Represents a request with a signed intermediate certificate.
 
 
 
-<a name="proto.LoadCertificateResponse"/>
+<a name="control_plane_proto.LoadCertificateResponse"/>
 
 ### LoadCertificateResponse
 Represents an empty response.
@@ -209,7 +209,7 @@ Represents an empty response.
 
 
 
-<a name="proto.SignCsrRequest"/>
+<a name="control_plane_proto.SignCsrRequest"/>
 
 ### SignCsrRequest
 Represents a request with a certificate signing request.
@@ -224,7 +224,7 @@ Represents a request with a certificate signing request.
 
 
 
-<a name="proto.SignCsrResponse"/>
+<a name="control_plane_proto.SignCsrResponse"/>
 
 ### SignCsrResponse
 Represents a response with a signed certificate.
@@ -245,19 +245,19 @@ Represents a response with a signed certificate.
  
 
 
-<a name="proto.ControlPlaneCA"/>
+<a name="control_plane_proto.ControlPlaneCA"/>
 
 ### ControlPlaneCA
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| SignCsr | [SignCsrRequest](#proto.SignCsrRequest) | [SignCsrResponse](#proto.SignCsrRequest) | Interface will take in a CSR and sign it with the stored intermediate certificate. |
-| GenerateCsr | [GenerateCsrRequest](#proto.GenerateCsrRequest) | [GenerateCsrResponse](#proto.GenerateCsrRequest) | Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. |
-| FetchCertificate | [FetchCertificateRequest](#proto.FetchCertificateRequest) | [FetchCertificateResponse](#proto.FetchCertificateRequest) | Used to read the stored Intermediate CP cert. |
-| LoadCertificate | [LoadCertificateRequest](#proto.LoadCertificateRequest) | [LoadCertificateResponse](#proto.LoadCertificateRequest) | Used for setting/storing the signed intermediate certificate. |
+| Configure | [ConfigureRequest](#control_plane_proto.ConfigureRequest) | [ConfigureResponse](#control_plane_proto.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| SignCsr | [SignCsrRequest](#control_plane_proto.SignCsrRequest) | [SignCsrResponse](#control_plane_proto.SignCsrRequest) | Interface will take in a CSR and sign it with the stored intermediate certificate. |
+| GenerateCsr | [GenerateCsrRequest](#control_plane_proto.GenerateCsrRequest) | [GenerateCsrResponse](#control_plane_proto.GenerateCsrRequest) | Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. |
+| FetchCertificate | [FetchCertificateRequest](#control_plane_proto.FetchCertificateRequest) | [FetchCertificateResponse](#control_plane_proto.FetchCertificateRequest) | Used to read the stored Intermediate CP cert. |
+| LoadCertificate | [LoadCertificateRequest](#control_plane_proto.LoadCertificateRequest) | [LoadCertificateResponse](#control_plane_proto.LoadCertificateRequest) | Used for setting/storing the signed intermediate certificate. |
 
  
 

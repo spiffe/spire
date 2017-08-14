@@ -17,15 +17,15 @@ func (SecretFilePlugin) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
 	return nil, nil
 }
 
-func (SecretFilePlugin) Attest(attestedData *proto.AttestRequest) (*proto.AttestResponse, error) {
+func (SecretFilePlugin) Attest(attestedData *control_plane_proto.AttestRequest) (*control_plane_proto.AttestResponse, error) {
 	return nil, nil
 }
 
 func main() {
 	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: nodeattestor.Handshake,
+		HandshakeConfig: control_plane_nodeattestor.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"na_secret_file": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: &SecretFilePlugin{}},
+			"na_secret_file": control_plane_nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: &SecretFilePlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

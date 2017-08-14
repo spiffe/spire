@@ -20,13 +20,13 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInf
 	return response, err
 }
 
-func (m *GRPCServer) SubmitCSR(ctx context.Context, req *proto.SubmitCSRRequest) (*proto.SubmitCSRResponse, error) {
+func (m *GRPCServer) SubmitCSR(ctx context.Context, req *control_plane_proto.SubmitCSRRequest) (*control_plane_proto.SubmitCSRResponse, error) {
 	response, err := m.UpstreamCaImpl.SubmitCSR(req.Csr)
 	return response, err
 }
 
 type GRPCClient struct {
-	client proto.UpstreamCAClient
+	client control_plane_proto.UpstreamCAClient
 }
 
 func (m *GRPCClient) Configure(configuration string) ([]string, error) {
@@ -42,7 +42,7 @@ func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
 	return response, err
 }
 
-func (m *GRPCClient) SubmitCSR(csr []byte) (*proto.SubmitCSRResponse, error) {
-	response, err := m.client.SubmitCSR(context.Background(), &proto.SubmitCSRRequest{Csr: csr})
+func (m *GRPCClient) SubmitCSR(csr []byte) (*control_plane_proto.SubmitCSRResponse, error) {
+	response, err := m.client.SubmitCSR(context.Background(), &control_plane_proto.SubmitCSRRequest{Csr: csr})
 	return response, err
 }

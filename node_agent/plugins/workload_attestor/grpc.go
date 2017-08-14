@@ -10,7 +10,7 @@ type GRPCServer struct {
 	WorkloadAttestorImpl WorkloadAttestor
 }
 
-func (m *GRPCServer) Attest(ctx context.Context, req *proto.AttestRequest) (*proto.AttestResponse, error) {
+func (m *GRPCServer) Attest(ctx context.Context, req *node_agent_proto.AttestRequest) (*node_agent_proto.AttestResponse, error) {
 	response, err := m.WorkloadAttestorImpl.Attest(req)
 	return response, err
 }
@@ -26,10 +26,10 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInf
 }
 
 type GRPCClient struct {
-	client proto.WorkloadAttestorClient
+	client node_agent_proto.WorkloadAttestorClient
 }
 
-func (m *GRPCClient) Attest(req *proto.AttestRequest) (*proto.AttestResponse, error) {
+func (m *GRPCClient) Attest(req *node_agent_proto.AttestRequest) (*node_agent_proto.AttestResponse, error) {
 	res, err := m.client.Attest(context.Background(), req)
 	return res, err
 }

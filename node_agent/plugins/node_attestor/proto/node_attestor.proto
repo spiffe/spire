@@ -2,7 +2,7 @@
 The plugin will be responsible to retrieve an identity document or data associated with the physical node.
 This data will be used when calling the NodeAPI on the Control Plane.*/
 syntax = "proto3";
-package proto;
+package node_agent_proto;
 
 import public "github.com/spiffe/sri/node_agent/plugins/common/proto/common.proto";
 

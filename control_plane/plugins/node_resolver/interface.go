@@ -20,7 +20,7 @@ var Handshake = plugin.HandshakeConfig{
 type NodeResolution interface {
 	Configure(config string) ([]string, error)
 	GetPluginInfo() (*common.GetPluginInfoResponse, error)
-	Resolve([]string) (map[string]*proto.NodeResolutionList, error)
+	Resolve([]string) (map[string]*control_plane_proto.NodeResolutionList, error)
 }
 
 type NodeResolutionPlugin struct {
@@ -36,10 +36,10 @@ func (p NodeResolutionPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interf
 }
 
 func (p NodeResolutionPlugin) GRPCServer(s *grpc.Server) error {
-	proto.RegisterNodeResolverServer(s, &GRPCServer{NodeResolutionImpl: p.NodeResolutionImpl})
+	control_plane_proto.RegisterNodeResolverServer(s, &GRPCServer{NodeResolutionImpl: p.NodeResolutionImpl})
 	return nil
 }
 
 func (p NodeResolutionPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: proto.NewNodeResolverClient(c)}, nil
+	return &GRPCClient{client: control_plane_proto.NewNodeResolverClient(c)}, nil
 }

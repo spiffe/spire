@@ -9,12 +9,12 @@ import (
 
 type MemoryPlugin struct{}
 
-func (MemoryPlugin) GenerateKeyPair(*proto.GenerateKeyPairRequest) (*proto.GenerateKeyPairResponse, error) {
-	return &proto.GenerateKeyPairResponse{}, nil
+func (MemoryPlugin) GenerateKeyPair(*node_agent_proto.GenerateKeyPairRequest) (*node_agent_proto.GenerateKeyPairResponse, error) {
+	return &node_agent_proto.GenerateKeyPairResponse{}, nil
 }
 
-func (MemoryPlugin) FetchPrivateKey(*proto.FetchPrivateKeyRequest) (*proto.FetchPrivateKeyResponse, error) {
-	return &proto.FetchPrivateKeyResponse{}, nil
+func (MemoryPlugin) FetchPrivateKey(*node_agent_proto.FetchPrivateKeyRequest) (*node_agent_proto.FetchPrivateKeyResponse, error) {
+	return &node_agent_proto.FetchPrivateKeyResponse{}, nil
 }
 
 func (MemoryPlugin) Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error) {

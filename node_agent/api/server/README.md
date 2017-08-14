@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#proto.ConfigureRequest)
+    * [ConfigureRequest](#node_agent_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#proto.ConfigureResponse)
+    * [ConfigureResponse](#node_agent_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoResponse)
   
   
   
@@ -21,18 +21,18 @@
 
 * [server.proto](#server.proto)
   
-    * [PluginInfoReply](#proto.PluginInfoReply)
+    * [PluginInfoReply](#node_agent_proto.PluginInfoReply)
   
-    * [PluginInfoRequest](#proto.PluginInfoRequest)
+    * [PluginInfoRequest](#node_agent_proto.PluginInfoRequest)
   
-    * [StopReply](#proto.StopReply)
+    * [StopReply](#node_agent_proto.StopReply)
   
-    * [StopRequest](#proto.StopRequest)
-  
-  
+    * [StopRequest](#node_agent_proto.StopRequest)
   
   
-    * [Server](#proto.Server)
+  
+  
+    * [Server](#node_agent_proto.Server)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -46,7 +46,7 @@
 
 
 
-<a name="proto.ConfigureRequest"/>
+<a name="node_agent_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -61,7 +61,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="proto.ConfigureResponse"/>
+<a name="node_agent_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -76,7 +76,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="proto.GetPluginInfoRequest"/>
+<a name="node_agent_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -86,7 +86,7 @@ Represents an empty request.
 
 
 
-<a name="proto.GetPluginInfoResponse"/>
+<a name="node_agent_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -125,7 +125,7 @@ Represents the plugin metadata.
 
 
 
-<a name="proto.PluginInfoReply"/>
+<a name="node_agent_proto.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -133,14 +133,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#proto.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="proto.PluginInfoRequest"/>
+<a name="node_agent_proto.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -150,7 +150,7 @@ Represents the plugin metadata.
 
 
 
-<a name="proto.StopReply"/>
+<a name="node_agent_proto.StopReply"/>
 
 ### StopReply
 
@@ -160,7 +160,7 @@ Represents the plugin metadata.
 
 
 
-<a name="proto.StopRequest"/>
+<a name="node_agent_proto.StopRequest"/>
 
 ### StopRequest
 
@@ -176,15 +176,15 @@ Represents the plugin metadata.
  
 
 
-<a name="proto.Server"/>
+<a name="node_agent_proto.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#proto.StopRequest) | [StopReply](#proto.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#proto.PluginInfoRequest) | [PluginInfoReply](#proto.PluginInfoRequest) |  |
+| Stop | [StopRequest](#node_agent_proto.StopRequest) | [StopReply](#node_agent_proto.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#node_agent_proto.PluginInfoRequest) | [PluginInfoReply](#node_agent_proto.PluginInfoRequest) |  |
 
  
 

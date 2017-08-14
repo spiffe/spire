@@ -17,8 +17,8 @@ func (MemoryPlugin) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
 	return nil, nil
 }
 
-func (MemoryPlugin) SubmitCSR(csr []byte) (*proto.SubmitCSRResponse, error) {
-	return &proto.SubmitCSRResponse{}, nil
+func (MemoryPlugin) SubmitCSR(csr []byte) (*control_plane_proto.SubmitCSRResponse, error) {
+	return &control_plane_proto.SubmitCSRResponse{}, nil
 }
 
 func main() {

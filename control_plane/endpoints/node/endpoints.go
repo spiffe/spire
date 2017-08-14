@@ -18,28 +18,28 @@ type Endpoints struct {
 	FetchFederatedBundleEndpoint endpoint.Endpoint
 }
 type FetchBaseSVIDRequest struct {
-	Request pb.FetchBaseSVIDRequest
+	Request control_plane_proto.FetchBaseSVIDRequest
 }
 type FetchBaseSVIDResponse struct {
-	Response pb.FetchBaseSVIDResponse
+	Response control_plane_proto.FetchBaseSVIDResponse
 }
 type FetchSVIDRequest struct {
-	Request pb.FetchSVIDRequest
+	Request control_plane_proto.FetchSVIDRequest
 }
 type FetchSVIDResponse struct {
-	Response pb.FetchSVIDResponse
+	Response control_plane_proto.FetchSVIDResponse
 }
 type FetchCPBundleRequest struct {
-	Request pb.FetchCPBundleRequest
+	Request control_plane_proto.FetchCPBundleRequest
 }
 type FetchCPBundleResponse struct {
-	Response pb.FetchCPBundleResponse
+	Response control_plane_proto.FetchCPBundleResponse
 }
 type FetchFederatedBundleRequest struct {
-	Request pb.FetchFederatedBundleRequest
+	Request control_plane_proto.FetchFederatedBundleRequest
 }
 type FetchFederatedBundleResponse struct {
-	Response pb.FetchFederatedBundleResponse
+	Response control_plane_proto.FetchFederatedBundleResponse
 }
 
 func NewEndpoint(svc NodeService) (ep Endpoints) {

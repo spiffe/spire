@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#proto.ConfigureRequest)
+    * [ConfigureRequest](#control_plane_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#proto.ConfigureResponse)
+    * [ConfigureResponse](#control_plane_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoResponse)
   
   
   
@@ -21,22 +21,22 @@
 
 * [node_resolver.proto](#node_resolver.proto)
   
-    * [Empty](#proto.Empty)
+    * [Empty](#control_plane_proto.Empty)
   
-    * [NodeResolution](#proto.NodeResolution)
+    * [NodeResolution](#control_plane_proto.NodeResolution)
   
-    * [NodeResolutionList](#proto.NodeResolutionList)
+    * [NodeResolutionList](#control_plane_proto.NodeResolutionList)
   
-    * [ResolveRequest](#proto.ResolveRequest)
+    * [ResolveRequest](#control_plane_proto.ResolveRequest)
   
-    * [ResolveResponse](#proto.ResolveResponse)
+    * [ResolveResponse](#control_plane_proto.ResolveResponse)
   
-    * [ResolveResponse.MapEntry](#proto.ResolveResponse.MapEntry)
-  
-  
+    * [ResolveResponse.MapEntry](#control_plane_proto.ResolveResponse.MapEntry)
   
   
-    * [NodeResolver](#proto.NodeResolver)
+  
+  
+    * [NodeResolver](#control_plane_proto.NodeResolver)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -50,7 +50,7 @@
 
 
 
-<a name="proto.ConfigureRequest"/>
+<a name="control_plane_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -65,7 +65,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="proto.ConfigureResponse"/>
+<a name="control_plane_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -80,7 +80,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="proto.GetPluginInfoRequest"/>
+<a name="control_plane_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -90,7 +90,7 @@ Represents an empty request.
 
 
 
-<a name="proto.GetPluginInfoResponse"/>
+<a name="control_plane_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -129,7 +129,7 @@ Represents the plugin metadata.
 Resolves the derived selectors for a given Node Agent. This mapping will be stored, and used to further derive which workloads the Node Agent is authorized to run.
 
 
-<a name="proto.Empty"/>
+<a name="control_plane_proto.Empty"/>
 
 ### Empty
 Represents an empty message
@@ -139,7 +139,7 @@ Represents an empty message
 
 
 
-<a name="proto.NodeResolution"/>
+<a name="control_plane_proto.NodeResolution"/>
 
 ### NodeResolution
 Represents a a type with a selectorType and a selector.
@@ -155,7 +155,7 @@ Represents a a type with a selectorType and a selector.
 
 
 
-<a name="proto.NodeResolutionList"/>
+<a name="control_plane_proto.NodeResolutionList"/>
 
 ### NodeResolutionList
 Represents a type with a list of NodeResolution.
@@ -163,14 +163,14 @@ Represents a type with a list of NodeResolution.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| list | [NodeResolution](#proto.NodeResolution) | repeated | A list of NodeResolution. |
+| list | [NodeResolution](#control_plane_proto.NodeResolution) | repeated | A list of NodeResolution. |
 
 
 
 
 
 
-<a name="proto.ResolveRequest"/>
+<a name="control_plane_proto.ResolveRequest"/>
 
 ### ResolveRequest
 Represents a request with a list of BaseSPIFFEIDs.
@@ -185,7 +185,7 @@ Represents a request with a list of BaseSPIFFEIDs.
 
 
 
-<a name="proto.ResolveResponse"/>
+<a name="control_plane_proto.ResolveResponse"/>
 
 ### ResolveResponse
 Represents a response with a map of SPIFFE ID to a list of Noderesolution.
@@ -193,14 +193,14 @@ Represents a response with a map of SPIFFE ID to a list of Noderesolution.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [ResolveResponse.MapEntry](#proto.ResolveResponse.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; NodeResolutionList. |
+| map | [ResolveResponse.MapEntry](#control_plane_proto.ResolveResponse.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; NodeResolutionList. |
 
 
 
 
 
 
-<a name="proto.ResolveResponse.MapEntry"/>
+<a name="control_plane_proto.ResolveResponse.MapEntry"/>
 
 ### ResolveResponse.MapEntry
 
@@ -209,7 +209,7 @@ Represents a response with a map of SPIFFE ID to a list of Noderesolution.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [NodeResolutionList](#proto.NodeResolutionList) |  |  |
+| value | [NodeResolutionList](#control_plane_proto.NodeResolutionList) |  |  |
 
 
 
@@ -222,16 +222,16 @@ Represents a response with a map of SPIFFE ID to a list of Noderesolution.
  
 
 
-<a name="proto.NodeResolver"/>
+<a name="control_plane_proto.NodeResolver"/>
 
 ### NodeResolver
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [ConfigureRequest](#proto.ConfigureRequest) | [ConfigureResponse](#proto.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [GetPluginInfoRequest](#proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| Resolve | [ResolveRequest](#proto.ResolveRequest) | [ResolveResponse](#proto.ResolveRequest) | Retrieves a list of properties reflecting the current state of a particular node(s). |
+| Configure | [ConfigureRequest](#control_plane_proto.ConfigureRequest) | [ConfigureResponse](#control_plane_proto.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| Resolve | [ResolveRequest](#control_plane_proto.ResolveRequest) | [ResolveResponse](#control_plane_proto.ResolveRequest) | Retrieves a list of properties reflecting the current state of a particular node(s). |
 
  
 

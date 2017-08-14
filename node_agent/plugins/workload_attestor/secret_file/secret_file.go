@@ -9,8 +9,8 @@ import (
 
 type SecretFilePlugin struct{}
 
-func (SecretFilePlugin) Attest(*proto.AttestRequest) (*proto.AttestResponse, error) {
-	return &proto.AttestResponse{}, nil
+func (SecretFilePlugin) Attest(*node_agent_proto.AttestRequest) (*node_agent_proto.AttestResponse, error) {
+	return &node_agent_proto.AttestResponse{}, nil
 }
 
 func (SecretFilePlugin) Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error) {

@@ -5,7 +5,7 @@ to retrieve the list of identities that are allowed to run on that node,
 and to retrieve SVIDs by presenting certificate signing requests to the Control Plane.
 */
 syntax = "proto3";
-package pb;
+package control_plane_proto;
 
 /**A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.*/
 message RegistrationEntry {

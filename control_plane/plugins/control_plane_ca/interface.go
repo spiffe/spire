@@ -40,10 +40,10 @@ func (p ControlPlaneCaPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interf
 }
 
 func (p ControlPlaneCaPlugin) GRPCServer(s *grpc.Server) error {
-	proto.RegisterControlPlaneCAServer(s, &GRPCServer{ControlPlaneCaImpl: p.ControlPlaneCaImpl})
+	control_plane_proto.RegisterControlPlaneCAServer(s, &GRPCServer{ControlPlaneCaImpl: p.ControlPlaneCaImpl})
 	return nil
 }
 
 func (p ControlPlaneCaPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: proto.NewControlPlaneCAClient(c)}, nil
+	return &GRPCClient{client: control_plane_proto.NewControlPlaneCAClient(c)}, nil
 }

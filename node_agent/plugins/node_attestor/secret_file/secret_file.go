@@ -9,8 +9,8 @@ import (
 
 type SecretFilePlugin struct{}
 
-func (SecretFilePlugin) FetchAttestationData(*proto.FetchAttestationDataRequest) (*proto.FetchAttestationDataResponse, error) {
-	return &proto.FetchAttestationDataResponse{}, nil
+func (SecretFilePlugin) FetchAttestationData(*node_agent_proto.FetchAttestationDataRequest) (*node_agent_proto.FetchAttestationDataResponse, error) {
+	return &node_agent_proto.FetchAttestationDataResponse{}, nil
 }
 
 func (SecretFilePlugin) Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error) {

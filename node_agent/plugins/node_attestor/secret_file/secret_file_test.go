@@ -10,8 +10,8 @@ import (
 
 func TestSecretFile_FetchAttestationData(t *testing.T) {
 	var plugin SecretFilePlugin
-	data, e := plugin.FetchAttestationData(&proto.FetchAttestationDataRequest{})
-	assert.Equal(t, &proto.FetchAttestationDataResponse{}, data)
+	data, e := plugin.FetchAttestationData(&node_agent_proto.FetchAttestationDataRequest{})
+	assert.Equal(t, &node_agent_proto.FetchAttestationDataResponse{}, data)
 	assert.Equal(t, nil, e)
 }
 

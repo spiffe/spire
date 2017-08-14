@@ -10,8 +10,8 @@ import (
 
 func TestSecretFile_Attest(t *testing.T) {
 	var plugin SecretFilePlugin
-	data, e := plugin.Attest(&proto.AttestRequest{})
-	assert.Equal(t, &proto.AttestResponse{}, data)
+	data, e := plugin.Attest(&node_agent_proto.AttestRequest{})
+	assert.Equal(t, &node_agent_proto.AttestResponse{}, data)
 	assert.Equal(t, nil, e)
 }
 

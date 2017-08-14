@@ -5,14 +5,14 @@ import (
 	"log"
 	"time"
 
-	proto "github.com/spiffe/sri/node_agent/api/server/proto"
+	node_agent_proto "github.com/spiffe/sri/node_agent/api/server/proto"
 	"github.com/spiffe/sri/helpers"
 	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
 )
 
 type ServerService interface {
-	Stop(ctx context.Context, request proto.StopRequest) (response proto.StopReply, err error)
-	PluginInfo(ctx context.Context, request proto.PluginInfoRequest) (response proto.PluginInfoReply, err error)
+	Stop(ctx context.Context, request node_agent_proto.StopRequest) (response node_agent_proto.StopReply, err error)
+	PluginInfo(ctx context.Context, request node_agent_proto.PluginInfoRequest) (response node_agent_proto.PluginInfoReply, err error)
 }
 
 type stubServerService struct {
@@ -37,7 +37,7 @@ func NewService(pluginCatalog *pluginhelper.PluginCatalog, errorChan chan error)
 	return s
 }
 
-func (se *stubServerService) Stop(ctx context.Context, request proto.StopRequest) (response proto.StopReply, err error) {
+func (se *stubServerService) Stop(ctx context.Context, request node_agent_proto.StopRequest) (response node_agent_proto.StopReply, err error) {
 	log.Println("Received stop message.")
 	go func() {
 		time.Sleep(2 * time.Second)
@@ -46,7 +46,7 @@ func (se *stubServerService) Stop(ctx context.Context, request proto.StopRequest
 	return response, err
 }
 
-func (se *stubServerService) PluginInfo(ctx context.Context, request proto.PluginInfoRequest) (response proto.PluginInfoReply, err error) {
+func (se *stubServerService) PluginInfo(ctx context.Context, request node_agent_proto.PluginInfoRequest) (response node_agent_proto.PluginInfoReply, err error) {
 	for _, c := range se.PluginCatalog.PluginConfigs {
 		info := &common.GetPluginInfoResponse{
 			Name: c.PluginName,

@@ -1,5 +1,5 @@
 syntax = "proto3";
-package proto;
+package node_agent_proto;
 
 /** Represents the plugin-specific configuration string.*/
 message ConfigureRequest {

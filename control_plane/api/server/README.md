@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#proto.ConfigureRequest)
+    * [ConfigureRequest](#control_plane_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#proto.ConfigureResponse)
+    * [ConfigureResponse](#control_plane_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoResponse)
   
   
   
@@ -21,18 +21,18 @@
 
 * [server.proto](#server.proto)
   
-    * [PluginInfoReply](#proto.PluginInfoReply)
+    * [PluginInfoReply](#control_plane_proto.PluginInfoReply)
   
-    * [PluginInfoRequest](#proto.PluginInfoRequest)
+    * [PluginInfoRequest](#control_plane_proto.PluginInfoRequest)
   
-    * [StopReply](#proto.StopReply)
+    * [StopReply](#control_plane_proto.StopReply)
   
-    * [StopRequest](#proto.StopRequest)
-  
-  
+    * [StopRequest](#control_plane_proto.StopRequest)
   
   
-    * [Server](#proto.Server)
+  
+  
+    * [Server](#control_plane_proto.Server)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -46,7 +46,7 @@
 
 
 
-<a name="proto.ConfigureRequest"/>
+<a name="control_plane_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -61,7 +61,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="proto.ConfigureResponse"/>
+<a name="control_plane_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -76,7 +76,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="proto.GetPluginInfoRequest"/>
+<a name="control_plane_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -86,7 +86,7 @@ Represents an empty request.
 
 
 
-<a name="proto.GetPluginInfoResponse"/>
+<a name="control_plane_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -125,7 +125,7 @@ Represents the plugin metadata.
 
 
 
-<a name="proto.PluginInfoReply"/>
+<a name="control_plane_proto.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -133,14 +133,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#proto.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="proto.PluginInfoRequest"/>
+<a name="control_plane_proto.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -150,7 +150,7 @@ Represents the plugin metadata.
 
 
 
-<a name="proto.StopReply"/>
+<a name="control_plane_proto.StopReply"/>
 
 ### StopReply
 
@@ -160,7 +160,7 @@ Represents the plugin metadata.
 
 
 
-<a name="proto.StopRequest"/>
+<a name="control_plane_proto.StopRequest"/>
 
 ### StopRequest
 
@@ -176,15 +176,15 @@ Represents the plugin metadata.
  
 
 
-<a name="proto.Server"/>
+<a name="control_plane_proto.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#proto.StopRequest) | [StopReply](#proto.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#proto.PluginInfoRequest) | [PluginInfoReply](#proto.PluginInfoRequest) |  |
+| Stop | [StopRequest](#control_plane_proto.StopRequest) | [StopReply](#control_plane_proto.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#control_plane_proto.PluginInfoRequest) | [PluginInfoReply](#control_plane_proto.PluginInfoRequest) |  |
 
  
 

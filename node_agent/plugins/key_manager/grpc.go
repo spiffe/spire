@@ -10,12 +10,12 @@ type GRPCServer struct {
 	KeyManagerImpl KeyManager
 }
 
-func (m *GRPCServer) GenerateKeyPair(ctx context.Context, req *proto.GenerateKeyPairRequest) (*proto.GenerateKeyPairResponse, error) {
+func (m *GRPCServer) GenerateKeyPair(ctx context.Context, req *node_agent_proto.GenerateKeyPairRequest) (*node_agent_proto.GenerateKeyPairResponse, error) {
 	response, err := m.KeyManagerImpl.GenerateKeyPair(req)
 	return response, err
 }
 
-func (m *GRPCServer) FetchPrivateKey(ctx context.Context, req *proto.FetchPrivateKeyRequest) (*proto.FetchPrivateKeyResponse, error) {
+func (m *GRPCServer) FetchPrivateKey(ctx context.Context, req *node_agent_proto.FetchPrivateKeyRequest) (*node_agent_proto.FetchPrivateKeyResponse, error) {
 	response, err := m.KeyManagerImpl.FetchPrivateKey(req)
 	return response, err
 }
@@ -31,15 +31,15 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInf
 }
 
 type GRPCClient struct {
-	client proto.KeyManagerClient
+	client node_agent_proto.KeyManagerClient
 }
 
-func (m *GRPCClient) GenerateKeyPair(req *proto.GenerateKeyPairRequest) (*proto.GenerateKeyPairResponse, error) {
+func (m *GRPCClient) GenerateKeyPair(req *node_agent_proto.GenerateKeyPairRequest) (*node_agent_proto.GenerateKeyPairResponse, error) {
 	res, err := m.client.GenerateKeyPair(context.Background(), req)
 	return res, err
 }
 
-func (m *GRPCClient) FetchPrivateKey(req *proto.FetchPrivateKeyRequest) (*proto.FetchPrivateKeyResponse, error) {
+func (m *GRPCClient) FetchPrivateKey(req *node_agent_proto.FetchPrivateKeyRequest) (*node_agent_proto.FetchPrivateKeyResponse, error) {
 	res, err := m.client.FetchPrivateKey(context.Background(), req)
 	return res, err
 }

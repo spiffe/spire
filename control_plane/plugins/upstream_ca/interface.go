@@ -20,7 +20,7 @@ var Handshake = plugin.HandshakeConfig{
 type UpstreamCa interface {
 	Configure(config string) ([]string, error)
 	GetPluginInfo() (*common.GetPluginInfoResponse, error)
-	SubmitCSR([]byte) (*proto.SubmitCSRResponse, error)
+	SubmitCSR([]byte) (*control_plane_proto.SubmitCSRResponse, error)
 }
 
 type UpstreamCaPlugin struct {
@@ -36,10 +36,10 @@ func (p UpstreamCaPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{
 }
 
 func (p UpstreamCaPlugin) GRPCServer(s *grpc.Server) error {
-	proto.RegisterUpstreamCAServer(s, &GRPCServer{UpstreamCaImpl: p.UpstreamCaImpl})
+	control_plane_proto.RegisterUpstreamCAServer(s, &GRPCServer{UpstreamCaImpl: p.UpstreamCaImpl})
 	return nil
 }
 
 func (p UpstreamCaPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: proto.NewUpstreamCAClient(c)}, nil
+	return &GRPCClient{client: control_plane_proto.NewUpstreamCAClient(c)}, nil
 }

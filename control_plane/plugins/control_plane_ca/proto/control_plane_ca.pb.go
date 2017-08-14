@@ -2,7 +2,7 @@
 // source: control_plane_ca.proto
 
 /*
-Package proto is a generated protocol buffer package.
+Package control_plane_proto is a generated protocol buffer package.
 
 It is generated from these files:
 	control_plane_ca.proto
@@ -17,12 +17,12 @@ It has these top-level messages:
 	LoadCertificateRequest
 	LoadCertificateResponse
 */
-package proto
+package control_plane_proto
 
-import proto1 "github.com/golang/protobuf/proto"
+import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
-import proto2 "github.com/spiffe/sri/control_plane/plugins/common/proto"
+import control_plane_proto1 "github.com/spiffe/sri/control_plane/plugins/common/proto"
 
 import (
 	context "golang.org/x/net/context"
@@ -30,7 +30,7 @@ import (
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
-var _ = proto1.Marshal
+var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
@@ -38,63 +38,75 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto1.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 // ConfigureRequest from public import github.com/spiffe/sri/control_plane/plugins/common/proto/common.proto
-type ConfigureRequest proto2.ConfigureRequest
+type ConfigureRequest control_plane_proto1.ConfigureRequest
 
-func (m *ConfigureRequest) Reset()         { (*proto2.ConfigureRequest)(m).Reset() }
-func (m *ConfigureRequest) String() string { return (*proto2.ConfigureRequest)(m).String() }
-func (*ConfigureRequest) ProtoMessage()    {}
+func (m *ConfigureRequest) Reset() { (*control_plane_proto1.ConfigureRequest)(m).Reset() }
+func (m *ConfigureRequest) String() string {
+	return (*control_plane_proto1.ConfigureRequest)(m).String()
+}
+func (*ConfigureRequest) ProtoMessage() {}
 func (m *ConfigureRequest) GetConfiguration() string {
-	return (*proto2.ConfigureRequest)(m).GetConfiguration()
+	return (*control_plane_proto1.ConfigureRequest)(m).GetConfiguration()
 }
 
 // ConfigureResponse from public import github.com/spiffe/sri/control_plane/plugins/common/proto/common.proto
-type ConfigureResponse proto2.ConfigureResponse
+type ConfigureResponse control_plane_proto1.ConfigureResponse
 
-func (m *ConfigureResponse) Reset()         { (*proto2.ConfigureResponse)(m).Reset() }
-func (m *ConfigureResponse) String() string { return (*proto2.ConfigureResponse)(m).String() }
-func (*ConfigureResponse) ProtoMessage()    {}
+func (m *ConfigureResponse) Reset() { (*control_plane_proto1.ConfigureResponse)(m).Reset() }
+func (m *ConfigureResponse) String() string {
+	return (*control_plane_proto1.ConfigureResponse)(m).String()
+}
+func (*ConfigureResponse) ProtoMessage() {}
 func (m *ConfigureResponse) GetErrorList() []string {
-	return (*proto2.ConfigureResponse)(m).GetErrorList()
+	return (*control_plane_proto1.ConfigureResponse)(m).GetErrorList()
 }
 
 // GetPluginInfoRequest from public import github.com/spiffe/sri/control_plane/plugins/common/proto/common.proto
-type GetPluginInfoRequest proto2.GetPluginInfoRequest
+type GetPluginInfoRequest control_plane_proto1.GetPluginInfoRequest
 
-func (m *GetPluginInfoRequest) Reset()         { (*proto2.GetPluginInfoRequest)(m).Reset() }
-func (m *GetPluginInfoRequest) String() string { return (*proto2.GetPluginInfoRequest)(m).String() }
-func (*GetPluginInfoRequest) ProtoMessage()    {}
+func (m *GetPluginInfoRequest) Reset() { (*control_plane_proto1.GetPluginInfoRequest)(m).Reset() }
+func (m *GetPluginInfoRequest) String() string {
+	return (*control_plane_proto1.GetPluginInfoRequest)(m).String()
+}
+func (*GetPluginInfoRequest) ProtoMessage() {}
 
 // GetPluginInfoResponse from public import github.com/spiffe/sri/control_plane/plugins/common/proto/common.proto
-type GetPluginInfoResponse proto2.GetPluginInfoResponse
+type GetPluginInfoResponse control_plane_proto1.GetPluginInfoResponse
 
-func (m *GetPluginInfoResponse) Reset()          { (*proto2.GetPluginInfoResponse)(m).Reset() }
-func (m *GetPluginInfoResponse) String() string  { return (*proto2.GetPluginInfoResponse)(m).String() }
-func (*GetPluginInfoResponse) ProtoMessage()     {}
-func (m *GetPluginInfoResponse) GetName() string { return (*proto2.GetPluginInfoResponse)(m).GetName() }
-func (m *GetPluginInfoResponse) GetCategory() string {
-	return (*proto2.GetPluginInfoResponse)(m).GetCategory()
+func (m *GetPluginInfoResponse) Reset() { (*control_plane_proto1.GetPluginInfoResponse)(m).Reset() }
+func (m *GetPluginInfoResponse) String() string {
+	return (*control_plane_proto1.GetPluginInfoResponse)(m).String()
 }
-func (m *GetPluginInfoResponse) GetType() string { return (*proto2.GetPluginInfoResponse)(m).GetType() }
+func (*GetPluginInfoResponse) ProtoMessage() {}
+func (m *GetPluginInfoResponse) GetName() string {
+	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetName()
+}
+func (m *GetPluginInfoResponse) GetCategory() string {
+	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetCategory()
+}
+func (m *GetPluginInfoResponse) GetType() string {
+	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetType()
+}
 func (m *GetPluginInfoResponse) GetDescription() string {
-	return (*proto2.GetPluginInfoResponse)(m).GetDescription()
+	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetDescription()
 }
 func (m *GetPluginInfoResponse) GetDateCreated() string {
-	return (*proto2.GetPluginInfoResponse)(m).GetDateCreated()
+	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetDateCreated()
 }
 func (m *GetPluginInfoResponse) GetLocation() string {
-	return (*proto2.GetPluginInfoResponse)(m).GetLocation()
+	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetLocation()
 }
 func (m *GetPluginInfoResponse) GetVersion() string {
-	return (*proto2.GetPluginInfoResponse)(m).GetVersion()
+	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetVersion()
 }
 func (m *GetPluginInfoResponse) GetAuthor() string {
-	return (*proto2.GetPluginInfoResponse)(m).GetAuthor()
+	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetAuthor()
 }
 func (m *GetPluginInfoResponse) GetCompany() string {
-	return (*proto2.GetPluginInfoResponse)(m).GetCompany()
+	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetCompany()
 }
 
 // *Represents a request with a certificate signing request.
@@ -103,7 +115,7 @@ type SignCsrRequest struct {
 }
 
 func (m *SignCsrRequest) Reset()                    { *m = SignCsrRequest{} }
-func (m *SignCsrRequest) String() string            { return proto1.CompactTextString(m) }
+func (m *SignCsrRequest) String() string            { return proto.CompactTextString(m) }
 func (*SignCsrRequest) ProtoMessage()               {}
 func (*SignCsrRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
@@ -120,7 +132,7 @@ type SignCsrResponse struct {
 }
 
 func (m *SignCsrResponse) Reset()                    { *m = SignCsrResponse{} }
-func (m *SignCsrResponse) String() string            { return proto1.CompactTextString(m) }
+func (m *SignCsrResponse) String() string            { return proto.CompactTextString(m) }
 func (*SignCsrResponse) ProtoMessage()               {}
 func (*SignCsrResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
@@ -136,7 +148,7 @@ type GenerateCsrRequest struct {
 }
 
 func (m *GenerateCsrRequest) Reset()                    { *m = GenerateCsrRequest{} }
-func (m *GenerateCsrRequest) String() string            { return proto1.CompactTextString(m) }
+func (m *GenerateCsrRequest) String() string            { return proto.CompactTextString(m) }
 func (*GenerateCsrRequest) ProtoMessage()               {}
 func (*GenerateCsrRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
@@ -146,7 +158,7 @@ type GenerateCsrResponse struct {
 }
 
 func (m *GenerateCsrResponse) Reset()                    { *m = GenerateCsrResponse{} }
-func (m *GenerateCsrResponse) String() string            { return proto1.CompactTextString(m) }
+func (m *GenerateCsrResponse) String() string            { return proto.CompactTextString(m) }
 func (*GenerateCsrResponse) ProtoMessage()               {}
 func (*GenerateCsrResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
@@ -162,7 +174,7 @@ type FetchCertificateRequest struct {
 }
 
 func (m *FetchCertificateRequest) Reset()                    { *m = FetchCertificateRequest{} }
-func (m *FetchCertificateRequest) String() string            { return proto1.CompactTextString(m) }
+func (m *FetchCertificateRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchCertificateRequest) ProtoMessage()               {}
 func (*FetchCertificateRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
@@ -172,7 +184,7 @@ type FetchCertificateResponse struct {
 }
 
 func (m *FetchCertificateResponse) Reset()                    { *m = FetchCertificateResponse{} }
-func (m *FetchCertificateResponse) String() string            { return proto1.CompactTextString(m) }
+func (m *FetchCertificateResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchCertificateResponse) ProtoMessage()               {}
 func (*FetchCertificateResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
 
@@ -189,7 +201,7 @@ type LoadCertificateRequest struct {
 }
 
 func (m *LoadCertificateRequest) Reset()                    { *m = LoadCertificateRequest{} }
-func (m *LoadCertificateRequest) String() string            { return proto1.CompactTextString(m) }
+func (m *LoadCertificateRequest) String() string            { return proto.CompactTextString(m) }
 func (*LoadCertificateRequest) ProtoMessage()               {}
 func (*LoadCertificateRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
 
@@ -205,19 +217,19 @@ type LoadCertificateResponse struct {
 }
 
 func (m *LoadCertificateResponse) Reset()                    { *m = LoadCertificateResponse{} }
-func (m *LoadCertificateResponse) String() string            { return proto1.CompactTextString(m) }
+func (m *LoadCertificateResponse) String() string            { return proto.CompactTextString(m) }
 func (*LoadCertificateResponse) ProtoMessage()               {}
 func (*LoadCertificateResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
 
 func init() {
-	proto1.RegisterType((*SignCsrRequest)(nil), "proto.SignCsrRequest")
-	proto1.RegisterType((*SignCsrResponse)(nil), "proto.SignCsrResponse")
-	proto1.RegisterType((*GenerateCsrRequest)(nil), "proto.GenerateCsrRequest")
-	proto1.RegisterType((*GenerateCsrResponse)(nil), "proto.GenerateCsrResponse")
-	proto1.RegisterType((*FetchCertificateRequest)(nil), "proto.FetchCertificateRequest")
-	proto1.RegisterType((*FetchCertificateResponse)(nil), "proto.FetchCertificateResponse")
-	proto1.RegisterType((*LoadCertificateRequest)(nil), "proto.LoadCertificateRequest")
-	proto1.RegisterType((*LoadCertificateResponse)(nil), "proto.LoadCertificateResponse")
+	proto.RegisterType((*SignCsrRequest)(nil), "control_plane_proto.SignCsrRequest")
+	proto.RegisterType((*SignCsrResponse)(nil), "control_plane_proto.SignCsrResponse")
+	proto.RegisterType((*GenerateCsrRequest)(nil), "control_plane_proto.GenerateCsrRequest")
+	proto.RegisterType((*GenerateCsrResponse)(nil), "control_plane_proto.GenerateCsrResponse")
+	proto.RegisterType((*FetchCertificateRequest)(nil), "control_plane_proto.FetchCertificateRequest")
+	proto.RegisterType((*FetchCertificateResponse)(nil), "control_plane_proto.FetchCertificateResponse")
+	proto.RegisterType((*LoadCertificateRequest)(nil), "control_plane_proto.LoadCertificateRequest")
+	proto.RegisterType((*LoadCertificateResponse)(nil), "control_plane_proto.LoadCertificateResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -232,9 +244,9 @@ const _ = grpc.SupportPackageIsVersion4
 
 type ControlPlaneCAClient interface {
 	// * Responsible for configuration of the plugin.
-	Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error)
+	Configure(ctx context.Context, in *control_plane_proto1.ConfigureRequest, opts ...grpc.CallOption) (*control_plane_proto1.ConfigureResponse, error)
 	// * Returns the  version and related metadata of the installed plugin.
-	GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error)
+	GetPluginInfo(ctx context.Context, in *control_plane_proto1.GetPluginInfoRequest, opts ...grpc.CallOption) (*control_plane_proto1.GetPluginInfoResponse, error)
 	// * Interface will take in a CSR and sign it with the stored intermediate certificate.
 	SignCsr(ctx context.Context, in *SignCsrRequest, opts ...grpc.CallOption) (*SignCsrResponse, error)
 	// * Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing.
@@ -253,18 +265,18 @@ func NewControlPlaneCAClient(cc *grpc.ClientConn) ControlPlaneCAClient {
 	return &controlPlaneCAClient{cc}
 }
 
-func (c *controlPlaneCAClient) Configure(ctx context.Context, in *proto2.ConfigureRequest, opts ...grpc.CallOption) (*proto2.ConfigureResponse, error) {
-	out := new(proto2.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/proto.ControlPlaneCA/Configure", in, out, c.cc, opts...)
+func (c *controlPlaneCAClient) Configure(ctx context.Context, in *control_plane_proto1.ConfigureRequest, opts ...grpc.CallOption) (*control_plane_proto1.ConfigureResponse, error) {
+	out := new(control_plane_proto1.ConfigureResponse)
+	err := grpc.Invoke(ctx, "/control_plane_proto.ControlPlaneCA/Configure", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *controlPlaneCAClient) GetPluginInfo(ctx context.Context, in *proto2.GetPluginInfoRequest, opts ...grpc.CallOption) (*proto2.GetPluginInfoResponse, error) {
-	out := new(proto2.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/proto.ControlPlaneCA/GetPluginInfo", in, out, c.cc, opts...)
+func (c *controlPlaneCAClient) GetPluginInfo(ctx context.Context, in *control_plane_proto1.GetPluginInfoRequest, opts ...grpc.CallOption) (*control_plane_proto1.GetPluginInfoResponse, error) {
+	out := new(control_plane_proto1.GetPluginInfoResponse)
+	err := grpc.Invoke(ctx, "/control_plane_proto.ControlPlaneCA/GetPluginInfo", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +285,7 @@ func (c *controlPlaneCAClient) GetPluginInfo(ctx context.Context, in *proto2.Get
 
 func (c *controlPlaneCAClient) SignCsr(ctx context.Context, in *SignCsrRequest, opts ...grpc.CallOption) (*SignCsrResponse, error) {
 	out := new(SignCsrResponse)
-	err := grpc.Invoke(ctx, "/proto.ControlPlaneCA/SignCsr", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/control_plane_proto.ControlPlaneCA/SignCsr", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +294,7 @@ func (c *controlPlaneCAClient) SignCsr(ctx context.Context, in *SignCsrRequest, 
 
 func (c *controlPlaneCAClient) GenerateCsr(ctx context.Context, in *GenerateCsrRequest, opts ...grpc.CallOption) (*GenerateCsrResponse, error) {
 	out := new(GenerateCsrResponse)
-	err := grpc.Invoke(ctx, "/proto.ControlPlaneCA/GenerateCsr", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/control_plane_proto.ControlPlaneCA/GenerateCsr", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +303,7 @@ func (c *controlPlaneCAClient) GenerateCsr(ctx context.Context, in *GenerateCsrR
 
 func (c *controlPlaneCAClient) FetchCertificate(ctx context.Context, in *FetchCertificateRequest, opts ...grpc.CallOption) (*FetchCertificateResponse, error) {
 	out := new(FetchCertificateResponse)
-	err := grpc.Invoke(ctx, "/proto.ControlPlaneCA/FetchCertificate", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/control_plane_proto.ControlPlaneCA/FetchCertificate", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +312,7 @@ func (c *controlPlaneCAClient) FetchCertificate(ctx context.Context, in *FetchCe
 
 func (c *controlPlaneCAClient) LoadCertificate(ctx context.Context, in *LoadCertificateRequest, opts ...grpc.CallOption) (*LoadCertificateResponse, error) {
 	out := new(LoadCertificateResponse)
-	err := grpc.Invoke(ctx, "/proto.ControlPlaneCA/LoadCertificate", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/control_plane_proto.ControlPlaneCA/LoadCertificate", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -311,9 +323,9 @@ func (c *controlPlaneCAClient) LoadCertificate(ctx context.Context, in *LoadCert
 
 type ControlPlaneCAServer interface {
 	// * Responsible for configuration of the plugin.
-	Configure(context.Context, *proto2.ConfigureRequest) (*proto2.ConfigureResponse, error)
+	Configure(context.Context, *control_plane_proto1.ConfigureRequest) (*control_plane_proto1.ConfigureResponse, error)
 	// * Returns the  version and related metadata of the installed plugin.
-	GetPluginInfo(context.Context, *proto2.GetPluginInfoRequest) (*proto2.GetPluginInfoResponse, error)
+	GetPluginInfo(context.Context, *control_plane_proto1.GetPluginInfoRequest) (*control_plane_proto1.GetPluginInfoResponse, error)
 	// * Interface will take in a CSR and sign it with the stored intermediate certificate.
 	SignCsr(context.Context, *SignCsrRequest) (*SignCsrResponse, error)
 	// * Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing.
@@ -329,7 +341,7 @@ func RegisterControlPlaneCAServer(s *grpc.Server, srv ControlPlaneCAServer) {
 }
 
 func _ControlPlaneCA_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(proto2.ConfigureRequest)
+	in := new(control_plane_proto1.ConfigureRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -338,16 +350,16 @@ func _ControlPlaneCA_Configure_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/proto.ControlPlaneCA/Configure",
+		FullMethod: "/control_plane_proto.ControlPlaneCA/Configure",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ControlPlaneCAServer).Configure(ctx, req.(*proto2.ConfigureRequest))
+		return srv.(ControlPlaneCAServer).Configure(ctx, req.(*control_plane_proto1.ConfigureRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ControlPlaneCA_GetPluginInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(proto2.GetPluginInfoRequest)
+	in := new(control_plane_proto1.GetPluginInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -356,10 +368,10 @@ func _ControlPlaneCA_GetPluginInfo_Handler(srv interface{}, ctx context.Context,
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/proto.ControlPlaneCA/GetPluginInfo",
+		FullMethod: "/control_plane_proto.ControlPlaneCA/GetPluginInfo",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ControlPlaneCAServer).GetPluginInfo(ctx, req.(*proto2.GetPluginInfoRequest))
+		return srv.(ControlPlaneCAServer).GetPluginInfo(ctx, req.(*control_plane_proto1.GetPluginInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -374,7 +386,7 @@ func _ControlPlaneCA_SignCsr_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/proto.ControlPlaneCA/SignCsr",
+		FullMethod: "/control_plane_proto.ControlPlaneCA/SignCsr",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ControlPlaneCAServer).SignCsr(ctx, req.(*SignCsrRequest))
@@ -392,7 +404,7 @@ func _ControlPlaneCA_GenerateCsr_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/proto.ControlPlaneCA/GenerateCsr",
+		FullMethod: "/control_plane_proto.ControlPlaneCA/GenerateCsr",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ControlPlaneCAServer).GenerateCsr(ctx, req.(*GenerateCsrRequest))
@@ -410,7 +422,7 @@ func _ControlPlaneCA_FetchCertificate_Handler(srv interface{}, ctx context.Conte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/proto.ControlPlaneCA/FetchCertificate",
+		FullMethod: "/control_plane_proto.ControlPlaneCA/FetchCertificate",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ControlPlaneCAServer).FetchCertificate(ctx, req.(*FetchCertificateRequest))
@@ -428,7 +440,7 @@ func _ControlPlaneCA_LoadCertificate_Handler(srv interface{}, ctx context.Contex
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/proto.ControlPlaneCA/LoadCertificate",
+		FullMethod: "/control_plane_proto.ControlPlaneCA/LoadCertificate",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ControlPlaneCAServer).LoadCertificate(ctx, req.(*LoadCertificateRequest))
@@ -437,7 +449,7 @@ func _ControlPlaneCA_LoadCertificate_Handler(srv interface{}, ctx context.Contex
 }
 
 var _ControlPlaneCA_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.ControlPlaneCA",
+	ServiceName: "control_plane_proto.ControlPlaneCA",
 	HandlerType: (*ControlPlaneCAServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -469,33 +481,34 @@ var _ControlPlaneCA_serviceDesc = grpc.ServiceDesc{
 	Metadata: "control_plane_ca.proto",
 }
 
-func init() { proto1.RegisterFile("control_plane_ca.proto", fileDescriptor0) }
+func init() { proto.RegisterFile("control_plane_ca.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 389 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x92, 0x6f, 0x8f, 0xd2, 0x40,
-	0x10, 0xc6, 0x25, 0x44, 0x8d, 0xa3, 0x02, 0xae, 0x5a, 0xa0, 0x2a, 0x9a, 0xbe, 0xd1, 0x17, 0x86,
-	0x26, 0x9a, 0x18, 0x5f, 0x69, 0x4c, 0xbd, 0x23, 0x5c, 0xee, 0x45, 0x03, 0x1f, 0x80, 0x94, 0x76,
-	0x5a, 0x36, 0xa1, 0xbb, 0xbd, 0xdd, 0xed, 0x27, 0xbc, 0x2f, 0x76, 0x69, 0x3b, 0x70, 0xf4, 0xdf,
-	0x2b, 0xe8, 0x3c, 0x33, 0xbf, 0x67, 0x27, 0xcf, 0x80, 0x15, 0x4a, 0x61, 0x94, 0x3c, 0xee, 0xb2,
-	0x63, 0x20, 0x70, 0x17, 0x06, 0xcb, 0x4c, 0x49, 0x23, 0xd9, 0xd3, 0xf2, 0xc7, 0xbe, 0x4a, 0xb8,
-	0x39, 0xe4, 0xfb, 0x65, 0x28, 0x53, 0x57, 0x67, 0x3c, 0x8e, 0xd1, 0xd5, 0x8a, 0xbb, 0xb5, 0x21,
-	0x37, 0x3b, 0xe6, 0x09, 0x17, 0xda, 0x0d, 0x65, 0x9a, 0x4a, 0xe1, 0x96, 0x93, 0xf4, 0x51, 0xd1,
-	0x1c, 0x07, 0x46, 0x5b, 0x9e, 0x08, 0x4f, 0xab, 0x0d, 0xde, 0xe5, 0xa8, 0x0d, 0x9b, 0xc0, 0x30,
-	0xd4, 0x6a, 0x36, 0xf8, 0x32, 0xf8, 0xf6, 0x6a, 0x53, 0xfc, 0x75, 0xfe, 0xc2, 0xf8, 0xdc, 0xa3,
-	0x33, 0x29, 0x34, 0xb2, 0xef, 0xf0, 0x46, 0xf3, 0x44, 0x60, 0xe4, 0xa1, 0x32, 0x3c, 0xe6, 0x61,
-	0x60, 0x90, 0x46, 0xda, 0x82, 0xf3, 0x0e, 0xd8, 0x0a, 0x05, 0xaa, 0xc0, 0xe0, 0xa3, 0x91, 0xf3,
-	0x15, 0xde, 0xd6, 0xaa, 0x84, 0x6e, 0xfb, 0xcf, 0x61, 0x7a, 0x8d, 0x26, 0x3c, 0x5c, 0x20, 0x4f,
-	0x8c, 0x0d, 0xcc, 0xda, 0x12, 0x81, 0x7e, 0x81, 0xa5, 0x8d, 0x54, 0x18, 0xad, 0x85, 0x41, 0x95,
-	0x62, 0xc4, 0x0b, 0x27, 0x54, 0x86, 0xd8, 0x3d, 0xaa, 0xe3, 0x83, 0x75, 0x2b, 0x83, 0xa8, 0xed,
-	0x56, 0x12, 0xcb, 0xe5, 0x7a, 0x89, 0x9d, 0x6a, 0xb1, 0x40, 0x8b, 0x58, 0x3d, 0xf2, 0xc7, 0xfd,
-	0x10, 0x46, 0x5e, 0x95, 0x99, 0x5f, 0x44, 0xe6, 0xfd, 0x63, 0x7f, 0xe0, 0x85, 0x27, 0x45, 0xcc,
-	0x93, 0x5c, 0x21, 0x9b, 0x56, 0x39, 0x2d, 0xcf, 0x15, 0x7a, 0x8b, 0x3d, 0x6b, 0x0b, 0xb4, 0xf7,
-	0x0d, 0xbc, 0x5e, 0xa1, 0xf1, 0xcb, 0xe8, 0xd7, 0x22, 0x96, 0xec, 0x03, 0xb5, 0xd6, 0xaa, 0x27,
-	0xce, 0xc7, 0x6e, 0x91, 0x58, 0xbf, 0xe1, 0x39, 0x45, 0xcf, 0xde, 0x53, 0x63, 0xfd, 0x5c, 0x6c,
-	0xab, 0x59, 0xa6, 0xc9, 0xff, 0xf0, 0xf2, 0x22, 0x5d, 0x36, 0x3f, 0xdb, 0x34, 0xef, 0xc0, 0xb6,
-	0xbb, 0x24, 0xa2, 0x6c, 0x61, 0xd2, 0xcc, 0x97, 0x2d, 0xa8, 0xbf, 0xe7, 0x26, 0xec, 0xcf, 0xbd,
-	0x3a, 0x41, 0x7d, 0x18, 0x37, 0xe2, 0x60, 0x9f, 0x68, 0xa6, 0x3b, 0x78, 0x7b, 0xd1, 0x27, 0x57,
-	0x44, 0xff, 0xc9, 0xfe, 0x59, 0xd9, 0xf0, 0xf3, 0x21, 0x00, 0x00, 0xff, 0xff, 0x3f, 0x7c, 0x1f,
-	0xd1, 0xb6, 0x03, 0x00, 0x00,
+	// 401 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x92, 0x4f, 0x6f, 0xda, 0x40,
+	0x10, 0xc5, 0x8b, 0x5a, 0xb5, 0xea, 0xb4, 0x05, 0xba, 0x54, 0x94, 0xfa, 0x54, 0xb9, 0x7f, 0xa0,
+	0x2d, 0xb5, 0xa5, 0x44, 0xca, 0x35, 0x8a, 0xac, 0x04, 0x21, 0xe5, 0x60, 0x91, 0x9c, 0x72, 0x21,
+	0xc6, 0x1e, 0x9b, 0x95, 0xec, 0x5d, 0x67, 0x77, 0xfd, 0xa9, 0xf3, 0x25, 0x22, 0xdb, 0x0b, 0xc1,
+	0xd8, 0x0e, 0xdc, 0x60, 0xe6, 0xcd, 0xef, 0xcd, 0x7a, 0x1e, 0x0c, 0x7d, 0xce, 0x94, 0xe0, 0xf1,
+	0x32, 0x8d, 0x3d, 0x86, 0x4b, 0xdf, 0xb3, 0x52, 0xc1, 0x15, 0x27, 0x83, 0x6a, 0xbd, 0x28, 0x1a,
+	0x97, 0x11, 0x55, 0xeb, 0x6c, 0x65, 0xf9, 0x3c, 0xb1, 0x65, 0x4a, 0xc3, 0x10, 0x6d, 0x29, 0xa8,
+	0x5d, 0x91, 0xda, 0x69, 0x9c, 0x45, 0x94, 0x49, 0xdb, 0xe7, 0x49, 0xc2, 0x99, 0x5d, 0x4c, 0xea,
+	0x3f, 0x25, 0xdb, 0x34, 0xa1, 0x7b, 0x43, 0x23, 0xe6, 0x48, 0xb1, 0xc0, 0x87, 0x0c, 0xa5, 0x22,
+	0x7d, 0x78, 0xed, 0x4b, 0x31, 0xea, 0x7c, 0xef, 0x4c, 0x3e, 0x2e, 0xf2, 0x9f, 0xe6, 0x39, 0xf4,
+	0xb6, 0x1a, 0x99, 0x72, 0x26, 0x91, 0x4c, 0xe1, 0xb3, 0xa4, 0x11, 0xc3, 0xc0, 0x41, 0xa1, 0x68,
+	0x48, 0x7d, 0x4f, 0xa1, 0x1e, 0xa9, 0x37, 0xcc, 0x2f, 0x40, 0x66, 0xc8, 0x50, 0x78, 0x0a, 0x9f,
+	0x8d, 0xcc, 0x31, 0x0c, 0x2a, 0x55, 0x8d, 0xae, 0xfb, 0x7f, 0x83, 0xaf, 0x57, 0xa8, 0xfc, 0xf5,
+	0x0e, 0x72, 0xc3, 0x58, 0xc0, 0xa8, 0xde, 0xd2, 0xa0, 0x33, 0x18, 0x4a, 0xc5, 0x05, 0x06, 0x73,
+	0xa6, 0x50, 0x24, 0x18, 0xd0, 0xdc, 0x09, 0x85, 0xd2, 0xec, 0x96, 0xae, 0xe9, 0xc2, 0xf0, 0x9a,
+	0x7b, 0x41, 0xdd, 0xad, 0x20, 0x16, 0x8f, 0x6b, 0x25, 0x36, 0x76, 0xf3, 0x07, 0xd4, 0x88, 0xe5,
+	0x92, 0x27, 0x8f, 0x6f, 0xa0, 0xeb, 0x94, 0x37, 0x73, 0xf3, 0x93, 0x39, 0x17, 0xe4, 0x0e, 0xde,
+	0x3b, 0x9c, 0x85, 0x34, 0xca, 0x04, 0x92, 0x5f, 0x56, 0xc3, 0xf1, 0xad, 0x6d, 0x5f, 0x6f, 0x66,
+	0xfc, 0x3e, 0x24, 0xd3, 0xdf, 0x24, 0x84, 0x4f, 0x33, 0x54, 0x6e, 0x11, 0x8b, 0x39, 0x0b, 0x39,
+	0xf9, 0xd3, 0x38, 0x58, 0xd1, 0x6c, 0x3c, 0xfe, 0x1e, 0x23, 0xd5, 0x3e, 0xb7, 0xf0, 0x4e, 0x47,
+	0x86, 0xfc, 0x68, 0x1c, 0xab, 0x86, 0xce, 0xf8, 0xf9, 0xb2, 0x48, 0x53, 0xef, 0xe1, 0xc3, 0x4e,
+	0x62, 0xc8, 0xb8, 0x65, 0xa1, 0xfd, 0xa4, 0x19, 0x93, 0xc3, 0x42, 0xed, 0xc0, 0xa1, 0xbf, 0x9f,
+	0x27, 0x32, 0x6d, 0x9c, 0x6e, 0x49, 0xa4, 0xf1, 0xff, 0x48, 0xb5, 0x36, 0x8c, 0xa1, 0xb7, 0x17,
+	0x0d, 0xf2, 0xaf, 0x91, 0xd0, 0x1c, 0x49, 0x63, 0x7a, 0x9c, 0xb8, 0x74, 0x73, 0x5f, 0xad, 0xde,
+	0x16, 0x82, 0xd3, 0xa7, 0x00, 0x00, 0x00, 0xff, 0xff, 0x0d, 0xa4, 0xc3, 0x4f, 0x6c, 0x04, 0x00,
+	0x00,
 }

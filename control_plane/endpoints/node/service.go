@@ -9,10 +9,10 @@ import (
 // Implement yor service methods methods.
 // e.x: Foo(ctx context.Context,s string)(rs string, err error)
 type NodeService interface {
-	FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse)
-	FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse)
-	FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse)
-	FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse)
+	FetchBaseSVID(ctx context.Context, request control_plane_proto.FetchBaseSVIDRequest) (response control_plane_proto.FetchBaseSVIDResponse)
+	FetchSVID(ctx context.Context, request control_plane_proto.FetchSVIDRequest) (response control_plane_proto.FetchSVIDResponse)
+	FetchCPBundle(ctx context.Context, request control_plane_proto.FetchCPBundleRequest) (response control_plane_proto.FetchCPBundleResponse)
+	FetchFederatedBundle(ctx context.Context, request control_plane_proto.FetchFederatedBundleRequest) (response control_plane_proto.FetchFederatedBundleResponse)
 }
 
 type stubNodeService struct{}
@@ -25,21 +25,21 @@ func NewService() (s *stubNodeService) {
 }
 
 // Implement the business logic of FetchBaseSVID
-func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse) {
+func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request control_plane_proto.FetchBaseSVIDRequest) (response control_plane_proto.FetchBaseSVIDResponse) {
 	return response
 }
 
 // Implement the business logic of FetchSVID
-func (no *stubNodeService) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse) {
+func (no *stubNodeService) FetchSVID(ctx context.Context, request control_plane_proto.FetchSVIDRequest) (response control_plane_proto.FetchSVIDResponse) {
 	return response
 }
 
 // Implement the business logic of FetchCPBundle
-func (no *stubNodeService) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse) {
+func (no *stubNodeService) FetchCPBundle(ctx context.Context, request control_plane_proto.FetchCPBundleRequest) (response control_plane_proto.FetchCPBundleResponse) {
 	return response
 }
 
 // Implement the business logic of FetchFederatedBundle
-func (no *stubNodeService) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse) {
+func (no *stubNodeService) FetchFederatedBundle(ctx context.Context, request control_plane_proto.FetchFederatedBundleRequest) (response control_plane_proto.FetchFederatedBundleResponse) {
 	return response
 }
