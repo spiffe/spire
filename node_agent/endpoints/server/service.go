@@ -5,9 +5,9 @@ import (
 	"log"
 	"time"
 
-	proto "github.com/spiffe/node-agent/api/server/proto"
-	"github.com/spiffe/node-agent/helpers"
-	common "github.com/spiffe/node-agent/plugins/common/proto"
+	proto "github.com/spiffe/sri/node_agent/api/server/proto"
+	"github.com/spiffe/sri/helpers"
+	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
 )
 
 type ServerService interface {

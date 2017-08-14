@@ -5,12 +5,12 @@ import (
 	"os"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/node-agent/cli/command"
+	"github.com/spiffe/sri/node_agent/cli/command"
 )
 
 func Run(args []string) int {
 
-	c := cli.NewCLI("node-agent", "0.0.1") //TODO expose version configuration
+	c := cli.NewCLI("sri/node_agent", "0.0.1") //TODO expose version configuration
 	c.Args = os.Args[1:]
 	c.Commands = map[string]cli.CommandFactory{
 		"server": func() (cli.Command, error) {

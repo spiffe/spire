@@ -3,7 +3,7 @@ package command
 import (
 	"log"
 
-	pb "github.com/spiffe/control-plane/api/server/proto"
+	pb "github.com/spiffe/sri/control_plane/api/server/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -12,7 +12,7 @@ type StopCommand struct {
 }
 
 func (*StopCommand) Help() string {
-	return "Usage: control-plane stop"
+	return "Usage: sri/control_plane stop"
 }
 
 func (*StopCommand) Run(args []string) int {
@@ -40,5 +40,5 @@ func (*StopCommand) Run(args []string) int {
 }
 
 func (*StopCommand) Synopsis() string {
-	return "Stops control-plane server."
+	return "Stops sri/control_plane server."
 }

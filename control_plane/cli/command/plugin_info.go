@@ -3,7 +3,7 @@ package command
 import (
 	"log"
 
-	pb "github.com/spiffe/control-plane/api/server/proto"
+	pb "github.com/spiffe/sri/control_plane/api/server/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -12,7 +12,7 @@ type PluginInfoCommand struct {
 }
 
 func (*PluginInfoCommand) Help() string {
-	return "Usage: control-plane plugin-info"
+	return "Usage: sri/control_plane plugin-info"
 }
 
 func (*PluginInfoCommand) Run(args []string) int {
@@ -39,5 +39,5 @@ func (*PluginInfoCommand) Run(args []string) int {
 }
 
 func (*PluginInfoCommand) Synopsis() string {
-	return "Gets control-plane plugins information."
+	return "Gets sri/control_plane plugins information."
 }

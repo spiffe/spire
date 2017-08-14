@@ -1,8 +1,8 @@
 package workloadattestor
 
 import (
-	common "github.com/spiffe/node-agent/plugins/common/proto"
-	"github.com/spiffe/node-agent/plugins/workload_attestor/proto"
+	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
+	"github.com/spiffe/sri/node_agent/plugins/workload_attestor/proto"
 	"golang.org/x/net/context"
 )
 

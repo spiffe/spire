@@ -11,11 +11,11 @@ import (
 	"reflect"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/control-plane/plugins/control_plane_ca"
-	"github.com/spiffe/control-plane/plugins/data_store"
-	"github.com/spiffe/control-plane/plugins/node_attestor"
-	"github.com/spiffe/control-plane/plugins/node_resolver"
-	"github.com/spiffe/control-plane/plugins/upstream_ca"
+	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca"
+	"github.com/spiffe/sri/control_plane/plugins/data_store"
+	"github.com/spiffe/sri/control_plane/plugins/node_attestor"
+	"github.com/spiffe/sri/control_plane/plugins/node_resolver"
+	"github.com/spiffe/sri/control_plane/plugins/upstream_ca"
 )
 
 var NA_PLUGIN_TYPE_MAP = map[string]plugin.Plugin{

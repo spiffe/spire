@@ -1,5 +1,5 @@
-hash: d55f7866f481ff1204feb9fc3b86ab7dc7dcefc6ba904de8f90b3069ec708f59
-updated: 2017-08-14T14:54:02.141244269-03:00
+hash: 07f7ed1f48e6e8cbe96ff164101cfcea00df3820f2c62615bd2c2c3b9ce7f7af
+updated: 2017-08-14T20:52:15.249869747Z
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -16,7 +16,7 @@ imports:
 - name: github.com/go-stack/stack
   version: 817915b46b97fd7bb80e8ab6b69f01a53ac3eebf
 - name: github.com/golang/protobuf
-  version: 0a4f71a498b7c4812f64969510bcb4eca251e33a
+  version: 1909bc2f63dc92bb931deace8b8312c4db72d12f
   subpackages:
   - proto
   - ptypes/any
@@ -28,7 +28,7 @@ imports:
 - name: github.com/hashicorp/go-multierror
   version: 83588e72410abfbe4df460eeb6f30841ae47d4c4
 - name: github.com/hashicorp/go-plugin
-  version: 4e5a3725c607a756be8d35bf3a521c0f9c422666
+  version: 871e7582ebde6a93f3e03d8c6fa0d2eb2eb98d02
 - name: github.com/hashicorp/hcl
   version: 392dba7d905ed5d04a5794ba89f558b27e2ba1ca
   subpackages:
@@ -52,7 +52,7 @@ imports:
 - name: github.com/mitchellh/cli
   version: b633c78680fa6fb27ac81694f38c28f79602ebd9
 - name: github.com/mitchellh/go-testing-interface
-  version: e1449340a7b207d8ca90d41466272ece75cbb5b5
+  version: 9a441910b16872f7b8283682619b3761a9aa2222
 - name: github.com/posener/complete
   version: f4461a52b6329c11190f11fe3384ec8aa964e21c
   subpackages:
@@ -60,7 +60,7 @@ imports:
   - cmd/install
   - match
 - name: golang.org/x/net
-  version: f5079bd7f6f74e23c4d65efa0f4ce14cbd6a3c0f
+  version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
   - context
   - http2
@@ -70,18 +70,18 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sys
-  version: c84c1ab9fd18cdd4c23dd021c10f5f46dea95e46
+  version: 2d3e384235de683634e9080b58f757466840aa48
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: 836efe42bb4aa16aaa17b9c155d8813d336ed720
+  version: e56139fd9c5bc7244c76116c68e500765bb6db6b
   subpackages:
   - secure/bidirule
   - transform
   - unicode/bidi
   - unicode/norm
 - name: google.golang.org/genproto
-  version: b0a3dcfcd1a9bd48e63634bd8802960804cf8315
+  version: 09f6ed296fc66555a25fe4ce95173148778dfa85
   subpackages:
   - googleapis/rpc/status
 - name: google.golang.org/grpc
@@ -114,7 +114,7 @@ testImports:
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
-  version: 05e8a0eda380579888eb53c394909df027f06991
+  version: 890a5c3458b43e6104ff5da8dfa139d013d77544
   subpackages:
   - assert
   - mock

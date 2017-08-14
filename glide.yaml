@@ -1,4 +1,4 @@
-package: github.com/spiffe/node-agent
+package: github.com/spiffe/sri
 import:
 - package: github.com/golang/protobuf
   subpackages:
@@ -9,8 +9,12 @@ import:
   subpackages:
   - context
 - package: google.golang.org/grpc
+  version: ^1.5.0
 - package: github.com/go-kit/kit
+- package: github.com/hashicorp/go-plugin
+- package: github.com/jstemmer/go-junit-report
 testImport:
 - package: github.com/stretchr/testify
   subpackages:
   - assert
+

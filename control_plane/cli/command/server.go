@@ -11,17 +11,17 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/spiffe/control-plane/api/server/proto"
+	"github.com/spiffe/sri/control_plane/api/server/proto"
 
-	"github.com/spiffe/control-plane/control_plane/endpoints/server"
-	"github.com/spiffe/control-plane/helpers"
+	"github.com/spiffe/sri/control_plane/endpoints/server"
+	"github.com/spiffe/sri/helpers"
 )
 
 type ServerCommand struct {
 }
 
 func (*ServerCommand) Help() string {
-	return "Usage: control-plane server"
+	return "Usage: sri/control_plane server"
 }
 
 func (*ServerCommand) Run(args []string) int {
@@ -40,7 +40,7 @@ func (*ServerCommand) Run(args []string) int {
 }
 
 func (*ServerCommand) Synopsis() string {
-	return "Intializes control-plane Runtime."
+	return "Intializes sri/control_plane Runtime."
 }
 
 func loadPlugins() (*pluginhelper.PluginCatalog, error) {

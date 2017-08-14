@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/control-plane/plugins/common/proto"
-	"github.com/spiffe/control-plane/plugins/control_plane_ca"
+	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca"
 )
 
 type MemoryPlugin struct{}

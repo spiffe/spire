@@ -4,7 +4,7 @@
 syntax = "proto3";
 package proto;
 
-import public "github.com/spiffe/node-agent/plugins/common/proto/common.proto";
+import public "github.com/spiffe/sri/node_agent/plugins/common/proto/common.proto";
 
 message PluginInfoRequest {}
 

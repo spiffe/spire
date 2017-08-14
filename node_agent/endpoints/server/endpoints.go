@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/endpoint"
-	"github.com/spiffe/node-agent/api/server/proto"
+	"github.com/spiffe/sri/node_agent/api/server/proto"
 )
 
 // Endpoints collects all of the endpoints that compose an add service. It's

@@ -3,7 +3,7 @@ package node
 import (
 	"context"
 
-	"github.com/spiffe/control-plane/api/node/proto"
+	"github.com/spiffe/sri/control_plane/api/node/proto"
 )
 
 // Implement yor service methods methods.

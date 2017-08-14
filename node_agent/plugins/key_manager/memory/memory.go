@@ -2,9 +2,9 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/node-agent/plugins/common/proto"
-	"github.com/spiffe/node-agent/plugins/key_manager"
-	"github.com/spiffe/node-agent/plugins/key_manager/proto"
+	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
+	"github.com/spiffe/sri/node_agent/plugins/key_manager"
+	"github.com/spiffe/sri/node_agent/plugins/key_manager/proto"
 )
 
 type MemoryPlugin struct{}

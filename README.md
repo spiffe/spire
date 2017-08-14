@@ -1,12 +1,12 @@
-[![CircleCI](https://circleci.com/gh/spiffe/control-plane.svg?style=svg&circle-token=0426fa60a9cc237f4065ed4670d3b9b23ae30be8)](https://circleci.com/gh/spiffe/control-plane)
-[![Coverage Status](https://coveralls.io/repos/github/spiffe/control-plane/badge.svg?branch=dave-build3&t=PpzC6u)](https://coveralls.io/github/spiffe/control-plane?branch=dave-build3)
+[![CircleCI](https://circleci.com/gh/spiffe/sri.svg?style=svg&circle-token=1021825e271fad64261d40b55f583c234fa083d4)](https://circleci.com/gh/spiffe/sri)
+[![Coverage Status](https://coveralls.io/repos/github/spiffe/sri/badge.svg?t=SrV7ye)](https://coveralls.io/github/spiffe/sri)
 
-# control-plane
+# sri
 
 Build Environment
 ------------
 The script `build.sh` manages the build process and can be used for development. It expects
-this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/control-plane`.
+this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/sri`.
 
 `build.sh setup` will download and install necessary dependancies (including golang)
 into the directory `.build/`

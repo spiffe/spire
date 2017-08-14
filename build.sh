@@ -3,8 +3,8 @@
 set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
-declare -r BINARY_DIRS="control_plane $(find plugins/*/* -maxdepth 1 -type d -not -name 'proto')"
-declare -r PROTO_FILES="$(find plugins api -name '*.proto')"
+declare -r BINARY_DIRS="control_plane node_agent $(find */plugins/*/* -maxdepth 1 -type d -not -name 'proto')"
+declare -r PROTO_FILES="$(find */plugins */api -name '*.proto')"
 
 declare -r GO_VERSION=${GO_VERSION:-1.8.3}
 declare -r GO_URL="https://storage.googleapis.com/golang"

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/endpoint"
-	"github.com/spiffe/control-plane/api/server/proto"
+	"github.com/spiffe/sri/control_plane/api/server/proto"
 )
 
 // Endpoints collects all of the endpoints that compose an add service. It's

@@ -5,8 +5,8 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/control-plane/plugins/common/proto"
-	"github.com/spiffe/control-plane/plugins/node_resolver/proto"
+	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	"github.com/spiffe/sri/control_plane/plugins/node_resolver/proto"
 	"google.golang.org/grpc"
 )
 

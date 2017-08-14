@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/control-plane/helpers"
+	"github.com/spiffe/sri/helpers"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )

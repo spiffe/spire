@@ -5,9 +5,9 @@ import (
 	"log"
 	"time"
 
-	proto "github.com/spiffe/control-plane/api/server/proto"
-	"github.com/spiffe/control-plane/helpers"
-	common "github.com/spiffe/control-plane/plugins/common/proto"
+	proto "github.com/spiffe/sri/control_plane/api/server/proto"
+	"github.com/spiffe/sri/helpers"
+	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
 )
 
 type ServerService interface {

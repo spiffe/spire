@@ -7,8 +7,8 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/control-plane/plugins/common/proto"
-	"github.com/spiffe/control-plane/plugins/data_store/proto"
+	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	"github.com/spiffe/sri/control_plane/plugins/data_store/proto"
 )
 
 // Handshake is a common handshake that is shared between noderesolution and host.

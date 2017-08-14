@@ -1,8 +1,8 @@
 package controlplaneca
 
 import (
-	common "github.com/spiffe/control-plane/plugins/common/proto"
-	"github.com/spiffe/control-plane/plugins/control_plane_ca/proto"
+	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca/proto"
 	"golang.org/x/net/context"
 )
 

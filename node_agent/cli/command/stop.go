@@ -3,7 +3,7 @@ package command
 import (
 	"log"
 
-	pb "github.com/spiffe/node-agent/api/server/proto"
+	pb "github.com/spiffe/sri/node_agent/api/server/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -12,7 +12,7 @@ type StopCommand struct {
 }
 
 func (*StopCommand) Help() string {
-	return "Usage: node-agent stop"
+	return "Usage: sri/node_agent stop"
 }
 
 func (*StopCommand) Run(args []string) int {
@@ -40,5 +40,5 @@ func (*StopCommand) Run(args []string) int {
 }
 
 func (*StopCommand) Synopsis() string {
-	return "Stops node-agent server."
+	return "Stops sri/node_agent server."
 }

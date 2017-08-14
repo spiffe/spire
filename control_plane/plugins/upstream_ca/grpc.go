@@ -1,8 +1,8 @@
 package upstreamca
 
 import (
-	common "github.com/spiffe/control-plane/plugins/common/proto"
-	"github.com/spiffe/control-plane/plugins/upstream_ca/proto"
+	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	"github.com/spiffe/sri/control_plane/plugins/upstream_ca/proto"
 	"golang.org/x/net/context"
 )
 

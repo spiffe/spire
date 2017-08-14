@@ -2,7 +2,7 @@
 syntax = "proto3";
 package proto;
 
-import public "github.com/spiffe/control-plane/plugins/common/proto/common.proto";
+import public "github.com/spiffe/sri/control_plane/plugins/common/proto/common.proto";
 
 /**A type which contains attestation data for specific platform.*/
 message AttestedData {

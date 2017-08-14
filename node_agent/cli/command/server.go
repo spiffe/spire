@@ -11,17 +11,17 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/spiffe/node-agent/api/server/proto"
+	"github.com/spiffe/sri/node_agent/api/server/proto"
 
-	"github.com/spiffe/node-agent/helpers"
-	"github.com/spiffe/node-agent/node_agent/endpoints/server"
+	"github.com/spiffe/sri/helpers"
+	"github.com/spiffe/sri/node_agent/endpoints/server"
 )
 
 type ServerCommand struct {
 }
 
 func (*ServerCommand) Help() string {
-	return "Usage: node-agent server"
+	return "Usage: sri/node_agent server"
 }
 
 func (*ServerCommand) Run(args []string) int {
@@ -40,7 +40,7 @@ func (*ServerCommand) Run(args []string) int {
 }
 
 func (*ServerCommand) Synopsis() string {
-	return "Intializes node-agent Runtime."
+	return "Intializes sri/node_agent Runtime."
 }
 
 func loadPlugins() (*pluginhelper.PluginCatalog, error) {

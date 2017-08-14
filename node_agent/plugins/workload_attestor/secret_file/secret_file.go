@@ -2,9 +2,9 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/node-agent/plugins/common/proto"
-	"github.com/spiffe/node-agent/plugins/workload_attestor"
-	"github.com/spiffe/node-agent/plugins/workload_attestor/proto"
+	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
+	"github.com/spiffe/sri/node_agent/plugins/workload_attestor"
+	"github.com/spiffe/sri/node_agent/plugins/workload_attestor/proto"
 )
 
 type SecretFilePlugin struct{}

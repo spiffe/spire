@@ -3,7 +3,7 @@ package command
 import (
 	"log"
 
-	pb "github.com/spiffe/node-agent/api/server/proto"
+	pb "github.com/spiffe/sri/node_agent/api/server/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -12,7 +12,7 @@ type PluginInfoCommand struct {
 }
 
 func (*PluginInfoCommand) Help() string {
-	return "Usage: node-agent plugin-info"
+	return "Usage: sri/node_agent plugin-info"
 }
 
 func (*PluginInfoCommand) Run(args []string) int {
@@ -39,5 +39,5 @@ func (*PluginInfoCommand) Run(args []string) int {
 }
 
 func (*PluginInfoCommand) Synopsis() string {
-	return "Gets node-agent plugins information."
+	return "Gets sri/node_agent plugins information."
 }

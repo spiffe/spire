@@ -7,9 +7,9 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/control-plane/plugins/common/proto"
+	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
 
-	"github.com/spiffe/control-plane/plugins/node_attestor/proto"
+	"github.com/spiffe/sri/control_plane/plugins/node_attestor/proto"
 )
 
 //Handshake is a common handshake that is shared by the plugin and host.
