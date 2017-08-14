@@ -1,0 +1,32 @@
+/**Responsible for validating the Node Agent’s Attested Data.*/
+syntax = "proto3";
+package proto;
+
+import public "github.com/spiffe/control-plane/plugins/common/proto/common.proto";
+
+/**A type which contains attestation data for specific platform.*/
+message AttestedData {
+    string type = 1; ///Type of attestation to perform.
+    bytes data = 2; ///The attestetion data.
+}
+
+/**Represents a request to attest a node.*/
+message AttestRequest {
+    AttestedData attestedData = 1; ///A type which contains attestation data for specific platform.
+    bool attestedBefore = 2; ///Is true if the Base SPIFFE ID is present in the Attested Node table.
+}
+
+/**Represents a response when attesting a node.*/
+message AttestResponse {
+    bool valid = 1; ///True/False
+    string baseSPIFFEID  = 2; ///Used for the Control Plane to validate the SPIFFE Id in the Certificate signing request.
+}
+
+service NodeAttestor {
+    /**Responsible for configuration of the plugin.*/
+    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    /**Returns the  version and related metadata of the installed plugin.*/
+    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
+    /**Attesta a node.*/
+    rpc Attest(AttestRequest) returns (AttestResponse);
+}

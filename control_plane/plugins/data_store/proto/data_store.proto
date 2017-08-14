@@ -1,0 +1,379 @@
+syntax = "proto3";
+package proto;
+
+import public "github.com/spiffe/control-plane/plugins/common/proto/common.proto";
+
+
+/** Describes the conditions under which a registration entry is matched.
+*/
+message Selector {
+    string type = 1; /// Selector type
+    string value = 2; /// Selector value
+}
+
+/** Represents a single Registration Entry.
+*/
+message RegisteredEntry {
+    repeated Selector selectorList = 1; /// Array of selectors
+    string spiffeId = 2; /// SPIFFE ID
+    string parentId = 3; /// Attestor SPIFFE ID
+    int32 ttl = 4; /// TTL
+    repeated string federatedBundleSpiffeIdList = 5; /// SPIFFE IDs of foreign trust domains
+}
+
+/** Represents the trust chain for a different trust domain, along with
+    a TTL describing its expiration, keyed by the SPIFFE ID of the foreign
+    trust domain.
+*/
+message FederatedBundle {
+    string federatedBundleSpiffeId = 1; /// Foreign trust domain SPIFFE ID
+    bytes federatedTrustBundle = 2; /// Trust chain
+    int32 ttl = 3; /// TTL
+}
+
+/** Represents a single entry in NodeResolverMap and maps node properties to
+    logical attributes (i.e. an AWS instance to its ASG).
+*/
+message NodeResolverMapEntry {
+    string baseSpiffeId = 1;
+    Selector selector = 2;
+}
+
+/** Represents a single entry in AttestedNodes and stores the node's SPIFFE ID, the
+    type of attestation it performed, as well as the serial number and expiration date
+    of its node SVID.
+*/
+message AttestedNodeEntry {
+    string baseSpiffeId = 1; /// Spiffe ID
+    string attestedDataType = 2; /// Attestation type
+    string certSerialNumber = 3; /// Serial number
+    string certExpirationDate = 4; /// Expiration date
+}
+
+
+//
+
+
+/** Represents a Federated bundle
+*/
+message CreateFederatedEntryRequest {
+    FederatedBundle federatedBundle = 1; /// Federated bundle
+}
+
+/** Empty
+*/
+message CreateFederatedEntryResponse {
+}
+
+
+/** Empty
+*/
+message ListFederatedEntryRequest {
+}
+
+/** Represents a list of SPIFFE IDs of foreign trust domains
+*/
+message ListFederatedEntryResponse {
+    repeated string federatedBundleSpiffeIdList = 1; /// SPIFFE IDs of foreign trust domains
+}
+
+
+/** Represents a federated bundle to update
+*/
+message UpdateFederatedEntryRequest {
+    FederatedBundle federatedBundle = 1; /// Federated bundle
+}
+
+/** Represents the updated federated bundle
+*/
+message UpdateFederatedEntryResponse {
+    FederatedBundle federatedBundle = 1; /// Federated bundle
+}
+
+
+/** Represents the Spiffe ID of the federated bundle to delete
+*/
+message DeleteFederatedEntryRequest {
+    string federatedBundleSpiffeId = 1; /// SPIFFE ID of foreign trust domain
+}
+
+/** Represents the deleted federated bundle
+*/
+message DeleteFederatedEntryResponse {
+    FederatedBundle federatedBundle = 1; /// Federated bundle
+}
+
+
+//
+
+
+/** Represents an Attested Node entry to create
+*/
+message CreateAttestedNodeEntryRequest {
+    AttestedNodeEntry attestedNodeEntry = 1; /// Attested node entry
+}
+
+/** Represents the created Attested Node entry
+*/
+message CreateAttestedNodeEntryResponse {
+    AttestedNodeEntry attestedNodeEntry = 1; /// Attested node entry
+}
+
+
+/** Represents the Spiffe ID of the node entry to retrieve
+*/
+message FetchAttestedNodeEntryRequest {
+    string baseSpiffeId = 1; /// SPIFFE ID
+}
+
+/** Represents an Attested Node entry
+*/
+message FetchAttestedNodeEntryResponse {
+    AttestedNodeEntry attestedNodeEntry = 1; /// Attested node entry
+}
+
+
+/** Empty
+*/
+message FetchStaleNodeEntriesRequest {
+}
+
+/** Represents dead nodes for which the base SVID has expired
+*/
+message FetchStaleNodeEntriesResponse {
+    repeated AttestedNodeEntry attestedNodeEntryList = 1; // List of attested node entries
+}
+
+
+/** Represents Attested node entry fields to update
+*/
+message UpdateAttestedNodeEntryRequest {
+    string baseSpiffeId = 1; /// Spiffe ID
+    string certSerialNumber = 2; /// Serial number
+    string certExpirationDate = 3; /// Expiration date
+}
+
+/** Represents the updated Attested node entry
+*/
+message UpdateAttestedNodeEntryResponse {
+    AttestedNodeEntry attestedNodeEntry = 1; /// Attested node entry
+}
+
+
+/** Represents the Spiffe ID of the Attested node entry to delete
+*/
+message DeleteAttestedNodeEntryRequest {
+    string baseSpiffeId = 1; /// SPIFFE ID
+}
+
+/** Represents the deleted Attested node entry
+*/
+message DeleteAttestedNodeEntryResponse {
+    AttestedNodeEntry attestedNodeEntry = 1;
+}
+
+
+//
+
+
+/** Represents a Node resolver map entry to create
+*/
+message CreateNodeResolverMapEntryRequest {
+    NodeResolverMapEntry nodeResolverMapEntry = 1; /// Node resolver map entry
+}
+
+/** Represents the created Node resolver map entry
+*/
+message CreateNodeResolverMapEntryResponse {
+    NodeResolverMapEntry nodeResolverMapEntry = 1; /// Node resolver map entry
+}
+
+
+/** Represents a Spiffe ID
+*/
+message FetchNodeResolverMapEntryRequest {
+    string baseSpiffeId = 1; /// SPIFFE ID
+}
+
+/** Represents a list of Node resolver map entries for the specified Spiffe ID
+*/
+message FetchNodeResolverMapEntryResponse {
+    repeated NodeResolverMapEntry nodeResolverMapEntryList = 1; /// List of Node resolver map entries
+}
+
+
+/** Represents a Node resolver map entry to delete
+*/
+message DeleteNodeResolverMapEntryRequest {
+    NodeResolverMapEntry nodeResolverMapEntry = 1; /// Node resolver map entry
+}
+
+/** Represents a list of Node resolver map entries
+*/
+message DeleteNodeResolverMapEntryResponse {
+    repeated NodeResolverMapEntry nodeResolverMapEntryList = 1; /// List of Node resolver map entries
+}
+
+
+/** Represents a list of Node resolver map entries
+*/
+message RectifyNodeResolverMapEntriesRequest {
+    repeated NodeResolverMapEntry nodeResolverMapEntryList = 1; /// List of Node resolver map entries
+}
+
+/** Represents a list of Node resolver map entries
+*/
+message RectifyNodeResolverMapEntriesResponse {
+    repeated NodeResolverMapEntry nodeResolverMapEntryList = 1; /// List of Node resolver map entries
+}
+
+
+//
+
+
+/** Represents a Registration entry to create
+*/
+message CreateRegistrationEntryRequest {
+    RegisteredEntry registeredEntry = 1; /// Registration entry
+}
+
+/** Represents the created Registration entry
+*/
+message CreateRegistrationEntryResponse {
+    string registeredEntryId = 1; /// Registration entry ID
+}
+
+
+/** Represents a Registration entry ID to fetch
+*/
+message FetchRegistrationEntryRequest {
+    string registeredEntryId = 1; /// Registration entry ID
+}
+
+/** Represents a Registration entry
+*/
+message FetchRegistrationEntryResponse {
+    RegisteredEntry registeredEntry = 1; /// Registration entry
+}
+
+
+/** Represents a Registration entry to update
+*/
+message UpdateRegistrationEntryRequest {
+    string registeredEntryId = 1; /// Registration entry ID
+    RegisteredEntry registeredEntry = 2; /// Registration entry
+}
+
+/** Represents the updated Registration entry
+*/
+message UpdateRegistrationEntryResponse {
+    RegisteredEntry registeredEntry = 1; /// Registration entry
+}
+
+
+/** Represents a Registration entry ID to delete
+*/
+message DeleteRegistrationEntryRequest {
+    string registeredEntryId = 1; /// Registration entry ID
+}
+
+/** Represents the deleted Registration entry
+*/
+message DeleteRegistrationEntryResponse {
+    RegisteredEntry registeredEntry = 1; /// Registration entry
+}
+
+
+//
+
+
+/** Represents a Parent ID
+*/
+message ListParentIDEntriesRequest {
+    string parentId = 1; /// Parent ID
+}
+
+/** Represents a list of Registered entries with the specified Parent ID
+*/
+message ListParentIDEntriesResponse {
+    repeated RegisteredEntry registeredEntryList = 1; /// List of Registration entries
+}
+
+
+/** Represents a selector
+*/
+message ListSelectorEntriesRequest {
+    Selector selector = 1; /// Selector
+}
+
+/** Represents a list of Registered entries with the specified selector
+*/
+message ListSelectorEntriesResponse {
+    repeated RegisteredEntry registeredEntryList = 1; /// List of Registration entries
+}
+
+
+/** Represents a Spiffe ID
+*/
+message ListSpiffeEntriesRequest {
+    string spiffeId = 1; /// Spiffe ID
+}
+
+/** Represents a list of Registered entries with the specified Spiffe ID
+*/
+message ListSpiffeEntriesResponse {
+    repeated RegisteredEntry registeredEntryList = 1; /// List of Registration entries
+}
+
+
+service DataStore {
+    /// Creates a Federated Bundle
+    rpc CreateFederatedEntry(CreateFederatedEntryRequest) returns (CreateFederatedEntryResponse);
+    /// List all Federated SPIFFE IDs
+    rpc ListFederatedEntry(ListFederatedEntryRequest) returns (ListFederatedEntryResponse);
+    /// Updates the specified Federated Bundle
+    rpc UpdateFederatedEntry(UpdateFederatedEntryRequest) returns (UpdateFederatedEntryResponse);
+    /// Deletes the specified Federated Bundle
+    rpc DeleteFederatedEntry(DeleteFederatedEntryRequest) returns (DeleteFederatedEntryResponse);
+
+    /// Creates an Attested Node Entry
+    rpc CreateAttestedNodeEntry(CreateAttestedNodeEntryRequest) returns (CreateAttestedNodeEntryResponse);
+    /// Retrieves the Attested Node Entry
+    rpc FetchAttestedNodeEntry(FetchAttestedNodeEntryRequest) returns (FetchAttestedNodeEntryResponse);
+    /// Retrieves dead nodes for which the base SVID has expired
+    rpc FetchStaleNodeEntries(FetchStaleNodeEntriesRequest) returns (FetchStaleNodeEntriesResponse);
+    /// Updates the Attested Node Entry
+    rpc UpdateAttestedNodeEntry(UpdateAttestedNodeEntryRequest) returns (UpdateAttestedNodeEntryResponse);
+    /// Deletes the Attested Node Entry
+    rpc DeleteAttestedNodeEntry(DeleteAttestedNodeEntryRequest) returns (DeleteAttestedNodeEntryResponse);
+
+    /// Creates a Node resolver map Entry
+    rpc CreateNodeResolverMapEntry(CreateNodeResolverMapEntryRequest) returns (CreateNodeResolverMapEntryResponse);
+    /// Retrieves all Node Resolver Map Entry for the specific base SPIFFEID
+    rpc FetchNodeResolverMapEntry(FetchNodeResolverMapEntryRequest) returns (FetchNodeResolverMapEntryResponse);
+    /// Deletes all Node Resolver Map Entry for the specific base SPIFFEID
+    rpc DeleteNodeResolverMapEntry(DeleteNodeResolverMapEntryRequest) returns (DeleteNodeResolverMapEntryResponse);
+    /// Used for rectifying updated node resolutions
+    rpc RectifyNodeResolverMapEntries(RectifyNodeResolverMapEntriesRequest) returns (RectifyNodeResolverMapEntriesResponse);
+
+    /// Creates a Registered Entry
+    rpc CreateRegistrationEntry(CreateRegistrationEntryRequest) returns (CreateRegistrationEntryResponse);
+    /// Retrieve a specific registered entry
+    rpc FetchRegistrationEntry(FetchRegistrationEntryRequest) returns (FetchRegistrationEntryResponse);
+    /// Updates a specific registered entry
+    rpc UpdateRegistrationEntry(UpdateRegistrationEntryRequest) returns (UpdateRegistrationEntryResponse);
+    /// Deletes a specific registered entry
+    rpc DeleteRegistrationEntry(DeleteRegistrationEntryRequest) returns (DeleteRegistrationEntryResponse);
+
+    /// Retrieves all the  registered entry with the same ParentID
+    rpc ListParentIDEntries(ListParentIDEntriesRequest) returns (ListParentIDEntriesResponse);
+    /// Retrieves all the  registered entry with the same Selector
+    rpc ListSelectorEntries(ListSelectorEntriesRequest) returns (ListSelectorEntriesResponse);
+    /// Retrieves all the  registered entry with the same SpiffeId
+    rpc ListSpiffeEntries(ListSpiffeEntriesRequest) returns (ListSpiffeEntriesResponse);
+
+    /// Applies the plugin configuration
+    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    /// Returns the version and related metadata of the installed plugin
+    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
+}
