@@ -1,4 +1,4 @@
-package memory
+package main
 
 import (
 	"github.com/hashicorp/go-plugin"
@@ -25,7 +25,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: upstreamca.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"upstreamca": upstreamca.UpstreamCaPlugin{UpstreamCaImpl: &MemoryPlugin{}},
+			"uca_memory": upstreamca.UpstreamCaPlugin{UpstreamCaImpl: &MemoryPlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

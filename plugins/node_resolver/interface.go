@@ -13,13 +13,8 @@ import (
 // Handshake is a common handshake that is shared between noderesolution and host.
 var Handshake = plugin.HandshakeConfig{
 	ProtocolVersion:  1,
-	MagicCookieKey:   "noderesolution_handshake",
-	MagicCookieValue: "noderesolution",
-}
-
-// PluginMap is the map of plugins we can dispense.
-var PluginMap = map[string]plugin.Plugin{
-	"node_resolution_aws": &NodeResolutionPlugin{},
+	MagicCookieKey:   "NodeResolver",
+	MagicCookieValue: "NodeResolver",
 }
 
 type NodeResolution interface {

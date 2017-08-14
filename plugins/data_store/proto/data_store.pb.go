@@ -107,12 +107,14 @@ func (*GetPluginInfoRequest) ProtoMessage()    {}
 // GetPluginInfoResponse from public import github.com/spiffe/control-plane/plugins/common/proto/common.proto
 type GetPluginInfoResponse proto2.GetPluginInfoResponse
 
-func (m *GetPluginInfoResponse) Reset()         { (*proto2.GetPluginInfoResponse)(m).Reset() }
-func (m *GetPluginInfoResponse) String() string { return (*proto2.GetPluginInfoResponse)(m).String() }
-func (*GetPluginInfoResponse) ProtoMessage()    {}
-func (m *GetPluginInfoResponse) GetPluginName() string {
-	return (*proto2.GetPluginInfoResponse)(m).GetPluginName()
+func (m *GetPluginInfoResponse) Reset()          { (*proto2.GetPluginInfoResponse)(m).Reset() }
+func (m *GetPluginInfoResponse) String() string  { return (*proto2.GetPluginInfoResponse)(m).String() }
+func (*GetPluginInfoResponse) ProtoMessage()     {}
+func (m *GetPluginInfoResponse) GetName() string { return (*proto2.GetPluginInfoResponse)(m).GetName() }
+func (m *GetPluginInfoResponse) GetCategory() string {
+	return (*proto2.GetPluginInfoResponse)(m).GetCategory()
 }
+func (m *GetPluginInfoResponse) GetType() string { return (*proto2.GetPluginInfoResponse)(m).GetType() }
 func (m *GetPluginInfoResponse) GetDescription() string {
 	return (*proto2.GetPluginInfoResponse)(m).GetDescription()
 }
