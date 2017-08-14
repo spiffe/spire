@@ -1,12 +1,12 @@
 hash: d55f7866f481ff1204feb9fc3b86ab7dc7dcefc6ba904de8f90b3069ec708f59
-updated: 2017-08-12T19:03:22.300631559-03:00
+updated: 2017-08-14T14:54:02.141244269-03:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/bgentry/speakeasy
   version: 4aabc24848ce5fd31929f7d1e4ea74d3709c14cd
 - name: github.com/go-kit/kit
-  version: 7c0038db5f6361f85f612e4154f61e4f6d6a83b2
+  version: bcc4b7720576e21b922974d4a4397f576ba7ef35
   subpackages:
   - endpoint
   - log
@@ -50,7 +50,7 @@ imports:
 - name: github.com/mattn/go-isatty
   version: fc9e8d8ef48496124e79ae0df75490096eccf6fe
 - name: github.com/mitchellh/cli
-  version: 8a539dbef410aa4191e0bcc7a6246c104b313009
+  version: b633c78680fa6fb27ac81694f38c28f79602ebd9
 - name: github.com/mitchellh/go-testing-interface
   version: e1449340a7b207d8ca90d41466272ece75cbb5b5
 - name: github.com/posener/complete
@@ -70,7 +70,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sys
-  version: e42485b6e20ae7d2304ec72e535b103ed350cc02
+  version: c84c1ab9fd18cdd4c23dd021c10f5f46dea95e46
   subpackages:
   - unix
 - name: golang.org/x/text
@@ -102,4 +102,21 @@ imports:
   - status
   - tap
   - transport
-testImports: []
+testImports:
+- name: github.com/davecgh/go-spew
+  version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
+  subpackages:
+  - spew
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
+- name: github.com/stretchr/testify
+  version: 05e8a0eda380579888eb53c394909df027f06991
+  subpackages:
+  - assert
+  - mock
+  - require
+  - suite
