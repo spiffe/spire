@@ -34,15 +34,8 @@ var (
 type configuration struct {
 	TTL time.Duration // time to live for generated certs
 
-	// BEGIN populated for generating self-signed cert, key
 	KeySize     int
 	CertSubject pkix.Name
-	// END populated for generating self-signed cert, key
-
-	// BEGIN populated for reading cert, key from disk (TODO)
-	KeyPath  string
-	CertPath string
-	// BEGIN populated for reading cert, key from disk
 }
 
 type memoryPlugin struct {
@@ -133,11 +126,6 @@ func NewWithDefault() (upstreamca.UpstreamCa, error) {
 }
 
 func (m *memoryPlugin) applyConfig(config *configuration) error {
-
-	// TODO: read cert, key from file
-	if config.CertPath != "" || config.KeyPath != "" {
-		return errors.New("file-based certs unsupported")
-	}
 
 	key, err := rsa.GenerateKey(rand.Reader, config.KeySize)
 	if err != nil {
