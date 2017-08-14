@@ -1,0 +1,24 @@
+/**Environment specific plugin to attest a workloads “selector” data.*/
+syntax = "proto3";
+package proto;
+
+import public "github.com/spiffe/node-agent/plugins/common/proto/common.proto";
+
+/** Represents the workload PID.*/
+message AttestRequest {
+    int32 pid = 1; /// Workload PID
+}
+
+/** Represents a list of selectors resolved for a given PID.*/
+message AttestResponse {
+    repeated string selectors = 1; /// List of selectors
+}
+
+service WorkloadAttestor {
+    /// Returns a list of selectors resolved for a given PID
+    rpc Attest(AttestRequest) returns (AttestResponse);
+    /// Applies the plugin configuration and returns configuration errors
+    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    /// Returns the version and related metadata of the plugin
+    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
+}

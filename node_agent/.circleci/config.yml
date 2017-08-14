@@ -1,0 +1,20 @@
+version: 2
+
+jobs:
+  build:
+    machine: true
+    working_directory: ~/go/src/github.com/spiffe/node-agent
+    steps:
+      - checkout
+      - restore_cache:
+          key: v1-{{ checksum "build.sh" }}{{ checksum "glide.lock" }}
+      - run: ./build.sh setup
+      - run: ./build.sh deps
+      - run: ./build.sh binaries
+      - run: ./build.sh test
+      - store_test_results:
+          path: .test_results
+      - save_cache:
+          key: v1-{{ checksum "build.sh" }}{{ checksum "glide.lock" }}
+          paths:
+            - .cache

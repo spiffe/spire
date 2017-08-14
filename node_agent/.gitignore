@@ -1,0 +1,12 @@
+.artifacts
+.cache
+.build
+/vendor
+.test_results
+
+node_agent/node_agent
+plugins/key_manager/memory/memory
+plugins/node_attestor/aws/aws
+plugins/node_attestor/gcp/gcp
+plugins/node_attestor/secret_file/secret_file
+plugins/workload_attestor/secret_file/secret_file
