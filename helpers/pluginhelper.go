@@ -13,28 +13,36 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca"
 	"github.com/spiffe/sri/control_plane/plugins/data_store"
-//      "github.com/spiffe/sri/control_plane/plugins/node_attestor"
+	cpnodeattestor "github.com/spiffe/sri/control_plane/plugins/node_attestor"
 	"github.com/spiffe/sri/control_plane/plugins/node_resolver"
     "github.com/spiffe/sri/control_plane/plugins/upstream_ca"
-//    "github.com/spiffe/sri/node_agent/plugins/key_manager"
+    "github.com/spiffe/sri/node_agent/plugins/key_manager"
     "github.com/spiffe/sri/node_agent/plugins/node_attestor"
-//    "github.com/spiffe/sri/node_agent/plugins/workload_attestor"
+    "github.com/spiffe/sri/node_agent/plugins/workload_attestor"
 )
 
 var NA_PLUGIN_TYPE_MAP = map[string]plugin.Plugin{
 	"ControlPlaneCA": &controlplaneca.ControlPlaneCaPlugin{},
 	"DataStore":      &datastore.DataStorePlugin{},
-	"NodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
+	"NANodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
 	"NodeResolver":   &noderesolver.NodeResolutionPlugin{},
 	"UpstreamCA":     &upstreamca.UpstreamCaPlugin{},
+	"CPNodeAttestor": &cpnodeattestor.NodeAttestorPlugin{},
+	"WorkloadAttestor":	&workloadattestor.WorkloadAttestorPlugin{},
+	"KeyManagerPlugin": &keymanager.KeyManagerPlugin{},
 }
 
 var MaxPlugins = map[string]int{
 	"ControlPlaneCA": 1,
 	"DataStore":      1,
-	"NodeAttestor":   1,
+	"NANodeAttestor":   1,
 	"NodeResolver":   1,
 	"UpstreamCA":     1,
+	"CPNodeAttestor": 1,
+	"WorkloadAttestor": 1,
+	"KeyManagerPlugin": 1,
+
+
 }
 
 type PluginCatalog struct {
@@ -156,7 +164,12 @@ func (c *PluginCatalog) Run() (err error) {
 			c.Plugins[pluginName] = pl.(noderesolver.NodeResolution)
 		case upstreamca.UpstreamCa:
 			c.Plugins[pluginName] = pl.(upstreamca.UpstreamCa)
-
+		case cpnodeattestor.NodeAttestor:
+			c.Plugins[pluginName] = pl.(cpnodeattestor.NodeAttestor)
+		case workloadattestor.WorkloadAttestor:
+			c.Plugins[pluginName]=pl.(workloadattestor.WorkloadAttestor)
+		case keymanager.KeyManager:
+			c.Plugins[pluginName] =pl.(keymanager.KeyManager)
 		default:
 			return errors.New(fmt.Sprintf("Plugin Unsupported pluginType:%v", reflect.TypeOf(pl)))
 		}
