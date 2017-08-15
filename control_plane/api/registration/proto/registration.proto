@@ -2,8 +2,6 @@
 syntax = "proto3";
 package control_plane_proto;
 
-import "google/protobuf/empty.proto";
-
 service Registration {
     ///Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
     rpc CreateEntry(RegisteredEntry) returns (RegisteredEntryID);
@@ -21,13 +19,17 @@ service Registration {
     rpc ListBySpiffeID(SpiffeID) returns (RegisteredEntries);
 
     ///Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
-    rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (google.protobuf.Empty);
+    rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (Empty);
     ///Retrieves Federated bundles for all the Federated SPIFFE IDs.
-    rpc ListFederatedBundles(google.protobuf.Empty) returns (ListFederatedBundlesResponse);
+    rpc ListFederatedBundles(Empty) returns (ListFederatedBundlesReply);
     ///Updates a particular Federated Bundle. Useful for rotation.
-    rpc UpdateFederatedBundle(FederatedBundle) returns (google.protobuf.Empty);
+    rpc UpdateFederatedBundle(FederatedBundle) returns (Empty);
     ///Delete a particular Federated Bundle. Used to destroy inter-domain trust.
-    rpc DeleteFederatedBundle(FederatedSpiffeID) returns (google.protobuf.Empty);
+    rpc DeleteFederatedBundle(FederatedSpiffeID) returns (Empty);
+}
+
+/**Represents an empty message*/
+message Empty {
 }
 
 /**A type which describes the conditions under which a registration entry is matched.*/
@@ -85,7 +87,7 @@ message CreateFederatedBundleRequest {
 }
 
 /**It represents a reply with a list of FederatedBundle.*/
-message ListFederatedBundlesResponse {
+message ListFederatedBundlesReply {
     repeated FederatedBundle bundles = 1;
 }
 

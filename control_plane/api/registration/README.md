@@ -4,24 +4,17 @@
 ## Table of Contents
 
 
-* [empty.proto](#empty.proto)
-  
-    * [Empty](#google.protobuf.Empty)
-  
-  
-  
-  
-
-
 * [registration.proto](#registration.proto)
   
     * [CreateFederatedBundleRequest](#control_plane_proto.CreateFederatedBundleRequest)
+  
+    * [Empty](#control_plane_proto.Empty)
   
     * [FederatedBundle](#control_plane_proto.FederatedBundle)
   
     * [FederatedSpiffeID](#control_plane_proto.FederatedSpiffeID)
   
-    * [ListFederatedBundlesResponse](#control_plane_proto.ListFederatedBundlesResponse)
+    * [ListFederatedBundlesReply](#control_plane_proto.ListFederatedBundlesReply)
   
     * [ParentID](#control_plane_proto.ParentID)
   
@@ -47,40 +40,6 @@
 
 
 
-<a name="empty.proto"/>
-<p align="right"><a href="#top">Top</a></p>
-
-## empty.proto
-
-
-
-<a name="google.protobuf.Empty"/>
-
-### Empty
-A generic empty message that you can re-use to avoid defining duplicated
-empty messages in your APIs. A typical example is to use it as the request
-or the response type of an API method. For instance:
-
-service Foo {
-rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);
-}
-
-The JSON representation for `Empty` is empty JSON object `{}`.
-
-
-
-
-
- 
-
- 
-
- 
-
- 
-
-
-
 <a name="registration.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
@@ -97,6 +56,16 @@ It represents a request with a FederatedBundle to create.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | federated_bundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  |  |
+
+
+
+
+
+
+<a name="control_plane_proto.Empty"/>
+
+### Empty
+Represents an empty message
 
 
 
@@ -135,9 +104,9 @@ A type that represents a Federated SPIFFE Id.
 
 
 
-<a name="control_plane_proto.ListFederatedBundlesResponse"/>
+<a name="control_plane_proto.ListFederatedBundlesReply"/>
 
-### ListFederatedBundlesResponse
+### ListFederatedBundlesReply
 It represents a reply with a list of FederatedBundle.
 
 
@@ -281,10 +250,10 @@ A type with the id with want to update plus values to modify.
 | ListByParentID | [ParentID](#control_plane_proto.ParentID) | [RegisteredEntries](#control_plane_proto.ParentID) | Returns all the Entries associated with the ParentID value. |
 | ListBySelector | [Selector](#control_plane_proto.Selector) | [RegisteredEntries](#control_plane_proto.Selector) | Returns all the entries associated with a selector value. |
 | ListBySpiffeID | [SpiffeID](#control_plane_proto.SpiffeID) | [RegisteredEntries](#control_plane_proto.SpiffeID) | Return all registration entries for which SPIFFE ID matches. |
-| CreateFederatedBundle | [CreateFederatedBundleRequest](#control_plane_proto.CreateFederatedBundleRequest) | [google.protobuf.Empty](#control_plane_proto.CreateFederatedBundleRequest) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
-| ListFederatedBundles | [google.protobuf.Empty](#google.protobuf.Empty) | [ListFederatedBundlesResponse](#google.protobuf.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
-| UpdateFederatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) | [google.protobuf.Empty](#control_plane_proto.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
-| DeleteFederatedBundle | [FederatedSpiffeID](#control_plane_proto.FederatedSpiffeID) | [google.protobuf.Empty](#control_plane_proto.FederatedSpiffeID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
+| CreateFederatedBundle | [CreateFederatedBundleRequest](#control_plane_proto.CreateFederatedBundleRequest) | [Empty](#control_plane_proto.CreateFederatedBundleRequest) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
+| ListFederatedBundles | [Empty](#control_plane_proto.Empty) | [ListFederatedBundlesReply](#control_plane_proto.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
+| UpdateFederatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) | [Empty](#control_plane_proto.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
+| DeleteFederatedBundle | [FederatedSpiffeID](#control_plane_proto.FederatedSpiffeID) | [Empty](#control_plane_proto.FederatedSpiffeID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 
  
 
