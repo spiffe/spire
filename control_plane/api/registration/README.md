@@ -4,61 +4,80 @@
 ## Table of Contents
 
 
+* [empty.proto](#empty.proto)
+  
+    * [Empty](#google.protobuf.Empty)
+  
+  
+  
+  
+
+
 * [registration.proto](#registration.proto)
-  
-    * [CreateEntryRequest](#control_plane_proto.CreateEntryRequest)
-  
-    * [CreateEntryResponse](#control_plane_proto.CreateEntryResponse)
   
     * [CreateFederatedBundleRequest](#control_plane_proto.CreateFederatedBundleRequest)
   
-    * [CreateFederatedBundleResponse](#control_plane_proto.CreateFederatedBundleResponse)
-  
-    * [CreateFederatedEntryRequest](#control_plane_proto.CreateFederatedEntryRequest)
-  
-    * [CreateFederatedEntryResponse](#control_plane_proto.CreateFederatedEntryResponse)
-  
-    * [DeleteEntryRequest](#control_plane_proto.DeleteEntryRequest)
-  
-    * [DeleteEntryResponse](#control_plane_proto.DeleteEntryResponse)
-  
-    * [DeleteFederatedBundleRequest](#control_plane_proto.DeleteFederatedBundleRequest)
-  
-    * [DeleteFederatedBundleResponse](#control_plane_proto.DeleteFederatedBundleResponse)
-  
     * [FederatedBundle](#control_plane_proto.FederatedBundle)
   
-    * [FederatedEntry](#control_plane_proto.FederatedEntry)
-  
-    * [ListAttestorEntriesRequest](#control_plane_proto.ListAttestorEntriesRequest)
-  
-    * [ListAttestorEntriesResponse](#control_plane_proto.ListAttestorEntriesResponse)
-  
-    * [ListFederatedBundlesRequest](#control_plane_proto.ListFederatedBundlesRequest)
+    * [FederatedSpiffeID](#control_plane_proto.FederatedSpiffeID)
   
     * [ListFederatedBundlesResponse](#control_plane_proto.ListFederatedBundlesResponse)
   
-    * [ListSelectorEntriesRequest](#control_plane_proto.ListSelectorEntriesRequest)
+    * [ParentID](#control_plane_proto.ParentID)
   
-    * [ListSelectorEntriesResponse](#control_plane_proto.ListSelectorEntriesResponse)
-  
-    * [ListSpiffeEntriesRequest](#control_plane_proto.ListSpiffeEntriesRequest)
-  
-    * [ListSpiffeEntriesResponse](#control_plane_proto.ListSpiffeEntriesResponse)
+    * [RegisteredEntries](#control_plane_proto.RegisteredEntries)
   
     * [RegisteredEntry](#control_plane_proto.RegisteredEntry)
   
-    * [UpdateFederatedBundleRequest](#control_plane_proto.UpdateFederatedBundleRequest)
+    * [RegisteredEntryID](#control_plane_proto.RegisteredEntryID)
   
-    * [UpdateFederatedBundleResponse](#control_plane_proto.UpdateFederatedBundleResponse)
+    * [Selector](#control_plane_proto.Selector)
+  
+    * [SpiffeID](#control_plane_proto.SpiffeID)
+  
+    * [UpdateEntryRequest](#control_plane_proto.UpdateEntryRequest)
   
   
   
   
-    * [node](#control_plane_proto.node)
+    * [Registration](#control_plane_proto.Registration)
   
 
 * [Scalar Value Types](#scalar-value-types)
+
+
+
+<a name="empty.proto"/>
+<p align="right"><a href="#top">Top</a></p>
+
+## empty.proto
+
+
+
+<a name="google.protobuf.Empty"/>
+
+### Empty
+A generic empty message that you can re-use to avoid defining duplicated
+empty messages in your APIs. A typical example is to use it as the request
+or the response type of an API method. For instance:
+
+service Foo {
+rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+
+The JSON representation for `Empty` is empty JSON object `{}`.
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+ 
 
 
 
@@ -66,134 +85,18 @@
 <p align="right"><a href="#top">Top</a></p>
 
 ## registration.proto
-
-
-
-<a name="control_plane_proto.CreateEntryRequest"/>
-
-### CreateEntryRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  |  |
-
-
-
-
-
-
-<a name="control_plane_proto.CreateEntryResponse"/>
-
-### CreateEntryResponse
-
-
-
-
-
+The Registration API is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.
 
 
 <a name="control_plane_proto.CreateFederatedBundleRequest"/>
 
 ### CreateFederatedBundleRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  |  |
-
-
-
-
-
-
-<a name="control_plane_proto.CreateFederatedBundleResponse"/>
-
-### CreateFederatedBundleResponse
-
-
-
-
-
-
-
-<a name="control_plane_proto.CreateFederatedEntryRequest"/>
-
-### CreateFederatedEntryRequest
-
+It represents a request with a FederatedBundle to create.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedEntry | [FederatedEntry](#control_plane_proto.FederatedEntry) |  |  |
-
-
-
-
-
-
-<a name="control_plane_proto.CreateFederatedEntryResponse"/>
-
-### CreateFederatedEntryResponse
-
-
-
-
-
-
-
-<a name="control_plane_proto.DeleteEntryRequest"/>
-
-### DeleteEntryRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| selectorType | [string](#string) |  |  |
-| selector | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="control_plane_proto.DeleteEntryResponse"/>
-
-### DeleteEntryResponse
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedEntryList | [FederatedEntry](#control_plane_proto.FederatedEntry) | repeated |  |
-
-
-
-
-
-
-<a name="control_plane_proto.DeleteFederatedBundleRequest"/>
-
-### DeleteFederatedBundleRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federateBundleSpiffeId | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="control_plane_proto.DeleteFederatedBundleResponse"/>
-
-### DeleteFederatedBundleResponse
-
+| federated_bundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  |  |
 
 
 
@@ -203,13 +106,13 @@
 <a name="control_plane_proto.FederatedBundle"/>
 
 ### FederatedBundle
-
+A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federateBundleSpiffeId | [string](#string) |  |  |
-| federatedBundle | [bytes](#bytes) |  |  |
+| spiffe_id | [string](#string) |  |  |
+| federated_bundle | [bytes](#bytes) |  |  |
 | ttl | [int32](#int32) |  |  |
 
 
@@ -217,56 +120,15 @@
 
 
 
-<a name="control_plane_proto.FederatedEntry"/>
+<a name="control_plane_proto.FederatedSpiffeID"/>
 
-### FederatedEntry
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  |  |
-| federateBundleSpiffeIdList | [string](#string) | repeated |  |
-
-
-
-
-
-
-<a name="control_plane_proto.ListAttestorEntriesRequest"/>
-
-### ListAttestorEntriesRequest
-
+### FederatedSpiffeID
+A type that represents a Federated SPIFFE Id.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestor | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="control_plane_proto.ListAttestorEntriesResponse"/>
-
-### ListAttestorEntriesResponse
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedEntryList | [FederatedEntry](#control_plane_proto.FederatedEntry) | repeated |  |
-
-
-
-
-
-
-<a name="control_plane_proto.ListFederatedBundlesRequest"/>
-
-### ListFederatedBundlesRequest
-
+| id | [string](#string) |  |  |
 
 
 
@@ -276,73 +138,42 @@
 <a name="control_plane_proto.ListFederatedBundlesResponse"/>
 
 ### ListFederatedBundlesResponse
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federateBundleSpiffeIdList | [string](#string) | repeated |  |
-
-
-
-
-
-
-<a name="control_plane_proto.ListSelectorEntriesRequest"/>
-
-### ListSelectorEntriesRequest
-
+It represents a reply with a list of FederatedBundle.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectorType | [string](#string) |  |  |
-| selector | [string](#string) |  |  |
+| bundles | [FederatedBundle](#control_plane_proto.FederatedBundle) | repeated |  |
 
 
 
 
 
 
-<a name="control_plane_proto.ListSelectorEntriesResponse"/>
+<a name="control_plane_proto.ParentID"/>
 
-### ListSelectorEntriesResponse
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedEntryList | [FederatedEntry](#control_plane_proto.FederatedEntry) | repeated |  |
-
-
-
-
-
-
-<a name="control_plane_proto.ListSpiffeEntriesRequest"/>
-
-### ListSpiffeEntriesRequest
-
+### ParentID
+A type that represents a parent Id.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  |  |
+| id | [string](#string) |  |  |
 
 
 
 
 
 
-<a name="control_plane_proto.ListSpiffeEntriesResponse"/>
+<a name="control_plane_proto.RegisteredEntries"/>
 
-### ListSpiffeEntriesResponse
-
+### RegisteredEntries
+A list of registered entries.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedEntryList | [FederatedEntry](#control_plane_proto.FederatedEntry) | repeated |  |
+| entries | [RegisteredEntry](#control_plane_proto.RegisteredEntry) | repeated |  |
 
 
 
@@ -352,41 +183,78 @@
 <a name="control_plane_proto.RegisteredEntry"/>
 
 ### RegisteredEntry
-
+This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectorType | [string](#string) |  |  |
-| selector | [string](#string) |  |  |
-| attestor | [string](#string) |  |  |
-| spiffeId | [string](#string) |  |  |
+| selectors | [Selector](#control_plane_proto.Selector) | repeated |  |
+| parent_id | [string](#string) |  |  |
+| spiffe_id | [string](#string) |  |  |
 | ttl | [int32](#int32) |  |  |
+| fb_spiffe_ids | [string](#string) | repeated |  |
 
 
 
 
 
 
-<a name="control_plane_proto.UpdateFederatedBundleRequest"/>
+<a name="control_plane_proto.RegisteredEntryID"/>
 
-### UpdateFederatedBundleRequest
-
+### RegisteredEntryID
+A type that represents the id of an entry.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  |  |
+| id | [string](#string) |  |  |
 
 
 
 
 
 
-<a name="control_plane_proto.UpdateFederatedBundleResponse"/>
+<a name="control_plane_proto.Selector"/>
 
-### UpdateFederatedBundleResponse
+### Selector
+A type which describes the conditions under which a registration entry is matched.
 
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  |  |
+| value | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="control_plane_proto.SpiffeID"/>
+
+### SpiffeID
+A type that represents a SPIFFE Id.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="control_plane_proto.UpdateEntryRequest"/>
+
+### UpdateEntryRequest
+A type with the id with want to update plus values to modify.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| id | [string](#string) |  |  |
+| entry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  |  |
 
 
 
@@ -399,23 +267,24 @@
  
 
 
-<a name="control_plane_proto.node"/>
+<a name="control_plane_proto.Registration"/>
 
-### node
+### Registration
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateFederatedEntry | [CreateFederatedEntryRequest](#control_plane_proto.CreateFederatedEntryRequest) | [CreateFederatedEntryResponse](#control_plane_proto.CreateFederatedEntryRequest) |  |
-| CreateFederatedBundle | [CreateFederatedBundleRequest](#control_plane_proto.CreateFederatedBundleRequest) | [CreateFederatedBundleResponse](#control_plane_proto.CreateFederatedBundleRequest) |  |
-| ListFederatedBundles | [ListFederatedBundlesRequest](#control_plane_proto.ListFederatedBundlesRequest) | [ListFederatedBundlesResponse](#control_plane_proto.ListFederatedBundlesRequest) |  |
-| UpdateFederatedBundle | [UpdateFederatedBundleRequest](#control_plane_proto.UpdateFederatedBundleRequest) | [UpdateFederatedBundleResponse](#control_plane_proto.UpdateFederatedBundleRequest) |  |
-| DeleteFederatedBundle | [DeleteFederatedBundleRequest](#control_plane_proto.DeleteFederatedBundleRequest) | [DeleteFederatedBundleResponse](#control_plane_proto.DeleteFederatedBundleRequest) |  |
-| CreateEntry | [CreateEntryRequest](#control_plane_proto.CreateEntryRequest) | [CreateEntryResponse](#control_plane_proto.CreateEntryRequest) |  |
-| ListAttestorEntries | [ListAttestorEntriesRequest](#control_plane_proto.ListAttestorEntriesRequest) | [ListAttestorEntriesResponse](#control_plane_proto.ListAttestorEntriesRequest) |  |
-| ListSelectorEntries | [ListSelectorEntriesRequest](#control_plane_proto.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#control_plane_proto.ListSelectorEntriesRequest) |  |
-| ListSpiffeEntries | [ListSpiffeEntriesRequest](#control_plane_proto.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#control_plane_proto.ListSpiffeEntriesRequest) |  |
-| DeleteEntry | [DeleteEntryRequest](#control_plane_proto.DeleteEntryRequest) | [DeleteEntryResponse](#control_plane_proto.DeleteEntryRequest) |  |
+| CreateEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) | [RegisteredEntryID](#control_plane_proto.RegisteredEntry) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads. |
+| DeleteEntry | [RegisteredEntryID](#control_plane_proto.RegisteredEntryID) | [RegisteredEntry](#control_plane_proto.RegisteredEntryID) | Deletes an entry and returns the deleted entry. |
+| FetchEntry | [RegisteredEntryID](#control_plane_proto.RegisteredEntryID) | [RegisteredEntry](#control_plane_proto.RegisteredEntryID) | Retrieve a specific registered entry. |
+| UpdateEntry | [UpdateEntryRequest](#control_plane_proto.UpdateEntryRequest) | [RegisteredEntry](#control_plane_proto.UpdateEntryRequest) | Updates a specific registered entry. |
+| ListByParentID | [ParentID](#control_plane_proto.ParentID) | [RegisteredEntries](#control_plane_proto.ParentID) | Returns all the Entries associated with the ParentID value. |
+| ListBySelector | [Selector](#control_plane_proto.Selector) | [RegisteredEntries](#control_plane_proto.Selector) | Returns all the entries associated with a selector value. |
+| ListBySpiffeID | [SpiffeID](#control_plane_proto.SpiffeID) | [RegisteredEntries](#control_plane_proto.SpiffeID) | Return all registration entries for which SPIFFE ID matches. |
+| CreateFederatedBundle | [CreateFederatedBundleRequest](#control_plane_proto.CreateFederatedBundleRequest) | [google.protobuf.Empty](#control_plane_proto.CreateFederatedBundleRequest) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
+| ListFederatedBundles | [google.protobuf.Empty](#google.protobuf.Empty) | [ListFederatedBundlesResponse](#google.protobuf.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
+| UpdateFederatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) | [google.protobuf.Empty](#control_plane_proto.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
+| DeleteFederatedBundle | [FederatedSpiffeID](#control_plane_proto.FederatedSpiffeID) | [google.protobuf.Empty](#control_plane_proto.FederatedSpiffeID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 
  
 
