@@ -11,8 +11,10 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/spiffe/sri/control_plane/api/server/proto"
+	registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
+	server_proto "github.com/spiffe/sri/control_plane/api/server/proto"
 
+	"github.com/spiffe/sri/control_plane/endpoints/registration"
 	"github.com/spiffe/sri/control_plane/endpoints/server"
 	"github.com/spiffe/sri/helpers"
 )
@@ -20,6 +22,7 @@ import (
 type ServerCommand struct {
 }
 
+//Help returns how to use the server command
 func (*ServerCommand) Help() string {
 	return "Usage: sri/control_plane server"
 }
@@ -56,16 +59,31 @@ func loadPlugins() (*pluginhelper.PluginCatalog, error) {
 
 func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 	errChan := makeErrorChannel()
-	svc := server.NewService(pluginCatalog, errChan)
+	serverSvc := server.NewService(pluginCatalog, errChan)
+	registrationSvc := registration.NewService()
 
 	var (
-		gRPCAddr = flag.String("grpc", ":8081", "gRPC listen address") //TODO: read this from the cli arguments @kunzimariano
+		gRPCAddr = flag.String("grpc", ":8081", "gRPC listen address")
 	)
 	flag.Parse()
 
-	endpoints := server.Endpoints{
-		PluginInfoEndpoint: server.MakePluginInfoEndpoint(svc),
-		StopEndpoint:       server.MakeStopEndpoint(svc),
+	serverEndpoints := server.Endpoints{
+		PluginInfoEndpoint: server.MakePluginInfoEndpoint(serverSvc),
+		StopEndpoint:       server.MakeStopEndpoint(serverSvc),
+	}
+
+	registrationEndpoints := registration.Endpoints{
+		CreateEntryEndpoint:           registration.MakeCreateEntryEndpoint(registrationSvc),
+		DeleteEntryEndpoint:           registration.MakeDeleteEntryEndpoint(registrationSvc),
+		FetchEntryEndpoint:            registration.MakeFetchEntryEndpoint(registrationSvc),
+		UpdateEntryEndpoint:           registration.MakeUpdateEntryEndpoint(registrationSvc),
+		ListByParentIDEndpoint:        registration.MakeListByParentIDEndpoint(registrationSvc),
+		ListBySelectorEndpoint:        registration.MakeListBySelectorEndpoint(registrationSvc),
+		ListBySpiffeIDEndpoint:        registration.MakeListBySpiffeIDEndpoint(registrationSvc),
+		CreateFederatedBundleEndpoint: registration.MakeCreateFederatedBundleEndpoint(registrationSvc),
+		ListFederatedBundlesEndpoint:  registration.MakeListFederatedBundlesEndpoint(registrationSvc),
+		UpdateFederatedBundleEndpoint: registration.MakeUpdateFederatedBundleEndpoint(registrationSvc),
+		DeleteFederatedBundleEndpoint: registration.MakeDeleteFederatedBundleEndpoint(registrationSvc),
 	}
 
 	go func() {
@@ -76,9 +94,11 @@ func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 		}
 		log.Println("grpc:", *gRPCAddr)
 
-		handler := server.MakeGRPCServer(endpoints)
+		serverHandler := server.MakeGRPCServer(serverEndpoints)
+		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
 		gRPCServer := grpc.NewServer()
-		control_plane_proto.RegisterServerServer(gRPCServer, handler)
+		server_proto.RegisterServerServer(gRPCServer, serverHandler)
+		registration_proto.RegisterRegistrationServer(gRPCServer, registrationHandler)
 		errChan <- gRPCServer.Serve(listener)
 	}()
 
