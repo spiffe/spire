@@ -1,117 +1,461 @@
 package main
 
 import (
+	"errors"
+	"time"
+
 	"github.com/hashicorp/go-plugin"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/sqlite"
+
 	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
 	"github.com/spiffe/sri/control_plane/plugins/data_store"
-	"github.com/spiffe/sri/control_plane/plugins/data_store/proto"
+	proto "github.com/spiffe/sri/control_plane/plugins/data_store/proto"
 )
 
-type SqlitePlugin struct{}
+var (
+	pluginInfo = common.GetPluginInfoResponse{
+		Description: "",
+		DateCreated: "",
+		Version:     "",
+		Author:      "",
+		Company:     "",
+	}
+)
 
-func (SqlitePlugin) CreateFederatedEntry(*control_plane_proto.CreateFederatedEntryRequest) (*control_plane_proto.CreateFederatedEntryResponse, error) {
-	return &control_plane_proto.CreateFederatedEntryResponse{}, nil
+type sqlitePlugin struct {
+	db *gorm.DB
 }
 
-func (SqlitePlugin) ListFederatedEntry(*control_plane_proto.ListFederatedEntryRequest) (*control_plane_proto.ListFederatedEntryResponse, error) {
-	return &control_plane_proto.ListFederatedEntryResponse{}, nil
+func (ds *sqlitePlugin) CreateFederatedEntry(
+	req *proto.CreateFederatedEntryRequest) (*proto.CreateFederatedEntryResponse, error) {
+
+	bundle := req.FederatedBundle
+	if bundle == nil {
+		return nil, errors.New("invalid request: no bundle given")
+	}
+
+	model := federatedBundle{
+		SpiffeId: bundle.FederatedBundleSpiffeId,
+		Bundle:   bundle.FederatedTrustBundle,
+		Ttl:      bundle.Ttl,
+	}
+
+	if err := ds.db.Create(&model).Error; err != nil {
+		return nil, err
+	}
+
+	return &proto.CreateFederatedEntryResponse{}, nil
 }
 
-func (SqlitePlugin) UpdateFederatedEntry(*control_plane_proto.UpdateFederatedEntryRequest) (*control_plane_proto.UpdateFederatedEntryResponse, error) {
-	return &control_plane_proto.UpdateFederatedEntryResponse{}, nil
+func (ds *sqlitePlugin) ListFederatedEntry(
+	*proto.ListFederatedEntryRequest) (*proto.ListFederatedEntryResponse, error) {
+	var entries []federatedBundle
+	var response proto.ListFederatedEntryResponse
+
+	if err := ds.db.Find(&entries).Error; err != nil {
+		return &response, err
+	}
+
+	for _, model := range entries {
+		response.FederatedBundleSpiffeIdList = append(response.FederatedBundleSpiffeIdList, model.SpiffeId)
+	}
+
+	return &response, nil
 }
 
-func (SqlitePlugin) DeleteFederatedEntry(*control_plane_proto.DeleteFederatedEntryRequest) (*control_plane_proto.DeleteFederatedEntryResponse, error) {
-	return &control_plane_proto.DeleteFederatedEntryResponse{}, nil
+func (ds *sqlitePlugin) UpdateFederatedEntry(
+	req *proto.UpdateFederatedEntryRequest) (*proto.UpdateFederatedEntryResponse, error) {
+	bundle := req.FederatedBundle
+
+	if bundle == nil {
+		return nil, errors.New("invalid request: no bundle given")
+	}
+
+	db := ds.db.Begin()
+
+	var model federatedBundle
+
+	if err := db.Find(&model, "spiffe_id = ?", bundle.FederatedBundleSpiffeId).Error; err != nil {
+		db.Rollback()
+		return nil, err
+	}
+
+	updates := federatedBundle{
+		Bundle: bundle.FederatedTrustBundle,
+		Ttl:    bundle.Ttl,
+	}
+
+	if err := db.Model(&model).Updates(updates).Error; err != nil {
+		db.Rollback()
+		return nil, err
+	}
+
+	return &proto.UpdateFederatedEntryResponse{
+		FederatedBundle: &proto.FederatedBundle{
+			FederatedBundleSpiffeId: model.SpiffeId,
+			FederatedTrustBundle:    model.Bundle,
+			Ttl:                     model.Ttl,
+		},
+	}, db.Commit().Error
+}
+
+func (ds *sqlitePlugin) DeleteFederatedEntry(
+	req *proto.DeleteFederatedEntryRequest) (*proto.DeleteFederatedEntryResponse, error) {
+	db := ds.db.Begin()
+
+	var model federatedBundle
+
+	if err := db.Find(&model, "spiffe_id = ?", req.FederatedBundleSpiffeId).Error; err != nil {
+		db.Rollback()
+		return nil, err
+	}
+
+	if err := db.Delete(&model).Error; err != nil {
+		db.Rollback()
+		return nil, err
+	}
+
+	return &proto.DeleteFederatedEntryResponse{
+		FederatedBundle: &proto.FederatedBundle{
+			FederatedBundleSpiffeId: model.SpiffeId,
+			FederatedTrustBundle:    model.Bundle,
+			Ttl:                     model.Ttl,
+		},
+	}, db.Commit().Error
 }
 
 //
 
-func (SqlitePlugin) CreateAttestedNodeEntry(*control_plane_proto.CreateAttestedNodeEntryRequest) (*control_plane_proto.CreateAttestedNodeEntryResponse, error) {
-	return &control_plane_proto.CreateAttestedNodeEntryResponse{}, nil
+func (ds *sqlitePlugin) CreateAttestedNodeEntry(
+	req *proto.CreateAttestedNodeEntryRequest) (*proto.CreateAttestedNodeEntryResponse, error) {
+	entry := req.AttestedNodeEntry
+	if entry == nil {
+		return nil, errors.New("invalid request: missing attested node")
+	}
+
+	expiresAt, err := time.Parse(datastore.TimeFormat, entry.CertExpirationDate)
+	if err != nil {
+		return nil, errors.New("invalid request: missing expiration")
+	}
+
+	model := attestedNodeEntry{
+		SpiffeId:     entry.BaseSpiffeId,
+		DataType:     entry.AttestedDataType,
+		SerialNumber: entry.CertSerialNumber,
+		ExpiresAt:    expiresAt,
+	}
+
+	if err := ds.db.Create(&model).Error; err != nil {
+		return nil, err
+	}
+
+	return &proto.CreateAttestedNodeEntryResponse{
+		AttestedNodeEntry: &proto.AttestedNodeEntry{
+			BaseSpiffeId:       model.SpiffeId,
+			AttestedDataType:   model.DataType,
+			CertSerialNumber:   model.SerialNumber,
+			CertExpirationDate: expiresAt.Format(datastore.TimeFormat),
+		},
+	}, nil
 }
 
-func (SqlitePlugin) FetchAttestedNodeEntry(*control_plane_proto.FetchAttestedNodeEntryRequest) (*control_plane_proto.FetchAttestedNodeEntryResponse, error) {
-	return &control_plane_proto.FetchAttestedNodeEntryResponse{}, nil
+func (ds *sqlitePlugin) FetchAttestedNodeEntry(
+	req *proto.FetchAttestedNodeEntryRequest) (*proto.FetchAttestedNodeEntryResponse, error) {
+	var model attestedNodeEntry
+	err := ds.db.Find(&model, "spiffe_id = ?", req.BaseSpiffeId).Error
+	switch {
+	case err == gorm.ErrRecordNotFound:
+		return &proto.FetchAttestedNodeEntryResponse{}, nil
+	case err != nil:
+		return nil, err
+	}
+	return &proto.FetchAttestedNodeEntryResponse{
+		AttestedNodeEntry: &proto.AttestedNodeEntry{
+			BaseSpiffeId:       model.SpiffeId,
+			AttestedDataType:   model.DataType,
+			CertSerialNumber:   model.SerialNumber,
+			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+		},
+	}, nil
 }
 
-func (SqlitePlugin) FetchStaleNodeEntries(*control_plane_proto.FetchStaleNodeEntriesRequest) (*control_plane_proto.FetchStaleNodeEntriesResponse, error) {
-	return &control_plane_proto.FetchStaleNodeEntriesResponse{}, nil
+func (ds *sqlitePlugin) FetchStaleNodeEntries(
+	*proto.FetchStaleNodeEntriesRequest) (*proto.FetchStaleNodeEntriesResponse, error) {
+
+	var models []attestedNodeEntry
+	if err := ds.db.Find(&models, "expires_at < ?", time.Now()).Error; err != nil {
+		return nil, err
+	}
+
+	resp := &proto.FetchStaleNodeEntriesResponse{
+		AttestedNodeEntryList: make([]*proto.AttestedNodeEntry, 0, len(models)),
+	}
+
+	for _, model := range models {
+		resp.AttestedNodeEntryList = append(resp.AttestedNodeEntryList, &proto.AttestedNodeEntry{
+			BaseSpiffeId:       model.SpiffeId,
+			AttestedDataType:   model.DataType,
+			CertSerialNumber:   model.SerialNumber,
+			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+		})
+	}
+	return resp, nil
 }
 
-func (SqlitePlugin) UpdateAttestedNodeEntry(*control_plane_proto.UpdateAttestedNodeEntryRequest) (*control_plane_proto.UpdateAttestedNodeEntryResponse, error) {
-	return &control_plane_proto.UpdateAttestedNodeEntryResponse{}, nil
+func (ds *sqlitePlugin) UpdateAttestedNodeEntry(
+	req *proto.UpdateAttestedNodeEntryRequest) (*proto.UpdateAttestedNodeEntryResponse, error) {
+
+	var model attestedNodeEntry
+
+	expiresAt, err := time.Parse(datastore.TimeFormat, req.CertExpirationDate)
+	if err != nil {
+		return nil, err
+	}
+
+	db := ds.db.Begin()
+
+	if err := db.Find(&model, "spiffe_id = ?", req.BaseSpiffeId).Error; err != nil {
+		db.Rollback()
+		return nil, err
+	}
+
+	updates := attestedNodeEntry{
+		SerialNumber: req.CertSerialNumber,
+		ExpiresAt:    expiresAt,
+	}
+
+	if err := db.Model(&model).Updates(updates).Error; err != nil {
+		db.Rollback()
+		return nil, err
+	}
+
+	return &proto.UpdateAttestedNodeEntryResponse{
+		AttestedNodeEntry: &proto.AttestedNodeEntry{
+			BaseSpiffeId:       model.SpiffeId,
+			AttestedDataType:   model.DataType,
+			CertSerialNumber:   model.SerialNumber,
+			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+		},
+	}, db.Commit().Error
 }
 
-func (SqlitePlugin) DeleteAttestedNodeEntry(*control_plane_proto.DeleteAttestedNodeEntryRequest) (*control_plane_proto.DeleteAttestedNodeEntryResponse, error) {
-	return &control_plane_proto.DeleteAttestedNodeEntryResponse{}, nil
+func (ds *sqlitePlugin) DeleteAttestedNodeEntry(
+	req *proto.DeleteAttestedNodeEntryRequest) (*proto.DeleteAttestedNodeEntryResponse, error) {
+	db := ds.db.Begin()
+
+	var model attestedNodeEntry
+
+	if err := db.Find(&model, "spiffe_id = ?", req.BaseSpiffeId).Error; err != nil {
+		db.Rollback()
+		return nil, err
+	}
+
+	if err := db.Delete(&model).Error; err != nil {
+		db.Rollback()
+		return nil, err
+	}
+
+	return &proto.DeleteAttestedNodeEntryResponse{
+		AttestedNodeEntry: &proto.AttestedNodeEntry{
+			BaseSpiffeId:       model.SpiffeId,
+			AttestedDataType:   model.DataType,
+			CertSerialNumber:   model.SerialNumber,
+			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+		},
+	}, db.Commit().Error
 }
 
 //
 
-func (SqlitePlugin) CreateNodeResolverMapEntry(*control_plane_proto.CreateNodeResolverMapEntryRequest) (*control_plane_proto.CreateNodeResolverMapEntryResponse, error) {
-	return &control_plane_proto.CreateNodeResolverMapEntryResponse{}, nil
+func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
+	req *proto.CreateNodeResolverMapEntryRequest) (*proto.CreateNodeResolverMapEntryResponse, error) {
+
+	entry := req.NodeResolverMapEntry
+	if entry == nil {
+		return nil, errors.New("Invalid Request: no map entry")
+	}
+
+	selector := entry.Selector
+	if selector == nil {
+		return nil, errors.New("Invalid Request: no selector")
+	}
+
+	model := nodeResolverMapEntry{
+		SpiffeId: entry.BaseSpiffeId,
+		Type:     selector.Type,
+		Value:    selector.Value,
+	}
+
+	if err := ds.db.Create(&model).Error; err != nil {
+		return nil, err
+	}
+
+	return &proto.CreateNodeResolverMapEntryResponse{
+		NodeResolverMapEntry: &proto.NodeResolverMapEntry{
+			BaseSpiffeId: model.SpiffeId,
+			Selector: &proto.Selector{
+				Type:  model.Type,
+				Value: model.Value,
+			},
+		},
+	}, nil
 }
 
-func (SqlitePlugin) FetchNodeResolverMapEntry(*control_plane_proto.FetchNodeResolverMapEntryRequest) (*control_plane_proto.FetchNodeResolverMapEntryResponse, error) {
-	return &control_plane_proto.FetchNodeResolverMapEntryResponse{}, nil
+func (ds *sqlitePlugin) FetchNodeResolverMapEntry(
+	req *proto.FetchNodeResolverMapEntryRequest) (*proto.FetchNodeResolverMapEntryResponse, error) {
+	var models []nodeResolverMapEntry
+
+	if err := ds.db.Find(&models, "spiffe_id = ?", req.BaseSpiffeId).Error; err != nil {
+		return nil, err
+	}
+
+	resp := &proto.FetchNodeResolverMapEntryResponse{
+		NodeResolverMapEntryList: make([]*proto.NodeResolverMapEntry, 0, len(models)),
+	}
+
+	for _, model := range models {
+		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &proto.NodeResolverMapEntry{
+			BaseSpiffeId: model.SpiffeId,
+			Selector: &proto.Selector{
+				Type:  model.Type,
+				Value: model.Value,
+			},
+		})
+	}
+	return resp, nil
 }
 
-func (SqlitePlugin) DeleteNodeResolverMapEntry(*control_plane_proto.DeleteNodeResolverMapEntryRequest) (*control_plane_proto.DeleteNodeResolverMapEntryResponse, error) {
-	return &control_plane_proto.DeleteNodeResolverMapEntryResponse{}, nil
+func (ds *sqlitePlugin) DeleteNodeResolverMapEntry(
+	req *proto.DeleteNodeResolverMapEntryRequest) (*proto.DeleteNodeResolverMapEntryResponse, error) {
+
+	entry := req.NodeResolverMapEntry
+	if entry == nil {
+		return nil, errors.New("Invalid Request: no map entry")
+	}
+
+	tx := ds.db.Begin()
+
+	// if no selector is given, delete all entries with the given spiffe id
+
+	scope := tx.Where("spiffe_id = ?", entry.BaseSpiffeId)
+
+	if selector := entry.Selector; selector != nil {
+		scope = scope.Where("type  = ?", selector.Type)
+		scope = scope.Where("value = ?", selector.Value)
+	}
+
+	var models []nodeResolverMapEntry
+
+	if err := scope.Find(&models).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := scope.Delete(&nodeResolverMapEntry{}).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	resp := &proto.DeleteNodeResolverMapEntryResponse{
+		NodeResolverMapEntryList: make([]*proto.NodeResolverMapEntry, 0, len(models)),
+	}
+
+	for _, model := range models {
+		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &proto.NodeResolverMapEntry{
+			BaseSpiffeId: model.SpiffeId,
+			Selector: &proto.Selector{
+				Type:  model.Type,
+				Value: model.Value,
+			},
+		})
+	}
+
+	return resp, tx.Commit().Error
 }
 
-func (SqlitePlugin) RectifyNodeResolverMapEntries(*control_plane_proto.RectifyNodeResolverMapEntriesRequest) (*control_plane_proto.RectifyNodeResolverMapEntriesResponse, error) {
-	return &control_plane_proto.RectifyNodeResolverMapEntriesResponse{}, nil
+func (sqlitePlugin) RectifyNodeResolverMapEntries(
+	*proto.RectifyNodeResolverMapEntriesRequest) (*proto.RectifyNodeResolverMapEntriesResponse, error) {
+	return &proto.RectifyNodeResolverMapEntriesResponse{}, errors.New("Not Implemented")
 }
 
 //
 
-func (SqlitePlugin) CreateRegistrationEntry(*control_plane_proto.CreateRegistrationEntryRequest) (*control_plane_proto.CreateRegistrationEntryResponse, error) {
-	return &control_plane_proto.CreateRegistrationEntryResponse{}, nil
+func (sqlitePlugin) CreateRegistrationEntry(
+	*proto.CreateRegistrationEntryRequest) (*proto.CreateRegistrationEntryResponse, error) {
+	return &proto.CreateRegistrationEntryResponse{}, errors.New("Not Implemented")
 }
 
-func (SqlitePlugin) FetchRegistrationEntry(*control_plane_proto.FetchRegistrationEntryRequest) (*control_plane_proto.FetchRegistrationEntryResponse, error) {
-	return &control_plane_proto.FetchRegistrationEntryResponse{}, nil
+func (sqlitePlugin) FetchRegistrationEntry(
+	*proto.FetchRegistrationEntryRequest) (*proto.FetchRegistrationEntryResponse, error) {
+	return &proto.FetchRegistrationEntryResponse{}, errors.New("Not Implemented")
 }
 
-func (SqlitePlugin) UpdateRegistrationEntry(*control_plane_proto.UpdateRegistrationEntryRequest) (*control_plane_proto.UpdateRegistrationEntryResponse, error) {
-	return &control_plane_proto.UpdateRegistrationEntryResponse{}, nil
+func (sqlitePlugin) UpdateRegistrationEntry(
+	*proto.UpdateRegistrationEntryRequest) (*proto.UpdateRegistrationEntryResponse, error) {
+	return &proto.UpdateRegistrationEntryResponse{}, errors.New("Not Implemented")
 }
 
-func (SqlitePlugin) DeleteRegistrationEntry(*control_plane_proto.DeleteRegistrationEntryRequest) (*control_plane_proto.DeleteRegistrationEntryResponse, error) {
-	return &control_plane_proto.DeleteRegistrationEntryResponse{}, nil
-}
-
-//
-
-func (SqlitePlugin) ListParentIDEntries(*control_plane_proto.ListParentIDEntriesRequest) (*control_plane_proto.ListParentIDEntriesResponse, error) {
-	return &control_plane_proto.ListParentIDEntriesResponse{}, nil
-}
-
-func (SqlitePlugin) ListSelectorEntries(*control_plane_proto.ListSelectorEntriesRequest) (*control_plane_proto.ListSelectorEntriesResponse, error) {
-	return &control_plane_proto.ListSelectorEntriesResponse{}, nil
-}
-
-func (SqlitePlugin) ListSpiffeEntries(*control_plane_proto.ListSpiffeEntriesRequest) (*control_plane_proto.ListSpiffeEntriesResponse, error) {
-	return &control_plane_proto.ListSpiffeEntriesResponse{}, nil
+func (sqlitePlugin) DeleteRegistrationEntry(
+	*proto.DeleteRegistrationEntryRequest) (*proto.DeleteRegistrationEntryResponse, error) {
+	return &proto.DeleteRegistrationEntryResponse{}, errors.New("Not Implemented")
 }
 
 //
 
-func (SqlitePlugin) Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error) {
+func (sqlitePlugin) ListParentIDEntries(
+	*proto.ListParentIDEntriesRequest) (*proto.ListParentIDEntriesResponse, error) {
+	return &proto.ListParentIDEntriesResponse{}, errors.New("Not Implemented")
+}
+
+func (sqlitePlugin) ListSelectorEntries(
+	*proto.ListSelectorEntriesRequest) (*proto.ListSelectorEntriesResponse, error) {
+	return &proto.ListSelectorEntriesResponse{}, errors.New("Not Implemented")
+}
+
+func (sqlitePlugin) ListSpiffeEntries(
+	*proto.ListSpiffeEntriesRequest) (*proto.ListSpiffeEntriesResponse, error) {
+	return &proto.ListSpiffeEntriesResponse{}, errors.New("Not Implemented")
+}
+
+//
+
+func (sqlitePlugin) Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error) {
 	return &common.ConfigureResponse{}, nil
 }
 
-func (SqlitePlugin) GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
-	return &common.GetPluginInfoResponse{}, nil
+func (sqlitePlugin) GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
+	return &pluginInfo, nil
+}
+
+func New() (datastore.DataStore, error) {
+	db, err := gorm.Open("sqlite3", ":memory:")
+	if err != nil {
+		return nil, err
+	}
+
+	db.LogMode(true)
+
+	if err := migrateDB(db); err != nil {
+		return nil, err
+	}
+
+	return &sqlitePlugin{
+		db: db,
+	}, nil
 }
 
 func main() {
+
+	impl, err := New()
+	if err != nil {
+		panic(err.Error())
+	}
+
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: datastore.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"ds_sqlite": datastore.DataStorePlugin{DataStoreImpl: &SqlitePlugin{}},
+			"datastore": datastore.DataStorePlugin{DataStoreImpl: impl},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})
