@@ -10,6 +10,12 @@ import (
 	"github.com/hashicorp/hcl/hcl/printer"
 )
 
+const (
+	NodeAgentConfigType = iota
+	ControlPlaneConfigType = iota
+	PluginConfigType = iota
+)
+
 // PluginConfig is the plugin config data
 type PluginConfig struct {
 	PluginName     string
