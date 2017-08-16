@@ -2,15 +2,25 @@
 syntax = "proto3";
 package control_plane_proto;
 
+import public "google/api/annotations.proto";
+
 service Registration {
     ///Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
-    rpc CreateEntry(RegisteredEntry) returns (RegisteredEntryID);
+    rpc CreateEntry(RegisteredEntry) returns (RegisteredEntryID) {
+        option (google.api.http).post = "/entry";
+    }
     ///Deletes an entry and returns the deleted entry.
-    rpc DeleteEntry(RegisteredEntryID) returns (RegisteredEntry);
+    rpc DeleteEntry(RegisteredEntryID) returns (RegisteredEntry) {
+        option (google.api.http).delete = "/entry";
+    }
     ///Retrieve a specific registered entry.
-    rpc FetchEntry(RegisteredEntryID) returns (RegisteredEntry);
+    rpc FetchEntry(RegisteredEntryID) returns (RegisteredEntry) {
+        option (google.api.http).get = "/entry";
+    }
     ///Updates a specific registered entry.
-    rpc UpdateEntry(UpdateEntryRequest) returns (RegisteredEntry);
+    rpc UpdateEntry(UpdateEntryRequest) returns (RegisteredEntry) {
+        option (google.api.http).put = "/entry";
+    }
     ///Returns all the Entries associated with the ParentID value.
     rpc ListByParentID(ParentID) returns (RegisteredEntries);
     ///Returns all the entries associated with a selector value.

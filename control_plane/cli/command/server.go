@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"golang.org/x/net/context"
+
 	"google.golang.org/grpc"
 
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
 	server_proto "github.com/spiffe/sri/control_plane/api/server/proto"
 
@@ -42,6 +46,7 @@ func (*ServerCommand) Run(args []string) int {
 	return 0
 }
 
+//Synopsis of the server command
 func (*ServerCommand) Synopsis() string {
 	return "Intializes sri/control_plane Runtime."
 }
@@ -63,6 +68,7 @@ func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 	registrationSvc := registration.NewService()
 
 	var (
+		httpAddr = flag.String("http", ":8080", "http listen address")
 		gRPCAddr = flag.String("grpc", ":8081", "gRPC listen address")
 	)
 	flag.Parse()
@@ -100,6 +106,22 @@ func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 		server_proto.RegisterServerServer(gRPCServer, serverHandler)
 		registration_proto.RegisterRegistrationServer(gRPCServer, registrationHandler)
 		errChan <- gRPCServer.Serve(listener)
+	}()
+
+	go func() {
+		ctx := context.Background()
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		mux := runtime.NewServeMux()
+		opts := []grpc.DialOption{grpc.WithInsecure()}
+		log.Println("http:", *httpAddr)
+		err := registration_proto.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		errChan <- http.ListenAndServe(*httpAddr, mux)
 	}()
 
 	error := <-errChan
