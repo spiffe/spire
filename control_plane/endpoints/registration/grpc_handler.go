@@ -2,7 +2,6 @@ package registration
 
 import (
 	"context"
-	"errors"
 
 	grpctransport "github.com/go-kit/kit/transport/grpc"
 	pb "github.com/spiffe/sri/control_plane/api/registration/proto"
@@ -97,20 +96,16 @@ func MakeGRPCServer(endpoints Endpoints) (req pb.RegistrationServer) {
 
 // DecodeGRPCCreateEntryRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCCreateEntryRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'CreateEntry' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.RegisteredEntry)
+	return CreateEntryRequest{Request: *temp}, err
 }
 
 // EncodeGRPCCreateEntryResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCCreateEntryResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'CreateEntry' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(CreateEntryResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) CreateEntry(ctx oldcontext.Context, req *pb.RegisteredEntry) (rep *pb.RegisteredEntryID, err error) {
@@ -124,20 +119,16 @@ func (s *grpcServer) CreateEntry(ctx oldcontext.Context, req *pb.RegisteredEntry
 
 // DecodeGRPCDeleteEntryRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCDeleteEntryRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'DeleteEntry' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.RegisteredEntryID)
+	return DeleteEntryRequest{Request: *temp}, err
 }
 
 // EncodeGRPCDeleteEntryResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCDeleteEntryResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'DeleteEntry' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(DeleteEntryResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) DeleteEntry(ctx oldcontext.Context, req *pb.RegisteredEntryID) (rep *pb.RegisteredEntry, err error) {
@@ -151,20 +142,16 @@ func (s *grpcServer) DeleteEntry(ctx oldcontext.Context, req *pb.RegisteredEntry
 
 // DecodeGRPCFetchEntryRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCFetchEntryRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'FetchEntry' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.RegisteredEntryID)
+	return FetchEntryRequest{Request: *temp}, err
 }
 
 // EncodeGRPCFetchEntryResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCFetchEntryResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'FetchEntry' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(FetchEntryResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) FetchEntry(ctx oldcontext.Context, req *pb.RegisteredEntryID) (rep *pb.RegisteredEntry, err error) {
@@ -178,20 +165,16 @@ func (s *grpcServer) FetchEntry(ctx oldcontext.Context, req *pb.RegisteredEntryI
 
 // DecodeGRPCUpdateEntryRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCUpdateEntryRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'UpdateEntry' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.UpdateEntryRequest)
+	return UpdateEntryRequest{Request: *temp}, err
 }
 
 // EncodeGRPCUpdateEntryResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCUpdateEntryResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'UpdateEntry' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(UpdateEntryResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) UpdateEntry(ctx oldcontext.Context, req *pb.UpdateEntryRequest) (rep *pb.RegisteredEntry, err error) {
@@ -205,20 +188,16 @@ func (s *grpcServer) UpdateEntry(ctx oldcontext.Context, req *pb.UpdateEntryRequ
 
 // DecodeGRPCListByParentIDRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCListByParentIDRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'ListByParentID' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.ParentID)
+	return ListByParentIDRequest{Request: *temp}, err
 }
 
 // EncodeGRPCListByParentIDResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCListByParentIDResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'ListByParentID' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(ListByParentIDResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) ListByParentID(ctx oldcontext.Context, req *pb.ParentID) (rep *pb.RegisteredEntries, err error) {
@@ -232,20 +211,16 @@ func (s *grpcServer) ListByParentID(ctx oldcontext.Context, req *pb.ParentID) (r
 
 // DecodeGRPCListBySelectorRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCListBySelectorRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'ListBySelector' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.Selector)
+	return ListBySelectorRequest{Request: *temp}, err
 }
 
 // EncodeGRPCListBySelectorResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCListBySelectorResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'ListBySelector' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(ListBySelectorResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) ListBySelector(ctx oldcontext.Context, req *pb.Selector) (rep *pb.RegisteredEntries, err error) {
@@ -259,20 +234,16 @@ func (s *grpcServer) ListBySelector(ctx oldcontext.Context, req *pb.Selector) (r
 
 // DecodeGRPCListBySpiffeIDRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCListBySpiffeIDRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'ListBySpiffeID' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.SpiffeID)
+	return ListBySpiffeIDRequest{Request: *temp}, err
 }
 
 // EncodeGRPCListBySpiffeIDResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCListBySpiffeIDResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'ListBySpiffeID' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(ListBySpiffeIDResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) ListBySpiffeID(ctx oldcontext.Context, req *pb.SpiffeID) (rep *pb.RegisteredEntries, err error) {
@@ -286,20 +257,16 @@ func (s *grpcServer) ListBySpiffeID(ctx oldcontext.Context, req *pb.SpiffeID) (r
 
 // DecodeGRPCCreateFederatedBundleRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCCreateFederatedBundleRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'CreateFederatedBundle' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.CreateFederatedBundleRequest)
+	return CreateFederatedBundleRequest{Request: *temp}, err
 }
 
 // EncodeGRPCCreateFederatedBundleResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCCreateFederatedBundleResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'CreateFederatedBundle' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(CreateFederatedBundleResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) CreateFederatedBundle(ctx oldcontext.Context, req *pb.CreateFederatedBundleRequest) (rep *pb.Empty, err error) {
@@ -313,20 +280,16 @@ func (s *grpcServer) CreateFederatedBundle(ctx oldcontext.Context, req *pb.Creat
 
 // DecodeGRPCListFederatedBundlesRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCListFederatedBundlesRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'ListFederatedBundles' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.Empty)
+	return ListFederatedBundlesRequest{Request: *temp}, err
 }
 
 // EncodeGRPCListFederatedBundlesResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCListFederatedBundlesResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'ListFederatedBundles' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(ListFederatedBundlesResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) ListFederatedBundles(ctx oldcontext.Context, req *pb.Empty) (rep *pb.ListFederatedBundlesReply, err error) {
@@ -340,20 +303,16 @@ func (s *grpcServer) ListFederatedBundles(ctx oldcontext.Context, req *pb.Empty)
 
 // DecodeGRPCUpdateFederatedBundleRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCUpdateFederatedBundleRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'UpdateFederatedBundle' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.FederatedBundle)
+	return UpdateFederatedBundleRequest{Request: *temp}, err
 }
 
 // EncodeGRPCUpdateFederatedBundleResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCUpdateFederatedBundleResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'UpdateFederatedBundle' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(UpdateFederatedBundleResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) UpdateFederatedBundle(ctx oldcontext.Context, req *pb.FederatedBundle) (rep *pb.Empty, err error) {
@@ -367,20 +326,16 @@ func (s *grpcServer) UpdateFederatedBundle(ctx oldcontext.Context, req *pb.Feder
 
 // DecodeGRPCDeleteFederatedBundleRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCDeleteFederatedBundleRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'DeleteFederatedBundle' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.FederatedSpiffeID)
+	return DeleteFederatedBundleRequest{Request: *temp}, err
 }
 
 // EncodeGRPCDeleteFederatedBundleResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCDeleteFederatedBundleResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'DeleteFederatedBundle' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(DeleteFederatedBundleResponse)
+	return &temp.Reply, err
 }
 
 func (s *grpcServer) DeleteFederatedBundle(ctx oldcontext.Context, req *pb.FederatedSpiffeID) (rep *pb.Empty, err error) {
