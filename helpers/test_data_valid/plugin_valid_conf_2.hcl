@@ -1,3 +1,4 @@
+version = "testVersion2"
 pluginName = "pluginName2"
 pluginCmd = "pluginCmd2"
 pluginChecksum = "pluginChecksum2"

@@ -61,25 +61,26 @@ func (c *PluginCatalog) loadConfig() (err error) {
 	}
 
 	for _, configFile := range configFiles {
-		config, err := ParseConfig(filepath.Join(
+		pluginConfig := &PluginConfig{}
+		err := pluginConfig.ParseConfig(filepath.Join(
 			c.PluginConfDirectory, configFile.Name()))
 		if err != nil {
 			return err
 		}
-		PluginTypeCount[config.PluginType] = +1
-		if PluginTypeCount[config.PluginType] > MaxPlugins[config.PluginType] {
+		PluginTypeCount[pluginConfig.PluginType] = +1
+		if PluginTypeCount[pluginConfig.PluginType] > MaxPlugins[pluginConfig.PluginType] {
 			return errors.New(fmt.Sprintf("Cannot have more than max_plugins:%v plugins of type plugin_type:%v",
-				MaxPlugins[config.PluginType], config.PluginType))
+				MaxPlugins[pluginConfig.PluginType], pluginConfig.PluginType))
 		}
 
-		if NA_PLUGIN_TYPE_MAP[config.PluginType] == nil {
-			return errors.New(fmt.Sprintf("Plugin Type plugin_type:%v not supported", config.PluginType))
+		if NA_PLUGIN_TYPE_MAP[pluginConfig.PluginType] == nil {
+			return errors.New(fmt.Sprintf("Plugin Type plugin_type:%v not supported", pluginConfig.PluginType))
 		}
 
-		if c.PluginConfigs[config.PluginName] != nil {
-			return errors.New(fmt.Sprintf("plugin_name:%s should be unique", config.PluginName))
+		if c.PluginConfigs[pluginConfig.PluginName] != nil {
+			return errors.New(fmt.Sprintf("plugin_name:%s should be unique", pluginConfig.PluginName))
 		}
-		c.PluginConfigs[config.PluginName] = config
+		c.PluginConfigs[pluginConfig.PluginName] = pluginConfig
 
 	}
 	return err
