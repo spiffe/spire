@@ -157,7 +157,7 @@ func TestConfig_ParseValidConfig(t *testing.T) {
 			"pluginChecksum2",
 			"pluginType2",
 			false,
-			"Data2 = \"Data2\""}}
+			"Data2 = \"Data2\"\n\nData1 = 123\n\nData3 = true\n\ndata4 = 12342"}}
 
 	const pluginConfDirectory string = "../helpers/test_data_valid"
 	configFiles, err := ioutil.ReadDir(pluginConfDirectory)

@@ -12,6 +12,7 @@ import (
 // PluginConfig is the plugin config data
 type Config interface {
 	ParseConfig(file string)  error
+	setConfig(data interface{}) error
 }
 
 type PluginConfig struct {
@@ -25,26 +26,34 @@ type PluginConfig struct {
 }
 
 
-func (c *PluginConfig) ParseConfig(file string) error {
+func (c *PluginConfig) ParseConfig(file string) (err error) {
 
 	result, err := parseHCLfile(file)
 	if err != nil {
 		return err
 	}
-	c.Version = result.Version
-	c.PluginName = result.PluginName
-	c.PluginCmd = result.PluginCmd
-	c.PluginChecksum = result.PluginChecksum
-	c.Enabled = result.Enabled
-	c.PluginType = result.PluginType
+	c.setConfig(result)
+	if err != nil {
+		return err
+	}
+	return err
+}
+
+func (c *PluginConfig) setConfig( hclData *HCLData) (err error) {
+
+	c.Version = hclData.Version
+	c.PluginName = hclData.PluginName
+	c.PluginCmd = hclData.PluginCmd
+	c.PluginChecksum = hclData.PluginChecksum
+	c.Enabled = hclData.Enabled
+	c.PluginType = hclData.PluginType
 
 	// Re-encode plugin-specific data
 	var buf bytes.Buffer
-	if err := printer.DefaultConfig.Fprint(&buf, result.PluginData); err != nil {
+	if err = printer.DefaultConfig.Fprint(&buf, hclData.PluginData); err != nil {
 		return err
 	}
 	c.PluginData = buf.String()
-
 	return err
 }
 
@@ -59,11 +68,20 @@ func(c * NodeAgentConfig) ParseConfig(file string) error {
 	if err != nil {
 		return err
 	}
-	c.Version = result.Version
-	c.WorkloadAPIAddress = result.WorkloadAPIAddress
+	if err = c.setConfig(result); err!=nil{
+		return err
+	}
+	return nil
+}
+
+func (c *NodeAgentConfig) setConfig(hclData *HCLData)  error{
+
+	c.Version = hclData.Version
+	c.WorkloadAPIAddress = hclData.WorkloadAPIAddress
 
 	return nil
 }
+
 
 type ControlPlaneConfig struct {
 	Version                string
@@ -76,14 +94,20 @@ func(c * ControlPlaneConfig) ParseConfig(file string) error {
 	if err != nil {
 		return err
 	}
-	c.Version = result.Version
-	c.NodeAPIAddress = result.NodeAPIAddress
-	c.RegistrationAPIAddress = result.RegistrationAPIAddress
-
-
+	if err = c.setConfig(result); err!=nil{
+		return err
+	}
 	return nil
 }
 
+func (c *ControlPlaneConfig) setConfig(hclData *HCLData)  error{
+
+	c.Version = hclData.Version
+	c.NodeAPIAddress = hclData.NodeAPIAddress
+	c.RegistrationAPIAddress = hclData.RegistrationAPIAddress
+
+	return nil
+}
 
 
 // HCL config data
