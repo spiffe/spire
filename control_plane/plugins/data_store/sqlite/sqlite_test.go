@@ -64,8 +64,6 @@ func Test_ListFederatedEntry(t *testing.T) {
 	assert.Empty(t, lresp.FederatedBundleSpiffeIdList)
 }
 
-//
-
 func Test_CreateAttestedNodeEntry(t *testing.T) {
 	ds := createDefault(t)
 
@@ -188,8 +186,6 @@ func Test_DeleteAttestedNodeEntry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, fresp.AttestedNodeEntry)
 }
-
-//
 
 func Test_CreateNodeResolverMapEntry(t *testing.T) {
 	ds := createDefault(t)
@@ -324,14 +320,98 @@ func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*contr
 	return entries
 }
 
-//
-
 func Test_CreateRegistrationEntry(t *testing.T) {
-	t.Skipf("TODO")
+	ds := createDefault(t)
+
+	registeredEntry := &control_plane_proto.RegisteredEntry{
+		SelectorList: []*control_plane_proto.Selector{
+			{
+				Type:  "Type",
+				Value: "Value"},
+		},
+		SpiffeId: "SpiffeId",
+		ParentId: "ParentId",
+		Ttl:      2,
+	}
+
+	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{registeredEntry})
+	require.NoError(t, err)
+	assert.NotNil(t, createRegistrationEntryResponse)
+}
+
+func Test_CreateInvalidRegistrationEntry(t *testing.T) {
+	ds := createDefault(t)
+
+	invalidRegisteredEntries := []*control_plane_proto.RegisteredEntry{
+		{
+			// Missing SPIFFE ID
+			SelectorList: []*control_plane_proto.Selector{
+				{
+					Type:  "Type",
+					Value: "Value"},
+			},
+		},
+		{
+			// Invalid TTL
+			SpiffeId: "SpiffeId",
+			SelectorList: []*control_plane_proto.Selector{
+				{
+					Type:  "Type",
+					Value: "Value"},
+			},
+			Ttl: -5,
+		},
+		{
+			// Empty SelectorList
+			SpiffeId:     "SpiffeId",
+			SelectorList: []*control_plane_proto.Selector{},
+		},
+
+		// Missing RegisteredEntry
+		nil,
+	}
+
+	for _, invalidRegisteredEntry := range invalidRegisteredEntries {
+		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{invalidRegisteredEntry})
+		require.Error(t, err)
+		require.Nil(t, createRegistrationEntryResponse)
+	}
 }
 
 func Test_FetchRegistrationEntry(t *testing.T) {
-	t.Skipf("TODO")
+	ds := createDefault(t)
+
+	registeredEntry := &control_plane_proto.RegisteredEntry{
+		SelectorList: []*control_plane_proto.Selector{
+			{
+				Type:  "Type1",
+				Value: "Value1"}, {
+				Type:  "Type2",
+				Value: "Value2"}, {
+				Type:  "Type3",
+				Value: "Value3"},
+		},
+		SpiffeId: "SpiffeId",
+		ParentId: "ParentId",
+		Ttl:      1,
+	}
+
+	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{registeredEntry})
+	require.NoError(t, err)
+	require.NotNil(t, createRegistrationEntryResponse)
+
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&control_plane_proto.FetchRegistrationEntryRequest{createRegistrationEntryResponse.RegisteredEntryId})
+	require.NoError(t, err)
+	require.NotNil(t, fetchRegistrationEntryResponse)
+	assert.Equal(t, registeredEntry, fetchRegistrationEntryResponse.RegisteredEntry)
+}
+
+func Test_FetchInexistentRegistrationEntry(t *testing.T) {
+	ds := createDefault(t)
+
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&control_plane_proto.FetchRegistrationEntryRequest{"INEXISTENT"})
+	require.NoError(t, err)
+	require.Nil(t, fetchRegistrationEntryResponse.RegisteredEntry)
 }
 
 func Test_UpdateRegistrationEntry(t *testing.T) {
@@ -341,8 +421,6 @@ func Test_UpdateRegistrationEntry(t *testing.T) {
 func Test_DeleteRegistrationEntry(t *testing.T) {
 	t.Skipf("TODO")
 }
-
-//
 
 func Test_ListParentIDEntries(t *testing.T) {
 	t.Skipf("TODO")
@@ -355,8 +433,6 @@ func Test_ListSelectorEntries(t *testing.T) {
 func Test_ListSpiffeEntriesEntry(t *testing.T) {
 	t.Skipf("TODO")
 }
-
-//
 
 func Test_Configure(t *testing.T) {
 	t.Skipf("TODO")

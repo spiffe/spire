@@ -45,6 +45,23 @@ CREATE TABLE node_resolver_map_entries (
   deleted_at     TIMESTAMP
 );
 
+CREATE TABLE registered_entries (
+  registered_entry_id   TEXT NOT NULL PRIMARY KEY,
+  spiffe_id VARCHAR(1024) NOT NULL,
+  parent_id VARCHAR(1024) NOT NULL,
+  ttl       INT           NOT NULL
+);
+
+CREATE TABLE selectors (
+  registered_entry_id   TEXT NOT NULL,
+  type TEXT NOT NULL,
+  value TEXT NOT NULL,
+  PRIMARY KEY (registered_entry_id, type, value),
+  FOREIGN KEY(registered_entry_id) REFERENCES registered_entries(registered_entry_id)
+);
+
 CREATE UNIQUE INDEX idx_node_resolver_map_entries_type_value
   ON node_resolver_map_entries(spiffe_id,type,value)
   WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_selectors_registered_entry_id ON selectors(registered_entry_id);

@@ -3,9 +3,8 @@ package main
 //go:generate go-bindata -pkg $GOPACKAGE -o migrations.go -prefix _migrations/ _migrations/
 
 import (
-	"time"
-
 	"github.com/jinzhu/gorm"
+	"time"
 )
 
 type federatedBundle struct {
@@ -30,6 +29,22 @@ type nodeResolverMapEntry struct {
 	Value    string
 }
 
+type registeredEntry struct {
+	RegisteredEntryId string `gorm:"primary_key:true"`
+	SpiffeId          string
+	ParentId          string
+	Ttl               int32
+	Selectors         []*selector
+	// TODO: Add support to Federated Bundles [https://github.com/spiffe/sri/issues/42]
+}
+
+type selector struct {
+	RegisteredEntryId string `gorm:"primary_key:true"`
+	Type              string `gorm:"primary_key:true"`
+	Value             string `gorm:"primary_key:true"`
+	RegisteredEntry   registeredEntry
+}
+
 func migrateDB(db *gorm.DB) error {
 	for _, name := range AssetNames() {
 		migration, err := Asset(name)
@@ -40,5 +55,6 @@ func migrateDB(db *gorm.DB) error {
 			return err
 		}
 	}
+
 	return nil
 }

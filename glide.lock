@@ -1,5 +1,5 @@
-hash: e1c775c6ccb0156433969f5e0c7cfe6aec03d5c0f43c106896743b5416a51dec
-updated: 2017-08-14T15:03:04.963649058-07:00
+hash: 483062881b0f4d11445f085e094d075805b9bd53111cc4f6c1cf05c1d4ba61f0
+updated: 2017-08-18T14:46:51.946111942-03:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -45,6 +45,8 @@ imports:
   version: d1caa6c97c9fc1cc9e83bbe34d0603f9ff0ce8bd
 - name: github.com/jinzhu/gorm
   version: 5174cc5c242a728b435ea2be8a2f7f998e15429b
+  subpackages:
+  - dialects/sqlite
 - name: github.com/jinzhu/inflection
   version: 1c35d901db3da928c72a72d8458480cc9ade058f
 - name: github.com/jstemmer/go-junit-report
@@ -67,6 +69,10 @@ imports:
   - cmd
   - cmd/install
   - match
+- name: github.com/satori/go.uuid
+  version: 5bf94b69c6b68ee1b541973bb8e1144db23a194b
+  subpackages:
+  - context
 - name: golang.org/x/net
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
@@ -93,9 +99,10 @@ imports:
   subpackages:
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: b8669c35455183da6d5c474ea6e72fbf55183274
+  version: b3ddf786825de56a4178401b7e174ee332173b66
   subpackages:
   - codes
+  - connectivity
   - credentials
   - grpclb/grpc_lb_v1
   - grpclog
