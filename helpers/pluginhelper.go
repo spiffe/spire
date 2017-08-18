@@ -169,7 +169,7 @@ func (c *PluginCatalog) Run() (err error) {
 		case keymanager.KeyManager:
 			c.Plugins[pluginName] = pl.(keymanager.KeyManager)
 		default:
-			return fmt.Errorf("Plugin Unsupported pluginName:%v", pluginName)
+			return fmt.Errorf("Plugin Unsupported.\n pluginType: %T\n pluginName: %v", pl, pluginName)
 		}
 
 	}
