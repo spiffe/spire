@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#control_plane_proto.ConfigureRequest)
+    * [ConfigureRequest](#sri_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#control_plane_proto.ConfigureResponse)
+    * [ConfigureResponse](#sri_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse)
   
   
   
@@ -21,16 +21,16 @@
 
 * [node_attestor.proto](#node_attestor.proto)
   
-    * [AttestRequest](#control_plane_proto.AttestRequest)
+    * [AttestRequest](#sri_proto.AttestRequest)
   
-    * [AttestResponse](#control_plane_proto.AttestResponse)
+    * [AttestResponse](#sri_proto.AttestResponse)
   
-    * [AttestedData](#control_plane_proto.AttestedData)
-  
-  
+    * [AttestedData](#sri_proto.AttestedData)
   
   
-    * [NodeAttestor](#control_plane_proto.NodeAttestor)
+  
+  
+    * [NodeAttestor](#sri_proto.NodeAttestor)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -44,7 +44,7 @@
 
 
 
-<a name="control_plane_proto.ConfigureRequest"/>
+<a name="sri_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -59,7 +59,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="control_plane_proto.ConfigureResponse"/>
+<a name="sri_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -74,7 +74,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="control_plane_proto.GetPluginInfoRequest"/>
+<a name="sri_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -84,7 +84,7 @@ Represents an empty request.
 
 
 
-<a name="control_plane_proto.GetPluginInfoResponse"/>
+<a name="sri_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -123,7 +123,7 @@ Represents the plugin metadata.
 Responsible for validating the Node Agent’s Attested Data.
 
 
-<a name="control_plane_proto.AttestRequest"/>
+<a name="sri_proto.AttestRequest"/>
 
 ### AttestRequest
 Represents a request to attest a node.
@@ -131,7 +131,7 @@ Represents a request to attest a node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [AttestedData](#control_plane_proto.AttestedData) |  | A type which contains attestation data for specific platform. |
+| attestedData | [AttestedData](#sri_proto.AttestedData) |  | A type which contains attestation data for specific platform. |
 | attestedBefore | [bool](#bool) |  | Is true if the Base SPIFFE ID is present in the Attested Node table. |
 
 
@@ -139,7 +139,7 @@ Represents a request to attest a node.
 
 
 
-<a name="control_plane_proto.AttestResponse"/>
+<a name="sri_proto.AttestResponse"/>
 
 ### AttestResponse
 Represents a response when attesting a node.
@@ -155,7 +155,7 @@ Represents a response when attesting a node.
 
 
 
-<a name="control_plane_proto.AttestedData"/>
+<a name="sri_proto.AttestedData"/>
 
 ### AttestedData
 A type which contains attestation data for specific platform.
@@ -177,16 +177,16 @@ A type which contains attestation data for specific platform.
  
 
 
-<a name="control_plane_proto.NodeAttestor"/>
+<a name="sri_proto.NodeAttestor"/>
 
 ### NodeAttestor
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [ConfigureRequest](#control_plane_proto.ConfigureRequest) | [ConfigureResponse](#control_plane_proto.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| Attest | [AttestRequest](#control_plane_proto.AttestRequest) | [AttestResponse](#control_plane_proto.AttestRequest) | Attesta a node. |
+| Configure | [ConfigureRequest](#sri_proto.ConfigureRequest) | [ConfigureResponse](#sri_proto.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#sri_proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| Attest | [AttestRequest](#sri_proto.AttestRequest) | [AttestResponse](#sri_proto.AttestRequest) | Attesta a node. |
 
  
 

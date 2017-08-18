@@ -10,15 +10,15 @@ import (
 
 func TestMemory_GenerateKeyPair(t *testing.T) {
 	var plugin MemoryPlugin
-	data, e := plugin.GenerateKeyPair(&node_agent_proto.GenerateKeyPairRequest{})
-	assert.Equal(t, &node_agent_proto.GenerateKeyPairResponse{}, data)
+	data, e := plugin.GenerateKeyPair(&sri_proto.GenerateKeyPairRequest{})
+	assert.Equal(t, &sri_proto.GenerateKeyPairResponse{}, data)
 	assert.Equal(t, nil, e)
 }
 
 func TestMemory_FetchPrivateKey(t *testing.T) {
 	var plugin MemoryPlugin
-	data, e := plugin.FetchPrivateKey(&node_agent_proto.FetchPrivateKeyRequest{})
-	assert.Equal(t, &node_agent_proto.FetchPrivateKeyResponse{}, data)
+	data, e := plugin.FetchPrivateKey(&sri_proto.FetchPrivateKeyRequest{})
+	assert.Equal(t, &sri_proto.FetchPrivateKeyResponse{}, data)
 	assert.Equal(t, nil, e)
 }
 

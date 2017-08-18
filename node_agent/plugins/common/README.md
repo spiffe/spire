@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#node_agent_proto.ConfigureRequest)
+    * [ConfigureRequest](#sri_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#node_agent_proto.ConfigureResponse)
+    * [ConfigureResponse](#sri_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse)
   
   
   
@@ -29,7 +29,7 @@
 
 
 
-<a name="node_agent_proto.ConfigureRequest"/>
+<a name="sri_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -44,7 +44,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="node_agent_proto.ConfigureResponse"/>
+<a name="sri_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -59,7 +59,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="node_agent_proto.GetPluginInfoRequest"/>
+<a name="sri_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -69,7 +69,7 @@ Represents an empty request.
 
 
 
-<a name="node_agent_proto.GetPluginInfoResponse"/>
+<a name="sri_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.

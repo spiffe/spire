@@ -20,8 +20,8 @@ var Handshake = plugin.HandshakeConfig{
 
 
 type KeyManager interface {
-	GenerateKeyPair(*node_agent_proto.GenerateKeyPairRequest) (*node_agent_proto.GenerateKeyPairResponse, error)
-	FetchPrivateKey(*node_agent_proto.FetchPrivateKeyRequest) (*node_agent_proto.FetchPrivateKeyResponse, error)
+	GenerateKeyPair(*sri_proto.GenerateKeyPairRequest) (*sri_proto.GenerateKeyPairResponse, error)
+	FetchPrivateKey(*sri_proto.FetchPrivateKeyRequest) (*sri_proto.FetchPrivateKeyResponse, error)
 	Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error)
 	GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
 }
@@ -39,10 +39,10 @@ func (p KeyManagerPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{
 }
 
 func (p KeyManagerPlugin) GRPCServer(s *grpc.Server) error {
-	node_agent_proto.RegisterKeyManagerServer(s, &GRPCServer{KeyManagerImpl: p.KeyManagerImpl})
+	sri_proto.RegisterKeyManagerServer(s, &GRPCServer{KeyManagerImpl: p.KeyManagerImpl})
 	return nil
 }
 
 func (p KeyManagerPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: node_agent_proto.NewKeyManagerClient(c)}, nil
+	return &GRPCClient{client: sri_proto.NewKeyManagerClient(c)}, nil
 }

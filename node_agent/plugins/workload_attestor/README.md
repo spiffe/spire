@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#node_agent_proto.ConfigureRequest)
+    * [ConfigureRequest](#sri_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#node_agent_proto.ConfigureResponse)
+    * [ConfigureResponse](#sri_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse)
   
   
   
@@ -21,14 +21,14 @@
 
 * [workload_attestor.proto](#workload_attestor.proto)
   
-    * [AttestRequest](#node_agent_proto.AttestRequest)
+    * [AttestRequest](#sri_proto.AttestRequest)
   
-    * [AttestResponse](#node_agent_proto.AttestResponse)
-  
-  
+    * [AttestResponse](#sri_proto.AttestResponse)
   
   
-    * [WorkloadAttestor](#node_agent_proto.WorkloadAttestor)
+  
+  
+    * [WorkloadAttestor](#sri_proto.WorkloadAttestor)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -42,7 +42,7 @@
 
 
 
-<a name="node_agent_proto.ConfigureRequest"/>
+<a name="sri_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -57,7 +57,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="node_agent_proto.ConfigureResponse"/>
+<a name="sri_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -72,7 +72,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="node_agent_proto.GetPluginInfoRequest"/>
+<a name="sri_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -82,7 +82,7 @@ Represents an empty request.
 
 
 
-<a name="node_agent_proto.GetPluginInfoResponse"/>
+<a name="sri_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -121,7 +121,7 @@ Represents the plugin metadata.
 Environment specific plugin to attest a workloads “selector” data.
 
 
-<a name="node_agent_proto.AttestRequest"/>
+<a name="sri_proto.AttestRequest"/>
 
 ### AttestRequest
 Represents the workload PID.
@@ -136,7 +136,7 @@ Represents the workload PID.
 
 
 
-<a name="node_agent_proto.AttestResponse"/>
+<a name="sri_proto.AttestResponse"/>
 
 ### AttestResponse
 Represents a list of selectors resolved for a given PID.
@@ -157,16 +157,16 @@ Represents a list of selectors resolved for a given PID.
  
 
 
-<a name="node_agent_proto.WorkloadAttestor"/>
+<a name="sri_proto.WorkloadAttestor"/>
 
 ### WorkloadAttestor
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Attest | [AttestRequest](#node_agent_proto.AttestRequest) | [AttestResponse](#node_agent_proto.AttestRequest) | Returns a list of selectors resolved for a given PID |
-| Configure | [ConfigureRequest](#node_agent_proto.ConfigureRequest) | [ConfigureResponse](#node_agent_proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors |
-| GetPluginInfo | [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin |
+| Attest | [AttestRequest](#sri_proto.AttestRequest) | [AttestResponse](#sri_proto.AttestRequest) | Returns a list of selectors resolved for a given PID |
+| Configure | [ConfigureRequest](#sri_proto.ConfigureRequest) | [ConfigureResponse](#sri_proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors |
+| GetPluginInfo | [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#sri_proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin |
 
  
 

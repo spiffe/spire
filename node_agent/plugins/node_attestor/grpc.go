@@ -10,7 +10,7 @@ type GRPCServer struct {
 	NodeAttestorImpl NodeAttestor
 }
 
-func (m *GRPCServer) FetchAttestationData(ctx context.Context, req *node_agent_proto.FetchAttestationDataRequest) (*node_agent_proto.FetchAttestationDataResponse, error) {
+func (m *GRPCServer) FetchAttestationData(ctx context.Context, req *sri_proto.FetchAttestationDataRequest) (*sri_proto.FetchAttestationDataResponse, error) {
 	response, err := m.NodeAttestorImpl.FetchAttestationData(req)
 	return response, err
 }
@@ -26,10 +26,10 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInf
 }
 
 type GRPCClient struct {
-	client node_agent_proto.NodeAttestorClient
+	client sri_proto.NodeAttestorClient
 }
 
-func (m *GRPCClient) FetchAttestationData(req *node_agent_proto.FetchAttestationDataRequest) (*node_agent_proto.FetchAttestationDataResponse, error) {
+func (m *GRPCClient) FetchAttestationData(req *sri_proto.FetchAttestationDataRequest) (*sri_proto.FetchAttestationDataResponse, error) {
 	res, err := m.client.FetchAttestationData(context.Background(), req)
 	return res, err
 }

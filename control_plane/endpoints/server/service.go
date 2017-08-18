@@ -5,14 +5,14 @@ import (
 	"log"
 	"time"
 
-	control_plane_proto "github.com/spiffe/sri/control_plane/api/server/proto"
+	sri_proto "github.com/spiffe/sri/control_plane/api/server/proto"
 	"github.com/spiffe/sri/helpers"
 	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
 )
 
 type ServerService interface {
-	Stop(ctx context.Context, request control_plane_proto.StopRequest) (response control_plane_proto.StopReply, err error)
-	PluginInfo(ctx context.Context, request control_plane_proto.PluginInfoRequest) (response control_plane_proto.PluginInfoReply, err error)
+	Stop(ctx context.Context, request sri_proto.StopRequest) (response sri_proto.StopReply, err error)
+	PluginInfo(ctx context.Context, request sri_proto.PluginInfoRequest) (response sri_proto.PluginInfoReply, err error)
 }
 
 type stubServerService struct {
@@ -37,7 +37,7 @@ func NewService(pluginCatalog *pluginhelper.PluginCatalog, errorChan chan error)
 	return s
 }
 
-func (se *stubServerService) Stop(ctx context.Context, request control_plane_proto.StopRequest) (response control_plane_proto.StopReply, err error) {
+func (se *stubServerService) Stop(ctx context.Context, request sri_proto.StopRequest) (response sri_proto.StopReply, err error) {
 	log.Println("Received stop message.")
 	go func() {
 		time.Sleep(2 * time.Second)
@@ -46,7 +46,7 @@ func (se *stubServerService) Stop(ctx context.Context, request control_plane_pro
 	return response, err
 }
 
-func (se *stubServerService) PluginInfo(ctx context.Context, request control_plane_proto.PluginInfoRequest) (response control_plane_proto.PluginInfoReply, err error) {
+func (se *stubServerService) PluginInfo(ctx context.Context, request sri_proto.PluginInfoRequest) (response sri_proto.PluginInfoReply, err error) {
 	for _, c := range se.PluginCatalog.PluginConfigs {
 		info := &common.GetPluginInfoResponse{
 			Name: c.PluginName,

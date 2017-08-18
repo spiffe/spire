@@ -17,7 +17,7 @@ func (SecretFilePlugin) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
 	return nil, nil
 }
 
-func (SecretFilePlugin) Attest(attestedData *control_plane_proto.AttestRequest) (*control_plane_proto.AttestResponse, error) {
+func (SecretFilePlugin) Attest(attestedData *sri_proto.AttestRequest) (*sri_proto.AttestResponse, error) {
 	return nil, nil
 }
 

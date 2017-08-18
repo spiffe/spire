@@ -6,56 +6,56 @@
 
 * [registration.proto](#registration.proto)
   
-    * [CreateEntryRequest](#control_plane_proto.CreateEntryRequest)
+    * [CreateEntryRequest](#sri_proto.CreateEntryRequest)
   
-    * [CreateEntryResponse](#control_plane_proto.CreateEntryResponse)
+    * [CreateEntryResponse](#sri_proto.CreateEntryResponse)
   
-    * [CreateFederatedBundleRequest](#control_plane_proto.CreateFederatedBundleRequest)
+    * [CreateFederatedBundleRequest](#sri_proto.CreateFederatedBundleRequest)
   
-    * [CreateFederatedBundleResponse](#control_plane_proto.CreateFederatedBundleResponse)
+    * [CreateFederatedBundleResponse](#sri_proto.CreateFederatedBundleResponse)
   
-    * [CreateFederatedEntryRequest](#control_plane_proto.CreateFederatedEntryRequest)
+    * [CreateFederatedEntryRequest](#sri_proto.CreateFederatedEntryRequest)
   
-    * [CreateFederatedEntryResponse](#control_plane_proto.CreateFederatedEntryResponse)
+    * [CreateFederatedEntryResponse](#sri_proto.CreateFederatedEntryResponse)
   
-    * [DeleteEntryRequest](#control_plane_proto.DeleteEntryRequest)
+    * [DeleteEntryRequest](#sri_proto.DeleteEntryRequest)
   
-    * [DeleteEntryResponse](#control_plane_proto.DeleteEntryResponse)
+    * [DeleteEntryResponse](#sri_proto.DeleteEntryResponse)
   
-    * [DeleteFederatedBundleRequest](#control_plane_proto.DeleteFederatedBundleRequest)
+    * [DeleteFederatedBundleRequest](#sri_proto.DeleteFederatedBundleRequest)
   
-    * [DeleteFederatedBundleResponse](#control_plane_proto.DeleteFederatedBundleResponse)
+    * [DeleteFederatedBundleResponse](#sri_proto.DeleteFederatedBundleResponse)
   
-    * [FederatedBundle](#control_plane_proto.FederatedBundle)
+    * [FederatedBundle](#sri_proto.FederatedBundle)
   
-    * [FederatedEntry](#control_plane_proto.FederatedEntry)
+    * [FederatedEntry](#sri_proto.FederatedEntry)
   
-    * [ListAttestorEntriesRequest](#control_plane_proto.ListAttestorEntriesRequest)
+    * [ListAttestorEntriesRequest](#sri_proto.ListAttestorEntriesRequest)
   
-    * [ListAttestorEntriesResponse](#control_plane_proto.ListAttestorEntriesResponse)
+    * [ListAttestorEntriesResponse](#sri_proto.ListAttestorEntriesResponse)
   
-    * [ListFederatedBundlesRequest](#control_plane_proto.ListFederatedBundlesRequest)
+    * [ListFederatedBundlesRequest](#sri_proto.ListFederatedBundlesRequest)
   
-    * [ListFederatedBundlesResponse](#control_plane_proto.ListFederatedBundlesResponse)
+    * [ListFederatedBundlesResponse](#sri_proto.ListFederatedBundlesResponse)
   
-    * [ListSelectorEntriesRequest](#control_plane_proto.ListSelectorEntriesRequest)
+    * [ListSelectorEntriesRequest](#sri_proto.ListSelectorEntriesRequest)
   
-    * [ListSelectorEntriesResponse](#control_plane_proto.ListSelectorEntriesResponse)
+    * [ListSelectorEntriesResponse](#sri_proto.ListSelectorEntriesResponse)
   
-    * [ListSpiffeEntriesRequest](#control_plane_proto.ListSpiffeEntriesRequest)
+    * [ListSpiffeEntriesRequest](#sri_proto.ListSpiffeEntriesRequest)
   
-    * [ListSpiffeEntriesResponse](#control_plane_proto.ListSpiffeEntriesResponse)
+    * [ListSpiffeEntriesResponse](#sri_proto.ListSpiffeEntriesResponse)
   
-    * [RegisteredEntry](#control_plane_proto.RegisteredEntry)
+    * [RegisteredEntry](#sri_proto.RegisteredEntry)
   
-    * [UpdateFederatedBundleRequest](#control_plane_proto.UpdateFederatedBundleRequest)
+    * [UpdateFederatedBundleRequest](#sri_proto.UpdateFederatedBundleRequest)
   
-    * [UpdateFederatedBundleResponse](#control_plane_proto.UpdateFederatedBundleResponse)
-  
-  
+    * [UpdateFederatedBundleResponse](#sri_proto.UpdateFederatedBundleResponse)
   
   
-    * [node](#control_plane_proto.node)
+  
+  
+    * [node](#sri_proto.node)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -69,7 +69,7 @@
 
 
 
-<a name="control_plane_proto.CreateEntryRequest"/>
+<a name="sri_proto.CreateEntryRequest"/>
 
 ### CreateEntryRequest
 
@@ -77,14 +77,14 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  |  |
+| registeredEntry | [RegisteredEntry](#sri_proto.RegisteredEntry) |  |  |
 
 
 
 
 
 
-<a name="control_plane_proto.CreateEntryResponse"/>
+<a name="sri_proto.CreateEntryResponse"/>
 
 ### CreateEntryResponse
 
@@ -94,7 +94,7 @@
 
 
 
-<a name="control_plane_proto.CreateFederatedBundleRequest"/>
+<a name="sri_proto.CreateFederatedBundleRequest"/>
 
 ### CreateFederatedBundleRequest
 
@@ -102,14 +102,14 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  |  |
+| federatedBundle | [FederatedBundle](#sri_proto.FederatedBundle) |  |  |
 
 
 
 
 
 
-<a name="control_plane_proto.CreateFederatedBundleResponse"/>
+<a name="sri_proto.CreateFederatedBundleResponse"/>
 
 ### CreateFederatedBundleResponse
 
@@ -119,7 +119,7 @@
 
 
 
-<a name="control_plane_proto.CreateFederatedEntryRequest"/>
+<a name="sri_proto.CreateFederatedEntryRequest"/>
 
 ### CreateFederatedEntryRequest
 
@@ -127,14 +127,14 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedEntry | [FederatedEntry](#control_plane_proto.FederatedEntry) |  |  |
+| federatedEntry | [FederatedEntry](#sri_proto.FederatedEntry) |  |  |
 
 
 
 
 
 
-<a name="control_plane_proto.CreateFederatedEntryResponse"/>
+<a name="sri_proto.CreateFederatedEntryResponse"/>
 
 ### CreateFederatedEntryResponse
 
@@ -144,7 +144,7 @@
 
 
 
-<a name="control_plane_proto.DeleteEntryRequest"/>
+<a name="sri_proto.DeleteEntryRequest"/>
 
 ### DeleteEntryRequest
 
@@ -160,7 +160,7 @@
 
 
 
-<a name="control_plane_proto.DeleteEntryResponse"/>
+<a name="sri_proto.DeleteEntryResponse"/>
 
 ### DeleteEntryResponse
 
@@ -168,14 +168,14 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedEntryList | [FederatedEntry](#control_plane_proto.FederatedEntry) | repeated |  |
+| federatedEntryList | [FederatedEntry](#sri_proto.FederatedEntry) | repeated |  |
 
 
 
 
 
 
-<a name="control_plane_proto.DeleteFederatedBundleRequest"/>
+<a name="sri_proto.DeleteFederatedBundleRequest"/>
 
 ### DeleteFederatedBundleRequest
 
@@ -190,7 +190,7 @@
 
 
 
-<a name="control_plane_proto.DeleteFederatedBundleResponse"/>
+<a name="sri_proto.DeleteFederatedBundleResponse"/>
 
 ### DeleteFederatedBundleResponse
 
@@ -200,7 +200,7 @@
 
 
 
-<a name="control_plane_proto.FederatedBundle"/>
+<a name="sri_proto.FederatedBundle"/>
 
 ### FederatedBundle
 
@@ -217,7 +217,7 @@
 
 
 
-<a name="control_plane_proto.FederatedEntry"/>
+<a name="sri_proto.FederatedEntry"/>
 
 ### FederatedEntry
 
@@ -225,7 +225,7 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  |  |
+| registeredEntry | [RegisteredEntry](#sri_proto.RegisteredEntry) |  |  |
 | federateBundleSpiffeIdList | [string](#string) | repeated |  |
 
 
@@ -233,7 +233,7 @@
 
 
 
-<a name="control_plane_proto.ListAttestorEntriesRequest"/>
+<a name="sri_proto.ListAttestorEntriesRequest"/>
 
 ### ListAttestorEntriesRequest
 
@@ -248,7 +248,7 @@
 
 
 
-<a name="control_plane_proto.ListAttestorEntriesResponse"/>
+<a name="sri_proto.ListAttestorEntriesResponse"/>
 
 ### ListAttestorEntriesResponse
 
@@ -256,14 +256,14 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedEntryList | [FederatedEntry](#control_plane_proto.FederatedEntry) | repeated |  |
+| federatedEntryList | [FederatedEntry](#sri_proto.FederatedEntry) | repeated |  |
 
 
 
 
 
 
-<a name="control_plane_proto.ListFederatedBundlesRequest"/>
+<a name="sri_proto.ListFederatedBundlesRequest"/>
 
 ### ListFederatedBundlesRequest
 
@@ -273,7 +273,7 @@
 
 
 
-<a name="control_plane_proto.ListFederatedBundlesResponse"/>
+<a name="sri_proto.ListFederatedBundlesResponse"/>
 
 ### ListFederatedBundlesResponse
 
@@ -288,7 +288,7 @@
 
 
 
-<a name="control_plane_proto.ListSelectorEntriesRequest"/>
+<a name="sri_proto.ListSelectorEntriesRequest"/>
 
 ### ListSelectorEntriesRequest
 
@@ -304,7 +304,7 @@
 
 
 
-<a name="control_plane_proto.ListSelectorEntriesResponse"/>
+<a name="sri_proto.ListSelectorEntriesResponse"/>
 
 ### ListSelectorEntriesResponse
 
@@ -312,14 +312,14 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedEntryList | [FederatedEntry](#control_plane_proto.FederatedEntry) | repeated |  |
+| federatedEntryList | [FederatedEntry](#sri_proto.FederatedEntry) | repeated |  |
 
 
 
 
 
 
-<a name="control_plane_proto.ListSpiffeEntriesRequest"/>
+<a name="sri_proto.ListSpiffeEntriesRequest"/>
 
 ### ListSpiffeEntriesRequest
 
@@ -334,7 +334,7 @@
 
 
 
-<a name="control_plane_proto.ListSpiffeEntriesResponse"/>
+<a name="sri_proto.ListSpiffeEntriesResponse"/>
 
 ### ListSpiffeEntriesResponse
 
@@ -342,14 +342,14 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedEntryList | [FederatedEntry](#control_plane_proto.FederatedEntry) | repeated |  |
+| federatedEntryList | [FederatedEntry](#sri_proto.FederatedEntry) | repeated |  |
 
 
 
 
 
 
-<a name="control_plane_proto.RegisteredEntry"/>
+<a name="sri_proto.RegisteredEntry"/>
 
 ### RegisteredEntry
 
@@ -368,7 +368,7 @@
 
 
 
-<a name="control_plane_proto.UpdateFederatedBundleRequest"/>
+<a name="sri_proto.UpdateFederatedBundleRequest"/>
 
 ### UpdateFederatedBundleRequest
 
@@ -376,14 +376,14 @@
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  |  |
+| federatedBundle | [FederatedBundle](#sri_proto.FederatedBundle) |  |  |
 
 
 
 
 
 
-<a name="control_plane_proto.UpdateFederatedBundleResponse"/>
+<a name="sri_proto.UpdateFederatedBundleResponse"/>
 
 ### UpdateFederatedBundleResponse
 
@@ -399,23 +399,23 @@
  
 
 
-<a name="control_plane_proto.node"/>
+<a name="sri_proto.node"/>
 
 ### node
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateFederatedEntry | [CreateFederatedEntryRequest](#control_plane_proto.CreateFederatedEntryRequest) | [CreateFederatedEntryResponse](#control_plane_proto.CreateFederatedEntryRequest) |  |
-| CreateFederatedBundle | [CreateFederatedBundleRequest](#control_plane_proto.CreateFederatedBundleRequest) | [CreateFederatedBundleResponse](#control_plane_proto.CreateFederatedBundleRequest) |  |
-| ListFederatedBundles | [ListFederatedBundlesRequest](#control_plane_proto.ListFederatedBundlesRequest) | [ListFederatedBundlesResponse](#control_plane_proto.ListFederatedBundlesRequest) |  |
-| UpdateFederatedBundle | [UpdateFederatedBundleRequest](#control_plane_proto.UpdateFederatedBundleRequest) | [UpdateFederatedBundleResponse](#control_plane_proto.UpdateFederatedBundleRequest) |  |
-| DeleteFederatedBundle | [DeleteFederatedBundleRequest](#control_plane_proto.DeleteFederatedBundleRequest) | [DeleteFederatedBundleResponse](#control_plane_proto.DeleteFederatedBundleRequest) |  |
-| CreateEntry | [CreateEntryRequest](#control_plane_proto.CreateEntryRequest) | [CreateEntryResponse](#control_plane_proto.CreateEntryRequest) |  |
-| ListAttestorEntries | [ListAttestorEntriesRequest](#control_plane_proto.ListAttestorEntriesRequest) | [ListAttestorEntriesResponse](#control_plane_proto.ListAttestorEntriesRequest) |  |
-| ListSelectorEntries | [ListSelectorEntriesRequest](#control_plane_proto.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#control_plane_proto.ListSelectorEntriesRequest) |  |
-| ListSpiffeEntries | [ListSpiffeEntriesRequest](#control_plane_proto.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#control_plane_proto.ListSpiffeEntriesRequest) |  |
-| DeleteEntry | [DeleteEntryRequest](#control_plane_proto.DeleteEntryRequest) | [DeleteEntryResponse](#control_plane_proto.DeleteEntryRequest) |  |
+| CreateFederatedEntry | [CreateFederatedEntryRequest](#sri_proto.CreateFederatedEntryRequest) | [CreateFederatedEntryResponse](#sri_proto.CreateFederatedEntryRequest) |  |
+| CreateFederatedBundle | [CreateFederatedBundleRequest](#sri_proto.CreateFederatedBundleRequest) | [CreateFederatedBundleResponse](#sri_proto.CreateFederatedBundleRequest) |  |
+| ListFederatedBundles | [ListFederatedBundlesRequest](#sri_proto.ListFederatedBundlesRequest) | [ListFederatedBundlesResponse](#sri_proto.ListFederatedBundlesRequest) |  |
+| UpdateFederatedBundle | [UpdateFederatedBundleRequest](#sri_proto.UpdateFederatedBundleRequest) | [UpdateFederatedBundleResponse](#sri_proto.UpdateFederatedBundleRequest) |  |
+| DeleteFederatedBundle | [DeleteFederatedBundleRequest](#sri_proto.DeleteFederatedBundleRequest) | [DeleteFederatedBundleResponse](#sri_proto.DeleteFederatedBundleRequest) |  |
+| CreateEntry | [CreateEntryRequest](#sri_proto.CreateEntryRequest) | [CreateEntryResponse](#sri_proto.CreateEntryRequest) |  |
+| ListAttestorEntries | [ListAttestorEntriesRequest](#sri_proto.ListAttestorEntriesRequest) | [ListAttestorEntriesResponse](#sri_proto.ListAttestorEntriesRequest) |  |
+| ListSelectorEntries | [ListSelectorEntriesRequest](#sri_proto.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#sri_proto.ListSelectorEntriesRequest) |  |
+| ListSpiffeEntries | [ListSpiffeEntriesRequest](#sri_proto.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#sri_proto.ListSpiffeEntriesRequest) |  |
+| DeleteEntry | [DeleteEntryRequest](#sri_proto.DeleteEntryRequest) | [DeleteEntryResponse](#sri_proto.DeleteEntryRequest) |  |
 
  
 

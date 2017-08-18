@@ -20,7 +20,7 @@ var Handshake = plugin.HandshakeConfig{
 
 
 type WorkloadAttestor interface {
-	Attest(*node_agent_proto.AttestRequest) (*node_agent_proto.AttestResponse, error)
+	Attest(*sri_proto.AttestRequest) (*sri_proto.AttestResponse, error)
 	Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error)
 	GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
 }
@@ -38,10 +38,10 @@ func (p WorkloadAttestorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (inte
 }
 
 func (p WorkloadAttestorPlugin) GRPCServer(s *grpc.Server) error {
-	node_agent_proto.RegisterWorkloadAttestorServer(s, &GRPCServer{WorkloadAttestorImpl: p.WorkloadAttestorImpl})
+	sri_proto.RegisterWorkloadAttestorServer(s, &GRPCServer{WorkloadAttestorImpl: p.WorkloadAttestorImpl})
 	return nil
 }
 
 func (p WorkloadAttestorPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: node_agent_proto.NewWorkloadAttestorClient(c)}, nil
+	return &GRPCClient{client: sri_proto.NewWorkloadAttestorClient(c)}, nil
 }

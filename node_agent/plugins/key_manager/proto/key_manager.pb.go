@@ -2,7 +2,7 @@
 // source: key_manager.proto
 
 /*
-Package node_agent_proto is a generated protocol buffer package.
+Package sri_proto is a generated protocol buffer package.
 
 It is generated from these files:
 	key_manager.proto
@@ -13,12 +13,12 @@ It has these top-level messages:
 	FetchPrivateKeyRequest
 	FetchPrivateKeyResponse
 */
-package node_agent_proto
+package sri_proto
 
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
-import node_agent_proto1 "github.com/spiffe/sri/node_agent/plugins/common/proto"
+import sri_proto1 "github.com/spiffe/sri/node_agent/plugins/common/proto"
 
 import (
 	context "golang.org/x/net/context"
@@ -37,68 +37,66 @@ var _ = math.Inf
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 // ConfigureRequest from public import github.com/spiffe/sri/node_agent/plugins/common/proto/common.proto
-type ConfigureRequest node_agent_proto1.ConfigureRequest
+type ConfigureRequest sri_proto1.ConfigureRequest
 
-func (m *ConfigureRequest) Reset()         { (*node_agent_proto1.ConfigureRequest)(m).Reset() }
-func (m *ConfigureRequest) String() string { return (*node_agent_proto1.ConfigureRequest)(m).String() }
+func (m *ConfigureRequest) Reset()         { (*sri_proto1.ConfigureRequest)(m).Reset() }
+func (m *ConfigureRequest) String() string { return (*sri_proto1.ConfigureRequest)(m).String() }
 func (*ConfigureRequest) ProtoMessage()    {}
 func (m *ConfigureRequest) GetConfiguration() string {
-	return (*node_agent_proto1.ConfigureRequest)(m).GetConfiguration()
+	return (*sri_proto1.ConfigureRequest)(m).GetConfiguration()
 }
 
 // ConfigureResponse from public import github.com/spiffe/sri/node_agent/plugins/common/proto/common.proto
-type ConfigureResponse node_agent_proto1.ConfigureResponse
+type ConfigureResponse sri_proto1.ConfigureResponse
 
-func (m *ConfigureResponse) Reset()         { (*node_agent_proto1.ConfigureResponse)(m).Reset() }
-func (m *ConfigureResponse) String() string { return (*node_agent_proto1.ConfigureResponse)(m).String() }
+func (m *ConfigureResponse) Reset()         { (*sri_proto1.ConfigureResponse)(m).Reset() }
+func (m *ConfigureResponse) String() string { return (*sri_proto1.ConfigureResponse)(m).String() }
 func (*ConfigureResponse) ProtoMessage()    {}
 func (m *ConfigureResponse) GetErrorList() []string {
-	return (*node_agent_proto1.ConfigureResponse)(m).GetErrorList()
+	return (*sri_proto1.ConfigureResponse)(m).GetErrorList()
 }
 
 // GetPluginInfoRequest from public import github.com/spiffe/sri/node_agent/plugins/common/proto/common.proto
-type GetPluginInfoRequest node_agent_proto1.GetPluginInfoRequest
+type GetPluginInfoRequest sri_proto1.GetPluginInfoRequest
 
-func (m *GetPluginInfoRequest) Reset() { (*node_agent_proto1.GetPluginInfoRequest)(m).Reset() }
-func (m *GetPluginInfoRequest) String() string {
-	return (*node_agent_proto1.GetPluginInfoRequest)(m).String()
-}
-func (*GetPluginInfoRequest) ProtoMessage() {}
+func (m *GetPluginInfoRequest) Reset()         { (*sri_proto1.GetPluginInfoRequest)(m).Reset() }
+func (m *GetPluginInfoRequest) String() string { return (*sri_proto1.GetPluginInfoRequest)(m).String() }
+func (*GetPluginInfoRequest) ProtoMessage()    {}
 
 // GetPluginInfoResponse from public import github.com/spiffe/sri/node_agent/plugins/common/proto/common.proto
-type GetPluginInfoResponse node_agent_proto1.GetPluginInfoResponse
+type GetPluginInfoResponse sri_proto1.GetPluginInfoResponse
 
-func (m *GetPluginInfoResponse) Reset() { (*node_agent_proto1.GetPluginInfoResponse)(m).Reset() }
+func (m *GetPluginInfoResponse) Reset() { (*sri_proto1.GetPluginInfoResponse)(m).Reset() }
 func (m *GetPluginInfoResponse) String() string {
-	return (*node_agent_proto1.GetPluginInfoResponse)(m).String()
+	return (*sri_proto1.GetPluginInfoResponse)(m).String()
 }
 func (*GetPluginInfoResponse) ProtoMessage() {}
 func (m *GetPluginInfoResponse) GetName() string {
-	return (*node_agent_proto1.GetPluginInfoResponse)(m).GetName()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetName()
 }
 func (m *GetPluginInfoResponse) GetCategory() string {
-	return (*node_agent_proto1.GetPluginInfoResponse)(m).GetCategory()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetCategory()
 }
 func (m *GetPluginInfoResponse) GetType() string {
-	return (*node_agent_proto1.GetPluginInfoResponse)(m).GetType()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetType()
 }
 func (m *GetPluginInfoResponse) GetDescription() string {
-	return (*node_agent_proto1.GetPluginInfoResponse)(m).GetDescription()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetDescription()
 }
 func (m *GetPluginInfoResponse) GetDateCreated() string {
-	return (*node_agent_proto1.GetPluginInfoResponse)(m).GetDateCreated()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetDateCreated()
 }
 func (m *GetPluginInfoResponse) GetLocation() string {
-	return (*node_agent_proto1.GetPluginInfoResponse)(m).GetLocation()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetLocation()
 }
 func (m *GetPluginInfoResponse) GetVersion() string {
-	return (*node_agent_proto1.GetPluginInfoResponse)(m).GetVersion()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetVersion()
 }
 func (m *GetPluginInfoResponse) GetAuthor() string {
-	return (*node_agent_proto1.GetPluginInfoResponse)(m).GetAuthor()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetAuthor()
 }
 func (m *GetPluginInfoResponse) GetCompany() string {
-	return (*node_agent_proto1.GetPluginInfoResponse)(m).GetCompany()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetCompany()
 }
 
 // * Represents an empty request.
@@ -162,10 +160,10 @@ func (m *FetchPrivateKeyResponse) GetPrivateKey() []byte {
 }
 
 func init() {
-	proto.RegisterType((*GenerateKeyPairRequest)(nil), "node_agent_proto.GenerateKeyPairRequest")
-	proto.RegisterType((*GenerateKeyPairResponse)(nil), "node_agent_proto.GenerateKeyPairResponse")
-	proto.RegisterType((*FetchPrivateKeyRequest)(nil), "node_agent_proto.FetchPrivateKeyRequest")
-	proto.RegisterType((*FetchPrivateKeyResponse)(nil), "node_agent_proto.FetchPrivateKeyResponse")
+	proto.RegisterType((*GenerateKeyPairRequest)(nil), "sri_proto.GenerateKeyPairRequest")
+	proto.RegisterType((*GenerateKeyPairResponse)(nil), "sri_proto.GenerateKeyPairResponse")
+	proto.RegisterType((*FetchPrivateKeyRequest)(nil), "sri_proto.FetchPrivateKeyRequest")
+	proto.RegisterType((*FetchPrivateKeyResponse)(nil), "sri_proto.FetchPrivateKeyResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -184,9 +182,9 @@ type KeyManagerClient interface {
 	// / Returns previously generated private key. For use after node restarts.
 	FetchPrivateKey(ctx context.Context, in *FetchPrivateKeyRequest, opts ...grpc.CallOption) (*FetchPrivateKeyResponse, error)
 	// / Applies the plugin configuration and returns configuration errors.
-	Configure(ctx context.Context, in *node_agent_proto1.ConfigureRequest, opts ...grpc.CallOption) (*node_agent_proto1.ConfigureResponse, error)
+	Configure(ctx context.Context, in *sri_proto1.ConfigureRequest, opts ...grpc.CallOption) (*sri_proto1.ConfigureResponse, error)
 	// / Returns the version and related metadata of the plugin.
-	GetPluginInfo(ctx context.Context, in *node_agent_proto1.GetPluginInfoRequest, opts ...grpc.CallOption) (*node_agent_proto1.GetPluginInfoResponse, error)
+	GetPluginInfo(ctx context.Context, in *sri_proto1.GetPluginInfoRequest, opts ...grpc.CallOption) (*sri_proto1.GetPluginInfoResponse, error)
 }
 
 type keyManagerClient struct {
@@ -199,7 +197,7 @@ func NewKeyManagerClient(cc *grpc.ClientConn) KeyManagerClient {
 
 func (c *keyManagerClient) GenerateKeyPair(ctx context.Context, in *GenerateKeyPairRequest, opts ...grpc.CallOption) (*GenerateKeyPairResponse, error) {
 	out := new(GenerateKeyPairResponse)
-	err := grpc.Invoke(ctx, "/node_agent_proto.KeyManager/GenerateKeyPair", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/sri_proto.KeyManager/GenerateKeyPair", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -208,25 +206,25 @@ func (c *keyManagerClient) GenerateKeyPair(ctx context.Context, in *GenerateKeyP
 
 func (c *keyManagerClient) FetchPrivateKey(ctx context.Context, in *FetchPrivateKeyRequest, opts ...grpc.CallOption) (*FetchPrivateKeyResponse, error) {
 	out := new(FetchPrivateKeyResponse)
-	err := grpc.Invoke(ctx, "/node_agent_proto.KeyManager/FetchPrivateKey", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/sri_proto.KeyManager/FetchPrivateKey", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *keyManagerClient) Configure(ctx context.Context, in *node_agent_proto1.ConfigureRequest, opts ...grpc.CallOption) (*node_agent_proto1.ConfigureResponse, error) {
-	out := new(node_agent_proto1.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/node_agent_proto.KeyManager/Configure", in, out, c.cc, opts...)
+func (c *keyManagerClient) Configure(ctx context.Context, in *sri_proto1.ConfigureRequest, opts ...grpc.CallOption) (*sri_proto1.ConfigureResponse, error) {
+	out := new(sri_proto1.ConfigureResponse)
+	err := grpc.Invoke(ctx, "/sri_proto.KeyManager/Configure", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *keyManagerClient) GetPluginInfo(ctx context.Context, in *node_agent_proto1.GetPluginInfoRequest, opts ...grpc.CallOption) (*node_agent_proto1.GetPluginInfoResponse, error) {
-	out := new(node_agent_proto1.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/node_agent_proto.KeyManager/GetPluginInfo", in, out, c.cc, opts...)
+func (c *keyManagerClient) GetPluginInfo(ctx context.Context, in *sri_proto1.GetPluginInfoRequest, opts ...grpc.CallOption) (*sri_proto1.GetPluginInfoResponse, error) {
+	out := new(sri_proto1.GetPluginInfoResponse)
+	err := grpc.Invoke(ctx, "/sri_proto.KeyManager/GetPluginInfo", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -241,9 +239,9 @@ type KeyManagerServer interface {
 	// / Returns previously generated private key. For use after node restarts.
 	FetchPrivateKey(context.Context, *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
 	// / Applies the plugin configuration and returns configuration errors.
-	Configure(context.Context, *node_agent_proto1.ConfigureRequest) (*node_agent_proto1.ConfigureResponse, error)
+	Configure(context.Context, *sri_proto1.ConfigureRequest) (*sri_proto1.ConfigureResponse, error)
 	// / Returns the version and related metadata of the plugin.
-	GetPluginInfo(context.Context, *node_agent_proto1.GetPluginInfoRequest) (*node_agent_proto1.GetPluginInfoResponse, error)
+	GetPluginInfo(context.Context, *sri_proto1.GetPluginInfoRequest) (*sri_proto1.GetPluginInfoResponse, error)
 }
 
 func RegisterKeyManagerServer(s *grpc.Server, srv KeyManagerServer) {
@@ -260,7 +258,7 @@ func _KeyManager_GenerateKeyPair_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/node_agent_proto.KeyManager/GenerateKeyPair",
+		FullMethod: "/sri_proto.KeyManager/GenerateKeyPair",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(KeyManagerServer).GenerateKeyPair(ctx, req.(*GenerateKeyPairRequest))
@@ -278,7 +276,7 @@ func _KeyManager_FetchPrivateKey_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/node_agent_proto.KeyManager/FetchPrivateKey",
+		FullMethod: "/sri_proto.KeyManager/FetchPrivateKey",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(KeyManagerServer).FetchPrivateKey(ctx, req.(*FetchPrivateKeyRequest))
@@ -287,7 +285,7 @@ func _KeyManager_FetchPrivateKey_Handler(srv interface{}, ctx context.Context, d
 }
 
 func _KeyManager_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(node_agent_proto1.ConfigureRequest)
+	in := new(sri_proto1.ConfigureRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -296,16 +294,16 @@ func _KeyManager_Configure_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/node_agent_proto.KeyManager/Configure",
+		FullMethod: "/sri_proto.KeyManager/Configure",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KeyManagerServer).Configure(ctx, req.(*node_agent_proto1.ConfigureRequest))
+		return srv.(KeyManagerServer).Configure(ctx, req.(*sri_proto1.ConfigureRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _KeyManager_GetPluginInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(node_agent_proto1.GetPluginInfoRequest)
+	in := new(sri_proto1.GetPluginInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -314,16 +312,16 @@ func _KeyManager_GetPluginInfo_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/node_agent_proto.KeyManager/GetPluginInfo",
+		FullMethod: "/sri_proto.KeyManager/GetPluginInfo",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KeyManagerServer).GetPluginInfo(ctx, req.(*node_agent_proto1.GetPluginInfoRequest))
+		return srv.(KeyManagerServer).GetPluginInfo(ctx, req.(*sri_proto1.GetPluginInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 var _KeyManager_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "node_agent_proto.KeyManager",
+	ServiceName: "sri_proto.KeyManager",
 	HandlerType: (*KeyManagerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -350,25 +348,24 @@ var _KeyManager_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("key_manager.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 306 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x52, 0x5f, 0x4b, 0xfb, 0x30,
-	0x14, 0xfd, 0xed, 0x27, 0x08, 0xbb, 0x28, 0xd3, 0x3c, 0xb8, 0x32, 0x44, 0xa4, 0x82, 0xce, 0x97,
-	0x06, 0xf4, 0xc9, 0x57, 0x05, 0x87, 0x14, 0xa1, 0x0c, 0xc1, 0xc7, 0xda, 0xd6, 0x9b, 0x2e, 0xb8,
-	0x26, 0x31, 0x49, 0x85, 0x7e, 0x0f, 0x3f, 0xb0, 0xd8, 0x3f, 0xdb, 0x6c, 0xeb, 0x9f, 0xc7, 0x9c,
-	0x73, 0xee, 0x39, 0xf7, 0x5c, 0x02, 0xfb, 0x2f, 0x58, 0x84, 0x59, 0x24, 0xa2, 0x14, 0xb5, 0xa7,
-	0xb4, 0xb4, 0x92, 0xec, 0x09, 0xf9, 0x8c, 0x61, 0x94, 0xa2, 0xb0, 0x61, 0x89, 0x4c, 0xae, 0x53,
-	0x6e, 0x17, 0x79, 0xec, 0x25, 0x32, 0xa3, 0x46, 0x71, 0xc6, 0x90, 0x1a, 0xcd, 0xe9, 0x5a, 0x47,
-	0xd5, 0x32, 0x4f, 0xb9, 0x30, 0x34, 0x91, 0x59, 0x26, 0x05, 0x2d, 0xc7, 0xea, 0x47, 0xe5, 0xea,
-	0x3a, 0x70, 0x30, 0x43, 0x81, 0x3a, 0xb2, 0xe8, 0x63, 0x11, 0x44, 0x5c, 0xcf, 0xf1, 0x35, 0x47,
-	0x63, 0xdd, 0x47, 0x18, 0x77, 0x18, 0xa3, 0xa4, 0x30, 0x48, 0x0e, 0x61, 0xa8, 0xf2, 0x78, 0xc9,
-	0x13, 0x1f, 0x0b, 0x67, 0x70, 0x3c, 0x98, 0xee, 0xcc, 0xd7, 0x00, 0x39, 0x02, 0x50, 0x9a, 0xbf,
-	0x55, 0x73, 0xce, 0xff, 0x92, 0xde, 0x40, 0x3e, 0x23, 0x6f, 0xd1, 0x26, 0x8b, 0x60, 0x05, 0x35,
-	0x91, 0x57, 0x30, 0xee, 0x30, 0x75, 0xe4, 0x57, 0xd3, 0x41, 0xdb, 0xf4, 0xe2, 0x7d, 0x0b, 0xc0,
-	0xc7, 0xe2, 0xbe, 0x3a, 0x19, 0x61, 0x30, 0x6a, 0x2d, 0x4f, 0xa6, 0x5e, 0xfb, 0x80, 0x5e, 0x7f,
-	0xf3, 0xc9, 0xf9, 0x1f, 0x94, 0xf5, 0x5a, 0x0c, 0x46, 0xad, 0x8d, 0xfb, 0x72, 0xfa, 0xeb, 0xf6,
-	0xe5, 0x7c, 0x57, 0xff, 0x01, 0x86, 0x37, 0x52, 0x30, 0x9e, 0xe6, 0x1a, 0x89, 0xdb, 0x9d, 0x5b,
-	0x91, 0x8d, 0xf7, 0xc9, 0x8f, 0x9a, 0xda, 0xf5, 0x09, 0x76, 0x67, 0x68, 0x83, 0xf2, 0x93, 0xdc,
-	0x09, 0x26, 0xc9, 0x69, 0x5f, 0xf3, 0x0d, 0x41, 0xe3, 0x7e, 0xf6, 0xab, 0xae, 0x4a, 0x08, 0xfe,
-	0xc5, 0xdb, 0x25, 0x7d, 0xf9, 0x11, 0x00, 0x00, 0xff, 0xff, 0xa6, 0xed, 0x33, 0xb2, 0xd2, 0x02,
-	0x00, 0x00,
+	// 303 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x91, 0x4f, 0x4b, 0xc3, 0x40,
+	0x10, 0xc5, 0x6d, 0x0f, 0x42, 0x07, 0xa5, 0xb8, 0x07, 0x5b, 0x6a, 0xd1, 0x9a, 0x93, 0xa7, 0x2c,
+	0xe8, 0xc9, 0xab, 0x42, 0x8b, 0x04, 0x21, 0xe4, 0x62, 0x6f, 0x21, 0x89, 0x93, 0x74, 0xb1, 0xd9,
+	0x5d, 0x77, 0x37, 0x42, 0xbe, 0xab, 0x1f, 0x46, 0xcc, 0x3f, 0x93, 0x34, 0xf5, 0x96, 0xbc, 0x37,
+	0xf3, 0x9b, 0x79, 0xb3, 0x70, 0xf1, 0x81, 0xb9, 0x9f, 0x06, 0x3c, 0x48, 0x50, 0xd9, 0x52, 0x09,
+	0x23, 0xc8, 0x44, 0x2b, 0xe6, 0x17, 0x9f, 0x8b, 0xa7, 0x84, 0x99, 0x5d, 0x16, 0xda, 0x91, 0x48,
+	0xa9, 0x96, 0x2c, 0x8e, 0x91, 0x6a, 0xc5, 0x28, 0x17, 0xef, 0xe8, 0x07, 0x09, 0x72, 0x43, 0xe5,
+	0x3e, 0x4b, 0x18, 0xd7, 0x34, 0x12, 0x69, 0x2a, 0x38, 0x2d, 0xda, 0xaa, 0x9f, 0x12, 0x67, 0xcd,
+	0xe1, 0x72, 0x83, 0x1c, 0x55, 0x60, 0xd0, 0xc1, 0xdc, 0x0d, 0x98, 0xf2, 0xf0, 0x33, 0x43, 0x6d,
+	0xac, 0x37, 0x98, 0x1d, 0x38, 0x5a, 0x0a, 0xae, 0x91, 0x2c, 0x61, 0x22, 0xb3, 0x70, 0xcf, 0x22,
+	0x07, 0xf3, 0xf9, 0x68, 0x35, 0xba, 0x3b, 0xf3, 0xfe, 0x04, 0x72, 0x0d, 0x20, 0x15, 0xfb, 0x2a,
+	0xfb, 0xe6, 0xe3, 0xc2, 0x6e, 0x29, 0xbf, 0x23, 0xd7, 0x68, 0xa2, 0x9d, 0xdb, 0x48, 0xf5, 0xc8,
+	0x47, 0x98, 0x1d, 0x38, 0xd5, 0xc8, 0x2e, 0x74, 0xd4, 0x87, 0xde, 0x7f, 0x8f, 0x01, 0x1c, 0xcc,
+	0x5f, 0xcb, 0x5b, 0x91, 0x2d, 0x4c, 0x7b, 0xcb, 0x93, 0x5b, 0xbb, 0xb9, 0x9c, 0x3d, 0x1c, 0x79,
+	0x61, 0xfd, 0x57, 0x52, 0x2d, 0xb2, 0x85, 0x69, 0x6f, 0xc7, 0x0e, 0x79, 0x38, 0x59, 0x87, 0x7c,
+	0x2c, 0xe2, 0x1a, 0x26, 0xcf, 0x82, 0xc7, 0x2c, 0xc9, 0x14, 0x92, 0xab, 0x56, 0x43, 0xa3, 0xd6,
+	0xb4, 0xe5, 0xb0, 0x59, 0x71, 0x3c, 0x38, 0xdf, 0xa0, 0x71, 0x8b, 0xa7, 0x7f, 0xe1, 0xb1, 0x20,
+	0x37, 0x9d, 0x58, 0x2d, 0xa7, 0xe6, 0xad, 0x8e, 0x17, 0x94, 0x4c, 0xf7, 0x24, 0x3c, 0x2d, 0xec,
+	0x87, 0x9f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xd8, 0xff, 0x75, 0xf2, 0x93, 0x02, 0x00, 0x00,
 }

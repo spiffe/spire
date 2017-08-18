@@ -20,28 +20,28 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInf
 	return response, err
 }
 
-func (m *GRPCServer) SignCsr(ctx context.Context, req *control_plane_proto.SignCsrRequest) (*control_plane_proto.SignCsrResponse, error) {
+func (m *GRPCServer) SignCsr(ctx context.Context, req *sri_proto.SignCsrRequest) (*sri_proto.SignCsrResponse, error) {
 	response, err := m.ControlPlaneCaImpl.SignCsr(req.Csr)
-	return &control_plane_proto.SignCsrResponse{SignedCertificate: response}, err
+	return &sri_proto.SignCsrResponse{SignedCertificate: response}, err
 }
 
-func (m *GRPCServer) GenerateCsr(ctx context.Context, req *control_plane_proto.GenerateCsrRequest) (*control_plane_proto.GenerateCsrResponse, error) {
+func (m *GRPCServer) GenerateCsr(ctx context.Context, req *sri_proto.GenerateCsrRequest) (*sri_proto.GenerateCsrResponse, error) {
 	response, err := m.ControlPlaneCaImpl.GenerateCsr()
-	return &control_plane_proto.GenerateCsrResponse{Csr: response}, err
+	return &sri_proto.GenerateCsrResponse{Csr: response}, err
 }
 
-func (m *GRPCServer) FetchCertificate(ctx context.Context, req *control_plane_proto.FetchCertificateRequest) (*control_plane_proto.FetchCertificateResponse, error) {
+func (m *GRPCServer) FetchCertificate(ctx context.Context, req *sri_proto.FetchCertificateRequest) (*sri_proto.FetchCertificateResponse, error) {
 	response, err := m.ControlPlaneCaImpl.FetchCertificate()
-	return &control_plane_proto.FetchCertificateResponse{StoredIntermediateCert: response}, err
+	return &sri_proto.FetchCertificateResponse{StoredIntermediateCert: response}, err
 }
 
-func (m *GRPCServer) LoadCertificate(ctx context.Context, req *control_plane_proto.LoadCertificateRequest) (*control_plane_proto.LoadCertificateResponse, error) {
+func (m *GRPCServer) LoadCertificate(ctx context.Context, req *sri_proto.LoadCertificateRequest) (*sri_proto.LoadCertificateResponse, error) {
 	err := m.ControlPlaneCaImpl.LoadCertificate(req.SignedIntermediateCert)
-	return &control_plane_proto.LoadCertificateResponse{}, err
+	return &sri_proto.LoadCertificateResponse{}, err
 }
 
 type GRPCClient struct {
-	client control_plane_proto.ControlPlaneCAClient
+	client sri_proto.ControlPlaneCAClient
 }
 
 func (m *GRPCClient) Configure(configuration string) ([]string, error) {
@@ -58,21 +58,21 @@ func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
 }
 
 func (m *GRPCClient) SignCsr(csr []byte) (signedCertificate []byte, err error) {
-	response, err := m.client.SignCsr(context.Background(), &control_plane_proto.SignCsrRequest{Csr: csr})
+	response, err := m.client.SignCsr(context.Background(), &sri_proto.SignCsrRequest{Csr: csr})
 	return response.SignedCertificate, err
 }
 
 func (m *GRPCClient) GenerateCsr() (csr []byte, err error) {
-	response, err := m.client.GenerateCsr(context.Background(), &control_plane_proto.GenerateCsrRequest{})
+	response, err := m.client.GenerateCsr(context.Background(), &sri_proto.GenerateCsrRequest{})
 	return response.Csr, err
 }
 
 func (m *GRPCClient) FetchCertificate() (storedIntermediateCert []byte, err error) {
-	response, err := m.client.FetchCertificate(context.Background(), &control_plane_proto.FetchCertificateRequest{})
+	response, err := m.client.FetchCertificate(context.Background(), &sri_proto.FetchCertificateRequest{})
 	return response.StoredIntermediateCert, err
 }
 
 func (m *GRPCClient) LoadCertificate(signedIntermediateCert []byte) error {
-	_, err := m.client.LoadCertificate(context.Background(), &control_plane_proto.LoadCertificateRequest{SignedIntermediateCert: signedIntermediateCert})
+	_, err := m.client.LoadCertificate(context.Background(), &sri_proto.LoadCertificateRequest{SignedIntermediateCert: signedIntermediateCert})
 	return err
 }

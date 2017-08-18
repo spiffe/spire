@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#node_agent_proto.ConfigureRequest)
+    * [ConfigureRequest](#sri_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#node_agent_proto.ConfigureResponse)
+    * [ConfigureResponse](#sri_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse)
   
   
   
@@ -21,16 +21,16 @@
 
 * [node_attestor.proto](#node_attestor.proto)
   
-    * [AttestedData](#node_agent_proto.AttestedData)
+    * [AttestedData](#sri_proto.AttestedData)
   
-    * [FetchAttestationDataRequest](#node_agent_proto.FetchAttestationDataRequest)
+    * [FetchAttestationDataRequest](#sri_proto.FetchAttestationDataRequest)
   
-    * [FetchAttestationDataResponse](#node_agent_proto.FetchAttestationDataResponse)
-  
-  
+    * [FetchAttestationDataResponse](#sri_proto.FetchAttestationDataResponse)
   
   
-    * [NodeAttestor](#node_agent_proto.NodeAttestor)
+  
+  
+    * [NodeAttestor](#sri_proto.NodeAttestor)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -44,7 +44,7 @@
 
 
 
-<a name="node_agent_proto.ConfigureRequest"/>
+<a name="sri_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -59,7 +59,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="node_agent_proto.ConfigureResponse"/>
+<a name="sri_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -74,7 +74,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="node_agent_proto.GetPluginInfoRequest"/>
+<a name="sri_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -84,7 +84,7 @@ Represents an empty request.
 
 
 
-<a name="node_agent_proto.GetPluginInfoResponse"/>
+<a name="sri_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -125,7 +125,7 @@ The plugin will be responsible to retrieve an identity document or data associat
 This data will be used when calling the NodeAPI on the Control Plane.
 
 
-<a name="node_agent_proto.AttestedData"/>
+<a name="sri_proto.AttestedData"/>
 
 ### AttestedData
 A type which contains attestation data for specific platform.
@@ -141,7 +141,7 @@ A type which contains attestation data for specific platform.
 
 
 
-<a name="node_agent_proto.FetchAttestationDataRequest"/>
+<a name="sri_proto.FetchAttestationDataRequest"/>
 
 ### FetchAttestationDataRequest
 Represents an empty request.
@@ -151,7 +151,7 @@ Represents an empty request.
 
 
 
-<a name="node_agent_proto.FetchAttestationDataResponse"/>
+<a name="sri_proto.FetchAttestationDataResponse"/>
 
 ### FetchAttestationDataResponse
 Represents the attested data and base SPIFFE ID.
@@ -159,7 +159,7 @@ Represents the attested data and base SPIFFE ID.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [AttestedData](#node_agent_proto.AttestedData) |  | A type which contains attestation data for specific platform. |
+| attestedData | [AttestedData](#sri_proto.AttestedData) |  | A type which contains attestation data for specific platform. |
 | spiffeId | [string](#string) |  | SPIFFE ID. |
 
 
@@ -173,16 +173,16 @@ Represents the attested data and base SPIFFE ID.
  
 
 
-<a name="node_agent_proto.NodeAttestor"/>
+<a name="sri_proto.NodeAttestor"/>
 
 ### NodeAttestor
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchAttestationData | [FetchAttestationDataRequest](#node_agent_proto.FetchAttestationDataRequest) | [FetchAttestationDataResponse](#node_agent_proto.FetchAttestationDataRequest) | Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation. |
-| Configure | [ConfigureRequest](#node_agent_proto.ConfigureRequest) | [ConfigureResponse](#node_agent_proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
-| GetPluginInfo | [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
+| FetchAttestationData | [FetchAttestationDataRequest](#sri_proto.FetchAttestationDataRequest) | [FetchAttestationDataResponse](#sri_proto.FetchAttestationDataRequest) | Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation. |
+| Configure | [ConfigureRequest](#sri_proto.ConfigureRequest) | [ConfigureResponse](#sri_proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
+| GetPluginInfo | [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#sri_proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
 
  
 

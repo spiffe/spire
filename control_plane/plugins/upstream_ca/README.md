@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#control_plane_proto.ConfigureRequest)
+    * [ConfigureRequest](#sri_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#control_plane_proto.ConfigureResponse)
+    * [ConfigureResponse](#sri_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse)
   
   
   
@@ -21,14 +21,14 @@
 
 * [upstream_ca.proto](#upstream_ca.proto)
   
-    * [SubmitCSRRequest](#control_plane_proto.SubmitCSRRequest)
+    * [SubmitCSRRequest](#sri_proto.SubmitCSRRequest)
   
-    * [SubmitCSRResponse](#control_plane_proto.SubmitCSRResponse)
-  
-  
+    * [SubmitCSRResponse](#sri_proto.SubmitCSRResponse)
   
   
-    * [UpstreamCA](#control_plane_proto.UpstreamCA)
+  
+  
+    * [UpstreamCA](#sri_proto.UpstreamCA)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -42,7 +42,7 @@
 
 
 
-<a name="control_plane_proto.ConfigureRequest"/>
+<a name="sri_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -57,7 +57,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="control_plane_proto.ConfigureResponse"/>
+<a name="sri_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -72,7 +72,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="control_plane_proto.GetPluginInfoRequest"/>
+<a name="sri_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -82,7 +82,7 @@ Represents an empty request.
 
 
 
-<a name="control_plane_proto.GetPluginInfoResponse"/>
+<a name="sri_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -123,7 +123,7 @@ Responsible for processing Certificate Signing Requests for intermediate signing
 This plugin will manage/own the Trust Bundles for the Control Plane, and act as the interface for upstream CAs.
 
 
-<a name="control_plane_proto.SubmitCSRRequest"/>
+<a name="sri_proto.SubmitCSRRequest"/>
 
 ### SubmitCSRRequest
 
@@ -138,7 +138,7 @@ This plugin will manage/own the Trust Bundles for the Control Plane, and act as 
 
 
 
-<a name="control_plane_proto.SubmitCSRResponse"/>
+<a name="sri_proto.SubmitCSRResponse"/>
 
 ### SubmitCSRResponse
 
@@ -160,16 +160,16 @@ This plugin will manage/own the Trust Bundles for the Control Plane, and act as 
  
 
 
-<a name="control_plane_proto.UpstreamCA"/>
+<a name="sri_proto.UpstreamCA"/>
 
 ### UpstreamCA
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [ConfigureRequest](#control_plane_proto.ConfigureRequest) | [ConfigureResponse](#control_plane_proto.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| SubmitCSR | [SubmitCSRRequest](#control_plane_proto.SubmitCSRRequest) | [SubmitCSRResponse](#control_plane_proto.SubmitCSRRequest) | Will take in a CSR and submit it to the upstream CA for signing(“upstream” CA can be local self-signed root in simple case). |
+| Configure | [ConfigureRequest](#sri_proto.ConfigureRequest) | [ConfigureResponse](#sri_proto.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#sri_proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| SubmitCSR | [SubmitCSRRequest](#sri_proto.SubmitCSRRequest) | [SubmitCSRResponse](#sri_proto.SubmitCSRRequest) | Will take in a CSR and submit it to the upstream CA for signing(“upstream” CA can be local self-signed root in simple case). |
 
  
 

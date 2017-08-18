@@ -16,17 +16,17 @@ type Endpoints struct {
 	PluginInfoEndpoint endpoint.Endpoint
 }
 type StopRequest struct {
-	Request control_plane_proto.StopRequest
+	Request sri_proto.StopRequest
 }
 type StopResponse struct {
-	Response control_plane_proto.StopReply
+	Response sri_proto.StopReply
 	Err      error
 }
 type PluginInfoRequest struct {
-	Request control_plane_proto.PluginInfoRequest
+	Request sri_proto.PluginInfoRequest
 }
 type PluginInfoResponse struct {
-	Response control_plane_proto.PluginInfoReply
+	Response sri_proto.PluginInfoReply
 	Err      error
 }
 

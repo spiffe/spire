@@ -1,6 +1,6 @@
 /**Environment specific plugin to attest a workloads “selector” data.*/
 syntax = "proto3";
-package node_agent_proto;
+package sri_proto;
 
 import public "github.com/spiffe/sri/node_agent/plugins/common/proto/common.proto";
 

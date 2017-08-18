@@ -1,5 +1,5 @@
 syntax = "proto3";
-package control_plane_proto;
+package sri_proto;
 
 
 message RegisteredEntry {

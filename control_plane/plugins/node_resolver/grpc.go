@@ -20,13 +20,13 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInf
 	return response, err
 }
 
-func (m *GRPCServer) Resolve(ctx context.Context, req *control_plane_proto.ResolveRequest) (*control_plane_proto.ResolveResponse, error) {
+func (m *GRPCServer) Resolve(ctx context.Context, req *sri_proto.ResolveRequest) (*sri_proto.ResolveResponse, error) {
 	resolutionMap, err := m.NodeResolutionImpl.Resolve(req.BaseSpiffeIdList)
-	return &control_plane_proto.ResolveResponse{Map: resolutionMap}, err
+	return &sri_proto.ResolveResponse{Map: resolutionMap}, err
 }
 
 type GRPCClient struct {
-	client control_plane_proto.NodeResolverClient
+	client sri_proto.NodeResolverClient
 }
 
 func (m *GRPCClient) Configure(configuration string) ([]string, error) {
@@ -42,8 +42,8 @@ func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
 	return response, err
 }
 
-func (m *GRPCClient) Resolve(physicalSpiffeIdList []string) (map[string]*control_plane_proto.NodeResolutionList, error) {
-	node_res, err := m.client.Resolve(context.Background(), &control_plane_proto.ResolveRequest{
+func (m *GRPCClient) Resolve(physicalSpiffeIdList []string) (map[string]*sri_proto.NodeResolutionList, error) {
+	node_res, err := m.client.Resolve(context.Background(), &sri_proto.ResolveRequest{
 		physicalSpiffeIdList})
 	return node_res.Map, err
 }

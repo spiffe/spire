@@ -17,7 +17,7 @@ func (NoOp) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
 	return nil, nil
 }
 
-func (NoOp) Resolve(physicalSpiffeIdList []string) (resolutions map[string]*control_plane_proto.NodeResolutionList, err error) {
+func (NoOp) Resolve(physicalSpiffeIdList []string) (resolutions map[string]*sri_proto.NodeResolutionList, err error) {
 	return resolutions, nil
 }
 

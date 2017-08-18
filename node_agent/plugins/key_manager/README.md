@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#node_agent_proto.ConfigureRequest)
+    * [ConfigureRequest](#sri_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#node_agent_proto.ConfigureResponse)
+    * [ConfigureResponse](#sri_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse)
   
   
   
@@ -21,18 +21,18 @@
 
 * [key_manager.proto](#key_manager.proto)
   
-    * [FetchPrivateKeyRequest](#node_agent_proto.FetchPrivateKeyRequest)
+    * [FetchPrivateKeyRequest](#sri_proto.FetchPrivateKeyRequest)
   
-    * [FetchPrivateKeyResponse](#node_agent_proto.FetchPrivateKeyResponse)
+    * [FetchPrivateKeyResponse](#sri_proto.FetchPrivateKeyResponse)
   
-    * [GenerateKeyPairRequest](#node_agent_proto.GenerateKeyPairRequest)
+    * [GenerateKeyPairRequest](#sri_proto.GenerateKeyPairRequest)
   
-    * [GenerateKeyPairResponse](#node_agent_proto.GenerateKeyPairResponse)
-  
-  
+    * [GenerateKeyPairResponse](#sri_proto.GenerateKeyPairResponse)
   
   
-    * [KeyManager](#node_agent_proto.KeyManager)
+  
+  
+    * [KeyManager](#sri_proto.KeyManager)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -46,7 +46,7 @@
 
 
 
-<a name="node_agent_proto.ConfigureRequest"/>
+<a name="sri_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -61,7 +61,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="node_agent_proto.ConfigureResponse"/>
+<a name="sri_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -76,7 +76,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="node_agent_proto.GetPluginInfoRequest"/>
+<a name="sri_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -86,7 +86,7 @@ Represents an empty request.
 
 
 
-<a name="node_agent_proto.GetPluginInfoResponse"/>
+<a name="sri_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -125,7 +125,7 @@ Represents the plugin metadata.
 
 
 
-<a name="node_agent_proto.FetchPrivateKeyRequest"/>
+<a name="sri_proto.FetchPrivateKeyRequest"/>
 
 ### FetchPrivateKeyRequest
 Represents an empty request.
@@ -135,7 +135,7 @@ Represents an empty request.
 
 
 
-<a name="node_agent_proto.FetchPrivateKeyResponse"/>
+<a name="sri_proto.FetchPrivateKeyResponse"/>
 
 ### FetchPrivateKeyResponse
 Represents a private key.
@@ -150,7 +150,7 @@ Represents a private key.
 
 
 
-<a name="node_agent_proto.GenerateKeyPairRequest"/>
+<a name="sri_proto.GenerateKeyPairRequest"/>
 
 ### GenerateKeyPairRequest
 Represents an empty request.
@@ -160,7 +160,7 @@ Represents an empty request.
 
 
 
-<a name="node_agent_proto.GenerateKeyPairResponse"/>
+<a name="sri_proto.GenerateKeyPairResponse"/>
 
 ### GenerateKeyPairResponse
 Represents a public and private key pair.
@@ -182,17 +182,17 @@ Represents a public and private key pair.
  
 
 
-<a name="node_agent_proto.KeyManager"/>
+<a name="sri_proto.KeyManager"/>
 
 ### KeyManager
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| GenerateKeyPair | [GenerateKeyPairRequest](#node_agent_proto.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#node_agent_proto.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware. |
-| FetchPrivateKey | [FetchPrivateKeyRequest](#node_agent_proto.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#node_agent_proto.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts. |
-| Configure | [ConfigureRequest](#node_agent_proto.ConfigureRequest) | [ConfigureResponse](#node_agent_proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
-| GetPluginInfo | [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
+| GenerateKeyPair | [GenerateKeyPairRequest](#sri_proto.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#sri_proto.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware. |
+| FetchPrivateKey | [FetchPrivateKeyRequest](#sri_proto.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#sri_proto.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts. |
+| Configure | [ConfigureRequest](#sri_proto.ConfigureRequest) | [ConfigureResponse](#sri_proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
+| GetPluginInfo | [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#sri_proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
 
  
 

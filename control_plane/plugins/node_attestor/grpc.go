@@ -20,13 +20,13 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInf
 	return response, err
 }
 
-func (m *GRPCServer) Attest(ctx context.Context, req *control_plane_proto.AttestRequest) (*control_plane_proto.AttestResponse, error) {
+func (m *GRPCServer) Attest(ctx context.Context, req *sri_proto.AttestRequest) (*sri_proto.AttestResponse, error) {
 	response, err := m.NodeAttestorImpl.Attest(req)
 	return response, err
 }
 
 type GRPCClient struct {
-	client control_plane_proto.NodeAttestorClient
+	client sri_proto.NodeAttestorClient
 }
 
 func (m *GRPCClient) Configure(configuration string) ([]string, error) {
@@ -42,7 +42,7 @@ func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
 	return response, err
 }
 
-func (m *GRPCClient) Attest(attestRequest *control_plane_proto.AttestRequest) (*control_plane_proto.AttestResponse, error) {
+func (m *GRPCClient) Attest(attestRequest *sri_proto.AttestRequest) (*sri_proto.AttestResponse, error) {
 	response, err := m.client.Attest(context.Background(), attestRequest)
 	return response, err
 }

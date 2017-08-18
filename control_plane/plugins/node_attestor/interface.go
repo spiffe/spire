@@ -22,7 +22,7 @@ var Handshake = plugin.HandshakeConfig{
 type NodeAttestor interface {
 	Configure(config string) ([]string, error)
 	GetPluginInfo() (*common.GetPluginInfoResponse, error)
-	Attest(request *control_plane_proto.AttestRequest) (*control_plane_proto.AttestResponse, error)
+	Attest(request *sri_proto.AttestRequest) (*sri_proto.AttestResponse, error)
 }
 
 type NodeAttestorPlugin struct {
@@ -38,10 +38,10 @@ func (p NodeAttestorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interfac
 }
 
 func (p NodeAttestorPlugin) GRPCServer(s *grpc.Server) error {
-	control_plane_proto.RegisterNodeAttestorServer(s, &GRPCServer{NodeAttestorImpl: p.NodeAttestorImpl})
+	sri_proto.RegisterNodeAttestorServer(s, &GRPCServer{NodeAttestorImpl: p.NodeAttestorImpl})
 	return nil
 }
 
 func (p NodeAttestorPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: control_plane_proto.NewNodeAttestorClient(c)}, nil
+	return &GRPCClient{client: sri_proto.NewNodeAttestorClient(c)}, nil
 }

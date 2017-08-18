@@ -22,30 +22,30 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type DataStore interface {
-	CreateFederatedEntry(request *control_plane_proto.CreateFederatedEntryRequest) (*control_plane_proto.CreateFederatedEntryResponse, error)
-	ListFederatedEntry(request *control_plane_proto.ListFederatedEntryRequest) (*control_plane_proto.ListFederatedEntryResponse, error)
-	UpdateFederatedEntry(request *control_plane_proto.UpdateFederatedEntryRequest) (*control_plane_proto.UpdateFederatedEntryResponse, error)
-	DeleteFederatedEntry(request *control_plane_proto.DeleteFederatedEntryRequest) (*control_plane_proto.DeleteFederatedEntryResponse, error)
+	CreateFederatedEntry(request *sri_proto.CreateFederatedEntryRequest) (*sri_proto.CreateFederatedEntryResponse, error)
+	ListFederatedEntry(request *sri_proto.ListFederatedEntryRequest) (*sri_proto.ListFederatedEntryResponse, error)
+	UpdateFederatedEntry(request *sri_proto.UpdateFederatedEntryRequest) (*sri_proto.UpdateFederatedEntryResponse, error)
+	DeleteFederatedEntry(request *sri_proto.DeleteFederatedEntryRequest) (*sri_proto.DeleteFederatedEntryResponse, error)
 
-	CreateAttestedNodeEntry(request *control_plane_proto.CreateAttestedNodeEntryRequest) (*control_plane_proto.CreateAttestedNodeEntryResponse, error)
-	FetchAttestedNodeEntry(request *control_plane_proto.FetchAttestedNodeEntryRequest) (*control_plane_proto.FetchAttestedNodeEntryResponse, error)
-	FetchStaleNodeEntries(request *control_plane_proto.FetchStaleNodeEntriesRequest) (*control_plane_proto.FetchStaleNodeEntriesResponse, error)
-	UpdateAttestedNodeEntry(request *control_plane_proto.UpdateAttestedNodeEntryRequest) (*control_plane_proto.UpdateAttestedNodeEntryResponse, error)
-	DeleteAttestedNodeEntry(request *control_plane_proto.DeleteAttestedNodeEntryRequest) (*control_plane_proto.DeleteAttestedNodeEntryResponse, error)
+	CreateAttestedNodeEntry(request *sri_proto.CreateAttestedNodeEntryRequest) (*sri_proto.CreateAttestedNodeEntryResponse, error)
+	FetchAttestedNodeEntry(request *sri_proto.FetchAttestedNodeEntryRequest) (*sri_proto.FetchAttestedNodeEntryResponse, error)
+	FetchStaleNodeEntries(request *sri_proto.FetchStaleNodeEntriesRequest) (*sri_proto.FetchStaleNodeEntriesResponse, error)
+	UpdateAttestedNodeEntry(request *sri_proto.UpdateAttestedNodeEntryRequest) (*sri_proto.UpdateAttestedNodeEntryResponse, error)
+	DeleteAttestedNodeEntry(request *sri_proto.DeleteAttestedNodeEntryRequest) (*sri_proto.DeleteAttestedNodeEntryResponse, error)
 
-	CreateNodeResolverMapEntry(request *control_plane_proto.CreateNodeResolverMapEntryRequest) (*control_plane_proto.CreateNodeResolverMapEntryResponse, error)
-	FetchNodeResolverMapEntry(request *control_plane_proto.FetchNodeResolverMapEntryRequest) (*control_plane_proto.FetchNodeResolverMapEntryResponse, error)
-	DeleteNodeResolverMapEntry(request *control_plane_proto.DeleteNodeResolverMapEntryRequest) (*control_plane_proto.DeleteNodeResolverMapEntryResponse, error)
-	RectifyNodeResolverMapEntries(request *control_plane_proto.RectifyNodeResolverMapEntriesRequest) (*control_plane_proto.RectifyNodeResolverMapEntriesResponse, error)
+	CreateNodeResolverMapEntry(request *sri_proto.CreateNodeResolverMapEntryRequest) (*sri_proto.CreateNodeResolverMapEntryResponse, error)
+	FetchNodeResolverMapEntry(request *sri_proto.FetchNodeResolverMapEntryRequest) (*sri_proto.FetchNodeResolverMapEntryResponse, error)
+	DeleteNodeResolverMapEntry(request *sri_proto.DeleteNodeResolverMapEntryRequest) (*sri_proto.DeleteNodeResolverMapEntryResponse, error)
+	RectifyNodeResolverMapEntries(request *sri_proto.RectifyNodeResolverMapEntriesRequest) (*sri_proto.RectifyNodeResolverMapEntriesResponse, error)
 
-	CreateRegistrationEntry(request *control_plane_proto.CreateRegistrationEntryRequest) (*control_plane_proto.CreateRegistrationEntryResponse, error)
-	FetchRegistrationEntry(request *control_plane_proto.FetchRegistrationEntryRequest) (*control_plane_proto.FetchRegistrationEntryResponse, error)
-	UpdateRegistrationEntry(request *control_plane_proto.UpdateRegistrationEntryRequest) (*control_plane_proto.UpdateRegistrationEntryResponse, error)
-	DeleteRegistrationEntry(request *control_plane_proto.DeleteRegistrationEntryRequest) (*control_plane_proto.DeleteRegistrationEntryResponse, error)
+	CreateRegistrationEntry(request *sri_proto.CreateRegistrationEntryRequest) (*sri_proto.CreateRegistrationEntryResponse, error)
+	FetchRegistrationEntry(request *sri_proto.FetchRegistrationEntryRequest) (*sri_proto.FetchRegistrationEntryResponse, error)
+	UpdateRegistrationEntry(request *sri_proto.UpdateRegistrationEntryRequest) (*sri_proto.UpdateRegistrationEntryResponse, error)
+	DeleteRegistrationEntry(request *sri_proto.DeleteRegistrationEntryRequest) (*sri_proto.DeleteRegistrationEntryResponse, error)
 
-	ListParentIDEntries(request *control_plane_proto.ListParentIDEntriesRequest) (*control_plane_proto.ListParentIDEntriesResponse, error)
-	ListSelectorEntries(request *control_plane_proto.ListSelectorEntriesRequest) (*control_plane_proto.ListSelectorEntriesResponse, error)
-	ListSpiffeEntries(request *control_plane_proto.ListSpiffeEntriesRequest) (*control_plane_proto.ListSpiffeEntriesResponse, error)
+	ListParentIDEntries(request *sri_proto.ListParentIDEntriesRequest) (*sri_proto.ListParentIDEntriesResponse, error)
+	ListSelectorEntries(request *sri_proto.ListSelectorEntriesRequest) (*sri_proto.ListSelectorEntriesResponse, error)
+	ListSpiffeEntries(request *sri_proto.ListSpiffeEntriesRequest) (*sri_proto.ListSpiffeEntriesResponse, error)
 
 	Configure(request *common.ConfigureRequest) (*common.ConfigureResponse, error)
 	GetPluginInfo(request *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
@@ -64,10 +64,10 @@ func (p DataStorePlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}
 }
 
 func (p DataStorePlugin) GRPCServer(s *grpc.Server) error {
-	control_plane_proto.RegisterDataStoreServer(s, &GRPCServer{DataStoreImpl: p.DataStoreImpl})
+	sri_proto.RegisterDataStoreServer(s, &GRPCServer{DataStoreImpl: p.DataStoreImpl})
 	return nil
 }
 
 func (p DataStorePlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: control_plane_proto.NewDataStoreClient(c)}, nil
+	return &GRPCClient{client: sri_proto.NewDataStoreClient(c)}, nil
 }

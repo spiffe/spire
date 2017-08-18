@@ -6,13 +6,13 @@
 
 * [common.proto](#common.proto)
   
-    * [ConfigureRequest](#control_plane_proto.ConfigureRequest)
+    * [ConfigureRequest](#sri_proto.ConfigureRequest)
   
-    * [ConfigureResponse](#control_plane_proto.ConfigureResponse)
+    * [ConfigureResponse](#sri_proto.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse)
   
   
   
@@ -21,100 +21,100 @@
 
 * [data_store.proto](#data_store.proto)
   
-    * [AttestedNodeEntry](#control_plane_proto.AttestedNodeEntry)
+    * [AttestedNodeEntry](#sri_proto.AttestedNodeEntry)
   
-    * [CreateAttestedNodeEntryRequest](#control_plane_proto.CreateAttestedNodeEntryRequest)
+    * [CreateAttestedNodeEntryRequest](#sri_proto.CreateAttestedNodeEntryRequest)
   
-    * [CreateAttestedNodeEntryResponse](#control_plane_proto.CreateAttestedNodeEntryResponse)
+    * [CreateAttestedNodeEntryResponse](#sri_proto.CreateAttestedNodeEntryResponse)
   
-    * [CreateFederatedEntryRequest](#control_plane_proto.CreateFederatedEntryRequest)
+    * [CreateFederatedEntryRequest](#sri_proto.CreateFederatedEntryRequest)
   
-    * [CreateFederatedEntryResponse](#control_plane_proto.CreateFederatedEntryResponse)
+    * [CreateFederatedEntryResponse](#sri_proto.CreateFederatedEntryResponse)
   
-    * [CreateNodeResolverMapEntryRequest](#control_plane_proto.CreateNodeResolverMapEntryRequest)
+    * [CreateNodeResolverMapEntryRequest](#sri_proto.CreateNodeResolverMapEntryRequest)
   
-    * [CreateNodeResolverMapEntryResponse](#control_plane_proto.CreateNodeResolverMapEntryResponse)
+    * [CreateNodeResolverMapEntryResponse](#sri_proto.CreateNodeResolverMapEntryResponse)
   
-    * [CreateRegistrationEntryRequest](#control_plane_proto.CreateRegistrationEntryRequest)
+    * [CreateRegistrationEntryRequest](#sri_proto.CreateRegistrationEntryRequest)
   
-    * [CreateRegistrationEntryResponse](#control_plane_proto.CreateRegistrationEntryResponse)
+    * [CreateRegistrationEntryResponse](#sri_proto.CreateRegistrationEntryResponse)
   
-    * [DeleteAttestedNodeEntryRequest](#control_plane_proto.DeleteAttestedNodeEntryRequest)
+    * [DeleteAttestedNodeEntryRequest](#sri_proto.DeleteAttestedNodeEntryRequest)
   
-    * [DeleteAttestedNodeEntryResponse](#control_plane_proto.DeleteAttestedNodeEntryResponse)
+    * [DeleteAttestedNodeEntryResponse](#sri_proto.DeleteAttestedNodeEntryResponse)
   
-    * [DeleteFederatedEntryRequest](#control_plane_proto.DeleteFederatedEntryRequest)
+    * [DeleteFederatedEntryRequest](#sri_proto.DeleteFederatedEntryRequest)
   
-    * [DeleteFederatedEntryResponse](#control_plane_proto.DeleteFederatedEntryResponse)
+    * [DeleteFederatedEntryResponse](#sri_proto.DeleteFederatedEntryResponse)
   
-    * [DeleteNodeResolverMapEntryRequest](#control_plane_proto.DeleteNodeResolverMapEntryRequest)
+    * [DeleteNodeResolverMapEntryRequest](#sri_proto.DeleteNodeResolverMapEntryRequest)
   
-    * [DeleteNodeResolverMapEntryResponse](#control_plane_proto.DeleteNodeResolverMapEntryResponse)
+    * [DeleteNodeResolverMapEntryResponse](#sri_proto.DeleteNodeResolverMapEntryResponse)
   
-    * [DeleteRegistrationEntryRequest](#control_plane_proto.DeleteRegistrationEntryRequest)
+    * [DeleteRegistrationEntryRequest](#sri_proto.DeleteRegistrationEntryRequest)
   
-    * [DeleteRegistrationEntryResponse](#control_plane_proto.DeleteRegistrationEntryResponse)
+    * [DeleteRegistrationEntryResponse](#sri_proto.DeleteRegistrationEntryResponse)
   
-    * [FederatedBundle](#control_plane_proto.FederatedBundle)
+    * [FederatedBundle](#sri_proto.FederatedBundle)
   
-    * [FetchAttestedNodeEntryRequest](#control_plane_proto.FetchAttestedNodeEntryRequest)
+    * [FetchAttestedNodeEntryRequest](#sri_proto.FetchAttestedNodeEntryRequest)
   
-    * [FetchAttestedNodeEntryResponse](#control_plane_proto.FetchAttestedNodeEntryResponse)
+    * [FetchAttestedNodeEntryResponse](#sri_proto.FetchAttestedNodeEntryResponse)
   
-    * [FetchNodeResolverMapEntryRequest](#control_plane_proto.FetchNodeResolverMapEntryRequest)
+    * [FetchNodeResolverMapEntryRequest](#sri_proto.FetchNodeResolverMapEntryRequest)
   
-    * [FetchNodeResolverMapEntryResponse](#control_plane_proto.FetchNodeResolverMapEntryResponse)
+    * [FetchNodeResolverMapEntryResponse](#sri_proto.FetchNodeResolverMapEntryResponse)
   
-    * [FetchRegistrationEntryRequest](#control_plane_proto.FetchRegistrationEntryRequest)
+    * [FetchRegistrationEntryRequest](#sri_proto.FetchRegistrationEntryRequest)
   
-    * [FetchRegistrationEntryResponse](#control_plane_proto.FetchRegistrationEntryResponse)
+    * [FetchRegistrationEntryResponse](#sri_proto.FetchRegistrationEntryResponse)
   
-    * [FetchStaleNodeEntriesRequest](#control_plane_proto.FetchStaleNodeEntriesRequest)
+    * [FetchStaleNodeEntriesRequest](#sri_proto.FetchStaleNodeEntriesRequest)
   
-    * [FetchStaleNodeEntriesResponse](#control_plane_proto.FetchStaleNodeEntriesResponse)
+    * [FetchStaleNodeEntriesResponse](#sri_proto.FetchStaleNodeEntriesResponse)
   
-    * [ListFederatedEntryRequest](#control_plane_proto.ListFederatedEntryRequest)
+    * [ListFederatedEntryRequest](#sri_proto.ListFederatedEntryRequest)
   
-    * [ListFederatedEntryResponse](#control_plane_proto.ListFederatedEntryResponse)
+    * [ListFederatedEntryResponse](#sri_proto.ListFederatedEntryResponse)
   
-    * [ListParentIDEntriesRequest](#control_plane_proto.ListParentIDEntriesRequest)
+    * [ListParentIDEntriesRequest](#sri_proto.ListParentIDEntriesRequest)
   
-    * [ListParentIDEntriesResponse](#control_plane_proto.ListParentIDEntriesResponse)
+    * [ListParentIDEntriesResponse](#sri_proto.ListParentIDEntriesResponse)
   
-    * [ListSelectorEntriesRequest](#control_plane_proto.ListSelectorEntriesRequest)
+    * [ListSelectorEntriesRequest](#sri_proto.ListSelectorEntriesRequest)
   
-    * [ListSelectorEntriesResponse](#control_plane_proto.ListSelectorEntriesResponse)
+    * [ListSelectorEntriesResponse](#sri_proto.ListSelectorEntriesResponse)
   
-    * [ListSpiffeEntriesRequest](#control_plane_proto.ListSpiffeEntriesRequest)
+    * [ListSpiffeEntriesRequest](#sri_proto.ListSpiffeEntriesRequest)
   
-    * [ListSpiffeEntriesResponse](#control_plane_proto.ListSpiffeEntriesResponse)
+    * [ListSpiffeEntriesResponse](#sri_proto.ListSpiffeEntriesResponse)
   
-    * [NodeResolverMapEntry](#control_plane_proto.NodeResolverMapEntry)
+    * [NodeResolverMapEntry](#sri_proto.NodeResolverMapEntry)
   
-    * [RectifyNodeResolverMapEntriesRequest](#control_plane_proto.RectifyNodeResolverMapEntriesRequest)
+    * [RectifyNodeResolverMapEntriesRequest](#sri_proto.RectifyNodeResolverMapEntriesRequest)
   
-    * [RectifyNodeResolverMapEntriesResponse](#control_plane_proto.RectifyNodeResolverMapEntriesResponse)
+    * [RectifyNodeResolverMapEntriesResponse](#sri_proto.RectifyNodeResolverMapEntriesResponse)
   
-    * [RegisteredEntry](#control_plane_proto.RegisteredEntry)
+    * [RegisteredEntry](#sri_proto.RegisteredEntry)
   
-    * [Selector](#control_plane_proto.Selector)
+    * [Selector](#sri_proto.Selector)
   
-    * [UpdateAttestedNodeEntryRequest](#control_plane_proto.UpdateAttestedNodeEntryRequest)
+    * [UpdateAttestedNodeEntryRequest](#sri_proto.UpdateAttestedNodeEntryRequest)
   
-    * [UpdateAttestedNodeEntryResponse](#control_plane_proto.UpdateAttestedNodeEntryResponse)
+    * [UpdateAttestedNodeEntryResponse](#sri_proto.UpdateAttestedNodeEntryResponse)
   
-    * [UpdateFederatedEntryRequest](#control_plane_proto.UpdateFederatedEntryRequest)
+    * [UpdateFederatedEntryRequest](#sri_proto.UpdateFederatedEntryRequest)
   
-    * [UpdateFederatedEntryResponse](#control_plane_proto.UpdateFederatedEntryResponse)
+    * [UpdateFederatedEntryResponse](#sri_proto.UpdateFederatedEntryResponse)
   
-    * [UpdateRegistrationEntryRequest](#control_plane_proto.UpdateRegistrationEntryRequest)
+    * [UpdateRegistrationEntryRequest](#sri_proto.UpdateRegistrationEntryRequest)
   
-    * [UpdateRegistrationEntryResponse](#control_plane_proto.UpdateRegistrationEntryResponse)
-  
-  
+    * [UpdateRegistrationEntryResponse](#sri_proto.UpdateRegistrationEntryResponse)
   
   
-    * [DataStore](#control_plane_proto.DataStore)
+  
+  
+    * [DataStore](#sri_proto.DataStore)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -128,7 +128,7 @@
 
 
 
-<a name="control_plane_proto.ConfigureRequest"/>
+<a name="sri_proto.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -143,7 +143,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="control_plane_proto.ConfigureResponse"/>
+<a name="sri_proto.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -158,7 +158,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="control_plane_proto.GetPluginInfoRequest"/>
+<a name="sri_proto.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -168,7 +168,7 @@ Represents an empty request.
 
 
 
-<a name="control_plane_proto.GetPluginInfoResponse"/>
+<a name="sri_proto.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -207,7 +207,7 @@ Represents the plugin metadata.
 
 
 
-<a name="control_plane_proto.AttestedNodeEntry"/>
+<a name="sri_proto.AttestedNodeEntry"/>
 
 ### AttestedNodeEntry
 Represents a single entry in AttestedNodes and stores the node&#39;s SPIFFE ID, the
@@ -227,7 +227,7 @@ of its node SVID.
 
 
 
-<a name="control_plane_proto.CreateAttestedNodeEntryRequest"/>
+<a name="sri_proto.CreateAttestedNodeEntryRequest"/>
 
 ### CreateAttestedNodeEntryRequest
 Represents an Attested Node entry to create
@@ -235,14 +235,14 @@ Represents an Attested Node entry to create
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#control_plane_proto.AttestedNodeEntry) |  | Attested node entry |
+| attestedNodeEntry | [AttestedNodeEntry](#sri_proto.AttestedNodeEntry) |  | Attested node entry |
 
 
 
 
 
 
-<a name="control_plane_proto.CreateAttestedNodeEntryResponse"/>
+<a name="sri_proto.CreateAttestedNodeEntryResponse"/>
 
 ### CreateAttestedNodeEntryResponse
 Represents the created Attested Node entry
@@ -250,14 +250,14 @@ Represents the created Attested Node entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#control_plane_proto.AttestedNodeEntry) |  | Attested node entry |
+| attestedNodeEntry | [AttestedNodeEntry](#sri_proto.AttestedNodeEntry) |  | Attested node entry |
 
 
 
 
 
 
-<a name="control_plane_proto.CreateFederatedEntryRequest"/>
+<a name="sri_proto.CreateFederatedEntryRequest"/>
 
 ### CreateFederatedEntryRequest
 Represents a Federated bundle
@@ -265,14 +265,14 @@ Represents a Federated bundle
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  | Federated bundle |
+| federatedBundle | [FederatedBundle](#sri_proto.FederatedBundle) |  | Federated bundle |
 
 
 
 
 
 
-<a name="control_plane_proto.CreateFederatedEntryResponse"/>
+<a name="sri_proto.CreateFederatedEntryResponse"/>
 
 ### CreateFederatedEntryResponse
 Empty
@@ -282,7 +282,7 @@ Empty
 
 
 
-<a name="control_plane_proto.CreateNodeResolverMapEntryRequest"/>
+<a name="sri_proto.CreateNodeResolverMapEntryRequest"/>
 
 ### CreateNodeResolverMapEntryRequest
 Represents a Node resolver map entry to create
@@ -290,14 +290,14 @@ Represents a Node resolver map entry to create
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntry | [NodeResolverMapEntry](#control_plane_proto.NodeResolverMapEntry) |  | Node resolver map entry |
+| nodeResolverMapEntry | [NodeResolverMapEntry](#sri_proto.NodeResolverMapEntry) |  | Node resolver map entry |
 
 
 
 
 
 
-<a name="control_plane_proto.CreateNodeResolverMapEntryResponse"/>
+<a name="sri_proto.CreateNodeResolverMapEntryResponse"/>
 
 ### CreateNodeResolverMapEntryResponse
 Represents the created Node resolver map entry
@@ -305,14 +305,14 @@ Represents the created Node resolver map entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntry | [NodeResolverMapEntry](#control_plane_proto.NodeResolverMapEntry) |  | Node resolver map entry |
+| nodeResolverMapEntry | [NodeResolverMapEntry](#sri_proto.NodeResolverMapEntry) |  | Node resolver map entry |
 
 
 
 
 
 
-<a name="control_plane_proto.CreateRegistrationEntryRequest"/>
+<a name="sri_proto.CreateRegistrationEntryRequest"/>
 
 ### CreateRegistrationEntryRequest
 Represents a Registration entry to create
@@ -320,14 +320,14 @@ Represents a Registration entry to create
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  | Registration entry |
+| registeredEntry | [RegisteredEntry](#sri_proto.RegisteredEntry) |  | Registration entry |
 
 
 
 
 
 
-<a name="control_plane_proto.CreateRegistrationEntryResponse"/>
+<a name="sri_proto.CreateRegistrationEntryResponse"/>
 
 ### CreateRegistrationEntryResponse
 Represents the created Registration entry
@@ -342,7 +342,7 @@ Represents the created Registration entry
 
 
 
-<a name="control_plane_proto.DeleteAttestedNodeEntryRequest"/>
+<a name="sri_proto.DeleteAttestedNodeEntryRequest"/>
 
 ### DeleteAttestedNodeEntryRequest
 Represents the Spiffe ID of the Attested node entry to delete
@@ -357,7 +357,7 @@ Represents the Spiffe ID of the Attested node entry to delete
 
 
 
-<a name="control_plane_proto.DeleteAttestedNodeEntryResponse"/>
+<a name="sri_proto.DeleteAttestedNodeEntryResponse"/>
 
 ### DeleteAttestedNodeEntryResponse
 Represents the deleted Attested node entry
@@ -365,14 +365,14 @@ Represents the deleted Attested node entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#control_plane_proto.AttestedNodeEntry) |  |  |
+| attestedNodeEntry | [AttestedNodeEntry](#sri_proto.AttestedNodeEntry) |  |  |
 
 
 
 
 
 
-<a name="control_plane_proto.DeleteFederatedEntryRequest"/>
+<a name="sri_proto.DeleteFederatedEntryRequest"/>
 
 ### DeleteFederatedEntryRequest
 Represents the Spiffe ID of the federated bundle to delete
@@ -387,7 +387,7 @@ Represents the Spiffe ID of the federated bundle to delete
 
 
 
-<a name="control_plane_proto.DeleteFederatedEntryResponse"/>
+<a name="sri_proto.DeleteFederatedEntryResponse"/>
 
 ### DeleteFederatedEntryResponse
 Represents the deleted federated bundle
@@ -395,14 +395,14 @@ Represents the deleted federated bundle
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  | Federated bundle |
+| federatedBundle | [FederatedBundle](#sri_proto.FederatedBundle) |  | Federated bundle |
 
 
 
 
 
 
-<a name="control_plane_proto.DeleteNodeResolverMapEntryRequest"/>
+<a name="sri_proto.DeleteNodeResolverMapEntryRequest"/>
 
 ### DeleteNodeResolverMapEntryRequest
 Represents a Node resolver map entry to delete
@@ -410,14 +410,14 @@ Represents a Node resolver map entry to delete
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntry | [NodeResolverMapEntry](#control_plane_proto.NodeResolverMapEntry) |  | Node resolver map entry |
+| nodeResolverMapEntry | [NodeResolverMapEntry](#sri_proto.NodeResolverMapEntry) |  | Node resolver map entry |
 
 
 
 
 
 
-<a name="control_plane_proto.DeleteNodeResolverMapEntryResponse"/>
+<a name="sri_proto.DeleteNodeResolverMapEntryResponse"/>
 
 ### DeleteNodeResolverMapEntryResponse
 Represents a list of Node resolver map entries
@@ -425,14 +425,14 @@ Represents a list of Node resolver map entries
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#control_plane_proto.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
+| nodeResolverMapEntryList | [NodeResolverMapEntry](#sri_proto.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
 
 
 
 
 
 
-<a name="control_plane_proto.DeleteRegistrationEntryRequest"/>
+<a name="sri_proto.DeleteRegistrationEntryRequest"/>
 
 ### DeleteRegistrationEntryRequest
 Represents a Registration entry ID to delete
@@ -447,7 +447,7 @@ Represents a Registration entry ID to delete
 
 
 
-<a name="control_plane_proto.DeleteRegistrationEntryResponse"/>
+<a name="sri_proto.DeleteRegistrationEntryResponse"/>
 
 ### DeleteRegistrationEntryResponse
 Represents the deleted Registration entry
@@ -455,14 +455,14 @@ Represents the deleted Registration entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  | Registration entry |
+| registeredEntry | [RegisteredEntry](#sri_proto.RegisteredEntry) |  | Registration entry |
 
 
 
 
 
 
-<a name="control_plane_proto.FederatedBundle"/>
+<a name="sri_proto.FederatedBundle"/>
 
 ### FederatedBundle
 Represents the trust chain for a different trust domain, along with
@@ -481,7 +481,7 @@ trust domain.
 
 
 
-<a name="control_plane_proto.FetchAttestedNodeEntryRequest"/>
+<a name="sri_proto.FetchAttestedNodeEntryRequest"/>
 
 ### FetchAttestedNodeEntryRequest
 Represents the Spiffe ID of the node entry to retrieve
@@ -496,7 +496,7 @@ Represents the Spiffe ID of the node entry to retrieve
 
 
 
-<a name="control_plane_proto.FetchAttestedNodeEntryResponse"/>
+<a name="sri_proto.FetchAttestedNodeEntryResponse"/>
 
 ### FetchAttestedNodeEntryResponse
 Represents an Attested Node entry
@@ -504,14 +504,14 @@ Represents an Attested Node entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#control_plane_proto.AttestedNodeEntry) |  | Attested node entry |
+| attestedNodeEntry | [AttestedNodeEntry](#sri_proto.AttestedNodeEntry) |  | Attested node entry |
 
 
 
 
 
 
-<a name="control_plane_proto.FetchNodeResolverMapEntryRequest"/>
+<a name="sri_proto.FetchNodeResolverMapEntryRequest"/>
 
 ### FetchNodeResolverMapEntryRequest
 Represents a Spiffe ID
@@ -526,7 +526,7 @@ Represents a Spiffe ID
 
 
 
-<a name="control_plane_proto.FetchNodeResolverMapEntryResponse"/>
+<a name="sri_proto.FetchNodeResolverMapEntryResponse"/>
 
 ### FetchNodeResolverMapEntryResponse
 Represents a list of Node resolver map entries for the specified Spiffe ID
@@ -534,14 +534,14 @@ Represents a list of Node resolver map entries for the specified Spiffe ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#control_plane_proto.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
+| nodeResolverMapEntryList | [NodeResolverMapEntry](#sri_proto.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
 
 
 
 
 
 
-<a name="control_plane_proto.FetchRegistrationEntryRequest"/>
+<a name="sri_proto.FetchRegistrationEntryRequest"/>
 
 ### FetchRegistrationEntryRequest
 Represents a Registration entry ID to fetch
@@ -556,7 +556,7 @@ Represents a Registration entry ID to fetch
 
 
 
-<a name="control_plane_proto.FetchRegistrationEntryResponse"/>
+<a name="sri_proto.FetchRegistrationEntryResponse"/>
 
 ### FetchRegistrationEntryResponse
 Represents a Registration entry
@@ -564,14 +564,14 @@ Represents a Registration entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  | Registration entry |
+| registeredEntry | [RegisteredEntry](#sri_proto.RegisteredEntry) |  | Registration entry |
 
 
 
 
 
 
-<a name="control_plane_proto.FetchStaleNodeEntriesRequest"/>
+<a name="sri_proto.FetchStaleNodeEntriesRequest"/>
 
 ### FetchStaleNodeEntriesRequest
 Empty
@@ -581,7 +581,7 @@ Empty
 
 
 
-<a name="control_plane_proto.FetchStaleNodeEntriesResponse"/>
+<a name="sri_proto.FetchStaleNodeEntriesResponse"/>
 
 ### FetchStaleNodeEntriesResponse
 Represents dead nodes for which the base SVID has expired
@@ -589,14 +589,14 @@ Represents dead nodes for which the base SVID has expired
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntryList | [AttestedNodeEntry](#control_plane_proto.AttestedNodeEntry) | repeated | List of attested node entries |
+| attestedNodeEntryList | [AttestedNodeEntry](#sri_proto.AttestedNodeEntry) | repeated | List of attested node entries |
 
 
 
 
 
 
-<a name="control_plane_proto.ListFederatedEntryRequest"/>
+<a name="sri_proto.ListFederatedEntryRequest"/>
 
 ### ListFederatedEntryRequest
 Empty
@@ -606,7 +606,7 @@ Empty
 
 
 
-<a name="control_plane_proto.ListFederatedEntryResponse"/>
+<a name="sri_proto.ListFederatedEntryResponse"/>
 
 ### ListFederatedEntryResponse
 Represents a list of SPIFFE IDs of foreign trust domains
@@ -621,7 +621,7 @@ Represents a list of SPIFFE IDs of foreign trust domains
 
 
 
-<a name="control_plane_proto.ListParentIDEntriesRequest"/>
+<a name="sri_proto.ListParentIDEntriesRequest"/>
 
 ### ListParentIDEntriesRequest
 Represents a Parent ID
@@ -636,7 +636,7 @@ Represents a Parent ID
 
 
 
-<a name="control_plane_proto.ListParentIDEntriesResponse"/>
+<a name="sri_proto.ListParentIDEntriesResponse"/>
 
 ### ListParentIDEntriesResponse
 Represents a list of Registered entries with the specified Parent ID
@@ -644,14 +644,14 @@ Represents a list of Registered entries with the specified Parent ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [RegisteredEntry](#control_plane_proto.RegisteredEntry) | repeated | List of Registration entries |
+| registeredEntryList | [RegisteredEntry](#sri_proto.RegisteredEntry) | repeated | List of Registration entries |
 
 
 
 
 
 
-<a name="control_plane_proto.ListSelectorEntriesRequest"/>
+<a name="sri_proto.ListSelectorEntriesRequest"/>
 
 ### ListSelectorEntriesRequest
 Represents a selector
@@ -659,14 +659,14 @@ Represents a selector
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selector | [Selector](#control_plane_proto.Selector) |  | Selector |
+| selector | [Selector](#sri_proto.Selector) |  | Selector |
 
 
 
 
 
 
-<a name="control_plane_proto.ListSelectorEntriesResponse"/>
+<a name="sri_proto.ListSelectorEntriesResponse"/>
 
 ### ListSelectorEntriesResponse
 Represents a list of Registered entries with the specified selector
@@ -674,14 +674,14 @@ Represents a list of Registered entries with the specified selector
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [RegisteredEntry](#control_plane_proto.RegisteredEntry) | repeated | List of Registration entries |
+| registeredEntryList | [RegisteredEntry](#sri_proto.RegisteredEntry) | repeated | List of Registration entries |
 
 
 
 
 
 
-<a name="control_plane_proto.ListSpiffeEntriesRequest"/>
+<a name="sri_proto.ListSpiffeEntriesRequest"/>
 
 ### ListSpiffeEntriesRequest
 Represents a Spiffe ID
@@ -696,7 +696,7 @@ Represents a Spiffe ID
 
 
 
-<a name="control_plane_proto.ListSpiffeEntriesResponse"/>
+<a name="sri_proto.ListSpiffeEntriesResponse"/>
 
 ### ListSpiffeEntriesResponse
 Represents a list of Registered entries with the specified Spiffe ID
@@ -704,14 +704,14 @@ Represents a list of Registered entries with the specified Spiffe ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [RegisteredEntry](#control_plane_proto.RegisteredEntry) | repeated | List of Registration entries |
+| registeredEntryList | [RegisteredEntry](#sri_proto.RegisteredEntry) | repeated | List of Registration entries |
 
 
 
 
 
 
-<a name="control_plane_proto.NodeResolverMapEntry"/>
+<a name="sri_proto.NodeResolverMapEntry"/>
 
 ### NodeResolverMapEntry
 Represents a single entry in NodeResolverMap and maps node properties to
@@ -721,14 +721,14 @@ logical attributes (i.e. an AWS instance to its ASG).
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | baseSpiffeId | [string](#string) |  |  |
-| selector | [Selector](#control_plane_proto.Selector) |  |  |
+| selector | [Selector](#sri_proto.Selector) |  |  |
 
 
 
 
 
 
-<a name="control_plane_proto.RectifyNodeResolverMapEntriesRequest"/>
+<a name="sri_proto.RectifyNodeResolverMapEntriesRequest"/>
 
 ### RectifyNodeResolverMapEntriesRequest
 Represents a list of Node resolver map entries
@@ -736,14 +736,14 @@ Represents a list of Node resolver map entries
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#control_plane_proto.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
+| nodeResolverMapEntryList | [NodeResolverMapEntry](#sri_proto.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
 
 
 
 
 
 
-<a name="control_plane_proto.RectifyNodeResolverMapEntriesResponse"/>
+<a name="sri_proto.RectifyNodeResolverMapEntriesResponse"/>
 
 ### RectifyNodeResolverMapEntriesResponse
 Represents a list of Node resolver map entries
@@ -751,14 +751,14 @@ Represents a list of Node resolver map entries
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#control_plane_proto.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
+| nodeResolverMapEntryList | [NodeResolverMapEntry](#sri_proto.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
 
 
 
 
 
 
-<a name="control_plane_proto.RegisteredEntry"/>
+<a name="sri_proto.RegisteredEntry"/>
 
 ### RegisteredEntry
 Represents a single Registration Entry.
@@ -766,7 +766,7 @@ Represents a single Registration Entry.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectorList | [Selector](#control_plane_proto.Selector) | repeated | Array of selectors |
+| selectorList | [Selector](#sri_proto.Selector) | repeated | Array of selectors |
 | spiffeId | [string](#string) |  | SPIFFE ID |
 | parentId | [string](#string) |  | Attestor SPIFFE ID |
 | ttl | [int32](#int32) |  | TTL |
@@ -777,7 +777,7 @@ Represents a single Registration Entry.
 
 
 
-<a name="control_plane_proto.Selector"/>
+<a name="sri_proto.Selector"/>
 
 ### Selector
 Describes the conditions under which a registration entry is matched.
@@ -793,7 +793,7 @@ Describes the conditions under which a registration entry is matched.
 
 
 
-<a name="control_plane_proto.UpdateAttestedNodeEntryRequest"/>
+<a name="sri_proto.UpdateAttestedNodeEntryRequest"/>
 
 ### UpdateAttestedNodeEntryRequest
 Represents Attested node entry fields to update
@@ -810,7 +810,7 @@ Represents Attested node entry fields to update
 
 
 
-<a name="control_plane_proto.UpdateAttestedNodeEntryResponse"/>
+<a name="sri_proto.UpdateAttestedNodeEntryResponse"/>
 
 ### UpdateAttestedNodeEntryResponse
 Represents the updated Attested node entry
@@ -818,14 +818,14 @@ Represents the updated Attested node entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#control_plane_proto.AttestedNodeEntry) |  | Attested node entry |
+| attestedNodeEntry | [AttestedNodeEntry](#sri_proto.AttestedNodeEntry) |  | Attested node entry |
 
 
 
 
 
 
-<a name="control_plane_proto.UpdateFederatedEntryRequest"/>
+<a name="sri_proto.UpdateFederatedEntryRequest"/>
 
 ### UpdateFederatedEntryRequest
 Represents a federated bundle to update
@@ -833,14 +833,14 @@ Represents a federated bundle to update
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  | Federated bundle |
+| federatedBundle | [FederatedBundle](#sri_proto.FederatedBundle) |  | Federated bundle |
 
 
 
 
 
 
-<a name="control_plane_proto.UpdateFederatedEntryResponse"/>
+<a name="sri_proto.UpdateFederatedEntryResponse"/>
 
 ### UpdateFederatedEntryResponse
 Represents the updated federated bundle
@@ -848,14 +848,14 @@ Represents the updated federated bundle
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  | Federated bundle |
+| federatedBundle | [FederatedBundle](#sri_proto.FederatedBundle) |  | Federated bundle |
 
 
 
 
 
 
-<a name="control_plane_proto.UpdateRegistrationEntryRequest"/>
+<a name="sri_proto.UpdateRegistrationEntryRequest"/>
 
 ### UpdateRegistrationEntryRequest
 Represents a Registration entry to update
@@ -864,14 +864,14 @@ Represents a Registration entry to update
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | registeredEntryId | [string](#string) |  | Registration entry ID |
-| registeredEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  | Registration entry |
+| registeredEntry | [RegisteredEntry](#sri_proto.RegisteredEntry) |  | Registration entry |
 
 
 
 
 
 
-<a name="control_plane_proto.UpdateRegistrationEntryResponse"/>
+<a name="sri_proto.UpdateRegistrationEntryResponse"/>
 
 ### UpdateRegistrationEntryResponse
 Represents the updated Registration entry
@@ -879,7 +879,7 @@ Represents the updated Registration entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  | Registration entry |
+| registeredEntry | [RegisteredEntry](#sri_proto.RegisteredEntry) |  | Registration entry |
 
 
 
@@ -892,35 +892,35 @@ Represents the updated Registration entry
  
 
 
-<a name="control_plane_proto.DataStore"/>
+<a name="sri_proto.DataStore"/>
 
 ### DataStore
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateFederatedEntry | [CreateFederatedEntryRequest](#control_plane_proto.CreateFederatedEntryRequest) | [CreateFederatedEntryResponse](#control_plane_proto.CreateFederatedEntryRequest) | Creates a Federated Bundle |
-| ListFederatedEntry | [ListFederatedEntryRequest](#control_plane_proto.ListFederatedEntryRequest) | [ListFederatedEntryResponse](#control_plane_proto.ListFederatedEntryRequest) | List all Federated SPIFFE IDs |
-| UpdateFederatedEntry | [UpdateFederatedEntryRequest](#control_plane_proto.UpdateFederatedEntryRequest) | [UpdateFederatedEntryResponse](#control_plane_proto.UpdateFederatedEntryRequest) | Updates the specified Federated Bundle |
-| DeleteFederatedEntry | [DeleteFederatedEntryRequest](#control_plane_proto.DeleteFederatedEntryRequest) | [DeleteFederatedEntryResponse](#control_plane_proto.DeleteFederatedEntryRequest) | Deletes the specified Federated Bundle |
-| CreateAttestedNodeEntry | [CreateAttestedNodeEntryRequest](#control_plane_proto.CreateAttestedNodeEntryRequest) | [CreateAttestedNodeEntryResponse](#control_plane_proto.CreateAttestedNodeEntryRequest) | Creates an Attested Node Entry |
-| FetchAttestedNodeEntry | [FetchAttestedNodeEntryRequest](#control_plane_proto.FetchAttestedNodeEntryRequest) | [FetchAttestedNodeEntryResponse](#control_plane_proto.FetchAttestedNodeEntryRequest) | Retrieves the Attested Node Entry |
-| FetchStaleNodeEntries | [FetchStaleNodeEntriesRequest](#control_plane_proto.FetchStaleNodeEntriesRequest) | [FetchStaleNodeEntriesResponse](#control_plane_proto.FetchStaleNodeEntriesRequest) | Retrieves dead nodes for which the base SVID has expired |
-| UpdateAttestedNodeEntry | [UpdateAttestedNodeEntryRequest](#control_plane_proto.UpdateAttestedNodeEntryRequest) | [UpdateAttestedNodeEntryResponse](#control_plane_proto.UpdateAttestedNodeEntryRequest) | Updates the Attested Node Entry |
-| DeleteAttestedNodeEntry | [DeleteAttestedNodeEntryRequest](#control_plane_proto.DeleteAttestedNodeEntryRequest) | [DeleteAttestedNodeEntryResponse](#control_plane_proto.DeleteAttestedNodeEntryRequest) | Deletes the Attested Node Entry |
-| CreateNodeResolverMapEntry | [CreateNodeResolverMapEntryRequest](#control_plane_proto.CreateNodeResolverMapEntryRequest) | [CreateNodeResolverMapEntryResponse](#control_plane_proto.CreateNodeResolverMapEntryRequest) | Creates a Node resolver map Entry |
-| FetchNodeResolverMapEntry | [FetchNodeResolverMapEntryRequest](#control_plane_proto.FetchNodeResolverMapEntryRequest) | [FetchNodeResolverMapEntryResponse](#control_plane_proto.FetchNodeResolverMapEntryRequest) | Retrieves all Node Resolver Map Entry for the specific base SPIFFEID |
-| DeleteNodeResolverMapEntry | [DeleteNodeResolverMapEntryRequest](#control_plane_proto.DeleteNodeResolverMapEntryRequest) | [DeleteNodeResolverMapEntryResponse](#control_plane_proto.DeleteNodeResolverMapEntryRequest) | Deletes all Node Resolver Map Entry for the specific base SPIFFEID |
-| RectifyNodeResolverMapEntries | [RectifyNodeResolverMapEntriesRequest](#control_plane_proto.RectifyNodeResolverMapEntriesRequest) | [RectifyNodeResolverMapEntriesResponse](#control_plane_proto.RectifyNodeResolverMapEntriesRequest) | Used for rectifying updated node resolutions |
-| CreateRegistrationEntry | [CreateRegistrationEntryRequest](#control_plane_proto.CreateRegistrationEntryRequest) | [CreateRegistrationEntryResponse](#control_plane_proto.CreateRegistrationEntryRequest) | Creates a Registered Entry |
-| FetchRegistrationEntry | [FetchRegistrationEntryRequest](#control_plane_proto.FetchRegistrationEntryRequest) | [FetchRegistrationEntryResponse](#control_plane_proto.FetchRegistrationEntryRequest) | Retrieve a specific registered entry |
-| UpdateRegistrationEntry | [UpdateRegistrationEntryRequest](#control_plane_proto.UpdateRegistrationEntryRequest) | [UpdateRegistrationEntryResponse](#control_plane_proto.UpdateRegistrationEntryRequest) | Updates a specific registered entry |
-| DeleteRegistrationEntry | [DeleteRegistrationEntryRequest](#control_plane_proto.DeleteRegistrationEntryRequest) | [DeleteRegistrationEntryResponse](#control_plane_proto.DeleteRegistrationEntryRequest) | Deletes a specific registered entry |
-| ListParentIDEntries | [ListParentIDEntriesRequest](#control_plane_proto.ListParentIDEntriesRequest) | [ListParentIDEntriesResponse](#control_plane_proto.ListParentIDEntriesRequest) | Retrieves all the  registered entry with the same ParentID |
-| ListSelectorEntries | [ListSelectorEntriesRequest](#control_plane_proto.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#control_plane_proto.ListSelectorEntriesRequest) | Retrieves all the  registered entry with the same Selector |
-| ListSpiffeEntries | [ListSpiffeEntriesRequest](#control_plane_proto.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#control_plane_proto.ListSpiffeEntriesRequest) | Retrieves all the  registered entry with the same SpiffeId |
-| Configure | [ConfigureRequest](#control_plane_proto.ConfigureRequest) | [ConfigureResponse](#control_plane_proto.ConfigureRequest) | Applies the plugin configuration |
-| GetPluginInfo | [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin |
+| CreateFederatedEntry | [CreateFederatedEntryRequest](#sri_proto.CreateFederatedEntryRequest) | [CreateFederatedEntryResponse](#sri_proto.CreateFederatedEntryRequest) | Creates a Federated Bundle |
+| ListFederatedEntry | [ListFederatedEntryRequest](#sri_proto.ListFederatedEntryRequest) | [ListFederatedEntryResponse](#sri_proto.ListFederatedEntryRequest) | List all Federated SPIFFE IDs |
+| UpdateFederatedEntry | [UpdateFederatedEntryRequest](#sri_proto.UpdateFederatedEntryRequest) | [UpdateFederatedEntryResponse](#sri_proto.UpdateFederatedEntryRequest) | Updates the specified Federated Bundle |
+| DeleteFederatedEntry | [DeleteFederatedEntryRequest](#sri_proto.DeleteFederatedEntryRequest) | [DeleteFederatedEntryResponse](#sri_proto.DeleteFederatedEntryRequest) | Deletes the specified Federated Bundle |
+| CreateAttestedNodeEntry | [CreateAttestedNodeEntryRequest](#sri_proto.CreateAttestedNodeEntryRequest) | [CreateAttestedNodeEntryResponse](#sri_proto.CreateAttestedNodeEntryRequest) | Creates an Attested Node Entry |
+| FetchAttestedNodeEntry | [FetchAttestedNodeEntryRequest](#sri_proto.FetchAttestedNodeEntryRequest) | [FetchAttestedNodeEntryResponse](#sri_proto.FetchAttestedNodeEntryRequest) | Retrieves the Attested Node Entry |
+| FetchStaleNodeEntries | [FetchStaleNodeEntriesRequest](#sri_proto.FetchStaleNodeEntriesRequest) | [FetchStaleNodeEntriesResponse](#sri_proto.FetchStaleNodeEntriesRequest) | Retrieves dead nodes for which the base SVID has expired |
+| UpdateAttestedNodeEntry | [UpdateAttestedNodeEntryRequest](#sri_proto.UpdateAttestedNodeEntryRequest) | [UpdateAttestedNodeEntryResponse](#sri_proto.UpdateAttestedNodeEntryRequest) | Updates the Attested Node Entry |
+| DeleteAttestedNodeEntry | [DeleteAttestedNodeEntryRequest](#sri_proto.DeleteAttestedNodeEntryRequest) | [DeleteAttestedNodeEntryResponse](#sri_proto.DeleteAttestedNodeEntryRequest) | Deletes the Attested Node Entry |
+| CreateNodeResolverMapEntry | [CreateNodeResolverMapEntryRequest](#sri_proto.CreateNodeResolverMapEntryRequest) | [CreateNodeResolverMapEntryResponse](#sri_proto.CreateNodeResolverMapEntryRequest) | Creates a Node resolver map Entry |
+| FetchNodeResolverMapEntry | [FetchNodeResolverMapEntryRequest](#sri_proto.FetchNodeResolverMapEntryRequest) | [FetchNodeResolverMapEntryResponse](#sri_proto.FetchNodeResolverMapEntryRequest) | Retrieves all Node Resolver Map Entry for the specific base SPIFFEID |
+| DeleteNodeResolverMapEntry | [DeleteNodeResolverMapEntryRequest](#sri_proto.DeleteNodeResolverMapEntryRequest) | [DeleteNodeResolverMapEntryResponse](#sri_proto.DeleteNodeResolverMapEntryRequest) | Deletes all Node Resolver Map Entry for the specific base SPIFFEID |
+| RectifyNodeResolverMapEntries | [RectifyNodeResolverMapEntriesRequest](#sri_proto.RectifyNodeResolverMapEntriesRequest) | [RectifyNodeResolverMapEntriesResponse](#sri_proto.RectifyNodeResolverMapEntriesRequest) | Used for rectifying updated node resolutions |
+| CreateRegistrationEntry | [CreateRegistrationEntryRequest](#sri_proto.CreateRegistrationEntryRequest) | [CreateRegistrationEntryResponse](#sri_proto.CreateRegistrationEntryRequest) | Creates a Registered Entry |
+| FetchRegistrationEntry | [FetchRegistrationEntryRequest](#sri_proto.FetchRegistrationEntryRequest) | [FetchRegistrationEntryResponse](#sri_proto.FetchRegistrationEntryRequest) | Retrieve a specific registered entry |
+| UpdateRegistrationEntry | [UpdateRegistrationEntryRequest](#sri_proto.UpdateRegistrationEntryRequest) | [UpdateRegistrationEntryResponse](#sri_proto.UpdateRegistrationEntryRequest) | Updates a specific registered entry |
+| DeleteRegistrationEntry | [DeleteRegistrationEntryRequest](#sri_proto.DeleteRegistrationEntryRequest) | [DeleteRegistrationEntryResponse](#sri_proto.DeleteRegistrationEntryRequest) | Deletes a specific registered entry |
+| ListParentIDEntries | [ListParentIDEntriesRequest](#sri_proto.ListParentIDEntriesRequest) | [ListParentIDEntriesResponse](#sri_proto.ListParentIDEntriesRequest) | Retrieves all the  registered entry with the same ParentID |
+| ListSelectorEntries | [ListSelectorEntriesRequest](#sri_proto.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#sri_proto.ListSelectorEntriesRequest) | Retrieves all the  registered entry with the same Selector |
+| ListSpiffeEntries | [ListSpiffeEntriesRequest](#sri_proto.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#sri_proto.ListSpiffeEntriesRequest) | Retrieves all the  registered entry with the same SpiffeId |
+| Configure | [ConfigureRequest](#sri_proto.ConfigureRequest) | [ConfigureResponse](#sri_proto.ConfigureRequest) | Applies the plugin configuration |
+| GetPluginInfo | [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#sri_proto.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin |
 
  
 

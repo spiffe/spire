@@ -2,7 +2,7 @@
 // source: server.proto
 
 /*
-Package control_plane_proto is a generated protocol buffer package.
+Package sri_proto is a generated protocol buffer package.
 
 It is generated from these files:
 	server.proto
@@ -13,12 +13,12 @@ It has these top-level messages:
 	StopRequest
 	StopReply
 */
-package control_plane_proto
+package sri_proto
 
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
-import control_plane_proto1 "github.com/spiffe/sri/control_plane/plugins/common/proto"
+import sri_proto1 "github.com/spiffe/sri/control_plane/plugins/common/proto"
 
 import (
 	context "golang.org/x/net/context"
@@ -37,72 +37,66 @@ var _ = math.Inf
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 // ConfigureRequest from public import github.com/spiffe/sri/control_plane/plugins/common/proto/common.proto
-type ConfigureRequest control_plane_proto1.ConfigureRequest
+type ConfigureRequest sri_proto1.ConfigureRequest
 
-func (m *ConfigureRequest) Reset() { (*control_plane_proto1.ConfigureRequest)(m).Reset() }
-func (m *ConfigureRequest) String() string {
-	return (*control_plane_proto1.ConfigureRequest)(m).String()
-}
-func (*ConfigureRequest) ProtoMessage() {}
+func (m *ConfigureRequest) Reset()         { (*sri_proto1.ConfigureRequest)(m).Reset() }
+func (m *ConfigureRequest) String() string { return (*sri_proto1.ConfigureRequest)(m).String() }
+func (*ConfigureRequest) ProtoMessage()    {}
 func (m *ConfigureRequest) GetConfiguration() string {
-	return (*control_plane_proto1.ConfigureRequest)(m).GetConfiguration()
+	return (*sri_proto1.ConfigureRequest)(m).GetConfiguration()
 }
 
 // ConfigureResponse from public import github.com/spiffe/sri/control_plane/plugins/common/proto/common.proto
-type ConfigureResponse control_plane_proto1.ConfigureResponse
+type ConfigureResponse sri_proto1.ConfigureResponse
 
-func (m *ConfigureResponse) Reset() { (*control_plane_proto1.ConfigureResponse)(m).Reset() }
-func (m *ConfigureResponse) String() string {
-	return (*control_plane_proto1.ConfigureResponse)(m).String()
-}
-func (*ConfigureResponse) ProtoMessage() {}
+func (m *ConfigureResponse) Reset()         { (*sri_proto1.ConfigureResponse)(m).Reset() }
+func (m *ConfigureResponse) String() string { return (*sri_proto1.ConfigureResponse)(m).String() }
+func (*ConfigureResponse) ProtoMessage()    {}
 func (m *ConfigureResponse) GetErrorList() []string {
-	return (*control_plane_proto1.ConfigureResponse)(m).GetErrorList()
+	return (*sri_proto1.ConfigureResponse)(m).GetErrorList()
 }
 
 // GetPluginInfoRequest from public import github.com/spiffe/sri/control_plane/plugins/common/proto/common.proto
-type GetPluginInfoRequest control_plane_proto1.GetPluginInfoRequest
+type GetPluginInfoRequest sri_proto1.GetPluginInfoRequest
 
-func (m *GetPluginInfoRequest) Reset() { (*control_plane_proto1.GetPluginInfoRequest)(m).Reset() }
-func (m *GetPluginInfoRequest) String() string {
-	return (*control_plane_proto1.GetPluginInfoRequest)(m).String()
-}
-func (*GetPluginInfoRequest) ProtoMessage() {}
+func (m *GetPluginInfoRequest) Reset()         { (*sri_proto1.GetPluginInfoRequest)(m).Reset() }
+func (m *GetPluginInfoRequest) String() string { return (*sri_proto1.GetPluginInfoRequest)(m).String() }
+func (*GetPluginInfoRequest) ProtoMessage()    {}
 
 // GetPluginInfoResponse from public import github.com/spiffe/sri/control_plane/plugins/common/proto/common.proto
-type GetPluginInfoResponse control_plane_proto1.GetPluginInfoResponse
+type GetPluginInfoResponse sri_proto1.GetPluginInfoResponse
 
-func (m *GetPluginInfoResponse) Reset() { (*control_plane_proto1.GetPluginInfoResponse)(m).Reset() }
+func (m *GetPluginInfoResponse) Reset() { (*sri_proto1.GetPluginInfoResponse)(m).Reset() }
 func (m *GetPluginInfoResponse) String() string {
-	return (*control_plane_proto1.GetPluginInfoResponse)(m).String()
+	return (*sri_proto1.GetPluginInfoResponse)(m).String()
 }
 func (*GetPluginInfoResponse) ProtoMessage() {}
 func (m *GetPluginInfoResponse) GetName() string {
-	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetName()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetName()
 }
 func (m *GetPluginInfoResponse) GetCategory() string {
-	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetCategory()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetCategory()
 }
 func (m *GetPluginInfoResponse) GetType() string {
-	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetType()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetType()
 }
 func (m *GetPluginInfoResponse) GetDescription() string {
-	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetDescription()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetDescription()
 }
 func (m *GetPluginInfoResponse) GetDateCreated() string {
-	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetDateCreated()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetDateCreated()
 }
 func (m *GetPluginInfoResponse) GetLocation() string {
-	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetLocation()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetLocation()
 }
 func (m *GetPluginInfoResponse) GetVersion() string {
-	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetVersion()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetVersion()
 }
 func (m *GetPluginInfoResponse) GetAuthor() string {
-	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetAuthor()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetAuthor()
 }
 func (m *GetPluginInfoResponse) GetCompany() string {
-	return (*control_plane_proto1.GetPluginInfoResponse)(m).GetCompany()
+	return (*sri_proto1.GetPluginInfoResponse)(m).GetCompany()
 }
 
 type PluginInfoRequest struct {
@@ -114,7 +108,7 @@ func (*PluginInfoRequest) ProtoMessage()               {}
 func (*PluginInfoRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 type PluginInfoReply struct {
-	PluginInfo []*control_plane_proto1.GetPluginInfoResponse `protobuf:"bytes,1,rep,name=pluginInfo" json:"pluginInfo,omitempty"`
+	PluginInfo []*sri_proto1.GetPluginInfoResponse `protobuf:"bytes,1,rep,name=pluginInfo" json:"pluginInfo,omitempty"`
 }
 
 func (m *PluginInfoReply) Reset()                    { *m = PluginInfoReply{} }
@@ -122,7 +116,7 @@ func (m *PluginInfoReply) String() string            { return proto.CompactTextS
 func (*PluginInfoReply) ProtoMessage()               {}
 func (*PluginInfoReply) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
-func (m *PluginInfoReply) GetPluginInfo() []*control_plane_proto1.GetPluginInfoResponse {
+func (m *PluginInfoReply) GetPluginInfo() []*sri_proto1.GetPluginInfoResponse {
 	if m != nil {
 		return m.PluginInfo
 	}
@@ -146,10 +140,10 @@ func (*StopReply) ProtoMessage()               {}
 func (*StopReply) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
 func init() {
-	proto.RegisterType((*PluginInfoRequest)(nil), "control_plane_proto.PluginInfoRequest")
-	proto.RegisterType((*PluginInfoReply)(nil), "control_plane_proto.PluginInfoReply")
-	proto.RegisterType((*StopRequest)(nil), "control_plane_proto.StopRequest")
-	proto.RegisterType((*StopReply)(nil), "control_plane_proto.StopReply")
+	proto.RegisterType((*PluginInfoRequest)(nil), "sri_proto.PluginInfoRequest")
+	proto.RegisterType((*PluginInfoReply)(nil), "sri_proto.PluginInfoReply")
+	proto.RegisterType((*StopRequest)(nil), "sri_proto.StopRequest")
+	proto.RegisterType((*StopReply)(nil), "sri_proto.StopReply")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -177,7 +171,7 @@ func NewServerClient(cc *grpc.ClientConn) ServerClient {
 
 func (c *serverClient) Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopReply, error) {
 	out := new(StopReply)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Server/Stop", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/sri_proto.Server/Stop", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +180,7 @@ func (c *serverClient) Stop(ctx context.Context, in *StopRequest, opts ...grpc.C
 
 func (c *serverClient) PluginInfo(ctx context.Context, in *PluginInfoRequest, opts ...grpc.CallOption) (*PluginInfoReply, error) {
 	out := new(PluginInfoReply)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Server/PluginInfo", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/sri_proto.Server/PluginInfo", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +208,7 @@ func _Server_Stop_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Server/Stop",
+		FullMethod: "/sri_proto.Server/Stop",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ServerServer).Stop(ctx, req.(*StopRequest))
@@ -232,7 +226,7 @@ func _Server_PluginInfo_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Server/PluginInfo",
+		FullMethod: "/sri_proto.Server/PluginInfo",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ServerServer).PluginInfo(ctx, req.(*PluginInfoRequest))
@@ -241,7 +235,7 @@ func _Server_PluginInfo_Handler(srv interface{}, ctx context.Context, dec func(i
 }
 
 var _Server_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "control_plane_proto.Server",
+	ServiceName: "sri_proto.Server",
 	HandlerType: (*ServerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -260,20 +254,20 @@ var _Server_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("server.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 236 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x29, 0x4e, 0x2d, 0x2a,
-	0x4b, 0x2d, 0xd2, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x12, 0x4e, 0xce, 0xcf, 0x2b, 0x29, 0xca,
-	0xcf, 0x89, 0x2f, 0xc8, 0x49, 0xcc, 0x4b, 0x8d, 0x07, 0x0b, 0x4a, 0xb9, 0xa6, 0x67, 0x96, 0x64,
-	0x94, 0x26, 0xe9, 0x25, 0xe7, 0xe7, 0xea, 0x17, 0x17, 0x64, 0xa6, 0xa5, 0xa5, 0xea, 0x17, 0x17,
-	0x65, 0xea, 0xa3, 0x28, 0xd5, 0x2f, 0xc8, 0x29, 0x4d, 0xcf, 0xcc, 0x2b, 0xd6, 0x4f, 0xce, 0xcf,
-	0xcd, 0xcd, 0xcf, 0xd3, 0x07, 0xeb, 0x84, 0x72, 0x20, 0x66, 0x2b, 0x09, 0x73, 0x09, 0x06, 0x80,
-	0x15, 0x79, 0xe6, 0xa5, 0xe5, 0x07, 0xa5, 0x16, 0x96, 0xa6, 0x16, 0x97, 0x28, 0xc5, 0x72, 0xf1,
-	0x23, 0x0b, 0x16, 0xe4, 0x54, 0x0a, 0x79, 0x71, 0x71, 0x15, 0xc0, 0x85, 0x24, 0x18, 0x15, 0x98,
-	0x35, 0xb8, 0x8d, 0xb4, 0xf4, 0xb0, 0x38, 0x4c, 0xcf, 0x3d, 0xb5, 0x04, 0x59, 0x73, 0x71, 0x41,
-	0x7e, 0x5e, 0x71, 0x6a, 0x10, 0x92, 0x6e, 0x25, 0x5e, 0x2e, 0xee, 0xe0, 0x92, 0xfc, 0x02, 0x98,
-	0x6d, 0xdc, 0x5c, 0x9c, 0x10, 0x6e, 0x41, 0x4e, 0xa5, 0xd1, 0x3a, 0x46, 0x2e, 0xb6, 0x60, 0xb0,
-	0xe7, 0x85, 0x3c, 0xb8, 0x58, 0x40, 0xe2, 0x42, 0x0a, 0x58, 0xad, 0x41, 0x32, 0x41, 0x4a, 0x0e,
-	0x8f, 0x0a, 0x90, 0xe3, 0xa3, 0xb8, 0xb8, 0x10, 0x4e, 0x12, 0x52, 0xc3, 0xaa, 0x1a, 0x23, 0x14,
-	0xa4, 0x54, 0x08, 0xaa, 0x2b, 0xc8, 0xa9, 0x0c, 0x60, 0x48, 0x62, 0x03, 0x4b, 0x18, 0x03, 0x02,
-	0x00, 0x00, 0xff, 0xff, 0xd2, 0xae, 0xf2, 0x74, 0xb5, 0x01, 0x00, 0x00,
+	// 232 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x8f, 0xcd, 0x4a, 0xc3, 0x40,
+	0x10, 0x80, 0x2d, 0x4a, 0xa1, 0x13, 0x45, 0x5c, 0x45, 0x24, 0x78, 0x28, 0x39, 0x79, 0xda, 0x85,
+	0xea, 0x03, 0x78, 0x51, 0xf1, 0x56, 0x9a, 0x07, 0x28, 0x36, 0x4c, 0xea, 0xc2, 0x66, 0x67, 0xdc,
+	0xd9, 0x08, 0x79, 0x01, 0x9f, 0x5b, 0xba, 0xd5, 0xba, 0x10, 0xbc, 0xcd, 0x7c, 0x33, 0xdf, 0xfc,
+	0xc0, 0xa9, 0x60, 0xf8, 0xc4, 0xa0, 0x39, 0x50, 0x24, 0x35, 0x93, 0x60, 0xd7, 0x29, 0x2c, 0x9f,
+	0xb6, 0x36, 0xbe, 0xf7, 0x1b, 0xdd, 0x50, 0x67, 0x84, 0x6d, 0xdb, 0xa2, 0x91, 0x60, 0x4d, 0x43,
+	0x3e, 0x06, 0x72, 0x6b, 0x76, 0x6f, 0x1e, 0x0d, 0xbb, 0x7e, 0x6b, 0xbd, 0x98, 0x86, 0xba, 0x8e,
+	0xbc, 0x49, 0xe6, 0x4f, 0xb2, 0x9f, 0x58, 0x5d, 0xc2, 0xc5, 0x32, 0x35, 0xbd, 0xfa, 0x96, 0x56,
+	0xf8, 0xd1, 0xa3, 0xc4, 0xaa, 0x86, 0xf3, 0x1c, 0xb2, 0x1b, 0xd4, 0x23, 0x00, 0x1f, 0xd0, 0xcd,
+	0x64, 0x7e, 0x7c, 0x57, 0x2c, 0xe6, 0xfa, 0x70, 0x8e, 0x7e, 0xc1, 0x98, 0x2b, 0xc2, 0xe4, 0x05,
+	0x57, 0x99, 0x53, 0x9d, 0x41, 0x51, 0x47, 0xe2, 0xdf, 0x1d, 0x05, 0xcc, 0xf6, 0x29, 0xbb, 0x61,
+	0xf1, 0x35, 0x81, 0x69, 0x9d, 0x1e, 0x55, 0x0f, 0x70, 0xb2, 0xe3, 0xea, 0x3a, 0x1b, 0x9e, 0x79,
+	0xe5, 0xd5, 0x88, 0xef, 0xce, 0x7b, 0x06, 0xf8, 0x5b, 0xaf, 0x6e, 0xb3, 0x9e, 0xd1, 0x77, 0x65,
+	0xf9, 0x4f, 0x95, 0xdd, 0xb0, 0x3c, 0xda, 0x4c, 0x53, 0xe1, 0xfe, 0x3b, 0x00, 0x00, 0xff, 0xff,
+	0x81, 0xb3, 0xcf, 0xef, 0x79, 0x01, 0x00, 0x00,
 }
