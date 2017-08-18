@@ -7,7 +7,10 @@ import public "google/api/annotations.proto";
 service Registration {
     ///Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
     rpc CreateEntry(RegisteredEntry) returns (RegisteredEntryID) {
-        option (google.api.http).post = "/entry";
+        option (google.api.http) = {
+			post: "/entry"
+			body: "*"
+		};
     }
     ///Deletes an entry and returns the deleted entry.
     rpc DeleteEntry(RegisteredEntryID) returns (RegisteredEntry) {
@@ -15,7 +18,7 @@ service Registration {
     }
     ///Retrieve a specific registered entry.
     rpc FetchEntry(RegisteredEntryID) returns (RegisteredEntry) {
-        option (google.api.http).get = "/entry";
+        option (google.api.http).get = "/entry/{id}";
     }
     ///Updates a specific registered entry.
     rpc UpdateEntry(UpdateEntryRequest) returns (RegisteredEntry) {

@@ -4,9 +4,10 @@ import (
 	"context"
 
 	proto "github.com/spiffe/sri/control_plane/api/registration/proto"
+	"github.com/spiffe/sri/services"
 )
 
-//RegistrationService  is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.
+//RegistrationService is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.
 type RegistrationService interface {
 	CreateEntry(ctx context.Context, request proto.RegisteredEntry) (reply proto.RegisteredEntryID, err error)
 	DeleteEntry(ctx context.Context, request proto.RegisteredEntryID) (reply proto.RegisteredEntry, err error)
@@ -21,18 +22,21 @@ type RegistrationService interface {
 	DeleteFederatedBundle(ctx context.Context, request proto.FederatedSpiffeID) (reply proto.Empty, err error)
 }
 
-type stubRegistrationService struct{}
+type stubRegistrationService struct {
+	registration services.Registration
+}
 
-// Get a new instance of the service.
-// If you want to add service middleware this is the place to put them.
-func NewService() (s *stubRegistrationService) {
+//NewService gets a new instance of the service
+func NewService(registration services.Registration) (s *stubRegistrationService) {
 	s = &stubRegistrationService{}
+	s.registration = registration
 	return s
 }
 
 // Implement the business logic of CreateEntry
-func (re *stubRegistrationService) CreateEntry(ctx context.Context, request proto.RegisteredEntry) (reply proto.RegisteredEntryID, err error) {
-	return reply, err
+func (re *stubRegistrationService) CreateEntry(ctx context.Context, request proto.RegisteredEntry) (proto.RegisteredEntryID, error) {
+	registeredID, err := re.registration.CreateEntry(&request)
+	return proto.RegisteredEntryID{Id: registeredID}, err
 }
 
 // Implement the business logic of DeleteEntry
@@ -41,8 +45,12 @@ func (re *stubRegistrationService) DeleteEntry(ctx context.Context, request prot
 }
 
 // Implement the business logic of FetchEntry
-func (re *stubRegistrationService) FetchEntry(ctx context.Context, request proto.RegisteredEntryID) (reply proto.RegisteredEntry, err error) {
-	return reply, err
+func (re *stubRegistrationService) FetchEntry(ctx context.Context, request proto.RegisteredEntryID) (proto.RegisteredEntry, error) {
+	reply, err := re.registration.FetchEntry(request.Id)
+	if err != nil {
+		return proto.RegisteredEntry{}, err
+	}
+	return *reply, err
 }
 
 // Implement the business logic of UpdateEntry

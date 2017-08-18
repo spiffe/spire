@@ -10,17 +10,17 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"golang.org/x/net/context"
-
 	"google.golang.org/grpc"
 
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
 	server_proto "github.com/spiffe/sri/control_plane/api/server/proto"
-
 	"github.com/spiffe/sri/control_plane/endpoints/registration"
 	"github.com/spiffe/sri/control_plane/endpoints/server"
+	"github.com/spiffe/sri/control_plane/plugins/data_store"
 	"github.com/spiffe/sri/helpers"
+	"github.com/spiffe/sri/services"
 )
 
 type ServerCommand struct {
@@ -31,6 +31,7 @@ func (*ServerCommand) Help() string {
 	return "Usage: sri/control_plane server"
 }
 
+//Run the server command
 func (*ServerCommand) Run(args []string) int {
 	pluginCatalog, err := loadPlugins()
 	if err != nil {
@@ -53,7 +54,8 @@ func (*ServerCommand) Synopsis() string {
 
 func loadPlugins() (*pluginhelper.PluginCatalog, error) {
 	pluginCatalog := &pluginhelper.PluginCatalog{
-		PluginConfDirectory: os.Getenv("PLUGIN_CONFIG_PATH")}
+		PluginConfDirectory: os.Getenv("PLUGIN_CONFIG_PATH"),
+	}
 	err := pluginCatalog.Run()
 	if err != nil {
 		return nil, err
@@ -63,9 +65,14 @@ func loadPlugins() (*pluginhelper.PluginCatalog, error) {
 }
 
 func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
+	//Shouldn't we get this by plugin type?
+	dataStore := pluginCatalog.GetPlugin("datastore")
+	dataStoreImpl := dataStore.(datastore.DataStore)
+	registrationService := services.NewRegistrationImpl(dataStoreImpl)
+
 	errChan := makeErrorChannel()
 	serverSvc := server.NewService(pluginCatalog, errChan)
-	registrationSvc := registration.NewService()
+	registrationSvc := registration.NewService(registrationService)
 
 	var (
 		httpAddr = flag.String("http", ":8080", "http listen address")
