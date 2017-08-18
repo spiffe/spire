@@ -14,8 +14,18 @@
   
     * [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse)
   
+    * [PluginInfoReply](#sri_proto.PluginInfoReply)
+  
+    * [PluginInfoRequest](#sri_proto.PluginInfoRequest)
+  
+    * [StopReply](#sri_proto.StopReply)
+  
+    * [StopRequest](#sri_proto.StopRequest)
   
   
+  
+  
+    * [Server](#sri_proto.Server)
   
 
 
@@ -104,11 +114,67 @@ Represents the plugin metadata.
 
 
 
- 
+
+<a name="sri_proto.PluginInfoReply"/>
+
+### PluginInfoReply
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| pluginInfo | [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse) | repeated |  |
+
+
+
+
+
+
+<a name="sri_proto.PluginInfoRequest"/>
+
+### PluginInfoRequest
+
+
+
+
+
+
+
+<a name="sri_proto.StopReply"/>
+
+### StopReply
+
+
+
+
+
+
+
+<a name="sri_proto.StopRequest"/>
+
+### StopRequest
+
+
+
+
+
 
  
 
  
+
+ 
+
+
+<a name="sri_proto.Server"/>
+
+### Server
+
+
+| Method Name | Request Type | Response Type | Description |
+| ----------- | ------------ | ------------- | ------------|
+| Stop | [StopRequest](#sri_proto.StopRequest) | [StopReply](#sri_proto.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#sri_proto.PluginInfoRequest) | [PluginInfoReply](#sri_proto.PluginInfoRequest) |  |
 
  
 

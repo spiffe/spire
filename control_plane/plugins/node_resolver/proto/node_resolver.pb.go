@@ -100,6 +100,45 @@ func (m *GetPluginInfoResponse) GetCompany() string {
 	return (*sri_proto1.GetPluginInfoResponse)(m).GetCompany()
 }
 
+// PluginInfoRequest from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
+type PluginInfoRequest sri_proto1.PluginInfoRequest
+
+func (m *PluginInfoRequest) Reset()         { (*sri_proto1.PluginInfoRequest)(m).Reset() }
+func (m *PluginInfoRequest) String() string { return (*sri_proto1.PluginInfoRequest)(m).String() }
+func (*PluginInfoRequest) ProtoMessage()    {}
+
+// PluginInfoReply from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
+type PluginInfoReply sri_proto1.PluginInfoReply
+
+func (m *PluginInfoReply) Reset()         { (*sri_proto1.PluginInfoReply)(m).Reset() }
+func (m *PluginInfoReply) String() string { return (*sri_proto1.PluginInfoReply)(m).String() }
+func (*PluginInfoReply) ProtoMessage()    {}
+func (m *PluginInfoReply) GetPluginInfo() []*GetPluginInfoResponse {
+	o := (*sri_proto1.PluginInfoReply)(m).GetPluginInfo()
+	if o == nil {
+		return nil
+	}
+	s := make([]*GetPluginInfoResponse, len(o))
+	for i, x := range o {
+		s[i] = (*GetPluginInfoResponse)(x)
+	}
+	return s
+}
+
+// StopRequest from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
+type StopRequest sri_proto1.StopRequest
+
+func (m *StopRequest) Reset()         { (*sri_proto1.StopRequest)(m).Reset() }
+func (m *StopRequest) String() string { return (*sri_proto1.StopRequest)(m).String() }
+func (*StopRequest) ProtoMessage()    {}
+
+// StopReply from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
+type StopReply sri_proto1.StopReply
+
+func (m *StopReply) Reset()         { (*sri_proto1.StopReply)(m).Reset() }
+func (m *StopReply) String() string { return (*sri_proto1.StopReply)(m).String() }
+func (*StopReply) ProtoMessage()    {}
+
 // *Represents a a type with a selectorType and a selector.
 type NodeResolution struct {
 	SelectorType string `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`

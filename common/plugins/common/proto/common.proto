@@ -27,3 +27,18 @@ message GetPluginInfoResponse {
     string author = 8;
     string company = 9;
 }
+
+message PluginInfoRequest {}
+
+message PluginInfoReply {
+    repeated GetPluginInfoResponse pluginInfo = 1;
+}
+
+message StopRequest {}
+
+message StopReply {}
+
+service Server {
+    rpc Stop(StopRequest) returns (StopReply);
+    rpc PluginInfo(PluginInfoRequest) returns (PluginInfoReply);
+}
