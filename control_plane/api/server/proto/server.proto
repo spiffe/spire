@@ -4,7 +4,7 @@
 syntax = "proto3";
 package sri_proto;
 
-import public "github.com/spiffe/sri/control_plane/plugins/common/proto/common.proto";
+import public "github.com/spiffe/sri/common/plugins/common/proto/common.proto";
 
 message PluginInfoRequest {}
 

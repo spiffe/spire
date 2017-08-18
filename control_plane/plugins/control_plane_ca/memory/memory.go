@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	common "github.com/spiffe/sri/common/plugins/common/proto"
 	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca"
 )
 

@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
+	common "github.com/spiffe/sri/common/plugins/common/proto"
 	"github.com/spiffe/sri/node_agent/plugins/workload_attestor"
 	"github.com/spiffe/sri/node_agent/plugins/workload_attestor/proto"
 )

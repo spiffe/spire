@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	common "github.com/spiffe/sri/common/plugins/common/proto"
 	"github.com/spiffe/sri/control_plane/plugins/upstream_ca"
 	proto "github.com/spiffe/sri/control_plane/plugins/upstream_ca/proto"
 )

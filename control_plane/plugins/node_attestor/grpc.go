@@ -1,7 +1,7 @@
 package control_plane_nodeattestor
 
 import (
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	common "github.com/spiffe/sri/common/plugins/common/proto"
 	"github.com/spiffe/sri/control_plane/plugins/node_attestor/proto"
 	"golang.org/x/net/context"
 )

@@ -8,7 +8,7 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	common "github.com/spiffe/sri/common/plugins/common/proto"
 	"github.com/spiffe/sri/control_plane/plugins/data_store"
 	proto "github.com/spiffe/sri/control_plane/plugins/data_store/proto"
 )

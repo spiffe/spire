@@ -1,7 +1,7 @@
 package datastore
 
 import (
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	common "github.com/spiffe/sri/common/plugins/common/proto"
 	"github.com/spiffe/sri/control_plane/plugins/data_store/proto"
 	"golang.org/x/net/context"
 )

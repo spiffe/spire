@@ -1,7 +1,7 @@
 package keymanager
 
 import (
-	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
+	common "github.com/spiffe/sri/common/plugins/common/proto"
 	"github.com/spiffe/sri/node_agent/plugins/key_manager/proto"
 	"golang.org/x/net/context"
 )

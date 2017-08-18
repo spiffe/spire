@@ -7,7 +7,7 @@ import (
 
 	sri_proto "github.com/spiffe/sri/node_agent/api/server/proto"
 	"github.com/spiffe/sri/helpers"
-	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
+	common "github.com/spiffe/sri/common/plugins/common/proto"
 )
 
 type ServerService interface {

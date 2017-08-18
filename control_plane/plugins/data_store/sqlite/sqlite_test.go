@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
+	common "github.com/spiffe/sri/common/plugins/common/proto"
 	datastore "github.com/spiffe/sri/control_plane/plugins/data_store"
 	"github.com/spiffe/sri/control_plane/plugins/data_store/proto"
 	"github.com/stretchr/testify/assert"

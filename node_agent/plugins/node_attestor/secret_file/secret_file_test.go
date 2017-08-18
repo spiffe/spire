@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
+	common "github.com/spiffe/sri/common/plugins/common/proto"
 	"github.com/spiffe/sri/node_agent/plugins/node_attestor/proto"
 	"github.com/stretchr/testify/assert"
 )
