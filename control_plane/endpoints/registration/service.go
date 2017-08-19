@@ -91,4 +91,8 @@ func (re *stubRegistrationService) UpdateFederatedBundle(ctx context.Context, re
 // Implement the business logic of DeleteFederatedBundle
 func (re *stubRegistrationService) DeleteFederatedBundle(ctx context.Context, request proto.FederatedSpiffeID) (reply proto.Empty, err error) {
 	return reply, err
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 50f3aad... Added logging middleware for API
