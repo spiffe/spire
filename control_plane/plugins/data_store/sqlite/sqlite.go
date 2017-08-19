@@ -377,6 +377,7 @@ func (sqlitePlugin) RectifyNodeResolverMapEntries(
 func (ds *sqlitePlugin) CreateRegistrationEntry(
 	request *proto.CreateRegistrationEntryRequest) (*proto.CreateRegistrationEntryResponse, error) {
 
+	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/sri/issues/44]
 	if request.RegisteredEntry == nil {
 		return nil, errors.New("Invalid request: missing registered entry")
 	} else if request.RegisteredEntry.SelectorList == nil || len(request.RegisteredEntry.SelectorList) == 0 {
@@ -395,7 +396,9 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 		// TODO: Add support to Federated Bundles [https://github.com/spiffe/sri/issues/42]
 	}
 
-	if err := ds.db.Create(&newRegisteredEntry).Error; err != nil {
+	tx := ds.db.Begin()
+	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
+		tx.Rollback()
 		return nil, err
 	}
 
@@ -405,14 +408,15 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 			Type:              registeredSelector.Type,
 			Value:             registeredSelector.Value}
 
-		if err := ds.db.Create(&newSelector).Error; err != nil {
+		if err := tx.Create(&newSelector).Error; err != nil {
+			tx.Rollback()
 			return nil, err
 		}
 	}
 
 	return &proto.CreateRegistrationEntryResponse{
 		RegisteredEntryId: newRegisteredEntry.RegisteredEntryId,
-	}, nil
+	}, tx.Commit().Error
 }
 
 func (ds *sqlitePlugin) FetchRegistrationEntry(

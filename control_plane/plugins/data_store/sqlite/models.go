@@ -30,6 +30,10 @@ type nodeResolverMapEntry struct {
 }
 
 type registeredEntry struct {
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt *time.Time
+
 	RegisteredEntryId string `gorm:"primary_key:true"`
 	SpiffeId          string
 	ParentId          string
@@ -39,6 +43,10 @@ type registeredEntry struct {
 }
 
 type selector struct {
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt *time.Time
+
 	RegisteredEntryId string `gorm:"primary_key:true"`
 	Type              string `gorm:"primary_key:true"`
 	Value             string `gorm:"primary_key:true"`

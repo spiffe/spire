@@ -1,9 +1,11 @@
 package main
 
 import (
+	"io/ioutil"
 	"testing"
 	"time"
 
+	"encoding/json"
 	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
 	datastore "github.com/spiffe/sri/control_plane/plugins/data_store"
 	"github.com/spiffe/sri/control_plane/plugins/data_store/proto"
@@ -323,59 +325,32 @@ func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*contr
 func Test_CreateRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	registeredEntry := &control_plane_proto.RegisteredEntry{
-		SelectorList: []*control_plane_proto.Selector{
-			{
-				Type:  "Type",
-				Value: "Value"},
-		},
-		SpiffeId: "SpiffeId",
-		ParentId: "ParentId",
-		Ttl:      2,
-	}
-
-	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{registeredEntry})
+	var validRegistrationEntries []*control_plane_proto.RegisteredEntry
+	err := getTestDataFromJsonFile(t, "_test_data/valid_registration_entries.json", &validRegistrationEntries)
 	require.NoError(t, err)
-	assert.NotNil(t, createRegistrationEntryResponse)
+
+	for _, validRegistrationEntry := range validRegistrationEntries {
+		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{validRegistrationEntry})
+		require.NoError(t, err)
+		assert.NotNil(t, createRegistrationEntryResponse)
+		assert.NotEmpty(t, createRegistrationEntryResponse.RegisteredEntryId)
+	}
 }
 
 func Test_CreateInvalidRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	invalidRegisteredEntries := []*control_plane_proto.RegisteredEntry{
-		{
-			// Missing SPIFFE ID
-			SelectorList: []*control_plane_proto.Selector{
-				{
-					Type:  "Type",
-					Value: "Value"},
-			},
-		},
-		{
-			// Invalid TTL
-			SpiffeId: "SpiffeId",
-			SelectorList: []*control_plane_proto.Selector{
-				{
-					Type:  "Type",
-					Value: "Value"},
-			},
-			Ttl: -5,
-		},
-		{
-			// Empty SelectorList
-			SpiffeId:     "SpiffeId",
-			SelectorList: []*control_plane_proto.Selector{},
-		},
+	var invalidRegistrationEntries []*control_plane_proto.RegisteredEntry
+	err := getTestDataFromJsonFile(t, "_test_data/invalid_registration_entries.json", &invalidRegistrationEntries)
+	require.NoError(t, err)
 
-		// Missing RegisteredEntry
-		nil,
-	}
-
-	for _, invalidRegisteredEntry := range invalidRegisteredEntries {
+	for _, invalidRegisteredEntry := range invalidRegistrationEntries {
 		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{invalidRegisteredEntry})
 		require.Error(t, err)
 		require.Nil(t, createRegistrationEntryResponse)
 	}
+
+	// TODO: Check that no entries have been created
 }
 
 func Test_FetchRegistrationEntry(t *testing.T) {
@@ -451,4 +426,18 @@ func createDefault(t *testing.T) datastore.DataStore {
 		t.Fatal(err)
 	}
 	return ds
+}
+
+func getTestDataFromJsonFile(t *testing.T, filePath string, jsonValue interface{}) error {
+	invalidRegistrationEntriesJson, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(invalidRegistrationEntriesJson, &jsonValue)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
