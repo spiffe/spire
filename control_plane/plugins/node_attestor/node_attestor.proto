@@ -1,8 +1,8 @@
 /**Responsible for validating the Node Agent’s Attested Data.*/
 syntax = "proto3";
-package sri_proto;
+package cpnodeattestor;
 
-import public "github.com/spiffe/sri/common/plugins/common/proto/common.proto";
+import public "github.com/spiffe/sri/common/plugin/plugin.proto";
 
 /**A type which contains attestation data for specific platform.*/
 message AttestedData {
@@ -24,9 +24,9 @@ message AttestResponse {
 
 service NodeAttestor {
     /**Responsible for configuration of the plugin.*/
-    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    rpc Configure(sriplugin.ConfigureRequest) returns (sriplugin.ConfigureResponse);
     /**Returns the  version and related metadata of the installed plugin.*/
-    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
+    rpc GetPluginInfo(sriplugin.GetPluginInfoRequest) returns (sriplugin.GetPluginInfoResponse);
     /**Attesta a node.*/
     rpc Attest(AttestRequest) returns (AttestResponse);
 }

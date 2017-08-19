@@ -1,7 +1,7 @@
 syntax = "proto3";
-package sri_proto;
+package datastore;
 
-import public "github.com/spiffe/sri/common/plugins/common/proto/common.proto";
+import public "github.com/spiffe/sri/common/plugin/plugin.proto";
 
 
 /** Describes the conditions under which a registration entry is matched.
@@ -373,7 +373,7 @@ service DataStore {
     rpc ListSpiffeEntries(ListSpiffeEntriesRequest) returns (ListSpiffeEntriesResponse);
 
     /// Applies the plugin configuration
-    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    rpc Configure(sriplugin.ConfigureRequest) returns (sriplugin.ConfigureResponse);
     /// Returns the version and related metadata of the installed plugin
-    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
+    rpc GetPluginInfo(sriplugin.GetPluginInfoRequest) returns (sriplugin.GetPluginInfoResponse);
 }

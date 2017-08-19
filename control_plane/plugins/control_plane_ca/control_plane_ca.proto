@@ -1,9 +1,9 @@
 /**Responsible for processing CSR requests from Node Agents if the Control Plane is configured to carry an intermediate signing certificate.
 This plugin is also responsible for generating the CSR necessary for an intermediate signing cert, as well as storing the key in memory or hardware.*/
 syntax = "proto3";
-package sri_proto;
+package controlplaneca;
 
-import public "github.com/spiffe/sri/common/plugins/common/proto/common.proto";
+import public "github.com/spiffe/sri/common/plugin/plugin.proto";
 
 /**Represents a request with a certificate signing request.*/
 message SignCsrRequest {
@@ -44,9 +44,9 @@ message LoadCertificateResponse {
 
 service ControlPlaneCA {
     /** Responsible for configuration of the plugin. */
-    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    rpc Configure(sriplugin.ConfigureRequest) returns (sriplugin.ConfigureResponse);
     /** Returns the  version and related metadata of the installed plugin. */
-    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
+    rpc GetPluginInfo(sriplugin.GetPluginInfoRequest) returns (sriplugin.GetPluginInfoResponse);
     /** Interface will take in a CSR and sign it with the stored intermediate certificate. */
     rpc SignCsr(SignCsrRequest) returns (SignCsrResponse);
     /** Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. */

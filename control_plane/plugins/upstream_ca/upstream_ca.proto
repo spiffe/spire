@@ -2,9 +2,9 @@
 (or from Node Agents if the user does not want the Control Plane to retain signing material).
 This plugin will manage/own the Trust Bundles for the Control Plane, and act as the interface for upstream CAs.*/
 syntax = "proto3";
-package sri_proto;
+package upstreamca;
 
-import public "github.com/spiffe/sri/common/plugins/common/proto/common.proto";
+import public "github.com/spiffe/sri/common/plugin/plugin.proto";
 
 message SubmitCSRRequest {
     bytes csr = 1; ///Certificate signing request.
@@ -17,9 +17,9 @@ message SubmitCSRResponse {
 
 service UpstreamCA {
     /**Responsible for configuration of the plugin.*/
-    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    rpc Configure(sriplugin.ConfigureRequest) returns (sriplugin.ConfigureResponse);
     /**Returns the  version and related metadata of the installed plugin.*/
-    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
+    rpc GetPluginInfo(sriplugin.GetPluginInfoRequest) returns (sriplugin.GetPluginInfoResponse);
     /**Will take in a CSR and submit it to the upstream CA for signing
     (“upstream” CA can be local self-signed root in simple case).*/
     rpc SubmitCSR(SubmitCSRRequest) returns (SubmitCSRResponse);

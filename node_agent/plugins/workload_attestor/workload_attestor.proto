@@ -1,8 +1,8 @@
 /**Environment specific plugin to attest a workloads “selector” data.*/
 syntax = "proto3";
-package sri_proto;
+package workloadattestor;
 
-import public "github.com/spiffe/sri/common/plugins/common/proto/common.proto";
+import public "github.com/spiffe/sri/common/plugin/plugin.proto";
 
 /** Represents the workload PID.*/
 message AttestRequest {
@@ -18,7 +18,7 @@ service WorkloadAttestor {
     /// Returns a list of selectors resolved for a given PID
     rpc Attest(AttestRequest) returns (AttestResponse);
     /// Applies the plugin configuration and returns configuration errors
-    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    rpc Configure(sriplugin.ConfigureRequest) returns (sriplugin.ConfigureResponse);
     /// Returns the version and related metadata of the plugin
-    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
+    rpc GetPluginInfo(sriplugin.GetPluginInfoRequest) returns (sriplugin.GetPluginInfoResponse);
 }

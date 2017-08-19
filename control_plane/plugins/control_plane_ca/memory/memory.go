@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/common/plugins/common/proto"
+	"github.com/spiffe/sri/common/plugin"
 	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca"
 )
 
@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	pluginInfo = common.GetPluginInfoResponse{
+	pluginInfo = sriplugin.GetPluginInfoResponse{
 		Description: "",
 		DateCreated: "",
 		Version:     "",
@@ -58,7 +58,7 @@ func (m *memoryPlugin) Configure(rawConfig string) ([]string, error) {
 	return nil, errors.New("Not Implemented")
 }
 
-func (memoryPlugin) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
+func (memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 

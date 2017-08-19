@@ -1,8 +1,7 @@
 package controlplaneca
 
 import (
-	common "github.com/spiffe/sri/common/plugins/common/proto"
-	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca/proto"
+	"github.com/spiffe/sri/common/plugin"
 	"golang.org/x/net/context"
 )
 
@@ -10,69 +9,69 @@ type GRPCServer struct {
 	ControlPlaneCaImpl ControlPlaneCa
 }
 
-func (m *GRPCServer) Configure(ctx context.Context, req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
+func (m *GRPCServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
 	response, err := m.ControlPlaneCaImpl.Configure(req.Configuration)
-	return &common.ConfigureResponse{ErrorList: response}, err
+	return &sriplugin.ConfigureResponse{ErrorList: response}, err
 }
 
-func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
+func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
 	response, err := m.ControlPlaneCaImpl.GetPluginInfo()
 	return response, err
 }
 
-func (m *GRPCServer) SignCsr(ctx context.Context, req *sri_proto.SignCsrRequest) (*sri_proto.SignCsrResponse, error) {
+func (m *GRPCServer) SignCsr(ctx context.Context, req *SignCsrRequest) (*SignCsrResponse, error) {
 	response, err := m.ControlPlaneCaImpl.SignCsr(req.Csr)
-	return &sri_proto.SignCsrResponse{SignedCertificate: response}, err
+	return &SignCsrResponse{SignedCertificate: response}, err
 }
 
-func (m *GRPCServer) GenerateCsr(ctx context.Context, req *sri_proto.GenerateCsrRequest) (*sri_proto.GenerateCsrResponse, error) {
+func (m *GRPCServer) GenerateCsr(ctx context.Context, req *GenerateCsrRequest) (*GenerateCsrResponse, error) {
 	response, err := m.ControlPlaneCaImpl.GenerateCsr()
-	return &sri_proto.GenerateCsrResponse{Csr: response}, err
+	return &GenerateCsrResponse{Csr: response}, err
 }
 
-func (m *GRPCServer) FetchCertificate(ctx context.Context, req *sri_proto.FetchCertificateRequest) (*sri_proto.FetchCertificateResponse, error) {
+func (m *GRPCServer) FetchCertificate(ctx context.Context, req *FetchCertificateRequest) (*FetchCertificateResponse, error) {
 	response, err := m.ControlPlaneCaImpl.FetchCertificate()
-	return &sri_proto.FetchCertificateResponse{StoredIntermediateCert: response}, err
+	return &FetchCertificateResponse{StoredIntermediateCert: response}, err
 }
 
-func (m *GRPCServer) LoadCertificate(ctx context.Context, req *sri_proto.LoadCertificateRequest) (*sri_proto.LoadCertificateResponse, error) {
+func (m *GRPCServer) LoadCertificate(ctx context.Context, req *LoadCertificateRequest) (*LoadCertificateResponse, error) {
 	err := m.ControlPlaneCaImpl.LoadCertificate(req.SignedIntermediateCert)
-	return &sri_proto.LoadCertificateResponse{}, err
+	return &LoadCertificateResponse{}, err
 }
 
 type GRPCClient struct {
-	client sri_proto.ControlPlaneCAClient
+	client ControlPlaneCAClient
 }
 
 func (m *GRPCClient) Configure(configuration string) ([]string, error) {
-	response, err := m.client.Configure(context.Background(), &common.ConfigureRequest{configuration})
+	response, err := m.client.Configure(context.Background(), &sriplugin.ConfigureRequest{configuration})
 	if err != nil {
 		return []string{}, err
 	}
 	return response.ErrorList, err
 }
 
-func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
-	response, err := m.client.GetPluginInfo(context.Background(), &common.GetPluginInfoRequest{})
+func (m *GRPCClient) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
+	response, err := m.client.GetPluginInfo(context.Background(), &sriplugin.GetPluginInfoRequest{})
 	return response, err
 }
 
 func (m *GRPCClient) SignCsr(csr []byte) (signedCertificate []byte, err error) {
-	response, err := m.client.SignCsr(context.Background(), &sri_proto.SignCsrRequest{Csr: csr})
+	response, err := m.client.SignCsr(context.Background(), &SignCsrRequest{Csr: csr})
 	return response.SignedCertificate, err
 }
 
 func (m *GRPCClient) GenerateCsr() (csr []byte, err error) {
-	response, err := m.client.GenerateCsr(context.Background(), &sri_proto.GenerateCsrRequest{})
+	response, err := m.client.GenerateCsr(context.Background(), &GenerateCsrRequest{})
 	return response.Csr, err
 }
 
 func (m *GRPCClient) FetchCertificate() (storedIntermediateCert []byte, err error) {
-	response, err := m.client.FetchCertificate(context.Background(), &sri_proto.FetchCertificateRequest{})
+	response, err := m.client.FetchCertificate(context.Background(), &FetchCertificateRequest{})
 	return response.StoredIntermediateCert, err
 }
 
 func (m *GRPCClient) LoadCertificate(signedIntermediateCert []byte) error {
-	_, err := m.client.LoadCertificate(context.Background(), &sri_proto.LoadCertificateRequest{SignedIntermediateCert: signedIntermediateCert})
+	_, err := m.client.LoadCertificate(context.Background(), &LoadCertificateRequest{SignedIntermediateCert: signedIntermediateCert})
 	return err
 }

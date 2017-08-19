@@ -2,7 +2,7 @@
 // source: data_store.proto
 
 /*
-Package sri_proto is a generated protocol buffer package.
+Package datastore is a generated protocol buffer package.
 
 It is generated from these files:
 	data_store.proto
@@ -54,12 +54,12 @@ It has these top-level messages:
 	ListSpiffeEntriesRequest
 	ListSpiffeEntriesResponse
 */
-package sri_proto
+package datastore
 
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
-import sri_proto1 "github.com/spiffe/sri/common/plugins/common/proto"
+import sriplugin "github.com/spiffe/sri/common/plugin"
 
 import (
 	context "golang.org/x/net/context"
@@ -77,84 +77,82 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-// ConfigureRequest from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
-type ConfigureRequest sri_proto1.ConfigureRequest
+// ConfigureRequest from public import github.com/spiffe/sri/common/plugin/plugin.proto
+type ConfigureRequest sriplugin.ConfigureRequest
 
-func (m *ConfigureRequest) Reset()         { (*sri_proto1.ConfigureRequest)(m).Reset() }
-func (m *ConfigureRequest) String() string { return (*sri_proto1.ConfigureRequest)(m).String() }
+func (m *ConfigureRequest) Reset()         { (*sriplugin.ConfigureRequest)(m).Reset() }
+func (m *ConfigureRequest) String() string { return (*sriplugin.ConfigureRequest)(m).String() }
 func (*ConfigureRequest) ProtoMessage()    {}
 func (m *ConfigureRequest) GetConfiguration() string {
-	return (*sri_proto1.ConfigureRequest)(m).GetConfiguration()
+	return (*sriplugin.ConfigureRequest)(m).GetConfiguration()
 }
 
-// ConfigureResponse from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
-type ConfigureResponse sri_proto1.ConfigureResponse
+// ConfigureResponse from public import github.com/spiffe/sri/common/plugin/plugin.proto
+type ConfigureResponse sriplugin.ConfigureResponse
 
-func (m *ConfigureResponse) Reset()         { (*sri_proto1.ConfigureResponse)(m).Reset() }
-func (m *ConfigureResponse) String() string { return (*sri_proto1.ConfigureResponse)(m).String() }
+func (m *ConfigureResponse) Reset()         { (*sriplugin.ConfigureResponse)(m).Reset() }
+func (m *ConfigureResponse) String() string { return (*sriplugin.ConfigureResponse)(m).String() }
 func (*ConfigureResponse) ProtoMessage()    {}
 func (m *ConfigureResponse) GetErrorList() []string {
-	return (*sri_proto1.ConfigureResponse)(m).GetErrorList()
+	return (*sriplugin.ConfigureResponse)(m).GetErrorList()
 }
 
-// GetPluginInfoRequest from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
-type GetPluginInfoRequest sri_proto1.GetPluginInfoRequest
+// GetPluginInfoRequest from public import github.com/spiffe/sri/common/plugin/plugin.proto
+type GetPluginInfoRequest sriplugin.GetPluginInfoRequest
 
-func (m *GetPluginInfoRequest) Reset()         { (*sri_proto1.GetPluginInfoRequest)(m).Reset() }
-func (m *GetPluginInfoRequest) String() string { return (*sri_proto1.GetPluginInfoRequest)(m).String() }
+func (m *GetPluginInfoRequest) Reset()         { (*sriplugin.GetPluginInfoRequest)(m).Reset() }
+func (m *GetPluginInfoRequest) String() string { return (*sriplugin.GetPluginInfoRequest)(m).String() }
 func (*GetPluginInfoRequest) ProtoMessage()    {}
 
-// GetPluginInfoResponse from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
-type GetPluginInfoResponse sri_proto1.GetPluginInfoResponse
+// GetPluginInfoResponse from public import github.com/spiffe/sri/common/plugin/plugin.proto
+type GetPluginInfoResponse sriplugin.GetPluginInfoResponse
 
-func (m *GetPluginInfoResponse) Reset() { (*sri_proto1.GetPluginInfoResponse)(m).Reset() }
-func (m *GetPluginInfoResponse) String() string {
-	return (*sri_proto1.GetPluginInfoResponse)(m).String()
-}
-func (*GetPluginInfoResponse) ProtoMessage() {}
+func (m *GetPluginInfoResponse) Reset()         { (*sriplugin.GetPluginInfoResponse)(m).Reset() }
+func (m *GetPluginInfoResponse) String() string { return (*sriplugin.GetPluginInfoResponse)(m).String() }
+func (*GetPluginInfoResponse) ProtoMessage()    {}
 func (m *GetPluginInfoResponse) GetName() string {
-	return (*sri_proto1.GetPluginInfoResponse)(m).GetName()
+	return (*sriplugin.GetPluginInfoResponse)(m).GetName()
 }
 func (m *GetPluginInfoResponse) GetCategory() string {
-	return (*sri_proto1.GetPluginInfoResponse)(m).GetCategory()
+	return (*sriplugin.GetPluginInfoResponse)(m).GetCategory()
 }
 func (m *GetPluginInfoResponse) GetType() string {
-	return (*sri_proto1.GetPluginInfoResponse)(m).GetType()
+	return (*sriplugin.GetPluginInfoResponse)(m).GetType()
 }
 func (m *GetPluginInfoResponse) GetDescription() string {
-	return (*sri_proto1.GetPluginInfoResponse)(m).GetDescription()
+	return (*sriplugin.GetPluginInfoResponse)(m).GetDescription()
 }
 func (m *GetPluginInfoResponse) GetDateCreated() string {
-	return (*sri_proto1.GetPluginInfoResponse)(m).GetDateCreated()
+	return (*sriplugin.GetPluginInfoResponse)(m).GetDateCreated()
 }
 func (m *GetPluginInfoResponse) GetLocation() string {
-	return (*sri_proto1.GetPluginInfoResponse)(m).GetLocation()
+	return (*sriplugin.GetPluginInfoResponse)(m).GetLocation()
 }
 func (m *GetPluginInfoResponse) GetVersion() string {
-	return (*sri_proto1.GetPluginInfoResponse)(m).GetVersion()
+	return (*sriplugin.GetPluginInfoResponse)(m).GetVersion()
 }
 func (m *GetPluginInfoResponse) GetAuthor() string {
-	return (*sri_proto1.GetPluginInfoResponse)(m).GetAuthor()
+	return (*sriplugin.GetPluginInfoResponse)(m).GetAuthor()
 }
 func (m *GetPluginInfoResponse) GetCompany() string {
-	return (*sri_proto1.GetPluginInfoResponse)(m).GetCompany()
+	return (*sriplugin.GetPluginInfoResponse)(m).GetCompany()
 }
 
-// PluginInfoRequest from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
-type PluginInfoRequest sri_proto1.PluginInfoRequest
+// PluginInfoRequest from public import github.com/spiffe/sri/common/plugin/plugin.proto
+type PluginInfoRequest sriplugin.PluginInfoRequest
 
-func (m *PluginInfoRequest) Reset()         { (*sri_proto1.PluginInfoRequest)(m).Reset() }
-func (m *PluginInfoRequest) String() string { return (*sri_proto1.PluginInfoRequest)(m).String() }
+func (m *PluginInfoRequest) Reset()         { (*sriplugin.PluginInfoRequest)(m).Reset() }
+func (m *PluginInfoRequest) String() string { return (*sriplugin.PluginInfoRequest)(m).String() }
 func (*PluginInfoRequest) ProtoMessage()    {}
 
-// PluginInfoReply from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
-type PluginInfoReply sri_proto1.PluginInfoReply
+// PluginInfoReply from public import github.com/spiffe/sri/common/plugin/plugin.proto
+type PluginInfoReply sriplugin.PluginInfoReply
 
-func (m *PluginInfoReply) Reset()         { (*sri_proto1.PluginInfoReply)(m).Reset() }
-func (m *PluginInfoReply) String() string { return (*sri_proto1.PluginInfoReply)(m).String() }
+func (m *PluginInfoReply) Reset()         { (*sriplugin.PluginInfoReply)(m).Reset() }
+func (m *PluginInfoReply) String() string { return (*sriplugin.PluginInfoReply)(m).String() }
 func (*PluginInfoReply) ProtoMessage()    {}
 func (m *PluginInfoReply) GetPluginInfo() []*GetPluginInfoResponse {
-	o := (*sri_proto1.PluginInfoReply)(m).GetPluginInfo()
+	o := (*sriplugin.PluginInfoReply)(m).GetPluginInfo()
 	if o == nil {
 		return nil
 	}
@@ -165,18 +163,18 @@ func (m *PluginInfoReply) GetPluginInfo() []*GetPluginInfoResponse {
 	return s
 }
 
-// StopRequest from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
-type StopRequest sri_proto1.StopRequest
+// StopRequest from public import github.com/spiffe/sri/common/plugin/plugin.proto
+type StopRequest sriplugin.StopRequest
 
-func (m *StopRequest) Reset()         { (*sri_proto1.StopRequest)(m).Reset() }
-func (m *StopRequest) String() string { return (*sri_proto1.StopRequest)(m).String() }
+func (m *StopRequest) Reset()         { (*sriplugin.StopRequest)(m).Reset() }
+func (m *StopRequest) String() string { return (*sriplugin.StopRequest)(m).String() }
 func (*StopRequest) ProtoMessage()    {}
 
-// StopReply from public import github.com/spiffe/sri/common/plugins/common/proto/common.proto
-type StopReply sri_proto1.StopReply
+// StopReply from public import github.com/spiffe/sri/common/plugin/plugin.proto
+type StopReply sriplugin.StopReply
 
-func (m *StopReply) Reset()         { (*sri_proto1.StopReply)(m).Reset() }
-func (m *StopReply) String() string { return (*sri_proto1.StopReply)(m).String() }
+func (m *StopReply) Reset()         { (*sriplugin.StopReply)(m).Reset() }
+func (m *StopReply) String() string { return (*sriplugin.StopReply)(m).String() }
 func (*StopReply) ProtoMessage()    {}
 
 // * Describes the conditions under which a registration entry is matched.
@@ -1066,51 +1064,51 @@ func (m *ListSpiffeEntriesResponse) GetRegisteredEntryList() []*RegisteredEntry 
 }
 
 func init() {
-	proto.RegisterType((*Selector)(nil), "sri_proto.Selector")
-	proto.RegisterType((*RegisteredEntry)(nil), "sri_proto.RegisteredEntry")
-	proto.RegisterType((*FederatedBundle)(nil), "sri_proto.FederatedBundle")
-	proto.RegisterType((*NodeResolverMapEntry)(nil), "sri_proto.NodeResolverMapEntry")
-	proto.RegisterType((*AttestedNodeEntry)(nil), "sri_proto.AttestedNodeEntry")
-	proto.RegisterType((*CreateFederatedEntryRequest)(nil), "sri_proto.CreateFederatedEntryRequest")
-	proto.RegisterType((*CreateFederatedEntryResponse)(nil), "sri_proto.CreateFederatedEntryResponse")
-	proto.RegisterType((*ListFederatedEntryRequest)(nil), "sri_proto.ListFederatedEntryRequest")
-	proto.RegisterType((*ListFederatedEntryResponse)(nil), "sri_proto.ListFederatedEntryResponse")
-	proto.RegisterType((*UpdateFederatedEntryRequest)(nil), "sri_proto.UpdateFederatedEntryRequest")
-	proto.RegisterType((*UpdateFederatedEntryResponse)(nil), "sri_proto.UpdateFederatedEntryResponse")
-	proto.RegisterType((*DeleteFederatedEntryRequest)(nil), "sri_proto.DeleteFederatedEntryRequest")
-	proto.RegisterType((*DeleteFederatedEntryResponse)(nil), "sri_proto.DeleteFederatedEntryResponse")
-	proto.RegisterType((*CreateAttestedNodeEntryRequest)(nil), "sri_proto.CreateAttestedNodeEntryRequest")
-	proto.RegisterType((*CreateAttestedNodeEntryResponse)(nil), "sri_proto.CreateAttestedNodeEntryResponse")
-	proto.RegisterType((*FetchAttestedNodeEntryRequest)(nil), "sri_proto.FetchAttestedNodeEntryRequest")
-	proto.RegisterType((*FetchAttestedNodeEntryResponse)(nil), "sri_proto.FetchAttestedNodeEntryResponse")
-	proto.RegisterType((*FetchStaleNodeEntriesRequest)(nil), "sri_proto.FetchStaleNodeEntriesRequest")
-	proto.RegisterType((*FetchStaleNodeEntriesResponse)(nil), "sri_proto.FetchStaleNodeEntriesResponse")
-	proto.RegisterType((*UpdateAttestedNodeEntryRequest)(nil), "sri_proto.UpdateAttestedNodeEntryRequest")
-	proto.RegisterType((*UpdateAttestedNodeEntryResponse)(nil), "sri_proto.UpdateAttestedNodeEntryResponse")
-	proto.RegisterType((*DeleteAttestedNodeEntryRequest)(nil), "sri_proto.DeleteAttestedNodeEntryRequest")
-	proto.RegisterType((*DeleteAttestedNodeEntryResponse)(nil), "sri_proto.DeleteAttestedNodeEntryResponse")
-	proto.RegisterType((*CreateNodeResolverMapEntryRequest)(nil), "sri_proto.CreateNodeResolverMapEntryRequest")
-	proto.RegisterType((*CreateNodeResolverMapEntryResponse)(nil), "sri_proto.CreateNodeResolverMapEntryResponse")
-	proto.RegisterType((*FetchNodeResolverMapEntryRequest)(nil), "sri_proto.FetchNodeResolverMapEntryRequest")
-	proto.RegisterType((*FetchNodeResolverMapEntryResponse)(nil), "sri_proto.FetchNodeResolverMapEntryResponse")
-	proto.RegisterType((*DeleteNodeResolverMapEntryRequest)(nil), "sri_proto.DeleteNodeResolverMapEntryRequest")
-	proto.RegisterType((*DeleteNodeResolverMapEntryResponse)(nil), "sri_proto.DeleteNodeResolverMapEntryResponse")
-	proto.RegisterType((*RectifyNodeResolverMapEntriesRequest)(nil), "sri_proto.RectifyNodeResolverMapEntriesRequest")
-	proto.RegisterType((*RectifyNodeResolverMapEntriesResponse)(nil), "sri_proto.RectifyNodeResolverMapEntriesResponse")
-	proto.RegisterType((*CreateRegistrationEntryRequest)(nil), "sri_proto.CreateRegistrationEntryRequest")
-	proto.RegisterType((*CreateRegistrationEntryResponse)(nil), "sri_proto.CreateRegistrationEntryResponse")
-	proto.RegisterType((*FetchRegistrationEntryRequest)(nil), "sri_proto.FetchRegistrationEntryRequest")
-	proto.RegisterType((*FetchRegistrationEntryResponse)(nil), "sri_proto.FetchRegistrationEntryResponse")
-	proto.RegisterType((*UpdateRegistrationEntryRequest)(nil), "sri_proto.UpdateRegistrationEntryRequest")
-	proto.RegisterType((*UpdateRegistrationEntryResponse)(nil), "sri_proto.UpdateRegistrationEntryResponse")
-	proto.RegisterType((*DeleteRegistrationEntryRequest)(nil), "sri_proto.DeleteRegistrationEntryRequest")
-	proto.RegisterType((*DeleteRegistrationEntryResponse)(nil), "sri_proto.DeleteRegistrationEntryResponse")
-	proto.RegisterType((*ListParentIDEntriesRequest)(nil), "sri_proto.ListParentIDEntriesRequest")
-	proto.RegisterType((*ListParentIDEntriesResponse)(nil), "sri_proto.ListParentIDEntriesResponse")
-	proto.RegisterType((*ListSelectorEntriesRequest)(nil), "sri_proto.ListSelectorEntriesRequest")
-	proto.RegisterType((*ListSelectorEntriesResponse)(nil), "sri_proto.ListSelectorEntriesResponse")
-	proto.RegisterType((*ListSpiffeEntriesRequest)(nil), "sri_proto.ListSpiffeEntriesRequest")
-	proto.RegisterType((*ListSpiffeEntriesResponse)(nil), "sri_proto.ListSpiffeEntriesResponse")
+	proto.RegisterType((*Selector)(nil), "datastore.Selector")
+	proto.RegisterType((*RegisteredEntry)(nil), "datastore.RegisteredEntry")
+	proto.RegisterType((*FederatedBundle)(nil), "datastore.FederatedBundle")
+	proto.RegisterType((*NodeResolverMapEntry)(nil), "datastore.NodeResolverMapEntry")
+	proto.RegisterType((*AttestedNodeEntry)(nil), "datastore.AttestedNodeEntry")
+	proto.RegisterType((*CreateFederatedEntryRequest)(nil), "datastore.CreateFederatedEntryRequest")
+	proto.RegisterType((*CreateFederatedEntryResponse)(nil), "datastore.CreateFederatedEntryResponse")
+	proto.RegisterType((*ListFederatedEntryRequest)(nil), "datastore.ListFederatedEntryRequest")
+	proto.RegisterType((*ListFederatedEntryResponse)(nil), "datastore.ListFederatedEntryResponse")
+	proto.RegisterType((*UpdateFederatedEntryRequest)(nil), "datastore.UpdateFederatedEntryRequest")
+	proto.RegisterType((*UpdateFederatedEntryResponse)(nil), "datastore.UpdateFederatedEntryResponse")
+	proto.RegisterType((*DeleteFederatedEntryRequest)(nil), "datastore.DeleteFederatedEntryRequest")
+	proto.RegisterType((*DeleteFederatedEntryResponse)(nil), "datastore.DeleteFederatedEntryResponse")
+	proto.RegisterType((*CreateAttestedNodeEntryRequest)(nil), "datastore.CreateAttestedNodeEntryRequest")
+	proto.RegisterType((*CreateAttestedNodeEntryResponse)(nil), "datastore.CreateAttestedNodeEntryResponse")
+	proto.RegisterType((*FetchAttestedNodeEntryRequest)(nil), "datastore.FetchAttestedNodeEntryRequest")
+	proto.RegisterType((*FetchAttestedNodeEntryResponse)(nil), "datastore.FetchAttestedNodeEntryResponse")
+	proto.RegisterType((*FetchStaleNodeEntriesRequest)(nil), "datastore.FetchStaleNodeEntriesRequest")
+	proto.RegisterType((*FetchStaleNodeEntriesResponse)(nil), "datastore.FetchStaleNodeEntriesResponse")
+	proto.RegisterType((*UpdateAttestedNodeEntryRequest)(nil), "datastore.UpdateAttestedNodeEntryRequest")
+	proto.RegisterType((*UpdateAttestedNodeEntryResponse)(nil), "datastore.UpdateAttestedNodeEntryResponse")
+	proto.RegisterType((*DeleteAttestedNodeEntryRequest)(nil), "datastore.DeleteAttestedNodeEntryRequest")
+	proto.RegisterType((*DeleteAttestedNodeEntryResponse)(nil), "datastore.DeleteAttestedNodeEntryResponse")
+	proto.RegisterType((*CreateNodeResolverMapEntryRequest)(nil), "datastore.CreateNodeResolverMapEntryRequest")
+	proto.RegisterType((*CreateNodeResolverMapEntryResponse)(nil), "datastore.CreateNodeResolverMapEntryResponse")
+	proto.RegisterType((*FetchNodeResolverMapEntryRequest)(nil), "datastore.FetchNodeResolverMapEntryRequest")
+	proto.RegisterType((*FetchNodeResolverMapEntryResponse)(nil), "datastore.FetchNodeResolverMapEntryResponse")
+	proto.RegisterType((*DeleteNodeResolverMapEntryRequest)(nil), "datastore.DeleteNodeResolverMapEntryRequest")
+	proto.RegisterType((*DeleteNodeResolverMapEntryResponse)(nil), "datastore.DeleteNodeResolverMapEntryResponse")
+	proto.RegisterType((*RectifyNodeResolverMapEntriesRequest)(nil), "datastore.RectifyNodeResolverMapEntriesRequest")
+	proto.RegisterType((*RectifyNodeResolverMapEntriesResponse)(nil), "datastore.RectifyNodeResolverMapEntriesResponse")
+	proto.RegisterType((*CreateRegistrationEntryRequest)(nil), "datastore.CreateRegistrationEntryRequest")
+	proto.RegisterType((*CreateRegistrationEntryResponse)(nil), "datastore.CreateRegistrationEntryResponse")
+	proto.RegisterType((*FetchRegistrationEntryRequest)(nil), "datastore.FetchRegistrationEntryRequest")
+	proto.RegisterType((*FetchRegistrationEntryResponse)(nil), "datastore.FetchRegistrationEntryResponse")
+	proto.RegisterType((*UpdateRegistrationEntryRequest)(nil), "datastore.UpdateRegistrationEntryRequest")
+	proto.RegisterType((*UpdateRegistrationEntryResponse)(nil), "datastore.UpdateRegistrationEntryResponse")
+	proto.RegisterType((*DeleteRegistrationEntryRequest)(nil), "datastore.DeleteRegistrationEntryRequest")
+	proto.RegisterType((*DeleteRegistrationEntryResponse)(nil), "datastore.DeleteRegistrationEntryResponse")
+	proto.RegisterType((*ListParentIDEntriesRequest)(nil), "datastore.ListParentIDEntriesRequest")
+	proto.RegisterType((*ListParentIDEntriesResponse)(nil), "datastore.ListParentIDEntriesResponse")
+	proto.RegisterType((*ListSelectorEntriesRequest)(nil), "datastore.ListSelectorEntriesRequest")
+	proto.RegisterType((*ListSelectorEntriesResponse)(nil), "datastore.ListSelectorEntriesResponse")
+	proto.RegisterType((*ListSpiffeEntriesRequest)(nil), "datastore.ListSpiffeEntriesRequest")
+	proto.RegisterType((*ListSpiffeEntriesResponse)(nil), "datastore.ListSpiffeEntriesResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1165,9 +1163,9 @@ type DataStoreClient interface {
 	// / Retrieves all the  registered entry with the same SpiffeId
 	ListSpiffeEntries(ctx context.Context, in *ListSpiffeEntriesRequest, opts ...grpc.CallOption) (*ListSpiffeEntriesResponse, error)
 	// / Applies the plugin configuration
-	Configure(ctx context.Context, in *sri_proto1.ConfigureRequest, opts ...grpc.CallOption) (*sri_proto1.ConfigureResponse, error)
+	Configure(ctx context.Context, in *sriplugin.ConfigureRequest, opts ...grpc.CallOption) (*sriplugin.ConfigureResponse, error)
 	// / Returns the version and related metadata of the installed plugin
-	GetPluginInfo(ctx context.Context, in *sri_proto1.GetPluginInfoRequest, opts ...grpc.CallOption) (*sri_proto1.GetPluginInfoResponse, error)
+	GetPluginInfo(ctx context.Context, in *sriplugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*sriplugin.GetPluginInfoResponse, error)
 }
 
 type dataStoreClient struct {
@@ -1180,7 +1178,7 @@ func NewDataStoreClient(cc *grpc.ClientConn) DataStoreClient {
 
 func (c *dataStoreClient) CreateFederatedEntry(ctx context.Context, in *CreateFederatedEntryRequest, opts ...grpc.CallOption) (*CreateFederatedEntryResponse, error) {
 	out := new(CreateFederatedEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/CreateFederatedEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/CreateFederatedEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1189,7 +1187,7 @@ func (c *dataStoreClient) CreateFederatedEntry(ctx context.Context, in *CreateFe
 
 func (c *dataStoreClient) ListFederatedEntry(ctx context.Context, in *ListFederatedEntryRequest, opts ...grpc.CallOption) (*ListFederatedEntryResponse, error) {
 	out := new(ListFederatedEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/ListFederatedEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/ListFederatedEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1198,7 +1196,7 @@ func (c *dataStoreClient) ListFederatedEntry(ctx context.Context, in *ListFedera
 
 func (c *dataStoreClient) UpdateFederatedEntry(ctx context.Context, in *UpdateFederatedEntryRequest, opts ...grpc.CallOption) (*UpdateFederatedEntryResponse, error) {
 	out := new(UpdateFederatedEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/UpdateFederatedEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/UpdateFederatedEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1207,7 +1205,7 @@ func (c *dataStoreClient) UpdateFederatedEntry(ctx context.Context, in *UpdateFe
 
 func (c *dataStoreClient) DeleteFederatedEntry(ctx context.Context, in *DeleteFederatedEntryRequest, opts ...grpc.CallOption) (*DeleteFederatedEntryResponse, error) {
 	out := new(DeleteFederatedEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/DeleteFederatedEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/DeleteFederatedEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1216,7 +1214,7 @@ func (c *dataStoreClient) DeleteFederatedEntry(ctx context.Context, in *DeleteFe
 
 func (c *dataStoreClient) CreateAttestedNodeEntry(ctx context.Context, in *CreateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*CreateAttestedNodeEntryResponse, error) {
 	out := new(CreateAttestedNodeEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/CreateAttestedNodeEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/CreateAttestedNodeEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1225,7 +1223,7 @@ func (c *dataStoreClient) CreateAttestedNodeEntry(ctx context.Context, in *Creat
 
 func (c *dataStoreClient) FetchAttestedNodeEntry(ctx context.Context, in *FetchAttestedNodeEntryRequest, opts ...grpc.CallOption) (*FetchAttestedNodeEntryResponse, error) {
 	out := new(FetchAttestedNodeEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/FetchAttestedNodeEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/FetchAttestedNodeEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1234,7 +1232,7 @@ func (c *dataStoreClient) FetchAttestedNodeEntry(ctx context.Context, in *FetchA
 
 func (c *dataStoreClient) FetchStaleNodeEntries(ctx context.Context, in *FetchStaleNodeEntriesRequest, opts ...grpc.CallOption) (*FetchStaleNodeEntriesResponse, error) {
 	out := new(FetchStaleNodeEntriesResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/FetchStaleNodeEntries", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/FetchStaleNodeEntries", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1243,7 +1241,7 @@ func (c *dataStoreClient) FetchStaleNodeEntries(ctx context.Context, in *FetchSt
 
 func (c *dataStoreClient) UpdateAttestedNodeEntry(ctx context.Context, in *UpdateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*UpdateAttestedNodeEntryResponse, error) {
 	out := new(UpdateAttestedNodeEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/UpdateAttestedNodeEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/UpdateAttestedNodeEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1252,7 +1250,7 @@ func (c *dataStoreClient) UpdateAttestedNodeEntry(ctx context.Context, in *Updat
 
 func (c *dataStoreClient) DeleteAttestedNodeEntry(ctx context.Context, in *DeleteAttestedNodeEntryRequest, opts ...grpc.CallOption) (*DeleteAttestedNodeEntryResponse, error) {
 	out := new(DeleteAttestedNodeEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/DeleteAttestedNodeEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/DeleteAttestedNodeEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1261,7 +1259,7 @@ func (c *dataStoreClient) DeleteAttestedNodeEntry(ctx context.Context, in *Delet
 
 func (c *dataStoreClient) CreateNodeResolverMapEntry(ctx context.Context, in *CreateNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*CreateNodeResolverMapEntryResponse, error) {
 	out := new(CreateNodeResolverMapEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/CreateNodeResolverMapEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/CreateNodeResolverMapEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1270,7 +1268,7 @@ func (c *dataStoreClient) CreateNodeResolverMapEntry(ctx context.Context, in *Cr
 
 func (c *dataStoreClient) FetchNodeResolverMapEntry(ctx context.Context, in *FetchNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*FetchNodeResolverMapEntryResponse, error) {
 	out := new(FetchNodeResolverMapEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/FetchNodeResolverMapEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/FetchNodeResolverMapEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1279,7 +1277,7 @@ func (c *dataStoreClient) FetchNodeResolverMapEntry(ctx context.Context, in *Fet
 
 func (c *dataStoreClient) DeleteNodeResolverMapEntry(ctx context.Context, in *DeleteNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*DeleteNodeResolverMapEntryResponse, error) {
 	out := new(DeleteNodeResolverMapEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/DeleteNodeResolverMapEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/DeleteNodeResolverMapEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1288,7 +1286,7 @@ func (c *dataStoreClient) DeleteNodeResolverMapEntry(ctx context.Context, in *De
 
 func (c *dataStoreClient) RectifyNodeResolverMapEntries(ctx context.Context, in *RectifyNodeResolverMapEntriesRequest, opts ...grpc.CallOption) (*RectifyNodeResolverMapEntriesResponse, error) {
 	out := new(RectifyNodeResolverMapEntriesResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/RectifyNodeResolverMapEntries", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/RectifyNodeResolverMapEntries", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1297,7 +1295,7 @@ func (c *dataStoreClient) RectifyNodeResolverMapEntries(ctx context.Context, in 
 
 func (c *dataStoreClient) CreateRegistrationEntry(ctx context.Context, in *CreateRegistrationEntryRequest, opts ...grpc.CallOption) (*CreateRegistrationEntryResponse, error) {
 	out := new(CreateRegistrationEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/CreateRegistrationEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/CreateRegistrationEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1306,7 +1304,7 @@ func (c *dataStoreClient) CreateRegistrationEntry(ctx context.Context, in *Creat
 
 func (c *dataStoreClient) FetchRegistrationEntry(ctx context.Context, in *FetchRegistrationEntryRequest, opts ...grpc.CallOption) (*FetchRegistrationEntryResponse, error) {
 	out := new(FetchRegistrationEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/FetchRegistrationEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/FetchRegistrationEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1315,7 +1313,7 @@ func (c *dataStoreClient) FetchRegistrationEntry(ctx context.Context, in *FetchR
 
 func (c *dataStoreClient) UpdateRegistrationEntry(ctx context.Context, in *UpdateRegistrationEntryRequest, opts ...grpc.CallOption) (*UpdateRegistrationEntryResponse, error) {
 	out := new(UpdateRegistrationEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/UpdateRegistrationEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/UpdateRegistrationEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1324,7 +1322,7 @@ func (c *dataStoreClient) UpdateRegistrationEntry(ctx context.Context, in *Updat
 
 func (c *dataStoreClient) DeleteRegistrationEntry(ctx context.Context, in *DeleteRegistrationEntryRequest, opts ...grpc.CallOption) (*DeleteRegistrationEntryResponse, error) {
 	out := new(DeleteRegistrationEntryResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/DeleteRegistrationEntry", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/DeleteRegistrationEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1333,7 +1331,7 @@ func (c *dataStoreClient) DeleteRegistrationEntry(ctx context.Context, in *Delet
 
 func (c *dataStoreClient) ListParentIDEntries(ctx context.Context, in *ListParentIDEntriesRequest, opts ...grpc.CallOption) (*ListParentIDEntriesResponse, error) {
 	out := new(ListParentIDEntriesResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/ListParentIDEntries", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/ListParentIDEntries", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1342,7 +1340,7 @@ func (c *dataStoreClient) ListParentIDEntries(ctx context.Context, in *ListParen
 
 func (c *dataStoreClient) ListSelectorEntries(ctx context.Context, in *ListSelectorEntriesRequest, opts ...grpc.CallOption) (*ListSelectorEntriesResponse, error) {
 	out := new(ListSelectorEntriesResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/ListSelectorEntries", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/ListSelectorEntries", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1351,25 +1349,25 @@ func (c *dataStoreClient) ListSelectorEntries(ctx context.Context, in *ListSelec
 
 func (c *dataStoreClient) ListSpiffeEntries(ctx context.Context, in *ListSpiffeEntriesRequest, opts ...grpc.CallOption) (*ListSpiffeEntriesResponse, error) {
 	out := new(ListSpiffeEntriesResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/ListSpiffeEntries", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/ListSpiffeEntries", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) Configure(ctx context.Context, in *sri_proto1.ConfigureRequest, opts ...grpc.CallOption) (*sri_proto1.ConfigureResponse, error) {
-	out := new(sri_proto1.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/Configure", in, out, c.cc, opts...)
+func (c *dataStoreClient) Configure(ctx context.Context, in *sriplugin.ConfigureRequest, opts ...grpc.CallOption) (*sriplugin.ConfigureResponse, error) {
+	out := new(sriplugin.ConfigureResponse)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/Configure", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) GetPluginInfo(ctx context.Context, in *sri_proto1.GetPluginInfoRequest, opts ...grpc.CallOption) (*sri_proto1.GetPluginInfoResponse, error) {
-	out := new(sri_proto1.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.DataStore/GetPluginInfo", in, out, c.cc, opts...)
+func (c *dataStoreClient) GetPluginInfo(ctx context.Context, in *sriplugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*sriplugin.GetPluginInfoResponse, error) {
+	out := new(sriplugin.GetPluginInfoResponse)
+	err := grpc.Invoke(ctx, "/datastore.DataStore/GetPluginInfo", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1420,9 +1418,9 @@ type DataStoreServer interface {
 	// / Retrieves all the  registered entry with the same SpiffeId
 	ListSpiffeEntries(context.Context, *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error)
 	// / Applies the plugin configuration
-	Configure(context.Context, *sri_proto1.ConfigureRequest) (*sri_proto1.ConfigureResponse, error)
+	Configure(context.Context, *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
 	// / Returns the version and related metadata of the installed plugin
-	GetPluginInfo(context.Context, *sri_proto1.GetPluginInfoRequest) (*sri_proto1.GetPluginInfoResponse, error)
+	GetPluginInfo(context.Context, *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
 func RegisterDataStoreServer(s *grpc.Server, srv DataStoreServer) {
@@ -1439,7 +1437,7 @@ func _DataStore_CreateFederatedEntry_Handler(srv interface{}, ctx context.Contex
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/CreateFederatedEntry",
+		FullMethod: "/datastore.DataStore/CreateFederatedEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).CreateFederatedEntry(ctx, req.(*CreateFederatedEntryRequest))
@@ -1457,7 +1455,7 @@ func _DataStore_ListFederatedEntry_Handler(srv interface{}, ctx context.Context,
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/ListFederatedEntry",
+		FullMethod: "/datastore.DataStore/ListFederatedEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).ListFederatedEntry(ctx, req.(*ListFederatedEntryRequest))
@@ -1475,7 +1473,7 @@ func _DataStore_UpdateFederatedEntry_Handler(srv interface{}, ctx context.Contex
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/UpdateFederatedEntry",
+		FullMethod: "/datastore.DataStore/UpdateFederatedEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).UpdateFederatedEntry(ctx, req.(*UpdateFederatedEntryRequest))
@@ -1493,7 +1491,7 @@ func _DataStore_DeleteFederatedEntry_Handler(srv interface{}, ctx context.Contex
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/DeleteFederatedEntry",
+		FullMethod: "/datastore.DataStore/DeleteFederatedEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).DeleteFederatedEntry(ctx, req.(*DeleteFederatedEntryRequest))
@@ -1511,7 +1509,7 @@ func _DataStore_CreateAttestedNodeEntry_Handler(srv interface{}, ctx context.Con
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/CreateAttestedNodeEntry",
+		FullMethod: "/datastore.DataStore/CreateAttestedNodeEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).CreateAttestedNodeEntry(ctx, req.(*CreateAttestedNodeEntryRequest))
@@ -1529,7 +1527,7 @@ func _DataStore_FetchAttestedNodeEntry_Handler(srv interface{}, ctx context.Cont
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/FetchAttestedNodeEntry",
+		FullMethod: "/datastore.DataStore/FetchAttestedNodeEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).FetchAttestedNodeEntry(ctx, req.(*FetchAttestedNodeEntryRequest))
@@ -1547,7 +1545,7 @@ func _DataStore_FetchStaleNodeEntries_Handler(srv interface{}, ctx context.Conte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/FetchStaleNodeEntries",
+		FullMethod: "/datastore.DataStore/FetchStaleNodeEntries",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).FetchStaleNodeEntries(ctx, req.(*FetchStaleNodeEntriesRequest))
@@ -1565,7 +1563,7 @@ func _DataStore_UpdateAttestedNodeEntry_Handler(srv interface{}, ctx context.Con
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/UpdateAttestedNodeEntry",
+		FullMethod: "/datastore.DataStore/UpdateAttestedNodeEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).UpdateAttestedNodeEntry(ctx, req.(*UpdateAttestedNodeEntryRequest))
@@ -1583,7 +1581,7 @@ func _DataStore_DeleteAttestedNodeEntry_Handler(srv interface{}, ctx context.Con
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/DeleteAttestedNodeEntry",
+		FullMethod: "/datastore.DataStore/DeleteAttestedNodeEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).DeleteAttestedNodeEntry(ctx, req.(*DeleteAttestedNodeEntryRequest))
@@ -1601,7 +1599,7 @@ func _DataStore_CreateNodeResolverMapEntry_Handler(srv interface{}, ctx context.
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/CreateNodeResolverMapEntry",
+		FullMethod: "/datastore.DataStore/CreateNodeResolverMapEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).CreateNodeResolverMapEntry(ctx, req.(*CreateNodeResolverMapEntryRequest))
@@ -1619,7 +1617,7 @@ func _DataStore_FetchNodeResolverMapEntry_Handler(srv interface{}, ctx context.C
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/FetchNodeResolverMapEntry",
+		FullMethod: "/datastore.DataStore/FetchNodeResolverMapEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).FetchNodeResolverMapEntry(ctx, req.(*FetchNodeResolverMapEntryRequest))
@@ -1637,7 +1635,7 @@ func _DataStore_DeleteNodeResolverMapEntry_Handler(srv interface{}, ctx context.
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/DeleteNodeResolverMapEntry",
+		FullMethod: "/datastore.DataStore/DeleteNodeResolverMapEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).DeleteNodeResolverMapEntry(ctx, req.(*DeleteNodeResolverMapEntryRequest))
@@ -1655,7 +1653,7 @@ func _DataStore_RectifyNodeResolverMapEntries_Handler(srv interface{}, ctx conte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/RectifyNodeResolverMapEntries",
+		FullMethod: "/datastore.DataStore/RectifyNodeResolverMapEntries",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).RectifyNodeResolverMapEntries(ctx, req.(*RectifyNodeResolverMapEntriesRequest))
@@ -1673,7 +1671,7 @@ func _DataStore_CreateRegistrationEntry_Handler(srv interface{}, ctx context.Con
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/CreateRegistrationEntry",
+		FullMethod: "/datastore.DataStore/CreateRegistrationEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).CreateRegistrationEntry(ctx, req.(*CreateRegistrationEntryRequest))
@@ -1691,7 +1689,7 @@ func _DataStore_FetchRegistrationEntry_Handler(srv interface{}, ctx context.Cont
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/FetchRegistrationEntry",
+		FullMethod: "/datastore.DataStore/FetchRegistrationEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).FetchRegistrationEntry(ctx, req.(*FetchRegistrationEntryRequest))
@@ -1709,7 +1707,7 @@ func _DataStore_UpdateRegistrationEntry_Handler(srv interface{}, ctx context.Con
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/UpdateRegistrationEntry",
+		FullMethod: "/datastore.DataStore/UpdateRegistrationEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).UpdateRegistrationEntry(ctx, req.(*UpdateRegistrationEntryRequest))
@@ -1727,7 +1725,7 @@ func _DataStore_DeleteRegistrationEntry_Handler(srv interface{}, ctx context.Con
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/DeleteRegistrationEntry",
+		FullMethod: "/datastore.DataStore/DeleteRegistrationEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).DeleteRegistrationEntry(ctx, req.(*DeleteRegistrationEntryRequest))
@@ -1745,7 +1743,7 @@ func _DataStore_ListParentIDEntries_Handler(srv interface{}, ctx context.Context
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/ListParentIDEntries",
+		FullMethod: "/datastore.DataStore/ListParentIDEntries",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).ListParentIDEntries(ctx, req.(*ListParentIDEntriesRequest))
@@ -1763,7 +1761,7 @@ func _DataStore_ListSelectorEntries_Handler(srv interface{}, ctx context.Context
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/ListSelectorEntries",
+		FullMethod: "/datastore.DataStore/ListSelectorEntries",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).ListSelectorEntries(ctx, req.(*ListSelectorEntriesRequest))
@@ -1781,7 +1779,7 @@ func _DataStore_ListSpiffeEntries_Handler(srv interface{}, ctx context.Context, 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/ListSpiffeEntries",
+		FullMethod: "/datastore.DataStore/ListSpiffeEntries",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataStoreServer).ListSpiffeEntries(ctx, req.(*ListSpiffeEntriesRequest))
@@ -1790,7 +1788,7 @@ func _DataStore_ListSpiffeEntries_Handler(srv interface{}, ctx context.Context, 
 }
 
 func _DataStore_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(sri_proto1.ConfigureRequest)
+	in := new(sriplugin.ConfigureRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1799,16 +1797,16 @@ func _DataStore_Configure_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/Configure",
+		FullMethod: "/datastore.DataStore/Configure",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).Configure(ctx, req.(*sri_proto1.ConfigureRequest))
+		return srv.(DataStoreServer).Configure(ctx, req.(*sriplugin.ConfigureRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _DataStore_GetPluginInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(sri_proto1.GetPluginInfoRequest)
+	in := new(sriplugin.GetPluginInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1817,16 +1815,16 @@ func _DataStore_GetPluginInfo_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.DataStore/GetPluginInfo",
+		FullMethod: "/datastore.DataStore/GetPluginInfo",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).GetPluginInfo(ctx, req.(*sri_proto1.GetPluginInfoRequest))
+		return srv.(DataStoreServer).GetPluginInfo(ctx, req.(*sriplugin.GetPluginInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 var _DataStore_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "sri_proto.DataStore",
+	ServiceName: "datastore.DataStore",
 	HandlerType: (*DataStoreServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -1925,86 +1923,86 @@ var _DataStore_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("data_store.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 1289 bytes of a gzipped FileDescriptorProto
+	// 1284 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x59, 0xdd, 0x72, 0xdb, 0x44,
-	0x1b, 0xfe, 0x14, 0x37, 0xdf, 0xc4, 0x6f, 0xc3, 0x24, 0xd9, 0xb8, 0xc4, 0x95, 0xd3, 0xc4, 0x15,
-	0x69, 0xeb, 0x94, 0x10, 0x33, 0x81, 0x81, 0x1e, 0x31, 0x40, 0xdc, 0x30, 0x61, 0x9a, 0x90, 0x91,
-	0xcb, 0x70, 0xc0, 0x4c, 0x3b, 0x8a, 0xb5, 0x76, 0x45, 0x6d, 0x4b, 0x48, 0xeb, 0x4c, 0x73, 0xc6,
-	0xdf, 0x0d, 0x30, 0xc3, 0x05, 0x70, 0x27, 0xdc, 0x05, 0x07, 0x5c, 0x0d, 0x23, 0x69, 0xa5, 0x68,
-	0x57, 0xbb, 0x2b, 0x85, 0x5a, 0x39, 0xb3, 0xf6, 0xfd, 0x79, 0x9e, 0x77, 0x7f, 0xdf, 0x27, 0x81,
-	0x55, 0xdb, 0x22, 0xd6, 0xcb, 0x80, 0xb8, 0x3e, 0xde, 0xf7, 0x7c, 0x97, 0xb8, 0xa8, 0x1e, 0xf8,
-	0xce, 0xcb, 0xe8, 0xa7, 0xfe, 0xd9, 0xc8, 0x21, 0xaf, 0x66, 0xe7, 0xfb, 0x03, 0x77, 0xd2, 0x0d,
-	0x3c, 0x67, 0x38, 0xc4, 0xdd, 0xc0, 0x77, 0xba, 0x03, 0x77, 0x32, 0x71, 0xa7, 0x5d, 0x6f, 0x3c,
-	0x1b, 0x39, 0xd3, 0x20, 0xfd, 0x0c, 0x43, 0xe8, 0x47, 0x9c, 0xca, 0xf8, 0x18, 0x96, 0xfa, 0x78,
-	0x8c, 0x07, 0xc4, 0xf5, 0x11, 0x82, 0x5b, 0xe4, 0xd2, 0xc3, 0x4d, 0xad, 0xad, 0x75, 0xea, 0x66,
-	0xf4, 0x1b, 0x35, 0x60, 0xf1, 0xc2, 0x1a, 0xcf, 0x70, 0x73, 0x21, 0x1a, 0x8c, 0x3f, 0x8c, 0xbf,
-	0x35, 0x58, 0x31, 0xf1, 0xc8, 0x09, 0x08, 0xf6, 0xb1, 0xfd, 0x74, 0x4a, 0xfc, 0x4b, 0xf4, 0x29,
-	0x2c, 0x07, 0x34, 0xd3, 0x33, 0x27, 0x20, 0x4d, 0xad, 0x5d, 0xeb, 0xdc, 0x3e, 0x58, 0xdf, 0x4f,
-	0xb9, 0xee, 0x27, 0x40, 0x26, 0xe3, 0x88, 0x74, 0x58, 0x8a, 0x99, 0x1f, 0xdb, 0x14, 0x25, 0xfd,
-	0x0e, 0x6d, 0x9e, 0xe5, 0xe3, 0x29, 0x39, 0xb6, 0x9b, 0xb5, 0xd8, 0x96, 0x7c, 0xa3, 0x55, 0xa8,
-	0x11, 0x32, 0x6e, 0xde, 0x6a, 0x6b, 0x9d, 0x45, 0x33, 0xfc, 0x89, 0x3e, 0x87, 0xd6, 0x10, 0xdb,
-	0xd8, 0xb7, 0x08, 0xb6, 0xbf, 0x9c, 0x4d, 0xed, 0x31, 0xee, 0xd3, 0x44, 0x11, 0xa3, 0xc5, 0x76,
-	0xad, 0x53, 0x37, 0x55, 0x2e, 0xc6, 0xef, 0x1a, 0xac, 0x1c, 0xb1, 0x76, 0xf4, 0x04, 0x36, 0x24,
-	0x21, 0x74, 0xa6, 0x64, 0x66, 0x74, 0x00, 0x8d, 0xd4, 0xf4, 0xdc, 0x9f, 0x05, 0x24, 0xb6, 0x47,
-	0x55, 0x2e, 0x9b, 0x42, 0x5b, 0x52, 0x55, 0x2d, 0xad, 0xca, 0x78, 0x0d, 0x8d, 0x53, 0xd7, 0xc6,
-	0x26, 0x0e, 0xdc, 0xf1, 0x05, 0xf6, 0x4f, 0x2c, 0x2f, 0x9e, 0x70, 0x03, 0x96, 0xcf, 0xad, 0x80,
-	0x27, 0xc3, 0x8c, 0xa1, 0x2e, 0x2c, 0x25, 0x73, 0x1d, 0xa1, 0x4a, 0x16, 0x24, 0x75, 0x32, 0xfe,
-	0xd2, 0x60, 0xed, 0x0b, 0x42, 0x70, 0x40, 0xb0, 0x1d, 0xa2, 0x96, 0x87, 0x7a, 0x0c, 0xab, 0x16,
-	0x0d, 0xec, 0x59, 0xc4, 0x7a, 0x1e, 0xee, 0xa4, 0x78, 0x39, 0x73, 0xe3, 0xa1, 0xef, 0x00, 0xfb,
-	0xa4, 0x8f, 0x7d, 0xc7, 0x1a, 0x9f, 0xce, 0x26, 0xe7, 0xd8, 0xa7, 0xcb, 0x9b, 0x1b, 0x47, 0xfb,
-	0x80, 0xc2, 0xb1, 0xa7, 0x6f, 0x3c, 0xc7, 0xb7, 0x88, 0xe3, 0x4e, 0x7b, 0x16, 0xc1, 0xd1, 0xaa,
-	0xd7, 0x4d, 0x81, 0xc5, 0x18, 0x40, 0xeb, 0xd0, 0xc7, 0x16, 0xc1, 0xe9, 0x3a, 0x46, 0x35, 0x98,
-	0xf8, 0xc7, 0x19, 0x0e, 0x08, 0xea, 0xc1, 0x0a, 0xb7, 0x5c, 0x51, 0x35, 0xb7, 0x0f, 0xf4, 0xcc,
-	0xc4, 0x70, 0x5b, 0xc0, 0xe4, 0x43, 0x8c, 0x2d, 0xd8, 0x14, 0x83, 0x04, 0x9e, 0x3b, 0x0d, 0xb0,
-	0xd1, 0x82, 0xbb, 0xe1, 0x7e, 0x12, 0x52, 0x30, 0x5e, 0x80, 0x2e, 0x32, 0xc6, 0xa1, 0x45, 0x9b,
-	0x58, 0x2b, 0xde, 0xc4, 0x03, 0x68, 0x7d, 0xeb, 0xd9, 0x15, 0xcf, 0x80, 0x0d, 0x9b, 0x62, 0x10,
-	0x5a, 0xc6, 0x7c, 0x50, 0xbe, 0x83, 0x56, 0x0f, 0x8f, 0xb1, 0xac, 0x94, 0xff, 0x7c, 0x34, 0x43,
-	0xfa, 0xe2, 0xc4, 0x73, 0xa5, 0x3f, 0x86, 0xad, 0x78, 0x9b, 0xe4, 0x8e, 0x54, 0x52, 0xc1, 0xd7,
-	0xb0, 0x66, 0xf1, 0x36, 0x8a, 0xb4, 0x99, 0x41, 0xca, 0xc7, 0xe7, 0xc3, 0x8c, 0x09, 0x6c, 0x4b,
-	0xd1, 0x68, 0x59, 0xf3, 0x84, 0x3b, 0x84, 0x7b, 0x47, 0x98, 0x0c, 0x5e, 0x49, 0x6b, 0x2b, 0x71,
-	0x6b, 0x84, 0x33, 0x24, 0x4b, 0x52, 0x01, 0xe5, 0x2d, 0xd8, 0x8c, 0xd0, 0xfa, 0xc4, 0x1a, 0xe3,
-	0x64, 0xd8, 0xc1, 0x41, 0x72, 0x32, 0x03, 0x5a, 0x52, 0xde, 0x4e, 0xc9, 0x98, 0x70, 0x27, 0x97,
-	0x35, 0xf3, 0xda, 0xa9, 0x09, 0x89, 0x43, 0x8d, 0x3f, 0x35, 0xd8, 0x8a, 0x8f, 0xd2, 0xdb, 0xcc,
-	0xa4, 0xf0, 0x4e, 0x5d, 0xb8, 0xd6, 0x9d, 0x5a, 0x93, 0xde, 0xa9, 0x13, 0xd8, 0x96, 0x32, 0xac,
-	0x60, 0x99, 0x7a, 0xb0, 0x15, 0x1f, 0xce, 0xb7, 0xda, 0x5a, 0x13, 0xd8, 0x96, 0x66, 0xa9, 0x80,
-	0xf4, 0x1b, 0xb8, 0x1f, 0x9f, 0x3e, 0xd1, 0x63, 0x9d, 0xf0, 0xee, 0x43, 0x63, 0x2a, 0x30, 0x53,
-	0xcc, 0xed, 0x0c, 0xa6, 0x30, 0x8b, 0x30, 0xd8, 0xb8, 0x04, 0x43, 0x85, 0x4c, 0x6b, 0xad, 0x04,
-	0xfa, 0x08, 0xda, 0xd1, 0x81, 0x51, 0xd5, 0x5c, 0x66, 0xad, 0x7e, 0xd2, 0xe0, 0xbe, 0x22, 0x11,
-	0x2d, 0xe1, 0x7b, 0x68, 0x8a, 0x58, 0x64, 0x0e, 0x60, 0x61, 0x19, 0xd2, 0x04, 0xe1, 0xfa, 0xc5,
-	0xdb, 0xe5, 0xc6, 0xd7, 0xef, 0x67, 0x0d, 0x0c, 0x15, 0xf4, 0x4d, 0x54, 0xff, 0xab, 0x06, 0x3b,
-	0x26, 0x1e, 0x10, 0x67, 0x78, 0x29, 0x88, 0xbc, 0xba, 0x22, 0xab, 0x65, 0xf1, 0x9b, 0x06, 0x0f,
-	0x0a, 0x58, 0xdc, 0xc4, 0x64, 0x0c, 0x93, 0x67, 0x3b, 0xd6, 0x38, 0xf1, 0x45, 0xc8, 0xf7, 0x50,
-	0x3e, 0xab, 0x7f, 0x04, 0xed, 0x01, 0xa7, 0x90, 0x4c, 0x3e, 0xc4, 0xf8, 0x26, 0x79, 0xb0, 0x05,
-	0x38, 0xb4, 0xce, 0x3d, 0x58, 0xe3, 0xa2, 0xd2, 0x13, 0x94, 0x37, 0x18, 0x27, 0xf4, 0xfd, 0x92,
-	0xf2, 0xbe, 0x5e, 0xba, 0x21, 0x7d, 0x9c, 0xe5, 0xf4, 0xe6, 0x33, 0x0f, 0x7f, 0xa4, 0x2f, 0xe0,
-	0x7c, 0x88, 0x8b, 0x68, 0x2d, 0x5c, 0x9f, 0xd6, 0x28, 0x79, 0xf5, 0xaa, 0xae, 0xff, 0x34, 0x79,
-	0xef, 0xe6, 0xb4, 0x6e, 0xa3, 0xe4, 0xe5, 0xab, 0x9a, 0xf8, 0x93, 0x58, 0xc9, 0x9c, 0xc5, 0x92,
-	0xbc, 0xc7, 0x5d, 0x15, 0x59, 0xf1, 0xae, 0xb1, 0xe2, 0xdd, 0x78, 0x0d, 0x2d, 0x61, 0x24, 0xa5,
-	0xf7, 0x0c, 0xd6, 0x39, 0xac, 0xcc, 0xc9, 0x56, 0x51, 0x14, 0x85, 0x19, 0x27, 0x31, 0xcd, 0x44,
-	0xee, 0x72, 0x34, 0xb3, 0x1a, 0x59, 0x2b, 0xa3, 0x91, 0x29, 0xf7, 0x5c, 0xba, 0x4a, 0xb8, 0x7f,
-	0x02, 0xcd, 0x08, 0x2c, 0x7a, 0x29, 0xf3, 0x13, 0x1c, 0xb0, 0xaf, 0x6a, 0xfa, 0x6d, 0x38, 0xb1,
-	0x02, 0xe5, 0xe2, 0xaa, 0xa0, 0x78, 0xf0, 0x0f, 0x82, 0x7a, 0x28, 0xed, 0xfb, 0xc4, 0xf5, 0x31,
-	0x1a, 0x41, 0x43, 0x24, 0x8d, 0xd1, 0xc3, 0x4c, 0x5a, 0x85, 0x40, 0xd7, 0x1f, 0x15, 0xfa, 0xd1,
-	0x22, 0x2c, 0x40, 0x79, 0x19, 0x8d, 0x76, 0x32, 0xe1, 0x52, 0x09, 0xae, 0x3f, 0x28, 0xf0, 0xa2,
-	0x10, 0x23, 0x68, 0x88, 0x44, 0x2e, 0x53, 0x8b, 0x42, 0x6a, 0x33, 0xb5, 0x28, 0xd5, 0xf2, 0x08,
-	0x1a, 0x22, 0x39, 0xca, 0x00, 0x29, 0x84, 0x30, 0x03, 0xa4, 0xd4, 0xb5, 0x1e, 0x6c, 0x48, 0x34,
-	0x22, 0xda, 0xcd, 0x4d, 0xbc, 0xac, 0xfd, 0xd6, 0x1f, 0x97, 0x71, 0xa5, 0x88, 0x13, 0x78, 0x57,
-	0xac, 0xf0, 0x50, 0x87, 0x91, 0xd2, 0x0a, 0x25, 0xa9, 0xef, 0x96, 0xf0, 0xa4, 0x70, 0x3f, 0xc0,
-	0x1d, 0xa1, 0x84, 0x43, 0x8f, 0xf8, 0x1c, 0x12, 0x11, 0xa8, 0x77, 0x8a, 0x1d, 0xaf, 0x26, 0x53,
-	0x22, 0x8b, 0x98, 0xc9, 0x54, 0x8b, 0x3b, 0x66, 0x32, 0x8b, 0x54, 0x96, 0x07, 0x1b, 0x12, 0x4d,
-	0xc3, 0x20, 0xaa, 0xd5, 0x13, 0x83, 0x58, 0x24, 0x91, 0x2e, 0x41, 0x97, 0x8b, 0x0b, 0xb4, 0x97,
-	0xdb, 0x08, 0x8a, 0xee, 0x59, 0xff, 0xa0, 0xa4, 0x37, 0x85, 0xbe, 0x80, 0xbb, 0x52, 0x4d, 0x80,
-	0xde, 0xe7, 0x57, 0x49, 0x05, 0xbc, 0x57, 0xce, 0xf9, 0xaa, 0x64, 0x79, 0x3b, 0xce, 0x94, 0x5c,
-	0x28, 0x18, 0x98, 0x92, 0x4b, 0xf4, 0xf8, 0xbf, 0x68, 0x70, 0x4f, 0xd9, 0x00, 0xa3, 0x2e, 0x73,
-	0x3b, 0x17, 0x37, 0xec, 0xfa, 0x87, 0xe5, 0x03, 0xf8, 0x3b, 0x22, 0xd7, 0x3e, 0x08, 0xee, 0x08,
-	0x59, 0xcb, 0x22, 0xb8, 0x23, 0xe4, 0xdd, 0x48, 0x72, 0x47, 0xe4, 0x01, 0x73, 0x87, 0x51, 0x8a,
-	0xb7, 0x5b, 0xc2, 0x93, 0x3f, 0xb7, 0xea, 0x02, 0xd5, 0x2d, 0xa9, 0xe0, 0xdc, 0x2a, 0x11, 0x25,
-	0x1d, 0x99, 0xe0, 0xdc, 0x96, 0x42, 0x2c, 0x6a, 0xf0, 0x6c, 0x58, 0x17, 0x34, 0x58, 0x88, 0x7f,
-	0xf8, 0xc4, 0xad, 0x9b, 0xfe, 0xb0, 0xc8, 0x8d, 0x45, 0xe1, 0x5a, 0xa1, 0x1c, 0x8a, 0xb8, 0xf3,
-	0xca, 0xa1, 0xc8, 0x3a, 0xaa, 0x17, 0xb0, 0x96, 0xeb, 0x65, 0xd0, 0x7b, 0x7c, 0xb0, 0xa0, 0x43,
-	0xd2, 0x77, 0xd4, 0x4e, 0x34, 0xff, 0x11, 0xd4, 0x0f, 0xdd, 0xe9, 0xd0, 0x19, 0xcd, 0x7c, 0x8c,
-	0x5a, 0xd9, 0x7d, 0x9b, 0x8c, 0x26, 0xf9, 0x36, 0xc5, 0xc6, 0xf4, 0xaf, 0x83, 0xef, 0x7c, 0x85,
-	0xc9, 0x59, 0xf4, 0x4f, 0xb7, 0xe3, 0xe9, 0xd0, 0x45, 0x59, 0x0d, 0xca, 0x58, 0x92, 0x7c, 0x6d,
-	0xb9, 0x43, 0x9c, 0xf3, 0xec, 0x7f, 0xe7, 0xff, 0x8f, 0xcc, 0x1f, 0xfd, 0x1b, 0x00, 0x00, 0xff,
-	0xff, 0xe6, 0x1e, 0xe2, 0x61, 0x08, 0x1c, 0x00, 0x00,
+	0x14, 0x46, 0x71, 0xc3, 0xc4, 0xa7, 0x61, 0x92, 0x6c, 0x5c, 0xe2, 0xca, 0x69, 0xe2, 0x8a, 0xb4,
+	0x75, 0x4a, 0xb0, 0x3b, 0x81, 0x81, 0x5e, 0x02, 0x71, 0xc3, 0x84, 0x69, 0x42, 0x46, 0x2e, 0xc3,
+	0x05, 0x33, 0x65, 0x14, 0x6b, 0xed, 0x8a, 0xda, 0x96, 0x90, 0xd6, 0x99, 0xfa, 0x8e, 0xbf, 0x17,
+	0x60, 0x86, 0x07, 0xe0, 0x4d, 0x78, 0x0b, 0x2e, 0x78, 0x1a, 0x46, 0xd2, 0x4a, 0xd1, 0xae, 0x76,
+	0x57, 0x0a, 0xb5, 0x73, 0xd5, 0x68, 0xcf, 0xcf, 0xf7, 0x9d, 0xfd, 0x3d, 0x5f, 0x0d, 0xeb, 0xb6,
+	0x45, 0xac, 0x1f, 0x02, 0xe2, 0xfa, 0xb8, 0xed, 0xf9, 0x2e, 0x71, 0x51, 0x35, 0x1c, 0x89, 0x06,
+	0xf4, 0x27, 0x43, 0x87, 0xbc, 0x9a, 0x5e, 0xb4, 0xfb, 0xee, 0xb8, 0x13, 0x78, 0xce, 0x60, 0x80,
+	0x3b, 0x81, 0xef, 0x74, 0xfa, 0xee, 0x78, 0xec, 0x4e, 0x3a, 0xde, 0x68, 0x3a, 0x74, 0x92, 0x7f,
+	0xe2, 0x60, 0xe3, 0x13, 0x58, 0xe9, 0xe1, 0x11, 0xee, 0x13, 0xd7, 0x47, 0x08, 0x6e, 0x91, 0x99,
+	0x87, 0xeb, 0x5a, 0x53, 0x6b, 0x55, 0xcd, 0xe8, 0x6f, 0x54, 0x83, 0xe5, 0x4b, 0x6b, 0x34, 0xc5,
+	0xf5, 0xa5, 0x68, 0x30, 0xfe, 0x30, 0xfe, 0xd1, 0x60, 0xcd, 0xc4, 0x43, 0x27, 0x20, 0xd8, 0xc7,
+	0xf6, 0xb3, 0x09, 0xf1, 0x67, 0xe8, 0x33, 0x58, 0x0d, 0x68, 0xa6, 0xe7, 0x4e, 0x40, 0xea, 0x5a,
+	0xb3, 0xd2, 0xba, 0x7d, 0xb8, 0xd9, 0x4e, 0xd9, 0xb5, 0x13, 0x20, 0x93, 0x71, 0x44, 0x3a, 0xac,
+	0xc4, 0x5c, 0x4f, 0x6c, 0x8a, 0x92, 0x7e, 0x87, 0x36, 0xcf, 0xf2, 0xf1, 0x84, 0x9c, 0xd8, 0xf5,
+	0x4a, 0x6c, 0x4b, 0xbe, 0xd1, 0x3a, 0x54, 0x08, 0x19, 0xd5, 0x6f, 0x35, 0xb5, 0xd6, 0xb2, 0x19,
+	0xfe, 0x89, 0x3e, 0x87, 0xc6, 0x00, 0xdb, 0xd8, 0xb7, 0x08, 0xb6, 0xbf, 0x9c, 0x4e, 0xec, 0x11,
+	0xee, 0xd1, 0x44, 0x11, 0xa3, 0xe5, 0x66, 0xa5, 0x55, 0x35, 0x55, 0x2e, 0xc6, 0x1f, 0x1a, 0xac,
+	0x1d, 0xb3, 0x76, 0xf4, 0x14, 0xb6, 0x24, 0x21, 0x74, 0xa6, 0x64, 0x66, 0x74, 0x08, 0xb5, 0xd4,
+	0xf4, 0xc2, 0x9f, 0x06, 0x24, 0xb6, 0x47, 0x55, 0xae, 0x9a, 0x42, 0x5b, 0x52, 0x55, 0x25, 0xad,
+	0xca, 0x78, 0x0d, 0xb5, 0x33, 0xd7, 0xc6, 0x26, 0x0e, 0xdc, 0xd1, 0x25, 0xf6, 0x4f, 0x2d, 0x2f,
+	0x9e, 0x70, 0x03, 0x56, 0x2f, 0xac, 0x80, 0x27, 0xc3, 0x8c, 0xa1, 0x0e, 0xac, 0x24, 0x73, 0x1d,
+	0xa1, 0x4a, 0x16, 0x24, 0x75, 0x32, 0xfe, 0xd6, 0x60, 0xe3, 0x0b, 0x42, 0x70, 0x40, 0xb0, 0x1d,
+	0xa2, 0x96, 0x87, 0x7a, 0x0c, 0xeb, 0x16, 0x0d, 0xec, 0x5a, 0xc4, 0x7a, 0x11, 0xee, 0xa4, 0x78,
+	0x39, 0x73, 0xe3, 0xa1, 0x6f, 0x1f, 0xfb, 0xa4, 0x87, 0x7d, 0xc7, 0x1a, 0x9d, 0x4d, 0xc7, 0x17,
+	0xd8, 0xa7, 0xcb, 0x9b, 0x1b, 0x47, 0x6d, 0x40, 0xe1, 0xd8, 0xb3, 0x37, 0x9e, 0xe3, 0x5b, 0xc4,
+	0x71, 0x27, 0x5d, 0x8b, 0xe0, 0x68, 0xd5, 0xab, 0xa6, 0xc0, 0x62, 0xf4, 0xa1, 0x71, 0xe4, 0x63,
+	0x8b, 0xe0, 0x74, 0x1d, 0xa3, 0x1a, 0x4c, 0xfc, 0xd3, 0x14, 0x07, 0x04, 0x75, 0x61, 0x8d, 0x5b,
+	0xae, 0xa8, 0x9a, 0xdb, 0x87, 0x7a, 0x66, 0x62, 0xb8, 0x2d, 0x60, 0xf2, 0x21, 0xc6, 0x0e, 0x6c,
+	0x8b, 0x41, 0x02, 0xcf, 0x9d, 0x04, 0xd8, 0x68, 0xc0, 0xdd, 0x70, 0x3f, 0x09, 0x29, 0x18, 0x2f,
+	0x41, 0x17, 0x19, 0xe3, 0xd0, 0xa2, 0x4d, 0xac, 0x15, 0x6f, 0xe2, 0x3e, 0x34, 0xbe, 0xf5, 0xec,
+	0x05, 0xcf, 0x80, 0x0d, 0xdb, 0x62, 0x10, 0x5a, 0xc6, 0x7c, 0x50, 0xbe, 0x83, 0x46, 0x17, 0x8f,
+	0xb0, 0xac, 0x94, 0xff, 0x7d, 0x34, 0x43, 0xfa, 0xe2, 0xc4, 0x73, 0xa5, 0x3f, 0x82, 0x9d, 0x78,
+	0x9b, 0xe4, 0x8e, 0x54, 0x52, 0xc1, 0xd7, 0xb0, 0x61, 0xf1, 0x36, 0x8a, 0xb4, 0x9d, 0x41, 0xca,
+	0xc7, 0xe7, 0xc3, 0x8c, 0x31, 0xec, 0x4a, 0xd1, 0x68, 0x59, 0xf3, 0x84, 0x3b, 0x82, 0x7b, 0xc7,
+	0x98, 0xf4, 0x5f, 0x49, 0x6b, 0x2b, 0x71, 0x6b, 0x84, 0x33, 0x24, 0x4b, 0xb2, 0x00, 0xca, 0x3b,
+	0xb0, 0x1d, 0xa1, 0xf5, 0x88, 0x35, 0xc2, 0xc9, 0xb0, 0x83, 0x83, 0xe4, 0x64, 0x06, 0xb4, 0xa4,
+	0xbc, 0x9d, 0x92, 0x31, 0xe1, 0x4e, 0x2e, 0x6b, 0xe6, 0xb5, 0x53, 0x13, 0x12, 0x87, 0x1a, 0x7f,
+	0x69, 0xb0, 0x13, 0x1f, 0xa5, 0xb7, 0x99, 0x49, 0xe1, 0x9d, 0xba, 0x74, 0xad, 0x3b, 0xb5, 0x22,
+	0xbd, 0x53, 0xc7, 0xb0, 0x2b, 0x65, 0xb8, 0x80, 0x65, 0xea, 0xc2, 0x4e, 0x7c, 0x38, 0xdf, 0x6a,
+	0x6b, 0x8d, 0x61, 0x57, 0x9a, 0x65, 0x01, 0xa4, 0xdf, 0xc0, 0xfd, 0xf8, 0xf4, 0x89, 0x1e, 0xeb,
+	0x84, 0x77, 0x0f, 0x6a, 0x13, 0x81, 0x99, 0x62, 0xee, 0x66, 0x30, 0x85, 0x59, 0x84, 0xc1, 0xc6,
+	0x0c, 0x0c, 0x15, 0x32, 0xad, 0x75, 0x21, 0xd0, 0xc7, 0xd0, 0x8c, 0x0e, 0x8c, 0xaa, 0xe6, 0x32,
+	0x6b, 0xf5, 0xb3, 0x06, 0xf7, 0x15, 0x89, 0x68, 0x09, 0xdf, 0x43, 0x5d, 0xc4, 0x22, 0x73, 0x00,
+	0x0b, 0xcb, 0x90, 0x26, 0x08, 0xd7, 0x2f, 0xde, 0x2e, 0x37, 0xbe, 0x7e, 0xbf, 0x68, 0x60, 0xa8,
+	0xa0, 0x6f, 0xa2, 0xfa, 0xdf, 0x34, 0xd8, 0x33, 0x71, 0x9f, 0x38, 0x83, 0x99, 0x20, 0xf2, 0xea,
+	0x8a, 0x5c, 0x2c, 0x8b, 0xdf, 0x35, 0x78, 0x50, 0xc0, 0xe2, 0x26, 0x26, 0x63, 0x90, 0x3c, 0xdb,
+	0xb1, 0xc6, 0x89, 0x2f, 0x42, 0xbe, 0x87, 0xf2, 0x59, 0xfd, 0x23, 0x68, 0x0f, 0x38, 0x85, 0x64,
+	0xf2, 0x21, 0xc6, 0x37, 0xc9, 0x83, 0x2d, 0xc0, 0xa1, 0x75, 0x1e, 0xc0, 0x06, 0x17, 0x95, 0x9e,
+	0xa0, 0xbc, 0xc1, 0x38, 0xa5, 0xef, 0x97, 0x94, 0xf7, 0xf5, 0xd2, 0x0d, 0xe8, 0xe3, 0x2c, 0xa7,
+	0x37, 0x9f, 0x79, 0xf8, 0x33, 0x7d, 0x01, 0xe7, 0x43, 0x5c, 0x44, 0x6b, 0xe9, 0xfa, 0xb4, 0x86,
+	0xc9, 0xab, 0xb7, 0xe8, 0xfa, 0xcf, 0x92, 0xf7, 0x6e, 0x4e, 0xeb, 0x36, 0x4c, 0x5e, 0xbe, 0x45,
+	0x13, 0x7f, 0x1a, 0x2b, 0x99, 0xf3, 0x58, 0x92, 0x77, 0xb9, 0xab, 0x22, 0x2b, 0xde, 0x35, 0x56,
+	0xbc, 0x1b, 0xaf, 0xa1, 0x21, 0x8c, 0xa4, 0xf4, 0x9e, 0xc3, 0x26, 0x87, 0x95, 0x39, 0xd9, 0x2a,
+	0x8a, 0xa2, 0x30, 0xe3, 0x34, 0xa6, 0x99, 0xc8, 0x5d, 0x8e, 0x66, 0x56, 0x23, 0x6b, 0x65, 0x34,
+	0x32, 0xe5, 0x9e, 0x4b, 0xb7, 0x10, 0xee, 0x9f, 0x42, 0x3d, 0x02, 0x8b, 0x5e, 0xca, 0xfc, 0x04,
+	0x07, 0xec, 0xab, 0x9a, 0x7e, 0x1b, 0x4e, 0xac, 0x40, 0xb9, 0xb8, 0x45, 0x50, 0x3c, 0xfc, 0x17,
+	0x41, 0x35, 0x94, 0xf6, 0xbd, 0x30, 0x04, 0x0d, 0xa1, 0x26, 0x92, 0xc6, 0xe8, 0x61, 0x26, 0xad,
+	0x42, 0xa0, 0xeb, 0x8f, 0x0a, 0xfd, 0x68, 0x11, 0x16, 0xa0, 0xbc, 0x8c, 0x46, 0x7b, 0x99, 0x70,
+	0xa9, 0x04, 0xd7, 0x1f, 0x14, 0x78, 0x51, 0x88, 0x21, 0xd4, 0x44, 0x22, 0x97, 0xa9, 0x45, 0x21,
+	0xb5, 0x99, 0x5a, 0x94, 0x6a, 0x79, 0x08, 0x35, 0x91, 0x1c, 0x65, 0x80, 0x14, 0x42, 0x98, 0x01,
+	0x52, 0xea, 0x5a, 0x0f, 0xb6, 0x24, 0x1a, 0x11, 0xed, 0xe7, 0x26, 0x5e, 0xd6, 0x7e, 0xeb, 0x8f,
+	0xcb, 0xb8, 0x52, 0xc4, 0x31, 0xbc, 0x2f, 0x56, 0x78, 0xa8, 0xc5, 0x48, 0x69, 0x85, 0x92, 0xd4,
+	0xf7, 0x4b, 0x78, 0x52, 0xb8, 0x1f, 0xe1, 0x8e, 0x50, 0xc2, 0xa1, 0x47, 0x7c, 0x0e, 0x89, 0x08,
+	0xd4, 0x5b, 0xc5, 0x8e, 0x57, 0x93, 0x29, 0x91, 0x45, 0xcc, 0x64, 0xaa, 0xc5, 0x1d, 0x33, 0x99,
+	0x45, 0x2a, 0xcb, 0x83, 0x2d, 0x89, 0xa6, 0x61, 0x10, 0xd5, 0xea, 0x89, 0x41, 0x2c, 0x92, 0x48,
+	0x33, 0xd0, 0xe5, 0xe2, 0x02, 0x1d, 0xe4, 0x36, 0x82, 0xa2, 0x7b, 0xd6, 0x3f, 0x2a, 0xe9, 0x4d,
+	0xa1, 0x2f, 0xe1, 0xae, 0x54, 0x13, 0xa0, 0x0f, 0xf9, 0x55, 0x52, 0x01, 0x1f, 0x94, 0x73, 0xbe,
+	0x2a, 0x59, 0xde, 0x8e, 0x33, 0x25, 0x17, 0x0a, 0x06, 0xa6, 0xe4, 0x12, 0x3d, 0xfe, 0xaf, 0x1a,
+	0xdc, 0x53, 0x36, 0xc0, 0xa8, 0xc3, 0xdc, 0xce, 0xc5, 0x0d, 0xbb, 0xfe, 0xa4, 0x7c, 0x00, 0x7f,
+	0x47, 0xe4, 0xda, 0x07, 0xc1, 0x1d, 0x21, 0x6b, 0x59, 0x04, 0x77, 0x84, 0xbc, 0x1b, 0x49, 0xee,
+	0x88, 0x3c, 0x60, 0xee, 0x30, 0x4a, 0xf1, 0xf6, 0x4b, 0x78, 0xf2, 0xe7, 0x56, 0x5d, 0xa0, 0xba,
+	0x25, 0x15, 0x9c, 0x5b, 0x25, 0xa2, 0xa4, 0x23, 0x13, 0x9c, 0xdb, 0x52, 0x88, 0x45, 0x0d, 0x9e,
+	0x0d, 0x9b, 0x82, 0x06, 0x0b, 0xf1, 0x0f, 0x9f, 0xb8, 0x75, 0xd3, 0x1f, 0x16, 0xb9, 0xb1, 0x28,
+	0x5c, 0x2b, 0x94, 0x43, 0x11, 0x77, 0x5e, 0x39, 0x14, 0x59, 0x47, 0xf5, 0x12, 0x36, 0x72, 0xbd,
+	0x0c, 0xfa, 0x80, 0x0f, 0x16, 0x74, 0x48, 0xfa, 0x9e, 0xda, 0x89, 0xe6, 0x3f, 0x86, 0xea, 0x91,
+	0x3b, 0x19, 0x38, 0xc3, 0xa9, 0x8f, 0x51, 0xa3, 0x1d, 0xf8, 0x0e, 0xfd, 0x8d, 0x2c, 0x1d, 0x4d,
+	0xf2, 0x6d, 0x8b, 0x8d, 0xe9, 0xff, 0x0e, 0xbe, 0xf7, 0x15, 0x26, 0xe7, 0x91, 0xf9, 0x64, 0x32,
+	0x70, 0xd1, 0x6e, 0xc6, 0x9d, 0xb1, 0x24, 0xf9, 0x9a, 0x72, 0x87, 0x38, 0xe7, 0xf9, 0x3b, 0x17,
+	0xef, 0x46, 0xbf, 0xd4, 0x7d, 0xfc, 0x5f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xb1, 0xef, 0xa3, 0xb9,
+	0xfa, 0x1b, 0x00, 0x00,
 }

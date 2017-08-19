@@ -4,63 +4,63 @@
 ## Table of Contents
 
 
-* [common.proto](#common.proto)
+* [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#sri_proto.ConfigureRequest)
+    * [ConfigureRequest](#sriplugin.ConfigureRequest)
   
-    * [ConfigureResponse](#sri_proto.ConfigureResponse)
+    * [ConfigureResponse](#sriplugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
   
-    * [PluginInfoReply](#sri_proto.PluginInfoReply)
+    * [PluginInfoReply](#sriplugin.PluginInfoReply)
   
-    * [PluginInfoRequest](#sri_proto.PluginInfoRequest)
+    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
   
-    * [StopReply](#sri_proto.StopReply)
+    * [StopReply](#sriplugin.StopReply)
   
-    * [StopRequest](#sri_proto.StopRequest)
-  
-  
+    * [StopRequest](#sriplugin.StopRequest)
   
   
-    * [Server](#sri_proto.Server)
+  
+  
+    * [Server](#sriplugin.Server)
   
 
 
 * [node_resolver.proto](#node_resolver.proto)
   
-    * [Empty](#sri_proto.Empty)
+    * [Empty](#noderesolver.Empty)
   
-    * [NodeResolution](#sri_proto.NodeResolution)
+    * [NodeResolution](#noderesolver.NodeResolution)
   
-    * [NodeResolutionList](#sri_proto.NodeResolutionList)
+    * [NodeResolutionList](#noderesolver.NodeResolutionList)
   
-    * [ResolveRequest](#sri_proto.ResolveRequest)
+    * [ResolveRequest](#noderesolver.ResolveRequest)
   
-    * [ResolveResponse](#sri_proto.ResolveResponse)
+    * [ResolveResponse](#noderesolver.ResolveResponse)
   
-    * [ResolveResponse.MapEntry](#sri_proto.ResolveResponse.MapEntry)
-  
-  
+    * [ResolveResponse.MapEntry](#noderesolver.ResolveResponse.MapEntry)
   
   
-    * [NodeResolver](#sri_proto.NodeResolver)
+  
+  
+    * [NodeResolver](#noderesolver.NodeResolver)
   
 
 * [Scalar Value Types](#scalar-value-types)
 
 
 
-<a name="common.proto"/>
+<a name="plugin.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## common.proto
+## plugin.proto
 
 
 
-<a name="sri_proto.ConfigureRequest"/>
+<a name="sriplugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -75,7 +75,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="sri_proto.ConfigureResponse"/>
+<a name="sriplugin.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -90,7 +90,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="sri_proto.GetPluginInfoRequest"/>
+<a name="sriplugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -100,7 +100,7 @@ Represents an empty request.
 
 
 
-<a name="sri_proto.GetPluginInfoResponse"/>
+<a name="sriplugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -123,7 +123,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sri_proto.PluginInfoReply"/>
+<a name="sriplugin.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -131,14 +131,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="sri_proto.PluginInfoRequest"/>
+<a name="sriplugin.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -148,7 +148,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sri_proto.StopReply"/>
+<a name="sriplugin.StopReply"/>
 
 ### StopReply
 
@@ -158,7 +158,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sri_proto.StopRequest"/>
+<a name="sriplugin.StopRequest"/>
 
 ### StopRequest
 
@@ -174,15 +174,15 @@ Represents the plugin metadata.
  
 
 
-<a name="sri_proto.Server"/>
+<a name="sriplugin.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#sri_proto.StopRequest) | [StopReply](#sri_proto.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#sri_proto.PluginInfoRequest) | [PluginInfoReply](#sri_proto.PluginInfoRequest) |  |
+| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
 
  
 
@@ -195,7 +195,7 @@ Represents the plugin metadata.
 Resolves the derived selectors for a given Node Agent. This mapping will be stored, and used to further derive which workloads the Node Agent is authorized to run.
 
 
-<a name="sri_proto.Empty"/>
+<a name="noderesolver.Empty"/>
 
 ### Empty
 Represents an empty message
@@ -205,7 +205,7 @@ Represents an empty message
 
 
 
-<a name="sri_proto.NodeResolution"/>
+<a name="noderesolver.NodeResolution"/>
 
 ### NodeResolution
 Represents a a type with a selectorType and a selector.
@@ -221,7 +221,7 @@ Represents a a type with a selectorType and a selector.
 
 
 
-<a name="sri_proto.NodeResolutionList"/>
+<a name="noderesolver.NodeResolutionList"/>
 
 ### NodeResolutionList
 Represents a type with a list of NodeResolution.
@@ -229,14 +229,14 @@ Represents a type with a list of NodeResolution.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| list | [NodeResolution](#sri_proto.NodeResolution) | repeated | A list of NodeResolution. |
+| list | [NodeResolution](#noderesolver.NodeResolution) | repeated | A list of NodeResolution. |
 
 
 
 
 
 
-<a name="sri_proto.ResolveRequest"/>
+<a name="noderesolver.ResolveRequest"/>
 
 ### ResolveRequest
 Represents a request with a list of BaseSPIFFEIDs.
@@ -251,7 +251,7 @@ Represents a request with a list of BaseSPIFFEIDs.
 
 
 
-<a name="sri_proto.ResolveResponse"/>
+<a name="noderesolver.ResolveResponse"/>
 
 ### ResolveResponse
 Represents a response with a map of SPIFFE ID to a list of Noderesolution.
@@ -259,14 +259,14 @@ Represents a response with a map of SPIFFE ID to a list of Noderesolution.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [ResolveResponse.MapEntry](#sri_proto.ResolveResponse.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; NodeResolutionList. |
+| map | [ResolveResponse.MapEntry](#noderesolver.ResolveResponse.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; NodeResolutionList. |
 
 
 
 
 
 
-<a name="sri_proto.ResolveResponse.MapEntry"/>
+<a name="noderesolver.ResolveResponse.MapEntry"/>
 
 ### ResolveResponse.MapEntry
 
@@ -275,7 +275,7 @@ Represents a response with a map of SPIFFE ID to a list of Noderesolution.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [NodeResolutionList](#sri_proto.NodeResolutionList) |  |  |
+| value | [NodeResolutionList](#noderesolver.NodeResolutionList) |  |  |
 
 
 
@@ -288,16 +288,16 @@ Represents a response with a map of SPIFFE ID to a list of Noderesolution.
  
 
 
-<a name="sri_proto.NodeResolver"/>
+<a name="noderesolver.NodeResolver"/>
 
 ### NodeResolver
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [ConfigureRequest](#sri_proto.ConfigureRequest) | [ConfigureResponse](#sri_proto.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#sri_proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| Resolve | [ResolveRequest](#sri_proto.ResolveRequest) | [ResolveResponse](#sri_proto.ResolveRequest) | Retrieves a list of properties reflecting the current state of a particular node(s). |
+| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| Resolve | [ResolveRequest](#noderesolver.ResolveRequest) | [ResolveResponse](#noderesolver.ResolveRequest) | Retrieves a list of properties reflecting the current state of a particular node(s). |
 
  
 

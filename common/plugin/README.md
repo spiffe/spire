@@ -4,42 +4,42 @@
 ## Table of Contents
 
 
-* [common.proto](#common.proto)
+* [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#sri_proto.ConfigureRequest)
+    * [ConfigureRequest](#sriplugin.ConfigureRequest)
   
-    * [ConfigureResponse](#sri_proto.ConfigureResponse)
+    * [ConfigureResponse](#sriplugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#sri_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
   
-    * [PluginInfoReply](#sri_proto.PluginInfoReply)
+    * [PluginInfoReply](#sriplugin.PluginInfoReply)
   
-    * [PluginInfoRequest](#sri_proto.PluginInfoRequest)
+    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
   
-    * [StopReply](#sri_proto.StopReply)
+    * [StopReply](#sriplugin.StopReply)
   
-    * [StopRequest](#sri_proto.StopRequest)
-  
-  
+    * [StopRequest](#sriplugin.StopRequest)
   
   
-    * [Server](#sri_proto.Server)
+  
+  
+    * [Server](#sriplugin.Server)
   
 
 * [Scalar Value Types](#scalar-value-types)
 
 
 
-<a name="common.proto"/>
+<a name="plugin.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## common.proto
+## plugin.proto
 
 
 
-<a name="sri_proto.ConfigureRequest"/>
+<a name="sriplugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -54,7 +54,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="sri_proto.ConfigureResponse"/>
+<a name="sriplugin.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -69,7 +69,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="sri_proto.GetPluginInfoRequest"/>
+<a name="sriplugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -79,7 +79,7 @@ Represents an empty request.
 
 
 
-<a name="sri_proto.GetPluginInfoResponse"/>
+<a name="sriplugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -102,7 +102,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sri_proto.PluginInfoReply"/>
+<a name="sriplugin.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -110,14 +110,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#sri_proto.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="sri_proto.PluginInfoRequest"/>
+<a name="sriplugin.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -127,7 +127,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sri_proto.StopReply"/>
+<a name="sriplugin.StopReply"/>
 
 ### StopReply
 
@@ -137,7 +137,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sri_proto.StopRequest"/>
+<a name="sriplugin.StopRequest"/>
 
 ### StopRequest
 
@@ -153,15 +153,15 @@ Represents the plugin metadata.
  
 
 
-<a name="sri_proto.Server"/>
+<a name="sriplugin.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#sri_proto.StopRequest) | [StopReply](#sri_proto.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#sri_proto.PluginInfoRequest) | [PluginInfoReply](#sri_proto.PluginInfoRequest) |  |
+| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
 
  
 

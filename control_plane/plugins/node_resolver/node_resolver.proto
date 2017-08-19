@@ -1,8 +1,8 @@
 /**Resolves the derived selectors for a given Node Agent. This mapping will be stored, and used to further derive which workloads the Node Agent is authorized to run.*/
 syntax = "proto3";
-package sri_proto;
+package noderesolver;
 
-import public "github.com/spiffe/sri/common/plugins/common/proto/common.proto";
+import public "github.com/spiffe/sri/common/plugin/plugin.proto";
 
 /**Represents a a type with a selectorType and a selector.*/
 message NodeResolution {
@@ -30,9 +30,9 @@ message Empty{}
 
 service NodeResolver {
     /**Responsible for configuration of the plugin.*/
-    rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+    rpc Configure(sriplugin.ConfigureRequest) returns (sriplugin.ConfigureResponse);
     /**Returns the  version and related metadata of the installed plugin.*/
-    rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
+    rpc GetPluginInfo(sriplugin.GetPluginInfoRequest) returns (sriplugin.GetPluginInfoResponse);
     /**Retrieves a list of properties reflecting the current state of a particular node(s).*/
     rpc Resolve(ResolveRequest) returns (ResolveResponse);
 }

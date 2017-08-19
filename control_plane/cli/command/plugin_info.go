@@ -3,7 +3,7 @@ package command
 import (
 	"log"
 
-	pb "github.com/spiffe/sri/control_plane/api/server/proto"
+	"github.com/spiffe/sri/common/plugin"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -25,9 +25,9 @@ func (*PluginInfoCommand) Run(args []string) int {
 		return -1
 	}
 	defer conn.Close()
-	c := pb.NewServerClient(conn)
+	c := sriplugin.NewServerClient(conn)
 
-	r, err := c.PluginInfo(context.Background(), &pb.PluginInfoRequest{})
+	r, err := c.PluginInfo(context.Background(), &sriplugin.PluginInfoRequest{})
 
 	if err != nil {
 		log.Fatalf("error: %v", err)

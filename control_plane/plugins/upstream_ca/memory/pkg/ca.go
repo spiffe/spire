@@ -12,9 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	common "github.com/spiffe/sri/common/plugins/common/proto"
+	"github.com/spiffe/sri/common/plugin"
 	"github.com/spiffe/sri/control_plane/plugins/upstream_ca"
-	proto "github.com/spiffe/sri/control_plane/plugins/upstream_ca/proto"
 )
 
 const (
@@ -22,7 +21,7 @@ const (
 )
 
 var (
-	pluginInfo = common.GetPluginInfoResponse{
+	pluginInfo = sriplugin.GetPluginInfoResponse{
 		Description: "",
 		DateCreated: "",
 		Version:     "",
@@ -57,11 +56,11 @@ func (m *memoryPlugin) Configure(rawConfig string) ([]string, error) {
 	return nil, errors.New("Not Implemented")
 }
 
-func (memoryPlugin) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
+func (memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
-func (m *memoryPlugin) SubmitCSR(csrPEM []byte) (*proto.SubmitCSRResponse, error) {
+func (m *memoryPlugin) SubmitCSR(csrPEM []byte) (*upstreamca.SubmitCSRResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -106,7 +105,7 @@ func (m *memoryPlugin) SubmitCSR(csrPEM []byte) (*proto.SubmitCSRResponse, error
 		return nil, err
 	}
 
-	return &proto.SubmitCSRResponse{
+	return &upstreamca.SubmitCSRResponse{
 		Cert: pem.EncodeToMemory(&pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: cert,

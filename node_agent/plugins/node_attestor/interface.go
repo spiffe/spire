@@ -7,8 +7,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/common/plugins/common/proto"
-	"github.com/spiffe/sri/node_agent/plugins/node_attestor/proto"
+	"github.com/spiffe/sri/common/plugin"
 )
 
 //Handshake is a common handshake that is shared by the plugin and host.
@@ -20,9 +19,9 @@ var Handshake = plugin.HandshakeConfig{
 
 
 type NodeAttestor interface {
-	FetchAttestationData(*sri_proto.FetchAttestationDataRequest) (*sri_proto.FetchAttestationDataResponse, error)
-	Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error)
-	GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
+	FetchAttestationData(*FetchAttestationDataRequest) (*FetchAttestationDataResponse, error)
+	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
+	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
 type NodeAttestorPlugin struct {
@@ -38,10 +37,10 @@ func (p NodeAttestorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interfac
 }
 
 func (p NodeAttestorPlugin) GRPCServer(s *grpc.Server) error {
-	sri_proto.RegisterNodeAttestorServer(s, &GRPCServer{NodeAttestorImpl: p.NodeAttestorImpl})
+	RegisterNodeAttestorServer(s, &GRPCServer{NodeAttestorImpl: p.NodeAttestorImpl})
 	return nil
 }
 
 func (p NodeAttestorPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: sri_proto.NewNodeAttestorClient(c)}, nil
+	return &GRPCClient{client: NewNodeAttestorClient(c)}, nil
 }

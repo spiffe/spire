@@ -1,49 +1,48 @@
 package noderesolver
 
 import (
-	common "github.com/spiffe/sri/common/plugins/common/proto"
-	"github.com/spiffe/sri/control_plane/plugins/node_resolver/proto"
+	"github.com/spiffe/sri/common/plugin"
 	"golang.org/x/net/context"
 )
 
 type GRPCServer struct {
-	NodeResolutionImpl NodeResolution
+	NodeResolverImpl NodeResolver
 }
 
-func (m *GRPCServer) Configure(ctx context.Context, req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
-	response, err := m.NodeResolutionImpl.Configure(req.Configuration)
-	return &common.ConfigureResponse{ErrorList: response}, err
+func (m *GRPCServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	response, err := m.NodeResolverImpl.Configure(req.Configuration)
+	return &sriplugin.ConfigureResponse{ErrorList: response}, err
 }
 
-func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
-	response, err := m.NodeResolutionImpl.GetPluginInfo()
+func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	response, err := m.NodeResolverImpl.GetPluginInfo()
 	return response, err
 }
 
-func (m *GRPCServer) Resolve(ctx context.Context, req *sri_proto.ResolveRequest) (*sri_proto.ResolveResponse, error) {
-	resolutionMap, err := m.NodeResolutionImpl.Resolve(req.BaseSpiffeIdList)
-	return &sri_proto.ResolveResponse{Map: resolutionMap}, err
+func (m *GRPCServer) Resolve(ctx context.Context, req *ResolveRequest) (*ResolveResponse, error) {
+	resolutionMap, err := m.NodeResolverImpl.Resolve(req.BaseSpiffeIdList)
+	return &ResolveResponse{Map: resolutionMap}, err
 }
 
 type GRPCClient struct {
-	client sri_proto.NodeResolverClient
+	client NodeResolverClient
 }
 
 func (m *GRPCClient) Configure(configuration string) ([]string, error) {
-	response, err := m.client.Configure(context.Background(), &common.ConfigureRequest{configuration})
+	response, err := m.client.Configure(context.Background(), &sriplugin.ConfigureRequest{configuration})
 	if err != nil {
 		return []string{}, err
 	}
 	return response.ErrorList, err
 }
 
-func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
-	response, err := m.client.GetPluginInfo(context.Background(), &common.GetPluginInfoRequest{})
+func (m *GRPCClient) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
+	response, err := m.client.GetPluginInfo(context.Background(), &sriplugin.GetPluginInfoRequest{})
 	return response, err
 }
 
-func (m *GRPCClient) Resolve(physicalSpiffeIdList []string) (map[string]*sri_proto.NodeResolutionList, error) {
-	node_res, err := m.client.Resolve(context.Background(), &sri_proto.ResolveRequest{
+func (m *GRPCClient) Resolve(physicalSpiffeIdList []string) (map[string]*NodeResolutionList, error) {
+	node_res, err := m.client.Resolve(context.Background(), &ResolveRequest{
 		physicalSpiffeIdList})
 	return node_res.Map, err
 }

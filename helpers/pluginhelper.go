@@ -25,7 +25,7 @@ var NA_PLUGIN_TYPE_MAP = map[string]plugin.Plugin{
 	"ControlPlaneCA": &controlplaneca.ControlPlaneCaPlugin{},
 	"DataStore":      &datastore.DataStorePlugin{},
 	"NANodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
-	"NodeResolver":   &noderesolver.NodeResolutionPlugin{},
+	"NodeResolver":   &noderesolver.NodeResolverPlugin{},
 	"UpstreamCA":     &upstreamca.UpstreamCaPlugin{},
 	"CPNodeAttestor": &cpnodeattestor.NodeAttestorPlugin{},
 	"WorkloadAttestor":	&workloadattestor.WorkloadAttestorPlugin{},

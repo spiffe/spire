@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/endpoint"
-	"github.com/spiffe/sri/control_plane/api/server/proto"
+	"github.com/spiffe/sri/common/plugin"
 )
 
 // Endpoints collects all of the endpoints that compose an add service. It's
@@ -16,17 +16,17 @@ type Endpoints struct {
 	PluginInfoEndpoint endpoint.Endpoint
 }
 type StopRequest struct {
-	Request sri_proto.StopRequest
+	Request sriplugin.StopRequest
 }
 type StopResponse struct {
-	Response sri_proto.StopReply
+	Response sriplugin.StopReply
 	Err      error
 }
 type PluginInfoRequest struct {
-	Request sri_proto.PluginInfoRequest
+	Request sriplugin.PluginInfoRequest
 }
 type PluginInfoResponse struct {
-	Response sri_proto.PluginInfoReply
+	Response sriplugin.PluginInfoReply
 	Err      error
 }
 

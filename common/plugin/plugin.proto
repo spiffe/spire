@@ -1,5 +1,5 @@
 syntax = "proto3";
-package sri_proto;
+package sriplugin;
 
 /** Represents the plugin-specific configuration string.*/
 message ConfigureRequest {
