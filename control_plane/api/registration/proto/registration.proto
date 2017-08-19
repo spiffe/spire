@@ -1,122 +1,110 @@
+/**The Registration API is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.*/
 syntax = "proto3";
 package control_plane_proto;
 
+import public "google/api/annotations.proto";
 
+service Registration {
+    ///Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
+    rpc CreateEntry(RegisteredEntry) returns (RegisteredEntryID) {
+        option (google.api.http) = {
+			post: "/entry"
+			body: "*"
+		};
+    }
+    ///Deletes an entry and returns the deleted entry.
+    rpc DeleteEntry(RegisteredEntryID) returns (RegisteredEntry) {
+        option (google.api.http).delete = "/entry";
+    }
+    ///Retrieve a specific registered entry.
+    rpc FetchEntry(RegisteredEntryID) returns (RegisteredEntry) {
+        option (google.api.http).get = "/entry/{id}";
+    }
+    ///Updates a specific registered entry.
+    rpc UpdateEntry(UpdateEntryRequest) returns (RegisteredEntry) {
+        option (google.api.http).put = "/entry";
+    }
+    ///Returns all the Entries associated with the ParentID value.
+    rpc ListByParentID(ParentID) returns (RegisteredEntries);
+    ///Returns all the entries associated with a selector value.
+    rpc ListBySelector(Selector) returns (RegisteredEntries);
+    ///Return all registration entries for which SPIFFE ID matches.
+    rpc ListBySpiffeID(SpiffeID) returns (RegisteredEntries);
+
+    ///Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
+    rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (Empty);
+    ///Retrieves Federated bundles for all the Federated SPIFFE IDs.
+    rpc ListFederatedBundles(Empty) returns (ListFederatedBundlesReply);
+    ///Updates a particular Federated Bundle. Useful for rotation.
+    rpc UpdateFederatedBundle(FederatedBundle) returns (Empty);
+    ///Delete a particular Federated Bundle. Used to destroy inter-domain trust.
+    rpc DeleteFederatedBundle(FederatedSpiffeID) returns (Empty);
+}
+
+/**Represents an empty message*/
+message Empty {
+}
+
+/**A type which describes the conditions under which a registration entry is matched.*/
+message Selector {
+    string type = 1;
+    string value = 2;
+}
+
+/**This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.*/
 message RegisteredEntry {
-    string selectorType = 1;
-    string selector = 2;
-    string attestor = 3;
-    string spiffeId = 4;
-    int32 ttl = 5;
+    repeated Selector selectors = 1;
+    string parent_id = 2;
+    string spiffe_id = 3;
+    int32 ttl = 4;
+    repeated string fb_spiffe_ids = 5;
 }
 
-message FederatedEntry {
-    RegisteredEntry registeredEntry = 1;
-    repeated string federateBundleSpiffeIdList = 2;
+/**A list of registered entries.*/
+message RegisteredEntries {
+    repeated RegisteredEntry entries = 1;
 }
 
+/**A type that represents the id of an entry.*/
+message RegisteredEntryID {
+    string id = 1;
+}
+
+/**A type that represents a parent Id.*/
+message ParentID {
+    string id = 1;
+}
+
+/**A type that represents a SPIFFE Id.*/
+message SpiffeID {
+    string id = 1;
+}
+
+/**A type with the id with want to update plus values to modify.*/
+message UpdateEntryRequest {
+    string id = 1;
+    RegisteredEntry entry = 2;
+
+}
+
+/**A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.*/
 message FederatedBundle {
-    string federateBundleSpiffeId = 1;
-    bytes federatedBundle = 2;
+    string spiffe_id = 1;
+    bytes federated_bundle = 2;
     int32 ttl = 3;
 }
 
-
-message CreateFederatedEntryRequest {
-    FederatedEntry federatedEntry = 1;
-}
-
-message CreateFederatedEntryResponse {
-}
-
-
+/**It represents a request with a FederatedBundle to create.*/
 message CreateFederatedBundleRequest {
-    FederatedBundle federatedBundle = 1;
+    FederatedBundle federated_bundle = 1;
 }
 
-message CreateFederatedBundleResponse {
+/**It represents a reply with a list of FederatedBundle.*/
+message ListFederatedBundlesReply {
+    repeated FederatedBundle bundles = 1;
 }
 
-
-message ListFederatedBundlesRequest {
-}
-
-message ListFederatedBundlesResponse {
-    repeated string federateBundleSpiffeIdList = 1;
-}
-
-
-message UpdateFederatedBundleRequest {
-    FederatedBundle federatedBundle = 1;
-}
-
-message UpdateFederatedBundleResponse {
-}
-
-
-message DeleteFederatedBundleRequest {
-    string federateBundleSpiffeId  = 1;
-}
-
-message DeleteFederatedBundleResponse {
-}
-
-
-message CreateEntryRequest {
-    RegisteredEntry registeredEntry  = 1;
-}
-
-message CreateEntryResponse {
-}
-
-
-message ListAttestorEntriesRequest {
-    string attestor  = 1;
-}
-
-message ListAttestorEntriesResponse {
-    repeated FederatedEntry federatedEntryList = 1;
-}
-
-
-message ListSelectorEntriesRequest {
-    string selectorType = 1;
-    string selector = 2;
-}
-
-message ListSelectorEntriesResponse {
-    repeated FederatedEntry federatedEntryList = 1;
-}
-
-
-message ListSpiffeEntriesRequest {
-    string spiffeId = 1;
-}
-
-message ListSpiffeEntriesResponse {
-    repeated FederatedEntry federatedEntryList = 1;
-}
-
-
-message DeleteEntryRequest {
-    string selectorType = 1;
-    string selector = 2;
-}
-
-message DeleteEntryResponse {
-    repeated FederatedEntry federatedEntryList = 1;
-}
-
-
-service node {
-    rpc CreateFederatedEntry(CreateFederatedEntryRequest) returns (CreateFederatedEntryResponse);
-    rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (CreateFederatedBundleResponse);
-    rpc ListFederatedBundles(ListFederatedBundlesRequest) returns (ListFederatedBundlesResponse);
-    rpc UpdateFederatedBundle(UpdateFederatedBundleRequest) returns (UpdateFederatedBundleResponse);
-    rpc DeleteFederatedBundle(DeleteFederatedBundleRequest) returns (DeleteFederatedBundleResponse);
-    rpc CreateEntry(CreateEntryRequest) returns (CreateEntryResponse);
-    rpc ListAttestorEntries(ListAttestorEntriesRequest) returns (ListAttestorEntriesResponse);
-    rpc ListSelectorEntries(ListSelectorEntriesRequest) returns (ListSelectorEntriesResponse);
-    rpc ListSpiffeEntries(ListSpiffeEntriesRequest) returns (ListSpiffeEntriesResponse);
-    rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse);
+/**A type that represents a Federated SPIFFE Id.*/
+message FederatedSpiffeID {
+    string id  = 1;
 }
