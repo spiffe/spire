@@ -1,9 +1,11 @@
 package main
 
 import (
+	"io/ioutil"
 	"testing"
 	"time"
 
+	"encoding/json"
 	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
 	datastore "github.com/spiffe/sri/control_plane/plugins/data_store"
 	"github.com/spiffe/sri/control_plane/plugins/data_store/proto"
@@ -63,8 +65,6 @@ func Test_ListFederatedEntry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, lresp.FederatedBundleSpiffeIdList)
 }
-
-//
 
 func Test_CreateAttestedNodeEntry(t *testing.T) {
 	ds := createDefault(t)
@@ -188,8 +188,6 @@ func Test_DeleteAttestedNodeEntry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, fresp.AttestedNodeEntry)
 }
-
-//
 
 func Test_CreateNodeResolverMapEntry(t *testing.T) {
 	ds := createDefault(t)
@@ -324,14 +322,71 @@ func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*contr
 	return entries
 }
 
-//
-
 func Test_CreateRegistrationEntry(t *testing.T) {
-	t.Skipf("TODO")
+	ds := createDefault(t)
+
+	var validRegistrationEntries []*control_plane_proto.RegisteredEntry
+	err := getTestDataFromJsonFile(t, "_test_data/valid_registration_entries.json", &validRegistrationEntries)
+	require.NoError(t, err)
+
+	for _, validRegistrationEntry := range validRegistrationEntries {
+		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{validRegistrationEntry})
+		require.NoError(t, err)
+		assert.NotNil(t, createRegistrationEntryResponse)
+		assert.NotEmpty(t, createRegistrationEntryResponse.RegisteredEntryId)
+	}
+}
+
+func Test_CreateInvalidRegistrationEntry(t *testing.T) {
+	ds := createDefault(t)
+
+	var invalidRegistrationEntries []*control_plane_proto.RegisteredEntry
+	err := getTestDataFromJsonFile(t, "_test_data/invalid_registration_entries.json", &invalidRegistrationEntries)
+	require.NoError(t, err)
+
+	for _, invalidRegisteredEntry := range invalidRegistrationEntries {
+		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{invalidRegisteredEntry})
+		require.Error(t, err)
+		require.Nil(t, createRegistrationEntryResponse)
+	}
+
+	// TODO: Check that no entries have been created
 }
 
 func Test_FetchRegistrationEntry(t *testing.T) {
-	t.Skipf("TODO")
+	ds := createDefault(t)
+
+	registeredEntry := &control_plane_proto.RegisteredEntry{
+		SelectorList: []*control_plane_proto.Selector{
+			{
+				Type:  "Type1",
+				Value: "Value1"}, {
+				Type:  "Type2",
+				Value: "Value2"}, {
+				Type:  "Type3",
+				Value: "Value3"},
+		},
+		SpiffeId: "SpiffeId",
+		ParentId: "ParentId",
+		Ttl:      1,
+	}
+
+	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{registeredEntry})
+	require.NoError(t, err)
+	require.NotNil(t, createRegistrationEntryResponse)
+
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&control_plane_proto.FetchRegistrationEntryRequest{createRegistrationEntryResponse.RegisteredEntryId})
+	require.NoError(t, err)
+	require.NotNil(t, fetchRegistrationEntryResponse)
+	assert.Equal(t, registeredEntry, fetchRegistrationEntryResponse.RegisteredEntry)
+}
+
+func Test_FetchInexistentRegistrationEntry(t *testing.T) {
+	ds := createDefault(t)
+
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&control_plane_proto.FetchRegistrationEntryRequest{"INEXISTENT"})
+	require.NoError(t, err)
+	require.Nil(t, fetchRegistrationEntryResponse.RegisteredEntry)
 }
 
 func Test_UpdateRegistrationEntry(t *testing.T) {
@@ -341,8 +396,6 @@ func Test_UpdateRegistrationEntry(t *testing.T) {
 func Test_DeleteRegistrationEntry(t *testing.T) {
 	t.Skipf("TODO")
 }
-
-//
 
 func Test_ListParentIDEntries(t *testing.T) {
 	t.Skipf("TODO")
@@ -355,8 +408,6 @@ func Test_ListSelectorEntries(t *testing.T) {
 func Test_ListSpiffeEntriesEntry(t *testing.T) {
 	t.Skipf("TODO")
 }
-
-//
 
 func Test_Configure(t *testing.T) {
 	t.Skipf("TODO")
@@ -375,4 +426,18 @@ func createDefault(t *testing.T) datastore.DataStore {
 		t.Fatal(err)
 	}
 	return ds
+}
+
+func getTestDataFromJsonFile(t *testing.T, filePath string, jsonValue interface{}) error {
+	invalidRegistrationEntriesJson, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(invalidRegistrationEntriesJson, &jsonValue)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
