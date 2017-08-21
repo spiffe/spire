@@ -171,7 +171,7 @@ func (m *GRPCClient) FetchStaleNodeEntries(req *control_plane_proto.FetchStaleNo
 	return res, err
 }
 
-func (m *GRPCClient) UpdateAttestedNodeEntryEntry(req *control_plane_proto.UpdateAttestedNodeEntryRequest) (*control_plane_proto.UpdateAttestedNodeEntryResponse, error) {
+func (m *GRPCClient) UpdateAttestedNodeEntry(req *control_plane_proto.UpdateAttestedNodeEntryRequest) (*control_plane_proto.UpdateAttestedNodeEntryResponse, error) {
 	res, err := m.client.UpdateAttestedNodeEntry(context.Background(), req)
 	return res, err
 }

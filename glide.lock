@@ -1,12 +1,12 @@
 hash: 483062881b0f4d11445f085e094d075805b9bd53111cc4f6c1cf05c1d4ba61f0
-updated: 2017-08-18T14:46:51.946111942-03:00
+updated: 2017-08-21T14:59:59.069148022Z
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/bgentry/speakeasy
   version: 4aabc24848ce5fd31929f7d1e4ea74d3709c14cd
 - name: github.com/go-kit/kit
-  version: bcc4b7720576e21b922974d4a4397f576ba7ef35
+  version: f01651a61ac759c6b508539bddda24f63ea34bbb
   subpackages:
   - endpoint
   - log
@@ -16,11 +16,20 @@ imports:
 - name: github.com/go-stack/stack
   version: 817915b46b97fd7bb80e8ab6b69f01a53ac3eebf
 - name: github.com/golang/protobuf
-  version: 1909bc2f63dc92bb931deace8b8312c4db72d12f
+  version: ab9f9a6dab164b7d1246e0e688b0ab7b94d8553e
   subpackages:
+  - jsonpb
   - proto
+  - protoc-gen-go/descriptor
   - ptypes/any
   - ptypes/empty
+  - ptypes/struct
+- name: github.com/grpc-ecosystem/grpc-gateway
+  version: f2862b476edcef83412c7af8687c9cd8e4097c0f
+  subpackages:
+  - runtime
+  - runtime/internal
+  - utilities
 - name: github.com/hashicorp/errwrap
   version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
 - name: github.com/hashicorp/go-hclog
@@ -28,7 +37,7 @@ imports:
 - name: github.com/hashicorp/go-multierror
   version: 83588e72410abfbe4df460eeb6f30841ae47d4c4
 - name: github.com/hashicorp/go-plugin
-  version: 871e7582ebde6a93f3e03d8c6fa0d2eb2eb98d02
+  version: a5174f84d7f8ff00fb07ab4ef1f380d32eee0e63
 - name: github.com/hashicorp/hcl
   version: 392dba7d905ed5d04a5794ba89f558b27e2ba1ca
   subpackages:
@@ -84,7 +93,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sys
-  version: 2d3e384235de683634e9080b58f757466840aa48
+  version: 07c182904dbd53199946ba614a412c61d3c548f5
   subpackages:
   - unix
 - name: golang.org/x/text
@@ -95,8 +104,9 @@ imports:
   - unicode/bidi
   - unicode/norm
 - name: google.golang.org/genproto
-  version: 09f6ed296fc66555a25fe4ce95173148778dfa85
+  version: ee236bd376b077c7a89f260c026c4735b195e459
   subpackages:
+  - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
   version: b3ddf786825de56a4178401b7e174ee332173b66
@@ -129,7 +139,7 @@ testImports:
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
-  version: 18a02ba4a312f95da08ff4cfc0055750ce50ae9e
+  version: 890a5c3458b43e6104ff5da8dfa139d013d77544
   subpackages:
   - assert
   - mock

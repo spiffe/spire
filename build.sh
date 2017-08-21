@@ -53,7 +53,7 @@ build_setup() {
 
     rm -rf ${GOROOT}
     mkdir -p ${GOROOT}
-    _fetch_url ${GO_URL} ${GO_TGZ} 
+    _fetch_url ${GO_URL} ${GO_TGZ}
     tar --directory ${GOROOT} --transform 's|^go/|./|' -xf ${BUILD_CACHE}/${GO_TGZ}
 
     rm -rf ${BUILD_DIR}/protobuf
@@ -63,12 +63,12 @@ build_setup() {
 
     rm -rf ${BUILD_DIR}/protoc-gen-doc
     mkdir -p ${BUILD_DIR}/protoc-gen-doc/bin
-    _fetch_url ${PROTOC_GEN_DOCS_URL} ${PROTOC_GEN_DOCS_TGZ} 
+    _fetch_url ${PROTOC_GEN_DOCS_URL} ${PROTOC_GEN_DOCS_TGZ}
     tar --directory ${BUILD_DIR}/protoc-gen-doc/bin --strip 1 -xf ${BUILD_CACHE}/${PROTOC_GEN_DOCS_TGZ}
 
     rm -rf ${BUILD_DIR}/glide
     mkdir -p ${BUILD_DIR}/glide/bin
-    _fetch_url ${GLIDE_URL} ${GLIDE_TGZ} 
+    _fetch_url ${GLIDE_URL} ${GLIDE_TGZ}
     tar --directory ${BUILD_DIR}/glide/bin --strip 1 -xf ${BUILD_CACHE}/${GLIDE_TGZ}
 
     go get github.com/golang/protobuf/protoc-gen-go
@@ -86,7 +86,7 @@ build_deps() {
         _exit_error "glide.lock file may be out of date"
     fi
 }
-    
+
 build_protobuf() {
     local _n _d _dir _prefix="$1"
     eval $(build_env)
@@ -101,9 +101,11 @@ build_protobuf() {
         fi
         _docdir="$(dirname ${_d})"
         _log_info "processing \"${_n}\""
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --go_out=plugins=grpc:${_d} ${_n}
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --go_out=plugins=grpc:${_d} ${_n}
         _log_info "creating \"${_docdir}/README.md\""
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --doc_out=markdown,README.md:${_docdir} ${_n}
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --doc_out=markdown,README.md:${_docdir} ${_n}
+        _log_info "creating http gateway"
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --grpc-gateway_out=logtostderr=true:${_d} ${_n}
     done
 }
 
@@ -148,7 +150,7 @@ build_test() {
         if [[ -n ${COVERALLS_TOKEN} ]]; then
             gocovermerge -coverprofile=test_results/cover.out test -covermode=count ${_test_path}
             goveralls -coverprofile=test_results/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
-        fi                
+        fi
     else
         go test ${DEBUG+-v} ${_test_path}
     fi
@@ -166,7 +168,7 @@ build_distclean() {
 build_all() {
     build_setup
     build_deps
-    build_binaries 
+    build_binaries
     build_test
 }
 
