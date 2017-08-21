@@ -76,6 +76,8 @@ build_setup() {
     go get github.com/AlekSi/gocovermerge
     go get github.com/mattn/goveralls
     go get github.com/jteeuwen/go-bindata/...
+    go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
+    go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
 }
 
 build_deps() {
