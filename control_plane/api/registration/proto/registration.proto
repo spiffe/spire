@@ -47,64 +47,64 @@ message Empty {
 
 /**A type which describes the conditions under which a registration entry is matched.*/
 message Selector {
-    string type = 1;
-    string value = 2;
+    string type = 1; ///A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8).
+    string value = 2; ///The value to be attested.
 }
 
 /**This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.*/
 message RegisteredEntry {
-    repeated Selector selectors = 1;
-    string parent_id = 2;
-    string spiffe_id = 3;
-    int32 ttl = 4;
-    repeated string fb_spiffe_ids = 5;
+    repeated Selector selectors = 1; ///A list of selectors.
+    string parent_id = 2; ///The SPIFFE ID of an entity that is authorized to attest the validity of a selector
+    string spiffe_id = 3; ///The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path.
+    int32 ttl = 4; ///Time to live.
+    repeated string fb_spiffe_ids = 5; ///A list of federated bundle spiffe ids.
 }
 
 /**A list of registered entries.*/
 message RegisteredEntries {
-    repeated RegisteredEntry entries = 1;
+    repeated RegisteredEntry entries = 1; ///A list of RegisteredEntry.
 }
 
 /**A type that represents the id of an entry.*/
 message RegisteredEntryID {
-    string id = 1;
+    string id = 1; ///RegisteredEntryID.
 }
 
 /**A type that represents a parent Id.*/
 message ParentID {
-    string id = 1;
+    string id = 1; ///ParentId.
 }
 
 /**A type that represents a SPIFFE Id.*/
 message SpiffeID {
-    string id = 1;
+    string id = 1; ///SpiffeId.
 }
 
 /**A type with the id with want to update plus values to modify.*/
 message UpdateEntryRequest {
-    string id = 1;
-    RegisteredEntry entry = 2;
+    string id = 1; ///Id of the entry to update.
+    RegisteredEntry entry = 2; ///Values in the RegisteredEntry to update.
 
 }
 
 /**A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.*/
 message FederatedBundle {
-    string spiffe_id = 1;
-    bytes federated_bundle = 2;
-    int32 ttl = 3;
+    string spiffe_id = 1; ///A SPIFFE ID that has a Federated Bundle
+    bytes federated_bundle = 2; ///A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain.
+    int32 ttl = 3; ///Time to live.
 }
 
 /**It represents a request with a FederatedBundle to create.*/
 message CreateFederatedBundleRequest {
-    FederatedBundle federated_bundle = 1;
+    FederatedBundle federated_bundle = 1; ///A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain.
 }
 
 /**It represents a reply with a list of FederatedBundle.*/
 message ListFederatedBundlesReply {
-    repeated FederatedBundle bundles = 1;
+    repeated FederatedBundle bundles = 1; ///A list of FederatedBundle.
 }
 
 /**A type that represents a Federated SPIFFE Id.*/
 message FederatedSpiffeID {
-    string id  = 1;
+    string id  = 1; ///FederatedSpiffeID
 }

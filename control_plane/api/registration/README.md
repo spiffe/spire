@@ -1037,7 +1037,7 @@ It represents a request with a FederatedBundle to create.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federated_bundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  |  |
+| federated_bundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  | A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain. |
 
 
 
@@ -1062,9 +1062,9 @@ A CA bundle for a different Trust Domain than the one used and managed by the Co
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffe_id | [string](#string) |  |  |
-| federated_bundle | [bytes](#bytes) |  |  |
-| ttl | [int32](#int32) |  |  |
+| spiffe_id | [string](#string) |  | A SPIFFE ID that has a Federated Bundle |
+| federated_bundle | [bytes](#bytes) |  | A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain. |
+| ttl | [int32](#int32) |  | Time to live. |
 
 
 
@@ -1079,7 +1079,7 @@ A type that represents a Federated SPIFFE Id.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| id | [string](#string) |  |  |
+| id | [string](#string) |  | FederatedSpiffeID |
 
 
 
@@ -1094,7 +1094,7 @@ It represents a reply with a list of FederatedBundle.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundles | [FederatedBundle](#control_plane_proto.FederatedBundle) | repeated |  |
+| bundles | [FederatedBundle](#control_plane_proto.FederatedBundle) | repeated | A list of FederatedBundle. |
 
 
 
@@ -1109,7 +1109,7 @@ A type that represents a parent Id.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| id | [string](#string) |  |  |
+| id | [string](#string) |  | ParentId. |
 
 
 
@@ -1124,7 +1124,7 @@ A list of registered entries.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [RegisteredEntry](#control_plane_proto.RegisteredEntry) | repeated |  |
+| entries | [RegisteredEntry](#control_plane_proto.RegisteredEntry) | repeated | A list of RegisteredEntry. |
 
 
 
@@ -1139,11 +1139,11 @@ This is a curated record that the Control Plane uses to set up and manage the va
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectors | [Selector](#control_plane_proto.Selector) | repeated |  |
-| parent_id | [string](#string) |  |  |
-| spiffe_id | [string](#string) |  |  |
-| ttl | [int32](#int32) |  |  |
-| fb_spiffe_ids | [string](#string) | repeated |  |
+| selectors | [Selector](#control_plane_proto.Selector) | repeated | A list of selectors. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| ttl | [int32](#int32) |  | Time to live. |
+| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
 
 
 
@@ -1158,7 +1158,7 @@ A type that represents the id of an entry.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| id | [string](#string) |  |  |
+| id | [string](#string) |  | RegisteredEntryID. |
 
 
 
@@ -1173,8 +1173,8 @@ A type which describes the conditions under which a registration entry is matche
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  |  |
-| value | [string](#string) |  |  |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| value | [string](#string) |  | The value to be attested. |
 
 
 
@@ -1189,7 +1189,7 @@ A type that represents a SPIFFE Id.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| id | [string](#string) |  |  |
+| id | [string](#string) |  | SpiffeId. |
 
 
 
@@ -1204,8 +1204,8 @@ A type with the id with want to update plus values to modify.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| id | [string](#string) |  |  |
-| entry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  |  |
+| id | [string](#string) |  | Id of the entry to update. |
+| entry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  | Values in the RegisteredEntry to update. |
 
 
 
