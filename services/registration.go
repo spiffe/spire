@@ -19,7 +19,7 @@ type RegistrationImpl struct {
 
 //NewRegistrationImpl creastes a new RegistrationImpl.
 func NewRegistrationImpl(dataStore datastore.DataStore) RegistrationImpl {
-	return RegistrationImpl{}
+	return RegistrationImpl{dataStore: dataStore}
 }
 
 //CreateEntry with the DataStore plugin.
