@@ -23,7 +23,7 @@ type LoggingMiddleware struct {
 	next   NodeService
 }
 
-func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request control_plane_proto.FetchBaseSVIDRequest) (response control_plane_proto.FetchBaseSVIDResponse) {
+func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request sri_proto.FetchBaseSVIDRequest) (response sri_proto.FetchBaseSVIDResponse) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "FetchBaseSVID",
@@ -36,7 +36,7 @@ func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request control_p
 	return
 }
 
-func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request control_plane_proto.FetchSVIDRequest) (response control_plane_proto.FetchSVIDResponse) {
+func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request sri_proto.FetchSVIDRequest) (response sri_proto.FetchSVIDResponse) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "FetchSVID",
@@ -49,7 +49,7 @@ func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request control_plane
 	return
 }
 
-func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request control_plane_proto.FetchCPBundleRequest) (response control_plane_proto.FetchCPBundleResponse) {
+func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request sri_proto.FetchCPBundleRequest) (response sri_proto.FetchCPBundleResponse) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "FetchCPBundle",
@@ -62,7 +62,7 @@ func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request control_p
 	return
 }
 
-func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request control_plane_proto.FetchFederatedBundleRequest) (response control_plane_proto.FetchFederatedBundleResponse) {
+func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request sri_proto.FetchFederatedBundleRequest) (response sri_proto.FetchFederatedBundleResponse) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "FetchFederatedBundle",

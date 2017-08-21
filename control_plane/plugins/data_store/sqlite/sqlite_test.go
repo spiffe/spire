@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+    "encoding/json"
 	"github.com/spiffe/sri/common/plugin"
 	"github.com/spiffe/sri/control_plane/plugins/data_store"
 	"github.com/stretchr/testify/assert"
@@ -323,12 +324,12 @@ func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*datas
 func Test_CreateRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	var validRegistrationEntries []*control_plane_proto.RegisteredEntry
+	var validRegistrationEntries []*datastore.RegisteredEntry
 	err := getTestDataFromJsonFile(t, "_test_data/valid_registration_entries.json", &validRegistrationEntries)
 	require.NoError(t, err)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
-		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{validRegistrationEntry})
+		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{validRegistrationEntry})
 		require.NoError(t, err)
 		assert.NotNil(t, createRegistrationEntryResponse)
 		assert.NotEmpty(t, createRegistrationEntryResponse.RegisteredEntryId)
@@ -338,12 +339,12 @@ func Test_CreateRegistrationEntry(t *testing.T) {
 func Test_CreateInvalidRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	var invalidRegistrationEntries []*control_plane_proto.RegisteredEntry
+	var invalidRegistrationEntries []*datastore.RegisteredEntry
 	err := getTestDataFromJsonFile(t, "_test_data/invalid_registration_entries.json", &invalidRegistrationEntries)
 	require.NoError(t, err)
 
 	for _, invalidRegisteredEntry := range invalidRegistrationEntries {
-		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{invalidRegisteredEntry})
+		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{invalidRegisteredEntry})
 		require.Error(t, err)
 		require.Nil(t, createRegistrationEntryResponse)
 	}
@@ -354,8 +355,8 @@ func Test_CreateInvalidRegistrationEntry(t *testing.T) {
 func Test_FetchRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	registeredEntry := &control_plane_proto.RegisteredEntry{
-		SelectorList: []*control_plane_proto.Selector{
+	registeredEntry := &datastore.RegisteredEntry{
+		SelectorList: []*datastore.Selector{
 			{
 				Type:  "Type1",
 				Value: "Value1"}, {
@@ -369,11 +370,11 @@ func Test_FetchRegistrationEntry(t *testing.T) {
 		Ttl:      1,
 	}
 
-	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{registeredEntry})
+	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{registeredEntry})
 	require.NoError(t, err)
 	require.NotNil(t, createRegistrationEntryResponse)
 
-	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&control_plane_proto.FetchRegistrationEntryRequest{createRegistrationEntryResponse.RegisteredEntryId})
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&datastore.FetchRegistrationEntryRequest{createRegistrationEntryResponse.RegisteredEntryId})
 	require.NoError(t, err)
 	require.NotNil(t, fetchRegistrationEntryResponse)
 	assert.Equal(t, registeredEntry, fetchRegistrationEntryResponse.RegisteredEntry)
@@ -382,7 +383,7 @@ func Test_FetchRegistrationEntry(t *testing.T) {
 func Test_FetchInexistentRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&control_plane_proto.FetchRegistrationEntryRequest{"INEXISTENT"})
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&datastore.FetchRegistrationEntryRequest{"INEXISTENT"})
 	require.NoError(t, err)
 	require.Nil(t, fetchRegistrationEntryResponse.RegisteredEntry)
 }
