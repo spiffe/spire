@@ -1,5 +1,6 @@
-hash: 483062881b0f4d11445f085e094d075805b9bd53111cc4f6c1cf05c1d4ba61f0
-updated: 2017-08-18T14:46:51.946111942-03:00
+hash: e1c775c6ccb0156433969f5e0c7cfe6aec03d5c0f43c106896743b5416a51dec
+updated: 2017-08-18T18:09:43.149214332-07:00
+
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -19,6 +20,7 @@ imports:
   version: 1909bc2f63dc92bb931deace8b8312c4db72d12f
   subpackages:
   - proto
+  - protoc-gen-go/descriptor
   - ptypes/any
   - ptypes/empty
 - name: github.com/hashicorp/errwrap
@@ -97,6 +99,7 @@ imports:
 - name: google.golang.org/genproto
   version: 09f6ed296fc66555a25fe4ce95173148778dfa85
   subpackages:
+  - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
   version: b3ddf786825de56a4178401b7e174ee332173b66
