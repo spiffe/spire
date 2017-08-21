@@ -1,5 +1,6 @@
 hash: e1c775c6ccb0156433969f5e0c7cfe6aec03d5c0f43c106896743b5416a51dec
 updated: 2017-08-18T18:09:43.149214332-07:00
+
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -70,6 +71,10 @@ imports:
   - cmd
   - cmd/install
   - match
+- name: github.com/satori/go.uuid
+  version: 5bf94b69c6b68ee1b541973bb8e1144db23a194b
+  subpackages:
+  - context
 - name: golang.org/x/net
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:

@@ -6,6 +6,7 @@ import:
   - ptypes/empty
 - package: github.com/hashicorp/go-plugin
 - package: golang.org/x/net
+- package: github.com/satori/go.uuid
   subpackages:
   - context
 - package: google.golang.org/grpc

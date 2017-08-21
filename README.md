@@ -1,10 +1,14 @@
 [![CircleCI](https://circleci.com/gh/spiffe/sri.svg?style=svg&circle-token=1021825e271fad64261d40b55f583c234fa083d4)](https://circleci.com/gh/spiffe/sri)
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/sri/badge.svg?t=SrV7ye)](https://coveralls.io/github/spiffe/sri)
 
-# sri
+# SPIFFE Reference Implementation (SRI)
 
-Build Environment
-------------
+The SPIFFE Reference Implementation provides a toolchain that defines a central registry of
+SPIFFE IDs (the Control Plane), and a Node Agent that can be run adjacent to a workload and
+exposes a local Workload API.
+
+## Buiilding the SRI
+
 The script `build.sh` manages the build process and can be used for development. It expects
 this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/sri`.
 
@@ -28,26 +32,8 @@ into the directory `.build/`
 `eval $(build.sh env)` will configure GOPATH, GOROOT and PATH for development outside
 of `build.sh`
 
-Prerequisites when not using build.sh
--------------
+## Prerequisites
 
 * The Go compiler and tools from https://golang.org/
 * protoc from https://github.com/google/protobuf
 * protoc-gen-go from https://github.com/golang/protobuf
-
-Constraints
------------
-
-
-
-Documentation
--------------
-
-
-Status
-------
-
-
-
-FAQ
----
