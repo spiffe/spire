@@ -4,45 +4,55 @@
 ## Table of Contents
 
 
-* [common.proto](#common.proto)
+* [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#control_plane_proto.ConfigureRequest)
+    * [ConfigureRequest](#sriplugin.ConfigureRequest)
   
-    * [ConfigureResponse](#control_plane_proto.ConfigureResponse)
+    * [ConfigureResponse](#sriplugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+  
+    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+  
+    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+  
+    * [StopReply](#sriplugin.StopReply)
+  
+    * [StopRequest](#sriplugin.StopRequest)
   
   
   
+  
+    * [Server](#sriplugin.Server)
   
 
 
 * [upstream_ca.proto](#upstream_ca.proto)
   
-    * [SubmitCSRRequest](#control_plane_proto.SubmitCSRRequest)
+    * [SubmitCSRRequest](#upstreamca.SubmitCSRRequest)
   
-    * [SubmitCSRResponse](#control_plane_proto.SubmitCSRResponse)
-  
-  
+    * [SubmitCSRResponse](#upstreamca.SubmitCSRResponse)
   
   
-    * [UpstreamCA](#control_plane_proto.UpstreamCA)
+  
+  
+    * [UpstreamCA](#upstreamca.UpstreamCA)
   
 
 * [Scalar Value Types](#scalar-value-types)
 
 
 
-<a name="common.proto"/>
+<a name="plugin.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## common.proto
+## plugin.proto
 
 
 
-<a name="control_plane_proto.ConfigureRequest"/>
+<a name="sriplugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -57,7 +67,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="control_plane_proto.ConfigureResponse"/>
+<a name="sriplugin.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -72,7 +82,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="control_plane_proto.GetPluginInfoRequest"/>
+<a name="sriplugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -82,7 +92,7 @@ Represents an empty request.
 
 
 
-<a name="control_plane_proto.GetPluginInfoResponse"/>
+<a name="sriplugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -104,11 +114,67 @@ Represents the plugin metadata.
 
 
 
- 
+
+<a name="sriplugin.PluginInfoReply"/>
+
+### PluginInfoReply
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+
+
+
+
+
+
+<a name="sriplugin.PluginInfoRequest"/>
+
+### PluginInfoRequest
+
+
+
+
+
+
+
+<a name="sriplugin.StopReply"/>
+
+### StopReply
+
+
+
+
+
+
+
+<a name="sriplugin.StopRequest"/>
+
+### StopRequest
+
+
+
+
+
 
  
 
  
+
+ 
+
+
+<a name="sriplugin.Server"/>
+
+### Server
+
+
+| Method Name | Request Type | Response Type | Description |
+| ----------- | ------------ | ------------- | ------------|
+| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
 
  
 
@@ -123,7 +189,7 @@ Responsible for processing Certificate Signing Requests for intermediate signing
 This plugin will manage/own the Trust Bundles for the Control Plane, and act as the interface for upstream CAs.
 
 
-<a name="control_plane_proto.SubmitCSRRequest"/>
+<a name="upstreamca.SubmitCSRRequest"/>
 
 ### SubmitCSRRequest
 
@@ -138,7 +204,7 @@ This plugin will manage/own the Trust Bundles for the Control Plane, and act as 
 
 
 
-<a name="control_plane_proto.SubmitCSRResponse"/>
+<a name="upstreamca.SubmitCSRResponse"/>
 
 ### SubmitCSRResponse
 
@@ -160,16 +226,16 @@ This plugin will manage/own the Trust Bundles for the Control Plane, and act as 
  
 
 
-<a name="control_plane_proto.UpstreamCA"/>
+<a name="upstreamca.UpstreamCA"/>
 
 ### UpstreamCA
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [ConfigureRequest](#control_plane_proto.ConfigureRequest) | [ConfigureResponse](#control_plane_proto.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| SubmitCSR | [SubmitCSRRequest](#control_plane_proto.SubmitCSRRequest) | [SubmitCSRResponse](#control_plane_proto.SubmitCSRRequest) | Will take in a CSR and submit it to the upstream CA for signing(“upstream” CA can be local self-signed root in simple case). |
+| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| SubmitCSR | [SubmitCSRRequest](#upstreamca.SubmitCSRRequest) | [SubmitCSRResponse](#upstreamca.SubmitCSRRequest) | Will take in a CSR and submit it to the upstream CA for signing(“upstream” CA can be local self-signed root in simple case). |
 
  
 

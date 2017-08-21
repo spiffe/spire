@@ -6,40 +6,40 @@
 
 * [node.proto](#node.proto)
   
-    * [AttestedData](#control_plane_proto.AttestedData)
+    * [AttestedData](#sri_proto.AttestedData)
   
-    * [FetchBaseSVIDRequest](#control_plane_proto.FetchBaseSVIDRequest)
+    * [FetchBaseSVIDRequest](#sri_proto.FetchBaseSVIDRequest)
   
-    * [FetchBaseSVIDResponse](#control_plane_proto.FetchBaseSVIDResponse)
+    * [FetchBaseSVIDResponse](#sri_proto.FetchBaseSVIDResponse)
   
-    * [FetchCPBundleRequest](#control_plane_proto.FetchCPBundleRequest)
+    * [FetchCPBundleRequest](#sri_proto.FetchCPBundleRequest)
   
-    * [FetchCPBundleResponse](#control_plane_proto.FetchCPBundleResponse)
+    * [FetchCPBundleResponse](#sri_proto.FetchCPBundleResponse)
   
-    * [FetchFederatedBundleRequest](#control_plane_proto.FetchFederatedBundleRequest)
+    * [FetchFederatedBundleRequest](#sri_proto.FetchFederatedBundleRequest)
   
-    * [FetchFederatedBundleResponse](#control_plane_proto.FetchFederatedBundleResponse)
+    * [FetchFederatedBundleResponse](#sri_proto.FetchFederatedBundleResponse)
   
-    * [FetchFederatedBundleResponse.MapEntry](#control_plane_proto.FetchFederatedBundleResponse.MapEntry)
+    * [FetchFederatedBundleResponse.MapEntry](#sri_proto.FetchFederatedBundleResponse.MapEntry)
   
-    * [FetchSVIDRequest](#control_plane_proto.FetchSVIDRequest)
+    * [FetchSVIDRequest](#sri_proto.FetchSVIDRequest)
   
-    * [FetchSVIDResponse](#control_plane_proto.FetchSVIDResponse)
+    * [FetchSVIDResponse](#sri_proto.FetchSVIDResponse)
   
-    * [RegistrationEntry](#control_plane_proto.RegistrationEntry)
+    * [RegistrationEntry](#sri_proto.RegistrationEntry)
   
-    * [Svid](#control_plane_proto.Svid)
+    * [Svid](#sri_proto.Svid)
   
-    * [SvidMap](#control_plane_proto.SvidMap)
+    * [SvidMap](#sri_proto.SvidMap)
   
-    * [SvidMap.MapEntry](#control_plane_proto.SvidMap.MapEntry)
+    * [SvidMap.MapEntry](#sri_proto.SvidMap.MapEntry)
   
-    * [SvidUpdate](#control_plane_proto.SvidUpdate)
-  
-  
+    * [SvidUpdate](#sri_proto.SvidUpdate)
   
   
-    * [node](#control_plane_proto.node)
+  
+  
+    * [node](#sri_proto.node)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -56,7 +56,7 @@ to retrieve the list of identities that are allowed to run on that node,
 and to retrieve SVIDs by presenting certificate signing requests to the Control Plane.
 
 
-<a name="control_plane_proto.AttestedData"/>
+<a name="sri_proto.AttestedData"/>
 
 ### AttestedData
 A type which contains attestation data for specific platform.
@@ -72,7 +72,7 @@ A type which contains attestation data for specific platform.
 
 
 
-<a name="control_plane_proto.FetchBaseSVIDRequest"/>
+<a name="sri_proto.FetchBaseSVIDRequest"/>
 
 ### FetchBaseSVIDRequest
 Represents a request to attest the node.
@@ -80,7 +80,7 @@ Represents a request to attest the node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [AttestedData](#control_plane_proto.AttestedData) |  | A type which contains attestation data for specific platform. |
+| attestedData | [AttestedData](#sri_proto.AttestedData) |  | A type which contains attestation data for specific platform. |
 | csr | [bytes](#bytes) |  | Certificate signing request. |
 
 
@@ -88,7 +88,7 @@ Represents a request to attest the node.
 
 
 
-<a name="control_plane_proto.FetchBaseSVIDResponse"/>
+<a name="sri_proto.FetchBaseSVIDResponse"/>
 
 ### FetchBaseSVIDResponse
 Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID
@@ -96,14 +96,14 @@ Represents a response that contains  map of signed SVIDs and an array of all cur
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeEntry | [SvidUpdate](#control_plane_proto.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
+| spiffeEntry | [SvidUpdate](#sri_proto.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
 
 
 
 
 
 
-<a name="control_plane_proto.FetchCPBundleRequest"/>
+<a name="sri_proto.FetchCPBundleRequest"/>
 
 ### FetchCPBundleRequest
 Represents an empty message.
@@ -113,7 +113,7 @@ Represents an empty message.
 
 
 
-<a name="control_plane_proto.FetchCPBundleResponse"/>
+<a name="sri_proto.FetchCPBundleResponse"/>
 
 ### FetchCPBundleResponse
 Represents a response with a Control Plane certificate bundle.
@@ -128,7 +128,7 @@ Represents a response with a Control Plane certificate bundle.
 
 
 
-<a name="control_plane_proto.FetchFederatedBundleRequest"/>
+<a name="sri_proto.FetchFederatedBundleRequest"/>
 
 ### FetchFederatedBundleRequest
 Represents a request with an array of SPIFFE Ids.
@@ -143,7 +143,7 @@ Represents a request with an array of SPIFFE Ids.
 
 
 
-<a name="control_plane_proto.FetchFederatedBundleResponse"/>
+<a name="sri_proto.FetchFederatedBundleResponse"/>
 
 ### FetchFederatedBundleResponse
 Represents a response with a map of SPIFFE Id, Federated CA Bundle.
@@ -151,14 +151,14 @@ Represents a response with a map of SPIFFE Id, Federated CA Bundle.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [FetchFederatedBundleResponse.MapEntry](#control_plane_proto.FetchFederatedBundleResponse.MapEntry) | repeated | Map [ SPIFFE ID ] =&gt; Federated CA Bundle |
+| map | [FetchFederatedBundleResponse.MapEntry](#sri_proto.FetchFederatedBundleResponse.MapEntry) | repeated | Map [ SPIFFE ID ] =&gt; Federated CA Bundle |
 
 
 
 
 
 
-<a name="control_plane_proto.FetchFederatedBundleResponse.MapEntry"/>
+<a name="sri_proto.FetchFederatedBundleResponse.MapEntry"/>
 
 ### FetchFederatedBundleResponse.MapEntry
 
@@ -174,7 +174,7 @@ Represents a response with a map of SPIFFE Id, Federated CA Bundle.
 
 
 
-<a name="control_plane_proto.FetchSVIDRequest"/>
+<a name="sri_proto.FetchSVIDRequest"/>
 
 ### FetchSVIDRequest
 Represents a request with a list of CSR.
@@ -189,7 +189,7 @@ Represents a request with a list of CSR.
 
 
 
-<a name="control_plane_proto.FetchSVIDResponse"/>
+<a name="sri_proto.FetchSVIDResponse"/>
 
 ### FetchSVIDResponse
 Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
@@ -197,14 +197,14 @@ Represents a response that contains  map of signed SVIDs and an array of all cur
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeEntry | [SvidUpdate](#control_plane_proto.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
+| spiffeEntry | [SvidUpdate](#sri_proto.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
 
 
 
 
 
 
-<a name="control_plane_proto.RegistrationEntry"/>
+<a name="sri_proto.RegistrationEntry"/>
 
 ### RegistrationEntry
 A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
@@ -225,7 +225,7 @@ A type representing a curated record that the Control Plane uses to set up and m
 
 
 
-<a name="control_plane_proto.Svid"/>
+<a name="sri_proto.Svid"/>
 
 ### Svid
 A type which contains the &#34;Spiffe Verifiable Identity Document&#34; and a TTL indicating when the SVID expires.
@@ -241,7 +241,7 @@ A type which contains the &#34;Spiffe Verifiable Identity Document&#34; and a TT
 
 
 
-<a name="control_plane_proto.SvidMap"/>
+<a name="sri_proto.SvidMap"/>
 
 ### SvidMap
 A map containing SVID values and corresponding SPIFFE IDs as the keys.
@@ -249,14 +249,14 @@ A map containing SVID values and corresponding SPIFFE IDs as the keys.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [SvidMap.MapEntry](#control_plane_proto.SvidMap.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; SVID |
+| map | [SvidMap.MapEntry](#sri_proto.SvidMap.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; SVID |
 
 
 
 
 
 
-<a name="control_plane_proto.SvidMap.MapEntry"/>
+<a name="sri_proto.SvidMap.MapEntry"/>
 
 ### SvidMap.MapEntry
 
@@ -265,14 +265,14 @@ A map containing SVID values and corresponding SPIFFE IDs as the keys.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [Svid](#control_plane_proto.Svid) |  |  |
+| value | [Svid](#sri_proto.Svid) |  |  |
 
 
 
 
 
 
-<a name="control_plane_proto.SvidUpdate"/>
+<a name="sri_proto.SvidUpdate"/>
 
 ### SvidUpdate
 A message returned by the Control Plane, which includes a map of signed SVIDs and
@@ -281,8 +281,8 @@ an array of all current Registration Entries which are relevant to the caller SP
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svidMap | [SvidMap](#control_plane_proto.SvidMap) |  | A map containing SVID values and corresponding SPIFFE IDs as the keys. |
-| registrationEntryList | [RegistrationEntry](#control_plane_proto.RegistrationEntry) | repeated | A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it. |
+| svidMap | [SvidMap](#sri_proto.SvidMap) |  | A map containing SVID values and corresponding SPIFFE IDs as the keys. |
+| registrationEntryList | [RegistrationEntry](#sri_proto.RegistrationEntry) | repeated | A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 
 
 
@@ -295,17 +295,17 @@ an array of all current Registration Entries which are relevant to the caller SP
  
 
 
-<a name="control_plane_proto.node"/>
+<a name="sri_proto.node"/>
 
 ### node
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchBaseSVID | [FetchBaseSVIDRequest](#control_plane_proto.FetchBaseSVIDRequest) | [FetchBaseSVIDResponse](#control_plane_proto.FetchBaseSVIDRequest) | Attest the node, get base node SVID. |
-| FetchSVID | [FetchSVIDRequest](#control_plane_proto.FetchSVIDRequest) | [FetchSVIDResponse](#control_plane_proto.FetchSVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation(Base Node SVID or the Registered Node SVID used for this call)(List can be empty to allow Node Agent cache refresh). |
-| FetchCPBundle | [FetchCPBundleRequest](#control_plane_proto.FetchCPBundleRequest) | [FetchCPBundleResponse](#control_plane_proto.FetchCPBundleRequest) | Called by Node Agent periodically to support Control Plane certificate rotation. Cached in Node Agent memory for WorkLoads as well. |
-| FetchFederatedBundle | [FetchFederatedBundleRequest](#control_plane_proto.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#control_plane_proto.FetchFederatedBundleRequest) | Called by the Node Agent to fetch the named Federated CA Bundle.Used in the event that authorized workloads reference a Federated Bundle. |
+| FetchBaseSVID | [FetchBaseSVIDRequest](#sri_proto.FetchBaseSVIDRequest) | [FetchBaseSVIDResponse](#sri_proto.FetchBaseSVIDRequest) | Attest the node, get base node SVID. |
+| FetchSVID | [FetchSVIDRequest](#sri_proto.FetchSVIDRequest) | [FetchSVIDResponse](#sri_proto.FetchSVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation(Base Node SVID or the Registered Node SVID used for this call)(List can be empty to allow Node Agent cache refresh). |
+| FetchCPBundle | [FetchCPBundleRequest](#sri_proto.FetchCPBundleRequest) | [FetchCPBundleResponse](#sri_proto.FetchCPBundleRequest) | Called by Node Agent periodically to support Control Plane certificate rotation. Cached in Node Agent memory for WorkLoads as well. |
+| FetchFederatedBundle | [FetchFederatedBundleRequest](#sri_proto.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#sri_proto.FetchFederatedBundleRequest) | Called by the Node Agent to fetch the named Federated CA Bundle.Used in the event that authorized workloads reference a Federated Bundle. |
 
  
 

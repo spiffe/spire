@@ -7,8 +7,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
-	"github.com/spiffe/sri/node_agent/plugins/key_manager/proto"
+	"github.com/spiffe/sri/common/plugin"
 )
 
 //Handshake is a common handshake that is shared by the plugin and host.
@@ -20,10 +19,10 @@ var Handshake = plugin.HandshakeConfig{
 
 
 type KeyManager interface {
-	GenerateKeyPair(*node_agent_proto.GenerateKeyPairRequest) (*node_agent_proto.GenerateKeyPairResponse, error)
-	FetchPrivateKey(*node_agent_proto.FetchPrivateKeyRequest) (*node_agent_proto.FetchPrivateKeyResponse, error)
-	Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error)
-	GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
+	GenerateKeyPair(*GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
+	FetchPrivateKey(*FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
+	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
+	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
 type KeyManagerPlugin struct {
@@ -39,10 +38,10 @@ func (p KeyManagerPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{
 }
 
 func (p KeyManagerPlugin) GRPCServer(s *grpc.Server) error {
-	node_agent_proto.RegisterKeyManagerServer(s, &GRPCServer{KeyManagerImpl: p.KeyManagerImpl})
+	RegisterKeyManagerServer(s, &GRPCServer{KeyManagerImpl: p.KeyManagerImpl})
 	return nil
 }
 
 func (p KeyManagerPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: node_agent_proto.NewKeyManagerClient(c)}, nil
+	return &GRPCClient{client: NewKeyManagerClient(c)}, nil
 }

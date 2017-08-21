@@ -2,23 +2,22 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
+	"github.com/spiffe/sri/common/plugin"
 	"github.com/spiffe/sri/node_agent/plugins/workload_attestor"
-	"github.com/spiffe/sri/node_agent/plugins/workload_attestor/proto"
 )
 
 type SecretFilePlugin struct{}
 
-func (SecretFilePlugin) Attest(*node_agent_proto.AttestRequest) (*node_agent_proto.AttestResponse, error) {
-	return &node_agent_proto.AttestResponse{}, nil
+func (SecretFilePlugin) Attest(*workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+	return &workloadattestor.AttestResponse{}, nil
 }
 
-func (SecretFilePlugin) Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error) {
-	return &common.ConfigureResponse{}, nil
+func (SecretFilePlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	return &sriplugin.ConfigureResponse{}, nil
 }
 
-func (SecretFilePlugin) GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
-	return &common.GetPluginInfoResponse{}, nil
+func (SecretFilePlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	return &sriplugin.GetPluginInfoResponse{}, nil
 }
 
 func main() {

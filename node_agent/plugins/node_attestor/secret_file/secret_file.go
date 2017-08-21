@@ -2,23 +2,22 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
+	"github.com/spiffe/sri/common/plugin"
 	"github.com/spiffe/sri/node_agent/plugins/node_attestor"
-	"github.com/spiffe/sri/node_agent/plugins/node_attestor/proto"
 )
 
 type SecretFilePlugin struct{}
 
-func (SecretFilePlugin) FetchAttestationData(*node_agent_proto.FetchAttestationDataRequest) (*node_agent_proto.FetchAttestationDataResponse, error) {
-	return &node_agent_proto.FetchAttestationDataResponse{}, nil
+func (SecretFilePlugin) FetchAttestationData(*nodeattestor.FetchAttestationDataRequest) (*nodeattestor.FetchAttestationDataResponse, error) {
+	return &nodeattestor.FetchAttestationDataResponse{}, nil
 }
 
-func (SecretFilePlugin) Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error) {
-	return &common.ConfigureResponse{}, nil
+func (SecretFilePlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	return &sriplugin.ConfigureResponse{}, nil
 }
 
-func (SecretFilePlugin) GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
-	return &common.GetPluginInfoResponse{}, nil
+func (SecretFilePlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	return &sriplugin.GetPluginInfoResponse{}, nil
 }
 
 func main() {

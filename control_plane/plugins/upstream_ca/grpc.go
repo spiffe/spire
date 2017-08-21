@@ -1,8 +1,7 @@
 package upstreamca
 
 import (
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
-	"github.com/spiffe/sri/control_plane/plugins/upstream_ca/proto"
+	"github.com/spiffe/sri/common/plugin"
 	"golang.org/x/net/context"
 )
 
@@ -10,39 +9,39 @@ type GRPCServer struct {
 	UpstreamCaImpl UpstreamCa
 }
 
-func (m *GRPCServer) Configure(ctx context.Context, req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
+func (m *GRPCServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
 	response, err := m.UpstreamCaImpl.Configure(req.Configuration)
-	return &common.ConfigureResponse{ErrorList: response}, err
+	return &sriplugin.ConfigureResponse{ErrorList: response}, err
 }
 
-func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
+func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
 	response, err := m.UpstreamCaImpl.GetPluginInfo()
 	return response, err
 }
 
-func (m *GRPCServer) SubmitCSR(ctx context.Context, req *control_plane_proto.SubmitCSRRequest) (*control_plane_proto.SubmitCSRResponse, error) {
+func (m *GRPCServer) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
 	response, err := m.UpstreamCaImpl.SubmitCSR(req.Csr)
 	return response, err
 }
 
 type GRPCClient struct {
-	client control_plane_proto.UpstreamCAClient
+	client UpstreamCAClient
 }
 
 func (m *GRPCClient) Configure(configuration string) ([]string, error) {
-	response, err := m.client.Configure(context.Background(), &common.ConfigureRequest{configuration})
+	response, err := m.client.Configure(context.Background(), &sriplugin.ConfigureRequest{configuration})
 	if err != nil {
 		return []string{}, err
 	}
 	return response.ErrorList, err
 }
 
-func (m *GRPCClient) GetPluginInfo() (*common.GetPluginInfoResponse, error) {
-	response, err := m.client.GetPluginInfo(context.Background(), &common.GetPluginInfoRequest{})
+func (m *GRPCClient) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
+	response, err := m.client.GetPluginInfo(context.Background(), &sriplugin.GetPluginInfoRequest{})
 	return response, err
 }
 
-func (m *GRPCClient) SubmitCSR(csr []byte) (*control_plane_proto.SubmitCSRResponse, error) {
-	response, err := m.client.SubmitCSR(context.Background(), &control_plane_proto.SubmitCSRRequest{Csr: csr})
+func (m *GRPCClient) SubmitCSR(csr []byte) (*SubmitCSRResponse, error) {
+	response, err := m.client.SubmitCSR(context.Background(), &SubmitCSRRequest{Csr: csr})
 	return response, err
 }

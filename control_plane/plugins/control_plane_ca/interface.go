@@ -7,8 +7,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
-	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca/proto"
+	"github.com/spiffe/sri/common/plugin"
 )
 
 // Handshake is a common handshake that is shared between noderesolution and host.
@@ -20,7 +19,7 @@ var Handshake = plugin.HandshakeConfig{
 
 type ControlPlaneCa interface {
 	Configure(config string) ([]string, error)
-	GetPluginInfo() (*common.GetPluginInfoResponse, error)
+	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
 	SignCsr([]byte) ([]byte, error)
 	GenerateCsr() ([]byte, error)
 	FetchCertificate() ([]byte, error)
@@ -40,10 +39,10 @@ func (p ControlPlaneCaPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interf
 }
 
 func (p ControlPlaneCaPlugin) GRPCServer(s *grpc.Server) error {
-	control_plane_proto.RegisterControlPlaneCAServer(s, &GRPCServer{ControlPlaneCaImpl: p.ControlPlaneCaImpl})
+	RegisterControlPlaneCAServer(s, &GRPCServer{ControlPlaneCaImpl: p.ControlPlaneCaImpl})
 	return nil
 }
 
 func (p ControlPlaneCaPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: control_plane_proto.NewControlPlaneCAClient(c)}, nil
+	return &GRPCClient{client: NewControlPlaneCAClient(c)}, nil
 }

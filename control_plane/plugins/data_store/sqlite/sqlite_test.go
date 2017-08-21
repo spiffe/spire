@@ -5,10 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"encoding/json"
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
-	datastore "github.com/spiffe/sri/control_plane/plugins/data_store"
-	"github.com/spiffe/sri/control_plane/plugins/data_store/proto"
+    "encoding/json"
+	"github.com/spiffe/sri/common/plugin"
+	"github.com/spiffe/sri/control_plane/plugins/data_store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,44 +15,44 @@ import (
 func TestFederatedEntry_CRUD(t *testing.T) {
 	ds := createDefault(t)
 
-	bundle := &control_plane_proto.FederatedBundle{
+	bundle := &datastore.FederatedBundle{
 		FederatedBundleSpiffeId: "foo",
 		FederatedTrustBundle:    []byte("bar"),
 		Ttl:                     10,
 	}
 
 	// create
-	_, err := ds.CreateFederatedEntry(&control_plane_proto.CreateFederatedEntryRequest{bundle})
+	_, err := ds.CreateFederatedEntry(&datastore.CreateFederatedEntryRequest{bundle})
 	require.NoError(t, err)
 
 	// list
-	lresp, err := ds.ListFederatedEntry(&control_plane_proto.ListFederatedEntryRequest{})
+	lresp, err := ds.ListFederatedEntry(&datastore.ListFederatedEntryRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, []string{bundle.FederatedBundleSpiffeId}, lresp.FederatedBundleSpiffeIdList)
 
 	// update
-	bundle2 := &control_plane_proto.FederatedBundle{
+	bundle2 := &datastore.FederatedBundle{
 		FederatedBundleSpiffeId: bundle.FederatedBundleSpiffeId,
 		FederatedTrustBundle:    []byte("baz"),
 		Ttl:                     20,
 	}
 
-	uresp, err := ds.UpdateFederatedEntry(&control_plane_proto.UpdateFederatedEntryRequest{bundle2})
+	uresp, err := ds.UpdateFederatedEntry(&datastore.UpdateFederatedEntryRequest{bundle2})
 	require.NoError(t, err)
 	assert.Equal(t, bundle2, uresp.FederatedBundle)
 
-	lresp, err = ds.ListFederatedEntry(&control_plane_proto.ListFederatedEntryRequest{})
+	lresp, err = ds.ListFederatedEntry(&datastore.ListFederatedEntryRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, []string{bundle.FederatedBundleSpiffeId}, lresp.FederatedBundleSpiffeIdList)
 
 	// delete
-	dresp, err := ds.DeleteFederatedEntry(&control_plane_proto.DeleteFederatedEntryRequest{
+	dresp, err := ds.DeleteFederatedEntry(&datastore.DeleteFederatedEntryRequest{
 		FederatedBundleSpiffeId: bundle.FederatedBundleSpiffeId,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, bundle2, dresp.FederatedBundle)
 
-	lresp, err = ds.ListFederatedEntry(&control_plane_proto.ListFederatedEntryRequest{})
+	lresp, err = ds.ListFederatedEntry(&datastore.ListFederatedEntryRequest{})
 	require.NoError(t, err)
 	assert.Len(t, lresp.FederatedBundleSpiffeIdList, 0)
 }
@@ -61,7 +60,7 @@ func TestFederatedEntry_CRUD(t *testing.T) {
 func Test_ListFederatedEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	lresp, err := ds.ListFederatedEntry(&control_plane_proto.ListFederatedEntryRequest{})
+	lresp, err := ds.ListFederatedEntry(&datastore.ListFederatedEntryRequest{})
 	require.NoError(t, err)
 	assert.Empty(t, lresp.FederatedBundleSpiffeIdList)
 }
@@ -69,29 +68,29 @@ func Test_ListFederatedEntry(t *testing.T) {
 func Test_CreateAttestedNodeEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	entry := &control_plane_proto.AttestedNodeEntry{
+	entry := &datastore.AttestedNodeEntry{
 		BaseSpiffeId:       "foo",
 		AttestedDataType:   "aws-tag",
 		CertSerialNumber:   "badcafe",
 		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
 	}
 
-	cresp, err := ds.CreateAttestedNodeEntry(&control_plane_proto.CreateAttestedNodeEntryRequest{entry})
+	cresp, err := ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{entry})
 	require.NoError(t, err)
 	assert.Equal(t, entry, cresp.AttestedNodeEntry)
 
-	fresp, err := ds.FetchAttestedNodeEntry(&control_plane_proto.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
+	fresp, err := ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
 	require.NoError(t, err)
 	assert.Equal(t, entry, fresp.AttestedNodeEntry)
 
-	sresp, err := ds.FetchStaleNodeEntries(&control_plane_proto.FetchStaleNodeEntriesRequest{})
+	sresp, err := ds.FetchStaleNodeEntries(&datastore.FetchStaleNodeEntriesRequest{})
 	require.NoError(t, err)
 	assert.Empty(t, sresp.AttestedNodeEntryList)
 }
 
 func Test_FetchAttestedNodeEntry_missing(t *testing.T) {
 	ds := createDefault(t)
-	fresp, err := ds.FetchAttestedNodeEntry(&control_plane_proto.FetchAttestedNodeEntryRequest{"missing"})
+	fresp, err := ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{"missing"})
 	require.NoError(t, err)
 	require.Nil(t, fresp.AttestedNodeEntry)
 }
@@ -99,35 +98,35 @@ func Test_FetchAttestedNodeEntry_missing(t *testing.T) {
 func Test_FetchStaleNodeEntries(t *testing.T) {
 	ds := createDefault(t)
 
-	efuture := &control_plane_proto.AttestedNodeEntry{
+	efuture := &datastore.AttestedNodeEntry{
 		BaseSpiffeId:       "foo",
 		AttestedDataType:   "aws-tag",
 		CertSerialNumber:   "badcafe",
 		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
 	}
 
-	epast := &control_plane_proto.AttestedNodeEntry{
+	epast := &datastore.AttestedNodeEntry{
 		BaseSpiffeId:       "bar",
 		AttestedDataType:   "aws-tag",
 		CertSerialNumber:   "deadbeef",
 		CertExpirationDate: time.Now().Add(-time.Hour).Format(datastore.TimeFormat),
 	}
 
-	_, err := ds.CreateAttestedNodeEntry(&control_plane_proto.CreateAttestedNodeEntryRequest{efuture})
+	_, err := ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{efuture})
 	require.NoError(t, err)
 
-	_, err = ds.CreateAttestedNodeEntry(&control_plane_proto.CreateAttestedNodeEntryRequest{epast})
+	_, err = ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{epast})
 	require.NoError(t, err)
 
-	sresp, err := ds.FetchStaleNodeEntries(&control_plane_proto.FetchStaleNodeEntriesRequest{})
+	sresp, err := ds.FetchStaleNodeEntries(&datastore.FetchStaleNodeEntriesRequest{})
 	require.NoError(t, err)
-	assert.Equal(t, []*control_plane_proto.AttestedNodeEntry{epast}, sresp.AttestedNodeEntryList)
+	assert.Equal(t, []*datastore.AttestedNodeEntry{epast}, sresp.AttestedNodeEntryList)
 }
 
 func Test_UpdateAttestedNodeEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	entry := &control_plane_proto.AttestedNodeEntry{
+	entry := &datastore.AttestedNodeEntry{
 		BaseSpiffeId:       "foo",
 		AttestedDataType:   "aws-tag",
 		CertSerialNumber:   "badcafe",
@@ -137,10 +136,10 @@ func Test_UpdateAttestedNodeEntry(t *testing.T) {
 	userial := "deadbeef"
 	uexpires := time.Now().Add(time.Hour * 2).Format(datastore.TimeFormat)
 
-	_, err := ds.CreateAttestedNodeEntry(&control_plane_proto.CreateAttestedNodeEntryRequest{entry})
+	_, err := ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{entry})
 	require.NoError(t, err)
 
-	uresp, err := ds.UpdateAttestedNodeEntry(&control_plane_proto.UpdateAttestedNodeEntryRequest{
+	uresp, err := ds.UpdateAttestedNodeEntry(&datastore.UpdateAttestedNodeEntryRequest{
 		BaseSpiffeId:       entry.BaseSpiffeId,
 		CertSerialNumber:   userial,
 		CertExpirationDate: uexpires,
@@ -155,7 +154,7 @@ func Test_UpdateAttestedNodeEntry(t *testing.T) {
 	assert.Equal(t, userial, uentry.CertSerialNumber)
 	assert.Equal(t, uexpires, uentry.CertExpirationDate)
 
-	fresp, err := ds.FetchAttestedNodeEntry(&control_plane_proto.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
+	fresp, err := ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
 	require.NoError(t, err)
 
 	fentry := fresp.AttestedNodeEntry
@@ -170,21 +169,21 @@ func Test_UpdateAttestedNodeEntry(t *testing.T) {
 func Test_DeleteAttestedNodeEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	entry := &control_plane_proto.AttestedNodeEntry{
+	entry := &datastore.AttestedNodeEntry{
 		BaseSpiffeId:       "foo",
 		AttestedDataType:   "aws-tag",
 		CertSerialNumber:   "badcafe",
 		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
 	}
 
-	_, err := ds.CreateAttestedNodeEntry(&control_plane_proto.CreateAttestedNodeEntryRequest{entry})
+	_, err := ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{entry})
 	require.NoError(t, err)
 
-	dresp, err := ds.DeleteAttestedNodeEntry(&control_plane_proto.DeleteAttestedNodeEntryRequest{entry.BaseSpiffeId})
+	dresp, err := ds.DeleteAttestedNodeEntry(&datastore.DeleteAttestedNodeEntryRequest{entry.BaseSpiffeId})
 	require.NoError(t, err)
 	assert.Equal(t, entry, dresp.AttestedNodeEntry)
 
-	fresp, err := ds.FetchAttestedNodeEntry(&control_plane_proto.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
+	fresp, err := ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
 	require.NoError(t, err)
 	assert.Nil(t, fresp.AttestedNodeEntry)
 }
@@ -192,15 +191,15 @@ func Test_DeleteAttestedNodeEntry(t *testing.T) {
 func Test_CreateNodeResolverMapEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	entry := &control_plane_proto.NodeResolverMapEntry{
+	entry := &datastore.NodeResolverMapEntry{
 		BaseSpiffeId: "main",
-		Selector: &control_plane_proto.Selector{
+		Selector: &datastore.Selector{
 			Type:  "aws-tag",
 			Value: "a",
 		},
 	}
 
-	cresp, err := ds.CreateNodeResolverMapEntry(&control_plane_proto.CreateNodeResolverMapEntryRequest{entry})
+	cresp, err := ds.CreateNodeResolverMapEntry(&datastore.CreateNodeResolverMapEntryRequest{entry})
 	require.NoError(t, err)
 
 	centry := cresp.NodeResolverMapEntry
@@ -212,7 +211,7 @@ func Test_CreateNodeResolverMapEntry_dupe(t *testing.T) {
 	entries := createNodeResolverMapEntries(t, ds)
 
 	entry := entries[0]
-	cresp, err := ds.CreateNodeResolverMapEntry(&control_plane_proto.CreateNodeResolverMapEntryRequest{entry})
+	cresp, err := ds.CreateNodeResolverMapEntry(&datastore.CreateNodeResolverMapEntryRequest{entry})
 	assert.Error(t, err)
 	require.Nil(t, cresp)
 }
@@ -220,15 +219,15 @@ func Test_CreateNodeResolverMapEntry_dupe(t *testing.T) {
 func Test_FetchNodeResolverMapEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	entry := &control_plane_proto.NodeResolverMapEntry{
+	entry := &datastore.NodeResolverMapEntry{
 		BaseSpiffeId: "main",
-		Selector: &control_plane_proto.Selector{
+		Selector: &datastore.Selector{
 			Type:  "aws-tag",
 			Value: "a",
 		},
 	}
 
-	cresp, err := ds.CreateNodeResolverMapEntry(&control_plane_proto.CreateNodeResolverMapEntryRequest{entry})
+	cresp, err := ds.CreateNodeResolverMapEntry(&datastore.CreateNodeResolverMapEntryRequest{entry})
 	require.NoError(t, err)
 
 	centry := cresp.NodeResolverMapEntry
@@ -243,13 +242,13 @@ func Test_DeleteNodeResolverMapEntry_specific(t *testing.T) {
 
 	entry_removed := entries[0]
 
-	dresp, err := ds.DeleteNodeResolverMapEntry(&control_plane_proto.DeleteNodeResolverMapEntryRequest{entry_removed})
+	dresp, err := ds.DeleteNodeResolverMapEntry(&datastore.DeleteNodeResolverMapEntryRequest{entry_removed})
 	require.NoError(t, err)
 
 	assert.Equal(t, entries[0:1], dresp.NodeResolverMapEntryList)
 
 	for idx, entry := range entries[1:] {
-		fresp, err := ds.FetchNodeResolverMapEntry(&control_plane_proto.FetchNodeResolverMapEntryRequest{entry.BaseSpiffeId})
+		fresp, err := ds.FetchNodeResolverMapEntry(&datastore.FetchNodeResolverMapEntryRequest{entry.BaseSpiffeId})
 		require.NoError(t, err, idx)
 		require.Len(t, fresp.NodeResolverMapEntryList, 1, "%v", idx)
 		assert.Equal(t, entry, fresp.NodeResolverMapEntryList[0], "%v", idx)
@@ -262,25 +261,25 @@ func Test_DeleteNodeResolverMapEntry_all(t *testing.T) {
 	ds := createDefault(t)
 	entries := createNodeResolverMapEntries(t, ds)
 
-	entry_removed := &control_plane_proto.NodeResolverMapEntry{
+	entry_removed := &datastore.NodeResolverMapEntry{
 		BaseSpiffeId: entries[0].BaseSpiffeId,
 	}
 
-	dresp, err := ds.DeleteNodeResolverMapEntry(&control_plane_proto.DeleteNodeResolverMapEntryRequest{entry_removed})
+	dresp, err := ds.DeleteNodeResolverMapEntry(&datastore.DeleteNodeResolverMapEntryRequest{entry_removed})
 	require.NoError(t, err)
 
 	assert.Equal(t, entries[0:2], dresp.NodeResolverMapEntryList)
 
 	{
 		entry := entry_removed
-		fresp, err := ds.FetchNodeResolverMapEntry(&control_plane_proto.FetchNodeResolverMapEntryRequest{entry.BaseSpiffeId})
+		fresp, err := ds.FetchNodeResolverMapEntry(&datastore.FetchNodeResolverMapEntryRequest{entry.BaseSpiffeId})
 		require.NoError(t, err)
 		assert.Empty(t, fresp.NodeResolverMapEntryList)
 	}
 
 	{
 		entry := entries[2]
-		fresp, err := ds.FetchNodeResolverMapEntry(&control_plane_proto.FetchNodeResolverMapEntryRequest{entry.BaseSpiffeId})
+		fresp, err := ds.FetchNodeResolverMapEntry(&datastore.FetchNodeResolverMapEntryRequest{entry.BaseSpiffeId})
 		require.NoError(t, err)
 		assert.NotEmpty(t, fresp.NodeResolverMapEntryList)
 	}
@@ -289,25 +288,25 @@ func Test_DeleteNodeResolverMapEntry_all(t *testing.T) {
 func Test_RectifyNodeResolverMapEntries(t *testing.T) {
 }
 
-func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*control_plane_proto.NodeResolverMapEntry {
-	entries := []*control_plane_proto.NodeResolverMapEntry{
+func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*datastore.NodeResolverMapEntry {
+	entries := []*datastore.NodeResolverMapEntry{
 		{
 			BaseSpiffeId: "main",
-			Selector: &control_plane_proto.Selector{
+			Selector: &datastore.Selector{
 				Type:  "aws-tag",
 				Value: "a",
 			},
 		},
 		{
 			BaseSpiffeId: "main",
-			Selector: &control_plane_proto.Selector{
+			Selector: &datastore.Selector{
 				Type:  "aws-tag",
 				Value: "b",
 			},
 		},
 		{
 			BaseSpiffeId: "other",
-			Selector: &control_plane_proto.Selector{
+			Selector: &datastore.Selector{
 				Type:  "aws-tag",
 				Value: "a",
 			},
@@ -315,7 +314,7 @@ func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*contr
 	}
 
 	for idx, entry := range entries {
-		_, err := ds.CreateNodeResolverMapEntry(&control_plane_proto.CreateNodeResolverMapEntryRequest{entry})
+		_, err := ds.CreateNodeResolverMapEntry(&datastore.CreateNodeResolverMapEntryRequest{entry})
 		require.NoError(t, err, "%v", idx)
 	}
 
@@ -325,12 +324,12 @@ func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*contr
 func Test_CreateRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	var validRegistrationEntries []*control_plane_proto.RegisteredEntry
+	var validRegistrationEntries []*datastore.RegisteredEntry
 	err := getTestDataFromJsonFile(t, "_test_data/valid_registration_entries.json", &validRegistrationEntries)
 	require.NoError(t, err)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
-		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{validRegistrationEntry})
+		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{validRegistrationEntry})
 		require.NoError(t, err)
 		assert.NotNil(t, createRegistrationEntryResponse)
 		assert.NotEmpty(t, createRegistrationEntryResponse.RegisteredEntryId)
@@ -340,12 +339,12 @@ func Test_CreateRegistrationEntry(t *testing.T) {
 func Test_CreateInvalidRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	var invalidRegistrationEntries []*control_plane_proto.RegisteredEntry
+	var invalidRegistrationEntries []*datastore.RegisteredEntry
 	err := getTestDataFromJsonFile(t, "_test_data/invalid_registration_entries.json", &invalidRegistrationEntries)
 	require.NoError(t, err)
 
 	for _, invalidRegisteredEntry := range invalidRegistrationEntries {
-		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{invalidRegisteredEntry})
+		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{invalidRegisteredEntry})
 		require.Error(t, err)
 		require.Nil(t, createRegistrationEntryResponse)
 	}
@@ -356,8 +355,8 @@ func Test_CreateInvalidRegistrationEntry(t *testing.T) {
 func Test_FetchRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	registeredEntry := &control_plane_proto.RegisteredEntry{
-		SelectorList: []*control_plane_proto.Selector{
+	registeredEntry := &datastore.RegisteredEntry{
+		SelectorList: []*datastore.Selector{
 			{
 				Type:  "Type1",
 				Value: "Value1"}, {
@@ -371,11 +370,11 @@ func Test_FetchRegistrationEntry(t *testing.T) {
 		Ttl:      1,
 	}
 
-	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&control_plane_proto.CreateRegistrationEntryRequest{registeredEntry})
+	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{registeredEntry})
 	require.NoError(t, err)
 	require.NotNil(t, createRegistrationEntryResponse)
 
-	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&control_plane_proto.FetchRegistrationEntryRequest{createRegistrationEntryResponse.RegisteredEntryId})
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&datastore.FetchRegistrationEntryRequest{createRegistrationEntryResponse.RegisteredEntryId})
 	require.NoError(t, err)
 	require.NotNil(t, fetchRegistrationEntryResponse)
 	assert.Equal(t, registeredEntry, fetchRegistrationEntryResponse.RegisteredEntry)
@@ -384,7 +383,7 @@ func Test_FetchRegistrationEntry(t *testing.T) {
 func Test_FetchInexistentRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&control_plane_proto.FetchRegistrationEntryRequest{"INEXISTENT"})
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&datastore.FetchRegistrationEntryRequest{"INEXISTENT"})
 	require.NoError(t, err)
 	require.Nil(t, fetchRegistrationEntryResponse.RegisteredEntry)
 }
@@ -415,7 +414,7 @@ func Test_Configure(t *testing.T) {
 
 func Test_GetPluginInfo(t *testing.T) {
 	ds := createDefault(t)
-	resp, err := ds.GetPluginInfo(&common.GetPluginInfoRequest{})
+	resp, err := ds.GetPluginInfo(&sriplugin.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 }

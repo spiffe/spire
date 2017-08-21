@@ -4,49 +4,59 @@
 ## Table of Contents
 
 
-* [common.proto](#common.proto)
+* [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#node_agent_proto.ConfigureRequest)
+    * [ConfigureRequest](#sriplugin.ConfigureRequest)
   
-    * [ConfigureResponse](#node_agent_proto.ConfigureResponse)
+    * [ConfigureResponse](#sriplugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+  
+    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+  
+    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+  
+    * [StopReply](#sriplugin.StopReply)
+  
+    * [StopRequest](#sriplugin.StopRequest)
   
   
   
+  
+    * [Server](#sriplugin.Server)
   
 
 
 * [key_manager.proto](#key_manager.proto)
   
-    * [FetchPrivateKeyRequest](#node_agent_proto.FetchPrivateKeyRequest)
+    * [FetchPrivateKeyRequest](#keymanager.FetchPrivateKeyRequest)
   
-    * [FetchPrivateKeyResponse](#node_agent_proto.FetchPrivateKeyResponse)
+    * [FetchPrivateKeyResponse](#keymanager.FetchPrivateKeyResponse)
   
-    * [GenerateKeyPairRequest](#node_agent_proto.GenerateKeyPairRequest)
+    * [GenerateKeyPairRequest](#keymanager.GenerateKeyPairRequest)
   
-    * [GenerateKeyPairResponse](#node_agent_proto.GenerateKeyPairResponse)
-  
-  
+    * [GenerateKeyPairResponse](#keymanager.GenerateKeyPairResponse)
   
   
-    * [KeyManager](#node_agent_proto.KeyManager)
+  
+  
+    * [KeyManager](#keymanager.KeyManager)
   
 
 * [Scalar Value Types](#scalar-value-types)
 
 
 
-<a name="common.proto"/>
+<a name="plugin.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## common.proto
+## plugin.proto
 
 
 
-<a name="node_agent_proto.ConfigureRequest"/>
+<a name="sriplugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -61,7 +71,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="node_agent_proto.ConfigureResponse"/>
+<a name="sriplugin.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -76,7 +86,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="node_agent_proto.GetPluginInfoRequest"/>
+<a name="sriplugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -86,7 +96,7 @@ Represents an empty request.
 
 
 
-<a name="node_agent_proto.GetPluginInfoResponse"/>
+<a name="sriplugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -108,11 +118,67 @@ Represents the plugin metadata.
 
 
 
- 
+
+<a name="sriplugin.PluginInfoReply"/>
+
+### PluginInfoReply
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+
+
+
+
+
+
+<a name="sriplugin.PluginInfoRequest"/>
+
+### PluginInfoRequest
+
+
+
+
+
+
+
+<a name="sriplugin.StopReply"/>
+
+### StopReply
+
+
+
+
+
+
+
+<a name="sriplugin.StopRequest"/>
+
+### StopRequest
+
+
+
+
+
 
  
 
  
+
+ 
+
+
+<a name="sriplugin.Server"/>
+
+### Server
+
+
+| Method Name | Request Type | Response Type | Description |
+| ----------- | ------------ | ------------- | ------------|
+| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
 
  
 
@@ -125,7 +191,7 @@ Represents the plugin metadata.
 
 
 
-<a name="node_agent_proto.FetchPrivateKeyRequest"/>
+<a name="keymanager.FetchPrivateKeyRequest"/>
 
 ### FetchPrivateKeyRequest
 Represents an empty request.
@@ -135,7 +201,7 @@ Represents an empty request.
 
 
 
-<a name="node_agent_proto.FetchPrivateKeyResponse"/>
+<a name="keymanager.FetchPrivateKeyResponse"/>
 
 ### FetchPrivateKeyResponse
 Represents a private key.
@@ -150,7 +216,7 @@ Represents a private key.
 
 
 
-<a name="node_agent_proto.GenerateKeyPairRequest"/>
+<a name="keymanager.GenerateKeyPairRequest"/>
 
 ### GenerateKeyPairRequest
 Represents an empty request.
@@ -160,7 +226,7 @@ Represents an empty request.
 
 
 
-<a name="node_agent_proto.GenerateKeyPairResponse"/>
+<a name="keymanager.GenerateKeyPairResponse"/>
 
 ### GenerateKeyPairResponse
 Represents a public and private key pair.
@@ -182,17 +248,17 @@ Represents a public and private key pair.
  
 
 
-<a name="node_agent_proto.KeyManager"/>
+<a name="keymanager.KeyManager"/>
 
 ### KeyManager
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| GenerateKeyPair | [GenerateKeyPairRequest](#node_agent_proto.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#node_agent_proto.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware. |
-| FetchPrivateKey | [FetchPrivateKeyRequest](#node_agent_proto.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#node_agent_proto.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts. |
-| Configure | [ConfigureRequest](#node_agent_proto.ConfigureRequest) | [ConfigureResponse](#node_agent_proto.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
-| GetPluginInfo | [GetPluginInfoRequest](#node_agent_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#node_agent_proto.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
+| GenerateKeyPair | [GenerateKeyPairRequest](#keymanager.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#keymanager.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware. |
+| FetchPrivateKey | [FetchPrivateKeyRequest](#keymanager.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#keymanager.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts. |
+| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
+| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
 
  
 

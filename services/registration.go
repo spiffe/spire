@@ -2,8 +2,7 @@ package services
 
 import (
 	proto "github.com/spiffe/sri/control_plane/api/registration/proto"
-	"github.com/spiffe/sri/control_plane/plugins/data_store"
-	ds "github.com/spiffe/sri/control_plane/plugins/data_store/proto"
+	ds "github.com/spiffe/sri/control_plane/plugins/data_store"
 )
 
 //Registration service interface.
@@ -14,11 +13,11 @@ type Registration interface {
 
 //RegistrationImpl is an implementation of the Registration interface.
 type RegistrationImpl struct {
-	dataStore datastore.DataStore
+	dataStore ds.DataStore
 }
 
 //NewRegistrationImpl creastes a new RegistrationImpl.
-func NewRegistrationImpl(dataStore datastore.DataStore) RegistrationImpl {
+func NewRegistrationImpl(dataStore ds.DataStore) RegistrationImpl {
 	return RegistrationImpl{dataStore: dataStore}
 }
 

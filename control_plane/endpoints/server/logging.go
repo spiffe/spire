@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	control_plane_proto "github.com/spiffe/sri/control_plane/api/server/proto"
+	control_plane_proto "github.com/spiffe/sri/common/plugin"
 )
 
 

@@ -7,8 +7,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/node_agent/plugins/common/proto"
-	"github.com/spiffe/sri/node_agent/plugins/workload_attestor/proto"
+	"github.com/spiffe/sri/common/plugin"
 )
 
 //Handshake is a common handshake that is shared by the plugin and host.
@@ -20,9 +19,9 @@ var Handshake = plugin.HandshakeConfig{
 
 
 type WorkloadAttestor interface {
-	Attest(*node_agent_proto.AttestRequest) (*node_agent_proto.AttestResponse, error)
-	Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error)
-	GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
+	Attest(*AttestRequest) (*AttestResponse, error)
+	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
+	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
 type WorkloadAttestorPlugin struct {
@@ -38,10 +37,10 @@ func (p WorkloadAttestorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (inte
 }
 
 func (p WorkloadAttestorPlugin) GRPCServer(s *grpc.Server) error {
-	node_agent_proto.RegisterWorkloadAttestorServer(s, &GRPCServer{WorkloadAttestorImpl: p.WorkloadAttestorImpl})
+	RegisterWorkloadAttestorServer(s, &GRPCServer{WorkloadAttestorImpl: p.WorkloadAttestorImpl})
 	return nil
 }
 
 func (p WorkloadAttestorPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: node_agent_proto.NewWorkloadAttestorClient(c)}, nil
+	return &GRPCClient{client: NewWorkloadAttestorClient(c)}, nil
 }

@@ -4,7 +4,7 @@ set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
 declare -r BINARY_DIRS="control_plane node_agent $(find */plugins/*/* -maxdepth 1 -type d -not -name 'proto' -not -name '_*')"
-declare -r PROTO_FILES="$(find */plugins */api -name '*.proto')"
+declare -r PROTO_FILES="$(find common/ */plugins */endpoints -name '*.proto')"
 
 declare -r GO_VERSION=${GO_VERSION:-1.8.3}
 declare -r GO_URL="https://storage.googleapis.com/golang"
@@ -101,11 +101,10 @@ build_protobuf() {
         else
             _d=${_dir}
         fi
-        _docdir="$(dirname ${_d})"
         _log_info "processing \"${_n}\""
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --go_out=plugins=grpc:${_d} ${_n}
-        _log_info "creating \"${_docdir}/README.md\""
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --doc_out=markdown,README.md:${_docdir} ${_n}
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --go_out=plugins=grpc:${_d} ${_n}
+        _log_info "creating \"${_d}/README.md\""
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --doc_out=markdown,README.md:${_d} ${_n}
         _log_info "creating http gateway"
         protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --grpc-gateway_out=logtostderr=true:${_d} ${_n}
     done

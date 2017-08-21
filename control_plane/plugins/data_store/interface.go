@@ -8,8 +8,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
-	"github.com/spiffe/sri/control_plane/plugins/data_store/proto"
+	"github.com/spiffe/sri/common/plugin"
 )
 
 const TimeFormat = time.RFC1123Z
@@ -22,33 +21,33 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type DataStore interface {
-	CreateFederatedEntry(request *control_plane_proto.CreateFederatedEntryRequest) (*control_plane_proto.CreateFederatedEntryResponse, error)
-	ListFederatedEntry(request *control_plane_proto.ListFederatedEntryRequest) (*control_plane_proto.ListFederatedEntryResponse, error)
-	UpdateFederatedEntry(request *control_plane_proto.UpdateFederatedEntryRequest) (*control_plane_proto.UpdateFederatedEntryResponse, error)
-	DeleteFederatedEntry(request *control_plane_proto.DeleteFederatedEntryRequest) (*control_plane_proto.DeleteFederatedEntryResponse, error)
+	CreateFederatedEntry(request *CreateFederatedEntryRequest) (*CreateFederatedEntryResponse, error)
+	ListFederatedEntry(request *ListFederatedEntryRequest) (*ListFederatedEntryResponse, error)
+	UpdateFederatedEntry(request *UpdateFederatedEntryRequest) (*UpdateFederatedEntryResponse, error)
+	DeleteFederatedEntry(request *DeleteFederatedEntryRequest) (*DeleteFederatedEntryResponse, error)
 
-	CreateAttestedNodeEntry(request *control_plane_proto.CreateAttestedNodeEntryRequest) (*control_plane_proto.CreateAttestedNodeEntryResponse, error)
-	FetchAttestedNodeEntry(request *control_plane_proto.FetchAttestedNodeEntryRequest) (*control_plane_proto.FetchAttestedNodeEntryResponse, error)
-	FetchStaleNodeEntries(request *control_plane_proto.FetchStaleNodeEntriesRequest) (*control_plane_proto.FetchStaleNodeEntriesResponse, error)
-	UpdateAttestedNodeEntry(request *control_plane_proto.UpdateAttestedNodeEntryRequest) (*control_plane_proto.UpdateAttestedNodeEntryResponse, error)
-	DeleteAttestedNodeEntry(request *control_plane_proto.DeleteAttestedNodeEntryRequest) (*control_plane_proto.DeleteAttestedNodeEntryResponse, error)
+	CreateAttestedNodeEntry(request *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error)
+	FetchAttestedNodeEntry(request *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error)
+	FetchStaleNodeEntries(request *FetchStaleNodeEntriesRequest) (*FetchStaleNodeEntriesResponse, error)
+	UpdateAttestedNodeEntry(request *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error)
+	DeleteAttestedNodeEntry(request *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error)
 
-	CreateNodeResolverMapEntry(request *control_plane_proto.CreateNodeResolverMapEntryRequest) (*control_plane_proto.CreateNodeResolverMapEntryResponse, error)
-	FetchNodeResolverMapEntry(request *control_plane_proto.FetchNodeResolverMapEntryRequest) (*control_plane_proto.FetchNodeResolverMapEntryResponse, error)
-	DeleteNodeResolverMapEntry(request *control_plane_proto.DeleteNodeResolverMapEntryRequest) (*control_plane_proto.DeleteNodeResolverMapEntryResponse, error)
-	RectifyNodeResolverMapEntries(request *control_plane_proto.RectifyNodeResolverMapEntriesRequest) (*control_plane_proto.RectifyNodeResolverMapEntriesResponse, error)
+	CreateNodeResolverMapEntry(request *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error)
+	FetchNodeResolverMapEntry(request *FetchNodeResolverMapEntryRequest) (*FetchNodeResolverMapEntryResponse, error)
+	DeleteNodeResolverMapEntry(request *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error)
+	RectifyNodeResolverMapEntries(request *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error)
 
-	CreateRegistrationEntry(request *control_plane_proto.CreateRegistrationEntryRequest) (*control_plane_proto.CreateRegistrationEntryResponse, error)
-	FetchRegistrationEntry(request *control_plane_proto.FetchRegistrationEntryRequest) (*control_plane_proto.FetchRegistrationEntryResponse, error)
-	UpdateRegistrationEntry(request *control_plane_proto.UpdateRegistrationEntryRequest) (*control_plane_proto.UpdateRegistrationEntryResponse, error)
-	DeleteRegistrationEntry(request *control_plane_proto.DeleteRegistrationEntryRequest) (*control_plane_proto.DeleteRegistrationEntryResponse, error)
+	CreateRegistrationEntry(request *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
+	FetchRegistrationEntry(request *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
+	UpdateRegistrationEntry(request *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
+	DeleteRegistrationEntry(request *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
 
-	ListParentIDEntries(request *control_plane_proto.ListParentIDEntriesRequest) (*control_plane_proto.ListParentIDEntriesResponse, error)
-	ListSelectorEntries(request *control_plane_proto.ListSelectorEntriesRequest) (*control_plane_proto.ListSelectorEntriesResponse, error)
-	ListSpiffeEntries(request *control_plane_proto.ListSpiffeEntriesRequest) (*control_plane_proto.ListSpiffeEntriesResponse, error)
+	ListParentIDEntries(request *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error)
+	ListSelectorEntries(request *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
+	ListSpiffeEntries(request *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error)
 
-	Configure(request *common.ConfigureRequest) (*common.ConfigureResponse, error)
-	GetPluginInfo(request *common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error)
+	Configure(request *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
+	GetPluginInfo(request *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
 type DataStorePlugin struct {
@@ -64,10 +63,10 @@ func (p DataStorePlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}
 }
 
 func (p DataStorePlugin) GRPCServer(s *grpc.Server) error {
-	control_plane_proto.RegisterDataStoreServer(s, &GRPCServer{DataStoreImpl: p.DataStoreImpl})
+	RegisterDataStoreServer(s, &GRPCServer{DataStoreImpl: p.DataStoreImpl})
 	return nil
 }
 
 func (p DataStorePlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: control_plane_proto.NewDataStoreClient(c)}, nil
+	return &GRPCClient{client: NewDataStoreClient(c)}, nil
 }

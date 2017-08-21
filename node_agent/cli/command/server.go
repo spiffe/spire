@@ -11,8 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/spiffe/sri/node_agent/api/server/proto"
-
+	"github.com/spiffe/sri/common/plugin"
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/node_agent/endpoints/server"
 )
@@ -78,7 +77,7 @@ func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 
 		handler := server.MakeGRPCServer(endpoints)
 		gRPCServer := grpc.NewServer()
-		node_agent_proto.RegisterServerServer(gRPCServer, handler)
+		sriplugin.RegisterServerServer(gRPCServer, handler)
 		errChan <- gRPCServer.Serve(listener)
 	}()
 

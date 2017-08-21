@@ -4,53 +4,63 @@
 ## Table of Contents
 
 
-* [common.proto](#common.proto)
+* [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#control_plane_proto.ConfigureRequest)
+    * [ConfigureRequest](#sriplugin.ConfigureRequest)
   
-    * [ConfigureResponse](#control_plane_proto.ConfigureResponse)
+    * [ConfigureResponse](#sriplugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+  
+    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+  
+    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+  
+    * [StopReply](#sriplugin.StopReply)
+  
+    * [StopRequest](#sriplugin.StopRequest)
   
   
   
+  
+    * [Server](#sriplugin.Server)
   
 
 
 * [node_resolver.proto](#node_resolver.proto)
   
-    * [Empty](#control_plane_proto.Empty)
+    * [Empty](#noderesolver.Empty)
   
-    * [NodeResolution](#control_plane_proto.NodeResolution)
+    * [NodeResolution](#noderesolver.NodeResolution)
   
-    * [NodeResolutionList](#control_plane_proto.NodeResolutionList)
+    * [NodeResolutionList](#noderesolver.NodeResolutionList)
   
-    * [ResolveRequest](#control_plane_proto.ResolveRequest)
+    * [ResolveRequest](#noderesolver.ResolveRequest)
   
-    * [ResolveResponse](#control_plane_proto.ResolveResponse)
+    * [ResolveResponse](#noderesolver.ResolveResponse)
   
-    * [ResolveResponse.MapEntry](#control_plane_proto.ResolveResponse.MapEntry)
-  
-  
+    * [ResolveResponse.MapEntry](#noderesolver.ResolveResponse.MapEntry)
   
   
-    * [NodeResolver](#control_plane_proto.NodeResolver)
+  
+  
+    * [NodeResolver](#noderesolver.NodeResolver)
   
 
 * [Scalar Value Types](#scalar-value-types)
 
 
 
-<a name="common.proto"/>
+<a name="plugin.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## common.proto
+## plugin.proto
 
 
 
-<a name="control_plane_proto.ConfigureRequest"/>
+<a name="sriplugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -65,7 +75,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="control_plane_proto.ConfigureResponse"/>
+<a name="sriplugin.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -80,7 +90,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="control_plane_proto.GetPluginInfoRequest"/>
+<a name="sriplugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -90,7 +100,7 @@ Represents an empty request.
 
 
 
-<a name="control_plane_proto.GetPluginInfoResponse"/>
+<a name="sriplugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -112,11 +122,67 @@ Represents the plugin metadata.
 
 
 
- 
+
+<a name="sriplugin.PluginInfoReply"/>
+
+### PluginInfoReply
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+
+
+
+
+
+
+<a name="sriplugin.PluginInfoRequest"/>
+
+### PluginInfoRequest
+
+
+
+
+
+
+
+<a name="sriplugin.StopReply"/>
+
+### StopReply
+
+
+
+
+
+
+
+<a name="sriplugin.StopRequest"/>
+
+### StopRequest
+
+
+
+
+
 
  
 
  
+
+ 
+
+
+<a name="sriplugin.Server"/>
+
+### Server
+
+
+| Method Name | Request Type | Response Type | Description |
+| ----------- | ------------ | ------------- | ------------|
+| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
 
  
 
@@ -129,7 +195,7 @@ Represents the plugin metadata.
 Resolves the derived selectors for a given Node Agent. This mapping will be stored, and used to further derive which workloads the Node Agent is authorized to run.
 
 
-<a name="control_plane_proto.Empty"/>
+<a name="noderesolver.Empty"/>
 
 ### Empty
 Represents an empty message
@@ -139,7 +205,7 @@ Represents an empty message
 
 
 
-<a name="control_plane_proto.NodeResolution"/>
+<a name="noderesolver.NodeResolution"/>
 
 ### NodeResolution
 Represents a a type with a selectorType and a selector.
@@ -155,7 +221,7 @@ Represents a a type with a selectorType and a selector.
 
 
 
-<a name="control_plane_proto.NodeResolutionList"/>
+<a name="noderesolver.NodeResolutionList"/>
 
 ### NodeResolutionList
 Represents a type with a list of NodeResolution.
@@ -163,14 +229,14 @@ Represents a type with a list of NodeResolution.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| list | [NodeResolution](#control_plane_proto.NodeResolution) | repeated | A list of NodeResolution. |
+| list | [NodeResolution](#noderesolver.NodeResolution) | repeated | A list of NodeResolution. |
 
 
 
 
 
 
-<a name="control_plane_proto.ResolveRequest"/>
+<a name="noderesolver.ResolveRequest"/>
 
 ### ResolveRequest
 Represents a request with a list of BaseSPIFFEIDs.
@@ -185,7 +251,7 @@ Represents a request with a list of BaseSPIFFEIDs.
 
 
 
-<a name="control_plane_proto.ResolveResponse"/>
+<a name="noderesolver.ResolveResponse"/>
 
 ### ResolveResponse
 Represents a response with a map of SPIFFE ID to a list of Noderesolution.
@@ -193,14 +259,14 @@ Represents a response with a map of SPIFFE ID to a list of Noderesolution.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [ResolveResponse.MapEntry](#control_plane_proto.ResolveResponse.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; NodeResolutionList. |
+| map | [ResolveResponse.MapEntry](#noderesolver.ResolveResponse.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; NodeResolutionList. |
 
 
 
 
 
 
-<a name="control_plane_proto.ResolveResponse.MapEntry"/>
+<a name="noderesolver.ResolveResponse.MapEntry"/>
 
 ### ResolveResponse.MapEntry
 
@@ -209,7 +275,7 @@ Represents a response with a map of SPIFFE ID to a list of Noderesolution.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [NodeResolutionList](#control_plane_proto.NodeResolutionList) |  |  |
+| value | [NodeResolutionList](#noderesolver.NodeResolutionList) |  |  |
 
 
 
@@ -222,16 +288,16 @@ Represents a response with a map of SPIFFE ID to a list of Noderesolution.
  
 
 
-<a name="control_plane_proto.NodeResolver"/>
+<a name="noderesolver.NodeResolver"/>
 
 ### NodeResolver
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [ConfigureRequest](#control_plane_proto.ConfigureRequest) | [ConfigureResponse](#control_plane_proto.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| Resolve | [ResolveRequest](#control_plane_proto.ResolveRequest) | [ResolveResponse](#control_plane_proto.ResolveRequest) | Retrieves a list of properties reflecting the current state of a particular node(s). |
+| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| Resolve | [ResolveRequest](#noderesolver.ResolveRequest) | [ResolveResponse](#noderesolver.ResolveRequest) | Retrieves a list of properties reflecting the current state of a particular node(s). |
 
  
 

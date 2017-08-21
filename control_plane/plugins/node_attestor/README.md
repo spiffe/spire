@@ -4,47 +4,57 @@
 ## Table of Contents
 
 
-* [common.proto](#common.proto)
+* [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#control_plane_proto.ConfigureRequest)
+    * [ConfigureRequest](#sriplugin.ConfigureRequest)
   
-    * [ConfigureResponse](#control_plane_proto.ConfigureResponse)
+    * [ConfigureResponse](#sriplugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+  
+    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+  
+    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+  
+    * [StopReply](#sriplugin.StopReply)
+  
+    * [StopRequest](#sriplugin.StopRequest)
   
   
   
+  
+    * [Server](#sriplugin.Server)
   
 
 
 * [node_attestor.proto](#node_attestor.proto)
   
-    * [AttestRequest](#control_plane_proto.AttestRequest)
+    * [AttestRequest](#cpnodeattestor.AttestRequest)
   
-    * [AttestResponse](#control_plane_proto.AttestResponse)
+    * [AttestResponse](#cpnodeattestor.AttestResponse)
   
-    * [AttestedData](#control_plane_proto.AttestedData)
-  
-  
+    * [AttestedData](#cpnodeattestor.AttestedData)
   
   
-    * [NodeAttestor](#control_plane_proto.NodeAttestor)
+  
+  
+    * [NodeAttestor](#cpnodeattestor.NodeAttestor)
   
 
 * [Scalar Value Types](#scalar-value-types)
 
 
 
-<a name="common.proto"/>
+<a name="plugin.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## common.proto
+## plugin.proto
 
 
 
-<a name="control_plane_proto.ConfigureRequest"/>
+<a name="sriplugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -59,7 +69,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="control_plane_proto.ConfigureResponse"/>
+<a name="sriplugin.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -74,7 +84,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="control_plane_proto.GetPluginInfoRequest"/>
+<a name="sriplugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -84,7 +94,7 @@ Represents an empty request.
 
 
 
-<a name="control_plane_proto.GetPluginInfoResponse"/>
+<a name="sriplugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -106,11 +116,67 @@ Represents the plugin metadata.
 
 
 
- 
+
+<a name="sriplugin.PluginInfoReply"/>
+
+### PluginInfoReply
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+
+
+
+
+
+
+<a name="sriplugin.PluginInfoRequest"/>
+
+### PluginInfoRequest
+
+
+
+
+
+
+
+<a name="sriplugin.StopReply"/>
+
+### StopReply
+
+
+
+
+
+
+
+<a name="sriplugin.StopRequest"/>
+
+### StopRequest
+
+
+
+
+
 
  
 
  
+
+ 
+
+
+<a name="sriplugin.Server"/>
+
+### Server
+
+
+| Method Name | Request Type | Response Type | Description |
+| ----------- | ------------ | ------------- | ------------|
+| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
 
  
 
@@ -123,7 +189,7 @@ Represents the plugin metadata.
 Responsible for validating the Node Agent’s Attested Data.
 
 
-<a name="control_plane_proto.AttestRequest"/>
+<a name="cpnodeattestor.AttestRequest"/>
 
 ### AttestRequest
 Represents a request to attest a node.
@@ -131,7 +197,7 @@ Represents a request to attest a node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [AttestedData](#control_plane_proto.AttestedData) |  | A type which contains attestation data for specific platform. |
+| attestedData | [AttestedData](#cpnodeattestor.AttestedData) |  | A type which contains attestation data for specific platform. |
 | attestedBefore | [bool](#bool) |  | Is true if the Base SPIFFE ID is present in the Attested Node table. |
 
 
@@ -139,7 +205,7 @@ Represents a request to attest a node.
 
 
 
-<a name="control_plane_proto.AttestResponse"/>
+<a name="cpnodeattestor.AttestResponse"/>
 
 ### AttestResponse
 Represents a response when attesting a node.
@@ -155,7 +221,7 @@ Represents a response when attesting a node.
 
 
 
-<a name="control_plane_proto.AttestedData"/>
+<a name="cpnodeattestor.AttestedData"/>
 
 ### AttestedData
 A type which contains attestation data for specific platform.
@@ -177,16 +243,16 @@ A type which contains attestation data for specific platform.
  
 
 
-<a name="control_plane_proto.NodeAttestor"/>
+<a name="cpnodeattestor.NodeAttestor"/>
 
 ### NodeAttestor
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [ConfigureRequest](#control_plane_proto.ConfigureRequest) | [ConfigureResponse](#control_plane_proto.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [GetPluginInfoRequest](#control_plane_proto.GetPluginInfoRequest) | [GetPluginInfoResponse](#control_plane_proto.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| Attest | [AttestRequest](#control_plane_proto.AttestRequest) | [AttestResponse](#control_plane_proto.AttestRequest) | Attesta a node. |
+| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| Attest | [AttestRequest](#cpnodeattestor.AttestRequest) | [AttestResponse](#cpnodeattestor.AttestRequest) | Attesta a node. |
 
  
 

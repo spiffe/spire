@@ -5,8 +5,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
-	"github.com/spiffe/sri/control_plane/plugins/node_resolver/proto"
+	"github.com/spiffe/sri/common/plugin"
 	"google.golang.org/grpc"
 )
 
@@ -17,29 +16,29 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "NodeResolver",
 }
 
-type NodeResolution interface {
+type NodeResolver interface {
 	Configure(config string) ([]string, error)
-	GetPluginInfo() (*common.GetPluginInfoResponse, error)
-	Resolve([]string) (map[string]*control_plane_proto.NodeResolutionList, error)
+	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
+	Resolve([]string) (map[string]*NodeResolutionList, error)
 }
 
-type NodeResolutionPlugin struct {
-	NodeResolutionImpl NodeResolution
+type NodeResolverPlugin struct {
+	NodeResolverImpl NodeResolver
 }
 
-func (p NodeResolutionPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
+func (p NodeResolverPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p NodeResolutionPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p NodeResolverPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p NodeResolutionPlugin) GRPCServer(s *grpc.Server) error {
-	control_plane_proto.RegisterNodeResolverServer(s, &GRPCServer{NodeResolutionImpl: p.NodeResolutionImpl})
+func (p NodeResolverPlugin) GRPCServer(s *grpc.Server) error {
+	RegisterNodeResolverServer(s, &GRPCServer{NodeResolverImpl: p.NodeResolverImpl})
 	return nil
 }
 
-func (p NodeResolutionPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: control_plane_proto.NewNodeResolverClient(c)}, nil
+func (p NodeResolverPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &GRPCClient{client: NewNodeResolverClient(c)}, nil
 }

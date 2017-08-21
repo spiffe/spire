@@ -1,8 +1,8 @@
 package main
 
 import (
-	plugin "github.com/hashicorp/go-plugin"
-	upstreamca "github.com/spiffe/sri/control_plane/plugins/upstream_ca"
+	"github.com/hashicorp/go-plugin"
+	"github.com/spiffe/sri/control_plane/plugins/upstream_ca"
 	"github.com/spiffe/sri/control_plane/plugins/upstream_ca/memory/pkg"
 )
 

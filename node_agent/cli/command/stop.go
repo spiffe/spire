@@ -3,7 +3,7 @@ package command
 import (
 	"log"
 
-	pb "github.com/spiffe/sri/node_agent/api/server/proto"
+	"github.com/spiffe/sri/common/plugin"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -26,9 +26,9 @@ func (*StopCommand) Run(args []string) int {
 		return -1
 	}
 	defer conn.Close()
-	c := pb.NewServerClient(conn)
+	c := sriplugin.NewServerClient(conn)
 
-	_, err = c.Stop(context.Background(), &pb.StopRequest{})
+	_, err = c.Stop(context.Background(), &sriplugin.StopRequest{})
 
 	if err != nil {
 		log.Fatalf("Error: %v", err)

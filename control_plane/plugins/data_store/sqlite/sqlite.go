@@ -4,16 +4,17 @@ import (
 	"errors"
 	"github.com/hashicorp/go-plugin"
 	"github.com/jinzhu/gorm"
+    "github.com/satori/go.uuid"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	"github.com/satori/go.uuid"
-	common "github.com/spiffe/sri/control_plane/plugins/common/proto"
-	"github.com/spiffe/sri/control_plane/plugins/data_store"
-	proto "github.com/spiffe/sri/control_plane/plugins/data_store/proto"
-	"time"
+
+	"github.com/spiffe/sri/common/plugin"
+    // XXX . is not ideal here
+	. "github.com/spiffe/sri/control_plane/plugins/data_store"
+    "time"
 )
 
 var (
-	pluginInfo = common.GetPluginInfoResponse{
+	pluginInfo = sriplugin.GetPluginInfoResponse{
 		Description: "",
 		DateCreated: "",
 		Version:     "",
@@ -27,7 +28,7 @@ type sqlitePlugin struct {
 }
 
 func (ds *sqlitePlugin) CreateFederatedEntry(
-	req *proto.CreateFederatedEntryRequest) (*proto.CreateFederatedEntryResponse, error) {
+	req *CreateFederatedEntryRequest) (*CreateFederatedEntryResponse, error) {
 
 	bundle := req.FederatedBundle
 	if bundle == nil {
@@ -44,13 +45,13 @@ func (ds *sqlitePlugin) CreateFederatedEntry(
 		return nil, err
 	}
 
-	return &proto.CreateFederatedEntryResponse{}, nil
+	return &CreateFederatedEntryResponse{}, nil
 }
 
 func (ds *sqlitePlugin) ListFederatedEntry(
-	*proto.ListFederatedEntryRequest) (*proto.ListFederatedEntryResponse, error) {
+	*ListFederatedEntryRequest) (*ListFederatedEntryResponse, error) {
 	var entries []federatedBundle
-	var response proto.ListFederatedEntryResponse
+	var response ListFederatedEntryResponse
 
 	if err := ds.db.Find(&entries).Error; err != nil {
 		return &response, err
@@ -64,7 +65,7 @@ func (ds *sqlitePlugin) ListFederatedEntry(
 }
 
 func (ds *sqlitePlugin) UpdateFederatedEntry(
-	req *proto.UpdateFederatedEntryRequest) (*proto.UpdateFederatedEntryResponse, error) {
+	req *UpdateFederatedEntryRequest) (*UpdateFederatedEntryResponse, error) {
 	bundle := req.FederatedBundle
 
 	if bundle == nil {
@@ -90,8 +91,8 @@ func (ds *sqlitePlugin) UpdateFederatedEntry(
 		return nil, err
 	}
 
-	return &proto.UpdateFederatedEntryResponse{
-		FederatedBundle: &proto.FederatedBundle{
+	return &UpdateFederatedEntryResponse{
+		FederatedBundle: &FederatedBundle{
 			FederatedBundleSpiffeId: model.SpiffeId,
 			FederatedTrustBundle:    model.Bundle,
 			Ttl:                     model.Ttl,
@@ -100,7 +101,7 @@ func (ds *sqlitePlugin) UpdateFederatedEntry(
 }
 
 func (ds *sqlitePlugin) DeleteFederatedEntry(
-	req *proto.DeleteFederatedEntryRequest) (*proto.DeleteFederatedEntryResponse, error) {
+	req *DeleteFederatedEntryRequest) (*DeleteFederatedEntryResponse, error) {
 	db := ds.db.Begin()
 
 	var model federatedBundle
@@ -115,8 +116,8 @@ func (ds *sqlitePlugin) DeleteFederatedEntry(
 		return nil, err
 	}
 
-	return &proto.DeleteFederatedEntryResponse{
-		FederatedBundle: &proto.FederatedBundle{
+	return &DeleteFederatedEntryResponse{
+		FederatedBundle: &FederatedBundle{
 			FederatedBundleSpiffeId: model.SpiffeId,
 			FederatedTrustBundle:    model.Bundle,
 			Ttl:                     model.Ttl,
@@ -125,13 +126,13 @@ func (ds *sqlitePlugin) DeleteFederatedEntry(
 }
 
 func (ds *sqlitePlugin) CreateAttestedNodeEntry(
-	req *proto.CreateAttestedNodeEntryRequest) (*proto.CreateAttestedNodeEntryResponse, error) {
+	req *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error) {
 	entry := req.AttestedNodeEntry
 	if entry == nil {
 		return nil, errors.New("invalid request: missing attested node")
 	}
 
-	expiresAt, err := time.Parse(datastore.TimeFormat, entry.CertExpirationDate)
+	expiresAt, err := time.Parse(TimeFormat, entry.CertExpirationDate)
 	if err != nil {
 		return nil, errors.New("invalid request: missing expiration")
 	}
@@ -147,65 +148,65 @@ func (ds *sqlitePlugin) CreateAttestedNodeEntry(
 		return nil, err
 	}
 
-	return &proto.CreateAttestedNodeEntryResponse{
-		AttestedNodeEntry: &proto.AttestedNodeEntry{
+	return &CreateAttestedNodeEntryResponse{
+		AttestedNodeEntry: &AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeId,
 			AttestedDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
-			CertExpirationDate: expiresAt.Format(datastore.TimeFormat),
+			CertExpirationDate: expiresAt.Format(TimeFormat),
 		},
 	}, nil
 }
 
 func (ds *sqlitePlugin) FetchAttestedNodeEntry(
-	req *proto.FetchAttestedNodeEntryRequest) (*proto.FetchAttestedNodeEntryResponse, error) {
+	req *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error) {
 	var model attestedNodeEntry
 	err := ds.db.Find(&model, "spiffe_id = ?", req.BaseSpiffeId).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
-		return &proto.FetchAttestedNodeEntryResponse{}, nil
+		return &FetchAttestedNodeEntryResponse{}, nil
 	case err != nil:
 		return nil, err
 	}
-	return &proto.FetchAttestedNodeEntryResponse{
-		AttestedNodeEntry: &proto.AttestedNodeEntry{
+	return &FetchAttestedNodeEntryResponse{
+		AttestedNodeEntry: &AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeId,
 			AttestedDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
-			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+			CertExpirationDate: model.ExpiresAt.Format(TimeFormat),
 		},
 	}, nil
 }
 
 func (ds *sqlitePlugin) FetchStaleNodeEntries(
-	*proto.FetchStaleNodeEntriesRequest) (*proto.FetchStaleNodeEntriesResponse, error) {
+	*FetchStaleNodeEntriesRequest) (*FetchStaleNodeEntriesResponse, error) {
 
 	var models []attestedNodeEntry
 	if err := ds.db.Find(&models, "expires_at < ?", time.Now()).Error; err != nil {
 		return nil, err
 	}
 
-	resp := &proto.FetchStaleNodeEntriesResponse{
-		AttestedNodeEntryList: make([]*proto.AttestedNodeEntry, 0, len(models)),
+	resp := &FetchStaleNodeEntriesResponse{
+		AttestedNodeEntryList: make([]*AttestedNodeEntry, 0, len(models)),
 	}
 
 	for _, model := range models {
-		resp.AttestedNodeEntryList = append(resp.AttestedNodeEntryList, &proto.AttestedNodeEntry{
+		resp.AttestedNodeEntryList = append(resp.AttestedNodeEntryList, &AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeId,
 			AttestedDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
-			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+			CertExpirationDate: model.ExpiresAt.Format(TimeFormat),
 		})
 	}
 	return resp, nil
 }
 
 func (ds *sqlitePlugin) UpdateAttestedNodeEntry(
-	req *proto.UpdateAttestedNodeEntryRequest) (*proto.UpdateAttestedNodeEntryResponse, error) {
+	req *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error) {
 
 	var model attestedNodeEntry
 
-	expiresAt, err := time.Parse(datastore.TimeFormat, req.CertExpirationDate)
+	expiresAt, err := time.Parse(TimeFormat, req.CertExpirationDate)
 	if err != nil {
 		return nil, err
 	}
@@ -227,18 +228,18 @@ func (ds *sqlitePlugin) UpdateAttestedNodeEntry(
 		return nil, err
 	}
 
-	return &proto.UpdateAttestedNodeEntryResponse{
-		AttestedNodeEntry: &proto.AttestedNodeEntry{
+	return &UpdateAttestedNodeEntryResponse{
+		AttestedNodeEntry: &AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeId,
 			AttestedDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
-			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+			CertExpirationDate: model.ExpiresAt.Format(TimeFormat),
 		},
 	}, db.Commit().Error
 }
 
 func (ds *sqlitePlugin) DeleteAttestedNodeEntry(
-	req *proto.DeleteAttestedNodeEntryRequest) (*proto.DeleteAttestedNodeEntryResponse, error) {
+	req *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error) {
 	db := ds.db.Begin()
 
 	var model attestedNodeEntry
@@ -253,18 +254,18 @@ func (ds *sqlitePlugin) DeleteAttestedNodeEntry(
 		return nil, err
 	}
 
-	return &proto.DeleteAttestedNodeEntryResponse{
-		AttestedNodeEntry: &proto.AttestedNodeEntry{
+	return &DeleteAttestedNodeEntryResponse{
+		AttestedNodeEntry: &AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeId,
 			AttestedDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
-			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+			CertExpirationDate: model.ExpiresAt.Format(TimeFormat),
 		},
 	}, db.Commit().Error
 }
 
 func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
-	req *proto.CreateNodeResolverMapEntryRequest) (*proto.CreateNodeResolverMapEntryResponse, error) {
+	req *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error) {
 
 	entry := req.NodeResolverMapEntry
 	if entry == nil {
@@ -286,10 +287,10 @@ func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
 		return nil, err
 	}
 
-	return &proto.CreateNodeResolverMapEntryResponse{
-		NodeResolverMapEntry: &proto.NodeResolverMapEntry{
+	return &CreateNodeResolverMapEntryResponse{
+		NodeResolverMapEntry: &NodeResolverMapEntry{
 			BaseSpiffeId: model.SpiffeId,
-			Selector: &proto.Selector{
+			Selector: &Selector{
 				Type:  model.Type,
 				Value: model.Value,
 			},
@@ -298,21 +299,21 @@ func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
 }
 
 func (ds *sqlitePlugin) FetchNodeResolverMapEntry(
-	req *proto.FetchNodeResolverMapEntryRequest) (*proto.FetchNodeResolverMapEntryResponse, error) {
+	req *FetchNodeResolverMapEntryRequest) (*FetchNodeResolverMapEntryResponse, error) {
 	var models []nodeResolverMapEntry
 
 	if err := ds.db.Find(&models, "spiffe_id = ?", req.BaseSpiffeId).Error; err != nil {
 		return nil, err
 	}
 
-	resp := &proto.FetchNodeResolverMapEntryResponse{
-		NodeResolverMapEntryList: make([]*proto.NodeResolverMapEntry, 0, len(models)),
+	resp := &FetchNodeResolverMapEntryResponse{
+		NodeResolverMapEntryList: make([]*NodeResolverMapEntry, 0, len(models)),
 	}
 
 	for _, model := range models {
-		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &proto.NodeResolverMapEntry{
+		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &NodeResolverMapEntry{
 			BaseSpiffeId: model.SpiffeId,
-			Selector: &proto.Selector{
+			Selector: &Selector{
 				Type:  model.Type,
 				Value: model.Value,
 			},
@@ -322,7 +323,7 @@ func (ds *sqlitePlugin) FetchNodeResolverMapEntry(
 }
 
 func (ds *sqlitePlugin) DeleteNodeResolverMapEntry(
-	req *proto.DeleteNodeResolverMapEntryRequest) (*proto.DeleteNodeResolverMapEntryResponse, error) {
+	req *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error) {
 
 	entry := req.NodeResolverMapEntry
 	if entry == nil {
@@ -352,14 +353,14 @@ func (ds *sqlitePlugin) DeleteNodeResolverMapEntry(
 		return nil, err
 	}
 
-	resp := &proto.DeleteNodeResolverMapEntryResponse{
-		NodeResolverMapEntryList: make([]*proto.NodeResolverMapEntry, 0, len(models)),
+	resp := &DeleteNodeResolverMapEntryResponse{
+		NodeResolverMapEntryList: make([]*NodeResolverMapEntry, 0, len(models)),
 	}
 
 	for _, model := range models {
-		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &proto.NodeResolverMapEntry{
+		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &NodeResolverMapEntry{
 			BaseSpiffeId: model.SpiffeId,
-			Selector: &proto.Selector{
+			Selector: &Selector{
 				Type:  model.Type,
 				Value: model.Value,
 			},
@@ -370,12 +371,12 @@ func (ds *sqlitePlugin) DeleteNodeResolverMapEntry(
 }
 
 func (sqlitePlugin) RectifyNodeResolverMapEntries(
-	*proto.RectifyNodeResolverMapEntriesRequest) (*proto.RectifyNodeResolverMapEntriesResponse, error) {
-	return &proto.RectifyNodeResolverMapEntriesResponse{}, errors.New("Not Implemented")
+	*RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error) {
+	return &RectifyNodeResolverMapEntriesResponse{}, errors.New("Not Implemented")
 }
 
 func (ds *sqlitePlugin) CreateRegistrationEntry(
-	request *proto.CreateRegistrationEntryRequest) (*proto.CreateRegistrationEntryResponse, error) {
+	request *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error) {
 
 	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/sri/issues/44]
 	if request.RegisteredEntry == nil {
@@ -414,20 +415,20 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 		}
 	}
 
-	return &proto.CreateRegistrationEntryResponse{
+	return &CreateRegistrationEntryResponse{
 		RegisteredEntryId: newRegisteredEntry.RegisteredEntryId,
 	}, tx.Commit().Error
 }
 
 func (ds *sqlitePlugin) FetchRegistrationEntry(
-	request *proto.FetchRegistrationEntryRequest) (*proto.FetchRegistrationEntryResponse, error) {
+	request *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error) {
 
 	var fetchedRegisteredEntry registeredEntry
 	err := ds.db.Find(&fetchedRegisteredEntry, "registered_entry_id = ?", request.RegisteredEntryId).Error
 
 	switch {
 	case err == gorm.ErrRecordNotFound:
-		return &proto.FetchRegistrationEntryResponse{}, nil
+		return &FetchRegistrationEntryResponse{}, nil
 	case err != nil:
 		return nil, err
 	}
@@ -435,16 +436,16 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 	var fetchedSelectors []*selector
 	ds.db.Model(&fetchedRegisteredEntry).Related(&fetchedSelectors)
 
-	selectors := make([]*proto.Selector, 0, len(fetchedSelectors))
+	selectors := make([]*Selector, 0, len(fetchedSelectors))
 
 	for _, selector := range fetchedSelectors {
-		selectors = append(selectors, &proto.Selector{
+		selectors = append(selectors, &Selector{
 			Type:  selector.Type,
 			Value: selector.Value})
 	}
 
-	return &proto.FetchRegistrationEntryResponse{
-		RegisteredEntry: &proto.RegisteredEntry{
+	return &FetchRegistrationEntryResponse{
+		RegisteredEntry: &RegisteredEntry{
 			SelectorList: selectors,
 			SpiffeId:     fetchedRegisteredEntry.SpiffeId,
 			ParentId:     fetchedRegisteredEntry.ParentId,
@@ -454,39 +455,39 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 }
 
 func (sqlitePlugin) UpdateRegistrationEntry(
-	*proto.UpdateRegistrationEntryRequest) (*proto.UpdateRegistrationEntryResponse, error) {
-	return &proto.UpdateRegistrationEntryResponse{}, errors.New("Not Implemented")
+	*UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error) {
+	return &UpdateRegistrationEntryResponse{}, errors.New("Not Implemented")
 }
 
 func (sqlitePlugin) DeleteRegistrationEntry(
-	*proto.DeleteRegistrationEntryRequest) (*proto.DeleteRegistrationEntryResponse, error) {
-	return &proto.DeleteRegistrationEntryResponse{}, errors.New("Not Implemented")
+	*DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error) {
+	return &DeleteRegistrationEntryResponse{}, errors.New("Not Implemented")
 }
 
 func (sqlitePlugin) ListParentIDEntries(
-	*proto.ListParentIDEntriesRequest) (*proto.ListParentIDEntriesResponse, error) {
-	return &proto.ListParentIDEntriesResponse{}, errors.New("Not Implemented")
+	*ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error) {
+	return &ListParentIDEntriesResponse{}, errors.New("Not Implemented")
 }
 
 func (sqlitePlugin) ListSelectorEntries(
-	*proto.ListSelectorEntriesRequest) (*proto.ListSelectorEntriesResponse, error) {
-	return &proto.ListSelectorEntriesResponse{}, errors.New("Not Implemented")
+	*ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error) {
+	return &ListSelectorEntriesResponse{}, errors.New("Not Implemented")
 }
 
 func (sqlitePlugin) ListSpiffeEntries(
-	*proto.ListSpiffeEntriesRequest) (*proto.ListSpiffeEntriesResponse, error) {
-	return &proto.ListSpiffeEntriesResponse{}, errors.New("Not Implemented")
+	*ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error) {
+	return &ListSpiffeEntriesResponse{}, errors.New("Not Implemented")
 }
 
-func (sqlitePlugin) Configure(*common.ConfigureRequest) (*common.ConfigureResponse, error) {
-	return &common.ConfigureResponse{}, nil
+func (sqlitePlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	return &sriplugin.ConfigureResponse{}, nil
 }
 
-func (sqlitePlugin) GetPluginInfo(*common.GetPluginInfoRequest) (*common.GetPluginInfoResponse, error) {
+func (sqlitePlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
-func New() (datastore.DataStore, error) {
+func New() (DataStore, error) {
 	db, err := gorm.Open("sqlite3", ":memory:")
 	if err != nil {
 		return nil, err
@@ -511,9 +512,9 @@ func main() {
 	}
 
 	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: datastore.Handshake,
+		HandshakeConfig: Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"datastore": datastore.DataStorePlugin{DataStoreImpl: impl},
+			"datastore": DataStorePlugin{DataStoreImpl: impl},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

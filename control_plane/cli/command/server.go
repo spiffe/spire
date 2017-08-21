@@ -14,9 +14,11 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
-	registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
-	server_proto "github.com/spiffe/sri/control_plane/api/server/proto"
-	"github.com/spiffe/sri/control_plane/endpoints/registration"
+     "github.com/spiffe/sri/common/plugin"
+     registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
+//     server_proto "github.com/spiffe/sri/control_plane/api/server/proto"
+     "github.com/spiffe/sri/control_plane/endpoints/registration"
+
 	"github.com/spiffe/sri/control_plane/endpoints/server"
 	"github.com/spiffe/sri/control_plane/plugins/data_store"
 	"github.com/spiffe/sri/helpers"
@@ -110,7 +112,7 @@ func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 		serverHandler := server.MakeGRPCServer(serverEndpoints)
 		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
 		gRPCServer := grpc.NewServer()
-		server_proto.RegisterServerServer(gRPCServer, serverHandler)
+		sriplugin.RegisterServerServer(gRPCServer, serverHandler)
 		registration_proto.RegisterRegistrationServer(gRPCServer, registrationHandler)
 		errChan <- gRPCServer.Serve(listener)
 	}()
