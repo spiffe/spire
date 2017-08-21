@@ -5,25 +5,35 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
-	"github.com/spiffe/sri/common/plugin"
+     "github.com/spiffe/sri/common/plugin"
+     registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
+//     server_proto "github.com/spiffe/sri/control_plane/api/server/proto"
+     "github.com/spiffe/sri/control_plane/endpoints/registration"
 
 	"github.com/spiffe/sri/control_plane/endpoints/server"
+	"github.com/spiffe/sri/control_plane/plugins/data_store"
 	"github.com/spiffe/sri/helpers"
+	"github.com/spiffe/sri/services"
 )
 
 type ServerCommand struct {
 }
 
+//Help returns how to use the server command
 func (*ServerCommand) Help() string {
 	return "Usage: sri/control_plane server"
 }
 
+//Run the server command
 func (*ServerCommand) Run(args []string) int {
 	pluginCatalog, err := loadPlugins()
 	if err != nil {
@@ -39,13 +49,15 @@ func (*ServerCommand) Run(args []string) int {
 	return 0
 }
 
+//Synopsis of the server command
 func (*ServerCommand) Synopsis() string {
 	return "Intializes sri/control_plane Runtime."
 }
 
 func loadPlugins() (*pluginhelper.PluginCatalog, error) {
 	pluginCatalog := &pluginhelper.PluginCatalog{
-		PluginConfDirectory: os.Getenv("PLUGIN_CONFIG_PATH")}
+		PluginConfDirectory: os.Getenv("PLUGIN_CONFIG_PATH"),
+	}
 	err := pluginCatalog.Run()
 	if err != nil {
 		return nil, err
@@ -55,17 +67,38 @@ func loadPlugins() (*pluginhelper.PluginCatalog, error) {
 }
 
 func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
+	//Shouldn't we get this by plugin type?
+	dataStore := pluginCatalog.GetPlugin("datastore")
+	dataStoreImpl := dataStore.(datastore.DataStore)
+	registrationService := services.NewRegistrationImpl(dataStoreImpl)
+
 	errChan := makeErrorChannel()
-	svc := server.NewService(pluginCatalog, errChan)
+	serverSvc := server.NewService(pluginCatalog, errChan)
+	registrationSvc := registration.NewService(registrationService)
 
 	var (
-		gRPCAddr = flag.String("grpc", ":8081", "gRPC listen address") //TODO: read this from the cli arguments @kunzimariano
+		httpAddr = flag.String("http", ":8080", "http listen address")
+		gRPCAddr = flag.String("grpc", ":8081", "gRPC listen address")
 	)
 	flag.Parse()
 
-	endpoints := server.Endpoints{
-		PluginInfoEndpoint: server.MakePluginInfoEndpoint(svc),
-		StopEndpoint:       server.MakeStopEndpoint(svc),
+	serverEndpoints := server.Endpoints{
+		PluginInfoEndpoint: server.MakePluginInfoEndpoint(serverSvc),
+		StopEndpoint:       server.MakeStopEndpoint(serverSvc),
+	}
+
+	registrationEndpoints := registration.Endpoints{
+		CreateEntryEndpoint:           registration.MakeCreateEntryEndpoint(registrationSvc),
+		DeleteEntryEndpoint:           registration.MakeDeleteEntryEndpoint(registrationSvc),
+		FetchEntryEndpoint:            registration.MakeFetchEntryEndpoint(registrationSvc),
+		UpdateEntryEndpoint:           registration.MakeUpdateEntryEndpoint(registrationSvc),
+		ListByParentIDEndpoint:        registration.MakeListByParentIDEndpoint(registrationSvc),
+		ListBySelectorEndpoint:        registration.MakeListBySelectorEndpoint(registrationSvc),
+		ListBySpiffeIDEndpoint:        registration.MakeListBySpiffeIDEndpoint(registrationSvc),
+		CreateFederatedBundleEndpoint: registration.MakeCreateFederatedBundleEndpoint(registrationSvc),
+		ListFederatedBundlesEndpoint:  registration.MakeListFederatedBundlesEndpoint(registrationSvc),
+		UpdateFederatedBundleEndpoint: registration.MakeUpdateFederatedBundleEndpoint(registrationSvc),
+		DeleteFederatedBundleEndpoint: registration.MakeDeleteFederatedBundleEndpoint(registrationSvc),
 	}
 
 	go func() {
@@ -76,10 +109,28 @@ func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 		}
 		log.Println("grpc:", *gRPCAddr)
 
-		handler := server.MakeGRPCServer(endpoints)
+		serverHandler := server.MakeGRPCServer(serverEndpoints)
+		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
 		gRPCServer := grpc.NewServer()
-		sriplugin.RegisterServerServer(gRPCServer, handler)
+		sriplugin.RegisterServerServer(gRPCServer, serverHandler)
+		registration_proto.RegisterRegistrationServer(gRPCServer, registrationHandler)
 		errChan <- gRPCServer.Serve(listener)
+	}()
+
+	go func() {
+		ctx := context.Background()
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		mux := runtime.NewServeMux()
+		opts := []grpc.DialOption{grpc.WithInsecure()}
+		log.Println("http:", *httpAddr)
+		err := registration_proto.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		errChan <- http.ListenAndServe(*httpAddr, mux)
 	}()
 
 	error := <-errChan

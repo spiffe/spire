@@ -2,15 +2,15 @@ package main
 
 import (
 	"errors"
-	"time"
-
 	"github.com/hashicorp/go-plugin"
 	"github.com/jinzhu/gorm"
+    "github.com/satori/go.uuid"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 
 	"github.com/spiffe/sri/common/plugin"
     // XXX . is not ideal here
 	. "github.com/spiffe/sri/control_plane/plugins/data_store"
+    "time"
 )
 
 var (
@@ -124,8 +124,6 @@ func (ds *sqlitePlugin) DeleteFederatedEntry(
 		},
 	}, db.Commit().Error
 }
-
-//
 
 func (ds *sqlitePlugin) CreateAttestedNodeEntry(
 	req *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error) {
@@ -266,8 +264,6 @@ func (ds *sqlitePlugin) DeleteAttestedNodeEntry(
 	}, db.Commit().Error
 }
 
-//
-
 func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
 	req *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error) {
 
@@ -379,16 +375,83 @@ func (sqlitePlugin) RectifyNodeResolverMapEntries(
 	return &RectifyNodeResolverMapEntriesResponse{}, errors.New("Not Implemented")
 }
 
-//
+func (ds *sqlitePlugin) CreateRegistrationEntry(
+	request *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error) {
 
-func (sqlitePlugin) CreateRegistrationEntry(
-	*CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error) {
-	return &CreateRegistrationEntryResponse{}, errors.New("Not Implemented")
+	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/sri/issues/44]
+	if request.RegisteredEntry == nil {
+		return nil, errors.New("Invalid request: missing registered entry")
+	} else if request.RegisteredEntry.SelectorList == nil || len(request.RegisteredEntry.SelectorList) == 0 {
+		return nil, errors.New("Invalid request: missing selector list")
+	} else if len(request.RegisteredEntry.SpiffeId) == 0 {
+		return nil, errors.New("Invalid request: missing SPIFFE ID")
+	} else if request.RegisteredEntry.Ttl < 0 {
+		return nil, errors.New("Invalid request: TTL < 0")
+	}
+
+	newRegisteredEntry := registeredEntry{
+		RegisteredEntryId: uuid.NewV4().String(),
+		SpiffeId:          request.RegisteredEntry.SpiffeId,
+		ParentId:          request.RegisteredEntry.ParentId,
+		Ttl:               request.RegisteredEntry.Ttl,
+		// TODO: Add support to Federated Bundles [https://github.com/spiffe/sri/issues/42]
+	}
+
+	tx := ds.db.Begin()
+	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	for _, registeredSelector := range request.RegisteredEntry.SelectorList {
+		newSelector := selector{
+			RegisteredEntryId: newRegisteredEntry.RegisteredEntryId,
+			Type:              registeredSelector.Type,
+			Value:             registeredSelector.Value}
+
+		if err := tx.Create(&newSelector).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	return &CreateRegistrationEntryResponse{
+		RegisteredEntryId: newRegisteredEntry.RegisteredEntryId,
+	}, tx.Commit().Error
 }
 
-func (sqlitePlugin) FetchRegistrationEntry(
-	*FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error) {
-	return &FetchRegistrationEntryResponse{}, errors.New("Not Implemented")
+func (ds *sqlitePlugin) FetchRegistrationEntry(
+	request *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error) {
+
+	var fetchedRegisteredEntry registeredEntry
+	err := ds.db.Find(&fetchedRegisteredEntry, "registered_entry_id = ?", request.RegisteredEntryId).Error
+
+	switch {
+	case err == gorm.ErrRecordNotFound:
+		return &FetchRegistrationEntryResponse{}, nil
+	case err != nil:
+		return nil, err
+	}
+
+	var fetchedSelectors []*selector
+	ds.db.Model(&fetchedRegisteredEntry).Related(&fetchedSelectors)
+
+	selectors := make([]*Selector, 0, len(fetchedSelectors))
+
+	for _, selector := range fetchedSelectors {
+		selectors = append(selectors, &Selector{
+			Type:  selector.Type,
+			Value: selector.Value})
+	}
+
+	return &FetchRegistrationEntryResponse{
+		RegisteredEntry: &RegisteredEntry{
+			SelectorList: selectors,
+			SpiffeId:     fetchedRegisteredEntry.SpiffeId,
+			ParentId:     fetchedRegisteredEntry.ParentId,
+			Ttl:          fetchedRegisteredEntry.Ttl,
+		},
+	}, nil
 }
 
 func (sqlitePlugin) UpdateRegistrationEntry(
@@ -400,8 +463,6 @@ func (sqlitePlugin) DeleteRegistrationEntry(
 	*DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error) {
 	return &DeleteRegistrationEntryResponse{}, errors.New("Not Implemented")
 }
-
-//
 
 func (sqlitePlugin) ListParentIDEntries(
 	*ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error) {
@@ -417,8 +478,6 @@ func (sqlitePlugin) ListSpiffeEntries(
 	*ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error) {
 	return &ListSpiffeEntriesResponse{}, errors.New("Not Implemented")
 }
-
-//
 
 func (sqlitePlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
 	return &sriplugin.ConfigureResponse{}, nil

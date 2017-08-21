@@ -1,0 +1,18 @@
+[{
+  "selectorList": [{
+    "type": "Type",
+    "value": "Value"
+  }]
+},
+  {
+    "selectorList": [{
+      "type": "Type",
+      "value": "Value"
+    }],
+    "spiffeId": "SpiffeId",
+    "ttl": -5
+  },
+  {
+    "spiffeId": "SpiffeId"
+  },
+  null]
