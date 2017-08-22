@@ -1,14 +1,12 @@
 package registration
 
-
 import (
-"context"
-"time"
+	"context"
+	"time"
 
-"github.com/go-kit/kit/log"
-proto "github.com/spiffe/sri/control_plane/api/registration/proto"
+	"github.com/go-kit/kit/log"
+	proto "github.com/spiffe/sri/control_plane/api/registration/proto"
 )
-
 
 type RegistrationServiceMiddleWare func(RegistrationService) RegistrationService
 
@@ -79,7 +77,6 @@ func (mw LoggingMiddleware) UpdateEntry(ctx context.Context, request proto.Updat
 	return
 }
 
-
 func (mw LoggingMiddleware) ListByParentID(ctx context.Context, request proto.ParentID) (response proto.RegisteredEntries, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
@@ -93,7 +90,6 @@ func (mw LoggingMiddleware) ListByParentID(ctx context.Context, request proto.Pa
 	response, err = mw.next.ListByParentID(ctx, request)
 	return
 }
-
 
 func (mw LoggingMiddleware) ListBySelector(ctx context.Context, request proto.Selector) (response proto.RegisteredEntries, err error) {
 	defer func(begin time.Time) {
@@ -109,7 +105,6 @@ func (mw LoggingMiddleware) ListBySelector(ctx context.Context, request proto.Se
 	return
 }
 
-
 func (mw LoggingMiddleware) ListBySpiffeID(ctx context.Context, request proto.SpiffeID) (response proto.RegisteredEntries, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
@@ -123,7 +118,6 @@ func (mw LoggingMiddleware) ListBySpiffeID(ctx context.Context, request proto.Sp
 	response, err = mw.next.ListBySpiffeID(ctx, request)
 	return
 }
-
 
 func (mw LoggingMiddleware) CreateFederatedBundle(ctx context.Context, request proto.CreateFederatedBundleRequest) (response proto.Empty, err error) {
 	defer func(begin time.Time) {

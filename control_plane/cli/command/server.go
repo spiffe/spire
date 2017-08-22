@@ -14,10 +14,10 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
-     "github.com/spiffe/sri/common/plugin"
-     registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
-//     server_proto "github.com/spiffe/sri/control_plane/api/server/proto"
-     "github.com/spiffe/sri/control_plane/endpoints/registration"
+	"github.com/spiffe/sri/common/plugin"
+	registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
+	//     server_proto "github.com/spiffe/sri/control_plane/api/server/proto"
+	"github.com/spiffe/sri/control_plane/endpoints/registration"
 
 	"github.com/spiffe/sri/control_plane/endpoints/server"
 	"github.com/spiffe/sri/control_plane/plugins/data_store"

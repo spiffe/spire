@@ -8,7 +8,6 @@ import (
 	"github.com/spiffe/sri/common/plugin"
 )
 
-
 type ServerServiceMiddleWare func(ServerService) ServerService
 
 func SelectorServiceLoggingMiddleWare(logger log.Logger) ServerServiceMiddleWare {
