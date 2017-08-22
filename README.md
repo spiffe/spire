@@ -48,8 +48,6 @@ root@65a22fa2d89f:~/go/src/github.com/spiffe/sri# ./build.sh setup
 ## Prerequisites
 
 * Linux or Docker
-* protoc from https://github.com/google/protobuf
-* protoc-gen-go from https://github.com/golang/protobuf
 
 If not using Docker, the following "non-standard" utilities are also required:
 
