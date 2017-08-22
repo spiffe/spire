@@ -1,4 +1,4 @@
-package pluginhelper
+package helpers
 
 import (
 	"github.com/stretchr/testify/assert"

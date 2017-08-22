@@ -11,7 +11,7 @@ import (
 
 type ServerServiceMiddleWare func(ServerService) ServerService
 
-func SelectorServiceLoggingMiddleWare(logger log.Logger) ServerServiceMiddleWare {
+func ServiceLoggingMiddleWare(logger log.Logger) ServerServiceMiddleWare {
 	return func(next ServerService) ServerService {
 		return LoggingMiddleware{logger, next}
 	}
