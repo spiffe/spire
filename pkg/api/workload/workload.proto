@@ -24,8 +24,8 @@ message WorkloadEntry {
     string spiffe_id = 1; /// SPIFFE Id corresponding to the SVID.
     bytes svid = 2; /// ASN.1 DER encoded SVID.
     bytes svid_private_key = 3; /// Private key corresponding to the SVID.
-    bytes ca_trust_bundle = 2; /// ASN.1 DER encoded cert bundle.
-    int32 ttl = 4; /// Controls how often a workload associated with this SVID or cert bundle should check back for updates.
+    bytes ca_trust_bundle = 4; /// ASN.1 DER encoded cert bundle.
+    int32 ttl = 5; /// Controls how often a workload associated with this SVID or cert bundle should check back for updates.
 }
 
 /**Represents and SPIFFEId that depending on its association it could be used to
