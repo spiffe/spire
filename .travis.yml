@@ -1,7 +1,11 @@
 sudo: false
 dist: trusty
 
-language: c
+language: go
+
+cache:
+    directories:
+        - .cache
 
 script:
     - ./build.sh setup

@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/spiffe/sri.svg?style=svg&circle-token=1021825e271fad64261d40b55f583c234fa083d4)](https://circleci.com/gh/spiffe/sri)
+[![Build Status](https://travis-ci.com/spiffe/sri.svg?token=pXzs6KRAUrxbEXnwHsPs&branch=master)](https://travis-ci.com/spiffe/sri)
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/sri/badge.svg?t=SrV7ye)](https://coveralls.io/github/spiffe/sri)
 
 # SPIFFE Reference Implementation (SRI)
