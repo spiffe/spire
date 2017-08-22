@@ -1,7 +1,7 @@
 /**
 A workload uses this API to retrieve a list of identities that it should be allowed
 to represent itself as (SPIFFE IDs) as well as, optionally, documents (in the form of
-SPIFFE Verifiable Identity Documents(SVID) ) that can be used to prove those identities to other systems.
+SPIFFE Verifiable Identity Documents (SVID) ) that can be used to prove those identities to other systems.
 
 Finally, the API can also be used to retrieve trust bundles that can be used to
 verify SVIDs from other SPIFFE-identified workloads.
@@ -9,74 +9,38 @@ verify SVIDs from other SPIFFE-identified workloads.
 syntax = "proto3";
 package workload;
 
-
-/** A WLSVIDEntry represents a Workload's SVID and its associated information
- */
-message WLSVIDEntry {
-    string spiffeId = 1; /// SPIFFE Id corresponding to the SVID
-    bytes svid = 2; /// ASN.1 DER encoded SVID
-    bytes privateKey = 3; /// private key corresponding to the SVID
-    int32 ttl = 4; /// Controls how often a workload associated with this SVID should check back for updates.
+service Workload {
+    ///Depending on what the SPIFFEId is associated with,
+    ///it requests SVID and cert bundle of the control plane corresponding to the SPIFFEId
+    ///or requests trusted external CA cert bundles corresponding to the SPIFFEId.
+    rpc FetchBundles(SpiffeId) returns (Bundles);
+    ///Requests all SVIDs and cert bundle of the control plane and all trusted external CA cert bundles associated with the workload.
+    rpc FetchAllBundles(Empty) returns (Bundles);
 }
 
-/** represents cert bundle of a remote control plane for the purposes of trusting remote workloads
- */
-message FederateEntry {
-    string spiffeId = 1; /// spiffeid of the remote workload
-    bytes caTrustBundle = 2; /// ASN.1 DER encoded cert bundle
-    int32 ttl = 3; /// Controls how often a workload consuming this cert bundle should check back for updates.
-}
-/** represents a workload request for a SVID and the control plane's cert bundle of a specific SPIFFEID
-*/
-message FetchSVIDBundleRequest {
-    string spiffeId = 1;
-}
-/** represents a response specific to the requesting workload SPIFFEId,
- Includes the workload's SVID Entry(SVID and its corresponding information )
- and the Control Plane's trusted cert bundle
- */
-message FetchSVIDBundleResponse {
-    WLSVIDEntry WLSVIDEntry = 1; /// Workload's SVID Entry
-    bytes cpBundle = 2; /// Control Plane's trusted cert bundle
+/**Depending on the context it represents a Workload's SVID and its associated information
+or a cert bundle of a remote control plane for the purposes of trusting remote workloads. */
+message WorkloadEntry {
+    string spiffe_id = 1; /// SPIFFE Id corresponding to the SVID.
+    bytes svid = 2; /// ASN.1 DER encoded SVID.
+    bytes svid_private_key = 3; /// Private key corresponding to the SVID.
+    bytes ca_trust_bundle = 2; /// ASN.1 DER encoded cert bundle.
+    int32 ttl = 4; /// Controls how often a workload associated with this SVID or cert bundle should check back for updates.
 }
 
-/** represents response the includes all the SVIDs the and Control Plane's trusted cert bundle workload
- */
-message FetchSVIDBundlesResponse {
-    repeated WLSVIDEntry WLSVIDEntry = 1; /// list of Workload SVID entries
-    bytes cpBundle = 2; /// Control Plane's trusted cert bundle
-}
-/** represents a Federated cert Bundle request corresponding to a specific SPIFFEId
-*/
-message FetchFederatedBundleRequest {
-    string spiffeId = 1;
-}
-/** represents cert Bundles that a specific workload's SPIFFEId is registered to trust
-*/
-message FetchFederatedBundleResponse {
-    repeated FederateEntry FederateEntry = 1; /// trusted external CA cert bundles of foreign control planes
+/**Represents and SPIFFEId that depending on its association it could be used to
+request for a SVID and the control plane's cert bundle or request for a Federated cert Bundle.*/
+message SpiffeId {
+    string id = 1;
 }
 
-/** represents all the cert Bundles that a workload is registered to trust
-*/
-message FetchFederatedBundlesResponse {
-    repeated FederateEntry FederateEntry = 1; /// trusted external CA cert bundles of foreign control planes
+/**Represents a list of WorkloadEntry and a Control Plane bundle.*/
+message Bundles {
+    repeated WorkloadEntry workload_entry = 1; /// Workload's SVID Entry /// trusted external CA cert bundles of foreign control planes
+    bytes control_plane_bundle = 2; /// Control Plane's trusted cert bundle
 }
 
 /**
  * @exclude Represents a message with no fields
  */
 message Empty {  }
-
-
-
-service Workload {
-    ///Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation)
-    rpc FetchSVIDBundle(FetchSVIDBundleRequest) returns (FetchSVIDBundleResponse);
-    ///Requests all SVIDs and cert bundle of the control plane associated with the workload
-    rpc FetchSVIDBundles(Empty) returns (FetchSVIDBundlesResponse);
-    ///Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation)
-    rpc FetchFederatedBundle(FetchFederatedBundleRequest) returns (FetchFederatedBundleResponse);
-    ///Requests all trusted external CA cert bundles associated with the workload
-    rpc FetchFederatedBundles(Empty) returns (FetchFederatedBundlesResponse);
-}
