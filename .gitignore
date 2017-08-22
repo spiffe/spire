@@ -1,6 +1,7 @@
 .artifacts
-.cache
 .build
+.cache
+*.swp
 /vendor
 test_results
 
