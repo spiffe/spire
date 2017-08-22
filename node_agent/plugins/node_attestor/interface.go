@@ -17,7 +17,6 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "NodeAttestor",
 }
 
-
 type NodeAttestor interface {
 	FetchAttestationData(*FetchAttestationDataRequest) (*FetchAttestationDataResponse, error)
 	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)

@@ -5,9 +5,9 @@ import (
 	"log"
 	"time"
 
+	common "github.com/spiffe/sri/common/plugin"
 	sri_proto "github.com/spiffe/sri/common/plugin"
 	"github.com/spiffe/sri/helpers"
-	common "github.com/spiffe/sri/common/plugin"
 )
 
 type ServerService interface {

@@ -17,7 +17,6 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "KeyManager",
 }
 
-
 type KeyManager interface {
 	GenerateKeyPair(*GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
 	FetchPrivateKey(*FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)

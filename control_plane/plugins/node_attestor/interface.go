@@ -1,13 +1,13 @@
-package cpnodeattestor;
+package cpnodeattestor
 
 import (
 	"net/rpc"
 
 	"google.golang.org/grpc"
 
-	"github.com/spiffe/sri/common/plugin"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	"github.com/spiffe/sri/common/plugin"
 )
 
 //Handshake is a common handshake that is shared by the plugin and host.

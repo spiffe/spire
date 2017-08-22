@@ -1,13 +1,12 @@
 package workload
 
 import (
-"context"
-"time"
+	"context"
+	"time"
 
-"github.com/go-kit/kit/log"
-node_agent_proto "github.com/spiffe/sri/node_agent/api/workload/pb"
+	"github.com/go-kit/kit/log"
+	node_agent_proto "github.com/spiffe/sri/node_agent/api/workload/pb"
 )
-
 
 type ServerServiceMiddleWare func(WorkloadService) WorkloadService
 
@@ -48,8 +47,6 @@ func (mw LoggingMiddleware) FetchSVIDBundles(ctx context.Context, request node_a
 	return
 }
 
-
-
 func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request node_agent_proto.FetchFederatedBundleRequest) (response node_agent_proto.FetchFederatedBundleResponse) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
@@ -62,7 +59,6 @@ func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request no
 	response = mw.next.FetchFederatedBundle(ctx, request)
 	return
 }
-
 
 func (mw LoggingMiddleware) FetchFederatedBundles(ctx context.Context, request node_agent_proto.Empty) (response node_agent_proto.FetchFederatedBundlesResponse) {
 	defer func(begin time.Time) {

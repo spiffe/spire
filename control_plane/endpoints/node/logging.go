@@ -1,6 +1,5 @@
 package node
 
-
 import (
 	"context"
 	"time"
@@ -8,7 +7,6 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/spiffe/sri/control_plane/api/node/proto"
 )
-
 
 type NodeServiceMiddleWare func(NodeService) NodeService
 
