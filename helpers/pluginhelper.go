@@ -1,4 +1,4 @@
-package pluginhelper
+package helpers
 
 import (
 	"crypto/sha256"
@@ -10,43 +10,17 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca"
-	"github.com/spiffe/sri/control_plane/plugins/data_store"
-	cpnodeattestor "github.com/spiffe/sri/control_plane/plugins/node_attestor"
-	"github.com/spiffe/sri/control_plane/plugins/node_resolver"
-	"github.com/spiffe/sri/control_plane/plugins/upstream_ca"
-	"github.com/spiffe/sri/node_agent/plugins/key_manager"
-	"github.com/spiffe/sri/node_agent/plugins/node_attestor"
-	"github.com/spiffe/sri/node_agent/plugins/workload_attestor"
 )
 
-var NA_PLUGIN_TYPE_MAP = map[string]plugin.Plugin{
-	"ControlPlaneCA":   &controlplaneca.ControlPlaneCaPlugin{},
-	"DataStore":        &datastore.DataStorePlugin{},
-	"NANodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
-	"NodeResolver":     &noderesolver.NodeResolverPlugin{},
-	"UpstreamCA":       &upstreamca.UpstreamCaPlugin{},
-	"CPNodeAttestor":   &cpnodeattestor.NodeAttestorPlugin{},
-	"WorkloadAttestor": &workloadattestor.WorkloadAttestorPlugin{},
-	"KeyManagerPlugin": &keymanager.KeyManagerPlugin{},
-}
 
-var MaxPlugins = map[string]int{
-	"ControlPlaneCA":   1,
-	"DataStore":        1,
-	"NANodeAttestor":   1,
-	"NodeResolver":     1,
-	"UpstreamCA":       1,
-	"CPNodeAttestor":   1,
-	"WorkloadAttestor": 1,
-	"KeyManagerPlugin": 1,
-}
 
 type PluginCatalog struct {
 	PluginConfDirectory string
+	PluginTypeMap 		map[string]plugin.Plugin
 	PluginConfigs       map[string]*PluginConfig
 	PluginClients       map[string]*plugin.Client
 	Plugins             map[string]interface{}
+	MaxPluginTypeMap 			map[string]int
 }
 
 func (c *PluginCatalog) loadConfig() (err error) {
@@ -65,12 +39,12 @@ func (c *PluginCatalog) loadConfig() (err error) {
 			return err
 		}
 		PluginTypeCount[pluginConfig.PluginType] = +1
-		if PluginTypeCount[pluginConfig.PluginType] > MaxPlugins[pluginConfig.PluginType] {
+		if PluginTypeCount[pluginConfig.PluginType] > c.MaxPluginTypeMap[pluginConfig.PluginType] {
 			return errors.New(fmt.Sprintf("Cannot have more than max_plugins:%v plugins of type plugin_type:%v",
-				MaxPlugins[pluginConfig.PluginType], pluginConfig.PluginType))
+				c.MaxPluginTypeMap[pluginConfig.PluginType], pluginConfig.PluginType))
 		}
 
-		if NA_PLUGIN_TYPE_MAP[pluginConfig.PluginType] == nil {
+		if c.PluginTypeMap[pluginConfig.PluginType] == nil {
 			return errors.New(fmt.Sprintf("Plugin Type plugin_type:%v not supported", pluginConfig.PluginType))
 		}
 
@@ -82,6 +56,15 @@ func (c *PluginCatalog) loadConfig() (err error) {
 	}
 	return err
 }
+
+func (c *PluginCatalog) SetPluginTypeMap(pluginTypeMap map[string]plugin.Plugin) {
+	c.PluginTypeMap = pluginTypeMap
+}
+
+func (c *PluginCatalog) SetMaxPluginTypeMap(maxPluginMap map[string]int) {
+	c.MaxPluginTypeMap = maxPluginMap
+}
+
 
 func (c *PluginCatalog) GetPlugin(pluginName string) (plugin interface{}) {
 	plugin = c.Plugins[pluginName]
@@ -115,7 +98,7 @@ func (c *PluginCatalog) initClients() (err error) {
 				},
 				Plugins: map[string]plugin.Plugin{
 					pluginconfig.PluginName: plugin.Plugin(
-						NA_PLUGIN_TYPE_MAP[pluginconfig.PluginType]),
+						c.PluginTypeMap[pluginconfig.PluginType]),
 				},
 				Cmd:              exec.Command(pluginconfig.PluginCmd),
 				AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
@@ -150,28 +133,7 @@ func (c *PluginCatalog) Run() (err error) {
 		if err != nil {
 			return err
 		}
-
-		switch pl.(type) {
-		case controlplaneca.ControlPlaneCa:
-			c.Plugins[pluginName] = pl.(controlplaneca.ControlPlaneCa)
-		case datastore.DataStore:
-			c.Plugins[pluginName] = pl.(datastore.DataStore)
-		case nodeattestor.NodeAttestor:
-			c.Plugins[pluginName] = pl.(nodeattestor.NodeAttestor)
-		case noderesolver.NodeResolution:
-			c.Plugins[pluginName] = pl.(noderesolver.NodeResolution)
-		case upstreamca.UpstreamCa:
-			c.Plugins[pluginName] = pl.(upstreamca.UpstreamCa)
-		case cpnodeattestor.NodeAttestor:
-			c.Plugins[pluginName] = pl.(cpnodeattestor.NodeAttestor)
-		case workloadattestor.WorkloadAttestor:
-			c.Plugins[pluginName] = pl.(workloadattestor.WorkloadAttestor)
-		case keymanager.KeyManager:
-			c.Plugins[pluginName] = pl.(keymanager.KeyManager)
-		default:
-			return fmt.Errorf("Plugin Unsupported.\n pluginType: %T\n pluginName: %v", pl, pluginName)
-		}
-
+		c.Plugins[pluginName]=pl
 	}
 	return
 }
