@@ -33,6 +33,15 @@ into the directory `.build/`.
 `eval $(build.sh env)` will configure GOPATH, GOROOT and PATH for development outside
 of `build.sh`
 
+### Git hooks
+
+We have checked in a pre-commit hook which enforces `go fmt` styling. Please install it
+before sending a pull request. From the project root:
+
+```
+ln -s ../../.githooks/pre-commit .git/hooks/pre-commit
+```
+
 ## Developing the SRI
 
 The above-referenced build scripts may be used natively under Linux. For your convenience,

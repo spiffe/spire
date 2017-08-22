@@ -4,13 +4,13 @@ import (
 	"errors"
 	"github.com/hashicorp/go-plugin"
 	"github.com/jinzhu/gorm"
-    "github.com/satori/go.uuid"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	"github.com/satori/go.uuid"
 
 	"github.com/spiffe/sri/common/plugin"
-    // XXX . is not ideal here
+	// XXX . is not ideal here
 	. "github.com/spiffe/sri/control_plane/plugins/data_store"
-    "time"
+	"time"
 )
 
 var (

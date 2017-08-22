@@ -17,7 +17,6 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "WorkloadAttestor",
 }
 
-
 type WorkloadAttestor interface {
 	Attest(*AttestRequest) (*AttestResponse, error)
 	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
