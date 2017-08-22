@@ -7,13 +7,14 @@ The SPIFFE Reference Implementation provides a toolchain that defines a central 
 SPIFFE IDs (the Control Plane), and a Node Agent that can be run adjacent to a workload and
 exposes a local Workload API.
 
-## Buiilding the SRI
+## Building the SRI
 
 The script `build.sh` manages the build process and can be used for development. It expects
-this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/sri`.
+this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/sri`. It has
+been tested on Linux only.
 
-`build.sh setup` will download and install necessary dependancies (including golang)
-into the directory `.build/`
+`build.sh setup` will download and install necessary dependencies (including golang)
+into the directory `.build/`.
 
 `deps` processes the `glide.lock` file
 
@@ -41,8 +42,24 @@ before sending a pull request. From the project root:
 ln -s ../../.githooks/pre-commit .git/hooks/pre-commit
 ```
 
+## Developing the SRI
+
+The above-referenced build scripts may be used natively under Linux. For your convenience,
+a Dockerfile and accompanying Makefile will get you to a suitable Linux shell.
+
+```
+$ make build
+$ make launch
+root@65a22fa2d89f:~/go/src/github.com/spiffe/sri# ./build.sh setup
+...
+```
+
 ## Prerequisites
 
-* The Go compiler and tools from https://golang.org/
-* protoc from https://github.com/google/protobuf
-* protoc-gen-go from https://github.com/golang/protobuf
+* Linux or Docker
+
+If not using Docker, the following "non-standard" utilities are also required:
+
+* `curl`
+* `git`
+* `unzip`
