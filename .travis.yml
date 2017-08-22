@@ -13,3 +13,6 @@ script:
     - ./build.sh protobuf_verify
     - ./build.sh binaries
     - ./build.sh test
+
+notifications:
+    slack: github-updates:$TRAVIS_SLACK_TOKEN
