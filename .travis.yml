@@ -1,4 +1,4 @@
-sudo: false
+sudo: true
 dist: trusty
 
 language: go
@@ -13,3 +13,7 @@ script:
     - ./build.sh protobuf_verify
     - ./build.sh binaries
     - ./build.sh test
+
+notifications:
+    slack:
+        secure: QVfjBHslGpZiEM3AOc7wUIGERR+Jc3TbkdrVg9jI7IQPXL2IztKNJpWzMpGpPx1SzqLaJ02yIeJG9qJVV4JnpJ+ALBCtZijn7tnof5zTSdC+unZA1yl8TcpTQ1+ov1tRQ5c7cGW+Se3m6Qw+r1F1OmOJYAchd0jpiEWRucp6xl/Ae19c9qlMznraIm7/3XQ/wOb8zvwtdnCaNLCOIiWT+db1UO6WEwByfuZXE7ieoeogBKepcTvqgPSHK6fro05yTuc8CQlUWo8d+aAvT5LGp1rMrT7Q6YrpwAOEVDp5N+9vrD4thWfX4KjD832YOkJEdWLCME8nd/hshh8JGrJ2XuYU2OD2GK7xCgD7a/vT5z2uvgHn25riLEvvxokxbfcfsNamt3jGu1JNYNXiuORd7pfL9RFgQ9d2po5XSZRAqU0mgkeScB7HudN99PaaYfHQzWX1tI3gB3yfvtweRBM8Xw7spbpklt1rB7+vC3io8BecI4I/qWfMRrW+GICAW9J3n3j/Cp3/opcptiqOQ/Wv6ydGw79RVYlWzqR8Z7uBwZu5OP70/DSKwgeRgwDiJRnOgqAKfKD6qcqOgmg4nHB3396u6bSb3o+Q5dYgnNSsLB+fTU/o9pcn5M1myuBmwWhpopdAMysGgAjd+wcKh0lWsKr5wzHKH90uNd/L+udCCFI=
