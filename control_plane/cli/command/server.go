@@ -35,7 +35,7 @@ import (
 
 
 var (
-	CPConifigPath = "../../.conf/default_cp_config.hcl"
+	CPConifigPath = ".conf/default_cp_config.hcl"
 	PluginTypeMap = map[string]plugin.Plugin{
 		"ControlPlaneCA":   &controlplaneca.ControlPlaneCaPlugin{},
 		"DataStore":        &datastore.DataStorePlugin{},
@@ -68,14 +68,15 @@ func (*ServerCommand) Run(args []string) int {
 		cpConfigPath = CPConifigPath
 	}
 
-	controlPlaneConfig := helpers.ControlPlaneConfig{}
-	err := controlPlaneConfig.ParseConfig(cpConfigPath)
+	config := helpers.ControlPlaneConfig{}
+	err := config.ParseConfig(cpConfigPath)
 	if err != nil {
 		logger := log.NewLogfmtLogger(os.Stdout)
-		logger.Log("error", "ConfigError", "configFile", cpConfigPath)
+		logger.Log("error", err , "configFile", cpConfigPath)
 		return -1
+
 	}
-	logger, err := helpers.NewLogger(controlPlaneConfig)
+	logger, err := helpers.NewLogger(config)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
@@ -86,7 +87,7 @@ func (*ServerCommand) Run(args []string) int {
 		return -1
 	}
 
-	err = initEndpoints(pluginCatalog, logger)
+	err = initEndpoints(pluginCatalog, logger, &config)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
@@ -114,7 +115,7 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 	return pluginCatalog, nil
 }
 
-func initEndpoints(pluginCatalog *helpers.PluginCatalog, logger log.Logger) error {
+func initEndpoints(pluginCatalog *helpers.PluginCatalog, logger log.Logger, config *helpers.ControlPlaneConfig) error {
 	//Shouldn't we get this by plugin type?
 	dataStore := pluginCatalog.GetPlugin("datastore")
 	dataStoreImpl := dataStore.(datastore.DataStore)

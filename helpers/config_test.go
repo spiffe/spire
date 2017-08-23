@@ -58,14 +58,14 @@ func (suite *ConfigTestSuite) SetupTest() {
 			"workloadAPIAddress = \"" + suite.testNAConfig.WorkloadAPIAddress + "\"\n")
 
 	suite.testCPConfig = &ControlPlaneConfig{
-		Version:        "testVersion",
-		NodeAPIAddress: "testnodeAPIAddress",
-		RegistrationAPIAddress: "testRegistrationAPIAddress",
+		Version:                 "testVersion",
+		NodeAPIGRPCPort:         "testnodeAPIAddress",
+		RegistrationAPIGRPCPort: "testRegistrationAPIAddress",
 	}
 	suite.configfileContent[ControlPlaneConfigType] = []byte(
 		"version =\"" + suite.testCPConfig.Version + "\"\n" +
-			"nodeAPIAddress = \"" + suite.testCPConfig.NodeAPIAddress + "\"\n" +
-			"registrationAPIAddress = \"" + suite.testCPConfig.RegistrationAPIAddress + "\"\n")
+			"nodeAPIAddress = \"" + suite.testCPConfig.NodeAPIGRPCPort + "\"\n" +
+			"registrationAPIAddress = \"" + suite.testCPConfig.RegistrationAPIGRPCPort + "\"\n")
 
 }
 
@@ -124,7 +124,7 @@ func (suite *ConfigTestSuite) TestParseControlPlaneConfig() {
 	err = controlPlaneConfig.ParseConfig(file.Name())
 	suite.NoError(err)
 	suite.Equal(controlPlaneConfig.Version, suite.testCPConfig.Version)
-	suite.Equal(controlPlaneConfig.NodeAPIAddress, suite.testCPConfig.NodeAPIAddress)
+	suite.Equal(controlPlaneConfig.NodeAPIGRPCPort, suite.testCPConfig.NodeAPIGRPCPort)
 
 }
 

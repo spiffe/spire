@@ -45,7 +45,7 @@ func (c PluginConfig) ParseConfig(file string) (err error) {
 	return err
 }
 
-func (c PluginConfig)  setConfig(data interface{}) error {
+func (c PluginConfig) setConfig(data interface{}) error {
 	hclData := data.(HCLData)
 	c.Version = hclData.Version
 	c.PluginName = hclData.PluginName
@@ -98,11 +98,14 @@ func (c NodeAgentConfig) setConfig(data interface{}) error {
 }
 
 type ControlPlaneConfig struct {
-	Version                string
-	NodeAPIAddress         string
-	RegistrationAPIAddress string
-	logFile                string
-	logLevel               string
+	Version                 string
+	TrustDomain             string
+	NodeAPIGRPCPort         string
+	RegistrationAPIGRPCPort string
+	NodeAPIHTTPPort         string
+	RegistrationAPIHTTPPort string
+	logFile                 string
+	logLevel                string
 }
 
 func (c ControlPlaneConfig) LogConfig() (logFile string, logLevel string) {
@@ -124,8 +127,12 @@ func (c ControlPlaneConfig) setConfig(data interface{}) error {
 	hclData := data.(*HCLData)
 
 	c.Version = hclData.Version
-	c.NodeAPIAddress = hclData.NodeAPIAddress
-	c.RegistrationAPIAddress = hclData.RegistrationAPIAddress
+	c.TrustDomain = hclData.TrustDomain
+	c.NodeAPIGRPCPort = hclData.NodeAPIGRPCPort
+	c.RegistrationAPIGRPCPort = hclData.RegistrationAPIGRPCPort
+	c.NodeAPIGRPCPort = hclData.NodeAPIGRPCPort
+	c.RegistrationAPIGRPCPort = hclData.RegistrationAPIGRPCPort
+
 	c.logLevel = hclData.LogLevel
 	c.logLevel = hclData.LogLevel
 
@@ -149,8 +156,11 @@ type HCLData struct {
 
 	WorkloadAPIAddress string `hcl:workloadAPIAddress`
 
-	NodeAPIAddress         string `hcl:nodeAPIAddress`
-	RegistrationAPIAddress string `hcl:registrationAPIAddress`
+	TrustDomain string `hcl:trustDomain`
+	NodeAPIGRPCPort         string `hcl:nodeAPIGRPCPort`
+	RegistrationAPIGRPCPort string `hcl:registrationAPIGRPCPort`
+	NodeAPIHTTPPort         string `hcl:nodeAPIHTTPPort`
+	RegistrationAPIHTTPPort string `hcl:registrationAPIHTTPPort`
 }
 
 func parseHCLfile(file string) (*HCLData, error) {
