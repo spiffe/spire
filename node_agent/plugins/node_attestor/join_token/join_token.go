@@ -3,7 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
+	"net/url"
+	"path"
 
 	"github.com/hashicorp/go-plugin"
 	common "github.com/spiffe/sri/common/plugin"
@@ -20,6 +21,17 @@ type JoinTokenPlugin struct {
 	trustDomain string
 }
 
+func (p *JoinTokenPlugin) spiffeID() *url.URL {
+	spiffePath := path.Join("spiffe", "node-id", p.joinToken)
+	id := &url.URL{
+		Scheme: "spiffe",
+		Host:   p.trustDomain,
+		Path:   spiffePath,
+	}
+
+	return id
+}
+
 func (p *JoinTokenPlugin) FetchAttestationData(req *nodeattestor.FetchAttestationDataRequest) (*nodeattestor.FetchAttestationDataResponse, error) {
 	if p.joinToken == "" {
 		err := errors.New("Join token attestation attempted but no token provided")
@@ -33,10 +45,9 @@ func (p *JoinTokenPlugin) FetchAttestationData(req *nodeattestor.FetchAttestatio
 		Data: []byte(p.joinToken),
 	}
 
-	spiffeId := fmt.Sprintf("spiffe://%s/spiffe/node-id/%s", p.trustDomain, p.joinToken)
 	resp := &nodeattestor.FetchAttestationDataResponse{
 		AttestedData: data,
-		SpiffeId:     spiffeId,
+		SpiffeId:     p.spiffeID().String(),
 	}
 
 	return resp, nil
