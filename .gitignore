@@ -5,6 +5,8 @@
 /vendor
 test_results
 
+artifact.tgz
+
 control_plane/control_plane
 control_plane/plugins/control_plane_ca/memory/memory
 control_plane/plugins/data_store/sqlite/sqlite
