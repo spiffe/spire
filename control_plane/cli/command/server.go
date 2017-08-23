@@ -32,8 +32,9 @@ import (
 	"github.com/spiffe/sri/services"
 )
 
-const DefaultCPConifigPath = ".conf/default_cp_config.hcl"
-
+const (
+	DefaultCPConifigPath = ".conf/default_cp_config.hcl"
+)
 
 
 var (
