@@ -79,7 +79,7 @@ func (*ServerCommand) Run(args []string) int {
 		return -1
 
 	}
-	logger, err := helpers.NewLogger(config)
+	logger, err := helpers.NewLogger(&config)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1

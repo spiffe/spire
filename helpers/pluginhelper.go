@@ -12,15 +12,13 @@ import (
 	"github.com/hashicorp/go-plugin"
 )
 
-
-
 type PluginCatalog struct {
 	PluginConfDirectory string
-	PluginTypeMap 		map[string]plugin.Plugin
+	PluginTypeMap       map[string]plugin.Plugin
 	PluginConfigs       map[string]*PluginConfig
 	PluginClients       map[string]*plugin.Client
 	Plugins             map[string]interface{}
-	MaxPluginTypeMap 			map[string]int
+	MaxPluginTypeMap    map[string]int
 }
 
 func (c *PluginCatalog) loadConfig() (err error) {
@@ -64,7 +62,6 @@ func (c *PluginCatalog) SetPluginTypeMap(pluginTypeMap map[string]plugin.Plugin)
 func (c *PluginCatalog) SetMaxPluginTypeMap(maxPluginMap map[string]int) {
 	c.MaxPluginTypeMap = maxPluginMap
 }
-
 
 func (c *PluginCatalog) GetPlugin(pluginName string) (plugin interface{}) {
 	plugin = c.Plugins[pluginName]
@@ -133,7 +130,7 @@ func (c *PluginCatalog) Run() (err error) {
 		if err != nil {
 			return err
 		}
-		c.Plugins[pluginName]=pl
+		c.Plugins[pluginName] = pl
 	}
 	return
 }

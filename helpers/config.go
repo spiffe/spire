@@ -28,11 +28,11 @@ type PluginConfig struct {
 	logLevel       string
 }
 
-func (c PluginConfig) LogConfig() (logFile string, logLevel string) {
+func (c *PluginConfig) LogConfig() (logFile string, logLevel string) {
 	return c.logFile, c.logLevel
 }
 
-func (c PluginConfig) ParseConfig(file string) (err error) {
+func (c *PluginConfig) ParseConfig(file string) (err error) {
 
 	result, err := parseHCLfile(file)
 	if err != nil {
@@ -45,8 +45,8 @@ func (c PluginConfig) ParseConfig(file string) (err error) {
 	return err
 }
 
-func (c PluginConfig) setConfig(data interface{}) error {
-	hclData := data.(HCLData)
+func (c *PluginConfig) setConfig(data interface{}) error {
+	hclData := data.(*HCLData)
 	c.Version = hclData.Version
 	c.PluginName = hclData.PluginName
 	c.PluginCmd = hclData.PluginCmd
@@ -72,11 +72,11 @@ type NodeAgentConfig struct {
 	logLevel           string
 }
 
-func (c NodeAgentConfig) LogConfig() (logFile string, logLevel string) {
+func (c *NodeAgentConfig) LogConfig() (logFile string, logLevel string) {
 	return c.logFile, c.logLevel
 }
 
-func (c NodeAgentConfig) ParseConfig(file string) error {
+func (c *NodeAgentConfig) ParseConfig(file string) error {
 	result, err := parseHCLfile(file)
 	if err != nil {
 		return err
@@ -87,8 +87,8 @@ func (c NodeAgentConfig) ParseConfig(file string) error {
 	return nil
 }
 
-func (c NodeAgentConfig) setConfig(data interface{}) error {
-	hclData := data.(HCLData)
+func (c *NodeAgentConfig) setConfig(data interface{}) error {
+	hclData := data.(*HCLData)
 	c.Version = hclData.Version
 	c.WorkloadAPIAddress = hclData.WorkloadAPIAddress
 	c.logFile = hclData.LogFile
@@ -108,11 +108,11 @@ type ControlPlaneConfig struct {
 	logLevel                string
 }
 
-func (c ControlPlaneConfig) LogConfig() (logFile string, logLevel string) {
+func (c *ControlPlaneConfig) LogConfig() (logFile string, logLevel string) {
 	return c.logFile, c.logLevel
 }
 
-func (c ControlPlaneConfig) ParseConfig(file string) error {
+func (c *ControlPlaneConfig) ParseConfig(file string) error {
 	result, err := parseHCLfile(file)
 	if err != nil {
 		return err
@@ -123,7 +123,7 @@ func (c ControlPlaneConfig) ParseConfig(file string) error {
 	return nil
 }
 
-func (c ControlPlaneConfig) setConfig(data interface{}) error {
+func (c *ControlPlaneConfig) setConfig(data interface{}) error {
 	hclData := data.(*HCLData)
 
 	c.Version = hclData.Version
@@ -156,7 +156,7 @@ type HCLData struct {
 
 	WorkloadAPIAddress string `hcl:workloadAPIAddress`
 
-	TrustDomain string `hcl:trustDomain`
+	TrustDomain             string `hcl:trustDomain`
 	NodeAPIGRPCPort         string `hcl:nodeAPIGRPCPort`
 	RegistrationAPIGRPCPort string `hcl:registrationAPIGRPCPort`
 	NodeAPIHTTPPort         string `hcl:nodeAPIHTTPPort`
