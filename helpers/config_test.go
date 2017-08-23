@@ -1,4 +1,4 @@
-package pluginhelper
+package helpers
 
 import (
 	"github.com/stretchr/testify/assert"
@@ -44,7 +44,7 @@ func (suite *ConfigTestSuite) SetupTest() {
 			"pluginName =\"" + suite.testPluginConfig.PluginName + "\"\n" +
 			"pluginCmd = \"" + suite.testPluginConfig.PluginCmd + "\"\n" +
 			"pluginChecksum = \"" + suite.testPluginConfig.PluginChecksum + "\"\n" +
-			"enabled = true" +"\n" +
+			"enabled = true" + "\n" +
 			"pluginType = \"" + suite.testPluginConfig.PluginType + "\"\n" +
 			"pluginData {" + suite.testPluginConfig.PluginData + "\n" +
 			"}\n")
@@ -58,37 +58,37 @@ func (suite *ConfigTestSuite) SetupTest() {
 			"workloadAPIAddress = \"" + suite.testNAConfig.WorkloadAPIAddress + "\"\n")
 
 	suite.testCPConfig = &ControlPlaneConfig{
-		Version:        "testVersion",
-		NodeAPIAddress: "testnodeAPIAddress",
-		RegistrationAPIAddress: "testRegistrationAPIAddress",
+		Version:                 "testVersion",
+		NodeAPIGRPCPort:         "testnodeAPIAddress",
+		RegistrationAPIGRPCPort: "testRegistrationAPIAddress",
 	}
 	suite.configfileContent[ControlPlaneConfigType] = []byte(
 		"version =\"" + suite.testCPConfig.Version + "\"\n" +
-			"nodeAPIAddress = \"" + suite.testCPConfig.NodeAPIAddress + "\"\n" +
-			"registrationAPIAddress = \"" + suite.testCPConfig.RegistrationAPIAddress + "\"\n")
+			"nodeAPIGRPCPort = \"" + suite.testCPConfig.NodeAPIGRPCPort + "\"\n" +
+			"registrationAPIGRPCPort = \"" + suite.testCPConfig.RegistrationAPIGRPCPort + "\"\n")
 
 }
 
 func (suite *ConfigTestSuite) TestParsePluginConfig() {
-		content:=suite.configfileContent[PluginConfigType]
-		tempDir := os.TempDir()
-		file, err := ioutil.TempFile(tempDir, "testconfig")
-		if err != nil {
-			suite.NoError(err)
-		}
-		err = ioutil.WriteFile(file.Name(), content, 775)
-		if err != nil {
-			suite.NoError(err)
-		}
-		pluginConfig := &PluginConfig{}
-		err = pluginConfig.ParseConfig(file.Name())
+	content := suite.configfileContent[PluginConfigType]
+	tempDir := os.TempDir()
+	file, err := ioutil.TempFile(tempDir, "testconfig")
+	if err != nil {
 		suite.NoError(err)
-		suite.Equal(pluginConfig.Version, suite.testPluginConfig.Version)
-		suite.Equal(pluginConfig.PluginName, suite.testPluginConfig.PluginName)
-		suite.Equal(pluginConfig.PluginCmd, suite.testPluginConfig.PluginCmd)
-		suite.Equal(pluginConfig.PluginChecksum, suite.testPluginConfig.PluginChecksum)
-		suite.Equal(pluginConfig.PluginData, suite.testPluginConfig.PluginData)
-		suite.Equal(pluginConfig.PluginType, suite.testPluginConfig.PluginType)
+	}
+	err = ioutil.WriteFile(file.Name(), content, 775)
+	if err != nil {
+		suite.NoError(err)
+	}
+	pluginConfig := &PluginConfig{}
+	err = pluginConfig.ParseConfig(file.Name())
+	suite.NoError(err)
+	suite.Equal(pluginConfig.Version, suite.testPluginConfig.Version)
+	suite.Equal(pluginConfig.PluginName, suite.testPluginConfig.PluginName)
+	suite.Equal(pluginConfig.PluginCmd, suite.testPluginConfig.PluginCmd)
+	suite.Equal(pluginConfig.PluginChecksum, suite.testPluginConfig.PluginChecksum)
+	suite.Equal(pluginConfig.PluginData, suite.testPluginConfig.PluginData)
+	suite.Equal(pluginConfig.PluginType, suite.testPluginConfig.PluginType)
 }
 
 func (suite *ConfigTestSuite) TestParseNodeAgentConfig() {
@@ -124,7 +124,7 @@ func (suite *ConfigTestSuite) TestParseControlPlaneConfig() {
 	err = controlPlaneConfig.ParseConfig(file.Name())
 	suite.NoError(err)
 	suite.Equal(controlPlaneConfig.Version, suite.testCPConfig.Version)
-	suite.Equal(controlPlaneConfig.NodeAPIAddress, suite.testCPConfig.NodeAPIAddress)
+	suite.Equal(controlPlaneConfig.NodeAPIGRPCPort, suite.testCPConfig.NodeAPIGRPCPort)
 
 }
 

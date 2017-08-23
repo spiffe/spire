@@ -1,4 +1,4 @@
-package pluginhelper_test
+package helpers
 
 import (
 	"io/ioutil"
@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/helpers"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
@@ -48,7 +47,7 @@ type PluginHelperTestSuite struct {
 	configfileContent []byte
 	dir               string
 	file              *os.File
-	plugincat         pluginhelper.PluginCatalog
+	plugincat         PluginCatalog
 }
 
 func (suite *PluginHelperTestSuite) SetupTest() {
@@ -77,7 +76,7 @@ func (suite *PluginHelperTestSuite) SetupTest() {
 		suite.NoError(err)
 	}
 
-	suite.plugincat = pluginhelper.PluginCatalog{
+	suite.plugincat = PluginCatalog{
 		PluginConfDirectory: suite.dir}
 
 }

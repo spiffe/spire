@@ -10,7 +10,7 @@ import (
 
 type RegistrationServiceMiddleWare func(RegistrationService) RegistrationService
 
-func SelectorServiceLoggingMiddleWare(logger log.Logger) RegistrationServiceMiddleWare {
+func ServiceLoggingMiddleWare(logger log.Logger) RegistrationServiceMiddleWare {
 	return func(next RegistrationService) RegistrationService {
 		return LoggingMiddleware{logger, next}
 	}
