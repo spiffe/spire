@@ -157,6 +157,11 @@ build_test() {
     fi
 }
 
+build_artifact() {
+    _log_info "creating artifact \"artifact.tgz\""
+    tar -cvzf artifact.tgz $(find $BINARY_DIRS -executable -a -type f)
+}
+
 build_clean() {
     rm -f $(find ${BINARY_DIRS} -type f -perm '-u+x')
 }
@@ -182,6 +187,7 @@ case "$1" in
     protobuf_verify) build_protobuf_verify ;;
     binaries|bin) build_binaries $2 ;;
     test) build_test ;;
+    artifact) build_artifact ;;
     clean) build_clean ;;
     distclean) build_distclean ;;
     all) build_all ;;
