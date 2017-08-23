@@ -32,10 +32,12 @@ import (
 	"github.com/spiffe/sri/services"
 )
 
+const DefaultCPConifigPath = ".conf/default_cp_config.hcl"
+
 
 
 var (
-	CPConifigPath = ".conf/default_cp_config.hcl"
+
 	PluginTypeMap = map[string]plugin.Plugin{
 		"ControlPlaneCA":   &controlplaneca.ControlPlaneCaPlugin{},
 		"DataStore":        &datastore.DataStorePlugin{},
@@ -65,7 +67,7 @@ func (*ServerCommand) Help() string {
 func (*ServerCommand) Run(args []string) int {
 	cpConfigPath, isPathSet := os.LookupEnv("CP_CONFIG_PATH")
 	if !isPathSet {
-		cpConfigPath = CPConifigPath
+		cpConfigPath = DefaultCPConifigPath
 	}
 
 	config := helpers.ControlPlaneConfig{}
