@@ -16,24 +16,27 @@ const (
 	spiffeId = "spiffe://example.com/spiffe/node-id/foobar"
 )
 
-func TestJoinToken_Configure(t *testing.T) {
+func PluginGenerator(config string) (*JoinTokenPlugin, *common.ConfigureResponse, error) {
 	pluginConfig := &common.ConfigureRequest{
-		Configuration: goodConfig,
+		Configuration: config,
 	}
 
-	plugin := &JoinTokenPlugin{}
-	res, err := plugin.Configure(pluginConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, &common.ConfigureResponse{}, res)
+	p := &JoinTokenPlugin{}
+	r, err := p.Configure(pluginConfig)
+	return p, r, err
 }
 
-func TestJoinToken_FetchAttestationData(t *testing.T) {
+func TestJoinToken_Configure(t *testing.T) {
+	assert := assert.New(t)
+	_, r, err := PluginGenerator(goodConfig)
+	assert.Nil(err)
+	assert.Equal(&common.ConfigureResponse{}, r)
+}
+
+func TestJoinToken_FetchAttestationData_TokenPresent(t *testing.T) {
 	assert := assert.New(t)
 
-	// Build plugin config and expected response
-	pluginConfig := &common.ConfigureRequest{
-		Configuration: goodConfig,
-	}
+	// Build expected response
 	attestationData := &nodeattestor.AttestedData{
 		Type: "join_token",
 		Data: []byte(token),
@@ -43,18 +46,20 @@ func TestJoinToken_FetchAttestationData(t *testing.T) {
 		SpiffeId:     spiffeId,
 	}
 
-	plugin := JoinTokenPlugin{}
-	plugin.Configure(pluginConfig)
-	resp, err := plugin.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
+	p, _, err := PluginGenerator(goodConfig)
+	assert.Nil(err)
+
+	resp, err := p.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
 	assert.Nil(err)
 	assert.Equal(expectedResp, resp)
+}
 
-	// Re-configure the plugin with a missing token
-	pluginConfig = &common.ConfigureRequest{
-		Configuration: badConfig,
-	}
-	plugin.Configure(pluginConfig)
-	_, err = plugin.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
+func TestJoinToken_FetchAttestationData_TokenNotPresent(t *testing.T) {
+	assert := assert.New(t)
+	p, _, err := PluginGenerator(badConfig)
+	assert.Nil(err)
+
+	_, err = p.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
 	assert.NotNil(err)
 }
 
