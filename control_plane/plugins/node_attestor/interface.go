@@ -18,9 +18,9 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type NodeAttestor interface {
-	Configure(config string) ([]string, error)
-	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
-	Attest(request *AttestRequest) (*AttestResponse, error)
+	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
+	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
+	Attest(*AttestRequest) (*AttestResponse, error)
 }
 
 type NodeAttestorPlugin struct {
