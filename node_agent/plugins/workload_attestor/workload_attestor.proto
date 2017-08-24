@@ -2,7 +2,7 @@
 syntax = "proto3";
 package workloadattestor;
 
-import public "github.com/spiffe/sri/common/plugin/plugin.proto";
+import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
 
 /** Represents the workload PID.*/
 message AttestRequest {

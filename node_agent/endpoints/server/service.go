@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/spiffe/sri/common/plugin"
+	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/helpers"
 )
 

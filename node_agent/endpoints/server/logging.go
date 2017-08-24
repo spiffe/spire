@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	"github.com/spiffe/sri/common/plugin"
+	"github.com/spiffe/sri/pkg/common/plugin"
 )
 
 type ServerServiceMiddleWare func(ServerService) ServerService

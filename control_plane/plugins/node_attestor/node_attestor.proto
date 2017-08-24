@@ -2,8 +2,8 @@
 syntax = "proto3";
 package cpnodeattestor;
 
-import public "github.com/spiffe/sri/common/plugin/plugin.proto";
-import public "github.com/spiffe/sri/common/common.proto";
+import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
+import public "github.com/spiffe/sri/pkg/common/common.proto";
 
 
 

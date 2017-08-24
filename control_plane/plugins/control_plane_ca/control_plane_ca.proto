@@ -3,7 +3,7 @@ This plugin is also responsible for generating the CSR necessary for an intermed
 syntax = "proto3";
 package controlplaneca;
 
-import public "github.com/spiffe/sri/common/plugin/plugin.proto";
+import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
 
 /**Represents a request with a certificate signing request.*/
 message SignCsrRequest {

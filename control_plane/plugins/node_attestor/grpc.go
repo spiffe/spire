@@ -1,7 +1,7 @@
 package cpnodeattestor
 
 import (
-	"github.com/spiffe/sri/common/plugin"
+	"github.com/spiffe/sri/pkg/common/plugin"
 	"golang.org/x/net/context"
 )
 

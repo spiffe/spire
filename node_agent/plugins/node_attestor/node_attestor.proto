@@ -4,7 +4,7 @@ This data will be used when calling the NodeAPI on the Control Plane.*/
 syntax = "proto3";
 package nodeattestor;
 
-import public "github.com/spiffe/sri/common/plugin/plugin.proto";
+import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
 
 /**A type which contains attestation data for specific platform.*/
 message AttestedData {

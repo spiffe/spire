@@ -7,7 +7,7 @@ import (
 	"path"
 
 	"github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/sri/common/plugin"
+	common "github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/node_agent/plugins/node_attestor"
 )
 

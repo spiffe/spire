@@ -3,7 +3,7 @@ syntax = "proto3";
 package sri_proto;
 
 import public "google/api/annotations.proto";
-import public "github.com/spiffe/sri/common/common.proto";
+import public "github.com/spiffe/sri/pkg/common/common.proto";
 
 service Registration {
     ///Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
