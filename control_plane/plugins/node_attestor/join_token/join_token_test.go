@@ -4,7 +4,9 @@ import (
 	"testing"
 	"time"
 
-	common "github.com/spiffe/sri/common/plugin"
+	common "github.com/spiffe/sri/pkg/common"
+	iface "github.com/spiffe/sri/pkg/common/plugin"
+
 	"github.com/spiffe/sri/control_plane/plugins/node_attestor"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,7 +18,7 @@ const (
 )
 
 func AttestRequestGenerator(token string) *cpnodeattestor.AttestRequest {
-	attestedData := &cpnodeattestor.AttestedData{
+	attestedData := &common.AttestedData{
 		Type: "join_token",
 		Data: []byte(token),
 	}
@@ -30,21 +32,21 @@ func TestJoinToken_Configure(t *testing.T) {
 	assert := assert.New(t)
 
 	config := `{"join_tokens":{"bar":1}, "trust_domain":"example.com"}`
-	pluginConfig := &common.ConfigureRequest{
+	pluginConfig := &iface.ConfigureRequest{
 		Configuration: config,
 	}
 
 	p := &JoinTokenPlugin{}
 	resp, err := p.Configure(pluginConfig)
 	assert.Nil(err)
-	assert.Equal(&common.ConfigureResponse{}, resp)
+	assert.Equal(&iface.ConfigureResponse{}, resp)
 }
 
 func TestJoinToken_Attest(t *testing.T) {
 	assert := assert.New(t)
 
 	config := `{"join_tokens":{"foo":600,"bar":60, "bat":1}, "trust_domain":"example.com"}`
-	pluginConfig := &common.ConfigureRequest{
+	pluginConfig := &iface.ConfigureRequest{
 		Configuration: config,
 	}
 
@@ -85,7 +87,7 @@ func TestJoinToken_Attest(t *testing.T) {
 
 func TestJoinToken_GetPluginInfo(t *testing.T) {
 	var plugin JoinTokenPlugin
-	data, e := plugin.GetPluginInfo(&common.GetPluginInfoRequest{})
+	data, e := plugin.GetPluginInfo(&iface.GetPluginInfoRequest{})
 	assert.Nil(t, e)
-	assert.Equal(t, &common.GetPluginInfoResponse{}, data)
+	assert.Equal(t, &iface.GetPluginInfoResponse{}, data)
 }
