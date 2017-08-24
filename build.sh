@@ -103,8 +103,8 @@ build_protobuf() {
         fi
         _log_info "processing \"${_n}\""
         protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --go_out=plugins=grpc:${_d} ${_n}
-        _log_info "creating \"${_d}/README.md\""
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --doc_out=markdown,README.md:${_d} ${_n}
+        _log_info "creating \"${_d}/README_pb.md\""
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --doc_out=markdown,README_pb.md:${_d} ${_n}
         _log_info "creating http gateway"
         protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --grpc-gateway_out=logtostderr=true:${_d} ${_n}
     done
