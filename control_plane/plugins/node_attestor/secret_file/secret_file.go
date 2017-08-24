@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/common/plugin"
+	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/control_plane/plugins/node_attestor"
 )
 

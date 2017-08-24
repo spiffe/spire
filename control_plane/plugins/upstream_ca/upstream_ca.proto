@@ -4,7 +4,7 @@ This plugin will manage/own the Trust Bundles for the Control Plane, and act as 
 syntax = "proto3";
 package upstreamca;
 
-import public "github.com/spiffe/sri/common/plugin/plugin.proto";
+import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
 
 message SubmitCSRRequest {
     bytes csr = 1; ///Certificate signing request.

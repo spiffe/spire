@@ -1,7 +1,7 @@
 syntax = "proto3";
 package datastore;
 
-import public "github.com/spiffe/sri/common/plugin/plugin.proto";
+import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
 
 
 /** Describes the conditions under which a registration entry is matched.

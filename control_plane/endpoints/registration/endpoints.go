@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/endpoint"
-	"github.com/spiffe/sri/common"
+	"github.com/spiffe/sri/pkg/common"
 	proto "github.com/spiffe/sri/control_plane/api/registration/proto"
 )
 

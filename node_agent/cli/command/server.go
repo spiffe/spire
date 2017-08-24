@@ -11,7 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/spiffe/sri/common/plugin"
+	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/node_agent/endpoints/server"
 )

@@ -1,7 +1,7 @@
 package services
 
 import (
-	"github.com/spiffe/sri/common"
+	"github.com/spiffe/sri/pkg/common"
 	ds "github.com/spiffe/sri/control_plane/plugins/data_store"
 )
 

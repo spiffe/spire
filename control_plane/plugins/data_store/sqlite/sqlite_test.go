@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"encoding/json"
-	"github.com/spiffe/sri/common/plugin"
+	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/control_plane/plugins/data_store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

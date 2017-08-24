@@ -4,7 +4,7 @@ import (
 	"context"
 
 	grpctransport "github.com/go-kit/kit/transport/grpc"
-	pb "github.com/spiffe/sri/common/plugin"
+	pb "github.com/spiffe/sri/pkg/common/plugin"
 	oldcontext "golang.org/x/net/context"
 )
 
