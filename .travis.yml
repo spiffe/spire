@@ -13,6 +13,7 @@ script:
     - ./build.sh protobuf_verify
     - ./build.sh binaries
     - ./build.sh test
+    - ./build.sh artifact
 
 notifications:
     slack:
