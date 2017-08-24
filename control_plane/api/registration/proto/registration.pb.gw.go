@@ -2,11 +2,11 @@
 // source: registration.proto
 
 /*
-Package control_plane_proto is a reverse proxy.
+Package sri_proto is a reverse proxy.
 
 It translates gRPC into RESTful JSON APIs.
 */
-package control_plane_proto
+package sri_proto
 
 import (
 	"io"
@@ -15,6 +15,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/grpc-ecosystem/grpc-gateway/utilities"
+	"github.com/spiffe/sri/common"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -29,7 +30,7 @@ var _ = runtime.String
 var _ = utilities.NewDoubleArray
 
 func request_Registration_CreateEntry_0(ctx context.Context, marshaler runtime.Marshaler, client RegistrationClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq RegisteredEntry
+	var protoReq common.RegistrationEntry
 	var metadata runtime.ServerMetadata
 
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
@@ -46,7 +47,7 @@ var (
 )
 
 func request_Registration_DeleteEntry_0(ctx context.Context, marshaler runtime.Marshaler, client RegistrationClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq RegisteredEntryID
+	var protoReq RegistrationEntryID
 	var metadata runtime.ServerMetadata
 
 	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_Registration_DeleteEntry_0); err != nil {
@@ -59,7 +60,7 @@ func request_Registration_DeleteEntry_0(ctx context.Context, marshaler runtime.M
 }
 
 func request_Registration_FetchEntry_0(ctx context.Context, marshaler runtime.Marshaler, client RegistrationClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq RegisteredEntryID
+	var protoReq RegistrationEntryID
 	var metadata runtime.ServerMetadata
 
 	var (

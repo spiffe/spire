@@ -3,71 +3,48 @@ syntax = "proto3";
 package sri_proto;
 
 import public "google/api/annotations.proto";
+import public "github.com/spiffe/sri/common/common.proto";
 
 service Registration {
     ///Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
-    rpc CreateEntry(RegisteredEntry) returns (RegisteredEntryID) {
+    rpc CreateEntry(common.RegistrationEntry) returns (RegistrationEntryID) {
         option (google.api.http) = {
 			post: "/entry"
 			body: "*"
 		};
     }
     ///Deletes an entry and returns the deleted entry.
-    rpc DeleteEntry(RegisteredEntryID) returns (RegisteredEntry) {
+    rpc DeleteEntry(RegistrationEntryID) returns (common.RegistrationEntry) {
         option (google.api.http).delete = "/entry";
     }
     ///Retrieve a specific registered entry.
-    rpc FetchEntry(RegisteredEntryID) returns (RegisteredEntry) {
+    rpc FetchEntry(RegistrationEntryID) returns (common.RegistrationEntry) {
         option (google.api.http).get = "/entry/{id}";
     }
     ///Updates a specific registered entry.
-    rpc UpdateEntry(UpdateEntryRequest) returns (RegisteredEntry) {
+    rpc UpdateEntry(UpdateEntryRequest) returns (common.RegistrationEntry) {
         option (google.api.http).put = "/entry";
     }
     ///Returns all the Entries associated with the ParentID value.
-    rpc ListByParentID(ParentID) returns (RegisteredEntries);
+    rpc ListByParentID(ParentID) returns (common.RegistrationEntries);
     ///Returns all the entries associated with a selector value.
-    rpc ListBySelector(Selector) returns (RegisteredEntries);
+    rpc ListBySelector(common.Selector) returns (common.RegistrationEntries);
     ///Return all registration entries for which SPIFFE ID matches.
-    rpc ListBySpiffeID(SpiffeID) returns (RegisteredEntries);
+    rpc ListBySpiffeID(SpiffeID) returns (common.RegistrationEntries);
 
     ///Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
-    rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (Empty);
+    rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (common.Empty);
     ///Retrieves Federated bundles for all the Federated SPIFFE IDs.
-    rpc ListFederatedBundles(Empty) returns (ListFederatedBundlesReply);
+    rpc ListFederatedBundles(common.Empty) returns (ListFederatedBundlesReply);
     ///Updates a particular Federated Bundle. Useful for rotation.
-    rpc UpdateFederatedBundle(FederatedBundle) returns (Empty);
+    rpc UpdateFederatedBundle(FederatedBundle) returns (common.Empty);
     ///Delete a particular Federated Bundle. Used to destroy inter-domain trust.
-    rpc DeleteFederatedBundle(FederatedSpiffeID) returns (Empty);
-}
-
-/**Represents an empty message*/
-message Empty {
-}
-
-/**A type which describes the conditions under which a registration entry is matched.*/
-message Selector {
-    string type = 1; ///A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8).
-    string value = 2; ///The value to be attested.
-}
-
-/**This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.*/
-message RegisteredEntry {
-    repeated Selector selectors = 1; ///A list of selectors.
-    string parent_id = 2; ///The SPIFFE ID of an entity that is authorized to attest the validity of a selector
-    string spiffe_id = 3; ///The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path.
-    int32 ttl = 4; ///Time to live.
-    repeated string fb_spiffe_ids = 5; ///A list of federated bundle spiffe ids.
-}
-
-/**A list of registered entries.*/
-message RegisteredEntries {
-    repeated RegisteredEntry entries = 1; ///A list of RegisteredEntry.
+    rpc DeleteFederatedBundle(FederatedSpiffeID) returns (common.Empty);
 }
 
 /**A type that represents the id of an entry.*/
-message RegisteredEntryID {
-    string id = 1; ///RegisteredEntryID.
+message RegistrationEntryID {
+    string id = 1; ///RegistrationEntryID.
 }
 
 /**A type that represents a parent Id.*/
@@ -83,7 +60,7 @@ message SpiffeID {
 /**A type with the id with want to update plus values to modify.*/
 message UpdateEntryRequest {
     string id = 1; ///Id of the entry to update.
-    RegisteredEntry entry = 2; ///Values in the RegisteredEntry to update.
+    common.RegistrationEntry entry = 2; ///Values in the RegistrationEntry to update.
 
 }
 

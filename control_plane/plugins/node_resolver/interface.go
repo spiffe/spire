@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	"github.com/spiffe/sri/common"
 	"github.com/spiffe/sri/common/plugin"
 	"google.golang.org/grpc"
 )
@@ -19,7 +20,7 @@ var Handshake = plugin.HandshakeConfig{
 type NodeResolver interface {
 	Configure(config string) ([]string, error)
 	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
-	Resolve([]string) (map[string]*NodeResolutionList, error)
+	Resolve([]string) (map[string]*common.Selectors, error)
 }
 
 type NodeResolverPlugin struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/endpoint"
+	"github.com/spiffe/sri/common"
 	proto "github.com/spiffe/sri/control_plane/api/registration/proto"
 )
 
@@ -25,63 +26,63 @@ type Endpoints struct {
 	DeleteFederatedBundleEndpoint endpoint.Endpoint
 }
 type CreateEntryRequest struct {
-	Request proto.RegisteredEntry
+	Request common.RegistrationEntry
 }
 type CreateEntryResponse struct {
-	Reply proto.RegisteredEntryID
+	Reply proto.RegistrationEntryID
 	Err   error
 }
 type DeleteEntryRequest struct {
-	Request proto.RegisteredEntryID
+	Request proto.RegistrationEntryID
 }
 type DeleteEntryResponse struct {
-	Reply proto.RegisteredEntry
+	Reply common.RegistrationEntry
 	Err   error
 }
 type FetchEntryRequest struct {
-	Request proto.RegisteredEntryID
+	Request proto.RegistrationEntryID
 }
 type FetchEntryResponse struct {
-	Reply proto.RegisteredEntry
+	Reply common.RegistrationEntry
 	Err   error
 }
 type UpdateEntryRequest struct {
 	Request proto.UpdateEntryRequest
 }
 type UpdateEntryResponse struct {
-	Reply proto.RegisteredEntry
+	Reply common.RegistrationEntry
 	Err   error
 }
 type ListByParentIDRequest struct {
 	Request proto.ParentID
 }
 type ListByParentIDResponse struct {
-	Reply proto.RegisteredEntries
+	Reply common.RegistrationEntries
 	Err   error
 }
 type ListBySelectorRequest struct {
-	Request proto.Selector
+	Request common.Selector
 }
 type ListBySelectorResponse struct {
-	Reply proto.RegisteredEntries
+	Reply common.RegistrationEntries
 	Err   error
 }
 type ListBySpiffeIDRequest struct {
 	Request proto.SpiffeID
 }
 type ListBySpiffeIDResponse struct {
-	Reply proto.RegisteredEntries
+	Reply common.RegistrationEntries
 	Err   error
 }
 type CreateFederatedBundleRequest struct {
 	Request proto.CreateFederatedBundleRequest
 }
 type CreateFederatedBundleResponse struct {
-	Reply proto.Empty
+	Reply common.Empty
 	Err   error
 }
 type ListFederatedBundlesRequest struct {
-	Request proto.Empty
+	Request common.Empty
 }
 type ListFederatedBundlesResponse struct {
 	Reply proto.ListFederatedBundlesReply
@@ -91,14 +92,14 @@ type UpdateFederatedBundleRequest struct {
 	Request proto.FederatedBundle
 }
 type UpdateFederatedBundleResponse struct {
-	Reply proto.Empty
+	Reply common.Empty
 	Err   error
 }
 type DeleteFederatedBundleRequest struct {
 	Request proto.FederatedSpiffeID
 }
 type DeleteFederatedBundleResponse struct {
-	Reply proto.Empty
+	Reply common.Empty
 	Err   error
 }
 

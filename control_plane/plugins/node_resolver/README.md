@@ -29,13 +29,26 @@
   
 
 
+* [common.proto](#common.proto)
+  
+    * [AttestedData](#common.AttestedData)
+  
+    * [Empty](#common.Empty)
+  
+    * [RegistrationEntries](#common.RegistrationEntries)
+  
+    * [RegistrationEntry](#common.RegistrationEntry)
+  
+    * [Selector](#common.Selector)
+  
+    * [Selectors](#common.Selectors)
+  
+  
+  
+  
+
+
 * [node_resolver.proto](#node_resolver.proto)
-  
-    * [Empty](#noderesolver.Empty)
-  
-    * [NodeResolution](#noderesolver.NodeResolution)
-  
-    * [NodeResolutionList](#noderesolver.NodeResolutionList)
   
     * [ResolveRequest](#noderesolver.ResolveRequest)
   
@@ -188,14 +201,30 @@ Represents the plugin metadata.
 
 
 
-<a name="node_resolver.proto"/>
+<a name="common.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## node_resolver.proto
-Resolves the derived selectors for a given Node Agent. This mapping will be stored, and used to further derive which workloads the Node Agent is authorized to run.
+## common.proto
 
 
-<a name="noderesolver.Empty"/>
+
+<a name="common.AttestedData"/>
+
+### AttestedData
+A type which contains attestation data for specific platform.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  | Type of attestation to perform. |
+| data | [string](#string) |  | The attestetion data. |
+
+
+
+
+
+
+<a name="common.Empty"/>
 
 ### Empty
 Represents an empty message
@@ -205,35 +234,85 @@ Represents an empty message
 
 
 
-<a name="noderesolver.NodeResolution"/>
+<a name="common.RegistrationEntries"/>
 
-### NodeResolution
-Represents a a type with a selectorType and a selector.
+### RegistrationEntries
+A list of registration entries.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectorType | [string](#string) |  | It represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
-| selector | [string](#string) |  | A native property of an entity ( node or workload ). |
+| entries | [RegistrationEntry](#common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
 
 
 
 
 
 
-<a name="noderesolver.NodeResolutionList"/>
+<a name="common.RegistrationEntry"/>
 
-### NodeResolutionList
+### RegistrationEntry
+This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| selectors | [Selector](#common.Selector) | repeated | A list of selectors. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| ttl | [int32](#int32) |  | Time to live. |
+| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
+
+
+
+
+
+
+<a name="common.Selector"/>
+
+### Selector
+A type which describes the conditions under which a registration entry is matched.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| value | [string](#string) |  | The value to be attested. |
+
+
+
+
+
+
+<a name="common.Selectors"/>
+
+### Selectors
 Represents a type with a list of NodeResolution.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| list | [NodeResolution](#noderesolver.NodeResolution) | repeated | A list of NodeResolution. |
+| entries | [Selector](#common.Selector) | repeated | A list of NodeResolution. |
 
 
 
 
+
+ 
+
+ 
+
+ 
+
+ 
+
+
+
+<a name="node_resolver.proto"/>
+<p align="right"><a href="#top">Top</a></p>
+
+## node_resolver.proto
+Resolves the derived selectors for a given Node Agent. This mapping will be stored, and used to further derive which workloads the Node Agent is authorized to run.
 
 
 <a name="noderesolver.ResolveRequest"/>
@@ -254,12 +333,12 @@ Represents a request with a list of BaseSPIFFEIDs.
 <a name="noderesolver.ResolveResponse"/>
 
 ### ResolveResponse
-Represents a response with a map of SPIFFE ID to a list of Noderesolution.
+Represents a response with a map of SPIFFE ID to a list of Selectors.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [ResolveResponse.MapEntry](#noderesolver.ResolveResponse.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; NodeResolutionList. |
+| map | [ResolveResponse.MapEntry](#noderesolver.ResolveResponse.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; Selectors. |
 
 
 
@@ -275,7 +354,7 @@ Represents a response with a map of SPIFFE ID to a list of Noderesolution.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [NodeResolutionList](#noderesolver.NodeResolutionList) |  |  |
+| value | [.common.Selectors](#noderesolver..common.Selectors) |  |  |
 
 
 
