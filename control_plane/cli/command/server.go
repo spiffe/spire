@@ -34,6 +34,7 @@ import (
 
 const (
 	DefaultCPConifigPath = ".conf/default_cp_config.hcl"
+	DefaultPluginConifigDir = "plugins/.conf"
 )
 
 
@@ -58,7 +59,6 @@ var (
 
 type ServerCommand struct {
 }
-
 //Help returns how to use the server command
 func (*ServerCommand) Help() string {
 	return "Usage: sri/control_plane server"
@@ -71,17 +71,19 @@ func (*ServerCommand) Run(args []string) int {
 		cpConfigPath = DefaultCPConifigPath
 	}
 
+
 	config := helpers.ControlPlaneConfig{}
 	err := config.ParseConfig(cpConfigPath)
 	if err != nil {
 		logger := log.NewLogfmtLogger(os.Stdout)
+		logger = log.With(logger, "caller", log.DefaultCaller)
 		logger.Log("error", err , "configFile", cpConfigPath)
 		return -1
 
 	}
 	logger, err := helpers.NewLogger(&config)
 	if err != nil {
-		level.Error(logger).Log("error", err)
+		logger.Log("error", err)
 		return -1
 	}
 	pluginCatalog, err := loadPlugins()
@@ -105,8 +107,12 @@ func (*ServerCommand) Synopsis() string {
 }
 
 func loadPlugins() (*helpers.PluginCatalog, error) {
+	pluginConfigDir, isPathSet := os.LookupEnv("PLUGIN_CONFIG_PATH")
+	if !isPathSet {
+		pluginConfigDir = DefaultPluginConifigDir
+	}
 	pluginCatalog := &helpers.PluginCatalog{
-		PluginConfDirectory: os.Getenv("PLUGIN_CONFIG_PATH"),
+		PluginConfDirectory: pluginConfigDir,
 	}
 	pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
 	pluginCatalog.SetPluginTypeMap(PluginTypeMap)

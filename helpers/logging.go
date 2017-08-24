@@ -9,11 +9,11 @@ import (
 func NewLogger(c Config) (logger log.Logger, err error) {
 
 	fileName, logLevel := c.LogConfig()
-	logFile, err := os.Open(fileName)
+	logFile, err := os.Create(fileName)
 
 	logger = log.NewLogfmtLogger(logFile)
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
+	logger = log.With(logger, "caller", log.Caller(5))
 
 	switch logLevel {
 	case "DEBUG":
