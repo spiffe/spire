@@ -1,4 +1,4 @@
-package pluginhelper
+package helpers
 
 import (
 	"bytes"
@@ -11,7 +11,8 @@ import (
 
 // PluginConfig is the plugin config data
 type Config interface {
-	ParseConfig(file string)  error
+	LogConfig() (logFile string, logLevel string)
+	ParseConfig(file string) error
 	setConfig(data interface{}) error
 }
 
@@ -23,8 +24,13 @@ type PluginConfig struct {
 	PluginData     string
 	PluginType     string
 	Enabled        bool
+	logFile        string
+	logLevel       string
 }
 
+func (c *PluginConfig) LogConfig() (logFile string, logLevel string) {
+	return c.logFile, c.logLevel
+}
 
 func (c *PluginConfig) ParseConfig(file string) (err error) {
 
@@ -39,76 +45,99 @@ func (c *PluginConfig) ParseConfig(file string) (err error) {
 	return err
 }
 
-func (c *PluginConfig) setConfig( hclData *HCLData) (err error) {
-
+func (c *PluginConfig) setConfig(data interface{}) error {
+	hclData := data.(*HCLData)
 	c.Version = hclData.Version
 	c.PluginName = hclData.PluginName
 	c.PluginCmd = hclData.PluginCmd
 	c.PluginChecksum = hclData.PluginChecksum
 	c.Enabled = hclData.Enabled
 	c.PluginType = hclData.PluginType
+	c.logFile = hclData.LogFile
+	c.logLevel = hclData.LogLevel
 
 	// Re-encode plugin-specific data
 	var buf bytes.Buffer
-	if err = printer.DefaultConfig.Fprint(&buf, hclData.PluginData); err != nil {
+	if err := printer.DefaultConfig.Fprint(&buf, hclData.PluginData); err != nil {
 		return err
 	}
 	c.PluginData = buf.String()
-	return err
+	return nil
 }
-
 
 type NodeAgentConfig struct {
 	Version            string
 	WorkloadAPIAddress string
+	logFile            string
+	logLevel           string
 }
 
-func(c * NodeAgentConfig) ParseConfig(file string) error {
+func (c *NodeAgentConfig) LogConfig() (logFile string, logLevel string) {
+	return c.logFile, c.logLevel
+}
+
+func (c *NodeAgentConfig) ParseConfig(file string) error {
 	result, err := parseHCLfile(file)
 	if err != nil {
 		return err
 	}
-	if err = c.setConfig(result); err!=nil{
+	if err = c.setConfig(result); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *NodeAgentConfig) setConfig(hclData *HCLData)  error{
-
+func (c *NodeAgentConfig) setConfig(data interface{}) error {
+	hclData := data.(*HCLData)
 	c.Version = hclData.Version
 	c.WorkloadAPIAddress = hclData.WorkloadAPIAddress
+	c.logFile = hclData.LogFile
+	c.logLevel = hclData.LogLevel
 
 	return nil
 }
 
-
 type ControlPlaneConfig struct {
-	Version                string
-	NodeAPIAddress         string
-	RegistrationAPIAddress string
+	Version                 string
+	TrustDomain             string
+	NodeAPIGRPCPort         string
+	RegistrationAPIGRPCPort string
+	NodeAPIHTTPPort         string
+	RegistrationAPIHTTPPort string
+	logFile                 string
+	logLevel                string
 }
 
-func(c * ControlPlaneConfig) ParseConfig(file string) error {
+func (c *ControlPlaneConfig) LogConfig() (logFile string, logLevel string) {
+	return c.logFile, c.logLevel
+}
+
+func (c *ControlPlaneConfig) ParseConfig(file string) error {
 	result, err := parseHCLfile(file)
 	if err != nil {
 		return err
 	}
-	if err = c.setConfig(result); err!=nil{
+	if err = c.setConfig(result); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *ControlPlaneConfig) setConfig(hclData *HCLData)  error{
+func (c *ControlPlaneConfig) setConfig(data interface{}) error {
+	hclData := data.(*HCLData)
 
 	c.Version = hclData.Version
-	c.NodeAPIAddress = hclData.NodeAPIAddress
-	c.RegistrationAPIAddress = hclData.RegistrationAPIAddress
+	c.TrustDomain = hclData.TrustDomain
+	c.NodeAPIGRPCPort = hclData.NodeAPIGRPCPort
+	c.RegistrationAPIGRPCPort = hclData.RegistrationAPIGRPCPort
+	c.NodeAPIGRPCPort = hclData.NodeAPIGRPCPort
+	c.RegistrationAPIGRPCPort = hclData.RegistrationAPIGRPCPort
+
+	c.logLevel = hclData.LogLevel
+	c.logLevel = hclData.LogLevel
 
 	return nil
 }
-
 
 // HCL config data
 type HCLData struct {
@@ -122,14 +151,19 @@ type HCLData struct {
 	PluginData     ast.Node `hcl:"pluginData"`
 	PluginType     string   `hcl:"pluginType"`
 	Enabled        bool     `hcl:enabled`
+	LogFile        string   `hcl:logFile`
+	LogLevel       string   `hcl:logLevel`
 
 	WorkloadAPIAddress string `hcl:workloadAPIAddress`
 
-	NodeAPIAddress         string `hcl:nodeAPIAddress`
-	RegistrationAPIAddress string `hcl:registrationAPIAddress`
+	TrustDomain             string `hcl:trustDomain`
+	NodeAPIGRPCPort         string `hcl:nodeAPIGRPCPort`
+	RegistrationAPIGRPCPort string `hcl:registrationAPIGRPCPort`
+	NodeAPIHTTPPort         string `hcl:nodeAPIHTTPPort`
+	RegistrationAPIHTTPPort string `hcl:registrationAPIHTTPPort`
 }
 
-func parseHCLfile(file string) (*HCLData,error){
+func parseHCLfile(file string) (*HCLData, error) {
 	hclData := &HCLData{}
 	// Read HCL file
 	dat, err := ioutil.ReadFile(file)
@@ -150,4 +184,3 @@ func parseHCLfile(file string) (*HCLData,error){
 	}
 	return hclData, nil
 }
-

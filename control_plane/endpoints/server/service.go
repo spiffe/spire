@@ -17,7 +17,7 @@ type ServerService interface {
 
 type stubServerService struct {
 	ShutdownChannel chan error
-	PluginCatalog   *pluginhelper.PluginCatalog
+	PluginCatalog   *helpers.PluginCatalog
 }
 
 type errorStop struct {
@@ -29,7 +29,7 @@ func (e *errorStop) Error() string {
 }
 
 //NewService gets a new instance of the service.
-func NewService(pluginCatalog *pluginhelper.PluginCatalog, errorChan chan error) (s *stubServerService) {
+func NewService(pluginCatalog *helpers.PluginCatalog, errorChan chan error) (s *stubServerService) {
 	s = &stubServerService{}
 	s.PluginCatalog = pluginCatalog
 	s.ShutdownChannel = errorChan

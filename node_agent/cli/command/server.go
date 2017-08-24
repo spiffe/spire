@@ -42,8 +42,8 @@ func (*ServerCommand) Synopsis() string {
 	return "Intializes sri/node_agent Runtime."
 }
 
-func loadPlugins() (*pluginhelper.PluginCatalog, error) {
-	pluginCatalog := &pluginhelper.PluginCatalog{
+func loadPlugins() (*helpers.PluginCatalog, error) {
+	pluginCatalog := &helpers.PluginCatalog{
 		PluginConfDirectory: os.Getenv("PLUGIN_CONFIG_PATH")}
 	err := pluginCatalog.Run()
 	if err != nil {
@@ -53,7 +53,7 @@ func loadPlugins() (*pluginhelper.PluginCatalog, error) {
 	return pluginCatalog, nil
 }
 
-func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
+func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	errChan := makeErrorChannel()
 	svc := server.NewService(pluginCatalog, errChan)
 

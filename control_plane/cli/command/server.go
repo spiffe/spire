@@ -3,7 +3,6 @@ package command
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -15,14 +14,46 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/spiffe/sri/common/plugin"
-	registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
-	//     server_proto "github.com/spiffe/sri/control_plane/api/server/proto"
-	"github.com/spiffe/sri/control_plane/endpoints/registration"
 
-	"github.com/spiffe/sri/control_plane/endpoints/server"
+	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca"
 	"github.com/spiffe/sri/control_plane/plugins/data_store"
+	cpnodeattestor "github.com/spiffe/sri/control_plane/plugins/node_attestor"
+	"github.com/spiffe/sri/control_plane/plugins/node_resolver"
+	"github.com/spiffe/sri/control_plane/plugins/upstream_ca"
+
+	registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
+	"github.com/spiffe/sri/control_plane/endpoints/registration"
+	"github.com/spiffe/sri/control_plane/endpoints/server"
+
+	"github.com/hashicorp/go-plugin"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/services"
+)
+
+const (
+	DefaultCPConifigPath = ".conf/default_cp_config.hcl"
+)
+
+
+var (
+
+	PluginTypeMap = map[string]plugin.Plugin{
+		"ControlPlaneCA":   &controlplaneca.ControlPlaneCaPlugin{},
+		"DataStore":        &datastore.DataStorePlugin{},
+		"NodeResolver":     &noderesolver.NodeResolverPlugin{},
+		"UpstreamCA":       &upstreamca.UpstreamCaPlugin{},
+		"CPNodeAttestor":   &cpnodeattestor.NodeAttestorPlugin{},
+	}
+
+	MaxPlugins = map[string]int{
+		"ControlPlaneCA":   1,
+		"DataStore":        1,
+		"NodeResolver":     1,
+		"UpstreamCA":       1,
+		"CPNodeAttestor":   1,
+	}
 )
 
 type ServerCommand struct {
@@ -35,14 +66,33 @@ func (*ServerCommand) Help() string {
 
 //Run the server command
 func (*ServerCommand) Run(args []string) int {
+	cpConfigPath, isPathSet := os.LookupEnv("CP_CONFIG_PATH")
+	if !isPathSet {
+		cpConfigPath = DefaultCPConifigPath
+	}
+
+	config := helpers.ControlPlaneConfig{}
+	err := config.ParseConfig(cpConfigPath)
+	if err != nil {
+		logger := log.NewLogfmtLogger(os.Stdout)
+		logger.Log("error", err , "configFile", cpConfigPath)
+		return -1
+
+	}
+	logger, err := helpers.NewLogger(&config)
+	if err != nil {
+		level.Error(logger).Log("error", err)
+		return -1
+	}
 	pluginCatalog, err := loadPlugins()
 	if err != nil {
-		log.Fatal(err)
+		level.Error(logger).Log("error", err)
 		return -1
 	}
 
-	err = initEndpoints(pluginCatalog)
+	err = initEndpoints(pluginCatalog, logger, &config)
 	if err != nil {
+		level.Error(logger).Log("error", err)
 		return -1
 	}
 
@@ -54,10 +104,12 @@ func (*ServerCommand) Synopsis() string {
 	return "Intializes sri/control_plane Runtime."
 }
 
-func loadPlugins() (*pluginhelper.PluginCatalog, error) {
-	pluginCatalog := &pluginhelper.PluginCatalog{
+func loadPlugins() (*helpers.PluginCatalog, error) {
+	pluginCatalog := &helpers.PluginCatalog{
 		PluginConfDirectory: os.Getenv("PLUGIN_CONFIG_PATH"),
 	}
+	pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
+	pluginCatalog.SetPluginTypeMap(PluginTypeMap)
 	err := pluginCatalog.Run()
 	if err != nil {
 		return nil, err
@@ -66,15 +118,20 @@ func loadPlugins() (*pluginhelper.PluginCatalog, error) {
 	return pluginCatalog, nil
 }
 
-func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
+func initEndpoints(pluginCatalog *helpers.PluginCatalog, logger log.Logger, config *helpers.ControlPlaneConfig) error {
 	//Shouldn't we get this by plugin type?
 	dataStore := pluginCatalog.GetPlugin("datastore")
 	dataStoreImpl := dataStore.(datastore.DataStore)
 	registrationService := services.NewRegistrationImpl(dataStoreImpl)
 
 	errChan := makeErrorChannel()
-	serverSvc := server.NewService(pluginCatalog, errChan)
-	registrationSvc := registration.NewService(registrationService)
+	var serverSvc server.ServerService
+	serverSvc = server.NewService(pluginCatalog, errChan)
+	serverSvc = server.ServiceLoggingMiddleWare(logger)(serverSvc)
+
+	var registrationSvc registration.RegistrationService
+	registrationSvc = registration.NewService(registrationService)
+	registrationSvc = registration.ServiceLoggingMiddleWare(logger)(registrationSvc)
 
 	var (
 		httpAddr = flag.String("http", ":8080", "http listen address")
@@ -107,7 +164,7 @@ func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 			errChan <- err
 			return
 		}
-		log.Println("grpc:", *gRPCAddr)
+		logger.Log("grpc:", *gRPCAddr)
 
 		serverHandler := server.MakeGRPCServer(serverEndpoints)
 		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
@@ -124,7 +181,7 @@ func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 
 		mux := runtime.NewServeMux()
 		opts := []grpc.DialOption{grpc.WithInsecure()}
-		log.Println("http:", *httpAddr)
+		logger.Log("http:", *httpAddr)
 		err := registration_proto.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
 		if err != nil {
 			errChan <- err
@@ -134,7 +191,7 @@ func initEndpoints(pluginCatalog *pluginhelper.PluginCatalog) error {
 	}()
 
 	error := <-errChan
-	log.Fatalln(error)
+	logger.Log("channel", errChan, "error", error)
 	return error
 }
 
