@@ -3,16 +3,13 @@ syntax = "proto3";
 package cpnodeattestor;
 
 import public "github.com/spiffe/sri/common/plugin/plugin.proto";
+import public "github.com/spiffe/sri/common/common.proto";
 
-/**A type which contains attestation data for specific platform.*/
-message AttestedData {
-    string type = 1; ///Type of attestation to perform.
-    bytes data = 2; ///The attestetion data.
-}
+
 
 /**Represents a request to attest a node.*/
 message AttestRequest {
-    AttestedData attestedData = 1; ///A type which contains attestation data for specific platform.
+    common.AttestedData attestedData = 1; ///A type which contains attestation data for specific platform.
     bool attestedBefore = 2; ///Is true if the Base SPIFFE ID is present in the Attested Node table.
 }
 

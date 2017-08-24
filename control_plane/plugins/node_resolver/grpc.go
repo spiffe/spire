@@ -1,6 +1,7 @@
 package noderesolver
 
 import (
+	common "github.com/spiffe/sri/common"
 	"github.com/spiffe/sri/common/plugin"
 	"golang.org/x/net/context"
 )
@@ -41,7 +42,7 @@ func (m *GRPCClient) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
 	return response, err
 }
 
-func (m *GRPCClient) Resolve(physicalSpiffeIdList []string) (map[string]*NodeResolutionList, error) {
+func (m *GRPCClient) Resolve(physicalSpiffeIdList []string) (map[string]*common.Selectors, error) {
 	node_res, err := m.client.Resolve(context.Background(), &ResolveRequest{
 		physicalSpiffeIdList})
 	return node_res.Map, err

@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
+	"github.com/spiffe/sri/common"
 	"github.com/spiffe/sri/common/plugin"
 	"github.com/spiffe/sri/control_plane/plugins/node_resolver"
 )
@@ -16,7 +17,7 @@ func (NoOp) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
 	return nil, nil
 }
 
-func (NoOp) Resolve(physicalSpiffeIdList []string) (resolutions map[string]*noderesolver.NodeResolutionList, err error) {
+func (NoOp) Resolve(physicalSpiffeIdList []string) (resolutions map[string]*common.Selectors, err error) {
 	return resolutions, nil
 }
 

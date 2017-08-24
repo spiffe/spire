@@ -2,17 +2,13 @@
 // source: registration.proto
 
 /*
-Package control_plane_proto is a generated protocol buffer package.
+Package sri_proto is a generated protocol buffer package.
 
 It is generated from these files:
 	registration.proto
 
 It has these top-level messages:
-	Empty
-	Selector
-	RegisteredEntry
-	RegisteredEntries
-	RegisteredEntryID
+	RegistrationEntryID
 	ParentID
 	SpiffeID
 	UpdateEntryRequest
@@ -21,12 +17,13 @@ It has these top-level messages:
 	ListFederatedBundlesReply
 	FederatedSpiffeID
 */
-package control_plane_proto
+package sri_proto
 
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
 import google_api1 "google.golang.org/genproto/googleapis/api/annotations"
+import common "github.com/spiffe/sri/common"
 
 import (
 	context "golang.org/x/net/context"
@@ -47,117 +44,102 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 // http from public import google/api/annotations.proto
 var E_Http = google_api1.E_Http
 
-// *Represents an empty message
-type Empty struct {
-}
+// Empty from public import github.com/spiffe/sri/common/common.proto
+type Empty common.Empty
 
-func (m *Empty) Reset()                    { *m = Empty{} }
-func (m *Empty) String() string            { return proto.CompactTextString(m) }
-func (*Empty) ProtoMessage()               {}
-func (*Empty) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+func (m *Empty) Reset()         { (*common.Empty)(m).Reset() }
+func (m *Empty) String() string { return (*common.Empty)(m).String() }
+func (*Empty) ProtoMessage()    {}
 
-// *A type which describes the conditions under which a registration entry is matched.
-type Selector struct {
-	Type  string `protobuf:"bytes,1,opt,name=type" json:"type,omitempty"`
-	Value string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
-}
+// AttestedData from public import github.com/spiffe/sri/common/common.proto
+type AttestedData common.AttestedData
 
-func (m *Selector) Reset()                    { *m = Selector{} }
-func (m *Selector) String() string            { return proto.CompactTextString(m) }
-func (*Selector) ProtoMessage()               {}
-func (*Selector) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (m *AttestedData) Reset()          { (*common.AttestedData)(m).Reset() }
+func (m *AttestedData) String() string  { return (*common.AttestedData)(m).String() }
+func (*AttestedData) ProtoMessage()     {}
+func (m *AttestedData) GetType() string { return (*common.AttestedData)(m).GetType() }
+func (m *AttestedData) GetData() string { return (*common.AttestedData)(m).GetData() }
 
-func (m *Selector) GetType() string {
-	if m != nil {
-		return m.Type
+// Selector from public import github.com/spiffe/sri/common/common.proto
+type Selector common.Selector
+
+func (m *Selector) Reset()           { (*common.Selector)(m).Reset() }
+func (m *Selector) String() string   { return (*common.Selector)(m).String() }
+func (*Selector) ProtoMessage()      {}
+func (m *Selector) GetType() string  { return (*common.Selector)(m).GetType() }
+func (m *Selector) GetValue() string { return (*common.Selector)(m).GetValue() }
+
+// Selectors from public import github.com/spiffe/sri/common/common.proto
+type Selectors common.Selectors
+
+func (m *Selectors) Reset()         { (*common.Selectors)(m).Reset() }
+func (m *Selectors) String() string { return (*common.Selectors)(m).String() }
+func (*Selectors) ProtoMessage()    {}
+func (m *Selectors) GetEntries() []*Selector {
+	o := (*common.Selectors)(m).GetEntries()
+	if o == nil {
+		return nil
 	}
-	return ""
-}
-
-func (m *Selector) GetValue() string {
-	if m != nil {
-		return m.Value
+	s := make([]*Selector, len(o))
+	for i, x := range o {
+		s[i] = (*Selector)(x)
 	}
-	return ""
+	return s
 }
 
-// *This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
-type RegisteredEntry struct {
-	Selectors   []*Selector `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
-	ParentId    string      `protobuf:"bytes,2,opt,name=parent_id,json=parentId" json:"parent_id,omitempty"`
-	SpiffeId    string      `protobuf:"bytes,3,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
-	Ttl         int32       `protobuf:"varint,4,opt,name=ttl" json:"ttl,omitempty"`
-	FbSpiffeIds []string    `protobuf:"bytes,5,rep,name=fb_spiffe_ids,json=fbSpiffeIds" json:"fb_spiffe_ids,omitempty"`
-}
+// RegistrationEntry from public import github.com/spiffe/sri/common/common.proto
+type RegistrationEntry common.RegistrationEntry
 
-func (m *RegisteredEntry) Reset()                    { *m = RegisteredEntry{} }
-func (m *RegisteredEntry) String() string            { return proto.CompactTextString(m) }
-func (*RegisteredEntry) ProtoMessage()               {}
-func (*RegisteredEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
-
-func (m *RegisteredEntry) GetSelectors() []*Selector {
-	if m != nil {
-		return m.Selectors
+func (m *RegistrationEntry) Reset()         { (*common.RegistrationEntry)(m).Reset() }
+func (m *RegistrationEntry) String() string { return (*common.RegistrationEntry)(m).String() }
+func (*RegistrationEntry) ProtoMessage()    {}
+func (m *RegistrationEntry) GetSelectors() []*Selector {
+	o := (*common.RegistrationEntry)(m).GetSelectors()
+	if o == nil {
+		return nil
 	}
-	return nil
-}
-
-func (m *RegisteredEntry) GetParentId() string {
-	if m != nil {
-		return m.ParentId
+	s := make([]*Selector, len(o))
+	for i, x := range o {
+		s[i] = (*Selector)(x)
 	}
-	return ""
+	return s
+}
+func (m *RegistrationEntry) GetParentId() string { return (*common.RegistrationEntry)(m).GetParentId() }
+func (m *RegistrationEntry) GetSpiffeId() string { return (*common.RegistrationEntry)(m).GetSpiffeId() }
+func (m *RegistrationEntry) GetTtl() int32       { return (*common.RegistrationEntry)(m).GetTtl() }
+func (m *RegistrationEntry) GetFbSpiffeIds() []string {
+	return (*common.RegistrationEntry)(m).GetFbSpiffeIds()
 }
 
-func (m *RegisteredEntry) GetSpiffeId() string {
-	if m != nil {
-		return m.SpiffeId
+// RegistrationEntries from public import github.com/spiffe/sri/common/common.proto
+type RegistrationEntries common.RegistrationEntries
+
+func (m *RegistrationEntries) Reset()         { (*common.RegistrationEntries)(m).Reset() }
+func (m *RegistrationEntries) String() string { return (*common.RegistrationEntries)(m).String() }
+func (*RegistrationEntries) ProtoMessage()    {}
+func (m *RegistrationEntries) GetEntries() []*RegistrationEntry {
+	o := (*common.RegistrationEntries)(m).GetEntries()
+	if o == nil {
+		return nil
 	}
-	return ""
-}
-
-func (m *RegisteredEntry) GetTtl() int32 {
-	if m != nil {
-		return m.Ttl
+	s := make([]*RegistrationEntry, len(o))
+	for i, x := range o {
+		s[i] = (*RegistrationEntry)(x)
 	}
-	return 0
-}
-
-func (m *RegisteredEntry) GetFbSpiffeIds() []string {
-	if m != nil {
-		return m.FbSpiffeIds
-	}
-	return nil
-}
-
-// *A list of registered entries.
-type RegisteredEntries struct {
-	Entries []*RegisteredEntry `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
-}
-
-func (m *RegisteredEntries) Reset()                    { *m = RegisteredEntries{} }
-func (m *RegisteredEntries) String() string            { return proto.CompactTextString(m) }
-func (*RegisteredEntries) ProtoMessage()               {}
-func (*RegisteredEntries) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
-
-func (m *RegisteredEntries) GetEntries() []*RegisteredEntry {
-	if m != nil {
-		return m.Entries
-	}
-	return nil
+	return s
 }
 
 // *A type that represents the id of an entry.
-type RegisteredEntryID struct {
+type RegistrationEntryID struct {
 	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
 }
 
-func (m *RegisteredEntryID) Reset()                    { *m = RegisteredEntryID{} }
-func (m *RegisteredEntryID) String() string            { return proto.CompactTextString(m) }
-func (*RegisteredEntryID) ProtoMessage()               {}
-func (*RegisteredEntryID) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+func (m *RegistrationEntryID) Reset()                    { *m = RegistrationEntryID{} }
+func (m *RegistrationEntryID) String() string            { return proto.CompactTextString(m) }
+func (*RegistrationEntryID) ProtoMessage()               {}
+func (*RegistrationEntryID) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
-func (m *RegisteredEntryID) GetId() string {
+func (m *RegistrationEntryID) GetId() string {
 	if m != nil {
 		return m.Id
 	}
@@ -172,7 +154,7 @@ type ParentID struct {
 func (m *ParentID) Reset()                    { *m = ParentID{} }
 func (m *ParentID) String() string            { return proto.CompactTextString(m) }
 func (*ParentID) ProtoMessage()               {}
-func (*ParentID) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+func (*ParentID) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
 func (m *ParentID) GetId() string {
 	if m != nil {
@@ -189,7 +171,7 @@ type SpiffeID struct {
 func (m *SpiffeID) Reset()                    { *m = SpiffeID{} }
 func (m *SpiffeID) String() string            { return proto.CompactTextString(m) }
 func (*SpiffeID) ProtoMessage()               {}
-func (*SpiffeID) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+func (*SpiffeID) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
 func (m *SpiffeID) GetId() string {
 	if m != nil {
@@ -200,14 +182,14 @@ func (m *SpiffeID) GetId() string {
 
 // *A type with the id with want to update plus values to modify.
 type UpdateEntryRequest struct {
-	Id    string           `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
-	Entry *RegisteredEntry `protobuf:"bytes,2,opt,name=entry" json:"entry,omitempty"`
+	Id    string                    `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	Entry *common.RegistrationEntry `protobuf:"bytes,2,opt,name=entry" json:"entry,omitempty"`
 }
 
 func (m *UpdateEntryRequest) Reset()                    { *m = UpdateEntryRequest{} }
 func (m *UpdateEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*UpdateEntryRequest) ProtoMessage()               {}
-func (*UpdateEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+func (*UpdateEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
 func (m *UpdateEntryRequest) GetId() string {
 	if m != nil {
@@ -216,7 +198,7 @@ func (m *UpdateEntryRequest) GetId() string {
 	return ""
 }
 
-func (m *UpdateEntryRequest) GetEntry() *RegisteredEntry {
+func (m *UpdateEntryRequest) GetEntry() *common.RegistrationEntry {
 	if m != nil {
 		return m.Entry
 	}
@@ -233,7 +215,7 @@ type FederatedBundle struct {
 func (m *FederatedBundle) Reset()                    { *m = FederatedBundle{} }
 func (m *FederatedBundle) String() string            { return proto.CompactTextString(m) }
 func (*FederatedBundle) ProtoMessage()               {}
-func (*FederatedBundle) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+func (*FederatedBundle) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 func (m *FederatedBundle) GetSpiffeId() string {
 	if m != nil {
@@ -264,7 +246,7 @@ type CreateFederatedBundleRequest struct {
 func (m *CreateFederatedBundleRequest) Reset()                    { *m = CreateFederatedBundleRequest{} }
 func (m *CreateFederatedBundleRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateFederatedBundleRequest) ProtoMessage()               {}
-func (*CreateFederatedBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
+func (*CreateFederatedBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
 
 func (m *CreateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
 	if m != nil {
@@ -281,7 +263,7 @@ type ListFederatedBundlesReply struct {
 func (m *ListFederatedBundlesReply) Reset()                    { *m = ListFederatedBundlesReply{} }
 func (m *ListFederatedBundlesReply) String() string            { return proto.CompactTextString(m) }
 func (*ListFederatedBundlesReply) ProtoMessage()               {}
-func (*ListFederatedBundlesReply) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
+func (*ListFederatedBundlesReply) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
 
 func (m *ListFederatedBundlesReply) GetBundles() []*FederatedBundle {
 	if m != nil {
@@ -298,7 +280,7 @@ type FederatedSpiffeID struct {
 func (m *FederatedSpiffeID) Reset()                    { *m = FederatedSpiffeID{} }
 func (m *FederatedSpiffeID) String() string            { return proto.CompactTextString(m) }
 func (*FederatedSpiffeID) ProtoMessage()               {}
-func (*FederatedSpiffeID) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
+func (*FederatedSpiffeID) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
 
 func (m *FederatedSpiffeID) GetId() string {
 	if m != nil {
@@ -308,18 +290,14 @@ func (m *FederatedSpiffeID) GetId() string {
 }
 
 func init() {
-	proto.RegisterType((*Empty)(nil), "control_plane_proto.Empty")
-	proto.RegisterType((*Selector)(nil), "control_plane_proto.Selector")
-	proto.RegisterType((*RegisteredEntry)(nil), "control_plane_proto.RegisteredEntry")
-	proto.RegisterType((*RegisteredEntries)(nil), "control_plane_proto.RegisteredEntries")
-	proto.RegisterType((*RegisteredEntryID)(nil), "control_plane_proto.RegisteredEntryID")
-	proto.RegisterType((*ParentID)(nil), "control_plane_proto.ParentID")
-	proto.RegisterType((*SpiffeID)(nil), "control_plane_proto.SpiffeID")
-	proto.RegisterType((*UpdateEntryRequest)(nil), "control_plane_proto.UpdateEntryRequest")
-	proto.RegisterType((*FederatedBundle)(nil), "control_plane_proto.FederatedBundle")
-	proto.RegisterType((*CreateFederatedBundleRequest)(nil), "control_plane_proto.CreateFederatedBundleRequest")
-	proto.RegisterType((*ListFederatedBundlesReply)(nil), "control_plane_proto.ListFederatedBundlesReply")
-	proto.RegisterType((*FederatedSpiffeID)(nil), "control_plane_proto.FederatedSpiffeID")
+	proto.RegisterType((*RegistrationEntryID)(nil), "sri_proto.RegistrationEntryID")
+	proto.RegisterType((*ParentID)(nil), "sri_proto.ParentID")
+	proto.RegisterType((*SpiffeID)(nil), "sri_proto.SpiffeID")
+	proto.RegisterType((*UpdateEntryRequest)(nil), "sri_proto.UpdateEntryRequest")
+	proto.RegisterType((*FederatedBundle)(nil), "sri_proto.FederatedBundle")
+	proto.RegisterType((*CreateFederatedBundleRequest)(nil), "sri_proto.CreateFederatedBundleRequest")
+	proto.RegisterType((*ListFederatedBundlesReply)(nil), "sri_proto.ListFederatedBundlesReply")
+	proto.RegisterType((*FederatedSpiffeID)(nil), "sri_proto.FederatedSpiffeID")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -334,27 +312,27 @@ const _ = grpc.SupportPackageIsVersion4
 
 type RegistrationClient interface {
 	// /Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
-	CreateEntry(ctx context.Context, in *RegisteredEntry, opts ...grpc.CallOption) (*RegisteredEntryID, error)
+	CreateEntry(ctx context.Context, in *common.RegistrationEntry, opts ...grpc.CallOption) (*RegistrationEntryID, error)
 	// /Deletes an entry and returns the deleted entry.
-	DeleteEntry(ctx context.Context, in *RegisteredEntryID, opts ...grpc.CallOption) (*RegisteredEntry, error)
+	DeleteEntry(ctx context.Context, in *RegistrationEntryID, opts ...grpc.CallOption) (*common.RegistrationEntry, error)
 	// /Retrieve a specific registered entry.
-	FetchEntry(ctx context.Context, in *RegisteredEntryID, opts ...grpc.CallOption) (*RegisteredEntry, error)
+	FetchEntry(ctx context.Context, in *RegistrationEntryID, opts ...grpc.CallOption) (*common.RegistrationEntry, error)
 	// /Updates a specific registered entry.
-	UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*RegisteredEntry, error)
+	UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*common.RegistrationEntry, error)
 	// /Returns all the Entries associated with the ParentID value.
-	ListByParentID(ctx context.Context, in *ParentID, opts ...grpc.CallOption) (*RegisteredEntries, error)
+	ListByParentID(ctx context.Context, in *ParentID, opts ...grpc.CallOption) (*common.RegistrationEntries, error)
 	// /Returns all the entries associated with a selector value.
-	ListBySelector(ctx context.Context, in *Selector, opts ...grpc.CallOption) (*RegisteredEntries, error)
+	ListBySelector(ctx context.Context, in *common.Selector, opts ...grpc.CallOption) (*common.RegistrationEntries, error)
 	// /Return all registration entries for which SPIFFE ID matches.
-	ListBySpiffeID(ctx context.Context, in *SpiffeID, opts ...grpc.CallOption) (*RegisteredEntries, error)
+	ListBySpiffeID(ctx context.Context, in *SpiffeID, opts ...grpc.CallOption) (*common.RegistrationEntries, error)
 	// /Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
-	CreateFederatedBundle(ctx context.Context, in *CreateFederatedBundleRequest, opts ...grpc.CallOption) (*Empty, error)
+	CreateFederatedBundle(ctx context.Context, in *CreateFederatedBundleRequest, opts ...grpc.CallOption) (*common.Empty, error)
 	// /Retrieves Federated bundles for all the Federated SPIFFE IDs.
-	ListFederatedBundles(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ListFederatedBundlesReply, error)
+	ListFederatedBundles(ctx context.Context, in *common.Empty, opts ...grpc.CallOption) (*ListFederatedBundlesReply, error)
 	// /Updates a particular Federated Bundle. Useful for rotation.
-	UpdateFederatedBundle(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*Empty, error)
+	UpdateFederatedBundle(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*common.Empty, error)
 	// /Delete a particular Federated Bundle. Used to destroy inter-domain trust.
-	DeleteFederatedBundle(ctx context.Context, in *FederatedSpiffeID, opts ...grpc.CallOption) (*Empty, error)
+	DeleteFederatedBundle(ctx context.Context, in *FederatedSpiffeID, opts ...grpc.CallOption) (*common.Empty, error)
 }
 
 type registrationClient struct {
@@ -365,99 +343,99 @@ func NewRegistrationClient(cc *grpc.ClientConn) RegistrationClient {
 	return &registrationClient{cc}
 }
 
-func (c *registrationClient) CreateEntry(ctx context.Context, in *RegisteredEntry, opts ...grpc.CallOption) (*RegisteredEntryID, error) {
-	out := new(RegisteredEntryID)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/CreateEntry", in, out, c.cc, opts...)
+func (c *registrationClient) CreateEntry(ctx context.Context, in *common.RegistrationEntry, opts ...grpc.CallOption) (*RegistrationEntryID, error) {
+	out := new(RegistrationEntryID)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/CreateEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *registrationClient) DeleteEntry(ctx context.Context, in *RegisteredEntryID, opts ...grpc.CallOption) (*RegisteredEntry, error) {
-	out := new(RegisteredEntry)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/DeleteEntry", in, out, c.cc, opts...)
+func (c *registrationClient) DeleteEntry(ctx context.Context, in *RegistrationEntryID, opts ...grpc.CallOption) (*common.RegistrationEntry, error) {
+	out := new(common.RegistrationEntry)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/DeleteEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *registrationClient) FetchEntry(ctx context.Context, in *RegisteredEntryID, opts ...grpc.CallOption) (*RegisteredEntry, error) {
-	out := new(RegisteredEntry)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/FetchEntry", in, out, c.cc, opts...)
+func (c *registrationClient) FetchEntry(ctx context.Context, in *RegistrationEntryID, opts ...grpc.CallOption) (*common.RegistrationEntry, error) {
+	out := new(common.RegistrationEntry)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/FetchEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *registrationClient) UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*RegisteredEntry, error) {
-	out := new(RegisteredEntry)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/UpdateEntry", in, out, c.cc, opts...)
+func (c *registrationClient) UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*common.RegistrationEntry, error) {
+	out := new(common.RegistrationEntry)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/UpdateEntry", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *registrationClient) ListByParentID(ctx context.Context, in *ParentID, opts ...grpc.CallOption) (*RegisteredEntries, error) {
-	out := new(RegisteredEntries)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/ListByParentID", in, out, c.cc, opts...)
+func (c *registrationClient) ListByParentID(ctx context.Context, in *ParentID, opts ...grpc.CallOption) (*common.RegistrationEntries, error) {
+	out := new(common.RegistrationEntries)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/ListByParentID", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *registrationClient) ListBySelector(ctx context.Context, in *Selector, opts ...grpc.CallOption) (*RegisteredEntries, error) {
-	out := new(RegisteredEntries)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/ListBySelector", in, out, c.cc, opts...)
+func (c *registrationClient) ListBySelector(ctx context.Context, in *common.Selector, opts ...grpc.CallOption) (*common.RegistrationEntries, error) {
+	out := new(common.RegistrationEntries)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/ListBySelector", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *registrationClient) ListBySpiffeID(ctx context.Context, in *SpiffeID, opts ...grpc.CallOption) (*RegisteredEntries, error) {
-	out := new(RegisteredEntries)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/ListBySpiffeID", in, out, c.cc, opts...)
+func (c *registrationClient) ListBySpiffeID(ctx context.Context, in *SpiffeID, opts ...grpc.CallOption) (*common.RegistrationEntries, error) {
+	out := new(common.RegistrationEntries)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/ListBySpiffeID", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *registrationClient) CreateFederatedBundle(ctx context.Context, in *CreateFederatedBundleRequest, opts ...grpc.CallOption) (*Empty, error) {
-	out := new(Empty)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/CreateFederatedBundle", in, out, c.cc, opts...)
+func (c *registrationClient) CreateFederatedBundle(ctx context.Context, in *CreateFederatedBundleRequest, opts ...grpc.CallOption) (*common.Empty, error) {
+	out := new(common.Empty)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/CreateFederatedBundle", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *registrationClient) ListFederatedBundles(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ListFederatedBundlesReply, error) {
+func (c *registrationClient) ListFederatedBundles(ctx context.Context, in *common.Empty, opts ...grpc.CallOption) (*ListFederatedBundlesReply, error) {
 	out := new(ListFederatedBundlesReply)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/ListFederatedBundles", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/ListFederatedBundles", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *registrationClient) UpdateFederatedBundle(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*Empty, error) {
-	out := new(Empty)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/UpdateFederatedBundle", in, out, c.cc, opts...)
+func (c *registrationClient) UpdateFederatedBundle(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*common.Empty, error) {
+	out := new(common.Empty)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/UpdateFederatedBundle", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *registrationClient) DeleteFederatedBundle(ctx context.Context, in *FederatedSpiffeID, opts ...grpc.CallOption) (*Empty, error) {
-	out := new(Empty)
-	err := grpc.Invoke(ctx, "/control_plane_proto.Registration/DeleteFederatedBundle", in, out, c.cc, opts...)
+func (c *registrationClient) DeleteFederatedBundle(ctx context.Context, in *FederatedSpiffeID, opts ...grpc.CallOption) (*common.Empty, error) {
+	out := new(common.Empty)
+	err := grpc.Invoke(ctx, "/sri_proto.Registration/DeleteFederatedBundle", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -468,27 +446,27 @@ func (c *registrationClient) DeleteFederatedBundle(ctx context.Context, in *Fede
 
 type RegistrationServer interface {
 	// /Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
-	CreateEntry(context.Context, *RegisteredEntry) (*RegisteredEntryID, error)
+	CreateEntry(context.Context, *common.RegistrationEntry) (*RegistrationEntryID, error)
 	// /Deletes an entry and returns the deleted entry.
-	DeleteEntry(context.Context, *RegisteredEntryID) (*RegisteredEntry, error)
+	DeleteEntry(context.Context, *RegistrationEntryID) (*common.RegistrationEntry, error)
 	// /Retrieve a specific registered entry.
-	FetchEntry(context.Context, *RegisteredEntryID) (*RegisteredEntry, error)
+	FetchEntry(context.Context, *RegistrationEntryID) (*common.RegistrationEntry, error)
 	// /Updates a specific registered entry.
-	UpdateEntry(context.Context, *UpdateEntryRequest) (*RegisteredEntry, error)
+	UpdateEntry(context.Context, *UpdateEntryRequest) (*common.RegistrationEntry, error)
 	// /Returns all the Entries associated with the ParentID value.
-	ListByParentID(context.Context, *ParentID) (*RegisteredEntries, error)
+	ListByParentID(context.Context, *ParentID) (*common.RegistrationEntries, error)
 	// /Returns all the entries associated with a selector value.
-	ListBySelector(context.Context, *Selector) (*RegisteredEntries, error)
+	ListBySelector(context.Context, *common.Selector) (*common.RegistrationEntries, error)
 	// /Return all registration entries for which SPIFFE ID matches.
-	ListBySpiffeID(context.Context, *SpiffeID) (*RegisteredEntries, error)
+	ListBySpiffeID(context.Context, *SpiffeID) (*common.RegistrationEntries, error)
 	// /Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
-	CreateFederatedBundle(context.Context, *CreateFederatedBundleRequest) (*Empty, error)
+	CreateFederatedBundle(context.Context, *CreateFederatedBundleRequest) (*common.Empty, error)
 	// /Retrieves Federated bundles for all the Federated SPIFFE IDs.
-	ListFederatedBundles(context.Context, *Empty) (*ListFederatedBundlesReply, error)
+	ListFederatedBundles(context.Context, *common.Empty) (*ListFederatedBundlesReply, error)
 	// /Updates a particular Federated Bundle. Useful for rotation.
-	UpdateFederatedBundle(context.Context, *FederatedBundle) (*Empty, error)
+	UpdateFederatedBundle(context.Context, *FederatedBundle) (*common.Empty, error)
 	// /Delete a particular Federated Bundle. Used to destroy inter-domain trust.
-	DeleteFederatedBundle(context.Context, *FederatedSpiffeID) (*Empty, error)
+	DeleteFederatedBundle(context.Context, *FederatedSpiffeID) (*common.Empty, error)
 }
 
 func RegisterRegistrationServer(s *grpc.Server, srv RegistrationServer) {
@@ -496,7 +474,7 @@ func RegisterRegistrationServer(s *grpc.Server, srv RegistrationServer) {
 }
 
 func _Registration_CreateEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RegisteredEntry)
+	in := new(common.RegistrationEntry)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -505,16 +483,16 @@ func _Registration_CreateEntry_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/CreateEntry",
+		FullMethod: "/sri_proto.Registration/CreateEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).CreateEntry(ctx, req.(*RegisteredEntry))
+		return srv.(RegistrationServer).CreateEntry(ctx, req.(*common.RegistrationEntry))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Registration_DeleteEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RegisteredEntryID)
+	in := new(RegistrationEntryID)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -523,16 +501,16 @@ func _Registration_DeleteEntry_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/DeleteEntry",
+		FullMethod: "/sri_proto.Registration/DeleteEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).DeleteEntry(ctx, req.(*RegisteredEntryID))
+		return srv.(RegistrationServer).DeleteEntry(ctx, req.(*RegistrationEntryID))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Registration_FetchEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RegisteredEntryID)
+	in := new(RegistrationEntryID)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -541,10 +519,10 @@ func _Registration_FetchEntry_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/FetchEntry",
+		FullMethod: "/sri_proto.Registration/FetchEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).FetchEntry(ctx, req.(*RegisteredEntryID))
+		return srv.(RegistrationServer).FetchEntry(ctx, req.(*RegistrationEntryID))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -559,7 +537,7 @@ func _Registration_UpdateEntry_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/UpdateEntry",
+		FullMethod: "/sri_proto.Registration/UpdateEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RegistrationServer).UpdateEntry(ctx, req.(*UpdateEntryRequest))
@@ -577,7 +555,7 @@ func _Registration_ListByParentID_Handler(srv interface{}, ctx context.Context, 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/ListByParentID",
+		FullMethod: "/sri_proto.Registration/ListByParentID",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RegistrationServer).ListByParentID(ctx, req.(*ParentID))
@@ -586,7 +564,7 @@ func _Registration_ListByParentID_Handler(srv interface{}, ctx context.Context, 
 }
 
 func _Registration_ListBySelector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Selector)
+	in := new(common.Selector)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -595,10 +573,10 @@ func _Registration_ListBySelector_Handler(srv interface{}, ctx context.Context, 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/ListBySelector",
+		FullMethod: "/sri_proto.Registration/ListBySelector",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).ListBySelector(ctx, req.(*Selector))
+		return srv.(RegistrationServer).ListBySelector(ctx, req.(*common.Selector))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -613,7 +591,7 @@ func _Registration_ListBySpiffeID_Handler(srv interface{}, ctx context.Context, 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/ListBySpiffeID",
+		FullMethod: "/sri_proto.Registration/ListBySpiffeID",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RegistrationServer).ListBySpiffeID(ctx, req.(*SpiffeID))
@@ -631,7 +609,7 @@ func _Registration_CreateFederatedBundle_Handler(srv interface{}, ctx context.Co
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/CreateFederatedBundle",
+		FullMethod: "/sri_proto.Registration/CreateFederatedBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RegistrationServer).CreateFederatedBundle(ctx, req.(*CreateFederatedBundleRequest))
@@ -640,7 +618,7 @@ func _Registration_CreateFederatedBundle_Handler(srv interface{}, ctx context.Co
 }
 
 func _Registration_ListFederatedBundles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Empty)
+	in := new(common.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -649,10 +627,10 @@ func _Registration_ListFederatedBundles_Handler(srv interface{}, ctx context.Con
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/ListFederatedBundles",
+		FullMethod: "/sri_proto.Registration/ListFederatedBundles",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).ListFederatedBundles(ctx, req.(*Empty))
+		return srv.(RegistrationServer).ListFederatedBundles(ctx, req.(*common.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -667,7 +645,7 @@ func _Registration_UpdateFederatedBundle_Handler(srv interface{}, ctx context.Co
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/UpdateFederatedBundle",
+		FullMethod: "/sri_proto.Registration/UpdateFederatedBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RegistrationServer).UpdateFederatedBundle(ctx, req.(*FederatedBundle))
@@ -685,7 +663,7 @@ func _Registration_DeleteFederatedBundle_Handler(srv interface{}, ctx context.Co
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/control_plane_proto.Registration/DeleteFederatedBundle",
+		FullMethod: "/sri_proto.Registration/DeleteFederatedBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RegistrationServer).DeleteFederatedBundle(ctx, req.(*FederatedSpiffeID))
@@ -694,7 +672,7 @@ func _Registration_DeleteFederatedBundle_Handler(srv interface{}, ctx context.Co
 }
 
 var _Registration_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "control_plane_proto.Registration",
+	ServiceName: "sri_proto.Registration",
 	HandlerType: (*RegistrationServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -749,46 +727,40 @@ var _Registration_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("registration.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 641 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x55, 0xc1, 0x6e, 0xd3, 0x4c,
-	0x10, 0xfe, 0x9d, 0x34, 0x6d, 0x32, 0x6e, 0x9b, 0x76, 0xdb, 0x48, 0xf9, 0x4d, 0x91, 0xa2, 0x05,
-	0x95, 0xd0, 0x43, 0x22, 0x0a, 0xa7, 0x22, 0x71, 0x28, 0x69, 0xa5, 0x48, 0x48, 0x54, 0x8e, 0x10,
-	0x42, 0x3d, 0x04, 0x27, 0x1e, 0x07, 0xab, 0xc6, 0x36, 0xf6, 0x06, 0xc9, 0x42, 0x5c, 0x78, 0x05,
-	0xde, 0x87, 0x97, 0xe0, 0xc4, 0x9d, 0x07, 0x41, 0xde, 0xb5, 0x4d, 0xbb, 0xdd, 0x58, 0x06, 0x89,
-	0xdb, 0x7a, 0x67, 0xe7, 0xfb, 0xbe, 0xd9, 0x6f, 0x67, 0x0c, 0x24, 0xc2, 0x85, 0x1b, 0xb3, 0xc8,
-	0x62, 0x6e, 0xe0, 0x0f, 0xc2, 0x28, 0x60, 0x01, 0xd9, 0x9b, 0x07, 0x3e, 0x8b, 0x02, 0x6f, 0x1a,
-	0x7a, 0x96, 0x8f, 0x53, 0xbe, 0x69, 0x1c, 0x2c, 0x82, 0x60, 0xe1, 0xe1, 0xd0, 0x0a, 0xdd, 0xa1,
-	0xe5, 0xfb, 0x01, 0xe3, 0x19, 0xb1, 0x48, 0xa1, 0x1b, 0xd0, 0x38, 0x7b, 0x1f, 0xb2, 0x84, 0x3e,
-	0x81, 0xe6, 0x04, 0x3d, 0x9c, 0xb3, 0x20, 0x22, 0x04, 0xd6, 0x58, 0x12, 0x62, 0x57, 0xeb, 0x69,
-	0xfd, 0x96, 0xc9, 0xd7, 0x64, 0x1f, 0x1a, 0x1f, 0x2d, 0x6f, 0x89, 0xdd, 0x1a, 0xdf, 0x14, 0x1f,
-	0xf4, 0x9b, 0x06, 0x6d, 0x93, 0x0b, 0xc1, 0x08, 0xed, 0x33, 0x9f, 0x45, 0x09, 0x79, 0x0a, 0xad,
-	0x38, 0x43, 0x8a, 0xbb, 0x5a, 0xaf, 0xde, 0xd7, 0x8f, 0xef, 0x0e, 0x14, 0xca, 0x06, 0x39, 0x9f,
-	0xf9, 0xfb, 0x3c, 0xb9, 0x03, 0xad, 0xd0, 0x8a, 0xd0, 0x67, 0x53, 0xd7, 0xce, 0xa8, 0x9a, 0x62,
-	0x63, 0x6c, 0xa7, 0xc1, 0x38, 0x74, 0x1d, 0x07, 0xd3, 0x60, 0x5d, 0x04, 0xc5, 0xc6, 0xd8, 0x26,
-	0x3b, 0x50, 0x67, 0xcc, 0xeb, 0xae, 0xf5, 0xb4, 0x7e, 0xc3, 0x4c, 0x97, 0x84, 0xc2, 0x96, 0x33,
-	0x9b, 0x16, 0x19, 0x71, 0xb7, 0xd1, 0xab, 0xf7, 0x5b, 0xa6, 0xee, 0xcc, 0x26, 0x59, 0x52, 0x4c,
-	0x27, 0xb0, 0x7b, 0x53, 0xbf, 0x8b, 0x31, 0x79, 0x06, 0x1b, 0x28, 0x96, 0x99, 0xfe, 0xfb, 0x4a,
-	0xfd, 0x52, 0xe1, 0x66, 0x9e, 0x44, 0xef, 0xc9, 0xa0, 0xc9, 0x78, 0x44, 0xb6, 0xa1, 0xe6, 0xda,
-	0xd9, 0x95, 0xd6, 0x5c, 0x9b, 0x1a, 0xd0, 0xbc, 0x10, 0x85, 0x29, 0x63, 0x99, 0xc4, 0xdb, 0xb1,
-	0xb7, 0x40, 0x5e, 0x85, 0xb6, 0xc5, 0x50, 0x90, 0xe2, 0x87, 0x25, 0xc6, 0x4c, 0x3e, 0x45, 0x4e,
-	0xa0, 0x91, 0xaa, 0x49, 0xf8, 0x1d, 0x56, 0x2d, 0x40, 0xa4, 0xd0, 0x2b, 0x68, 0x9f, 0xa3, 0x8d,
-	0x91, 0xc5, 0xd0, 0x3e, 0x5d, 0xfa, 0xb6, 0x87, 0x37, 0x6f, 0x5e, 0x93, 0x6e, 0xfe, 0x21, 0xec,
-	0x38, 0xf9, 0xf9, 0xe9, 0x8c, 0x27, 0x70, 0xda, 0x4d, 0xb3, 0xed, 0x48, 0x38, 0x99, 0x49, 0xf5,
-	0xc2, 0x24, 0x1a, 0xc0, 0xc1, 0xf3, 0x08, 0x2d, 0x86, 0x12, 0x65, 0x5e, 0xd8, 0x4b, 0x05, 0xb8,
-	0x56, 0x52, 0x93, 0x0c, 0x23, 0x4b, 0xa0, 0x97, 0xf0, 0xff, 0x0b, 0x37, 0x66, 0xd2, 0xb9, 0xd8,
-	0xc4, 0xd0, 0x4b, 0x52, 0xe7, 0x05, 0x47, 0xb9, 0xf3, 0x32, 0x49, 0x9e, 0x94, 0x3a, 0x5f, 0xc4,
-	0x56, 0x39, 0x78, 0xfc, 0xa3, 0x09, 0x9b, 0xe6, 0xb5, 0xee, 0x25, 0x3e, 0xe8, 0xe2, 0x0e, 0x44,
-	0x03, 0x55, 0x32, 0xcb, 0x38, 0xac, 0x72, 0x6a, 0x3c, 0xa2, 0xbb, 0x5f, 0xbe, 0xff, 0xfc, 0x5a,
-	0xd3, 0xe9, 0xfa, 0x90, 0xbb, 0x7b, 0xa2, 0x1d, 0x91, 0x2b, 0xd0, 0x47, 0xe8, 0x61, 0xce, 0x57,
-	0x11, 0xc9, 0xa8, 0xa4, 0x8b, 0x6e, 0x73, 0xbe, 0xe6, 0x51, 0xc6, 0x47, 0x02, 0x80, 0x73, 0x64,
-	0xf3, 0x77, 0xff, 0x82, 0x6b, 0x8f, 0x73, 0x6d, 0x11, 0x5d, 0x70, 0x0d, 0x3f, 0xb9, 0xf6, 0x67,
-	0xe2, 0x81, 0x7e, 0xad, 0x41, 0xc8, 0x03, 0x25, 0xd2, 0xed, 0x16, 0xfa, 0xb3, 0xf2, 0x8c, 0xbc,
-	0xbc, 0xd7, 0xb0, 0x9d, 0x3e, 0xa7, 0xd3, 0xa4, 0x68, 0x66, 0xf5, 0xb0, 0xcb, 0xc3, 0x95, 0x7c,
-	0x4b, 0x87, 0x50, 0x01, 0x5c, 0x8c, 0xe5, 0xf2, 0x29, 0xfa, 0x17, 0xc0, 0xf9, 0x03, 0x5d, 0x01,
-	0x9c, 0x85, 0x2b, 0x03, 0x3b, 0xd0, 0x51, 0xb6, 0x32, 0x79, 0xa4, 0x04, 0x28, 0x6b, 0x7b, 0xc3,
-	0x50, 0xa6, 0xf0, 0x5f, 0x15, 0x99, 0xc1, 0xbe, 0xaa, 0x83, 0x49, 0x49, 0x8e, 0x31, 0x50, 0xc6,
-	0x56, 0x0f, 0x82, 0x37, 0xd0, 0x11, 0x4f, 0x44, 0xae, 0xa5, 0xd2, 0x40, 0x28, 0x95, 0x7f, 0x09,
-	0x1d, 0xd1, 0x7d, 0x32, 0xf4, 0x61, 0x39, 0x74, 0xe1, 0x47, 0x09, 0xf8, 0xc5, 0x7f, 0xb3, 0x75,
-	0xfe, 0xf9, 0xf8, 0x57, 0x00, 0x00, 0x00, 0xff, 0xff, 0x66, 0xb5, 0x3b, 0x7d, 0x21, 0x08, 0x00,
-	0x00,
+	// 548 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x93, 0xc1, 0x6e, 0xd3, 0x40,
+	0x10, 0x86, 0x71, 0xaa, 0x86, 0x64, 0xdc, 0xa6, 0xe9, 0x84, 0x48, 0xa9, 0x1b, 0x50, 0x64, 0x40,
+	0xa4, 0x3d, 0xc4, 0x52, 0xe1, 0xc4, 0x05, 0x29, 0x24, 0x95, 0x2a, 0x90, 0x08, 0xae, 0x2a, 0x90,
+	0x40, 0x8a, 0x9c, 0x78, 0x92, 0xae, 0x70, 0x6c, 0x63, 0x6f, 0x0e, 0x11, 0xe2, 0xc2, 0x2b, 0xf0,
+	0x68, 0xbc, 0x02, 0x57, 0xde, 0x01, 0x65, 0x37, 0x6b, 0xb9, 0xae, 0x9d, 0x22, 0x71, 0xb2, 0xb5,
+	0xf3, 0xef, 0x37, 0xff, 0xec, 0xcc, 0x00, 0x46, 0x34, 0x67, 0x31, 0x8f, 0x1c, 0xce, 0x02, 0xbf,
+	0x17, 0x46, 0x01, 0x0f, 0xb0, 0x1a, 0x47, 0x6c, 0x2c, 0x7e, 0x8d, 0xf6, 0x3c, 0x08, 0xe6, 0x1e,
+	0x59, 0x4e, 0xc8, 0x2c, 0xc7, 0xf7, 0x03, 0x2e, 0x74, 0xb1, 0x14, 0x1a, 0x27, 0x73, 0xc6, 0xaf,
+	0x97, 0x93, 0xde, 0x34, 0x58, 0x58, 0x71, 0xc8, 0x66, 0x33, 0xb2, 0xe2, 0x88, 0x59, 0xd3, 0x60,
+	0xb1, 0x08, 0xfc, 0xcd, 0x47, 0x4a, 0xcd, 0xa7, 0xd0, 0xb0, 0x53, 0x99, 0x86, 0x3e, 0x8f, 0x56,
+	0x17, 0x03, 0xac, 0x41, 0x89, 0xb9, 0x2d, 0xad, 0xa3, 0x75, 0xab, 0x76, 0x89, 0xb9, 0xa6, 0x01,
+	0x95, 0x91, 0x13, 0x91, 0xcf, 0xf3, 0x63, 0x97, 0x22, 0x49, 0x4e, 0xec, 0x0a, 0xf0, 0x2a, 0x74,
+	0x1d, 0x4e, 0x02, 0x6c, 0xd3, 0xd7, 0x25, 0xc5, 0x3c, 0xab, 0x42, 0x0b, 0x76, 0x69, 0x1d, 0x6f,
+	0x95, 0x3a, 0x5a, 0x57, 0x3f, 0x3b, 0xea, 0x6d, 0x2c, 0xde, 0x72, 0x66, 0x4b, 0x9d, 0xf9, 0x05,
+	0x0e, 0xce, 0xc9, 0xa5, 0xc8, 0xe1, 0xe4, 0xf6, 0x97, 0xbe, 0xeb, 0x11, 0x1e, 0x43, 0x55, 0x96,
+	0x3a, 0x4e, 0xd0, 0x15, 0x79, 0x70, 0xe1, 0xe2, 0x09, 0xd4, 0x67, 0x4a, 0x3f, 0x9e, 0x88, 0x0b,
+	0x22, 0xd7, 0x9e, 0x7d, 0x30, 0xcb, 0x70, 0xea, 0xb0, 0xc3, 0xb9, 0xd7, 0xda, 0xe9, 0x68, 0xdd,
+	0x5d, 0x7b, 0xfd, 0x6b, 0x12, 0xb4, 0x5f, 0x47, 0xe4, 0x70, 0xca, 0xa4, 0x54, 0xd5, 0x0c, 0x73,
+	0xe0, 0x9a, 0x28, 0xc4, 0xe8, 0x25, 0x1d, 0xeb, 0x65, 0x2f, 0x67, 0x13, 0x9b, 0xef, 0xe1, 0xe8,
+	0x2d, 0x8b, 0x79, 0x46, 0x17, 0xdb, 0x14, 0x7a, 0x2b, 0x7c, 0x01, 0xf7, 0x25, 0x39, 0x6e, 0x69,
+	0x9d, 0x9d, 0x3b, 0xd0, 0x4a, 0x6a, 0x3e, 0x86, 0xc3, 0x24, 0x56, 0xd4, 0xa2, 0xb3, 0x3f, 0x65,
+	0xd8, 0x4b, 0x3f, 0x34, 0x7e, 0x02, 0x5d, 0xd6, 0x2b, 0x9e, 0x1c, 0x8b, 0xbb, 0x61, 0x3c, 0x4a,
+	0x99, 0xc8, 0x99, 0x22, 0xf3, 0xf0, 0xc7, 0xaf, 0xdf, 0x3f, 0x4b, 0xba, 0x59, 0xb6, 0x44, 0xdb,
+	0x5e, 0x6a, 0xa7, 0xf8, 0x11, 0xf4, 0x01, 0x79, 0xa4, 0xe0, 0x77, 0x10, 0x8c, 0xe2, 0xe4, 0x66,
+	0x4d, 0xc0, 0x2b, 0xa7, 0x1b, 0x38, 0x7e, 0x06, 0x38, 0x27, 0x3e, 0xbd, 0xfe, 0x6f, 0x70, 0x43,
+	0x80, 0xf7, 0x51, 0x97, 0x60, 0xeb, 0x1b, 0x73, 0xbf, 0xe3, 0x07, 0xd0, 0x53, 0x83, 0x8c, 0x0f,
+	0x53, 0xf8, 0xdb, 0x03, 0xfe, 0x0f, 0xb6, 0x0d, 0x65, 0xbb, 0x0f, 0xb5, 0x75, 0xdb, 0xfb, 0xab,
+	0x64, 0xbf, 0x1a, 0x29, 0xb6, 0x3a, 0x34, 0x8e, 0x8b, 0x88, 0x8c, 0x62, 0x7c, 0xa5, 0x18, 0x97,
+	0xe4, 0xd1, 0x94, 0x07, 0x11, 0xd6, 0x95, 0x5c, 0x9d, 0x6c, 0x07, 0x24, 0x26, 0x92, 0x29, 0x49,
+	0x9b, 0x50, 0x87, 0xdb, 0x19, 0xef, 0xa0, 0x99, 0xbb, 0x26, 0xf8, 0x2c, 0x85, 0xda, 0xb6, 0x48,
+	0xc6, 0xbe, 0xc2, 0x0f, 0x17, 0x21, 0x5f, 0xe1, 0x1b, 0x78, 0x90, 0xb7, 0x10, 0x78, 0x53, 0x66,
+	0x3c, 0x49, 0xe1, 0x8b, 0x17, 0xa8, 0x0f, 0x4d, 0xd9, 0xa7, 0xac, 0xbb, 0x2d, 0x8b, 0x94, 0x35,
+	0x34, 0x80, 0xa6, 0x9c, 0xdd, 0x2c, 0xa3, 0x9d, 0xc7, 0x48, 0x5e, 0xed, 0x26, 0x65, 0x74, 0x6f,
+	0xa4, 0x4d, 0xca, 0x42, 0xfb, 0xfc, 0x6f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x38, 0x66, 0xe1, 0x23,
+	0xe6, 0x05, 0x00, 0x00,
 }

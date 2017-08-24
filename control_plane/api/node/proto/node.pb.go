@@ -8,11 +8,9 @@ It is generated from these files:
 	node.proto
 
 It has these top-level messages:
-	RegistrationEntry
 	Svid
 	SvidMap
 	SvidUpdate
-	AttestedData
 	FetchBaseSVIDRequest
 	FetchBaseSVIDResponse
 	FetchSVIDRequest
@@ -27,6 +25,7 @@ package sri_proto
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
+import common "github.com/spiffe/sri/common"
 
 import (
 	context "golang.org/x/net/context"
@@ -44,69 +43,89 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-// *A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
-type RegistrationEntry struct {
-	SelectorType      string   `protobuf:"bytes,1,opt,name=selectorType" json:"selectorType,omitempty"`
-	Selector          string   `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
-	SpiffeId          string   `protobuf:"bytes,3,opt,name=spiffeId" json:"spiffeId,omitempty"`
-	ParentId          string   `protobuf:"bytes,4,opt,name=parentId" json:"parentId,omitempty"`
-	FederatedSpiffeId []string `protobuf:"bytes,5,rep,name=federatedSpiffeId" json:"federatedSpiffeId,omitempty"`
-	Ttl               int32    `protobuf:"varint,6,opt,name=ttl" json:"ttl,omitempty"`
-	SelectorGroup     string   `protobuf:"bytes,7,opt,name=selectorGroup" json:"selectorGroup,omitempty"`
+// Empty from public import github.com/spiffe/sri/common/common.proto
+type Empty common.Empty
+
+func (m *Empty) Reset()         { (*common.Empty)(m).Reset() }
+func (m *Empty) String() string { return (*common.Empty)(m).String() }
+func (*Empty) ProtoMessage()    {}
+
+// AttestedData from public import github.com/spiffe/sri/common/common.proto
+type AttestedData common.AttestedData
+
+func (m *AttestedData) Reset()          { (*common.AttestedData)(m).Reset() }
+func (m *AttestedData) String() string  { return (*common.AttestedData)(m).String() }
+func (*AttestedData) ProtoMessage()     {}
+func (m *AttestedData) GetType() string { return (*common.AttestedData)(m).GetType() }
+func (m *AttestedData) GetData() string { return (*common.AttestedData)(m).GetData() }
+
+// Selector from public import github.com/spiffe/sri/common/common.proto
+type Selector common.Selector
+
+func (m *Selector) Reset()           { (*common.Selector)(m).Reset() }
+func (m *Selector) String() string   { return (*common.Selector)(m).String() }
+func (*Selector) ProtoMessage()      {}
+func (m *Selector) GetType() string  { return (*common.Selector)(m).GetType() }
+func (m *Selector) GetValue() string { return (*common.Selector)(m).GetValue() }
+
+// Selectors from public import github.com/spiffe/sri/common/common.proto
+type Selectors common.Selectors
+
+func (m *Selectors) Reset()         { (*common.Selectors)(m).Reset() }
+func (m *Selectors) String() string { return (*common.Selectors)(m).String() }
+func (*Selectors) ProtoMessage()    {}
+func (m *Selectors) GetEntries() []*Selector {
+	o := (*common.Selectors)(m).GetEntries()
+	if o == nil {
+		return nil
+	}
+	s := make([]*Selector, len(o))
+	for i, x := range o {
+		s[i] = (*Selector)(x)
+	}
+	return s
 }
 
-func (m *RegistrationEntry) Reset()                    { *m = RegistrationEntry{} }
-func (m *RegistrationEntry) String() string            { return proto.CompactTextString(m) }
-func (*RegistrationEntry) ProtoMessage()               {}
-func (*RegistrationEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+// RegistrationEntry from public import github.com/spiffe/sri/common/common.proto
+type RegistrationEntry common.RegistrationEntry
 
-func (m *RegistrationEntry) GetSelectorType() string {
-	if m != nil {
-		return m.SelectorType
+func (m *RegistrationEntry) Reset()         { (*common.RegistrationEntry)(m).Reset() }
+func (m *RegistrationEntry) String() string { return (*common.RegistrationEntry)(m).String() }
+func (*RegistrationEntry) ProtoMessage()    {}
+func (m *RegistrationEntry) GetSelectors() []*Selector {
+	o := (*common.RegistrationEntry)(m).GetSelectors()
+	if o == nil {
+		return nil
 	}
-	return ""
+	s := make([]*Selector, len(o))
+	for i, x := range o {
+		s[i] = (*Selector)(x)
+	}
+	return s
+}
+func (m *RegistrationEntry) GetParentId() string { return (*common.RegistrationEntry)(m).GetParentId() }
+func (m *RegistrationEntry) GetSpiffeId() string { return (*common.RegistrationEntry)(m).GetSpiffeId() }
+func (m *RegistrationEntry) GetTtl() int32       { return (*common.RegistrationEntry)(m).GetTtl() }
+func (m *RegistrationEntry) GetFbSpiffeIds() []string {
+	return (*common.RegistrationEntry)(m).GetFbSpiffeIds()
 }
 
-func (m *RegistrationEntry) GetSelector() string {
-	if m != nil {
-		return m.Selector
-	}
-	return ""
-}
+// RegistrationEntries from public import github.com/spiffe/sri/common/common.proto
+type RegistrationEntries common.RegistrationEntries
 
-func (m *RegistrationEntry) GetSpiffeId() string {
-	if m != nil {
-		return m.SpiffeId
+func (m *RegistrationEntries) Reset()         { (*common.RegistrationEntries)(m).Reset() }
+func (m *RegistrationEntries) String() string { return (*common.RegistrationEntries)(m).String() }
+func (*RegistrationEntries) ProtoMessage()    {}
+func (m *RegistrationEntries) GetEntries() []*RegistrationEntry {
+	o := (*common.RegistrationEntries)(m).GetEntries()
+	if o == nil {
+		return nil
 	}
-	return ""
-}
-
-func (m *RegistrationEntry) GetParentId() string {
-	if m != nil {
-		return m.ParentId
+	s := make([]*RegistrationEntry, len(o))
+	for i, x := range o {
+		s[i] = (*RegistrationEntry)(x)
 	}
-	return ""
-}
-
-func (m *RegistrationEntry) GetFederatedSpiffeId() []string {
-	if m != nil {
-		return m.FederatedSpiffeId
-	}
-	return nil
-}
-
-func (m *RegistrationEntry) GetTtl() int32 {
-	if m != nil {
-		return m.Ttl
-	}
-	return 0
-}
-
-func (m *RegistrationEntry) GetSelectorGroup() string {
-	if m != nil {
-		return m.SelectorGroup
-	}
-	return ""
+	return s
 }
 
 // *A type which contains the "Spiffe Verifiable Identity Document" and a TTL indicating when the SVID expires.
@@ -118,7 +137,7 @@ type Svid struct {
 func (m *Svid) Reset()                    { *m = Svid{} }
 func (m *Svid) String() string            { return proto.CompactTextString(m) }
 func (*Svid) ProtoMessage()               {}
-func (*Svid) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (*Svid) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 func (m *Svid) GetSvidCert() []byte {
 	if m != nil {
@@ -142,7 +161,7 @@ type SvidMap struct {
 func (m *SvidMap) Reset()                    { *m = SvidMap{} }
 func (m *SvidMap) String() string            { return proto.CompactTextString(m) }
 func (*SvidMap) ProtoMessage()               {}
-func (*SvidMap) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (*SvidMap) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
 func (m *SvidMap) GetMap() map[string]*Svid {
 	if m != nil {
@@ -154,14 +173,14 @@ func (m *SvidMap) GetMap() map[string]*Svid {
 // *A message returned by the Control Plane, which includes a map of signed SVIDs and
 // an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
 type SvidUpdate struct {
-	SvidMap               *SvidMap             `protobuf:"bytes,1,opt,name=svidMap" json:"svidMap,omitempty"`
-	RegistrationEntryList []*RegistrationEntry `protobuf:"bytes,2,rep,name=registrationEntryList" json:"registrationEntryList,omitempty"`
+	SvidMap               *SvidMap                    `protobuf:"bytes,1,opt,name=svidMap" json:"svidMap,omitempty"`
+	RegistrationEntryList []*common.RegistrationEntry `protobuf:"bytes,2,rep,name=registrationEntryList" json:"registrationEntryList,omitempty"`
 }
 
 func (m *SvidUpdate) Reset()                    { *m = SvidUpdate{} }
 func (m *SvidUpdate) String() string            { return proto.CompactTextString(m) }
 func (*SvidUpdate) ProtoMessage()               {}
-func (*SvidUpdate) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+func (*SvidUpdate) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
 func (m *SvidUpdate) GetSvidMap() *SvidMap {
 	if m != nil {
@@ -170,50 +189,25 @@ func (m *SvidUpdate) GetSvidMap() *SvidMap {
 	return nil
 }
 
-func (m *SvidUpdate) GetRegistrationEntryList() []*RegistrationEntry {
+func (m *SvidUpdate) GetRegistrationEntryList() []*common.RegistrationEntry {
 	if m != nil {
 		return m.RegistrationEntryList
 	}
 	return nil
 }
 
-// *A type which contains attestation data for specific platform.
-type AttestedData struct {
-	Type string `protobuf:"bytes,1,opt,name=type" json:"type,omitempty"`
-	Data string `protobuf:"bytes,2,opt,name=data" json:"data,omitempty"`
-}
-
-func (m *AttestedData) Reset()                    { *m = AttestedData{} }
-func (m *AttestedData) String() string            { return proto.CompactTextString(m) }
-func (*AttestedData) ProtoMessage()               {}
-func (*AttestedData) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
-
-func (m *AttestedData) GetType() string {
-	if m != nil {
-		return m.Type
-	}
-	return ""
-}
-
-func (m *AttestedData) GetData() string {
-	if m != nil {
-		return m.Data
-	}
-	return ""
-}
-
 // *Represents a request to attest the node.
 type FetchBaseSVIDRequest struct {
-	AttestedData *AttestedData `protobuf:"bytes,1,opt,name=attestedData" json:"attestedData,omitempty"`
-	Csr          []byte        `protobuf:"bytes,2,opt,name=csr,proto3" json:"csr,omitempty"`
+	AttestedData *common.AttestedData `protobuf:"bytes,1,opt,name=attestedData" json:"attestedData,omitempty"`
+	Csr          []byte               `protobuf:"bytes,2,opt,name=csr,proto3" json:"csr,omitempty"`
 }
 
 func (m *FetchBaseSVIDRequest) Reset()                    { *m = FetchBaseSVIDRequest{} }
 func (m *FetchBaseSVIDRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchBaseSVIDRequest) ProtoMessage()               {}
-func (*FetchBaseSVIDRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+func (*FetchBaseSVIDRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
-func (m *FetchBaseSVIDRequest) GetAttestedData() *AttestedData {
+func (m *FetchBaseSVIDRequest) GetAttestedData() *common.AttestedData {
 	if m != nil {
 		return m.AttestedData
 	}
@@ -235,7 +229,7 @@ type FetchBaseSVIDResponse struct {
 func (m *FetchBaseSVIDResponse) Reset()                    { *m = FetchBaseSVIDResponse{} }
 func (m *FetchBaseSVIDResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchBaseSVIDResponse) ProtoMessage()               {}
-func (*FetchBaseSVIDResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+func (*FetchBaseSVIDResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 func (m *FetchBaseSVIDResponse) GetSpiffeEntry() *SvidUpdate {
 	if m != nil {
@@ -252,7 +246,7 @@ type FetchSVIDRequest struct {
 func (m *FetchSVIDRequest) Reset()                    { *m = FetchSVIDRequest{} }
 func (m *FetchSVIDRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchSVIDRequest) ProtoMessage()               {}
-func (*FetchSVIDRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+func (*FetchSVIDRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
 
 func (m *FetchSVIDRequest) GetCsrList() [][]byte {
 	if m != nil {
@@ -269,7 +263,7 @@ type FetchSVIDResponse struct {
 func (m *FetchSVIDResponse) Reset()                    { *m = FetchSVIDResponse{} }
 func (m *FetchSVIDResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchSVIDResponse) ProtoMessage()               {}
-func (*FetchSVIDResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+func (*FetchSVIDResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
 
 func (m *FetchSVIDResponse) GetSpiffeEntry() *SvidUpdate {
 	if m != nil {
@@ -285,7 +279,7 @@ type FetchCPBundleRequest struct {
 func (m *FetchCPBundleRequest) Reset()                    { *m = FetchCPBundleRequest{} }
 func (m *FetchCPBundleRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchCPBundleRequest) ProtoMessage()               {}
-func (*FetchCPBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
+func (*FetchCPBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
 
 // *Represents a response with a Control Plane certificate bundle.
 type FetchCPBundleResponse struct {
@@ -295,7 +289,7 @@ type FetchCPBundleResponse struct {
 func (m *FetchCPBundleResponse) Reset()                    { *m = FetchCPBundleResponse{} }
 func (m *FetchCPBundleResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchCPBundleResponse) ProtoMessage()               {}
-func (*FetchCPBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
+func (*FetchCPBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
 
 func (m *FetchCPBundleResponse) GetCpBundle() []byte {
 	if m != nil {
@@ -312,7 +306,7 @@ type FetchFederatedBundleRequest struct {
 func (m *FetchFederatedBundleRequest) Reset()                    { *m = FetchFederatedBundleRequest{} }
 func (m *FetchFederatedBundleRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchFederatedBundleRequest) ProtoMessage()               {}
-func (*FetchFederatedBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
+func (*FetchFederatedBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
 
 func (m *FetchFederatedBundleRequest) GetSpiffeId() []string {
 	if m != nil {
@@ -329,7 +323,7 @@ type FetchFederatedBundleResponse struct {
 func (m *FetchFederatedBundleResponse) Reset()                    { *m = FetchFederatedBundleResponse{} }
 func (m *FetchFederatedBundleResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchFederatedBundleResponse) ProtoMessage()               {}
-func (*FetchFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
+func (*FetchFederatedBundleResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
 
 func (m *FetchFederatedBundleResponse) GetMap() map[string][]byte {
 	if m != nil {
@@ -339,11 +333,9 @@ func (m *FetchFederatedBundleResponse) GetMap() map[string][]byte {
 }
 
 func init() {
-	proto.RegisterType((*RegistrationEntry)(nil), "sri_proto.RegistrationEntry")
 	proto.RegisterType((*Svid)(nil), "sri_proto.Svid")
 	proto.RegisterType((*SvidMap)(nil), "sri_proto.SvidMap")
 	proto.RegisterType((*SvidUpdate)(nil), "sri_proto.SvidUpdate")
-	proto.RegisterType((*AttestedData)(nil), "sri_proto.AttestedData")
 	proto.RegisterType((*FetchBaseSVIDRequest)(nil), "sri_proto.FetchBaseSVIDRequest")
 	proto.RegisterType((*FetchBaseSVIDResponse)(nil), "sri_proto.FetchBaseSVIDResponse")
 	proto.RegisterType((*FetchSVIDRequest)(nil), "sri_proto.FetchSVIDRequest")
@@ -388,7 +380,7 @@ func NewNodeClient(cc *grpc.ClientConn) NodeClient {
 
 func (c *nodeClient) FetchBaseSVID(ctx context.Context, in *FetchBaseSVIDRequest, opts ...grpc.CallOption) (*FetchBaseSVIDResponse, error) {
 	out := new(FetchBaseSVIDResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.node/FetchBaseSVID", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/sri_proto.Node/FetchBaseSVID", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +389,7 @@ func (c *nodeClient) FetchBaseSVID(ctx context.Context, in *FetchBaseSVIDRequest
 
 func (c *nodeClient) FetchSVID(ctx context.Context, in *FetchSVIDRequest, opts ...grpc.CallOption) (*FetchSVIDResponse, error) {
 	out := new(FetchSVIDResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.node/FetchSVID", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/sri_proto.Node/FetchSVID", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +398,7 @@ func (c *nodeClient) FetchSVID(ctx context.Context, in *FetchSVIDRequest, opts .
 
 func (c *nodeClient) FetchCPBundle(ctx context.Context, in *FetchCPBundleRequest, opts ...grpc.CallOption) (*FetchCPBundleResponse, error) {
 	out := new(FetchCPBundleResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.node/FetchCPBundle", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/sri_proto.Node/FetchCPBundle", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +407,7 @@ func (c *nodeClient) FetchCPBundle(ctx context.Context, in *FetchCPBundleRequest
 
 func (c *nodeClient) FetchFederatedBundle(ctx context.Context, in *FetchFederatedBundleRequest, opts ...grpc.CallOption) (*FetchFederatedBundleResponse, error) {
 	out := new(FetchFederatedBundleResponse)
-	err := grpc.Invoke(ctx, "/sri_proto.node/FetchFederatedBundle", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/sri_proto.Node/FetchFederatedBundle", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -452,7 +444,7 @@ func _Node_FetchBaseSVID_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.node/FetchBaseSVID",
+		FullMethod: "/sri_proto.Node/FetchBaseSVID",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServer).FetchBaseSVID(ctx, req.(*FetchBaseSVIDRequest))
@@ -470,7 +462,7 @@ func _Node_FetchSVID_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.node/FetchSVID",
+		FullMethod: "/sri_proto.Node/FetchSVID",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServer).FetchSVID(ctx, req.(*FetchSVIDRequest))
@@ -488,7 +480,7 @@ func _Node_FetchCPBundle_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.node/FetchCPBundle",
+		FullMethod: "/sri_proto.Node/FetchCPBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServer).FetchCPBundle(ctx, req.(*FetchCPBundleRequest))
@@ -506,7 +498,7 @@ func _Node_FetchFederatedBundle_Handler(srv interface{}, ctx context.Context, de
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sri_proto.node/FetchFederatedBundle",
+		FullMethod: "/sri_proto.Node/FetchFederatedBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServer).FetchFederatedBundle(ctx, req.(*FetchFederatedBundleRequest))
@@ -515,7 +507,7 @@ func _Node_FetchFederatedBundle_Handler(srv interface{}, ctx context.Context, de
 }
 
 var _Node_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "sri_proto.node",
+	ServiceName: "sri_proto.Node",
 	HandlerType: (*NodeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -542,44 +534,39 @@ var _Node_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("node.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 614 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x54, 0xdb, 0x6e, 0xd3, 0x30,
-	0x18, 0x56, 0x7a, 0x58, 0xdb, 0xbf, 0x99, 0x58, 0xad, 0x15, 0xa2, 0xb6, 0x12, 0x95, 0xc5, 0xa1,
-	0x17, 0xa5, 0x42, 0x1d, 0x1a, 0xa7, 0x2b, 0xba, 0xd1, 0xa9, 0xd2, 0x26, 0x4d, 0x2e, 0x70, 0x8b,
-	0x4c, 0xe3, 0x8e, 0x88, 0x92, 0x84, 0xd8, 0xad, 0xd4, 0x4b, 0x5e, 0x80, 0x07, 0xe0, 0xe5, 0x78,
-	0x06, 0xde, 0x00, 0xc5, 0xb1, 0x33, 0x27, 0x29, 0x03, 0x69, 0x77, 0xfe, 0x4f, 0xdf, 0xf7, 0x1f,
-	0x0d, 0xe0, 0x07, 0x2e, 0x1b, 0x85, 0x51, 0x20, 0x02, 0xd4, 0xe0, 0x91, 0xf7, 0x51, 0x3e, 0xf1,
-	0x6f, 0x0b, 0x5a, 0x84, 0x5d, 0x79, 0x5c, 0x44, 0x54, 0x78, 0x81, 0xff, 0xd6, 0x17, 0xd1, 0x16,
-	0x61, 0xb0, 0x39, 0x5b, 0xb1, 0x85, 0x08, 0xa2, 0x77, 0xdb, 0x90, 0x39, 0x56, 0xdf, 0x1a, 0x34,
-	0x48, 0x46, 0x87, 0x3a, 0x50, 0xd7, 0xb2, 0x53, 0x92, 0xf6, 0x54, 0x96, 0xb6, 0xd0, 0x5b, 0x2e,
-	0xd9, 0xcc, 0x75, 0xca, 0xca, 0xa6, 0xe4, 0xd8, 0x16, 0xd2, 0x88, 0xf9, 0x62, 0xe6, 0x3a, 0x95,
-	0xc4, 0xa6, 0x65, 0x34, 0x84, 0xd6, 0x92, 0xb9, 0x2c, 0xa2, 0x82, 0xb9, 0x73, 0x0d, 0x50, 0xed,
-	0x97, 0x07, 0x0d, 0x52, 0x34, 0xa0, 0x03, 0x28, 0x0b, 0xb1, 0x72, 0xf6, 0xfa, 0xd6, 0xa0, 0x4a,
-	0xe2, 0x27, 0x7a, 0x00, 0xfb, 0x3a, 0x87, 0xb3, 0x28, 0x58, 0x87, 0x4e, 0x4d, 0x12, 0x64, 0x95,
-	0xf8, 0x19, 0x54, 0xe6, 0x1b, 0x4f, 0x66, 0xc2, 0x37, 0x9e, 0x7b, 0xc2, 0x22, 0x21, 0x2b, 0xb4,
-	0x49, 0x2a, 0x6b, 0xec, 0x52, 0x8a, 0x8d, 0xbf, 0x5b, 0x50, 0x8b, 0xc3, 0x2e, 0x68, 0x88, 0x9e,
-	0x40, 0xf9, 0x2b, 0x0d, 0x1d, 0xab, 0x5f, 0x1e, 0x34, 0xc7, 0xdd, 0x51, 0xda, 0xce, 0x91, 0x72,
-	0x18, 0x5d, 0xd0, 0x50, 0x76, 0x92, 0xc4, 0x7e, 0x9d, 0x33, 0xa8, 0x6b, 0x45, 0x0c, 0xfc, 0x85,
-	0x6d, 0x55, 0x47, 0xe3, 0x27, 0x7a, 0x08, 0xd5, 0x0d, 0x5d, 0xad, 0x99, 0x24, 0x6b, 0x8e, 0xef,
-	0xe4, 0xe0, 0x48, 0x62, 0x7d, 0x55, 0x7a, 0x61, 0xe1, 0x1f, 0x16, 0x40, 0xac, 0x7b, 0x1f, 0xba,
-	0x54, 0x30, 0x34, 0x84, 0x1a, 0x4f, 0x08, 0x25, 0x5e, 0x73, 0x8c, 0x8a, 0xa9, 0x10, 0xed, 0x82,
-	0x08, 0xb4, 0xa3, 0xfc, 0xa4, 0xcf, 0x3d, 0x2e, 0x9c, 0x92, 0x2c, 0xa3, 0x67, 0xc4, 0x16, 0x36,
-	0x82, 0xec, 0x0e, 0xc5, 0xc7, 0x60, 0xbf, 0x11, 0x82, 0x71, 0xc1, 0xdc, 0x53, 0x2a, 0x28, 0x42,
-	0x50, 0x11, 0xd7, 0x0b, 0x23, 0xdf, 0xb1, 0xce, 0xa5, 0x82, 0xaa, 0x25, 0x91, 0x6f, 0xcc, 0xe0,
-	0x70, 0xca, 0xc4, 0xe2, 0xf3, 0x84, 0x72, 0x36, 0xff, 0x30, 0x3b, 0x25, 0xec, 0xdb, 0x9a, 0x71,
-	0x81, 0x5e, 0x83, 0x4d, 0x0d, 0x3c, 0x55, 0xd6, 0x3d, 0x23, 0x35, 0x93, 0x8e, 0x64, 0x9c, 0xe3,
-	0xd6, 0x2e, 0x78, 0xb2, 0x8c, 0x36, 0x89, 0x9f, 0xf8, 0x12, 0xda, 0x39, 0x1a, 0x1e, 0x06, 0x3e,
-	0x67, 0xe8, 0x39, 0x34, 0x93, 0x85, 0x94, 0xa5, 0x28, 0x9a, 0x76, 0xae, 0x7b, 0x49, 0x97, 0x89,
-	0xe9, 0x89, 0x87, 0x70, 0x20, 0x11, 0xcd, 0xa4, 0x1d, 0xa8, 0x2d, 0x78, 0x94, 0xb6, 0xd2, 0x26,
-	0x5a, 0xc4, 0xe7, 0xd0, 0x32, 0xbc, 0x6f, 0xcb, 0x7d, 0x57, 0x35, 0xed, 0xe4, 0x72, 0xb2, 0xf6,
-	0xdd, 0x15, 0x53, 0xfc, 0xf8, 0x48, 0x55, 0x79, 0xad, 0x57, 0x4c, 0x1d, 0xa8, 0x2f, 0xc2, 0x44,
-	0xa7, 0x17, 0x5c, 0xcb, 0xf8, 0x25, 0x74, 0x65, 0xd0, 0x54, 0x9f, 0x55, 0x06, 0x33, 0x73, 0xc1,
-	0x96, 0x3c, 0xc0, 0x54, 0xc6, 0x3f, 0x2d, 0xe8, 0xed, 0x8e, 0x55, 0xbc, 0x13, 0xf3, 0x3c, 0x9e,
-	0x1a, 0x95, 0xdd, 0x14, 0x95, 0xbb, 0x99, 0xe3, 0x1b, 0x6f, 0xe6, 0xd0, 0xbc, 0x19, 0xdb, 0x38,
-	0x91, 0xf1, 0xaf, 0x12, 0x54, 0xe2, 0xaf, 0x0e, 0x11, 0xd8, 0xcf, 0xcc, 0x1e, 0xdd, 0xcf, 0x27,
-	0x92, 0x5b, 0xbe, 0x4e, 0xff, 0xef, 0x0e, 0xaa, 0xb0, 0x29, 0x34, 0xd2, 0x79, 0xa2, 0x6e, 0xde,
-	0xdd, 0xc4, 0xea, 0xed, 0x36, 0x2a, 0x1c, 0x9d, 0x9b, 0x9e, 0x58, 0x31, 0xb7, 0xdc, 0x8c, 0x8b,
-	0xb9, 0x15, 0x86, 0x7d, 0xa5, 0xb6, 0x23, 0xd7, 0x5e, 0xf4, 0xe8, 0x9f, 0xfd, 0x4f, 0x18, 0x1e,
-	0xff, 0xe7, 0x9c, 0x3e, 0xed, 0x49, 0x9f, 0xa3, 0x3f, 0x01, 0x00, 0x00, 0xff, 0xff, 0x98, 0x5e,
-	0x18, 0x5a, 0x52, 0x06, 0x00, 0x00,
+	// 541 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x52, 0x51, 0x6f, 0xd3, 0x3c,
+	0x14, 0xfd, 0xd2, 0x6e, 0x5f, 0xdb, 0xdb, 0x22, 0x86, 0xd5, 0xa2, 0x90, 0x4e, 0xa2, 0xb2, 0x04,
+	0x14, 0x69, 0xa4, 0xa8, 0x43, 0x30, 0x78, 0xa3, 0x1b, 0x45, 0x93, 0x36, 0xa8, 0x3c, 0xc1, 0x2b,
+	0x72, 0x63, 0xaf, 0x8b, 0x68, 0x93, 0x60, 0xbb, 0x95, 0xf6, 0xc8, 0x33, 0xff, 0x80, 0x3f, 0xc7,
+	0x5f, 0x41, 0x71, 0x9c, 0x90, 0xba, 0x65, 0x20, 0xf1, 0x14, 0xdb, 0x39, 0xf7, 0x9e, 0x73, 0xcf,
+	0x3d, 0x00, 0x51, 0xcc, 0xb8, 0x9f, 0x88, 0x58, 0xc5, 0xa8, 0x21, 0x45, 0xf8, 0x49, 0x1f, 0xbd,
+	0xc7, 0xb3, 0x50, 0x5d, 0x2d, 0xa7, 0x7e, 0x10, 0x2f, 0x06, 0x32, 0x09, 0x2f, 0x2f, 0xf9, 0x40,
+	0x8a, 0x70, 0x10, 0xc4, 0x8b, 0x45, 0x1c, 0x99, 0x4f, 0x56, 0x85, 0x9f, 0xc1, 0xce, 0xc5, 0x2a,
+	0x64, 0xc8, 0x83, 0xba, 0x5c, 0x85, 0xec, 0x98, 0x0b, 0xe5, 0x3a, 0x3d, 0xa7, 0xdf, 0x22, 0xc5,
+	0x1d, 0xed, 0x41, 0x55, 0xa9, 0xb9, 0x5b, 0xe9, 0x39, 0xfd, 0x5d, 0x92, 0x1e, 0xf1, 0x57, 0x07,
+	0x6a, 0x69, 0xd9, 0x39, 0x4d, 0xd0, 0x13, 0xa8, 0x2e, 0x68, 0xe2, 0x3a, 0xbd, 0x6a, 0xbf, 0x39,
+	0xec, 0xfa, 0x85, 0x0a, 0xdf, 0x00, 0xfc, 0x73, 0x9a, 0xbc, 0x89, 0x94, 0xb8, 0x26, 0x29, 0xce,
+	0x7b, 0x0b, 0xf5, 0xfc, 0x21, 0x6d, 0xfc, 0x99, 0x5f, 0x6b, 0xbe, 0x06, 0x49, 0x8f, 0xe8, 0x01,
+	0xec, 0xae, 0xe8, 0x7c, 0xc9, 0x35, 0x59, 0x73, 0x78, 0xdb, 0x6a, 0x47, 0xb2, 0xbf, 0xaf, 0x2a,
+	0x47, 0x0e, 0xfe, 0xe6, 0x00, 0xa4, 0x6f, 0x1f, 0x12, 0x46, 0x15, 0x47, 0x07, 0x50, 0x93, 0x19,
+	0xa1, 0xee, 0xd7, 0x1c, 0xa2, 0x4d, 0x29, 0x24, 0x87, 0xa0, 0xf7, 0xd0, 0x11, 0x7c, 0x16, 0x4a,
+	0x25, 0xa8, 0x0a, 0xe3, 0x48, 0xcb, 0x39, 0x0b, 0xa5, 0x72, 0x2b, 0x7a, 0x8c, 0x7b, 0xbe, 0x31,
+	0x89, 0xd8, 0x20, 0xb2, 0xbd, 0x0e, 0x4f, 0xa1, 0x3d, 0xe6, 0x2a, 0xb8, 0x1a, 0x51, 0xc9, 0x2f,
+	0x3e, 0x9e, 0x9e, 0x10, 0xfe, 0x65, 0xc9, 0xa5, 0x42, 0x47, 0xd0, 0xa2, 0x4a, 0x71, 0xa9, 0x38,
+	0x3b, 0xa1, 0x8a, 0x1a, 0x6d, 0xed, 0xbc, 0xff, 0xeb, 0xd2, 0x3f, 0xb2, 0x86, 0x4c, 0xcd, 0x09,
+	0xa4, 0xd0, 0x46, 0xb4, 0x48, 0x7a, 0xc4, 0x13, 0xe8, 0x58, 0x1c, 0x32, 0x89, 0x23, 0xc9, 0xd1,
+	0x0b, 0x68, 0x66, 0x6b, 0xd6, 0x7a, 0x0c, 0x47, 0xc7, 0x9a, 0x3f, 0xf3, 0x89, 0x94, 0x91, 0xf8,
+	0x00, 0xf6, 0x74, 0xc7, 0xb2, 0x62, 0x17, 0x6a, 0x81, 0x14, 0x85, 0x19, 0x2d, 0x92, 0x5f, 0xf1,
+	0x19, 0xdc, 0x29, 0xa1, 0xff, 0x95, 0xfb, 0xae, 0x71, 0xec, 0x78, 0x32, 0x5a, 0x46, 0x6c, 0xce,
+	0x0d, 0x3f, 0x3e, 0x34, 0x53, 0xfe, 0x7a, 0x37, 0x4c, 0x1e, 0xd4, 0x83, 0x24, 0x7b, 0xcb, 0x23,
+	0x9a, 0xdf, 0xf1, 0x4b, 0xe8, 0xea, 0xa2, 0x31, 0x67, 0x5c, 0x50, 0xc5, 0xd9, 0x5a, 0x4f, 0x9d,
+	0x6e, 0x4d, 0x7d, 0xca, 0x74, 0x50, 0x1b, 0xa4, 0xb8, 0xe3, 0xef, 0x0e, 0xec, 0x6f, 0xaf, 0x35,
+	0xbc, 0xa3, 0x72, 0xc0, 0x9f, 0x96, 0x26, 0xbb, 0xa9, 0xca, 0x4a, 0xfd, 0xf3, 0x1b, 0x53, 0xdf,
+	0x2e, 0xa7, 0xbe, 0x55, 0x0a, 0xf9, 0xf0, 0x47, 0x05, 0x76, 0xde, 0xc5, 0x8c, 0x23, 0x02, 0xb7,
+	0xd6, 0x76, 0x8f, 0xee, 0xdb, 0x42, 0xac, 0xe4, 0x79, 0xbd, 0xdf, 0x03, 0xcc, 0x60, 0x63, 0x68,
+	0x14, 0xfb, 0x44, 0x5d, 0x1b, 0x5e, 0xee, 0xb5, 0xbf, 0xfd, 0xa7, 0xe9, 0x93, 0x6b, 0xcb, 0x37,
+	0xb6, 0xa9, 0xcd, 0xda, 0xf1, 0xa6, 0xb6, 0x8d, 0x65, 0xcf, 0x4c, 0x3a, 0x2c, 0x7b, 0xd1, 0xc3,
+	0x3f, 0xfa, 0x9f, 0x31, 0x3c, 0xfa, 0xcb, 0x3d, 0x4d, 0xfe, 0x9b, 0xfe, 0xaf, 0x51, 0x87, 0x3f,
+	0x03, 0x00, 0x00, 0xff, 0xff, 0x1f, 0x77, 0x15, 0xad, 0x4d, 0x05, 0x00, 0x00,
 }

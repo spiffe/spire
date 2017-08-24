@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/spiffe/sri/common"
 	proto "github.com/spiffe/sri/control_plane/api/registration/proto"
 )
 
@@ -21,7 +22,7 @@ type LoggingMiddleware struct {
 	next   RegistrationService
 }
 
-func (mw LoggingMiddleware) CreateEntry(ctx context.Context, request proto.RegisteredEntry) (response proto.RegisteredEntryID, err error) {
+func (mw LoggingMiddleware) CreateEntry(ctx context.Context, request common.RegistrationEntry) (response proto.RegistrationEntryID, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "CreateEntry",
@@ -35,7 +36,7 @@ func (mw LoggingMiddleware) CreateEntry(ctx context.Context, request proto.Regis
 	return
 }
 
-func (mw LoggingMiddleware) DeleteEntry(ctx context.Context, request proto.RegisteredEntryID) (response proto.RegisteredEntry, err error) {
+func (mw LoggingMiddleware) DeleteEntry(ctx context.Context, request proto.RegistrationEntryID) (response common.RegistrationEntry, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "DeleteEntry",
@@ -49,7 +50,7 @@ func (mw LoggingMiddleware) DeleteEntry(ctx context.Context, request proto.Regis
 	return
 }
 
-func (mw LoggingMiddleware) FetchEntry(ctx context.Context, request proto.RegisteredEntryID) (response proto.RegisteredEntry, err error) {
+func (mw LoggingMiddleware) FetchEntry(ctx context.Context, request proto.RegistrationEntryID) (response common.RegistrationEntry, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "FetchEntry",
@@ -63,7 +64,7 @@ func (mw LoggingMiddleware) FetchEntry(ctx context.Context, request proto.Regist
 	return
 }
 
-func (mw LoggingMiddleware) UpdateEntry(ctx context.Context, request proto.UpdateEntryRequest) (response proto.RegisteredEntry, err error) {
+func (mw LoggingMiddleware) UpdateEntry(ctx context.Context, request proto.UpdateEntryRequest) (response common.RegistrationEntry, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "UpdateEntry",
@@ -77,7 +78,7 @@ func (mw LoggingMiddleware) UpdateEntry(ctx context.Context, request proto.Updat
 	return
 }
 
-func (mw LoggingMiddleware) ListByParentID(ctx context.Context, request proto.ParentID) (response proto.RegisteredEntries, err error) {
+func (mw LoggingMiddleware) ListByParentID(ctx context.Context, request proto.ParentID) (response common.RegistrationEntries, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "ListByParentID",
@@ -91,7 +92,7 @@ func (mw LoggingMiddleware) ListByParentID(ctx context.Context, request proto.Pa
 	return
 }
 
-func (mw LoggingMiddleware) ListBySelector(ctx context.Context, request proto.Selector) (response proto.RegisteredEntries, err error) {
+func (mw LoggingMiddleware) ListBySelector(ctx context.Context, request common.Selector) (response common.RegistrationEntries, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "ListBySelector",
@@ -105,7 +106,7 @@ func (mw LoggingMiddleware) ListBySelector(ctx context.Context, request proto.Se
 	return
 }
 
-func (mw LoggingMiddleware) ListBySpiffeID(ctx context.Context, request proto.SpiffeID) (response proto.RegisteredEntries, err error) {
+func (mw LoggingMiddleware) ListBySpiffeID(ctx context.Context, request proto.SpiffeID) (response common.RegistrationEntries, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "ListBySpiffeID",
@@ -119,7 +120,7 @@ func (mw LoggingMiddleware) ListBySpiffeID(ctx context.Context, request proto.Sp
 	return
 }
 
-func (mw LoggingMiddleware) CreateFederatedBundle(ctx context.Context, request proto.CreateFederatedBundleRequest) (response proto.Empty, err error) {
+func (mw LoggingMiddleware) CreateFederatedBundle(ctx context.Context, request proto.CreateFederatedBundleRequest) (response common.Empty, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "CreateFederatedBundle",
@@ -133,7 +134,7 @@ func (mw LoggingMiddleware) CreateFederatedBundle(ctx context.Context, request p
 	return
 }
 
-func (mw LoggingMiddleware) ListFederatedBundles(ctx context.Context, request proto.Empty) (response proto.ListFederatedBundlesReply, err error) {
+func (mw LoggingMiddleware) ListFederatedBundles(ctx context.Context, request common.Empty) (response proto.ListFederatedBundlesReply, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "ListFederatedBundles",
@@ -147,7 +148,7 @@ func (mw LoggingMiddleware) ListFederatedBundles(ctx context.Context, request pr
 	return
 }
 
-func (mw LoggingMiddleware) UpdateFederatedBundle(ctx context.Context, request proto.FederatedBundle) (response proto.Empty, err error) {
+func (mw LoggingMiddleware) UpdateFederatedBundle(ctx context.Context, request proto.FederatedBundle) (response common.Empty, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "UpdateFederatedBundle",
@@ -161,7 +162,7 @@ func (mw LoggingMiddleware) UpdateFederatedBundle(ctx context.Context, request p
 	return
 }
 
-func (mw LoggingMiddleware) DeleteFederatedBundle(ctx context.Context, request proto.FederatedSpiffeID) (response proto.Empty, err error) {
+func (mw LoggingMiddleware) DeleteFederatedBundle(ctx context.Context, request proto.FederatedSpiffeID) (response common.Empty, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "DeleteFederatedBundle",

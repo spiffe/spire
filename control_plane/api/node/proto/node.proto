@@ -7,16 +7,22 @@ and to retrieve SVIDs by presenting certificate signing requests to the Control 
 syntax = "proto3";
 package sri_proto;
 
-/**A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.*/
-message RegistrationEntry {
- string selectorType = 1; ///A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8).
- string selector = 2; ///A native property of an entity.
- string spiffeId = 3; ///An SPIFFE Id.
- string parentId = 4; ///The SPIFFE ID of an entity that is authorized to attest the validity of a selector.
- repeated string federatedSpiffeId = 5; ///A SPIFFE ID that has a Federated Bundle.
- int32 ttl = 6; ///Time to live.
- string selectorGroup = 7; ///Selector Group contains a GUID which allows for compounding selectors. In the case where a workload must satisfy multiple selectors in order to be issued a SPIFFE ID, the Registration Entries will share a Selector Group GUID.
-}
+import public "github.com/spiffe/sri/common/common.proto";
+
+service Node {
+    ///Attest the node, get base node SVID.
+    rpc FetchBaseSVID(FetchBaseSVIDRequest) returns (FetchBaseSVIDResponse);
+    ///Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
+    ///(Base Node SVID or the Registered Node SVID used for this call)
+    ///(List can be empty to allow Node Agent cache refresh).
+    rpc FetchSVID(FetchSVIDRequest) returns (FetchSVIDResponse);
+    ///Called by Node Agent periodically to support Control Plane certificate rotation. Cached in Node Agent memory for WorkLoads as well.
+    rpc FetchCPBundle(FetchCPBundleRequest) returns (FetchCPBundleResponse);
+    ///Called by the Node Agent to fetch the named Federated CA Bundle.
+    ///Used in the event that authorized workloads reference a Federated Bundle.
+    rpc FetchFederatedBundle(FetchFederatedBundleRequest) returns (FetchFederatedBundleResponse);
+   }
+
 
 /**A type which contains the "Spiffe Verifiable Identity Document" and a TTL indicating when the SVID expires.*/
 message Svid {
@@ -33,18 +39,12 @@ message SvidMap {
 an array of all current Registration Entries which are relevant to the caller SPIFFE ID.*/
 message SvidUpdate {
  SvidMap svidMap = 1; ///A map containing SVID values and corresponding SPIFFE IDs as the keys.
- repeated RegistrationEntry registrationEntryList = 2; ///A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
-}
-
-/**A type which contains attestation data for specific platform.*/
-message AttestedData {
- string type = 1; ///Type of attestation to perform.
- string data = 2; ///The attestetion data.
+ repeated common.RegistrationEntry registrationEntryList = 2; ///A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
 }
 
 /**Represents a request to attest the node.*/
 message FetchBaseSVIDRequest {
- AttestedData attestedData = 1; ///A type which contains attestation data for specific platform.
+ common.AttestedData attestedData = 1; ///A type which contains attestation data for specific platform.
  bytes csr = 2;  //Certificate signing request.
 }
 
@@ -80,18 +80,4 @@ message FetchFederatedBundleRequest {
 /**Represents a response with a map of SPIFFE Id, Federated CA Bundle.*/
 message FetchFederatedBundleResponse {
  map<string, bytes> map = 1; ///Map [ SPIFFE ID ] => Federated CA Bundle
-}
-
-service node {
- ///Attest the node, get base node SVID.
- rpc FetchBaseSVID(FetchBaseSVIDRequest) returns (FetchBaseSVIDResponse);
- ///Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
- ///(Base Node SVID or the Registered Node SVID used for this call)
- ///(List can be empty to allow Node Agent cache refresh).
- rpc FetchSVID(FetchSVIDRequest) returns (FetchSVIDResponse);
- ///Called by Node Agent periodically to support Control Plane certificate rotation. Cached in Node Agent memory for WorkLoads as well.
- rpc FetchCPBundle(FetchCPBundleRequest) returns (FetchCPBundleResponse);
- ///Called by the Node Agent to fetch the named Federated CA Bundle.
- ///Used in the event that authorized workloads reference a Federated Bundle.
- rpc FetchFederatedBundle(FetchFederatedBundleRequest) returns (FetchFederatedBundleResponse);
 }
