@@ -3,30 +3,7 @@ syntax = "proto3";
 package noderesolver;
 
 import public "github.com/spiffe/sri/common/plugin/plugin.proto";
-
-/**Represents a a type with a selectorType and a selector.*/
-message NodeResolution {
-    string selectorType = 1; ///It represents the type of attestation used in attesting the entity (Eg: AWS, K8).
-    string selector = 2; ///A native property of an entity ( node or workload ).
-}
-
-/**Represents a type with a list of NodeResolution.*/
-message NodeResolutionList {
-    repeated NodeResolution list = 1; ///A list of NodeResolution.
-}
-
-/**Represents a request with a list of BaseSPIFFEIDs.*/
-message ResolveRequest {
-    repeated string baseSpiffeIdList = 1; ///A list of BaseSPIFFE Ids.
-}
-
-/**Represents a response with a map of SPIFFE ID to a list of Noderesolution.*/
-message ResolveResponse {
-    map<string, NodeResolutionList> map = 1; ///Map[SPIFFE_ID] => NodeResolutionList.
-}
-
-/**Represents an empty message*/
-message Empty{}
+import public "github.com/spiffe/sri/common/common.proto";
 
 service NodeResolver {
     /**Responsible for configuration of the plugin.*/
@@ -36,3 +13,14 @@ service NodeResolver {
     /**Retrieves a list of properties reflecting the current state of a particular node(s).*/
     rpc Resolve(ResolveRequest) returns (ResolveResponse);
 }
+
+/**Represents a request with a list of BaseSPIFFEIDs.*/
+message ResolveRequest {
+    repeated string baseSpiffeIdList = 1; ///A list of BaseSPIFFE Ids.
+}
+
+/**Represents a response with a map of SPIFFE ID to a list of Selectors.*/
+message ResolveResponse {
+    map<string, common.Selectors> map = 1; ///Map[SPIFFE_ID] => Selectors.
+}
+

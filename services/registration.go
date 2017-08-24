@@ -1,14 +1,14 @@
 package services
 
 import (
-	proto "github.com/spiffe/sri/control_plane/api/registration/proto"
+	"github.com/spiffe/sri/common"
 	ds "github.com/spiffe/sri/control_plane/plugins/data_store"
 )
 
 //Registration service interface.
 type Registration interface {
-	CreateEntry(entry *proto.RegisteredEntry) (registeredID string, err error)
-	FetchEntry(registeredID string) (entry *proto.RegisteredEntry, err error)
+	CreateEntry(entry *common.RegistrationEntry) (registeredID string, err error)
+	FetchEntry(registeredID string) (entry *common.RegistrationEntry, err error)
 }
 
 //RegistrationImpl is an implementation of the Registration interface.
@@ -22,7 +22,7 @@ func NewRegistrationImpl(dataStore ds.DataStore) RegistrationImpl {
 }
 
 //CreateEntry with the DataStore plugin.
-func (r RegistrationImpl) CreateEntry(entry *proto.RegisteredEntry) (string, error) {
+func (r RegistrationImpl) CreateEntry(entry *common.RegistrationEntry) (string, error) {
 	dsEntry := &ds.RegisteredEntry{
 		ParentId: entry.ParentId,
 		SpiffeId: entry.SpiffeId,
@@ -50,21 +50,21 @@ func (r RegistrationImpl) CreateEntry(entry *proto.RegisteredEntry) (string, err
 }
 
 //FetchEntry gets a RegisteredEntry based on a registeredID.
-func (r RegistrationImpl) FetchEntry(registeredID string) (entry *proto.RegisteredEntry, err error) {
+func (r RegistrationImpl) FetchEntry(registeredID string) (*common.RegistrationEntry, error) {
 	response, err := r.dataStore.FetchRegistrationEntry(&ds.FetchRegistrationEntryRequest{RegisteredEntryId: registeredID})
 
 	if err != nil {
 		return nil, err
 	}
 
-	protoEntry := &proto.RegisteredEntry{
+	protoEntry := &common.RegistrationEntry{
 		ParentId: response.RegisteredEntry.ParentId,
 		SpiffeId: response.RegisteredEntry.SpiffeId,
 		Ttl:      response.RegisteredEntry.Ttl,
 	}
 
 	for _, s := range response.RegisteredEntry.SelectorList {
-		selector := &proto.Selector{
+		selector := &common.Selector{
 			Type:  s.Type,
 			Value: s.Value,
 		}
