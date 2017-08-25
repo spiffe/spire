@@ -8,8 +8,6 @@ It is generated from these files:
 	data_store.proto
 
 It has these top-level messages:
-	Selector
-	RegisteredEntry
 	FederatedBundle
 	NodeResolverMapEntry
 	AttestedNodeEntry
@@ -60,6 +58,7 @@ import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
 import sriplugin "github.com/spiffe/sri/pkg/common/plugin"
+import common "github.com/spiffe/sri/pkg/common"
 
 import (
 	context "golang.org/x/net/context"
@@ -177,78 +176,89 @@ func (m *StopReply) Reset()         { (*sriplugin.StopReply)(m).Reset() }
 func (m *StopReply) String() string { return (*sriplugin.StopReply)(m).String() }
 func (*StopReply) ProtoMessage()    {}
 
-// * Describes the conditions under which a registration entry is matched.
-type Selector struct {
-	Type  string `protobuf:"bytes,1,opt,name=type" json:"type,omitempty"`
-	Value string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
-}
+// Empty from public import github.com/spiffe/sri/pkg/common/common.proto
+type Empty common.Empty
 
-func (m *Selector) Reset()                    { *m = Selector{} }
-func (m *Selector) String() string            { return proto.CompactTextString(m) }
-func (*Selector) ProtoMessage()               {}
-func (*Selector) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+func (m *Empty) Reset()         { (*common.Empty)(m).Reset() }
+func (m *Empty) String() string { return (*common.Empty)(m).String() }
+func (*Empty) ProtoMessage()    {}
 
-func (m *Selector) GetType() string {
-	if m != nil {
-		return m.Type
+// AttestedData from public import github.com/spiffe/sri/pkg/common/common.proto
+type AttestedData common.AttestedData
+
+func (m *AttestedData) Reset()          { (*common.AttestedData)(m).Reset() }
+func (m *AttestedData) String() string  { return (*common.AttestedData)(m).String() }
+func (*AttestedData) ProtoMessage()     {}
+func (m *AttestedData) GetType() string { return (*common.AttestedData)(m).GetType() }
+func (m *AttestedData) GetData() []byte { return (*common.AttestedData)(m).GetData() }
+
+// Selector from public import github.com/spiffe/sri/pkg/common/common.proto
+type Selector common.Selector
+
+func (m *Selector) Reset()           { (*common.Selector)(m).Reset() }
+func (m *Selector) String() string   { return (*common.Selector)(m).String() }
+func (*Selector) ProtoMessage()      {}
+func (m *Selector) GetType() string  { return (*common.Selector)(m).GetType() }
+func (m *Selector) GetValue() string { return (*common.Selector)(m).GetValue() }
+
+// Selectors from public import github.com/spiffe/sri/pkg/common/common.proto
+type Selectors common.Selectors
+
+func (m *Selectors) Reset()         { (*common.Selectors)(m).Reset() }
+func (m *Selectors) String() string { return (*common.Selectors)(m).String() }
+func (*Selectors) ProtoMessage()    {}
+func (m *Selectors) GetEntries() []*Selector {
+	o := (*common.Selectors)(m).GetEntries()
+	if o == nil {
+		return nil
 	}
-	return ""
-}
-
-func (m *Selector) GetValue() string {
-	if m != nil {
-		return m.Value
+	s := make([]*Selector, len(o))
+	for i, x := range o {
+		s[i] = (*Selector)(x)
 	}
-	return ""
+	return s
 }
 
-// * Represents a single Registration Entry.
-type RegisteredEntry struct {
-	SelectorList                []*Selector `protobuf:"bytes,1,rep,name=selectorList" json:"selectorList,omitempty"`
-	SpiffeId                    string      `protobuf:"bytes,2,opt,name=spiffeId" json:"spiffeId,omitempty"`
-	ParentId                    string      `protobuf:"bytes,3,opt,name=parentId" json:"parentId,omitempty"`
-	Ttl                         int32       `protobuf:"varint,4,opt,name=ttl" json:"ttl,omitempty"`
-	FederatedBundleSpiffeIdList []string    `protobuf:"bytes,5,rep,name=federatedBundleSpiffeIdList" json:"federatedBundleSpiffeIdList,omitempty"`
-}
+// RegistrationEntry from public import github.com/spiffe/sri/pkg/common/common.proto
+type RegistrationEntry common.RegistrationEntry
 
-func (m *RegisteredEntry) Reset()                    { *m = RegisteredEntry{} }
-func (m *RegisteredEntry) String() string            { return proto.CompactTextString(m) }
-func (*RegisteredEntry) ProtoMessage()               {}
-func (*RegisteredEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
-
-func (m *RegisteredEntry) GetSelectorList() []*Selector {
-	if m != nil {
-		return m.SelectorList
+func (m *RegistrationEntry) Reset()         { (*common.RegistrationEntry)(m).Reset() }
+func (m *RegistrationEntry) String() string { return (*common.RegistrationEntry)(m).String() }
+func (*RegistrationEntry) ProtoMessage()    {}
+func (m *RegistrationEntry) GetSelectors() []*Selector {
+	o := (*common.RegistrationEntry)(m).GetSelectors()
+	if o == nil {
+		return nil
 	}
-	return nil
+	s := make([]*Selector, len(o))
+	for i, x := range o {
+		s[i] = (*Selector)(x)
+	}
+	return s
+}
+func (m *RegistrationEntry) GetParentId() string { return (*common.RegistrationEntry)(m).GetParentId() }
+func (m *RegistrationEntry) GetSpiffeId() string { return (*common.RegistrationEntry)(m).GetSpiffeId() }
+func (m *RegistrationEntry) GetTtl() int32       { return (*common.RegistrationEntry)(m).GetTtl() }
+func (m *RegistrationEntry) GetFbSpiffeIds() []string {
+	return (*common.RegistrationEntry)(m).GetFbSpiffeIds()
 }
 
-func (m *RegisteredEntry) GetSpiffeId() string {
-	if m != nil {
-		return m.SpiffeId
-	}
-	return ""
-}
+// RegistrationEntries from public import github.com/spiffe/sri/pkg/common/common.proto
+type RegistrationEntries common.RegistrationEntries
 
-func (m *RegisteredEntry) GetParentId() string {
-	if m != nil {
-		return m.ParentId
+func (m *RegistrationEntries) Reset()         { (*common.RegistrationEntries)(m).Reset() }
+func (m *RegistrationEntries) String() string { return (*common.RegistrationEntries)(m).String() }
+func (*RegistrationEntries) ProtoMessage()    {}
+func (m *RegistrationEntries) GetEntries() []*RegistrationEntry {
+	o := (*common.RegistrationEntries)(m).GetEntries()
+	if o == nil {
+		return nil
 	}
-	return ""
-}
-
-func (m *RegisteredEntry) GetTtl() int32 {
-	if m != nil {
-		return m.Ttl
+	s := make([]*RegistrationEntry, len(o))
+	for i, x := range o {
+		s[i] = (*RegistrationEntry)(x)
 	}
-	return 0
-}
-
-func (m *RegisteredEntry) GetFederatedBundleSpiffeIdList() []string {
-	if m != nil {
-		return m.FederatedBundleSpiffeIdList
-	}
-	return nil
+	return s
 }
 
 // * Represents the trust chain for a different trust domain, along with
@@ -263,7 +273,7 @@ type FederatedBundle struct {
 func (m *FederatedBundle) Reset()                    { *m = FederatedBundle{} }
 func (m *FederatedBundle) String() string            { return proto.CompactTextString(m) }
 func (*FederatedBundle) ProtoMessage()               {}
-func (*FederatedBundle) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (*FederatedBundle) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 func (m *FederatedBundle) GetFederatedBundleSpiffeId() string {
 	if m != nil {
@@ -289,14 +299,14 @@ func (m *FederatedBundle) GetTtl() int32 {
 // * Represents a single entry in NodeResolverMap and maps node properties to
 // logical attributes (i.e. an AWS instance to its ASG).
 type NodeResolverMapEntry struct {
-	BaseSpiffeId string    `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
-	Selector     *Selector `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
+	BaseSpiffeId string           `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
+	Selector     *common.Selector `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
 }
 
 func (m *NodeResolverMapEntry) Reset()                    { *m = NodeResolverMapEntry{} }
 func (m *NodeResolverMapEntry) String() string            { return proto.CompactTextString(m) }
 func (*NodeResolverMapEntry) ProtoMessage()               {}
-func (*NodeResolverMapEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+func (*NodeResolverMapEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
 func (m *NodeResolverMapEntry) GetBaseSpiffeId() string {
 	if m != nil {
@@ -305,7 +315,7 @@ func (m *NodeResolverMapEntry) GetBaseSpiffeId() string {
 	return ""
 }
 
-func (m *NodeResolverMapEntry) GetSelector() *Selector {
+func (m *NodeResolverMapEntry) GetSelector() *common.Selector {
 	if m != nil {
 		return m.Selector
 	}
@@ -325,7 +335,7 @@ type AttestedNodeEntry struct {
 func (m *AttestedNodeEntry) Reset()                    { *m = AttestedNodeEntry{} }
 func (m *AttestedNodeEntry) String() string            { return proto.CompactTextString(m) }
 func (*AttestedNodeEntry) ProtoMessage()               {}
-func (*AttestedNodeEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+func (*AttestedNodeEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
 func (m *AttestedNodeEntry) GetBaseSpiffeId() string {
 	if m != nil {
@@ -363,7 +373,7 @@ type CreateFederatedEntryRequest struct {
 func (m *CreateFederatedEntryRequest) Reset()                    { *m = CreateFederatedEntryRequest{} }
 func (m *CreateFederatedEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateFederatedEntryRequest) ProtoMessage()               {}
-func (*CreateFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+func (*CreateFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
 func (m *CreateFederatedEntryRequest) GetFederatedBundle() *FederatedBundle {
 	if m != nil {
@@ -379,7 +389,7 @@ type CreateFederatedEntryResponse struct {
 func (m *CreateFederatedEntryResponse) Reset()                    { *m = CreateFederatedEntryResponse{} }
 func (m *CreateFederatedEntryResponse) String() string            { return proto.CompactTextString(m) }
 func (*CreateFederatedEntryResponse) ProtoMessage()               {}
-func (*CreateFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+func (*CreateFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 // * Empty
 type ListFederatedEntryRequest struct {
@@ -388,7 +398,7 @@ type ListFederatedEntryRequest struct {
 func (m *ListFederatedEntryRequest) Reset()                    { *m = ListFederatedEntryRequest{} }
 func (m *ListFederatedEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListFederatedEntryRequest) ProtoMessage()               {}
-func (*ListFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+func (*ListFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
 
 // * Represents a list of SPIFFE IDs of foreign trust domains
 type ListFederatedEntryResponse struct {
@@ -398,7 +408,7 @@ type ListFederatedEntryResponse struct {
 func (m *ListFederatedEntryResponse) Reset()                    { *m = ListFederatedEntryResponse{} }
 func (m *ListFederatedEntryResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListFederatedEntryResponse) ProtoMessage()               {}
-func (*ListFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+func (*ListFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
 
 func (m *ListFederatedEntryResponse) GetFederatedBundleSpiffeIdList() []string {
 	if m != nil {
@@ -415,7 +425,7 @@ type UpdateFederatedEntryRequest struct {
 func (m *UpdateFederatedEntryRequest) Reset()                    { *m = UpdateFederatedEntryRequest{} }
 func (m *UpdateFederatedEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*UpdateFederatedEntryRequest) ProtoMessage()               {}
-func (*UpdateFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
+func (*UpdateFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
 
 func (m *UpdateFederatedEntryRequest) GetFederatedBundle() *FederatedBundle {
 	if m != nil {
@@ -432,7 +442,7 @@ type UpdateFederatedEntryResponse struct {
 func (m *UpdateFederatedEntryResponse) Reset()                    { *m = UpdateFederatedEntryResponse{} }
 func (m *UpdateFederatedEntryResponse) String() string            { return proto.CompactTextString(m) }
 func (*UpdateFederatedEntryResponse) ProtoMessage()               {}
-func (*UpdateFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
+func (*UpdateFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
 
 func (m *UpdateFederatedEntryResponse) GetFederatedBundle() *FederatedBundle {
 	if m != nil {
@@ -449,7 +459,7 @@ type DeleteFederatedEntryRequest struct {
 func (m *DeleteFederatedEntryRequest) Reset()                    { *m = DeleteFederatedEntryRequest{} }
 func (m *DeleteFederatedEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*DeleteFederatedEntryRequest) ProtoMessage()               {}
-func (*DeleteFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
+func (*DeleteFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
 
 func (m *DeleteFederatedEntryRequest) GetFederatedBundleSpiffeId() string {
 	if m != nil {
@@ -466,7 +476,7 @@ type DeleteFederatedEntryResponse struct {
 func (m *DeleteFederatedEntryResponse) Reset()                    { *m = DeleteFederatedEntryResponse{} }
 func (m *DeleteFederatedEntryResponse) String() string            { return proto.CompactTextString(m) }
 func (*DeleteFederatedEntryResponse) ProtoMessage()               {}
-func (*DeleteFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
+func (*DeleteFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
 
 func (m *DeleteFederatedEntryResponse) GetFederatedBundle() *FederatedBundle {
 	if m != nil {
@@ -483,7 +493,7 @@ type CreateAttestedNodeEntryRequest struct {
 func (m *CreateAttestedNodeEntryRequest) Reset()                    { *m = CreateAttestedNodeEntryRequest{} }
 func (m *CreateAttestedNodeEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateAttestedNodeEntryRequest) ProtoMessage()               {}
-func (*CreateAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
+func (*CreateAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
 
 func (m *CreateAttestedNodeEntryRequest) GetAttestedNodeEntry() *AttestedNodeEntry {
 	if m != nil {
@@ -501,7 +511,7 @@ func (m *CreateAttestedNodeEntryResponse) Reset()         { *m = CreateAttestedN
 func (m *CreateAttestedNodeEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateAttestedNodeEntryResponse) ProtoMessage()    {}
 func (*CreateAttestedNodeEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{14}
+	return fileDescriptor0, []int{12}
 }
 
 func (m *CreateAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEntry {
@@ -519,7 +529,7 @@ type FetchAttestedNodeEntryRequest struct {
 func (m *FetchAttestedNodeEntryRequest) Reset()                    { *m = FetchAttestedNodeEntryRequest{} }
 func (m *FetchAttestedNodeEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchAttestedNodeEntryRequest) ProtoMessage()               {}
-func (*FetchAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
+func (*FetchAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
 
 func (m *FetchAttestedNodeEntryRequest) GetBaseSpiffeId() string {
 	if m != nil {
@@ -536,7 +546,7 @@ type FetchAttestedNodeEntryResponse struct {
 func (m *FetchAttestedNodeEntryResponse) Reset()                    { *m = FetchAttestedNodeEntryResponse{} }
 func (m *FetchAttestedNodeEntryResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchAttestedNodeEntryResponse) ProtoMessage()               {}
-func (*FetchAttestedNodeEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
+func (*FetchAttestedNodeEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
 
 func (m *FetchAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEntry {
 	if m != nil {
@@ -552,7 +562,7 @@ type FetchStaleNodeEntriesRequest struct {
 func (m *FetchStaleNodeEntriesRequest) Reset()                    { *m = FetchStaleNodeEntriesRequest{} }
 func (m *FetchStaleNodeEntriesRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchStaleNodeEntriesRequest) ProtoMessage()               {}
-func (*FetchStaleNodeEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
+func (*FetchStaleNodeEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
 
 // * Represents dead nodes for which the base SVID has expired
 type FetchStaleNodeEntriesResponse struct {
@@ -562,7 +572,7 @@ type FetchStaleNodeEntriesResponse struct {
 func (m *FetchStaleNodeEntriesResponse) Reset()                    { *m = FetchStaleNodeEntriesResponse{} }
 func (m *FetchStaleNodeEntriesResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchStaleNodeEntriesResponse) ProtoMessage()               {}
-func (*FetchStaleNodeEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{18} }
+func (*FetchStaleNodeEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
 
 func (m *FetchStaleNodeEntriesResponse) GetAttestedNodeEntryList() []*AttestedNodeEntry {
 	if m != nil {
@@ -581,7 +591,7 @@ type UpdateAttestedNodeEntryRequest struct {
 func (m *UpdateAttestedNodeEntryRequest) Reset()                    { *m = UpdateAttestedNodeEntryRequest{} }
 func (m *UpdateAttestedNodeEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*UpdateAttestedNodeEntryRequest) ProtoMessage()               {}
-func (*UpdateAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
+func (*UpdateAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
 
 func (m *UpdateAttestedNodeEntryRequest) GetBaseSpiffeId() string {
 	if m != nil {
@@ -613,7 +623,7 @@ func (m *UpdateAttestedNodeEntryResponse) Reset()         { *m = UpdateAttestedN
 func (m *UpdateAttestedNodeEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*UpdateAttestedNodeEntryResponse) ProtoMessage()    {}
 func (*UpdateAttestedNodeEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{20}
+	return fileDescriptor0, []int{18}
 }
 
 func (m *UpdateAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEntry {
@@ -631,7 +641,7 @@ type DeleteAttestedNodeEntryRequest struct {
 func (m *DeleteAttestedNodeEntryRequest) Reset()                    { *m = DeleteAttestedNodeEntryRequest{} }
 func (m *DeleteAttestedNodeEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*DeleteAttestedNodeEntryRequest) ProtoMessage()               {}
-func (*DeleteAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{21} }
+func (*DeleteAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
 
 func (m *DeleteAttestedNodeEntryRequest) GetBaseSpiffeId() string {
 	if m != nil {
@@ -649,7 +659,7 @@ func (m *DeleteAttestedNodeEntryResponse) Reset()         { *m = DeleteAttestedN
 func (m *DeleteAttestedNodeEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteAttestedNodeEntryResponse) ProtoMessage()    {}
 func (*DeleteAttestedNodeEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{22}
+	return fileDescriptor0, []int{20}
 }
 
 func (m *DeleteAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEntry {
@@ -668,7 +678,7 @@ func (m *CreateNodeResolverMapEntryRequest) Reset()         { *m = CreateNodeRes
 func (m *CreateNodeResolverMapEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateNodeResolverMapEntryRequest) ProtoMessage()    {}
 func (*CreateNodeResolverMapEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{23}
+	return fileDescriptor0, []int{21}
 }
 
 func (m *CreateNodeResolverMapEntryRequest) GetNodeResolverMapEntry() *NodeResolverMapEntry {
@@ -687,7 +697,7 @@ func (m *CreateNodeResolverMapEntryResponse) Reset()         { *m = CreateNodeRe
 func (m *CreateNodeResolverMapEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateNodeResolverMapEntryResponse) ProtoMessage()    {}
 func (*CreateNodeResolverMapEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{24}
+	return fileDescriptor0, []int{22}
 }
 
 func (m *CreateNodeResolverMapEntryResponse) GetNodeResolverMapEntry() *NodeResolverMapEntry {
@@ -706,7 +716,7 @@ func (m *FetchNodeResolverMapEntryRequest) Reset()         { *m = FetchNodeResol
 func (m *FetchNodeResolverMapEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*FetchNodeResolverMapEntryRequest) ProtoMessage()    {}
 func (*FetchNodeResolverMapEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{25}
+	return fileDescriptor0, []int{23}
 }
 
 func (m *FetchNodeResolverMapEntryRequest) GetBaseSpiffeId() string {
@@ -725,7 +735,7 @@ func (m *FetchNodeResolverMapEntryResponse) Reset()         { *m = FetchNodeReso
 func (m *FetchNodeResolverMapEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*FetchNodeResolverMapEntryResponse) ProtoMessage()    {}
 func (*FetchNodeResolverMapEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{26}
+	return fileDescriptor0, []int{24}
 }
 
 func (m *FetchNodeResolverMapEntryResponse) GetNodeResolverMapEntryList() []*NodeResolverMapEntry {
@@ -744,7 +754,7 @@ func (m *DeleteNodeResolverMapEntryRequest) Reset()         { *m = DeleteNodeRes
 func (m *DeleteNodeResolverMapEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteNodeResolverMapEntryRequest) ProtoMessage()    {}
 func (*DeleteNodeResolverMapEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{27}
+	return fileDescriptor0, []int{25}
 }
 
 func (m *DeleteNodeResolverMapEntryRequest) GetNodeResolverMapEntry() *NodeResolverMapEntry {
@@ -763,7 +773,7 @@ func (m *DeleteNodeResolverMapEntryResponse) Reset()         { *m = DeleteNodeRe
 func (m *DeleteNodeResolverMapEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteNodeResolverMapEntryResponse) ProtoMessage()    {}
 func (*DeleteNodeResolverMapEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{28}
+	return fileDescriptor0, []int{26}
 }
 
 func (m *DeleteNodeResolverMapEntryResponse) GetNodeResolverMapEntryList() []*NodeResolverMapEntry {
@@ -782,7 +792,7 @@ func (m *RectifyNodeResolverMapEntriesRequest) Reset()         { *m = RectifyNod
 func (m *RectifyNodeResolverMapEntriesRequest) String() string { return proto.CompactTextString(m) }
 func (*RectifyNodeResolverMapEntriesRequest) ProtoMessage()    {}
 func (*RectifyNodeResolverMapEntriesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{29}
+	return fileDescriptor0, []int{27}
 }
 
 func (m *RectifyNodeResolverMapEntriesRequest) GetNodeResolverMapEntryList() []*NodeResolverMapEntry {
@@ -801,7 +811,7 @@ func (m *RectifyNodeResolverMapEntriesResponse) Reset()         { *m = RectifyNo
 func (m *RectifyNodeResolverMapEntriesResponse) String() string { return proto.CompactTextString(m) }
 func (*RectifyNodeResolverMapEntriesResponse) ProtoMessage()    {}
 func (*RectifyNodeResolverMapEntriesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{30}
+	return fileDescriptor0, []int{28}
 }
 
 func (m *RectifyNodeResolverMapEntriesResponse) GetNodeResolverMapEntryList() []*NodeResolverMapEntry {
@@ -813,15 +823,15 @@ func (m *RectifyNodeResolverMapEntriesResponse) GetNodeResolverMapEntryList() []
 
 // * Represents a Registration entry to create
 type CreateRegistrationEntryRequest struct {
-	RegisteredEntry *RegisteredEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
+	RegisteredEntry *common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
 func (m *CreateRegistrationEntryRequest) Reset()                    { *m = CreateRegistrationEntryRequest{} }
 func (m *CreateRegistrationEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateRegistrationEntryRequest) ProtoMessage()               {}
-func (*CreateRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{31} }
+func (*CreateRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{29} }
 
-func (m *CreateRegistrationEntryRequest) GetRegisteredEntry() *RegisteredEntry {
+func (m *CreateRegistrationEntryRequest) GetRegisteredEntry() *common.RegistrationEntry {
 	if m != nil {
 		return m.RegisteredEntry
 	}
@@ -837,7 +847,7 @@ func (m *CreateRegistrationEntryResponse) Reset()         { *m = CreateRegistrat
 func (m *CreateRegistrationEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateRegistrationEntryResponse) ProtoMessage()    {}
 func (*CreateRegistrationEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{32}
+	return fileDescriptor0, []int{30}
 }
 
 func (m *CreateRegistrationEntryResponse) GetRegisteredEntryId() string {
@@ -855,7 +865,7 @@ type FetchRegistrationEntryRequest struct {
 func (m *FetchRegistrationEntryRequest) Reset()                    { *m = FetchRegistrationEntryRequest{} }
 func (m *FetchRegistrationEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchRegistrationEntryRequest) ProtoMessage()               {}
-func (*FetchRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{33} }
+func (*FetchRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{31} }
 
 func (m *FetchRegistrationEntryRequest) GetRegisteredEntryId() string {
 	if m != nil {
@@ -866,15 +876,15 @@ func (m *FetchRegistrationEntryRequest) GetRegisteredEntryId() string {
 
 // * Represents a Registration entry
 type FetchRegistrationEntryResponse struct {
-	RegisteredEntry *RegisteredEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
+	RegisteredEntry *common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
 func (m *FetchRegistrationEntryResponse) Reset()                    { *m = FetchRegistrationEntryResponse{} }
 func (m *FetchRegistrationEntryResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchRegistrationEntryResponse) ProtoMessage()               {}
-func (*FetchRegistrationEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{34} }
+func (*FetchRegistrationEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{32} }
 
-func (m *FetchRegistrationEntryResponse) GetRegisteredEntry() *RegisteredEntry {
+func (m *FetchRegistrationEntryResponse) GetRegisteredEntry() *common.RegistrationEntry {
 	if m != nil {
 		return m.RegisteredEntry
 	}
@@ -883,14 +893,14 @@ func (m *FetchRegistrationEntryResponse) GetRegisteredEntry() *RegisteredEntry {
 
 // * Represents a Registration entry to update
 type UpdateRegistrationEntryRequest struct {
-	RegisteredEntryId string           `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
-	RegisteredEntry   *RegisteredEntry `protobuf:"bytes,2,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
+	RegisteredEntryId string                    `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
+	RegisteredEntry   *common.RegistrationEntry `protobuf:"bytes,2,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
 func (m *UpdateRegistrationEntryRequest) Reset()                    { *m = UpdateRegistrationEntryRequest{} }
 func (m *UpdateRegistrationEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*UpdateRegistrationEntryRequest) ProtoMessage()               {}
-func (*UpdateRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{35} }
+func (*UpdateRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{33} }
 
 func (m *UpdateRegistrationEntryRequest) GetRegisteredEntryId() string {
 	if m != nil {
@@ -899,7 +909,7 @@ func (m *UpdateRegistrationEntryRequest) GetRegisteredEntryId() string {
 	return ""
 }
 
-func (m *UpdateRegistrationEntryRequest) GetRegisteredEntry() *RegisteredEntry {
+func (m *UpdateRegistrationEntryRequest) GetRegisteredEntry() *common.RegistrationEntry {
 	if m != nil {
 		return m.RegisteredEntry
 	}
@@ -908,17 +918,17 @@ func (m *UpdateRegistrationEntryRequest) GetRegisteredEntry() *RegisteredEntry {
 
 // * Represents the updated Registration entry
 type UpdateRegistrationEntryResponse struct {
-	RegisteredEntry *RegisteredEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
+	RegisteredEntry *common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
 func (m *UpdateRegistrationEntryResponse) Reset()         { *m = UpdateRegistrationEntryResponse{} }
 func (m *UpdateRegistrationEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*UpdateRegistrationEntryResponse) ProtoMessage()    {}
 func (*UpdateRegistrationEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{36}
+	return fileDescriptor0, []int{34}
 }
 
-func (m *UpdateRegistrationEntryResponse) GetRegisteredEntry() *RegisteredEntry {
+func (m *UpdateRegistrationEntryResponse) GetRegisteredEntry() *common.RegistrationEntry {
 	if m != nil {
 		return m.RegisteredEntry
 	}
@@ -933,7 +943,7 @@ type DeleteRegistrationEntryRequest struct {
 func (m *DeleteRegistrationEntryRequest) Reset()                    { *m = DeleteRegistrationEntryRequest{} }
 func (m *DeleteRegistrationEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*DeleteRegistrationEntryRequest) ProtoMessage()               {}
-func (*DeleteRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{37} }
+func (*DeleteRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{35} }
 
 func (m *DeleteRegistrationEntryRequest) GetRegisteredEntryId() string {
 	if m != nil {
@@ -944,17 +954,17 @@ func (m *DeleteRegistrationEntryRequest) GetRegisteredEntryId() string {
 
 // * Represents the deleted Registration entry
 type DeleteRegistrationEntryResponse struct {
-	RegisteredEntry *RegisteredEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
+	RegisteredEntry *common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
 func (m *DeleteRegistrationEntryResponse) Reset()         { *m = DeleteRegistrationEntryResponse{} }
 func (m *DeleteRegistrationEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteRegistrationEntryResponse) ProtoMessage()    {}
 func (*DeleteRegistrationEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{38}
+	return fileDescriptor0, []int{36}
 }
 
-func (m *DeleteRegistrationEntryResponse) GetRegisteredEntry() *RegisteredEntry {
+func (m *DeleteRegistrationEntryResponse) GetRegisteredEntry() *common.RegistrationEntry {
 	if m != nil {
 		return m.RegisteredEntry
 	}
@@ -969,7 +979,7 @@ type ListParentIDEntriesRequest struct {
 func (m *ListParentIDEntriesRequest) Reset()                    { *m = ListParentIDEntriesRequest{} }
 func (m *ListParentIDEntriesRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListParentIDEntriesRequest) ProtoMessage()               {}
-func (*ListParentIDEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{39} }
+func (*ListParentIDEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{37} }
 
 func (m *ListParentIDEntriesRequest) GetParentId() string {
 	if m != nil {
@@ -980,15 +990,15 @@ func (m *ListParentIDEntriesRequest) GetParentId() string {
 
 // * Represents a list of Registered entries with the specified Parent ID
 type ListParentIDEntriesResponse struct {
-	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
+	RegisteredEntryList []*common.RegistrationEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
 
 func (m *ListParentIDEntriesResponse) Reset()                    { *m = ListParentIDEntriesResponse{} }
 func (m *ListParentIDEntriesResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListParentIDEntriesResponse) ProtoMessage()               {}
-func (*ListParentIDEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{40} }
+func (*ListParentIDEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{38} }
 
-func (m *ListParentIDEntriesResponse) GetRegisteredEntryList() []*RegisteredEntry {
+func (m *ListParentIDEntriesResponse) GetRegisteredEntryList() []*common.RegistrationEntry {
 	if m != nil {
 		return m.RegisteredEntryList
 	}
@@ -997,15 +1007,15 @@ func (m *ListParentIDEntriesResponse) GetRegisteredEntryList() []*RegisteredEntr
 
 // * Represents a selector
 type ListSelectorEntriesRequest struct {
-	Selector *Selector `protobuf:"bytes,1,opt,name=selector" json:"selector,omitempty"`
+	Selector *common.Selector `protobuf:"bytes,1,opt,name=selector" json:"selector,omitempty"`
 }
 
 func (m *ListSelectorEntriesRequest) Reset()                    { *m = ListSelectorEntriesRequest{} }
 func (m *ListSelectorEntriesRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListSelectorEntriesRequest) ProtoMessage()               {}
-func (*ListSelectorEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{41} }
+func (*ListSelectorEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{39} }
 
-func (m *ListSelectorEntriesRequest) GetSelector() *Selector {
+func (m *ListSelectorEntriesRequest) GetSelector() *common.Selector {
 	if m != nil {
 		return m.Selector
 	}
@@ -1014,15 +1024,15 @@ func (m *ListSelectorEntriesRequest) GetSelector() *Selector {
 
 // * Represents a list of Registered entries with the specified selector
 type ListSelectorEntriesResponse struct {
-	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
+	RegisteredEntryList []*common.RegistrationEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
 
 func (m *ListSelectorEntriesResponse) Reset()                    { *m = ListSelectorEntriesResponse{} }
 func (m *ListSelectorEntriesResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListSelectorEntriesResponse) ProtoMessage()               {}
-func (*ListSelectorEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{42} }
+func (*ListSelectorEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{40} }
 
-func (m *ListSelectorEntriesResponse) GetRegisteredEntryList() []*RegisteredEntry {
+func (m *ListSelectorEntriesResponse) GetRegisteredEntryList() []*common.RegistrationEntry {
 	if m != nil {
 		return m.RegisteredEntryList
 	}
@@ -1037,7 +1047,7 @@ type ListSpiffeEntriesRequest struct {
 func (m *ListSpiffeEntriesRequest) Reset()                    { *m = ListSpiffeEntriesRequest{} }
 func (m *ListSpiffeEntriesRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListSpiffeEntriesRequest) ProtoMessage()               {}
-func (*ListSpiffeEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{43} }
+func (*ListSpiffeEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{41} }
 
 func (m *ListSpiffeEntriesRequest) GetSpiffeId() string {
 	if m != nil {
@@ -1048,15 +1058,15 @@ func (m *ListSpiffeEntriesRequest) GetSpiffeId() string {
 
 // * Represents a list of Registered entries with the specified Spiffe ID
 type ListSpiffeEntriesResponse struct {
-	RegisteredEntryList []*RegisteredEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
+	RegisteredEntryList []*common.RegistrationEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
 
 func (m *ListSpiffeEntriesResponse) Reset()                    { *m = ListSpiffeEntriesResponse{} }
 func (m *ListSpiffeEntriesResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListSpiffeEntriesResponse) ProtoMessage()               {}
-func (*ListSpiffeEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{44} }
+func (*ListSpiffeEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{42} }
 
-func (m *ListSpiffeEntriesResponse) GetRegisteredEntryList() []*RegisteredEntry {
+func (m *ListSpiffeEntriesResponse) GetRegisteredEntryList() []*common.RegistrationEntry {
 	if m != nil {
 		return m.RegisteredEntryList
 	}
@@ -1064,8 +1074,6 @@ func (m *ListSpiffeEntriesResponse) GetRegisteredEntryList() []*RegisteredEntry 
 }
 
 func init() {
-	proto.RegisterType((*Selector)(nil), "datastore.Selector")
-	proto.RegisterType((*RegisteredEntry)(nil), "datastore.RegisteredEntry")
 	proto.RegisterType((*FederatedBundle)(nil), "datastore.FederatedBundle")
 	proto.RegisterType((*NodeResolverMapEntry)(nil), "datastore.NodeResolverMapEntry")
 	proto.RegisterType((*AttestedNodeEntry)(nil), "datastore.AttestedNodeEntry")
@@ -1923,86 +1931,82 @@ var _DataStore_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("data_store.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 1287 bytes of a gzipped FileDescriptorProto
+	// 1226 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x59, 0xdd, 0x72, 0xdb, 0x44,
-	0x14, 0x46, 0x75, 0xc3, 0xc4, 0xa7, 0x61, 0x92, 0x6c, 0x5c, 0xe2, 0xca, 0x69, 0xe2, 0x8a, 0xb4,
-	0x75, 0x4a, 0xb0, 0x99, 0xd0, 0x81, 0x5e, 0x02, 0x71, 0xc3, 0x84, 0x69, 0x42, 0x46, 0x2e, 0xc3,
-	0x05, 0x33, 0x65, 0x14, 0x6b, 0xed, 0x8a, 0xd8, 0x96, 0x90, 0xd6, 0x99, 0xfa, 0x8e, 0xbf, 0x17,
-	0x60, 0x86, 0x07, 0xe0, 0x4d, 0x78, 0x0b, 0x2e, 0x78, 0x1a, 0x46, 0xd2, 0x4a, 0xd1, 0xae, 0x76,
-	0x57, 0x0a, 0xb5, 0x73, 0xd5, 0x68, 0xcf, 0xcf, 0xf7, 0x9d, 0xfd, 0x3d, 0x5f, 0x0d, 0x6b, 0xb6,
-	0x45, 0xac, 0x1f, 0x02, 0xe2, 0xfa, 0xb8, 0xed, 0xf9, 0x2e, 0x71, 0x51, 0x35, 0x1c, 0x89, 0x06,
-	0xf4, 0xa7, 0x43, 0x87, 0xbc, 0x9e, 0x9e, 0xb7, 0xfb, 0xee, 0xb8, 0x13, 0x78, 0xce, 0x60, 0x80,
-	0x3b, 0x81, 0xef, 0x74, 0xbc, 0x8b, 0x61, 0xa7, 0xef, 0x8e, 0xc7, 0xee, 0xa4, 0xe3, 0x8d, 0xa6,
-	0x43, 0x27, 0xf9, 0x27, 0x4e, 0x60, 0x3c, 0x85, 0xe5, 0x1e, 0x1e, 0xe1, 0x3e, 0x71, 0x7d, 0x84,
-	0xe0, 0x36, 0x99, 0x79, 0xb8, 0xae, 0x35, 0xb5, 0x56, 0xd5, 0x8c, 0xfe, 0x46, 0x35, 0x58, 0xba,
-	0xb4, 0x46, 0x53, 0x5c, 0xbf, 0x15, 0x0d, 0xc6, 0x1f, 0xc6, 0x3f, 0x1a, 0xac, 0x9a, 0x78, 0xe8,
-	0x04, 0x04, 0xfb, 0xd8, 0x7e, 0x3e, 0x21, 0xfe, 0x0c, 0x7d, 0x06, 0x2b, 0x01, 0xcd, 0xf4, 0xc2,
-	0x09, 0x48, 0x5d, 0x6b, 0x56, 0x5a, 0x77, 0x0e, 0x36, 0xda, 0x29, 0xc3, 0x76, 0x02, 0x64, 0x32,
-	0x8e, 0x48, 0x87, 0xe5, 0x98, 0xef, 0xb1, 0x4d, 0x51, 0xd2, 0xef, 0xd0, 0xe6, 0x59, 0x3e, 0x9e,
-	0x90, 0x63, 0xbb, 0x5e, 0x89, 0x6d, 0xc9, 0x37, 0x5a, 0x83, 0x0a, 0x21, 0xa3, 0xfa, 0xed, 0xa6,
-	0xd6, 0x5a, 0x32, 0xc3, 0x3f, 0xd1, 0xe7, 0xd0, 0x18, 0x60, 0x1b, 0xfb, 0x16, 0xc1, 0xf6, 0x97,
-	0xd3, 0x89, 0x3d, 0xc2, 0x3d, 0x9a, 0x28, 0x62, 0xb4, 0xd4, 0xac, 0xb4, 0xaa, 0xa6, 0xca, 0xc5,
-	0xf8, 0x43, 0x83, 0xd5, 0x23, 0xd6, 0x8e, 0x9e, 0xc1, 0xa6, 0x24, 0x84, 0xce, 0x94, 0xcc, 0x8c,
-	0x0e, 0xa0, 0x96, 0x9a, 0x5e, 0xfa, 0xd3, 0x80, 0xc4, 0xf6, 0xa8, 0xca, 0x15, 0x53, 0x68, 0x4b,
-	0xaa, 0xaa, 0xa4, 0x55, 0x19, 0x17, 0x50, 0x3b, 0x75, 0x6d, 0x6c, 0xe2, 0xc0, 0x1d, 0x5d, 0x62,
-	0xff, 0xc4, 0xf2, 0xe2, 0x09, 0x37, 0x60, 0xe5, 0xdc, 0x0a, 0x78, 0x32, 0xcc, 0x18, 0xea, 0xc0,
-	0x72, 0x32, 0xd7, 0x11, 0xaa, 0x64, 0x41, 0x52, 0x27, 0xe3, 0x6f, 0x0d, 0xd6, 0xbf, 0x20, 0x04,
-	0x07, 0x04, 0xdb, 0x21, 0x6a, 0x79, 0xa8, 0x27, 0xb0, 0x66, 0xd1, 0xc0, 0xae, 0x45, 0xac, 0x97,
-	0xe1, 0x4e, 0x8a, 0x97, 0x33, 0x37, 0x1e, 0xfa, 0xf6, 0xb1, 0x4f, 0x7a, 0xd8, 0x77, 0xac, 0xd1,
-	0xe9, 0x74, 0x7c, 0x8e, 0x7d, 0xba, 0xbc, 0xb9, 0x71, 0xd4, 0x06, 0x14, 0x8e, 0x3d, 0x7f, 0xe3,
-	0x39, 0xbe, 0x45, 0x1c, 0x77, 0xd2, 0xb5, 0x08, 0x8e, 0x56, 0xbd, 0x6a, 0x0a, 0x2c, 0x46, 0x1f,
-	0x1a, 0x87, 0x3e, 0xb6, 0x08, 0x4e, 0xd7, 0x31, 0xaa, 0xc1, 0xc4, 0x3f, 0x4d, 0x71, 0x40, 0x50,
-	0x17, 0x56, 0xb9, 0xe5, 0x8a, 0xaa, 0xb9, 0x73, 0xa0, 0x67, 0x26, 0x86, 0xdb, 0x02, 0x26, 0x1f,
-	0x62, 0x6c, 0xc3, 0x96, 0x18, 0x24, 0xf0, 0xdc, 0x49, 0x80, 0x8d, 0x06, 0xdc, 0x0b, 0xf7, 0x93,
-	0x90, 0x82, 0xf1, 0x0a, 0x74, 0x91, 0x31, 0x0e, 0x2d, 0xda, 0xc4, 0x5a, 0xf1, 0x26, 0xee, 0x43,
-	0xe3, 0x5b, 0xcf, 0x5e, 0xf0, 0x0c, 0xd8, 0xb0, 0x25, 0x06, 0xa1, 0x65, 0xcc, 0x07, 0xe5, 0x3b,
-	0x68, 0x74, 0xf1, 0x08, 0xcb, 0x4a, 0xf9, 0xdf, 0x47, 0x33, 0xa4, 0x2f, 0x4e, 0x3c, 0x57, 0xfa,
-	0x23, 0xd8, 0x8e, 0xb7, 0x49, 0xee, 0x48, 0x25, 0x15, 0x7c, 0x0d, 0xeb, 0x16, 0x6f, 0xa3, 0x48,
-	0x5b, 0x19, 0xa4, 0x7c, 0x7c, 0x3e, 0xcc, 0x18, 0xc3, 0x8e, 0x14, 0x8d, 0x96, 0x35, 0x4f, 0xb8,
-	0x43, 0xb8, 0x7f, 0x84, 0x49, 0xff, 0xb5, 0xb4, 0xb6, 0x12, 0xb7, 0x46, 0x38, 0x43, 0xb2, 0x24,
-	0x0b, 0xa0, 0xbc, 0x0d, 0x5b, 0x11, 0x5a, 0x8f, 0x58, 0x23, 0x9c, 0x0c, 0x3b, 0x38, 0x48, 0x4e,
-	0x66, 0x40, 0x4b, 0xca, 0xdb, 0x29, 0x19, 0x13, 0xee, 0xe6, 0xb2, 0x66, 0x5e, 0x3b, 0x35, 0x21,
-	0x71, 0xa8, 0xf1, 0x97, 0x06, 0xdb, 0xf1, 0x51, 0x7a, 0x9b, 0x99, 0x14, 0xde, 0xa9, 0xb7, 0xae,
-	0x75, 0xa7, 0x56, 0xa4, 0x77, 0xea, 0x18, 0x76, 0xa4, 0x0c, 0x17, 0xb0, 0x4c, 0x5d, 0xd8, 0x8e,
-	0x0f, 0xe7, 0x5b, 0x6d, 0xad, 0x31, 0xec, 0x48, 0xb3, 0x2c, 0x80, 0xf4, 0x1b, 0x78, 0x10, 0x9f,
-	0x3e, 0xd1, 0x63, 0x9d, 0xf0, 0xee, 0x41, 0x6d, 0x22, 0x30, 0x53, 0xcc, 0x9d, 0x0c, 0xa6, 0x30,
-	0x8b, 0x30, 0xd8, 0x98, 0x81, 0xa1, 0x42, 0xa6, 0xb5, 0x2e, 0x04, 0xfa, 0x08, 0x9a, 0xd1, 0x81,
-	0x51, 0xd5, 0x5c, 0x66, 0xad, 0x7e, 0xd6, 0xe0, 0x81, 0x22, 0x11, 0x2d, 0xe1, 0x7b, 0xa8, 0x8b,
-	0x58, 0x64, 0x0e, 0x60, 0x61, 0x19, 0xd2, 0x04, 0xe1, 0xfa, 0xc5, 0xdb, 0xe5, 0xc6, 0xd7, 0xef,
-	0x17, 0x0d, 0x0c, 0x15, 0xf4, 0x4d, 0x54, 0xff, 0x9b, 0x06, 0xbb, 0x26, 0xee, 0x13, 0x67, 0x30,
-	0x13, 0x44, 0x5e, 0x5d, 0x91, 0x8b, 0x65, 0xf1, 0xbb, 0x06, 0x0f, 0x0b, 0x58, 0xdc, 0xc4, 0x64,
-	0x0c, 0x92, 0x67, 0x3b, 0xd6, 0x38, 0xf1, 0x45, 0xc8, 0xf7, 0x50, 0x3e, 0xab, 0x7f, 0x04, 0xed,
-	0x01, 0xa7, 0x90, 0x4c, 0x3e, 0xc4, 0xf8, 0x26, 0x79, 0xb0, 0x05, 0x38, 0xb4, 0xce, 0x7d, 0x58,
-	0xe7, 0xa2, 0xd2, 0x13, 0x94, 0x37, 0x18, 0x27, 0xf4, 0xfd, 0x92, 0xf2, 0xbe, 0x5e, 0xba, 0x01,
-	0x7d, 0x9c, 0xe5, 0xf4, 0xe6, 0x33, 0x0f, 0x7f, 0xa6, 0x2f, 0xe0, 0x7c, 0x88, 0x8b, 0x68, 0xdd,
-	0xba, 0x3e, 0xad, 0x61, 0xf2, 0xea, 0x2d, 0xba, 0xfe, 0xd3, 0xe4, 0xbd, 0x9b, 0xd3, 0xba, 0x0d,
-	0x93, 0x97, 0x6f, 0xd1, 0xc4, 0x9f, 0xc5, 0x4a, 0xe6, 0x2c, 0x96, 0xe4, 0x5d, 0xee, 0xaa, 0xc8,
-	0x8a, 0x77, 0x8d, 0x15, 0xef, 0xc6, 0x05, 0x34, 0x84, 0x91, 0x94, 0xde, 0x0b, 0xd8, 0xe0, 0xb0,
-	0x32, 0x27, 0x5b, 0x45, 0x51, 0x14, 0x66, 0x9c, 0xc4, 0x34, 0x13, 0xb9, 0xcb, 0xd1, 0xcc, 0x6a,
-	0x64, 0xad, 0x8c, 0x46, 0xa6, 0xdc, 0x73, 0xe9, 0x16, 0xc2, 0xfd, 0x53, 0xa8, 0x47, 0x60, 0xd1,
-	0x4b, 0x99, 0x9f, 0xe0, 0x80, 0x7d, 0x55, 0xd3, 0x6f, 0xc3, 0x89, 0x15, 0x28, 0x17, 0xb7, 0x08,
-	0x8a, 0x07, 0xff, 0x22, 0xa8, 0x86, 0xd2, 0xbe, 0x17, 0x86, 0xa0, 0x21, 0xd4, 0x44, 0xd2, 0x18,
-	0x3d, 0xca, 0xa4, 0x55, 0x08, 0x74, 0xfd, 0x71, 0xa1, 0x1f, 0x2d, 0xc2, 0x02, 0x94, 0x97, 0xd1,
-	0x68, 0x37, 0x13, 0x2e, 0x95, 0xe0, 0xfa, 0xc3, 0x02, 0x2f, 0x0a, 0x31, 0x84, 0x9a, 0x48, 0xe4,
-	0x32, 0xb5, 0x28, 0xa4, 0x36, 0x53, 0x8b, 0x52, 0x2d, 0x0f, 0xa1, 0x26, 0x92, 0xa3, 0x0c, 0x90,
-	0x42, 0x08, 0x33, 0x40, 0x4a, 0x5d, 0xeb, 0xc1, 0xa6, 0x44, 0x23, 0xa2, 0xbd, 0xdc, 0xc4, 0xcb,
-	0xda, 0x6f, 0xfd, 0x49, 0x19, 0x57, 0x8a, 0x38, 0x86, 0xf7, 0xc5, 0x0a, 0x0f, 0xb5, 0x18, 0x29,
-	0xad, 0x50, 0x92, 0xfa, 0x5e, 0x09, 0x4f, 0x0a, 0xf7, 0x23, 0xdc, 0x15, 0x4a, 0x38, 0xf4, 0x98,
-	0xcf, 0x21, 0x11, 0x81, 0x7a, 0xab, 0xd8, 0xf1, 0x6a, 0x32, 0x25, 0xb2, 0x88, 0x99, 0x4c, 0xb5,
-	0xb8, 0x63, 0x26, 0xb3, 0x48, 0x65, 0x79, 0xb0, 0x29, 0xd1, 0x34, 0x0c, 0xa2, 0x5a, 0x3d, 0x31,
-	0x88, 0x45, 0x12, 0x69, 0x06, 0xba, 0x5c, 0x5c, 0xa0, 0xfd, 0xdc, 0x46, 0x50, 0x74, 0xcf, 0xfa,
-	0x47, 0x25, 0xbd, 0x29, 0xf4, 0x25, 0xdc, 0x93, 0x6a, 0x02, 0xf4, 0x21, 0xbf, 0x4a, 0x2a, 0xe0,
-	0xfd, 0x72, 0xce, 0x57, 0x25, 0xcb, 0xdb, 0x71, 0xa6, 0xe4, 0x42, 0xc1, 0xc0, 0x94, 0x5c, 0xa2,
-	0xc7, 0xff, 0x55, 0x83, 0xfb, 0xca, 0x06, 0x18, 0x75, 0x98, 0xdb, 0xb9, 0xb8, 0x61, 0xd7, 0x3f,
-	0x2e, 0x1f, 0xc0, 0xdf, 0x11, 0xb9, 0xf6, 0x41, 0x70, 0x47, 0xc8, 0x5a, 0x16, 0xc1, 0x1d, 0x21,
-	0xef, 0x46, 0x92, 0x3b, 0x22, 0x0f, 0x98, 0x3b, 0x8c, 0x52, 0xbc, 0xbd, 0x12, 0x9e, 0xfc, 0xb9,
-	0x55, 0x17, 0xa8, 0x6e, 0x49, 0x05, 0xe7, 0x56, 0x89, 0x28, 0xe9, 0xc8, 0x04, 0xe7, 0xb6, 0x14,
-	0x62, 0x51, 0x83, 0x67, 0xc3, 0x86, 0xa0, 0xc1, 0x42, 0xfc, 0xc3, 0x27, 0x6e, 0xdd, 0xf4, 0x47,
-	0x45, 0x6e, 0x2c, 0x0a, 0xd7, 0x0a, 0xe5, 0x50, 0xc4, 0x9d, 0x57, 0x0e, 0x45, 0xd6, 0x51, 0xbd,
-	0x82, 0xf5, 0x5c, 0x2f, 0x83, 0x3e, 0xe0, 0x83, 0x05, 0x1d, 0x92, 0xbe, 0xab, 0x76, 0xa2, 0xf9,
-	0x8f, 0xa0, 0x7a, 0xe8, 0x4e, 0x06, 0xce, 0x70, 0xea, 0x63, 0xd4, 0x68, 0x07, 0xbe, 0x43, 0x7f,
-	0x23, 0x4b, 0x47, 0x93, 0x7c, 0x5b, 0x62, 0x63, 0xfa, 0xbf, 0x83, 0xef, 0x7d, 0x85, 0xc9, 0x59,
-	0x64, 0x3e, 0x9e, 0x0c, 0x5c, 0xb4, 0x93, 0x71, 0x67, 0x2c, 0x49, 0xbe, 0xa6, 0xdc, 0x21, 0xce,
-	0x79, 0xf6, 0xce, 0xf9, 0xbb, 0xd1, 0x2f, 0x75, 0x9f, 0xfc, 0x17, 0x00, 0x00, 0xff, 0xff, 0xaa,
-	0xb3, 0x54, 0x6c, 0xfe, 0x1b, 0x00, 0x00,
+	0x14, 0x46, 0x09, 0x30, 0xf5, 0x69, 0x99, 0x24, 0x5b, 0x97, 0x38, 0xb2, 0x6b, 0xbb, 0x22, 0x6d,
+	0x9d, 0x92, 0xda, 0x4c, 0x60, 0x98, 0x5e, 0x02, 0x71, 0xc3, 0xa4, 0xd0, 0x90, 0x91, 0xcb, 0x70,
+	0xc1, 0x4c, 0x19, 0xc5, 0x5a, 0x3b, 0x2a, 0xb6, 0x25, 0xa4, 0x75, 0xa7, 0xbe, 0xe3, 0xef, 0x05,
+	0x18, 0x5e, 0x80, 0x37, 0xe1, 0x3d, 0x78, 0x1a, 0x46, 0xd2, 0x4a, 0xb1, 0xf6, 0x4f, 0x4a, 0x63,
+	0xe5, 0xca, 0xf1, 0x9e, 0x9f, 0xef, 0x9c, 0xdd, 0x3d, 0x67, 0xcf, 0x17, 0xc3, 0xa6, 0x6d, 0x11,
+	0xeb, 0xa7, 0x80, 0xb8, 0x3e, 0xee, 0x7a, 0xbe, 0x4b, 0x5c, 0x54, 0x09, 0x57, 0xa2, 0x05, 0xfd,
+	0xb3, 0xb1, 0x43, 0xce, 0xe7, 0x67, 0xdd, 0xa1, 0x3b, 0xed, 0x05, 0x9e, 0x33, 0x1a, 0xe1, 0x5e,
+	0xe0, 0x3b, 0x3d, 0xef, 0xe7, 0x71, 0x6f, 0xe8, 0x4e, 0xa7, 0xee, 0xac, 0xe7, 0x4d, 0xe6, 0x63,
+	0x27, 0xf9, 0x88, 0x1d, 0xe8, 0x8f, 0x73, 0xad, 0xe2, 0x8f, 0x58, 0xdd, 0xf8, 0x4b, 0x83, 0x8d,
+	0x23, 0x6c, 0x63, 0xdf, 0x22, 0xd8, 0xfe, 0x6a, 0x3e, 0xb3, 0x27, 0x18, 0x3d, 0x81, 0xed, 0x51,
+	0x76, 0x69, 0x10, 0x39, 0x3a, 0xb6, 0x6b, 0x5a, 0x5b, 0xeb, 0x54, 0x4c, 0x99, 0x18, 0x1d, 0x40,
+	0x35, 0x15, 0xbd, 0xf0, 0xe7, 0x01, 0x89, 0xe5, 0xb5, 0xb5, 0xb6, 0xd6, 0xb9, 0x65, 0x0a, 0x65,
+	0x68, 0x13, 0xd6, 0x09, 0x99, 0xd4, 0xd6, 0xdb, 0x5a, 0xe7, 0x3d, 0x33, 0xfc, 0xd3, 0x38, 0x87,
+	0xea, 0x89, 0x6b, 0x63, 0x13, 0x07, 0xee, 0xe4, 0x35, 0xf6, 0x9f, 0x5b, 0xde, 0xd3, 0x19, 0xf1,
+	0x17, 0xc8, 0x80, 0x5b, 0x67, 0x56, 0xc0, 0x06, 0x93, 0x59, 0x43, 0xfb, 0x70, 0x23, 0xc0, 0x13,
+	0x3c, 0x24, 0xae, 0x1f, 0xa1, 0xde, 0x3c, 0xd8, 0xec, 0xd2, 0x84, 0x07, 0x74, 0xdd, 0x4c, 0x35,
+	0x8c, 0x7f, 0x35, 0xd8, 0xfa, 0x92, 0x10, 0x1c, 0x10, 0x6c, 0x87, 0x90, 0xc5, 0x71, 0x1e, 0xc1,
+	0xa6, 0x45, 0x0d, 0xfb, 0x16, 0xb1, 0x5e, 0x2c, 0xbc, 0x38, 0xcb, 0x8a, 0xc9, 0xad, 0x87, 0xba,
+	0x43, 0xec, 0x93, 0x01, 0xf6, 0x1d, 0x6b, 0x72, 0x32, 0x9f, 0x9e, 0x61, 0x3f, 0x4a, 0xb7, 0x62,
+	0x72, 0xeb, 0xa8, 0x0b, 0x28, 0x5c, 0x7b, 0xfa, 0xc6, 0x73, 0x7c, 0x8b, 0x38, 0xee, 0xac, 0x6f,
+	0x11, 0x5c, 0x7b, 0x37, 0xd2, 0x16, 0x48, 0x8c, 0x21, 0xd4, 0x0f, 0x7d, 0x6c, 0x11, 0x9c, 0x1e,
+	0x62, 0x94, 0x83, 0x89, 0x7f, 0x99, 0xe3, 0x80, 0xa0, 0x3e, 0x6c, 0x30, 0x67, 0x15, 0x65, 0x73,
+	0xf3, 0x40, 0xef, 0xa6, 0x17, 0xad, 0xcb, 0x9c, 0xbf, 0xc9, 0x9a, 0x18, 0x4d, 0x68, 0x88, 0x41,
+	0x02, 0xcf, 0x9d, 0x05, 0xd8, 0xa8, 0xc3, 0xce, 0xb7, 0x4e, 0x40, 0x84, 0x21, 0x18, 0x2f, 0x41,
+	0x17, 0x09, 0x63, 0x53, 0xf4, 0x05, 0xd4, 0x25, 0x97, 0x29, 0x34, 0xaa, 0x69, 0xed, 0xf5, 0x4e,
+	0xc5, 0x54, 0xa9, 0x84, 0x3b, 0xf0, 0xbd, 0x67, 0x97, 0xbc, 0x03, 0x36, 0x34, 0xc4, 0x20, 0x34,
+	0x8d, 0xd5, 0xa0, 0xfc, 0x00, 0xf5, 0x3e, 0x9e, 0x60, 0x59, 0x2a, 0x6f, 0x5d, 0x97, 0x61, 0xf8,
+	0x62, 0xc7, 0x2b, 0x0d, 0x7f, 0x02, 0xcd, 0xf8, 0x9a, 0x70, 0x25, 0x95, 0x64, 0xf0, 0x0c, 0xb6,
+	0x2c, 0x56, 0x46, 0x91, 0x1a, 0x4b, 0x48, 0xbc, 0x3d, 0x6f, 0x66, 0x4c, 0xa1, 0x25, 0x45, 0xa3,
+	0x69, 0xad, 0x12, 0xee, 0x10, 0xee, 0x1e, 0x61, 0x32, 0x3c, 0x97, 0xe6, 0x56, 0xa0, 0x6b, 0x84,
+	0x3b, 0x24, 0x73, 0x52, 0x42, 0xc8, 0x4d, 0x68, 0x44, 0x68, 0x03, 0x62, 0x4d, 0x70, 0xb2, 0xec,
+	0xe0, 0x20, 0xa9, 0xcc, 0x80, 0xa6, 0xc4, 0xcb, 0x69, 0x30, 0x26, 0xdc, 0xe1, 0xbc, 0xa6, 0x65,
+	0x99, 0x17, 0x90, 0xd8, 0xd4, 0xf8, 0x47, 0x83, 0x66, 0x5c, 0x4a, 0x57, 0xd9, 0x49, 0x61, 0x4f,
+	0x5d, 0xbb, 0x54, 0x4f, 0x5d, 0x97, 0xf6, 0xd4, 0x29, 0xb4, 0xa4, 0x11, 0x96, 0x70, 0x4c, 0x7d,
+	0x68, 0xc6, 0xc5, 0x79, 0xa5, 0xab, 0x35, 0x85, 0x96, 0xd4, 0x4b, 0x09, 0x41, 0xbf, 0x81, 0x7b,
+	0x71, 0xf5, 0x89, 0x5e, 0xea, 0x24, 0xee, 0x01, 0x54, 0x67, 0x02, 0x31, 0xc5, 0x6c, 0x2d, 0x61,
+	0x0a, 0xbd, 0x08, 0x8d, 0x8d, 0x05, 0x18, 0x2a, 0x64, 0x9a, 0x6b, 0x29, 0xd0, 0x47, 0xd0, 0x8e,
+	0x0a, 0x46, 0x95, 0x73, 0x91, 0xb3, 0xfa, 0x55, 0x83, 0x7b, 0x0a, 0x47, 0x34, 0x85, 0x1f, 0xa1,
+	0x26, 0x8a, 0x62, 0xa9, 0x00, 0x73, 0xd3, 0x90, 0x3a, 0x08, 0xcf, 0x2f, 0xbe, 0x2e, 0xd7, 0x7e,
+	0x7e, 0xbf, 0x69, 0x60, 0xa8, 0xa0, 0xaf, 0x23, 0xfb, 0x3f, 0x34, 0xd8, 0x35, 0xf1, 0x90, 0x38,
+	0xa3, 0x85, 0xc0, 0xf2, 0xa2, 0x45, 0x96, 0x1b, 0xc5, 0x9f, 0x1a, 0xdc, 0xcf, 0x89, 0xe2, 0x3a,
+	0x36, 0x03, 0x27, 0xcf, 0xb6, 0x89, 0xc7, 0x4e, 0x40, 0xe2, 0x46, 0x98, 0xb9, 0x07, 0x87, 0xb0,
+	0xe1, 0x47, 0x32, 0xec, 0xd3, 0xc9, 0x81, 0x5e, 0x81, 0x9d, 0x64, 0xb6, 0xe6, 0x4d, 0x59, 0x0b,
+	0xe3, 0xbb, 0xe4, 0xbd, 0x16, 0xc0, 0xd0, 0x34, 0xf7, 0x61, 0x8b, 0xb1, 0x4a, 0x0b, 0x88, 0x17,
+	0x18, 0xcf, 0xe9, 0xf3, 0x25, 0x0d, 0xfb, 0x72, 0xee, 0x30, 0x7d, 0x9b, 0xe5, 0xe1, 0xad, 0x64,
+	0x1b, 0xfe, 0x4e, 0xdf, 0xbf, 0xd5, 0xc4, 0x2d, 0x8a, 0x6a, 0xed, 0xd2, 0x51, 0x8d, 0x92, 0x27,
+	0xaf, 0xe4, 0xec, 0x4f, 0x92, 0xb7, 0x6e, 0x45, 0x87, 0x36, 0x4a, 0x5e, 0xbd, 0x92, 0xe3, 0x7e,
+	0x12, 0x93, 0x98, 0x53, 0xcb, 0xc7, 0x33, 0x72, 0xdc, 0x67, 0xba, 0x84, 0x0e, 0x37, 0xbc, 0x58,
+	0x92, 0x84, 0x9a, 0x7e, 0x37, 0x5e, 0x41, 0x5d, 0x68, 0x49, 0xa3, 0xfb, 0x06, 0x6e, 0x33, 0x58,
+	0x4b, 0x45, 0xad, 0x88, 0x50, 0x64, 0x65, 0x3c, 0x8b, 0xa3, 0x4c, 0x88, 0x2e, 0x13, 0xe5, 0x32,
+	0x35, 0xd6, 0x72, 0xa9, 0x31, 0x8d, 0x9b, 0xf3, 0x55, 0x46, 0xdc, 0x9f, 0x43, 0x2d, 0xc2, 0x8a,
+	0xde, 0x47, 0x7e, 0x6f, 0x83, 0xec, 0x5b, 0x9a, 0x7e, 0x37, 0xce, 0x63, 0xde, 0xc9, 0xd8, 0x95,
+	0x10, 0xe1, 0xc1, 0x7f, 0x08, 0x2a, 0x21, 0x9f, 0x1f, 0x84, 0x0d, 0x16, 0x8d, 0xa1, 0x2a, 0xe2,
+	0xc3, 0xe8, 0xc1, 0x52, 0x13, 0x56, 0xb0, 0x72, 0xfd, 0x61, 0xae, 0x1e, 0xcd, 0xc1, 0x02, 0xc4,
+	0x73, 0x67, 0xb4, 0xbb, 0x64, 0x2e, 0xe5, 0xdd, 0xfa, 0xfd, 0x1c, 0x2d, 0x0a, 0x31, 0x86, 0xaa,
+	0x88, 0xd9, 0x66, 0x72, 0x51, 0xf0, 0xeb, 0x4c, 0x2e, 0x4a, 0x8a, 0x3c, 0x86, 0xaa, 0x88, 0x83,
+	0x66, 0x80, 0x14, 0xec, 0x37, 0x03, 0xa4, 0x24, 0xb3, 0x1e, 0x6c, 0x4b, 0x88, 0x21, 0xda, 0xe3,
+	0x36, 0x5e, 0x36, 0x73, 0xeb, 0x8f, 0x8a, 0xa8, 0x52, 0xc4, 0x29, 0x7c, 0x28, 0xa6, 0x75, 0xa8,
+	0x93, 0xe1, 0xcf, 0x0a, 0xfa, 0xa8, 0xef, 0x15, 0xd0, 0xa4, 0x70, 0xaf, 0xe0, 0x8e, 0x90, 0xb7,
+	0xa1, 0x87, 0xac, 0x0f, 0x09, 0xf3, 0xd3, 0x3b, 0xf9, 0x8a, 0x17, 0x9b, 0x29, 0xe1, 0x42, 0x99,
+	0xcd, 0x54, 0x33, 0xba, 0xcc, 0x66, 0xe6, 0x51, 0x2b, 0x0f, 0xb6, 0x25, 0x44, 0x26, 0x83, 0xa8,
+	0xa6, 0x4c, 0x19, 0xc4, 0x3c, 0x5e, 0xb4, 0x00, 0x5d, 0xce, 0x28, 0xd0, 0x3e, 0x77, 0x11, 0x14,
+	0x23, 0xb3, 0xfe, 0xb8, 0xa0, 0x36, 0x85, 0x7e, 0x0d, 0x3b, 0x52, 0x22, 0x80, 0x3e, 0x66, 0x4f,
+	0x49, 0x05, 0xbc, 0x5f, 0x4c, 0xf9, 0x22, 0x65, 0xf9, 0x0c, 0x9e, 0x49, 0x39, 0x97, 0x25, 0x64,
+	0x52, 0x2e, 0x30, 0xd8, 0xff, 0xae, 0xc1, 0x5d, 0xe5, 0xd4, 0x8b, 0x7a, 0x4b, 0x0e, 0x8b, 0x4c,
+	0xe9, 0xfa, 0x27, 0xc5, 0x0d, 0xd8, 0x1e, 0xc1, 0xf5, 0x7f, 0x41, 0x8f, 0x90, 0xcd, 0x2a, 0x82,
+	0x1e, 0x21, 0x1f, 0x43, 0x92, 0x1e, 0xc1, 0x03, 0x72, 0xc5, 0x28, 0xc5, 0xdb, 0x2b, 0xa0, 0xc9,
+	0xd6, 0xad, 0x3a, 0x41, 0xf5, 0x24, 0x2a, 0xa8, 0x5b, 0x25, 0xa2, 0x64, 0x14, 0x13, 0xd4, 0x6d,
+	0x21, 0xc4, 0xbc, 0xc9, 0xce, 0x86, 0xdb, 0x82, 0xd1, 0x0a, 0xb1, 0x0f, 0x9f, 0x78, 0x68, 0xd3,
+	0x1f, 0xe4, 0xa9, 0x65, 0x51, 0x98, 0x41, 0x88, 0x43, 0x11, 0x0f, 0x5d, 0x1c, 0x8a, 0x6c, 0x9e,
+	0x7a, 0x09, 0x5b, 0xdc, 0x28, 0x83, 0x3e, 0x62, 0x8d, 0x05, 0x03, 0x92, 0xbe, 0xab, 0x56, 0xa2,
+	0xfe, 0x8f, 0xa0, 0x72, 0xe8, 0xce, 0x46, 0xce, 0x78, 0xee, 0x63, 0x54, 0xef, 0x06, 0xbe, 0x43,
+	0x7f, 0x35, 0x4a, 0x57, 0x13, 0x7f, 0x0d, 0xb1, 0x30, 0xfd, 0x97, 0xe0, 0x07, 0x5f, 0x63, 0x72,
+	0x1a, 0x89, 0x8f, 0x67, 0x23, 0x17, 0xb5, 0x96, 0xd4, 0x33, 0x92, 0xc4, 0x5f, 0x5b, 0xae, 0x10,
+	0xfb, 0x3c, 0x7d, 0xe7, 0x54, 0x3b, 0x7b, 0x3f, 0xfa, 0x39, 0xea, 0xd3, 0xff, 0x03, 0x00, 0x00,
+	0xff, 0xff, 0xbf, 0xed, 0xc5, 0xec, 0x12, 0x1b, 0x00, 0x00,
 }
