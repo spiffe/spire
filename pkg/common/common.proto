@@ -7,7 +7,7 @@ message Empty {}
 /**A type which contains attestation data for specific platform.*/
 message AttestedData {
     string type = 1; ///Type of attestation to perform.
-    string data = 2; ///The attestetion data.
+    bytes data = 2; ///The attestetion data.
 }
 
 /**A type which describes the conditions under which a registration entry is matched.*/

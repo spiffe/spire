@@ -57,7 +57,7 @@ func (m *AttestedData) Reset()          { (*common.AttestedData)(m).Reset() }
 func (m *AttestedData) String() string  { return (*common.AttestedData)(m).String() }
 func (*AttestedData) ProtoMessage()     {}
 func (m *AttestedData) GetType() string { return (*common.AttestedData)(m).GetType() }
-func (m *AttestedData) GetData() string { return (*common.AttestedData)(m).GetData() }
+func (m *AttestedData) GetData() []byte { return (*common.AttestedData)(m).GetData() }
 
 // Selector from public import github.com/spiffe/sri/pkg/common/common.proto
 type Selector common.Selector

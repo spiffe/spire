@@ -42,7 +42,7 @@ A type which contains attestation data for specific platform.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | type | [string](#string) |  | Type of attestation to perform. |
-| data | [string](#string) |  | The attestetion data. |
+| data | [bytes](#bytes) |  | The attestetion data. |
 
 
 

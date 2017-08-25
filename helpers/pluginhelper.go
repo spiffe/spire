@@ -100,13 +100,13 @@ func (c *PluginCatalog) initClients() (err error) {
 					pluginconfig.PluginName: plugin.Plugin(c.PluginTypeMap[pluginconfig.PluginType]),
 				},
 
-				Cmd:              exec.Command(pluginconfig.PluginCmd),
+				Cmd: exec.Command(pluginconfig.PluginCmd),
 
 				AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 
-				Managed:          true,
+				Managed: true,
 
-				SecureConfig:     secureConfig,
+				SecureConfig: secureConfig,
 			})
 
 			c.PluginClients[pluginconfig.PluginName] = client
