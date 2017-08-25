@@ -10,7 +10,6 @@ import (
 
 	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/agent/keymanager"
-	"sync"
 )
 
 type MemoryPlugin struct{

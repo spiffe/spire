@@ -14,7 +14,9 @@ func TestMemory_GenerateKeyPair(t *testing.T) {
 	var plugin MemoryPlugin
 	data, e := plugin.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
 	assert.NoError(t,e)
-	x509.ParseECPrivateKey(data.PrivateKey)
+	priv, err :=x509.ParseECPrivateKey(data.PrivateKey)
+	assert.NoError(t,err)
+	assert.Equal(t, plugin.key,priv)
 	assert.NotEmpty(t,data)
 }
 
