@@ -1,4 +1,4 @@
-pluginName = "km_memeory"
+pluginName = "km_memory"
 pluginCmd = "plugins/key_manager/memory/memory"
 pluginChecksum = ""
 enabled = true
