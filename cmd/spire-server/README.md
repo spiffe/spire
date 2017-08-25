@@ -8,7 +8,7 @@ SPIRE Server is responsible for validating and signing all CSRs in the SPIFFE tr
 
 _**Binary is Not Available Yet**_
 Get the latest binary for [OS X](https://get.spiffe.io/osx/controlplane), [Windows](https://get.spiffe.io/windows/controlplane.exe), 
-or [Linux](https://get.spiffe.io/linux/controlplane) and place it in your `$PATH` similar to `wget -O /usr/local/bin/controlplane https://get.spiffe.io/osx/controlplane && chmod 755 /usr/local/bin/controlplane`. 
+or [Linux](https://get.spiffe.io/linux/controlplane) and place it in your `$PATH` similar to ``bash wget -O /usr/local/bin/controlplane https://get.spiffe.io/osx/controlplane && chmod 755 /usr/local/bin/controlplane ``. 
 
 
 Set `SPIRE_SERVER_CONFIG` enivironment variable to point to the server config file. 
