@@ -33,6 +33,7 @@ SPIRE-SERVER configuration:
 
 
 SPIRE-SERVER commands:
+
  |Command                   | Action                                                           |
  |--------------------------|------------------------------------------------------------------|
  |`spire-server server`     |  Starts the SPIRE Server                                         |
