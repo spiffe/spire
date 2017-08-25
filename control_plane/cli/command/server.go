@@ -17,7 +17,7 @@ import (
 
 	"github.com/spiffe/sri/pkg/server/ca"
 	"github.com/spiffe/sri/pkg/server/datastore"
-	cpnodeattestor "github.com/spiffe/sri/pkg/server/nodeattestor"
+	"github.com/spiffe/sri/pkg/server/nodeattestor"
 	"github.com/spiffe/sri/pkg/server/noderesolver"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
 

@@ -1,4 +1,4 @@
-package controlplaneca
+package ca
 
 import (
 	"github.com/spiffe/sri/pkg/common/plugin"

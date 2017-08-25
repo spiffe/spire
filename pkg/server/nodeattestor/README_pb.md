@@ -50,14 +50,14 @@
 
 * [node_attestor.proto](#node_attestor.proto)
   
-    * [AttestRequest](#cpnodeattestor.AttestRequest)
+    * [AttestRequest](#nodeattestor.AttestRequest)
   
-    * [AttestResponse](#cpnodeattestor.AttestResponse)
-  
-  
+    * [AttestResponse](#nodeattestor.AttestResponse)
   
   
-    * [NodeAttestor](#cpnodeattestor.NodeAttestor)
+  
+  
+    * [NodeAttestor](#nodeattestor.NodeAttestor)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -313,7 +313,7 @@ Represents a type with a list of NodeResolution.
 Responsible for validating the Node Agent’s Attested Data.
 
 
-<a name="cpnodeattestor.AttestRequest"/>
+<a name="nodeattestor.AttestRequest"/>
 
 ### AttestRequest
 Represents a request to attest a node.
@@ -321,7 +321,7 @@ Represents a request to attest a node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [.common.AttestedData](#cpnodeattestor..common.AttestedData) |  | A type which contains attestation data for specific platform. |
+| attestedData | [.common.AttestedData](#nodeattestor..common.AttestedData) |  | A type which contains attestation data for specific platform. |
 | attestedBefore | [bool](#bool) |  | Is true if the Base SPIFFE ID is present in the Attested Node table. |
 
 
@@ -329,7 +329,7 @@ Represents a request to attest a node.
 
 
 
-<a name="cpnodeattestor.AttestResponse"/>
+<a name="nodeattestor.AttestResponse"/>
 
 ### AttestResponse
 Represents a response when attesting a node.
@@ -351,7 +351,7 @@ Represents a response when attesting a node.
  
 
 
-<a name="cpnodeattestor.NodeAttestor"/>
+<a name="nodeattestor.NodeAttestor"/>
 
 ### NodeAttestor
 
@@ -360,7 +360,7 @@ Represents a response when attesting a node.
 | ----------- | ------------ | ------------- | ------------|
 | Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Responsible for configuration of the plugin. |
 | GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| Attest | [AttestRequest](#cpnodeattestor.AttestRequest) | [AttestResponse](#cpnodeattestor.AttestRequest) | Attesta a node. |
+| Attest | [AttestRequest](#nodeattestor.AttestRequest) | [AttestResponse](#nodeattestor.AttestRequest) | Attesta a node. |
 
  
 

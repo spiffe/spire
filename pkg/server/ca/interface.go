@@ -1,4 +1,4 @@
-package controlplaneca
+package ca
 
 import (
 	"net/rpc"
