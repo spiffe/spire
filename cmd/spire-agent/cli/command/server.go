@@ -13,7 +13,7 @@ import (
 
 	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/helpers"
-	"github.com/spiffe/sri/node_agent/endpoints/server"
+	"github.com/spiffe/sri/cmd/spire-agent/endpoints/server"
 )
 
 type ServerCommand struct {
