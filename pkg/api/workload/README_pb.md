@@ -31,7 +31,7 @@
   
     * [WorkloadEntry](#workload.WorkloadEntry)
   
-    * [WorkloadEntry.SpiffeIdToFederatedBundleEntry](#workload.WorkloadEntry.SpiffeIdToFederatedBundleEntry)
+    * [WorkloadEntry.FederatedBundlesEntry](#workload.WorkloadEntry.FederatedBundlesEntry)
   
   
   
@@ -59,7 +59,7 @@ A type which contains attestation data for specific platform.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | type | [string](#string) |  | Type of attestation to perform. |
-| data | [string](#string) |  | The attestetion data. |
+| data | [bytes](#bytes) |  | The attestetion data. |
 
 
 
@@ -207,16 +207,16 @@ or a cert bundle of a remote control plane for the purposes of trusting remote w
 | svid | [bytes](#bytes) |  | ASN.1 DER encoded SVID. |
 | svid_private_key | [bytes](#bytes) |  | Private key corresponding to the SVID. |
 | control_plane_bundle | [bytes](#bytes) |  | Control Plane&#39;s trusted cert bundle. |
-| spiffe_id_to_federated_bundle | [WorkloadEntry.SpiffeIdToFederatedBundleEntry](#workload.WorkloadEntry.SpiffeIdToFederatedBundleEntry) | repeated | A map of SPIFFE ID =&gt; Federated Bundle (ASN.1 DER encoded cert bundle). |
+| federated_bundles | [WorkloadEntry.FederatedBundlesEntry](#workload.WorkloadEntry.FederatedBundlesEntry) | repeated | A map of SPIFFE ID =&gt; Federated Bundle (ASN.1 DER encoded cert bundle). |
 
 
 
 
 
 
-<a name="workload.WorkloadEntry.SpiffeIdToFederatedBundleEntry"/>
+<a name="workload.WorkloadEntry.FederatedBundlesEntry"/>
 
-### WorkloadEntry.SpiffeIdToFederatedBundleEntry
+### WorkloadEntry.FederatedBundlesEntry
 
 
 
