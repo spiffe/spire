@@ -136,7 +136,7 @@ build_binaries() {
 
     for _n in ${_dirs}; do
         _log_info "building in directory \"${_n}\""
-        ( cd $_n; go build ${DEBUG+-v} )
+        ( cd $_n; go build ${DEBUG+-v} -i )
     done
 }
 
@@ -148,7 +148,7 @@ build_test() {
     if [[ -n ${CI} ]]; then
         mkdir -p test_results
         go test ${DEBUG+-v} ${_test_path} | go-junit-report > test_results/report.xml
-        if [[ -n ${COVERALLS_TOKEN} ]]; then
+        if [[ -n ${COVERALLS_TOKEN} && ${TRAVIS_EVENT_TYPE} = cron ]]; then
             gocovermerge -coverprofile=test_results/cover.out test -covermode=count ${_test_path}
             goveralls -coverprofile=test_results/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
         fi
