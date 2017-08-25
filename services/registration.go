@@ -2,7 +2,7 @@ package services
 
 import (
 	"github.com/spiffe/sri/pkg/common"
-	ds "github.com/spiffe/sri/control_plane/plugins/data_store"
+	ds "github.com/spiffe/sri/pkg/server/datastore"
 )
 
 //Registration service interface.
