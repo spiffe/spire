@@ -3,8 +3,8 @@
 set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
-declare -r BINARY_DIRS="control_plane node_agent $(find */plugins/*/* -maxdepth 1 -type d -not -name 'proto' -not -name '_*')"
-declare -r PROTO_FILES="$(find pkg/common/ */plugins */api -name '*.proto')"
+declare -r BINARY_DIRS="$(find cmd/* plugin/*/* -maxdepth 0 -type d)"
+declare -r PROTO_FILES="$(find pkg -name '*.proto')"
 
 declare -r GO_VERSION=${GO_VERSION:-1.8.3}
 declare -r GO_URL="https://storage.googleapis.com/golang"
@@ -101,12 +101,20 @@ build_protobuf() {
         else
             _d=${_dir}
         fi
-        _log_info "processing \"${_n}\""
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --go_out=plugins=grpc:${_d} ${_n}
+        _log_info "creating \"${_n%.proto}.pb.go\""
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
+            --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+            --go_out=plugins=grpc:${_d} ${_n}
         _log_info "creating \"${_d}/README_pb.md\""
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --doc_out=markdown,README_pb.md:${_d} ${_n}
-        _log_info "creating http gateway"
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --grpc-gateway_out=logtostderr=true:${_d} ${_n}
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
+            --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+            --doc_out=markdown,README_pb.md:${_d} ${_n}
+        if grep -q 'option (google.api.http)' ${_n}; then
+            _log_info "creating http gateway \"${_n%.proto}.pb.gw.go\""
+            protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
+                --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+                --grpc-gateway_out=logtostderr=true:${_d} ${_n}
+        fi
     done
 }
 
@@ -136,7 +144,7 @@ build_binaries() {
 
     for _n in ${_dirs}; do
         _log_info "building in directory \"${_n}\""
-        ( cd $_n; go build ${DEBUG+-v} )
+        ( cd $_n; go build ${DEBUG+-v} -i )
     done
 }
 
@@ -148,7 +156,7 @@ build_test() {
     if [[ -n ${CI} ]]; then
         mkdir -p test_results
         go test ${DEBUG+-v} ${_test_path} | go-junit-report > test_results/report.xml
-        if [[ -n ${COVERALLS_TOKEN} ]]; then
+        if [[ -n ${COVERALLS_TOKEN} && ${TRAVIS_EVENT_TYPE} = cron ]]; then
             gocovermerge -coverprofile=test_results/cover.out test -covermode=count ${_test_path}
             goveralls -coverprofile=test_results/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
         fi

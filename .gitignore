@@ -2,22 +2,23 @@
 .build
 .cache
 *.swp
+*.log
 /vendor
 test_results
 
 artifact.tgz
 
-control_plane/control_plane
-control_plane/plugins/control_plane_ca/memory/memory
-control_plane/plugins/data_store/sqlite/sqlite
-control_plane/plugins/node_attestor/secret_file/secret_file
-control_plane/plugins/noderesolver/noop/noop
-control_plane/plugins/upstream_ca/memory/memory
-control_plane/plugins/node_resolver/noop/noop
+cmd/spire-agent/spire-agent
+cmd/spire-server/spire-server
 
-node_agent/node_agent
-node_agent/plugins/key_manager/memory/memory
-node_agent/plugins/node_attestor/aws/aws
-node_agent/plugins/node_attestor/gcp/gcp
-node_agent/plugins/node_attestor/secret_file/secret_file
-node_agent/plugins/workload_attestor/secret_file/secret_file
+plugin/agent/keymanager-memory/keymanager-memory
+plugin/agent/nodeattestor-jointoken/nodeattestor-jointoken
+plugin/agent/nodeattestor-secretfile/nodeattestor-secretfile
+plugin/agent/workloadattestor-secretfile/workloadattestor-secretfile
+
+plugin/server/ca-memory/ca-memory
+plugin/server/datastore-sqlite/datastore-sqlite
+plugin/server/nodeattestor-secretfile/nodeattestor-secretfile
+plugin/server/noderesolver-noop/noop
+plugin/server/noderesolver-noop/noderesolver-noop
+plugin/server/upstreamca-memory/upstreamca-memory

@@ -1,0 +1,83 @@
+/**
+The Node API is exposed by the Control Plane to Node Agents.
+A node agent uses this API to attest the node it is running on,
+to retrieve the list of identities that are allowed to run on that node,
+and to retrieve SVIDs by presenting certificate signing requests to the Control Plane.
+*/
+syntax = "proto3";
+package node;
+
+import public "github.com/spiffe/sri/pkg/common/common.proto";
+
+service Node {
+    ///Attest the node, get base node SVID.
+    rpc FetchBaseSVID(FetchBaseSVIDRequest) returns (FetchBaseSVIDResponse);
+    ///Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
+    ///(Base Node SVID or the Registered Node SVID used for this call)
+    ///(List can be empty to allow Node Agent cache refresh).
+    rpc FetchSVID(FetchSVIDRequest) returns (FetchSVIDResponse);
+    ///Called by Node Agent periodically to support Control Plane certificate rotation. Cached in Node Agent memory for WorkLoads as well.
+    rpc FetchCPBundle(FetchCPBundleRequest) returns (FetchCPBundleResponse);
+    ///Called by the Node Agent to fetch the named Federated CA Bundle.
+    ///Used in the event that authorized workloads reference a Federated Bundle.
+    rpc FetchFederatedBundle(FetchFederatedBundleRequest) returns (FetchFederatedBundleResponse);
+   }
+
+
+/**A type which contains the "Spiffe Verifiable Identity Document" and a TTL indicating when the SVID expires.*/
+message Svid {
+ bytes svidCert = 1; ///Spiffe Verifiable Identity Document.
+ int32 ttl = 2; ///SVID expiration.
+}
+
+/**A map containing SVID values and corresponding SPIFFE IDs as the keys.*/
+message SvidMap {
+ map<string, Svid> map = 1; ///Map[SPIFFE_ID] => SVID
+}
+
+/**A message returned by the Control Plane, which includes a map of signed SVIDs and
+an array of all current Registration Entries which are relevant to the caller SPIFFE ID.*/
+message SvidUpdate {
+ SvidMap svidMap = 1; ///A map containing SVID values and corresponding SPIFFE IDs as the keys.
+ repeated common.RegistrationEntry registrationEntryList = 2; ///A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+}
+
+/**Represents a request to attest the node.*/
+message FetchBaseSVIDRequest {
+ common.AttestedData attestedData = 1; ///A type which contains attestation data for specific platform.
+ bytes csr = 2;  //Certificate signing request.
+}
+
+/**Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID*/
+message FetchBaseSVIDResponse {
+ SvidUpdate spiffeEntry = 1; ///It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
+}
+
+/**Represents a request with a list of CSR.*/
+message FetchSVIDRequest {
+ repeated bytes csrList = 2; ///A list of CSRs.
+}
+
+/**Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID.*/
+message FetchSVIDResponse {
+ SvidUpdate spiffeEntry = 1; ///It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
+}
+
+/**Represents an empty message.*/
+message FetchCPBundleRequest {
+}
+
+/**Represents a response with a Control Plane certificate bundle.*/
+message FetchCPBundleResponse {
+ bytes cpBundle = 1; ///Control Plane certificate bundle.
+}
+
+/**Represents a request with an array of SPIFFE Ids.*/
+message FetchFederatedBundleRequest {
+ repeated string spiffeId = 1; /// An array of SPIFFE Ids.
+}
+
+/**Represents a response with a map of SPIFFE Id, Federated CA Bundle.*/
+message FetchFederatedBundleResponse {
+ map<string, bytes> map = 1; ///Map [ SPIFFE ID ] => Federated CA Bundle
+}
