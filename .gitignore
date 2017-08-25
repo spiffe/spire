@@ -2,6 +2,7 @@
 .build
 .cache
 *.swp
+*.log
 /vendor
 test_results
 

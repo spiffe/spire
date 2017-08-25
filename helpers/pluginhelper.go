@@ -73,6 +73,7 @@ func (c *PluginCatalog) initClients() (err error) {
 	c.PluginClients = make(map[string]*plugin.Client)
 
 	for _, pluginconfig := range c.PluginConfigs {
+
 		if pluginconfig.Enabled {
 
 			var secureConfig *plugin.SecureConfig
@@ -88,18 +89,23 @@ func (c *PluginCatalog) initClients() (err error) {
 			}
 
 			client := plugin.NewClient(&plugin.ClientConfig{
+
 				HandshakeConfig: plugin.HandshakeConfig{
 					ProtocolVersion:  1,
 					MagicCookieKey:   pluginconfig.PluginType,
 					MagicCookieValue: pluginconfig.PluginType,
 				},
+
 				Plugins: map[string]plugin.Plugin{
-					pluginconfig.PluginName: plugin.Plugin(
-						c.PluginTypeMap[pluginconfig.PluginType]),
+					pluginconfig.PluginName: plugin.Plugin(c.PluginTypeMap[pluginconfig.PluginType]),
 				},
+
 				Cmd:              exec.Command(pluginconfig.PluginCmd),
+
 				AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
+
 				Managed:          true,
+
 				SecureConfig:     secureConfig,
 			})
 
@@ -124,8 +130,7 @@ func (c *PluginCatalog) Run() (err error) {
 		if err != nil {
 			return err
 		}
-		fmt.Print("PluginName:")
-		fmt.Print(pluginName)
+
 		pl, err := protocolClient.Dispense(pluginName)
 		if err != nil {
 			return err

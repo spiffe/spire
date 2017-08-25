@@ -27,6 +27,8 @@ To Start the Control Plane run the command:
 
 `control_plane server`
 
+if `control_plane server` returns immediately look at the configured `logFile` for errors
+
 To list all the active plugin-info run:
 
 `control_plane plugin-info`

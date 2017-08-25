@@ -170,7 +170,7 @@ func (m *GRPCClient) FetchStaleNodeEntries(req *FetchStaleNodeEntriesRequest) (*
 	return res, err
 }
 
-func (m *GRPCClient) UpdateAttestedNodeEntryEntry(req *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error) {
+func (m *GRPCClient) UpdateAttestedNodeEntry(req *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error) {
 	res, err := m.client.UpdateAttestedNodeEntry(context.Background(), req)
 	return res, err
 }
