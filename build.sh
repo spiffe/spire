@@ -113,7 +113,6 @@ build_protobuf() {
             _log_info "creating http gateway \"${_n%.proto}.pb.gw.go\""
             protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
                 --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
-                --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
                 --grpc-gateway_out=logtostderr=true:${_d} ${_n}
         fi
     done
