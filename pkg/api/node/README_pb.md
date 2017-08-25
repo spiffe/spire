@@ -25,36 +25,36 @@
 
 * [node.proto](#node.proto)
   
-    * [FetchBaseSVIDRequest](#sri_proto.FetchBaseSVIDRequest)
+    * [FetchBaseSVIDRequest](#node.FetchBaseSVIDRequest)
   
-    * [FetchBaseSVIDResponse](#sri_proto.FetchBaseSVIDResponse)
+    * [FetchBaseSVIDResponse](#node.FetchBaseSVIDResponse)
   
-    * [FetchCPBundleRequest](#sri_proto.FetchCPBundleRequest)
+    * [FetchCPBundleRequest](#node.FetchCPBundleRequest)
   
-    * [FetchCPBundleResponse](#sri_proto.FetchCPBundleResponse)
+    * [FetchCPBundleResponse](#node.FetchCPBundleResponse)
   
-    * [FetchFederatedBundleRequest](#sri_proto.FetchFederatedBundleRequest)
+    * [FetchFederatedBundleRequest](#node.FetchFederatedBundleRequest)
   
-    * [FetchFederatedBundleResponse](#sri_proto.FetchFederatedBundleResponse)
+    * [FetchFederatedBundleResponse](#node.FetchFederatedBundleResponse)
   
-    * [FetchFederatedBundleResponse.MapEntry](#sri_proto.FetchFederatedBundleResponse.MapEntry)
+    * [FetchFederatedBundleResponse.MapEntry](#node.FetchFederatedBundleResponse.MapEntry)
   
-    * [FetchSVIDRequest](#sri_proto.FetchSVIDRequest)
+    * [FetchSVIDRequest](#node.FetchSVIDRequest)
   
-    * [FetchSVIDResponse](#sri_proto.FetchSVIDResponse)
+    * [FetchSVIDResponse](#node.FetchSVIDResponse)
   
-    * [Svid](#sri_proto.Svid)
+    * [Svid](#node.Svid)
   
-    * [SvidMap](#sri_proto.SvidMap)
+    * [SvidMap](#node.SvidMap)
   
-    * [SvidMap.MapEntry](#sri_proto.SvidMap.MapEntry)
+    * [SvidMap.MapEntry](#node.SvidMap.MapEntry)
   
-    * [SvidUpdate](#sri_proto.SvidUpdate)
-  
-  
+    * [SvidUpdate](#node.SvidUpdate)
   
   
-    * [Node](#sri_proto.Node)
+  
+  
+    * [Node](#node.Node)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -178,7 +178,7 @@ to retrieve the list of identities that are allowed to run on that node,
 and to retrieve SVIDs by presenting certificate signing requests to the Control Plane.
 
 
-<a name="sri_proto.FetchBaseSVIDRequest"/>
+<a name="node.FetchBaseSVIDRequest"/>
 
 ### FetchBaseSVIDRequest
 Represents a request to attest the node.
@@ -186,7 +186,7 @@ Represents a request to attest the node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [.common.AttestedData](#sri_proto..common.AttestedData) |  | A type which contains attestation data for specific platform. |
+| attestedData | [.common.AttestedData](#node..common.AttestedData) |  | A type which contains attestation data for specific platform. |
 | csr | [bytes](#bytes) |  | Certificate signing request. |
 
 
@@ -194,7 +194,7 @@ Represents a request to attest the node.
 
 
 
-<a name="sri_proto.FetchBaseSVIDResponse"/>
+<a name="node.FetchBaseSVIDResponse"/>
 
 ### FetchBaseSVIDResponse
 Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID
@@ -202,14 +202,14 @@ Represents a response that contains  map of signed SVIDs and an array of all cur
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeEntry | [SvidUpdate](#sri_proto.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
+| spiffeEntry | [SvidUpdate](#node.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
 
 
 
 
 
 
-<a name="sri_proto.FetchCPBundleRequest"/>
+<a name="node.FetchCPBundleRequest"/>
 
 ### FetchCPBundleRequest
 Represents an empty message.
@@ -219,7 +219,7 @@ Represents an empty message.
 
 
 
-<a name="sri_proto.FetchCPBundleResponse"/>
+<a name="node.FetchCPBundleResponse"/>
 
 ### FetchCPBundleResponse
 Represents a response with a Control Plane certificate bundle.
@@ -234,7 +234,7 @@ Represents a response with a Control Plane certificate bundle.
 
 
 
-<a name="sri_proto.FetchFederatedBundleRequest"/>
+<a name="node.FetchFederatedBundleRequest"/>
 
 ### FetchFederatedBundleRequest
 Represents a request with an array of SPIFFE Ids.
@@ -249,7 +249,7 @@ Represents a request with an array of SPIFFE Ids.
 
 
 
-<a name="sri_proto.FetchFederatedBundleResponse"/>
+<a name="node.FetchFederatedBundleResponse"/>
 
 ### FetchFederatedBundleResponse
 Represents a response with a map of SPIFFE Id, Federated CA Bundle.
@@ -257,14 +257,14 @@ Represents a response with a map of SPIFFE Id, Federated CA Bundle.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [FetchFederatedBundleResponse.MapEntry](#sri_proto.FetchFederatedBundleResponse.MapEntry) | repeated | Map [ SPIFFE ID ] =&gt; Federated CA Bundle |
+| map | [FetchFederatedBundleResponse.MapEntry](#node.FetchFederatedBundleResponse.MapEntry) | repeated | Map [ SPIFFE ID ] =&gt; Federated CA Bundle |
 
 
 
 
 
 
-<a name="sri_proto.FetchFederatedBundleResponse.MapEntry"/>
+<a name="node.FetchFederatedBundleResponse.MapEntry"/>
 
 ### FetchFederatedBundleResponse.MapEntry
 
@@ -280,7 +280,7 @@ Represents a response with a map of SPIFFE Id, Federated CA Bundle.
 
 
 
-<a name="sri_proto.FetchSVIDRequest"/>
+<a name="node.FetchSVIDRequest"/>
 
 ### FetchSVIDRequest
 Represents a request with a list of CSR.
@@ -295,7 +295,7 @@ Represents a request with a list of CSR.
 
 
 
-<a name="sri_proto.FetchSVIDResponse"/>
+<a name="node.FetchSVIDResponse"/>
 
 ### FetchSVIDResponse
 Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
@@ -303,14 +303,14 @@ Represents a response that contains  map of signed SVIDs and an array of all cur
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeEntry | [SvidUpdate](#sri_proto.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
+| spiffeEntry | [SvidUpdate](#node.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
 
 
 
 
 
 
-<a name="sri_proto.Svid"/>
+<a name="node.Svid"/>
 
 ### Svid
 A type which contains the &#34;Spiffe Verifiable Identity Document&#34; and a TTL indicating when the SVID expires.
@@ -326,7 +326,7 @@ A type which contains the &#34;Spiffe Verifiable Identity Document&#34; and a TT
 
 
 
-<a name="sri_proto.SvidMap"/>
+<a name="node.SvidMap"/>
 
 ### SvidMap
 A map containing SVID values and corresponding SPIFFE IDs as the keys.
@@ -334,14 +334,14 @@ A map containing SVID values and corresponding SPIFFE IDs as the keys.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [SvidMap.MapEntry](#sri_proto.SvidMap.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; SVID |
+| map | [SvidMap.MapEntry](#node.SvidMap.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; SVID |
 
 
 
 
 
 
-<a name="sri_proto.SvidMap.MapEntry"/>
+<a name="node.SvidMap.MapEntry"/>
 
 ### SvidMap.MapEntry
 
@@ -350,14 +350,14 @@ A map containing SVID values and corresponding SPIFFE IDs as the keys.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [Svid](#sri_proto.Svid) |  |  |
+| value | [Svid](#node.Svid) |  |  |
 
 
 
 
 
 
-<a name="sri_proto.SvidUpdate"/>
+<a name="node.SvidUpdate"/>
 
 ### SvidUpdate
 A message returned by the Control Plane, which includes a map of signed SVIDs and
@@ -366,8 +366,8 @@ an array of all current Registration Entries which are relevant to the caller SP
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svidMap | [SvidMap](#sri_proto.SvidMap) |  | A map containing SVID values and corresponding SPIFFE IDs as the keys. |
-| registrationEntryList | [.common.RegistrationEntry](#sri_proto..common.RegistrationEntry) | repeated | A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it. |
+| svidMap | [SvidMap](#node.SvidMap) |  | A map containing SVID values and corresponding SPIFFE IDs as the keys. |
+| registrationEntryList | [.common.RegistrationEntry](#node..common.RegistrationEntry) | repeated | A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 
 
 
@@ -380,17 +380,17 @@ an array of all current Registration Entries which are relevant to the caller SP
  
 
 
-<a name="sri_proto.Node"/>
+<a name="node.Node"/>
 
 ### Node
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchBaseSVID | [FetchBaseSVIDRequest](#sri_proto.FetchBaseSVIDRequest) | [FetchBaseSVIDResponse](#sri_proto.FetchBaseSVIDRequest) | Attest the node, get base node SVID. |
-| FetchSVID | [FetchSVIDRequest](#sri_proto.FetchSVIDRequest) | [FetchSVIDResponse](#sri_proto.FetchSVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation(Base Node SVID or the Registered Node SVID used for this call)(List can be empty to allow Node Agent cache refresh). |
-| FetchCPBundle | [FetchCPBundleRequest](#sri_proto.FetchCPBundleRequest) | [FetchCPBundleResponse](#sri_proto.FetchCPBundleRequest) | Called by Node Agent periodically to support Control Plane certificate rotation. Cached in Node Agent memory for WorkLoads as well. |
-| FetchFederatedBundle | [FetchFederatedBundleRequest](#sri_proto.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#sri_proto.FetchFederatedBundleRequest) | Called by the Node Agent to fetch the named Federated CA Bundle.Used in the event that authorized workloads reference a Federated Bundle. |
+| FetchBaseSVID | [FetchBaseSVIDRequest](#node.FetchBaseSVIDRequest) | [FetchBaseSVIDResponse](#node.FetchBaseSVIDRequest) | Attest the node, get base node SVID. |
+| FetchSVID | [FetchSVIDRequest](#node.FetchSVIDRequest) | [FetchSVIDResponse](#node.FetchSVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation(Base Node SVID or the Registered Node SVID used for this call)(List can be empty to allow Node Agent cache refresh). |
+| FetchCPBundle | [FetchCPBundleRequest](#node.FetchCPBundleRequest) | [FetchCPBundleResponse](#node.FetchCPBundleRequest) | Called by Node Agent periodically to support Control Plane certificate rotation. Cached in Node Agent memory for WorkLoads as well. |
+| FetchFederatedBundle | [FetchFederatedBundleRequest](#node.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#node.FetchFederatedBundleRequest) | Called by the Node Agent to fetch the named Federated CA Bundle.Used in the event that authorized workloads reference a Federated Bundle. |
 
  
 

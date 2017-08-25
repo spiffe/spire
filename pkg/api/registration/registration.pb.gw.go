@@ -2,11 +2,11 @@
 // source: registration.proto
 
 /*
-Package sri_proto is a reverse proxy.
+Package registration is a reverse proxy.
 
 It translates gRPC into RESTful JSON APIs.
 */
-package sri_proto
+package registration
 
 import (
 	"io"

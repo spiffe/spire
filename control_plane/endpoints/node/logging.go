@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	"github.com/spiffe/sri/control_plane/api/node/proto"
+	pb "github.com/spiffe/sri/pkg/api/node"
 )
 
 type NodeServiceMiddleWare func(NodeService) NodeService
@@ -21,7 +21,7 @@ type LoggingMiddleware struct {
 	next   NodeService
 }
 
-func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request sri_proto.FetchBaseSVIDRequest) (response sri_proto.FetchBaseSVIDResponse) {
+func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "FetchBaseSVID",
@@ -34,7 +34,7 @@ func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request sri_proto
 	return
 }
 
-func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request sri_proto.FetchSVIDRequest) (response sri_proto.FetchSVIDResponse) {
+func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "FetchSVID",
@@ -47,7 +47,7 @@ func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request sri_proto.Fet
 	return
 }
 
-func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request sri_proto.FetchCPBundleRequest) (response sri_proto.FetchCPBundleResponse) {
+func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "FetchCPBundle",
@@ -60,7 +60,7 @@ func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request sri_proto
 	return
 }
 
-func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request sri_proto.FetchFederatedBundleRequest) (response sri_proto.FetchFederatedBundleResponse) {
+func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "FetchFederatedBundle",

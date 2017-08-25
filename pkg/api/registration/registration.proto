@@ -1,6 +1,6 @@
 /**The Registration API is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.*/
 syntax = "proto3";
-package sri_proto;
+package registration;
 
 import public "google/api/annotations.proto";
 import public "github.com/spiffe/sri/pkg/common/common.proto";

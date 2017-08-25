@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	grpctransport "github.com/go-kit/kit/transport/grpc"
-	"github.com/spiffe/sri/control_plane/api/node/proto"
+	pb "github.com/spiffe/sri/pkg/api/node"
 	oldcontext "golang.org/x/net/context"
 )
 
@@ -17,7 +17,7 @@ type grpcServer struct {
 }
 
 // MakeGRPCServer makes a set of endpoints available as a gRPC server.
-func MakeGRPCServer(endpoints Endpoints) (req sri_proto.NodeServer) {
+func MakeGRPCServer(endpoints Endpoints) (req pb.NodeServer) {
 	req = &grpcServer{
 		fetchBaseSVID: grpctransport.NewServer(
 			endpoints.FetchBaseSVIDEndpoint,
@@ -64,12 +64,12 @@ func EncodeGRPCFetchBaseSVIDResponse(_ context.Context, grpcReply interface{}) (
 	return res, err
 }
 
-func (s *grpcServer) FetchBaseSVID(ctx oldcontext.Context, req *sri_proto.FetchBaseSVIDRequest) (rep *sri_proto.FetchBaseSVIDResponse, err error) {
+func (s *grpcServer) FetchBaseSVID(ctx oldcontext.Context, req *pb.FetchBaseSVIDRequest) (rep *pb.FetchBaseSVIDResponse, err error) {
 	_, rp, err := s.fetchBaseSVID.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rep = rp.(*sri_proto.FetchBaseSVIDResponse)
+	rep = rp.(*pb.FetchBaseSVIDResponse)
 	return rep, err
 }
 
@@ -91,12 +91,12 @@ func EncodeGRPCFetchSVIDResponse(_ context.Context, grpcReply interface{}) (res 
 	return res, err
 }
 
-func (s *grpcServer) FetchSVID(ctx oldcontext.Context, req *sri_proto.FetchSVIDRequest) (rep *sri_proto.FetchSVIDResponse, err error) {
+func (s *grpcServer) FetchSVID(ctx oldcontext.Context, req *pb.FetchSVIDRequest) (rep *pb.FetchSVIDResponse, err error) {
 	_, rp, err := s.fetchSVID.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rep = rp.(*sri_proto.FetchSVIDResponse)
+	rep = rp.(*pb.FetchSVIDResponse)
 	return rep, err
 }
 
@@ -118,12 +118,12 @@ func EncodeGRPCFetchCPBundleResponse(_ context.Context, grpcReply interface{}) (
 	return res, err
 }
 
-func (s *grpcServer) FetchCPBundle(ctx oldcontext.Context, req *sri_proto.FetchCPBundleRequest) (rep *sri_proto.FetchCPBundleResponse, err error) {
+func (s *grpcServer) FetchCPBundle(ctx oldcontext.Context, req *pb.FetchCPBundleRequest) (rep *pb.FetchCPBundleResponse, err error) {
 	_, rp, err := s.fetchCPBundle.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rep = rp.(*sri_proto.FetchCPBundleResponse)
+	rep = rp.(*pb.FetchCPBundleResponse)
 	return rep, err
 }
 
@@ -145,11 +145,11 @@ func EncodeGRPCFetchFederatedBundleResponse(_ context.Context, grpcReply interfa
 	return res, err
 }
 
-func (s *grpcServer) FetchFederatedBundle(ctx oldcontext.Context, req *sri_proto.FetchFederatedBundleRequest) (rep *sri_proto.FetchFederatedBundleResponse, err error) {
+func (s *grpcServer) FetchFederatedBundle(ctx oldcontext.Context, req *pb.FetchFederatedBundleRequest) (rep *pb.FetchFederatedBundleResponse, err error) {
 	_, rp, err := s.fetchFederatedBundle.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rep = rp.(*sri_proto.FetchFederatedBundleResponse)
+	rep = rp.(*pb.FetchFederatedBundleResponse)
 	return rep, err
 }

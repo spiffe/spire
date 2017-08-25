@@ -95,36 +95,47 @@
   
 
 
+* [common.proto](#common.proto)
+  
+    * [AttestedData](#common.AttestedData)
+  
+    * [Empty](#common.Empty)
+  
+    * [RegistrationEntries](#common.RegistrationEntries)
+  
+    * [RegistrationEntry](#common.RegistrationEntry)
+  
+    * [Selector](#common.Selector)
+  
+    * [Selectors](#common.Selectors)
+  
+  
+  
+  
+
+
 * [registration.proto](#registration.proto)
   
-    * [CreateFederatedBundleRequest](#control_plane_proto.CreateFederatedBundleRequest)
+    * [CreateFederatedBundleRequest](#registration.CreateFederatedBundleRequest)
   
-    * [Empty](#control_plane_proto.Empty)
+    * [FederatedBundle](#registration.FederatedBundle)
   
-    * [FederatedBundle](#control_plane_proto.FederatedBundle)
+    * [FederatedSpiffeID](#registration.FederatedSpiffeID)
   
-    * [FederatedSpiffeID](#control_plane_proto.FederatedSpiffeID)
+    * [ListFederatedBundlesReply](#registration.ListFederatedBundlesReply)
   
-    * [ListFederatedBundlesReply](#control_plane_proto.ListFederatedBundlesReply)
+    * [ParentID](#registration.ParentID)
   
-    * [ParentID](#control_plane_proto.ParentID)
+    * [RegistrationEntryID](#registration.RegistrationEntryID)
   
-    * [RegisteredEntries](#control_plane_proto.RegisteredEntries)
+    * [SpiffeID](#registration.SpiffeID)
   
-    * [RegisteredEntry](#control_plane_proto.RegisteredEntry)
-  
-    * [RegisteredEntryID](#control_plane_proto.RegisteredEntryID)
-  
-    * [Selector](#control_plane_proto.Selector)
-  
-    * [SpiffeID](#control_plane_proto.SpiffeID)
-  
-    * [UpdateEntryRequest](#control_plane_proto.UpdateEntryRequest)
+    * [UpdateEntryRequest](#registration.UpdateEntryRequest)
   
   
   
   
-    * [Registration](#control_plane_proto.Registration)
+    * [Registration](#registration.Registration)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -1022,29 +1033,30 @@ methods, and PUT verb for idempotent methods instead of the default POST.
 
 
 
-<a name="registration.proto"/>
+<a name="common.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## registration.proto
-The Registration API is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.
+## common.proto
 
 
-<a name="control_plane_proto.CreateFederatedBundleRequest"/>
 
-### CreateFederatedBundleRequest
-It represents a request with a FederatedBundle to create.
+<a name="common.AttestedData"/>
+
+### AttestedData
+A type which contains attestation data for specific platform.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federated_bundle | [FederatedBundle](#control_plane_proto.FederatedBundle) |  | A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain. |
+| type | [string](#string) |  | Type of attestation to perform. |
+| data | [string](#string) |  | The attestetion data. |
 
 
 
 
 
 
-<a name="control_plane_proto.Empty"/>
+<a name="common.Empty"/>
 
 ### Empty
 Represents an empty message
@@ -1054,7 +1066,103 @@ Represents an empty message
 
 
 
-<a name="control_plane_proto.FederatedBundle"/>
+<a name="common.RegistrationEntries"/>
+
+### RegistrationEntries
+A list of registration entries.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [RegistrationEntry](#common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
+
+
+
+
+
+
+<a name="common.RegistrationEntry"/>
+
+### RegistrationEntry
+This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| selectors | [Selector](#common.Selector) | repeated | A list of selectors. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| ttl | [int32](#int32) |  | Time to live. |
+| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
+
+
+
+
+
+
+<a name="common.Selector"/>
+
+### Selector
+A type which describes the conditions under which a registration entry is matched.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| value | [string](#string) |  | The value to be attested. |
+
+
+
+
+
+
+<a name="common.Selectors"/>
+
+### Selectors
+Represents a type with a list of NodeResolution.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [Selector](#common.Selector) | repeated | A list of NodeResolution. |
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+ 
+
+
+
+<a name="registration.proto"/>
+<p align="right"><a href="#top">Top</a></p>
+
+## registration.proto
+The Registration API is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.
+
+
+<a name="registration.CreateFederatedBundleRequest"/>
+
+### CreateFederatedBundleRequest
+It represents a request with a FederatedBundle to create.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| federated_bundle | [FederatedBundle](#registration.FederatedBundle) |  | A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain. |
+
+
+
+
+
+
+<a name="registration.FederatedBundle"/>
 
 ### FederatedBundle
 A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
@@ -1071,7 +1179,7 @@ A CA bundle for a different Trust Domain than the one used and managed by the Co
 
 
 
-<a name="control_plane_proto.FederatedSpiffeID"/>
+<a name="registration.FederatedSpiffeID"/>
 
 ### FederatedSpiffeID
 A type that represents a Federated SPIFFE Id.
@@ -1086,7 +1194,7 @@ A type that represents a Federated SPIFFE Id.
 
 
 
-<a name="control_plane_proto.ListFederatedBundlesReply"/>
+<a name="registration.ListFederatedBundlesReply"/>
 
 ### ListFederatedBundlesReply
 It represents a reply with a list of FederatedBundle.
@@ -1094,14 +1202,14 @@ It represents a reply with a list of FederatedBundle.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundles | [FederatedBundle](#control_plane_proto.FederatedBundle) | repeated | A list of FederatedBundle. |
+| bundles | [FederatedBundle](#registration.FederatedBundle) | repeated | A list of FederatedBundle. |
 
 
 
 
 
 
-<a name="control_plane_proto.ParentID"/>
+<a name="registration.ParentID"/>
 
 ### ParentID
 A type that represents a parent Id.
@@ -1116,72 +1224,22 @@ A type that represents a parent Id.
 
 
 
-<a name="control_plane_proto.RegisteredEntries"/>
+<a name="registration.RegistrationEntryID"/>
 
-### RegisteredEntries
-A list of registered entries.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [RegisteredEntry](#control_plane_proto.RegisteredEntry) | repeated | A list of RegisteredEntry. |
-
-
-
-
-
-
-<a name="control_plane_proto.RegisteredEntry"/>
-
-### RegisteredEntry
-This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| selectors | [Selector](#control_plane_proto.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
-| ttl | [int32](#int32) |  | Time to live. |
-| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
-
-
-
-
-
-
-<a name="control_plane_proto.RegisteredEntryID"/>
-
-### RegisteredEntryID
+### RegistrationEntryID
 A type that represents the id of an entry.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| id | [string](#string) |  | RegisteredEntryID. |
+| id | [string](#string) |  | RegistrationEntryID. |
 
 
 
 
 
 
-<a name="control_plane_proto.Selector"/>
-
-### Selector
-A type which describes the conditions under which a registration entry is matched.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
-| value | [string](#string) |  | The value to be attested. |
-
-
-
-
-
-
-<a name="control_plane_proto.SpiffeID"/>
+<a name="registration.SpiffeID"/>
 
 ### SpiffeID
 A type that represents a SPIFFE Id.
@@ -1196,7 +1254,7 @@ A type that represents a SPIFFE Id.
 
 
 
-<a name="control_plane_proto.UpdateEntryRequest"/>
+<a name="registration.UpdateEntryRequest"/>
 
 ### UpdateEntryRequest
 A type with the id with want to update plus values to modify.
@@ -1205,7 +1263,7 @@ A type with the id with want to update plus values to modify.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | id | [string](#string) |  | Id of the entry to update. |
-| entry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) |  | Values in the RegisteredEntry to update. |
+| entry | [.common.RegistrationEntry](#registration..common.RegistrationEntry) |  | Values in the RegistrationEntry to update. |
 
 
 
@@ -1218,24 +1276,24 @@ A type with the id with want to update plus values to modify.
  
 
 
-<a name="control_plane_proto.Registration"/>
+<a name="registration.Registration"/>
 
 ### Registration
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateEntry | [RegisteredEntry](#control_plane_proto.RegisteredEntry) | [RegisteredEntryID](#control_plane_proto.RegisteredEntry) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads. |
-| DeleteEntry | [RegisteredEntryID](#control_plane_proto.RegisteredEntryID) | [RegisteredEntry](#control_plane_proto.RegisteredEntryID) | Deletes an entry and returns the deleted entry. |
-| FetchEntry | [RegisteredEntryID](#control_plane_proto.RegisteredEntryID) | [RegisteredEntry](#control_plane_proto.RegisteredEntryID) | Retrieve a specific registered entry. |
-| UpdateEntry | [UpdateEntryRequest](#control_plane_proto.UpdateEntryRequest) | [RegisteredEntry](#control_plane_proto.UpdateEntryRequest) | Updates a specific registered entry. |
-| ListByParentID | [ParentID](#control_plane_proto.ParentID) | [RegisteredEntries](#control_plane_proto.ParentID) | Returns all the Entries associated with the ParentID value. |
-| ListBySelector | [Selector](#control_plane_proto.Selector) | [RegisteredEntries](#control_plane_proto.Selector) | Returns all the entries associated with a selector value. |
-| ListBySpiffeID | [SpiffeID](#control_plane_proto.SpiffeID) | [RegisteredEntries](#control_plane_proto.SpiffeID) | Return all registration entries for which SPIFFE ID matches. |
-| CreateFederatedBundle | [CreateFederatedBundleRequest](#control_plane_proto.CreateFederatedBundleRequest) | [Empty](#control_plane_proto.CreateFederatedBundleRequest) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
-| ListFederatedBundles | [Empty](#control_plane_proto.Empty) | [ListFederatedBundlesReply](#control_plane_proto.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
-| UpdateFederatedBundle | [FederatedBundle](#control_plane_proto.FederatedBundle) | [Empty](#control_plane_proto.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
-| DeleteFederatedBundle | [FederatedSpiffeID](#control_plane_proto.FederatedSpiffeID) | [Empty](#control_plane_proto.FederatedSpiffeID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
+| CreateEntry | [common.RegistrationEntry](#common.RegistrationEntry) | [RegistrationEntryID](#common.RegistrationEntry) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads. |
+| DeleteEntry | [RegistrationEntryID](#registration.RegistrationEntryID) | [common.RegistrationEntry](#registration.RegistrationEntryID) | Deletes an entry and returns the deleted entry. |
+| FetchEntry | [RegistrationEntryID](#registration.RegistrationEntryID) | [common.RegistrationEntry](#registration.RegistrationEntryID) | Retrieve a specific registered entry. |
+| UpdateEntry | [UpdateEntryRequest](#registration.UpdateEntryRequest) | [common.RegistrationEntry](#registration.UpdateEntryRequest) | Updates a specific registered entry. |
+| ListByParentID | [ParentID](#registration.ParentID) | [common.RegistrationEntries](#registration.ParentID) | Returns all the Entries associated with the ParentID value. |
+| ListBySelector | [common.Selector](#common.Selector) | [common.RegistrationEntries](#common.Selector) | Returns all the entries associated with a selector value. |
+| ListBySpiffeID | [SpiffeID](#registration.SpiffeID) | [common.RegistrationEntries](#registration.SpiffeID) | Return all registration entries for which SPIFFE ID matches. |
+| CreateFederatedBundle | [CreateFederatedBundleRequest](#registration.CreateFederatedBundleRequest) | [common.Empty](#registration.CreateFederatedBundleRequest) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
+| ListFederatedBundles | [common.Empty](#common.Empty) | [ListFederatedBundlesReply](#common.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
+| UpdateFederatedBundle | [FederatedBundle](#registration.FederatedBundle) | [common.Empty](#registration.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
+| DeleteFederatedBundle | [FederatedSpiffeID](#registration.FederatedSpiffeID) | [common.Empty](#registration.FederatedSpiffeID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 
  
 
