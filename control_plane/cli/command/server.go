@@ -35,7 +35,7 @@ import (
 
 const (
 	DefaultCPConifigPath = ".conf/default_cp_config.hcl"
-	DefaultPluginConifigDir = "plugins/.conf"
+	DefaultPluginConfigDir = "plugins/.conf"
 )
 
 
