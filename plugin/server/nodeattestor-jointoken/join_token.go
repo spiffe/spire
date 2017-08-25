@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/pkg/server/nodeattestor"
 	common "github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/sri/pkg/server/nodeattestor"
 )
 
 type JoinTokenConfig struct {
@@ -23,6 +24,8 @@ type JoinTokenPlugin struct {
 
 	joinTokens  map[string]int
 	trustDomain string
+
+	mtx *sync.Mutex
 }
 
 func (p *JoinTokenPlugin) spiffeID(token string) *url.URL {
@@ -45,6 +48,8 @@ func (p *JoinTokenPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor
 		return &nodeattestor.AttestResponse{Valid: false}, err
 	}
 
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
 	tokenTTL, ok := p.joinTokens[joinToken]
 	if !ok {
 		err := errors.New("Unknown or expired join token")
@@ -78,6 +83,8 @@ func (p *JoinTokenPlugin) Configure(req *common.ConfigureRequest) (*common.Confi
 	}
 
 	// Set local vars from config struct
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
 	p.ConfigTime = time.Now()
 	p.joinTokens = config.JoinTokens
 	p.trustDomain = config.TrustDomain
@@ -90,10 +97,14 @@ func (*JoinTokenPlugin) GetPluginInfo(*common.GetPluginInfoRequest) (*common.Get
 }
 
 func main() {
+	p := &JoinTokenPlugin{
+		mtx: &sync.Mutex{},
+	}
+
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: nodeattestor.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"join_token": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: &JoinTokenPlugin{}},
+			"join_token": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: p},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

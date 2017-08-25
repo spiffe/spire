@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -36,7 +37,9 @@ func TestJoinToken_Configure(t *testing.T) {
 		Configuration: config,
 	}
 
-	p := &JoinTokenPlugin{}
+	p := &JoinTokenPlugin{
+		mtx: &sync.Mutex{},
+	}
 	resp, err := p.Configure(pluginConfig)
 	assert.Nil(err)
 	assert.Equal(&iface.ConfigureResponse{}, resp)
@@ -50,7 +53,9 @@ func TestJoinToken_Attest(t *testing.T) {
 		Configuration: config,
 	}
 
-	p := &JoinTokenPlugin{}
+	p := &JoinTokenPlugin{
+		mtx: &sync.Mutex{},
+	}
 	_, err := p.Configure(pluginConfig)
 	assert.Nil(err)
 
