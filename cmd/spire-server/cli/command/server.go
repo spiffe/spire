@@ -22,8 +22,8 @@ import (
 	"github.com/spiffe/sri/pkg/server/upstreamca"
 
 	pb "github.com/spiffe/sri/pkg/api/registration"
-	"github.com/spiffe/sri/control_plane/endpoints/registration"
-	"github.com/spiffe/sri/control_plane/endpoints/server"
+	"github.com/spiffe/sri/cmd/spire-server/endpoints/registration"
+	"github.com/spiffe/sri/cmd/spire-server/endpoints/server"
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/go-kit/kit/log"
@@ -65,7 +65,7 @@ type ServerCommand struct {
 }
 //Help returns how to use the server command
 func (*ServerCommand) Help() string {
-	return "Usage: sri/control_plane server"
+	return "Usage: spire-server server"
 }
 
 //Run the server command
@@ -106,7 +106,7 @@ func (*ServerCommand) Run(args []string) int {
 
 //Synopsis of the server command
 func (*ServerCommand) Synopsis() string {
-	return "Intializes sri/control_plane Runtime."
+	return "Intializes spire-server Runtime."
 }
 
 func loadPlugins() (*helpers.PluginCatalog, error) {

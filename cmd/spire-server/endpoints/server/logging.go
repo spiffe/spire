@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	control_plane_proto "github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/sri/pkg/common/plugin"
 )
 
 type ServerServiceMiddleWare func(ServerService) ServerService
@@ -21,7 +21,7 @@ type LoggingMiddleware struct {
 	next   ServerService
 }
 
-func (mw LoggingMiddleware) Stop(ctx context.Context, request control_plane_proto.StopRequest) (response control_plane_proto.StopReply, err error) {
+func (mw LoggingMiddleware) Stop(ctx context.Context, request sriplugin.StopRequest) (response sriplugin.StopReply, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "Stop",
@@ -35,7 +35,7 @@ func (mw LoggingMiddleware) Stop(ctx context.Context, request control_plane_prot
 	return
 }
 
-func (mw LoggingMiddleware) PluginInfo(ctx context.Context, request control_plane_proto.PluginInfoRequest) (response control_plane_proto.PluginInfoReply, err error) {
+func (mw LoggingMiddleware) PluginInfo(ctx context.Context, request sriplugin.PluginInfoRequest) (response sriplugin.PluginInfoReply, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "PluginInfo",

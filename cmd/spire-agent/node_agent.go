@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/spiffe/sri/node_agent/cli"
+	"github.com/spiffe/sri/cmd/spire-agent/cli"
 	"os"
 )
 

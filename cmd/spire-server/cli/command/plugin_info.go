@@ -12,7 +12,7 @@ type PluginInfoCommand struct {
 }
 
 func (*PluginInfoCommand) Help() string {
-	return "Usage: sri/node_agent plugin-info"
+	return "Usage: spire-server plugin-info"
 }
 
 func (*PluginInfoCommand) Run(args []string) int {
@@ -39,5 +39,5 @@ func (*PluginInfoCommand) Run(args []string) int {
 }
 
 func (*PluginInfoCommand) Synopsis() string {
-	return "Gets sri/node_agent plugins information."
+	return "Gets spire-server plugins information."
 }

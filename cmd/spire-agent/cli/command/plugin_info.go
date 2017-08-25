@@ -12,7 +12,7 @@ type PluginInfoCommand struct {
 }
 
 func (*PluginInfoCommand) Help() string {
-	return "Usage: sri/control_plane plugin-info"
+	return "Usage: spire-agent plugin-info"
 }
 
 func (*PluginInfoCommand) Run(args []string) int {
@@ -39,5 +39,5 @@ func (*PluginInfoCommand) Run(args []string) int {
 }
 
 func (*PluginInfoCommand) Synopsis() string {
-	return "Gets sri/control_plane plugins information."
+	return "Gets spire-agent plugins information."
 }

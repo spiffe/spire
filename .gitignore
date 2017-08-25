@@ -8,8 +8,8 @@ test_results
 
 artifact.tgz
 
-control_plane/control_plane
-node_agent/node_agent
+cmd/spire-agent/spire-agent
+cmd/spire-server/spire-server
 
 plugin/agent/keymanager-memory/keymanager-memory
 plugin/agent/nodeattestor-jointoken/nodeattestor-jointoken

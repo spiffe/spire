@@ -12,7 +12,7 @@ type StopCommand struct {
 }
 
 func (*StopCommand) Help() string {
-	return "Usage: sri/control_plane stop"
+	return "Usage: spire-agent stop"
 }
 
 func (*StopCommand) Run(args []string) int {
@@ -40,5 +40,5 @@ func (*StopCommand) Run(args []string) int {
 }
 
 func (*StopCommand) Synopsis() string {
-	return "Stops sri/control_plane server."
+	return "Stops spire-agent server."
 }

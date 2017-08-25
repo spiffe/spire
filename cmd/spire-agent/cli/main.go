@@ -1,16 +1,16 @@
-package control_plane_cli
+package cli
 
 import (
 	"log"
 	"os"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/sri/control_plane/cli/command"
+	"github.com/spiffe/sri/cmd/spire-agent/cli/command"
 )
 
 func Run(args []string) int {
 
-	c := cli.NewCLI("sri/control_plane", "0.0.1") //TODO expose version configuration
+	c := cli.NewCLI("sri/node_agent", "0.0.1") //TODO expose version configuration
 	c.Args = os.Args[1:]
 	c.Commands = map[string]cli.CommandFactory{
 		"server": func() (cli.Command, error) {
