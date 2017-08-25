@@ -42,11 +42,11 @@ const (
 var (
 
 	PluginTypeMap = map[string]plugin.Plugin{
-		"ControlPlaneCA":   &controlplaneca.ControlPlaneCaPlugin{},
+		"ControlPlaneCA":   &ca.ControlPlaneCaPlugin{},
 		"DataStore":        &datastore.DataStorePlugin{},
 		"NodeResolver":     &noderesolver.NodeResolverPlugin{},
 		"UpstreamCA":       &upstreamca.UpstreamCaPlugin{},
-		"CPNodeAttestor":   &cpnodeattestor.NodeAttestorPlugin{},
+		"CPNodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
 	}
 
 	MaxPlugins = map[string]int{
