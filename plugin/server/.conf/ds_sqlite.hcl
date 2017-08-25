@@ -1,5 +1,5 @@
 pluginName = "datastore"
-pluginCmd = "plugins/data_store/sqlite/sqlite"
+pluginCmd = "plugin/server/datastore-sqlite/datastore-sqlite"
 pluginChecksum = ""
 enabled = true
 pluginType = "DataStore"

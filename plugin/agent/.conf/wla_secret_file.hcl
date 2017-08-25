@@ -1,5 +1,5 @@
 pluginName = "wla_secret_file"
-pluginCmd = "plugins/workload_attestor/secret_file/secret_file"
+pluginCmd = "plugin/agent/workloadattestor-secretfile/workloadattestor-secretfile"
 pluginChecksum = ""
 enabled = true
 pluginType = "WorkloadAttestor"
