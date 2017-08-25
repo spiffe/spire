@@ -134,7 +134,7 @@ func (c *ControlPlaneConfig) setConfig(data interface{}) error {
 	c.RegistrationAPIGRPCPort = hclData.RegistrationAPIGRPCPort
 
 	c.logLevel = hclData.LogLevel
-	c.logLevel = hclData.LogLevel
+	c.logFile = hclData.LogFile
 
 	return nil
 }

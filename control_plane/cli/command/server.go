@@ -30,10 +30,12 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/services"
+	"reflect"
 )
 
 const (
 	DefaultCPConifigPath = ".conf/default_cp_config.hcl"
+	DefaultPluginConfigDir = "plugins/.conf"
 )
 
 
@@ -53,12 +55,14 @@ var (
 		"NodeResolver":     1,
 		"UpstreamCA":       1,
 		"CPNodeAttestor":   1,
+
 	}
+	logger = log.NewLogfmtLogger(os.Stdout)
+
 )
 
 type ServerCommand struct {
 }
-
 //Help returns how to use the server command
 func (*ServerCommand) Help() string {
 	return "Usage: sri/control_plane server"
@@ -71,17 +75,18 @@ func (*ServerCommand) Run(args []string) int {
 		cpConfigPath = DefaultCPConifigPath
 	}
 
+
 	config := helpers.ControlPlaneConfig{}
 	err := config.ParseConfig(cpConfigPath)
 	if err != nil {
-		logger := log.NewLogfmtLogger(os.Stdout)
+		logger = log.With(logger, "caller", log.DefaultCaller)
 		logger.Log("error", err , "configFile", cpConfigPath)
 		return -1
 
 	}
-	logger, err := helpers.NewLogger(&config)
+	logger, err = helpers.NewLogger(&config)
 	if err != nil {
-		level.Error(logger).Log("error", err)
+		logger.Log("error", err)
 		return -1
 	}
 	pluginCatalog, err := loadPlugins()
@@ -90,7 +95,7 @@ func (*ServerCommand) Run(args []string) int {
 		return -1
 	}
 
-	err = initEndpoints(pluginCatalog, logger, &config)
+	err = initEndpoints(pluginCatalog, &config)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
@@ -105,22 +110,29 @@ func (*ServerCommand) Synopsis() string {
 }
 
 func loadPlugins() (*helpers.PluginCatalog, error) {
+	pluginConfigDir, isPathSet := os.LookupEnv("PLUGIN_CONFIG_PATH")
+	if !isPathSet {
+		pluginConfigDir = DefaultPluginConifigDir
+	}
 	pluginCatalog := &helpers.PluginCatalog{
-		PluginConfDirectory: os.Getenv("PLUGIN_CONFIG_PATH"),
+		PluginConfDirectory: pluginConfigDir,
 	}
 	pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
 	pluginCatalog.SetPluginTypeMap(PluginTypeMap)
 	err := pluginCatalog.Run()
 	if err != nil {
 		return nil, err
+		level.Error(logger).Log("error",err)
 	}
 
 	return pluginCatalog, nil
 }
 
-func initEndpoints(pluginCatalog *helpers.PluginCatalog, logger log.Logger, config *helpers.ControlPlaneConfig) error {
+func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.ControlPlaneConfig) error {
 	//Shouldn't we get this by plugin type?
+
 	dataStore := pluginCatalog.GetPlugin("datastore")
+	level.Info(logger).Log("pluginType",reflect.TypeOf(dataStore))
 	dataStoreImpl := dataStore.(datastore.DataStore)
 	registrationService := services.NewRegistrationImpl(dataStoreImpl)
 
