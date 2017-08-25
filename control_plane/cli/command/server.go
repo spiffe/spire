@@ -112,7 +112,7 @@ func (*ServerCommand) Synopsis() string {
 func loadPlugins() (*helpers.PluginCatalog, error) {
 	pluginConfigDir, isPathSet := os.LookupEnv("PLUGIN_CONFIG_PATH")
 	if !isPathSet {
-		pluginConfigDir = DefaultPluginConifigDir
+		pluginConfigDir = DefaultPluginConfigDir
 	}
 	pluginCatalog := &helpers.PluginCatalog{
 		PluginConfDirectory: pluginConfigDir,
