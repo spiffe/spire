@@ -32,7 +32,8 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-// *Represents an empty message
+// *
+// @exclude Represents a message with no fields
 type Empty struct {
 }
 

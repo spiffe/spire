@@ -225,7 +225,7 @@ A type which contains attestation data for specific platform.
 <a name="common.Empty"/>
 
 ### Empty
-Represents an empty message
+
 
 
 

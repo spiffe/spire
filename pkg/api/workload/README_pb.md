@@ -4,25 +4,34 @@
 ## Table of Contents
 
 
+* [common.proto](#common.proto)
+  
+    * [AttestedData](#common.AttestedData)
+  
+    * [Empty](#common.Empty)
+  
+    * [RegistrationEntries](#common.RegistrationEntries)
+  
+    * [RegistrationEntry](#common.RegistrationEntry)
+  
+    * [Selector](#common.Selector)
+  
+    * [Selectors](#common.Selectors)
+  
+  
+  
+  
+
+
 * [workload.proto](#workload.proto)
   
-    * [Empty](#workload.Empty)
+    * [Bundles](#workload.Bundles)
   
-    * [FederateEntry](#workload.FederateEntry)
+    * [SpiffeId](#workload.SpiffeId)
   
-    * [FetchFederatedBundleRequest](#workload.FetchFederatedBundleRequest)
+    * [WorkloadEntry](#workload.WorkloadEntry)
   
-    * [FetchFederatedBundleResponse](#workload.FetchFederatedBundleResponse)
-  
-    * [FetchFederatedBundlesResponse](#workload.FetchFederatedBundlesResponse)
-  
-    * [FetchSVIDBundleRequest](#workload.FetchSVIDBundleRequest)
-  
-    * [FetchSVIDBundleResponse](#workload.FetchSVIDBundleResponse)
-  
-    * [FetchSVIDBundlesResponse](#workload.FetchSVIDBundlesResponse)
-  
-    * [WLSVIDEntry](#workload.WLSVIDEntry)
+    * [WorkloadEntry.SpiffeIdToFederatedBundleEntry](#workload.WorkloadEntry.SpiffeIdToFederatedBundleEntry)
   
   
   
@@ -34,19 +43,30 @@
 
 
 
-<a name="workload.proto"/>
+<a name="common.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## workload.proto
-A workload uses this API to retrieve a list of identities that it should be allowed
-to represent itself as (SPIFFE IDs) as well as, optionally, documents (in the form of
-SPIFFE Verifiable Identity Documents(SVID) ) that can be used to prove those identities to other systems.
-
-Finally, the API can also be used to retrieve trust bundles that can be used to
-verify SVIDs from other SPIFFE-identified workloads.
+## common.proto
 
 
-<a name="workload.Empty"/>
+
+<a name="common.AttestedData"/>
+
+### AttestedData
+A type which contains attestation data for specific platform.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  | Type of attestation to perform. |
+| data | [string](#string) |  | The attestetion data. |
+
+
+
+
+
+
+<a name="common.Empty"/>
 
 ### Empty
 
@@ -56,129 +76,154 @@ verify SVIDs from other SPIFFE-identified workloads.
 
 
 
-<a name="workload.FederateEntry"/>
+<a name="common.RegistrationEntries"/>
 
-### FederateEntry
-represents cert bundle of a remote control plane for the purposes of trusting remote workloads
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  | spiffeid of the remote workload |
-| caTrustBundle | [bytes](#bytes) |  | ASN.1 DER encoded cert bundle |
-| ttl | [int32](#int32) |  | Controls how often a workload consuming this cert bundle should check back for updates. |
-
-
-
-
-
-
-<a name="workload.FetchFederatedBundleRequest"/>
-
-### FetchFederatedBundleRequest
-represents a Federated cert Bundle request corresponding to a specific SPIFFEId
+### RegistrationEntries
+A list of registration entries.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  |  |
+| entries | [RegistrationEntry](#common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
 
 
 
 
 
 
-<a name="workload.FetchFederatedBundleResponse"/>
+<a name="common.RegistrationEntry"/>
 
-### FetchFederatedBundleResponse
-represents cert Bundles that a specific workload&#39;s SPIFFEId is registered to trust
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| FederateEntry | [FederateEntry](#workload.FederateEntry) | repeated | trusted external CA cert bundles of foreign control planes |
-
-
-
-
-
-
-<a name="workload.FetchFederatedBundlesResponse"/>
-
-### FetchFederatedBundlesResponse
-represents all the cert Bundles that a workload is registered to trust
+### RegistrationEntry
+This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| FederateEntry | [FederateEntry](#workload.FederateEntry) | repeated | trusted external CA cert bundles of foreign control planes |
+| selectors | [Selector](#common.Selector) | repeated | A list of selectors. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| ttl | [int32](#int32) |  | Time to live. |
+| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
 
 
 
 
 
 
-<a name="workload.FetchSVIDBundleRequest"/>
+<a name="common.Selector"/>
 
-### FetchSVIDBundleRequest
-represents a workload request for a SVID and the control plane&#39;s cert bundle of a specific SPIFFEID
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="workload.FetchSVIDBundleResponse"/>
-
-### FetchSVIDBundleResponse
-represents a response specific to the requesting workload SPIFFEId,
-Includes the workload&#39;s SVID Entry(SVID and its corresponding information )
-and the Control Plane&#39;s trusted cert bundle
+### Selector
+A type which describes the conditions under which a registration entry is matched.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| WLSVIDEntry | [WLSVIDEntry](#workload.WLSVIDEntry) |  | Workload&#39;s SVID Entry |
-| cpBundle | [bytes](#bytes) |  | Control Plane&#39;s trusted cert bundle |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| value | [string](#string) |  | The value to be attested. |
 
 
 
 
 
 
-<a name="workload.FetchSVIDBundlesResponse"/>
+<a name="common.Selectors"/>
 
-### FetchSVIDBundlesResponse
-represents response the includes all the SVIDs the and Control Plane&#39;s trusted cert bundle workload
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| WLSVIDEntry | [WLSVIDEntry](#workload.WLSVIDEntry) | repeated | list of Workload SVID entries |
-| cpBundle | [bytes](#bytes) |  | Control Plane&#39;s trusted cert bundle |
-
-
-
-
-
-
-<a name="workload.WLSVIDEntry"/>
-
-### WLSVIDEntry
-A WLSVIDEntry represents a Workload&#39;s SVID and its associated information
+### Selectors
+Represents a type with a list of NodeResolution.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  | SPIFFE Id corresponding to the SVID |
-| svid | [bytes](#bytes) |  | ASN.1 DER encoded SVID |
-| privateKey | [bytes](#bytes) |  | private key corresponding to the SVID |
-| ttl | [int32](#int32) |  | Controls how often a workload associated with this SVID should check back for updates. |
+| entries | [Selector](#common.Selector) | repeated | A list of NodeResolution. |
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+ 
+
+
+
+<a name="workload.proto"/>
+<p align="right"><a href="#top">Top</a></p>
+
+## workload.proto
+A workload uses this API to retrieve a list of identities that it should be allowed
+to represent itself as (SPIFFE IDs) as well as, optionally, documents (in the form of
+SPIFFE Verifiable Identity Documents (SVID) ) that can be used to prove those identities to other systems.
+
+Finally, the API can also be used to retrieve trust bundles that can be used to
+verify SVIDs from other SPIFFE-identified workloads.
+
+
+<a name="workload.Bundles"/>
+
+### Bundles
+Represents a list of WorkloadEntry and a Control Plane bundle.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| workload_entry | [WorkloadEntry](#workload.WorkloadEntry) | repeated | Workload&#39;s SVID Entry /// trusted external CA cert bundles of foreign control planes |
+| ttl | [int32](#int32) |  | Controls how often a workload associated with this SVID or cert bundle should check back for updates. |
+
+
+
+
+
+
+<a name="workload.SpiffeId"/>
+
+### SpiffeId
+Represents and SPIFFEId that depending on its association it could be used to
+request for a SVID and the control plane&#39;s cert bundle or request for a Federated cert Bundle.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="workload.WorkloadEntry"/>
+
+### WorkloadEntry
+Depending on the context it represents a Workload&#39;s SVID and its associated information
+or a cert bundle of a remote control plane for the purposes of trusting remote workloads.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  | SPIFFE Id corresponding to the SVID. |
+| svid | [bytes](#bytes) |  | ASN.1 DER encoded SVID. |
+| svid_private_key | [bytes](#bytes) |  | Private key corresponding to the SVID. |
+| control_plane_bundle | [bytes](#bytes) |  | Control Plane&#39;s trusted cert bundle. |
+| spiffe_id_to_federated_bundle | [WorkloadEntry.SpiffeIdToFederatedBundleEntry](#workload.WorkloadEntry.SpiffeIdToFederatedBundleEntry) | repeated | A map of SPIFFE ID =&gt; Federated Bundle (ASN.1 DER encoded cert bundle). |
+
+
+
+
+
+
+<a name="workload.WorkloadEntry.SpiffeIdToFederatedBundleEntry"/>
+
+### WorkloadEntry.SpiffeIdToFederatedBundleEntry
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| key | [string](#string) |  |  |
+| value | [bytes](#bytes) |  |  |
 
 
 
@@ -198,10 +243,8 @@ A WLSVIDEntry represents a Workload&#39;s SVID and its associated information
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchSVIDBundle | [FetchSVIDBundleRequest](#workload.FetchSVIDBundleRequest) | [FetchSVIDBundleResponse](#workload.FetchSVIDBundleRequest) | Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation) |
-| FetchSVIDBundles | [Empty](#workload.Empty) | [FetchSVIDBundlesResponse](#workload.Empty) | Requests all SVIDs and cert bundle of the control plane associated with the workload |
-| FetchFederatedBundle | [FetchFederatedBundleRequest](#workload.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#workload.FetchFederatedBundleRequest) | Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation) |
-| FetchFederatedBundles | [Empty](#workload.Empty) | [FetchFederatedBundlesResponse](#workload.Empty) | Requests all trusted external CA cert bundles associated with the workload |
+| FetchBundles | [SpiffeId](#workload.SpiffeId) | [Bundles](#workload.SpiffeId) | Depending on what the SPIFFEId is associated with,it requests SVID and cert bundle of the control plane corresponding to the SPIFFEIdor requests trusted external CA cert bundles corresponding to the SPIFFEId. |
+| FetchAllBundles | [common.Empty](#common.Empty) | [Bundles](#common.Empty) | Requests all SVIDs and cert bundle of the control plane and all trusted external CA cert bundles associated with the workload. |
 
  
 

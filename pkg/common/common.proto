@@ -1,7 +1,9 @@
 syntax = "proto3";
 package common;
 
-/**Represents an empty message*/
+/**
+ * @exclude Represents a message with no fields
+ */
 message Empty {}
 
 /**A type which contains attestation data for specific platform.*/

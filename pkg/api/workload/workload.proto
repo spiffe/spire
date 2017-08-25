@@ -9,13 +9,15 @@ verify SVIDs from other SPIFFE-identified workloads.
 syntax = "proto3";
 package workload;
 
+import public "github.com/spiffe/sri/pkg/common/common.proto";
+
 service Workload {
     ///Depending on what the SPIFFEId is associated with,
     ///it requests SVID and cert bundle of the control plane corresponding to the SPIFFEId
     ///or requests trusted external CA cert bundles corresponding to the SPIFFEId.
     rpc FetchBundles(SpiffeId) returns (Bundles);
     ///Requests all SVIDs and cert bundle of the control plane and all trusted external CA cert bundles associated with the workload.
-    rpc FetchAllBundles(Empty) returns (Bundles);
+    rpc FetchAllBundles(common.Empty) returns (Bundles);
 }
 
 /**Depending on the context it represents a Workload's SVID and its associated information
@@ -24,8 +26,8 @@ message WorkloadEntry {
     string spiffe_id = 1; /// SPIFFE Id corresponding to the SVID.
     bytes svid = 2; /// ASN.1 DER encoded SVID.
     bytes svid_private_key = 3; /// Private key corresponding to the SVID.
-    bytes ca_trust_bundle = 4; /// ASN.1 DER encoded cert bundle.
-    int32 ttl = 5; /// Controls how often a workload associated with this SVID or cert bundle should check back for updates.
+    bytes control_plane_bundle = 4; /// Control Plane's trusted cert bundle.
+    map<string, bytes> federated_bundles = 5; //A map of SPIFFE ID => Federated Bundle (ASN.1 DER encoded cert bundle).
 }
 
 /**Represents and SPIFFEId that depending on its association it could be used to
@@ -37,10 +39,6 @@ message SpiffeId {
 /**Represents a list of WorkloadEntry and a Control Plane bundle.*/
 message Bundles {
     repeated WorkloadEntry workload_entry = 1; /// Workload's SVID Entry /// trusted external CA cert bundles of foreign control planes
-    bytes control_plane_bundle = 2; /// Control Plane's trusted cert bundle
-}
+    int32 ttl = 2; /// Controls how often a workload associated with this SVID or cert bundle should check back for updates.
 
-/**
- * @exclude Represents a message with no fields
- */
-message Empty {  }
+}
