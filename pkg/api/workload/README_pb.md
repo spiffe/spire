@@ -6,28 +6,28 @@
 
 * [workload.proto](#workload.proto)
   
-    * [Empty](#pb.Empty)
+    * [Empty](#workload.Empty)
   
-    * [FederateEntry](#pb.FederateEntry)
+    * [FederateEntry](#workload.FederateEntry)
   
-    * [FetchFederatedBundleRequest](#pb.FetchFederatedBundleRequest)
+    * [FetchFederatedBundleRequest](#workload.FetchFederatedBundleRequest)
   
-    * [FetchFederatedBundleResponse](#pb.FetchFederatedBundleResponse)
+    * [FetchFederatedBundleResponse](#workload.FetchFederatedBundleResponse)
   
-    * [FetchFederatedBundlesResponse](#pb.FetchFederatedBundlesResponse)
+    * [FetchFederatedBundlesResponse](#workload.FetchFederatedBundlesResponse)
   
-    * [FetchSVIDBundleRequest](#pb.FetchSVIDBundleRequest)
+    * [FetchSVIDBundleRequest](#workload.FetchSVIDBundleRequest)
   
-    * [FetchSVIDBundleResponse](#pb.FetchSVIDBundleResponse)
+    * [FetchSVIDBundleResponse](#workload.FetchSVIDBundleResponse)
   
-    * [FetchSVIDBundlesResponse](#pb.FetchSVIDBundlesResponse)
+    * [FetchSVIDBundlesResponse](#workload.FetchSVIDBundlesResponse)
   
-    * [WLSVIDEntry](#pb.WLSVIDEntry)
-  
-  
+    * [WLSVIDEntry](#workload.WLSVIDEntry)
   
   
-    * [Workload](#pb.Workload)
+  
+  
+    * [Workload](#workload.Workload)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -46,7 +46,7 @@ Finally, the API can also be used to retrieve trust bundles that can be used to
 verify SVIDs from other SPIFFE-identified workloads.
 
 
-<a name="pb.Empty"/>
+<a name="workload.Empty"/>
 
 ### Empty
 
@@ -56,7 +56,7 @@ verify SVIDs from other SPIFFE-identified workloads.
 
 
 
-<a name="pb.FederateEntry"/>
+<a name="workload.FederateEntry"/>
 
 ### FederateEntry
 represents cert bundle of a remote control plane for the purposes of trusting remote workloads
@@ -73,7 +73,7 @@ represents cert bundle of a remote control plane for the purposes of trusting re
 
 
 
-<a name="pb.FetchFederatedBundleRequest"/>
+<a name="workload.FetchFederatedBundleRequest"/>
 
 ### FetchFederatedBundleRequest
 represents a Federated cert Bundle request corresponding to a specific SPIFFEId
@@ -88,7 +88,7 @@ represents a Federated cert Bundle request corresponding to a specific SPIFFEId
 
 
 
-<a name="pb.FetchFederatedBundleResponse"/>
+<a name="workload.FetchFederatedBundleResponse"/>
 
 ### FetchFederatedBundleResponse
 represents cert Bundles that a specific workload&#39;s SPIFFEId is registered to trust
@@ -96,14 +96,14 @@ represents cert Bundles that a specific workload&#39;s SPIFFEId is registered to
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| FederateEntry | [FederateEntry](#pb.FederateEntry) | repeated | trusted external CA cert bundles of foreign control planes |
+| FederateEntry | [FederateEntry](#workload.FederateEntry) | repeated | trusted external CA cert bundles of foreign control planes |
 
 
 
 
 
 
-<a name="pb.FetchFederatedBundlesResponse"/>
+<a name="workload.FetchFederatedBundlesResponse"/>
 
 ### FetchFederatedBundlesResponse
 represents all the cert Bundles that a workload is registered to trust
@@ -111,14 +111,14 @@ represents all the cert Bundles that a workload is registered to trust
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| FederateEntry | [FederateEntry](#pb.FederateEntry) | repeated | trusted external CA cert bundles of foreign control planes |
+| FederateEntry | [FederateEntry](#workload.FederateEntry) | repeated | trusted external CA cert bundles of foreign control planes |
 
 
 
 
 
 
-<a name="pb.FetchSVIDBundleRequest"/>
+<a name="workload.FetchSVIDBundleRequest"/>
 
 ### FetchSVIDBundleRequest
 represents a workload request for a SVID and the control plane&#39;s cert bundle of a specific SPIFFEID
@@ -133,7 +133,7 @@ represents a workload request for a SVID and the control plane&#39;s cert bundle
 
 
 
-<a name="pb.FetchSVIDBundleResponse"/>
+<a name="workload.FetchSVIDBundleResponse"/>
 
 ### FetchSVIDBundleResponse
 represents a response specific to the requesting workload SPIFFEId,
@@ -143,7 +143,7 @@ and the Control Plane&#39;s trusted cert bundle
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| WLSVIDEntry | [WLSVIDEntry](#pb.WLSVIDEntry) |  | Workload&#39;s SVID Entry |
+| WLSVIDEntry | [WLSVIDEntry](#workload.WLSVIDEntry) |  | Workload&#39;s SVID Entry |
 | cpBundle | [bytes](#bytes) |  | Control Plane&#39;s trusted cert bundle |
 
 
@@ -151,7 +151,7 @@ and the Control Plane&#39;s trusted cert bundle
 
 
 
-<a name="pb.FetchSVIDBundlesResponse"/>
+<a name="workload.FetchSVIDBundlesResponse"/>
 
 ### FetchSVIDBundlesResponse
 represents response the includes all the SVIDs the and Control Plane&#39;s trusted cert bundle workload
@@ -159,7 +159,7 @@ represents response the includes all the SVIDs the and Control Plane&#39;s trust
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| WLSVIDEntry | [WLSVIDEntry](#pb.WLSVIDEntry) | repeated | list of Workload SVID entries |
+| WLSVIDEntry | [WLSVIDEntry](#workload.WLSVIDEntry) | repeated | list of Workload SVID entries |
 | cpBundle | [bytes](#bytes) |  | Control Plane&#39;s trusted cert bundle |
 
 
@@ -167,7 +167,7 @@ represents response the includes all the SVIDs the and Control Plane&#39;s trust
 
 
 
-<a name="pb.WLSVIDEntry"/>
+<a name="workload.WLSVIDEntry"/>
 
 ### WLSVIDEntry
 A WLSVIDEntry represents a Workload&#39;s SVID and its associated information
@@ -191,17 +191,17 @@ A WLSVIDEntry represents a Workload&#39;s SVID and its associated information
  
 
 
-<a name="pb.Workload"/>
+<a name="workload.Workload"/>
 
 ### Workload
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchSVIDBundle | [FetchSVIDBundleRequest](#pb.FetchSVIDBundleRequest) | [FetchSVIDBundleResponse](#pb.FetchSVIDBundleRequest) | Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation) |
-| FetchSVIDBundles | [Empty](#pb.Empty) | [FetchSVIDBundlesResponse](#pb.Empty) | Requests all SVIDs and cert bundle of the control plane associated with the workload |
-| FetchFederatedBundle | [FetchFederatedBundleRequest](#pb.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#pb.FetchFederatedBundleRequest) | Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation) |
-| FetchFederatedBundles | [Empty](#pb.Empty) | [FetchFederatedBundlesResponse](#pb.Empty) | Requests all trusted external CA cert bundles associated with the workload |
+| FetchSVIDBundle | [FetchSVIDBundleRequest](#workload.FetchSVIDBundleRequest) | [FetchSVIDBundleResponse](#workload.FetchSVIDBundleRequest) | Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation) |
+| FetchSVIDBundles | [Empty](#workload.Empty) | [FetchSVIDBundlesResponse](#workload.Empty) | Requests all SVIDs and cert bundle of the control plane associated with the workload |
+| FetchFederatedBundle | [FetchFederatedBundleRequest](#workload.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#workload.FetchFederatedBundleRequest) | Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation) |
+| FetchFederatedBundles | [Empty](#workload.Empty) | [FetchFederatedBundlesResponse](#workload.Empty) | Requests all trusted external CA cert bundles associated with the workload |
 
  
 

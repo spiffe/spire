@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-kit/kit/endpoint"
 	"github.com/spiffe/sri/pkg/common"
-	proto "github.com/spiffe/sri/control_plane/api/registration/proto"
+	pb "github.com/spiffe/sri/pkg/api/registration"
 )
 
 // Endpoints collects all of the endpoints that compose an add service. It's
@@ -29,32 +29,32 @@ type CreateEntryRequest struct {
 	Request common.RegistrationEntry
 }
 type CreateEntryResponse struct {
-	Reply proto.RegistrationEntryID
+	Reply pb.RegistrationEntryID
 	Err   error
 }
 type DeleteEntryRequest struct {
-	Request proto.RegistrationEntryID
+	Request pb.RegistrationEntryID
 }
 type DeleteEntryResponse struct {
 	Reply common.RegistrationEntry
 	Err   error
 }
 type FetchEntryRequest struct {
-	Request proto.RegistrationEntryID
+	Request pb.RegistrationEntryID
 }
 type FetchEntryResponse struct {
 	Reply common.RegistrationEntry
 	Err   error
 }
 type UpdateEntryRequest struct {
-	Request proto.UpdateEntryRequest
+	Request pb.UpdateEntryRequest
 }
 type UpdateEntryResponse struct {
 	Reply common.RegistrationEntry
 	Err   error
 }
 type ListByParentIDRequest struct {
-	Request proto.ParentID
+	Request pb.ParentID
 }
 type ListByParentIDResponse struct {
 	Reply common.RegistrationEntries
@@ -68,14 +68,14 @@ type ListBySelectorResponse struct {
 	Err   error
 }
 type ListBySpiffeIDRequest struct {
-	Request proto.SpiffeID
+	Request pb.SpiffeID
 }
 type ListBySpiffeIDResponse struct {
 	Reply common.RegistrationEntries
 	Err   error
 }
 type CreateFederatedBundleRequest struct {
-	Request proto.CreateFederatedBundleRequest
+	Request pb.CreateFederatedBundleRequest
 }
 type CreateFederatedBundleResponse struct {
 	Reply common.Empty
@@ -85,18 +85,18 @@ type ListFederatedBundlesRequest struct {
 	Request common.Empty
 }
 type ListFederatedBundlesResponse struct {
-	Reply proto.ListFederatedBundlesReply
+	Reply pb.ListFederatedBundlesReply
 	Err   error
 }
 type UpdateFederatedBundleRequest struct {
-	Request proto.FederatedBundle
+	Request pb.FederatedBundle
 }
 type UpdateFederatedBundleResponse struct {
 	Reply common.Empty
 	Err   error
 }
 type DeleteFederatedBundleRequest struct {
-	Request proto.FederatedSpiffeID
+	Request pb.FederatedSpiffeID
 }
 type DeleteFederatedBundleResponse struct {
 	Reply common.Empty

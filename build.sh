@@ -101,12 +101,21 @@ build_protobuf() {
         else
             _d=${_dir}
         fi
-        _log_info "processing \"${_n}\""
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --go_out=plugins=grpc:${_d} ${_n}
+        _log_info "creating \"${_n%.proto}.pb.go\""
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
+            --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+            --go_out=plugins=grpc:${_d} ${_n}
         _log_info "creating \"${_d}/README_pb.md\""
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --doc_out=markdown,README_pb.md:${_d} ${_n}
-        _log_info "creating http gateway"
-        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --grpc-gateway_out=logtostderr=true:${_d} ${_n}
+        protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
+            --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+            --doc_out=markdown,README_pb.md:${_d} ${_n}
+        if grep -q 'option (google.api.http)' ${_n}; then
+            _log_info "creating http gateway \"${_n%.proto}.pb.gw.go\""
+            protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
+                --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+                --proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+                --grpc-gateway_out=logtostderr=true:${_d} ${_n}
+        fi
     done
 }
 

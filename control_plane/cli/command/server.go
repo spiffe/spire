@@ -21,7 +21,7 @@ import (
 	"github.com/spiffe/sri/pkg/server/noderesolver"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
 
-	registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
+	pb "github.com/spiffe/sri/pkg/api/registration"
 	"github.com/spiffe/sri/control_plane/endpoints/registration"
 	"github.com/spiffe/sri/control_plane/endpoints/server"
 
@@ -182,7 +182,7 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.Control
 		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
 		gRPCServer := grpc.NewServer()
 		sriplugin.RegisterServerServer(gRPCServer, serverHandler)
-		registration_proto.RegisterRegistrationServer(gRPCServer, registrationHandler)
+		pb.RegisterRegistrationServer(gRPCServer, registrationHandler)
 		errChan <- gRPCServer.Serve(listener)
 	}()
 
@@ -194,7 +194,7 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.Control
 		mux := runtime.NewServeMux()
 		opts := []grpc.DialOption{grpc.WithInsecure()}
 		logger.Log("http:", *httpAddr)
-		err := registration_proto.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
+		err := pb.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
 		if err != nil {
 			errChan <- err
 			return
