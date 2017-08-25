@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	DefaultCPConifigPath = ".conf/default_cp_config.hcl"
-	DefaultPluginConfigDir = "plugins/.conf"
+	DefaultServerConifigPath = ".conf/default_server_config.hcl"
+	DefaultPluginConfigDir   = "../../plugin/server/.conf"
 )
 
 
@@ -70,9 +70,9 @@ func (*ServerCommand) Help() string {
 
 //Run the server command
 func (*ServerCommand) Run(args []string) int {
-	cpConfigPath, isPathSet := os.LookupEnv("CP_CONFIG_PATH")
+	cpConfigPath, isPathSet := os.LookupEnv("SPIRE_SERVER_CONFIG")
 	if !isPathSet {
-		cpConfigPath = DefaultCPConifigPath
+		cpConfigPath = DefaultServerConifigPath
 	}
 
 
@@ -95,7 +95,7 @@ func (*ServerCommand) Run(args []string) int {
 		return -1
 	}
 
-	err = initEndpoints(pluginCatalog, &config)
+	err = initEndpoints(pluginCatalog)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
@@ -110,7 +110,7 @@ func (*ServerCommand) Synopsis() string {
 }
 
 func loadPlugins() (*helpers.PluginCatalog, error) {
-	pluginConfigDir, isPathSet := os.LookupEnv("PLUGIN_CONFIG_PATH")
+	pluginConfigDir, isPathSet := os.LookupEnv("SPIRE_PLUGIN_CONFIG_DIR")
 	if !isPathSet {
 		pluginConfigDir = DefaultPluginConfigDir
 	}
@@ -128,7 +128,7 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 	return pluginCatalog, nil
 }
 
-func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.ControlPlaneConfig) error {
+func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	//Shouldn't we get this by plugin type?
 
 	dataStore := pluginCatalog.GetPlugin("datastore")

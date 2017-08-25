@@ -1,5 +1,5 @@
-# Control Plane  
-Control plane is responsible for validating and signing all CSRs in the SPIFFE trust domain. Validation is performed through platform-specific Attestation plugins, as well as policy enforcement backed by the Control Plane datastore.
+# SPIRE Server  
+SPIRE Server is responsible for validating and signing all CSRs in the SPIFFE trust domain. Validation is performed through platform-specific Attestation plugins, as well as policy enforcement backed by the SPIRE Server datastore.
 
 
 
@@ -11,29 +11,30 @@ Get the latest binary for [OS X](https://get.spiffe.io/osx/controlplane), [Windo
 or [Linux](https://get.spiffe.io/linux/controlplane) and place it in your `$PATH` similar to `wget -O /usr/local/bin/controlplane https://get.spiffe.io/osx/controlplane && chmod 755 /usr/local/bin/controlplane`. 
 
 
-Set the env variable `CP_CONFIG_PATH` to point to the hcl config file. 
-The config file should contain the following configuration:
-````
- trustDomain = "" //The SPIFFE trustDomain of the Control Plane.
- nodeAPIGRPCPort = "8086" //The GRPC port where the NodeAPI Service is set to listen
- registrationAPIGRPCPort= "8086" //The GRPC port where the RegistrationAPI Service is set to listen
- nodeAPIHTTPPort = "8086" //The HTTP port where the NodeAPI Service is set to listen
- registrationAPIHTTPPort= "8086" //The HTTP port where the RegistrationAPI Service is set to listen
- logFile = "../log/controlplane.log" // Specifies path to log file
- logLevel = "DEBUG" //Specifies log level one of (DEBUG|INFO|WARN|ERROR)
+Set `SPIRE_SERVER_CONFIG` enivironment variable to point to the server config file. 
+Ser `SPIRE_PLUGIN_CONFIG_DIR` enivironment variable to point to the plugin configurations directory.
 
-````
-To Start the Control Plane run the command:
 
-`control_plane server`
+SPIRE-SERVER configuration:
 
-if `control_plane server` returns immediately look at the configured `logFile` for errors
 
-To list all the active plugin-info run:
+ |Configuration          | Description                                                          |
+ |-----------------------|----------------------------------------------------------------------|
+ |trustDomain            |  SPIFFE trustDomain of the SPIRE Server                              |
+ |nodeAPIGRPCPort        |  The GRPC port where the NodeAPI Service is set to listen            |
+ |registrationAPIGRPCPort|  The GRPC port where the RegistrationAPI Service is set to listen    |
+ |nodeAPIHTTPPort        |  The HTTP port where the NodeAPI Service is set to listen            |
+ |registrationAPIHTTPPort|  The HTTP port where the RegistrationAPI Service is set to listen    |
+ |logFile                |  Sets the path to log file                                           |
+ |logLevel               |  Sets the logging level DEBUG|INFO|WARN|ERROR>                      |
 
-`control_plane plugin-info`
 
-To stop the control plan run:
+[default configuration file](../.conf/default_server_config.hcl) 
 
-`control_plane stop`
 
+SPIRE-SERVER commands:
+ |Command                   | Action                                                           |
+ |--------------------------|------------------------------------------------------------------|
+ |`spire-server server`     |  Starts the SPIRE Server                                         |
+ |`spire-server plugin-info`|  Lists all currently enabled SPIRE server plugins' information   |
+ |`spire-server stop`       |  Stops the SPIRE Server                                          |

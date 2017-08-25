@@ -2,23 +2,27 @@ package main
 
 import (
 	"testing"
+	"crypto/x509"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/agent/keymanager"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMemory_GenerateKeyPair(t *testing.T) {
 	var plugin MemoryPlugin
 	data, e := plugin.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
-	assert.Equal(t, &keymanager.GenerateKeyPairResponse{}, data)
-	assert.Equal(t, nil, e)
+	assert.NoError(t,e)
+	x509.ParseECPrivateKey(data.PrivateKey)
+	assert.NotEmpty(t,data)
 }
 
 func TestMemory_FetchPrivateKey(t *testing.T) {
 	var plugin MemoryPlugin
-	data, e := plugin.FetchPrivateKey(&keymanager.FetchPrivateKeyRequest{})
-	assert.Equal(t, &keymanager.FetchPrivateKeyResponse{}, data)
+	data, e :=plugin.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
+	priv, e := plugin.FetchPrivateKey(&keymanager.FetchPrivateKeyRequest{})
+	assert.Equal(t, priv.PrivateKey, data.PrivateKey)
 	assert.Equal(t, nil, e)
 }
 
