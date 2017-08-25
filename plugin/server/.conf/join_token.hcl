@@ -1,7 +1,7 @@
 pluginName = "join_token" //needs to match the name used in plugin serverConfig
 
-pluginCmd = "../node_attestor/join_token/join_token"
-pluginChecksum = "7d4570a061d4d2a556d26a11c6cb7641e5ce1523a2a47ea4c73b2ede973afa0a"
+pluginCmd = "../../plugin/server/nodeattestor-jointoken/nodeattestor-jointoken"
+pluginChecksum = ""
 enabled = true
 pluginType = "NodeAttestor" //needs to match the handshake
 pluginData {

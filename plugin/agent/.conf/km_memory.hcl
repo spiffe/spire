@@ -1,5 +1,5 @@
 pluginName = "km_memory"
-pluginCmd = "plugins/key_manager/memory/memory"
+pluginCmd = "../../plugin/agent/keymanager-memory/keymanager-memory"
 pluginChecksum = ""
 enabled = true
 pluginType = "KeyManager"
