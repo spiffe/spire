@@ -1,20 +1,26 @@
-[{
-  "selectorList": [{
-    "type": "Type1",
-    "value": "Value1"
-  }],
-  "spiffeId": "SpiffeId1",
-  "ttl": 1
-},
+[
   {
-    "selectorList": [{
-      "type": "Type1",
-      "value": "Value1"
-    },
+    "selectors": [
+      {
+        "type": "Type1",
+        "value": "Value1"
+      }
+    ],
+    "spiffe_id": "SpiffeId1",
+    "ttl": 1
+  },
+  {
+    "selectors": [
+      {
+        "type": "Type1",
+        "value": "Value1"
+      },
       {
         "type": "Type2",
         "value": "Value2"
-      }],
-    "spiffeId": "SpiffeId2",
+      }
+    ],
+    "spiffe_id": "SpiffeId2",
     "ttl": 3
-  }]
+  }
+]

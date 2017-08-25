@@ -48,20 +48,16 @@ func MakeGRPCServer(endpoints Endpoints) (req pb.NodeServer) {
 
 // DecodeGRPCFetchBaseSVIDRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func DecodeGRPCFetchBaseSVIDRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'FetchBaseSVID' Decoder is not impelement")
-	return req, err
+	temp := grpcReq.(*pb.FetchBaseSVIDRequest)
+	return FetchBaseSVIDRequest{Request: *temp}, err
 }
 
 // EncodeGRPCFetchBaseSVIDResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
 func EncodeGRPCFetchBaseSVIDResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'FetchBaseSVID' Encoder is not impelement")
-	return res, err
+	temp := grpcReply.(FetchBaseSVIDResponse)
+	return &temp.Response, err
 }
 
 func (s *grpcServer) FetchBaseSVID(ctx oldcontext.Context, req *pb.FetchBaseSVIDRequest) (rep *pb.FetchBaseSVIDResponse, err error) {
