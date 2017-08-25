@@ -1,0 +1,58 @@
+/**Responsible for processing CSR requests from Node Agents if the Control Plane is configured to carry an intermediate signing certificate.
+This plugin is also responsible for generating the CSR necessary for an intermediate signing cert, as well as storing the key in memory or hardware.*/
+syntax = "proto3";
+package ca;
+
+import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
+
+/**Represents a request with a certificate signing request.*/
+message SignCsrRequest {
+    bytes csr = 1; ///Certificate signing request.
+}
+
+/**Represents a response with a signed certificate.*/
+message SignCsrResponse {
+    bytes signedCertificate = 1; ///Signed certificate.
+}
+
+/**Represents an empty request.*/
+message GenerateCsrRequest {
+}
+
+/**Represents a response with a certificate signing request.*/
+message GenerateCsrResponse {
+    bytes csr = 1; ///Certificate signing request.
+}
+
+/**Represents an empty request.*/
+message FetchCertificateRequest {
+}
+
+/**Represents a response with a stored intermediate certificate.*/
+message FetchCertificateResponse {
+    bytes storedIntermediateCert = 1; ///Stored intermediate certificate.
+}
+
+/**Represents a request with a signed intermediate certificate.*/
+message LoadCertificateRequest {
+    bytes signedIntermediateCert = 1; ///Signed intermediate certificate.
+}
+
+/**Represents an empty response.*/
+message LoadCertificateResponse {
+}
+
+service ControlPlaneCA {
+    /** Responsible for configuration of the plugin. */
+    rpc Configure(sriplugin.ConfigureRequest) returns (sriplugin.ConfigureResponse);
+    /** Returns the  version and related metadata of the installed plugin. */
+    rpc GetPluginInfo(sriplugin.GetPluginInfoRequest) returns (sriplugin.GetPluginInfoResponse);
+    /** Interface will take in a CSR and sign it with the stored intermediate certificate. */
+    rpc SignCsr(SignCsrRequest) returns (SignCsrResponse);
+    /** Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. */
+    rpc GenerateCsr(GenerateCsrRequest) returns (GenerateCsrResponse);
+    /** Used to read the stored Intermediate CP cert. */
+    rpc FetchCertificate(FetchCertificateRequest) returns (FetchCertificateResponse);
+    /** Used for setting/storing the signed intermediate certificate. */
+    rpc LoadCertificate(LoadCertificateRequest) returns (LoadCertificateResponse);
+}

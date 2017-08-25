@@ -15,11 +15,11 @@ import (
 
 	"github.com/spiffe/sri/pkg/common/plugin"
 
-	"github.com/spiffe/sri/control_plane/plugins/control_plane_ca"
-	"github.com/spiffe/sri/control_plane/plugins/data_store"
-	cpnodeattestor "github.com/spiffe/sri/control_plane/plugins/node_attestor"
-	"github.com/spiffe/sri/control_plane/plugins/node_resolver"
-	"github.com/spiffe/sri/control_plane/plugins/upstream_ca"
+	"github.com/spiffe/sri/pkg/server/ca"
+	"github.com/spiffe/sri/pkg/server/datastore"
+	"github.com/spiffe/sri/pkg/server/nodeattestor"
+	"github.com/spiffe/sri/pkg/server/noderesolver"
+	"github.com/spiffe/sri/pkg/server/upstreamca"
 
 	registration_proto "github.com/spiffe/sri/control_plane/api/registration/proto"
 	"github.com/spiffe/sri/control_plane/endpoints/registration"
@@ -42,11 +42,11 @@ const (
 var (
 
 	PluginTypeMap = map[string]plugin.Plugin{
-		"ControlPlaneCA":   &controlplaneca.ControlPlaneCaPlugin{},
+		"ControlPlaneCA":   &ca.ControlPlaneCaPlugin{},
 		"DataStore":        &datastore.DataStorePlugin{},
 		"NodeResolver":     &noderesolver.NodeResolverPlugin{},
 		"UpstreamCA":       &upstreamca.UpstreamCaPlugin{},
-		"CPNodeAttestor":   &cpnodeattestor.NodeAttestorPlugin{},
+		"CPNodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
 	}
 
 	MaxPlugins = map[string]int{
