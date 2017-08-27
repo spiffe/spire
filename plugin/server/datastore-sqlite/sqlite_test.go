@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"encoding/json"
+
+	"github.com/spiffe/sri/helpers/testutil"
 	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/server/datastore"
 	"github.com/stretchr/testify/assert"
@@ -417,6 +419,22 @@ func Test_GetPluginInfo(t *testing.T) {
 	resp, err := ds.GetPluginInfo(&sriplugin.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
+}
+
+func Test_race(t *testing.T) {
+	ds := createDefault(t)
+
+	entry := &datastore.AttestedNodeEntry{
+		BaseSpiffeId:       "foo",
+		AttestedDataType:   "aws-tag",
+		CertSerialNumber:   "badcafe",
+		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+	}
+
+	testutil.RaceTest(t, func(t *testing.T) {
+		ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{entry})
+		ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
+	})
 }
 
 func createDefault(t *testing.T) datastore.DataStore {
