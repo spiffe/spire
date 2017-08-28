@@ -23,21 +23,23 @@ func TestMemory_GenerateKeyPair(t *testing.T) {
 func TestMemory_FetchPrivateKey(t *testing.T) {
 	var plugin MemoryPlugin
 	data, e :=plugin.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
+	assert.NoError(t,err)
+
 	priv, e := plugin.FetchPrivateKey(&keymanager.FetchPrivateKeyRequest{})
+	assert.NoError(t,err)
 	assert.Equal(t, priv.PrivateKey, data.PrivateKey)
-	assert.Equal(t, nil, e)
 }
 
 func TestMemory_Configure(t *testing.T) {
 	var plugin MemoryPlugin
 	data, e := plugin.Configure(&sriplugin.ConfigureRequest{})
 	assert.Equal(t, &sriplugin.ConfigureResponse{}, data)
-	assert.Equal(t, nil, e)
+	assert.NoError(t,err)
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
 	var plugin MemoryPlugin
 	data, e := plugin.GetPluginInfo(&sriplugin.GetPluginInfoRequest{})
 	assert.Equal(t, &sriplugin.GetPluginInfoResponse{}, data)
-	assert.Equal(t, nil, e)
+	assert.NoError(t,err)
 }
