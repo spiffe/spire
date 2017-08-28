@@ -3,6 +3,7 @@ package pkg_test
 import (
 	"testing"
 
+	"github.com/spiffe/sri/helpers/testutil"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
 	"github.com/spiffe/sri/plugin/server/upstreamca-memory/pkg"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,14 @@ func TestMemory_GetPluginInfo(t *testing.T) {
 
 func TestMemory_SubmitCSR(t *testing.T) {
 	t.SkipNow()
+}
+
+func TestMemory_race(t *testing.T) {
+	m := createDefault(t)
+	testutil.RaceTest(t, func(t *testing.T) {
+		m.Configure("TODO")
+		m.SubmitCSR([]byte("TODO"))
+	})
 }
 
 func createDefault(t *testing.T) upstreamca.UpstreamCa {

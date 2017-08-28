@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/sri/helpers/testutil"
 	common "github.com/spiffe/sri/pkg/common"
 	iface "github.com/spiffe/sri/pkg/common/plugin"
 
@@ -95,4 +96,14 @@ func TestJoinToken_GetPluginInfo(t *testing.T) {
 	data, e := plugin.GetPluginInfo(&iface.GetPluginInfoRequest{})
 	assert.Nil(t, e)
 	assert.Equal(t, &iface.GetPluginInfoResponse{}, data)
+}
+
+func TestJoinToken_race(t *testing.T) {
+	p := New()
+	testutil.RaceTest(t, func(t *testing.T) {
+		p.Configure(&iface.ConfigureRequest{
+			Configuration: config,
+		})
+		p.Attest(AttestRequestGenerator("foo"))
+	})
 }

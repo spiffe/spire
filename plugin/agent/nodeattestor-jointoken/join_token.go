@@ -5,10 +5,11 @@ import (
 	"errors"
 	"net/url"
 	"path"
+	"sync"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/agent/nodeattestor"
+	"github.com/spiffe/sri/pkg/common/plugin"
 )
 
 type JoinTokenConfig struct {
@@ -19,6 +20,8 @@ type JoinTokenConfig struct {
 type JoinTokenPlugin struct {
 	joinToken   string
 	trustDomain string
+
+	mtx *sync.RWMutex
 }
 
 func (p *JoinTokenPlugin) spiffeID() *url.URL {
@@ -33,6 +36,9 @@ func (p *JoinTokenPlugin) spiffeID() *url.URL {
 }
 
 func (p *JoinTokenPlugin) FetchAttestationData(req *nodeattestor.FetchAttestationDataRequest) (*nodeattestor.FetchAttestationDataResponse, error) {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
 	if p.joinToken == "" {
 		err := errors.New("Join token attestation attempted but no token provided")
 		return &nodeattestor.FetchAttestationDataResponse{}, err
@@ -54,6 +60,9 @@ func (p *JoinTokenPlugin) FetchAttestationData(req *nodeattestor.FetchAttestatio
 }
 
 func (p *JoinTokenPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
 	// Parse JSON config payload into config struct
 	config := &JoinTokenConfig{}
 	if err := json.Unmarshal([]byte(req.Configuration), &config); err != nil {
@@ -74,11 +83,17 @@ func (*JoinTokenPlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplug
 	return &sriplugin.GetPluginInfoResponse{}, nil
 }
 
+func New() nodeattestor.NodeAttestor {
+	return &JoinTokenPlugin{
+		mtx: &sync.RWMutex{},
+	}
+}
+
 func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: nodeattestor.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"join_token": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: &JoinTokenPlugin{}},
+			"join_token": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: New()},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

@@ -62,7 +62,7 @@ func (memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
-func (m memoryPlugin) SignCsr(csrPEM []byte) ([]byte, error) {
+func (m *memoryPlugin) SignCsr(csrPEM []byte) ([]byte, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -136,7 +136,7 @@ func (m *memoryPlugin) GenerateCsr() ([]byte, error) {
 	}), nil
 }
 
-func (m memoryPlugin) FetchCertificate() ([]byte, error) {
+func (m *memoryPlugin) FetchCertificate() ([]byte, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
