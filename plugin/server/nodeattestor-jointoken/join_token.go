@@ -96,6 +96,12 @@ func (*JoinTokenPlugin) GetPluginInfo(*common.GetPluginInfoRequest) (*common.Get
 	return &common.GetPluginInfoResponse{}, nil
 }
 
+func New() nodeattestor.NodeAttestor {
+	return &JoinTokenPlugin{
+		mtx: &sync.Mutex{},
+	}
+}
+
 func main() {
 	p := &JoinTokenPlugin{
 		mtx: &sync.Mutex{},

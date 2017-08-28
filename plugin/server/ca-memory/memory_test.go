@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"testing"
 
+	"github.com/spiffe/sri/helpers/testutil"
 	"github.com/spiffe/sri/pkg/server/ca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,6 +67,28 @@ func TestMemory_bootstrap(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, wcert)
+}
+
+func TestMemory_race(t *testing.T) {
+	m := createDefault(t)
+
+	ca, err := upca.NewWithDefault()
+	require.NoError(t, err)
+
+	csr, err := m.GenerateCsr()
+	require.NoError(t, err)
+
+	cresp, err := ca.SubmitCSR(csr)
+	require.NoError(t, err)
+
+	wcsr := createWorkloadCSR(t)
+
+	testutil.RaceTest(t, func(t *testing.T) {
+		m.GenerateCsr()
+		m.LoadCertificate(cresp.Cert)
+		m.FetchCertificate()
+		m.SignCsr(wcsr)
+	})
 }
 
 func createDefault(t *testing.T) ca.ControlPlaneCa {

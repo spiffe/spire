@@ -33,7 +33,17 @@ SPIRE-SERVER configuration:
  |logLevel               |  Sets the logging level DEBUG|INFO|WARN|ERROR>                      |
 
 
-[default configuration file](../.conf/default_server_config.hcl) 
+[default configuration file](./.conf/default_server_config.hcl) 
+
+```
+logFile = "spire-server.log"//<PATH_TO_LOG_FILE>
+logLevel = "DEBUG" //one of <DEBUG|INFO|WARN|ERROR> 
+nodeAPIGRPCPort = "8086" 
+registrationAPIGRPCPort ="8087"
+nodeAPIHTTPPort = "8088"
+registrationAPIHTTPPort ="8089"
+trustDomain = "spiffe://"
+```
 
 
 SPIRE-SERVER commands:
