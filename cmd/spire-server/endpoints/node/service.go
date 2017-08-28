@@ -42,17 +42,36 @@ func NewService(
 // Implement the business logic of FetchBaseSVID
 func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
 	//check if this was not already attested
-	attestedBefore := false
 	// if attestedBefore, err = no.attestation.IsAttested(baseSpiffeID); err != nil {
 	// 	return response, err
 	// }
 
 	//Attest the node and get baseSpiffeID
+	baseSpiffeIDFromCSR, err := no.ca.GetSpiffeIDFromCSR(request.Csr)
+	if err != nil {
+		return
+	}
+
+	attestedBefore, err := no.attestation.IsAttested(baseSpiffeIDFromCSR)
+	if err != nil {
+		return
+
+	}
 	var attestResponse *nodeattestor.AttestResponse
+
 	attestResponse, err = no.attestation.Attest(request.AttestedData, attestedBefore)
+	if err != nil {
+		return
+	}
+
 	//Validate
 	if !attestResponse.Valid {
 		return response, errors.New("Invalid")
+	}
+
+	//check if baseSPIFFEID in attest response matches with SPIFFEID in CSR
+	if attestResponse.BaseSPIFFEID != baseSpiffeIDFromCSR {
+		return response, errors.New("BaseSPIFFEID MisMatch")
 	}
 
 	//Sign csr
