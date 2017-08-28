@@ -19,6 +19,9 @@ type MemoryPlugin struct{
 func (m *MemoryPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (key *keymanager.GenerateKeyPairResponse, err error) {
 	m.key,err = ecdsa.GenerateKey(elliptic.P521(),rand.Reader)
 	privateKey,err := x509.MarshalECPrivateKey(m.key)
+	if err != nil{
+		return
+	}
 	publicKey, err := x509.MarshalPKIXPublicKey(&m.key.PublicKey)
 	key = &keymanager.GenerateKeyPairResponse{publicKey, privateKey}
 	return
