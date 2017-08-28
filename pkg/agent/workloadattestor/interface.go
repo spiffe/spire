@@ -17,29 +17,29 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "WorkloadAttestor",
 }
 
-type WorkloadAttestor interface {
+type Interface interface {
 	Attest(*AttestRequest) (*AttestResponse, error)
 	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
 	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
-type WorkloadAttestorPlugin struct {
-	WorkloadAttestorImpl WorkloadAttestor
+type Plugin struct {
+	Delegate Interface
 }
 
-func (p WorkloadAttestorPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
+func (p Plugin) Server(*plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p WorkloadAttestorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p Plugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p WorkloadAttestorPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterWorkloadAttestorServer(s, &GRPCServer{WorkloadAttestorImpl: p.WorkloadAttestorImpl})
+func (p Plugin) GRPCServer(s *grpc.Server) error {
+	RegisterWorkloadAttestorServer(s, &grpcServer{delegate: p.Delegate})
 	return nil
 }
 
-func (p WorkloadAttestorPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: NewWorkloadAttestorClient(c)}, nil
+func (p Plugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &grpcClient{client: NewWorkloadAttestorClient(c)}, nil
 }

@@ -21,48 +21,45 @@ import (
 	"github.com/spiffe/sri/pkg/server/noderesolver"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
 
-	pb "github.com/spiffe/sri/pkg/api/registration"
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/registration"
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/server"
+	pb "github.com/spiffe/sri/pkg/api/registration"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/hashicorp/go-plugin"
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/services"
 	"reflect"
 )
 
 const (
-	DefaultCPConifigPath = ".conf/default_cp_config.hcl"
+	DefaultCPConifigPath   = ".conf/default_cp_config.hcl"
 	DefaultPluginConfigDir = "plugins/.conf"
 )
 
-
 var (
-
 	PluginTypeMap = map[string]plugin.Plugin{
-		"ControlPlaneCA":   &ca.ControlPlaneCaPlugin{},
-		"DataStore":        &datastore.DataStorePlugin{},
-		"NodeResolver":     &noderesolver.NodeResolverPlugin{},
-		"UpstreamCA":       &upstreamca.UpstreamCaPlugin{},
-		"CPNodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
+		"ControlPlaneCA": &ca.Plugin{},
+		"DataStore":      &datastore.Plugin{},
+		"NodeResolver":   &noderesolver.Plugin{},
+		"UpstreamCA":     &upstreamca.Plugin{},
+		"CPNodeAttestor": &nodeattestor.Plugin{},
 	}
 
 	MaxPlugins = map[string]int{
-		"ControlPlaneCA":   1,
-		"DataStore":        1,
-		"NodeResolver":     1,
-		"UpstreamCA":       1,
-		"CPNodeAttestor":   1,
-
+		"ControlPlaneCA": 1,
+		"DataStore":      1,
+		"NodeResolver":   1,
+		"UpstreamCA":     1,
+		"CPNodeAttestor": 1,
 	}
 	logger = log.NewLogfmtLogger(os.Stdout)
-
 )
 
 type ServerCommand struct {
 }
+
 //Help returns how to use the server command
 func (*ServerCommand) Help() string {
 	return "Usage: spire-server server"
@@ -75,12 +72,11 @@ func (*ServerCommand) Run(args []string) int {
 		cpConfigPath = DefaultCPConifigPath
 	}
 
-
 	config := helpers.ControlPlaneConfig{}
 	err := config.ParseConfig(cpConfigPath)
 	if err != nil {
 		logger = log.With(logger, "caller", log.DefaultCaller)
-		logger.Log("error", err , "configFile", cpConfigPath)
+		logger.Log("error", err, "configFile", cpConfigPath)
 		return -1
 
 	}
@@ -122,7 +118,7 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 	err := pluginCatalog.Run()
 	if err != nil {
 		return nil, err
-		level.Error(logger).Log("error",err)
+		level.Error(logger).Log("error", err)
 	}
 
 	return pluginCatalog, nil
@@ -132,9 +128,9 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.Control
 	//Shouldn't we get this by plugin type?
 
 	dataStore := pluginCatalog.GetPlugin("datastore")
-	level.Info(logger).Log("pluginType",reflect.TypeOf(dataStore))
-	dataStoreImpl := dataStore.(datastore.DataStore)
-	registrationService := services.NewRegistrationImpl(dataStoreImpl)
+	level.Info(logger).Log("pluginType", reflect.TypeOf(dataStore))
+	dataStoreImpl := dataStore.(datastore.Interface)
+	registrationService := services.NewRegistration(dataStoreImpl)
 
 	errChan := makeErrorChannel()
 	var serverSvc server.ServerService

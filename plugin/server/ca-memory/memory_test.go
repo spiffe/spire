@@ -68,7 +68,7 @@ func TestMemory_bootstrap(t *testing.T) {
 	assert.NotEmpty(t, wcert)
 }
 
-func createDefault(t *testing.T) ca.ControlPlaneCa {
+func createDefault(t *testing.T) ca.Interface {
 	m, err := NewWithDefault()
 	require.NoError(t, err)
 	return m

@@ -104,7 +104,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: nodeattestor.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"join_token": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: p},
+			"join_token": nodeattestor.Plugin{Delegate: p},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

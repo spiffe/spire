@@ -14,7 +14,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: upstreamca.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"upstreamca": upstreamca.UpstreamCaPlugin{UpstreamCaImpl: ca},
+			"upstreamca": upstreamca.Plugin{Delegate: ca},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

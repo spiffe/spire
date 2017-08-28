@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/agent/workloadattestor"
+	"github.com/spiffe/sri/pkg/common/plugin"
 )
 
 type SecretFilePlugin struct{}
@@ -24,7 +24,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: workloadattestor.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"wla_secret_file": workloadattestor.WorkloadAttestorPlugin{WorkloadAttestorImpl: &SecretFilePlugin{}},
+			"wla_secret_file": workloadattestor.Plugin{Delegate: &SecretFilePlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

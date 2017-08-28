@@ -20,7 +20,7 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "DataStore",
 }
 
-type DataStore interface {
+type Interface interface {
 	CreateFederatedEntry(request *CreateFederatedEntryRequest) (*CreateFederatedEntryResponse, error)
 	ListFederatedEntry(request *ListFederatedEntryRequest) (*ListFederatedEntryResponse, error)
 	UpdateFederatedEntry(request *UpdateFederatedEntryRequest) (*UpdateFederatedEntryResponse, error)
@@ -50,23 +50,23 @@ type DataStore interface {
 	GetPluginInfo(request *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
-type DataStorePlugin struct {
-	DataStoreImpl DataStore
+type Plugin struct {
+	Delegate Interface
 }
 
-func (p DataStorePlugin) Server(*plugin.MuxBroker) (interface{}, error) {
+func (p Plugin) Server(*plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p DataStorePlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p Plugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p DataStorePlugin) GRPCServer(s *grpc.Server) error {
-	RegisterDataStoreServer(s, &GRPCServer{DataStoreImpl: p.DataStoreImpl})
+func (p Plugin) GRPCServer(s *grpc.Server) error {
+	RegisterDataStoreServer(s, &grpcServer{delegate: p.Delegate})
 	return nil
 }
 
-func (p DataStorePlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: NewDataStoreClient(c)}, nil
+func (p Plugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &grpcClient{client: NewDataStoreClient(c)}, nil
 }

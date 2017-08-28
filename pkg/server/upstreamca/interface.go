@@ -16,29 +16,29 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "UpstreamCA",
 }
 
-type UpstreamCa interface {
+type Interface interface {
 	Configure(config string) ([]string, error)
 	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
 	SubmitCSR([]byte) (*SubmitCSRResponse, error)
 }
 
-type UpstreamCaPlugin struct {
-	UpstreamCaImpl UpstreamCa
+type Plugin struct {
+	Delegate Interface
 }
 
-func (p UpstreamCaPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
+func (p Plugin) Server(*plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p UpstreamCaPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p Plugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p UpstreamCaPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterUpstreamCAServer(s, &GRPCServer{UpstreamCaImpl: p.UpstreamCaImpl})
+func (p Plugin) GRPCServer(s *grpc.Server) error {
+	RegisterUpstreamCAServer(s, &grpcServer{delegate: p.Delegate})
 	return nil
 }
 
-func (p UpstreamCaPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: NewUpstreamCAClient(c)}, nil
+func (p Plugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &grpcClient{client: NewUpstreamCAClient(c)}, nil
 }

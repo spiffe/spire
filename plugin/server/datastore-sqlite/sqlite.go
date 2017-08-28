@@ -486,7 +486,7 @@ func (sqlitePlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.G
 	return &pluginInfo, nil
 }
 
-func New() (datastore.DataStore, error) {
+func New() (datastore.Interface, error) {
 	db, err := gorm.Open("sqlite3", ":memory:")
 	if err != nil {
 		return nil, err
@@ -513,7 +513,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: datastore.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"datastore": datastore.DataStorePlugin{DataStoreImpl: impl},
+			"datastore": datastore.Plugin{Delegate: impl},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

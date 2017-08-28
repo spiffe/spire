@@ -7,8 +7,8 @@ import (
 	"path"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/agent/nodeattestor"
+	"github.com/spiffe/sri/pkg/common/plugin"
 )
 
 type JoinTokenConfig struct {
@@ -78,7 +78,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: nodeattestor.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"join_token": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: &JoinTokenPlugin{}},
+			"join_token": nodeattestor.Plugin{Delegate: &JoinTokenPlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

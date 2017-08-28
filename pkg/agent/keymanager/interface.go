@@ -17,30 +17,30 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "KeyManager",
 }
 
-type KeyManager interface {
+type Interface interface {
 	GenerateKeyPair(*GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
 	FetchPrivateKey(*FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
 	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
 	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
-type KeyManagerPlugin struct {
-	KeyManagerImpl KeyManager
+type Plugin struct {
+	Delegate Interface
 }
 
-func (p KeyManagerPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
+func (p Plugin) Server(*plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p KeyManagerPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p Plugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p KeyManagerPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterKeyManagerServer(s, &GRPCServer{KeyManagerImpl: p.KeyManagerImpl})
+func (p Plugin) GRPCServer(s *grpc.Server) error {
+	RegisterKeyManagerServer(s, &grpcServer{delegate: p.Delegate})
 	return nil
 }
 
-func (p KeyManagerPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: NewKeyManagerClient(c)}, nil
+func (p Plugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &grpcClient{client: NewKeyManagerClient(c)}, nil
 }

@@ -11,18 +11,18 @@ type Registration interface {
 	FetchEntry(registeredID string) (entry *common.RegistrationEntry, err error)
 }
 
-//RegistrationImpl is an implementation of the Registration interface.
-type RegistrationImpl struct {
-	dataStore ds.DataStore
+//registrationImpl is an implementation of the Registration interface.
+type registrationImpl struct {
+	dataStore ds.Interface
 }
 
-//NewRegistrationImpl creastes a new RegistrationImpl.
-func NewRegistrationImpl(dataStore ds.DataStore) RegistrationImpl {
-	return RegistrationImpl{dataStore: dataStore}
+//NewRegistration creastes a new Registration.
+func NewRegistration(dataStore ds.Interface) Registration {
+	return registrationImpl{dataStore: dataStore}
 }
 
 //CreateEntry with the DataStore plugin.
-func (r RegistrationImpl) CreateEntry(entry *common.RegistrationEntry) (string, error) {
+func (r registrationImpl) CreateEntry(entry *common.RegistrationEntry) (string, error) {
 	dsEntry := &ds.RegisteredEntry{
 		ParentId: entry.ParentId,
 		SpiffeId: entry.SpiffeId,
@@ -50,7 +50,7 @@ func (r RegistrationImpl) CreateEntry(entry *common.RegistrationEntry) (string, 
 }
 
 //FetchEntry gets a RegisteredEntry based on a registeredID.
-func (r RegistrationImpl) FetchEntry(registeredID string) (*common.RegistrationEntry, error) {
+func (r registrationImpl) FetchEntry(registeredID string) (*common.RegistrationEntry, error) {
 	response, err := r.dataStore.FetchRegistrationEntry(&ds.FetchRegistrationEntryRequest{RegisteredEntryId: registeredID})
 
 	if err != nil {
