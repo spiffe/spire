@@ -14,9 +14,9 @@ dependencies and install them in $GOPATH/bin
 
 ## Configuring the SRI
 
-All SRI component configuration files are in the Hashicorp HCL format. HCL
-is less verbose than JSON and permits comments. And unlike YAML, it does
-not suffer from the ambiguity of when to use a : versus a -.
+All SRI component configuration files are in the Hashicorp [HCL](https://github.com/hashicorp/hcl)
+format. HCL is less verbose than JSON and permits comments. And unlike YAML, it does not suffer
+from the ambiguity of when to use a : versus a -.
 
 The SRI server and agent require a configuration file that includes:
 
