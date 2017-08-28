@@ -31,6 +31,7 @@ import (
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/services"
 	"reflect"
+	"github.com/hashicorp/go-hclog"
 )
 
 const (
@@ -110,8 +111,14 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 	if !isPathSet {
 		pluginConfigDir = DefaultPluginConfigDir
 	}
+	pluginLogger:= hclog.New(&hclog.LoggerOptions{
+		Name:  "pluginLogger",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+
 	pluginCatalog := &helpers.PluginCatalog{
 		PluginConfDirectory: pluginConfigDir,
+		Logger:pluginLogger,
 	}
 	pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
 	pluginCatalog.SetPluginTypeMap(PluginTypeMap)
