@@ -24,7 +24,7 @@ func TestMemory_SubmitCSR(t *testing.T) {
 	t.SkipNow()
 }
 
-func createDefault(t *testing.T) upstreamca.UpstreamCa {
+func createDefault(t *testing.T) upstreamca.Interface {
 	m, err := pkg.NewWithDefault()
 	require.NoError(t, err)
 	return m

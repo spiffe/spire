@@ -184,7 +184,7 @@ func (m *memoryPlugin) LoadCertificate(certPEM []byte) error {
 	return nil
 }
 
-func NewWithDefault() (ca.ControlPlaneCa, error) {
+func NewWithDefault() (ca.Interface, error) {
 	config := defaultConfig()
 	key, err := rsa.GenerateKey(rand.Reader, config.KeySize)
 	if err != nil {
@@ -193,7 +193,7 @@ func NewWithDefault() (ca.ControlPlaneCa, error) {
 	return NewWithConfig(config, key)
 }
 
-func NewWithConfig(config *configuration, key *rsa.PrivateKey) (ca.ControlPlaneCa, error) {
+func NewWithConfig(config *configuration, key *rsa.PrivateKey) (ca.Interface, error) {
 	return &memoryPlugin{
 		key:    key,
 		mtx:    &sync.RWMutex{},
@@ -232,8 +232,8 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: ca.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"ca": ca.ControlPlaneCaPlugin{
-				ControlPlaneCaImpl: cax,
+			"ca": ca.Plugin{
+				Delegate: cax,
 			},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,

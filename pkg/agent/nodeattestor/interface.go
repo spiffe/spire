@@ -17,29 +17,29 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "NodeAttestor",
 }
 
-type NodeAttestor interface {
+type Interface interface {
 	FetchAttestationData(*FetchAttestationDataRequest) (*FetchAttestationDataResponse, error)
 	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
 	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
-type NodeAttestorPlugin struct {
-	NodeAttestorImpl NodeAttestor
+type Plugin struct {
+	Delegate Interface
 }
 
-func (p NodeAttestorPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
+func (p Plugin) Server(*plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p NodeAttestorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p Plugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p NodeAttestorPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterNodeAttestorServer(s, &GRPCServer{NodeAttestorImpl: p.NodeAttestorImpl})
+func (p Plugin) GRPCServer(s *grpc.Server) error {
+	RegisterNodeAttestorServer(s, &grpcServer{delegate: p.Delegate})
 	return nil
 }
 
-func (p NodeAttestorPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: NewNodeAttestorClient(c)}, nil
+func (p Plugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &grpcClient{client: NewNodeAttestorClient(c)}, nil
 }

@@ -5,40 +5,40 @@ import (
 	"golang.org/x/net/context"
 )
 
-type GRPCServer struct {
-	NodeAttestorImpl NodeAttestor
+type grpcServer struct {
+	delegate Interface
 }
 
-func (m *GRPCServer) FetchAttestationData(ctx context.Context, req *FetchAttestationDataRequest) (*FetchAttestationDataResponse, error) {
-	response, err := m.NodeAttestorImpl.FetchAttestationData(req)
+func (m *grpcServer) FetchAttestationData(ctx context.Context, req *FetchAttestationDataRequest) (*FetchAttestationDataResponse, error) {
+	response, err := m.delegate.FetchAttestationData(req)
 	return response, err
 }
 
-func (m *GRPCServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	response, err := m.NodeAttestorImpl.Configure(req)
+func (m *grpcServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	response, err := m.delegate.Configure(req)
 	return response, err
 }
 
-func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
-	response, err := m.NodeAttestorImpl.GetPluginInfo(req)
+func (m *grpcServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	response, err := m.delegate.GetPluginInfo(req)
 	return response, err
 }
 
-type GRPCClient struct {
+type grpcClient struct {
 	client NodeAttestorClient
 }
 
-func (m *GRPCClient) FetchAttestationData(req *FetchAttestationDataRequest) (*FetchAttestationDataResponse, error) {
+func (m *grpcClient) FetchAttestationData(req *FetchAttestationDataRequest) (*FetchAttestationDataResponse, error) {
 	res, err := m.client.FetchAttestationData(context.Background(), req)
 	return res, err
 }
 
-func (m *GRPCClient) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+func (m *grpcClient) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
 	res, err := m.client.Configure(context.Background(), req)
 	return res, err
 }
 
-func (m *GRPCClient) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+func (m *grpcClient) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
 	res, err := m.client.GetPluginInfo(context.Background(), req)
 	return res, err
 }

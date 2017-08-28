@@ -17,7 +17,7 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "ControlPlaneCA",
 }
 
-type ControlPlaneCa interface {
+type Interface interface {
 	Configure(config string) ([]string, error)
 	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
 	SignCsr([]byte) ([]byte, error)
@@ -26,23 +26,23 @@ type ControlPlaneCa interface {
 	LoadCertificate([]byte) error
 }
 
-type ControlPlaneCaPlugin struct {
-	ControlPlaneCaImpl ControlPlaneCa
+type Plugin struct {
+	Delegate Interface
 }
 
-func (p ControlPlaneCaPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
+func (p Plugin) Server(*plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p ControlPlaneCaPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p Plugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p ControlPlaneCaPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterControlPlaneCAServer(s, &GRPCServer{ControlPlaneCaImpl: p.ControlPlaneCaImpl})
+func (p Plugin) GRPCServer(s *grpc.Server) error {
+	RegisterControlPlaneCAServer(s, &grpcServer{delegate: p.Delegate})
 	return nil
 }
 
-func (p ControlPlaneCaPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: NewControlPlaneCAClient(c)}, nil
+func (p Plugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &grpcClient{client: NewControlPlaneCAClient(c)}, nil
 }

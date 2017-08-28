@@ -117,7 +117,7 @@ func (m *memoryPlugin) SubmitCSR(csrPEM []byte) (*upstreamca.SubmitCSRResponse, 
 	}, nil
 }
 
-func NewWithDefault() (upstreamca.UpstreamCa, error) {
+func NewWithDefault() (upstreamca.Interface, error) {
 	m := &memoryPlugin{
 		mtx: &sync.RWMutex{},
 	}

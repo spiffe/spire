@@ -17,29 +17,29 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "NodeResolver",
 }
 
-type NodeResolver interface {
+type Interface interface {
 	Configure(config string) ([]string, error)
 	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
 	Resolve([]string) (map[string]*common.Selectors, error)
 }
 
-type NodeResolverPlugin struct {
-	NodeResolverImpl NodeResolver
+type Plugin struct {
+	Delegate Interface
 }
 
-func (p NodeResolverPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
+func (p Plugin) Server(*plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p NodeResolverPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p Plugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p NodeResolverPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterNodeResolverServer(s, &GRPCServer{NodeResolverImpl: p.NodeResolverImpl})
+func (p Plugin) GRPCServer(s *grpc.Server) error {
+	RegisterNodeResolverServer(s, &grpcServer{delegate: p.Delegate})
 	return nil
 }
 
-func (p NodeResolverPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: NewNodeResolverClient(c)}, nil
+func (p Plugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &grpcClient{client: NewNodeResolverClient(c)}, nil
 }

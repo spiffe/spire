@@ -25,7 +25,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: noderesolver.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"nr_noop": noderesolver.NodeResolverPlugin{NodeResolverImpl: &NoOp{}},
+			"nr_noop": noderesolver.Plugin{Delegate: &NoOp{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

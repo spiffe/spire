@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/agent/keymanager"
+	"github.com/spiffe/sri/pkg/common/plugin"
 )
 
 type MemoryPlugin struct{}
@@ -28,7 +28,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: keymanager.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"km_memory": keymanager.KeyManagerPlugin{KeyManagerImpl: &MemoryPlugin{}},
+			"km_memory": keymanager.Plugin{Delegate: &MemoryPlugin{}},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})

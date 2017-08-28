@@ -5,50 +5,50 @@ import (
 	"golang.org/x/net/context"
 )
 
-type GRPCServer struct {
-	KeyManagerImpl KeyManager
+type grpcServer struct {
+	delegate Interface
 }
 
-func (m *GRPCServer) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
-	response, err := m.KeyManagerImpl.GenerateKeyPair(req)
+func (m *grpcServer) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
+	response, err := m.delegate.GenerateKeyPair(req)
 	return response, err
 }
 
-func (m *GRPCServer) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
-	response, err := m.KeyManagerImpl.FetchPrivateKey(req)
+func (m *grpcServer) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
+	response, err := m.delegate.FetchPrivateKey(req)
 	return response, err
 }
 
-func (m *GRPCServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	response, err := m.KeyManagerImpl.Configure(req)
+func (m *grpcServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	response, err := m.delegate.Configure(req)
 	return response, err
 }
 
-func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
-	response, err := m.KeyManagerImpl.GetPluginInfo(req)
+func (m *grpcServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	response, err := m.delegate.GetPluginInfo(req)
 	return response, err
 }
 
-type GRPCClient struct {
+type grpcClient struct {
 	client KeyManagerClient
 }
 
-func (m *GRPCClient) GenerateKeyPair(req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
+func (m *grpcClient) GenerateKeyPair(req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
 	res, err := m.client.GenerateKeyPair(context.Background(), req)
 	return res, err
 }
 
-func (m *GRPCClient) FetchPrivateKey(req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
+func (m *grpcClient) FetchPrivateKey(req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
 	res, err := m.client.FetchPrivateKey(context.Background(), req)
 	return res, err
 }
 
-func (m *GRPCClient) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+func (m *grpcClient) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
 	res, err := m.client.Configure(context.Background(), req)
 	return res, err
 }
 
-func (m *GRPCClient) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+func (m *grpcClient) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
 	res, err := m.client.GetPluginInfo(context.Background(), req)
 	return res, err
 }

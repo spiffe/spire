@@ -288,7 +288,7 @@ func Test_DeleteNodeResolverMapEntry_all(t *testing.T) {
 func Test_RectifyNodeResolverMapEntries(t *testing.T) {
 }
 
-func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*datastore.NodeResolverMapEntry {
+func createNodeResolverMapEntries(t *testing.T, ds datastore.Interface) []*datastore.NodeResolverMapEntry {
 	entries := []*datastore.NodeResolverMapEntry{
 		{
 			BaseSpiffeId: "main",
@@ -419,7 +419,7 @@ func Test_GetPluginInfo(t *testing.T) {
 	require.NotNil(t, resp)
 }
 
-func createDefault(t *testing.T) datastore.DataStore {
+func createDefault(t *testing.T) datastore.Interface {
 	ds, err := New()
 	if err != nil {
 		t.Fatal(err)
