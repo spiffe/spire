@@ -27,10 +27,7 @@ func NewIdentityImpl(dataStore datastore.DataStore, nodeResolver noderesolver.No
 }
 
 func (i *IdentityImpl) Resolve(baseSpiffeIDs []string) (selectors map[string]*common.Selectors, err error) {
-	if selectors, err = i.nodeResolver.Resolve(baseSpiffeIDs); err != nil {
-		return nil, err
-	}
-	return
+	return i.nodeResolver.Resolve(baseSpiffeIDs)
 }
 
 func (i *IdentityImpl) CreateEntry(baseSpiffeID string, selector *common.Selector) (err error) {
