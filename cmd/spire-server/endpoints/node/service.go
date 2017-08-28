@@ -6,7 +6,6 @@ import (
 
 	pb "github.com/spiffe/sri/pkg/api/node"
 	"github.com/spiffe/sri/pkg/common"
-	"github.com/spiffe/sri/pkg/server/ca"
 	"github.com/spiffe/sri/pkg/server/nodeattestor"
 	"github.com/spiffe/sri/services"
 )
@@ -21,21 +20,21 @@ type NodeService interface {
 }
 
 type stubNodeService struct {
-	attestation    services.Attestation
-	identity       services.Identity
-	controlPlaneCA ca.ControlPlaneCa
+	attestation services.Attestation
+	identity    services.Identity
+	ca          services.CA
 }
 
 // NewService gets a new instance of the service.
 func NewService(
 	attestation services.Attestation,
 	identity services.Identity,
-	controlPlaneCA ca.ControlPlaneCa) (s *stubNodeService) {
+	ca services.CA) (s *stubNodeService) {
 
 	s = &stubNodeService{
-		attestation:    attestation,
-		identity:       identity,
-		controlPlaneCA: controlPlaneCA,
+		attestation: attestation,
+		identity:    identity,
+		ca:          ca,
 	}
 	return s
 }
@@ -58,7 +57,7 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 
 	//Sign csr
 	var cert []byte
-	if cert, err = no.controlPlaneCA.SignCsr(request.Csr); err != nil {
+	if cert, err = no.ca.SignCsr(request.Csr); err != nil {
 		return response, err
 	}
 
