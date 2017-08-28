@@ -150,6 +150,7 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.Control
 	registrationService := services.NewRegistrationImpl(dataStoreImpl)
 	attestationService := services.NewAttestationImpl(dataStoreImpl, nodeAttestorImpl)
 	identityService := services.NewIdentityImpl(dataStoreImpl, nodeResolverImpl)
+	caService := services.NewCAImpl(serverCAImpl)
 
 	errChan := makeErrorChannel()
 	var serverSvc server.ServerService
@@ -161,7 +162,7 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.Control
 	registrationSvc = registration.ServiceLoggingMiddleWare(logger)(registrationSvc)
 
 	var nodeSvc node.NodeService
-	nodeSvc = node.NewService(attestationService, identityService, serverCAImpl)
+	nodeSvc = node.NewService(attestationService, identityService, caService)
 	nodeSvc = node.SelectorServiceLoggingMiddleWare(logger)(nodeSvc)
 
 	var (

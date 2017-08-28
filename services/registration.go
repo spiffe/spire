@@ -17,12 +17,12 @@ type RegistrationImpl struct {
 }
 
 //NewRegistrationImpl creastes a new RegistrationImpl.
-func NewRegistrationImpl(dataStore ds.DataStore) RegistrationImpl {
-	return RegistrationImpl{dataStore: dataStore}
+func NewRegistrationImpl(dataStore ds.DataStore) *RegistrationImpl {
+	return &RegistrationImpl{dataStore: dataStore}
 }
 
 //CreateEntry with the DataStore plugin.
-func (r RegistrationImpl) CreateEntry(entry *common.RegistrationEntry) (registeredEntryID string, err error) {
+func (r *RegistrationImpl) CreateEntry(entry *common.RegistrationEntry) (registeredEntryID string, err error) {
 	var response *ds.CreateRegistrationEntryResponse
 	if response, err = r.dataStore.CreateRegistrationEntry(&ds.CreateRegistrationEntryRequest{RegisteredEntry: entry}); err != nil {
 		return registeredEntryID, err
@@ -31,7 +31,7 @@ func (r RegistrationImpl) CreateEntry(entry *common.RegistrationEntry) (register
 }
 
 //FetchEntry gets a RegisteredEntry based on a registeredID.
-func (r RegistrationImpl) FetchEntry(registeredID string) (*common.RegistrationEntry, error) {
+func (r *RegistrationImpl) FetchEntry(registeredID string) (*common.RegistrationEntry, error) {
 	response, err := r.dataStore.FetchRegistrationEntry(&ds.FetchRegistrationEntryRequest{RegisteredEntryId: registeredID})
 	if err != nil {
 		return nil, err

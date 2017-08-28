@@ -21,15 +21,15 @@ type AttestationImpl struct {
 }
 
 //NewAttestationImpl creastes a new AttestationImpl.
-func NewAttestationImpl(dataStore datastore.DataStore, nodeAttestor nodeattestor.NodeAttestor) AttestationImpl {
-	return AttestationImpl{
+func NewAttestationImpl(dataStore datastore.DataStore, nodeAttestor nodeattestor.NodeAttestor) *AttestationImpl {
+	return &AttestationImpl{
 		dataStore:    dataStore,
 		nodeAttestor: nodeAttestor,
 	}
 }
 
 //IsAttested checks the datastore to see if the baseSpiffeID was already attested.
-func (att AttestationImpl) IsAttested(baseSpiffeID string) (isAttested bool, err error) {
+func (att *AttestationImpl) IsAttested(baseSpiffeID string) (isAttested bool, err error) {
 	var fetchResponse *datastore.FetchAttestedNodeEntryResponse
 	fetchRequest := &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: baseSpiffeID}
 	if fetchResponse, err = att.dataStore.FetchAttestedNodeEntry(fetchRequest); err != nil {
@@ -42,7 +42,7 @@ func (att AttestationImpl) IsAttested(baseSpiffeID string) (isAttested bool, err
 }
 
 //Attest the attestedData
-func (att AttestationImpl) Attest(attestedData *common.AttestedData, attestedBefore bool) (attestResponse *nodeattestor.AttestResponse, err error) {
+func (att *AttestationImpl) Attest(attestedData *common.AttestedData, attestedBefore bool) (attestResponse *nodeattestor.AttestResponse, err error) {
 	attestRequest := &nodeattestor.AttestRequest{
 		AttestedData:   attestedData,
 		AttestedBefore: attestedBefore,
@@ -50,7 +50,7 @@ func (att AttestationImpl) Attest(attestedData *common.AttestedData, attestedBef
 	return att.nodeAttestor.Attest(attestRequest)
 }
 
-func (att AttestationImpl) CreateEntry(attestationType string, baseSpiffeID string, cert []byte) (err error) {
+func (att *AttestationImpl) CreateEntry(attestationType string, baseSpiffeID string, cert []byte) (err error) {
 	//TODO:extract CertExpirationDate and CertSerialNumber @kunzimariano
 	attestedNodeRequest := &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: &datastore.AttestedNodeEntry{
 		AttestedDataType:   attestationType,
@@ -62,7 +62,7 @@ func (att AttestationImpl) CreateEntry(attestationType string, baseSpiffeID stri
 	return err
 }
 
-func (att AttestationImpl) UpdateEntry(baseSpiffeID string, cert []byte) (err error) {
+func (att *AttestationImpl) UpdateEntry(baseSpiffeID string, cert []byte) (err error) {
 	//TODO:extract CertExpirationDate and CertSerialNumber @kunzimariano
 	_, err = att.dataStore.UpdateAttestedNodeEntry(&datastore.UpdateAttestedNodeEntryRequest{
 		BaseSpiffeId:       baseSpiffeID,

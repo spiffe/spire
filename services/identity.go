@@ -19,21 +19,21 @@ type IdentityImpl struct {
 }
 
 //NewIdentityImpl creastes a new AttestationImpl.
-func NewIdentityImpl(dataStore datastore.DataStore, nodeResolver noderesolver.NodeResolver) IdentityImpl {
-	return IdentityImpl{
+func NewIdentityImpl(dataStore datastore.DataStore, nodeResolver noderesolver.NodeResolver) *IdentityImpl {
+	return &IdentityImpl{
 		dataStore:    dataStore,
 		nodeResolver: nodeResolver,
 	}
 }
 
-func (i IdentityImpl) Resolve(baseSpiffeIDs []string) (selectors map[string]*common.Selectors, err error) {
+func (i *IdentityImpl) Resolve(baseSpiffeIDs []string) (selectors map[string]*common.Selectors, err error) {
 	if selectors, err = i.nodeResolver.Resolve(baseSpiffeIDs); err != nil {
 		return nil, err
 	}
 	return
 }
 
-func (i IdentityImpl) CreateEntry(baseSpiffeID string, selector *common.Selector) (err error) {
+func (i *IdentityImpl) CreateEntry(baseSpiffeID string, selector *common.Selector) (err error) {
 	mapEntryRequest := &datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
 		BaseSpiffeId: baseSpiffeID,
 		Selector:     selector,
