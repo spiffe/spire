@@ -50,6 +50,6 @@ SPIRE-SERVER commands:
 
  |Command                   | Action                                                           |
  |--------------------------|------------------------------------------------------------------|
- |`spire-server server`     |  Starts the SPIRE Server                                         |
+ |`spire-server start`     |  Starts the SPIRE Server                                         |
  |`spire-server plugin-info`|  Lists all currently enabled SPIRE server plugins' information   |
  |`spire-server stop`       |  Stops the SPIRE Server                                          |
