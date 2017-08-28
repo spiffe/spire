@@ -12,12 +12,15 @@ or [Linux](https://get.spiffe.io/linux/controlplane) and place it in your `$PATH
 <code>
 `wget -O /usr/local/bin/controlplane https://get.spiffe.io/osx/controlplane && chmod 755 /usr/local/bin/controlplane`
 
-Set `SPIRE_SERVER_CONFIG` enivironment variable to point to the server config file. 
-Set `SPIRE_PLUGIN_CONFIG_DIR` enivironment variable to point to the plugin configurations directory.
+SPIRE-SERVER environment variables:
+
+|Environment variable      | Description                                                |
+|--------------------------|------------------------------------------------------------|
+| `SPIRE_SERVER_CONFIG`    |  Path to the spire-server config file                      |
+| `SPIRE_PLUGIN_CONFIG_DIR`|  Path to the spire-server plugin configurations directory  |
 
 
 SPIRE-SERVER configuration:
-
 
  |Configuration          | Description                                                          |
  |-----------------------|----------------------------------------------------------------------|
