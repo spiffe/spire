@@ -10,8 +10,7 @@ type GRPCServer struct {
 }
 
 func (m *GRPCServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	response, err := m.UpstreamCaImpl.Configure(req.Configuration)
-	return &sriplugin.ConfigureResponse{ErrorList: response}, err
+	return m.UpstreamCaImpl.Configure(req)
 }
 
 func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {

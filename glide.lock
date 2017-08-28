@@ -1,5 +1,5 @@
-hash: 483062881b0f4d11445f085e094d075805b9bd53111cc4f6c1cf05c1d4ba61f0
-updated: 2017-08-21T10:42:00.960748369-07:00
+hash: 8f43a4df688c3671715168dbe04ca8da580d77d80a66631b93c4c024d152d81a
+updated: 2017-08-28T02:31:30.350564198-03:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -10,6 +10,7 @@ imports:
   subpackages:
   - endpoint
   - log
+  - log/level
   - transport/grpc
 - name: github.com/go-logfmt/logfmt
   version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
@@ -82,6 +83,8 @@ imports:
   version: 5bf94b69c6b68ee1b541973bb8e1144db23a194b
   subpackages:
   - context
+- name: github.com/spiffe/go-spiffe
+  version: 7a85f99e536924f96f567958599d454d4c9a864c
 - name: golang.org/x/net
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:

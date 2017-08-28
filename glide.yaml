@@ -20,6 +20,8 @@ import:
 - package: github.com/mattn/go-sqlite3
   version: ~1.2.0
 - package: github.com/jinzhu/inflection
+- package: github.com/spiffe/go-spiffe
+  version: marshal-uri-san
 testImport:
 - package: github.com/stretchr/testify
   subpackages:

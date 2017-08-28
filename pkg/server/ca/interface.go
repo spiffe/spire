@@ -18,7 +18,7 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type ControlPlaneCa interface {
-	Configure(config string) ([]string, error)
+	Configure(request *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
 	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
 	SignCsr([]byte) ([]byte, error)
 	GenerateCsr() ([]byte, error)
