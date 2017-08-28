@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	DefaultServerConifigPath = ".conf/default_server_config.hcl"
-	DefaultPluginConfigDir   = "../../plugin/server/.conf"
+	DefaultServerConfigPath = ".conf/default_server_config.hcl"
+	DefaultPluginConfigDir  = "../../plugin/server/.conf"
 )
 
 
@@ -61,18 +61,18 @@ var (
 
 )
 
-type ServerCommand struct {
+type StartCommand struct {
 }
 //Help returns how to use the server command
-func (*ServerCommand) Help() string {
+func (*StartCommand) Help() string {
 	return "Usage: spire-server server"
 }
 
 //Run the server command
-func (*ServerCommand) Run(args []string) int {
+func (*StartCommand) Run(args []string) int {
 	cpConfigPath, isPathSet := os.LookupEnv("SPIRE_SERVER_CONFIG")
 	if !isPathSet {
-		cpConfigPath = DefaultServerConifigPath
+		cpConfigPath = DefaultServerConfigPath
 	}
 
 
@@ -105,7 +105,7 @@ func (*ServerCommand) Run(args []string) int {
 }
 
 //Synopsis of the server command
-func (*ServerCommand) Synopsis() string {
+func (*StartCommand) Synopsis() string {
 	return "Intializes spire-server Runtime."
 }
 

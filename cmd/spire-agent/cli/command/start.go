@@ -44,14 +44,14 @@ var (
 	logger = log.NewLogfmtLogger(os.Stdout)
 )
 
-type ServerCommand struct {
+type StartCommand struct {
 }
 
-func (*ServerCommand) Help() string {
+func (*StartCommand) Help() string {
 	return "Usage: sri/node_agent server"
 }
 
-func (*ServerCommand) Run(args []string) int {
+func (*StartCommand) Run(args []string) int {
 	saConfigPath, isPathSet := os.LookupEnv("SPIRE_AGENT_CONFIG_PATH")
 	if !isPathSet {
 		saConfigPath = DefaultAgentConfigPath
@@ -86,7 +86,7 @@ func (*ServerCommand) Run(args []string) int {
 
 }
 
-func (*ServerCommand) Synopsis() string {
+func (*StartCommand) Synopsis() string {
 	return "Intializes sri/node_agent Runtime."
 }
 
