@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/go-hclog"
 )
 
 type PluginCatalog struct {
@@ -19,6 +20,7 @@ type PluginCatalog struct {
 	PluginClients       map[string]*plugin.Client
 	Plugins             map[string]interface{}
 	MaxPluginTypeMap    map[string]int
+	Logger interface{}
 }
 
 func (c *PluginCatalog) loadConfig() (err error) {
@@ -107,6 +109,8 @@ func (c *PluginCatalog) initClients() (err error) {
 				Managed: true,
 
 				SecureConfig: secureConfig,
+
+				Logger: c.Logger.(hclog.Logger),
 			})
 
 			c.PluginClients[pluginconfig.PluginName] = client

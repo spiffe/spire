@@ -13,8 +13,8 @@ import (
 //Handshake is a common handshake that is shared by the plugin and host.
 var Handshake = plugin.HandshakeConfig{
 	ProtocolVersion:  1,
-	MagicCookieKey:   "CPNodeAttestor",
-	MagicCookieValue: "CPNodeAttestor",
+	MagicCookieKey:   "NodeAttestor",
+	MagicCookieValue: "NodeAttestor",
 }
 
 type NodeAttestor interface {
