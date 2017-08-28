@@ -21,66 +21,62 @@ import (
 	"github.com/spiffe/sri/pkg/server/noderesolver"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
 
-	pb "github.com/spiffe/sri/pkg/api/registration"
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/registration"
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/server"
+	pb "github.com/spiffe/sri/pkg/api/registration"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/hashicorp/go-plugin"
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/services"
 	"reflect"
 )
 
 const (
-	DefaultCPConifigPath = ".conf/default_cp_config.hcl"
-	DefaultPluginConfigDir = "plugins/.conf"
+	DefaultServerConfigPath = ".conf/default_server_config.hcl"
+	DefaultPluginConfigDir  = "../../plugin/server/.conf"
 )
 
-
 var (
-
 	PluginTypeMap = map[string]plugin.Plugin{
-		"ControlPlaneCA":   &ca.ControlPlaneCaPlugin{},
-		"DataStore":        &datastore.DataStorePlugin{},
-		"NodeResolver":     &noderesolver.NodeResolverPlugin{},
-		"UpstreamCA":       &upstreamca.UpstreamCaPlugin{},
-		"CPNodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
+		"ControlPlaneCA": &ca.ControlPlaneCaPlugin{},
+		"DataStore":      &datastore.DataStorePlugin{},
+		"NodeResolver":   &noderesolver.NodeResolverPlugin{},
+		"UpstreamCA":     &upstreamca.UpstreamCaPlugin{},
+		"NodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
 	}
 
 	MaxPlugins = map[string]int{
-		"ControlPlaneCA":   1,
-		"DataStore":        1,
-		"NodeResolver":     1,
-		"UpstreamCA":       1,
-		"CPNodeAttestor":   1,
-
+		"ControlPlaneCA": 1,
+		"DataStore":      1,
+		"NodeResolver":   1,
+		"UpstreamCA":     1,
+		"NodeAttestor":   1,
 	}
 	logger = log.NewLogfmtLogger(os.Stdout)
-
 )
 
-type ServerCommand struct {
+type StartCommand struct {
 }
+
 //Help returns how to use the server command
-func (*ServerCommand) Help() string {
+func (*StartCommand) Help() string {
 	return "Usage: spire-server server"
 }
 
 //Run the server command
-func (*ServerCommand) Run(args []string) int {
-	cpConfigPath, isPathSet := os.LookupEnv("CP_CONFIG_PATH")
+func (*StartCommand) Run(args []string) int {
+	cpConfigPath, isPathSet := os.LookupEnv("SPIRE_SERVER_CONFIG")
 	if !isPathSet {
-		cpConfigPath = DefaultCPConifigPath
+		cpConfigPath = DefaultServerConfigPath
 	}
-
 
 	config := helpers.ControlPlaneConfig{}
 	err := config.ParseConfig(cpConfigPath)
 	if err != nil {
 		logger = log.With(logger, "caller", log.DefaultCaller)
-		logger.Log("error", err , "configFile", cpConfigPath)
+		logger.Log("error", err, "configFile", cpConfigPath)
 		return -1
 
 	}
@@ -95,7 +91,7 @@ func (*ServerCommand) Run(args []string) int {
 		return -1
 	}
 
-	err = initEndpoints(pluginCatalog, &config)
+	err = initEndpoints(pluginCatalog)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
@@ -105,12 +101,12 @@ func (*ServerCommand) Run(args []string) int {
 }
 
 //Synopsis of the server command
-func (*ServerCommand) Synopsis() string {
+func (*StartCommand) Synopsis() string {
 	return "Intializes spire-server Runtime."
 }
 
 func loadPlugins() (*helpers.PluginCatalog, error) {
-	pluginConfigDir, isPathSet := os.LookupEnv("PLUGIN_CONFIG_PATH")
+	pluginConfigDir, isPathSet := os.LookupEnv("SPIRE_PLUGIN_CONFIG_DIR")
 	if !isPathSet {
 		pluginConfigDir = DefaultPluginConfigDir
 	}
@@ -122,17 +118,17 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 	err := pluginCatalog.Run()
 	if err != nil {
 		return nil, err
-		level.Error(logger).Log("error",err)
+		level.Error(logger).Log("error", err)
 	}
 
 	return pluginCatalog, nil
 }
 
-func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.ControlPlaneConfig) error {
+func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	//Shouldn't we get this by plugin type?
 
 	dataStore := pluginCatalog.GetPlugin("datastore")
-	level.Info(logger).Log("pluginType",reflect.TypeOf(dataStore))
+	level.Info(logger).Log("pluginType", reflect.TypeOf(dataStore))
 	dataStoreImpl := dataStore.(datastore.DataStore)
 	registrationService := services.NewRegistrationImpl(dataStoreImpl)
 
