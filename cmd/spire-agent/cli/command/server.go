@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	DefaultAgentConifigPath = ".conf/default_agent_config.hcl"
+	DefaultAgentConfigPath = ".conf/default_agent_config.hcl"
 	DefaultPluginConfigDir  = "../../plugin/agent/.conf"
 )
 
@@ -54,7 +54,7 @@ func (*ServerCommand) Help() string {
 func (*ServerCommand) Run(args []string) int {
 	saConfigPath, isPathSet := os.LookupEnv("SPIRE_AGENT_CONFIG_PATH")
 	if !isPathSet {
-		saConfigPath = DefaultAgentConifigPath
+		saConfigPath = DefaultAgentConfigPath
 	}
 
 	config := helpers.ControlPlaneConfig{}
