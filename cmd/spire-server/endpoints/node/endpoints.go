@@ -55,8 +55,8 @@ func NewEndpoint(svc NodeService) (ep Endpoints) {
 func MakeFetchBaseSVIDEndpoint(svc NodeService) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(FetchBaseSVIDRequest)
-		response := svc.FetchBaseSVID(ctx, req.Request)
-		return FetchBaseSVIDResponse{Response: response}, nil
+		response, err := svc.FetchBaseSVID(ctx, req.Request)
+		return FetchBaseSVIDResponse{Response: response}, err
 	}
 }
 

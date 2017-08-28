@@ -21,17 +21,22 @@ import (
 	"github.com/spiffe/sri/pkg/server/noderesolver"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
 
+	"github.com/spiffe/sri/cmd/spire-server/endpoints/node"
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/registration"
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/server"
-	pb "github.com/spiffe/sri/pkg/api/registration"
+	nodePB "github.com/spiffe/sri/pkg/api/node"
+	registrationPB "github.com/spiffe/sri/pkg/api/registration"
+
+	"reflect"
+
+	"reflect"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/services"
-	"reflect"
-	"github.com/hashicorp/go-hclog"
 )
 
 const (
@@ -111,33 +116,49 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 	if !isPathSet {
 		pluginConfigDir = DefaultPluginConfigDir
 	}
-	pluginLogger:= hclog.New(&hclog.LoggerOptions{
+	pluginLogger := hclog.New(&hclog.LoggerOptions{
 		Name:  "pluginLogger",
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 
 	pluginCatalog := &helpers.PluginCatalog{
 		PluginConfDirectory: pluginConfigDir,
-		Logger:pluginLogger,
+		Logger:              pluginLogger,
 	}
 	pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
 	pluginCatalog.SetPluginTypeMap(PluginTypeMap)
 	err := pluginCatalog.Run()
 	if err != nil {
-		return nil, err
 		level.Error(logger).Log("error", err)
+		return nil, err
 	}
 
 	return pluginCatalog, nil
 }
 
 func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
-	//Shouldn't we get this by plugin type?
+	//Shouldn't we get plugins by type instead of name?
+	//plugins
+	nodeAttestor := pluginCatalog.GetPlugin("join_token")
+	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeAttestor))
+	nodeAttestorImpl := nodeAttestor.(nodeattestor.NodeAttestor)
+
+	nodeResolver := pluginCatalog.GetPlugin("noop")
+	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeResolver))
+	nodeResolverImpl := nodeResolver.(noderesolver.NodeResolver)
+
+	serverCA := pluginCatalog.GetPlugin("ca_memory")
+	level.Info(logger).Log("pluginType", reflect.TypeOf(serverCA))
+	serverCAImpl := serverCA.(ca.ControlPlaneCa)
 
 	dataStore := pluginCatalog.GetPlugin("datastore")
 	level.Info(logger).Log("pluginType", reflect.TypeOf(dataStore))
 	dataStoreImpl := dataStore.(datastore.DataStore)
+
+	//services
 	registrationService := services.NewRegistrationImpl(dataStoreImpl)
+	attestationService := services.NewAttestationImpl(dataStoreImpl, nodeAttestorImpl)
+	identityService := services.NewIdentityImpl(dataStoreImpl, nodeResolverImpl)
 
 	errChan := makeErrorChannel()
 	var serverSvc server.ServerService
@@ -147,6 +168,10 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	var registrationSvc registration.RegistrationService
 	registrationSvc = registration.NewService(registrationService)
 	registrationSvc = registration.ServiceLoggingMiddleWare(logger)(registrationSvc)
+
+	var nodeSvc node.NodeService
+	nodeSvc = node.NewService(attestationService, identityService, serverCAImpl)
+	nodeSvc = node.SelectorServiceLoggingMiddleWare(logger)(nodeSvc)
 
 	var (
 		httpAddr = flag.String("http", ":8080", "http listen address")
@@ -173,6 +198,13 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 		DeleteFederatedBundleEndpoint: registration.MakeDeleteFederatedBundleEndpoint(registrationSvc),
 	}
 
+	nodeEnpoints := node.Endpoints{
+		FetchBaseSVIDEndpoint:        node.MakeFetchBaseSVIDEndpoint(nodeSvc),
+		FetchCPBundleEndpoint:        node.MakeFetchCPBundleEndpoint(nodeSvc),
+		FetchFederatedBundleEndpoint: node.MakeFetchFederatedBundleEndpoint(nodeSvc),
+		FetchSVIDEndpoint:            node.MakeFetchSVIDEndpoint(nodeSvc),
+	}
+
 	go func() {
 		listener, err := net.Listen("tcp", *gRPCAddr)
 		if err != nil {
@@ -183,9 +215,12 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 
 		serverHandler := server.MakeGRPCServer(serverEndpoints)
 		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
+		nodeHandler := node.MakeGRPCServer(nodeEnpoints)
 		gRPCServer := grpc.NewServer()
+
 		sriplugin.RegisterServerServer(gRPCServer, serverHandler)
-		pb.RegisterRegistrationServer(gRPCServer, registrationHandler)
+		registrationPB.RegisterRegistrationServer(gRPCServer, registrationHandler)
+		nodePB.RegisterNodeServer(gRPCServer, nodeHandler)
 		errChan <- gRPCServer.Serve(listener)
 	}()
 
@@ -197,7 +232,7 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 		mux := runtime.NewServeMux()
 		opts := []grpc.DialOption{grpc.WithInsecure()}
 		logger.Log("http:", *httpAddr)
-		err := pb.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
+		err := registrationPB.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
 		if err != nil {
 			errChan <- err
 			return
