@@ -6,41 +6,28 @@ import (
 
 	grpctransport "github.com/go-kit/kit/transport/grpc"
 	pb "github.com/spiffe/sri/pkg/api/workload"
+	"github.com/spiffe/sri/pkg/common"
 	oldcontext "golang.org/x/net/context"
 )
 
 type grpcServer struct {
-	fetchSVIDBundle       grpctransport.Handler
-	fetchSVIDBundles      grpctransport.Handler
-	fetchFederatedBundle  grpctransport.Handler
-	fetchFederatedBundles grpctransport.Handler
+	fetchBundles    grpctransport.Handler
+	fetchAllBundles grpctransport.Handler
 }
 
 // MakeGRPCServer makes a set of endpoints available as a gRPC server.
 func MakeGRPCServer(endpoints Endpoints) (req pb.WorkloadServer) {
 	req = &grpcServer{
-		fetchSVIDBundle: grpctransport.NewServer(
-			endpoints.FetchSVIDBundleEndpoint,
-			DecodeGRPCFetchSVIDBundleRequest,
-			EncodeGRPCFetchSVIDBundleResponse,
+		fetchBundles: grpctransport.NewServer(
+			endpoints.FetchBundlesEndpoint,
+			DecodeGRPCFetchBundlesRequest,
+			EncodeGRPCFetchBundlesResponse,
 		),
 
-		fetchSVIDBundles: grpctransport.NewServer(
-			endpoints.FetchSVIDBundlesEndpoint,
-			DecodeGRPCFetchSVIDBundlesRequest,
-			EncodeGRPCFetchSVIDBundlesResponse,
-		),
-
-		fetchFederatedBundle: grpctransport.NewServer(
-			endpoints.FetchFederatedBundleEndpoint,
-			DecodeGRPCFetchFederatedBundleRequest,
-			EncodeGRPCFetchFederatedBundleResponse,
-		),
-
-		fetchFederatedBundles: grpctransport.NewServer(
-			endpoints.FetchFederatedBundlesEndpoint,
-			DecodeGRPCFetchFederatedBundlesRequest,
-			EncodeGRPCFetchFederatedBundlesResponse,
+		fetchAllBundles: grpctransport.NewServer(
+			endpoints.FetchAllBundlesEndpoint,
+			DecodeGRPCFetchAllBundlesRequest,
+			EncodeGRPCFetchAllBundlesResponse,
 		),
 	}
 	return req
@@ -50,7 +37,7 @@ func MakeGRPCServer(endpoints Endpoints) (req pb.WorkloadServer) {
 // gRPC request to a user-domain request. Primarily useful in a server.
 // TODO: Do not forget to implement the decoder, you can find an example here :
 // https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func DecodeGRPCFetchSVIDBundleRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
+func DecodeGRPCFetchBundlesRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
 	err = errors.New("'FetchSVIDBundle' Decoder is not impelement")
 	return req, err
 }
@@ -59,17 +46,17 @@ func DecodeGRPCFetchSVIDBundleRequest(_ context.Context, grpcReq interface{}) (r
 // user-domain response to a gRPC reply. Primarily useful in a server.
 // TODO: Do not forget to implement the encoder, you can find an example here :
 // https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func EncodeGRPCFetchSVIDBundleResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
+func EncodeGRPCFetchBundlesResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
 	err = errors.New("'FetchSVIDBundle' Encoder is not impelement")
 	return res, err
 }
 
-func (s *grpcServer) FetchSVIDBundle(ctx oldcontext.Context, req *pb.FetchSVIDBundleRequest) (rep *pb.FetchSVIDBundleResponse, err error) {
-	_, rp, err := s.fetchSVIDBundle.ServeGRPC(ctx, req)
+func (s *grpcServer) FetchBundles(ctx oldcontext.Context, req *pb.SpiffeId) (rep *pb.Bundles, err error) {
+	_, rp, err := s.fetchBundles.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rep = rp.(*pb.FetchSVIDBundleResponse)
+	rep = rp.(*pb.Bundles)
 	return rep, err
 }
 
@@ -77,7 +64,7 @@ func (s *grpcServer) FetchSVIDBundle(ctx oldcontext.Context, req *pb.FetchSVIDBu
 // gRPC request to a user-domain request. Primarily useful in a server.
 // TODO: Do not forget to implement the decoder, you can find an example here :
 // https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func DecodeGRPCFetchSVIDBundlesRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
+func DecodeGRPCFetchAllBundlesRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
 	err = errors.New("'FetchSVIDBundles' Decoder is not impelement")
 	return req, err
 }
@@ -86,70 +73,16 @@ func DecodeGRPCFetchSVIDBundlesRequest(_ context.Context, grpcReq interface{}) (
 // user-domain response to a gRPC reply. Primarily useful in a server.
 // TODO: Do not forget to implement the encoder, you can find an example here :
 // https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func EncodeGRPCFetchSVIDBundlesResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
+func EncodeGRPCFetchAllBundlesResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
 	err = errors.New("'FetchSVIDBundles' Encoder is not impelement")
 	return res, err
 }
 
-func (s *grpcServer) FetchSVIDBundles(ctx oldcontext.Context, req *pb.Empty) (rep *pb.FetchSVIDBundlesResponse, err error) {
-	_, rp, err := s.fetchSVIDBundles.ServeGRPC(ctx, req)
+func (s *grpcServer) FetchAllBundles(ctx oldcontext.Context, req *common.Empty) (rep *pb.Bundles, err error) {
+	_, rp, err := s.fetchAllBundles.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rep = rp.(*pb.FetchSVIDBundlesResponse)
-	return rep, err
-}
-
-// DecodeGRPCFetchFederatedBundleRequest is a transport/grpc.DecodeRequestFunc that converts a
-// gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func DecodeGRPCFetchFederatedBundleRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'FetchFederatedBundle' Decoder is not impelement")
-	return req, err
-}
-
-// EncodeGRPCFetchFederatedBundleResponse is a transport/grpc.EncodeResponseFunc that converts a
-// user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func EncodeGRPCFetchFederatedBundleResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'FetchFederatedBundle' Encoder is not impelement")
-	return res, err
-}
-
-func (s *grpcServer) FetchFederatedBundle(ctx oldcontext.Context, req *pb.FetchFederatedBundleRequest) (rep *pb.FetchFederatedBundleResponse, err error) {
-	_, rp, err := s.fetchFederatedBundle.ServeGRPC(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	rep = rp.(*pb.FetchFederatedBundleResponse)
-	return rep, err
-}
-
-// DecodeGRPCFetchFederatedBundlesRequest is a transport/grpc.DecodeRequestFunc that converts a
-// gRPC request to a user-domain request. Primarily useful in a server.
-// TODO: Do not forget to implement the decoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func DecodeGRPCFetchFederatedBundlesRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	err = errors.New("'FetchFederatedBundles' Decoder is not impelement")
-	return req, err
-}
-
-// EncodeGRPCFetchFederatedBundlesResponse is a transport/grpc.EncodeResponseFunc that converts a
-// user-domain response to a gRPC reply. Primarily useful in a server.
-// TODO: Do not forget to implement the encoder, you can find an example here :
-// https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65
-func EncodeGRPCFetchFederatedBundlesResponse(_ context.Context, grpcReply interface{}) (res interface{}, err error) {
-	err = errors.New("'FetchFederatedBundles' Encoder is not impelement")
-	return res, err
-}
-
-func (s *grpcServer) FetchFederatedBundles(ctx oldcontext.Context, req *pb.Empty) (rep *pb.FetchFederatedBundlesResponse, err error) {
-	_, rp, err := s.fetchFederatedBundles.ServeGRPC(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	rep = rp.(*pb.FetchFederatedBundlesResponse)
+	rep = rp.(*pb.Bundles)
 	return rep, err
 }

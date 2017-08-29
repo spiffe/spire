@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-kit/kit/endpoint"
 	pb "github.com/spiffe/sri/pkg/api/workload"
+	"github.com/spiffe/sri/pkg/common"
 )
 
 // Endpoints collects all of the endpoints that compose an add service. It's
@@ -12,80 +13,44 @@ import (
 // single parameter.
 
 type Endpoints struct {
-	FetchSVIDBundleEndpoint       endpoint.Endpoint
-	FetchSVIDBundlesEndpoint      endpoint.Endpoint
-	FetchFederatedBundleEndpoint  endpoint.Endpoint
-	FetchFederatedBundlesEndpoint endpoint.Endpoint
+	FetchBundlesEndpoint    endpoint.Endpoint
+	FetchAllBundlesEndpoint endpoint.Endpoint
 }
-type FetchSVIDBundleRequest struct {
-	Request pb.FetchSVIDBundleRequest
+type FetchBundlesRequest struct {
+	Request pb.SpiffeId
 }
-type FetchSVIDBundleResponse struct {
-	Response pb.FetchSVIDBundleResponse
+type FetchBundlesResponse struct {
+	Response pb.Bundles
 }
-type FetchSVIDBundlesRequest struct {
-	Request pb.Empty
+type FetchAllBundlesRequest struct {
+	Request common.Empty
 }
-type FetchSVIDBundlesResponse struct {
-	Response pb.FetchSVIDBundlesResponse
-}
-type FetchFederatedBundleRequest struct {
-	Request pb.FetchFederatedBundleRequest
-}
-type FetchFederatedBundleResponse struct {
-	Response pb.FetchFederatedBundleResponse
-}
-type FetchFederatedBundlesRequest struct {
-	Request pb.Empty
-}
-type FetchFederatedBundlesResponse struct {
-	Response pb.FetchFederatedBundlesResponse
+type FetchAllBundlesResponse struct {
+	Response pb.Bundles
 }
 
-func NewEndpoint(svc WorkloadService) (ep Endpoints) {
-	ep.FetchSVIDBundleEndpoint = MakeFetchSVIDBundleEndpoint(svc)
-	ep.FetchSVIDBundlesEndpoint = MakeFetchSVIDBundlesEndpoint(svc)
-	ep.FetchFederatedBundleEndpoint = MakeFetchFederatedBundleEndpoint(svc)
-	ep.FetchFederatedBundlesEndpoint = MakeFetchFederatedBundlesEndpoint(svc)
+func NewEndpoint(svc Service) (ep Endpoints) {
+	ep.FetchBundlesEndpoint = MakeFetchBundlesEndpoint(svc)
+	ep.FetchAllBundlesEndpoint = MakeFetchAllBundlesEndpoint(svc)
 	return ep
 }
 
-// MakeFetchSVIDBundleEndpoint returns an endpoint that invokes FetchSVIDBundle on the service.
+// MakeFetchBundlesEndpoint returns an endpoint that invokes FetchSVIDBundle on the service.
 // Primarily useful in a server.
-func MakeFetchSVIDBundleEndpoint(svc WorkloadService) (ep endpoint.Endpoint) {
+func MakeFetchBundlesEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(FetchSVIDBundleRequest)
-		response := svc.FetchSVIDBundle(ctx, req.Request)
-		return FetchSVIDBundleResponse{Response: response}, nil
+		req := request.(FetchBundlesRequest)
+		response, err := svc.FetchBundles(ctx, req.Request)
+		return FetchAllBundlesResponse{Response: response}, err
 	}
 }
 
-// MakeFetchSVIDBundlesEndpoint returns an endpoint that invokes FetchSVIDBundles on the service.
+// MakeFetchAllBundlesEndpoint returns an endpoint that invokes FetchSVIDBundles on the service.
 // Primarily useful in a server.
-func MakeFetchSVIDBundlesEndpoint(svc WorkloadService) (ep endpoint.Endpoint) {
+func MakeFetchAllBundlesEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(FetchSVIDBundlesRequest)
-		response := svc.FetchSVIDBundles(ctx, req.Request)
-		return FetchSVIDBundlesResponse{Response: response}, nil
-	}
-}
-
-// MakeFetchFederatedBundleEndpoint returns an endpoint that invokes FetchFederatedBundle on the service.
-// Primarily useful in a server.
-func MakeFetchFederatedBundleEndpoint(svc WorkloadService) (ep endpoint.Endpoint) {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(FetchFederatedBundleRequest)
-		response := svc.FetchFederatedBundle(ctx, req.Request)
-		return FetchFederatedBundleResponse{Response: response}, nil
-	}
-}
-
-// MakeFetchFederatedBundlesEndpoint returns an endpoint that invokes FetchFederatedBundles on the service.
-// Primarily useful in a server.
-func MakeFetchFederatedBundlesEndpoint(svc WorkloadService) (ep endpoint.Endpoint) {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(FetchFederatedBundlesRequest)
-		response := svc.FetchFederatedBundles(ctx, req.Request)
-		return FetchFederatedBundlesResponse{Response: response}, nil
+		req := request.(FetchAllBundlesRequest)
+		response, err := svc.FetchAllBundles(ctx, req.Request)
+		return FetchBundlesResponse{Response: response}, err
 	}
 }
