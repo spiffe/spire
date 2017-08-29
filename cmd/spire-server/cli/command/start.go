@@ -126,6 +126,7 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 	pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
 	pluginCatalog.SetPluginTypeMap(PluginTypeMap)
 	err := pluginCatalog.Run()
+	level.Info(logger).Log("plugincount", len(pluginCatalog.PluginClientsByName))
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return nil, err
@@ -136,12 +137,14 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 
 func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	//plugins
+
+
 	dataStore := pluginCatalog.GetPluginsByType("DataStore")[0]
 	level.Info(logger).Log("pluginType", reflect.TypeOf(dataStore))
 	dataStoreImpl := dataStore.(datastore.DataStore)
 
-	level.Info(logger).Log(len(pluginCatalog.GetPluginsByType("NodeAttestor")))
-	nodeAttestor := pluginCatalog.GetPluginsByType("NodeAttestor")[0]
+	//nodeAttestor := pluginCatalog.GetPluginsByType("NodeAttestor")[0]
+	nodeAttestor := pluginCatalog.GetPluginByName("join_token")
 	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeAttestor))
 	nodeAttestorImpl := nodeAttestor.(nodeattestor.NodeAttestor)
 
