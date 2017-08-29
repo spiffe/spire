@@ -46,7 +46,7 @@ func (se *stubServerService) Stop(ctx context.Context, request sriplugin.StopReq
 }
 
 func (se *stubServerService) PluginInfo(ctx context.Context, request sriplugin.PluginInfoRequest) (response sriplugin.PluginInfoReply, err error) {
-	for _, c := range se.PluginCatalog.PluginConfigs {
+	for _, c := range se.PluginCatalog.pluginConfigs {
 		info := &sriplugin.GetPluginInfoResponse{
 			Name: c.PluginName,
 			Type: c.PluginType,
