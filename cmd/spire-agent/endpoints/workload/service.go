@@ -4,42 +4,27 @@ import (
 	"context"
 
 	pb "github.com/spiffe/sri/pkg/api/workload"
+	"github.com/spiffe/sri/pkg/common"
 )
 
-// Implement yor service methods methods.
-// e.x: Foo(ctx context.Context,s string)(rs string, err error)
-type WorkloadService interface {
-	FetchSVIDBundle(ctx context.Context, request pb.FetchSVIDBundleRequest) (response pb.FetchSVIDBundleResponse)
-	FetchSVIDBundles(ctx context.Context, request pb.Empty) (response pb.FetchSVIDBundlesResponse)
-	FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse)
-	FetchFederatedBundles(ctx context.Context, request pb.Empty) (response pb.FetchFederatedBundlesResponse)
+//Service for workload api
+type Service interface {
+	FetchBundles(ctx context.Context, request pb.SpiffeId) (response pb.Bundles, err error)
+	FetchAllBundles(ctx context.Context, request common.Empty) (response pb.Bundles, err error)
 }
 
 type stubWorkloadService struct{}
 
-// Get a new instance of the service.
-// If you want to add service middleware this is the place to put them.
+//NewService gets a new instance of the service.
 func NewService() (s *stubWorkloadService) {
 	s = &stubWorkloadService{}
 	return s
 }
 
-// Implement the business logic of FetchSVIDBundle
-func (wo *stubWorkloadService) FetchSVIDBundle(ctx context.Context, request pb.FetchSVIDBundleRequest) (response pb.FetchSVIDBundleResponse) {
-	return response
+func (wo *stubWorkloadService) FetchBundles(ctx context.Context, request pb.SpiffeId) (response pb.Bundles, err error) {
+	return response, err
 }
 
-// Implement the business logic of FetchSVIDBundles
-func (wo *stubWorkloadService) FetchSVIDBundles(ctx context.Context, request pb.Empty) (response pb.FetchSVIDBundlesResponse) {
-	return response
-}
-
-// Implement the business logic of FetchFederatedBundle
-func (wo *stubWorkloadService) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse) {
-	return response
-}
-
-// Implement the business logic of FetchFederatedBundles
-func (wo *stubWorkloadService) FetchFederatedBundles(ctx context.Context, request pb.Empty) (response pb.FetchFederatedBundlesResponse) {
-	return response
+func (wo *stubWorkloadService) FetchAllBundles(ctx context.Context, request common.Empty) (response pb.Bundles, err error) {
+	return response, err
 }

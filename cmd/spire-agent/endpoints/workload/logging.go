@@ -6,69 +6,44 @@ import (
 
 	"github.com/go-kit/kit/log"
 	pb "github.com/spiffe/sri/pkg/api/workload"
+	"github.com/spiffe/sri/pkg/common"
 )
 
-type ServerServiceMiddleWare func(WorkloadService) WorkloadService
+type ServerServiceMiddleWare func(Service) Service
 
 func SelectorServiceLoggingMiddleWare(logger log.Logger) ServerServiceMiddleWare {
-	return func(next WorkloadService) WorkloadService {
+	return func(next Service) Service {
 		return LoggingMiddleware{logger, next}
 	}
 }
 
 type LoggingMiddleware struct {
 	logger log.Logger
-	next   WorkloadService
+	next   Service
 }
 
-func (mw LoggingMiddleware) FetchSVIDBundle(ctx context.Context, request pb.FetchSVIDBundleRequest) (response pb.FetchSVIDBundleResponse) {
+func (mw LoggingMiddleware) FetchBundles(ctx context.Context, request pb.SpiffeId) (response pb.Bundles, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
-			"method", "FetchSVIDBundle",
+			"method", "FetchBundles",
 			"request", request.String(),
 			"took", time.Since(begin),
 		)
 	}(time.Now())
 
-	response = mw.next.FetchSVIDBundle(ctx, request)
+	response, err = mw.next.FetchBundles(ctx, request)
 	return
 }
 
-func (mw LoggingMiddleware) FetchSVIDBundles(ctx context.Context, request pb.Empty) (response pb.FetchSVIDBundlesResponse) {
+func (mw LoggingMiddleware) FetchAllBundles(ctx context.Context, request common.Empty) (response pb.Bundles, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
-			"method", "FetchSVIDBundles",
+			"method", "FetchAllBundles",
 			"request", request.String(),
 			"took", time.Since(begin),
 		)
 	}(time.Now())
 
-	response = mw.next.FetchSVIDBundles(ctx, request)
-	return
-}
-
-func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse) {
-	defer func(begin time.Time) {
-		mw.logger.Log(
-			"method", "FetchFederatedBundle",
-			"request", request.String(),
-			"took", time.Since(begin),
-		)
-	}(time.Now())
-
-	response = mw.next.FetchFederatedBundle(ctx, request)
-	return
-}
-
-func (mw LoggingMiddleware) FetchFederatedBundles(ctx context.Context, request pb.Empty) (response pb.FetchFederatedBundlesResponse) {
-	defer func(begin time.Time) {
-		mw.logger.Log(
-			"method", "FetchFederatedBundles",
-			"request", request.String(),
-			"took", time.Since(begin),
-		)
-	}(time.Now())
-
-	response = mw.next.FetchFederatedBundles(ctx, request)
+	response, err = mw.next.FetchAllBundles(ctx, request)
 	return
 }
