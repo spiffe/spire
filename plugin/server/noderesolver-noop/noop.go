@@ -9,8 +9,8 @@ import (
 
 type NoOp struct{}
 
-func (NoOp) Configure(config string) ([]string, error) {
-	return []string{}, nil
+func (NoOp) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	return &sriplugin.ConfigureResponse{}, nil
 }
 
 func (NoOp) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
