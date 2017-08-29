@@ -16,6 +16,7 @@ import (
 	"path"
 
 	"github.com/go-kit/kit/log"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/go-spiffe/uri"
@@ -114,9 +115,16 @@ func (a *Agent) Run() error {
 
 func (a *Agent) initPlugins() error {
 	a.Config.Log.Log("msg", "Starting plugins")
+
+	// TODO: Feed log level through/fix logging...
+	pluginLogger := hclog.New(&hclog.LoggerOptions{
+		Name:  "pluginLogger",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+
 	a.Catalog = &helpers.PluginCatalog{
 		PluginConfDirectory: a.Config.PluginDir,
-		Logger:              a.Config.Log,
+		Logger:              pluginLogger,
 	}
 
 	a.Catalog.SetMaxPluginTypeMap(MaxPlugins)
@@ -337,17 +345,3 @@ func (a *Agent) StoreBaseSVID() {
 
 	return
 }
-
-// func DecodeSVIDEntry(svid *node.Svid) (baseSVID []byte, baseSVIDTTL int32, err error) {
-// 	block, rest := pem.Decode(svid)
-// 	if len(rest) > 0 {
-// 		return nil, 0, errors.New("Could not decode SVID, extra data encountered")
-// 	}
-
-// 	cert, err := x509.ParseCertificate(block.Bytes)
-// 	if err != nil {
-// 		return nil, 0, err
-// 	}
-
-// 	return cert, svid.Ttl, nil
-// }

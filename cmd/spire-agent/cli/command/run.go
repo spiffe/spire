@@ -1,11 +1,14 @@
 package command
 
 import (
+	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/hashicorp/hcl"
@@ -17,7 +20,8 @@ import (
 const (
 	defaultConfigPath = ".conf/default_agent_config.hcl"
 
-	defaultBindAddress = "127.0.0.1:8081"
+	defaultBindAddress = "127.0.0.1"
+	defaultBindPort    = "8081"
 	defaultDataDir     = "."
 	defaultLogFile     = "spire-server.log"
 	defaultLogLevel    = "INFO"
@@ -28,10 +32,12 @@ const (
 // options
 type CliConfig struct {
 	ServerAddress   string
+	ServerPort      string
 	TrustDomain     string
 	TrustBundlePath string
 
 	BindAddress string
+	BindPort    string
 	DataDir     string
 	PluginDir   string
 	LogFile     string
@@ -48,13 +54,13 @@ func (*RunCommand) Help() string {
 func (*RunCommand) Run(args []string) int {
 	config := newAgentConfig()
 
-	err := setOptsFromFile(&config, defaultConfigPath)
+	err := setOptsFromFile(config, defaultConfigPath)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	setOptsFromCLI(&config)
+	setOptsFromCLI(config)
 
 	// TODO: Handle graceful shutdown?
 	signalListener(config.ErrorCh)
@@ -62,7 +68,7 @@ func (*RunCommand) Run(args []string) int {
 	a := &agent.Agent{Config: config}
 	err = a.Run()
 	if err != nil {
-		config.Log.Error(err.Error)
+		config.Log.Log("msg", err.Error)
 		return 1
 	}
 
@@ -88,7 +94,7 @@ func setOptsFromFile(c *agent.Config, filePath string) error {
 		return err
 	}
 
-	return mergeAgentConfig(&c, fileConfig)
+	return mergeAgentConfig(c, fileConfig)
 }
 
 func setOptsFromCLI(*agent.Config) {
@@ -96,29 +102,49 @@ func setOptsFromCLI(*agent.Config) {
 	return
 }
 
-func mergeAgentConfig(orig *agent.Config, new CliConfig) error {
-	if new.ServerAddress == "" {
-		return fmt.Errorf("ServerAddress is required")
+func mergeAgentConfig(orig *agent.Config, new *CliConfig) error {
+	// Parse server address
+	if new.ServerAddress == "" || new.ServerPort == "" {
+		return fmt.Errorf("ServerAddress and ServerPort are required")
 	}
-	addr := &net.Addr{Network: "tcp", String: new.ServerAddress}
-	orig.ServerAddress = addr
+	serverAddress := net.ParseIP(new.ServerAddress)
+	serverPort, err := strconv.Atoi(new.ServerPort)
+	if serverAddress == nil {
+		return fmt.Errorf("ServerAddress %s is not a valid IP", new.ServerAddress)
+	}
+	if err != nil {
+		return fmt.Errorf("ServerPort %s is not a valid port number", new.ServerPort)
+	}
+	orig.ServerAddress = &net.TCPAddr{IP: serverAddress, Port: serverPort}
 
+	// Handle trust domain
 	if new.TrustDomain == "" {
 		return fmt.Errorf("TrustDomain is required")
 	}
 	orig.TrustDomain = new.TrustDomain
 
+	// Parse trust bundle
 	if new.TrustBundlePath == "" {
 		return fmt.Errorf("TrustBundlePath is required")
 	}
-	bundle, err = parseTrustBundle(new.TrustBundlePath)
+	bundle, err := parseTrustBundle(new.TrustBundlePath)
 	if err != nil {
 		return fmt.Errorf("Error parsing trust bundle: %s", err)
 	}
 	orig.TrustBundle = bundle
 
+	// Parse bind address
 	bindAddr := stringDefault(new.BindAddress, defaultBindAddress)
-	orig.BindAddress = &net.Addr{Network: "tcp", String: bindAddr}
+	bindPort := stringDefault(new.BindPort, defaultBindPort)
+	addr := net.ParseIP(bindAddr)
+	port, err := strconv.Atoi(bindPort)
+	if addr == nil {
+		return fmt.Errorf("BindAddress %s is not a valid IP", bindAddr)
+	}
+	if err != nil {
+		return fmt.Errorf("BindPort %s is not a valid port number", bindPort)
+	}
+	orig.BindAddress = &net.TCPAddr{IP: addr, Port: port}
 
 	// TODO: Make my default sane
 	orig.DataDir = stringDefault(new.DataDir, defaultDataDir)
@@ -137,8 +163,8 @@ func mergeAgentConfig(orig *agent.Config, new CliConfig) error {
 
 func newAgentConfig() *agent.Config {
 	certDN := &pkix.Name{
-		Country:      "US",
-		Organization: "SPIRE",
+		Country:      []string{"US"},
+		Organization: []string{"SPIRE"},
 	}
 	errCh := make(chan error)
 	shutdownCh := make(chan struct{})
@@ -150,21 +176,21 @@ func newAgentConfig() *agent.Config {
 	}
 }
 
-func parseTrustBundle(path string) *x509.CertPool {
-	data, err := ioutil.ReadAll(path)
+func parseTrustBundle(path string) (*x509.CertPool, error) {
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	certPool := x509.NewCertPool()
-	if ok := certPool.AddCertsFromPEM(data); !ok {
-		return fmt.Errorf("No valid certificates found at %s", path)
+	if ok := certPool.AppendCertsFromPEM(data); !ok {
+		return nil, fmt.Errorf("No valid certificates found at %s", path)
 	}
-	return certPool
+	return certPool, nil
 }
 
 func stringDefault(option string, defaultValue string) string {
-	if opt == "" {
+	if option == "" {
 		return defaultValue
 	}
 
@@ -175,7 +201,7 @@ func signalListener(ch chan error) {
 	go func() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-		errChannel <- fmt.Errorf("%s", <-signalCh)
+		ch <- fmt.Errorf("%s", <-signalCh)
 	}()
 	return
 }
