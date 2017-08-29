@@ -72,7 +72,7 @@ func (p *JoinTokenPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor
 	return resp, nil
 }
 
-func (p *JoinTokenPlugin) Configure(req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
+func (p *JoinTokenPlugin) Configure(req *common.ConfigureRequest) ( *common.ConfigureResponse, error) {
 	// Parse JSON config payload into config struct
 	config := &JoinTokenConfig{}
 	if err := json.Unmarshal([]byte(req.Configuration), &config); err != nil {

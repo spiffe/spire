@@ -25,15 +25,15 @@ type GRPCClient struct {
 	client NodeAttestorClient
 }
 
-func (m *GRPCClient) Configure(configuration string) ([]string, error) {
-	response, err := m.client.Configure(context.Background(), &sriplugin.ConfigureRequest{configuration})
+func (m *GRPCClient) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	response, err := m.client.Configure(context.Background(), req)
 	if err != nil {
-		return []string{}, err
+		return response, err
 	}
-	return response.ErrorList, err
+	return response, err
 }
 
-func (m *GRPCClient) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
+func (m *GRPCClient) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
 	response, err := m.client.GetPluginInfo(context.Background(), &sriplugin.GetPluginInfoRequest{})
 	return response, err
 }

@@ -29,6 +29,25 @@
   
 
 
+* [common.proto](#common.proto)
+  
+    * [AttestedData](#common.AttestedData)
+  
+    * [Empty](#common.Empty)
+  
+    * [RegistrationEntries](#common.RegistrationEntries)
+  
+    * [RegistrationEntry](#common.RegistrationEntry)
+  
+    * [Selector](#common.Selector)
+  
+    * [Selectors](#common.Selectors)
+  
+  
+  
+  
+
+
 * [data_store.proto](#data_store.proto)
   
     * [AttestedNodeEntry](#datastore.AttestedNodeEntry)
@@ -104,10 +123,6 @@
     * [RectifyNodeResolverMapEntriesRequest](#datastore.RectifyNodeResolverMapEntriesRequest)
   
     * [RectifyNodeResolverMapEntriesResponse](#datastore.RectifyNodeResolverMapEntriesResponse)
-  
-    * [RegisteredEntry](#datastore.RegisteredEntry)
-  
-    * [Selector](#datastore.Selector)
   
     * [UpdateAttestedNodeEntryRequest](#datastore.UpdateAttestedNodeEntryRequest)
   
@@ -266,6 +281,113 @@ Represents the plugin metadata.
 
 
 
+<a name="common.proto"/>
+<p align="right"><a href="#top">Top</a></p>
+
+## common.proto
+
+
+
+<a name="common.AttestedData"/>
+
+### AttestedData
+A type which contains attestation data for specific platform.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  | Type of attestation to perform. |
+| data | [bytes](#bytes) |  | The attestetion data. |
+
+
+
+
+
+
+<a name="common.Empty"/>
+
+### Empty
+Represents an empty message
+
+
+
+
+
+
+<a name="common.RegistrationEntries"/>
+
+### RegistrationEntries
+A list of registration entries.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [RegistrationEntry](#common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
+
+
+
+
+
+
+<a name="common.RegistrationEntry"/>
+
+### RegistrationEntry
+This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| selectors | [Selector](#common.Selector) | repeated | A list of selectors. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| ttl | [int32](#int32) |  | Time to live. |
+| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
+
+
+
+
+
+
+<a name="common.Selector"/>
+
+### Selector
+A type which describes the conditions under which a registration entry is matched.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| value | [string](#string) |  | The value to be attested. |
+
+
+
+
+
+
+<a name="common.Selectors"/>
+
+### Selectors
+Represents a type with a list of NodeResolution.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [Selector](#common.Selector) | repeated | A list of NodeResolution. |
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+ 
+
+
+
 <a name="data_store.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
@@ -386,7 +508,7 @@ Represents a Registration entry to create
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#datastore.RegisteredEntry) |  | Registration entry |
+| registeredEntry | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) |  | Registration entry |
 
 
 
@@ -521,7 +643,7 @@ Represents the deleted Registration entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#datastore.RegisteredEntry) |  | Registration entry |
+| registeredEntry | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) |  | Registration entry |
 
 
 
@@ -630,7 +752,7 @@ Represents a Registration entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#datastore.RegisteredEntry) |  | Registration entry |
+| registeredEntry | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) |  | Registration entry |
 
 
 
@@ -710,7 +832,7 @@ Represents a list of Registered entries with the specified Parent ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [RegisteredEntry](#datastore.RegisteredEntry) | repeated | List of Registration entries |
+| registeredEntryList | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) | repeated | List of Registration entries |
 
 
 
@@ -725,7 +847,7 @@ Represents a selector
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selector | [Selector](#datastore.Selector) |  | Selector |
+| selector | [.common.Selector](#datastore..common.Selector) |  | Selector |
 
 
 
@@ -740,7 +862,7 @@ Represents a list of Registered entries with the specified selector
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [RegisteredEntry](#datastore.RegisteredEntry) | repeated | List of Registration entries |
+| registeredEntryList | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) | repeated | List of Registration entries |
 
 
 
@@ -770,7 +892,7 @@ Represents a list of Registered entries with the specified Spiffe ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [RegisteredEntry](#datastore.RegisteredEntry) | repeated | List of Registration entries |
+| registeredEntryList | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) | repeated | List of Registration entries |
 
 
 
@@ -787,7 +909,7 @@ logical attributes (i.e. an AWS instance to its ASG).
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | baseSpiffeId | [string](#string) |  |  |
-| selector | [Selector](#datastore.Selector) |  |  |
+| selector | [.common.Selector](#datastore..common.Selector) |  |  |
 
 
 
@@ -818,41 +940,6 @@ Represents a list of Node resolver map entries
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | nodeResolverMapEntryList | [NodeResolverMapEntry](#datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
-
-
-
-
-
-
-<a name="datastore.RegisteredEntry"/>
-
-### RegisteredEntry
-Represents a single Registration Entry.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| selectorList | [Selector](#datastore.Selector) | repeated | Array of selectors |
-| spiffeId | [string](#string) |  | SPIFFE ID |
-| parentId | [string](#string) |  | Attestor SPIFFE ID |
-| ttl | [int32](#int32) |  | TTL |
-| federatedBundleSpiffeIdList | [string](#string) | repeated | SPIFFE IDs of foreign trust domains |
-
-
-
-
-
-
-<a name="datastore.Selector"/>
-
-### Selector
-Describes the conditions under which a registration entry is matched.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | Selector type |
-| value | [string](#string) |  | Selector value |
 
 
 
@@ -930,7 +1017,7 @@ Represents a Registration entry to update
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | registeredEntryId | [string](#string) |  | Registration entry ID |
-| registeredEntry | [RegisteredEntry](#datastore.RegisteredEntry) |  | Registration entry |
+| registeredEntry | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) |  | Registration entry |
 
 
 
@@ -945,7 +1032,7 @@ Represents the updated Registration entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [RegisteredEntry](#datastore.RegisteredEntry) |  | Registration entry |
+| registeredEntry | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) |  | Registration entry |
 
 
 

@@ -11,8 +11,8 @@ type GRPCServer struct {
 }
 
 func (m *GRPCServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	response, err := m.NodeResolverImpl.Configure(req.Configuration)
-	return &sriplugin.ConfigureResponse{ErrorList: response}, err
+	response, err := m.NodeResolverImpl.Configure(req)
+	return response, err
 }
 
 func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
@@ -29,12 +29,12 @@ type GRPCClient struct {
 	client NodeResolverClient
 }
 
-func (m *GRPCClient) Configure(configuration string) ([]string, error) {
-	response, err := m.client.Configure(context.Background(), &sriplugin.ConfigureRequest{configuration})
+func (m *GRPCClient) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	response, err := m.client.Configure(context.Background(), req)
 	if err != nil {
-		return []string{}, err
+		return response, err
 	}
-	return response.ErrorList, err
+	return response, err
 }
 
 func (m *GRPCClient) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
