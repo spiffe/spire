@@ -35,7 +35,7 @@ func (att *AttestationImpl) IsAttested(baseSpiffeID string) (isAttested bool, er
 	if fetchResponse, err = att.dataStore.FetchAttestedNodeEntry(fetchRequest); err != nil {
 		return false, err
 	}
-	if fetchResponse.AttestedNodeEntry.BaseSpiffeId == "" {
+	if fetchResponse.AttestedNodeEntry.BaseSpiffeId == baseSpiffeID {
 		return true, nil
 	}
 	return false, nil

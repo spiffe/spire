@@ -30,9 +30,10 @@ func (suite *NodeServiceTestSuite) SetupTest() {
 	suite.mockAttestation = services.NewMockAttestation(mockCtrl)
 
 	suite.nodeService = NewService(ServiceConfig{
-		Attestation: suite.mockAttestation,
-		CA:          suite.mockCA,
-		Identity:    suite.mockIdentity,
+		Attestation:     suite.mockAttestation,
+		CA:              suite.mockCA,
+		Identity:        suite.mockIdentity,
+		BaseSpiffeIDTTL: 7777,
 	})
 }
 
@@ -64,7 +65,7 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 	})
 
 	svids := make(map[string]*pb.Svid)
-	svids[baseSpiffeID] = &pb.Svid{SvidCert: fakeCert, Ttl: 999}
+	svids[baseSpiffeID] = &pb.Svid{SvidCert: fakeCert, Ttl: 7777}
 	registrationEntry := &common.RegistrationEntry{
 		SpiffeId:  baseSpiffeID,
 		Selectors: selectors[baseSpiffeID].Entries,
