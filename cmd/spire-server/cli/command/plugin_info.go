@@ -33,7 +33,7 @@ func (*PluginInfoCommand) Run(args []string) int {
 		log.Fatalf("error: %v", err)
 		return -1
 	}
-	log.Printf("Plugin information: %s", r)
+	log.Printf("PluginClient information: %s", r)
 
 	return 0
 }

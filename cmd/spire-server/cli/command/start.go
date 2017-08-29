@@ -21,16 +21,20 @@ import (
 	"github.com/spiffe/sri/pkg/server/noderesolver"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
 
+	"github.com/spiffe/sri/cmd/spire-server/endpoints/node"
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/registration"
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/server"
-	pb "github.com/spiffe/sri/pkg/api/registration"
+	nodePB "github.com/spiffe/sri/pkg/api/node"
+	registrationPB "github.com/spiffe/sri/pkg/api/registration"
+
+	"reflect"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/services"
-	"reflect"
 )
 
 const (
@@ -80,7 +84,7 @@ func (*StartCommand) Run(args []string) int {
 		return -1
 
 	}
-	logger, err = helpers.NewLogger(config.logLevel, config.logFile)
+	logger, err = helpers.NewLogger(config.LogConfig())
 	if err != nil {
 		logger.Log("error", err)
 		return -1
@@ -110,27 +114,52 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 	if !isPathSet {
 		pluginConfigDir = DefaultPluginConfigDir
 	}
+	pluginLogger := hclog.New(&hclog.LoggerOptions{
+		Name:  "pluginLogger",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+
 	pluginCatalog := &helpers.PluginCatalog{
 		PluginConfDirectory: pluginConfigDir,
+		Logger:              pluginLogger,
 	}
 	pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
 	pluginCatalog.SetPluginTypeMap(PluginTypeMap)
 	err := pluginCatalog.Run()
+	level.Info(logger).Log("plugincount", len(pluginCatalog.PluginClientsByName))
 	if err != nil {
-		return nil, err
 		level.Error(logger).Log("error", err)
+		return nil, err
 	}
 
 	return pluginCatalog, nil
 }
 
 func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
-	//Shouldn't we get this by plugin type?
+	//plugins
 
-	dataStore := pluginCatalog.GetPlugin("datastore")
+	dataStore := pluginCatalog.GetPluginsByType("DataStore")[0]
 	level.Info(logger).Log("pluginType", reflect.TypeOf(dataStore))
 	dataStoreImpl := dataStore.(datastore.DataStore)
+
+	//nodeAttestor := pluginCatalog.GetPluginsByType("NodeAttestor")[0]
+	nodeAttestor := pluginCatalog.GetPluginByName("join_token")
+	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeAttestor))
+	nodeAttestorImpl := nodeAttestor.(nodeattestor.NodeAttestor)
+
+	nodeResolver := pluginCatalog.GetPluginsByType("NodeResolver")[0]
+	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeResolver))
+	nodeResolverImpl := nodeResolver.(noderesolver.NodeResolver)
+
+	serverCA := pluginCatalog.GetPluginsByType("ControlPlaneCA")[0]
+	level.Info(logger).Log("pluginType", reflect.TypeOf(serverCA))
+	serverCAImpl := serverCA.(ca.ControlPlaneCa)
+
+	//services
 	registrationService := services.NewRegistrationImpl(dataStoreImpl)
+	attestationService := services.NewAttestationImpl(dataStoreImpl, nodeAttestorImpl)
+	identityService := services.NewIdentityImpl(dataStoreImpl, nodeResolverImpl)
+	caService := services.NewCAImpl(serverCAImpl)
 
 	errChan := makeErrorChannel()
 	var serverSvc server.ServerService
@@ -140,6 +169,10 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	var registrationSvc registration.RegistrationService
 	registrationSvc = registration.NewService(registrationService)
 	registrationSvc = registration.ServiceLoggingMiddleWare(logger)(registrationSvc)
+
+	var nodeSvc node.NodeService
+	nodeSvc = node.NewService(node.ServiceConfig{Attestation: attestationService, CA: caService, Identity: identityService})
+	nodeSvc = node.SelectorServiceLoggingMiddleWare(logger)(nodeSvc)
 
 	var (
 		httpAddr = flag.String("http", ":8080", "http listen address")
@@ -166,6 +199,13 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 		DeleteFederatedBundleEndpoint: registration.MakeDeleteFederatedBundleEndpoint(registrationSvc),
 	}
 
+	nodeEnpoints := node.Endpoints{
+		FetchBaseSVIDEndpoint:        node.MakeFetchBaseSVIDEndpoint(nodeSvc),
+		FetchCPBundleEndpoint:        node.MakeFetchCPBundleEndpoint(nodeSvc),
+		FetchFederatedBundleEndpoint: node.MakeFetchFederatedBundleEndpoint(nodeSvc),
+		FetchSVIDEndpoint:            node.MakeFetchSVIDEndpoint(nodeSvc),
+	}
+
 	go func() {
 		listener, err := net.Listen("tcp", *gRPCAddr)
 		if err != nil {
@@ -176,9 +216,12 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 
 		serverHandler := server.MakeGRPCServer(serverEndpoints)
 		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
+		nodeHandler := node.MakeGRPCServer(nodeEnpoints)
 		gRPCServer := grpc.NewServer()
+
 		sriplugin.RegisterServerServer(gRPCServer, serverHandler)
-		pb.RegisterRegistrationServer(gRPCServer, registrationHandler)
+		registrationPB.RegisterRegistrationServer(gRPCServer, registrationHandler)
+		nodePB.RegisterNodeServer(gRPCServer, nodeHandler)
 		errChan <- gRPCServer.Serve(listener)
 	}()
 
@@ -190,7 +233,7 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 		mux := runtime.NewServeMux()
 		opts := []grpc.DialOption{grpc.WithInsecure()}
 		logger.Log("http:", *httpAddr)
-		err := pb.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
+		err := registrationPB.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
 		if err != nil {
 			errChan <- err
 			return

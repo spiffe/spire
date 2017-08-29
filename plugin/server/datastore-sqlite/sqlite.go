@@ -2,14 +2,17 @@ package main
 
 import (
 	"errors"
+
 	"github.com/hashicorp/go-plugin"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
 
+	"time"
+
+	"github.com/spiffe/sri/pkg/common"
 	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/server/datastore"
-	"time"
 )
 
 var (
@@ -289,7 +292,7 @@ func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
 	return &datastore.CreateNodeResolverMapEntryResponse{
 		NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
 			BaseSpiffeId: model.SpiffeId,
-			Selector: &datastore.Selector{
+			Selector: &common.Selector{
 				Type:  model.Type,
 				Value: model.Value,
 			},
@@ -312,7 +315,7 @@ func (ds *sqlitePlugin) FetchNodeResolverMapEntry(
 	for _, model := range models {
 		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &datastore.NodeResolverMapEntry{
 			BaseSpiffeId: model.SpiffeId,
-			Selector: &datastore.Selector{
+			Selector: &common.Selector{
 				Type:  model.Type,
 				Value: model.Value,
 			},
@@ -359,7 +362,7 @@ func (ds *sqlitePlugin) DeleteNodeResolverMapEntry(
 	for _, model := range models {
 		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &datastore.NodeResolverMapEntry{
 			BaseSpiffeId: model.SpiffeId,
-			Selector: &datastore.Selector{
+			Selector: &common.Selector{
 				Type:  model.Type,
 				Value: model.Value,
 			},
@@ -380,7 +383,7 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/sri/issues/44]
 	if request.RegisteredEntry == nil {
 		return nil, errors.New("Invalid request: missing registered entry")
-	} else if request.RegisteredEntry.SelectorList == nil || len(request.RegisteredEntry.SelectorList) == 0 {
+	} else if request.RegisteredEntry.Selectors == nil || len(request.RegisteredEntry.Selectors) == 0 {
 		return nil, errors.New("Invalid request: missing selector list")
 	} else if len(request.RegisteredEntry.SpiffeId) == 0 {
 		return nil, errors.New("Invalid request: missing SPIFFE ID")
@@ -402,7 +405,7 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 		return nil, err
 	}
 
-	for _, registeredSelector := range request.RegisteredEntry.SelectorList {
+	for _, registeredSelector := range request.RegisteredEntry.Selectors {
 		newSelector := selector{
 			RegisteredEntryId: newRegisteredEntry.RegisteredEntryId,
 			Type:              registeredSelector.Type,
@@ -435,20 +438,20 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 	var fetchedSelectors []*selector
 	ds.db.Model(&fetchedRegisteredEntry).Related(&fetchedSelectors)
 
-	selectors := make([]*datastore.Selector, 0, len(fetchedSelectors))
+	selectors := make([]*common.Selector, 0, len(fetchedSelectors))
 
 	for _, selector := range fetchedSelectors {
-		selectors = append(selectors, &datastore.Selector{
+		selectors = append(selectors, &common.Selector{
 			Type:  selector.Type,
 			Value: selector.Value})
 	}
 
 	return &datastore.FetchRegistrationEntryResponse{
-		RegisteredEntry: &datastore.RegisteredEntry{
-			SelectorList: selectors,
-			SpiffeId:     fetchedRegisteredEntry.SpiffeId,
-			ParentId:     fetchedRegisteredEntry.ParentId,
-			Ttl:          fetchedRegisteredEntry.Ttl,
+		RegisteredEntry: &common.RegistrationEntry{
+			Selectors: selectors,
+			SpiffeId:  fetchedRegisteredEntry.SpiffeId,
+			ParentId:  fetchedRegisteredEntry.ParentId,
+			Ttl:       fetchedRegisteredEntry.Ttl,
 		},
 	}, nil
 }

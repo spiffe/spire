@@ -2,21 +2,15 @@ package command
 
 import (
 	"crypto/x509/pkix"
-	"flag"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
-
-	"github.com/go-kit/kit/log/level"
-	"github.com/go-kit/kit/log"
 
 	"github.com/hashicorp/hcl"
 
 	"github.com/spiffe/sri/helpers"
-	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/agent"
 )
 
@@ -24,24 +18,24 @@ const (
 	defaultConfigPath = ".conf/default_agent_config.hcl"
 
 	defaultBindAddress = "127.0.0.1:8081"
-	defaultDataDir = "."
-	defaultLogFile = "spire-server.log"
-	defaultLogLevel = "INFO"
-	defaultPluginDir = "../../plugin/agent/.conf"
+	defaultDataDir     = "."
+	defaultLogFile     = "spire-server.log"
+	defaultLogLevel    = "INFO"
+	defaultPluginDir   = "../../plugin/agent/.conf"
 )
 
 // Struct representing available configurables for file and CLI
 // options
 type CliConfig struct {
-	ServerAddress string
-	TrustDomain string
+	ServerAddress   string
+	TrustDomain     string
 	TrustBundlePath string
 
 	BindAddress string
-	DataDir string
-	PluginDir string
-	LogFile string
-	LogLevel string
+	DataDir     string
+	PluginDir   string
+	LogFile     string
+	LogLevel    string
 }
 
 type RunCommand struct {
@@ -123,8 +117,8 @@ func mergeAgentConfig(orig *agent.Config, new CliConfig) error {
 	}
 	orig.TrustBundle = bundle
 
-	addr := stringDefault(new.BindAddress, defaultBindAddress)
-	orig.BindAddress = &net.Addr{Network: "tcp", String: addr}
+	bindAddr := stringDefault(new.BindAddress, defaultBindAddress)
+	orig.BindAddress = &net.Addr{Network: "tcp", String: bindAddr}
 
 	// TODO: Make my default sane
 	orig.DataDir = stringDefault(new.DataDir, defaultDataDir)
@@ -141,17 +135,17 @@ func mergeAgentConfig(orig *agent.Config, new CliConfig) error {
 	return nil
 }
 
-func newAgentConfig() (*agent.Config) {
+func newAgentConfig() *agent.Config {
 	certDN := &pkix.Name{
-		Country: "US",
-		Organization: "SPIRE"
+		Country:      "US",
+		Organization: "SPIRE",
 	}
 	errCh := make(chan error)
 	shutdownCh := make(chan struct{})
 
 	return &agent.Config{
-		CertDN: certDN,
-		ErrorCh: errCh,
+		CertDN:     certDN,
+		ErrorCh:    errCh,
 		ShutdownCh: shutdownCh,
 	}
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/spiffe/sri/pkg/agent/nodeattestor"
+	"github.com/spiffe/sri/pkg/common"
 	"github.com/spiffe/sri/pkg/common/plugin"
 )
 
@@ -46,7 +47,7 @@ func (p *JoinTokenPlugin) FetchAttestationData(req *nodeattestor.FetchAttestatio
 
 	// FIXME: NA should be the one dictating type of this message
 	// Change the proto to just take plain byte here
-	data := &nodeattestor.AttestedData{
+	data := &common.AttestedData{
 		Type: "join_token",
 		Data: []byte(p.joinToken),
 	}
