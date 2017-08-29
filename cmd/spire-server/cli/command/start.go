@@ -139,19 +139,19 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	//Shouldn't we get plugins by type instead of name?
 	//plugins
-	nodeAttestor := pluginCatalog.GetPlugin("join_token")
+	nodeAttestor := pluginCatalog.GetPluginsByType("NodeAttestor")[0]
 	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeAttestor))
 	nodeAttestorImpl := nodeAttestor.(nodeattestor.NodeAttestor)
 
-	nodeResolver := pluginCatalog.GetPlugin("noop")
+	nodeResolver := pluginCatalog.GetPluginsByType("NodeResolver")[0]
 	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeResolver))
 	nodeResolverImpl := nodeResolver.(noderesolver.NodeResolver)
 
-	serverCA := pluginCatalog.GetPlugin("ca_memory")
+	serverCA := pluginCatalog.GetPluginsByType("ControlPlaneCA")[0]
 	level.Info(logger).Log("pluginType", reflect.TypeOf(serverCA))
 	serverCAImpl := serverCA.(ca.ControlPlaneCa)
 
-	dataStore := pluginCatalog.GetPlugin("datastore")
+	dataStore := pluginCatalog.GetPluginByName("DataStore")
 	level.Info(logger).Log("pluginType", reflect.TypeOf(dataStore))
 	dataStoreImpl := dataStore.(datastore.DataStore)
 

@@ -9,22 +9,26 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-plugin"
 )
 
 type PluginCatalog struct {
 	PluginConfDirectory string
-	PluginTypeMap       map[string]plugin.Plugin
-	PluginConfigs       map[string]*PluginConfig
-	PluginClients       map[string]*plugin.Client
-	Plugins             map[string]interface{}
-	MaxPluginTypeMap    map[string]int
-	Logger interface{}
+	pluginTypeMap       map[string]plugin.Plugin
+	maxPluginTypeMap    map[string]int
+	pluginConfigs       map[string]*PluginConfig
+	PluginClientsByName map[string]PluginClients
+	Logger              interface{}
+}
+
+type PluginClients struct {
+	Type         string
+	PluginClient interface{}
 }
 
 func (c *PluginCatalog) loadConfig() (err error) {
-	c.PluginConfigs = make(map[string]*PluginConfig)
+	c.pluginConfigs = make(map[string]*PluginConfig)
 	PluginTypeCount := make(map[string]int)
 	configFiles, err := ioutil.ReadDir(c.PluginConfDirectory)
 	if err != nil {
@@ -39,42 +43,50 @@ func (c *PluginCatalog) loadConfig() (err error) {
 			return err
 		}
 		PluginTypeCount[pluginConfig.PluginType] = +1
-		if PluginTypeCount[pluginConfig.PluginType] > c.MaxPluginTypeMap[pluginConfig.PluginType] {
+		if PluginTypeCount[pluginConfig.PluginType] > c.maxPluginTypeMap[pluginConfig.PluginType] {
 			return errors.New(fmt.Sprintf("Cannot have more than max_plugins:%v plugins of type plugin_type:%v",
-				c.MaxPluginTypeMap[pluginConfig.PluginType], pluginConfig.PluginType))
+				c.maxPluginTypeMap[pluginConfig.PluginType], pluginConfig.PluginType))
 		}
 
-		if c.PluginTypeMap[pluginConfig.PluginType] == nil {
-			return errors.New(fmt.Sprintf("Plugin Type plugin_type:%v not supported", pluginConfig.PluginType))
+		if c.pluginTypeMap[pluginConfig.PluginType] == nil {
+			return errors.New(fmt.Sprintf("PluginClient Type plugin_type:%v not supported", pluginConfig.PluginType))
 		}
 
-		if c.PluginConfigs[pluginConfig.PluginName] != nil {
+		if c.pluginConfigs[pluginConfig.PluginName] != nil {
 			return errors.New(fmt.Sprintf("plugin_name:%s should be unique", pluginConfig.PluginName))
 		}
-		c.PluginConfigs[pluginConfig.PluginName] = pluginConfig
+		c.pluginConfigs[pluginConfig.PluginName] = pluginConfig
 
 	}
 	return err
 }
 
 func (c *PluginCatalog) SetPluginTypeMap(pluginTypeMap map[string]plugin.Plugin) {
-	c.PluginTypeMap = pluginTypeMap
+	c.pluginTypeMap = pluginTypeMap
 }
 
 func (c *PluginCatalog) SetMaxPluginTypeMap(maxPluginMap map[string]int) {
-	c.MaxPluginTypeMap = maxPluginMap
+	c.maxPluginTypeMap = maxPluginMap
 }
 
-func (c *PluginCatalog) GetPlugin(pluginName string) (plugin interface{}) {
-	plugin = c.Plugins[pluginName]
+func (c *PluginCatalog) GetPluginByName(pluginName string) (pluginClient interface{}) {
+	pluginClient = c.PluginClientsByName[pluginName].PluginClient
+	return
+}
+
+func (c *PluginCatalog) GetPluginsByType(typeName string) (pluginClients []interface{}) {
+	for _, clients := range c.PluginClientsByName {
+		if clients.Type == typeName {
+			pluginClients = append(pluginClients, clients)
+		}
+	}
 	return
 }
 
 func (c *PluginCatalog) initClients() (err error) {
 
-	c.PluginClients = make(map[string]*plugin.Client)
-
-	for _, pluginconfig := range c.PluginConfigs {
+	c.PluginClientsByName = make(map[string]PluginClients)
+	for _, pluginconfig := range c.pluginConfigs {
 
 		if pluginconfig.Enabled {
 
@@ -99,7 +111,7 @@ func (c *PluginCatalog) initClients() (err error) {
 				},
 
 				Plugins: map[string]plugin.Plugin{
-					pluginconfig.PluginName: plugin.Plugin(c.PluginTypeMap[pluginconfig.PluginType]),
+					pluginconfig.PluginName: plugin.Plugin(c.pluginTypeMap[pluginconfig.PluginType]),
 				},
 
 				Cmd: exec.Command(pluginconfig.PluginCmd),
@@ -113,7 +125,19 @@ func (c *PluginCatalog) initClients() (err error) {
 				Logger: c.Logger.(hclog.Logger),
 			})
 
-			c.PluginClients[pluginconfig.PluginName] = client
+			protocolClient, err := client.Client()
+			if err != nil {
+				return err
+			}
+
+			pl, err := protocolClient.Dispense(pluginconfig.PluginName)
+			if err != nil {
+				return err
+			}
+
+			c.PluginClientsByName[pluginconfig.PluginName] = PluginClients{
+				c.pluginConfigs[pluginconfig.PluginName].PluginType, pl}
+
 		}
 	}
 	return
@@ -128,18 +152,6 @@ func (c *PluginCatalog) Run() (err error) {
 	if err != nil {
 		return err
 	}
-	c.Plugins = make(map[string]interface{})
-	for pluginName, client := range c.PluginClients {
-		protocolClient, err := client.Client()
-		if err != nil {
-			return err
-		}
 
-		pl, err := protocolClient.Dispense(pluginName)
-		if err != nil {
-			return err
-		}
-		c.Plugins[pluginName] = pl
-	}
 	return
 }
