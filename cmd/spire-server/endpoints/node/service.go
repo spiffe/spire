@@ -41,11 +41,6 @@ func NewService(
 
 // Implement the business logic of FetchBaseSVID
 func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
-	//check if this was not already attested
-	// if attestedBefore, err = no.attestation.IsAttested(baseSpiffeID); err != nil {
-	// 	return response, err
-	// }
-
 	//Attest the node and get baseSpiffeID
 	baseSpiffeIDFromCSR, err := no.ca.GetSpiffeIDFromCSR(request.Csr)
 	if err != nil {

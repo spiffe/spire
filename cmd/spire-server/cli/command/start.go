@@ -29,8 +29,6 @@ import (
 
 	"reflect"
 
-	"reflect"
-
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/hashicorp/go-hclog"
