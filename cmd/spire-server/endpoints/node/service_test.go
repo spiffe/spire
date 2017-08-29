@@ -70,10 +70,10 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 		Selectors: selectors[baseSpiffeID].Entries,
 	}
 	svidUpdate := &pb.SvidUpdate{
-		Svids: svids,
-		RegistrationEntryList: []*common.RegistrationEntry{registrationEntry},
+		Svids:               svids,
+		RegistrationEntries: []*common.RegistrationEntry{registrationEntry},
 	}
 
-	suite.Assertions.Equal(response.SpiffeEntry, svidUpdate)
+	suite.Assertions.Equal(response.SvidUpdate, svidUpdate)
 	suite.Assertions.Nil(err, "There should be no error.")
 }
