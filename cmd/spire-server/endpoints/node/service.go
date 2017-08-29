@@ -20,24 +20,27 @@ type NodeService interface {
 }
 
 type stubNodeService struct {
-	attestation services.Attestation
-	identity    services.Identity
-	ca          services.CA
+	attestation     services.Attestation
+	identity        services.Identity
+	ca              services.CA
+	baseSpiffeIDTTL int32
 }
 
 //ServiceConfig is a configuration struct to init the service
 type ServiceConfig struct {
-	Attestation services.Attestation
-	Identity    services.Identity
-	CA          services.CA
+	Attestation     services.Attestation
+	Identity        services.Identity
+	CA              services.CA
+	BaseSpiffeIDTTL int32
 }
 
 // NewService gets a new instance of the service.
 func NewService(config ServiceConfig) (s *stubNodeService) {
 	s = &stubNodeService{
-		attestation: config.Attestation,
-		identity:    config.Identity,
-		ca:          config.CA,
+		attestation:     config.Attestation,
+		identity:        config.Identity,
+		ca:              config.CA,
+		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
 	}
 	return s
 }
@@ -47,19 +50,18 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 	//Attest the node and get baseSpiffeID
 	baseSpiffeIDFromCSR, err := no.ca.GetSpiffeIDFromCSR(request.Csr)
 	if err != nil {
-		return
+		return response, err
 	}
 
 	attestedBefore, err := no.attestation.IsAttested(baseSpiffeIDFromCSR)
 	if err != nil {
-		return
-
+		return response, err
 	}
 
 	var attestResponse *nodeattestor.AttestResponse
 	attestResponse, err = no.attestation.Attest(request.AttestedData, attestedBefore)
 	if err != nil {
-		return
+		return response, err
 	}
 
 	//Validate
@@ -103,7 +105,7 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 	}
 
 	svids := make(map[string]*pb.Svid)
-	svids[baseSpiffeID] = &pb.Svid{SvidCert: cert, Ttl: 999}
+	svids[baseSpiffeID] = &pb.Svid{SvidCert: cert, Ttl: no.baseSpiffeIDTTL}
 	registrationEntry := &common.RegistrationEntry{
 		SpiffeId:  baseSpiffeID,
 		Selectors: selectors[baseSpiffeID].Entries,
@@ -114,7 +116,7 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 	}
 	response = pb.FetchBaseSVIDResponse{SvidUpdate: svidUpdate}
 
-	return
+	return response, nil
 }
 
 // Implement the business logic of FetchSVID

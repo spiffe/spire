@@ -104,6 +104,7 @@ type ControlPlaneConfig struct {
 	RegistrationAPIGRPCPort string
 	NodeAPIHTTPPort         string
 	RegistrationAPIHTTPPort string
+	BaseSpiffeIDTTL         int32
 	logFile                 string
 	logLevel                string
 }
