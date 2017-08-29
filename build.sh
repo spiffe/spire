@@ -73,7 +73,7 @@ build_setup() {
 
     go get github.com/golang/protobuf/protoc-gen-go
     go get github.com/jstemmer/go-junit-report
-    go get github.com/AlekSi/gocovermerge
+    go get github.com/AlekSi/gocoverutil
     go get github.com/mattn/goveralls
     go get github.com/jteeuwen/go-bindata/...
     go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
@@ -149,19 +149,20 @@ build_binaries() {
 }
 
 build_test() {
-    local _test_path
+    local _test_path _result
     eval $(build_env)
 
-    _test_path=$(go list ./... | grep -v -e'/vendor' -e'/proto$')
+    _test_path=$(go list ./... | grep -v -e'/vendor')
     if [[ -n ${CI} ]]; then
         mkdir -p test_results
-        go test ${DEBUG+-v} ${_test_path} | go-junit-report > test_results/report.xml
+        go test ${DEBUG+-v} -race ${_test_path} > test_results/report.raw
+        cat test_results/report.raw | go-junit-report > test_results/report.xml
         if [[ -n ${COVERALLS_TOKEN} && ${TRAVIS_EVENT_TYPE} = cron ]]; then
-            gocovermerge -coverprofile=test_results/cover.out test -covermode=count ${_test_path}
+            gocoverutil -coverprofile=test_results/cover.out test -covermode=count ${_test_path}
             goveralls -coverprofile=test_results/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
         fi
     else
-        go test ${DEBUG+-v} ${_test_path}
+        go test ${DEBUG+-v} -race ${_test_path}
     fi
 }
 

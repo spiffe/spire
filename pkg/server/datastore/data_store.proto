@@ -2,24 +2,8 @@ syntax = "proto3";
 package datastore;
 
 import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
+import public "github.com/spiffe/sri/pkg/common/common.proto";
 
-
-/** Describes the conditions under which a registration entry is matched.
-*/
-message Selector {
-    string type = 1; /// Selector type
-    string value = 2; /// Selector value
-}
-
-/** Represents a single Registration Entry.
-*/
-message RegisteredEntry {
-    repeated Selector selectorList = 1; /// Array of selectors
-    string spiffeId = 2; /// SPIFFE ID
-    string parentId = 3; /// Attestor SPIFFE ID
-    int32 ttl = 4; /// TTL
-    repeated string federatedBundleSpiffeIdList = 5; /// SPIFFE IDs of foreign trust domains
-}
 
 /** Represents the trust chain for a different trust domain, along with
     a TTL describing its expiration, keyed by the SPIFFE ID of the foreign
@@ -36,7 +20,7 @@ message FederatedBundle {
 */
 message NodeResolverMapEntry {
     string baseSpiffeId = 1;
-    Selector selector = 2;
+    common.Selector selector = 2;
 }
 
 /** Represents a single entry in AttestedNodes and stores the node's SPIFFE ID, the
@@ -234,7 +218,7 @@ message RectifyNodeResolverMapEntriesResponse {
 /** Represents a Registration entry to create
 */
 message CreateRegistrationEntryRequest {
-    RegisteredEntry registeredEntry = 1; /// Registration entry
+    common.RegistrationEntry registeredEntry = 1; /// Registration entry
 }
 
 /** Represents the created Registration entry
@@ -253,7 +237,7 @@ message FetchRegistrationEntryRequest {
 /** Represents a Registration entry
 */
 message FetchRegistrationEntryResponse {
-    RegisteredEntry registeredEntry = 1; /// Registration entry
+    common.RegistrationEntry registeredEntry = 1; /// Registration entry
 }
 
 
@@ -261,13 +245,13 @@ message FetchRegistrationEntryResponse {
 */
 message UpdateRegistrationEntryRequest {
     string registeredEntryId = 1; /// Registration entry ID
-    RegisteredEntry registeredEntry = 2; /// Registration entry
+    common.RegistrationEntry registeredEntry = 2; /// Registration entry
 }
 
 /** Represents the updated Registration entry
 */
 message UpdateRegistrationEntryResponse {
-    RegisteredEntry registeredEntry = 1; /// Registration entry
+    common.RegistrationEntry registeredEntry = 1; /// Registration entry
 }
 
 
@@ -280,7 +264,7 @@ message DeleteRegistrationEntryRequest {
 /** Represents the deleted Registration entry
 */
 message DeleteRegistrationEntryResponse {
-    RegisteredEntry registeredEntry = 1; /// Registration entry
+    common.RegistrationEntry registeredEntry = 1; /// Registration entry
 }
 
 
@@ -296,20 +280,20 @@ message ListParentIDEntriesRequest {
 /** Represents a list of Registered entries with the specified Parent ID
 */
 message ListParentIDEntriesResponse {
-    repeated RegisteredEntry registeredEntryList = 1; /// List of Registration entries
+    repeated common.RegistrationEntry registeredEntryList = 1; /// List of Registration entries
 }
 
 
 /** Represents a selector
 */
 message ListSelectorEntriesRequest {
-    Selector selector = 1; /// Selector
+    common.Selector selector = 1; /// Selector
 }
 
 /** Represents a list of Registered entries with the specified selector
 */
 message ListSelectorEntriesResponse {
-    repeated RegisteredEntry registeredEntryList = 1; /// List of Registration entries
+    repeated common.RegistrationEntry registeredEntryList = 1; /// List of Registration entries
 }
 
 
@@ -322,7 +306,7 @@ message ListSpiffeEntriesRequest {
 /** Represents a list of Registered entries with the specified Spiffe ID
 */
 message ListSpiffeEntriesResponse {
-    repeated RegisteredEntry registeredEntryList = 1; /// List of Registration entries
+    repeated common.RegistrationEntry registeredEntryList = 1; /// List of Registration entries
 }
 
 

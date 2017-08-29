@@ -12,8 +12,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spiffe/go-spiffe"
-	iface "github.com/spiffe/sri/pkg/common/plugin"
+  "github.com/spiffe/go-spiffe"
+	"github.com/spiffe/sri/helpers/testutil"
+	"github.com/spiffe/sri/pkg/server/ca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -118,6 +119,28 @@ func TestMemory_bootstrap(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, wcert)
+}
+
+func TestMemory_race(t *testing.T) {
+	m := createDefault(t)
+
+	ca, err := upca.NewWithDefault()
+	require.NoError(t, err)
+
+	csr, err := m.GenerateCsr()
+	require.NoError(t, err)
+
+	cresp, err := ca.SubmitCSR(csr)
+	require.NoError(t, err)
+
+	wcsr := createWorkloadCSR(t)
+
+	testutil.RaceTest(t, func(t *testing.T) {
+		m.GenerateCsr()
+		m.LoadCertificate(cresp.Cert)
+		m.FetchCertificate()
+		m.SignCsr(wcsr)
+	})
 }
 
 func createWorkloadCSR(t *testing.T) []byte {

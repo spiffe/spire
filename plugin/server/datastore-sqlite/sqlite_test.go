@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"encoding/json"
+
+	"github.com/spiffe/sri/helpers/testutil"
+	"github.com/spiffe/sri/pkg/common"
 	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/server/datastore"
 	"github.com/stretchr/testify/assert"
@@ -193,7 +196,7 @@ func Test_CreateNodeResolverMapEntry(t *testing.T) {
 
 	entry := &datastore.NodeResolverMapEntry{
 		BaseSpiffeId: "main",
-		Selector: &datastore.Selector{
+		Selector: &common.Selector{
 			Type:  "aws-tag",
 			Value: "a",
 		},
@@ -221,7 +224,7 @@ func Test_FetchNodeResolverMapEntry(t *testing.T) {
 
 	entry := &datastore.NodeResolverMapEntry{
 		BaseSpiffeId: "main",
-		Selector: &datastore.Selector{
+		Selector: &common.Selector{
 			Type:  "aws-tag",
 			Value: "a",
 		},
@@ -292,21 +295,21 @@ func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*datas
 	entries := []*datastore.NodeResolverMapEntry{
 		{
 			BaseSpiffeId: "main",
-			Selector: &datastore.Selector{
+			Selector: &common.Selector{
 				Type:  "aws-tag",
 				Value: "a",
 			},
 		},
 		{
 			BaseSpiffeId: "main",
-			Selector: &datastore.Selector{
+			Selector: &common.Selector{
 				Type:  "aws-tag",
 				Value: "b",
 			},
 		},
 		{
 			BaseSpiffeId: "other",
-			Selector: &datastore.Selector{
+			Selector: &common.Selector{
 				Type:  "aws-tag",
 				Value: "a",
 			},
@@ -324,7 +327,7 @@ func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*datas
 func Test_CreateRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	var validRegistrationEntries []*datastore.RegisteredEntry
+	var validRegistrationEntries []*common.RegistrationEntry
 	err := getTestDataFromJsonFile(t, "_test_data/valid_registration_entries.json", &validRegistrationEntries)
 	require.NoError(t, err)
 
@@ -339,7 +342,7 @@ func Test_CreateRegistrationEntry(t *testing.T) {
 func Test_CreateInvalidRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	var invalidRegistrationEntries []*datastore.RegisteredEntry
+	var invalidRegistrationEntries []*common.RegistrationEntry
 	err := getTestDataFromJsonFile(t, "_test_data/invalid_registration_entries.json", &invalidRegistrationEntries)
 	require.NoError(t, err)
 
@@ -355,8 +358,8 @@ func Test_CreateInvalidRegistrationEntry(t *testing.T) {
 func Test_FetchRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	registeredEntry := &datastore.RegisteredEntry{
-		SelectorList: []*datastore.Selector{
+	registeredEntry := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
 			{
 				Type:  "Type1",
 				Value: "Value1"}, {
@@ -417,6 +420,22 @@ func Test_GetPluginInfo(t *testing.T) {
 	resp, err := ds.GetPluginInfo(&sriplugin.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
+}
+
+func Test_race(t *testing.T) {
+	ds := createDefault(t)
+
+	entry := &datastore.AttestedNodeEntry{
+		BaseSpiffeId:       "foo",
+		AttestedDataType:   "aws-tag",
+		CertSerialNumber:   "badcafe",
+		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+	}
+
+	testutil.RaceTest(t, func(t *testing.T) {
+		ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{entry})
+		ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{entry.BaseSpiffeId})
+	})
 }
 
 func createDefault(t *testing.T) datastore.DataStore {

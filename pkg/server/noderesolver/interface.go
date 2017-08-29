@@ -18,7 +18,7 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type NodeResolver interface {
-	Configure(config string) ([]string, error)
+	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
 	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
 	Resolve([]string) (map[string]*common.Selectors, error)
 }

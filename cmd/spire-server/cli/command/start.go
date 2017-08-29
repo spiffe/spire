@@ -21,66 +21,66 @@ import (
 	"github.com/spiffe/sri/pkg/server/noderesolver"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
 
-	pb "github.com/spiffe/sri/pkg/api/registration"
+	"github.com/spiffe/sri/cmd/spire-server/endpoints/node"
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/registration"
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/server"
+	nodePB "github.com/spiffe/sri/pkg/api/node"
+	registrationPB "github.com/spiffe/sri/pkg/api/registration"
 
-	"github.com/hashicorp/go-plugin"
+	"reflect"
+
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-plugin"
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/services"
-	"reflect"
 )
 
 const (
-	DefaultCPConifigPath = ".conf/default_cp_config.hcl"
-	DefaultPluginConfigDir = "plugins/.conf"
+	DefaultServerConfigPath = ".conf/default_server_config.hcl"
+	DefaultPluginConfigDir  = "../../plugin/server/.conf"
 )
 
-
 var (
-
 	PluginTypeMap = map[string]plugin.Plugin{
-		"ControlPlaneCA":   &ca.ControlPlaneCaPlugin{},
-		"DataStore":        &datastore.DataStorePlugin{},
-		"NodeResolver":     &noderesolver.NodeResolverPlugin{},
-		"UpstreamCA":       &upstreamca.UpstreamCaPlugin{},
-		"CPNodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
+		"ControlPlaneCA": &ca.ControlPlaneCaPlugin{},
+		"DataStore":      &datastore.DataStorePlugin{},
+		"NodeResolver":   &noderesolver.NodeResolverPlugin{},
+		"UpstreamCA":     &upstreamca.UpstreamCaPlugin{},
+		"NodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
 	}
 
 	MaxPlugins = map[string]int{
-		"ControlPlaneCA":   1,
-		"DataStore":        1,
-		"NodeResolver":     1,
-		"UpstreamCA":       1,
-		"CPNodeAttestor":   1,
-
+		"ControlPlaneCA": 1,
+		"DataStore":      1,
+		"NodeResolver":   1,
+		"UpstreamCA":     1,
+		"NodeAttestor":   1,
 	}
 	logger = log.NewLogfmtLogger(os.Stdout)
-
 )
 
-type ServerCommand struct {
+type StartCommand struct {
 }
+
 //Help returns how to use the server command
-func (*ServerCommand) Help() string {
+func (*StartCommand) Help() string {
 	return "Usage: spire-server server"
 }
 
 //Run the server command
-func (*ServerCommand) Run(args []string) int {
-	cpConfigPath, isPathSet := os.LookupEnv("CP_CONFIG_PATH")
+func (*StartCommand) Run(args []string) int {
+	cpConfigPath, isPathSet := os.LookupEnv("SPIRE_SERVER_CONFIG")
 	if !isPathSet {
-		cpConfigPath = DefaultCPConifigPath
+		cpConfigPath = DefaultServerConfigPath
 	}
-
 
 	config := helpers.ControlPlaneConfig{}
 	err := config.ParseConfig(cpConfigPath)
 	if err != nil {
 		logger = log.With(logger, "caller", log.DefaultCaller)
-		logger.Log("error", err , "configFile", cpConfigPath)
+		logger.Log("error", err, "configFile", cpConfigPath)
 		return -1
 
 	}
@@ -95,7 +95,7 @@ func (*ServerCommand) Run(args []string) int {
 		return -1
 	}
 
-	err = initEndpoints(pluginCatalog, &config)
+	err = initEndpoints(pluginCatalog)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
@@ -105,36 +105,64 @@ func (*ServerCommand) Run(args []string) int {
 }
 
 //Synopsis of the server command
-func (*ServerCommand) Synopsis() string {
+func (*StartCommand) Synopsis() string {
 	return "Intializes spire-server Runtime."
 }
 
 func loadPlugins() (*helpers.PluginCatalog, error) {
-	pluginConfigDir, isPathSet := os.LookupEnv("PLUGIN_CONFIG_PATH")
+	pluginConfigDir, isPathSet := os.LookupEnv("SPIRE_PLUGIN_CONFIG_DIR")
 	if !isPathSet {
 		pluginConfigDir = DefaultPluginConfigDir
 	}
+	pluginLogger := hclog.New(&hclog.LoggerOptions{
+		Name:  "pluginLogger",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+
 	pluginCatalog := &helpers.PluginCatalog{
 		PluginConfDirectory: pluginConfigDir,
+		Logger:              pluginLogger,
 	}
 	pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
 	pluginCatalog.SetPluginTypeMap(PluginTypeMap)
 	err := pluginCatalog.Run()
+	level.Info(logger).Log("plugincount", len(pluginCatalog.PluginClientsByName))
 	if err != nil {
+		level.Error(logger).Log("error", err)
 		return nil, err
-		level.Error(logger).Log("error",err)
 	}
 
 	return pluginCatalog, nil
 }
 
-func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.ControlPlaneConfig) error {
-	//Shouldn't we get this by plugin type?
+func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
+	//plugins
 
-	dataStore := pluginCatalog.GetPlugin("datastore")
-	level.Info(logger).Log("pluginType",reflect.TypeOf(dataStore))
+
+	dataStore := pluginCatalog.GetPluginsByType("DataStore")[0]
+	level.Info(logger).Log("pluginType", reflect.TypeOf(dataStore))
 	dataStoreImpl := dataStore.(datastore.DataStore)
+
+	//nodeAttestor := pluginCatalog.GetPluginsByType("NodeAttestor")[0]
+	nodeAttestor := pluginCatalog.GetPluginByName("join_token")
+	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeAttestor))
+	nodeAttestorImpl := nodeAttestor.(nodeattestor.NodeAttestor)
+
+	nodeResolver := pluginCatalog.GetPluginsByType("NodeResolver")[0]
+	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeResolver))
+	nodeResolverImpl := nodeResolver.(noderesolver.NodeResolver)
+
+	serverCA := pluginCatalog.GetPluginsByType("ControlPlaneCA")[0]
+	level.Info(logger).Log("pluginType", reflect.TypeOf(serverCA))
+	serverCAImpl := serverCA.(ca.ControlPlaneCa)
+
+
+
+	//services
 	registrationService := services.NewRegistrationImpl(dataStoreImpl)
+	attestationService := services.NewAttestationImpl(dataStoreImpl, nodeAttestorImpl)
+	identityService := services.NewIdentityImpl(dataStoreImpl, nodeResolverImpl)
+	caService := services.NewCAImpl(serverCAImpl)
 
 	errChan := makeErrorChannel()
 	var serverSvc server.ServerService
@@ -144,6 +172,10 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.Control
 	var registrationSvc registration.RegistrationService
 	registrationSvc = registration.NewService(registrationService)
 	registrationSvc = registration.ServiceLoggingMiddleWare(logger)(registrationSvc)
+
+	var nodeSvc node.NodeService
+	nodeSvc = node.NewService(node.ServiceConfig{Attestation: attestationService, CA: caService, Identity: identityService})
+	nodeSvc = node.SelectorServiceLoggingMiddleWare(logger)(nodeSvc)
 
 	var (
 		httpAddr = flag.String("http", ":8080", "http listen address")
@@ -170,6 +202,13 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.Control
 		DeleteFederatedBundleEndpoint: registration.MakeDeleteFederatedBundleEndpoint(registrationSvc),
 	}
 
+	nodeEnpoints := node.Endpoints{
+		FetchBaseSVIDEndpoint:        node.MakeFetchBaseSVIDEndpoint(nodeSvc),
+		FetchCPBundleEndpoint:        node.MakeFetchCPBundleEndpoint(nodeSvc),
+		FetchFederatedBundleEndpoint: node.MakeFetchFederatedBundleEndpoint(nodeSvc),
+		FetchSVIDEndpoint:            node.MakeFetchSVIDEndpoint(nodeSvc),
+	}
+
 	go func() {
 		listener, err := net.Listen("tcp", *gRPCAddr)
 		if err != nil {
@@ -180,9 +219,12 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.Control
 
 		serverHandler := server.MakeGRPCServer(serverEndpoints)
 		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
+		nodeHandler := node.MakeGRPCServer(nodeEnpoints)
 		gRPCServer := grpc.NewServer()
+
 		sriplugin.RegisterServerServer(gRPCServer, serverHandler)
-		pb.RegisterRegistrationServer(gRPCServer, registrationHandler)
+		registrationPB.RegisterRegistrationServer(gRPCServer, registrationHandler)
+		nodePB.RegisterNodeServer(gRPCServer, nodeHandler)
 		errChan <- gRPCServer.Serve(listener)
 	}()
 
@@ -194,7 +236,7 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog, config *helpers.Control
 		mux := runtime.NewServeMux()
 		opts := []grpc.DialOption{grpc.WithInsecure()}
 		logger.Log("http:", *httpAddr)
-		err := pb.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
+		err := registrationPB.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
 		if err != nil {
 			errChan <- err
 			return

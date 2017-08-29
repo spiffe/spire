@@ -13,8 +13,8 @@ func Run(args []string) int {
 	c := cli.NewCLI("spire-server", "0.0.1") //TODO expose version configuration
 	c.Args = os.Args[1:]
 	c.Commands = map[string]cli.CommandFactory{
-		"server": func() (cli.Command, error) {
-			return &command.ServerCommand{}, nil
+		"start": func() (cli.Command, error) {
+			return &command.StartCommand{}, nil
 		},
 		"stop": func() (cli.Command, error) {
 			return &command.StopCommand{}, nil

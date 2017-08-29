@@ -3,8 +3,9 @@ package main
 import (
 	"testing"
 
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/sri/helpers/testutil"
 	"github.com/spiffe/sri/pkg/agent/nodeattestor"
+	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,12 +17,12 @@ const (
 	spiffeId = "spiffe://example.com/spiffe/node-id/foobar"
 )
 
-func PluginGenerator(config string) (*JoinTokenPlugin, *sriplugin.ConfigureResponse, error) {
+func PluginGenerator(config string) (nodeattestor.NodeAttestor, *sriplugin.ConfigureResponse, error) {
 	pluginConfig := &sriplugin.ConfigureRequest{
 		Configuration: config,
 	}
 
-	p := &JoinTokenPlugin{}
+	p := New()
 	r, err := p.Configure(pluginConfig)
 	return p, r, err
 }
@@ -64,8 +65,18 @@ func TestJoinToken_FetchAttestationData_TokenNotPresent(t *testing.T) {
 }
 
 func TestJoinToken_GetPluginInfo(t *testing.T) {
-	var plugin JoinTokenPlugin
+	plugin := New()
 	data, e := plugin.GetPluginInfo(&sriplugin.GetPluginInfoRequest{})
 	assert.Nil(t, e)
 	assert.Equal(t, &sriplugin.GetPluginInfoResponse{}, data)
+}
+
+func TestJoinToken_race(t *testing.T) {
+	p := New()
+	testutil.RaceTest(t, func(t *testing.T) {
+		p.Configure(&sriplugin.ConfigureRequest{
+			Configuration: goodConfig,
+		})
+		p.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
+	})
 }

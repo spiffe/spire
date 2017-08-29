@@ -21,7 +21,7 @@ type LoggingMiddleware struct {
 	next   NodeService
 }
 
-func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse) {
+func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log(
 			"method", "FetchBaseSVID",
@@ -30,7 +30,7 @@ func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request pb.FetchB
 		)
 	}(time.Now())
 
-	response = mw.next.FetchBaseSVID(ctx, request)
+	response, err = mw.next.FetchBaseSVID(ctx, request)
 	return
 }
 

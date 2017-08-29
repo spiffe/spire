@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	iface "github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/sri/helpers/testutil"
+	"github.com/spiffe/sri/pkg/server/upstreamca"
+	"github.com/spiffe/sri/plugin/server/upstreamca-memory/pkg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"path/filepath"
@@ -63,4 +66,12 @@ func TestMemory_SubmitInvalidCSR(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, resp)
 	}
+}
+
+  func TestMemory_race(t *testing.T) {
+	m := createDefault(t)
+	testutil.RaceTest(t, func(t *testing.T) {
+		m.Configure("TODO")
+		m.SubmitCSR([]byte("TODO"))
+	})
 }
