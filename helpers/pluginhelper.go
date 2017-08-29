@@ -18,7 +18,7 @@ type PluginCatalog struct {
 	pluginTypeMap       map[string]plugin.Plugin
 	maxPluginTypeMap    map[string]int
 	pluginConfigs       map[string]*PluginConfig
-	PluginClientsByName map[string]PluginClients
+	PluginClientsByName map[string]*PluginClients
 	Logger              interface{}
 }
 
@@ -77,7 +77,7 @@ func (c *PluginCatalog) GetPluginByName(pluginName string) (pluginClient interfa
 func (c *PluginCatalog) GetPluginsByType(typeName string) (pluginClients []interface{}) {
 	for _, clients := range c.PluginClientsByName {
 		if clients.Type == typeName {
-			pluginClients = append(pluginClients, clients)
+			pluginClients = append(pluginClients, clients.PluginClient)
 		}
 	}
 	return
@@ -85,7 +85,7 @@ func (c *PluginCatalog) GetPluginsByType(typeName string) (pluginClients []inter
 
 func (c *PluginCatalog) initClients() (err error) {
 
-	c.PluginClientsByName = make(map[string]PluginClients)
+	c.PluginClientsByName = make(map[string]*PluginClients)
 	for _, pluginconfig := range c.pluginConfigs {
 
 		if pluginconfig.Enabled {
@@ -135,7 +135,7 @@ func (c *PluginCatalog) initClients() (err error) {
 				return err
 			}
 
-			c.PluginClientsByName[pluginconfig.PluginName] = PluginClients{
+			c.PluginClientsByName[pluginconfig.PluginName] = &PluginClients{
 				c.pluginConfigs[pluginconfig.PluginName].PluginType, pl}
 
 		}

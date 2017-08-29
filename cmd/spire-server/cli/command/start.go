@@ -136,6 +136,11 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 
 func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	//plugins
+	dataStore := pluginCatalog.GetPluginsByType("DataStore")[0]
+	level.Info(logger).Log("pluginType", reflect.TypeOf(dataStore))
+	dataStoreImpl := dataStore.(datastore.DataStore)
+
+	level.Info(logger).Log(len(pluginCatalog.GetPluginsByType("NodeAttestor")))
 	nodeAttestor := pluginCatalog.GetPluginsByType("NodeAttestor")[0]
 	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeAttestor))
 	nodeAttestorImpl := nodeAttestor.(nodeattestor.NodeAttestor)
@@ -148,9 +153,7 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	level.Info(logger).Log("pluginType", reflect.TypeOf(serverCA))
 	serverCAImpl := serverCA.(ca.ControlPlaneCa)
 
-	dataStore := pluginCatalog.GetPluginByName("DataStore")
-	level.Info(logger).Log("pluginType", reflect.TypeOf(dataStore))
-	dataStoreImpl := dataStore.(datastore.DataStore)
+
 
 	//services
 	registrationService := services.NewRegistrationImpl(dataStoreImpl)
