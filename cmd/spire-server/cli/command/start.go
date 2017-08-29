@@ -169,7 +169,7 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	registrationSvc = registration.ServiceLoggingMiddleWare(logger)(registrationSvc)
 
 	var nodeSvc node.NodeService
-	nodeSvc = node.NewService(attestationService, identityService, caService)
+	nodeSvc = node.NewService(node.ServiceConfig{Attestation: attestationService, CA: caService, Identity: identityService})
 	nodeSvc = node.SelectorServiceLoggingMiddleWare(logger)(nodeSvc)
 
 	var (

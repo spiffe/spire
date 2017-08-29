@@ -25,16 +25,19 @@ type stubNodeService struct {
 	ca          services.CA
 }
 
-// NewService gets a new instance of the service.
-func NewService(
-	attestation services.Attestation,
-	identity services.Identity,
-	ca services.CA) (s *stubNodeService) {
+//ServiceConfig is a configuration struct to init the service
+type ServiceConfig struct {
+	Attestation services.Attestation
+	Identity    services.Identity
+	CA          services.CA
+}
 
+// NewService gets a new instance of the service.
+func NewService(config ServiceConfig) (s *stubNodeService) {
 	s = &stubNodeService{
-		attestation: attestation,
-		identity:    identity,
-		ca:          ca,
+		attestation: config.Attestation,
+		identity:    config.Identity,
+		ca:          config.CA,
 	}
 	return s
 }
@@ -99,15 +102,14 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 		return response, err
 	}
 
-	m := make(map[string]*pb.Svid)
-	m[baseSpiffeID] = &pb.Svid{SvidCert: cert, Ttl: 999}
-	svidMap := &pb.SvidMap{Map: m}
+	svids := make(map[string]*pb.Svid)
+	svids[baseSpiffeID] = &pb.Svid{SvidCert: cert, Ttl: 999}
 	registrationEntry := &common.RegistrationEntry{
 		SpiffeId:  baseSpiffeID,
 		Selectors: selectors[baseSpiffeID].Entries,
 	}
 	svidUpdate := &pb.SvidUpdate{
-		SvidMap:               svidMap,
+		SvidMap:               &pb.SvidMap{Map: svids},
 		RegistrationEntryList: []*common.RegistrationEntry{registrationEntry},
 	}
 	response = pb.FetchBaseSVIDResponse{SpiffeEntry: svidUpdate}
