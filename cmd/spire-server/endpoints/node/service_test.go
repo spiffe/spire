@@ -70,7 +70,7 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 		Selectors: selectors[baseSpiffeID].Entries,
 	}
 	svidUpdate := &pb.SvidUpdate{
-		SvidMap:               &pb.SvidMap{Map: svids},
+		Svids: svids,
 		RegistrationEntryList: []*common.RegistrationEntry{registrationEntry},
 	}
 

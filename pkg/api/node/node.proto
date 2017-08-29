@@ -30,15 +30,10 @@ message Svid {
  int32 ttl = 2; ///SVID expiration.
 }
 
-/**A map containing SVID values and corresponding SPIFFE IDs as the keys.*/
-message SvidMap {
- map<string, Svid> map = 1; ///Map[SPIFFE_ID] => SVID
-}
-
 /**A message returned by the Control Plane, which includes a map of signed SVIDs and
-an array of all current Registration Entries which are relevant to the caller SPIFFE ID.*/
+a list of all current Registration Entries which are relevant to the caller SPIFFE ID.*/
 message SvidUpdate {
- SvidMap svidMap = 1; ///A map containing SVID values and corresponding SPIFFE IDs as the keys.
+ map<string, Svid>  svids = 1; ///A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] => SVID.
  repeated common.RegistrationEntry registrationEntryList = 2; ///A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
 }
 

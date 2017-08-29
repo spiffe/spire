@@ -135,7 +135,6 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 }
 
 func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
-	//Shouldn't we get plugins by type instead of name?
 	//plugins
 	nodeAttestor := pluginCatalog.GetPluginsByType("NodeAttestor")[0]
 	level.Info(logger).Log("pluginType", reflect.TypeOf(nodeAttestor))

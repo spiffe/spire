@@ -45,11 +45,9 @@
   
     * [Svid](#node.Svid)
   
-    * [SvidMap](#node.SvidMap)
-  
-    * [SvidMap.MapEntry](#node.SvidMap.MapEntry)
-  
     * [SvidUpdate](#node.SvidUpdate)
+  
+    * [SvidUpdate.SvidsEntry](#node.SvidUpdate.SvidsEntry)
   
   
   
@@ -326,24 +324,26 @@ A type which contains the &#34;Spiffe Verifiable Identity Document&#34; and a TT
 
 
 
-<a name="node.SvidMap"/>
+<a name="node.SvidUpdate"/>
 
-### SvidMap
-A map containing SVID values and corresponding SPIFFE IDs as the keys.
+### SvidUpdate
+A message returned by the Control Plane, which includes a map of signed SVIDs and
+a list of all current Registration Entries which are relevant to the caller SPIFFE ID.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [SvidMap.MapEntry](#node.SvidMap.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; SVID |
+| svids | [SvidUpdate.SvidsEntry](#node.SvidUpdate.SvidsEntry) | repeated | A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] =&gt; SVID. |
+| registrationEntryList | [.common.RegistrationEntry](#node..common.RegistrationEntry) | repeated | A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 
 
 
 
 
 
-<a name="node.SvidMap.MapEntry"/>
+<a name="node.SvidUpdate.SvidsEntry"/>
 
-### SvidMap.MapEntry
+### SvidUpdate.SvidsEntry
 
 
 
@@ -351,23 +351,6 @@ A map containing SVID values and corresponding SPIFFE IDs as the keys.
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
 | value | [Svid](#node.Svid) |  |  |
-
-
-
-
-
-
-<a name="node.SvidUpdate"/>
-
-### SvidUpdate
-A message returned by the Control Plane, which includes a map of signed SVIDs and
-an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| svidMap | [SvidMap](#node.SvidMap) |  | A map containing SVID values and corresponding SPIFFE IDs as the keys. |
-| registrationEntryList | [.common.RegistrationEntry](#node..common.RegistrationEntry) | repeated | A type representing a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 
 
 

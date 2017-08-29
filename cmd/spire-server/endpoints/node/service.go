@@ -55,8 +55,8 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 		return
 
 	}
-	var attestResponse *nodeattestor.AttestResponse
 
+	var attestResponse *nodeattestor.AttestResponse
 	attestResponse, err = no.attestation.Attest(request.AttestedData, attestedBefore)
 	if err != nil {
 		return
@@ -81,13 +81,13 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 	baseSpiffeID := attestResponse.BaseSPIFFEID
 	if attestedBefore {
 		//UPDATE attested node entry
-		if no.attestation.UpdateEntry(baseSpiffeID, cert); err != nil {
+		if err = no.attestation.UpdateEntry(baseSpiffeID, cert); err != nil {
 			return response, err
 		}
 
 	} else {
 		//CREATE attested node entry
-		if no.attestation.CreateEntry(request.AttestedData.Type, baseSpiffeID, cert); err != nil {
+		if err = no.attestation.CreateEntry(request.AttestedData.Type, baseSpiffeID, cert); err != nil {
 			return response, err
 		}
 	}
@@ -98,7 +98,7 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 		return response, err
 	}
 
-	if no.identity.CreateEntry(baseSpiffeID, selectors[baseSpiffeID].Entries[0]); err != nil {
+	if err = no.identity.CreateEntry(baseSpiffeID, selectors[baseSpiffeID].Entries[0]); err != nil {
 		return response, err
 	}
 
@@ -109,7 +109,7 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 		Selectors: selectors[baseSpiffeID].Entries,
 	}
 	svidUpdate := &pb.SvidUpdate{
-		SvidMap:               &pb.SvidMap{Map: svids},
+		Svids: svids,
 		RegistrationEntryList: []*common.RegistrationEntry{registrationEntry},
 	}
 	response = pb.FetchBaseSVIDResponse{SpiffeEntry: svidUpdate}
