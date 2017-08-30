@@ -60,7 +60,7 @@ type Config struct {
 	// Directory for plugin configs
 	PluginDir string
 
-	Log log.Logger
+	Logger log.Logger
 
 	// Address of SPIRE server
 	ServerAddress net.Addr
@@ -102,7 +102,7 @@ func (a *Agent) Run() error {
 	a.initEndpoints()
 
 	// Main event loop
-	a.Config.Log.Log("msg", "SPIRE Agent is now running")
+	a.Config.Logger.Log("msg", "SPIRE Agent is now running")
 	for {
 		select {
 		case err = <-a.Config.ErrorCh:
@@ -114,7 +114,7 @@ func (a *Agent) Run() error {
 }
 
 func (a *Agent) initPlugins() error {
-	a.Config.Log.Log("msg", "Starting plugins")
+	a.Config.Logger.Log("msg", "Starting plugins")
 
 	// TODO: Feed log level through/fix logging...
 	pluginLogger := hclog.New(&hclog.LoggerOptions{
@@ -139,7 +139,7 @@ func (a *Agent) initPlugins() error {
 }
 
 func (a *Agent) initEndpoints() {
-	a.Config.Log.Log("msg", "Starting the workload API")
+	a.Config.Logger.Log("msg", "Starting the workload API")
 	svc := server.NewService(a.Catalog, a.Config.ErrorCh)
 
 	endpoints := server.Endpoints{
@@ -165,7 +165,7 @@ func (a *Agent) initEndpoints() {
 }
 
 func (a *Agent) bootstrap() error {
-	a.Config.Log.Log("msg", "Bootstrapping SPIRE agent")
+	a.Config.Logger.Log("msg", "Bootstrapping SPIRE agent")
 
 	// Look up the key manager plugin
 	pluginClients := a.Catalog.GetPluginsByType("KeyManager")
@@ -192,10 +192,10 @@ func (a *Agent) bootstrap() error {
 		a.key = key
 	} else {
 		if a.BaseSVID != nil {
-			a.Config.Log.Log("msg", "Certificate configured but no private key found!")
+			a.Config.Logger.Log("msg", "Certificate configured but no private key found!")
 		}
 
-		a.Config.Log.Log("msg", "Generating private key for new base SVID")
+		a.Config.Logger.Log("msg", "Generating private key for new base SVID")
 		res, err := keyManager.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
 		if err != nil {
 			return fmt.Errorf("Failed to generate private key: %s", err)
@@ -210,13 +210,13 @@ func (a *Agent) bootstrap() error {
 		return a.Attest()
 	}
 
-	a.Config.Log.Log("msg", "Bootstrapping done")
+	a.Config.Logger.Log("msg", "Bootstrapping done")
 	return nil
 }
 
 // Attest the agent, obtain a new Base SVID
 func (a *Agent) Attest() error {
-	a.Config.Log.Log("msg", "Preparing to attest against %s", a.Config.ServerAddress.String())
+	a.Config.Logger.Log("msg", "Preparing to attest against %s", a.Config.ServerAddress.String())
 
 	// Look up the node attestor plugin
 	pluginClients := a.Catalog.GetPluginsByType("NodeAttestor")
@@ -266,7 +266,7 @@ func (a *Agent) Attest() error {
 	// Pull base SVID out of the response
 	svids := serverResponse.SvidUpdate.Svids
 	if len(svids) > 1 {
-		a.Config.Log.Log("msg", "More than one SVID received during attestation!")
+		a.Config.Logger.Log("msg", "More than one SVID received during attestation!")
 	}
 	svid, ok := svids[id.String()]
 	if !ok {
@@ -276,13 +276,13 @@ func (a *Agent) Attest() error {
 	a.BaseSVID = svid.SvidCert
 	a.BaseSVIDTTL = svid.Ttl
 	a.StoreBaseSVID()
-	a.Config.Log.Log("msg", "Attestation complete")
+	a.Config.Logger.Log("msg", "Attestation complete")
 	return nil
 }
 
 // Generate a CSR for the given SPIFFE ID
 func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
-	a.Config.Log.Log("msg", "Generating a CSR for %s", spiffeID.String())
+	a.Config.Logger.Log("msg", "Generating a CSR for %s", spiffeID.String())
 
 	uriSANs, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
@@ -305,11 +305,11 @@ func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
 
 // Read base SVID from data dir and load it
 func (a *Agent) LoadBaseSVID() error {
-	a.Config.Log.Log("msg", "Loading base SVID from disk")
+	a.Config.Logger.Log("msg", "Loading base SVID from disk")
 
 	certPath := path.Join(a.Config.DataDir, "base_svid.crt")
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
-		a.Config.Log.Log("msg", "A base SVID could not be found. A new one will be generated")
+		a.Config.Logger.Log("msg", "A base SVID could not be found. A new one will be generated")
 		return nil
 	}
 
@@ -334,13 +334,13 @@ func (a *Agent) StoreBaseSVID() {
 	f, err := os.Create(certPath)
 	defer f.Close()
 	if err != nil {
-		a.Config.Log.Log("msg", "Unable to store Base SVID at path %s!", certPath)
+		a.Config.Logger.Log("msg", "Unable to store Base SVID at path %s!", certPath)
 		return
 	}
 
 	err = pem.Encode(f, &pem.Block{Type: "CERTIFICATE", Bytes: a.BaseSVID})
 	if err != nil {
-		a.Config.Log.Log("msg", "Unable to store Base SVID at path %s!", certPath)
+		a.Config.Logger.Log("msg", "Unable to store Base SVID at path %s!", certPath)
 	}
 
 	return

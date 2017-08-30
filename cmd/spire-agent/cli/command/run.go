@@ -68,7 +68,7 @@ func (*RunCommand) Run(args []string) int {
 	a := &agent.Agent{Config: config}
 	err = a.Run()
 	if err != nil {
-		config.Log.Log("msg", err.Error())
+		config.Logger.Log("msg", err.Error())
 		return 1
 	}
 
@@ -152,11 +152,11 @@ func mergeAgentConfig(orig *agent.Config, new *CliConfig) error {
 
 	logFile := stringDefault(new.LogFile, defaultLogFile)
 	logLevel := stringDefault(new.LogLevel, defaultLogLevel)
-	log, err := helpers.NewLogger(logLevel, logFile)
+	logger, err := helpers.NewLogger(logLevel, logFile)
 	if err != nil {
 		return fmt.Errorf("Could not access log file: %s", err)
 	}
-	orig.Log = log
+	orig.Logger = logger
 
 	return nil
 }
