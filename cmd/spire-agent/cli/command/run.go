@@ -23,7 +23,7 @@ const (
 	defaultBindAddress = "127.0.0.1"
 	defaultBindPort    = "8081"
 	defaultDataDir     = "."
-	defaultLogFile     = "spire-server.log"
+	defaultLogFile     = "spire-agent.log"
 	defaultLogLevel    = "INFO"
 	defaultPluginDir   = "../../plugin/agent/.conf"
 )
