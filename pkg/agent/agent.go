@@ -83,6 +83,8 @@ type Agent struct {
 
 	Catalog *helpers.PluginCatalog
 	Config  *Config
+
+	grpcServer *grpc.Server
 }
 
 // Run the agent
@@ -108,6 +110,7 @@ func (a *Agent) Run() error {
 		case err = <-a.Config.ErrorCh:
 			return err
 		case <-a.Config.ShutdownCh:
+			a.grpcServer.GracefulStop()
 			return nil
 		}
 	}
@@ -138,7 +141,7 @@ func (a *Agent) initPlugins() error {
 	return nil
 }
 
-func (a *Agent) initEndpoints() {
+func (a *Agent) initEndpoints() error {
 	a.Config.Logger.Log("msg", "Starting the workload API")
 	svc := server.NewService(a.Catalog, a.Config.ErrorCh)
 
@@ -147,21 +150,20 @@ func (a *Agent) initEndpoints() {
 		StopEndpoint:       server.MakeStopEndpoint(svc),
 	}
 
+	a.grpcServer = grpc.NewServer()
+	handler := server.MakeGRPCServer(endpoints)
+	sriplugin.RegisterServerServer(a.grpcServer, handler)
+
+	listener, err := net.Listen(a.Config.BindAddress.Network(), a.Config.BindAddress.String())
+	if err != nil {
+		return fmt.Errorf("Error creating GRPC listener: %s", err)
+	}
+
 	go func() {
-		listener, err := net.Listen(a.Config.BindAddress.Network(), a.Config.BindAddress.String())
-		if err != nil {
-			a.Config.ErrorCh <- err
-			return
-		}
-
-		gRPCServer := grpc.NewServer()
-		handler := server.MakeGRPCServer(endpoints)
-
-		sriplugin.RegisterServerServer(gRPCServer, handler)
-		a.Config.ErrorCh <- gRPCServer.Serve(listener)
+		a.Config.ErrorCh <- a.grpcServer.Serve(listener)
 	}()
 
-	return
+	return nil
 }
 
 func (a *Agent) bootstrap() error {
