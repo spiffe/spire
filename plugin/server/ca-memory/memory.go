@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/hcl"
+
 	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/sri/pkg/common/plugin"
@@ -54,12 +56,18 @@ type memoryPlugin struct {
 }
 
 func (m *memoryPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	// Parse JSON config payload into config struct
+	resp := &sriplugin.ConfigureResponse{}
+
+	// Parse HCL config payload into config struct
 	config := &configuration{}
-	if err := json.Unmarshal([]byte(req.Configuration), &config); err != nil {
-		resp := &sriplugin.ConfigureResponse{
-			ErrorList: []string{err.Error()},
-		}
+	hclTree, err := hcl.Parse(req.Configuration)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+	err = hcl.DecodeObject(&config, hclTree)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
 		return resp, err
 	}
 
@@ -72,7 +80,7 @@ func (m *memoryPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.Co
 	m.config.KeySize = config.KeySize
 	m.config.CertSubject = config.CertSubject
 
-	return &sriplugin.ConfigureResponse{}, nil
+	return resp, nil
 }
 
 func (memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"net/url"
@@ -15,13 +16,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"fmt"
+	"github.com/hashicorp/hcl"
+	"github.com/vrischmann/jsonutil"
+
 	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/sri/pkg/common/plugin"
 	common "github.com/spiffe/sri/pkg/common/plugin"
 	iface "github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
-	"github.com/vrischmann/jsonutil"
 )
 
 var (
@@ -54,12 +56,18 @@ type memoryPlugin struct {
 }
 
 func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
-	// Parse JSON config payload into config struct
+	resp := &sriplugin.ConfigureResponse{}
+
+	// Parse HCL config payload into config struct
 	config := &configuration{}
-	if err := json.Unmarshal([]byte(req.Configuration), &config); err != nil {
-		resp := &common.ConfigureResponse{
-			ErrorList: []string{err.Error()},
-		}
+	hclTree, err := hcl.Parse(req.Configuration)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+	err = hcl.DecodeObject(&config, hclTree)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
 		return resp, err
 	}
 
