@@ -2,24 +2,24 @@ package main
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
 	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 
 	"github.com/hashicorp/go-plugin"
 
-	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/agent/keymanager"
+	"github.com/spiffe/sri/pkg/common/plugin"
 )
 
-type MemoryPlugin struct{
+type MemoryPlugin struct {
 	key *ecdsa.PrivateKey
 }
 
 func (m *MemoryPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (key *keymanager.GenerateKeyPairResponse, err error) {
-	m.key,err = ecdsa.GenerateKey(elliptic.P521(),rand.Reader)
-	privateKey,err := x509.MarshalECPrivateKey(m.key)
-	if err != nil{
+	m.key, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+	privateKey, err := x509.MarshalECPrivateKey(m.key)
+	if err != nil {
 		return
 	}
 	publicKey, err := x509.MarshalPKIXPublicKey(&m.key.PublicKey)
@@ -27,10 +27,18 @@ func (m *MemoryPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (key 
 	return
 }
 
-func (m *MemoryPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (key *keymanager.FetchPrivateKeyResponse, err error) {
-	privateKey,err := x509.MarshalECPrivateKey(m.key)
-	key =&keymanager.FetchPrivateKeyResponse{privateKey}
-	return
+func (m *MemoryPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
+	if m.key == nil {
+		// No key set yet
+		return &keymanager.FetchPrivateKeyResponse{[]byte{}}, nil
+	}
+
+	privateKey, err := x509.MarshalECPrivateKey(m.key)
+	if err != nil {
+		return &keymanager.FetchPrivateKeyResponse{[]byte{}}, err
+	}
+
+	return &keymanager.FetchPrivateKeyResponse{privateKey}, nil
 }
 
 func (m *MemoryPlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {

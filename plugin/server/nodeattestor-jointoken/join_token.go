@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -10,6 +9,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/hcl"
+
 	common "github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/server/nodeattestor"
 )
@@ -72,13 +73,19 @@ func (p *JoinTokenPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor
 	return resp, nil
 }
 
-func (p *JoinTokenPlugin) Configure(req *common.ConfigureRequest) ( *common.ConfigureResponse, error) {
-	// Parse JSON config payload into config struct
+func (p *JoinTokenPlugin) Configure(req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
+	resp := &common.ConfigureResponse{}
+
+	// Parse HCL config payload into config struct
 	config := &JoinTokenConfig{}
-	if err := json.Unmarshal([]byte(req.Configuration), &config); err != nil {
-		resp := &common.ConfigureResponse{
-			ErrorList: []string{err.Error()},
-		}
+	hclTree, err := hcl.Parse(req.Configuration)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+	err = hcl.DecodeObject(&config, hclTree)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
 		return resp, err
 	}
 

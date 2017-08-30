@@ -1,20 +1,22 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"net/url"
 	"path"
 	"sync"
 
 	"github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/hcl"
+
 	"github.com/spiffe/sri/pkg/agent/nodeattestor"
+	"github.com/spiffe/sri/pkg/common"
 	"github.com/spiffe/sri/pkg/common/plugin"
 )
 
 type JoinTokenConfig struct {
-	JoinToken   string `json:"join_token"`
-	TrustDomain string `json:"trust_domain"`
+	JoinToken   string `hcl:"join_token"`
+	TrustDomain string `hcl:"trust_domain"`
 }
 
 type JoinTokenPlugin struct {
@@ -46,7 +48,7 @@ func (p *JoinTokenPlugin) FetchAttestationData(req *nodeattestor.FetchAttestatio
 
 	// FIXME: NA should be the one dictating type of this message
 	// Change the proto to just take plain byte here
-	data := &nodeattestor.AttestedData{
+	data := &common.AttestedData{
 		Type: "join_token",
 		Data: []byte(p.joinToken),
 	}
@@ -63,12 +65,18 @@ func (p *JoinTokenPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	// Parse JSON config payload into config struct
+	resp := &sriplugin.ConfigureResponse{}
+
+	// Parse HCL config payload into config struct
 	config := &JoinTokenConfig{}
-	if err := json.Unmarshal([]byte(req.Configuration), &config); err != nil {
-		resp := &sriplugin.ConfigureResponse{
-			ErrorList: []string{err.Error()},
-		}
+	hclTree, err := hcl.Parse(req.Configuration)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+	err = hcl.DecodeObject(&config, hclTree)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
 		return resp, err
 	}
 
@@ -76,7 +84,7 @@ func (p *JoinTokenPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin
 	p.joinToken = config.JoinToken
 	p.trustDomain = config.TrustDomain
 
-	return &sriplugin.ConfigureResponse{}, nil
+	return resp, nil
 }
 
 func (*JoinTokenPlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {

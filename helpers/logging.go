@@ -6,9 +6,7 @@ import (
 	"os"
 )
 
-func NewLogger(c Config) (logger log.Logger, err error) {
-
-	fileName, logLevel := c.LogConfig()
+func NewLogger(logLevel string, fileName string) (logger log.Logger, err error) {
 	logFile, err := os.Create(fileName)
 
 	logger = log.NewLogfmtLogger(logFile)

@@ -155,7 +155,7 @@ build_test() {
     _test_path=$(go list ./... | grep -v -e'/vendor')
     if [[ -n ${CI} ]]; then
         mkdir -p test_results
-        go test ${DEBUG+-v} -race ${_test_path} > test_results/report.raw
+        go test ${DEBUG+-v} -race ${_test_path} | tee test_results/report.raw
         cat test_results/report.raw | go-junit-report > test_results/report.xml
         if [[ -n ${COVERALLS_TOKEN} && ${TRAVIS_EVENT_TYPE} = cron ]]; then
             gocoverutil -coverprofile=test_results/cover.out test -covermode=count ${_test_path}

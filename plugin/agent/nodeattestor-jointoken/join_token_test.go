@@ -5,6 +5,7 @@ import (
 
 	"github.com/spiffe/sri/helpers/testutil"
 	"github.com/spiffe/sri/pkg/agent/nodeattestor"
+	"github.com/spiffe/sri/pkg/common"
 	"github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,7 +39,7 @@ func TestJoinToken_FetchAttestationData_TokenPresent(t *testing.T) {
 	assert := assert.New(t)
 
 	// Build expected response
-	attestationData := &nodeattestor.AttestedData{
+	attestationData := &common.AttestedData{
 		Type: "join_token",
 		Data: []byte(token),
 	}

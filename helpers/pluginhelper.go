@@ -11,6 +11,8 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
+
+	"github.com/spiffe/sri/pkg/common/plugin"
 )
 
 type PluginCatalog struct {
@@ -25,6 +27,11 @@ type PluginCatalog struct {
 type PluginClients struct {
 	Type         string
 	PluginClient interface{}
+}
+
+type Plugin interface {
+	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
+	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
 func (c *PluginCatalog) loadConfig() (err error) {
@@ -143,15 +150,37 @@ func (c *PluginCatalog) initClients() (err error) {
 	return
 }
 
+func (c *PluginCatalog) ConfigureClients() error {
+	for _, config := range c.pluginConfigs {
+		p := c.GetPluginByName(config.PluginName).(Plugin)
+
+		req := &sriplugin.ConfigureRequest{
+			Configuration: config.PluginData,
+		}
+		_, err := p.Configure(req)
+		if err != nil {
+			return fmt.Errorf("Error encountered while configuring plugin %s: %s", config.PluginName, err)
+		}
+	}
+
+	return nil
+}
+
 func (c *PluginCatalog) Run() (err error) {
 	err = c.loadConfig()
 	if err != nil {
 		return err
 	}
+
 	err = c.initClients()
 	if err != nil {
 		return err
 	}
 
-	return
+	err = c.ConfigureClients()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
