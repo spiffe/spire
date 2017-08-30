@@ -132,7 +132,7 @@ func (a *Agent) initPlugins() error {
 
 	err := a.Catalog.Run()
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to run plugin catalog: %s", err)
 	}
 
 	return nil
@@ -216,7 +216,7 @@ func (a *Agent) bootstrap() error {
 
 // Attest the agent, obtain a new Base SVID
 func (a *Agent) Attest() error {
-	a.Config.Log.Log("msg", "Preparing to attest against %s", a.Config.ServerAddress)
+	a.Config.Log.Log("msg", "Preparing to attest against %s", a.Config.ServerAddress.String())
 
 	// Look up the node attestor plugin
 	pluginClients := a.Catalog.GetPluginsByType("NodeAttestor")
@@ -227,7 +227,7 @@ func (a *Agent) Attest() error {
 
 	pluginResponse, err := attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to get attestation data from plugin: %s", err)
 	}
 
 	// Parse the SPIFFE ID, form a CSR with it
@@ -260,7 +260,7 @@ func (a *Agent) Attest() error {
 	}
 	serverResponse, err := c.FetchBaseSVID(context.Background(), req)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed attestation against spire server: %s", err)
 	}
 
 	// Pull base SVID out of the response

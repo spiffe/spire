@@ -68,7 +68,7 @@ func (*RunCommand) Run(args []string) int {
 	a := &agent.Agent{Config: config}
 	err = a.Run()
 	if err != nil {
-		config.Log.Log("msg", err.Error)
+		config.Log.Log("msg", err.Error())
 		return 1
 	}
 
