@@ -114,7 +114,7 @@ func (a *Agent) Run() error {
 			return err
 		case <-a.Config.ShutdownCh:
 			a.grpcServer.GracefulStop()
-			return nil
+			return <-a.Config.ErrorCh
 		}
 	}
 }
