@@ -138,7 +138,7 @@ func (a *Agent) initPlugins() error {
 
 	err := a.Catalog.Run()
 	if err != nil {
-		return fmt.Errorf("Failed to run plugin catalog: %s", err)
+		return err
 	}
 
 	return nil
