@@ -4,6 +4,25 @@
 ## Table of Contents
 
 
+* [common.proto](#common.proto)
+  
+    * [AttestedData](#common.AttestedData)
+  
+    * [Empty](#common.Empty)
+  
+    * [RegistrationEntries](#common.RegistrationEntries)
+  
+    * [RegistrationEntry](#common.RegistrationEntry)
+  
+    * [Selector](#common.Selector)
+  
+    * [Selectors](#common.Selectors)
+  
+  
+  
+  
+
+
 * [plugin.proto](#plugin.proto)
   
     * [ConfigureRequest](#sriplugin.ConfigureRequest)
@@ -31,8 +50,6 @@
 
 * [node_attestor.proto](#node_attestor.proto)
   
-    * [AttestedData](#nodeattestor.AttestedData)
-  
     * [FetchAttestationDataRequest](#nodeattestor.FetchAttestationDataRequest)
   
     * [FetchAttestationDataResponse](#nodeattestor.FetchAttestationDataResponse)
@@ -44,6 +61,113 @@
   
 
 * [Scalar Value Types](#scalar-value-types)
+
+
+
+<a name="common.proto"/>
+<p align="right"><a href="#top">Top</a></p>
+
+## common.proto
+
+
+
+<a name="common.AttestedData"/>
+
+### AttestedData
+A type which contains attestation data for specific platform.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  | Type of attestation to perform. |
+| data | [bytes](#bytes) |  | The attestetion data. |
+
+
+
+
+
+
+<a name="common.Empty"/>
+
+### Empty
+Represents an empty message
+
+
+
+
+
+
+<a name="common.RegistrationEntries"/>
+
+### RegistrationEntries
+A list of registration entries.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [RegistrationEntry](#common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
+
+
+
+
+
+
+<a name="common.RegistrationEntry"/>
+
+### RegistrationEntry
+This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| selectors | [Selector](#common.Selector) | repeated | A list of selectors. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| ttl | [int32](#int32) |  | Time to live. |
+| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
+
+
+
+
+
+
+<a name="common.Selector"/>
+
+### Selector
+A type which describes the conditions under which a registration entry is matched.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| value | [string](#string) |  | The value to be attested. |
+
+
+
+
+
+
+<a name="common.Selectors"/>
+
+### Selectors
+Represents a type with a list of NodeResolution.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [Selector](#common.Selector) | repeated | A list of NodeResolution. |
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+ 
 
 
 
@@ -191,22 +315,6 @@ The plugin will be responsible to retrieve an identity document or data associat
 This data will be used when calling the NodeAPI on the Control Plane.
 
 
-<a name="nodeattestor.AttestedData"/>
-
-### AttestedData
-A type which contains attestation data for specific platform.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | Type of attestation to perform. |
-| data | [bytes](#bytes) |  | The attestetion data. |
-
-
-
-
-
-
 <a name="nodeattestor.FetchAttestationDataRequest"/>
 
 ### FetchAttestationDataRequest
@@ -225,7 +333,7 @@ Represents the attested data and base SPIFFE ID.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [AttestedData](#nodeattestor.AttestedData) |  | A type which contains attestation data for specific platform. |
+| attestedData | [.common.AttestedData](#nodeattestor..common.AttestedData) |  | A type which contains attestation data for specific platform. |
 | spiffeId | [string](#string) |  | SPIFFE ID. |
 
 

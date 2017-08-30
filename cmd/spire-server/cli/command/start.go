@@ -84,7 +84,7 @@ func (*StartCommand) Run(args []string) int {
 		return -1
 
 	}
-	logger, err = helpers.NewLogger(&config)
+	logger, err = helpers.NewLogger(config.LogConfig())
 	if err != nil {
 		logger.Log("error", err)
 		return -1
@@ -138,7 +138,6 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	//plugins
 
-
 	dataStore := pluginCatalog.GetPluginsByType("DataStore")[0]
 	level.Info(logger).Log("pluginType", reflect.TypeOf(dataStore))
 	dataStoreImpl := dataStore.(datastore.DataStore)
@@ -155,8 +154,6 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	serverCA := pluginCatalog.GetPluginsByType("ControlPlaneCA")[0]
 	level.Info(logger).Log("pluginType", reflect.TypeOf(serverCA))
 	serverCAImpl := serverCA.(ca.ControlPlaneCa)
-
-
 
 	//services
 	registrationService := services.NewRegistrationImpl(dataStoreImpl)
