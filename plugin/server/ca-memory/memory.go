@@ -16,11 +16,13 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/go-spiffe"
+	"github.com/spiffe/go-spiffe/spiffe"
+	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/sri/pkg/common/plugin"
 	iface "github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/server/ca"
 	"github.com/spiffe/sri/plugin/server/upstreamca-memory/pkg"
+	"github.com/vrischmann/jsonutil"
 )
 
 var (
@@ -34,16 +36,17 @@ var (
 )
 
 type configuration struct {
-	TrustDomain string        `json:"trust_domain"`
-	KeySize     int           `json:"key_size"`
-	TTL         time.Duration `json:"ttl"`
-	CertSubject pkix.Name     `json:"cert_subject"`
+	TrustDomain string            `json:"trust_domain"`
+	KeySize     int               `json:"key_size"`
+	TTL         jsonutil.Duration `json:"ttl"`
+	CertSubject pkix.Name         `json:"cert_subject"`
 }
 
 type memoryPlugin struct {
 	config *configuration
 
 	key    *rsa.PrivateKey
+	newKey *rsa.PrivateKey
 	cert   *x509.Certificate
 	serial int64
 
@@ -60,11 +63,6 @@ func (m *memoryPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.Co
 		return resp, err
 	}
 
-	key, err := rsa.GenerateKey(rand.Reader, config.KeySize)
-	if err != nil {
-		return nil, errors.New("Can't generate private key: " + err.Error())
-	}
-
 	// Set local vars from config struct
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -73,7 +71,6 @@ func (m *memoryPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.Co
 	m.config.TTL = config.TTL
 	m.config.KeySize = config.KeySize
 	m.config.CertSubject = config.CertSubject
-	m.key = key
 
 	return &sriplugin.ConfigureResponse{}, nil
 }
@@ -82,7 +79,7 @@ func (memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
-func (m *memoryPlugin) SignCsr(csrPEM []byte) ([]byte, error) {
+func (m memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -90,7 +87,7 @@ func (m *memoryPlugin) SignCsr(csrPEM []byte) ([]byte, error) {
 		return nil, errors.New("Invalid state: no certificate")
 	}
 
-	csr, err := pkg.ParseSpiffeCsr(csrPEM, m.config.TrustDomain)
+	csr, err := pkg.ParseSpiffeCsr(request.Csr, m.config.TrustDomain)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +101,7 @@ func (m *memoryPlugin) SignCsr(csrPEM []byte) ([]byte, error) {
 		Issuer:          csr.Subject,
 		SerialNumber:    big.NewInt(serial),
 		NotBefore:       now,
-		NotAfter:        now.Add(m.config.TTL),
+		NotAfter:        now.Add(m.config.TTL.Duration),
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageKeyAgreement |
 			x509.KeyUsageDigitalSignature,
@@ -113,27 +110,34 @@ func (m *memoryPlugin) SignCsr(csrPEM []byte) ([]byte, error) {
 	}
 
 	cert, err := x509.CreateCertificate(rand.Reader,
-		&template, m.cert, &m.key.PublicKey, m.key)
+		&template, m.cert, csr.PublicKey, m.key)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return pem.EncodeToMemory(&pem.Block{
+	return &ca.SignCsrResponse{SignedCertificate: pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: cert,
-	}), nil
+	})}, nil
 }
 
-func (m *memoryPlugin) GenerateCsr() ([]byte, error) {
+func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	if m.key == nil {
-		return nil, errors.New("Invalid state: no private key")
+	newKey, err := rsa.GenerateKey(rand.Reader, m.config.KeySize)
+	if err != nil {
+		return nil, errors.New("Can't generate private key: " + err.Error())
+	}
+	m.newKey = newKey
+
+	spiffeID := url.URL{
+		Scheme: "spiffe",
+		Host:   m.config.TrustDomain,
 	}
 
-	uriSans, err := spiffe.MarshalUriSANs([]string{fmt.Sprintf("spiffe://%v", m.config.TrustDomain)})
+	uriSans, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -145,120 +149,137 @@ func (m *memoryPlugin) GenerateCsr() ([]byte, error) {
 			{
 				Id:       spiffe.OidExtensionSubjectAltName,
 				Value:    uriSans,
-				Critical: true,
+				Critical: false,
 			}},
 	}
 
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &template, m.key)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &template, m.newKey)
 	if err != nil {
 		return nil, err
 	}
 
-	return pem.EncodeToMemory(&pem.Block{
+	return &ca.GenerateCsrResponse{Csr: pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE REQUEST",
 		Bytes: csr,
-	}), nil
+	})}, nil
 }
 
-func (m *memoryPlugin) FetchCertificate() ([]byte, error) {
+func (m memoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	if m.cert == nil {
 		// return empty result if uninitialized.
-		return nil, nil
+		return &ca.FetchCertificateResponse{}, nil
 	}
 
-	return pem.EncodeToMemory(&pem.Block{
+	return &ca.FetchCertificateResponse{StoredIntermediateCert: pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: m.cert.Raw,
-	}), nil
+	})}, nil
 }
 
-func (m *memoryPlugin) LoadCertificate(certPEM []byte) error {
+func (m *memoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (response *ca.LoadCertificateResponse, err error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if m.key == nil {
-		return errors.New("Invalid state: no private key")
+	if m.newKey == nil {
+		return &ca.LoadCertificateResponse{}, errors.New("Invalid state: no private key. GenerateCsr() should be called first")
 	}
 
-	block, rest := pem.Decode(certPEM)
+	m.key = m.newKey
+
+	block, rest := pem.Decode(request.SignedIntermediateCert)
 
 	if block == nil {
-		return errors.New("Invalid cert format")
+		return &ca.LoadCertificateResponse{}, errors.New("Invalid cert format")
 	}
 
 	if len(rest) > 0 {
-		return errors.New("Invalid cert format: too many certs")
+		return &ca.LoadCertificateResponse{}, errors.New("Invalid cert format: too many certs")
 	}
 
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return err
+		return &ca.LoadCertificateResponse{}, err
 	}
 
-	uris, err := spiffe.GetURINamesFromCertificate(cert)
+	uris, err := uri.GetURINamesFromCertificate(cert)
 	if err != nil {
-		return err
+		return &ca.LoadCertificateResponse{}, err
 	}
 
 	if len(uris) != 1 {
-		return fmt.Errorf("X.509 SVID certificates must have exactly one URI SAN. Found %v URI(s)", len(uris))
+		return &ca.LoadCertificateResponse{}, fmt.Errorf("X.509 SVID certificates must have exactly one URI SAN. Found %v URI(s)", len(uris))
 	}
 
 	keyUsageExtensions := spiffe.GetKeyUsageExtensionsFromCertificate(cert)
 
-	if keyUsageExtensions == nil {
-		return errors.New("The Key Usage extension must be set on X.509 SVID certificates")
+	if len(keyUsageExtensions) == 0 {
+		return &ca.LoadCertificateResponse{}, errors.New("The Key Usage extension must be set on X.509 SVID certificates")
 	}
 
 	if !keyUsageExtensions[0].Critical {
-		return errors.New("The Key Usage extension must be marked critical on X.509 SVID certificates")
+		return &ca.LoadCertificateResponse{}, errors.New("The Key Usage extension must be marked critical on X.509 SVID certificates")
 	}
 
 	spiffeidUrl, err := url.Parse(uris[0])
 
 	if spiffeidUrl.Scheme != "spiffe" {
-		return errors.New("SPIFFE IDs in X.509 SVID certificates must be prefixed with the spiffe:// scheme.")
+		return &ca.LoadCertificateResponse{}, errors.New("SPIFFE IDs in X.509 SVID certificates must be prefixed with the spiffe:// scheme.")
 	}
 
 	if spiffeidUrl.Host != m.config.TrustDomain {
-		return fmt.Errorf("The SPIFFE ID '%v' does not reside in the trust domain '%v'.", spiffeidUrl, m.config.TrustDomain)
+		return &ca.LoadCertificateResponse{}, fmt.Errorf("The SPIFFE ID '%v' does not reside in the trust domain '%v'.", spiffeidUrl, m.config.TrustDomain)
 	}
 
 	if cert.MaxPathLen > 0 || (cert.MaxPathLen == 0 && cert.MaxPathLenZero) {
-		return errors.New("Signing certificates must not set the pathLenConstraint field")
+		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must not set the pathLenConstraint field")
 	}
 
 	if !cert.IsCA {
-		return errors.New("Signing certificates must set the CA field to true")
+		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must set the CA field to true")
 	}
 
 	if len(spiffeidUrl.Path) > 0 {
-		return errors.New("Signing certificates must not have a path component")
+		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must not have a path component")
 	}
 
 	if cert.KeyUsage&x509.KeyUsageCertSign == 0 {
-		return errors.New("Signing certificates must set KeyUsageCertSign")
+		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must set KeyUsageCertSign")
 	}
 
 	if cert.KeyUsage&x509.KeyUsageKeyEncipherment > 0 {
-		return errors.New("Signing certificates must not set KeyUsageKeyEncipherment")
+		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must not set KeyUsageKeyEncipherment")
 	}
 
 	if cert.KeyUsage&x509.KeyUsageKeyAgreement > 0 {
-		return errors.New("Signing certificates must not set KeyUsageKeyAgreement")
+		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must not set KeyUsageKeyAgreement")
 	}
 
 	m.cert = cert
-	return nil
+	return &ca.LoadCertificateResponse{}, nil
 }
 
 func NewWithDefault() (m ca.ControlPlaneCa, err error) {
-	config := `{"trust_domain":"localhost", "ttl":3600000, "key_size":2048}`
+	config := configuration{
+		TrustDomain: "localhost",
+		KeySize:     2048,
+		TTL:         jsonutil.FromDuration(time.Hour),
+		CertSubject: pkix.Name{
+			Country:      []string{"US"},
+			Organization: []string{"SPIFFE"},
+			CommonName:   "",
+		}}
+
+	jsonConfig, err := json.Marshal(config)
+
+	if err != nil {
+		return nil, err
+	}
+
 	pluginConfig := &iface.ConfigureRequest{
-		Configuration: config,
+		Configuration: string(jsonConfig),
 	}
 
 	m = &memoryPlugin{

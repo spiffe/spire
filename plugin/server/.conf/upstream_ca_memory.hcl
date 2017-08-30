@@ -7,7 +7,9 @@ pluginType = "UpstreamCA"
 pluginData {
   "trust_domain": "localhost",
   "key_size": 2048,
-  "ttl": 3600000000000, // one hour
+  "ttl": "1h",
+  "key_file_path": "_test_data/key.pem"
+  "cert_file_path": "_test_data/cert.pem"
   "cert_subject": {
     "Country": ["US"],
     "Organization": ["SPIFFE"],

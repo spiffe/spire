@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	ca, err := pkg.NewWithDefault()
+	ca, err := pkg.NewWithDefault("pkg/_test_data/keys/private_key.pem", "pkg/_test_data/keys/cert.pem")
 	if err != nil {
 		panic(err.Error())
 	}

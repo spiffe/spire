@@ -19,8 +19,7 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPlugin
 }
 
 func (m *GRPCServer) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
-	response, err := m.UpstreamCaImpl.SubmitCSR(req.Csr)
-	return response, err
+	return m.UpstreamCaImpl.SubmitCSR(req)
 }
 
 type GRPCClient struct {

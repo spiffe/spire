@@ -1,12 +1,12 @@
-hash: 483062881b0f4d11445f085e094d075805b9bd53111cc4f6c1cf05c1d4ba61f0
-updated: 2017-08-29T13:44:19.030632938Z
+hash: 46df32a90e50e342f5d8bdc492b3caaa1c3cbf6db9da910123cf96a0a3507f5f
+updated: 2017-08-29T22:52:25.220476323-03:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/bgentry/speakeasy
   version: 4aabc24848ce5fd31929f7d1e4ea74d3709c14cd
 - name: github.com/go-kit/kit
-  version: f01651a61ac759c6b508539bddda24f63ea34bbb
+  version: f7593d19082ad15f6376f12c746d71d680aa1666
   subpackages:
   - endpoint
   - log
@@ -78,7 +78,7 @@ imports:
 - name: github.com/mitchellh/go-testing-interface
   version: 9a441910b16872f7b8283682619b3761a9aa2222
 - name: github.com/posener/complete
-  version: 2100d1b06c06462a8a47bfc41a7f24a5d60a1420
+  version: 9f41f7636a724791a3b8b1d35e84caa1124f0d3c
   subpackages:
   - cmd
   - cmd/install
@@ -92,6 +92,8 @@ imports:
   subpackages:
   - spiffe
   - uri
+- name: github.com/vrischmann/jsonutil
+  version: d44b59f0575ca3785e670025e2488efe0a4a10c4
 - name: golang.org/x/net
   version: 66aacef3dd8a676686c7ae3716979581e8b03c47
   subpackages:
@@ -103,7 +105,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sys
-  version: 2d6f6f883a06fc0d5f4b14a81e4c28705ea64c15
+  version: ab9e364efd8b52800ff7ee48a9ffba4e0ed78dfb
   subpackages:
   - unix
 - name: golang.org/x/text

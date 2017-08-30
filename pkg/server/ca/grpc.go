@@ -19,23 +19,19 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPlugin
 }
 
 func (m *GRPCServer) SignCsr(ctx context.Context, req *SignCsrRequest) (*SignCsrResponse, error) {
-	response, err := m.ControlPlaneCaImpl.SignCsr(req.Csr)
-	return &SignCsrResponse{SignedCertificate: response}, err
+	return m.ControlPlaneCaImpl.SignCsr(req)
 }
 
 func (m *GRPCServer) GenerateCsr(ctx context.Context, req *GenerateCsrRequest) (*GenerateCsrResponse, error) {
-	response, err := m.ControlPlaneCaImpl.GenerateCsr()
-	return &GenerateCsrResponse{Csr: response}, err
+	return m.ControlPlaneCaImpl.GenerateCsr(req)
 }
 
 func (m *GRPCServer) FetchCertificate(ctx context.Context, req *FetchCertificateRequest) (*FetchCertificateResponse, error) {
-	response, err := m.ControlPlaneCaImpl.FetchCertificate()
-	return &FetchCertificateResponse{StoredIntermediateCert: response}, err
+	return m.ControlPlaneCaImpl.FetchCertificate(req)
 }
 
 func (m *GRPCServer) LoadCertificate(ctx context.Context, req *LoadCertificateRequest) (*LoadCertificateResponse, error) {
-	err := m.ControlPlaneCaImpl.LoadCertificate(req.SignedIntermediateCert)
-	return &LoadCertificateResponse{}, err
+	return m.ControlPlaneCaImpl.LoadCertificate(req)
 }
 
 type GRPCClient struct {
@@ -55,14 +51,13 @@ func (m *GRPCClient) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
 	return response, err
 }
 
-func (m *GRPCClient) SignCsr(csr []byte) (signedCertificate []byte, err error) {
-	response, err := m.client.SignCsr(context.Background(), &SignCsrRequest{Csr: csr})
-	return response.SignedCertificate, err
+func (m *GRPCClient) SignCsr(request *SignCsrRequest) (response *SignCsrResponse, err error) {
+	return m.client.SignCsr(context.Background(), request)
 }
 
-func (m *GRPCClient) GenerateCsr() (csr []byte, err error) {
+func (m *GRPCClient) GenerateCsr() (*GenerateCsrResponse, error) {
 	response, err := m.client.GenerateCsr(context.Background(), &GenerateCsrRequest{})
-	return response.Csr, err
+	return response, err
 }
 
 func (m *GRPCClient) FetchCertificate() (storedIntermediateCert []byte, err error) {
@@ -70,7 +65,7 @@ func (m *GRPCClient) FetchCertificate() (storedIntermediateCert []byte, err erro
 	return response.StoredIntermediateCert, err
 }
 
-func (m *GRPCClient) LoadCertificate(signedIntermediateCert []byte) error {
-	_, err := m.client.LoadCertificate(context.Background(), &LoadCertificateRequest{SignedIntermediateCert: signedIntermediateCert})
-	return err
+func (m *GRPCClient) LoadCertificate(request *LoadCertificateRequest) (*LoadCertificateResponse, error) {
+	response, err := m.client.LoadCertificate(context.Background(), request)
+	return response, err
 }

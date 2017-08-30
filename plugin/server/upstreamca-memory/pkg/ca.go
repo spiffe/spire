@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"io/ioutil"
 	"math/big"
 	"net/url"
 	"sync"
@@ -15,11 +16,12 @@ import (
 	"time"
 
 	"fmt"
-	"github.com/spiffe/go-spiffe"
+	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/sri/pkg/common/plugin"
 	common "github.com/spiffe/sri/pkg/common/plugin"
 	iface "github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
+	"github.com/vrischmann/jsonutil"
 )
 
 var (
@@ -33,10 +35,12 @@ var (
 )
 
 type configuration struct {
-	TTL         time.Duration `json:"ttl"` // time to live for generated certs
-	TrustDomain string        `json:"trust_domain"`
-	KeySize     int           `json:"key_size"`
-	CertSubject pkix.Name     `json:"cert_subject"`
+	TTL          jsonutil.Duration `json:"ttl"` // time to live for generated certs
+	TrustDomain  string            `json:"trust_domain"`
+	KeySize      int               `json:"key_size"`
+	CertSubject  pkix.Name         `json:"cert_subject"`
+	CertFilePath string            `json:"cert_file_path"`
+	KeyFilePath  string            `json:"key_file_path"`
 }
 
 type memoryPlugin struct {
@@ -59,36 +63,42 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 		return resp, err
 	}
 
-	key, err := rsa.GenerateKey(rand.Reader, config.KeySize)
-	if err != nil {
-		return nil, errors.New("Can't generate private key: " + err.Error())
-	}
-
-	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	keyPEM, err := ioutil.ReadFile(config.KeyFilePath)
 	if err != nil {
 		return nil, err
 	}
 
-	template := &x509.Certificate{
-		SerialNumber: serial,
-		Subject:      config.CertSubject,
-		KeyUsage: x509.KeyUsageKeyEncipherment |
-			x509.KeyUsageDigitalSignature |
-			x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-		IsCA: true,
+	block, rest := pem.Decode(keyPEM)
+
+	if block == nil {
+		return nil, errors.New("Invalid cert format")
 	}
 
-	der, err := x509.CreateCertificate(rand.Reader,
-		template, template, &key.PublicKey, key)
+	if len(rest) > 0 {
+		return nil, errors.New("Invalid cert format: too many certs")
+	}
+
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
 		return nil, err
 	}
 
-	cert, err := x509.ParseCertificate(der)
+	certPEM, err := ioutil.ReadFile(config.CertFilePath)
 	if err != nil {
 		return nil, err
 	}
+
+	block, rest = pem.Decode(certPEM)
+
+	if block == nil {
+		return nil, errors.New("Invalid cert format")
+	}
+
+	if len(rest) > 0 {
+		return nil, errors.New("Invalid cert format: too many certs")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
 
 	// Set local vars from config struct
 	m.mtx.Lock()
@@ -98,6 +108,8 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 	m.config.TTL = config.TTL
 	m.config.KeySize = config.KeySize
 	m.config.CertSubject = config.CertSubject
+	m.config.KeyFilePath = config.KeyFilePath
+	m.config.CertFilePath = config.CertFilePath
 	m.cert = cert
 	m.key = key
 
@@ -108,7 +120,7 @@ func (memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
-func (m *memoryPlugin) SubmitCSR(csrPEM []byte) (*upstreamca.SubmitCSRResponse, error) {
+func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -120,7 +132,7 @@ func (m *memoryPlugin) SubmitCSR(csrPEM []byte) (*upstreamca.SubmitCSRResponse, 
 		return nil, errors.New("Invalid state: no key")
 	}
 
-	csr, err := ParseSpiffeCsr(csrPEM, m.config.TrustDomain)
+	csr, err := ParseSpiffeCsr(request.Csr, m.config.TrustDomain)
 
 	if err != nil {
 		return nil, err
@@ -135,7 +147,7 @@ func (m *memoryPlugin) SubmitCSR(csrPEM []byte) (*upstreamca.SubmitCSRResponse, 
 		Issuer:          m.cert.Subject,
 		SerialNumber:    big.NewInt(serial),
 		NotBefore:       now,
-		NotAfter:        now.Add(m.config.TTL),
+		NotAfter:        now.Add(m.config.TTL.Duration),
 		KeyUsage: x509.KeyUsageDigitalSignature |
 			x509.KeyUsageCertSign |
 			x509.KeyUsageCRLSign,
@@ -144,7 +156,7 @@ func (m *memoryPlugin) SubmitCSR(csrPEM []byte) (*upstreamca.SubmitCSRResponse, 
 	}
 
 	cert, err := x509.CreateCertificate(rand.Reader,
-		&template, m.cert, &m.key.PublicKey, m.key)
+		&template, m.cert, csr.PublicKey, m.key)
 
 	if err != nil {
 		return nil, err
@@ -178,7 +190,7 @@ func ParseSpiffeCsr(csrPEM []byte, trustDomain string) (csr *x509.CertificateReq
 		return nil, errors.New("Failed to check certificate request signature: " + err.Error())
 	}
 
-	urinames, err := spiffe.GetURINamesFromExtensions(&csr.Extensions)
+	urinames, err := uri.GetURINamesFromExtensions(&csr.Extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +202,7 @@ func ParseSpiffeCsr(csrPEM []byte, trustDomain string) (csr *x509.CertificateReq
 	csrSpiffeID, err := url.Parse(urinames[0])
 
 	if csrSpiffeID.Scheme != "spiffe" {
-		return nil, errors.New("SPIFFE IDs must be prefixed with the spiffe:// scheme.")
+		return nil, fmt.Errorf("SPIFFE ID '%v' is not prefixed with the spiffe:// scheme.", csrSpiffeID)
 	}
 
 	if csrSpiffeID.Host != trustDomain {
@@ -200,10 +212,22 @@ func ParseSpiffeCsr(csrPEM []byte, trustDomain string) (csr *x509.CertificateReq
 	return csr, nil
 }
 
-func NewWithDefault() (m upstreamca.UpstreamCa, err error) {
-	config := `{"trust_domain":"localhost", "ttl":3600000, "key_size":2048}`
+func NewWithDefault(keyFilePath string, certFilePath string) (m upstreamca.UpstreamCa, err error) {
+	config := configuration{
+		TrustDomain:  "localhost",
+		KeyFilePath:  keyFilePath,
+		CertFilePath: certFilePath,
+		KeySize:      2048,
+		TTL:          jsonutil.FromDuration(time.Hour),
+		CertSubject: pkix.Name{
+			Country:      []string{"US"},
+			Organization: []string{"SPIFFE"},
+			CommonName:   "",
+		}}
+
+	jsonConfig, err := json.Marshal(config)
 	pluginConfig := &iface.ConfigureRequest{
-		Configuration: config,
+		Configuration: string(jsonConfig),
 	}
 
 	m = &memoryPlugin{

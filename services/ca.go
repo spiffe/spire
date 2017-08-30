@@ -11,7 +11,7 @@ import (
 
 //CA service interface.
 type CA interface {
-	SignCsr(csr []byte) (cert []byte, err error)
+	SignCsr(request *ca.SignCsrRequest) (response *ca.SignCsrResponse, err error)
 	GetSpiffeIDFromCSR(csr []byte) (spiffeID string, err error)
 }
 
@@ -26,8 +26,8 @@ func NewCAImpl(serverCA ca.ControlPlaneCa) *CAImpl {
 }
 
 //SignCsr with the stored intermediate certificate.
-func (ca *CAImpl) SignCsr(csr []byte) (cert []byte, err error) {
-	return ca.serverCA.SignCsr(csr)
+func (ca *CAImpl) SignCsr(request *ca.SignCsrRequest) (response *ca.SignCsrResponse, err error) {
+	return ca.serverCA.SignCsr(request)
 }
 
 //GetSpiffeIDFromCSR extracts an SpiffeID from a CSR

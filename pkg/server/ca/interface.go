@@ -20,10 +20,10 @@ var Handshake = plugin.HandshakeConfig{
 type ControlPlaneCa interface {
 	Configure(request *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
 	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
-	SignCsr([]byte) ([]byte, error)
-	GenerateCsr() ([]byte, error)
-	FetchCertificate() ([]byte, error)
-	LoadCertificate([]byte) error
+	SignCsr(*SignCsrRequest) (*SignCsrResponse, error)
+	GenerateCsr(*GenerateCsrRequest) (*GenerateCsrResponse, error)
+	FetchCertificate(request *FetchCertificateRequest) (*FetchCertificateResponse, error)
+	LoadCertificate(*LoadCertificateRequest) (*LoadCertificateResponse, error)
 }
 
 type ControlPlaneCaPlugin struct {
