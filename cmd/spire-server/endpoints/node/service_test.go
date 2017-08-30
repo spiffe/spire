@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/sri/pkg/common"
 	"github.com/spiffe/sri/pkg/server/nodeattestor"
 	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/sri/pkg/server/ca"
 )
 
 type NodeServiceTestSuite struct {
@@ -42,8 +43,8 @@ func TestNodeServiceTestSuite(t *testing.T) {
 }
 
 func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
-	fakeCsr := []byte("fake csr")
-	fakeCert := []byte("fake cert")
+	fakeCsr := &ca.SignCsrRequest{Csr:[]byte("fake csr")}
+	fakeCert := &ca.SignCsrResponse{SignedCertificate:[]byte("fake cert")}
 	attestData := &common.AttestedData{Type: "", Data: []byte("fake attestation data")}
 	baseSpiffeID := "spiffe://trust-domain/path"
 	selector := &common.Selector{Type: "foo", Value: "bar"}
@@ -55,17 +56,17 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 	suite.mockAttestation.EXPECT().IsAttested(baseSpiffeID).Return(false, nil)
 	suite.mockAttestation.EXPECT().Attest(attestData, false).Return(&nodeattestor.AttestResponse{BaseSPIFFEID: baseSpiffeID, Valid: true}, nil)
 	suite.mockCA.EXPECT().SignCsr(fakeCsr).Return(fakeCert, nil)
-	suite.mockAttestation.EXPECT().CreateEntry(attestData.Type, baseSpiffeID, fakeCert).Return(nil)
+	suite.mockAttestation.EXPECT().CreateEntry(attestData.Type, baseSpiffeID, fakeCert.SignedCertificate).Return(nil)
 	suite.mockIdentity.EXPECT().Resolve([]string{baseSpiffeID}).Return(selectors, nil)
 	suite.mockIdentity.EXPECT().CreateEntry(baseSpiffeID, selectors[baseSpiffeID].Entries[0]).Return(nil)
 
 	response, err := suite.nodeService.FetchBaseSVID(nil, pb.FetchBaseSVIDRequest{
 		AttestedData: attestData,
-		Csr:          fakeCsr,
+		Csr:          fakeCsr.Csr,
 	})
 
 	svids := make(map[string]*pb.Svid)
-	svids[baseSpiffeID] = &pb.Svid{SvidCert: fakeCert, Ttl: 7777}
+	svids[baseSpiffeID] = &pb.Svid{SvidCert: fakeCert.SignedCertificate, Ttl: 7777}
 	registrationEntry := &common.RegistrationEntry{
 		SpiffeId:  baseSpiffeID,
 		Selectors: selectors[baseSpiffeID].Entries,
