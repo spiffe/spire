@@ -101,7 +101,10 @@ func (a *Agent) Run() error {
 		return err
 	}
 
-	a.initEndpoints()
+	err = a.initEndpoints()
+	if err != nil {
+		return err
+	}
 
 	// Main event loop
 	a.Config.Logger.Log("msg", "SPIRE Agent is now running")
