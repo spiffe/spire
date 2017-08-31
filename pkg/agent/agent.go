@@ -305,7 +305,12 @@ func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
 		ExtraExtensions:    uriSANExtension,
 	}
 
-	return x509.CreateCertificateRequest(rand.Reader, csrData, a.key)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, csrData, a.key)
+	if err != nil {
+		return nil, err
+	}
+
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr}), nil
 }
 
 // Read base SVID from data dir and load it
