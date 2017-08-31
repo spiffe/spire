@@ -207,6 +207,9 @@ func ParseSpiffeCsr(csrPEM []byte, trustDomain string) (csr *x509.CertificateReq
 	}
 
 	csrSpiffeID, err := url.Parse(urinames[0])
+	if err != nil {
+		return nil, err
+	}
 
 	if csrSpiffeID.Scheme != "spiffe" {
 		return nil, fmt.Errorf("SPIFFE ID '%v' is not prefixed with the spiffe:// scheme.", csrSpiffeID)

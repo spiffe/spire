@@ -6,9 +6,9 @@ import (
 
 	pb "github.com/spiffe/sri/pkg/api/node"
 	"github.com/spiffe/sri/pkg/common"
+	"github.com/spiffe/sri/pkg/server/ca"
 	"github.com/spiffe/sri/pkg/server/nodeattestor"
 	"github.com/spiffe/sri/services"
-	"github.com/spiffe/sri/pkg/server/ca"
 )
 
 // Implement yor service methods methods.
@@ -77,7 +77,7 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 
 	//Sign csr
 	var signCsrResponse *ca.SignCsrResponse
-	if signCsrResponse, err = no.ca.SignCsr(&ca.SignCsrRequest{Csr:request.Csr}); err != nil {
+	if signCsrResponse, err = no.ca.SignCsr(&ca.SignCsrRequest{Csr: request.Csr}); err != nil {
 		return response, err
 	}
 
@@ -101,15 +101,22 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 		return response, err
 	}
 
-	if err = no.identity.CreateEntry(baseSpiffeID, selectors[baseSpiffeID].Entries[0]); err != nil {
-		return response, err
+	mySelectors, ok := selectors[baseSpiffeID]
+	var entries []*common.Selector
+	if ok {
+		entries = mySelectors.Entries
+		for _, selector := range entries {
+			if err = no.identity.CreateEntry(baseSpiffeID, selector); err != nil {
+				return response, err
+			}
+		}
 	}
 
 	svids := make(map[string]*pb.Svid)
 	svids[baseSpiffeID] = &pb.Svid{SvidCert: signCsrResponse.SignedCertificate, Ttl: no.baseSpiffeIDTTL}
 	registrationEntry := &common.RegistrationEntry{
 		SpiffeId:  baseSpiffeID,
-		Selectors: selectors[baseSpiffeID].Entries,
+		Selectors: entries,
 	}
 	svidUpdate := &pb.SvidUpdate{
 		Svids:               svids,

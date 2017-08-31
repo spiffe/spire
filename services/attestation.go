@@ -1,6 +1,11 @@
 package services
 
 import (
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
+	"time"
+
 	"github.com/spiffe/sri/pkg/common"
 	"github.com/spiffe/sri/pkg/server/datastore"
 	"github.com/spiffe/sri/pkg/server/nodeattestor"
@@ -32,7 +37,8 @@ func NewAttestationImpl(dataStore datastore.DataStore, nodeAttestor nodeattestor
 func (att *AttestationImpl) IsAttested(baseSpiffeID string) (isAttested bool, err error) {
 	var fetchResponse *datastore.FetchAttestedNodeEntryResponse
 	fetchRequest := &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: baseSpiffeID}
-	if fetchResponse, err = att.dataStore.FetchAttestedNodeEntry(fetchRequest); err != nil {
+	fetchResponse, err = att.dataStore.FetchAttestedNodeEntry(fetchRequest)
+	if err != nil || fetchResponse.AttestedNodeEntry == nil {
 		return false, err
 	}
 	if fetchResponse.AttestedNodeEntry.BaseSpiffeId == baseSpiffeID {
@@ -50,24 +56,45 @@ func (att *AttestationImpl) Attest(attestedData *common.AttestedData, attestedBe
 	return att.nodeAttestor.Attest(attestRequest)
 }
 
-func (att *AttestationImpl) CreateEntry(attestationType string, baseSpiffeID string, cert []byte) (err error) {
-	//TODO:extract CertExpirationDate and CertSerialNumber @kunzimariano
+func (att *AttestationImpl) CreateEntry(attestationType string, baseSpiffeID string, certBytes []byte) (err error) {
+	cert, err := parsePEMBytes(certBytes)
+	if err != nil {
+		return err
+	}
+
 	attestedNodeRequest := &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: &datastore.AttestedNodeEntry{
 		AttestedDataType:   attestationType,
 		BaseSpiffeId:       baseSpiffeID,
-		CertExpirationDate: "",
-		CertSerialNumber:   "",
+		CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
+		CertSerialNumber:   cert.SerialNumber.String(),
 	}}
 	_, err = att.dataStore.CreateAttestedNodeEntry(attestedNodeRequest)
 	return err
 }
 
-func (att *AttestationImpl) UpdateEntry(baseSpiffeID string, cert []byte) (err error) {
-	//TODO:extract CertExpirationDate and CertSerialNumber @kunzimariano
+func (att *AttestationImpl) UpdateEntry(baseSpiffeID string, certBytes []byte) (err error) {
+	cert, err := parsePEMBytes(certBytes)
+	if err != nil {
+		return err
+	}
+
 	_, err = att.dataStore.UpdateAttestedNodeEntry(&datastore.UpdateAttestedNodeEntryRequest{
 		BaseSpiffeId:       baseSpiffeID,
-		CertExpirationDate: "",
-		CertSerialNumber:   "",
+		CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
+		CertSerialNumber:   cert.SerialNumber.String(),
 	})
 	return err
+}
+
+func parsePEMBytes(bytes []byte) (*x509.Certificate, error) {
+	pemBlock, rest := pem.Decode(bytes)
+	if pemBlock == nil || len(rest) > 0 {
+		return nil, errors.New("Error decoding CA response")
+	}
+	cert, err := x509.ParseCertificate(pemBlock.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return cert, nil
 }
