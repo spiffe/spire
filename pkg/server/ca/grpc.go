@@ -10,68 +10,53 @@ type GRPCServer struct {
 }
 
 func (m *GRPCServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	response, err := m.ControlPlaneCaImpl.Configure(req.Configuration)
-	return &sriplugin.ConfigureResponse{ErrorList: response}, err
+	return m.ControlPlaneCaImpl.Configure(req)
 }
 
 func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
-	response, err := m.ControlPlaneCaImpl.GetPluginInfo()
-	return response, err
+	return m.ControlPlaneCaImpl.GetPluginInfo(req)
 }
 
 func (m *GRPCServer) SignCsr(ctx context.Context, req *SignCsrRequest) (*SignCsrResponse, error) {
-	response, err := m.ControlPlaneCaImpl.SignCsr(req.Csr)
-	return &SignCsrResponse{SignedCertificate: response}, err
+	return m.ControlPlaneCaImpl.SignCsr(req)
 }
 
 func (m *GRPCServer) GenerateCsr(ctx context.Context, req *GenerateCsrRequest) (*GenerateCsrResponse, error) {
-	response, err := m.ControlPlaneCaImpl.GenerateCsr()
-	return &GenerateCsrResponse{Csr: response}, err
+	return m.ControlPlaneCaImpl.GenerateCsr(req)
 }
 
 func (m *GRPCServer) FetchCertificate(ctx context.Context, req *FetchCertificateRequest) (*FetchCertificateResponse, error) {
-	response, err := m.ControlPlaneCaImpl.FetchCertificate()
-	return &FetchCertificateResponse{StoredIntermediateCert: response}, err
+	return m.ControlPlaneCaImpl.FetchCertificate(req)
 }
 
 func (m *GRPCServer) LoadCertificate(ctx context.Context, req *LoadCertificateRequest) (*LoadCertificateResponse, error) {
-	err := m.ControlPlaneCaImpl.LoadCertificate(req.SignedIntermediateCert)
-	return &LoadCertificateResponse{}, err
+	return m.ControlPlaneCaImpl.LoadCertificate(req)
 }
 
 type GRPCClient struct {
 	client ControlPlaneCAClient
 }
 
-func (m *GRPCClient) Configure(configuration string) ([]string, error) {
-	response, err := m.client.Configure(context.Background(), &sriplugin.ConfigureRequest{configuration})
-	if err != nil {
-		return []string{}, err
-	}
-	return response.ErrorList, err
+func (m *GRPCClient) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	return m.client.Configure(context.Background(), req)
+}
+func (m *GRPCClient) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	return m.client.GetPluginInfo(context.Background(), req)
 }
 
-func (m *GRPCClient) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
-	response, err := m.client.GetPluginInfo(context.Background(), &sriplugin.GetPluginInfoRequest{})
+func (m *GRPCClient) SignCsr(request *SignCsrRequest) (response *SignCsrResponse, err error) {
+	return m.client.SignCsr(context.Background(), request)
+}
+
+func (m *GRPCClient) GenerateCsr(req *GenerateCsrRequest) (*GenerateCsrResponse, error) {
+	return m.client.GenerateCsr(context.Background(), req)
+}
+
+func (m *GRPCClient) FetchCertificate(req *FetchCertificateRequest) (*FetchCertificateResponse, error) {
+	return m.client.FetchCertificate(context.Background(), req)
+}
+
+func (m *GRPCClient) LoadCertificate(request *LoadCertificateRequest) (*LoadCertificateResponse, error) {
+	response, err := m.client.LoadCertificate(context.Background(), request)
 	return response, err
-}
-
-func (m *GRPCClient) SignCsr(csr []byte) (signedCertificate []byte, err error) {
-	response, err := m.client.SignCsr(context.Background(), &SignCsrRequest{Csr: csr})
-	return response.SignedCertificate, err
-}
-
-func (m *GRPCClient) GenerateCsr() (csr []byte, err error) {
-	response, err := m.client.GenerateCsr(context.Background(), &GenerateCsrRequest{})
-	return response.Csr, err
-}
-
-func (m *GRPCClient) FetchCertificate() (storedIntermediateCert []byte, err error) {
-	response, err := m.client.FetchCertificate(context.Background(), &FetchCertificateRequest{})
-	return response.StoredIntermediateCert, err
-}
-
-func (m *GRPCClient) LoadCertificate(signedIntermediateCert []byte) error {
-	_, err := m.client.LoadCertificate(context.Background(), &LoadCertificateRequest{SignedIntermediateCert: signedIntermediateCert})
-	return err
 }

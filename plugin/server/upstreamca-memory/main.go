@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	ca, err := pkg.NewWithDefault()
+	ca, err := pkg.NewWithDefault("../../plugin/server/upstreamca-memory/pkg/_test_data/keys/private_key.pem", "../../plugin/server/upstreamca-memory/pkg/_test_data/keys/cert.pem")
 	if err != nil {
 		panic(err.Error())
 	}
