@@ -84,7 +84,8 @@ func (*StartCommand) Run(args []string) int {
 		return -1
 
 	}
-	logger, err = helpers.NewLogger(config.LogConfig())
+	lFile, lLevel := config.LogConfig()
+	logger, err = helpers.NewLogger(lLevel, lFile)
 	if err != nil {
 		logger.Log("error", err)
 		return -1

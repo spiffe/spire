@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -17,7 +16,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
-	"github.com/vrischmann/jsonutil"
 
 	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/sri/pkg/common/plugin"
@@ -37,12 +35,10 @@ var (
 )
 
 type configuration struct {
-	TTL          jsonutil.Duration `json:"ttl"` // time to live for generated certs
-	TrustDomain  string            `json:"trust_domain"`
-	KeySize      int               `json:"key_size"`
-	CertSubject  pkix.Name         `json:"cert_subject"`
-	CertFilePath string            `json:"cert_file_path"`
-	KeyFilePath  string            `json:"key_file_path"`
+	TTL          string `hcl:"ttl"` // time to live for generated certs
+	TrustDomain  string `hcl:"trust_domain"`
+	CertFilePath string `hcl:"cert_file_path"`
+	KeyFilePath  string `hcl:"key_file_path"`
 }
 
 type memoryPlugin struct {
@@ -114,8 +110,6 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 	m.config = &configuration{}
 	m.config.TrustDomain = config.TrustDomain
 	m.config.TTL = config.TTL
-	m.config.KeySize = config.KeySize
-	m.config.CertSubject = config.CertSubject
 	m.config.KeyFilePath = config.KeyFilePath
 	m.config.CertFilePath = config.CertFilePath
 	m.cert = cert
@@ -124,7 +118,7 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 	return &common.ConfigureResponse{}, nil
 }
 
-func (memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
+func (*memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
@@ -149,13 +143,18 @@ func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstrea
 	serial := atomic.AddInt64(&m.serial, 1)
 	now := time.Now()
 
+	expiry, err := time.ParseDuration(m.config.TTL)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to parse TTL: %s", err)
+	}
+
 	template := x509.Certificate{
 		ExtraExtensions: csr.Extensions,
 		Subject:         csr.Subject,
 		Issuer:          m.cert.Subject,
 		SerialNumber:    big.NewInt(serial),
 		NotBefore:       now,
-		NotAfter:        now.Add(m.config.TTL.Duration),
+		NotAfter:        now.Add(expiry),
 		KeyUsage: x509.KeyUsageDigitalSignature |
 			x509.KeyUsageCertSign |
 			x509.KeyUsageCRLSign,
@@ -225,13 +224,8 @@ func NewWithDefault(keyFilePath string, certFilePath string) (m upstreamca.Upstr
 		TrustDomain:  "localhost",
 		KeyFilePath:  keyFilePath,
 		CertFilePath: certFilePath,
-		KeySize:      2048,
-		TTL:          jsonutil.FromDuration(time.Hour),
-		CertSubject: pkix.Name{
-			Country:      []string{"US"},
-			Organization: []string{"SPIFFE"},
-			CommonName:   "",
-		}}
+		TTL:          "1h",
+	}
 
 	jsonConfig, err := json.Marshal(config)
 	pluginConfig := &iface.ConfigureRequest{

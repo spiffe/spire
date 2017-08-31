@@ -24,7 +24,6 @@ import (
 	iface "github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/server/ca"
 	"github.com/spiffe/sri/plugin/server/upstreamca-memory/pkg"
-	"github.com/vrischmann/jsonutil"
 )
 
 var (
@@ -37,11 +36,17 @@ var (
 	}
 )
 
+type certSubjectConfig struct {
+	Country      []string
+	Organization []string
+	CommonName   string
+}
+
 type configuration struct {
-	TrustDomain string            `json:"trust_domain"`
-	KeySize     int               `json:"key_size"`
-	TTL         jsonutil.Duration `json:"ttl"`
-	CertSubject pkix.Name         `json:"cert_subject"`
+	TrustDomain string            `hcl:"trust_domain"`
+	KeySize     int               `hcl:"key_size"`
+	TTL         string            `hcl:"ttl"`
+	CertSubject certSubjectConfig `hcl:"cert_subject"`
 }
 
 type memoryPlugin struct {
@@ -83,11 +88,11 @@ func (m *memoryPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.Co
 	return resp, nil
 }
 
-func (memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
+func (*memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
-func (m memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
+func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -103,13 +108,18 @@ func (m memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse, 
 	serial := atomic.AddInt64(&m.serial, 1)
 	now := time.Now()
 
+	expiry, err := time.ParseDuration(m.config.TTL)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to parse TTL: %s", err)
+	}
+
 	template := x509.Certificate{
 		ExtraExtensions: csr.Extensions,
 		Subject:         csr.Subject,
 		Issuer:          csr.Subject,
 		SerialNumber:    big.NewInt(serial),
 		NotBefore:       now,
-		NotAfter:        now.Add(m.config.TTL.Duration),
+		NotAfter:        now.Add(expiry),
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageKeyAgreement |
 			x509.KeyUsageDigitalSignature,
@@ -150,8 +160,14 @@ func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 		return nil, err
 	}
 
+	subject := pkix.Name{
+		Country:      m.config.CertSubject.Country,
+		Organization: m.config.CertSubject.Organization,
+		CommonName:   m.config.CertSubject.CommonName,
+	}
+
 	template := x509.CertificateRequest{
-		Subject:            m.config.CertSubject,
+		Subject:            subject,
 		SignatureAlgorithm: x509.SHA256WithRSA,
 		ExtraExtensions: []pkix.Extension{
 			{
@@ -172,7 +188,7 @@ func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 	})}, nil
 }
 
-func (m memoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
+func (m *memoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -273,8 +289,8 @@ func NewWithDefault() (m ca.ControlPlaneCa, err error) {
 	config := configuration{
 		TrustDomain: "localhost",
 		KeySize:     2048,
-		TTL:         jsonutil.FromDuration(time.Hour),
-		CertSubject: pkix.Name{
+		TTL:         "1h",
+		CertSubject: certSubjectConfig{
 			Country:      []string{"US"},
 			Organization: []string{"SPIFFE"},
 			CommonName:   "",
