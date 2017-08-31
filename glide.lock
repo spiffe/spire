@@ -1,5 +1,5 @@
-hash: 46df32a90e50e342f5d8bdc492b3caaa1c3cbf6db9da910123cf96a0a3507f5f
-updated: 2017-08-29T22:52:25.220476323-03:00
+hash: 495820248c198a572a98901a74eb1e1dc8d7cafad976743f6016785dac0f4c72
+updated: 2017-08-30T21:29:47.762814899-03:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -26,9 +26,12 @@ imports:
   - jsonpb
   - proto
   - protoc-gen-go/descriptor
+  - ptypes
   - ptypes/any
+  - ptypes/duration
   - ptypes/empty
   - ptypes/struct
+  - ptypes/timestamp
 - name: github.com/grpc-ecosystem/grpc-gateway
   version: f2862b476edcef83412c7af8687c9cd8e4097c0f
   subpackages:
@@ -92,8 +95,6 @@ imports:
   subpackages:
   - spiffe
   - uri
-- name: github.com/vrischmann/jsonutil
-  version: d44b59f0575ca3785e670025e2488efe0a4a10c4
 - name: golang.org/x/net
   version: 66aacef3dd8a676686c7ae3716979581e8b03c47
   subpackages:
@@ -121,12 +122,12 @@ imports:
   - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: b3ddf786825de56a4178401b7e174ee332173b66
+  version: f92cdcd7dcdc69e81b2d7b338479a19a8723cfa3
   subpackages:
   - codes
   - connectivity
   - credentials
-  - grpclb/grpc_lb_v1
+  - grpclb/grpc_lb_v1/messages
   - grpclog
   - health
   - health/grpc_health_v1
