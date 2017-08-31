@@ -14,8 +14,7 @@ func (m *GRPCServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequ
 }
 
 func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
-	response, err := m.UpstreamCaImpl.GetPluginInfo()
-	return response, err
+	return m.UpstreamCaImpl.GetPluginInfo(req)
 }
 
 func (m *GRPCServer) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
@@ -34,6 +33,6 @@ func (m *GRPCClient) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplu
 	return m.client.GetPluginInfo(context.Background(), req)
 }
 
-func (m *GRPCClient) SubmitCSR(csr []byte) (*SubmitCSRResponse, error) {
-	return m.client.SubmitCSR(context.Background(), &SubmitCSRRequest{Csr: csr})
+func (m *GRPCClient) SubmitCSR(req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
+	return m.client.SubmitCSR(context.Background(), req)
 }

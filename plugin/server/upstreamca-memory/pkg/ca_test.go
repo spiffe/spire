@@ -31,7 +31,7 @@ func TestMemory_Configure(t *testing.T) {
 func TestMemory_GetPluginInfo(t *testing.T) {
 	m, err := NewWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
 	require.NoError(t, err)
-	res, err := m.GetPluginInfo()
+	res, err := m.GetPluginInfo(&iface.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	assert.NotNil(t, res)
 }
