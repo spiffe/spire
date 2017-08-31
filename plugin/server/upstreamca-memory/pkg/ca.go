@@ -118,8 +118,8 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 	return &common.ConfigureResponse{}, nil
 }
 
-func (*memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
-	return &pluginInfo, nil
+func (*memoryPlugin) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	return &sriplugin.GetPluginInfoResponse{}, nil
 }
 
 func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
@@ -184,7 +184,7 @@ func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstrea
 func ParseSpiffeCsr(csrPEM []byte, trustDomain string) (csr *x509.CertificateRequest, err error) {
 	block, rest := pem.Decode(csrPEM)
 	if len(rest) > 0 {
-		return nil, errors.New("Invalid CSR format")
+		return nil, fmt.Errorf("Invalid CSR format: %s", rest)
 	}
 
 	csr, err = x509.ParseCertificateRequest(block.Bytes)

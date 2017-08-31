@@ -18,7 +18,7 @@ var Handshake = plugin.HandshakeConfig{
 
 type UpstreamCa interface {
 	Configure(request *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
-	GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error)
+	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 	SubmitCSR(*SubmitCSRRequest) (*SubmitCSRResponse, error)
 }
 

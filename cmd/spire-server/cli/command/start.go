@@ -1,17 +1,31 @@
 package command
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"path"
+	"reflect"
 	"syscall"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/spiffe/go-spiffe/spiffe"
+	"github.com/spiffe/go-spiffe/uri"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/spiffe/sri/pkg/common/plugin"
 
@@ -26,8 +40,6 @@ import (
 	"github.com/spiffe/sri/cmd/spire-server/endpoints/server"
 	nodePB "github.com/spiffe/sri/pkg/api/node"
 	registrationPB "github.com/spiffe/sri/pkg/api/registration"
-
-	"reflect"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -96,7 +108,13 @@ func (*StartCommand) Run(args []string) int {
 		return -1
 	}
 
-	err = initEndpoints(pluginCatalog)
+	err = rotateSigningCert(&config, pluginCatalog)
+	if err != nil {
+		level.Error(logger).Log("error", err)
+		return -1
+	}
+
+	err = initEndpoints(&config, pluginCatalog)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
@@ -136,7 +154,7 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 	return pluginCatalog, nil
 }
 
-func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
+func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.PluginCatalog) error {
 	//plugins
 
 	dataStore := pluginCatalog.GetPluginsByType("DataStore")[0]
@@ -207,6 +225,11 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 		FetchSVIDEndpoint:            node.MakeFetchSVIDEndpoint(nodeSvc),
 	}
 
+	cert, key, err := generateSVID(config, pluginCatalog)
+	if err != nil {
+		return err
+	}
+
 	go func() {
 		listener, err := net.Listen("tcp", *gRPCAddr)
 		if err != nil {
@@ -215,10 +238,19 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 		}
 		logger.Log("grpc:", *gRPCAddr)
 
+		tlsCert := &tls.Certificate{
+			PrivateKey: key,
+			Leaf:       cert,
+		}
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{*tlsCert},
+		}
+		grpcOpt := grpc.Creds(credentials.NewTLS(tlsConfig))
+
 		serverHandler := server.MakeGRPCServer(serverEndpoints)
 		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
 		nodeHandler := node.MakeGRPCServer(nodeEnpoints)
-		gRPCServer := grpc.NewServer()
+		gRPCServer := grpc.NewServer(grpcOpt)
 
 		sriplugin.RegisterServerServer(gRPCServer, serverHandler)
 		registrationPB.RegisterRegistrationServer(gRPCServer, registrationHandler)
@@ -231,8 +263,14 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		// TODO: Pass a bundle in here
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: true,
+		}
+
 		mux := runtime.NewServeMux()
-		opts := []grpc.DialOption{grpc.WithInsecure()}
+		opt := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+		opts := []grpc.DialOption{opt}
 		logger.Log("http:", *httpAddr)
 		err := registrationPB.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
 		if err != nil {
@@ -245,6 +283,73 @@ func initEndpoints(pluginCatalog *helpers.PluginCatalog) error {
 	error := <-errChan
 	logger.Log("channel", errChan, "error", error)
 	return error
+}
+
+func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCatalog) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+	spiffeID := &url.URL{
+		Scheme: "spiffe",
+		Host:   config.TrustDomain,
+		Path:   path.Join("spiffe", "cp"),
+	}
+
+	uriSAN, err := uri.MarshalUriSANs([]string{spiffeID.String()})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+	req := &x509.CertificateRequest{
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
+		ExtraExtensions: []pkix.Extension{{
+			Id:       spiffe.OidExtensionSubjectAltName,
+			Value:    uriSAN,
+			Critical: false,
+		}},
+	}
+	csr, err := x509.CreateCertificateRequest(rand.Reader, req, key)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	signReq := &ca.SignCsrRequest{Csr: csr}
+	p := catalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
+	res, err := p.SignCsr(signReq)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pemBlock, rest := pem.Decode(res.SignedCertificate)
+	if pemBlock == nil || len(rest) > 0 {
+		return nil, nil, errors.New("Error decoding CA response")
+	}
+	cert, err := x509.ParseCertificate(pemBlock.Bytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return cert, key, nil
+}
+
+func rotateSigningCert(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCatalog) error {
+	caPlugin := catalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
+	upCAPlugin := catalog.GetPluginsByType("UpstreamCA")[0].(upstreamca.UpstreamCa)
+
+	csrRes, err := caPlugin.GenerateCsr(&ca.GenerateCsrRequest{})
+	if err != nil {
+		return err
+	}
+
+	signRes, err := upCAPlugin.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
+	if err != nil {
+		return err
+	}
+
+	_, err = caPlugin.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: signRes.Cert})
+
+	return err
 }
 
 func makeErrorChannel() (errChannel chan error) {
