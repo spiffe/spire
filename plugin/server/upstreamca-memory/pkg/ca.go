@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"net/url"
 	"sync"
@@ -35,10 +36,10 @@ var (
 )
 
 type configuration struct {
-	TTL          string `hcl:"ttl"` // time to live for generated certs
-	TrustDomain  string `hcl:"trust_domain"`
-	CertFilePath string `hcl:"cert_file_path"`
-	KeyFilePath  string `hcl:"key_file_path"`
+	TTL          string `hcl:ttl` // time to live for generated certs
+	TrustDomain  string `hcl:trust_domain`
+	CertFilePath string `hcl:cert_file_path`
+	KeyFilePath  string `hcl:key_file_path`
 }
 
 type memoryPlugin struct {
@@ -69,7 +70,8 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 
 	keyPEM, err := ioutil.ReadFile(config.KeyFilePath)
 	if err != nil {
-		return nil, err
+		log.Printf("Key file path: %s", config.KeyFilePath)
+		return nil, fmt.Errorf("Could not read %s: %s", config.KeyFilePath, err)
 	}
 
 	block, rest := pem.Decode(keyPEM)
@@ -89,7 +91,8 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 
 	certPEM, err := ioutil.ReadFile(config.CertFilePath)
 	if err != nil {
-		return nil, err
+		log.Printf("Cert file path: %s", config.KeyFilePath)
+		return nil, fmt.Errorf("Could not read %s: %s", config.CertFilePath, err)
 	}
 
 	block, rest = pem.Decode(certPEM)

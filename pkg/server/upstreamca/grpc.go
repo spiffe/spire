@@ -26,20 +26,14 @@ type GRPCClient struct {
 	client UpstreamCAClient
 }
 
-func (m *GRPCClient) Configure(configuration string) ([]string, error) {
-	response, err := m.client.Configure(context.Background(), &sriplugin.ConfigureRequest{configuration})
-	if err != nil {
-		return []string{}, err
-	}
-	return response.ErrorList, err
+func (m *GRPCClient) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+	return m.client.Configure(context.Background(), req)
 }
 
-func (m *GRPCClient) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
-	response, err := m.client.GetPluginInfo(context.Background(), &sriplugin.GetPluginInfoRequest{})
-	return response, err
+func (m *GRPCClient) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	return m.client.GetPluginInfo(context.Background(), req)
 }
 
 func (m *GRPCClient) SubmitCSR(csr []byte) (*SubmitCSRResponse, error) {
-	response, err := m.client.SubmitCSR(context.Background(), &SubmitCSRRequest{Csr: csr})
-	return response, err
+	return m.client.SubmitCSR(context.Background(), &SubmitCSRRequest{Csr: csr})
 }

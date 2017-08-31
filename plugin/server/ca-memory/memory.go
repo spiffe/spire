@@ -43,10 +43,10 @@ type certSubjectConfig struct {
 }
 
 type configuration struct {
-	TrustDomain string            `hcl:"trust_domain"`
-	KeySize     int               `hcl:"key_size"`
-	TTL         string            `hcl:"ttl"`
-	CertSubject certSubjectConfig `hcl:"cert_subject"`
+	TrustDomain string            `hcl:trust_domain`
+	KeySize     int               `hcl:key_size`
+	TTL         string            `hcl:"ttl`
+	CertSubject certSubjectConfig `hcl:cert_subject`
 }
 
 type memoryPlugin struct {

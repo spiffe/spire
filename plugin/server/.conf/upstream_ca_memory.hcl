@@ -5,8 +5,8 @@ pluginChecksum = ""
 enabled = true
 pluginType = "UpstreamCA"
 pluginData {
-  trust_domain = "localhost",
-  ttl = "1h",
-  key_file_path = "_test_data/key.pem"
-  cert_file_path = "_test_data/cert.pem"
+  trust_domain = "localhost"
+  ttl = "1h"
+  key_file_path = "../../plugin/server/upstreamca-memory/pkg/_test_data/keys/private_key.pem"
+  cert_file_path = "../../plugin/server/upstreamca-memory/pkg/_test_data/keys/cert.pem"
 }

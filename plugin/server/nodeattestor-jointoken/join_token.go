@@ -16,8 +16,8 @@ import (
 )
 
 type JoinTokenConfig struct {
-	JoinTokens  map[string]int `json:"join_tokens"`
-	TrustDomain string         `json:"trust_domain"`
+	JoinTokens  map[string]int `json:join_tokens`
+	TrustDomain string         `json:trust_domain`
 }
 
 type JoinTokenPlugin struct {
