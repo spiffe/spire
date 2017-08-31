@@ -32,7 +32,8 @@ func NewAttestationImpl(dataStore datastore.DataStore, nodeAttestor nodeattestor
 func (att *AttestationImpl) IsAttested(baseSpiffeID string) (isAttested bool, err error) {
 	var fetchResponse *datastore.FetchAttestedNodeEntryResponse
 	fetchRequest := &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: baseSpiffeID}
-	if fetchResponse, err = att.dataStore.FetchAttestedNodeEntry(fetchRequest); err != nil {
+	fetchResponse, err = att.dataStore.FetchAttestedNodeEntry(fetchRequest)
+	if err != nil || fetchResponse.AttestedNodeEntry == nil {
 		return false, err
 	}
 	if fetchResponse.AttestedNodeEntry.BaseSpiffeId == baseSpiffeID {
