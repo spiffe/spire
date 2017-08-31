@@ -141,8 +141,8 @@ func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 }
 
 func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrResponse, error) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
 	newKey, err := rsa.GenerateKey(rand.Reader, m.config.KeySize)
 	if err != nil {
