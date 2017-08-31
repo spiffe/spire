@@ -314,7 +314,12 @@ func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCat
 		return nil, nil, err
 	}
 
-	signReq := &ca.SignCsrRequest{Csr: csr}
+	csrPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE REQUEST",
+		Bytes: csr,
+	})
+
+	signReq := &ca.SignCsrRequest{Csr: csrPEM}
 	p := catalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
 	res, err := p.SignCsr(signReq)
 	if err != nil {

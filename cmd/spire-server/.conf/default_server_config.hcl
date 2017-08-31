@@ -4,5 +4,5 @@ nodeAPIGRPCPort = "8081"
 registrationAPIGRPCPort ="8086"
 nodeAPIHTTPPort = "8086"
 registrationAPIHTTPPort ="8086"
-trustDomain = "spiffe://"
+trustDomain = "localhost"
 baseSpiffeIDTTL = 999999
