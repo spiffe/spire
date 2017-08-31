@@ -16,8 +16,7 @@ func (m *GRPCServer) Configure(ctx context.Context, req *sriplugin.ConfigureRequ
 }
 
 func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
-	response, err := m.NodeResolverImpl.GetPluginInfo()
-	return response, err
+	return m.NodeResolverImpl.GetPluginInfo(req)
 }
 
 func (m *GRPCServer) Resolve(ctx context.Context, req *ResolveRequest) (*ResolveResponse, error) {

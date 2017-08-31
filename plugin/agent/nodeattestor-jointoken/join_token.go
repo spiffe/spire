@@ -15,8 +15,8 @@ import (
 )
 
 type JoinTokenConfig struct {
-	JoinToken   string `hcl:join_token`
-	TrustDomain string `hcl:trust_domain`
+	JoinToken   string `hcl:"join_token"`
+	TrustDomain string `hcl:"trust_domain"`
 }
 
 type JoinTokenPlugin struct {

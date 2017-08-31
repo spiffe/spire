@@ -43,10 +43,10 @@ type certSubjectConfig struct {
 }
 
 type configuration struct {
-	TrustDomain string            `hcl:trust_domain`
-	KeySize     int               `hcl:key_size`
-	TTL         string            `hcl:"ttl`
-	CertSubject certSubjectConfig `hcl:cert_subject`
+	TrustDomain string            `hcl:"trust_domain" json:"trust_domain"`
+	KeySize     int               `hcl:"key_size" json:"key_size"`
+	TTL         string            `hcl:"ttl" json:"ttl"`
+	CertSubject certSubjectConfig `hcl:"cert_subject" json:"cert_subject"`
 }
 
 type memoryPlugin struct {
@@ -88,8 +88,8 @@ func (m *memoryPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.Co
 	return resp, nil
 }
 
-func (*memoryPlugin) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
-	return &pluginInfo, nil
+func (*memoryPlugin) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	return &sriplugin.GetPluginInfoResponse{}, nil
 }
 
 func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {

@@ -13,8 +13,8 @@ func (NoOp) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse
 	return &sriplugin.ConfigureResponse{}, nil
 }
 
-func (NoOp) GetPluginInfo() (*sriplugin.GetPluginInfoResponse, error) {
-	return nil, nil
+func (NoOp) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	return &sriplugin.GetPluginInfoResponse{}, nil
 }
 
 func (NoOp) Resolve(physicalSpiffeIdList []string) (resolutions map[string]*common.Selectors, err error) {
