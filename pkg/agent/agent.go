@@ -247,10 +247,14 @@ func (a *Agent) Attest() error {
 
 	// Configure TLS
 	// TODO: Pick better options here
+	spiffePeer := SPIFFEPeer{TrustDomian: a.Config.TrustDomain}
 	tlsConfig := &tls.Config{
-		RootCAs: a.Config.TrustBundle,
+		VerifyPeerCertificate: spiffePeer.VerifyPeerCertificate,
+		RootCAs:               a.Config.TrustBundle,
+		InsecureSkipVerify: true,
 	}
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+
 	conn, err := grpc.Dial(a.Config.ServerAddress.String(), dialCreds)
 	if err != nil {
 		return fmt.Errorf("Could not connect to: %v", err)
@@ -263,6 +267,7 @@ func (a *Agent) Attest() error {
 		AttestedData: pluginResponse.AttestedData,
 		Csr:          csr,
 	}
+
 	serverResponse, err := c.FetchBaseSVID(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("Failed attestation against spire server: %s", err)
@@ -354,4 +359,33 @@ func (a *Agent) StoreBaseSVID() {
 	}
 
 	return
+}
+//TODO:(walmav) move to go-spiffe
+type SPIFFEPeer struct {
+	TrustDomian string
+}
+
+func (p *SPIFFEPeer) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) (err error) {
+
+	for a, rawCert := range rawCerts {
+		if a >= 0 {
+			cert, _ := x509.ParseCertificate(rawCert)
+			sanURIs, _ := uri.GetURINamesFromCertificate(cert)
+
+			for _, sanURI := range sanURIs {
+				u, _ := url.Parse(sanURI)
+				if u.Scheme == "spiffe" && u.Host == p.TrustDomian {
+					return nil
+				}
+			}
+		}
+	}
+	return &invalidSANURIWError{}
+}
+
+type invalidSANURIWError struct {
+}
+
+func (e *invalidSANURIWError) Error() string {
+	return "INVALID SAN URI"
 }

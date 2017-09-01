@@ -240,22 +240,23 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 		logger.Log("grpc:", *gRPCAddr)
 
 		tlsCert := &tls.Certificate{
-			PrivateKey: key,
-			Leaf:       cert,
+			Certificate: [][]byte{cert.Raw},
+			PrivateKey:  key,
 		}
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{*tlsCert},
 		}
-		grpcOpt := grpc.Creds(credentials.NewTLS(tlsConfig))
+
+		nodeHandler := node.MakeGRPCServer(nodeEnpoints)
+		gRPCServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+		nodePB.RegisterNodeServer(gRPCServer, nodeHandler)
 
 		serverHandler := server.MakeGRPCServer(serverEndpoints)
-		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
-		nodeHandler := node.MakeGRPCServer(nodeEnpoints)
-		gRPCServer := grpc.NewServer(grpcOpt)
-
 		sriplugin.RegisterServerServer(gRPCServer, serverHandler)
+
+		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
 		registrationPB.RegisterRegistrationServer(gRPCServer, registrationHandler)
-		nodePB.RegisterNodeServer(gRPCServer, nodeHandler)
+
 		errChan <- gRPCServer.Serve(listener)
 	}()
 
