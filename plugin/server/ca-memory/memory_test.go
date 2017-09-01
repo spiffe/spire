@@ -16,10 +16,10 @@ import (
 	"github.com/spiffe/sri/helpers/testutil"
 	iface "github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/server/ca"
+	"github.com/spiffe/sri/pkg/server/upstreamca"
 	upca "github.com/spiffe/sri/plugin/server/upstreamca-memory/pkg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/spiffe/sri/pkg/server/upstreamca"
 )
 
 func TestMemory_Configure(t *testing.T) {
@@ -111,7 +111,7 @@ func TestMemory_bootstrap(t *testing.T) {
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
 	require.NoError(t, err)
 
-	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr:generateCsrResp.Csr})
+	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
 	require.NoError(t, err)
 
 	_, err = m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
@@ -140,7 +140,7 @@ func TestMemory_race(t *testing.T) {
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
 	require.NoError(t, err)
 
-	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr:generateCsrResp.Csr})
+	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
 	require.NoError(t, err)
 
 	wcsr := createWorkloadCSR(t)

@@ -8,9 +8,9 @@ import (
 	"github.com/golang/mock/gomock"
 	pb "github.com/spiffe/sri/pkg/api/node"
 	"github.com/spiffe/sri/pkg/common"
+	"github.com/spiffe/sri/pkg/server/ca"
 	"github.com/spiffe/sri/pkg/server/nodeattestor"
 	"github.com/stretchr/testify/suite"
-	"github.com/spiffe/sri/pkg/server/ca"
 )
 
 type NodeServiceTestSuite struct {
@@ -43,8 +43,8 @@ func TestNodeServiceTestSuite(t *testing.T) {
 }
 
 func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
-	fakeCsr := &ca.SignCsrRequest{Csr:[]byte("fake csr")}
-	fakeCert := &ca.SignCsrResponse{SignedCertificate:[]byte("fake cert")}
+	fakeCsr := &ca.SignCsrRequest{Csr: []byte("fake csr")}
+	fakeCert := &ca.SignCsrResponse{SignedCertificate: []byte("fake cert")}
 	attestData := &common.AttestedData{Type: "", Data: []byte("fake attestation data")}
 	baseSpiffeID := "spiffe://trust-domain/path"
 	selector := &common.Selector{Type: "foo", Value: "bar"}
