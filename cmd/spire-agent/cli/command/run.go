@@ -3,6 +3,7 @@ package command
 import (
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -22,15 +23,16 @@ const (
 
 	defaultBindAddress = "127.0.0.1"
 	defaultBindPort    = "8081"
-	defaultDataDir     = "."
-	defaultLogFile     = "spire-agent.log"
-	defaultLogLevel    = "INFO"
-	defaultPluginDir   = "../../plugin/agent/.conf"
+
+	// TODO: Make my defaults sane
+	defaultDataDir   = "."
+	defaultLogLevel  = "INFO"
+	defaultPluginDir = "../../plugin/agent/.conf"
 )
 
 // Struct representing available configurables for file and CLI
 // options
-type CliConfig struct {
+type CmdConfig struct {
 	ServerAddress   string
 	ServerPort      string
 	TrustDomain     string
@@ -52,7 +54,7 @@ func (*RunCommand) Help() string {
 }
 
 func (*RunCommand) Run(args []string) int {
-	config := newAgentConfig()
+	config := newDefaultConfig()
 
 	err := setOptsFromFile(config, defaultConfigPath)
 	if err != nil {
@@ -61,6 +63,11 @@ func (*RunCommand) Run(args []string) int {
 	}
 
 	setOptsFromCLI(config)
+
+	err = validateConfig(config)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 
 	// TODO: Handle graceful shutdown?
 	signalListener(config.ErrorCh)
@@ -80,7 +87,7 @@ func (*RunCommand) Synopsis() string {
 }
 
 func setOptsFromFile(c *agent.Config, filePath string) error {
-	fileConfig := &CliConfig{}
+	fileConfig := &CmdConfig{}
 
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -102,66 +109,117 @@ func setOptsFromCLI(*agent.Config) {
 	return
 }
 
-func mergeAgentConfig(orig *agent.Config, new *CliConfig) error {
+func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 	// Parse server address
-	if new.ServerAddress == "" || new.ServerPort == "" {
-		return fmt.Errorf("ServerAddress and ServerPort are required")
-	}
-	serverAddress := net.ParseIP(new.ServerAddress)
-	serverPort, err := strconv.Atoi(new.ServerPort)
-	if serverAddress == nil {
-		return fmt.Errorf("ServerAddress %s is not a valid IP", new.ServerAddress)
-	}
-	if err != nil {
-		return fmt.Errorf("ServerPort %s is not a valid port number", new.ServerPort)
-	}
-	orig.ServerAddress = &net.TCPAddr{IP: serverAddress, Port: serverPort}
+	if cmd.ServerAddress != "" {
+		serverAddress := net.ParseIP(cmd.ServerAddress)
+		if serverAddress == nil {
+			// ServerAddress is not an IP, try to look it up
+			ips, err := net.LookupIP(cmd.ServerAddress)
+			if err != nil {
+				return err
+			}
 
-	// Handle trust domain
-	if new.TrustDomain == "" {
-		return fmt.Errorf("TrustDomain is required")
+			if len(ips) == 0 {
+				return fmt.Errorf("Could not resolve ServerAddress %s", cmd.ServerAddress)
+			}
+			serverAddress = ips[0]
+		}
+
+		orig.ServerAddress.IP = serverAddress
 	}
-	orig.TrustDomain = new.TrustDomain
+
+	// Parse server port
+	if cmd.ServerPort != "" {
+		serverPort, err := strconv.Atoi(cmd.ServerPort)
+		if err != nil {
+			return fmt.Errorf("ServerPort %s is not a valid port number", cmd.ServerPort)
+		}
+
+		orig.ServerAddress.Port = serverPort
+	}
+
+	if cmd.TrustDomain != "" {
+		orig.TrustDomain = cmd.TrustDomain
+	}
 
 	// Parse trust bundle
-	if new.TrustBundlePath == "" {
-		return fmt.Errorf("TrustBundlePath is required")
+	if cmd.TrustBundlePath != "" {
+		bundle, err := parseTrustBundle(cmd.TrustBundlePath)
+		if err != nil {
+			return fmt.Errorf("Error parsing trust bundle: %s", err)
+		}
+
+		orig.TrustBundle = bundle
 	}
-	bundle, err := parseTrustBundle(new.TrustBundlePath)
-	if err != nil {
-		return fmt.Errorf("Error parsing trust bundle: %s", err)
-	}
-	orig.TrustBundle = bundle
 
 	// Parse bind address
-	bindAddr := stringDefault(new.BindAddress, defaultBindAddress)
-	bindPort := stringDefault(new.BindPort, defaultBindPort)
-	addr := net.ParseIP(bindAddr)
-	port, err := strconv.Atoi(bindPort)
-	if addr == nil {
-		return fmt.Errorf("BindAddress %s is not a valid IP", bindAddr)
-	}
-	if err != nil {
-		return fmt.Errorf("BindPort %s is not a valid port number", bindPort)
-	}
-	orig.BindAddress = &net.TCPAddr{IP: addr, Port: port}
+	if cmd.BindAddress != "" {
+		ip := net.ParseIP(cmd.BindAddress)
+		if ip == nil {
+			return fmt.Errorf("BindAddress %s is not a valid IP", cmd.BindAddress)
+		}
 
-	// TODO: Make my default sane
-	orig.DataDir = stringDefault(new.DataDir, defaultDataDir)
-	orig.PluginDir = stringDefault(new.PluginDir, defaultPluginDir)
-
-	logFile := stringDefault(new.LogFile, defaultLogFile)
-	logLevel := stringDefault(new.LogLevel, defaultLogLevel)
-	logger, err := helpers.NewLogger(logLevel, logFile)
-	if err != nil {
-		return fmt.Errorf("Could not access log file: %s", err)
+		orig.BindAddress.IP = ip
 	}
-	orig.Logger = logger
+
+	// Parse bind port
+	if cmd.BindPort != "" {
+		port, err := strconv.Atoi(cmd.BindPort)
+		if err != nil {
+			return fmt.Errorf("BindPort %s is not a valid port number", cmd.BindPort)
+		}
+
+		orig.BindAddress.Port = port
+	}
+
+	if cmd.DataDir != "" {
+		orig.DataDir = cmd.DataDir
+	}
+
+	if cmd.PluginDir != "" {
+		orig.PluginDir = cmd.PluginDir
+	}
+
+	// Handle log file and level
+	if cmd.LogFile != "" || cmd.LogLevel != "" {
+		logLevel := defaultLogLevel
+		if cmd.LogLevel != "" {
+			logLevel = cmd.LogLevel
+		}
+
+		logger, err := helpers.NewLogger(logLevel, cmd.LogFile)
+		if err != nil {
+			return fmt.Errorf("Could not open log file %s: %s", cmd.LogFile, err)
+		}
+
+		orig.Logger = logger
+	}
 
 	return nil
 }
 
-func newAgentConfig() *agent.Config {
+func validateConfig(c *agent.Config) error {
+	if c.ServerAddress.IP == nil || c.ServerAddress.Port == 0 {
+		return errors.New("ServerAddress and ServerPort are required")
+	}
+
+	if c.TrustDomain == "" {
+		return errors.New("TrustDomain is required")
+	}
+
+	if c.TrustBundle == nil {
+		return errors.New("TrustBundle is required")
+	}
+
+	return nil
+}
+
+func newDefaultConfig() *agent.Config {
+	addr := net.ParseIP(defaultBindAddress)
+	port, _ := strconv.Atoi(defaultBindPort)
+	bindAddr := &net.TCPAddr{IP: addr, Port: port}
+
 	certDN := &pkix.Name{
 		Country:      []string{"US"},
 		Organization: []string{"SPIRE"},
@@ -169,10 +227,19 @@ func newAgentConfig() *agent.Config {
 	errCh := make(chan error)
 	shutdownCh := make(chan struct{})
 
+	// helpers.NewLogger() cannot return error when using STDOUT
+	logger, _ := helpers.NewLogger(defaultLogLevel, "")
+	serverAddress := &net.TCPAddr{}
+
 	return &agent.Config{
-		CertDN:     certDN,
-		ErrorCh:    errCh,
-		ShutdownCh: shutdownCh,
+		BindAddress:   bindAddr,
+		CertDN:        certDN,
+		DataDir:       defaultDataDir,
+		PluginDir:     defaultPluginDir,
+		ErrorCh:       errCh,
+		ShutdownCh:    shutdownCh,
+		Logger:        logger,
+		ServerAddress: serverAddress,
 	}
 }
 

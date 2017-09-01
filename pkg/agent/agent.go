@@ -49,7 +49,7 @@ var (
 
 type Config struct {
 	// Address to bind the workload api to
-	BindAddress net.Addr
+	BindAddress *net.TCPAddr
 
 	// Distinguished Name to use for all CSRs
 	CertDN *pkix.Name
@@ -63,7 +63,7 @@ type Config struct {
 	Logger log.Logger
 
 	// Address of SPIRE server
-	ServerAddress net.Addr
+	ServerAddress *net.TCPAddr
 
 	// A channel for receiving errors from agent goroutines
 	ErrorCh chan error
