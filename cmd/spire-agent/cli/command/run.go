@@ -32,7 +32,7 @@ const (
 
 // Struct representing available configurables for file and CLI
 // options
-type CliConfig struct {
+type CmdConfig struct {
 	ServerAddress   string
 	ServerPort      string
 	TrustDomain     string
@@ -87,7 +87,7 @@ func (*RunCommand) Synopsis() string {
 }
 
 func setOptsFromFile(c *agent.Config, filePath string) error {
-	fileConfig := &CliConfig{}
+	fileConfig := &CmdConfig{}
 
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -109,19 +109,19 @@ func setOptsFromCLI(*agent.Config) {
 	return
 }
 
-func mergeAgentConfig(orig *agent.Config, new *CliConfig) error {
+func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 	// Parse server address
-	if new.ServerAddress != "" {
-		serverAddress := net.ParseIP(new.ServerAddress)
+	if cmd.ServerAddress != "" {
+		serverAddress := net.ParseIP(cmd.ServerAddress)
 		if serverAddress == nil {
 			// ServerAddress is not an IP, try to look it up
-			ips, err := net.LookupIP(new.ServerAddress)
+			ips, err := net.LookupIP(cmd.ServerAddress)
 			if err != nil {
 				return err
 			}
 
 			if len(ips) == 0 {
-				return fmt.Errorf("Could not resolve ServerAddress %s", new.ServerAddress)
+				return fmt.Errorf("Could not resolve ServerAddress %s", cmd.ServerAddress)
 			}
 			serverAddress = ips[0]
 		}
@@ -130,22 +130,22 @@ func mergeAgentConfig(orig *agent.Config, new *CliConfig) error {
 	}
 
 	// Parse server port
-	if new.ServerPort != "" {
-		serverPort, err := strconv.Atoi(new.ServerPort)
+	if cmd.ServerPort != "" {
+		serverPort, err := strconv.Atoi(cmd.ServerPort)
 		if err != nil {
-			return fmt.Errorf("ServerPort %s is not a valid port number", new.ServerPort)
+			return fmt.Errorf("ServerPort %s is not a valid port number", cmd.ServerPort)
 		}
 
 		orig.ServerAddress.Port = serverPort
 	}
 
-	if new.TrustDomain != "" {
-		orig.TrustDomain = new.TrustDomain
+	if cmd.TrustDomain != "" {
+		orig.TrustDomain = cmd.TrustDomain
 	}
 
 	// Parse trust bundle
-	if new.TrustBundlePath != "" {
-		bundle, err := parseTrustBundle(new.TrustBundlePath)
+	if cmd.TrustBundlePath != "" {
+		bundle, err := parseTrustBundle(cmd.TrustBundlePath)
 		if err != nil {
 			return fmt.Errorf("Error parsing trust bundle: %s", err)
 		}
@@ -154,43 +154,43 @@ func mergeAgentConfig(orig *agent.Config, new *CliConfig) error {
 	}
 
 	// Parse bind address
-	if new.BindAddress != "" {
-		ip := net.ParseIP(new.BindAddress)
+	if cmd.BindAddress != "" {
+		ip := net.ParseIP(cmd.BindAddress)
 		if ip == nil {
-			return fmt.Errorf("BindAddress %s is not a valid IP", new.BindAddress)
+			return fmt.Errorf("BindAddress %s is not a valid IP", cmd.BindAddress)
 		}
 
 		orig.BindAddress.IP = ip
 	}
 
 	// Parse bind port
-	if new.BindPort != "" {
-		port, err := strconv.Atoi(new.BindPort)
+	if cmd.BindPort != "" {
+		port, err := strconv.Atoi(cmd.BindPort)
 		if err != nil {
-			return fmt.Errorf("BindPort %s is not a valid port number", new.BindPort)
+			return fmt.Errorf("BindPort %s is not a valid port number", cmd.BindPort)
 		}
 
 		orig.BindAddress.Port = port
 	}
 
-	if new.DataDir != "" {
-		orig.DataDir = new.DataDir
+	if cmd.DataDir != "" {
+		orig.DataDir = cmd.DataDir
 	}
 
-	if new.PluginDir != "" {
-		orig.PluginDir = new.PluginDir
+	if cmd.PluginDir != "" {
+		orig.PluginDir = cmd.PluginDir
 	}
 
 	// Handle log file and level
-	if new.LogFile != "" || new.LogLevel != "" {
+	if cmd.LogFile != "" || cmd.LogLevel != "" {
 		logLevel := defaultLogLevel
-		if new.LogLevel != "" {
-			logLevel = new.LogLevel
+		if cmd.LogLevel != "" {
+			logLevel = cmd.LogLevel
 		}
 
-		logger, err := helpers.NewLogger(logLevel, new.LogFile)
+		logger, err := helpers.NewLogger(logLevel, cmd.LogFile)
 		if err != nil {
-			return fmt.Errorf("Could not open log file %s: %s", new.LogFile, err)
+			return fmt.Errorf("Could not open log file %s: %s", cmd.LogFile, err)
 		}
 
 		orig.Logger = logger
