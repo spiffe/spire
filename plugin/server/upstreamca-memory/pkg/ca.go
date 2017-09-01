@@ -22,6 +22,7 @@ import (
 	common "github.com/spiffe/sri/pkg/common/plugin"
 	iface "github.com/spiffe/sri/pkg/common/plugin"
 	"github.com/spiffe/sri/pkg/server/upstreamca"
+	"log"
 )
 
 var (
@@ -52,6 +53,8 @@ type memoryPlugin struct {
 }
 
 func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
+	log.Print("Starting Configure")
+
 	resp := &sriplugin.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -115,16 +118,21 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 	m.cert = cert
 	m.key = key
 
+	log.Print("Plugin successfully configured")
 	return &common.ConfigureResponse{}, nil
 }
 
 func (*memoryPlugin) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+	log.Print("Getting plugin information")
+
 	return &sriplugin.GetPluginInfoResponse{}, nil
 }
 
 func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
+
+	log.Print("Starting SubmitCSR")
 
 	if m.cert == nil {
 		return nil, errors.New("Invalid state: no cert")
@@ -169,15 +177,21 @@ func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstrea
 		return nil, err
 	}
 
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert,
+	})
+
+	upstreamTrustBundlePEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: m.cert.Raw,
+	})
+
+	log.Print("Successfully created certificate")
+
 	return &upstreamca.SubmitCSRResponse{
-		Cert: pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: cert,
-		}),
-		UpstreamTrustBundle: pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: m.cert.Raw,
-		}),
+		Cert: certPEM,
+		UpstreamTrustBundle: upstreamTrustBundlePEM,
 	}, nil
 }
 
@@ -210,6 +224,8 @@ func ParseSpiffeCsr(csrPEM []byte, trustDomain string) (csr *x509.CertificateReq
 	if err != nil {
 		return nil, err
 	}
+
+	log.Printf("Parsing CSR with SPIFFE ID: '%v'", csrSpiffeID.String())
 
 	if csrSpiffeID.Scheme != "spiffe" {
 		return nil, fmt.Errorf("SPIFFE ID '%v' is not prefixed with the spiffe:// scheme.", csrSpiffeID)

@@ -155,6 +155,7 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 }
 
 func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.PluginCatalog) error {
+	logger.Log("msg", "Initiating endpoints")
 	//plugins
 
 	dataStore := pluginCatalog.GetPluginsByType("DataStore")[0]
@@ -286,6 +287,8 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 }
 
 func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCatalog) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+	logger.Log("msg", "Generating SVID certificate")
+
 	spiffeID := &url.URL{
 		Scheme: "spiffe",
 		Host:   config.TrustDomain,
@@ -335,10 +338,14 @@ func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCat
 		return nil, nil, err
 	}
 
+	logger.Log("msg", "Generated SVID certificate", "SPIFFE_ID", spiffeID.String())
+
 	return cert, key, nil
 }
 
 func rotateSigningCert(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCatalog) error {
+	logger.Log("msg", "Initiating rotation of signing certificate")
+
 	caPlugin := catalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
 	upCAPlugin := catalog.GetPluginsByType("UpstreamCA")[0].(upstreamca.UpstreamCa)
 
