@@ -239,8 +239,8 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 		logger.Log("grpc:", *gRPCAddr)
 
 		tlsCert := &tls.Certificate{
+			Certificate:[][]byte{cert.Raw},
 			PrivateKey: key,
-			Leaf:       cert,
 		}
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{*tlsCert},
@@ -257,6 +257,7 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 		nodePB.RegisterNodeServer(gRPCServer, nodeHandler)
 		errChan <- gRPCServer.Serve(listener)
 	}()
+
 
 	go func() {
 		ctx := context.Background()

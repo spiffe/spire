@@ -248,7 +248,7 @@ func (a *Agent) Attest() error {
 	// Configure TLS
 	// TODO: Pick better options here
 	tlsConfig := &tls.Config{
-		RootCAs: a.Config.TrustBundle,
+		InsecureSkipVerify:true,
 	}
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 	conn, err := grpc.Dial(a.Config.ServerAddress.String(), dialCreds)
@@ -263,6 +263,7 @@ func (a *Agent) Attest() error {
 		AttestedData: pluginResponse.AttestedData,
 		Csr:          csr,
 	}
+
 	serverResponse, err := c.FetchBaseSVID(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("Failed attestation against spire server: %s", err)
