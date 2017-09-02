@@ -35,12 +35,12 @@ const (
 // options
 type CmdConfig struct {
 	ServerAddress   string
-	ServerPort      string
+	ServerPort      int
 	TrustDomain     string
 	TrustBundlePath string
 
 	BindAddress string
-	BindPort    string
+	BindPort    int
 	DataDir     string
 	PluginDir   string
 	LogFile     string
@@ -114,11 +114,11 @@ func setOptsFromCLI(c *agent.Config, args []string) error {
 	cmdConfig := &CmdConfig{}
 
 	flags.StringVar(&cmdConfig.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
-	flags.StringVar(&cmdConfig.ServerPort, "serverPort", "", "Port number of the SPIRE server")
+	flags.IntVar(&cmdConfig.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
 	flags.StringVar(&cmdConfig.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&cmdConfig.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
 	flags.StringVar(&cmdConfig.BindAddress, "bindAddress", "", "Address that the workload API should bind to")
-	flags.StringVar(&cmdConfig.BindPort, "bindPort", "", "Port number that the workload API should listen on")
+	flags.IntVar(&cmdConfig.BindPort, "bindPort", 0, "Port number that the workload API should listen on")
 	flags.StringVar(&cmdConfig.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
 	flags.StringVar(&cmdConfig.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
 	flags.StringVar(&cmdConfig.LogFile, "logFile", "", "File to write logs to")
@@ -148,14 +148,8 @@ func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 		orig.ServerAddress.IP = serverAddress
 	}
 
-	// Parse server port
-	if cmd.ServerPort != "" {
-		serverPort, err := strconv.Atoi(cmd.ServerPort)
-		if err != nil {
-			return fmt.Errorf("ServerPort %s is not a valid port number", cmd.ServerPort)
-		}
-
-		orig.ServerAddress.Port = serverPort
+	if cmd.ServerPort != 0 {
+		orig.ServerAddress.Port = cmd.ServerPort
 	}
 
 	if cmd.TrustDomain != "" {
@@ -182,14 +176,8 @@ func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 		orig.BindAddress.IP = ip
 	}
 
-	// Parse bind port
-	if cmd.BindPort != "" {
-		port, err := strconv.Atoi(cmd.BindPort)
-		if err != nil {
-			return fmt.Errorf("BindPort %s is not a valid port number", cmd.BindPort)
-		}
-
-		orig.BindAddress.Port = port
+	if cmd.BindPort != 0 {
+		orig.BindAddress.Port = cmd.BindPort
 	}
 
 	if cmd.DataDir != "" {
