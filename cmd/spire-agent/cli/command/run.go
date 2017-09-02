@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -62,7 +63,11 @@ func (*RunCommand) Run(args []string) int {
 		return 1
 	}
 
-	setOptsFromCLI(config)
+	err = setOptsFromCLI(config, args)
+	if err != nil {
+		fmt.Println(err.Error())
+		return 1
+	}
 
 	err = validateConfig(config)
 	if err != nil {
@@ -104,9 +109,27 @@ func setOptsFromFile(c *agent.Config, filePath string) error {
 	return mergeAgentConfig(c, fileConfig)
 }
 
-func setOptsFromCLI(*agent.Config) {
-	// TODO
-	return
+func setOptsFromCLI(c *agent.Config, args []string) error {
+	flags := flag.NewFlagSet("run", flag.ContinueOnError)
+	cmdConfig := &CmdConfig{}
+
+	flags.StringVar(&cmdConfig.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
+	flags.StringVar(&cmdConfig.ServerPort, "serverPort", "", "Port number of the SPIRE server")
+	flags.StringVar(&cmdConfig.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
+	flags.StringVar(&cmdConfig.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
+	flags.StringVar(&cmdConfig.BindAddress, "bindAddress", "", "Address that the workload API should bind to")
+	flags.StringVar(&cmdConfig.BindPort, "bindPort", "", "Port number that the workload API should listen on")
+	flags.StringVar(&cmdConfig.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
+	flags.StringVar(&cmdConfig.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
+	flags.StringVar(&cmdConfig.LogFile, "logFile", "", "File to write logs to")
+	flags.StringVar(&cmdConfig.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
+
+	err := flags.Parse(args)
+	if err != nil {
+		return err
+	}
+
+	return mergeAgentConfig(c, cmdConfig)
 }
 
 func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
