@@ -135,19 +135,15 @@ func setOptsFromCLI(c *agent.Config, args []string) error {
 func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 	// Parse server address
 	if cmd.ServerAddress != "" {
-		serverAddress := net.ParseIP(cmd.ServerAddress)
-		if serverAddress == nil {
-			// ServerAddress is not an IP, try to look it up
-			ips, err := net.LookupIP(cmd.ServerAddress)
-			if err != nil {
-				return err
-			}
-
-			if len(ips) == 0 {
-				return fmt.Errorf("Could not resolve ServerAddress %s", cmd.ServerAddress)
-			}
-			serverAddress = ips[0]
+		ips, err := net.LookupIP(cmd.ServerAddress)
+		if err != nil {
+			return err
 		}
+
+		if len(ips) == 0 {
+			return fmt.Errorf("Could not resolve ServerAddress %s", cmd.ServerAddress)
+		}
+		serverAddress := ips[0]
 
 		orig.ServerAddress.IP = serverAddress
 	}
