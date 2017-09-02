@@ -51,7 +51,7 @@ type RunCommand struct {
 }
 
 func (*RunCommand) Help() string {
-	return "Usage: spire-agent run"
+	return setOptsFromCLI(newDefaultConfig(), []string{"-h"}).Error()
 }
 
 func (*RunCommand) Run(args []string) int {
