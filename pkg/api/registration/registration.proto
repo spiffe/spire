@@ -1,45 +1,46 @@
 /**The Registration API is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.*/
 syntax = "proto3";
-package registration;
+package spire.api.registration;
+option go_package = "registration";
 
 import public "google/api/annotations.proto";
 import public "github.com/spiffe/sri/pkg/common/common.proto";
 
 service Registration {
     ///Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
-    rpc CreateEntry(common.RegistrationEntry) returns (RegistrationEntryID) {
+    rpc CreateEntry(spire.common.RegistrationEntry) returns (RegistrationEntryID) {
         option (google.api.http) = {
 			post: "/entry"
 			body: "*"
 		};
     }
     ///Deletes an entry and returns the deleted entry.
-    rpc DeleteEntry(RegistrationEntryID) returns (common.RegistrationEntry) {
+    rpc DeleteEntry(RegistrationEntryID) returns (spire.common.RegistrationEntry) {
         option (google.api.http).delete = "/entry";
     }
     ///Retrieve a specific registered entry.
-    rpc FetchEntry(RegistrationEntryID) returns (common.RegistrationEntry) {
+    rpc FetchEntry(RegistrationEntryID) returns (spire.common.RegistrationEntry) {
         option (google.api.http).get = "/entry/{id}";
     }
     ///Updates a specific registered entry.
-    rpc UpdateEntry(UpdateEntryRequest) returns (common.RegistrationEntry) {
+    rpc UpdateEntry(UpdateEntryRequest) returns (spire.common.RegistrationEntry) {
         option (google.api.http).put = "/entry";
     }
     ///Returns all the Entries associated with the ParentID value.
-    rpc ListByParentID(ParentID) returns (common.RegistrationEntries);
+    rpc ListByParentID(ParentID) returns (spire.common.RegistrationEntries);
     ///Returns all the entries associated with a selector value.
-    rpc ListBySelector(common.Selector) returns (common.RegistrationEntries);
+    rpc ListBySelector(spire.common.Selector) returns (spire.common.RegistrationEntries);
     ///Return all registration entries for which SPIFFE ID matches.
-    rpc ListBySpiffeID(SpiffeID) returns (common.RegistrationEntries);
+    rpc ListBySpiffeID(SpiffeID) returns (spire.common.RegistrationEntries);
 
     ///Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
-    rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (common.Empty);
+    rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (spire.common.Empty);
     ///Retrieves Federated bundles for all the Federated SPIFFE IDs.
-    rpc ListFederatedBundles(common.Empty) returns (ListFederatedBundlesReply);
+    rpc ListFederatedBundles(spire.common.Empty) returns (ListFederatedBundlesReply);
     ///Updates a particular Federated Bundle. Useful for rotation.
-    rpc UpdateFederatedBundle(FederatedBundle) returns (common.Empty);
+    rpc UpdateFederatedBundle(FederatedBundle) returns (spire.common.Empty);
     ///Delete a particular Federated Bundle. Used to destroy inter-domain trust.
-    rpc DeleteFederatedBundle(FederatedSpiffeID) returns (common.Empty);
+    rpc DeleteFederatedBundle(FederatedSpiffeID) returns (spire.common.Empty);
 }
 
 /**A type that represents the id of an entry.*/
@@ -60,7 +61,7 @@ message SpiffeID {
 /**A type with the id with want to update plus values to modify.*/
 message UpdateEntryRequest {
     string id = 1; ///Id of the entry to update.
-    common.RegistrationEntry entry = 2; ///Values in the RegistrationEntry to update.
+    spire.common.RegistrationEntry entry = 2; ///Values in the RegistrationEntry to update.
 
 }
 

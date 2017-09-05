@@ -1,5 +1,6 @@
 syntax = "proto3";
-package datastore;
+package spire.server.datastore;
+option go_package = "datastore";
 
 import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
 import public "github.com/spiffe/sri/pkg/common/common.proto";
@@ -20,7 +21,7 @@ message FederatedBundle {
 */
 message NodeResolverMapEntry {
     string baseSpiffeId = 1;
-    common.Selector selector = 2;
+    spire.common.Selector selector = 2;
 }
 
 /** Represents a single entry in AttestedNodes and stores the node's SPIFFE ID, the
@@ -218,7 +219,7 @@ message RectifyNodeResolverMapEntriesResponse {
 /** Represents a Registration entry to create
 */
 message CreateRegistrationEntryRequest {
-    common.RegistrationEntry registeredEntry = 1; /// Registration entry
+    spire.common.RegistrationEntry registeredEntry = 1; /// Registration entry
 }
 
 /** Represents the created Registration entry
@@ -237,7 +238,7 @@ message FetchRegistrationEntryRequest {
 /** Represents a Registration entry
 */
 message FetchRegistrationEntryResponse {
-    common.RegistrationEntry registeredEntry = 1; /// Registration entry
+    spire.common.RegistrationEntry registeredEntry = 1; /// Registration entry
 }
 
 
@@ -245,13 +246,13 @@ message FetchRegistrationEntryResponse {
 */
 message UpdateRegistrationEntryRequest {
     string registeredEntryId = 1; /// Registration entry ID
-    common.RegistrationEntry registeredEntry = 2; /// Registration entry
+    spire.common.RegistrationEntry registeredEntry = 2; /// Registration entry
 }
 
 /** Represents the updated Registration entry
 */
 message UpdateRegistrationEntryResponse {
-    common.RegistrationEntry registeredEntry = 1; /// Registration entry
+    spire.common.RegistrationEntry registeredEntry = 1; /// Registration entry
 }
 
 
@@ -264,7 +265,7 @@ message DeleteRegistrationEntryRequest {
 /** Represents the deleted Registration entry
 */
 message DeleteRegistrationEntryResponse {
-    common.RegistrationEntry registeredEntry = 1; /// Registration entry
+    spire.common.RegistrationEntry registeredEntry = 1; /// Registration entry
 }
 
 
@@ -280,20 +281,20 @@ message ListParentIDEntriesRequest {
 /** Represents a list of Registered entries with the specified Parent ID
 */
 message ListParentIDEntriesResponse {
-    repeated common.RegistrationEntry registeredEntryList = 1; /// List of Registration entries
+    repeated spire.common.RegistrationEntry registeredEntryList = 1; /// List of Registration entries
 }
 
 
 /** Represents a selector
 */
 message ListSelectorEntriesRequest {
-    common.Selector selector = 1; /// Selector
+    spire.common.Selector selector = 1; /// Selector
 }
 
 /** Represents a list of Registered entries with the specified selector
 */
 message ListSelectorEntriesResponse {
-    repeated common.RegistrationEntry registeredEntryList = 1; /// List of Registration entries
+    repeated spire.common.RegistrationEntry registeredEntryList = 1; /// List of Registration entries
 }
 
 
@@ -306,7 +307,7 @@ message ListSpiffeEntriesRequest {
 /** Represents a list of Registered entries with the specified Spiffe ID
 */
 message ListSpiffeEntriesResponse {
-    repeated common.RegistrationEntry registeredEntryList = 1; /// List of Registration entries
+    repeated spire.common.RegistrationEntry registeredEntryList = 1; /// List of Registration entries
 }
 
 
@@ -357,7 +358,7 @@ service DataStore {
     rpc ListSpiffeEntries(ListSpiffeEntriesRequest) returns (ListSpiffeEntriesResponse);
 
     /// Applies the plugin configuration
-    rpc Configure(sriplugin.ConfigureRequest) returns (sriplugin.ConfigureResponse);
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
     /// Returns the version and related metadata of the installed plugin
-    rpc GetPluginInfo(sriplugin.GetPluginInfoRequest) returns (sriplugin.GetPluginInfoResponse);
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
 }

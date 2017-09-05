@@ -97,17 +97,17 @@
 
 * [common.proto](#common.proto)
   
-    * [AttestedData](#common.AttestedData)
+    * [AttestedData](#spire.common.AttestedData)
   
-    * [Empty](#common.Empty)
+    * [Empty](#spire.common.Empty)
   
-    * [RegistrationEntries](#common.RegistrationEntries)
+    * [RegistrationEntries](#spire.common.RegistrationEntries)
   
-    * [RegistrationEntry](#common.RegistrationEntry)
+    * [RegistrationEntry](#spire.common.RegistrationEntry)
   
-    * [Selector](#common.Selector)
+    * [Selector](#spire.common.Selector)
   
-    * [Selectors](#common.Selectors)
+    * [Selectors](#spire.common.Selectors)
   
   
   
@@ -116,26 +116,26 @@
 
 * [registration.proto](#registration.proto)
   
-    * [CreateFederatedBundleRequest](#registration.CreateFederatedBundleRequest)
+    * [CreateFederatedBundleRequest](#spire.api.registration.CreateFederatedBundleRequest)
   
-    * [FederatedBundle](#registration.FederatedBundle)
+    * [FederatedBundle](#spire.api.registration.FederatedBundle)
   
-    * [FederatedSpiffeID](#registration.FederatedSpiffeID)
+    * [FederatedSpiffeID](#spire.api.registration.FederatedSpiffeID)
   
-    * [ListFederatedBundlesReply](#registration.ListFederatedBundlesReply)
+    * [ListFederatedBundlesReply](#spire.api.registration.ListFederatedBundlesReply)
   
-    * [ParentID](#registration.ParentID)
+    * [ParentID](#spire.api.registration.ParentID)
   
-    * [RegistrationEntryID](#registration.RegistrationEntryID)
+    * [RegistrationEntryID](#spire.api.registration.RegistrationEntryID)
   
-    * [SpiffeID](#registration.SpiffeID)
+    * [SpiffeID](#spire.api.registration.SpiffeID)
   
-    * [UpdateEntryRequest](#registration.UpdateEntryRequest)
-  
-  
+    * [UpdateEntryRequest](#spire.api.registration.UpdateEntryRequest)
   
   
-    * [Registration](#registration.Registration)
+  
+  
+    * [Registration](#spire.api.registration.Registration)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -1040,7 +1040,7 @@ methods, and PUT verb for idempotent methods instead of the default POST.
 
 
 
-<a name="common.AttestedData"/>
+<a name="spire.common.AttestedData"/>
 
 ### AttestedData
 A type which contains attestation data for specific platform.
@@ -1056,7 +1056,7 @@ A type which contains attestation data for specific platform.
 
 
 
-<a name="common.Empty"/>
+<a name="spire.common.Empty"/>
 
 ### Empty
 Represents an empty message
@@ -1066,7 +1066,7 @@ Represents an empty message
 
 
 
-<a name="common.RegistrationEntries"/>
+<a name="spire.common.RegistrationEntries"/>
 
 ### RegistrationEntries
 A list of registration entries.
@@ -1074,14 +1074,14 @@ A list of registration entries.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [RegistrationEntry](#common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
+| entries | [RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
 
 
 
 
 
 
-<a name="common.RegistrationEntry"/>
+<a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
 This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
@@ -1089,7 +1089,7 @@ This is a curated record that the Control Plane uses to set up and manage the va
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectors | [Selector](#common.Selector) | repeated | A list of selectors. |
+| selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
 | parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
 | spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
 | ttl | [int32](#int32) |  | Time to live. |
@@ -1100,7 +1100,7 @@ This is a curated record that the Control Plane uses to set up and manage the va
 
 
 
-<a name="common.Selector"/>
+<a name="spire.common.Selector"/>
 
 ### Selector
 A type which describes the conditions under which a registration entry is matched.
@@ -1116,7 +1116,7 @@ A type which describes the conditions under which a registration entry is matche
 
 
 
-<a name="common.Selectors"/>
+<a name="spire.common.Selectors"/>
 
 ### Selectors
 Represents a type with a list of NodeResolution.
@@ -1124,7 +1124,7 @@ Represents a type with a list of NodeResolution.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [Selector](#common.Selector) | repeated | A list of NodeResolution. |
+| entries | [Selector](#spire.common.Selector) | repeated | A list of NodeResolution. |
 
 
 
@@ -1147,7 +1147,7 @@ Represents a type with a list of NodeResolution.
 The Registration API is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.
 
 
-<a name="registration.CreateFederatedBundleRequest"/>
+<a name="spire.api.registration.CreateFederatedBundleRequest"/>
 
 ### CreateFederatedBundleRequest
 It represents a request with a FederatedBundle to create.
@@ -1155,14 +1155,14 @@ It represents a request with a FederatedBundle to create.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federated_bundle | [FederatedBundle](#registration.FederatedBundle) |  | A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain. |
+| federated_bundle | [FederatedBundle](#spire.api.registration.FederatedBundle) |  | A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain. |
 
 
 
 
 
 
-<a name="registration.FederatedBundle"/>
+<a name="spire.api.registration.FederatedBundle"/>
 
 ### FederatedBundle
 A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
@@ -1179,7 +1179,7 @@ A CA bundle for a different Trust Domain than the one used and managed by the Co
 
 
 
-<a name="registration.FederatedSpiffeID"/>
+<a name="spire.api.registration.FederatedSpiffeID"/>
 
 ### FederatedSpiffeID
 A type that represents a Federated SPIFFE Id.
@@ -1194,7 +1194,7 @@ A type that represents a Federated SPIFFE Id.
 
 
 
-<a name="registration.ListFederatedBundlesReply"/>
+<a name="spire.api.registration.ListFederatedBundlesReply"/>
 
 ### ListFederatedBundlesReply
 It represents a reply with a list of FederatedBundle.
@@ -1202,14 +1202,14 @@ It represents a reply with a list of FederatedBundle.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundles | [FederatedBundle](#registration.FederatedBundle) | repeated | A list of FederatedBundle. |
+| bundles | [FederatedBundle](#spire.api.registration.FederatedBundle) | repeated | A list of FederatedBundle. |
 
 
 
 
 
 
-<a name="registration.ParentID"/>
+<a name="spire.api.registration.ParentID"/>
 
 ### ParentID
 A type that represents a parent Id.
@@ -1224,7 +1224,7 @@ A type that represents a parent Id.
 
 
 
-<a name="registration.RegistrationEntryID"/>
+<a name="spire.api.registration.RegistrationEntryID"/>
 
 ### RegistrationEntryID
 A type that represents the id of an entry.
@@ -1239,7 +1239,7 @@ A type that represents the id of an entry.
 
 
 
-<a name="registration.SpiffeID"/>
+<a name="spire.api.registration.SpiffeID"/>
 
 ### SpiffeID
 A type that represents a SPIFFE Id.
@@ -1254,7 +1254,7 @@ A type that represents a SPIFFE Id.
 
 
 
-<a name="registration.UpdateEntryRequest"/>
+<a name="spire.api.registration.UpdateEntryRequest"/>
 
 ### UpdateEntryRequest
 A type with the id with want to update plus values to modify.
@@ -1263,7 +1263,7 @@ A type with the id with want to update plus values to modify.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | id | [string](#string) |  | Id of the entry to update. |
-| entry | [.common.RegistrationEntry](#registration..common.RegistrationEntry) |  | Values in the RegistrationEntry to update. |
+| entry | [.spire.common.RegistrationEntry](#spire.api.registration..spire.common.RegistrationEntry) |  | Values in the RegistrationEntry to update. |
 
 
 
@@ -1276,24 +1276,24 @@ A type with the id with want to update plus values to modify.
  
 
 
-<a name="registration.Registration"/>
+<a name="spire.api.registration.Registration"/>
 
 ### Registration
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateEntry | [common.RegistrationEntry](#common.RegistrationEntry) | [RegistrationEntryID](#common.RegistrationEntry) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads. |
-| DeleteEntry | [RegistrationEntryID](#registration.RegistrationEntryID) | [common.RegistrationEntry](#registration.RegistrationEntryID) | Deletes an entry and returns the deleted entry. |
-| FetchEntry | [RegistrationEntryID](#registration.RegistrationEntryID) | [common.RegistrationEntry](#registration.RegistrationEntryID) | Retrieve a specific registered entry. |
-| UpdateEntry | [UpdateEntryRequest](#registration.UpdateEntryRequest) | [common.RegistrationEntry](#registration.UpdateEntryRequest) | Updates a specific registered entry. |
-| ListByParentID | [ParentID](#registration.ParentID) | [common.RegistrationEntries](#registration.ParentID) | Returns all the Entries associated with the ParentID value. |
-| ListBySelector | [common.Selector](#common.Selector) | [common.RegistrationEntries](#common.Selector) | Returns all the entries associated with a selector value. |
-| ListBySpiffeID | [SpiffeID](#registration.SpiffeID) | [common.RegistrationEntries](#registration.SpiffeID) | Return all registration entries for which SPIFFE ID matches. |
-| CreateFederatedBundle | [CreateFederatedBundleRequest](#registration.CreateFederatedBundleRequest) | [common.Empty](#registration.CreateFederatedBundleRequest) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
-| ListFederatedBundles | [common.Empty](#common.Empty) | [ListFederatedBundlesReply](#common.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
-| UpdateFederatedBundle | [FederatedBundle](#registration.FederatedBundle) | [common.Empty](#registration.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
-| DeleteFederatedBundle | [FederatedSpiffeID](#registration.FederatedSpiffeID) | [common.Empty](#registration.FederatedSpiffeID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
+| CreateEntry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | [RegistrationEntryID](#spire.common.RegistrationEntry) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads. |
+| DeleteEntry | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | [spire.common.RegistrationEntry](#spire.api.registration.RegistrationEntryID) | Deletes an entry and returns the deleted entry. |
+| FetchEntry | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | [spire.common.RegistrationEntry](#spire.api.registration.RegistrationEntryID) | Retrieve a specific registered entry. |
+| UpdateEntry | [UpdateEntryRequest](#spire.api.registration.UpdateEntryRequest) | [spire.common.RegistrationEntry](#spire.api.registration.UpdateEntryRequest) | Updates a specific registered entry. |
+| ListByParentID | [ParentID](#spire.api.registration.ParentID) | [spire.common.RegistrationEntries](#spire.api.registration.ParentID) | Returns all the Entries associated with the ParentID value. |
+| ListBySelector | [spire.common.Selector](#spire.common.Selector) | [spire.common.RegistrationEntries](#spire.common.Selector) | Returns all the entries associated with a selector value. |
+| ListBySpiffeID | [SpiffeID](#spire.api.registration.SpiffeID) | [spire.common.RegistrationEntries](#spire.api.registration.SpiffeID) | Return all registration entries for which SPIFFE ID matches. |
+| CreateFederatedBundle | [CreateFederatedBundleRequest](#spire.api.registration.CreateFederatedBundleRequest) | [spire.common.Empty](#spire.api.registration.CreateFederatedBundleRequest) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
+| ListFederatedBundles | [spire.common.Empty](#spire.common.Empty) | [ListFederatedBundlesReply](#spire.common.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
+| UpdateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [spire.common.Empty](#spire.api.registration.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
+| DeleteFederatedBundle | [FederatedSpiffeID](#spire.api.registration.FederatedSpiffeID) | [spire.common.Empty](#spire.api.registration.FederatedSpiffeID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 
  
 

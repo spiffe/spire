@@ -2,7 +2,8 @@
 It is used for generating the key pair for the Base SPIFFE Id of the Node Agent, and persisting that identity across restarts/reboots.*/
 
 syntax = "proto3";
-package keymanager;
+package spire.agent.keymanager;
+option go_package = "keymanager";
 
 import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
 
@@ -30,7 +31,7 @@ service KeyManager {
     /// Returns previously generated private key. For use after node restarts.
     rpc FetchPrivateKey(FetchPrivateKeyRequest) returns (FetchPrivateKeyResponse);
     /// Applies the plugin configuration and returns configuration errors.
-    rpc Configure(sriplugin.ConfigureRequest) returns (sriplugin.ConfigureResponse);
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
     /// Returns the version and related metadata of the plugin.
-    rpc GetPluginInfo(sriplugin.GetPluginInfoRequest) returns (sriplugin.GetPluginInfoResponse);
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
 }

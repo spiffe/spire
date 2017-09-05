@@ -2,7 +2,8 @@
 The plugin will be responsible to retrieve an identity document or data associated with the physical node.
 This data will be used when calling the NodeAPI on the Control Plane.*/
 syntax = "proto3";
-package nodeattestor;
+package spire.agent.nodeattestor;
+option go_package = "nodeattestor";
 
 import public "github.com/spiffe/sri/pkg/common/common.proto";
 import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
@@ -12,7 +13,7 @@ message FetchAttestationDataRequest {}
 
 /** Represents the attested data and base SPIFFE ID.*/
 message FetchAttestationDataResponse {
-    common.AttestedData attestedData = 1; ///A type which contains attestation data for specific platform.
+    spire.common.AttestedData attestedData = 1; ///A type which contains attestation data for specific platform.
     string spiffeId = 2; //SPIFFE ID.
 }
 
@@ -20,7 +21,7 @@ service NodeAttestor {
     /// Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation.
     rpc FetchAttestationData(FetchAttestationDataRequest) returns (FetchAttestationDataResponse);
     /// Applies the plugin configuration and returns configuration errors.
-    rpc Configure(sriplugin.ConfigureRequest) returns (sriplugin.ConfigureResponse);
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
     /// Returns the version and related metadata of the plugin.
-    rpc GetPluginInfo(sriplugin.GetPluginInfoRequest) returns (sriplugin.GetPluginInfoResponse);
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
 }

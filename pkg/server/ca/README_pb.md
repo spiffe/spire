@@ -6,51 +6,51 @@
 
 * [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#sriplugin.ConfigureRequest)
+    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
   
-    * [ConfigureResponse](#sriplugin.ConfigureResponse)
+    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
   
-    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
   
-    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
   
-    * [StopReply](#sriplugin.StopReply)
+    * [StopReply](#spire.common.plugin.StopReply)
   
-    * [StopRequest](#sriplugin.StopRequest)
-  
-  
+    * [StopRequest](#spire.common.plugin.StopRequest)
   
   
-    * [Server](#sriplugin.Server)
+  
+  
+    * [Server](#spire.common.plugin.Server)
   
 
 
-* [control_plane_ca.proto](#control_plane_ca.proto)
+* [ca.proto](#ca.proto)
   
-    * [FetchCertificateRequest](#ca.FetchCertificateRequest)
+    * [FetchCertificateRequest](#spire.server.ca.FetchCertificateRequest)
   
-    * [FetchCertificateResponse](#ca.FetchCertificateResponse)
+    * [FetchCertificateResponse](#spire.server.ca.FetchCertificateResponse)
   
-    * [GenerateCsrRequest](#ca.GenerateCsrRequest)
+    * [GenerateCsrRequest](#spire.server.ca.GenerateCsrRequest)
   
-    * [GenerateCsrResponse](#ca.GenerateCsrResponse)
+    * [GenerateCsrResponse](#spire.server.ca.GenerateCsrResponse)
   
-    * [LoadCertificateRequest](#ca.LoadCertificateRequest)
+    * [LoadCertificateRequest](#spire.server.ca.LoadCertificateRequest)
   
-    * [LoadCertificateResponse](#ca.LoadCertificateResponse)
+    * [LoadCertificateResponse](#spire.server.ca.LoadCertificateResponse)
   
-    * [SignCsrRequest](#ca.SignCsrRequest)
+    * [SignCsrRequest](#spire.server.ca.SignCsrRequest)
   
-    * [SignCsrResponse](#ca.SignCsrResponse)
-  
-  
+    * [SignCsrResponse](#spire.server.ca.SignCsrResponse)
   
   
-    * [ControlPlaneCA](#ca.ControlPlaneCA)
+  
+  
+    * [ControlPlaneCA](#spire.server.ca.ControlPlaneCA)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -64,7 +64,7 @@
 
 
 
-<a name="sriplugin.ConfigureRequest"/>
+<a name="spire.common.plugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -79,7 +79,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="sriplugin.ConfigureResponse"/>
+<a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -94,7 +94,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="sriplugin.GetPluginInfoRequest"/>
+<a name="spire.common.plugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -104,7 +104,7 @@ Represents an empty request.
 
 
 
-<a name="sriplugin.GetPluginInfoResponse"/>
+<a name="spire.common.plugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -127,7 +127,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.PluginInfoReply"/>
+<a name="spire.common.plugin.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -135,14 +135,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="sriplugin.PluginInfoRequest"/>
+<a name="spire.common.plugin.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -152,7 +152,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopReply"/>
+<a name="spire.common.plugin.StopReply"/>
 
 ### StopReply
 
@@ -162,7 +162,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopRequest"/>
+<a name="spire.common.plugin.StopRequest"/>
 
 ### StopRequest
 
@@ -178,29 +178,29 @@ Represents the plugin metadata.
  
 
 
-<a name="sriplugin.Server"/>
+<a name="spire.common.plugin.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
+| Stop | [StopRequest](#spire.common.plugin.StopRequest) | [StopReply](#spire.common.plugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest) | [PluginInfoReply](#spire.common.plugin.PluginInfoRequest) |  |
 
  
 
 
 
-<a name="control_plane_ca.proto"/>
+<a name="ca.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## control_plane_ca.proto
+## ca.proto
 Responsible for processing CSR requests from Node Agents if the Control Plane is configured to carry an intermediate signing certificate.
 This plugin is also responsible for generating the CSR necessary for an intermediate signing cert, as well as storing the key in memory or hardware.
 
 
-<a name="ca.FetchCertificateRequest"/>
+<a name="spire.server.ca.FetchCertificateRequest"/>
 
 ### FetchCertificateRequest
 Represents an empty request.
@@ -210,7 +210,7 @@ Represents an empty request.
 
 
 
-<a name="ca.FetchCertificateResponse"/>
+<a name="spire.server.ca.FetchCertificateResponse"/>
 
 ### FetchCertificateResponse
 Represents a response with a stored intermediate certificate.
@@ -225,7 +225,7 @@ Represents a response with a stored intermediate certificate.
 
 
 
-<a name="ca.GenerateCsrRequest"/>
+<a name="spire.server.ca.GenerateCsrRequest"/>
 
 ### GenerateCsrRequest
 Represents an empty request.
@@ -235,7 +235,7 @@ Represents an empty request.
 
 
 
-<a name="ca.GenerateCsrResponse"/>
+<a name="spire.server.ca.GenerateCsrResponse"/>
 
 ### GenerateCsrResponse
 Represents a response with a certificate signing request.
@@ -250,7 +250,7 @@ Represents a response with a certificate signing request.
 
 
 
-<a name="ca.LoadCertificateRequest"/>
+<a name="spire.server.ca.LoadCertificateRequest"/>
 
 ### LoadCertificateRequest
 Represents a request with a signed intermediate certificate.
@@ -265,7 +265,7 @@ Represents a request with a signed intermediate certificate.
 
 
 
-<a name="ca.LoadCertificateResponse"/>
+<a name="spire.server.ca.LoadCertificateResponse"/>
 
 ### LoadCertificateResponse
 Represents an empty response.
@@ -275,7 +275,7 @@ Represents an empty response.
 
 
 
-<a name="ca.SignCsrRequest"/>
+<a name="spire.server.ca.SignCsrRequest"/>
 
 ### SignCsrRequest
 Represents a request with a certificate signing request.
@@ -290,7 +290,7 @@ Represents a request with a certificate signing request.
 
 
 
-<a name="ca.SignCsrResponse"/>
+<a name="spire.server.ca.SignCsrResponse"/>
 
 ### SignCsrResponse
 Represents a response with a signed certificate.
@@ -311,19 +311,19 @@ Represents a response with a signed certificate.
  
 
 
-<a name="ca.ControlPlaneCA"/>
+<a name="spire.server.ca.ControlPlaneCA"/>
 
 ### ControlPlaneCA
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| SignCsr | [SignCsrRequest](#ca.SignCsrRequest) | [SignCsrResponse](#ca.SignCsrRequest) | Interface will take in a CSR and sign it with the stored intermediate certificate. |
-| GenerateCsr | [GenerateCsrRequest](#ca.GenerateCsrRequest) | [GenerateCsrResponse](#ca.GenerateCsrRequest) | Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. |
-| FetchCertificate | [FetchCertificateRequest](#ca.FetchCertificateRequest) | [FetchCertificateResponse](#ca.FetchCertificateRequest) | Used to read the stored Intermediate CP cert. |
-| LoadCertificate | [LoadCertificateRequest](#ca.LoadCertificateRequest) | [LoadCertificateResponse](#ca.LoadCertificateRequest) | Used for setting/storing the signed intermediate certificate. |
+| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| SignCsr | [SignCsrRequest](#spire.server.ca.SignCsrRequest) | [SignCsrResponse](#spire.server.ca.SignCsrRequest) | Interface will take in a CSR and sign it with the stored intermediate certificate. |
+| GenerateCsr | [GenerateCsrRequest](#spire.server.ca.GenerateCsrRequest) | [GenerateCsrResponse](#spire.server.ca.GenerateCsrRequest) | Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. |
+| FetchCertificate | [FetchCertificateRequest](#spire.server.ca.FetchCertificateRequest) | [FetchCertificateResponse](#spire.server.ca.FetchCertificateRequest) | Used to read the stored Intermediate CP cert. |
+| LoadCertificate | [LoadCertificateRequest](#spire.server.ca.LoadCertificateRequest) | [LoadCertificateResponse](#spire.server.ca.LoadCertificateRequest) | Used for setting/storing the signed intermediate certificate. |
 
  
 

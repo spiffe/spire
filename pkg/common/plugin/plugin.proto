@@ -1,5 +1,6 @@
 syntax = "proto3";
-package sriplugin;
+package spire.common.plugin;
+option go_package = "sriplugin";
 
 /** Represents the plugin-specific configuration string.*/
 message ConfigureRequest {

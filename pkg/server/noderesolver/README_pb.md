@@ -6,60 +6,60 @@
 
 * [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#sriplugin.ConfigureRequest)
+    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
   
-    * [ConfigureResponse](#sriplugin.ConfigureResponse)
+    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
   
-    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
   
-    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
   
-    * [StopReply](#sriplugin.StopReply)
+    * [StopReply](#spire.common.plugin.StopReply)
   
-    * [StopRequest](#sriplugin.StopRequest)
-  
-  
+    * [StopRequest](#spire.common.plugin.StopRequest)
   
   
-    * [Server](#sriplugin.Server)
+  
+  
+    * [Server](#spire.common.plugin.Server)
   
 
 
 * [common.proto](#common.proto)
   
-    * [AttestedData](#common.AttestedData)
+    * [AttestedData](#spire.common.AttestedData)
   
-    * [Empty](#common.Empty)
+    * [Empty](#spire.common.Empty)
   
-    * [RegistrationEntries](#common.RegistrationEntries)
+    * [RegistrationEntries](#spire.common.RegistrationEntries)
   
-    * [RegistrationEntry](#common.RegistrationEntry)
+    * [RegistrationEntry](#spire.common.RegistrationEntry)
   
-    * [Selector](#common.Selector)
+    * [Selector](#spire.common.Selector)
   
-    * [Selectors](#common.Selectors)
+    * [Selectors](#spire.common.Selectors)
   
   
   
   
 
 
-* [node_resolver.proto](#node_resolver.proto)
+* [noderesolver.proto](#noderesolver.proto)
   
-    * [ResolveRequest](#noderesolver.ResolveRequest)
+    * [ResolveRequest](#spire.server.noderesolver.ResolveRequest)
   
-    * [ResolveResponse](#noderesolver.ResolveResponse)
+    * [ResolveResponse](#spire.server.noderesolver.ResolveResponse)
   
-    * [ResolveResponse.MapEntry](#noderesolver.ResolveResponse.MapEntry)
-  
-  
+    * [ResolveResponse.MapEntry](#spire.server.noderesolver.ResolveResponse.MapEntry)
   
   
-    * [NodeResolver](#noderesolver.NodeResolver)
+  
+  
+    * [NodeResolver](#spire.server.noderesolver.NodeResolver)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -73,7 +73,7 @@
 
 
 
-<a name="sriplugin.ConfigureRequest"/>
+<a name="spire.common.plugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -88,7 +88,7 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="sriplugin.ConfigureResponse"/>
+<a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
 Represents a list of configuration problems found in the configuration string.
@@ -103,7 +103,7 @@ Represents a list of configuration problems found in the configuration string.
 
 
 
-<a name="sriplugin.GetPluginInfoRequest"/>
+<a name="spire.common.plugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -113,7 +113,7 @@ Represents an empty request.
 
 
 
-<a name="sriplugin.GetPluginInfoResponse"/>
+<a name="spire.common.plugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -136,7 +136,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.PluginInfoReply"/>
+<a name="spire.common.plugin.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -144,14 +144,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="sriplugin.PluginInfoRequest"/>
+<a name="spire.common.plugin.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -161,7 +161,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopReply"/>
+<a name="spire.common.plugin.StopReply"/>
 
 ### StopReply
 
@@ -171,7 +171,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopRequest"/>
+<a name="spire.common.plugin.StopRequest"/>
 
 ### StopRequest
 
@@ -187,15 +187,15 @@ Represents the plugin metadata.
  
 
 
-<a name="sriplugin.Server"/>
+<a name="spire.common.plugin.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
+| Stop | [StopRequest](#spire.common.plugin.StopRequest) | [StopReply](#spire.common.plugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest) | [PluginInfoReply](#spire.common.plugin.PluginInfoRequest) |  |
 
  
 
@@ -208,7 +208,7 @@ Represents the plugin metadata.
 
 
 
-<a name="common.AttestedData"/>
+<a name="spire.common.AttestedData"/>
 
 ### AttestedData
 A type which contains attestation data for specific platform.
@@ -224,7 +224,7 @@ A type which contains attestation data for specific platform.
 
 
 
-<a name="common.Empty"/>
+<a name="spire.common.Empty"/>
 
 ### Empty
 Represents an empty message
@@ -234,7 +234,7 @@ Represents an empty message
 
 
 
-<a name="common.RegistrationEntries"/>
+<a name="spire.common.RegistrationEntries"/>
 
 ### RegistrationEntries
 A list of registration entries.
@@ -242,14 +242,14 @@ A list of registration entries.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [RegistrationEntry](#common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
+| entries | [RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
 
 
 
 
 
 
-<a name="common.RegistrationEntry"/>
+<a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
 This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
@@ -257,7 +257,7 @@ This is a curated record that the Control Plane uses to set up and manage the va
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectors | [Selector](#common.Selector) | repeated | A list of selectors. |
+| selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
 | parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
 | spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
 | ttl | [int32](#int32) |  | Time to live. |
@@ -268,7 +268,7 @@ This is a curated record that the Control Plane uses to set up and manage the va
 
 
 
-<a name="common.Selector"/>
+<a name="spire.common.Selector"/>
 
 ### Selector
 A type which describes the conditions under which a registration entry is matched.
@@ -284,7 +284,7 @@ A type which describes the conditions under which a registration entry is matche
 
 
 
-<a name="common.Selectors"/>
+<a name="spire.common.Selectors"/>
 
 ### Selectors
 Represents a type with a list of NodeResolution.
@@ -292,7 +292,7 @@ Represents a type with a list of NodeResolution.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [Selector](#common.Selector) | repeated | A list of NodeResolution. |
+| entries | [Selector](#spire.common.Selector) | repeated | A list of NodeResolution. |
 
 
 
@@ -308,14 +308,14 @@ Represents a type with a list of NodeResolution.
 
 
 
-<a name="node_resolver.proto"/>
+<a name="noderesolver.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## node_resolver.proto
+## noderesolver.proto
 Resolves the derived selectors for a given Node Agent. This mapping will be stored, and used to further derive which workloads the Node Agent is authorized to run.
 
 
-<a name="noderesolver.ResolveRequest"/>
+<a name="spire.server.noderesolver.ResolveRequest"/>
 
 ### ResolveRequest
 Represents a request with a list of BaseSPIFFEIDs.
@@ -330,7 +330,7 @@ Represents a request with a list of BaseSPIFFEIDs.
 
 
 
-<a name="noderesolver.ResolveResponse"/>
+<a name="spire.server.noderesolver.ResolveResponse"/>
 
 ### ResolveResponse
 Represents a response with a map of SPIFFE ID to a list of Selectors.
@@ -338,14 +338,14 @@ Represents a response with a map of SPIFFE ID to a list of Selectors.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| map | [ResolveResponse.MapEntry](#noderesolver.ResolveResponse.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; Selectors. |
+| map | [ResolveResponse.MapEntry](#spire.server.noderesolver.ResolveResponse.MapEntry) | repeated | Map[SPIFFE_ID] =&gt; Selectors. |
 
 
 
 
 
 
-<a name="noderesolver.ResolveResponse.MapEntry"/>
+<a name="spire.server.noderesolver.ResolveResponse.MapEntry"/>
 
 ### ResolveResponse.MapEntry
 
@@ -354,7 +354,7 @@ Represents a response with a map of SPIFFE ID to a list of Selectors.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [.common.Selectors](#noderesolver..common.Selectors) |  |  |
+| value | [.spire.common.Selectors](#spire.server.noderesolver..spire.common.Selectors) |  |  |
 
 
 
@@ -367,16 +367,16 @@ Represents a response with a map of SPIFFE ID to a list of Selectors.
  
 
 
-<a name="noderesolver.NodeResolver"/>
+<a name="spire.server.noderesolver.NodeResolver"/>
 
 ### NodeResolver
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| Resolve | [ResolveRequest](#noderesolver.ResolveRequest) | [ResolveResponse](#noderesolver.ResolveRequest) | Retrieves a list of properties reflecting the current state of a particular node(s). |
+| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| Resolve | [ResolveRequest](#spire.server.noderesolver.ResolveRequest) | [ResolveResponse](#spire.server.noderesolver.ResolveRequest) | Retrieves a list of properties reflecting the current state of a particular node(s). |
 
  
 

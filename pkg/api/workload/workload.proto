@@ -7,8 +7,8 @@ Finally, the API can also be used to retrieve trust bundles that can be used to
 verify SVIDs from other SPIFFE-identified workloads.
 */
 syntax = "proto3";
-package workload;
-
+package spire.api.workload;
+option go_package = "workload";
 
 /** A WLSVIDEntry represents a Workload's SVID and its associated information
  */

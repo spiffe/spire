@@ -5,7 +5,8 @@ to retrieve the list of identities that are allowed to run on that node,
 and to retrieve SVIDs by presenting certificate signing requests to the Spire Server.
 */
 syntax = "proto3";
-package node;
+package spire.api.node;
+option go_package = "node";
 
 import public "github.com/spiffe/sri/pkg/common/common.proto";
 
@@ -34,12 +35,12 @@ message Svid {
 a list of all current Registration Entries which are relevant to the caller SPIFFE ID.*/
 message SvidUpdate {
  map<string, Svid>  svids = 1; ///A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] => SVID.
- repeated common.RegistrationEntry registration_entries = 2; ///A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it.
+ repeated spire.common.RegistrationEntry registration_entries = 2; ///A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it.
 }
 
 /**Represents a request to attest the node.*/
 message FetchBaseSVIDRequest {
- common.AttestedData attested_data = 1; ///A type which contains attestation data for specific platform.
+ spire.common.AttestedData attested_data = 1; ///A type which contains attestation data for specific platform.
  bytes csr = 2;  //Certificate signing request.
 }
 
