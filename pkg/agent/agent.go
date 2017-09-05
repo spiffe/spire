@@ -92,6 +92,7 @@ type Agent struct {
 // and then blocks on the main event loop.
 func (a *Agent) Run() error {
 	err := a.initPlugins()
+	defer a.stopPlugins()
 	if err != nil {
 		return err
 	}
@@ -146,7 +147,7 @@ func (a *Agent) initPlugins() error {
 
 func (a *Agent) initEndpoints() error {
 	a.Config.Logger.Log("msg", "Starting the workload API")
-	svc := server.NewService(a.Catalog, a.Config.ErrorCh)
+	svc := server.NewService(a.Catalog, a.Config.ShutdownCh)
 
 	endpoints := server.Endpoints{
 		PluginInfoEndpoint: server.MakePluginInfoEndpoint(svc),
@@ -354,4 +355,11 @@ func (a *Agent) StoreBaseSVID() {
 	}
 
 	return
+}
+
+func (a *Agent) stopPlugins() {
+	a.Config.Logger.Log("msg", "Stopping plugins...")
+	if a.Catalog != nil {
+		a.Catalog.Stop()
+	}
 }

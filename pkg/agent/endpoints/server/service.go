@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"log"
-	"time"
 
 	"github.com/spiffe/sri/helpers"
 	"github.com/spiffe/sri/pkg/common/plugin"
@@ -15,7 +14,7 @@ type ServerService interface {
 }
 
 type stubServerService struct {
-	ShutdownChannel chan error
+	ShutdownChannel chan struct{}
 	PluginCatalog   *helpers.PluginCatalog
 }
 
@@ -29,18 +28,17 @@ func (e *errorStop) Error() string {
 
 // Get a new instance of the service.
 // If you want to add service middleware this is the place to put them.
-func NewService(pluginCatalog *helpers.PluginCatalog, errorChan chan error) (s *stubServerService) {
+func NewService(pluginCatalog *helpers.PluginCatalog, shutdownCh chan struct{}) (s *stubServerService) {
 	s = &stubServerService{}
 	s.PluginCatalog = pluginCatalog
-	s.ShutdownChannel = errorChan
+	s.ShutdownChannel = shutdownCh
 	return s
 }
 
 func (se *stubServerService) Stop(ctx context.Context, request sriplugin.StopRequest) (response sriplugin.StopReply, err error) {
 	log.Println("Received stop message.")
-	go func() {
-		time.Sleep(2 * time.Second)
-		se.ShutdownChannel <- &errorStop{s: "Stopping your server..."}
+	defer func() {
+		se.ShutdownChannel <- struct{}{}
 	}()
 	return response, err
 }
