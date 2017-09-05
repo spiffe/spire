@@ -143,6 +143,7 @@ func (m *StopReply) String() string { return (*spire_common_plugin.StopReply)(m)
 func (*StopReply) ProtoMessage()    {}
 
 type SubmitCSRRequest struct {
+	// * Certificate signing request.
 	Csr []byte `protobuf:"bytes,1,opt,name=csr,proto3" json:"csr,omitempty"`
 }
 
@@ -159,7 +160,9 @@ func (m *SubmitCSRRequest) GetCsr() []byte {
 }
 
 type SubmitCSRResponse struct {
-	Cert                []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
+	// * Signed certificate
+	Cert []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
+	// * Upstream trust bundle.
 	UpstreamTrustBundle []byte `protobuf:"bytes,2,opt,name=upstreamTrustBundle,proto3" json:"upstreamTrustBundle,omitempty"`
 }
 
@@ -198,11 +201,11 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for UpstreamCA service
 
 type UpstreamCAClient interface {
-	// *Responsible for configuration of the plugin.
+	// * Responsible for configuration of the plugin.
 	Configure(ctx context.Context, in *spire_common_plugin.ConfigureRequest, opts ...grpc.CallOption) (*spire_common_plugin.ConfigureResponse, error)
-	// *Returns the  version and related metadata of the installed plugin.
+	// * Returns the  version and related metadata of the installed plugin.
 	GetPluginInfo(ctx context.Context, in *spire_common_plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*spire_common_plugin.GetPluginInfoResponse, error)
-	// *Will take in a CSR and submit it to the upstream CA for signing
+	// * Will take in a CSR and submit it to the upstream CA for signing
 	// (“upstream” CA can be local self-signed root in simple case).
 	SubmitCSR(ctx context.Context, in *SubmitCSRRequest, opts ...grpc.CallOption) (*SubmitCSRResponse, error)
 }
@@ -245,11 +248,11 @@ func (c *upstreamCAClient) SubmitCSR(ctx context.Context, in *SubmitCSRRequest, 
 // Server API for UpstreamCA service
 
 type UpstreamCAServer interface {
-	// *Responsible for configuration of the plugin.
+	// * Responsible for configuration of the plugin.
 	Configure(context.Context, *spire_common_plugin.ConfigureRequest) (*spire_common_plugin.ConfigureResponse, error)
-	// *Returns the  version and related metadata of the installed plugin.
+	// * Returns the  version and related metadata of the installed plugin.
 	GetPluginInfo(context.Context, *spire_common_plugin.GetPluginInfoRequest) (*spire_common_plugin.GetPluginInfoResponse, error)
-	// *Will take in a CSR and submit it to the upstream CA for signing
+	// * Will take in a CSR and submit it to the upstream CA for signing
 	// (“upstream” CA can be local self-signed root in simple case).
 	SubmitCSR(context.Context, *SubmitCSRRequest) (*SubmitCSRResponse, error)
 }

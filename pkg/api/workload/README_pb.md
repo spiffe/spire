@@ -38,18 +38,13 @@
 <p align="right"><a href="#top">Top</a></p>
 
 ## workload.proto
-A workload uses this API to retrieve a list of identities that it should be allowed
-to represent itself as (SPIFFE IDs) as well as, optionally, documents (in the form of
-SPIFFE Verifiable Identity Documents(SVID) ) that can be used to prove those identities to other systems.
 
-Finally, the API can also be used to retrieve trust bundles that can be used to
-verify SVIDs from other SPIFFE-identified workloads.
 
 
 <a name="spire.api.workload.Empty"/>
 
 ### Empty
-
+Represents a message with no fields
 
 
 
@@ -59,7 +54,8 @@ verify SVIDs from other SPIFFE-identified workloads.
 <a name="spire.api.workload.FederateEntry"/>
 
 ### FederateEntry
-represents cert bundle of a remote control plane for the purposes of trusting remote workloads
+Represents cert bundle of a remote control plane for the purposes
+of trusting remote workloads
 
 
 | Field | Type | Label | Description |
@@ -76,7 +72,8 @@ represents cert bundle of a remote control plane for the purposes of trusting re
 <a name="spire.api.workload.FetchFederatedBundleRequest"/>
 
 ### FetchFederatedBundleRequest
-represents a Federated cert Bundle request corresponding to a specific SPIFFEId
+Represents a Federated cert Bundle request corresponding to a
+specific SPIFFEId
 
 
 | Field | Type | Label | Description |
@@ -91,12 +88,13 @@ represents a Federated cert Bundle request corresponding to a specific SPIFFEId
 <a name="spire.api.workload.FetchFederatedBundleResponse"/>
 
 ### FetchFederatedBundleResponse
-represents cert Bundles that a specific workload&#39;s SPIFFEId is registered to trust
+represents cert Bundles that a specific workload&#39;s SPIFFEId is
+registered to trust
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| FederateEntry | [FederateEntry](#spire.api.workload.FederateEntry) | repeated | trusted external CA cert bundles of foreign control planes |
+| FederateEntry | [FederateEntry](#spire.api.workload.FederateEntry) | repeated | Trusted external CA cert bundles of foreign control planes |
 
 
 
@@ -106,12 +104,12 @@ represents cert Bundles that a specific workload&#39;s SPIFFEId is registered to
 <a name="spire.api.workload.FetchFederatedBundlesResponse"/>
 
 ### FetchFederatedBundlesResponse
-represents all the cert Bundles that a workload is registered to trust
+Represents all the cert Bundles that a workload is registered to trust
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| FederateEntry | [FederateEntry](#spire.api.workload.FederateEntry) | repeated | trusted external CA cert bundles of foreign control planes |
+| FederateEntry | [FederateEntry](#spire.api.workload.FederateEntry) | repeated | Trusted external CA cert bundles of foreign control planes |
 
 
 
@@ -121,7 +119,8 @@ represents all the cert Bundles that a workload is registered to trust
 <a name="spire.api.workload.FetchSVIDBundleRequest"/>
 
 ### FetchSVIDBundleRequest
-represents a workload request for a SVID and the control plane&#39;s cert bundle of a specific SPIFFEID
+Represents a workload request for a SVID and the control plane&#39;s
+cert bundle of a specific SPIFFEID
 
 
 | Field | Type | Label | Description |
@@ -136,8 +135,8 @@ represents a workload request for a SVID and the control plane&#39;s cert bundle
 <a name="spire.api.workload.FetchSVIDBundleResponse"/>
 
 ### FetchSVIDBundleResponse
-represents a response specific to the requesting workload SPIFFEId,
-Includes the workload&#39;s SVID Entry(SVID and its corresponding information )
+Represents a response specific to the requesting workload SPIFFEId,
+Includes the workload&#39;s SVID Entry (SVID and its corresponding information)
 and the Control Plane&#39;s trusted cert bundle
 
 
@@ -154,7 +153,8 @@ and the Control Plane&#39;s trusted cert bundle
 <a name="spire.api.workload.FetchSVIDBundlesResponse"/>
 
 ### FetchSVIDBundlesResponse
-represents response the includes all the SVIDs the and Control Plane&#39;s trusted cert bundle workload
+Represents response the includes all the SVIDs the and Control
+Plane&#39;s trusted cert bundle workload
 
 
 | Field | Type | Label | Description |
@@ -170,7 +170,8 @@ represents response the includes all the SVIDs the and Control Plane&#39;s trust
 <a name="spire.api.workload.WLSVIDEntry"/>
 
 ### WLSVIDEntry
-A WLSVIDEntry represents a Workload&#39;s SVID and its associated information
+A WLSVIDEntry represents a Workload&#39;s SVID and its associated
+information
 
 
 | Field | Type | Label | Description |

@@ -133,8 +133,9 @@ func (m *RegistrationEntries) GetEntries() []*RegistrationEntry {
 	return s
 }
 
-// *A type that represents the id of an entry.
+// * A type that represents the id of an entry.
 type RegistrationEntryID struct {
+	// * RegistrationEntryID.
 	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
 }
 
@@ -150,8 +151,9 @@ func (m *RegistrationEntryID) GetId() string {
 	return ""
 }
 
-// *A type that represents a parent Id.
+// * A type that represents a parent Id.
 type ParentID struct {
+	// * ParentId.
 	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
 }
 
@@ -167,8 +169,9 @@ func (m *ParentID) GetId() string {
 	return ""
 }
 
-// *A type that represents a SPIFFE Id.
+// * A type that represents a SPIFFE Id.
 type SpiffeID struct {
+	// * SpiffeId.
 	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
 }
 
@@ -184,9 +187,11 @@ func (m *SpiffeID) GetId() string {
 	return ""
 }
 
-// *A type with the id with want to update plus values to modify.
+// * A type with the id with want to update plus values to modify.
 type UpdateEntryRequest struct {
-	Id    string                          `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	// * Id of the entry to update.
+	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	// * Values in the RegistrationEntry to update.
 	Entry *spire_common.RegistrationEntry `protobuf:"bytes,2,opt,name=entry" json:"entry,omitempty"`
 }
 
@@ -209,11 +214,14 @@ func (m *UpdateEntryRequest) GetEntry() *spire_common.RegistrationEntry {
 	return nil
 }
 
-// *A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
+// * A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
 type FederatedBundle struct {
-	SpiffeId        string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	// * A SPIFFE ID that has a Federated Bundle
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	// * A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain
 	FederatedBundle []byte `protobuf:"bytes,2,opt,name=federated_bundle,json=federatedBundle,proto3" json:"federated_bundle,omitempty"`
-	Ttl             int32  `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
+	// * Time to live.
+	Ttl int32 `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
 }
 
 func (m *FederatedBundle) Reset()                    { *m = FederatedBundle{} }
@@ -242,8 +250,9 @@ func (m *FederatedBundle) GetTtl() int32 {
 	return 0
 }
 
-// *It represents a request with a FederatedBundle to create.
+// * It represents a request with a FederatedBundle to create.
 type CreateFederatedBundleRequest struct {
+	// * A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain.
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federated_bundle,json=federatedBundle" json:"federated_bundle,omitempty"`
 }
 
@@ -259,8 +268,9 @@ func (m *CreateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
 	return nil
 }
 
-// *It represents a reply with a list of FederatedBundle.
+// * It represents a reply with a list of FederatedBundle.
 type ListFederatedBundlesReply struct {
+	// * A list of FederatedBundle.
 	Bundles []*FederatedBundle `protobuf:"bytes,1,rep,name=bundles" json:"bundles,omitempty"`
 }
 
@@ -276,8 +286,9 @@ func (m *ListFederatedBundlesReply) GetBundles() []*FederatedBundle {
 	return nil
 }
 
-// *A type that represents a Federated SPIFFE Id.
+// * A type that represents a Federated SPIFFE Id.
 type FederatedSpiffeID struct {
+	// * FederatedSpiffeID
 	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
 }
 
@@ -315,27 +326,27 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for Registration service
 
 type RegistrationClient interface {
-	// /Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
+	// * Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
 	CreateEntry(ctx context.Context, in *spire_common.RegistrationEntry, opts ...grpc.CallOption) (*RegistrationEntryID, error)
-	// /Deletes an entry and returns the deleted entry.
+	// * Deletes an entry and returns the deleted entry.
 	DeleteEntry(ctx context.Context, in *RegistrationEntryID, opts ...grpc.CallOption) (*spire_common.RegistrationEntry, error)
-	// /Retrieve a specific registered entry.
+	// * Retrieve a specific registered entry.
 	FetchEntry(ctx context.Context, in *RegistrationEntryID, opts ...grpc.CallOption) (*spire_common.RegistrationEntry, error)
-	// /Updates a specific registered entry.
+	// * Updates a specific registered entry.
 	UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*spire_common.RegistrationEntry, error)
-	// /Returns all the Entries associated with the ParentID value.
+	// * Returns all the Entries associated with the ParentID value.
 	ListByParentID(ctx context.Context, in *ParentID, opts ...grpc.CallOption) (*spire_common.RegistrationEntries, error)
-	// /Returns all the entries associated with a selector value.
+	// * Returns all the entries associated with a selector value.
 	ListBySelector(ctx context.Context, in *spire_common.Selector, opts ...grpc.CallOption) (*spire_common.RegistrationEntries, error)
-	// /Return all registration entries for which SPIFFE ID matches.
+	// * Return all registration entries for which SPIFFE ID matches.
 	ListBySpiffeID(ctx context.Context, in *SpiffeID, opts ...grpc.CallOption) (*spire_common.RegistrationEntries, error)
-	// /Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
+	// * Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
 	CreateFederatedBundle(ctx context.Context, in *CreateFederatedBundleRequest, opts ...grpc.CallOption) (*spire_common.Empty, error)
-	// /Retrieves Federated bundles for all the Federated SPIFFE IDs.
+	// * Retrieves Federated bundles for all the Federated SPIFFE IDs.
 	ListFederatedBundles(ctx context.Context, in *spire_common.Empty, opts ...grpc.CallOption) (*ListFederatedBundlesReply, error)
-	// /Updates a particular Federated Bundle. Useful for rotation.
+	// * Updates a particular Federated Bundle. Useful for rotation.
 	UpdateFederatedBundle(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*spire_common.Empty, error)
-	// /Delete a particular Federated Bundle. Used to destroy inter-domain trust.
+	// * Delete a particular Federated Bundle. Used to destroy inter-domain trust.
 	DeleteFederatedBundle(ctx context.Context, in *FederatedSpiffeID, opts ...grpc.CallOption) (*spire_common.Empty, error)
 }
 
@@ -449,27 +460,27 @@ func (c *registrationClient) DeleteFederatedBundle(ctx context.Context, in *Fede
 // Server API for Registration service
 
 type RegistrationServer interface {
-	// /Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
+	// * Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
 	CreateEntry(context.Context, *spire_common.RegistrationEntry) (*RegistrationEntryID, error)
-	// /Deletes an entry and returns the deleted entry.
+	// * Deletes an entry and returns the deleted entry.
 	DeleteEntry(context.Context, *RegistrationEntryID) (*spire_common.RegistrationEntry, error)
-	// /Retrieve a specific registered entry.
+	// * Retrieve a specific registered entry.
 	FetchEntry(context.Context, *RegistrationEntryID) (*spire_common.RegistrationEntry, error)
-	// /Updates a specific registered entry.
+	// * Updates a specific registered entry.
 	UpdateEntry(context.Context, *UpdateEntryRequest) (*spire_common.RegistrationEntry, error)
-	// /Returns all the Entries associated with the ParentID value.
+	// * Returns all the Entries associated with the ParentID value.
 	ListByParentID(context.Context, *ParentID) (*spire_common.RegistrationEntries, error)
-	// /Returns all the entries associated with a selector value.
+	// * Returns all the entries associated with a selector value.
 	ListBySelector(context.Context, *spire_common.Selector) (*spire_common.RegistrationEntries, error)
-	// /Return all registration entries for which SPIFFE ID matches.
+	// * Return all registration entries for which SPIFFE ID matches.
 	ListBySpiffeID(context.Context, *SpiffeID) (*spire_common.RegistrationEntries, error)
-	// /Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
+	// * Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
 	CreateFederatedBundle(context.Context, *CreateFederatedBundleRequest) (*spire_common.Empty, error)
-	// /Retrieves Federated bundles for all the Federated SPIFFE IDs.
+	// * Retrieves Federated bundles for all the Federated SPIFFE IDs.
 	ListFederatedBundles(context.Context, *spire_common.Empty) (*ListFederatedBundlesReply, error)
-	// /Updates a particular Federated Bundle. Useful for rotation.
+	// * Updates a particular Federated Bundle. Useful for rotation.
 	UpdateFederatedBundle(context.Context, *FederatedBundle) (*spire_common.Empty, error)
-	// /Delete a particular Federated Bundle. Used to destroy inter-domain trust.
+	// * Delete a particular Federated Bundle. Used to destroy inter-domain trust.
 	DeleteFederatedBundle(context.Context, *FederatedSpiffeID) (*spire_common.Empty, error)
 }
 

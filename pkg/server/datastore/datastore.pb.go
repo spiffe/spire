@@ -277,9 +277,12 @@ func (m *RegistrationEntries) GetEntries() []*RegistrationEntry {
 // a TTL describing its expiration, keyed by the SPIFFE ID of the foreign
 // trust domain.
 type FederatedBundle struct {
+	// * Foreign trust domain SPIFFE ID
 	FederatedBundleSpiffeId string `protobuf:"bytes,1,opt,name=federatedBundleSpiffeId" json:"federatedBundleSpiffeId,omitempty"`
-	FederatedTrustBundle    []byte `protobuf:"bytes,2,opt,name=federatedTrustBundle,proto3" json:"federatedTrustBundle,omitempty"`
-	Ttl                     int32  `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
+	// * Trust chain
+	FederatedTrustBundle []byte `protobuf:"bytes,2,opt,name=federatedTrustBundle,proto3" json:"federatedTrustBundle,omitempty"`
+	// * TTL
+	Ttl int32 `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
 }
 
 func (m *FederatedBundle) Reset()                    { *m = FederatedBundle{} }
@@ -308,8 +311,8 @@ func (m *FederatedBundle) GetTtl() int32 {
 	return 0
 }
 
-// * Represents a single entry in NodeResolverMap and maps node properties to
-// logical attributes (i.e. an AWS instance to its ASG).
+// * Represents a single entry in NodeResolverMap and maps node properties
+// to logical attributes (i.e. an AWS instance to its ASG).
 type NodeResolverMapEntry struct {
 	BaseSpiffeId string                 `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
 	Selector     *spire_common.Selector `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
@@ -334,13 +337,17 @@ func (m *NodeResolverMapEntry) GetSelector() *spire_common.Selector {
 	return nil
 }
 
-// * Represents a single entry in AttestedNodes and stores the node's SPIFFE ID, the
-// type of attestation it performed, as well as the serial number and expiration date
-// of its node SVID.
+// * Represents a single entry in AttestedNodes and stores the node's
+// SPIFFE ID, the type of attestation it performed, as well as the serial
+// number and expiration date of its node SVID.
 type AttestedNodeEntry struct {
-	BaseSpiffeId       string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
-	AttestedDataType   string `protobuf:"bytes,2,opt,name=attestedDataType" json:"attestedDataType,omitempty"`
-	CertSerialNumber   string `protobuf:"bytes,3,opt,name=certSerialNumber" json:"certSerialNumber,omitempty"`
+	// * Spiffe ID
+	BaseSpiffeId string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
+	// * Attestation type
+	AttestedDataType string `protobuf:"bytes,2,opt,name=attestedDataType" json:"attestedDataType,omitempty"`
+	// * Serial number
+	CertSerialNumber string `protobuf:"bytes,3,opt,name=certSerialNumber" json:"certSerialNumber,omitempty"`
+	// *  Expiration date
 	CertExpirationDate string `protobuf:"bytes,4,opt,name=certExpirationDate" json:"certExpirationDate,omitempty"`
 }
 
@@ -379,6 +386,7 @@ func (m *AttestedNodeEntry) GetCertExpirationDate() string {
 
 // * Represents a Federated bundle
 type CreateFederatedEntryRequest struct {
+	// * Federated bundle
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
 
@@ -394,7 +402,7 @@ func (m *CreateFederatedEntryRequest) GetFederatedBundle() *FederatedBundle {
 	return nil
 }
 
-// * Empty
+// * Empty response
 type CreateFederatedEntryResponse struct {
 }
 
@@ -403,7 +411,7 @@ func (m *CreateFederatedEntryResponse) String() string            { return proto
 func (*CreateFederatedEntryResponse) ProtoMessage()               {}
 func (*CreateFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
-// * Empty
+// * Empty Request
 type ListFederatedEntryRequest struct {
 }
 
@@ -414,6 +422,7 @@ func (*ListFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDesc
 
 // * Represents a list of SPIFFE IDs of foreign trust domains
 type ListFederatedEntryResponse struct {
+	// * SPIFFE IDs of foreign trust domains
 	FederatedBundleSpiffeIdList []string `protobuf:"bytes,1,rep,name=federatedBundleSpiffeIdList" json:"federatedBundleSpiffeIdList,omitempty"`
 }
 
@@ -431,6 +440,7 @@ func (m *ListFederatedEntryResponse) GetFederatedBundleSpiffeIdList() []string {
 
 // * Represents a federated bundle to update
 type UpdateFederatedEntryRequest struct {
+	// * Federated bundle
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
 
@@ -448,6 +458,7 @@ func (m *UpdateFederatedEntryRequest) GetFederatedBundle() *FederatedBundle {
 
 // * Represents the updated federated bundle
 type UpdateFederatedEntryResponse struct {
+	// * Federated bundle
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
 
@@ -465,6 +476,7 @@ func (m *UpdateFederatedEntryResponse) GetFederatedBundle() *FederatedBundle {
 
 // * Represents the Spiffe ID of the federated bundle to delete
 type DeleteFederatedEntryRequest struct {
+	// * SPIFFE ID of foreign trust domain
 	FederatedBundleSpiffeId string `protobuf:"bytes,1,opt,name=federatedBundleSpiffeId" json:"federatedBundleSpiffeId,omitempty"`
 }
 
@@ -482,6 +494,7 @@ func (m *DeleteFederatedEntryRequest) GetFederatedBundleSpiffeId() string {
 
 // * Represents the deleted federated bundle
 type DeleteFederatedEntryResponse struct {
+	// * Federated bundle
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
 
@@ -499,6 +512,7 @@ func (m *DeleteFederatedEntryResponse) GetFederatedBundle() *FederatedBundle {
 
 // * Represents an Attested Node entry to create
 type CreateAttestedNodeEntryRequest struct {
+	// * Attested node entry
 	AttestedNodeEntry *AttestedNodeEntry `protobuf:"bytes,1,opt,name=attestedNodeEntry" json:"attestedNodeEntry,omitempty"`
 }
 
@@ -516,6 +530,7 @@ func (m *CreateAttestedNodeEntryRequest) GetAttestedNodeEntry() *AttestedNodeEnt
 
 // * Represents the created Attested Node entry
 type CreateAttestedNodeEntryResponse struct {
+	// * Attested node entry
 	AttestedNodeEntry *AttestedNodeEntry `protobuf:"bytes,1,opt,name=attestedNodeEntry" json:"attestedNodeEntry,omitempty"`
 }
 
@@ -535,6 +550,7 @@ func (m *CreateAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEn
 
 // * Represents the Spiffe ID of the node entry to retrieve
 type FetchAttestedNodeEntryRequest struct {
+	// * SPIFFE ID
 	BaseSpiffeId string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
 }
 
@@ -552,6 +568,7 @@ func (m *FetchAttestedNodeEntryRequest) GetBaseSpiffeId() string {
 
 // * Represents an Attested Node entry
 type FetchAttestedNodeEntryResponse struct {
+	// * Attested node entry
 	AttestedNodeEntry *AttestedNodeEntry `protobuf:"bytes,1,opt,name=attestedNodeEntry" json:"attestedNodeEntry,omitempty"`
 }
 
@@ -567,7 +584,7 @@ func (m *FetchAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEnt
 	return nil
 }
 
-// * Empty
+// * Empty Request
 type FetchStaleNodeEntriesRequest struct {
 }
 
@@ -578,6 +595,7 @@ func (*FetchStaleNodeEntriesRequest) Descriptor() ([]byte, []int) { return fileD
 
 // * Represents dead nodes for which the base SVID has expired
 type FetchStaleNodeEntriesResponse struct {
+	// * List of attested node entries
 	AttestedNodeEntryList []*AttestedNodeEntry `protobuf:"bytes,1,rep,name=attestedNodeEntryList" json:"attestedNodeEntryList,omitempty"`
 }
 
@@ -595,8 +613,11 @@ func (m *FetchStaleNodeEntriesResponse) GetAttestedNodeEntryList() []*AttestedNo
 
 // * Represents Attested node entry fields to update
 type UpdateAttestedNodeEntryRequest struct {
-	BaseSpiffeId       string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
-	CertSerialNumber   string `protobuf:"bytes,2,opt,name=certSerialNumber" json:"certSerialNumber,omitempty"`
+	// * SPIFFE ID
+	BaseSpiffeId string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
+	// * Serial number
+	CertSerialNumber string `protobuf:"bytes,2,opt,name=certSerialNumber" json:"certSerialNumber,omitempty"`
+	// * Expiration date
 	CertExpirationDate string `protobuf:"bytes,3,opt,name=certExpirationDate" json:"certExpirationDate,omitempty"`
 }
 
@@ -628,6 +649,7 @@ func (m *UpdateAttestedNodeEntryRequest) GetCertExpirationDate() string {
 
 // * Represents the updated Attested node entry
 type UpdateAttestedNodeEntryResponse struct {
+	// * Attested node entry
 	AttestedNodeEntry *AttestedNodeEntry `protobuf:"bytes,1,opt,name=attestedNodeEntry" json:"attestedNodeEntry,omitempty"`
 }
 
@@ -647,6 +669,7 @@ func (m *UpdateAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEn
 
 // * Represents the Spiffe ID of the Attested node entry to delete
 type DeleteAttestedNodeEntryRequest struct {
+	// * SPIFFE ID
 	BaseSpiffeId string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
 }
 
@@ -683,6 +706,7 @@ func (m *DeleteAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEn
 
 // * Represents a Node resolver map entry to create
 type CreateNodeResolverMapEntryRequest struct {
+	// * Node resolver map entry
 	NodeResolverMapEntry *NodeResolverMapEntry `protobuf:"bytes,1,opt,name=nodeResolverMapEntry" json:"nodeResolverMapEntry,omitempty"`
 }
 
@@ -702,6 +726,7 @@ func (m *CreateNodeResolverMapEntryRequest) GetNodeResolverMapEntry() *NodeResol
 
 // * Represents the created Node resolver map entry
 type CreateNodeResolverMapEntryResponse struct {
+	// * Node resolver map entry
 	NodeResolverMapEntry *NodeResolverMapEntry `protobuf:"bytes,1,opt,name=nodeResolverMapEntry" json:"nodeResolverMapEntry,omitempty"`
 }
 
@@ -721,6 +746,7 @@ func (m *CreateNodeResolverMapEntryResponse) GetNodeResolverMapEntry() *NodeReso
 
 // * Represents a Spiffe ID
 type FetchNodeResolverMapEntryRequest struct {
+	// * SPIFFE ID
 	BaseSpiffeId string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
 }
 
@@ -738,8 +764,10 @@ func (m *FetchNodeResolverMapEntryRequest) GetBaseSpiffeId() string {
 	return ""
 }
 
-// * Represents a list of Node resolver map entries for the specified Spiffe ID
+// * Represents a list of Node resolver map entries for the specified
+// Spiffe ID
 type FetchNodeResolverMapEntryResponse struct {
+	// * List of Node resolver map entries
 	NodeResolverMapEntryList []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=nodeResolverMapEntryList" json:"nodeResolverMapEntryList,omitempty"`
 }
 
@@ -759,6 +787,7 @@ func (m *FetchNodeResolverMapEntryResponse) GetNodeResolverMapEntryList() []*Nod
 
 // * Represents a Node resolver map entry to delete
 type DeleteNodeResolverMapEntryRequest struct {
+	// * Node resolver map entry
 	NodeResolverMapEntry *NodeResolverMapEntry `protobuf:"bytes,1,opt,name=nodeResolverMapEntry" json:"nodeResolverMapEntry,omitempty"`
 }
 
@@ -778,6 +807,7 @@ func (m *DeleteNodeResolverMapEntryRequest) GetNodeResolverMapEntry() *NodeResol
 
 // * Represents a list of Node resolver map entries
 type DeleteNodeResolverMapEntryResponse struct {
+	// * List of Node resolver map entries
 	NodeResolverMapEntryList []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=nodeResolverMapEntryList" json:"nodeResolverMapEntryList,omitempty"`
 }
 
@@ -797,6 +827,7 @@ func (m *DeleteNodeResolverMapEntryResponse) GetNodeResolverMapEntryList() []*No
 
 // * Represents a list of Node resolver map entries
 type RectifyNodeResolverMapEntriesRequest struct {
+	// * List of Node resolver map entries
 	NodeResolverMapEntryList []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=nodeResolverMapEntryList" json:"nodeResolverMapEntryList,omitempty"`
 }
 
@@ -816,6 +847,7 @@ func (m *RectifyNodeResolverMapEntriesRequest) GetNodeResolverMapEntryList() []*
 
 // * Represents a list of Node resolver map entries
 type RectifyNodeResolverMapEntriesResponse struct {
+	// * List of Node resolver map entries
 	NodeResolverMapEntryList []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=nodeResolverMapEntryList" json:"nodeResolverMapEntryList,omitempty"`
 }
 
@@ -835,6 +867,7 @@ func (m *RectifyNodeResolverMapEntriesResponse) GetNodeResolverMapEntryList() []
 
 // * Represents a Registration entry to create
 type CreateRegistrationEntryRequest struct {
+	// * Registration entry
 	RegisteredEntry *spire_common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
@@ -852,6 +885,7 @@ func (m *CreateRegistrationEntryRequest) GetRegisteredEntry() *spire_common.Regi
 
 // * Represents the created Registration entry
 type CreateRegistrationEntryResponse struct {
+	// * Registration entry ID
 	RegisteredEntryId string `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
 }
 
@@ -871,6 +905,7 @@ func (m *CreateRegistrationEntryResponse) GetRegisteredEntryId() string {
 
 // * Represents a Registration entry ID to fetch
 type FetchRegistrationEntryRequest struct {
+	// * Registration entry ID
 	RegisteredEntryId string `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
 }
 
@@ -888,6 +923,7 @@ func (m *FetchRegistrationEntryRequest) GetRegisteredEntryId() string {
 
 // * Represents a Registration entry
 type FetchRegistrationEntryResponse struct {
+	// * Registration entry
 	RegisteredEntry *spire_common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
@@ -905,8 +941,10 @@ func (m *FetchRegistrationEntryResponse) GetRegisteredEntry() *spire_common.Regi
 
 // * Represents a Registration entry to update
 type UpdateRegistrationEntryRequest struct {
-	RegisteredEntryId string                          `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
-	RegisteredEntry   *spire_common.RegistrationEntry `protobuf:"bytes,2,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
+	// * Registration entry ID
+	RegisteredEntryId string `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
+	// * Registration entry
+	RegisteredEntry *spire_common.RegistrationEntry `protobuf:"bytes,2,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
 func (m *UpdateRegistrationEntryRequest) Reset()                    { *m = UpdateRegistrationEntryRequest{} }
@@ -930,6 +968,7 @@ func (m *UpdateRegistrationEntryRequest) GetRegisteredEntry() *spire_common.Regi
 
 // * Represents the updated Registration entry
 type UpdateRegistrationEntryResponse struct {
+	// * Registration entry
 	RegisteredEntry *spire_common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
@@ -949,6 +988,7 @@ func (m *UpdateRegistrationEntryResponse) GetRegisteredEntry() *spire_common.Reg
 
 // * Represents a Registration entry ID to delete
 type DeleteRegistrationEntryRequest struct {
+	// * Registration entry ID
 	RegisteredEntryId string `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
 }
 
@@ -966,6 +1006,7 @@ func (m *DeleteRegistrationEntryRequest) GetRegisteredEntryId() string {
 
 // * Represents the deleted Registration entry
 type DeleteRegistrationEntryResponse struct {
+	// * Registration entry
 	RegisteredEntry *spire_common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
@@ -985,6 +1026,7 @@ func (m *DeleteRegistrationEntryResponse) GetRegisteredEntry() *spire_common.Reg
 
 // * Represents a Parent ID
 type ListParentIDEntriesRequest struct {
+	// * Parent ID
 	ParentId string `protobuf:"bytes,1,opt,name=parentId" json:"parentId,omitempty"`
 }
 
@@ -1000,8 +1042,10 @@ func (m *ListParentIDEntriesRequest) GetParentId() string {
 	return ""
 }
 
-// * Represents a list of Registered entries with the specified Parent ID
+// * Represents a list of Registered entries with the specified Parent
+// ID
 type ListParentIDEntriesResponse struct {
+	// * List of Registration entries
 	RegisteredEntryList []*spire_common.RegistrationEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
 
@@ -1019,6 +1063,7 @@ func (m *ListParentIDEntriesResponse) GetRegisteredEntryList() []*spire_common.R
 
 // * Represents a selector
 type ListSelectorEntriesRequest struct {
+	// * Selector
 	Selector *spire_common.Selector `protobuf:"bytes,1,opt,name=selector" json:"selector,omitempty"`
 }
 
@@ -1036,6 +1081,7 @@ func (m *ListSelectorEntriesRequest) GetSelector() *spire_common.Selector {
 
 // * Represents a list of Registered entries with the specified selector
 type ListSelectorEntriesResponse struct {
+	// * List of Registration entries
 	RegisteredEntryList []*spire_common.RegistrationEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
 
@@ -1053,6 +1099,7 @@ func (m *ListSelectorEntriesResponse) GetRegisteredEntryList() []*spire_common.R
 
 // * Represents a Spiffe ID
 type ListSpiffeEntriesRequest struct {
+	// * SPIFFE ID
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
 }
 
@@ -1070,6 +1117,7 @@ func (m *ListSpiffeEntriesRequest) GetSpiffeId() string {
 
 // * Represents a list of Registered entries with the specified Spiffe ID
 type ListSpiffeEntriesResponse struct {
+	// * List of Registration entries
 	RegisteredEntryList []*spire_common.RegistrationEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
 
@@ -1142,49 +1190,49 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for DataStore service
 
 type DataStoreClient interface {
-	// / Creates a Federated Bundle
+	// * Creates a Federated Bundle
 	CreateFederatedEntry(ctx context.Context, in *CreateFederatedEntryRequest, opts ...grpc.CallOption) (*CreateFederatedEntryResponse, error)
-	// / List all Federated SPIFFE IDs
+	// * List all Federated SPIFFE IDs
 	ListFederatedEntry(ctx context.Context, in *ListFederatedEntryRequest, opts ...grpc.CallOption) (*ListFederatedEntryResponse, error)
-	// / Updates the specified Federated Bundle
+	// * Updates the specified Federated Bundle
 	UpdateFederatedEntry(ctx context.Context, in *UpdateFederatedEntryRequest, opts ...grpc.CallOption) (*UpdateFederatedEntryResponse, error)
-	// / Deletes the specified Federated Bundle
+	// * Deletes the specified Federated Bundle
 	DeleteFederatedEntry(ctx context.Context, in *DeleteFederatedEntryRequest, opts ...grpc.CallOption) (*DeleteFederatedEntryResponse, error)
-	// / Creates an Attested Node Entry
+	// * Creates an Attested Node Entry
 	CreateAttestedNodeEntry(ctx context.Context, in *CreateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*CreateAttestedNodeEntryResponse, error)
-	// / Retrieves the Attested Node Entry
+	// * Retrieves the Attested Node Entry
 	FetchAttestedNodeEntry(ctx context.Context, in *FetchAttestedNodeEntryRequest, opts ...grpc.CallOption) (*FetchAttestedNodeEntryResponse, error)
-	// / Retrieves dead nodes for which the base SVID has expired
+	// * Retrieves dead nodes for which the base SVID has expired
 	FetchStaleNodeEntries(ctx context.Context, in *FetchStaleNodeEntriesRequest, opts ...grpc.CallOption) (*FetchStaleNodeEntriesResponse, error)
-	// / Updates the Attested Node Entry
+	// * Updates the Attested Node Entry
 	UpdateAttestedNodeEntry(ctx context.Context, in *UpdateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*UpdateAttestedNodeEntryResponse, error)
-	// / Deletes the Attested Node Entry
+	// * Deletes the Attested Node Entry
 	DeleteAttestedNodeEntry(ctx context.Context, in *DeleteAttestedNodeEntryRequest, opts ...grpc.CallOption) (*DeleteAttestedNodeEntryResponse, error)
-	// / Creates a Node resolver map Entry
+	// * Creates a Node resolver map Entry
 	CreateNodeResolverMapEntry(ctx context.Context, in *CreateNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*CreateNodeResolverMapEntryResponse, error)
-	// / Retrieves all Node Resolver Map Entry for the specific base SPIFFEID
+	// * Retrieves all Node Resolver Map Entry for the specific base SPIFFEID
 	FetchNodeResolverMapEntry(ctx context.Context, in *FetchNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*FetchNodeResolverMapEntryResponse, error)
-	// / Deletes all Node Resolver Map Entry for the specific base SPIFFEID
+	// * Deletes all Node Resolver Map Entry for the specific base SPIFFEID
 	DeleteNodeResolverMapEntry(ctx context.Context, in *DeleteNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*DeleteNodeResolverMapEntryResponse, error)
-	// / Used for rectifying updated node resolutions
+	// * Used for rectifying updated node resolutions
 	RectifyNodeResolverMapEntries(ctx context.Context, in *RectifyNodeResolverMapEntriesRequest, opts ...grpc.CallOption) (*RectifyNodeResolverMapEntriesResponse, error)
-	// / Creates a Registered Entry
+	// * Creates a Registered Entry
 	CreateRegistrationEntry(ctx context.Context, in *CreateRegistrationEntryRequest, opts ...grpc.CallOption) (*CreateRegistrationEntryResponse, error)
-	// / Retrieve a specific registered entry
+	// * Retrieve a specific registered entry
 	FetchRegistrationEntry(ctx context.Context, in *FetchRegistrationEntryRequest, opts ...grpc.CallOption) (*FetchRegistrationEntryResponse, error)
-	// / Updates a specific registered entry
+	// * Updates a specific registered entry
 	UpdateRegistrationEntry(ctx context.Context, in *UpdateRegistrationEntryRequest, opts ...grpc.CallOption) (*UpdateRegistrationEntryResponse, error)
-	// / Deletes a specific registered entry
+	// * Deletes a specific registered entry
 	DeleteRegistrationEntry(ctx context.Context, in *DeleteRegistrationEntryRequest, opts ...grpc.CallOption) (*DeleteRegistrationEntryResponse, error)
-	// / Retrieves all the  registered entry with the same ParentID
+	// * Retrieves all the  registered entry with the same ParentID
 	ListParentIDEntries(ctx context.Context, in *ListParentIDEntriesRequest, opts ...grpc.CallOption) (*ListParentIDEntriesResponse, error)
-	// / Retrieves all the  registered entry with the same Selector
+	// * Retrieves all the  registered entry with the same Selector
 	ListSelectorEntries(ctx context.Context, in *ListSelectorEntriesRequest, opts ...grpc.CallOption) (*ListSelectorEntriesResponse, error)
-	// / Retrieves all the  registered entry with the same SpiffeId
+	// * Retrieves all the  registered entry with the same SpiffeId
 	ListSpiffeEntries(ctx context.Context, in *ListSpiffeEntriesRequest, opts ...grpc.CallOption) (*ListSpiffeEntriesResponse, error)
-	// / Applies the plugin configuration
+	// * Applies the plugin configuration
 	Configure(ctx context.Context, in *spire_common_plugin.ConfigureRequest, opts ...grpc.CallOption) (*spire_common_plugin.ConfigureResponse, error)
-	// / Returns the version and related metadata of the installed plugin
+	// * Returns the version and related metadata of the installed plugin
 	GetPluginInfo(ctx context.Context, in *spire_common_plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*spire_common_plugin.GetPluginInfoResponse, error)
 }
 
@@ -1397,49 +1445,49 @@ func (c *dataStoreClient) GetPluginInfo(ctx context.Context, in *spire_common_pl
 // Server API for DataStore service
 
 type DataStoreServer interface {
-	// / Creates a Federated Bundle
+	// * Creates a Federated Bundle
 	CreateFederatedEntry(context.Context, *CreateFederatedEntryRequest) (*CreateFederatedEntryResponse, error)
-	// / List all Federated SPIFFE IDs
+	// * List all Federated SPIFFE IDs
 	ListFederatedEntry(context.Context, *ListFederatedEntryRequest) (*ListFederatedEntryResponse, error)
-	// / Updates the specified Federated Bundle
+	// * Updates the specified Federated Bundle
 	UpdateFederatedEntry(context.Context, *UpdateFederatedEntryRequest) (*UpdateFederatedEntryResponse, error)
-	// / Deletes the specified Federated Bundle
+	// * Deletes the specified Federated Bundle
 	DeleteFederatedEntry(context.Context, *DeleteFederatedEntryRequest) (*DeleteFederatedEntryResponse, error)
-	// / Creates an Attested Node Entry
+	// * Creates an Attested Node Entry
 	CreateAttestedNodeEntry(context.Context, *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error)
-	// / Retrieves the Attested Node Entry
+	// * Retrieves the Attested Node Entry
 	FetchAttestedNodeEntry(context.Context, *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error)
-	// / Retrieves dead nodes for which the base SVID has expired
+	// * Retrieves dead nodes for which the base SVID has expired
 	FetchStaleNodeEntries(context.Context, *FetchStaleNodeEntriesRequest) (*FetchStaleNodeEntriesResponse, error)
-	// / Updates the Attested Node Entry
+	// * Updates the Attested Node Entry
 	UpdateAttestedNodeEntry(context.Context, *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error)
-	// / Deletes the Attested Node Entry
+	// * Deletes the Attested Node Entry
 	DeleteAttestedNodeEntry(context.Context, *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error)
-	// / Creates a Node resolver map Entry
+	// * Creates a Node resolver map Entry
 	CreateNodeResolverMapEntry(context.Context, *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error)
-	// / Retrieves all Node Resolver Map Entry for the specific base SPIFFEID
+	// * Retrieves all Node Resolver Map Entry for the specific base SPIFFEID
 	FetchNodeResolverMapEntry(context.Context, *FetchNodeResolverMapEntryRequest) (*FetchNodeResolverMapEntryResponse, error)
-	// / Deletes all Node Resolver Map Entry for the specific base SPIFFEID
+	// * Deletes all Node Resolver Map Entry for the specific base SPIFFEID
 	DeleteNodeResolverMapEntry(context.Context, *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error)
-	// / Used for rectifying updated node resolutions
+	// * Used for rectifying updated node resolutions
 	RectifyNodeResolverMapEntries(context.Context, *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error)
-	// / Creates a Registered Entry
+	// * Creates a Registered Entry
 	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
-	// / Retrieve a specific registered entry
+	// * Retrieve a specific registered entry
 	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
-	// / Updates a specific registered entry
+	// * Updates a specific registered entry
 	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
-	// / Deletes a specific registered entry
+	// * Deletes a specific registered entry
 	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
-	// / Retrieves all the  registered entry with the same ParentID
+	// * Retrieves all the  registered entry with the same ParentID
 	ListParentIDEntries(context.Context, *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error)
-	// / Retrieves all the  registered entry with the same Selector
+	// * Retrieves all the  registered entry with the same Selector
 	ListSelectorEntries(context.Context, *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
-	// / Retrieves all the  registered entry with the same SpiffeId
+	// * Retrieves all the  registered entry with the same SpiffeId
 	ListSpiffeEntries(context.Context, *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error)
-	// / Applies the plugin configuration
+	// * Applies the plugin configuration
 	Configure(context.Context, *spire_common_plugin.ConfigureRequest) (*spire_common_plugin.ConfigureResponse, error)
-	// / Returns the version and related metadata of the installed plugin
+	// * Returns the version and related metadata of the installed plugin
 	GetPluginInfo(context.Context, *spire_common_plugin.GetPluginInfoRequest) (*spire_common_plugin.GetPluginInfoResponse, error)
 }
 

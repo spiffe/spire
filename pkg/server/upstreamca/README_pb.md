@@ -70,12 +70,13 @@ Represents the plugin-specific configuration string.
 <a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
@@ -184,9 +185,7 @@ Represents the plugin metadata.
 <p align="right"><a href="#top">Top</a></p>
 
 ## upstreamca.proto
-Responsible for processing Certificate Signing Requests for intermediate signing certificates
-(or from Node Agents if the user does not want the Control Plane to retain signing material).
-This plugin will manage/own the Trust Bundles for the Control Plane, and act as the interface for upstream CAs.
+
 
 
 <a name="spire.server.upstreamca.SubmitCSRRequest"/>

@@ -2,36 +2,53 @@ syntax = "proto3";
 package spire.common;
 option go_package = "common";
 
-/**Represents an empty message*/
+/** Represents an empty message */
 message Empty {}
 
-/**A type which contains attestation data for specific platform.*/
+/** A type which contains attestation data for specific platform. */
 message AttestedData {
-    string type = 1; ///Type of attestation to perform.
-    bytes data = 2; ///The attestetion data.
+    /** Type of attestation to perform. */
+    string type = 1;
+    /** The attestetion data. */
+    bytes data = 2;
 }
 
-/**A type which describes the conditions under which a registration entry is matched.*/
+/** A type which describes the conditions under which a registration
+entry is matched. */
 message Selector {
-    string type = 1; ///A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8).
-    string value = 2; ///The value to be attested.
+    /** A selector type represents the type of attestation used in attesting
+    the entity (Eg: AWS, K8). */
+    string type = 1;
+    /** The value to be attested. */
+    string value = 2;
 }
 
-/**Represents a type with a list of NodeResolution.*/
+/** Represents a type with a list of NodeResolution. */
 message Selectors {
-    repeated Selector entries = 1; ///A list of NodeResolution.
+    /** A list of NodeResolution. */
+    repeated Selector entries = 1;
 }
 
-/**This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.*/
+/** This is a curated record that the Control Plane uses to set up and
+manage the various registered nodes and workloads that are controlled by it. */
 message RegistrationEntry {
-    repeated Selector selectors = 1; ///A list of selectors.
-    string parent_id = 2; ///The SPIFFE ID of an entity that is authorized to attest the validity of a selector
-    string spiffe_id = 3; ///The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path.
-    int32 ttl = 4; ///Time to live.
-    repeated string fb_spiffe_ids = 5; ///A list of federated bundle spiffe ids.
+    /** A list of selectors. */
+    repeated Selector selectors = 1;
+    /** The SPIFFE ID of an entity that is authorized to attest the validity
+    of a selector */
+    string parent_id = 2;
+    /** The SPIFFE ID is a structured string used to identify a resource or
+    caller. It is defined as a URI comprising a “trust domain” and an
+    associated path. */
+    string spiffe_id = 3;
+    /** Time to live. */
+    int32 ttl = 4;
+    /** A list of federated bundle spiffe ids. */
+    repeated string fb_spiffe_ids = 5;
 }
 
-/**A list of registration entries.*/
+/** A list of registration entries. */
 message RegistrationEntries {
-    repeated RegistrationEntry entries = 1; ///A list of RegistrationEntry.
+    /** A list of RegistrationEntry. */
+    repeated RegistrationEntry entries = 1;
 }

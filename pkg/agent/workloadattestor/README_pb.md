@@ -70,12 +70,13 @@ Represents the plugin-specific configuration string.
 <a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
@@ -184,7 +185,7 @@ Represents the plugin metadata.
 <p align="right"><a href="#top">Top</a></p>
 
 ## workloadattestor.proto
-Environment specific plugin to attest a workloads “selector” data.
+
 
 
 <a name="spire.agent.workloadattestor.AttestRequest"/>

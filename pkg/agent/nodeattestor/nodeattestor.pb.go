@@ -232,7 +232,7 @@ func (m *StopReply) Reset()         { (*spire_common_plugin.StopReply)(m).Reset(
 func (m *StopReply) String() string { return (*spire_common_plugin.StopReply)(m).String() }
 func (*StopReply) ProtoMessage()    {}
 
-// * Represents an empty request.
+// * Represents an empty request
 type FetchAttestationDataRequest struct {
 }
 
@@ -241,10 +241,12 @@ func (m *FetchAttestationDataRequest) String() string            { return proto.
 func (*FetchAttestationDataRequest) ProtoMessage()               {}
 func (*FetchAttestationDataRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
-// * Represents the attested data and base SPIFFE ID.
+// * Represents the attested data and base SPIFFE ID
 type FetchAttestationDataResponse struct {
+	// * A type which contains attestation data for specific platform
 	AttestedData *spire_common.AttestedData `protobuf:"bytes,1,opt,name=attestedData" json:"attestedData,omitempty"`
-	SpiffeId     string                     `protobuf:"bytes,2,opt,name=spiffeId" json:"spiffeId,omitempty"`
+	// * SPIFFE ID
+	SpiffeId string `protobuf:"bytes,2,opt,name=spiffeId" json:"spiffeId,omitempty"`
 }
 
 func (m *FetchAttestationDataResponse) Reset()                    { *m = FetchAttestationDataResponse{} }
@@ -282,11 +284,11 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for NodeAttestor service
 
 type NodeAttestorClient interface {
-	// / Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation.
+	// * Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation
 	FetchAttestationData(ctx context.Context, in *FetchAttestationDataRequest, opts ...grpc.CallOption) (*FetchAttestationDataResponse, error)
-	// / Applies the plugin configuration and returns configuration errors.
+	// * Applies the plugin configuration and returns configuration errors
 	Configure(ctx context.Context, in *spire_common_plugin.ConfigureRequest, opts ...grpc.CallOption) (*spire_common_plugin.ConfigureResponse, error)
-	// / Returns the version and related metadata of the plugin.
+	// * Returns the version and related metadata of the plugin
 	GetPluginInfo(ctx context.Context, in *spire_common_plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*spire_common_plugin.GetPluginInfoResponse, error)
 }
 
@@ -328,11 +330,11 @@ func (c *nodeAttestorClient) GetPluginInfo(ctx context.Context, in *spire_common
 // Server API for NodeAttestor service
 
 type NodeAttestorServer interface {
-	// / Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation.
+	// * Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation
 	FetchAttestationData(context.Context, *FetchAttestationDataRequest) (*FetchAttestationDataResponse, error)
-	// / Applies the plugin configuration and returns configuration errors.
+	// * Applies the plugin configuration and returns configuration errors
 	Configure(context.Context, *spire_common_plugin.ConfigureRequest) (*spire_common_plugin.ConfigureResponse, error)
-	// / Returns the version and related metadata of the plugin.
+	// * Returns the version and related metadata of the plugin
 	GetPluginInfo(context.Context, *spire_common_plugin.GetPluginInfoRequest) (*spire_common_plugin.GetPluginInfoResponse, error)
 }
 

@@ -171,12 +171,13 @@ Represents the plugin-specific configuration string.
 <a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
@@ -332,14 +333,15 @@ A list of registration entries.
 <a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
-This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+This is a curated record that the Control Plane uses to set up and
+manage the various registered nodes and workloads that are controlled by it.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validityof a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource orcaller. It is defined as a URI comprising a “trust domain” and anassociated path. |
 | ttl | [int32](#int32) |  | Time to live. |
 | fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
 
@@ -351,12 +353,13 @@ This is a curated record that the Control Plane uses to set up and manage the va
 <a name="spire.common.Selector"/>
 
 ### Selector
-A type which describes the conditions under which a registration entry is matched.
+A type which describes the conditions under which a registration
+entry is matched.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attestingthe entity (Eg: AWS, K8). |
 | value | [string](#string) |  | The value to be attested. |
 
 
@@ -398,9 +401,9 @@ Represents a type with a list of NodeResolution.
 <a name="spire.server.datastore.AttestedNodeEntry"/>
 
 ### AttestedNodeEntry
-Represents a single entry in AttestedNodes and stores the node&#39;s SPIFFE ID, the
-type of attestation it performed, as well as the serial number and expiration date
-of its node SVID.
+Represents a single entry in AttestedNodes and stores the node&#39;s
+SPIFFE ID, the type of attestation it performed, as well as the serial
+number and expiration date of its node SVID.
 
 
 | Field | Type | Label | Description |
@@ -463,7 +466,7 @@ Represents a Federated bundle
 <a name="spire.server.datastore.CreateFederatedEntryResponse"/>
 
 ### CreateFederatedEntryResponse
-Empty
+Empty response
 
 
 
@@ -717,7 +720,8 @@ Represents a Spiffe ID
 <a name="spire.server.datastore.FetchNodeResolverMapEntryResponse"/>
 
 ### FetchNodeResolverMapEntryResponse
-Represents a list of Node resolver map entries for the specified Spiffe ID
+Represents a list of Node resolver map entries for the specified
+Spiffe ID
 
 
 | Field | Type | Label | Description |
@@ -762,7 +766,7 @@ Represents a Registration entry
 <a name="spire.server.datastore.FetchStaleNodeEntriesRequest"/>
 
 ### FetchStaleNodeEntriesRequest
-Empty
+Empty Request
 
 
 
@@ -787,7 +791,7 @@ Represents dead nodes for which the base SVID has expired
 <a name="spire.server.datastore.ListFederatedEntryRequest"/>
 
 ### ListFederatedEntryRequest
-Empty
+Empty Request
 
 
 
@@ -827,7 +831,8 @@ Represents a Parent ID
 <a name="spire.server.datastore.ListParentIDEntriesResponse"/>
 
 ### ListParentIDEntriesResponse
-Represents a list of Registered entries with the specified Parent ID
+Represents a list of Registered entries with the specified Parent
+ID
 
 
 | Field | Type | Label | Description |
@@ -877,7 +882,7 @@ Represents a Spiffe ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  | Spiffe ID |
+| spiffeId | [string](#string) |  | SPIFFE ID |
 
 
 
@@ -902,8 +907,8 @@ Represents a list of Registered entries with the specified Spiffe ID
 <a name="spire.server.datastore.NodeResolverMapEntry"/>
 
 ### NodeResolverMapEntry
-Represents a single entry in NodeResolverMap and maps node properties to
-logical attributes (i.e. an AWS instance to its ASG).
+Represents a single entry in NodeResolverMap and maps node properties
+to logical attributes (i.e. an AWS instance to its ASG).
 
 
 | Field | Type | Label | Description |
@@ -954,7 +959,7 @@ Represents Attested node entry fields to update
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| baseSpiffeId | [string](#string) |  | Spiffe ID |
+| baseSpiffeId | [string](#string) |  | SPIFFE ID |
 | certSerialNumber | [string](#string) |  | Serial number |
 | certExpirationDate | [string](#string) |  | Expiration date |
 

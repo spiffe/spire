@@ -32,7 +32,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-// *Represents an empty message
+// * Represents an empty message
 type Empty struct {
 }
 
@@ -41,9 +41,11 @@ func (m *Empty) String() string            { return proto.CompactTextString(m) }
 func (*Empty) ProtoMessage()               {}
 func (*Empty) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
-// *A type which contains attestation data for specific platform.
+// * A type which contains attestation data for specific platform.
 type AttestedData struct {
+	// * Type of attestation to perform.
 	Type string `protobuf:"bytes,1,opt,name=type" json:"type,omitempty"`
+	// * The attestetion data.
 	Data []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 }
 
@@ -66,9 +68,13 @@ func (m *AttestedData) GetData() []byte {
 	return nil
 }
 
-// *A type which describes the conditions under which a registration entry is matched.
+// * A type which describes the conditions under which a registration
+// entry is matched.
 type Selector struct {
-	Type  string `protobuf:"bytes,1,opt,name=type" json:"type,omitempty"`
+	// * A selector type represents the type of attestation used in attesting
+	// the entity (Eg: AWS, K8).
+	Type string `protobuf:"bytes,1,opt,name=type" json:"type,omitempty"`
+	// * The value to be attested.
 	Value string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
 }
 
@@ -91,8 +97,9 @@ func (m *Selector) GetValue() string {
 	return ""
 }
 
-// *Represents a type with a list of NodeResolution.
+// * Represents a type with a list of NodeResolution.
 type Selectors struct {
+	// * A list of NodeResolution.
 	Entries []*Selector `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
 }
 
@@ -108,13 +115,22 @@ func (m *Selectors) GetEntries() []*Selector {
 	return nil
 }
 
-// *This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+// * This is a curated record that the Control Plane uses to set up and
+// manage the various registered nodes and workloads that are controlled by it.
 type RegistrationEntry struct {
-	Selectors   []*Selector `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
-	ParentId    string      `protobuf:"bytes,2,opt,name=parent_id,json=parentId" json:"parent_id,omitempty"`
-	SpiffeId    string      `protobuf:"bytes,3,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
-	Ttl         int32       `protobuf:"varint,4,opt,name=ttl" json:"ttl,omitempty"`
-	FbSpiffeIds []string    `protobuf:"bytes,5,rep,name=fb_spiffe_ids,json=fbSpiffeIds" json:"fb_spiffe_ids,omitempty"`
+	// * A list of selectors.
+	Selectors []*Selector `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
+	// * The SPIFFE ID of an entity that is authorized to attest the validity
+	// of a selector
+	ParentId string `protobuf:"bytes,2,opt,name=parent_id,json=parentId" json:"parent_id,omitempty"`
+	// * The SPIFFE ID is a structured string used to identify a resource or
+	// caller. It is defined as a URI comprising a “trust domain” and an
+	// associated path.
+	SpiffeId string `protobuf:"bytes,3,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	// * Time to live.
+	Ttl int32 `protobuf:"varint,4,opt,name=ttl" json:"ttl,omitempty"`
+	// * A list of federated bundle spiffe ids.
+	FbSpiffeIds []string `protobuf:"bytes,5,rep,name=fb_spiffe_ids,json=fbSpiffeIds" json:"fb_spiffe_ids,omitempty"`
 }
 
 func (m *RegistrationEntry) Reset()                    { *m = RegistrationEntry{} }
@@ -157,8 +173,9 @@ func (m *RegistrationEntry) GetFbSpiffeIds() []string {
 	return nil
 }
 
-// *A list of registration entries.
+// * A list of registration entries.
 type RegistrationEntries struct {
+	// * A list of RegistrationEntry.
 	Entries []*RegistrationEntry `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
 }
 

@@ -115,14 +115,15 @@ A list of registration entries.
 <a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
-This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+This is a curated record that the Control Plane uses to set up and
+manage the various registered nodes and workloads that are controlled by it.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validityof a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource orcaller. It is defined as a URI comprising a “trust domain” and anassociated path. |
 | ttl | [int32](#int32) |  | Time to live. |
 | fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
 
@@ -134,12 +135,13 @@ This is a curated record that the Control Plane uses to set up and manage the va
 <a name="spire.common.Selector"/>
 
 ### Selector
-A type which describes the conditions under which a registration entry is matched.
+A type which describes the conditions under which a registration
+entry is matched.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attestingthe entity (Eg: AWS, K8). |
 | value | [string](#string) |  | The value to be attested. |
 
 
@@ -196,12 +198,13 @@ Represents the plugin-specific configuration string.
 <a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
@@ -310,15 +313,13 @@ Represents the plugin metadata.
 <p align="right"><a href="#top">Top</a></p>
 
 ## nodeattestor.proto
-Responsible for attesting the physical nodes identity.
-The plugin will be responsible to retrieve an identity document or data associated with the physical node.
-This data will be used when calling the NodeAPI on the Control Plane.
+
 
 
 <a name="spire.agent.nodeattestor.FetchAttestationDataRequest"/>
 
 ### FetchAttestationDataRequest
-Represents an empty request.
+Represents an empty request
 
 
 
@@ -328,13 +329,13 @@ Represents an empty request.
 <a name="spire.agent.nodeattestor.FetchAttestationDataResponse"/>
 
 ### FetchAttestationDataResponse
-Represents the attested data and base SPIFFE ID.
+Represents the attested data and base SPIFFE ID
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [.spire.common.AttestedData](#spire.agent.nodeattestor..spire.common.AttestedData) |  | A type which contains attestation data for specific platform. |
-| spiffeId | [string](#string) |  | SPIFFE ID. |
+| attestedData | [.spire.common.AttestedData](#spire.agent.nodeattestor..spire.common.AttestedData) |  | A type which contains attestation data for specific platform |
+| spiffeId | [string](#string) |  | SPIFFE ID |
 
 
 
@@ -354,9 +355,9 @@ Represents the attested data and base SPIFFE ID.
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchAttestationData | [FetchAttestationDataRequest](#spire.agent.nodeattestor.FetchAttestationDataRequest) | [FetchAttestationDataResponse](#spire.agent.nodeattestor.FetchAttestationDataRequest) | Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation. |
-| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
-| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
+| FetchAttestationData | [FetchAttestationDataRequest](#spire.agent.nodeattestor.FetchAttestationDataRequest) | [FetchAttestationDataResponse](#spire.agent.nodeattestor.FetchAttestationDataRequest) | Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation |
+| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Applies the plugin configuration and returns configuration errors |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the plugin |
 
  
 

@@ -131,10 +131,13 @@ func (m *RegistrationEntries) GetEntries() []*RegistrationEntry {
 	return s
 }
 
-// *A type which contains the "Spiffe Verifiable Identity Document" and a TTL indicating when the SVID expires.
+// * A type which contains the "Spiffe Verifiable Identity Document" and
+// a TTL indicating when the SVID expires.
 type Svid struct {
+	// * Spiffe Verifiable Identity Document.
 	SvidCert []byte `protobuf:"bytes,1,opt,name=svid_cert,json=svidCert,proto3" json:"svid_cert,omitempty"`
-	Ttl      int32  `protobuf:"varint,2,opt,name=ttl" json:"ttl,omitempty"`
+	// * SVID expiration.
+	Ttl int32 `protobuf:"varint,2,opt,name=ttl" json:"ttl,omitempty"`
 }
 
 func (m *Svid) Reset()                    { *m = Svid{} }
@@ -156,10 +159,14 @@ func (m *Svid) GetTtl() int32 {
 	return 0
 }
 
-// *A message returned by the Spire Server, which includes a map of signed SVIDs and
+// * A message returned by the Spire Server, which includes a map of signed SVIDs and
 // a list of all current Registration Entries which are relevant to the caller SPIFFE ID.
 type SvidUpdate struct {
-	Svids               map[string]*Svid                  `protobuf:"bytes,1,rep,name=svids" json:"svids,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// * A map containing SVID values and corresponding SPIFFE IDs as the
+	// keys. Map[SPIFFE_ID] => SVID.
+	Svids map[string]*Svid `protobuf:"bytes,1,rep,name=svids" json:"svids,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// * A type representing a curated record that the Spire Server uses to set up
+	// and manage the various registered nodes and workloads that are controlled by it.
 	RegistrationEntries []*spire_common.RegistrationEntry `protobuf:"bytes,2,rep,name=registration_entries,json=registrationEntries" json:"registration_entries,omitempty"`
 }
 
@@ -182,10 +189,12 @@ func (m *SvidUpdate) GetRegistrationEntries() []*spire_common.RegistrationEntry 
 	return nil
 }
 
-// *Represents a request to attest the node.
+// * Represents a request to attest the node.
 type FetchBaseSVIDRequest struct {
+	// * A type which contains attestation data for specific platform.
 	AttestedData *spire_common.AttestedData `protobuf:"bytes,1,opt,name=attested_data,json=attestedData" json:"attested_data,omitempty"`
-	Csr          []byte                     `protobuf:"bytes,2,opt,name=csr,proto3" json:"csr,omitempty"`
+	// * Certificate signing request.
+	Csr []byte `protobuf:"bytes,2,opt,name=csr,proto3" json:"csr,omitempty"`
 }
 
 func (m *FetchBaseSVIDRequest) Reset()                    { *m = FetchBaseSVIDRequest{} }
@@ -207,8 +216,11 @@ func (m *FetchBaseSVIDRequest) GetCsr() []byte {
 	return nil
 }
 
-// *Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID
+// * Represents a response that contains  map of signed SVIDs and an array of
+// all current Registration Entries which are relevant to the caller SPIFFE ID
 type FetchBaseSVIDResponse struct {
+	// * It includes a map of signed SVIDs and an array of all current
+	// Registration Entries which are relevant to the caller SPIFFE ID.
 	SvidUpdate *SvidUpdate `protobuf:"bytes,1,opt,name=svid_update,json=svidUpdate" json:"svid_update,omitempty"`
 }
 
@@ -224,8 +236,9 @@ func (m *FetchBaseSVIDResponse) GetSvidUpdate() *SvidUpdate {
 	return nil
 }
 
-// *Represents a request with a list of CSR.
+// * Represents a request with a list of CSR.
 type FetchSVIDRequest struct {
+	// * A list of CSRs
 	Csrs [][]byte `protobuf:"bytes,2,rep,name=csrs,proto3" json:"csrs,omitempty"`
 }
 
@@ -241,8 +254,11 @@ func (m *FetchSVIDRequest) GetCsrs() [][]byte {
 	return nil
 }
 
-// *Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
+// * Represents a response that contains  map of signed SVIDs and an array
+// of all current Registration Entries which are relevant to the caller SPIFFE ID.
 type FetchSVIDResponse struct {
+	// * It includes a map of signed SVIDs and an array of all current Registration
+	// Entries which are relevant to the caller SPIFFE ID.
 	SvidUpdate *SvidUpdate `protobuf:"bytes,1,opt,name=svid_update,json=svidUpdate" json:"svid_update,omitempty"`
 }
 
@@ -258,7 +274,7 @@ func (m *FetchSVIDResponse) GetSvidUpdate() *SvidUpdate {
 	return nil
 }
 
-// *Represents an empty message.
+// * Represents an empty message.
 type FetchCPBundleRequest struct {
 }
 
@@ -267,8 +283,9 @@ func (m *FetchCPBundleRequest) String() string            { return proto.Compact
 func (*FetchCPBundleRequest) ProtoMessage()               {}
 func (*FetchCPBundleRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
 
-// *Represents a response with a Spire Server certificate bundle.
+// * Represents a response with a Spire Server certificate bundle.
 type FetchCPBundleResponse struct {
+	// * Spire Server certificate bundle.
 	ServerBundle []byte `protobuf:"bytes,1,opt,name=server_bundle,json=serverBundle,proto3" json:"server_bundle,omitempty"`
 }
 
@@ -284,8 +301,9 @@ func (m *FetchCPBundleResponse) GetServerBundle() []byte {
 	return nil
 }
 
-// *Represents a request with an array of SPIFFE Ids.
+// * Represents a request with an array of SPIFFE Ids.
 type FetchFederatedBundleRequest struct {
+	// * An array of SPIFFE Ids.
 	SpiffeId []string `protobuf:"bytes,1,rep,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
 }
 
@@ -301,8 +319,9 @@ func (m *FetchFederatedBundleRequest) GetSpiffeId() []string {
 	return nil
 }
 
-// *Represents a response with a map of SPIFFE Id, Federated CA Bundle.
+// * Represents a response with a map of SPIFFE Id, Federated CA Bundle.
 type FetchFederatedBundleResponse struct {
+	// * Map [ SPIFFE ID ] => Federated CA Bundle
 	FederatedBundles map[string][]byte `protobuf:"bytes,1,rep,name=federated_bundles,json=federatedBundles" json:"federated_bundles,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -342,16 +361,16 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for Node service
 
 type NodeClient interface {
-	// /Attest the node, get base node SVID.
+	// * Attest the node, get base node SVID.
 	FetchBaseSVID(ctx context.Context, in *FetchBaseSVIDRequest, opts ...grpc.CallOption) (*FetchBaseSVIDResponse, error)
-	// /Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
-	// /(Base Node SVID or the Registered Node SVID used for this call)
-	// /(List can be empty to allow Node Agent cache refresh).
+	// * Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
+	// Base Node SVID or the Registered Node SVID used for this call)
+	// List can be empty to allow Node Agent cache refresh).
 	FetchSVID(ctx context.Context, in *FetchSVIDRequest, opts ...grpc.CallOption) (*FetchSVIDResponse, error)
-	// /Called by Node Agent periodically to support Spire Server certificate rotation. Cached in Node Agent memory for WorkLoads as well.
+	// * Called by Node Agent periodically to support Spire Server certificate
+	// rotation. Cached in Node Agent memory for WorkLoads as well.
 	FetchCPBundle(ctx context.Context, in *FetchCPBundleRequest, opts ...grpc.CallOption) (*FetchCPBundleResponse, error)
-	// /Called by the Node Agent to fetch the named Federated CA Bundle.
-	// /Used in the event that authorized workloads reference a Federated Bundle.
+	// * Used in the event that authorized workloads reference a Federated Bundle.
 	FetchFederatedBundle(ctx context.Context, in *FetchFederatedBundleRequest, opts ...grpc.CallOption) (*FetchFederatedBundleResponse, error)
 }
 
@@ -402,16 +421,16 @@ func (c *nodeClient) FetchFederatedBundle(ctx context.Context, in *FetchFederate
 // Server API for Node service
 
 type NodeServer interface {
-	// /Attest the node, get base node SVID.
+	// * Attest the node, get base node SVID.
 	FetchBaseSVID(context.Context, *FetchBaseSVIDRequest) (*FetchBaseSVIDResponse, error)
-	// /Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
-	// /(Base Node SVID or the Registered Node SVID used for this call)
-	// /(List can be empty to allow Node Agent cache refresh).
+	// * Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
+	// Base Node SVID or the Registered Node SVID used for this call)
+	// List can be empty to allow Node Agent cache refresh).
 	FetchSVID(context.Context, *FetchSVIDRequest) (*FetchSVIDResponse, error)
-	// /Called by Node Agent periodically to support Spire Server certificate rotation. Cached in Node Agent memory for WorkLoads as well.
+	// * Called by Node Agent periodically to support Spire Server certificate
+	// rotation. Cached in Node Agent memory for WorkLoads as well.
 	FetchCPBundle(context.Context, *FetchCPBundleRequest) (*FetchCPBundleResponse, error)
-	// /Called by the Node Agent to fetch the named Federated CA Bundle.
-	// /Used in the event that authorized workloads reference a Federated Bundle.
+	// * Used in the event that authorized workloads reference a Federated Bundle.
 	FetchFederatedBundle(context.Context, *FetchFederatedBundleRequest) (*FetchFederatedBundleResponse, error)
 }
 

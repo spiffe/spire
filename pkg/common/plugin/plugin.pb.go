@@ -41,6 +41,7 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 // * Represents the plugin-specific configuration string.
 type ConfigureRequest struct {
+	// * The configuration for the plugin.
 	Configuration string `protobuf:"bytes,1,opt,name=configuration" json:"configuration,omitempty"`
 }
 
@@ -56,8 +57,10 @@ func (m *ConfigureRequest) GetConfiguration() string {
 	return ""
 }
 
-// * Represents a list of configuration problems found in the configuration string.
+// * Represents a list of configuration problems
+// found in the configuration string.
 type ConfigureResponse struct {
+	// * A list of errors
 	ErrorList []string `protobuf:"bytes,1,rep,name=errorList" json:"errorList,omitempty"`
 }
 

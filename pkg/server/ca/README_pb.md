@@ -82,12 +82,13 @@ Represents the plugin-specific configuration string.
 <a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
@@ -196,8 +197,7 @@ Represents the plugin metadata.
 <p align="right"><a href="#top">Top</a></p>
 
 ## ca.proto
-Responsible for processing CSR requests from Node Agents if the Control Plane is configured to carry an intermediate signing certificate.
-This plugin is also responsible for generating the CSR necessary for an intermediate signing cert, as well as storing the key in memory or hardware.
+
 
 
 <a name="spire.server.ca.FetchCertificateRequest"/>
@@ -318,12 +318,12 @@ Represents a response with a signed certificate.
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
 | SignCsr | [SignCsrRequest](#spire.server.ca.SignCsrRequest) | [SignCsrResponse](#spire.server.ca.SignCsrRequest) | Interface will take in a CSR and sign it with the stored intermediate certificate. |
 | GenerateCsr | [GenerateCsrRequest](#spire.server.ca.GenerateCsrRequest) | [GenerateCsrResponse](#spire.server.ca.GenerateCsrRequest) | Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. |
 | FetchCertificate | [FetchCertificateRequest](#spire.server.ca.FetchCertificateRequest) | [FetchCertificateResponse](#spire.server.ca.FetchCertificateRequest) | Used to read the stored Intermediate CP cert. |
 | LoadCertificate | [LoadCertificateRequest](#spire.server.ca.LoadCertificateRequest) | [LoadCertificateResponse](#spire.server.ca.LoadCertificateRequest) | Used for setting/storing the signed intermediate certificate. |
+| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
 
  
 

@@ -74,12 +74,13 @@ Represents the plugin-specific configuration string.
 <a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
@@ -194,7 +195,7 @@ Represents the plugin metadata.
 <a name="spire.agent.keymanager.FetchPrivateKeyRequest"/>
 
 ### FetchPrivateKeyRequest
-Represents an empty request.
+Represents an empty request
 
 
 
@@ -204,12 +205,12 @@ Represents an empty request.
 <a name="spire.agent.keymanager.FetchPrivateKeyResponse"/>
 
 ### FetchPrivateKeyResponse
-Represents a private key.
+Represents a private key
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| privateKey | [bytes](#bytes) |  | Private key. |
+| privateKey | [bytes](#bytes) |  | Priavte key |
 
 
 
@@ -219,7 +220,7 @@ Represents a private key.
 <a name="spire.agent.keymanager.GenerateKeyPairRequest"/>
 
 ### GenerateKeyPairRequest
-Represents an empty request.
+Represents an empty request
 
 
 
@@ -229,13 +230,13 @@ Represents an empty request.
 <a name="spire.agent.keymanager.GenerateKeyPairResponse"/>
 
 ### GenerateKeyPairResponse
-Represents a public and private key pair.
+Represents a public and private key pair
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| publicKey | [bytes](#bytes) |  | Public key. |
-| privateKey | [bytes](#bytes) |  | Private key. |
+| publicKey | [bytes](#bytes) |  | Public key |
+| privateKey | [bytes](#bytes) |  | Private key |
 
 
 

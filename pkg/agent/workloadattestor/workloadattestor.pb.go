@@ -144,6 +144,7 @@ func (*StopReply) ProtoMessage()    {}
 
 // * Represents the workload PID.
 type AttestRequest struct {
+	// * Workload PID
 	Pid int32 `protobuf:"varint,1,opt,name=pid" json:"pid,omitempty"`
 }
 
@@ -161,6 +162,7 @@ func (m *AttestRequest) GetPid() int32 {
 
 // * Represents a list of selectors resolved for a given PID.
 type AttestResponse struct {
+	// * List of selectors
 	Selectors []string `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
 }
 
@@ -192,11 +194,11 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for WorkloadAttestor service
 
 type WorkloadAttestorClient interface {
-	// / Returns a list of selectors resolved for a given PID
+	// * Returns a list of selectors resolved for a given PID
 	Attest(ctx context.Context, in *AttestRequest, opts ...grpc.CallOption) (*AttestResponse, error)
-	// / Applies the plugin configuration and returns configuration errors
+	// * Applies the plugin configuration and returns configuration errors
 	Configure(ctx context.Context, in *spire_common_plugin.ConfigureRequest, opts ...grpc.CallOption) (*spire_common_plugin.ConfigureResponse, error)
-	// / Returns the version and related metadata of the plugin
+	// * Returns the version and related metadata of the plugin
 	GetPluginInfo(ctx context.Context, in *spire_common_plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*spire_common_plugin.GetPluginInfoResponse, error)
 }
 
@@ -238,11 +240,11 @@ func (c *workloadAttestorClient) GetPluginInfo(ctx context.Context, in *spire_co
 // Server API for WorkloadAttestor service
 
 type WorkloadAttestorServer interface {
-	// / Returns a list of selectors resolved for a given PID
+	// * Returns a list of selectors resolved for a given PID
 	Attest(context.Context, *AttestRequest) (*AttestResponse, error)
-	// / Applies the plugin configuration and returns configuration errors
+	// * Applies the plugin configuration and returns configuration errors
 	Configure(context.Context, *spire_common_plugin.ConfigureRequest) (*spire_common_plugin.ConfigureResponse, error)
-	// / Returns the version and related metadata of the plugin
+	// * Returns the version and related metadata of the plugin
 	GetPluginInfo(context.Context, *spire_common_plugin.GetPluginInfoRequest) (*spire_common_plugin.GetPluginInfoResponse, error)
 }
 

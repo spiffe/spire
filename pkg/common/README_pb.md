@@ -77,14 +77,15 @@ A list of registration entries.
 <a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
-This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+This is a curated record that the Control Plane uses to set up and
+manage the various registered nodes and workloads that are controlled by it.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validityof a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource orcaller. It is defined as a URI comprising a “trust domain” and anassociated path. |
 | ttl | [int32](#int32) |  | Time to live. |
 | fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
 
@@ -96,12 +97,13 @@ This is a curated record that the Control Plane uses to set up and manage the va
 <a name="spire.common.Selector"/>
 
 ### Selector
-A type which describes the conditions under which a registration entry is matched.
+A type which describes the conditions under which a registration
+entry is matched.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attestingthe entity (Eg: AWS, K8). |
 | value | [string](#string) |  | The value to be attested. |
 
 

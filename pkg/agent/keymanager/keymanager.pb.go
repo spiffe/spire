@@ -144,7 +144,7 @@ func (m *StopReply) Reset()         { (*spire_common_plugin.StopReply)(m).Reset(
 func (m *StopReply) String() string { return (*spire_common_plugin.StopReply)(m).String() }
 func (*StopReply) ProtoMessage()    {}
 
-// * Represents an empty request.
+// * Represents an empty request
 type GenerateKeyPairRequest struct {
 }
 
@@ -153,9 +153,11 @@ func (m *GenerateKeyPairRequest) String() string            { return proto.Compa
 func (*GenerateKeyPairRequest) ProtoMessage()               {}
 func (*GenerateKeyPairRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
-// * Represents a public and private key pair.
+// * Represents a public and private key pair
 type GenerateKeyPairResponse struct {
-	PublicKey  []byte `protobuf:"bytes,1,opt,name=publicKey,proto3" json:"publicKey,omitempty"`
+	// * Public key
+	PublicKey []byte `protobuf:"bytes,1,opt,name=publicKey,proto3" json:"publicKey,omitempty"`
+	// * Private key
 	PrivateKey []byte `protobuf:"bytes,2,opt,name=privateKey,proto3" json:"privateKey,omitempty"`
 }
 
@@ -178,7 +180,7 @@ func (m *GenerateKeyPairResponse) GetPrivateKey() []byte {
 	return nil
 }
 
-// * Represents an empty request.
+// * Represents an empty request
 type FetchPrivateKeyRequest struct {
 }
 
@@ -187,8 +189,9 @@ func (m *FetchPrivateKeyRequest) String() string            { return proto.Compa
 func (*FetchPrivateKeyRequest) ProtoMessage()               {}
 func (*FetchPrivateKeyRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
-// * Represents a private key.
+// * Represents a private key
 type FetchPrivateKeyResponse struct {
+	// * Priavte key
 	PrivateKey []byte `protobuf:"bytes,1,opt,name=privateKey,proto3" json:"privateKey,omitempty"`
 }
 
@@ -222,13 +225,13 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for KeyManager service
 
 type KeyManagerClient interface {
-	// / Creates a key pair that is bound to hardware.
+	// * Creates a key pair that is bound to hardware.
 	GenerateKeyPair(ctx context.Context, in *GenerateKeyPairRequest, opts ...grpc.CallOption) (*GenerateKeyPairResponse, error)
-	// / Returns previously generated private key. For use after node restarts.
+	// * Returns previously generated private key. For use after node restarts.
 	FetchPrivateKey(ctx context.Context, in *FetchPrivateKeyRequest, opts ...grpc.CallOption) (*FetchPrivateKeyResponse, error)
-	// / Applies the plugin configuration and returns configuration errors.
+	// * Applies the plugin configuration and returns configuration errors.
 	Configure(ctx context.Context, in *spire_common_plugin.ConfigureRequest, opts ...grpc.CallOption) (*spire_common_plugin.ConfigureResponse, error)
-	// / Returns the version and related metadata of the plugin.
+	// * Returns the version and related metadata of the plugin.
 	GetPluginInfo(ctx context.Context, in *spire_common_plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*spire_common_plugin.GetPluginInfoResponse, error)
 }
 
@@ -279,13 +282,13 @@ func (c *keyManagerClient) GetPluginInfo(ctx context.Context, in *spire_common_p
 // Server API for KeyManager service
 
 type KeyManagerServer interface {
-	// / Creates a key pair that is bound to hardware.
+	// * Creates a key pair that is bound to hardware.
 	GenerateKeyPair(context.Context, *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
-	// / Returns previously generated private key. For use after node restarts.
+	// * Returns previously generated private key. For use after node restarts.
 	FetchPrivateKey(context.Context, *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
-	// / Applies the plugin configuration and returns configuration errors.
+	// * Applies the plugin configuration and returns configuration errors.
 	Configure(context.Context, *spire_common_plugin.ConfigureRequest) (*spire_common_plugin.ConfigureResponse, error)
-	// / Returns the version and related metadata of the plugin.
+	// * Returns the version and related metadata of the plugin.
 	GetPluginInfo(context.Context, *spire_common_plugin.GetPluginInfoRequest) (*spire_common_plugin.GetPluginInfoResponse, error)
 }
 

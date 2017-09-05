@@ -40,12 +40,17 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-// * A WLSVIDEntry represents a Workload's SVID and its associated information
+// * A WLSVIDEntry represents a Workload's SVID and its associated
+// information
 type WLSVIDEntry struct {
-	SpiffeId   string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
-	Svid       []byte `protobuf:"bytes,2,opt,name=svid,proto3" json:"svid,omitempty"`
+	// * SPIFFE Id corresponding to the SVID
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
+	// * ASN.1 DER encoded SVID
+	Svid []byte `protobuf:"bytes,2,opt,name=svid,proto3" json:"svid,omitempty"`
+	// * private key corresponding to the SVID
 	PrivateKey []byte `protobuf:"bytes,3,opt,name=privateKey,proto3" json:"privateKey,omitempty"`
-	Ttl        int32  `protobuf:"varint,4,opt,name=ttl" json:"ttl,omitempty"`
+	// * Controls how often a workload associated with this SVID should check back for updates.
+	Ttl int32 `protobuf:"varint,4,opt,name=ttl" json:"ttl,omitempty"`
 }
 
 func (m *WLSVIDEntry) Reset()                    { *m = WLSVIDEntry{} }
@@ -81,11 +86,15 @@ func (m *WLSVIDEntry) GetTtl() int32 {
 	return 0
 }
 
-// * represents cert bundle of a remote control plane for the purposes of trusting remote workloads
+// * Represents cert bundle of a remote control plane for the purposes
+// of trusting remote workloads
 type FederateEntry struct {
-	SpiffeId      string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
+	// * spiffeid of the remote workload
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
+	// * ASN.1 DER encoded cert bundle
 	CaTrustBundle []byte `protobuf:"bytes,2,opt,name=caTrustBundle,proto3" json:"caTrustBundle,omitempty"`
-	Ttl           int32  `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
+	// * Controls how often a workload consuming this cert bundle should check back for updates.
+	Ttl int32 `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
 }
 
 func (m *FederateEntry) Reset()                    { *m = FederateEntry{} }
@@ -114,7 +123,8 @@ func (m *FederateEntry) GetTtl() int32 {
 	return 0
 }
 
-// * represents a workload request for a SVID and the control plane's cert bundle of a specific SPIFFEID
+// * Represents a workload request for a SVID and the control plane's
+// cert bundle of a specific SPIFFEID
 type FetchSVIDBundleRequest struct {
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
 }
@@ -131,12 +141,14 @@ func (m *FetchSVIDBundleRequest) GetSpiffeId() string {
 	return ""
 }
 
-// * represents a response specific to the requesting workload SPIFFEId,
-// Includes the workload's SVID Entry(SVID and its corresponding information )
+// * Represents a response specific to the requesting workload SPIFFEId,
+// Includes the workload's SVID Entry (SVID and its corresponding information)
 // and the Control Plane's trusted cert bundle
 type FetchSVIDBundleResponse struct {
+	// * Workload's SVID Entry
 	WLSVIDEntry *WLSVIDEntry `protobuf:"bytes,1,opt,name=WLSVIDEntry" json:"WLSVIDEntry,omitempty"`
-	CpBundle    []byte       `protobuf:"bytes,2,opt,name=cpBundle,proto3" json:"cpBundle,omitempty"`
+	// * Control Plane's trusted cert bundle
+	CpBundle []byte `protobuf:"bytes,2,opt,name=cpBundle,proto3" json:"cpBundle,omitempty"`
 }
 
 func (m *FetchSVIDBundleResponse) Reset()                    { *m = FetchSVIDBundleResponse{} }
@@ -158,10 +170,13 @@ func (m *FetchSVIDBundleResponse) GetCpBundle() []byte {
 	return nil
 }
 
-// * represents response the includes all the SVIDs the and Control Plane's trusted cert bundle workload
+// * Represents response the includes all the SVIDs the and Control
+// Plane's trusted cert bundle workload
 type FetchSVIDBundlesResponse struct {
+	// * list of Workload SVID entries
 	WLSVIDEntry []*WLSVIDEntry `protobuf:"bytes,1,rep,name=WLSVIDEntry" json:"WLSVIDEntry,omitempty"`
-	CpBundle    []byte         `protobuf:"bytes,2,opt,name=cpBundle,proto3" json:"cpBundle,omitempty"`
+	// * Control Plane's trusted cert bundle
+	CpBundle []byte `protobuf:"bytes,2,opt,name=cpBundle,proto3" json:"cpBundle,omitempty"`
 }
 
 func (m *FetchSVIDBundlesResponse) Reset()                    { *m = FetchSVIDBundlesResponse{} }
@@ -183,7 +198,8 @@ func (m *FetchSVIDBundlesResponse) GetCpBundle() []byte {
 	return nil
 }
 
-// * represents a Federated cert Bundle request corresponding to a specific SPIFFEId
+// * Represents a Federated cert Bundle request corresponding to a
+// specific SPIFFEId
 type FetchFederatedBundleRequest struct {
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
 }
@@ -200,8 +216,10 @@ func (m *FetchFederatedBundleRequest) GetSpiffeId() string {
 	return ""
 }
 
-// * represents cert Bundles that a specific workload's SPIFFEId is registered to trust
+// * represents cert Bundles that a specific workload's SPIFFEId is
+// registered to trust
 type FetchFederatedBundleResponse struct {
+	// * Trusted external CA cert bundles of foreign control planes
 	FederateEntry []*FederateEntry `protobuf:"bytes,1,rep,name=FederateEntry" json:"FederateEntry,omitempty"`
 }
 
@@ -217,8 +235,9 @@ func (m *FetchFederatedBundleResponse) GetFederateEntry() []*FederateEntry {
 	return nil
 }
 
-// * represents all the cert Bundles that a workload is registered to trust
+// * Represents all the cert Bundles that a workload is registered to trust
 type FetchFederatedBundlesResponse struct {
+	// * Trusted external CA cert bundles of foreign control planes
 	FederateEntry []*FederateEntry `protobuf:"bytes,1,rep,name=FederateEntry" json:"FederateEntry,omitempty"`
 }
 
@@ -234,8 +253,7 @@ func (m *FetchFederatedBundlesResponse) GetFederateEntry() []*FederateEntry {
 	return nil
 }
 
-// *
-// @exclude Represents a message with no fields
+// * Represents a message with no fields
 type Empty struct {
 }
 
@@ -267,13 +285,13 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for Workload service
 
 type WorkloadClient interface {
-	// /Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation)
+	// * Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation)
 	FetchSVIDBundle(ctx context.Context, in *FetchSVIDBundleRequest, opts ...grpc.CallOption) (*FetchSVIDBundleResponse, error)
-	// /Requests all SVIDs and cert bundle of the control plane associated with the workload
+	// * Requests all SVIDs and cert bundle of the control plane associated with the workload
 	FetchSVIDBundles(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*FetchSVIDBundlesResponse, error)
-	// /Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation)
+	// * Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation)
 	FetchFederatedBundle(ctx context.Context, in *FetchFederatedBundleRequest, opts ...grpc.CallOption) (*FetchFederatedBundleResponse, error)
-	// /Requests all trusted external CA cert bundles associated with the workload
+	// * Requests all trusted external CA cert bundles associated with the workload
 	FetchFederatedBundles(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*FetchFederatedBundlesResponse, error)
 }
 
@@ -324,13 +342,13 @@ func (c *workloadClient) FetchFederatedBundles(ctx context.Context, in *Empty, o
 // Server API for Workload service
 
 type WorkloadServer interface {
-	// /Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation)
+	// * Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation)
 	FetchSVIDBundle(context.Context, *FetchSVIDBundleRequest) (*FetchSVIDBundleResponse, error)
-	// /Requests all SVIDs and cert bundle of the control plane associated with the workload
+	// * Requests all SVIDs and cert bundle of the control plane associated with the workload
 	FetchSVIDBundles(context.Context, *Empty) (*FetchSVIDBundlesResponse, error)
-	// /Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation)
+	// * Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation)
 	FetchFederatedBundle(context.Context, *FetchFederatedBundleRequest) (*FetchFederatedBundleResponse, error)
-	// /Requests all trusted external CA cert bundles associated with the workload
+	// * Requests all trusted external CA cert bundles associated with the workload
 	FetchFederatedBundles(context.Context, *Empty) (*FetchFederatedBundlesResponse, error)
 }
 

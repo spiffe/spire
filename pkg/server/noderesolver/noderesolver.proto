@@ -1,4 +1,7 @@
-/**Resolves the derived selectors for a given Node Agent. This mapping will be stored, and used to further derive which workloads the Node Agent is authorized to run.*/
+/** Resolves the derived selectors for a given Node Agent. This mapping
+will be stored, and used to further derive which workloads the Node
+Agent is authorized to run. */
+
 syntax = "proto3";
 package spire.server.noderesolver;
 option go_package = "noderesolver";
@@ -6,22 +9,24 @@ option go_package = "noderesolver";
 import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
 import public "github.com/spiffe/sri/pkg/common/common.proto";
 
-service NodeResolver {
-    /**Responsible for configuration of the plugin.*/
-    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
-    /**Returns the  version and related metadata of the installed plugin.*/
-    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
-    /**Retrieves a list of properties reflecting the current state of a particular node(s).*/
-    rpc Resolve(ResolveRequest) returns (ResolveResponse);
-}
-
-/**Represents a request with a list of BaseSPIFFEIDs.*/
+/** Represents a request with a list of BaseSPIFFEIDs. */
 message ResolveRequest {
-    repeated string baseSpiffeIdList = 1; ///A list of BaseSPIFFE Ids.
+    /** A list of BaseSPIFFE Ids. */
+    repeated string baseSpiffeIdList = 1;
 }
 
-/**Represents a response with a map of SPIFFE ID to a list of Selectors.*/
+/** Represents a response with a map of SPIFFE ID to a list of Selectors. */
 message ResolveResponse {
-    map<string, spire.common.Selectors> map = 1; ///Map[SPIFFE_ID] => Selectors.
+    /** Map[SPIFFE_ID] => Selectors. */
+    map<string, spire.common.Selectors> map = 1;
 }
 
+service NodeResolver {
+    /** Retrieves a list of properties reflecting the current state of a particular node(s). */
+    rpc Resolve(ResolveRequest) returns (ResolveResponse);
+
+    /** Responsible for configuration of the plugin. */
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+    /** Returns the  version and related metadata of the installed plugin. */
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+}
