@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -34,12 +35,12 @@ const (
 // options
 type CmdConfig struct {
 	ServerAddress   string
-	ServerPort      string
+	ServerPort      int
 	TrustDomain     string
 	TrustBundlePath string
 
 	BindAddress string
-	BindPort    string
+	BindPort    int
 	DataDir     string
 	PluginDir   string
 	LogFile     string
@@ -50,7 +51,7 @@ type RunCommand struct {
 }
 
 func (*RunCommand) Help() string {
-	return "Usage: spire-agent run"
+	return setOptsFromCLI(newDefaultConfig(), []string{"-h"}).Error()
 }
 
 func (*RunCommand) Run(args []string) int {
@@ -62,7 +63,11 @@ func (*RunCommand) Run(args []string) int {
 		return 1
 	}
 
-	setOptsFromCLI(config)
+	err = setOptsFromCLI(config, args)
+	if err != nil {
+		fmt.Println(err.Error())
+		return 1
+	}
 
 	err = validateConfig(config)
 	if err != nil {
@@ -104,39 +109,47 @@ func setOptsFromFile(c *agent.Config, filePath string) error {
 	return mergeAgentConfig(c, fileConfig)
 }
 
-func setOptsFromCLI(*agent.Config) {
-	// TODO
-	return
+func setOptsFromCLI(c *agent.Config, args []string) error {
+	flags := flag.NewFlagSet("run", flag.ContinueOnError)
+	cmdConfig := &CmdConfig{}
+
+	flags.StringVar(&cmdConfig.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
+	flags.IntVar(&cmdConfig.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
+	flags.StringVar(&cmdConfig.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
+	flags.StringVar(&cmdConfig.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
+	flags.StringVar(&cmdConfig.BindAddress, "bindAddress", "", "Address that the workload API should bind to")
+	flags.IntVar(&cmdConfig.BindPort, "bindPort", 0, "Port number that the workload API should listen on")
+	flags.StringVar(&cmdConfig.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
+	flags.StringVar(&cmdConfig.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
+	flags.StringVar(&cmdConfig.LogFile, "logFile", "", "File to write logs to")
+	flags.StringVar(&cmdConfig.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
+
+	err := flags.Parse(args)
+	if err != nil {
+		return err
+	}
+
+	return mergeAgentConfig(c, cmdConfig)
 }
 
 func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 	// Parse server address
 	if cmd.ServerAddress != "" {
-		serverAddress := net.ParseIP(cmd.ServerAddress)
-		if serverAddress == nil {
-			// ServerAddress is not an IP, try to look it up
-			ips, err := net.LookupIP(cmd.ServerAddress)
-			if err != nil {
-				return err
-			}
-
-			if len(ips) == 0 {
-				return fmt.Errorf("Could not resolve ServerAddress %s", cmd.ServerAddress)
-			}
-			serverAddress = ips[0]
+		ips, err := net.LookupIP(cmd.ServerAddress)
+		if err != nil {
+			return err
 		}
+
+		if len(ips) == 0 {
+			return fmt.Errorf("Could not resolve ServerAddress %s", cmd.ServerAddress)
+		}
+		serverAddress := ips[0]
 
 		orig.ServerAddress.IP = serverAddress
 	}
 
-	// Parse server port
-	if cmd.ServerPort != "" {
-		serverPort, err := strconv.Atoi(cmd.ServerPort)
-		if err != nil {
-			return fmt.Errorf("ServerPort %s is not a valid port number", cmd.ServerPort)
-		}
-
-		orig.ServerAddress.Port = serverPort
+	if cmd.ServerPort != 0 {
+		orig.ServerAddress.Port = cmd.ServerPort
 	}
 
 	if cmd.TrustDomain != "" {
@@ -163,14 +176,8 @@ func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 		orig.BindAddress.IP = ip
 	}
 
-	// Parse bind port
-	if cmd.BindPort != "" {
-		port, err := strconv.Atoi(cmd.BindPort)
-		if err != nil {
-			return fmt.Errorf("BindPort %s is not a valid port number", cmd.BindPort)
-		}
-
-		orig.BindAddress.Port = port
+	if cmd.BindPort != 0 {
+		orig.BindAddress.Port = cmd.BindPort
 	}
 
 	if cmd.DataDir != "" {
