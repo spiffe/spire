@@ -3,8 +3,8 @@ package registration
 import (
 	"context"
 
-	"github.com/spiffe/sri/pkg/common"
 	pb "github.com/spiffe/sri/pkg/api/registration"
+	"github.com/spiffe/sri/pkg/common"
 	"github.com/spiffe/sri/services"
 )
 
