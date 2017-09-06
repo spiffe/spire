@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"encoding/pem"
 	"io/ioutil"
 	"path/filepath"
 	"sync"
@@ -44,9 +45,12 @@ func TestMemory_SubmitValidCSR(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, validCsrFile := range validCsrFiles {
-		csr, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
+		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
 		require.NoError(t, err)
-		resp, err := m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csr})
+		block, rest := pem.Decode(csrPEM)
+		assert.Len(t, rest, 0)
+
+		resp, err := m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: block.Bytes})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 	}
@@ -60,9 +64,12 @@ func TestMemory_SubmitInvalidCSR(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, validCsrFile := range validCsrFiles {
-		csr, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
+		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
 		require.NoError(t, err)
-		resp, err := m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csr})
+		block, rest := pem.Decode(csrPEM)
+		assert.Len(t, rest, 0)
+
+		resp, err := m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: block.Bytes})
 		require.Error(t, err)
 		require.Nil(t, resp)
 	}
