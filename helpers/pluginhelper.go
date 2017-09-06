@@ -184,3 +184,7 @@ func (c *PluginCatalog) Run() (err error) {
 
 	return nil
 }
+
+func (c *PluginCatalog) Stop() {
+	plugin.CleanupClients()
+}

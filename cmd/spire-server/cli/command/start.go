@@ -100,6 +100,7 @@ func (*StartCommand) Run(args []string) int {
 		return -1
 	}
 	pluginCatalog, err := loadPlugins()
+	defer stopPlugins(pluginCatalog, logger)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
@@ -370,4 +371,11 @@ func makeErrorChannel() (errChannel chan error) {
 		errChannel <- fmt.Errorf("%s", <-c)
 	}()
 	return
+}
+
+func stopPlugins(catalog *helpers.PluginCatalog, logger log.Logger) {
+	logger.Log("msg", "Stopping plugins...")
+	if catalog != nil {
+		catalog.Stop()
+	}
 }
