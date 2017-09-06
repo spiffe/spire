@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
 
-	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/sri/pkg/common/plugin"
 	iface "github.com/spiffe/sri/pkg/common/plugin"
@@ -176,7 +175,7 @@ func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 		SignatureAlgorithm: x509.SHA256WithRSA,
 		ExtraExtensions: []pkix.Extension{
 			{
-				Id:       spiffe.OidExtensionSubjectAltName,
+				Id:       uri.OidExtensionSubjectAltName,
 				Value:    uriSans,
 				Critical: false,
 			}},
@@ -238,7 +237,7 @@ func (m *memoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (resp
 		return &ca.LoadCertificateResponse{}, fmt.Errorf("X.509 SVID certificates must have exactly one URI SAN. Found %v URI(s)", len(uris))
 	}
 
-	keyUsageExtensions := spiffe.GetKeyUsageExtensionsFromCertificate(cert)
+	keyUsageExtensions := uri.GetKeyUsageExtensionsFromCertificate(cert)
 
 	if len(keyUsageExtensions) == 0 {
 		return &ca.LoadCertificateResponse{}, errors.New("The Key Usage extension must be set on X.509 SVID certificates")

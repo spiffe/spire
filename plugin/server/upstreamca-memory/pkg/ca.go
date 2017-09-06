@@ -1,8 +1,8 @@
 package pkg
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -45,7 +45,7 @@ type configuration struct {
 type memoryPlugin struct {
 	config *configuration
 
-	key    *rsa.PrivateKey
+	key    *ecdsa.PrivateKey
 	cert   *x509.Certificate
 	serial int64
 
@@ -85,7 +85,7 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 		return nil, errors.New("Invalid cert format: too many certs")
 	}
 
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	key, err := x509.ParseECPrivateKey(block.Bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstrea
 	log.Print("Successfully created certificate")
 
 	return &upstreamca.SubmitCSRResponse{
-		Cert: cert,
+		Cert:                cert,
 		UpstreamTrustBundle: m.cert.Raw,
 	}, nil
 }
