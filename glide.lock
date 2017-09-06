@@ -91,9 +91,10 @@ imports:
   subpackages:
   - context
 - name: github.com/spiffe/go-spiffe
-  version: c2a6010d0a446868425082ab4b070d09fd0c3c16
+  version: 54b546acfa7e75be5935b533f62f8c112a2de1cb
   subpackages:
   - spiffe
+  - tls
   - uri
 - name: golang.org/x/net
   version: 66aacef3dd8a676686c7ae3716979581e8b03c47

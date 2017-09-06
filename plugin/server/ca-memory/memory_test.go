@@ -11,7 +11,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/spire/helpers/testutil"
 	iface "github.com/spiffe/spire/pkg/common/plugin"
@@ -173,7 +172,7 @@ func createWorkloadCSR(t *testing.T) []byte {
 		},
 		ExtraExtensions: []pkix.Extension{
 			{
-				Id:       spiffe.OidExtensionSubjectAltName,
+				Id:       uri.OidExtensionSubjectAltName,
 				Value:    uriSans,
 				Critical: false,
 			}},
