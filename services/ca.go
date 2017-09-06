@@ -2,11 +2,10 @@ package services
 
 import (
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/sri/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/ca"
 )
 
 //CA service interface.
@@ -32,9 +31,8 @@ func (ca *CAImpl) SignCsr(request *ca.SignCsrRequest) (response *ca.SignCsrRespo
 
 //GetSpiffeIDFromCSR extracts an SpiffeID from a CSR
 func (ca *CAImpl) GetSpiffeIDFromCSR(csr []byte) (spiffeID string, err error) {
-	block, _ := pem.Decode(csr)
 	var parsedCSR *x509.CertificateRequest
-	if parsedCSR, err = x509.ParseCertificateRequest(block.Bytes); err != nil {
+	if parsedCSR, err = x509.ParseCertificateRequest(csr); err != nil {
 		return spiffeID, err
 	}
 

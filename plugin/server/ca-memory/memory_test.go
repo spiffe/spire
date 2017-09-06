@@ -11,15 +11,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/sri/helpers/testutil"
-	iface "github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/server/ca"
-	upca "github.com/spiffe/sri/plugin/server/upstreamca-memory/pkg"
+	"github.com/spiffe/spire/helpers/testutil"
+	iface "github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/upstreamca"
+	upca "github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/spiffe/sri/pkg/server/upstreamca"
 )
 
 func TestMemory_Configure(t *testing.T) {
@@ -64,15 +63,17 @@ func TestMemory_LoadValidCertificate(t *testing.T) {
 	m.GenerateCsr(&ca.GenerateCsrRequest{})
 
 	for _, file := range validCertFiles {
-		cert, err := ioutil.ReadFile(filepath.Join(testDataDir, file.Name()))
+		certPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, file.Name()))
 		if assert.NoError(t, err, file.Name()) {
-			_, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: cert})
+			block, rest := pem.Decode(certPEM)
+			assert.Len(t, rest, 0, file.Name())
+			_, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: block.Bytes})
 			assert.NoError(t, err, file.Name())
-		}
 
-		resp, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
-		require.NoError(t, err)
-		require.Equal(t, resp.StoredIntermediateCert, cert)
+			resp, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
+			require.NoError(t, err, file.Name())
+			require.Equal(t, resp.StoredIntermediateCert, block.Bytes, file.Name())
+		}
 	}
 }
 
@@ -85,9 +86,11 @@ func TestMemory_LoadInvalidCertificate(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, file := range invalidCertFiles {
-		cert, err := ioutil.ReadFile(filepath.Join(testDataDir, file.Name()))
+		certPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, file.Name()))
 		if assert.NoError(t, err, file.Name()) {
-			_, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: cert})
+			block, rest := pem.Decode(certPEM)
+			assert.Len(t, rest, 0, file.Name())
+			_, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: block.Bytes})
 			assert.Error(t, err, file.Name())
 		}
 	}
@@ -111,7 +114,7 @@ func TestMemory_bootstrap(t *testing.T) {
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
 	require.NoError(t, err)
 
-	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr:generateCsrResp.Csr})
+	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
 	require.NoError(t, err)
 
 	_, err = m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
@@ -140,7 +143,7 @@ func TestMemory_race(t *testing.T) {
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
 	require.NoError(t, err)
 
-	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr:generateCsrResp.Csr})
+	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
 	require.NoError(t, err)
 
 	wcsr := createWorkloadCSR(t)
@@ -169,7 +172,7 @@ func createWorkloadCSR(t *testing.T) []byte {
 		},
 		ExtraExtensions: []pkix.Extension{
 			{
-				Id:       spiffe.OidExtensionSubjectAltName,
+				Id:       uri.OidExtensionSubjectAltName,
 				Value:    uriSans,
 				Critical: false,
 			}},
@@ -179,8 +182,5 @@ func createWorkloadCSR(t *testing.T) []byte {
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &template, key)
 	require.NoError(t, err)
 
-	return pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE REQUEST",
-		Bytes: csr,
-	})
+	return csr
 }

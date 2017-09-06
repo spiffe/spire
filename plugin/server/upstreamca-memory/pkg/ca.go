@@ -1,8 +1,8 @@
 package pkg
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -18,10 +18,10 @@ import (
 	"github.com/hashicorp/hcl"
 
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/sri/pkg/common/plugin"
-	common "github.com/spiffe/sri/pkg/common/plugin"
-	iface "github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/server/upstreamca"
+	"github.com/spiffe/spire/pkg/common/plugin"
+	common "github.com/spiffe/spire/pkg/common/plugin"
+	iface "github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/server/upstreamca"
 	"log"
 )
 
@@ -45,7 +45,7 @@ type configuration struct {
 type memoryPlugin struct {
 	config *configuration
 
-	key    *rsa.PrivateKey
+	key    *ecdsa.PrivateKey
 	cert   *x509.Certificate
 	serial int64
 
@@ -85,7 +85,7 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 		return nil, errors.New("Invalid cert format: too many certs")
 	}
 
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	key, err := x509.ParseECPrivateKey(block.Bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -177,31 +177,16 @@ func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstrea
 		return nil, err
 	}
 
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: cert,
-	})
-
-	upstreamTrustBundlePEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: m.cert.Raw,
-	})
-
 	log.Print("Successfully created certificate")
 
 	return &upstreamca.SubmitCSRResponse{
-		Cert: certPEM,
-		UpstreamTrustBundle: upstreamTrustBundlePEM,
+		Cert:                cert,
+		UpstreamTrustBundle: m.cert.Raw,
 	}, nil
 }
 
-func ParseSpiffeCsr(csrPEM []byte, trustDomain string) (csr *x509.CertificateRequest, err error) {
-	block, rest := pem.Decode(csrPEM)
-	if len(rest) > 0 {
-		return nil, fmt.Errorf("Invalid CSR format: %s", rest)
-	}
-
-	csr, err = x509.ParseCertificateRequest(block.Bytes)
+func ParseSpiffeCsr(csrDER []byte, trustDomain string) (csr *x509.CertificateRequest, err error) {
+	csr, err = x509.ParseCertificateRequest(csrDER)
 	if err != nil {
 		return nil, err
 	}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"log"
 
-	"github.com/spiffe/sri/helpers"
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/helpers"
+	"github.com/spiffe/spire/pkg/common/plugin"
 )
 
 type ServerService interface {

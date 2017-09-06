@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/endpoint"
-	pb "github.com/spiffe/sri/pkg/api/workload"
+	pb "github.com/spiffe/spire/pkg/api/workload"
 )
 
 // Endpoints collects all of the endpoints that compose an add service. It's

@@ -1,21 +1,24 @@
 syntax = "proto3";
-package sriplugin;
+package spire.common.plugin;
+option go_package = "sriplugin";
 
-/** Represents the plugin-specific configuration string.*/
+/** Represents the plugin-specific configuration string. */
 message ConfigureRequest {
-    string configuration = 1; ///The configuration for the plugin.
+    /** The configuration for the plugin. */
+    string configuration = 1;
 }
 
-/** Represents a list of configuration problems found in the configuration string.*/
+/** Represents a list of configuration problems
+found in the configuration string. */
 message ConfigureResponse {
-    repeated string errorList = 1; ///A list of errors.
+    /** A list of errors */
+    repeated string errorList = 1;
 }
 
-/** Represents an empty request.*/
+/** Represents an empty request. */
 message GetPluginInfoRequest {}
 
-/** Represents the plugin metadata.
-*/
+/** Represents the plugin metadata. */
 message GetPluginInfoResponse {
     string name = 1;
     string category = 2;

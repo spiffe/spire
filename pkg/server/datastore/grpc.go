@@ -1,7 +1,7 @@
 package datastore
 
 import (
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/plugin"
 	"golang.org/x/net/context"
 )
 

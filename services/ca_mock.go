@@ -5,7 +5,7 @@ package services
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	ca "github.com/spiffe/sri/pkg/server/ca"
+	ca "github.com/spiffe/spire/pkg/server/ca"
 )
 
 // Mock of CA interface

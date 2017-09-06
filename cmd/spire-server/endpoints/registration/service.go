@@ -3,9 +3,9 @@ package registration
 import (
 	"context"
 
-	"github.com/spiffe/sri/pkg/common"
-	pb "github.com/spiffe/sri/pkg/api/registration"
-	"github.com/spiffe/sri/services"
+	pb "github.com/spiffe/spire/pkg/api/registration"
+	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/services"
 )
 
 //RegistrationService is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.

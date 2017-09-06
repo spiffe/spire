@@ -9,9 +9,9 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
 
-	"github.com/spiffe/sri/pkg/agent/nodeattestor"
-	"github.com/spiffe/sri/pkg/common"
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/agent/nodeattestor"
+	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/plugin"
 )
 
 type JoinTokenConfig struct {

@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/pkg/server/upstreamca"
-	"github.com/spiffe/sri/plugin/server/upstreamca-memory/pkg"
+	"github.com/spiffe/spire/pkg/server/upstreamca"
+	"github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
 	"log"
 )
 

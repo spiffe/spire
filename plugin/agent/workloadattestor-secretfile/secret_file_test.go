@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/agent/workloadattestor"
+	"github.com/spiffe/spire/pkg/agent/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	"github.com/spiffe/sri/pkg/common"
-	pb "github.com/spiffe/sri/pkg/api/registration"
+	pb "github.com/spiffe/spire/pkg/api/registration"
+	"github.com/spiffe/spire/pkg/common"
 )
 
 type RegistrationServiceMiddleWare func(RegistrationService) RegistrationService

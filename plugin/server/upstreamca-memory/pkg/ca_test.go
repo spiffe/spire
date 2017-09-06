@@ -1,14 +1,15 @@
 package pkg
 
 import (
+	"encoding/pem"
 	"io/ioutil"
 	"path/filepath"
 	"sync"
 	"testing"
 
-	"github.com/spiffe/sri/helpers/testutil"
-	iface "github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/server/upstreamca"
+	"github.com/spiffe/spire/helpers/testutil"
+	iface "github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/server/upstreamca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,9 +45,12 @@ func TestMemory_SubmitValidCSR(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, validCsrFile := range validCsrFiles {
-		csr, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
+		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
 		require.NoError(t, err)
-		resp, err := m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csr})
+		block, rest := pem.Decode(csrPEM)
+		assert.Len(t, rest, 0)
+
+		resp, err := m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: block.Bytes})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 	}
@@ -60,9 +64,12 @@ func TestMemory_SubmitInvalidCSR(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, validCsrFile := range validCsrFiles {
-		csr, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
+		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
 		require.NoError(t, err)
-		resp, err := m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csr})
+		block, rest := pem.Decode(csrPEM)
+		assert.Len(t, rest, 0)
+
+		resp, err := m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: block.Bytes})
 		require.Error(t, err)
 		require.Nil(t, resp)
 	}

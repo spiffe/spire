@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -18,16 +17,17 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/go-spiffe/spiffe"
+
+	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
 
-	"github.com/spiffe/sri/helpers"
-	"github.com/spiffe/sri/pkg/agent/endpoints/server"
-	"github.com/spiffe/sri/pkg/agent/keymanager"
-	"github.com/spiffe/sri/pkg/agent/nodeattestor"
-	"github.com/spiffe/sri/pkg/agent/workloadattestor"
-	"github.com/spiffe/sri/pkg/api/node"
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/helpers"
+	"github.com/spiffe/spire/pkg/agent/endpoints/server"
+	"github.com/spiffe/spire/pkg/agent/keymanager"
+	"github.com/spiffe/spire/pkg/agent/nodeattestor"
+	"github.com/spiffe/spire/pkg/agent/workloadattestor"
+	"github.com/spiffe/spire/pkg/api/node"
+	"github.com/spiffe/spire/pkg/common/plugin"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -72,7 +72,7 @@ type Config struct {
 	ShutdownCh chan struct{}
 
 	// Trust domain and associated CA bundle
-	TrustDomain string
+	TrustDomain url.URL
 	TrustBundle *x509.CertPool
 }
 
@@ -246,12 +246,19 @@ func (a *Agent) Attest() error {
 		return fmt.Errorf("Failed to generate CSR for attestation: %s", err)
 	}
 
-	// Configure TLS
-	// TODO: Pick better options here
-	tlsConfig := &tls.Config{
-		RootCAs: a.Config.TrustBundle,
+	serverID := a.Config.TrustDomain
+	serverID.Path = "spiffe/cp"
+	spiffePeer := &spiffe_tls.TLSPeer{
+		SpiffeIDs:  []string{serverID.String()},
+		TrustRoots: a.Config.TrustBundle,
 	}
+
+	// Configure TLS
+	// Since we are bootstrapping, this is explicitly _not_ mTLS
+	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
+	tlsConfig.ClientAuth = tls.NoClientCert
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+
 	conn, err := grpc.Dial(a.Config.ServerAddress.String(), dialCreds)
 	if err != nil {
 		return fmt.Errorf("Could not connect to: %v", err)
@@ -264,6 +271,7 @@ func (a *Agent) Attest() error {
 		AttestedData: pluginResponse.AttestedData,
 		Csr:          csr,
 	}
+
 	serverResponse, err := c.FetchBaseSVID(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("Failed attestation against spire server: %s", err)
@@ -288,14 +296,14 @@ func (a *Agent) Attest() error {
 
 // Generate a CSR for the given SPIFFE ID
 func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
-	a.Config.Logger.Log("msg", "Generating a CSR for %s", spiffeID.String())
+	a.Config.Logger.Log("msg", "Generating CSR", "SPIFFE_ID", spiffeID.String())
 
 	uriSANs, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
 		return []byte{}, err
 	}
 	uriSANExtension := []pkix.Extension{{
-		Id:       spiffe.OidExtensionSubjectAltName,
+		Id:       uri.OidExtensionSubjectAltName,
 		Value:    uriSANs,
 		Critical: true,
 	}}
@@ -311,7 +319,7 @@ func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
 		return nil, err
 	}
 
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr}), nil
+	return csr, nil
 }
 
 // Read base SVID from data dir and load it
@@ -349,10 +357,8 @@ func (a *Agent) StoreBaseSVID() {
 		return
 	}
 
-	err = pem.Encode(f, &pem.Block{Type: "CERTIFICATE", Bytes: a.BaseSVID})
-	if err != nil {
-		a.Config.Logger.Log("msg", "Unable to store Base SVID at path %s!", certPath)
-	}
+	f.Write(a.BaseSVID)
+	f.Sync()
 
 	return
 }

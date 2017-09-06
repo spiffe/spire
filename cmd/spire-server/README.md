@@ -4,7 +4,7 @@ SPIRE Server is responsible for validating and signing all CSRs in the SPIFFE tr
 
 
 ## Getting started
-[Build the SRI](../README.md#building-the-sri)
+[Build SPIRE](../README.md)
 
 _**Binary is Not Available Yet**_
 Get the latest binary for [OS X](https://get.spiffe.io/osx/controlplane), [Windows](https://get.spiffe.io/windows/controlplane.exe), 
