@@ -7,9 +7,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spiffe/sri/helpers/testutil"
-	iface "github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/server/upstreamca"
+	"github.com/spiffe/spire/helpers/testutil"
+	iface "github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/server/upstreamca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

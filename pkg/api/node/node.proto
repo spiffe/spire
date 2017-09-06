@@ -7,7 +7,7 @@ syntax = "proto3";
 package spire.api.node;
 option go_package = "node";
 
-import public "github.com/spiffe/sri/pkg/common/common.proto";
+import public "github.com/spiffe/spire/pkg/common/common.proto";
 
 /** A type which contains the "Spiffe Verifiable Identity Document" and
 a TTL indicating when the SVID expires.*/

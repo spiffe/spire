@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/sri/cmd/spire-server/cli/command"
+	"github.com/spiffe/spire/cmd/spire-server/cli/command"
 )
 
 func Run(args []string) int {

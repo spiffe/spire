@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	pb "github.com/spiffe/sri/pkg/api/node"
+	pb "github.com/spiffe/spire/pkg/api/node"
 )
 
 type NodeServiceMiddleWare func(NodeService) NodeService

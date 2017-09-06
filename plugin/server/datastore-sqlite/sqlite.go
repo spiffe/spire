@@ -10,9 +10,9 @@ import (
 
 	"time"
 
-	"github.com/spiffe/sri/pkg/common"
-	"github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/server/datastore"
 )
 
 var (
@@ -380,7 +380,7 @@ func (sqlitePlugin) RectifyNodeResolverMapEntries(
 func (ds *sqlitePlugin) CreateRegistrationEntry(
 	request *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 
-	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/sri/issues/44]
+	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
 	if request.RegisteredEntry == nil {
 		return nil, errors.New("Invalid request: missing registered entry")
 	} else if request.RegisteredEntry.Selectors == nil || len(request.RegisteredEntry.Selectors) == 0 {
@@ -396,7 +396,7 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 		SpiffeId:          request.RegisteredEntry.SpiffeId,
 		ParentId:          request.RegisteredEntry.ParentId,
 		Ttl:               request.RegisteredEntry.Ttl,
-		// TODO: Add support to Federated Bundles [https://github.com/spiffe/sri/issues/42]
+		// TODO: Add support to Federated Bundles [https://github.com/spiffe/spire/issues/42]
 	}
 
 	tx := ds.db.Begin()

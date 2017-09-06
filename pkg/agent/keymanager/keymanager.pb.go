@@ -18,7 +18,7 @@ package keymanager
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
-import spire_common_plugin "github.com/spiffe/sri/pkg/common/plugin"
+import spire_common_plugin "github.com/spiffe/spire/pkg/common/plugin"
 
 import (
 	context "golang.org/x/net/context"
@@ -36,7 +36,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-// ConfigureRequest from public import github.com/spiffe/sri/pkg/common/plugin/plugin.proto
+// ConfigureRequest from public import github.com/spiffe/spire/pkg/common/plugin/plugin.proto
 type ConfigureRequest spire_common_plugin.ConfigureRequest
 
 func (m *ConfigureRequest) Reset()         { (*spire_common_plugin.ConfigureRequest)(m).Reset() }
@@ -46,7 +46,7 @@ func (m *ConfigureRequest) GetConfiguration() string {
 	return (*spire_common_plugin.ConfigureRequest)(m).GetConfiguration()
 }
 
-// ConfigureResponse from public import github.com/spiffe/sri/pkg/common/plugin/plugin.proto
+// ConfigureResponse from public import github.com/spiffe/spire/pkg/common/plugin/plugin.proto
 type ConfigureResponse spire_common_plugin.ConfigureResponse
 
 func (m *ConfigureResponse) Reset() { (*spire_common_plugin.ConfigureResponse)(m).Reset() }
@@ -58,7 +58,7 @@ func (m *ConfigureResponse) GetErrorList() []string {
 	return (*spire_common_plugin.ConfigureResponse)(m).GetErrorList()
 }
 
-// GetPluginInfoRequest from public import github.com/spiffe/sri/pkg/common/plugin/plugin.proto
+// GetPluginInfoRequest from public import github.com/spiffe/spire/pkg/common/plugin/plugin.proto
 type GetPluginInfoRequest spire_common_plugin.GetPluginInfoRequest
 
 func (m *GetPluginInfoRequest) Reset() { (*spire_common_plugin.GetPluginInfoRequest)(m).Reset() }
@@ -67,7 +67,7 @@ func (m *GetPluginInfoRequest) String() string {
 }
 func (*GetPluginInfoRequest) ProtoMessage() {}
 
-// GetPluginInfoResponse from public import github.com/spiffe/sri/pkg/common/plugin/plugin.proto
+// GetPluginInfoResponse from public import github.com/spiffe/spire/pkg/common/plugin/plugin.proto
 type GetPluginInfoResponse spire_common_plugin.GetPluginInfoResponse
 
 func (m *GetPluginInfoResponse) Reset() { (*spire_common_plugin.GetPluginInfoResponse)(m).Reset() }
@@ -103,7 +103,7 @@ func (m *GetPluginInfoResponse) GetCompany() string {
 	return (*spire_common_plugin.GetPluginInfoResponse)(m).GetCompany()
 }
 
-// PluginInfoRequest from public import github.com/spiffe/sri/pkg/common/plugin/plugin.proto
+// PluginInfoRequest from public import github.com/spiffe/spire/pkg/common/plugin/plugin.proto
 type PluginInfoRequest spire_common_plugin.PluginInfoRequest
 
 func (m *PluginInfoRequest) Reset() { (*spire_common_plugin.PluginInfoRequest)(m).Reset() }
@@ -112,7 +112,7 @@ func (m *PluginInfoRequest) String() string {
 }
 func (*PluginInfoRequest) ProtoMessage() {}
 
-// PluginInfoReply from public import github.com/spiffe/sri/pkg/common/plugin/plugin.proto
+// PluginInfoReply from public import github.com/spiffe/spire/pkg/common/plugin/plugin.proto
 type PluginInfoReply spire_common_plugin.PluginInfoReply
 
 func (m *PluginInfoReply) Reset()         { (*spire_common_plugin.PluginInfoReply)(m).Reset() }
@@ -130,14 +130,14 @@ func (m *PluginInfoReply) GetPluginInfo() []*GetPluginInfoResponse {
 	return s
 }
 
-// StopRequest from public import github.com/spiffe/sri/pkg/common/plugin/plugin.proto
+// StopRequest from public import github.com/spiffe/spire/pkg/common/plugin/plugin.proto
 type StopRequest spire_common_plugin.StopRequest
 
 func (m *StopRequest) Reset()         { (*spire_common_plugin.StopRequest)(m).Reset() }
 func (m *StopRequest) String() string { return (*spire_common_plugin.StopRequest)(m).String() }
 func (*StopRequest) ProtoMessage()    {}
 
-// StopReply from public import github.com/spiffe/sri/pkg/common/plugin/plugin.proto
+// StopReply from public import github.com/spiffe/spire/pkg/common/plugin/plugin.proto
 type StopReply spire_common_plugin.StopReply
 
 func (m *StopReply) Reset()         { (*spire_common_plugin.StopReply)(m).Reset() }

@@ -7,10 +7,10 @@ import (
 
 	"encoding/json"
 
-	"github.com/spiffe/sri/helpers/testutil"
-	"github.com/spiffe/sri/pkg/common"
-	"github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/server/datastore"
+	"github.com/spiffe/spire/helpers/testutil"
+	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

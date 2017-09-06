@@ -11,8 +11,8 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
 
-	common "github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/server/nodeattestor"
+	common "github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/server/nodeattestor"
 )
 
 type JoinTokenConfig struct {

@@ -6,8 +6,8 @@ syntax = "proto3";
 package spire.server.noderesolver;
 option go_package = "noderesolver";
 
-import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
-import public "github.com/spiffe/sri/pkg/common/common.proto";
+import public "github.com/spiffe/spire/pkg/common/plugin/plugin.proto";
+import public "github.com/spiffe/spire/pkg/common/common.proto";
 
 /** Represents a request with a list of BaseSPIFFEIDs. */
 message ResolveRequest {

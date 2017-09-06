@@ -9,7 +9,7 @@ exposes a local Workload API.
 
 ## Installing the SRI
 
-`go get github.com/spiffe/sri/...` will fetch and build all of the SRI and its
+`go get github.com/spiffe/spire/...` will fetch and build all of the SRI and its
 dependencies and install them in $GOPATH/bin
 
 ## Configuring the SRI
@@ -87,7 +87,7 @@ The agent will run silently in the foreground, logging status to its logfile.
 ## Building the SRI for development
 
 The script `build.sh` manages the build process and can be used for development. It expects
-this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/sri`. It has
+this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/spire`. It has
 been tested on Linux only.
 
 * `build.sh setup` will download and install necessary dependencies (including golang)
@@ -110,7 +110,7 @@ a Dockerfile and accompanying Makefile will get you to a suitable Linux shell.
 ```
 $ make build
 $ make launch
-root@65a22fa2d89f:~/go/src/github.com/spiffe/sri# ./build.sh setup
+root@65a22fa2d89f:~/go/src/github.com/spiffe/spire# ./build.sh setup
 ...
 ```
 

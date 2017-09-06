@@ -39,7 +39,7 @@ type registeredEntry struct {
 	ParentId          string
 	Ttl               int32
 	Selectors         []*selector
-	// TODO: Add support to Federated Bundles [https://github.com/spiffe/sri/issues/42]
+	// TODO: Add support to Federated Bundles [https://github.com/spiffe/spire/issues/42]
 }
 
 type selector struct {

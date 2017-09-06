@@ -3,13 +3,13 @@ package node
 import (
 	"testing"
 
-	"github.com/spiffe/sri/services"
+	"github.com/spiffe/spire/services"
 
 	"github.com/golang/mock/gomock"
-	pb "github.com/spiffe/sri/pkg/api/node"
-	"github.com/spiffe/sri/pkg/common"
-	"github.com/spiffe/sri/pkg/server/ca"
-	"github.com/spiffe/sri/pkg/server/nodeattestor"
+	pb "github.com/spiffe/spire/pkg/api/node"
+	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/stretchr/testify/suite"
 )
 

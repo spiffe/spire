@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/plugin"
 )
 
 //Handshake is a common handshake that is shared by the plugin and host.

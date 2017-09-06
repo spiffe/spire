@@ -5,8 +5,8 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/pkg/common"
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/plugin"
 	"google.golang.org/grpc"
 )
 

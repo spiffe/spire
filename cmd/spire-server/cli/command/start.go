@@ -24,26 +24,26 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/plugin"
 
-	"github.com/spiffe/sri/pkg/server/ca"
-	"github.com/spiffe/sri/pkg/server/datastore"
-	"github.com/spiffe/sri/pkg/server/nodeattestor"
-	"github.com/spiffe/sri/pkg/server/noderesolver"
-	"github.com/spiffe/sri/pkg/server/upstreamca"
+	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/server/nodeattestor"
+	"github.com/spiffe/spire/pkg/server/noderesolver"
+	"github.com/spiffe/spire/pkg/server/upstreamca"
 
-	"github.com/spiffe/sri/cmd/spire-server/endpoints/node"
-	"github.com/spiffe/sri/cmd/spire-server/endpoints/registration"
-	"github.com/spiffe/sri/cmd/spire-server/endpoints/server"
-	nodePB "github.com/spiffe/sri/pkg/api/node"
-	registrationPB "github.com/spiffe/sri/pkg/api/registration"
+	"github.com/spiffe/spire/cmd/spire-server/endpoints/node"
+	"github.com/spiffe/spire/cmd/spire-server/endpoints/registration"
+	"github.com/spiffe/spire/cmd/spire-server/endpoints/server"
+	nodePB "github.com/spiffe/spire/pkg/api/node"
+	registrationPB "github.com/spiffe/spire/pkg/api/registration"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/helpers"
-	"github.com/spiffe/sri/services"
+	"github.com/spiffe/spire/helpers"
+	"github.com/spiffe/spire/services"
 )
 
 const (
