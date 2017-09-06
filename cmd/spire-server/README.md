@@ -12,12 +12,11 @@ or [Linux](https://get.spiffe.io/linux/controlplane) and place it in your `$PATH
 <code>
 `wget -O /usr/local/bin/controlplane https://get.spiffe.io/osx/controlplane && chmod 755 /usr/local/bin/controlplane`
 
-SPIRE-SERVER environment variables:
+SPIRE-SERVER command line options
 
 |Environment variable      | Description                                                |
 |--------------------------|------------------------------------------------------------|
-| `SPIRE_SERVER_CONFIG`    |  Path to the spire-server config file                      |
-| `SPIRE_PLUGIN_CONFIG_DIR`|  Path to the spire-server plugin configurations directory  |
+| `-conf`    |  Path to the spire-server config file                      |
 
 
 SPIRE-SERVER configuration:
@@ -31,9 +30,12 @@ SPIRE-SERVER configuration:
  |registrationAPIHTTPPort|  The HTTP port where the RegistrationAPI Service is set to listen    |
  |logFile                |  Sets the path to log file                                           |
  |logLevel               |  Sets the logging level DEBUG|INFO|WARN|ERROR>                      |
+ |logLevel               |  Sets the logging level DEBUG|INFO|WARN|ERROR>                      |
+ |serverHTTPPort         |  |
+ |serverGRPCPort         |  |
 
 
-[default configuration file](./.conf/default_server_config.hcl) 
+[default configuration file](/conf/server/server.hcl) 
 
 ```
 logFile = "spire-server.log"//<PATH_TO_LOG_FILE>
@@ -45,11 +47,3 @@ registrationAPIHTTPPort ="8089"
 trustDomain = "spiffe://"
 ```
 
-
-SPIRE-SERVER commands:
-
- |Command                   | Action                                                           |
- |--------------------------|------------------------------------------------------------------|
- |`spire-server start`     |  Starts the SPIRE Server                                         |
- |`spire-server plugin-info`|  Lists all currently enabled SPIRE server plugins' information   |
- |`spire-server stop`       |  Stops the SPIRE Server                                          |
