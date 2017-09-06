@@ -64,15 +64,17 @@ func TestMemory_LoadValidCertificate(t *testing.T) {
 	m.GenerateCsr(&ca.GenerateCsrRequest{})
 
 	for _, file := range validCertFiles {
-		cert, err := ioutil.ReadFile(filepath.Join(testDataDir, file.Name()))
+		certPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, file.Name()))
 		if assert.NoError(t, err, file.Name()) {
-			_, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: cert})
+			block, rest := pem.Decode(certPEM)
+			assert.Len(t, rest, 0, file.Name())
+			_, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: block.Bytes})
 			assert.NoError(t, err, file.Name())
-		}
 
-		resp, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
-		require.NoError(t, err)
-		require.Equal(t, resp.StoredIntermediateCert, cert)
+			resp, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
+			require.NoError(t, err, file.Name())
+			require.Equal(t, resp.StoredIntermediateCert, block.Bytes, file.Name())
+		}
 	}
 }
 
@@ -85,9 +87,11 @@ func TestMemory_LoadInvalidCertificate(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, file := range invalidCertFiles {
-		cert, err := ioutil.ReadFile(filepath.Join(testDataDir, file.Name()))
+		certPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, file.Name()))
 		if assert.NoError(t, err, file.Name()) {
-			_, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: cert})
+			block, rest := pem.Decode(certPEM)
+			assert.Len(t, rest, 0, file.Name())
+			_, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: block.Bytes})
 			assert.Error(t, err, file.Name())
 		}
 	}
@@ -179,8 +183,5 @@ func createWorkloadCSR(t *testing.T) []byte {
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &template, key)
 	require.NoError(t, err)
 
-	return pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE REQUEST",
-		Bytes: csr,
-	})
+	return csr
 }

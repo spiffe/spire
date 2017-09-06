@@ -177,31 +177,16 @@ func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstrea
 		return nil, err
 	}
 
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: cert,
-	})
-
-	upstreamTrustBundlePEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: m.cert.Raw,
-	})
-
 	log.Print("Successfully created certificate")
 
 	return &upstreamca.SubmitCSRResponse{
-		Cert: certPEM,
-		UpstreamTrustBundle: upstreamTrustBundlePEM,
+		Cert: cert,
+		UpstreamTrustBundle: m.cert.Raw,
 	}, nil
 }
 
-func ParseSpiffeCsr(csrPEM []byte, trustDomain string) (csr *x509.CertificateRequest, err error) {
-	block, rest := pem.Decode(csrPEM)
-	if len(rest) > 0 {
-		return nil, fmt.Errorf("Invalid CSR format: %s", rest)
-	}
-
-	csr, err = x509.ParseCertificateRequest(block.Bytes)
+func ParseSpiffeCsr(csrDER []byte, trustDomain string) (csr *x509.CertificateRequest, err error) {
+	csr, err = x509.ParseCertificateRequest(csrDER)
 	if err != nil {
 		return nil, err
 	}

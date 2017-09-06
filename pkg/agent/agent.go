@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -292,7 +291,7 @@ func (a *Agent) Attest() error {
 
 // Generate a CSR for the given SPIFFE ID
 func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
-	a.Config.Logger.Log("msg", "Generating a CSR for %s", spiffeID.String())
+	a.Config.Logger.Log("msg", "Generating CSR", "SPIFFE_ID", spiffeID.String())
 
 	uriSANs, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
@@ -315,7 +314,7 @@ func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
 		return nil, err
 	}
 
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr}), nil
+	return csr, nil
 }
 
 // Read base SVID from data dir and load it
@@ -353,10 +352,8 @@ func (a *Agent) StoreBaseSVID() {
 		return
 	}
 
-	err = pem.Encode(f, &pem.Block{Type: "CERTIFICATE", Bytes: a.BaseSVID})
-	if err != nil {
-		a.Config.Logger.Log("msg", "Unable to store Base SVID at path %s!", certPath)
-	}
+	f.Write(a.BaseSVID)
+	f.Sync()
 
 	return
 }
