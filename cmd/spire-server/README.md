@@ -31,8 +31,8 @@ SPIRE-SERVER configuration:
  |logFile                |  Sets the path to log file                                           |
  |logLevel               |  Sets the logging level DEBUG|INFO|WARN|ERROR>                      |
  |logLevel               |  Sets the logging level DEBUG|INFO|WARN|ERROR>                      |
- |serverHTTPPort         |  |
- |serverGRPCPort         |  |
+ |serverHTTPAddr         |  |
+ |serverGRPCAddr         |  |
 
 
 [default configuration file](/conf/server/server.hcl) 

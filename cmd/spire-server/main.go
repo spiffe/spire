@@ -198,11 +198,8 @@ func (s runServer) initEndpoints(config *helpers.ControlPlaneConfig, pluginCatal
 	nodeSvc = node.NewService(node.ServiceConfig{Attestation: attestationService, CA: caService, Identity: identityService})
 	nodeSvc = node.SelectorServiceLoggingMiddleWare(logger)(nodeSvc)
 
-	var (
-		httpAddr = flag.String("http", ":8080", "http listen address")
-		gRPCAddr = flag.String("grpc", ":8081", "gRPC listen address")
-	)
-	flag.Parse()
+    httpAddr := config.ServerHTTPAddr
+    gRPCAddr := config.ServerGRPCAddr
 
 	serverEndpoints := server.Endpoints{
 		PluginInfoEndpoint: server.MakePluginInfoEndpoint(serverSvc),
@@ -236,12 +233,12 @@ func (s runServer) initEndpoints(config *helpers.ControlPlaneConfig, pluginCatal
 	}
 
 	go func() {
-		listener, err := net.Listen("tcp", *gRPCAddr)
+		listener, err := net.Listen("tcp", gRPCAddr)
 		if err != nil {
 			errChan <- err
 			return
 		}
-		logger.Log("grpc:", *gRPCAddr)
+		logger.Log("grpc:", gRPCAddr)
 
 		// TODO: Fix me after server refactor
 		// Get CA Plugin so we can fetch our signing cert
@@ -286,13 +283,13 @@ func (s runServer) initEndpoints(config *helpers.ControlPlaneConfig, pluginCatal
 		mux := runtime.NewServeMux()
 		opt := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 		opts := []grpc.DialOption{opt}
-		logger.Log("http:", *httpAddr)
-		err := registrationPB.RegisterRegistrationHandlerFromEndpoint(ctx, mux, *gRPCAddr, opts)
+		logger.Log("http:", httpAddr)
+		err := registrationPB.RegisterRegistrationHandlerFromEndpoint(ctx, mux, gRPCAddr, opts)
 		if err != nil {
 			errChan <- err
 			return
 		}
-		errChan <- http.ListenAndServe(*httpAddr, mux)
+		errChan <- http.ListenAndServe(httpAddr, mux)
 	}()
 
 	error := <-errChan

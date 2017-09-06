@@ -1,8 +1,8 @@
 logFile = "spire-server.log"
 logLevel = "DEBUG"
 
-serverHTTPPort = "8080"
-serverGRPCPort = "8081"
+serverHTTPAddr = "localhost:9090"
+serverGRPCAddr = "localhost:8081"
 
 nodeAPIGRPCPort = "8081"
 registrationAPIGRPCPort ="8086"
