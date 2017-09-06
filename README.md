@@ -1,24 +1,24 @@
-[![Build Status](https://travis-ci.com/spiffe/sri.svg?token=pXzs6KRAUrxbEXnwHsPs&branch=master)](https://travis-ci.com/spiffe/sri)
-[![Coverage Status](https://coveralls.io/repos/github/spiffe/sri/badge.svg?t=SrV7ye)](https://coveralls.io/github/spiffe/sri)
+[![Build Status](https://travis-ci.com/spiffe/spire.svg?token=pXzs6KRAUrxbEXnwHsPs&branch=master)](https://travis-ci.com/spiffe/spire)
+[![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?t=SrV7ye)](https://coveralls.io/github/spiffe/spire)
 
-# SPIFFE Reference Implementation (SRI)
+# SPIFFE Runtime Environment (SPIRE)
 
 The SPIFFE Reference Implementation provides a toolchain that defines a central registry of
 SPIFFE IDs (the Server), and a Node Agent that can be run adjacent to a workload and
 exposes a local Workload API.
 
-## Installing the SRI
+## Installing SPIRE
 
-`go get github.com/spiffe/spire/...` will fetch and build all of the SRI and its
+`go get github.com/spiffe/spire/...` will fetch and build all of SPIRE and its
 dependencies and install them in $GOPATH/bin
 
-## Configuring the SRI
+## Configuring SPIRE
 
-All SRI component configuration files are in the Hashicorp [HCL](https://github.com/hashicorp/hcl)
+All SPIRE component configuration files are in the Hashicorp [HCL](https://github.com/hashicorp/hcl)
 format. HCL is less verbose than JSON and permits comments. And unlike YAML, it does not suffer
 from the ambiguity of when to use a : versus a -.
 
-The SRI server and agent require a configuration file that includes:
+The SPIRE server and agent require a configuration file that includes:
 
 * `trustDomain` - the SPIFFE trust domain
 * `logFile` - the pathname to the logfile. This logfile is overwritten on every server start
@@ -84,7 +84,7 @@ SPIRE_PLUGIN_CONFIG_DIR=/etc/spire/pluginconf SPIRE_AGENT_CONFIG_PATH=/etc/spire
 The agent will run silently in the foreground, logging status to its logfile.
 
 
-## Building the SRI for development
+## Building SPIRE for development
 
 The script `build.sh` manages the build process and can be used for development. It expects
 this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/spire`. It has
@@ -102,7 +102,7 @@ into the directory `.build/`.
 * `eval $(build.sh env)` will configure GOPATH, GOROOT and PATH for development outside
 of `build.sh`
 
-## Developing the SRI
+## Developing SPIRE
 
 The above-referenced build scripts may be used natively under Linux. For your convenience,
 a Dockerfile and accompanying Makefile will get you to a suitable Linux shell.
