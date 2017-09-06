@@ -15,9 +15,9 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"reflect"
 	"syscall"
-    "path/filepath"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spiffe/go-spiffe/uri"
@@ -71,25 +71,25 @@ var (
 )
 
 type runServer struct {
-    confFile string
+	confFile string
 }
 
 func main() {
-    var confFile string
+	var confFile string
 
-    flag.StringVar(&confFile, "conf", DefaultServerConfigPath, "Path to configuration file")
-    flag.Parse()
+	flag.StringVar(&confFile, "conf", DefaultServerConfigPath, "Path to configuration file")
+	flag.Parse()
 
-    s := runServer{}
-    s.confFile = confFile
+	s := runServer{}
+	s.confFile = confFile
 
-    result := s.Run()
+	result := s.Run()
 
-    if result != 0  {
-        os.Exit(1)
-    } else {
-        os.Exit(0)
-    }
+	if result != 0 {
+		os.Exit(1)
+	} else {
+		os.Exit(0)
+	}
 }
 
 func (s runServer) Run() int {
@@ -140,7 +140,7 @@ func (s runServer) loadPlugins(config *helpers.ControlPlaneConfig) (*helpers.Plu
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 
-    pluginConfDir := filepath.Dir(s.confFile)
+	pluginConfDir := filepath.Dir(s.confFile)
 
 	pluginCatalog := &helpers.PluginCatalog{
 		PluginConfDirectory: pluginConfDir,
@@ -198,8 +198,8 @@ func (s runServer) initEndpoints(config *helpers.ControlPlaneConfig, pluginCatal
 	nodeSvc = node.NewService(node.ServiceConfig{Attestation: attestationService, CA: caService, Identity: identityService})
 	nodeSvc = node.SelectorServiceLoggingMiddleWare(logger)(nodeSvc)
 
-    httpAddr := config.ServerHTTPAddr
-    gRPCAddr := config.ServerGRPCAddr
+	httpAddr := config.ServerHTTPAddr
+	gRPCAddr := config.ServerGRPCAddr
 
 	serverEndpoints := server.Endpoints{
 		PluginInfoEndpoint: server.MakePluginInfoEndpoint(serverSvc),
