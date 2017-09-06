@@ -6,39 +6,39 @@
 
 * [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#sriplugin.ConfigureRequest)
+    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
   
-    * [ConfigureResponse](#sriplugin.ConfigureResponse)
+    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
   
-    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
   
-    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
   
-    * [StopReply](#sriplugin.StopReply)
+    * [StopReply](#spire.common.plugin.StopReply)
   
-    * [StopRequest](#sriplugin.StopRequest)
-  
-  
+    * [StopRequest](#spire.common.plugin.StopRequest)
   
   
-    * [Server](#sriplugin.Server)
+  
+  
+    * [Server](#spire.common.plugin.Server)
   
 
 
-* [workload_attestor.proto](#workload_attestor.proto)
+* [workloadattestor.proto](#workloadattestor.proto)
   
-    * [AttestRequest](#workloadattestor.AttestRequest)
+    * [AttestRequest](#spire.agent.workloadattestor.AttestRequest)
   
-    * [AttestResponse](#workloadattestor.AttestResponse)
-  
-  
+    * [AttestResponse](#spire.agent.workloadattestor.AttestResponse)
   
   
-    * [WorkloadAttestor](#workloadattestor.WorkloadAttestor)
+  
+  
+    * [WorkloadAttestor](#spire.agent.workloadattestor.WorkloadAttestor)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -52,7 +52,7 @@
 
 
 
-<a name="sriplugin.ConfigureRequest"/>
+<a name="spire.common.plugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -67,22 +67,23 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="sriplugin.ConfigureResponse"/>
+<a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
 
 
 
-<a name="sriplugin.GetPluginInfoRequest"/>
+<a name="spire.common.plugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -92,7 +93,7 @@ Represents an empty request.
 
 
 
-<a name="sriplugin.GetPluginInfoResponse"/>
+<a name="spire.common.plugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -115,7 +116,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.PluginInfoReply"/>
+<a name="spire.common.plugin.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -123,14 +124,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="sriplugin.PluginInfoRequest"/>
+<a name="spire.common.plugin.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -140,7 +141,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopReply"/>
+<a name="spire.common.plugin.StopReply"/>
 
 ### StopReply
 
@@ -150,7 +151,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopRequest"/>
+<a name="spire.common.plugin.StopRequest"/>
 
 ### StopRequest
 
@@ -166,28 +167,28 @@ Represents the plugin metadata.
  
 
 
-<a name="sriplugin.Server"/>
+<a name="spire.common.plugin.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
+| Stop | [StopRequest](#spire.common.plugin.StopRequest) | [StopReply](#spire.common.plugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest) | [PluginInfoReply](#spire.common.plugin.PluginInfoRequest) |  |
 
  
 
 
 
-<a name="workload_attestor.proto"/>
+<a name="workloadattestor.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## workload_attestor.proto
-Environment specific plugin to attest a workloads “selector” data.
+## workloadattestor.proto
 
 
-<a name="workloadattestor.AttestRequest"/>
+
+<a name="spire.agent.workloadattestor.AttestRequest"/>
 
 ### AttestRequest
 Represents the workload PID.
@@ -202,7 +203,7 @@ Represents the workload PID.
 
 
 
-<a name="workloadattestor.AttestResponse"/>
+<a name="spire.agent.workloadattestor.AttestResponse"/>
 
 ### AttestResponse
 Represents a list of selectors resolved for a given PID.
@@ -223,16 +224,16 @@ Represents a list of selectors resolved for a given PID.
  
 
 
-<a name="workloadattestor.WorkloadAttestor"/>
+<a name="spire.agent.workloadattestor.WorkloadAttestor"/>
 
 ### WorkloadAttestor
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Attest | [AttestRequest](#workloadattestor.AttestRequest) | [AttestResponse](#workloadattestor.AttestRequest) | Returns a list of selectors resolved for a given PID |
-| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Applies the plugin configuration and returns configuration errors |
-| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the version and related metadata of the plugin |
+| Attest | [AttestRequest](#spire.agent.workloadattestor.AttestRequest) | [AttestResponse](#spire.agent.workloadattestor.AttestRequest) | Returns a list of selectors resolved for a given PID |
+| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Applies the plugin configuration and returns configuration errors |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the plugin |
 
  
 

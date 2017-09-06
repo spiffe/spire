@@ -1,78 +1,97 @@
-/**
-The Node API is exposed by the Spire Server to Node Agents.
-A node agent uses this API to attest the node it is running on,
-to retrieve the list of identities that are allowed to run on that node,
-and to retrieve SVIDs by presenting certificate signing requests to the Spire Server.
-*/
+/** The Node API is exposed by the Spire Server to Node Agents.  A node
+agent uses this API to attest the node it is running on, to retrieve the
+list of identities that are allowed to run on that node, and to retrieve
+SVIDs by presenting certificate signing requests to the Spire Server. */
+
 syntax = "proto3";
-package node;
+package spire.api.node;
+option go_package = "node";
 
 import public "github.com/spiffe/sri/pkg/common/common.proto";
 
-service Node {
-    ///Attest the node, get base node SVID.
-    rpc FetchBaseSVID(FetchBaseSVIDRequest) returns (FetchBaseSVIDResponse);
-    ///Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
-    ///(Base Node SVID or the Registered Node SVID used for this call)
-    ///(List can be empty to allow Node Agent cache refresh).
-    rpc FetchSVID(FetchSVIDRequest) returns (FetchSVIDResponse);
-    ///Called by Node Agent periodically to support Spire Server certificate rotation. Cached in Node Agent memory for WorkLoads as well.
-    rpc FetchCPBundle(FetchCPBundleRequest) returns (FetchCPBundleResponse);
-    ///Called by the Node Agent to fetch the named Federated CA Bundle.
-    ///Used in the event that authorized workloads reference a Federated Bundle.
-    rpc FetchFederatedBundle(FetchFederatedBundleRequest) returns (FetchFederatedBundleResponse);
-   }
-
-
-/**A type which contains the "Spiffe Verifiable Identity Document" and a TTL indicating when the SVID expires.*/
+/** A type which contains the "Spiffe Verifiable Identity Document" and
+a TTL indicating when the SVID expires.*/
 message Svid {
- bytes svid_cert = 1; ///Spiffe Verifiable Identity Document.
- int32 ttl = 2; ///SVID expiration.
+    /** Spiffe Verifiable Identity Document. */
+    bytes svid_cert = 1;
+    /** SVID expiration. */
+    int32 ttl = 2;
 }
 
-/**A message returned by the Spire Server, which includes a map of signed SVIDs and
+/** A message returned by the Spire Server, which includes a map of signed SVIDs and
 a list of all current Registration Entries which are relevant to the caller SPIFFE ID.*/
 message SvidUpdate {
- map<string, Svid>  svids = 1; ///A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] => SVID.
- repeated common.RegistrationEntry registration_entries = 2; ///A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it.
+    /** A map containing SVID values and corresponding SPIFFE IDs as the
+    keys. Map[SPIFFE_ID] => SVID. */
+    map<string, Svid>  svids = 1;
+    /** A type representing a curated record that the Spire Server uses to set up
+    and manage the various registered nodes and workloads that are controlled by it. */
+    repeated spire.common.RegistrationEntry registration_entries = 2;
 }
 
-/**Represents a request to attest the node.*/
+/** Represents a request to attest the node.*/
 message FetchBaseSVIDRequest {
- common.AttestedData attested_data = 1; ///A type which contains attestation data for specific platform.
- bytes csr = 2;  //Certificate signing request.
+    /** A type which contains attestation data for specific platform. */
+    spire.common.AttestedData attested_data = 1;
+    /** Certificate signing request. */
+    bytes csr = 2;
 }
 
-/**Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID*/
+/** Represents a response that contains  map of signed SVIDs and an array of
+all current Registration Entries which are relevant to the caller SPIFFE ID*/
 message FetchBaseSVIDResponse {
- SvidUpdate svid_update = 1; ///It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
+    /** It includes a map of signed SVIDs and an array of all current
+    Registration Entries which are relevant to the caller SPIFFE ID. */
+    SvidUpdate svid_update = 1;
 }
 
-/**Represents a request with a list of CSR.*/
+/** Represents a request with a list of CSR.*/
 message FetchSVIDRequest {
- repeated bytes csrs = 2; ///A list of CSRs.
+    /** A list of CSRs */
+    repeated bytes csrs = 2;
 }
 
-/**Represents a response that contains  map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID.*/
+/** Represents a response that contains  map of signed SVIDs and an array
+of all current Registration Entries which are relevant to the caller SPIFFE ID.*/
 message FetchSVIDResponse {
- SvidUpdate svid_update = 1; ///It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID.
+    /** It includes a map of signed SVIDs and an array of all current Registration
+    Entries which are relevant to the caller SPIFFE ID. */
+    SvidUpdate svid_update = 1;
 }
 
-/**Represents an empty message.*/
+/** Represents an empty message.*/
 message FetchCPBundleRequest {
 }
 
-/**Represents a response with a Spire Server certificate bundle.*/
+/** Represents a response with a Spire Server certificate bundle.*/
 message FetchCPBundleResponse {
- bytes server_bundle = 1; ///Spire Server certificate bundle.
+    /** Spire Server certificate bundle. */
+    bytes server_bundle = 1;
 }
 
-/**Represents a request with an array of SPIFFE Ids.*/
+/** Represents a request with an array of SPIFFE Ids.*/
 message FetchFederatedBundleRequest {
- repeated string spiffe_id = 1; /// An array of SPIFFE Ids.
+    /** An array of SPIFFE Ids. */
+    repeated string spiffe_id = 1;
 }
 
-/**Represents a response with a map of SPIFFE Id, Federated CA Bundle.*/
+/** Represents a response with a map of SPIFFE Id, Federated CA Bundle.*/
 message FetchFederatedBundleResponse {
- map<string, bytes> federated_bundles = 1; ///Map [ SPIFFE ID ] => Federated CA Bundle
+    /** Map [ SPIFFE ID ] => Federated CA Bundle */
+    map<string, bytes> federated_bundles = 1;
 }
+
+service Node {
+    /** Attest the node, get base node SVID. */
+    rpc FetchBaseSVID(FetchBaseSVIDRequest) returns (FetchBaseSVIDResponse);
+    /** Get Workload, Node Agent certs and CA trust bundles. Also used for rotation 
+    Base Node SVID or the Registered Node SVID used for this call)
+    List can be empty to allow Node Agent cache refresh). */
+    rpc FetchSVID(FetchSVIDRequest) returns (FetchSVIDResponse);
+    /** Called by Node Agent periodically to support Spire Server certificate
+    rotation. Cached in Node Agent memory for WorkLoads as well. */
+    rpc FetchCPBundle(FetchCPBundleRequest) returns (FetchCPBundleResponse);
+    /** Called by the Node Agent to fetch the named Federated CA Bundle. */
+    /** Used in the event that authorized workloads reference a Federated Bundle. */
+    rpc FetchFederatedBundle(FetchFederatedBundleRequest) returns (FetchFederatedBundleResponse);
+   }

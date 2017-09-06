@@ -6,58 +6,58 @@
 
 * [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#sriplugin.ConfigureRequest)
+    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
   
-    * [ConfigureResponse](#sriplugin.ConfigureResponse)
+    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
   
-    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
   
-    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
   
-    * [StopReply](#sriplugin.StopReply)
+    * [StopReply](#spire.common.plugin.StopReply)
   
-    * [StopRequest](#sriplugin.StopRequest)
-  
-  
+    * [StopRequest](#spire.common.plugin.StopRequest)
   
   
-    * [Server](#sriplugin.Server)
+  
+  
+    * [Server](#spire.common.plugin.Server)
   
 
 
 * [common.proto](#common.proto)
   
-    * [AttestedData](#common.AttestedData)
+    * [AttestedData](#spire.common.AttestedData)
   
-    * [Empty](#common.Empty)
+    * [Empty](#spire.common.Empty)
   
-    * [RegistrationEntries](#common.RegistrationEntries)
+    * [RegistrationEntries](#spire.common.RegistrationEntries)
   
-    * [RegistrationEntry](#common.RegistrationEntry)
+    * [RegistrationEntry](#spire.common.RegistrationEntry)
   
-    * [Selector](#common.Selector)
+    * [Selector](#spire.common.Selector)
   
-    * [Selectors](#common.Selectors)
+    * [Selectors](#spire.common.Selectors)
   
   
   
   
 
 
-* [node_attestor.proto](#node_attestor.proto)
+* [nodeattestor.proto](#nodeattestor.proto)
   
-    * [AttestRequest](#nodeattestor.AttestRequest)
+    * [AttestRequest](#spire.agent.nodeattestor.AttestRequest)
   
-    * [AttestResponse](#nodeattestor.AttestResponse)
-  
-  
+    * [AttestResponse](#spire.agent.nodeattestor.AttestResponse)
   
   
-    * [NodeAttestor](#nodeattestor.NodeAttestor)
+  
+  
+    * [NodeAttestor](#spire.agent.nodeattestor.NodeAttestor)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -71,7 +71,7 @@
 
 
 
-<a name="sriplugin.ConfigureRequest"/>
+<a name="spire.common.plugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -86,22 +86,23 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="sriplugin.ConfigureResponse"/>
+<a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
 
 
 
-<a name="sriplugin.GetPluginInfoRequest"/>
+<a name="spire.common.plugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -111,7 +112,7 @@ Represents an empty request.
 
 
 
-<a name="sriplugin.GetPluginInfoResponse"/>
+<a name="spire.common.plugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -134,7 +135,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.PluginInfoReply"/>
+<a name="spire.common.plugin.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -142,14 +143,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="sriplugin.PluginInfoRequest"/>
+<a name="spire.common.plugin.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -159,7 +160,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopReply"/>
+<a name="spire.common.plugin.StopReply"/>
 
 ### StopReply
 
@@ -169,7 +170,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopRequest"/>
+<a name="spire.common.plugin.StopRequest"/>
 
 ### StopRequest
 
@@ -185,15 +186,15 @@ Represents the plugin metadata.
  
 
 
-<a name="sriplugin.Server"/>
+<a name="spire.common.plugin.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
+| Stop | [StopRequest](#spire.common.plugin.StopRequest) | [StopReply](#spire.common.plugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest) | [PluginInfoReply](#spire.common.plugin.PluginInfoRequest) |  |
 
  
 
@@ -206,7 +207,7 @@ Represents the plugin metadata.
 
 
 
-<a name="common.AttestedData"/>
+<a name="spire.common.AttestedData"/>
 
 ### AttestedData
 A type which contains attestation data for specific platform.
@@ -222,7 +223,7 @@ A type which contains attestation data for specific platform.
 
 
 
-<a name="common.Empty"/>
+<a name="spire.common.Empty"/>
 
 ### Empty
 Represents an empty message
@@ -232,7 +233,7 @@ Represents an empty message
 
 
 
-<a name="common.RegistrationEntries"/>
+<a name="spire.common.RegistrationEntries"/>
 
 ### RegistrationEntries
 A list of registration entries.
@@ -240,24 +241,25 @@ A list of registration entries.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [RegistrationEntry](#common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
+| entries | [RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
 
 
 
 
 
 
-<a name="common.RegistrationEntry"/>
+<a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
-This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+This is a curated record that the Control Plane uses to set up and
+manage the various registered nodes and workloads that are controlled by it.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectors | [Selector](#common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validityof a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource orcaller. It is defined as a URI comprising a “trust domain” and anassociated path. |
 | ttl | [int32](#int32) |  | Time to live. |
 | fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
 
@@ -266,15 +268,16 @@ This is a curated record that the Control Plane uses to set up and manage the va
 
 
 
-<a name="common.Selector"/>
+<a name="spire.common.Selector"/>
 
 ### Selector
-A type which describes the conditions under which a registration entry is matched.
+A type which describes the conditions under which a registration
+entry is matched.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attestingthe entity (Eg: AWS, K8). |
 | value | [string](#string) |  | The value to be attested. |
 
 
@@ -282,7 +285,7 @@ A type which describes the conditions under which a registration entry is matche
 
 
 
-<a name="common.Selectors"/>
+<a name="spire.common.Selectors"/>
 
 ### Selectors
 Represents a type with a list of NodeResolution.
@@ -290,7 +293,7 @@ Represents a type with a list of NodeResolution.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [Selector](#common.Selector) | repeated | A list of NodeResolution. |
+| entries | [Selector](#spire.common.Selector) | repeated | A list of NodeResolution. |
 
 
 
@@ -306,14 +309,14 @@ Represents a type with a list of NodeResolution.
 
 
 
-<a name="node_attestor.proto"/>
+<a name="nodeattestor.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## node_attestor.proto
-Responsible for validating the Node Agent’s Attested Data.
+## nodeattestor.proto
 
 
-<a name="nodeattestor.AttestRequest"/>
+
+<a name="spire.agent.nodeattestor.AttestRequest"/>
 
 ### AttestRequest
 Represents a request to attest a node.
@@ -321,7 +324,7 @@ Represents a request to attest a node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedData | [.common.AttestedData](#nodeattestor..common.AttestedData) |  | A type which contains attestation data for specific platform. |
+| attestedData | [.spire.common.AttestedData](#spire.agent.nodeattestor..spire.common.AttestedData) |  | A type which contains attestation data for specific platform. |
 | attestedBefore | [bool](#bool) |  | Is true if the Base SPIFFE ID is present in the Attested Node table. |
 
 
@@ -329,7 +332,7 @@ Represents a request to attest a node.
 
 
 
-<a name="nodeattestor.AttestResponse"/>
+<a name="spire.agent.nodeattestor.AttestResponse"/>
 
 ### AttestResponse
 Represents a response when attesting a node.
@@ -351,16 +354,16 @@ Represents a response when attesting a node.
  
 
 
-<a name="nodeattestor.NodeAttestor"/>
+<a name="spire.agent.nodeattestor.NodeAttestor"/>
 
 ### NodeAttestor
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| Attest | [AttestRequest](#nodeattestor.AttestRequest) | [AttestResponse](#nodeattestor.AttestRequest) | Attesta a node. |
+| Attest | [AttestRequest](#spire.agent.nodeattestor.AttestRequest) | [AttestResponse](#spire.agent.nodeattestor.AttestRequest) | Attesta a node. |
+| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
 
  
 

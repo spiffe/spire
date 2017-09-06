@@ -6,39 +6,39 @@
 
 * [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#sriplugin.ConfigureRequest)
+    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
   
-    * [ConfigureResponse](#sriplugin.ConfigureResponse)
+    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
   
-    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
   
-    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
   
-    * [StopReply](#sriplugin.StopReply)
+    * [StopReply](#spire.common.plugin.StopReply)
   
-    * [StopRequest](#sriplugin.StopRequest)
-  
-  
+    * [StopRequest](#spire.common.plugin.StopRequest)
   
   
-    * [Server](#sriplugin.Server)
+  
+  
+    * [Server](#spire.common.plugin.Server)
   
 
 
-* [upstream_ca.proto](#upstream_ca.proto)
+* [upstreamca.proto](#upstreamca.proto)
   
-    * [SubmitCSRRequest](#upstreamca.SubmitCSRRequest)
+    * [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest)
   
-    * [SubmitCSRResponse](#upstreamca.SubmitCSRResponse)
-  
-  
+    * [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRResponse)
   
   
-    * [UpstreamCA](#upstreamca.UpstreamCA)
+  
+  
+    * [UpstreamCA](#spire.server.upstreamca.UpstreamCA)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -52,7 +52,7 @@
 
 
 
-<a name="sriplugin.ConfigureRequest"/>
+<a name="spire.common.plugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -67,22 +67,23 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="sriplugin.ConfigureResponse"/>
+<a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
 
 
 
-<a name="sriplugin.GetPluginInfoRequest"/>
+<a name="spire.common.plugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -92,7 +93,7 @@ Represents an empty request.
 
 
 
-<a name="sriplugin.GetPluginInfoResponse"/>
+<a name="spire.common.plugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -115,7 +116,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.PluginInfoReply"/>
+<a name="spire.common.plugin.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -123,14 +124,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="sriplugin.PluginInfoRequest"/>
+<a name="spire.common.plugin.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -140,7 +141,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopReply"/>
+<a name="spire.common.plugin.StopReply"/>
 
 ### StopReply
 
@@ -150,7 +151,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopRequest"/>
+<a name="spire.common.plugin.StopRequest"/>
 
 ### StopRequest
 
@@ -166,30 +167,28 @@ Represents the plugin metadata.
  
 
 
-<a name="sriplugin.Server"/>
+<a name="spire.common.plugin.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
+| Stop | [StopRequest](#spire.common.plugin.StopRequest) | [StopReply](#spire.common.plugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest) | [PluginInfoReply](#spire.common.plugin.PluginInfoRequest) |  |
 
  
 
 
 
-<a name="upstream_ca.proto"/>
+<a name="upstreamca.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## upstream_ca.proto
-Responsible for processing Certificate Signing Requests for intermediate signing certificates
-(or from Node Agents if the user does not want the Control Plane to retain signing material).
-This plugin will manage/own the Trust Bundles for the Control Plane, and act as the interface for upstream CAs.
+## upstreamca.proto
 
 
-<a name="upstreamca.SubmitCSRRequest"/>
+
+<a name="spire.server.upstreamca.SubmitCSRRequest"/>
 
 ### SubmitCSRRequest
 
@@ -204,7 +203,7 @@ This plugin will manage/own the Trust Bundles for the Control Plane, and act as 
 
 
 
-<a name="upstreamca.SubmitCSRResponse"/>
+<a name="spire.server.upstreamca.SubmitCSRResponse"/>
 
 ### SubmitCSRResponse
 
@@ -226,16 +225,16 @@ This plugin will manage/own the Trust Bundles for the Control Plane, and act as 
  
 
 
-<a name="upstreamca.UpstreamCA"/>
+<a name="spire.server.upstreamca.UpstreamCA"/>
 
 ### UpstreamCA
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| SubmitCSR | [SubmitCSRRequest](#upstreamca.SubmitCSRRequest) | [SubmitCSRResponse](#upstreamca.SubmitCSRRequest) | Will take in a CSR and submit it to the upstream CA for signing(“upstream” CA can be local self-signed root in simple case). |
+| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| SubmitCSR | [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest) | [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRRequest) | Will take in a CSR and submit it to the upstream CA for signing(“upstream” CA can be local self-signed root in simple case). |
 
  
 

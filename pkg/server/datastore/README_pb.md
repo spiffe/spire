@@ -6,140 +6,140 @@
 
 * [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#sriplugin.ConfigureRequest)
+    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
   
-    * [ConfigureResponse](#sriplugin.ConfigureResponse)
+    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
   
-    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
   
-    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
   
-    * [StopReply](#sriplugin.StopReply)
+    * [StopReply](#spire.common.plugin.StopReply)
   
-    * [StopRequest](#sriplugin.StopRequest)
-  
-  
+    * [StopRequest](#spire.common.plugin.StopRequest)
   
   
-    * [Server](#sriplugin.Server)
+  
+  
+    * [Server](#spire.common.plugin.Server)
   
 
 
 * [common.proto](#common.proto)
   
-    * [AttestedData](#common.AttestedData)
+    * [AttestedData](#spire.common.AttestedData)
   
-    * [Empty](#common.Empty)
+    * [Empty](#spire.common.Empty)
   
-    * [RegistrationEntries](#common.RegistrationEntries)
+    * [RegistrationEntries](#spire.common.RegistrationEntries)
   
-    * [RegistrationEntry](#common.RegistrationEntry)
+    * [RegistrationEntry](#spire.common.RegistrationEntry)
   
-    * [Selector](#common.Selector)
+    * [Selector](#spire.common.Selector)
   
-    * [Selectors](#common.Selectors)
+    * [Selectors](#spire.common.Selectors)
   
   
   
   
 
 
-* [data_store.proto](#data_store.proto)
+* [datastore.proto](#datastore.proto)
   
-    * [AttestedNodeEntry](#datastore.AttestedNodeEntry)
+    * [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry)
   
-    * [CreateAttestedNodeEntryRequest](#datastore.CreateAttestedNodeEntryRequest)
+    * [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest)
   
-    * [CreateAttestedNodeEntryResponse](#datastore.CreateAttestedNodeEntryResponse)
+    * [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryResponse)
   
-    * [CreateFederatedEntryRequest](#datastore.CreateFederatedEntryRequest)
+    * [CreateFederatedEntryRequest](#spire.server.datastore.CreateFederatedEntryRequest)
   
-    * [CreateFederatedEntryResponse](#datastore.CreateFederatedEntryResponse)
+    * [CreateFederatedEntryResponse](#spire.server.datastore.CreateFederatedEntryResponse)
   
-    * [CreateNodeResolverMapEntryRequest](#datastore.CreateNodeResolverMapEntryRequest)
+    * [CreateNodeResolverMapEntryRequest](#spire.server.datastore.CreateNodeResolverMapEntryRequest)
   
-    * [CreateNodeResolverMapEntryResponse](#datastore.CreateNodeResolverMapEntryResponse)
+    * [CreateNodeResolverMapEntryResponse](#spire.server.datastore.CreateNodeResolverMapEntryResponse)
   
-    * [CreateRegistrationEntryRequest](#datastore.CreateRegistrationEntryRequest)
+    * [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest)
   
-    * [CreateRegistrationEntryResponse](#datastore.CreateRegistrationEntryResponse)
+    * [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryResponse)
   
-    * [DeleteAttestedNodeEntryRequest](#datastore.DeleteAttestedNodeEntryRequest)
+    * [DeleteAttestedNodeEntryRequest](#spire.server.datastore.DeleteAttestedNodeEntryRequest)
   
-    * [DeleteAttestedNodeEntryResponse](#datastore.DeleteAttestedNodeEntryResponse)
+    * [DeleteAttestedNodeEntryResponse](#spire.server.datastore.DeleteAttestedNodeEntryResponse)
   
-    * [DeleteFederatedEntryRequest](#datastore.DeleteFederatedEntryRequest)
+    * [DeleteFederatedEntryRequest](#spire.server.datastore.DeleteFederatedEntryRequest)
   
-    * [DeleteFederatedEntryResponse](#datastore.DeleteFederatedEntryResponse)
+    * [DeleteFederatedEntryResponse](#spire.server.datastore.DeleteFederatedEntryResponse)
   
-    * [DeleteNodeResolverMapEntryRequest](#datastore.DeleteNodeResolverMapEntryRequest)
+    * [DeleteNodeResolverMapEntryRequest](#spire.server.datastore.DeleteNodeResolverMapEntryRequest)
   
-    * [DeleteNodeResolverMapEntryResponse](#datastore.DeleteNodeResolverMapEntryResponse)
+    * [DeleteNodeResolverMapEntryResponse](#spire.server.datastore.DeleteNodeResolverMapEntryResponse)
   
-    * [DeleteRegistrationEntryRequest](#datastore.DeleteRegistrationEntryRequest)
+    * [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest)
   
-    * [DeleteRegistrationEntryResponse](#datastore.DeleteRegistrationEntryResponse)
+    * [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryResponse)
   
-    * [FederatedBundle](#datastore.FederatedBundle)
+    * [FederatedBundle](#spire.server.datastore.FederatedBundle)
   
-    * [FetchAttestedNodeEntryRequest](#datastore.FetchAttestedNodeEntryRequest)
+    * [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest)
   
-    * [FetchAttestedNodeEntryResponse](#datastore.FetchAttestedNodeEntryResponse)
+    * [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryResponse)
   
-    * [FetchNodeResolverMapEntryRequest](#datastore.FetchNodeResolverMapEntryRequest)
+    * [FetchNodeResolverMapEntryRequest](#spire.server.datastore.FetchNodeResolverMapEntryRequest)
   
-    * [FetchNodeResolverMapEntryResponse](#datastore.FetchNodeResolverMapEntryResponse)
+    * [FetchNodeResolverMapEntryResponse](#spire.server.datastore.FetchNodeResolverMapEntryResponse)
   
-    * [FetchRegistrationEntryRequest](#datastore.FetchRegistrationEntryRequest)
+    * [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest)
   
-    * [FetchRegistrationEntryResponse](#datastore.FetchRegistrationEntryResponse)
+    * [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryResponse)
   
-    * [FetchStaleNodeEntriesRequest](#datastore.FetchStaleNodeEntriesRequest)
+    * [FetchStaleNodeEntriesRequest](#spire.server.datastore.FetchStaleNodeEntriesRequest)
   
-    * [FetchStaleNodeEntriesResponse](#datastore.FetchStaleNodeEntriesResponse)
+    * [FetchStaleNodeEntriesResponse](#spire.server.datastore.FetchStaleNodeEntriesResponse)
   
-    * [ListFederatedEntryRequest](#datastore.ListFederatedEntryRequest)
+    * [ListFederatedEntryRequest](#spire.server.datastore.ListFederatedEntryRequest)
   
-    * [ListFederatedEntryResponse](#datastore.ListFederatedEntryResponse)
+    * [ListFederatedEntryResponse](#spire.server.datastore.ListFederatedEntryResponse)
   
-    * [ListParentIDEntriesRequest](#datastore.ListParentIDEntriesRequest)
+    * [ListParentIDEntriesRequest](#spire.server.datastore.ListParentIDEntriesRequest)
   
-    * [ListParentIDEntriesResponse](#datastore.ListParentIDEntriesResponse)
+    * [ListParentIDEntriesResponse](#spire.server.datastore.ListParentIDEntriesResponse)
   
-    * [ListSelectorEntriesRequest](#datastore.ListSelectorEntriesRequest)
+    * [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest)
   
-    * [ListSelectorEntriesResponse](#datastore.ListSelectorEntriesResponse)
+    * [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesResponse)
   
-    * [ListSpiffeEntriesRequest](#datastore.ListSpiffeEntriesRequest)
+    * [ListSpiffeEntriesRequest](#spire.server.datastore.ListSpiffeEntriesRequest)
   
-    * [ListSpiffeEntriesResponse](#datastore.ListSpiffeEntriesResponse)
+    * [ListSpiffeEntriesResponse](#spire.server.datastore.ListSpiffeEntriesResponse)
   
-    * [NodeResolverMapEntry](#datastore.NodeResolverMapEntry)
+    * [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry)
   
-    * [RectifyNodeResolverMapEntriesRequest](#datastore.RectifyNodeResolverMapEntriesRequest)
+    * [RectifyNodeResolverMapEntriesRequest](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest)
   
-    * [RectifyNodeResolverMapEntriesResponse](#datastore.RectifyNodeResolverMapEntriesResponse)
+    * [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesResponse)
   
-    * [UpdateAttestedNodeEntryRequest](#datastore.UpdateAttestedNodeEntryRequest)
+    * [UpdateAttestedNodeEntryRequest](#spire.server.datastore.UpdateAttestedNodeEntryRequest)
   
-    * [UpdateAttestedNodeEntryResponse](#datastore.UpdateAttestedNodeEntryResponse)
+    * [UpdateAttestedNodeEntryResponse](#spire.server.datastore.UpdateAttestedNodeEntryResponse)
   
-    * [UpdateFederatedEntryRequest](#datastore.UpdateFederatedEntryRequest)
+    * [UpdateFederatedEntryRequest](#spire.server.datastore.UpdateFederatedEntryRequest)
   
-    * [UpdateFederatedEntryResponse](#datastore.UpdateFederatedEntryResponse)
+    * [UpdateFederatedEntryResponse](#spire.server.datastore.UpdateFederatedEntryResponse)
   
-    * [UpdateRegistrationEntryRequest](#datastore.UpdateRegistrationEntryRequest)
+    * [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest)
   
-    * [UpdateRegistrationEntryResponse](#datastore.UpdateRegistrationEntryResponse)
-  
-  
+    * [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryResponse)
   
   
-    * [DataStore](#datastore.DataStore)
+  
+  
+    * [DataStore](#spire.server.datastore.DataStore)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -153,7 +153,7 @@
 
 
 
-<a name="sriplugin.ConfigureRequest"/>
+<a name="spire.common.plugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -168,22 +168,23 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="sriplugin.ConfigureResponse"/>
+<a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
 
 
 
-<a name="sriplugin.GetPluginInfoRequest"/>
+<a name="spire.common.plugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -193,7 +194,7 @@ Represents an empty request.
 
 
 
-<a name="sriplugin.GetPluginInfoResponse"/>
+<a name="spire.common.plugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -216,7 +217,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.PluginInfoReply"/>
+<a name="spire.common.plugin.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -224,14 +225,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="sriplugin.PluginInfoRequest"/>
+<a name="spire.common.plugin.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -241,7 +242,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopReply"/>
+<a name="spire.common.plugin.StopReply"/>
 
 ### StopReply
 
@@ -251,7 +252,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopRequest"/>
+<a name="spire.common.plugin.StopRequest"/>
 
 ### StopRequest
 
@@ -267,15 +268,15 @@ Represents the plugin metadata.
  
 
 
-<a name="sriplugin.Server"/>
+<a name="spire.common.plugin.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
+| Stop | [StopRequest](#spire.common.plugin.StopRequest) | [StopReply](#spire.common.plugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest) | [PluginInfoReply](#spire.common.plugin.PluginInfoRequest) |  |
 
  
 
@@ -288,7 +289,7 @@ Represents the plugin metadata.
 
 
 
-<a name="common.AttestedData"/>
+<a name="spire.common.AttestedData"/>
 
 ### AttestedData
 A type which contains attestation data for specific platform.
@@ -304,7 +305,7 @@ A type which contains attestation data for specific platform.
 
 
 
-<a name="common.Empty"/>
+<a name="spire.common.Empty"/>
 
 ### Empty
 Represents an empty message
@@ -314,7 +315,7 @@ Represents an empty message
 
 
 
-<a name="common.RegistrationEntries"/>
+<a name="spire.common.RegistrationEntries"/>
 
 ### RegistrationEntries
 A list of registration entries.
@@ -322,24 +323,25 @@ A list of registration entries.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [RegistrationEntry](#common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
+| entries | [RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
 
 
 
 
 
 
-<a name="common.RegistrationEntry"/>
+<a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
-This is a curated record that the Control Plane uses to set up and manage the various registered nodes and workloads that are controlled by it.
+This is a curated record that the Control Plane uses to set up and
+manage the various registered nodes and workloads that are controlled by it.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectors | [Selector](#common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
+| selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validityof a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource orcaller. It is defined as a URI comprising a “trust domain” and anassociated path. |
 | ttl | [int32](#int32) |  | Time to live. |
 | fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
 
@@ -348,15 +350,16 @@ This is a curated record that the Control Plane uses to set up and manage the va
 
 
 
-<a name="common.Selector"/>
+<a name="spire.common.Selector"/>
 
 ### Selector
-A type which describes the conditions under which a registration entry is matched.
+A type which describes the conditions under which a registration
+entry is matched.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attestingthe entity (Eg: AWS, K8). |
 | value | [string](#string) |  | The value to be attested. |
 
 
@@ -364,7 +367,7 @@ A type which describes the conditions under which a registration entry is matche
 
 
 
-<a name="common.Selectors"/>
+<a name="spire.common.Selectors"/>
 
 ### Selectors
 Represents a type with a list of NodeResolution.
@@ -372,7 +375,7 @@ Represents a type with a list of NodeResolution.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [Selector](#common.Selector) | repeated | A list of NodeResolution. |
+| entries | [Selector](#spire.common.Selector) | repeated | A list of NodeResolution. |
 
 
 
@@ -388,19 +391,19 @@ Represents a type with a list of NodeResolution.
 
 
 
-<a name="data_store.proto"/>
+<a name="datastore.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## data_store.proto
+## datastore.proto
 
 
 
-<a name="datastore.AttestedNodeEntry"/>
+<a name="spire.server.datastore.AttestedNodeEntry"/>
 
 ### AttestedNodeEntry
-Represents a single entry in AttestedNodes and stores the node&#39;s SPIFFE ID, the
-type of attestation it performed, as well as the serial number and expiration date
-of its node SVID.
+Represents a single entry in AttestedNodes and stores the node&#39;s
+SPIFFE ID, the type of attestation it performed, as well as the serial
+number and expiration date of its node SVID.
 
 
 | Field | Type | Label | Description |
@@ -415,7 +418,7 @@ of its node SVID.
 
 
 
-<a name="datastore.CreateAttestedNodeEntryRequest"/>
+<a name="spire.server.datastore.CreateAttestedNodeEntryRequest"/>
 
 ### CreateAttestedNodeEntryRequest
 Represents an Attested Node entry to create
@@ -423,14 +426,14 @@ Represents an Attested Node entry to create
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#datastore.AttestedNodeEntry) |  | Attested node entry |
+| attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  | Attested node entry |
 
 
 
 
 
 
-<a name="datastore.CreateAttestedNodeEntryResponse"/>
+<a name="spire.server.datastore.CreateAttestedNodeEntryResponse"/>
 
 ### CreateAttestedNodeEntryResponse
 Represents the created Attested Node entry
@@ -438,14 +441,14 @@ Represents the created Attested Node entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#datastore.AttestedNodeEntry) |  | Attested node entry |
+| attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  | Attested node entry |
 
 
 
 
 
 
-<a name="datastore.CreateFederatedEntryRequest"/>
+<a name="spire.server.datastore.CreateFederatedEntryRequest"/>
 
 ### CreateFederatedEntryRequest
 Represents a Federated bundle
@@ -453,24 +456,24 @@ Represents a Federated bundle
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#datastore.FederatedBundle) |  | Federated bundle |
+| federatedBundle | [FederatedBundle](#spire.server.datastore.FederatedBundle) |  | Federated bundle |
 
 
 
 
 
 
-<a name="datastore.CreateFederatedEntryResponse"/>
+<a name="spire.server.datastore.CreateFederatedEntryResponse"/>
 
 ### CreateFederatedEntryResponse
-Empty
+Empty response
 
 
 
 
 
 
-<a name="datastore.CreateNodeResolverMapEntryRequest"/>
+<a name="spire.server.datastore.CreateNodeResolverMapEntryRequest"/>
 
 ### CreateNodeResolverMapEntryRequest
 Represents a Node resolver map entry to create
@@ -478,14 +481,14 @@ Represents a Node resolver map entry to create
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntry | [NodeResolverMapEntry](#datastore.NodeResolverMapEntry) |  | Node resolver map entry |
+| nodeResolverMapEntry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  | Node resolver map entry |
 
 
 
 
 
 
-<a name="datastore.CreateNodeResolverMapEntryResponse"/>
+<a name="spire.server.datastore.CreateNodeResolverMapEntryResponse"/>
 
 ### CreateNodeResolverMapEntryResponse
 Represents the created Node resolver map entry
@@ -493,14 +496,14 @@ Represents the created Node resolver map entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntry | [NodeResolverMapEntry](#datastore.NodeResolverMapEntry) |  | Node resolver map entry |
+| nodeResolverMapEntry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  | Node resolver map entry |
 
 
 
 
 
 
-<a name="datastore.CreateRegistrationEntryRequest"/>
+<a name="spire.server.datastore.CreateRegistrationEntryRequest"/>
 
 ### CreateRegistrationEntryRequest
 Represents a Registration entry to create
@@ -508,14 +511,14 @@ Represents a Registration entry to create
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) |  | Registration entry |
+| registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
 
 
 
 
 
 
-<a name="datastore.CreateRegistrationEntryResponse"/>
+<a name="spire.server.datastore.CreateRegistrationEntryResponse"/>
 
 ### CreateRegistrationEntryResponse
 Represents the created Registration entry
@@ -530,7 +533,7 @@ Represents the created Registration entry
 
 
 
-<a name="datastore.DeleteAttestedNodeEntryRequest"/>
+<a name="spire.server.datastore.DeleteAttestedNodeEntryRequest"/>
 
 ### DeleteAttestedNodeEntryRequest
 Represents the Spiffe ID of the Attested node entry to delete
@@ -545,7 +548,7 @@ Represents the Spiffe ID of the Attested node entry to delete
 
 
 
-<a name="datastore.DeleteAttestedNodeEntryResponse"/>
+<a name="spire.server.datastore.DeleteAttestedNodeEntryResponse"/>
 
 ### DeleteAttestedNodeEntryResponse
 Represents the deleted Attested node entry
@@ -553,14 +556,14 @@ Represents the deleted Attested node entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#datastore.AttestedNodeEntry) |  |  |
+| attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
 
 
 
 
 
 
-<a name="datastore.DeleteFederatedEntryRequest"/>
+<a name="spire.server.datastore.DeleteFederatedEntryRequest"/>
 
 ### DeleteFederatedEntryRequest
 Represents the Spiffe ID of the federated bundle to delete
@@ -575,7 +578,7 @@ Represents the Spiffe ID of the federated bundle to delete
 
 
 
-<a name="datastore.DeleteFederatedEntryResponse"/>
+<a name="spire.server.datastore.DeleteFederatedEntryResponse"/>
 
 ### DeleteFederatedEntryResponse
 Represents the deleted federated bundle
@@ -583,14 +586,14 @@ Represents the deleted federated bundle
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#datastore.FederatedBundle) |  | Federated bundle |
+| federatedBundle | [FederatedBundle](#spire.server.datastore.FederatedBundle) |  | Federated bundle |
 
 
 
 
 
 
-<a name="datastore.DeleteNodeResolverMapEntryRequest"/>
+<a name="spire.server.datastore.DeleteNodeResolverMapEntryRequest"/>
 
 ### DeleteNodeResolverMapEntryRequest
 Represents a Node resolver map entry to delete
@@ -598,14 +601,14 @@ Represents a Node resolver map entry to delete
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntry | [NodeResolverMapEntry](#datastore.NodeResolverMapEntry) |  | Node resolver map entry |
+| nodeResolverMapEntry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  | Node resolver map entry |
 
 
 
 
 
 
-<a name="datastore.DeleteNodeResolverMapEntryResponse"/>
+<a name="spire.server.datastore.DeleteNodeResolverMapEntryResponse"/>
 
 ### DeleteNodeResolverMapEntryResponse
 Represents a list of Node resolver map entries
@@ -613,14 +616,14 @@ Represents a list of Node resolver map entries
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
+| nodeResolverMapEntryList | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
 
 
 
 
 
 
-<a name="datastore.DeleteRegistrationEntryRequest"/>
+<a name="spire.server.datastore.DeleteRegistrationEntryRequest"/>
 
 ### DeleteRegistrationEntryRequest
 Represents a Registration entry ID to delete
@@ -635,7 +638,7 @@ Represents a Registration entry ID to delete
 
 
 
-<a name="datastore.DeleteRegistrationEntryResponse"/>
+<a name="spire.server.datastore.DeleteRegistrationEntryResponse"/>
 
 ### DeleteRegistrationEntryResponse
 Represents the deleted Registration entry
@@ -643,14 +646,14 @@ Represents the deleted Registration entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) |  | Registration entry |
+| registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
 
 
 
 
 
 
-<a name="datastore.FederatedBundle"/>
+<a name="spire.server.datastore.FederatedBundle"/>
 
 ### FederatedBundle
 Represents the trust chain for a different trust domain, along with
@@ -669,7 +672,7 @@ trust domain.
 
 
 
-<a name="datastore.FetchAttestedNodeEntryRequest"/>
+<a name="spire.server.datastore.FetchAttestedNodeEntryRequest"/>
 
 ### FetchAttestedNodeEntryRequest
 Represents the Spiffe ID of the node entry to retrieve
@@ -684,7 +687,7 @@ Represents the Spiffe ID of the node entry to retrieve
 
 
 
-<a name="datastore.FetchAttestedNodeEntryResponse"/>
+<a name="spire.server.datastore.FetchAttestedNodeEntryResponse"/>
 
 ### FetchAttestedNodeEntryResponse
 Represents an Attested Node entry
@@ -692,14 +695,14 @@ Represents an Attested Node entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#datastore.AttestedNodeEntry) |  | Attested node entry |
+| attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  | Attested node entry |
 
 
 
 
 
 
-<a name="datastore.FetchNodeResolverMapEntryRequest"/>
+<a name="spire.server.datastore.FetchNodeResolverMapEntryRequest"/>
 
 ### FetchNodeResolverMapEntryRequest
 Represents a Spiffe ID
@@ -714,22 +717,23 @@ Represents a Spiffe ID
 
 
 
-<a name="datastore.FetchNodeResolverMapEntryResponse"/>
+<a name="spire.server.datastore.FetchNodeResolverMapEntryResponse"/>
 
 ### FetchNodeResolverMapEntryResponse
-Represents a list of Node resolver map entries for the specified Spiffe ID
+Represents a list of Node resolver map entries for the specified
+Spiffe ID
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
+| nodeResolverMapEntryList | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
 
 
 
 
 
 
-<a name="datastore.FetchRegistrationEntryRequest"/>
+<a name="spire.server.datastore.FetchRegistrationEntryRequest"/>
 
 ### FetchRegistrationEntryRequest
 Represents a Registration entry ID to fetch
@@ -744,7 +748,7 @@ Represents a Registration entry ID to fetch
 
 
 
-<a name="datastore.FetchRegistrationEntryResponse"/>
+<a name="spire.server.datastore.FetchRegistrationEntryResponse"/>
 
 ### FetchRegistrationEntryResponse
 Represents a Registration entry
@@ -752,24 +756,24 @@ Represents a Registration entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) |  | Registration entry |
+| registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
 
 
 
 
 
 
-<a name="datastore.FetchStaleNodeEntriesRequest"/>
+<a name="spire.server.datastore.FetchStaleNodeEntriesRequest"/>
 
 ### FetchStaleNodeEntriesRequest
-Empty
+Empty Request
 
 
 
 
 
 
-<a name="datastore.FetchStaleNodeEntriesResponse"/>
+<a name="spire.server.datastore.FetchStaleNodeEntriesResponse"/>
 
 ### FetchStaleNodeEntriesResponse
 Represents dead nodes for which the base SVID has expired
@@ -777,24 +781,24 @@ Represents dead nodes for which the base SVID has expired
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntryList | [AttestedNodeEntry](#datastore.AttestedNodeEntry) | repeated | List of attested node entries |
+| attestedNodeEntryList | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) | repeated | List of attested node entries |
 
 
 
 
 
 
-<a name="datastore.ListFederatedEntryRequest"/>
+<a name="spire.server.datastore.ListFederatedEntryRequest"/>
 
 ### ListFederatedEntryRequest
-Empty
+Empty Request
 
 
 
 
 
 
-<a name="datastore.ListFederatedEntryResponse"/>
+<a name="spire.server.datastore.ListFederatedEntryResponse"/>
 
 ### ListFederatedEntryResponse
 Represents a list of SPIFFE IDs of foreign trust domains
@@ -809,7 +813,7 @@ Represents a list of SPIFFE IDs of foreign trust domains
 
 
 
-<a name="datastore.ListParentIDEntriesRequest"/>
+<a name="spire.server.datastore.ListParentIDEntriesRequest"/>
 
 ### ListParentIDEntriesRequest
 Represents a Parent ID
@@ -824,22 +828,23 @@ Represents a Parent ID
 
 
 
-<a name="datastore.ListParentIDEntriesResponse"/>
+<a name="spire.server.datastore.ListParentIDEntriesResponse"/>
 
 ### ListParentIDEntriesResponse
-Represents a list of Registered entries with the specified Parent ID
+Represents a list of Registered entries with the specified Parent
+ID
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) | repeated | List of Registration entries |
+| registeredEntryList | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) | repeated | List of Registration entries |
 
 
 
 
 
 
-<a name="datastore.ListSelectorEntriesRequest"/>
+<a name="spire.server.datastore.ListSelectorEntriesRequest"/>
 
 ### ListSelectorEntriesRequest
 Represents a selector
@@ -847,14 +852,14 @@ Represents a selector
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selector | [.common.Selector](#datastore..common.Selector) |  | Selector |
+| selector | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) |  | Selector |
 
 
 
 
 
 
-<a name="datastore.ListSelectorEntriesResponse"/>
+<a name="spire.server.datastore.ListSelectorEntriesResponse"/>
 
 ### ListSelectorEntriesResponse
 Represents a list of Registered entries with the specified selector
@@ -862,14 +867,14 @@ Represents a list of Registered entries with the specified selector
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) | repeated | List of Registration entries |
+| registeredEntryList | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) | repeated | List of Registration entries |
 
 
 
 
 
 
-<a name="datastore.ListSpiffeEntriesRequest"/>
+<a name="spire.server.datastore.ListSpiffeEntriesRequest"/>
 
 ### ListSpiffeEntriesRequest
 Represents a Spiffe ID
@@ -877,14 +882,14 @@ Represents a Spiffe ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  | Spiffe ID |
+| spiffeId | [string](#string) |  | SPIFFE ID |
 
 
 
 
 
 
-<a name="datastore.ListSpiffeEntriesResponse"/>
+<a name="spire.server.datastore.ListSpiffeEntriesResponse"/>
 
 ### ListSpiffeEntriesResponse
 Represents a list of Registered entries with the specified Spiffe ID
@@ -892,31 +897,31 @@ Represents a list of Registered entries with the specified Spiffe ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryList | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) | repeated | List of Registration entries |
+| registeredEntryList | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) | repeated | List of Registration entries |
 
 
 
 
 
 
-<a name="datastore.NodeResolverMapEntry"/>
+<a name="spire.server.datastore.NodeResolverMapEntry"/>
 
 ### NodeResolverMapEntry
-Represents a single entry in NodeResolverMap and maps node properties to
-logical attributes (i.e. an AWS instance to its ASG).
+Represents a single entry in NodeResolverMap and maps node properties
+to logical attributes (i.e. an AWS instance to its ASG).
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | baseSpiffeId | [string](#string) |  |  |
-| selector | [.common.Selector](#datastore..common.Selector) |  |  |
+| selector | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) |  |  |
 
 
 
 
 
 
-<a name="datastore.RectifyNodeResolverMapEntriesRequest"/>
+<a name="spire.server.datastore.RectifyNodeResolverMapEntriesRequest"/>
 
 ### RectifyNodeResolverMapEntriesRequest
 Represents a list of Node resolver map entries
@@ -924,14 +929,14 @@ Represents a list of Node resolver map entries
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
+| nodeResolverMapEntryList | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
 
 
 
 
 
 
-<a name="datastore.RectifyNodeResolverMapEntriesResponse"/>
+<a name="spire.server.datastore.RectifyNodeResolverMapEntriesResponse"/>
 
 ### RectifyNodeResolverMapEntriesResponse
 Represents a list of Node resolver map entries
@@ -939,14 +944,14 @@ Represents a list of Node resolver map entries
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
+| nodeResolverMapEntryList | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
 
 
 
 
 
 
-<a name="datastore.UpdateAttestedNodeEntryRequest"/>
+<a name="spire.server.datastore.UpdateAttestedNodeEntryRequest"/>
 
 ### UpdateAttestedNodeEntryRequest
 Represents Attested node entry fields to update
@@ -954,7 +959,7 @@ Represents Attested node entry fields to update
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| baseSpiffeId | [string](#string) |  | Spiffe ID |
+| baseSpiffeId | [string](#string) |  | SPIFFE ID |
 | certSerialNumber | [string](#string) |  | Serial number |
 | certExpirationDate | [string](#string) |  | Expiration date |
 
@@ -963,7 +968,7 @@ Represents Attested node entry fields to update
 
 
 
-<a name="datastore.UpdateAttestedNodeEntryResponse"/>
+<a name="spire.server.datastore.UpdateAttestedNodeEntryResponse"/>
 
 ### UpdateAttestedNodeEntryResponse
 Represents the updated Attested node entry
@@ -971,14 +976,14 @@ Represents the updated Attested node entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#datastore.AttestedNodeEntry) |  | Attested node entry |
+| attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  | Attested node entry |
 
 
 
 
 
 
-<a name="datastore.UpdateFederatedEntryRequest"/>
+<a name="spire.server.datastore.UpdateFederatedEntryRequest"/>
 
 ### UpdateFederatedEntryRequest
 Represents a federated bundle to update
@@ -986,14 +991,14 @@ Represents a federated bundle to update
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#datastore.FederatedBundle) |  | Federated bundle |
+| federatedBundle | [FederatedBundle](#spire.server.datastore.FederatedBundle) |  | Federated bundle |
 
 
 
 
 
 
-<a name="datastore.UpdateFederatedEntryResponse"/>
+<a name="spire.server.datastore.UpdateFederatedEntryResponse"/>
 
 ### UpdateFederatedEntryResponse
 Represents the updated federated bundle
@@ -1001,14 +1006,14 @@ Represents the updated federated bundle
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#datastore.FederatedBundle) |  | Federated bundle |
+| federatedBundle | [FederatedBundle](#spire.server.datastore.FederatedBundle) |  | Federated bundle |
 
 
 
 
 
 
-<a name="datastore.UpdateRegistrationEntryRequest"/>
+<a name="spire.server.datastore.UpdateRegistrationEntryRequest"/>
 
 ### UpdateRegistrationEntryRequest
 Represents a Registration entry to update
@@ -1017,14 +1022,14 @@ Represents a Registration entry to update
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | registeredEntryId | [string](#string) |  | Registration entry ID |
-| registeredEntry | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) |  | Registration entry |
+| registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
 
 
 
 
 
 
-<a name="datastore.UpdateRegistrationEntryResponse"/>
+<a name="spire.server.datastore.UpdateRegistrationEntryResponse"/>
 
 ### UpdateRegistrationEntryResponse
 Represents the updated Registration entry
@@ -1032,7 +1037,7 @@ Represents the updated Registration entry
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [.common.RegistrationEntry](#datastore..common.RegistrationEntry) |  | Registration entry |
+| registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
 
 
 
@@ -1045,35 +1050,35 @@ Represents the updated Registration entry
  
 
 
-<a name="datastore.DataStore"/>
+<a name="spire.server.datastore.DataStore"/>
 
 ### DataStore
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateFederatedEntry | [CreateFederatedEntryRequest](#datastore.CreateFederatedEntryRequest) | [CreateFederatedEntryResponse](#datastore.CreateFederatedEntryRequest) | Creates a Federated Bundle |
-| ListFederatedEntry | [ListFederatedEntryRequest](#datastore.ListFederatedEntryRequest) | [ListFederatedEntryResponse](#datastore.ListFederatedEntryRequest) | List all Federated SPIFFE IDs |
-| UpdateFederatedEntry | [UpdateFederatedEntryRequest](#datastore.UpdateFederatedEntryRequest) | [UpdateFederatedEntryResponse](#datastore.UpdateFederatedEntryRequest) | Updates the specified Federated Bundle |
-| DeleteFederatedEntry | [DeleteFederatedEntryRequest](#datastore.DeleteFederatedEntryRequest) | [DeleteFederatedEntryResponse](#datastore.DeleteFederatedEntryRequest) | Deletes the specified Federated Bundle |
-| CreateAttestedNodeEntry | [CreateAttestedNodeEntryRequest](#datastore.CreateAttestedNodeEntryRequest) | [CreateAttestedNodeEntryResponse](#datastore.CreateAttestedNodeEntryRequest) | Creates an Attested Node Entry |
-| FetchAttestedNodeEntry | [FetchAttestedNodeEntryRequest](#datastore.FetchAttestedNodeEntryRequest) | [FetchAttestedNodeEntryResponse](#datastore.FetchAttestedNodeEntryRequest) | Retrieves the Attested Node Entry |
-| FetchStaleNodeEntries | [FetchStaleNodeEntriesRequest](#datastore.FetchStaleNodeEntriesRequest) | [FetchStaleNodeEntriesResponse](#datastore.FetchStaleNodeEntriesRequest) | Retrieves dead nodes for which the base SVID has expired |
-| UpdateAttestedNodeEntry | [UpdateAttestedNodeEntryRequest](#datastore.UpdateAttestedNodeEntryRequest) | [UpdateAttestedNodeEntryResponse](#datastore.UpdateAttestedNodeEntryRequest) | Updates the Attested Node Entry |
-| DeleteAttestedNodeEntry | [DeleteAttestedNodeEntryRequest](#datastore.DeleteAttestedNodeEntryRequest) | [DeleteAttestedNodeEntryResponse](#datastore.DeleteAttestedNodeEntryRequest) | Deletes the Attested Node Entry |
-| CreateNodeResolverMapEntry | [CreateNodeResolverMapEntryRequest](#datastore.CreateNodeResolverMapEntryRequest) | [CreateNodeResolverMapEntryResponse](#datastore.CreateNodeResolverMapEntryRequest) | Creates a Node resolver map Entry |
-| FetchNodeResolverMapEntry | [FetchNodeResolverMapEntryRequest](#datastore.FetchNodeResolverMapEntryRequest) | [FetchNodeResolverMapEntryResponse](#datastore.FetchNodeResolverMapEntryRequest) | Retrieves all Node Resolver Map Entry for the specific base SPIFFEID |
-| DeleteNodeResolverMapEntry | [DeleteNodeResolverMapEntryRequest](#datastore.DeleteNodeResolverMapEntryRequest) | [DeleteNodeResolverMapEntryResponse](#datastore.DeleteNodeResolverMapEntryRequest) | Deletes all Node Resolver Map Entry for the specific base SPIFFEID |
-| RectifyNodeResolverMapEntries | [RectifyNodeResolverMapEntriesRequest](#datastore.RectifyNodeResolverMapEntriesRequest) | [RectifyNodeResolverMapEntriesResponse](#datastore.RectifyNodeResolverMapEntriesRequest) | Used for rectifying updated node resolutions |
-| CreateRegistrationEntry | [CreateRegistrationEntryRequest](#datastore.CreateRegistrationEntryRequest) | [CreateRegistrationEntryResponse](#datastore.CreateRegistrationEntryRequest) | Creates a Registered Entry |
-| FetchRegistrationEntry | [FetchRegistrationEntryRequest](#datastore.FetchRegistrationEntryRequest) | [FetchRegistrationEntryResponse](#datastore.FetchRegistrationEntryRequest) | Retrieve a specific registered entry |
-| UpdateRegistrationEntry | [UpdateRegistrationEntryRequest](#datastore.UpdateRegistrationEntryRequest) | [UpdateRegistrationEntryResponse](#datastore.UpdateRegistrationEntryRequest) | Updates a specific registered entry |
-| DeleteRegistrationEntry | [DeleteRegistrationEntryRequest](#datastore.DeleteRegistrationEntryRequest) | [DeleteRegistrationEntryResponse](#datastore.DeleteRegistrationEntryRequest) | Deletes a specific registered entry |
-| ListParentIDEntries | [ListParentIDEntriesRequest](#datastore.ListParentIDEntriesRequest) | [ListParentIDEntriesResponse](#datastore.ListParentIDEntriesRequest) | Retrieves all the  registered entry with the same ParentID |
-| ListSelectorEntries | [ListSelectorEntriesRequest](#datastore.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#datastore.ListSelectorEntriesRequest) | Retrieves all the  registered entry with the same Selector |
-| ListSpiffeEntries | [ListSpiffeEntriesRequest](#datastore.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#datastore.ListSpiffeEntriesRequest) | Retrieves all the  registered entry with the same SpiffeId |
-| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Applies the plugin configuration |
-| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin |
+| CreateFederatedEntry | [CreateFederatedEntryRequest](#spire.server.datastore.CreateFederatedEntryRequest) | [CreateFederatedEntryResponse](#spire.server.datastore.CreateFederatedEntryRequest) | Creates a Federated Bundle |
+| ListFederatedEntry | [ListFederatedEntryRequest](#spire.server.datastore.ListFederatedEntryRequest) | [ListFederatedEntryResponse](#spire.server.datastore.ListFederatedEntryRequest) | List all Federated SPIFFE IDs |
+| UpdateFederatedEntry | [UpdateFederatedEntryRequest](#spire.server.datastore.UpdateFederatedEntryRequest) | [UpdateFederatedEntryResponse](#spire.server.datastore.UpdateFederatedEntryRequest) | Updates the specified Federated Bundle |
+| DeleteFederatedEntry | [DeleteFederatedEntryRequest](#spire.server.datastore.DeleteFederatedEntryRequest) | [DeleteFederatedEntryResponse](#spire.server.datastore.DeleteFederatedEntryRequest) | Deletes the specified Federated Bundle |
+| CreateAttestedNodeEntry | [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest) | [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryRequest) | Creates an Attested Node Entry |
+| FetchAttestedNodeEntry | [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest) | [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryRequest) | Retrieves the Attested Node Entry |
+| FetchStaleNodeEntries | [FetchStaleNodeEntriesRequest](#spire.server.datastore.FetchStaleNodeEntriesRequest) | [FetchStaleNodeEntriesResponse](#spire.server.datastore.FetchStaleNodeEntriesRequest) | Retrieves dead nodes for which the base SVID has expired |
+| UpdateAttestedNodeEntry | [UpdateAttestedNodeEntryRequest](#spire.server.datastore.UpdateAttestedNodeEntryRequest) | [UpdateAttestedNodeEntryResponse](#spire.server.datastore.UpdateAttestedNodeEntryRequest) | Updates the Attested Node Entry |
+| DeleteAttestedNodeEntry | [DeleteAttestedNodeEntryRequest](#spire.server.datastore.DeleteAttestedNodeEntryRequest) | [DeleteAttestedNodeEntryResponse](#spire.server.datastore.DeleteAttestedNodeEntryRequest) | Deletes the Attested Node Entry |
+| CreateNodeResolverMapEntry | [CreateNodeResolverMapEntryRequest](#spire.server.datastore.CreateNodeResolverMapEntryRequest) | [CreateNodeResolverMapEntryResponse](#spire.server.datastore.CreateNodeResolverMapEntryRequest) | Creates a Node resolver map Entry |
+| FetchNodeResolverMapEntry | [FetchNodeResolverMapEntryRequest](#spire.server.datastore.FetchNodeResolverMapEntryRequest) | [FetchNodeResolverMapEntryResponse](#spire.server.datastore.FetchNodeResolverMapEntryRequest) | Retrieves all Node Resolver Map Entry for the specific base SPIFFEID |
+| DeleteNodeResolverMapEntry | [DeleteNodeResolverMapEntryRequest](#spire.server.datastore.DeleteNodeResolverMapEntryRequest) | [DeleteNodeResolverMapEntryResponse](#spire.server.datastore.DeleteNodeResolverMapEntryRequest) | Deletes all Node Resolver Map Entry for the specific base SPIFFEID |
+| RectifyNodeResolverMapEntries | [RectifyNodeResolverMapEntriesRequest](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest) | [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest) | Used for rectifying updated node resolutions |
+| CreateRegistrationEntry | [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest) | [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryRequest) | Creates a Registered Entry |
+| FetchRegistrationEntry | [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest) | [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryRequest) | Retrieve a specific registered entry |
+| UpdateRegistrationEntry | [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest) | [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryRequest) | Updates a specific registered entry |
+| DeleteRegistrationEntry | [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest) | [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryRequest) | Deletes a specific registered entry |
+| ListParentIDEntries | [ListParentIDEntriesRequest](#spire.server.datastore.ListParentIDEntriesRequest) | [ListParentIDEntriesResponse](#spire.server.datastore.ListParentIDEntriesRequest) | Retrieves all the  registered entry with the same ParentID |
+| ListSelectorEntries | [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesRequest) | Retrieves all the  registered entry with the same Selector |
+| ListSpiffeEntries | [ListSpiffeEntriesRequest](#spire.server.datastore.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#spire.server.datastore.ListSpiffeEntriesRequest) | Retrieves all the  registered entry with the same SpiffeId |
+| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Applies the plugin configuration |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin |
 
  
 

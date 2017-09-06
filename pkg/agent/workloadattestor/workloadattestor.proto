@@ -1,0 +1,29 @@
+/** Environment specific plugin to attest a workloads “selector”
+data. a*/
+
+syntax = "proto3";
+package spire.agent.workloadattestor;
+option go_package = "workloadattestor";
+
+import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
+
+/** Represents the workload PID.*/
+message AttestRequest {
+    /** Workload PID */
+    int32 pid = 1;
+}
+
+/** Represents a list of selectors resolved for a given PID. */
+message AttestResponse {
+    /** List of selectors */
+    repeated string selectors = 1;
+}
+
+service WorkloadAttestor {
+    /** Returns a list of selectors resolved for a given PID */
+    rpc Attest(AttestRequest) returns (AttestResponse);
+    /** Applies the plugin configuration and returns configuration errors */
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+    /** Returns the version and related metadata of the plugin */
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+}
