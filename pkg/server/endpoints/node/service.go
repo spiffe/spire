@@ -118,6 +118,7 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 		SpiffeId:  baseSpiffeID,
 		Selectors: entries,
 	}
+
 	svidUpdate := &pb.SvidUpdate{
 		Svids:               svids,
 		RegistrationEntries: []*common.RegistrationEntry{registrationEntry},

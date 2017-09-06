@@ -28,6 +28,8 @@ import (
 	"github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common/plugin"
 
+	"crypto/elliptic"
+	spire_common "github.com/spiffe/spire/pkg/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -75,21 +77,31 @@ type Config struct {
 	TrustBundle *x509.CertPool
 }
 
+type AgentConfig struct {
+	Config        *Config
+	PluginCatalog helpers.PluginCatalog
+	NodeClient    node.NodeClient
+}
+
 type Agent struct {
-	BaseSVID    []byte
-	key         *ecdsa.PrivateKey
-	BaseSVIDTTL int32
+	BaseSVID     []byte
+	baseSVIDpKey *ecdsa.PrivateKey
+	BaseSVIDTTL  int32
+	grpcServer   *grpc.Server
+	acc          *AgentConfig
+	Cache        Cache
+}
 
-	Catalog *helpers.PluginCatalog
-	Config  *Config
-
-	grpcServer *grpc.Server
+func New(ac *AgentConfig) *Agent {
+	return &Agent{acc: ac}
 }
 
 // Run the agent
 // This method initializes the agent, including its plugins,
 // and then blocks on the main event loop.
 func (a *Agent) Run() error {
+	a.Cache = NewCache()
+
 	err := a.initPlugins()
 	defer a.stopPlugins()
 	if err != nil {
@@ -107,31 +119,24 @@ func (a *Agent) Run() error {
 	}
 
 	// Main event loop
-	a.Config.Log.Info("SPIRE Agent is now running")
+	a.acc.Config.Log.Info("msg", "SPIRE Agent is now running")
 	for {
 		select {
-		case err = <-a.Config.ErrorCh:
+		case err = <-a.acc.Config.ErrorCh:
 			return err
-		case <-a.Config.ShutdownCh:
+		case <-a.acc.Config.ShutdownCh:
 			a.grpcServer.GracefulStop()
-			return <-a.Config.ErrorCh
+			return <-a.acc.Config.ErrorCh
 		}
 	}
 }
 
 func (a *Agent) initPlugins() error {
-	a.Config.Log.Info("Starting plugins")
+	a.acc.Config.Log.Info("msg", "Starting plugins")
+	a.acc.PluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
+	a.acc.PluginCatalog.SetPluginTypeMap(PluginTypeMap)
 
-	l := a.Config.Log.WithField("subsystem_name", "catalog")
-	a.Catalog = &helpers.PluginCatalog{
-		PluginConfDirectory: a.Config.PluginDir,
-		Logger:              l,
-	}
-
-	a.Catalog.SetMaxPluginTypeMap(MaxPlugins)
-	a.Catalog.SetPluginTypeMap(PluginTypeMap)
-
-	err := a.Catalog.Run()
+	err := a.acc.PluginCatalog.Run()
 	if err != nil {
 		return err
 	}
@@ -140,8 +145,8 @@ func (a *Agent) initPlugins() error {
 }
 
 func (a *Agent) initEndpoints() error {
-	a.Config.Log.Info("Starting the workload API")
-	svc := server.NewService(a.Catalog, a.Config.ShutdownCh)
+	a.acc.Config.Log.Info("Starting the workload API")
+	svc := server.NewService(a.acc.PluginCatalog, a.acc.Config.ShutdownCh)
 
 	endpoints := server.Endpoints{
 		PluginInfoEndpoint: server.MakePluginInfoEndpoint(svc),
@@ -152,23 +157,23 @@ func (a *Agent) initEndpoints() error {
 	handler := server.MakeGRPCServer(endpoints)
 	sriplugin.RegisterServerServer(a.grpcServer, handler)
 
-	listener, err := net.Listen(a.Config.BindAddress.Network(), a.Config.BindAddress.String())
+	listener, err := net.Listen(a.acc.Config.BindAddress.Network(), a.acc.Config.BindAddress.String())
 	if err != nil {
 		return fmt.Errorf("Error creating GRPC listener: %s", err)
 	}
 
 	go func() {
-		a.Config.ErrorCh <- a.grpcServer.Serve(listener)
+		a.acc.Config.ErrorCh <- a.grpcServer.Serve(listener)
 	}()
 
 	return nil
 }
 
 func (a *Agent) bootstrap() error {
-	a.Config.Log.Info("Bootstrapping SPIRE agent")
+	a.acc.Config.Log.Info("msg", "Bootstrapping SPIRE agent")
 
 	// Look up the key manager plugin
-	pluginClients := a.Catalog.GetPluginsByType("KeyManager")
+	pluginClients := a.acc.PluginCatalog.GetPluginsByType("KeyManager")
 	if len(pluginClients) != 1 {
 		return fmt.Errorf("Expected only one key manager plugin, found %i", len(pluginClients))
 	}
@@ -185,17 +190,17 @@ func (a *Agent) bootstrap() error {
 			return err
 		}
 
-		err = a.LoadBaseSVID()
+		err = a.loadBaseSVID()
 		if err != nil {
 			return err
 		}
-		a.key = key
+		a.baseSVIDpKey = key
 	} else {
 		if a.BaseSVID != nil {
-			a.Config.Log.Info("Certificate configured but no private key found!")
+			a.acc.Config.Log.Info("Certificate configured but no private key found!")
 		}
 
-		a.Config.Log.Info("Generating private key for new base SVID")
+		a.acc.Config.Log.Info("Generating private key for new base SVID")
 		res, err := keyManager.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
 		if err != nil {
 			return fmt.Errorf("Failed to generate private key: %s", err)
@@ -204,61 +209,53 @@ func (a *Agent) bootstrap() error {
 		if err != nil {
 			return err
 		}
-		a.key = key
+		a.baseSVIDpKey = key
 
-		// If we're here, we need to Attest/Re-Attest
-		return a.Attest()
+		// If we're here, we need to attest/Re-attest
+		regEntryMap, err := a.attest()
+		if err != nil {
+			return err
+		}
+		err = a.FetchSVID(regEntryMap)
+		if err != nil {
+			return err
+		}
 	}
 
-	a.Config.Log.Info("Bootstrapping done")
+	a.acc.Config.Log.Info("Bootstrapping done")
 	return nil
 }
 
 // Attest the agent, obtain a new Base SVID
-func (a *Agent) Attest() error {
-	a.Config.Log.Info("Preparing to attest against %s", a.Config.ServerAddress.String())
+func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
+	a.acc.Config.Log.Info("Preparing to attest against %s", a.acc.Config.ServerAddress.String())
 
 	// Look up the node attestor plugin
-	pluginClients := a.Catalog.GetPluginsByType("NodeAttestor")
+	pluginClients := a.acc.PluginCatalog.GetPluginsByType("NodeAttestor")
 	if len(pluginClients) != 1 {
-		return fmt.Errorf("Expected only one node attestor plugin, found %i", len(pluginClients))
+		return nil, fmt.Errorf("Expected only one node attestor plugin, found %i", len(pluginClients))
 	}
 	attestor := pluginClients[0].(nodeattestor.NodeAttestor)
 
 	pluginResponse, err := attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
 	if err != nil {
-		return fmt.Errorf("Failed to get attestation data from plugin: %s", err)
+		return nil, fmt.Errorf("Failed to get attestation data from plugin: %s", err)
 	}
 
 	// Parse the SPIFFE ID, form a CSR with it
 	id, err := url.Parse(pluginResponse.SpiffeId)
 	if err != nil {
-		return fmt.Errorf("Failed to form SPIFFE ID: %s", err)
+		return nil, fmt.Errorf("Failed to form SPIFFE ID: %s", err)
 	}
-	csr, err := a.GenerateCSR(id)
+	csr, err := a.generateCSR(id, a.baseSVIDpKey)
 	if err != nil {
-		return fmt.Errorf("Failed to generate CSR for attestation: %s", err)
+		return nil, fmt.Errorf("Failed to generate CSR for attestation: %s", err)
 	}
 
-	serverID := a.Config.TrustDomain
-	serverID.Path = "spiffe/cp"
-	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{serverID.String()},
-		TrustRoots: a.Config.TrustBundle,
-	}
-
-	// Configure TLS
 	// Since we are bootstrapping, this is explicitly _not_ mTLS
-	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
-	tlsConfig.ClientAuth = tls.NoClientCert
-	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
-
-	conn, err := grpc.Dial(a.Config.ServerAddress.String(), dialCreds)
-	if err != nil {
-		return fmt.Errorf("Could not connect to: %v", err)
-	}
+	conn := a.getNodeAPIClientConn(false)
 	defer conn.Close()
-	c := node.NewNodeClient(conn)
+	nodeClient := node.NewNodeClient(conn)
 
 	// Perform attestation
 	req := &node.FetchBaseSVIDRequest{
@@ -266,31 +263,38 @@ func (a *Agent) Attest() error {
 		Csr:          csr,
 	}
 
-	serverResponse, err := c.FetchBaseSVID(context.Background(), req)
+	serverResponse, err := nodeClient.FetchBaseSVID(context.Background(), req)
 	if err != nil {
-		return fmt.Errorf("Failed attestation against spire server: %s", err)
+		return nil, fmt.Errorf("Failed attestation against spire server: %s", err)
 	}
 
 	// Pull base SVID out of the response
 	svids := serverResponse.SvidUpdate.Svids
 	if len(svids) > 1 {
-		a.Config.Log.Info("More than one SVID received during attestation!")
+		a.acc.Config.Log.Info("More than one SVID received during attestation!")
 	}
 	svid, ok := svids[id.String()]
 	if !ok {
-		return fmt.Errorf("Base SVID not found in attestation response")
+		return nil, fmt.Errorf("Base SVID not found in attestation response")
+	}
+
+	var registrationEntryMap = make(map[string]*spire_common.RegistrationEntry)
+	for i, entry := range serverResponse.SvidUpdate.RegistrationEntries {
+		if i != 0 {
+			registrationEntryMap[entry.SpiffeId] = entry
+		}
 	}
 
 	a.BaseSVID = svid.SvidCert
 	a.BaseSVIDTTL = svid.Ttl
-	a.StoreBaseSVID()
-	a.Config.Log.Info("Attestation complete")
-	return nil
+	a.storeBaseSVID()
+	a.acc.Config.Log.Info("msg", "Attestation complete")
+	return registrationEntryMap, nil
 }
 
 // Generate a CSR for the given SPIFFE ID
-func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
-	a.Config.Log.Info("Generating CSR", "SPIFFE_ID", spiffeID.String())
+func (a *Agent) generateCSR(spiffeID *url.URL, key *ecdsa.PrivateKey) ([]byte, error) {
+	a.acc.Config.Log.Info("msg", "Generating a CSR for %s", spiffeID.String())
 
 	uriSANs, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
@@ -303,12 +307,12 @@ func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
 	}}
 
 	csrData := &x509.CertificateRequest{
-		Subject:            *a.Config.CertDN,
+		Subject:            *a.acc.Config.CertDN,
 		SignatureAlgorithm: x509.ECDSAWithSHA256,
 		ExtraExtensions:    uriSANExtension,
 	}
 
-	csr, err := x509.CreateCertificateRequest(rand.Reader, csrData, a.key)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, csrData, key)
 	if err != nil {
 		return nil, err
 	}
@@ -317,12 +321,12 @@ func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
 }
 
 // Read base SVID from data dir and load it
-func (a *Agent) LoadBaseSVID() error {
-	a.Config.Log.Info("Loading base SVID from disk")
+func (a *Agent) loadBaseSVID() error {
+	a.acc.Config.Log.Info("msg", "Loading base SVID from disk")
 
-	certPath := path.Join(a.Config.DataDir, "base_svid.crt")
+	certPath := path.Join(a.acc.Config.DataDir, "base_svid.crt")
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
-		a.Config.Log.Info("A base SVID could not be found. A new one will be generated")
+		a.acc.Config.Log.Info("msg", "A base SVID could not be found. A new one will be generated")
 		return nil
 	}
 
@@ -342,12 +346,12 @@ func (a *Agent) LoadBaseSVID() error {
 }
 
 // Write base SVID to storage dir
-func (a *Agent) StoreBaseSVID() {
-	certPath := path.Join(a.Config.DataDir, "base_svid.crt")
+func (a *Agent) storeBaseSVID() {
+	certPath := path.Join(a.acc.Config.DataDir, "base_svid.crt")
 	f, err := os.Create(certPath)
 	defer f.Close()
 	if err != nil {
-		a.Config.Log.Info("Unable to store Base SVID at path %s!", certPath)
+		a.acc.Config.Log.Info("msg", "Unable to store Base SVID at path %s!", certPath)
 		return
 	}
 
@@ -357,9 +361,107 @@ func (a *Agent) StoreBaseSVID() {
 	return
 }
 
+func (a *Agent) FetchSVID(registrationEntryMap map[string]*spire_common.RegistrationEntry) (err error) {
+
+	if len(registrationEntryMap) != 0 {
+		Csrs, pkeyMap, err := a.generateCSRForRegistrationEntries(registrationEntryMap)
+		if err != nil {
+			return err
+		}
+
+		conn := a.getNodeAPIClientConn(true)
+		defer conn.Close()
+		nodeClient := node.NewNodeClient(conn)
+
+		req := &node.FetchSVIDRequest{Csrs: Csrs}
+
+		resp, err := nodeClient.FetchSVID(context.Background(), req)
+		if err != nil {
+			return err
+		}
+
+		svidMap := resp.GetSvidUpdate().GetSvids()
+
+		for spiffeID, entry := range registrationEntryMap {
+			svid, svidInMap := svidMap[spiffeID]
+			pkey, pkeyInMap := pkeyMap[spiffeID]
+			if svidInMap && pkeyInMap {
+				a.Cache.SetEntry(CacheEntry{registrationEntry: entry,
+					SVID: svid, privateKey: pkey})
+			}
+		}
+
+		newRegistrationMap := make(map[string]*spire_common.RegistrationEntry)
+
+		if len(resp.SvidUpdate.RegistrationEntries) != len(registrationEntryMap) {
+			for _, entry := range resp.SvidUpdate.RegistrationEntries {
+				if _, ok := registrationEntryMap[entry.SpiffeId]; ok != true {
+					newRegistrationMap[entry.SpiffeId] = entry
+				}
+			}
+			a.FetchSVID(newRegistrationMap)
+
+		}
+	}
+	return
+}
+
+func (a *Agent) getNodeAPIClientConn(mtls bool) (conn *grpc.ClientConn) {
+
+	serverID := a.acc.Config.TrustDomain
+	serverID.Path = "spiffe/cp"
+	spiffePeer := &spiffe_tls.TLSPeer{
+		SpiffeIDs:  []string{serverID.String()},
+		TrustRoots: a.acc.Config.TrustBundle,
+	}
+	var Cert [][]byte
+	if mtls {
+		Cert = [][]byte{a.BaseSVID}
+	}
+	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{
+		{Certificate: Cert}})
+
+	if !mtls {
+		tlsConfig.ClientAuth = tls.NoClientCert
+	}
+	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+
+	conn, err := grpc.Dial(a.acc.Config.ServerAddress.String(), dialCreds)
+	if err != nil {
+		return
+	}
+
+	return
+
+}
+
+func (a *Agent) generateCSRForRegistrationEntries(
+	regEntryMap map[string]*spire_common.RegistrationEntry) (CSRs [][]byte, pkeyMap map[string]*ecdsa.PrivateKey, err error) {
+
+	pkeyMap = make(map[string]*ecdsa.PrivateKey)
+	for id, _ := range regEntryMap {
+
+		key, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+		if err != nil {
+			return nil, nil, err
+		}
+		spiffeid, err := url.Parse(id)
+		if err != nil {
+			return nil, nil, err
+		}
+		csr, err := a.generateCSR(spiffeid, key)
+		if err != nil {
+			return nil, nil, err
+		}
+		CSRs = append(CSRs, csr)
+		pkeyMap[id] = key
+	}
+	return
+}
+
 func (a *Agent) stopPlugins() {
-	a.Config.Log.Info("Stopping plugins...")
-	if a.Catalog != nil {
-		a.Catalog.Stop()
+	a.acc.Config.Log.Info("msg", "Stopping plugins...")
+	if a.acc.PluginCatalog != nil {
+		a.acc.PluginCatalog.Stop()
 	}
 }

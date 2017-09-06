@@ -92,10 +92,9 @@ imports:
 - name: github.com/sirupsen/logrus
   version: 89742aefa4b206dcf400792f3bd35b542998eb3b
 - name: github.com/spiffe/go-spiffe
-  version: 2bb3101d62b4bea6371d792e818360e3f056867b
+  version: 3757acfee6e16f97518b0daba17209811f404bcf
   subpackages:
   - spiffe
-  - tls
   - uri
 - name: golang.org/x/crypto
   version: 81e90905daefcd6fd217b62423c0908922eadb30

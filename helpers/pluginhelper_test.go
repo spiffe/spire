@@ -47,7 +47,7 @@ type PluginHelperTestSuite struct {
 	configfileContent []byte
 	dir               string
 	file              *os.File
-	plugincat         PluginCatalog
+	plugincat         *PluginCatalogImpl
 }
 
 func (suite *PluginHelperTestSuite) SetupTest() {
@@ -76,8 +76,8 @@ func (suite *PluginHelperTestSuite) SetupTest() {
 		suite.NoError(err)
 	}
 
-	suite.plugincat = PluginCatalog{
-		PluginConfDirectory: suite.dir}
+	suite.plugincat = NewPluginCatalog(
+		&PluginCatalogConfig{PluginConfDirectory: suite.dir})
 
 }
 

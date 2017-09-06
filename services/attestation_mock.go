@@ -55,7 +55,7 @@ func (_m *MockAttestation) Attest(attestedData *common.AttestedData, attestedBef
 	return ret0, ret1
 }
 
-// Attest indicates an expected call of Attest
+// attest indicates an expected call of attest
 func (_mr *MockAttestationMockRecorder) Attest(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Attest", reflect.TypeOf((*MockAttestation)(nil).Attest), arg0, arg1)
 }

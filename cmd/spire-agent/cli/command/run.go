@@ -77,7 +77,12 @@ func (*RunCommand) Run(args []string) int {
 	// TODO: Handle graceful shutdown?
 	signalListener(config.ErrorCh)
 
-	agt := &agent.Agent{Config: config}
+	pluginCatalog := helpers.NewPluginCatalog(&helpers.PluginCatalogConfig{
+		PluginConfDirectory: config.PluginDir,
+		Logger:              config.Log.WithField("subsystem_name", "catalog")})
+	agt := agent.New(&agent.AgentConfig{
+		Config:        config,
+		PluginCatalog: pluginCatalog})
 	err = agt.Run()
 	if err != nil {
 		config.Log.Error(err.Error())
