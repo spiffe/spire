@@ -2,8 +2,6 @@ package services
 
 import (
 	"crypto/x509"
-	"encoding/pem"
-	"errors"
 	"time"
 
 	"github.com/spiffe/sri/pkg/common"
@@ -57,7 +55,7 @@ func (att *AttestationImpl) Attest(attestedData *common.AttestedData, attestedBe
 }
 
 func (att *AttestationImpl) CreateEntry(attestationType string, baseSpiffeID string, certBytes []byte) (err error) {
-	cert, err := parsePEMBytes(certBytes)
+	cert, err := x509.ParseCertificate(certBytes)
 	if err != nil {
 		return err
 	}
@@ -73,7 +71,7 @@ func (att *AttestationImpl) CreateEntry(attestationType string, baseSpiffeID str
 }
 
 func (att *AttestationImpl) UpdateEntry(baseSpiffeID string, certBytes []byte) (err error) {
-	cert, err := parsePEMBytes(certBytes)
+	cert, err := x509.ParseCertificate(certBytes)
 	if err != nil {
 		return err
 	}
@@ -84,17 +82,4 @@ func (att *AttestationImpl) UpdateEntry(baseSpiffeID string, certBytes []byte) (
 		CertSerialNumber:   cert.SerialNumber.String(),
 	})
 	return err
-}
-
-func parsePEMBytes(bytes []byte) (*x509.Certificate, error) {
-	pemBlock, rest := pem.Decode(bytes)
-	if pemBlock == nil || len(rest) > 0 {
-		return nil, errors.New("Error decoding CA response")
-	}
-	cert, err := x509.ParseCertificate(pemBlock.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return cert, nil
 }

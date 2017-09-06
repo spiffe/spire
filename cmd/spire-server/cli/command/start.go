@@ -7,8 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
-	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -155,7 +153,7 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 }
 
 func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.PluginCatalog) error {
-	logger.Log("msg", "Initiating endpoints")
+	logger.Log("msg", "Initializing endpoints")
 	//plugins
 
 	dataStore := pluginCatalog.GetPluginsByType("DataStore")[0]
@@ -288,13 +286,13 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 }
 
 func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCatalog) (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	logger.Log("msg", "Generating SVID certificate")
-
 	spiffeID := &url.URL{
 		Scheme: "spiffe",
 		Host:   config.TrustDomain,
 		Path:   path.Join("spiffe", "cp"),
 	}
+
+	logger.Log("msg", "Generating SVID certificate", "SPIFFE_ID", spiffeID.String())
 
 	uriSAN, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
@@ -318,23 +316,14 @@ func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCat
 		return nil, nil, err
 	}
 
-	csrPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE REQUEST",
-		Bytes: csr,
-	})
-
-	signReq := &ca.SignCsrRequest{Csr: csrPEM}
+	signReq := &ca.SignCsrRequest{Csr: csr}
 	p := catalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
 	res, err := p.SignCsr(signReq)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	pemBlock, rest := pem.Decode(res.SignedCertificate)
-	if pemBlock == nil || len(rest) > 0 {
-		return nil, nil, errors.New("Error decoding CA response")
-	}
-	cert, err := x509.ParseCertificate(pemBlock.Bytes)
+	cert, err := x509.ParseCertificate(res.SignedCertificate)
 	if err != nil {
 		return nil, nil, err
 	}
