@@ -19,7 +19,6 @@ import (
 	"syscall"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/go-spiffe/uri"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -237,8 +236,17 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 		}
 		logger.Log("grpc:", *gRPCAddr)
 
+		// TODO: Fix me after server refactor
+		// Get CA Plugin so we can fetch our signing cert
+		caPlugin := pluginCatalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
+		crtRes, err := caPlugin.FetchCertificate(&ca.FetchCertificateRequest{})
+		if err != nil {
+			errChan <- err
+			return
+		}
+		certChain := [][]byte{cert.Raw, crtRes.StoredIntermediateCert}
 		tlsCert := &tls.Certificate{
-			Certificate: [][]byte{cert.Raw},
+			Certificate: certChain,
 			PrivateKey:  key,
 		}
 		tlsConfig := &tls.Config{
@@ -306,7 +314,7 @@ func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCat
 	req := &x509.CertificateRequest{
 		SignatureAlgorithm: x509.ECDSAWithSHA256,
 		ExtraExtensions: []pkix.Extension{{
-			Id:       spiffe.OidExtensionSubjectAltName,
+			Id:       uri.OidExtensionSubjectAltName,
 			Value:    uriSAN,
 			Critical: false,
 		}},

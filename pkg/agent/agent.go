@@ -17,7 +17,8 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/go-spiffe/spiffe"
+
+	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
 
 	"github.com/spiffe/sri/helpers"
@@ -71,7 +72,7 @@ type Config struct {
 	ShutdownCh chan struct{}
 
 	// Trust domain and associated CA bundle
-	TrustDomain string
+	TrustDomain url.URL
 	TrustBundle *x509.CertPool
 }
 
@@ -244,14 +245,17 @@ func (a *Agent) Attest() error {
 		return fmt.Errorf("Failed to generate CSR for attestation: %s", err)
 	}
 
-	// Configure TLS
-	// TODO: Pick better options here
-	spiffePeer := SPIFFEPeer{TrustDomian: a.Config.TrustDomain}
-	tlsConfig := &tls.Config{
-		VerifyPeerCertificate: spiffePeer.VerifyPeerCertificate,
-		RootCAs:               a.Config.TrustBundle,
-		InsecureSkipVerify: true,
+	serverID := a.Config.TrustDomain
+	serverID.Path = "spiffe/cp"
+	spiffePeer := &spiffe_tls.TLSPeer{
+		SpiffeIDs:  []string{serverID.String()},
+		TrustRoots: a.Config.TrustBundle,
 	}
+
+	// Configure TLS
+	// Since we are bootstrapping, this is explicitly _not_ mTLS
+	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
+	tlsConfig.ClientAuth = tls.NoClientCert
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 
 	conn, err := grpc.Dial(a.Config.ServerAddress.String(), dialCreds)
@@ -298,7 +302,7 @@ func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
 		return []byte{}, err
 	}
 	uriSANExtension := []pkix.Extension{{
-		Id:       spiffe.OidExtensionSubjectAltName,
+		Id:       uri.OidExtensionSubjectAltName,
 		Value:    uriSANs,
 		Critical: true,
 	}}
@@ -356,33 +360,4 @@ func (a *Agent) StoreBaseSVID() {
 	f.Sync()
 
 	return
-}
-//TODO:(walmav) move to go-spiffe
-type SPIFFEPeer struct {
-	TrustDomian string
-}
-
-func (p *SPIFFEPeer) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) (err error) {
-
-	for a, rawCert := range rawCerts {
-		if a >= 0 {
-			cert, _ := x509.ParseCertificate(rawCert)
-			sanURIs, _ := uri.GetURINamesFromCertificate(cert)
-
-			for _, sanURI := range sanURIs {
-				u, _ := url.Parse(sanURI)
-				if u.Scheme == "spiffe" && u.Host == p.TrustDomian {
-					return nil
-				}
-			}
-		}
-	}
-	return &invalidSANURIWError{}
-}
-
-type invalidSANURIWError struct {
-}
-
-func (e *invalidSANURIWError) Error() string {
-	return "INVALID SAN URI"
 }
