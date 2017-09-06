@@ -1,4 +1,4 @@
-package: github.com/spiffe/sri
+package: github.com/spiffe/spire
 import:
 - package: github.com/golang/protobuf
   subpackages:

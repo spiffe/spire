@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	pb "github.com/spiffe/sri/pkg/api/workload"
+	pb "github.com/spiffe/spire/pkg/api/workload"
 )
 
 type ServerServiceMiddleWare func(WorkloadService) WorkloadService

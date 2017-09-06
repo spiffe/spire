@@ -1,8 +1,8 @@
 package services
 
 import (
-	"github.com/spiffe/sri/pkg/common"
-	ds "github.com/spiffe/sri/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/common"
+	ds "github.com/spiffe/spire/pkg/server/datastore"
 )
 
 //Registration service interface.

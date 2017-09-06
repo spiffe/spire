@@ -7,7 +7,7 @@ package spire.api.registration;
 option go_package = "registration";
 
 import public "google/api/annotations.proto";
-import public "github.com/spiffe/sri/pkg/common/common.proto";
+import public "github.com/spiffe/spire/pkg/common/common.proto";
 
 /** A type that represents the id of an entry.*/
 message RegistrationEntryID {

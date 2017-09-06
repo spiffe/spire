@@ -4,8 +4,8 @@ import (
 	"context"
 
 	grpctransport "github.com/go-kit/kit/transport/grpc"
-	pb "github.com/spiffe/sri/pkg/api/registration"
-	"github.com/spiffe/sri/pkg/common"
+	pb "github.com/spiffe/spire/pkg/api/registration"
+	"github.com/spiffe/spire/pkg/common"
 	oldcontext "golang.org/x/net/context"
 )
 

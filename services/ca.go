@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/sri/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/ca"
 )
 
 //CA service interface.

@@ -1,9 +1,9 @@
 package services
 
 import (
-	"github.com/spiffe/sri/pkg/common"
-	"github.com/spiffe/sri/pkg/server/datastore"
-	"github.com/spiffe/sri/pkg/server/noderesolver"
+	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/server/noderesolver"
 )
 
 //Identity service interface.

@@ -24,7 +24,7 @@ package node
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
-import spire_common "github.com/spiffe/sri/pkg/common"
+import spire_common "github.com/spiffe/spire/pkg/common"
 
 import (
 	context "golang.org/x/net/context"
@@ -42,14 +42,14 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-// Empty from public import github.com/spiffe/sri/pkg/common/common.proto
+// Empty from public import github.com/spiffe/spire/pkg/common/common.proto
 type Empty spire_common.Empty
 
 func (m *Empty) Reset()         { (*spire_common.Empty)(m).Reset() }
 func (m *Empty) String() string { return (*spire_common.Empty)(m).String() }
 func (*Empty) ProtoMessage()    {}
 
-// AttestedData from public import github.com/spiffe/sri/pkg/common/common.proto
+// AttestedData from public import github.com/spiffe/spire/pkg/common/common.proto
 type AttestedData spire_common.AttestedData
 
 func (m *AttestedData) Reset()          { (*spire_common.AttestedData)(m).Reset() }
@@ -58,7 +58,7 @@ func (*AttestedData) ProtoMessage()     {}
 func (m *AttestedData) GetType() string { return (*spire_common.AttestedData)(m).GetType() }
 func (m *AttestedData) GetData() []byte { return (*spire_common.AttestedData)(m).GetData() }
 
-// Selector from public import github.com/spiffe/sri/pkg/common/common.proto
+// Selector from public import github.com/spiffe/spire/pkg/common/common.proto
 type Selector spire_common.Selector
 
 func (m *Selector) Reset()           { (*spire_common.Selector)(m).Reset() }
@@ -67,7 +67,7 @@ func (*Selector) ProtoMessage()      {}
 func (m *Selector) GetType() string  { return (*spire_common.Selector)(m).GetType() }
 func (m *Selector) GetValue() string { return (*spire_common.Selector)(m).GetValue() }
 
-// Selectors from public import github.com/spiffe/sri/pkg/common/common.proto
+// Selectors from public import github.com/spiffe/spire/pkg/common/common.proto
 type Selectors spire_common.Selectors
 
 func (m *Selectors) Reset()         { (*spire_common.Selectors)(m).Reset() }
@@ -85,7 +85,7 @@ func (m *Selectors) GetEntries() []*Selector {
 	return s
 }
 
-// RegistrationEntry from public import github.com/spiffe/sri/pkg/common/common.proto
+// RegistrationEntry from public import github.com/spiffe/spire/pkg/common/common.proto
 type RegistrationEntry spire_common.RegistrationEntry
 
 func (m *RegistrationEntry) Reset()         { (*spire_common.RegistrationEntry)(m).Reset() }
@@ -113,7 +113,7 @@ func (m *RegistrationEntry) GetFbSpiffeIds() []string {
 	return (*spire_common.RegistrationEntry)(m).GetFbSpiffeIds()
 }
 
-// RegistrationEntries from public import github.com/spiffe/sri/pkg/common/common.proto
+// RegistrationEntries from public import github.com/spiffe/spire/pkg/common/common.proto
 type RegistrationEntries spire_common.RegistrationEntries
 
 func (m *RegistrationEntries) Reset()         { (*spire_common.RegistrationEntries)(m).Reset() }

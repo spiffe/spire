@@ -20,10 +20,10 @@ import (
 
 	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/sri/pkg/common/plugin"
-	iface "github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/server/ca"
-	"github.com/spiffe/sri/plugin/server/upstreamca-memory/pkg"
+	"github.com/spiffe/spire/pkg/common/plugin"
+	iface "github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
 )
 
 var (

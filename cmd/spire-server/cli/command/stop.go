@@ -3,7 +3,7 @@ package command
 import (
 	"log"
 
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/plugin"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )

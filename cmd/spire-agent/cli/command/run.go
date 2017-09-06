@@ -15,8 +15,8 @@ import (
 
 	"github.com/hashicorp/hcl"
 
-	"github.com/spiffe/sri/helpers"
-	"github.com/spiffe/sri/pkg/agent"
+	"github.com/spiffe/spire/helpers"
+	"github.com/spiffe/spire/pkg/agent"
 )
 
 const (

@@ -8,7 +8,7 @@ syntax = "proto3";
 package spire.server.ca;
 option go_package = "ca";
 
-import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
+import public "github.com/spiffe/spire/pkg/common/plugin/plugin.proto";
 
 /** Represents a request with a certificate signing request. */
 message SignCsrRequest {

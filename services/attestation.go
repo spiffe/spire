@@ -4,9 +4,9 @@ import (
 	"crypto/x509"
 	"time"
 
-	"github.com/spiffe/sri/pkg/common"
-	"github.com/spiffe/sri/pkg/server/datastore"
-	"github.com/spiffe/sri/pkg/server/nodeattestor"
+	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/server/nodeattestor"
 )
 
 //Attestation service interface.

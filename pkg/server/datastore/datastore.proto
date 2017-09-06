@@ -2,8 +2,8 @@ syntax = "proto3";
 package spire.server.datastore;
 option go_package = "datastore";
 
-import public "github.com/spiffe/sri/pkg/common/plugin/plugin.proto";
-import public "github.com/spiffe/sri/pkg/common/common.proto";
+import public "github.com/spiffe/spire/pkg/common/plugin/plugin.proto";
+import public "github.com/spiffe/spire/pkg/common/common.proto";
 
 /** Represents the trust chain for a different trust domain, along with
 a TTL describing its expiration, keyed by the SPIFFE ID of the foreign

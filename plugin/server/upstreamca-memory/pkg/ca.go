@@ -18,10 +18,10 @@ import (
 	"github.com/hashicorp/hcl"
 
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/sri/pkg/common/plugin"
-	common "github.com/spiffe/sri/pkg/common/plugin"
-	iface "github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/server/upstreamca"
+	"github.com/spiffe/spire/pkg/common/plugin"
+	common "github.com/spiffe/spire/pkg/common/plugin"
+	iface "github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/server/upstreamca"
 	"log"
 )
 
