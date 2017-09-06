@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"io/ioutil"
 	"path/filepath"
@@ -33,6 +34,42 @@ func TestMemory_Configure(t *testing.T) {
 	resp, err := m.Configure(pluginConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, &iface.ConfigureResponse{}, resp)
+}
+
+func TestMemory_ConfigureParseHclError(t *testing.T) {
+	config := "'" ///This should throw and error on parsing.
+	pluginConfig := &iface.ConfigureRequest{
+		Configuration: config,
+	}
+
+	m := &memoryPlugin{
+		mtx: &sync.RWMutex{},
+	}
+
+	resp, err := m.Configure(pluginConfig)
+	expectedError := "At 1:1: illegal char"
+	expectedErrorList := []string{expectedError}
+
+	assert.Equal(t, err.Error(), expectedError)
+	assert.Equal(t, resp.GetErrorList(), expectedErrorList)
+}
+
+func TestMemory_ConfigureDecodeObjectError(t *testing.T) {
+	config := `{"key_size": "foo"}` /// This should fail on decodeing object
+	pluginConfig := &iface.ConfigureRequest{
+		Configuration: config,
+	}
+
+	m := &memoryPlugin{
+		mtx: &sync.RWMutex{},
+	}
+
+	resp, err := m.Configure(pluginConfig)
+	expectedError := "strconv.ParseInt: parsing \"foo\": invalid syntax"
+	expectedErrorList := []string{expectedError}
+
+	assert.Equal(t, err.Error(), expectedError)
+	assert.Equal(t, resp.GetErrorList(), expectedErrorList)
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
@@ -125,7 +162,7 @@ func TestMemory_bootstrap(t *testing.T) {
 
 	assert.Equal(t, submitCSRResp.Cert, fetchCertificateResp.StoredIntermediateCert)
 
-	wcsr := createWorkloadCSR(t)
+	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
 	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
 	require.NoError(t, err)
@@ -146,7 +183,7 @@ func TestMemory_race(t *testing.T) {
 	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
 	require.NoError(t, err)
 
-	wcsr := createWorkloadCSR(t)
+	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
 	testutil.RaceTest(t, func(t *testing.T) {
 		m.GenerateCsr(&ca.GenerateCsrRequest{})
@@ -156,12 +193,135 @@ func TestMemory_race(t *testing.T) {
 	})
 }
 
-func createWorkloadCSR(t *testing.T) []byte {
+func TestMemory_SignCsr(t *testing.T) {
+	m := populateCert(t)
+
+	wcsr := createWorkloadCSR(t, "spiffe://localhost")
+
+	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, wcert)
+}
+
+func TestMemory_SignCsrNoCert(t *testing.T) {
+	m, err := NewWithDefault()
+	require.NoError(t, err)
+
+	wcsr := createWorkloadCSR(t, "spiffe://localhost")
+
+	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
+
+	assert.Equal(t, "Invalid state: no certificate", err.Error())
+	assert.Empty(t, wcert)
+}
+
+func TestMemory_SignCsrErrorParsingSpiffeId(t *testing.T) {
+	m := populateCert(t)
+
+	wcsr := createWorkloadCSR(t, "spif://localhost")
+
+	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
+
+	assert.Equal(t, "SPIFFE ID 'spif://localhost' is not prefixed with the spiffe:// scheme.", err.Error())
+	assert.Empty(t, wcert)
+}
+
+func TestMemory_SignCsrErrorParsingTTL(t *testing.T) {
+	m := populateCert(t)
+
+	config := configuration{
+		TrustDomain: "localhost",
+		KeySize:     2048,
+		TTL:         "abc",
+		CertSubject: certSubjectConfig{
+			Country:      []string{"US"},
+			Organization: []string{"SPIFFE"},
+			CommonName:   "",
+		}}
+
+	pluginConfig, err := populateConfigPlugin(config)
+	_, err = m.Configure(pluginConfig)
+	require.NoError(t, err)
+
+	wcsr := createWorkloadCSR(t, "spiffe://localhost")
+
+	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
+
+	assert.Equal(t, "Unable to parse TTL: time: invalid duration abc", err.Error())
+	assert.Empty(t, wcert)
+}
+
+/// This is supposed to test a failure on line 136, but its quite hard to inject a
+/// failure without changing the function considerably.
+/// Test left as documentation.
+///
+// func TestMemory_SignCsrErrorCreatingCertificate(t *testing.T) {}
+
+/// This would test the error case where we are unable to Marshal
+/// the uriSANS on line 169. However we are unable to inject a failure
+/// here to test.
+/// Test left as documentation.
+///
+// func TestMemory_GenerateCsrBadSpiffeURI(t *testing.T) {}
+
+/// This would test line 191 however we are unable to inject failures without
+/// changing the function considerably.
+///Test left as documentation.
+///
+//func TestMemory_GenerateCsrCreateCertificateRequestError(t *testing.T) {}
+
+func TestMemory_LoadCertificateInvalidCertFormat(t *testing.T) {
+	m, err := NewWithDefault()
+	require.NoError(t, err)
+
+	upca, err := upca.NewWithDefault("../upstreamca-memory/pkg/_test_data/keys/private_key.pem", "../upstreamca-memory/pkg/_test_data/keys/cert.pem")
+	require.NoError(t, err)
+
+	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
+	require.NoError(t, err)
+
+	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
+	require.NoError(t, err)
+
+	submitCSRResp.Cert = []byte{}
+	cert, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+
+	assert.Equal(t, "asn1: syntax error: sequence truncated", err.Error())
+	assert.Equal(t, &ca.LoadCertificateResponse{}, cert)
+}
+
+func TestMemory_LoadCertificateTooManyCerts(t *testing.T) {
+	m, err := NewWithDefault()
+	require.NoError(t, err)
+
+	upca, err := upca.NewWithDefault("../upstreamca-memory/pkg/_test_data/keys/private_key.pem", "../upstreamca-memory/pkg/_test_data/keys/cert.pem")
+	require.NoError(t, err)
+
+	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
+	require.NoError(t, err)
+
+	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
+	require.NoError(t, err)
+
+	oldCert := submitCSRResp.Cert
+	submitCSRResp.Cert = append(oldCert, oldCert...)
+	cert, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+
+	assert.Equal(t, "asn1: syntax error: trailing data", err.Error())
+	assert.Equal(t, &ca.LoadCertificateResponse{}, cert)
+}
+
+///
+// Test helper functions
+///
+
+func createWorkloadCSR(t *testing.T, spiffeID string) []byte {
 	keysz := 1024
 	key, err := rsa.GenerateKey(rand.Reader, keysz)
 	require.NoError(t, err)
 
-	uriSans, err := uri.MarshalUriSANs([]string{"spiffe://localhost"})
+	uriSans, err := uri.MarshalUriSANs([]string{spiffeID})
 	require.NoError(t, err)
 
 	template := x509.CertificateRequest{
@@ -183,4 +343,33 @@ func createWorkloadCSR(t *testing.T) []byte {
 	require.NoError(t, err)
 
 	return csr
+}
+
+func populateCert(t *testing.T) (m ca.ControlPlaneCa) {
+	m, err := NewWithDefault()
+	require.NoError(t, err)
+
+	upca, err := upca.NewWithDefault("../upstreamca-memory/pkg/_test_data/keys/private_key.pem", "../upstreamca-memory/pkg/_test_data/keys/cert.pem")
+	require.NoError(t, err)
+
+	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
+	require.NoError(t, err)
+
+	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
+	require.NoError(t, err)
+
+	_, err = m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+	require.NoError(t, err)
+
+	return m
+}
+
+func populateConfigPlugin(config configuration) (p *iface.ConfigureRequest, err error) {
+	jsonConfig, err := json.Marshal(config)
+
+	pluginConfig := &iface.ConfigureRequest{
+		Configuration: string(jsonConfig),
+	}
+
+	return pluginConfig, err
 }
