@@ -107,6 +107,8 @@ type ControlPlaneConfig struct {
 	BaseSpiffeIDTTL         int32
 	logFile                 string
 	logLevel                string
+    ServerHTTPPort          string
+    ServerGRPCPort          string
 }
 
 func (c *ControlPlaneConfig) LogConfig() (logFile string, logLevel string) {
@@ -137,6 +139,9 @@ func (c *ControlPlaneConfig) setConfig(data interface{}) error {
 	c.logLevel = hclData.LogLevel
 	c.logFile = hclData.LogFile
 
+	c.ServerHTTPPort = hclData.ServerHTTPPort
+	c.ServerGRPCPort = hclData.ServerGRPCPort
+
 	return nil
 }
 
@@ -162,6 +167,9 @@ type HCLData struct {
 	RegistrationAPIGRPCPort string `hcl:registrationAPIGRPCPort`
 	NodeAPIHTTPPort         string `hcl:nodeAPIHTTPPort`
 	RegistrationAPIHTTPPort string `hcl:registrationAPIHTTPPort`
+
+	ServerHTTPPort string `hcl:serverHTTPPort`
+	ServerGRPCPort string `hcl:serverGRPCPort`
 }
 
 func parseHCLfile(file string) (*HCLData, error) {

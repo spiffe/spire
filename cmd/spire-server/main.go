@@ -1,4 +1,4 @@
-package command
+package main
 
 import (
 	"crypto/ecdsa"
@@ -17,6 +17,7 @@ import (
 	"path"
 	"reflect"
 	"syscall"
+    "path/filepath"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spiffe/go-spiffe/uri"
@@ -47,8 +48,7 @@ import (
 )
 
 const (
-	DefaultServerConfigPath = ".conf/default_server_config.hcl"
-	DefaultPluginConfigDir  = "../../plugin/server/.conf"
+	DefaultServerConfigPath = "server.hcl"
 )
 
 var (
@@ -70,19 +70,32 @@ var (
 	logger = log.NewLogfmtLogger(os.Stdout)
 )
 
-type StartCommand struct {
+type runServer struct {
+    confFile string
 }
 
-//Help returns how to use the server command
-func (*StartCommand) Help() string {
-	return "Usage: spire-server server"
+func main() {
+    var confFile string
+
+    flag.StringVar(&confFile, "conf", DefaultServerConfigPath, "Path to configuration file")
+    flag.Parse()
+
+    s := runServer{}
+    s.confFile = confFile
+
+    result := s.Run()
+
+    if result != 0  {
+        os.Exit(1)
+    } else {
+        os.Exit(0)
+    }
 }
 
-//Run the server command
-func (*StartCommand) Run(args []string) int {
+func (s runServer) Run() int {
 	cpConfigPath, isPathSet := os.LookupEnv("SPIRE_SERVER_CONFIG")
 	if !isPathSet {
-		cpConfigPath = DefaultServerConfigPath
+		cpConfigPath = s.confFile
 	}
 
 	config := helpers.ControlPlaneConfig{}
@@ -99,20 +112,20 @@ func (*StartCommand) Run(args []string) int {
 		logger.Log("error", err)
 		return -1
 	}
-	pluginCatalog, err := loadPlugins()
+	pluginCatalog, err := s.loadPlugins(&config)
 	defer stopPlugins(pluginCatalog, logger)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
 	}
 
-	err = rotateSigningCert(&config, pluginCatalog)
+	err = s.rotateSigningCert(&config, pluginCatalog)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
 	}
 
-	err = initEndpoints(&config, pluginCatalog)
+	err = s.initEndpoints(&config, pluginCatalog)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
@@ -121,23 +134,16 @@ func (*StartCommand) Run(args []string) int {
 	return 0
 }
 
-//Synopsis of the server command
-func (*StartCommand) Synopsis() string {
-	return "Intializes spire-server Runtime."
-}
-
-func loadPlugins() (*helpers.PluginCatalog, error) {
-	pluginConfigDir, isPathSet := os.LookupEnv("SPIRE_PLUGIN_CONFIG_DIR")
-	if !isPathSet {
-		pluginConfigDir = DefaultPluginConfigDir
-	}
+func (s runServer) loadPlugins(config *helpers.ControlPlaneConfig) (*helpers.PluginCatalog, error) {
 	pluginLogger := hclog.New(&hclog.LoggerOptions{
 		Name:  "pluginLogger",
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 
+    pluginConfDir := filepath.Dir(s.confFile)
+
 	pluginCatalog := &helpers.PluginCatalog{
-		PluginConfDirectory: pluginConfigDir,
+		PluginConfDirectory: pluginConfDir,
 		Logger:              pluginLogger,
 	}
 	pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
@@ -152,7 +158,7 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 	return pluginCatalog, nil
 }
 
-func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.PluginCatalog) error {
+func (s runServer) initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.PluginCatalog) error {
 	logger.Log("msg", "Initializing endpoints")
 	//plugins
 
@@ -179,7 +185,7 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 	identityService := services.NewIdentityImpl(dataStoreImpl, nodeResolverImpl)
 	caService := services.NewCAImpl(serverCAImpl)
 
-	errChan := makeErrorChannel()
+	errChan := s.makeErrorChannel()
 	var serverSvc server.ServerService
 	serverSvc = server.NewService(pluginCatalog, errChan)
 	serverSvc = server.ServiceLoggingMiddleWare(logger)(serverSvc)
@@ -224,7 +230,7 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 		FetchSVIDEndpoint:            node.MakeFetchSVIDEndpoint(nodeSvc),
 	}
 
-	cert, key, err := generateSVID(config, pluginCatalog)
+	cert, key, err := s.generateSVID(config, pluginCatalog)
 	if err != nil {
 		return err
 	}
@@ -294,7 +300,7 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 	return error
 }
 
-func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCatalog) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+func (s runServer) generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCatalog) (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	spiffeID := &url.URL{
 		Scheme: "spiffe",
 		Host:   config.TrustDomain,
@@ -342,7 +348,7 @@ func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCat
 	return cert, key, nil
 }
 
-func rotateSigningCert(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCatalog) error {
+func (s runServer) rotateSigningCert(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCatalog) error {
 	logger.Log("msg", "Initiating rotation of signing certificate")
 
 	caPlugin := catalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
@@ -363,7 +369,7 @@ func rotateSigningCert(config *helpers.ControlPlaneConfig, catalog *helpers.Plug
 	return err
 }
 
-func makeErrorChannel() (errChannel chan error) {
+func (s runServer) makeErrorChannel() (errChannel chan error) {
 	errChannel = make(chan error)
 	go func() {
 		c := make(chan os.Signal, 1)
