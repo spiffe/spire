@@ -56,7 +56,7 @@ var (
 )
 
 type Config struct {
-	//TODO: review all this
+	// TTL we will use when creating the baseSpiffeID
 	BaseSpiffeIDTTL int32
 
 	// Directory for plugin configs
@@ -65,10 +65,10 @@ type Config struct {
 	Logger log.Logger
 
 	// Address of SPIRE server
-	ServerAddress *net.TCPAddr
+	BindAddress *net.TCPAddr
 
 	// Address of the HTTP SPIRE server
-	ServerHTTPAddress *net.TCPAddr
+	BindHTTPAddress *net.TCPAddr
 
 	// A channel for receiving errors from server goroutines
 	ErrorCh chan error
@@ -247,8 +247,8 @@ func (a *Server) initEndpoints() error {
 	nodeHandler := node.MakeGRPCServer(nodeEnpoints)
 	pbnode.RegisterNodeServer(a.grpcServer, nodeHandler)
 
-	a.Config.Logger.Log("msg", a.Config.ServerAddress.String())
-	listener, err := net.Listen(a.Config.ServerAddress.Network(), a.Config.ServerAddress.String())
+	a.Config.Logger.Log("msg", a.Config.BindAddress.String())
+	listener, err := net.Listen(a.Config.BindAddress.Network(), a.Config.BindAddress.String())
 	if err != nil {
 		return fmt.Errorf("Error creating GRPC listener: %s", err)
 	}
@@ -273,13 +273,13 @@ func (a *Server) initEndpoints() error {
 		opt := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 		opts := []grpc.DialOption{opt}
 
-		err := pbregistration.RegisterRegistrationHandlerFromEndpoint(ctx, mux, a.Config.ServerAddress.String(), opts)
+		err := pbregistration.RegisterRegistrationHandlerFromEndpoint(ctx, mux, a.Config.BindAddress.String(), opts)
 		if err != nil {
 			a.Config.ErrorCh <- err
 			return
 		}
-		a.Config.Logger.Log("msg", a.Config.ServerHTTPAddress.String())
-		a.Config.ErrorCh <- http.ListenAndServe(a.Config.ServerHTTPAddress.String(), mux)
+		a.Config.Logger.Log("msg", a.Config.BindHTTPAddress.String())
+		a.Config.ErrorCh <- http.ListenAndServe(a.Config.BindHTTPAddress.String(), mux)
 	}()
 
 	return nil
@@ -347,7 +347,8 @@ func (a *Server) rotateSigningCert() error {
 		return err
 	}
 
-	_, err = a.dependencies.ServerCAImpl.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: signRes.Cert})
+	req := &ca.LoadCertificateRequest{SignedIntermediateCert: signRes.Cert}
+	_, err = a.dependencies.ServerCAImpl.LoadCertificate(req)
 
 	return err
 }
@@ -375,34 +376,4 @@ func getNodeEndpoints(nodeSvc node.NodeService) node.Endpoints {
 		FetchFederatedBundleEndpoint: node.MakeFetchFederatedBundleEndpoint(nodeSvc),
 		FetchSVIDEndpoint:            node.MakeFetchSVIDEndpoint(nodeSvc),
 	}
-}
-
-//TODO:(walmav) move to go-spiffe
-type SPIFFEPeer struct {
-	TrustDomian string
-}
-
-func (p *SPIFFEPeer) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) (err error) {
-
-	for a, rawCert := range rawCerts {
-		if a >= 0 {
-			cert, _ := x509.ParseCertificate(rawCert)
-			sanURIs, _ := uri.GetURINamesFromCertificate(cert)
-
-			for _, sanURI := range sanURIs {
-				u, _ := url.Parse(sanURI)
-				if u.Scheme == "spiffe" && u.Host == p.TrustDomian {
-					return nil
-				}
-			}
-		}
-	}
-	return &invalidSANURIWError{}
-}
-
-type invalidSANURIWError struct {
-}
-
-func (e *invalidSANURIWError) Error() string {
-	return "INVALID SAN URI"
 }

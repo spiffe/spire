@@ -17,20 +17,20 @@ import (
 )
 
 const (
-	defaultConfigPath     = ".conf/default_server_config.hcl"
-	defaultServerAddress  = "127.0.0.1"
-	defaultServerPort     = "8081"
-	defaultServerHTTPPort = "8080"
-	defaultDataDir        = "."
-	defaultLogLevel       = "INFO"
-	defaultPluginDir      = "../../plugin/server/.conf"
+	defaultConfigPath      = ".conf/default_server_config.hcl"
+	defaultBindAddress     = "127.0.0.1"
+	defaultBindPort        = "8081"
+	defaultBindHTTPPort    = "8080"
+	defaultLogLevel        = "INFO"
+	defaultPluginDir       = "../../plugin/server/.conf"
+	defaultBaseSpiffeIDTTL = 999999
 )
 
 // CmdConfig represents available configurables for file and CLI options
 type CmdConfig struct {
-	ServerAddress   string
-	ServerPort      int
-	ServerHTTPPort  int
+	BindAddress     string
+	BindPort        int
+	BindHTTPPort    int
 	TrustDomain     string
 	PluginDir       string
 	LogFile         string
@@ -108,13 +108,14 @@ func setOptsFromCLI(c *server.Config, args []string) error {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	cmdConfig := &CmdConfig{}
 
-	flags.StringVar(&cmdConfig.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
-	flags.IntVar(&cmdConfig.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
-	flags.IntVar(&cmdConfig.ServerHTTPPort, "serverHTTPPort", 0, "HTTP Port number of the SPIRE server")
+	flags.StringVar(&cmdConfig.BindAddress, "bindAddress", "", "IP address or DNS name of the SPIRE server")
+	flags.IntVar(&cmdConfig.BindPort, "serverPort", 0, "Port number of the SPIRE server")
+	flags.IntVar(&cmdConfig.BindHTTPPort, "bindHTTPPort", 0, "HTTP Port number of the SPIRE server")
 	flags.StringVar(&cmdConfig.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.StringVar(&cmdConfig.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
 	flags.StringVar(&cmdConfig.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&cmdConfig.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
+	flags.IntVar(&cmdConfig.BaseSpiffeIDTTL, "baseSpiffeIDTTL", 0, "TTL to use when creating the baseSpiffeID")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -126,27 +127,18 @@ func setOptsFromCLI(c *server.Config, args []string) error {
 
 func mergeServerConfig(orig *server.Config, cmd *CmdConfig) error {
 	// Parse server address
-	if cmd.ServerAddress != "" {
-		ips, err := net.LookupIP(cmd.ServerAddress)
-		if err != nil {
-			return err
-		}
-
-		if len(ips) == 0 {
-			return fmt.Errorf("Could not resolve ServerAddress %s", cmd.ServerAddress)
-		}
-		serverAddress := ips[0]
-
-		orig.ServerAddress.IP = serverAddress
-		orig.ServerHTTPAddress.IP = serverAddress
+	if cmd.BindAddress != "" {
+		ip := net.ParseIP(cmd.BindAddress)
+		orig.BindAddress.IP = ip
+		orig.BindHTTPAddress.IP = ip
 	}
 
-	if cmd.ServerPort != 0 {
-		orig.ServerAddress.Port = cmd.ServerPort
+	if cmd.BindPort != 0 {
+		orig.BindAddress.Port = cmd.BindPort
 	}
 
-	if cmd.ServerHTTPPort != 0 {
-		orig.ServerHTTPAddress.Port = cmd.ServerHTTPPort
+	if cmd.BindHTTPPort != 0 {
+		orig.BindHTTPAddress.Port = cmd.BindHTTPPort
 	}
 
 	if cmd.TrustDomain != "" {
@@ -181,12 +173,12 @@ func mergeServerConfig(orig *server.Config, cmd *CmdConfig) error {
 }
 
 func validateConfig(c *server.Config) error {
-	if c.ServerAddress.IP == nil || c.ServerAddress.Port == 0 {
-		return errors.New("ServerAddress and ServerPort are required")
+	if c.BindAddress.IP == nil || c.BindAddress.Port == 0 {
+		return errors.New("BindAddress and BindPort are required")
 	}
 
-	if c.ServerHTTPAddress.IP == nil || c.ServerHTTPAddress.Port == 0 {
-		return errors.New("ServerAddress and ServerHTTPPort are required")
+	if c.BindHTTPAddress.IP == nil || c.BindHTTPAddress.Port == 0 {
+		return errors.New("BindAddress and BindHTTPPort are required")
 	}
 
 	if c.TrustDomain.String() == "" {
@@ -202,16 +194,17 @@ func newDefaultConfig() *server.Config {
 
 	// helpers.NewLogger() cannot return error when using STDOUT
 	logger, _ := helpers.NewLogger(defaultLogLevel, "")
-	serverAddress := &net.TCPAddr{}
+	bindAddress := &net.TCPAddr{}
 	serverHTTPAddress := &net.TCPAddr{}
 
 	return &server.Config{
-		PluginDir:         defaultPluginDir,
-		ErrorCh:           errCh,
-		ShutdownCh:        shutdownCh,
-		Logger:            logger,
-		ServerAddress:     serverAddress,
-		ServerHTTPAddress: serverHTTPAddress,
+		PluginDir:       defaultPluginDir,
+		ErrorCh:         errCh,
+		ShutdownCh:      shutdownCh,
+		Logger:          logger,
+		BindAddress:     bindAddress,
+		BindHTTPAddress: serverHTTPAddress,
+		BaseSpiffeIDTTL: defaultBaseSpiffeIDTTL,
 	}
 }
 
