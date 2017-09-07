@@ -87,6 +87,11 @@ type dependencies struct {
 	AttestationService  services.Attestation
 	IdentityService     services.Identity
 	CaService           services.CA
+	DataStoreImpl       datastore.DataStore
+	NodeAttestorImpl    nodeattestor.NodeAttestor
+	NodeResolverImpl    noderesolver.NodeResolver
+	ServerCAImpl        ca.ControlPlaneCa
+	UpstreamCAImpl      upstreamca.UpstreamCa
 }
 
 type Server struct {
@@ -175,25 +180,29 @@ func (a *Server) initDependencies() {
 	//plugins
 	dataStore := a.Catalog.GetPluginsByType("DataStore")[0]
 	a.Config.Logger.Log("pluginType", reflect.TypeOf(dataStore))
-	dataStoreImpl := dataStore.(datastore.DataStore)
+	a.dependencies.DataStoreImpl = dataStore.(datastore.DataStore)
 
 	nodeAttestor := a.Catalog.GetPluginsByType("NodeAttestor")[0]
 	a.Config.Logger.Log("pluginType", reflect.TypeOf(nodeAttestor))
-	nodeAttestorImpl := nodeAttestor.(nodeattestor.NodeAttestor)
+	a.dependencies.NodeAttestorImpl = nodeAttestor.(nodeattestor.NodeAttestor)
 
 	nodeResolver := a.Catalog.GetPluginsByType("NodeResolver")[0]
 	a.Config.Logger.Log("pluginType", reflect.TypeOf(nodeResolver))
-	nodeResolverImpl := nodeResolver.(noderesolver.NodeResolver)
+	a.dependencies.NodeResolverImpl = nodeResolver.(noderesolver.NodeResolver)
 
 	serverCA := a.Catalog.GetPluginsByType("ControlPlaneCA")[0]
 	a.Config.Logger.Log("pluginType", reflect.TypeOf(serverCA))
-	serverCAImpl := serverCA.(ca.ControlPlaneCa)
+	a.dependencies.ServerCAImpl = serverCA.(ca.ControlPlaneCa)
+
+	upCAPlugin := a.Catalog.GetPluginsByType("UpstreamCA")[0].(upstreamca.UpstreamCa)
+	a.Config.Logger.Log("pluginType", reflect.TypeOf(upCAPlugin))
+	a.dependencies.UpstreamCAImpl = upCAPlugin.(upstreamca.UpstreamCa)
 
 	//services
-	a.dependencies.RegistrationService = services.NewRegistrationImpl(dataStoreImpl)
-	a.dependencies.AttestationService = services.NewAttestationImpl(dataStoreImpl, nodeAttestorImpl)
-	a.dependencies.IdentityService = services.NewIdentityImpl(dataStoreImpl, nodeResolverImpl)
-	a.dependencies.CaService = services.NewCAImpl(serverCAImpl)
+	a.dependencies.RegistrationService = services.NewRegistrationImpl(a.dependencies.DataStoreImpl)
+	a.dependencies.AttestationService = services.NewAttestationImpl(a.dependencies.DataStoreImpl, a.dependencies.NodeAttestorImpl)
+	a.dependencies.IdentityService = services.NewIdentityImpl(a.dependencies.DataStoreImpl, a.dependencies.NodeResolverImpl)
+	a.dependencies.CaService = services.NewCAImpl(a.dependencies.ServerCAImpl)
 
 	a.Config.Logger.Log("msg", "Initiating dependencies done")
 }
@@ -222,10 +231,7 @@ func (a *Server) initEndpoints() error {
 	}
 
 	// TODO: Fix me after server refactor
-	// Get CA Plugin so we can fetch our signing cert
-	//TODO: don't do it here
-	caPlugin := a.Catalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
-	crtRes, err := caPlugin.FetchCertificate(&ca.FetchCertificateRequest{})
+	crtRes, err := a.dependencies.ServerCAImpl.FetchCertificate(&ca.FetchCertificateRequest{})
 	if err != nil {
 		return err
 	}
@@ -318,8 +324,7 @@ func (a *Server) generateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	}
 
 	signReq := &ca.SignCsrRequest{Csr: csr}
-	p := a.Catalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
-	res, err := p.SignCsr(signReq)
+	res, err := a.dependencies.ServerCAImpl.SignCsr(signReq)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -337,20 +342,17 @@ func (a *Server) generateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 func (a *Server) rotateSigningCert() error {
 	a.Config.Logger.Log("msg", "Initiating rotation of signing certificate")
 
-	caPlugin := a.Catalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
-	upCAPlugin := a.Catalog.GetPluginsByType("UpstreamCA")[0].(upstreamca.UpstreamCa)
-
-	csrRes, err := caPlugin.GenerateCsr(&ca.GenerateCsrRequest{})
+	csrRes, err := a.dependencies.ServerCAImpl.GenerateCsr(&ca.GenerateCsrRequest{})
 	if err != nil {
 		return err
 	}
 
-	signRes, err := upCAPlugin.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
+	signRes, err := a.dependencies.UpstreamCAImpl.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
 	if err != nil {
 		return err
 	}
 
-	_, err = caPlugin.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: signRes.Cert})
+	_, err = a.dependencies.ServerCAImpl.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: signRes.Cert})
 
 	return err
 }
