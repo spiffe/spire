@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"io/ioutil"
 	"os/exec"
 	"path/filepath"
@@ -43,6 +44,9 @@ func (c *PluginCatalog) loadConfig() (err error) {
 	}
 
 	for _, configFile := range configFiles {
+        if ! strings.HasPrefix(configFile.Name(), "plugin_") {
+            continue
+        }
 		pluginConfig := &PluginConfig{}
 		err := pluginConfig.ParseConfig(filepath.Join(
 			c.PluginConfDirectory, configFile.Name()))

@@ -35,6 +35,8 @@ registrationAPIGRPCPort ="8086"
 nodeAPIHTTPPort = "8086"
 registrationAPIHTTPPort ="8086"
 trustDomain = "spiffe://"
+serverHTTPPort = "8080"
+serverGRPCPort = "8081"
 ```
 
 Each plugin also requires a configuration file that is read by the server
@@ -62,23 +64,9 @@ pluginData {
 
 ## Starting the server and agent
 
-The server and agent support two environment variables to set the location of their configuration:
-
-* `SPIRE_SERVER_CONFIG` - path to the .hcl file containing server configuration.
-  Defaults to `$PWD/.conf/default_server_config.hcl`
-* `SPIRE_AGENT_CONFIG_PATH` - path to the .hcl file containing agent configuration.
-  Defaults to `$PWD/.conf/default_agent_config.hcl`
-
-Both server and agent support:
-
-* `SPIRE_PLUGIN_CONFIG_DIR` - path to the directory containing per-plugin configuration files.
-  This directory must _only_ contain plugin configurations. Defaults to
-  `$PWD/../../plugin/server/.conf/` and `$PWD/../../plugin/agent/.conf`
-
-To start the agent:
-
+To start the server or agent:
 ```
-SPIRE_PLUGIN_CONFIG_DIR=/etc/spire/pluginconf SPIRE_AGENT_CONFIG_PATH=/etc/spire/default_agent_config.hcl spire-agent start
+spire-server -conf /etc/spire/server.hcl
 ```
 
 The agent will run silently in the foreground, logging status to its logfile.
