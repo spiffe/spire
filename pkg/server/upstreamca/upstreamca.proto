@@ -1,0 +1,33 @@
+/** Responsible for processing Certificate Signing Requests for
+intermediate signing certificates (or from Node Agents if the user does
+not want the Control Plane to retain signing material).  This plugin
+will manage/own the Trust Bundles for the Control Plane, and act as the
+interface for upstream CAs. */
+
+syntax = "proto3";
+package spire.server.upstreamca;
+option go_package = "upstreamca";
+
+import public "github.com/spiffe/spire/pkg/common/plugin/plugin.proto";
+
+message SubmitCSRRequest {
+    /** Certificate signing request. */
+    bytes csr = 1;
+}
+
+message SubmitCSRResponse {
+    /** Signed certificate */
+    bytes cert = 1;
+    /** Upstream trust bundle. */
+    bytes upstreamTrustBundle = 2;
+}
+
+service UpstreamCA {
+    /** Responsible for configuration of the plugin. */
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+    /** Returns the  version and related metadata of the installed plugin. */
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+    /** Will take in a CSR and submit it to the upstream CA for signing
+    (“upstream” CA can be local self-signed root in simple case). */
+    rpc SubmitCSR(SubmitCSRRequest) returns (SubmitCSRResponse);
+}

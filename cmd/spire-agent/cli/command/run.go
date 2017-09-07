@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -15,8 +16,8 @@ import (
 
 	"github.com/hashicorp/hcl"
 
-	"github.com/spiffe/sri/helpers"
-	"github.com/spiffe/sri/pkg/agent"
+	"github.com/spiffe/spire/helpers"
+	"github.com/spiffe/spire/pkg/agent"
 )
 
 const (
@@ -153,7 +154,12 @@ func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 	}
 
 	if cmd.TrustDomain != "" {
-		orig.TrustDomain = cmd.TrustDomain
+		trustDomain := url.URL{
+			Scheme: "spiffe",
+			Host:   cmd.TrustDomain,
+		}
+
+		orig.TrustDomain = trustDomain
 	}
 
 	// Parse trust bundle
@@ -211,7 +217,7 @@ func validateConfig(c *agent.Config) error {
 		return errors.New("ServerAddress and ServerPort are required")
 	}
 
-	if c.TrustDomain == "" {
+	if c.TrustDomain.String() == "" {
 		return errors.New("TrustDomain is required")
 	}
 

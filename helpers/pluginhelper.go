@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/plugin"
 )
 
 type PluginCatalog struct {
@@ -183,4 +183,8 @@ func (c *PluginCatalog) Run() (err error) {
 	}
 
 	return nil
+}
+
+func (c *PluginCatalog) Stop() {
+	plugin.CleanupClients()
 }

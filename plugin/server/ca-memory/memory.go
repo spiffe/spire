@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"log"
@@ -19,12 +18,11 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
 
-	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/sri/pkg/common/plugin"
-	iface "github.com/spiffe/sri/pkg/common/plugin"
-	"github.com/spiffe/sri/pkg/server/ca"
-	"github.com/spiffe/sri/plugin/server/upstreamca-memory/pkg"
+	"github.com/spiffe/spire/pkg/common/plugin"
+	iface "github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
 )
 
 var (
@@ -62,7 +60,7 @@ type memoryPlugin struct {
 }
 
 func (m *memoryPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	log.Print("Stating Configure")
+	log.Print("Starting Configure")
 
 	resp := &sriplugin.ConfigureResponse{}
 
@@ -133,17 +131,12 @@ func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 		BasicConstraintsValid: true,
 	}
 
-	cert, err := x509.CreateCertificate(rand.Reader,
+	signedCertificate, err := x509.CreateCertificate(rand.Reader,
 		&template, m.cert, csr.PublicKey, m.key)
 
 	if err != nil {
 		return nil, err
 	}
-
-	signedCertificate := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: cert,
-	})
 
 	log.Print("Certificate successfully created")
 	return &ca.SignCsrResponse{SignedCertificate: signedCertificate}, nil
@@ -182,7 +175,7 @@ func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 		SignatureAlgorithm: x509.SHA256WithRSA,
 		ExtraExtensions: []pkix.Extension{
 			{
-				Id:       spiffe.OidExtensionSubjectAltName,
+				Id:       uri.OidExtensionSubjectAltName,
 				Value:    uriSans,
 				Critical: false,
 			}},
@@ -193,13 +186,8 @@ func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 		return nil, err
 	}
 
-	csrPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE REQUEST",
-		Bytes: csr,
-	})
-
 	log.Printf("CSR with SPIFFE ID: '%v' successfully generated", spiffeID.String())
-	return &ca.GenerateCsrResponse{Csr: csrPEM}, nil
+	return &ca.GenerateCsrResponse{Csr: csr}, nil
 }
 
 func (m *memoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
@@ -214,19 +202,14 @@ func (m *memoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*c
 		return &ca.FetchCertificateResponse{}, nil
 	}
 
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: m.cert.Raw,
-	})
-
 	certUris, err := uri.GetURINamesFromCertificate(m.cert)
 	if err != nil && len(certUris) > 0 {
 		log.Printf("Certificate with SPIFFE ID: '%v' found", certUris[0])
 	} else {
-		log.Print ("The signing certificate loaded does not have a SPIFFE ID!")
+		log.Print("The signing certificate loaded does not have a SPIFFE ID!")
 	}
 
-	return &ca.FetchCertificateResponse{StoredIntermediateCert: certPEM}, nil
+	return &ca.FetchCertificateResponse{StoredIntermediateCert: m.cert.Raw}, nil
 }
 
 func (m *memoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (response *ca.LoadCertificateResponse, err error) {
@@ -240,17 +223,7 @@ func (m *memoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (resp
 
 	m.key = m.newKey
 
-	block, rest := pem.Decode(request.SignedIntermediateCert)
-
-	if block == nil {
-		return &ca.LoadCertificateResponse{}, errors.New("Invalid cert format")
-	}
-
-	if len(rest) > 0 {
-		return &ca.LoadCertificateResponse{}, errors.New("Invalid cert format: too many certs")
-	}
-
-	cert, err := x509.ParseCertificate(block.Bytes)
+	cert, err := x509.ParseCertificate(request.SignedIntermediateCert)
 	if err != nil {
 		return &ca.LoadCertificateResponse{}, err
 	}
@@ -264,7 +237,7 @@ func (m *memoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (resp
 		return &ca.LoadCertificateResponse{}, fmt.Errorf("X.509 SVID certificates must have exactly one URI SAN. Found %v URI(s)", len(uris))
 	}
 
-	keyUsageExtensions := spiffe.GetKeyUsageExtensionsFromCertificate(cert)
+	keyUsageExtensions := uri.GetKeyUsageExtensionsFromCertificate(cert)
 
 	if len(keyUsageExtensions) == 0 {
 		return &ca.LoadCertificateResponse{}, errors.New("The Key Usage extension must be set on X.509 SVID certificates")

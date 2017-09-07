@@ -6,28 +6,28 @@
 
 * [workload.proto](#workload.proto)
   
-    * [Empty](#workload.Empty)
+    * [Empty](#spire.api.workload.Empty)
   
-    * [FederateEntry](#workload.FederateEntry)
+    * [FederateEntry](#spire.api.workload.FederateEntry)
   
-    * [FetchFederatedBundleRequest](#workload.FetchFederatedBundleRequest)
+    * [FetchFederatedBundleRequest](#spire.api.workload.FetchFederatedBundleRequest)
   
-    * [FetchFederatedBundleResponse](#workload.FetchFederatedBundleResponse)
+    * [FetchFederatedBundleResponse](#spire.api.workload.FetchFederatedBundleResponse)
   
-    * [FetchFederatedBundlesResponse](#workload.FetchFederatedBundlesResponse)
+    * [FetchFederatedBundlesResponse](#spire.api.workload.FetchFederatedBundlesResponse)
   
-    * [FetchSVIDBundleRequest](#workload.FetchSVIDBundleRequest)
+    * [FetchSVIDBundleRequest](#spire.api.workload.FetchSVIDBundleRequest)
   
-    * [FetchSVIDBundleResponse](#workload.FetchSVIDBundleResponse)
+    * [FetchSVIDBundleResponse](#spire.api.workload.FetchSVIDBundleResponse)
   
-    * [FetchSVIDBundlesResponse](#workload.FetchSVIDBundlesResponse)
+    * [FetchSVIDBundlesResponse](#spire.api.workload.FetchSVIDBundlesResponse)
   
-    * [WLSVIDEntry](#workload.WLSVIDEntry)
-  
-  
+    * [WLSVIDEntry](#spire.api.workload.WLSVIDEntry)
   
   
-    * [Workload](#workload.Workload)
+  
+  
+    * [Workload](#spire.api.workload.Workload)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -38,28 +38,24 @@
 <p align="right"><a href="#top">Top</a></p>
 
 ## workload.proto
-A workload uses this API to retrieve a list of identities that it should be allowed
-to represent itself as (SPIFFE IDs) as well as, optionally, documents (in the form of
-SPIFFE Verifiable Identity Documents(SVID) ) that can be used to prove those identities to other systems.
-
-Finally, the API can also be used to retrieve trust bundles that can be used to
-verify SVIDs from other SPIFFE-identified workloads.
 
 
-<a name="workload.Empty"/>
+
+<a name="spire.api.workload.Empty"/>
 
 ### Empty
+Represents a message with no fields
 
 
 
 
 
 
-
-<a name="workload.FederateEntry"/>
+<a name="spire.api.workload.FederateEntry"/>
 
 ### FederateEntry
-represents cert bundle of a remote control plane for the purposes of trusting remote workloads
+Represents cert bundle of a remote control plane for the purposes
+of trusting remote workloads
 
 
 | Field | Type | Label | Description |
@@ -73,10 +69,11 @@ represents cert bundle of a remote control plane for the purposes of trusting re
 
 
 
-<a name="workload.FetchFederatedBundleRequest"/>
+<a name="spire.api.workload.FetchFederatedBundleRequest"/>
 
 ### FetchFederatedBundleRequest
-represents a Federated cert Bundle request corresponding to a specific SPIFFEId
+Represents a Federated cert Bundle request corresponding to a
+specific SPIFFEId
 
 
 | Field | Type | Label | Description |
@@ -88,40 +85,42 @@ represents a Federated cert Bundle request corresponding to a specific SPIFFEId
 
 
 
-<a name="workload.FetchFederatedBundleResponse"/>
+<a name="spire.api.workload.FetchFederatedBundleResponse"/>
 
 ### FetchFederatedBundleResponse
-represents cert Bundles that a specific workload&#39;s SPIFFEId is registered to trust
+represents cert Bundles that a specific workload&#39;s SPIFFEId is
+registered to trust
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| FederateEntry | [FederateEntry](#workload.FederateEntry) | repeated | trusted external CA cert bundles of foreign control planes |
+| FederateEntry | [FederateEntry](#spire.api.workload.FederateEntry) | repeated | Trusted external CA cert bundles of foreign control planes |
 
 
 
 
 
 
-<a name="workload.FetchFederatedBundlesResponse"/>
+<a name="spire.api.workload.FetchFederatedBundlesResponse"/>
 
 ### FetchFederatedBundlesResponse
-represents all the cert Bundles that a workload is registered to trust
+Represents all the cert Bundles that a workload is registered to trust
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| FederateEntry | [FederateEntry](#workload.FederateEntry) | repeated | trusted external CA cert bundles of foreign control planes |
+| FederateEntry | [FederateEntry](#spire.api.workload.FederateEntry) | repeated | Trusted external CA cert bundles of foreign control planes |
 
 
 
 
 
 
-<a name="workload.FetchSVIDBundleRequest"/>
+<a name="spire.api.workload.FetchSVIDBundleRequest"/>
 
 ### FetchSVIDBundleRequest
-represents a workload request for a SVID and the control plane&#39;s cert bundle of a specific SPIFFEID
+Represents a workload request for a SVID and the control plane&#39;s
+cert bundle of a specific SPIFFEID
 
 
 | Field | Type | Label | Description |
@@ -133,17 +132,17 @@ represents a workload request for a SVID and the control plane&#39;s cert bundle
 
 
 
-<a name="workload.FetchSVIDBundleResponse"/>
+<a name="spire.api.workload.FetchSVIDBundleResponse"/>
 
 ### FetchSVIDBundleResponse
-represents a response specific to the requesting workload SPIFFEId,
-Includes the workload&#39;s SVID Entry(SVID and its corresponding information )
+Represents a response specific to the requesting workload SPIFFEId,
+Includes the workload&#39;s SVID Entry (SVID and its corresponding information)
 and the Control Plane&#39;s trusted cert bundle
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| WLSVIDEntry | [WLSVIDEntry](#workload.WLSVIDEntry) |  | Workload&#39;s SVID Entry |
+| WLSVIDEntry | [WLSVIDEntry](#spire.api.workload.WLSVIDEntry) |  | Workload&#39;s SVID Entry |
 | cpBundle | [bytes](#bytes) |  | Control Plane&#39;s trusted cert bundle |
 
 
@@ -151,15 +150,16 @@ and the Control Plane&#39;s trusted cert bundle
 
 
 
-<a name="workload.FetchSVIDBundlesResponse"/>
+<a name="spire.api.workload.FetchSVIDBundlesResponse"/>
 
 ### FetchSVIDBundlesResponse
-represents response the includes all the SVIDs the and Control Plane&#39;s trusted cert bundle workload
+Represents response the includes all the SVIDs the and Control
+Plane&#39;s trusted cert bundle workload
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| WLSVIDEntry | [WLSVIDEntry](#workload.WLSVIDEntry) | repeated | list of Workload SVID entries |
+| WLSVIDEntry | [WLSVIDEntry](#spire.api.workload.WLSVIDEntry) | repeated | list of Workload SVID entries |
 | cpBundle | [bytes](#bytes) |  | Control Plane&#39;s trusted cert bundle |
 
 
@@ -167,10 +167,11 @@ represents response the includes all the SVIDs the and Control Plane&#39;s trust
 
 
 
-<a name="workload.WLSVIDEntry"/>
+<a name="spire.api.workload.WLSVIDEntry"/>
 
 ### WLSVIDEntry
-A WLSVIDEntry represents a Workload&#39;s SVID and its associated information
+A WLSVIDEntry represents a Workload&#39;s SVID and its associated
+information
 
 
 | Field | Type | Label | Description |
@@ -191,17 +192,17 @@ A WLSVIDEntry represents a Workload&#39;s SVID and its associated information
  
 
 
-<a name="workload.Workload"/>
+<a name="spire.api.workload.Workload"/>
 
 ### Workload
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchSVIDBundle | [FetchSVIDBundleRequest](#workload.FetchSVIDBundleRequest) | [FetchSVIDBundleResponse](#workload.FetchSVIDBundleRequest) | Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation) |
-| FetchSVIDBundles | [Empty](#workload.Empty) | [FetchSVIDBundlesResponse](#workload.Empty) | Requests all SVIDs and cert bundle of the control plane associated with the workload |
-| FetchFederatedBundle | [FetchFederatedBundleRequest](#workload.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#workload.FetchFederatedBundleRequest) | Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation) |
-| FetchFederatedBundles | [Empty](#workload.Empty) | [FetchFederatedBundlesResponse](#workload.Empty) | Requests all trusted external CA cert bundles associated with the workload |
+| FetchSVIDBundle | [FetchSVIDBundleRequest](#spire.api.workload.FetchSVIDBundleRequest) | [FetchSVIDBundleResponse](#spire.api.workload.FetchSVIDBundleRequest) | Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation) |
+| FetchSVIDBundles | [Empty](#spire.api.workload.Empty) | [FetchSVIDBundlesResponse](#spire.api.workload.Empty) | Requests all SVIDs and cert bundle of the control plane associated with the workload |
+| FetchFederatedBundle | [FetchFederatedBundleRequest](#spire.api.workload.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#spire.api.workload.FetchFederatedBundleRequest) | Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation) |
+| FetchFederatedBundles | [Empty](#spire.api.workload.Empty) | [FetchFederatedBundlesResponse](#spire.api.workload.Empty) | Requests all trusted external CA cert bundles associated with the workload |
 
  
 

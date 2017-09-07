@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -18,16 +17,17 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/go-spiffe/spiffe"
+
+	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
 
-	"github.com/spiffe/sri/helpers"
-	"github.com/spiffe/sri/pkg/agent/endpoints/server"
-	"github.com/spiffe/sri/pkg/agent/keymanager"
-	"github.com/spiffe/sri/pkg/agent/nodeattestor"
-	"github.com/spiffe/sri/pkg/agent/workloadattestor"
-	"github.com/spiffe/sri/pkg/api/node"
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/helpers"
+	"github.com/spiffe/spire/pkg/agent/endpoints/server"
+	"github.com/spiffe/spire/pkg/agent/keymanager"
+	"github.com/spiffe/spire/pkg/agent/nodeattestor"
+	"github.com/spiffe/spire/pkg/agent/workloadattestor"
+	"github.com/spiffe/spire/pkg/api/node"
+	"github.com/spiffe/spire/pkg/common/plugin"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -72,7 +72,7 @@ type Config struct {
 	ShutdownCh chan struct{}
 
 	// Trust domain and associated CA bundle
-	TrustDomain string
+	TrustDomain url.URL
 	TrustBundle *x509.CertPool
 }
 
@@ -92,6 +92,7 @@ type Agent struct {
 // and then blocks on the main event loop.
 func (a *Agent) Run() error {
 	err := a.initPlugins()
+	defer a.stopPlugins()
 	if err != nil {
 		return err
 	}
@@ -146,7 +147,7 @@ func (a *Agent) initPlugins() error {
 
 func (a *Agent) initEndpoints() error {
 	a.Config.Logger.Log("msg", "Starting the workload API")
-	svc := server.NewService(a.Catalog, a.Config.ErrorCh)
+	svc := server.NewService(a.Catalog, a.Config.ShutdownCh)
 
 	endpoints := server.Endpoints{
 		PluginInfoEndpoint: server.MakePluginInfoEndpoint(svc),
@@ -245,14 +246,17 @@ func (a *Agent) Attest() error {
 		return fmt.Errorf("Failed to generate CSR for attestation: %s", err)
 	}
 
-	// Configure TLS
-	// TODO: Pick better options here
-	spiffePeer := SPIFFEPeer{TrustDomian: a.Config.TrustDomain}
-	tlsConfig := &tls.Config{
-		VerifyPeerCertificate: spiffePeer.VerifyPeerCertificate,
-		RootCAs:               a.Config.TrustBundle,
-		InsecureSkipVerify: true,
+	serverID := a.Config.TrustDomain
+	serverID.Path = "spiffe/cp"
+	spiffePeer := &spiffe_tls.TLSPeer{
+		SpiffeIDs:  []string{serverID.String()},
+		TrustRoots: a.Config.TrustBundle,
 	}
+
+	// Configure TLS
+	// Since we are bootstrapping, this is explicitly _not_ mTLS
+	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
+	tlsConfig.ClientAuth = tls.NoClientCert
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 
 	conn, err := grpc.Dial(a.Config.ServerAddress.String(), dialCreds)
@@ -292,14 +296,14 @@ func (a *Agent) Attest() error {
 
 // Generate a CSR for the given SPIFFE ID
 func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
-	a.Config.Logger.Log("msg", "Generating a CSR for %s", spiffeID.String())
+	a.Config.Logger.Log("msg", "Generating CSR", "SPIFFE_ID", spiffeID.String())
 
 	uriSANs, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
 		return []byte{}, err
 	}
 	uriSANExtension := []pkix.Extension{{
-		Id:       spiffe.OidExtensionSubjectAltName,
+		Id:       uri.OidExtensionSubjectAltName,
 		Value:    uriSANs,
 		Critical: true,
 	}}
@@ -315,7 +319,7 @@ func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
 		return nil, err
 	}
 
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr}), nil
+	return csr, nil
 }
 
 // Read base SVID from data dir and load it
@@ -353,39 +357,15 @@ func (a *Agent) StoreBaseSVID() {
 		return
 	}
 
-	err = pem.Encode(f, &pem.Block{Type: "CERTIFICATE", Bytes: a.BaseSVID})
-	if err != nil {
-		a.Config.Logger.Log("msg", "Unable to store Base SVID at path %s!", certPath)
-	}
+	f.Write(a.BaseSVID)
+	f.Sync()
 
 	return
 }
-//TODO:(walmav) move to go-spiffe
-type SPIFFEPeer struct {
-	TrustDomian string
-}
 
-func (p *SPIFFEPeer) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) (err error) {
-
-	for a, rawCert := range rawCerts {
-		if a >= 0 {
-			cert, _ := x509.ParseCertificate(rawCert)
-			sanURIs, _ := uri.GetURINamesFromCertificate(cert)
-
-			for _, sanURI := range sanURIs {
-				u, _ := url.Parse(sanURI)
-				if u.Scheme == "spiffe" && u.Host == p.TrustDomian {
-					return nil
-				}
-			}
-		}
+func (a *Agent) stopPlugins() {
+	a.Config.Logger.Log("msg", "Stopping plugins...")
+	if a.Catalog != nil {
+		a.Catalog.Stop()
 	}
-	return &invalidSANURIWError{}
-}
-
-type invalidSANURIWError struct {
-}
-
-func (e *invalidSANURIWError) Error() string {
-	return "INVALID SAN URI"
 }

@@ -7,8 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
-	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -21,32 +19,31 @@ import (
 	"syscall"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/spiffe/go-spiffe/spiffe"
 	"github.com/spiffe/go-spiffe/uri"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/plugin"
 
-	"github.com/spiffe/sri/pkg/server/ca"
-	"github.com/spiffe/sri/pkg/server/datastore"
-	"github.com/spiffe/sri/pkg/server/nodeattestor"
-	"github.com/spiffe/sri/pkg/server/noderesolver"
-	"github.com/spiffe/sri/pkg/server/upstreamca"
+	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/server/nodeattestor"
+	"github.com/spiffe/spire/pkg/server/noderesolver"
+	"github.com/spiffe/spire/pkg/server/upstreamca"
 
-	"github.com/spiffe/sri/cmd/spire-server/endpoints/node"
-	"github.com/spiffe/sri/cmd/spire-server/endpoints/registration"
-	"github.com/spiffe/sri/cmd/spire-server/endpoints/server"
-	nodePB "github.com/spiffe/sri/pkg/api/node"
-	registrationPB "github.com/spiffe/sri/pkg/api/registration"
+	"github.com/spiffe/spire/cmd/spire-server/endpoints/node"
+	"github.com/spiffe/spire/cmd/spire-server/endpoints/registration"
+	"github.com/spiffe/spire/cmd/spire-server/endpoints/server"
+	nodePB "github.com/spiffe/spire/pkg/api/node"
+	registrationPB "github.com/spiffe/spire/pkg/api/registration"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/sri/helpers"
-	"github.com/spiffe/sri/services"
+	"github.com/spiffe/spire/helpers"
+	"github.com/spiffe/spire/services"
 )
 
 const (
@@ -103,6 +100,7 @@ func (*StartCommand) Run(args []string) int {
 		return -1
 	}
 	pluginCatalog, err := loadPlugins()
+	defer stopPlugins(pluginCatalog, logger)
 	if err != nil {
 		level.Error(logger).Log("error", err)
 		return -1
@@ -155,7 +153,7 @@ func loadPlugins() (*helpers.PluginCatalog, error) {
 }
 
 func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.PluginCatalog) error {
-	logger.Log("msg", "Initiating endpoints")
+	logger.Log("msg", "Initializing endpoints")
 	//plugins
 
 	dataStore := pluginCatalog.GetPluginsByType("DataStore")[0]
@@ -239,8 +237,17 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 		}
 		logger.Log("grpc:", *gRPCAddr)
 
+		// TODO: Fix me after server refactor
+		// Get CA Plugin so we can fetch our signing cert
+		caPlugin := pluginCatalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
+		crtRes, err := caPlugin.FetchCertificate(&ca.FetchCertificateRequest{})
+		if err != nil {
+			errChan <- err
+			return
+		}
+		certChain := [][]byte{cert.Raw, crtRes.StoredIntermediateCert}
 		tlsCert := &tls.Certificate{
-			Certificate: [][]byte{cert.Raw},
+			Certificate: certChain,
 			PrivateKey:  key,
 		}
 		tlsConfig := &tls.Config{
@@ -288,13 +295,13 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 }
 
 func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCatalog) (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	logger.Log("msg", "Generating SVID certificate")
-
 	spiffeID := &url.URL{
 		Scheme: "spiffe",
 		Host:   config.TrustDomain,
 		Path:   path.Join("spiffe", "cp"),
 	}
+
+	logger.Log("msg", "Generating SVID certificate", "SPIFFE_ID", spiffeID.String())
 
 	uriSAN, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
@@ -308,7 +315,7 @@ func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCat
 	req := &x509.CertificateRequest{
 		SignatureAlgorithm: x509.ECDSAWithSHA256,
 		ExtraExtensions: []pkix.Extension{{
-			Id:       spiffe.OidExtensionSubjectAltName,
+			Id:       uri.OidExtensionSubjectAltName,
 			Value:    uriSAN,
 			Critical: false,
 		}},
@@ -318,23 +325,14 @@ func generateSVID(config *helpers.ControlPlaneConfig, catalog *helpers.PluginCat
 		return nil, nil, err
 	}
 
-	csrPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE REQUEST",
-		Bytes: csr,
-	})
-
-	signReq := &ca.SignCsrRequest{Csr: csrPEM}
+	signReq := &ca.SignCsrRequest{Csr: csr}
 	p := catalog.GetPluginsByType("ControlPlaneCA")[0].(ca.ControlPlaneCa)
 	res, err := p.SignCsr(signReq)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	pemBlock, rest := pem.Decode(res.SignedCertificate)
-	if pemBlock == nil || len(rest) > 0 {
-		return nil, nil, errors.New("Error decoding CA response")
-	}
-	cert, err := x509.ParseCertificate(pemBlock.Bytes)
+	cert, err := x509.ParseCertificate(res.SignedCertificate)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -373,4 +371,11 @@ func makeErrorChannel() (errChannel chan error) {
 		errChannel <- fmt.Errorf("%s", <-c)
 	}()
 	return
+}
+
+func stopPlugins(catalog *helpers.PluginCatalog, logger log.Logger) {
+	logger.Log("msg", "Stopping plugins...")
+	if catalog != nil {
+		catalog.Stop()
+	}
 }

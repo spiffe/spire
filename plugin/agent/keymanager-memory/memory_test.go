@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/spiffe/sri/pkg/agent/keymanager"
-	"github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/agent/keymanager"
+	"github.com/spiffe/spire/pkg/common/plugin"
 )
 
 func TestMemory_GenerateKeyPair(t *testing.T) {

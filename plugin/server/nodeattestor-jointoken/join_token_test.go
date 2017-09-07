@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/sri/helpers/testutil"
-	common "github.com/spiffe/sri/pkg/common"
-	iface "github.com/spiffe/sri/pkg/common/plugin"
+	"github.com/spiffe/spire/helpers/testutil"
+	common "github.com/spiffe/spire/pkg/common"
+	iface "github.com/spiffe/spire/pkg/common/plugin"
 
-	"github.com/spiffe/sri/pkg/server/nodeattestor"
+	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/stretchr/testify/assert"
 )
 

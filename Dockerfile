@@ -17,16 +17,16 @@ RUN add-apt-repository ppa:masterminds/glide && apt-get update
 RUN apt-get -y install glide
 
 RUN mkdir -p /root/go/src/github.com/spiffe && \
-    ln -s /code /root/go/src/github.com/spiffe/sri
+    ln -s /code /root/go/src/github.com/spiffe/spire
 
 ENV GOPATH /root/go
 ENV GOROOT /usr/lib/go/
-ENV PWD /root/go/src/github.com/spiffe/sri
+ENV PWD /root/go/src/github.com/spiffe/spire
 WORKDIR ${PWD}
 
 # Hack: preserve breadcrumb when WORKDIR is a symlink
 CMD ["/bin/bash", \
      "-c", \
-     "cd /root/go/src/github.com/spiffe/sri && \
+     "cd /root/go/src/github.com/spiffe/spire && \
       eval $(./build.sh env) && /bin/bash \
      "]

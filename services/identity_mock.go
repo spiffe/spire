@@ -7,7 +7,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	common "github.com/spiffe/sri/pkg/common"
+	common "github.com/spiffe/spire/pkg/common"
 )
 
 // MockIdentity is a mock of Identity interface

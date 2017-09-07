@@ -6,43 +6,43 @@
 
 * [plugin.proto](#plugin.proto)
   
-    * [ConfigureRequest](#sriplugin.ConfigureRequest)
+    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
   
-    * [ConfigureResponse](#sriplugin.ConfigureResponse)
+    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
   
-    * [GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest)
+    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
   
-    * [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse)
+    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
   
-    * [PluginInfoReply](#sriplugin.PluginInfoReply)
+    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
   
-    * [PluginInfoRequest](#sriplugin.PluginInfoRequest)
+    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
   
-    * [StopReply](#sriplugin.StopReply)
+    * [StopReply](#spire.common.plugin.StopReply)
   
-    * [StopRequest](#sriplugin.StopRequest)
-  
-  
+    * [StopRequest](#spire.common.plugin.StopRequest)
   
   
-    * [Server](#sriplugin.Server)
+  
+  
+    * [Server](#spire.common.plugin.Server)
   
 
 
-* [key_manager.proto](#key_manager.proto)
+* [keymanager.proto](#keymanager.proto)
   
-    * [FetchPrivateKeyRequest](#keymanager.FetchPrivateKeyRequest)
+    * [FetchPrivateKeyRequest](#spire.agent.keymanager.FetchPrivateKeyRequest)
   
-    * [FetchPrivateKeyResponse](#keymanager.FetchPrivateKeyResponse)
+    * [FetchPrivateKeyResponse](#spire.agent.keymanager.FetchPrivateKeyResponse)
   
-    * [GenerateKeyPairRequest](#keymanager.GenerateKeyPairRequest)
+    * [GenerateKeyPairRequest](#spire.agent.keymanager.GenerateKeyPairRequest)
   
-    * [GenerateKeyPairResponse](#keymanager.GenerateKeyPairResponse)
-  
-  
+    * [GenerateKeyPairResponse](#spire.agent.keymanager.GenerateKeyPairResponse)
   
   
-    * [KeyManager](#keymanager.KeyManager)
+  
+  
+    * [KeyManager](#spire.agent.keymanager.KeyManager)
   
 
 * [Scalar Value Types](#scalar-value-types)
@@ -56,7 +56,7 @@
 
 
 
-<a name="sriplugin.ConfigureRequest"/>
+<a name="spire.common.plugin.ConfigureRequest"/>
 
 ### ConfigureRequest
 Represents the plugin-specific configuration string.
@@ -71,22 +71,23 @@ Represents the plugin-specific configuration string.
 
 
 
-<a name="sriplugin.ConfigureResponse"/>
+<a name="spire.common.plugin.ConfigureResponse"/>
 
 ### ConfigureResponse
-Represents a list of configuration problems found in the configuration string.
+Represents a list of configuration problems
+found in the configuration string.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| errorList | [string](#string) | repeated | A list of errors. |
+| errorList | [string](#string) | repeated | A list of errors |
 
 
 
 
 
 
-<a name="sriplugin.GetPluginInfoRequest"/>
+<a name="spire.common.plugin.GetPluginInfoRequest"/>
 
 ### GetPluginInfoRequest
 Represents an empty request.
@@ -96,7 +97,7 @@ Represents an empty request.
 
 
 
-<a name="sriplugin.GetPluginInfoResponse"/>
+<a name="spire.common.plugin.GetPluginInfoResponse"/>
 
 ### GetPluginInfoResponse
 Represents the plugin metadata.
@@ -119,7 +120,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.PluginInfoReply"/>
+<a name="spire.common.plugin.PluginInfoReply"/>
 
 ### PluginInfoReply
 
@@ -127,14 +128,14 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#sriplugin.GetPluginInfoResponse) | repeated |  |
+| pluginInfo | [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | repeated |  |
 
 
 
 
 
 
-<a name="sriplugin.PluginInfoRequest"/>
+<a name="spire.common.plugin.PluginInfoRequest"/>
 
 ### PluginInfoRequest
 
@@ -144,7 +145,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopReply"/>
+<a name="spire.common.plugin.StopReply"/>
 
 ### StopReply
 
@@ -154,7 +155,7 @@ Represents the plugin metadata.
 
 
 
-<a name="sriplugin.StopRequest"/>
+<a name="spire.common.plugin.StopRequest"/>
 
 ### StopRequest
 
@@ -170,72 +171,72 @@ Represents the plugin metadata.
  
 
 
-<a name="sriplugin.Server"/>
+<a name="spire.common.plugin.Server"/>
 
 ### Server
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#sriplugin.StopRequest) | [StopReply](#sriplugin.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#sriplugin.PluginInfoRequest) | [PluginInfoReply](#sriplugin.PluginInfoRequest) |  |
+| Stop | [StopRequest](#spire.common.plugin.StopRequest) | [StopReply](#spire.common.plugin.StopRequest) |  |
+| PluginInfo | [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest) | [PluginInfoReply](#spire.common.plugin.PluginInfoRequest) |  |
 
  
 
 
 
-<a name="key_manager.proto"/>
+<a name="keymanager.proto"/>
 <p align="right"><a href="#top">Top</a></p>
 
-## key_manager.proto
+## keymanager.proto
 
 
 
-<a name="keymanager.FetchPrivateKeyRequest"/>
+<a name="spire.agent.keymanager.FetchPrivateKeyRequest"/>
 
 ### FetchPrivateKeyRequest
-Represents an empty request.
+Represents an empty request
 
 
 
 
 
 
-<a name="keymanager.FetchPrivateKeyResponse"/>
+<a name="spire.agent.keymanager.FetchPrivateKeyResponse"/>
 
 ### FetchPrivateKeyResponse
-Represents a private key.
+Represents a private key
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| privateKey | [bytes](#bytes) |  | Private key. |
+| privateKey | [bytes](#bytes) |  | Priavte key |
 
 
 
 
 
 
-<a name="keymanager.GenerateKeyPairRequest"/>
+<a name="spire.agent.keymanager.GenerateKeyPairRequest"/>
 
 ### GenerateKeyPairRequest
-Represents an empty request.
+Represents an empty request
 
 
 
 
 
 
-<a name="keymanager.GenerateKeyPairResponse"/>
+<a name="spire.agent.keymanager.GenerateKeyPairResponse"/>
 
 ### GenerateKeyPairResponse
-Represents a public and private key pair.
+Represents a public and private key pair
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| publicKey | [bytes](#bytes) |  | Public key. |
-| privateKey | [bytes](#bytes) |  | Private key. |
+| publicKey | [bytes](#bytes) |  | Public key |
+| privateKey | [bytes](#bytes) |  | Private key |
 
 
 
@@ -248,17 +249,17 @@ Represents a public and private key pair.
  
 
 
-<a name="keymanager.KeyManager"/>
+<a name="spire.agent.keymanager.KeyManager"/>
 
 ### KeyManager
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| GenerateKeyPair | [GenerateKeyPairRequest](#keymanager.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#keymanager.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware. |
-| FetchPrivateKey | [FetchPrivateKeyRequest](#keymanager.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#keymanager.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts. |
-| Configure | [sriplugin.ConfigureRequest](#sriplugin.ConfigureRequest) | [sriplugin.ConfigureResponse](#sriplugin.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
-| GetPluginInfo | [sriplugin.GetPluginInfoRequest](#sriplugin.GetPluginInfoRequest) | [sriplugin.GetPluginInfoResponse](#sriplugin.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
+| GenerateKeyPair | [GenerateKeyPairRequest](#spire.agent.keymanager.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#spire.agent.keymanager.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware. |
+| FetchPrivateKey | [FetchPrivateKeyRequest](#spire.agent.keymanager.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#spire.agent.keymanager.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts. |
+| Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
 
  
 

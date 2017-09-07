@@ -3,7 +3,7 @@ package workload
 import (
 	"context"
 
-	pb "github.com/spiffe/sri/pkg/api/workload"
+	pb "github.com/spiffe/spire/pkg/api/workload"
 )
 
 // Implement yor service methods methods.
