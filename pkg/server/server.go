@@ -97,6 +97,8 @@ type Server struct {
 	Config       *Config
 	grpcServer   *grpc.Server
 	dependencies *dependencies
+	privateKey   *ecdsa.PrivateKey
+	svid         *x509.Certificate
 }
 
 // Run the server
@@ -112,6 +114,11 @@ func (a *Server) Run() error {
 	a.initDependencies()
 
 	err = a.rotateSigningCert()
+	if err != nil {
+		return err
+	}
+
+	a.svid, a.privateKey, err = a.rotateSVID()
 	if err != nil {
 		return err
 	}
@@ -220,20 +227,15 @@ func (a *Server) initEndpoints() error {
 	nodeSvc = node.ServiceLoggingMiddleWare(a.Config.Logger)(nodeSvc)
 	nodeEnpoints := getNodeEndpoints(nodeSvc)
 
-	cert, key, err := a.generateSVID()
-	if err != nil {
-		return err
-	}
-
 	// TODO: Fix me after server refactor
 	crtRes, err := a.dependencies.ServerCAImpl.FetchCertificate(&ca.FetchCertificateRequest{})
 	if err != nil {
 		return err
 	}
-	certChain := [][]byte{cert.Raw, crtRes.StoredIntermediateCert}
+	certChain := [][]byte{a.svid.Raw, crtRes.StoredIntermediateCert}
 	tlsCert := &tls.Certificate{
 		Certificate: certChain,
-		PrivateKey:  key,
+		PrivateKey:  a.privateKey,
 	}
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{*tlsCert},
@@ -285,7 +287,7 @@ func (a *Server) initEndpoints() error {
 	return nil
 }
 
-func (a *Server) generateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
+func (a *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	a.Config.Logger.Log("msg", "Generating SVID certificate")
 
 	spiffeID := &url.URL{
