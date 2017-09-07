@@ -114,6 +114,36 @@ Other useful commands
 | clean | cleans `vendor` directory and glide cache       |
 | install | installs the go dependencies using glide |
 
+### CI / Build.sh
+
+The script `build.sh` manages the build process and can be used for development. It expects
+this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/spire`. It has
+been tested on Linux only.
+
+* `build.sh setup` will download and install necessary dependencies (including golang)
+into the directory `.build/`.
+* `deps` processes the `glide.lock` file
+* `protobuf` will regenerate the gRPC pb.go and README.md files
+* `binaries` will build the main binary and the plugins
+* `test` will run the tests
+* `clean` remove built binaries and
+* `distclean` remove built binaries as well as the `.build` directory
+* `build.sh` with no options will list available functions
+* `eval $(build.sh env)` will configure GOPATH, GOROOT and PATH for development outside
+of `build.sh`
+
+
+### Prerequisites
+
+* Linux or Docker
+
+If not using Docker, the following "non-standard" utilities are also required:
+
+* `curl`
+* `git`
+* `unzip`
+
+
 ### Git hooks
 
 We have checked in a pre-commit hook which enforces `go fmt` styling. Please install it

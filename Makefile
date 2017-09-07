@@ -4,22 +4,25 @@ default: install test
 
 all: install test
 
+volume = $(shell pwd):/root/go/src/github.com/spiffe/spire
+docker_image = spiffe-spire-dev:latest
+
 image_build:
-	docker build -t spiffe-sri:latest .
+	docker build -t $(docker_image) .
 
 cmd:
-	docker run -v $(shell pwd):/code -it spiffe-sri:latest /bin/bash
+	docker run -v $(volume) -it $(docker_image) /bin/bash
 
 build:
-	docker run -w /root/go/src/github.com/spiffe/sri -v $(shell pwd):/root/go/src/github.com/spiffe/sri -it spiffe-sri:latest go build $$(glide novendor)	
+	docker run -v $(volume) -it $(docker_image) go build $$(glide novendor)	
 
 test:
-	docker run -w /root/go/src/github.com/spiffe/sri -v $(shell pwd):/root/go/src/github.com/spiffe/sri -it spiffe-sri:latest go test -race $$(glide novendor)
+	docker run -v $(volume) -it $(docker_image) go test -race $$(glide novendor)
 
 clean: 
 	go clean
 	rm -Rf vendor/*
 
 install: image_build
-	docker run -w /root/go/src/github.com/spiffe/sri -v $(shell pwd):/root/go/src/github.com/spiffe/sri -it spiffe-sri:latest glide install
+	docker run -v $(volume) -it $(docker_image) glide install
   
