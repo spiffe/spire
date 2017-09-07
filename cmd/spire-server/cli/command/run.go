@@ -2,7 +2,6 @@ package command
 
 import (
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,24 +10,22 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/helpers"
-	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/server"
 )
 
 const (
-	defaultConfigPath = ".conf/default_agent_config.hcl"
-
-	defaultBindAddress = "127.0.0.1"
-	defaultBindPort    = "8081"
-
+	defaultConfigPath     = ".conf/default_server_config.hcl"
+	defaultServerAddress  = "127.0.0.1"
+	defaultServerPort     = "8081"
+	defaultServerHTTPPort = "8080"
 	// TODO: Make my defaults sane
 	defaultDataDir   = "."
 	defaultLogLevel  = "INFO"
-	defaultPluginDir = "../../plugin/agent/.conf"
+	defaultPluginDir = "../../plugin/server/.conf"
 )
 
 // Struct representing available configurables for file and CLI
@@ -36,15 +33,13 @@ const (
 type CmdConfig struct {
 	ServerAddress   string
 	ServerPort      int
+	ServerHTTPPort  int
 	TrustDomain     string
-	TrustBundlePath string
-
-	BindAddress string
-	BindPort    int
-	DataDir     string
-	PluginDir   string
-	LogFile     string
-	LogLevel    string
+	DataDir         string
+	PluginDir       string
+	LogFile         string
+	LogLevel        string
+	BaseSpiffeIDTTL int
 }
 
 type RunCommand struct {
@@ -77,8 +72,8 @@ func (*RunCommand) Run(args []string) int {
 	// TODO: Handle graceful shutdown?
 	signalListener(config.ErrorCh)
 
-	agt := &agent.Agent{Config: config}
-	err = agt.Run()
+	server := &server.Server{Config: config}
+	err = server.Run()
 	if err != nil {
 		config.Logger.Log("msg", err.Error())
 		return 1
@@ -88,10 +83,10 @@ func (*RunCommand) Run(args []string) int {
 }
 
 func (*RunCommand) Synopsis() string {
-	return "Runs the agent"
+	return "Runs the server"
 }
 
-func setOptsFromFile(c *agent.Config, filePath string) error {
+func setOptsFromFile(c *server.Config, filePath string) error {
 	fileConfig := &CmdConfig{}
 
 	data, err := ioutil.ReadFile(filePath)
@@ -106,20 +101,18 @@ func setOptsFromFile(c *agent.Config, filePath string) error {
 		return err
 	}
 
-	return mergeAgentConfig(c, fileConfig)
+	return mergeServerConfig(c, fileConfig)
 }
 
-func setOptsFromCLI(c *agent.Config, args []string) error {
+func setOptsFromCLI(c *server.Config, args []string) error {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	cmdConfig := &CmdConfig{}
 
 	flags.StringVar(&cmdConfig.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
 	flags.IntVar(&cmdConfig.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
-	flags.StringVar(&cmdConfig.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
-	flags.StringVar(&cmdConfig.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
-	flags.StringVar(&cmdConfig.BindAddress, "bindAddress", "", "Address that the workload API should bind to")
-	flags.IntVar(&cmdConfig.BindPort, "bindPort", 0, "Port number that the workload API should listen on")
-	flags.StringVar(&cmdConfig.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
+	flags.IntVar(&cmdConfig.ServerHTTPPort, "serverHTTPPort", 0, "HTTP Port number of the SPIRE server")
+	flags.StringVar(&cmdConfig.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
+	flags.StringVar(&cmdConfig.DataDir, "dataDir", "", "A directory the server can use for its runtime data")
 	flags.StringVar(&cmdConfig.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
 	flags.StringVar(&cmdConfig.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&cmdConfig.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
@@ -129,10 +122,10 @@ func setOptsFromCLI(c *agent.Config, args []string) error {
 		return err
 	}
 
-	return mergeAgentConfig(c, cmdConfig)
+	return mergeServerConfig(c, cmdConfig)
 }
 
-func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
+func mergeServerConfig(orig *server.Config, cmd *CmdConfig) error {
 	// Parse server address
 	if cmd.ServerAddress != "" {
 		ips, err := net.LookupIP(cmd.ServerAddress)
@@ -146,10 +139,15 @@ func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 		serverAddress := ips[0]
 
 		orig.ServerAddress.IP = serverAddress
+		orig.ServerHTTPAddress.IP = serverAddress
 	}
 
 	if cmd.ServerPort != 0 {
 		orig.ServerAddress.Port = cmd.ServerPort
+	}
+
+	if cmd.ServerHTTPPort != 0 {
+		orig.ServerHTTPAddress.Port = cmd.ServerHTTPPort
 	}
 
 	if cmd.TrustDomain != "" {
@@ -159,30 +157,6 @@ func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 		}
 
 		orig.TrustDomain = trustDomain
-	}
-
-	// Parse trust bundle
-	if cmd.TrustBundlePath != "" {
-		bundle, err := parseTrustBundle(cmd.TrustBundlePath)
-		if err != nil {
-			return fmt.Errorf("Error parsing trust bundle: %s", err)
-		}
-
-		orig.TrustBundle = bundle
-	}
-
-	// Parse bind address
-	if cmd.BindAddress != "" {
-		ip := net.ParseIP(cmd.BindAddress)
-		if ip == nil {
-			return fmt.Errorf("BindAddress %s is not a valid IP", cmd.BindAddress)
-		}
-
-		orig.BindAddress.IP = ip
-	}
-
-	if cmd.BindPort != 0 {
-		orig.BindAddress.Port = cmd.BindPort
 	}
 
 	if cmd.DataDir != "" {
@@ -211,47 +185,39 @@ func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 	return nil
 }
 
-func validateConfig(c *agent.Config) error {
+func validateConfig(c *server.Config) error {
 	if c.ServerAddress.IP == nil || c.ServerAddress.Port == 0 {
 		return errors.New("ServerAddress and ServerPort are required")
+	}
+
+	if c.ServerHTTPAddress.IP == nil || c.ServerHTTPAddress.Port == 0 {
+		return errors.New("ServerAddress and ServerHTTPPort are required")
 	}
 
 	if c.TrustDomain.String() == "" {
 		return errors.New("TrustDomain is required")
 	}
 
-	if c.TrustBundle == nil {
-		return errors.New("TrustBundle is required")
-	}
-
 	return nil
 }
 
-func newDefaultConfig() *agent.Config {
-	addr := net.ParseIP(defaultBindAddress)
-	port, _ := strconv.Atoi(defaultBindPort)
-	bindAddr := &net.TCPAddr{IP: addr, Port: port}
-
-	certDN := &pkix.Name{
-		Country:      []string{"US"},
-		Organization: []string{"SPIRE"},
-	}
+func newDefaultConfig() *server.Config {
 	errCh := make(chan error)
 	shutdownCh := make(chan struct{})
 
 	// helpers.NewLogger() cannot return error when using STDOUT
 	logger, _ := helpers.NewLogger(defaultLogLevel, "")
 	serverAddress := &net.TCPAddr{}
+	serverHTTPAddress := &net.TCPAddr{}
 
-	return &agent.Config{
-		BindAddress:   bindAddr,
-		CertDN:        certDN,
-		DataDir:       defaultDataDir,
-		PluginDir:     defaultPluginDir,
-		ErrorCh:       errCh,
-		ShutdownCh:    shutdownCh,
-		Logger:        logger,
-		ServerAddress: serverAddress,
+	return &server.Config{
+		DataDir:           defaultDataDir,
+		PluginDir:         defaultPluginDir,
+		ErrorCh:           errCh,
+		ShutdownCh:        shutdownCh,
+		Logger:            logger,
+		ServerAddress:     serverAddress,
+		ServerHTTPAddress: serverHTTPAddress,
 	}
 }
 

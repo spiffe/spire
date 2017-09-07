@@ -1,8 +1,10 @@
-logFile = "spire-server.log"//<PATH_TO_LOG_FILE>
-logLevel = "DEBUG" //<DEBUG|INFO|WARN|ERROR> defaults to NONE
-nodeAPIGRPCPort = "8081"
-registrationAPIGRPCPort ="8086"
-nodeAPIHTTPPort = "8086"
-registrationAPIHTTPPort ="8086"
-trustDomain = "localhost"
-baseSpiffeIDTTL = 999999
+ServerAddress = "127.0.0.1"
+ServerPort = "8081"
+ServerHTTPPort = "8080"
+TrustDomain = "localhost"
+//TODO: REVIEW
+DataDir = "."
+PluginDir = "../../plugin/server/.conf"
+LogLevel = "INFO"
+LogFile = "spire-server.log"//
+BaseSpiffeIDTTL = 999999

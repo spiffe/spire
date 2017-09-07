@@ -16,6 +16,9 @@ func Run(args []string) int {
 		"start": func() (cli.Command, error) {
 			return &command.StartCommand{}, nil
 		},
+		"run": func() (cli.Command, error) {
+			return &command.RunCommand{}, nil
+		},
 		"stop": func() (cli.Command, error) {
 			return &command.StopCommand{}, nil
 		},

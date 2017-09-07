@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/spiffe/spire/cmd/spire-agent/cli"
 	"os"
+
+	"github.com/spiffe/spire/cmd/spire-agent/cli"
 )
 
 func main() {

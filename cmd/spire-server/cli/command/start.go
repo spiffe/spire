@@ -24,19 +24,16 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/spiffe/spire/pkg/common/plugin"
-
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/noderesolver"
 	"github.com/spiffe/spire/pkg/server/upstreamca"
 
-	"github.com/spiffe/spire/cmd/spire-server/endpoints/node"
-	"github.com/spiffe/spire/cmd/spire-server/endpoints/registration"
-	"github.com/spiffe/spire/cmd/spire-server/endpoints/server"
 	nodePB "github.com/spiffe/spire/pkg/api/node"
 	registrationPB "github.com/spiffe/spire/pkg/api/registration"
+	"github.com/spiffe/spire/pkg/server/endpoints/node"
+	"github.com/spiffe/spire/pkg/server/endpoints/registration"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -180,9 +177,6 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 	caService := services.NewCAImpl(serverCAImpl)
 
 	errChan := makeErrorChannel()
-	var serverSvc server.ServerService
-	serverSvc = server.NewService(pluginCatalog, errChan)
-	serverSvc = server.ServiceLoggingMiddleWare(logger)(serverSvc)
 
 	var registrationSvc registration.RegistrationService
 	registrationSvc = registration.NewService(registrationService)
@@ -190,18 +184,13 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 
 	var nodeSvc node.NodeService
 	nodeSvc = node.NewService(node.ServiceConfig{Attestation: attestationService, CA: caService, Identity: identityService})
-	nodeSvc = node.SelectorServiceLoggingMiddleWare(logger)(nodeSvc)
+	nodeSvc = node.ServiceLoggingMiddleWare(logger)(nodeSvc)
 
 	var (
 		httpAddr = flag.String("http", ":8080", "http listen address")
 		gRPCAddr = flag.String("grpc", ":8081", "gRPC listen address")
 	)
 	flag.Parse()
-
-	serverEndpoints := server.Endpoints{
-		PluginInfoEndpoint: server.MakePluginInfoEndpoint(serverSvc),
-		StopEndpoint:       server.MakeStopEndpoint(serverSvc),
-	}
 
 	registrationEndpoints := registration.Endpoints{
 		CreateEntryEndpoint:           registration.MakeCreateEntryEndpoint(registrationSvc),
@@ -254,12 +243,10 @@ func initEndpoints(config *helpers.ControlPlaneConfig, pluginCatalog *helpers.Pl
 			Certificates: []tls.Certificate{*tlsCert},
 		}
 
-		nodeHandler := node.MakeGRPCServer(nodeEnpoints)
 		gRPCServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
-		nodePB.RegisterNodeServer(gRPCServer, nodeHandler)
 
-		serverHandler := server.MakeGRPCServer(serverEndpoints)
-		sriplugin.RegisterServerServer(gRPCServer, serverHandler)
+		nodeHandler := node.MakeGRPCServer(nodeEnpoints)
+		nodePB.RegisterNodeServer(gRPCServer, nodeHandler)
 
 		registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
 		registrationPB.RegisterRegistrationServer(gRPCServer, registrationHandler)

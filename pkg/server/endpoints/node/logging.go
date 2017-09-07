@@ -10,7 +10,7 @@ import (
 
 type NodeServiceMiddleWare func(NodeService) NodeService
 
-func SelectorServiceLoggingMiddleWare(logger log.Logger) NodeServiceMiddleWare {
+func ServiceLoggingMiddleWare(logger log.Logger) NodeServiceMiddleWare {
 	return func(next NodeService) NodeService {
 		return LoggingMiddleware{logger, next}
 	}
