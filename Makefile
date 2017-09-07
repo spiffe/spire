@@ -1,4 +1,4 @@
-.PHONY: all build launch
+.PHONY: all default image_build cmd build test clean install
 
 default: install test
 

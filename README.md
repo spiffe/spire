@@ -86,43 +86,33 @@ The agent will run silently in the foreground, logging status to its logfile.
 
 ## Building the SRI for development
 
-The script `build.sh` manages the build process and can be used for development. It expects
-this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/sri`. It has
-been tested on Linux only.
+Spire is developed inside a docker container. To get up and running you will need the following installed
 
-* `build.sh setup` will download and install necessary dependencies (including golang)
-into the directory `.build/`.
-* `deps` processes the `glide.lock` file
-* `protobuf` will regenerate the gRPC pb.go and README.md files
-* `binaries` will build the main binary and the plugins
-* `test` will run the tests
-* `clean` remove built binaries and
-* `distclean` remove built binaries as well as the `.build` directory
-* `build.sh` with no options will list available functions
-* `eval $(build.sh env)` will configure GOPATH, GOROOT and PATH for development outside
-of `build.sh`
+1. [docker](https://docs.docker.com/engine/installation/)
+2. [git](https://git-scm.com/downloads) 
 
-## Developing the SRI
+All frequently used commands can be run through the Makefile.
+Once you have both of these, clone this repository and run from a terminal
 
-The above-referenced build scripts may be used natively under Linux. For your convenience,
-a Dockerfile and accompanying Makefile will get you to a suitable Linux shell.
+`$: make install`
 
-```
-$ make build
-$ make launch
-root@65a22fa2d89f:~/go/src/github.com/spiffe/sri# ./build.sh setup
-...
-```
+This will download and build a docker image from the `Dockerfile` in this directory. It will then install all
+go dependencies into the `vendor` sub-directory. Because the docker container shares the current directory you 
+will not have to re-install the go dependencies everytime you run the container.
 
-### Prerequisites
+To run all the tests run:
 
-* Linux or Docker
+`$: make test`
 
-If not using Docker, the following "non-standard" utilities are also required:
+Other useful commands
 
-* `curl`
-* `git`
-* `unzip`
+| command       | what does it do?  |
+| ------------- |:-------------:| 
+| image_build     | build the docker image | 
+| cmd      | Run /bin/bash in the container      | 
+| build | run `go build` in the container      |
+| clean | cleans `vendor` directory and glide cache       |
+| install | installs the go dependencies using glide |
 
 ### Git hooks
 
