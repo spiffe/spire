@@ -129,6 +129,9 @@ func mergeServerConfig(orig *server.Config, cmd *CmdConfig) error {
 	// Parse server address
 	if cmd.BindAddress != "" {
 		ip := net.ParseIP(cmd.BindAddress)
+		if ip == nil {
+			return fmt.Errorf("It was not possible to parse BindAdress: %v", cmd.BindAddress)
+		}
 		orig.BindAddress.IP = ip
 		orig.BindHTTPAddress.IP = ip
 	}
