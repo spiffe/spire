@@ -1,8 +1,7 @@
 ServerAddress = "127.0.0.1"
 ServerPort = "8081"
-TrustDomain = "localhost"
+TrustDomain = "example.org"
 TrustBundlePath = ".conf/carootcert.pem"
-
 BindAddress = "127.0.0.1"
 BindPort = "8088"
 DataDir = "."

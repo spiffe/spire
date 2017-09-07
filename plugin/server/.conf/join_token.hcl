@@ -10,5 +10,5 @@ pluginData {
 		"THIS-IS-NOT-A-SECRET"= 180,
 		"I-AM-NOT-A-SECRET"= 600
 	}
-	trust_domain = "localhost"
+	trust_domain = "example.org"
 }
