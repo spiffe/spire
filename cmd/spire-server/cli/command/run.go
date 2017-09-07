@@ -1,7 +1,6 @@
 package command
 
 import (
-	"crypto/x509"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,33 +21,33 @@ const (
 	defaultServerAddress  = "127.0.0.1"
 	defaultServerPort     = "8081"
 	defaultServerHTTPPort = "8080"
-	// TODO: Make my defaults sane
-	defaultDataDir   = "."
-	defaultLogLevel  = "INFO"
-	defaultPluginDir = "../../plugin/server/.conf"
+	defaultDataDir        = "."
+	defaultLogLevel       = "INFO"
+	defaultPluginDir      = "../../plugin/server/.conf"
 )
 
-// Struct representing available configurables for file and CLI
-// options
+// CmdConfig represents available configurables for file and CLI options
 type CmdConfig struct {
 	ServerAddress   string
 	ServerPort      int
 	ServerHTTPPort  int
 	TrustDomain     string
-	DataDir         string
 	PluginDir       string
 	LogFile         string
 	LogLevel        string
 	BaseSpiffeIDTTL int
 }
 
+//RunCommand itself
 type RunCommand struct {
 }
 
+//Help prints the server cmd usage
 func (*RunCommand) Help() string {
 	return setOptsFromCLI(newDefaultConfig(), []string{"-h"}).Error()
 }
 
+//Run the SPIFFE Server
 func (*RunCommand) Run(args []string) int {
 	config := newDefaultConfig()
 
@@ -82,6 +81,7 @@ func (*RunCommand) Run(args []string) int {
 	return 0
 }
 
+//Synopsis of the command
 func (*RunCommand) Synopsis() string {
 	return "Runs the server"
 }
@@ -112,7 +112,6 @@ func setOptsFromCLI(c *server.Config, args []string) error {
 	flags.IntVar(&cmdConfig.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
 	flags.IntVar(&cmdConfig.ServerHTTPPort, "serverHTTPPort", 0, "HTTP Port number of the SPIRE server")
 	flags.StringVar(&cmdConfig.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
-	flags.StringVar(&cmdConfig.DataDir, "dataDir", "", "A directory the server can use for its runtime data")
 	flags.StringVar(&cmdConfig.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
 	flags.StringVar(&cmdConfig.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&cmdConfig.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
@@ -157,10 +156,6 @@ func mergeServerConfig(orig *server.Config, cmd *CmdConfig) error {
 		}
 
 		orig.TrustDomain = trustDomain
-	}
-
-	if cmd.DataDir != "" {
-		orig.DataDir = cmd.DataDir
 	}
 
 	if cmd.PluginDir != "" {
@@ -211,7 +206,6 @@ func newDefaultConfig() *server.Config {
 	serverHTTPAddress := &net.TCPAddr{}
 
 	return &server.Config{
-		DataDir:           defaultDataDir,
 		PluginDir:         defaultPluginDir,
 		ErrorCh:           errCh,
 		ShutdownCh:        shutdownCh,
@@ -219,27 +213,6 @@ func newDefaultConfig() *server.Config {
 		ServerAddress:     serverAddress,
 		ServerHTTPAddress: serverHTTPAddress,
 	}
-}
-
-func parseTrustBundle(path string) (*x509.CertPool, error) {
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	certPool := x509.NewCertPool()
-	if ok := certPool.AppendCertsFromPEM(data); !ok {
-		return nil, fmt.Errorf("No valid certificates found at %s", path)
-	}
-	return certPool, nil
-}
-
-func stringDefault(option string, defaultValue string) string {
-	if option == "" {
-		return defaultValue
-	}
-
-	return option
 }
 
 func signalListener(ch chan error) {

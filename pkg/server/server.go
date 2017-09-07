@@ -59,9 +59,6 @@ type Config struct {
 	//TODO: review all this
 	BaseSpiffeIDTTL int32
 
-	// Directory to store runtime data
-	DataDir string
-
 	// Directory for plugin configs
 	PluginDir string
 
@@ -70,6 +67,7 @@ type Config struct {
 	// Address of SPIRE server
 	ServerAddress *net.TCPAddr
 
+	// Address of the HTTP SPIRE server
 	ServerHTTPAddress *net.TCPAddr
 
 	// A channel for receiving errors from server goroutines
@@ -95,9 +93,6 @@ type dependencies struct {
 }
 
 type Server struct {
-	//BaseSVID    []byte
-	//key         *ecdsa.PrivateKey
-	BaseSVIDTTL  int32
 	Catalog      *helpers.PluginCatalog
 	Config       *Config
 	grpcServer   *grpc.Server

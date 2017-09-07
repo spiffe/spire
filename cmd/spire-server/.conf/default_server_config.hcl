@@ -2,8 +2,6 @@ ServerAddress = "127.0.0.1"
 ServerPort = "8081"
 ServerHTTPPort = "8080"
 TrustDomain = "localhost"
-//TODO: REVIEW
-DataDir = "."
 PluginDir = "../../plugin/server/.conf"
 LogLevel = "INFO"
 LogFile = "spire-server.log"//
