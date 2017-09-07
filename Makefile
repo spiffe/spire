@@ -1,14 +1,28 @@
-.PHONY: all build launch
+.PHONY: all default image_build cmd build test clean install
 
-default: launch
+default: install test
 
-all: build launch
+all: install test
+
+volume = $(shell pwd):/root/go/src/github.com/spiffe/spire
+docker_image = spiffe-spire-dev:latest
+
+image_build:
+	docker build -t $(docker_image) .
+
+cmd:
+	docker run -v $(volume) -it $(docker_image) /bin/bash
 
 build:
-	docker build -t spiffe-spire:latest .
-
-launch:
-	docker run -v $(shell pwd):/code -it spiffe-spire:latest
+	docker run -v $(volume) -it $(docker_image) go build $$(glide novendor)	
 
 test:
-	go test -race $$(glide novendor)
+	docker run -v $(volume) -it $(docker_image) go test -race $$(glide novendor)
+
+clean: 
+	go clean
+	rm -Rf vendor/*
+
+install: image_build
+	docker run -v $(volume) -it $(docker_image) glide install
+  

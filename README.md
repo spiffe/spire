@@ -86,6 +86,36 @@ The agent will run silently in the foreground, logging status to its logfile.
 
 ## Building SPIRE for development
 
+Spire is developed inside a docker container. To get up and running you will need the following installed
+
+1. [docker](https://docs.docker.com/engine/installation/)
+2. [git](https://git-scm.com/downloads) 
+
+All frequently used commands can be run through the Makefile.
+Once you have both of these, clone this repository and run from a terminal
+
+`$: make install`
+
+This will download and build a docker image from the `Dockerfile` in this directory. It will then install all
+go dependencies into the `vendor` sub-directory. Because the docker container shares the current directory you 
+will not have to re-install the go dependencies everytime you run the container.
+
+To run all the tests run:
+
+`$: make test`
+
+Other useful commands
+
+| command       | what does it do?  |
+| ------------- |:-------------:| 
+| image_build     | build the docker image | 
+| cmd      | Run /bin/bash in the container      | 
+| build | run `go build` in the container      |
+| clean | cleans `vendor` directory and glide cache       |
+| install | installs the go dependencies using glide |
+
+### CI / Build.sh
+
 The script `build.sh` manages the build process and can be used for development. It expects
 this repo to be present at and to be run from `$GOPATH/src/github.com/spiffe/spire`. It has
 been tested on Linux only.
@@ -102,17 +132,6 @@ into the directory `.build/`.
 * `eval $(build.sh env)` will configure GOPATH, GOROOT and PATH for development outside
 of `build.sh`
 
-## Developing SPIRE
-
-The above-referenced build scripts may be used natively under Linux. For your convenience,
-a Dockerfile and accompanying Makefile will get you to a suitable Linux shell.
-
-```
-$ make build
-$ make launch
-root@65a22fa2d89f:~/go/src/github.com/spiffe/spire# ./build.sh setup
-...
-```
 
 ### Prerequisites
 
@@ -123,6 +142,7 @@ If not using Docker, the following "non-standard" utilities are also required:
 * `curl`
 * `git`
 * `unzip`
+
 
 ### Git hooks
 

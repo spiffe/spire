@@ -1,16 +1,23 @@
 FROM ubuntu:xenial
 
-RUN apt-get update && apt-get -y install \
+RUN apt-get update
+
+RUN apt-get -y install \
+    software-properties-common python-software-properties
+
+RUN add-apt-repository ppa:longsleep/golang-backports
+RUN add-apt-repository ppa:masterminds/glide
+
+RUN apt-get update
+
+RUN apt-get -y install \
     curl unzip git build-essential
 
-RUN mkdir -p /root/go/src/github.com/spiffe && \
-    ln -s /code /root/go/src/github.com/spiffe/spire
+RUN apt-get -y install golang-go glide
 
-WORKDIR /root/go/src/github.com/spiffe/spire
+RUN mkdir -p /root/go/src/github.com/spiffe
 
-# Hack: preserve breadcrumb when WORKDIR is a symlink
-CMD ["/bin/bash", \
-     "-c", \
-     "cd /root/go/src/github.com/spiffe/spire && \
-      eval $(./build.sh env) && /bin/bash \
-     "]
+ENV GOPATH /root/go
+ENV GOROOT /usr/lib/go/
+ENV PWD /root/go/src/github.com/spiffe/spire
+WORKDIR ${PWD}
