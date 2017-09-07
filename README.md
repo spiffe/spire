@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.com/spiffe/spire.svg?token=pXzs6KRAUrxbEXnwHsPs&branch=master)](https://travis-ci.com/spiffe/spire)
-[![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?t=SrV7ye)](https://coveralls.io/github/spiffe/spire)
+[![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=master&t=GWBRCP)](https://coveralls.io/github/spiffe/spire?branch=master)
 
 # SPIFFE Runtime Environment (SPIRE)
 

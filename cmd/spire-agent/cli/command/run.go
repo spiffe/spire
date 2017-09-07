@@ -15,7 +15,6 @@ import (
 	"syscall"
 
 	"github.com/hashicorp/hcl"
-
 	"github.com/spiffe/spire/helpers"
 	"github.com/spiffe/spire/pkg/agent"
 )

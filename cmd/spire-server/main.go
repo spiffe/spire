@@ -7,5 +7,5 @@ import (
 )
 
 func main() {
-	control_plane_cli.Run(os.Args)
+	os.Exit(cli.Run(os.Args[1:]))
 }

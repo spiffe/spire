@@ -5,7 +5,7 @@ pluginChecksum = ""
 enabled = true
 pluginType = "ControlPlaneCA"
 pluginData {
-  trust_domain = "localhost",
+  trust_domain = "example.org",
   key_size = 2048,
   ttl = "1h",
   cert_subject = {
