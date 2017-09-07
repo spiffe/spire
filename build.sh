@@ -167,8 +167,10 @@ build_test() {
 }
 
 build_artifact() {
-    _log_info "creating artifact \"artifact.tgz\""
-    tar -cvzf artifact.tgz $(find $BINARY_DIRS -executable -a -type f)
+    local _artifact="spire-$(git log -n1 --pretty=format:%h).tgz"
+    _log_info "creating artifact \"${_artifact}\""
+
+    tar -cvzf ${_artifact} $(find $BINARY_DIRS -executable -a -type f)
 }
 
 build_clean() {
