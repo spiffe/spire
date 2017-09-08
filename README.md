@@ -86,6 +86,20 @@ The agent will run silently in the foreground, logging status to its logfile.
 
 ## Building SPIRE for development
 
+# Docker vs Host development
+
+YOu can either develop Spire inside a docker container or on bare metal. In both cases you will use the same Makefile commands.
+
+To run in a docker container set the environment variable `SPIRE_DEV_HOST` to `docker` like so:
+
+`$: export SPIRE_DEV_HOST=docker`
+
+To run on bare metal leave this variable unset.
+
+When using the docker container build artifacts to speed up development are cached in the shared volume under the directory .build_cache.
+
+# Setup
+
 Spire is developed inside a docker container. To get up and running you will need the following installed
 
 1. [docker](https://docs.docker.com/engine/installation/)
@@ -110,8 +124,10 @@ Other useful commands
 | ------------- |:-------------:| 
 | image_build     | build the docker image | 
 | cmd      | Run /bin/bash in the container      | 
-| build | run `go build` in the container      |
-| clean | cleans `vendor` directory and glide cache       |
+| build | run `go build -i`      |
+| test | run `go test`      |
+| race-test | run `go test -race`      |
+| clean | cleans `vendor` directory, glide cache     |
 | install | installs the go dependencies using glide |
 
 ### CI / Build.sh
