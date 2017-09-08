@@ -6,45 +6,37 @@ set -o errexit
 declare -r BINARY_DIRS="$(find cmd/* plugin/*/* -maxdepth 0 -type d)"
 declare -r PROTO_FILES="$(find pkg -name '*.proto')"
 
+case $(uname) in
+    Darwin) declare -r OS1="darwin"
+			declare -r OS2="osx"
+			;;
+	Linux)  declare -r OS1="linux"
+			declare -r OS2="linux"
+			;;
+esac
+
+case $(uname -m) in
+	x86_64) declare -r ARCH1="x86_64"
+			declare -r ARCH2="amd64"
+			;;
+esac
+
+declare -r BUILD_DIR=${BUILD_DIR:-$PWD/.build-${OS1}-${ARCH1}}
+declare -r BUILD_CACHE=${BUILD_CACHE:-$PWD/.cache}
+
+# versioned packages that we need
 declare -r GO_VERSION=${GO_VERSION:-1.8.3}
 declare -r GO_URL="https://storage.googleapis.com/golang"
+declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
 declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
 declare -r PROTOBUF_URL="https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}"
+declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-${OS2}-${ARCH1}.zip"
 declare -r GLIDE_VERSION=${GLIDE_VERSION:-0.12.3}
 declare -r GLIDE_URL="https://github.com/Masterminds/glide/releases/download/v${GLIDE_VERSION}"
+declare -r GLIDE_TGZ="glide-v${GLIDE_VERSION}-${OS1}-${ARCH2}.tar.gz"
 declare -r PROTOC_GEN_DOCS_VERSION=${PROTOC_GEN_DOCS_VERSION:-1.0.0-beta}
 declare -r PROTOC_GEN_DOCS_URL="https://github.com/pseudomuto/protoc-gen-doc/releases/download/v${PROTOC_GEN_DOCS_VERSION}"
-
-_os="$(uname -s | tr 'A-Z' 'a-z')"
-
-if [[ $_os == linux ]]; then
-    declare -r GO_TGZ="go${GO_VERSION}.linux-amd64.tar.gz"
-    declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-linux-x86_64.zip"
-    declare -r GLIDE_TGZ="glide-v${GLIDE_VERSION}-linux-amd64.tar.gz"
-    declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}.linux-amd64.go1.8.1.tar.gz"
-    declare -r TAR_COMMAND="tar"
-elif [[ $_os == darwin ]]; then
-    declare -r GO_TGZ="go${GO_VERSION}.darwin-amd64.tar.gz"
-    declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-osx-x86_64.zip"
-    declare -r GLIDE_TGZ="glide-v${GLIDE_VERSION}-darwin-amd64.tar.gz"
-    declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}.darwin-amd64.go1.8.1.tar.gz"
-    declare -r TAR_COMMAND="gnutar"
-elif [[ $_os == msys_nt* ]]; then
-    echo "Windows operating system is not supported yet"
-    exit 1
-
-    declare -r GO_TGZ="go${GO_VERSION}.windows-amd64.zip"
-    declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-win32.zip"
-    declare -r GLIDE_TGZ="glide-v${GLIDE_VERSION}-windows-amd64.zip"
-    declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}.windows-amd64.go1.8.1.tar.gz"
-    declare -r TAR_COMMAND="tar"
-else
-	echo "Operating system not supported: $_os"
-	exit 1
-fi
-
-declare -r BUILD_DIR=${BUILD_DIR:-$PWD/.build}
-declare -r BUILD_CACHE=${BUILD_CACHE:-$PWD/.cache}
+declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}.${OS1}-${ARCH2}.go1.8.1.tar.gz"
 
 [[ -n $CIRCLECI ]] && unset GOPATH
 
@@ -78,7 +70,7 @@ build_setup() {
     rm -rf ${GOROOT}
     mkdir -p ${GOROOT}
     _fetch_url ${GO_URL} ${GO_TGZ}
-    ${TAR_COMMAND} --directory ${GOROOT} --transform 's|^go/|./|' -xf ${BUILD_CACHE}/${GO_TGZ}
+    tar --directory ${GOROOT} --strip 1 -xf ${BUILD_CACHE}/${GO_TGZ}
 
     rm -rf ${BUILD_DIR}/protobuf
     mkdir -p ${BUILD_DIR}/protobuf
@@ -88,13 +80,14 @@ build_setup() {
     rm -rf ${BUILD_DIR}/protoc-gen-doc
     mkdir -p ${BUILD_DIR}/protoc-gen-doc/bin
     _fetch_url ${PROTOC_GEN_DOCS_URL} ${PROTOC_GEN_DOCS_TGZ}
-    ${TAR_COMMAND} --directory ${BUILD_DIR}/protoc-gen-doc/bin --strip 1 -xf ${BUILD_CACHE}/${PROTOC_GEN_DOCS_TGZ}
+    tar --directory ${BUILD_DIR}/protoc-gen-doc/bin --strip 1 -xf ${BUILD_CACHE}/${PROTOC_GEN_DOCS_TGZ}
 
     rm -rf ${BUILD_DIR}/glide
     mkdir -p ${BUILD_DIR}/glide/bin
     _fetch_url ${GLIDE_URL} ${GLIDE_TGZ}
-    ${TAR_COMMAND} --directory ${BUILD_DIR}/glide/bin --strip 1 -xf ${BUILD_CACHE}/${GLIDE_TGZ}
+    tar --directory ${BUILD_DIR}/glide/bin --strip 1 -xf ${BUILD_CACHE}/${GLIDE_TGZ}
 
+	# tools the build needs, version is not important
     go get github.com/golang/protobuf/protoc-gen-go
     go get github.com/jstemmer/go-junit-report
     go get github.com/AlekSi/gocoverutil
@@ -191,13 +184,14 @@ build_test() {
 }
 
 build_artifact() {
-	local _hash _os _arch _libc _artifact _binaries _n _tmp
+	local _hash _libc _artifact _binaries _n _tmp
 
 	_binaries="$(find $BINARY_DIRS -executable -a -type f)"
 
 	mkdir -p artifacts
-	_arch="$(uname -m)"
-	if [[ $_os == linux ]]; then
+
+	# handle the case that we're building for alpine
+	if [[ $OS1 == linux ]]; then
 		case $(ldd --version 2>&1) in
 			*GLIB*) _libc="-glibc" ;;
 			*muslr*) _libc="-musl" ;;
@@ -205,7 +199,7 @@ build_artifact() {
 		esac
 	fi
 	_hash="$(git log -n1 --pretty=format:%h)"
-    _artifact="spire-${_hash}-${_os}-${_arch}${_libc}.tgz"
+    _artifact="spire-${_hash}-${_os}-${ARCH1}${_libc}.tgz"
 
     _log_info "creating artifact \"${_artifact}\""
 
@@ -223,7 +217,7 @@ build_artifact() {
 		fi
 	done
 
-    ${TAR_COMMAND} --directory .tmp -cvzf artifacts/${_artifact} .
+    tar --directory .tmp -cvzf artifacts/${_artifact} .
 }
 
 build_clean() {
