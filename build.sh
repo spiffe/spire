@@ -167,8 +167,22 @@ build_test() {
 }
 
 build_artifact() {
-    _log_info "creating artifact \"artifact.tgz\""
-    tar -cvzf artifact.tgz $(find $BINARY_DIRS -executable -a -type f)
+	local _hash _os _arch _libc _artifact
+
+	_os="$(uname -s | tr 'A-Z' 'a-z')"
+	_arch="$(uname -m)"
+	if [[ $_os == linux ]]; then
+		case $(ldd --version 2>&1) in
+			*GLIB*) _libc="-glibc" ;;
+			*muslr*) _libc="-musl" ;;
+			*) _libc="-unknown" ;;
+		esac
+	fi
+	_hash="$(git log -n1 --pretty=format:%h)"
+    _artifact="spire-${_hash}-${_os}-${_arch}${_libc}.tgz"
+
+    _log_info "creating artifact \"${_artifact}\""
+    tar -cvzf ${_artifact} $(find $BINARY_DIRS -executable -a -type f)
 }
 
 build_clean() {

@@ -6,7 +6,7 @@
 /vendor
 test_results
 
-artifact.tgz
+spire-*.tgz
 
 cmd/spire-agent/spire-agent
 cmd/spire-server/spire-server
