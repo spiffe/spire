@@ -169,6 +169,7 @@ build_test() {
 build_artifact() {
 	local _hash _os _arch _libc _artifact
 
+	mkdir -p artifacts
 	_os="$(uname -s | tr 'A-Z' 'a-z')"
 	_arch="$(uname -m)"
 	if [[ $_os == linux ]]; then
@@ -182,7 +183,7 @@ build_artifact() {
     _artifact="spire-${_hash}-${_os}-${_arch}${_libc}.tgz"
 
     _log_info "creating artifact \"${_artifact}\""
-    tar -cvzf ${_artifact} $(find $BINARY_DIRS -executable -a -type f)
+    tar -cvzf artifacts/${_artifact} $(find $BINARY_DIRS -executable -a -type f)
 }
 
 build_clean() {
