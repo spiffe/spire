@@ -1,5 +1,7 @@
 package services
 
+//go:generate mockgen -source=$GOFILE -destination=attestation_mock.go -package=$GOPACKAGE
+
 import (
 	"crypto/x509"
 	"time"
