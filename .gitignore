@@ -1,12 +1,11 @@
-.artifacts
 .build
 .cache
+.tmp
 *.swp
 *.log
 /vendor
-test_results
-
-artifact.tgz
+/test_results
+/artifacts
 
 cmd/spire-agent/spire-agent
 cmd/spire-server/spire-server
