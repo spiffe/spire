@@ -24,13 +24,13 @@ type LoggingMiddleware struct {
 
 func (mw LoggingMiddleware) CreateEntry(ctx context.Context, request common.RegistrationEntry) (response pb.RegistrationEntryID, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"New registration entry created",
-			"method", "CreateEntry",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "CreateEntry",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("New registration entry created")
 	}(time.Now())
 
 	response, err = mw.next.CreateEntry(ctx, request)
@@ -39,13 +39,13 @@ func (mw LoggingMiddleware) CreateEntry(ctx context.Context, request common.Regi
 
 func (mw LoggingMiddleware) DeleteEntry(ctx context.Context, request pb.RegistrationEntryID) (response common.RegistrationEntry, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Registration entry deleted",
-			"method", "DeleteEntry",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "DeleteEntry",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Registration entry deleted")
 	}(time.Now())
 
 	response, err = mw.next.DeleteEntry(ctx, request)
@@ -54,13 +54,13 @@ func (mw LoggingMiddleware) DeleteEntry(ctx context.Context, request pb.Registra
 
 func (mw LoggingMiddleware) FetchEntry(ctx context.Context, request pb.RegistrationEntryID) (response common.RegistrationEntry, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Registration entry retrieved",
-			"method", "FetchEntry",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "FetchEntry",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Registration entry retrieved")
 	}(time.Now())
 
 	response, err = mw.next.FetchEntry(ctx, request)
@@ -69,13 +69,13 @@ func (mw LoggingMiddleware) FetchEntry(ctx context.Context, request pb.Registrat
 
 func (mw LoggingMiddleware) UpdateEntry(ctx context.Context, request pb.UpdateEntryRequest) (response common.RegistrationEntry, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Registration entry updated",
-			"method", "UpdateEntry",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "UpdateEntry",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Registration entry updated")
 	}(time.Now())
 
 	response, err = mw.next.UpdateEntry(ctx, request)
@@ -84,13 +84,13 @@ func (mw LoggingMiddleware) UpdateEntry(ctx context.Context, request pb.UpdateEn
 
 func (mw LoggingMiddleware) ListByParentID(ctx context.Context, request pb.ParentID) (response common.RegistrationEntries, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Registration entries retrieved",
-			"method", "ListByParentID",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "ListByParentID",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Registration entries retrieved")
 	}(time.Now())
 
 	response, err = mw.next.ListByParentID(ctx, request)
@@ -99,13 +99,13 @@ func (mw LoggingMiddleware) ListByParentID(ctx context.Context, request pb.Paren
 
 func (mw LoggingMiddleware) ListBySelector(ctx context.Context, request common.Selector) (response common.RegistrationEntries, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Registration entries retrieved",
-			"method", "ListBySelector",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "ListBySelector",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Registration entries retrieved")
 	}(time.Now())
 
 	response, err = mw.next.ListBySelector(ctx, request)
@@ -114,13 +114,13 @@ func (mw LoggingMiddleware) ListBySelector(ctx context.Context, request common.S
 
 func (mw LoggingMiddleware) ListBySpiffeID(ctx context.Context, request pb.SpiffeID) (response common.RegistrationEntries, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Registration entries retrieved",
-			"method", "ListBySpiffeID",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "ListBySpiffeID",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Registration entries retrieved")
 	}(time.Now())
 
 	response, err = mw.next.ListBySpiffeID(ctx, request)
@@ -129,13 +129,13 @@ func (mw LoggingMiddleware) ListBySpiffeID(ctx context.Context, request pb.Spiff
 
 func (mw LoggingMiddleware) CreateFederatedBundle(ctx context.Context, request pb.CreateFederatedBundleRequest) (response common.Empty, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Created new federated bundle",
-			"method", "CreateFederatedBundle",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "CreateFederatedBundle",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Created new federated bundle")
 	}(time.Now())
 
 	response, err = mw.next.CreateFederatedBundle(ctx, request)
@@ -144,13 +144,13 @@ func (mw LoggingMiddleware) CreateFederatedBundle(ctx context.Context, request p
 
 func (mw LoggingMiddleware) ListFederatedBundles(ctx context.Context, request common.Empty) (response pb.ListFederatedBundlesReply, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Federated bundles retrieved",
-			"method", "ListFederatedBundles",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "ListFederatedBundles",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Federated bundles retrieved")
 	}(time.Now())
 
 	response, err = mw.next.ListFederatedBundles(ctx, request)
@@ -159,13 +159,13 @@ func (mw LoggingMiddleware) ListFederatedBundles(ctx context.Context, request co
 
 func (mw LoggingMiddleware) UpdateFederatedBundle(ctx context.Context, request pb.FederatedBundle) (response common.Empty, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Federated bundle updated",
-			"method", "UpdateFederatedBundle",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "UpdateFederatedBundle",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Federated bundle updated")
 	}(time.Now())
 
 	response, err = mw.next.UpdateFederatedBundle(ctx, request)
@@ -174,13 +174,13 @@ func (mw LoggingMiddleware) UpdateFederatedBundle(ctx context.Context, request p
 
 func (mw LoggingMiddleware) DeleteFederatedBundle(ctx context.Context, request pb.FederatedSpiffeID) (response common.Empty, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Federated bundle deleted",
-			"method", "DeleteFederatedBundle",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "DeleteFederatedBundle",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Federated bundle deleted")
 	}(time.Now())
 
 	response, err = mw.next.DeleteFederatedBundle(ctx, request)

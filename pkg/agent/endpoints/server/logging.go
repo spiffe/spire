@@ -23,13 +23,13 @@ type LoggingMiddleware struct {
 
 func (mw LoggingMiddleware) Stop(ctx context.Context, request sriplugin.StopRequest) (response sriplugin.StopReply, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Stopped SPIRE agent",
-			"method", "Stop",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "stop",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Stopped SPIRE agent")
 	}(time.Now())
 
 	response, err = mw.next.Stop(ctx, request)
@@ -38,13 +38,13 @@ func (mw LoggingMiddleware) Stop(ctx context.Context, request sriplugin.StopRequ
 
 func (mw LoggingMiddleware) PluginInfo(ctx context.Context, request sriplugin.PluginInfoRequest) (response sriplugin.PluginInfoReply, err error) {
 	defer func(begin time.Time) {
-		mw.log.Debug(
-			"Retrieved plugin info",
-			"method", "PluginInfo",
-			"request", request.String(),
-			"error", err,
-			"took", time.Since(begin),
-		)
+		fields := &logrus.Fields{
+			"method":  "PluginInfo",
+			"request": request.String(),
+			"error":   err,
+			"took":    time.Since(begin),
+		}
+		mw.log.WithFields(fields).Debug("Retrieved plugin info")
 	}(time.Now())
 
 	response, err = mw.next.PluginInfo(ctx, request)
