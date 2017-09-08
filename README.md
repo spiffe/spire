@@ -86,7 +86,7 @@ The agent will run silently in the foreground, logging status to its logfile.
 
 ## Building SPIRE for development
 
-# Docker vs Host development
+### Docker vs Host development
 
 YOu can either develop Spire inside a docker container or on bare metal. In both cases you will use the same Makefile commands.
 
@@ -98,7 +98,7 @@ To run on bare metal leave this variable unset.
 
 When using the docker container build artifacts to speed up development are cached in the shared volume under the directory .build_cache.
 
-# Setup
+### Setup
 
 Spire is developed inside a docker container. To get up and running you will need the following installed
 
