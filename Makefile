@@ -11,10 +11,6 @@ docker_image = spiffe-spire-dev:latest
 
 .PHONY: all default image_build cmd build test clean install
 
-foo:
-	@echo "Please execute next commands:"
-	@echo 'setenv PATH /usr/local/greenhills/mips5/linux86:$$PATH'
-
 default: install test
 
 all: install test
