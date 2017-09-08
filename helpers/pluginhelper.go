@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
+	"github.com/sirupsen/logrus"
 
 	"github.com/spiffe/spire/pkg/common/plugin"
 )
@@ -21,7 +21,7 @@ type PluginCatalog struct {
 	maxPluginTypeMap    map[string]int
 	pluginConfigs       map[string]*PluginConfig
 	PluginClientsByName map[string]*PluginClients
-	Logger              interface{}
+	Logger              *logrus.Entry
 }
 
 type PluginClients struct {
@@ -129,7 +129,7 @@ func (c *PluginCatalog) initClients() (err error) {
 
 				SecureConfig: secureConfig,
 
-				Logger: c.Logger.(hclog.Logger),
+				Logger: &HCLogAdapter{Log: c.Logger, Name: "plugin"},
 			})
 
 			protocolClient, err := client.Client()

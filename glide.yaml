@@ -5,6 +5,7 @@ import:
   - proto
   - ptypes/empty
 - package: github.com/hashicorp/go-plugin
+- package: github.com/sirupsen/logrus
 - package: golang.org/x/net
 - package: github.com/satori/go.uuid
   subpackages:

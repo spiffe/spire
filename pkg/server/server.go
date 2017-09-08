@@ -13,12 +13,10 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"reflect"
 
-	"github.com/go-kit/kit/log"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
+	"github.com/sirupsen/logrus"
 
 	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/spire/helpers"
@@ -62,7 +60,7 @@ type Config struct {
 	// Directory for plugin configs
 	PluginDir string
 
-	Logger log.Logger
+	Log *logrus.Logger
 
 	// Address of SPIRE server
 	BindAddress *net.TCPAddr
@@ -129,7 +127,7 @@ func (a *Server) Run() error {
 	}
 
 	// Main event loop
-	a.Config.Logger.Log("msg", "SPIRE Server is now running")
+	a.Config.Log.Info("SPIRE Server is now running")
 	for {
 		select {
 		case err = <-a.Config.ErrorCh:
@@ -142,17 +140,12 @@ func (a *Server) Run() error {
 }
 
 func (a *Server) initPlugins() error {
-	a.Config.Logger.Log("msg", "Starting plugins")
+	a.Config.Log.Info("Starting plugins")
 
-	// TODO: Feed log level through/fix logging...
-	pluginLogger := hclog.New(&hclog.LoggerOptions{
-		Name:  "pluginLogger",
-		Level: hclog.LevelFromString("DEBUG"),
-	})
-
+	l := a.Config.Log.WithField("subsystem_name", "catalog")
 	a.Catalog = &helpers.PluginCatalog{
 		PluginConfDirectory: a.Config.PluginDir,
-		Logger:              pluginLogger,
+		Logger:              l,
 	}
 
 	a.Catalog.SetMaxPluginTypeMap(MaxPlugins)
@@ -163,41 +156,36 @@ func (a *Server) initPlugins() error {
 		return err
 	}
 
-	a.Config.Logger.Log("msg", "Starting plugins done")
+	a.Config.Log.Info("Starting plugins done")
 
 	return nil
 }
 
 func (a *Server) stopPlugins() {
-	a.Config.Logger.Log("msg", "Stopping plugins...")
+	a.Config.Log.Info("Stopping plugins...")
 	if a.Catalog != nil {
 		a.Catalog.Stop()
 	}
 }
 
 func (a *Server) initDependencies() {
-	a.Config.Logger.Log("msg", "Initiating dependencies")
+	a.Config.Log.Info("Initiating dependencies")
 	a.dependencies = &dependencies{}
 
 	//plugins
 	dataStore := a.Catalog.GetPluginsByType("DataStore")[0]
-	a.Config.Logger.Log("pluginType", reflect.TypeOf(dataStore))
 	a.dependencies.DataStoreImpl = dataStore.(datastore.DataStore)
 
 	nodeAttestor := a.Catalog.GetPluginsByType("NodeAttestor")[0]
-	a.Config.Logger.Log("pluginType", reflect.TypeOf(nodeAttestor))
 	a.dependencies.NodeAttestorImpl = nodeAttestor.(nodeattestor.NodeAttestor)
 
 	nodeResolver := a.Catalog.GetPluginsByType("NodeResolver")[0]
-	a.Config.Logger.Log("pluginType", reflect.TypeOf(nodeResolver))
 	a.dependencies.NodeResolverImpl = nodeResolver.(noderesolver.NodeResolver)
 
 	serverCA := a.Catalog.GetPluginsByType("ControlPlaneCA")[0]
-	a.Config.Logger.Log("pluginType", reflect.TypeOf(serverCA))
 	a.dependencies.ServerCAImpl = serverCA.(ca.ControlPlaneCa)
 
 	upCAPlugin := a.Catalog.GetPluginsByType("UpstreamCA")[0].(upstreamca.UpstreamCa)
-	a.Config.Logger.Log("pluginType", reflect.TypeOf(upCAPlugin))
 	a.dependencies.UpstreamCAImpl = upCAPlugin.(upstreamca.UpstreamCa)
 
 	//services
@@ -206,17 +194,17 @@ func (a *Server) initDependencies() {
 	a.dependencies.IdentityService = services.NewIdentityImpl(a.dependencies.DataStoreImpl, a.dependencies.NodeResolverImpl)
 	a.dependencies.CaService = services.NewCAImpl(a.dependencies.ServerCAImpl)
 
-	a.Config.Logger.Log("msg", "Initiating dependencies done")
+	a.Config.Log.Info("Initiating dependencies done")
 }
 
 func (a *Server) initEndpoints() error {
-	a.Config.Logger.Log("msg", "Starting the Registration API")
+	a.Config.Log.Info("Starting the Registration API")
 	var registrationSvc registration.RegistrationService
 	registrationSvc = registration.NewService(a.dependencies.RegistrationService)
-	registrationSvc = registration.ServiceLoggingMiddleWare(a.Config.Logger)(registrationSvc)
+	registrationSvc = registration.ServiceLoggingMiddleWare(a.Config.Log)(registrationSvc)
 	registrationEndpoints := getRegistrationEndpoints(registrationSvc)
 
-	a.Config.Logger.Log("msg", "Starting the Node API")
+	a.Config.Log.Info("Starting the Node API")
 	var nodeSvc node.NodeService
 	nodeSvc = node.NewService(node.ServiceConfig{
 		Attestation:     a.dependencies.AttestationService,
@@ -224,7 +212,7 @@ func (a *Server) initEndpoints() error {
 		Identity:        a.dependencies.IdentityService,
 		BaseSpiffeIDTTL: a.Config.BaseSpiffeIDTTL,
 	})
-	nodeSvc = node.ServiceLoggingMiddleWare(a.Config.Logger)(nodeSvc)
+	nodeSvc = node.ServiceLoggingMiddleWare(a.Config.Log)(nodeSvc)
 	nodeEnpoints := getNodeEndpoints(nodeSvc)
 
 	// TODO: Fix me after server refactor
@@ -249,7 +237,7 @@ func (a *Server) initEndpoints() error {
 	nodeHandler := node.MakeGRPCServer(nodeEnpoints)
 	pbnode.RegisterNodeServer(a.grpcServer, nodeHandler)
 
-	a.Config.Logger.Log("msg", a.Config.BindAddress.String())
+	a.Config.Log.Info(a.Config.BindAddress.String())
 	listener, err := net.Listen(a.Config.BindAddress.Network(), a.Config.BindAddress.String())
 	if err != nil {
 		return fmt.Errorf("Error creating GRPC listener: %s", err)
@@ -280,7 +268,7 @@ func (a *Server) initEndpoints() error {
 			a.Config.ErrorCh <- err
 			return
 		}
-		a.Config.Logger.Log("msg", a.Config.BindHTTPAddress.String())
+		a.Config.Log.Info(a.Config.BindHTTPAddress.String())
 		a.Config.ErrorCh <- http.ListenAndServe(a.Config.BindHTTPAddress.String(), mux)
 	}()
 
@@ -288,15 +276,14 @@ func (a *Server) initEndpoints() error {
 }
 
 func (a *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	a.Config.Logger.Log("msg", "Generating SVID certificate")
-
 	spiffeID := &url.URL{
 		Scheme: "spiffe",
 		Host:   a.Config.TrustDomain.Host,
 		Path:   path.Join("spiffe", "cp"),
 	}
 
-	a.Config.Logger.Log("msg", "Generating SVID certificate", "SPIFFE_ID", spiffeID.String())
+	l := a.Config.Log.WithField("SPIFFE_ID", spiffeID.String())
+	l.Info("Rotating SPIRE server SVID")
 
 	uriSAN, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
@@ -320,6 +307,7 @@ func (a *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 		return nil, nil, err
 	}
 
+	l.Debug("Sending CSR to the CA plugin")
 	signReq := &ca.SignCsrRequest{Csr: csr}
 	res, err := a.dependencies.ServerCAImpl.SignCsr(signReq)
 	if err != nil {
@@ -331,13 +319,12 @@ func (a *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 		return nil, nil, err
 	}
 
-	a.Config.Logger.Log("msg", "Generated SVID certificate", "SPIFFE_ID", spiffeID.String())
-
+	l.Debug("SPIRE server SVID rotation complete")
 	return cert, key, nil
 }
 
 func (a *Server) rotateSigningCert() error {
-	a.Config.Logger.Log("msg", "Initiating rotation of signing certificate")
+	a.Config.Log.Info("Initiating rotation of signing certificate")
 
 	csrRes, err := a.dependencies.ServerCAImpl.GenerateCsr(&ca.GenerateCsrRequest{})
 	if err != nil {
