@@ -15,7 +15,9 @@ RUN apt-get -y install \
 
 RUN apt-get -y install golang-go glide
 
-RUN mkdir -p /root/go/src/github.com/spiffe
+RUN mkdir -p /root/go/src/github.com/spiffe/spire
+
+RUN ln -s ~/go/src/github.com/spiffe/spire/.build_cache ~/go/pkg
 
 ENV GOPATH /root/go
 ENV GOROOT /usr/lib/go/

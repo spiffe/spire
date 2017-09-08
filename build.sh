@@ -167,8 +167,40 @@ build_test() {
 }
 
 build_artifact() {
-    _log_info "creating artifact \"artifact.tgz\""
-    tar -cvzf artifact.tgz $(find $BINARY_DIRS -executable -a -type f)
+	local _hash _os _arch _libc _artifact _binaries _n _tmp
+
+	_binaries="$(find $BINARY_DIRS -executable -a -type f)"
+
+	mkdir -p artifacts
+	_os="$(uname -s | tr 'A-Z' 'a-z')"
+	_arch="$(uname -m)"
+	if [[ $_os == linux ]]; then
+		case $(ldd --version 2>&1) in
+			*GLIB*) _libc="-glibc" ;;
+			*muslr*) _libc="-musl" ;;
+			*) _libc="-unknown" ;;
+		esac
+	fi
+	_hash="$(git log -n1 --pretty=format:%h)"
+    _artifact="spire-${_hash}-${_os}-${_arch}${_libc}.tgz"
+
+    _log_info "creating artifact \"${_artifact}\""
+
+	_tmp=".tmp/spire"
+	rm -rf $_tmp
+	mkdir -p $_tmp
+
+	# we munge the file structure a bit here
+	for _n in $_binaries; do
+		if [[ $_n == *cmd/* ]]; then
+			cp $_n $_tmp
+		elif [[ $_n == *plugin/* ]]; then
+			mkdir -p ${_tmp}/$(dirname $(dirname $_n))
+			cp -r $_n ${_tmp}/$(dirname $_n)
+		fi
+	done
+
+    tar --directory .tmp -cvzf artifacts/${_artifact} .
 }
 
 build_clean() {
