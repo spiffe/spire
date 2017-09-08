@@ -14,9 +14,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/go-kit/kit/log"
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
+	"github.com/sirupsen/logrus"
 
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
@@ -60,7 +59,7 @@ type Config struct {
 	// Directory for plugin configs
 	PluginDir string
 
-	Logger log.Logger
+	Log *logrus.Logger
 
 	// Address of SPIRE server
 	ServerAddress *net.TCPAddr
@@ -108,7 +107,7 @@ func (a *Agent) Run() error {
 	}
 
 	// Main event loop
-	a.Config.Logger.Log("msg", "SPIRE Agent is now running")
+	a.Config.Log.Info("SPIRE Agent is now running")
 	for {
 		select {
 		case err = <-a.Config.ErrorCh:
@@ -121,17 +120,12 @@ func (a *Agent) Run() error {
 }
 
 func (a *Agent) initPlugins() error {
-	a.Config.Logger.Log("msg", "Starting plugins")
+	a.Config.Log.Info("Starting plugins")
 
-	// TODO: Feed log level through/fix logging...
-	pluginLogger := hclog.New(&hclog.LoggerOptions{
-		Name:  "pluginLogger",
-		Level: hclog.LevelFromString("DEBUG"),
-	})
-
+	l := a.Config.Log.WithField("subsystem_name", "catalog")
 	a.Catalog = &helpers.PluginCatalog{
 		PluginConfDirectory: a.Config.PluginDir,
-		Logger:              pluginLogger,
+		Logger:              l,
 	}
 
 	a.Catalog.SetMaxPluginTypeMap(MaxPlugins)
@@ -146,7 +140,7 @@ func (a *Agent) initPlugins() error {
 }
 
 func (a *Agent) initEndpoints() error {
-	a.Config.Logger.Log("msg", "Starting the workload API")
+	a.Config.Log.Info("Starting the workload API")
 	svc := server.NewService(a.Catalog, a.Config.ShutdownCh)
 
 	endpoints := server.Endpoints{
@@ -171,7 +165,7 @@ func (a *Agent) initEndpoints() error {
 }
 
 func (a *Agent) bootstrap() error {
-	a.Config.Logger.Log("msg", "Bootstrapping SPIRE agent")
+	a.Config.Log.Info("Bootstrapping SPIRE agent")
 
 	// Look up the key manager plugin
 	pluginClients := a.Catalog.GetPluginsByType("KeyManager")
@@ -198,10 +192,10 @@ func (a *Agent) bootstrap() error {
 		a.key = key
 	} else {
 		if a.BaseSVID != nil {
-			a.Config.Logger.Log("msg", "Certificate configured but no private key found!")
+			a.Config.Log.Info("Certificate configured but no private key found!")
 		}
 
-		a.Config.Logger.Log("msg", "Generating private key for new base SVID")
+		a.Config.Log.Info("Generating private key for new base SVID")
 		res, err := keyManager.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
 		if err != nil {
 			return fmt.Errorf("Failed to generate private key: %s", err)
@@ -216,13 +210,13 @@ func (a *Agent) bootstrap() error {
 		return a.Attest()
 	}
 
-	a.Config.Logger.Log("msg", "Bootstrapping done")
+	a.Config.Log.Info("Bootstrapping done")
 	return nil
 }
 
 // Attest the agent, obtain a new Base SVID
 func (a *Agent) Attest() error {
-	a.Config.Logger.Log("msg", "Preparing to attest against %s", a.Config.ServerAddress.String())
+	a.Config.Log.Info("Preparing to attest against %s", a.Config.ServerAddress.String())
 
 	// Look up the node attestor plugin
 	pluginClients := a.Catalog.GetPluginsByType("NodeAttestor")
@@ -280,7 +274,7 @@ func (a *Agent) Attest() error {
 	// Pull base SVID out of the response
 	svids := serverResponse.SvidUpdate.Svids
 	if len(svids) > 1 {
-		a.Config.Logger.Log("msg", "More than one SVID received during attestation!")
+		a.Config.Log.Info("More than one SVID received during attestation!")
 	}
 	svid, ok := svids[id.String()]
 	if !ok {
@@ -290,13 +284,13 @@ func (a *Agent) Attest() error {
 	a.BaseSVID = svid.SvidCert
 	a.BaseSVIDTTL = svid.Ttl
 	a.StoreBaseSVID()
-	a.Config.Logger.Log("msg", "Attestation complete")
+	a.Config.Log.Info("Attestation complete")
 	return nil
 }
 
 // Generate a CSR for the given SPIFFE ID
 func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
-	a.Config.Logger.Log("msg", "Generating CSR", "SPIFFE_ID", spiffeID.String())
+	a.Config.Log.Info("Generating CSR", "SPIFFE_ID", spiffeID.String())
 
 	uriSANs, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
@@ -324,11 +318,11 @@ func (a *Agent) GenerateCSR(spiffeID *url.URL) ([]byte, error) {
 
 // Read base SVID from data dir and load it
 func (a *Agent) LoadBaseSVID() error {
-	a.Config.Logger.Log("msg", "Loading base SVID from disk")
+	a.Config.Log.Info("Loading base SVID from disk")
 
 	certPath := path.Join(a.Config.DataDir, "base_svid.crt")
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
-		a.Config.Logger.Log("msg", "A base SVID could not be found. A new one will be generated")
+		a.Config.Log.Info("A base SVID could not be found. A new one will be generated")
 		return nil
 	}
 
@@ -353,7 +347,7 @@ func (a *Agent) StoreBaseSVID() {
 	f, err := os.Create(certPath)
 	defer f.Close()
 	if err != nil {
-		a.Config.Logger.Log("msg", "Unable to store Base SVID at path %s!", certPath)
+		a.Config.Log.Info("Unable to store Base SVID at path %s!", certPath)
 		return
 	}
 
@@ -364,7 +358,7 @@ func (a *Agent) StoreBaseSVID() {
 }
 
 func (a *Agent) stopPlugins() {
-	a.Config.Logger.Log("msg", "Stopping plugins...")
+	a.Config.Log.Info("Stopping plugins...")
 	if a.Catalog != nil {
 		a.Catalog.Stop()
 	}

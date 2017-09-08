@@ -4,26 +4,27 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/plugin"
 )
 
 type ServerServiceMiddleWare func(ServerService) ServerService
 
-func SelectorServiceLoggingMiddleWare(logger log.Logger) ServerServiceMiddleWare {
+func SelectorServiceLoggingMiddleWare(logger *logrus.Logger) ServerServiceMiddleWare {
 	return func(next ServerService) ServerService {
 		return LoggingMiddleware{logger, next}
 	}
 }
 
 type LoggingMiddleware struct {
-	logger log.Logger
-	next   ServerService
+	log  *logrus.Logger
+	next ServerService
 }
 
 func (mw LoggingMiddleware) Stop(ctx context.Context, request sriplugin.StopRequest) (response sriplugin.StopReply, err error) {
 	defer func(begin time.Time) {
-		mw.logger.Log(
+		mw.log.Debug(
+			"Stopped SPIRE agent",
 			"method", "Stop",
 			"request", request.String(),
 			"error", err,
@@ -37,7 +38,8 @@ func (mw LoggingMiddleware) Stop(ctx context.Context, request sriplugin.StopRequ
 
 func (mw LoggingMiddleware) PluginInfo(ctx context.Context, request sriplugin.PluginInfoRequest) (response sriplugin.PluginInfoReply, err error) {
 	defer func(begin time.Time) {
-		mw.logger.Log(
+		mw.log.Debug(
+			"Retrieved plugin info",
 			"method", "PluginInfo",
 			"request", request.String(),
 			"error", err,
