@@ -167,7 +167,9 @@ build_test() {
 }
 
 build_artifact() {
-	local _hash _os _arch _libc _artifact
+	local _hash _os _arch _libc _artifact _binaries _n _tmp
+
+	_binaries="$(find $BINARY_DIRS -executable -a -type f)"
 
 	mkdir -p artifacts
 	_os="$(uname -s | tr 'A-Z' 'a-z')"
@@ -183,7 +185,22 @@ build_artifact() {
     _artifact="spire-${_hash}-${_os}-${_arch}${_libc}.tgz"
 
     _log_info "creating artifact \"${_artifact}\""
-    tar -cvzf artifacts/${_artifact} $(find $BINARY_DIRS -executable -a -type f)
+
+	_tmp=".tmp/spire"
+	rm -rf $_tmp
+	mkdir -p $_tmp
+
+	# we munge the file structure a bit here
+	for _n in $_binaries; do
+		if [[ $_n == *cmd/* ]]; then
+			cp $_n $_tmp
+		elif [[ $_n == *plugin/* ]]; then
+			mkdir -p ${_tmp}/$(dirname $(dirname $_n))
+			cp -r $_n ${_tmp}/$(dirname $_n)
+		fi
+	done
+
+    tar --directory .tmp -cvzf artifacts/${_artifact} .
 }
 
 build_clean() {
