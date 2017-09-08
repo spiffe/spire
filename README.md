@@ -126,7 +126,7 @@ Other useful commands
 | cmd      | Run /bin/bash in the container      | 
 | build | run `go build -i`      |
 | test | run `go test`      |
-| test | run `go test -race`      |
+| race-test | run `go test -race`      |
 | clean | cleans `vendor` directory, glide cache     |
 | install | installs the go dependencies using glide |
 
