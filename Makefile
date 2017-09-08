@@ -1,40 +1,49 @@
 ifeq ($(SPIRE_DEV_HOST), docker)
-	cmd_prefix = docker run -v $(volume) -it $(docker_image)
-	build_target = image_build
+	docker = docker run -v $(docker_volume) -it $(docker_image)
+	container = container
 else
-	cmd_prefix = 
-	build_target = 
+	docker = 
+	container = 
 endif
 
-volume = $(shell pwd):/root/go/src/github.com/spiffe/spire
+binary_dirs := $(shell find cmd/* plugin/*/* -maxdepth 0 -type d)
+docker_volume := $(shell echo $${PWD%/src/*}):/root/go
 docker_image = spiffe-spire-dev:latest
 
-.PHONY: all default image_build cmd build test clean install
+.PHONY: all utils cmd build test race-test clean
 
-default: install test
+build: $(binary_dirs)
 
-all: install test
+all: $(container) vendor build test
 
-image_build:
-	mkdir -p .build_cache
+container: Dockerfile
 	docker build -t $(docker_image) .
 
 cmd:
-	$(cmd_prefix) /bin/bash
+	$(docker) /bin/bash
 
-build:
-	$(cmd_prefix) go build -i $$(glide novendor)	
+utils:
+	$(docker) go get github.com/golang/protobuf/protoc-gen-go
+	$(docker) go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
+	$(docker) go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
 
-race-test:
-	$(cmd_prefix) go test -race $$(glide novendor)
+vendor: glide.yaml glide.lock
+	$(docker) glide --home .cache install
+
+$(binary_dirs): noop
+	$(docker) /bin/sh -c "cd $@; go build -i"
 
 test:
-	$(cmd_prefix) go test $$(glide novendor)
+	$(docker) go test $$(glide novendor)
 
-clean: 
-	go clean
-	rm -Rf .build_cache/*
-	rm -Rf vendor/*
+race-test:
+	$(docker) go test -race $$(glide novendor)
 
-install: $(build_target)
-	$(cmd_prefix) glide install
+clean:
+	$(docker) go clean $$(glide novendor)
+
+distclean: clean
+	rm -rf .cache
+	rm -rf vendor
+
+noop:

@@ -9,7 +9,8 @@ cache:
 
 script:
     - ./build.sh setup
-    - ./build.sh deps
+    - ./build.sh utils
+    - ./build.sh vendor
     - ./build.sh protobuf_verify
     - ./build.sh binaries
     - ./build.sh test

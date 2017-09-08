@@ -1,25 +1,16 @@
 FROM ubuntu:xenial
 
 RUN apt-get update
-
-RUN apt-get -y install \
-    software-properties-common python-software-properties
-
-RUN add-apt-repository ppa:longsleep/golang-backports
-RUN add-apt-repository ppa:masterminds/glide
-
-RUN apt-get update
-
 RUN apt-get -y install \
     curl unzip git build-essential
 
-RUN apt-get -y install golang-go glide
+COPY build.sh /root/
+ENV BUILD_DIR=/root/build
+RUN /root/build.sh setup
 
-RUN mkdir -p /root/go/src/github.com/spiffe/spire
-
-RUN ln -s ~/go/src/github.com/spiffe/spire/.build_cache ~/go/pkg
-
-ENV GOPATH /root/go
-ENV GOROOT /usr/lib/go/
-ENV PWD /root/go/src/github.com/spiffe/spire
-WORKDIR ${PWD}
+ENV GOPATH=/root/go
+ENV GOROOT=/root/build
+ENV GOBIN=$GOPATH/bin/linux_amd64
+ENV PATH=$GOROOT/bin:$GOBIN:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+RUN mkdir /root/go
+WORKDIR /root/go/src/github.com/spiffe/spire
