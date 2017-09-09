@@ -4,5 +4,4 @@ BindHTTPPort = "8080"
 TrustDomain = "example.org"
 PluginDir = "../../plugin/server/.conf"
 LogLevel = "INFO"
-LogFile = "spire-server.log"//
 BaseSpiffeIDTTL = 999999
