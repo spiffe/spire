@@ -80,7 +80,7 @@ func (*RunCommand) Run(args []string) int {
 	agt := &agent.Agent{Config: config}
 	err = agt.Run()
 	if err != nil {
-		config.Logger.Log("msg", err.Error())
+		config.Log.Error(err.Error())
 		return 1
 	}
 
@@ -205,7 +205,7 @@ func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 			return fmt.Errorf("Could not open log file %s: %s", cmd.LogFile, err)
 		}
 
-		orig.Logger = logger
+		orig.Log = logger
 	}
 
 	return nil
@@ -250,7 +250,7 @@ func newDefaultConfig() *agent.Config {
 		PluginDir:     defaultPluginDir,
 		ErrorCh:       errCh,
 		ShutdownCh:    shutdownCh,
-		Logger:        logger,
+		Log:           logger,
 		ServerAddress: serverAddress,
 	}
 }
