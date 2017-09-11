@@ -11,7 +11,7 @@ import (
 // HCLogAdapter implements the hclog interface, and wraps it
 // around a Logrus entry
 type HCLogAdapter struct {
-	Log  *logrus.Entry
+	Log  logrus.FieldLogger
 	Name string
 }
 
@@ -90,15 +90,13 @@ func (a *HCLogAdapter) ResetNamed(name string) hclog.Logger {
 //
 // Apologies to those who find themselves here.
 func (a *HCLogAdapter) StandardLogger(opts *hclog.StandardLoggerOptions) *log.Logger {
-	if opts == nil {
-		opts = &hclog.StandardLoggerOptions{}
-	}
-
-	return log.New(a.Log.WriterLevel(logrus.InfoLevel), "", 0)
+	entry := a.Log.WithFields(logrus.Fields{})
+	return log.New(entry.WriterLevel(logrus.InfoLevel), "", 0)
 }
 
 func (a *HCLogAdapter) shouldEmit(level logrus.Level) bool {
-	if a.Log.Level >= level {
+	currentLevel := a.Log.WithFields(logrus.Fields{}).Level
+	if currentLevel >= level {
 		return true
 	}
 

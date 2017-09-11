@@ -10,20 +10,20 @@ import (
 
 type ServerServiceMiddleWare func(ServerService) ServerService
 
-func SelectorServiceLoggingMiddleWare(logger *logrus.Logger) ServerServiceMiddleWare {
+func SelectorServiceLoggingMiddleWare(logger logrus.FieldLogger) ServerServiceMiddleWare {
 	return func(next ServerService) ServerService {
 		return LoggingMiddleware{logger, next}
 	}
 }
 
 type LoggingMiddleware struct {
-	log  *logrus.Logger
+	log  logrus.FieldLogger
 	next ServerService
 }
 
 func (mw LoggingMiddleware) Stop(ctx context.Context, request sriplugin.StopRequest) (response sriplugin.StopReply, err error) {
 	defer func(begin time.Time) {
-		fields := &logrus.Fields{
+		fields := logrus.Fields{
 			"method":  "stop",
 			"request": request.String(),
 			"error":   err,
@@ -38,7 +38,7 @@ func (mw LoggingMiddleware) Stop(ctx context.Context, request sriplugin.StopRequ
 
 func (mw LoggingMiddleware) PluginInfo(ctx context.Context, request sriplugin.PluginInfoRequest) (response sriplugin.PluginInfoReply, err error) {
 	defer func(begin time.Time) {
-		fields := &logrus.Fields{
+		fields := logrus.Fields{
 			"method":  "PluginInfo",
 			"request": request.String(),
 			"error":   err,

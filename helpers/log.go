@@ -7,7 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func NewLogger(logLevel string, fileName string) (*logrus.Logger, error) {
+func NewLogger(logLevel string, fileName string) (logrus.FieldLogger, error) {
 	var fd io.Writer
 	var err error
 

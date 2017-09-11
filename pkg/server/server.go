@@ -60,7 +60,7 @@ type Config struct {
 	// Directory for plugin configs
 	PluginDir string
 
-	Log *logrus.Logger
+	Log logrus.FieldLogger
 
 	// Address of SPIRE server
 	BindAddress *net.TCPAddr

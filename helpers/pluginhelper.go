@@ -21,7 +21,7 @@ type PluginCatalog struct {
 	maxPluginTypeMap    map[string]int
 	pluginConfigs       map[string]*PluginConfig
 	PluginClientsByName map[string]*PluginClients
-	Logger              *logrus.Entry
+	Logger              logrus.FieldLogger
 }
 
 type PluginClients struct {

@@ -10,20 +10,20 @@ import (
 
 type ServerServiceMiddleWare func(WorkloadService) WorkloadService
 
-func SelectorServiceLoggingMiddleWare(logger *logrus.Logger) ServerServiceMiddleWare {
+func SelectorServiceLoggingMiddleWare(logger logrus.FieldLogger) ServerServiceMiddleWare {
 	return func(next WorkloadService) WorkloadService {
 		return LoggingMiddleware{logger, next}
 	}
 }
 
 type LoggingMiddleware struct {
-	log  *logrus.Logger
+	log  logrus.FieldLogger
 	next WorkloadService
 }
 
 func (mw LoggingMiddleware) FetchSVIDBundle(ctx context.Context, request pb.FetchSVIDBundleRequest) (response pb.FetchSVIDBundleResponse) {
 	defer func(begin time.Time) {
-		fields := &logrus.Fields{
+		fields := logrus.Fields{
 			"method":  "FetchSVIDBundle",
 			"request": request.String(),
 			"took":    time.Since(begin),
@@ -37,7 +37,7 @@ func (mw LoggingMiddleware) FetchSVIDBundle(ctx context.Context, request pb.Fetc
 
 func (mw LoggingMiddleware) FetchSVIDBundles(ctx context.Context, request pb.Empty) (response pb.FetchSVIDBundlesResponse) {
 	defer func(begin time.Time) {
-		fields := &logrus.Fields{
+		fields := logrus.Fields{
 			"method":  "FetchSVIDBundles",
 			"request": request.String(),
 			"took":    time.Since(begin),
@@ -51,7 +51,7 @@ func (mw LoggingMiddleware) FetchSVIDBundles(ctx context.Context, request pb.Emp
 
 func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse) {
 	defer func(begin time.Time) {
-		fields := &logrus.Fields{
+		fields := logrus.Fields{
 			"method":  "FetchFederatedBundle",
 			"request": request.String(),
 			"took":    time.Since(begin),
@@ -65,7 +65,7 @@ func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request pb
 
 func (mw LoggingMiddleware) FetchFederatedBundles(ctx context.Context, request pb.Empty) (response pb.FetchFederatedBundlesResponse) {
 	defer func(begin time.Time) {
-		fields := &logrus.Fields{
+		fields := logrus.Fields{
 			"method":  "FetchFederatedBundles",
 			"request": request.String(),
 			"took":    time.Since(begin),
