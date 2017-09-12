@@ -228,7 +228,8 @@ func (a *Agent) bootstrap() error {
 }
 
 /* Attest the agent, obtain a new Base SVID
-returns spiffeid->registration entries map returned in the SVID update
+returns a spiffeid->registration entries map
+This map is used generated CSR for non-base SVIDs and update the agent cache entries
 */
 func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
 	a.acc.Config.Log.Info("Preparing to attest against %s", a.acc.Config.ServerAddress.String())
