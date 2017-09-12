@@ -1,4 +1,4 @@
-package agent
+package cache
 
 import (
 	"crypto/sha256"
@@ -24,9 +24,9 @@ func (s selectors) Less(i, j int) bool {
 }
 
 type CacheEntry struct {
-	registrationEntry *common.RegistrationEntry
+	RegistrationEntry *common.RegistrationEntry
 	SVID              *node.Svid
-	privateKey        *ecdsa.PrivateKey
+	PrivateKey        *ecdsa.PrivateKey
 }
 
 type Cache interface {
@@ -35,32 +35,32 @@ type Cache interface {
 	DeleteEntry([]*common.Selector) (deleted bool)
 }
 
-type CacheImpl struct {
+type cacheImpl struct {
 	cache map[string][]CacheEntry
 	m     sync.Mutex
 }
 
-func NewCache() *CacheImpl {
-	return &CacheImpl{cache: make(map[string][]CacheEntry)}
+func NewCache() *cacheImpl {
+	return &cacheImpl{cache: make(map[string][]CacheEntry)}
 }
 
-func (c *CacheImpl) Entry(selectors []*common.Selector) (entry []CacheEntry) {
+func (c *cacheImpl) Entry(selectors []*common.Selector) (entry []CacheEntry) {
 	key := deriveCacheKey(selectors)
 	c.m.Lock()
 	defer c.m.Unlock()
 	return c.cache[key]
 }
 
-func (c *CacheImpl) SetEntry(cacheEntry CacheEntry) {
+func (c *cacheImpl) SetEntry(cacheEntry CacheEntry) {
 	c.m.Lock()
 	defer c.m.Unlock()
-	key := deriveCacheKey(cacheEntry.registrationEntry.Selectors)
+	key := deriveCacheKey(cacheEntry.RegistrationEntry.Selectors)
 	c.cache[key] = append(c.cache[key], cacheEntry)
 	return
 
 }
 
-func (c *CacheImpl) DeleteEntry(selectors []*common.Selector) (deleted bool) {
+func (c *cacheImpl) DeleteEntry(selectors []*common.Selector) (deleted bool) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	key := deriveCacheKey(selectors)

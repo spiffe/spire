@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -21,6 +22,7 @@ import (
 	"github.com/spiffe/go-spiffe/uri"
 
 	"github.com/spiffe/spire/helpers"
+	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/endpoints/server"
 	"github.com/spiffe/spire/pkg/agent/keymanager"
 	"github.com/spiffe/spire/pkg/agent/nodeattestor"
@@ -28,7 +30,6 @@ import (
 	"github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common/plugin"
 
-	"crypto/elliptic"
 	spire_common "github.com/spiffe/spire/pkg/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -84,12 +85,12 @@ type AgentConfig struct {
 }
 
 type Agent struct {
-	BaseSVID     []byte
-	baseSVIDpKey *ecdsa.PrivateKey
-	BaseSVIDTTL  int32
-	grpcServer   *grpc.Server
-	acc          *AgentConfig
-	Cache        Cache
+	BaseSVID    []byte
+	baseSVIDKey *ecdsa.PrivateKey
+	BaseSVIDTTL int32
+	grpcServer  *grpc.Server
+	acc         *AgentConfig
+	Cache       cache.Cache
 }
 
 func New(ac *AgentConfig) *Agent {
@@ -100,7 +101,7 @@ func New(ac *AgentConfig) *Agent {
 // This method initializes the agent, including its plugins,
 // and then blocks on the main event loop.
 func (a *Agent) Run() error {
-	a.Cache = NewCache()
+	a.Cache = cache.NewCache()
 
 	err := a.initPlugins()
 	defer a.stopPlugins()
@@ -119,7 +120,7 @@ func (a *Agent) Run() error {
 	}
 
 	// Main event loop
-	a.acc.Config.Log.Info("msg", "SPIRE Agent is now running")
+	a.acc.Config.Log.Info( "SPIRE Agent is now running")
 	for {
 		select {
 		case err = <-a.acc.Config.ErrorCh:
@@ -132,7 +133,7 @@ func (a *Agent) Run() error {
 }
 
 func (a *Agent) initPlugins() error {
-	a.acc.Config.Log.Info("msg", "Starting plugins")
+	a.acc.Config.Log.Info( "Starting plugins")
 	a.acc.PluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
 	a.acc.PluginCatalog.SetPluginTypeMap(PluginTypeMap)
 
@@ -170,7 +171,7 @@ func (a *Agent) initEndpoints() error {
 }
 
 func (a *Agent) bootstrap() error {
-	a.acc.Config.Log.Info("msg", "Bootstrapping SPIRE agent")
+	a.acc.Config.Log.Info( "Bootstrapping SPIRE agent")
 
 	// Look up the key manager plugin
 	pluginClients := a.acc.PluginCatalog.GetPluginsByType("KeyManager")
@@ -194,7 +195,7 @@ func (a *Agent) bootstrap() error {
 		if err != nil {
 			return err
 		}
-		a.baseSVIDpKey = key
+		a.baseSVIDKey = key
 	} else {
 		if a.BaseSVID != nil {
 			a.acc.Config.Log.Info("Certificate configured but no private key found!")
@@ -209,7 +210,7 @@ func (a *Agent) bootstrap() error {
 		if err != nil {
 			return err
 		}
-		a.baseSVIDpKey = key
+		a.baseSVIDKey = key
 
 		// If we're here, we need to attest/Re-attest
 		regEntryMap, err := a.attest()
@@ -226,7 +227,9 @@ func (a *Agent) bootstrap() error {
 	return nil
 }
 
-// Attest the agent, obtain a new Base SVID
+/* Attest the agent, obtain a new Base SVID
+returns spiffeid->registration entries map returned in the SVID update
+*/
 func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
 	a.acc.Config.Log.Info("Preparing to attest against %s", a.acc.Config.ServerAddress.String())
 
@@ -247,7 +250,7 @@ func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to form SPIFFE ID: %s", err)
 	}
-	csr, err := a.generateCSR(id, a.baseSVIDpKey)
+	csr, err := a.generateCSR(id, a.baseSVIDKey)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to generate CSR for attestation: %s", err)
 	}
@@ -279,22 +282,20 @@ func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
 	}
 
 	var registrationEntryMap = make(map[string]*spire_common.RegistrationEntry)
-	for i, entry := range serverResponse.SvidUpdate.RegistrationEntries {
-		if i != 0 {
+	for _, entry := range serverResponse.SvidUpdate.RegistrationEntries[1:] {
 			registrationEntryMap[entry.SpiffeId] = entry
-		}
 	}
 
 	a.BaseSVID = svid.SvidCert
 	a.BaseSVIDTTL = svid.Ttl
 	a.storeBaseSVID()
-	a.acc.Config.Log.Info("msg", "Attestation complete")
+	a.acc.Config.Log.Info( "Attestation complete")
 	return registrationEntryMap, nil
 }
 
 // Generate a CSR for the given SPIFFE ID
 func (a *Agent) generateCSR(spiffeID *url.URL, key *ecdsa.PrivateKey) ([]byte, error) {
-	a.acc.Config.Log.Info("msg", "Generating a CSR for %s", spiffeID.String())
+	a.acc.Config.Log.Info( "Generating a CSR for %s", spiffeID.String())
 
 	uriSANs, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
@@ -322,11 +323,11 @@ func (a *Agent) generateCSR(spiffeID *url.URL, key *ecdsa.PrivateKey) ([]byte, e
 
 // Read base SVID from data dir and load it
 func (a *Agent) loadBaseSVID() error {
-	a.acc.Config.Log.Info("msg", "Loading base SVID from disk")
+	a.acc.Config.Log.Info("Loading base SVID from disk")
 
 	certPath := path.Join(a.acc.Config.DataDir, "base_svid.crt")
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
-		a.acc.Config.Log.Info("msg", "A base SVID could not be found. A new one will be generated")
+		a.acc.Config.Log.Info( "A base SVID could not be found. A new one will be generated")
 		return nil
 	}
 
@@ -351,7 +352,7 @@ func (a *Agent) storeBaseSVID() {
 	f, err := os.Create(certPath)
 	defer f.Close()
 	if err != nil {
-		a.acc.Config.Log.Info("msg", "Unable to store Base SVID at path %s!", certPath)
+		a.acc.Config.Log.Info( "Unable to store Base SVID at path %s!", certPath)
 		return
 	}
 
@@ -386,8 +387,8 @@ func (a *Agent) FetchSVID(registrationEntryMap map[string]*spire_common.Registra
 			svid, svidInMap := svidMap[spiffeID]
 			pkey, pkeyInMap := pkeyMap[spiffeID]
 			if svidInMap && pkeyInMap {
-				a.Cache.SetEntry(CacheEntry{registrationEntry: entry,
-					SVID: svid, privateKey: pkey})
+				a.Cache.SetEntry(cache.CacheEntry{entry,
+					svid, pkey})
 			}
 		}
 
@@ -460,7 +461,7 @@ func (a *Agent) generateCSRForRegistrationEntries(
 }
 
 func (a *Agent) stopPlugins() {
-	a.acc.Config.Log.Info("msg", "Stopping plugins...")
+	a.acc.Config.Log.Info( "Stopping plugins...")
 	if a.acc.PluginCatalog != nil {
 		a.acc.PluginCatalog.Stop()
 	}

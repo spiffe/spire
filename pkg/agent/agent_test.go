@@ -85,7 +85,7 @@ func (suite *AgentTestSuite) Testbootstrap() {
 		Config:        suite.config})
 	err := suite.agent.bootstrap()
 	suite.Require().NoError(err)
-	suite.Assert().Equal(expectedkey, suite.agent.baseSVIDpKey)
+	suite.Assert().Equal(expectedkey, suite.agent.baseSVIDKey)
 }
 
 // WIP(walmav)
