@@ -21,6 +21,7 @@ import (
 	"net"
 	"os"
 )
+type selectors []*common.Selector
 
 type AgentTestSuite struct {
 	suite.Suite
@@ -80,9 +81,9 @@ func (suite *AgentTestSuite) Testbootstrap() {
 		"NodeAttestor":     &nodeattestor.NodeAttestorPlugin{},
 		"WorkloadAttestor": &workloadattestor.WorkloadAttestorPlugin{},
 	})
-	suite.agent = New(&AgentConfig{
-		PluginCatalog: suite.mockPluginCatalog,
-		Config:        suite.config})
+	suite.agent = &Agent{
+		pluginCatalog: suite.mockPluginCatalog,
+		config:        suite.config}
 	err := suite.agent.bootstrap()
 	suite.Require().NoError(err)
 	suite.Assert().Equal(expectedkey, suite.agent.baseSVIDKey)
