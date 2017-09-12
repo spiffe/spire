@@ -91,7 +91,7 @@ type dependencies struct {
 }
 
 type Server struct {
-	Catalog      *helpers.PluginCatalog
+	Catalog      *helpers.PluginCatalogImpl
 	Config       *Config
 	grpcServer   *grpc.Server
 	dependencies *dependencies
@@ -102,150 +102,149 @@ type Server struct {
 // Run the server
 // This method initializes the server, including its plugins,
 // and then blocks on the main event loop.
-func (a *Server) Run() error {
-	err := a.initPlugins()
-	defer a.stopPlugins()
+func (server *Server) Run() error {
+	err := server.initPlugins()
+	defer server.stopPlugins()
 	if err != nil {
 		return err
 	}
 
-	a.initDependencies()
+	server.initDependencies()
 
-	err = a.rotateSigningCert()
+	err = server.rotateSigningCert()
 	if err != nil {
 		return err
 	}
 
-	a.svid, a.privateKey, err = a.rotateSVID()
+	server.svid, server.privateKey, err = server.rotateSVID()
 	if err != nil {
 		return err
 	}
 
-	err = a.initEndpoints()
+	err = server.initEndpoints()
 	if err != nil {
 		return err
 	}
 
 	// Main event loop
-	a.Config.Log.Info("SPIRE Server is now running")
+	server.Config.Log.Info("SPIRE Server is now running")
 	for {
 		select {
-		case err = <-a.Config.ErrorCh:
+		case err = <-server.Config.ErrorCh:
 			return err
-		case <-a.Config.ShutdownCh:
-			a.grpcServer.GracefulStop()
-			return <-a.Config.ErrorCh
+		case <-server.Config.ShutdownCh:
+			server.grpcServer.GracefulStop()
+			return <-server.Config.ErrorCh
 		}
 	}
 }
 
-func (a *Server) initPlugins() error {
-	a.Config.Log.Info("Starting plugins")
+func (server *Server) initPlugins() error {
+	server.Config.Log.Info("Starting plugins")
 
-	l := a.Config.Log.WithField("subsystem_name", "catalog")
-	a.Catalog = &helpers.PluginCatalog{
-		PluginConfDirectory: a.Config.PluginDir,
-		Logger:              l,
-	}
+	l := server.Config.Log.WithField("subsystem_name", "catalog")
+	server.Catalog = helpers.NewPluginCatalog(&helpers.PluginCatalogConfig{
+		PluginConfDirectory: server.Config.PluginDir,
+		Logger:              l})
 
-	a.Catalog.SetMaxPluginTypeMap(MaxPlugins)
-	a.Catalog.SetPluginTypeMap(PluginTypeMap)
+	server.Catalog.SetMaxPluginTypeMap(MaxPlugins)
+	server.Catalog.SetPluginTypeMap(PluginTypeMap)
 
-	err := a.Catalog.Run()
+	err := server.Catalog.Run()
 	if err != nil {
 		return err
 	}
 
-	a.Config.Log.Info("Starting plugins done")
+	server.Config.Log.Info("Starting plugins done")
 
 	return nil
 }
 
-func (a *Server) stopPlugins() {
-	a.Config.Log.Info("Stopping plugins...")
-	if a.Catalog != nil {
-		a.Catalog.Stop()
+func (server *Server) stopPlugins() {
+	server.Config.Log.Info("Stopping plugins...")
+	if server.Catalog != nil {
+		server.Catalog.Stop()
 	}
 }
 
-func (a *Server) initDependencies() {
-	a.Config.Log.Info("Initiating dependencies")
-	a.dependencies = &dependencies{}
+func (server *Server) initDependencies() {
+	server.Config.Log.Info("Initiating dependencies")
+	server.dependencies = &dependencies{}
 
 	//plugins
-	dataStore := a.Catalog.GetPluginsByType("DataStore")[0]
-	a.dependencies.DataStoreImpl = dataStore.(datastore.DataStore)
+	dataStore := server.Catalog.GetPluginsByType("DataStore")[0]
+	server.dependencies.DataStoreImpl = dataStore.(datastore.DataStore)
 
-	nodeAttestor := a.Catalog.GetPluginsByType("NodeAttestor")[0]
-	a.dependencies.NodeAttestorImpl = nodeAttestor.(nodeattestor.NodeAttestor)
+	nodeAttestor := server.Catalog.GetPluginsByType("NodeAttestor")[0]
+	server.dependencies.NodeAttestorImpl = nodeAttestor.(nodeattestor.NodeAttestor)
 
-	nodeResolver := a.Catalog.GetPluginsByType("NodeResolver")[0]
-	a.dependencies.NodeResolverImpl = nodeResolver.(noderesolver.NodeResolver)
+	nodeResolver := server.Catalog.GetPluginsByType("NodeResolver")[0]
+	server.dependencies.NodeResolverImpl = nodeResolver.(noderesolver.NodeResolver)
 
-	serverCA := a.Catalog.GetPluginsByType("ControlPlaneCA")[0]
-	a.dependencies.ServerCAImpl = serverCA.(ca.ControlPlaneCa)
+	serverCA := server.Catalog.GetPluginsByType("ControlPlaneCA")[0]
+	server.dependencies.ServerCAImpl = serverCA.(ca.ControlPlaneCa)
 
-	upCAPlugin := a.Catalog.GetPluginsByType("UpstreamCA")[0].(upstreamca.UpstreamCa)
-	a.dependencies.UpstreamCAImpl = upCAPlugin.(upstreamca.UpstreamCa)
+	upCAPlugin := server.Catalog.GetPluginsByType("UpstreamCA")[0].(upstreamca.UpstreamCa)
+	server.dependencies.UpstreamCAImpl = upCAPlugin.(upstreamca.UpstreamCa)
 
 	//services
-	a.dependencies.RegistrationService = services.NewRegistrationImpl(a.dependencies.DataStoreImpl)
-	a.dependencies.AttestationService = services.NewAttestationImpl(a.dependencies.DataStoreImpl, a.dependencies.NodeAttestorImpl)
-	a.dependencies.IdentityService = services.NewIdentityImpl(a.dependencies.DataStoreImpl, a.dependencies.NodeResolverImpl)
-	a.dependencies.CaService = services.NewCAImpl(a.dependencies.ServerCAImpl)
+	server.dependencies.RegistrationService = services.NewRegistrationImpl(server.dependencies.DataStoreImpl)
+	server.dependencies.AttestationService = services.NewAttestationImpl(server.dependencies.DataStoreImpl, server.dependencies.NodeAttestorImpl)
+	server.dependencies.IdentityService = services.NewIdentityImpl(server.dependencies.DataStoreImpl, server.dependencies.NodeResolverImpl)
+	server.dependencies.CaService = services.NewCAImpl(server.dependencies.ServerCAImpl)
 
-	a.Config.Log.Info("Initiating dependencies done")
+	server.Config.Log.Info("Initiating dependencies done")
 }
 
-func (a *Server) initEndpoints() error {
-	a.Config.Log.Info("Starting the Registration API")
+func (server *Server) initEndpoints() error {
+	server.Config.Log.Info("Starting the Registration API")
 	var registrationSvc registration.RegistrationService
-	registrationSvc = registration.NewService(a.dependencies.RegistrationService)
-	registrationSvc = registration.ServiceLoggingMiddleWare(a.Config.Log)(registrationSvc)
+	registrationSvc = registration.NewService(server.dependencies.RegistrationService)
+	registrationSvc = registration.ServiceLoggingMiddleWare(server.Config.Log)(registrationSvc)
 	registrationEndpoints := getRegistrationEndpoints(registrationSvc)
 
-	a.Config.Log.Info("Starting the Node API")
+	server.Config.Log.Info("Starting the Node API")
 	var nodeSvc node.NodeService
 	nodeSvc = node.NewService(node.ServiceConfig{
-		Attestation:     a.dependencies.AttestationService,
-		CA:              a.dependencies.CaService,
-		Identity:        a.dependencies.IdentityService,
-		BaseSpiffeIDTTL: a.Config.BaseSpiffeIDTTL,
+		Attestation:     server.dependencies.AttestationService,
+		CA:              server.dependencies.CaService,
+		Identity:        server.dependencies.IdentityService,
+		BaseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
 	})
-	nodeSvc = node.ServiceLoggingMiddleWare(a.Config.Log)(nodeSvc)
+	nodeSvc = node.ServiceLoggingMiddleWare(server.Config.Log)(nodeSvc)
 	nodeEnpoints := getNodeEndpoints(nodeSvc)
 
 	// TODO: Fix me after server refactor
-	crtRes, err := a.dependencies.ServerCAImpl.FetchCertificate(&ca.FetchCertificateRequest{})
+	crtRes, err := server.dependencies.ServerCAImpl.FetchCertificate(&ca.FetchCertificateRequest{})
 	if err != nil {
 		return err
 	}
-	certChain := [][]byte{a.svid.Raw, crtRes.StoredIntermediateCert}
+	certChain := [][]byte{server.svid.Raw, crtRes.StoredIntermediateCert}
 	tlsCert := &tls.Certificate{
 		Certificate: certChain,
-		PrivateKey:  a.privateKey,
+		PrivateKey:  server.privateKey,
 	}
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{*tlsCert},
 	}
 
-	a.grpcServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+	server.grpcServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 
 	registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
-	pbregistration.RegisterRegistrationServer(a.grpcServer, registrationHandler)
+	pbregistration.RegisterRegistrationServer(server.grpcServer, registrationHandler)
 
 	nodeHandler := node.MakeGRPCServer(nodeEnpoints)
-	pbnode.RegisterNodeServer(a.grpcServer, nodeHandler)
+	pbnode.RegisterNodeServer(server.grpcServer, nodeHandler)
 
-	a.Config.Log.Info(a.Config.BindAddress.String())
-	listener, err := net.Listen(a.Config.BindAddress.Network(), a.Config.BindAddress.String())
+	server.Config.Log.Info(server.Config.BindAddress.String())
+	listener, err := net.Listen(server.Config.BindAddress.Network(), server.Config.BindAddress.String())
 	if err != nil {
 		return fmt.Errorf("Error creating GRPC listener: %s", err)
 	}
 
 	//gRPC
 	go func() {
-		a.Config.ErrorCh <- a.grpcServer.Serve(listener)
+		server.Config.ErrorCh <- server.grpcServer.Serve(listener)
 	}()
 
 	//http
@@ -263,26 +262,26 @@ func (a *Server) initEndpoints() error {
 		opt := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 		opts := []grpc.DialOption{opt}
 
-		err := pbregistration.RegisterRegistrationHandlerFromEndpoint(ctx, mux, a.Config.BindAddress.String(), opts)
+		err := pbregistration.RegisterRegistrationHandlerFromEndpoint(ctx, mux, server.Config.BindAddress.String(), opts)
 		if err != nil {
-			a.Config.ErrorCh <- err
+			server.Config.ErrorCh <- err
 			return
 		}
-		a.Config.Log.Info(a.Config.BindHTTPAddress.String())
-		a.Config.ErrorCh <- http.ListenAndServe(a.Config.BindHTTPAddress.String(), mux)
+		server.Config.Log.Info(server.Config.BindHTTPAddress.String())
+		server.Config.ErrorCh <- http.ListenAndServe(server.Config.BindHTTPAddress.String(), mux)
 	}()
 
 	return nil
 }
 
-func (a *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
+func (server *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	spiffeID := &url.URL{
 		Scheme: "spiffe",
-		Host:   a.Config.TrustDomain.Host,
+		Host:   server.Config.TrustDomain.Host,
 		Path:   path.Join("spiffe", "cp"),
 	}
 
-	l := a.Config.Log.WithField("SPIFFE_ID", spiffeID.String())
+	l := server.Config.Log.WithField("SPIFFE_ID", spiffeID.String())
 	l.Info("Rotating SPIRE server SVID")
 
 	uriSAN, err := uri.MarshalUriSANs([]string{spiffeID.String()})
@@ -309,7 +308,7 @@ func (a *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 
 	l.Debug("Sending CSR to the CA plugin")
 	signReq := &ca.SignCsrRequest{Csr: csr}
-	res, err := a.dependencies.ServerCAImpl.SignCsr(signReq)
+	res, err := server.dependencies.ServerCAImpl.SignCsr(signReq)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -323,21 +322,21 @@ func (a *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	return cert, key, nil
 }
 
-func (a *Server) rotateSigningCert() error {
-	a.Config.Log.Info("Initiating rotation of signing certificate")
+func (server *Server) rotateSigningCert() error {
+	server.Config.Log.Info("Initiating rotation of signing certificate")
 
-	csrRes, err := a.dependencies.ServerCAImpl.GenerateCsr(&ca.GenerateCsrRequest{})
+	csrRes, err := server.dependencies.ServerCAImpl.GenerateCsr(&ca.GenerateCsrRequest{})
 	if err != nil {
 		return err
 	}
 
-	signRes, err := a.dependencies.UpstreamCAImpl.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
+	signRes, err := server.dependencies.UpstreamCAImpl.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
 	if err != nil {
 		return err
 	}
 
 	req := &ca.LoadCertificateRequest{SignedIntermediateCert: signRes.Cert}
-	_, err = a.dependencies.ServerCAImpl.LoadCertificate(req)
+	_, err = server.dependencies.ServerCAImpl.LoadCertificate(req)
 
 	return err
 }

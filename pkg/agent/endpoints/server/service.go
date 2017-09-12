@@ -15,7 +15,7 @@ type ServerService interface {
 
 type stubServerService struct {
 	ShutdownChannel chan struct{}
-	PluginCatalog   *helpers.PluginCatalog
+	PluginCatalog   helpers.PluginCatalog
 }
 
 type errorStop struct {
@@ -28,7 +28,7 @@ func (e *errorStop) Error() string {
 
 // Get a new instance of the service.
 // If you want to add service middleware this is the place to put them.
-func NewService(pluginCatalog *helpers.PluginCatalog, shutdownCh chan struct{}) (s *stubServerService) {
+func NewService(pluginCatalog helpers.PluginCatalog, shutdownCh chan struct{}) (s *stubServerService) {
 	s = &stubServerService{}
 	s.PluginCatalog = pluginCatalog
 	s.ShutdownChannel = shutdownCh
@@ -44,7 +44,7 @@ func (se *stubServerService) Stop(ctx context.Context, request sriplugin.StopReq
 }
 
 func (se *stubServerService) PluginInfo(ctx context.Context, request sriplugin.PluginInfoRequest) (response sriplugin.PluginInfoReply, err error) {
-	for name, client := range se.PluginCatalog.PluginClientsByName {
+	for name, client := range se.PluginCatalog.GetAllPlugins() {
 		info := &sriplugin.GetPluginInfoResponse{
 			Name: name,
 			Type: client.Type,

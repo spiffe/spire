@@ -15,13 +15,22 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin"
 )
 
-type PluginCatalog struct {
-	PluginConfDirectory string
+type PluginCatalogImpl struct {
 	pluginTypeMap       map[string]plugin.Plugin
 	maxPluginTypeMap    map[string]int
 	pluginConfigs       map[string]*PluginConfig
 	PluginClientsByName map[string]*PluginClients
-	Logger              logrus.FieldLogger
+	pcc                 *PluginCatalogConfig
+}
+
+func NewPluginCatalog(cc *PluginCatalogConfig) (pc *PluginCatalogImpl) {
+	pc = &PluginCatalogImpl{pcc: cc}
+	return
+}
+
+type PluginCatalogConfig struct {
+	PluginConfDirectory string
+	Logger              *logrus.Entry
 }
 
 type PluginClients struct {
@@ -34,10 +43,10 @@ type Plugin interface {
 	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
 }
 
-func (c *PluginCatalog) loadConfig() (err error) {
+func (c *PluginCatalogImpl) loadConfig() (err error) {
 	c.pluginConfigs = make(map[string]*PluginConfig)
 	PluginTypeCount := make(map[string]int)
-	configFiles, err := ioutil.ReadDir(c.PluginConfDirectory)
+	configFiles, err := ioutil.ReadDir(c.pcc.PluginConfDirectory)
 	if err != nil {
 		return err
 	}
@@ -45,7 +54,7 @@ func (c *PluginCatalog) loadConfig() (err error) {
 	for _, configFile := range configFiles {
 		pluginConfig := &PluginConfig{}
 		err := pluginConfig.ParseConfig(filepath.Join(
-			c.PluginConfDirectory, configFile.Name()))
+			c.pcc.PluginConfDirectory, configFile.Name()))
 		if err != nil {
 			return err
 		}
@@ -68,20 +77,20 @@ func (c *PluginCatalog) loadConfig() (err error) {
 	return err
 }
 
-func (c *PluginCatalog) SetPluginTypeMap(pluginTypeMap map[string]plugin.Plugin) {
+func (c *PluginCatalogImpl) SetPluginTypeMap(pluginTypeMap map[string]plugin.Plugin) {
 	c.pluginTypeMap = pluginTypeMap
 }
 
-func (c *PluginCatalog) SetMaxPluginTypeMap(maxPluginMap map[string]int) {
+func (c *PluginCatalogImpl) SetMaxPluginTypeMap(maxPluginMap map[string]int) {
 	c.maxPluginTypeMap = maxPluginMap
 }
 
-func (c *PluginCatalog) GetPluginByName(pluginName string) (pluginClient interface{}) {
+func (c *PluginCatalogImpl) GetPluginByName(pluginName string) (pluginClient interface{}) {
 	pluginClient = c.PluginClientsByName[pluginName].PluginClient
 	return
 }
 
-func (c *PluginCatalog) GetPluginsByType(typeName string) (pluginClients []interface{}) {
+func (c *PluginCatalogImpl) GetPluginsByType(typeName string) (pluginClients []interface{}) {
 	for _, clients := range c.PluginClientsByName {
 		if clients.Type == typeName {
 			pluginClients = append(pluginClients, clients.PluginClient)
@@ -89,8 +98,13 @@ func (c *PluginCatalog) GetPluginsByType(typeName string) (pluginClients []inter
 	}
 	return
 }
+func (c *PluginCatalogImpl) GetAllPlugins() (pluginClients map[string]*PluginClients) {
+	pluginClients = c.PluginClientsByName
+	return
 
-func (c *PluginCatalog) initClients() (err error) {
+}
+
+func (c *PluginCatalogImpl) initClients() (err error) {
 
 	c.PluginClientsByName = make(map[string]*PluginClients)
 	for _, pluginconfig := range c.pluginConfigs {
@@ -129,7 +143,7 @@ func (c *PluginCatalog) initClients() (err error) {
 
 				SecureConfig: secureConfig,
 
-				Logger: &HCLogAdapter{Log: c.Logger, Name: "plugin"},
+				Logger: &HCLogAdapter{Log: c.pcc.Logger, Name: "plugin"},
 			})
 
 			protocolClient, err := client.Client()
@@ -141,7 +155,6 @@ func (c *PluginCatalog) initClients() (err error) {
 			if err != nil {
 				return err
 			}
-
 			c.PluginClientsByName[pluginconfig.PluginName] = &PluginClients{
 				c.pluginConfigs[pluginconfig.PluginName].PluginType, pl}
 
@@ -150,7 +163,7 @@ func (c *PluginCatalog) initClients() (err error) {
 	return
 }
 
-func (c *PluginCatalog) ConfigureClients() error {
+func (c *PluginCatalogImpl) ConfigureClients() error {
 	for _, config := range c.pluginConfigs {
 		p := c.GetPluginByName(config.PluginName).(Plugin)
 
@@ -166,7 +179,7 @@ func (c *PluginCatalog) ConfigureClients() error {
 	return nil
 }
 
-func (c *PluginCatalog) Run() (err error) {
+func (c *PluginCatalogImpl) Run() (err error) {
 	err = c.loadConfig()
 	if err != nil {
 		return err
@@ -185,6 +198,6 @@ func (c *PluginCatalog) Run() (err error) {
 	return nil
 }
 
-func (c *PluginCatalog) Stop() {
+func (c *PluginCatalogImpl) Stop() {
 	plugin.CleanupClients()
 }
