@@ -6,23 +6,15 @@
 
 * [workload.proto](#workload.proto)
   
+    * [Bundles](#spire.api.workload.Bundles)
+  
     * [Empty](#spire.api.workload.Empty)
   
-    * [FederateEntry](#spire.api.workload.FederateEntry)
+    * [SpiffeID](#spire.api.workload.SpiffeID)
   
-    * [FetchFederatedBundleRequest](#spire.api.workload.FetchFederatedBundleRequest)
+    * [WorkloadEntry](#spire.api.workload.WorkloadEntry)
   
-    * [FetchFederatedBundleResponse](#spire.api.workload.FetchFederatedBundleResponse)
-  
-    * [FetchFederatedBundlesResponse](#spire.api.workload.FetchFederatedBundlesResponse)
-  
-    * [FetchSVIDBundleRequest](#spire.api.workload.FetchSVIDBundleRequest)
-  
-    * [FetchSVIDBundleResponse](#spire.api.workload.FetchSVIDBundleResponse)
-  
-    * [FetchSVIDBundlesResponse](#spire.api.workload.FetchSVIDBundlesResponse)
-  
-    * [WLSVIDEntry](#spire.api.workload.WLSVIDEntry)
+    * [WorkloadEntry.FederatedBundlesEntry](#spire.api.workload.WorkloadEntry.FederatedBundlesEntry)
   
   
   
@@ -41,6 +33,24 @@
 
 
 
+<a name="spire.api.workload.Bundles"/>
+
+### Bundles
+The Bundles message carries a group of workload SVIDs and their
+associated information. It also carries a TTL to inform the workload
+when it should check back next.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundles | [WorkloadEntry](#spire.api.workload.WorkloadEntry) | repeated |  |
+| ttl | [int32](#int32) |  |  |
+
+
+
+
+
+
 <a name="spire.api.workload.Empty"/>
 
 ### Empty
@@ -51,135 +61,51 @@ Represents a message with no fields
 
 
 
-<a name="spire.api.workload.FederateEntry"/>
+<a name="spire.api.workload.SpiffeID"/>
 
-### FederateEntry
-Represents cert bundle of a remote control plane for the purposes
-of trusting remote workloads
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  | spiffeid of the remote workload |
-| caTrustBundle | [bytes](#bytes) |  | ASN.1 DER encoded cert bundle |
-| ttl | [int32](#int32) |  | Controls how often a workload consuming this cert bundle should check back for updates. |
-
-
-
-
-
-
-<a name="spire.api.workload.FetchFederatedBundleRequest"/>
-
-### FetchFederatedBundleRequest
-Represents a Federated cert Bundle request corresponding to a
-specific SPIFFEId
+### SpiffeID
+The SpiffeID message carries only a SPIFFE ID
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  |  |
+| id | [string](#string) |  |  |
 
 
 
 
 
 
-<a name="spire.api.workload.FetchFederatedBundleResponse"/>
+<a name="spire.api.workload.WorkloadEntry"/>
 
-### FetchFederatedBundleResponse
-represents cert Bundles that a specific workload&#39;s SPIFFEId is
-registered to trust
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| FederateEntry | [FederateEntry](#spire.api.workload.FederateEntry) | repeated | Trusted external CA cert bundles of foreign control planes |
-
-
-
-
-
-
-<a name="spire.api.workload.FetchFederatedBundlesResponse"/>
-
-### FetchFederatedBundlesResponse
-Represents all the cert Bundles that a workload is registered to trust
+### WorkloadEntry
+The WorkloadEntry message carries a single SVID and all associated
+information, including CA bundles. All `bytes` types are ASN.1 DER encoded
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| FederateEntry | [FederateEntry](#spire.api.workload.FederateEntry) | repeated | Trusted external CA cert bundles of foreign control planes |
+| spiffe_id | [string](#string) |  | The SPIFFE ID of the SVID in this entry |
+| svid | [bytes](#bytes) |  | The SVID itself |
+| svid_private_key | [bytes](#bytes) |  | The SVID private key |
+| svid_bundle | [bytes](#bytes) |  | CA certificates belonging to the SVID |
+| federated_bundles | [WorkloadEntry.FederatedBundlesEntry](#spire.api.workload.WorkloadEntry.FederatedBundlesEntry) | repeated | CA certificates that the workload should trust, mappedby the trust domain of the external authority |
 
 
 
 
 
 
-<a name="spire.api.workload.FetchSVIDBundleRequest"/>
+<a name="spire.api.workload.WorkloadEntry.FederatedBundlesEntry"/>
 
-### FetchSVIDBundleRequest
-Represents a workload request for a SVID and the control plane&#39;s
-cert bundle of a specific SPIFFEID
+### WorkloadEntry.FederatedBundlesEntry
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="spire.api.workload.FetchSVIDBundleResponse"/>
-
-### FetchSVIDBundleResponse
-Represents a response specific to the requesting workload SPIFFEId,
-Includes the workload&#39;s SVID Entry (SVID and its corresponding information)
-and the Control Plane&#39;s trusted cert bundle
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| WLSVIDEntry | [WLSVIDEntry](#spire.api.workload.WLSVIDEntry) |  | Workload&#39;s SVID Entry |
-| cpBundle | [bytes](#bytes) |  | Control Plane&#39;s trusted cert bundle |
-
-
-
-
-
-
-<a name="spire.api.workload.FetchSVIDBundlesResponse"/>
-
-### FetchSVIDBundlesResponse
-Represents response the includes all the SVIDs the and Control
-Plane&#39;s trusted cert bundle workload
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| WLSVIDEntry | [WLSVIDEntry](#spire.api.workload.WLSVIDEntry) | repeated | list of Workload SVID entries |
-| cpBundle | [bytes](#bytes) |  | Control Plane&#39;s trusted cert bundle |
-
-
-
-
-
-
-<a name="spire.api.workload.WLSVIDEntry"/>
-
-### WLSVIDEntry
-A WLSVIDEntry represents a Workload&#39;s SVID and its associated
-information
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  | SPIFFE Id corresponding to the SVID |
-| svid | [bytes](#bytes) |  | ASN.1 DER encoded SVID |
-| privateKey | [bytes](#bytes) |  | private key corresponding to the SVID |
-| ttl | [int32](#int32) |  | Controls how often a workload associated with this SVID should check back for updates. |
+| key | [string](#string) |  |  |
+| value | [bytes](#bytes) |  |  |
 
 
 
@@ -199,10 +125,8 @@ information
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchSVIDBundle | [FetchSVIDBundleRequest](#spire.api.workload.FetchSVIDBundleRequest) | [FetchSVIDBundleResponse](#spire.api.workload.FetchSVIDBundleRequest) | Requests SVID and cert bundle of the control plane corresponding to a specific SPIFFEId(useful for rotation) |
-| FetchSVIDBundles | [Empty](#spire.api.workload.Empty) | [FetchSVIDBundlesResponse](#spire.api.workload.Empty) | Requests all SVIDs and cert bundle of the control plane associated with the workload |
-| FetchFederatedBundle | [FetchFederatedBundleRequest](#spire.api.workload.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#spire.api.workload.FetchFederatedBundleRequest) | Requests trusted external CA cert bundles corresponding to a specific SPIFFEId (useful for rotation) |
-| FetchFederatedBundles | [Empty](#spire.api.workload.Empty) | [FetchFederatedBundlesResponse](#spire.api.workload.Empty) | Requests all trusted external CA cert bundles associated with the workload |
+| FetchBundles | [SpiffeID](#spire.api.workload.SpiffeID) | [Bundles](#spire.api.workload.SpiffeID) | Fetch bundles for the SVID with the given SPIFFE ID |
+| FetchAllBundles | [Empty](#spire.api.workload.Empty) | [Bundles](#spire.api.workload.Empty) | Fetch all bundles the workload is entitled to |
 
  
 
