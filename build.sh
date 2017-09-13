@@ -169,8 +169,8 @@ build_test() {
     eval $(build_env)
 
     make test
-    if [[ -n ${COVERALLS_TOKEN} && ${TRAVIS_EVENT_TYPE} = cron ]]; then
-        gocoverutil -coverprofile=test_results/cover.out test -covermode=count ${_test_path}
+    if [[ -n ${CI} && ${TRAVIS_EVENT_TYPE} = cron ]]; then
+        gocoverutil -coverprofile=test_results/cover.out test -covermode=count $(glide novendor)
         goveralls -coverprofile=test_results/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
     fi
 }
