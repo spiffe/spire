@@ -466,7 +466,7 @@ func (sqlitePlugin) DeleteRegistrationEntry(
 	return &datastore.DeleteRegistrationEntryResponse{}, errors.New("Not Implemented")
 }
 
-func (ds  *sqlitePlugin) ListParentIDEntries(
+func (ds *sqlitePlugin) ListParentIDEntries(
 	request *datastore.ListParentIDEntriesRequest) (response *datastore.ListParentIDEntriesResponse, err error) {
 	var fetchedRegisteredEntries []registeredEntry
 	err = ds.db.Find(&fetchedRegisteredEntries, "parent_id = ?", request.ParentId).Error
@@ -478,7 +478,6 @@ func (ds  *sqlitePlugin) ListParentIDEntries(
 		return nil, err
 	}
 	var regEntryList []*common.RegistrationEntry
-
 
 	for _, regEntry := range fetchedRegisteredEntries {
 		var selectors []*common.Selector
@@ -498,7 +497,7 @@ func (ds  *sqlitePlugin) ListParentIDEntries(
 
 	}
 
-	return &datastore.ListParentIDEntriesResponse{RegisteredEntryList:regEntryList},nil
+	return &datastore.ListParentIDEntriesResponse{RegisteredEntryList: regEntryList}, nil
 }
 
 func (sqlitePlugin) ListSelectorEntries(

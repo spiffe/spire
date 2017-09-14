@@ -24,7 +24,7 @@ type stubNodeService struct {
 	attestation     services.Attestation
 	identity        services.Identity
 	ca              services.CA
-	registration services.Registration
+	registration    services.Registration
 	baseSpiffeIDTTL int32
 }
 

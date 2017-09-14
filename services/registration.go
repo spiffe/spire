@@ -40,8 +40,8 @@ func (r *RegistrationImpl) FetchEntry(registeredID string) (*common.Registration
 	return response.RegisteredEntry, nil
 }
 
-func (r *RegistrationImpl) ListEntryByParentSpiffeID(spiffeID string) (reply []*common.RegistrationEntry, err error)  {
-	response, err:=r.dataStore.ListParentIDEntries(&ds.ListParentIDEntriesRequest{ParentId:spiffeID})
+func (r *RegistrationImpl) ListEntryByParentSpiffeID(spiffeID string) (reply []*common.RegistrationEntry, err error) {
+	response, err := r.dataStore.ListParentIDEntries(&ds.ListParentIDEntriesRequest{ParentId: spiffeID})
 	if err != nil {
 		return
 	}
