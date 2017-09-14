@@ -71,7 +71,9 @@ func (re *stubRegistrationService) ListBySelector(ctx context.Context, request c
 
 // Implement the business logic of ListBySpiffeID
 func (re *stubRegistrationService) ListBySpiffeID(ctx context.Context, request pb.SpiffeID) (reply common.RegistrationEntries, err error) {
-	return reply, err
+	entries,err := re.registration.ListEntryByParentSpiffeID(request.Id)
+	reply = common.RegistrationEntries{Entries:entries}
+	return
 }
 
 // Implement the business logic of CreateFederatedBundle

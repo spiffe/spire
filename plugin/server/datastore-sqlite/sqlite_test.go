@@ -15,6 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type selectors []*common.Selector
+type regEntries []*common.RegistrationEntry
+
 func TestFederatedEntry_CRUD(t *testing.T) {
 	ds := createDefault(t)
 
@@ -399,8 +402,94 @@ func Test_DeleteRegistrationEntry(t *testing.T) {
 	t.Skipf("TODO")
 }
 
-func Test_ListParentIDEntries(t *testing.T) {
-	t.Skipf("TODO")
+func TestSqlitePlugin_ListParentIDEntries(t *testing.T) {
+	tests := []struct {
+		name                 string
+		regEntrySameParentID []*common.RegistrationEntry
+		parentID             string
+		expectedList         []*common.RegistrationEntry
+	}{
+		{
+
+			name: "test_parentID_found",
+			regEntrySameParentID: regEntries{
+				&common.RegistrationEntry{
+					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype1", Value: "testValue2"},
+						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					ParentId: "spiffe:parent",
+					SpiffeId: "spiffe:test1"},
+				&common.RegistrationEntry{
+					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype1", Value: "testValue2"},
+						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					ParentId: "spiffe:parent",
+					SpiffeId: "spiffe:test2"},
+				&common.RegistrationEntry{
+					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype1", Value: "testValue2"},
+						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					ParentId: "spiffe:parent",
+					SpiffeId: "spiffe:test3"}},
+			parentID: "spiffe:parent",
+			expectedList: regEntries{
+				&common.RegistrationEntry{
+					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype1", Value: "testValue2"},
+						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					ParentId: "spiffe:parent",
+					SpiffeId: "spiffe:test1"},
+				&common.RegistrationEntry{
+					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype1", Value: "testValue2"},
+						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					ParentId: "spiffe:parent",
+					SpiffeId: "spiffe:test2"},
+				&common.RegistrationEntry{
+					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype1", Value: "testValue2"},
+						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					ParentId: "spiffe:parent",
+					SpiffeId: "spiffe:test3"}},
+		},
+		{
+
+			name: "test_parentID_not_found",
+			regEntrySameParentID: regEntries{
+				&common.RegistrationEntry{
+					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype1", Value: "testValue2"},
+						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					ParentId: "spiffe:parent",
+					SpiffeId: "spiffe:test1"},
+				&common.RegistrationEntry{
+					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype1", Value: "testValue2"},
+						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					ParentId: "spiffe:parent",
+					SpiffeId: "spiffe:test2"},
+				&common.RegistrationEntry{
+					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype1", Value: "testValue2"},
+						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					ParentId: "spiffe:parent",
+					SpiffeId: "spiffe:test3"}},
+			parentID:     "spiffe:invalid",
+			expectedList: nil,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ds := createDefault(t)
+			for _, entry := range test.regEntrySameParentID {
+				ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{entry})
+			}
+			result, err := ds.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{
+				ParentId: test.parentID})
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedList, result.RegisteredEntryList)
+		})
+	}
 }
 
 func Test_ListSelectorEntries(t *testing.T) {

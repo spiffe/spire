@@ -192,7 +192,7 @@ func validateConfig(c *server.Config) error {
 }
 
 func newDefaultConfig() *server.Config {
-	errCh := make(chan error)
+	errCh := make(chan error,3)
 	shutdownCh := make(chan struct{})
 
 	// helpers.NewLogger() cannot return error when using STDOUT
