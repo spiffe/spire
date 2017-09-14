@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/spiffe/spire/helpers"
 	"github.com/spiffe/spire/pkg/common/plugin"
 )
 
@@ -15,7 +14,7 @@ type ServerService interface {
 
 type stubServerService struct {
 	ShutdownChannel chan struct{}
-	PluginCatalog   helpers.PluginCatalog
+	PluginCatalog   sriplugin.PluginCatalog
 }
 
 type errorStop struct {
@@ -28,7 +27,7 @@ func (e *errorStop) Error() string {
 
 // Get a new instance of the service.
 // If you want to add service middleware this is the place to put them.
-func NewService(pluginCatalog helpers.PluginCatalog, shutdownCh chan struct{}) (s *stubServerService) {
+func NewService(pluginCatalog sriplugin.PluginCatalog, shutdownCh chan struct{}) (s *stubServerService) {
 	s = &stubServerService{}
 	s.PluginCatalog = pluginCatalog
 	s.ShutdownChannel = shutdownCh

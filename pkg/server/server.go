@@ -19,7 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/spire/helpers"
+	"github.com/spiffe/spire/pkg/common/plugin"
 
 	pbnode "github.com/spiffe/spire/pkg/api/node"
 	pbregistration "github.com/spiffe/spire/pkg/api/registration"
@@ -91,7 +91,7 @@ type dependencies struct {
 }
 
 type Server struct {
-	Catalog      *helpers.PluginCatalogImpl
+	Catalog      *sriplugin.PluginCatalogImpl
 	Config       *Config
 	grpcServer   *grpc.Server
 	dependencies *dependencies
@@ -143,7 +143,7 @@ func (server *Server) initPlugins() error {
 	server.Config.Log.Info("Starting plugins")
 
 	l := server.Config.Log.WithField("subsystem_name", "catalog")
-	server.Catalog = helpers.NewPluginCatalog(&helpers.PluginCatalogConfig{
+	server.Catalog = sriplugin.NewPluginCatalog(&sriplugin.PluginCatalogConfig{
 		PluginConfDirectory: server.Config.PluginDir,
 		Logger:              l})
 

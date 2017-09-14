@@ -1,4 +1,4 @@
-package helpers
+package sriplugin
 
 import (
 	"io/ioutil"

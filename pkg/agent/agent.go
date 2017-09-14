@@ -21,7 +21,6 @@ import (
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
 
-	"github.com/spiffe/spire/helpers"
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/endpoints/server"
 	"github.com/spiffe/spire/pkg/agent/keymanager"
@@ -85,11 +84,11 @@ type Agent struct {
 	config        *Config
 	grpcServer    *grpc.Server
 	Cache         cache.Cache
-	pluginCatalog helpers.PluginCatalog
+	pluginCatalog sriplugin.PluginCatalog
 }
 
 func New(c *Config) *Agent {
-	pc := helpers.NewPluginCatalog(&helpers.PluginCatalogConfig{
+	pc := sriplugin.NewPluginCatalog(&sriplugin.PluginCatalogConfig{
 		PluginConfDirectory: c.PluginDir,
 		Logger:              c.Log.WithField("subsystem_name", "catalog")})
 
@@ -419,7 +418,7 @@ func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateK
 	}
 	var tlsCert []tls.Certificate
 	if mtls {
-		tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid}, PrivateKey:  key})
+		tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid}, PrivateKey: key})
 	}
 
 	tlsConfig := spiffePeer.NewTLSConfig(tlsCert)
