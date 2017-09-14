@@ -13,7 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/spiffe/spire/pkg/common/config"
-	"github.com/spiffe/spire/pkg/common/logger"
+	"github.com/spiffe/spire/pkg/common/log"
 )
 
 type PluginCatalogImpl struct {
@@ -144,7 +144,7 @@ func (c *PluginCatalogImpl) initClients() (err error) {
 
 				SecureConfig: secureConfig,
 
-				Logger: &logger.HCLogAdapter{Log: c.pcc.Logger, Name: "plugin"},
+				Logger: &log.HCLogAdapter{Log: c.pcc.Logger, Name: "plugin"},
 			})
 
 			protocolClient, err := client.Client()
