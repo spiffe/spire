@@ -21,6 +21,7 @@ import (
 	"net"
 	"os"
 )
+
 type selectors []*common.Selector
 
 type AgentTestSuite struct {

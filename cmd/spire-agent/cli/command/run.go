@@ -77,7 +77,6 @@ func (*RunCommand) Run(args []string) int {
 	// TODO: Handle graceful shutdown?
 	signalListener(config.ErrorCh)
 
-
 	agt := agent.New(config)
 	err = agt.Run()
 	if err != nil {

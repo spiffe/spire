@@ -419,7 +419,7 @@ func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateK
 	}
 	var tlsCert []tls.Certificate
 	if mtls {
-		tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid}, PrivateKey:  key})
+		tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid}, PrivateKey: key})
 	}
 
 	tlsConfig := spiffePeer.NewTLSConfig(tlsCert)

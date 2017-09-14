@@ -9,6 +9,7 @@ import (
 type Registration interface {
 	CreateEntry(entry *common.RegistrationEntry) (registeredEntryId string, err error)
 	FetchEntry(registeredID string) (entry *common.RegistrationEntry, err error)
+	ListEntryByParentSpiffeID(spiffeID string) (reply []*common.RegistrationEntry, err error)
 }
 
 //RegistrationImpl is an implementation of the Registration interface.
@@ -37,4 +38,13 @@ func (r *RegistrationImpl) FetchEntry(registeredID string) (*common.Registration
 		return nil, err
 	}
 	return response.RegisteredEntry, nil
+}
+
+func (r *RegistrationImpl) ListEntryByParentSpiffeID(spiffeID string) (reply []*common.RegistrationEntry, err error) {
+	response, err := r.dataStore.ListParentIDEntries(&ds.ListParentIDEntriesRequest{ParentId: spiffeID})
+	if err != nil {
+		return
+	}
+	reply = response.RegisteredEntryList
+	return
 }
