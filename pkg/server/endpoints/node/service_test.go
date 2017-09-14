@@ -3,24 +3,34 @@ package node
 import (
 	"testing"
 
-	"github.com/spiffe/spire/services"
-
 	"github.com/golang/mock/gomock"
 	pb "github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/nodeattestor"
+	"github.com/spiffe/spire/services"
 	"github.com/stretchr/testify/suite"
 )
 
 type NodeServiceTestSuite struct {
 	suite.Suite
+<<<<<<< HEAD
 	t                *testing.T
 	nodeService      NodeService
 	mockCA           *services.MockCA
 	mockIdentity     *services.MockIdentity
 	mockAttestation  *services.MockAttestation
 	mockRegistration *services.MockRegistration
+=======
+	t               *testing.T
+	nodeService     Service
+	mockServerCA    *ca.MockControlPlaneCa
+	mockDataStore   *datastore.MockDataStore
+	mockCA          *services.MockCA
+	mockIdentity    *services.MockIdentity
+	mockAttestation *services.MockAttestation
+>>>>>>> fetchSVID implementation.
 }
 
 func (suite *NodeServiceTestSuite) SetupTest() {
@@ -32,11 +42,16 @@ func (suite *NodeServiceTestSuite) SetupTest() {
 	suite.mockAttestation = services.NewMockAttestation(mockCtrl)
 	suite.mockRegistration = services.NewMockRegistration(mockCtrl)
 
-	suite.nodeService = NewService(ServiceConfig{
+	suite.mockServerCA = ca.NewMockControlPlaneCa(mockCtrl)
+	suite.mockDataStore = datastore.NewMockDataStore(mockCtrl)
+
+	suite.nodeService = NewService(Config{
 		Attestation:     suite.mockAttestation,
 		CA:              suite.mockCA,
 		Identity:        suite.mockIdentity,
 		Registration:    suite.mockRegistration,
+		ServerCA:        suite.mockServerCA,
+		DataStore:       suite.mockDataStore,
 		BaseSpiffeIDTTL: 7777,
 	})
 }
@@ -112,4 +127,8 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 
 	suite.Assertions.EqualValues(response.SvidUpdate, svidUpdate)
 	suite.Assertions.Nil(err, "There should be no error.")
+}
+
+func (suite *NodeServiceTestSuite) TestFetchSVID() {
+
 }

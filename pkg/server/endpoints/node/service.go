@@ -3,57 +3,67 @@ package node
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	"github.com/sirupsen/logrus"
 	pb "github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/spiffe/spire/services"
 	"reflect"
 	"sort"
 )
 
-// Implement yor service methods methods.
-// e.x: Foo(ctx context.Context,s string)(rs string, err error)
-type NodeService interface {
+// Service is the interface that provides node api methods.
+type Service interface {
 	FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error)
-	FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse)
-	FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse)
-	FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse)
+	FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error)
+	FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse, err error)
+	FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse, err error)
 }
 
-type stubNodeService struct {
+type service struct {
+	l               logrus.FieldLogger
 	attestation     services.Attestation
 	identity        services.Identity
 	ca              services.CA
 	registration    services.Registration
 	baseSpiffeIDTTL int32
+	dataStore       datastore.DataStore
+	serverCA        ca.ControlPlaneCa
 }
 
-//ServiceConfig is a configuration struct to init the service
-type ServiceConfig struct {
+//Config is a configuration struct to init the service
+type Config struct {
 	Attestation     services.Attestation
 	Identity        services.Identity
 	Registration    services.Registration
 	CA              services.CA
+	DataStore       datastore.DataStore
+	ServerCA        ca.ControlPlaneCa
 	BaseSpiffeIDTTL int32
 }
 
-// NewService gets a new instance of the service.
-func NewService(config ServiceConfig) (s *stubNodeService) {
-	s = &stubNodeService{
+// NewService creates a node service with the necessary dependencies.
+func NewService(config Config) (s Service) {
+	//TODO: validate config?
+	return &service{
 		attestation:     config.Attestation,
 		identity:        config.Identity,
 		registration:    config.Registration,
 		ca:              config.CA,
 		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
+		dataStore:       config.DataStore,
+		serverCA:        config.ServerCA,
 	}
-	return s
 }
 
-// Implement the business logic of FetchBaseSVID
-func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
+//TODO: log errors
+//FetchBaseSVID attests the node and gets the base node SVID.
+func (no *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
 	//Attest the node and get baseSpiffeID
 	baseSpiffeIDFromCSR, err := no.ca.GetSpiffeIDFromCSR(request.Csr)
 	if err != nil {
@@ -132,19 +142,82 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 	return response, nil
 }
 
-// Implement the business logic of FetchSVID
-func (no *stubNodeService) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse) {
-	return response
+//FetchSVID gets Workload, Agent certs and CA trust bundles.
+//Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
+//List can be empty to allow Node Agent cache refresh).
+func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
+	//TODO: rename no to s
+
+	//TODO: extract this from the caller cert
+	baseSpiffeID := "spiffe://localhost/spiffe/node-id/token"
+
+	//TODO: figure this out
+	// req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
+	// fetchResponse, err := no.dataStore.FetchNodeResolverMapEntry(req)
+	// if err != nil {
+	// 	no.l.Error(err)
+	// 	return response, fmt.Errorf("Error trying to fetch NodeResolverMapEntry")
+	// }
+	// _ = fetchResponse
+
+	//get registered entries by parentID
+	var listResponse *datastore.ListParentIDEntriesResponse
+	listResponse, err = no.dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: baseSpiffeID})
+	if err != nil {
+		no.l.Error(err)
+		return response, fmt.Errorf("Error trying to ListParentIDEntries")
+	}
+
+	//convert to map
+	entries := make(map[string]*common.RegistrationEntry)
+	for _, entry := range listResponse.RegisteredEntryList {
+		entries[entry.SpiffeId] = entry
+	}
+
+	//iterate CSRs and create certs if they are valid
+	svids := make(map[string]*pb.Svid)
+	for _, csr := range request.Csrs {
+		//get spiffeid
+		spiffeID, err := no.ca.GetSpiffeIDFromCSR(csr)
+		if err != nil {
+			no.l.Error(err)
+			return response, fmt.Errorf("Error trying to get SpiffeId from CSR")
+		}
+
+		//validate
+		//TODO: Validate that other fields are not populated (create issue and link it here)
+		if _, ok := entries[spiffeID]; !ok {
+			err := fmt.Errorf("Invalid CSR")
+			no.l.Error(err)
+			return response, err
+		}
+
+		//sign
+		signReq := &ca.SignCsrRequest{Csr: csr}
+		res, err := no.serverCA.SignCsr(signReq)
+		if err != nil {
+			no.l.Error(err)
+			return response, fmt.Errorf("Error trying to sign CSR")
+		}
+		//TODO: is this the right ttl or does it need to be different?
+		svids[spiffeID] = &pb.Svid{SvidCert: res.SignedCertificate, Ttl: no.baseSpiffeIDTTL}
+	}
+
+	response.SvidUpdate = &pb.SvidUpdate{
+		Svids:               svids,
+		RegistrationEntries: listResponse.RegisteredEntryList,
+	}
+	return response, nil
 }
 
 // Implement the business logic of FetchCPBundle
-func (no *stubNodeService) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse) {
-	return response
+func (no *service) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse, err error) {
+	return response, nil
 }
 
 // Implement the business logic of FetchFederatedBundle
-func (no *stubNodeService) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse) {
-	return response
+func (no *service) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse, err error) {
+	return response, nil
 }
 
 func (no *stubNodeService) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (

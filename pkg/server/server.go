@@ -205,12 +205,13 @@ func (server *Server) initEndpoints() error {
 	registrationEndpoints := getRegistrationEndpoints(registrationSvc)
 
 	server.Config.Log.Info("Starting the Node API")
-	var nodeSvc node.NodeService
-	nodeSvc = node.NewService(node.ServiceConfig{
+	nodeSvc := node.NewService(node.Config{
 		Attestation:     server.dependencies.AttestationService,
 		CA:              server.dependencies.CaService,
 		Identity:        server.dependencies.IdentityService,
 		Registration:    server.dependencies.RegistrationService,
+		DataStore:       server.dependencies.DataStoreImpl,
+		ServerCA:        server.dependencies.ServerCAImpl,
 		BaseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
 	})
 	nodeSvc = node.ServiceLoggingMiddleWare(server.Config.Log)(nodeSvc)
@@ -359,7 +360,7 @@ func getRegistrationEndpoints(registrationSvc registration.RegistrationService) 
 	}
 }
 
-func getNodeEndpoints(nodeSvc node.NodeService) node.Endpoints {
+func getNodeEndpoints(nodeSvc node.Service) node.Endpoints {
 	return node.Endpoints{
 		FetchBaseSVIDEndpoint:        node.MakeFetchBaseSVIDEndpoint(nodeSvc),
 		FetchCPBundleEndpoint:        node.MakeFetchCPBundleEndpoint(nodeSvc),
