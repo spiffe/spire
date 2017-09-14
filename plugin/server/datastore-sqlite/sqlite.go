@@ -482,7 +482,10 @@ func (ds *sqlitePlugin) ListParentIDEntries(
 	for _, regEntry := range fetchedRegisteredEntries {
 		var selectors []*common.Selector
 		var fetchedSelectors []*selector
-		ds.db.Model(&regEntry).Related(&fetchedSelectors)
+		if err = ds.db.Model(&regEntry).Related(&fetchedSelectors).Error;err!=nil{
+			return nil,err
+		}
+
 		for _, selector := range fetchedSelectors {
 			selectors = append(selectors, &common.Selector{
 				Type:  selector.Type,
