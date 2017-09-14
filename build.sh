@@ -168,11 +168,14 @@ build_binaries() {
 build_test() {
     eval $(build_env)
 
-    make test
     if [[ -n ${CI} && ${TRAVIS_EVENT_TYPE} = cron ]]; then
+        mkdir -p test_results
+        go test ${DEBUG+-v} -race $(glide novendor) | tee test_results/report.raw
         gocoverutil -coverprofile=test_results/cover.out test -covermode=count $(glide novendor)
         goveralls -coverprofile=test_results/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
-    fi
+	else
+		make test
+	fi
 }
 
 ## Create a distributable tgz of all the binaries
