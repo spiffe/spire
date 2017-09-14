@@ -10,12 +10,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUnix_Attest(t *testing.T) {
+func TestUnix_AttestValidPID(t *testing.T) {
 	plugin := &UnixPlugin{}
 	req := workloadattestor.AttestRequest{Pid: int32(os.Getpid())}
 	resp, err := plugin.Attest(&req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Selectors)
+}
+
+func TestUnix_AttestInvalidPID(t *testing.T) {
+	plugin := &UnixPlugin{}
+	req := workloadattestor.AttestRequest{Pid: -1}
+	resp, err := plugin.Attest(&req)
+	require.Error(t, err)
+	require.Empty(t, resp.Selectors)
 }
 
 func TestUnix_Configure(t *testing.T) {
