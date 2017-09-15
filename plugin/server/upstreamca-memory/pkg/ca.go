@@ -245,8 +245,8 @@ func NewWithDefault(keyFilePath string, certFilePath string) (m upstreamca.Upstr
 	return m, err
 }
 
-func NewEmpty () (m upstreamca.UpstreamCa) {
+func NewEmpty() (m upstreamca.UpstreamCa) {
 	return &memoryPlugin{
-		mtx:&sync.RWMutex{},
+		mtx: &sync.RWMutex{},
 	}
 }

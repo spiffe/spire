@@ -1,5 +1,5 @@
-hash: c72ab2a2cc0a9a11d56ef37b9cad9e42794a58203e74a7eff4859b0bd88d4e38
-updated: 2017-09-08T00:24:40.939528765Z
+hash: dba5137e66e7a01bfb82f1e58adb93b0a9537d9f7523bdfc1c5330ff40e0c7d2
+updated: 2017-09-13T10:39:21.49433467-03:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -89,6 +89,8 @@ imports:
   version: 5bf94b69c6b68ee1b541973bb8e1144db23a194b
   subpackages:
   - context
+- name: github.com/shirou/gopsutil
+  version: a452de7c734a0fa0f16d2e5725b0fa5934d9fbec
 - name: github.com/sirupsen/logrus
   version: 89742aefa4b206dcf400792f3bd35b542998eb3b
 - name: github.com/spiffe/go-spiffe

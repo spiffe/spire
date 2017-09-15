@@ -128,6 +128,7 @@ func (server *Server) Run() error {
 
 	// Main event loop
 	server.Config.Log.Info("SPIRE Server is now running")
+
 	for {
 		select {
 		case err = <-server.Config.ErrorCh:

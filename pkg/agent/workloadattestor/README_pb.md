@@ -4,6 +4,25 @@
 ## Table of Contents
 
 
+* [common.proto](#common.proto)
+  
+    * [AttestedData](#spire.common.AttestedData)
+  
+    * [Empty](#spire.common.Empty)
+  
+    * [RegistrationEntries](#spire.common.RegistrationEntries)
+  
+    * [RegistrationEntry](#spire.common.RegistrationEntry)
+  
+    * [Selector](#spire.common.Selector)
+  
+    * [Selectors](#spire.common.Selectors)
+  
+  
+  
+  
+
+
 * [plugin.proto](#plugin.proto)
   
     * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
@@ -42,6 +61,115 @@
   
 
 * [Scalar Value Types](#scalar-value-types)
+
+
+
+<a name="common.proto"/>
+<p align="right"><a href="#top">Top</a></p>
+
+## common.proto
+
+
+
+<a name="spire.common.AttestedData"/>
+
+### AttestedData
+A type which contains attestation data for specific platform.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  | Type of attestation to perform. |
+| data | [bytes](#bytes) |  | The attestetion data. |
+
+
+
+
+
+
+<a name="spire.common.Empty"/>
+
+### Empty
+Represents an empty message
+
+
+
+
+
+
+<a name="spire.common.RegistrationEntries"/>
+
+### RegistrationEntries
+A list of registration entries.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A list of RegistrationEntry. |
+
+
+
+
+
+
+<a name="spire.common.RegistrationEntry"/>
+
+### RegistrationEntry
+This is a curated record that the Control Plane uses to set up and
+manage the various registered nodes and workloads that are controlled by it.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validityof a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource orcaller. It is defined as a URI comprising a “trust domain” and anassociated path. |
+| ttl | [int32](#int32) |  | Time to live. |
+| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
+
+
+
+
+
+
+<a name="spire.common.Selector"/>
+
+### Selector
+A type which describes the conditions under which a registration
+entry is matched.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attestingthe entity (Eg: AWS, K8). |
+| value | [string](#string) |  | The value to be attested. |
+
+
+
+
+
+
+<a name="spire.common.Selectors"/>
+
+### Selectors
+Represents a type with a list of NodeResolution.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [Selector](#spire.common.Selector) | repeated | A list of NodeResolution. |
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+ 
 
 
 
@@ -211,7 +339,7 @@ Represents a list of selectors resolved for a given PID.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selectors | [string](#string) | repeated | List of selectors |
+| selectors | [.spire.common.Selector](#spire.agent.workloadattestor..spire.common.Selector) | repeated | List of selectors |
 
 
 

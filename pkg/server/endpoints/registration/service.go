@@ -61,6 +61,8 @@ func (re *stubRegistrationService) UpdateEntry(ctx context.Context, request pb.U
 
 // Implement the business logic of ListByParentID
 func (re *stubRegistrationService) ListByParentID(ctx context.Context, request pb.ParentID) (reply common.RegistrationEntries, err error) {
+	entries, err := re.registration.ListEntryByParentSpiffeID(request.Id)
+	reply = common.RegistrationEntries{Entries: entries}
 	return reply, err
 }
 
@@ -71,7 +73,7 @@ func (re *stubRegistrationService) ListBySelector(ctx context.Context, request c
 
 // Implement the business logic of ListBySpiffeID
 func (re *stubRegistrationService) ListBySpiffeID(ctx context.Context, request pb.SpiffeID) (reply common.RegistrationEntries, err error) {
-	return reply, err
+	return
 }
 
 // Implement the business logic of CreateFederatedBundle
