@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"reflect"
+	"sort"
+
 	"github.com/sirupsen/logrus"
 	pb "github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
@@ -13,8 +16,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/spiffe/spire/services"
-	"reflect"
-	"sort"
 )
 
 // Service is the interface that provides node api methods.
@@ -147,31 +148,20 @@ func (no *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRe
 //List can be empty to allow Node Agent cache refresh).
 func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
 	//TODO: rename no to s
-
 	//TODO: extract this from the caller cert
 	baseSpiffeID := "spiffe://localhost/spiffe/node-id/token"
 
-	//TODO: figure this out
-	// req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
-	// fetchResponse, err := no.dataStore.FetchNodeResolverMapEntry(req)
-	// if err != nil {
-	// 	no.l.Error(err)
-	// 	return response, fmt.Errorf("Error trying to fetch NodeResolverMapEntry")
-	// }
-	// _ = fetchResponse
-
-	//get registered entries by parentID
-	var listResponse *datastore.ListParentIDEntriesResponse
-	listResponse, err = no.dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: baseSpiffeID})
+	//get node and workload registration entries
+	nodeEntries, err := no.getNodeEntries(baseSpiffeID)
 	if err != nil {
 		no.l.Error(err)
-		return response, fmt.Errorf("Error trying to ListParentIDEntries")
+		return response, fmt.Errorf("Error trying to getNodeEntries")
 	}
 
-	//convert to map
-	entries := make(map[string]*common.RegistrationEntry)
-	for _, entry := range listResponse.RegisteredEntryList {
-		entries[entry.SpiffeId] = entry
+	workloadEntries, err := no.getWorkloadEntries(baseSpiffeID)
+	if err != nil {
+		no.l.Error(err)
+		return response, fmt.Errorf("Error trying to getWorkloadEntries")
 	}
 
 	//iterate CSRs and create certs if they are valid
@@ -184,10 +174,18 @@ func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (
 			return response, fmt.Errorf("Error trying to get SpiffeId from CSR")
 		}
 
-		//validate
 		//TODO: Validate that other fields are not populated (create issue and link it here)
-		if _, ok := entries[spiffeID]; !ok {
-			err := fmt.Errorf("Invalid CSR")
+		//validate and get proper entry
+		_, isNode := nodeEntries[spiffeID]
+		_, isWorkload := workloadEntries[spiffeID]
+		var entry *common.RegistrationEntry
+
+		if isNode {
+			entry, _ = nodeEntries[spiffeID]
+		} else if isWorkload {
+			entry, _ = workloadEntries[spiffeID]
+		} else {
+			err := fmt.Errorf("Not entitled to sign CSR")
 			no.l.Error(err)
 			return response, err
 		}
@@ -199,13 +197,21 @@ func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (
 			no.l.Error(err)
 			return response, fmt.Errorf("Error trying to sign CSR")
 		}
-		//TODO: is this the right ttl or does it need to be different?
-		svids[spiffeID] = &pb.Svid{SvidCert: res.SignedCertificate, Ttl: no.baseSpiffeIDTTL}
+		svids[spiffeID] = &pb.Svid{SvidCert: res.SignedCertificate, Ttl: entry.Ttl}
+	}
+
+	//union of registration entries to use in the response
+	registrationEntries := make([]*common.RegistrationEntry, 0, len(nodeEntries)+len(workloadEntries))
+	for _, entry := range nodeEntries {
+		registrationEntries = append(registrationEntries, entry)
+	}
+	for _, entry := range workloadEntries {
+		registrationEntries = append(registrationEntries, entry)
 	}
 
 	response.SvidUpdate = &pb.SvidUpdate{
 		Svids:               svids,
-		RegistrationEntries: listResponse.RegisteredEntryList,
+		RegistrationEntries: registrationEntries,
 	}
 	return response, nil
 }
@@ -256,4 +262,42 @@ func (no *stubNodeService) fetchRegistrationEntries(selectors []*common.Selector
 		}
 	}
 	return entries, err
+}
+
+func (no *service) getNodeEntries(baseSpiffeID string) (nodeEntries map[string]*common.RegistrationEntry, err error) {
+	//get stored selectors for this particular baseSpiffeID
+	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
+	fetchResponse, err := no.dataStore.FetchNodeResolverMapEntry(req)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, nodeResolution := range fetchResponse.NodeResolverMapEntryList {
+		//fetch registration entries by selector
+		listEntriesBySelectorsReq := &datastore.ListSelectorEntriesRequest{Selector: nodeResolution.Selector}
+		listEntriesResponse, err := no.dataStore.ListSelectorEntries(listEntriesBySelectorsReq)
+		if err != nil {
+			return nil, err
+		}
+
+		//build a map spiffeID=>registrationEntry
+		for _, entry := range listEntriesResponse.RegisteredEntryList {
+			nodeEntries[entry.SpiffeId] = entry
+		}
+	}
+	return nodeEntries, err
+}
+
+func (no *service) getWorkloadEntries(baseSpiffeID string) (workloadEntries map[string]*common.RegistrationEntry, err error) {
+	//get registered entries by parentID
+	listResponse, err := no.dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: baseSpiffeID})
+	if err != nil {
+		return workloadEntries, err
+	}
+	//convert to map
+	for _, entry := range listResponse.RegisteredEntryList {
+		workloadEntries[entry.SpiffeId] = entry
+	}
+
+	return workloadEntries, nil
 }
