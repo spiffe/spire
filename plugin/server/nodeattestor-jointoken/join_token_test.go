@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/helpers/testutil"
 	common "github.com/spiffe/spire/pkg/common"
 	iface "github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/testutil"
 
 	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/stretchr/testify/assert"

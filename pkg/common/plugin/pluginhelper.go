@@ -1,4 +1,4 @@
-package helpers
+package sriplugin
 
 import (
 	"crypto/sha256"
@@ -12,13 +12,14 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/sirupsen/logrus"
 
-	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/config"
+	"github.com/spiffe/spire/pkg/common/log"
 )
 
 type PluginCatalogImpl struct {
 	pluginTypeMap       map[string]plugin.Plugin
 	maxPluginTypeMap    map[string]int
-	pluginConfigs       map[string]*PluginConfig
+	pluginConfigs       map[string]*config.PluginConfig
 	PluginClientsByName map[string]*PluginClients
 	pcc                 *PluginCatalogConfig
 }
@@ -39,12 +40,12 @@ type PluginClients struct {
 }
 
 type Plugin interface {
-	Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error)
-	GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error)
+	Configure(*ConfigureRequest) (*ConfigureResponse, error)
+	GetPluginInfo(*GetPluginInfoRequest) (*GetPluginInfoResponse, error)
 }
 
 func (c *PluginCatalogImpl) loadConfig() (err error) {
-	c.pluginConfigs = make(map[string]*PluginConfig)
+	c.pluginConfigs = make(map[string]*config.PluginConfig)
 	PluginTypeCount := make(map[string]int)
 	configFiles, err := ioutil.ReadDir(c.pcc.PluginConfDirectory)
 	if err != nil {
@@ -52,7 +53,7 @@ func (c *PluginCatalogImpl) loadConfig() (err error) {
 	}
 
 	for _, configFile := range configFiles {
-		pluginConfig := &PluginConfig{}
+		pluginConfig := &config.PluginConfig{}
 		err := pluginConfig.ParseConfig(filepath.Join(
 			c.pcc.PluginConfDirectory, configFile.Name()))
 		if err != nil {
@@ -143,7 +144,7 @@ func (c *PluginCatalogImpl) initClients() (err error) {
 
 				SecureConfig: secureConfig,
 
-				Logger: &HCLogAdapter{Log: c.pcc.Logger, Name: "plugin"},
+				Logger: &log.HCLogAdapter{Log: c.pcc.Logger, Name: "plugin"},
 			})
 
 			protocolClient, err := client.Client()
@@ -167,7 +168,7 @@ func (c *PluginCatalogImpl) ConfigureClients() error {
 	for _, config := range c.pluginConfigs {
 		p := c.GetPluginByName(config.PluginName).(Plugin)
 
-		req := &sriplugin.ConfigureRequest{
+		req := &ConfigureRequest{
 			Configuration: config.PluginData,
 		}
 		_, err := p.Configure(req)

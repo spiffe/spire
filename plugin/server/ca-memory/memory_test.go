@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/spire/helpers/testutil"
 	iface "github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/testutil"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/upstreamca"
 	upca "github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
