@@ -57,15 +57,15 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 	selectors := make(map[string]*common.Selectors)
 	selectors[baseSpiffeID] = &common.Selectors{Entries: []*common.Selector{selector}}
 	regEntryParentIDList := RegEntryList{&common.RegistrationEntry{
-		Selectors: SelectorList{&common.Selector{Type: "foo", Value: "bar"},&common.Selector{Type: "foo", Value: "car"}},
+		Selectors: SelectorList{&common.Selector{Type: "foo", Value: "bar"}, &common.Selector{Type: "foo", Value: "car"}},
 		ParentId:  "spiffe://trust-domain/path",
 		SpiffeId:  "spiffe:test1"},
 		&common.RegistrationEntry{
-			Selectors: SelectorList{&common.Selector{Type: "foo", Value: "bar"},&common.Selector{Type: "foo", Value: "car"}},
+			Selectors: SelectorList{&common.Selector{Type: "foo", Value: "bar"}, &common.Selector{Type: "foo", Value: "car"}},
 			ParentId:  "spiffe://trust-domain/path",
 			SpiffeId:  "spiffe:repeated"}}
 	regEntrySelectorList := RegEntryList{&common.RegistrationEntry{
-		Selectors: SelectorList{&common.Selector{Type: "foo", Value: "car"},&common.Selector{Type: "foo", Value: "bar"}},
+		Selectors: SelectorList{&common.Selector{Type: "foo", Value: "car"}, &common.Selector{Type: "foo", Value: "bar"}},
 		ParentId:  "spiffe://trust-domain/path",
 		SpiffeId:  "spiffe:repeated"},
 		&common.RegistrationEntry{
@@ -74,7 +74,7 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 			SpiffeId:  "spiffe:test2"}}
 
 	expectedRegEntries := RegEntryList{&common.RegistrationEntry{
-		Selectors: SelectorList{&common.Selector{Type: "foo", Value: "bar"},&common.Selector{Type: "foo", Value: "car"}},
+		Selectors: SelectorList{&common.Selector{Type: "foo", Value: "bar"}, &common.Selector{Type: "foo", Value: "car"}},
 		ParentId:  "spiffe://trust-domain/path",
 		SpiffeId:  "spiffe:repeated"},
 		&common.RegistrationEntry{
@@ -82,7 +82,7 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 			ParentId:  "spiffe://trust-domain/path",
 			SpiffeId:  "spiffe:test2"},
 		&common.RegistrationEntry{
-			Selectors: SelectorList{&common.Selector{Type: "foo", Value: "bar"},&common.Selector{Type: "foo", Value: "car"}},
+			Selectors: SelectorList{&common.Selector{Type: "foo", Value: "bar"}, &common.Selector{Type: "foo", Value: "car"}},
 			ParentId:  "spiffe://trust-domain/path",
 			SpiffeId:  "spiffe:test1"}}
 
