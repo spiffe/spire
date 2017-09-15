@@ -6,9 +6,12 @@ import (
 
 	pb "github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/spiffe/spire/services"
+	"reflect"
+	"sort"
 )
 
 // Implement yor service methods methods.
@@ -32,6 +35,7 @@ type stubNodeService struct {
 type ServiceConfig struct {
 	Attestation     services.Attestation
 	Identity        services.Identity
+	Registration    services.Registration
 	CA              services.CA
 	BaseSpiffeIDTTL int32
 }
@@ -41,6 +45,7 @@ func NewService(config ServiceConfig) (s *stubNodeService) {
 	s = &stubNodeService{
 		attestation:     config.Attestation,
 		identity:        config.Identity,
+		registration:    config.Registration,
 		ca:              config.CA,
 		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
 	}
@@ -102,11 +107,13 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 		return response, err
 	}
 
-	mySelectors, ok := selectors[baseSpiffeID]
-	var entries []*common.Selector
+	baseIDSelectors, ok := selectors[baseSpiffeID]
+	//generateCombination(baseIDSelectors) (TODO:walmav)
+	var selectorEntries []*common.Selector
 	if ok {
-		entries = mySelectors.Entries
-		for _, selector := range entries {
+		selectorEntries = baseIDSelectors.Entries
+		sort.Slice(selectorEntries, util.SelectorsSortFunction(selectorEntries))
+		for _, selector := range selectorEntries {
 			if err = no.identity.CreateEntry(baseSpiffeID, selector); err != nil {
 				return response, err
 			}
@@ -115,14 +122,11 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 
 	svids := make(map[string]*pb.Svid)
 	svids[baseSpiffeID] = &pb.Svid{SvidCert: signCsrResponse.SignedCertificate, Ttl: no.baseSpiffeIDTTL}
-	registrationEntry := &common.RegistrationEntry{
-		SpiffeId:  baseSpiffeID,
-		Selectors: entries,
-	}
 
+	regEntries, err := no.fetchRegistrationEntries(selectorEntries, baseSpiffeID)
 	svidUpdate := &pb.SvidUpdate{
 		Svids:               svids,
-		RegistrationEntries: []*common.RegistrationEntry{registrationEntry},
+		RegistrationEntries: regEntries,
 	}
 	response = pb.FetchBaseSVIDResponse{SvidUpdate: svidUpdate}
 
@@ -142,4 +146,41 @@ func (no *stubNodeService) FetchCPBundle(ctx context.Context, request pb.FetchCP
 // Implement the business logic of FetchFederatedBundle
 func (no *stubNodeService) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse) {
 	return response
+}
+
+func (no *stubNodeService) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
+	[]*common.RegistrationEntry, error) {
+	///lookup Registration Entries for resolved selectors
+	var entries []*common.RegistrationEntry
+	var selectorsEntries []*common.RegistrationEntry
+
+	for _, selector := range selectors {
+		selectorEntries, err := no.registration.ListEntryBySelector(selector)
+		if err != nil {
+			return nil, err
+		}
+		selectorsEntries = append(selectorsEntries, selectorEntries...)
+	}
+	entries = append(entries, selectorsEntries...)
+
+	///lookup Registration Entries where spiffeID is the parent ID
+	parentIDEntries, err := no.registration.ListEntryByParentSpiffeID(spiffeID)
+	if err != nil {
+		return nil, err
+	}
+	///append parentEntries
+	for _, entry := range parentIDEntries {
+		exists := false
+		sort.Slice(entry.Selectors, util.SelectorsSortFunction(entry.Selectors))
+		for _, oldEntry := range selectorsEntries {
+			sort.Slice(oldEntry.Selectors, util.SelectorsSortFunction(oldEntry.Selectors))
+			if reflect.DeepEqual(entry, oldEntry) {
+				exists = true
+			}
+		}
+		if !exists {
+			entries = append(entries, entry)
+		}
+	}
+	return entries, err
 }

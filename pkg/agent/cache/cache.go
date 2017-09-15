@@ -9,19 +9,10 @@ import (
 	"crypto/ecdsa"
 	"github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 type selectors []*common.Selector
-
-func (s selectors) Len() int      { return len(s) }
-func (s selectors) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s selectors) Less(i, j int) bool {
-	if s[i].Type != s[j].Type {
-		return s[i].Type < s[j].Type
-	} else {
-		return s[i].Value < s[j].Value
-	}
-}
 
 type CacheEntry struct {
 	RegistrationEntry *common.RegistrationEntry
@@ -71,10 +62,11 @@ func (c *cacheImpl) DeleteEntry(selectors []*common.Selector) (deleted bool) {
 	return
 }
 
-func deriveCacheKey(selectors selectors) (key string) {
+func deriveCacheKey(s selectors) (key string) {
 	var concatSelectors string
-	sort.Sort(selectors)
-	for _, selector := range selectors {
+	sort.Slice(s, util.SelectorsSortFunction(s))
+
+	for _, selector := range s {
 		concatSelectors = concatSelectors + "::" + selector.Type + ":" + selector.Value
 	}
 	hashedSelectors := hash.Hash.Sum(sha256.New(), []byte(concatSelectors))
