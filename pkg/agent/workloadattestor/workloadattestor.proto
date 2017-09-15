@@ -5,6 +5,7 @@ syntax = "proto3";
 package spire.agent.workloadattestor;
 option go_package = "workloadattestor";
 
+import public "github.com/spiffe/spire/pkg/common/common.proto";
 import public "github.com/spiffe/spire/pkg/common/plugin/plugin.proto";
 
 /** Represents the workload PID.*/
@@ -16,7 +17,7 @@ message AttestRequest {
 /** Represents a list of selectors resolved for a given PID. */
 message AttestResponse {
     /** List of selectors */
-    repeated string selectors = 1;
+    repeated spire.common.Selector selectors = 1;
 }
 
 service WorkloadAttestor {
