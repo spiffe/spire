@@ -12,10 +12,12 @@ top-level helpers to pull the PID out of a supplied GRPC context.
 package auth
 
 import (
+	"errors"
 	"net"
 
 	"golang.org/x/net/context"
 
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 )
 
@@ -30,8 +32,8 @@ var (
 )
 
 type CallerInfo struct {
-	Address net.Addr
-	PID     string
+	Addr net.Addr
+	PID  int32
 
 	// Bailing out during gRPC transport negotiation can lead to
 	// "weird" behavior, and it may also be unclear as to why the
@@ -50,7 +52,7 @@ func (CallerInfo) AuthType() string {
 func CallerFromContext(ctx context.Context) (CallerInfo, bool) {
 	peer, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, false
+		return CallerInfo{}, false
 	}
 	return CallerFromAuthInfo(peer.AuthInfo)
 }
@@ -63,5 +65,5 @@ func CallerFromAuthInfo(ai credentials.AuthInfo) (CallerInfo, bool) {
 	if ai, ok := ai.(CallerInfo); ok {
 		return ai, true
 	}
-	return nil, false
+	return CallerInfo{}, false
 }

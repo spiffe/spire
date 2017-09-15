@@ -27,7 +27,7 @@ func (c *grpcCredentials) ServerHandshake(conn net.Conn) (net.Conn, credentials.
 	case "unix":
 		info = FromUDSConn(conn)
 	default:
-		info = ClientInfo{Err: ErrUnsupportedTransport}
+		info = CallerInfo{Err: ErrUnsupportedTransport}
 	}
 
 	// Returning an error here hangs the connection

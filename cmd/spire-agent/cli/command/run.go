@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/hashicorp/hcl"
@@ -22,8 +21,7 @@ import (
 const (
 	defaultConfigPath = ".conf/default_agent_config.hcl"
 
-	defaultBindAddress = "127.0.0.1"
-	defaultBindPort    = "8081"
+	defaultSocketPath = "./spire_api"
 
 	// TODO: Make my defaults sane
 	defaultDataDir   = "."
@@ -39,12 +37,11 @@ type CmdConfig struct {
 	TrustDomain     string
 	TrustBundlePath string
 
-	BindAddress string
-	BindPort    int
-	DataDir     string
-	PluginDir   string
-	LogFile     string
-	LogLevel    string
+	SocketPath string
+	DataDir    string
+	PluginDir  string
+	LogFile    string
+	LogLevel   string
 }
 
 type RunCommand struct {
@@ -117,8 +114,7 @@ func setOptsFromCLI(c *agent.Config, args []string) error {
 	flags.IntVar(&cmdConfig.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
 	flags.StringVar(&cmdConfig.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&cmdConfig.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
-	flags.StringVar(&cmdConfig.BindAddress, "bindAddress", "", "Address that the workload API should bind to")
-	flags.IntVar(&cmdConfig.BindPort, "bindPort", 0, "Port number that the workload API should listen on")
+	flags.StringVar(&cmdConfig.SocketPath, "socketPath", "", "Location to bind the workload API socket")
 	flags.StringVar(&cmdConfig.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
 	flags.StringVar(&cmdConfig.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
 	flags.StringVar(&cmdConfig.LogFile, "logFile", "", "File to write logs to")
@@ -171,18 +167,8 @@ func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 		orig.TrustBundle = bundle
 	}
 
-	// Parse bind address
-	if cmd.BindAddress != "" {
-		ip := net.ParseIP(cmd.BindAddress)
-		if ip == nil {
-			return fmt.Errorf("BindAddress %s is not a valid IP", cmd.BindAddress)
-		}
-
-		orig.BindAddress.IP = ip
-	}
-
-	if cmd.BindPort != 0 {
-		orig.BindAddress.Port = cmd.BindPort
+	if cmd.SocketPath != "" {
+		orig.BindAddress.Name = cmd.SocketPath
 	}
 
 	if cmd.DataDir != "" {
@@ -228,9 +214,7 @@ func validateConfig(c *agent.Config) error {
 }
 
 func newDefaultConfig() *agent.Config {
-	addr := net.ParseIP(defaultBindAddress)
-	port, _ := strconv.Atoi(defaultBindPort)
-	bindAddr := &net.TCPAddr{IP: addr, Port: port}
+	bindAddr := &net.UnixAddr{Name: defaultSocketPath, Net: "unix"}
 
 	certDN := &pkix.Name{
 		Country:      []string{"US"},

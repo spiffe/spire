@@ -3,10 +3,6 @@ package auth
 import (
 	"net"
 	"syscall"
-
-	"golang.org/x/net/context"
-
-	"google.golang.org/grpc/credentials"
 )
 
 // TODO: Figure out portability - this only works on linux(?)
@@ -33,6 +29,6 @@ func FromUDSConn(conn net.Conn) CallerInfo {
 	}
 
 	info.Addr = uconn.RemoteAddr()
-	info.PID = int(ucred.Pid)
+	info.PID = int32(ucred.Pid)
 	return info
 }
