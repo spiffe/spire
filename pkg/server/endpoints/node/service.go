@@ -112,7 +112,6 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 	var selectorEntries []*common.Selector
 	if ok {
 		selectorEntries = baseIDSelectors.Entries
-		sort.Slice(selectorEntries, util.SelectorsSortFunction(selectorEntries))
 		for _, selector := range selectorEntries {
 			if err = no.identity.CreateEntry(baseSpiffeID, selector); err != nil {
 				return response, err
