@@ -132,10 +132,8 @@ func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, 
 
 	// Call the workload attestors concurrently
 	selectorChan, errorChan := make(chan []*common.Selector), make(chan error)
-	defer close(selectorChan)
-	defer close(errorChan)
-	for _, p := range plugins {
-		go func() {
+	for _, plugin := range plugins {
+		go func(p workloadattestor.WorkloadAttestor) {
 			s, err := p.Attest(&workloadattestor.AttestRequest{Pid: pid})
 			if err != nil {
 				errorChan <- err
@@ -144,7 +142,7 @@ func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, 
 
 			selectorChan <- s.Selectors
 			return
-		}()
+		}(plugin)
 	}
 
 	// Collect the results

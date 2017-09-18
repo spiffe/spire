@@ -50,17 +50,21 @@ func (s Set) Includes(selector *Selector) bool {
 func (s Set) String() string {
 	var b bytes.Buffer
 
-	// Preceding space starts after first element
 	b.WriteString("[")
-	b.WriteString(s[0].Type)
-	b.WriteString(":")
-	b.WriteString(s[0].Value)
-	for _, selector := range s[1:] {
-		b.WriteString(" ")
-		b.WriteString(selector.Type)
+
+	if len(s) > 0 {
+		// Preceding space starts after first element
+		b.WriteString(s[0].Type)
 		b.WriteString(":")
-		b.WriteString(selector.Value)
+		b.WriteString(s[0].Value)
+		for _, selector := range s[1:] {
+			b.WriteString(" ")
+			b.WriteString(selector.Type)
+			b.WriteString(":")
+			b.WriteString(selector.Value)
+		}
 	}
+
 	b.WriteString("]")
 	return b.String()
 }

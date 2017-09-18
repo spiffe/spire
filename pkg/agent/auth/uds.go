@@ -1,3 +1,5 @@
+// +build linux
+
 package auth
 
 import (
@@ -5,7 +7,7 @@ import (
 	"syscall"
 )
 
-// TODO: Figure out portability - this only works on linux(?)
+// TODO: Figure out portability - can this work elsewhere? FreeBSD supports SO_PEERCRED
 func FromUDSConn(conn net.Conn) CallerInfo {
 	var info CallerInfo
 

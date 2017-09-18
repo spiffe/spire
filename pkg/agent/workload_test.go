@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"sort"
 	"testing"
 	"time"
 
@@ -12,11 +13,13 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/spiffe/spire/pkg/agent/cache"
+	"github.com/spiffe/spire/pkg/agent/workloadattestor"
 	"github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/selector"
-	"github.com/spiffe/spire/test/mock/cache"
+	"github.com/spiffe/spire/test/mock/agent/cache"
+	"github.com/spiffe/spire/test/mock/agent/workloadattestor"
 )
 
 var (
@@ -29,8 +32,12 @@ var (
 type WorkloadServerTestSuite struct {
 	suite.Suite
 
-	w     *workloadServer
-	cache *mock_cache.MockCache
+	w *workloadServer
+
+	attestor1 *mock_workloadattestor.MockWorkloadAttestor
+	attestor2 *mock_workloadattestor.MockWorkloadAttestor
+	cache     *mock_cache.MockCache
+	catalog   *sriplugin.MockPluginCatalogInterface
 
 	// Logrus test hook for asserting
 	// log messages, if desired
@@ -42,14 +49,17 @@ type WorkloadServerTestSuite struct {
 
 func (s *WorkloadServerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.t)
-	catalog := sriplugin.NewMockPluginCatalogInterface(mockCtrl)
 	log, logHook := test.NewNullLogger()
-	ttl := time.Duration(12) * time.Hour
+	ttl := 12 * time.Hour
 
+	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
+	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
 	s.cache = mock_cache.NewMockCache(mockCtrl)
+	s.catalog = sriplugin.NewMockPluginCatalogInterface(mockCtrl)
+
 	ws := &workloadServer{
 		cache:   s.cache,
-		catalog: catalog,
+		catalog: s.catalog,
 		l:       log,
 		bundle:  []byte{},
 		maxTTL:  ttl,
@@ -62,6 +72,39 @@ func (s *WorkloadServerTestSuite) SetupTest() {
 
 func (s *WorkloadServerTestSuite) TeardownTest() {
 	s.ctrl.Finish()
+}
+
+func (s *WorkloadServerTestSuite) TestAttestCaller() {
+	var testPID int32 = 1000
+	plugins := []interface{}{s.attestor1, s.attestor2}
+	pRequest := &workloadattestor.AttestRequest{Pid: testPID}
+	pRes1 := &workloadattestor.AttestResponse{Selectors: selector.Set{selector1}.Raw()}
+	pRes2 := &workloadattestor.AttestResponse{Selectors: selector.Set{selector2, selector3}.Raw()}
+
+	s.catalog.EXPECT().GetPluginsByType("WorkloadAttestor").Return(plugins)
+	s.attestor1.EXPECT().Attest(pRequest).Return(pRes1, nil)
+	s.attestor2.EXPECT().Attest(pRequest).Return(pRes2, nil)
+
+	selectors, err := s.w.attestCaller(testPID)
+	if s.Assert().Nil(err) {
+		expected := selector.Set{selector1, selector2, selector3}
+		got := selector.NewSet(selectors)
+		sort.Sort(expected)
+		sort.Sort(got)
+		s.Assert().Equal(expected, got)
+	}
+}
+
+func (s *WorkloadServerTestSuite) TestFindEntries() {
+	set := selector.Set{selector2}
+	entry1, err := generateCacheEntry("spiffe://example.org/bat", "spiffe://example.org/baz", set)
+	s.Assert().Nil(err)
+
+	s.cache.EXPECT().Entry(set.Raw()).Return([]cache.CacheEntry{entry1})
+	s.cache.EXPECT().Entry(gomock.Any()).Return([]cache.CacheEntry{}).AnyTimes()
+
+	res := s.w.findEntries(selector.Set{selector1, selector2})
+	s.Assert().Equal([]cache.CacheEntry{entry1}, res)
 }
 
 func (s *WorkloadServerTestSuite) TestComposeResponse() {
@@ -125,7 +168,7 @@ func generateCacheEntry(spiffeID, parentID string, selectors selector.Set) (cach
 		return cache.CacheEntry{}, err
 	}
 
-	expiry := time.Now().Add(time.Duration(3600) * time.Second)
+	expiry := time.Now().Add(3600 * time.Second)
 	cacheEntry := cache.CacheEntry{
 		RegistrationEntry: registrationEntry,
 		SVID:              svid,
