@@ -130,5 +130,96 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 }
 
 func (suite *NodeServiceTestSuite) TestFetchSVID() {
+	const baseSpiffeID = "spiffe://example.org/spiffe/node-id/token"
+	const nodeSpiffeID = "spiffe://example.org/spiffe/node-id/tokenfoo"
+	const databaseSpiffeID = "spiffe://example.org/database"
+	const blogSpiffeID = "spiffe://example.org/blog"
 
+	fakeCsrs := [][]byte{
+		[]byte("node csr"),
+		[]byte("database csr"),
+		[]byte("blog csr"),
+	}
+
+	fakeCerts := [][]byte{
+		[]byte("node cert"),
+		[]byte("database cert"),
+		[]byte("blog cert"),
+	}
+
+	selector := &common.Selector{Type: "foo", Value: "bar"}
+	nodeResolutionList := []*datastore.NodeResolverMapEntry{
+		&datastore.NodeResolverMapEntry{
+			BaseSpiffeId: baseSpiffeID,
+			Selector:     selector,
+		},
+	}
+
+	bySelectorsEntries := []*common.RegistrationEntry{
+		&common.RegistrationEntry{SpiffeId: nodeSpiffeID, Ttl: 1111},
+	}
+
+	byParentIDEntries := []*common.RegistrationEntry{
+		&common.RegistrationEntry{SpiffeId: databaseSpiffeID, Ttl: 2222},
+		&common.RegistrationEntry{SpiffeId: blogSpiffeID, Ttl: 3333},
+	}
+
+	suite.
+		mockDataStore.EXPECT().
+		FetchNodeResolverMapEntry(&datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}).
+		Return(&datastore.FetchNodeResolverMapEntryResponse{
+			NodeResolverMapEntryList: nodeResolutionList,
+		}, nil)
+
+	suite.mockDataStore.EXPECT().
+		ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selector: selector}).
+		Return(&datastore.ListSelectorEntriesResponse{RegisteredEntryList: bySelectorsEntries}, nil)
+
+	suite.mockDataStore.EXPECT().
+		ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: baseSpiffeID}).
+		Return(&datastore.ListParentIDEntriesResponse{RegisteredEntryList: byParentIDEntries}, nil)
+
+	suite.mockCA.EXPECT().
+		GetSpiffeIDFromCSR(fakeCsrs[0]).
+		Return(nodeSpiffeID, nil)
+
+	suite.mockServerCA.EXPECT().
+		SignCsr(&ca.SignCsrRequest{Csr: fakeCsrs[0]}).
+		Return(&ca.SignCsrResponse{SignedCertificate: fakeCerts[0]}, nil)
+
+	suite.mockCA.EXPECT().
+		GetSpiffeIDFromCSR(fakeCsrs[1]).
+		Return(databaseSpiffeID, nil)
+
+	suite.mockServerCA.EXPECT().
+		SignCsr(&ca.SignCsrRequest{Csr: fakeCsrs[1]}).
+		Return(&ca.SignCsrResponse{SignedCertificate: fakeCerts[1]}, nil)
+
+	suite.mockCA.EXPECT().
+		GetSpiffeIDFromCSR(fakeCsrs[2]).
+		Return(blogSpiffeID, nil)
+
+	suite.mockServerCA.EXPECT().
+		SignCsr(&ca.SignCsrRequest{Csr: fakeCsrs[2]}).
+		Return(&ca.SignCsrResponse{SignedCertificate: fakeCerts[2]}, nil)
+
+	response, err := suite.nodeService.FetchSVID(nil, pb.FetchSVIDRequest{
+		Csrs: fakeCsrs,
+	})
+
+	expectedResponse := &pb.SvidUpdate{
+		Svids: map[string]*pb.Svid{
+			nodeSpiffeID:     &pb.Svid{SvidCert: fakeCerts[0], Ttl: 1111},
+			databaseSpiffeID: &pb.Svid{SvidCert: fakeCerts[1], Ttl: 2222},
+			blogSpiffeID:     &pb.Svid{SvidCert: fakeCerts[2], Ttl: 3333},
+		},
+		RegistrationEntries: []*common.RegistrationEntry{
+			bySelectorsEntries[0],
+			byParentIDEntries[0],
+			byParentIDEntries[1],
+		},
+	}
+
+	suite.Assertions.Equal(expectedResponse, response.SvidUpdate)
+	suite.Assertions.Nil(err, "There should be no error.")
 }

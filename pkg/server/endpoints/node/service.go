@@ -39,10 +39,11 @@ type service struct {
 
 //Config is a configuration struct to init the service
 type Config struct {
+	logger          logrus.FieldLogger
 	Attestation     services.Attestation
 	Identity        services.Identity
-	Registration    services.Registration
 	CA              services.CA
+	Registration    services.Registration
 	DataStore       datastore.DataStore
 	ServerCA        ca.ControlPlaneCa
 	BaseSpiffeIDTTL int32
@@ -52,10 +53,12 @@ type Config struct {
 func NewService(config Config) (s Service) {
 	//TODO: validate config?
 	return &service{
+		l:               config.logger,
 		attestation:     config.Attestation,
 		identity:        config.Identity,
 		registration:    config.Registration,
 		ca:              config.CA,
+		registration:    config.Registration,
 		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
 		dataStore:       config.DataStore,
 		serverCA:        config.ServerCA,
@@ -149,16 +152,16 @@ func (no *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRe
 func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
 	//TODO: rename no to s
 	//TODO: extract this from the caller cert
-	baseSpiffeID := "spiffe://localhost/spiffe/node-id/token"
+	baseSpiffeID := "spiffe://example.org/spiffe/node-id/token"
 
 	//get node and workload registration entries
-	nodeEntries, err := no.getNodeEntries(baseSpiffeID)
+	nodeEntries, err := no.getEntriesBySelectors(baseSpiffeID)
 	if err != nil {
 		no.l.Error(err)
 		return response, fmt.Errorf("Error trying to getNodeEntries")
 	}
 
-	workloadEntries, err := no.getWorkloadEntries(baseSpiffeID)
+	workloadEntries, err := no.getEntriesByParentID(baseSpiffeID)
 	if err != nil {
 		no.l.Error(err)
 		return response, fmt.Errorf("Error trying to getWorkloadEntries")
@@ -201,6 +204,7 @@ func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (
 	}
 
 	//union of registration entries to use in the response
+	//TODO: don't append duplicated entries
 	registrationEntries := make([]*common.RegistrationEntry, 0, len(nodeEntries)+len(workloadEntries))
 	for _, entry := range nodeEntries {
 		registrationEntries = append(registrationEntries, entry)
@@ -264,7 +268,8 @@ func (no *stubNodeService) fetchRegistrationEntries(selectors []*common.Selector
 	return entries, err
 }
 
-func (no *service) getNodeEntries(baseSpiffeID string) (nodeEntries map[string]*common.RegistrationEntry, err error) {
+func (no *service) getEntriesBySelectors(baseSpiffeID string) (nodeEntries map[string]*common.RegistrationEntry, err error) {
+	nodeEntries = make(map[string]*common.RegistrationEntry)
 	//get stored selectors for this particular baseSpiffeID
 	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
 	fetchResponse, err := no.dataStore.FetchNodeResolverMapEntry(req)
@@ -288,7 +293,8 @@ func (no *service) getNodeEntries(baseSpiffeID string) (nodeEntries map[string]*
 	return nodeEntries, err
 }
 
-func (no *service) getWorkloadEntries(baseSpiffeID string) (workloadEntries map[string]*common.RegistrationEntry, err error) {
+func (no *service) getEntriesByParentID(baseSpiffeID string) (workloadEntries map[string]*common.RegistrationEntry, err error) {
+	workloadEntries = make(map[string]*common.RegistrationEntry)
 	//get registered entries by parentID
 	listResponse, err := no.dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: baseSpiffeID})
 	if err != nil {
