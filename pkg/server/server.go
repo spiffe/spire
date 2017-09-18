@@ -210,6 +210,7 @@ func (server *Server) initEndpoints() error {
 		Attestation:     server.dependencies.AttestationService,
 		CA:              server.dependencies.CaService,
 		Identity:        server.dependencies.IdentityService,
+		Registration:    server.dependencies.RegistrationService,
 		BaseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
 	})
 	nodeSvc = node.ServiceLoggingMiddleWare(server.Config.Log)(nodeSvc)

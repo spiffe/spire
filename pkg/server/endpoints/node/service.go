@@ -152,6 +152,7 @@ func (no *stubNodeService) fetchRegistrationEntries(selectors []*common.Selector
 	///lookup Registration Entries for resolved selectors
 	var entries []*common.RegistrationEntry
 	var selectorsEntries []*common.RegistrationEntry
+	var pEntries []*common.RegistrationEntry
 
 	for _, selector := range selectors {
 		selectorEntries, err := no.registration.ListEntryBySelector(selector)
@@ -163,12 +164,12 @@ func (no *stubNodeService) fetchRegistrationEntries(selectors []*common.Selector
 	entries = append(entries, selectorsEntries...)
 
 	///lookup Registration Entries where spiffeID is the parent ID
-	parentIDEntries, err := no.registration.ListEntryByParentSpiffeID(spiffeID)
+	pEntries, err := no.registration.ListEntryByParentSpiffeID(spiffeID)
 	if err != nil {
 		return nil, err
 	}
 	///append parentEntries
-	for _, entry := range parentIDEntries {
+	for _, entry := range pEntries {
 		exists := false
 		sort.Slice(entry.Selectors, util.SelectorsSortFunction(entry.Selectors))
 		for _, oldEntry := range selectorsEntries {
