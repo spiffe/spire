@@ -1,4 +1,4 @@
-package helpers
+package config
 
 import (
 	"github.com/stretchr/testify/assert"
@@ -159,7 +159,7 @@ func TestConfig_ParseValidConfig(t *testing.T) {
 			false,
 			"Data2 = \"Data2\"\n\nData1 = 123\n\nData3 = true\n\ndata4 = 12342"}}
 
-	const pluginConfDirectory string = "../helpers/test_data_valid"
+	const pluginConfDirectory string = "test_data_valid"
 	configFiles, err := ioutil.ReadDir(pluginConfDirectory)
 	assert.NoError(t, err)
 
@@ -178,7 +178,7 @@ func TestConfig_ParseValidConfig(t *testing.T) {
 }
 
 func TestConfig_ParseInvalidConfig(t *testing.T) {
-	const pluginConfDirectory string = "../helpers/test_data_invalid"
+	const pluginConfDirectory string = "test_data_invalid"
 
 	configFiles, err := ioutil.ReadDir(pluginConfDirectory)
 	assert.NoError(t, err)

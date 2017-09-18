@@ -2,7 +2,7 @@ package agent
 
 import (
 	"github.com/golang/mock/gomock"
-	"github.com/spiffe/spire/helpers"
+	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/stretchr/testify/suite"
 	"testing"
 
@@ -28,7 +28,7 @@ type AgentTestSuite struct {
 	suite.Suite
 	t                 *testing.T
 	agent             *Agent
-	mockPluginCatalog *helpers.MockPluginCatalogInterface
+	mockPluginCatalog *sriplugin.MockPluginCatalogInterface
 	mockKeyManager    *keymanager.MockKeyManager
 	kmManager         []interface{}
 	expectedKey       *ecdsa.PrivateKey
@@ -38,7 +38,7 @@ type AgentTestSuite struct {
 func (suite *AgentTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(suite.t)
 	defer mockCtrl.Finish()
-	suite.mockPluginCatalog = helpers.NewMockPluginCatalogInterface(mockCtrl)
+	suite.mockPluginCatalog = sriplugin.NewMockPluginCatalogInterface(mockCtrl)
 	suite.mockKeyManager = keymanager.NewMockKeyManager(mockCtrl)
 
 	addr := &net.TCPAddr{net.ParseIP("127.0.0.1"), 8086, ""}
