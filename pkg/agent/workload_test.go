@@ -11,10 +11,10 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/spiffe/spire/helpers"
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/test/mock/cache"
 )
@@ -42,7 +42,7 @@ type WorkloadServerTestSuite struct {
 
 func (s *WorkloadServerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.t)
-	catalog := helpers.NewMockPluginCatalogInterface(mockCtrl)
+	catalog := sriplugin.NewMockPluginCatalogInterface(mockCtrl)
 	log, logHook := test.NewNullLogger()
 	ttl := time.Duration(12) * time.Hour
 

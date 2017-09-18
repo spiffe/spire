@@ -14,8 +14,8 @@ import (
 	"syscall"
 
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/helpers"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/common/log"
 )
 
 const (
@@ -186,7 +186,7 @@ func mergeAgentConfig(orig *agent.Config, cmd *CmdConfig) error {
 			logLevel = cmd.LogLevel
 		}
 
-		logger, err := helpers.NewLogger(logLevel, cmd.LogFile)
+		logger, err := log.NewLogger(logLevel, cmd.LogFile)
 		if err != nil {
 			return fmt.Errorf("Could not open log file %s: %s", cmd.LogFile, err)
 		}
@@ -223,8 +223,8 @@ func newDefaultConfig() *agent.Config {
 	errCh := make(chan error)
 	shutdownCh := make(chan struct{})
 
-	// helpers.NewLogger() cannot return error when using STDOUT
-	logger, _ := helpers.NewLogger(defaultLogLevel, "")
+	// log.NewLogger() cannot return error when using STDOUT
+	logger, _ := log.NewLogger(defaultLogLevel, "")
 	serverAddress := &net.TCPAddr{}
 
 	return &agent.Config{

@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/helpers"
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/workloadattestor"
 	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/selector"
 
 	pb "github.com/spiffe/spire/pkg/api/workload"
@@ -22,7 +22,7 @@ import (
 // workloadServer implements the Workload API interface
 type workloadServer struct {
 	cache   cache.Cache
-	catalog helpers.PluginCatalog
+	catalog sriplugin.PluginCatalog
 	l       logrus.FieldLogger
 
 	// TTL in SVID response will never

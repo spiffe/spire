@@ -22,7 +22,6 @@ import (
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
 
-	"github.com/spiffe/spire/helpers"
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/keymanager"
@@ -30,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/workloadattestor"
 	"github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/api/workload"
+	"github.com/spiffe/spire/pkg/common/plugin"
 
 	spire_common "github.com/spiffe/spire/pkg/common"
 	"google.golang.org/grpc"
@@ -86,11 +86,11 @@ type Agent struct {
 	config        *Config
 	grpcServer    *grpc.Server
 	Cache         cache.Cache
-	pluginCatalog helpers.PluginCatalog
+	pluginCatalog sriplugin.PluginCatalog
 }
 
 func New(c *Config) *Agent {
-	pc := helpers.NewPluginCatalog(&helpers.PluginCatalogConfig{
+	pc := sriplugin.NewPluginCatalog(&sriplugin.PluginCatalogConfig{
 		PluginConfDirectory: c.PluginDir,
 		Logger:              c.Log.WithField("subsystem_name", "catalog")})
 
