@@ -1,6 +1,6 @@
 // +build !linux
 
-package uds
+package auth
 
 import "net"
 
