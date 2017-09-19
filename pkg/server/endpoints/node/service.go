@@ -58,7 +58,6 @@ func NewService(config Config) (s Service) {
 		identity:        config.Identity,
 		registration:    config.Registration,
 		ca:              config.CA,
-		registration:    config.Registration,
 		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
 		dataStore:       config.DataStore,
 		serverCA:        config.ServerCA,
@@ -154,40 +153,38 @@ func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (
 	//TODO: extract this from the caller cert
 	baseSpiffeID := "spiffe://example.org/spiffe/node-id/token"
 
-	//get node and workload registration entries
-	nodeEntries, err := no.getEntriesBySelectors(baseSpiffeID)
+	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
+	nodeResolutionResponse, err := no.dataStore.FetchNodeResolverMapEntry(req)
+	if err != nil {
+		return response, fmt.Errorf("Error trying to FetchNodeResolverMapEntry")
+	}
+	selectors := convertToSelectors(nodeResolutionResponse.NodeResolverMapEntryList)
+
+	regEntries, err := no.fetchRegistrationEntries(selectors, baseSpiffeID)
 	if err != nil {
 		no.l.Error(err)
-		return response, fmt.Errorf("Error trying to getNodeEntries")
+		return response, fmt.Errorf("Error trying to fetchRegistrationEntries")
 	}
 
-	workloadEntries, err := no.getEntriesByParentID(baseSpiffeID)
-	if err != nil {
-		no.l.Error(err)
-		return response, fmt.Errorf("Error trying to getWorkloadEntries")
+	//convert registration entries to map for easy lookup
+	regEntriesMap := make(map[string]*common.RegistrationEntry)
+	for _, entry := range regEntries {
+		regEntriesMap[entry.SpiffeId] = entry
 	}
 
-	//iterate CSRs and create certs if they are valid
+	//iterate CSRs, validate them and sign the certificates
 	svids := make(map[string]*pb.Svid)
 	for _, csr := range request.Csrs {
-		//get spiffeid
 		spiffeID, err := no.ca.GetSpiffeIDFromCSR(csr)
 		if err != nil {
 			no.l.Error(err)
 			return response, fmt.Errorf("Error trying to get SpiffeId from CSR")
 		}
 
-		//TODO: Validate that other fields are not populated (create issue and link it here)
-		//validate and get proper entry
-		_, isNode := nodeEntries[spiffeID]
-		_, isWorkload := workloadEntries[spiffeID]
-		var entry *common.RegistrationEntry
-
-		if isNode {
-			entry, _ = nodeEntries[spiffeID]
-		} else if isWorkload {
-			entry, _ = workloadEntries[spiffeID]
-		} else {
+		//TODO: Validate that other fields are not populated https://github.com/spiffe/spire/issues/161
+		//validate that is present in the registration entries, otherwise we shouldn't sign
+		entry, ok := regEntriesMap[spiffeID]
+		if !ok {
 			err := fmt.Errorf("Not entitled to sign CSR")
 			no.l.Error(err)
 			return response, err
@@ -203,19 +200,9 @@ func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (
 		svids[spiffeID] = &pb.Svid{SvidCert: res.SignedCertificate, Ttl: entry.Ttl}
 	}
 
-	//union of registration entries to use in the response
-	//TODO: don't append duplicated entries
-	registrationEntries := make([]*common.RegistrationEntry, 0, len(nodeEntries)+len(workloadEntries))
-	for _, entry := range nodeEntries {
-		registrationEntries = append(registrationEntries, entry)
-	}
-	for _, entry := range workloadEntries {
-		registrationEntries = append(registrationEntries, entry)
-	}
-
 	response.SvidUpdate = &pb.SvidUpdate{
 		Svids:               svids,
-		RegistrationEntries: registrationEntries,
+		RegistrationEntries: regEntries,
 	}
 	return response, nil
 }
@@ -230,29 +217,36 @@ func (no *service) FetchFederatedBundle(ctx context.Context, request pb.FetchFed
 	return response, nil
 }
 
-func (no *stubNodeService) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
+func convertToSelectors(resolution []*datastore.NodeResolverMapEntry) []*common.Selector {
+	var selectors []*common.Selector
+	for _, item := range resolution {
+		selectors = append(selectors, item.Selector)
+	}
+	return selectors
+}
+
+func (no *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
 	[]*common.RegistrationEntry, error) {
 	///lookup Registration Entries for resolved selectors
 	var entries []*common.RegistrationEntry
 	var selectorsEntries []*common.RegistrationEntry
-	var pEntries []*common.RegistrationEntry
 
 	for _, selector := range selectors {
-		selectorEntries, err := no.registration.ListEntryBySelector(selector)
+		listSelectorResponse, err := no.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selector: selector})
 		if err != nil {
 			return nil, err
 		}
-		selectorsEntries = append(selectorsEntries, selectorEntries...)
+		selectorsEntries = append(selectorsEntries, listSelectorResponse.RegisteredEntryList...)
 	}
 	entries = append(entries, selectorsEntries...)
 
 	///lookup Registration Entries where spiffeID is the parent ID
-	pEntries, err := no.registration.ListEntryByParentSpiffeID(spiffeID)
+	listResponse, err := no.dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: spiffeID})
 	if err != nil {
 		return nil, err
 	}
 	///append parentEntries
-	for _, entry := range pEntries {
+	for _, entry := range listResponse.RegisteredEntryList {
 		exists := false
 		sort.Slice(entry.Selectors, util.SelectorsSortFunction(entry.Selectors))
 		for _, oldEntry := range selectorsEntries {
@@ -266,44 +260,4 @@ func (no *stubNodeService) fetchRegistrationEntries(selectors []*common.Selector
 		}
 	}
 	return entries, err
-}
-
-func (no *service) getEntriesBySelectors(baseSpiffeID string) (nodeEntries map[string]*common.RegistrationEntry, err error) {
-	nodeEntries = make(map[string]*common.RegistrationEntry)
-	//get stored selectors for this particular baseSpiffeID
-	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
-	fetchResponse, err := no.dataStore.FetchNodeResolverMapEntry(req)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, nodeResolution := range fetchResponse.NodeResolverMapEntryList {
-		//fetch registration entries by selector
-		listEntriesBySelectorsReq := &datastore.ListSelectorEntriesRequest{Selector: nodeResolution.Selector}
-		listEntriesResponse, err := no.dataStore.ListSelectorEntries(listEntriesBySelectorsReq)
-		if err != nil {
-			return nil, err
-		}
-
-		//build a map spiffeID=>registrationEntry
-		for _, entry := range listEntriesResponse.RegisteredEntryList {
-			nodeEntries[entry.SpiffeId] = entry
-		}
-	}
-	return nodeEntries, err
-}
-
-func (no *service) getEntriesByParentID(baseSpiffeID string) (workloadEntries map[string]*common.RegistrationEntry, err error) {
-	workloadEntries = make(map[string]*common.RegistrationEntry)
-	//get registered entries by parentID
-	listResponse, err := no.dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: baseSpiffeID})
-	if err != nil {
-		return workloadEntries, err
-	}
-	//convert to map
-	for _, entry := range listResponse.RegisteredEntryList {
-		workloadEntries[entry.SpiffeId] = entry
-	}
-
-	return workloadEntries, nil
 }

@@ -15,22 +15,14 @@ import (
 
 type NodeServiceTestSuite struct {
 	suite.Suite
-<<<<<<< HEAD
 	t                *testing.T
-	nodeService      NodeService
+	nodeService      Service
+	mockServerCA     *ca.MockControlPlaneCa
+	mockDataStore    *datastore.MockDataStore
 	mockCA           *services.MockCA
 	mockIdentity     *services.MockIdentity
 	mockAttestation  *services.MockAttestation
 	mockRegistration *services.MockRegistration
-=======
-	t               *testing.T
-	nodeService     Service
-	mockServerCA    *ca.MockControlPlaneCa
-	mockDataStore   *datastore.MockDataStore
-	mockCA          *services.MockCA
-	mockIdentity    *services.MockIdentity
-	mockAttestation *services.MockAttestation
->>>>>>> fetchSVID implementation.
 }
 
 func (suite *NodeServiceTestSuite) SetupTest() {
@@ -109,8 +101,12 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 	suite.mockAttestation.EXPECT().CreateEntry(attestData.Type, baseSpiffeID, fakeCert.SignedCertificate).Return(nil)
 	suite.mockIdentity.EXPECT().Resolve([]string{baseSpiffeID}).Return(selectors, nil)
 	suite.mockIdentity.EXPECT().CreateEntry(baseSpiffeID, selectors[baseSpiffeID].Entries[0]).Return(nil)
-	suite.mockRegistration.EXPECT().ListEntryByParentSpiffeID(baseSpiffeID).Return(regEntryParentIDList, nil)
-	suite.mockRegistration.EXPECT().ListEntryBySelector(&common.Selector{Type: "foo", Value: "bar"}).Return(regEntrySelectorList, nil)
+	suite.mockDataStore.EXPECT().
+		ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selector: selector}).
+		Return(&datastore.ListSelectorEntriesResponse{RegisteredEntryList: regEntrySelectorList}, nil)
+	suite.mockDataStore.EXPECT().
+		ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: baseSpiffeID}).
+		Return(&datastore.ListParentIDEntriesResponse{RegisteredEntryList: regEntryParentIDList}, nil)
 
 	response, err := suite.nodeService.FetchBaseSVID(nil, pb.FetchBaseSVIDRequest{
 		AttestedData: attestData,
@@ -164,12 +160,10 @@ func (suite *NodeServiceTestSuite) TestFetchSVID() {
 		&common.RegistrationEntry{SpiffeId: blogSpiffeID, Ttl: 3333},
 	}
 
-	suite.
-		mockDataStore.EXPECT().
+	suite.mockDataStore.EXPECT().
 		FetchNodeResolverMapEntry(&datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}).
 		Return(&datastore.FetchNodeResolverMapEntryResponse{
-			NodeResolverMapEntryList: nodeResolutionList,
-		}, nil)
+			NodeResolverMapEntryList: nodeResolutionList}, nil)
 
 	suite.mockDataStore.EXPECT().
 		ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selector: selector}).
