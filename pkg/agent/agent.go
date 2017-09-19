@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"time"
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/sirupsen/logrus"
@@ -21,12 +22,13 @@ import (
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
 
+	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
-	"github.com/spiffe/spire/pkg/agent/endpoints/server"
 	"github.com/spiffe/spire/pkg/agent/keymanager"
 	"github.com/spiffe/spire/pkg/agent/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/workloadattestor"
 	"github.com/spiffe/spire/pkg/api/node"
+	"github.com/spiffe/spire/pkg/api/workload"
 	"github.com/spiffe/spire/pkg/common/plugin"
 
 	spire_common "github.com/spiffe/spire/pkg/common"
@@ -50,7 +52,7 @@ var (
 
 type Config struct {
 	// Address to bind the workload api to
-	BindAddress *net.TCPAddr
+	BindAddress *net.UnixAddr
 
 	// Distinguished Name to use for all CSRs
 	CertDN *pkix.Name
@@ -145,16 +147,21 @@ func (a *Agent) initPlugins() error {
 
 func (a *Agent) initEndpoints() error {
 	a.config.Log.Info("Starting the workload API")
-	svc := server.NewService(a.pluginCatalog, a.config.ShutdownCh)
 
-	endpoints := server.Endpoints{
-		PluginInfoEndpoint: server.MakePluginInfoEndpoint(svc),
-		StopEndpoint:       server.MakeStopEndpoint(svc),
+	maxWorkloadTTL := time.Duration(a.BaseSVIDTTL/2) * time.Second
+
+	log := a.config.Log.WithField("subsystem_name", "workload")
+	ws := &workloadServer{
+		bundle:  []byte{}, // TODO: Pass an actual bundle here
+		cache:   a.Cache,
+		catalog: a.pluginCatalog,
+		l:       log,
+		maxTTL:  maxWorkloadTTL,
 	}
 
-	a.grpcServer = grpc.NewServer()
-	handler := server.MakeGRPCServer(endpoints)
-	sriplugin.RegisterServerServer(a.grpcServer, handler)
+	// Create a gRPC server with our custom "credential" resolver
+	a.grpcServer = grpc.NewServer(grpc.Creds(auth.NewCredentials()))
+	workload.RegisterWorkloadServer(a.grpcServer, ws)
 
 	listener, err := net.Listen(a.config.BindAddress.Network(), a.config.BindAddress.String())
 	if err != nil {
@@ -383,12 +390,26 @@ func (a *Agent) FetchSVID(registrationEntryMap map[string]*spire_common.Registra
 
 		svidMap := resp.GetSvidUpdate().GetSvids()
 
+		// TODO: Fetch the referenced federated bundles and
+		// set them here
+		bundles := make(map[string][]byte)
 		for spiffeID, entry := range registrationEntryMap {
 			svid, svidInMap := svidMap[spiffeID]
 			pkey, pkeyInMap := pkeyMap[spiffeID]
 			if svidInMap && pkeyInMap {
-				a.Cache.SetEntry(cache.CacheEntry{entry,
-					svid, pkey})
+				svidCert, err := x509.ParseCertificate(svid.SvidCert)
+				if err != nil {
+					return fmt.Errorf("SVID for ID %s could not be parsed: %s", spiffeID, err)
+				}
+
+				entry := cache.CacheEntry{
+					RegistrationEntry: entry,
+					SVID:              svid,
+					PrivateKey:        pkey,
+					Bundles:           bundles,
+					Expiry:            svidCert.NotAfter,
+				}
+				a.Cache.SetEntry(entry)
 			}
 		}
 

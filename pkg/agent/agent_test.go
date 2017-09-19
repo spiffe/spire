@@ -41,7 +41,8 @@ func (suite *AgentTestSuite) SetupTest() {
 	suite.mockPluginCatalog = sriplugin.NewMockPluginCatalogInterface(mockCtrl)
 	suite.mockKeyManager = keymanager.NewMockKeyManager(mockCtrl)
 
-	addr := &net.TCPAddr{net.ParseIP("127.0.0.1"), 8086, ""}
+	addr := &net.UnixAddr{Name: "./spire_api", Net: "unix"}
+	srvAddr := &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8081}
 	certDN := &pkix.Name{
 		Country:      []string{"testCountry"},
 		Organization: []string{"testOrg"}}
@@ -50,7 +51,7 @@ func (suite *AgentTestSuite) SetupTest() {
 
 	suite.config = &Config{BindAddress: addr, CertDN: certDN,
 		DataDir:   os.TempDir(),
-		PluginDir: os.TempDir(), Log: logrus.StandardLogger(), ServerAddress: addr,
+		PluginDir: os.TempDir(), Log: logrus.StandardLogger(), ServerAddress: srvAddr,
 		ErrorCh:    errCh,
 		ShutdownCh: shutdownCh}
 

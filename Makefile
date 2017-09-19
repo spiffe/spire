@@ -17,7 +17,7 @@ build: $(binary_dirs)
 all: $(container) vendor build test
 
 container: Dockerfile
-	docker build -t $(docker_image) .
+	docker build -t $(docker_image) --no-cache .
 
 cmd:
 	$(docker) /bin/bash

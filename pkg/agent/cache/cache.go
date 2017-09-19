@@ -5,6 +5,7 @@ import (
 	"hash"
 	"sort"
 	"sync"
+	"time"
 
 	"crypto/ecdsa"
 	"github.com/spiffe/spire/pkg/api/node"
@@ -18,6 +19,12 @@ type CacheEntry struct {
 	RegistrationEntry *common.RegistrationEntry
 	SVID              *node.Svid
 	PrivateKey        *ecdsa.PrivateKey
+	Expiry            time.Time
+
+	// Bundles stores the ID => Bundle map for
+	// federated bundles. The registration entry
+	// only stores references to the keys here.
+	Bundles map[string][]byte
 }
 
 type Cache interface {
