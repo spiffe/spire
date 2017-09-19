@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"reflect"
 	"sort"
@@ -64,60 +63,70 @@ func NewService(config Config) (s Service) {
 	}
 }
 
-//TODO: log errors
 //FetchBaseSVID attests the node and gets the base node SVID.
-func (no *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
+func (s *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
 	//Attest the node and get baseSpiffeID
-	baseSpiffeIDFromCSR, err := no.ca.GetSpiffeIDFromCSR(request.Csr)
+	baseSpiffeIDFromCSR, err := s.ca.GetSpiffeIDFromCSR(request.Csr)
 	if err != nil {
-		return response, err
+		s.l.Error(err)
+		return response, errors.New("Error trying to get SpiffeId from CSR")
 	}
 
-	attestedBefore, err := no.attestation.IsAttested(baseSpiffeIDFromCSR)
+	attestedBefore, err := s.attestation.IsAttested(baseSpiffeIDFromCSR)
 	if err != nil {
-		return response, err
+		s.l.Error(err)
+		return response, errors.New("Error trying to verify if attested")
 	}
 
 	var attestResponse *nodeattestor.AttestResponse
-	attestResponse, err = no.attestation.Attest(request.AttestedData, attestedBefore)
+	attestResponse, err = s.attestation.Attest(request.AttestedData, attestedBefore)
 	if err != nil {
-		return response, err
+		s.l.Error(err)
+		return response, errors.New("Error trying to attest")
 	}
 
 	//Validate
 	if !attestResponse.Valid {
-		return response, errors.New("Invalid")
+		err := errors.New("Invalid")
+		s.l.Error(err)
+		return response, err
 	}
 
 	//check if baseSPIFFEID in attest response matches with SPIFFEID in CSR
 	if attestResponse.BaseSPIFFEID != baseSpiffeIDFromCSR {
-		return response, errors.New("BaseSPIFFEID MisMatch")
+		err := errors.New("BaseSPIFFEID MisMatch")
+		s.l.Error(err)
+		return response, err
 	}
 
 	//Sign csr
 	var signCsrResponse *ca.SignCsrResponse
-	if signCsrResponse, err = no.ca.SignCsr(&ca.SignCsrRequest{Csr: request.Csr}); err != nil {
-		return response, err
+	if signCsrResponse, err = s.ca.SignCsr(&ca.SignCsrRequest{Csr: request.Csr}); err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to SignCsr")
 	}
 
 	baseSpiffeID := attestResponse.BaseSPIFFEID
 	if attestedBefore {
 		//UPDATE attested node entry
-		if err = no.attestation.UpdateEntry(baseSpiffeID, signCsrResponse.SignedCertificate); err != nil {
-			return response, err
+		if err = s.attestation.UpdateEntry(baseSpiffeID, signCsrResponse.SignedCertificate); err != nil {
+			s.l.Error(err)
+			return response, errors.New("Error trying to update attestation entry")
 		}
 
 	} else {
 		//CREATE attested node entry
-		if err = no.attestation.CreateEntry(request.AttestedData.Type, baseSpiffeID, signCsrResponse.SignedCertificate); err != nil {
-			return response, err
+		if err = s.attestation.CreateEntry(request.AttestedData.Type, baseSpiffeID, signCsrResponse.SignedCertificate); err != nil {
+			s.l.Error(err)
+			return response, errors.New("Error trying to create attestation entry")
 		}
 	}
 
 	//Call node resolver plugin to get a map of {Spiffe ID,[ ]Selector}
 	var selectors map[string]*common.Selectors
-	if selectors, err = no.identity.Resolve([]string{baseSpiffeID}); err != nil {
-		return response, err
+	if selectors, err = s.identity.Resolve([]string{baseSpiffeID}); err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to resolve selectors for baseSpiffeID")
 	}
 
 	baseIDSelectors, ok := selectors[baseSpiffeID]
@@ -126,16 +135,21 @@ func (no *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRe
 	if ok {
 		selectorEntries = baseIDSelectors.Entries
 		for _, selector := range selectorEntries {
-			if err = no.identity.CreateEntry(baseSpiffeID, selector); err != nil {
-				return response, err
+			if err = s.identity.CreateEntry(baseSpiffeID, selector); err != nil {
+				s.l.Error(err)
+				return response, errors.New("Error trying to create node resolution entry")
 			}
 		}
 	}
 
 	svids := make(map[string]*pb.Svid)
-	svids[baseSpiffeID] = &pb.Svid{SvidCert: signCsrResponse.SignedCertificate, Ttl: no.baseSpiffeIDTTL}
+	svids[baseSpiffeID] = &pb.Svid{SvidCert: signCsrResponse.SignedCertificate, Ttl: s.baseSpiffeIDTTL}
 
-	regEntries, err := no.fetchRegistrationEntries(selectorEntries, baseSpiffeID)
+	regEntries, err := s.fetchRegistrationEntries(selectorEntries, baseSpiffeID)
+	if err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to fetchRegistrationEntries")
+	}
 	svidUpdate := &pb.SvidUpdate{
 		Svids:               svids,
 		RegistrationEntries: regEntries,
@@ -148,22 +162,22 @@ func (no *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRe
 //FetchSVID gets Workload, Agent certs and CA trust bundles.
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
-func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
-	//TODO: rename no to s
+func (s *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
 	//TODO: extract this from the caller cert
 	baseSpiffeID := "spiffe://example.org/spiffe/node-id/token"
 
 	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
-	nodeResolutionResponse, err := no.dataStore.FetchNodeResolverMapEntry(req)
+	nodeResolutionResponse, err := s.dataStore.FetchNodeResolverMapEntry(req)
 	if err != nil {
-		return response, fmt.Errorf("Error trying to FetchNodeResolverMapEntry")
+		s.l.Error(err)
+		return response, errors.New("Error trying to FetchNodeResolverMapEntry")
 	}
 	selectors := convertToSelectors(nodeResolutionResponse.NodeResolverMapEntryList)
 
-	regEntries, err := no.fetchRegistrationEntries(selectors, baseSpiffeID)
+	regEntries, err := s.fetchRegistrationEntries(selectors, baseSpiffeID)
 	if err != nil {
-		no.l.Error(err)
-		return response, fmt.Errorf("Error trying to fetchRegistrationEntries")
+		s.l.Error(err)
+		return response, errors.New("Error trying to fetchRegistrationEntries")
 	}
 
 	//convert registration entries to map for easy lookup
@@ -175,27 +189,27 @@ func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (
 	//iterate CSRs, validate them and sign the certificates
 	svids := make(map[string]*pb.Svid)
 	for _, csr := range request.Csrs {
-		spiffeID, err := no.ca.GetSpiffeIDFromCSR(csr)
+		spiffeID, err := s.ca.GetSpiffeIDFromCSR(csr)
 		if err != nil {
-			no.l.Error(err)
-			return response, fmt.Errorf("Error trying to get SpiffeId from CSR")
+			s.l.Error(err)
+			return response, errors.New("Error trying to get SpiffeId from CSR")
 		}
 
 		//TODO: Validate that other fields are not populated https://github.com/spiffe/spire/issues/161
 		//validate that is present in the registration entries, otherwise we shouldn't sign
 		entry, ok := regEntriesMap[spiffeID]
 		if !ok {
-			err := fmt.Errorf("Not entitled to sign CSR")
-			no.l.Error(err)
+			err := errors.New("Not entitled to sign CSR")
+			s.l.Error(err)
 			return response, err
 		}
 
 		//sign
 		signReq := &ca.SignCsrRequest{Csr: csr}
-		res, err := no.serverCA.SignCsr(signReq)
+		res, err := s.serverCA.SignCsr(signReq)
 		if err != nil {
-			no.l.Error(err)
-			return response, fmt.Errorf("Error trying to sign CSR")
+			s.l.Error(err)
+			return response, errors.New("Error trying to sign CSR")
 		}
 		svids[spiffeID] = &pb.Svid{SvidCert: res.SignedCertificate, Ttl: entry.Ttl}
 	}
@@ -208,12 +222,12 @@ func (no *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (
 }
 
 // Implement the business logic of FetchCPBundle
-func (no *service) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse, err error) {
+func (s *service) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse, err error) {
 	return response, nil
 }
 
 // Implement the business logic of FetchFederatedBundle
-func (no *service) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse, err error) {
+func (s *service) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse, err error) {
 	return response, nil
 }
 
@@ -225,14 +239,14 @@ func convertToSelectors(resolution []*datastore.NodeResolverMapEntry) []*common.
 	return selectors
 }
 
-func (no *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
+func (s *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
 	[]*common.RegistrationEntry, error) {
 	///lookup Registration Entries for resolved selectors
 	var entries []*common.RegistrationEntry
 	var selectorsEntries []*common.RegistrationEntry
 
 	for _, selector := range selectors {
-		listSelectorResponse, err := no.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selector: selector})
+		listSelectorResponse, err := s.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selector: selector})
 		if err != nil {
 			return nil, err
 		}
@@ -241,7 +255,7 @@ func (no *service) fetchRegistrationEntries(selectors []*common.Selector, spiffe
 	entries = append(entries, selectorsEntries...)
 
 	///lookup Registration Entries where spiffeID is the parent ID
-	listResponse, err := no.dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: spiffeID})
+	listResponse, err := s.dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: spiffeID})
 	if err != nil {
 		return nil, err
 	}
