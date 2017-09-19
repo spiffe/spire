@@ -170,7 +170,7 @@ func (s *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (r
 	if ok {
 		spiffeID, err := uri.GetURINamesFromCertificate(tlsInfo.State.PeerCertificates[0])
 		if err != nil {
-			return response,err
+			return response, err
 		}
 		baseSpiffeID = spiffeID[0]
 	}
