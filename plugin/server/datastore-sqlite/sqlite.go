@@ -12,6 +12,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/plugin"
+
 	"github.com/spiffe/spire/pkg/server/datastore"
 )
 
@@ -477,35 +478,35 @@ func (ds *sqlitePlugin) ListParentIDEntries(
 	case err != nil:
 		return nil, err
 	}
-	var regEntryList []*common.RegistrationEntry
 
-	for _, regEntry := range fetchedRegisteredEntries {
-		var selectors []*common.Selector
-		var fetchedSelectors []*selector
-		if err = ds.db.Model(&regEntry).Related(&fetchedSelectors).Error; err != nil {
-			return nil, err
-		}
-
-		for _, selector := range fetchedSelectors {
-			selectors = append(selectors, &common.Selector{
-				Type:  selector.Type,
-				Value: selector.Value})
-		}
-		regEntryList = append(regEntryList, &common.RegistrationEntry{
-			Selectors: selectors,
-			SpiffeId:  regEntry.SpiffeId,
-			ParentId:  regEntry.ParentId,
-			Ttl:       regEntry.Ttl,
-		})
-
+	regEntryList, err := ds.convertEntries(fetchedRegisteredEntries)
+	if err != nil {
+		return nil, err
 	}
-
 	return &datastore.ListParentIDEntriesResponse{RegisteredEntryList: regEntryList}, nil
 }
 
-func (sqlitePlugin) ListSelectorEntries(
-	*datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
-	return &datastore.ListSelectorEntriesResponse{}, errors.New("Not Implemented")
+func (ds *sqlitePlugin) ListSelectorEntries(
+	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
+
+	var fetchedRegisteredEntries []registeredEntry
+	err := ds.db.Joins("JOIN selectors ON selectors.registered_entry_id = registered_entries.registered_entry_id").
+		Where("selectors.type = ? and selectors.value = ?", request.Selector.Type, request.Selector.Value).
+		Find(&fetchedRegisteredEntries).
+		Error
+
+	switch {
+	case err == gorm.ErrRecordNotFound:
+		return &datastore.ListSelectorEntriesResponse{}, nil
+	case err != nil:
+		return nil, err
+	}
+
+	regEntryList, err := ds.convertEntries(fetchedRegisteredEntries)
+	if err != nil {
+		return nil, err
+	}
+	return &datastore.ListSelectorEntriesResponse{RegisteredEntryList: regEntryList}, nil
 }
 
 func (sqlitePlugin) ListSpiffeEntries(
@@ -519,6 +520,29 @@ func (sqlitePlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.Configure
 
 func (sqlitePlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
+}
+
+func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntry) (responseEntries []*common.RegistrationEntry, err error) {
+	for _, regEntry := range fetchedRegisteredEntries {
+		var selectors []*common.Selector
+		var fetchedSelectors []*selector
+		if err = ds.db.Model(&regEntry).Related(&fetchedSelectors).Error; err != nil {
+			return nil, err
+		}
+
+		for _, selector := range fetchedSelectors {
+			selectors = append(selectors, &common.Selector{
+				Type:  selector.Type,
+				Value: selector.Value})
+		}
+		responseEntries = append(responseEntries, &common.RegistrationEntry{
+			Selectors: selectors,
+			SpiffeId:  regEntry.SpiffeId,
+			ParentId:  regEntry.ParentId,
+			Ttl:       regEntry.Ttl,
+		})
+	}
+	return responseEntries, nil
 }
 
 func New() (datastore.DataStore, error) {

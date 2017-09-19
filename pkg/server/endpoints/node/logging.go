@@ -8,17 +8,17 @@ import (
 	pb "github.com/spiffe/spire/pkg/api/node"
 )
 
-type NodeServiceMiddleWare func(NodeService) NodeService
+type NodeServiceMiddleWare func(Service) Service
 
 func ServiceLoggingMiddleWare(logger logrus.FieldLogger) NodeServiceMiddleWare {
-	return func(next NodeService) NodeService {
+	return func(next Service) Service {
 		return LoggingMiddleware{logger, next}
 	}
 }
 
 type LoggingMiddleware struct {
 	log  logrus.FieldLogger
-	next NodeService
+	next Service
 }
 
 func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
@@ -35,7 +35,7 @@ func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request pb.FetchB
 	return
 }
 
-func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse) {
+func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "FetchSVID",
@@ -45,11 +45,11 @@ func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request pb.FetchSVIDR
 		mw.log.WithFields(fields).Debug("SVIDs requested")
 	}(time.Now())
 
-	response = mw.next.FetchSVID(ctx, request)
+	response, err = mw.next.FetchSVID(ctx, request)
 	return
 }
 
-func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse) {
+func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "FetchCPBundle",
@@ -59,11 +59,11 @@ func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request pb.FetchC
 		mw.log.WithFields(fields).Debug("Retrieved SPIRE server bundle")
 	}(time.Now())
 
-	response = mw.next.FetchCPBundle(ctx, request)
+	response, err = mw.next.FetchCPBundle(ctx, request)
 	return
 }
 
-func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse) {
+func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "FetchFederatedBundle",
@@ -73,6 +73,6 @@ func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request pb
 		mw.log.WithFields(fields).Debug("Retrieved federated bundle")
 	}(time.Now())
 
-	response = mw.next.FetchFederatedBundle(ctx, request)
+	response, err = mw.next.FetchFederatedBundle(ctx, request)
 	return
 }

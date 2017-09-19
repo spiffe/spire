@@ -288,7 +288,7 @@ func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
 	}
 
 	var registrationEntryMap = make(map[string]*spire_common.RegistrationEntry)
-	for _, entry := range serverResponse.SvidUpdate.RegistrationEntries[1:] {
+	for _, entry := range serverResponse.SvidUpdate.RegistrationEntries {
 		registrationEntryMap[entry.SpiffeId] = entry
 	}
 
