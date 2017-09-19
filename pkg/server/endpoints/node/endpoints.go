@@ -42,7 +42,7 @@ type FetchFederatedBundleResponse struct {
 	Response pb.FetchFederatedBundleResponse
 }
 
-func NewEndpoint(svc NodeService) (ep Endpoints) {
+func NewEndpoint(svc Service) (ep Endpoints) {
 	ep.FetchBaseSVIDEndpoint = MakeFetchBaseSVIDEndpoint(svc)
 	ep.FetchSVIDEndpoint = MakeFetchSVIDEndpoint(svc)
 	ep.FetchCPBundleEndpoint = MakeFetchCPBundleEndpoint(svc)
@@ -52,7 +52,7 @@ func NewEndpoint(svc NodeService) (ep Endpoints) {
 
 // MakeFetchBaseSVIDEndpoint returns an endpoint that invokes FetchBaseSVID on the service.
 // Primarily useful in a server.
-func MakeFetchBaseSVIDEndpoint(svc NodeService) (ep endpoint.Endpoint) {
+func MakeFetchBaseSVIDEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(FetchBaseSVIDRequest)
 		response, err := svc.FetchBaseSVID(ctx, req.Request)
@@ -62,30 +62,30 @@ func MakeFetchBaseSVIDEndpoint(svc NodeService) (ep endpoint.Endpoint) {
 
 // MakeFetchSVIDEndpoint returns an endpoint that invokes FetchSVID on the service.
 // Primarily useful in a server.
-func MakeFetchSVIDEndpoint(svc NodeService) (ep endpoint.Endpoint) {
+func MakeFetchSVIDEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(FetchSVIDRequest)
-		response := svc.FetchSVID(ctx, req.Request)
-		return FetchSVIDResponse{Response: response}, nil
+		response, err := svc.FetchSVID(ctx, req.Request)
+		return FetchSVIDResponse{Response: response}, err
 	}
 }
 
 // MakeFetchCPBundleEndpoint returns an endpoint that invokes FetchCPBundle on the service.
 // Primarily useful in a server.
-func MakeFetchCPBundleEndpoint(svc NodeService) (ep endpoint.Endpoint) {
+func MakeFetchCPBundleEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(FetchCPBundleRequest)
-		response := svc.FetchCPBundle(ctx, req.Request)
-		return FetchCPBundleResponse{Response: response}, nil
+		response, err := svc.FetchCPBundle(ctx, req.Request)
+		return FetchCPBundleResponse{Response: response}, err
 	}
 }
 
 // MakeFetchFederatedBundleEndpoint returns an endpoint that invokes FetchFederatedBundle on the service.
 // Primarily useful in a server.
-func MakeFetchFederatedBundleEndpoint(svc NodeService) (ep endpoint.Endpoint) {
+func MakeFetchFederatedBundleEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(FetchFederatedBundleRequest)
-		response := svc.FetchFederatedBundle(ctx, req.Request)
-		return FetchFederatedBundleResponse{Response: response}, nil
+		response, err := svc.FetchFederatedBundle(ctx, req.Request)
+		return FetchFederatedBundleResponse{Response: response}, err
 	}
 }

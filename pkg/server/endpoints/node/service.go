@@ -4,107 +4,126 @@ import (
 	"context"
 	"errors"
 
+	"reflect"
+	"sort"
+
+	"github.com/sirupsen/logrus"
 	pb "github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/spiffe/spire/services"
-	"reflect"
-	"sort"
 )
 
-// Implement yor service methods methods.
-// e.x: Foo(ctx context.Context,s string)(rs string, err error)
-type NodeService interface {
+// Service is the interface that provides node api methods.
+type Service interface {
 	FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error)
-	FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse)
-	FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse)
-	FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse)
+	FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error)
+	FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse, err error)
+	FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse, err error)
 }
 
-type stubNodeService struct {
+type service struct {
+	l               logrus.FieldLogger
 	attestation     services.Attestation
 	identity        services.Identity
 	ca              services.CA
-	registration    services.Registration
 	baseSpiffeIDTTL int32
+	dataStore       datastore.DataStore
+	serverCA        ca.ControlPlaneCa
 }
 
-//ServiceConfig is a configuration struct to init the service
-type ServiceConfig struct {
+//Config is a configuration struct to init the service
+type Config struct {
+	Logger          logrus.FieldLogger
 	Attestation     services.Attestation
 	Identity        services.Identity
-	Registration    services.Registration
 	CA              services.CA
+	DataStore       datastore.DataStore
+	ServerCA        ca.ControlPlaneCa
 	BaseSpiffeIDTTL int32
 }
 
-// NewService gets a new instance of the service.
-func NewService(config ServiceConfig) (s *stubNodeService) {
-	s = &stubNodeService{
+// NewService creates a node service with the necessary dependencies.
+func NewService(config Config) (s Service) {
+	//TODO: validate config?
+	return &service{
+		l:               config.Logger,
 		attestation:     config.Attestation,
 		identity:        config.Identity,
-		registration:    config.Registration,
 		ca:              config.CA,
 		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
+		dataStore:       config.DataStore,
+		serverCA:        config.ServerCA,
 	}
-	return s
 }
 
-// Implement the business logic of FetchBaseSVID
-func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
+//FetchBaseSVID attests the node and gets the base node SVID.
+func (s *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
 	//Attest the node and get baseSpiffeID
-	baseSpiffeIDFromCSR, err := no.ca.GetSpiffeIDFromCSR(request.Csr)
+	baseSpiffeIDFromCSR, err := s.ca.GetSpiffeIDFromCSR(request.Csr)
 	if err != nil {
-		return response, err
+		s.l.Error(err)
+		return response, errors.New("Error trying to get SpiffeId from CSR")
 	}
 
-	attestedBefore, err := no.attestation.IsAttested(baseSpiffeIDFromCSR)
+	attestedBefore, err := s.attestation.IsAttested(baseSpiffeIDFromCSR)
 	if err != nil {
-		return response, err
+		s.l.Error(err)
+		return response, errors.New("Error trying to verify if attested")
 	}
 
 	var attestResponse *nodeattestor.AttestResponse
-	attestResponse, err = no.attestation.Attest(request.AttestedData, attestedBefore)
+	attestResponse, err = s.attestation.Attest(request.AttestedData, attestedBefore)
 	if err != nil {
-		return response, err
+		s.l.Error(err)
+		return response, errors.New("Error trying to attest")
 	}
 
 	//Validate
 	if !attestResponse.Valid {
-		return response, errors.New("Invalid")
+		err := errors.New("Invalid")
+		s.l.Error(err)
+		return response, err
 	}
 
 	//check if baseSPIFFEID in attest response matches with SPIFFEID in CSR
 	if attestResponse.BaseSPIFFEID != baseSpiffeIDFromCSR {
-		return response, errors.New("BaseSPIFFEID MisMatch")
+		err := errors.New("BaseSPIFFEID MisMatch")
+		s.l.Error(err)
+		return response, err
 	}
 
 	//Sign csr
 	var signCsrResponse *ca.SignCsrResponse
-	if signCsrResponse, err = no.ca.SignCsr(&ca.SignCsrRequest{Csr: request.Csr}); err != nil {
-		return response, err
+	if signCsrResponse, err = s.ca.SignCsr(&ca.SignCsrRequest{Csr: request.Csr}); err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to SignCsr")
 	}
 
 	baseSpiffeID := attestResponse.BaseSPIFFEID
 	if attestedBefore {
 		//UPDATE attested node entry
-		if err = no.attestation.UpdateEntry(baseSpiffeID, signCsrResponse.SignedCertificate); err != nil {
-			return response, err
+		if err = s.attestation.UpdateEntry(baseSpiffeID, signCsrResponse.SignedCertificate); err != nil {
+			s.l.Error(err)
+			return response, errors.New("Error trying to update attestation entry")
 		}
 
 	} else {
 		//CREATE attested node entry
-		if err = no.attestation.CreateEntry(request.AttestedData.Type, baseSpiffeID, signCsrResponse.SignedCertificate); err != nil {
-			return response, err
+		if err = s.attestation.CreateEntry(request.AttestedData.Type, baseSpiffeID, signCsrResponse.SignedCertificate); err != nil {
+			s.l.Error(err)
+			return response, errors.New("Error trying to create attestation entry")
 		}
 	}
 
 	//Call node resolver plugin to get a map of {Spiffe ID,[ ]Selector}
 	var selectors map[string]*common.Selectors
-	if selectors, err = no.identity.Resolve([]string{baseSpiffeID}); err != nil {
-		return response, err
+	if selectors, err = s.identity.Resolve([]string{baseSpiffeID}); err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to resolve selectors for baseSpiffeID")
 	}
 
 	baseIDSelectors, ok := selectors[baseSpiffeID]
@@ -113,16 +132,21 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 	if ok {
 		selectorEntries = baseIDSelectors.Entries
 		for _, selector := range selectorEntries {
-			if err = no.identity.CreateEntry(baseSpiffeID, selector); err != nil {
-				return response, err
+			if err = s.identity.CreateEntry(baseSpiffeID, selector); err != nil {
+				s.l.Error(err)
+				return response, errors.New("Error trying to create node resolution entry")
 			}
 		}
 	}
 
 	svids := make(map[string]*pb.Svid)
-	svids[baseSpiffeID] = &pb.Svid{SvidCert: signCsrResponse.SignedCertificate, Ttl: no.baseSpiffeIDTTL}
+	svids[baseSpiffeID] = &pb.Svid{SvidCert: signCsrResponse.SignedCertificate, Ttl: s.baseSpiffeIDTTL}
 
-	regEntries, err := no.fetchRegistrationEntries(selectorEntries, baseSpiffeID)
+	regEntries, err := s.fetchRegistrationEntries(selectorEntries, baseSpiffeID)
+	if err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to fetchRegistrationEntries")
+	}
 	svidUpdate := &pb.SvidUpdate{
 		Svids:               svids,
 		RegistrationEntries: regEntries,
@@ -132,44 +156,108 @@ func (no *stubNodeService) FetchBaseSVID(ctx context.Context, request pb.FetchBa
 	return response, nil
 }
 
-// Implement the business logic of FetchSVID
-func (no *stubNodeService) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse) {
-	return response
+//FetchSVID gets Workload, Agent certs and CA trust bundles.
+//Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
+//List can be empty to allow Node Agent cache refresh).
+func (s *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
+	//TODO: extract this from the caller cert
+	baseSpiffeID := "spiffe://example.org/spiffe/node-id/token"
+
+	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
+	nodeResolutionResponse, err := s.dataStore.FetchNodeResolverMapEntry(req)
+	if err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to FetchNodeResolverMapEntry")
+	}
+	selectors := convertToSelectors(nodeResolutionResponse.NodeResolverMapEntryList)
+
+	regEntries, err := s.fetchRegistrationEntries(selectors, baseSpiffeID)
+	if err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to fetchRegistrationEntries")
+	}
+
+	//convert registration entries to map for easy lookup
+	regEntriesMap := make(map[string]*common.RegistrationEntry)
+	for _, entry := range regEntries {
+		regEntriesMap[entry.SpiffeId] = entry
+	}
+
+	//iterate CSRs, validate them and sign the certificates
+	svids := make(map[string]*pb.Svid)
+	for _, csr := range request.Csrs {
+		spiffeID, err := s.ca.GetSpiffeIDFromCSR(csr)
+		if err != nil {
+			s.l.Error(err)
+			return response, errors.New("Error trying to get SpiffeId from CSR")
+		}
+
+		//TODO: Validate that other fields are not populated https://github.com/spiffe/spire/issues/161
+		//validate that is present in the registration entries, otherwise we shouldn't sign
+		entry, ok := regEntriesMap[spiffeID]
+		if !ok {
+			err := errors.New("Not entitled to sign CSR")
+			s.l.Error(err)
+			return response, err
+		}
+
+		//sign
+		signReq := &ca.SignCsrRequest{Csr: csr}
+		res, err := s.serverCA.SignCsr(signReq)
+		if err != nil {
+			s.l.Error(err)
+			return response, errors.New("Error trying to sign CSR")
+		}
+		svids[spiffeID] = &pb.Svid{SvidCert: res.SignedCertificate, Ttl: entry.Ttl}
+	}
+
+	response.SvidUpdate = &pb.SvidUpdate{
+		Svids:               svids,
+		RegistrationEntries: regEntries,
+	}
+	return response, nil
 }
 
 // Implement the business logic of FetchCPBundle
-func (no *stubNodeService) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse) {
-	return response
+func (s *service) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse, err error) {
+	return response, nil
 }
 
 // Implement the business logic of FetchFederatedBundle
-func (no *stubNodeService) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse) {
-	return response
+func (s *service) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse, err error) {
+	return response, nil
 }
 
-func (no *stubNodeService) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
+func convertToSelectors(resolution []*datastore.NodeResolverMapEntry) []*common.Selector {
+	var selectors []*common.Selector
+	for _, item := range resolution {
+		selectors = append(selectors, item.Selector)
+	}
+	return selectors
+}
+
+func (s *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
 	[]*common.RegistrationEntry, error) {
 	///lookup Registration Entries for resolved selectors
 	var entries []*common.RegistrationEntry
 	var selectorsEntries []*common.RegistrationEntry
-	var pEntries []*common.RegistrationEntry
 
 	for _, selector := range selectors {
-		selectorEntries, err := no.registration.ListEntryBySelector(selector)
+		listSelectorResponse, err := s.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selector: selector})
 		if err != nil {
 			return nil, err
 		}
-		selectorsEntries = append(selectorsEntries, selectorEntries...)
+		selectorsEntries = append(selectorsEntries, listSelectorResponse.RegisteredEntryList...)
 	}
 	entries = append(entries, selectorsEntries...)
 
 	///lookup Registration Entries where spiffeID is the parent ID
-	pEntries, err := no.registration.ListEntryByParentSpiffeID(spiffeID)
+	listResponse, err := s.dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: spiffeID})
 	if err != nil {
 		return nil, err
 	}
 	///append parentEntries
-	for _, entry := range pEntries {
+	for _, entry := range listResponse.RegisteredEntryList {
 		exists := false
 		sort.Slice(entry.Selectors, util.SelectorsSortFunction(entry.Selectors))
 		for _, oldEntry := range selectorsEntries {
