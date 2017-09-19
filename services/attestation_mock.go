@@ -8,7 +8,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	common "github.com/spiffe/spire/pkg/common"
-	nodeattestor "github.com/spiffe/spire/pkg/server/nodeattestor"
+	nodeattestor "github.com/spiffe/spire/proto/server/nodeattestor"
 )
 
 // MockAttestation is a mock of Attestation interface

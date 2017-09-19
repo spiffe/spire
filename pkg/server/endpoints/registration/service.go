@@ -3,8 +3,8 @@ package registration
 import (
 	"context"
 
-	pb "github.com/spiffe/spire/pkg/api/registration"
 	"github.com/spiffe/spire/pkg/common"
+	pb "github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/services"
 )
 

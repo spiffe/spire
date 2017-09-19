@@ -2,7 +2,7 @@ package services
 
 import (
 	"github.com/spiffe/spire/pkg/common"
-	ds "github.com/spiffe/spire/pkg/server/datastore"
+	ds "github.com/spiffe/spire/proto/server/datastore"
 )
 
 //Registration service interface.

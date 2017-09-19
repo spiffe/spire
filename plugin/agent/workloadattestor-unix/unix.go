@@ -7,9 +7,9 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/shirou/gopsutil/process"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/proto/agent/workloadattestor"
 )
 
 type UnixPlugin struct{}

@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	"crypto/ecdsa"
-	"github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/api/node"
 )
 
 type selectors []*common.Selector

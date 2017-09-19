@@ -21,8 +21,8 @@ import (
 	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	iface "github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
+	"github.com/spiffe/spire/proto/server/ca"
 )
 
 var (

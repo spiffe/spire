@@ -14,10 +14,10 @@ import (
 	"crypto/x509"
 	"github.com/hashicorp/go-plugin"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/agent/keymanager"
-	"github.com/spiffe/spire/pkg/agent/nodeattestor"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
 	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/proto/agent/keymanager"
+	"github.com/spiffe/spire/proto/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"net"
 	"os"
 )

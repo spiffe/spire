@@ -23,11 +23,11 @@ import (
 
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/endpoints/server"
-	"github.com/spiffe/spire/pkg/agent/keymanager"
-	"github.com/spiffe/spire/pkg/agent/nodeattestor"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
-	"github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/proto/agent/keymanager"
+	"github.com/spiffe/spire/proto/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/agent/workloadattestor"
+	"github.com/spiffe/spire/proto/api/node"
 
 	spire_common "github.com/spiffe/spire/pkg/common"
 	"google.golang.org/grpc"

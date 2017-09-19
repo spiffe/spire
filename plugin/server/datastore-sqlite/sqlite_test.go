@@ -10,7 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/testutil"
-	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

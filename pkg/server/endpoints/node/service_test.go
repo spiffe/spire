@@ -6,10 +6,10 @@ import (
 	"github.com/spiffe/spire/services"
 
 	"github.com/golang/mock/gomock"
-	pb "github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/nodeattestor"
+	pb "github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/server/ca"
+	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/stretchr/testify/suite"
 )
 

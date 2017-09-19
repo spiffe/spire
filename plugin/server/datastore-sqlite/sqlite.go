@@ -13,7 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/plugin"
 
-	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/proto/server/datastore"
 )
 
 var (

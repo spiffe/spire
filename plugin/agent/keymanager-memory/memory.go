@@ -8,8 +8,8 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 
-	"github.com/spiffe/spire/pkg/agent/keymanager"
 	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/proto/agent/keymanager"
 )
 
 type MemoryPlugin struct {

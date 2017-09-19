@@ -15,9 +15,9 @@ import (
 	"github.com/spiffe/go-spiffe/uri"
 	iface "github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/testutil"
-	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/upstreamca"
 	upca "github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
+	"github.com/spiffe/spire/proto/server/ca"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

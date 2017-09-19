@@ -3,10 +3,10 @@ package main
 import (
 	"testing"
 
-	"github.com/spiffe/spire/pkg/agent/nodeattestor"
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/testutil"
+	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/stretchr/testify/assert"
 )
 
