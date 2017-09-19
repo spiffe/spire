@@ -30,7 +30,6 @@ type service struct {
 	attestation     services.Attestation
 	identity        services.Identity
 	ca              services.CA
-	registration    services.Registration
 	baseSpiffeIDTTL int32
 	dataStore       datastore.DataStore
 	serverCA        ca.ControlPlaneCa
@@ -38,11 +37,10 @@ type service struct {
 
 //Config is a configuration struct to init the service
 type Config struct {
-	logger          logrus.FieldLogger
+	Logger          logrus.FieldLogger
 	Attestation     services.Attestation
 	Identity        services.Identity
 	CA              services.CA
-	Registration    services.Registration
 	DataStore       datastore.DataStore
 	ServerCA        ca.ControlPlaneCa
 	BaseSpiffeIDTTL int32
@@ -52,10 +50,9 @@ type Config struct {
 func NewService(config Config) (s Service) {
 	//TODO: validate config?
 	return &service{
-		l:               config.logger,
+		l:               config.Logger,
 		attestation:     config.Attestation,
 		identity:        config.Identity,
-		registration:    config.Registration,
 		ca:              config.CA,
 		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
 		dataStore:       config.DataStore,

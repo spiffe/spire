@@ -209,10 +209,10 @@ func (server *Server) initEndpoints() error {
 		Attestation:     server.dependencies.AttestationService,
 		CA:              server.dependencies.CaService,
 		Identity:        server.dependencies.IdentityService,
-		Registration:    server.dependencies.RegistrationService,
 		DataStore:       server.dependencies.DataStoreImpl,
 		ServerCA:        server.dependencies.ServerCAImpl,
 		BaseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
+		Logger:          server.Config.Log,
 	})
 	nodeSvc = node.ServiceLoggingMiddleWare(server.Config.Log)(nodeSvc)
 	nodeEnpoints := getNodeEndpoints(nodeSvc)

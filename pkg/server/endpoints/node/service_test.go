@@ -15,14 +15,13 @@ import (
 
 type NodeServiceTestSuite struct {
 	suite.Suite
-	t                *testing.T
-	nodeService      Service
-	mockServerCA     *ca.MockControlPlaneCa
-	mockDataStore    *datastore.MockDataStore
-	mockCA           *services.MockCA
-	mockIdentity     *services.MockIdentity
-	mockAttestation  *services.MockAttestation
-	mockRegistration *services.MockRegistration
+	t               *testing.T
+	nodeService     Service
+	mockServerCA    *ca.MockControlPlaneCa
+	mockDataStore   *datastore.MockDataStore
+	mockCA          *services.MockCA
+	mockIdentity    *services.MockIdentity
+	mockAttestation *services.MockAttestation
 }
 
 func (suite *NodeServiceTestSuite) SetupTest() {
@@ -32,7 +31,6 @@ func (suite *NodeServiceTestSuite) SetupTest() {
 	suite.mockCA = services.NewMockCA(mockCtrl)
 	suite.mockIdentity = services.NewMockIdentity(mockCtrl)
 	suite.mockAttestation = services.NewMockAttestation(mockCtrl)
-	suite.mockRegistration = services.NewMockRegistration(mockCtrl)
 
 	suite.mockServerCA = ca.NewMockControlPlaneCa(mockCtrl)
 	suite.mockDataStore = datastore.NewMockDataStore(mockCtrl)
@@ -41,7 +39,6 @@ func (suite *NodeServiceTestSuite) SetupTest() {
 		Attestation:     suite.mockAttestation,
 		CA:              suite.mockCA,
 		Identity:        suite.mockIdentity,
-		Registration:    suite.mockRegistration,
 		ServerCA:        suite.mockServerCA,
 		DataStore:       suite.mockDataStore,
 		BaseSpiffeIDTTL: 7777,
