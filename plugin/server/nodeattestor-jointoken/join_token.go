@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/hcl"
 
 	common "github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/server/nodeattestor"
+	"github.com/spiffe/spire/proto/server/nodeattestor"
 )
 
 type JoinTokenConfig struct {

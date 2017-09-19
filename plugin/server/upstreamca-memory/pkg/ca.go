@@ -21,7 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin"
 	common "github.com/spiffe/spire/pkg/common/plugin"
 	iface "github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/server/upstreamca"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 	"log"
 )
 

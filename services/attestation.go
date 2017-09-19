@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/server/datastore"
-	"github.com/spiffe/spire/pkg/server/nodeattestor"
+	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/nodeattestor"
 )
 
 //Attestation service interface.

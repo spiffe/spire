@@ -4,8 +4,8 @@ package services
 
 import (
 	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/server/datastore"
-	"github.com/spiffe/spire/pkg/server/noderesolver"
+	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/noderesolver"
 )
 
 //Identity service interface.

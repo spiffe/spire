@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	pb "github.com/spiffe/spire/pkg/api/node"
+	pb "github.com/spiffe/spire/proto/api/node"
 )
 
 type NodeServiceMiddleWare func(NodeService) NodeService

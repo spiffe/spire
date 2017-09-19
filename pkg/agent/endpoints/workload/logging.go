@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	pb "github.com/spiffe/spire/pkg/api/workload"
+	pb "github.com/spiffe/spire/proto/api/workload"
 )
 
 type ServerServiceMiddleWare func(WorkloadService) WorkloadService

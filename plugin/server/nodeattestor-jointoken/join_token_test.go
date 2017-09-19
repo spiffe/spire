@@ -9,7 +9,7 @@ import (
 	iface "github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/testutil"
 
-	"github.com/spiffe/spire/pkg/server/nodeattestor"
+	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -9,7 +9,7 @@ import (
 
 	iface "github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/testutil"
-	"github.com/spiffe/spire/pkg/server/upstreamca"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
