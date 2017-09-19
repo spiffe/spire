@@ -1,9 +1,9 @@
 [![Build Status](https://travis-ci.com/spiffe/spire.svg?token=pXzs6KRAUrxbEXnwHsPs&branch=master)](https://travis-ci.com/spiffe/spire)
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=master&t=GWBRCP)](https://coveralls.io/github/spiffe/spire?branch=master)
 
-# SPIFFE Runtime Environment (SPIRE)
+![SPIRE Logo](/doc/spire_logo.png)
 
-The SPIFFE Reference Implementation provides a toolchain that defines a central registry of
+SPIRE (the SPIFFE Reference Implementation) provides a toolchain that defines a central registry of
 SPIFFE IDs (the Server), and a Node Agent that can be run adjacent to a workload and
 exposes a local Workload API.
 
