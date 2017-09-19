@@ -168,10 +168,11 @@ func (s *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (r
 	ctxPeer, _ := peer.FromContext(ctx)
 	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
 	if ok {
-		baseSpiffeID, err = uri.GetURINamesFromCertificate(tlsInfo.State.PeerCertificates[0])
+		spiffeID, err := uri.GetURINamesFromCertificate(tlsInfo.State.PeerCertificates[0])
 		if err != nil {
-			return
+			return response,err
 		}
+		baseSpiffeID = spiffeID[0]
 	}
 
 	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
