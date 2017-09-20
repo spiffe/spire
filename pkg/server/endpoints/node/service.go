@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/go-spiffe/uri"
 	pb "github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -130,15 +131,13 @@ func (s *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDReq
 	}
 
 	baseIDSelectors, ok := selectors[baseSpiffeID]
-	//generateCombination(baseIDSelectors) (TODO:walmav)
 	var selectorEntries []*common.Selector
 	if ok {
 		selectorEntries = baseIDSelectors.Entries
-		for _, selector := range selectorEntries {
-			if err = s.identity.CreateEntry(baseSpiffeID, selector); err != nil {
-				s.l.Error(err)
-				return response, errors.New("Error trying to create node resolution entry")
-			}
+		err = s.identity.CreateEntry(baseSpiffeID, selectorEntries)
+		if err != nil {
+			s.l.Error(err)
+			return response, err
 		}
 	}
 
@@ -254,8 +253,9 @@ func (s *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeI
 	var entries []*common.RegistrationEntry
 	var selectorsEntries []*common.RegistrationEntry
 
-	for _, selector := range selectors {
-		listSelectorResponse, err := s.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selector: selector})
+	set := selector.NewSet(selectors)
+	for subset := range set.Power() {
+		listSelectorResponse, err := s.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selectors: subset.Raw()})
 		if err != nil {
 			return nil, err
 		}
