@@ -277,7 +277,7 @@ message ListParentIDEntriesResponse {
 /** Represents a selector */
 message ListSelectorEntriesRequest {
     /** Selector */
-    spire.common.Selector selector = 1;
+    repeated spire.common.Selector selectors = 1;
 }
 
 /** Represents a list of Registered entries with the specified selector */
