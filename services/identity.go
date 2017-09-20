@@ -11,7 +11,7 @@ import (
 //Identity service interface.
 type Identity interface {
 	Resolve(baseSpiffeIDs []string) (selectors map[string]*common.Selectors, err error)
-	CreateEntry(baseSpiffeID string, selector *common.Selector) (err error)
+	CreateEntry(baseSpiffeID string, selector []*common.Selector) (err error)
 }
 
 //IdentityImpl is an implementation of the Attestation interface.

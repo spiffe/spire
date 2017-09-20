@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	pb "github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -240,9 +241,9 @@ func (s *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeI
 	var entries []*common.RegistrationEntry
 	var selectorsEntries []*common.RegistrationEntry
 
-	set = selector.NewSet(selectors)
-	for s := range set.Power() {
-		listSelectorResponse, err := s.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selectors: s.Raw()})
+	set := selector.NewSet(selectors)
+	for subset := range set.Power() {
+		listSelectorResponse, err := s.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selectors: subset.Raw()})
 		if err != nil {
 			return nil, err
 		}
