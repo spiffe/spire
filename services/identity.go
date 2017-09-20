@@ -32,11 +32,23 @@ func (i *IdentityImpl) Resolve(baseSpiffeIDs []string) (selectors map[string]*co
 	return i.nodeResolver.Resolve(baseSpiffeIDs)
 }
 
-func (i *IdentityImpl) CreateEntry(baseSpiffeID string, selector *common.Selector) (err error) {
-	mapEntryRequest := &datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
-		BaseSpiffeId: baseSpiffeID,
-		Selector:     selector,
-	}}
-	_, err = i.dataStore.CreateNodeResolverMapEntry(mapEntryRequest)
-	return
+func (i *IdentityImpl) CreateEntry(baseSpiffeID string, selectors []*common.Selector) (err error) {
+	// TODO: Fix complexity
+	for _, s := range selectors {
+		entry := &datastore.NodeResolverMapEntry{
+			BaseSpiffeId: baseSpiffeID,
+			Selector:     s,
+		}
+
+		mapEntryRequest := &datastore.CreateNodeResolverMapEntryRequest{
+			NodeResolverMapEntry: entry,
+		}
+
+		_, err = i.dataStore.CreateNodeResolverMapEntry(mapEntryRequest)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

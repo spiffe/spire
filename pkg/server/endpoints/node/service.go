@@ -127,15 +127,13 @@ func (s *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDReq
 	}
 
 	baseIDSelectors, ok := selectors[baseSpiffeID]
-	//generateCombination(baseIDSelectors) (TODO:walmav)
 	var selectorEntries []*common.Selector
 	if ok {
 		selectorEntries = baseIDSelectors.Entries
-		for _, selector := range selectorEntries {
-			if err = s.identity.CreateEntry(baseSpiffeID, selector); err != nil {
-				s.l.Error(err)
-				return response, errors.New("Error trying to create node resolution entry")
-			}
+		err = s.identity.CreateEntry(baseSpiffeID, selectorEntries)
+		if err != nil {
+			s.l.Error(err)
+			return response, err
 		}
 	}
 
@@ -242,8 +240,9 @@ func (s *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeI
 	var entries []*common.RegistrationEntry
 	var selectorsEntries []*common.RegistrationEntry
 
-	for _, selector := range selectors {
-		listSelectorResponse, err := s.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selector: selector})
+	set = selector.NewSet(selectors)
+	for s := range set.Power() {
+		listSelectorResponse, err := s.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selectors: s.Raw()})
 		if err != nil {
 			return nil, err
 		}
