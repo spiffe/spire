@@ -6,7 +6,7 @@ package mock_catalog
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	plugin "github.com/spiffe/spire/pkg/common/plugin"
+	plugin "github.com/spiffe/spire/proto/common/plugin"
 	reflect "reflect"
 )
 

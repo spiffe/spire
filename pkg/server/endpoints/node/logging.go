@@ -5,7 +5,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	pb "github.com/spiffe/spire/pkg/api/node"
+
+	"github.com/spiffe/spire/proto/api/node"
 )
 
 type NodeServiceMiddleWare func(Service) Service
@@ -21,7 +22,7 @@ type LoggingMiddleware struct {
 	next Service
 }
 
-func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
+func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request node.FetchBaseSVIDRequest) (response node.FetchBaseSVIDResponse, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "FetchBaseSVID",
@@ -35,7 +36,7 @@ func (mw LoggingMiddleware) FetchBaseSVID(ctx context.Context, request pb.FetchB
 	return
 }
 
-func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
+func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request node.FetchSVIDRequest) (response node.FetchSVIDResponse, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "FetchSVID",
@@ -49,7 +50,7 @@ func (mw LoggingMiddleware) FetchSVID(ctx context.Context, request pb.FetchSVIDR
 	return
 }
 
-func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse, err error) {
+func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request node.FetchCPBundleRequest) (response node.FetchCPBundleResponse, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "FetchCPBundle",
@@ -63,7 +64,7 @@ func (mw LoggingMiddleware) FetchCPBundle(ctx context.Context, request pb.FetchC
 	return
 }
 
-func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse, err error) {
+func (mw LoggingMiddleware) FetchFederatedBundle(ctx context.Context, request node.FetchFederatedBundleRequest) (response node.FetchFederatedBundleResponse, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "FetchFederatedBundle",

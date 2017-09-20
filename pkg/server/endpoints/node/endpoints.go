@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/endpoint"
-	pb "github.com/spiffe/spire/pkg/api/node"
+	"github.com/spiffe/spire/proto/api/node"
 )
 
 // Endpoints collects all of the endpoints that compose an add service. It's
@@ -18,28 +18,28 @@ type Endpoints struct {
 	FetchFederatedBundleEndpoint endpoint.Endpoint
 }
 type FetchBaseSVIDRequest struct {
-	Request pb.FetchBaseSVIDRequest
+	Request node.FetchBaseSVIDRequest
 }
 type FetchBaseSVIDResponse struct {
-	Response pb.FetchBaseSVIDResponse
+	Response node.FetchBaseSVIDResponse
 }
 type FetchSVIDRequest struct {
-	Request pb.FetchSVIDRequest
+	Request node.FetchSVIDRequest
 }
 type FetchSVIDResponse struct {
-	Response pb.FetchSVIDResponse
+	Response node.FetchSVIDResponse
 }
 type FetchCPBundleRequest struct {
-	Request pb.FetchCPBundleRequest
+	Request node.FetchCPBundleRequest
 }
 type FetchCPBundleResponse struct {
-	Response pb.FetchCPBundleResponse
+	Response node.FetchCPBundleResponse
 }
 type FetchFederatedBundleRequest struct {
-	Request pb.FetchFederatedBundleRequest
+	Request node.FetchFederatedBundleRequest
 }
 type FetchFederatedBundleResponse struct {
-	Response pb.FetchFederatedBundleResponse
+	Response node.FetchFederatedBundleResponse
 }
 
 func NewEndpoint(svc Service) (ep Endpoints) {

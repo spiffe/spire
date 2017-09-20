@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/endpoint"
-	pb "github.com/spiffe/spire/pkg/api/registration"
-	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/common"
 )
 
 // Endpoints collects all of the endpoints that compose an add service. It's
@@ -29,32 +29,32 @@ type CreateEntryRequest struct {
 	Request common.RegistrationEntry
 }
 type CreateEntryResponse struct {
-	Reply pb.RegistrationEntryID
+	Reply registration.RegistrationEntryID
 	Err   error
 }
 type DeleteEntryRequest struct {
-	Request pb.RegistrationEntryID
+	Request registration.RegistrationEntryID
 }
 type DeleteEntryResponse struct {
 	Reply common.RegistrationEntry
 	Err   error
 }
 type FetchEntryRequest struct {
-	Request pb.RegistrationEntryID
+	Request registration.RegistrationEntryID
 }
 type FetchEntryResponse struct {
 	Reply common.RegistrationEntry
 	Err   error
 }
 type UpdateEntryRequest struct {
-	Request pb.UpdateEntryRequest
+	Request registration.UpdateEntryRequest
 }
 type UpdateEntryResponse struct {
 	Reply common.RegistrationEntry
 	Err   error
 }
 type ListByParentIDRequest struct {
-	Request pb.ParentID
+	Request registration.ParentID
 }
 type ListByParentIDResponse struct {
 	Reply common.RegistrationEntries
@@ -68,14 +68,14 @@ type ListBySelectorResponse struct {
 	Err   error
 }
 type ListBySpiffeIDRequest struct {
-	Request pb.SpiffeID
+	Request registration.SpiffeID
 }
 type ListBySpiffeIDResponse struct {
 	Reply common.RegistrationEntries
 	Err   error
 }
 type CreateFederatedBundleRequest struct {
-	Request pb.CreateFederatedBundleRequest
+	Request registration.CreateFederatedBundleRequest
 }
 type CreateFederatedBundleResponse struct {
 	Reply common.Empty
@@ -85,18 +85,18 @@ type ListFederatedBundlesRequest struct {
 	Request common.Empty
 }
 type ListFederatedBundlesResponse struct {
-	Reply pb.ListFederatedBundlesReply
+	Reply registration.ListFederatedBundlesReply
 	Err   error
 }
 type UpdateFederatedBundleRequest struct {
-	Request pb.FederatedBundle
+	Request registration.FederatedBundle
 }
 type UpdateFederatedBundleResponse struct {
 	Reply common.Empty
 	Err   error
 }
 type DeleteFederatedBundleRequest struct {
-	Request pb.FederatedSpiffeID
+	Request registration.FederatedSpiffeID
 }
 type DeleteFederatedBundleResponse struct {
 	Reply common.Empty

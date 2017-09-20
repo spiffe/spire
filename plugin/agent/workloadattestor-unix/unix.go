@@ -7,9 +7,10 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/shirou/gopsutil/process"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
-	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/common/plugin"
+
+	"github.com/spiffe/spire/proto/agent/workloadattestor"
+	"github.com/spiffe/spire/proto/common"
+	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
 type UnixPlugin struct{}
@@ -64,12 +65,12 @@ func (UnixPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattestor
 	return &resp, nil
 }
 
-func (UnixPlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	return &sriplugin.ConfigureResponse{}, nil
+func (UnixPlugin) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	return &spi.ConfigureResponse{}, nil
 }
 
-func (UnixPlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
-	return &sriplugin.GetPluginInfoResponse{}, nil
+func (UnixPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return &spi.GetPluginInfoResponse{}, nil
 }
 
 func main() {

@@ -4,8 +4,8 @@ import (
 	"context"
 
 	grpctransport "github.com/go-kit/kit/transport/grpc"
-	pb "github.com/spiffe/spire/pkg/api/registration"
-	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/common"
 	oldcontext "golang.org/x/net/context"
 )
 
@@ -24,7 +24,7 @@ type grpcServer struct {
 }
 
 // MakeGRPCServer makes a set of endpoints available as a gRPC server.
-func MakeGRPCServer(endpoints Endpoints) (req pb.RegistrationServer) {
+func MakeGRPCServer(endpoints Endpoints) (req registration.RegistrationServer) {
 	req = &grpcServer{
 		createEntry: grpctransport.NewServer(
 			endpoints.CreateEntryEndpoint,
@@ -109,19 +109,19 @@ func EncodeGRPCCreateEntryResponse(_ context.Context, grpcReply interface{}) (re
 	return &temp.Reply, err
 }
 
-func (s *grpcServer) CreateEntry(ctx oldcontext.Context, req *common.RegistrationEntry) (rep *pb.RegistrationEntryID, err error) {
+func (s *grpcServer) CreateEntry(ctx oldcontext.Context, req *common.RegistrationEntry) (rep *registration.RegistrationEntryID, err error) {
 	_, rp, err := s.createEntry.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rep = rp.(*pb.RegistrationEntryID)
+	rep = rp.(*registration.RegistrationEntryID)
 	return rep, err
 }
 
 // DecodeGRPCDeleteEntryRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
 func DecodeGRPCDeleteEntryRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	temp := grpcReq.(*pb.RegistrationEntryID)
+	temp := grpcReq.(*registration.RegistrationEntryID)
 	return DeleteEntryRequest{Request: *temp}, err
 }
 
@@ -132,7 +132,7 @@ func EncodeGRPCDeleteEntryResponse(_ context.Context, grpcReply interface{}) (re
 	return &temp.Reply, err
 }
 
-func (s *grpcServer) DeleteEntry(ctx oldcontext.Context, req *pb.RegistrationEntryID) (rep *common.RegistrationEntry, err error) {
+func (s *grpcServer) DeleteEntry(ctx oldcontext.Context, req *registration.RegistrationEntryID) (rep *common.RegistrationEntry, err error) {
 	_, rp, err := s.deleteEntry.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (s *grpcServer) DeleteEntry(ctx oldcontext.Context, req *pb.RegistrationEnt
 // DecodeGRPCFetchEntryRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
 func DecodeGRPCFetchEntryRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	temp := grpcReq.(*pb.RegistrationEntryID)
+	temp := grpcReq.(*registration.RegistrationEntryID)
 	return FetchEntryRequest{Request: *temp}, err
 }
 
@@ -155,7 +155,7 @@ func EncodeGRPCFetchEntryResponse(_ context.Context, grpcReply interface{}) (res
 	return &temp.Reply, err
 }
 
-func (s *grpcServer) FetchEntry(ctx oldcontext.Context, req *pb.RegistrationEntryID) (rep *common.RegistrationEntry, err error) {
+func (s *grpcServer) FetchEntry(ctx oldcontext.Context, req *registration.RegistrationEntryID) (rep *common.RegistrationEntry, err error) {
 	_, rp, err := s.fetchEntry.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ func (s *grpcServer) FetchEntry(ctx oldcontext.Context, req *pb.RegistrationEntr
 // DecodeGRPCUpdateEntryRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
 func DecodeGRPCUpdateEntryRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	temp := grpcReq.(*pb.UpdateEntryRequest)
+	temp := grpcReq.(*registration.UpdateEntryRequest)
 	return UpdateEntryRequest{Request: *temp}, err
 }
 
@@ -178,7 +178,7 @@ func EncodeGRPCUpdateEntryResponse(_ context.Context, grpcReply interface{}) (re
 	return &temp.Reply, err
 }
 
-func (s *grpcServer) UpdateEntry(ctx oldcontext.Context, req *pb.UpdateEntryRequest) (rep *common.RegistrationEntry, err error) {
+func (s *grpcServer) UpdateEntry(ctx oldcontext.Context, req *registration.UpdateEntryRequest) (rep *common.RegistrationEntry, err error) {
 	_, rp, err := s.updateEntry.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
@@ -190,7 +190,7 @@ func (s *grpcServer) UpdateEntry(ctx oldcontext.Context, req *pb.UpdateEntryRequ
 // DecodeGRPCListByParentIDRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
 func DecodeGRPCListByParentIDRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	temp := grpcReq.(*pb.ParentID)
+	temp := grpcReq.(*registration.ParentID)
 	return ListByParentIDRequest{Request: *temp}, err
 }
 
@@ -201,7 +201,7 @@ func EncodeGRPCListByParentIDResponse(_ context.Context, grpcReply interface{}) 
 	return &temp.Reply, err
 }
 
-func (s *grpcServer) ListByParentID(ctx oldcontext.Context, req *pb.ParentID) (rep *common.RegistrationEntries, err error) {
+func (s *grpcServer) ListByParentID(ctx oldcontext.Context, req *registration.ParentID) (rep *common.RegistrationEntries, err error) {
 	_, rp, err := s.listByParentID.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
@@ -236,7 +236,7 @@ func (s *grpcServer) ListBySelector(ctx oldcontext.Context, req *common.Selector
 // DecodeGRPCListBySpiffeIDRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
 func DecodeGRPCListBySpiffeIDRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	temp := grpcReq.(*pb.SpiffeID)
+	temp := grpcReq.(*registration.SpiffeID)
 	return ListBySpiffeIDRequest{Request: *temp}, err
 }
 
@@ -247,7 +247,7 @@ func EncodeGRPCListBySpiffeIDResponse(_ context.Context, grpcReply interface{}) 
 	return &temp.Reply, err
 }
 
-func (s *grpcServer) ListBySpiffeID(ctx oldcontext.Context, req *pb.SpiffeID) (rep *common.RegistrationEntries, err error) {
+func (s *grpcServer) ListBySpiffeID(ctx oldcontext.Context, req *registration.SpiffeID) (rep *common.RegistrationEntries, err error) {
 	_, rp, err := s.listBySpiffeID.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
@@ -259,7 +259,7 @@ func (s *grpcServer) ListBySpiffeID(ctx oldcontext.Context, req *pb.SpiffeID) (r
 // DecodeGRPCCreateFederatedBundleRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
 func DecodeGRPCCreateFederatedBundleRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	temp := grpcReq.(*pb.CreateFederatedBundleRequest)
+	temp := grpcReq.(*registration.CreateFederatedBundleRequest)
 	return CreateFederatedBundleRequest{Request: *temp}, err
 }
 
@@ -270,7 +270,7 @@ func EncodeGRPCCreateFederatedBundleResponse(_ context.Context, grpcReply interf
 	return &temp.Reply, err
 }
 
-func (s *grpcServer) CreateFederatedBundle(ctx oldcontext.Context, req *pb.CreateFederatedBundleRequest) (rep *common.Empty, err error) {
+func (s *grpcServer) CreateFederatedBundle(ctx oldcontext.Context, req *registration.CreateFederatedBundleRequest) (rep *common.Empty, err error) {
 	_, rp, err := s.createFederatedBundle.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
@@ -293,19 +293,19 @@ func EncodeGRPCListFederatedBundlesResponse(_ context.Context, grpcReply interfa
 	return &temp.Reply, err
 }
 
-func (s *grpcServer) ListFederatedBundles(ctx oldcontext.Context, req *common.Empty) (rep *pb.ListFederatedBundlesReply, err error) {
+func (s *grpcServer) ListFederatedBundles(ctx oldcontext.Context, req *common.Empty) (rep *registration.ListFederatedBundlesReply, err error) {
 	_, rp, err := s.listFederatedBundles.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rep = rp.(*pb.ListFederatedBundlesReply)
+	rep = rp.(*registration.ListFederatedBundlesReply)
 	return rep, err
 }
 
 // DecodeGRPCUpdateFederatedBundleRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
 func DecodeGRPCUpdateFederatedBundleRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	temp := grpcReq.(*pb.FederatedBundle)
+	temp := grpcReq.(*registration.FederatedBundle)
 	return UpdateFederatedBundleRequest{Request: *temp}, err
 }
 
@@ -316,7 +316,7 @@ func EncodeGRPCUpdateFederatedBundleResponse(_ context.Context, grpcReply interf
 	return &temp.Reply, err
 }
 
-func (s *grpcServer) UpdateFederatedBundle(ctx oldcontext.Context, req *pb.FederatedBundle) (rep *common.Empty, err error) {
+func (s *grpcServer) UpdateFederatedBundle(ctx oldcontext.Context, req *registration.FederatedBundle) (rep *common.Empty, err error) {
 	_, rp, err := s.updateFederatedBundle.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
@@ -328,7 +328,7 @@ func (s *grpcServer) UpdateFederatedBundle(ctx oldcontext.Context, req *pb.Feder
 // DecodeGRPCDeleteFederatedBundleRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC request to a user-domain request. Primarily useful in a server.
 func DecodeGRPCDeleteFederatedBundleRequest(_ context.Context, grpcReq interface{}) (req interface{}, err error) {
-	temp := grpcReq.(*pb.FederatedSpiffeID)
+	temp := grpcReq.(*registration.FederatedSpiffeID)
 	return DeleteFederatedBundleRequest{Request: *temp}, err
 }
 
@@ -339,7 +339,7 @@ func EncodeGRPCDeleteFederatedBundleResponse(_ context.Context, grpcReply interf
 	return &temp.Reply, err
 }
 
-func (s *grpcServer) DeleteFederatedBundle(ctx oldcontext.Context, req *pb.FederatedSpiffeID) (rep *common.Empty, err error) {
+func (s *grpcServer) DeleteFederatedBundle(ctx oldcontext.Context, req *registration.FederatedSpiffeID) (rep *common.Empty, err error) {
 	_, rp, err := s.deleteFederatedBundle.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err

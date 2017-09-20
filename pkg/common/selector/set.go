@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/proto/common"
 )
 
 type Set []*Selector

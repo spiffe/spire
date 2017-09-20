@@ -3,9 +3,9 @@ package services
 //go:generate mockgen -source=$GOFILE -destination=identity_mock.go -package=$GOPACKAGE
 
 import (
-	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/server/datastore"
-	"github.com/spiffe/spire/pkg/server/noderesolver"
+	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/noderesolver"
 )
 
 //Identity service interface.

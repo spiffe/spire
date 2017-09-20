@@ -6,9 +6,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	// Plugin interfaces
-	"github.com/spiffe/spire/pkg/agent/keymanager"
-	"github.com/spiffe/spire/pkg/agent/nodeattestor"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
+	"github.com/spiffe/spire/proto/agent/keymanager"
+	"github.com/spiffe/spire/proto/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/agent/workloadattestor"
 
 	goplugin "github.com/hashicorp/go-plugin"
 	common "github.com/spiffe/spire/pkg/common/catalog"

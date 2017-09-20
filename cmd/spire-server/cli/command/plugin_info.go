@@ -3,9 +3,10 @@ package command
 import (
 	"log"
 
-	"github.com/spiffe/spire/pkg/common/plugin"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+
+	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
 type PluginInfoCommand struct {
@@ -25,9 +26,9 @@ func (*PluginInfoCommand) Run(args []string) int {
 		return -1
 	}
 	defer conn.Close()
-	c := sriplugin.NewServerClient(conn)
+	c := spi.NewServerClient(conn)
 
-	r, err := c.PluginInfo(context.Background(), &sriplugin.PluginInfoRequest{})
+	r, err := c.PluginInfo(context.Background(), &spi.PluginInfoRequest{})
 
 	if err != nil {
 		log.Fatalf("error: %v", err)
