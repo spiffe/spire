@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/uri"
 	pb "github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -15,6 +16,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/spiffe/spire/services"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 )
 
 // Service is the interface that provides node api methods.
@@ -161,7 +164,16 @@ func (s *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDReq
 //List can be empty to allow Node Agent cache refresh).
 func (s *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
 	//TODO: extract this from the caller cert
-	baseSpiffeID := "spiffe://example.org/spiffe/node-id/token"
+	var baseSpiffeID string
+	ctxPeer, _ := peer.FromContext(ctx)
+	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
+	if ok {
+		spiffeID, err := uri.GetURINamesFromCertificate(tlsInfo.State.PeerCertificates[0])
+		if err != nil {
+			return response, err
+		}
+		baseSpiffeID = spiffeID[0]
+	}
 
 	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
 	nodeResolutionResponse, err := s.dataStore.FetchNodeResolverMapEntry(req)
