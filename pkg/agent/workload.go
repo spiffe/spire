@@ -10,9 +10,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
+	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/workloadattestor"
 	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/selector"
 
 	pb "github.com/spiffe/spire/pkg/api/workload"
@@ -22,7 +22,7 @@ import (
 // workloadServer implements the Workload API interface
 type workloadServer struct {
 	cache   cache.Cache
-	catalog sriplugin.PluginCatalog
+	catalog catalog.Catalog
 	l       logrus.FieldLogger
 
 	// TTL in SVID response will never
@@ -123,11 +123,16 @@ func (s *workloadServer) resolveCaller(ctx context.Context) (pid int32, err erro
 // attestCaller takes a PID and invokes attestation plugins against it, and returns the union
 // of selectors discovered by the attestors. If a plugin encounters an error, its returned
 // selectors are discarded and the error is added to the returned error map.
+//
+// TODO: this error map is not the best thing ever
 func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, errs map[string]error) {
 	var plugins []workloadattestor.WorkloadAttestor
-	pluginClients := s.catalog.GetPluginsByType("WorkloadAttestor")
+	pluginClients, err := s.catalog.WorkloadAttestors()
+	if err != nil {
+		return nil, map[string]error{"": err}
+	}
 	for _, p := range pluginClients {
-		plugins = append(plugins, p.(workloadattestor.WorkloadAttestor))
+		plugins = append(plugins, p)
 	}
 
 	// Call the workload attestors concurrently

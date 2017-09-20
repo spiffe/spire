@@ -1,0 +1,9 @@
+pluginName = "join_token"
+pluginCmd = "./attestor"
+pluginChecksum = ""
+enabled = true
+pluginType = "NodeAttestor"
+pluginData {
+	join_token = "NOT-A-SECRET"
+	trust_domain = "example.org"
+}

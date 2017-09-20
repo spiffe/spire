@@ -16,38 +16,21 @@ import (
 	"path"
 	"time"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/sirupsen/logrus"
-
-	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
-
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
+	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/keymanager"
 	"github.com/spiffe/spire/pkg/agent/nodeattestor"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
 	"github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/api/workload"
-	"github.com/spiffe/spire/pkg/common/plugin"
 
-	spire_common "github.com/spiffe/spire/pkg/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-)
 
-var (
-	PluginTypeMap = map[string]plugin.Plugin{
-		"KeyManager":       &keymanager.KeyManagerPlugin{},
-		"NodeAttestor":     &nodeattestor.NodeAttestorPlugin{},
-		"WorkloadAttestor": &workloadattestor.WorkloadAttestorPlugin{},
-	}
-
-	MaxPlugins = map[string]int{
-		"KeyManager":       1,
-		"NodeAttestor":     1,
-		"WorkloadAttestor": 1,
-	}
+	spiffe_tls "github.com/spiffe/go-spiffe/tls"
+	spire_common "github.com/spiffe/spire/pkg/common"
 )
 
 type Config struct {
@@ -80,21 +63,21 @@ type Config struct {
 }
 
 type Agent struct {
-	BaseSVID      []byte
-	baseSVIDKey   *ecdsa.PrivateKey
-	BaseSVIDTTL   int32
-	config        *Config
-	grpcServer    *grpc.Server
-	Cache         cache.Cache
-	pluginCatalog sriplugin.PluginCatalog
+	BaseSVID    []byte
+	baseSVIDKey *ecdsa.PrivateKey
+	BaseSVIDTTL int32
+	config      *Config
+	grpcServer  *grpc.Server
+	Cache       cache.Cache
+	Catalog     catalog.Catalog
 }
 
 func New(c *Config) *Agent {
-	pc := sriplugin.NewPluginCatalog(&sriplugin.PluginCatalogConfig{
-		PluginConfDirectory: c.PluginDir,
-		Logger:              c.Log.WithField("subsystem_name", "catalog")})
-
-	return &Agent{config: c, pluginCatalog: pc}
+	config := &catalog.Config{
+		ConfigDir: c.PluginDir,
+		Log:       c.Log.WithField("subsystem_name", "catalog"),
+	}
+	return &Agent{config: c, Catalog: catalog.New(config)}
 }
 
 // Run the agent
@@ -133,11 +116,7 @@ func (a *Agent) Run() error {
 }
 
 func (a *Agent) initPlugins() error {
-	a.config.Log.Info("Starting plugins")
-	a.pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
-	a.pluginCatalog.SetPluginTypeMap(PluginTypeMap)
-
-	err := a.pluginCatalog.Run()
+	err := a.Catalog.Run()
 	if err != nil {
 		return err
 	}
@@ -154,7 +133,7 @@ func (a *Agent) initEndpoints() error {
 	ws := &workloadServer{
 		bundle:  []byte{}, // TODO: Pass an actual bundle here
 		cache:   a.Cache,
-		catalog: a.pluginCatalog,
+		catalog: a.Catalog,
 		l:       log,
 		maxTTL:  maxWorkloadTTL,
 	}
@@ -179,11 +158,15 @@ func (a *Agent) bootstrap() error {
 	a.config.Log.Info("Bootstrapping SPIRE agent")
 
 	// Look up the key manager plugin
-	pluginClients := a.pluginCatalog.GetPluginsByType("KeyManager")
-	if len(pluginClients) != 1 {
-		return fmt.Errorf("Expected only one key manager plugin, found %i", len(pluginClients))
+	plugins, err := a.Catalog.KeyManagers()
+	if err != nil {
+		return err
 	}
-	keyManager := pluginClients[0].(keymanager.KeyManager)
+
+	if len(plugins) != 1 {
+		return fmt.Errorf("Expected only one key manager plugin, found %i", len(plugins))
+	}
+	keyManager := plugins[0]
 
 	// Fetch or generate private key
 	res, err := keyManager.FetchPrivateKey(&keymanager.FetchPrivateKeyRequest{})
@@ -240,11 +223,14 @@ func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
 	a.config.Log.Info("Preparing to attest against %s", a.config.ServerAddress.String())
 
 	// Look up the node attestor plugin
-	pluginClients := a.pluginCatalog.GetPluginsByType("NodeAttestor")
-	if len(pluginClients) != 1 {
-		return nil, fmt.Errorf("Expected only one node attestor plugin, found %i", len(pluginClients))
+	plugins, err := a.Catalog.NodeAttestors()
+	if err != nil {
+		return nil, err
 	}
-	attestor := pluginClients[0].(nodeattestor.NodeAttestor)
+	if len(plugins) != 1 {
+		return nil, fmt.Errorf("Expected only one node attestor plugin, found %i", len(plugins))
+	}
+	attestor := plugins[0]
 
 	pluginResponse, err := attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
 	if err != nil {
@@ -485,7 +471,7 @@ func (a *Agent) generateCSRForRegistrationEntries(
 
 func (a *Agent) stopPlugins() {
 	a.config.Log.Info("Stopping plugins...")
-	if a.pluginCatalog != nil {
-		a.pluginCatalog.Stop()
+	if a.Catalog != nil {
+		a.Catalog.Stop()
 	}
 }
