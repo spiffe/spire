@@ -254,8 +254,12 @@ func (s *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeI
 	var selectorsEntries []*common.RegistrationEntry
 
 	set := selector.NewSet(selectors)
+	reqs := []*datastore.ListSelectorEntriesRequest{}
 	for subset := range set.Power() {
-		listSelectorResponse, err := s.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selectors: subset.Raw()})
+		reqs = append(reqs, &datastore.ListSelectorEntriesRequest{Selectors: subset.Raw()})
+	}
+	for _, req := range reqs {
+		listSelectorResponse, err := s.dataStore.ListSelectorEntries(req)
 		if err != nil {
 			return nil, err
 		}
