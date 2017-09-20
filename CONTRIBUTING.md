@@ -24,7 +24,7 @@ The implementation of each plugin and their support packages
 
 gRPC .proto files, their generated .pb.go, and README_pb.md.
 
-The protobuf package names should be spire.{server,agent,api,common}.<name> and the go package name
+The protobuf package names should be `spire.{server,agent,api,common}.<name>` and the go package name
 should be specified with `option go_package = "<name>";``
 
 ### Interfaces
@@ -33,7 +33,7 @@ Packages should be exported through interfaces. Interaction with packages must b
 interfaces
 
 Interfaces should be defined in their own file, named (in lowercase) after the name of the
-interface. eg. `foodata.go` implements `type FooData interface{}``
+interface. eg. `foodata.go` implements `type FooData interface{}`
 
 ### Mocks
 

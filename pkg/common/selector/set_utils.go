@@ -24,10 +24,6 @@ func PowerSet(selectors Set) <-chan Set {
 
 // EqualSet determines whether two slices of selectors are equal or not
 func EqualSet(a, b Set) bool {
-	if a == nil || b == nil {
-		return false
-	}
-
 	if len(a) != len(b) {
 		return false
 	}
