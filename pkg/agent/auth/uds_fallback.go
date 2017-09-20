@@ -1,11 +1,11 @@
 // +build !linux
 
-package uds
+package auth
 
 import "net"
 
 func FromUDSConn(conn net.Conn) CallerInfo {
 	var info CallerInfo
-	info.Err = ErrNotSupported
+	info.Err = ErrUnsupportedPlatform
 	return info
 }
