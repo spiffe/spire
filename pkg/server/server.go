@@ -227,8 +227,17 @@ func (server *Server) initEndpoints() error {
 		Certificate: certChain,
 		PrivateKey:  server.privateKey,
 	}
+
+	certpool := x509.NewCertPool()
+	intermCert, err := x509.ParseCertificate(crtRes.StoredIntermediateCert)
+	if err != nil {
+		return nil
+	}
+	certpool.AddCert(intermCert)
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{*tlsCert},
+		ClientCAs:    certpool,
+		ClientAuth:   tls.RequestClientCert,
 	}
 
 	server.grpcServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
