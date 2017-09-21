@@ -489,11 +489,19 @@ func (ds *sqlitePlugin) ListParentIDEntries(
 func (ds *sqlitePlugin) ListSelectorEntries(
 	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
 
+	if len(request.Selectors) < 1 {
+		return &datastore.ListSelectorEntriesResponse{}, nil
+	}
+
 	var fetchedRegisteredEntries []registeredEntry
-	err := ds.db.Joins("JOIN selectors ON selectors.registered_entry_id = registered_entries.registered_entry_id").
-		Where("selectors.type = ? and selectors.value = ?", request.Selector.Type, request.Selector.Value).
-		Find(&fetchedRegisteredEntries).
-		Error
+	query := ds.db.Joins("JOIN selectors ON selectors.registered_entry_id = registered_entries.registered_entry_id").
+		Where("selectors.type = ? and selectors.value = ?", request.Selectors[0].Type, request.Selectors[0].Value)
+
+	for _, selector := range request.Selectors[1:] {
+		query.Or("selectors.type = ? and selectors.value = ?", selector.Type, selector.Value)
+	}
+
+	err := query.Find(&fetchedRegisteredEntries).Error
 
 	switch {
 	case err == gorm.ErrRecordNotFound:
@@ -502,7 +510,7 @@ func (ds *sqlitePlugin) ListSelectorEntries(
 		return nil, err
 	}
 
-	regEntryList, err := ds.convertEntries(fetchedRegisteredEntries)
+	regEntryList, err := ds.convertAndFilterEntries(fetchedRegisteredEntries, len(request.Selectors))
 	if err != nil {
 		return nil, err
 	}
@@ -520,6 +528,33 @@ func (sqlitePlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.Configure
 
 func (sqlitePlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
+}
+
+func (ds *sqlitePlugin) convertAndFilterEntries(fetchedRegisteredEntries []registeredEntry, length int) (responseEntries []*common.RegistrationEntry, err error) {
+	for _, regEntry := range fetchedRegisteredEntries {
+		var selectors []*common.Selector
+		var fetchedSelectors []*selector
+		if err = ds.db.Model(&regEntry).Related(&fetchedSelectors).Error; err != nil {
+			return nil, err
+		}
+
+		if len(fetchedSelectors) != length {
+			continue
+		}
+
+		for _, selector := range fetchedSelectors {
+			selectors = append(selectors, &common.Selector{
+				Type:  selector.Type,
+				Value: selector.Value})
+		}
+		responseEntries = append(responseEntries, &common.RegistrationEntry{
+			Selectors: selectors,
+			SpiffeId:  regEntry.SpiffeId,
+			ParentId:  regEntry.ParentId,
+			Ttl:       regEntry.Ttl,
+		})
+	}
+	return responseEntries, nil
 }
 
 func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntry) (responseEntries []*common.RegistrationEntry, err error) {

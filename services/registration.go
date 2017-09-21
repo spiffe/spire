@@ -51,7 +51,8 @@ func (r *RegistrationImpl) ListEntryByParentSpiffeID(spiffeID string) (reply []*
 }
 
 func (r *RegistrationImpl) ListEntryBySelector(selector *common.Selector) (reply []*common.RegistrationEntry, err error) {
-	response, err := r.dataStore.ListSelectorEntries(&ds.ListSelectorEntriesRequest{Selector: selector})
+	s := []*common.Selector{selector}
+	response, err := r.dataStore.ListSelectorEntries(&ds.ListSelectorEntriesRequest{Selectors: s})
 	if err != nil {
 		return
 	}

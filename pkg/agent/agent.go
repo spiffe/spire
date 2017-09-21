@@ -154,7 +154,7 @@ func (a *Agent) initEndpoints() error {
 
 	log := a.config.Log.WithField("subsystem_name", "workload")
 	ws := &workloadServer{
-		bundle:  []byte{}, // TODO: Pass an actual bundle here
+		bundle:  a.serverCerts[1].Raw, // TODO: Fix handling of serverCerts
 		cache:   a.Cache,
 		catalog: a.pluginCatalog,
 		l:       log,

@@ -852,7 +852,7 @@ Represents a selector
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| selector | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) |  | Selector |
+| selectors | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) | repeated | Selector |
 
 
 

@@ -496,36 +496,53 @@ func Test_ListSelectorEntries(t *testing.T) {
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
-		selector            *common.Selector
+		selectors           []*common.Selector
 		expectedList        []*common.RegistrationEntry
 	}{
 		{
 			name: "entries_by_selector_found",
 			registrationEntries: regEntries{
 				&common.RegistrationEntry{
-					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
-						&common.Selector{Type: "testtype1", Value: "testValue2"},
-						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					Selectors: selectors{
+						&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype2", Value: "testValue2"},
+						&common.Selector{Type: "testtype3", Value: "testValue3"},
+					},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test1"},
 				&common.RegistrationEntry{
-					Selectors: selectors{&common.Selector{Type: "testtype2", Value: "testValue1"},
-						&common.Selector{Type: "testtype1", Value: "testValue2"},
-						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					Selectors: selectors{
+						&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype2", Value: "testValue2"},
+						&common.Selector{Type: "testtype3", Value: "testValue3"},
+						&common.Selector{Type: "testtype4", Value: "testValue4"},
+					},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test2"},
 				&common.RegistrationEntry{
-					Selectors: selectors{&common.Selector{Type: "testtype2", Value: "testValue1"},
-						&common.Selector{Type: "testtype1", Value: "testValue2"},
-						&common.Selector{Type: "testtype3", Value: "testValue1"}},
+					Selectors: selectors{
+						&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype2", Value: "testValue2"},
+					},
 					ParentId: "spiffe:parent",
-					SpiffeId: "spiffe:test3"}},
-			selector: &common.Selector{Type: "testtype1", Value: "testValue1"},
+					SpiffeId: "spiffe:test3"},
+				&common.RegistrationEntry{
+					Selectors: selectors{},
+					ParentId:  "spiffe:parent",
+					SpiffeId:  "spiffe:tes43"},
+			},
+
+			selectors: []*common.Selector{
+				&common.Selector{Type: "testtype1", Value: "testValue1"},
+				&common.Selector{Type: "testtype2", Value: "testValue2"},
+				&common.Selector{Type: "testtype3", Value: "testValue3"},
+			},
 			expectedList: regEntries{
 				&common.RegistrationEntry{
-					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
-						&common.Selector{Type: "testtype1", Value: "testValue2"},
-						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					Selectors: selectors{
+						&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype2", Value: "testValue2"},
+						&common.Selector{Type: "testtype3", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test1"}},
 		},
@@ -533,24 +550,30 @@ func Test_ListSelectorEntries(t *testing.T) {
 			name: "entries_by_selector_not_found",
 			registrationEntries: regEntries{
 				&common.RegistrationEntry{
-					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
-						&common.Selector{Type: "testtype1", Value: "testValue2"},
-						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					Selectors: selectors{
+						&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype2", Value: "testValue2"},
+					},
 					ParentId: "spiffe:parent",
-					SpiffeId: "spiffe:test1"},
+					SpiffeId: "spiffe:test1",
+				},
 				&common.RegistrationEntry{
-					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
-						&common.Selector{Type: "testtype1", Value: "testValue2"},
-						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					Selectors: selectors{
+						&common.Selector{Type: "testtype2", Value: "testValue2"},
+						&common.Selector{Type: "testtype3", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
-					SpiffeId: "spiffe:test2"},
+					SpiffeId: "spiffe:test2",
+				},
 				&common.RegistrationEntry{
-					Selectors: selectors{&common.Selector{Type: "testtype1", Value: "testValue1"},
-						&common.Selector{Type: "testtype1", Value: "testValue2"},
-						&common.Selector{Type: "testtype1", Value: "testValue3"}},
+					Selectors: selectors{
+						&common.Selector{Type: "testtype1", Value: "testValue1"},
+						&common.Selector{Type: "testtype3", Value: "testValue3"},
+					},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test3"}},
-			selector:     &common.Selector{Type: "testtype4", Value: "testtype4"},
+			selectors: []*common.Selector{
+				&common.Selector{Type: "testtype2", Value: "testValue2"},
+			},
 			expectedList: nil,
 		},
 	}
@@ -561,7 +584,7 @@ func Test_ListSelectorEntries(t *testing.T) {
 				ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
 			}
 			result, err := ds.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{
-				Selector: test.selector})
+				Selectors: test.selectors})
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedList, result.RegisteredEntryList)
 		})
