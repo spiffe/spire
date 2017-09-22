@@ -51,7 +51,7 @@ type Config struct {
 }
 
 // NewService creates a node service with the necessary dependencies.
-func NewService(config Config) (s Service) {
+func NewService(config Config) Service {
 	//TODO: validate config?
 	return &service{
 		l:               config.Logger,

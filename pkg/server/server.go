@@ -175,8 +175,12 @@ func (server *Server) initDependencies() {
 
 func (server *Server) initEndpoints() error {
 	server.Config.Log.Info("Starting the Registration API")
-	var registrationSvc registration.RegistrationService
-	registrationSvc = registration.NewService(server.dependencies.RegistrationService)
+	var registrationSvc registration.Service
+	registrationSvc = registration.NewService(registration.Config{
+		Logger:       server.Config.Log,
+		DataStore:    server.dependencies.DataStoreImpl,
+		Registration: server.dependencies.RegistrationService,
+	})
 	registrationSvc = registration.ServiceLoggingMiddleWare(server.Config.Log)(registrationSvc)
 	registrationEndpoints := getRegistrationEndpoints(registrationSvc)
 
@@ -329,7 +333,7 @@ func (server *Server) rotateSigningCert() error {
 	return err
 }
 
-func getRegistrationEndpoints(registrationSvc registration.RegistrationService) registration.Endpoints {
+func getRegistrationEndpoints(registrationSvc registration.Service) registration.Endpoints {
 	return registration.Endpoints{
 		CreateEntryEndpoint:           registration.MakeCreateEntryEndpoint(registrationSvc),
 		DeleteEntryEndpoint:           registration.MakeDeleteEntryEndpoint(registrationSvc),

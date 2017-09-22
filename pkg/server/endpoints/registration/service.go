@@ -3,13 +3,15 @@ package registration
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/services"
 )
 
-//RegistrationService is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.
-type RegistrationService interface {
+//Service is used to register SPIFFE IDs, and the attestation logic that should be performed on a workload before those IDs can be issued.
+type Service interface {
 	CreateEntry(ctx context.Context, request common.RegistrationEntry) (reply registration.RegistrationEntryID, err error)
 	DeleteEntry(ctx context.Context, request registration.RegistrationEntryID) (reply common.RegistrationEntry, err error)
 	FetchEntry(ctx context.Context, request registration.RegistrationEntryID) (reply common.RegistrationEntry, err error)
@@ -23,31 +25,42 @@ type RegistrationService interface {
 	DeleteFederatedBundle(ctx context.Context, request registration.FederatedSpiffeID) (reply common.Empty, err error)
 }
 
-type stubRegistrationService struct {
+type service struct {
+	l            logrus.FieldLogger
+	dataStore    datastore.DataStore
 	registration services.Registration
 }
 
-//NewService gets a new instance of the service
-func NewService(registration services.Registration) (s *stubRegistrationService) {
-	s = &stubRegistrationService{}
-	s.registration = registration
-	return s
+//Config is a configuration struct to init the service.
+type Config struct {
+	Logger       logrus.FieldLogger
+	DataStore    datastore.DataStore
+	Registration services.Registration
 }
 
-// Implement the business logic of CreateEntry
-func (re *stubRegistrationService) CreateEntry(ctx context.Context, request common.RegistrationEntry) (registration.RegistrationEntryID, error) {
-	registeredID, err := re.registration.CreateEntry(&request)
+//NewService creates a registration service with the necessary dependencies.
+func NewService(config Config) Service {
+	return &service{
+		l:            config.Logger,
+		dataStore:    config.DataStore,
+		registration: config.Registration,
+	}
+}
+
+//Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
+func (s *service) CreateEntry(ctx context.Context, request common.RegistrationEntry) (registration.RegistrationEntryID, error) {
+	registeredID, err := s.registration.CreateEntry(&request)
 	return registration.RegistrationEntryID{Id: registeredID}, err
 }
 
 // Implement the business logic of DeleteEntry
-func (re *stubRegistrationService) DeleteEntry(ctx context.Context, request registration.RegistrationEntryID) (reply common.RegistrationEntry, err error) {
+func (s *service) DeleteEntry(ctx context.Context, request registration.RegistrationEntryID) (reply common.RegistrationEntry, err error) {
 	return reply, err
 }
 
-// Implement the business logic of FetchEntry
-func (re *stubRegistrationService) FetchEntry(ctx context.Context, request registration.RegistrationEntryID) (common.RegistrationEntry, error) {
-	reply, err := re.registration.FetchEntry(request.Id)
+//Retrieves a specific registered entry
+func (s *service) FetchEntry(ctx context.Context, request registration.RegistrationEntryID) (common.RegistrationEntry, error) {
+	reply, err := s.registration.FetchEntry(request.Id)
 	if err != nil {
 		return common.RegistrationEntry{}, err
 	}
@@ -55,43 +68,43 @@ func (re *stubRegistrationService) FetchEntry(ctx context.Context, request regis
 }
 
 // Implement the business logic of UpdateEntry
-func (re *stubRegistrationService) UpdateEntry(ctx context.Context, request registration.UpdateEntryRequest) (reply common.RegistrationEntry, err error) {
+func (s *service) UpdateEntry(ctx context.Context, request registration.UpdateEntryRequest) (reply common.RegistrationEntry, err error) {
 	return reply, err
 }
 
 // Implement the business logic of ListByParentID
-func (re *stubRegistrationService) ListByParentID(ctx context.Context, request registration.ParentID) (reply common.RegistrationEntries, err error) {
-	entries, err := re.registration.ListEntryByParentSpiffeID(request.Id)
+func (s *service) ListByParentID(ctx context.Context, request registration.ParentID) (reply common.RegistrationEntries, err error) {
+	entries, err := s.registration.ListEntryByParentSpiffeID(request.Id)
 	reply = common.RegistrationEntries{Entries: entries}
 	return reply, err
 }
 
 // Implement the business logic of ListBySelector
-func (re *stubRegistrationService) ListBySelector(ctx context.Context, request common.Selector) (reply common.RegistrationEntries, err error) {
+func (s *service) ListBySelector(ctx context.Context, request common.Selector) (reply common.RegistrationEntries, err error) {
 	return reply, err
 }
 
 // Implement the business logic of ListBySpiffeID
-func (re *stubRegistrationService) ListBySpiffeID(ctx context.Context, request registration.SpiffeID) (reply common.RegistrationEntries, err error) {
+func (s *service) ListBySpiffeID(ctx context.Context, request registration.SpiffeID) (reply common.RegistrationEntries, err error) {
 	return
 }
 
 // Implement the business logic of CreateFederatedBundle
-func (re *stubRegistrationService) CreateFederatedBundle(ctx context.Context, request registration.CreateFederatedBundleRequest) (reply common.Empty, err error) {
+func (s *service) CreateFederatedBundle(ctx context.Context, request registration.CreateFederatedBundleRequest) (reply common.Empty, err error) {
 	return reply, err
 }
 
 // Implement the business logic of ListFederatedBundles
-func (re *stubRegistrationService) ListFederatedBundles(ctx context.Context, request common.Empty) (reply registration.ListFederatedBundlesReply, err error) {
+func (s *service) ListFederatedBundles(ctx context.Context, request common.Empty) (reply registration.ListFederatedBundlesReply, err error) {
 	return reply, err
 }
 
 // Implement the business logic of UpdateFederatedBundle
-func (re *stubRegistrationService) UpdateFederatedBundle(ctx context.Context, request registration.FederatedBundle) (reply common.Empty, err error) {
+func (s *service) UpdateFederatedBundle(ctx context.Context, request registration.FederatedBundle) (reply common.Empty, err error) {
 	return reply, err
 }
 
 // Implement the business logic of DeleteFederatedBundle
-func (re *stubRegistrationService) DeleteFederatedBundle(ctx context.Context, request registration.FederatedSpiffeID) (reply common.Empty, err error) {
+func (s *service) DeleteFederatedBundle(ctx context.Context, request registration.FederatedSpiffeID) (reply common.Empty, err error) {
 	return reply, err
 }
