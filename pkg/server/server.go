@@ -27,7 +27,6 @@ import (
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
 	"github.com/spiffe/spire/proto/server/upstreamca"
-	"github.com/spiffe/spire/services"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -59,15 +58,11 @@ type Config struct {
 }
 
 type dependencies struct {
-	RegistrationService services.Registration
-	AttestationService  services.Attestation
-	IdentityService     services.Identity
-	CaService           services.CA
-	DataStoreImpl       datastore.DataStore
-	NodeAttestorImpl    nodeattestor.NodeAttestor
-	NodeResolverImpl    noderesolver.NodeResolver
-	ServerCAImpl        ca.ControlPlaneCa
-	UpstreamCAImpl      upstreamca.UpstreamCa
+	DataStoreImpl    datastore.DataStore
+	NodeAttestorImpl nodeattestor.NodeAttestor
+	NodeResolverImpl noderesolver.NodeResolver
+	ServerCAImpl     ca.ControlPlaneCa
+	UpstreamCAImpl   upstreamca.UpstreamCa
 }
 
 type Server struct {
@@ -164,12 +159,6 @@ func (server *Server) initDependencies() {
 		}
 	}
 
-	//services
-	server.dependencies.RegistrationService = services.NewRegistrationImpl(server.dependencies.DataStoreImpl)
-	server.dependencies.AttestationService = services.NewAttestationImpl(server.dependencies.DataStoreImpl, server.dependencies.NodeAttestorImpl)
-	server.dependencies.IdentityService = services.NewIdentityImpl(server.dependencies.DataStoreImpl, server.dependencies.NodeResolverImpl)
-	server.dependencies.CaService = services.NewCAImpl(server.dependencies.ServerCAImpl)
-
 	server.Config.Log.Info("Initiating dependencies done")
 }
 
@@ -185,13 +174,12 @@ func (server *Server) initEndpoints() error {
 
 	server.Config.Log.Info("Starting the Node API")
 	nodeSvc := node.NewService(node.Config{
-		Attestation:     server.dependencies.AttestationService,
-		CA:              server.dependencies.CaService,
-		Identity:        server.dependencies.IdentityService,
+		Logger:          server.Config.Log,
 		DataStore:       server.dependencies.DataStoreImpl,
 		ServerCA:        server.dependencies.ServerCAImpl,
+		NodeAttestor:    server.dependencies.NodeAttestorImpl,
+		NodeResolver:    server.dependencies.NodeResolverImpl,
 		BaseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
-		Logger:          server.Config.Log,
 	})
 	nodeSvc = node.ServiceLoggingMiddleWare(server.Config.Log)(nodeSvc)
 	nodeEnpoints := getNodeEndpoints(nodeSvc)
