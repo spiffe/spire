@@ -51,4 +51,4 @@ SPIRE Agent commands:
  |Command                   | Action                                                           |
  |--------------------------|------------------------------------------------------------------|
  |`spire-agent run    `     |  Starts the SPIRE Agent                                          |
- |`spire-agent plugin-info` |  Lists all currently enabled SPIRE agent plugins' information    |
+ 

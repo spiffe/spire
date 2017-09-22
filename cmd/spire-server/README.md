@@ -45,4 +45,3 @@ SPIRE Server commands:
  |Command                   | Action                                                           |
  |--------------------------|------------------------------------------------------------------|
  |`spire-server run`        |  Starts the SPIRE Server                                         |
- |`spire-server plugin-info`|  Lists all currently enabled SPIRE server plugins' information   |
