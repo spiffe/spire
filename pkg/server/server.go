@@ -177,9 +177,8 @@ func (server *Server) initEndpoints() error {
 	server.Config.Log.Info("Starting the Registration API")
 	var registrationSvc registration.Service
 	registrationSvc = registration.NewService(registration.Config{
-		Logger:       server.Config.Log,
-		DataStore:    server.dependencies.DataStoreImpl,
-		Registration: server.dependencies.RegistrationService,
+		Logger:    server.Config.Log,
+		DataStore: server.dependencies.DataStoreImpl,
 	})
 	registrationSvc = registration.ServiceLoggingMiddleWare(server.Config.Log)(registrationSvc)
 	registrationEndpoints := getRegistrationEndpoints(registrationSvc)
