@@ -8,13 +8,17 @@ import (
 	"sort"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/uri"
 	pb "github.com/spiffe/spire/pkg/api/node"
 	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/spiffe/spire/services"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 )
 
 // Service is the interface that provides node api methods.
@@ -127,15 +131,13 @@ func (s *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDReq
 	}
 
 	baseIDSelectors, ok := selectors[baseSpiffeID]
-	//generateCombination(baseIDSelectors) (TODO:walmav)
 	var selectorEntries []*common.Selector
 	if ok {
 		selectorEntries = baseIDSelectors.Entries
-		for _, selector := range selectorEntries {
-			if err = s.identity.CreateEntry(baseSpiffeID, selector); err != nil {
-				s.l.Error(err)
-				return response, errors.New("Error trying to create node resolution entry")
-			}
+		err = s.identity.CreateEntry(baseSpiffeID, selectorEntries)
+		if err != nil {
+			s.l.Error(err)
+			return response, err
 		}
 	}
 
@@ -161,7 +163,16 @@ func (s *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDReq
 //List can be empty to allow Node Agent cache refresh).
 func (s *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
 	//TODO: extract this from the caller cert
-	baseSpiffeID := "spiffe://example.org/spiffe/node-id/token"
+	var baseSpiffeID string
+	ctxPeer, _ := peer.FromContext(ctx)
+	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
+	if ok {
+		spiffeID, err := uri.GetURINamesFromCertificate(tlsInfo.State.PeerCertificates[0])
+		if err != nil {
+			return response, err
+		}
+		baseSpiffeID = spiffeID[0]
+	}
 
 	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
 	nodeResolutionResponse, err := s.dataStore.FetchNodeResolverMapEntry(req)
@@ -242,8 +253,13 @@ func (s *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeI
 	var entries []*common.RegistrationEntry
 	var selectorsEntries []*common.RegistrationEntry
 
-	for _, selector := range selectors {
-		listSelectorResponse, err := s.dataStore.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{Selector: selector})
+	set := selector.NewSet(selectors)
+	reqs := []*datastore.ListSelectorEntriesRequest{}
+	for subset := range set.Power() {
+		reqs = append(reqs, &datastore.ListSelectorEntriesRequest{Selectors: subset.Raw()})
+	}
+	for _, req := range reqs {
+		listSelectorResponse, err := s.dataStore.ListSelectorEntries(req)
 		if err != nil {
 			return nil, err
 		}

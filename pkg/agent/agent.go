@@ -28,6 +28,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	spire_common "github.com/spiffe/spire/pkg/common"
@@ -70,6 +71,7 @@ type Agent struct {
 	grpcServer  *grpc.Server
 	Cache       cache.Cache
 	Catalog     catalog.Catalog
+	serverCerts []*x509.Certificate
 }
 
 func New(c *Config) *Agent {
@@ -131,7 +133,7 @@ func (a *Agent) initEndpoints() error {
 
 	log := a.config.Log.WithField("subsystem_name", "workload")
 	ws := &workloadServer{
-		bundle:  []byte{}, // TODO: Pass an actual bundle here
+		bundle:  a.serverCerts[1].Raw, // TODO: Fix handling of serverCerts
 		cache:   a.Cache,
 		catalog: a.Catalog,
 		l:       log,
@@ -258,9 +260,15 @@ func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
 		Csr:          csr,
 	}
 
-	serverResponse, err := nodeClient.FetchBaseSVID(context.Background(), req)
+	calloptPeer := new(peer.Peer)
+
+	serverResponse, err := nodeClient.FetchBaseSVID(context.Background(), req, grpc.Peer(calloptPeer))
 	if err != nil {
 		return nil, fmt.Errorf("Failed attestation against spire server: %s", err)
+	}
+
+	if tlsInfo, ok := calloptPeer.AuthInfo.(credentials.TLSInfo); ok {
+		a.serverCerts = tlsInfo.State.PeerCertificates
 	}
 
 	// Pull base SVID out of the response
@@ -369,9 +377,13 @@ func (a *Agent) FetchSVID(registrationEntryMap map[string]*spire_common.Registra
 
 		req := &node.FetchSVIDRequest{Csrs: Csrs}
 
-		resp, err := nodeClient.FetchSVID(context.Background(), req)
+		callOptPeer := new(peer.Peer)
+		resp, err := nodeClient.FetchSVID(context.Background(), req, grpc.Peer(callOptPeer))
 		if err != nil {
 			return err
+		}
+		if tlsInfo, ok := callOptPeer.AuthInfo.(credentials.TLSInfo); ok {
+			a.serverCerts = tlsInfo.State.PeerCertificates
 		}
 
 		svidMap := resp.GetSvidUpdate().GetSvids()
@@ -419,19 +431,28 @@ func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateK
 
 	serverID := a.config.TrustDomain
 	serverID.Path = "spiffe/cp"
-	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{serverID.String()},
-		TrustRoots: a.config.TrustBundle,
-	}
-	var tlsCert []tls.Certificate
-	if mtls {
-		tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid}, PrivateKey: key})
-	}
 
-	tlsConfig := spiffePeer.NewTLSConfig(tlsCert)
+	var spiffePeer *spiffe_tls.TLSPeer
+	var tlsCert []tls.Certificate
+	var tlsConfig *tls.Config
 
 	if !mtls {
-		tlsConfig.ClientAuth = tls.NoClientCert
+		spiffePeer = &spiffe_tls.TLSPeer{
+			SpiffeIDs:  []string{serverID.String()},
+			TrustRoots: a.config.TrustBundle,
+		}
+		tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
+	} else {
+		certPool := x509.NewCertPool()
+		for _, cert := range a.serverCerts {
+			certPool.AddCert(cert)
+		}
+		spiffePeer = &spiffe_tls.TLSPeer{
+			SpiffeIDs:  []string{serverID.String()},
+			TrustRoots: certPool,
+		}
+		tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid}, PrivateKey: key})
+		tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
 	}
 
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
