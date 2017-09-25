@@ -71,8 +71,7 @@ func (*RunCommand) Run(args []string) int {
 		fmt.Println(err.Error())
 	}
 
-	// TODO: Handle graceful shutdown?
-	signalListener(config.ErrorCh)
+	signalListener(config.ShutdownCh)
 
 	agt := agent.New(config)
 	err = agt.Run()
@@ -260,11 +259,16 @@ func stringDefault(option string, defaultValue string) string {
 	return option
 }
 
-func signalListener(ch chan error) {
+func signalListener(ch chan struct{}) {
 	go func() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-		ch <- fmt.Errorf("%s", <-signalCh)
+
+		var stop struct{}
+		select {
+		case <-signalCh:
+			ch <- stop
+		}
 	}()
 	return
 }

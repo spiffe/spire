@@ -127,13 +127,12 @@ func (a *Agent) Run() error {
 		case err = <-a.config.ErrorCh:
 			return err
 		case <-a.config.ShutdownCh:
-			a.Shutdown()
-			return <-a.config.ErrorCh
+			return a.Shutdown(a.config.ErrorCh)
 		}
 	}
 }
 
-func (a *Agent) Shutdown() {
+func (a *Agent) Shutdown(ch chan error) error {
 	a.config.Log.Info("Stopping plugins...")
 	if a.pluginCatalog != nil {
 		a.pluginCatalog.Stop()
@@ -141,11 +140,19 @@ func (a *Agent) Shutdown() {
 
 	a.grpcServer.GracefulStop()
 
-	if a.config.BindAddress.Network() == "unix" {
-		_ = os.Remove(a.config.BindAddress.String())
+	// Drain error channel, last one wins
+	var err error
+Drain:
+	for {
+		select {
+		case e := <-ch:
+			err = e
+		default:
+			break Drain
+		}
 	}
 
-	return
+	return err
 }
 
 func (a *Agent) initPlugins() error {
