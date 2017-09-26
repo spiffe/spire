@@ -16,6 +16,14 @@ import (
 	common "github.com/spiffe/spire/pkg/common/catalog"
 )
 
+const (
+	CAType           = "ControlPlaneCA"
+	DataStoreType    = "DataStore"
+	NodeAttestorType = "NodeAttestor"
+	NodeResolverType = "NodeResolver"
+	UpstreamCAType   = "UpstreamCA"
+)
+
 type Catalog interface {
 	common.Catalog
 
@@ -28,11 +36,11 @@ type Catalog interface {
 
 var (
 	supportedPlugins = map[string]goplugin.Plugin{
-		"ControlPlaneCA": &ca.ControlPlaneCaPlugin{},
-		"DataStore":      &datastore.DataStorePlugin{},
-		"NodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
-		"NodeResolver":   &noderesolver.NodeResolverPlugin{},
-		"UpstreamCA":     &upstreamca.UpstreamCaPlugin{},
+		CAType:           &ca.ControlPlaneCaPlugin{},
+		DataStoreType:    &datastore.DataStorePlugin{},
+		NodeAttestorType: &nodeattestor.NodeAttestorPlugin{},
+		NodeResolverType: &noderesolver.NodeResolverPlugin{},
+		UpstreamCAType:   &upstreamca.UpstreamCaPlugin{},
 	}
 )
 
@@ -78,7 +86,7 @@ func (c *catalog) Plugins() []*common.ManagedPlugin {
 func (c *catalog) CAs() ([]*ca.ControlPlaneCa, error) {
 	var plugins []*ca.ControlPlaneCa
 	for _, p := range c.com.Plugins() {
-		if p.Config.PluginType == "ControlPlaneCA" {
+		if p.Config.PluginType == CAType {
 			plugin, ok := p.Plugin.(ca.ControlPlaneCa)
 			if !ok {
 				return nil, fmt.Errorf("Plugin %s does not adhere to CA interface", p.Config.PluginName)
@@ -94,7 +102,7 @@ func (c *catalog) CAs() ([]*ca.ControlPlaneCa, error) {
 func (c *catalog) DataStores() ([]*datastore.DataStore, error) {
 	var plugins []*datastore.DataStore
 	for _, p := range c.com.Plugins() {
-		if p.Config.PluginType == "DataStore" {
+		if p.Config.PluginType == DataStoreType {
 			plugin, ok := p.Plugin.(datastore.DataStore)
 			if !ok {
 				return nil, fmt.Errorf("Plugin %s does not adhere to data store interface", p.Config.PluginName)
@@ -110,7 +118,7 @@ func (c *catalog) DataStores() ([]*datastore.DataStore, error) {
 func (c *catalog) NodeAttestors() ([]*nodeattestor.NodeAttestor, error) {
 	var plugins []*nodeattestor.NodeAttestor
 	for _, p := range c.com.Plugins() {
-		if p.Config.PluginType == "NodeAttestor" {
+		if p.Config.PluginType == NodeAttestorType {
 			plugin, ok := p.Plugin.(nodeattestor.NodeAttestor)
 			if !ok {
 				return nil, fmt.Errorf("Plugin %s does not adhere to node attestor interface", p.Config.PluginName)
@@ -126,7 +134,7 @@ func (c *catalog) NodeAttestors() ([]*nodeattestor.NodeAttestor, error) {
 func (c *catalog) NodeResolvers() ([]*noderesolver.NodeResolver, error) {
 	var plugins []*noderesolver.NodeResolver
 	for _, p := range c.com.Plugins() {
-		if p.Config.PluginType == "NodeResolver" {
+		if p.Config.PluginType == NodeResolverType {
 			plugin, ok := p.Plugin.(noderesolver.NodeResolver)
 			if !ok {
 				return nil, fmt.Errorf("Plugin %s does not adhere to node resolver interface", p.Config.PluginName)
@@ -142,7 +150,7 @@ func (c *catalog) NodeResolvers() ([]*noderesolver.NodeResolver, error) {
 func (c *catalog) UpstreamCAs() ([]*upstreamca.UpstreamCa, error) {
 	var plugins []*upstreamca.UpstreamCa
 	for _, p := range c.com.Plugins() {
-		if p.Config.PluginType == "UpstreamCA" {
+		if p.Config.PluginType == UpstreamCAType {
 			plugin, ok := p.Plugin.(upstreamca.UpstreamCa)
 			if !ok {
 				return nil, fmt.Errorf("Plugin %s does not adhere to upstream CA interface", p.Config.PluginName)

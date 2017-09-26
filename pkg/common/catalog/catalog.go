@@ -176,6 +176,7 @@ func (c *catalog) loadConfig(path string) error {
 func (c *catalog) startPlugins() error {
 	for _, p := range c.plugins {
 		if !p.Config.Enabled {
+			c.l.Infof("%s plugin %s is disabled", p.Config.PluginType, p.Config.PluginName)
 			continue
 		}
 
