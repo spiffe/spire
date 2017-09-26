@@ -4,6 +4,7 @@ set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
 declare -r BINARY_DIRS="$(find cmd/* plugin/*/* -maxdepth 0 -type d 2>/dev/null)"
+declare -r RELEASE_FILES="LICENSE README.md"
 declare -r PROTO_FILES="$(find pkg -name '*.proto' 2>/dev/null)"
 
 case $(uname) in
@@ -178,13 +179,22 @@ build_test() {
 	fi
 }
 
+build_release() {
+	local _tag _always
+	_tag="$(git describe --abbrev=0 2>/dev/null || true)"
+	_always="$(git describe --always || true)"
+	if [[ $_tag == $_always ]]; then
+		build_artifact $_tag
+	fi
+}
+
 ## Create a distributable tgz of all the binaries
 build_artifact() {
-    local _hash _libc _artifact _binaries _n _tmp
+	local _version="$1"
+    local _libc _tgz _binaries _n _tmp
 
     _binaries="$(find $BINARY_DIRS -perm -u=x -a -type f)"
 
-    mkdir -p artifacts
 
     # handle the case that we're building for alpine
     if [[ $OS1 == linux ]]; then
@@ -194,13 +204,20 @@ build_artifact() {
             *) _libc="-unknown" ;;
         esac
     fi
-    _hash="$(git log -n1 --pretty=format:%h)"
-    _artifact="spire-${_hash}-${OS1}-${ARCH1}${_libc}.tgz"
 
-    _log_info "creating artifact \"${_artifact}\""
+	if [[ $_version ]]; then
+		_tgz="releases/spire-${_version}-${OS1}-${ARCH1}${_libc}.tgz"
+		_tmp=".tmp/spire-${_version}"
+	else
+		_version="$(git log -n1 --pretty=format:%h)"
+		_tgz="artifacts/spire-${_version}-${OS1}-${ARCH1}${_libc}.tgz"
+		_tmp=".tmp/spire"
+	fi
 
-    _tmp=".tmp/spire"
-    rm -rf $_tmp
+    _log_info "creating artifact \"${_tgz}\""
+
+	mkdir -p $(dirname $_tgz)
+	rm -rf $(dirname $_tmp)
     mkdir -p $_tmp
 
     # we munge the file structure a bit here
@@ -212,8 +229,11 @@ build_artifact() {
             cp -r $_n ${_tmp}/$(dirname $_n)
         fi
     done
+	for _n in $RELEASE_FILES; do
+		cp $_n $_tmp
+	done
 
-    tar --directory .tmp -cvzf artifacts/${_artifact} .
+    tar --directory .tmp -cvzf $_tgz .
 }
 
 build_clean() {
@@ -244,6 +264,7 @@ case "$1" in
     binaries|bin) build_binaries $2 ;;
     test) build_test ;;
     artifact) build_artifact ;;
+    release) build_release ;;
     clean) build_clean ;;
     distclean) build_distclean ;;
     all) build_all ;;
