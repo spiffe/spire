@@ -89,7 +89,6 @@ func (a *Agent) Run() error {
 	a.Cache = cache.NewCache()
 
 	err := a.initPlugins()
-	defer a.stopPlugins()
 	if err != nil {
 		return err
 	}
@@ -111,10 +110,31 @@ func (a *Agent) Run() error {
 		case err = <-a.config.ErrorCh:
 			return err
 		case <-a.config.ShutdownCh:
-			a.grpcServer.GracefulStop()
-			return <-a.config.ErrorCh
+			return a.Shutdown()
 		}
 	}
+}
+
+func (a *Agent) Shutdown() error {
+	if a.Catalog != nil {
+		a.Catalog.Stop()
+	}
+
+	a.grpcServer.GracefulStop()
+
+	// Drain error channel, last one wins
+	var err error
+Drain:
+	for {
+		select {
+		case e := <-a.config.ErrorCh:
+			err = e
+		default:
+			break Drain
+		}
+	}
+
+	return err
 }
 
 func (a *Agent) initPlugins() error {
@@ -144,7 +164,12 @@ func (a *Agent) initEndpoints() error {
 	a.grpcServer = grpc.NewServer(grpc.Creds(auth.NewCredentials()))
 	workload.RegisterWorkloadServer(a.grpcServer, ws)
 
-	listener, err := net.Listen(a.config.BindAddress.Network(), a.config.BindAddress.String())
+	addr := a.config.BindAddress
+	if addr.Network() == "unix" {
+		_ = os.Remove(addr.String())
+	}
+
+	listener, err := net.Listen(addr.Network(), addr.String())
 	if err != nil {
 		return fmt.Errorf("Error creating GRPC listener: %s", err)
 	}
@@ -488,11 +513,4 @@ func (a *Agent) generateCSRForRegistrationEntries(
 		pkeyMap[id] = key
 	}
 	return
-}
-
-func (a *Agent) stopPlugins() {
-	a.config.Log.Info("Stopping plugins...")
-	if a.Catalog != nil {
-		a.Catalog.Stop()
-	}
 }
