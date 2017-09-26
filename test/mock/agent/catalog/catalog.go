@@ -37,11 +37,10 @@ func (m *MockCatalog) EXPECT() *MockCatalogMockRecorder {
 }
 
 // KeyManagers mocks base method
-func (m *MockCatalog) KeyManagers() ([]keymanager.KeyManager, error) {
+func (m *MockCatalog) KeyManagers() []keymanager.KeyManager {
 	ret := m.ctrl.Call(m, "KeyManagers")
 	ret0, _ := ret[0].([]keymanager.KeyManager)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // KeyManagers indicates an expected call of KeyManagers
@@ -50,11 +49,10 @@ func (mr *MockCatalogMockRecorder) KeyManagers() *gomock.Call {
 }
 
 // NodeAttestors mocks base method
-func (m *MockCatalog) NodeAttestors() ([]nodeattestor.NodeAttestor, error) {
+func (m *MockCatalog) NodeAttestors() []nodeattestor.NodeAttestor {
 	ret := m.ctrl.Call(m, "NodeAttestors")
 	ret0, _ := ret[0].([]nodeattestor.NodeAttestor)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // NodeAttestors indicates an expected call of NodeAttestors
@@ -109,11 +107,10 @@ func (mr *MockCatalogMockRecorder) Stop() *gomock.Call {
 }
 
 // WorkloadAttestors mocks base method
-func (m *MockCatalog) WorkloadAttestors() ([]workloadattestor.WorkloadAttestor, error) {
+func (m *MockCatalog) WorkloadAttestors() []workloadattestor.WorkloadAttestor {
 	ret := m.ctrl.Call(m, "WorkloadAttestors")
 	ret0, _ := ret[0].([]workloadattestor.WorkloadAttestor)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // WorkloadAttestors indicates an expected call of WorkloadAttestors

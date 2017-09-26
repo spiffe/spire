@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 
@@ -27,11 +28,11 @@ const (
 type Catalog interface {
 	common.Catalog
 
-	CAs() ([]*ca.ControlPlaneCa, error)
-	DataStores() ([]*datastore.DataStore, error)
-	NodeAttestors() ([]*nodeattestor.NodeAttestor, error)
-	NodeResolvers() ([]*noderesolver.NodeResolver, error)
-	UpstreamCAs() ([]*upstreamca.UpstreamCa, error)
+	CAs() []ca.ControlPlaneCa
+	DataStores() []datastore.DataStore
+	NodeAttestors() []nodeattestor.NodeAttestor
+	NodeResolvers() []noderesolver.NodeResolver
+	UpstreamCAs() []upstreamca.UpstreamCa
 }
 
 var (
@@ -54,6 +55,13 @@ type Config struct {
 
 type catalog struct {
 	com common.Catalog
+	m   *sync.RWMutex
+
+	caPlugins           []ca.ControlPlaneCa
+	dataStorePlugins    []datastore.DataStore
+	nodeAttestorPlugins []nodeattestor.NodeAttestor
+	nodeResolverPlugins []noderesolver.NodeResolver
+	upstreamCAPlugins   []upstreamca.UpstreamCa
 }
 
 func New(c *Config) Catalog {
@@ -63,102 +71,152 @@ func New(c *Config) Catalog {
 		Log:              c.Log,
 	}
 
-	return &catalog{com: common.New(commonConfig)}
+	return &catalog{
+		com: common.New(commonConfig),
+		m:   new(sync.RWMutex),
+	}
 }
 
 func (c *catalog) Run() error {
-	return c.com.Run()
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	err := c.com.Run()
+	if err != nil {
+		return err
+	}
+
+	return c.categorize()
 }
 
 func (c *catalog) Stop() {
+	c.m.Lock()
+	defer c.m.Unlock()
+
 	c.com.Stop()
+	c.reset()
+
 	return
 }
 
 func (c *catalog) Reload() error {
-	return c.com.Reload()
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	err := c.com.Reload()
+	if err != nil {
+		return err
+	}
+
+	return c.categorize()
 }
 
 func (c *catalog) Plugins() []*common.ManagedPlugin {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
 	return c.com.Plugins()
 }
 
-func (c *catalog) CAs() ([]*ca.ControlPlaneCa, error) {
-	var plugins []*ca.ControlPlaneCa
-	for _, p := range c.com.Plugins() {
-		if p.Config.PluginType == CAType {
-			plugin, ok := p.Plugin.(ca.ControlPlaneCa)
-			if !ok {
-				return nil, fmt.Errorf("Plugin %s does not adhere to CA interface", p.Config.PluginName)
-			}
+func (c *catalog) CAs() []ca.ControlPlaneCa {
+	c.m.RLock()
+	defer c.m.RUnlock()
 
-			plugins = append(plugins, &plugin)
-		}
-	}
-
-	return plugins, nil
+	return c.caPlugins
 }
 
-func (c *catalog) DataStores() ([]*datastore.DataStore, error) {
-	var plugins []*datastore.DataStore
-	for _, p := range c.com.Plugins() {
-		if p.Config.PluginType == DataStoreType {
-			plugin, ok := p.Plugin.(datastore.DataStore)
-			if !ok {
-				return nil, fmt.Errorf("Plugin %s does not adhere to data store interface", p.Config.PluginName)
-			}
+func (c *catalog) DataStores() []datastore.DataStore {
+	c.m.RLock()
+	defer c.m.RUnlock()
 
-			plugins = append(plugins, &plugin)
-		}
-	}
-
-	return plugins, nil
+	return c.dataStorePlugins
 }
 
-func (c *catalog) NodeAttestors() ([]*nodeattestor.NodeAttestor, error) {
-	var plugins []*nodeattestor.NodeAttestor
-	for _, p := range c.com.Plugins() {
-		if p.Config.PluginType == NodeAttestorType {
-			plugin, ok := p.Plugin.(nodeattestor.NodeAttestor)
-			if !ok {
-				return nil, fmt.Errorf("Plugin %s does not adhere to node attestor interface", p.Config.PluginName)
-			}
+func (c *catalog) NodeAttestors() []nodeattestor.NodeAttestor {
+	c.m.RLock()
+	defer c.m.RUnlock()
 
-			plugins = append(plugins, &plugin)
-		}
-	}
-
-	return plugins, nil
+	return c.nodeAttestorPlugins
 }
 
-func (c *catalog) NodeResolvers() ([]*noderesolver.NodeResolver, error) {
-	var plugins []*noderesolver.NodeResolver
-	for _, p := range c.com.Plugins() {
-		if p.Config.PluginType == NodeResolverType {
-			plugin, ok := p.Plugin.(noderesolver.NodeResolver)
-			if !ok {
-				return nil, fmt.Errorf("Plugin %s does not adhere to node resolver interface", p.Config.PluginName)
-			}
+func (c *catalog) NodeResolvers() []noderesolver.NodeResolver {
+	c.m.RLock()
+	defer c.m.RUnlock()
 
-			plugins = append(plugins, &plugin)
-		}
-	}
-
-	return plugins, nil
+	return c.nodeResolverPlugins
 }
 
-func (c *catalog) UpstreamCAs() ([]*upstreamca.UpstreamCa, error) {
-	var plugins []*upstreamca.UpstreamCa
-	for _, p := range c.com.Plugins() {
-		if p.Config.PluginType == UpstreamCAType {
-			plugin, ok := p.Plugin.(upstreamca.UpstreamCa)
-			if !ok {
-				return nil, fmt.Errorf("Plugin %s does not adhere to upstream CA interface", p.Config.PluginName)
-			}
+func (c *catalog) UpstreamCAs() []upstreamca.UpstreamCa {
+	c.m.RLock()
+	defer c.m.RUnlock()
 
-			plugins = append(plugins, &plugin)
+	return c.upstreamCAPlugins
+}
+
+// categorize iterates over all managed plugins and casts them into their
+// respective client types. This method is called during Run and Reload
+// to prevent the consumer from having to check for errors when fetching
+// a client from the catalog
+func (c *catalog) categorize() error {
+	c.reset()
+
+	for _, p := range c.com.Plugins() {
+		switch p.Config.PluginType {
+		case CAType:
+			pl, ok := p.Plugin.(ca.ControlPlaneCa)
+			if !ok {
+				return fmt.Errorf("Plugin %s does not adhere to CA interface", p.Config.PluginName)
+			}
+			c.caPlugins = append(c.caPlugins, pl)
+		case DataStoreType:
+			pl, ok := p.Plugin.(datastore.DataStore)
+			if !ok {
+				return fmt.Errorf("Plugin %s does not adhere to DataStore interface", p.Config.PluginName)
+			}
+			c.dataStorePlugins = append(c.dataStorePlugins, pl)
+		case NodeAttestorType:
+			pl, ok := p.Plugin.(nodeattestor.NodeAttestor)
+			if !ok {
+				return fmt.Errorf("Plugin %s does not adhere to NodeAttestor interface", p.Config.PluginName)
+			}
+			c.nodeAttestorPlugins = append(c.nodeAttestorPlugins, pl)
+		case NodeResolverType:
+			pl, ok := p.Plugin.(noderesolver.NodeResolver)
+			if !ok {
+				return fmt.Errorf("Plugin %s does not adhere to NodeResolver interface", p.Config.PluginName)
+			}
+			c.nodeResolverPlugins = append(c.nodeResolverPlugins, pl)
+		case UpstreamCAType:
+			pl, ok := p.Plugin.(upstreamca.UpstreamCa)
+			if !ok {
+				return fmt.Errorf("Plugin %s does not adhere to UpstreamCa interface", p.Config.PluginName)
+			}
+			c.upstreamCAPlugins = append(c.upstreamCAPlugins, pl)
+		default:
+			return fmt.Errorf("Unsupported plugin type %s", p.Config.PluginType)
 		}
 	}
 
-	return plugins, nil
+	// Guarantee we have at least one of each type
+	pluginCount := map[string]int{}
+	pluginCount[CAType] = len(c.caPlugins)
+	pluginCount[DataStoreType] = len(c.dataStorePlugins)
+	pluginCount[NodeAttestorType] = len(c.nodeAttestorPlugins)
+	pluginCount[NodeResolverType] = len(c.nodeResolverPlugins)
+	pluginCount[UpstreamCAType] = len(c.upstreamCAPlugins)
+	for t, c := range pluginCount {
+		if c < 1 {
+			return fmt.Errorf("At least one plugin of type %s is required", t)
+		}
+	}
+
+	return nil
+}
+
+func (c *catalog) reset() {
+	c.caPlugins = nil
+	c.dataStorePlugins = nil
+	c.nodeAttestorPlugins = nil
+	c.nodeResolverPlugins = nil
+	c.upstreamCAPlugins = nil
 }
