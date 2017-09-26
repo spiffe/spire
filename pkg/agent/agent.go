@@ -16,39 +16,22 @@ import (
 	"path"
 	"time"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/sirupsen/logrus"
-
-	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
-
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
-	"github.com/spiffe/spire/pkg/agent/keymanager"
-	"github.com/spiffe/spire/pkg/agent/nodeattestor"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
-	"github.com/spiffe/spire/pkg/api/node"
-	"github.com/spiffe/spire/pkg/api/workload"
-	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/proto/agent/keymanager"
+	"github.com/spiffe/spire/proto/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/api/workload"
+	"github.com/spiffe/spire/proto/common"
 
-	spire_common "github.com/spiffe/spire/pkg/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
-)
 
-var (
-	PluginTypeMap = map[string]plugin.Plugin{
-		"KeyManager":       &keymanager.KeyManagerPlugin{},
-		"NodeAttestor":     &nodeattestor.NodeAttestorPlugin{},
-		"WorkloadAttestor": &workloadattestor.WorkloadAttestorPlugin{},
-	}
-
-	MaxPlugins = map[string]int{
-		"KeyManager":       1,
-		"NodeAttestor":     1,
-		"WorkloadAttestor": 1,
-	}
+	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 )
 
 type Config struct {
@@ -81,22 +64,22 @@ type Config struct {
 }
 
 type Agent struct {
-	BaseSVID      []byte
-	baseSVIDKey   *ecdsa.PrivateKey
-	BaseSVIDTTL   int32
-	config        *Config
-	grpcServer    *grpc.Server
-	Cache         cache.Cache
-	pluginCatalog sriplugin.PluginCatalog
-	serverCerts   []*x509.Certificate
+	BaseSVID    []byte
+	baseSVIDKey *ecdsa.PrivateKey
+	BaseSVIDTTL int32
+	config      *Config
+	grpcServer  *grpc.Server
+	Cache       cache.Cache
+	Catalog     catalog.Catalog
+	serverCerts []*x509.Certificate
 }
 
 func New(c *Config) *Agent {
-	pc := sriplugin.NewPluginCatalog(&sriplugin.PluginCatalogConfig{
-		PluginConfDirectory: c.PluginDir,
-		Logger:              c.Log.WithField("subsystem_name", "catalog")})
-
-	return &Agent{config: c, pluginCatalog: pc}
+	config := &catalog.Config{
+		ConfigDir: c.PluginDir,
+		Log:       c.Log.WithField("subsystem_name", "catalog"),
+	}
+	return &Agent{config: c, Catalog: catalog.New(config)}
 }
 
 // Run the agent
@@ -133,9 +116,8 @@ func (a *Agent) Run() error {
 }
 
 func (a *Agent) Shutdown(ch chan error) error {
-	a.config.Log.Info("Stopping plugins...")
-	if a.pluginCatalog != nil {
-		a.pluginCatalog.Stop()
+	if a.Catalog != nil {
+		a.Catalog.Stop()
 	}
 
 	a.grpcServer.GracefulStop()
@@ -156,11 +138,7 @@ Drain:
 }
 
 func (a *Agent) initPlugins() error {
-	a.config.Log.Info("Starting plugins")
-	a.pluginCatalog.SetMaxPluginTypeMap(MaxPlugins)
-	a.pluginCatalog.SetPluginTypeMap(PluginTypeMap)
-
-	err := a.pluginCatalog.Run()
+	err := a.Catalog.Run()
 	if err != nil {
 		return err
 	}
@@ -177,7 +155,7 @@ func (a *Agent) initEndpoints() error {
 	ws := &workloadServer{
 		bundle:  a.serverCerts[1].Raw, // TODO: Fix handling of serverCerts
 		cache:   a.Cache,
-		catalog: a.pluginCatalog,
+		catalog: a.Catalog,
 		l:       log,
 		maxTTL:  maxWorkloadTTL,
 	}
@@ -207,11 +185,15 @@ func (a *Agent) bootstrap() error {
 	a.config.Log.Info("Bootstrapping SPIRE agent")
 
 	// Look up the key manager plugin
-	pluginClients := a.pluginCatalog.GetPluginsByType("KeyManager")
-	if len(pluginClients) != 1 {
-		return fmt.Errorf("Expected only one key manager plugin, found %i", len(pluginClients))
+	plugins, err := a.Catalog.KeyManagers()
+	if err != nil {
+		return err
 	}
-	keyManager := pluginClients[0].(keymanager.KeyManager)
+
+	if len(plugins) != 1 {
+		return fmt.Errorf("Expected only one key manager plugin, found %i", len(plugins))
+	}
+	keyManager := plugins[0]
 
 	// Fetch or generate private key
 	res, err := keyManager.FetchPrivateKey(&keymanager.FetchPrivateKeyRequest{})
@@ -264,15 +246,18 @@ func (a *Agent) bootstrap() error {
 returns a spiffeid->registration entries map
 This map is used generated CSR for non-base SVIDs and update the agent cache entries
 */
-func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
+func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
 	a.config.Log.Info("Preparing to attest against %s", a.config.ServerAddress.String())
 
 	// Look up the node attestor plugin
-	pluginClients := a.pluginCatalog.GetPluginsByType("NodeAttestor")
-	if len(pluginClients) != 1 {
-		return nil, fmt.Errorf("Expected only one node attestor plugin, found %i", len(pluginClients))
+	plugins, err := a.Catalog.NodeAttestors()
+	if err != nil {
+		return nil, err
 	}
-	attestor := pluginClients[0].(nodeattestor.NodeAttestor)
+	if len(plugins) != 1 {
+		return nil, fmt.Errorf("Expected only one node attestor plugin, found %i", len(plugins))
+	}
+	attestor := plugins[0]
 
 	pluginResponse, err := attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
 	if err != nil {
@@ -321,7 +306,7 @@ func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
 		return nil, fmt.Errorf("Base SVID not found in attestation response")
 	}
 
-	var registrationEntryMap = make(map[string]*spire_common.RegistrationEntry)
+	var registrationEntryMap = make(map[string]*common.RegistrationEntry)
 	for _, entry := range serverResponse.SvidUpdate.RegistrationEntries {
 		registrationEntryMap[entry.SpiffeId] = entry
 	}
@@ -402,7 +387,7 @@ func (a *Agent) storeBaseSVID() {
 	return
 }
 
-func (a *Agent) FetchSVID(registrationEntryMap map[string]*spire_common.RegistrationEntry, svidCert []byte,
+func (a *Agent) FetchSVID(registrationEntryMap map[string]*common.RegistrationEntry, svidCert []byte,
 	key *ecdsa.PrivateKey) (err error) {
 
 	if len(registrationEntryMap) != 0 {
@@ -451,7 +436,7 @@ func (a *Agent) FetchSVID(registrationEntryMap map[string]*spire_common.Registra
 			}
 		}
 
-		newRegistrationMap := make(map[string]*spire_common.RegistrationEntry)
+		newRegistrationMap := make(map[string]*common.RegistrationEntry)
 
 		if len(resp.SvidUpdate.RegistrationEntries) != 0 {
 			for _, entry := range resp.SvidUpdate.RegistrationEntries {
@@ -507,7 +492,7 @@ func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateK
 }
 
 func (a *Agent) generateCSRForRegistrationEntries(
-	regEntryMap map[string]*spire_common.RegistrationEntry) (CSRs [][]byte, pkeyMap map[string]*ecdsa.PrivateKey, err error) {
+	regEntryMap map[string]*common.RegistrationEntry) (CSRs [][]byte, pkeyMap map[string]*ecdsa.PrivateKey, err error) {
 
 	pkeyMap = make(map[string]*ecdsa.PrivateKey)
 	for id, _ := range regEntryMap {

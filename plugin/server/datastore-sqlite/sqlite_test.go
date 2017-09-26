@@ -1,18 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"testing"
 	"time"
 
-	"encoding/json"
-
-	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/common/testutil"
-	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/spiffe/spire/pkg/common/testutil"
+	"github.com/spiffe/spire/proto/common"
+	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/server/datastore"
 )
 
 type selectors []*common.Selector
@@ -601,7 +601,7 @@ func Test_Configure(t *testing.T) {
 
 func Test_GetPluginInfo(t *testing.T) {
 	ds := createDefault(t)
-	resp, err := ds.GetPluginInfo(&sriplugin.GetPluginInfoRequest{})
+	resp, err := ds.GetPluginInfo(&spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 }

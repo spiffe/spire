@@ -1,6 +1,6 @@
 package util
 
-import "github.com/spiffe/spire/pkg/common"
+import "github.com/spiffe/spire/proto/common"
 
 func SelectorsSortFunction(selectors []*common.Selector) func(i, j int) bool {
 

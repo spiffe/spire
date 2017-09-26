@@ -7,17 +7,18 @@ import (
 	"sync"
 	"testing"
 
-	iface "github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/common/testutil"
-	"github.com/spiffe/spire/pkg/server/upstreamca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/spiffe/spire/pkg/common/testutil"
+	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 )
 
 const config = `{"trust_domain":"example.com", "ttl":"1h", "key_size":2048, "key_file_path":"_test_data/keys/private_key.pem", "cert_file_path":"_test_data/keys/cert.pem"}`
 
 func TestMemory_Configure(t *testing.T) {
-	pluginConfig := &iface.ConfigureRequest{
+	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
 
@@ -26,13 +27,13 @@ func TestMemory_Configure(t *testing.T) {
 	}
 	resp, err := m.Configure(pluginConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, &iface.ConfigureResponse{}, resp)
+	assert.Equal(t, &spi.ConfigureResponse{}, resp)
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
 	m, err := NewWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
 	require.NoError(t, err)
-	res, err := m.GetPluginInfo(&iface.GetPluginInfoRequest{})
+	res, err := m.GetPluginInfo(&spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	assert.NotNil(t, res)
 }
@@ -83,7 +84,7 @@ func TestMemory_race(t *testing.T) {
 	require.NoError(t, err)
 
 	testutil.RaceTest(t, func(t *testing.T) {
-		m.Configure(&iface.ConfigureRequest{Configuration: config})
+		m.Configure(&spi.ConfigureRequest{Configuration: config})
 		m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csr})
 	})
 }

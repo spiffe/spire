@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/spiffe/spire/pkg/agent/cache"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
-	"github.com/spiffe/spire/pkg/api/node"
-	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/proto/agent/workloadattestor"
+	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/mock/agent/cache"
+	"github.com/spiffe/spire/test/mock/agent/catalog"
 	"github.com/spiffe/spire/test/mock/agent/workloadattestor"
 )
 
@@ -37,7 +37,7 @@ type WorkloadServerTestSuite struct {
 	attestor1 *mock_workloadattestor.MockWorkloadAttestor
 	attestor2 *mock_workloadattestor.MockWorkloadAttestor
 	cache     *mock_cache.MockCache
-	catalog   *sriplugin.MockPluginCatalogInterface
+	catalog   *mock_catalog.MockCatalog
 
 	// Logrus test hook for asserting
 	// log messages, if desired
@@ -55,7 +55,7 @@ func (s *WorkloadServerTestSuite) SetupTest() {
 	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
 	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
 	s.cache = mock_cache.NewMockCache(mockCtrl)
-	s.catalog = sriplugin.NewMockPluginCatalogInterface(mockCtrl)
+	s.catalog = mock_catalog.NewMockCatalog(mockCtrl)
 
 	ws := &workloadServer{
 		cache:   s.cache,
@@ -76,12 +76,12 @@ func (s *WorkloadServerTestSuite) TeardownTest() {
 
 func (s *WorkloadServerTestSuite) TestAttestCaller() {
 	var testPID int32 = 1000
-	plugins := []interface{}{s.attestor1, s.attestor2}
+	plugins := []workloadattestor.WorkloadAttestor{s.attestor1, s.attestor2}
 	pRequest := &workloadattestor.AttestRequest{Pid: testPID}
 	pRes1 := &workloadattestor.AttestResponse{Selectors: selector.Set{selector1}.Raw()}
 	pRes2 := &workloadattestor.AttestResponse{Selectors: selector.Set{selector2, selector3}.Raw()}
 
-	s.catalog.EXPECT().GetPluginsByType("WorkloadAttestor").Return(plugins)
+	s.catalog.EXPECT().WorkloadAttestors().Return(plugins, nil)
 	s.attestor1.EXPECT().Attest(pRequest).Return(pRes1, nil)
 	s.attestor2.EXPECT().Attest(pRequest).Return(pRes2, nil)
 

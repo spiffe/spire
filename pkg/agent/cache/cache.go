@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"crypto/ecdsa"
-	"github.com/spiffe/spire/pkg/api/node"
-	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/common"
 )
 
 type selectors []*common.Selector

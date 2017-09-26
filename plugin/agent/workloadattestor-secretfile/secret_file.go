@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
-	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/proto/agent/workloadattestor"
+	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
 type SecretFilePlugin struct{}
@@ -12,12 +12,12 @@ func (SecretFilePlugin) Attest(*workloadattestor.AttestRequest) (*workloadattest
 	return &workloadattestor.AttestResponse{}, nil
 }
 
-func (SecretFilePlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	return &sriplugin.ConfigureResponse{}, nil
+func (SecretFilePlugin) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	return &spi.ConfigureResponse{}, nil
 }
 
-func (SecretFilePlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
-	return &sriplugin.GetPluginInfoResponse{}, nil
+func (SecretFilePlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return &spi.GetPluginInfoResponse{}, nil
 }
 
 func main() {

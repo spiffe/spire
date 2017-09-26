@@ -8,21 +8,21 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	context "golang.org/x/net/context"
+
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
-	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/common/selector"
-
-	pb "github.com/spiffe/spire/pkg/api/workload"
-	context "golang.org/x/net/context"
+	"github.com/spiffe/spire/proto/agent/workloadattestor"
+	"github.com/spiffe/spire/proto/api/workload"
+	"github.com/spiffe/spire/proto/common"
 )
 
 // workloadServer implements the Workload API interface
 type workloadServer struct {
 	cache   cache.Cache
-	catalog sriplugin.PluginCatalog
+	catalog catalog.Catalog
 	l       logrus.FieldLogger
 
 	// TTL in SVID response will never
@@ -46,7 +46,7 @@ func (s *workloadServer) SetBundle(bundle []byte) {
 	return
 }
 
-func (s *workloadServer) FetchBundles(ctx context.Context, spiffeID *pb.SpiffeID) (*pb.Bundles, error) {
+func (s *workloadServer) FetchBundles(ctx context.Context, spiffeID *workload.SpiffeID) (*workload.Bundles, error) {
 	entries, err := s.fetchAllEntries(ctx)
 	if err != nil {
 		return nil, err
@@ -63,13 +63,13 @@ func (s *workloadServer) FetchBundles(ctx context.Context, spiffeID *pb.SpiffeID
 	// We didn't find an entry for the requested SPIFFE ID. It either
 	// doesn't exist, or the workload is not entitled to it.
 	if myEntry == nil {
-		return &pb.Bundles{}, fmt.Errorf("SVID for %s not found or not authorized", spiffeID.Id)
+		return &workload.Bundles{}, fmt.Errorf("SVID for %s not found or not authorized", spiffeID.Id)
 	}
 
 	return s.composeResponse([]cache.CacheEntry{*myEntry})
 }
 
-func (s *workloadServer) FetchAllBundles(ctx context.Context, _ *pb.Empty) (*pb.Bundles, error) {
+func (s *workloadServer) FetchAllBundles(ctx context.Context, _ *workload.Empty) (*workload.Bundles, error) {
 	entries, err := s.fetchAllEntries(ctx)
 	if err != nil {
 		return nil, err
@@ -123,11 +123,16 @@ func (s *workloadServer) resolveCaller(ctx context.Context) (pid int32, err erro
 // attestCaller takes a PID and invokes attestation plugins against it, and returns the union
 // of selectors discovered by the attestors. If a plugin encounters an error, its returned
 // selectors are discarded and the error is added to the returned error map.
+//
+// TODO: this error map is not the best thing ever
 func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, errs map[string]error) {
 	var plugins []workloadattestor.WorkloadAttestor
-	pluginClients := s.catalog.GetPluginsByType("WorkloadAttestor")
+	pluginClients, err := s.catalog.WorkloadAttestors()
+	if err != nil {
+		return nil, map[string]error{"": err}
+	}
 	for _, p := range pluginClients {
-		plugins = append(plugins, p.(workloadattestor.WorkloadAttestor))
+		plugins = append(plugins, p)
 	}
 
 	// Call the workload attestors concurrently
@@ -174,8 +179,8 @@ func (s *workloadServer) findEntries(selectors selector.Set) (entries []cache.Ca
 }
 
 // composeResponse takes a set of cache entries, and packs them into a protobuf response
-func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *pb.Bundles, err error) {
-	var bundles []*pb.WorkloadEntry
+func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *workload.Bundles, err error) {
+	var bundles []*workload.WorkloadEntry
 	var expirys []time.Time
 
 	// TODO: Better way to do this?
@@ -194,7 +199,7 @@ func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *
 			return nil, err
 		}
 
-		we := &pb.WorkloadEntry{
+		we := &workload.WorkloadEntry{
 			SpiffeId:         e.RegistrationEntry.SpiffeId,
 			Svid:             e.SVID.SvidCert,
 			SvidPrivateKey:   keyData,
@@ -217,7 +222,7 @@ func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *
 		}
 	}
 
-	response = &pb.Bundles{
+	response = &workload.Bundles{
 		Bundles: bundles,
 		Ttl:     int32(minTTL.Seconds()),
 	}

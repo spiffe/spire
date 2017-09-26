@@ -6,6 +6,7 @@
 /vendor
 /test_results
 /artifacts
+/releases
 
 cmd/spire-agent/spire-agent
 cmd/spire-server/spire-server

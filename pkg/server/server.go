@@ -15,42 +15,22 @@ import (
 	"path"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/hashicorp/go-plugin"
 	"github.com/sirupsen/logrus"
-
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/spire/pkg/common/plugin"
-
-	pbnode "github.com/spiffe/spire/pkg/api/node"
-	pbregistration "github.com/spiffe/spire/pkg/api/registration"
-	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
-	"github.com/spiffe/spire/pkg/server/nodeattestor"
-	"github.com/spiffe/spire/pkg/server/noderesolver"
-	"github.com/spiffe/spire/pkg/server/upstreamca"
+	spinode "github.com/spiffe/spire/proto/api/node"
+	spiregistration "github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/server/ca"
+	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 	"github.com/spiffe/spire/services"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-)
-
-var (
-	PluginTypeMap = map[string]plugin.Plugin{
-		"ControlPlaneCA": &ca.ControlPlaneCaPlugin{},
-		"NodeAttestor":   &nodeattestor.NodeAttestorPlugin{},
-		"NodeResolver":   &noderesolver.NodeResolverPlugin{},
-		"DataStore":      &datastore.DataStorePlugin{},
-		"UpstreamCA":     &upstreamca.UpstreamCaPlugin{},
-	}
-
-	MaxPlugins = map[string]int{
-		"ControlPlaneCA": 1,
-		"NodeAttestor":   1,
-		"NodeResolver":   1,
-		"DataStore":      1,
-		"UpstreamCA":     1,
-	}
 )
 
 type Config struct {
@@ -91,7 +71,7 @@ type dependencies struct {
 }
 
 type Server struct {
-	Catalog      *sriplugin.PluginCatalogImpl
+	Catalog      catalog.Catalog
 	Config       *Config
 	grpcServer   *grpc.Server
 	dependencies *dependencies
@@ -141,15 +121,12 @@ func (server *Server) Run() error {
 }
 
 func (server *Server) initPlugins() error {
-	server.Config.Log.Info("Starting plugins")
+	config := &catalog.Config{
+		ConfigDir: server.Config.PluginDir,
+		Log:       server.Config.Log.WithField("subsystem_name", "catalog"),
+	}
 
-	l := server.Config.Log.WithField("subsystem_name", "catalog")
-	server.Catalog = sriplugin.NewPluginCatalog(&sriplugin.PluginCatalogConfig{
-		PluginConfDirectory: server.Config.PluginDir,
-		Logger:              l})
-
-	server.Catalog.SetMaxPluginTypeMap(MaxPlugins)
-	server.Catalog.SetPluginTypeMap(PluginTypeMap)
+	server.Catalog = catalog.New(config)
 
 	err := server.Catalog.Run()
 	if err != nil {
@@ -162,7 +139,6 @@ func (server *Server) initPlugins() error {
 }
 
 func (server *Server) stopPlugins() {
-	server.Config.Log.Info("Stopping plugins...")
 	if server.Catalog != nil {
 		server.Catalog.Stop()
 	}
@@ -172,21 +148,21 @@ func (server *Server) initDependencies() {
 	server.Config.Log.Info("Initiating dependencies")
 	server.dependencies = &dependencies{}
 
-	//plugins
-	dataStore := server.Catalog.GetPluginsByType("DataStore")[0]
-	server.dependencies.DataStoreImpl = dataStore.(datastore.DataStore)
-
-	nodeAttestor := server.Catalog.GetPluginsByType("NodeAttestor")[0]
-	server.dependencies.NodeAttestorImpl = nodeAttestor.(nodeattestor.NodeAttestor)
-
-	nodeResolver := server.Catalog.GetPluginsByType("NodeResolver")[0]
-	server.dependencies.NodeResolverImpl = nodeResolver.(noderesolver.NodeResolver)
-
-	serverCA := server.Catalog.GetPluginsByType("ControlPlaneCA")[0]
-	server.dependencies.ServerCAImpl = serverCA.(ca.ControlPlaneCa)
-
-	upCAPlugin := server.Catalog.GetPluginsByType("UpstreamCA")[0].(upstreamca.UpstreamCa)
-	server.dependencies.UpstreamCAImpl = upCAPlugin.(upstreamca.UpstreamCa)
+	// TODO: Catch errors, pass catalog not plugins
+	for _, p := range server.Catalog.Plugins() {
+		switch p.Config.PluginType {
+		case "DataStore":
+			server.dependencies.DataStoreImpl = p.Plugin.(datastore.DataStore)
+		case "NodeAttestor":
+			server.dependencies.NodeAttestorImpl = p.Plugin.(nodeattestor.NodeAttestor)
+		case "NodeResolver":
+			server.dependencies.NodeResolverImpl = p.Plugin.(noderesolver.NodeResolver)
+		case "ControlPlaneCA":
+			server.dependencies.ServerCAImpl = p.Plugin.(ca.ControlPlaneCa)
+		case "UpstreamCA":
+			server.dependencies.UpstreamCAImpl = p.Plugin.(upstreamca.UpstreamCa)
+		}
+	}
 
 	//services
 	server.dependencies.RegistrationService = services.NewRegistrationImpl(server.dependencies.DataStoreImpl)
@@ -243,10 +219,10 @@ func (server *Server) initEndpoints() error {
 	server.grpcServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 
 	registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
-	pbregistration.RegisterRegistrationServer(server.grpcServer, registrationHandler)
+	spiregistration.RegisterRegistrationServer(server.grpcServer, registrationHandler)
 
 	nodeHandler := node.MakeGRPCServer(nodeEnpoints)
-	pbnode.RegisterNodeServer(server.grpcServer, nodeHandler)
+	spinode.RegisterNodeServer(server.grpcServer, nodeHandler)
 
 	server.Config.Log.Info(server.Config.BindAddress.String())
 	listener, err := net.Listen(server.Config.BindAddress.Network(), server.Config.BindAddress.String())
@@ -274,7 +250,7 @@ func (server *Server) initEndpoints() error {
 		opt := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 		opts := []grpc.DialOption{opt}
 
-		err := pbregistration.RegisterRegistrationHandlerFromEndpoint(ctx, mux, server.Config.BindAddress.String(), opts)
+		err := spiregistration.RegisterRegistrationHandlerFromEndpoint(ctx, mux, server.Config.BindAddress.String(), opts)
 		if err != nil {
 			server.Config.ErrorCh <- err
 			return

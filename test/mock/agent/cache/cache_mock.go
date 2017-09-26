@@ -7,7 +7,7 @@ package mock_cache
 import (
 	gomock "github.com/golang/mock/gomock"
 	cache "github.com/spiffe/spire/pkg/agent/cache"
-	common "github.com/spiffe/spire/pkg/common"
+	common "github.com/spiffe/spire/proto/common"
 	reflect "reflect"
 )
 

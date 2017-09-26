@@ -3,30 +3,30 @@ package node
 import (
 	"context"
 	"errors"
-
 	"reflect"
 	"sort"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/uri"
-	pb "github.com/spiffe/spire/pkg/api/node"
-	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/common/selector"
-	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/datastore"
-	"github.com/spiffe/spire/pkg/server/nodeattestor"
-	"github.com/spiffe/spire/services"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+
+	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/server/ca"
+	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/services"
 )
 
 // Service is the interface that provides node api methods.
 type Service interface {
-	FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error)
-	FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error)
-	FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse, err error)
-	FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse, err error)
+	FetchBaseSVID(ctx context.Context, request node.FetchBaseSVIDRequest) (response node.FetchBaseSVIDResponse, err error)
+	FetchSVID(ctx context.Context, request node.FetchSVIDRequest) (response node.FetchSVIDResponse, err error)
+	FetchCPBundle(ctx context.Context, request node.FetchCPBundleRequest) (response node.FetchCPBundleResponse, err error)
+	FetchFederatedBundle(ctx context.Context, request node.FetchFederatedBundleRequest) (response node.FetchFederatedBundleResponse, err error)
 }
 
 type service struct {
@@ -65,7 +65,7 @@ func NewService(config Config) (s Service) {
 }
 
 //FetchBaseSVID attests the node and gets the base node SVID.
-func (s *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDRequest) (response pb.FetchBaseSVIDResponse, err error) {
+func (s *service) FetchBaseSVID(ctx context.Context, request node.FetchBaseSVIDRequest) (response node.FetchBaseSVIDResponse, err error) {
 	//Attest the node and get baseSpiffeID
 	baseSpiffeIDFromCSR, err := s.ca.GetSpiffeIDFromCSR(request.Csr)
 	if err != nil {
@@ -141,19 +141,19 @@ func (s *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDReq
 		}
 	}
 
-	svids := make(map[string]*pb.Svid)
-	svids[baseSpiffeID] = &pb.Svid{SvidCert: signCsrResponse.SignedCertificate, Ttl: s.baseSpiffeIDTTL}
+	svids := make(map[string]*node.Svid)
+	svids[baseSpiffeID] = &node.Svid{SvidCert: signCsrResponse.SignedCertificate, Ttl: s.baseSpiffeIDTTL}
 
 	regEntries, err := s.fetchRegistrationEntries(selectorEntries, baseSpiffeID)
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to fetchRegistrationEntries")
 	}
-	svidUpdate := &pb.SvidUpdate{
+	svidUpdate := &node.SvidUpdate{
 		Svids:               svids,
 		RegistrationEntries: regEntries,
 	}
-	response = pb.FetchBaseSVIDResponse{SvidUpdate: svidUpdate}
+	response = node.FetchBaseSVIDResponse{SvidUpdate: svidUpdate}
 
 	return response, nil
 }
@@ -161,7 +161,7 @@ func (s *service) FetchBaseSVID(ctx context.Context, request pb.FetchBaseSVIDReq
 //FetchSVID gets Workload, Agent certs and CA trust bundles.
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
-func (s *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (response pb.FetchSVIDResponse, err error) {
+func (s *service) FetchSVID(ctx context.Context, request node.FetchSVIDRequest) (response node.FetchSVIDResponse, err error) {
 	//TODO: extract this from the caller cert
 	var baseSpiffeID string
 	ctxPeer, _ := peer.FromContext(ctx)
@@ -195,7 +195,7 @@ func (s *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (r
 	}
 
 	//iterate CSRs, validate them and sign the certificates
-	svids := make(map[string]*pb.Svid)
+	svids := make(map[string]*node.Svid)
 	for _, csr := range request.Csrs {
 		spiffeID, err := s.ca.GetSpiffeIDFromCSR(csr)
 		if err != nil {
@@ -219,10 +219,10 @@ func (s *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (r
 			s.l.Error(err)
 			return response, errors.New("Error trying to sign CSR")
 		}
-		svids[spiffeID] = &pb.Svid{SvidCert: res.SignedCertificate, Ttl: entry.Ttl}
+		svids[spiffeID] = &node.Svid{SvidCert: res.SignedCertificate, Ttl: entry.Ttl}
 	}
 
-	response.SvidUpdate = &pb.SvidUpdate{
+	response.SvidUpdate = &node.SvidUpdate{
 		Svids:               svids,
 		RegistrationEntries: regEntries,
 	}
@@ -230,12 +230,12 @@ func (s *service) FetchSVID(ctx context.Context, request pb.FetchSVIDRequest) (r
 }
 
 // Implement the business logic of FetchCPBundle
-func (s *service) FetchCPBundle(ctx context.Context, request pb.FetchCPBundleRequest) (response pb.FetchCPBundleResponse, err error) {
+func (s *service) FetchCPBundle(ctx context.Context, request node.FetchCPBundleRequest) (response node.FetchCPBundleResponse, err error) {
 	return response, nil
 }
 
 // Implement the business logic of FetchFederatedBundle
-func (s *service) FetchFederatedBundle(ctx context.Context, request pb.FetchFederatedBundleRequest) (response pb.FetchFederatedBundleResponse, err error) {
+func (s *service) FetchFederatedBundle(ctx context.Context, request node.FetchFederatedBundleRequest) (response node.FetchFederatedBundleResponse, err error) {
 	return response, nil
 }
 

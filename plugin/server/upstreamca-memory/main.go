@@ -1,10 +1,12 @@
 package main
 
 import (
-	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/spire/pkg/server/upstreamca"
-	"github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
 	"log"
+
+	"github.com/hashicorp/go-plugin"
+
+	"github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 )
 
 func main() {
