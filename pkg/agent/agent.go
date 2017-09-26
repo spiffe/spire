@@ -110,12 +110,12 @@ func (a *Agent) Run() error {
 		case err = <-a.config.ErrorCh:
 			return err
 		case <-a.config.ShutdownCh:
-			return a.Shutdown(a.config.ErrorCh)
+			return a.Shutdown()
 		}
 	}
 }
 
-func (a *Agent) Shutdown(ch chan error) error {
+func (a *Agent) Shutdown() error {
 	if a.Catalog != nil {
 		a.Catalog.Stop()
 	}
@@ -127,7 +127,7 @@ func (a *Agent) Shutdown(ch chan error) error {
 Drain:
 	for {
 		select {
-		case e := <-ch:
+		case e := <-a.config.ErrorCh:
 			err = e
 		default:
 			break Drain
