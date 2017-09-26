@@ -7,11 +7,11 @@ package mock_catalog
 import (
 	gomock "github.com/golang/mock/gomock"
 	catalog "github.com/spiffe/spire/pkg/common/catalog"
-	ca "github.com/spiffe/spire/pkg/server/ca"
-	datastore "github.com/spiffe/spire/pkg/server/datastore"
-	nodeattestor "github.com/spiffe/spire/pkg/server/nodeattestor"
-	noderesolver "github.com/spiffe/spire/pkg/server/noderesolver"
-	upstreamca "github.com/spiffe/spire/pkg/server/upstreamca"
+	ca "github.com/spiffe/spire/proto/server/ca"
+	datastore "github.com/spiffe/spire/proto/server/datastore"
+	nodeattestor "github.com/spiffe/spire/proto/server/nodeattestor"
+	noderesolver "github.com/spiffe/spire/proto/server/noderesolver"
+	upstreamca "github.com/spiffe/spire/proto/server/upstreamca"
 	reflect "reflect"
 )
 

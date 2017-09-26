@@ -6,10 +6,10 @@ package mock_catalog
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	keymanager "github.com/spiffe/spire/pkg/agent/keymanager"
-	nodeattestor "github.com/spiffe/spire/pkg/agent/nodeattestor"
-	workloadattestor "github.com/spiffe/spire/pkg/agent/workloadattestor"
 	catalog "github.com/spiffe/spire/pkg/common/catalog"
+	keymanager "github.com/spiffe/spire/proto/agent/keymanager"
+	nodeattestor "github.com/spiffe/spire/proto/agent/nodeattestor"
+	workloadattestor "github.com/spiffe/spire/proto/agent/workloadattestor"
 	reflect "reflect"
 )
 

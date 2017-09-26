@@ -6,8 +6,8 @@ package mock_workloadattestor
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	workloadattestor "github.com/spiffe/spire/pkg/agent/workloadattestor"
-	plugin "github.com/spiffe/spire/pkg/common/plugin"
+	workloadattestor "github.com/spiffe/spire/proto/agent/workloadattestor"
+	plugin "github.com/spiffe/spire/proto/common/plugin"
 	reflect "reflect"
 )
 

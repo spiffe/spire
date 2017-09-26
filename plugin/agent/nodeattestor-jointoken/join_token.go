@@ -9,9 +9,9 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
 
-	"github.com/spiffe/spire/pkg/agent/nodeattestor"
-	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/proto/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/common"
+	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
 type JoinTokenConfig struct {
@@ -61,11 +61,11 @@ func (p *JoinTokenPlugin) FetchAttestationData(req *nodeattestor.FetchAttestatio
 	return resp, nil
 }
 
-func (p *JoinTokenPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+func (p *JoinTokenPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	resp := &sriplugin.ConfigureResponse{}
+	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
 	config := &JoinTokenConfig{}
@@ -87,8 +87,8 @@ func (p *JoinTokenPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin
 	return resp, nil
 }
 
-func (*JoinTokenPlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
-	return &sriplugin.GetPluginInfoResponse{}, nil
+func (*JoinTokenPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return &spi.GetPluginInfoResponse{}, nil
 }
 
 func New() nodeattestor.NodeAttestor {

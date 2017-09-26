@@ -3,11 +3,12 @@ package main
 import (
 	"testing"
 
-	"github.com/spiffe/spire/pkg/agent/nodeattestor"
-	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/common/testutil"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/spiffe/spire/pkg/common/testutil"
+	"github.com/spiffe/spire/proto/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/common"
+	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
 const (
@@ -18,8 +19,8 @@ const (
 	spiffeId = "spiffe://example.com/spiffe/node-id/foobar"
 )
 
-func PluginGenerator(config string) (nodeattestor.NodeAttestor, *sriplugin.ConfigureResponse, error) {
-	pluginConfig := &sriplugin.ConfigureRequest{
+func PluginGenerator(config string) (nodeattestor.NodeAttestor, *spi.ConfigureResponse, error) {
+	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
 
@@ -32,7 +33,7 @@ func TestJoinToken_Configure(t *testing.T) {
 	assert := assert.New(t)
 	_, r, err := PluginGenerator(goodConfig)
 	assert.Nil(err)
-	assert.Equal(&sriplugin.ConfigureResponse{}, r)
+	assert.Equal(&spi.ConfigureResponse{}, r)
 }
 
 func TestJoinToken_FetchAttestationData_TokenPresent(t *testing.T) {
@@ -67,15 +68,15 @@ func TestJoinToken_FetchAttestationData_TokenNotPresent(t *testing.T) {
 
 func TestJoinToken_GetPluginInfo(t *testing.T) {
 	plugin := New()
-	data, e := plugin.GetPluginInfo(&sriplugin.GetPluginInfoRequest{})
+	data, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
 	assert.Nil(t, e)
-	assert.Equal(t, &sriplugin.GetPluginInfoResponse{}, data)
+	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
 }
 
 func TestJoinToken_race(t *testing.T) {
 	p := New()
 	testutil.RaceTest(t, func(t *testing.T) {
-		p.Configure(&sriplugin.ConfigureRequest{
+		p.Configure(&spi.ConfigureRequest{
 			Configuration: goodConfig,
 		})
 		p.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})

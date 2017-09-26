@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/spiffe/spire/pkg/common/config"
 
-	pb "github.com/spiffe/spire/pkg/common/plugin"
+	pb "github.com/spiffe/spire/proto/common/plugin"
 )
 
 type Plugin interface {

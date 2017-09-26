@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	pb "github.com/spiffe/spire/pkg/api/registration"
-	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/common"
 )
 
 type RegistrationServiceMiddleWare func(RegistrationService) RegistrationService
@@ -22,7 +22,7 @@ type LoggingMiddleware struct {
 	next RegistrationService
 }
 
-func (mw LoggingMiddleware) CreateEntry(ctx context.Context, request common.RegistrationEntry) (response pb.RegistrationEntryID, err error) {
+func (mw LoggingMiddleware) CreateEntry(ctx context.Context, request common.RegistrationEntry) (response registration.RegistrationEntryID, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "CreateEntry",
@@ -37,7 +37,7 @@ func (mw LoggingMiddleware) CreateEntry(ctx context.Context, request common.Regi
 	return
 }
 
-func (mw LoggingMiddleware) DeleteEntry(ctx context.Context, request pb.RegistrationEntryID) (response common.RegistrationEntry, err error) {
+func (mw LoggingMiddleware) DeleteEntry(ctx context.Context, request registration.RegistrationEntryID) (response common.RegistrationEntry, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "DeleteEntry",
@@ -52,7 +52,7 @@ func (mw LoggingMiddleware) DeleteEntry(ctx context.Context, request pb.Registra
 	return
 }
 
-func (mw LoggingMiddleware) FetchEntry(ctx context.Context, request pb.RegistrationEntryID) (response common.RegistrationEntry, err error) {
+func (mw LoggingMiddleware) FetchEntry(ctx context.Context, request registration.RegistrationEntryID) (response common.RegistrationEntry, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "FetchEntry",
@@ -67,7 +67,7 @@ func (mw LoggingMiddleware) FetchEntry(ctx context.Context, request pb.Registrat
 	return
 }
 
-func (mw LoggingMiddleware) UpdateEntry(ctx context.Context, request pb.UpdateEntryRequest) (response common.RegistrationEntry, err error) {
+func (mw LoggingMiddleware) UpdateEntry(ctx context.Context, request registration.UpdateEntryRequest) (response common.RegistrationEntry, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "UpdateEntry",
@@ -82,7 +82,7 @@ func (mw LoggingMiddleware) UpdateEntry(ctx context.Context, request pb.UpdateEn
 	return
 }
 
-func (mw LoggingMiddleware) ListByParentID(ctx context.Context, request pb.ParentID) (response common.RegistrationEntries, err error) {
+func (mw LoggingMiddleware) ListByParentID(ctx context.Context, request registration.ParentID) (response common.RegistrationEntries, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "ListByParentID",
@@ -112,7 +112,7 @@ func (mw LoggingMiddleware) ListBySelector(ctx context.Context, request common.S
 	return
 }
 
-func (mw LoggingMiddleware) ListBySpiffeID(ctx context.Context, request pb.SpiffeID) (response common.RegistrationEntries, err error) {
+func (mw LoggingMiddleware) ListBySpiffeID(ctx context.Context, request registration.SpiffeID) (response common.RegistrationEntries, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "ListBySpiffeID",
@@ -127,7 +127,7 @@ func (mw LoggingMiddleware) ListBySpiffeID(ctx context.Context, request pb.Spiff
 	return
 }
 
-func (mw LoggingMiddleware) CreateFederatedBundle(ctx context.Context, request pb.CreateFederatedBundleRequest) (response common.Empty, err error) {
+func (mw LoggingMiddleware) CreateFederatedBundle(ctx context.Context, request registration.CreateFederatedBundleRequest) (response common.Empty, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "CreateFederatedBundle",
@@ -142,7 +142,7 @@ func (mw LoggingMiddleware) CreateFederatedBundle(ctx context.Context, request p
 	return
 }
 
-func (mw LoggingMiddleware) ListFederatedBundles(ctx context.Context, request common.Empty) (response pb.ListFederatedBundlesReply, err error) {
+func (mw LoggingMiddleware) ListFederatedBundles(ctx context.Context, request common.Empty) (response registration.ListFederatedBundlesReply, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "ListFederatedBundles",
@@ -157,7 +157,7 @@ func (mw LoggingMiddleware) ListFederatedBundles(ctx context.Context, request co
 	return
 }
 
-func (mw LoggingMiddleware) UpdateFederatedBundle(ctx context.Context, request pb.FederatedBundle) (response common.Empty, err error) {
+func (mw LoggingMiddleware) UpdateFederatedBundle(ctx context.Context, request registration.FederatedBundle) (response common.Empty, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "UpdateFederatedBundle",
@@ -172,7 +172,7 @@ func (mw LoggingMiddleware) UpdateFederatedBundle(ctx context.Context, request p
 	return
 }
 
-func (mw LoggingMiddleware) DeleteFederatedBundle(ctx context.Context, request pb.FederatedSpiffeID) (response common.Empty, err error) {
+func (mw LoggingMiddleware) DeleteFederatedBundle(ctx context.Context, request registration.FederatedSpiffeID) (response common.Empty, err error) {
 	defer func(begin time.Time) {
 		fields := logrus.Fields{
 			"method":  "DeleteFederatedBundle",

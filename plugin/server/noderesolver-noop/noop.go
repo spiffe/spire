@@ -2,19 +2,20 @@ package main
 
 import (
 	"github.com/hashicorp/go-plugin"
-	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/server/noderesolver"
+
+	"github.com/spiffe/spire/proto/common"
+	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/server/noderesolver"
 )
 
 type NoOp struct{}
 
-func (NoOp) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	return &sriplugin.ConfigureResponse{}, nil
+func (NoOp) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	return &spi.ConfigureResponse{}, nil
 }
 
-func (NoOp) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
-	return &sriplugin.GetPluginInfoResponse{}, nil
+func (NoOp) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return &spi.GetPluginInfoResponse{}, nil
 }
 
 func (NoOp) Resolve(physicalSpiffeIdList []string) (resolutions map[string]*common.Selectors, err error) {

@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/spiffe/spire/pkg/agent/keymanager"
-	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/proto/agent/keymanager"
+	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
 func TestMemory_GenerateKeyPair(t *testing.T) {
@@ -32,15 +32,15 @@ func TestMemory_FetchPrivateKey(t *testing.T) {
 
 func TestMemory_Configure(t *testing.T) {
 	var plugin MemoryPlugin
-	data, e := plugin.Configure(&sriplugin.ConfigureRequest{})
+	data, e := plugin.Configure(&spi.ConfigureRequest{})
 	require.NoError(t, e)
-	assert.Equal(t, &sriplugin.ConfigureResponse{}, data)
+	assert.Equal(t, &spi.ConfigureResponse{}, data)
 
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
 	var plugin MemoryPlugin
-	data, e := plugin.GetPluginInfo(&sriplugin.GetPluginInfoRequest{})
+	data, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
 	require.NoError(t, e)
-	assert.Equal(t, &sriplugin.GetPluginInfoResponse{}, data)
+	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
 }

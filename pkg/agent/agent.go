@@ -21,17 +21,17 @@ import (
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
-	"github.com/spiffe/spire/pkg/agent/keymanager"
-	"github.com/spiffe/spire/pkg/agent/nodeattestor"
-	"github.com/spiffe/spire/pkg/api/node"
-	"github.com/spiffe/spire/pkg/api/workload"
+	"github.com/spiffe/spire/proto/agent/keymanager"
+	"github.com/spiffe/spire/proto/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/api/workload"
+	"github.com/spiffe/spire/proto/common"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
-	spire_common "github.com/spiffe/spire/pkg/common"
 )
 
 type Config struct {
@@ -221,7 +221,7 @@ func (a *Agent) bootstrap() error {
 returns a spiffeid->registration entries map
 This map is used generated CSR for non-base SVIDs and update the agent cache entries
 */
-func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
+func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
 	a.config.Log.Info("Preparing to attest against %s", a.config.ServerAddress.String())
 
 	// Look up the node attestor plugin
@@ -281,7 +281,7 @@ func (a *Agent) attest() (map[string]*spire_common.RegistrationEntry, error) {
 		return nil, fmt.Errorf("Base SVID not found in attestation response")
 	}
 
-	var registrationEntryMap = make(map[string]*spire_common.RegistrationEntry)
+	var registrationEntryMap = make(map[string]*common.RegistrationEntry)
 	for _, entry := range serverResponse.SvidUpdate.RegistrationEntries {
 		registrationEntryMap[entry.SpiffeId] = entry
 	}
@@ -362,7 +362,7 @@ func (a *Agent) storeBaseSVID() {
 	return
 }
 
-func (a *Agent) FetchSVID(registrationEntryMap map[string]*spire_common.RegistrationEntry, svidCert []byte,
+func (a *Agent) FetchSVID(registrationEntryMap map[string]*common.RegistrationEntry, svidCert []byte,
 	key *ecdsa.PrivateKey) (err error) {
 
 	if len(registrationEntryMap) != 0 {
@@ -411,7 +411,7 @@ func (a *Agent) FetchSVID(registrationEntryMap map[string]*spire_common.Registra
 			}
 		}
 
-		newRegistrationMap := make(map[string]*spire_common.RegistrationEntry)
+		newRegistrationMap := make(map[string]*common.RegistrationEntry)
 
 		if len(resp.SvidUpdate.RegistrationEntries) != 0 {
 			for _, entry := range resp.SvidUpdate.RegistrationEntries {
@@ -467,7 +467,7 @@ func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateK
 }
 
 func (a *Agent) generateCSRForRegistrationEntries(
-	regEntryMap map[string]*spire_common.RegistrationEntry) (CSRs [][]byte, pkeyMap map[string]*ecdsa.PrivateKey, err error) {
+	regEntryMap map[string]*common.RegistrationEntry) (CSRs [][]byte, pkeyMap map[string]*ecdsa.PrivateKey, err error) {
 
 	pkeyMap = make(map[string]*ecdsa.PrivateKey)
 	for id, _ := range regEntryMap {

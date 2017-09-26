@@ -12,8 +12,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/agent/keymanager"
-	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/proto/agent/keymanager"
+	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/mock/agent/catalog"
 	"github.com/stretchr/testify/suite"
 )
