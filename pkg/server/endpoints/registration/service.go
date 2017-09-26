@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -39,21 +40,28 @@ type Service interface {
 
 type service struct {
 	l         logrus.FieldLogger
+	catalog   catalog.Catalog
 	dataStore datastore.DataStore
 }
 
 //Config is a configuration struct to init the service.
 type Config struct {
-	Logger    logrus.FieldLogger
-	DataStore datastore.DataStore
+	Logger  logrus.FieldLogger
+	Catalog catalog.Catalog
 }
 
 //NewService creates a registration service with the necessary dependencies.
-func NewService(config Config) Service {
+func NewService(config Config) (Service, error) {
+	ds, err := config.Catalog.DataStores()
+	if err != nil {
+		config.Logger.Error(err)
+		return &service{}, errors.New("Error trying to get DataStore plugins")
+	}
 	return &service{
 		l:         config.Logger,
-		dataStore: config.DataStore,
-	}
+		catalog:   config.Catalog,
+		dataStore: *ds[0],
+	}, nil
 }
 
 //Creates an entry in the Registration table,

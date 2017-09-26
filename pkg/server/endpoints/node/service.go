@@ -16,6 +16,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/ca"
@@ -38,6 +39,7 @@ type Service interface {
 
 type service struct {
 	l               logrus.FieldLogger
+	catalog         catalog.Catalog
 	dataStore       datastore.DataStore
 	serverCA        ca.ControlPlaneCa
 	nodeAttestor    nodeattestor.NodeAttestor
@@ -48,24 +50,45 @@ type service struct {
 //Config is a configuration struct to init the service
 type Config struct {
 	Logger          logrus.FieldLogger
-	DataStore       datastore.DataStore
-	ServerCA        ca.ControlPlaneCa
-	NodeAttestor    nodeattestor.NodeAttestor
-	NodeResolver    noderesolver.NodeResolver
+	Catalog         catalog.Catalog
 	BaseSpiffeIDTTL int32
 }
 
 // NewService creates a node service with the necessary dependencies.
-func NewService(config Config) Service {
-	//TODO: validate config?
+func NewService(config Config) (Service, error) {
+	ds, err := config.Catalog.DataStores()
+	if err != nil {
+		config.Logger.Error(err)
+		return &service{}, errors.New("Error trying to get DataStore plugins")
+	}
+
+	cas, err := config.Catalog.CAs()
+	if err != nil {
+		config.Logger.Error(err)
+		return &service{}, errors.New("Error trying to get CA plugins")
+	}
+
+	nas, err := config.Catalog.NodeAttestors()
+	if err != nil {
+		config.Logger.Error(err)
+		return &service{}, errors.New("Error trying to get NodeAttestor plugins")
+	}
+
+	nrs, err := config.Catalog.NodeResolvers()
+	if err != nil {
+		config.Logger.Error(err)
+		return &service{}, errors.New("Error trying to get NodeResolver plugins")
+	}
+
 	return &service{
 		l:               config.Logger,
-		dataStore:       config.DataStore,
-		serverCA:        config.ServerCA,
-		nodeAttestor:    config.NodeAttestor,
-		nodeResolver:    config.NodeResolver,
+		catalog:         config.Catalog,
 		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
-	}
+		dataStore:       *ds[0],
+		serverCA:        *cas[0],
+		nodeAttestor:    *nas[0],
+		nodeResolver:    *nrs[0],
+	}, nil
 }
 
 //FetchBaseSVID attests the node and gets the base node SVID.
@@ -82,13 +105,16 @@ func (s *service) FetchBaseSVID(
 
 	attestedBefore := false
 	fetchRequest := &datastore.FetchAttestedNodeEntryRequest{
-		BaseSpiffeId: baseSpiffeIDFromCSR}
+		BaseSpiffeId: baseSpiffeIDFromCSR,
+	}
 	fetchResponse, err := s.dataStore.FetchAttestedNodeEntry(fetchRequest)
-	if err != nil || fetchResponse.AttestedNodeEntry == nil {
+	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to verify if attested")
 	}
-	if fetchResponse.AttestedNodeEntry.BaseSpiffeId == baseSpiffeIDFromCSR {
+
+	attestedEntry := fetchResponse.AttestedNodeEntry
+	if attestedEntry != nil && attestedEntry.BaseSpiffeId == baseSpiffeIDFromCSR {
 		attestedBefore = true
 	}
 

@@ -165,22 +165,25 @@ func (server *Server) initDependencies() {
 func (server *Server) initEndpoints() error {
 	server.Config.Log.Info("Starting the Registration API")
 	var registrationSvc registration.Service
-	registrationSvc = registration.NewService(registration.Config{
-		Logger:    server.Config.Log,
-		DataStore: server.dependencies.DataStoreImpl,
+	registrationSvc, err := registration.NewService(registration.Config{
+		Logger:  server.Config.Log,
+		Catalog: server.Catalog,
 	})
+	if err != nil {
+		return err
+	}
 	registrationSvc = registration.ServiceLoggingMiddleWare(server.Config.Log)(registrationSvc)
 	registrationEndpoints := getRegistrationEndpoints(registrationSvc)
 
 	server.Config.Log.Info("Starting the Node API")
-	nodeSvc := node.NewService(node.Config{
+	nodeSvc, err := node.NewService(node.Config{
 		Logger:          server.Config.Log,
-		DataStore:       server.dependencies.DataStoreImpl,
-		ServerCA:        server.dependencies.ServerCAImpl,
-		NodeAttestor:    server.dependencies.NodeAttestorImpl,
-		NodeResolver:    server.dependencies.NodeResolverImpl,
+		Catalog:         server.Catalog,
 		BaseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
 	})
+	if err != nil {
+		return err
+	}
 	nodeSvc = node.ServiceLoggingMiddleWare(server.Config.Log)(nodeSvc)
 	nodeEnpoints := getNodeEndpoints(nodeSvc)
 
