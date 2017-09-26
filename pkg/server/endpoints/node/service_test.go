@@ -23,6 +23,7 @@ type NodeServiceTestSuite struct {
 	mockIdentity    *services.MockIdentity
 	mockAttestation *services.MockAttestation
 }
+
 /*
 func (suite *NodeServiceTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(suite.t)

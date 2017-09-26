@@ -1,25 +1,21 @@
 package agent
 
 import (
-	"github.com/golang/mock/gomock"
-	"github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/stretchr/testify/suite"
-	"testing"
-
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/x509/pkix"
-
 	"crypto/x509"
-	"github.com/hashicorp/go-plugin"
-	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/agent/keymanager"
-	"github.com/spiffe/spire/pkg/agent/nodeattestor"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
-	"github.com/spiffe/spire/pkg/common"
+	"crypto/x509/pkix"
 	"net"
 	"os"
+	"testing"
+
+	"github.com/golang/mock/gomock"
+	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/agent/keymanager"
+	"github.com/spiffe/spire/pkg/common"
+	"github.com/spiffe/spire/test/mock/agent/catalog"
+	"github.com/stretchr/testify/suite"
 )
 
 type selectors []*common.Selector
@@ -28,9 +24,9 @@ type AgentTestSuite struct {
 	suite.Suite
 	t                 *testing.T
 	agent             *Agent
-	mockPluginCatalog *sriplugin.MockPluginCatalogInterface
+	mockPluginCatalog *mock_catalog.MockCatalog
 	mockKeyManager    *keymanager.MockKeyManager
-	kmManager         []interface{}
+	kmManager         []keymanager.KeyManager
 	expectedKey       *ecdsa.PrivateKey
 	config            *Config
 }
@@ -38,7 +34,7 @@ type AgentTestSuite struct {
 func (suite *AgentTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(suite.t)
 	defer mockCtrl.Finish()
-	suite.mockPluginCatalog = sriplugin.NewMockPluginCatalogInterface(mockCtrl)
+	suite.mockPluginCatalog = mock_catalog.NewMockCatalog(mockCtrl)
 	suite.mockKeyManager = keymanager.NewMockKeyManager(mockCtrl)
 
 	addr := &net.UnixAddr{Name: "./spire_api", Net: "unix"}
@@ -49,9 +45,10 @@ func (suite *AgentTestSuite) SetupTest() {
 	errCh := make(chan error)
 	shutdownCh := make(chan struct{})
 
+	l, _ := test.NewNullLogger()
 	suite.config = &Config{BindAddress: addr, CertDN: certDN,
 		DataDir:   os.TempDir(),
-		PluginDir: os.TempDir(), Log: logrus.StandardLogger(), ServerAddress: srvAddr,
+		PluginDir: os.TempDir(), Log: l, ServerAddress: srvAddr,
 		ErrorCh:    errCh,
 		ShutdownCh: shutdownCh}
 
@@ -75,17 +72,11 @@ func (suite *AgentTestSuite) Testbootstrap() {
 	suite.mockKeyManager.EXPECT().FetchPrivateKey(&keymanager.FetchPrivateKeyRequest{}).Return(
 		&keymanager.FetchPrivateKeyResponse{expectedPrivateKey}, nil)
 	suite.kmManager = append(suite.kmManager, suite.mockKeyManager)
-	suite.mockPluginCatalog.EXPECT().GetPluginsByType("KeyManager").Return(suite.kmManager)
+	suite.mockPluginCatalog.EXPECT().KeyManagers().Return(suite.kmManager, nil)
 	suite.mockPluginCatalog.EXPECT().Run().Return(nil)
-	suite.mockPluginCatalog.EXPECT().SetMaxPluginTypeMap(map[string]int{"KeyManager": 1, "NodeAttestor": 1, "WorkloadAttestor": 1})
-	suite.mockPluginCatalog.EXPECT().SetPluginTypeMap(map[string]plugin.Plugin{
-		"KeyManager":       &keymanager.KeyManagerPlugin{},
-		"NodeAttestor":     &nodeattestor.NodeAttestorPlugin{},
-		"WorkloadAttestor": &workloadattestor.WorkloadAttestorPlugin{},
-	})
 	suite.agent = &Agent{
-		pluginCatalog: suite.mockPluginCatalog,
-		config:        suite.config}
+		Catalog: suite.mockPluginCatalog,
+		config:  suite.config}
 	err := suite.agent.bootstrap()
 	suite.Require().NoError(err)
 	suite.Assert().Equal(expectedkey, suite.agent.baseSVIDKey)
