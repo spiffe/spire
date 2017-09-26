@@ -19,14 +19,14 @@ import (
 )
 
 const (
-	defaultConfigPath = ".conf/default_agent_config.hcl"
+	defaultConfigPath = "conf/agent/default_agent_config.conf"
 
 	defaultSocketPath = "./spire_api"
 
 	// TODO: Make my defaults sane
 	defaultDataDir   = "."
 	defaultLogLevel  = "INFO"
-	defaultPluginDir = "../../plugin/agent/.conf"
+	defaultPluginDir = "conf/plugin/agent"
 )
 
 // Struct representing available configurables for file and CLI
