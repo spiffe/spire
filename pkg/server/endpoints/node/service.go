@@ -56,38 +56,14 @@ type Config struct {
 
 // NewService creates a node service with the necessary dependencies.
 func NewService(config Config) (Service, error) {
-	ds, err := config.Catalog.DataStores()
-	if err != nil {
-		config.Logger.Error(err)
-		return &service{}, errors.New("Error trying to get DataStore plugins")
-	}
-
-	cas, err := config.Catalog.CAs()
-	if err != nil {
-		config.Logger.Error(err)
-		return &service{}, errors.New("Error trying to get CA plugins")
-	}
-
-	nas, err := config.Catalog.NodeAttestors()
-	if err != nil {
-		config.Logger.Error(err)
-		return &service{}, errors.New("Error trying to get NodeAttestor plugins")
-	}
-
-	nrs, err := config.Catalog.NodeResolvers()
-	if err != nil {
-		config.Logger.Error(err)
-		return &service{}, errors.New("Error trying to get NodeResolver plugins")
-	}
-
 	return &service{
 		l:               config.Logger,
 		catalog:         config.Catalog,
 		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
-		dataStore:       *ds[0],
-		serverCA:        *cas[0],
-		nodeAttestor:    *nas[0],
-		nodeResolver:    *nrs[0],
+		dataStore:       config.Catalog.DataStores()[0],
+		serverCA:        config.Catalog.CAs()[0],
+		nodeAttestor:    config.Catalog.NodeAttestors()[0],
+		nodeResolver:    config.Catalog.NodeResolvers()[0],
 	}, nil
 }
 

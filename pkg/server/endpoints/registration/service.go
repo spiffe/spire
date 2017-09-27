@@ -52,15 +52,10 @@ type Config struct {
 
 //NewService creates a registration service with the necessary dependencies.
 func NewService(config Config) (Service, error) {
-	ds, err := config.Catalog.DataStores()
-	if err != nil {
-		config.Logger.Error(err)
-		return &service{}, errors.New("Error trying to get DataStore plugins")
-	}
 	return &service{
 		l:         config.Logger,
 		catalog:   config.Catalog,
-		dataStore: *ds[0],
+		dataStore: config.Catalog.DataStores()[0],
 	}, nil
 }
 

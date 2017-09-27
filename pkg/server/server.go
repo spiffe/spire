@@ -139,25 +139,16 @@ func (server *Server) stopPlugins() {
 	}
 }
 
+// TODO: Pass catalog not plugins
 func (server *Server) initDependencies() {
 	server.Config.Log.Info("Initiating dependencies")
 	server.dependencies = &dependencies{}
 
-	// TODO: Catch errors, pass catalog not plugins
-	for _, p := range server.Catalog.Plugins() {
-		switch p.Config.PluginType {
-		case "DataStore":
-			server.dependencies.DataStoreImpl = p.Plugin.(datastore.DataStore)
-		case "NodeAttestor":
-			server.dependencies.NodeAttestorImpl = p.Plugin.(nodeattestor.NodeAttestor)
-		case "NodeResolver":
-			server.dependencies.NodeResolverImpl = p.Plugin.(noderesolver.NodeResolver)
-		case "ControlPlaneCA":
-			server.dependencies.ServerCAImpl = p.Plugin.(ca.ControlPlaneCa)
-		case "UpstreamCA":
-			server.dependencies.UpstreamCAImpl = p.Plugin.(upstreamca.UpstreamCa)
-		}
-	}
+	server.dependencies.DataStoreImpl = server.Catalog.DataStores()[0]
+	server.dependencies.NodeAttestorImpl = server.Catalog.NodeAttestors()[0]
+	server.dependencies.NodeResolverImpl = server.Catalog.NodeResolvers()[0]
+	server.dependencies.ServerCAImpl = server.Catalog.CAs()[0]
+	server.dependencies.UpstreamCAImpl = server.Catalog.UpstreamCAs()[0]
 
 	server.Config.Log.Info("Initiating dependencies done")
 }

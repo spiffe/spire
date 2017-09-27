@@ -184,12 +184,7 @@ func (a *Agent) initEndpoints() error {
 func (a *Agent) bootstrap() error {
 	a.config.Log.Info("Bootstrapping SPIRE agent")
 
-	// Look up the key manager plugin
-	plugins, err := a.Catalog.KeyManagers()
-	if err != nil {
-		return err
-	}
-
+	plugins := a.Catalog.KeyManagers()
 	if len(plugins) != 1 {
 		return fmt.Errorf("Expected only one key manager plugin, found %i", len(plugins))
 	}
@@ -249,11 +244,7 @@ This map is used generated CSR for non-base SVIDs and update the agent cache ent
 func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
 	a.config.Log.Info("Preparing to attest against %s", a.config.ServerAddress.String())
 
-	// Look up the node attestor plugin
-	plugins, err := a.Catalog.NodeAttestors()
-	if err != nil {
-		return nil, err
-	}
+	plugins := a.Catalog.NodeAttestors()
 	if len(plugins) != 1 {
 		return nil, fmt.Errorf("Expected only one node attestor plugin, found %i", len(plugins))
 	}

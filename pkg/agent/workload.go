@@ -126,16 +126,8 @@ func (s *workloadServer) resolveCaller(ctx context.Context) (pid int32, err erro
 //
 // TODO: this error map is not the best thing ever
 func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, errs map[string]error) {
-	var plugins []workloadattestor.WorkloadAttestor
-	pluginClients, err := s.catalog.WorkloadAttestors()
-	if err != nil {
-		return nil, map[string]error{"": err}
-	}
-	for _, p := range pluginClients {
-		plugins = append(plugins, p)
-	}
-
 	// Call the workload attestors concurrently
+	plugins := s.catalog.WorkloadAttestors()
 	selectorChan, errorChan := make(chan []*common.Selector), make(chan error)
 	for _, plugin := range plugins {
 		go func(p workloadattestor.WorkloadAttestor) {

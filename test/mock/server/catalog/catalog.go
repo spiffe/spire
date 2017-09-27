@@ -39,11 +39,10 @@ func (m *MockCatalog) EXPECT() *MockCatalogMockRecorder {
 }
 
 // CAs mocks base method
-func (m *MockCatalog) CAs() ([]*ca.ControlPlaneCa, error) {
+func (m *MockCatalog) CAs() []ca.ControlPlaneCa {
 	ret := m.ctrl.Call(m, "CAs")
-	ret0, _ := ret[0].([]*ca.ControlPlaneCa)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].([]ca.ControlPlaneCa)
+	return ret0
 }
 
 // CAs indicates an expected call of CAs
@@ -52,11 +51,10 @@ func (mr *MockCatalogMockRecorder) CAs() *gomock.Call {
 }
 
 // DataStores mocks base method
-func (m *MockCatalog) DataStores() ([]*datastore.DataStore, error) {
+func (m *MockCatalog) DataStores() []datastore.DataStore {
 	ret := m.ctrl.Call(m, "DataStores")
-	ret0, _ := ret[0].([]*datastore.DataStore)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].([]datastore.DataStore)
+	return ret0
 }
 
 // DataStores indicates an expected call of DataStores
@@ -65,11 +63,10 @@ func (mr *MockCatalogMockRecorder) DataStores() *gomock.Call {
 }
 
 // NodeAttestors mocks base method
-func (m *MockCatalog) NodeAttestors() ([]*nodeattestor.NodeAttestor, error) {
+func (m *MockCatalog) NodeAttestors() []nodeattestor.NodeAttestor {
 	ret := m.ctrl.Call(m, "NodeAttestors")
-	ret0, _ := ret[0].([]*nodeattestor.NodeAttestor)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].([]nodeattestor.NodeAttestor)
+	return ret0
 }
 
 // NodeAttestors indicates an expected call of NodeAttestors
@@ -78,11 +75,10 @@ func (mr *MockCatalogMockRecorder) NodeAttestors() *gomock.Call {
 }
 
 // NodeResolvers mocks base method
-func (m *MockCatalog) NodeResolvers() ([]*noderesolver.NodeResolver, error) {
+func (m *MockCatalog) NodeResolvers() []noderesolver.NodeResolver {
 	ret := m.ctrl.Call(m, "NodeResolvers")
-	ret0, _ := ret[0].([]*noderesolver.NodeResolver)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].([]noderesolver.NodeResolver)
+	return ret0
 }
 
 // NodeResolvers indicates an expected call of NodeResolvers
@@ -137,11 +133,10 @@ func (mr *MockCatalogMockRecorder) Stop() *gomock.Call {
 }
 
 // UpstreamCAs mocks base method
-func (m *MockCatalog) UpstreamCAs() ([]*upstreamca.UpstreamCa, error) {
+func (m *MockCatalog) UpstreamCAs() []upstreamca.UpstreamCa {
 	ret := m.ctrl.Call(m, "UpstreamCAs")
-	ret0, _ := ret[0].([]*upstreamca.UpstreamCa)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].([]upstreamca.UpstreamCa)
+	return ret0
 }
 
 // UpstreamCAs indicates an expected call of UpstreamCAs
