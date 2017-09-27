@@ -11,17 +11,17 @@ exposes a local Workload API.
 
 ## Installing SPIRE
 
-`go get github.com/spiffe/spire/...` will fetch and build all of SPIRE and its
-dependencies and install them in $GOPATH/bin
+There are several ways to install the SPIRE binaries:
+
+* Binary releases can be found at https://github.com/spiffe/spire/releases
+* `go get github.com/spiffe/spire/...` will fetch and build all of SPIRE and its
+  dependencies and install them in $GOPATH/bin
+* [Building from source](/CONTRIBUTING.md)
 
 ## Configuring SPIRE
 
 See the [server README](/cmd/spire-server/README.md) and the [agent
 README](/cmd/spire-agent/README.md)
-
-# Building SPIRE
-
-See [CONTRIBUTING](CONTRIBUTING.md) for information on building and developing SPIRE.
 
 # Community
 

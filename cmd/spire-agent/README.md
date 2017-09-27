@@ -1,19 +1,12 @@
 # SPIRE Agent  
-SPIRE Agent runs on every node and is responsible for requesting certificates from the spire server, attesting the validity of local workloads, and providing them SVIDs.
 
-## Getting started
-[Build SPIRE](../README.md)
+SPIRE Agent runs on every node and is responsible for requesting certificates from the spire server,
+attesting the validity of local workloads, and providing them SVIDs.
 
-_**Binary is Not Available Yet**_
-Get the latest binary for [OS X](https://get.spiffe.io/osx/spire-agent), [Windows](https://get.spiffe.io/windows/spire-agent.exe), 
-or [Linux](https://get.spiffe.io/linux/spire-agent) and place it in your `$PATH` similar to 
-<code>
-`wget -O /usr/local/bin/spire-agent https://get.spiffe.io/osx/spire-agent && chmod 755 /usr/local/bin/spire-agent`
+### SPIRE Agent configuration
 
-
-SPIRE Agent configuration:
-The following details the configurations for the spire agent.
-The configurations can be set through .hcl file or passed as cmdline args, the cmdline configurations takes precedence.
+The following details the configurations for the spire agent. The configurations can be set through
+.conf file or passed as command line args, the command line configurations takes precedence.
 
  |Configuration          | Description                                                          |
  |-----------------------|----------------------------------------------------------------------|
@@ -30,25 +23,24 @@ The configurations can be set through .hcl file or passed as cmdline args, the c
  |TrustDomain            |  SPIFFE trustDomain of the SPIRE Agent                               |
 
 
-[default configuration file](./.conf/default_agent_config.hcl) 
+[default configuration file](/conf/agent/default_agent_config.conf)
 
 ```
 BindAddress = "127.0.0.1"
 BindPort = "8088"
 DataDir = "."
 LogLevel = "INFO"
-PluginDir = "../../plugin/agent/.conf"
+PluginDir = "conf/plugin/agent"
 ServerAddress = "127.0.0.1"
 ServerPort = "8081"
-SocketPath ="../agent.sock"
-TrustBundlePath = ".conf/carootcert.pem"
+SocketPath ="/tmp/agent.sock"
+TrustBundlePath = "conf/agent/carootcert.pem"
 TrustDomain = "example.org"
 ```
 
 
-SPIRE Agent commands:
+### SPIRE Agent commands
 
  |Command                   | Action                                                           |
  |--------------------------|------------------------------------------------------------------|
- |`spire-agent run    `     |  Starts the SPIRE Agent                                          |
- 
+ |`spire-agent run`         |  Starts the SPIRE Agent                                          |
