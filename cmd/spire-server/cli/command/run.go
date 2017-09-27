@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	defaultConfigPath      = ".conf/default_server_config.hcl"
+	defaultConfigPath      = "conf/server/default_server_config.conf"
 	defaultBindAddress     = "127.0.0.1"
 	defaultBindPort        = "8081"
 	defaultBindHTTPPort    = "8080"
 	defaultLogLevel        = "INFO"
-	defaultPluginDir       = "../../plugin/server/.conf"
+	defaultPluginDir       = "conf/plugin/server"
 	defaultBaseSpiffeIDTTL = 999999
 )
 
