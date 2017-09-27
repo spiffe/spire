@@ -90,13 +90,12 @@ func (*RegisterCommand) Synopsis() string {
 	return "Registers data in server"
 }
 
-func (c *RegisterCommand) createEntry(registeredEntry *common.RegistrationEntry) (entityID string, err error) {
+func (c *RegisterCommand) createEntry(registeredEntry *common.RegistrationEntry) (string, error) {
 	result, err := c.Client.CreateEntry(context.Background(), registeredEntry)
 	if err != nil {
-		return
+		return "", err
 	}
-	entityID = result.Id
-	return
+	return result.Id, nil
 }
 
 func (c *RegisterCommand) validateEntry(entityID string, registeredEntry *common.RegistrationEntry) (ok bool, err error) {

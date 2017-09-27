@@ -67,6 +67,6 @@ func TestRegisterCommand_DataOK(t *testing.T) {
 	regcmd := &RegisterCommand{
 		Client: mockClient,
 	}
-	retval := regcmd.Run([]string{"test_data/registration.json"})
+	retval := regcmd.Run([]string{"../../../../test/fixture/registration/registration_good.json"})
 	assert.Equal(t, retval, 0)
 }
