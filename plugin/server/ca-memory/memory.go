@@ -104,6 +104,7 @@ func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 	}
 
 	if request.Ttl == 0 {
+		log.Printf("TTL is set to 0. Using default TTL: %v", defaultTTL)
 		request.Ttl = defaultTTL
 	} else if request.Ttl < 0 {
 		return nil, fmt.Errorf("Invalid TTL: %v", request.Ttl)
@@ -122,7 +123,7 @@ func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 		Subject:         csr.Subject,
 		Issuer:          csr.Subject,
 		SerialNumber:    big.NewInt(serial),
-		NotBefore:       now,
+		NotBefore:       now.Add(time.Duration(-10) * time.Second),
 		NotAfter:        now.Add(time.Duration(request.Ttl) * time.Second),
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageKeyAgreement |

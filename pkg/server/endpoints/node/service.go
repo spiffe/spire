@@ -264,7 +264,7 @@ func (s *service) FetchSVID(ctx context.Context, request node.FetchSVIDRequest) 
 		}
 
 		//sign
-		signReq := &ca.SignCsrRequest{Csr: csr, Ttl: s.baseSpiffeIDTTL}
+		signReq := &ca.SignCsrRequest{Csr: csr, Ttl: entry.Ttl}
 		res, err := s.serverCA.SignCsr(signReq)
 		if err != nil {
 			s.l.Error(err)
