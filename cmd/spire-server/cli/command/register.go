@@ -1,12 +1,16 @@
 package command
 
 import (
-	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"reflect"
+
+	"golang.org/x/net/context"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"log"
 
@@ -15,17 +19,26 @@ import (
 )
 
 const (
-	entryURL = "http://localhost:8080/entry" // TODO: Make address configurable
+	apiAddress = "localhost:8081" // TODO: Make address configurable
 )
 
 type RegisterCommand struct {
+	Client registration.RegistrationClient
 }
 
 func (*RegisterCommand) Help() string {
 	return "Usage: spire-server register <data-file>"
 }
 
-func (*RegisterCommand) Run(args []string) int {
+func (c *RegisterCommand) Run(args []string) int {
+	if c.Client == nil {
+		err := c.initializeGrpcClient(apiAddress)
+		if err != nil {
+			log.Fatalf("Failed: %v", err)
+			return -1
+		}
+	}
+
 	// Get filename
 	if len(args) != 1 {
 		log.Fatalf("Exactly one argument expected but got %d", len(args))
@@ -50,12 +63,12 @@ func (*RegisterCommand) Run(args []string) int {
 	// Inject each entry and verify it
 	for index, registeredEntry := range entries.Entries {
 		log.Printf("Creating entry #%d...\n", index+1)
-		entityID, err := createEntry(registeredEntry)
+		entityID, err := c.createEntry(registeredEntry)
 		if err != nil {
 			log.Fatalf("Failed: %v", err)
 			return -1
 		}
-		valid, err := validateEntry(entityID, registeredEntry)
+		valid, err := c.validateEntry(entityID, registeredEntry)
 		if err != nil {
 			log.Fatalf("Failed: %v", err)
 			return -1
@@ -77,71 +90,36 @@ func (*RegisterCommand) Synopsis() string {
 	return "Registers data in server"
 }
 
-func createEntry(registeredEntry *common.RegistrationEntry) (entityID string, err error) {
-	reqStr, err := json.Marshal(registeredEntry)
+func (c *RegisterCommand) createEntry(registeredEntry *common.RegistrationEntry) (entityID string, err error) {
+	result, err := c.Client.CreateEntry(context.Background(), registeredEntry)
 	if err != nil {
 		return
 	}
-	log.Printf("Invoking CreateEntry: %s\n", string(reqStr))
-
-	req, err := http.NewRequest("POST", entryURL, bytes.NewBuffer(reqStr))
-	if err != nil {
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-
-	respStr, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	log.Printf("CreateEntry returned: %s\n", string(respStr))
-
-	registeredEntryID := &registration.RegistrationEntryID{}
-	err = json.Unmarshal([]byte(respStr), &registeredEntryID)
-	if err != nil {
-		return
-	}
-	entityID = registeredEntryID.Id
-
+	entityID = result.Id
 	return
 }
 
-func validateEntry(entityID string, registeredEntry *common.RegistrationEntry) (ok bool, err error) {
-	log.Printf("Invoking FetchEntry: %s\n", entityID)
-
-	req, err := http.NewRequest("GET", entryURL+"/"+entityID, bytes.NewBufferString(""))
-	if err != nil {
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-
-	respStr, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	log.Printf("FetchEntry returned: %s\n", string(respStr))
-
-	var fetchedRegisteredEntry *common.RegistrationEntry
-	err = json.Unmarshal([]byte(respStr), &fetchedRegisteredEntry)
+func (c *RegisterCommand) validateEntry(entityID string, registeredEntry *common.RegistrationEntry) (ok bool, err error) {
+	registrationEntryID := &registration.RegistrationEntryID{Id: entityID}
+	fetchedRegisteredEntry, err := c.Client.FetchEntry(context.Background(), registrationEntryID)
 	if err != nil {
 		return
 	}
 
 	ok = reflect.DeepEqual(fetchedRegisteredEntry, registeredEntry)
+
+	return
+}
+
+func (c *RegisterCommand) initializeGrpcClient(address string) (err error) {
+	// TODO: Pass a bundle in here
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+
+	c.Client = registration.NewRegistrationClient(conn)
 
 	return
 }
