@@ -17,7 +17,6 @@ import (
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/proto/server/noderesolver"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
@@ -26,10 +25,6 @@ import (
 type nodeServer struct {
 	l               logrus.FieldLogger
 	catalog         catalog.Catalog
-	dataStore       datastore.DataStore
-	serverCA        ca.ControlPlaneCa
-	nodeAttestor    nodeattestor.NodeAttestor
-	nodeResolver    noderesolver.NodeResolver
 	baseSpiffeIDTTL int32
 }
 
@@ -37,6 +32,11 @@ type nodeServer struct {
 func (s *nodeServer) FetchBaseSVID(
 	ctx context.Context, request *node.FetchBaseSVIDRequest) (
 	response *node.FetchBaseSVIDResponse, err error) {
+
+	dataStore := s.catalog.DataStores()[0]
+	serverCA := s.catalog.CAs()[0]
+	nodeAttestor := s.catalog.NodeAttestors()[0]
+	nodeResolver := s.catalog.NodeResolvers()[0]
 	//Attest the node and get baseSpiffeID
 	//TODO: add GetURINamesFromCSR to go-spiffe/uri
 	baseSpiffeIDFromCSR, err := getSpiffeIDFromCSR(request.Csr)
@@ -49,7 +49,7 @@ func (s *nodeServer) FetchBaseSVID(
 	fetchRequest := &datastore.FetchAttestedNodeEntryRequest{
 		BaseSpiffeId: baseSpiffeIDFromCSR,
 	}
-	fetchResponse, err := s.dataStore.FetchAttestedNodeEntry(fetchRequest)
+	fetchResponse, err := dataStore.FetchAttestedNodeEntry(fetchRequest)
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to verify if attested")
@@ -64,7 +64,7 @@ func (s *nodeServer) FetchBaseSVID(
 		AttestedData:   request.AttestedData,
 		AttestedBefore: attestedBefore,
 	}
-	attestResponse, err := s.nodeAttestor.Attest(attestRequest)
+	attestResponse, err := nodeAttestor.Attest(attestRequest)
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to attest")
@@ -85,7 +85,7 @@ func (s *nodeServer) FetchBaseSVID(
 	}
 
 	//Sign csr
-	signResponse, err := s.serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr})
+	signResponse, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr})
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to SignCsr")
@@ -107,7 +107,7 @@ func (s *nodeServer) FetchBaseSVID(
 			CertSerialNumber:   cert.SerialNumber.String(),
 		}
 
-		_, err := s.dataStore.UpdateAttestedNodeEntry(updateRequest)
+		_, err := dataStore.UpdateAttestedNodeEntry(updateRequest)
 		if err != nil {
 			s.l.Error(err)
 			return response, errors.New("Error trying to update attestation entry")
@@ -121,7 +121,7 @@ func (s *nodeServer) FetchBaseSVID(
 			CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
 			CertSerialNumber:   cert.SerialNumber.String(),
 		}}
-		_, err := s.dataStore.CreateAttestedNodeEntry(createRequest)
+		_, err := dataStore.CreateAttestedNodeEntry(createRequest)
 		if err != nil {
 			s.l.Error(err)
 			return response, errors.New("Error trying to create attestation entry")
@@ -129,7 +129,7 @@ func (s *nodeServer) FetchBaseSVID(
 	}
 
 	//Call node resolver plugin to get a map of spiffeID=>Selector
-	selectors, err := s.nodeResolver.Resolve([]string{baseSpiffeID})
+	selectors, err := nodeResolver.Resolve([]string{baseSpiffeID})
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to resolve selectors for baseSpiffeID")
@@ -146,7 +146,7 @@ func (s *nodeServer) FetchBaseSVID(
 					Selector:     selector,
 				},
 			}
-			_, err = s.dataStore.CreateNodeResolverMapEntry(mapEntryRequest)
+			_, err = dataStore.CreateNodeResolverMapEntry(mapEntryRequest)
 			if err != nil {
 				s.l.Error(err)
 				return response, err
@@ -180,7 +180,10 @@ func (s *nodeServer) FetchBaseSVID(
 func (s *nodeServer) FetchSVID(
 	ctx context.Context, request *node.FetchSVIDRequest) (
 	response *node.FetchSVIDResponse, err error) {
-	//TODO: extract this from the caller cert
+
+	dataStore := s.catalog.DataStores()[0]
+	serverCA := s.catalog.CAs()[0]
+
 	var baseSpiffeID string
 	ctxPeer, _ := peer.FromContext(ctx)
 	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
@@ -193,7 +196,7 @@ func (s *nodeServer) FetchSVID(
 	}
 
 	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
-	nodeResolutionResponse, err := s.dataStore.FetchNodeResolverMapEntry(req)
+	nodeResolutionResponse, err := dataStore.FetchNodeResolverMapEntry(req)
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to FetchNodeResolverMapEntry")
@@ -232,7 +235,7 @@ func (s *nodeServer) FetchSVID(
 
 		//sign
 		signReq := &ca.SignCsrRequest{Csr: csr}
-		res, err := s.serverCA.SignCsr(signReq)
+		res, err := serverCA.SignCsr(signReq)
 		if err != nil {
 			s.l.Error(err)
 			return response, errors.New("Error trying to sign CSR")
@@ -240,10 +243,13 @@ func (s *nodeServer) FetchSVID(
 		svids[spiffeID] = &node.Svid{SvidCert: res.SignedCertificate, Ttl: entry.Ttl}
 	}
 
-	response.SvidUpdate = &node.SvidUpdate{
-		Svids:               svids,
-		RegistrationEntries: regEntries,
+	response = &node.FetchSVIDResponse{
+		SvidUpdate: &node.SvidUpdate{
+			Svids:               svids,
+			RegistrationEntries: regEntries,
+		},
 	}
+
 	return response, nil
 }
 
@@ -271,6 +277,9 @@ func convertToSelectors(resolution []*datastore.NodeResolverMapEntry) []*common.
 
 func (s *nodeServer) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
 	[]*common.RegistrationEntry, error) {
+
+	dataStore := s.catalog.DataStores()[0]
+
 	///lookup Registration Entries for resolved selectors
 	var entries []*common.RegistrationEntry
 	var selectorsEntries []*common.RegistrationEntry
@@ -281,7 +290,7 @@ func (s *nodeServer) fetchRegistrationEntries(selectors []*common.Selector, spif
 		reqs = append(reqs, &datastore.ListSelectorEntriesRequest{Selectors: subset.Raw()})
 	}
 	for _, req := range reqs {
-		listSelectorResponse, err := s.dataStore.ListSelectorEntries(req)
+		listSelectorResponse, err := dataStore.ListSelectorEntries(req)
 		if err != nil {
 			return nil, err
 		}
@@ -290,7 +299,7 @@ func (s *nodeServer) fetchRegistrationEntries(selectors []*common.Selector, spif
 	entries = append(entries, selectorsEntries...)
 
 	///lookup Registration Entries where spiffeID is the parent ID
-	listResponse, err := s.dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: spiffeID})
+	listResponse, err := dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: spiffeID})
 	if err != nil {
 		return nil, err
 	}
