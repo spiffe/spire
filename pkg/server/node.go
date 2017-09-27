@@ -1,19 +1,14 @@
-package node
+package server
 
 import (
-	"context"
 	"crypto/x509"
 	"errors"
-	"time"
-
 	"reflect"
 	"sort"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/uri"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/peer"
-
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -23,21 +18,12 @@ import (
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 )
 
-// Service is the interface that provides node api methods.
-type Service interface {
-	FetchBaseSVID(context.Context, node.FetchBaseSVIDRequest) (
-		node.FetchBaseSVIDResponse, error)
-	FetchSVID(context.Context, node.FetchSVIDRequest) (
-		node.FetchSVIDResponse, error)
-	FetchCPBundle(context.Context, node.FetchCPBundleRequest) (
-		node.FetchCPBundleResponse, error)
-	FetchFederatedBundle(context.Context, node.FetchFederatedBundleRequest) (
-		node.FetchFederatedBundleResponse, error)
-}
-
-type service struct {
+type nodeServer struct {
 	l               logrus.FieldLogger
 	catalog         catalog.Catalog
 	dataStore       datastore.DataStore
@@ -47,30 +33,10 @@ type service struct {
 	baseSpiffeIDTTL int32
 }
 
-//Config is a configuration struct to init the service
-type Config struct {
-	Logger          logrus.FieldLogger
-	Catalog         catalog.Catalog
-	BaseSpiffeIDTTL int32
-}
-
-// NewService creates a node service with the necessary dependencies.
-func NewService(config Config) (Service, error) {
-	return &service{
-		l:               config.Logger,
-		catalog:         config.Catalog,
-		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
-		dataStore:       config.Catalog.DataStores()[0],
-		serverCA:        config.Catalog.CAs()[0],
-		nodeAttestor:    config.Catalog.NodeAttestors()[0],
-		nodeResolver:    config.Catalog.NodeResolvers()[0],
-	}, nil
-}
-
 //FetchBaseSVID attests the node and gets the base node SVID.
-func (s *service) FetchBaseSVID(
-	ctx context.Context, request node.FetchBaseSVIDRequest) (
-	response node.FetchBaseSVIDResponse, err error) {
+func (s *nodeServer) FetchBaseSVID(
+	ctx context.Context, request *node.FetchBaseSVIDRequest) (
+	response *node.FetchBaseSVIDResponse, err error) {
 	//Attest the node and get baseSpiffeID
 	//TODO: add GetURINamesFromCSR to go-spiffe/uri
 	baseSpiffeIDFromCSR, err := getSpiffeIDFromCSR(request.Csr)
@@ -203,7 +169,7 @@ func (s *service) FetchBaseSVID(
 		Svids:               svids,
 		RegistrationEntries: regEntries,
 	}
-	response = node.FetchBaseSVIDResponse{SvidUpdate: svidUpdate}
+	response = &node.FetchBaseSVIDResponse{SvidUpdate: svidUpdate}
 
 	return response, nil
 }
@@ -211,8 +177,9 @@ func (s *service) FetchBaseSVID(
 //FetchSVID gets Workload, Agent certs and CA trust bundles.
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
-func (s *service) FetchSVID(ctx context.Context, request node.FetchSVIDRequest) (
-	response node.FetchSVIDResponse, err error) {
+func (s *nodeServer) FetchSVID(
+	ctx context.Context, request *node.FetchSVIDRequest) (
+	response *node.FetchSVIDResponse, err error) {
 	//TODO: extract this from the caller cert
 	var baseSpiffeID string
 	ctxPeer, _ := peer.FromContext(ctx)
@@ -281,12 +248,16 @@ func (s *service) FetchSVID(ctx context.Context, request node.FetchSVIDRequest) 
 }
 
 // Implement the business logic of FetchCPBundle
-func (s *service) FetchCPBundle(ctx context.Context, request node.FetchCPBundleRequest) (response node.FetchCPBundleResponse, err error) {
+func (s *nodeServer) FetchCPBundle(
+	ctx context.Context, request *node.FetchCPBundleRequest) (
+	response *node.FetchCPBundleResponse, err error) {
 	return response, nil
 }
 
 // Implement the business logic of FetchFederatedBundle
-func (s *service) FetchFederatedBundle(ctx context.Context, request node.FetchFederatedBundleRequest) (response node.FetchFederatedBundleResponse, err error) {
+func (s *nodeServer) FetchFederatedBundle(
+	ctx context.Context, request *node.FetchFederatedBundleRequest) (
+	response *node.FetchFederatedBundleResponse, err error) {
 	return response, nil
 }
 
@@ -298,7 +269,7 @@ func convertToSelectors(resolution []*datastore.NodeResolverMapEntry) []*common.
 	return selectors
 }
 
-func (s *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
+func (s *nodeServer) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
 	[]*common.RegistrationEntry, error) {
 	///lookup Registration Entries for resolved selectors
 	var entries []*common.RegistrationEntry
