@@ -6,11 +6,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	// Plugin interfaces
-	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/datastore"
-	"github.com/spiffe/spire/pkg/server/nodeattestor"
-	"github.com/spiffe/spire/pkg/server/noderesolver"
-	"github.com/spiffe/spire/pkg/server/upstreamca"
+	"github.com/spiffe/spire/proto/server/ca"
+	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 
 	goplugin "github.com/hashicorp/go-plugin"
 	common "github.com/spiffe/spire/pkg/common/catalog"

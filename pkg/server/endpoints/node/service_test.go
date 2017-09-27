@@ -6,8 +6,8 @@ import (
 	//"github.com/golang/mock/gomock"
 	//pb "github.com/spiffe/spire/pkg/api/node"
 	//"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/proto/server/ca"
+	"github.com/spiffe/spire/proto/server/datastore"
 	//"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/spiffe/spire/services"
 	"github.com/stretchr/testify/suite"
@@ -106,15 +106,15 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 		ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: baseSpiffeID}).
 		Return(&datastore.ListParentIDEntriesResponse{RegisteredEntryList: regEntryParentIDList}, nil)
 
-	response, err := suite.nodeService.FetchBaseSVID(nil, pb.FetchBaseSVIDRequest{
+	response, err := suite.nodeService.FetchBaseSVID(nil, node.FetchBaseSVIDRequest{
 		AttestedData: attestData,
 		Csr:          fakeCsr.Csr,
 	})
 
-	svids := make(map[string]*pb.Svid)
-	svids[baseSpiffeID] = &pb.Svid{SvidCert: fakeCert.SignedCertificate, Ttl: 7777}
+	svids := make(map[string]*node.Svid)
+	svids[baseSpiffeID] = &node.Svid{SvidCert: fakeCert.SignedCertificate, Ttl: 7777}
 
-	svidUpdate := &pb.SvidUpdate{
+	svidUpdate := &node.SvidUpdate{
 		Svids:               svids,
 		RegistrationEntries: expectedRegEntries,
 	}
@@ -195,15 +195,15 @@ func (suite *NodeServiceTestSuite) TestFetchSVID() {
 		SignCsr(&ca.SignCsrRequest{Csr: fakeCsrs[2]}).
 		Return(&ca.SignCsrResponse{SignedCertificate: fakeCerts[2]}, nil)
 
-	response, err := suite.nodeService.FetchSVID(nil, pb.FetchSVIDRequest{
+	response, err := suite.nodeService.FetchSVID(nil, node.FetchSVIDRequest{
 		Csrs: fakeCsrs,
 	})
 
-	expectedResponse := &pb.SvidUpdate{
-		Svids: map[string]*pb.Svid{
-			nodeSpiffeID:     &pb.Svid{SvidCert: fakeCerts[0], Ttl: 1111},
-			databaseSpiffeID: &pb.Svid{SvidCert: fakeCerts[1], Ttl: 2222},
-			blogSpiffeID:     &pb.Svid{SvidCert: fakeCerts[2], Ttl: 3333},
+	expectedResponse := &node.SvidUpdate{
+		Svids: map[string]*node.Svid{
+			nodeSpiffeID:     &node.Svid{SvidCert: fakeCerts[0], Ttl: 1111},
+			databaseSpiffeID: &node.Svid{SvidCert: fakeCerts[1], Ttl: 2222},
+			blogSpiffeID:     &node.Svid{SvidCert: fakeCerts[2], Ttl: 3333},
 		},
 		RegistrationEntries: []*common.RegistrationEntry{
 			bySelectorsEntries[0],

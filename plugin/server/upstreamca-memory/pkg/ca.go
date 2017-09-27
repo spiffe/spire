@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"net/url"
 	"sync"
@@ -16,17 +17,14 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
-
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/spire/pkg/common/plugin"
-	common "github.com/spiffe/spire/pkg/common/plugin"
-	iface "github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/server/upstreamca"
-	"log"
+
+	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 )
 
 var (
-	pluginInfo = sriplugin.GetPluginInfoResponse{
+	pluginInfo = spi.GetPluginInfoResponse{
 		Description: "",
 		DateCreated: "",
 		Version:     "",
@@ -52,10 +50,10 @@ type memoryPlugin struct {
 	mtx *sync.RWMutex
 }
 
-func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.ConfigureResponse, error) {
+func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	log.Print("Starting Configure")
 
-	resp := &sriplugin.ConfigureResponse{}
+	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
 	config := &configuration{}
@@ -119,13 +117,13 @@ func (m *memoryPlugin) Configure(req *common.ConfigureRequest) (*common.Configur
 	m.key = key
 
 	log.Print("Plugin successfully configured")
-	return &common.ConfigureResponse{}, nil
+	return &spi.ConfigureResponse{}, nil
 }
 
-func (*memoryPlugin) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+func (*memoryPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	log.Print("Getting plugin information")
 
-	return &sriplugin.GetPluginInfoResponse{}, nil
+	return &spi.GetPluginInfoResponse{}, nil
 }
 
 func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
@@ -232,7 +230,7 @@ func NewWithDefault(keyFilePath string, certFilePath string) (m upstreamca.Upstr
 	}
 
 	jsonConfig, err := json.Marshal(config)
-	pluginConfig := &iface.ConfigureRequest{
+	pluginConfig := &spi.ConfigureRequest{
 		Configuration: string(jsonConfig),
 	}
 

@@ -17,21 +17,20 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
-	"github.com/spiffe/spire/pkg/server/nodeattestor"
-	"github.com/spiffe/spire/pkg/server/noderesolver"
-	"github.com/spiffe/spire/pkg/server/upstreamca"
+	spinode "github.com/spiffe/spire/proto/api/node"
+	spiregistration "github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/server/ca"
+	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 	"github.com/spiffe/spire/services"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-
-	pbnode "github.com/spiffe/spire/pkg/api/node"
-	pbregistration "github.com/spiffe/spire/pkg/api/registration"
 )
 
 type Config struct {
@@ -220,10 +219,10 @@ func (server *Server) initEndpoints() error {
 	server.grpcServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 
 	registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
-	pbregistration.RegisterRegistrationServer(server.grpcServer, registrationHandler)
+	spiregistration.RegisterRegistrationServer(server.grpcServer, registrationHandler)
 
 	nodeHandler := node.MakeGRPCServer(nodeEnpoints)
-	pbnode.RegisterNodeServer(server.grpcServer, nodeHandler)
+	spinode.RegisterNodeServer(server.grpcServer, nodeHandler)
 
 	server.Config.Log.Info(server.Config.BindAddress.String())
 	listener, err := net.Listen(server.Config.BindAddress.Network(), server.Config.BindAddress.String())
@@ -251,7 +250,7 @@ func (server *Server) initEndpoints() error {
 		opt := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 		opts := []grpc.DialOption{opt}
 
-		err := pbregistration.RegisterRegistrationHandlerFromEndpoint(ctx, mux, server.Config.BindAddress.String(), opts)
+		err := spiregistration.RegisterRegistrationHandlerFromEndpoint(ctx, mux, server.Config.BindAddress.String(), opts)
 		if err != nil {
 			server.Config.ErrorCh <- err
 			return

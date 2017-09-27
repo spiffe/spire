@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	common "github.com/spiffe/spire/pkg/common"
-	iface "github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/common/testutil"
-
-	"github.com/spiffe/spire/pkg/server/nodeattestor"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/spiffe/spire/pkg/common/testutil"
+	"github.com/spiffe/spire/proto/common"
+	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/server/nodeattestor"
 )
 
 const (
@@ -34,7 +34,7 @@ func TestJoinToken_Configure(t *testing.T) {
 	assert := assert.New(t)
 
 	config := `{"join_tokens":{"bar":1}, "trust_domain":"example.com"}`
-	pluginConfig := &iface.ConfigureRequest{
+	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
 
@@ -43,14 +43,14 @@ func TestJoinToken_Configure(t *testing.T) {
 	}
 	resp, err := p.Configure(pluginConfig)
 	assert.Nil(err)
-	assert.Equal(&iface.ConfigureResponse{}, resp)
+	assert.Equal(&spi.ConfigureResponse{}, resp)
 }
 
 func TestJoinToken_Attest(t *testing.T) {
 	assert := assert.New(t)
 
 	config := `{"join_tokens":{"foo":600,"bar":60, "bat":1}, "trust_domain":"example.com"}`
-	pluginConfig := &iface.ConfigureRequest{
+	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
 
@@ -93,15 +93,15 @@ func TestJoinToken_Attest(t *testing.T) {
 
 func TestJoinToken_GetPluginInfo(t *testing.T) {
 	var plugin JoinTokenPlugin
-	data, e := plugin.GetPluginInfo(&iface.GetPluginInfoRequest{})
+	data, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
 	assert.Nil(t, e)
-	assert.Equal(t, &iface.GetPluginInfoResponse{}, data)
+	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
 }
 
 func TestJoinToken_race(t *testing.T) {
 	p := New()
 	testutil.RaceTest(t, func(t *testing.T) {
-		p.Configure(&iface.ConfigureRequest{
+		p.Configure(&spi.ConfigureRequest{
 			Configuration: config,
 		})
 		p.Attest(AttestRequestGenerator("foo"))

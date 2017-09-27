@@ -17,16 +17,15 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
-
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/spire/pkg/common/plugin"
-	iface "github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/server/ca"
+
 	"github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
+	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/server/ca"
 )
 
 var (
-	pluginInfo = sriplugin.GetPluginInfoResponse{
+	pluginInfo = spi.GetPluginInfoResponse{
 		Description: "",
 		DateCreated: "",
 		Version:     "",
@@ -60,10 +59,10 @@ type memoryPlugin struct {
 	mtx *sync.RWMutex
 }
 
-func (m *memoryPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
+func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	log.Print("Starting Configure")
 
-	resp := &sriplugin.ConfigureResponse{}
+	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
 	config := &configuration{}
@@ -89,10 +88,10 @@ func (m *memoryPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.Co
 	return resp, nil
 }
 
-func (*memoryPlugin) GetPluginInfo(req *sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+func (*memoryPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	log.Print("Getting plugin information")
 
-	return &sriplugin.GetPluginInfoResponse{}, nil
+	return &spi.GetPluginInfoResponse{}, nil
 }
 
 func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
@@ -305,7 +304,7 @@ func NewWithDefault() (m ca.ControlPlaneCa, err error) {
 		return nil, err
 	}
 
-	pluginConfig := &iface.ConfigureRequest{
+	pluginConfig := &spi.ConfigureRequest{
 		Configuration: string(jsonConfig),
 	}
 

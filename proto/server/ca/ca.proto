@@ -1,0 +1,71 @@
+/** Responsible for processing CSR requests from Node Agents if the
+Control Plane is configured to carry an intermediate signing certificate.
+This plugin is also responsible for generating the CSR necessary for
+an intermediate signing cert, as well as storing the key in memory
+or hardware. */
+
+syntax = "proto3";
+package spire.server.ca;
+option go_package = "ca";
+
+import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
+
+/** Represents a request with a certificate signing request. */
+message SignCsrRequest {
+    /** Certificate signing request. */
+    bytes csr = 1;
+    /** TTL */
+    int32 ttl = 2;
+}
+
+/** Represents a response with a signed certificate. */
+message SignCsrResponse {
+    /** Signed certificate. */
+    bytes signedCertificate = 1;
+}
+
+/** Represents an empty request. */
+message GenerateCsrRequest {
+}
+
+/** Represents a response with a certificate signing request. */
+message GenerateCsrResponse {
+    /** Certificate signing request. */
+    bytes csr = 1;
+}
+
+/** Represents an empty request. */
+message FetchCertificateRequest {
+}
+
+/** Represents a response with a stored intermediate certificate. */
+message FetchCertificateResponse {
+    /** Stored intermediate certificate. */
+    bytes storedIntermediateCert = 1;
+}
+
+/** Represents a request with a signed intermediate certificate. */
+message LoadCertificateRequest {
+    /** Signed intermediate certificate. */
+    bytes signedIntermediateCert = 1;
+}
+
+/** Represents an empty response. */
+message LoadCertificateResponse {
+}
+
+service ControlPlaneCA {
+    /** Interface will take in a CSR and sign it with the stored intermediate certificate. */
+    rpc SignCsr(SignCsrRequest) returns (SignCsrResponse);
+    /** Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. */
+    rpc GenerateCsr(GenerateCsrRequest) returns (GenerateCsrResponse);
+    /** Used to read the stored Intermediate CP cert. */
+    rpc FetchCertificate(FetchCertificateRequest) returns (FetchCertificateResponse);
+    /** Used for setting/storing the signed intermediate certificate. */
+    rpc LoadCertificate(LoadCertificateRequest) returns (LoadCertificateResponse);
+
+    /** Responsible for configuration of the plugin. */
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+    /** Returns the  version and related metadata of the installed plugin. */
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+}

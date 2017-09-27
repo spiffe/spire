@@ -8,8 +8,8 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 
-	"github.com/spiffe/spire/pkg/agent/keymanager"
-	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/proto/agent/keymanager"
+	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
 type MemoryPlugin struct {
@@ -41,12 +41,12 @@ func (m *MemoryPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*key
 	return &keymanager.FetchPrivateKeyResponse{privateKey}, nil
 }
 
-func (m *MemoryPlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	return &sriplugin.ConfigureResponse{}, nil
+func (m *MemoryPlugin) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	return &spi.ConfigureResponse{}, nil
 }
 
-func (m *MemoryPlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
-	return &sriplugin.GetPluginInfoResponse{}, nil
+func (m *MemoryPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return &spi.GetPluginInfoResponse{}, nil
 }
 
 func main() {

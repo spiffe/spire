@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/spiffe/spire/pkg/agent/cache"
-	"github.com/spiffe/spire/pkg/agent/workloadattestor"
-	"github.com/spiffe/spire/pkg/api/node"
-	"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/proto/agent/workloadattestor"
+	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/mock/agent/cache"
 	"github.com/spiffe/spire/test/mock/agent/catalog"
 	"github.com/spiffe/spire/test/mock/agent/workloadattestor"

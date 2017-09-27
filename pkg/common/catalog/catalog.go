@@ -14,7 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 
 	goplugin "github.com/hashicorp/go-plugin"
-	pb "github.com/spiffe/spire/pkg/common/plugin"
+	pb "github.com/spiffe/spire/proto/common/plugin"
 )
 
 type Catalog interface {

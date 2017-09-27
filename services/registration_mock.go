@@ -5,7 +5,7 @@ package services
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	common "github.com/spiffe/spire/pkg/common"
+	common "github.com/spiffe/spire/proto/common"
 	reflect "reflect"
 )
 

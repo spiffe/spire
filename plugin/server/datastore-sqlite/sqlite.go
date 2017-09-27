@@ -2,22 +2,20 @@ package main
 
 import (
 	"errors"
+	"time"
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
 
-	"time"
-
-	"github.com/spiffe/spire/pkg/common"
-	"github.com/spiffe/spire/pkg/common/plugin"
-
-	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/proto/common"
+	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/server/datastore"
 )
 
 var (
-	pluginInfo = sriplugin.GetPluginInfoResponse{
+	pluginInfo = spi.GetPluginInfoResponse{
 		Description: "",
 		DateCreated: "",
 		Version:     "",
@@ -522,11 +520,11 @@ func (sqlitePlugin) ListSpiffeEntries(
 	return &datastore.ListSpiffeEntriesResponse{}, errors.New("Not Implemented")
 }
 
-func (sqlitePlugin) Configure(*sriplugin.ConfigureRequest) (*sriplugin.ConfigureResponse, error) {
-	return &sriplugin.ConfigureResponse{}, nil
+func (sqlitePlugin) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	return &spi.ConfigureResponse{}, nil
 }
 
-func (sqlitePlugin) GetPluginInfo(*sriplugin.GetPluginInfoRequest) (*sriplugin.GetPluginInfoResponse, error) {
+func (sqlitePlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
