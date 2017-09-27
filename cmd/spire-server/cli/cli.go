@@ -19,6 +19,9 @@ func Run(args []string) int {
 		"plugin-info": func() (cli.Command, error) {
 			return &command.PluginInfoCommand{}, nil
 		},
+		"register": func() (cli.Command, error) {
+			return &command.RegisterCommand{}, nil
+		},
 	}
 
 	exitStatus, err := c.Run()
