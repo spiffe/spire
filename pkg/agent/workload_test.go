@@ -81,7 +81,7 @@ func (s *WorkloadServerTestSuite) TestAttestCaller() {
 	pRes1 := &workloadattestor.AttestResponse{Selectors: selector.Set{selector1}.Raw()}
 	pRes2 := &workloadattestor.AttestResponse{Selectors: selector.Set{selector2, selector3}.Raw()}
 
-	s.catalog.EXPECT().WorkloadAttestors().Return(plugins, nil)
+	s.catalog.EXPECT().WorkloadAttestors().Return(plugins)
 	s.attestor1.EXPECT().Attest(pRequest).Return(pRes1, nil)
 	s.attestor2.EXPECT().Attest(pRequest).Return(pRes2, nil)
 

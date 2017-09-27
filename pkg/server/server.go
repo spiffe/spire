@@ -27,7 +27,6 @@ import (
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
 	"github.com/spiffe/spire/proto/server/upstreamca"
-	"github.com/spiffe/spire/services"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -59,15 +58,11 @@ type Config struct {
 }
 
 type dependencies struct {
-	RegistrationService services.Registration
-	AttestationService  services.Attestation
-	IdentityService     services.Identity
-	CaService           services.CA
-	DataStoreImpl       datastore.DataStore
-	NodeAttestorImpl    nodeattestor.NodeAttestor
-	NodeResolverImpl    noderesolver.NodeResolver
-	ServerCAImpl        ca.ControlPlaneCa
-	UpstreamCAImpl      upstreamca.UpstreamCa
+	DataStoreImpl    datastore.DataStore
+	NodeAttestorImpl nodeattestor.NodeAttestor
+	NodeResolverImpl noderesolver.NodeResolver
+	ServerCAImpl     ca.ControlPlaneCa
+	UpstreamCAImpl   upstreamca.UpstreamCa
 }
 
 type Server struct {
@@ -144,52 +139,42 @@ func (server *Server) stopPlugins() {
 	}
 }
 
+// TODO: Pass catalog not plugins
 func (server *Server) initDependencies() {
 	server.Config.Log.Info("Initiating dependencies")
 	server.dependencies = &dependencies{}
 
-	// TODO: Catch errors, pass catalog not plugins
-	for _, p := range server.Catalog.Plugins() {
-		switch p.Config.PluginType {
-		case "DataStore":
-			server.dependencies.DataStoreImpl = p.Plugin.(datastore.DataStore)
-		case "NodeAttestor":
-			server.dependencies.NodeAttestorImpl = p.Plugin.(nodeattestor.NodeAttestor)
-		case "NodeResolver":
-			server.dependencies.NodeResolverImpl = p.Plugin.(noderesolver.NodeResolver)
-		case "ControlPlaneCA":
-			server.dependencies.ServerCAImpl = p.Plugin.(ca.ControlPlaneCa)
-		case "UpstreamCA":
-			server.dependencies.UpstreamCAImpl = p.Plugin.(upstreamca.UpstreamCa)
-		}
-	}
-
-	//services
-	server.dependencies.RegistrationService = services.NewRegistrationImpl(server.dependencies.DataStoreImpl)
-	server.dependencies.AttestationService = services.NewAttestationImpl(server.dependencies.DataStoreImpl, server.dependencies.NodeAttestorImpl)
-	server.dependencies.IdentityService = services.NewIdentityImpl(server.dependencies.DataStoreImpl, server.dependencies.NodeResolverImpl)
-	server.dependencies.CaService = services.NewCAImpl(server.dependencies.ServerCAImpl)
+	server.dependencies.DataStoreImpl = server.Catalog.DataStores()[0]
+	server.dependencies.NodeAttestorImpl = server.Catalog.NodeAttestors()[0]
+	server.dependencies.NodeResolverImpl = server.Catalog.NodeResolvers()[0]
+	server.dependencies.ServerCAImpl = server.Catalog.CAs()[0]
+	server.dependencies.UpstreamCAImpl = server.Catalog.UpstreamCAs()[0]
 
 	server.Config.Log.Info("Initiating dependencies done")
 }
 
 func (server *Server) initEndpoints() error {
 	server.Config.Log.Info("Starting the Registration API")
-	var registrationSvc registration.RegistrationService
-	registrationSvc = registration.NewService(server.dependencies.RegistrationService)
+	var registrationSvc registration.Service
+	registrationSvc, err := registration.NewService(registration.Config{
+		Logger:  server.Config.Log,
+		Catalog: server.Catalog,
+	})
+	if err != nil {
+		return err
+	}
 	registrationSvc = registration.ServiceLoggingMiddleWare(server.Config.Log)(registrationSvc)
 	registrationEndpoints := getRegistrationEndpoints(registrationSvc)
 
 	server.Config.Log.Info("Starting the Node API")
-	nodeSvc := node.NewService(node.Config{
-		Attestation:     server.dependencies.AttestationService,
-		CA:              server.dependencies.CaService,
-		Identity:        server.dependencies.IdentityService,
-		DataStore:       server.dependencies.DataStoreImpl,
-		ServerCA:        server.dependencies.ServerCAImpl,
-		BaseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
+	nodeSvc, err := node.NewService(node.Config{
 		Logger:          server.Config.Log,
+		Catalog:         server.Catalog,
+		BaseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
 	})
+	if err != nil {
+		return err
+	}
 	nodeSvc = node.ServiceLoggingMiddleWare(server.Config.Log)(nodeSvc)
 	nodeEnpoints := getNodeEndpoints(nodeSvc)
 
@@ -329,7 +314,7 @@ func (server *Server) rotateSigningCert() error {
 	return err
 }
 
-func getRegistrationEndpoints(registrationSvc registration.RegistrationService) registration.Endpoints {
+func getRegistrationEndpoints(registrationSvc registration.Service) registration.Endpoints {
 	return registration.Endpoints{
 		CreateEntryEndpoint:           registration.MakeCreateEntryEndpoint(registrationSvc),
 		DeleteEntryEndpoint:           registration.MakeDeleteEntryEndpoint(registrationSvc),

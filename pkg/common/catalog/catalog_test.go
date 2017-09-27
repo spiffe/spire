@@ -55,7 +55,7 @@ func (c *CatalogTestSuite) TeardownTest() {
 }
 
 func (c *CatalogTestSuite) TestLoadConfig() {
-	err := c.catalog.loadConfig("../../../test/fixture/config/plugin_good.hcl")
+	err := c.catalog.loadConfig("../../../test/fixture/config/plugin_good.conf")
 	if !c.Assert().Nil(err) || !c.Assert().Equal(1, len(c.catalog.plugins)) {
 		c.Assert().FailNow("error parsing plugin config")
 	}
@@ -86,7 +86,7 @@ func (c *CatalogTestSuite) TestNewPluginConfig() {
 		},
 	}
 
-	_ = c.catalog.loadConfig("../../../test/fixture/config/plugin_good.hcl")
+	_ = c.catalog.loadConfig("../../../test/fixture/config/plugin_good.conf")
 	pluginConfig, err := c.catalog.newPluginConfig(c.catalog.plugins[0])
 	if c.Assert().Nil(err) {
 		c.Assert().Equal(expectedConfig, pluginConfig)

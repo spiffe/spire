@@ -9,19 +9,16 @@ import (
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	//"github.com/spiffe/spire/pkg/server/nodeattestor"
-	"github.com/spiffe/spire/services"
+
 	"github.com/stretchr/testify/suite"
 )
 
 type NodeServiceTestSuite struct {
 	suite.Suite
-	t               *testing.T
-	nodeService     Service
-	mockServerCA    *ca.MockControlPlaneCa
-	mockDataStore   *datastore.MockDataStore
-	mockCA          *services.MockCA
-	mockIdentity    *services.MockIdentity
-	mockAttestation *services.MockAttestation
+	t             *testing.T
+	nodeService   Service
+	mockServerCA  *ca.MockControlPlaneCa
+	mockDataStore *datastore.MockDataStore
 }
 
 /*

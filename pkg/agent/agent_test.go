@@ -72,7 +72,7 @@ func (suite *AgentTestSuite) Testbootstrap() {
 	suite.mockKeyManager.EXPECT().FetchPrivateKey(&keymanager.FetchPrivateKeyRequest{}).Return(
 		&keymanager.FetchPrivateKeyResponse{expectedPrivateKey}, nil)
 	suite.kmManager = append(suite.kmManager, suite.mockKeyManager)
-	suite.mockPluginCatalog.EXPECT().KeyManagers().Return(suite.kmManager, nil)
+	suite.mockPluginCatalog.EXPECT().KeyManagers().Return(suite.kmManager)
 	suite.mockPluginCatalog.EXPECT().Run().Return(nil)
 	suite.agent = &Agent{
 		Catalog: suite.mockPluginCatalog,

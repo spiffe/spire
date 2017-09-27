@@ -9,17 +9,17 @@ import (
 	"github.com/spiffe/spire/proto/common"
 )
 
-type RegistrationServiceMiddleWare func(RegistrationService) RegistrationService
+type RegistrationServiceMiddleWare func(Service) Service
 
 func ServiceLoggingMiddleWare(logger logrus.FieldLogger) RegistrationServiceMiddleWare {
-	return func(next RegistrationService) RegistrationService {
+	return func(next Service) Service {
 		return LoggingMiddleware{logger, next}
 	}
 }
 
 type LoggingMiddleware struct {
 	log  logrus.FieldLogger
-	next RegistrationService
+	next Service
 }
 
 func (mw LoggingMiddleware) CreateEntry(ctx context.Context, request common.RegistrationEntry) (response registration.RegistrationEntryID, err error) {
