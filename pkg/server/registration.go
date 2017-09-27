@@ -14,9 +14,8 @@ import (
 //Service is used to register SPIFFE IDs, and the attestation logic that should
 //be performed on a workload before those IDs can be issued.
 type registrationServer struct {
-	l         logrus.FieldLogger
-	catalog   catalog.Catalog
-	dataStore datastore.DataStore
+	l       logrus.FieldLogger
+	catalog catalog.Catalog
 }
 
 //Creates an entry in the Registration table,
@@ -25,7 +24,8 @@ func (s *registrationServer) CreateEntry(
 	ctx context.Context, request *common.RegistrationEntry) (
 	response *registration.RegistrationEntryID, err error) {
 
-	createResponse, err := s.dataStore.CreateRegistrationEntry(
+	dataStore := s.catalog.DataStores()[0]
+	createResponse, err := dataStore.CreateRegistrationEntry(
 		&datastore.CreateRegistrationEntryRequest{RegisteredEntry: request},
 	)
 
@@ -49,7 +49,8 @@ func (s *registrationServer) FetchEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
 
-	fetchResponse, err := s.dataStore.FetchRegistrationEntry(
+	dataStore := s.catalog.DataStores()[0]
+	fetchResponse, err := dataStore.FetchRegistrationEntry(
 		&datastore.FetchRegistrationEntryRequest{RegisteredEntryId: request.Id},
 	)
 	if err != nil {
@@ -71,7 +72,8 @@ func (s *registrationServer) ListByParentID(
 	ctx context.Context, request *registration.ParentID) (
 	response *common.RegistrationEntries, err error) {
 
-	listResponse, err := s.dataStore.ListParentIDEntries(
+	dataStore := s.catalog.DataStores()[0]
+	listResponse, err := dataStore.ListParentIDEntries(
 		&datastore.ListParentIDEntriesRequest{ParentId: request.Id},
 	)
 	if err != nil {
