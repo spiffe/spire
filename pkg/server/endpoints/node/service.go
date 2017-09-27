@@ -2,7 +2,10 @@ package node
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
+	"time"
+
 	"reflect"
 	"sort"
 
@@ -13,74 +16,113 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/services"
+	"github.com/spiffe/spire/proto/server/noderesolver"
 )
 
 // Service is the interface that provides node api methods.
 type Service interface {
-	FetchBaseSVID(ctx context.Context, request node.FetchBaseSVIDRequest) (response node.FetchBaseSVIDResponse, err error)
-	FetchSVID(ctx context.Context, request node.FetchSVIDRequest) (response node.FetchSVIDResponse, err error)
-	FetchCPBundle(ctx context.Context, request node.FetchCPBundleRequest) (response node.FetchCPBundleResponse, err error)
-	FetchFederatedBundle(ctx context.Context, request node.FetchFederatedBundleRequest) (response node.FetchFederatedBundleResponse, err error)
+	FetchBaseSVID(context.Context, node.FetchBaseSVIDRequest) (
+		node.FetchBaseSVIDResponse, error)
+	FetchSVID(context.Context, node.FetchSVIDRequest) (
+		node.FetchSVIDResponse, error)
+	FetchCPBundle(context.Context, node.FetchCPBundleRequest) (
+		node.FetchCPBundleResponse, error)
+	FetchFederatedBundle(context.Context, node.FetchFederatedBundleRequest) (
+		node.FetchFederatedBundleResponse, error)
 }
 
 type service struct {
 	l               logrus.FieldLogger
-	attestation     services.Attestation
-	identity        services.Identity
-	ca              services.CA
-	baseSpiffeIDTTL int32
+	catalog         catalog.Catalog
 	dataStore       datastore.DataStore
 	serverCA        ca.ControlPlaneCa
+	nodeAttestor    nodeattestor.NodeAttestor
+	nodeResolver    noderesolver.NodeResolver
+	baseSpiffeIDTTL int32
 }
 
 //Config is a configuration struct to init the service
 type Config struct {
 	Logger          logrus.FieldLogger
-	Attestation     services.Attestation
-	Identity        services.Identity
-	CA              services.CA
-	DataStore       datastore.DataStore
-	ServerCA        ca.ControlPlaneCa
+	Catalog         catalog.Catalog
 	BaseSpiffeIDTTL int32
 }
 
 // NewService creates a node service with the necessary dependencies.
-func NewService(config Config) (s Service) {
-	//TODO: validate config?
+func NewService(config Config) (Service, error) {
+	ds, err := config.Catalog.DataStores()
+	if err != nil {
+		config.Logger.Error(err)
+		return &service{}, errors.New("Error trying to get DataStore plugins")
+	}
+
+	cas, err := config.Catalog.CAs()
+	if err != nil {
+		config.Logger.Error(err)
+		return &service{}, errors.New("Error trying to get CA plugins")
+	}
+
+	nas, err := config.Catalog.NodeAttestors()
+	if err != nil {
+		config.Logger.Error(err)
+		return &service{}, errors.New("Error trying to get NodeAttestor plugins")
+	}
+
+	nrs, err := config.Catalog.NodeResolvers()
+	if err != nil {
+		config.Logger.Error(err)
+		return &service{}, errors.New("Error trying to get NodeResolver plugins")
+	}
+
 	return &service{
 		l:               config.Logger,
-		attestation:     config.Attestation,
-		identity:        config.Identity,
-		ca:              config.CA,
+		catalog:         config.Catalog,
 		baseSpiffeIDTTL: config.BaseSpiffeIDTTL,
-		dataStore:       config.DataStore,
-		serverCA:        config.ServerCA,
-	}
+		dataStore:       *ds[0],
+		serverCA:        *cas[0],
+		nodeAttestor:    *nas[0],
+		nodeResolver:    *nrs[0],
+	}, nil
 }
 
 //FetchBaseSVID attests the node and gets the base node SVID.
-func (s *service) FetchBaseSVID(ctx context.Context, request node.FetchBaseSVIDRequest) (response node.FetchBaseSVIDResponse, err error) {
+func (s *service) FetchBaseSVID(
+	ctx context.Context, request node.FetchBaseSVIDRequest) (
+	response node.FetchBaseSVIDResponse, err error) {
 	//Attest the node and get baseSpiffeID
-	baseSpiffeIDFromCSR, err := s.ca.GetSpiffeIDFromCSR(request.Csr)
+	//TODO: add GetURINamesFromCSR to go-spiffe/uri
+	baseSpiffeIDFromCSR, err := getSpiffeIDFromCSR(request.Csr)
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to get SpiffeId from CSR")
 	}
 
-	attestedBefore, err := s.attestation.IsAttested(baseSpiffeIDFromCSR)
+	attestedBefore := false
+	fetchRequest := &datastore.FetchAttestedNodeEntryRequest{
+		BaseSpiffeId: baseSpiffeIDFromCSR,
+	}
+	fetchResponse, err := s.dataStore.FetchAttestedNodeEntry(fetchRequest)
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to verify if attested")
 	}
 
-	var attestResponse *nodeattestor.AttestResponse
-	attestResponse, err = s.attestation.Attest(request.AttestedData, attestedBefore)
+	attestedEntry := fetchResponse.AttestedNodeEntry
+	if attestedEntry != nil && attestedEntry.BaseSpiffeId == baseSpiffeIDFromCSR {
+		attestedBefore = true
+	}
+
+	attestRequest := &nodeattestor.AttestRequest{
+		AttestedData:   request.AttestedData,
+		AttestedBefore: attestedBefore,
+	}
+	attestResponse, err := s.nodeAttestor.Attest(attestRequest)
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to attest")
@@ -101,31 +143,52 @@ func (s *service) FetchBaseSVID(ctx context.Context, request node.FetchBaseSVIDR
 	}
 
 	//Sign csr
-	var signCsrResponse *ca.SignCsrResponse
-	if signCsrResponse, err = s.ca.SignCsr(&ca.SignCsrRequest{Csr: request.Csr}); err != nil {
+	signResponse, err := s.serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr})
+	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to SignCsr")
+	}
+
+	//parse csr
+	cert, err := x509.ParseCertificate(signResponse.SignedCertificate)
+	if err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to parse csr")
 	}
 
 	baseSpiffeID := attestResponse.BaseSPIFFEID
 	if attestedBefore {
 		//UPDATE attested node entry
-		if err = s.attestation.UpdateEntry(baseSpiffeID, signCsrResponse.SignedCertificate); err != nil {
+		updateRequest := &datastore.UpdateAttestedNodeEntryRequest{
+			BaseSpiffeId:       baseSpiffeID,
+			CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
+			CertSerialNumber:   cert.SerialNumber.String(),
+		}
+
+		_, err := s.dataStore.UpdateAttestedNodeEntry(updateRequest)
+		if err != nil {
 			s.l.Error(err)
 			return response, errors.New("Error trying to update attestation entry")
 		}
 
 	} else {
 		//CREATE attested node entry
-		if err = s.attestation.CreateEntry(request.AttestedData.Type, baseSpiffeID, signCsrResponse.SignedCertificate); err != nil {
+		createRequest := &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: &datastore.AttestedNodeEntry{
+			AttestedDataType:   request.AttestedData.Type,
+			BaseSpiffeId:       baseSpiffeID,
+			CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
+			CertSerialNumber:   cert.SerialNumber.String(),
+		}}
+		_, err := s.dataStore.CreateAttestedNodeEntry(createRequest)
+		if err != nil {
 			s.l.Error(err)
 			return response, errors.New("Error trying to create attestation entry")
 		}
 	}
 
-	//Call node resolver plugin to get a map of {Spiffe ID,[ ]Selector}
-	var selectors map[string]*common.Selectors
-	if selectors, err = s.identity.Resolve([]string{baseSpiffeID}); err != nil {
+	//Call node resolver plugin to get a map of spiffeID=>Selector
+	selectors, err := s.nodeResolver.Resolve([]string{baseSpiffeID})
+	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to resolve selectors for baseSpiffeID")
 	}
@@ -133,16 +196,27 @@ func (s *service) FetchBaseSVID(ctx context.Context, request node.FetchBaseSVIDR
 	baseIDSelectors, ok := selectors[baseSpiffeID]
 	var selectorEntries []*common.Selector
 	if ok {
-		selectorEntries = baseIDSelectors.Entries
-		err = s.identity.CreateEntry(baseSpiffeID, selectorEntries)
-		if err != nil {
-			s.l.Error(err)
-			return response, err
+		// TODO: Fix complexity
+		for _, selector := range baseIDSelectors.Entries {
+			mapEntryRequest := &datastore.CreateNodeResolverMapEntryRequest{
+				NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
+					BaseSpiffeId: baseSpiffeID,
+					Selector:     selector,
+				},
+			}
+			_, err = s.dataStore.CreateNodeResolverMapEntry(mapEntryRequest)
+			if err != nil {
+				s.l.Error(err)
+				return response, err
+			}
 		}
 	}
 
 	svids := make(map[string]*node.Svid)
-	svids[baseSpiffeID] = &node.Svid{SvidCert: signCsrResponse.SignedCertificate, Ttl: s.baseSpiffeIDTTL}
+	svids[baseSpiffeID] = &node.Svid{
+		SvidCert: signResponse.SignedCertificate,
+		Ttl:      s.baseSpiffeIDTTL,
+	}
 
 	regEntries, err := s.fetchRegistrationEntries(selectorEntries, baseSpiffeID)
 	if err != nil {
@@ -161,7 +235,8 @@ func (s *service) FetchBaseSVID(ctx context.Context, request node.FetchBaseSVIDR
 //FetchSVID gets Workload, Agent certs and CA trust bundles.
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
-func (s *service) FetchSVID(ctx context.Context, request node.FetchSVIDRequest) (response node.FetchSVIDResponse, err error) {
+func (s *service) FetchSVID(ctx context.Context, request node.FetchSVIDRequest) (
+	response node.FetchSVIDResponse, err error) {
 	//TODO: extract this from the caller cert
 	var baseSpiffeID string
 	ctxPeer, _ := peer.FromContext(ctx)
@@ -197,7 +272,7 @@ func (s *service) FetchSVID(ctx context.Context, request node.FetchSVIDRequest) 
 	//iterate CSRs, validate them and sign the certificates
 	svids := make(map[string]*node.Svid)
 	for _, csr := range request.Csrs {
-		spiffeID, err := s.ca.GetSpiffeIDFromCSR(csr)
+		spiffeID, err := getSpiffeIDFromCSR(csr)
 		if err != nil {
 			s.l.Error(err)
 			return response, errors.New("Error trying to get SpiffeId from CSR")
@@ -287,4 +362,22 @@ func (s *service) fetchRegistrationEntries(selectors []*common.Selector, spiffeI
 		}
 	}
 	return entries, err
+}
+
+//TODO: put this into go-spiffe uri
+func getSpiffeIDFromCSR(csr []byte) (spiffeID string, err error) {
+	var parsedCSR *x509.CertificateRequest
+	if parsedCSR, err = x509.ParseCertificateRequest(csr); err != nil {
+		return spiffeID, err
+	}
+
+	var uris []string
+	uris, err = uri.GetURINamesFromExtensions(&parsedCSR.Extensions)
+
+	if len(uris) != 1 {
+		return spiffeID, errors.New("The CSR must have exactly one URI SAN")
+	}
+
+	spiffeID = uris[0]
+	return spiffeID, nil
 }

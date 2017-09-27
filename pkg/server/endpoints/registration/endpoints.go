@@ -103,7 +103,7 @@ type DeleteFederatedBundleResponse struct {
 	Err   error
 }
 
-func NewEndpoint(svc RegistrationService) (ep Endpoints) {
+func NewEndpoint(svc Service) (ep Endpoints) {
 	ep.CreateEntryEndpoint = MakeCreateEntryEndpoint(svc)
 	ep.DeleteEntryEndpoint = MakeDeleteEntryEndpoint(svc)
 	ep.FetchEntryEndpoint = MakeFetchEntryEndpoint(svc)
@@ -120,7 +120,7 @@ func NewEndpoint(svc RegistrationService) (ep Endpoints) {
 
 // MakeCreateEntryEndpoint returns an endpoint that invokes CreateEntry on the service.
 // Primarily useful in a server.
-func MakeCreateEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeCreateEntryEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(CreateEntryRequest)
 		reply, err := svc.CreateEntry(ctx, req.Request)
@@ -130,7 +130,7 @@ func MakeCreateEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
 
 // MakeDeleteEntryEndpoint returns an endpoint that invokes DeleteEntry on the service.
 // Primarily useful in a server.
-func MakeDeleteEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeDeleteEntryEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(DeleteEntryRequest)
 		reply, err := svc.DeleteEntry(ctx, req.Request)
@@ -140,7 +140,7 @@ func MakeDeleteEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
 
 // MakeFetchEntryEndpoint returns an endpoint that invokes FetchEntry on the service.
 // Primarily useful in a server.
-func MakeFetchEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeFetchEntryEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(FetchEntryRequest)
 		reply, err := svc.FetchEntry(ctx, req.Request)
@@ -150,7 +150,7 @@ func MakeFetchEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
 
 // MakeUpdateEntryEndpoint returns an endpoint that invokes UpdateEntry on the service.
 // Primarily useful in a server.
-func MakeUpdateEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeUpdateEntryEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(UpdateEntryRequest)
 		reply, err := svc.UpdateEntry(ctx, req.Request)
@@ -160,7 +160,7 @@ func MakeUpdateEntryEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
 
 // MakeListByParentIDEndpoint returns an endpoint that invokes ListByParentID on the service.
 // Primarily useful in a server.
-func MakeListByParentIDEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeListByParentIDEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(ListByParentIDRequest)
 		reply, err := svc.ListByParentID(ctx, req.Request)
@@ -170,7 +170,7 @@ func MakeListByParentIDEndpoint(svc RegistrationService) (ep endpoint.Endpoint) 
 
 // MakeListBySelectorEndpoint returns an endpoint that invokes ListBySelector on the service.
 // Primarily useful in a server.
-func MakeListBySelectorEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeListBySelectorEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(ListBySelectorRequest)
 		reply, err := svc.ListBySelector(ctx, req.Request)
@@ -180,7 +180,7 @@ func MakeListBySelectorEndpoint(svc RegistrationService) (ep endpoint.Endpoint) 
 
 // MakeListBySpiffeIDEndpoint returns an endpoint that invokes ListBySpiffeID on the service.
 // Primarily useful in a server.
-func MakeListBySpiffeIDEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeListBySpiffeIDEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(ListBySpiffeIDRequest)
 		reply, err := svc.ListBySpiffeID(ctx, req.Request)
@@ -190,7 +190,7 @@ func MakeListBySpiffeIDEndpoint(svc RegistrationService) (ep endpoint.Endpoint) 
 
 // MakeCreateFederatedBundleEndpoint returns an endpoint that invokes CreateFederatedBundle on the service.
 // Primarily useful in a server.
-func MakeCreateFederatedBundleEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeCreateFederatedBundleEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(CreateFederatedBundleRequest)
 		reply, err := svc.CreateFederatedBundle(ctx, req.Request)
@@ -200,7 +200,7 @@ func MakeCreateFederatedBundleEndpoint(svc RegistrationService) (ep endpoint.End
 
 // MakeListFederatedBundlesEndpoint returns an endpoint that invokes ListFederatedBundles on the service.
 // Primarily useful in a server.
-func MakeListFederatedBundlesEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeListFederatedBundlesEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(ListFederatedBundlesRequest)
 		reply, err := svc.ListFederatedBundles(ctx, req.Request)
@@ -210,7 +210,7 @@ func MakeListFederatedBundlesEndpoint(svc RegistrationService) (ep endpoint.Endp
 
 // MakeUpdateFederatedBundleEndpoint returns an endpoint that invokes UpdateFederatedBundle on the service.
 // Primarily useful in a server.
-func MakeUpdateFederatedBundleEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeUpdateFederatedBundleEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(UpdateFederatedBundleRequest)
 		reply, err := svc.UpdateFederatedBundle(ctx, req.Request)
@@ -220,7 +220,7 @@ func MakeUpdateFederatedBundleEndpoint(svc RegistrationService) (ep endpoint.End
 
 // MakeDeleteFederatedBundleEndpoint returns an endpoint that invokes DeleteFederatedBundle on the service.
 // Primarily useful in a server.
-func MakeDeleteFederatedBundleEndpoint(svc RegistrationService) (ep endpoint.Endpoint) {
+func MakeDeleteFederatedBundleEndpoint(svc Service) (ep endpoint.Endpoint) {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(DeleteFederatedBundleRequest)
 		reply, err := svc.DeleteFederatedBundle(ctx, req.Request)
