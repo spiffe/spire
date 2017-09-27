@@ -35,6 +35,8 @@ var (
 	}
 )
 
+const defaultTTL = 3600 // One hour
+
 type certSubjectConfig struct {
 	Country      []string
 	Organization []string
@@ -44,7 +46,6 @@ type certSubjectConfig struct {
 type configuration struct {
 	TrustDomain string            `hcl:"trust_domain" json:"trust_domain"`
 	KeySize     int               `hcl:"key_size" json:"key_size"`
-	TTL         string            `hcl:"ttl" json:"ttl"`
 	CertSubject certSubjectConfig `hcl:"cert_subject" json:"cert_subject"`
 }
 
@@ -82,7 +83,6 @@ func (m *memoryPlugin) Configure(req *sriplugin.ConfigureRequest) (*sriplugin.Co
 	defer m.mtx.Unlock()
 	m.config = &configuration{}
 	m.config.TrustDomain = config.TrustDomain
-	m.config.TTL = config.TTL
 	m.config.KeySize = config.KeySize
 	m.config.CertSubject = config.CertSubject
 
@@ -104,6 +104,12 @@ func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 		return nil, errors.New("Invalid state: no certificate")
 	}
 
+	if request.Ttl == 0 {
+		request.Ttl = defaultTTL
+	} else if request.Ttl < 0 {
+		return nil, fmt.Errorf("Invalid TTL: %v", request.Ttl)
+	}
+
 	csr, err := pkg.ParseSpiffeCsr(request.Csr, m.config.TrustDomain)
 	if err != nil {
 		return nil, err
@@ -112,18 +118,13 @@ func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 	serial := atomic.AddInt64(&m.serial, 1)
 	now := time.Now()
 
-	expiry, err := time.ParseDuration(m.config.TTL)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to parse TTL: %s", err)
-	}
-
 	template := x509.Certificate{
 		ExtraExtensions: csr.Extensions,
 		Subject:         csr.Subject,
 		Issuer:          csr.Subject,
 		SerialNumber:    big.NewInt(serial),
 		NotBefore:       now,
-		NotAfter:        now.Add(expiry),
+		NotAfter:        now.Add(time.Duration(request.Ttl) * time.Second),
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageKeyAgreement |
 			x509.KeyUsageDigitalSignature,
@@ -292,7 +293,6 @@ func NewWithDefault() (m ca.ControlPlaneCa, err error) {
 	config := configuration{
 		TrustDomain: "localhost",
 		KeySize:     2048,
-		TTL:         "1h",
 		CertSubject: certSubjectConfig{
 			Country:      []string{"US"},
 			Organization: []string{"SPIFFE"},

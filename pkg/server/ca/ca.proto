@@ -14,6 +14,8 @@ import public "github.com/spiffe/spire/pkg/common/plugin/plugin.proto";
 message SignCsrRequest {
     /** Certificate signing request. */
     bytes csr = 1;
+    /** TTL */
+    int32 ttl = 2;
 }
 
 /** Represents a response with a signed certificate. */
