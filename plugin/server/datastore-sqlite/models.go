@@ -42,6 +42,14 @@ type registeredEntry struct {
 	// TODO: Add support to Federated Bundles [https://github.com/spiffe/spire/issues/42]
 }
 
+// Keep time simple and easily comparable with UNIX time
+type joinToken struct {
+	gorm.Model
+
+	Token  string `gorm:"primary_key:true"`
+	Expiry int64
+}
+
 type selector struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time

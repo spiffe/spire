@@ -102,6 +102,8 @@
   
     * [FetchStaleNodeEntriesResponse](#spire.server.datastore.FetchStaleNodeEntriesResponse)
   
+    * [JoinToken](#spire.server.datastore.JoinToken)
+  
     * [ListFederatedEntryRequest](#spire.server.datastore.ListFederatedEntryRequest)
   
     * [ListFederatedEntryResponse](#spire.server.datastore.ListFederatedEntryResponse)
@@ -720,8 +722,7 @@ Represents a Spiffe ID
 <a name="spire.server.datastore.FetchNodeResolverMapEntryResponse"/>
 
 ### FetchNodeResolverMapEntryResponse
-Represents a list of Node resolver map entries for the specified
-Spiffe ID
+Represents a list of Node resolver map entries for the specified Spiffe ID
 
 
 | Field | Type | Label | Description |
@@ -788,6 +789,22 @@ Represents dead nodes for which the base SVID has expired
 
 
 
+<a name="spire.server.datastore.JoinToken"/>
+
+### JoinToken
+Represents a join token and associated metadata, if known
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| token | [string](#string) |  |  |
+| expiry | [int64](#int64) |  | Expiration date, represented in UNIX time |
+
+
+
+
+
+
 <a name="spire.server.datastore.ListFederatedEntryRequest"/>
 
 ### ListFederatedEntryRequest
@@ -831,8 +848,7 @@ Represents a Parent ID
 <a name="spire.server.datastore.ListParentIDEntriesResponse"/>
 
 ### ListParentIDEntriesResponse
-Represents a list of Registered entries with the specified Parent
-ID
+Represents a list of Registered entries with the specified Parent ID
 
 
 | Field | Type | Label | Description |
@@ -1077,6 +1093,10 @@ Represents the updated Registration entry
 | ListParentIDEntries | [ListParentIDEntriesRequest](#spire.server.datastore.ListParentIDEntriesRequest) | [ListParentIDEntriesResponse](#spire.server.datastore.ListParentIDEntriesRequest) | Retrieves all the  registered entry with the same ParentID |
 | ListSelectorEntries | [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesRequest) | Retrieves all the  registered entry with the same Selector |
 | ListSpiffeEntries | [ListSpiffeEntriesRequest](#spire.server.datastore.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#spire.server.datastore.ListSpiffeEntriesRequest) | Retrieves all the  registered entry with the same SpiffeId |
+| RegisterToken | [JoinToken](#spire.server.datastore.JoinToken) | [spire.common.Empty](#spire.server.datastore.JoinToken) | Register a new join token |
+| FetchToken | [JoinToken](#spire.server.datastore.JoinToken) | [JoinToken](#spire.server.datastore.JoinToken) | Fetch a token record |
+| DeleteToken | [JoinToken](#spire.server.datastore.JoinToken) | [spire.common.Empty](#spire.server.datastore.JoinToken) | Delete the referenced token |
+| PruneTokens | [JoinToken](#spire.server.datastore.JoinToken) | [spire.common.Empty](#spire.server.datastore.JoinToken) | Delete all tokens with expiry less than the one specified |
 | Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Applies the plugin configuration |
 | GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin |
 

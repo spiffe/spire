@@ -26,6 +26,7 @@ utils:
 	$(docker) go get github.com/golang/protobuf/protoc-gen-go
 	$(docker) go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
 	$(docker) go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+	$(docker) go get github.com/jteeuwen/go-bindata/...
 
 vendor: glide.yaml glide.lock
 	$(docker) glide --home .cache install
