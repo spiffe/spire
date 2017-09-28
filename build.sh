@@ -10,9 +10,11 @@ declare -r PROTO_FILES="$(find proto -name '*.proto' 2>/dev/null)"
 case $(uname) in
 	Darwin) declare -r OS1="darwin"
 			declare -r OS2="osx"
+			declare -r SED_I="sed -i ''"
 			;;
 	Linux)	declare -r OS1="linux"
 			declare -r OS2="linux"
+			declare -r SED_I="sed -i"
 			;;
 esac
 
@@ -232,6 +234,10 @@ build_artifact() {
 	for _n in $RELEASE_FILES; do
 		cp -r $_n $_tmp
 	done
+
+	## munge config files
+	# fix plugin path names to match tgz layout
+	${SED_I} -e 's/\(.*pluginCmd.*\)\/.*\"/\1\"/'  $(find ${_tmp}/conf -name \*.conf)
 
 	tar --directory .tmp -cvzf $_tgz .
 }

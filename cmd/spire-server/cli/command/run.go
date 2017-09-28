@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultConfigPath      = "conf/server/default_server_config.conf"
+	defaultConfigPath      = "conf/server/server.conf"
 	defaultBindAddress     = "127.0.0.1"
 	defaultBindPort        = "8081"
 	defaultBindHTTPPort    = "8080"
