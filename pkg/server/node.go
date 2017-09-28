@@ -17,7 +17,6 @@ import (
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/proto/server/noderesolver"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
@@ -34,9 +33,8 @@ func (s *nodeServer) FetchBaseSVID(
 	ctx context.Context, request *node.FetchBaseSVIDRequest) (
 	response *node.FetchBaseSVIDResponse, err error) {
 
-	_, serverCA, _, _ := s.getPlugins()
+	serverCA := s.catalog.CAs()[0]
 
-	//TODO: add GetURINamesFromCSR to go-spiffe/uri
 	baseSpiffeIDFromCSR, err := getSpiffeIDFromCSR(request.Csr)
 	if err != nil {
 		s.l.Error(err)
@@ -64,7 +62,7 @@ func (s *nodeServer) FetchBaseSVID(
 	signResponse, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr})
 	if err != nil {
 		s.l.Error(err)
-		return response, errors.New("Error trying to SignCsr")
+		return response, errors.New("Error trying to sign CSR")
 	}
 
 	if attestedBefore {
@@ -83,13 +81,13 @@ func (s *nodeServer) FetchBaseSVID(
 
 	}
 
-	selectors, err := s.getBaseSelectors(baseSpiffeIDFromCSR)
+	selectors, err := s.resolveSelectors(baseSpiffeIDFromCSR)
 	if err != nil {
 		s.l.Error(err)
-		return response, errors.New("Error trying to getBaseSelectors")
+		return response, errors.New("Error trying to get selectors for baseSpiffeID")
 	}
 
-	response, err = s.composeResponse(
+	response, err = s.getFetchBaseSVIDResponse(
 		baseSpiffeIDFromCSR, signResponse.SignedCertificate, selectors)
 	if err != nil {
 		s.l.Error(err)
@@ -106,64 +104,28 @@ func (s *nodeServer) FetchSVID(
 	ctx context.Context, request *node.FetchSVIDRequest) (
 	response *node.FetchSVIDResponse, err error) {
 
-	dataStore, serverCA, _, _ := s.getPlugins()
-	var baseSpiffeID string
-	ctxPeer, _ := peer.FromContext(ctx)
-	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
-	if ok {
-		spiffeID, err := uri.GetURINamesFromCertificate(tlsInfo.State.PeerCertificates[0])
-		if err != nil {
-			return response, err
-		}
-		baseSpiffeID = spiffeID[0]
-	}
-
-	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
-	nodeResolutionResponse, err := dataStore.FetchNodeResolverMapEntry(req)
+	baseSpiffeID, err := s.getSpiffeIDFromCtx(ctx)
 	if err != nil {
 		s.l.Error(err)
-		return response, errors.New("Error trying to FetchNodeResolverMapEntry")
+		return response, errors.New("Error trying to get spiffeID from caller")
 	}
-	selectors := convertToSelectors(nodeResolutionResponse.NodeResolverMapEntryList)
+
+	selectors, err := s.getStoredSelectors(baseSpiffeID)
+	if err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to get stored selectors")
+	}
 
 	regEntries, err := s.fetchRegistrationEntries(selectors, baseSpiffeID)
 	if err != nil {
 		s.l.Error(err)
-		return response, errors.New("Error trying to fetchRegistrationEntries")
+		return response, errors.New("Error trying to get registration entries")
 	}
 
-	//convert registration entries to map for easy lookup
-	regEntriesMap := make(map[string]*common.RegistrationEntry)
-	for _, entry := range regEntries {
-		regEntriesMap[entry.SpiffeId] = entry
-	}
-
-	//iterate CSRs, validate them and sign the certificates
-	svids := make(map[string]*node.Svid)
-	for _, csr := range request.Csrs {
-		spiffeID, err := getSpiffeIDFromCSR(csr)
-		if err != nil {
-			s.l.Error(err)
-			return response, errors.New("Error trying to get SpiffeId from CSR")
-		}
-
-		//TODO: Validate that other fields are not populated https://github.com/spiffe/spire/issues/161
-		//validate that is present in the registration entries, otherwise we shouldn't sign
-		entry, ok := regEntriesMap[spiffeID]
-		if !ok {
-			err := errors.New("Not entitled to sign CSR")
-			s.l.Error(err)
-			return response, err
-		}
-
-		//sign
-		signReq := &ca.SignCsrRequest{Csr: csr}
-		res, err := serverCA.SignCsr(signReq)
-		if err != nil {
-			s.l.Error(err)
-			return response, errors.New("Error trying to sign CSR")
-		}
-		svids[spiffeID] = &node.Svid{SvidCert: res.SignedCertificate, Ttl: entry.Ttl}
+	svids, err := s.signCSRs(request.Csrs, regEntries)
+	if err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying sign CSRs")
 	}
 
 	response = &node.FetchSVIDResponse{
@@ -188,14 +150,6 @@ func (s *nodeServer) FetchFederatedBundle(
 	ctx context.Context, request *node.FetchFederatedBundleRequest) (
 	response *node.FetchFederatedBundleResponse, err error) {
 	return response, nil
-}
-
-func convertToSelectors(resolution []*datastore.NodeResolverMapEntry) []*common.Selector {
-	var selectors []*common.Selector
-	for _, item := range resolution {
-		selectors = append(selectors, item.Selector)
-	}
-	return selectors
 }
 
 func (s *nodeServer) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
@@ -245,7 +199,7 @@ func (s *nodeServer) fetchRegistrationEntries(selectors []*common.Selector, spif
 
 func (s *nodeServer) isAttested(baseSpiffeID string) (bool, error) {
 
-	dataStore, _, _, _ := s.getPlugins()
+	dataStore := s.catalog.DataStores()[0]
 
 	fetchRequest := &datastore.FetchAttestedNodeEntryRequest{
 		BaseSpiffeId: baseSpiffeID,
@@ -267,7 +221,7 @@ func (s *nodeServer) attest(
 	attestedData *common.AttestedData, attestedBefore bool) (
 	response *nodeattestor.AttestResponse, err error) {
 
-	_, _, nodeAttestor, _ := s.getPlugins()
+	nodeAttestor := s.catalog.NodeAttestors()[0]
 
 	attestRequest := &nodeattestor.AttestRequest{
 		AttestedData:   attestedData,
@@ -298,7 +252,7 @@ func (s *nodeServer) validateAttestation(
 func (s *nodeServer) updateAttestationEntry(
 	certificate []byte, baseSPIFFEID string) error {
 
-	dataStore, _, _, _ := s.getPlugins()
+	dataStore := s.catalog.DataStores()[0]
 
 	cert, err := x509.ParseCertificate(certificate)
 	if err != nil {
@@ -322,7 +276,7 @@ func (s *nodeServer) updateAttestationEntry(
 func (s *nodeServer) createAttestationEntry(
 	certificate []byte, baseSPIFFEID string, attestationType string) error {
 
-	dataStore, _, _, _ := s.getPlugins()
+	dataStore := s.catalog.DataStores()[0]
 
 	cert, err := x509.ParseCertificate(certificate)
 	if err != nil {
@@ -343,10 +297,11 @@ func (s *nodeServer) createAttestationEntry(
 	return nil
 }
 
-func (s *nodeServer) getBaseSelectors(baseSpiffeID string) (
-	[]*common.Selector, error) {
+func (s *nodeServer) resolveSelectors(
+	baseSpiffeID string) ([]*common.Selector, error) {
 
-	dataStore, _, _, nodeResolver := s.getPlugins()
+	dataStore := s.catalog.DataStores()[0]
+	nodeResolver := s.catalog.NodeResolvers()[0]
 	//Call node resolver plugin to get a map of spiffeID=>Selector
 	selectors, err := nodeResolver.Resolve([]string{baseSpiffeID})
 	if err != nil {
@@ -372,10 +327,28 @@ func (s *nodeServer) getBaseSelectors(baseSpiffeID string) (
 	}
 
 	return []*common.Selector{}, nil
-
 }
 
-func (s *nodeServer) composeResponse(
+func (s *nodeServer) getStoredSelectors(
+	baseSpiffeID string) ([]*common.Selector, error) {
+
+	dataStore := s.catalog.DataStores()[0]
+
+	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
+	nodeResolutionResponse, err := dataStore.FetchNodeResolverMapEntry(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var selectors []*common.Selector
+	for _, item := range nodeResolutionResponse.NodeResolverMapEntryList {
+		selectors = append(selectors, item.Selector)
+	}
+
+	return selectors, nil
+}
+
+func (s *nodeServer) getFetchBaseSVIDResponse(
 	baseSpiffeID string, baseSvid []byte, selectors []*common.Selector) (
 	*node.FetchBaseSVIDResponse, error) {
 
@@ -396,19 +369,60 @@ func (s *nodeServer) composeResponse(
 	return &node.FetchBaseSVIDResponse{SvidUpdate: svidUpdate}, nil
 }
 
-func (s *nodeServer) getPlugins() (
-	dataStore datastore.DataStore,
-	serverCA ca.ControlPlaneCa,
-	nodeAttestor nodeattestor.NodeAttestor,
-	nodeResolver noderesolver.NodeResolver) {
+func (s *nodeServer) getSpiffeIDFromCtx(ctx context.Context) (spiffeID string, err error) {
 
-	return s.catalog.DataStores()[0],
-		s.catalog.CAs()[0],
-		s.catalog.NodeAttestors()[0],
-		s.catalog.NodeResolvers()[0]
+	ctxPeer, _ := peer.FromContext(ctx)
+	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
+	if ok {
+		spiffeID, err := uri.GetURINamesFromCertificate(tlsInfo.State.PeerCertificates[0])
+		if err != nil {
+			return "", err
+		}
+		return spiffeID[0], nil
+	}
+	return "", errors.New("It was not posible to read a SVID from your request")
 }
 
-//TODO: put this into go-spiffe uri
+func (s *nodeServer) signCSRs(
+	csrs [][]byte, regEntries []*common.RegistrationEntry) (
+	svids map[string]*node.Svid, err error) {
+
+	//convert registration entries into a map for easy lookup
+	regEntriesMap := make(map[string]*common.RegistrationEntry)
+	for _, entry := range regEntries {
+		regEntriesMap[entry.SpiffeId] = entry
+	}
+
+	serverCA := s.catalog.CAs()[0]
+	svids = make(map[string]*node.Svid)
+	//iterate the CSRs and sign them
+	for _, csr := range csrs {
+		spiffeID, err := getSpiffeIDFromCSR(csr)
+		if err != nil {
+			return nil, err
+		}
+
+		//TODO: Validate that other fields are not populated https://github.com/spiffe/spire/issues/161
+		//validate that is present in the registration entries, otherwise we shouldn't sign
+		entry, ok := regEntriesMap[spiffeID]
+		if !ok {
+			err := errors.New("Not entitled to sign CSR")
+			return nil, err
+		}
+
+		//sign
+		signReq := &ca.SignCsrRequest{Csr: csr}
+		res, err := serverCA.SignCsr(signReq)
+		if err != nil {
+			return nil, err
+		}
+		svids[spiffeID] = &node.Svid{SvidCert: res.SignedCertificate, Ttl: entry.Ttl}
+	}
+
+	return svids, nil
+}
+
+//TODO: put this into go-spiffe uri?
 func getSpiffeIDFromCSR(csr []byte) (spiffeID string, err error) {
 	var parsedCSR *x509.CertificateRequest
 	if parsedCSR, err = x509.ParseCertificateRequest(csr); err != nil {
