@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultConfigPath = "conf/agent/default_agent_config.conf"
+	defaultConfigPath = "conf/agent/agent.conf"
 
 	defaultSocketPath = "./spire_api"
 
