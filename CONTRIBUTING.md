@@ -1,3 +1,11 @@
+# Contributor guidelines and Governance
+
+Please see
+[CONTRIBUTING](https://github.com/spiffe/spiffe/blob/master/CONTRIBUTING.md)
+and
+[GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md)
+from the SPIFFE project.
+
 # Prerequisites
 
 For basic development you will need:
