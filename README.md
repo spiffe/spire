@@ -35,11 +35,11 @@ The following details the configurations for the spire agent. The configurations
  |BindPort               |  The GRPC port where the WORKLOAD API Service is set to listen       |
  |DataDir                |  Directory where the runtime data will be stored                     |
  |LogFile                |  Sets the path to log file                                           |
- |LogLevel               |  Sets the logging level DEBUG|INFO|WARN|ERROR>                       |
+ |LogLevel               |  Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                 |
  |PluginDir              |  Directory where the plugin configuration are stored                 |
  |ServerAddress          |  The GRPC Address where the SPIRE Server is running                  |
  |ServerPort             |  The GRPC port of the SPIRE Service                                  |
- |SocketPath             |  Sets the path where the socketfile will be generated                |
+ |SocketPath             |  Sets the path where the socket file will be generated               |
  |TrustBundlePath        |  Path to trusted CA Cert bundle                                      |
  |TrustDomain            |  SPIFFE trustDomain of the SPIRE Agent                               |
 
@@ -84,7 +84,7 @@ a .conf file or passed as command line args, the command line configurations tak
  |BindPort               |  The GRPC port where the SPIRE Service is set to listen              |
  |BindHTTPPort           |  The HTTP port where the SPIRE Service is set to listen              |
  |LogFile                |  Sets the path to log file                                           |
- |LogLevel               |  Sets the logging level DEBUG|INFO|WARN|ERROR>                       |
+ |LogLevel               |  Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                 |
  |PluginDir              |  Directory where the plugin configuration are stored                 |
  |TrustDomain            |  SPIFFE trustDomain of the SPIRE Agent                               |
 
@@ -112,4 +112,5 @@ The SPIFFE community, and [Scytale](https://scytale.io) in particular, maintain 
 Information on the various SIGs and relevant standards can be found in
 https://github.com/spiffe/spiffe.
 
-The SPIFFE and SPIRE governance policies are detailed in [GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md)
+The SPIFFE and SPIRE governance policies are detailed in
+[GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md)
