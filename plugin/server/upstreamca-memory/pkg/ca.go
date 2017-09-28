@@ -159,7 +159,7 @@ func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstrea
 		Subject:         csr.Subject,
 		Issuer:          m.cert.Subject,
 		SerialNumber:    big.NewInt(serial),
-		NotBefore:       now,
+		NotBefore:       now.Add(time.Duration(-10) * time.Second),
 		NotAfter:        now.Add(expiry),
 		KeyUsage: x509.KeyUsageDigitalSignature |
 			x509.KeyUsageCertSign |
