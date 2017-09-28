@@ -284,6 +284,7 @@ Represents a request with a certificate signing request.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | csr | [bytes](#bytes) |  | Certificate signing request. |
+| ttl | [int32](#int32) |  | TTL |
 
 
 
