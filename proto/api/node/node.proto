@@ -87,7 +87,7 @@ service Node {
     /** Get Workload, Node Agent certs and CA trust bundles. Also used for rotation 
     Base Node SVID or the Registered Node SVID used for this call)
     List can be empty to allow Node Agent cache refresh). */
-    rpc FetchSVID(FetchSVIDRequest) returns (FetchSVIDResponse);
+    rpc FetchSVID(stream FetchSVIDRequest) returns (stream FetchSVIDResponse);
     /** Called by Node Agent periodically to support Spire Server certificate
     rotation. Cached in Node Agent memory for WorkLoads as well. */
     rpc FetchCPBundle(FetchCPBundleRequest) returns (FetchCPBundleResponse);

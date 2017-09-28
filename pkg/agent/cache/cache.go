@@ -31,6 +31,7 @@ type Cache interface {
 	Entry([]*common.Selector) (entry []CacheEntry)
 	SetEntry(cacheEntry CacheEntry)
 	DeleteEntry([]*common.Selector) (deleted bool)
+	GetEntries() map[string][]CacheEntry
 }
 
 type cacheImpl struct {
@@ -42,11 +43,21 @@ func NewCache() *cacheImpl {
 	return &cacheImpl{cache: make(map[string][]CacheEntry)}
 }
 
+func (c *cacheImpl) GetEntries() map[string][]CacheEntry {
+	c.m.Lock()
+	defer c.m.Unlock()
+	return c.cache
+
+}
+
 func (c *cacheImpl) Entry(selectors []*common.Selector) (entry []CacheEntry) {
 	key := deriveCacheKey(selectors)
 	c.m.Lock()
 	defer c.m.Unlock()
-	return c.cache[key]
+	if entry, found := c.cache[key]; found {
+		return entry
+	}
+	return nil
 }
 
 func (c *cacheImpl) SetEntry(cacheEntry CacheEntry) {

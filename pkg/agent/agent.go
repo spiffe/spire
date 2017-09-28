@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -57,7 +56,7 @@ type Config struct {
 	ErrorCh chan error
 
 	// A channel to trigger agent shutdown
-	ShutdownCh chan struct{}
+	//ShutdownCh chan struct{}
 
 	// Trust domain and associated CA bundle
 	TrustDomain url.URL
@@ -77,16 +76,24 @@ type Agent struct {
 	config      *Config
 	grpcServer  *grpc.Server
 	Cache       cache.Cache
+	cacheMgr    cache.Manager
 	Catalog     catalog.Catalog
 	serverCerts []*x509.Certificate
+	ctx         context.Context
+	cancel      context.CancelFunc
 }
 
-func New(c *Config) *Agent {
+func New(ctx context.Context, c *Config) *Agent {
 	config := &catalog.Config{
 		ConfigDir: c.PluginDir,
 		Log:       c.Log.WithField("subsystem_name", "catalog"),
 	}
-	return &Agent{config: c, Catalog: catalog.New(config)}
+	ctx, cancel := context.WithCancel(ctx)
+	return &Agent{config: c,
+		Catalog: catalog.New(config),
+		ctx:     ctx,
+		cancel:  cancel,
+	}
 }
 
 // Run the agent
@@ -94,8 +101,6 @@ func New(c *Config) *Agent {
 // and then blocks on the main event loop.
 func (a *Agent) Run() error {
 	a.prepareUmask()
-
-	a.Cache = cache.NewCache()
 
 	err := a.initPlugins()
 	if err != nil {
@@ -118,7 +123,7 @@ func (a *Agent) Run() error {
 		select {
 		case err = <-a.config.ErrorCh:
 			return err
-		case <-a.config.ShutdownCh:
+		case <-a.ctx.Done():
 			return a.Shutdown()
 		}
 	}
@@ -130,24 +135,17 @@ func (a *Agent) prepareUmask() {
 }
 
 func (a *Agent) Shutdown() error {
+	defer a.cancel()
 	if a.Catalog != nil {
 		a.Catalog.Stop()
 	}
-
 	a.grpcServer.GracefulStop()
 
 	// Drain error channel, last one wins
 	var err error
-Drain:
-	for {
-		select {
-		case e := <-a.config.ErrorCh:
-			err = e
-		default:
-			break Drain
-		}
+	for err = range a.config.ErrorCh {
+		a.config.Log.Errorf(err.Error())
 	}
-
 	return err
 }
 
@@ -168,7 +166,7 @@ func (a *Agent) initEndpoints() error {
 	log := a.config.Log.WithField("subsystem_name", "workload")
 	ws := &workloadServer{
 		bundle:  a.serverCerts[1].Raw, // TODO: Fix handling of serverCerts
-		cache:   a.Cache,
+		cache:   a.cacheMgr.Cache(),
 		catalog: a.Catalog,
 		l:       log,
 		maxTTL:  maxWorkloadTTL,
@@ -242,14 +240,36 @@ func (a *Agent) bootstrap() error {
 		a.baseSVIDKey = key
 
 		// If we're here, we need to attest/Re-attest
-		regEntryMap, err := a.attest()
+		regEntries, err := a.attest()
 		if err != nil {
 			return err
 		}
-		err = a.FetchSVID(regEntryMap, a.BaseSVID, a.baseSVIDKey)
-		if err != nil {
-			return err
+		serverId := url.URL{
+			Scheme: "spiffe",
+			Host:   a.config.TrustDomain.Host,
+			Path:   path.Join("spiffe", "cp"),
 		}
+		cmgrConfig := &cache.MgrConfig{
+			ServerCerts:    a.serverCerts,
+			ServerSPIFFEID: serverId.String(),
+			ServerAddr:     a.config.ServerAddress.String(),
+
+			BaseSVID:       a.BaseSVID,
+			BaseSVIDKey:    a.baseSVIDKey,
+			BaseRegEntries: regEntries,
+			Logger:         a.config.Log}
+
+		a.cacheMgr, err = cache.NewManager(a.ctx, cmgrConfig)
+
+		go a.cacheMgr.Init()
+		go func() {
+			<-a.cacheMgr.Done()
+			a.config.Log.Info("Cache Update Stopped")
+			if a.cacheMgr.Err() != nil {
+				a.config.Log.Warning("error:", a.cacheMgr.Err())
+			}
+
+		}()
 	}
 
 	a.config.Log.Info("Bootstrapping done")
@@ -260,7 +280,8 @@ func (a *Agent) bootstrap() error {
 // which is used to generate CSRs for non-base SVIDs and update the agent cache entries
 //
 // TODO: Refactor me for length, testability
-func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
+
+func (a *Agent) attest() ([]*common.RegistrationEntry, error) {
 	var err error
 	a.config.Log.Info("Preparing to attest against ", a.config.ServerAddress.String())
 
@@ -276,7 +297,6 @@ func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
 			Host:   a.config.TrustDomain.Host,
 			Path:   path.Join("spire", "agent", "join_token", a.config.JoinToken),
 		}
-
 		pluginResponse.AttestedData = data
 		pluginResponse.SpiffeId = id.String()
 	} else {
@@ -303,7 +323,10 @@ func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
 	}
 
 	// Since we are bootstrapping, this is explicitly _not_ mTLS
-	conn := a.getNodeAPIClientConn(false, a.BaseSVID, a.baseSVIDKey)
+	conn, err := a.getNodeAPIClientConn(false, a.BaseSVID, a.baseSVIDKey)
+	if err != nil {
+		return nil, err
+	}
 	defer conn.Close()
 	nodeClient := node.NewNodeClient(conn)
 
@@ -334,16 +357,11 @@ func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
 		return nil, fmt.Errorf("Base SVID not found in attestation response")
 	}
 
-	var registrationEntryMap = make(map[string]*common.RegistrationEntry)
-	for _, entry := range serverResponse.SvidUpdate.RegistrationEntries {
-		registrationEntryMap[entry.SpiffeId] = entry
-	}
-
 	a.BaseSVID = svid.SvidCert
 	a.BaseSVIDTTL = svid.Ttl
 	a.storeBaseSVID()
 	a.config.Log.Info("Attestation complete")
-	return registrationEntryMap, nil
+	return serverResponse.SvidUpdate.RegistrationEntries, nil
 }
 
 // Generate a CSR for the given SPIFFE ID
@@ -415,72 +433,7 @@ func (a *Agent) storeBaseSVID() {
 	return
 }
 
-func (a *Agent) FetchSVID(registrationEntryMap map[string]*common.RegistrationEntry, svidCert []byte,
-	key *ecdsa.PrivateKey) (err error) {
-
-	if len(registrationEntryMap) != 0 {
-		Csrs, pkeyMap, err := a.generateCSRForRegistrationEntries(registrationEntryMap)
-		if err != nil {
-			return err
-		}
-
-		conn := a.getNodeAPIClientConn(true, svidCert, key)
-		defer conn.Close()
-		nodeClient := node.NewNodeClient(conn)
-
-		req := &node.FetchSVIDRequest{Csrs: Csrs}
-
-		callOptPeer := new(peer.Peer)
-		resp, err := nodeClient.FetchSVID(context.Background(), req, grpc.Peer(callOptPeer))
-		if err != nil {
-			return err
-		}
-		if tlsInfo, ok := callOptPeer.AuthInfo.(credentials.TLSInfo); ok {
-			a.serverCerts = tlsInfo.State.PeerCertificates
-		}
-
-		svidMap := resp.GetSvidUpdate().GetSvids()
-
-		// TODO: Fetch the referenced federated bundles and
-		// set them here
-		bundles := make(map[string][]byte)
-		for spiffeID, entry := range registrationEntryMap {
-			svid, svidInMap := svidMap[spiffeID]
-			pkey, pkeyInMap := pkeyMap[spiffeID]
-			if svidInMap && pkeyInMap {
-				svidCert, err := x509.ParseCertificate(svid.SvidCert)
-				if err != nil {
-					return fmt.Errorf("SVID for ID %s could not be parsed: %s", spiffeID, err)
-				}
-
-				entry := cache.CacheEntry{
-					RegistrationEntry: entry,
-					SVID:              svid,
-					PrivateKey:        pkey,
-					Bundles:           bundles,
-					Expiry:            svidCert.NotAfter,
-				}
-				a.Cache.SetEntry(entry)
-			}
-		}
-
-		newRegistrationMap := make(map[string]*common.RegistrationEntry)
-
-		if len(resp.SvidUpdate.RegistrationEntries) != 0 {
-			for _, entry := range resp.SvidUpdate.RegistrationEntries {
-				if _, ok := registrationEntryMap[entry.SpiffeId]; ok != true {
-					newRegistrationMap[entry.SpiffeId] = entry
-				}
-				a.FetchSVID(newRegistrationMap, svidMap[entry.SpiffeId].SvidCert, pkeyMap[entry.SpiffeId])
-
-			}
-
-		}
-	}
-	return
-}
-
-func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateKey) (conn *grpc.ClientConn) {
+func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateKey) (conn *grpc.ClientConn, err error) {
 
 	serverID := a.config.TrustDomain
 	serverID.Path = "spiffe/cp"
@@ -510,35 +463,10 @@ func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateK
 
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 
-	conn, err := grpc.Dial(a.config.ServerAddress.String(), dialCreds)
+	conn, err = grpc.Dial(a.config.ServerAddress.String(), dialCreds)
 	if err != nil {
 		return
 	}
 
-	return
-
-}
-
-func (a *Agent) generateCSRForRegistrationEntries(
-	regEntryMap map[string]*common.RegistrationEntry) (CSRs [][]byte, pkeyMap map[string]*ecdsa.PrivateKey, err error) {
-
-	pkeyMap = make(map[string]*ecdsa.PrivateKey)
-	for id, _ := range regEntryMap {
-
-		key, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
-		if err != nil {
-			return nil, nil, err
-		}
-		spiffeid, err := url.Parse(id)
-		if err != nil {
-			return nil, nil, err
-		}
-		csr, err := a.generateCSR(spiffeid, key)
-		if err != nil {
-			return nil, nil, err
-		}
-		CSRs = append(CSRs, csr)
-		pkeyMap[id] = key
-	}
 	return
 }

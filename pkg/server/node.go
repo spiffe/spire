@@ -22,6 +22,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"io"
 )
 
 type nodeServer struct {
@@ -109,42 +110,47 @@ func (s *nodeServer) FetchBaseSVID(
 //FetchSVID gets Workload, Agent certs and CA trust bundles.
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
-func (s *nodeServer) FetchSVID(
-	ctx context.Context, request *node.FetchSVIDRequest) (
-	response *node.FetchSVIDResponse, err error) {
+func (s *nodeServer) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
 
-	baseSpiffeID, err := s.getSpiffeIDFromCtx(ctx)
-	if err != nil {
-		s.l.Error(err)
-		return response, errors.New("Error trying to get spiffeID from caller")
+	for {
+		request, err := server.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		ctxSpiffeId, err := s.getSpiffeIDFromCtx(server.Context())
+		if err != nil {
+			s.l.Error(err)
+			return errors.New("Error trying to get spiffeID from caller")
+		}
+
+		selectors, err := s.getStoredSelectors(ctxSpiffeId)
+		if err != nil {
+			s.l.Error(err)
+			return errors.New("Error trying to get stored selectors")
+		}
+
+		regEntries, err := s.fetchRegistrationEntries(selectors, ctxSpiffeId)
+		if err != nil {
+			s.l.Error(err)
+			return errors.New("Error trying to get registration entries")
+		}
+
+		svids, err := s.signCSRs(request.Csrs, regEntries)
+		if err != nil {
+			s.l.Error(err)
+			return errors.New("Error trying sign CSRs")
+		}
+
+		server.Send(&node.FetchSVIDResponse{
+			SvidUpdate: &node.SvidUpdate{
+				Svids:               svids,
+				RegistrationEntries: regEntries,
+			},
+		})
 	}
-
-	selectors, err := s.getStoredSelectors(baseSpiffeID)
-	if err != nil {
-		s.l.Error(err)
-		return response, errors.New("Error trying to get stored selectors")
-	}
-
-	regEntries, err := s.fetchRegistrationEntries(selectors, baseSpiffeID)
-	if err != nil {
-		s.l.Error(err)
-		return response, errors.New("Error trying to get registration entries")
-	}
-
-	svids, err := s.signCSRs(request.Csrs, regEntries)
-	if err != nil {
-		s.l.Error(err)
-		return response, errors.New("Error trying sign CSRs")
-	}
-
-	response = &node.FetchSVIDResponse{
-		SvidUpdate: &node.SvidUpdate{
-			Svids:               svids,
-			RegistrationEntries: regEntries,
-		},
-	}
-
-	return response, nil
 }
 
 //TODO
