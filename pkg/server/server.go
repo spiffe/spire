@@ -21,9 +21,6 @@ import (
 	spinode "github.com/spiffe/spire/proto/api/node"
 	spiregistration "github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/server/ca"
-	"github.com/spiffe/spire/proto/server/datastore"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/proto/server/noderesolver"
 	"github.com/spiffe/spire/proto/server/upstreamca"
 
 	"google.golang.org/grpc"
@@ -55,21 +52,12 @@ type Config struct {
 	TrustDomain url.URL
 }
 
-type dependencies struct {
-	DataStoreImpl    datastore.DataStore
-	NodeAttestorImpl nodeattestor.NodeAttestor
-	NodeResolverImpl noderesolver.NodeResolver
-	ServerCAImpl     ca.ControlPlaneCa
-	UpstreamCAImpl   upstreamca.UpstreamCa
-}
-
 type Server struct {
-	Catalog      catalog.Catalog
-	Config       *Config
-	grpcServer   *grpc.Server
-	dependencies *dependencies
-	privateKey   *ecdsa.PrivateKey
-	svid         *x509.Certificate
+	Catalog    catalog.Catalog
+	Config     *Config
+	grpcServer *grpc.Server
+	privateKey *ecdsa.PrivateKey
+	svid       *x509.Certificate
 }
 
 // Run the server
@@ -81,8 +69,6 @@ func (server *Server) Run() error {
 	if err != nil {
 		return err
 	}
-
-	server.initDependencies()
 
 	err = server.rotateSigningCert()
 	if err != nil {
@@ -135,20 +121,6 @@ func (server *Server) stopPlugins() {
 	if server.Catalog != nil {
 		server.Catalog.Stop()
 	}
-}
-
-// TODO: Pass catalog not plugins
-func (server *Server) initDependencies() {
-	server.Config.Log.Info("Initiating dependencies")
-	server.dependencies = &dependencies{}
-
-	server.dependencies.DataStoreImpl = server.Catalog.DataStores()[0]
-	server.dependencies.NodeAttestorImpl = server.Catalog.NodeAttestors()[0]
-	server.dependencies.NodeResolverImpl = server.Catalog.NodeResolvers()[0]
-	server.dependencies.ServerCAImpl = server.Catalog.CAs()[0]
-	server.dependencies.UpstreamCAImpl = server.Catalog.UpstreamCAs()[0]
-
-	server.Config.Log.Info("Initiating dependencies done")
 }
 
 func (server *Server) initEndpoints() error {
@@ -244,8 +216,8 @@ func (server *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error)
 	}
 
 	l.Debug("Sending CSR to the CA plugin")
-	signReq := &ca.SignCsrRequest{Csr: csr}
-	res, err := server.dependencies.ServerCAImpl.SignCsr(signReq)
+	serverCA := server.Catalog.CAs()[0]
+	res, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: csr})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -262,25 +234,26 @@ func (server *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error)
 func (server *Server) rotateSigningCert() error {
 	server.Config.Log.Info("Initiating rotation of signing certificate")
 
-	csrRes, err := server.dependencies.ServerCAImpl.GenerateCsr(&ca.GenerateCsrRequest{})
+	serverCA := server.Catalog.CAs()[0]
+	csrRes, err := serverCA.GenerateCsr(&ca.GenerateCsrRequest{})
 	if err != nil {
 		return err
 	}
-
-	signRes, err := server.dependencies.UpstreamCAImpl.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
+	upstreamCA := server.Catalog.UpstreamCAs()[0]
+	signRes, err := upstreamCA.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
 	if err != nil {
 		return err
 	}
 
 	req := &ca.LoadCertificateRequest{SignedIntermediateCert: signRes.Cert}
-	_, err = server.dependencies.ServerCAImpl.LoadCertificate(req)
+	_, err = serverCA.LoadCertificate(req)
 
 	return err
 }
 
 func (server *Server) getGRPCServer() (*grpc.Server, error) {
-	// TODO: Fix me after server refactor
-	crtRes, err := server.dependencies.ServerCAImpl.FetchCertificate(&ca.FetchCertificateRequest{})
+	serverCA := server.Catalog.CAs()[0]
+	crtRes, err := serverCA.FetchCertificate(&ca.FetchCertificateRequest{})
 	if err != nil {
 		return nil, err
 	}
