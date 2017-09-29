@@ -138,14 +138,14 @@ func (s *nodeServer) FetchSVID(
 	return response, nil
 }
 
-// Implement the business logic of FetchCPBundle
+//TODO
 func (s *nodeServer) FetchCPBundle(
 	ctx context.Context, request *node.FetchCPBundleRequest) (
 	response *node.FetchCPBundleResponse, err error) {
 	return response, nil
 }
 
-// Implement the business logic of FetchFederatedBundle
+//TODO
 func (s *nodeServer) FetchFederatedBundle(
 	ctx context.Context, request *node.FetchFederatedBundleRequest) (
 	response *node.FetchFederatedBundleResponse, err error) {

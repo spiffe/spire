@@ -154,7 +154,7 @@ func (server *Server) initDependencies() {
 func (server *Server) initEndpoints() error {
 	grpcServer, err := server.getGRPCServer()
 	if err != nil {
-		return nil
+		return err
 	}
 	server.grpcServer = grpcServer
 

@@ -37,7 +37,7 @@ func (s *registrationServer) CreateEntry(
 	return &registration.RegistrationEntryID{Id: createResponse.RegisteredEntryId}, nil
 }
 
-// Implement the business logic of DeleteEntry
+//TODO
 func (s *registrationServer) DeleteEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
@@ -60,14 +60,14 @@ func (s *registrationServer) FetchEntry(
 	return fetchResponse.RegisteredEntry, nil
 }
 
-// Implement the business logic of UpdateEntry
+//TODO
 func (s *registrationServer) UpdateEntry(
 	ctx context.Context, request *registration.UpdateEntryRequest) (
 	response *common.RegistrationEntry, err error) {
 	return response, err
 }
 
-// Implement the business logic of ListByParentID
+//Returns all the Entries associated with the ParentID value
 func (s *registrationServer) ListByParentID(
 	ctx context.Context, request *registration.ParentID) (
 	response *common.RegistrationEntries, err error) {
@@ -86,42 +86,42 @@ func (s *registrationServer) ListByParentID(
 	}, nil
 }
 
-// Implement the business logic of ListBySelector
+//TODO
 func (s *registrationServer) ListBySelector(
 	ctx context.Context, request *common.Selector) (
 	response *common.RegistrationEntries, err error) {
 	return response, err
 }
 
-// Implement the business logic of ListBySpiffeID
+//TODO
 func (s *registrationServer) ListBySpiffeID(
 	ctx context.Context, request *registration.SpiffeID) (
 	response *common.RegistrationEntries, err error) {
 	return
 }
 
-// Implement the business logic of CreateFederatedBundle
+//TODO
 func (s *registrationServer) CreateFederatedBundle(
 	ctx context.Context, request *registration.CreateFederatedBundleRequest) (
 	response *common.Empty, err error) {
 	return response, err
 }
 
-// Implement the business logic of ListFederatedBundles
+//TODO
 func (s *registrationServer) ListFederatedBundles(
 	ctx context.Context, request *common.Empty) (
 	response *registration.ListFederatedBundlesReply, err error) {
 	return response, err
 }
 
-// Implement the business logic of UpdateFederatedBundle
+//TODO
 func (s *registrationServer) UpdateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 	return response, err
 }
 
-// Implement the business logic of DeleteFederatedBundle
+//TODO
 func (s *registrationServer) DeleteFederatedBundle(
 	ctx context.Context, request *registration.FederatedSpiffeID) (
 	response *common.Empty, err error) {
