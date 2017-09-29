@@ -1,26 +1,20 @@
-hash: dba5137e66e7a01bfb82f1e58adb93b0a9537d9f7523bdfc1c5330ff40e0c7d2
-updated: 2017-09-13T10:39:21.49433467-03:00
+hash: 751b4318c60c38530dbd45a340e767a9513ab2817c9ded83b22838dd6fd81265
+updated: 2017-09-29T12:40:36.928280182-03:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/bgentry/speakeasy
   version: 4aabc24848ce5fd31929f7d1e4ea74d3709c14cd
-- name: github.com/go-kit/kit
-  version: f7593d19082ad15f6376f12c746d71d680aa1666
+- name: github.com/go-ole/go-ole
+  version: 8a4f5c214bfb4475619b8bb7ccbe6fa5c91745f4
   subpackages:
-  - endpoint
-  - log
-  - transport/grpc
-- name: github.com/go-logfmt/logfmt
-  version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
-- name: github.com/go-stack/stack
-  version: 817915b46b97fd7bb80e8ab6b69f01a53ac3eebf
+  - oleutil
 - name: github.com/golang/mock
-  version: 18f6dd13ccdd227b8ebc546ca95cd62a02f3970c
+  version: 2b473a1a899b0c9967501477ec03c71c32550cbe
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: 17ce1425424ab154092bbb43af630bd647f3bb0d
+  version: 130e6b02ab059e7b717a096f397c5b60111cae74
   subpackages:
   - jsonpb
   - proto
@@ -32,7 +26,7 @@ imports:
   - ptypes/struct
   - ptypes/timestamp
 - name: github.com/grpc-ecosystem/grpc-gateway
-  version: f2862b476edcef83412c7af8687c9cd8e4097c0f
+  version: 8bec008bd140852468324fdd069ed8e38d37a963
   subpackages:
   - runtime
   - runtime/internal
@@ -46,7 +40,7 @@ imports:
 - name: github.com/hashicorp/go-plugin
   version: 3e6d191694b5a3a2b99755f31b47fa209e4bcd09
 - name: github.com/hashicorp/hcl
-  version: 8f6b1344a92ff8877cf24a5de9177bf7d0a2a187
+  version: 68e816d1c783414e79bc65b3994d9ab6b0a722ab
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -69,18 +63,16 @@ imports:
   version: a009038a6334cbda8dd5984dfd2f387a2ce9fdbf
 - name: github.com/jteeuwen/go-bindata
   version: bbd0c6e271208dce66d8fda4bc536453cd27fc4a
-- name: github.com/kr/logfmt
-  version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/mattn/go-isatty
-  version: fc9e8d8ef48496124e79ae0df75490096eccf6fe
+  version: a5cdd64afdee435007ee3e9f6ed4684af949d568
 - name: github.com/mattn/go-sqlite3
   version: ca5e3819723d8eeaf170ad510e7da1d6d2e94a08
 - name: github.com/mitchellh/cli
-  version: 7a1a617034de956eee640dfa5a7407ccc8c8d7e6
+  version: 65fcae5817c8600da98ada9d7edf26dd1a84837b
 - name: github.com/mitchellh/go-testing-interface
   version: 7bf6f6eaf1bed2fd3c6c63114b18cb64facb9de2
 - name: github.com/posener/complete
-  version: 9f41f7636a724791a3b8b1d35e84caa1124f0d3c
+  version: 88e59760adaddb8276c9b15511302890690e2dae
   subpackages:
   - cmd
   - cmd/install
@@ -90,21 +82,34 @@ imports:
   subpackages:
   - context
 - name: github.com/shirou/gopsutil
-  version: a452de7c734a0fa0f16d2e5725b0fa5934d9fbec
+  version: 6e221c482653ef05c9f6a7bf71ddceea0e40bac5
+  subpackages:
+  - cpu
+  - host
+  - internal/common
+  - mem
+  - net
+  - process
+- name: github.com/shirou/w32
+  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/sirupsen/logrus
   version: 89742aefa4b206dcf400792f3bd35b542998eb3b
+  subpackages:
+  - hooks/test
 - name: github.com/spiffe/go-spiffe
   version: 2bb3101d62b4bea6371d792e818360e3f056867b
   subpackages:
   - spiffe
   - tls
   - uri
+- name: github.com/StackExchange/wmi
+  version: ea383cf3ba6ec950874b8486cd72356d007c768f
 - name: golang.org/x/crypto
-  version: 81e90905daefcd6fd217b62423c0908922eadb30
+  version: 76eec36fa14229c4b25bb894c2d0e591527af429
   subpackages:
   - ssh/terminal
 - name: golang.org/x/net
-  version: 66aacef3dd8a676686c7ae3716979581e8b03c47
+  version: 0a9397675ba34b2845f758fe3cd68828369c6517
   subpackages:
   - context
   - http2
@@ -114,19 +119,19 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sys
-  version: a45f55524b7ec57890cfa6c6bc06b47f877be0d1
+  version: 314a259e304ff91bd6985da2a7149bbf91237993
   subpackages:
   - unix
   - windows
 - name: golang.org/x/text
-  version: bd91bbf73e9a4a801adbfb97133c992678533126
+  version: 1cbadb444a806fd9430d14ad08967ed91da4fa0a
   subpackages:
   - secure/bidirule
   - transform
   - unicode/bidi
   - unicode/norm
 - name: google.golang.org/genproto
-  version: 595979c8a7bf586b2d293fb42246bf91a0b893d9
+  version: 1e559d0a00eef8a9a43151db4665280bd8dd5886
   subpackages:
   - googleapis/api/annotations
   - googleapis/rpc/status
@@ -158,12 +163,9 @@ testImports:
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
-- name: github.com/stretchr/objx
-  version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
   version: 890a5c3458b43e6104ff5da8dfa139d013d77544
   subpackages:
   - assert
-  - mock
   - require
   - suite

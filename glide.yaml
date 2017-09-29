@@ -12,7 +12,6 @@ import:
   - context
 - package: google.golang.org/grpc
   version: ^1.5.0
-- package: github.com/go-kit/kit
 - package: github.com/jstemmer/go-junit-report
 - package: github.com/jteeuwen/go-bindata
   version: ~3.0.7
