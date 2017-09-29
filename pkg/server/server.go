@@ -18,8 +18,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/pkg/server/endpoints/node"
-	"github.com/spiffe/spire/pkg/server/endpoints/registration"
 	spinode "github.com/spiffe/spire/proto/api/node"
 	spiregistration "github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/server/ca"
@@ -154,60 +152,26 @@ func (server *Server) initDependencies() {
 }
 
 func (server *Server) initEndpoints() error {
-	server.Config.Log.Info("Starting the Registration API")
-	var registrationSvc registration.Service
-	registrationSvc, err := registration.NewService(registration.Config{
-		Logger:  server.Config.Log,
-		Catalog: server.Catalog,
-	})
-	if err != nil {
-		return err
-	}
-	registrationSvc = registration.ServiceLoggingMiddleWare(server.Config.Log)(registrationSvc)
-	registrationEndpoints := getRegistrationEndpoints(registrationSvc)
-
-	server.Config.Log.Info("Starting the Node API")
-	nodeSvc, err := node.NewService(node.Config{
-		Logger:          server.Config.Log,
-		Catalog:         server.Catalog,
-		BaseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
-	})
-	if err != nil {
-		return err
-	}
-	nodeSvc = node.ServiceLoggingMiddleWare(server.Config.Log)(nodeSvc)
-	nodeEnpoints := getNodeEndpoints(nodeSvc)
-
-	// TODO: Fix me after server refactor
-	crtRes, err := server.dependencies.ServerCAImpl.FetchCertificate(&ca.FetchCertificateRequest{})
-	if err != nil {
-		return err
-	}
-	certChain := [][]byte{server.svid.Raw, crtRes.StoredIntermediateCert}
-	tlsCert := &tls.Certificate{
-		Certificate: certChain,
-		PrivateKey:  server.privateKey,
-	}
-
-	certpool := x509.NewCertPool()
-	intermCert, err := x509.ParseCertificate(crtRes.StoredIntermediateCert)
+	grpcServer, err := server.getGRPCServer()
 	if err != nil {
 		return nil
 	}
-	certpool.AddCert(intermCert)
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{*tlsCert},
-		ClientCAs:    certpool,
-		ClientAuth:   tls.RequestClientCert,
+	server.grpcServer = grpcServer
+
+	server.Config.Log.Info("Starting the Registration API")
+	rs := &registrationServer{
+		l:       server.Config.Log,
+		catalog: server.Catalog,
 	}
+	spiregistration.RegisterRegistrationServer(server.grpcServer, rs)
 
-	server.grpcServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
-
-	registrationHandler := registration.MakeGRPCServer(registrationEndpoints)
-	spiregistration.RegisterRegistrationServer(server.grpcServer, registrationHandler)
-
-	nodeHandler := node.MakeGRPCServer(nodeEnpoints)
-	spinode.RegisterNodeServer(server.grpcServer, nodeHandler)
+	server.Config.Log.Info("Starting the Node API")
+	ns := &nodeServer{
+		l:               server.Config.Log,
+		catalog:         server.Catalog,
+		baseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
+	}
+	spinode.RegisterNodeServer(server.grpcServer, ns)
 
 	server.Config.Log.Info(server.Config.BindAddress.String())
 	listener, err := net.Listen(server.Config.BindAddress.Network(), server.Config.BindAddress.String())
@@ -314,27 +278,29 @@ func (server *Server) rotateSigningCert() error {
 	return err
 }
 
-func getRegistrationEndpoints(registrationSvc registration.Service) registration.Endpoints {
-	return registration.Endpoints{
-		CreateEntryEndpoint:           registration.MakeCreateEntryEndpoint(registrationSvc),
-		DeleteEntryEndpoint:           registration.MakeDeleteEntryEndpoint(registrationSvc),
-		FetchEntryEndpoint:            registration.MakeFetchEntryEndpoint(registrationSvc),
-		UpdateEntryEndpoint:           registration.MakeUpdateEntryEndpoint(registrationSvc),
-		ListByParentIDEndpoint:        registration.MakeListByParentIDEndpoint(registrationSvc),
-		ListBySelectorEndpoint:        registration.MakeListBySelectorEndpoint(registrationSvc),
-		ListBySpiffeIDEndpoint:        registration.MakeListBySpiffeIDEndpoint(registrationSvc),
-		CreateFederatedBundleEndpoint: registration.MakeCreateFederatedBundleEndpoint(registrationSvc),
-		ListFederatedBundlesEndpoint:  registration.MakeListFederatedBundlesEndpoint(registrationSvc),
-		UpdateFederatedBundleEndpoint: registration.MakeUpdateFederatedBundleEndpoint(registrationSvc),
-		DeleteFederatedBundleEndpoint: registration.MakeDeleteFederatedBundleEndpoint(registrationSvc),
+func (server *Server) getGRPCServer() (*grpc.Server, error) {
+	// TODO: Fix me after server refactor
+	crtRes, err := server.dependencies.ServerCAImpl.FetchCertificate(&ca.FetchCertificateRequest{})
+	if err != nil {
+		return nil, err
 	}
-}
+	certChain := [][]byte{server.svid.Raw, crtRes.StoredIntermediateCert}
+	tlsCert := &tls.Certificate{
+		Certificate: certChain,
+		PrivateKey:  server.privateKey,
+	}
 
-func getNodeEndpoints(nodeSvc node.Service) node.Endpoints {
-	return node.Endpoints{
-		FetchBaseSVIDEndpoint:        node.MakeFetchBaseSVIDEndpoint(nodeSvc),
-		FetchCPBundleEndpoint:        node.MakeFetchCPBundleEndpoint(nodeSvc),
-		FetchFederatedBundleEndpoint: node.MakeFetchFederatedBundleEndpoint(nodeSvc),
-		FetchSVIDEndpoint:            node.MakeFetchSVIDEndpoint(nodeSvc),
+	certpool := x509.NewCertPool()
+	intermCert, err := x509.ParseCertificate(crtRes.StoredIntermediateCert)
+	if err != nil {
+		return nil, err
 	}
+	certpool.AddCert(intermCert)
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{*tlsCert},
+		ClientCAs:    certpool,
+		ClientAuth:   tls.RequestClientCert,
+	}
+
+	return grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig))), nil
 }

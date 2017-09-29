@@ -1,4 +1,4 @@
-package node
+package server
 
 import (
 	"testing"
@@ -16,7 +16,7 @@ import (
 type NodeServiceTestSuite struct {
 	suite.Suite
 	t             *testing.T
-	nodeService   Service
+	server        nodeServer
 	mockServerCA  *ca.MockControlPlaneCa
 	mockDataStore *datastore.MockDataStore
 }
