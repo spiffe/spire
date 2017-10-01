@@ -242,7 +242,7 @@ returns a spiffeid->registration entries map
 This map is used generated CSR for non-base SVIDs and update the agent cache entries
 */
 func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
-	a.config.Log.Info("Preparing to attest against %s", a.config.ServerAddress.String())
+	a.config.Log.Info("Preparing to attest against", a.config.ServerAddress.String())
 
 	plugins := a.Catalog.NodeAttestors()
 	if len(plugins) != 1 {
@@ -311,7 +311,7 @@ func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
 
 // Generate a CSR for the given SPIFFE ID
 func (a *Agent) generateCSR(spiffeID *url.URL, key *ecdsa.PrivateKey) ([]byte, error) {
-	a.config.Log.Info("Generating a CSR for %s", spiffeID.String())
+	a.config.Log.Info("Generating a CSR for ", spiffeID.String())
 
 	uriSANs, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
