@@ -51,6 +51,7 @@ It has these top-level messages:
 	ListSelectorEntriesResponse
 	ListSpiffeEntriesRequest
 	ListSpiffeEntriesResponse
+	JoinToken
 */
 package datastore
 
@@ -273,15 +274,15 @@ func (m *RegistrationEntries) GetEntries() []*RegistrationEntry {
 	return s
 }
 
-// * Represents the trust chain for a different trust domain, along with
+// Represents the trust chain for a different trust domain, along with
 // a TTL describing its expiration, keyed by the SPIFFE ID of the foreign
 // trust domain.
 type FederatedBundle struct {
-	// * Foreign trust domain SPIFFE ID
+	// Foreign trust domain SPIFFE ID
 	FederatedBundleSpiffeId string `protobuf:"bytes,1,opt,name=federatedBundleSpiffeId" json:"federatedBundleSpiffeId,omitempty"`
-	// * Trust chain
+	// Trust chain
 	FederatedTrustBundle []byte `protobuf:"bytes,2,opt,name=federatedTrustBundle,proto3" json:"federatedTrustBundle,omitempty"`
-	// * TTL
+	// TTL
 	Ttl int32 `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
 }
 
@@ -311,7 +312,7 @@ func (m *FederatedBundle) GetTtl() int32 {
 	return 0
 }
 
-// * Represents a single entry in NodeResolverMap and maps node properties
+// Represents a single entry in NodeResolverMap and maps node properties
 // to logical attributes (i.e. an AWS instance to its ASG).
 type NodeResolverMapEntry struct {
 	BaseSpiffeId string                 `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
@@ -337,17 +338,17 @@ func (m *NodeResolverMapEntry) GetSelector() *spire_common.Selector {
 	return nil
 }
 
-// * Represents a single entry in AttestedNodes and stores the node's
+// Represents a single entry in AttestedNodes and stores the node's
 // SPIFFE ID, the type of attestation it performed, as well as the serial
 // number and expiration date of its node SVID.
 type AttestedNodeEntry struct {
-	// * Spiffe ID
+	// Spiffe ID
 	BaseSpiffeId string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
-	// * Attestation type
+	// Attestation type
 	AttestedDataType string `protobuf:"bytes,2,opt,name=attestedDataType" json:"attestedDataType,omitempty"`
-	// * Serial number
+	// Serial number
 	CertSerialNumber string `protobuf:"bytes,3,opt,name=certSerialNumber" json:"certSerialNumber,omitempty"`
-	// *  Expiration date
+	// Expiration date
 	CertExpirationDate string `protobuf:"bytes,4,opt,name=certExpirationDate" json:"certExpirationDate,omitempty"`
 }
 
@@ -384,9 +385,9 @@ func (m *AttestedNodeEntry) GetCertExpirationDate() string {
 	return ""
 }
 
-// * Represents a Federated bundle
+// Represents a Federated bundle
 type CreateFederatedEntryRequest struct {
-	// * Federated bundle
+	// Federated bundle
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
 
@@ -402,7 +403,7 @@ func (m *CreateFederatedEntryRequest) GetFederatedBundle() *FederatedBundle {
 	return nil
 }
 
-// * Empty response
+// Empty response
 type CreateFederatedEntryResponse struct {
 }
 
@@ -411,7 +412,7 @@ func (m *CreateFederatedEntryResponse) String() string            { return proto
 func (*CreateFederatedEntryResponse) ProtoMessage()               {}
 func (*CreateFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
-// * Empty Request
+// Empty Request
 type ListFederatedEntryRequest struct {
 }
 
@@ -420,9 +421,9 @@ func (m *ListFederatedEntryRequest) String() string            { return proto.Co
 func (*ListFederatedEntryRequest) ProtoMessage()               {}
 func (*ListFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
 
-// * Represents a list of SPIFFE IDs of foreign trust domains
+// Represents a list of SPIFFE IDs of foreign trust domains
 type ListFederatedEntryResponse struct {
-	// * SPIFFE IDs of foreign trust domains
+	// SPIFFE IDs of foreign trust domains
 	FederatedBundleSpiffeIdList []string `protobuf:"bytes,1,rep,name=federatedBundleSpiffeIdList" json:"federatedBundleSpiffeIdList,omitempty"`
 }
 
@@ -438,9 +439,9 @@ func (m *ListFederatedEntryResponse) GetFederatedBundleSpiffeIdList() []string {
 	return nil
 }
 
-// * Represents a federated bundle to update
+// Represents a federated bundle to update
 type UpdateFederatedEntryRequest struct {
-	// * Federated bundle
+	// Federated bundle
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
 
@@ -456,9 +457,9 @@ func (m *UpdateFederatedEntryRequest) GetFederatedBundle() *FederatedBundle {
 	return nil
 }
 
-// * Represents the updated federated bundle
+// Represents the updated federated bundle
 type UpdateFederatedEntryResponse struct {
-	// * Federated bundle
+	// Federated bundle
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
 
@@ -474,9 +475,9 @@ func (m *UpdateFederatedEntryResponse) GetFederatedBundle() *FederatedBundle {
 	return nil
 }
 
-// * Represents the Spiffe ID of the federated bundle to delete
+// Represents the Spiffe ID of the federated bundle to delete
 type DeleteFederatedEntryRequest struct {
-	// * SPIFFE ID of foreign trust domain
+	// SPIFFE ID of foreign trust domain
 	FederatedBundleSpiffeId string `protobuf:"bytes,1,opt,name=federatedBundleSpiffeId" json:"federatedBundleSpiffeId,omitempty"`
 }
 
@@ -492,9 +493,9 @@ func (m *DeleteFederatedEntryRequest) GetFederatedBundleSpiffeId() string {
 	return ""
 }
 
-// * Represents the deleted federated bundle
+// Represents the deleted federated bundle
 type DeleteFederatedEntryResponse struct {
-	// * Federated bundle
+	// Federated bundle
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
 }
 
@@ -510,9 +511,9 @@ func (m *DeleteFederatedEntryResponse) GetFederatedBundle() *FederatedBundle {
 	return nil
 }
 
-// * Represents an Attested Node entry to create
+// Represents an Attested Node entry to create
 type CreateAttestedNodeEntryRequest struct {
-	// * Attested node entry
+	// Attested node entry
 	AttestedNodeEntry *AttestedNodeEntry `protobuf:"bytes,1,opt,name=attestedNodeEntry" json:"attestedNodeEntry,omitempty"`
 }
 
@@ -528,9 +529,9 @@ func (m *CreateAttestedNodeEntryRequest) GetAttestedNodeEntry() *AttestedNodeEnt
 	return nil
 }
 
-// * Represents the created Attested Node entry
+// Represents the created Attested Node entry
 type CreateAttestedNodeEntryResponse struct {
-	// * Attested node entry
+	// Attested node entry
 	AttestedNodeEntry *AttestedNodeEntry `protobuf:"bytes,1,opt,name=attestedNodeEntry" json:"attestedNodeEntry,omitempty"`
 }
 
@@ -548,9 +549,9 @@ func (m *CreateAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEn
 	return nil
 }
 
-// * Represents the Spiffe ID of the node entry to retrieve
+// Represents the Spiffe ID of the node entry to retrieve
 type FetchAttestedNodeEntryRequest struct {
-	// * SPIFFE ID
+	// SPIFFE ID
 	BaseSpiffeId string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
 }
 
@@ -566,9 +567,9 @@ func (m *FetchAttestedNodeEntryRequest) GetBaseSpiffeId() string {
 	return ""
 }
 
-// * Represents an Attested Node entry
+// Represents an Attested Node entry
 type FetchAttestedNodeEntryResponse struct {
-	// * Attested node entry
+	// Attested node entry
 	AttestedNodeEntry *AttestedNodeEntry `protobuf:"bytes,1,opt,name=attestedNodeEntry" json:"attestedNodeEntry,omitempty"`
 }
 
@@ -584,7 +585,7 @@ func (m *FetchAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEnt
 	return nil
 }
 
-// * Empty Request
+// Empty Request
 type FetchStaleNodeEntriesRequest struct {
 }
 
@@ -593,9 +594,9 @@ func (m *FetchStaleNodeEntriesRequest) String() string            { return proto
 func (*FetchStaleNodeEntriesRequest) ProtoMessage()               {}
 func (*FetchStaleNodeEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
 
-// * Represents dead nodes for which the base SVID has expired
+// Represents dead nodes for which the base SVID has expired
 type FetchStaleNodeEntriesResponse struct {
-	// * List of attested node entries
+	// List of attested node entries
 	AttestedNodeEntryList []*AttestedNodeEntry `protobuf:"bytes,1,rep,name=attestedNodeEntryList" json:"attestedNodeEntryList,omitempty"`
 }
 
@@ -611,13 +612,13 @@ func (m *FetchStaleNodeEntriesResponse) GetAttestedNodeEntryList() []*AttestedNo
 	return nil
 }
 
-// * Represents Attested node entry fields to update
+// Represents Attested node entry fields to update
 type UpdateAttestedNodeEntryRequest struct {
-	// * SPIFFE ID
+	// SPIFFE ID
 	BaseSpiffeId string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
-	// * Serial number
+	// Serial number
 	CertSerialNumber string `protobuf:"bytes,2,opt,name=certSerialNumber" json:"certSerialNumber,omitempty"`
-	// * Expiration date
+	// Expiration date
 	CertExpirationDate string `protobuf:"bytes,3,opt,name=certExpirationDate" json:"certExpirationDate,omitempty"`
 }
 
@@ -647,9 +648,9 @@ func (m *UpdateAttestedNodeEntryRequest) GetCertExpirationDate() string {
 	return ""
 }
 
-// * Represents the updated Attested node entry
+// Represents the updated Attested node entry
 type UpdateAttestedNodeEntryResponse struct {
-	// * Attested node entry
+	// Attested node entry
 	AttestedNodeEntry *AttestedNodeEntry `protobuf:"bytes,1,opt,name=attestedNodeEntry" json:"attestedNodeEntry,omitempty"`
 }
 
@@ -667,9 +668,9 @@ func (m *UpdateAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEn
 	return nil
 }
 
-// * Represents the Spiffe ID of the Attested node entry to delete
+// Represents the Spiffe ID of the Attested node entry to delete
 type DeleteAttestedNodeEntryRequest struct {
-	// * SPIFFE ID
+	// SPIFFE ID
 	BaseSpiffeId string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
 }
 
@@ -685,7 +686,7 @@ func (m *DeleteAttestedNodeEntryRequest) GetBaseSpiffeId() string {
 	return ""
 }
 
-// * Represents the deleted Attested node entry
+// Represents the deleted Attested node entry
 type DeleteAttestedNodeEntryResponse struct {
 	AttestedNodeEntry *AttestedNodeEntry `protobuf:"bytes,1,opt,name=attestedNodeEntry" json:"attestedNodeEntry,omitempty"`
 }
@@ -704,9 +705,9 @@ func (m *DeleteAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEn
 	return nil
 }
 
-// * Represents a Node resolver map entry to create
+// Represents a Node resolver map entry to create
 type CreateNodeResolverMapEntryRequest struct {
-	// * Node resolver map entry
+	// Node resolver map entry
 	NodeResolverMapEntry *NodeResolverMapEntry `protobuf:"bytes,1,opt,name=nodeResolverMapEntry" json:"nodeResolverMapEntry,omitempty"`
 }
 
@@ -724,9 +725,9 @@ func (m *CreateNodeResolverMapEntryRequest) GetNodeResolverMapEntry() *NodeResol
 	return nil
 }
 
-// * Represents the created Node resolver map entry
+// Represents the created Node resolver map entry
 type CreateNodeResolverMapEntryResponse struct {
-	// * Node resolver map entry
+	// Node resolver map entry
 	NodeResolverMapEntry *NodeResolverMapEntry `protobuf:"bytes,1,opt,name=nodeResolverMapEntry" json:"nodeResolverMapEntry,omitempty"`
 }
 
@@ -744,9 +745,9 @@ func (m *CreateNodeResolverMapEntryResponse) GetNodeResolverMapEntry() *NodeReso
 	return nil
 }
 
-// * Represents a Spiffe ID
+// Represents a Spiffe ID
 type FetchNodeResolverMapEntryRequest struct {
-	// * SPIFFE ID
+	// SPIFFE ID
 	BaseSpiffeId string `protobuf:"bytes,1,opt,name=baseSpiffeId" json:"baseSpiffeId,omitempty"`
 }
 
@@ -764,10 +765,9 @@ func (m *FetchNodeResolverMapEntryRequest) GetBaseSpiffeId() string {
 	return ""
 }
 
-// * Represents a list of Node resolver map entries for the specified
-// Spiffe ID
+// Represents a list of Node resolver map entries for the specified Spiffe ID
 type FetchNodeResolverMapEntryResponse struct {
-	// * List of Node resolver map entries
+	// List of Node resolver map entries
 	NodeResolverMapEntryList []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=nodeResolverMapEntryList" json:"nodeResolverMapEntryList,omitempty"`
 }
 
@@ -785,9 +785,9 @@ func (m *FetchNodeResolverMapEntryResponse) GetNodeResolverMapEntryList() []*Nod
 	return nil
 }
 
-// * Represents a Node resolver map entry to delete
+// Represents a Node resolver map entry to delete
 type DeleteNodeResolverMapEntryRequest struct {
-	// * Node resolver map entry
+	// Node resolver map entry
 	NodeResolverMapEntry *NodeResolverMapEntry `protobuf:"bytes,1,opt,name=nodeResolverMapEntry" json:"nodeResolverMapEntry,omitempty"`
 }
 
@@ -805,9 +805,9 @@ func (m *DeleteNodeResolverMapEntryRequest) GetNodeResolverMapEntry() *NodeResol
 	return nil
 }
 
-// * Represents a list of Node resolver map entries
+// Represents a list of Node resolver map entries
 type DeleteNodeResolverMapEntryResponse struct {
-	// * List of Node resolver map entries
+	// List of Node resolver map entries
 	NodeResolverMapEntryList []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=nodeResolverMapEntryList" json:"nodeResolverMapEntryList,omitempty"`
 }
 
@@ -825,9 +825,9 @@ func (m *DeleteNodeResolverMapEntryResponse) GetNodeResolverMapEntryList() []*No
 	return nil
 }
 
-// * Represents a list of Node resolver map entries
+// Represents a list of Node resolver map entries
 type RectifyNodeResolverMapEntriesRequest struct {
-	// * List of Node resolver map entries
+	// List of Node resolver map entries
 	NodeResolverMapEntryList []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=nodeResolverMapEntryList" json:"nodeResolverMapEntryList,omitempty"`
 }
 
@@ -845,9 +845,9 @@ func (m *RectifyNodeResolverMapEntriesRequest) GetNodeResolverMapEntryList() []*
 	return nil
 }
 
-// * Represents a list of Node resolver map entries
+// Represents a list of Node resolver map entries
 type RectifyNodeResolverMapEntriesResponse struct {
-	// * List of Node resolver map entries
+	// List of Node resolver map entries
 	NodeResolverMapEntryList []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=nodeResolverMapEntryList" json:"nodeResolverMapEntryList,omitempty"`
 }
 
@@ -865,9 +865,9 @@ func (m *RectifyNodeResolverMapEntriesResponse) GetNodeResolverMapEntryList() []
 	return nil
 }
 
-// * Represents a Registration entry to create
+// Represents a Registration entry to create
 type CreateRegistrationEntryRequest struct {
-	// * Registration entry
+	// Registration entry
 	RegisteredEntry *spire_common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
@@ -883,9 +883,9 @@ func (m *CreateRegistrationEntryRequest) GetRegisteredEntry() *spire_common.Regi
 	return nil
 }
 
-// * Represents the created Registration entry
+// Represents the created Registration entry
 type CreateRegistrationEntryResponse struct {
-	// * Registration entry ID
+	// Registration entry ID
 	RegisteredEntryId string `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
 }
 
@@ -903,9 +903,9 @@ func (m *CreateRegistrationEntryResponse) GetRegisteredEntryId() string {
 	return ""
 }
 
-// * Represents a Registration entry ID to fetch
+// Represents a Registration entry ID to fetch
 type FetchRegistrationEntryRequest struct {
-	// * Registration entry ID
+	// Registration entry ID
 	RegisteredEntryId string `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
 }
 
@@ -921,9 +921,9 @@ func (m *FetchRegistrationEntryRequest) GetRegisteredEntryId() string {
 	return ""
 }
 
-// * Represents a Registration entry
+// Represents a Registration entry
 type FetchRegistrationEntryResponse struct {
-	// * Registration entry
+	// Registration entry
 	RegisteredEntry *spire_common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
@@ -939,11 +939,11 @@ func (m *FetchRegistrationEntryResponse) GetRegisteredEntry() *spire_common.Regi
 	return nil
 }
 
-// * Represents a Registration entry to update
+// Represents a Registration entry to update
 type UpdateRegistrationEntryRequest struct {
-	// * Registration entry ID
+	// Registration entry ID
 	RegisteredEntryId string `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
-	// * Registration entry
+	// Registration entry
 	RegisteredEntry *spire_common.RegistrationEntry `protobuf:"bytes,2,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
@@ -966,9 +966,9 @@ func (m *UpdateRegistrationEntryRequest) GetRegisteredEntry() *spire_common.Regi
 	return nil
 }
 
-// * Represents the updated Registration entry
+// Represents the updated Registration entry
 type UpdateRegistrationEntryResponse struct {
-	// * Registration entry
+	// Registration entry
 	RegisteredEntry *spire_common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
@@ -986,9 +986,9 @@ func (m *UpdateRegistrationEntryResponse) GetRegisteredEntry() *spire_common.Reg
 	return nil
 }
 
-// * Represents a Registration entry ID to delete
+// Represents a Registration entry ID to delete
 type DeleteRegistrationEntryRequest struct {
-	// * Registration entry ID
+	// Registration entry ID
 	RegisteredEntryId string `protobuf:"bytes,1,opt,name=registeredEntryId" json:"registeredEntryId,omitempty"`
 }
 
@@ -1004,9 +1004,9 @@ func (m *DeleteRegistrationEntryRequest) GetRegisteredEntryId() string {
 	return ""
 }
 
-// * Represents the deleted Registration entry
+// Represents the deleted Registration entry
 type DeleteRegistrationEntryResponse struct {
-	// * Registration entry
+	// Registration entry
 	RegisteredEntry *spire_common.RegistrationEntry `protobuf:"bytes,1,opt,name=registeredEntry" json:"registeredEntry,omitempty"`
 }
 
@@ -1024,9 +1024,9 @@ func (m *DeleteRegistrationEntryResponse) GetRegisteredEntry() *spire_common.Reg
 	return nil
 }
 
-// * Represents a Parent ID
+// Represents a Parent ID
 type ListParentIDEntriesRequest struct {
-	// * Parent ID
+	// Parent ID
 	ParentId string `protobuf:"bytes,1,opt,name=parentId" json:"parentId,omitempty"`
 }
 
@@ -1042,10 +1042,9 @@ func (m *ListParentIDEntriesRequest) GetParentId() string {
 	return ""
 }
 
-// * Represents a list of Registered entries with the specified Parent
-// ID
+// Represents a list of Registered entries with the specified Parent ID
 type ListParentIDEntriesResponse struct {
-	// * List of Registration entries
+	// List of Registration entries
 	RegisteredEntryList []*spire_common.RegistrationEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
 
@@ -1061,9 +1060,9 @@ func (m *ListParentIDEntriesResponse) GetRegisteredEntryList() []*spire_common.R
 	return nil
 }
 
-// * Represents a selector
+// Represents a selector
 type ListSelectorEntriesRequest struct {
-	// * Selector
+	// Selector
 	Selectors []*spire_common.Selector `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
 }
 
@@ -1079,9 +1078,9 @@ func (m *ListSelectorEntriesRequest) GetSelectors() []*spire_common.Selector {
 	return nil
 }
 
-// * Represents a list of Registered entries with the specified selector
+// Represents a list of Registered entries with the specified selector
 type ListSelectorEntriesResponse struct {
-	// * List of Registration entries
+	// List of Registration entries
 	RegisteredEntryList []*spire_common.RegistrationEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
 
@@ -1097,9 +1096,9 @@ func (m *ListSelectorEntriesResponse) GetRegisteredEntryList() []*spire_common.R
 	return nil
 }
 
-// * Represents a Spiffe ID
+// Represents a Spiffe ID
 type ListSpiffeEntriesRequest struct {
-	// * SPIFFE ID
+	// SPIFFE ID
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffeId" json:"spiffeId,omitempty"`
 }
 
@@ -1115,9 +1114,9 @@ func (m *ListSpiffeEntriesRequest) GetSpiffeId() string {
 	return ""
 }
 
-// * Represents a list of Registered entries with the specified Spiffe ID
+// Represents a list of Registered entries with the specified Spiffe ID
 type ListSpiffeEntriesResponse struct {
-	// * List of Registration entries
+	// List of Registration entries
 	RegisteredEntryList []*spire_common.RegistrationEntry `protobuf:"bytes,1,rep,name=registeredEntryList" json:"registeredEntryList,omitempty"`
 }
 
@@ -1131,6 +1130,32 @@ func (m *ListSpiffeEntriesResponse) GetRegisteredEntryList() []*spire_common.Reg
 		return m.RegisteredEntryList
 	}
 	return nil
+}
+
+// Represents a join token and associated metadata, if known
+type JoinToken struct {
+	Token string `protobuf:"bytes,1,opt,name=token" json:"token,omitempty"`
+	// Expiration date, represented in UNIX time
+	Expiry int64 `protobuf:"varint,2,opt,name=expiry" json:"expiry,omitempty"`
+}
+
+func (m *JoinToken) Reset()                    { *m = JoinToken{} }
+func (m *JoinToken) String() string            { return proto.CompactTextString(m) }
+func (*JoinToken) ProtoMessage()               {}
+func (*JoinToken) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{43} }
+
+func (m *JoinToken) GetToken() string {
+	if m != nil {
+		return m.Token
+	}
+	return ""
+}
+
+func (m *JoinToken) GetExpiry() int64 {
+	if m != nil {
+		return m.Expiry
+	}
+	return 0
 }
 
 func init() {
@@ -1177,6 +1202,7 @@ func init() {
 	proto.RegisterType((*ListSelectorEntriesResponse)(nil), "spire.server.datastore.ListSelectorEntriesResponse")
 	proto.RegisterType((*ListSpiffeEntriesRequest)(nil), "spire.server.datastore.ListSpiffeEntriesRequest")
 	proto.RegisterType((*ListSpiffeEntriesResponse)(nil), "spire.server.datastore.ListSpiffeEntriesResponse")
+	proto.RegisterType((*JoinToken)(nil), "spire.server.datastore.JoinToken")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1190,49 +1216,57 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for DataStore service
 
 type DataStoreClient interface {
-	// * Creates a Federated Bundle
+	// Creates a Federated Bundle
 	CreateFederatedEntry(ctx context.Context, in *CreateFederatedEntryRequest, opts ...grpc.CallOption) (*CreateFederatedEntryResponse, error)
-	// * List all Federated SPIFFE IDs
+	// List all Federated SPIFFE IDs
 	ListFederatedEntry(ctx context.Context, in *ListFederatedEntryRequest, opts ...grpc.CallOption) (*ListFederatedEntryResponse, error)
-	// * Updates the specified Federated Bundle
+	// Updates the specified Federated Bundle
 	UpdateFederatedEntry(ctx context.Context, in *UpdateFederatedEntryRequest, opts ...grpc.CallOption) (*UpdateFederatedEntryResponse, error)
-	// * Deletes the specified Federated Bundle
+	// Deletes the specified Federated Bundle
 	DeleteFederatedEntry(ctx context.Context, in *DeleteFederatedEntryRequest, opts ...grpc.CallOption) (*DeleteFederatedEntryResponse, error)
-	// * Creates an Attested Node Entry
+	// Creates an Attested Node Entry
 	CreateAttestedNodeEntry(ctx context.Context, in *CreateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*CreateAttestedNodeEntryResponse, error)
-	// * Retrieves the Attested Node Entry
+	// Retrieves the Attested Node Entry
 	FetchAttestedNodeEntry(ctx context.Context, in *FetchAttestedNodeEntryRequest, opts ...grpc.CallOption) (*FetchAttestedNodeEntryResponse, error)
-	// * Retrieves dead nodes for which the base SVID has expired
+	// Retrieves dead nodes for which the base SVID has expired
 	FetchStaleNodeEntries(ctx context.Context, in *FetchStaleNodeEntriesRequest, opts ...grpc.CallOption) (*FetchStaleNodeEntriesResponse, error)
-	// * Updates the Attested Node Entry
+	// Updates the Attested Node Entry
 	UpdateAttestedNodeEntry(ctx context.Context, in *UpdateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*UpdateAttestedNodeEntryResponse, error)
-	// * Deletes the Attested Node Entry
+	// Deletes the Attested Node Entry
 	DeleteAttestedNodeEntry(ctx context.Context, in *DeleteAttestedNodeEntryRequest, opts ...grpc.CallOption) (*DeleteAttestedNodeEntryResponse, error)
-	// * Creates a Node resolver map Entry
+	// Creates a Node resolver map Entry
 	CreateNodeResolverMapEntry(ctx context.Context, in *CreateNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*CreateNodeResolverMapEntryResponse, error)
-	// * Retrieves all Node Resolver Map Entry for the specific base SPIFFEID
+	// Retrieves all Node Resolver Map Entry for the specific base SPIFFEID
 	FetchNodeResolverMapEntry(ctx context.Context, in *FetchNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*FetchNodeResolverMapEntryResponse, error)
-	// * Deletes all Node Resolver Map Entry for the specific base SPIFFEID
+	// Deletes all Node Resolver Map Entry for the specific base SPIFFEID
 	DeleteNodeResolverMapEntry(ctx context.Context, in *DeleteNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*DeleteNodeResolverMapEntryResponse, error)
-	// * Used for rectifying updated node resolutions
+	// Used for rectifying updated node resolutions
 	RectifyNodeResolverMapEntries(ctx context.Context, in *RectifyNodeResolverMapEntriesRequest, opts ...grpc.CallOption) (*RectifyNodeResolverMapEntriesResponse, error)
-	// * Creates a Registered Entry
+	// Creates a Registered Entry
 	CreateRegistrationEntry(ctx context.Context, in *CreateRegistrationEntryRequest, opts ...grpc.CallOption) (*CreateRegistrationEntryResponse, error)
-	// * Retrieve a specific registered entry
+	// Retrieve a specific registered entry
 	FetchRegistrationEntry(ctx context.Context, in *FetchRegistrationEntryRequest, opts ...grpc.CallOption) (*FetchRegistrationEntryResponse, error)
-	// * Updates a specific registered entry
+	// Updates a specific registered entry
 	UpdateRegistrationEntry(ctx context.Context, in *UpdateRegistrationEntryRequest, opts ...grpc.CallOption) (*UpdateRegistrationEntryResponse, error)
-	// * Deletes a specific registered entry
+	// Deletes a specific registered entry
 	DeleteRegistrationEntry(ctx context.Context, in *DeleteRegistrationEntryRequest, opts ...grpc.CallOption) (*DeleteRegistrationEntryResponse, error)
-	// * Retrieves all the  registered entry with the same ParentID
+	// Retrieves all the  registered entry with the same ParentID
 	ListParentIDEntries(ctx context.Context, in *ListParentIDEntriesRequest, opts ...grpc.CallOption) (*ListParentIDEntriesResponse, error)
-	// * Retrieves all the  registered entry with the same Selector
+	// Retrieves all the  registered entry with the same Selector
 	ListSelectorEntries(ctx context.Context, in *ListSelectorEntriesRequest, opts ...grpc.CallOption) (*ListSelectorEntriesResponse, error)
-	// * Retrieves all the  registered entry with the same SpiffeId
+	// Retrieves all the  registered entry with the same SpiffeId
 	ListSpiffeEntries(ctx context.Context, in *ListSpiffeEntriesRequest, opts ...grpc.CallOption) (*ListSpiffeEntriesResponse, error)
-	// * Applies the plugin configuration
+	// Register a new join token
+	RegisterToken(ctx context.Context, in *JoinToken, opts ...grpc.CallOption) (*spire_common.Empty, error)
+	// Fetch a token record
+	FetchToken(ctx context.Context, in *JoinToken, opts ...grpc.CallOption) (*JoinToken, error)
+	// Delete the referenced token
+	DeleteToken(ctx context.Context, in *JoinToken, opts ...grpc.CallOption) (*spire_common.Empty, error)
+	// Delete all tokens with expiry less than the one specified
+	PruneTokens(ctx context.Context, in *JoinToken, opts ...grpc.CallOption) (*spire_common.Empty, error)
+	// Applies the plugin configuration
 	Configure(ctx context.Context, in *spire_common_plugin.ConfigureRequest, opts ...grpc.CallOption) (*spire_common_plugin.ConfigureResponse, error)
-	// * Returns the version and related metadata of the installed plugin
+	// Returns the version and related metadata of the installed plugin
 	GetPluginInfo(ctx context.Context, in *spire_common_plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*spire_common_plugin.GetPluginInfoResponse, error)
 }
 
@@ -1424,6 +1458,42 @@ func (c *dataStoreClient) ListSpiffeEntries(ctx context.Context, in *ListSpiffeE
 	return out, nil
 }
 
+func (c *dataStoreClient) RegisterToken(ctx context.Context, in *JoinToken, opts ...grpc.CallOption) (*spire_common.Empty, error) {
+	out := new(spire_common.Empty)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/RegisterToken", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) FetchToken(ctx context.Context, in *JoinToken, opts ...grpc.CallOption) (*JoinToken, error) {
+	out := new(JoinToken)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchToken", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) DeleteToken(ctx context.Context, in *JoinToken, opts ...grpc.CallOption) (*spire_common.Empty, error) {
+	out := new(spire_common.Empty)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteToken", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) PruneTokens(ctx context.Context, in *JoinToken, opts ...grpc.CallOption) (*spire_common.Empty, error) {
+	out := new(spire_common.Empty)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/PruneTokens", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dataStoreClient) Configure(ctx context.Context, in *spire_common_plugin.ConfigureRequest, opts ...grpc.CallOption) (*spire_common_plugin.ConfigureResponse, error) {
 	out := new(spire_common_plugin.ConfigureResponse)
 	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/Configure", in, out, c.cc, opts...)
@@ -1445,49 +1515,57 @@ func (c *dataStoreClient) GetPluginInfo(ctx context.Context, in *spire_common_pl
 // Server API for DataStore service
 
 type DataStoreServer interface {
-	// * Creates a Federated Bundle
+	// Creates a Federated Bundle
 	CreateFederatedEntry(context.Context, *CreateFederatedEntryRequest) (*CreateFederatedEntryResponse, error)
-	// * List all Federated SPIFFE IDs
+	// List all Federated SPIFFE IDs
 	ListFederatedEntry(context.Context, *ListFederatedEntryRequest) (*ListFederatedEntryResponse, error)
-	// * Updates the specified Federated Bundle
+	// Updates the specified Federated Bundle
 	UpdateFederatedEntry(context.Context, *UpdateFederatedEntryRequest) (*UpdateFederatedEntryResponse, error)
-	// * Deletes the specified Federated Bundle
+	// Deletes the specified Federated Bundle
 	DeleteFederatedEntry(context.Context, *DeleteFederatedEntryRequest) (*DeleteFederatedEntryResponse, error)
-	// * Creates an Attested Node Entry
+	// Creates an Attested Node Entry
 	CreateAttestedNodeEntry(context.Context, *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error)
-	// * Retrieves the Attested Node Entry
+	// Retrieves the Attested Node Entry
 	FetchAttestedNodeEntry(context.Context, *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error)
-	// * Retrieves dead nodes for which the base SVID has expired
+	// Retrieves dead nodes for which the base SVID has expired
 	FetchStaleNodeEntries(context.Context, *FetchStaleNodeEntriesRequest) (*FetchStaleNodeEntriesResponse, error)
-	// * Updates the Attested Node Entry
+	// Updates the Attested Node Entry
 	UpdateAttestedNodeEntry(context.Context, *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error)
-	// * Deletes the Attested Node Entry
+	// Deletes the Attested Node Entry
 	DeleteAttestedNodeEntry(context.Context, *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error)
-	// * Creates a Node resolver map Entry
+	// Creates a Node resolver map Entry
 	CreateNodeResolverMapEntry(context.Context, *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error)
-	// * Retrieves all Node Resolver Map Entry for the specific base SPIFFEID
+	// Retrieves all Node Resolver Map Entry for the specific base SPIFFEID
 	FetchNodeResolverMapEntry(context.Context, *FetchNodeResolverMapEntryRequest) (*FetchNodeResolverMapEntryResponse, error)
-	// * Deletes all Node Resolver Map Entry for the specific base SPIFFEID
+	// Deletes all Node Resolver Map Entry for the specific base SPIFFEID
 	DeleteNodeResolverMapEntry(context.Context, *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error)
-	// * Used for rectifying updated node resolutions
+	// Used for rectifying updated node resolutions
 	RectifyNodeResolverMapEntries(context.Context, *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error)
-	// * Creates a Registered Entry
+	// Creates a Registered Entry
 	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
-	// * Retrieve a specific registered entry
+	// Retrieve a specific registered entry
 	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
-	// * Updates a specific registered entry
+	// Updates a specific registered entry
 	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
-	// * Deletes a specific registered entry
+	// Deletes a specific registered entry
 	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
-	// * Retrieves all the  registered entry with the same ParentID
+	// Retrieves all the  registered entry with the same ParentID
 	ListParentIDEntries(context.Context, *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error)
-	// * Retrieves all the  registered entry with the same Selector
+	// Retrieves all the  registered entry with the same Selector
 	ListSelectorEntries(context.Context, *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
-	// * Retrieves all the  registered entry with the same SpiffeId
+	// Retrieves all the  registered entry with the same SpiffeId
 	ListSpiffeEntries(context.Context, *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error)
-	// * Applies the plugin configuration
+	// Register a new join token
+	RegisterToken(context.Context, *JoinToken) (*spire_common.Empty, error)
+	// Fetch a token record
+	FetchToken(context.Context, *JoinToken) (*JoinToken, error)
+	// Delete the referenced token
+	DeleteToken(context.Context, *JoinToken) (*spire_common.Empty, error)
+	// Delete all tokens with expiry less than the one specified
+	PruneTokens(context.Context, *JoinToken) (*spire_common.Empty, error)
+	// Applies the plugin configuration
 	Configure(context.Context, *spire_common_plugin.ConfigureRequest) (*spire_common_plugin.ConfigureResponse, error)
-	// * Returns the version and related metadata of the installed plugin
+	// Returns the version and related metadata of the installed plugin
 	GetPluginInfo(context.Context, *spire_common_plugin.GetPluginInfoRequest) (*spire_common_plugin.GetPluginInfoResponse, error)
 }
 
@@ -1855,6 +1933,78 @@ func _DataStore_ListSpiffeEntries_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DataStore_RegisterToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).RegisterToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.server.datastore.DataStore/RegisterToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).RegisterToken(ctx, req.(*JoinToken))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_FetchToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).FetchToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.server.datastore.DataStore/FetchToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).FetchToken(ctx, req.(*JoinToken))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_DeleteToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).DeleteToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.server.datastore.DataStore/DeleteToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).DeleteToken(ctx, req.(*JoinToken))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_PruneTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinToken)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).PruneTokens(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.server.datastore.DataStore/PruneTokens",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).PruneTokens(ctx, req.(*JoinToken))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _DataStore_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(spire_common_plugin.ConfigureRequest)
 	if err := dec(in); err != nil {
@@ -1976,6 +2126,22 @@ var _DataStore_serviceDesc = grpc.ServiceDesc{
 			Handler:    _DataStore_ListSpiffeEntries_Handler,
 		},
 		{
+			MethodName: "RegisterToken",
+			Handler:    _DataStore_RegisterToken_Handler,
+		},
+		{
+			MethodName: "FetchToken",
+			Handler:    _DataStore_FetchToken_Handler,
+		},
+		{
+			MethodName: "DeleteToken",
+			Handler:    _DataStore_DeleteToken_Handler,
+		},
+		{
+			MethodName: "PruneTokens",
+			Handler:    _DataStore_PruneTokens_Handler,
+		},
+		{
 			MethodName: "Configure",
 			Handler:    _DataStore_Configure_Handler,
 		},
@@ -1991,85 +2157,91 @@ var _DataStore_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("datastore.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 1280 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x59, 0xff, 0x6f, 0xdb, 0x44,
-	0x14, 0xe7, 0x56, 0x40, 0xcb, 0xeb, 0x50, 0xd7, 0x5b, 0xd7, 0x66, 0x6e, 0xd7, 0x76, 0x16, 0x83,
-	0x6e, 0x9a, 0x12, 0x9a, 0x76, 0xa5, 0x43, 0x20, 0xc1, 0x9a, 0x15, 0x55, 0x62, 0xa5, 0x38, 0x43,
-	0x93, 0xf6, 0x03, 0xe0, 0x26, 0x97, 0xd6, 0x9a, 0x6b, 0x7b, 0xf6, 0x65, 0x5a, 0x8b, 0x84, 0x40,
-	0xe2, 0x8b, 0x84, 0x04, 0xda, 0xc4, 0x4f, 0x93, 0xf8, 0x81, 0xff, 0x84, 0x7f, 0x0d, 0xd9, 0x3e,
-	0x7b, 0x8d, 0x7d, 0xef, 0x1c, 0x67, 0x4d, 0xf8, 0x29, 0xc9, 0xbd, 0x7b, 0xef, 0x7d, 0xde, 0xbb,
-	0xbb, 0x77, 0xef, 0x73, 0x81, 0xa9, 0x8e, 0xc9, 0xcd, 0x80, 0xbb, 0x3e, 0xab, 0x79, 0xbe, 0xcb,
-	0x5d, 0x3a, 0x1b, 0x78, 0x96, 0xcf, 0x6a, 0x01, 0xf3, 0x9f, 0x32, 0xbf, 0x96, 0x4a, 0xb5, 0xcd,
-	0x03, 0x8b, 0x1f, 0xf6, 0xf6, 0x6b, 0x6d, 0xf7, 0xa8, 0x1e, 0x78, 0x56, 0xb7, 0xcb, 0xea, 0xd1,
-	0xcc, 0x7a, 0xa4, 0x56, 0x6f, 0xbb, 0x47, 0x47, 0xae, 0x53, 0xf7, 0xec, 0xde, 0x81, 0x95, 0x7c,
-	0xc4, 0x16, 0xb5, 0xd5, 0x81, 0x34, 0xe3, 0x8f, 0x58, 0x45, 0x7f, 0x41, 0x60, 0x6a, 0x9b, 0x75,
-	0x98, 0x6f, 0x72, 0xd6, 0xb9, 0xdb, 0x73, 0x3a, 0x36, 0xa3, 0x9b, 0x30, 0xd7, 0xed, 0x1f, 0x6a,
-	0x45, 0xc6, 0x76, 0x3a, 0x55, 0xb2, 0x4c, 0x56, 0x2a, 0x06, 0x26, 0xa6, 0x0d, 0x98, 0x49, 0x45,
-	0x0f, 0xfc, 0x5e, 0xc0, 0x63, 0x79, 0xf5, 0xdc, 0x32, 0x59, 0xb9, 0x60, 0x48, 0x65, 0xf4, 0x22,
-	0x4c, 0x70, 0x6e, 0x57, 0x27, 0x96, 0xc9, 0xca, 0x5b, 0x46, 0xf8, 0x55, 0x77, 0x60, 0x66, 0xd7,
-	0xed, 0x30, 0x83, 0x05, 0xae, 0xfd, 0x94, 0xf9, 0xf7, 0x4d, 0xef, 0x9e, 0xc3, 0xfd, 0x63, 0xaa,
-	0xc3, 0x85, 0x7d, 0x33, 0xc8, 0x82, 0xe9, 0x1b, 0xa3, 0x0d, 0x38, 0x1f, 0x30, 0x9b, 0xb5, 0xb9,
-	0xeb, 0x47, 0x5e, 0x27, 0x1b, 0xb3, 0xb5, 0x38, 0xcf, 0x22, 0xec, 0x96, 0x90, 0x1a, 0xe9, 0x3c,
-	0xfd, 0x5f, 0x02, 0xd3, 0x9f, 0x71, 0xce, 0x02, 0xce, 0x3a, 0xa1, 0xe3, 0xc1, 0xbd, 0xdd, 0x84,
-	0x8b, 0xa6, 0x50, 0x6c, 0x9a, 0xdc, 0x7c, 0x70, 0xec, 0xc5, 0xb1, 0x56, 0x8c, 0xdc, 0x78, 0x38,
-	0xb7, 0xcd, 0x7c, 0xde, 0x62, 0xbe, 0x65, 0xda, 0xbb, 0xbd, 0xa3, 0x7d, 0xe6, 0x47, 0x41, 0x57,
-	0x8c, 0xdc, 0x38, 0xad, 0x01, 0x0d, 0xc7, 0xee, 0x3d, 0xf3, 0x2c, 0xdf, 0xe4, 0x96, 0xeb, 0x34,
-	0x4d, 0xce, 0xaa, 0x6f, 0x46, 0xb3, 0x25, 0x12, 0xdd, 0x83, 0xf9, 0x2d, 0x9f, 0x99, 0x9c, 0xa5,
-	0x4b, 0x19, 0xc5, 0x60, 0xb0, 0x27, 0x3d, 0x16, 0x70, 0xfa, 0x15, 0x4c, 0x65, 0x56, 0x2c, 0x8a,
-	0x66, 0xb2, 0xf1, 0x7e, 0x4d, 0xbe, 0x07, 0x6b, 0x99, 0x2d, 0x61, 0x64, 0xf5, 0xf5, 0x45, 0x58,
-	0x90, 0x7b, 0x0c, 0x3c, 0xd7, 0x09, 0x98, 0x3e, 0x0f, 0x57, 0xbe, 0xb0, 0x02, 0x2e, 0xc5, 0xa3,
-	0x7f, 0x03, 0x9a, 0x4c, 0x18, 0xab, 0xd2, 0x4f, 0x61, 0x1e, 0xd9, 0x5f, 0xa1, 0x52, 0x95, 0x2c,
-	0x4f, 0xac, 0x54, 0x0c, 0xd5, 0x94, 0x30, 0x1d, 0x5f, 0x7b, 0x9d, 0x71, 0xa6, 0xe3, 0x09, 0x2c,
-	0xc8, 0x3d, 0x8a, 0x98, 0x46, 0xe0, 0xf2, 0x21, 0xcc, 0x37, 0x99, 0xcd, 0xb0, 0x20, 0x87, 0x3e,
-	0xc4, 0x61, 0x2c, 0x72, 0xc3, 0xa3, 0x8b, 0xe5, 0x18, 0x16, 0xe3, 0xdd, 0x94, 0x3b, 0x86, 0x49,
-	0x38, 0x0f, 0x61, 0xda, 0xcc, 0xca, 0x84, 0xdb, 0x1b, 0x98, 0xdb, 0xbc, 0xb1, 0xbc, 0x0d, 0xfd,
-	0x04, 0x96, 0x50, 0xd7, 0x22, 0xe0, 0x91, 0xf9, 0xde, 0x82, 0xab, 0xdb, 0x8c, 0xb7, 0x0f, 0xd1,
-	0xa8, 0x07, 0xa8, 0x41, 0x61, 0xee, 0x30, 0x23, 0xa3, 0xc6, 0xbf, 0x08, 0x0b, 0x91, 0xeb, 0x16,
-	0x37, 0x6d, 0x96, 0x0c, 0x5b, 0x2c, 0x48, 0xce, 0xf9, 0x8f, 0x44, 0x04, 0x98, 0x9f, 0x20, 0xa0,
-	0x7d, 0x0b, 0x97, 0x73, 0x66, 0xd3, 0x53, 0x5e, 0x0a, 0x9e, 0xdc, 0x8e, 0xfe, 0x0f, 0x81, 0xc5,
-	0xf8, 0x64, 0xbe, 0x4e, 0x92, 0xa5, 0xc5, 0xfb, 0x5c, 0xa9, 0xe2, 0x3d, 0x81, 0x16, 0xef, 0x13,
-	0x58, 0x42, 0x11, 0x8e, 0x7a, 0x05, 0x9b, 0xb0, 0x18, 0x9f, 0xf5, 0xd7, 0xda, 0x82, 0x27, 0xb0,
-	0x84, 0x5a, 0x19, 0x75, 0x04, 0xbf, 0x10, 0xb8, 0x16, 0x1f, 0x60, 0x59, 0xcf, 0x90, 0x44, 0xf1,
-	0x1d, 0xcc, 0x38, 0x12, 0xb1, 0x40, 0x70, 0x0b, 0x43, 0x20, 0x35, 0x29, 0xb5, 0xa4, 0xff, 0x4a,
-	0x40, 0x57, 0xe1, 0x10, 0x79, 0x18, 0x3d, 0x90, 0x6d, 0x58, 0x8e, 0xce, 0x9c, 0x2a, 0x1d, 0x83,
-	0x2c, 0xea, 0x1f, 0x04, 0xae, 0x29, 0x0c, 0x89, 0x78, 0x0e, 0xa1, 0x2a, 0x43, 0x71, 0xea, 0x0c,
-	0x97, 0x8b, 0x09, 0xb5, 0x16, 0x2d, 0x74, 0xbc, 0xcb, 0xfe, 0xdf, 0x85, 0xfe, 0x93, 0x80, 0xae,
-	0xc2, 0x31, 0xf6, 0xc4, 0x3c, 0x27, 0xf0, 0xae, 0xc1, 0xda, 0xdc, 0xea, 0x1e, 0x4b, 0x34, 0x5f,
-	0x95, 0xe3, 0x31, 0x42, 0x7a, 0x41, 0xe0, 0x7a, 0x01, 0xa4, 0xb1, 0xa7, 0xe9, 0x71, 0xd2, 0x63,
-	0x18, 0xec, 0xc0, 0x0a, 0x78, 0x5c, 0x80, 0xfb, 0xf6, 0xce, 0x0e, 0x4c, 0xf9, 0x91, 0x8c, 0xf9,
-	0xa2, 0xe7, 0x11, 0xdb, 0x66, 0xa9, 0x9f, 0x42, 0xe4, 0x0d, 0x64, 0xf5, 0xf4, 0x2f, 0x93, 0xae,
-	0x42, 0xe2, 0x4c, 0x44, 0x7e, 0x0b, 0xa6, 0x33, 0x5a, 0xe9, 0x41, 0xcc, 0x0b, 0xf4, 0xfb, 0xe2,
-	0x26, 0x45, 0xc1, 0x97, 0x33, 0xf7, 0x58, 0x34, 0x0d, 0x38, 0xbc, 0x33, 0x4c, 0xc6, 0xcb, 0xf4,
-	0x0e, 0x3e, 0x1b, 0xf4, 0x32, 0x6c, 0xe7, 0x86, 0xc4, 0x66, 0x27, 0x97, 0xef, 0x58, 0x32, 0xb1,
-	0x9b, 0x5c, 0xb7, 0x67, 0xb4, 0x8c, 0x76, 0x72, 0xf1, 0x8e, 0x05, 0xfd, 0x66, 0x4c, 0xdb, 0xf6,
-	0x4c, 0x9f, 0x39, 0x7c, 0xa7, 0x99, 0xa9, 0x2e, 0x1a, 0x9c, 0xf7, 0x62, 0x49, 0x02, 0x38, 0xfd,
-	0x1d, 0x12, 0x32, 0xa9, 0x66, 0xca, 0x28, 0x2e, 0x65, 0x7c, 0x9d, 0x3a, 0xff, 0x85, 0x38, 0x65,
-	0xba, 0xba, 0x11, 0x63, 0x4d, 0xd8, 0x7e, 0x06, 0xeb, 0x3a, 0x54, 0x12, 0xf6, 0x1f, 0x08, 0x37,
-	0xd8, 0x33, 0xc1, 0xab, 0x89, 0x49, 0x14, 0x39, 0x9b, 0xa3, 0x8b, 0x62, 0x03, 0xaa, 0x91, 0xc7,
-	0xe8, 0x4e, 0xce, 0xe7, 0x3b, 0xe8, 0xbf, 0xbf, 0xd3, 0xdf, 0xba, 0x13, 0xb3, 0xef, 0x8c, 0xde,
-	0xc8, 0x70, 0x36, 0x5e, 0xce, 0x41, 0xa5, 0x69, 0x72, 0xb3, 0x15, 0x16, 0x66, 0xfa, 0x13, 0x81,
-	0x19, 0xd9, 0xe3, 0x00, 0x5d, 0xc3, 0x4a, 0xb9, 0xe2, 0xf1, 0x42, 0x5b, 0x2f, 0xa7, 0x24, 0x82,
-	0xfc, 0x1e, 0x68, 0xfe, 0x89, 0x81, 0xae, 0x62, 0xb6, 0xd0, 0xb7, 0x0a, 0xad, 0x51, 0x46, 0x45,
-	0x38, 0x0f, 0x13, 0x20, 0x7b, 0x0e, 0xc0, 0x13, 0xa0, 0x78, 0xae, 0xc0, 0x13, 0xa0, 0x7c, 0x71,
-	0x08, 0x31, 0xc8, 0x68, 0x3c, 0x8e, 0x41, 0xf1, 0x9a, 0x80, 0x63, 0x50, 0xbe, 0x14, 0xfc, 0x4e,
-	0x60, 0x0e, 0x21, 0xd7, 0x74, 0x43, 0xbd, 0xac, 0x18, 0x1f, 0xd1, 0x3e, 0x2c, 0xad, 0x27, 0xc0,
-	0xfc, 0x46, 0x60, 0x56, 0x4e, 0x94, 0xe9, 0x6d, 0xfc, 0xe1, 0x42, 0xc1, 0xce, 0xb5, 0x8d, 0xb2,
-	0x6a, 0x02, 0xc9, 0xcf, 0x04, 0x2e, 0x4b, 0x69, 0x31, 0x5d, 0x57, 0x5a, 0x44, 0x68, 0xb6, 0x76,
-	0xbb, 0xa4, 0xd6, 0xa9, 0xd5, 0x41, 0x88, 0x27, 0xbe, 0x3a, 0x6a, 0x2e, 0x8d, 0xaf, 0x4e, 0x11,
-	0xc3, 0x0d, 0xc1, 0x20, 0x1c, 0x12, 0x07, 0xa3, 0xa6, 0xae, 0x38, 0x98, 0x22, 0xb2, 0xfa, 0x17,
-	0x01, 0x0d, 0xe7, 0x72, 0xf4, 0x8e, 0x7a, 0x0b, 0x2a, 0xe8, 0x89, 0xf6, 0xd1, 0x30, 0xaa, 0x02,
-	0xd5, 0x73, 0x02, 0x57, 0x50, 0x42, 0x46, 0x37, 0x95, 0x9b, 0x40, 0x85, 0xe9, 0xce, 0x10, 0x9a,
-	0xa7, 0x12, 0x85, 0x73, 0x21, 0x3c, 0x51, 0x85, 0x3c, 0x0e, 0x4f, 0xd4, 0x00, 0xd4, 0xeb, 0x6f,
-	0x02, 0x57, 0x95, 0xec, 0x83, 0x7e, 0x8c, 0x59, 0x1f, 0x84, 0x47, 0x69, 0x9f, 0x0c, 0xa9, 0x9d,
-	0xab, 0x8a, 0xb9, 0xdb, 0xb5, 0xa8, 0x2a, 0x62, 0x6d, 0x63, 0x51, 0x55, 0xc4, 0xdb, 0xc3, 0xb4,
-	0x2a, 0xe6, 0xb1, 0xa8, 0xcb, 0x0a, 0x0a, 0x65, 0xa3, 0xac, 0x5a, 0xae, 0x1c, 0x95, 0x48, 0x8b,
-	0x9a, 0x56, 0x14, 0x95, 0x23, 0x35, 0x18, 0xa4, 0xb3, 0x2e, 0x2a, 0x47, 0xe5, 0xc1, 0x14, 0xb5,
-	0xf0, 0x3f, 0xc0, 0x25, 0x49, 0xf7, 0x4c, 0x95, 0x9d, 0x89, 0xbc, 0x49, 0xd7, 0xd6, 0x4a, 0xe9,
-	0xf4, 0xfb, 0xcf, 0xf4, 0xbd, 0x6a, 0xff, 0xf2, 0xc6, 0x5b, 0xed, 0x1f, 0x6b, 0xac, 0x9f, 0xc1,
-	0x74, 0xae, 0x9b, 0xa5, 0x1f, 0x28, 0x2d, 0x49, 0x1a, 0x66, 0x6d, 0xb5, 0x84, 0x86, 0xf0, 0xfc,
-	0x08, 0x2a, 0x5b, 0xae, 0xd3, 0xb5, 0x0e, 0x7a, 0x3e, 0xa3, 0xd7, 0xfb, 0x5b, 0x63, 0xf1, 0xcf,
-	0x6b, 0x2a, 0x4f, 0xdc, 0xbc, 0x57, 0x34, 0x4d, 0xd8, 0xee, 0xc2, 0x3b, 0x9f, 0x33, 0xbe, 0x17,
-	0x89, 0x77, 0x9c, 0xae, 0x4b, 0x6f, 0x48, 0x15, 0xfb, 0xe6, 0x24, 0x3e, 0x6e, 0x0e, 0x32, 0x35,
-	0xf6, 0x73, 0x77, 0xf2, 0x51, 0x25, 0x0d, 0x75, 0xef, 0x8d, 0x3d, 0xb2, 0xff, 0x76, 0xf4, 0xcf,
-	0xef, 0xda, 0x7f, 0x01, 0x00, 0x00, 0xff, 0xff, 0x0c, 0x21, 0x30, 0x31, 0x91, 0x1e, 0x00, 0x00,
+	// 1366 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x59, 0xdf, 0x4f, 0xdc, 0xc6,
+	0x13, 0xff, 0x3a, 0x7c, 0x13, 0xe5, 0x86, 0x44, 0x84, 0x0d, 0x21, 0x87, 0x21, 0xfc, 0xb0, 0x9a,
+	0x96, 0x44, 0xd1, 0x51, 0x0e, 0x42, 0xa1, 0x6a, 0xa5, 0x36, 0x1c, 0x44, 0x54, 0x0d, 0xa5, 0x86,
+	0x2a, 0x52, 0x1e, 0xda, 0x9a, 0xbb, 0x3d, 0xb0, 0x38, 0x6c, 0xc7, 0xde, 0x8b, 0x02, 0x95, 0xaa,
+	0x56, 0xea, 0x0f, 0xa9, 0x52, 0xab, 0x44, 0x7d, 0xaa, 0xd4, 0x87, 0xfe, 0x27, 0x7d, 0xe9, 0x1f,
+	0x56, 0xd9, 0xbb, 0x76, 0x38, 0x7b, 0x67, 0x7d, 0x3e, 0xb8, 0xeb, 0x13, 0x78, 0x67, 0x67, 0xe6,
+	0x33, 0xb3, 0xbb, 0xb3, 0xf3, 0xd9, 0x83, 0x91, 0x86, 0xc5, 0xac, 0x80, 0xb9, 0x3e, 0xad, 0x78,
+	0xbe, 0xcb, 0x5c, 0x32, 0x1e, 0x78, 0xb6, 0x4f, 0x2b, 0x01, 0xf5, 0x5f, 0x50, 0xbf, 0x92, 0x48,
+	0xf5, 0xd5, 0x03, 0x9b, 0x1d, 0xb6, 0xf7, 0x2b, 0x75, 0xf7, 0x78, 0x21, 0xf0, 0xec, 0x66, 0x93,
+	0x2e, 0x44, 0x33, 0x17, 0x22, 0xb5, 0x85, 0xba, 0x7b, 0x7c, 0xec, 0x3a, 0x0b, 0x5e, 0xab, 0x7d,
+	0x60, 0xc7, 0x7f, 0xb8, 0x45, 0x7d, 0xb1, 0x2b, 0x4d, 0xfe, 0x87, 0xab, 0x18, 0xaf, 0x35, 0x18,
+	0xd9, 0xa4, 0x0d, 0xea, 0x5b, 0x8c, 0x36, 0x1e, 0xb5, 0x9d, 0x46, 0x8b, 0x92, 0x55, 0xb8, 0xdd,
+	0xec, 0x1c, 0xda, 0x8d, 0x8c, 0x6d, 0x35, 0xca, 0xda, 0xac, 0x36, 0x5f, 0x32, 0x31, 0x31, 0xa9,
+	0xc2, 0x58, 0x22, 0xda, 0xf3, 0xdb, 0x01, 0xe3, 0xf2, 0xf2, 0xa5, 0x59, 0x6d, 0xfe, 0x9a, 0x29,
+	0x95, 0x91, 0x1b, 0x30, 0xc4, 0x58, 0xab, 0x3c, 0x34, 0xab, 0xcd, 0x5f, 0x36, 0xc3, 0x7f, 0x0d,
+	0x07, 0xc6, 0xb6, 0xdd, 0x06, 0x35, 0x69, 0xe0, 0xb6, 0x5e, 0x50, 0xff, 0x89, 0xe5, 0x6d, 0x38,
+	0xcc, 0x3f, 0x21, 0x06, 0x5c, 0xdb, 0xb7, 0x82, 0x34, 0x98, 0x8e, 0x31, 0x52, 0x85, 0xab, 0x01,
+	0x6d, 0xd1, 0x3a, 0x73, 0xfd, 0xc8, 0xeb, 0x70, 0x75, 0xbc, 0xc2, 0xf3, 0x2c, 0xc2, 0xde, 0x15,
+	0x52, 0x33, 0x99, 0x67, 0xfc, 0xad, 0xc1, 0xe8, 0xc7, 0x8c, 0xd1, 0x80, 0xd1, 0x46, 0xe8, 0xb8,
+	0x7b, 0x6f, 0xf7, 0xe1, 0x86, 0x25, 0x14, 0x6b, 0x16, 0xb3, 0xf6, 0x4e, 0x3c, 0x1e, 0x6b, 0xc9,
+	0xcc, 0x8c, 0x87, 0x73, 0xeb, 0xd4, 0x67, 0xbb, 0xd4, 0xb7, 0xad, 0xd6, 0x76, 0xfb, 0x78, 0x9f,
+	0xfa, 0x51, 0xd0, 0x25, 0x33, 0x33, 0x4e, 0x2a, 0x40, 0xc2, 0xb1, 0x8d, 0x97, 0x9e, 0xed, 0x5b,
+	0xcc, 0x76, 0x9d, 0x9a, 0xc5, 0x68, 0xf9, 0xff, 0xd1, 0x6c, 0x89, 0xc4, 0xf0, 0x60, 0x72, 0xdd,
+	0xa7, 0x16, 0xa3, 0xc9, 0x52, 0x46, 0x31, 0x98, 0xf4, 0x79, 0x9b, 0x06, 0x8c, 0x7c, 0x0e, 0x23,
+	0xa9, 0x15, 0x8b, 0xa2, 0x19, 0xae, 0xbe, 0x53, 0x91, 0xef, 0xc1, 0x4a, 0x6a, 0x4b, 0x98, 0x69,
+	0x7d, 0x63, 0x1a, 0xa6, 0xe4, 0x1e, 0x03, 0xcf, 0x75, 0x02, 0x6a, 0x4c, 0xc2, 0xc4, 0xa7, 0x76,
+	0xc0, 0xa4, 0x78, 0x8c, 0x2f, 0x41, 0x97, 0x09, 0xb9, 0x2a, 0xf9, 0x08, 0x26, 0x91, 0xfd, 0x15,
+	0x2a, 0x95, 0xb5, 0xd9, 0xa1, 0xf9, 0x92, 0xa9, 0x9a, 0x12, 0xa6, 0xe3, 0x0b, 0xaf, 0x31, 0xc8,
+	0x74, 0x3c, 0x87, 0x29, 0xb9, 0x47, 0x11, 0x53, 0x1f, 0x5c, 0x3e, 0x85, 0xc9, 0x1a, 0x6d, 0x51,
+	0x2c, 0xc8, 0x9e, 0x0f, 0x71, 0x18, 0x8b, 0xdc, 0x70, 0xff, 0x62, 0x39, 0x81, 0x69, 0xbe, 0x9b,
+	0x32, 0xc7, 0x30, 0x0e, 0xe7, 0x29, 0x8c, 0x5a, 0x69, 0x99, 0x70, 0x7b, 0x0f, 0x73, 0x9b, 0x35,
+	0x96, 0xb5, 0x61, 0x9c, 0xc2, 0x0c, 0xea, 0x5a, 0x04, 0xdc, 0x37, 0xdf, 0xeb, 0x70, 0x67, 0x93,
+	0xb2, 0xfa, 0x21, 0x1a, 0x75, 0x17, 0x35, 0x28, 0xcc, 0x1d, 0x66, 0xa4, 0xdf, 0xf8, 0xa7, 0x61,
+	0x2a, 0x72, 0xbd, 0xcb, 0xac, 0x16, 0x8d, 0x87, 0x6d, 0x1a, 0xc4, 0xe7, 0xfc, 0x3b, 0x4d, 0x04,
+	0x98, 0x9d, 0x20, 0xa0, 0x7d, 0x05, 0xb7, 0x32, 0x66, 0x93, 0x53, 0x5e, 0x08, 0x9e, 0xdc, 0x8e,
+	0xf1, 0x97, 0x06, 0xd3, 0xfc, 0x64, 0x9e, 0x27, 0xc9, 0xd2, 0xe2, 0x7d, 0xa9, 0x50, 0xf1, 0x1e,
+	0x42, 0x8b, 0xf7, 0x29, 0xcc, 0xa0, 0x08, 0xfb, 0xbd, 0x82, 0x35, 0x98, 0xe6, 0x67, 0xfd, 0x5c,
+	0x5b, 0xf0, 0x14, 0x66, 0x50, 0x2b, 0xfd, 0x8e, 0xe0, 0x47, 0x0d, 0xe6, 0xf8, 0x01, 0x96, 0xf5,
+	0x0c, 0x71, 0x14, 0x5f, 0xc3, 0x98, 0x23, 0x11, 0x0b, 0x04, 0x0f, 0x30, 0x04, 0x52, 0x93, 0x52,
+	0x4b, 0xc6, 0x4f, 0x1a, 0x18, 0x2a, 0x1c, 0x22, 0x0f, 0xfd, 0x07, 0xb2, 0x09, 0xb3, 0xd1, 0x99,
+	0x53, 0xa5, 0xa3, 0x9b, 0x45, 0xfd, 0x55, 0x83, 0x39, 0x85, 0x21, 0x11, 0xcf, 0x21, 0x94, 0x65,
+	0x28, 0xce, 0x9c, 0xe1, 0x62, 0x31, 0xa1, 0xd6, 0xa2, 0x85, 0xe6, 0xbb, 0xec, 0xbf, 0x5d, 0xe8,
+	0xdf, 0x34, 0x30, 0x54, 0x38, 0x06, 0x9e, 0x98, 0x57, 0x1a, 0xbc, 0x65, 0xd2, 0x3a, 0xb3, 0x9b,
+	0x27, 0x12, 0xcd, 0x37, 0xe5, 0x78, 0x80, 0x90, 0x5e, 0x6b, 0x70, 0x37, 0x07, 0xd2, 0xc0, 0xd3,
+	0x74, 0x14, 0xf7, 0x18, 0x26, 0x3d, 0xb0, 0x03, 0xc6, 0x0b, 0x70, 0xc7, 0xde, 0xd9, 0x82, 0x11,
+	0x3f, 0x92, 0x51, 0x5f, 0xf4, 0x3c, 0x62, 0xdb, 0xcc, 0x74, 0x52, 0x88, 0xac, 0x81, 0xb4, 0x9e,
+	0xf1, 0x59, 0xdc, 0x55, 0x48, 0x9c, 0x89, 0xc8, 0x1f, 0xc0, 0x68, 0x4a, 0x2b, 0x39, 0x88, 0x59,
+	0x81, 0xf1, 0x44, 0xdc, 0xa4, 0x28, 0xf8, 0x62, 0xe6, 0x8e, 0x44, 0xd3, 0x80, 0xc3, 0xbb, 0xc0,
+	0x64, 0xfc, 0x91, 0xdc, 0xc1, 0x17, 0x83, 0x5e, 0x86, 0xed, 0x52, 0x8f, 0xd8, 0x5a, 0xf1, 0xe5,
+	0x3b, 0x90, 0x4c, 0x6c, 0xc7, 0xd7, 0xed, 0x05, 0x2d, 0x63, 0x2b, 0xbe, 0x78, 0x07, 0x82, 0x7e,
+	0x95, 0xd3, 0xb6, 0x1d, 0xcb, 0xa7, 0x0e, 0xdb, 0xaa, 0xa5, 0xaa, 0x8b, 0x0e, 0x57, 0x3d, 0x2e,
+	0x89, 0x01, 0x27, 0xdf, 0x21, 0x21, 0x93, 0x6a, 0x26, 0x8c, 0xe2, 0x66, 0xca, 0xd7, 0x99, 0xf3,
+	0x9f, 0x8b, 0x53, 0xa6, 0x6b, 0x98, 0x1c, 0x6b, 0xcc, 0xf6, 0x53, 0x58, 0x97, 0xa1, 0x14, 0xb3,
+	0xff, 0x40, 0xb8, 0xc1, 0x9e, 0x09, 0xde, 0x4c, 0x8c, 0xa3, 0xc8, 0xd8, 0xec, 0x5f, 0x14, 0x2b,
+	0x50, 0x8e, 0x3c, 0x46, 0x77, 0x72, 0x36, 0xdf, 0x41, 0xe7, 0xfd, 0x9d, 0x7c, 0x1b, 0x0e, 0x67,
+	0xdf, 0x29, 0xbd, 0xfe, 0xe1, 0x5c, 0x83, 0xd2, 0x27, 0xae, 0xed, 0xec, 0xb9, 0x47, 0xd4, 0x21,
+	0x63, 0x70, 0x99, 0x85, 0xff, 0x08, 0x54, 0xfc, 0x83, 0x8c, 0xc3, 0x15, 0x1a, 0xf6, 0xbd, 0xfc,
+	0xa8, 0x0e, 0x99, 0xe2, 0xab, 0xfa, 0xcf, 0x04, 0x94, 0x6a, 0x16, 0xb3, 0x76, 0xc3, 0x9a, 0x4e,
+	0xbe, 0xd7, 0x60, 0x4c, 0xf6, 0xae, 0x40, 0x96, 0xb0, 0x5b, 0x40, 0xf1, 0xee, 0xa1, 0x2f, 0x17,
+	0x53, 0x12, 0xf9, 0xf9, 0x06, 0x48, 0xf6, 0x75, 0x82, 0x2c, 0x62, 0xb6, 0xd0, 0x67, 0x0e, 0xbd,
+	0x5a, 0x44, 0x45, 0x38, 0x0f, 0x13, 0x20, 0x7b, 0x49, 0xc0, 0x13, 0xa0, 0x78, 0xe9, 0xc0, 0x13,
+	0xa0, 0x7c, 0xac, 0x08, 0x31, 0xc8, 0x5e, 0x00, 0x70, 0x0c, 0x8a, 0x87, 0x08, 0x1c, 0x83, 0xf2,
+	0x91, 0xe1, 0x17, 0x0d, 0x6e, 0x23, 0xbc, 0x9c, 0xac, 0xa8, 0x97, 0x15, 0xa3, 0x32, 0xfa, 0x7b,
+	0x85, 0xf5, 0x04, 0x98, 0x9f, 0x35, 0x18, 0x97, 0x73, 0x6c, 0xf2, 0x10, 0x7f, 0xf3, 0x50, 0x10,
+	0x7b, 0x7d, 0xa5, 0xa8, 0x9a, 0x40, 0xf2, 0x83, 0x06, 0xb7, 0xa4, 0x8c, 0x9a, 0x2c, 0x2b, 0x2d,
+	0x22, 0x0c, 0x5d, 0x7f, 0x58, 0x50, 0xeb, 0xcc, 0xea, 0x20, 0x9c, 0x15, 0x5f, 0x1d, 0x35, 0x0d,
+	0xc7, 0x57, 0x27, 0x8f, 0x1c, 0x87, 0x60, 0x10, 0xfa, 0x89, 0x83, 0x51, 0xb3, 0x5e, 0x1c, 0x4c,
+	0x1e, 0xcf, 0xfd, 0x5d, 0x03, 0x1d, 0xa7, 0x81, 0x64, 0x4d, 0xbd, 0x05, 0x15, 0xcc, 0x46, 0x7f,
+	0xbf, 0x17, 0x55, 0x81, 0xea, 0x95, 0x06, 0x13, 0x28, 0x97, 0x23, 0xab, 0xca, 0x4d, 0xa0, 0xc2,
+	0xb4, 0xd6, 0x83, 0xe6, 0x99, 0x44, 0xe1, 0x34, 0x0a, 0x4f, 0x54, 0x2e, 0x05, 0xc4, 0x13, 0xd5,
+	0x05, 0x6b, 0xfb, 0x53, 0x83, 0x3b, 0x4a, 0xe2, 0x42, 0x3e, 0xc0, 0xac, 0x77, 0x43, 0xc1, 0xf4,
+	0x0f, 0x7b, 0xd4, 0xce, 0x54, 0xc5, 0xcc, 0xc5, 0x9c, 0x57, 0x15, 0xb1, 0x8e, 0x33, 0xaf, 0x2a,
+	0xe2, 0x9d, 0x65, 0x52, 0x15, 0xb3, 0x58, 0xd4, 0x65, 0x05, 0x85, 0xb2, 0x52, 0x54, 0x2d, 0x53,
+	0x8e, 0x0a, 0xa4, 0x45, 0xcd, 0x48, 0xf2, 0xca, 0x91, 0x1a, 0x0c, 0xd2, 0x94, 0xe7, 0x95, 0xa3,
+	0xe2, 0x60, 0xf2, 0xba, 0xff, 0x6f, 0xe1, 0xa6, 0xa4, 0xf1, 0x26, 0xca, 0xce, 0x44, 0xde, 0xdf,
+	0xeb, 0x4b, 0x85, 0x74, 0x3a, 0xfd, 0xa7, 0x5a, 0x66, 0xb5, 0x7f, 0x79, 0xcf, 0xae, 0xf6, 0x8f,
+	0xf5, 0xe4, 0x2f, 0x61, 0x34, 0xd3, 0x08, 0x93, 0x77, 0x95, 0x96, 0x24, 0xbd, 0xb6, 0xbe, 0x58,
+	0x40, 0x43, 0x78, 0x7e, 0x0c, 0xd7, 0x4d, 0xd1, 0x29, 0xf3, 0xb6, 0x78, 0x0e, 0xb3, 0x91, 0x74,
+	0xce, 0xfa, 0xcd, 0xce, 0xe6, 0x7b, 0xe3, 0xd8, 0x63, 0x27, 0xc4, 0x04, 0x88, 0xb6, 0x7f, 0xd7,
+	0x56, 0xf2, 0xa7, 0x90, 0x0d, 0x18, 0xe6, 0x3b, 0xe7, 0x7c, 0xd0, 0x36, 0x60, 0x78, 0xc7, 0x6f,
+	0x3b, 0xdc, 0x4a, 0xd0, 0xb3, 0x99, 0x67, 0x50, 0x5a, 0x77, 0x9d, 0xa6, 0x7d, 0xd0, 0xf6, 0x29,
+	0xb9, 0xdb, 0x39, 0x43, 0xfc, 0xbe, 0x9d, 0xc8, 0xe3, 0x15, 0x79, 0x3b, 0x6f, 0x9a, 0x58, 0x86,
+	0x26, 0x5c, 0x7f, 0x4c, 0xd9, 0x4e, 0x24, 0xde, 0x72, 0x9a, 0x2e, 0xb9, 0x27, 0x55, 0xec, 0x98,
+	0x13, 0xfb, 0xb8, 0xdf, 0xcd, 0x54, 0xee, 0xe7, 0xd1, 0xf0, 0xb3, 0x52, 0x12, 0xef, 0xce, 0xff,
+	0x76, 0xb4, 0xfd, 0x2b, 0xd1, 0xef, 0xeb, 0x4b, 0xff, 0x06, 0x00, 0x00, 0xff, 0xff, 0x1a, 0xcd,
+	0x5f, 0x97, 0xf7, 0x1f, 0x00, 0x00,
 }

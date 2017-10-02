@@ -520,6 +520,75 @@ func (sqlitePlugin) ListSpiffeEntries(
 	return &datastore.ListSpiffeEntriesResponse{}, errors.New("Not Implemented")
 }
 
+// RegisterToken takes a Token message and stores it
+func (ds *sqlitePlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, error) {
+	var resp *common.Empty
+	if req.Token == "" || req.Expiry == 0 {
+		return resp, errors.New("token and expiry are required")
+	}
+
+	t := joinToken{
+		Token:  req.Token,
+		Expiry: req.Expiry,
+	}
+
+	return resp, ds.db.Create(&t).Error
+}
+
+// FetchToken takes a Token message and returns one, populating the fields
+// we have knowledge of
+func (ds *sqlitePlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinToken, error) {
+	var t joinToken
+
+	err := ds.db.Find(&t, "token = ?", req.Token).Error
+	if err == gorm.ErrRecordNotFound {
+		return &datastore.JoinToken{}, nil
+	}
+
+	resp := &datastore.JoinToken{
+		Token:  t.Token,
+		Expiry: t.Expiry,
+	}
+	return resp, err
+}
+
+func (ds *sqlitePlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, error) {
+	var resp *common.Empty
+
+	// Protect the data - if gorm gets a delete w/ an empty primary
+	// key, it deletes _all_ the records...
+	if req.Token == "" {
+		return &common.Empty{}, errors.New("no token specified")
+	}
+
+	t := joinToken{
+		Token:  req.Token,
+		Expiry: req.Expiry,
+	}
+	return resp, ds.db.Delete(&t).Error
+}
+
+// PruneTokens takes a Token message, and deletes all tokens which have expired
+// before the date in the message
+func (ds *sqlitePlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, error) {
+	var resp *common.Empty
+	var staleTokens []joinToken
+
+	err := ds.db.Where("expiry <= ?", req.Expiry).Find(&staleTokens).Error
+	if err != nil {
+		return resp, err
+	}
+
+	for _, t := range staleTokens {
+		err := ds.db.Delete(&t).Error
+		if err != nil {
+			return resp, err
+		}
+	}
+
+	return resp, nil
+}
+
 func (sqlitePlugin) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	return &spi.ConfigureResponse{}, nil
 }

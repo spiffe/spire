@@ -6,6 +6,8 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	"github.com/spiffe/spire/proto/common"
+
 	"google.golang.org/grpc"
 
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -45,6 +47,11 @@ type DataStore interface {
 	ListParentIDEntries(request *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error)
 	ListSelectorEntries(request *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
 	ListSpiffeEntries(request *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error)
+
+	RegisterToken(request *JoinToken) (*common.Empty, error)
+	FetchToken(request *JoinToken) (*JoinToken, error)
+	DeleteToken(request *JoinToken) (*common.Empty, error)
+	PruneTokens(request *JoinToken) (*common.Empty, error)
 
 	Configure(request *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
 	GetPluginInfo(request *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
