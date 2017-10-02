@@ -242,7 +242,7 @@ returns a spiffeid->registration entries map
 This map is used generated CSR for non-base SVIDs and update the agent cache entries
 */
 func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
-	a.config.Log.Info("Preparing to attest against", a.config.ServerAddress.String())
+	a.config.Log.Info("Preparing to attest against ", a.config.ServerAddress.String())
 
 	plugins := a.Catalog.NodeAttestors()
 	if len(plugins) != 1 {
@@ -368,7 +368,7 @@ func (a *Agent) storeBaseSVID() {
 	f, err := os.Create(certPath)
 	defer f.Close()
 	if err != nil {
-		a.config.Log.Info("Unable to store Base SVID at path %s!", certPath)
+		a.config.Log.Info("Unable to store Base SVID at path ", certPath)
 		return
 	}
 
