@@ -130,14 +130,14 @@ func (server *Server) initEndpoints() error {
 	}
 	server.grpcServer = grpcServer
 
-	server.Config.Log.Info("Starting the Registration API")
+	server.Config.Log.Debug("Starting the Registration API")
 	rs := &registrationServer{
 		l:       server.Config.Log,
 		catalog: server.Catalog,
 	}
 	spiregistration.RegisterRegistrationServer(server.grpcServer, rs)
 
-	server.Config.Log.Info("Starting the Node API")
+	server.Config.Log.Debug("Starting the Node API")
 	ns := &nodeServer{
 		l:               server.Config.Log,
 		catalog:         server.Catalog,
@@ -145,7 +145,7 @@ func (server *Server) initEndpoints() error {
 	}
 	spinode.RegisterNodeServer(server.grpcServer, ns)
 
-	server.Config.Log.Info(server.Config.BindAddress.String())
+	server.Config.Log.Info("Node API started at ", server.Config.BindAddress.String())
 	listener, err := net.Listen(server.Config.BindAddress.Network(), server.Config.BindAddress.String())
 	if err != nil {
 		return fmt.Errorf("Error creating GRPC listener: %s", err)
@@ -176,7 +176,7 @@ func (server *Server) initEndpoints() error {
 			server.Config.ErrorCh <- err
 			return
 		}
-		server.Config.Log.Info(server.Config.BindHTTPAddress.String())
+		server.Config.Log.Info("Registration API started at ", server.Config.BindHTTPAddress.String())
 		server.Config.ErrorCh <- http.ListenAndServe(server.Config.BindHTTPAddress.String(), mux)
 	}()
 
