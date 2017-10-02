@@ -174,6 +174,11 @@ func (a *Agent) initEndpoints() error {
 		return fmt.Errorf("Error creating GRPC listener: %s", err)
 	}
 
+	if addr.Network() == "unix" {
+		// Any process should be able to use this unix socket
+		os.Chmod(addr.String(), os.ModePerm)
+	}
+
 	go func() {
 		a.config.ErrorCh <- a.grpcServer.Serve(listener)
 	}()
