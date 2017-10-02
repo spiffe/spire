@@ -2,7 +2,9 @@ package server
 
 import (
 	"errors"
+	"time"
 
+	"github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/registration"
@@ -126,4 +128,28 @@ func (s *registrationServer) DeleteFederatedBundle(
 	ctx context.Context, request *registration.FederatedSpiffeID) (
 	response *common.Empty, err error) {
 	return response, err
+}
+
+func (s *registrationServer) CreateJoinToken(
+	ctx context.Context, request *registration.JoinToken) (
+	*registration.JoinToken, error) {
+
+	// Generate a token if one wasn't specified
+	if request.Token == "" {
+		request.Token = "token-" + uuid.NewV4().String()
+	}
+
+	ds := s.catalog.DataStores()[0]
+	expiry := time.Now().Unix() + int64(request.Ttl)
+	req := &datastore.JoinToken{
+		Token:  request.Token,
+		Expiry: expiry,
+	}
+
+	_, err := ds.RegisterToken(req)
+	if err != nil {
+		return request, err
+	}
+
+	return request, nil
 }

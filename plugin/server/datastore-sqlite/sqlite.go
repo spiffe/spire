@@ -522,7 +522,7 @@ func (sqlitePlugin) ListSpiffeEntries(
 
 // RegisterToken takes a Token message and stores it
 func (ds *sqlitePlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, error) {
-	var resp *common.Empty
+	resp := new(common.Empty)
 	if req.Token == "" || req.Expiry == 0 {
 		return resp, errors.New("token and expiry are required")
 	}
@@ -553,7 +553,7 @@ func (ds *sqlitePlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinTok
 }
 
 func (ds *sqlitePlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, error) {
-	var resp *common.Empty
+	resp := new(common.Empty)
 
 	// Protect the data - if gorm gets a delete w/ an empty primary
 	// key, it deletes _all_ the records...
@@ -571,8 +571,8 @@ func (ds *sqlitePlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, er
 // PruneTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
 func (ds *sqlitePlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, error) {
-	var resp *common.Empty
 	var staleTokens []joinToken
+	resp := new(common.Empty)
 
 	err := ds.db.Where("expiry <= ?", req.Expiry).Find(&staleTokens).Error
 	if err != nil {
