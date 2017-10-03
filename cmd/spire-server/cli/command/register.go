@@ -1,7 +1,6 @@
 package command
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -9,17 +8,10 @@ import (
 
 	"golang.org/x/net/context"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
 	"log"
 
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
-)
-
-const (
-	apiAddress = "localhost:8081" // TODO: Make address configurable
 )
 
 type RegisterCommand struct {
@@ -31,8 +23,11 @@ func (*RegisterCommand) Help() string {
 }
 
 func (c *RegisterCommand) Run(args []string) int {
+	var err error
+
+	// TODO: Make address configurable
 	if c.Client == nil {
-		err := c.initializeGrpcClient(apiAddress)
+		c.Client, err = newRegistrationClient(defaultServerAddr)
 		if err != nil {
 			log.Fatalf("Failed: %v", err)
 			return -1
@@ -106,19 +101,6 @@ func (c *RegisterCommand) validateEntry(entityID string, registeredEntry *common
 	}
 
 	ok = reflect.DeepEqual(fetchedRegisteredEntry, registeredEntry)
-
-	return
-}
-
-func (c *RegisterCommand) initializeGrpcClient(address string) (err error) {
-	// TODO: Pass a bundle in here
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-	}
-
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-
-	c.Client = registration.NewRegistrationClient(conn)
 
 	return
 }
