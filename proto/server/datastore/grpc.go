@@ -1,6 +1,8 @@
 package datastore
 
 import (
+	"github.com/spiffe/spire/proto/common"
+
 	"golang.org/x/net/context"
 
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -36,6 +38,8 @@ func (m *GRPCServer) CreateAttestedNodeEntry(ctx context.Context, req *CreateAtt
 }
 
 //
+//
+//
 
 func (m *GRPCServer) FetchAttestedNodeEntry(ctx context.Context, req *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error) {
 	res, err := m.DataStoreImpl.FetchAttestedNodeEntry(req)
@@ -57,6 +61,8 @@ func (m *GRPCServer) DeleteAttestedNodeEntry(ctx context.Context, req *DeleteAtt
 	return res, err
 }
 
+//
+//
 //
 
 func (m *GRPCServer) CreateNodeResolverMapEntry(ctx context.Context, req *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error) {
@@ -80,6 +86,8 @@ func (m *GRPCServer) RectifyNodeResolverMapEntries(ctx context.Context, req *Rec
 }
 
 //
+//
+//
 
 func (m *GRPCServer) CreateRegistrationEntry(ctx context.Context, req *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error) {
 	res, err := m.DataStoreImpl.CreateRegistrationEntry(req)
@@ -102,6 +110,8 @@ func (m *GRPCServer) DeleteRegistrationEntry(ctx context.Context, req *DeleteReg
 }
 
 //
+//
+//
 
 func (m *GRPCServer) ListParentIDEntries(ctx context.Context, req *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error) {
 	res, err := m.DataStoreImpl.ListParentIDEntries(req)
@@ -119,6 +129,28 @@ func (m *GRPCServer) ListSpiffeEntries(ctx context.Context, req *ListSpiffeEntri
 }
 
 //
+//
+//
+
+func (m *GRPCServer) RegisterToken(ctx context.Context, req *JoinToken) (*common.Empty, error) {
+	return m.DataStoreImpl.RegisterToken(req)
+}
+
+func (m *GRPCServer) FetchToken(ctx context.Context, req *JoinToken) (*JoinToken, error) {
+	return m.DataStoreImpl.FetchToken(req)
+}
+
+func (m *GRPCServer) DeleteToken(ctx context.Context, req *JoinToken) (*common.Empty, error) {
+	return m.DataStoreImpl.DeleteToken(req)
+}
+
+func (m *GRPCServer) PruneTokens(ctx context.Context, req *JoinToken) (*common.Empty, error) {
+	return m.DataStoreImpl.PruneTokens(req)
+}
+
+//
+//
+//
 
 func (m *GRPCServer) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	res, err := m.DataStoreImpl.Configure(req)
@@ -129,6 +161,10 @@ func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRe
 	res, err := m.DataStoreImpl.GetPluginInfo(req)
 	return res, err
 }
+
+//
+//
+//
 
 type GRPCClient struct {
 	client DataStoreClient
@@ -154,6 +190,8 @@ func (m *GRPCClient) DeleteFederatedEntry(req *DeleteFederatedEntryRequest) (*De
 	return res, err
 }
 
+//
+//
 //
 
 func (m *GRPCClient) CreateAttestedNodeEntry(req *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error) {
@@ -182,6 +220,8 @@ func (m *GRPCClient) DeleteAttestedNodeEntry(req *DeleteAttestedNodeEntryRequest
 }
 
 //
+//
+//
 
 func (m *GRPCClient) CreateNodeResolverMapEntry(req *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error) {
 	res, err := m.client.CreateNodeResolverMapEntry(context.Background(), req)
@@ -203,6 +243,8 @@ func (m *GRPCClient) RectifyNodeResolverMapEntries(req *RectifyNodeResolverMapEn
 	return res, err
 }
 
+//
+//
 //
 
 func (m *GRPCClient) CreateRegistrationEntry(req *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error) {
@@ -226,6 +268,8 @@ func (m *GRPCClient) DeleteRegistrationEntry(req *DeleteRegistrationEntryRequest
 }
 
 //
+//
+//
 
 func (m *GRPCClient) ListParentIDEntries(req *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error) {
 	res, err := m.client.ListParentIDEntries(context.Background(), req)
@@ -242,6 +286,28 @@ func (m *GRPCClient) ListSpiffeEntries(req *ListSpiffeEntriesRequest) (*ListSpif
 	return res, err
 }
 
+//
+//
+//
+
+func (m *GRPCClient) RegisterToken(req *JoinToken) (*common.Empty, error) {
+	return m.client.RegisterToken(context.Background(), req)
+}
+
+func (m *GRPCClient) FetchToken(req *JoinToken) (*JoinToken, error) {
+	return m.client.FetchToken(context.Background(), req)
+}
+
+func (m *GRPCClient) DeleteToken(req *JoinToken) (*common.Empty, error) {
+	return m.client.DeleteToken(context.Background(), req)
+}
+
+func (m *GRPCClient) PruneTokens(req *JoinToken) (*common.Empty, error) {
+	return m.client.PruneTokens(context.Background(), req)
+}
+
+//
+//
 //
 
 func (m *GRPCClient) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
