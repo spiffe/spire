@@ -31,7 +31,7 @@ type JoinTokenPlugin struct {
 }
 
 func (p *JoinTokenPlugin) spiffeID() *url.URL {
-	spiffePath := path.Join("spiffe", "node", pluginName, p.joinToken)
+	spiffePath := path.Join("spiffe", "node-id", p.joinToken)
 	id := &url.URL{
 		Scheme: "spiffe",
 		Host:   p.trustDomain,

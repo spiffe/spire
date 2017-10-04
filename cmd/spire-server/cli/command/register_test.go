@@ -32,7 +32,7 @@ func TestRegisterCommand_DataOK(t *testing.T) {
 			},
 		},
 		SpiffeId: "spiffe://example.org/Blog",
-		ParentId: "spiffe://example.org/spiffe/node/join_token/TokenBlog",
+		ParentId: "spiffe://example.org/spiffe/node-id/TokenBlog",
 		Ttl:      200,
 	}
 	retID1 := &registration.RegistrationEntryID{
@@ -52,7 +52,7 @@ func TestRegisterCommand_DataOK(t *testing.T) {
 			},
 		},
 		SpiffeId: "spiffe://example.org/Database",
-		ParentId: "spiffe://example.org/spiffe/node/join_token/TokenDatabase",
+		ParentId: "spiffe://example.org/spiffe/node-id/TokenDatabase",
 		Ttl:      200,
 	}
 	retID2 := &registration.RegistrationEntryID{

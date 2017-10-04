@@ -16,7 +16,7 @@ const (
 	badConfig  = `{"trust_domain":"example.com"}`
 
 	token    = "foobar"
-	spiffeId = "spiffe://example.com/spiffe/node/join_token/foobar"
+	spiffeId = "spiffe://example.com/spiffe/node-id/foobar"
 )
 
 func PluginGenerator(config string) (nodeattestor.NodeAttestor, *spi.ConfigureResponse, error) {
