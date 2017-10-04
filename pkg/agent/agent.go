@@ -250,8 +250,8 @@ func (a *Agent) bootstrap() error {
 //
 // TODO: Refactor me for length, testability
 func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
-	var err error
-	a.config.Log.Info("Preparing to attest against %s", a.config.ServerAddress.String())
+  var err error
+	a.config.Log.Info("Preparing to attest against ", a.config.ServerAddress.String())
 
 	// Handle the join token seperately, if defined
 	pluginResponse := &nodeattestor.FetchAttestationDataResponse{}
@@ -337,7 +337,7 @@ func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
 
 // Generate a CSR for the given SPIFFE ID
 func (a *Agent) generateCSR(spiffeID *url.URL, key *ecdsa.PrivateKey) ([]byte, error) {
-	a.config.Log.Info("Generating a CSR for %s", spiffeID.String())
+	a.config.Log.Info("Generating a CSR for ", spiffeID.String())
 
 	uriSANs, err := uri.MarshalUriSANs([]string{spiffeID.String()})
 	if err != nil {
@@ -394,7 +394,7 @@ func (a *Agent) storeBaseSVID() {
 	f, err := os.Create(certPath)
 	defer f.Close()
 	if err != nil {
-		a.config.Log.Info("Unable to store Base SVID at path %s!", certPath)
+		a.config.Log.Info("Unable to store Base SVID at path ", certPath)
 		return
 	}
 
