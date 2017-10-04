@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"path"
 
+	"google.golang.org/grpc/peer"
+
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/uri"
@@ -143,6 +145,7 @@ func (server *Server) initEndpoints() error {
 		catalog:         server.Catalog,
 		trustDomain:     server.Config.TrustDomain,
 		baseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
+		fromContext:     peer.FromContext,
 	}
 	spinode.RegisterNodeServer(server.grpcServer, ns)
 

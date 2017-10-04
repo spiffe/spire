@@ -29,6 +29,7 @@ type nodeServer struct {
 	catalog         catalog.Catalog
 	trustDomain     url.URL
 	baseSpiffeIDTTL int32
+	fromContext     func(context.Context) (*peer.Peer, bool)
 }
 
 //FetchBaseSVID attests the node and gets the base node SVID.
@@ -334,12 +335,13 @@ func (s *nodeServer) createAttestationEntry(
 		return err
 	}
 
-	createRequest := &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: &datastore.AttestedNodeEntry{
-		AttestedDataType:   attestationType,
-		BaseSpiffeId:       baseSPIFFEID,
-		CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
-		CertSerialNumber:   cert.SerialNumber.String(),
-	}}
+	createRequest := &datastore.CreateAttestedNodeEntryRequest{
+		AttestedNodeEntry: &datastore.AttestedNodeEntry{
+			AttestedDataType:   attestationType,
+			BaseSpiffeId:       baseSPIFFEID,
+			CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
+			CertSerialNumber:   cert.SerialNumber.String(),
+		}}
 	_, err = dataStore.CreateAttestedNodeEntry(createRequest)
 	if err != nil {
 		return err
@@ -422,7 +424,10 @@ func (s *nodeServer) getFetchBaseSVIDResponse(
 
 func (s *nodeServer) getSpiffeIDFromCtx(ctx context.Context) (spiffeID string, err error) {
 
-	ctxPeer, _ := peer.FromContext(ctx)
+	ctxPeer, ok := s.fromContext(ctx)
+	if !ok {
+		return "", errors.New("It was not posible to read a SVID from your request")
+	}
 	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
 	if ok {
 		spiffeID, err := uri.GetURINamesFromCertificate(tlsInfo.State.PeerCertificates[0])
