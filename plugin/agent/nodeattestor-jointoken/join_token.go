@@ -14,6 +14,10 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
+const (
+	pluginName = "join_token"
+)
+
 type JoinTokenConfig struct {
 	JoinToken   string `hcl:"join_token"`
 	TrustDomain string `hcl:"trust_domain"`
@@ -27,7 +31,7 @@ type JoinTokenPlugin struct {
 }
 
 func (p *JoinTokenPlugin) spiffeID() *url.URL {
-	spiffePath := path.Join("spiffe", "node-id", p.joinToken)
+	spiffePath := path.Join("spiffe", "node", pluginName, p.joinToken)
 	id := &url.URL{
 		Scheme: "spiffe",
 		Host:   p.trustDomain,
@@ -49,7 +53,7 @@ func (p *JoinTokenPlugin) FetchAttestationData(req *nodeattestor.FetchAttestatio
 	// FIXME: NA should be the one dictating type of this message
 	// Change the proto to just take plain byte here
 	data := &common.AttestedData{
-		Type: "join_token",
+		Type: pluginName,
 		Data: []byte(p.joinToken),
 	}
 
@@ -101,7 +105,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: nodeattestor.Handshake,
 		Plugins: map[string]plugin.Plugin{
-			"join_token": nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: New()},
+			pluginName: nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: New()},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})
