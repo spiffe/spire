@@ -218,7 +218,7 @@ func (server *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error)
 
 	l.Debug("Sending CSR to the CA plugin")
 	serverCA := server.Catalog.CAs()[0]
-	res, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: csr})
+	res, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: csr, Ttl: server.Config.BaseSpiffeIDTTL})
 	if err != nil {
 		return nil, nil, err
 	}

@@ -68,7 +68,7 @@ func (s *nodeServer) FetchBaseSVID(
 		return response, errors.New("Error trying to validate attestation")
 	}
 
-	signResponse, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr})
+	signResponse, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr, Ttl: s.baseSpiffeIDTTL})
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to sign CSR")
@@ -462,7 +462,7 @@ func (s *nodeServer) signCSRs(
 		}
 
 		//sign
-		signReq := &ca.SignCsrRequest{Csr: csr}
+		signReq := &ca.SignCsrRequest{Csr: csr, Ttl: entry.Ttl}
 		res, err := serverCA.SignCsr(signReq)
 		if err != nil {
 			return nil, err
