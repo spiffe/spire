@@ -122,6 +122,8 @@
   
     * [FederatedSpiffeID](#spire.api.registration.FederatedSpiffeID)
   
+    * [JoinToken](#spire.api.registration.JoinToken)
+  
     * [ListFederatedBundlesReply](#spire.api.registration.ListFederatedBundlesReply)
   
     * [ParentID](#spire.api.registration.ParentID)
@@ -1196,6 +1198,22 @@ A type that represents a Federated SPIFFE Id.
 
 
 
+<a name="spire.api.registration.JoinToken"/>
+
+### JoinToken
+JoinToken message is used for registering a new token
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| token | [string](#string) |  | The join token. If not set, one will be generated |
+| ttl | [int32](#int32) |  | TTL in seconds |
+
+
+
+
+
+
 <a name="spire.api.registration.ListFederatedBundlesReply"/>
 
 ### ListFederatedBundlesReply
@@ -1296,6 +1314,7 @@ A type with the id with want to update plus values to modify.
 | ListFederatedBundles | [spire.common.Empty](#spire.common.Empty) | [ListFederatedBundlesReply](#spire.common.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
 | UpdateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [spire.common.Empty](#spire.api.registration.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
 | DeleteFederatedBundle | [FederatedSpiffeID](#spire.api.registration.FederatedSpiffeID) | [spire.common.Empty](#spire.api.registration.FederatedSpiffeID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
+| CreateJoinToken | [JoinToken](#spire.api.registration.JoinToken) | [JoinToken](#spire.api.registration.JoinToken) | Create a new join token |
 
  
 

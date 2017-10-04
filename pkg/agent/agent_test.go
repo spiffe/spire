@@ -82,6 +82,20 @@ func (suite *AgentTestSuite) Testbootstrap() {
 	suite.Assert().Equal(expectedkey, suite.agent.baseSVIDKey)
 }
 
+func (suite *AgentTestSuite) TestSocketPermission() {
+	suite.agent = &Agent{
+		Catalog: suite.mockPluginCatalog,
+		config:  suite.config}
+
+	suite.agent.serverCerts = []*x509.Certificate{&x509.Certificate{}, &x509.Certificate{}}
+	err := suite.agent.initEndpoints()
+	suite.Require().NoError(err)
+
+	info, err := os.Stat("./spire_api")
+	suite.Require().NoError(err)
+	suite.Assert().Equal(os.ModePerm|os.ModeSocket, info.Mode())
+}
+
 // WIP(walmav)
 func TestAgent_FetchSVID(t *testing.T) {
 	tests := []struct {

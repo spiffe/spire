@@ -7,8 +7,9 @@ import (
 	//pb "github.com/spiffe/spire/pkg/api/node"
 	//"github.com/spiffe/spire/pkg/common"
 	"github.com/spiffe/spire/proto/server/ca"
-	"github.com/spiffe/spire/proto/server/datastore"
+	// "github.com/spiffe/spire/proto/server/datastore"
 	//"github.com/spiffe/spire/pkg/server/nodeattestor"
+	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -18,7 +19,7 @@ type NodeServiceTestSuite struct {
 	t             *testing.T
 	server        nodeServer
 	mockServerCA  *ca.MockControlPlaneCa
-	mockDataStore *datastore.MockDataStore
+	mockDataStore *mock_datastore.MockDataStore
 }
 
 /*
