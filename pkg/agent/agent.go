@@ -263,7 +263,7 @@ func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
 		id := &url.URL{
 			Scheme: "spiffe",
 			Host:   a.config.TrustDomain.Host,
-			Path:   path.Join("spiffe", "node-id", a.config.JoinToken),
+			Path:   path.Join("spire", "agent", "join_token", a.config.JoinToken),
 		}
 
 		pluginResponse.AttestedData = data

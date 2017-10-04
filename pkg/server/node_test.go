@@ -122,8 +122,8 @@ func (suite *NodeServiceTestSuite) TestFetchBaseSVID() {
 }
 
 func (suite *NodeServiceTestSuite) TestFetchSVID() {
-	const baseSpiffeID = "spiffe://example.org/spiffe/node-id/token"
-	const nodeSpiffeID = "spiffe://example.org/spiffe/node-id/tokenfoo"
+	const baseSpiffeID = "spiffe://example.org/spire/agent/join_token/token"
+	const nodeSpiffeID = "spiffe://example.org/spire/agent/join_token/tokenfoo"
 	const databaseSpiffeID = "spiffe://example.org/database"
 	const blogSpiffeID = "spiffe://example.org/blog"
 
