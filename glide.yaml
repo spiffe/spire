@@ -4,6 +4,7 @@ import:
   subpackages:
   - proto
   - ptypes/empty
+  - protoc-gen-go
 - package: github.com/hashicorp/go-plugin
 - package: github.com/sirupsen/logrus
 - package: golang.org/x/net
@@ -22,6 +23,8 @@ import:
 - package: github.com/jinzhu/inflection
 - package: github.com/spiffe/go-spiffe
 - package: github.com/shirou/gopsutil
+- package: github.com/grpc-ecosystem/grpc-gateway
+  version: 1.2.2
 testImport:
 - package: github.com/stretchr/testify
   subpackages:

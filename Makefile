@@ -9,6 +9,13 @@ endif
 binary_dirs := $(shell find cmd/* plugin/*/* -maxdepth 0 -type d)
 docker_volume := $(shell echo $${PWD%/src/*}):/root/go
 docker_image = spiffe-spire-dev:latest
+gopath := $(shell go env GOPATH)
+
+utils = github.com/golang/protobuf/protoc-gen-go \
+		github.com/grpc-ecosystem/grpc-gateway \
+		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
+		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger \
+		github.com/jteeuwen/go-bindata/go-bindata
 
 .PHONY: all utils cmd build test race-test clean
 
@@ -22,11 +29,13 @@ container: Dockerfile
 cmd:
 	$(docker) /bin/bash
 
-utils:
-	$(docker) go get github.com/golang/protobuf/protoc-gen-go
-	$(docker) go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
-	$(docker) go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-	$(docker) go get github.com/jteeuwen/go-bindata/...
+utils: $(utils)
+
+$(utils): noop
+		# some sources do not contain buildable go
+		$(docker) /bin/sh -c "cd vendor/$@; go get . || true"
+		$(docker) mkdir -p $(gopath)/src/$@
+		$(docker) cp -r vendor/$@/* $(gopath)/src/$@/
 
 vendor: glide.yaml glide.lock
 	$(docker) glide --home .cache install
