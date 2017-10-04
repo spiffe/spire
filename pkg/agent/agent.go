@@ -61,6 +61,9 @@ type Config struct {
 	// Trust domain and associated CA bundle
 	TrustDomain url.URL
 	TrustBundle *x509.CertPool
+
+	// Join token to use for attestation, if needed
+	JoinToken string
 }
 
 type Agent struct {
@@ -242,22 +245,40 @@ func (a *Agent) bootstrap() error {
 	return nil
 }
 
-/* Attest the agent, obtain a new Base SVID
-returns a spiffeid->registration entries map
-This map is used generated CSR for non-base SVIDs and update the agent cache entries
-*/
+// Attest the agent, obtain a new Base SVID. Returns a spiffeid->registration entries map
+// which is used to generate CSRs for non-base SVIDs and update the agent cache entries
+//
+// TODO: Refactor me for length, testability
 func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
+  var err error
 	a.config.Log.Info("Preparing to attest against ", a.config.ServerAddress.String())
 
-	plugins := a.Catalog.NodeAttestors()
-	if len(plugins) != 1 {
-		return nil, fmt.Errorf("Expected only one node attestor plugin, found %i", len(plugins))
-	}
-	attestor := plugins[0]
+	// Handle the join token seperately, if defined
+	pluginResponse := &nodeattestor.FetchAttestationDataResponse{}
+	if a.config.JoinToken != "" {
+		data := &common.AttestedData{
+			Type: "join_token",
+			Data: []byte(a.config.JoinToken),
+		}
+		id := &url.URL{
+			Scheme: "spiffe",
+			Host:   a.config.TrustDomain.Host,
+			Path:   path.Join("spiffe", "node-id", a.config.JoinToken),
+		}
 
-	pluginResponse, err := attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get attestation data from plugin: %s", err)
+		pluginResponse.AttestedData = data
+		pluginResponse.SpiffeId = id.String()
+	} else {
+		plugins := a.Catalog.NodeAttestors()
+		if len(plugins) != 1 {
+			return nil, fmt.Errorf("Expected only one node attestor plugin, found %i", len(plugins))
+		}
+		attestor := plugins[0]
+
+		pluginResponse, err = attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get attestation data from plugin: %s", err)
+		}
 	}
 
 	// Parse the SPIFFE ID, form a CSR with it
