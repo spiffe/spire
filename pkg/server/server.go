@@ -141,6 +141,7 @@ func (server *Server) initEndpoints() error {
 	ns := &nodeServer{
 		l:               server.Config.Log,
 		catalog:         server.Catalog,
+		trustDomain:     server.Config.TrustDomain,
 		baseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
 	}
 	spinode.RegisterNodeServer(server.grpcServer, ns)

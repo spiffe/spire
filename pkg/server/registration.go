@@ -136,7 +136,7 @@ func (s *registrationServer) CreateJoinToken(
 
 	// Generate a token if one wasn't specified
 	if request.Token == "" {
-		request.Token = "token-" + uuid.NewV4().String()
+		request.Token = uuid.NewV4().String()
 	}
 
 	ds := s.catalog.DataStores()[0]

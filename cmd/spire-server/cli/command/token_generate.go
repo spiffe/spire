@@ -94,7 +94,7 @@ func (TokenGenerate) createVanityRecord(c registration.RegistrationClient, token
 	parentID := &url.URL{
 		Scheme: id.Scheme,
 		Host:   id.Host,
-		Path:   path.Join("spiffe", "node-id", ("token-" + token)),
+		Path:   path.Join("spiffe", "node-id", token),
 	}
 	req := &common.RegistrationEntry{
 		ParentId: parentID.String(),
