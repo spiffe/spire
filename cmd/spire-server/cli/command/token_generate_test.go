@@ -32,7 +32,7 @@ func TestCreateVanityRecord(t *testing.T) {
 	c := mock_registration.NewMockRegistrationClient(ctrl)
 	token := "foobar"
 	spiffeID := "spiffe://example.org/VanityID"
-	tokenID := "spiffe://example.org/spiffe/node-id/token-foobar"
+	tokenID := "spiffe://example.org/spiffe/node/join_token/foobar"
 
 	req := &common.RegistrationEntry{
 		ParentId: tokenID,
