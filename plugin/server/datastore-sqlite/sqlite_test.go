@@ -595,6 +595,87 @@ func Test_ListSpiffeEntriesEntry(t *testing.T) {
 	t.Skipf("TODO")
 }
 
+func Test_RegisterToken(t *testing.T) {
+	ds := createDefault(t)
+	now := time.Now().Unix()
+	req := &datastore.JoinToken{
+		Token:  "foobar",
+		Expiry: now,
+	}
+	_, err := ds.RegisterToken(req)
+	require.NoError(t, err)
+
+	// Make sure we can't re-register
+	_, err = ds.RegisterToken(req)
+	assert.NotNil(t, err)
+}
+
+func Test_RegisterAndFetchToken(t *testing.T) {
+	ds := createDefault(t)
+	now := time.Now().Unix()
+	req := &datastore.JoinToken{
+		Token:  "foobar",
+		Expiry: now,
+	}
+	_, err := ds.RegisterToken(req)
+	require.NoError(t, err)
+
+	// Don't need expiry for fetch
+	req.Expiry = 0
+	res, err := ds.FetchToken(req)
+	require.NoError(t, err)
+	assert.Equal(t, "foobar", res.Token)
+	assert.Equal(t, now, res.Expiry)
+}
+
+func Test_DeleteToken(t *testing.T) {
+	ds := createDefault(t)
+	now := time.Now().Unix()
+	req := &datastore.JoinToken{
+		Token:  "foobar",
+		Expiry: now,
+	}
+	_, err := ds.RegisterToken(req)
+	require.NoError(t, err)
+
+	// Don't need expiry for delete
+	req.Expiry = 0
+	_, err = ds.DeleteToken(req)
+	require.NoError(t, err)
+
+	// Should not be able to fetch after delete
+	resp, err := ds.FetchToken(req)
+	require.NoError(t, err)
+	assert.Equal(t, "", resp.Token)
+}
+
+func Test_PruneTokens(t *testing.T) {
+	ds := createDefault(t)
+	now := time.Now().Unix()
+	req := &datastore.JoinToken{
+		Token:  "foobar",
+		Expiry: now,
+	}
+	_, err := ds.RegisterToken(req)
+	require.NoError(t, err)
+
+	// Ensure we don't prune valid tokens, wind clock back 10s
+	req.Expiry = (now - 10)
+	_, err = ds.PruneTokens(req)
+	require.NoError(t, err)
+	resp, err := ds.FetchToken(req)
+	require.NoError(t, err)
+	assert.Equal(t, "foobar", resp.Token)
+
+	// Ensure we prune old tokens
+	req.Expiry = (now + 10)
+	_, err = ds.PruneTokens(req)
+	require.NoError(t, err)
+	resp, err = ds.FetchToken(req)
+	require.NoError(t, err)
+	assert.Equal(t, "", resp.Token)
+}
+
 func Test_Configure(t *testing.T) {
 	t.Skipf("TODO")
 }

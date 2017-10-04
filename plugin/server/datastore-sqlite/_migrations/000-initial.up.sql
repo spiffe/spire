@@ -71,6 +71,14 @@ CREATE TABLE selectors (
   FOREIGN KEY(registered_entry_id) REFERENCES registered_entries(registered_entry_id)
 );
 
+CREATE TABLE join_tokens (
+  token         TEXT NOT NULL PRIMARY KEY,
+  expiry        INT NOT NULL,
+  created_at    TIMESTAMP NOT NULL,
+  updated_at    TIMESTAMP NOT NULL,
+  deleted_at    TIMESTAMP
+);
+
 CREATE UNIQUE INDEX idx_node_resolver_map_entries_type_value
   ON node_resolver_map_entries(spiffe_id,type,value)
   WHERE deleted_at IS NULL;

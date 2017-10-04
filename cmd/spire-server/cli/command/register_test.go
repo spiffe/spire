@@ -11,7 +11,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/test/mock/server/proto"
+	"github.com/spiffe/spire/test/mock/proto/api/registration"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,7 +21,7 @@ func TestRegisterCommand_DataOK(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
-	mockClient := mocks.NewMockRegistrationClient(mockCtrl)
+	mockClient := mock_registration.NewMockRegistrationClient(mockCtrl)
 	ctx := context.Background()
 
 	entry1 := &common.RegistrationEntry{
