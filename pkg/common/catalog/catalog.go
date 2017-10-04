@@ -159,6 +159,7 @@ func (c *catalog) loadConfigs() error {
 }
 
 func (c *catalog) loadConfig(path string) error {
+	c.l.Debugf("loading %s", path)
 	config, err := parsePluginConfig(path)
 	if err != nil {
 		return err

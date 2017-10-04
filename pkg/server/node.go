@@ -3,6 +3,8 @@ package server
 import (
 	"crypto/x509"
 	"errors"
+	"net/url"
+	"path"
 	"reflect"
 	"sort"
 	"time"
@@ -25,6 +27,7 @@ import (
 type nodeServer struct {
 	l               logrus.FieldLogger
 	catalog         catalog.Catalog
+	trustDomain     url.URL
 	baseSpiffeIDTTL int32
 }
 
@@ -47,7 +50,13 @@ func (s *nodeServer) FetchBaseSVID(
 		return response, errors.New("Error trying to check if attested")
 	}
 
-	attestResponse, err := s.attest(request.AttestedData, attestedBefore)
+	// Join token is a special case
+	var attestResponse *nodeattestor.AttestResponse
+	if request.AttestedData.Type == "join_token" {
+		attestResponse, err = s.attestToken(request.AttestedData, attestedBefore)
+	} else {
+		attestResponse, err = s.attest(request.AttestedData, attestedBefore)
+	}
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to attest")
@@ -221,6 +230,7 @@ func (s *nodeServer) attest(
 	attestedData *common.AttestedData, attestedBefore bool) (
 	response *nodeattestor.AttestResponse, err error) {
 
+	// TODO: Pick the right node attestor [#222]
 	nodeAttestor := s.catalog.NodeAttestors()[0]
 
 	attestRequest := &nodeattestor.AttestRequest{
@@ -233,6 +243,47 @@ func (s *nodeServer) attest(
 	}
 
 	return attestResponse, nil
+}
+
+func (s *nodeServer) attestToken(
+	attestedData *common.AttestedData, attestedBefore bool) (
+	response *nodeattestor.AttestResponse, err error) {
+
+	if attestedBefore {
+		return nil, errors.New("join token has already been used")
+	}
+
+	ds := s.catalog.DataStores()[0]
+	req := &datastore.JoinToken{Token: string(attestedData.Data)}
+	t, err := ds.FetchToken(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if t.Token == "" {
+		return nil, errors.New("invalid join token")
+	}
+
+	if time.Unix(t.Expiry, 0).Before(time.Now()) {
+		// Don't fail if we can't delete
+		_, _ = ds.DeleteToken(req)
+		return nil, errors.New("join token expired")
+	}
+
+	// If we're here, the token is valid
+	// Don't fail if we can't delete
+	_, _ = ds.DeleteToken(req)
+	id := &url.URL{
+		Scheme: s.trustDomain.Scheme,
+		Host:   s.trustDomain.Host,
+		Path:   path.Join("spiffe", "node-id", t.Token),
+	}
+	resp := &nodeattestor.AttestResponse{
+		Valid:        true,
+		BaseSPIFFEID: id.String(),
+	}
+
+	return resp, nil
 }
 
 func (s *nodeServer) validateAttestation(

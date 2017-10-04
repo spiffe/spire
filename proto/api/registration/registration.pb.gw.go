@@ -131,7 +131,15 @@ func RegisterRegistrationHandlerFromEndpoint(ctx context.Context, mux *runtime.S
 // RegisterRegistrationHandler registers the http handlers for service Registration to "mux".
 // The handlers forward requests to the grpc endpoint over "conn".
 func RegisterRegistrationHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
-	client := NewRegistrationClient(conn)
+	return RegisterRegistrationHandlerClient(ctx, mux, NewRegistrationClient(conn))
+}
+
+// RegisterRegistrationHandler registers the http handlers for service Registration to "mux".
+// The handlers forward requests to the grpc endpoint over the given implementation of "RegistrationClient".
+// Note: the gRPC framework executes interceptors within the gRPC handler. If the passed in "RegistrationClient"
+// doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
+// "RegistrationClient" to call the correct interceptors.
+func RegisterRegistrationHandlerClient(ctx context.Context, mux *runtime.ServeMux, client RegistrationClient) error {
 
 	mux.Handle("POST", pattern_Registration_CreateEntry_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(ctx)
