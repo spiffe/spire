@@ -1,5 +1,5 @@
-hash: 751b4318c60c38530dbd45a340e767a9513ab2817c9ded83b22838dd6fd81265
-updated: 2017-09-29T12:40:36.928280182-03:00
+hash: ee5fd16cdbe8ee9fed248755659142177fb8124c92e8309e0ffaa5255588ca47
+updated: 2017-10-04T10:59:19.741136758-07:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -10,14 +10,15 @@ imports:
   subpackages:
   - oleutil
 - name: github.com/golang/mock
-  version: 2b473a1a899b0c9967501477ec03c71c32550cbe
+  version: 18f6dd13ccdd227b8ebc546ca95cd62a02f3970c
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: 130e6b02ab059e7b717a096f397c5b60111cae74
+  version: 0a4f71a498b7c4812f64969510bcb4eca251e33a
   subpackages:
   - jsonpb
   - proto
+  - protoc-gen-go
   - protoc-gen-go/descriptor
   - ptypes
   - ptypes/any
@@ -26,7 +27,7 @@ imports:
   - ptypes/struct
   - ptypes/timestamp
 - name: github.com/grpc-ecosystem/grpc-gateway
-  version: 8bec008bd140852468324fdd069ed8e38d37a963
+  version: 589b126116b5fc961939b3e156c29e4d9d58222f
   subpackages:
   - runtime
   - runtime/internal
@@ -38,9 +39,9 @@ imports:
 - name: github.com/hashicorp/go-multierror
   version: 83588e72410abfbe4df460eeb6f30841ae47d4c4
 - name: github.com/hashicorp/go-plugin
-  version: 3e6d191694b5a3a2b99755f31b47fa209e4bcd09
+  version: 4e5a3725c607a756be8d35bf3a521c0f9c422666
 - name: github.com/hashicorp/hcl
-  version: 68e816d1c783414e79bc65b3994d9ab6b0a722ab
+  version: 8f6b1344a92ff8877cf24a5de9177bf7d0a2a187
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -64,15 +65,15 @@ imports:
 - name: github.com/jteeuwen/go-bindata
   version: bbd0c6e271208dce66d8fda4bc536453cd27fc4a
 - name: github.com/mattn/go-isatty
-  version: a5cdd64afdee435007ee3e9f6ed4684af949d568
+  version: fc9e8d8ef48496124e79ae0df75490096eccf6fe
 - name: github.com/mattn/go-sqlite3
   version: ca5e3819723d8eeaf170ad510e7da1d6d2e94a08
 - name: github.com/mitchellh/cli
-  version: 65fcae5817c8600da98ada9d7edf26dd1a84837b
+  version: 7a1a617034de956eee640dfa5a7407ccc8c8d7e6
 - name: github.com/mitchellh/go-testing-interface
   version: 7bf6f6eaf1bed2fd3c6c63114b18cb64facb9de2
 - name: github.com/posener/complete
-  version: 88e59760adaddb8276c9b15511302890690e2dae
+  version: 9f41f7636a724791a3b8b1d35e84caa1124f0d3c
   subpackages:
   - cmd
   - cmd/install
@@ -82,7 +83,7 @@ imports:
   subpackages:
   - context
 - name: github.com/shirou/gopsutil
-  version: 6e221c482653ef05c9f6a7bf71ddceea0e40bac5
+  version: 1ba77cdb3d0f8a2b7016b3b0c462e4e2b5ad503b
   subpackages:
   - cpu
   - host
@@ -105,11 +106,11 @@ imports:
 - name: github.com/StackExchange/wmi
   version: ea383cf3ba6ec950874b8486cd72356d007c768f
 - name: golang.org/x/crypto
-  version: 76eec36fa14229c4b25bb894c2d0e591527af429
+  version: 81e90905daefcd6fd217b62423c0908922eadb30
   subpackages:
   - ssh/terminal
 - name: golang.org/x/net
-  version: 0a9397675ba34b2845f758fe3cd68828369c6517
+  version: f5079bd7f6f74e23c4d65efa0f4ce14cbd6a3c0f
   subpackages:
   - context
   - http2
@@ -119,19 +120,19 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sys
-  version: 314a259e304ff91bd6985da2a7149bbf91237993
+  version: a45f55524b7ec57890cfa6c6bc06b47f877be0d1
   subpackages:
   - unix
   - windows
 - name: golang.org/x/text
-  version: 1cbadb444a806fd9430d14ad08967ed91da4fa0a
+  version: 836efe42bb4aa16aaa17b9c155d8813d336ed720
   subpackages:
   - secure/bidirule
   - transform
   - unicode/bidi
   - unicode/norm
 - name: google.golang.org/genproto
-  version: 1e559d0a00eef8a9a43151db4665280bd8dd5886
+  version: b0a3dcfcd1a9bd48e63634bd8802960804cf8315
   subpackages:
   - googleapis/api/annotations
   - googleapis/rpc/status
@@ -164,7 +165,7 @@ testImports:
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 890a5c3458b43e6104ff5da8dfa139d013d77544
+  version: 05e8a0eda380579888eb53c394909df027f06991
   subpackages:
   - assert
   - require

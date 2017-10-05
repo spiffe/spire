@@ -5,12 +5,12 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"encoding/pem"
 	"io/ioutil"
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spiffe/go-spiffe/uri"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,7 @@ import (
 )
 
 func TestMemory_Configure(t *testing.T) {
-	config := `{"trust_domain":"example.com", "ttl":"1h", "key_size":2048}`
+	config := `{"trust_domain":"example.com", "key_size":2048}`
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
@@ -201,8 +201,29 @@ func TestMemory_SignCsr(t *testing.T) {
 
 	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
 	require.NoError(t, err)
-
 	assert.NotEmpty(t, wcert)
+
+	cert, err := x509.ParseCertificate(wcert.SignedCertificate)
+	roots := getRoots(t, m)
+	_, err = cert.Verify(x509.VerifyOptions{Roots: roots})
+	require.NoError(t, err)
+}
+
+func TestMemory_SignCsrExpire(t *testing.T) {
+	m := populateCert(t)
+	wcsr := createWorkloadCSR(t, "spiffe://localhost")
+
+	// Set a TTL of one second
+	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr, Ttl: 1})
+	require.NoError(t, err)
+	assert.NotEmpty(t, wcert)
+
+	// Wait for two seconds. The certificate expires.
+	time.Sleep(2 * time.Second)
+	cert, err := x509.ParseCertificate(wcert.SignedCertificate)
+	roots := getRoots(t, m)
+	_, err = cert.Verify(x509.VerifyOptions{Roots: roots})
+	assert.Equal(t, "x509: certificate has expired or is not yet valid", err.Error())
 }
 
 func TestMemory_SignCsrNoCert(t *testing.T) {
@@ -228,28 +249,13 @@ func TestMemory_SignCsrErrorParsingSpiffeId(t *testing.T) {
 	assert.Empty(t, wcert)
 }
 
-func TestMemory_SignCsrErrorParsingTTL(t *testing.T) {
+func TestMemory_SignCsrErrorInvalidTTL(t *testing.T) {
 	m := populateCert(t)
-
-	config := configuration{
-		TrustDomain: "localhost",
-		KeySize:     2048,
-		TTL:         "abc",
-		CertSubject: certSubjectConfig{
-			Country:      []string{"US"},
-			Organization: []string{"SPIFFE"},
-			CommonName:   "",
-		}}
-
-	pluginConfig, err := populateConfigPlugin(config)
-	_, err = m.Configure(pluginConfig)
-	require.NoError(t, err)
 
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
-	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
-
-	assert.Equal(t, "Unable to parse TTL: time: invalid duration abc", err.Error())
+	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr, Ttl: -5})
+	assert.Equal(t, "Invalid TTL: -5", err.Error())
 	assert.Empty(t, wcert)
 }
 
@@ -365,12 +371,13 @@ func populateCert(t *testing.T) (m ca.ControlPlaneCa) {
 	return m
 }
 
-func populateConfigPlugin(config configuration) (p *spi.ConfigureRequest, err error) {
-	jsonConfig, err := json.Marshal(config)
+func getRoots(t *testing.T, m ca.ControlPlaneCa) (roots *x509.CertPool) {
+	fetchResp, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
+	require.NoError(t, err)
+	rootCert, err := x509.ParseCertificate(fetchResp.StoredIntermediateCert)
+	require.NoError(t, err)
+	roots = x509.NewCertPool()
+	roots.AddCert(rootCert)
 
-	pluginConfig := &spi.ConfigureRequest{
-		Configuration: string(jsonConfig),
-	}
-
-	return pluginConfig, err
+	return roots
 }
