@@ -132,7 +132,7 @@ func getFetchBaseSVIDTestData() *fetchBaseSVIDData {
 
 	data.generatedCert = getBytesFromPem("base_cert.pem")
 
-	data.baseSpiffeID = "spiffe://example.org/spiffe/node-id/token"
+	data.baseSpiffeID = "spiffe://example.org/spire/agent/join_token/token"
 	data.selector = &common.Selector{Type: "foo", Value: "bar"}
 	data.selectors = make(map[string]*common.Selectors)
 	data.selectors[data.baseSpiffeID] = &common.Selectors{
@@ -212,8 +212,8 @@ func setFetchBaseSVIDExpectations(
 			AttestedNodeEntry: &datastore.AttestedNodeEntry{
 				AttestedDataType:   "fake type",
 				BaseSpiffeId:       data.baseSpiffeID,
-				CertExpirationDate: "Sat, 02 Oct 2027 16:18:38 +0000",
-				CertSerialNumber:   "16484605349331937401",
+				CertExpirationDate: "Sun, 03 Oct 2027 20:21:55 +0000",
+				CertSerialNumber:   "15130166154287189008",
 			}}).
 		Return(nil, nil)
 
