@@ -22,7 +22,7 @@ const (
 	defaultBindPort        = "8081"
 	defaultBindHTTPPort    = "8080"
 	defaultLogLevel        = "INFO"
-	defaultPluginDir       = "conf/plugin/server"
+	defaultPluginDir       = "conf/server/plugin"
 	defaultBaseSpiffeIDTTL = 999999
 )
 
