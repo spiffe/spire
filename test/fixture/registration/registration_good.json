@@ -8,7 +8,7 @@
                 }
             ],
             "spiffe_id": "spiffe://example.org/Blog",
-            "parent_id": "spiffe://example.org/spiffe/node-id/TokenBlog",
+            "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
             "ttl": 200
         },
         {
@@ -19,7 +19,7 @@
                 }
             ],
             "spiffe_id": "spiffe://example.org/Database",
-            "parent_id": "spiffe://example.org/spiffe/node-id/TokenDatabase",
+            "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
             "ttl": 200
         }
     ]

@@ -276,7 +276,7 @@ func (s *nodeServer) attestToken(
 	id := &url.URL{
 		Scheme: s.trustDomain.Scheme,
 		Host:   s.trustDomain.Host,
-		Path:   path.Join("spiffe", "node-id", t.Token),
+		Path:   path.Join("spire", "agent", "join_token", t.Token),
 	}
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
