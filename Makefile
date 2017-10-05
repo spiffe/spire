@@ -32,10 +32,10 @@ cmd:
 utils: $(utils)
 
 $(utils): noop
-		# some sources do not contain buildable go
-		$(docker) /bin/sh -c "cd vendor/$@; go get . || true"
-		$(docker) mkdir -p $(gopath)/src/$@
-		$(docker) cp -r vendor/$@/* $(gopath)/src/$@/
+	# some sources do not contain buildable go, hence || true
+	$(docker) /bin/sh -c "cd vendor/$@; go get . || true"
+	$(docker) mkdir -p $(gopath)/src/$@
+	$(docker) cp -r vendor/$@/* $(gopath)/src/$@/
 
 vendor: glide.yaml glide.lock
 	$(docker) glide --home .cache install

@@ -239,7 +239,7 @@ build_artifact() {
 	# fix plugin path names to match tgz layout
 	${SED_I} -e 's/\(.*pluginCmd.*\)\/.*\"/\1\"/'  $(find ${_tmp}/conf -name \*.conf)
 
-	tar --directory .tmp -cvzf $_tgz .
+	tar --directory .tmp -cvzf $_tgz $(basename $_tmp)
 }
 
 build_clean() {
