@@ -24,7 +24,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/peer"
 )
 
 type Config struct {
@@ -143,7 +142,6 @@ func (server *Server) initEndpoints() error {
 		catalog:         server.Catalog,
 		trustDomain:     server.Config.TrustDomain,
 		baseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
-		fromContext:     peer.FromContext,
 	}
 	spinode.RegisterNodeServer(server.grpcServer, ns)
 

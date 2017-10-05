@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/spiffe/spire/test/mock/common/context"
+
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/api/node"
@@ -23,7 +25,6 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/server/noderesolver"
 	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/stretchr/testify/suite"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 )
@@ -39,6 +40,7 @@ type NodeServerTestSuite struct {
 	mockServerCA     *mock_ca.MockControlPlaneCa
 	mockNodeAttestor *mock_nodeattestor.MockNodeAttestor
 	mockNodeResolver *mock_noderesolver.MockNodeResolver
+	mockContext      *mock_context.MockContext
 }
 
 func SetupTest(t *testing.T) *NodeServerTestSuite {
@@ -52,12 +54,12 @@ func SetupTest(t *testing.T) *NodeServerTestSuite {
 	suite.mockServerCA = mock_ca.NewMockControlPlaneCa(mockCtrl)
 	suite.mockNodeAttestor = mock_nodeattestor.NewMockNodeAttestor(mockCtrl)
 	suite.mockNodeResolver = mock_noderesolver.NewMockNodeResolver(mockCtrl)
+	suite.mockContext = mock_context.NewMockContext(mockCtrl)
 
 	suite.nodeServer = &nodeServer{
 		l:               log,
 		catalog:         suite.mockCatalog,
 		baseSpiffeIDTTL: 777,
-		fromContext:     fakeFromContext,
 	}
 	return suite
 }
@@ -87,7 +89,7 @@ func TestFetchSVID(t *testing.T) {
 
 	data := getFetchSVIDTestData()
 	setFetchSVIDExpectations(suite, data)
-	response, err := suite.nodeServer.FetchSVID(nil, data.request)
+	response, err := suite.nodeServer.FetchSVID(suite.mockContext, data.request)
 	expected := getExpectedFetchSVID(data)
 
 	if !reflect.DeepEqual(response.SvidUpdate, expected) {
@@ -342,6 +344,8 @@ func setFetchSVIDExpectations(
 	suite.mockCatalog.EXPECT().CAs().AnyTimes().
 		Return([]ca.ControlPlaneCa{suite.mockServerCA})
 
+	suite.mockContext.EXPECT().Value(gomock.Any()).Return(getFakePeer())
+
 	suite.mockDataStore.EXPECT().FetchNodeResolverMapEntry(
 		&datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: data.baseSpiffeID}).
 		Return(&datastore.FetchNodeResolverMapEntryResponse{
@@ -402,7 +406,7 @@ func getExpectedFetchSVID(data *fetchSVIDData) *node.SvidUpdate {
 	return svidUpdate
 }
 
-func fakeFromContext(ctx context.Context) (*peer.Peer, bool) {
+func getFakePeer() *peer.Peer {
 	baseCert := getBytesFromPem("base_cert.pem")
 	parsedCert, _ := x509.ParseCertificate(baseCert)
 
@@ -414,5 +418,6 @@ func fakeFromContext(ctx context.Context) (*peer.Peer, bool) {
 		Addr:     nil,
 		AuthInfo: credentials.TLSInfo{State: state},
 	}
-	return fakePeer, true
+
+	return fakePeer
 }

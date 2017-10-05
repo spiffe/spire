@@ -29,7 +29,6 @@ type nodeServer struct {
 	catalog         catalog.Catalog
 	trustDomain     url.URL
 	baseSpiffeIDTTL int32
-	fromContext     func(context.Context) (*peer.Peer, bool)
 }
 
 //FetchBaseSVID attests the node and gets the base node SVID.
@@ -424,7 +423,7 @@ func (s *nodeServer) getFetchBaseSVIDResponse(
 
 func (s *nodeServer) getSpiffeIDFromCtx(ctx context.Context) (spiffeID string, err error) {
 
-	ctxPeer, ok := s.fromContext(ctx)
+	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
 		return "", errors.New("It was not posible to read a SVID from your request")
 	}
