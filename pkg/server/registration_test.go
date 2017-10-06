@@ -1,6 +1,8 @@
 package server
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"reflect"
 	"testing"
 
@@ -223,14 +225,8 @@ func TestCreateJoinTokenWithoutValue(t *testing.T) {
 }
 
 func getRegistrationEntries() []*common.RegistrationEntry {
-	entry := &common.RegistrationEntry{
-		SpiffeId: "spiffe://example.org/Blog",
-		ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
-		Selectors: []*common.Selector{
-			&common.Selector{Type: "unix", Value: "uid:111"},
-		},
-		Ttl: 200,
-	}
-
-	return []*common.RegistrationEntry{entry}
+	regEntries := &common.RegistrationEntries{}
+	dat, _ := ioutil.ReadFile("../../test/fixture/registration/registration_good.json")
+	json.Unmarshal(dat, &regEntries)
+	return regEntries.Entries
 }
