@@ -43,7 +43,7 @@ type NodeServerTestSuite struct {
 	mockContext      *mock_context.MockContext
 }
 
-func SetupTest(t *testing.T) *NodeServerTestSuite {
+func SetupNodeTest(t *testing.T) *NodeServerTestSuite {
 	suite := &NodeServerTestSuite{}
 	mockCtrl := gomock.NewController(t)
 	suite.ctrl = mockCtrl
@@ -65,7 +65,7 @@ func SetupTest(t *testing.T) *NodeServerTestSuite {
 }
 
 func TestFetchBaseSVID(t *testing.T) {
-	suite := SetupTest(t)
+	suite := SetupNodeTest(t)
 	defer suite.ctrl.Finish()
 
 	data := getFetchBaseSVIDTestData()
@@ -84,7 +84,7 @@ func TestFetchBaseSVID(t *testing.T) {
 }
 
 func TestFetchSVID(t *testing.T) {
-	suite := SetupTest(t)
+	suite := SetupNodeTest(t)
 	defer suite.ctrl.Finish()
 
 	data := getFetchSVIDTestData()
