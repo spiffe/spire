@@ -26,7 +26,7 @@ const (
 	// TODO: Make my defaults sane
 	defaultDataDir   = "."
 	defaultLogLevel  = "INFO"
-	defaultPluginDir = "conf/plugin/agent"
+	defaultPluginDir = "conf/agent/plugin"
 )
 
 // Struct representing available configurables for file and CLI
