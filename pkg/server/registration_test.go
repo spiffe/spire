@@ -19,7 +19,6 @@ type RegistrationServerTestSuite struct {
 	t                  *testing.T
 	ctrl               *gomock.Controller
 	registrationServer *registrationServer
-	logHook            *test.Hook
 	mockCatalog        *mock_catalog.MockCatalog
 	mockDataStore      *mock_datastore.MockDataStore
 }
@@ -28,8 +27,7 @@ func SetupRegistrationTest(t *testing.T) *RegistrationServerTestSuite {
 	suite := &RegistrationServerTestSuite{}
 	mockCtrl := gomock.NewController(t)
 	suite.ctrl = mockCtrl
-	log, logHook := test.NewNullLogger()
-	suite.logHook = logHook
+	log, _ := test.NewNullLogger()
 	suite.mockCatalog = mock_catalog.NewMockCatalog(mockCtrl)
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
 

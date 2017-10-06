@@ -425,7 +425,7 @@ func (s *nodeServer) getSpiffeIDFromCtx(ctx context.Context) (spiffeID string, e
 
 	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
-		return "", errors.New("It was not posible to read a SVID from your request")
+		return "", errors.New("An SVID is required for this request")
 	}
 	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
 	if ok {

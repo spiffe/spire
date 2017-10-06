@@ -34,7 +34,6 @@ type NodeServerTestSuite struct {
 	t                *testing.T
 	ctrl             *gomock.Controller
 	nodeServer       *nodeServer
-	logHook          *test.Hook
 	mockCatalog      *mock_catalog.MockCatalog
 	mockDataStore    *mock_datastore.MockDataStore
 	mockServerCA     *mock_ca.MockControlPlaneCa
@@ -47,8 +46,7 @@ func SetupNodeTest(t *testing.T) *NodeServerTestSuite {
 	suite := &NodeServerTestSuite{}
 	mockCtrl := gomock.NewController(t)
 	suite.ctrl = mockCtrl
-	log, logHook := test.NewNullLogger()
-	suite.logHook = logHook
+	log, _ := test.NewNullLogger()
 	suite.mockCatalog = mock_catalog.NewMockCatalog(mockCtrl)
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
 	suite.mockServerCA = mock_ca.NewMockControlPlaneCa(mockCtrl)
@@ -104,7 +102,7 @@ func TestFetchSVID(t *testing.T) {
 }
 
 func getBytesFromPem(fileName string) []byte {
-	pemFile, _ := ioutil.ReadFile(path.Join("_test_data", fileName))
+	pemFile, _ := ioutil.ReadFile(path.Join("../../test/fixture/certs", fileName))
 	decodedFile, _ := pem.Decode(pemFile)
 	return decodedFile.Bytes
 }
