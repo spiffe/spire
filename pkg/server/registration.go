@@ -134,6 +134,10 @@ func (s *registrationServer) CreateJoinToken(
 	ctx context.Context, request *registration.JoinToken) (
 	*registration.JoinToken, error) {
 
+	if request.Ttl < 1 {
+		return nil, errors.New("Ttl is required, you must provide one")
+	}
+
 	// Generate a token if one wasn't specified
 	if request.Token == "" {
 		request.Token = uuid.NewV4().String()
