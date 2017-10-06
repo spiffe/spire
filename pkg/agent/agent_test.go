@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -94,6 +95,29 @@ func (suite *AgentTestSuite) TestSocketPermission() {
 	info, err := os.Stat("./spire_api")
 	suite.Require().NoError(err)
 	suite.Assert().Equal(os.ModePerm|os.ModeSocket, info.Mode())
+}
+
+func (suite *AgentTestSuite) TestUmask() {
+	suite.agent = &Agent{
+		config: suite.config}
+
+	suite.agent.config.Umask = 0000
+	suite.agent.prepareUmask()
+	f, err := ioutil.TempFile("", "")
+	suite.Nil(err)
+	defer os.Remove(f.Name())
+	fi, err := os.Stat(f.Name())
+	suite.Nil(err)
+	suite.Equal(os.FileMode(0600), fi.Mode().Perm()) //0600 is permission set by TempFile()
+
+	suite.agent.config.Umask = 0777
+	suite.agent.prepareUmask()
+	f, err = ioutil.TempFile("", "")
+	suite.Nil(err)
+	defer os.Remove(f.Name())
+	fi, err = os.Stat(f.Name())
+	suite.Nil(err)
+	suite.Equal(os.FileMode(0000), fi.Mode().Perm())
 }
 
 // WIP(walmav)

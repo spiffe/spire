@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/hashicorp/hcl"
@@ -24,6 +25,7 @@ const (
 	defaultLogLevel        = "INFO"
 	defaultPluginDir       = "conf/server/plugin"
 	defaultBaseSpiffeIDTTL = 999999
+	defaultUmask           = -1
 )
 
 // CmdConfig represents available configurables for file and CLI options
@@ -38,6 +40,7 @@ type CmdConfig struct {
 	BaseSpiffeIDTTL int
 
 	ConfigPath string
+	Umask      string
 }
 
 //RunCommand itself
@@ -125,6 +128,7 @@ func parseFlags(args []string) (*CmdConfig, error) {
 	flags.IntVar(&c.BaseSpiffeIDTTL, "baseSpiffeIDTTL", 0, "TTL to use when creating the baseSpiffeID")
 
 	flags.StringVar(&c.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
+	flags.StringVar(&c.Umask, "umask", "", "Umask value to use for new files")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -191,6 +195,14 @@ func mergeConfig(orig *server.Config, cmd *CmdConfig) error {
 		orig.Log = logger
 	}
 
+	if cmd.Umask != "" {
+		umask, err := strconv.ParseInt(cmd.Umask, 0, 0)
+		if err != nil {
+			return fmt.Errorf("Could not parse umask %s: %s", cmd.Umask, err)
+		}
+		orig.Umask = int(umask)
+	}
+
 	return nil
 }
 
@@ -227,6 +239,7 @@ func newDefaultConfig() *server.Config {
 		BindAddress:     bindAddress,
 		BindHTTPAddress: serverHTTPAddress,
 		BaseSpiffeIDTTL: defaultBaseSpiffeIDTTL,
+		Umask:           defaultUmask,
 	}
 }
 

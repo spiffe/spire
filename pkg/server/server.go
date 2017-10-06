@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"path"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/uri"
@@ -41,6 +42,9 @@ type Config struct {
 
 	// Trust domain
 	TrustDomain url.URL
+
+	// Umask value to use
+	Umask int
 }
 
 type Server struct {
@@ -55,6 +59,8 @@ type Server struct {
 // This method initializes the server, including its plugins,
 // and then blocks on the main event loop.
 func (server *Server) Run() error {
+	server.prepareUmask()
+
 	err := server.initPlugins()
 	if err != nil {
 		return err
@@ -99,6 +105,15 @@ func (server *Server) Shutdown() error {
 
 	// Unblock closing endpoints
 	return <-server.Config.ErrorCh
+}
+
+func (server *Server) prepareUmask() {
+	if server.Config.Umask >= 0 {
+		server.Config.Log.Debug("Setting umask to ", server.Config.Umask)
+		syscall.Umask(server.Config.Umask)
+	} else {
+		server.Config.Log.Debug("Using default umask")
+	}
 }
 
 func (server *Server) initPlugins() error {
