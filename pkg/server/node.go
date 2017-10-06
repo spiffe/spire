@@ -334,12 +334,13 @@ func (s *nodeServer) createAttestationEntry(
 		return err
 	}
 
-	createRequest := &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: &datastore.AttestedNodeEntry{
-		AttestedDataType:   attestationType,
-		BaseSpiffeId:       baseSPIFFEID,
-		CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
-		CertSerialNumber:   cert.SerialNumber.String(),
-	}}
+	createRequest := &datastore.CreateAttestedNodeEntryRequest{
+		AttestedNodeEntry: &datastore.AttestedNodeEntry{
+			AttestedDataType:   attestationType,
+			BaseSpiffeId:       baseSPIFFEID,
+			CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
+			CertSerialNumber:   cert.SerialNumber.String(),
+		}}
 	_, err = dataStore.CreateAttestedNodeEntry(createRequest)
 	if err != nil {
 		return err
@@ -422,7 +423,10 @@ func (s *nodeServer) getFetchBaseSVIDResponse(
 
 func (s *nodeServer) getSpiffeIDFromCtx(ctx context.Context) (spiffeID string, err error) {
 
-	ctxPeer, _ := peer.FromContext(ctx)
+	ctxPeer, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", errors.New("An SVID is required for this request")
+	}
 	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
 	if ok {
 		spiffeID, err := uri.GetURINamesFromCertificate(tlsInfo.State.PeerCertificates[0])
