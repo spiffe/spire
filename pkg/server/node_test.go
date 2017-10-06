@@ -210,8 +210,8 @@ func setFetchBaseSVIDExpectations(
 			AttestedNodeEntry: &datastore.AttestedNodeEntry{
 				AttestedDataType:   "fake type",
 				BaseSpiffeId:       data.baseSpiffeID,
-				CertExpirationDate: "Sun, 03 Oct 2027 20:21:55 +0000",
-				CertSerialNumber:   "15130166154287189008",
+				CertExpirationDate: "Mon, 04 Oct 2027 21:19:54 +0000",
+				CertSerialNumber:   "18392437442709699290",
 			}}).
 		Return(nil, nil)
 
