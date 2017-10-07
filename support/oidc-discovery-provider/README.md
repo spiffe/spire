@@ -34,6 +34,7 @@ The configuration file is **required** by the provider. It contains
 | -------------------- | --------| ----------- | -------------------------------------------------------- | -------- |
 | `acme`               | section | required[1] | Provides the ACME configuration.                         |          |
 | `domain`             | string  | required    | The domain the provider is being served from.            |          |
+| `insecure_addr`      | string  | required[1] | Exposes the service on http.                             |          |
 | `listen_socket_path` | string  | required[1] | Path on disk to listen with a Unix Domain Socket.        |          |
 | `log_format`         | string  | optional    | Format of the logs (either `"TEXT"` or `"JSON"`)         | `""`     |
 | `log_level`          | string  | required    | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
