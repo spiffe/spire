@@ -190,26 +190,13 @@ func (e *endpoint) listenAndServe() error {
 		errChan <- e.httpServer.ListenAndServe()
 	}()
 
-	// Detect and differentiate between shutdown and
-	// an actual error condition
-	//
-	// Unfortunately, the error returned by grpc server is hard to
-	// match. Construct the expected error string and attempt to match
-	// on that. If the format ever changes, the result will be an error
-	// during shutdown. We'll get to have another stab at this if/when
-	// that happens.
-	//
-	// https://github.com/grpc/grpc-go/issues/1017
-	// https://github.com/golang/go/commit/fb4b4342fe298fda640bfa74f24b7bd58519deba
-	errStr := fmt.Sprintf("accept tcp %s: use of closed network connection", e.grpcAddr.String())
-
+	// Differentiate between shutdown and an actual error condition
 	err = <-errChan
-	if err == http.ErrServerClosed || err.Error() == errStr {
-		// Ensure that the second server shutdown cleanly, set
-		// return val to nil if so
+	if e.isCleanShutdown(err) {
+		// Ensure that the second server shutdown cleanly
 		err = <-errChan
-		if err == http.ErrServerClosed || err.Error() == errStr {
-			err = nil
+		if e.isCleanShutdown(err) {
+			return nil
 		}
 
 		return err
@@ -228,4 +215,25 @@ func (e *endpoint) stopGRPCServer() {
 
 func (e *endpoint) stopHTTPServer() {
 	_ = e.httpServer.Shutdown(context.TODO())
+}
+
+// isCleanShutdown determines whether a given error is an indicator
+// of successful shutdown, as neither HTTP nor gRPC server return
+// a nil error.
+func (e *endpoint) isCleanShutdown(err error) bool {
+	// Unfortunately, the error returned by grpc server is hard to
+	// match. Construct the expected error string and attempt to match
+	// on that. If the format ever changes, the result will be an error
+	// during shutdown. We'll get to have another stab at this if/when
+	// that happens.
+	//
+	// https://github.com/grpc/grpc-go/issues/1017
+	// https://github.com/golang/go/commit/fb4b4342fe298fda640bfa74f24b7bd58519deba
+	errStr := fmt.Sprintf("accept tcp %s: use of closed network connection", e.grpcAddr.String())
+
+	if err == http.ErrServerClosed || err.Error() == errStr {
+		return true
+	}
+
+	return false
 }

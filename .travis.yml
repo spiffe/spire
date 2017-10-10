@@ -12,8 +12,8 @@ script:
     - ./build.sh vendor
     - ./build.sh utils
     - ./build.sh protobuf_verify
-    - ./build.sh binaries
     - ./build.sh test
+    - ./build.sh binaries
     - ./build.sh artifact
     - ./build.sh release
 
