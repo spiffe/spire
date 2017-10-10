@@ -4,26 +4,18 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"fmt"
 	"net"
-	"net/http"
 	"net/url"
 	"path"
 
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	spinode "github.com/spiffe/spire/proto/api/node"
-	spiregistration "github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/pkg/server/endpoint"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/upstreamca"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type Config struct {
@@ -54,7 +46,7 @@ type Config struct {
 type Server struct {
 	Catalog    catalog.Catalog
 	Config     *Config
-	grpcServer *grpc.Server
+	endpoints  endpoint.Endpoint
 	privateKey *ecdsa.PrivateKey
 	svid       *x509.Certificate
 }
@@ -64,7 +56,6 @@ type Server struct {
 // and then blocks on the main event loop.
 func (server *Server) Run() error {
 	err := server.initPlugins()
-	defer server.stopPlugins()
 	if err != nil {
 		return err
 	}
@@ -92,10 +83,22 @@ func (server *Server) Run() error {
 		case err = <-server.Config.ErrorCh:
 			return err
 		case <-server.Config.ShutdownCh:
-			server.grpcServer.GracefulStop()
-			return <-server.Config.ErrorCh
+			return server.Shutdown()
 		}
 	}
+}
+
+func (server *Server) Shutdown() error {
+	if server.endpoints != nil {
+		server.endpoints.Shutdown()
+	}
+
+	if server.Catalog != nil {
+		server.Catalog.Stop()
+	}
+
+	// Unblock closing endpoints
+	return <-server.Config.ErrorCh
 }
 
 func (server *Server) initPlugins() error {
@@ -116,70 +119,38 @@ func (server *Server) initPlugins() error {
 	return nil
 }
 
-func (server *Server) stopPlugins() {
-	if server.Catalog != nil {
-		server.Catalog.Stop()
-	}
-}
-
 func (server *Server) initEndpoints() error {
-	grpcServer, err := server.getGRPCServer()
-	if err != nil {
-		return err
-	}
-	server.grpcServer = grpcServer
-
-	server.Config.Log.Debug("Starting the Registration API")
-	rs := &registrationServer{
-		l:       server.Config.Log,
-		catalog: server.Catalog,
-	}
-	spiregistration.RegisterRegistrationServer(server.grpcServer, rs)
-
-	server.Config.Log.Debug("Starting the Node API")
 	ns := &nodeServer{
 		l:               server.Config.Log,
 		catalog:         server.Catalog,
 		trustDomain:     server.Config.TrustDomain,
 		baseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
 	}
-	spinode.RegisterNodeServer(server.grpcServer, ns)
 
-	server.Config.Log.Info("Node API started at ", server.Config.BindAddress.String())
-	listener, err := net.Listen(server.Config.BindAddress.Network(), server.Config.BindAddress.String())
-	if err != nil {
-		return fmt.Errorf("Error creating GRPC listener: %s", err)
+	rs := &registrationServer{
+		l:       server.Config.Log,
+		catalog: server.Catalog,
 	}
 
-	//gRPC
-	go func() {
-		server.Config.ErrorCh <- server.grpcServer.Serve(listener)
-	}()
+	log := server.Config.Log.WithField("subsystem_name", "endpoint")
+	cert, err := server.signingCert()
+	if err != nil {
+		return err
+	}
 
-	//http
-	go func() {
-		ctx := context.Background()
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+	c := &endpoint.Config{
+		NS:       ns,
+		RS:       rs,
+		GRPCAddr: server.Config.BindAddress,
+		HTTPAddr: server.Config.BindHTTPAddress,
+		SVID:     server.svid,
+		SVIDKey:  server.privateKey,
+		CACert:   cert,
+		Log:      log,
+	}
 
-		// TODO: Pass a bundle in here
-		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true,
-		}
-
-		mux := runtime.NewServeMux()
-		opt := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
-		opts := []grpc.DialOption{opt}
-
-		err := spiregistration.RegisterRegistrationHandlerFromEndpoint(ctx, mux, server.Config.BindAddress.String(), opts)
-		if err != nil {
-			server.Config.ErrorCh <- err
-			return
-		}
-		server.Config.Log.Info("Registration API started at ", server.Config.BindHTTPAddress.String())
-		server.Config.ErrorCh <- http.ListenAndServe(server.Config.BindHTTPAddress.String(), mux)
-	}()
-
+	server.endpoints = endpoint.New(c)
+	go func() { server.Config.ErrorCh <- server.endpoints.ListenAndServe() }()
 	return nil
 }
 
@@ -251,29 +222,12 @@ func (server *Server) rotateSigningCert() error {
 	return err
 }
 
-func (server *Server) getGRPCServer() (*grpc.Server, error) {
-	serverCA := server.Catalog.CAs()[0]
-	crtRes, err := serverCA.FetchCertificate(&ca.FetchCertificateRequest{})
+func (server *Server) signingCert() (*x509.Certificate, error) {
+	c := server.Catalog.CAs()[0]
+	res, err := c.FetchCertificate(&ca.FetchCertificateRequest{})
 	if err != nil {
 		return nil, err
 	}
-	certChain := [][]byte{server.svid.Raw, crtRes.StoredIntermediateCert}
-	tlsCert := &tls.Certificate{
-		Certificate: certChain,
-		PrivateKey:  server.privateKey,
-	}
 
-	certpool := x509.NewCertPool()
-	intermCert, err := x509.ParseCertificate(crtRes.StoredIntermediateCert)
-	if err != nil {
-		return nil, err
-	}
-	certpool.AddCert(intermCert)
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{*tlsCert},
-		ClientCAs:    certpool,
-		ClientAuth:   tls.RequestClientCert,
-	}
-
-	return grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig))), nil
+	return x509.ParseCertificate(res.StoredIntermediateCert)
 }
