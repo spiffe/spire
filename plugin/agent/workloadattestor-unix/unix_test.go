@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,11 @@ func TestUnix_AttestValidPID(t *testing.T) {
 }
 
 func TestUnix_AttestInvalidPID(t *testing.T) {
+	switch runtime.GOOS {
+	case "darwin":
+		// all PIDs including -1 are valid on Darwin
+		t.Skip("skipping test on %v", runtime.GOOS)
+	}
 	plugin := &UnixPlugin{}
 	req := workloadattestor.AttestRequest{Pid: -1}
 	resp, err := plugin.Attest(&req)

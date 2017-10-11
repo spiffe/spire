@@ -44,7 +44,7 @@ $(binary_dirs): noop
 	$(docker) /bin/sh -c "cd $@; go build -i"
 
 test:
-	$(docker) go test $$(glide novendor)
+	$(docker) go test -race $$(glide novendor)
 
 race-test:
 	$(docker) go test -race $$(glide novendor)
