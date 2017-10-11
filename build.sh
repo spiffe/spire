@@ -10,11 +10,9 @@ declare -r PROTO_FILES="$(find proto -name '*.proto' 2>/dev/null)"
 case $(uname) in
 	Darwin) declare -r OS1="darwin"
 			declare -r OS2="osx"
-			declare -r SED_I="sed -i ''"
 			;;
 	Linux)	declare -r OS1="linux"
 			declare -r OS2="linux"
-			declare -r SED_I="sed -i"
 			;;
 esac
 
@@ -190,10 +188,10 @@ build_release() {
 	fi
 }
 
-## Create a distributable tgz of all the binaries
+## Create a distributable tar.gz of all the binaries
 build_artifact() {
 	local _version="$1"
-	local _libc _tgz _binaries _n _tmp
+	local _libc _tgz _sum _binaries _n _tmp _tar_opts
 
 	_binaries="$(find $BINARY_DIRS -perm -u=x -a -type f)"
 
@@ -205,14 +203,17 @@ build_artifact() {
 			*muslr*) _libc="-musl" ;;
 			*) _libc="-unknown" ;;
 		esac
+		_tar_opts="--owner=root --group=root"
 	fi
 
 	if [[ $_version ]]; then
-		_tgz="releases/spire-${_version}-${OS1}-${ARCH1}${_libc}.tgz"
+		_tgz="releases/spire-${_version}-${OS1}-${ARCH1}${_libc}.tar.gz"
+		_sum="releases/spire-${_version}-${OS1}-${ARCH1}${_libc}_checksums.txt"
 		_tmp=".tmp/spire-${_version}"
 	else
 		_version="$(git log -n1 --pretty=format:%h)"
-		_tgz="artifacts/spire-${_version}-${OS1}-${ARCH1}${_libc}.tgz"
+		_tgz="artifacts/spire-${_version}-${OS1}-${ARCH1}${_libc}.tar.gz"
+		_sum="artifacts/spire-${_version}-${OS1}-${ARCH1}${_libc}_checksums.txt"
 		_tmp=".tmp/spire"
 	fi
 
@@ -237,9 +238,13 @@ build_artifact() {
 
 	## munge config files
 	# fix plugin path names to match tgz layout
-	${SED_I} -e 's/\(.*pluginCmd.*\)\/.*\"/\1\"/'  $(find ${_tmp}/conf -name \*.conf)
-
-	tar --directory .tmp -cvzf $_tgz $(basename $_tmp)
+	sed -i-new  -e 's/\(.*pluginCmd.*\)\/.*\"/\1\"/'  $(find ${_tmp}/conf -name \*.conf)
+	for _n in $(find $_tmp -name \*-new); do
+		mv $_n ${_n%-new}
+	done
+	
+	tar --directory .tmp $_tar_opts -cvzf $_tgz $(basename $_tmp)
+	echo "$(shasum -a 256 $_tgz | cut -d' ' -f1) $(basename $_tgz)" > $_sum
 }
 
 build_clean() {
