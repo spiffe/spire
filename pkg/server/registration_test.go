@@ -226,7 +226,7 @@ func TestCreateJoinTokenWithoutValue(t *testing.T) {
 
 func getRegistrationEntries() []*common.RegistrationEntry {
 	regEntries := &common.RegistrationEntries{}
-	dat, _ := ioutil.ReadFile("../../test/fixture/registration/registration_good.json")
+	dat, _ := ioutil.ReadFile("../../test/fixture/registration/good.json")
 	json.Unmarshal(dat, &regEntries)
 	return regEntries.Entries
 }
