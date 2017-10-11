@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/sirupsen/logrus"
@@ -62,6 +63,7 @@ func New(c *Config) *endpoint {
 		svidKey:  c.SVIDKey,
 		caCert:   c.CACert,
 		log:      c.Log,
+		mtx:      new(sync.Mutex),
 	}
 }
 
@@ -80,9 +82,11 @@ type endpoint struct {
 	httpServer *http.Server
 
 	log logrus.FieldLogger
+	mtx *sync.Mutex
 }
 
 func (e *endpoint) ListenAndServe() error {
+	e.mtx.Lock()
 	e.log.Debug("Initializing endpoints")
 
 	e.createGRPCServer()
@@ -94,10 +98,14 @@ func (e *endpoint) ListenAndServe() error {
 		return err
 	}
 
+	e.mtx.Unlock()
 	return e.listenAndServe()
 }
 
 func (e *endpoint) Shutdown() {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
 	e.stopHTTPServer()
 	e.stopGRPCServer()
 }
