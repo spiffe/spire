@@ -75,8 +75,11 @@ func (s *EndpointTestSuite) TestListenAndServe() {
 	errChan := make(chan error)
 	go func() { errChan <- s.e.ListenAndServe() }()
 
+	// Give the server some time to initialize
+	// https://github.com/golang/go/issues/20239
+	time.Sleep(10 * time.Millisecond)
+
 	// It should not exit "immediately"
-	time.Sleep(time.Millisecond * 1)
 	select {
 	case err := <-errChan:
 		require.NoError(s.T(), err)

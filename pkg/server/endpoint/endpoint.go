@@ -95,6 +95,7 @@ func (e *endpoint) ListenAndServe() error {
 	e.initNodeAPI()
 	err := e.initRegistrationAPI()
 	if err != nil {
+		e.mtx.Unlock()
 		return err
 	}
 
