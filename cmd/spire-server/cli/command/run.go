@@ -36,6 +36,8 @@ type CmdConfig struct {
 	LogFile         string
 	LogLevel        string
 	BaseSpiffeIDTTL int
+
+	ConfigPath string
 }
 
 //RunCommand itself
@@ -44,36 +46,42 @@ type RunCommand struct {
 
 //Help prints the server cmd usage
 func (*RunCommand) Help() string {
-	return setOptsFromCLI(newDefaultConfig(), []string{"-h"}).Error()
+	_, err := parseFlags([]string{"-h"})
+	return err.Error()
 }
 
 //Run the SPIFFE Server
 func (*RunCommand) Run(args []string) int {
-	config := newDefaultConfig()
-
-	err := setOptsFromFile(config, defaultConfigPath)
+	cliConfig, err := parseFlags(args)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	err = setOptsFromCLI(config, args)
+	fileConfig, err := parseFile(cliConfig.ConfigPath)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	err = validateConfig(config)
+	c := newDefaultConfig()
+	err = mergeConfigs(c, fileConfig, cliConfig)
+	if err != nil {
+		fmt.Println(err.Error())
+		return 1
+	}
+
+	err = validateConfig(c)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
 
-	signalListener(config.ShutdownCh)
+	signalListener(c.ShutdownCh)
 
-	server := &server.Server{Config: config}
+	server := &server.Server{Config: c}
 	err = server.Run()
 	if err != nil {
-		config.Log.Error(err.Error())
+		c.Log.Error(err.Error())
 		return 1
 	}
 
@@ -85,46 +93,58 @@ func (*RunCommand) Synopsis() string {
 	return "Runs the server"
 }
 
-func setOptsFromFile(c *server.Config, filePath string) error {
-	fileConfig := &CmdConfig{}
+func parseFile(filePath string) (*CmdConfig, error) {
+	c := &CmdConfig{}
 
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	hclTree, err := hcl.Parse(string(data))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := hcl.DecodeObject(&fileConfig, hclTree); err != nil {
-		return err
+	if err := hcl.DecodeObject(&c, hclTree); err != nil {
+		return nil, err
 	}
 
-	return mergeServerConfig(c, fileConfig)
+	return c, nil
 }
 
-func setOptsFromCLI(c *server.Config, args []string) error {
+func parseFlags(args []string) (*CmdConfig, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	cmdConfig := &CmdConfig{}
+	c := &CmdConfig{}
 
-	flags.StringVar(&cmdConfig.BindAddress, "bindAddress", "", "IP address or DNS name of the SPIRE server")
-	flags.IntVar(&cmdConfig.BindPort, "serverPort", 0, "Port number of the SPIRE server")
-	flags.IntVar(&cmdConfig.BindHTTPPort, "bindHTTPPort", 0, "HTTP Port number of the SPIRE server")
-	flags.StringVar(&cmdConfig.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
-	flags.StringVar(&cmdConfig.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
-	flags.StringVar(&cmdConfig.LogFile, "logFile", "", "File to write logs to")
-	flags.StringVar(&cmdConfig.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
-	flags.IntVar(&cmdConfig.BaseSpiffeIDTTL, "baseSpiffeIDTTL", 0, "TTL to use when creating the baseSpiffeID")
+	flags.StringVar(&c.BindAddress, "bindAddress", "", "IP address or DNS name of the SPIRE server")
+	flags.IntVar(&c.BindPort, "serverPort", 0, "Port number of the SPIRE server")
+	flags.IntVar(&c.BindHTTPPort, "bindHTTPPort", 0, "HTTP Port number of the SPIRE server")
+	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
+	flags.StringVar(&c.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
+	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
+	flags.StringVar(&c.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
+	flags.IntVar(&c.BaseSpiffeIDTTL, "baseSpiffeIDTTL", 0, "TTL to use when creating the baseSpiffeID")
+
+	flags.StringVar(&c.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
 
 	err := flags.Parse(args)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
+func mergeConfigs(c *server.Config, fileConfig, cliConfig *CmdConfig) error {
+	// CLI > File, merge fileConfig first
+	err := mergeConfig(c, fileConfig)
 	if err != nil {
 		return err
 	}
 
-	return mergeServerConfig(c, cmdConfig)
+	return mergeConfig(c, cliConfig)
 }
 
-func mergeServerConfig(orig *server.Config, cmd *CmdConfig) error {
+func mergeConfig(orig *server.Config, cmd *CmdConfig) error {
 	// Parse server address
 	if cmd.BindAddress != "" {
 		ip := net.ParseIP(cmd.BindAddress)
