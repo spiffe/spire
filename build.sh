@@ -4,6 +4,7 @@ set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
 declare -r BINARY_DIRS="$(find cmd/* plugin/*/* -maxdepth 0 -type d 2>/dev/null)"
+declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... ./plugin/...)"
 declare -r RELEASE_FILES="LICENSE README.md conf"
 declare -r PROTO_FILES="$(find proto -name '*.proto' 2>/dev/null)"
 
@@ -169,11 +170,15 @@ build_binaries() {
 build_test() {
 	eval $(build_env)
 
-	if [[ -n ${CI} && ${TRAVIS_EVENT_TYPE} = cron ]]; then
+	if [[ -n ${COVERALLS_TOKEN} ]]; then
+		_log_info "running coverage tests"
+		rm -rf test_results
 		mkdir -p test_results
-		go test ${DEBUG+-v} -race $(glide novendor) | tee test_results/report.raw
-		gocoverutil -coverprofile=test_results/cover.out test -covermode=count $(glide novendor)
-		goveralls -coverprofile=test_results/cover.out -service=circle-ci -repotoken=${COVERALLS_TOKEN}
+		for _n in ${SOURCE_PKGS}; do
+			go test -race -cover -covermode=count -coverprofile=test_results/$(echo $_n | sed 's/\//_/g').out ${_n}
+		done
+		gocoverutil -coverprofile=test_results/cover.report merge test_results/*.out
+		goveralls -coverprofile=test_results/cover.report -service=ci
 	else
 		make test
 	fi
