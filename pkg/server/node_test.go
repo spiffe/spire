@@ -75,13 +75,13 @@ func TestFetchBaseSVID(t *testing.T) {
 	response, err := suite.nodeServer.FetchBaseSVID(nil, data.request)
 	expected := getExpectedFetchBaseSVID(data.baseSpiffeID, data.generatedCert)
 
+	if err != nil {
+		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
+	}
+
 	if !reflect.DeepEqual(response.SvidUpdate, expected) {
 		t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n",
 			response.SvidUpdate, expected)
-	}
-
-	if err != nil {
-		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
 	}
 }
 
@@ -90,13 +90,55 @@ func TestFetchSVID(t *testing.T) {
 	defer suite.ctrl.Finish()
 
 	data := getFetchSVIDTestData()
+	data.expectation = getExpectedFetchSVID(data)
 	setFetchSVIDExpectations(suite, data)
+
+	err := suite.nodeServer.FetchSVID(suite.server)
+	if err != nil {
+		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
+	}
+
+}
+
+func TestFetchSVID_WithRotation(t *testing.T) {
+	suite := SetupNodeTest(t)
+	defer suite.ctrl.Finish()
+
+	data := getFetchSVIDTestData()
+	data.request.Csrs = append(
+		data.request.Csrs, getBytesFromPem("base_rotated_csr.pem"))
+	data.generatedCerts = append(
+		data.generatedCerts, getBytesFromPem("base_rotated_cert.pem"))
+
+	data.expectation = getExpectedFetchSVID(data)
+	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: data.generatedCerts[3], Ttl: 1111}
+	setFetchSVIDExpectations(suite, data)
+
+	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(
+		&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: data.baseSpiffeID},
+	).
+		Return(&datastore.FetchAttestedNodeEntryResponse{
+			AttestedNodeEntry: &datastore.AttestedNodeEntry{
+				CertSerialNumber: "18392437442709699290",
+			},
+		}, nil)
+
+	suite.mockServerCA.EXPECT().
+		SignCsr(&ca.SignCsrRequest{
+			Csr: data.request.Csrs[3], Ttl: data.bySelectorsEntries[0].Ttl,
+		}).
+		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[3]}, nil)
+
+	suite.mockDataStore.EXPECT().
+		UpdateAttestedNodeEntry(gomock.Any()).
+		Return(&datastore.UpdateAttestedNodeEntryResponse{}, nil)
 
 	err := suite.nodeServer.FetchSVID(suite.server)
 
 	if err != nil {
 		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
 	}
+
 }
 
 func getBytesFromPem(fileName string) []byte {
@@ -287,14 +329,22 @@ type fetchSVIDData struct {
 	blogSpiffeID       string
 	generatedCerts     [][]byte
 	selector           *common.Selector
+	spiffeIDs          []string
 	nodeResolutionList []*datastore.NodeResolverMapEntry
 	bySelectorsEntries []*common.RegistrationEntry
 	byParentIDEntries  []*common.RegistrationEntry
+	expectation        *node.SvidUpdate
 }
 
 func getFetchSVIDTestData() *fetchSVIDData {
 	data := &fetchSVIDData{}
+	data.spiffeIDs = []string{
+		"spiffe://example.org/database",
+		"spiffe://example.org/blog",
+		"spiffe://example.org/spire/agent/join_token/tokenfoo",
+	}
 	data.baseSpiffeID = "spiffe://example.org/spire/agent/join_token/token"
+	//TODO: get rid of this
 	data.nodeSpiffeID = "spiffe://example.org/spire/agent/join_token/tokenfoo"
 	data.databaseSpiffeID = "spiffe://example.org/database"
 	data.blogSpiffeID = "spiffe://example.org/blog"
@@ -321,12 +371,13 @@ func getFetchSVIDTestData() *fetchSVIDData {
 	}
 
 	data.bySelectorsEntries = []*common.RegistrationEntry{
-		&common.RegistrationEntry{SpiffeId: data.nodeSpiffeID, Ttl: 1111},
+		&common.RegistrationEntry{SpiffeId: data.baseSpiffeID, Ttl: 1111},
 	}
 
 	data.byParentIDEntries = []*common.RegistrationEntry{
-		&common.RegistrationEntry{SpiffeId: data.databaseSpiffeID, Ttl: 2222},
-		&common.RegistrationEntry{SpiffeId: data.blogSpiffeID, Ttl: 3333},
+		&common.RegistrationEntry{SpiffeId: data.spiffeIDs[0], Ttl: 2222},
+		&common.RegistrationEntry{SpiffeId: data.spiffeIDs[1], Ttl: 3333},
+		&common.RegistrationEntry{SpiffeId: data.spiffeIDs[2], Ttl: 4444},
 	}
 
 	return data
@@ -366,7 +417,7 @@ func setFetchSVIDExpectations(
 
 	suite.mockServerCA.EXPECT().
 		SignCsr(&ca.SignCsrRequest{
-			Csr: data.request.Csrs[0], Ttl: data.bySelectorsEntries[0].Ttl,
+			Csr: data.request.Csrs[0], Ttl: data.byParentIDEntries[2].Ttl,
 		}).
 		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[0]}, nil)
 
@@ -383,7 +434,7 @@ func setFetchSVIDExpectations(
 		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[2]}, nil)
 
 	suite.server.EXPECT().Send(&node.FetchSVIDResponse{
-		SvidUpdate: getExpectedFetchSVID(data),
+		SvidUpdate: data.expectation,
 	}).
 		Return(nil)
 
@@ -392,8 +443,9 @@ func setFetchSVIDExpectations(
 }
 
 func getExpectedFetchSVID(data *fetchSVIDData) *node.SvidUpdate {
+	//TODO: improve this, put it in an array in data and iterate it
 	svids := map[string]*node.Svid{
-		data.nodeSpiffeID:     &node.Svid{SvidCert: data.generatedCerts[0], Ttl: 1111},
+		data.nodeSpiffeID:     &node.Svid{SvidCert: data.generatedCerts[0], Ttl: 4444},
 		data.databaseSpiffeID: &node.Svid{SvidCert: data.generatedCerts[1], Ttl: 2222},
 		data.blogSpiffeID:     &node.Svid{SvidCert: data.generatedCerts[2], Ttl: 3333},
 	}
@@ -402,6 +454,7 @@ func getExpectedFetchSVID(data *fetchSVIDData) *node.SvidUpdate {
 		data.bySelectorsEntries[0],
 		data.byParentIDEntries[0],
 		data.byParentIDEntries[1],
+		data.byParentIDEntries[2],
 	}
 
 	svidUpdate := &node.SvidUpdate{
