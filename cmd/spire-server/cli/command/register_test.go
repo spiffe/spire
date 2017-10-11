@@ -1,28 +1,46 @@
 package command
 
 import (
-	"fmt"
+	"path"
 	"testing"
 
-	"math/rand"
-
-	"golang.org/x/net/context"
-
-	"github.com/golang/mock/gomock"
-	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/test/mock/proto/api/registration"
+	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TODO: Test additional scenarios
+func TestRegisterParseConfig(t *testing.T) {
+	c := &RegisterConfig{
+		Addr:      defaultServerAddr,
+		ParentID:  "spiffe://example.org/foo",
+		SpiffeID:  "spiffe://example.org/bar",
+		Ttl:       60,
+		Selectors: SelectorFlag{"unix:uid:1000", "unix:gid:1000"},
+	}
 
-func TestRegisterCommand_DataOK(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
+	entries, err := Register{}.parseConfig(c)
+	require.NoError(t, err)
 
-	mockClient := mock_registration.NewMockRegistrationClient(mockCtrl)
-	ctx := context.Background()
+	expectedEntry := &common.RegistrationEntry{
+		ParentId: "spiffe://example.org/foo",
+		SpiffeId: "spiffe://example.org/bar",
+		Ttl:      60,
+		Selectors: []*common.Selector{
+			&common.Selector{Type: "unix", Value: "uid:1000"},
+			&common.Selector{Type: "unix", Value: "gid:1000"},
+		},
+	}
+
+	expectedEntries := []*common.RegistrationEntry{expectedEntry}
+	assert.Equal(t, expectedEntries, entries)
+}
+
+func TestRegisterParseFile(t *testing.T) {
+	p := path.Join(util.ProjectRoot(), "test/fixture/registration/good.json")
+	entries, err := Register{}.parseFile(p)
+	require.NoError(t, err)
 
 	entry1 := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
@@ -35,15 +53,6 @@ func TestRegisterCommand_DataOK(t *testing.T) {
 		ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
 		Ttl:      200,
 	}
-	retID1 := &registration.RegistrationEntryID{
-		Id: fmt.Sprint(rand.Int()),
-	}
-	mockClient.EXPECT().CreateEntry(
-		ctx,
-		entry1,
-	).Return(retID1, nil)
-	mockClient.EXPECT().FetchEntry(ctx, retID1).Return(entry1, nil)
-
 	entry2 := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			&common.Selector{
@@ -55,18 +64,22 @@ func TestRegisterCommand_DataOK(t *testing.T) {
 		ParentId: "spiffe://example.org/spire/agent/join_token/TokenDatabase",
 		Ttl:      200,
 	}
-	retID2 := &registration.RegistrationEntryID{
-		Id: fmt.Sprint(rand.Int()),
-	}
-	mockClient.EXPECT().CreateEntry(
-		ctx,
-		entry2,
-	).Return(retID2, nil)
-	mockClient.EXPECT().FetchEntry(ctx, retID2).Return(entry2, nil)
 
-	regcmd := &RegisterCommand{
-		Client: mockClient,
+	expectedEntries := []*common.RegistrationEntry{
+		entry1,
+		entry2,
 	}
-	retval := regcmd.Run([]string{"../../../../test/fixture/registration/registration_good.json"})
-	assert.Equal(t, retval, 0)
+	assert.Equal(t, expectedEntries, entries)
+}
+
+func TestRegisterParseSelector(t *testing.T) {
+	str := "unix:uid:1000"
+	s, err := Register{}.parseSelector(str)
+	require.NoError(t, err)
+	assert.Equal(t, "unix", s.Type)
+	assert.Equal(t, "uid:1000", s.Value)
+
+	str = "unix"
+	_, err = Register{}.parseSelector(str)
+	assert.NotNil(t, err)
 }

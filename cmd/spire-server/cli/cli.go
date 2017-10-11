@@ -16,7 +16,7 @@ func Run(args []string) int {
 			return &command.RunCommand{}, nil
 		},
 		"register": func() (cli.Command, error) {
-			return &command.RegisterCommand{}, nil
+			return &command.Register{}, nil
 		},
 		"token generate": func() (cli.Command, error) {
 			return &command.TokenGenerate{}, nil
