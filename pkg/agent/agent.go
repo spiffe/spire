@@ -125,12 +125,8 @@ func (a *Agent) Run() error {
 }
 
 func (a *Agent) prepareUmask() {
-	if a.config.Umask >= 0 {
-		a.config.Log.Debug("Setting umask to ", a.config.Umask)
-		syscall.Umask(a.config.Umask)
-	} else {
-		a.config.Log.Debug("Using default umask")
-	}
+	a.config.Log.Debug("Setting umask to ", a.config.Umask)
+	syscall.Umask(a.config.Umask)
 }
 
 func (a *Agent) Shutdown() error {

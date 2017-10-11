@@ -108,12 +108,8 @@ func (server *Server) Shutdown() error {
 }
 
 func (server *Server) prepareUmask() {
-	if server.Config.Umask >= 0 {
-		server.Config.Log.Debug("Setting umask to ", server.Config.Umask)
-		syscall.Umask(server.Config.Umask)
-	} else {
-		server.Config.Log.Debug("Using default umask")
-	}
+	server.Config.Log.Debug("Setting umask to ", server.Config.Umask)
+	syscall.Umask(server.Config.Umask)
 }
 
 func (server *Server) initPlugins() error {

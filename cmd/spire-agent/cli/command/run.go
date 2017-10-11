@@ -29,7 +29,7 @@ const (
 	defaultLogLevel  = "INFO"
 	defaultPluginDir = "conf/agent/plugin"
 
-	defaultUmask = -1
+	defaultUmask = 0077
 )
 
 // Struct representing available configurables for file and CLI

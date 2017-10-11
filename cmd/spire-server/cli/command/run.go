@@ -25,7 +25,7 @@ const (
 	defaultLogLevel        = "INFO"
 	defaultPluginDir       = "conf/server/plugin"
 	defaultBaseSpiffeIDTTL = 999999
-	defaultUmask           = -1
+	defaultUmask           = 0077
 )
 
 // CmdConfig represents available configurables for file and CLI options
