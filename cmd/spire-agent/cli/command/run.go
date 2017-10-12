@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"github.com/hashicorp/hcl"
@@ -28,6 +29,8 @@ const (
 	defaultDataDir   = "."
 	defaultLogLevel  = "INFO"
 	defaultPluginDir = "conf/agent/plugin"
+
+	defaultUmask = 0077
 )
 
 // Struct representing available configurables for file and CLI
@@ -46,6 +49,7 @@ type CmdConfig struct {
 	LogLevel   string
 
 	ConfigPath string
+	Umask      string
 }
 
 type RunCommand struct {
@@ -141,6 +145,7 @@ func parseFlags(args []string) (*CmdConfig, error) {
 	flags.StringVar(&c.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
 
 	flags.StringVar(&c.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
+	flags.StringVar(&c.Umask, "umask", "", "Umask value to use for new files")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -230,6 +235,14 @@ func mergeConfig(orig *agent.Config, cmd *CmdConfig) error {
 		orig.Log = logger
 	}
 
+	if cmd.Umask != "" {
+		umask, err := strconv.ParseInt(cmd.Umask, 0, 0)
+		if err != nil {
+			return fmt.Errorf("Could not parse umask %s: %s", cmd.Umask, err)
+		}
+		orig.Umask = int(umask)
+	}
+
 	return nil
 }
 
@@ -272,6 +285,7 @@ func newDefaultConfig() *agent.Config {
 		ShutdownCh:    shutdownCh,
 		Log:           logger,
 		ServerAddress: serverAddress,
+		Umask:         defaultUmask,
 	}
 }
 

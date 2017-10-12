@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -64,6 +65,9 @@ type Config struct {
 
 	// Join token to use for attestation, if needed
 	JoinToken string
+
+	// Umask value to use
+	Umask int
 }
 
 type Agent struct {
@@ -89,6 +93,8 @@ func New(c *Config) *Agent {
 // This method initializes the agent, including its plugins,
 // and then blocks on the main event loop.
 func (a *Agent) Run() error {
+	a.prepareUmask()
+
 	a.Cache = cache.NewCache()
 
 	err := a.initPlugins()
@@ -116,6 +122,11 @@ func (a *Agent) Run() error {
 			return a.Shutdown()
 		}
 	}
+}
+
+func (a *Agent) prepareUmask() {
+	a.config.Log.Debug("Setting umask to ", a.config.Umask)
+	syscall.Umask(a.config.Umask)
 }
 
 func (a *Agent) Shutdown() error {
@@ -250,7 +261,7 @@ func (a *Agent) bootstrap() error {
 //
 // TODO: Refactor me for length, testability
 func (a *Agent) attest() (map[string]*common.RegistrationEntry, error) {
-  var err error
+	var err error
 	a.config.Log.Info("Preparing to attest against ", a.config.ServerAddress.String())
 
 	// Handle the join token seperately, if defined
