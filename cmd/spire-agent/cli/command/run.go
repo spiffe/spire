@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/hashicorp/hcl"
@@ -97,6 +98,17 @@ func (*RunCommand) Synopsis() string {
 
 func parseFile(filePath string) (*CmdConfig, error) {
 	c := &CmdConfig{}
+
+	// Return a friendly error if the file is missing
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		msg := "could not find config file %s: please use the -config flag"
+		p, err := filepath.Abs(filePath)
+		if err != nil {
+			p = filePath
+			msg = "could not determine CWD; config file not found at %s: use -config"
+		}
+		return nil, fmt.Errorf(msg, p)
+	}
 
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
