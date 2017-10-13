@@ -59,9 +59,9 @@ func SetupNodeTest(t *testing.T) *NodeServerTestSuite {
 	suite.server = mock_node.NewMockNode_FetchSVIDServer(suite.ctrl)
 
 	suite.nodeServer = &nodeServer{
-		l:               log,
-		catalog:         suite.mockCatalog,
-		baseSpiffeIDTTL: 777,
+		l:           log,
+		catalog:     suite.mockCatalog,
+		baseSVIDTtl: 777,
 	}
 	return suite
 }
@@ -111,7 +111,7 @@ func TestFetchSVID_WithRotation(t *testing.T) {
 		data.generatedCerts, getBytesFromPem("base_rotated_cert.pem"))
 
 	data.expectation = getExpectedFetchSVID(data)
-	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: data.generatedCerts[3], Ttl: 1111}
+	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: data.generatedCerts[3], Ttl: 777}
 	setFetchSVIDExpectations(suite, data)
 
 	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(
@@ -125,7 +125,7 @@ func TestFetchSVID_WithRotation(t *testing.T) {
 
 	suite.mockServerCA.EXPECT().
 		SignCsr(&ca.SignCsrRequest{
-			Csr: data.request.Csrs[3], Ttl: data.bySelectorsEntries[0].Ttl,
+			Csr: data.request.Csrs[3], Ttl: 777,
 		}).
 		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[3]}, nil)
 

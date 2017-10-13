@@ -267,6 +267,7 @@ func (a *Agent) bootstrap() error {
 			BaseSVID:       a.BaseSVID,
 			BaseSVIDKey:    a.baseSVIDKey,
 			BaseRegEntries: regEntries,
+			BaseSVIDPath:   a.getBaseSVIDPath(),
 			Logger:         a.config.Log,
 		}
 
@@ -412,7 +413,7 @@ func (a *Agent) generateCSR(spiffeID *url.URL, key *ecdsa.PrivateKey) ([]byte, e
 func (a *Agent) loadBaseSVID() error {
 	a.config.Log.Info("Loading base SVID from disk")
 
-	certPath := path.Join(a.config.DataDir, "base_svid.crt")
+	certPath := a.getBaseSVIDPath()
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
 		a.config.Log.Info("A base SVID could not be found. A new one will be generated")
 		return nil
@@ -435,7 +436,7 @@ func (a *Agent) loadBaseSVID() error {
 
 // Write base SVID to storage dir
 func (a *Agent) storeBaseSVID() {
-	certPath := path.Join(a.config.DataDir, "base_svid.crt")
+	certPath := a.getBaseSVIDPath()
 	f, err := os.Create(certPath)
 	defer f.Close()
 	if err != nil {
@@ -485,4 +486,8 @@ func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateK
 	}
 
 	return
+}
+
+func (a *Agent) getBaseSVIDPath() string {
+	return path.Join(a.config.DataDir, "base_svid.crt")
 }

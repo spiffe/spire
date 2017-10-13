@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/x509"
 	"errors"
+	"io"
 	"net/url"
 	"path"
 	"reflect"
@@ -22,14 +23,13 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
-	"io"
 )
 
 type nodeServer struct {
-	l               logrus.FieldLogger
-	catalog         catalog.Catalog
-	trustDomain     url.URL
-	baseSpiffeIDTTL int32
+	l           logrus.FieldLogger
+	catalog     catalog.Catalog
+	trustDomain url.URL
+	baseSVIDTtl int32
 }
 
 //FetchBaseSVID attests the node and gets the base node SVID.
@@ -69,7 +69,7 @@ func (s *nodeServer) FetchBaseSVID(
 		return response, errors.New("Error trying to validate attestation")
 	}
 
-	signResponse, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr, Ttl: s.baseSpiffeIDTTL})
+	signResponse, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr, Ttl: s.baseSVIDTtl})
 	if err != nil {
 		s.l.Error(err)
 		return response, errors.New("Error trying to sign CSR")
@@ -106,7 +106,7 @@ func (s *nodeServer) FetchBaseSVID(
 
 	s.l.Info("Received node attestation request from ", baseSpiffeIDFromCSR,
 		" using strategy '", request.AttestedData.Type,
-		"' completed successfully. SVID issued with TTL=", s.baseSpiffeIDTTL)
+		"' completed successfully. SVID issued with TTL=", s.baseSVIDTtl)
 
 	return response, nil
 }
@@ -425,7 +425,7 @@ func (s *nodeServer) getFetchBaseSVIDResponse(
 	svids := make(map[string]*node.Svid)
 	svids[baseSpiffeID] = &node.Svid{
 		SvidCert: baseSvid,
-		Ttl:      s.baseSpiffeIDTTL,
+		Ttl:      s.baseSVIDTtl,
 	}
 
 	regEntries, err := s.fetchRegistrationEntries(selectors, baseSpiffeID)
@@ -495,7 +495,7 @@ func (s *nodeServer) signCSRs(
 				return nil, err
 			}
 
-			svid, err := s.buildSVID(spiffeID, regEntriesMap, csr)
+			svid, err := s.buildBaseSVID(csr)
 			if err != nil {
 				return nil, err
 			}
@@ -537,6 +537,19 @@ func (s *nodeServer) buildSVID(
 		return nil, err
 	}
 	return &node.Svid{SvidCert: signResponse.SignedCertificate, Ttl: entry.Ttl}, nil
+}
+
+func (s *nodeServer) buildBaseSVID(csr []byte) (*node.Svid, error) {
+	serverCA := s.catalog.CAs()[0]
+	signReq := &ca.SignCsrRequest{Csr: csr, Ttl: s.baseSVIDTtl}
+	signResponse, err := serverCA.SignCsr(signReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return &node.Svid{
+		SvidCert: signResponse.SignedCertificate, Ttl: s.baseSVIDTtl,
+	}, nil
 }
 
 //TODO: put this into go-spiffe uri?
