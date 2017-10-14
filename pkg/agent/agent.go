@@ -55,9 +55,6 @@ type Config struct {
 	// A channel for receiving errors from agent goroutines
 	ErrorCh chan error
 
-	// A channel to trigger agent shutdown
-	//ShutdownCh chan struct{}
-
 	// Trust domain and associated CA bundle
 	TrustDomain url.URL
 	TrustBundle *x509.CertPool
@@ -75,8 +72,7 @@ type Agent struct {
 	BaseSVIDTTL int32
 	config      *Config
 	grpcServer  *grpc.Server
-	Cache       cache.Cache
-	cacheMgr    cache.Manager
+	CacheMgr    cache.Manager
 	Catalog     catalog.Catalog
 	serverCerts []*x509.Certificate
 	ctx         context.Context
@@ -166,7 +162,7 @@ func (a *Agent) initEndpoints() error {
 	log := a.config.Log.WithField("subsystem_name", "workload")
 	ws := &workloadServer{
 		bundle:  a.serverCerts[1].Raw, // TODO: Fix handling of serverCerts
-		cache:   a.cacheMgr.Cache(),
+		cache:   a.CacheMgr.Cache(),
 		catalog: a.Catalog,
 		l:       log,
 		maxTTL:  maxWorkloadTTL,
@@ -259,14 +255,14 @@ func (a *Agent) bootstrap() error {
 			BaseRegEntries: regEntries,
 			Logger:         a.config.Log}
 
-		a.cacheMgr, err = cache.NewManager(a.ctx, cmgrConfig)
+		a.CacheMgr, err = cache.NewManager(a.ctx, cmgrConfig)
 
-		go a.cacheMgr.Init()
+		go a.CacheMgr.Init()
 		go func() {
-			<-a.cacheMgr.Done()
+			<-a.CacheMgr.Done()
 			a.config.Log.Info("Cache Update Stopped")
-			if a.cacheMgr.Err() != nil {
-				a.config.Log.Warning("error:", a.cacheMgr.Err())
+			if a.CacheMgr.Err() != nil {
+				a.config.Log.Warning("error:", a.CacheMgr.Err())
 			}
 
 		}()
