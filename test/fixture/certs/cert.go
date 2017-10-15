@@ -16,13 +16,13 @@ func getBytesFromPem(fileName string) []byte {
 }
 
 func GetTestBaseSVID() []byte {
-	return getBytesFromPem("baseSVID.pem")
+	return getBytesFromPem("base_cert.pem")
 }
 
 func GetTestBlogCSR() []byte {
-	return getBytesFromPem("blogCSR.pem")
+	return getBytesFromPem("blog_csr.pem")
 }
 
 func GetTestBlogSVID() []byte {
-	return getBytesFromPem("blogSVID.pem")
+	return getBytesFromPem("blog_cert.pem")
 }

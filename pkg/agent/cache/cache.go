@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
+	"fmt"
 )
 
 type selectors []*common.Selector
@@ -64,7 +65,22 @@ func (c *cacheImpl) SetEntry(cacheEntry CacheEntry) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	key := deriveCacheKey(cacheEntry.RegistrationEntry.Selectors)
+	fmt.Println(len(c.cache))
+	fmt.Println(len(c.cache[key]))
+
+	for i, entry := range c.cache[key] {
+		fmt.Println(entry)
+		fmt.Println(cacheEntry)
+		if entry.RegistrationEntry.SpiffeId == cacheEntry.RegistrationEntry.SpiffeId {
+			copy(c.cache[key][i:], c.cache[key][i+1:])
+			c.cache[key][len(c.cache[key])-1] = CacheEntry{}
+			c.cache[key] = c.cache[key][:len(c.cache[key])-1]
+			break
+		}
+	}
 	c.cache[key] = append(c.cache[key], cacheEntry)
+	fmt.Println(len(c.cache[key]))
+
 	return
 
 }

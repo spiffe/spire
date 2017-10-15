@@ -152,8 +152,9 @@ func (m *manager) Init() {
 
 		case newCacheEntry := <-m.cacheEntryCh:
 			m.log.Debug("Updating Cache ", "entry:", newCacheEntry)
+			m.log.Debug("RegistrationEntry:",newCacheEntry.RegistrationEntry.SpiffeId)
 			m.managedCache.SetEntry(newCacheEntry)
-			m.log.Debug("Updated Cache", "Entry:", newCacheEntry)
+			m.log.Debug("Updated Cache", "Cache:", newCacheEntry)
 
 		case <-m.ctx.Done():
 			m.log.Debug("Stopping cache manager")
@@ -206,14 +207,17 @@ func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
 	conn, err := m.getGRPCConn(svid, key)
 	if err != nil {
 		m.Shutdown(err)
+		return
 	}
 	stream, err := node.NewNodeClient(conn).FetchSVID(context.Background())
 	if err != nil {
 		m.Shutdown(err)
+		return
 	}
 	err = stream.Send(&node.FetchSVIDRequest{})
 	if err != nil {
 		m.Shutdown(err)
+		return
 	}
 	strmch := make(chan struct{})
 	go func() {
@@ -222,11 +226,14 @@ func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
 			//		m.log.Debug("regEntries:", resp.SvidUpdate.RegistrationEntries)
 			if err == io.EOF {
 				close(strmch)
+				m.log.Debug("closing stream")
 				return
 			}
 
 			if err != nil {
 				m.Shutdown(err)
+				close(strmch)
+				return
 			}
 
 			m.regEntriesCh <- resp.SvidUpdate.RegistrationEntries
@@ -262,13 +269,14 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 				}
 			}
 			if len(entryRequestMap) != 0 {
-				m.log.Debug("Fetching Expired Entries")
+				m.log.Debug("Fetching Expired Entries", "len(entryRequestMap):", len(entryRequestMap), "entryMap", entryRequestMap)
 				m.entryRequestCh <- entryRequestMap
 			}
 			vanityRecord := m.managedCache.Entry([]*proto.Selector{&proto.Selector{Type: "spiffe_id", Value: m.baseSPIFFEID}})
 
 			if vanityRecord != nil {
 				m.log.Debug("Fetching new reg Entries for vanity spiffeid:", vanityRecord[0].RegistrationEntry.SpiffeId)
+				m.log.Debug("len(entryRequestMap):", len(entryRequestMap))
 				m.fetchWithEmptyCSR(vanityRecord[0].SVID.SvidCert, vanityRecord[0].PrivateKey)
 			}
 			m.log.Debug("Fetching new reg Entries for base spiffeid:", m.baseSPIFFEID)
@@ -300,6 +308,9 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 					}
 					m.log.Debug("Generating CSR:", " spiffeId:", regEntry.SpiffeId, " parentId:", regEntry.ParentId)
 					csr, err := util.MakeCSR(privateKey, regEntry.SpiffeId)
+					if err != nil {
+						m.Shutdown(err)
+					}
 					parentID := regEntry.ParentId
 					bundles := make(map[string][]byte) //TODO: walmav Populate Bundles
 					cacheEntry := CacheEntry{

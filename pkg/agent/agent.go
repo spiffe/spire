@@ -139,6 +139,7 @@ func (a *Agent) Shutdown() error {
 
 	// Drain error channel, last one wins
 	var err error
+	close(a.config.ErrorCh)
 	for err = range a.config.ErrorCh {
 		a.config.Log.Errorf(err.Error())
 	}
