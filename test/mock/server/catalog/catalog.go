@@ -5,6 +5,8 @@
 package mock_catalog
 
 import (
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	catalog "github.com/spiffe/spire/pkg/common/catalog"
 	ca "github.com/spiffe/spire/proto/server/ca"
@@ -12,7 +14,6 @@ import (
 	nodeattestor "github.com/spiffe/spire/proto/server/nodeattestor"
 	noderesolver "github.com/spiffe/spire/proto/server/noderesolver"
 	upstreamca "github.com/spiffe/spire/proto/server/upstreamca"
-	reflect "reflect"
 )
 
 // MockCatalog is a mock of Catalog interface
@@ -60,6 +61,18 @@ func (m *MockCatalog) DataStores() []datastore.DataStore {
 // DataStores indicates an expected call of DataStores
 func (mr *MockCatalogMockRecorder) DataStores() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DataStores", reflect.TypeOf((*MockCatalog)(nil).DataStores))
+}
+
+// Find mocks base method
+func (m *MockCatalog) Find(arg0 catalog.Plugin) *catalog.ManagedPlugin {
+	ret := m.ctrl.Call(m, "Find", arg0)
+	ret0, _ := ret[0].(*catalog.ManagedPlugin)
+	return ret0
+}
+
+// Find indicates an expected call of Find
+func (mr *MockCatalogMockRecorder) Find(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockCatalog)(nil).Find), arg0)
 }
 
 // NodeAttestors mocks base method

@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/workload"
@@ -89,9 +90,10 @@ func (s *workloadServer) fetchAllEntries(ctx context.Context) (entries []cache.C
 	}
 
 	// Workload attestor errors are non-fatal
-	selectors, errMap := s.attestCaller(pid)
-	for name, err := range errMap {
-		s.l.Warnf("Workload attestor %s returned an error: %s", name, err)
+	selectors, err := s.attestCaller(pid)
+	if err != nil {
+		err = fmt.Errorf("Error encountered while attesting caller: %s", err)
+		return entries, err
 	}
 
 	selectorSet := selector.NewSet(selectors)
@@ -122,18 +124,23 @@ func (s *workloadServer) resolveCaller(ctx context.Context) (pid int32, err erro
 
 // attestCaller takes a PID and invokes attestation plugins against it, and returns the union
 // of selectors discovered by the attestors. If a plugin encounters an error, its returned
-// selectors are discarded and the error is added to the returned error map.
-//
-// TODO: this error map is not the best thing ever
-func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, errs map[string]error) {
+// selectors are discarded and the error is logged.
+func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, err error) {
 	// Call the workload attestors concurrently
 	plugins := s.catalog.WorkloadAttestors()
-	selectorChan, errorChan := make(chan []*common.Selector), make(chan error)
+	selectorChan := make(chan []*common.Selector)
+	errorChan := make(chan struct {
+		workloadattestor.WorkloadAttestor
+		error
+	})
 	for _, plugin := range plugins {
 		go func(p workloadattestor.WorkloadAttestor) {
 			s, err := p.Attest(&workloadattestor.AttestRequest{Pid: pid})
 			if err != nil {
-				errorChan <- err
+				errorChan <- struct {
+					workloadattestor.WorkloadAttestor
+					error
+				}{p, err}
 				return
 			}
 
@@ -148,13 +155,16 @@ func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, 
 		case selectorSet := <-selectorChan:
 			selectors = append(selectors, selectorSet...)
 		case pluginError := <-errorChan:
-			// TODO: Ask the plugin for its name
-			// Probably need to re-think this channel
-			errs["PLUGIN_NAME"] = pluginError
+			pluginInfo := s.catalog.Find(pluginError.WorkloadAttestor.(common_catalog.Plugin))
+			pluginName := "UnknownPlugin"
+			if pluginInfo != nil {
+				pluginName = pluginInfo.Config.PluginName
+			}
+			s.l.Warnf("Workload attestor %s returned an error: %s", pluginName, pluginError.error)
 		}
 	}
 
-	return selectors, errs
+	return selectors, nil
 }
 
 // findEntries takes a slice of selectors, and works through all the combinations in order to
