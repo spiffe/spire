@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/workload"
@@ -128,12 +129,19 @@ func (s *workloadServer) resolveCaller(ctx context.Context) (pid int32, err erro
 func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, errs map[string]error) {
 	// Call the workload attestors concurrently
 	plugins := s.catalog.WorkloadAttestors()
-	selectorChan, errorChan := make(chan []*common.Selector), make(chan error)
+	selectorChan := make(chan []*common.Selector)
+	errorChan := make(chan struct {
+		workloadattestor.WorkloadAttestor
+		error
+	})
 	for _, plugin := range plugins {
 		go func(p workloadattestor.WorkloadAttestor) {
 			s, err := p.Attest(&workloadattestor.AttestRequest{Pid: pid})
 			if err != nil {
-				errorChan <- err
+				errorChan <- struct {
+					workloadattestor.WorkloadAttestor
+					error
+				}{p, err}
 				return
 			}
 
@@ -148,9 +156,15 @@ func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, 
 		case selectorSet := <-selectorChan:
 			selectors = append(selectors, selectorSet...)
 		case pluginError := <-errorChan:
-			// TODO: Ask the plugin for its name
-			// Probably need to re-think this channel
-			errs["PLUGIN_NAME"] = pluginError
+			pluginInfo := s.catalog.Find(pluginError.WorkloadAttestor.(common_catalog.Plugin))
+			pluginName := "UnknownPlugin"
+			if pluginInfo != nil {
+				pluginName = pluginInfo.Config.PluginName
+			}
+			if errs == nil {
+				errs = make(map[string]error)
+			}
+			errs[pluginName] = pluginError.error
 		}
 	}
 
