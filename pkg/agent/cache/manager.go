@@ -100,6 +100,7 @@ func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
 }
 
 func (m *manager) Shutdown(err error) {
+	m.log.Debug("Shutting Down Cache Manager ", err)
 	m.reason = err
 	m.cancel()
 }
@@ -145,6 +146,7 @@ func (m *manager) Init() {
 				conn, err := m.getGRPCConn(svid, key)
 				if err != nil {
 					m.Shutdown(err)
+					break
 				}
 				m.log.Debug("Spawning FetchID for", "entryRequests:", entryRequests)
 				go m.fetchSVID(entryRequests, node.NewNodeClient(conn), &wg)
@@ -169,6 +171,7 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 	stream, err := nodeClient.FetchSVID(context.Background())
 	if err != nil {
 		m.Shutdown(err)
+		return
 	}
 	for _, req := range requests {
 
@@ -176,17 +179,20 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 
 		if err != nil {
 			m.Shutdown(err)
+			return
 		}
 
 		resp, err := stream.Recv()
 		if err != nil {
 			m.Shutdown(err)
+			return
 		}
 		svid := resp.SvidUpdate.Svids[req.entry.RegistrationEntry.SpiffeId]
 		cert, err := x509.ParseCertificate(svid.SvidCert)
 		if err != nil {
 			stream.CloseSend()
 			m.Shutdown(err)
+			return
 		}
 		m.log.Debug("Sending to regEntries Channel: ", "entries: ", resp.SvidUpdate.RegistrationEntries)
 
@@ -199,6 +205,7 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 	}
 	if err := stream.CloseSend(); err != nil {
 		m.Shutdown(err)
+		return
 	}
 	m.log.Debug("Done with fetchSVID")
 }
@@ -258,6 +265,7 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 						privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 						if err != nil {
 							m.Shutdown(err)
+							break
 						}
 						csr, err := util.MakeCSR(privateKey, entry.RegistrationEntry.SpiffeId)
 						entry.PrivateKey = privateKey
@@ -305,11 +313,13 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 					privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 					if err != nil {
 						m.Shutdown(err)
+						break
 					}
 					m.log.Debug("Generating CSR:", " spiffeId:", regEntry.SpiffeId, " parentId:", regEntry.ParentId)
 					csr, err := util.MakeCSR(privateKey, regEntry.SpiffeId)
 					if err != nil {
 						m.Shutdown(err)
+						break
 					}
 					parentID := regEntry.ParentId
 					bundles := make(map[string][]byte) //TODO: walmav Populate Bundles
