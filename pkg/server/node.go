@@ -103,6 +103,10 @@ func (s *nodeServer) FetchBaseSVID(
 		return response, errors.New("Error trying to compose response")
 	}
 
+	s.l.Info("Received node attestation request from ", baseSpiffeIDFromCSR,
+		" using strategy '", request.AttestedData.Type,
+		"' completed successfully. SVID issued with TTL=", s.baseSpiffeIDTTL)
+
 	return response, nil
 }
 
