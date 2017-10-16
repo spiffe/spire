@@ -90,9 +90,10 @@ func (s *workloadServer) fetchAllEntries(ctx context.Context) (entries []cache.C
 	}
 
 	// Workload attestor errors are non-fatal
-	selectors, errMap := s.attestCaller(pid)
-	for name, err := range errMap {
-		s.l.Warnf("Workload attestor %s returned an error: %s", name, err)
+	selectors, err := s.attestCaller(pid)
+	if err != nil {
+		err = fmt.Errorf("Error encountered while attesting caller: %s", err)
+		return entries, err
 	}
 
 	selectorSet := selector.NewSet(selectors)
@@ -123,10 +124,8 @@ func (s *workloadServer) resolveCaller(ctx context.Context) (pid int32, err erro
 
 // attestCaller takes a PID and invokes attestation plugins against it, and returns the union
 // of selectors discovered by the attestors. If a plugin encounters an error, its returned
-// selectors are discarded and the error is added to the returned error map.
-//
-// TODO: this error map is not the best thing ever
-func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, errs map[string]error) {
+// selectors are discarded and the error is logged.
+func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, err error) {
 	// Call the workload attestors concurrently
 	plugins := s.catalog.WorkloadAttestors()
 	selectorChan := make(chan []*common.Selector)
@@ -161,14 +160,11 @@ func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, 
 			if pluginInfo != nil {
 				pluginName = pluginInfo.Config.PluginName
 			}
-			if errs == nil {
-				errs = make(map[string]error)
-			}
-			errs[pluginName] = pluginError.error
+			s.l.Warnf("Workload attestor %s returned an error: %s", pluginName, pluginError.error)
 		}
 	}
 
-	return selectors, errs
+	return selectors, nil
 }
 
 // findEntries takes a slice of selectors, and works through all the combinations in order to

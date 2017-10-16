@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"errors"
 	"sort"
 	"testing"
 	"time"
@@ -14,7 +13,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/spiffe/spire/pkg/agent/cache"
-	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/node"
@@ -95,36 +93,6 @@ func (s *WorkloadServerTestSuite) TestAttestCaller() {
 		sort.Sort(got)
 		s.Assert().Equal(expected, got)
 	}
-}
-
-func (s *WorkloadServerTestSuite) TestAttestCallerError() {
-	var testPID int32 = 1000
-	pluginName := "WorkloadAttestor"
-	plugins := []workloadattestor.WorkloadAttestor{s.attestor1, s.attestor2}
-	pRequest := &workloadattestor.AttestRequest{Pid: testPID}
-	pRes1 := &workloadattestor.AttestResponse{Selectors: selector.Set{selector1}.Raw()}
-	pRes2 := &workloadattestor.AttestResponse{}
-	pError2 := errors.New("failed")
-	pInfo2 := &common_catalog.ManagedPlugin{
-		Config: common_catalog.PluginConfig{
-			PluginName: pluginName,
-		},
-	}
-
-	s.catalog.EXPECT().WorkloadAttestors().Return(plugins)
-	s.attestor1.EXPECT().Attest(pRequest).Return(pRes1, nil)
-	s.attestor2.EXPECT().Attest(pRequest).Return(pRes2, pError2)
-	s.catalog.EXPECT().Find(plugins[1].(common_catalog.Plugin)).Return(pInfo2)
-
-	selectors, errs := s.w.attestCaller(testPID)
-	s.Assert().NotNil(errs)
-	s.Assert().Equal(pError2, errs[pluginName])
-
-	expected := selector.Set{selector1}
-	got := selector.NewSet(selectors)
-	sort.Sort(expected)
-	sort.Sort(got)
-	s.Assert().Equal(expected, got)
 }
 
 func (s *WorkloadServerTestSuite) TestFindEntries() {
