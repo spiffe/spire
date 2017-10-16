@@ -45,6 +45,18 @@ func (_mr *MockCacheMockRecorder) DeleteEntry(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "DeleteEntry", reflect.TypeOf((*MockCache)(nil).DeleteEntry), arg0)
 }
 
+// Entries mocks base method
+func (_m *MockCache) Entries() map[string][]cache.CacheEntry {
+	ret := _m.ctrl.Call(_m, "Entries")
+	ret0, _ := ret[0].(map[string][]cache.CacheEntry)
+	return ret0
+}
+
+// Entries indicates an expected call of Entries
+func (_mr *MockCacheMockRecorder) Entries() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Entries", reflect.TypeOf((*MockCache)(nil).Entries))
+}
+
 // Entry mocks base method
 func (_m *MockCache) Entry(_param0 []*common.Selector) []cache.CacheEntry {
 	ret := _m.ctrl.Call(_m, "Entry", _param0)
@@ -55,18 +67,6 @@ func (_m *MockCache) Entry(_param0 []*common.Selector) []cache.CacheEntry {
 // Entry indicates an expected call of Entry
 func (_mr *MockCacheMockRecorder) Entry(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Entry", reflect.TypeOf((*MockCache)(nil).Entry), arg0)
-}
-
-// GetEntries mocks base method
-func (_m *MockCache) GetEntries() map[string][]cache.CacheEntry {
-	ret := _m.ctrl.Call(_m, "GetEntries")
-	ret0, _ := ret[0].(map[string][]cache.CacheEntry)
-	return ret0
-}
-
-// GetEntries indicates an expected call of GetEntries
-func (_mr *MockCacheMockRecorder) GetEntries() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "GetEntries", reflect.TypeOf((*MockCache)(nil).GetEntries))
 }
 
 // SetEntry mocks base method
