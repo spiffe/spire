@@ -152,7 +152,7 @@ func (m *manager) Init() {
 
 		case newCacheEntry := <-m.cacheEntryCh:
 			m.log.Debug("Updating Cache ", "entry:", newCacheEntry)
-			m.log.Debug("RegistrationEntry:",newCacheEntry.RegistrationEntry.SpiffeId)
+			m.log.Debug("RegistrationEntry:", newCacheEntry.RegistrationEntry.SpiffeId)
 			m.managedCache.SetEntry(newCacheEntry)
 			m.log.Debug("Updated Cache", "Cache:", newCacheEntry)
 
@@ -252,7 +252,7 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 		select {
 		case <-ticker.C:
 			entryRequestMap := make(map[string][]EntryRequest)
-			for _, entries := range m.managedCache.GetEntries() {
+			for _, entries := range m.managedCache.Entries() {
 				for _, entry := range entries {
 					if entry.Expiry.Sub(time.Now()) < time.Until(entry.Expiry)/2 {
 						privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)

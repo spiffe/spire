@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"crypto/ecdsa"
+	"fmt"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
-	"fmt"
 )
 
 type selectors []*common.Selector
@@ -32,7 +32,7 @@ type Cache interface {
 	Entry([]*common.Selector) (entry []CacheEntry)
 	SetEntry(cacheEntry CacheEntry)
 	DeleteEntry([]*common.Selector) (deleted bool)
-	GetEntries() map[string][]CacheEntry
+	Entries() map[string][]CacheEntry
 }
 
 type cacheImpl struct {
@@ -44,7 +44,7 @@ func NewCache() *cacheImpl {
 	return &cacheImpl{cache: make(map[string][]CacheEntry)}
 }
 
-func (c *cacheImpl) GetEntries() map[string][]CacheEntry {
+func (c *cacheImpl) Entries() map[string][]CacheEntry {
 	c.m.Lock()
 	defer c.m.Unlock()
 	return c.cache
