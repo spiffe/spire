@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/api/node"
@@ -280,11 +281,12 @@ func (a *Agent) bootstrap() error {
 
 func (a *Agent) attest() ([]*common.RegistrationEntry, error) {
 	var err error
-	a.config.Log.Info("Preparing to attest against ", a.config.ServerAddress.String())
 
 	// Handle the join token seperately, if defined
 	pluginResponse := &nodeattestor.FetchAttestationDataResponse{}
 	if a.config.JoinToken != "" {
+		a.config.Log.Info("Preparing to attest this node against ", a.config.ServerAddress.String(), " using strategy 'join-token'")
+
 		data := &common.AttestedData{
 			Type: "join_token",
 			Data: []byte(a.config.JoinToken),
@@ -302,6 +304,10 @@ func (a *Agent) attest() ([]*common.RegistrationEntry, error) {
 			return nil, fmt.Errorf("Expected only one node attestor plugin, found %i", len(plugins))
 		}
 		attestor := plugins[0]
+
+		attestorInfo := a.Catalog.Find(attestor.(common_catalog.Plugin))
+		a.config.Log.Info("Preparing to attest this node against ", a.config.ServerAddress.String(),
+			" using strategy '", attestorInfo.Config.PluginName, "'")
 
 		pluginResponse, err = attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
 		if err != nil {
@@ -357,7 +363,7 @@ func (a *Agent) attest() ([]*common.RegistrationEntry, error) {
 	a.BaseSVID = svid.SvidCert
 	a.BaseSVIDTTL = svid.Ttl
 	a.storeBaseSVID()
-	a.config.Log.Info("Attestation complete")
+	a.config.Log.Info("Node attestation complete")
 	return serverResponse.SvidUpdate.RegistrationEntries, nil
 }
 

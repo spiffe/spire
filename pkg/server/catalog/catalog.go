@@ -118,6 +118,13 @@ func (c *catalog) Plugins() []*common.ManagedPlugin {
 	return c.com.Plugins()
 }
 
+func (c *catalog) Find(plugin common.Plugin) *common.ManagedPlugin {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	return c.com.Find(plugin)
+}
+
 func (c *catalog) CAs() []ca.ControlPlaneCa {
 	c.m.RLock()
 	defer c.m.RUnlock()
