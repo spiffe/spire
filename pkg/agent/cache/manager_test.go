@@ -141,7 +141,7 @@ func TestManager_UpdateCache(t *testing.T) {
 		Logger:         testLogger}
 	m, _ := NewManager(context.Background(), c)
 	cm := m.(*manager)
-	go cm.Init()
+	cm.Init()
 	//time.Sleep(1*time.Second)
 	//cm.cacheEntryCh = make(chan CacheEntry)
 	//cm.cacheEntryCh<-testCacheEntry

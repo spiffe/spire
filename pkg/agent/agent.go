@@ -21,7 +21,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
-	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/api/node"
@@ -86,7 +85,8 @@ func New(ctx context.Context, c *Config) *Agent {
 		Log:       c.Log.WithField("subsystem_name", "catalog"),
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	return &Agent{config: c,
+	return &Agent{
+		config:  c,
 		Catalog: catalog.New(config),
 		ctx:     ctx,
 		cancel:  cancel,
@@ -119,6 +119,10 @@ func (a *Agent) Run() error {
 	for {
 		select {
 		case err = <-a.config.ErrorCh:
+			e := a.Shutdown()
+			if e != nil {
+				return e
+			}
 			return err
 		case <-a.ctx.Done():
 			return a.Shutdown()
@@ -136,14 +140,21 @@ func (a *Agent) Shutdown() error {
 	if a.Catalog != nil {
 		a.Catalog.Stop()
 	}
+
 	a.grpcServer.GracefulStop()
 
 	// Drain error channel, last one wins
 	var err error
-	close(a.config.ErrorCh)
-	for err = range a.config.ErrorCh {
-		a.config.Log.Errorf(err.Error())
+Drain:
+	for {
+		select {
+		case e := <-a.config.ErrorCh:
+			err = e
+		default:
+			break Drain
+		}
 	}
+
 	return err
 }
 
@@ -255,16 +266,17 @@ func (a *Agent) bootstrap() error {
 			BaseSVID:       a.BaseSVID,
 			BaseSVIDKey:    a.baseSVIDKey,
 			BaseRegEntries: regEntries,
-			Logger:         a.config.Log}
+			Logger:         a.config.Log,
+		}
 
 		a.CacheMgr, err = cache.NewManager(a.ctx, cmgrConfig)
 
-		go a.CacheMgr.Init()
+		a.CacheMgr.Init()
 		go func() {
 			<-a.CacheMgr.Done()
 			a.config.Log.Info("Cache Update Stopped")
 			if a.CacheMgr.Err() != nil {
-				a.config.Log.Warning("error:", a.CacheMgr.Err())
+				a.config.Log.Warning(a.CacheMgr.Err())
 			}
 
 		}()
@@ -281,12 +293,11 @@ func (a *Agent) bootstrap() error {
 
 func (a *Agent) attest() ([]*common.RegistrationEntry, error) {
 	var err error
+	a.config.Log.Info("Preparing to attest against ", a.config.ServerAddress.String())
 
 	// Handle the join token seperately, if defined
 	pluginResponse := &nodeattestor.FetchAttestationDataResponse{}
 	if a.config.JoinToken != "" {
-		a.config.Log.Info("Preparing to attest this node against ", a.config.ServerAddress.String(), " using strategy 'join-token'")
-
 		data := &common.AttestedData{
 			Type: "join_token",
 			Data: []byte(a.config.JoinToken),
@@ -304,10 +315,6 @@ func (a *Agent) attest() ([]*common.RegistrationEntry, error) {
 			return nil, fmt.Errorf("Expected only one node attestor plugin, found %i", len(plugins))
 		}
 		attestor := plugins[0]
-
-		attestorInfo := a.Catalog.Find(attestor.(common_catalog.Plugin))
-		a.config.Log.Info("Preparing to attest this node against ", a.config.ServerAddress.String(),
-			" using strategy '", attestorInfo.Config.PluginName, "'")
 
 		pluginResponse, err = attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
 		if err != nil {
@@ -363,7 +370,7 @@ func (a *Agent) attest() ([]*common.RegistrationEntry, error) {
 	a.BaseSVID = svid.SvidCert
 	a.BaseSVIDTTL = svid.Ttl
 	a.storeBaseSVID()
-	a.config.Log.Info("Node attestation complete")
+	a.config.Log.Info("Attestation complete")
 	return serverResponse.SvidUpdate.RegistrationEntries, nil
 }
 

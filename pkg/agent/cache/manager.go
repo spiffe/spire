@@ -24,9 +24,6 @@ import (
 type Manager interface {
 	Init()
 	Cache() Cache
-	//fetchSVID(requests []EntryRequest, nodeClient node.NodeClient, wg *sync.WaitGroup)
-	//getGRPCConn(svid []byte, key *ecdsa.PrivateKey) (*grpc.ClientConn, error)
-	//expiredCacheEntryHandler(time.Duration, *sync.WaitGroup)
 	Shutdown(err error)
 	Done() <-chan struct{}
 	Err() error
@@ -116,54 +113,52 @@ func (m *manager) Cache() Cache {
 }
 
 func (m *manager) Init() {
-	defer close(m.doneCh)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go m.expiredCacheEntryHandler(5*time.Second, &wg)
+	go func() {
+		defer close(m.doneCh)
+		var wg sync.WaitGroup
 
-	wg.Add(1)
-	go m.regEntriesHandler(&wg)
-	m.log.Debug("Initializing Cache Manager", " baseSVIDSPIFFEId:", m.baseSPIFFEID)
+		wg.Add(1)
+		go m.expiredCacheEntryHandler(5*time.Second, &wg)
 
-	m.regEntriesCh <- m.baseRegEntries
+		wg.Add(1)
+		go m.regEntriesHandler(&wg)
+		m.log.Debug("Initializing Cache Manager")
+		m.regEntriesCh <- m.baseRegEntries
+		for {
 
-	for {
-
-		var svid []byte
-		var key *ecdsa.PrivateKey
-		select {
-		case reqs := <-m.entryRequestCh:
-			for parentId, entryRequests := range reqs {
-				wg.Add(1)
-				if _, ok := m.spiffeIdEntryMap[parentId]; ok {
-					svid = m.spiffeIdEntryMap[parentId].SVID.SvidCert
-					key = m.spiffeIdEntryMap[parentId].PrivateKey
+			var svid []byte
+			var key *ecdsa.PrivateKey
+			select {
+			case reqs := <-m.entryRequestCh:
+				for parentId, entryRequests := range reqs {
+					wg.Add(1)
+					if _, ok := m.spiffeIdEntryMap[parentId]; ok {
+						svid = m.spiffeIdEntryMap[parentId].SVID.SvidCert
+						key = m.spiffeIdEntryMap[parentId].PrivateKey
+					}
+					if parentId == m.baseSPIFFEID {
+						svid = m.baseSVID
+						key = m.baseSVIDKey
+					}
+					conn, err := m.getGRPCConn(svid, key)
+					if err != nil {
+						m.Shutdown(err)
+						break
+					}
+					go m.fetchSVID(entryRequests, node.NewNodeClient(conn), &wg)
 				}
-				if parentId == m.baseSPIFFEID {
-					svid = m.baseSVID
-					key = m.baseSVIDKey
-				}
-				conn, err := m.getGRPCConn(svid, key)
-				if err != nil {
-					m.Shutdown(err)
-					break
-				}
-				m.log.Debug("Spawning FetchID for", "entryRequests:", entryRequests)
-				go m.fetchSVID(entryRequests, node.NewNodeClient(conn), &wg)
+
+			case newCacheEntry := <-m.cacheEntryCh:
+				m.managedCache.SetEntry(newCacheEntry)
+				m.log.Debug("Updated Cache", "Cache:", newCacheEntry)
+
+			case <-m.ctx.Done():
+				m.log.Debug("Stopping Cache manager")
+				wg.Wait()
+				return
 			}
-
-		case newCacheEntry := <-m.cacheEntryCh:
-			m.log.Debug("Updating Cache ", "entry:", newCacheEntry)
-			m.log.Debug("RegistrationEntry:", newCacheEntry.RegistrationEntry.SpiffeId)
-			m.managedCache.SetEntry(newCacheEntry)
-			m.log.Debug("Updated Cache", "Cache:", newCacheEntry)
-
-		case <-m.ctx.Done():
-			m.log.Debug("Stopping cache manager")
-			wg.Wait()
-			return
 		}
-	}
+	}()
 }
 
 func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient, wg *sync.WaitGroup) {
@@ -194,12 +189,10 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 			m.Shutdown(err)
 			return
 		}
-		m.log.Debug("Sending to regEntries Channel: ", "entries: ", resp.SvidUpdate.RegistrationEntries)
 
 		m.regEntriesCh <- resp.SvidUpdate.RegistrationEntries
 		req.entry.SVID = svid
 		req.entry.Expiry = cert.NotAfter
-		m.log.Debug("Sending to CacheEntry Channel: ", "req: ", req)
 		select {
 		case m.cacheEntryCh <- req.entry:
 		case <-m.ctx.Done():
@@ -212,7 +205,6 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 		m.Shutdown(err)
 		return
 	}
-	m.log.Debug("Done with fetchSVID")
 }
 
 func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
@@ -235,10 +227,8 @@ func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
 	go func() {
 		for {
 			resp, err := stream.Recv()
-			//		m.log.Debug("regEntries:", resp.SvidUpdate.RegistrationEntries)
 			if err == io.EOF {
 				close(strmch)
-				m.log.Debug("closing stream")
 				stream.CloseSend()
 				return
 			}
@@ -246,7 +236,6 @@ func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
 			if err != nil {
 				m.Shutdown(err)
 				stream.CloseSend()
-				m.log.Debug("closing stream")
 				close(strmch)
 				return
 			}
@@ -255,14 +244,12 @@ func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
 			case m.regEntriesCh <- resp.SvidUpdate.RegistrationEntries:
 			case <-m.ctx.Done():
 				m.Shutdown(m.ctx.Err())
-				m.log.Debug("closing stream")
 				stream.CloseSend()
 				close(strmch)
 				return
 			}
 			m.log.Debug(resp)
 		}
-		m.log.Debug("closing stream")
 	}()
 	stream.CloseSend()
 	<-strmch
@@ -295,21 +282,18 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 				}
 			}
 			if len(entryRequestMap) != 0 {
-				m.log.Debug("Fetching Expired Entries", "len(entryRequestMap):", len(entryRequestMap), "entryMap", entryRequestMap)
 				select {
 				case m.entryRequestCh <- entryRequestMap:
 				case <-m.ctx.Done():
 					m.Shutdown(m.ctx.Err())
 				}
 			}
-			vanityRecord := m.managedCache.Entry([]*proto.Selector{&proto.Selector{Type: "spiffe_id", Value: m.baseSPIFFEID}})
+			vanityRecord := m.managedCache.Entry([]*proto.Selector{&proto.Selector{
+				Type: "spiffe_id", Value: m.baseSPIFFEID}})
 
 			if vanityRecord != nil {
-				m.log.Debug("Fetching new reg Entries for vanity spiffeid:", vanityRecord[0].RegistrationEntry.SpiffeId)
-				m.log.Debug("len(entryRequestMap):", len(entryRequestMap))
 				m.fetchWithEmptyCSR(vanityRecord[0].SVID.SvidCert, vanityRecord[0].PrivateKey)
 			}
-			m.log.Debug("Fetching new reg Entries for base spiffeid:", m.baseSPIFFEID)
 			m.fetchWithEmptyCSR(m.baseSVID, m.baseSVIDKey)
 
 		case <-m.ctx.Done():
