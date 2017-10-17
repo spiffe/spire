@@ -87,9 +87,7 @@ func (r Register) Run(args []string) int {
 
 	var entries []*common.RegistrationEntry
 	if config.Path != "" {
-		fmt.Println("in parse reg")
 		entries, err = r.parseFile(config.Path)
-		fmt.Println(entries)
 	} else {
 		entries, err = r.parseConfig(config)
 	}

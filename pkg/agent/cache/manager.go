@@ -80,7 +80,7 @@ func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	return &manager{
-		managedCache:     NewCache(),
+		managedCache:     NewCache(c.Logger),
 		serverCerts:      c.ServerCerts,
 		serverSPIFFEID:   c.ServerSPIFFEID,
 		serverAddr:       c.ServerAddr,
@@ -107,7 +107,7 @@ func (m *manager) Shutdown(err error) {
 func (m *manager) Done() <-chan struct{} {
 	return m.doneCh
 }
-func (m *manager) Err() (err error) {
+func (m *manager) Err() error {
 	<-m.Done()
 	return m.reason
 }
@@ -200,7 +200,12 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 		req.entry.SVID = svid
 		req.entry.Expiry = cert.NotAfter
 		m.log.Debug("Sending to CacheEntry Channel: ", "req: ", req)
-		m.cacheEntryCh <- req.entry
+		select {
+		case m.cacheEntryCh <- req.entry:
+		case <-m.ctx.Done():
+			m.Shutdown(m.ctx.Err())
+			return
+		}
 
 	}
 	if err := stream.CloseSend(); err != nil {
@@ -216,7 +221,7 @@ func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
 		m.Shutdown(err)
 		return
 	}
-	stream, err := node.NewNodeClient(conn).FetchSVID(context.Background())
+	stream, err := node.NewNodeClient(conn).FetchSVID(m.ctx)
 	if err != nil {
 		m.Shutdown(err)
 		return
@@ -234,17 +239,30 @@ func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
 			if err == io.EOF {
 				close(strmch)
 				m.log.Debug("closing stream")
+				stream.CloseSend()
 				return
 			}
 
 			if err != nil {
 				m.Shutdown(err)
+				stream.CloseSend()
+				m.log.Debug("closing stream")
 				close(strmch)
 				return
 			}
 
-			m.regEntriesCh <- resp.SvidUpdate.RegistrationEntries
+			select {
+			case m.regEntriesCh <- resp.SvidUpdate.RegistrationEntries:
+			case <-m.ctx.Done():
+				m.Shutdown(m.ctx.Err())
+				m.log.Debug("closing stream")
+				stream.CloseSend()
+				close(strmch)
+				return
+			}
+			m.log.Debug(resp)
 		}
+		m.log.Debug("closing stream")
 	}()
 	stream.CloseSend()
 	<-strmch
@@ -278,7 +296,11 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 			}
 			if len(entryRequestMap) != 0 {
 				m.log.Debug("Fetching Expired Entries", "len(entryRequestMap):", len(entryRequestMap), "entryMap", entryRequestMap)
-				m.entryRequestCh <- entryRequestMap
+				select {
+				case m.entryRequestCh <- entryRequestMap:
+				case <-m.ctx.Done():
+					m.Shutdown(m.ctx.Err())
+				}
 			}
 			vanityRecord := m.managedCache.Entry([]*proto.Selector{&proto.Selector{Type: "spiffe_id", Value: m.baseSPIFFEID}})
 
@@ -338,7 +360,11 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 
 			}
 			if len(entryRequestMap) != 0 {
-				m.entryRequestCh <- entryRequestMap
+				select {
+				case m.entryRequestCh <- entryRequestMap:
+				case <-m.ctx.Done():
+					m.Shutdown(m.ctx.Err())
+				}
 			}
 
 		case <-m.ctx.Done():
@@ -364,7 +390,7 @@ func (m *manager) getGRPCConn(svid []byte, key *ecdsa.PrivateKey) (*grpc.ClientC
 	tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 
-	conn, err := grpc.Dial(m.serverAddr, dialCreds)
+	conn, err := grpc.DialContext(m.ctx, m.serverAddr, dialCreds)
 	if err != nil {
 		return nil, err
 	}

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"crypto/ecdsa"
-	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
@@ -37,11 +37,13 @@ type Cache interface {
 
 type cacheImpl struct {
 	cache map[string][]CacheEntry
+	log   logrus.FieldLogger
 	m     sync.Mutex
 }
 
-func NewCache() *cacheImpl {
-	return &cacheImpl{cache: make(map[string][]CacheEntry)}
+func NewCache(Logger logrus.FieldLogger) *cacheImpl {
+	return &cacheImpl{cache: make(map[string][]CacheEntry),
+		log: Logger.WithField("subsystem_name", "cache")}
 }
 
 func (c *cacheImpl) Entries() map[string][]CacheEntry {
@@ -65,12 +67,8 @@ func (c *cacheImpl) SetEntry(cacheEntry CacheEntry) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	key := deriveCacheKey(cacheEntry.RegistrationEntry.Selectors)
-	fmt.Println(len(c.cache))
-	fmt.Println(len(c.cache[key]))
 
 	for i, entry := range c.cache[key] {
-		fmt.Println(entry)
-		fmt.Println(cacheEntry)
 		if entry.RegistrationEntry.SpiffeId == cacheEntry.RegistrationEntry.SpiffeId {
 			copy(c.cache[key][i:], c.cache[key][i+1:])
 			c.cache[key][len(c.cache[key])-1] = CacheEntry{}
@@ -79,8 +77,8 @@ func (c *cacheImpl) SetEntry(cacheEntry CacheEntry) {
 		}
 	}
 	c.cache[key] = append(c.cache[key], cacheEntry)
-	fmt.Println(len(c.cache[key]))
-
+	c.log.Debug("len(c.cache):", len(c.cache))
+	c.log.Debug("selectors:", cacheEntry.RegistrationEntry.Selectors, "len(c.cache[key]):", len(c.cache[key]))
 	return
 
 }

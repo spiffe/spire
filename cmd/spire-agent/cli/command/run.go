@@ -83,10 +83,10 @@ func (*RunCommand) Run(args []string) int {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-	agtCtx, cancel := context.WithCancel(context.Background())
-	signalListener(cancel)
+	ctx, cancel := context.WithCancel(context.Background())
+	signalListener(ctx, cancel)
 
-	agt := agent.New(agtCtx, c)
+	agt := agent.New(ctx, c)
 
 	err = agt.Run()
 	if err != nil {
@@ -260,19 +260,16 @@ func newDefaultConfig() *agent.Config {
 		Organization: []string{"SPIRE"},
 	}
 	errCh := make(chan error)
-	//shutdownCh := make(chan struct{})
-	//
 	// log.NewLogger() cannot return error when using STDOUT
 	logger, _ := log.NewLogger(defaultLogLevel, "")
 	serverAddress := &net.TCPAddr{}
 
 	return &agent.Config{
-		BindAddress: bindAddr,
-		CertDN:      certDN,
-		DataDir:     defaultDataDir,
-		PluginDir:   defaultPluginDir,
-		ErrorCh:     errCh,
-		//ShutdownCh:    shutdownCh,
+		BindAddress:   bindAddr,
+		CertDN:        certDN,
+		DataDir:       defaultDataDir,
+		PluginDir:     defaultPluginDir,
+		ErrorCh:       errCh,
 		Log:           logger,
 		ServerAddress: serverAddress,
 		Umask:         defaultUmask,
@@ -300,12 +297,14 @@ func stringDefault(option string, defaultValue string) string {
 	return option
 }
 
-func signalListener(cancel context.CancelFunc) {
+func signalListener(ctx context.Context, cancel context.CancelFunc) {
+
 	go func() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-
+		defer signal.Stop(signalCh)
 		select {
+		case <-ctx.Done():
 		case <-signalCh:
 			cancel()
 		}
