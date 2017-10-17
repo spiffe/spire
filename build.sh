@@ -175,8 +175,10 @@ build_test() {
 		rm -rf test_results
 		mkdir -p test_results
 		for _n in ${SOURCE_PKGS}; do
-			go test -race -cover -covermode=count -coverprofile=test_results/$(echo $_n | sed 's/\//_/g').out ${_n}
+			go test -race -cover -covermode=atomic -coverprofile=test_results/$(echo $_n | sed 's/\//_/g').out ${_n}
 		done
+		# several tests set the umask to 000, which gets applied to the results files
+		chmod u+r test_results/*
 		gocoverutil -coverprofile=test_results/cover.report merge test_results/*.out
 		goveralls -coverprofile=test_results/cover.report -service=ci
 	else

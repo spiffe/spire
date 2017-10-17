@@ -33,6 +33,9 @@ type Catalog interface {
 	// Plugins returns all plugins managed by this catalog as
 	// the generic Plugin type
 	Plugins() []*ManagedPlugin
+
+	// Finds plugin metadata
+	Find(Plugin) *ManagedPlugin
 }
 
 type Config struct {
@@ -135,6 +138,15 @@ func (c *catalog) Plugins() []*ManagedPlugin {
 		newSlice = append(newSlice, mp)
 	}
 	return newSlice
+}
+
+func (c *catalog) Find(plugin Plugin) *ManagedPlugin {
+	for _, p := range c.plugins {
+		if p.Plugin == plugin {
+			return p
+		}
+	}
+	return nil
 }
 
 func (c *catalog) loadConfigs() error {
