@@ -473,7 +473,7 @@ func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateK
 
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 
-	conn, err = grpc.Dial(a.config.ServerAddress.String(), dialCreds)
+	conn, err = grpc.DialContext(a.ctx, a.config.ServerAddress.String(), dialCreds)
 	if err != nil {
 		return
 	}
