@@ -289,6 +289,7 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 				case m.entryRequestCh <- entryRequestMap:
 				case <-m.ctx.Done():
 					m.Shutdown(m.ctx.Err())
+					return
 				}
 			}
 			vanityRecord := m.managedCache.Entry([]*proto.Selector{&proto.Selector{
@@ -351,6 +352,7 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 				case m.entryRequestCh <- entryRequestMap:
 				case <-m.ctx.Done():
 					m.Shutdown(m.ctx.Err())
+					return
 				}
 			}
 
