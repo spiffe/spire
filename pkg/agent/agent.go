@@ -278,7 +278,6 @@ func (a *Agent) bootstrap() error {
 			if a.CacheMgr.Err() != nil {
 				a.config.Log.Warning(a.CacheMgr.Err())
 			}
-
 		}()
 	}
 

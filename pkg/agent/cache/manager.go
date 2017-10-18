@@ -8,6 +8,7 @@ import (
 
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
@@ -62,6 +63,7 @@ type manager struct {
 	ctx              context.Context
 	cancel           context.CancelFunc
 	doneCh           chan struct{}
+	errch            chan error
 }
 
 func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
@@ -93,14 +95,15 @@ func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
 		ctx:              ctx,
 		cancel:           cancel,
 		doneCh:           make(chan struct{}),
+		errch:            make(chan error),
 	}, nil
 }
 
 func (m *manager) Shutdown(err error) {
-	m.log.Debug("Shutting Down Cache Manager ", err)
 	m.reason = err
 	m.cancel()
 }
+
 func (m *manager) Done() <-chan struct{} {
 	return m.doneCh
 }
@@ -115,6 +118,7 @@ func (m *manager) Cache() Cache {
 func (m *manager) Init() {
 	go func() {
 		defer close(m.doneCh)
+		defer close(m.errch)
 		var wg sync.WaitGroup
 
 		wg.Add(1)
@@ -142,7 +146,7 @@ func (m *manager) Init() {
 					}
 					conn, err := m.getGRPCConn(svid, key)
 					if err != nil {
-						m.Shutdown(err)
+						m.errch <- err
 						break
 					}
 					go m.fetchSVID(entryRequests, node.NewNodeClient(conn), &wg)
@@ -150,12 +154,18 @@ func (m *manager) Init() {
 
 			case newCacheEntry := <-m.cacheEntryCh:
 				m.managedCache.SetEntry(newCacheEntry)
-				m.log.Debug("Updated Cache", "Cache:", newCacheEntry)
+				m.log.Debugf("Updated CacheEntry: %s", newCacheEntry)
 
 			case <-m.ctx.Done():
-				m.log.Debug("Stopping Cache manager")
 				wg.Wait()
 				return
+
+			case err := <-m.errch:
+				m.Shutdown(err)
+				for err := range m.errch {
+					m.log.Debug(err)
+				}
+
 			}
 		}
 	}()
@@ -165,28 +175,34 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 	defer wg.Done()
 	stream, err := nodeClient.FetchSVID(context.Background())
 	if err != nil {
-		m.Shutdown(err)
+		m.errch <- err
 		return
 	}
+	defer func() {
+		if err := stream.CloseSend(); err != nil {
+			m.errch <- err
+			return
+		}
+	}()
+
 	for _, req := range requests {
 
 		err := stream.Send(&node.FetchSVIDRequest{Csrs: append([][]byte{}, req.CSR)})
 
 		if err != nil {
-			m.Shutdown(err)
+			m.errch <- err
 			return
 		}
 
 		resp, err := stream.Recv()
 		if err != nil {
-			m.Shutdown(err)
+			m.errch <- err
 			return
 		}
 		svid := resp.SvidUpdate.Svids[req.entry.RegistrationEntry.SpiffeId]
 		cert, err := x509.ParseCertificate(svid.SvidCert)
 		if err != nil {
-			stream.CloseSend()
-			m.Shutdown(err)
+			m.errch <- err
 			return
 		}
 
@@ -196,59 +212,51 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 		select {
 		case m.cacheEntryCh <- req.entry:
 		case <-m.ctx.Done():
-			m.Shutdown(m.ctx.Err())
+			m.errch <- m.ctx.Err()
 			return
 		}
 
 	}
-	if err := stream.CloseSend(); err != nil {
-		m.Shutdown(err)
-		return
-	}
+
 }
 
 func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
 	conn, err := m.getGRPCConn(svid, key)
 	if err != nil {
-		m.Shutdown(err)
-		return
+		m.errch <- err
 	}
 	stream, err := node.NewNodeClient(conn).FetchSVID(m.ctx)
 	if err != nil {
-		m.Shutdown(err)
+		m.errch <- err
+		stream.CloseSend()
 		return
 	}
 	err = stream.Send(&node.FetchSVIDRequest{})
 	if err != nil {
-		m.Shutdown(err)
+		m.errch <- err
+		stream.CloseSend()
 		return
 	}
 	strmch := make(chan struct{})
 	go func() {
+		defer close(strmch)
 		for {
 			resp, err := stream.Recv()
 			if err == io.EOF {
-				close(strmch)
-				stream.CloseSend()
 				return
 			}
 
 			if err != nil {
-				m.Shutdown(err)
-				stream.CloseSend()
-				close(strmch)
+				m.errch <- err
 				return
 			}
 
 			select {
 			case m.regEntriesCh <- resp.SvidUpdate.RegistrationEntries:
 			case <-m.ctx.Done():
-				m.Shutdown(m.ctx.Err())
-				stream.CloseSend()
-				close(strmch)
+				m.errch <- m.ctx.Err()
 				return
 			}
-			m.log.Debug(resp)
 		}
 	}()
 	stream.CloseSend()
@@ -269,7 +277,7 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 					if entry.Expiry.Sub(time.Now()) < time.Until(entry.Expiry)/2 {
 						privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 						if err != nil {
-							m.Shutdown(err)
+							m.errch <- err
 							break
 						}
 						csr, err := util.MakeCSR(privateKey, entry.RegistrationEntry.SpiffeId)
@@ -285,7 +293,8 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 				select {
 				case m.entryRequestCh <- entryRequestMap:
 				case <-m.ctx.Done():
-					m.Shutdown(m.ctx.Err())
+					m.errch <- m.ctx.Err()
+					return
 				}
 			}
 			vanityRecord := m.managedCache.Entry([]*proto.Selector{&proto.Selector{
@@ -318,13 +327,13 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 				if !processed {
 					privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 					if err != nil {
-						m.Shutdown(err)
+						m.errch <- err
 						break
 					}
-					m.log.Debug("Generating CSR:", " spiffeId:", regEntry.SpiffeId, " parentId:", regEntry.ParentId)
+					m.log.Debugf("Generating CSR for spiffeId: %s  parentId: %s" ,regEntry.SpiffeId ,regEntry.ParentId)
 					csr, err := util.MakeCSR(privateKey, regEntry.SpiffeId)
 					if err != nil {
-						m.Shutdown(err)
+						m.errch <- err
 						break
 					}
 					parentID := regEntry.ParentId
@@ -347,7 +356,7 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 				select {
 				case m.entryRequestCh <- entryRequestMap:
 				case <-m.ctx.Done():
-					m.Shutdown(m.ctx.Err())
+					m.errch <- m.ctx.Err()
 				}
 			}
 

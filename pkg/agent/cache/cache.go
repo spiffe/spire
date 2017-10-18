@@ -77,8 +77,6 @@ func (c *cacheImpl) SetEntry(cacheEntry CacheEntry) {
 		}
 	}
 	c.cache[key] = append(c.cache[key], cacheEntry)
-	c.log.Debug("len(c.cache):", len(c.cache))
-	c.log.Debug("selectors:", cacheEntry.RegistrationEntry.Selectors, "len(c.cache[key]):", len(c.cache[key]))
 	return
 
 }
