@@ -8,7 +8,6 @@ import (
 
 	"crypto/tls"
 	"crypto/x509"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
