@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/stretchr/testify/assert"
@@ -12,7 +13,8 @@ import (
 
 var (
 	privateKey, _ = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	cache         = NewCache()
+	logger, _     = testlog.NewNullLogger()
+	cache         = NewCache(logger)
 )
 
 func TestCacheImpl_Valid(t *testing.T) {

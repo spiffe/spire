@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"io"
 	"io/ioutil"
 	"path"
 	"reflect"
@@ -19,6 +20,7 @@ import (
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	"github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
@@ -40,6 +42,7 @@ type NodeServerTestSuite struct {
 	mockNodeAttestor *mock_nodeattestor.MockNodeAttestor
 	mockNodeResolver *mock_noderesolver.MockNodeResolver
 	mockContext      *mock_context.MockContext
+	server           *mock_node.MockNode_FetchSVIDServer
 }
 
 func SetupNodeTest(t *testing.T) *NodeServerTestSuite {
@@ -53,6 +56,7 @@ func SetupNodeTest(t *testing.T) *NodeServerTestSuite {
 	suite.mockNodeAttestor = mock_nodeattestor.NewMockNodeAttestor(mockCtrl)
 	suite.mockNodeResolver = mock_noderesolver.NewMockNodeResolver(mockCtrl)
 	suite.mockContext = mock_context.NewMockContext(mockCtrl)
+	suite.server = mock_node.NewMockNode_FetchSVIDServer(suite.ctrl)
 
 	suite.nodeServer = &nodeServer{
 		l:               log,
@@ -87,18 +91,12 @@ func TestFetchSVID(t *testing.T) {
 
 	data := getFetchSVIDTestData()
 	setFetchSVIDExpectations(suite, data)
-	response, err := suite.nodeServer.FetchSVID(suite.mockContext, data.request)
-	expected := getExpectedFetchSVID(data)
 
-	if !reflect.DeepEqual(response.SvidUpdate, expected) {
-		t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n",
-			response.SvidUpdate, expected)
-	}
+	err := suite.nodeServer.FetchSVID(suite.server)
 
 	if err != nil {
 		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
 	}
-
 }
 
 func getBytesFromPem(fileName string) []byte {
@@ -342,6 +340,9 @@ func setFetchSVIDExpectations(
 	suite.mockCatalog.EXPECT().CAs().AnyTimes().
 		Return([]ca.ControlPlaneCa{suite.mockServerCA})
 
+	suite.server.EXPECT().Context().Return(suite.mockContext)
+	suite.server.EXPECT().Recv().Return(data.request, nil)
+
 	suite.mockContext.EXPECT().Value(gomock.Any()).Return(getFakePeer())
 
 	suite.mockDataStore.EXPECT().FetchNodeResolverMapEntry(
@@ -380,6 +381,13 @@ func setFetchSVIDExpectations(
 			Csr: data.request.Csrs[2], Ttl: data.byParentIDEntries[1].Ttl,
 		}).
 		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[2]}, nil)
+
+	suite.server.EXPECT().Send(&node.FetchSVIDResponse{
+		SvidUpdate: getExpectedFetchSVID(data),
+	}).
+		Return(nil)
+
+	suite.server.EXPECT().Recv().Return(nil, io.EOF)
 
 }
 

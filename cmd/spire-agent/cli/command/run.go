@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"syscall"
 
+	"context"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -83,10 +84,11 @@ func (*RunCommand) Run(args []string) int {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	signalListener(ctx, cancel)
 
-	signalListener(c.ShutdownCh)
+	agt := agent.New(ctx, c)
 
-	agt := agent.New(c)
 	err = agt.Run()
 	if err != nil {
 		c.Log.Error(err.Error())
@@ -270,8 +272,6 @@ func newDefaultConfig() *agent.Config {
 		Organization: []string{"SPIRE"},
 	}
 	errCh := make(chan error)
-	shutdownCh := make(chan struct{})
-
 	// log.NewLogger() cannot return error when using STDOUT
 	logger, _ := log.NewLogger(defaultLogLevel, "")
 	serverAddress := &net.TCPAddr{}
@@ -282,7 +282,6 @@ func newDefaultConfig() *agent.Config {
 		DataDir:       defaultDataDir,
 		PluginDir:     defaultPluginDir,
 		ErrorCh:       errCh,
-		ShutdownCh:    shutdownCh,
 		Log:           logger,
 		ServerAddress: serverAddress,
 		Umask:         defaultUmask,
@@ -310,15 +309,16 @@ func stringDefault(option string, defaultValue string) string {
 	return option
 }
 
-func signalListener(ch chan struct{}) {
+func signalListener(ctx context.Context, cancel context.CancelFunc) {
+
 	go func() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-
-		var stop struct{}
+		defer signal.Stop(signalCh)
 		select {
+		case <-ctx.Done():
 		case <-signalCh:
-			ch <- stop
+			cancel()
 		}
 	}()
 	return

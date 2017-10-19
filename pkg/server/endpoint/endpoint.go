@@ -106,7 +106,6 @@ func (e *endpoint) ListenAndServe() error {
 func (e *endpoint) Shutdown() {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-
 	e.stopHTTPServer()
 	e.stopGRPCServer()
 }

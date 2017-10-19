@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/mock/agent/catalog"
 	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/mock/agent/cache"
 )
 
 type selectors []*common.Selector
@@ -28,6 +29,7 @@ type AgentTestSuite struct {
 	mockPluginCatalog *mock_catalog.MockCatalog
 	mockKeyManager    *keymanager.MockKeyManager
 	kmManager         []keymanager.KeyManager
+	mockCacheManager  *mock_cache.MockManager
 	expectedKey       *ecdsa.PrivateKey
 	config            *Config
 }
@@ -37,6 +39,7 @@ func (suite *AgentTestSuite) SetupTest() {
 	defer mockCtrl.Finish()
 	suite.mockPluginCatalog = mock_catalog.NewMockCatalog(mockCtrl)
 	suite.mockKeyManager = keymanager.NewMockKeyManager(mockCtrl)
+	suite.mockCacheManager = mock_cache.NewMockManager(mockCtrl)
 
 	addr := &net.UnixAddr{Name: "./spire_api", Net: "unix"}
 	srvAddr := &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8081}
@@ -44,14 +47,13 @@ func (suite *AgentTestSuite) SetupTest() {
 		Country:      []string{"testCountry"},
 		Organization: []string{"testOrg"}}
 	errCh := make(chan error)
-	shutdownCh := make(chan struct{})
 
 	l, _ := test.NewNullLogger()
 	suite.config = &Config{BindAddress: addr, CertDN: certDN,
 		DataDir:   os.TempDir(),
 		PluginDir: os.TempDir(), Log: l, ServerAddress: srvAddr,
 		ErrorCh:    errCh,
-		ShutdownCh: shutdownCh}
+		}
 
 }
 
@@ -86,9 +88,11 @@ func (suite *AgentTestSuite) Testbootstrap() {
 func (suite *AgentTestSuite) TestSocketPermission() {
 	suite.agent = &Agent{
 		Catalog: suite.mockPluginCatalog,
+		CacheMgr:suite.mockCacheManager,
 		config:  suite.config}
 
 	suite.agent.serverCerts = []*x509.Certificate{&x509.Certificate{}, &x509.Certificate{}}
+	suite.mockCacheManager.EXPECT().Cache().Return(nil)
 	err := suite.agent.initEndpoints()
 	suite.Require().NoError(err)
 
