@@ -166,7 +166,7 @@ func (m *manager) Init() {
 
 func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient, wg *sync.WaitGroup) {
 	defer wg.Done()
-	stream, err := nodeClient.FetchSVID(context.Background())
+	stream, err := nodeClient.FetchSVID(m.ctx)
 	if err != nil {
 		m.Shutdown(err)
 		return
