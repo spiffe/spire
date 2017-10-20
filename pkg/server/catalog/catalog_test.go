@@ -7,11 +7,11 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/mock/common/catalog"
-	"github.com/spiffe/spire/test/mock/server/ca"
-	"github.com/spiffe/spire/test/mock/server/datastore"
-	"github.com/spiffe/spire/test/mock/server/nodeattestor"
-	"github.com/spiffe/spire/test/mock/server/noderesolver"
-	"github.com/spiffe/spire/test/mock/server/upstreamca"
+	"github.com/spiffe/spire/test/mock/proto/server/ca"
+	"github.com/spiffe/spire/test/mock/proto/server/datastore"
+	"github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
+	"github.com/spiffe/spire/test/mock/proto/server/noderesolver"
+	"github.com/spiffe/spire/test/mock/proto/server/upstreamca"
 	"github.com/stretchr/testify/suite"
 )
 

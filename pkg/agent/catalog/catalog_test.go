@@ -6,10 +6,10 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/test/mock/agent/keymanager"
-	"github.com/spiffe/spire/test/mock/agent/nodeattestor"
-	"github.com/spiffe/spire/test/mock/agent/workloadattestor"
 	"github.com/spiffe/spire/test/mock/common/catalog"
+	"github.com/spiffe/spire/test/mock/proto/agent/keymanager"
+	"github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
+	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
 	"github.com/stretchr/testify/suite"
 )
 

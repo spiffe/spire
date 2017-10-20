@@ -21,7 +21,7 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/mock/agent/cache"
 	"github.com/spiffe/spire/test/mock/agent/catalog"
-	"github.com/spiffe/spire/test/mock/agent/workloadattestor"
+	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
 )
 
 var (

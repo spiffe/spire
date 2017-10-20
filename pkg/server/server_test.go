@@ -13,7 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/upstreamca"
-	"github.com/spiffe/spire/test/mock/server/ca"
+	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/stretchr/testify/suite"
 )
