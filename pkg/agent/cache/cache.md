@@ -12,6 +12,7 @@ The cache manager also periodically looks for new registration entries and updat
 
 
 ![cache manager flow](../../../doc/images/cache_mgr_flow.png)
+
 The agent bootstrap logic initiates the cache manager. The `Init` function kicks off `expiredCacheEntryHandler` and `regEntryHandler` go routines and services the corresponding requests received from them on the `entryRequestCh` channel. 
 For each of the received requests, the main loop in the init goroutine fans-out fetchSVID go routines. The fetchSVID go routines call the `FetchSVID` node API endpoint and fans into `cacheEntryCh` and `regEntriesCh` channels, the respective components of the `FetchSVIDResponse` response.
 Entries received on the `cacheEntryCh` are updated in the cache.   
