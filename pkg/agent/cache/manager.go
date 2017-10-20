@@ -292,7 +292,7 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 					return
 				}
 			}
-			vanityRecord := m.managedCache.Entry([]*proto.Selector{&proto.Selector{
+			vanityRecord := m.managedCache.Entry([]*proto.Selector{{
 				Type: "spiffe_id", Value: m.baseSPIFFEID}})
 
 			if vanityRecord != nil {

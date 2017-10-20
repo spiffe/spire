@@ -533,9 +533,9 @@ func Test_ListSelectorEntries(t *testing.T) {
 			},
 
 			selectors: []*common.Selector{
-				&common.Selector{Type: "testtype1", Value: "testValue1"},
-				&common.Selector{Type: "testtype2", Value: "testValue2"},
-				&common.Selector{Type: "testtype3", Value: "testValue3"},
+				{Type: "testtype1", Value: "testValue1"},
+				{Type: "testtype2", Value: "testValue2"},
+				{Type: "testtype3", Value: "testValue3"},
 			},
 			expectedList: regEntries{
 				&common.RegistrationEntry{
@@ -572,7 +572,7 @@ func Test_ListSelectorEntries(t *testing.T) {
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test3"}},
 			selectors: []*common.Selector{
-				&common.Selector{Type: "testtype2", Value: "testValue2"},
+				{Type: "testtype2", Value: "testValue2"},
 			},
 			expectedList: nil,
 		},

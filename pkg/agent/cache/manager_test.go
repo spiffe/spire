@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	testServerCerts = []*x509.Certificate{&x509.Certificate{}, &x509.Certificate{}}
+	testServerCerts = []*x509.Certificate{{}, {}}
 	serverId        = "spiffe://testDomain/spiffe/cp"
 	baseSVIDKey, _  = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	testLogger, _   = testlog.NewNullLogger()
@@ -30,7 +30,7 @@ var (
 		SpiffeId: "spiffe://example.org/Blog",
 		ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
 		Selectors: []*common.Selector{
-			&common.Selector{Type: "unix", Value: "uid:111"},
+			{Type: "unix", Value: "uid:111"},
 		},
 		Ttl: 200,
 	},
@@ -43,7 +43,7 @@ var (
 	}
 
 	svidMap = map[string]*node.Svid{
-		"spiffe://example.org/Blog": &node.Svid{SvidCert: certsFixture.GetTestBlogSVID()}}
+		"spiffe://example.org/Blog": {SvidCert: certsFixture.GetTestBlogSVID()}}
 
 	svidUpdate = &node.SvidUpdate{
 		Svids:               svidMap,
@@ -84,7 +84,7 @@ func TestManager_FetchSVID(t *testing.T) {
 
 	wg.Wait()
 	expiry := cm.managedCache.Entry([]*common.Selector{
-		&common.Selector{Type: "unix", Value: "uid:111"},
+		{Type: "unix", Value: "uid:111"},
 	})[0].Expiry
 
 	assert.True(t, expiry.After(testCacheEntry.Expiry))
