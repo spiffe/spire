@@ -5,9 +5,10 @@
 package mock_catalog
 
 import (
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	catalog "github.com/spiffe/spire/pkg/common/catalog"
-	reflect "reflect"
 )
 
 // MockCatalog is a mock of Catalog interface
@@ -31,6 +32,18 @@ func NewMockCatalog(ctrl *gomock.Controller) *MockCatalog {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockCatalog) EXPECT() *MockCatalogMockRecorder {
 	return m.recorder
+}
+
+// Find mocks base method
+func (m *MockCatalog) Find(arg0 catalog.Plugin) *catalog.ManagedPlugin {
+	ret := m.ctrl.Call(m, "Find", arg0)
+	ret0, _ := ret[0].(*catalog.ManagedPlugin)
+	return ret0
+}
+
+// Find indicates an expected call of Find
+func (mr *MockCatalogMockRecorder) Find(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockCatalog)(nil).Find), arg0)
 }
 
 // Plugins mocks base method
