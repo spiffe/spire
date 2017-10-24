@@ -222,7 +222,9 @@ func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
 	stream, err := node.NewNodeClient(conn).FetchSVID(m.ctx)
 	if err != nil {
 		m.Shutdown(err)
-		stream.CloseSend()
+		if stream !=nil{
+			stream.CloseSend()
+		}
 		return
 	}
 	err = stream.Send(&node.FetchSVIDRequest{})
