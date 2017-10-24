@@ -18,10 +18,13 @@ import (
 )
 
 const (
-	pid                 = 123
-	kubeletReadOnlyPort = "10255"
-	validConfig         = `{"kubelet_read_only_port":"` + kubeletReadOnlyPort + `"}`
-	invalidConfig       = `{"kubelet_read_only_port":"invalid"}`
+	pid                   = 123
+	kubeletReadOnlyPort   = "10255"
+	validConfig           = `{"kubelet_read_only_port":"` + kubeletReadOnlyPort + `"}`
+	invalidConfig         = `{"kubelet_read_only_port":"invalid"}`
+	podListFilePath       = "../../../test/fixture/workloadattestor/k8s/pod_list.json"
+	cgPidInPodFilePath    = "../../../test/fixture/workloadattestor/k8s/cgroups_pid_in_pod.txt"
+	cgPidNotInPodFilePath = "../../../test/fixture/workloadattestor/k8s/cgroups_pid_not_in_pod.txt"
 )
 
 func PluginGenerator(config string, client httpClient, fs fileSystem) (workloadattestor.WorkloadAttestor, *spi.ConfigureResponse, error) {
@@ -36,8 +39,20 @@ func PluginGenerator(config string, client httpClient, fs fileSystem) (workloada
 }
 
 func TestK8s_AttestPidInPod(t *testing.T) {
-	mockCtrl, mockHttpClient, mockFilesystem := getMocks(t, "../../../test/fixture/workloadattestor/k8s/pod_list.json", "../../../test/fixture/workloadattestor/k8s/cgroups_pid_in_pod.txt")
+	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
+
+	podList, err := ioutil.ReadFile(podListFilePath)
+	require.NoError(t, err)
+
+	mockHttpClient := http_client_mock.NewMockhttpClient(mockCtrl)
+	mockHttpClient.EXPECT().Get("http://localhost:"+kubeletReadOnlyPort+"/pods").Return(
+		&http.Response{
+			Body: ioutil.NopCloser(bytes.NewReader(podList)),
+		}, nil)
+
+	mockFilesystem := filesystem_mock.NewMockfileSystem(mockCtrl)
+	mockFilesystem.EXPECT().Open(fmt.Sprintf("/proc/%v/cgroup", pid)).Return(os.Open(cgPidInPodFilePath))
 
 	plugin, _, err := PluginGenerator(validConfig, mockHttpClient, mockFilesystem)
 	req := workloadattestor.AttestRequest{Pid: int32(pid)}
@@ -47,8 +62,12 @@ func TestK8s_AttestPidInPod(t *testing.T) {
 }
 
 func TestK8s_AttestPidNotInPod(t *testing.T) {
-	mockCtrl, mockHttpClient, mockFilesystem := getMocks(t, "../../../test/fixture/workloadattestor/k8s/pod_list.json", "../../../test/fixture/workloadattestor/k8s/cgroups_pid_not_in_pod.txt")
+	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
+
+	mockHttpClient := http_client_mock.NewMockhttpClient(mockCtrl)
+	mockFilesystem := filesystem_mock.NewMockfileSystem(mockCtrl)
+	mockFilesystem.EXPECT().Open(fmt.Sprintf("/proc/%v/cgroup", pid)).Return(os.Open(cgPidNotInPodFilePath))
 
 	plugin, _, err := PluginGenerator(validConfig, mockHttpClient, mockFilesystem)
 	req := workloadattestor.AttestRequest{Pid: int32(pid)}
@@ -76,22 +95,4 @@ func TestK8s_GetPluginInfo(t *testing.T) {
 	data, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
 	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
 	assert.Equal(t, nil, e)
-}
-
-func getMocks(t *testing.T, podListFilePath string, cgroupsFilePath string) (*gomock.Controller, httpClient, fileSystem) {
-	mockCtrl := gomock.NewController(t)
-
-	podList, err := ioutil.ReadFile(podListFilePath)
-	require.NoError(t, err)
-
-	mockHttpClient := http_client_mock.NewMockhttpClient(mockCtrl)
-	mockHttpClient.EXPECT().Get("http://localhost:"+kubeletReadOnlyPort+"/pods").Return(
-		&http.Response{
-			Body: ioutil.NopCloser(bytes.NewReader(podList)),
-		}, nil)
-
-	mockFilesystem := filesystem_mock.NewMockfileSystem(mockCtrl)
-	mockFilesystem.EXPECT().Open(fmt.Sprintf("/proc/%v/cgroup", pid)).Return(os.Open(cgroupsFilePath))
-
-	return mockCtrl, mockHttpClient, mockFilesystem
 }

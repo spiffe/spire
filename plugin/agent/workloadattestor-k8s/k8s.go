@@ -29,7 +29,7 @@ type k8sPluginConfig struct {
 	KubeletReadOnlyPort int `hcl:"kubelet_read_only_port"`
 }
 
-type pod struct {
+type podList struct {
 	// We only care about namespace, serviceAccountName and containerID
 	Metadata struct {
 	} `json:"metadata"`
@@ -59,19 +59,6 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 	log.Printf("Attesting PID: %v", req.Pid)
 	resp := workloadattestor.AttestResponse{}
 
-	httpResp, err := p.httpClient.Get(fmt.Sprintf("http://localhost:%v/pods", p.kubeletReadOnlyPort))
-	if err != nil {
-		return &resp, err
-	}
-	defer httpResp.Body.Close()
-	respBytes, err := ioutil.ReadAll(httpResp.Body)
-
-	var podInfo *pod
-	err = json.Unmarshal(respBytes, &podInfo)
-	if err != nil {
-		return &resp, err
-	}
-
 	cgroups, err := getCgroups(fmt.Sprintf("/proc/%v/cgroup", req.Pid), p.fs)
 	if err != nil {
 		return &resp, err
@@ -79,7 +66,8 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 
 	var containerID string
 	for _, cgroup := range cgroups {
-		// We are only interested in kube pods entries
+		// We are only interested in kube pods entries. Example entry:
+		// 11:hugetlb:/kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961
 		if len(cgroup[2]) < 9 {
 			continue
 		}
@@ -97,6 +85,24 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 		}
 	}
 
+	if containerID == "" {
+		log.Printf("No kube pod entry found in /proc/%v/cgroup", req.Pid)
+		return &resp, nil
+	}
+
+	httpResp, err := p.httpClient.Get(fmt.Sprintf("http://localhost:%v/pods", p.kubeletReadOnlyPort))
+	if err != nil {
+		return &resp, err
+	}
+	defer httpResp.Body.Close()
+	respBytes, err := ioutil.ReadAll(httpResp.Body)
+
+	var podInfo *podList
+	err = json.Unmarshal(respBytes, &podInfo)
+	if err != nil {
+		return &resp, err
+	}
+
 	for _, item := range podInfo.Items {
 		for _, status := range item.Status.ContainerStatuses {
 			containerURL, err := url.Parse(status.ContainerID)
@@ -105,16 +111,16 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 			}
 
 			if containerID == containerURL.Host {
-				resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("serviceAccountName:%v", item.Spec.ServiceAccountName)})
-				resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("namespace:%v", item.Metadata.Namespace)})
+				resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("sa:%v", item.Spec.ServiceAccountName)})
+				resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("ns:%v", item.Metadata.Namespace)})
 				log.Printf("Selectors found: %v", resp.Selectors)
-				return &resp, err
+				return &resp, nil
 			}
 		}
 	}
 
 	log.Print("No selectors found")
-	return &resp, err
+	return &resp, nil
 }
 
 func getCgroups(path string, fs fileSystem) (cgroups [][]string, err error) {
