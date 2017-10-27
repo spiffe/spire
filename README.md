@@ -13,8 +13,6 @@ exposes a local Workload API.
 There are several ways to install the SPIRE binaries:
 
 * Binary releases can be found at https://github.com/spiffe/spire/releases
-* `go get github.com/spiffe/spire/...` will fetch and build all of SPIRE and its
-  dependencies and install them in $GOPATH/bin
 * [Building from source](/CONTRIBUTING.md)
 
 # Configuring SPIRE
