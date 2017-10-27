@@ -17,6 +17,7 @@ plugin/agent/nodeattestor-jointoken/nodeattestor-jointoken
 plugin/agent/nodeattestor-secretfile/nodeattestor-secretfile
 plugin/agent/workloadattestor-secretfile/workloadattestor-secretfile
 plugin/agent/workloadattestor-unix/workloadattestor-unix
+plugin/agent/workloadattestor-k8s/workloadattestor-k8s
 
 plugin/server/ca-memory/ca-memory
 plugin/server/datastore-sqlite/datastore-sqlite

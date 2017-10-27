@@ -4,7 +4,7 @@ set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
 declare -r BINARY_DIRS="$(find cmd/* plugin/*/* -maxdepth 0 -type d 2>/dev/null)"
-declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... ./plugin/...)"
+declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... ./plugin/... 2>/dev/null)"
 declare -r RELEASE_FILES="LICENSE README.md conf"
 declare -r PROTO_FILES="$(find proto -name '*.proto' 2>/dev/null)"
 

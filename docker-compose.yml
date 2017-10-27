@@ -1,0 +1,16 @@
+# used for setting up a local dev environment
+#
+# docker-compose up -d
+# docker-compose exec spire-dev bash
+# docker-compose down
+
+version: '2'
+services:
+  spire-dev:
+    image: spiffe/spire-dev:latest
+    hostname: spire-dev
+    container_name: spire-dev
+    tty: true
+    volumes:
+      - .:/root/go/src/github.com/spiffe/spire
+
