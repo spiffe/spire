@@ -3,11 +3,13 @@ package server
 import (
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"net/url"
 	"path"
 	"reflect"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -466,7 +468,7 @@ func (s *nodeServer) signCSRs(
 		s.l.Error(err)
 		return nil, errors.New("An SPIFFE ID is required for this request")
 	}
-	baseSpiffeID := uriNames[0]
+	callerID := uriNames[0]
 
 	//convert registration entries into a map for easy lookup
 	regEntriesMap := make(map[string]*common.RegistrationEntry)
@@ -483,7 +485,9 @@ func (s *nodeServer) signCSRs(
 			return nil, err
 		}
 
-		if spiffeID == baseSpiffeID {
+		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", s.trustDomain.String())
+
+		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
 			res, err := dataStore.FetchAttestedNodeEntry(
 				&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: spiffeID},
 			)

@@ -80,7 +80,8 @@ a .conf file or passed as command line args, the command line configurations tak
 
  |Configuration          | Description                                                          |
  |-----------------------|----------------------------------------------------------------------|
- |BaseSpiffeIDTTL        |  TTL that defines how long the generated Base SVID is valid          |
+ |BaseSVIDTTL            |  TTL that defines how long the generated Base SVID is valid          |
+ |ServerSVIDTTL          |  TTL that defines how long the generated Server SVID is valid        |
  |BindAddress            |  The GRPC Address where the SPIRE Service is set to listen           |
  |BindPort               |  The GRPC port where the SPIRE Service is set to listen              |
  |BindHTTPPort           |  The HTTP port where the SPIRE Service is set to listen              |
@@ -93,7 +94,8 @@ a .conf file or passed as command line args, the command line configurations tak
 [default configuration file](/conf/server/server.conf)
 
 ```
-BaseSpiffeIDTTL = 999999
+BaseSVIDTTL = 999999
+ServerSVIDTTL = 999999
 BindAddress = "127.0.0.1"
 BindPort = "8081"
 BindHTTPPort = "8080"

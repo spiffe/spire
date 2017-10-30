@@ -401,11 +401,9 @@ func (m *manager) rotateBaseSVIDHandler(frequency time.Duration, wg *sync.WaitGr
 				return
 			}
 		case <-m.ctx.Done():
-			m.log.Debug("Done with rotateBaseSVIDHandler")
 			m.Shutdown(m.ctx.Err())
 			return
 		}
-
 	}
 }
 
@@ -476,7 +474,10 @@ func (m *manager) rotateBaseSVID() error {
 			return err
 		}
 
-		svid := resp.SvidUpdate.Svids[m.baseSPIFFEID]
+		svid, ok := resp.SvidUpdate.Svids[m.baseSPIFFEID]
+		if !ok {
+			return errors.New("It was not possible to get base SVID from FetchSVID response")
+		}
 		cert, err := x509.ParseCertificate(svid.SvidCert)
 		if err != nil {
 			return err

@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"path"
 	"reflect"
 	"testing"
@@ -58,10 +59,16 @@ func SetupNodeTest(t *testing.T) *NodeServerTestSuite {
 	suite.mockContext = mock_context.NewMockContext(mockCtrl)
 	suite.server = mock_node.NewMockNode_FetchSVIDServer(suite.ctrl)
 
+	trustDomain := url.URL{
+		Scheme: "spiffe",
+		Host:   "example.org",
+	}
+
 	suite.nodeServer = &nodeServer{
 		l:           log,
 		catalog:     suite.mockCatalog,
 		baseSVIDTtl: 777,
+		trustDomain: trustDomain,
 	}
 	return suite
 }
@@ -100,7 +107,7 @@ func TestFetchSVID(t *testing.T) {
 
 }
 
-func TestFetchSVID_WithRotation(t *testing.T) {
+func TestFetchSVIDWithRotation(t *testing.T) {
 	suite := SetupNodeTest(t)
 	defer suite.ctrl.Finish()
 
