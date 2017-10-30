@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -79,6 +80,40 @@ func TestCreateEntry(t *testing.T) {
 	}
 }
 
+func TestCreateEntryError(t *testing.T) {
+	suite := SetupRegistrationTest(t)
+	defer suite.ctrl.Finish()
+
+	//test data
+	request := getRegistrationEntries()[0]
+	createRequest := &datastore.CreateRegistrationEntryRequest{
+		RegisteredEntry: request,
+	}
+
+	var expectedResponse *registration.RegistrationEntryID
+	expectedError := errors.New("Error trying to create entry")
+
+	//expectations
+	suite.mockCatalog.EXPECT().DataStores().
+		Return([]datastore.DataStore{suite.mockDataStore})
+	suite.mockDataStore.EXPECT().
+		CreateRegistrationEntry(createRequest).
+		Return(nil, errors.New("foo"))
+
+	//exercise
+	response, err := suite.registrationServer.CreateEntry(nil, request)
+
+	//verification
+	if !reflect.DeepEqual(response, expectedResponse) {
+		t.Errorf("CreateEntry(%v)\n Got: %v\n Want: %v\n",
+			1, response, expectedResponse)
+	}
+
+	if !reflect.DeepEqual(err, expectedError) {
+		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, expectedError)
+	}
+}
+
 func TestFetchEntry(t *testing.T) {
 	suite := SetupRegistrationTest(t)
 	defer suite.ctrl.Finish()
@@ -113,6 +148,42 @@ func TestFetchEntry(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
+	}
+
+}
+
+func TestFetchEntryError(t *testing.T) {
+	suite := SetupRegistrationTest(t)
+	defer suite.ctrl.Finish()
+
+	//test data
+	request := &registration.RegistrationEntryID{Id: "abcdefgh"}
+	fetchRequest := &datastore.FetchRegistrationEntryRequest{
+		RegisteredEntryId: request.Id,
+	}
+
+	var expectedResponse *common.RegistrationEntry
+	expectedResponse = nil
+	expectedError := errors.New("Error trying to fetch entry")
+
+	//expectations
+	suite.mockCatalog.EXPECT().DataStores().
+		Return([]datastore.DataStore{suite.mockDataStore})
+	suite.mockDataStore.EXPECT().
+		FetchRegistrationEntry(fetchRequest).
+		Return(nil, errors.New("foo"))
+
+	//exercise
+	response, err := suite.registrationServer.FetchEntry(nil, request)
+
+	//verification
+	if !reflect.DeepEqual(response, expectedResponse) {
+		t.Errorf("CreateEntry(%v)\n Got: %v\n Want: %v\n",
+			1, response, expectedResponse)
+	}
+
+	if !reflect.DeepEqual(err, expectedError) {
+		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, expectedError)
 	}
 
 }
@@ -157,7 +228,44 @@ func TestListByParentID(t *testing.T) {
 
 }
 
-func TestCreateJoinTokenWithValue(t *testing.T) {
+func TestListByParentIDError(t *testing.T) {
+	suite := SetupRegistrationTest(t)
+	defer suite.ctrl.Finish()
+
+	//test data
+	request := &registration.ParentID{
+		Id: "spiffe://example.org/spire/agent/join_token/TokenBlog",
+	}
+	listRequest := &datastore.ListParentIDEntriesRequest{ParentId: request.Id}
+
+	var expectedResponse *common.RegistrationEntries
+	expectedResponse = nil
+
+	expectedError := errors.New("Error trying to list entries by parent ID")
+
+	//expectations
+	suite.mockCatalog.EXPECT().DataStores().
+		Return([]datastore.DataStore{suite.mockDataStore})
+	suite.mockDataStore.EXPECT().
+		ListParentIDEntries(listRequest).
+		Return(nil, errors.New("foo"))
+
+	//exercise
+	response, err := suite.registrationServer.ListByParentID(nil, request)
+
+	//verification
+	if !reflect.DeepEqual(response, expectedResponse) {
+		t.Errorf("CreateEntry(%v)\n Got: %v\n Want: %v\n",
+			1, response, expectedResponse)
+	}
+
+	if !reflect.DeepEqual(err, expectedError) {
+		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, expectedError)
+	}
+
+}
+
+func TestCreateJoinToken(t *testing.T) {
 	suite := SetupRegistrationTest(t)
 	defer suite.ctrl.Finish()
 
@@ -188,7 +296,7 @@ func TestCreateJoinTokenWithValue(t *testing.T) {
 	}
 }
 
-func TestCreateJoinTokenWithoutValue(t *testing.T) {
+func TestCreateJoinTokenWithoutToken(t *testing.T) {
 	suite := SetupRegistrationTest(t)
 	defer suite.ctrl.Finish()
 
@@ -221,6 +329,32 @@ func TestCreateJoinTokenWithoutValue(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
+	}
+}
+
+func TestCreateJoinTokenWithoutTtl(t *testing.T) {
+	suite := SetupRegistrationTest(t)
+	defer suite.ctrl.Finish()
+
+	//test data
+	request := &registration.JoinToken{}
+
+	//exercise
+	response, err := suite.registrationServer.CreateJoinToken(nil, request)
+
+	//expectations
+	var expectedResponse *registration.JoinToken
+	expectedResponse = nil
+	expectedError := errors.New("Ttl is required, you must provide one")
+
+	//verification
+	if !reflect.DeepEqual(response, expectedResponse) {
+		t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n",
+			response, expectedResponse)
+	}
+
+	if !reflect.DeepEqual(err, expectedError) {
+		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, expectedError)
 	}
 }
 
