@@ -9,7 +9,7 @@ func GetRegistrationEntries() []*common.RegistrationEntry {
 		SpiffeId: "spiffe://example.org/Blog",
 		ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
 		Selectors: []*common.Selector{
-			&common.Selector{Type: "unix", Value: "uid:111"},
+			{Type: "unix", Value: "uid:111"},
 		},
 		Ttl: 200,
 	}
@@ -17,7 +17,7 @@ func GetRegistrationEntries() []*common.RegistrationEntry {
 		SpiffeId: "spiffe://example.org/Database",
 		ParentId: "spiffe://example.org/spire/agent/join_token/TokenDatabase",
 		Selectors: []*common.Selector{
-			&common.Selector{Type: "unix", Value: "uid:111"},
+			{Type: "unix", Value: "uid:111"},
 		},
 		Ttl: 200,
 	}

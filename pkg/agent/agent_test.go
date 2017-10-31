@@ -15,9 +15,9 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/test/mock/agent/cache"
 	"github.com/spiffe/spire/test/mock/agent/catalog"
 	"github.com/stretchr/testify/suite"
-	"github.com/spiffe/spire/test/mock/agent/cache"
 )
 
 type selectors []*common.Selector
@@ -52,8 +52,8 @@ func (suite *AgentTestSuite) SetupTest() {
 	suite.config = &Config{BindAddress: addr, CertDN: certDN,
 		DataDir:   os.TempDir(),
 		PluginDir: os.TempDir(), Log: l, ServerAddress: srvAddr,
-		ErrorCh:    errCh,
-		}
+		ErrorCh: errCh,
+	}
 
 }
 
@@ -87,11 +87,11 @@ func (suite *AgentTestSuite) Testbootstrap() {
 
 func (suite *AgentTestSuite) TestSocketPermission() {
 	suite.agent = &Agent{
-		Catalog: suite.mockPluginCatalog,
-		CacheMgr:suite.mockCacheManager,
-		config:  suite.config}
+		Catalog:  suite.mockPluginCatalog,
+		CacheMgr: suite.mockCacheManager,
+		config:   suite.config}
 
-	suite.agent.serverCerts = []*x509.Certificate{&x509.Certificate{}, &x509.Certificate{}}
+	suite.agent.serverCerts = []*x509.Certificate{{}, {}}
 	suite.mockCacheManager.EXPECT().Cache().Return(nil)
 	err := suite.agent.initEndpoints()
 	suite.Require().NoError(err)
@@ -131,7 +131,7 @@ func TestAgent_FetchSVID(t *testing.T) {
 		regEntryMap map[string]*common.RegistrationEntry
 	}{{
 		name: "test",
-		regEntryMap: map[string]*common.RegistrationEntry{"spiffe:test": &common.RegistrationEntry{
+		regEntryMap: map[string]*common.RegistrationEntry{"spiffe:test": {
 			Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 			ParentId:  "spiffe:parent",
 			SpiffeId:  "spiffe:test"}},
