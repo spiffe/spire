@@ -19,29 +19,30 @@ import (
 )
 
 const (
-	defaultConfigPath      = "conf/server/server.conf"
-	defaultBindAddress     = "127.0.0.1"
-	defaultBindPort        = "8081"
-	defaultBindHTTPPort    = "8080"
-	defaultLogLevel        = "INFO"
-	defaultPluginDir       = "conf/server/plugin"
-	defaultBaseSpiffeIDTTL = 999999
-	defaultUmask           = 0077
+	defaultConfigPath    = "conf/server/server.conf"
+	defaultBindAddress   = "127.0.0.1"
+	defaultBindPort      = "8081"
+	defaultBindHTTPPort  = "8080"
+	defaultLogLevel      = "INFO"
+	defaultPluginDir     = "conf/server/plugin"
+	defaultBaseSVIDTtl   = 999999
+	defaultServerSVIDTtl = 999999
+	defaultUmask         = 0077
 )
 
 // CmdConfig represents available configurables for file and CLI options
 type CmdConfig struct {
-	BindAddress     string
-	BindPort        int
-	BindHTTPPort    int
-	TrustDomain     string
-	PluginDir       string
-	LogFile         string
-	LogLevel        string
-	BaseSpiffeIDTTL int
-
-	ConfigPath string
-	Umask      string
+	BindAddress   string
+	BindPort      int
+	BindHTTPPort  int
+	TrustDomain   string
+	PluginDir     string
+	LogFile       string
+	LogLevel      string
+	BaseSVIDTtl   int
+	ServerSVIDTtl int
+	ConfigPath    string
+	Umask         string
 }
 
 //RunCommand itself
@@ -137,8 +138,8 @@ func parseFlags(args []string) (*CmdConfig, error) {
 	flags.StringVar(&c.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
-	flags.IntVar(&c.BaseSpiffeIDTTL, "baseSpiffeIDTTL", 0, "TTL to use when creating the baseSpiffeID")
-
+	flags.IntVar(&c.BaseSVIDTtl, "baseSVIDTtl", 0, "TTL to use when creating the Base SVID")
+	flags.IntVar(&c.ServerSVIDTtl, "serverSVIDTtl", 0, "TTL to use when creating the Server SVID")
 	flags.StringVar(&c.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
 	flags.StringVar(&c.Umask, "umask", "", "Umask value to use for new files")
 
@@ -215,6 +216,14 @@ func mergeConfig(orig *server.Config, cmd *CmdConfig) error {
 		orig.Umask = int(umask)
 	}
 
+	if cmd.BaseSVIDTtl != 0 {
+		orig.BaseSVIDTtl = int32(cmd.BaseSVIDTtl)
+	}
+
+	if cmd.ServerSVIDTtl != 0 {
+		orig.ServerSVIDTtl = int32(cmd.ServerSVIDTtl)
+	}
+
 	return nil
 }
 
@@ -250,7 +259,8 @@ func newDefaultConfig() *server.Config {
 		Log:             logger,
 		BindAddress:     bindAddress,
 		BindHTTPAddress: serverHTTPAddress,
-		BaseSpiffeIDTTL: defaultBaseSpiffeIDTTL,
+		BaseSVIDTtl:     defaultBaseSVIDTtl,
+		ServerSVIDTtl:   defaultServerSVIDTtl,
 		Umask:           defaultUmask,
 	}
 }

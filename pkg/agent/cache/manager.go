@@ -5,9 +5,14 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"io"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/go-spiffe/uri"
@@ -16,9 +21,6 @@ import (
 	proto "github.com/spiffe/spire/proto/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"io"
-	"sync"
-	"time"
 )
 
 type Manager interface {
@@ -40,11 +42,19 @@ type MgrConfig struct {
 	ServerAddr     string
 	BaseSVID       []byte
 	BaseSVIDKey    *ecdsa.PrivateKey
+	BaseSVIDPath   string
 	BaseRegEntries []*proto.RegistrationEntry
 	Logger         logrus.FieldLogger
 }
 
+type baseSVIDEntry struct {
+	svid   []byte
+	key    *ecdsa.PrivateKey
+	expiry time.Time
+}
+
 type manager struct {
+	sync.RWMutex
 	managedCache     Cache
 	serverCerts      []*x509.Certificate
 	serverAddr       string
@@ -56,6 +66,8 @@ type manager struct {
 	spiffeIdEntryMap map[string]CacheEntry
 	baseSVID         []byte
 	baseSVIDKey      *ecdsa.PrivateKey
+	baseSVIDExpiry   time.Time
+	baseSVIDPath     string
 	baseSPIFFEID     string
 	baseRegEntries   []*proto.RegistrationEntry
 	log              logrus.FieldLogger
@@ -84,6 +96,8 @@ func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
 		serverAddr:       c.ServerAddr,
 		baseSVID:         c.BaseSVID,
 		baseSVIDKey:      c.BaseSVIDKey,
+		baseSVIDExpiry:   cert.NotAfter,
+		baseSVIDPath:     c.BaseSVIDPath,
 		baseSPIFFEID:     basespiffeID[0],
 		baseRegEntries:   c.BaseRegEntries,
 		log:              c.Logger.WithField("subsystem_name", "cacheManager"),
@@ -125,8 +139,13 @@ func (m *manager) Init() {
 
 		wg.Add(1)
 		go m.regEntriesHandler(&wg)
+
+		wg.Add(1)
+		go m.rotateBaseSVIDHandler(30*time.Second, &wg)
+
 		m.log.Debug("Initializing Cache Manager")
 		m.regEntriesCh <- m.baseRegEntries
+
 		for {
 
 			var svid []byte
@@ -139,8 +158,9 @@ func (m *manager) Init() {
 						key = m.spiffeIdEntryMap[parentId].PrivateKey
 					}
 					if parentId == m.baseSPIFFEID {
-						svid = m.baseSVID
-						key = m.baseSVIDKey
+						entry := m.getBaseSVIDEntry()
+						svid = entry.svid
+						key = entry.key
 					}
 					conn, err := m.getGRPCConn(svid, key)
 					if err != nil {
@@ -301,7 +321,8 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 			if vanityRecord != nil {
 				m.fetchWithEmptyCSR(vanityRecord[0].SVID.SvidCert, vanityRecord[0].PrivateKey)
 			}
-			m.fetchWithEmptyCSR(m.baseSVID, m.baseSVIDKey)
+			entry := m.getBaseSVIDEntry()
+			m.fetchWithEmptyCSR(entry.svid, entry.key)
 
 		case <-m.ctx.Done():
 			return
@@ -366,6 +387,26 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 
 }
 
+func (m *manager) rotateBaseSVIDHandler(frequency time.Duration, wg *sync.WaitGroup) {
+	defer wg.Done()
+	ticker := time.NewTicker(frequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			err := m.rotateBaseSVID()
+			if err != nil {
+				m.Shutdown(err)
+				return
+			}
+		case <-m.ctx.Done():
+			m.Shutdown(m.ctx.Err())
+			return
+		}
+	}
+}
+
 func (m *manager) getGRPCConn(svid []byte, key *ecdsa.PrivateKey) (*grpc.ClientConn, error) {
 	var tlsCert []tls.Certificate
 	var tlsConfig *tls.Config
@@ -387,4 +428,107 @@ func (m *manager) getGRPCConn(svid []byte, key *ecdsa.PrivateKey) (*grpc.ClientC
 		return nil, err
 	}
 	return conn, nil
+}
+
+func (m *manager) rotateBaseSVID() error {
+	m.log.Debug("Checking for BaseSVID expiration")
+	entry := m.getBaseSVIDEntry()
+	if entry.expiry.Sub(time.Now()) < time.Until(entry.expiry)/2 {
+
+		m.log.Debug("Generating new CSR for BaseSVID")
+
+		privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+		if err != nil {
+			return err
+		}
+
+		csr, err := util.MakeCSR(privateKey, m.baseSPIFFEID)
+		if err != nil {
+			return err
+		}
+
+		conn, err := m.getGRPCConn(entry.svid, entry.key)
+		if err != nil {
+			return err
+		}
+
+		stream, err := node.NewNodeClient(conn).FetchSVID(context.Background())
+		if err != nil {
+			stream.CloseSend()
+			return err
+		}
+
+		m.log.Debug("Sending CSR")
+		err = stream.Send(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
+		if err != nil {
+			stream.CloseSend()
+			return err
+		}
+		stream.CloseSend()
+
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			return errors.New("FetchSVID stream was empty while trying to rotate BaseSVID")
+		}
+		if err != nil {
+			return err
+		}
+
+		svid, ok := resp.SvidUpdate.Svids[m.baseSPIFFEID]
+		if !ok {
+			return errors.New("It was not possible to get base SVID from FetchSVID response")
+		}
+		cert, err := x509.ParseCertificate(svid.SvidCert)
+		if err != nil {
+			return err
+		}
+
+		entry := baseSVIDEntry{
+			expiry: cert.NotAfter,
+			key:    privateKey,
+			svid:   svid.SvidCert,
+		}
+
+		m.log.Debug("Updating manager with new BaseSVID")
+		m.setBaseSVIDEntry(&entry)
+		err = m.storeBaseSVID()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *manager) getBaseSVIDEntry() *baseSVIDEntry {
+	m.RLock()
+	defer m.RUnlock()
+	return &baseSVIDEntry{
+		expiry: m.baseSVIDExpiry,
+		key:    m.baseSVIDKey,
+		svid:   m.baseSVID,
+	}
+}
+
+func (m *manager) setBaseSVIDEntry(entry *baseSVIDEntry) {
+	m.Lock()
+	defer m.Unlock()
+	m.baseSVIDExpiry = entry.expiry
+	m.baseSVIDKey = entry.key
+	m.baseSVID = entry.svid
+}
+
+func (m *manager) storeBaseSVID() error {
+	m.log.Debug("Storing Base SVID at: ", m.baseSVIDPath)
+	f, err := os.Create(m.baseSVIDPath)
+	defer f.Close()
+	if err != nil {
+		return err
+	}
+	entry := m.getBaseSVIDEntry()
+	_, err = f.Write(entry.svid)
+	if err != nil {
+		return err
+	}
+	f.Sync()
+	return nil
 }

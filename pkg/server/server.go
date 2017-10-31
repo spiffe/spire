@@ -20,8 +20,11 @@ import (
 )
 
 type Config struct {
-	// TTL we will use when creating the baseSpiffeID
-	BaseSpiffeIDTTL int32
+	// TTL we will use when creating the Base SVID
+	BaseSVIDTtl int32
+
+	// TTL we will use when creating the Server SVID
+	ServerSVIDTtl int32
 
 	// Directory for plugin configs
 	PluginDir string
@@ -132,10 +135,10 @@ func (server *Server) initPlugins() error {
 
 func (server *Server) initEndpoints() error {
 	ns := &nodeServer{
-		l:               server.Config.Log,
-		catalog:         server.Catalog,
-		trustDomain:     server.Config.TrustDomain,
-		baseSpiffeIDTTL: server.Config.BaseSpiffeIDTTL,
+		l:           server.Config.Log,
+		catalog:     server.Catalog,
+		trustDomain: server.Config.TrustDomain,
+		baseSVIDTtl: server.Config.BaseSVIDTtl,
 	}
 
 	rs := &registrationServer{
@@ -199,7 +202,8 @@ func (server *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error)
 
 	l.Debug("Sending CSR to the CA plugin")
 	serverCA := server.Catalog.CAs()[0]
-	res, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: csr, Ttl: server.Config.BaseSpiffeIDTTL})
+	res, err := serverCA.SignCsr(
+		&ca.SignCsrRequest{Csr: csr, Ttl: server.Config.ServerSVIDTtl})
 	if err != nil {
 		return nil, nil, err
 	}

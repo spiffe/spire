@@ -68,16 +68,17 @@ type Config struct {
 }
 
 type Agent struct {
-	BaseSVID    []byte
-	baseSVIDKey *ecdsa.PrivateKey
-	BaseSVIDTTL int32
-	config      *Config
-	grpcServer  *grpc.Server
-	CacheMgr    cache.Manager
-	Catalog     catalog.Catalog
-	serverCerts []*x509.Certificate
-	ctx         context.Context
-	cancel      context.CancelFunc
+	BaseSVID     []byte
+	baseSVIDKey  *ecdsa.PrivateKey
+	BaseSVIDTTL  int32
+	config       *Config
+	grpcServer   *grpc.Server
+	CacheMgr     cache.Manager
+	Catalog      catalog.Catalog
+	serverCerts  []*x509.Certificate
+	ctx          context.Context
+	cancel       context.CancelFunc
+	baseSVIDPath string
 }
 
 func New(ctx context.Context, c *Config) *Agent {
@@ -87,10 +88,11 @@ func New(ctx context.Context, c *Config) *Agent {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	return &Agent{
-		config:  c,
-		Catalog: catalog.New(config),
-		ctx:     ctx,
-		cancel:  cancel,
+		config:       c,
+		Catalog:      catalog.New(config),
+		ctx:          ctx,
+		cancel:       cancel,
+		baseSVIDPath: path.Join(c.DataDir, "base_svid.crt"),
 	}
 }
 
@@ -267,6 +269,7 @@ func (a *Agent) bootstrap() error {
 			BaseSVID:       a.BaseSVID,
 			BaseSVIDKey:    a.baseSVIDKey,
 			BaseRegEntries: regEntries,
+			BaseSVIDPath:   a.baseSVIDPath,
 			Logger:         a.config.Log,
 		}
 
@@ -412,21 +415,20 @@ func (a *Agent) generateCSR(spiffeID *url.URL, key *ecdsa.PrivateKey) ([]byte, e
 func (a *Agent) loadBaseSVID() error {
 	a.config.Log.Info("Loading base SVID from disk")
 
-	certPath := path.Join(a.config.DataDir, "base_svid.crt")
-	if _, err := os.Stat(certPath); os.IsNotExist(err) {
+	if _, err := os.Stat(a.baseSVIDPath); os.IsNotExist(err) {
 		a.config.Log.Info("A base SVID could not be found. A new one will be generated")
 		return nil
 	}
 
-	data, err := ioutil.ReadFile(certPath)
+	data, err := ioutil.ReadFile(a.baseSVIDPath)
 	if err != nil {
-		return fmt.Errorf("Could not read Base SVID at path %s: %s", certPath, err)
+		return fmt.Errorf("Could not read Base SVID at path %s: %s", a.baseSVIDPath, err)
 	}
 
 	// Sanity check
 	_, err = x509.ParseCertificate(data)
 	if err != nil {
-		return fmt.Errorf("Certificate at %s could not be understood: %s", certPath, err)
+		return fmt.Errorf("Certificate at %s could not be understood: %s", a.baseSVIDPath, err)
 	}
 
 	a.BaseSVID = data
@@ -435,11 +437,10 @@ func (a *Agent) loadBaseSVID() error {
 
 // Write base SVID to storage dir
 func (a *Agent) storeBaseSVID() {
-	certPath := path.Join(a.config.DataDir, "base_svid.crt")
-	f, err := os.Create(certPath)
+	f, err := os.Create(a.baseSVIDPath)
 	defer f.Close()
 	if err != nil {
-		a.config.Log.Info("Unable to store Base SVID at path ", certPath)
+		a.config.Log.Info("Unable to store Base SVID at path ", a.baseSVIDPath)
 		return
 	}
 
