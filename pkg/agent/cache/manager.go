@@ -153,7 +153,7 @@ func (m *manager) Init() {
 
 			case newCacheEntry := <-m.cacheEntryCh:
 				m.managedCache.SetEntry(newCacheEntry)
-				m.log.Debugf("Updated CacheEntry: %s", newCacheEntry)
+				m.log.Debugf("Updated CacheEntry for SPIFFEId: %s", newCacheEntry.RegistrationEntry.SpiffeId)
 
 			case <-m.ctx.Done():
 				wg.Wait()

@@ -15,9 +15,6 @@ func Run(args []string) int {
 		"run": func() (cli.Command, error) {
 			return &command.RunCommand{}, nil
 		},
-		"plugin-info": func() (cli.Command, error) {
-			return &command.PluginInfoCommand{}, nil
-		},
 	}
 
 	exitStatus, err := c.Run()
