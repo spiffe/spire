@@ -647,8 +647,8 @@ func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntr
 	return responseEntries, nil
 }
 
-func New() (datastore.DataStore, error) {
-	db, err := gorm.Open("sqlite3", ":memory:")
+func newPlugin(dbType string) (datastore.DataStore, error) {
+	db, err := gorm.Open("sqlite3", dbType)
 	if err != nil {
 		return nil, err
 	}
@@ -662,10 +662,22 @@ func New() (datastore.DataStore, error) {
 	return &sqlitePlugin{
 		db: db,
 	}, nil
+
+}
+
+//New creates a new sqlite plugin with
+//an in-memory database and shared cache
+func New() (datastore.DataStore, error) {
+	return newPlugin("file::memory:?cache=shared")
+}
+
+//NewTemp create a new plugin with a temporal database,
+//different connections won't access the same database
+func NewTemp() (datastore.DataStore, error) {
+	return newPlugin("")
 }
 
 func main() {
-
 	impl, err := New()
 	if err != nil {
 		panic(err.Error())
