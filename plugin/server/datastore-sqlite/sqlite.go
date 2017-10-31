@@ -648,7 +648,24 @@ func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntr
 }
 
 func New() (datastore.DataStore, error) {
-	db, err := gorm.Open("sqlite3", ":memory:")
+	db, err := gorm.Open("sqlite3", "file::memory:?cache=shared")
+	if err != nil {
+		return nil, err
+	}
+
+	db.LogMode(true)
+
+	if err := migrateDB(db); err != nil {
+		return nil, err
+	}
+
+	return &sqlitePlugin{
+		db: db,
+	}, nil
+}
+
+func NewTemp() (datastore.DataStore, error) {
+	db, err := gorm.Open("sqlite3", "")
 	if err != nil {
 		return nil, err
 	}

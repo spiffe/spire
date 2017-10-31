@@ -704,7 +704,7 @@ func Test_race(t *testing.T) {
 }
 
 func createDefault(t *testing.T) datastore.DataStore {
-	ds, err := New()
+	ds, err := NewTemp()
 	if err != nil {
 		t.Fatal(err)
 	}
