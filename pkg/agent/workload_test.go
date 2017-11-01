@@ -52,7 +52,8 @@ type WorkloadServerTestSuite struct {
 func (s *WorkloadServerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.t)
 	log, logHook := test.NewNullLogger()
-	ttl := 12 * time.Hour
+	maxTTL := 12 * time.Hour
+	minTTL := 5 * time.Second
 
 	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
 	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
@@ -64,7 +65,8 @@ func (s *WorkloadServerTestSuite) SetupTest() {
 		catalog: s.catalog,
 		l:       log,
 		bundle:  []byte{},
-		maxTTL:  ttl,
+		maxTTL:  maxTTL,
+		minTTL:  minTTL,
 	}
 
 	s.w = ws
@@ -148,18 +150,13 @@ func (s *WorkloadServerTestSuite) TestComposeResponse() {
 		FbSpiffeIds: []string{},
 	}
 
-	svid := &node.Svid{
-		SvidCert: []byte{},
-		Ttl:      1800,
-	}
-
 	key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
 	s.Assert().Nil(err)
 
 	expiry := time.Now().Add(time.Duration(3600) * time.Second)
 	cacheEntry := cache.CacheEntry{
 		RegistrationEntry: registrationEntry,
-		SVID:              svid,
+		SVID:              &x509.Certificate{},
 		PrivateKey:        key,
 		Bundles:           make(map[string][]byte),
 		Expiry:            expiry,
@@ -180,6 +177,24 @@ func (s *WorkloadServerTestSuite) TestComposeResponse() {
 	}
 }
 
+func (s *WorkloadServerTestSuite) TestCalculateTTL() {
+	time1 := time.Now().Add(1 * time.Second)
+	time20 := time.Now().Add(20 * time.Second)
+
+	// int approximations of Time
+	var ttlCases = []struct{
+		in int
+		out int
+	}{
+		{1, 20}, 5}, // 5s is the configured minTTL
+		{20}, 21},
+	}
+
+	for _, c := range ttlCases {
+		s.Assert().Equal(c.out, s.w.calculateTTL(c.in))
+	}
+}
+
 func generateCacheEntry(spiffeID, parentID string, selectors selector.Set) (cache.CacheEntry, error) {
 	registrationEntry := &common.RegistrationEntry{
 		Selectors:   selectors.Raw(),
@@ -187,11 +202,6 @@ func generateCacheEntry(spiffeID, parentID string, selectors selector.Set) (cach
 		SpiffeId:    spiffeID,
 		Ttl:         3600,
 		FbSpiffeIds: []string{},
-	}
-
-	svid := &node.Svid{
-		SvidCert: []byte{},
-		Ttl:      1800,
 	}
 
 	key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
@@ -202,7 +212,7 @@ func generateCacheEntry(spiffeID, parentID string, selectors selector.Set) (cach
 	expiry := time.Now().Add(3600 * time.Second)
 	cacheEntry := cache.CacheEntry{
 		RegistrationEntry: registrationEntry,
-		SVID:              svid,
+		SVID:              &x509.Certificate{},
 		PrivateKey:        key,
 		Bundles:           make(map[string][]byte),
 		Expiry:            expiry,

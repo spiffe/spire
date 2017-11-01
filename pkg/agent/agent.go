@@ -68,17 +68,16 @@ type Config struct {
 }
 
 type Agent struct {
-	BaseSVID     []byte
-	baseSVIDKey  *ecdsa.PrivateKey
-	BaseSVIDTTL  int32
-	config       *Config
-	grpcServer   *grpc.Server
-	CacheMgr     cache.Manager
-	Catalog      catalog.Catalog
-	serverCerts  []*x509.Certificate
-	ctx          context.Context
-	cancel       context.CancelFunc
-	baseSVIDPath string
+	BaseSVID    *x509.Certificate
+	baseSVIDKey *ecdsa.PrivateKey
+	BaseSVIDTTL int32
+	config      *Config
+	grpcServer  *grpc.Server
+	CacheMgr    cache.Manager
+	Catalog     catalog.Catalog
+	serverCerts []*x509.Certificate
+	ctx         context.Context
+	cancel      context.CancelFunc
 }
 
 func New(ctx context.Context, c *Config) *Agent {
@@ -182,6 +181,7 @@ func (a *Agent) initEndpoints() error {
 		catalog: a.Catalog,
 		l:       log,
 		maxTTL:  maxWorkloadTTL,
+		minTTL:  5,
 	}
 
 	// Create a gRPC server with our custom "credential" resolver
@@ -376,7 +376,12 @@ func (a *Agent) attest() ([]*common.RegistrationEntry, error) {
 		return nil, fmt.Errorf("Base SVID not found in attestation response")
 	}
 
-	a.BaseSVID = svid.SvidCert
+	cert, err := x509.ParseCertificate(svid.SvidCert)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse base svid: %s", err)
+	}
+
+	a.BaseSVID = cert
 	a.BaseSVIDTTL = svid.Ttl
 	a.storeBaseSVID()
 	a.config.Log.Info("Attestation complete")
@@ -425,13 +430,12 @@ func (a *Agent) loadBaseSVID() error {
 		return fmt.Errorf("Could not read Base SVID at path %s: %s", a.baseSVIDPath, err)
 	}
 
-	// Sanity check
-	_, err = x509.ParseCertificate(data)
+	cert, err := x509.ParseCertificate(data)
 	if err != nil {
 		return fmt.Errorf("Certificate at %s could not be understood: %s", a.baseSVIDPath, err)
 	}
 
-	a.BaseSVID = data
+	a.BaseSVID = cert
 	return nil
 }
 
@@ -444,13 +448,13 @@ func (a *Agent) storeBaseSVID() {
 		return
 	}
 
-	f.Write(a.BaseSVID)
+	f.Write(a.BaseSVID.Raw)
 	f.Sync()
 
 	return
 }
 
-func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateKey) (conn *grpc.ClientConn, err error) {
+func (a *Agent) getNodeAPIClientConn(mtls bool, svid *x509.Certificate, key *ecdsa.PrivateKey) (conn *grpc.ClientConn, err error) {
 
 	serverID := a.config.TrustDomain
 	serverID.Path = "spiffe/cp"
@@ -474,7 +478,7 @@ func (a *Agent) getNodeAPIClientConn(mtls bool, svid []byte, key *ecdsa.PrivateK
 			SpiffeIDs:  []string{serverID.String()},
 			TrustRoots: certPool,
 		}
-		tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid}, PrivateKey: key})
+		tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
 		tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
 	}
 

@@ -28,7 +28,7 @@ func TestCacheImpl_Valid(t *testing.T) {
 					Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",
 					SpiffeId:  "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}},
 
@@ -40,7 +40,7 @@ func TestCacheImpl_Valid(t *testing.T) {
 						&common.Selector{Type: "testtype1", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}}}
 	for _, test := range tests {
@@ -64,7 +64,7 @@ func TestCacheImpl_Invalid(t *testing.T) {
 					Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",
 					SpiffeId:  "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}},
 
@@ -76,7 +76,7 @@ func TestCacheImpl_Invalid(t *testing.T) {
 						&common.Selector{Type: "testtype1", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}}}
 	for _, test := range tests {
@@ -99,7 +99,7 @@ func TestCacheImpl_DeleteEntry(t *testing.T) {
 					Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",
 					SpiffeId:  "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}},
 
@@ -111,7 +111,7 @@ func TestCacheImpl_DeleteEntry(t *testing.T) {
 						&common.Selector{Type: "testtype1", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}}}
 	for _, test := range tests {

@@ -40,7 +40,7 @@ type MgrConfig struct {
 	ServerCerts    []*x509.Certificate
 	ServerSPIFFEID string
 	ServerAddr     string
-	BaseSVID       []byte
+	BaseSVID       *x509.Certificate
 	BaseSVIDKey    *ecdsa.PrivateKey
 	BaseSVIDPath   string
 	BaseRegEntries []*proto.RegistrationEntry
@@ -48,9 +48,8 @@ type MgrConfig struct {
 }
 
 type baseSVIDEntry struct {
-	svid   []byte
-	key    *ecdsa.PrivateKey
-	expiry time.Time
+	svid *x509.Certificate
+	key  *ecdsa.PrivateKey
 }
 
 type manager struct {
@@ -64,9 +63,8 @@ type manager struct {
 	regEntriesCh     chan []*proto.RegistrationEntry
 	cacheEntryCh     chan CacheEntry
 	spiffeIdEntryMap map[string]CacheEntry
-	baseSVID         []byte
+	baseSVID         *x509.Certificate
 	baseSVIDKey      *ecdsa.PrivateKey
-	baseSVIDExpiry   time.Time
 	baseSVIDPath     string
 	baseSPIFFEID     string
 	baseRegEntries   []*proto.RegistrationEntry
@@ -78,12 +76,7 @@ type manager struct {
 }
 
 func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
-
-	cert, err := x509.ParseCertificate(c.BaseSVID)
-	if err != nil {
-		return nil, err
-	}
-	basespiffeID, err := uri.GetURINamesFromCertificate(cert)
+	basespiffeID, err := uri.GetURINamesFromCertificate(c.BaseSVID)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +89,6 @@ func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
 		serverAddr:       c.ServerAddr,
 		baseSVID:         c.BaseSVID,
 		baseSVIDKey:      c.BaseSVIDKey,
-		baseSVIDExpiry:   cert.NotAfter,
 		baseSVIDPath:     c.BaseSVIDPath,
 		baseSPIFFEID:     basespiffeID[0],
 		baseRegEntries:   c.BaseRegEntries,
@@ -148,13 +140,13 @@ func (m *manager) Init() {
 
 		for {
 
-			var svid []byte
+			var svid *x509.Certificate
 			var key *ecdsa.PrivateKey
 			select {
 			case reqs := <-m.entryRequestCh:
 				for parentId, entryRequests := range reqs {
 					if _, ok := m.spiffeIdEntryMap[parentId]; ok {
-						svid = m.spiffeIdEntryMap[parentId].SVID.SvidCert
+						svid = m.spiffeIdEntryMap[parentId].SVID
 						key = m.spiffeIdEntryMap[parentId].PrivateKey
 					}
 					if parentId == m.baseSPIFFEID {
@@ -220,8 +212,7 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 		}
 
 		m.regEntriesCh <- resp.SvidUpdate.RegistrationEntries
-		req.entry.SVID = svid
-		req.entry.Expiry = cert.NotAfter
+		req.entry.SVID = cert
 		select {
 		case m.cacheEntryCh <- req.entry:
 		case <-m.ctx.Done():
@@ -233,7 +224,7 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 
 }
 
-func (m *manager) fetchWithEmptyCSR(svid []byte, key *ecdsa.PrivateKey) {
+func (m *manager) fetchWithEmptyCSR(svid *x509.Certificate, key *ecdsa.PrivateKey) {
 	conn, err := m.getGRPCConn(svid, key)
 	if err != nil {
 		m.Shutdown(err)
@@ -292,7 +283,9 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 			entryRequestMap := make(map[string][]EntryRequest)
 			for _, entries := range m.managedCache.Entries() {
 				for _, entry := range entries {
-					if entry.Expiry.Sub(time.Now()) < time.Until(entry.Expiry)/2 {
+					ttl := entry.SVID.NotAfter.Sub(time.Now())
+					lifetime := entry.SVID.NotAfter.Sub(entry.SVID.NotBefore)
+					if ttl < lifetime/2 {
 						privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 						if err != nil {
 							m.Shutdown(err)
@@ -319,7 +312,7 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 				Type: "spiffe_id", Value: m.baseSPIFFEID}})
 
 			if vanityRecord != nil {
-				m.fetchWithEmptyCSR(vanityRecord[0].SVID.SvidCert, vanityRecord[0].PrivateKey)
+				m.fetchWithEmptyCSR(vanityRecord[0].SVID, vanityRecord[0].PrivateKey)
 			}
 			entry := m.getBaseSVIDEntry()
 			m.fetchWithEmptyCSR(entry.svid, entry.key)
@@ -407,7 +400,7 @@ func (m *manager) rotateBaseSVIDHandler(frequency time.Duration, wg *sync.WaitGr
 	}
 }
 
-func (m *manager) getGRPCConn(svid []byte, key *ecdsa.PrivateKey) (*grpc.ClientConn, error) {
+func (m *manager) getGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*grpc.ClientConn, error) {
 	var tlsCert []tls.Certificate
 	var tlsConfig *tls.Config
 
@@ -419,7 +412,7 @@ func (m *manager) getGRPCConn(svid []byte, key *ecdsa.PrivateKey) (*grpc.ClientC
 		SpiffeIDs:  []string{m.serverSPIFFEID},
 		TrustRoots: certPool,
 	}
-	tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid}, PrivateKey: key})
+	tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
 	tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 
@@ -433,7 +426,7 @@ func (m *manager) getGRPCConn(svid []byte, key *ecdsa.PrivateKey) (*grpc.ClientC
 func (m *manager) rotateBaseSVID() error {
 	m.log.Debug("Checking for BaseSVID expiration")
 	entry := m.getBaseSVIDEntry()
-	if entry.expiry.Sub(time.Now()) < time.Until(entry.expiry)/2 {
+	if entry.svid.NotAfter.Sub(time.Now()) < time.Until(entry.svid.NotAfter)/2 {
 
 		m.log.Debug("Generating new CSR for BaseSVID")
 
@@ -484,9 +477,8 @@ func (m *manager) rotateBaseSVID() error {
 		}
 
 		entry := baseSVIDEntry{
-			expiry: cert.NotAfter,
-			key:    privateKey,
-			svid:   svid.SvidCert,
+			key:  privateKey,
+			svid: cert,
 		}
 
 		m.log.Debug("Updating manager with new BaseSVID")
@@ -503,16 +495,14 @@ func (m *manager) getBaseSVIDEntry() *baseSVIDEntry {
 	m.RLock()
 	defer m.RUnlock()
 	return &baseSVIDEntry{
-		expiry: m.baseSVIDExpiry,
-		key:    m.baseSVIDKey,
-		svid:   m.baseSVID,
+		key:  m.baseSVIDKey,
+		svid: m.baseSVID,
 	}
 }
 
 func (m *manager) setBaseSVIDEntry(entry *baseSVIDEntry) {
 	m.Lock()
 	defer m.Unlock()
-	m.baseSVIDExpiry = entry.expiry
 	m.baseSVIDKey = entry.key
 	m.baseSVID = entry.svid
 }
@@ -525,7 +515,7 @@ func (m *manager) storeBaseSVID() error {
 		return err
 	}
 	entry := m.getBaseSVIDEntry()
-	_, err = f.Write(entry.svid)
+	_, err = f.Write(entry.svid.Raw)
 	if err != nil {
 		return err
 	}
