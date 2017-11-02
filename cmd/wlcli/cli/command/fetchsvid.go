@@ -4,14 +4,16 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/spiffe/spire/proto/api/workload"
+	"google.golang.org/grpc"
 	"io/ioutil"
+	"net"
 	"os"
 	"time"
-
-	"github.com/spiffe/spire/proto/api/workload"
 )
 
 type FetchSvidConfig struct {
+	socketPath string
 }
 
 // Perform basic validation, even on fields that we
@@ -21,9 +23,7 @@ func (rc *FetchSvidConfig) Validate() error {
 }
 
 type FetchSvid struct {
-	WorkloadClient        workload.WorkloadClient
-	WorkloadClientContext context.Context
-	Cancel                context.CancelFunc
+	WorkloadClient workload.WorkloadClient
 }
 
 func (FetchSvid) Synopsis() string {
@@ -36,8 +36,9 @@ func (f FetchSvid) Help() string {
 }
 
 func (f FetchSvid) Run(args []string) int {
-	defer f.Cancel()
-
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	config, err := f.newConfig(args)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -49,7 +50,8 @@ func (f FetchSvid) Run(args []string) int {
 		return 1
 	}
 
-	err = f.dumpBundles()
+	err = f.grpcUDSClient(config.socketPath)
+	err = f.dumpBundles(ctx)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -57,8 +59,9 @@ func (f FetchSvid) Run(args []string) int {
 
 	return 0
 }
-func (f *FetchSvid) dumpBundles() (err error) {
-	bundles, err := f.WorkloadClient.FetchAllBundles(f.WorkloadClientContext, &workload.Empty{})
+
+func (f *FetchSvid) dumpBundles(ctx context.Context) (err error) {
+	bundles, err := f.WorkloadClient.FetchAllBundles(ctx, &workload.Empty{})
 	if err != nil {
 		return
 	}
@@ -103,8 +106,20 @@ func (f *FetchSvid) dumpBundles() (err error) {
 func (FetchSvid) newConfig(args []string) (*FetchSvidConfig, error) {
 	f := flag.NewFlagSet("fetchsvid", flag.ContinueOnError)
 	c := &FetchSvidConfig{}
+	f.StringVar(&c.socketPath, "socketPath", "/tmp/agent.sock", "Workload API uds Path")
 
 	return c, f.Parse(args)
+}
+
+func (f *FetchSvid) grpcUDSClient(socketPath string) (err error) {
+	conn, err := grpc.Dial(socketPath,
+		grpc.WithInsecure(),
+		grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+			return net.DialTimeout("unix", addr, timeout)
+		}))
+
+	f.WorkloadClient = workload.NewWorkloadClient(conn)
+	return
 }
 
 func log(format string, a ...interface{}) {
