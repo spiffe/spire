@@ -129,7 +129,7 @@ Note: If you don't already have Docker installed, please follow these [installat
    	
         ./cmd/spire-server/spire-server register -parentID spiffe://example.org/host \
         -spiffeID spiffe://example.org/host/workload -selector unix:uid:1000
-    At this point, the registration API has been called and the target workload has been registered with the SPIRE Server. We can now call the workload API using a command-line program to request the workload SVID from the SPIRE Agent.
+    At this point, the registration API has been called and the target workload has been registered with the SPIRE Server. We can now call the workload API using a command line program to request the workload SVID from the SPIRE Agent.
 
 14. Simulate the workload API interaction and retrieve the workload SVID bundle by running the wlcli command line program. Run wlcli as user **_workload_** created in step #4 with uid 1000
     
