@@ -1,11 +1,10 @@
 
 
-# Overview
+## Overview
 
 This walkthrough will guide you through the steps needed to setup a running example of a SPIRE server and agent. Interaction with the [Workload API](../proto/api/workload/workload.proto) will be simulated via a command line tool.
 
- 
- ![SPIRE101](images/SPIRE101.png) (Change diagram -- wlcli) 
+ ![SPIRE101](images/spire101.png) 
 
 ## Requirement(s)
 
@@ -58,7 +57,7 @@ Note: If you don't already have Docker installed, please follow these [installat
 	
 	    useradd -u 1000 workload
 
-5.  Install external dependencies of SPIRE by running the **vendor** target
+5.  Install external dependencies of SPIRE by running the **vendor** target.
 	
 	    make vendor
 
@@ -70,7 +69,11 @@ Note: If you don't already have Docker installed, please follow these [installat
 	
 	    ./cmd/spire-server/spire-server register --help
 
-8.  The default server configurations are shown below. A detailed description of each of the server configuration option is [here](/README.md#spire-server-configuration)
+8.  View the server configuration file.
+    	 
+    	    cat conf/server/server.conf
+    
+    The default server configurations are shown below. A detailed description of each of the server configuration option is [here](/README.md#spire-server-configuration)
     
     ```
     BaseSVIDTTL = 999999
@@ -84,10 +87,6 @@ Note: If you don't already have Docker installed, please follow these [installat
     Umask = ""
     ```
 
-	View the server configuration file.
-	 
-	    cat conf/server/server.conf
-
 9.  Start the spire-server as a background process by running the following command.
 
         ./cmd/spire-server/spire-server run &
@@ -98,9 +97,13 @@ Note: If you don't already have Docker installed, please follow these [installat
 	    
 	 The join token will be used for node attestation and the associated spiffeID will be used to generate the SVID of the attested node. 
 	 
-	 The join tokens have a default ttl value of 600 seconds which is configurable. Run ./cmd/spire-server/spire-server token generate --help 
+	 The join tokens have a default ttl value of 600 seconds which is configurable through **-ttl** option.
 
-11. The default agent configurations are shown below. A detailed description of each of the agent configuration option is [here](/README.md#spire-agent-configuration)
+11. View the configuration file of the agent
+    	
+        cat conf/agent/agent.conf
+    
+    The default agent configurations are shown below. A detailed description of each of the agent configuration option is [here](/README.md#spire-agent-configuration)
     ```
     BindAddress = "127.0.0.1"
     BindPort = "8088"
@@ -114,9 +117,6 @@ Note: If you don't already have Docker installed, please follow these [installat
     TrustDomain = "example.org"
     Umask = ""
     ```
-    To view the configuration file of the agent
-	
-	    cat conf/agent/agent.conf
 
 12. Start the spire-agent as a background process by replacing **_<generated-join-token>_** with the generated join token in step #10 and running the following command.
 
@@ -125,7 +125,6 @@ Note: If you don't already have Docker installed, please follow these [installat
 13. The next step is to register a Spiffe ID with a set of selectors. For the example we will use unix kernel selectors that will be mapped to a target SPIFFE ID.
    	
         ./cmd/spire-server/spire-server register -parentID spiffe://example.org/host -spiffeID spiffe://example.org/host/workload -selector unix:uid:1000
-        
     At this point, the registration API has been called and the target workload has been registered with the SPIRE Server. We can now call the workload API using a command line program to request a new SVID from the SPIRE server.
 
 14. Simulate the workload API interaction and retrieve the workload SVID bundle by running the wlcli commandline program. Run wlcli as user **_workload_** created in step #4 with uid 1000
