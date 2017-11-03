@@ -125,8 +125,10 @@ Note: If you don't already have Docker installed, please follow these [installat
 13. The next step is to register a Spiffe ID with a set of selectors. For the example we will use unix kernel selectors that will be mapped to a target SPIFFE ID.
    	
         ./cmd/spire-server/spire-server register -parentID spiffe://example.org/host -spiffeID spiffe://example.org/host/workload -selector unix:uid:1000
+        
+    At this point, the registration API has been called and the target workload has been registered with the SPIRE Server. We can now call the workload API using a command line program to request a new SVID from the SPIRE server.
 
-14. Simulate the workload API interaction and retrieve the workload SVID bundle by running the wlcli commandline utility. Run wlcli as user **_workload_** created in step #4 with uid 1000
+14. Simulate the workload API interaction and retrieve the workload SVID bundle by running the wlcli commandline program. Run wlcli as user **_workload_** created in step #4 with uid 1000
     
         su -c "./cmd/wlcli/wlcli fetchsvid -socketPath /tmp/agent.sock" workload
 
