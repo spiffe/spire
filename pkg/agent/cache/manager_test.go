@@ -6,6 +6,9 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"sync"
+	"testing"
+
 	"github.com/golang/mock/gomock"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/api/node"
@@ -14,9 +17,6 @@ import (
 	regFixture "github.com/spiffe/spire/test/fixture/registration"
 	nodeMock "github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/stretchr/testify/assert"
-	"sync"
-	"testing"
-	"time"
 )
 
 var (
@@ -25,17 +25,18 @@ var (
 	baseSVIDKey, _  = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	testLogger, _   = testlog.NewNullLogger()
 	regEntries      = regFixture.GetRegistrationEntries()
+	blogSVID, _     = x509.ParseCertificate(certsFixture.GetTestBlogSVID())
 
-	testCacheEntry = CacheEntry{RegistrationEntry: &common.RegistrationEntry{
-		SpiffeId: "spiffe://example.org/Blog",
-		ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
-		Selectors: []*common.Selector{
-			&common.Selector{Type: "unix", Value: "uid:111"},
+	testCacheEntry = CacheEntry{
+		RegistrationEntry: &common.RegistrationEntry{
+			SpiffeId: "spiffe://example.org/Blog",
+			ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
+			Selectors: []*common.Selector{
+				&common.Selector{Type: "unix", Value: "uid:111"},
+			},
+			Ttl: 200,
 		},
-		Ttl: 200,
-	},
-		SVID:   &node.Svid{SvidCert: certsFixture.GetTestBlogSVID()},
-		Expiry: time.Now(),
+		SVID: blogSVID,
 	}
 	testEntryRequest = EntryRequest{
 		CSR:   certsFixture.GetTestBlogCSR(),
@@ -57,12 +58,17 @@ func TestManager_FetchSVID(t *testing.T) {
 	var requests []EntryRequest
 	requests = append(requests, testEntryRequest)
 	var wg sync.WaitGroup
-	c := &MgrConfig{ServerCerts: testServerCerts,
-		ServerSPIFFEID: serverId, ServerAddr: "fakeServerAddr",
-		BaseSVID:       certsFixture.GetTestBaseSVID(),
+
+	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
+	c := &MgrConfig{
+		ServerCerts:    testServerCerts,
+		ServerSPIFFEID: serverId,
+		ServerAddr:     "fakeServerAddr",
+		BaseSVID:       baseSVID,
 		BaseSVIDKey:    baseSVIDKey,
 		BaseRegEntries: regEntries,
-		Logger:         testLogger}
+		Logger:         testLogger,
+	}
 	m, _ := NewManager(context.Background(), c)
 	cm := m.(*manager)
 	stream := nodeMock.NewMockNode_FetchSVIDClient(ctrl)
@@ -85,17 +91,19 @@ func TestManager_FetchSVID(t *testing.T) {
 	wg.Wait()
 	expiry := cm.managedCache.Entry([]*common.Selector{
 		&common.Selector{Type: "unix", Value: "uid:111"},
-	})[0].Expiry
+	})[0].SVID.NotAfter
 
-	assert.True(t, expiry.After(testCacheEntry.Expiry))
+	//TODO: review this
+	assert.True(t, expiry.Equal(testCacheEntry.SVID.NotAfter))
 
 }
 
 func TestManager_RegEntriesHandler(t *testing.T) {
 	var wg sync.WaitGroup
+	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
 	c := &MgrConfig{ServerCerts: testServerCerts,
 		ServerSPIFFEID: serverId, ServerAddr: "fakeServerAddr",
-		BaseSVID:       certsFixture.GetTestBaseSVID(),
+		BaseSVID:       baseSVID,
 		BaseSVIDKey:    baseSVIDKey,
 		BaseRegEntries: regEntries,
 		Logger:         testLogger}
@@ -133,9 +141,10 @@ func TestManager_RegEntriesHandler(t *testing.T) {
 //}
 
 func TestManager_UpdateCache(t *testing.T) {
+	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
 	c := &MgrConfig{ServerCerts: testServerCerts,
 		ServerSPIFFEID: serverId, ServerAddr: "fakeServerAddr",
-		BaseSVID:       certsFixture.GetTestBaseSVID(),
+		BaseSVID:       baseSVID,
 		BaseSVIDKey:    baseSVIDKey,
 		BaseRegEntries: regEntries,
 		Logger:         testLogger}

@@ -1,17 +1,15 @@
 package cache
 
 import (
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"hash"
 	"sort"
 	"sync"
-	// "time"
 
-	"crypto/ecdsa"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/util"
-	// "github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 )
 

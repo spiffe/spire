@@ -68,16 +68,17 @@ type Config struct {
 }
 
 type Agent struct {
-	BaseSVID    *x509.Certificate
-	baseSVIDKey *ecdsa.PrivateKey
-	BaseSVIDTTL int32
-	config      *Config
-	grpcServer  *grpc.Server
-	CacheMgr    cache.Manager
-	Catalog     catalog.Catalog
-	serverCerts []*x509.Certificate
-	ctx         context.Context
-	cancel      context.CancelFunc
+	BaseSVID     *x509.Certificate
+	baseSVIDKey  *ecdsa.PrivateKey
+	BaseSVIDTTL  int32
+	config       *Config
+	grpcServer   *grpc.Server
+	CacheMgr     cache.Manager
+	Catalog      catalog.Catalog
+	serverCerts  []*x509.Certificate
+	ctx          context.Context
+	cancel       context.CancelFunc
+	baseSVIDPath string
 }
 
 func New(ctx context.Context, c *Config) *Agent {

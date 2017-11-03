@@ -4,11 +4,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"testing"
+
 	testlog "github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 var (
@@ -27,7 +28,8 @@ func TestCacheImpl_Valid(t *testing.T) {
 				RegistrationEntry: &common.RegistrationEntry{
 					Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",
-					SpiffeId:  "spiffe:test"},
+					SpiffeId:  "spiffe:test",
+				},
 				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}},
