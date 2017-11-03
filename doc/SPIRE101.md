@@ -11,7 +11,7 @@ This walkthrough will guide you through the steps needed to setup a running exam
 
 ### GitHub Setup
 
-Create a directory spire-walkthrough and clone the SPIRE github repo inside it.
+Create a directory **_spire-walkthrough_** and clone the SPIRE github repo in it.
 
     mkdir ~/spire-walkthrough
     cd ~/spire-walkthrough
@@ -98,7 +98,7 @@ Note: If you don't already have Docker installed, please follow these [installat
 	    
 	 The join token will be used for node attestation and the associated spiffeID will be used to generate the SVID of the attested node. 
 	 
-	 The join tokens have a default ttl value of 600 seconds which is configurable through **-ttl** option.
+	 The default ttl of the join token is 600 seconds. We can overwrite the default value through **-ttl** option.
 
 11. View the configuration file of the agent
     	
