@@ -94,7 +94,7 @@ Note: If you don't already have Docker installed, please follow these [installat
 
         ./cmd/spire-server/spire-server run &
 
-10. Generate a one time Join Token via **spire-server token generate** sub commmand. Use the **-spiffeID** option to associate the Join Token with **spiffe://example.org/host** SPIFFE ID. Save the genreated join token in your copy buffer.
+10. Generate a one time Join Token via **spire-server token generate** sub commmand. Use the **-spiffeID** option to associate the Join Token with **spiffe://example.org/host** SPIFFE ID. Save the generated join token in your copy buffer.
 	
 	    ./cmd/spire-server/spire-server token generate -spiffeID spiffe://example.org/host
 	    
