@@ -15,9 +15,10 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/test/mock/agent/catalog"
-	"github.com/stretchr/testify/suite"
 	"github.com/spiffe/spire/test/mock/agent/cache"
+	"github.com/spiffe/spire/test/mock/agent/catalog"
+	"github.com/spiffe/spire/test/mock/proto/agent/keymanager"
+	"github.com/stretchr/testify/suite"
 )
 
 type selectors []*common.Selector
@@ -27,7 +28,7 @@ type AgentTestSuite struct {
 	t                 *testing.T
 	agent             *Agent
 	mockPluginCatalog *mock_catalog.MockCatalog
-	mockKeyManager    *keymanager.MockKeyManager
+	mockKeyManager    *mock_keymanager.MockKeyManager
 	kmManager         []keymanager.KeyManager
 	mockCacheManager  *mock_cache.MockManager
 	expectedKey       *ecdsa.PrivateKey
@@ -38,7 +39,7 @@ func (suite *AgentTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(suite.t)
 	defer mockCtrl.Finish()
 	suite.mockPluginCatalog = mock_catalog.NewMockCatalog(mockCtrl)
-	suite.mockKeyManager = keymanager.NewMockKeyManager(mockCtrl)
+	suite.mockKeyManager = mock_keymanager.NewMockKeyManager(mockCtrl)
 	suite.mockCacheManager = mock_cache.NewMockManager(mockCtrl)
 
 	addr := &net.UnixAddr{Name: "./spire_api", Net: "unix"}
@@ -52,8 +53,8 @@ func (suite *AgentTestSuite) SetupTest() {
 	suite.config = &Config{BindAddress: addr, CertDN: certDN,
 		DataDir:   os.TempDir(),
 		PluginDir: os.TempDir(), Log: l, ServerAddress: srvAddr,
-		ErrorCh:    errCh,
-		}
+		ErrorCh: errCh,
+	}
 
 }
 
@@ -87,9 +88,9 @@ func (suite *AgentTestSuite) Testbootstrap() {
 
 func (suite *AgentTestSuite) TestSocketPermission() {
 	suite.agent = &Agent{
-		Catalog: suite.mockPluginCatalog,
-		CacheMgr:suite.mockCacheManager,
-		config:  suite.config}
+		Catalog:  suite.mockPluginCatalog,
+		CacheMgr: suite.mockCacheManager,
+		config:   suite.config}
 
 	suite.agent.serverCerts = []*x509.Certificate{&x509.Certificate{}, &x509.Certificate{}}
 	suite.mockCacheManager.EXPECT().Cache().Return(nil)

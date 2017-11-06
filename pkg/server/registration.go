@@ -152,7 +152,8 @@ func (s *registrationServer) CreateJoinToken(
 
 	_, err := ds.RegisterToken(req)
 	if err != nil {
-		return request, err
+		s.l.Error(err)
+		return nil, errors.New("Error trying to register your token")
 	}
 
 	return request, nil
