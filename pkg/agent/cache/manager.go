@@ -431,7 +431,6 @@ func (m *manager) rotateBaseSVID() error {
 	lifetime := entry.svid.NotAfter.Sub(entry.svid.NotBefore)
 
 	if ttl < lifetime/2 {
-
 		m.log.Debug("Generating new CSR for BaseSVID")
 
 		privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)

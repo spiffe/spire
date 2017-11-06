@@ -153,11 +153,13 @@ func (s *WorkloadServerTestSuite) TestComposeResponse() {
 	key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
 	s.Assert().Nil(err)
 
-	//TODO: review this
-	//expiry := time.Now().Add(time.Duration(3600) * time.Second)
+	svid := &x509.Certificate{
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(3600 * time.Second),
+	}
 	cacheEntry := cache.CacheEntry{
 		RegistrationEntry: registrationEntry,
-		SVID:              &x509.Certificate{},
+		SVID:              svid,
 		PrivateKey:        key,
 		Bundles:           make(map[string][]byte),
 	}
@@ -167,7 +169,7 @@ func (s *WorkloadServerTestSuite) TestComposeResponse() {
 	s.Assert().Nil(err)
 
 	if s.Assert().NotNil(resp) {
-		s.Assert().True(resp.Ttl <= 1800)
+		s.Assert().True(resp.Ttl == 1800)
 		s.Assert().NotEqual(0, resp.Ttl)
 
 		if s.Assert().NotNil(resp.Bundles[0]) {
@@ -177,23 +179,32 @@ func (s *WorkloadServerTestSuite) TestComposeResponse() {
 	}
 }
 
-//TODO: review this
 func (s *WorkloadServerTestSuite) TestCalculateTTL() {
-	// time1 := time.Now().Add(1 * time.Second)
-	// time20 := time.Now().Add(20 * time.Second)
-
 	// int approximations of Time
-	// var ttlCases = []struct {
-	// 	in  int
-	// 	out int
-	// }{
-	// 	{1, 5}, // 5s is the configured minTTL
-	// 	{20, 21},
-	// }
+	var ttlCases = []struct {
+		in  []int
+		out int
+	}{
+		{[]int{1, 20}, 5}, // 5s is the configured minTTL
+		{[]int{20}, 10},
+	}
 
-	// for _, c := range ttlCases {
-	// 	//s.Assert().Equal(c.out, s.w.calculateTTL(c.in))
-	// }
+	// Create dummy certs with NotAfter set using input data
+	for _, c := range ttlCases {
+		var certs []*x509.Certificate
+		for _, ttl := range c.in {
+			notAfter := time.Now().Add(time.Duration(ttl) * time.Second)
+			cert := &x509.Certificate{
+				NotBefore: time.Now(),
+				NotAfter:  notAfter,
+			}
+			certs = append(certs, cert)
+		}
+
+		// Assert output given cert slice
+		res := s.w.calculateTTL(certs)
+		s.Assert().Equal(c.out, int(res.Seconds()))
+	}
 }
 
 func generateCacheEntry(spiffeID, parentID string, selectors selector.Set) (cache.CacheEntry, error) {
@@ -210,11 +221,13 @@ func generateCacheEntry(spiffeID, parentID string, selectors selector.Set) (cach
 		return cache.CacheEntry{}, err
 	}
 
-	//TODO: review this
-	// expiry := time.Now().Add(3600 * time.Second)
+	svid := &x509.Certificate{
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(3600 * time.Second),
+	}
 	cacheEntry := cache.CacheEntry{
 		RegistrationEntry: registrationEntry,
-		SVID:              &x509.Certificate{},
+		SVID:              svid,
 		PrivateKey:        key,
 		Bundles:           make(map[string][]byte),
 	}
