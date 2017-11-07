@@ -30,6 +30,11 @@ type workloadServer struct {
 	// be larger than this
 	maxTTL time.Duration
 
+	// TTL in SVID response will never
+	// be smaller than this. Prevents
+	// hammering towards the end
+	minTTL time.Duration
+
 	// We must store the current server bundle for
 	// distrubution to workloads. It is updaetd periodically,
 	// protect it with a mutex.
@@ -182,8 +187,8 @@ func (s *workloadServer) findEntries(selectors selector.Set) (entries []cache.Ca
 
 // composeResponse takes a set of cache entries, and packs them into a protobuf response
 func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *workload.Bundles, err error) {
+	var certs []*x509.Certificate
 	var bundles []*workload.WorkloadEntry
-	var expirys []time.Time
 
 	// TODO: Better way to do this?
 	// Grab a copy of the SVID bundle
@@ -203,30 +208,50 @@ func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *
 
 		we := &workload.WorkloadEntry{
 			SpiffeId:         e.RegistrationEntry.SpiffeId,
-			Svid:             e.SVID.SvidCert,
+			Svid:             e.SVID.Raw,
 			SvidPrivateKey:   keyData,
 			SvidBundle:       svidBundle,
 			FederatedBundles: e.Bundles,
 		}
 
-		expirys = append(expirys, e.Expiry)
+		certs = append(certs, e.SVID)
 		bundles = append(bundles, we)
 	}
 
-	// Given all expiration times, determine a
-	// TTL for the bundle response. Client should
-	// check back after TTL
-	minTTL := s.maxTTL
-	for _, e := range expirys {
-		ttl := time.Until(e) / 2
-		if ttl < minTTL {
-			minTTL = ttl
+	ttl := s.calculateTTL(certs).Seconds()
+	response = &workload.Bundles{
+		Bundles: bundles,
+		Ttl:     int32(ttl),
+	}
+	return response, nil
+}
+
+// calculateTTL takes a slice of certificates and iterates over them,
+// returning a TTL for use in the workload API response. Workload API
+// clients should check back for updates after TTL has elapsed
+func (s *workloadServer) calculateTTL(certs []*x509.Certificate) time.Duration {
+	ttl := s.maxTTL
+	for _, cert := range certs {
+		var t time.Duration
+
+		// set the watermark at half way
+		watermark := cert.NotAfter.Sub(cert.NotBefore) / 2
+		renewTime := cert.NotBefore.Add(watermark)
+
+		if time.Now().After(renewTime) {
+			t = s.minTTL
+		} else {
+			t = time.Until(renewTime) + time.Second
+		}
+
+		if t < ttl {
+			ttl = t
 		}
 	}
 
-	response = &workload.Bundles{
-		Bundles: bundles,
-		Ttl:     int32(minTTL.Seconds()),
+	if ttl < s.minTTL {
+		ttl = s.minTTL
 	}
-	return response, nil
+
+	return ttl
 }

@@ -1,16 +1,15 @@
 package cache
 
 import (
+	"crypto/ecdsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"hash"
 	"sort"
 	"sync"
-	"time"
 
-	"crypto/ecdsa"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 )
 
@@ -18,9 +17,8 @@ type selectors []*common.Selector
 
 type CacheEntry struct {
 	RegistrationEntry *common.RegistrationEntry
-	SVID              *node.Svid
+	SVID              *x509.Certificate
 	PrivateKey        *ecdsa.PrivateKey
-	Expiry            time.Time
 
 	// Bundles stores the ID => Bundle map for
 	// federated bundles. The registration entry
