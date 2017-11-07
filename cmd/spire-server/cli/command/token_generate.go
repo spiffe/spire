@@ -52,7 +52,7 @@ func (tc TokenGenerate) Run(args []string) int {
 		fmt.Println(err.Error())
 		return 1
 	}
-	fmt.Printf(token)
+	fmt.Printf("Token: %s\n", token)
 
 	if config.SpiffeID != "" {
 		err = tc.createVanityRecord(c, token, config.SpiffeID)

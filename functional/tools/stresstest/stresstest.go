@@ -41,7 +41,7 @@ func main() {
 		panic(err)
 	}
 
-	// Register and launch sidecar
+	// Create users and register workloads
 	for i := 0; i < *users; i++ {
 		uid := 1000 + i
 

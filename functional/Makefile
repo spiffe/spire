@@ -13,7 +13,7 @@ server:
 	sleep 5
 
 agent:
-	$(eval TOKEN := $(shell docker-compose exec runner bash -c 'cd /spire && cmd/spire-server/spire-server token generate'))
+	$(eval TOKEN := $(shell docker-compose exec runner /spire/functional/tools/tokengenerator/tokengenerator))
 	@echo Generated join token is $(TOKEN)
 	docker-compose exec -d runner bash -c 'cd /spire && cmd/spire-agent/spire-agent run -joinToken $(TOKEN)'
 	sleep 5
