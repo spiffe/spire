@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
 	"errors"
 	"sort"
 	"testing"
@@ -17,7 +18,6 @@ import (
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
-	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/mock/agent/cache"
 	"github.com/spiffe/spire/test/mock/agent/catalog"
@@ -25,10 +25,10 @@ import (
 )
 
 var (
-	selector1 *selector.Selector = &selector.Selector{Type: "foo", Value: "bar"}
-	selector2 *selector.Selector = &selector.Selector{Type: "bar", Value: "bat"}
-	selector3 *selector.Selector = &selector.Selector{Type: "bat", Value: "baz"}
-	selector4 *selector.Selector = &selector.Selector{Type: "baz", Value: "quz"}
+	selector1 = &selector.Selector{Type: "foo", Value: "bar"}
+	selector2 = &selector.Selector{Type: "bar", Value: "bat"}
+	selector3 = &selector.Selector{Type: "bat", Value: "baz"}
+	selector4 = &selector.Selector{Type: "baz", Value: "quz"}
 )
 
 type WorkloadServerTestSuite struct {
@@ -52,7 +52,8 @@ type WorkloadServerTestSuite struct {
 func (s *WorkloadServerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.t)
 	log, logHook := test.NewNullLogger()
-	ttl := 12 * time.Hour
+	maxTTL := 12 * time.Hour
+	minTTL := 5 * time.Second
 
 	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
 	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
@@ -64,7 +65,8 @@ func (s *WorkloadServerTestSuite) SetupTest() {
 		catalog: s.catalog,
 		l:       log,
 		bundle:  []byte{},
-		maxTTL:  ttl,
+		maxTTL:  maxTTL,
+		minTTL:  minTTL,
 	}
 
 	s.w = ws
@@ -148,21 +150,18 @@ func (s *WorkloadServerTestSuite) TestComposeResponse() {
 		FbSpiffeIds: []string{},
 	}
 
-	svid := &node.Svid{
-		SvidCert: []byte{},
-		Ttl:      1800,
-	}
-
 	key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
 	s.Assert().Nil(err)
 
-	expiry := time.Now().Add(time.Duration(3600) * time.Second)
+	svid := &x509.Certificate{
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(3600 * time.Second),
+	}
 	cacheEntry := cache.CacheEntry{
 		RegistrationEntry: registrationEntry,
 		SVID:              svid,
 		PrivateKey:        key,
 		Bundles:           make(map[string][]byte),
-		Expiry:            expiry,
 	}
 
 	entries := []cache.CacheEntry{cacheEntry}
@@ -170,13 +169,41 @@ func (s *WorkloadServerTestSuite) TestComposeResponse() {
 	s.Assert().Nil(err)
 
 	if s.Assert().NotNil(resp) {
-		s.Assert().True(resp.Ttl <= 1800)
+		s.Assert().True(resp.Ttl == 1800)
 		s.Assert().NotEqual(0, resp.Ttl)
 
 		if s.Assert().NotNil(resp.Bundles[0]) {
 			entry := resp.Bundles[0]
 			s.Assert().Equal("spiffe://example.org/baz", entry.SpiffeId)
 		}
+	}
+}
+
+func (s *WorkloadServerTestSuite) TestCalculateTTL() {
+	// int approximations of Time
+	var ttlCases = []struct {
+		in  []int
+		out int
+	}{
+		{[]int{1, 20}, 5}, // 5s is the configured minTTL
+		{[]int{20}, 10},
+	}
+
+	// Create dummy certs with NotAfter set using input data
+	for _, c := range ttlCases {
+		var certs []*x509.Certificate
+		for _, ttl := range c.in {
+			notAfter := time.Now().Add(time.Duration(ttl) * time.Second)
+			cert := &x509.Certificate{
+				NotBefore: time.Now(),
+				NotAfter:  notAfter,
+			}
+			certs = append(certs, cert)
+		}
+
+		// Assert output given cert slice
+		res := s.w.calculateTTL(certs)
+		s.Assert().Equal(c.out, int(res.Seconds()))
 	}
 }
 
@@ -189,23 +216,20 @@ func generateCacheEntry(spiffeID, parentID string, selectors selector.Set) (cach
 		FbSpiffeIds: []string{},
 	}
 
-	svid := &node.Svid{
-		SvidCert: []byte{},
-		Ttl:      1800,
-	}
-
 	key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
 	if err != nil {
 		return cache.CacheEntry{}, err
 	}
 
-	expiry := time.Now().Add(3600 * time.Second)
+	svid := &x509.Certificate{
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(3600 * time.Second),
+	}
 	cacheEntry := cache.CacheEntry{
 		RegistrationEntry: registrationEntry,
 		SVID:              svid,
 		PrivateKey:        key,
 		Bundles:           make(map[string][]byte),
-		Expiry:            expiry,
 	}
 
 	return cacheEntry, nil

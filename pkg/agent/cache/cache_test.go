@@ -4,11 +4,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"testing"
+
 	testlog "github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 var (
@@ -27,8 +28,9 @@ func TestCacheImpl_Valid(t *testing.T) {
 				RegistrationEntry: &common.RegistrationEntry{
 					Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",
-					SpiffeId:  "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+					SpiffeId:  "spiffe:test",
+				},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}},
 
@@ -40,7 +42,7 @@ func TestCacheImpl_Valid(t *testing.T) {
 						&common.Selector{Type: "testtype1", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}}}
 	for _, test := range tests {
@@ -64,7 +66,7 @@ func TestCacheImpl_Invalid(t *testing.T) {
 					Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",
 					SpiffeId:  "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}},
 
@@ -76,7 +78,7 @@ func TestCacheImpl_Invalid(t *testing.T) {
 						&common.Selector{Type: "testtype1", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}}}
 	for _, test := range tests {
@@ -99,7 +101,7 @@ func TestCacheImpl_DeleteEntry(t *testing.T) {
 					Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",
 					SpiffeId:  "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}},
 
@@ -111,7 +113,7 @@ func TestCacheImpl_DeleteEntry(t *testing.T) {
 						&common.Selector{Type: "testtype1", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test"},
-				SVID:       &node.Svid{SvidCert: []byte("testcertbytes")},
+				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}}}
 	for _, test := range tests {
