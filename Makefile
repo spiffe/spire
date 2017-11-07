@@ -6,7 +6,7 @@ else
 	container = 
 endif
 
-binary_dirs := $(shell find cmd/* plugin/*/* -maxdepth 0 -type d)
+binary_dirs := $(shell find cmd/* plugin/*/* functional/tools/* -maxdepth 0 -type d)
 docker_volume := $(shell echo $${PWD%/src/*}):/root/go
 docker_image = spire-dev:latest
 gopath := $(shell go env GOPATH)
@@ -17,7 +17,7 @@ utils = github.com/golang/protobuf/protoc-gen-go \
 		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger \
 		github.com/jteeuwen/go-bindata/go-bindata
 
-.PHONY: all utils container-push cmd build test race-test clean
+.PHONY: all utils container-push cmd build test race-test clean functional
 
 build: $(binary_dirs)
 
@@ -59,5 +59,8 @@ clean:
 distclean: clean
 	rm -rf .cache
 	rm -rf vendor
+
+functional: build
+	cd functional && $(MAKE) all
 
 noop:

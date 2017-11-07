@@ -1,4 +1,8 @@
-all: build server agent
+SIDECARS := 10
+TIMEOUT := 20
+TTL := 150
+
+all: clean build server agent
 
 build:
 	docker-compose build runner
@@ -11,9 +15,9 @@ server:
 agent:
 	$(eval TOKEN := $(shell docker-compose exec runner bash -c 'cd /spire && cmd/spire-server/spire-server token generate'))
 	@echo Generated join token is $(TOKEN)
-	sleep 5
 	docker-compose exec -d runner bash -c 'cd /spire && cmd/spire-agent/spire-agent run -joinToken $(TOKEN)'
 	sleep 5
+	docker-compose exec runner /spire/functional/tools/stresstest/stresstest -token=$(TOKEN) -sidecars $(SIDECARS) -timeout $(TIMEOUT) -ttl $(TTL)
 
 clean:
 	docker-compose down
