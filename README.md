@@ -3,7 +3,7 @@
 
 ![SPIRE Logo](/doc/spire_logo.png)
 
-SPIRE (the SPIFFE Runtime Environment) provides a toolchain that defines a central registry of
+SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) provides a toolchain that defines a central registry of
 SPIFFE IDs (the Server), and a Node Agent that can be run adjacent to a workload and
 exposes a local Workload API.
 
