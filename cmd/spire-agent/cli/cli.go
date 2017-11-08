@@ -12,8 +12,11 @@ func Run(args []string) int {
 	c := cli.NewCLI("spire-agent", "0.0.1") //TODO expose version configuration
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
+		"api fetch": func() (cli.Command, error) {
+			return &command.APIFetch{}, nil
+		},
 		"run": func() (cli.Command, error) {
-			return &command.RunCommand{}, nil
+			return &command.Run{}, nil
 		},
 	}
 
