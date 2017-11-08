@@ -174,6 +174,7 @@ func (a *Agent) initEndpoints() error {
 	a.config.Log.Info("Starting the workload API")
 
 	maxWorkloadTTL := time.Duration(a.BaseSVIDTTL/2) * time.Second
+	minWorkloadTTL := time.Duration(5) * time.Second
 
 	log := a.config.Log.WithField("subsystem_name", "workload")
 	ws := &workloadServer{
@@ -182,7 +183,7 @@ func (a *Agent) initEndpoints() error {
 		catalog: a.Catalog,
 		l:       log,
 		maxTTL:  maxWorkloadTTL,
-		minTTL:  5,
+		minTTL:  minWorkloadTTL,
 	}
 
 	// Create a gRPC server with our custom "credential" resolver
