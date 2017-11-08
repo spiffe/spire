@@ -21,12 +21,12 @@ const (
 	serverAddr           = "localhost:8081"
 	parentSpiffeIDPrefix = "spiffe://example.org/spire/agent/join_token/"
 	spiffeIDPrefix       = "spiffe://example.org/"
-	sidecarPath          = "/spire/functional/tools/sidecar/sidecar"
+	workloadPath         = "/spire/functional/tools/workload/workload"
 )
 
 func main() {
 	token := flag.String("token", "", "Join token used in server and agent")
-	users := flag.Int("sidecars", 5, "Number of sidecars to run in parallel")
+	users := flag.Int("workloads", 5, "Number of workloads to run in parallel")
 	timeout := flag.Int("timeout", 15, "Total time to run test")
 	ttl := flag.Int("ttl", 120, "SVID TTL")
 	flag.Parse()
@@ -82,13 +82,13 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(*users)
 
-	// Launch sidecars
+	// Launch workloads
 	for i := 0; i < *users; i++ {
 		uid := 1000 + i
 
-		fmt.Printf("Launching sidecar %d\n", uid)
+		fmt.Printf("Launching workload %d\n", uid)
 
-		c := exec.Command(sidecarPath, "-timeout", strconv.Itoa(*timeout))
+		c := exec.Command(workloadPath, "-timeout", strconv.Itoa(*timeout))
 		c.SysProcAttr = &syscall.SysProcAttr{
 			Credential: &syscall.Credential{Uid: uint32(uid)},
 		}
@@ -98,10 +98,10 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-			fmt.Printf("Sidecar %d finished: %s\n", uid, string(o))
+			fmt.Printf("Workload %d finished: %s\n", uid, string(o))
 		}()
 	}
-	fmt.Printf("Waiting for sidecars to finish...\n")
+	fmt.Printf("Waiting for workloads to finish...\n")
 
 	wg.Wait()
 

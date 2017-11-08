@@ -1,4 +1,4 @@
-SIDECARS := 10
+WORKLOADS := 10
 TIMEOUT := 20
 TTL := 150
 
@@ -17,7 +17,7 @@ agent:
 	@echo Generated join token is $(TOKEN)
 	docker-compose exec -d runner bash -c 'cd /spire && cmd/spire-agent/spire-agent run -joinToken $(TOKEN)'
 	sleep 5
-	docker-compose exec runner /spire/functional/tools/stresstest/stresstest -token=$(TOKEN) -sidecars $(SIDECARS) -timeout $(TIMEOUT) -ttl $(TTL)
+	docker-compose exec runner /spire/functional/tools/stresstest/stresstest -token=$(TOKEN) -workloads $(WORKLOADS) -timeout $(TIMEOUT) -ttl $(TTL)
 
 clean:
 	docker-compose down

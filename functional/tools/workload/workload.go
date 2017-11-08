@@ -12,16 +12,16 @@ import (
 	workload "github.com/spiffe/spire/proto/api/workload"
 )
 
-// Sidecar is the component that consumes Workload API and renews certs
-type Sidecar struct {
+// Workload is the component that consumes Workload API and renews certs
+type Workload struct {
 	workloadClient        workload.WorkloadClient
 	workloadClientContext context.Context
 	timeout               int
 }
 
-// NewSidecar creates a new sidecar
-func NewSidecar(workloadClientContext context.Context, workloadClient workload.WorkloadClient, timeout int) *Sidecar {
-	return &Sidecar{
+// NewWorkload creates a new workload
+func NewWorkload(workloadClientContext context.Context, workloadClient workload.WorkloadClient, timeout int) *Workload {
+	return &Workload{
 		workloadClientContext: workloadClientContext,
 		workloadClient:        workloadClient,
 		timeout:               timeout,
@@ -29,18 +29,18 @@ func NewSidecar(workloadClientContext context.Context, workloadClient workload.W
 }
 
 // RunDaemon starts the main loop
-func (s *Sidecar) RunDaemon() error {
+func (w *Workload) RunDaemon() error {
 	// Create channel for interrupt signal
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 	// Create timer for timeout
-	timeoutTimer := time.NewTimer(time.Second * time.Duration(s.timeout))
+	timeoutTimer := time.NewTimer(time.Second * time.Duration(w.timeout))
 
 	// Main loop
 	for {
 		// Fetch certificates
-		ttl, err := s.fetchBundles()
+		ttl, err := w.fetchBundles()
 		if err != nil {
 			return err
 		}
@@ -64,8 +64,8 @@ func (s *Sidecar) RunDaemon() error {
 	}
 }
 
-func (s *Sidecar) fetchBundles() (ttl int32, err error) {
-	bundles, err := s.workloadClient.FetchAllBundles(s.workloadClientContext, &workload.Empty{})
+func (w *Workload) fetchBundles() (ttl int32, err error) {
+	bundles, err := w.workloadClient.FetchAllBundles(w.workloadClientContext, &workload.Empty{})
 	if err != nil {
 		return
 	}

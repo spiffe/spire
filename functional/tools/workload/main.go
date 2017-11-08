@@ -16,7 +16,7 @@ const (
 )
 
 func main() {
-	timeout := flag.Int("timeout", 0, "Total number of seconds that sidecar will run")
+	timeout := flag.Int("timeout", 0, "Total number of seconds that workload will run")
 	flag.Parse()
 
 	if *timeout == 0 {
@@ -24,7 +24,7 @@ func main() {
 		return
 	}
 
-	log("Sidecar is up with uid %d! Will run for %d seconds and use agent at %s\n\n", os.Getuid(), *timeout, agentAddress)
+	log("Workload is up with uid %d! Will run for %d seconds\n\n", os.Getuid(), *timeout)
 
 	workloadClient, ctx, cancel, err := createGrpcClient(agentAddress)
 	defer cancel()
@@ -32,9 +32,9 @@ func main() {
 		panic(err)
 	}
 
-	sidecar := NewSidecar(ctx, workloadClient, *timeout)
+	wl := NewWorkload(ctx, workloadClient, *timeout)
 
-	err = sidecar.RunDaemon()
+	err = wl.RunDaemon()
 	if err != nil {
 		panic(err)
 	}
