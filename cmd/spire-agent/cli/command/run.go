@@ -53,15 +53,15 @@ type CmdConfig struct {
 	Umask      string
 }
 
-type RunCommand struct {
+type Run struct {
 }
 
-func (*RunCommand) Help() string {
+func (*Run) Help() string {
 	_, err := parseFlags([]string{"-h"})
 	return err.Error()
 }
 
-func (*RunCommand) Run(args []string) int {
+func (*Run) Run(args []string) int {
 	cliConfig, err := parseFlags(args)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -98,7 +98,7 @@ func (*RunCommand) Run(args []string) int {
 	return 0
 }
 
-func (*RunCommand) Synopsis() string {
+func (*Run) Synopsis() string {
 	return "Runs the agent"
 }
 
