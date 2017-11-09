@@ -43,9 +43,10 @@ type certSubjectConfig struct {
 }
 
 type configuration struct {
-	TrustDomain string            `hcl:"trust_domain" json:"trust_domain"`
-	KeySize     int               `hcl:"key_size" json:"key_size"`
-	CertSubject certSubjectConfig `hcl:"cert_subject" json:"cert_subject"`
+	TrustDomain  string            `hcl:"trust_domain" json:"trust_domain"`
+	BackdateSecs int               `hcl:"backdate_seconds" json:"backdate_seconds"`
+	KeySize      int               `hcl:"key_size" json:"key_size"`
+	CertSubject  certSubjectConfig `hcl:"cert_subject" json:"cert_subject"`
 }
 
 type memoryPlugin struct {
@@ -82,6 +83,7 @@ func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 	defer m.mtx.Unlock()
 	m.config = &configuration{}
 	m.config.TrustDomain = config.TrustDomain
+	m.config.BackdateSecs = config.BackdateSecs
 	m.config.KeySize = config.KeySize
 	m.config.CertSubject = config.CertSubject
 
@@ -123,7 +125,7 @@ func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 		Subject:         csr.Subject,
 		Issuer:          csr.Subject,
 		SerialNumber:    big.NewInt(serial),
-		NotBefore:       now.Add(time.Duration(-10) * time.Second),
+		NotBefore:       now.Add(time.Duration(-m.config.BackdateSecs) * time.Second),
 		NotAfter:        now.Add(time.Duration(request.Ttl) * time.Second),
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageKeyAgreement |
@@ -291,8 +293,9 @@ func (m *memoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (resp
 
 func NewWithDefault() (m ca.ControlPlaneCa, err error) {
 	config := configuration{
-		TrustDomain: "localhost",
-		KeySize:     2048,
+		TrustDomain:  "localhost",
+		BackdateSecs: 10,
+		KeySize:      2048,
 		CertSubject: certSubjectConfig{
 			Country:      []string{"US"},
 			Organization: []string{"SPIFFE"},
