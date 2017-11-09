@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"sync"
@@ -23,6 +24,12 @@ const (
 	spiffeIDPrefix       = "spiffe://example.org/"
 	workloadPath         = "/spire/functional/tools/workload/workload"
 )
+
+type workloadStats struct {
+	runtime time.Duration
+	output  string
+	success bool
+}
 
 func main() {
 	token := flag.String("token", "", "Join token used in server and agent")
@@ -77,7 +84,10 @@ func main() {
 		fmt.Printf("Created entry ID %s\n", entryID.Id)
 	}
 
+	fmt.Printf("Waiting for entries to be propagated...\n")
 	time.Sleep(time.Second * time.Duration(10))
+
+	stats := make(map[int]*workloadStats)
 
 	var wg sync.WaitGroup
 	wg.Add(*users)
@@ -92,20 +102,43 @@ func main() {
 		c.SysProcAttr = &syscall.SysProcAttr{
 			Credential: &syscall.Credential{Uid: uint32(uid)},
 		}
-		go func() {
+		go func(uid int) {
+			s := &workloadStats{}
+			started := time.Now()
 			defer wg.Done()
+
 			o, err := c.CombinedOutput()
-			if err != nil {
-				panic(err)
-			}
-			fmt.Printf("Workload %d finished: %s\n", uid, string(o))
-		}()
+
+			s.success = err == nil
+			s.output = string(o)
+			s.runtime = time.Now().Sub(started)
+
+			stats[uid] = s
+		}(uid)
 	}
-	fmt.Printf("Waiting for workloads to finish...\n")
+	fmt.Printf("Waiting for workloads to finish... Test time is %d seconds\n", *timeout)
 
 	wg.Wait()
 
-	fmt.Printf("Finished\n")
+	fmt.Printf("Finished. Summary:\n")
+
+	statusMap := map[bool]string{true: "success", false: "failed"}
+	for k, v := range stats {
+		logfile := fmt.Sprintf("%d.log", k)
+		fmt.Printf("Workload %d: status: %s, runtime: %s, logfile: %s\n",
+			k,
+			statusMap[v.success],
+			v.runtime.String(),
+			logfile)
+
+		f, err := os.OpenFile(logfile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Printf("Failed to open/create %s: %s\n", logfile, err)
+		} else {
+			defer f.Close()
+			f.WriteString(v.output)
+		}
+	}
 }
 
 func newRegistrationClient(address string) (registration.RegistrationClient, error) {

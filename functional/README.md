@@ -33,4 +33,5 @@ You can adjust several parameters in file [functional/Makefile](/functional/Make
 ## Execution
 
 Functional tests are run with `make functional` in the root directory.
-Upon completion the result of each workload can be seen. The test will fail if any workload failed.
+Upon completion the result of each workload can be seen.
+Log files are dropped in the `functional/`. There will be logs for agent and server, and also one log per workload. 
