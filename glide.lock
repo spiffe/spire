@@ -1,20 +1,22 @@
-hash: ee5fd16cdbe8ee9fed248755659142177fb8124c92e8309e0ffaa5255588ca47
-updated: 2017-10-04T10:59:19.741136758-07:00
+hash: e8c68075545a2cf5b3ec817e98a9f2ad8d733b759f187f91096cded74065c1c1
+updated: 2017-11-08T23:22:20.369149455Z
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
+- name: github.com/aws/aws-sdk-go
+  version: 6061953e33da7e141a16c70ec9535467ce7f189a
 - name: github.com/bgentry/speakeasy
   version: 4aabc24848ce5fd31929f7d1e4ea74d3709c14cd
 - name: github.com/go-ole/go-ole
-  version: 8a4f5c214bfb4475619b8bb7ccbe6fa5c91745f4
+  version: 2ecd927eaf828c4fc088fae349b28eed1480ff56
   subpackages:
   - oleutil
 - name: github.com/golang/mock
-  version: 18f6dd13ccdd227b8ebc546ca95cd62a02f3970c
+  version: 61503c535dc549c7ffc1ff07902345658a0f20a2
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: 0a4f71a498b7c4812f64969510bcb4eca251e33a
+  version: 1643683e1b54a9e88ad26d98f81400c8c9d9f4f9
   subpackages:
   - jsonpb
   - proto
@@ -35,13 +37,13 @@ imports:
 - name: github.com/hashicorp/errwrap
   version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
 - name: github.com/hashicorp/go-hclog
-  version: 8105cc0a3736cc153a2025f5d0d91b80045fc9ff
+  version: ca137eb4b4389c9bc6f1a6d887f056bf16c00510
 - name: github.com/hashicorp/go-multierror
   version: 83588e72410abfbe4df460eeb6f30841ae47d4c4
 - name: github.com/hashicorp/go-plugin
-  version: 4e5a3725c607a756be8d35bf3a521c0f9c422666
+  version: e2fbc6864d18d3c37b6cde4297ec9fca266d28f1
 - name: github.com/hashicorp/hcl
-  version: 8f6b1344a92ff8877cf24a5de9177bf7d0a2a187
+  version: 23c074d0eceb2b8a5bfdbb271ab780cde70f05a8
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -53,7 +55,7 @@ imports:
   - json/scanner
   - json/token
 - name: github.com/hashicorp/yamux
-  version: d1caa6c97c9fc1cc9e83bbe34d0603f9ff0ce8bd
+  version: f5742cb6b85602e7fa834e9d5d91a7d7fa850824
 - name: github.com/jinzhu/gorm
   version: 5174cc5c242a728b435ea2be8a2f7f998e15429b
   subpackages:
@@ -65,15 +67,15 @@ imports:
 - name: github.com/jteeuwen/go-bindata
   version: bbd0c6e271208dce66d8fda4bc536453cd27fc4a
 - name: github.com/mattn/go-isatty
-  version: fc9e8d8ef48496124e79ae0df75490096eccf6fe
+  version: 6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c
 - name: github.com/mattn/go-sqlite3
   version: ca5e3819723d8eeaf170ad510e7da1d6d2e94a08
 - name: github.com/mitchellh/cli
-  version: 7a1a617034de956eee640dfa5a7407ccc8c8d7e6
+  version: 65fcae5817c8600da98ada9d7edf26dd1a84837b
 - name: github.com/mitchellh/go-testing-interface
-  version: 7bf6f6eaf1bed2fd3c6c63114b18cb64facb9de2
+  version: a61a99592b77c9ba629d254a693acffaeb4b7e28
 - name: github.com/posener/complete
-  version: 9f41f7636a724791a3b8b1d35e84caa1124f0d3c
+  version: dc2bc5a81accba8782bebea28628224643a8286a
   subpackages:
   - cmd
   - cmd/install
@@ -83,7 +85,7 @@ imports:
   subpackages:
   - context
 - name: github.com/shirou/gopsutil
-  version: 1ba77cdb3d0f8a2b7016b3b0c462e4e2b5ad503b
+  version: 48fc5612898a1213aa5d6a0fb2d4f7b968e898fb
   subpackages:
   - cpu
   - host
@@ -106,11 +108,11 @@ imports:
 - name: github.com/StackExchange/wmi
   version: ea383cf3ba6ec950874b8486cd72356d007c768f
 - name: golang.org/x/crypto
-  version: 81e90905daefcd6fd217b62423c0908922eadb30
+  version: 6a293f2d4b14b8e6d3f0539e383f6d0d30fce3fd
   subpackages:
   - ssh/terminal
 - name: golang.org/x/net
-  version: f5079bd7f6f74e23c4d65efa0f4ce14cbd6a3c0f
+  version: a337091b0525af65de94df2eb7e98bd9962dcbe2
   subpackages:
   - context
   - http2
@@ -120,25 +122,26 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sys
-  version: a45f55524b7ec57890cfa6c6bc06b47f877be0d1
+  version: bcc62b628abe70dd6bee1f06c4e31630209cd8d7
   subpackages:
   - unix
   - windows
 - name: golang.org/x/text
-  version: 836efe42bb4aa16aaa17b9c155d8813d336ed720
+  version: 88f656faf3f37f690df1a32515b479415e1a6769
   subpackages:
   - secure/bidirule
   - transform
   - unicode/bidi
   - unicode/norm
 - name: google.golang.org/genproto
-  version: b0a3dcfcd1a9bd48e63634bd8802960804cf8315
+  version: 11c7f9e547da6db876260ce49ea7536985904c9b
   subpackages:
   - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: f92cdcd7dcdc69e81b2d7b338479a19a8723cfa3
+  version: 5ffe3083946d5603a0578721101dc8165b1d5b5f
   subpackages:
+  - balancer
   - codes
   - connectivity
   - credentials
@@ -151,6 +154,7 @@ imports:
   - metadata
   - naming
   - peer
+  - resolver
   - stats
   - status
   - tap
@@ -165,7 +169,7 @@ testImports:
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 05e8a0eda380579888eb53c394909df027f06991
+  version: 2aa2c176b9dab406a6970f6a55f513e8a8c8b18f
   subpackages:
   - assert
   - require
