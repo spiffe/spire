@@ -15,6 +15,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/ca"
@@ -28,6 +29,7 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/server/noderesolver"
 	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/stretchr/testify/suite"
+
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 )
@@ -231,6 +233,14 @@ func setFetchBaseSVIDExpectations(
 		Return([]nodeattestor.NodeAttestor{suite.mockNodeAttestor})
 	suite.mockCatalog.EXPECT().NodeResolvers().AnyTimes().
 		Return([]noderesolver.NodeResolver{suite.mockNodeResolver})
+
+	p := &catalog.ManagedPlugin{
+		Plugin: suite.mockNodeAttestor,
+		Config: catalog.PluginConfig{
+			PluginName: "fake type",
+		},
+	}
+	suite.mockCatalog.EXPECT().Find(suite.mockNodeAttestor).Return(p)
 
 	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(
 		&datastore.FetchAttestedNodeEntryRequest{

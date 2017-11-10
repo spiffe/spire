@@ -250,8 +250,15 @@ func (s *nodeServer) attest(
 	attestedData *common.AttestedData, attestedBefore bool) (
 	response *nodeattestor.AttestResponse, err error) {
 
-	// TODO: Pick the right node attestor [#222]
-	nodeAttestor := s.catalog.NodeAttestors()[0]
+	// Pick the right node attestor
+	var nodeAttestor nodeattestor.NodeAttestor
+	for _, a := range s.catalog.NodeAttestors() {
+		mp := s.catalog.Find(a)
+		if mp.Config.PluginName == attestedData.Type {
+			nodeAttestor = a
+			break
+		}
+	}
 
 	attestRequest := &nodeattestor.AttestRequest{
 		AttestedData:   attestedData,
