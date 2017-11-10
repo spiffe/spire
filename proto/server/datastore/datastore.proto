@@ -363,8 +363,11 @@ service DataStore {
 
     // Retrieves all the  registered entry with the same ParentID
     rpc ListParentIDEntries(ListParentIDEntriesRequest) returns (ListParentIDEntriesResponse);
-    // Retrieves all the  registered entry with the same Selector
+    // Retrieves all the  registered entry matching exactlly the compound Selector
     rpc ListSelectorEntries(ListSelectorEntriesRequest) returns (ListSelectorEntriesResponse);
+    // Retrieves all the  registered entry matching exactlly any of the compound Selector from the generated power set
+    // of the input selector set
+    rpc ListPowerSelectorEntries(ListSelectorEntriesRequest) returns (ListSelectorEntriesResponse);
     // Retrieves all the  registered entry with the same SpiffeId
     rpc ListSpiffeEntries(ListSpiffeEntriesRequest) returns (ListSpiffeEntriesResponse);
 

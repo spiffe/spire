@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 )
@@ -31,6 +32,7 @@ type Cache interface {
 	SetEntry(cacheEntry CacheEntry)
 	DeleteEntry([]*common.Selector) (deleted bool)
 	Entries() map[string][]CacheEntry
+	PowerEntries([]*common.Selector) (entry []CacheEntry)
 }
 
 type cacheImpl struct {
@@ -59,6 +61,22 @@ func (c *cacheImpl) Entry(selectors []*common.Selector) (entry []CacheEntry) {
 		return entry
 	}
 	return nil
+}
+
+// PowerEntries takes a slice of selectors, and works through all the combinations in order to
+// find matching cache entries
+func (c *cacheImpl) PowerEntries(selectors []*common.Selector) (entries []CacheEntry) {
+	selectorSet := selector.NewSet(selectors)
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	for subSet := range selectorSet.Power() {
+		key := deriveCacheKey(subSet.Raw())
+		if entry, found := c.cache[key]; found {
+			entries = append(entries, entry...)
+		}
+	}
+	return entries
 }
 
 func (c *cacheImpl) SetEntry(cacheEntry CacheEntry) {

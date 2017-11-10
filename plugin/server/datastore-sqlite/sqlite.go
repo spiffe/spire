@@ -2,13 +2,15 @@ package main
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
-
+	sel "github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -491,24 +493,56 @@ func (ds *sqlitePlugin) ListSelectorEntries(
 		return &datastore.ListSelectorEntriesResponse{}, nil
 	}
 
-	var fetchedRegisteredEntries []registeredEntry
-	query := ds.db.Joins("JOIN selectors ON selectors.registered_entry_id = registered_entries.registered_entry_id").
-		Where("selectors.type = ? and selectors.value = ?", request.Selectors[0].Type, request.Selectors[0].Value)
-
-	for _, selector := range request.Selectors[1:] {
-		query.Or("selectors.type = ? and selectors.value = ?", selector.Type, selector.Value)
+	//order selectors
+	sort.Slice(request.Selectors, util.SelectorsSortFunction(request.Selectors))
+	//build compound selector
+	compoundSelector := ""
+	for _, selector := range request.Selectors {
+		compoundSelector += selector.Type + selector.Value
 	}
 
-	err := query.Find(&fetchedRegisteredEntries).Error
+	var fetchedRegisteredEntries []registeredEntry
+	query := getListSelectorQuery(1)
+	ds.db.
+		Raw(query, compoundSelector).
+		Scan(&fetchedRegisteredEntries)
 
-	switch {
-	case err == gorm.ErrRecordNotFound:
-		return &datastore.ListSelectorEntriesResponse{}, nil
-	case err != nil:
+	regEntryList, err := ds.convertEntries(fetchedRegisteredEntries)
+	if err != nil {
 		return nil, err
 	}
+	return &datastore.ListSelectorEntriesResponse{RegisteredEntryList: regEntryList}, nil
+}
 
-	regEntryList, err := ds.convertAndFilterEntries(fetchedRegisteredEntries, len(request.Selectors))
+func (ds *sqlitePlugin) ListPowerSelectorEntries(
+	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
+
+	if len(request.Selectors) < 1 {
+		return &datastore.ListSelectorEntriesResponse{}, nil
+	}
+
+	set := sel.NewSet(request.Selectors)
+	compoundSelectors := []interface{}{}
+	//iterate the powerset so we can create the compound selector for each subset
+	for subset := range set.Power() {
+		selectorSubSet := subset.Raw()
+		//order selectors for each subset before creating the compound selector
+		sort.Slice(selectorSubSet, util.SelectorsSortFunction(selectorSubSet))
+		//build compound selector for each subset
+		var compoundSelector string
+		for _, selector := range selectorSubSet {
+			compoundSelector += selector.Type + selector.Value
+		}
+		compoundSelectors = append(compoundSelectors, compoundSelector)
+	}
+
+	var fetchedRegisteredEntries []registeredEntry
+	query := getListSelectorQuery(len(compoundSelectors))
+	ds.db.
+		Raw(query, compoundSelectors...).
+		Scan(&fetchedRegisteredEntries)
+
+	regEntryList, err := ds.convertEntries(fetchedRegisteredEntries)
 	if err != nil {
 		return nil, err
 	}
@@ -597,33 +631,6 @@ func (sqlitePlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfo
 	return &pluginInfo, nil
 }
 
-func (ds *sqlitePlugin) convertAndFilterEntries(fetchedRegisteredEntries []registeredEntry, length int) (responseEntries []*common.RegistrationEntry, err error) {
-	for _, regEntry := range fetchedRegisteredEntries {
-		var selectors []*common.Selector
-		var fetchedSelectors []*selector
-		if err = ds.db.Model(&regEntry).Related(&fetchedSelectors).Error; err != nil {
-			return nil, err
-		}
-
-		if len(fetchedSelectors) != length {
-			continue
-		}
-
-		for _, selector := range fetchedSelectors {
-			selectors = append(selectors, &common.Selector{
-				Type:  selector.Type,
-				Value: selector.Value})
-		}
-		responseEntries = append(responseEntries, &common.RegistrationEntry{
-			Selectors: selectors,
-			SpiffeId:  regEntry.SpiffeId,
-			ParentId:  regEntry.ParentId,
-			Ttl:       regEntry.Ttl,
-		})
-	}
-	return responseEntries, nil
-}
-
 func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntry) (responseEntries []*common.RegistrationEntry, err error) {
 	for _, regEntry := range fetchedRegisteredEntries {
 		var selectors []*common.Selector
@@ -690,4 +697,26 @@ func main() {
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})
+}
+
+func getListSelectorQuery(conditionCount int) string {
+	query := `
+SELECT *, group_concat(selector, '') as compound 
+FROM (
+	SELECT (selectors.type || selectors.value) as selector, 
+	* 
+	FROM registered_entries JOIN selectors 
+	ON selectors.registered_entry_id = registered_entries.registered_entry_id
+	ORDER BY  selectors.type, selectors.value
+)
+GROUP BY registered_entry_id 
+HAVING compound = ? `
+
+	if conditionCount > 1 {
+		for i := 1; i < conditionCount; i++ {
+			query += "OR compound = ? "
+		}
+	}
+	query += "ORDER BY spiffe_id"
+	return query
 }

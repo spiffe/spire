@@ -285,7 +285,7 @@ func setFetchBaseSVIDExpectations(
 		Return(nil, nil)
 
 	suite.mockDataStore.EXPECT().
-		ListSelectorEntries(&datastore.ListSelectorEntriesRequest{
+		ListPowerSelectorEntries(&datastore.ListSelectorEntriesRequest{
 			Selectors: []*common.Selector{data.selector},
 		}).
 		Return(&datastore.ListSelectorEntriesResponse{
@@ -419,7 +419,7 @@ func setFetchSVIDExpectations(
 			NodeResolverMapEntryList: data.nodeResolutionList}, nil)
 
 	suite.mockDataStore.EXPECT().
-		ListSelectorEntries(&datastore.ListSelectorEntriesRequest{
+		ListPowerSelectorEntries(&datastore.ListSelectorEntriesRequest{
 			Selectors: []*common.Selector{data.selector},
 		}).
 		Return(&datastore.ListSelectorEntriesResponse{
