@@ -22,7 +22,7 @@ const (
 	serverAddr           = "localhost:8081"
 	parentSpiffeIDPrefix = "spiffe://example.org/spire/agent/join_token/"
 	spiffeIDPrefix       = "spiffe://example.org/"
-	workloadPath         = "/spire/functional/tools/workload/workload"
+	workloadPath         = "/go/src/github.com/spiffe/spire/functional/tools/workload/workload"
 )
 
 type workloadStats struct {

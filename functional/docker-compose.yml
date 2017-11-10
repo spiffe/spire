@@ -11,4 +11,4 @@ services:
       hostname: runner
       tty: true
       volumes:
-        - ..:/spire
+        - ..:/spire-orig

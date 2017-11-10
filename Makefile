@@ -60,7 +60,7 @@ distclean: clean
 	rm -rf .cache
 	rm -rf vendor
 
-functional: build
+functional:
 	cd functional && $(MAKE) all
 
 noop:

@@ -1,29 +1,36 @@
+# Parameters
 WORKLOADS := 10
 TIMEOUT := 20
 TTL := 150
+
+# Convenience vars
 SERVER_LOG := functional/server.log
 AGENT_LOG := functional/agent.log
+DOCKER_SPIRE := /go/src/github.com/spiffe/spire
 
 all: clean build server agent test
 
 build:
 	docker-compose build runner
 	docker-compose up -d runner
+	docker-compose exec runner bash -c 'mkdir -p $(DOCKER_SPIRE) && cp -R /spire-orig/* $(DOCKER_SPIRE)'
+	docker-compose exec runner bash -c 'cd $(DOCKER_SPIRE) && ./build.sh setup && ./build.sh binaries'
 
 server:
 	cd .. && touch $(SERVER_LOG)
-	docker-compose exec -d runner bash -c 'cd /spire && cmd/spire-server/spire-server run -logLevel DEBUG -logFile $(SERVER_LOG)'
+	docker-compose exec -d runner bash -c 'cd $(DOCKER_SPIRE) && cmd/spire-server/spire-server run -logLevel DEBUG -logFile /spire-orig/$(SERVER_LOG)'
 	sleep 5
 
 agent:
 	cd .. && touch $(AGENT_LOG)
-	$(eval TOKEN := $(shell docker-compose exec runner /spire/functional/tools/tokengenerator/tokengenerator))
+	$(eval TOKEN := $(shell docker-compose exec runner $(DOCKER_SPIRE)/functional/tools/tokengenerator/tokengenerator))
 	@echo Generated join token is $(TOKEN)
-	docker-compose exec -d runner bash -c 'cd /spire && cmd/spire-agent/spire-agent run -joinToken $(TOKEN) -logLevel DEBUG -logFile $(AGENT_LOG)'
+	docker-compose exec -d runner bash -c 'cd $(DOCKER_SPIRE) && cmd/spire-agent/spire-agent run -joinToken $(TOKEN) -logLevel DEBUG -logFile /spire-orig/$(AGENT_LOG)'
 	sleep 5
 
 test:
-	docker-compose exec runner bash -c 'cd /spire/functional && tools/stresstest/stresstest -token=$(TOKEN) -workloads $(WORKLOADS) -timeout $(TIMEOUT) -ttl $(TTL)'
+	docker-compose exec runner bash -c 'cd $(DOCKER_SPIRE)/functional && tools/stresstest/stresstest -token=$(TOKEN) -workloads $(WORKLOADS) -timeout $(TIMEOUT) -ttl $(TTL)'
+	docker-compose exec runner bash -c 'cp $(DOCKER_SPIRE)/functional/*.log /spire-orig/functional/'
 	docker-compose down
 
 clean:
