@@ -260,6 +260,10 @@ func (s *nodeServer) attest(
 		}
 	}
 
+	if nodeAttestor == nil {
+		return nil, fmt.Errorf("could not find node attestor type %s", attestedData.Type)
+	}
+
 	attestRequest := &nodeattestor.AttestRequest{
 		AttestedData:   attestedData,
 		AttestedBefore: attestedBefore,
