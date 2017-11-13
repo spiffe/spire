@@ -19,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"net/url"
 	"path"
+	"sync"
 )
 
 type AWSResolver struct {
@@ -28,6 +29,7 @@ type AWSResolver struct {
 	resolutions map[string]*common.Selectors
 	ec2Clients  []ec2iface.EC2API
 	iamClient   iamiface.IAMAPI
+	mtx         sync.RWMutex
 }
 
 type AWSResolverConfig struct {
@@ -37,7 +39,8 @@ type AWSResolverConfig struct {
 }
 
 func (a *AWSResolver) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -66,6 +69,8 @@ func (a *AWSResolver) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginIn
 }
 
 func (a *AWSResolver) Resolve(physicalSpiffeIdList []string) (resolutions map[string]*common.Selectors, err error) {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
 	a.resolutions = make(map[string]*common.Selectors)
 
 	for _, spiffeID := range physicalSpiffeIdList {
