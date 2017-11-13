@@ -1,0 +1,13 @@
+version: "2"
+
+
+services:
+   runner:
+      container_name: runner
+      build:
+        context: runner
+
+      hostname: runner
+      tty: true
+      volumes:
+        - ..:/spire-orig
