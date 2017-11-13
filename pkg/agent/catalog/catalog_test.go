@@ -46,7 +46,7 @@ func (c *AgentCatalogTestSuite) TestCategorizeNotEnoughTypes() {
 	c.catalog.com = comCatalog
 
 	plugins := []*common_catalog.ManagedPlugin{
-		&common_catalog.ManagedPlugin{
+		{
 			Plugin: &mock_workloadattestor.MockWorkloadAttestor{},
 			Config: common_catalog.PluginConfig{
 				PluginType: WorkloadAttestorType,
@@ -65,19 +65,19 @@ func (c *AgentCatalogTestSuite) TestCategorize() {
 	c.catalog.com = comCatalog
 
 	plugins := []*common_catalog.ManagedPlugin{
-		&common_catalog.ManagedPlugin{
+		{
 			Plugin: &mock_keymanager.MockKeyManager{},
 			Config: common_catalog.PluginConfig{
 				PluginType: KeyManagerType,
 			},
 		},
-		&common_catalog.ManagedPlugin{
+		{
 			Plugin: &mock_nodeattestor.MockNodeAttestor{},
 			Config: common_catalog.PluginConfig{
 				PluginType: NodeAttestorType,
 			},
 		},
-		&common_catalog.ManagedPlugin{
+		{
 			Plugin: &mock_workloadattestor.MockWorkloadAttestor{},
 			Config: common_catalog.PluginConfig{
 				PluginType: WorkloadAttestorType,

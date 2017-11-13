@@ -146,7 +146,7 @@ func (f APIFetch) printBundle(bundle *workload.WorkloadEntry) {
 	}
 
 	var federatedBundleIDs []string
-	for id, _ := range bundle.FederatedBundles {
+	for id := range bundle.FederatedBundles {
 		federatedBundleIDs = append(federatedBundleIDs, id)
 	}
 
