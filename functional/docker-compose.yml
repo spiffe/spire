@@ -3,7 +3,6 @@ version: "2"
 
 services:
    runner:
-      privileged: true
       container_name: runner
       build:
         context: runner

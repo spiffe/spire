@@ -43,6 +43,10 @@ func main() {
 		return
 	}
 
+	if _, err := os.Stat(workloadPath); os.IsNotExist(err) {
+		panic("Do not run this tool outside the Docker container")
+	}
+
 	c, err := newRegistrationClient(serverAddr)
 	if err != nil {
 		panic(err)
@@ -55,7 +59,7 @@ func main() {
 		fmt.Printf("Creating user %d\n", uid)
 
 		// Create user
-		o, err := exec.Command("bash", "-c", fmt.Sprintf("useradd --uid %d user%d", uid, uid)).CombinedOutput() //adduser --uid 1111 --disabled-password --shell /bin/bash --ingroup spire spire
+		o, err := exec.Command("bash", "-c", fmt.Sprintf("useradd --uid %d user%d", uid, uid)).CombinedOutput()
 		if err != nil {
 			fmt.Println(string(o))
 			panic(err)
@@ -90,7 +94,6 @@ func main() {
 	stats := make(map[int]*workloadStats)
 
 	var wg sync.WaitGroup
-	wg.Add(*users)
 
 	// Launch workloads
 	for i := 0; i < *users; i++ {
@@ -102,6 +105,7 @@ func main() {
 		c.SysProcAttr = &syscall.SysProcAttr{
 			Credential: &syscall.Credential{Uid: uint32(uid)},
 		}
+		wg.Add(1)
 		go func(uid int) {
 			s := &workloadStats{}
 			started := time.Now()

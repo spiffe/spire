@@ -61,6 +61,6 @@ distclean: clean
 	rm -rf vendor
 
 functional:
-	cd functional && $(MAKE) all
+	$(MAKE) -C functional/ all
 
 noop:
