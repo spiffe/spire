@@ -1,5 +1,6 @@
 ![Build Status](https://travis-ci.org/spiffe/spire.svg?branch=master)
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=master)](https://coveralls.io/github/spiffe/spire?branch=master)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fspiffe%2Fspire.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fspiffe%2Fspire?ref=badge_shield)
 
 ![SPIRE Logo](/doc/spire_logo.png)
 
@@ -120,3 +121,7 @@ https://github.com/spiffe/spiffe.
 
 The SPIFFE and SPIRE governance policies are detailed in
 [GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md)
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fspiffe%2Fspire.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fspiffe%2Fspire?ref=badge_large)
