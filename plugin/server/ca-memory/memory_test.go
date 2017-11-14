@@ -13,14 +13,13 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/spiffe/spire/pkg/common/testutil"
 	upca "github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/upstreamca"
+	testutil "github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMemory_Configure(t *testing.T) {

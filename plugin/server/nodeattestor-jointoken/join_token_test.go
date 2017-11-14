@@ -5,12 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/spiffe/spire/pkg/common/testutil"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
+	testutil "github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
 )
 
 const (

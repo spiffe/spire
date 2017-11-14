@@ -14,7 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
@@ -101,8 +100,7 @@ func (s *workloadServer) fetchAllEntries(ctx context.Context) (entries []cache.C
 		return entries, err
 	}
 
-	selectorSet := selector.NewSet(selectors)
-	return s.findEntries(selectorSet), nil
+	return s.cache.MatchingEntries(selectors), nil
 }
 
 // resolveCaller takes a grpc context, and returns the PID of the caller which has issued
@@ -170,19 +168,6 @@ func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, 
 	}
 
 	return selectors, nil
-}
-
-// findEntries takes a slice of selectors, and works through all the combinations in order to
-// find matching cache entries
-func (s *workloadServer) findEntries(selectors selector.Set) (entries []cache.CacheEntry) {
-	for combination := range selectors.Power() {
-		combinationEntries := s.cache.Entry(combination.Raw())
-		if len(combinationEntries) > 0 {
-			entries = append(entries, combinationEntries...)
-		}
-	}
-
-	return entries
 }
 
 // composeResponse takes a set of cache entries, and packs them into a protobuf response

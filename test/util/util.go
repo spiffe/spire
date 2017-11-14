@@ -3,11 +3,14 @@ package util
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"path"
 	"runtime"
+
+	"github.com/spiffe/spire/proto/common"
 )
 
 var (
@@ -87,4 +90,13 @@ func LoadPEM(path string) (*pem.Block, error) {
 func ProjectRoot() string {
 	_, p, _, _ := runtime.Caller(0)
 	return path.Join(p, "../../../")
+}
+
+//GetRegistrationEntries gets registration entries from a fixture
+func GetRegistrationEntries(fileName string) []*common.RegistrationEntry {
+	regEntries := &common.RegistrationEntries{}
+	path := path.Join(ProjectRoot(), "test/fixture/registration/", fileName)
+	dat, _ := ioutil.ReadFile(path)
+	json.Unmarshal(dat, &regEntries)
+	return regEntries.Entries
 }

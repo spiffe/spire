@@ -128,18 +128,6 @@ func (s *WorkloadServerTestSuite) TestAttestCallerError() {
 	s.Assert().Equal(expected, got)
 }
 
-func (s *WorkloadServerTestSuite) TestFindEntries() {
-	set := selector.Set{selector2}
-	entry1, err := generateCacheEntry("spiffe://example.org/bat", "spiffe://example.org/baz", set)
-	s.Assert().Nil(err)
-
-	s.cache.EXPECT().Entry(set.Raw()).Return([]cache.CacheEntry{entry1})
-	s.cache.EXPECT().Entry(gomock.Any()).Return([]cache.CacheEntry{}).AnyTimes()
-
-	res := s.w.findEntries(selector.Set{selector1, selector2})
-	s.Assert().Equal([]cache.CacheEntry{entry1}, res)
-}
-
 func (s *WorkloadServerTestSuite) TestComposeResponse() {
 	sel := &common.Selector{Type: "foo", Value: "bar"}
 	registrationEntry := &common.RegistrationEntry{

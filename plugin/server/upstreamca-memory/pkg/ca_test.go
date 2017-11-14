@@ -7,12 +7,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/spiffe/spire/pkg/common/testutil"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/upstreamca"
+	testutil "github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const config = `{"trust_domain":"example.com", "ttl":"1h", "key_size":2048, "key_file_path":"_test_data/keys/private_key.pem", "cert_file_path":"_test_data/keys/cert.pem"}`
