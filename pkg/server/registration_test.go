@@ -1,9 +1,7 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"reflect"
 	"testing"
 
@@ -14,6 +12,7 @@ import (
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	"github.com/spiffe/spire/test/mock/server/catalog"
+	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -43,7 +42,7 @@ func setupRegistrationTest(t *testing.T) *registrationServerTestSuite {
 
 func TestCreateEntry(t *testing.T) {
 
-	goodRequest := getRegistrationEntries()[0]
+	goodRequest := testutil.GetRegistrationEntries("good.json")[0]
 	goodResponse := &registration.RegistrationEntryID{
 		Id: "abcdefgh",
 	}
@@ -106,7 +105,7 @@ func TestDeleteEntry(t *testing.T) {
 func TestFetchEntry(t *testing.T) {
 
 	goodRequest := &registration.RegistrationEntryID{Id: "abcdefgh"}
-	goodResponse := getRegistrationEntries()[0]
+	goodResponse := testutil.GetRegistrationEntries("good.json")[0]
 
 	var testCases = []struct {
 		request          *registration.RegistrationEntryID
@@ -170,7 +169,7 @@ func TestListByParentID(t *testing.T) {
 		Id: "spiffe://example.org/spire/agent/join_token/TokenBlog",
 	}
 	goodResponse := &common.RegistrationEntries{
-		Entries: getRegistrationEntries(),
+		Entries: testutil.GetRegistrationEntries("good.json"),
 	}
 	var testCases = []struct {
 		request          *registration.ParentID
@@ -437,7 +436,7 @@ func createEntryExpectations(suite *registrationServerTestSuite) {
 	expectDataStore(suite)
 
 	createRequest := &datastore.CreateRegistrationEntryRequest{
-		RegisteredEntry: getRegistrationEntries()[0],
+		RegisteredEntry: testutil.GetRegistrationEntries("good.json")[0],
 	}
 
 	createResponse := &datastore.CreateRegistrationEntryResponse{
@@ -464,7 +463,7 @@ func fetchEntryExpectations(suite *registrationServerTestSuite) {
 		RegisteredEntryId: "abcdefgh",
 	}
 	fetchResponse := &datastore.FetchRegistrationEntryResponse{
-		RegisteredEntry: getRegistrationEntries()[0],
+		RegisteredEntry: testutil.GetRegistrationEntries("good.json")[0],
 	}
 	suite.mockDataStore.EXPECT().
 		FetchRegistrationEntry(fetchRequest).
@@ -484,7 +483,7 @@ func listByParentIDExpectations(suite *registrationServerTestSuite) {
 
 	listRequest := &datastore.ListParentIDEntriesRequest{ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog"}
 	listResponse := &datastore.ListParentIDEntriesResponse{
-		RegisteredEntryList: getRegistrationEntries(),
+		RegisteredEntryList: testutil.GetRegistrationEntries("good.json"),
 	}
 	suite.mockDataStore.EXPECT().
 		ListParentIDEntries(listRequest).
@@ -518,11 +517,4 @@ func createJoinTokenErrorExpectations(suite *registrationServerTestSuite) {
 func expectDataStore(suite *registrationServerTestSuite) {
 	suite.mockCatalog.EXPECT().DataStores().
 		Return([]datastore.DataStore{suite.mockDataStore})
-}
-
-func getRegistrationEntries() []*common.RegistrationEntry {
-	regEntries := &common.RegistrationEntries{}
-	dat, _ := ioutil.ReadFile("../../test/fixture/registration/good.json")
-	json.Unmarshal(dat, &regEntries)
-	return regEntries.Entries
 }

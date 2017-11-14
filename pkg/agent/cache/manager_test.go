@@ -14,8 +14,8 @@ import (
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	certsFixture "github.com/spiffe/spire/test/fixture/certs"
-	regFixture "github.com/spiffe/spire/test/fixture/registration"
 	nodeMock "github.com/spiffe/spire/test/mock/proto/api/node"
+	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +24,7 @@ var (
 	serverId        = "spiffe://testDomain/spiffe/cp"
 	baseSVIDKey, _  = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	testLogger, _   = testlog.NewNullLogger()
-	regEntries      = regFixture.GetRegistrationEntries()
+	regEntries      = testutil.GetRegistrationEntries("good.json")
 	blogSVID, _     = x509.ParseCertificate(certsFixture.GetTestBlogSVID())
 
 	testCacheEntry = CacheEntry{
@@ -48,7 +48,8 @@ var (
 
 	svidUpdate = &node.SvidUpdate{
 		Svids:               svidMap,
-		RegistrationEntries: regFixture.GetRegistrationEntries()}
+		RegistrationEntries: testutil.GetRegistrationEntries("good.json"),
+	}
 )
 
 func TestManager_FetchSVID(t *testing.T) {

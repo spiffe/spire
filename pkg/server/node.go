@@ -14,7 +14,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/node"
@@ -181,28 +180,22 @@ func (s *nodeServer) FetchFederatedBundle(
 	return response, nil
 }
 
+//TODO: add unit test and review this
 func (s *nodeServer) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
 	[]*common.RegistrationEntry, error) {
 
 	dataStore := s.catalog.DataStores()[0]
+	var entries []*common.RegistrationEntry
 
 	///lookup Registration Entries for resolved selectors
-	var entries []*common.RegistrationEntry
-	var selectorsEntries []*common.RegistrationEntry
+	req := &datastore.ListSelectorEntriesRequest{Selectors: selectors}
+	listSelectorResponse, err := dataStore.ListMatchingEntries(req)
+	if err != nil {
+		return nil, err
+	}
 
-	set := selector.NewSet(selectors)
-	reqs := []*datastore.ListSelectorEntriesRequest{}
-	for subset := range set.Power() {
-		reqs = append(reqs, &datastore.ListSelectorEntriesRequest{Selectors: subset.Raw()})
-	}
-	for _, req := range reqs {
-		listSelectorResponse, err := dataStore.ListSelectorEntries(req)
-		if err != nil {
-			return nil, err
-		}
-		selectorsEntries = append(selectorsEntries, listSelectorResponse.RegisteredEntryList...)
-	}
-	entries = append(entries, selectorsEntries...)
+	selectorsEntries := listSelectorResponse.RegisteredEntryList
+	entries = append(entries, listSelectorResponse.RegisteredEntryList...)
 
 	///lookup Registration Entries where spiffeID is the parent ID
 	listResponse, err := dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: spiffeID})
