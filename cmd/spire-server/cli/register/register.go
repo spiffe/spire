@@ -1,4 +1,4 @@
-package command
+package register
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 
@@ -62,18 +63,18 @@ func (rc *RegisterConfig) Validate() error {
 	return nil
 }
 
-type Register struct{}
+type RegisterCLI struct{}
 
-func (Register) Synopsis() string {
+func (RegisterCLI) Synopsis() string {
 	return "Creates registration entries"
 }
 
-func (r Register) Help() string {
+func (r RegisterCLI) Help() string {
 	_, err := r.newConfig([]string{"-h"})
 	return err.Error()
 }
 
-func (r Register) Run(args []string) int {
+func (r RegisterCLI) Run(args []string) int {
 	config, err := r.newConfig(args)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -96,7 +97,7 @@ func (r Register) Run(args []string) int {
 		return 1
 	}
 
-	c, err := newRegistrationClient(config.Addr)
+	c, err := util.NewRegistrationClient(config.Addr)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -112,7 +113,7 @@ func (r Register) Run(args []string) int {
 }
 
 // parseConfig builds a registration entry from the given config
-func (r Register) parseConfig(c *RegisterConfig) ([]*common.RegistrationEntry, error) {
+func (r RegisterCLI) parseConfig(c *RegisterConfig) ([]*common.RegistrationEntry, error) {
 	e := &common.RegistrationEntry{
 		ParentId: c.ParentID,
 		SpiffeId: c.SpiffeID,
@@ -133,7 +134,7 @@ func (r Register) parseConfig(c *RegisterConfig) ([]*common.RegistrationEntry, e
 	return []*common.RegistrationEntry{e}, nil
 }
 
-func (Register) parseFile(path string) ([]*common.RegistrationEntry, error) {
+func (RegisterCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
 	entries := &common.RegistrationEntries{}
 
 	dat, err := ioutil.ReadFile(path)
@@ -147,7 +148,7 @@ func (Register) parseFile(path string) ([]*common.RegistrationEntry, error) {
 
 // parseSelector parses a CLI string from type:value into a selector type.
 // Everything to the right of the first ":" is considered a selector value.
-func (Register) parseSelector(str string) (*common.Selector, error) {
+func (RegisterCLI) parseSelector(str string) (*common.Selector, error) {
 	parts := strings.SplitAfterN(str, ":", 2)
 	if len(parts) < 2 {
 		return nil, fmt.Errorf("selector \"%s\" must be formatted as type:value", str)
@@ -161,7 +162,7 @@ func (Register) parseSelector(str string) (*common.Selector, error) {
 	return s, nil
 }
 
-func (r Register) registerEntries(c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
+func (r RegisterCLI) registerEntries(c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
 	for _, e := range entries {
 		id, err := c.CreateEntry(context.TODO(), e)
 		if err != nil {
@@ -176,7 +177,7 @@ func (r Register) registerEntries(c registration.RegistrationClient, entries []*
 	return nil
 }
 
-func (Register) printEntry(e *common.RegistrationEntry, id string) {
+func (RegisterCLI) printEntry(e *common.RegistrationEntry, id string) {
 	if id != "" {
 		fmt.Printf("Entry ID:\t%s\n", id)
 	}
@@ -191,11 +192,11 @@ func (Register) printEntry(e *common.RegistrationEntry, id string) {
 	fmt.Println()
 }
 
-func (Register) newConfig(args []string) (*RegisterConfig, error) {
+func (RegisterCLI) newConfig(args []string) (*RegisterConfig, error) {
 	f := flag.NewFlagSet("register", flag.ContinueOnError)
 	c := &RegisterConfig{}
 
-	f.StringVar(&c.Addr, "serverAddr", defaultServerAddr, "Address of the SPIRE server")
+	f.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
 	f.StringVar(&c.ParentID, "parentID", "", "The SPIFFE ID of this record's parent")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
 	f.IntVar(&c.Ttl, "ttl", 3600, "A TTL, in seconds, for any SVID issued as a result of this record")

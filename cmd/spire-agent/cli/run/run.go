@@ -1,4 +1,4 @@
-package command
+package run
 
 import (
 	"crypto/x509"
@@ -36,7 +36,7 @@ const (
 
 // Struct representing available configurables for file and CLI
 // options
-type CmdConfig struct {
+type RunConfig struct {
 	ServerAddress   string
 	ServerPort      int
 	TrustDomain     string
@@ -53,15 +53,15 @@ type CmdConfig struct {
 	Umask      string
 }
 
-type Run struct {
+type RunCLI struct {
 }
 
-func (*Run) Help() string {
+func (*RunCLI) Help() string {
 	_, err := parseFlags([]string{"-h"})
 	return err.Error()
 }
 
-func (*Run) Run(args []string) int {
+func (*RunCLI) Run(args []string) int {
 	cliConfig, err := parseFlags(args)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -98,12 +98,12 @@ func (*Run) Run(args []string) int {
 	return 0
 }
 
-func (*Run) Synopsis() string {
+func (*RunCLI) Synopsis() string {
 	return "Runs the agent"
 }
 
-func parseFile(filePath string) (*CmdConfig, error) {
-	c := &CmdConfig{}
+func parseFile(filePath string) (*RunConfig, error) {
+	c := &RunConfig{}
 
 	// Return a friendly error if the file is missing
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
@@ -131,9 +131,9 @@ func parseFile(filePath string) (*CmdConfig, error) {
 	return c, nil
 }
 
-func parseFlags(args []string) (*CmdConfig, error) {
+func parseFlags(args []string) (*RunConfig, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	c := &CmdConfig{}
+	c := &RunConfig{}
 
 	flags.StringVar(&c.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
 	flags.IntVar(&c.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
@@ -157,7 +157,7 @@ func parseFlags(args []string) (*CmdConfig, error) {
 	return c, nil
 }
 
-func mergeConfigs(c *agent.Config, fileConfig, cliConfig *CmdConfig) error {
+func mergeConfigs(c *agent.Config, fileConfig, cliConfig *RunConfig) error {
 	// CLI > File, merge fileConfig first
 	err := mergeConfig(c, fileConfig)
 	if err != nil {
@@ -167,7 +167,7 @@ func mergeConfigs(c *agent.Config, fileConfig, cliConfig *CmdConfig) error {
 	return mergeConfig(c, cliConfig)
 }
 
-func mergeConfig(orig *agent.Config, cmd *CmdConfig) error {
+func mergeConfig(orig *agent.Config, cmd *RunConfig) error {
 	// Parse server address
 	if cmd.ServerAddress != "" {
 		ips, err := net.LookupIP(cmd.ServerAddress)

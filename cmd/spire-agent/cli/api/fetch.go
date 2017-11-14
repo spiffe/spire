@@ -1,4 +1,4 @@
-package command
+package api
 
 import (
 	"context"
@@ -18,27 +18,27 @@ import (
 	"google.golang.org/grpc"
 )
 
-type APIFetchConfig struct {
+type FetchConfig struct {
 	silent     bool
 	socketPath string
 	spiffeID   string
 	writePath  string
 }
 
-type APIFetch struct {
-	config *APIFetchConfig
+type FetchCLI struct {
+	config *FetchConfig
 }
 
-func (APIFetch) Synopsis() string {
+func (FetchCLI) Synopsis() string {
 	return "Fetches SVIDs from the Workload API"
 }
 
-func (f APIFetch) Help() string {
+func (f FetchCLI) Help() string {
 	err := f.parseConfig([]string{"-h"})
 	return err.Error()
 }
 
-func (f *APIFetch) Run(args []string) int {
+func (f *FetchCLI) Run(args []string) int {
 	err := f.parseConfig(args)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -74,9 +74,9 @@ func (f *APIFetch) Run(args []string) int {
 	return 0
 }
 
-func (f *APIFetch) parseConfig(args []string) error {
+func (f *FetchCLI) parseConfig(args []string) error {
 	fs := flag.NewFlagSet("fetch", flag.ContinueOnError)
-	c := &APIFetchConfig{}
+	c := &FetchConfig{}
 	fs.BoolVar(&c.silent, "silent", false, "Suppress stdout")
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "Retrieve only a specific SPIFFE ID (optional)")
 	fs.StringVar(&c.socketPath, "socketPath", "/tmp/agent.sock", "Path to the Workload API socket")
@@ -86,7 +86,7 @@ func (f *APIFetch) parseConfig(args []string) error {
 	return fs.Parse(args)
 }
 
-func (f *APIFetch) fetchBundles(ctx context.Context, c workload.WorkloadClient) (*workload.Bundles, error) {
+func (f *FetchCLI) fetchBundles(ctx context.Context, c workload.WorkloadClient) (*workload.Bundles, error) {
 	var resp *workload.Bundles
 	var err error
 
@@ -104,7 +104,7 @@ func (f *APIFetch) fetchBundles(ctx context.Context, c workload.WorkloadClient) 
 	return resp, nil
 }
 
-func (f APIFetch) printBundles(bundles *workload.Bundles, respTime time.Duration) {
+func (f FetchCLI) printBundles(bundles *workload.Bundles, respTime time.Duration) {
 	lenMsg := fmt.Sprintf("Fetched %v bundle", len(bundles.Bundles))
 	if len(bundles.Bundles) != 1 {
 		lenMsg = lenMsg + "s"
@@ -126,7 +126,7 @@ func (f APIFetch) printBundles(bundles *workload.Bundles, respTime time.Duration
 	fmt.Println()
 }
 
-func (f APIFetch) printBundle(bundle *workload.WorkloadEntry) {
+func (f FetchCLI) printBundle(bundle *workload.WorkloadEntry) {
 	// Print SPIFFE ID first so if we run into a problem, we
 	// get to know which record it was
 	fmt.Printf("SPIFFE ID:\t\t%s\n", bundle.SpiffeId)
@@ -164,7 +164,7 @@ func (f APIFetch) printBundle(bundle *workload.WorkloadEntry) {
 	}
 }
 
-func (f APIFetch) writeBundles(bundles *workload.Bundles) error {
+func (f FetchCLI) writeBundles(bundles *workload.Bundles) error {
 	for i, bundle := range bundles.Bundles {
 		svidName := fmt.Sprintf("svid.%v.pem", i)
 		keyName := fmt.Sprintf("svid.%v.key", i)
@@ -206,7 +206,7 @@ func (f APIFetch) writeBundles(bundles *workload.Bundles) error {
 
 // writeCerts takes a slice of data, which may contain multiple certificates,
 // and encodes them as PEM blocks, writing them to filename
-func (f APIFetch) writeCerts(filename string, data []byte) error {
+func (f FetchCLI) writeCerts(filename string, data []byte) error {
 	// TODO: Is there a better way to do this?
 	certs, err := x509.ParseCertificates(data)
 	if err != nil {
@@ -226,7 +226,7 @@ func (f APIFetch) writeCerts(filename string, data []byte) error {
 }
 
 // writeKey takes a private key, formats as PEM, and writes it to filename
-func (f APIFetch) writeKey(filename string, data []byte) error {
+func (f FetchCLI) writeKey(filename string, data []byte) error {
 	b := &pem.Block{
 		Type:  "PRIVATE KEY",
 		Bytes: data,
@@ -236,12 +236,12 @@ func (f APIFetch) writeKey(filename string, data []byte) error {
 }
 
 // writeFile creates or truncates filename, and writes data to it
-func (f APIFetch) writeFile(filename string, data []byte) error {
+func (f FetchCLI) writeFile(filename string, data []byte) error {
 	p := path.Join(f.config.writePath, filename)
 	return ioutil.WriteFile(p, data, os.ModePerm)
 }
 
-func (f APIFetch) dial() (workload.WorkloadClient, error) {
+func (f FetchCLI) dial() (workload.WorkloadClient, error) {
 	// Workload API is unauthenticated
 	conn, err := grpc.Dial(f.config.socketPath, grpc.WithInsecure(), grpc.WithDialer(f.dialer))
 	if err != nil {
@@ -254,7 +254,7 @@ func (f APIFetch) dial() (workload.WorkloadClient, error) {
 // dialer gets passed to grpc and serves as the mechanism for
 // calling a unix domain socket.
 // TODO: is there a better way to do this?
-func (f APIFetch) dialer(addr string, timeout time.Duration) (net.Conn, error) {
+func (f FetchCLI) dialer(addr string, timeout time.Duration) (net.Conn, error) {
 	// Assume we're only dialing sockets
 	return net.DialTimeout("unix", addr, timeout)
 }

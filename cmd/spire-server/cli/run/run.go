@@ -1,4 +1,4 @@
-package command
+package run
 
 import (
 	"errors"
@@ -30,8 +30,8 @@ const (
 	defaultUmask         = 0077
 )
 
-// CmdConfig represents available configurables for file and CLI options
-type CmdConfig struct {
+// RunConfig represents available configurables for file and CLI options
+type RunConfig struct {
 	BindAddress   string
 	BindPort      int
 	BindHTTPPort  int
@@ -45,18 +45,18 @@ type CmdConfig struct {
 	Umask         string
 }
 
-//RunCommand itself
-type RunCommand struct {
+// Run CLI struct
+type RunCLI struct {
 }
 
 //Help prints the server cmd usage
-func (*RunCommand) Help() string {
+func (*RunCLI) Help() string {
 	_, err := parseFlags([]string{"-h"})
 	return err.Error()
 }
 
 //Run the SPIFFE Server
-func (*RunCommand) Run(args []string) int {
+func (*RunCLI) Run(args []string) int {
 	cliConfig, err := parseFlags(args)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -94,12 +94,12 @@ func (*RunCommand) Run(args []string) int {
 }
 
 //Synopsis of the command
-func (*RunCommand) Synopsis() string {
+func (*RunCLI) Synopsis() string {
 	return "Runs the server"
 }
 
-func parseFile(filePath string) (*CmdConfig, error) {
-	c := &CmdConfig{}
+func parseFile(filePath string) (*RunConfig, error) {
+	c := &RunConfig{}
 
 	// Return a friendly error if the file is missing
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
@@ -127,9 +127,9 @@ func parseFile(filePath string) (*CmdConfig, error) {
 	return c, nil
 }
 
-func parseFlags(args []string) (*CmdConfig, error) {
+func parseFlags(args []string) (*RunConfig, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	c := &CmdConfig{}
+	c := &RunConfig{}
 
 	flags.StringVar(&c.BindAddress, "bindAddress", "", "IP address or DNS name of the SPIRE server")
 	flags.IntVar(&c.BindPort, "serverPort", 0, "Port number of the SPIRE server")
@@ -151,7 +151,7 @@ func parseFlags(args []string) (*CmdConfig, error) {
 	return c, nil
 }
 
-func mergeConfigs(c *server.Config, fileConfig, cliConfig *CmdConfig) error {
+func mergeConfigs(c *server.Config, fileConfig, cliConfig *RunConfig) error {
 	// CLI > File, merge fileConfig first
 	err := mergeConfig(c, fileConfig)
 	if err != nil {
@@ -161,7 +161,7 @@ func mergeConfigs(c *server.Config, fileConfig, cliConfig *CmdConfig) error {
 	return mergeConfig(c, cliConfig)
 }
 
-func mergeConfig(orig *server.Config, cmd *CmdConfig) error {
+func mergeConfig(orig *server.Config, cmd *RunConfig) error {
 	// Parse server address
 	if cmd.BindAddress != "" {
 		ip := net.ParseIP(cmd.BindAddress)

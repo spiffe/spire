@@ -4,7 +4,8 @@ import (
 	"log"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/cmd/spire-agent/cli/command"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/api"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/run"
 )
 
 func Run(args []string) int {
@@ -13,10 +14,10 @@ func Run(args []string) int {
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
 		"api fetch": func() (cli.Command, error) {
-			return &command.APIFetch{}, nil
+			return &api.FetchCLI{}, nil
 		},
 		"run": func() (cli.Command, error) {
-			return &command.Run{}, nil
+			return &run.RunCLI{}, nil
 		},
 	}
 

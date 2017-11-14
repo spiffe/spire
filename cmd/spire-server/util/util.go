@@ -1,4 +1,4 @@
-package command
+package util
 
 import (
 	"crypto/tls"
@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	defaultServerAddr = "localhost:8081"
+	DefaultServerAddr = "localhost:8081"
 )
 
-func newRegistrationClient(address string) (registration.RegistrationClient, error) {
+func NewRegistrationClient(address string) (registration.RegistrationClient, error) {
 	// TODO: Pass a bundle in here
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
