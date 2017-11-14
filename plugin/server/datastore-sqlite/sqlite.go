@@ -514,7 +514,7 @@ func (ds *sqlitePlugin) ListSelectorEntries(
 	return &datastore.ListSelectorEntriesResponse{RegisteredEntryList: regEntryList}, nil
 }
 
-func (ds *sqlitePlugin) ListPowerSelectorEntries(
+func (ds *sqlitePlugin) ListMatchingEntries(
 	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
 
 	if len(request.Selectors) < 1 {

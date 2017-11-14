@@ -9,7 +9,6 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
-	fixture "github.com/spiffe/spire/test/fixture/registration"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -399,7 +398,7 @@ func Test_DeleteRegistrationEntry(t *testing.T) {
 }
 
 func TestSqlitePlugin_ListParentIDEntries(t *testing.T) {
-	allEntries := fixture.FromFile("entries.json")
+	allEntries := testutil.GetRegistrationEntries("entries.json")
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -435,7 +434,7 @@ func TestSqlitePlugin_ListParentIDEntries(t *testing.T) {
 }
 
 func Test_ListSelectorEntries(t *testing.T) {
-	allEntries := fixture.FromFile("entries.json")
+	allEntries := testutil.GetRegistrationEntries("entries.json")
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -475,8 +474,8 @@ func Test_ListSelectorEntries(t *testing.T) {
 	}
 }
 
-func Test_ListPowerSelectorEntries(t *testing.T) {
-	allEntries := fixture.FromFile("entries.json")
+func Test_ListMatchingEntries(t *testing.T) {
+	allEntries := testutil.GetRegistrationEntries("entries.json")
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -500,7 +499,7 @@ func Test_ListPowerSelectorEntries(t *testing.T) {
 			for _, entry := range test.registrationEntries {
 				ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
 			}
-			result, err := ds.ListPowerSelectorEntries(&datastore.ListSelectorEntriesRequest{
+			result, err := ds.ListMatchingEntries(&datastore.ListSelectorEntriesRequest{
 				Selectors: test.selectors})
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedList, result.RegisteredEntryList)

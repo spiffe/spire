@@ -283,17 +283,17 @@ func (mr *MockDataStoreMockRecorder) ListSelectorEntries(request interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSelectorEntries", reflect.TypeOf((*MockDataStore)(nil).ListSelectorEntries), request)
 }
 
-// ListPowerSelectorEntries mocks base method
-func (m *MockDataStore) ListPowerSelectorEntries(request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
-	ret := m.ctrl.Call(m, "ListPowerSelectorEntries", request)
+// ListMatchingEntries mocks base method
+func (m *MockDataStore) ListMatchingEntries(request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
+	ret := m.ctrl.Call(m, "ListMatchingEntries", request)
 	ret0, _ := ret[0].(*datastore.ListSelectorEntriesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListPowerSelectorEntries indicates an expected call of ListPowerSelectorEntries
-func (mr *MockDataStoreMockRecorder) ListPowerSelectorEntries(request interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPowerSelectorEntries", reflect.TypeOf((*MockDataStore)(nil).ListPowerSelectorEntries), request)
+// ListMatchingEntries indicates an expected call of ListMatchingEntries
+func (mr *MockDataStoreMockRecorder) ListMatchingEntries(request interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMatchingEntries", reflect.TypeOf((*MockDataStore)(nil).ListMatchingEntries), request)
 }
 
 // ListSpiffeEntries mocks base method

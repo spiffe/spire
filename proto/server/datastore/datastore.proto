@@ -316,7 +316,7 @@ message ListSpiffeEntriesResponse {
 
 // Represents a join token and associated metadata, if known
 message JoinToken {
-    string token  = 1;
+    string token = 1;
 
     // Expiration date, represented in UNIX time
     int64 expiry = 2;
@@ -361,14 +361,14 @@ service DataStore {
     // Deletes a specific registered entry
     rpc DeleteRegistrationEntry(DeleteRegistrationEntryRequest) returns (DeleteRegistrationEntryResponse);
 
-    // Retrieves all the  registered entry with the same ParentID
+    // Retrieves all the registered entry with the same ParentID
     rpc ListParentIDEntries(ListParentIDEntriesRequest) returns (ListParentIDEntriesResponse);
-    // Retrieves all the  registered entry matching exactlly the compound Selector
+    // Retrieves all the registered entry matching exactlly the compound Selector
     rpc ListSelectorEntries(ListSelectorEntriesRequest) returns (ListSelectorEntriesResponse);
-    // Retrieves all the  registered entry matching exactlly any of the compound Selector from the generated power set
+    // Retrieves all the registered entry matching exactly any of the compound Selector from the generated power set
     // of the input selector set
-    rpc ListPowerSelectorEntries(ListSelectorEntriesRequest) returns (ListSelectorEntriesResponse);
-    // Retrieves all the  registered entry with the same SpiffeId
+    rpc ListMatchingEntries(ListSelectorEntriesRequest) returns (ListSelectorEntriesResponse);
+    // Retrieves all the registered entry with the same SpiffeId
     rpc ListSpiffeEntries(ListSpiffeEntriesRequest) returns (ListSpiffeEntriesResponse);
 
     // Register a new join token

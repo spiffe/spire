@@ -189,7 +189,7 @@ func (s *nodeServer) fetchRegistrationEntries(selectors []*common.Selector, spif
 
 	///lookup Registration Entries for resolved selectors
 	req := &datastore.ListSelectorEntriesRequest{Selectors: selectors}
-	listSelectorResponse, err := dataStore.ListPowerSelectorEntries(req)
+	listSelectorResponse, err := dataStore.ListMatchingEntries(req)
 	if err != nil {
 		return nil, err
 	}

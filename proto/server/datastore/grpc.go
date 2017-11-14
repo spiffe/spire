@@ -123,8 +123,8 @@ func (m *GRPCServer) ListSelectorEntries(ctx context.Context, req *ListSelectorE
 	return res, err
 }
 
-func (m *GRPCServer) ListPowerSelectorEntries(ctx context.Context, req *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error) {
-	return m.DataStoreImpl.ListPowerSelectorEntries(req)
+func (m *GRPCServer) ListMatchingEntries(ctx context.Context, req *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error) {
+	return m.DataStoreImpl.ListMatchingEntries(req)
 }
 
 func (m *GRPCServer) ListSpiffeEntries(ctx context.Context, req *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error) {
@@ -285,8 +285,8 @@ func (m *GRPCClient) ListSelectorEntries(req *ListSelectorEntriesRequest) (*List
 	return res, err
 }
 
-func (m *GRPCClient) ListPowerSelectorEntries(req *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error) {
-	return m.client.ListPowerSelectorEntries(context.Background(), req)
+func (m *GRPCClient) ListMatchingEntries(req *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error) {
+	return m.client.ListMatchingEntries(context.Background(), req)
 }
 
 func (m *GRPCClient) ListSpiffeEntries(req *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error) {

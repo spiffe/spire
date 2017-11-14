@@ -46,7 +46,7 @@ type DataStore interface {
 
 	ListParentIDEntries(request *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error)
 	ListSelectorEntries(request *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
-	ListPowerSelectorEntries(request *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
+	ListMatchingEntries(request *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
 	ListSpiffeEntries(request *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error)
 
 	RegisterToken(request *JoinToken) (*common.Empty, error)
