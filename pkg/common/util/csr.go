@@ -1,9 +1,9 @@
 package util
 
 import (
-	"crypto/x509/pkix"
-	"crypto/x509"
 	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"github.com/spiffe/go-spiffe/uri"
 )
 
@@ -35,4 +35,3 @@ func MakeCSR(privateKey interface{}, spiffeId string) (csr []byte, err error) {
 	}
 	return
 }
-

@@ -187,32 +187,32 @@ func getFetchBaseSVIDTestData() *fetchBaseSVIDData {
 	}
 
 	data.regEntryParentIDList = []*common.RegistrationEntry{
-		&common.RegistrationEntry{
+		{
 			Selectors: []*common.Selector{
-				&common.Selector{Type: "foo", Value: "bar"},
-				&common.Selector{Type: "foo", Value: "car"},
+				{Type: "foo", Value: "bar"},
+				{Type: "foo", Value: "car"},
 			},
 			ParentId: "spiffe://example.org/path",
 			SpiffeId: "spiffe://test1"},
-		&common.RegistrationEntry{
+		{
 			Selectors: []*common.Selector{
-				&common.Selector{Type: "foo", Value: "bar"},
-				&common.Selector{Type: "foo", Value: "car"},
+				{Type: "foo", Value: "bar"},
+				{Type: "foo", Value: "car"},
 			},
 			ParentId: "spiffe://example.org/path",
 			SpiffeId: "spiffe://repeated"}}
 
 	data.regEntrySelectorList = []*common.RegistrationEntry{
-		&common.RegistrationEntry{
+		{
 			Selectors: []*common.Selector{
-				&common.Selector{Type: "foo", Value: "car"},
-				&common.Selector{Type: "foo", Value: "bar"},
+				{Type: "foo", Value: "car"},
+				{Type: "foo", Value: "bar"},
 			},
 			ParentId: "spiffe://example.org/path",
 			SpiffeId: "spiffe://repeated"},
-		&common.RegistrationEntry{
+		{
 			Selectors: []*common.Selector{
-				&common.Selector{Type: "foo", Value: "bar"},
+				{Type: "foo", Value: "bar"},
 			},
 			ParentId: "spiffe://example.org/path",
 			SpiffeId: "spiffe://test2",
@@ -302,25 +302,25 @@ func setFetchBaseSVIDExpectations(
 
 func getExpectedFetchBaseSVID(baseSpiffeID string, cert []byte) *node.SvidUpdate {
 	expectedRegEntries := []*common.RegistrationEntry{
-		&common.RegistrationEntry{
+		{
 			Selectors: []*common.Selector{
-				&common.Selector{Type: "foo", Value: "bar"},
-				&common.Selector{Type: "foo", Value: "car"},
+				{Type: "foo", Value: "bar"},
+				{Type: "foo", Value: "car"},
 			},
 			ParentId: "spiffe://example.org/path",
 			SpiffeId: "spiffe://repeated",
 		},
-		&common.RegistrationEntry{
+		{
 			Selectors: []*common.Selector{
-				&common.Selector{Type: "foo", Value: "bar"},
+				{Type: "foo", Value: "bar"},
 			},
 			ParentId: "spiffe://example.org/path",
 			SpiffeId: "spiffe://test2",
 		},
-		&common.RegistrationEntry{
+		{
 			Selectors: []*common.Selector{
-				&common.Selector{Type: "foo", Value: "bar"},
-				&common.Selector{Type: "foo", Value: "car"},
+				{Type: "foo", Value: "bar"},
+				{Type: "foo", Value: "car"},
 			},
 			ParentId: "spiffe://example.org/path",
 			SpiffeId: "spiffe://test1",
@@ -381,20 +381,20 @@ func getFetchSVIDTestData() *fetchSVIDData {
 
 	data.selector = &common.Selector{Type: "foo", Value: "bar"}
 	data.nodeResolutionList = []*datastore.NodeResolverMapEntry{
-		&datastore.NodeResolverMapEntry{
+		{
 			BaseSpiffeId: data.baseSpiffeID,
 			Selector:     data.selector,
 		},
 	}
 
 	data.bySelectorsEntries = []*common.RegistrationEntry{
-		&common.RegistrationEntry{SpiffeId: data.baseSpiffeID, Ttl: 1111},
+		{SpiffeId: data.baseSpiffeID, Ttl: 1111},
 	}
 
 	data.byParentIDEntries = []*common.RegistrationEntry{
-		&common.RegistrationEntry{SpiffeId: data.spiffeIDs[0], Ttl: 2222},
-		&common.RegistrationEntry{SpiffeId: data.spiffeIDs[1], Ttl: 3333},
-		&common.RegistrationEntry{SpiffeId: data.spiffeIDs[2], Ttl: 4444},
+		{SpiffeId: data.spiffeIDs[0], Ttl: 2222},
+		{SpiffeId: data.spiffeIDs[1], Ttl: 3333},
+		{SpiffeId: data.spiffeIDs[2], Ttl: 4444},
 	}
 
 	return data
@@ -462,9 +462,9 @@ func setFetchSVIDExpectations(
 func getExpectedFetchSVID(data *fetchSVIDData) *node.SvidUpdate {
 	//TODO: improve this, put it in an array in data and iterate it
 	svids := map[string]*node.Svid{
-		data.nodeSpiffeID:     &node.Svid{SvidCert: data.generatedCerts[0], Ttl: 4444},
-		data.databaseSpiffeID: &node.Svid{SvidCert: data.generatedCerts[1], Ttl: 2222},
-		data.blogSpiffeID:     &node.Svid{SvidCert: data.generatedCerts[2], Ttl: 3333},
+		data.nodeSpiffeID:     {SvidCert: data.generatedCerts[0], Ttl: 4444},
+		data.databaseSpiffeID: {SvidCert: data.generatedCerts[1], Ttl: 2222},
+		data.blogSpiffeID:     {SvidCert: data.generatedCerts[2], Ttl: 3333},
 	}
 
 	registrationEntries := []*common.RegistrationEntry{
