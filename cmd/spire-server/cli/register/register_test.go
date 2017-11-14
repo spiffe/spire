@@ -1,4 +1,4 @@
-package command
+package register
 
 import (
 	"path"
@@ -8,19 +8,21 @@ import (
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	cmdutil "github.com/spiffe/spire/cmd/spire-server/util"
 )
 
 // TODO: Test additional scenarios
 func TestRegisterParseConfig(t *testing.T) {
 	c := &RegisterConfig{
-		Addr:      defaultServerAddr,
+		Addr:      cmdutil.DefaultServerAddr,
 		ParentID:  "spiffe://example.org/foo",
 		SpiffeID:  "spiffe://example.org/bar",
 		Ttl:       60,
 		Selectors: SelectorFlag{"unix:uid:1000", "unix:gid:1000"},
 	}
 
-	entries, err := Register{}.parseConfig(c)
+	entries, err := RegisterCLI{}.parseConfig(c)
 	require.NoError(t, err)
 
 	expectedEntry := &common.RegistrationEntry{
@@ -39,7 +41,7 @@ func TestRegisterParseConfig(t *testing.T) {
 
 func TestRegisterParseFile(t *testing.T) {
 	p := path.Join(util.ProjectRoot(), "test/fixture/registration/good.json")
-	entries, err := Register{}.parseFile(p)
+	entries, err := RegisterCLI{}.parseFile(p)
 	require.NoError(t, err)
 
 	entry1 := &common.RegistrationEntry{
@@ -74,12 +76,12 @@ func TestRegisterParseFile(t *testing.T) {
 
 func TestRegisterParseSelector(t *testing.T) {
 	str := "unix:uid:1000"
-	s, err := Register{}.parseSelector(str)
+	s, err := RegisterCLI{}.parseSelector(str)
 	require.NoError(t, err)
 	assert.Equal(t, "unix", s.Type)
 	assert.Equal(t, "uid:1000", s.Value)
 
 	str = "unix"
-	_, err = Register{}.parseSelector(str)
+	_, err = RegisterCLI{}.parseSelector(str)
 	assert.NotNil(t, err)
 }

@@ -1,4 +1,4 @@
-package command
+package token
 
 import (
 	"flag"
@@ -6,15 +6,16 @@ import (
 	"net/url"
 	"path"
 
+	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 
 	"golang.org/x/net/context"
 )
 
-type TokenGenerate struct{}
+type GenerateCLI struct{}
 
-type TokenConfig struct {
+type GenerateConfig struct {
 	// Address of the SPIRE server
 	Addr string
 
@@ -25,29 +26,29 @@ type TokenConfig struct {
 	TTL int
 }
 
-func (TokenGenerate) Synopsis() string {
+func (GenerateCLI) Synopsis() string {
 	return "Generates a join token"
 }
 
-func (tc TokenGenerate) Help() string {
-	_, err := tc.newConfig([]string{"-h"})
+func (g GenerateCLI) Help() string {
+	_, err := g.newConfig([]string{"-h"})
 	return err.Error()
 }
 
-func (tc TokenGenerate) Run(args []string) int {
-	config, err := tc.newConfig(args)
+func (g GenerateCLI) Run(args []string) int {
+	config, err := g.newConfig(args)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	c, err := newRegistrationClient(config.Addr)
+	c, err := util.NewRegistrationClient(config.Addr)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	token, err := tc.createToken(c, config.TTL)
+	token, err := g.createToken(c, config.TTL)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -55,7 +56,7 @@ func (tc TokenGenerate) Run(args []string) int {
 	fmt.Printf("Token: %s\n", token)
 
 	if config.SpiffeID != "" {
-		err = tc.createVanityRecord(c, token, config.SpiffeID)
+		err = g.createVanityRecord(c, token, config.SpiffeID)
 		if err != nil {
 			fmt.Printf("Error assigning SPIFFE ID: %s\n", err.Error())
 			return 1
@@ -67,7 +68,7 @@ func (tc TokenGenerate) Run(args []string) int {
 
 // createToken calls the registration API and creates a new token
 // with the given TTL. It returns the raw token and an error, if any
-func (TokenGenerate) createToken(c registration.RegistrationClient, ttl int) (string, error) {
+func (GenerateCLI) createToken(c registration.RegistrationClient, ttl int) (string, error) {
 	req := &registration.JoinToken{Ttl: int32(ttl)}
 	resp, err := c.CreateJoinToken(context.TODO(), req)
 	if err != nil {
@@ -80,7 +81,7 @@ func (TokenGenerate) createToken(c registration.RegistrationClient, ttl int) (st
 // createVanityRecord inserts a registration entry with parent ID set to the SPIFFE ID
 // belonging to a token. The purpose is to allow folks to easily create vanity names
 // backed by token IDs.
-func (TokenGenerate) createVanityRecord(c registration.RegistrationClient, token, spiffeID string) error {
+func (GenerateCLI) createVanityRecord(c registration.RegistrationClient, token, spiffeID string) error {
 	id, err := url.Parse(spiffeID)
 	if err != nil {
 		return fmt.Errorf("could not parse SPIFFE ID: %s", err.Error())
@@ -112,13 +113,13 @@ func (TokenGenerate) createVanityRecord(c registration.RegistrationClient, token
 	return nil
 }
 
-func (TokenGenerate) newConfig(args []string) (TokenConfig, error) {
+func (GenerateCLI) newConfig(args []string) (GenerateConfig, error) {
 	flags := flag.NewFlagSet("generate", flag.ContinueOnError)
-	c := TokenConfig{}
+	c := GenerateConfig{}
 
 	flags.IntVar(&c.TTL, "ttl", 600, "Token TTL in seconds")
 	flags.StringVar(&c.SpiffeID, "spiffeID", "", "Additional SPIFFE ID to assign the token owner (optional)")
-	flags.StringVar(&c.Addr, "serverAddr", defaultServerAddr, "Address of the SPIRE server")
+	flags.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
 
 	err := flags.Parse(args)
 	if err != nil {

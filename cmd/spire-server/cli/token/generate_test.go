@@ -1,4 +1,4 @@
-package command
+package token
 
 import (
 	"testing"
@@ -20,7 +20,7 @@ func TestCreateToken(t *testing.T) {
 	resp := &registration.JoinToken{Token: "foobar", Ttl: 60}
 
 	c.EXPECT().CreateJoinToken(gomock.Any(), req).Return(resp, nil)
-	token, err := TokenGenerate{}.createToken(c, 60)
+	token, err := GenerateCLI{}.createToken(c, 60)
 	require.NoError(t, err)
 	assert.Equal(t, "foobar", token)
 }
@@ -43,12 +43,12 @@ func TestCreateVanityRecord(t *testing.T) {
 	}
 
 	c.EXPECT().CreateEntry(gomock.Any(), req)
-	err := TokenGenerate{}.createVanityRecord(c, token, spiffeID)
+	err := GenerateCLI{}.createVanityRecord(c, token, spiffeID)
 	assert.NoError(t, err)
 
 	// Test a bad spiffe id
 	spiffeID = "badID/foo/bar"
 	c.EXPECT().CreateEntry(gomock.Any(), gomock.Any()).MaxTimes(0)
-	err = TokenGenerate{}.createVanityRecord(c, token, spiffeID)
+	err = GenerateCLI{}.createVanityRecord(c, token, spiffeID)
 	assert.Error(t, err)
 }

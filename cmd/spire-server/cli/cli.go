@@ -4,22 +4,23 @@ import (
 	"log"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/cmd/spire-server/cli/command"
+	"github.com/spiffe/spire/cmd/spire-server/cli/register"
+	"github.com/spiffe/spire/cmd/spire-server/cli/run"
+	"github.com/spiffe/spire/cmd/spire-server/cli/token"
 )
 
 func Run(args []string) int {
-
 	c := cli.NewCLI("spire-server", "0.0.1") //TODO expose version configuration
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
 		"run": func() (cli.Command, error) {
-			return &command.RunCommand{}, nil
+			return &run.RunCLI{}, nil
 		},
 		"register": func() (cli.Command, error) {
-			return &command.Register{}, nil
+			return &register.RegisterCLI{}, nil
 		},
 		"token generate": func() (cli.Command, error) {
-			return &command.TokenGenerate{}, nil
+			return &token.GenerateCLI{}, nil
 		},
 	}
 

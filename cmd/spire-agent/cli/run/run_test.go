@@ -1,4 +1,4 @@
-package command
+package run
 
 import (
 	"testing"
@@ -46,7 +46,7 @@ func TestParseFlagsGood(t *testing.T) {
 }
 
 func TestMergeConfigGood(t *testing.T) {
-	c := &CmdConfig{
+	c := &RunConfig{
 		DataDir:       ".",
 		LogLevel:      "INFO",
 		PluginDir:     "conf/agent/plugin",

@@ -1,4 +1,4 @@
-package command
+package run
 
 import (
 	"testing"
@@ -44,7 +44,7 @@ func TestParseFlagsGood(t *testing.T) {
 }
 
 func TestMergeConfigGood(t *testing.T) {
-	c := &CmdConfig{
+	c := &RunConfig{
 		BindAddress:   "127.0.0.1",
 		BindPort:      8081,
 		BindHTTPPort:  8080,
