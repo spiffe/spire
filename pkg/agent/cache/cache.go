@@ -32,7 +32,7 @@ type Cache interface {
 	SetEntry(cacheEntry CacheEntry)
 	DeleteEntry([]*common.Selector) (deleted bool)
 	Entries() map[string][]CacheEntry
-	PowerEntries([]*common.Selector) (entry []CacheEntry)
+	MatchingEntries([]*common.Selector) (entry []CacheEntry)
 }
 
 type cacheImpl struct {
@@ -63,9 +63,9 @@ func (c *cacheImpl) Entry(selectors []*common.Selector) (entry []CacheEntry) {
 	return nil
 }
 
-// PowerEntries takes a slice of selectors, and works through all the combinations in order to
+// MatchingEntries takes a slice of selectors, and works through all the combinations in order to
 // find matching cache entries
-func (c *cacheImpl) PowerEntries(selectors []*common.Selector) (entries []CacheEntry) {
+func (c *cacheImpl) MatchingEntries(selectors []*common.Selector) (entries []CacheEntry) {
 	selectorSet := selector.NewSet(selectors)
 	c.m.Lock()
 	defer c.m.Unlock()

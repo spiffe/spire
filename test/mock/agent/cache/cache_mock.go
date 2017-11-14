@@ -81,14 +81,14 @@ func (mr *MockCacheMockRecorder) Entries() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Entries", reflect.TypeOf((*MockCache)(nil).Entries))
 }
 
-// PowerEntries mocks base method
-func (m *MockCache) PowerEntries(arg0 []*common.Selector) []cache.CacheEntry {
-	ret := m.ctrl.Call(m, "PowerEntries", arg0)
+// MatchingEntries mocks base method
+func (m *MockCache) MatchingEntries(arg0 []*common.Selector) []cache.CacheEntry {
+	ret := m.ctrl.Call(m, "MatchingEntries", arg0)
 	ret0, _ := ret[0].([]cache.CacheEntry)
 	return ret0
 }
 
-// PowerEntries indicates an expected call of PowerEntries
-func (mr *MockCacheMockRecorder) PowerEntries(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PowerEntries", reflect.TypeOf((*MockCache)(nil).PowerEntries), arg0)
+// MatchingEntries indicates an expected call of MatchingEntries
+func (mr *MockCacheMockRecorder) MatchingEntries(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchingEntries", reflect.TypeOf((*MockCache)(nil).MatchingEntries), arg0)
 }

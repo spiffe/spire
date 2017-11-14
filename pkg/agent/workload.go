@@ -100,7 +100,7 @@ func (s *workloadServer) fetchAllEntries(ctx context.Context) (entries []cache.C
 		return entries, err
 	}
 
-	return s.cache.PowerEntries(selectors), nil
+	return s.cache.MatchingEntries(selectors), nil
 }
 
 // resolveCaller takes a grpc context, and returns the PID of the caller which has issued
