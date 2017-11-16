@@ -228,7 +228,7 @@ func (f FetchCLI) writeCerts(filename string, data []byte) error {
 // writeKey takes a private key, formats as PEM, and writes it to filename
 func (f FetchCLI) writeKey(filename string, data []byte) error {
 	b := &pem.Block{
-		Type:  "PRIVATE KEY",
+		Type:  "EC PRIVATE KEY",
 		Bytes: data,
 	}
 
