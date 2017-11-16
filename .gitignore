@@ -25,3 +25,7 @@ plugin/server/nodeattestor-jointoken/nodeattestor-jointoken
 plugin/server/noderesolver-noop/noop
 plugin/server/noderesolver-noop/noderesolver-noop
 plugin/server/upstreamca-memory/upstreamca-memory
+
+functional/tools/stresstest/stresstest
+functional/tools/tokengenerator/tokengenerator
+functional/tools/workload/workload
