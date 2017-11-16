@@ -1,4 +1,4 @@
-package register
+package entry
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-type RegisterConfig struct {
+type CreateConfig struct {
 	// Address of SPIRE server
 	Addr string
 
@@ -34,7 +34,7 @@ type RegisterConfig struct {
 
 // Perform basic validation, even on fields that we
 // have defaults defined for
-func (rc *RegisterConfig) Validate() error {
+func (rc *CreateConfig) Validate() error {
 	if rc.Addr == "" {
 		return errors.New("a server address is required")
 	}
@@ -63,19 +63,19 @@ func (rc *RegisterConfig) Validate() error {
 	return nil
 }
 
-type RegisterCLI struct{}
+type CreateCLI struct{}
 
-func (RegisterCLI) Synopsis() string {
+func (CreateCLI) Synopsis() string {
 	return "Creates registration entries"
 }
 
-func (r RegisterCLI) Help() string {
-	_, err := r.newConfig([]string{"-h"})
+func (c CreateCLI) Help() string {
+	_, err := c.newConfig([]string{"-h"})
 	return err.Error()
 }
 
-func (r RegisterCLI) Run(args []string) int {
-	config, err := r.newConfig(args)
+func (c CreateCLI) Run(args []string) int {
+	config, err := c.newConfig(args)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -88,22 +88,22 @@ func (r RegisterCLI) Run(args []string) int {
 
 	var entries []*common.RegistrationEntry
 	if config.Path != "" {
-		entries, err = r.parseFile(config.Path)
+		entries, err = c.parseFile(config.Path)
 	} else {
-		entries, err = r.parseConfig(config)
+		entries, err = c.parseConfig(config)
 	}
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	c, err := util.NewRegistrationClient(config.Addr)
+	cl, err := util.NewRegistrationClient(config.Addr)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	err = r.registerEntries(c, entries)
+	err = c.registerEntries(c, entries)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -113,7 +113,7 @@ func (r RegisterCLI) Run(args []string) int {
 }
 
 // parseConfig builds a registration entry from the given config
-func (r RegisterCLI) parseConfig(c *RegisterConfig) ([]*common.RegistrationEntry, error) {
+func (c CreateCLI) parseConfig(c *CreateConfig) ([]*common.RegistrationEntry, error) {
 	e := &common.RegistrationEntry{
 		ParentId: c.ParentID,
 		SpiffeId: c.SpiffeID,
@@ -122,7 +122,7 @@ func (r RegisterCLI) parseConfig(c *RegisterConfig) ([]*common.RegistrationEntry
 
 	selectors := []*common.Selector{}
 	for _, s := range c.Selectors {
-		cs, err := r.parseSelector(s)
+		cs, err := c.parseSelector(s)
 		if err != nil {
 			return nil, err
 		}
@@ -134,7 +134,7 @@ func (r RegisterCLI) parseConfig(c *RegisterConfig) ([]*common.RegistrationEntry
 	return []*common.RegistrationEntry{e}, nil
 }
 
-func (RegisterCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
+func (CreateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
 	entries := &common.RegistrationEntries{}
 
 	dat, err := ioutil.ReadFile(path)
@@ -146,55 +146,24 @@ func (RegisterCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
 	return entries.Entries, nil
 }
 
-// parseSelector parses a CLI string from type:value into a selector type.
-// Everything to the right of the first ":" is considered a selector value.
-func (RegisterCLI) parseSelector(str string) (*common.Selector, error) {
-	parts := strings.SplitAfterN(str, ":", 2)
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("selector \"%s\" must be formatted as type:value", str)
-	}
-
-	s := &common.Selector{
-		// Strip the trailing delimiter
-		Type:  strings.TrimSuffix(parts[0], ":"),
-		Value: parts[1],
-	}
-	return s, nil
-}
-
-func (r RegisterCLI) registerEntries(c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
+func (c CreateCLI) registerEntries(c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
 	for _, e := range entries {
 		id, err := c.CreateEntry(context.TODO(), e)
 		if err != nil {
 			fmt.Println("FAILED to create the following entry:")
-			r.printEntry(e, "")
+			printEntry(e, "")
 			return err
 		}
 
-		r.printEntry(e, id.Id)
+		printEntry(e, id.Id)
 	}
 
 	return nil
 }
 
-func (RegisterCLI) printEntry(e *common.RegistrationEntry, id string) {
-	if id != "" {
-		fmt.Printf("Entry ID:\t%s\n", id)
-	}
-	fmt.Printf("SPIFFE ID:\t%s\n", e.SpiffeId)
-	fmt.Printf("Parent ID:\t%s\n", e.ParentId)
-	fmt.Printf("TTL:\t\t%v\n", e.Ttl)
-
-	for _, s := range e.Selectors {
-		fmt.Printf("Selector:\t%s:%s\n", s.Type, s.Value)
-	}
-
-	fmt.Println()
-}
-
-func (RegisterCLI) newConfig(args []string) (*RegisterConfig, error) {
+func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f := flag.NewFlagSet("register", flag.ContinueOnError)
-	c := &RegisterConfig{}
+	c := &CreateConfig{}
 
 	f.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
 	f.StringVar(&c.ParentID, "parentID", "", "The SPIFFE ID of this record's parent")
@@ -206,17 +175,4 @@ func (RegisterCLI) newConfig(args []string) (*RegisterConfig, error) {
 	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
 
 	return c, f.Parse(args)
-}
-
-// Define a custom type for selectors. Doing
-// this allows us to support repeatable flags
-type SelectorFlag []string
-
-func (s *SelectorFlag) String() string {
-	return fmt.Sprint(*s)
-}
-
-func (s *SelectorFlag) Set(val string) error {
-	*s = append(*s, val)
-	return nil
 }
