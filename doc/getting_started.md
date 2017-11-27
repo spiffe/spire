@@ -1,20 +1,20 @@
-# Getting started Ubuntu 16.04
+# Getting started
 
 <!-- TOC -->
 
-- [Getting started Ubuntu 16.04](#getting-started-ubuntu-1604)
-    - [SPIRE Ubuntu installation](#spire-ubuntu-installation)
+- [Getting started](#getting-started)
+    - [SPIRE artifacts](#spire-artifacts)
     - [Building the artifacts](#building-the-artifacts)
-    - [Installing your artifact](#installing-your-artifact)
+    - [Installing your artifact in Ubuntu 16.04](#installing-your-artifact-in-ubuntu-1604)
     - [Configuration](#configuration)
     - [Running SPIRE with join token](#running-spire-with-join-token)
 
 <!-- /TOC -->
 
-## SPIRE Ubuntu installation
+## SPIRE artifacts
 
 You can either download the binaries from [here](https://github.com/spiffe/spire/releases) or build them by
-[setting up your dev environment](https://github.com/spiffe/spire/blob/master/CONTRIBUTING.md).
+[setting up your dev environment first](https://github.com/spiffe/spire/blob/master/CONTRIBUTING.md).
 
 ## Building the artifacts
 
@@ -28,11 +28,13 @@ In order to build the package you need to do:
 
 This will put the result in the artifacts directory.
 
-## Installing your artifact
+## Installing your artifact in Ubuntu 16.04
 
-Copy your downloaded or generated package into **/opt**
+We will copy your downloaded or generated package into **/opt** and extract the contents in there.
 
     $ sudo cp your_package.tgz /opt/
+    $ cd /opt
+    $ tar zxf your_package.tgz
     $ sudo rm -rf your_package.tgz
     $ sudo chmod -R 777 /opt/spire
 
@@ -83,3 +85,25 @@ In the same terminal start the agent using the previously generated token.
         -config /opt/spire/conf/agent/agent.conf \
         -joinToken {your previously generated token}
 
+In a new terminal create a new "workload" user that we will use to register using unix kernel selectors.
+
+    $ sudo useradd workload
+
+Get the user id.
+
+    $ id -u workload
+
+Register a workload with the user id.
+
+    $ spire-server/spire-server register \
+        -parentID spiffe://example.org/host \
+        -spiffeID spiffe://example.org/host/workload \
+        -selector unix:uid:{workload user id from previous step}
+
+Call the workload API using a command line program to request the workload SVID from the SPIRE Agent.
+
+    $ su -c "spire-agent api fetch -write ./" workload
+
+Examine the output:
+
+    $ openssl x509 -in ~/go/src/github.com/spiffe/spire/svid.0.pem -text -noout
