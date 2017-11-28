@@ -26,6 +26,7 @@ const (
 )
 
 type workloadStats struct {
+	uid     int
 	runtime time.Duration
 	output  string
 	success bool
@@ -52,7 +53,9 @@ func main() {
 		panic(err)
 	}
 
-	// Create users and register workloads
+	var wg sync.WaitGroup
+
+	// Create users
 	for i := 0; i < *users; i++ {
 		uid := 1000 + i
 
@@ -64,36 +67,45 @@ func main() {
 			fmt.Println(string(o))
 			panic(err)
 		}
-
-		// Register workload
-		parentID := parentSpiffeIDPrefix + *token
-		selectorValue := fmt.Sprintf("uid:%d", uid)
-		spiffeID := spiffeIDPrefix + fmt.Sprintf("uid%d", uid)
-		fmt.Printf("Parent ID: %s\nSelector Value: %s\nSpiffe ID: %s\n", parentID, selectorValue, spiffeID)
-		entry := &common.RegistrationEntry{
-			ParentId: parentID,
-			Selectors: []*common.Selector{
-				&common.Selector{
-					Type:  "unix",
-					Value: selectorValue,
-				},
-			},
-			SpiffeId: spiffeID,
-			Ttl:      int32(*ttl),
-		}
-		entryID, err := c.CreateEntry(context.TODO(), entry)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("Created entry ID %s\n", entryID.Id)
 	}
 
+	// Register workloads
+	for i := 0; i < *users; i++ {
+		uid := 1000 + i
+
+		wg.Add(1)
+		go func(uid int) {
+			defer wg.Done()
+
+			// Register workload
+			parentID := parentSpiffeIDPrefix + *token
+			selectorValue := fmt.Sprintf("uid:%d", uid)
+			spiffeID := spiffeIDPrefix + fmt.Sprintf("uid%d", uid)
+			fmt.Printf("Parent ID: %s\nSelector Value: %s\nSpiffe ID: %s\n", parentID, selectorValue, spiffeID)
+			entry := &common.RegistrationEntry{
+				ParentId: parentID,
+				Selectors: []*common.Selector{
+					&common.Selector{
+						Type:  "unix",
+						Value: selectorValue,
+					},
+				},
+				SpiffeId: spiffeID,
+				Ttl:      int32(*ttl),
+			}
+			entryID, err := c.CreateEntry(context.TODO(), entry)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("Created entry ID %s\n", entryID.Id)
+		}(uid)
+	}
+
+	wg.Wait()
 	fmt.Printf("Waiting for entries to be propagated...\n")
-	time.Sleep(time.Second * time.Duration(10))
+	time.Sleep(time.Second * time.Duration(60))
 
-	stats := make(map[int]*workloadStats)
-
-	var wg sync.WaitGroup
+	statch := make(chan *workloadStats, *users)
 
 	// Launch workloads
 	for i := 0; i < *users; i++ {
@@ -107,17 +119,19 @@ func main() {
 		}
 		wg.Add(1)
 		go func(uid int) {
-			s := &workloadStats{}
 			started := time.Now()
 			defer wg.Done()
 
 			o, err := c.CombinedOutput()
-
-			s.success = err == nil
-			s.output = string(o)
-			s.runtime = time.Now().Sub(started)
-
-			stats[uid] = s
+			if err != nil {
+				fmt.Printf("%d failed...\n", uid)
+			}
+			statch <- &workloadStats{
+				uid:     uid,
+				success: err == nil,
+				output:  string(o),
+				runtime: time.Now().Sub(started),
+			}
 		}(uid)
 	}
 	fmt.Printf("Waiting for workloads to finish... Test time is %d seconds\n", *timeout)
@@ -126,13 +140,15 @@ func main() {
 
 	fmt.Printf("Finished. Summary:\n")
 
+	// Print stats
 	statusMap := map[bool]string{true: "success", false: "failed"}
-	for k, v := range stats {
-		logfile := fmt.Sprintf("%d.log", k)
+	for i := 0; i < *users; i++ {
+		s := <-statch
+		logfile := fmt.Sprintf("%d.log", s.uid)
 		fmt.Printf("Workload %d: status: %s, runtime: %s, logfile: %s\n",
-			k,
-			statusMap[v.success],
-			v.runtime.String(),
+			s.uid,
+			statusMap[s.success],
+			s.runtime.String(),
 			logfile)
 
 		f, err := os.OpenFile(logfile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
@@ -140,7 +156,7 @@ func main() {
 			fmt.Printf("Failed to open/create %s: %s\n", logfile, err)
 		} else {
 			defer f.Close()
-			f.WriteString(v.output)
+			f.WriteString(s.output)
 		}
 	}
 }

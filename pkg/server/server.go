@@ -85,7 +85,7 @@ func (server *Server) Run() error {
 	}
 
 	// Main event loop
-	server.Config.Log.Info("SPIRE Server is now running")
+	server.Config.Log.Info("SPIRE Server is now running! Modified")
 
 	for {
 		select {

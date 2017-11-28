@@ -1,7 +1,7 @@
 # Parameters
-WORKLOADS := 10
-TIMEOUT := 20
-TTL := 150
+WORKLOADS := 200
+TIMEOUT := 190
+TTL := 60
 
 # Convenience vars
 SERVER_LOG := functional/server.log
