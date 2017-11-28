@@ -57,7 +57,7 @@ The agent consists of a master process (spire-agent) and three plugins - the Nod
 Workload Attestor and the Key Manager. The master process implements the Workload API and
 communicates with spire-server via the Node API.
 
-----diagram here---
+![spire agent architecture](images/SPIRE_agent.png)
 
 ## Available plugins
 

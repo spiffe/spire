@@ -65,7 +65,7 @@ The server consists of a master process (spire-server) and five plugins - the CA
 The Data Store, the Node Attestor, and the Node Resolver. The master process implements the Registration
 API and the Node API, with which agents communicate with the server.
 
-----diagram here---
+![spire agent architecture](images/SPIRE_server.png)
 
 ## Available plugins
 
