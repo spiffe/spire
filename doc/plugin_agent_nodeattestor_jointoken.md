@@ -1,5 +1,7 @@
 # Agent plugin: nodeattestor-jointoken
 
+*Must be used in conjunction with the server-side jointoken plugin*
+
 The `nodeattestor-jointoken` is responsible for attesting the physical nodes identity using a
 one-time-use pre-shared key.
 
