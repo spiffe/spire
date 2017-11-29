@@ -7,6 +7,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) provi
 SPIFFE IDs (the Server), and a Node Agent that can be run adjacent to a workload and
 exposes a local Workload API. To get a better idea of what SPIRE is, and how it works, here is a [video](https://www.youtube.com/watch?v=uDHNcZ0eGHI) of it in action.
 
+Please note that the SPIRE project is pre-alpha. It is under heavy development, and is NOT suitable for production use. See the [open issues](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/) for more information.
 
 # Installing SPIRE
 
