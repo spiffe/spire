@@ -30,8 +30,8 @@ func TestRegisterParseConfig(t *testing.T) {
 		SpiffeId: "spiffe://example.org/bar",
 		Ttl:      60,
 		Selectors: []*common.Selector{
-			&common.Selector{Type: "unix", Value: "uid:1000"},
-			&common.Selector{Type: "unix", Value: "gid:1000"},
+			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "gid:1000"},
 		},
 	}
 
@@ -46,7 +46,7 @@ func TestRegisterParseFile(t *testing.T) {
 
 	entry1 := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
-			&common.Selector{
+			{
 				Type:  "unix",
 				Value: "uid:1111",
 			},
@@ -57,7 +57,7 @@ func TestRegisterParseFile(t *testing.T) {
 	}
 	entry2 := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
-			&common.Selector{
+			{
 				Type:  "unix",
 				Value: "uid:1111",
 			},

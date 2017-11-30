@@ -48,7 +48,7 @@ func (c *ServerCatalogTestSuite) TestCategorizeNotEnoughTypes() {
 	c.catalog.com = comCatalog
 
 	plugins := []*common_catalog.ManagedPlugin{
-		&common_catalog.ManagedPlugin{
+		{
 			Plugin: &mock_ca.MockControlPlaneCa{},
 			Config: common_catalog.PluginConfig{
 				PluginType: CAType,
@@ -67,31 +67,31 @@ func (c *ServerCatalogTestSuite) TestCategorize() {
 	c.catalog.com = comCatalog
 
 	plugins := []*common_catalog.ManagedPlugin{
-		&common_catalog.ManagedPlugin{
+		{
 			Plugin: &mock_ca.MockControlPlaneCa{},
 			Config: common_catalog.PluginConfig{
 				PluginType: CAType,
 			},
 		},
-		&common_catalog.ManagedPlugin{
+		{
 			Plugin: &mock_datastore.MockDataStore{},
 			Config: common_catalog.PluginConfig{
 				PluginType: DataStoreType,
 			},
 		},
-		&common_catalog.ManagedPlugin{
+		{
 			Plugin: &mock_nodeattestor.MockNodeAttestor{},
 			Config: common_catalog.PluginConfig{
 				PluginType: NodeAttestorType,
 			},
 		},
-		&common_catalog.ManagedPlugin{
+		{
 			Plugin: &mock_noderesolver.MockNodeResolver{},
 			Config: common_catalog.PluginConfig{
 				PluginType: NodeResolverType,
 			},
 		},
-		&common_catalog.ManagedPlugin{
+		{
 			Plugin: &mock_upstreamca.MockUpstreamCa{},
 			Config: common_catalog.PluginConfig{
 				PluginType: UpstreamCAType,

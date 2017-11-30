@@ -92,7 +92,7 @@ func (suite *AgentTestSuite) TestSocketPermission() {
 		CacheMgr: suite.mockCacheManager,
 		config:   suite.config}
 
-	suite.agent.serverCerts = []*x509.Certificate{&x509.Certificate{}, &x509.Certificate{}}
+	suite.agent.serverCerts = []*x509.Certificate{{}, {}}
 	suite.mockCacheManager.EXPECT().Cache().Return(nil)
 	err := suite.agent.initEndpoints()
 	suite.Require().NoError(err)
@@ -132,7 +132,7 @@ func TestAgent_FetchSVID(t *testing.T) {
 		regEntryMap map[string]*common.RegistrationEntry
 	}{{
 		name: "test",
-		regEntryMap: map[string]*common.RegistrationEntry{"spiffe:test": &common.RegistrationEntry{
+		regEntryMap: map[string]*common.RegistrationEntry{"spiffe:test": {
 			Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 			ParentId:  "spiffe:parent",
 			SpiffeId:  "spiffe:test"}},
