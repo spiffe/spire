@@ -2,7 +2,7 @@
 ## Overview
 
 This walkthrough will guide you through steps to install and configure SPIRE Server and SPIRE Agent for AWS IID based attestation.
-Follow instructions [ here ] (https://github.com/spiffe/spiffe-example/blob/master/ec2/README.md) for a basic demo VPC and EC2 setup.
+Follow instructions [ here ](https://github.com/spiffe/spiffe-example/blob/master/ec2/README.md) for a basic demo VPC and EC2 setup.
 
 ### Installing SPIRE Server/Agent:
 
