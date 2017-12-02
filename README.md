@@ -16,14 +16,6 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
     - [Workload SVID Retrieval](#workload-attestation)
 - [Community](#community)
 
-# Learn about SPIRE
-
-You can also check the next links:
-
-- [SPIRE architecture](https://spiffe.io/spire/).
-- [SPIRE Server](/doc/spire_server.md).
-- [SPIRE Agent](/doc/spire_agent.md).
-
 > Please note that the SPIRE project is pre-alpha. It is under heavy development, and is NOT suitable for production use. See the [open issues](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/) for more information.
 
 # Get SPIRE
@@ -33,6 +25,8 @@ Pre-built releases can be found at [https://github.com/spiffe/spire/releases](ht
 Alternatively you can [build SPIRE from source](/CONTRIBUTING.md)
 
 # Getting started
+
+Before trying out SPIRE, we recommend becoming familiar with it's [architecture](https://spiffe.io/spire/) and design goals. 
 
 To provide a minimal example of how SPIRE can be used, we are going to set up an [SPIRE Server](/doc/spire_server.md) and [SPIRE Agent](/doc/spire_agent.md). We will use them to issue identities to a workload identified by being run under a specified unix user ID.
 
@@ -57,7 +51,7 @@ Add **spire-server** and **spire-agent** to our $PATH for convenience:
 
 ## Configure the SPIRE Server
 
-After putting the agent and server binaries at the proper location we have to configure them. The SPIRE Server relies on plugins for much of it's functionality, so we must make sure the agent and server can find the relevant plugins.
+After putting the agent and server binaries at the proper location we have to configure them. The SPIRE Server relies on plugins for much of it's functionality, so we must make sure the agent and server can find the relevant plugins. For more information on the SPIRE se
 
 Edit **/opt/spire/conf/server/server.conf** so it looks for plugins at the right path:
 
@@ -74,6 +68,8 @@ For **upstream_ca_memory.conf** we have to modify key_file_path and cert_file_pa
     key_file_path = "/opt/spire/conf/server/dummy_upstream_ca.key"
     cert_file_path = "/opt/spire/conf/server/dummy_upstream_ca.crt"
 
+The [SPIRE Server](/doc/spire_server.md) reference guide covers in more detail the specific configuration options and plugins available.
+
 ## Configure the SPIRE Agent
 
 The SPIRE Agent also relies on plugins, and must be configured to find them. When connecting back to the SPIRE Server, the SPIRE agent uses an X.509 certificate to verify the connection. SPIRE releases come with a "dummy" certificate in the client and server. For a production implementation, a separate key would be generated for the server and certificate to be bundled with the agent.
@@ -86,6 +82,8 @@ Edit **/opt/spire/conf/agent/agent.conf** so it looks for plugins and the trust 
 As with the server, individual plugins can be configured at **/opt/spire/conf/agent/plugin**. Ensure each plugin configuration file is configured with the path to the appropriate plugin binary:
 
     pluginCmd = "/opt/spire/plugin/agent/{plugin_binary}"
+
+The [SPIRE Agent](/doc/spire_agent.md) reference guide covers in more detail the specific configuration options and plugins available.
 
 ## Joining to the SPIRE server with a join token
 
