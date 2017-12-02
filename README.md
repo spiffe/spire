@@ -3,9 +3,20 @@
 
 ![SPIRE Logo](/doc/images/spire_logo.png)
 
-SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) provides a toolchain that defines a central registry of
-SPIFFE IDs (the Server), and a Node Agent that can be run adjacent to a workload and
-exposes a local Workload API. To get a better idea of what SPIRE is, and how it works, here is a [video](https://www.youtube.com/watch?v=uDHNcZ0eGHI) of it in action.
+SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a tool-chain for establishing trust between software systems across a wide variety of hosting platforms. Concretely, SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/spire/blob/master/proto/api/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md)s to them. This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token.
+
+- [Learn about SPIRE](#learn-about-spire)
+- [Get SPIRE](#get-spire)
+- [Getting started](#getting-started)
+    - [Installing SPIRE Server and Agent](#installing-spire-server-and-agent)
+    - [Configure the Server](#configure-the-server)
+    - [Configure the Agent](#configure-the-agent)
+    - [Joining to the SPIRE server with a join token](#joining-to-the-spire-server-with-a-join-token)
+    - [Workload Registration](#workload-registration)
+    - [Workload SVID Retrieval](#workload-attestation)
+- [Community](#community)
+
+# Learn about SPIRE
 
 You can also check the next links:
 
@@ -15,30 +26,20 @@ You can also check the next links:
 
 > Please note that the SPIRE project is pre-alpha. It is under heavy development, and is NOT suitable for production use. See the [open issues](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/) for more information.
 
-# Table of Contents
+# Get SPIRE
 
-- [Binaries](#binaries)
-- [Getting started](#getting-started)
-    - [Installing SPIRE Server and Agent](#installing-spire-server-and-agent)
-    - [Configuration](#configuration)
-    - [Joining to the SPIRE server with a join token](#joining-to-the-spire-server-with-a-join-token)
-    - [Workload Registration](#workload-registration)
-    - [Workload SVID Retrieval](#workload-attestation)
-- [Community](#community)
+Pre-built releases can be found at [https://github.com/spiffe/spire/releases](https://github.com/spiffe/spire/releases). These releases contain both server and agent binaries plus the officially supported plugins.
 
-# Binaries
-
-- Binary releases can be found at [https://github.com/spiffe/spire/releases](https://github.com/spiffe/spire/releases). These releases contain both server and agent binaries plus the officially supported plugins.
-- You can also [Build from source](/CONTRIBUTING.md)
+Alternatively you can [build SPIRE from source](/CONTRIBUTING.md)
 
 # Getting started
 
 To provide a minimal example of how SPIRE can be used, we are going to set up an [SPIRE Server](/doc/spire_server.md) and [SPIRE Agent](/doc/spire_agent.md). We will use them to issue identities to a workload identified by being run under a specified unix user ID.
 
-For the sake of simplicity we will install both [SPIRE Server](/doc/spire_server.md) and [SPIRE Agent](/doc/spire_agent.md) on the same machine. Normally that won't be the case.
+For simplicity we will install both [SPIRE Server](/doc/spire_server.md) and [SPIRE Agent](/doc/spire_agent.md) on the same machine. In an actual deployment, these would typically run on different machines.
 
 > **Note**:
-> The whole process asumes that you are running **Ubuntu 16.04**.
+> This getting started guide assumes that you are running **Ubuntu 16.04**.
 
 ## Installing SPIRE Server and Agent
 
@@ -49,40 +50,46 @@ Get the latest tarball from [here](https://github.com/spiffe/spire/releases) and
     # the name spire-0.2 might change depending on the tarball version downloaded
     $ sudo chmod -R 777 /opt/spire/
 
-Create a link for **spire-server** and **spire-agent** so we can use them conveniently from any location.
+Add **spire-server** and **spire-agent** to our $PATH for convenience:
 
     $ sudo ln -s /opt/spire/spire-server /usr/bin/spire-server
     $ sudo ln -s /opt/spire/spire-agent /usr/bin/spire-agent
 
-## Configuration
+## Configure the SPIRE Server
 
-After putting the binaries at the proper location we have to set the configuration files accordingly so server and agent are able to find the plugins configuration.
+After putting the agent and server binaries at the proper location we have to configure them. The SPIRE Server relies on plugins for much of it's functionality, so we must make sure the agent and server can find the relevant plugins.
 
 Edit **/opt/spire/conf/server/server.conf** so it looks for plugins at the right path:
 
     PluginDir = "/opt/spire/conf/server/plugin"
 
-Edit **/opt/spire/conf/agent/agent.conf** so it looks for plugins and the trust bundle at the right path:
+Individual plugins can be configured at **/opt/spire/conf/agent/plugin** and **/opt/spire/conf/server/plugin**. Each plugin configuration must be set up so the SPIRE server can find the appropriate plugin binaries.
 
-    PluginDir = "/opt/spire/conf/agent/plugin"
-    TrustBundlePath = "/opt/spire/conf/agent/dummy_root_ca.crt"
-
-We also have to edit all the plugins configuration at **/opt/spire/conf/agent/plugin** and **/opt/spire/conf/server/plugin** so they can find the plugin binaries.
-
-    #server plugins
     pluginCmd = "/opt/spire/plugin/server/{plugin_binary}"
 
-    #agent plugins
-    pluginCmd = "/opt/spire/plugin/agent/{plugin_binary}"
+Every SVID issued by a SPIRE installation is issued from a common trust root. SPIRE provides a pluggable mechanism for how this trust root can be retrieved, by default it will use a key distributed on disk. The release includes a dummy CA key that we can use for testing purposes, but the default plugin (the `upstream_ca_memory` plugin) must be configured to find it.
 
 For **upstream_ca_memory.conf** we have to modify key_file_path and cert_file_path:
 
     key_file_path = "/opt/spire/conf/server/dummy_upstream_ca.key"
     cert_file_path = "/opt/spire/conf/server/dummy_upstream_ca.crt"
 
+## Configure the SPIRE Agent
+
+The SPIRE Agent also relies on plugins, and must be configured to find them. When connecting back to the SPIRE Server, the SPIRE agent uses an X.509 certificate to verify the connection. SPIRE releases come with a "dummy" certificate in the client and server. For a production implementation, a separate key would be generated for the server and certificate to be bundled with the agent.
+
+Edit **/opt/spire/conf/agent/agent.conf** so it looks for plugins and the trust bundle at the right path:
+
+    PluginDir = "/opt/spire/conf/agent/plugin"
+    TrustBundlePath = "/opt/spire/conf/agent/dummy_root_ca.crt"
+
+As with the server, individual plugins can be configured at **/opt/spire/conf/agent/plugin**. Ensure each plugin configuration file is configured with the path to the appropriate plugin binary:
+
+    pluginCmd = "/opt/spire/plugin/agent/{plugin_binary}"
+
 ## Joining to the SPIRE server with a join token
 
-We will start a server and join an agent to it using the join token attestation method.
+We will start a server and join an agent to it using the join token attestation method. _A join token is a manually generated single-use token that can be used to authenticate a connection. In more sophisticated implementations, SPIRE can be configured to use platform-specific mechanisms to authenticate an Agent to a Server._
 
 Start your server.
 
