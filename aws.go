@@ -33,9 +33,9 @@ type AWSResolver struct {
 }
 
 type AWSResolverConfig struct {
-	access_id  string `hcl:"access_id"`
-	secret     string `hcl:"secret"`
-	session_id string `hcl:session_id`
+	AccessId  string `hcl:"access_id"`
+	Secret    string `hcl:"secret"`
+	SessionId string `hcl:session_id`
 }
 
 func (a *AWSResolver) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
@@ -57,9 +57,9 @@ func (a *AWSResolver) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespon
 	}
 
 	// Set local vars from config struct
-	a.accessId = config.access_id
-	a.secret = config.secret
-	a.sessionId = config.session_id
+	a.accessId = config.AccessId
+	a.secret = config.Secret
+	a.sessionId = config.SessionId
 
 	return resp, err
 }
@@ -192,17 +192,24 @@ func (a *AWSResolver) instanceID(spiffeID string) (instanceId string, err error)
 }
 
 func (a *AWSResolver) setEC2Clients() error {
-	creds := credentials.NewStaticCredentials(a.accessId, a.secret, a.sessionId)
+	var conf *aws.Config
 
-	sess, err := session.NewSession(
-		&aws.Config{Credentials: creds})
+	if a.secret != "" && a.accessId != "" {
+		creds := credentials.NewStaticCredentials(a.accessId, a.secret, a.sessionId)
+		conf = &aws.Config{Credentials: creds}
+	} else {
+		conf = aws.NewConfig()
+	}
+
+	sess, err := session.NewSession(conf)
 	if err != nil {
 		return err
 	}
 	ec := ec2.New(sess)
 	output, err := ec.DescribeRegions(&ec2.DescribeRegionsInput{})
 	for _, region := range output.Regions {
-		sess, err := session.NewSession(&aws.Config{Credentials: creds, Region: region.RegionName})
+		conf.Region = region.RegionName
+		sess, err := session.NewSession(conf)
 		if err != nil {
 			return err
 		}
