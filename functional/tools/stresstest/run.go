@@ -11,13 +11,6 @@ import (
 	"time"
 )
 
-// const (
-// 	serverAddr           = "localhost:8081"
-// 	parentSpiffeIDPrefix = "spiffe://example.org/spire/agent/join_token/"
-// 	spiffeIDPrefix       = "spiffe://example.org/"
-// 	workloadPath         = "/go/src/github.com/spiffe/spire/functional/tools/workload/workload"
-// )
-
 type Run struct {
 }
 
@@ -28,12 +21,12 @@ type workloadStats struct {
 	success bool
 }
 
-//Help prints the server cmd usage
+//Help prints the cmd usage
 func (*Run) Help() string {
 	return "Usage"
 }
 
-//Run the SPIFFE Server
+//Run tests
 func (*Run) Run(args []string) int {
 	var users, ttl, timeout int
 	var token string

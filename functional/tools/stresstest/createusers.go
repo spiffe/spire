@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os/exec"
 	"sync"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -19,12 +18,12 @@ import (
 type CreateUsers struct {
 }
 
-//Help prints the server cmd usage
+//Help prints the cmd usage
 func (*CreateUsers) Help() string {
 	return "Usage"
 }
 
-//Run the SPIFFE Server
+//Run create users
 func (*CreateUsers) Run(args []string) int {
 	var users, ttl int
 	var token string
@@ -92,8 +91,6 @@ func (*CreateUsers) Run(args []string) int {
 	}
 
 	wg.Wait()
-
-	time.Sleep(time.Second * time.Duration(60))
 
 	return 0
 }

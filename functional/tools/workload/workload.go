@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	workload "github.com/spiffe/spire/proto/api/workload"
 )
+
+const cacheBusyRetrySeconds = 10
 
 // Workload is the component that consumes Workload API and renews certs
 type Workload struct {
@@ -39,20 +42,29 @@ func (w *Workload) RunDaemon() error {
 
 	// Main loop
 	for {
+		var timer *time.Timer
+
 		// Fetch certificates
 		ttl, err := w.fetchBundles()
 		if err != nil {
-			return err
+			// TODO: improve cache busy detection logic
+			if !strings.Contains(err.Error(), "busy") {
+				return err
+			}
+
+			// Create timer for retry
+			timer = time.NewTimer(time.Second * time.Duration(cacheBusyRetrySeconds))
+			log("Cache busy. Will wait for %d seconds\n", cacheBusyRetrySeconds)
+		} else {
+			// Create timer for TTL
+			timer = time.NewTimer(time.Second * time.Duration(ttl))
+			log("Will wait for TTL (%d seconds)\n", ttl)
 		}
 
-		// Create timer for TTL
-		timer := time.NewTimer(time.Second * time.Duration(ttl))
-
 		// Wait for either timer or interrupt signal
-		log("Will wait for TTL (%d seconds)\n", ttl)
 		select {
 		case <-timer.C:
-			log("Time is up! Will renew cert.\n")
+			log("Time is up!\n")
 			// Continue
 		case <-timeoutTimer.C:
 			log("Global timeout! Will exit.\n")

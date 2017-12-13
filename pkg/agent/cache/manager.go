@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -29,6 +30,7 @@ type Manager interface {
 	Shutdown(err error)
 	Done() <-chan struct{}
 	Err() error
+	Busy() bool
 }
 
 type EntryRequest struct {
@@ -73,6 +75,7 @@ type manager struct {
 	cancel           context.CancelFunc
 	once             sync.Once
 	doneCh           chan struct{}
+	pipelineCnt      int32
 }
 
 func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
@@ -100,6 +103,7 @@ func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
 		ctx:              ctx,
 		cancel:           cancel,
 		doneCh:           make(chan struct{}),
+		pipelineCnt:      1,
 	}, nil
 }
 
@@ -137,6 +141,7 @@ func (m *manager) Init() {
 
 		m.log.Debug("Initializing Cache Manager")
 		m.regEntriesCh <- m.baseRegEntries
+		m.addToPipeline(len(m.baseRegEntries) - 1)
 
 		for {
 
@@ -166,6 +171,7 @@ func (m *manager) Init() {
 			case newCacheEntry := <-m.cacheEntryCh:
 				m.managedCache.SetEntry(newCacheEntry)
 				m.log.Debugf("Updated CacheEntry for SPIFFEId: %s", newCacheEntry.RegistrationEntry.SpiffeId)
+				m.addToPipeline(-1)
 
 			case <-m.ctx.Done():
 				wg.Wait()
@@ -174,6 +180,10 @@ func (m *manager) Init() {
 			}
 		}
 	}()
+}
+
+func (m *manager) Busy() bool {
+	return atomic.LoadInt32(&m.pipelineCnt) > 0
 }
 
 func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient, wg *sync.WaitGroup) {
@@ -212,6 +222,7 @@ func (m *manager) fetchSVID(requests []EntryRequest, nodeClient node.NodeClient,
 		}
 
 		m.regEntriesCh <- resp.SvidUpdate.RegistrationEntries
+		m.addToPipeline(len(resp.SvidUpdate.RegistrationEntries))
 		req.entry.SVID = cert
 		select {
 		case m.cacheEntryCh <- req.entry:
@@ -263,6 +274,7 @@ func (m *manager) fetchWithEmptyCSR(svid *x509.Certificate, key *ecdsa.PrivateKe
 
 			select {
 			case m.regEntriesCh <- resp.SvidUpdate.RegistrationEntries:
+				m.addToPipeline(len(resp.SvidUpdate.RegistrationEntries))
 			case <-m.ctx.Done():
 				m.Shutdown(m.ctx.Err())
 				return
@@ -330,7 +342,6 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 	for {
 		select {
 		case regEntries := <-m.regEntriesCh:
-
 			entryRequestMap := make(map[string][]EntryRequest)
 
 			for _, regEntry := range regEntries {
@@ -361,9 +372,11 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 
 					processedEntries[key] = regEntry
 
+				} else {
+					m.addToPipeline(-1)
 				}
-
 			}
+
 			if len(entryRequestMap) != 0 {
 				select {
 				case m.entryRequestCh <- entryRequestMap:
@@ -524,4 +537,8 @@ func (m *manager) storeBaseSVID() error {
 	}
 	f.Sync()
 	return nil
+}
+
+func (m *manager) addToPipeline(count int) {
+	atomic.AddInt32(&m.pipelineCnt, int32(count))
 }
