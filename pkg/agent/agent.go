@@ -178,12 +178,12 @@ func (a *Agent) initEndpoints() error {
 
 	log := a.config.Log.WithField("subsystem_name", "workload")
 	ws := &workloadServer{
-		bundle:  a.serverCerts[1].Raw, // TODO: Fix handling of serverCerts
-		cache:   a.CacheMgr.Cache(),
-		catalog: a.Catalog,
-		l:       log,
-		maxTTL:  maxWorkloadTTL,
-		minTTL:  minWorkloadTTL,
+		bundle:   a.serverCerts[1].Raw, // TODO: Fix handling of serverCerts
+		cacheMrg: a.CacheMgr,
+		catalog:  a.Catalog,
+		l:        log,
+		maxTTL:   maxWorkloadTTL,
+		minTTL:   minWorkloadTTL,
 	}
 
 	// Create a gRPC server with our custom "credential" resolver

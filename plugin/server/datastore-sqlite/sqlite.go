@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/go-plugin"
@@ -27,11 +28,15 @@ var (
 )
 
 type sqlitePlugin struct {
-	db *gorm.DB
+	db    *gorm.DB
+	mutex *sync.Mutex
 }
 
 func (ds *sqlitePlugin) CreateFederatedEntry(
 	req *datastore.CreateFederatedEntryRequest) (*datastore.CreateFederatedEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
 
 	bundle := req.FederatedBundle
 	if bundle == nil {
@@ -53,6 +58,10 @@ func (ds *sqlitePlugin) CreateFederatedEntry(
 
 func (ds *sqlitePlugin) ListFederatedEntry(
 	*datastore.ListFederatedEntryRequest) (*datastore.ListFederatedEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	var entries []federatedBundle
 	var response datastore.ListFederatedEntryResponse
 
@@ -69,6 +78,10 @@ func (ds *sqlitePlugin) ListFederatedEntry(
 
 func (ds *sqlitePlugin) UpdateFederatedEntry(
 	req *datastore.UpdateFederatedEntryRequest) (*datastore.UpdateFederatedEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	bundle := req.FederatedBundle
 
 	if bundle == nil {
@@ -105,6 +118,10 @@ func (ds *sqlitePlugin) UpdateFederatedEntry(
 
 func (ds *sqlitePlugin) DeleteFederatedEntry(
 	req *datastore.DeleteFederatedEntryRequest) (*datastore.DeleteFederatedEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	db := ds.db.Begin()
 
 	var model federatedBundle
@@ -130,6 +147,10 @@ func (ds *sqlitePlugin) DeleteFederatedEntry(
 
 func (ds *sqlitePlugin) CreateAttestedNodeEntry(
 	req *datastore.CreateAttestedNodeEntryRequest) (*datastore.CreateAttestedNodeEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	entry := req.AttestedNodeEntry
 	if entry == nil {
 		return nil, errors.New("invalid request: missing attested node")
@@ -163,6 +184,10 @@ func (ds *sqlitePlugin) CreateAttestedNodeEntry(
 
 func (ds *sqlitePlugin) FetchAttestedNodeEntry(
 	req *datastore.FetchAttestedNodeEntryRequest) (*datastore.FetchAttestedNodeEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	var model attestedNodeEntry
 	err := ds.db.Find(&model, "spiffe_id = ?", req.BaseSpiffeId).Error
 	switch {
@@ -183,6 +208,9 @@ func (ds *sqlitePlugin) FetchAttestedNodeEntry(
 
 func (ds *sqlitePlugin) FetchStaleNodeEntries(
 	*datastore.FetchStaleNodeEntriesRequest) (*datastore.FetchStaleNodeEntriesResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
 
 	var models []attestedNodeEntry
 	if err := ds.db.Find(&models, "expires_at < ?", time.Now()).Error; err != nil {
@@ -206,6 +234,9 @@ func (ds *sqlitePlugin) FetchStaleNodeEntries(
 
 func (ds *sqlitePlugin) UpdateAttestedNodeEntry(
 	req *datastore.UpdateAttestedNodeEntryRequest) (*datastore.UpdateAttestedNodeEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
 
 	var model attestedNodeEntry
 
@@ -243,6 +274,10 @@ func (ds *sqlitePlugin) UpdateAttestedNodeEntry(
 
 func (ds *sqlitePlugin) DeleteAttestedNodeEntry(
 	req *datastore.DeleteAttestedNodeEntryRequest) (*datastore.DeleteAttestedNodeEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	db := ds.db.Begin()
 
 	var model attestedNodeEntry
@@ -269,6 +304,9 @@ func (ds *sqlitePlugin) DeleteAttestedNodeEntry(
 
 func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
 	req *datastore.CreateNodeResolverMapEntryRequest) (*datastore.CreateNodeResolverMapEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
 
 	entry := req.NodeResolverMapEntry
 	if entry == nil {
@@ -303,6 +341,10 @@ func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
 
 func (ds *sqlitePlugin) FetchNodeResolverMapEntry(
 	req *datastore.FetchNodeResolverMapEntryRequest) (*datastore.FetchNodeResolverMapEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	var models []nodeResolverMapEntry
 
 	if err := ds.db.Find(&models, "spiffe_id = ?", req.BaseSpiffeId).Error; err != nil {
@@ -327,6 +369,9 @@ func (ds *sqlitePlugin) FetchNodeResolverMapEntry(
 
 func (ds *sqlitePlugin) DeleteNodeResolverMapEntry(
 	req *datastore.DeleteNodeResolverMapEntryRequest) (*datastore.DeleteNodeResolverMapEntryResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
 
 	entry := req.NodeResolverMapEntry
 	if entry == nil {
@@ -381,6 +426,9 @@ func (sqlitePlugin) RectifyNodeResolverMapEntries(
 func (ds *sqlitePlugin) CreateRegistrationEntry(
 	request *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
 	if request.RegisteredEntry == nil {
 		return nil, errors.New("Invalid request: missing registered entry")
@@ -426,6 +474,9 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 func (ds *sqlitePlugin) FetchRegistrationEntry(
 	request *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
 
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	var fetchedRegisteredEntry registeredEntry
 	err := ds.db.Find(&fetchedRegisteredEntry, "registered_entry_id = ?", request.RegisteredEntryId).Error
 
@@ -469,6 +520,10 @@ func (sqlitePlugin) DeleteRegistrationEntry(
 
 func (ds *sqlitePlugin) ListParentIDEntries(
 	request *datastore.ListParentIDEntriesRequest) (response *datastore.ListParentIDEntriesResponse, err error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	var fetchedRegisteredEntries []registeredEntry
 	err = ds.db.Find(&fetchedRegisteredEntries, "parent_id = ?", request.ParentId).Error
 
@@ -488,6 +543,9 @@ func (ds *sqlitePlugin) ListParentIDEntries(
 
 func (ds *sqlitePlugin) ListSelectorEntries(
 	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
 
 	if len(request.Selectors) < 1 {
 		return &datastore.ListSelectorEntriesResponse{}, nil
@@ -516,6 +574,9 @@ func (ds *sqlitePlugin) ListSelectorEntries(
 
 func (ds *sqlitePlugin) ListMatchingEntries(
 	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
 
 	if len(request.Selectors) < 1 {
 		return &datastore.ListSelectorEntriesResponse{}, nil
@@ -556,6 +617,10 @@ func (sqlitePlugin) ListSpiffeEntries(
 
 // RegisterToken takes a Token message and stores it
 func (ds *sqlitePlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	resp := new(common.Empty)
 	if req.Token == "" || req.Expiry == 0 {
 		return resp, errors.New("token and expiry are required")
@@ -572,6 +637,10 @@ func (ds *sqlitePlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, 
 // FetchToken takes a Token message and returns one, populating the fields
 // we have knowledge of
 func (ds *sqlitePlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinToken, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	var t joinToken
 
 	err := ds.db.Find(&t, "token = ?", req.Token).Error
@@ -587,6 +656,10 @@ func (ds *sqlitePlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinTok
 }
 
 func (ds *sqlitePlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	resp := new(common.Empty)
 
 	// Protect the data - if gorm gets a delete w/ an empty primary
@@ -605,6 +678,10 @@ func (ds *sqlitePlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, er
 // PruneTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
 func (ds *sqlitePlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
 	var staleTokens []joinToken
 	resp := new(common.Empty)
 
@@ -667,7 +744,8 @@ func newPlugin(dbType string) (datastore.DataStore, error) {
 	}
 
 	return &sqlitePlugin{
-		db: db,
+		db:    db,
+		mutex: &sync.Mutex{},
 	}, nil
 
 }

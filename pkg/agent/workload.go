@@ -21,9 +21,9 @@ import (
 
 // workloadServer implements the Workload API interface
 type workloadServer struct {
-	cache   cache.Cache
-	catalog catalog.Catalog
-	l       logrus.FieldLogger
+	cacheMrg cache.Manager
+	catalog  catalog.Catalog
+	l        logrus.FieldLogger
 
 	// TTL in SVID response will never
 	// be larger than this
@@ -100,7 +100,7 @@ func (s *workloadServer) fetchAllEntries(ctx context.Context) (entries []cache.C
 		return entries, err
 	}
 
-	return s.cache.MatchingEntries(selectors), nil
+	return s.cacheMrg.Cache().MatchingEntries(selectors), nil
 }
 
 // resolveCaller takes a grpc context, and returns the PID of the caller which has issued
@@ -208,7 +208,10 @@ func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *
 		Bundles: bundles,
 		Ttl:     int32(ttl),
 	}
-	return response, nil
+	if len(bundles) == 0 && s.cacheMrg.Busy() {
+		err = fmt.Errorf("Cache is busy. Retry later")
+	}
+	return response, err
 }
 
 // calculateTTL takes a slice of certificates and iterates over them,

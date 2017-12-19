@@ -1,7 +1,7 @@
 # Parameters
-WORKLOADS := 10
-TIMEOUT := 20
-TTL := 150
+WORKLOADS := 50
+TIMEOUT := 30
+TTL := 120
 
 # Convenience vars
 SERVER_LOG := functional/server.log
@@ -25,11 +25,12 @@ agent:
 	cd .. && touch $(AGENT_LOG)
 	$(eval TOKEN := $(shell docker-compose exec runner $(DOCKER_SPIRE)/functional/tools/tokengenerator/tokengenerator))
 	@echo Generated join token is $(TOKEN)
+	docker-compose exec runner bash -c 'cd $(DOCKER_SPIRE)/functional && tools/stresstest/stresstest createusers -token=$(TOKEN) -workloads $(WORKLOADS) -ttl $(TTL)'
 	docker-compose exec -d runner bash -c 'cd $(DOCKER_SPIRE) && cmd/spire-agent/spire-agent run -joinToken $(TOKEN) -logLevel DEBUG -logFile /spire-orig/$(AGENT_LOG)'
-	sleep 5
+	sleep 1
 
 test:
-	docker-compose exec runner bash -c 'cd $(DOCKER_SPIRE)/functional && tools/stresstest/stresstest -token=$(TOKEN) -workloads $(WORKLOADS) -timeout $(TIMEOUT) -ttl $(TTL)'
+	docker-compose exec runner bash -c 'cd $(DOCKER_SPIRE)/functional && tools/stresstest/stresstest run -token=$(TOKEN) -workloads $(WORKLOADS) -timeout $(TIMEOUT) -ttl $(TTL)'
 	docker-compose exec runner bash -c 'cp $(DOCKER_SPIRE)/functional/*.log /spire-orig/functional/'
 	docker-compose down
 

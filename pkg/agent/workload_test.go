@@ -40,6 +40,7 @@ type WorkloadServerTestSuite struct {
 	attestor2 *mock_workloadattestor.MockWorkloadAttestor
 	cache     *mock_cache.MockCache
 	catalog   *mock_catalog.MockCatalog
+	manager   *mock_cache.MockManager
 
 	// Logrus test hook for asserting
 	// log messages, if desired
@@ -59,14 +60,15 @@ func (s *WorkloadServerTestSuite) SetupTest() {
 	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
 	s.cache = mock_cache.NewMockCache(mockCtrl)
 	s.catalog = mock_catalog.NewMockCatalog(mockCtrl)
+	s.manager = mock_cache.NewMockManager(mockCtrl)
 
 	ws := &workloadServer{
-		cache:   s.cache,
-		catalog: s.catalog,
-		l:       log,
-		bundle:  []byte{},
-		maxTTL:  maxTTL,
-		minTTL:  minTTL,
+		cacheMrg: s.manager,
+		catalog:  s.catalog,
+		l:        log,
+		bundle:   []byte{},
+		maxTTL:   maxTTL,
+		minTTL:   minTTL,
 	}
 
 	s.w = ws
