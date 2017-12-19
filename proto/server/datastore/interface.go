@@ -41,6 +41,7 @@ type DataStore interface {
 
 	CreateRegistrationEntry(request *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
 	FetchRegistrationEntry(request *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
+	FetchRegistrationEntries(request *common.Empty) (*FetchRegistrationEntriesResponse, error)
 	UpdateRegistrationEntry(request *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
 	DeleteRegistrationEntry(request *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
 

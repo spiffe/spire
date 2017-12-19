@@ -508,14 +508,74 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 	}, nil
 }
 
+func (ds *sqlitePlugin) FetchRegistrationEntries(
+	request *common.Empty) (*datastore.FetchRegistrationEntriesResponse, error) {
+
+	var entries []registeredEntry
+	if err := ds.db.Find(&entries).Error; err != nil {
+		return nil, err
+	}
+
+	var sel []selector
+	if err := ds.db.Find(&sel).Error; err != nil {
+		return nil, err
+	}
+
+	// Organize the selectors for easier access
+	selectors := map[string][]*selector{}
+	for _, s := range sel {
+		selectors[s.RegisteredEntryId] = append(selectors[s.RegisteredEntryId], &s)
+	}
+
+	// Populate registration entries with their related selectors
+	for _, entry := range entries {
+		if s, ok := selectors[entry.RegisteredEntryId]; ok {
+			entry.Selectors = s
+		}
+	}
+
+	resEntries, err := ds.convertEntries(entries)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &datastore.FetchRegistrationEntriesResponse{
+		RegisteredEntries: &common.RegistrationEntries{
+			Entries: resEntries,
+		},
+	}
+
+	return res, nil
+}
+
 func (sqlitePlugin) UpdateRegistrationEntry(
 	*datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
 	return &datastore.UpdateRegistrationEntryResponse{}, errors.New("Not Implemented")
 }
 
-func (sqlitePlugin) DeleteRegistrationEntry(
-	*datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
-	return &datastore.DeleteRegistrationEntryResponse{}, errors.New("Not Implemented")
+func (ds *sqlitePlugin) DeleteRegistrationEntry(
+	request *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
+
+	entry := registeredEntry{
+		RegisteredEntryId: request.RegisteredEntryId,
+	}
+	if err := ds.db.Find(&entry).Error; err != nil {
+		return &datastore.DeleteRegistrationEntryResponse{}, err
+	}
+
+	if err := ds.db.Delete(&entry).Error; err != nil {
+		return &datastore.DeleteRegistrationEntryResponse{}, err
+	}
+
+	respEntry, err := ds.convertEntries([]registeredEntry{entry})
+	if err != nil {
+		return &datastore.DeleteRegistrationEntryResponse{}, err
+	}
+
+	resp := &datastore.DeleteRegistrationEntryResponse{
+		RegisteredEntry: respEntry[0],
+	}
+	return resp, nil
 }
 
 func (ds *sqlitePlugin) ListParentIDEntries(
@@ -610,9 +670,24 @@ func (ds *sqlitePlugin) ListMatchingEntries(
 	return &datastore.ListSelectorEntriesResponse{RegisteredEntryList: regEntryList}, nil
 }
 
-func (sqlitePlugin) ListSpiffeEntries(
-	*datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
-	return &datastore.ListSpiffeEntriesResponse{}, errors.New("Not Implemented")
+func (ds *sqlitePlugin) ListSpiffeEntries(
+	request *datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
+
+	var entries []registeredEntry
+	err := ds.db.Find(&entries, "spiffe_id = ?", request.SpiffeId).Error
+	if err != nil {
+		return &datastore.ListSpiffeEntriesResponse{}, err
+	}
+
+	respEntries, err := ds.convertEntries(entries)
+	if err != nil {
+		return &datastore.ListSpiffeEntriesResponse{}, err
+	}
+
+	resp := &datastore.ListSpiffeEntriesResponse{
+		RegisteredEntryList: respEntries,
+	}
+	return resp, nil
 }
 
 // RegisterToken takes a Token message and stores it

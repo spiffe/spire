@@ -1,5 +1,45 @@
 package entry
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/spiffe/spire/proto/common"
+)
+
+// hasSelectors takes a registration entry and a selector flag set. It returns
+// true if the registration entry possesses all selectors in the set. An error
+// is returned if we run into trouble parsing the selector flags.
+func hasSelectors(entry *common.RegistrationEntry, flags SelectorFlag) (bool, error) {
+	for _, f := range flags {
+		selector, err := parseSelector(f)
+		if err != nil {
+			return false, err
+		}
+
+		if !hasSelector(entry, selector) {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// hasSelector returns true if the given registration entry includes the
+// selector in question.
+func hasSelector(entry *common.RegistrationEntry, selector *common.Selector) bool {
+	var found bool
+
+	for _, s := range entry.Selectors {
+		if s == selector {
+			found = true
+			break
+		}
+	}
+
+	return found
+}
+
 // parseSelector parses a CLI string from type:value into a selector type.
 // Everything to the right of the first ":" is considered a selector value.
 func parseSelector(str string) (*common.Selector, error) {

@@ -39,11 +39,21 @@ func (s *registrationServer) CreateEntry(
 	return &registration.RegistrationEntryID{Id: createResponse.RegisteredEntryId}, nil
 }
 
-//TODO
 func (s *registrationServer) DeleteEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
-	return response, err
+
+	ds := s.catalog.DataStores()[0]
+	req := &datastore.DeleteRegistrationEntryRequest{
+		RegisteredEntryId: request.Id,
+	}
+	resp, err := ds.DeleteRegistrationEntry(req)
+	if err != nil {
+		return &common.RegistrationEntry{}, err
+	}
+
+	response = resp.RegisteredEntry
+	return response, nil
 }
 
 //Retrieves a specific registered entry
@@ -60,6 +70,19 @@ func (s *registrationServer) FetchEntry(
 		return response, errors.New("Error trying to fetch entry")
 	}
 	return fetchResponse.RegisteredEntry, nil
+}
+
+func (s *registrationServer) FetchEntries(
+	ctx context.Context, request *common.Empty) (
+	response *common.RegistrationEntries, err error) {
+
+	dataStore := s.catalog.DataStores()[0]
+	fetchResponse, err := dataStore.FetchRegistrationEntries(&common.Empty{})
+	if err != nil {
+		s.l.Error(err)
+		return response, errors.New("Error trying to fetch entries")
+	}
+	return fetchResponse.RegisteredEntries, nil
 }
 
 //TODO
@@ -88,18 +111,42 @@ func (s *registrationServer) ListByParentID(
 	}, nil
 }
 
-//TODO
 func (s *registrationServer) ListBySelector(
 	ctx context.Context, request *common.Selector) (
 	response *common.RegistrationEntries, err error) {
-	return response, err
+
+	ds := s.catalog.DataStores()[0]
+	req := &datastore.ListSelectorEntriesRequest{
+		Selectors: []*common.Selector{request},
+	}
+	resp, err := ds.ListSelectorEntries(req)
+	if err != nil {
+		return &common.RegistrationEntries{}, err
+	}
+
+	response = &common.RegistrationEntries{
+		Entries: resp.RegisteredEntryList,
+	}
+	return response, nil
 }
 
-//TODO
 func (s *registrationServer) ListBySpiffeID(
 	ctx context.Context, request *registration.SpiffeID) (
 	response *common.RegistrationEntries, err error) {
-	return
+
+	ds := s.catalog.DataStores()[0]
+	req := &datastore.ListSpiffeEntriesRequest{
+		SpiffeId: request.Id,
+	}
+	resp, err := ds.ListSpiffeEntries(req)
+	if err != nil {
+		return &common.RegistrationEntries{}, err
+	}
+
+	response = &common.RegistrationEntries{
+		Entries: resp.RegisteredEntryList,
+	}
+	return response, nil
 }
 
 //TODO

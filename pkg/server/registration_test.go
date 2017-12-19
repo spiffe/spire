@@ -136,6 +136,38 @@ func TestFetchEntry(t *testing.T) {
 
 }
 
+func TestFetchEntries(t *testing.T) {
+	goodResponse := &common.RegistrationEntries{
+		Entries: testutil.GetRegistrationEntries("good.json"),
+	}
+
+	var testCases = []struct {
+		expectedResponse *common.RegistrationEntries
+		expectedError    error
+		setExpectations  func(*registrationServerTestSuite)
+	}{
+		{goodResponse, nil, fetchEntriesExpectations},
+	}
+
+	for _, tt := range testCases {
+		suite := setupRegistrationTest(t)
+
+		tt.setExpectations(suite)
+		response, err := suite.registrationServer.FetchEntries(nil, &common.Empty{})
+
+		//verification
+		if !reflect.DeepEqual(response, tt.expectedResponse) {
+			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
+		}
+
+		if !reflect.DeepEqual(err, tt.expectedError) {
+			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
+		}
+		suite.ctrl.Finish()
+	}
+
+}
+
 func TestUpdateEntry(t *testing.T) {
 	var testCases = []struct {
 		request          *registration.UpdateEntryRequest
@@ -467,6 +499,19 @@ func fetchEntryExpectations(suite *registrationServerTestSuite) {
 	}
 	suite.mockDataStore.EXPECT().
 		FetchRegistrationEntry(fetchRequest).
+		Return(fetchResponse, nil)
+}
+
+func fetchEntriesExpectations(suite *registrationServerTestSuite) {
+	expectDataStore(suite)
+
+	fetchResponse := &datastore.FetchRegistrationEntriesResponse{
+		RegisteredEntries: &common.RegistrationEntries{
+			testutil.GetRegistrationEntries("good.json"),
+		},
+	}
+	suite.mockDataStore.EXPECT().
+		FetchRegistrationEntries(&common.Empty{}).
 		Return(fetchResponse, nil)
 }
 

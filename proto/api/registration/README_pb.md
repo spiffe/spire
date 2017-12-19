@@ -1306,6 +1306,7 @@ A type with the id with want to update plus values to modify.
 | CreateEntry | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | [RegistrationEntryID](#spire.common.RegistrationEntry) | Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads. |
 | DeleteEntry | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | [spire.common.RegistrationEntry](#spire.api.registration.RegistrationEntryID) | Deletes an entry and returns the deleted entry. |
 | FetchEntry | [RegistrationEntryID](#spire.api.registration.RegistrationEntryID) | [spire.common.RegistrationEntry](#spire.api.registration.RegistrationEntryID) | Retrieve a specific registered entry. |
+| FetchEntries | [spire.common.Empty](#spire.common.Empty) | [spire.common.RegistrationEntries](#spire.common.Empty) | Retrieve all registered entries. |
 | UpdateEntry | [UpdateEntryRequest](#spire.api.registration.UpdateEntryRequest) | [spire.common.RegistrationEntry](#spire.api.registration.UpdateEntryRequest) | Updates a specific registered entry. |
 | ListByParentID | [ParentID](#spire.api.registration.ParentID) | [spire.common.RegistrationEntries](#spire.api.registration.ParentID) | Returns all the Entries associated with the ParentID value. |
 | ListBySelector | [spire.common.Selector](#spire.common.Selector) | [spire.common.RegistrationEntries](#spire.common.Selector) | Returns all the entries associated with a selector value. |

@@ -241,6 +241,12 @@ message FetchRegistrationEntryResponse {
     spire.common.RegistrationEntry registeredEntry = 1;
 }
 
+// Represents a list of Registration entries
+message FetchRegistrationEntriesResponse {
+    // Registration entries
+    spire.common.RegistrationEntries registeredEntries = 1;
+}
+
 
 // Represents a Registration entry to update
 message UpdateRegistrationEntryRequest {
@@ -356,6 +362,8 @@ service DataStore {
     rpc CreateRegistrationEntry(CreateRegistrationEntryRequest) returns (CreateRegistrationEntryResponse);
     // Retrieve a specific registered entry
     rpc FetchRegistrationEntry(FetchRegistrationEntryRequest) returns (FetchRegistrationEntryResponse);
+    // Retrieve all registration entries
+    rpc FetchRegistrationEntries(spire.common.Empty) returns (FetchRegistrationEntriesResponse);
     // Updates a specific registered entry
     rpc UpdateRegistrationEntry(UpdateRegistrationEntryRequest) returns (UpdateRegistrationEntryResponse);
     // Deletes a specific registered entry

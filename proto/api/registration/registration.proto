@@ -92,7 +92,9 @@ service Registration {
         option (google.api.http).get = "/entry/{id}";
     }
     // Retrieve all registered entries.
-    rpc FetchEntries(spire.common.Empty) returns (spire.common.RegistrationEntries)
+    rpc FetchEntries(spire.common.Empty) returns (spire.common.RegistrationEntries) {
+        option (google.api.http).get = "/entry";
+    }
 
     // Updates a specific registered entry.
     rpc UpdateEntry(UpdateEntryRequest) returns (spire.common.RegistrationEntry) {

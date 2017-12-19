@@ -14,7 +14,7 @@ import (
 
 // TODO: Test additional scenarios
 func TestCreateParseConfig(t *testing.T) {
-	c := &RegisterConfig{
+	c := &CreateConfig{
 		Addr:      cmdutil.DefaultServerAddr,
 		ParentID:  "spiffe://example.org/foo",
 		SpiffeID:  "spiffe://example.org/bar",
@@ -76,12 +76,12 @@ func TestRegisterParseFile(t *testing.T) {
 
 func TestRegisterParseSelector(t *testing.T) {
 	str := "unix:uid:1000"
-	s, err := CreateCLI{}.parseSelector(str)
+	s, err := parseSelector(str)
 	require.NoError(t, err)
 	assert.Equal(t, "unix", s.Type)
 	assert.Equal(t, "uid:1000", s.Value)
 
 	str = "unix"
-	_, err = CreateCLI{}.parseSelector(str)
+	_, err = parseSelector(str)
 	assert.NotNil(t, err)
 }

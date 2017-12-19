@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"strings"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/proto/api/registration"
@@ -103,7 +102,7 @@ func (c CreateCLI) Run(args []string) int {
 		return 1
 	}
 
-	err = c.registerEntries(c, entries)
+	err = c.registerEntries(cl, entries)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -113,16 +112,16 @@ func (c CreateCLI) Run(args []string) int {
 }
 
 // parseConfig builds a registration entry from the given config
-func (c CreateCLI) parseConfig(c *CreateConfig) ([]*common.RegistrationEntry, error) {
+func (c CreateCLI) parseConfig(config *CreateConfig) ([]*common.RegistrationEntry, error) {
 	e := &common.RegistrationEntry{
-		ParentId: c.ParentID,
-		SpiffeId: c.SpiffeID,
-		Ttl:      int32(c.Ttl),
+		ParentId: config.ParentID,
+		SpiffeId: config.SpiffeID,
+		Ttl:      int32(config.Ttl),
 	}
 
 	selectors := []*common.Selector{}
-	for _, s := range c.Selectors {
-		cs, err := c.parseSelector(s)
+	for _, s := range config.Selectors {
+		cs, err := parseSelector(s)
 		if err != nil {
 			return nil, err
 		}
@@ -146,7 +145,7 @@ func (CreateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
 	return entries.Entries, nil
 }
 
-func (c CreateCLI) registerEntries(c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
+func (CreateCLI) registerEntries(c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
 	for _, e := range entries {
 		id, err := c.CreateEntry(context.TODO(), e)
 		if err != nil {
@@ -162,7 +161,7 @@ func (c CreateCLI) registerEntries(c registration.RegistrationClient, entries []
 }
 
 func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
-	f := flag.NewFlagSet("register", flag.ContinueOnError)
+	f := flag.NewFlagSet("entry create", flag.ContinueOnError)
 	c := &CreateConfig{}
 
 	f.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")

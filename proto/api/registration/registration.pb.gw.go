@@ -86,6 +86,15 @@ func request_Registration_FetchEntry_0(ctx context.Context, marshaler runtime.Ma
 
 }
 
+func request_Registration_FetchEntries_0(ctx context.Context, marshaler runtime.Marshaler, client RegistrationClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq common.Empty
+	var metadata runtime.ServerMetadata
+
+	msg, err := client.FetchEntries(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
 var (
 	filter_Registration_UpdateEntry_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
 )
@@ -131,15 +140,7 @@ func RegisterRegistrationHandlerFromEndpoint(ctx context.Context, mux *runtime.S
 // RegisterRegistrationHandler registers the http handlers for service Registration to "mux".
 // The handlers forward requests to the grpc endpoint over "conn".
 func RegisterRegistrationHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
-	return RegisterRegistrationHandlerClient(ctx, mux, NewRegistrationClient(conn))
-}
-
-// RegisterRegistrationHandler registers the http handlers for service Registration to "mux".
-// The handlers forward requests to the grpc endpoint over the given implementation of "RegistrationClient".
-// Note: the gRPC framework executes interceptors within the gRPC handler. If the passed in "RegistrationClient"
-// doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
-// "RegistrationClient" to call the correct interceptors.
-func RegisterRegistrationHandlerClient(ctx context.Context, mux *runtime.ServeMux, client RegistrationClient) error {
+	client := NewRegistrationClient(conn)
 
 	mux.Handle("POST", pattern_Registration_CreateEntry_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(ctx)
@@ -228,6 +229,35 @@ func RegisterRegistrationHandlerClient(ctx context.Context, mux *runtime.ServeMu
 
 	})
 
+	mux.Handle("GET", pattern_Registration_FetchEntries_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Registration_FetchEntries_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Registration_FetchEntries_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("PUT", pattern_Registration_UpdateEntry_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -267,6 +297,8 @@ var (
 
 	pattern_Registration_FetchEntry_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"entry", "id"}, ""))
 
+	pattern_Registration_FetchEntries_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"entry"}, ""))
+
 	pattern_Registration_UpdateEntry_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"entry"}, ""))
 )
 
@@ -276,6 +308,8 @@ var (
 	forward_Registration_DeleteEntry_0 = runtime.ForwardResponseMessage
 
 	forward_Registration_FetchEntry_0 = runtime.ForwardResponseMessage
+
+	forward_Registration_FetchEntries_0 = runtime.ForwardResponseMessage
 
 	forward_Registration_UpdateEntry_0 = runtime.ForwardResponseMessage
 )
