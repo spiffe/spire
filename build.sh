@@ -3,7 +3,8 @@
 set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
-declare -r BINARY_DIRS="$(find cmd/* plugin/*/* -maxdepth 0 -type d 2>/dev/null)"
+declare -r ARTIFACT_DIRS="$(find cmd/* plugin/*/* functional/* -maxdepth 0 -type d 2>/dev/null)"
+declare -r RELEASE_DIRS="$(find cmd/* plugin/*/* -maxdepth 0 -type d 2>/dev/null)"
 declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... ./plugin/... 2>/dev/null)"
 declare -r RELEASE_FILES="LICENSE README.md conf"
 declare -r PROTO_FILES="$(find proto -name '*.proto' 2>/dev/null)"
@@ -191,16 +192,17 @@ build_release() {
 	_tag="$(git describe --abbrev=0 2>/dev/null || true)"
 	_always="$(git describe --always || true)"
 	if [[ $_tag == $_always ]]; then
-		build_artifact $_tag
+		build_artifact $_tag "$RELEASE_DIRS"
 	fi
 }
 
 ## Create a distributable tar.gz of all the binaries
 build_artifact() {
-	local _version="$1"
+	local _version="$1" _dirs="$2"
 	local _libc _tgz _sum _binaries _n _tmp _tar_opts
 
-	_binaries="$(find $BINARY_DIRS -perm -u=x -a -type f)"
+	[[ -z "$_dirs" ]] && _dirs="$ARTIFACT_DIRS"
+	_binaries="$(find $_dirs -perm -u=x -a -type f)"
 
 
 	# handle the case that we're building for alpine
@@ -234,7 +236,7 @@ build_artifact() {
 	for _n in $_binaries; do
 		if [[ $_n == *cmd/* ]]; then
 			cp $_n $_tmp
-		elif [[ $_n == *plugin/* ]]; then
+		else
 			mkdir -p ${_tmp}/$(dirname $(dirname $_n))
 			cp -r $_n ${_tmp}/$(dirname $_n)
 		fi
