@@ -535,7 +535,18 @@ func Test_ListMatchingEntries(t *testing.T) {
 				{Type: "b", Value: "2"},
 				{Type: "c", Value: "3"},
 			},
-			expectedList: allEntries[:3],
+			expectedList: []*common.RegistrationEntry{
+				allEntries[0],
+				allEntries[3],
+			},
+		},
+		{
+			name:                "test2",
+			registrationEntries: allEntries,
+			selectors: []*common.Selector{
+				{Type: "d", Value: "4"},
+			},
+			expectedList: allEntries[3:],
 		},
 	}
 	for _, test := range tests {

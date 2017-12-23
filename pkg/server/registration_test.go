@@ -76,13 +76,16 @@ func TestCreateEntry(t *testing.T) {
 }
 
 func TestDeleteEntry(t *testing.T) {
+	goodResponse := testutil.GetRegistrationEntries("good.json")[0]
+	req := &registration.RegistrationEntryID{Id: "1234"}
+
 	var testCases = []struct {
 		request          *registration.RegistrationEntryID
 		expectedResponse *common.RegistrationEntry
 		expectedError    error
 		setExpectations  func(*registrationServerTestSuite)
 	}{
-		{nil, nil, nil, func(*registrationServerTestSuite) {}},
+		{req, goodResponse, nil, deleteEntryExpectations},
 	}
 
 	for _, tt := range testCases {
@@ -233,13 +236,18 @@ func TestListByParentID(t *testing.T) {
 }
 
 func TestListBySelector(t *testing.T) {
+	req := &common.Selector{Type: "unix", Value: "uid:1111"}
+	resp := &common.RegistrationEntries{
+		Entries: testutil.GetRegistrationEntries("good.json"),
+	}
+
 	var testCases = []struct {
 		request          *common.Selector
 		expectedResponse *common.RegistrationEntries
 		expectedError    error
 		setExpectations  func(*registrationServerTestSuite)
 	}{
-		{nil, nil, nil, func(*registrationServerTestSuite) {}},
+		{req, resp, nil, listBySelectorExpectations},
 	}
 
 	for _, tt := range testCases {
@@ -260,13 +268,20 @@ func TestListBySelector(t *testing.T) {
 }
 
 func TestListBySpiffeID(t *testing.T) {
+	req := &registration.SpiffeID{
+		Id: "spiffe://example.org/Blog",
+	}
+	resp := &common.RegistrationEntries{
+		Entries: testutil.GetRegistrationEntries("good.json")[0:1],
+	}
+
 	var testCases = []struct {
 		request          *registration.SpiffeID
 		expectedResponse *common.RegistrationEntries
 		expectedError    error
 		setExpectations  func(*registrationServerTestSuite)
 	}{
-		{nil, nil, nil, func(*registrationServerTestSuite) {}},
+		{req, resp, nil, listBySpiffeIDExpectations},
 	}
 
 	for _, tt := range testCases {
@@ -523,6 +538,18 @@ func fetchEntryErrorExpectations(suite *registrationServerTestSuite) {
 		Return(nil, errors.New("foo"))
 }
 
+func deleteEntryExpectations(suite *registrationServerTestSuite) {
+	expectDataStore(suite)
+
+	resp := &datastore.DeleteRegistrationEntryResponse{
+		RegisteredEntry: testutil.GetRegistrationEntries("good.json")[0],
+	}
+
+	suite.mockDataStore.EXPECT().
+		DeleteRegistrationEntry(gomock.Any()).
+		Return(resp, nil)
+}
+
 func listByParentIDExpectations(suite *registrationServerTestSuite) {
 	expectDataStore(suite)
 
@@ -541,6 +568,39 @@ func listByParentIDErrorExpectations(suite *registrationServerTestSuite) {
 	suite.mockDataStore.EXPECT().
 		ListParentIDEntries(gomock.Any()).
 		Return(nil, errors.New("foo"))
+}
+
+func listBySelectorExpectations(suite *registrationServerTestSuite) {
+	expectDataStore(suite)
+
+	req := &datastore.ListSelectorEntriesRequest{
+		Selectors: []*common.Selector{
+			{Type: "unix", Value: "uid:1111"},
+		},
+	}
+	resp := &datastore.ListSelectorEntriesResponse{
+		RegisteredEntryList: testutil.GetRegistrationEntries("good.json"),
+	}
+
+	suite.mockDataStore.EXPECT().
+		ListSelectorEntries(req).
+		Return(resp, nil)
+}
+
+func listBySpiffeIDExpectations(suite *registrationServerTestSuite) {
+	expectDataStore(suite)
+
+	req := &datastore.ListSpiffeEntriesRequest{
+		SpiffeId: "spiffe://example.org/Blog",
+	}
+
+	resp := &datastore.ListSpiffeEntriesResponse{
+		RegisteredEntryList: testutil.GetRegistrationEntries("good.json")[0:1],
+	}
+
+	suite.mockDataStore.EXPECT().
+		ListSpiffeEntries(req).
+		Return(resp, nil)
 }
 
 func createJoinTokenExpectations(suite *registrationServerTestSuite) {

@@ -1276,10 +1276,9 @@ type DataStoreClient interface {
 	DeleteRegistrationEntry(ctx context.Context, in *DeleteRegistrationEntryRequest, opts ...grpc.CallOption) (*DeleteRegistrationEntryResponse, error)
 	// Retrieves all the registered entry with the same ParentID
 	ListParentIDEntries(ctx context.Context, in *ListParentIDEntriesRequest, opts ...grpc.CallOption) (*ListParentIDEntriesResponse, error)
-	// Retrieves all the registered entry matching exactlly the compound Selector
+	// Retrieves all the registered entry matching exactly the compound Selector
 	ListSelectorEntries(ctx context.Context, in *ListSelectorEntriesRequest, opts ...grpc.CallOption) (*ListSelectorEntriesResponse, error)
-	// Retrieves all the registered entry matching exactly any of the compound Selector from the generated power set
-	// of the input selector set
+	// Retrieves registered entries containing all of the specified selectors
 	ListMatchingEntries(ctx context.Context, in *ListSelectorEntriesRequest, opts ...grpc.CallOption) (*ListSelectorEntriesResponse, error)
 	// Retrieves all the registered entry with the same SpiffeId
 	ListSpiffeEntries(ctx context.Context, in *ListSpiffeEntriesRequest, opts ...grpc.CallOption) (*ListSpiffeEntriesResponse, error)
@@ -1598,10 +1597,9 @@ type DataStoreServer interface {
 	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
 	// Retrieves all the registered entry with the same ParentID
 	ListParentIDEntries(context.Context, *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error)
-	// Retrieves all the registered entry matching exactlly the compound Selector
+	// Retrieves all the registered entry matching exactly the compound Selector
 	ListSelectorEntries(context.Context, *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
-	// Retrieves all the registered entry matching exactly any of the compound Selector from the generated power set
-	// of the input selector set
+	// Retrieves registered entries containing all of the specified selectors
 	ListMatchingEntries(context.Context, *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
 	// Retrieves all the registered entry with the same SpiffeId
 	ListSpiffeEntries(context.Context, *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error)

@@ -81,7 +81,7 @@ func (s *ShowCLI) Run(args []string) int {
 	}
 
 	// If we didn't get any args, fetch everything then exit
-	if s.Config.ParentID != "" && s.Config.SpiffeID != "" && len(s.Config.Selectors) == 0 {
+	if s.Config.ParentID == "" && s.Config.SpiffeID == "" && len(s.Config.Selectors) == 0 {
 		err = s.fetchAllEntries()
 		if err != nil {
 			fmt.Printf("Error fetching entries: %s\n", err)
@@ -132,8 +132,12 @@ func (s *ShowCLI) fetchAllEntries() error {
 func (s *ShowCLI) fetchByEntryID(id string) error {
 	regID := &registration.RegistrationEntryID{Id: id}
 	entry, err := s.Client.FetchEntry(context.TODO(), regID)
+	if err != nil {
+		return err
+	}
+
 	s.Entries = []*common.RegistrationEntry{entry}
-	return err
+	return nil
 }
 
 // fetchByParentID appends registration entries which match the configured
@@ -210,7 +214,33 @@ func (s *ShowCLI) filterEntries() {
 		newSlice = append(newSlice, e)
 	}
 
-	s.Entries = newSlice
+	s.Entries = s.dedupEntries(newSlice)
+}
+
+// dedupEntries naively de-duplicates registration entries in the given slice, returning
+// a new slice. This is necessary because Registration Entry ID is not always returned,
+// making it difficult to tell entries apart from each other. This will become simpler
+// following a registration API refactor.
+func (ShowCLI) dedupEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {
+	resp := []*common.RegistrationEntry{}
+	for i, e := range entries {
+		var found bool
+
+		for ii := i + 1; ii < len(entries); ii++ {
+			if entries[ii] == e {
+				found = true
+				break
+			}
+		}
+
+		if found {
+			continue
+		} else {
+			resp = append(resp, e)
+		}
+	}
+
+	return resp
 }
 
 func (s *ShowCLI) printEntries() {
@@ -238,8 +268,11 @@ func (s *ShowCLI) loadConfig(args []string) error {
 	if err != nil {
 		return err
 	}
-
 	s.Config = c
-	s.Client, err = util.NewRegistrationClient(c.Addr)
+
+	if s.Client == nil {
+		s.Client, err = util.NewRegistrationClient(c.Addr)
+	}
+
 	return err
 }
