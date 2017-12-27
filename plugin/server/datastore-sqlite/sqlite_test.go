@@ -428,7 +428,7 @@ func Test_FetchRegistrationEntries(t *testing.T) {
 
 	expectedResponse := &datastore.FetchRegistrationEntriesResponse{
 		RegisteredEntries: &common.RegistrationEntries{
-			Entries: []*common.RegistrationEntry{entry1, entry2},
+			Entries: []*common.RegistrationEntry{entry2, entry1},
 		},
 	}
 	assert.Equal(t, expectedResponse, fetchRegistrationEntriesResponse)

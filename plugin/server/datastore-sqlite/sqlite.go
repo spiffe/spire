@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -757,42 +758,15 @@ func (sqlitePlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfo
 	return &pluginInfo, nil
 }
 
-func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntry) (responseEntries []*common.RegistrationEntry, err error) {
-	for _, regEntry := range fetchedRegisteredEntries {
-		var selectors []*common.Selector
-		var fetchedSelectors []*selector
-		if err = ds.db.Model(&regEntry).Related(&fetchedSelectors).Error; err != nil {
-			return nil, err
-		}
-
-		for _, selector := range fetchedSelectors {
-			selectors = append(selectors, &common.Selector{
-				Type:  selector.Type,
-				Value: selector.Value})
-		}
-		responseEntries = append(responseEntries, &common.RegistrationEntry{
-			Selectors: selectors,
-			SpiffeId:  regEntry.SpiffeId,
-			ParentId:  regEntry.ParentId,
-			Ttl:       regEntry.Ttl,
-		})
-	}
-	return responseEntries, nil
-}
-
-// listMatchingEntries finds all registered entries containing all specified selectors. Note
-// that entries containing _more_ than the specified selectors will also be returned, since
+// listMatchingEntries finds registered entries containing all specified selectors. Note
+// that entries containing _more_ than the specified selectors may be returned, since
 // that is also considered a "match"
 func (ds *sqlitePlugin) listMatchingEntries(selectors []*common.Selector) ([]*common.RegistrationEntry, error) {
 	// Count references to each entry ID
 	refCount := make(map[string]int)
 	for _, s := range selectors {
 		var results []selector
-
-		// Sort explicitly by creation time than entry id, which
-		// can cause tests to flap as ID values are not predictable.
-		q := ds.db.Order("created_at")
-		err := q.Find(&results, "type = ? AND value = ?", s.Type, s.Value).Error
+		err := ds.db.Find(&results, "type = ? AND value = ?", s.Type, s.Value).Error
 		if err != nil {
 			return []*common.RegistrationEntry{}, err
 		}
@@ -827,6 +801,50 @@ func (ds *sqlitePlugin) listMatchingEntries(selectors []*common.Selector) ([]*co
 	}
 
 	return ds.convertEntries(resp)
+}
+
+func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntry) (responseEntries []*common.RegistrationEntry, err error) {
+	for _, regEntry := range fetchedRegisteredEntries {
+		var selectors []*common.Selector
+		var fetchedSelectors []*selector
+		if err = ds.db.Model(&regEntry).Related(&fetchedSelectors).Error; err != nil {
+			return nil, err
+		}
+
+		for _, selector := range fetchedSelectors {
+			selectors = append(selectors, &common.Selector{
+				Type:  selector.Type,
+				Value: selector.Value})
+		}
+		responseEntries = append(responseEntries, &common.RegistrationEntry{
+			Selectors: selectors,
+			SpiffeId:  regEntry.SpiffeId,
+			ParentId:  regEntry.ParentId,
+			Ttl:       regEntry.Ttl,
+		})
+	}
+	return ds.sortEntries(responseEntries), nil
+}
+
+// registrationEntries provides a sortable type to help ensure stable
+// return ordering
+type registrationEntries []*common.RegistrationEntry
+
+func (re registrationEntries) Len() int      { return len(re) }
+func (re registrationEntries) Swap(i, j int) { re[i], re[j] = re[j], re[i] }
+func (re registrationEntries) Less(i, j int) bool {
+	if re[i].SpiffeId < re[j].SpiffeId || re[i].ParentId < re[j].ParentId ||
+		re[i].Ttl < re[j].Ttl || len(re[i].Selectors) < len(re[i].Selectors) {
+		return true
+	}
+
+	return false
+}
+
+func (ds *sqlitePlugin) sortEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {
+	e := registrationEntries(entries)
+	sort.Sort(e)
+	return []*common.RegistrationEntry(e)
 }
 
 func newPlugin(dbType string) (datastore.DataStore, error) {
