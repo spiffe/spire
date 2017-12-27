@@ -121,7 +121,7 @@ func (s *ShowCLI) fetchAllEntries() error {
 	var err error
 	entries, err := s.Client.FetchEntries(context.TODO(), &common.Empty{})
 	if err != nil {
-		return nil
+		return err
 	}
 
 	s.Entries = entries.Entries
