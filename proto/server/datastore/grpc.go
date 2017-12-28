@@ -99,6 +99,11 @@ func (m *GRPCServer) FetchRegistrationEntry(ctx context.Context, req *FetchRegis
 	return res, err
 }
 
+func (m *GRPCServer) FetchRegistrationEntries(ctx context.Context, req *common.Empty) (*FetchRegistrationEntriesResponse, error) {
+	res, err := m.DataStoreImpl.FetchRegistrationEntries(req)
+	return res, err
+}
+
 func (m *GRPCServer) UpdateRegistrationEntry(ctx context.Context, req *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error) {
 	res, err := m.DataStoreImpl.UpdateRegistrationEntry(req)
 	return res, err
@@ -258,6 +263,11 @@ func (m *GRPCClient) CreateRegistrationEntry(req *CreateRegistrationEntryRequest
 
 func (m *GRPCClient) FetchRegistrationEntry(req *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error) {
 	res, err := m.client.FetchRegistrationEntry(context.Background(), req)
+	return res, err
+}
+
+func (m *GRPCClient) FetchRegistrationEntries(req *common.Empty) (*FetchRegistrationEntriesResponse, error) {
+	res, err := m.client.FetchRegistrationEntries(context.Background(), req)
 	return res, err
 }
 

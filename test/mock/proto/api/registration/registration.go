@@ -126,6 +126,24 @@ func (mr *MockRegistrationClientMockRecorder) DeleteFederatedBundle(arg0, arg1 i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFederatedBundle", reflect.TypeOf((*MockRegistrationClient)(nil).DeleteFederatedBundle), varargs...)
 }
 
+// FetchEntries mocks base method
+func (m *MockRegistrationClient) FetchEntries(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (*common.RegistrationEntries, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "FetchEntries", varargs...)
+	ret0, _ := ret[0].(*common.RegistrationEntries)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchEntries indicates an expected call of FetchEntries
+func (mr *MockRegistrationClientMockRecorder) FetchEntries(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchEntries", reflect.TypeOf((*MockRegistrationClient)(nil).FetchEntries), varargs...)
+}
+
 // FetchEntry mocks base method
 func (m *MockRegistrationClient) FetchEntry(arg0 context.Context, arg1 *registration.RegistrationEntryID, arg2 ...grpc.CallOption) (*common.RegistrationEntry, error) {
 	varargs := []interface{}{arg0, arg1}
@@ -338,6 +356,19 @@ func (m *MockRegistrationServer) DeleteFederatedBundle(arg0 context.Context, arg
 // DeleteFederatedBundle indicates an expected call of DeleteFederatedBundle
 func (mr *MockRegistrationServerMockRecorder) DeleteFederatedBundle(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFederatedBundle", reflect.TypeOf((*MockRegistrationServer)(nil).DeleteFederatedBundle), arg0, arg1)
+}
+
+// FetchEntries mocks base method
+func (m *MockRegistrationServer) FetchEntries(arg0 context.Context, arg1 *common.Empty) (*common.RegistrationEntries, error) {
+	ret := m.ctrl.Call(m, "FetchEntries", arg0, arg1)
+	ret0, _ := ret[0].(*common.RegistrationEntries)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchEntries indicates an expected call of FetchEntries
+func (mr *MockRegistrationServerMockRecorder) FetchEntries(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchEntries", reflect.TypeOf((*MockRegistrationServer)(nil).FetchEntries), arg0, arg1)
 }
 
 // FetchEntry mocks base method

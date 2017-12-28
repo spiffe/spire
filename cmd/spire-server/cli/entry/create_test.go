@@ -1,4 +1,4 @@
-package register
+package entry
 
 import (
 	"path"
@@ -13,8 +13,8 @@ import (
 )
 
 // TODO: Test additional scenarios
-func TestRegisterParseConfig(t *testing.T) {
-	c := &RegisterConfig{
+func TestCreateParseConfig(t *testing.T) {
+	c := &CreateConfig{
 		Addr:      cmdutil.DefaultServerAddr,
 		ParentID:  "spiffe://example.org/foo",
 		SpiffeID:  "spiffe://example.org/bar",
@@ -22,7 +22,7 @@ func TestRegisterParseConfig(t *testing.T) {
 		Selectors: SelectorFlag{"unix:uid:1000", "unix:gid:1000"},
 	}
 
-	entries, err := RegisterCLI{}.parseConfig(c)
+	entries, err := CreateCLI{}.parseConfig(c)
 	require.NoError(t, err)
 
 	expectedEntry := &common.RegistrationEntry{
@@ -41,7 +41,7 @@ func TestRegisterParseConfig(t *testing.T) {
 
 func TestRegisterParseFile(t *testing.T) {
 	p := path.Join(util.ProjectRoot(), "test/fixture/registration/good.json")
-	entries, err := RegisterCLI{}.parseFile(p)
+	entries, err := CreateCLI{}.parseFile(p)
 	require.NoError(t, err)
 
 	entry1 := &common.RegistrationEntry{
@@ -76,12 +76,12 @@ func TestRegisterParseFile(t *testing.T) {
 
 func TestRegisterParseSelector(t *testing.T) {
 	str := "unix:uid:1000"
-	s, err := RegisterCLI{}.parseSelector(str)
+	s, err := parseSelector(str)
 	require.NoError(t, err)
 	assert.Equal(t, "unix", s.Type)
 	assert.Equal(t, "uid:1000", s.Value)
 
 	str = "unix"
-	_, err = RegisterCLI{}.parseSelector(str)
+	_, err = parseSelector(str)
 	assert.NotNil(t, err)
 }

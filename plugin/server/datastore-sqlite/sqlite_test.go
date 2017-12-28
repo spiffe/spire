@@ -389,6 +389,51 @@ func Test_FetchInexistentRegistrationEntry(t *testing.T) {
 	require.Nil(t, fetchRegistrationEntryResponse.RegisteredEntry)
 }
 
+func Test_FetchRegistrationEntries(t *testing.T) {
+	ds := createDefault(t)
+
+	entry1 := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type2", Value: "Value2"},
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId: "spiffe://example.org/foo",
+		ParentId: "spiffe://example.org/bar",
+		Ttl:      1,
+	}
+
+	entry2 := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type3", Value: "Value3"},
+			{Type: "Type4", Value: "Value4"},
+			{Type: "Type5", Value: "Value5"},
+		},
+		SpiffeId: "spiffe://example.org/baz",
+		ParentId: "spiffe://example.org/bat",
+		Ttl:      2,
+	}
+
+	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{entry1})
+	require.NoError(t, err)
+	require.NotNil(t, createRegistrationEntryResponse)
+
+	createRegistrationEntryResponse, err = ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{entry2})
+	require.NoError(t, err)
+	require.NotNil(t, createRegistrationEntryResponse)
+
+	fetchRegistrationEntriesResponse, err := ds.FetchRegistrationEntries(&common.Empty{})
+	require.NoError(t, err)
+	require.NotNil(t, fetchRegistrationEntriesResponse)
+
+	expectedResponse := &datastore.FetchRegistrationEntriesResponse{
+		RegisteredEntries: &common.RegistrationEntries{
+			Entries: []*common.RegistrationEntry{entry2, entry1},
+		},
+	}
+	assert.Equal(t, expectedResponse, fetchRegistrationEntriesResponse)
+}
+
 func Test_UpdateRegistrationEntry(t *testing.T) {
 	t.Skipf("TODO")
 }
@@ -490,7 +535,18 @@ func Test_ListMatchingEntries(t *testing.T) {
 				{Type: "b", Value: "2"},
 				{Type: "c", Value: "3"},
 			},
-			expectedList: allEntries[:3],
+			expectedList: []*common.RegistrationEntry{
+				allEntries[0],
+				allEntries[3],
+			},
+		},
+		{
+			name:                "test2",
+			registrationEntries: allEntries,
+			selectors: []*common.Selector{
+				{Type: "d", Value: "4"},
+			},
+			expectedList: allEntries[3:],
 		},
 	}
 	for _, test := range tests {

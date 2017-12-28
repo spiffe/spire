@@ -94,6 +94,8 @@
   
     * [FetchNodeResolverMapEntryResponse](#spire.server.datastore.FetchNodeResolverMapEntryResponse)
   
+    * [FetchRegistrationEntriesResponse](#spire.server.datastore.FetchRegistrationEntriesResponse)
+  
     * [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest)
   
     * [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryResponse)
@@ -734,6 +736,21 @@ Represents a list of Node resolver map entries for the specified Spiffe ID
 
 
 
+<a name="spire.server.datastore.FetchRegistrationEntriesResponse"/>
+
+### FetchRegistrationEntriesResponse
+Represents a list of Registration entries
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| registeredEntries | [.spire.common.RegistrationEntries](#spire.server.datastore..spire.common.RegistrationEntries) |  | Registration entries |
+
+
+
+
+
+
 <a name="spire.server.datastore.FetchRegistrationEntryRequest"/>
 
 ### FetchRegistrationEntryRequest
@@ -1088,11 +1105,12 @@ Represents the updated Registration entry
 | RectifyNodeResolverMapEntries | [RectifyNodeResolverMapEntriesRequest](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest) | [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest) | Used for rectifying updated node resolutions |
 | CreateRegistrationEntry | [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest) | [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryRequest) | Creates a Registered Entry |
 | FetchRegistrationEntry | [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest) | [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryRequest) | Retrieve a specific registered entry |
+| FetchRegistrationEntries | [spire.common.Empty](#spire.common.Empty) | [FetchRegistrationEntriesResponse](#spire.common.Empty) | Retrieve all registration entries |
 | UpdateRegistrationEntry | [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest) | [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryRequest) | Updates a specific registered entry |
 | DeleteRegistrationEntry | [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest) | [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryRequest) | Deletes a specific registered entry |
 | ListParentIDEntries | [ListParentIDEntriesRequest](#spire.server.datastore.ListParentIDEntriesRequest) | [ListParentIDEntriesResponse](#spire.server.datastore.ListParentIDEntriesRequest) | Retrieves all the registered entry with the same ParentID |
-| ListSelectorEntries | [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesRequest) | Retrieves all the registered entry matching exactlly the compound Selector |
-| ListMatchingEntries | [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesRequest) | Retrieves all the registered entry matching exactly any of the compound Selector from the generated power setof the input selector set |
+| ListSelectorEntries | [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesRequest) | Retrieves all the registered entry matching exactly the compound Selector |
+| ListMatchingEntries | [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesRequest) | Retrieves registered entries containing all of the specified selectors |
 | ListSpiffeEntries | [ListSpiffeEntriesRequest](#spire.server.datastore.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#spire.server.datastore.ListSpiffeEntriesRequest) | Retrieves all the registered entry with the same SpiffeId |
 | RegisterToken | [JoinToken](#spire.server.datastore.JoinToken) | [spire.common.Empty](#spire.server.datastore.JoinToken) | Register a new join token |
 | FetchToken | [JoinToken](#spire.server.datastore.JoinToken) | [JoinToken](#spire.server.datastore.JoinToken) | Fetch a token record |

@@ -10,8 +10,6 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
-	sel "github.com/spiffe/spire/pkg/common/selector"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -508,14 +506,74 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 	}, nil
 }
 
+func (ds *sqlitePlugin) FetchRegistrationEntries(
+	request *common.Empty) (*datastore.FetchRegistrationEntriesResponse, error) {
+
+	var entries []registeredEntry
+	if err := ds.db.Find(&entries).Error; err != nil {
+		return nil, err
+	}
+
+	var sel []selector
+	if err := ds.db.Find(&sel).Error; err != nil {
+		return nil, err
+	}
+
+	// Organize the selectors for easier access
+	selectors := map[string][]*selector{}
+	for _, s := range sel {
+		selectors[s.RegisteredEntryId] = append(selectors[s.RegisteredEntryId], &s)
+	}
+
+	// Populate registration entries with their related selectors
+	for _, entry := range entries {
+		if s, ok := selectors[entry.RegisteredEntryId]; ok {
+			entry.Selectors = s
+		}
+	}
+
+	resEntries, err := ds.convertEntries(entries)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &datastore.FetchRegistrationEntriesResponse{
+		RegisteredEntries: &common.RegistrationEntries{
+			Entries: resEntries,
+		},
+	}
+
+	return res, nil
+}
+
 func (sqlitePlugin) UpdateRegistrationEntry(
 	*datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
 	return &datastore.UpdateRegistrationEntryResponse{}, errors.New("Not Implemented")
 }
 
-func (sqlitePlugin) DeleteRegistrationEntry(
-	*datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
-	return &datastore.DeleteRegistrationEntryResponse{}, errors.New("Not Implemented")
+func (ds *sqlitePlugin) DeleteRegistrationEntry(
+	request *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
+
+	entry := registeredEntry{
+		RegisteredEntryId: request.RegisteredEntryId,
+	}
+	if err := ds.db.Find(&entry).Error; err != nil {
+		return &datastore.DeleteRegistrationEntryResponse{}, err
+	}
+
+	if err := ds.db.Delete(&entry).Error; err != nil {
+		return &datastore.DeleteRegistrationEntryResponse{}, err
+	}
+
+	respEntry, err := ds.convertEntries([]registeredEntry{entry})
+	if err != nil {
+		return &datastore.DeleteRegistrationEntryResponse{}, err
+	}
+
+	resp := &datastore.DeleteRegistrationEntryResponse{
+		RegisteredEntry: respEntry[0],
+	}
+	return resp, nil
 }
 
 func (ds *sqlitePlugin) ListParentIDEntries(
@@ -551,25 +609,21 @@ func (ds *sqlitePlugin) ListSelectorEntries(
 		return &datastore.ListSelectorEntriesResponse{}, nil
 	}
 
-	//order selectors
-	sort.Slice(request.Selectors, util.SelectorsSortFunction(request.Selectors))
-	//build compound selector
-	compoundSelector := ""
-	for _, selector := range request.Selectors {
-		compoundSelector += selector.Type + selector.Value
-	}
-
-	var fetchedRegisteredEntries []registeredEntry
-	query := getListSelectorQuery(1)
-	ds.db.
-		Raw(query, compoundSelector).
-		Scan(&fetchedRegisteredEntries)
-
-	regEntryList, err := ds.convertEntries(fetchedRegisteredEntries)
+	matches, err := ds.listMatchingEntries(request.Selectors)
 	if err != nil {
-		return nil, err
+		return &datastore.ListSelectorEntriesResponse{}, err
 	}
-	return &datastore.ListSelectorEntriesResponse{RegisteredEntryList: regEntryList}, nil
+
+	// Only keep entries which match the specified list exactly
+	var entries []*common.RegistrationEntry
+	for _, m := range matches {
+		if len(m.Selectors) == len(request.Selectors) {
+			entries = append(entries, m)
+		}
+	}
+
+	resp := &datastore.ListSelectorEntriesResponse{RegisteredEntryList: entries}
+	return resp, err
 }
 
 func (ds *sqlitePlugin) ListMatchingEntries(
@@ -582,37 +636,33 @@ func (ds *sqlitePlugin) ListMatchingEntries(
 		return &datastore.ListSelectorEntriesResponse{}, nil
 	}
 
-	set := sel.NewSet(request.Selectors)
-	compoundSelectors := []interface{}{}
-	//iterate the powerset so we can create the compound selector for each subset
-	for subset := range set.Power() {
-		selectorSubSet := subset.Raw()
-		//order selectors for each subset before creating the compound selector
-		sort.Slice(selectorSubSet, util.SelectorsSortFunction(selectorSubSet))
-		//build compound selector for each subset
-		var compoundSelector string
-		for _, selector := range selectorSubSet {
-			compoundSelector += selector.Type + selector.Value
-		}
-		compoundSelectors = append(compoundSelectors, compoundSelector)
-	}
-
-	var fetchedRegisteredEntries []registeredEntry
-	query := getListSelectorQuery(len(compoundSelectors))
-	ds.db.
-		Raw(query, compoundSelectors...).
-		Scan(&fetchedRegisteredEntries)
-
-	regEntryList, err := ds.convertEntries(fetchedRegisteredEntries)
+	entries, err := ds.listMatchingEntries(request.Selectors)
 	if err != nil {
-		return nil, err
+		return &datastore.ListSelectorEntriesResponse{}, err
 	}
-	return &datastore.ListSelectorEntriesResponse{RegisteredEntryList: regEntryList}, nil
+
+	resp := &datastore.ListSelectorEntriesResponse{RegisteredEntryList: entries}
+	return resp, nil
 }
 
-func (sqlitePlugin) ListSpiffeEntries(
-	*datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
-	return &datastore.ListSpiffeEntriesResponse{}, errors.New("Not Implemented")
+func (ds *sqlitePlugin) ListSpiffeEntries(
+	request *datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
+
+	var entries []registeredEntry
+	err := ds.db.Find(&entries, "spiffe_id = ?", request.SpiffeId).Error
+	if err != nil {
+		return &datastore.ListSpiffeEntriesResponse{}, err
+	}
+
+	respEntries, err := ds.convertEntries(entries)
+	if err != nil {
+		return &datastore.ListSpiffeEntriesResponse{}, err
+	}
+
+	resp := &datastore.ListSpiffeEntriesResponse{
+		RegisteredEntryList: respEntries,
+	}
+	return resp, nil
 }
 
 // RegisterToken takes a Token message and stores it
@@ -708,6 +758,51 @@ func (sqlitePlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfo
 	return &pluginInfo, nil
 }
 
+// listMatchingEntries finds registered entries containing all specified selectors. Note
+// that entries containing _more_ than the specified selectors may be returned, since
+// that is also considered a "match"
+func (ds *sqlitePlugin) listMatchingEntries(selectors []*common.Selector) ([]*common.RegistrationEntry, error) {
+	// Count references to each entry ID
+	refCount := make(map[string]int)
+	for _, s := range selectors {
+		var results []selector
+		err := ds.db.Find(&results, "type = ? AND value = ?", s.Type, s.Value).Error
+		if err != nil {
+			return []*common.RegistrationEntry{}, err
+		}
+
+		for _, r := range results {
+			if count, ok := refCount[r.RegisteredEntryId]; ok {
+				refCount[r.RegisteredEntryId] = count + 1
+			} else {
+				refCount[r.RegisteredEntryId] = 1
+			}
+		}
+	}
+
+	// Weed out entries that don't have every selector
+	var entryIDs []string
+	for id, count := range refCount {
+		if count == len(selectors) {
+			entryIDs = append(entryIDs, id)
+		}
+	}
+
+	// Finally, fetch and return the distilled entries
+	var resp []registeredEntry
+	for _, id := range entryIDs {
+		var result registeredEntry
+		err := ds.db.Find(&result, "registered_entry_id = ?", id).Error
+		if err != nil {
+			return []*common.RegistrationEntry{}, err
+		}
+
+		resp = append(resp, result)
+	}
+
+	return ds.convertEntries(resp)
+}
+
 func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntry) (responseEntries []*common.RegistrationEntry, err error) {
 	for _, regEntry := range fetchedRegisteredEntries {
 		var selectors []*common.Selector
@@ -728,7 +823,28 @@ func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntr
 			Ttl:       regEntry.Ttl,
 		})
 	}
-	return responseEntries, nil
+	return ds.sortEntries(responseEntries), nil
+}
+
+// registrationEntries provides a sortable type to help ensure stable
+// return ordering
+type registrationEntries []*common.RegistrationEntry
+
+func (re registrationEntries) Len() int      { return len(re) }
+func (re registrationEntries) Swap(i, j int) { re[i], re[j] = re[j], re[i] }
+func (re registrationEntries) Less(i, j int) bool {
+	if re[i].SpiffeId < re[j].SpiffeId || re[i].ParentId < re[j].ParentId ||
+		re[i].Ttl < re[j].Ttl || len(re[i].Selectors) < len(re[i].Selectors) {
+		return true
+	}
+
+	return false
+}
+
+func (ds *sqlitePlugin) sortEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {
+	e := registrationEntries(entries)
+	sort.Sort(e)
+	return []*common.RegistrationEntry(e)
 }
 
 func newPlugin(dbType string) (datastore.DataStore, error) {
@@ -775,26 +891,4 @@ func main() {
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})
-}
-
-func getListSelectorQuery(conditionCount int) string {
-	query := `
-SELECT *, group_concat(selector, '') as compound 
-FROM (
-	SELECT (selectors.type || selectors.value) as selector, 
-	* 
-	FROM registered_entries JOIN selectors 
-	ON selectors.registered_entry_id = registered_entries.registered_entry_id
-	ORDER BY  selectors.type, selectors.value
-)
-GROUP BY registered_entry_id 
-HAVING compound = ? `
-
-	if conditionCount > 1 {
-		for i := 1; i < conditionCount; i++ {
-			query += "OR compound = ? "
-		}
-	}
-	query += "ORDER BY spiffe_id"
-	return query
 }

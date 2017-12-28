@@ -22,3 +22,17 @@ func NewRegistrationClient(address string) (registration.RegistrationClient, err
 	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	return registration.NewRegistrationClient(conn), err
 }
+
+// Pluralizer concatenates `singular` to `msg` when `val` is one, and
+// `plural` on all other occasions. It is meant to facilitate friendlier
+// CLI output.
+func Pluralizer(msg string, singular string, plural string, val int) string {
+	result := msg
+	if val == 1 {
+		result = result + singular
+	} else {
+		result = result + plural
+	}
+
+	return result
+}
