@@ -46,19 +46,16 @@ func (d DeleteCLI) Help() string {
 func (d DeleteCLI) Run(args []string) int {
 	config, err := d.newConfig(args)
 	if err != nil {
-		fmt.Println(err.Error())
-		return 1
+		return d.printErr(err)
 	}
 
 	if err = config.Validate(); err != nil {
-		fmt.Println(err.Error())
-		return 1
+		return d.printErr(err)
 	}
 
 	cl, err := util.NewRegistrationClient(config.Addr)
 	if err != nil {
-		fmt.Println(err.Error())
-		return 1
+		return d.printErr(err)
 	}
 
 	req := &registration.RegistrationEntryID{
@@ -66,8 +63,7 @@ func (d DeleteCLI) Run(args []string) int {
 	}
 	e, err := cl.DeleteEntry(context.TODO(), req)
 	if err != nil {
-		fmt.Println(err.Error())
-		return 1
+		return d.printErr(err)
 	}
 
 	fmt.Printf("Deleted the following entry:\n\n")
@@ -83,4 +79,9 @@ func (DeleteCLI) newConfig(args []string) (*DeleteConfig, error) {
 	f.StringVar(&c.EntryID, "entryID", "", "The Registration Entry ID of the record to delete")
 
 	return c, f.Parse(args)
+}
+
+func (DeleteCLI) printErr(err error) int {
+	fmt.Println(err.Error())
+	return 1
 }
