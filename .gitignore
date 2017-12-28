@@ -12,6 +12,8 @@
 cmd/spire-agent/spire-agent
 cmd/spire-server/spire-server
 
+conf/server/spire.db
+
 plugin/agent/keymanager-memory/keymanager-memory
 plugin/agent/nodeattestor-jointoken/nodeattestor-jointoken
 plugin/agent/nodeattestor-secretfile/nodeattestor-secretfile

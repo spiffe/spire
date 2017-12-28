@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
@@ -25,8 +26,16 @@ var (
 	}
 )
 
+type configuration struct {
+	FileName string `hcl:"file_name" json:"file_name"`
+}
+
 type sqlitePlugin struct {
-	db    *gorm.DB
+	db *gorm.DB
+
+	// Path to use for sqlite db
+	fileName string
+
 	mutex *sync.Mutex
 }
 
@@ -750,8 +759,28 @@ func (ds *sqlitePlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, er
 	return resp, nil
 }
 
-func (sqlitePlugin) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	return &spi.ConfigureResponse{}, nil
+func (ds *sqlitePlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	resp := &spi.ConfigureResponse{}
+
+	// Parse HCL config payload into config struct
+	config := &configuration{}
+	hclTree, err := hcl.Parse(req.Configuration)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+	err = hcl.DecodeObject(&config, hclTree)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+
+	if config.FileName != "" && config.FileName != ds.fileName {
+		ds.fileName = config.FileName
+		return resp, ds.restart()
+	}
+
+	return resp, nil
 }
 
 func (sqlitePlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
@@ -847,29 +876,50 @@ func (ds *sqlitePlugin) sortEntries(entries []*common.RegistrationEntry) []*comm
 	return []*common.RegistrationEntry(e)
 }
 
-func newPlugin(dbType string) (datastore.DataStore, error) {
-	db, err := gorm.Open("sqlite3", dbType)
+// restart will close and re-open the sqlite database.
+func (ds *sqlitePlugin) restart() error {
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
+	// Build sqlite connect string
+	path := ds.fileName
+	if path == ":memory:" {
+		path = path + "?cache=shared"
+	}
+	path = "file:" + path
+
+	db, err := gorm.Open("sqlite3", path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	db.LogMode(true)
 
 	if err := migrateDB(db); err != nil {
-		return nil, err
+		return err
 	}
 
-	return &sqlitePlugin{
-		db:    db,
-		mutex: &sync.Mutex{},
-	}, nil
+	if ds.db != nil {
+		ds.db.Close()
+	}
 
+	ds.db = db
+	return nil
+}
+
+func newPlugin(path string) (datastore.DataStore, error) {
+	p := &sqlitePlugin{
+		fileName: path,
+		mutex:    new(sync.Mutex),
+	}
+
+	return p, p.restart()
 }
 
 //New creates a new sqlite plugin with
 //an in-memory database and shared cache
 func New() (datastore.DataStore, error) {
-	return newPlugin("file::memory:?cache=shared")
+	return newPlugin(":memory:")
 }
 
 //NewTemp create a new plugin with a temporal database,
