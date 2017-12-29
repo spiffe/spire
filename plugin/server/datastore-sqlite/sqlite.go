@@ -2,11 +2,13 @@ package main
 
 import (
 	"errors"
+	"log"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
@@ -25,8 +27,16 @@ var (
 	}
 )
 
+type configuration struct {
+	FileName string `hcl:"file_name" json:"file_name"`
+}
+
 type sqlitePlugin struct {
-	db    *gorm.DB
+	db *gorm.DB
+
+	// Path to use for sqlite db
+	fileName string
+
 	mutex *sync.Mutex
 }
 
@@ -41,10 +51,10 @@ func (ds *sqlitePlugin) CreateFederatedEntry(
 		return nil, errors.New("invalid request: no bundle given")
 	}
 
-	model := federatedBundle{
-		SpiffeId: bundle.FederatedBundleSpiffeId,
+	model := FederatedBundle{
+		SpiffeID: bundle.FederatedBundleSpiffeId,
 		Bundle:   bundle.FederatedTrustBundle,
-		Ttl:      bundle.Ttl,
+		TTL:      bundle.Ttl,
 	}
 
 	if err := ds.db.Create(&model).Error; err != nil {
@@ -60,7 +70,7 @@ func (ds *sqlitePlugin) ListFederatedEntry(
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	var entries []federatedBundle
+	var entries []FederatedBundle
 	var response datastore.ListFederatedEntryResponse
 
 	if err := ds.db.Find(&entries).Error; err != nil {
@@ -68,7 +78,7 @@ func (ds *sqlitePlugin) ListFederatedEntry(
 	}
 
 	for _, model := range entries {
-		response.FederatedBundleSpiffeIdList = append(response.FederatedBundleSpiffeIdList, model.SpiffeId)
+		response.FederatedBundleSpiffeIdList = append(response.FederatedBundleSpiffeIdList, model.SpiffeID)
 	}
 
 	return &response, nil
@@ -88,16 +98,16 @@ func (ds *sqlitePlugin) UpdateFederatedEntry(
 
 	db := ds.db.Begin()
 
-	var model federatedBundle
+	var model FederatedBundle
 
 	if err := db.Find(&model, "spiffe_id = ?", bundle.FederatedBundleSpiffeId).Error; err != nil {
 		db.Rollback()
 		return nil, err
 	}
 
-	updates := federatedBundle{
+	updates := FederatedBundle{
 		Bundle: bundle.FederatedTrustBundle,
-		Ttl:    bundle.Ttl,
+		TTL:    bundle.Ttl,
 	}
 
 	if err := db.Model(&model).Updates(updates).Error; err != nil {
@@ -107,9 +117,9 @@ func (ds *sqlitePlugin) UpdateFederatedEntry(
 
 	return &datastore.UpdateFederatedEntryResponse{
 		FederatedBundle: &datastore.FederatedBundle{
-			FederatedBundleSpiffeId: model.SpiffeId,
+			FederatedBundleSpiffeId: model.SpiffeID,
 			FederatedTrustBundle:    model.Bundle,
-			Ttl:                     model.Ttl,
+			Ttl:                     model.TTL,
 		},
 	}, db.Commit().Error
 }
@@ -122,7 +132,7 @@ func (ds *sqlitePlugin) DeleteFederatedEntry(
 
 	db := ds.db.Begin()
 
-	var model federatedBundle
+	var model FederatedBundle
 
 	if err := db.Find(&model, "spiffe_id = ?", req.FederatedBundleSpiffeId).Error; err != nil {
 		db.Rollback()
@@ -136,9 +146,9 @@ func (ds *sqlitePlugin) DeleteFederatedEntry(
 
 	return &datastore.DeleteFederatedEntryResponse{
 		FederatedBundle: &datastore.FederatedBundle{
-			FederatedBundleSpiffeId: model.SpiffeId,
+			FederatedBundleSpiffeId: model.SpiffeID,
 			FederatedTrustBundle:    model.Bundle,
-			Ttl:                     model.Ttl,
+			Ttl:                     model.TTL,
 		},
 	}, db.Commit().Error
 }
@@ -159,8 +169,8 @@ func (ds *sqlitePlugin) CreateAttestedNodeEntry(
 		return nil, errors.New("invalid request: missing expiration")
 	}
 
-	model := attestedNodeEntry{
-		SpiffeId:     entry.BaseSpiffeId,
+	model := AttestedNodeEntry{
+		SpiffeID:     entry.BaseSpiffeId,
 		DataType:     entry.AttestedDataType,
 		SerialNumber: entry.CertSerialNumber,
 		ExpiresAt:    expiresAt,
@@ -172,7 +182,7 @@ func (ds *sqlitePlugin) CreateAttestedNodeEntry(
 
 	return &datastore.CreateAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:       model.SpiffeId,
+			BaseSpiffeId:       model.SpiffeID,
 			AttestedDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: expiresAt.Format(datastore.TimeFormat),
@@ -186,7 +196,7 @@ func (ds *sqlitePlugin) FetchAttestedNodeEntry(
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	var model attestedNodeEntry
+	var model AttestedNodeEntry
 	err := ds.db.Find(&model, "spiffe_id = ?", req.BaseSpiffeId).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
@@ -196,7 +206,7 @@ func (ds *sqlitePlugin) FetchAttestedNodeEntry(
 	}
 	return &datastore.FetchAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:       model.SpiffeId,
+			BaseSpiffeId:       model.SpiffeID,
 			AttestedDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
@@ -210,7 +220,7 @@ func (ds *sqlitePlugin) FetchStaleNodeEntries(
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	var models []attestedNodeEntry
+	var models []AttestedNodeEntry
 	if err := ds.db.Find(&models, "expires_at < ?", time.Now()).Error; err != nil {
 		return nil, err
 	}
@@ -221,7 +231,7 @@ func (ds *sqlitePlugin) FetchStaleNodeEntries(
 
 	for _, model := range models {
 		resp.AttestedNodeEntryList = append(resp.AttestedNodeEntryList, &datastore.AttestedNodeEntry{
-			BaseSpiffeId:       model.SpiffeId,
+			BaseSpiffeId:       model.SpiffeID,
 			AttestedDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
@@ -236,7 +246,7 @@ func (ds *sqlitePlugin) UpdateAttestedNodeEntry(
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	var model attestedNodeEntry
+	var model AttestedNodeEntry
 
 	expiresAt, err := time.Parse(datastore.TimeFormat, req.CertExpirationDate)
 	if err != nil {
@@ -250,7 +260,7 @@ func (ds *sqlitePlugin) UpdateAttestedNodeEntry(
 		return nil, err
 	}
 
-	updates := attestedNodeEntry{
+	updates := AttestedNodeEntry{
 		SerialNumber: req.CertSerialNumber,
 		ExpiresAt:    expiresAt,
 	}
@@ -262,7 +272,7 @@ func (ds *sqlitePlugin) UpdateAttestedNodeEntry(
 
 	return &datastore.UpdateAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:       model.SpiffeId,
+			BaseSpiffeId:       model.SpiffeID,
 			AttestedDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
@@ -278,7 +288,7 @@ func (ds *sqlitePlugin) DeleteAttestedNodeEntry(
 
 	db := ds.db.Begin()
 
-	var model attestedNodeEntry
+	var model AttestedNodeEntry
 
 	if err := db.Find(&model, "spiffe_id = ?", req.BaseSpiffeId).Error; err != nil {
 		db.Rollback()
@@ -292,7 +302,7 @@ func (ds *sqlitePlugin) DeleteAttestedNodeEntry(
 
 	return &datastore.DeleteAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:       model.SpiffeId,
+			BaseSpiffeId:       model.SpiffeID,
 			AttestedDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
@@ -316,8 +326,8 @@ func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
 		return nil, errors.New("Invalid Request: no selector")
 	}
 
-	model := nodeResolverMapEntry{
-		SpiffeId: entry.BaseSpiffeId,
+	model := NodeResolverMapEntry{
+		SpiffeID: entry.BaseSpiffeId,
 		Type:     selector.Type,
 		Value:    selector.Value,
 	}
@@ -328,7 +338,7 @@ func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
 
 	return &datastore.CreateNodeResolverMapEntryResponse{
 		NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
-			BaseSpiffeId: model.SpiffeId,
+			BaseSpiffeId: model.SpiffeID,
 			Selector: &common.Selector{
 				Type:  model.Type,
 				Value: model.Value,
@@ -343,7 +353,7 @@ func (ds *sqlitePlugin) FetchNodeResolverMapEntry(
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	var models []nodeResolverMapEntry
+	var models []NodeResolverMapEntry
 
 	if err := ds.db.Find(&models, "spiffe_id = ?", req.BaseSpiffeId).Error; err != nil {
 		return nil, err
@@ -355,7 +365,7 @@ func (ds *sqlitePlugin) FetchNodeResolverMapEntry(
 
 	for _, model := range models {
 		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &datastore.NodeResolverMapEntry{
-			BaseSpiffeId: model.SpiffeId,
+			BaseSpiffeId: model.SpiffeID,
 			Selector: &common.Selector{
 				Type:  model.Type,
 				Value: model.Value,
@@ -387,14 +397,14 @@ func (ds *sqlitePlugin) DeleteNodeResolverMapEntry(
 		scope = scope.Where("value = ?", selector.Value)
 	}
 
-	var models []nodeResolverMapEntry
+	var models []NodeResolverMapEntry
 
 	if err := scope.Find(&models).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}
 
-	if err := scope.Delete(&nodeResolverMapEntry{}).Error; err != nil {
+	if err := scope.Delete(&NodeResolverMapEntry{}).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}
@@ -405,7 +415,7 @@ func (ds *sqlitePlugin) DeleteNodeResolverMapEntry(
 
 	for _, model := range models {
 		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &datastore.NodeResolverMapEntry{
-			BaseSpiffeId: model.SpiffeId,
+			BaseSpiffeId: model.SpiffeID,
 			Selector: &common.Selector{
 				Type:  model.Type,
 				Value: model.Value,
@@ -438,11 +448,11 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 		return nil, errors.New("Invalid request: TTL < 0")
 	}
 
-	newRegisteredEntry := registeredEntry{
-		RegisteredEntryId: uuid.NewV4().String(),
-		SpiffeId:          request.RegisteredEntry.SpiffeId,
-		ParentId:          request.RegisteredEntry.ParentId,
-		Ttl:               request.RegisteredEntry.Ttl,
+	newRegisteredEntry := RegisteredEntry{
+		EntryID:  uuid.NewV4().String(),
+		SpiffeID: request.RegisteredEntry.SpiffeId,
+		ParentID: request.RegisteredEntry.ParentId,
+		TTL:      request.RegisteredEntry.Ttl,
 		// TODO: Add support to Federated Bundles [https://github.com/spiffe/spire/issues/42]
 	}
 
@@ -453,8 +463,8 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 	}
 
 	for _, registeredSelector := range request.RegisteredEntry.Selectors {
-		newSelector := selector{
-			RegisteredEntryId: newRegisteredEntry.RegisteredEntryId,
+		newSelector := Selector{
+			RegisteredEntryID: newRegisteredEntry.ID,
 			Type:              registeredSelector.Type,
 			Value:             registeredSelector.Value}
 
@@ -465,7 +475,7 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 	}
 
 	return &datastore.CreateRegistrationEntryResponse{
-		RegisteredEntryId: newRegisteredEntry.RegisteredEntryId,
+		RegisteredEntryId: newRegisteredEntry.EntryID,
 	}, tx.Commit().Error
 }
 
@@ -475,8 +485,8 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	var fetchedRegisteredEntry registeredEntry
-	err := ds.db.Find(&fetchedRegisteredEntry, "registered_entry_id = ?", request.RegisteredEntryId).Error
+	var fetchedRegisteredEntry RegisteredEntry
+	err := ds.db.Find(&fetchedRegisteredEntry, "entry_id = ?", request.RegisteredEntryId).Error
 
 	switch {
 	case err == gorm.ErrRecordNotFound:
@@ -485,7 +495,7 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 		return nil, err
 	}
 
-	var fetchedSelectors []*selector
+	var fetchedSelectors []*Selector
 	ds.db.Model(&fetchedRegisteredEntry).Related(&fetchedSelectors)
 
 	selectors := make([]*common.Selector, 0, len(fetchedSelectors))
@@ -499,9 +509,9 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 	return &datastore.FetchRegistrationEntryResponse{
 		RegisteredEntry: &common.RegistrationEntry{
 			Selectors: selectors,
-			SpiffeId:  fetchedRegisteredEntry.SpiffeId,
-			ParentId:  fetchedRegisteredEntry.ParentId,
-			Ttl:       fetchedRegisteredEntry.Ttl,
+			SpiffeId:  fetchedRegisteredEntry.SpiffeID,
+			ParentId:  fetchedRegisteredEntry.ParentID,
+			Ttl:       fetchedRegisteredEntry.TTL,
 		},
 	}, nil
 }
@@ -509,25 +519,25 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 func (ds *sqlitePlugin) FetchRegistrationEntries(
 	request *common.Empty) (*datastore.FetchRegistrationEntriesResponse, error) {
 
-	var entries []registeredEntry
+	var entries []RegisteredEntry
 	if err := ds.db.Find(&entries).Error; err != nil {
 		return nil, err
 	}
 
-	var sel []selector
+	var sel []Selector
 	if err := ds.db.Find(&sel).Error; err != nil {
 		return nil, err
 	}
 
 	// Organize the selectors for easier access
-	selectors := map[string][]*selector{}
+	selectors := map[uint][]Selector{}
 	for _, s := range sel {
-		selectors[s.RegisteredEntryId] = append(selectors[s.RegisteredEntryId], &s)
+		selectors[s.RegisteredEntryID] = append(selectors[s.RegisteredEntryID], s)
 	}
 
 	// Populate registration entries with their related selectors
 	for _, entry := range entries {
-		if s, ok := selectors[entry.RegisteredEntryId]; ok {
+		if s, ok := selectors[entry.ID]; ok {
 			entry.Selectors = s
 		}
 	}
@@ -554,8 +564,8 @@ func (sqlitePlugin) UpdateRegistrationEntry(
 func (ds *sqlitePlugin) DeleteRegistrationEntry(
 	request *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
 
-	entry := registeredEntry{
-		RegisteredEntryId: request.RegisteredEntryId,
+	entry := RegisteredEntry{
+		EntryID: request.RegisteredEntryId,
 	}
 	if err := ds.db.Find(&entry).Error; err != nil {
 		return &datastore.DeleteRegistrationEntryResponse{}, err
@@ -565,7 +575,7 @@ func (ds *sqlitePlugin) DeleteRegistrationEntry(
 		return &datastore.DeleteRegistrationEntryResponse{}, err
 	}
 
-	respEntry, err := ds.convertEntries([]registeredEntry{entry})
+	respEntry, err := ds.convertEntries([]RegisteredEntry{entry})
 	if err != nil {
 		return &datastore.DeleteRegistrationEntryResponse{}, err
 	}
@@ -582,7 +592,7 @@ func (ds *sqlitePlugin) ListParentIDEntries(
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	var fetchedRegisteredEntries []registeredEntry
+	var fetchedRegisteredEntries []RegisteredEntry
 	err = ds.db.Find(&fetchedRegisteredEntries, "parent_id = ?", request.ParentId).Error
 
 	switch {
@@ -648,7 +658,7 @@ func (ds *sqlitePlugin) ListMatchingEntries(
 func (ds *sqlitePlugin) ListSpiffeEntries(
 	request *datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
 
-	var entries []registeredEntry
+	var entries []RegisteredEntry
 	err := ds.db.Find(&entries, "spiffe_id = ?", request.SpiffeId).Error
 	if err != nil {
 		return &datastore.ListSpiffeEntriesResponse{}, err
@@ -676,7 +686,7 @@ func (ds *sqlitePlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, 
 		return resp, errors.New("token and expiry are required")
 	}
 
-	t := joinToken{
+	t := JoinToken{
 		Token:  req.Token,
 		Expiry: req.Expiry,
 	}
@@ -691,7 +701,7 @@ func (ds *sqlitePlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinTok
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	var t joinToken
+	var t JoinToken
 
 	err := ds.db.Find(&t, "token = ?", req.Token).Error
 	if err == gorm.ErrRecordNotFound {
@@ -718,7 +728,7 @@ func (ds *sqlitePlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, er
 		return &common.Empty{}, errors.New("no token specified")
 	}
 
-	t := joinToken{
+	t := JoinToken{
 		Token:  req.Token,
 		Expiry: req.Expiry,
 	}
@@ -732,7 +742,7 @@ func (ds *sqlitePlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, er
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	var staleTokens []joinToken
+	var staleTokens []JoinToken
 	resp := new(common.Empty)
 
 	err := ds.db.Where("expiry <= ?", req.Expiry).Find(&staleTokens).Error
@@ -750,8 +760,28 @@ func (ds *sqlitePlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, er
 	return resp, nil
 }
 
-func (sqlitePlugin) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	return &spi.ConfigureResponse{}, nil
+func (ds *sqlitePlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	resp := &spi.ConfigureResponse{}
+
+	// Parse HCL config payload into config struct
+	config := &configuration{}
+	hclTree, err := hcl.Parse(req.Configuration)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+	err = hcl.DecodeObject(&config, hclTree)
+	if err != nil {
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+
+	if config.FileName != "" && config.FileName != ds.fileName {
+		ds.fileName = config.FileName
+		return resp, ds.restart()
+	}
+
+	return resp, nil
 }
 
 func (sqlitePlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
@@ -763,25 +793,25 @@ func (sqlitePlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfo
 // that is also considered a "match"
 func (ds *sqlitePlugin) listMatchingEntries(selectors []*common.Selector) ([]*common.RegistrationEntry, error) {
 	// Count references to each entry ID
-	refCount := make(map[string]int)
+	refCount := make(map[uint]int)
 	for _, s := range selectors {
-		var results []selector
+		var results []Selector
 		err := ds.db.Find(&results, "type = ? AND value = ?", s.Type, s.Value).Error
 		if err != nil {
 			return []*common.RegistrationEntry{}, err
 		}
 
 		for _, r := range results {
-			if count, ok := refCount[r.RegisteredEntryId]; ok {
-				refCount[r.RegisteredEntryId] = count + 1
+			if count, ok := refCount[r.RegisteredEntryID]; ok {
+				refCount[r.RegisteredEntryID] = count + 1
 			} else {
-				refCount[r.RegisteredEntryId] = 1
+				refCount[r.RegisteredEntryID] = 1
 			}
 		}
 	}
 
 	// Weed out entries that don't have every selector
-	var entryIDs []string
+	var entryIDs []uint
 	for id, count := range refCount {
 		if count == len(selectors) {
 			entryIDs = append(entryIDs, id)
@@ -789,10 +819,10 @@ func (ds *sqlitePlugin) listMatchingEntries(selectors []*common.Selector) ([]*co
 	}
 
 	// Finally, fetch and return the distilled entries
-	var resp []registeredEntry
+	var resp []RegisteredEntry
 	for _, id := range entryIDs {
-		var result registeredEntry
-		err := ds.db.Find(&result, "registered_entry_id = ?", id).Error
+		var result RegisteredEntry
+		err := ds.db.Find(&result, "id = ?", id).Error
 		if err != nil {
 			return []*common.RegistrationEntry{}, err
 		}
@@ -803,10 +833,10 @@ func (ds *sqlitePlugin) listMatchingEntries(selectors []*common.Selector) ([]*co
 	return ds.convertEntries(resp)
 }
 
-func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntry) (responseEntries []*common.RegistrationEntry, err error) {
+func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
 	for _, regEntry := range fetchedRegisteredEntries {
 		var selectors []*common.Selector
-		var fetchedSelectors []*selector
+		var fetchedSelectors []*Selector
 		if err = ds.db.Model(&regEntry).Related(&fetchedSelectors).Error; err != nil {
 			return nil, err
 		}
@@ -818,9 +848,9 @@ func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []registeredEntr
 		}
 		responseEntries = append(responseEntries, &common.RegistrationEntry{
 			Selectors: selectors,
-			SpiffeId:  regEntry.SpiffeId,
-			ParentId:  regEntry.ParentId,
-			Ttl:       regEntry.Ttl,
+			SpiffeId:  regEntry.SpiffeID,
+			ParentId:  regEntry.ParentID,
+			Ttl:       regEntry.TTL,
 		})
 	}
 	return ds.sortEntries(responseEntries), nil
@@ -847,29 +877,46 @@ func (ds *sqlitePlugin) sortEntries(entries []*common.RegistrationEntry) []*comm
 	return []*common.RegistrationEntry(e)
 }
 
-func newPlugin(dbType string) (datastore.DataStore, error) {
-	db, err := gorm.Open("sqlite3", dbType)
+// restart will close and re-open the sqlite database.
+func (ds *sqlitePlugin) restart() error {
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
+	// Build sqlite connect string
+	path := ds.fileName
+	if path == ":memory:" {
+		path = path + "?cache=shared"
+	}
+	path = "file:" + path
+
+	log.Printf("opening sqlite database with path %s", path)
+	db, err := gorm.Open("sqlite3", path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	db.LogMode(true)
-
-	if err := migrateDB(db); err != nil {
-		return nil, err
+	if ds.db != nil {
+		ds.db.Close()
 	}
 
-	return &sqlitePlugin{
-		db:    db,
-		mutex: &sync.Mutex{},
-	}, nil
+	migrateDB(db)
+	ds.db = db
+	return nil
+}
 
+func newPlugin(path string) (datastore.DataStore, error) {
+	p := &sqlitePlugin{
+		fileName: path,
+		mutex:    new(sync.Mutex),
+	}
+
+	return p, p.restart()
 }
 
 //New creates a new sqlite plugin with
 //an in-memory database and shared cache
 func New() (datastore.DataStore, error) {
-	return newPlugin("file::memory:?cache=shared")
+	return newPlugin(":memory:")
 }
 
 //NewTemp create a new plugin with a temporal database,
