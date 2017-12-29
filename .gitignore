@@ -1,5 +1,6 @@
 .build*
 .cache
+.data
 .glide
 .tmp
 *.swp
@@ -11,8 +12,6 @@
 
 cmd/spire-agent/spire-agent
 cmd/spire-server/spire-server
-
-conf/server/spire.db
 
 plugin/agent/keymanager-memory/keymanager-memory
 plugin/agent/nodeattestor-jointoken/nodeattestor-jointoken

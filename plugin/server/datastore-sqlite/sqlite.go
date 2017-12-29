@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"log"
 	"sort"
 	"sync"
 	"time"
@@ -888,6 +889,7 @@ func (ds *sqlitePlugin) restart() error {
 	}
 	path = "file:" + path
 
+	log.Printf("opening sqlite database with path %s", path)
 	db, err := gorm.Open("sqlite3", path)
 	if err != nil {
 		return err
