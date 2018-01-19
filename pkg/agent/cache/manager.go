@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
+	"net/url"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -47,6 +48,7 @@ type MgrConfig struct {
 	BaseSVIDPath   string
 	BaseRegEntries []*proto.RegistrationEntry
 	Logger         logrus.FieldLogger
+	TrustDomain    url.URL
 }
 
 type baseSVIDEntry struct {
@@ -76,6 +78,8 @@ type manager struct {
 	once             sync.Once
 	doneCh           chan struct{}
 	pipelineCnt      int32
+	aliasSPIFFEID    string
+	magicSPIFFEID    string
 }
 
 func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
@@ -104,6 +108,7 @@ func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
 		cancel:           cancel,
 		doneCh:           make(chan struct{}),
 		pipelineCnt:      1,
+		magicSPIFFEID:    "spiffe://" + c.TrustDomain.Host + "/cp", // TODO: should this be a config setting?
 	}, nil
 }
 
@@ -153,11 +158,13 @@ func (m *manager) Init() {
 					if _, ok := m.spiffeIdEntryMap[parentId]; ok {
 						svid = m.spiffeIdEntryMap[parentId].SVID
 						key = m.spiffeIdEntryMap[parentId].PrivateKey
-					}
-					if parentId == m.baseSPIFFEID {
+					} else if parentId == m.baseSPIFFEID || parentId == m.magicSPIFFEID {
 						entry := m.getBaseSVIDEntry()
 						svid = entry.svid
 						key = entry.key
+					} else {
+						m.log.Debug("Unknown parent ", parentId, "... ignoring")
+						continue
 					}
 					conn, err := m.getGRPCConn(svid, key)
 					if err != nil {
@@ -325,9 +332,15 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 
 			if vanityRecord != nil {
 				m.fetchWithEmptyCSR(vanityRecord[0].SVID, vanityRecord[0].PrivateKey)
+			} else {
+				baseEntry := m.getBaseSVIDEntry()
+				m.fetchWithEmptyCSR(baseEntry.svid, baseEntry.key)
 			}
-			entry := m.getBaseSVIDEntry()
-			m.fetchWithEmptyCSR(entry.svid, entry.key)
+
+			entry, ok := m.spiffeIdEntryMap[m.aliasSPIFFEID]
+			if ok {
+				m.fetchWithEmptyCSR(entry.SVID, entry.PrivateKey)
+			}
 
 		case <-m.ctx.Done():
 			return
@@ -345,6 +358,10 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 			entryRequestMap := make(map[string][]EntryRequest)
 
 			for _, regEntry := range regEntries {
+				if regEntry.ParentId == m.magicSPIFFEID {
+					m.aliasSPIFFEID = regEntry.SpiffeId
+				}
+
 				key := util.DeriveRegEntryhash(regEntry)
 				_, processed := processedEntries[key]
 				if !processed {

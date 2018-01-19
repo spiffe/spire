@@ -267,6 +267,7 @@ func (a *Agent) bootstrap() error {
 			ServerCerts:    a.serverCerts,
 			ServerSPIFFEID: serverId.String(),
 			ServerAddr:     a.config.ServerAddress.String(),
+			TrustDomain:    a.config.TrustDomain,
 
 			BaseSVID:       a.BaseSVID,
 			BaseSVIDKey:    a.baseSVIDKey,
