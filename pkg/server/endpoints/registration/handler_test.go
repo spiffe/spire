@@ -1,4 +1,4 @@
-package server
+package registration
 
 import (
 	"errors"
@@ -16,26 +16,26 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type registrationServerTestSuite struct {
+type handlerTestSuite struct {
 	suite.Suite
 	t                  *testing.T
 	ctrl               *gomock.Controller
-	registrationServer *registrationServer
+	handler            *Handler
 	mockCatalog        *mock_catalog.MockCatalog
 	mockDataStore      *mock_datastore.MockDataStore
 }
 
-func setupRegistrationTest(t *testing.T) *registrationServerTestSuite {
-	suite := &registrationServerTestSuite{}
+func setupRegistrationTest(t *testing.T) *handlerTestSuite {
+	suite := &handlerTestSuite{}
 	mockCtrl := gomock.NewController(t)
 	suite.ctrl = mockCtrl
 	log, _ := test.NewNullLogger()
 	suite.mockCatalog = mock_catalog.NewMockCatalog(mockCtrl)
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
 
-	suite.registrationServer = &registrationServer{
-		l:       log,
-		catalog: suite.mockCatalog,
+	suite.handler = &Handler{
+		Log:     log,
+		Catalog: suite.mockCatalog,
 	}
 	return suite
 }
@@ -51,7 +51,7 @@ func TestCreateEntry(t *testing.T) {
 		request          *common.RegistrationEntry
 		expectedResponse *registration.RegistrationEntryID
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
 		{goodRequest, goodResponse, nil, createEntryExpectations},
 		{goodRequest, nil, errors.New("Error trying to create entry"), createEntryErrorExpectations},
@@ -61,7 +61,7 @@ func TestCreateEntry(t *testing.T) {
 		suite := setupRegistrationTest(t)
 
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.CreateEntry(nil, tt.request)
+		response, err := suite.handler.CreateEntry(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -83,7 +83,7 @@ func TestDeleteEntry(t *testing.T) {
 		request          *registration.RegistrationEntryID
 		expectedResponse *common.RegistrationEntry
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
 		{req, goodResponse, nil, deleteEntryExpectations},
 	}
@@ -91,7 +91,7 @@ func TestDeleteEntry(t *testing.T) {
 	for _, tt := range testCases {
 		suite := setupRegistrationTest(t)
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.DeleteEntry(nil, tt.request)
+		response, err := suite.handler.DeleteEntry(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -114,7 +114,7 @@ func TestFetchEntry(t *testing.T) {
 		request          *registration.RegistrationEntryID
 		expectedResponse *common.RegistrationEntry
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
 		{goodRequest, goodResponse, nil, fetchEntryExpectations},
 		{goodRequest, nil, errors.New("Error trying to fetch entry"), fetchEntryErrorExpectations},
@@ -124,7 +124,7 @@ func TestFetchEntry(t *testing.T) {
 		suite := setupRegistrationTest(t)
 
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.FetchEntry(nil, tt.request)
+		response, err := suite.handler.FetchEntry(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -147,7 +147,7 @@ func TestFetchEntries(t *testing.T) {
 	var testCases = []struct {
 		expectedResponse *common.RegistrationEntries
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
 		{goodResponse, nil, fetchEntriesExpectations},
 	}
@@ -156,7 +156,7 @@ func TestFetchEntries(t *testing.T) {
 		suite := setupRegistrationTest(t)
 
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.FetchEntries(nil, &common.Empty{})
+		response, err := suite.handler.FetchEntries(nil, &common.Empty{})
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -176,15 +176,15 @@ func TestUpdateEntry(t *testing.T) {
 		request          *registration.UpdateEntryRequest
 		expectedResponse *common.RegistrationEntry
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
-		{nil, nil, nil, func(*registrationServerTestSuite) {}},
+		{nil, nil, nil, func(*handlerTestSuite) {}},
 	}
 
 	for _, tt := range testCases {
 		suite := setupRegistrationTest(t)
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.UpdateEntry(nil, tt.request)
+		response, err := suite.handler.UpdateEntry(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -210,7 +210,7 @@ func TestListByParentID(t *testing.T) {
 		request          *registration.ParentID
 		expectedResponse *common.RegistrationEntries
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
 		{goodRequest, goodResponse, nil, listByParentIDExpectations},
 		{goodRequest, nil, errors.New("Error trying to list entries by parent ID"), listByParentIDErrorExpectations},
@@ -220,7 +220,7 @@ func TestListByParentID(t *testing.T) {
 		suite := setupRegistrationTest(t)
 
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.ListByParentID(nil, tt.request)
+		response, err := suite.handler.ListByParentID(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -245,7 +245,7 @@ func TestListBySelector(t *testing.T) {
 		request          *common.Selector
 		expectedResponse *common.RegistrationEntries
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
 		{req, resp, nil, listBySelectorExpectations},
 	}
@@ -253,7 +253,7 @@ func TestListBySelector(t *testing.T) {
 	for _, tt := range testCases {
 		suite := setupRegistrationTest(t)
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.ListBySelector(nil, tt.request)
+		response, err := suite.handler.ListBySelector(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -279,7 +279,7 @@ func TestListBySpiffeID(t *testing.T) {
 		request          *registration.SpiffeID
 		expectedResponse *common.RegistrationEntries
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
 		{req, resp, nil, listBySpiffeIDExpectations},
 	}
@@ -287,7 +287,7 @@ func TestListBySpiffeID(t *testing.T) {
 	for _, tt := range testCases {
 		suite := setupRegistrationTest(t)
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.ListBySpiffeID(nil, tt.request)
+		response, err := suite.handler.ListBySpiffeID(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -306,15 +306,15 @@ func TestCreateFederatedBundle(t *testing.T) {
 		request          *registration.CreateFederatedBundleRequest
 		expectedResponse *common.Empty
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
-		{nil, nil, nil, func(*registrationServerTestSuite) {}},
+		{nil, nil, nil, func(*handlerTestSuite) {}},
 	}
 
 	for _, tt := range testCases {
 		suite := setupRegistrationTest(t)
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.CreateFederatedBundle(nil, tt.request)
+		response, err := suite.handler.CreateFederatedBundle(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -333,15 +333,15 @@ func TestListFederatedBundles(t *testing.T) {
 		request          *common.Empty
 		expectedResponse *registration.ListFederatedBundlesReply
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
-		{nil, nil, nil, func(*registrationServerTestSuite) {}},
+		{nil, nil, nil, func(*handlerTestSuite) {}},
 	}
 
 	for _, tt := range testCases {
 		suite := setupRegistrationTest(t)
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.ListFederatedBundles(nil, tt.request)
+		response, err := suite.handler.ListFederatedBundles(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -360,15 +360,15 @@ func TestUpdateFederatedBundle(t *testing.T) {
 		request          *registration.FederatedBundle
 		expectedResponse *common.Empty
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
-		{nil, nil, nil, func(*registrationServerTestSuite) {}},
+		{nil, nil, nil, func(*handlerTestSuite) {}},
 	}
 
 	for _, tt := range testCases {
 		suite := setupRegistrationTest(t)
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.UpdateFederatedBundle(nil, tt.request)
+		response, err := suite.handler.UpdateFederatedBundle(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -387,15 +387,15 @@ func TestDeleteFederatedBundle(t *testing.T) {
 		request          *registration.FederatedSpiffeID
 		expectedResponse *common.Empty
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
-		{nil, nil, nil, func(*registrationServerTestSuite) {}},
+		{nil, nil, nil, func(*handlerTestSuite) {}},
 	}
 
 	for _, tt := range testCases {
 		suite := setupRegistrationTest(t)
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.DeleteFederatedBundle(nil, tt.request)
+		response, err := suite.handler.DeleteFederatedBundle(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -417,7 +417,7 @@ func TestCreateJoinToken(t *testing.T) {
 		request          *registration.JoinToken
 		expectedResponse *registration.JoinToken
 		expectedError    error
-		setExpectations  func(*registrationServerTestSuite)
+		setExpectations  func(*handlerTestSuite)
 	}{
 		{goodRequest, goodResponse, nil, createJoinTokenExpectations},
 		{&registration.JoinToken{}, nil, errors.New("Ttl is required, you must provide one"), noExpectations},
@@ -429,7 +429,7 @@ func TestCreateJoinToken(t *testing.T) {
 		suite := setupRegistrationTest(t)
 
 		tt.setExpectations(suite)
-		response, err := suite.registrationServer.CreateJoinToken(nil, tt.request)
+		response, err := suite.handler.CreateJoinToken(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
@@ -458,7 +458,7 @@ func TestCreateJoinTokenWithoutToken(t *testing.T) {
 		Return(&common.Empty{}, nil)
 
 	//exercise
-	response, err := suite.registrationServer.CreateJoinToken(nil, request)
+	response, err := suite.handler.CreateJoinToken(nil, request)
 
 	//verification
 	if response.Token == "" {
@@ -477,9 +477,9 @@ func TestCreateJoinTokenWithoutToken(t *testing.T) {
 	}
 }
 
-func noExpectations(*registrationServerTestSuite) {}
+func noExpectations(*handlerTestSuite) {}
 
-func createEntryExpectations(suite *registrationServerTestSuite) {
+func createEntryExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	createRequest := &datastore.CreateRegistrationEntryRequest{
@@ -495,7 +495,7 @@ func createEntryExpectations(suite *registrationServerTestSuite) {
 		Return(createResponse, nil)
 }
 
-func createEntryErrorExpectations(suite *registrationServerTestSuite) {
+func createEntryErrorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
@@ -503,7 +503,7 @@ func createEntryErrorExpectations(suite *registrationServerTestSuite) {
 		Return(nil, errors.New("foo"))
 }
 
-func fetchEntryExpectations(suite *registrationServerTestSuite) {
+func fetchEntryExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	fetchRequest := &datastore.FetchRegistrationEntryRequest{
@@ -517,7 +517,7 @@ func fetchEntryExpectations(suite *registrationServerTestSuite) {
 		Return(fetchResponse, nil)
 }
 
-func fetchEntriesExpectations(suite *registrationServerTestSuite) {
+func fetchEntriesExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	fetchResponse := &datastore.FetchRegistrationEntriesResponse{
@@ -530,7 +530,7 @@ func fetchEntriesExpectations(suite *registrationServerTestSuite) {
 		Return(fetchResponse, nil)
 }
 
-func fetchEntryErrorExpectations(suite *registrationServerTestSuite) {
+func fetchEntryErrorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
@@ -538,7 +538,7 @@ func fetchEntryErrorExpectations(suite *registrationServerTestSuite) {
 		Return(nil, errors.New("foo"))
 }
 
-func deleteEntryExpectations(suite *registrationServerTestSuite) {
+func deleteEntryExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	resp := &datastore.DeleteRegistrationEntryResponse{
@@ -550,7 +550,7 @@ func deleteEntryExpectations(suite *registrationServerTestSuite) {
 		Return(resp, nil)
 }
 
-func listByParentIDExpectations(suite *registrationServerTestSuite) {
+func listByParentIDExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	listRequest := &datastore.ListParentIDEntriesRequest{ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog"}
@@ -562,7 +562,7 @@ func listByParentIDExpectations(suite *registrationServerTestSuite) {
 		Return(listResponse, nil)
 }
 
-func listByParentIDErrorExpectations(suite *registrationServerTestSuite) {
+func listByParentIDErrorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
@@ -570,7 +570,7 @@ func listByParentIDErrorExpectations(suite *registrationServerTestSuite) {
 		Return(nil, errors.New("foo"))
 }
 
-func listBySelectorExpectations(suite *registrationServerTestSuite) {
+func listBySelectorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	req := &datastore.ListSelectorEntriesRequest{
@@ -587,7 +587,7 @@ func listBySelectorExpectations(suite *registrationServerTestSuite) {
 		Return(resp, nil)
 }
 
-func listBySpiffeIDExpectations(suite *registrationServerTestSuite) {
+func listBySpiffeIDExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	req := &datastore.ListSpiffeEntriesRequest{
@@ -603,7 +603,7 @@ func listBySpiffeIDExpectations(suite *registrationServerTestSuite) {
 		Return(resp, nil)
 }
 
-func createJoinTokenExpectations(suite *registrationServerTestSuite) {
+func createJoinTokenExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
@@ -611,7 +611,7 @@ func createJoinTokenExpectations(suite *registrationServerTestSuite) {
 		Return(&common.Empty{}, nil)
 }
 
-func createJoinTokenErrorExpectations(suite *registrationServerTestSuite) {
+func createJoinTokenErrorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
@@ -619,7 +619,7 @@ func createJoinTokenErrorExpectations(suite *registrationServerTestSuite) {
 		Return(nil, errors.New("foo"))
 }
 
-func expectDataStore(suite *registrationServerTestSuite) {
+func expectDataStore(suite *handlerTestSuite) {
 	suite.mockCatalog.EXPECT().DataStores().
 		Return([]datastore.DataStore{suite.mockDataStore})
 }

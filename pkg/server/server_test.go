@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/pem"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -51,22 +50,6 @@ func (suite *ServerTestSuite) SetupTest() {
 
 func TestServerTestSuite(t *testing.T) {
 	suite.Run(t, new(ServerTestSuite))
-}
-
-func (suite *ServerTestSuite) TestRotateSvid() {
-	cert, err := ioutil.ReadFile("../../plugin/server/ca-memory/_test_data/cert_valid/cert_1.pem")
-	suite.NoError(err)
-	block, rest := pem.Decode(cert)
-	suite.Equal(0, len(rest))
-	signedCsr := &ca.SignCsrResponse{
-		SignedCertificate: block.Bytes,
-	}
-	suite.ca.EXPECT().SignCsr(gomock.Any()).Return(signedCsr, nil)
-	suite.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{suite.ca})
-	c, pk, err := suite.server.rotateSVID()
-	suite.NoError(err)
-	suite.NotNil(c)
-	suite.NotNil(pk)
 }
 
 func (suite *ServerTestSuite) TestRotateSigningCert() {

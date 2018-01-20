@@ -19,15 +19,13 @@ import (
 )
 
 const (
-	defaultConfigPath    = "conf/server/server.conf"
-	defaultBindAddress   = "127.0.0.1"
-	defaultBindPort      = "8081"
-	defaultBindHTTPPort  = "8080"
-	defaultLogLevel      = "INFO"
-	defaultPluginDir     = "conf/server/plugin"
-	defaultBaseSVIDTtl   = 999999
-	defaultServerSVIDTtl = 999999
-	defaultUmask         = 0077
+	defaultConfigPath   = "conf/server/server.conf"
+	defaultBindAddress  = "127.0.0.1"
+	defaultBindPort     = "8081"
+	defaultBindHTTPPort = "8080"
+	defaultLogLevel     = "INFO"
+	defaultPluginDir    = "conf/server/plugin"
+	defaultUmask        = 0077
 )
 
 // RunConfig represents available configurables for file and CLI options
@@ -81,9 +79,9 @@ func (*RunCLI) Run(args []string) int {
 		fmt.Println(err.Error())
 	}
 
-	signalListener(c.ShutdownCh)
-
 	server := &server.Server{Config: c}
+	signalListener(server)
+
 	err = server.Run()
 	if err != nil {
 		c.Log.Error(err.Error())
@@ -138,8 +136,6 @@ func parseFlags(args []string) (*RunConfig, error) {
 	flags.StringVar(&c.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
-	flags.IntVar(&c.BaseSVIDTtl, "baseSVIDTtl", 0, "TTL to use when creating the Base SVID")
-	flags.IntVar(&c.ServerSVIDTtl, "serverSVIDTtl", 0, "TTL to use when creating the Server SVID")
 	flags.StringVar(&c.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
 	flags.StringVar(&c.Umask, "umask", "", "Umask value to use for new files")
 
@@ -216,14 +212,6 @@ func mergeConfig(orig *server.Config, cmd *RunConfig) error {
 		orig.Umask = int(umask)
 	}
 
-	if cmd.BaseSVIDTtl != 0 {
-		orig.BaseSVIDTtl = int32(cmd.BaseSVIDTtl)
-	}
-
-	if cmd.ServerSVIDTtl != 0 {
-		orig.ServerSVIDTtl = int32(cmd.ServerSVIDTtl)
-	}
-
 	return nil
 }
 
@@ -244,9 +232,6 @@ func validateConfig(c *server.Config) error {
 }
 
 func newDefaultConfig() *server.Config {
-	errCh := make(chan error, 3)
-	shutdownCh := make(chan struct{})
-
 	// log.NewLogger() cannot return error when using STDOUT
 	logger, _ := log.NewLogger(defaultLogLevel, "")
 	bindAddress := &net.TCPAddr{}
@@ -254,26 +239,21 @@ func newDefaultConfig() *server.Config {
 
 	return &server.Config{
 		PluginDir:       defaultPluginDir,
-		ErrorCh:         errCh,
-		ShutdownCh:      shutdownCh,
 		Log:             logger,
 		BindAddress:     bindAddress,
 		BindHTTPAddress: serverHTTPAddress,
-		BaseSVIDTtl:     defaultBaseSVIDTtl,
-		ServerSVIDTtl:   defaultServerSVIDTtl,
 		Umask:           defaultUmask,
 	}
 }
 
-func signalListener(ch chan struct{}) {
+func signalListener(s *server.Server) {
 	go func() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
-		var stop struct{}
 		select {
 		case <-signalCh:
-			ch <- stop
+			s.Shutdown()
 		}
 	}()
 	return
