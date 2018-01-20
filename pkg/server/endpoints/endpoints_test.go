@@ -96,15 +96,21 @@ func (s *EndpointsTestSuite) TestStartRotator() {
 	s.expectSVIDRotation(cert)
 
 	// Let rotator fire exactly once
-	s.e.svidCheck = time.NewTicker(100 * time.Millisecond)
+	s.e.svidCheck = time.NewTicker(10 * time.Millisecond)
 	s.e.t.Go(s.e.startRotator)
-	time.Sleep(180 * time.Millisecond)
+	time.Sleep(12 * time.Millisecond)
 	s.e.svidCheck.Stop()
 
 	// Make sure the rotator is still alive
 	s.Assert().Equal(tomb.ErrStillAlive, s.e.t.Err())
 
-	// Make sure the cert was installed
+	// Generating the keys and signing the cert take a bit of time. Wait long
+	// enough for it to complete - some build systems are slower than others
+	time.Sleep(150 * time.Millisecond)
+
+	// Make sure the cert was installed, and take the lock since
+	// we might race the update.
+	s.e.mtx.Lock()
 	s.Assert().True(cert.Equal(s.e.svid))
 	s.e.t.Kill(nil)
 }

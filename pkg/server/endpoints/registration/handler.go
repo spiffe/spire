@@ -2,6 +2,7 @@ package registration
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/satori/go.uuid"
@@ -187,7 +188,12 @@ func (h *Handler) CreateJoinToken(
 
 	// Generate a token if one wasn't specified
 	if request.Token == "" {
-		request.Token = uuid.NewV4().String()
+		token, err := uuid.NewV4()
+		if err != nil {
+			return nil, fmt.Errorf("unable to generate new token: %v", err)
+		}
+
+		request.Token = token.String()
 	}
 
 	ds := h.Catalog.DataStores()[0]
