@@ -1,5 +1,6 @@
 .build*
 .cache
+.data
 .glide
 .tmp
 *.swp

@@ -1,76 +1,66 @@
 package main
 
-//go:generate go-bindata -pkg $GOPACKAGE -o migrations.go -prefix _migrations/ _migrations/
-
 import (
 	"github.com/jinzhu/gorm"
 	"time"
 )
 
-type federatedBundle struct {
+type FederatedBundle struct {
 	gorm.Model
-	SpiffeId string
+
+	SpiffeID string `gorm:"unique_index"`
 	Bundle   []byte
-	Ttl      int32
+	TTL      int32
 }
 
-type attestedNodeEntry struct {
+type AttestedNodeEntry struct {
 	gorm.Model
-	SpiffeId     string
+
+	SpiffeID     string `gorm:"unique_index"`
 	DataType     string
 	SerialNumber string
 	ExpiresAt    time.Time
 }
 
-type nodeResolverMapEntry struct {
+type NodeResolverMapEntry struct {
 	gorm.Model
-	SpiffeId string
-	Type     string
-	Value    string
+
+	SpiffeID string `gorm:"unique_index:idx_node_resolver_map"`
+	Type     string `gorm:"unique_index:idx_node_resolver_map"`
+	Value    string `gorm:"unique_index:idx_node_resolver_map"`
 }
 
-type registeredEntry struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt *time.Time
+type RegisteredEntry struct {
+	gorm.Model
 
-	RegisteredEntryId string `gorm:"primary_key:true"`
-	SpiffeId          string
-	ParentId          string
-	Ttl               int32
-	Selectors         []*selector
+	EntryID   string `gorm:"unique_index"`
+	SpiffeID  string
+	ParentID  string
+	TTL       int32
+	Selectors []Selector
 	// TODO: Add support to Federated Bundles [https://github.com/spiffe/spire/issues/42]
 }
 
 // Keep time simple and easily comparable with UNIX time
-type joinToken struct {
+type JoinToken struct {
 	gorm.Model
 
-	Token  string `gorm:"primary_key:true"`
+	Token  string `gorm:"unique_index"`
 	Expiry int64
 }
 
-type selector struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt *time.Time
+type Selector struct {
+	gorm.Model
 
-	RegisteredEntryId string `gorm:"primary_key:true"`
-	Type              string `gorm:"primary_key:true"`
-	Value             string `gorm:"primary_key:true"`
-	RegisteredEntry   registeredEntry
+	RegisteredEntryID uint   `gorm:"unique_index:idx_selector_entry"`
+	Type              string `gorm:"unique_index:idx_selector_entry"`
+	Value             string `gorm:"unique_index:idx_selector_entry"`
 }
 
-func migrateDB(db *gorm.DB) error {
-	for _, name := range AssetNames() {
-		migration, err := Asset(name)
-		if err != nil {
-			return err
-		}
-		if _, err := db.DB().Exec(string(migration)); err != nil {
-			return err
-		}
-	}
+func migrateDB(db *gorm.DB) {
+	db.AutoMigrate(&FederatedBundle{}, &AttestedNodeEntry{},
+		&NodeResolverMapEntry{}, &RegisteredEntry{}, &JoinToken{},
+		&Selector{})
 
-	return nil
+	return
 }

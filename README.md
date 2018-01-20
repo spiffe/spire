@@ -125,7 +125,7 @@ Get the id so we can use it in the next step.
 
 Call the registration API with *spire-server register* providing the workload user id.
 
-    $ spire-server register \
+    $ spire-server entry create \
         -parentID spiffe://example.org/host \
         -spiffeID spiffe://example.org/host/workload \
         -selector unix:uid:{workload user id from previous step}
