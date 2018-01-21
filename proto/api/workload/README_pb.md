@@ -3,26 +3,19 @@
 
 ## Table of Contents
 
-
-* [workload.proto](#workload.proto)
-  
-    * [Bundles](#spire.api.workload.Bundles)
-  
-    * [Empty](#spire.api.workload.Empty)
-  
-    * [SpiffeID](#spire.api.workload.SpiffeID)
-  
-    * [WorkloadEntry](#spire.api.workload.WorkloadEntry)
-  
-    * [WorkloadEntry.FederatedBundlesEntry](#spire.api.workload.WorkloadEntry.FederatedBundlesEntry)
+- [workload.proto](#workload.proto)
+    - [Bundles](#spire.api.workload.Bundles)
+    - [Empty](#spire.api.workload.Empty)
+    - [SpiffeID](#spire.api.workload.SpiffeID)
+    - [WorkloadEntry](#spire.api.workload.WorkloadEntry)
+    - [WorkloadEntry.FederatedBundlesEntry](#spire.api.workload.WorkloadEntry.FederatedBundlesEntry)
   
   
   
-  
-    * [Workload](#spire.api.workload.Workload)
+    - [Workload](#spire.api.workload.Workload)
   
 
-* [Scalar Value Types](#scalar-value-types)
+- [Scalar Value Types](#scalar-value-types)
 
 
 
@@ -89,7 +82,7 @@ information, including CA bundles. All `bytes` types are ASN.1 DER encoded
 | svid | [bytes](#bytes) |  | The SVID itself |
 | svid_private_key | [bytes](#bytes) |  | The SVID private key |
 | svid_bundle | [bytes](#bytes) |  | CA certificates belonging to the SVID |
-| federated_bundles | [WorkloadEntry.FederatedBundlesEntry](#spire.api.workload.WorkloadEntry.FederatedBundlesEntry) | repeated | CA certificates that the workload should trust, mappedby the trust domain of the external authority |
+| federated_bundles | [WorkloadEntry.FederatedBundlesEntry](#spire.api.workload.WorkloadEntry.FederatedBundlesEntry) | repeated | CA certificates that the workload should trust, mapped by the trust domain of the external authority |
 
 
 

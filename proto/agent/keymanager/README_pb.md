@@ -3,49 +3,33 @@
 
 ## Table of Contents
 
-
-* [plugin.proto](#plugin.proto)
-  
-    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
-  
-    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
-  
-    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
-  
-    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
-  
-    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
-  
-    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
-  
-    * [StopReply](#spire.common.plugin.StopReply)
-  
-    * [StopRequest](#spire.common.plugin.StopRequest)
+- [plugin.proto](#plugin.proto)
+    - [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
+    - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
+    - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
+    - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
+    - [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
+    - [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
+    - [StopReply](#spire.common.plugin.StopReply)
+    - [StopRequest](#spire.common.plugin.StopRequest)
   
   
   
-  
-    * [Server](#spire.common.plugin.Server)
+    - [Server](#spire.common.plugin.Server)
   
 
-
-* [keymanager.proto](#keymanager.proto)
-  
-    * [FetchPrivateKeyRequest](#spire.agent.keymanager.FetchPrivateKeyRequest)
-  
-    * [FetchPrivateKeyResponse](#spire.agent.keymanager.FetchPrivateKeyResponse)
-  
-    * [GenerateKeyPairRequest](#spire.agent.keymanager.GenerateKeyPairRequest)
-  
-    * [GenerateKeyPairResponse](#spire.agent.keymanager.GenerateKeyPairResponse)
+- [keymanager.proto](#keymanager.proto)
+    - [FetchPrivateKeyRequest](#spire.agent.keymanager.FetchPrivateKeyRequest)
+    - [FetchPrivateKeyResponse](#spire.agent.keymanager.FetchPrivateKeyResponse)
+    - [GenerateKeyPairRequest](#spire.agent.keymanager.GenerateKeyPairRequest)
+    - [GenerateKeyPairResponse](#spire.agent.keymanager.GenerateKeyPairResponse)
   
   
   
-  
-    * [KeyManager](#spire.agent.keymanager.KeyManager)
+    - [KeyManager](#spire.agent.keymanager.KeyManager)
   
 
-* [Scalar Value Types](#scalar-value-types)
+- [Scalar Value Types](#scalar-value-types)
 
 
 

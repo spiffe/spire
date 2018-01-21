@@ -3,26 +3,19 @@
 
 ## Table of Contents
 
-
-* [common.proto](#common.proto)
-  
-    * [AttestedData](#spire.common.AttestedData)
-  
-    * [Empty](#spire.common.Empty)
-  
-    * [RegistrationEntries](#spire.common.RegistrationEntries)
-  
-    * [RegistrationEntry](#spire.common.RegistrationEntry)
-  
-    * [Selector](#spire.common.Selector)
-  
-    * [Selectors](#spire.common.Selectors)
+- [common.proto](#common.proto)
+    - [AttestedData](#spire.common.AttestedData)
+    - [Empty](#spire.common.Empty)
+    - [RegistrationEntries](#spire.common.RegistrationEntries)
+    - [RegistrationEntry](#spire.common.RegistrationEntry)
+    - [Selector](#spire.common.Selector)
+    - [Selectors](#spire.common.Selectors)
   
   
   
   
 
-* [Scalar Value Types](#scalar-value-types)
+- [Scalar Value Types](#scalar-value-types)
 
 
 
@@ -84,8 +77,8 @@ manage the various registered nodes and workloads that are controlled by it.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validityof a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource orcaller. It is defined as a URI comprising a “trust domain” and anassociated path. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
 | ttl | [int32](#int32) |  | Time to live. |
 | fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
 
@@ -103,7 +96,7 @@ entry is matched.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attestingthe entity (Eg: AWS, K8). |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
 | value | [string](#string) |  | The value to be attested. |
 
 

@@ -3,57 +3,37 @@
 
 ## Table of Contents
 
-
-* [plugin.proto](#plugin.proto)
-  
-    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
-  
-    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
-  
-    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
-  
-    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
-  
-    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
-  
-    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
-  
-    * [StopReply](#spire.common.plugin.StopReply)
-  
-    * [StopRequest](#spire.common.plugin.StopRequest)
+- [plugin.proto](#plugin.proto)
+    - [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
+    - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
+    - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
+    - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
+    - [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
+    - [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
+    - [StopReply](#spire.common.plugin.StopReply)
+    - [StopRequest](#spire.common.plugin.StopRequest)
   
   
   
-  
-    * [Server](#spire.common.plugin.Server)
+    - [Server](#spire.common.plugin.Server)
   
 
-
-* [ca.proto](#ca.proto)
-  
-    * [FetchCertificateRequest](#spire.server.ca.FetchCertificateRequest)
-  
-    * [FetchCertificateResponse](#spire.server.ca.FetchCertificateResponse)
-  
-    * [GenerateCsrRequest](#spire.server.ca.GenerateCsrRequest)
-  
-    * [GenerateCsrResponse](#spire.server.ca.GenerateCsrResponse)
-  
-    * [LoadCertificateRequest](#spire.server.ca.LoadCertificateRequest)
-  
-    * [LoadCertificateResponse](#spire.server.ca.LoadCertificateResponse)
-  
-    * [SignCsrRequest](#spire.server.ca.SignCsrRequest)
-  
-    * [SignCsrResponse](#spire.server.ca.SignCsrResponse)
+- [ca.proto](#ca.proto)
+    - [FetchCertificateRequest](#spire.server.ca.FetchCertificateRequest)
+    - [FetchCertificateResponse](#spire.server.ca.FetchCertificateResponse)
+    - [GenerateCsrRequest](#spire.server.ca.GenerateCsrRequest)
+    - [GenerateCsrResponse](#spire.server.ca.GenerateCsrResponse)
+    - [LoadCertificateRequest](#spire.server.ca.LoadCertificateRequest)
+    - [LoadCertificateResponse](#spire.server.ca.LoadCertificateResponse)
+    - [SignCsrRequest](#spire.server.ca.SignCsrRequest)
+    - [SignCsrResponse](#spire.server.ca.SignCsrResponse)
   
   
   
-  
-    * [ControlPlaneCA](#spire.server.ca.ControlPlaneCA)
+    - [ControlPlaneCA](#spire.server.ca.ControlPlaneCA)
   
 
-* [Scalar Value Types](#scalar-value-types)
+- [Scalar Value Types](#scalar-value-types)
 
 
 
@@ -324,7 +304,7 @@ Represents a response with a signed certificate.
 | FetchCertificate | [FetchCertificateRequest](#spire.server.ca.FetchCertificateRequest) | [FetchCertificateResponse](#spire.server.ca.FetchCertificateRequest) | Used to read the stored Intermediate CP cert. |
 | LoadCertificate | [LoadCertificateRequest](#spire.server.ca.LoadCertificateRequest) | [LoadCertificateResponse](#spire.server.ca.LoadCertificateRequest) | Used for setting/storing the signed intermediate certificate. |
 | Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin. |
 
  
 

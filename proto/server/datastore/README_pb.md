@@ -3,150 +3,86 @@
 
 ## Table of Contents
 
-
-* [plugin.proto](#plugin.proto)
-  
-    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
-  
-    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
-  
-    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
-  
-    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
-  
-    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
-  
-    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
-  
-    * [StopReply](#spire.common.plugin.StopReply)
-  
-    * [StopRequest](#spire.common.plugin.StopRequest)
+- [plugin.proto](#plugin.proto)
+    - [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
+    - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
+    - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
+    - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
+    - [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
+    - [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
+    - [StopReply](#spire.common.plugin.StopReply)
+    - [StopRequest](#spire.common.plugin.StopRequest)
   
   
   
-  
-    * [Server](#spire.common.plugin.Server)
+    - [Server](#spire.common.plugin.Server)
   
 
-
-* [common.proto](#common.proto)
-  
-    * [AttestedData](#spire.common.AttestedData)
-  
-    * [Empty](#spire.common.Empty)
-  
-    * [RegistrationEntries](#spire.common.RegistrationEntries)
-  
-    * [RegistrationEntry](#spire.common.RegistrationEntry)
-  
-    * [Selector](#spire.common.Selector)
-  
-    * [Selectors](#spire.common.Selectors)
+- [common.proto](#common.proto)
+    - [AttestedData](#spire.common.AttestedData)
+    - [Empty](#spire.common.Empty)
+    - [RegistrationEntries](#spire.common.RegistrationEntries)
+    - [RegistrationEntry](#spire.common.RegistrationEntry)
+    - [Selector](#spire.common.Selector)
+    - [Selectors](#spire.common.Selectors)
   
   
   
   
 
-
-* [datastore.proto](#datastore.proto)
-  
-    * [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry)
-  
-    * [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest)
-  
-    * [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryResponse)
-  
-    * [CreateFederatedEntryRequest](#spire.server.datastore.CreateFederatedEntryRequest)
-  
-    * [CreateFederatedEntryResponse](#spire.server.datastore.CreateFederatedEntryResponse)
-  
-    * [CreateNodeResolverMapEntryRequest](#spire.server.datastore.CreateNodeResolverMapEntryRequest)
-  
-    * [CreateNodeResolverMapEntryResponse](#spire.server.datastore.CreateNodeResolverMapEntryResponse)
-  
-    * [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest)
-  
-    * [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryResponse)
-  
-    * [DeleteAttestedNodeEntryRequest](#spire.server.datastore.DeleteAttestedNodeEntryRequest)
-  
-    * [DeleteAttestedNodeEntryResponse](#spire.server.datastore.DeleteAttestedNodeEntryResponse)
-  
-    * [DeleteFederatedEntryRequest](#spire.server.datastore.DeleteFederatedEntryRequest)
-  
-    * [DeleteFederatedEntryResponse](#spire.server.datastore.DeleteFederatedEntryResponse)
-  
-    * [DeleteNodeResolverMapEntryRequest](#spire.server.datastore.DeleteNodeResolverMapEntryRequest)
-  
-    * [DeleteNodeResolverMapEntryResponse](#spire.server.datastore.DeleteNodeResolverMapEntryResponse)
-  
-    * [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest)
-  
-    * [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryResponse)
-  
-    * [FederatedBundle](#spire.server.datastore.FederatedBundle)
-  
-    * [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest)
-  
-    * [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryResponse)
-  
-    * [FetchNodeResolverMapEntryRequest](#spire.server.datastore.FetchNodeResolverMapEntryRequest)
-  
-    * [FetchNodeResolverMapEntryResponse](#spire.server.datastore.FetchNodeResolverMapEntryResponse)
-  
-    * [FetchRegistrationEntriesResponse](#spire.server.datastore.FetchRegistrationEntriesResponse)
-  
-    * [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest)
-  
-    * [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryResponse)
-  
-    * [FetchStaleNodeEntriesRequest](#spire.server.datastore.FetchStaleNodeEntriesRequest)
-  
-    * [FetchStaleNodeEntriesResponse](#spire.server.datastore.FetchStaleNodeEntriesResponse)
-  
-    * [JoinToken](#spire.server.datastore.JoinToken)
-  
-    * [ListFederatedEntryRequest](#spire.server.datastore.ListFederatedEntryRequest)
-  
-    * [ListFederatedEntryResponse](#spire.server.datastore.ListFederatedEntryResponse)
-  
-    * [ListParentIDEntriesRequest](#spire.server.datastore.ListParentIDEntriesRequest)
-  
-    * [ListParentIDEntriesResponse](#spire.server.datastore.ListParentIDEntriesResponse)
-  
-    * [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest)
-  
-    * [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesResponse)
-  
-    * [ListSpiffeEntriesRequest](#spire.server.datastore.ListSpiffeEntriesRequest)
-  
-    * [ListSpiffeEntriesResponse](#spire.server.datastore.ListSpiffeEntriesResponse)
-  
-    * [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry)
-  
-    * [RectifyNodeResolverMapEntriesRequest](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest)
-  
-    * [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesResponse)
-  
-    * [UpdateAttestedNodeEntryRequest](#spire.server.datastore.UpdateAttestedNodeEntryRequest)
-  
-    * [UpdateAttestedNodeEntryResponse](#spire.server.datastore.UpdateAttestedNodeEntryResponse)
-  
-    * [UpdateFederatedEntryRequest](#spire.server.datastore.UpdateFederatedEntryRequest)
-  
-    * [UpdateFederatedEntryResponse](#spire.server.datastore.UpdateFederatedEntryResponse)
-  
-    * [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest)
-  
-    * [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryResponse)
+- [datastore.proto](#datastore.proto)
+    - [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry)
+    - [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest)
+    - [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryResponse)
+    - [CreateFederatedEntryRequest](#spire.server.datastore.CreateFederatedEntryRequest)
+    - [CreateFederatedEntryResponse](#spire.server.datastore.CreateFederatedEntryResponse)
+    - [CreateNodeResolverMapEntryRequest](#spire.server.datastore.CreateNodeResolverMapEntryRequest)
+    - [CreateNodeResolverMapEntryResponse](#spire.server.datastore.CreateNodeResolverMapEntryResponse)
+    - [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest)
+    - [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryResponse)
+    - [DeleteAttestedNodeEntryRequest](#spire.server.datastore.DeleteAttestedNodeEntryRequest)
+    - [DeleteAttestedNodeEntryResponse](#spire.server.datastore.DeleteAttestedNodeEntryResponse)
+    - [DeleteFederatedEntryRequest](#spire.server.datastore.DeleteFederatedEntryRequest)
+    - [DeleteFederatedEntryResponse](#spire.server.datastore.DeleteFederatedEntryResponse)
+    - [DeleteNodeResolverMapEntryRequest](#spire.server.datastore.DeleteNodeResolverMapEntryRequest)
+    - [DeleteNodeResolverMapEntryResponse](#spire.server.datastore.DeleteNodeResolverMapEntryResponse)
+    - [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest)
+    - [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryResponse)
+    - [FederatedBundle](#spire.server.datastore.FederatedBundle)
+    - [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest)
+    - [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryResponse)
+    - [FetchNodeResolverMapEntryRequest](#spire.server.datastore.FetchNodeResolverMapEntryRequest)
+    - [FetchNodeResolverMapEntryResponse](#spire.server.datastore.FetchNodeResolverMapEntryResponse)
+    - [FetchRegistrationEntriesResponse](#spire.server.datastore.FetchRegistrationEntriesResponse)
+    - [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest)
+    - [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryResponse)
+    - [FetchStaleNodeEntriesRequest](#spire.server.datastore.FetchStaleNodeEntriesRequest)
+    - [FetchStaleNodeEntriesResponse](#spire.server.datastore.FetchStaleNodeEntriesResponse)
+    - [JoinToken](#spire.server.datastore.JoinToken)
+    - [ListFederatedEntryRequest](#spire.server.datastore.ListFederatedEntryRequest)
+    - [ListFederatedEntryResponse](#spire.server.datastore.ListFederatedEntryResponse)
+    - [ListParentIDEntriesRequest](#spire.server.datastore.ListParentIDEntriesRequest)
+    - [ListParentIDEntriesResponse](#spire.server.datastore.ListParentIDEntriesResponse)
+    - [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest)
+    - [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesResponse)
+    - [ListSpiffeEntriesRequest](#spire.server.datastore.ListSpiffeEntriesRequest)
+    - [ListSpiffeEntriesResponse](#spire.server.datastore.ListSpiffeEntriesResponse)
+    - [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry)
+    - [RectifyNodeResolverMapEntriesRequest](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest)
+    - [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesResponse)
+    - [UpdateAttestedNodeEntryRequest](#spire.server.datastore.UpdateAttestedNodeEntryRequest)
+    - [UpdateAttestedNodeEntryResponse](#spire.server.datastore.UpdateAttestedNodeEntryResponse)
+    - [UpdateFederatedEntryRequest](#spire.server.datastore.UpdateFederatedEntryRequest)
+    - [UpdateFederatedEntryResponse](#spire.server.datastore.UpdateFederatedEntryResponse)
+    - [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest)
+    - [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryResponse)
   
   
   
-  
-    * [DataStore](#spire.server.datastore.DataStore)
+    - [DataStore](#spire.server.datastore.DataStore)
   
 
-* [Scalar Value Types](#scalar-value-types)
+- [Scalar Value Types](#scalar-value-types)
 
 
 
@@ -344,8 +280,8 @@ manage the various registered nodes and workloads that are controlled by it.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validityof a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource orcaller. It is defined as a URI comprising a “trust domain” and anassociated path. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
 | ttl | [int32](#int32) |  | Time to live. |
 | fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
 
@@ -363,7 +299,7 @@ entry is matched.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attestingthe entity (Eg: AWS, K8). |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
 | value | [string](#string) |  | The value to be attested. |
 
 
