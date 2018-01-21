@@ -28,7 +28,7 @@ declare -r BUILD_DIR=${BUILD_DIR:-$PWD/.build-${OS1}-${ARCH1}}
 declare -r BUILD_CACHE=${BUILD_CACHE:-$PWD/.cache}
 
 # versioned binaries that we need for builds
-declare -r GO_VERSION=${GO_VERSION:-1.8.3}
+declare -r GO_VERSION=${GO_VERSION:-1.9.2}
 declare -r GO_URL="https://storage.googleapis.com/golang"
 declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
 declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
@@ -37,9 +37,9 @@ declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-${OS2}-${ARCH1}.zip"
 declare -r GLIDE_VERSION=${GLIDE_VERSION:-0.12.3}
 declare -r GLIDE_URL="https://github.com/Masterminds/glide/releases/download/v${GLIDE_VERSION}"
 declare -r GLIDE_TGZ="glide-v${GLIDE_VERSION}-${OS1}-${ARCH2}.tar.gz"
-declare -r PROTOC_GEN_DOCS_VERSION=${PROTOC_GEN_DOCS_VERSION:-1.0.0-beta}
+declare -r PROTOC_GEN_DOCS_VERSION=${PROTOC_GEN_DOCS_VERSION:-1.0.0}
 declare -r PROTOC_GEN_DOCS_URL="https://github.com/pseudomuto/protoc-gen-doc/releases/download/v${PROTOC_GEN_DOCS_VERSION}"
-declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}.${OS1}-${ARCH2}.go1.8.1.tar.gz"
+declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}.${OS1}-${ARCH2}.go1.9.tar.gz"
 
 [[ -n $TRAVIS ]] && unset GOPATH GOROOT
 
