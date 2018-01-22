@@ -41,7 +41,7 @@ type Config struct {
 	// reside
 	ConfigDir string
 
-	PluginConfigs map[string]map[string]HclPluginConfig
+	PluginsConfigs map[string]map[string]HclPluginConfig
 
 	SupportedPlugins map[string]goplugin.Plugin
 
@@ -50,7 +50,7 @@ type Config struct {
 
 type catalog struct {
 	configDir        string
-	pluginConfigs    map[string]map[string]HclPluginConfig
+	pluginsConfigs   map[string]map[string]HclPluginConfig
 	plugins          []*ManagedPlugin
 	supportedPlugins map[string]goplugin.Plugin
 
@@ -61,7 +61,7 @@ type catalog struct {
 func New(config *Config) Catalog {
 	return &catalog{
 		configDir:        config.ConfigDir,
-		pluginConfigs:    config.PluginConfigs,
+		pluginsConfigs:   config.PluginsConfigs,
 		supportedPlugins: config.SupportedPlugins,
 		l:                config.Log,
 		m:                new(sync.RWMutex),
@@ -151,7 +151,7 @@ func (c *catalog) Find(plugin Plugin) *ManagedPlugin {
 }
 
 func (c *catalog) loadConfigs() error {
-	for pluginType, pluginTypes := range c.pluginConfigs {
+	for pluginType, pluginTypes := range c.pluginsConfigs {
 		for pluginName, pluginConfig := range pluginTypes {
 			pluginConfig.PluginType = pluginType
 			pluginConfig.PluginName = pluginName

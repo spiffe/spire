@@ -29,20 +29,24 @@ const (
 	defaultUmask        = 0077
 )
 
-// RunConfig represents available configurables for file and CLI options
-type RunConfig struct {
-	BindAddress   string                                        `hcl:"bind_address"`
-	BindPort      int                                           `hcl:"bind_port"`
-	BindHTTPPort  int                                           `hcl:"bind_http_port"`
-	TrustDomain   string                                        `hcl:"trust_domain"`
-	PluginDir     string                                        `hcl:"plugin_dir"`
-	LogFile       string                                        `hcl:"log_file"`
-	LogLevel      string                                        `hcl:"log_level"`
-	BaseSVIDTtl   int                                           `hcl:"base_svid_ttl"`
-	ServerSVIDTtl int                                           `hcl:"server_svid_ttl"`
-	ConfigPath    string                                        `hcl:"config_path"`
-	Umask         string                                        `hcl:"umask"`
-	PluginConfigs map[string]map[string]catalog.HclPluginConfig `hcl:"plugins"`
+// runConfig represents available configurables for file and CLI options
+type runConfig struct {
+	Server         serverConfig                                  `hcl:"server"`
+	PluginsConfigs map[string]map[string]catalog.HclPluginConfig `hcl:"plugins"`
+}
+
+type serverConfig struct {
+	BindAddress   string `hcl:"bind_address"`
+	BindPort      int    `hcl:"bind_port"`
+	BindHTTPPort  int    `hcl:"bind_http_port"`
+	TrustDomain   string `hcl:"trust_domain"`
+	PluginDir     string `hcl:"plugin_dir"`
+	LogFile       string `hcl:"log_file"`
+	LogLevel      string `hcl:"log_level"`
+	BaseSVIDTtl   int    `hcl:"base_svid_ttl"`
+	ServerSVIDTtl int    `hcl:"server_svid_ttl"`
+	ConfigPath    string `hcl:"config_path"`
+	Umask         string `hcl:"umask"`
 }
 
 // Run CLI struct
@@ -63,7 +67,7 @@ func (*RunCLI) Run(args []string) int {
 		return 1
 	}
 
-	fileConfig, err := parseFile(cliConfig.ConfigPath)
+	fileConfig, err := parseFile(cliConfig.Server.ConfigPath)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -98,8 +102,8 @@ func (*RunCLI) Synopsis() string {
 	return "Runs the server"
 }
 
-func parseFile(filePath string) (*RunConfig, error) {
-	c := &RunConfig{}
+func parseFile(filePath string) (*runConfig, error) {
+	c := &runConfig{}
 
 	// Return a friendly error if the file is missing
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
@@ -128,19 +132,19 @@ func parseFile(filePath string) (*RunConfig, error) {
 	return c, nil
 }
 
-func parseFlags(args []string) (*RunConfig, error) {
+func parseFlags(args []string) (*runConfig, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
-	c := &RunConfig{}
+	c := &runConfig{}
 
-	flags.StringVar(&c.BindAddress, "bindAddress", defaultBindAddress, "IP address or DNS name of the SPIRE server")
-	flags.IntVar(&c.BindPort, "serverPort", defaultBindPort, "Port number of the SPIRE server")
-	flags.IntVar(&c.BindHTTPPort, "bindHTTPPort", defaultBindHTTPPort, "HTTP Port number of the SPIRE server")
-	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
-	flags.StringVar(&c.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
-	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
-	flags.StringVar(&c.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
-	flags.StringVar(&c.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
-	flags.StringVar(&c.Umask, "umask", "", "Umask value to use for new files")
+	flags.StringVar(&c.Server.BindAddress, "bindAddress", defaultBindAddress, "IP address or DNS name of the SPIRE server")
+	flags.IntVar(&c.Server.BindPort, "serverPort", defaultBindPort, "Port number of the SPIRE server")
+	flags.IntVar(&c.Server.BindHTTPPort, "bindHTTPPort", defaultBindHTTPPort, "HTTP Port number of the SPIRE server")
+	flags.StringVar(&c.Server.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
+	flags.StringVar(&c.Server.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
+	flags.StringVar(&c.Server.LogFile, "logFile", "", "File to write logs to")
+	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
+	flags.StringVar(&c.Server.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
+	flags.StringVar(&c.Server.Umask, "umask", "", "Umask value to use for new files")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -150,7 +154,7 @@ func parseFlags(args []string) (*RunConfig, error) {
 	return c, nil
 }
 
-func mergeConfigs(c *server.Config, fileConfig, cliConfig *RunConfig) error {
+func mergeConfigs(c *server.Config, fileConfig, cliConfig *runConfig) error {
 	// CLI > File, merge fileConfig first
 	err := mergeConfig(c, fileConfig)
 	if err != nil {
@@ -160,74 +164,74 @@ func mergeConfigs(c *server.Config, fileConfig, cliConfig *RunConfig) error {
 	return mergeConfig(c, cliConfig)
 }
 
-func mergeConfig(orig *server.Config, cmd *RunConfig) error {
+func mergeConfig(orig *server.Config, cmd *runConfig) error {
 	// Parse server address
-	if cmd.BindAddress != "" {
-		ip := net.ParseIP(cmd.BindAddress)
+	if cmd.Server.BindAddress != "" {
+		ip := net.ParseIP(cmd.Server.BindAddress)
 		if ip == nil {
-			return fmt.Errorf("It was not possible to parse BindAdress: %v", cmd.BindAddress)
+			return fmt.Errorf("It was not possible to parse BindAdress: %v", cmd.Server.BindAddress)
 		}
 		orig.BindAddress.IP = ip
 		orig.BindHTTPAddress.IP = ip
 	}
 
-	if cmd.BindPort != 0 {
-		orig.BindAddress.Port = cmd.BindPort
+	if cmd.Server.BindPort != 0 {
+		orig.BindAddress.Port = cmd.Server.BindPort
 	}
 
-	if cmd.BindHTTPPort != 0 {
-		orig.BindHTTPAddress.Port = cmd.BindHTTPPort
+	if cmd.Server.BindHTTPPort != 0 {
+		orig.BindHTTPAddress.Port = cmd.Server.BindHTTPPort
 	}
 
-	if cmd.TrustDomain != "" {
+	if cmd.Server.TrustDomain != "" {
 		trustDomain := url.URL{
 			Scheme: "spiffe",
-			Host:   cmd.TrustDomain,
+			Host:   cmd.Server.TrustDomain,
 		}
 
 		orig.TrustDomain = trustDomain
 	}
 
-	if cmd.PluginDir != "" {
-		orig.PluginDir = cmd.PluginDir
+	if cmd.Server.PluginDir != "" {
+		orig.PluginDir = cmd.Server.PluginDir
 	}
 
 	// Handle log file and level
-	if cmd.LogFile != "" || cmd.LogLevel != "" {
+	if cmd.Server.LogFile != "" || cmd.Server.LogLevel != "" {
 		logLevel := defaultLogLevel
-		if cmd.LogLevel != "" {
-			logLevel = cmd.LogLevel
+		if cmd.Server.LogLevel != "" {
+			logLevel = cmd.Server.LogLevel
 		}
 
-		logger, err := log.NewLogger(logLevel, cmd.LogFile)
+		logger, err := log.NewLogger(logLevel, cmd.Server.LogFile)
 		if err != nil {
-			return fmt.Errorf("Could not open log file %s: %s", cmd.LogFile, err)
+			return fmt.Errorf("Could not open log file %s: %s", cmd.Server.LogFile, err)
 		}
 
 		orig.Log = logger
 	}
 
-	if cmd.Umask != "" {
-		umask, err := strconv.ParseInt(cmd.Umask, 0, 0)
+	if cmd.Server.Umask != "" {
+		umask, err := strconv.ParseInt(cmd.Server.Umask, 0, 0)
 		if err != nil {
-			return fmt.Errorf("Could not parse umask %s: %s", cmd.Umask, err)
+			return fmt.Errorf("Could not parse umask %s: %s", cmd.Server.Umask, err)
 		}
 		orig.Umask = int(umask)
 	}
 
-	if cmd.BaseSVIDTtl != 0 {
-		orig.BaseSVIDTtl = int32(cmd.BaseSVIDTtl)
+	if cmd.Server.BaseSVIDTtl != 0 {
+		orig.BaseSVIDTtl = int32(cmd.Server.BaseSVIDTtl)
 	}
 
-	if cmd.ServerSVIDTtl != 0 {
-		orig.ServerSVIDTtl = int32(cmd.ServerSVIDTtl)
+	if cmd.Server.ServerSVIDTtl != 0 {
+		orig.ServerSVIDTtl = int32(cmd.Server.ServerSVIDTtl)
 	}
 
-	if cmd.PluginConfigs != nil {
-		orig.PluginConfigs = cmd.PluginConfigs
+	if cmd.PluginsConfigs != nil {
+		orig.PluginsConfigs = cmd.PluginsConfigs
 	}
-	if orig.PluginConfigs != nil {
-		cmd.PluginConfigs = orig.PluginConfigs
+	if orig.PluginsConfigs != nil {
+		cmd.PluginsConfigs = orig.PluginsConfigs
 	}
 	return nil
 }
