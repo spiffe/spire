@@ -3,45 +3,31 @@
 
 ## Table of Contents
 
-
-* [plugin.proto](#plugin.proto)
-  
-    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
-  
-    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
-  
-    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
-  
-    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
-  
-    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
-  
-    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
-  
-    * [StopReply](#spire.common.plugin.StopReply)
-  
-    * [StopRequest](#spire.common.plugin.StopRequest)
+- [plugin.proto](#plugin.proto)
+    - [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
+    - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
+    - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
+    - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
+    - [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
+    - [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
+    - [StopReply](#spire.common.plugin.StopReply)
+    - [StopRequest](#spire.common.plugin.StopRequest)
   
   
   
-  
-    * [Server](#spire.common.plugin.Server)
+    - [Server](#spire.common.plugin.Server)
   
 
-
-* [upstreamca.proto](#upstreamca.proto)
-  
-    * [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest)
-  
-    * [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRResponse)
+- [upstreamca.proto](#upstreamca.proto)
+    - [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest)
+    - [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRResponse)
   
   
   
-  
-    * [UpstreamCA](#spire.server.upstreamca.UpstreamCA)
+    - [UpstreamCA](#spire.server.upstreamca.UpstreamCA)
   
 
-* [Scalar Value Types](#scalar-value-types)
+- [Scalar Value Types](#scalar-value-types)
 
 
 
@@ -233,8 +219,8 @@ Represents the plugin metadata.
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
 | Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
-| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the  version and related metadata of the installed plugin. |
-| SubmitCSR | [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest) | [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRRequest) | Will take in a CSR and submit it to the upstream CA for signing(“upstream” CA can be local self-signed root in simple case). |
+| GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin. |
+| SubmitCSR | [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest) | [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRRequest) | Will take in a CSR and submit it to the upstream CA for signing (“upstream” CA can be local self-signed root in simple case). |
 
  
 

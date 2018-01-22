@@ -3,32 +3,22 @@
 
 ## Table of Contents
 
-
-* [plugin.proto](#plugin.proto)
-  
-    * [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
-  
-    * [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
-  
-    * [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
-  
-    * [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
-  
-    * [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
-  
-    * [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
-  
-    * [StopReply](#spire.common.plugin.StopReply)
-  
-    * [StopRequest](#spire.common.plugin.StopRequest)
+- [plugin.proto](#plugin.proto)
+    - [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
+    - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
+    - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
+    - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
+    - [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
+    - [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
+    - [StopReply](#spire.common.plugin.StopReply)
+    - [StopRequest](#spire.common.plugin.StopRequest)
   
   
   
-  
-    * [Server](#spire.common.plugin.Server)
+    - [Server](#spire.common.plugin.Server)
   
 
-* [Scalar Value Types](#scalar-value-types)
+- [Scalar Value Types](#scalar-value-types)
 
 
 
