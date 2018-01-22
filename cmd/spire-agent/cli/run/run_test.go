@@ -10,15 +10,15 @@ import (
 func TestParseConfigGood(t *testing.T) {
 	c, err := parseFile("../../../../test/fixture/config/agent_good.conf")
 	require.NoError(t, err)
-	assert.Equal(t, c.DataDir, ".")
-	assert.Equal(t, c.LogLevel, "INFO")
-	assert.Equal(t, c.PluginDir, "conf/agent/plugin")
-	assert.Equal(t, c.ServerAddress, "127.0.0.1")
-	assert.Equal(t, c.ServerPort, 8081)
-	assert.Equal(t, c.SocketPath, "/tmp/agent.sock")
-	assert.Equal(t, c.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
-	assert.Equal(t, c.TrustDomain, "example.org")
-	assert.Equal(t, c.Umask, "")
+	assert.Equal(t, c.AgentConfig.DataDir, ".")
+	assert.Equal(t, c.AgentConfig.LogLevel, "INFO")
+	assert.Equal(t, c.AgentConfig.PluginDir, "conf/agent/plugin")
+	assert.Equal(t, c.AgentConfig.ServerAddress, "127.0.0.1")
+	assert.Equal(t, c.AgentConfig.ServerPort, 8081)
+	assert.Equal(t, c.AgentConfig.SocketPath, "/tmp/agent.sock")
+	assert.Equal(t, c.AgentConfig.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
+	assert.Equal(t, c.AgentConfig.TrustDomain, "example.org")
+	assert.Equal(t, c.AgentConfig.Umask, "")
 }
 
 func TestParseFlagsGood(t *testing.T) {
@@ -34,19 +34,19 @@ func TestParseFlagsGood(t *testing.T) {
 		"-umask=",
 	})
 	require.NoError(t, err)
-	assert.Equal(t, c.DataDir, ".")
-	assert.Equal(t, c.LogLevel, "INFO")
-	assert.Equal(t, c.PluginDir, "conf/agent/plugin")
-	assert.Equal(t, c.ServerAddress, "127.0.0.1")
-	assert.Equal(t, c.ServerPort, 8081)
-	assert.Equal(t, c.SocketPath, "/tmp/agent.sock")
-	assert.Equal(t, c.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
-	assert.Equal(t, c.TrustDomain, "example.org")
-	assert.Equal(t, c.Umask, "")
+	assert.Equal(t, c.AgentConfig.DataDir, ".")
+	assert.Equal(t, c.AgentConfig.LogLevel, "INFO")
+	assert.Equal(t, c.AgentConfig.PluginDir, "conf/agent/plugin")
+	assert.Equal(t, c.AgentConfig.ServerAddress, "127.0.0.1")
+	assert.Equal(t, c.AgentConfig.ServerPort, 8081)
+	assert.Equal(t, c.AgentConfig.SocketPath, "/tmp/agent.sock")
+	assert.Equal(t, c.AgentConfig.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
+	assert.Equal(t, c.AgentConfig.TrustDomain, "example.org")
+	assert.Equal(t, c.AgentConfig.Umask, "")
 }
 
 func TestMergeConfigGood(t *testing.T) {
-	c := &RunConfig{
+	ac := &agentConfig{
 		DataDir:       ".",
 		LogLevel:      "INFO",
 		PluginDir:     "conf/agent/plugin",
@@ -56,6 +56,11 @@ func TestMergeConfigGood(t *testing.T) {
 		TrustDomain:   "example.org",
 		Umask:         "",
 	}
+
+	c := &runConfig{
+		AgentConfig: *ac,
+	}
+
 	orig := newDefaultConfig()
 	err := mergeConfig(orig, c)
 	require.NoError(t, err)

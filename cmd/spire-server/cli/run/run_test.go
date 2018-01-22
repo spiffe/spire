@@ -10,15 +10,15 @@ import (
 func TestParseConfigGood(t *testing.T) {
 	c, err := parseFile("../../../../test/fixture/config/server_good.conf")
 	require.NoError(t, err)
-	assert.Equal(t, c.BindAddress, "127.0.0.1")
-	assert.Equal(t, c.BindPort, 8081)
-	assert.Equal(t, c.BindHTTPPort, 8080)
-	assert.Equal(t, c.TrustDomain, "example.org")
-	assert.Equal(t, c.PluginDir, "conf/server/plugin")
-	assert.Equal(t, c.LogLevel, "INFO")
-	assert.Equal(t, c.BaseSVIDTtl, 999999)
-	assert.Equal(t, c.ServerSVIDTtl, 999999)
-	assert.Equal(t, c.Umask, "")
+	assert.Equal(t, c.Server.BindAddress, "127.0.0.1")
+	assert.Equal(t, c.Server.BindPort, 8081)
+	assert.Equal(t, c.Server.BindHTTPPort, 8080)
+	assert.Equal(t, c.Server.TrustDomain, "example.org")
+	assert.Equal(t, c.Server.PluginDir, "conf/server/plugin")
+	assert.Equal(t, c.Server.LogLevel, "INFO")
+	assert.Equal(t, c.Server.BaseSVIDTtl, 999999)
+	assert.Equal(t, c.Server.ServerSVIDTtl, 999999)
+	assert.Equal(t, c.Server.Umask, "")
 }
 
 func TestParseFlagsGood(t *testing.T) {
@@ -33,18 +33,18 @@ func TestParseFlagsGood(t *testing.T) {
 		"-umask=",
 	})
 	require.NoError(t, err)
-	assert.Equal(t, c.BindAddress, "127.0.0.1")
-	assert.Equal(t, c.BindHTTPPort, 8080)
-	assert.Equal(t, c.TrustDomain, "example.org")
-	assert.Equal(t, c.PluginDir, "conf/server/plugin")
-	assert.Equal(t, c.LogLevel, "INFO")
-	assert.Equal(t, c.BaseSVIDTtl, 999999)
-	assert.Equal(t, c.ServerSVIDTtl, 999999)
-	assert.Equal(t, c.Umask, "")
+	assert.Equal(t, c.Server.BindAddress, "127.0.0.1")
+	assert.Equal(t, c.Server.BindHTTPPort, 8080)
+	assert.Equal(t, c.Server.TrustDomain, "example.org")
+	assert.Equal(t, c.Server.PluginDir, "conf/server/plugin")
+	assert.Equal(t, c.Server.LogLevel, "INFO")
+	assert.Equal(t, c.Server.BaseSVIDTtl, 999999)
+	assert.Equal(t, c.Server.ServerSVIDTtl, 999999)
+	assert.Equal(t, c.Server.Umask, "")
 }
 
 func TestMergeConfigGood(t *testing.T) {
-	c := &RunConfig{
+	sc := &serverConfig{
 		BindAddress:   "127.0.0.1",
 		BindPort:      8081,
 		BindHTTPPort:  8080,
@@ -55,6 +55,11 @@ func TestMergeConfigGood(t *testing.T) {
 		ServerSVIDTtl: 999999,
 		Umask:         "",
 	}
+
+	c := &runConfig{
+		Server: *sc,
+	}
+
 	orig := newDefaultConfig()
 	err := mergeConfig(orig, c)
 	require.NoError(t, err)
