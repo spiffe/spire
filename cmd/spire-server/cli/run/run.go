@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
 )
@@ -21,8 +22,8 @@ import (
 const (
 	defaultConfigPath   = "conf/server/server.conf"
 	defaultBindAddress  = "127.0.0.1"
-	defaultBindPort     = "8081"
-	defaultBindHTTPPort = "8080"
+	defaultBindPort     = 8081
+	defaultBindHTTPPort = 8080
 	defaultLogLevel     = "INFO"
 	defaultPluginDir    = "conf/server/plugin"
 	defaultUmask        = 0077
@@ -30,17 +31,18 @@ const (
 
 // RunConfig represents available configurables for file and CLI options
 type RunConfig struct {
-	BindAddress   string
-	BindPort      int
-	BindHTTPPort  int
-	TrustDomain   string
-	PluginDir     string
-	LogFile       string
-	LogLevel      string
-	BaseSVIDTtl   int
-	ServerSVIDTtl int
-	ConfigPath    string
-	Umask         string
+	BindAddress   string                                        `hcl:"bind_address"`
+	BindPort      int                                           `hcl:"bind_port"`
+	BindHTTPPort  int                                           `hcl:"bind_http_port"`
+	TrustDomain   string                                        `hcl:"trust_domain"`
+	PluginDir     string                                        `hcl:"plugin_dir"`
+	LogFile       string                                        `hcl:"log_file"`
+	LogLevel      string                                        `hcl:"log_level"`
+	BaseSVIDTtl   int                                           `hcl:"base_svid_ttl"`
+	ServerSVIDTtl int                                           `hcl:"server_svid_ttl"`
+	ConfigPath    string                                        `hcl:"config_path"`
+	Umask         string                                        `hcl:"umask"`
+	PluginConfigs map[string]map[string]catalog.HclPluginConfig `hcl:"plugins"`
 }
 
 // Run CLI struct
@@ -118,6 +120,7 @@ func parseFile(filePath string) (*RunConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if err := hcl.DecodeObject(&c, hclTree); err != nil {
 		return nil, err
 	}
@@ -129,9 +132,9 @@ func parseFlags(args []string) (*RunConfig, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	c := &RunConfig{}
 
-	flags.StringVar(&c.BindAddress, "bindAddress", "", "IP address or DNS name of the SPIRE server")
-	flags.IntVar(&c.BindPort, "serverPort", 0, "Port number of the SPIRE server")
-	flags.IntVar(&c.BindHTTPPort, "bindHTTPPort", 0, "HTTP Port number of the SPIRE server")
+	flags.StringVar(&c.BindAddress, "bindAddress", defaultBindAddress, "IP address or DNS name of the SPIRE server")
+	flags.IntVar(&c.BindPort, "serverPort", defaultBindPort, "Port number of the SPIRE server")
+	flags.IntVar(&c.BindHTTPPort, "bindHTTPPort", defaultBindHTTPPort, "HTTP Port number of the SPIRE server")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.StringVar(&c.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
@@ -212,6 +215,20 @@ func mergeConfig(orig *server.Config, cmd *RunConfig) error {
 		orig.Umask = int(umask)
 	}
 
+	if cmd.BaseSVIDTtl != 0 {
+		orig.BaseSVIDTtl = int32(cmd.BaseSVIDTtl)
+	}
+
+	if cmd.ServerSVIDTtl != 0 {
+		orig.ServerSVIDTtl = int32(cmd.ServerSVIDTtl)
+	}
+
+	if cmd.PluginConfigs != nil {
+		orig.PluginConfigs = cmd.PluginConfigs
+	}
+	if orig.PluginConfigs != nil {
+		cmd.PluginConfigs = orig.PluginConfigs
+	}
 	return nil
 }
 

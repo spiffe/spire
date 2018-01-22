@@ -16,8 +16,10 @@ import (
 	"syscall"
 
 	"context"
+
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 )
 
@@ -37,20 +39,22 @@ const (
 // Struct representing available configurables for file and CLI
 // options
 type RunConfig struct {
-	ServerAddress   string
-	ServerPort      int
-	TrustDomain     string
-	TrustBundlePath string
-	JoinToken       string
+	ServerAddress   string `hcl:"server_address"`
+	ServerPort      int    `hcl:"server_port"`
+	TrustDomain     string `hcl:"trust_domain"`
+	TrustBundlePath string `hcl:"trust_bundle_path"`
+	JoinToken       string `hcl:"join_token"`
 
-	SocketPath string
-	DataDir    string
-	PluginDir  string
-	LogFile    string
-	LogLevel   string
+	SocketPath string `hcl:"socket_path"`
+	DataDir    string `hcl:"data_dir"`
+	PluginDir  string `hcl:"plugin_dir"`
+	LogFile    string `hcl:"log_file"`
+	LogLevel   string `hcl:"log_level"`
 
-	ConfigPath string
-	Umask      string
+	ConfigPath string `hcl:"config_path"`
+	Umask      string `hcl:"umask"`
+
+	PluginConfigs map[string]map[string]catalog.HclPluginConfig `hcl:"plugins"`
 }
 
 type RunCLI struct {
@@ -243,6 +247,13 @@ func mergeConfig(orig *agent.Config, cmd *RunConfig) error {
 			return fmt.Errorf("Could not parse umask %s: %s", cmd.Umask, err)
 		}
 		orig.Umask = int(umask)
+	}
+
+	if cmd.PluginConfigs != nil {
+		orig.PluginConfigs = cmd.PluginConfigs
+	}
+	if orig.PluginConfigs != nil {
+		cmd.PluginConfigs = orig.PluginConfigs
 	}
 
 	return nil

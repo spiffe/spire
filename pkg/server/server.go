@@ -9,17 +9,18 @@ import (
 	"syscall"
 
 	"github.com/sirupsen/logrus"
+	commonCatalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/upstreamca"
-
-	"gopkg.in/tomb.v2"
 )
 
 type Config struct {
 	// Directory for plugin configs
 	PluginDir string
+
+	PluginConfigs map[string]map[string]commonCatalog.HclPluginConfig
 
 	Log logrus.FieldLogger
 
@@ -112,8 +113,9 @@ func (server *Server) prepareUmask() {
 
 func (server *Server) initPlugins() error {
 	config := &catalog.Config{
-		ConfigDir: server.Config.PluginDir,
-		Log:       server.Config.Log.WithField("subsystem_name", "catalog"),
+		ConfigDir:     server.Config.PluginDir,
+		PluginConfigs: server.Config.PluginConfigs,
+		Log:           server.Config.Log.WithField("subsystem_name", "catalog"),
 	}
 
 	server.Catalog = catalog.New(config)

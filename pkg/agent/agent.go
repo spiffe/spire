@@ -48,6 +48,8 @@ type Config struct {
 	// Directory for plugin configs
 	PluginDir string
 
+	PluginConfigs map[string]map[string]common_catalog.HclPluginConfig
+
 	Log logrus.FieldLogger
 
 	// Address of SPIRE server
