@@ -29,7 +29,7 @@ type PluginConfig struct {
 // hclPluginConfig serves as an intermediary struct. We pass this to the
 // HCL library for parsing, except the parser won't parse pluginData
 // as a string.
-type hclPluginConfig struct {
+type HclPluginConfig struct {
 	Version        string `hcl:version`
 	PluginName     string `hcl:pluginName`
 	PluginCmd      string `hcl:pluginCmd`
@@ -47,11 +47,36 @@ type ManagedPlugin struct {
 	Plugin Plugin
 }
 
-func parsePluginConfig(path string) (PluginConfig, error) {
+func parsePluginConfigFromHclPluginConfig(hclPluginConfig HclPluginConfig) (PluginConfig, error) {
+	var pluginConfig PluginConfig
+	var data bytes.Buffer
+
+	err := printer.DefaultConfig.Fprint(&data, hclPluginConfig.PluginData)
+	if err != nil {
+		return pluginConfig, err
+	}
+
+	pluginConfig = PluginConfig{
+		Version:        hclPluginConfig.Version,
+		PluginName:     hclPluginConfig.PluginName,
+		PluginCmd:      hclPluginConfig.PluginCmd,
+		PluginChecksum: hclPluginConfig.PluginChecksum,
+		PluginType:     hclPluginConfig.PluginType,
+		Enabled:        hclPluginConfig.Enabled,
+
+		// Handle PluginData as opaque string. This gets fed
+		// to the plugin, whos job it is to parse it.
+		PluginData: data.String(),
+	}
+
+	return pluginConfig, nil
+}
+
+func parsePluginConfigFromFile(path string) (PluginConfig, error) {
 	var pluginConfig PluginConfig
 
-	c := new(hclPluginConfig)
-	err := config.ParseHCLFile(path, &c)
+	c := new(HclPluginConfig)
+	err := config.ParseHCLConfigFile(path, &c)
 	if err != nil {
 		return pluginConfig, err
 	}

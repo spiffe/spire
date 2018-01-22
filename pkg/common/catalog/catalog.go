@@ -5,9 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os/exec"
-	"path"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -43,14 +41,16 @@ type Config struct {
 	// reside
 	ConfigDir string
 
+	PluginConfigs map[string]map[string]HclPluginConfig
+
 	SupportedPlugins map[string]goplugin.Plugin
 
 	Log logrus.FieldLogger
 }
 
 type catalog struct {
-	configDir string
-
+	configDir        string
+	pluginConfigs    map[string]map[string]HclPluginConfig
 	plugins          []*ManagedPlugin
 	supportedPlugins map[string]goplugin.Plugin
 
@@ -61,6 +61,7 @@ type catalog struct {
 func New(config *Config) Catalog {
 	return &catalog{
 		configDir:        config.ConfigDir,
+		pluginConfigs:    config.PluginConfigs,
 		supportedPlugins: config.SupportedPlugins,
 		l:                config.Log,
 		m:                new(sync.RWMutex),
@@ -150,29 +151,37 @@ func (c *catalog) Find(plugin Plugin) *ManagedPlugin {
 }
 
 func (c *catalog) loadConfigs() error {
-	files, err := ioutil.ReadDir(c.configDir)
-	if err != nil {
-		return err
-	}
-
-	for _, f := range files {
-		if f.IsDir() {
-			continue
-		}
-
-		p := path.Join(c.configDir, f.Name())
-		err = c.loadConfig(p)
-		if err != nil {
-			return err
+	for pluginType, pluginTypes := range c.pluginConfigs {
+		for pluginName, pluginConfig := range pluginTypes {
+			pluginConfig.PluginType = pluginType
+			pluginConfig.PluginName = pluginName
+			err := c.loadConfigFromHclConfig(pluginConfig)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
+func (c *catalog) loadConfigFromHclConfig(hclPluginConfig HclPluginConfig) error {
+	config, err := parsePluginConfigFromHclPluginConfig(hclPluginConfig)
+	if err != nil {
+		return err
+	}
+
+	p := &ManagedPlugin{
+		Config: config,
+	}
+	c.plugins = append(c.plugins, p)
+
+	return nil
+}
+
 func (c *catalog) loadConfig(path string) error {
 	c.l.Debugf("loading %s", path)
-	config, err := parsePluginConfig(path)
+	config, err := parsePluginConfigFromFile(path)
 	if err != nil {
 		return err
 	}

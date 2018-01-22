@@ -8,14 +8,24 @@ import (
 
 // ParseHCLFile takes a file path and a pointer to a struct with HCL
 // anchors. It reads the file and populates the struct accordingly
-func ParseHCLFile(path string, s interface{}) error {
+func ParseHCLConfigFile(path string, s interface{}) error {
 	dat, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
 	}
 
 	hclText := string(dat)
+	err = ParseHCLConfigString(hclText, s)
+	if err != nil {
+		return err
+	}
 
+	return nil
+}
+
+// ParseHCLFile takes a file path and a pointer to a struct with HCL
+// anchors. It reads the file and populates the struct accordingly
+func ParseHCLConfigString(hclText string, s interface{}) error {
 	// Parse HCL
 	hclParseTree, err := hcl.Parse(hclText)
 	if err != nil {
