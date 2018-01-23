@@ -36,19 +36,20 @@ Plugins configurations are under the `plugins { ... }` section, which has the fo
 plugins {
     pluginType "pluginName" {
         ...
-        plugin options here
+        plugin configuration options here
         ...
     }
 }
 ```
 
-The following configuration options must be present in each file
+The following configuration options are available to configure a plugin:
 
-| Configuration   | Description                             |
-| --------------- | --------------------------------------- |
-| plugin_checksum | An optional sha256 of the plugin binary |
-| enabled         | Enable or disable the plugin            |
-| plugin_data     | Plugin-specific data                    |
+| Configuration   | Description                              |
+| --------------- | ---------------------------------------- |
+| plugin_cmd      | Path to the plugin implementation binary |
+| plugin_checksum | An optional sha256 of the plugin binary  |
+| enabled         | Enable or disable the plugin             |
+| plugin_data     | Plugin-specific data                     |
 
 ## Command line options
 

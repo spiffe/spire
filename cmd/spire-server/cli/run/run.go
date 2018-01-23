@@ -45,8 +45,8 @@ type serverConfig struct {
 	LogLevel      string `hcl:"log_level"`
 	BaseSVIDTtl   int    `hcl:"base_svid_ttl"`
 	ServerSVIDTtl int    `hcl:"server_svid_ttl"`
-	ConfigPath    string `hcl:"config_path"`
-	Umask         string `hcl:"umask"`
+	ConfigPath
+	Umask string `hcl:"umask"`
 }
 
 // Run CLI struct

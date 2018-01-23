@@ -40,7 +40,6 @@ func (c *CatalogTestSuite) SetupTest() {
 		"NodeAttestor": testPlugin{},
 	}
 	cat := &catalog{
-		configDir:        "NONEXISTENT",
 		supportedPlugins: supportedPlugins,
 		l:                log,
 	}
@@ -55,7 +54,7 @@ func (c *CatalogTestSuite) TeardownTest() {
 }
 
 func (c *CatalogTestSuite) TestLoadConfig() {
-	err := c.catalog.loadConfig("../../../test/fixture/config/plugin_good.conf")
+	err := c.catalog.loadConfig("../../../test/fixture/config/server_good.conf")
 	if !c.Assert().Nil(err) || !c.Assert().Equal(1, len(c.catalog.plugins)) {
 		c.Assert().FailNow("error parsing plugin config")
 	}

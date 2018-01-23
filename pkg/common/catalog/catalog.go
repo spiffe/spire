@@ -37,19 +37,12 @@ type Catalog interface {
 }
 
 type Config struct {
-	// Directory in which plugin config files
-	// reside
-	ConfigDir string
-
-	PluginsConfigs map[string]map[string]HclPluginConfig
-
+	PluginsConfigs   map[string]map[string]HclPluginConfig
 	SupportedPlugins map[string]goplugin.Plugin
-
-	Log logrus.FieldLogger
+	Log              logrus.FieldLogger
 }
 
 type catalog struct {
-	configDir        string
 	pluginsConfigs   map[string]map[string]HclPluginConfig
 	plugins          []*ManagedPlugin
 	supportedPlugins map[string]goplugin.Plugin
@@ -60,7 +53,6 @@ type catalog struct {
 
 func New(config *Config) Catalog {
 	return &catalog{
-		configDir:        config.ConfigDir,
 		pluginsConfigs:   config.PluginsConfigs,
 		supportedPlugins: config.SupportedPlugins,
 		l:                config.Log,
