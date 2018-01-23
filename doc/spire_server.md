@@ -17,7 +17,6 @@ a .conf file or passed as command line args, the command line configurations tak
 | `bindHTTPPort`    | The HTTP port where the SPIRE Service is set to listen |                               |
 | `logFile`         | File to write logs to                                  |                               |
 | `logLevel`        | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>    | INFO                          |
-| `pluginDir`       | Plugin conf.d configuration directory                  |                               |
 | `trustDomain`     | The trust domain that this server belongs to           |                               |
 | `umask`           | Umask value to use for new files                       | 0077                          |
 

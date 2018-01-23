@@ -9,11 +9,11 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 - [Get SPIRE](#get-spire)
 - [Getting started](#getting-started)
     - [Installing SPIRE Server and Agent](#installing-spire-server-and-agent)
-    - [Configure the Server](#configure-the-server)
-    - [Configure the Agent](#configure-the-agent)
+    - [Configure the Server](#configure-the-spire-server)
+    - [Configure the Agent](#configure-the-spire-agent)
     - [Joining to the SPIRE server with a join token](#joining-to-the-spire-server-with-a-join-token)
     - [Workload Registration](#workload-registration)
-    - [Workload SVID Retrieval](#workload-attestation)
+    - [Workload SVID Retrieval](#workload-svid-retrieval)
 - [Community](#community)
 
 > Please note that the SPIRE project is pre-alpha. It is under heavy development, and is NOT suitable for production use. See the [open issues](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/) for more information.
@@ -51,7 +51,7 @@ Add **spire-server** and **spire-agent** to our $PATH for convenience:
 
 ## Configure the SPIRE Server
 
-After putting the agent and server binaries at the proper location we have to configure them. The SPIRE Server relies on plugins for much of it's functionality, so we must make sure the agent and server can find the relevant plugins. For more information on the SPIRE se
+After putting the agent and server binaries at the proper location we have to configure them. The SPIRE Server relies on plugins for much of it's functionality, so we must make sure the agent and server can find the relevant plugins. For more information on the SPIRE see
 
 Edit **/opt/spire/conf/server/server.conf** so it looks for plugins at the right path:
 
@@ -59,7 +59,7 @@ Edit **/opt/spire/conf/server/server.conf** so it looks for plugins at the right
 
 Individual plugins can be configured at **/opt/spire/conf/agent/plugin** and **/opt/spire/conf/server/plugin**. Each plugin configuration must be set up so the SPIRE server can find the appropriate plugin binaries.
 
-    pluginCmd = "/opt/spire/plugin/server/{plugin_binary}"
+    plugin_cmd = "/opt/spire/plugin/server/{plugin_binary}"
 
 Every SVID issued by a SPIRE installation is issued from a common trust root. SPIRE provides a pluggable mechanism for how this trust root can be retrieved, by default it will use a key distributed on disk. The release includes a dummy CA key that we can use for testing purposes, but the default plugin (the `upstream_ca_memory` plugin) must be configured to find it.
 
@@ -81,7 +81,7 @@ Edit **/opt/spire/conf/agent/agent.conf** so it looks for plugins and the trust 
 
 As with the server, individual plugins can be configured at **/opt/spire/conf/agent/plugin**. Ensure each plugin configuration file is configured with the path to the appropriate plugin binary:
 
-    pluginCmd = "/opt/spire/plugin/agent/{plugin_binary}"
+    plugin_cmd = "/opt/spire/plugin/agent/{plugin_binary}"
 
 The [SPIRE Agent](/doc/spire_agent.md) reference guide covers in more detail the specific configuration options and plugins available.
 

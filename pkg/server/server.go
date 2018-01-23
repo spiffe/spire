@@ -27,9 +27,6 @@ type Config struct {
 	// TTL we will use when creating the Server SVID
 	ServerSVIDTtl int32
 
-	// Directory for plugin configs
-	PluginDir string
-
 	// Configurations for server plugins
 	PluginsConfigs map[string]map[string]common_catalog.HclPluginConfig
 
@@ -121,7 +118,6 @@ func (server *Server) prepareUmask() {
 
 func (server *Server) initPlugins() error {
 	config := &catalog.Config{
-		ConfigDir:      server.Config.PluginDir,
 		PluginsConfigs: server.Config.PluginsConfigs,
 		Log:            server.Config.Log.WithField("subsystem_name", "catalog"),
 	}
