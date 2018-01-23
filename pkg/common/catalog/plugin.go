@@ -16,28 +16,28 @@ type Plugin interface {
 }
 
 type PluginConfig struct {
-	Version        string `hcl:version`
-	PluginName     string `hcl:pluginName`
-	PluginCmd      string `hcl:pluginCmd`
-	PluginChecksum string `hcl:pluginChecksum`
+	Version        string `hcl:"version"`
+	PluginName     string
+	PluginCmd      string `hcl:"plugin_cmd"`
+	PluginChecksum string `hcl:"plugin_checksum"`
 
-	PluginData string `hcl:pluginData`
-	PluginType string `hcl:pluginType`
-	Enabled    bool   `hcl:enabled`
+	PluginData string `hcl:"plugin_data"`
+	PluginType string
+	Enabled    bool `hcl:"enabled"`
 }
 
 // hclPluginConfig serves as an intermediary struct. We pass this to the
 // HCL library for parsing, except the parser won't parse pluginData
 // as a string.
 type HclPluginConfig struct {
-	Version        string `hcl:version`
-	PluginName     string `hcl:pluginName`
-	PluginCmd      string `hcl:pluginCmd`
-	PluginChecksum string `hcl:pluginChecksum`
+	Version        string `hcl:"version"`
+	PluginName     string
+	PluginCmd      string `hcl:"plugin_cmd"`
+	PluginChecksum string `hcl:"plugin_checksum"`
 
-	PluginData ast.Node `hcl:pluginData`
-	PluginType string   `hcl:pluginType`
-	Enabled    bool     `hcl:enabled`
+	PluginData ast.Node `hcl:"plugin_data"`
+	PluginType string
+	Enabled    bool `hcl:"enabled"`
 }
 
 type ManagedPlugin struct {

@@ -12,7 +12,6 @@ func TestParseConfigGood(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, c.AgentConfig.DataDir, ".")
 	assert.Equal(t, c.AgentConfig.LogLevel, "INFO")
-	assert.Equal(t, c.AgentConfig.PluginDir, "conf/agent/plugin")
 	assert.Equal(t, c.AgentConfig.ServerAddress, "127.0.0.1")
 	assert.Equal(t, c.AgentConfig.ServerPort, 8081)
 	assert.Equal(t, c.AgentConfig.SocketPath, "/tmp/agent.sock")
@@ -25,7 +24,6 @@ func TestParseFlagsGood(t *testing.T) {
 	c, err := parseFlags([]string{
 		"-dataDir=.",
 		"-logLevel=INFO",
-		"-pluginDir=conf/agent/plugin",
 		"-serverAddress=127.0.0.1",
 		"-serverPort=8081",
 		"-socketPath=/tmp/agent.sock",
@@ -36,7 +34,6 @@ func TestParseFlagsGood(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, c.AgentConfig.DataDir, ".")
 	assert.Equal(t, c.AgentConfig.LogLevel, "INFO")
-	assert.Equal(t, c.AgentConfig.PluginDir, "conf/agent/plugin")
 	assert.Equal(t, c.AgentConfig.ServerAddress, "127.0.0.1")
 	assert.Equal(t, c.AgentConfig.ServerPort, 8081)
 	assert.Equal(t, c.AgentConfig.SocketPath, "/tmp/agent.sock")
@@ -49,7 +46,6 @@ func TestMergeConfigGood(t *testing.T) {
 	ac := &agentConfig{
 		DataDir:       ".",
 		LogLevel:      "INFO",
-		PluginDir:     "conf/agent/plugin",
 		ServerAddress: "127.0.0.1",
 		ServerPort:    8081,
 		SocketPath:    "/tmp/agent.sock",
@@ -68,7 +64,6 @@ func TestMergeConfigGood(t *testing.T) {
 	assert.Equal(t, orig.ServerAddress.Port, 8081)
 	assert.Equal(t, orig.TrustDomain.Scheme, "spiffe")
 	assert.Equal(t, orig.TrustDomain.Host, "example.org")
-	assert.Equal(t, orig.PluginDir, "conf/agent/plugin")
 	assert.Equal(t, orig.DataDir, ".")
 	assert.Equal(t, orig.Umask, 0077)
 }

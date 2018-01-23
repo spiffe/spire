@@ -25,7 +25,6 @@ const (
 	defaultBindPort     = 8081
 	defaultBindHTTPPort = 8080
 	defaultLogLevel     = "INFO"
-	defaultPluginDir    = "conf/server/plugin"
 	defaultUmask        = 0077
 )
 
@@ -40,7 +39,6 @@ type serverConfig struct {
 	BindPort      int    `hcl:"bind_port"`
 	BindHTTPPort  int    `hcl:"bind_http_port"`
 	TrustDomain   string `hcl:"trust_domain"`
-	PluginDir     string `hcl:"plugin_dir"`
 	LogFile       string `hcl:"log_file"`
 	LogLevel      string `hcl:"log_level"`
 	BaseSVIDTtl   int    `hcl:"base_svid_ttl"`
@@ -140,7 +138,6 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.IntVar(&c.Server.BindPort, "serverPort", defaultBindPort, "Port number of the SPIRE server")
 	flags.IntVar(&c.Server.BindHTTPPort, "bindHTTPPort", defaultBindHTTPPort, "HTTP Port number of the SPIRE server")
 	flags.StringVar(&c.Server.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
-	flags.StringVar(&c.Server.PluginDir, "pluginDir", "", "Plugin conf.d configuration directory")
 	flags.StringVar(&c.Server.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
 	flags.StringVar(&c.Server.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
@@ -190,10 +187,6 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 		}
 
 		orig.TrustDomain = trustDomain
-	}
-
-	if cmd.Server.PluginDir != "" {
-		orig.PluginDir = cmd.Server.PluginDir
 	}
 
 	// Handle log file and level
@@ -260,6 +253,8 @@ func newDefaultConfig() *server.Config {
 
 	return &server.Config{
 		PluginDir:       defaultPluginDir,
+		ErrorCh:         errCh,
+		ShutdownCh:      shutdownCh,
 		Log:             logger,
 		BindAddress:     bindAddress,
 		BindHTTPAddress: serverHTTPAddress,

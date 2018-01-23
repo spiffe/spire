@@ -14,7 +14,6 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.BindPort, 8081)
 	assert.Equal(t, c.Server.BindHTTPPort, 8080)
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
-	assert.Equal(t, c.Server.PluginDir, "conf/server/plugin")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
 	assert.Equal(t, c.Server.Umask, "")
 }
@@ -24,7 +23,6 @@ func TestParseFlagsGood(t *testing.T) {
 		"-bindAddress=127.0.0.1",
 		"-bindHTTPPort=8080",
 		"-trustDomain=example.org",
-		"-pluginDir=conf/server/plugin",
 		"-logLevel=INFO",
 		"-umask=",
 	})
@@ -32,7 +30,6 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, c.Server.BindAddress, "127.0.0.1")
 	assert.Equal(t, c.Server.BindHTTPPort, 8080)
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
-	assert.Equal(t, c.Server.PluginDir, "conf/server/plugin")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
 	assert.Equal(t, c.Server.Umask, "")
 }
@@ -43,7 +40,6 @@ func TestMergeConfigGood(t *testing.T) {
 		BindPort:     8081,
 		BindHTTPPort: 8080,
 		TrustDomain:  "example.org",
-		PluginDir:    "conf/server/plugin",
 		LogLevel:     "INFO",
 		Umask:        "",
 	}
@@ -61,6 +57,5 @@ func TestMergeConfigGood(t *testing.T) {
 	assert.Equal(t, orig.BindHTTPAddress.Port, 8080)
 	assert.Equal(t, orig.TrustDomain.Scheme, "spiffe")
 	assert.Equal(t, orig.TrustDomain.Host, "example.org")
-	assert.Equal(t, orig.PluginDir, "conf/server/plugin")
 	assert.Equal(t, orig.Umask, 0077)
 }
