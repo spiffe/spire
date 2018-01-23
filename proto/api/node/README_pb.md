@@ -3,59 +3,38 @@
 
 ## Table of Contents
 
-
-* [common.proto](#common.proto)
-  
-    * [AttestedData](#spire.common.AttestedData)
-  
-    * [Empty](#spire.common.Empty)
-  
-    * [RegistrationEntries](#spire.common.RegistrationEntries)
-  
-    * [RegistrationEntry](#spire.common.RegistrationEntry)
-  
-    * [Selector](#spire.common.Selector)
-  
-    * [Selectors](#spire.common.Selectors)
+- [common.proto](#common.proto)
+    - [AttestedData](#spire.common.AttestedData)
+    - [Empty](#spire.common.Empty)
+    - [RegistrationEntries](#spire.common.RegistrationEntries)
+    - [RegistrationEntry](#spire.common.RegistrationEntry)
+    - [Selector](#spire.common.Selector)
+    - [Selectors](#spire.common.Selectors)
   
   
   
   
 
-
-* [node.proto](#node.proto)
-  
-    * [FetchBaseSVIDRequest](#spire.api.node.FetchBaseSVIDRequest)
-  
-    * [FetchBaseSVIDResponse](#spire.api.node.FetchBaseSVIDResponse)
-  
-    * [FetchCPBundleRequest](#spire.api.node.FetchCPBundleRequest)
-  
-    * [FetchCPBundleResponse](#spire.api.node.FetchCPBundleResponse)
-  
-    * [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest)
-  
-    * [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleResponse)
-  
-    * [FetchFederatedBundleResponse.FederatedBundlesEntry](#spire.api.node.FetchFederatedBundleResponse.FederatedBundlesEntry)
-  
-    * [FetchSVIDRequest](#spire.api.node.FetchSVIDRequest)
-  
-    * [FetchSVIDResponse](#spire.api.node.FetchSVIDResponse)
-  
-    * [Svid](#spire.api.node.Svid)
-  
-    * [SvidUpdate](#spire.api.node.SvidUpdate)
-  
-    * [SvidUpdate.SvidsEntry](#spire.api.node.SvidUpdate.SvidsEntry)
+- [node.proto](#node.proto)
+    - [FetchBaseSVIDRequest](#spire.api.node.FetchBaseSVIDRequest)
+    - [FetchBaseSVIDResponse](#spire.api.node.FetchBaseSVIDResponse)
+    - [FetchCPBundleRequest](#spire.api.node.FetchCPBundleRequest)
+    - [FetchCPBundleResponse](#spire.api.node.FetchCPBundleResponse)
+    - [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest)
+    - [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleResponse)
+    - [FetchFederatedBundleResponse.FederatedBundlesEntry](#spire.api.node.FetchFederatedBundleResponse.FederatedBundlesEntry)
+    - [FetchSVIDRequest](#spire.api.node.FetchSVIDRequest)
+    - [FetchSVIDResponse](#spire.api.node.FetchSVIDResponse)
+    - [Svid](#spire.api.node.Svid)
+    - [SvidUpdate](#spire.api.node.SvidUpdate)
+    - [SvidUpdate.SvidsEntry](#spire.api.node.SvidUpdate.SvidsEntry)
   
   
   
-  
-    * [Node](#spire.api.node.Node)
+    - [Node](#spire.api.node.Node)
   
 
-* [Scalar Value Types](#scalar-value-types)
+- [Scalar Value Types](#scalar-value-types)
 
 
 
@@ -117,8 +96,8 @@ manage the various registered nodes and workloads that are controlled by it.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
-| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validityof a selector |
-| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource orcaller. It is defined as a URI comprising a “trust domain” and anassociated path. |
+| parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
+| spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
 | ttl | [int32](#int32) |  | Time to live. |
 | fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
 
@@ -136,7 +115,7 @@ entry is matched.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| type | [string](#string) |  | A selector type represents the type of attestation used in attestingthe entity (Eg: AWS, K8). |
+| type | [string](#string) |  | A selector type represents the type of attestation used in attesting the entity (Eg: AWS, K8). |
 | value | [string](#string) |  | The value to be attested. |
 
 
@@ -200,7 +179,7 @@ all current Registration Entries which are relevant to the caller SPIFFE ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svid_update | [SvidUpdate](#spire.api.node.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all currentRegistration Entries which are relevant to the caller SPIFFE ID. |
+| svid_update | [SvidUpdate](#spire.api.node.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
 
 
 
@@ -302,7 +281,7 @@ of all current Registration Entries which are relevant to the caller SPIFFE ID.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svid_update | [SvidUpdate](#spire.api.node.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current RegistrationEntries which are relevant to the caller SPIFFE ID. |
+| svid_update | [SvidUpdate](#spire.api.node.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
 
 
 
@@ -335,8 +314,8 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svids | [SvidUpdate.SvidsEntry](#spire.api.node.SvidUpdate.SvidsEntry) | repeated | A map containing SVID values and corresponding SPIFFE IDs as thekeys. Map[SPIFFE_ID] =&gt; SVID. |
-| registration_entries | [.spire.common.RegistrationEntry](#spire.api.node..spire.common.RegistrationEntry) | repeated | A type representing a curated record that the Spire Server uses to set upand manage the various registered nodes and workloads that are controlled by it. |
+| svids | [SvidUpdate.SvidsEntry](#spire.api.node.SvidUpdate.SvidsEntry) | repeated | A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] =&gt; SVID. |
+| registration_entries | [.spire.common.RegistrationEntry](#spire.api.node..spire.common.RegistrationEntry) | repeated | A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 
 
 
@@ -373,8 +352,8 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
 | FetchBaseSVID | [FetchBaseSVIDRequest](#spire.api.node.FetchBaseSVIDRequest) | [FetchBaseSVIDResponse](#spire.api.node.FetchBaseSVIDRequest) | Attest the node, get base node SVID. |
-| FetchSVID | [FetchSVIDRequest](#spire.api.node.FetchSVIDRequest) | [FetchSVIDResponse](#spire.api.node.FetchSVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotationBase Node SVID or the Registered Node SVID used for this call)List can be empty to allow Node Agent cache refresh). |
-| FetchCPBundle | [FetchCPBundleRequest](#spire.api.node.FetchCPBundleRequest) | [FetchCPBundleResponse](#spire.api.node.FetchCPBundleRequest) | Called by Node Agent periodically to support Spire Server certificaterotation. Cached in Node Agent memory for WorkLoads as well.Called by the Node Agent to fetch the named Federated CA Bundle. |
+| FetchSVID | [FetchSVIDRequest](#spire.api.node.FetchSVIDRequest) | [FetchSVIDResponse](#spire.api.node.FetchSVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
+| FetchCPBundle | [FetchCPBundleRequest](#spire.api.node.FetchCPBundleRequest) | [FetchCPBundleResponse](#spire.api.node.FetchCPBundleRequest) | Called by Node Agent periodically to support Spire Server certificate rotation. Cached in Node Agent memory for WorkLoads as well. Called by the Node Agent to fetch the named Federated CA Bundle. |
 | FetchFederatedBundle | [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleRequest) | Used in the event that authorized workloads reference a Federated Bundle. |
 
  
