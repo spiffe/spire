@@ -52,7 +52,7 @@ type agentConfig struct {
 	LogFile    string `hcl:"log_file"`
 	LogLevel   string `hcl:"log_level"`
 
-	ConfigPath string `hcl:"config_path"`
+	ConfigPath string
 	Umask      string `hcl:"umask"`
 }
 

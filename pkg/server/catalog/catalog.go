@@ -46,12 +46,8 @@ var (
 )
 
 type Config struct {
-	// Directory in which plugin config files
-	// reside
-	ConfigDir      string
 	PluginsConfigs map[string]map[string]common.HclPluginConfig
-
-	Log logrus.FieldLogger
+	Log            logrus.FieldLogger
 }
 
 type catalog struct {
@@ -67,7 +63,6 @@ type catalog struct {
 
 func New(c *Config) Catalog {
 	commonConfig := &common.Config{
-		ConfigDir:        c.ConfigDir,
 		PluginsConfigs:   c.PluginsConfigs,
 		SupportedPlugins: supportedPlugins,
 		Log:              c.Log,

@@ -11,30 +11,41 @@ a .conf file or passed as command line args, the command line configurations tak
 
 | Configuration     | Description                                            | Default                       |
 |:------------------|:-------------------------------------------------------|:------------------------------|
-| `baseSpiffeIDTTL` | TTL to use when creating the baseSpiffeID              |                               |
-| `bindAddress`     | IP address or DNS name of the SPIRE server             |                               |
-| `bindPort`        | HTTP Port number of the SPIRE server                   |                               |
-| `bindHTTPPort`    | The HTTP port where the SPIRE Service is set to listen |                               |
-| `logFile`         | File to write logs to                                  |                               |
-| `logLevel`        | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>    | INFO                          |
-| `trustDomain`     | The trust domain that this server belongs to           |                               |
+| `base_svid_ttl`   | TTL to use when creating the base SPIFFE ID            |                               |
+| `bind_address`    | IP address or DNS name of the SPIRE server             |                               |
+| `bind_port`       | HTTP Port number of the SPIRE server                   |                               |
+| `bind_http_port`  | The HTTP port where the SPIRE Service is set to listen |                               |
+| `log_file`        | File to write logs to                                  |                               |
+| `log_level`       | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>    | INFO                          |
+| `trust_domain`    | The trust domain that this server belongs to           |                               |
 | `umask`           | Umask value to use for new files                       | 0077                          |
 
 **Note:** Changing the umask may expose your signing authority to users other than the SPIRE
 agent/server
 
-## Plugin configuration files
+## Plugin configuration
 
-Each file in the directory `pluginDir` is expected to contain the configration for one plugin. The
-following copnfiguration options must be present in each file
+The server configuration file also contains the configuration for the server plugins.
+Plugins configurations are under the `plugins { ... }` section, which has the following format:
 
-| Configuration  | Description                             |
-|:---------------|:----------------------------------------|
-| pluginName     | A unique name that describes the plugin |
-| pluginChecksum | An optional sha256 of the plugin binary |
-| enabled        | Enable or disable the plugin            |
-| pluginType     | The plugin type (see below)             |
-| pluginData     | Plugin-specific data                    |
+```hcl
+plugins {
+    pluginType "pluginName" {
+        ...
+        plugin configuration options here
+        ...
+    }
+}
+```
+
+The following configuration options are available to configure a plugin:
+
+| Configuration   | Description                              |
+| --------------- | ---------------------------------------- |
+| plugin_cmd      | Path to the plugin implementation binary |
+| plugin_checksum | An optional sha256 of the plugin binary  |
+| enabled         | Enable or disable the plugin             |
+| plugin_data     | Plugin-specific data                     |
 
 ## Command line options
 
