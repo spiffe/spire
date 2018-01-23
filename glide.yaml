@@ -27,6 +27,8 @@ import:
   version: 1.3.0
 - package: gopkg.in/tomb.v2
 testImport:
+- package: github.com/golang/mock
+  version: 87106cff4623c0d8f41c0fef931007bc18b61f78
 - package: github.com/stretchr/testify
   subpackages:
   - assert

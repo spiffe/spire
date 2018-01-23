@@ -10,7 +10,7 @@ imports:
   subpackages:
   - oleutil
 - name: github.com/golang/mock
-  version: b3e60bcdc577185fce3cf625fc96b62857ce5574
+  version: 87106cff4623c0d8f41c0fef931007bc18b61f78
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
