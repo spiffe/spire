@@ -1,5 +1,5 @@
-hash: d8b35cd1f22bd8d0342fab6a59701b40440aadc48a0f965c82fa7cb4f3f8c75e
-updated: 2018-01-23T12:17:01.376833-08:00
+hash: b4c879b27535d6987759f7bb53a2d5d52dc4f89b54d51856dc756fbc93afc77b
+updated: 2018-01-23T15:07:07.496953-08:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -39,7 +39,7 @@ imports:
 - name: github.com/hashicorp/go-multierror
   version: b7773ae218740a7be65057fc60b366a49b538a44
 - name: github.com/hashicorp/go-plugin
-  version: 1fc09c47b843b73705f51ffb0520e3ac1bfecf99
+  version: e37881a3f1a07fce82b3d99ce0342a72e53386bc
 - name: github.com/hashicorp/hcl
   version: 23c074d0eceb2b8a5bfdbb271ab780cde70f05a8
   subpackages:
@@ -72,8 +72,6 @@ imports:
   version: 518dc677a1e1222682f4e7db06721942cb8e9e4c
 - name: github.com/mitchellh/go-testing-interface
   version: a61a99592b77c9ba629d254a693acffaeb4b7e28
-- name: github.com/oklog/run
-  version: 4dadeb3030eda0273a12382bb2348ffc7c9d1a39
 - name: github.com/posener/complete
   version: cdc49b71388c2ab059f57997ef2575c9e8b4f146
   subpackages:

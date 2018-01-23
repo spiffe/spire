@@ -6,6 +6,7 @@ import:
   - ptypes/empty
   - protoc-gen-go
 - package: github.com/hashicorp/go-plugin
+  version: e37881a3f1a07fce82b3d99ce0342a72e53386bc
 - package: github.com/sirupsen/logrus
 - package: golang.org/x/net
 - package: github.com/satori/go.uuid
