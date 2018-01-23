@@ -55,6 +55,10 @@ func (server *Server) Run() error {
 		server.t = new(tomb.Tomb)
 	}
 
+	if server.m == nil {
+		server.m = new(sync.RWMutex)
+	}
+
 	server.t.Go(server.run)
 
 	return server.t.Wait()
@@ -62,10 +66,6 @@ func (server *Server) Run() error {
 
 func (server *Server) run() error {
 	server.prepareUmask()
-
-	if server.m == nil {
-		server.m = new(sync.RWMutex)
-	}
 
 	err := server.initPlugins()
 	if err != nil {
