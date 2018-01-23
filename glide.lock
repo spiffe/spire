@@ -1,5 +1,5 @@
-hash: ad29d87f077f367d9f4281a16a450e7abc520709c7119f939b08b428f8186d82
-updated: 2018-01-20T13:18:23.663114-08:00
+hash: d8b35cd1f22bd8d0342fab6a59701b40440aadc48a0f965c82fa7cb4f3f8c75e
+updated: 2018-01-23T12:17:01.376833-08:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61

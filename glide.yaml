@@ -13,6 +13,8 @@ import:
   - context
 - package: google.golang.org/grpc
   version: ^1.5.0
+- package: github.com/golang/mock
+  version: 87106cff4623c0d8f41c0fef931007bc18b61f78
 - package: github.com/jstemmer/go-junit-report
 - package: github.com/jteeuwen/go-bindata
   version: ~3.0.7
@@ -27,8 +29,6 @@ import:
   version: 1.3.0
 - package: gopkg.in/tomb.v2
 testImport:
-- package: github.com/golang/mock
-  version: 87106cff4623c0d8f41c0fef931007bc18b61f78
 - package: github.com/stretchr/testify
   subpackages:
   - assert
