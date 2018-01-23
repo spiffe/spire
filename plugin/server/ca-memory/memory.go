@@ -47,6 +47,7 @@ type configuration struct {
 	BackdateSecs int               `hcl:"backdate_seconds" json:"backdate_seconds"`
 	KeySize      int               `hcl:"key_size" json:"key_size"`
 	CertSubject  certSubjectConfig `hcl:"cert_subject" json:"cert_subject"`
+	DefaultTTL   int               `hcl:"default_ttl" json:"default_ttl"`
 }
 
 type memoryPlugin struct {
@@ -78,6 +79,11 @@ func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 		return resp, err
 	}
 
+	ttl := defaultTTL
+	if config.DefaultTTL > 0 {
+		ttl = config.DefaultTTL
+	}
+
 	// Set local vars from config struct
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -86,6 +92,7 @@ func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 	m.config.BackdateSecs = config.BackdateSecs
 	m.config.KeySize = config.KeySize
 	m.config.CertSubject = config.CertSubject
+	m.config.DefaultTTL = ttl
 
 	return resp, nil
 }
@@ -106,8 +113,8 @@ func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 	}
 
 	if request.Ttl == 0 {
-		log.Printf("TTL is set to 0. Using default TTL: %v", defaultTTL)
-		request.Ttl = defaultTTL
+		log.Printf("TTL is set to 0. Using default TTL: %v", m.config.DefaultTTL)
+		request.Ttl = int32(m.config.DefaultTTL)
 	} else if request.Ttl < 0 {
 		return nil, fmt.Errorf("Invalid TTL: %v", request.Ttl)
 	}

@@ -2,30 +2,22 @@ package server
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"net"
 	"net/url"
-	"path"
+	"sync"
 	"syscall"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/pkg/server/endpoint"
+	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/upstreamca"
+
+	"gopkg.in/tomb.v2"
 )
 
 type Config struct {
-	// TTL we will use when creating the Base SVID
-	BaseSVIDTtl int32
-
-	// TTL we will use when creating the Server SVID
-	ServerSVIDTtl int32
-
 	// Directory for plugin configs
 	PluginDir string
 
@@ -37,12 +29,6 @@ type Config struct {
 	// Address of the HTTP SPIRE server
 	BindHTTPAddress *net.TCPAddr
 
-	// A channel for receiving errors from server goroutines
-	ErrorCh chan error
-
-	// A channel to trigger server shutdown
-	ShutdownCh chan struct{}
-
 	// Trust domain
 	TrustDomain url.URL
 
@@ -53,15 +39,32 @@ type Config struct {
 type Server struct {
 	Catalog    catalog.Catalog
 	Config     *Config
-	endpoints  endpoint.Endpoint
+	endpoints  endpoints.Server
 	privateKey *ecdsa.PrivateKey
 	svid       *x509.Certificate
+
+	m *sync.RWMutex
+	t *tomb.Tomb
 }
 
 // Run the server
 // This method initializes the server, including its plugins,
-// and then blocks on the main event loop.
+// and then blocks until it's shut down or an error is encountered.
 func (server *Server) Run() error {
+	if server.t == nil {
+		server.t = new(tomb.Tomb)
+	}
+
+	if server.m == nil {
+		server.m = new(sync.RWMutex)
+	}
+
+	server.t.Go(server.run)
+
+	return server.t.Wait()
+}
+
+func (server *Server) run() error {
 	server.prepareUmask()
 
 	err := server.initPlugins()
@@ -71,33 +74,26 @@ func (server *Server) Run() error {
 
 	err = server.rotateSigningCert()
 	if err != nil {
+		server.Catalog.Stop()
 		return err
 	}
 
-	server.svid, server.privateKey, err = server.rotateSVID()
-	if err != nil {
-		return err
+	server.t.Go(server.startEndpoints)
+
+	<-server.t.Dying()
+	if server.t.Err() != nil {
+		server.Config.Log.Errorf("fatal: %v", server.t.Err())
 	}
 
-	err = server.initEndpoints()
-	if err != nil {
-		return err
-	}
-
-	// Main event loop
-	server.Config.Log.Info("SPIRE Server is now running")
-
-	for {
-		select {
-		case err = <-server.Config.ErrorCh:
-			return err
-		case <-server.Config.ShutdownCh:
-			return server.Shutdown()
-		}
-	}
+	server.shutdown()
+	return nil
 }
 
-func (server *Server) Shutdown() error {
+func (server *Server) Shutdown() {
+	server.t.Kill(nil)
+}
+
+func (server *Server) shutdown() {
 	if server.endpoints != nil {
 		server.endpoints.Shutdown()
 	}
@@ -106,8 +102,7 @@ func (server *Server) Shutdown() error {
 		server.Catalog.Stop()
 	}
 
-	// Unblock closing endpoints
-	return <-server.Config.ErrorCh
+	return
 }
 
 func (server *Server) prepareUmask() {
@@ -128,93 +123,30 @@ func (server *Server) initPlugins() error {
 		return err
 	}
 
-	server.Config.Log.Info("Starting plugins done")
-
+	server.Config.Log.Info("plugins started")
 	return nil
 }
 
-func (server *Server) initEndpoints() error {
-	ns := &nodeServer{
-		l:           server.Config.Log,
-		catalog:     server.Catalog,
-		trustDomain: server.Config.TrustDomain,
-		baseSVIDTtl: server.Config.BaseSVIDTtl,
+func (server *Server) startEndpoints() error {
+	server.m.Lock()
+
+	c := &endpoints.Config{
+		GRPCAddr:    server.Config.BindAddress,
+		HTTPAddr:    server.Config.BindHTTPAddress,
+		TrustDomain: server.Config.TrustDomain,
+		Catalog:     server.Catalog,
+		Log:         server.Config.Log.WithField("subsystem_name", "endpoints"),
 	}
 
-	rs := &registrationServer{
-		l:       server.Config.Log,
-		catalog: server.Catalog,
-	}
+	server.endpoints = endpoints.New(c)
+	server.m.Unlock()
 
-	log := server.Config.Log.WithField("subsystem_name", "endpoint")
-	cert, err := server.signingCert()
-	if err != nil {
-		return err
-	}
+	server.t.Go(server.endpoints.ListenAndServe)
 
-	c := &endpoint.Config{
-		NS:       ns,
-		RS:       rs,
-		GRPCAddr: server.Config.BindAddress,
-		HTTPAddr: server.Config.BindHTTPAddress,
-		SVID:     server.svid,
-		SVIDKey:  server.privateKey,
-		CACert:   cert,
-		Log:      log,
-	}
+	<-server.t.Dying()
+	server.endpoints.Shutdown()
 
-	server.endpoints = endpoint.New(c)
-	go func() { server.Config.ErrorCh <- server.endpoints.ListenAndServe() }()
 	return nil
-}
-
-func (server *Server) rotateSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	spiffeID := &url.URL{
-		Scheme: "spiffe",
-		Host:   server.Config.TrustDomain.Host,
-		Path:   path.Join("spiffe", "cp"),
-	}
-
-	l := server.Config.Log.WithField("SPIFFE_ID", spiffeID.String())
-	l.Info("Rotating SPIRE server SVID")
-
-	uriSAN, err := uri.MarshalUriSANs([]string{spiffeID.String()})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-	if err != nil {
-		return nil, nil, err
-	}
-	req := &x509.CertificateRequest{
-		SignatureAlgorithm: x509.ECDSAWithSHA256,
-		ExtraExtensions: []pkix.Extension{{
-			Id:       uri.OidExtensionSubjectAltName,
-			Value:    uriSAN,
-			Critical: false,
-		}},
-	}
-	csr, err := x509.CreateCertificateRequest(rand.Reader, req, key)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	l.Debug("Sending CSR to the CA plugin")
-	serverCA := server.Catalog.CAs()[0]
-	res, err := serverCA.SignCsr(
-		&ca.SignCsrRequest{Csr: csr, Ttl: server.Config.ServerSVIDTtl})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	cert, err := x509.ParseCertificate(res.SignedCertificate)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	l.Debug("SPIRE server SVID rotation complete")
-	return cert, key, nil
 }
 
 func (server *Server) rotateSigningCert() error {
@@ -235,14 +167,4 @@ func (server *Server) rotateSigningCert() error {
 	_, err = serverCA.LoadCertificate(req)
 
 	return err
-}
-
-func (server *Server) signingCert() (*x509.Certificate, error) {
-	c := server.Catalog.CAs()[0]
-	res, err := c.FetchCertificate(&ca.FetchCertificateRequest{})
-	if err != nil {
-		return nil, err
-	}
-
-	return x509.ParseCertificate(res.StoredIntermediateCert)
 }

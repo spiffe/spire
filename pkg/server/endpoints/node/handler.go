@@ -1,4 +1,4 @@
-package server
+package node
 
 import (
 	"crypto/x509"
@@ -26,96 +26,95 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
-type nodeServer struct {
-	l           logrus.FieldLogger
-	catalog     catalog.Catalog
-	trustDomain url.URL
-	baseSVIDTtl int32
+type Handler struct {
+	Log         logrus.FieldLogger
+	Catalog     catalog.Catalog
+	TrustDomain url.URL
 }
 
 //FetchBaseSVID attests the node and gets the base node SVID.
-func (s *nodeServer) FetchBaseSVID(
+func (h *Handler) FetchBaseSVID(
 	ctx context.Context, request *node.FetchBaseSVIDRequest) (
 	response *node.FetchBaseSVIDResponse, err error) {
 
-	serverCA := s.catalog.CAs()[0]
+	serverCA := h.Catalog.CAs()[0]
 
 	baseSpiffeIDFromCSR, err := getSpiffeIDFromCSR(request.Csr)
 	if err != nil {
-		s.l.Error(err)
+		h.Log.Error(err)
 		return response, errors.New("Error trying to get SpiffeId from CSR")
 	}
 
-	attestedBefore, err := s.isAttested(baseSpiffeIDFromCSR)
+	attestedBefore, err := h.isAttested(baseSpiffeIDFromCSR)
 	if err != nil {
-		s.l.Error(err)
+		h.Log.Error(err)
 		return response, errors.New("Error trying to check if attested")
 	}
 
 	// Join token is a special case
 	var attestResponse *nodeattestor.AttestResponse
 	if request.AttestedData.Type == "join_token" {
-		attestResponse, err = s.attestToken(request.AttestedData, attestedBefore)
+		attestResponse, err = h.attestToken(request.AttestedData, attestedBefore)
 	} else {
-		attestResponse, err = s.attest(request.AttestedData, attestedBefore)
+		attestResponse, err = h.attest(request.AttestedData, attestedBefore)
 	}
 	if err != nil {
-		s.l.Error(err)
+		h.Log.Error(err)
 		return response, errors.New("Error trying to attest")
 	}
 
-	err = s.validateAttestation(baseSpiffeIDFromCSR, attestResponse)
+	err = h.validateAttestation(baseSpiffeIDFromCSR, attestResponse)
 	if err != nil {
-		s.l.Error(err)
+		h.Log.Error(err)
 		return response, errors.New("Error trying to validate attestation")
 	}
 
-	signResponse, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr, Ttl: s.baseSVIDTtl})
+	signResponse, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr})
 	if err != nil {
-		s.l.Error(err)
+		h.Log.Error(err)
 		return response, errors.New("Error trying to sign CSR")
 	}
 
 	if attestedBefore {
-		err = s.updateAttestationEntry(signResponse.SignedCertificate, baseSpiffeIDFromCSR)
+		err = h.updateAttestationEntry(signResponse.SignedCertificate, baseSpiffeIDFromCSR)
 		if err != nil {
-			s.l.Error(err)
+			h.Log.Error(err)
 			return response, errors.New("Error trying to update attestation entry")
 		}
 
 	} else {
-		err = s.createAttestationEntry(signResponse.SignedCertificate, baseSpiffeIDFromCSR, request.AttestedData.Type)
+		err = h.createAttestationEntry(signResponse.SignedCertificate, baseSpiffeIDFromCSR, request.AttestedData.Type)
 		if err != nil {
-			s.l.Error(err)
+			h.Log.Error(err)
 			return response, errors.New("Error trying to create attestation entry")
 		}
 
 	}
 
-	selectors, err := s.resolveSelectors(baseSpiffeIDFromCSR)
+	selectors, err := h.resolveSelectors(baseSpiffeIDFromCSR)
 	if err != nil {
-		s.l.Error(err)
+		h.Log.Error(err)
 		return response, errors.New("Error trying to get selectors for baseSpiffeID")
 	}
 
-	response, err = s.getFetchBaseSVIDResponse(
+	response, err = h.getFetchBaseSVIDResponse(
 		baseSpiffeIDFromCSR, signResponse.SignedCertificate, selectors)
 	if err != nil {
-		s.l.Error(err)
+		h.Log.Error(err)
 		return response, errors.New("Error trying to compose response")
 	}
 
-	s.l.Info("Received node attestation request from ", baseSpiffeIDFromCSR,
+	h.Log.Info("Received node attestation request from ", baseSpiffeIDFromCSR,
 		" using strategy '", request.AttestedData.Type,
-		"' completed successfully. SVID issued with TTL=", s.baseSVIDTtl)
+		"' completed successfully.")
 
 	return response, nil
 }
 
-//FetchSVID gets Workload, Agent certs and CA trust bundles.
+//FetchSVID gets Workload, Agent certs and CA trust bundleh.
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
-func (s *nodeServer) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
+func (h *Handler) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
 
 	for {
 		request, err := server.Recv()
@@ -126,34 +125,34 @@ func (s *nodeServer) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
 			return err
 		}
 
-		peerCert, err := s.getCertFromCtx(server.Context())
+		peerCert, err := h.getCertFromCtx(server.Context())
 		if err != nil {
-			s.l.Error(err)
+			h.Log.Error(err)
 			return errors.New("An SVID is required for this request")
 		}
 
 		uriNames, err := uri.GetURINamesFromCertificate(peerCert)
 		if err != nil {
-			s.l.Error(err)
+			h.Log.Error(err)
 			return errors.New("An SPIFFE ID is required for this request")
 		}
 		ctxSpiffeID := uriNames[0]
 
-		selectors, err := s.getStoredSelectors(ctxSpiffeID)
+		selectors, err := h.getStoredSelectors(ctxSpiffeID)
 		if err != nil {
-			s.l.Error(err)
+			h.Log.Error(err)
 			return errors.New("Error trying to get stored selectors")
 		}
 
-		regEntries, err := s.fetchRegistrationEntries(selectors, ctxSpiffeID)
+		regEntries, err := h.fetchRegistrationEntries(selectors, ctxSpiffeID)
 		if err != nil {
-			s.l.Error(err)
+			h.Log.Error(err)
 			return errors.New("Error trying to get registration entries")
 		}
 
-		svids, err := s.signCSRs(peerCert, request.Csrs, regEntries)
+		svids, err := h.signCSRs(peerCert, request.Csrs, regEntries)
 		if err != nil {
-			s.l.Error(err)
+			h.Log.Error(err)
 			return errors.New("Error trying sign CSRs")
 		}
 
@@ -167,24 +166,24 @@ func (s *nodeServer) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
 }
 
 //TODO
-func (s *nodeServer) FetchCPBundle(
+func (h *Handler) FetchCPBundle(
 	ctx context.Context, request *node.FetchCPBundleRequest) (
 	response *node.FetchCPBundleResponse, err error) {
 	return response, nil
 }
 
 //TODO
-func (s *nodeServer) FetchFederatedBundle(
+func (h *Handler) FetchFederatedBundle(
 	ctx context.Context, request *node.FetchFederatedBundleRequest) (
 	response *node.FetchFederatedBundleResponse, err error) {
 	return response, nil
 }
 
 //TODO: add unit test and review this
-func (s *nodeServer) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
+func (h *Handler) fetchRegistrationEntries(selectors []*common.Selector, spiffeID string) (
 	[]*common.RegistrationEntry, error) {
 
-	dataStore := s.catalog.DataStores()[0]
+	dataStore := h.Catalog.DataStores()[0]
 	var entries []*common.RegistrationEntry
 
 	///lookup Registration Entries for resolved selectors
@@ -219,9 +218,9 @@ func (s *nodeServer) fetchRegistrationEntries(selectors []*common.Selector, spif
 	return entries, err
 }
 
-func (s *nodeServer) isAttested(baseSpiffeID string) (bool, error) {
+func (h *Handler) isAttested(baseSpiffeID string) (bool, error) {
 
-	dataStore := s.catalog.DataStores()[0]
+	dataStore := h.Catalog.DataStores()[0]
 
 	fetchRequest := &datastore.FetchAttestedNodeEntryRequest{
 		BaseSpiffeId: baseSpiffeID,
@@ -239,14 +238,14 @@ func (s *nodeServer) isAttested(baseSpiffeID string) (bool, error) {
 	return false, nil
 }
 
-func (s *nodeServer) attest(
+func (h *Handler) attest(
 	attestedData *common.AttestedData, attestedBefore bool) (
 	response *nodeattestor.AttestResponse, err error) {
 
 	// Pick the right node attestor
 	var nodeAttestor nodeattestor.NodeAttestor
-	for _, a := range s.catalog.NodeAttestors() {
-		mp := s.catalog.Find(a)
+	for _, a := range h.Catalog.NodeAttestors() {
+		mp := h.Catalog.Find(a)
 		if mp.Config.PluginName == attestedData.Type {
 			nodeAttestor = a
 			break
@@ -269,7 +268,7 @@ func (s *nodeServer) attest(
 	return attestResponse, nil
 }
 
-func (s *nodeServer) attestToken(
+func (h *Handler) attestToken(
 	attestedData *common.AttestedData, attestedBefore bool) (
 	response *nodeattestor.AttestResponse, err error) {
 
@@ -277,7 +276,7 @@ func (s *nodeServer) attestToken(
 		return nil, errors.New("join token has already been used")
 	}
 
-	ds := s.catalog.DataStores()[0]
+	ds := h.Catalog.DataStores()[0]
 	req := &datastore.JoinToken{Token: string(attestedData.Data)}
 	t, err := ds.FetchToken(req)
 	if err != nil {
@@ -298,8 +297,8 @@ func (s *nodeServer) attestToken(
 	// Don't fail if we can't delete
 	_, _ = ds.DeleteToken(req)
 	id := &url.URL{
-		Scheme: s.trustDomain.Scheme,
-		Host:   s.trustDomain.Host,
+		Scheme: h.TrustDomain.Scheme,
+		Host:   h.TrustDomain.Host,
 		Path:   path.Join("spire", "agent", "join_token", t.Token),
 	}
 	resp := &nodeattestor.AttestResponse{
@@ -310,7 +309,7 @@ func (s *nodeServer) attestToken(
 	return resp, nil
 }
 
-func (s *nodeServer) validateAttestation(
+func (h *Handler) validateAttestation(
 	csrBaseSpiffeID string, attestResponse *nodeattestor.AttestResponse) error {
 
 	if !attestResponse.Valid {
@@ -324,10 +323,10 @@ func (s *nodeServer) validateAttestation(
 	return nil
 }
 
-func (s *nodeServer) updateAttestationEntry(
+func (h *Handler) updateAttestationEntry(
 	certificate []byte, baseSPIFFEID string) error {
 
-	dataStore := s.catalog.DataStores()[0]
+	dataStore := h.Catalog.DataStores()[0]
 
 	cert, err := x509.ParseCertificate(certificate)
 	if err != nil {
@@ -348,10 +347,10 @@ func (s *nodeServer) updateAttestationEntry(
 	return nil
 }
 
-func (s *nodeServer) createAttestationEntry(
+func (h *Handler) createAttestationEntry(
 	certificate []byte, baseSPIFFEID string, attestationType string) error {
 
-	dataStore := s.catalog.DataStores()[0]
+	dataStore := h.Catalog.DataStores()[0]
 
 	cert, err := x509.ParseCertificate(certificate)
 	if err != nil {
@@ -373,11 +372,11 @@ func (s *nodeServer) createAttestationEntry(
 	return nil
 }
 
-func (s *nodeServer) resolveSelectors(
+func (h *Handler) resolveSelectors(
 	baseSpiffeID string) ([]*common.Selector, error) {
 
-	dataStore := s.catalog.DataStores()[0]
-	nodeResolver := s.catalog.NodeResolvers()[0]
+	dataStore := h.Catalog.DataStores()[0]
+	nodeResolver := h.Catalog.NodeResolvers()[0]
 	//Call node resolver plugin to get a map of spiffeID=>Selector
 	selectors, err := nodeResolver.Resolve([]string{baseSpiffeID})
 	if err != nil {
@@ -405,10 +404,10 @@ func (s *nodeServer) resolveSelectors(
 	return []*common.Selector{}, nil
 }
 
-func (s *nodeServer) getStoredSelectors(
+func (h *Handler) getStoredSelectors(
 	baseSpiffeID string) ([]*common.Selector, error) {
 
-	dataStore := s.catalog.DataStores()[0]
+	dataStore := h.Catalog.DataStores()[0]
 
 	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
 	nodeResolutionResponse, err := dataStore.FetchNodeResolverMapEntry(req)
@@ -424,17 +423,23 @@ func (s *nodeServer) getStoredSelectors(
 	return selectors, nil
 }
 
-func (s *nodeServer) getFetchBaseSVIDResponse(
+func (h *Handler) getFetchBaseSVIDResponse(
 	baseSpiffeID string, baseSvid []byte, selectors []*common.Selector) (
 	*node.FetchBaseSVIDResponse, error) {
 
-	svids := make(map[string]*node.Svid)
-	svids[baseSpiffeID] = &node.Svid{
-		SvidCert: baseSvid,
-		Ttl:      s.baseSVIDTtl,
+	// Parse base svid to approximate TTL
+	cert, err := x509.ParseCertificate(baseSvid)
+	if err != nil {
+		return &node.FetchBaseSVIDResponse{}, err
 	}
 
-	regEntries, err := s.fetchRegistrationEntries(selectors, baseSpiffeID)
+	svids := make(map[string]*node.Svid)
+	svids[baseSpiffeID] = &node.Svid{
+		SvidCert: cert.Raw,
+		Ttl:      int32(time.Until(cert.NotAfter).Seconds()),
+	}
+
+	regEntries, err := h.fetchRegistrationEntries(selectors, baseSpiffeID)
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +450,7 @@ func (s *nodeServer) getFetchBaseSVIDResponse(
 	return &node.FetchBaseSVIDResponse{SvidUpdate: svidUpdate}, nil
 }
 
-func (s *nodeServer) getCertFromCtx(ctx context.Context) (certificate *x509.Certificate, err error) {
+func (h *Handler) getCertFromCtx(ctx context.Context) (certificate *x509.Certificate, err error) {
 
 	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -463,13 +468,13 @@ func (s *nodeServer) getCertFromCtx(ctx context.Context) (certificate *x509.Cert
 	return tlsInfo.State.PeerCertificates[0], nil
 }
 
-func (s *nodeServer) signCSRs(
+func (h *Handler) signCSRs(
 	peerCert *x509.Certificate, csrs [][]byte, regEntries []*common.RegistrationEntry) (
 	svids map[string]*node.Svid, err error) {
 
 	uriNames, err := uri.GetURINamesFromCertificate(peerCert)
 	if err != nil {
-		s.l.Error(err)
+		h.Log.Error(err)
 		return nil, errors.New("An SPIFFE ID is required for this request")
 	}
 	callerID := uriNames[0]
@@ -480,7 +485,7 @@ func (s *nodeServer) signCSRs(
 		regEntriesMap[entry.SpiffeId] = entry
 	}
 
-	dataStore := s.catalog.DataStores()[0]
+	dataStore := h.Catalog.DataStores()[0]
 	svids = make(map[string]*node.Svid)
 	//iterate the CSRs and sign them
 	for _, csr := range csrs {
@@ -489,7 +494,7 @@ func (s *nodeServer) signCSRs(
 			return nil, err
 		}
 
-		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", s.trustDomain.String())
+		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", h.TrustDomain.String())
 
 		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
 			res, err := dataStore.FetchAttestedNodeEntry(
@@ -503,19 +508,19 @@ func (s *nodeServer) signCSRs(
 				return nil, err
 			}
 
-			svid, err := s.buildBaseSVID(csr)
+			svid, err := h.buildBaseSVID(csr)
 			if err != nil {
 				return nil, err
 			}
 			svids[spiffeID] = svid
 
-			s.updateAttestationEntry(svid.SvidCert, spiffeID)
+			h.updateAttestationEntry(svid.SvidCert, spiffeID)
 			if err != nil {
 				return nil, err
 			}
 
 		} else {
-			svid, err := s.buildSVID(spiffeID, regEntriesMap, csr)
+			svid, err := h.buildSVID(spiffeID, regEntriesMap, csr)
 			if err != nil {
 				return nil, err
 			}
@@ -526,11 +531,11 @@ func (s *nodeServer) signCSRs(
 	return svids, nil
 }
 
-func (s *nodeServer) buildSVID(
+func (h *Handler) buildSVID(
 	spiffeID string, regEntries map[string]*common.RegistrationEntry, csr []byte) (
 	*node.Svid, error) {
 
-	serverCA := s.catalog.CAs()[0]
+	serverCA := h.Catalog.CAs()[0]
 	//TODO: Validate that other fields are not populated https://github.com/spiffe/spire/issues/161
 	//validate that is present in the registration entries, otherwise we shouldn't sign
 	entry, ok := regEntries[spiffeID]
@@ -547,16 +552,23 @@ func (s *nodeServer) buildSVID(
 	return &node.Svid{SvidCert: signResponse.SignedCertificate, Ttl: entry.Ttl}, nil
 }
 
-func (s *nodeServer) buildBaseSVID(csr []byte) (*node.Svid, error) {
-	serverCA := s.catalog.CAs()[0]
-	signReq := &ca.SignCsrRequest{Csr: csr, Ttl: s.baseSVIDTtl}
+func (h *Handler) buildBaseSVID(csr []byte) (*node.Svid, error) {
+	serverCA := h.Catalog.CAs()[0]
+	signReq := &ca.SignCsrRequest{Csr: csr}
 	signResponse, err := serverCA.SignCsr(signReq)
 	if err != nil {
 		return nil, err
 	}
 
+	// Parse base SVID to approximate TTL
+	cert, err := x509.ParseCertificate(signResponse.SignedCertificate)
+	if err != nil {
+		return nil, err
+	}
+
 	return &node.Svid{
-		SvidCert: signResponse.SignedCertificate, Ttl: s.baseSVIDTtl,
+		SvidCert: signResponse.SignedCertificate,
+		Ttl:      int32(time.Until(cert.NotAfter).Seconds()),
 	}, nil
 }
 

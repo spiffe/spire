@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"sort"
 	"sync"
@@ -448,8 +449,13 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 		return nil, errors.New("Invalid request: TTL < 0")
 	}
 
+	entryID, err := uuid.NewV4()
+	if err != nil {
+		return nil, fmt.Errorf("could not generate entry id: %v", err)
+	}
+
 	newRegisteredEntry := RegisteredEntry{
-		EntryID:  uuid.NewV4().String(),
+		EntryID:  entryID.String(),
 		SpiffeID: request.RegisteredEntry.SpiffeId,
 		ParentID: request.RegisteredEntry.ParentId,
 		TTL:      request.RegisteredEntry.Ttl,

@@ -16,8 +16,6 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.TrustDomain, "example.org")
 	assert.Equal(t, c.PluginDir, "conf/server/plugin")
 	assert.Equal(t, c.LogLevel, "INFO")
-	assert.Equal(t, c.BaseSVIDTtl, 999999)
-	assert.Equal(t, c.ServerSVIDTtl, 999999)
 	assert.Equal(t, c.Umask, "")
 }
 
@@ -28,8 +26,6 @@ func TestParseFlagsGood(t *testing.T) {
 		"-trustDomain=example.org",
 		"-pluginDir=conf/server/plugin",
 		"-logLevel=INFO",
-		"-baseSVIDTtl=999999",
-		"-serverSVIDTtl=999999",
 		"-umask=",
 	})
 	require.NoError(t, err)
@@ -38,22 +34,18 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, c.TrustDomain, "example.org")
 	assert.Equal(t, c.PluginDir, "conf/server/plugin")
 	assert.Equal(t, c.LogLevel, "INFO")
-	assert.Equal(t, c.BaseSVIDTtl, 999999)
-	assert.Equal(t, c.ServerSVIDTtl, 999999)
 	assert.Equal(t, c.Umask, "")
 }
 
 func TestMergeConfigGood(t *testing.T) {
 	c := &RunConfig{
-		BindAddress:   "127.0.0.1",
-		BindPort:      8081,
-		BindHTTPPort:  8080,
-		TrustDomain:   "example.org",
-		PluginDir:     "conf/server/plugin",
-		LogLevel:      "INFO",
-		BaseSVIDTtl:   999999,
-		ServerSVIDTtl: 999999,
-		Umask:         "",
+		BindAddress:  "127.0.0.1",
+		BindPort:     8081,
+		BindHTTPPort: 8080,
+		TrustDomain:  "example.org",
+		PluginDir:    "conf/server/plugin",
+		LogLevel:     "INFO",
+		Umask:        "",
 	}
 	orig := newDefaultConfig()
 	err := mergeConfig(orig, c)
