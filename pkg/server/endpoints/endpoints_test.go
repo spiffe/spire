@@ -2,7 +2,6 @@ package endpoints
 
 import (
 	"crypto/x509"
-	// "fmt"
 	"net"
 	"net/url"
 	"testing"

@@ -427,7 +427,7 @@ func (h *Handler) getFetchBaseSVIDResponse(
 	baseSpiffeID string, baseSvid []byte, selectors []*common.Selector) (
 	*node.FetchBaseSVIDResponse, error) {
 
-    // Parse base svid to approximate TTL
+	// Parse base svid to approximate TTL
 	cert, err := x509.ParseCertificate(baseSvid)
 	if err != nil {
 		return &node.FetchBaseSVIDResponse{}, err

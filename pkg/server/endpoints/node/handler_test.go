@@ -120,10 +120,10 @@ func TestFetchSVIDWithRotation(t *testing.T) {
 	data.generatedCerts = append(
 		data.generatedCerts, getBytesFromPem("base_rotated_cert.pem"))
 
-    // Calculate expected TTL
-    cert, err := x509.ParseCertificate(data.generatedCerts[3])
-    require.NoError(t, err)
-    ttl := int32(time.Until(cert.NotAfter).Seconds())
+	// Calculate expected TTL
+	cert, err := x509.ParseCertificate(data.generatedCerts[3])
+	require.NoError(t, err)
+	ttl := int32(time.Until(cert.NotAfter).Seconds())
 
 	data.expectation = getExpectedFetchSVID(data)
 	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: data.generatedCerts[3], Ttl: ttl}
