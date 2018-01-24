@@ -171,22 +171,6 @@ func (c *catalog) loadConfigFromHclConfig(hclPluginConfig HclPluginConfig) error
 	return nil
 }
 
-func (c *catalog) loadConfig(path string) error {
-	c.l.Debugf("loading %s", path)
-	config, err := parsePluginConfigFromFile(path)
-	if err != nil {
-		return err
-	}
-
-	p := &ManagedPlugin{
-		ConfigPath: path,
-		Config:     config,
-	}
-	c.plugins = append(c.plugins, p)
-
-	return nil
-}
-
 func (c *catalog) startPlugins() error {
 	for _, p := range c.plugins {
 		if !p.Config.Enabled {

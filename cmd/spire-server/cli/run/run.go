@@ -43,8 +43,8 @@ type serverConfig struct {
 	LogLevel      string `hcl:"log_level"`
 	BaseSVIDTtl   int    `hcl:"base_svid_ttl"`
 	ServerSVIDTtl int    `hcl:"server_svid_ttl"`
-	ConfigPath
-	Umask string `hcl:"umask"`
+	ConfigPath    string
+	Umask         string `hcl:"umask"`
 }
 
 // Run CLI struct
@@ -102,7 +102,6 @@ func (*RunCLI) Synopsis() string {
 
 func parseFile(filePath string) (*runConfig, error) {
 	c := &runConfig{}
-
 	// Return a friendly error if the file is missing
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		msg := "could not find config file %s: please use the -config flag"
