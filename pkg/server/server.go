@@ -14,19 +14,12 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/upstreamca"
+	tomb "gopkg.in/tomb.v2"
 )
 
 type Config struct {
-<<<<<<< HEAD
 	// Directory for plugin configs
 	PluginDir string
-=======
-	// TTL we will use when creating the Base SVID
-	BaseSVIDTtl int32
-
-	// TTL we will use when creating the Server SVID
-	ServerSVIDTtl int32
->>>>>>> Remove plugin configuration files. Update some documentation.
 
 	// Configurations for server plugins
 	PluginsConfigs map[string]map[string]common_catalog.HclPluginConfig

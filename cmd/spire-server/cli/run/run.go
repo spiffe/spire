@@ -211,14 +211,6 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 		orig.Umask = int(umask)
 	}
 
-	if cmd.Server.BaseSVIDTtl != 0 {
-		orig.BaseSVIDTtl = int32(cmd.Server.BaseSVIDTtl)
-	}
-
-	if cmd.Server.ServerSVIDTtl != 0 {
-		orig.ServerSVIDTtl = int32(cmd.Server.ServerSVIDTtl)
-	}
-
 	if cmd.PluginsConfigs != nil {
 		orig.PluginsConfigs = cmd.PluginsConfigs
 	}
@@ -251,9 +243,6 @@ func newDefaultConfig() *server.Config {
 	serverHTTPAddress := &net.TCPAddr{}
 
 	return &server.Config{
-		PluginDir:       defaultPluginDir,
-		ErrorCh:         errCh,
-		ShutdownCh:      shutdownCh,
 		Log:             logger,
 		BindAddress:     bindAddress,
 		BindHTTPAddress: serverHTTPAddress,
