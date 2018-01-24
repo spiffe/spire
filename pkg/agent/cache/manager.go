@@ -163,7 +163,7 @@ func (m *manager) Init() {
 						svid = entry.svid
 						key = entry.key
 					} else {
-						m.log.Debug("Unknown parent ", parentId, "... ignoring")
+						m.log.Warnf("Unknown parent %s... ignoring", parentId)
 						continue
 					}
 					conn, err := m.getGRPCConn(svid, key)
