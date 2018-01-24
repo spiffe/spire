@@ -5,7 +5,6 @@ import (
 
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/printer"
-	"github.com/spiffe/spire/pkg/common/config"
 
 	pb "github.com/spiffe/spire/proto/common/plugin"
 )
@@ -66,37 +65,6 @@ func parsePluginConfigFromHclPluginConfig(hclPluginConfig HclPluginConfig) (Plug
 
 		// Handle PluginData as opaque string. This gets fed
 		// to the plugin, whos job it is to parse it.
-		PluginData: data.String(),
-	}
-
-	return pluginConfig, nil
-}
-
-func parsePluginConfigFromFile(path string) (PluginConfig, error) {
-	var pluginConfig PluginConfig
-
-	c := new(HclPluginConfig)
-	err := config.ParseHCLConfigFile(path, &c)
-	if err != nil {
-		return pluginConfig, err
-	}
-
-	// Handle PluginData as opaque string. This gets fed
-	// to the plugin, whos job it is to parse it.
-	var data bytes.Buffer
-	err = printer.DefaultConfig.Fprint(&data, c.PluginData)
-	if err != nil {
-		return pluginConfig, err
-	}
-
-	pluginConfig = PluginConfig{
-		Version:        c.Version,
-		PluginName:     c.PluginName,
-		PluginCmd:      c.PluginCmd,
-		PluginChecksum: c.PluginChecksum,
-		PluginType:     c.PluginType,
-		Enabled:        c.Enabled,
-
 		PluginData: data.String(),
 	}
 
