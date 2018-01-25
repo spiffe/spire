@@ -156,6 +156,81 @@ func TestFetchSVIDWithRotation(t *testing.T) {
 
 }
 
+func TestFetchRegistrationEntries(t *testing.T) {
+	suite := SetupHandlerTest(t)
+	defer suite.ctrl.Finish()
+
+	spiffeID := "spiffe://example.org/a"
+	wlSpiffeID := "spiffe://example.org/wl1"
+
+	suite.mockCatalog.EXPECT().DataStores().AnyTimes().
+		Return([]datastore.DataStore{suite.mockDataStore})
+
+	selectors := []*common.Selector{
+		{
+			Type:  "a",
+			Value: "1",
+		},
+		{
+			Type:  "b",
+			Value: "2",
+		},
+	}
+
+	regEntries := []*common.RegistrationEntry{
+		{
+			SpiffeId: wlSpiffeID,
+		},
+	}
+
+	suite.mockDataStore.EXPECT().ListMatchingEntries(
+		&datastore.ListSelectorEntriesRequest{Selectors: []*common.Selector{
+			{
+				Type:  "a",
+				Value: "1",
+			},
+		}},
+	).Return(&datastore.ListSelectorEntriesResponse{}, nil)
+
+	suite.mockDataStore.EXPECT().ListMatchingEntries(
+		&datastore.ListSelectorEntriesRequest{Selectors: []*common.Selector{
+			{
+				Type:  "b",
+				Value: "2",
+			},
+		}},
+	).Return(&datastore.ListSelectorEntriesResponse{
+		RegisteredEntryList: regEntries,
+	}, nil)
+
+	suite.mockDataStore.EXPECT().ListMatchingEntries(
+		&datastore.ListSelectorEntriesRequest{Selectors: []*common.Selector{
+			{
+				Type:  "a",
+				Value: "1",
+			},
+			{
+				Type:  "b",
+				Value: "2",
+			},
+		}},
+	).Return(&datastore.ListSelectorEntriesResponse{}, nil)
+
+	suite.mockDataStore.EXPECT().ListParentIDEntries(
+		&datastore.ListParentIDEntriesRequest{ParentId: spiffeID},
+	).Return(&datastore.ListParentIDEntriesResponse{}, nil)
+
+	entries, err := suite.handler.fetchRegistrationEntries(selectors, spiffeID)
+	if err != nil {
+		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
+	}
+
+	if !reflect.DeepEqual(entries, regEntries) {
+		t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n",
+			entries, regEntries)
+	}
+}
+
 func getBytesFromPem(fileName string) []byte {
 	pemFile, _ := ioutil.ReadFile(path.Join("../../../../test/fixture/certs", fileName))
 	decodedFile, _ := pem.Decode(pemFile)
