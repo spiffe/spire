@@ -53,7 +53,9 @@ Add **spire-server** and **spire-agent** to our $PATH for convenience:
 
 After putting the agent and server binaries at the proper location we have to configure them. The SPIRE Server relies on plugins for much of it's functionality, so we must make sure the agent and server can find the relevant plugins.
 
-Server plugins configurations can be found under the `plugins { ... }` section in  **/opt/spire/conf/server/server.conf**.
+Server plugins configurations can be found under the `plugins { ... }` section in  **/opt/spire/conf/server/server.conf**. Ensure each plugin is configured with the path to the appropriate plugin binary:
+
+    plugin_cmd = "/opt/spire/plugin/server/{plugin_binary}"
 
 Every SVID issued by a SPIRE installation is issued from a common trust root. SPIRE provides a pluggable mechanism for how this trust root can be retrieved, by default it will use a key distributed on disk. The release includes a dummy CA key that we can use for testing purposes, but the default plugin (the `upstream_ca_memory` plugin) must be configured to find it.
 

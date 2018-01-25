@@ -46,7 +46,7 @@ type ManagedPlugin struct {
 	Plugin Plugin
 }
 
-func parsePluginConfigFromHclPluginConfig(hclPluginConfig HclPluginConfig) (PluginConfig, error) {
+func parsePluginConfig(hclPluginConfig HclPluginConfig) (PluginConfig, error) {
 	var pluginConfig PluginConfig
 	var data bytes.Buffer
 

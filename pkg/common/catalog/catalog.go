@@ -158,7 +158,7 @@ func (c *catalog) loadConfigs() error {
 }
 
 func (c *catalog) loadConfigFromHclConfig(hclPluginConfig HclPluginConfig) error {
-	config, err := parsePluginConfigFromHclPluginConfig(hclPluginConfig)
+	config, err := parsePluginConfig(hclPluginConfig)
 	if err != nil {
 		return err
 	}

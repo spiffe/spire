@@ -72,6 +72,10 @@ func (*RunCLI) Run(args []string) int {
 	}
 
 	c := newDefaultConfig()
+
+	// Get the plugins configurations from the file
+	c.PluginsConfigs = fileConfig.PluginsConfigs
+
 	err = mergeConfigs(c, fileConfig, cliConfig)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -211,12 +215,6 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 		orig.Umask = int(umask)
 	}
 
-	if cmd.PluginsConfigs != nil {
-		orig.PluginsConfigs = cmd.PluginsConfigs
-	}
-	if orig.PluginsConfigs != nil {
-		cmd.PluginsConfigs = orig.PluginsConfigs
-	}
 	return nil
 }
 

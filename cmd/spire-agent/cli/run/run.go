@@ -78,6 +78,10 @@ func (*RunCLI) Run(args []string) int {
 	}
 
 	c := newDefaultConfig()
+
+	// Get the plugins configurations from the file
+	c.PluginsConfigs = fileConfig.PluginsConfigs
+
 	err = mergeConfigs(c, fileConfig, cliConfig)
 	if err != nil {
 		fmt.Println(err.Error)
@@ -241,13 +245,6 @@ func mergeConfig(orig *agent.Config, cmd *runConfig) error {
 			return fmt.Errorf("Could not parse umask %s: %s", cmd.AgentConfig.Umask, err)
 		}
 		orig.Umask = int(umask)
-	}
-
-	if cmd.PluginsConfigs != nil {
-		orig.PluginsConfigs = cmd.PluginsConfigs
-	}
-	if orig.PluginsConfigs != nil {
-		cmd.PluginsConfigs = orig.PluginsConfigs
 	}
 
 	return nil
