@@ -9,8 +9,8 @@ The plugin accepts the following configuration options:
 
 | Configuration | Description                                   |
 | ------------- | --------------------------------------------- |
-| trustDomain  | The trust domain of the join token            |
-| joinToken    | The join token to use to attest to the server |
+| trust_domain  | The trust domain of the join token            |
+| join_token    | The join token to use to attest to the server |
 
 The joinToken configuration option may also be passed to `spire-agent run` with the `-joinToken`
 command-line flag.

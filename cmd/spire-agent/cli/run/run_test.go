@@ -1,8 +1,10 @@
 package run
 
 import (
+	"bytes"
 	"testing"
 
+	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,6 +20,18 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.AgentConfig.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.AgentConfig.TrustDomain, "example.org")
 	assert.Equal(t, c.AgentConfig.Umask, "")
+
+	// Check for plugins configurations
+	expectedData := "join_token = \"PLUGIN-AGENT-NOT-A-SECRET\"\n\ntrust_domain = \"example.org\""
+	var data bytes.Buffer
+	err = printer.DefaultConfig.Fprint(&data, c.PluginsConfigs["plugin_type_agent"]["plugin_name_agent"].PluginData)
+	assert.NoError(t, err)
+
+	assert.Equal(t, len(c.PluginsConfigs), 1)
+	assert.Equal(t, c.PluginsConfigs["plugin_type_agent"]["plugin_name_agent"].Enabled, true)
+	assert.Equal(t, c.PluginsConfigs["plugin_type_agent"]["plugin_name_agent"].PluginChecksum, "pluginAgentChecksum")
+	assert.Equal(t, c.PluginsConfigs["plugin_type_agent"]["plugin_name_agent"].PluginCmd, "./pluginAgentCmd")
+	assert.Equal(t, expectedData, data.String())
 }
 
 func TestParseFlagsGood(t *testing.T) {

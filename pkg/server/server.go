@@ -18,9 +18,6 @@ import (
 )
 
 type Config struct {
-	// Directory for plugin configs
-	PluginDir string
-
 	// Configurations for server plugins
 	PluginsConfigs map[string]map[string]common_catalog.HclPluginConfig
 

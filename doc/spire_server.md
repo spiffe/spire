@@ -21,7 +21,7 @@ a .conf file or passed as command line args, the command line configurations tak
 | `umask`           | Umask value to use for new files                       | 0077                          |
 
 **Note:** Changing the umask may expose your signing authority to users other than the SPIRE
-agent/server
+agent/server.
 
 ## Plugin configuration
 

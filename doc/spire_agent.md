@@ -5,9 +5,7 @@ attesting the validity of local workloads, and providing them SVIDs.
 
 ## Agent configuration file
 
-The following details the configurations for the spire agent. Agent specific configuration options are described
-under `agent { ... }`. The agent configurations can be set through .conf file or passed as command line args, the
-command line configurations takes precedence.
+The following details the configurations for the spire agent. Agent specific configuration options are described under `agent { ... }`. The agent configurations can be set through .conf file or passed as command line args, the command line configurations takes precedence.
 
 | Configuration      | Description                                                      | Default             |
 | ------------------ | --------------------------------------------------------------- | -------------------- |
@@ -25,9 +23,9 @@ command line configurations takes precedence.
 | `umask`           | Umask value to use for new files                                 | 0077                 |
 
 **Note:** Changing the umask may expose your signing authority to users other than the SPIRE
-agent/server
+agent/server.
 
-## Plugin configuration
+## Plugins configurations
 
 The agent configuration file also contains the configuration for the agent plugins.
 Plugins configurations are under the `plugins { ... }` section, which has the following format:
@@ -56,7 +54,7 @@ The following configuration options are available to configure a plugin:
 ### `spire-agent run`
 
 All of the configuration file above options have identical command-line counterparts. In addition,
-the following flags are available.
+the following flags are available:
 
 | Command          | Action                      | Default                 |
 | ---------------- | --------------------------- | ----------------------- |

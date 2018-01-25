@@ -7,9 +7,9 @@ or hardware.
 
 | Configuration | Description                                    |
 | ------------- | ---------------------------------------------- |
-| trustDomain   | The trust domain to issue SVIDs in             |
-| keySize       | The size of keys to generate, defaults to 2048 |
-| certSubject   | A certificate subject                          |
+| trust_domain  | The trust domain to issue SVIDs in             |
+| key_size      | The size of keys to generate, defaults to 2048 |
+| cert_subject  | A certificate subject                          |
 
 Example of `certSubject` configuration:
 ```
