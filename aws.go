@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -16,10 +17,12 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/noderesolver"
 
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"log"
 	"net/url"
 	"path"
 	"sync"
+
+	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 )
 
 type AWSResolver struct {
@@ -35,8 +38,12 @@ type AWSResolver struct {
 type AWSResolverConfig struct {
 	AccessId  string `hcl:"access_id"`
 	Secret    string `hcl:"secret"`
-	SessionId string `hcl:session_id`
+	SessionId string `hcl:"session_id"`
 }
+
+const (
+	defaultRegion = "us-east-1"
+)
 
 func (a *AWSResolver) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	a.mtx.Lock()
@@ -119,7 +126,7 @@ func (a *AWSResolver) Resolve(physicalSpiffeIdList []string) (resolutions map[st
 func (a *AWSResolver) resolveTags(tags []*ec2.Tag, spiffeID string) {
 	for _, tag := range tags {
 		if _, ok := a.resolutions[spiffeID]; ok {
-			a.resolutions[spiffeID].Entries = append(a.resolutions[spiffeID].Entries,
+			a.resolutions[spiffeID].Entries = appendSelector(a.resolutions[spiffeID].Entries,
 				&common.Selector{
 					Type:  "aws",
 					Value: fmt.Sprintf("tag:%s:%s", aws.StringValue(tag.Key), aws.StringValue(tag.Value))})
@@ -138,11 +145,11 @@ func (a *AWSResolver) resolveTags(tags []*ec2.Tag, spiffeID string) {
 func (a *AWSResolver) resolveSecurityGroups(sgs []*ec2.GroupIdentifier, spiffeID string) {
 	for _, sg := range sgs {
 		if _, ok := a.resolutions[spiffeID]; ok {
-			a.resolutions[spiffeID].Entries = append(a.resolutions[spiffeID].Entries,
+			a.resolutions[spiffeID].Entries = appendSelector(a.resolutions[spiffeID].Entries,
 				&common.Selector{
 					Type:  "aws",
 					Value: fmt.Sprintf("sg:id:%s", aws.StringValue(sg.GroupId))})
-			a.resolutions[spiffeID].Entries = append(a.resolutions[spiffeID].Entries,
+			a.resolutions[spiffeID].Entries = appendSelector(a.resolutions[spiffeID].Entries,
 				&common.Selector{
 					Type: "aws", Value: fmt.Sprintf("sg:name:%s", aws.StringValue(sg.GroupName))})
 		} else {
@@ -165,7 +172,7 @@ func (a *AWSResolver) resolveIAMRole(arn *string, spiffeID string) error {
 	}
 	for _, role := range output.InstanceProfile.Roles {
 		if _, ok := a.resolutions[spiffeID]; ok {
-			a.resolutions[spiffeID].Entries = append(a.resolutions[spiffeID].Entries,
+			a.resolutions[spiffeID].Entries = appendSelector(a.resolutions[spiffeID].Entries,
 				&common.Selector{
 					Type: "aws", Value: fmt.Sprintf("iamrole:%s", aws.StringValue(role.Arn))})
 		} else {
@@ -201,12 +208,18 @@ func (a *AWSResolver) setEC2Clients() error {
 		conf = aws.NewConfig()
 	}
 
+	region := defaultRegion // Required due to https://github.com/aws/aws-sdk-go/issues/224
+	conf.Region = &region
 	sess, err := session.NewSession(conf)
 	if err != nil {
 		return err
 	}
 	ec := ec2.New(sess)
 	output, err := ec.DescribeRegions(&ec2.DescribeRegionsInput{})
+	if err != nil {
+		log.Fatalf("DescribeRegions failed... %s", err)
+		return err
+	}
 	for _, region := range output.Regions {
 		conf.Region = region.RegionName
 		sess, err := session.NewSession(conf)
@@ -218,6 +231,16 @@ func (a *AWSResolver) setEC2Clients() error {
 
 	}
 	return nil
+}
+
+func appendSelector(entries []*common.Selector, entry *common.Selector) []*common.Selector {
+	for _, selector := range entries {
+		if selector.Type == entry.Type && selector.Value == entry.Value {
+			log.Printf("Duplicate selector %s %s... ignoring", entry.Type, entry.Value)
+			return entries
+		}
+	}
+	return append(entries, entry)
 }
 
 func main() {
