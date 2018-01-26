@@ -8,4 +8,4 @@ The plugin accepts the following configuration options:
 
 | Configuration | Description                                 |
 | ------------- | ------------------------------------------- |
-| trustDomain   | The trust domain to accept join tokens from |
+| trust_domain  | The trust domain to accept join tokens from |

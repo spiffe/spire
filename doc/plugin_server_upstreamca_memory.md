@@ -8,9 +8,9 @@ The plugin maintains all state in memory, and is lost upon restart.
 
 The plugin accepts the following configuration options:
 
-| Configuration | Description                           |
-| ------------- | ------------------------------------- |
-| trustDomain   | The trust domain                      |
-| ttl           | The TTL for issued certificates       |
-| certFilePath  | Path to the "upstream" CA certificate |
-| keyFilePath   | Path to the "upstream" CA key file    |
+| Configuration  | Description                           |
+| -------------- | ------------------------------------- |
+| trust_domain   | The trust domain                      |
+| ttl            | The TTL for issued certificates       |
+| cert_file_path | Path to the "upstream" CA certificate |
+| key_file_path  | Path to the "upstream" CA key file    |

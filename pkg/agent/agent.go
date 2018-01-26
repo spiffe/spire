@@ -45,8 +45,8 @@ type Config struct {
 	// Directory to store runtime data
 	DataDir string
 
-	// Directory for plugin configs
-	PluginDir string
+	// Configurations for agent plugins
+	PluginConfigs common_catalog.PluginConfigMap
 
 	Log logrus.FieldLogger
 
@@ -83,8 +83,8 @@ type Agent struct {
 
 func New(ctx context.Context, c *Config) *Agent {
 	config := &catalog.Config{
-		ConfigDir: c.PluginDir,
-		Log:       c.Log.WithField("subsystem_name", "catalog"),
+		PluginConfigs: c.PluginConfigs,
+		Log:            c.Log.WithField("subsystem_name", "catalog"),
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	return &Agent{

@@ -76,18 +76,77 @@ Note: If you don't already have Docker installed, please follow these [installat
     	    cat conf/server/server.conf
     
     The default SPIRE Server configurations are shown below. A detailed description of each of the SPIRE Server configuration options is [here](/README.md#spire-server-configuration)
-    
-    ```
-    BaseSVIDTTL = 999999
-    ServerSVIDTTL = 999999
-    BindAddress = "127.0.0.1"
-    BindPort = "8081"
-    BindHTTPPort = "8080"
-    LogLevel = "INFO"
-    PluginDir = "conf/server/plugin"
-    TrustDomain = "example.org"
-    Umask = ""
-    ```
+
+```hcl
+
+server {
+        bind_address = "127.0.0.1"
+        bind_port = "8081"
+        bind_http_port = "8080"
+        trust_domain = "example.org"
+        plugin_dir = "conf/server/plugin"
+        log_level = "DEBUG"
+        base_svid_ttl = 999999
+        server_svid_ttl = 999999
+        umask = ""
+}
+
+plugins {
+        ControlPlaneCA "ca" {
+        plugin_cmd = "plugin/server/ca-memory/ca-memory"
+        plugin_checksum = ""
+        enabled = true
+        plugin_data {
+                trust_domain = "example.org",
+                key_size = 2048,
+                backdate_seconds = 1,
+                cert_subject = {
+                        Country = ["US"],
+                        Organization = ["SPIFFE"],
+                        CommonName = "",
+                        }
+                }
+        }
+
+        DataStore "datastore" {
+                plugin_cmd = "plugin/server/datastore-sqlite/datastore-sqlite"
+                plugin_checksum = ""
+                enabled = true
+                plugin_data {
+                        file_name = "./.data/datastore.sqlite3"
+                }
+        }
+
+        NodeAttestor "join_token" {
+                plugin_cmd = "plugin/server/nodeattestor-jointoken/nodeattestor-jointoken"
+                plugin_checksum = ""
+                enabled = true
+                plugin_data {
+                        trust_domain = "example.org"
+                }
+        }
+
+        NodeResolver "noop" {
+                plugin_cmd = "plugin/server/noderesolver-noop/noderesolver-noop"
+                plugin_checksum = ""
+                enabled = true
+                plugin_data {}
+        }
+
+        UpstreamCA "upstream_ca" {
+                plugin_cmd = "plugin/server/upstreamca-memory/upstreamca-memory"
+                plugin_checksum = ""
+                enabled = true
+                plugin_data {
+                        trust_domain = "example.org"
+                        ttl = "1h"
+                        key_file_path = "conf/server/dummy_upstream_ca.key"
+                        cert_file_path = "conf/server/dummy_upstream_ca.crt"
+                }
+        }
+}
+
+```
 
 9.  Start the SPIRE Server as a background process by running the following command.
 
@@ -107,17 +166,18 @@ Note: If you don't already have Docker installed, please follow these [installat
     
     The default SPIRE Agent configurations are shown below. A detailed description of each of the SPIRE Agent configuration options is [here](/README.md#spire-agent-configuration)
     ```
-    BindAddress = "127.0.0.1"
-    BindPort = "8088"
-    DataDir = "."
-    LogLevel = "INFO"
-    PluginDir = "conf/agent/plugin"
-    ServerAddress = "127.0.0.1"
-    ServerPort = "8081"
-    SocketPath ="/tmp/agent.sock"
-    TrustBundlePath = "conf/agent/carootcert.pem"
-    TrustDomain = "example.org"
-    Umask = ""
+    agent {
+        bind_address = "127.0.0.1"
+        bind_port = "8088"
+        data_dir = "."
+        log_level = "INFO"
+        server_address = "127.0.0.1"
+        server_port = "8081"
+        socket_path ="/tmp/agent.sock"
+        trust_bundle_path = "conf/agent/carootcert.pem"
+        trust_doain = "example.org"
+        umask = ""
+    }
     ```
 
 12. Start the SPIRE Agent as a background process. Replace <generated-join-token> with the saved value from step #10 in the following command.
@@ -140,4 +200,3 @@ Note: If you don't already have Docker installed, please follow these [installat
     
         su -c "./cmd/spire-agent/spire-agent api fetch -write ./" workload
         openssl x509 -in ~/go/src/github.com/spiffe/spire/svid.0.pem -text -noout
-

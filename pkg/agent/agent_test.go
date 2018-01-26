@@ -51,8 +51,8 @@ func (suite *AgentTestSuite) SetupTest() {
 
 	l, _ := test.NewNullLogger()
 	suite.config = &Config{BindAddress: addr, CertDN: certDN,
-		DataDir:   os.TempDir(),
-		PluginDir: os.TempDir(), Log: l, ServerAddress: srvAddr,
+		DataDir: os.TempDir(),
+		Log:     l, ServerAddress: srvAddr,
 		ErrorCh: errCh,
 	}
 

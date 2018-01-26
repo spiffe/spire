@@ -5,9 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os/exec"
-	"path"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -39,18 +37,13 @@ type Catalog interface {
 }
 
 type Config struct {
-	// Directory in which plugin config files
-	// reside
-	ConfigDir string
-
+	PluginConfigs    PluginConfigMap
 	SupportedPlugins map[string]goplugin.Plugin
-
-	Log logrus.FieldLogger
+	Log              logrus.FieldLogger
 }
 
 type catalog struct {
-	configDir string
-
+	pluginConfigs    PluginConfigMap
 	plugins          []*ManagedPlugin
 	supportedPlugins map[string]goplugin.Plugin
 
@@ -58,9 +51,13 @@ type catalog struct {
 	m *sync.RWMutex
 }
 
+// PluginConfigMap maps plugin configurations, accessed by
+// [plugin type][plugin name]
+type PluginConfigMap map[string]map[string]HclPluginConfig
+
 func New(config *Config) Catalog {
 	return &catalog{
-		configDir:        config.ConfigDir,
+		pluginConfigs:    config.PluginConfigs,
 		supportedPlugins: config.SupportedPlugins,
 		l:                config.Log,
 		m:                new(sync.RWMutex),
@@ -131,9 +128,8 @@ func (c *catalog) Plugins() []*ManagedPlugin {
 	var newSlice []*ManagedPlugin
 	for _, p := range c.plugins {
 		mp := &ManagedPlugin{
-			ConfigPath: p.ConfigPath,
-			Config:     p.Config,
-			Plugin:     p.Plugin,
+			Config: p.Config,
+			Plugin: p.Plugin,
 		}
 		newSlice = append(newSlice, mp)
 	}
@@ -150,36 +146,28 @@ func (c *catalog) Find(plugin Plugin) *ManagedPlugin {
 }
 
 func (c *catalog) loadConfigs() error {
-	files, err := ioutil.ReadDir(c.configDir)
-	if err != nil {
-		return err
-	}
-
-	for _, f := range files {
-		if f.IsDir() {
-			continue
-		}
-
-		p := path.Join(c.configDir, f.Name())
-		err = c.loadConfig(p)
-		if err != nil {
-			return err
+	for pluginType, plugins := range c.pluginConfigs {
+		for pluginName, pluginConfig := range plugins {
+			pluginConfig.PluginType = pluginType
+			pluginConfig.PluginName = pluginName
+			err := c.loadConfigFromHclConfig(pluginConfig)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func (c *catalog) loadConfig(path string) error {
-	c.l.Debugf("loading %s", path)
-	config, err := parsePluginConfig(path)
+func (c *catalog) loadConfigFromHclConfig(hclPluginConfig HclPluginConfig) error {
+	config, err := parsePluginConfig(hclPluginConfig)
 	if err != nil {
 		return err
 	}
 
 	p := &ManagedPlugin{
-		ConfigPath: path,
-		Config:     config,
+		Config: config,
 	}
 	c.plugins = append(c.plugins, p)
 
