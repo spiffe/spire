@@ -46,7 +46,7 @@ func (c *CatalogTestSuite) SetupTest() {
 
 	c.Assert().NoError(err)
 	cat := &catalog{
-		pluginsConfigs: map[string]map[string]HclPluginConfig{"NodeAttestor": {"join_token": HclPluginConfig{
+		pluginConfigs: PluginConfigMap{"NodeAttestor": {"join_token": HclPluginConfig{
 			PluginCmd:  "./attestor",
 			Enabled:    true,
 			PluginData: pluginData,

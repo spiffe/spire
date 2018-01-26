@@ -24,13 +24,13 @@ func TestParseConfigGood(t *testing.T) {
 	// Check for plugins configurations
 	expectedData := "join_token = \"PLUGIN-SERVER-NOT-A-SECRET\"\n\ntrust_domain = \"example.org\""
 	var data bytes.Buffer
-	err = printer.DefaultConfig.Fprint(&data, c.PluginsConfigs["plugin_type_server"]["plugin_name_server"].PluginData)
+	err = printer.DefaultConfig.Fprint(&data, c.PluginConfigs["plugin_type_server"]["plugin_name_server"].PluginData)
 	assert.NoError(t, err)
 
-	assert.Equal(t, len(c.PluginsConfigs), 1)
-	assert.Equal(t, c.PluginsConfigs["plugin_type_server"]["plugin_name_server"].Enabled, true)
-	assert.Equal(t, c.PluginsConfigs["plugin_type_server"]["plugin_name_server"].PluginChecksum, "pluginServerChecksum")
-	assert.Equal(t, c.PluginsConfigs["plugin_type_server"]["plugin_name_server"].PluginCmd, "./pluginServerCmd")
+	assert.Equal(t, len(c.PluginConfigs), 1)
+	assert.Equal(t, c.PluginConfigs["plugin_type_server"]["plugin_name_server"].Enabled, true)
+	assert.Equal(t, c.PluginConfigs["plugin_type_server"]["plugin_name_server"].PluginChecksum, "pluginServerChecksum")
+	assert.Equal(t, c.PluginConfigs["plugin_type_server"]["plugin_name_server"].PluginCmd, "./pluginServerCmd")
 	assert.Equal(t, expectedData, data.String())
 }
 

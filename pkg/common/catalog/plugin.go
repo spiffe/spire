@@ -5,7 +5,6 @@ import (
 
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/printer"
-
 	pb "github.com/spiffe/spire/proto/common/plugin"
 )
 
@@ -25,7 +24,7 @@ type PluginConfig struct {
 	Enabled    bool `hcl:"enabled"`
 }
 
-// hclPluginConfig serves as an intermediary struct. We pass this to the
+// HclPluginConfig serves as an intermediary struct. We pass this to the
 // HCL library for parsing, except the parser won't parse pluginData
 // as a string.
 type HclPluginConfig struct {
@@ -40,8 +39,6 @@ type HclPluginConfig struct {
 }
 
 type ManagedPlugin struct {
-	ConfigPath string
-
 	Config PluginConfig
 	Plugin Plugin
 }

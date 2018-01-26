@@ -46,7 +46,7 @@ type Config struct {
 	DataDir string
 
 	// Configurations for agent plugins
-	PluginsConfigs map[string]map[string]common_catalog.HclPluginConfig
+	PluginConfigs common_catalog.PluginConfigMap
 
 	Log logrus.FieldLogger
 
@@ -83,7 +83,7 @@ type Agent struct {
 
 func New(ctx context.Context, c *Config) *Agent {
 	config := &catalog.Config{
-		PluginsConfigs: c.PluginsConfigs,
+		PluginConfigs: c.PluginConfigs,
 		Log:            c.Log.WithField("subsystem_name", "catalog"),
 	}
 	ctx, cancel := context.WithCancel(ctx)

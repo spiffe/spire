@@ -36,8 +36,8 @@ const (
 // RunConfig represents the available configurables for file
 // and CLI options
 type runConfig struct {
-	AgentConfig    agentConfig                                   `hcl:"agent"`
-	PluginsConfigs map[string]map[string]catalog.HclPluginConfig `hcl:"plugins"`
+	AgentConfig   agentConfig             `hcl:"agent"`
+	PluginConfigs catalog.PluginConfigMap `hcl:"plugins"`
 }
 
 type agentConfig struct {
@@ -79,8 +79,8 @@ func (*RunCLI) Run(args []string) int {
 
 	c := newDefaultConfig()
 
-	// Get the plugins configurations from the file
-	c.PluginsConfigs = fileConfig.PluginsConfigs
+	// Get the plugin configurations from the file
+	c.PluginConfigs = fileConfig.PluginConfigs
 
 	err = mergeConfigs(c, fileConfig, cliConfig)
 	if err != nil {

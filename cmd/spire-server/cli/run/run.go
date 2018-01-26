@@ -30,8 +30,8 @@ const (
 
 // runConfig represents available configurables for file and CLI options
 type runConfig struct {
-	Server         serverConfig                                  `hcl:"server"`
-	PluginsConfigs map[string]map[string]catalog.HclPluginConfig `hcl:"plugins"`
+	Server        serverConfig            `hcl:"server"`
+	PluginConfigs catalog.PluginConfigMap `hcl:"plugins"`
 }
 
 type serverConfig struct {
@@ -73,8 +73,8 @@ func (*RunCLI) Run(args []string) int {
 
 	c := newDefaultConfig()
 
-	// Get the plugins configurations from the file
-	c.PluginsConfigs = fileConfig.PluginsConfigs
+	// Get the plugin configurations from the file
+	c.PluginConfigs = fileConfig.PluginConfigs
 
 	err = mergeConfigs(c, fileConfig, cliConfig)
 	if err != nil {
@@ -137,9 +137,9 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	c := &runConfig{}
 
-	flags.StringVar(&c.Server.BindAddress, "bindAddress", defaultBindAddress, "IP address or DNS name of the SPIRE server")
-	flags.IntVar(&c.Server.BindPort, "serverPort", defaultBindPort, "Port number of the SPIRE server")
-	flags.IntVar(&c.Server.BindHTTPPort, "bindHTTPPort", defaultBindHTTPPort, "HTTP Port number of the SPIRE server")
+	flags.StringVar(&c.Server.BindAddress, "bindAddress", "", "IP address or DNS name of the SPIRE server")
+	flags.IntVar(&c.Server.BindPort, "serverPort", 0, "Port number of the SPIRE server")
+	flags.IntVar(&c.Server.BindHTTPPort, "bindHTTPPort", 0, "HTTP Port number of the SPIRE server")
 	flags.StringVar(&c.Server.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.StringVar(&c.Server.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")

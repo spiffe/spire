@@ -38,8 +38,8 @@ var (
 )
 
 type Config struct {
-	PluginsConfigs map[string]map[string]common.HclPluginConfig
-	Log            logrus.FieldLogger
+	PluginConfigs common.PluginConfigMap
+	Log           logrus.FieldLogger
 }
 
 type catalog struct {
@@ -53,7 +53,7 @@ type catalog struct {
 
 func New(c *Config) Catalog {
 	commonConfig := &common.Config{
-		PluginsConfigs:   c.PluginsConfigs,
+		PluginConfigs:    c.PluginConfigs,
 		SupportedPlugins: supportedPlugins,
 		Log:              c.Log,
 	}

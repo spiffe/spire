@@ -26,7 +26,7 @@ agent/server.
 ## Plugin configuration
 
 The server configuration file also contains the configuration for the server plugins.
-Plugins configurations are under the `plugins { ... }` section, which has the following format:
+Plugin configurations are under the `plugins { ... }` section, which has the following format:
 
 ```hcl
 plugins {

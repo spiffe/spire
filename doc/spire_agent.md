@@ -25,10 +25,10 @@ The following details the configurations for the spire agent. Agent specific con
 **Note:** Changing the umask may expose your signing authority to users other than the SPIRE
 agent/server.
 
-## Plugins configurations
+## Plugin configuration
 
 The agent configuration file also contains the configuration for the agent plugins.
-Plugins configurations are under the `plugins { ... }` section, which has the following format:
+Plugin configurations are under the `plugins { ... }` section, which has the following format:
 
 ```hcl
 plugins {

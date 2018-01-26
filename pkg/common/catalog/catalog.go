@@ -37,13 +37,13 @@ type Catalog interface {
 }
 
 type Config struct {
-	PluginsConfigs   map[string]map[string]HclPluginConfig
+	PluginConfigs    PluginConfigMap
 	SupportedPlugins map[string]goplugin.Plugin
 	Log              logrus.FieldLogger
 }
 
 type catalog struct {
-	pluginsConfigs   map[string]map[string]HclPluginConfig
+	pluginConfigs    PluginConfigMap
 	plugins          []*ManagedPlugin
 	supportedPlugins map[string]goplugin.Plugin
 
@@ -51,9 +51,13 @@ type catalog struct {
 	m *sync.RWMutex
 }
 
+// PluginConfigMap maps plugin configurations, accessed by
+// [plugin type][plugin name]
+type PluginConfigMap map[string]map[string]HclPluginConfig
+
 func New(config *Config) Catalog {
 	return &catalog{
-		pluginsConfigs:   config.PluginsConfigs,
+		pluginConfigs:    config.PluginConfigs,
 		supportedPlugins: config.SupportedPlugins,
 		l:                config.Log,
 		m:                new(sync.RWMutex),
@@ -124,9 +128,8 @@ func (c *catalog) Plugins() []*ManagedPlugin {
 	var newSlice []*ManagedPlugin
 	for _, p := range c.plugins {
 		mp := &ManagedPlugin{
-			ConfigPath: p.ConfigPath,
-			Config:     p.Config,
-			Plugin:     p.Plugin,
+			Config: p.Config,
+			Plugin: p.Plugin,
 		}
 		newSlice = append(newSlice, mp)
 	}
@@ -143,8 +146,8 @@ func (c *catalog) Find(plugin Plugin) *ManagedPlugin {
 }
 
 func (c *catalog) loadConfigs() error {
-	for pluginType, pluginTypes := range c.pluginsConfigs {
-		for pluginName, pluginConfig := range pluginTypes {
+	for pluginType, plugins := range c.pluginConfigs {
+		for pluginName, pluginConfig := range plugins {
 			pluginConfig.PluginType = pluginType
 			pluginConfig.PluginName = pluginName
 			err := c.loadConfigFromHclConfig(pluginConfig)
