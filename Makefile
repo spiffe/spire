@@ -1,4 +1,5 @@
-utils = github.com/Masterminds/glide
+utils = github.com/goreleaser/goreleaser \
+		github.com/Masterminds/glide
 
 build:
 	go build -i
