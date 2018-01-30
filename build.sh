@@ -247,7 +247,7 @@ build_artifact() {
 
 	## munge config files
 	# fix plugin path names to match tgz layout
-	sed -i-new  -e 's/\(.*pluginCmd.*\)\/.*\"/\1\"/'  $(find ${_tmp}/conf -name \*.conf)
+	sed -i-new  -e 's/\(.*plugin_cmd.*\)\/.*\"/\1\"/'  $(find ${_tmp}/conf -name \*.conf)
 	for _n in $(find $_tmp -name \*-new); do
 		mv $_n ${_n%-new}
 	done

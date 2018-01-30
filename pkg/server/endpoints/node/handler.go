@@ -14,6 +14,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/uri"
+	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/node"
@@ -187,14 +188,16 @@ func (h *Handler) fetchRegistrationEntries(selectors []*common.Selector, spiffeI
 	var entries []*common.RegistrationEntry
 
 	///lookup Registration Entries for resolved selectors
-	req := &datastore.ListSelectorEntriesRequest{Selectors: selectors}
-	listSelectorResponse, err := dataStore.ListMatchingEntries(req)
-	if err != nil {
-		return nil, err
-	}
+	for combination := range selector.PowerSet(selector.NewSet(selectors)) {
+		req := &datastore.ListSelectorEntriesRequest{Selectors: combination.Raw()}
+		listSelectorResponse, err := dataStore.ListMatchingEntries(req)
+		if err != nil {
+			return nil, err
+		}
 
-	selectorsEntries := listSelectorResponse.RegisteredEntryList
-	entries = append(entries, listSelectorResponse.RegisteredEntryList...)
+		entries = append(entries, listSelectorResponse.RegisteredEntryList...)
+	}
+	selectorsEntries := append([]*common.RegistrationEntry(nil), entries...)
 
 	///lookup Registration Entries where spiffeID is the parent ID
 	listResponse, err := dataStore.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{ParentId: spiffeID})

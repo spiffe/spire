@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/hcl"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/stretchr/testify/suite"
@@ -39,8 +40,17 @@ func (c *CatalogTestSuite) SetupTest() {
 	supportedPlugins := map[string]plugin.Plugin{
 		"NodeAttestor": testPlugin{},
 	}
+	pluginData, err := hcl.ParseString(`
+		join_token = "NOT-A-SECRET"
+		trust_domain = "example.org"`)
+
+	c.Assert().NoError(err)
 	cat := &catalog{
-		configDir:        "NONEXISTENT",
+		pluginConfigs: PluginConfigMap{"NodeAttestor": {"join_token": HclPluginConfig{
+			PluginCmd:  "./attestor",
+			Enabled:    true,
+			PluginData: pluginData,
+		}}},
 		supportedPlugins: supportedPlugins,
 		l:                log,
 	}
@@ -54,8 +64,8 @@ func (c *CatalogTestSuite) TeardownTest() {
 	c.ctrl.Finish()
 }
 
-func (c *CatalogTestSuite) TestLoadConfig() {
-	err := c.catalog.loadConfig("../../../test/fixture/config/plugin_good.conf")
+func (c *CatalogTestSuite) TestLoadConfigs() {
+	err := c.catalog.loadConfigs()
 	if !c.Assert().Nil(err) || !c.Assert().Equal(1, len(c.catalog.plugins)) {
 		c.Assert().FailNow("error parsing plugin config")
 	}
@@ -86,7 +96,7 @@ func (c *CatalogTestSuite) TestNewPluginConfig() {
 		},
 	}
 
-	_ = c.catalog.loadConfig("../../../test/fixture/config/plugin_good.conf")
+	_ = c.catalog.loadConfigs()
 	pluginConfig, err := c.catalog.newPluginConfig(c.catalog.plugins[0])
 	if c.Assert().Nil(err) {
 		c.Assert().Equal(expectedConfig, pluginConfig)
