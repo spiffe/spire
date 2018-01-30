@@ -12,23 +12,33 @@ type GRPCServer struct {
 	DataStoreImpl DataStore
 }
 
-func (m *GRPCServer) CreateFederatedEntry(ctx context.Context, req *CreateFederatedEntryRequest) (*CreateFederatedEntryResponse, error) {
-	res, err := m.DataStoreImpl.CreateFederatedEntry(req)
+func (m *GRPCServer) CreateBundle(ctx context.Context, req *Bundle) (*Bundle, error) {
+	res, err := m.DataStoreImpl.CreateBundle(req)
 	return res, err
 }
 
-func (m *GRPCServer) ListFederatedEntry(ctx context.Context, req *ListFederatedEntryRequest) (*ListFederatedEntryResponse, error) {
-	res, err := m.DataStoreImpl.ListFederatedEntry(req)
+func (m *GRPCServer) UpdateBundle(ctx context.Context, req *Bundle) (*Bundle, error) {
+	res, err := m.DataStoreImpl.UpdateBundle(req)
 	return res, err
 }
 
-func (m *GRPCServer) UpdateFederatedEntry(ctx context.Context, req *UpdateFederatedEntryRequest) (*UpdateFederatedEntryResponse, error) {
-	res, err := m.DataStoreImpl.UpdateFederatedEntry(req)
+func (m *GRPCServer) AppendBundle(ctx context.Context, req *Bundle) (*Bundle, error) {
+	res, err := m.DataStoreImpl.AppendBundle(req)
 	return res, err
 }
 
-func (m *GRPCServer) DeleteFederatedEntry(ctx context.Context, req *DeleteFederatedEntryRequest) (*DeleteFederatedEntryResponse, error) {
-	res, err := m.DataStoreImpl.DeleteFederatedEntry(req)
+func (m *GRPCServer) DeleteBundle(ctx context.Context, req *Bundle) (*Bundle, error) {
+	res, err := m.DataStoreImpl.DeleteBundle(req)
+	return res, err
+}
+
+func (m *GRPCServer) FetchBundle(ctx context.Context, req *Bundle) (*Bundle, error) {
+	res, err := m.DataStoreImpl.FetchBundle(req)
+	return res, err
+}
+
+func (m *GRPCServer) ListBundles(ctx context.Context, req *common.Empty) (*Bundles, error) {
+	res, err := m.DataStoreImpl.ListBundles(req)
 	return res, err
 }
 
@@ -179,23 +189,33 @@ type GRPCClient struct {
 	client DataStoreClient
 }
 
-func (m *GRPCClient) CreateFederatedEntry(req *CreateFederatedEntryRequest) (*CreateFederatedEntryResponse, error) {
-	res, err := m.client.CreateFederatedEntry(context.Background(), req)
+func (m *GRPCClient) CreateBundle(req *Bundle) (*Bundle, error) {
+	res, err := m.client.CreateBundle(context.Background(), req)
 	return res, err
 }
 
-func (m *GRPCClient) ListFederatedEntry(req *ListFederatedEntryRequest) (*ListFederatedEntryResponse, error) {
-	res, err := m.client.ListFederatedEntry(context.Background(), req)
+func (m *GRPCClient) UpdateBundle(req *Bundle) (*Bundle, error) {
+	res, err := m.client.UpdateBundle(context.Background(), req)
 	return res, err
 }
 
-func (m *GRPCClient) UpdateFederatedEntry(req *UpdateFederatedEntryRequest) (*UpdateFederatedEntryResponse, error) {
-	res, err := m.client.UpdateFederatedEntry(context.Background(), req)
+func (m *GRPCClient) AppendBundle(req *Bundle) (*Bundle, error) {
+	res, err := m.client.AppendBundle(context.Background(), req)
 	return res, err
 }
 
-func (m *GRPCClient) DeleteFederatedEntry(req *DeleteFederatedEntryRequest) (*DeleteFederatedEntryResponse, error) {
-	res, err := m.client.DeleteFederatedEntry(context.Background(), req)
+func (m *GRPCClient) DeleteBundle(req *Bundle) (*Bundle, error) {
+	res, err := m.client.DeleteBundle(context.Background(), req)
+	return res, err
+}
+
+func (m *GRPCClient) FetchBundle(req *Bundle) (*Bundle, error) {
+	res, err := m.client.FetchBundle(context.Background(), req)
+	return res, err
+}
+
+func (m *GRPCClient) ListBundles(req *common.Empty) (*Bundles, error) {
+	res, err := m.client.ListBundles(context.Background(), req)
 	return res, err
 }
 

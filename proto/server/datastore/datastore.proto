@@ -5,18 +5,18 @@ option go_package = "datastore";
 import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
 import public "github.com/spiffe/spire/proto/common/common.proto";
 
-// Represents the trust chain for a different trust domain, along with
-// a TTL describing its expiration, keyed by the SPIFFE ID of the foreign
-// trust domain.
-message FederatedBundle {
-    // Foreign trust domain SPIFFE ID
-    string federatedBundleSpiffeId = 1;
+// Represents the trust bundle of a foreign trust domain
+message Bundle {
+    // SPIFFE ID of the foreign trust domain
+    string trust_domain = 1;
 
-    // Trust chain
-    bytes federatedTrustBundle = 2;
+    // CA Certificates
+    // ASN.1 DER encoded
+    bytes ca_certs = 2;
+}
 
-    // TTL
-    int32 ttl = 3;
+message Bundles {
+    repeated Bundle bundles = 1;
 }
 
 // Represents a single entry in NodeResolverMap and maps node properties
@@ -41,52 +41,6 @@ message AttestedNodeEntry {
 
     // Expiration date
     string certExpirationDate = 4;
-}
-
-//
-//
-//
-
-// Represents a Federated bundle
-message CreateFederatedEntryRequest {
-    // Federated bundle
-    FederatedBundle federatedBundle = 1;
-}
-
-// Empty response
-message CreateFederatedEntryResponse {}
-
-// Empty Request
-message ListFederatedEntryRequest {}
-
-// Represents a list of SPIFFE IDs of foreign trust domains
-message ListFederatedEntryResponse {
-    // SPIFFE IDs of foreign trust domains
-    repeated string federatedBundleSpiffeIdList = 1;
-}
-
-// Represents a federated bundle to update
-message UpdateFederatedEntryRequest {
-    // Federated bundle
-    FederatedBundle federatedBundle = 1;
-}
-
-// Represents the updated federated bundle
-message UpdateFederatedEntryResponse {
-    // Federated bundle
-    FederatedBundle federatedBundle = 1;
-}
-
-// Represents the Spiffe ID of the federated bundle to delete
-message DeleteFederatedEntryRequest {
-    // SPIFFE ID of foreign trust domain
-    string federatedBundleSpiffeId = 1;
-}
-
-// Represents the deleted federated bundle
-message DeleteFederatedEntryResponse {
-    // Federated bundle
-    FederatedBundle federatedBundle = 1;
 }
 
 //
@@ -329,14 +283,18 @@ message JoinToken {
 }
 
 service DataStore {
-    // Creates a Federated Bundle
-    rpc CreateFederatedEntry(CreateFederatedEntryRequest) returns (CreateFederatedEntryResponse);
-    // List all Federated SPIFFE IDs
-    rpc ListFederatedEntry(ListFederatedEntryRequest) returns (ListFederatedEntryResponse);
-    // Updates the specified Federated Bundle
-    rpc UpdateFederatedEntry(UpdateFederatedEntryRequest) returns (UpdateFederatedEntryResponse);
-    // Deletes the specified Federated Bundle
-    rpc DeleteFederatedEntry(DeleteFederatedEntryRequest) returns (DeleteFederatedEntryResponse);
+    // Creates a Bundle
+    rpc CreateBundle(Bundle) returns (Bundle);
+    // Updates the specified Bundle, overwriting existing certs
+    rpc UpdateBundle(Bundle) returns (Bundle);
+    // Appends the provided certs onto an existing bundle
+    rpc AppendBundle(Bundle) returns (Bundle);
+    // Deletes the specified Bundle
+    rpc DeleteBundle(Bundle) returns (Bundle);
+    // Returns the specified Bundle
+    rpc FetchBundle(Bundle) returns (Bundle);
+    // List all Bundles
+    rpc ListBundles(spire.common.Empty) returns (Bundles);
 
     // Creates an Attested Node Entry
     rpc CreateAttestedNodeEntry(CreateAttestedNodeEntryRequest) returns (CreateAttestedNodeEntryResponse);

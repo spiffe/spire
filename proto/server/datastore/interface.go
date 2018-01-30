@@ -23,10 +23,12 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type DataStore interface {
-	CreateFederatedEntry(request *CreateFederatedEntryRequest) (*CreateFederatedEntryResponse, error)
-	ListFederatedEntry(request *ListFederatedEntryRequest) (*ListFederatedEntryResponse, error)
-	UpdateFederatedEntry(request *UpdateFederatedEntryRequest) (*UpdateFederatedEntryResponse, error)
-	DeleteFederatedEntry(request *DeleteFederatedEntryRequest) (*DeleteFederatedEntryResponse, error)
+	CreateBundle(request *Bundle) (*Bundle, error)
+	UpdateBundle(request *Bundle) (*Bundle, error)
+	AppendBundle(request *Bundle) (*Bundle, error)
+	DeleteBundle(request *Bundle) (*Bundle, error)
+	FetchBundle(request *Bundle) (*Bundle, error)
+	ListBundles(request *common.Empty) (*Bundles, error)
 
 	CreateAttestedNodeEntry(request *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error)
 	FetchAttestedNodeEntry(request *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error)

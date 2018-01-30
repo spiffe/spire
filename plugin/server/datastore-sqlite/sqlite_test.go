@@ -17,57 +17,66 @@ import (
 type selectors []*common.Selector
 type regEntries []*common.RegistrationEntry
 
-func TestFederatedEntry_CRUD(t *testing.T) {
+func TestBundle_CRUD(t *testing.T) {
 	ds := createDefault(t)
 
-	bundle := &datastore.FederatedBundle{
-		FederatedBundleSpiffeId: "foo",
-		FederatedTrustBundle:    []byte("bar"),
-		Ttl:                     10,
+	cert, _, err := testutil.LoadSVIDFixture()
+	require.NoError(t, err)
+
+	bundle := &datastore.Bundle{
+		TrustDomain: "spiffe://foo/",
+		CaCerts:     cert.Raw,
 	}
 
 	// create
-	_, err := ds.CreateFederatedEntry(&datastore.CreateFederatedEntryRequest{bundle})
+	_, err = ds.CreateBundle(bundle)
 	require.NoError(t, err)
+
+	// fetch
+	fresp, err := ds.FetchBundle(&datastore.Bundle{TrustDomain: "spiffe://foo/"})
+	require.NoError(t, err)
+	assert.Equal(t, bundle, fresp)
 
 	// list
-	lresp, err := ds.ListFederatedEntry(&datastore.ListFederatedEntryRequest{})
+	lresp, err := ds.ListBundles(&common.Empty{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{bundle.FederatedBundleSpiffeId}, lresp.FederatedBundleSpiffeIdList)
+	assert.Equal(t, 1, len(lresp.Bundles))
+	assert.Equal(t, bundle, lresp.Bundles[0])
 
-	// update
-	bundle2 := &datastore.FederatedBundle{
-		FederatedBundleSpiffeId: bundle.FederatedBundleSpiffeId,
-		FederatedTrustBundle:    []byte("baz"),
-		Ttl:                     20,
+	cert, _, err = testutil.LoadCAFixture()
+	require.NoError(t, err)
+
+	bundle2 := &datastore.Bundle{
+		TrustDomain: bundle.TrustDomain,
+		CaCerts:     cert.Raw,
 	}
 
-	uresp, err := ds.UpdateFederatedEntry(&datastore.UpdateFederatedEntryRequest{bundle2})
+	// append
+	aresp, err := ds.AppendBundle(bundle2)
 	require.NoError(t, err)
-	assert.Equal(t, bundle2, uresp.FederatedBundle)
+	certs := append(bundle.CaCerts, cert.Raw...)
+	assert.Equal(t, certs, aresp.CaCerts)
 
-	lresp, err = ds.ListFederatedEntry(&datastore.ListFederatedEntryRequest{})
+	// update
+	uresp, err := ds.UpdateBundle(bundle2)
 	require.NoError(t, err)
-	assert.Equal(t, []string{bundle.FederatedBundleSpiffeId}, lresp.FederatedBundleSpiffeIdList)
+	assert.Equal(t, bundle2, uresp)
+
+	lresp, err = ds.ListBundles(&common.Empty{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, len(lresp.Bundles))
+	assert.Equal(t, bundle2, lresp.Bundles[0])
 
 	// delete
-	dresp, err := ds.DeleteFederatedEntry(&datastore.DeleteFederatedEntryRequest{
-		FederatedBundleSpiffeId: bundle.FederatedBundleSpiffeId,
+	dresp, err := ds.DeleteBundle(&datastore.Bundle{
+		TrustDomain: bundle.TrustDomain,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, bundle2, dresp.FederatedBundle)
+	assert.Equal(t, bundle2, dresp)
 
-	lresp, err = ds.ListFederatedEntry(&datastore.ListFederatedEntryRequest{})
+	lresp, err = ds.ListBundles(&common.Empty{})
 	require.NoError(t, err)
-	assert.Len(t, lresp.FederatedBundleSpiffeIdList, 0)
-}
-
-func Test_ListFederatedEntry(t *testing.T) {
-	ds := createDefault(t)
-
-	lresp, err := ds.ListFederatedEntry(&datastore.ListFederatedEntryRequest{})
-	require.NoError(t, err)
-	assert.Empty(t, lresp.FederatedBundleSpiffeIdList)
+	assert.Equal(t, 0, len(lresp.Bundles))
 }
 
 func Test_CreateAttestedNodeEntry(t *testing.T) {

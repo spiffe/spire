@@ -1,9 +1,11 @@
 package main
 
 import (
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"sort"
 	"sync"
 	"time"
@@ -41,117 +43,236 @@ type sqlitePlugin struct {
 	mutex *sync.Mutex
 }
 
-func (ds *sqlitePlugin) CreateFederatedEntry(
-	req *datastore.CreateFederatedEntryRequest) (*datastore.CreateFederatedEntryResponse, error) {
-
+// CreateBundle stores the given bundle
+func (ds *sqlitePlugin) CreateBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	bundle := req.FederatedBundle
-	if bundle == nil {
-		return nil, errors.New("invalid request: no bundle given")
-	}
-
-	model := FederatedBundle{
-		SpiffeID: bundle.FederatedBundleSpiffeId,
-		Bundle:   bundle.FederatedTrustBundle,
-		TTL:      bundle.Ttl,
-	}
-
-	if err := ds.db.Create(&model).Error; err != nil {
+	model, err := ds.bundleToModel(req)
+	if err != nil {
 		return nil, err
 	}
 
-	return &datastore.CreateFederatedEntryResponse{}, nil
+	result := ds.db.Create(model)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return req, nil
 }
 
-func (ds *sqlitePlugin) ListFederatedEntry(
-	*datastore.ListFederatedEntryRequest) (*datastore.ListFederatedEntryResponse, error) {
-
+// UpdateBundle updates an existing bundle with the given CAs. Overwrites any
+// existing certificates.
+func (ds *sqlitePlugin) UpdateBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	var entries []FederatedBundle
-	var response datastore.ListFederatedEntryResponse
-
-	if err := ds.db.Find(&entries).Error; err != nil {
-		return &response, err
+	newModel, err := ds.bundleToModel(req)
+	if err != nil {
+		return nil, err
 	}
 
-	for _, model := range entries {
-		response.FederatedBundleSpiffeIdList = append(response.FederatedBundleSpiffeIdList, model.SpiffeID)
+	tx := ds.db.Begin()
+
+	// Fetch the model to get its ID
+	model := &Bundle{TrustDomain: newModel.TrustDomain}
+	result := tx.Find(model)
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
 	}
 
-	return &response, nil
+	// Delete existing CA certs - the provided list takes precedence
+	result = tx.Where("bundle_id = ?", model.ID).Delete(CACert{})
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
+	}
+
+	// Set the new values
+	model.CACerts = newModel.CACerts
+	result = tx.Save(model)
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
+	}
+
+	return req, tx.Commit().Error
 }
 
-func (ds *sqlitePlugin) UpdateFederatedEntry(
-	req *datastore.UpdateFederatedEntryRequest) (*datastore.UpdateFederatedEntryResponse, error) {
-
+// AppendBundle adds the specified CA certificates to an existing bundle. Returns the entirety.
+func (ds *sqlitePlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	bundle := req.FederatedBundle
-
-	if bundle == nil {
-		return nil, errors.New("invalid request: no bundle given")
-	}
-
-	db := ds.db.Begin()
-
-	var model FederatedBundle
-
-	if err := db.Find(&model, "spiffe_id = ?", bundle.FederatedBundleSpiffeId).Error; err != nil {
-		db.Rollback()
+	newModel, err := ds.bundleToModel(req)
+	if err != nil {
 		return nil, err
 	}
 
-	updates := FederatedBundle{
-		Bundle: bundle.FederatedTrustBundle,
-		TTL:    bundle.Ttl,
+	tx := ds.db.Begin()
+
+	model := &Bundle{TrustDomain: newModel.TrustDomain}
+	result := tx.Find(model)
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
 	}
 
-	if err := db.Model(&model).Updates(updates).Error; err != nil {
-		db.Rollback()
+	// Get the existing certificates so we can include them in the response
+	var caCerts []CACert
+	result = tx.Model(model).Related(&caCerts)
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
+	}
+	model.CACerts = caCerts
+
+	// Set the new values
+	model.CACerts = append(model.CACerts, newModel.CACerts...)
+	result = tx.Save(model)
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
+	}
+
+	resp, err := ds.modelToBundle(model)
+	if err != nil {
+		tx.Rollback()
 		return nil, err
 	}
 
-	return &datastore.UpdateFederatedEntryResponse{
-		FederatedBundle: &datastore.FederatedBundle{
-			FederatedBundleSpiffeId: model.SpiffeID,
-			FederatedTrustBundle:    model.Bundle,
-			Ttl:                     model.TTL,
-		},
-	}, db.Commit().Error
+	return resp, tx.Commit().Error
 }
 
-func (ds *sqlitePlugin) DeleteFederatedEntry(
-	req *datastore.DeleteFederatedEntryRequest) (*datastore.DeleteFederatedEntryResponse, error) {
-
+// DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
+func (ds *sqlitePlugin) DeleteBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	db := ds.db.Begin()
+	// We don't care if cert data was sent - remove it now to prevent
+	// further processing.
+	req.CaCerts = []byte{}
 
-	var model FederatedBundle
-
-	if err := db.Find(&model, "spiffe_id = ?", req.FederatedBundleSpiffeId).Error; err != nil {
-		db.Rollback()
+	model, err := ds.bundleToModel(req)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := db.Delete(&model).Error; err != nil {
-		db.Rollback()
+	tx := ds.db.Begin()
+
+	result := tx.Find(model)
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
+	}
+
+	// Fetch related CA certs for response before we delete them
+	var caCerts []CACert
+	result = tx.Model(model).Related(&caCerts)
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
+	}
+	model.CACerts = caCerts
+
+	result = tx.Where("bundle_id = ?", model.ID).Delete(CACert{})
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
+	}
+
+	result = tx.Delete(model)
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, result.Error
+	}
+
+	resp, err := ds.modelToBundle(model)
+	if err != nil {
+		tx.Rollback()
 		return nil, err
 	}
 
-	return &datastore.DeleteFederatedEntryResponse{
-		FederatedBundle: &datastore.FederatedBundle{
-			FederatedBundleSpiffeId: model.SpiffeID,
-			FederatedTrustBundle:    model.Bundle,
-			Ttl:                     model.TTL,
-		},
-	}, db.Commit().Error
+	return resp, tx.Commit().Error
+}
+
+// FetchBundle returns the bundle matching the specified Trust Domain.
+func (ds *sqlitePlugin) FetchBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
+	model, err := ds.bundleToModel(req)
+	if err != nil {
+		return nil, err
+	}
+
+	result := ds.db.Find(model)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	var caCerts []CACert
+	result = ds.db.Model(model).Related(&caCerts)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	model.CACerts = caCerts
+
+	return ds.modelToBundle(model)
+}
+
+// ListBundles can be used to fetch all existing bundles.
+func (ds *sqlitePlugin) ListBundles(*common.Empty) (*datastore.Bundles, error) {
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
+	// Get a consistent view
+	tx := ds.db.Begin()
+	defer tx.Rollback()
+
+	var bundles []Bundle
+	result := tx.Find(&bundles)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	var caCerts []CACert
+	result = tx.Find(&caCerts)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	// Index CA Certs by Bundle ID so we can reconstruct them more easily
+	caMap := make(map[uint][]CACert)
+	for _, cert := range caCerts {
+		bundleID := cert.BundleID
+
+		if _, ok := caMap[bundleID]; ok {
+			caMap[bundleID] = append(caMap[bundleID], cert)
+		} else {
+			caMap[bundleID] = []CACert{cert}
+		}
+	}
+
+	resp := &datastore.Bundles{}
+	for _, model := range bundles {
+		certs, ok := caMap[model.ID]
+		if ok {
+			model.CACerts = certs
+		} else {
+			model.CACerts = []CACert{}
+		}
+
+		bundle, err := ds.modelToBundle(&model)
+		if err != nil {
+			return nil, err
+		}
+
+		resp.Bundles = append(resp.Bundles, bundle)
+	}
+
+	return resp, nil
 }
 
 func (ds *sqlitePlugin) CreateAttestedNodeEntry(
@@ -839,6 +960,81 @@ func (ds *sqlitePlugin) listMatchingEntries(selectors []*common.Selector) ([]*co
 	return ds.convertEntries(resp)
 }
 
+// bundleToModel converts the given Protobuf bundle message to a database model. It
+// performs validation, and fully parses certificates to form CACert embedded models.
+func (ds *sqlitePlugin) bundleToModel(pb *datastore.Bundle) (*Bundle, error) {
+	id, err := ds.validateTrustDomain(pb.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	certs, err := x509.ParseCertificates(pb.CaCerts)
+	if err != nil {
+		return nil, errors.New("could not parse CA certificates")
+	}
+
+	// Translate CACerts, if any
+	caCerts := []CACert{}
+	for _, c := range certs {
+		cert := CACert{
+			Cert:   c.Raw,
+			Expiry: c.NotAfter,
+		}
+
+		caCerts = append(caCerts, cert)
+	}
+
+	bundle := &Bundle{
+		TrustDomain: id.String(),
+		CACerts:     caCerts,
+	}
+
+	return bundle, nil
+}
+
+// modelToBundle converts the given bundle model to a Protobuf bundle message. It will also
+// include any embedded CACert models.
+func (ds *sqlitePlugin) modelToBundle(model *Bundle) (*datastore.Bundle, error) {
+	id, err := ds.validateTrustDomain(model.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	caCerts := []byte{}
+	for _, c := range model.CACerts {
+		caCerts = append(caCerts, c.Cert...)
+	}
+
+	pb := &datastore.Bundle{
+		TrustDomain: id.String(),
+		CaCerts:     caCerts,
+	}
+
+	return pb, nil
+}
+
+// validateTrustDomain converts the given string to a URL, and ensures that it is a correctly
+// formatted SPIFFE trust domain. String is taken as the argument here since neither Protobuf nor
+// GORM natively support the url.URL type.
+//
+// A valid trust domain has the SPIFFE scheme, a non-zero host component, and no path
+func (ds *sqlitePlugin) validateTrustDomain(in string) (*url.URL, error) {
+	if in == "" {
+		return nil, errors.New("trust domain is required")
+	}
+
+	id, err := url.Parse(in)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse trust domain %v: %v", in, err)
+	}
+
+	if id.Scheme != "spiffe" || id.Host == "" || (id.Path != "" && id.Path != "/") {
+		return nil, fmt.Errorf("%v is not a valid SPIFFE trust domain", id.String())
+	}
+
+	return id, nil
+}
+
 func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
 	for _, regEntry := range fetchedRegisteredEntries {
 		var selectors []*common.Selector
@@ -905,12 +1101,13 @@ func (ds *sqlitePlugin) restart() error {
 		ds.db.Close()
 	}
 
+	db.Exec("PRAGMA foreign_keys = ON")
 	migrateDB(db)
 	ds.db = db
 	return nil
 }
 
-func newPlugin(path string) (datastore.DataStore, error) {
+func newPlugin(path string) (*sqlitePlugin, error) {
 	p := &sqlitePlugin{
 		fileName: path,
 		mutex:    new(sync.Mutex),
@@ -919,16 +1116,23 @@ func newPlugin(path string) (datastore.DataStore, error) {
 	return p, p.restart()
 }
 
-//New creates a new sqlite plugin with
-//an in-memory database and shared cache
+// New creates a new sqlite plugin with
+// an in-memory database and shared cache
 func New() (datastore.DataStore, error) {
 	return newPlugin(":memory:")
 }
 
-//NewTemp create a new plugin with a temporal database,
-//different connections won't access the same database
+// NewTemp create a new plugin with a temporal database, allowing new
+// connections to receive a fresh copy. Primarily meant for testing.
 func NewTemp() (datastore.DataStore, error) {
-	return newPlugin("")
+	p, err := newPlugin("")
+	if err != nil {
+		return nil, err
+	}
+
+	p.db.LogMode(true)
+
+	return p, nil
 }
 
 func main() {

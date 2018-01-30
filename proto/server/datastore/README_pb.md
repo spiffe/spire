@@ -32,23 +32,20 @@
 
 - [datastore.proto](#datastore.proto)
     - [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry)
+    - [Bundle](#spire.server.datastore.Bundle)
+    - [Bundles](#spire.server.datastore.Bundles)
     - [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest)
     - [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryResponse)
-    - [CreateFederatedEntryRequest](#spire.server.datastore.CreateFederatedEntryRequest)
-    - [CreateFederatedEntryResponse](#spire.server.datastore.CreateFederatedEntryResponse)
     - [CreateNodeResolverMapEntryRequest](#spire.server.datastore.CreateNodeResolverMapEntryRequest)
     - [CreateNodeResolverMapEntryResponse](#spire.server.datastore.CreateNodeResolverMapEntryResponse)
     - [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest)
     - [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryResponse)
     - [DeleteAttestedNodeEntryRequest](#spire.server.datastore.DeleteAttestedNodeEntryRequest)
     - [DeleteAttestedNodeEntryResponse](#spire.server.datastore.DeleteAttestedNodeEntryResponse)
-    - [DeleteFederatedEntryRequest](#spire.server.datastore.DeleteFederatedEntryRequest)
-    - [DeleteFederatedEntryResponse](#spire.server.datastore.DeleteFederatedEntryResponse)
     - [DeleteNodeResolverMapEntryRequest](#spire.server.datastore.DeleteNodeResolverMapEntryRequest)
     - [DeleteNodeResolverMapEntryResponse](#spire.server.datastore.DeleteNodeResolverMapEntryResponse)
     - [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest)
     - [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryResponse)
-    - [FederatedBundle](#spire.server.datastore.FederatedBundle)
     - [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest)
     - [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryResponse)
     - [FetchNodeResolverMapEntryRequest](#spire.server.datastore.FetchNodeResolverMapEntryRequest)
@@ -59,8 +56,6 @@
     - [FetchStaleNodeEntriesRequest](#spire.server.datastore.FetchStaleNodeEntriesRequest)
     - [FetchStaleNodeEntriesResponse](#spire.server.datastore.FetchStaleNodeEntriesResponse)
     - [JoinToken](#spire.server.datastore.JoinToken)
-    - [ListFederatedEntryRequest](#spire.server.datastore.ListFederatedEntryRequest)
-    - [ListFederatedEntryResponse](#spire.server.datastore.ListFederatedEntryResponse)
     - [ListParentIDEntriesRequest](#spire.server.datastore.ListParentIDEntriesRequest)
     - [ListParentIDEntriesResponse](#spire.server.datastore.ListParentIDEntriesResponse)
     - [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest)
@@ -72,8 +67,6 @@
     - [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesResponse)
     - [UpdateAttestedNodeEntryRequest](#spire.server.datastore.UpdateAttestedNodeEntryRequest)
     - [UpdateAttestedNodeEntryResponse](#spire.server.datastore.UpdateAttestedNodeEntryResponse)
-    - [UpdateFederatedEntryRequest](#spire.server.datastore.UpdateFederatedEntryRequest)
-    - [UpdateFederatedEntryResponse](#spire.server.datastore.UpdateFederatedEntryResponse)
     - [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest)
     - [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryResponse)
   
@@ -358,6 +351,37 @@ number and expiration date of its node SVID.
 
 
 
+<a name="spire.server.datastore.Bundle"/>
+
+### Bundle
+Represents the trust bundle of a foreign trust domain
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| trust_domain | [string](#string) |  | SPIFFE ID of the foreign trust domain |
+| ca_certs | [bytes](#bytes) |  | CA Certificates ASN.1 DER encoded |
+
+
+
+
+
+
+<a name="spire.server.datastore.Bundles"/>
+
+### Bundles
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundles | [Bundle](#spire.server.datastore.Bundle) | repeated |  |
+
+
+
+
+
+
 <a name="spire.server.datastore.CreateAttestedNodeEntryRequest"/>
 
 ### CreateAttestedNodeEntryRequest
@@ -382,31 +406,6 @@ Represents the created Attested Node entry
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  | Attested node entry |
-
-
-
-
-
-
-<a name="spire.server.datastore.CreateFederatedEntryRequest"/>
-
-### CreateFederatedEntryRequest
-Represents a Federated bundle
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#spire.server.datastore.FederatedBundle) |  | Federated bundle |
-
-
-
-
-
-
-<a name="spire.server.datastore.CreateFederatedEntryResponse"/>
-
-### CreateFederatedEntryResponse
-Empty response
 
 
 
@@ -503,36 +502,6 @@ Represents the deleted Attested node entry
 
 
 
-<a name="spire.server.datastore.DeleteFederatedEntryRequest"/>
-
-### DeleteFederatedEntryRequest
-Represents the Spiffe ID of the federated bundle to delete
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedBundleSpiffeId | [string](#string) |  | SPIFFE ID of foreign trust domain |
-
-
-
-
-
-
-<a name="spire.server.datastore.DeleteFederatedEntryResponse"/>
-
-### DeleteFederatedEntryResponse
-Represents the deleted federated bundle
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#spire.server.datastore.FederatedBundle) |  | Federated bundle |
-
-
-
-
-
-
 <a name="spire.server.datastore.DeleteNodeResolverMapEntryRequest"/>
 
 ### DeleteNodeResolverMapEntryRequest
@@ -587,25 +556,6 @@ Represents the deleted Registration entry
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
-
-
-
-
-
-
-<a name="spire.server.datastore.FederatedBundle"/>
-
-### FederatedBundle
-Represents the trust chain for a different trust domain, along with
-a TTL describing its expiration, keyed by the SPIFFE ID of the foreign
-trust domain.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedBundleSpiffeId | [string](#string) |  | Foreign trust domain SPIFFE ID |
-| federatedTrustBundle | [bytes](#bytes) |  | Trust chain |
-| ttl | [int32](#int32) |  | TTL |
 
 
 
@@ -752,31 +702,6 @@ Represents a join token and associated metadata, if known
 | ----- | ---- | ----- | ----------- |
 | token | [string](#string) |  |  |
 | expiry | [int64](#int64) |  | Expiration date, represented in UNIX time |
-
-
-
-
-
-
-<a name="spire.server.datastore.ListFederatedEntryRequest"/>
-
-### ListFederatedEntryRequest
-Empty Request
-
-
-
-
-
-
-<a name="spire.server.datastore.ListFederatedEntryResponse"/>
-
-### ListFederatedEntryResponse
-Represents a list of SPIFFE IDs of foreign trust domains
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedBundleSpiffeIdList | [string](#string) | repeated | SPIFFE IDs of foreign trust domains |
 
 
 
@@ -952,36 +877,6 @@ Represents the updated Attested node entry
 
 
 
-<a name="spire.server.datastore.UpdateFederatedEntryRequest"/>
-
-### UpdateFederatedEntryRequest
-Represents a federated bundle to update
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#spire.server.datastore.FederatedBundle) |  | Federated bundle |
-
-
-
-
-
-
-<a name="spire.server.datastore.UpdateFederatedEntryResponse"/>
-
-### UpdateFederatedEntryResponse
-Represents the updated federated bundle
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federatedBundle | [FederatedBundle](#spire.server.datastore.FederatedBundle) |  | Federated bundle |
-
-
-
-
-
-
 <a name="spire.server.datastore.UpdateRegistrationEntryRequest"/>
 
 ### UpdateRegistrationEntryRequest
@@ -1026,10 +921,12 @@ Represents the updated Registration entry
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateFederatedEntry | [CreateFederatedEntryRequest](#spire.server.datastore.CreateFederatedEntryRequest) | [CreateFederatedEntryResponse](#spire.server.datastore.CreateFederatedEntryRequest) | Creates a Federated Bundle |
-| ListFederatedEntry | [ListFederatedEntryRequest](#spire.server.datastore.ListFederatedEntryRequest) | [ListFederatedEntryResponse](#spire.server.datastore.ListFederatedEntryRequest) | List all Federated SPIFFE IDs |
-| UpdateFederatedEntry | [UpdateFederatedEntryRequest](#spire.server.datastore.UpdateFederatedEntryRequest) | [UpdateFederatedEntryResponse](#spire.server.datastore.UpdateFederatedEntryRequest) | Updates the specified Federated Bundle |
-| DeleteFederatedEntry | [DeleteFederatedEntryRequest](#spire.server.datastore.DeleteFederatedEntryRequest) | [DeleteFederatedEntryResponse](#spire.server.datastore.DeleteFederatedEntryRequest) | Deletes the specified Federated Bundle |
+| CreateBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Creates a Bundle |
+| UpdateBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Updates the specified Bundle, overwriting existing certs |
+| AppendBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Appends the provided certs onto an existing bundle |
+| DeleteBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Deletes the specified Bundle |
+| FetchBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Returns the specified Bundle |
+| ListBundles | [spire.common.Empty](#spire.common.Empty) | [Bundles](#spire.common.Empty) | List all Bundles |
 | CreateAttestedNodeEntry | [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest) | [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryRequest) | Creates an Attested Node Entry |
 | FetchAttestedNodeEntry | [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest) | [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryRequest) | Retrieves the Attested Node Entry |
 | FetchStaleNodeEntries | [FetchStaleNodeEntriesRequest](#spire.server.datastore.FetchStaleNodeEntriesRequest) | [FetchStaleNodeEntriesResponse](#spire.server.datastore.FetchStaleNodeEntriesRequest) | Retrieves dead nodes for which the base SVID has expired |
