@@ -177,7 +177,7 @@ func (c *catalog) loadConfigFromHclConfig(hclPluginConfig HclPluginConfig) error
 func (c *catalog) startPlugins() error {
 	for _, p := range c.plugins {
 		if !p.Config.Enabled {
-			c.l.Infof("%s plugin %s is disabled and will not be started", p.Config.PluginType, p.Config.PluginName)
+			c.l.Debugf("%s plugin %s is disabled and will not be started", p.Config.PluginType, p.Config.PluginName)
 			continue
 		}
 
@@ -210,7 +210,7 @@ func (c *catalog) startPlugins() error {
 func (c *catalog) configurePlugins() error {
 	for _, p := range c.plugins {
 		if !p.Config.Enabled {
-			c.l.Infof("%s plugin %s is disabled and will not be configured", p.Config.PluginType, p.Config.PluginName)
+			c.l.Debugf("%s plugin %s is disabled and will not be configured", p.Config.PluginType, p.Config.PluginName)
 			continue
 		}
 

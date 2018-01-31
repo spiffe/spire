@@ -145,7 +145,7 @@ func (c *catalog) categorize() error {
 	errMsg := "Plugin %s does not adhere to %s interface"
 	for _, p := range c.com.Plugins() {
 		if !p.Config.Enabled {
-			c.log.Infof("%s plugin %s is disabled and will not be categorized", p.Config.PluginType, p.Config.PluginName)
+			c.log.Debugf("%s plugin %s is disabled and will not be categorized", p.Config.PluginType, p.Config.PluginName)
 			continue
 		}
 
