@@ -36,6 +36,7 @@ var plugins = []*common_catalog.ManagedPlugin{
 		},
 	},
 	{
+		// Have another WorkloadAttestor plugin, but disabled
 		Plugin: &mock_workloadattestor.MockWorkloadAttestor{},
 		Config: common_catalog.PluginConfig{
 			PluginType: WorkloadAttestorType,

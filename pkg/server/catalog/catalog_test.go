@@ -44,6 +44,7 @@ var plugins = []*common_catalog.ManagedPlugin{
 		},
 	},
 	{
+		// Have another DataStore plugin, but disabled
 		Plugin: &mock_datastore.MockDataStore{},
 		Config: common_catalog.PluginConfig{
 			Enabled:    false,
