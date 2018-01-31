@@ -13,6 +13,38 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+var plugins = []*common_catalog.ManagedPlugin{
+	{
+		Plugin: &mock_keymanager.MockKeyManager{},
+		Config: common_catalog.PluginConfig{
+			PluginType: KeyManagerType,
+			Enabled:    true,
+		},
+	},
+	{
+		Plugin: &mock_nodeattestor.MockNodeAttestor{},
+		Config: common_catalog.PluginConfig{
+			PluginType: NodeAttestorType,
+			Enabled:    true,
+		},
+	},
+	{
+		Plugin: &mock_workloadattestor.MockWorkloadAttestor{},
+		Config: common_catalog.PluginConfig{
+			PluginType: WorkloadAttestorType,
+			Enabled:    true,
+		},
+	},
+	{
+		// Have another WorkloadAttestor plugin, but disabled
+		Plugin: &mock_workloadattestor.MockWorkloadAttestor{},
+		Config: common_catalog.PluginConfig{
+			PluginType: WorkloadAttestorType,
+			Enabled:    false,
+		},
+	},
+}
+
 type AgentCatalogTestSuite struct {
 	suite.Suite
 
@@ -28,9 +60,11 @@ type AgentCatalogTestSuite struct {
 
 func (c *AgentCatalogTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(c.t)
-	_, logHook := test.NewNullLogger()
+	log, logHook := test.NewNullLogger()
 
-	cat := &catalog{}
+	cat := &catalog{
+		log: log,
+	}
 
 	c.catalog = cat
 	c.ctrl = mockCtrl
@@ -44,46 +78,35 @@ func (c *AgentCatalogTestSuite) TeardownTest() {
 func (c *AgentCatalogTestSuite) TestCategorizeNotEnoughTypes() {
 	comCatalog := mock_catalog.NewMockCatalog(c.ctrl)
 	c.catalog.com = comCatalog
+	var expectedErr = "At least one plugin of type"
 
-	plugins := []*common_catalog.ManagedPlugin{
+	// Have all plugins, but one disabled
+	plugins[0].Config.Enabled = false
+	comCatalog.EXPECT().Plugins().Return(plugins)
+	err := c.catalog.categorize()
+	c.Assert().Error(err)
+	c.Assert().Contains(err.Error(), expectedErr)
+
+	// Have only one plugin
+	var onePlugin = []*common_catalog.ManagedPlugin{
 		{
 			Plugin: &mock_workloadattestor.MockWorkloadAttestor{},
 			Config: common_catalog.PluginConfig{
 				PluginType: WorkloadAttestorType,
+				Enabled:    true,
 			},
 		},
 	}
-	comCatalog.EXPECT().Plugins().Return(plugins)
-
-	err := c.catalog.categorize()
+	comCatalog.EXPECT().Plugins().Return(onePlugin)
+	err = c.catalog.categorize()
 	c.Assert().Error(err)
-	c.Assert().Contains(err.Error(), "At least one plugin of type")
+	c.Assert().Contains(err.Error(), expectedErr)
 }
 
 func (c *AgentCatalogTestSuite) TestCategorize() {
 	comCatalog := mock_catalog.NewMockCatalog(c.ctrl)
 	c.catalog.com = comCatalog
 
-	plugins := []*common_catalog.ManagedPlugin{
-		{
-			Plugin: &mock_keymanager.MockKeyManager{},
-			Config: common_catalog.PluginConfig{
-				PluginType: KeyManagerType,
-			},
-		},
-		{
-			Plugin: &mock_nodeattestor.MockNodeAttestor{},
-			Config: common_catalog.PluginConfig{
-				PluginType: NodeAttestorType,
-			},
-		},
-		{
-			Plugin: &mock_workloadattestor.MockWorkloadAttestor{},
-			Config: common_catalog.PluginConfig{
-				PluginType: WorkloadAttestorType,
-			},
-		},
-	}
 	comCatalog.EXPECT().Plugins().Return(plugins)
 
 	err := c.catalog.categorize()
