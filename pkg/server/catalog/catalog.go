@@ -53,6 +53,7 @@ type Config struct {
 type catalog struct {
 	com common.Catalog
 	m   *sync.RWMutex
+	log logrus.FieldLogger
 
 	caPlugins           []ca.ControlPlaneCa
 	dataStorePlugins    []datastore.DataStore
@@ -69,6 +70,7 @@ func New(c *Config) Catalog {
 	}
 
 	return &catalog{
+		log: c.Log,
 		com: common.New(commonConfig),
 		m:   new(sync.RWMutex),
 	}
@@ -165,6 +167,11 @@ func (c *catalog) categorize() error {
 	c.reset()
 
 	for _, p := range c.com.Plugins() {
+		if !p.Config.Enabled {
+			c.log.Infof("%s plugin %s is disabled and will not be categorized", p.Config.PluginType, p.Config.PluginName)
+			continue
+		}
+
 		switch p.Config.PluginType {
 		case CAType:
 			pl, ok := p.Plugin.(ca.ControlPlaneCa)

@@ -28,11 +28,58 @@ type ServerCatalogTestSuite struct {
 	ctrl *gomock.Controller
 }
 
+var plugins = []*common_catalog.ManagedPlugin{
+	{
+		Plugin: &mock_ca.MockControlPlaneCa{},
+		Config: common_catalog.PluginConfig{
+			Enabled:    true,
+			PluginType: CAType,
+		},
+	},
+	{
+		Plugin: &mock_datastore.MockDataStore{},
+		Config: common_catalog.PluginConfig{
+			Enabled:    true,
+			PluginType: DataStoreType,
+		},
+	},
+	{
+		Plugin: &mock_datastore.MockDataStore{},
+		Config: common_catalog.PluginConfig{
+			Enabled:    false,
+			PluginType: DataStoreType,
+		},
+	},
+	{
+		Plugin: &mock_nodeattestor.MockNodeAttestor{},
+		Config: common_catalog.PluginConfig{
+			Enabled:    true,
+			PluginType: NodeAttestorType,
+		},
+	},
+	{
+		Plugin: &mock_noderesolver.MockNodeResolver{},
+		Config: common_catalog.PluginConfig{
+			Enabled:    true,
+			PluginType: NodeResolverType,
+		},
+	},
+	{
+		Plugin: &mock_upstreamca.MockUpstreamCa{},
+		Config: common_catalog.PluginConfig{
+			Enabled:    true,
+			PluginType: UpstreamCAType,
+		},
+	},
+}
+
 func (c *ServerCatalogTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(c.t)
-	_, logHook := test.NewNullLogger()
+	log, logHook := test.NewNullLogger()
 
-	cat := &catalog{}
+	cat := &catalog{
+		log: log,
+	}
 
 	c.catalog = cat
 	c.ctrl = mockCtrl
@@ -46,58 +93,35 @@ func (c *ServerCatalogTestSuite) TeardownTest() {
 func (c *ServerCatalogTestSuite) TestCategorizeNotEnoughTypes() {
 	comCatalog := mock_catalog.NewMockCatalog(c.ctrl)
 	c.catalog.com = comCatalog
+	var expectedErr = "At least one plugin of type"
 
-	plugins := []*common_catalog.ManagedPlugin{
+	// Have all plugins, but one disabled
+	plugins[0].Config.Enabled = false
+	comCatalog.EXPECT().Plugins().Return(plugins)
+	err := c.catalog.categorize()
+	c.Assert().Error(err)
+	c.Assert().Contains(err.Error(), expectedErr)
+
+	// Have only one plugin
+	var onePlugin = []*common_catalog.ManagedPlugin{
 		{
 			Plugin: &mock_ca.MockControlPlaneCa{},
 			Config: common_catalog.PluginConfig{
+				Enabled:    true,
 				PluginType: CAType,
 			},
 		},
 	}
-	comCatalog.EXPECT().Plugins().Return(plugins)
-
-	err := c.catalog.categorize()
+	comCatalog.EXPECT().Plugins().Return(onePlugin)
+	err = c.catalog.categorize()
 	c.Assert().Error(err)
-	c.Assert().Contains(err.Error(), "At least one plugin of type")
+	c.Assert().Contains(err.Error(), expectedErr)
 }
 
 func (c *ServerCatalogTestSuite) TestCategorize() {
 	comCatalog := mock_catalog.NewMockCatalog(c.ctrl)
 	c.catalog.com = comCatalog
 
-	plugins := []*common_catalog.ManagedPlugin{
-		{
-			Plugin: &mock_ca.MockControlPlaneCa{},
-			Config: common_catalog.PluginConfig{
-				PluginType: CAType,
-			},
-		},
-		{
-			Plugin: &mock_datastore.MockDataStore{},
-			Config: common_catalog.PluginConfig{
-				PluginType: DataStoreType,
-			},
-		},
-		{
-			Plugin: &mock_nodeattestor.MockNodeAttestor{},
-			Config: common_catalog.PluginConfig{
-				PluginType: NodeAttestorType,
-			},
-		},
-		{
-			Plugin: &mock_noderesolver.MockNodeResolver{},
-			Config: common_catalog.PluginConfig{
-				PluginType: NodeResolverType,
-			},
-		},
-		{
-			Plugin: &mock_upstreamca.MockUpstreamCa{},
-			Config: common_catalog.PluginConfig{
-				PluginType: UpstreamCAType,
-			},
-		},
-	}
 	comCatalog.EXPECT().Plugins().Return(plugins)
 
 	err := c.catalog.categorize()
