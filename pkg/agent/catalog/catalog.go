@@ -45,6 +45,7 @@ type Config struct {
 type catalog struct {
 	com common.Catalog
 	m   *sync.RWMutex
+	log logrus.FieldLogger
 
 	keyManagerPlugins       []keymanager.KeyManager
 	nodeAttestorPlugins     []nodeattestor.NodeAttestor
@@ -59,6 +60,7 @@ func New(c *Config) Catalog {
 	}
 
 	return &catalog{
+		log: c.Log,
 		com: common.New(commonConfig),
 		m:   new(sync.RWMutex),
 	}
@@ -142,6 +144,11 @@ func (c *catalog) categorize() error {
 
 	errMsg := "Plugin %s does not adhere to %s interface"
 	for _, p := range c.com.Plugins() {
+		if !p.Config.Enabled {
+			c.log.Debugf("%s plugin %s is disabled and will not be categorized", p.Config.PluginType, p.Config.PluginName)
+			continue
+		}
+
 		switch p.Config.PluginType {
 		case KeyManagerType:
 			pl, ok := p.Plugin.(keymanager.KeyManager)
