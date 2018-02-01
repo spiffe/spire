@@ -1,16 +1,25 @@
 package main
 
 import (
-	"github.com/jinzhu/gorm"
 	"time"
+
+	"github.com/jinzhu/gorm"
 )
 
-type FederatedBundle struct {
+type CACert struct {
 	gorm.Model
 
-	SpiffeID string `gorm:"unique_index"`
-	Bundle   []byte
-	TTL      int32
+	Cert   []byte    `gorm:"not null"`
+	Expiry time.Time `gorm:"not null;index"`
+
+	BundleID uint `gorm:"not null;index" sql:"type:integer REFERENCES bundles(id)"`
+}
+
+type Bundle struct {
+	gorm.Model
+
+	TrustDomain string `gorm:"not null;unique_index"`
+	CACerts     []CACert
 }
 
 type AttestedNodeEntry struct {
@@ -58,7 +67,7 @@ type Selector struct {
 }
 
 func migrateDB(db *gorm.DB) {
-	db.AutoMigrate(&FederatedBundle{}, &AttestedNodeEntry{},
+	db.AutoMigrate(&CACert{}, &Bundle{}, &AttestedNodeEntry{},
 		&NodeResolverMapEntry{}, &RegisteredEntry{}, &JoinToken{},
 		&Selector{})
 

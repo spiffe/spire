@@ -8,17 +8,10 @@ It is generated from these files:
 	datastore.proto
 
 It has these top-level messages:
-	FederatedBundle
+	Bundle
+	Bundles
 	NodeResolverMapEntry
 	AttestedNodeEntry
-	CreateFederatedEntryRequest
-	CreateFederatedEntryResponse
-	ListFederatedEntryRequest
-	ListFederatedEntryResponse
-	UpdateFederatedEntryRequest
-	UpdateFederatedEntryResponse
-	DeleteFederatedEntryRequest
-	DeleteFederatedEntryResponse
 	CreateAttestedNodeEntryRequest
 	CreateAttestedNodeEntryResponse
 	FetchAttestedNodeEntryRequest
@@ -275,42 +268,48 @@ func (m *RegistrationEntries) GetEntries() []*RegistrationEntry {
 	return s
 }
 
-// Represents the trust chain for a different trust domain, along with
-// a TTL describing its expiration, keyed by the SPIFFE ID of the foreign
-// trust domain.
-type FederatedBundle struct {
-	// Foreign trust domain SPIFFE ID
-	FederatedBundleSpiffeId string `protobuf:"bytes,1,opt,name=federatedBundleSpiffeId" json:"federatedBundleSpiffeId,omitempty"`
-	// Trust chain
-	FederatedTrustBundle []byte `protobuf:"bytes,2,opt,name=federatedTrustBundle,proto3" json:"federatedTrustBundle,omitempty"`
-	// TTL
-	Ttl int32 `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
+// Represents the trust bundle of a foreign trust domain
+type Bundle struct {
+	// SPIFFE ID of the foreign trust domain
+	TrustDomain string `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain" json:"trust_domain,omitempty"`
+	// CA Certificates
+	// ASN.1 DER encoded
+	CaCerts []byte `protobuf:"bytes,2,opt,name=ca_certs,json=caCerts,proto3" json:"ca_certs,omitempty"`
 }
 
-func (m *FederatedBundle) Reset()                    { *m = FederatedBundle{} }
-func (m *FederatedBundle) String() string            { return proto.CompactTextString(m) }
-func (*FederatedBundle) ProtoMessage()               {}
-func (*FederatedBundle) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+func (m *Bundle) Reset()                    { *m = Bundle{} }
+func (m *Bundle) String() string            { return proto.CompactTextString(m) }
+func (*Bundle) ProtoMessage()               {}
+func (*Bundle) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
-func (m *FederatedBundle) GetFederatedBundleSpiffeId() string {
+func (m *Bundle) GetTrustDomain() string {
 	if m != nil {
-		return m.FederatedBundleSpiffeId
+		return m.TrustDomain
 	}
 	return ""
 }
 
-func (m *FederatedBundle) GetFederatedTrustBundle() []byte {
+func (m *Bundle) GetCaCerts() []byte {
 	if m != nil {
-		return m.FederatedTrustBundle
+		return m.CaCerts
 	}
 	return nil
 }
 
-func (m *FederatedBundle) GetTtl() int32 {
+type Bundles struct {
+	Bundles []*Bundle `protobuf:"bytes,1,rep,name=bundles" json:"bundles,omitempty"`
+}
+
+func (m *Bundles) Reset()                    { *m = Bundles{} }
+func (m *Bundles) String() string            { return proto.CompactTextString(m) }
+func (*Bundles) ProtoMessage()               {}
+func (*Bundles) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+
+func (m *Bundles) GetBundles() []*Bundle {
 	if m != nil {
-		return m.Ttl
+		return m.Bundles
 	}
-	return 0
+	return nil
 }
 
 // Represents a single entry in NodeResolverMap and maps node properties
@@ -323,7 +322,7 @@ type NodeResolverMapEntry struct {
 func (m *NodeResolverMapEntry) Reset()                    { *m = NodeResolverMapEntry{} }
 func (m *NodeResolverMapEntry) String() string            { return proto.CompactTextString(m) }
 func (*NodeResolverMapEntry) ProtoMessage()               {}
-func (*NodeResolverMapEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (*NodeResolverMapEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
 func (m *NodeResolverMapEntry) GetBaseSpiffeId() string {
 	if m != nil {
@@ -356,7 +355,7 @@ type AttestedNodeEntry struct {
 func (m *AttestedNodeEntry) Reset()                    { *m = AttestedNodeEntry{} }
 func (m *AttestedNodeEntry) String() string            { return proto.CompactTextString(m) }
 func (*AttestedNodeEntry) ProtoMessage()               {}
-func (*AttestedNodeEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (*AttestedNodeEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
 func (m *AttestedNodeEntry) GetBaseSpiffeId() string {
 	if m != nil {
@@ -386,132 +385,6 @@ func (m *AttestedNodeEntry) GetCertExpirationDate() string {
 	return ""
 }
 
-// Represents a Federated bundle
-type CreateFederatedEntryRequest struct {
-	// Federated bundle
-	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
-}
-
-func (m *CreateFederatedEntryRequest) Reset()                    { *m = CreateFederatedEntryRequest{} }
-func (m *CreateFederatedEntryRequest) String() string            { return proto.CompactTextString(m) }
-func (*CreateFederatedEntryRequest) ProtoMessage()               {}
-func (*CreateFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
-
-func (m *CreateFederatedEntryRequest) GetFederatedBundle() *FederatedBundle {
-	if m != nil {
-		return m.FederatedBundle
-	}
-	return nil
-}
-
-// Empty response
-type CreateFederatedEntryResponse struct {
-}
-
-func (m *CreateFederatedEntryResponse) Reset()                    { *m = CreateFederatedEntryResponse{} }
-func (m *CreateFederatedEntryResponse) String() string            { return proto.CompactTextString(m) }
-func (*CreateFederatedEntryResponse) ProtoMessage()               {}
-func (*CreateFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
-
-// Empty Request
-type ListFederatedEntryRequest struct {
-}
-
-func (m *ListFederatedEntryRequest) Reset()                    { *m = ListFederatedEntryRequest{} }
-func (m *ListFederatedEntryRequest) String() string            { return proto.CompactTextString(m) }
-func (*ListFederatedEntryRequest) ProtoMessage()               {}
-func (*ListFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
-
-// Represents a list of SPIFFE IDs of foreign trust domains
-type ListFederatedEntryResponse struct {
-	// SPIFFE IDs of foreign trust domains
-	FederatedBundleSpiffeIdList []string `protobuf:"bytes,1,rep,name=federatedBundleSpiffeIdList" json:"federatedBundleSpiffeIdList,omitempty"`
-}
-
-func (m *ListFederatedEntryResponse) Reset()                    { *m = ListFederatedEntryResponse{} }
-func (m *ListFederatedEntryResponse) String() string            { return proto.CompactTextString(m) }
-func (*ListFederatedEntryResponse) ProtoMessage()               {}
-func (*ListFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
-
-func (m *ListFederatedEntryResponse) GetFederatedBundleSpiffeIdList() []string {
-	if m != nil {
-		return m.FederatedBundleSpiffeIdList
-	}
-	return nil
-}
-
-// Represents a federated bundle to update
-type UpdateFederatedEntryRequest struct {
-	// Federated bundle
-	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
-}
-
-func (m *UpdateFederatedEntryRequest) Reset()                    { *m = UpdateFederatedEntryRequest{} }
-func (m *UpdateFederatedEntryRequest) String() string            { return proto.CompactTextString(m) }
-func (*UpdateFederatedEntryRequest) ProtoMessage()               {}
-func (*UpdateFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
-
-func (m *UpdateFederatedEntryRequest) GetFederatedBundle() *FederatedBundle {
-	if m != nil {
-		return m.FederatedBundle
-	}
-	return nil
-}
-
-// Represents the updated federated bundle
-type UpdateFederatedEntryResponse struct {
-	// Federated bundle
-	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
-}
-
-func (m *UpdateFederatedEntryResponse) Reset()                    { *m = UpdateFederatedEntryResponse{} }
-func (m *UpdateFederatedEntryResponse) String() string            { return proto.CompactTextString(m) }
-func (*UpdateFederatedEntryResponse) ProtoMessage()               {}
-func (*UpdateFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
-
-func (m *UpdateFederatedEntryResponse) GetFederatedBundle() *FederatedBundle {
-	if m != nil {
-		return m.FederatedBundle
-	}
-	return nil
-}
-
-// Represents the Spiffe ID of the federated bundle to delete
-type DeleteFederatedEntryRequest struct {
-	// SPIFFE ID of foreign trust domain
-	FederatedBundleSpiffeId string `protobuf:"bytes,1,opt,name=federatedBundleSpiffeId" json:"federatedBundleSpiffeId,omitempty"`
-}
-
-func (m *DeleteFederatedEntryRequest) Reset()                    { *m = DeleteFederatedEntryRequest{} }
-func (m *DeleteFederatedEntryRequest) String() string            { return proto.CompactTextString(m) }
-func (*DeleteFederatedEntryRequest) ProtoMessage()               {}
-func (*DeleteFederatedEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
-
-func (m *DeleteFederatedEntryRequest) GetFederatedBundleSpiffeId() string {
-	if m != nil {
-		return m.FederatedBundleSpiffeId
-	}
-	return ""
-}
-
-// Represents the deleted federated bundle
-type DeleteFederatedEntryResponse struct {
-	// Federated bundle
-	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federatedBundle" json:"federatedBundle,omitempty"`
-}
-
-func (m *DeleteFederatedEntryResponse) Reset()                    { *m = DeleteFederatedEntryResponse{} }
-func (m *DeleteFederatedEntryResponse) String() string            { return proto.CompactTextString(m) }
-func (*DeleteFederatedEntryResponse) ProtoMessage()               {}
-func (*DeleteFederatedEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
-
-func (m *DeleteFederatedEntryResponse) GetFederatedBundle() *FederatedBundle {
-	if m != nil {
-		return m.FederatedBundle
-	}
-	return nil
-}
-
 // Represents an Attested Node entry to create
 type CreateAttestedNodeEntryRequest struct {
 	// Attested node entry
@@ -521,7 +394,7 @@ type CreateAttestedNodeEntryRequest struct {
 func (m *CreateAttestedNodeEntryRequest) Reset()                    { *m = CreateAttestedNodeEntryRequest{} }
 func (m *CreateAttestedNodeEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateAttestedNodeEntryRequest) ProtoMessage()               {}
-func (*CreateAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
+func (*CreateAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 func (m *CreateAttestedNodeEntryRequest) GetAttestedNodeEntry() *AttestedNodeEntry {
 	if m != nil {
@@ -536,12 +409,10 @@ type CreateAttestedNodeEntryResponse struct {
 	AttestedNodeEntry *AttestedNodeEntry `protobuf:"bytes,1,opt,name=attestedNodeEntry" json:"attestedNodeEntry,omitempty"`
 }
 
-func (m *CreateAttestedNodeEntryResponse) Reset()         { *m = CreateAttestedNodeEntryResponse{} }
-func (m *CreateAttestedNodeEntryResponse) String() string { return proto.CompactTextString(m) }
-func (*CreateAttestedNodeEntryResponse) ProtoMessage()    {}
-func (*CreateAttestedNodeEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{12}
-}
+func (m *CreateAttestedNodeEntryResponse) Reset()                    { *m = CreateAttestedNodeEntryResponse{} }
+func (m *CreateAttestedNodeEntryResponse) String() string            { return proto.CompactTextString(m) }
+func (*CreateAttestedNodeEntryResponse) ProtoMessage()               {}
+func (*CreateAttestedNodeEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
 
 func (m *CreateAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEntry {
 	if m != nil {
@@ -559,7 +430,7 @@ type FetchAttestedNodeEntryRequest struct {
 func (m *FetchAttestedNodeEntryRequest) Reset()                    { *m = FetchAttestedNodeEntryRequest{} }
 func (m *FetchAttestedNodeEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchAttestedNodeEntryRequest) ProtoMessage()               {}
-func (*FetchAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
+func (*FetchAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
 
 func (m *FetchAttestedNodeEntryRequest) GetBaseSpiffeId() string {
 	if m != nil {
@@ -577,7 +448,7 @@ type FetchAttestedNodeEntryResponse struct {
 func (m *FetchAttestedNodeEntryResponse) Reset()                    { *m = FetchAttestedNodeEntryResponse{} }
 func (m *FetchAttestedNodeEntryResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchAttestedNodeEntryResponse) ProtoMessage()               {}
-func (*FetchAttestedNodeEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
+func (*FetchAttestedNodeEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
 
 func (m *FetchAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEntry {
 	if m != nil {
@@ -593,7 +464,7 @@ type FetchStaleNodeEntriesRequest struct {
 func (m *FetchStaleNodeEntriesRequest) Reset()                    { *m = FetchStaleNodeEntriesRequest{} }
 func (m *FetchStaleNodeEntriesRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchStaleNodeEntriesRequest) ProtoMessage()               {}
-func (*FetchStaleNodeEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
+func (*FetchStaleNodeEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
 
 // Represents dead nodes for which the base SVID has expired
 type FetchStaleNodeEntriesResponse struct {
@@ -604,7 +475,7 @@ type FetchStaleNodeEntriesResponse struct {
 func (m *FetchStaleNodeEntriesResponse) Reset()                    { *m = FetchStaleNodeEntriesResponse{} }
 func (m *FetchStaleNodeEntriesResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchStaleNodeEntriesResponse) ProtoMessage()               {}
-func (*FetchStaleNodeEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
+func (*FetchStaleNodeEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
 
 func (m *FetchStaleNodeEntriesResponse) GetAttestedNodeEntryList() []*AttestedNodeEntry {
 	if m != nil {
@@ -626,7 +497,7 @@ type UpdateAttestedNodeEntryRequest struct {
 func (m *UpdateAttestedNodeEntryRequest) Reset()                    { *m = UpdateAttestedNodeEntryRequest{} }
 func (m *UpdateAttestedNodeEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*UpdateAttestedNodeEntryRequest) ProtoMessage()               {}
-func (*UpdateAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
+func (*UpdateAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
 
 func (m *UpdateAttestedNodeEntryRequest) GetBaseSpiffeId() string {
 	if m != nil {
@@ -659,7 +530,7 @@ func (m *UpdateAttestedNodeEntryResponse) Reset()         { *m = UpdateAttestedN
 func (m *UpdateAttestedNodeEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*UpdateAttestedNodeEntryResponse) ProtoMessage()    {}
 func (*UpdateAttestedNodeEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{18}
+	return fileDescriptor0, []int{11}
 }
 
 func (m *UpdateAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEntry {
@@ -678,7 +549,7 @@ type DeleteAttestedNodeEntryRequest struct {
 func (m *DeleteAttestedNodeEntryRequest) Reset()                    { *m = DeleteAttestedNodeEntryRequest{} }
 func (m *DeleteAttestedNodeEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*DeleteAttestedNodeEntryRequest) ProtoMessage()               {}
-func (*DeleteAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
+func (*DeleteAttestedNodeEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
 
 func (m *DeleteAttestedNodeEntryRequest) GetBaseSpiffeId() string {
 	if m != nil {
@@ -696,7 +567,7 @@ func (m *DeleteAttestedNodeEntryResponse) Reset()         { *m = DeleteAttestedN
 func (m *DeleteAttestedNodeEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteAttestedNodeEntryResponse) ProtoMessage()    {}
 func (*DeleteAttestedNodeEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{20}
+	return fileDescriptor0, []int{13}
 }
 
 func (m *DeleteAttestedNodeEntryResponse) GetAttestedNodeEntry() *AttestedNodeEntry {
@@ -716,7 +587,7 @@ func (m *CreateNodeResolverMapEntryRequest) Reset()         { *m = CreateNodeRes
 func (m *CreateNodeResolverMapEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateNodeResolverMapEntryRequest) ProtoMessage()    {}
 func (*CreateNodeResolverMapEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{21}
+	return fileDescriptor0, []int{14}
 }
 
 func (m *CreateNodeResolverMapEntryRequest) GetNodeResolverMapEntry() *NodeResolverMapEntry {
@@ -736,7 +607,7 @@ func (m *CreateNodeResolverMapEntryResponse) Reset()         { *m = CreateNodeRe
 func (m *CreateNodeResolverMapEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateNodeResolverMapEntryResponse) ProtoMessage()    {}
 func (*CreateNodeResolverMapEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{22}
+	return fileDescriptor0, []int{15}
 }
 
 func (m *CreateNodeResolverMapEntryResponse) GetNodeResolverMapEntry() *NodeResolverMapEntry {
@@ -756,7 +627,7 @@ func (m *FetchNodeResolverMapEntryRequest) Reset()         { *m = FetchNodeResol
 func (m *FetchNodeResolverMapEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*FetchNodeResolverMapEntryRequest) ProtoMessage()    {}
 func (*FetchNodeResolverMapEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{23}
+	return fileDescriptor0, []int{16}
 }
 
 func (m *FetchNodeResolverMapEntryRequest) GetBaseSpiffeId() string {
@@ -776,7 +647,7 @@ func (m *FetchNodeResolverMapEntryResponse) Reset()         { *m = FetchNodeReso
 func (m *FetchNodeResolverMapEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*FetchNodeResolverMapEntryResponse) ProtoMessage()    {}
 func (*FetchNodeResolverMapEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{24}
+	return fileDescriptor0, []int{17}
 }
 
 func (m *FetchNodeResolverMapEntryResponse) GetNodeResolverMapEntryList() []*NodeResolverMapEntry {
@@ -796,7 +667,7 @@ func (m *DeleteNodeResolverMapEntryRequest) Reset()         { *m = DeleteNodeRes
 func (m *DeleteNodeResolverMapEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteNodeResolverMapEntryRequest) ProtoMessage()    {}
 func (*DeleteNodeResolverMapEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{25}
+	return fileDescriptor0, []int{18}
 }
 
 func (m *DeleteNodeResolverMapEntryRequest) GetNodeResolverMapEntry() *NodeResolverMapEntry {
@@ -816,7 +687,7 @@ func (m *DeleteNodeResolverMapEntryResponse) Reset()         { *m = DeleteNodeRe
 func (m *DeleteNodeResolverMapEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteNodeResolverMapEntryResponse) ProtoMessage()    {}
 func (*DeleteNodeResolverMapEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{26}
+	return fileDescriptor0, []int{19}
 }
 
 func (m *DeleteNodeResolverMapEntryResponse) GetNodeResolverMapEntryList() []*NodeResolverMapEntry {
@@ -836,7 +707,7 @@ func (m *RectifyNodeResolverMapEntriesRequest) Reset()         { *m = RectifyNod
 func (m *RectifyNodeResolverMapEntriesRequest) String() string { return proto.CompactTextString(m) }
 func (*RectifyNodeResolverMapEntriesRequest) ProtoMessage()    {}
 func (*RectifyNodeResolverMapEntriesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{27}
+	return fileDescriptor0, []int{20}
 }
 
 func (m *RectifyNodeResolverMapEntriesRequest) GetNodeResolverMapEntryList() []*NodeResolverMapEntry {
@@ -856,7 +727,7 @@ func (m *RectifyNodeResolverMapEntriesResponse) Reset()         { *m = RectifyNo
 func (m *RectifyNodeResolverMapEntriesResponse) String() string { return proto.CompactTextString(m) }
 func (*RectifyNodeResolverMapEntriesResponse) ProtoMessage()    {}
 func (*RectifyNodeResolverMapEntriesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{28}
+	return fileDescriptor0, []int{21}
 }
 
 func (m *RectifyNodeResolverMapEntriesResponse) GetNodeResolverMapEntryList() []*NodeResolverMapEntry {
@@ -875,7 +746,7 @@ type CreateRegistrationEntryRequest struct {
 func (m *CreateRegistrationEntryRequest) Reset()                    { *m = CreateRegistrationEntryRequest{} }
 func (m *CreateRegistrationEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*CreateRegistrationEntryRequest) ProtoMessage()               {}
-func (*CreateRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{29} }
+func (*CreateRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{22} }
 
 func (m *CreateRegistrationEntryRequest) GetRegisteredEntry() *spire_common.RegistrationEntry {
 	if m != nil {
@@ -894,7 +765,7 @@ func (m *CreateRegistrationEntryResponse) Reset()         { *m = CreateRegistrat
 func (m *CreateRegistrationEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateRegistrationEntryResponse) ProtoMessage()    {}
 func (*CreateRegistrationEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{30}
+	return fileDescriptor0, []int{23}
 }
 
 func (m *CreateRegistrationEntryResponse) GetRegisteredEntryId() string {
@@ -913,7 +784,7 @@ type FetchRegistrationEntryRequest struct {
 func (m *FetchRegistrationEntryRequest) Reset()                    { *m = FetchRegistrationEntryRequest{} }
 func (m *FetchRegistrationEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*FetchRegistrationEntryRequest) ProtoMessage()               {}
-func (*FetchRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{31} }
+func (*FetchRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{24} }
 
 func (m *FetchRegistrationEntryRequest) GetRegisteredEntryId() string {
 	if m != nil {
@@ -931,7 +802,7 @@ type FetchRegistrationEntryResponse struct {
 func (m *FetchRegistrationEntryResponse) Reset()                    { *m = FetchRegistrationEntryResponse{} }
 func (m *FetchRegistrationEntryResponse) String() string            { return proto.CompactTextString(m) }
 func (*FetchRegistrationEntryResponse) ProtoMessage()               {}
-func (*FetchRegistrationEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{32} }
+func (*FetchRegistrationEntryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{25} }
 
 func (m *FetchRegistrationEntryResponse) GetRegisteredEntry() *spire_common.RegistrationEntry {
 	if m != nil {
@@ -950,7 +821,7 @@ func (m *FetchRegistrationEntriesResponse) Reset()         { *m = FetchRegistrat
 func (m *FetchRegistrationEntriesResponse) String() string { return proto.CompactTextString(m) }
 func (*FetchRegistrationEntriesResponse) ProtoMessage()    {}
 func (*FetchRegistrationEntriesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{33}
+	return fileDescriptor0, []int{26}
 }
 
 func (m *FetchRegistrationEntriesResponse) GetRegisteredEntries() *spire_common.RegistrationEntries {
@@ -971,7 +842,7 @@ type UpdateRegistrationEntryRequest struct {
 func (m *UpdateRegistrationEntryRequest) Reset()                    { *m = UpdateRegistrationEntryRequest{} }
 func (m *UpdateRegistrationEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*UpdateRegistrationEntryRequest) ProtoMessage()               {}
-func (*UpdateRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{34} }
+func (*UpdateRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{27} }
 
 func (m *UpdateRegistrationEntryRequest) GetRegisteredEntryId() string {
 	if m != nil {
@@ -997,7 +868,7 @@ func (m *UpdateRegistrationEntryResponse) Reset()         { *m = UpdateRegistrat
 func (m *UpdateRegistrationEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*UpdateRegistrationEntryResponse) ProtoMessage()    {}
 func (*UpdateRegistrationEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{35}
+	return fileDescriptor0, []int{28}
 }
 
 func (m *UpdateRegistrationEntryResponse) GetRegisteredEntry() *spire_common.RegistrationEntry {
@@ -1016,7 +887,7 @@ type DeleteRegistrationEntryRequest struct {
 func (m *DeleteRegistrationEntryRequest) Reset()                    { *m = DeleteRegistrationEntryRequest{} }
 func (m *DeleteRegistrationEntryRequest) String() string            { return proto.CompactTextString(m) }
 func (*DeleteRegistrationEntryRequest) ProtoMessage()               {}
-func (*DeleteRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{36} }
+func (*DeleteRegistrationEntryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{29} }
 
 func (m *DeleteRegistrationEntryRequest) GetRegisteredEntryId() string {
 	if m != nil {
@@ -1035,7 +906,7 @@ func (m *DeleteRegistrationEntryResponse) Reset()         { *m = DeleteRegistrat
 func (m *DeleteRegistrationEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteRegistrationEntryResponse) ProtoMessage()    {}
 func (*DeleteRegistrationEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor0, []int{37}
+	return fileDescriptor0, []int{30}
 }
 
 func (m *DeleteRegistrationEntryResponse) GetRegisteredEntry() *spire_common.RegistrationEntry {
@@ -1054,7 +925,7 @@ type ListParentIDEntriesRequest struct {
 func (m *ListParentIDEntriesRequest) Reset()                    { *m = ListParentIDEntriesRequest{} }
 func (m *ListParentIDEntriesRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListParentIDEntriesRequest) ProtoMessage()               {}
-func (*ListParentIDEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{38} }
+func (*ListParentIDEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{31} }
 
 func (m *ListParentIDEntriesRequest) GetParentId() string {
 	if m != nil {
@@ -1072,7 +943,7 @@ type ListParentIDEntriesResponse struct {
 func (m *ListParentIDEntriesResponse) Reset()                    { *m = ListParentIDEntriesResponse{} }
 func (m *ListParentIDEntriesResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListParentIDEntriesResponse) ProtoMessage()               {}
-func (*ListParentIDEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{39} }
+func (*ListParentIDEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{32} }
 
 func (m *ListParentIDEntriesResponse) GetRegisteredEntryList() []*spire_common.RegistrationEntry {
 	if m != nil {
@@ -1090,7 +961,7 @@ type ListSelectorEntriesRequest struct {
 func (m *ListSelectorEntriesRequest) Reset()                    { *m = ListSelectorEntriesRequest{} }
 func (m *ListSelectorEntriesRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListSelectorEntriesRequest) ProtoMessage()               {}
-func (*ListSelectorEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{40} }
+func (*ListSelectorEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{33} }
 
 func (m *ListSelectorEntriesRequest) GetSelectors() []*spire_common.Selector {
 	if m != nil {
@@ -1108,7 +979,7 @@ type ListSelectorEntriesResponse struct {
 func (m *ListSelectorEntriesResponse) Reset()                    { *m = ListSelectorEntriesResponse{} }
 func (m *ListSelectorEntriesResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListSelectorEntriesResponse) ProtoMessage()               {}
-func (*ListSelectorEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{41} }
+func (*ListSelectorEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{34} }
 
 func (m *ListSelectorEntriesResponse) GetRegisteredEntryList() []*spire_common.RegistrationEntry {
 	if m != nil {
@@ -1126,7 +997,7 @@ type ListSpiffeEntriesRequest struct {
 func (m *ListSpiffeEntriesRequest) Reset()                    { *m = ListSpiffeEntriesRequest{} }
 func (m *ListSpiffeEntriesRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListSpiffeEntriesRequest) ProtoMessage()               {}
-func (*ListSpiffeEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{42} }
+func (*ListSpiffeEntriesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{35} }
 
 func (m *ListSpiffeEntriesRequest) GetSpiffeId() string {
 	if m != nil {
@@ -1144,7 +1015,7 @@ type ListSpiffeEntriesResponse struct {
 func (m *ListSpiffeEntriesResponse) Reset()                    { *m = ListSpiffeEntriesResponse{} }
 func (m *ListSpiffeEntriesResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListSpiffeEntriesResponse) ProtoMessage()               {}
-func (*ListSpiffeEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{43} }
+func (*ListSpiffeEntriesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{36} }
 
 func (m *ListSpiffeEntriesResponse) GetRegisteredEntryList() []*spire_common.RegistrationEntry {
 	if m != nil {
@@ -1163,7 +1034,7 @@ type JoinToken struct {
 func (m *JoinToken) Reset()                    { *m = JoinToken{} }
 func (m *JoinToken) String() string            { return proto.CompactTextString(m) }
 func (*JoinToken) ProtoMessage()               {}
-func (*JoinToken) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{44} }
+func (*JoinToken) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{37} }
 
 func (m *JoinToken) GetToken() string {
 	if m != nil {
@@ -1180,17 +1051,10 @@ func (m *JoinToken) GetExpiry() int64 {
 }
 
 func init() {
-	proto.RegisterType((*FederatedBundle)(nil), "spire.server.datastore.FederatedBundle")
+	proto.RegisterType((*Bundle)(nil), "spire.server.datastore.Bundle")
+	proto.RegisterType((*Bundles)(nil), "spire.server.datastore.Bundles")
 	proto.RegisterType((*NodeResolverMapEntry)(nil), "spire.server.datastore.NodeResolverMapEntry")
 	proto.RegisterType((*AttestedNodeEntry)(nil), "spire.server.datastore.AttestedNodeEntry")
-	proto.RegisterType((*CreateFederatedEntryRequest)(nil), "spire.server.datastore.CreateFederatedEntryRequest")
-	proto.RegisterType((*CreateFederatedEntryResponse)(nil), "spire.server.datastore.CreateFederatedEntryResponse")
-	proto.RegisterType((*ListFederatedEntryRequest)(nil), "spire.server.datastore.ListFederatedEntryRequest")
-	proto.RegisterType((*ListFederatedEntryResponse)(nil), "spire.server.datastore.ListFederatedEntryResponse")
-	proto.RegisterType((*UpdateFederatedEntryRequest)(nil), "spire.server.datastore.UpdateFederatedEntryRequest")
-	proto.RegisterType((*UpdateFederatedEntryResponse)(nil), "spire.server.datastore.UpdateFederatedEntryResponse")
-	proto.RegisterType((*DeleteFederatedEntryRequest)(nil), "spire.server.datastore.DeleteFederatedEntryRequest")
-	proto.RegisterType((*DeleteFederatedEntryResponse)(nil), "spire.server.datastore.DeleteFederatedEntryResponse")
 	proto.RegisterType((*CreateAttestedNodeEntryRequest)(nil), "spire.server.datastore.CreateAttestedNodeEntryRequest")
 	proto.RegisterType((*CreateAttestedNodeEntryResponse)(nil), "spire.server.datastore.CreateAttestedNodeEntryResponse")
 	proto.RegisterType((*FetchAttestedNodeEntryRequest)(nil), "spire.server.datastore.FetchAttestedNodeEntryRequest")
@@ -1238,14 +1102,18 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for DataStore service
 
 type DataStoreClient interface {
-	// Creates a Federated Bundle
-	CreateFederatedEntry(ctx context.Context, in *CreateFederatedEntryRequest, opts ...grpc.CallOption) (*CreateFederatedEntryResponse, error)
-	// List all Federated SPIFFE IDs
-	ListFederatedEntry(ctx context.Context, in *ListFederatedEntryRequest, opts ...grpc.CallOption) (*ListFederatedEntryResponse, error)
-	// Updates the specified Federated Bundle
-	UpdateFederatedEntry(ctx context.Context, in *UpdateFederatedEntryRequest, opts ...grpc.CallOption) (*UpdateFederatedEntryResponse, error)
-	// Deletes the specified Federated Bundle
-	DeleteFederatedEntry(ctx context.Context, in *DeleteFederatedEntryRequest, opts ...grpc.CallOption) (*DeleteFederatedEntryResponse, error)
+	// Creates a Bundle
+	CreateBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error)
+	// Updates the specified Bundle, overwriting existing certs
+	UpdateBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error)
+	// Appends the provided certs onto an existing bundle
+	AppendBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error)
+	// Deletes the specified Bundle
+	DeleteBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error)
+	// Returns the specified Bundle
+	FetchBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error)
+	// List all Bundles
+	ListBundles(ctx context.Context, in *spire_common.Empty, opts ...grpc.CallOption) (*Bundles, error)
 	// Creates an Attested Node Entry
 	CreateAttestedNodeEntry(ctx context.Context, in *CreateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*CreateAttestedNodeEntryResponse, error)
 	// Retrieves the Attested Node Entry
@@ -1304,36 +1172,54 @@ func NewDataStoreClient(cc *grpc.ClientConn) DataStoreClient {
 	return &dataStoreClient{cc}
 }
 
-func (c *dataStoreClient) CreateFederatedEntry(ctx context.Context, in *CreateFederatedEntryRequest, opts ...grpc.CallOption) (*CreateFederatedEntryResponse, error) {
-	out := new(CreateFederatedEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateFederatedEntry", in, out, c.cc, opts...)
+func (c *dataStoreClient) CreateBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error) {
+	out := new(Bundle)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateBundle", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) ListFederatedEntry(ctx context.Context, in *ListFederatedEntryRequest, opts ...grpc.CallOption) (*ListFederatedEntryResponse, error) {
-	out := new(ListFederatedEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/ListFederatedEntry", in, out, c.cc, opts...)
+func (c *dataStoreClient) UpdateBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error) {
+	out := new(Bundle)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/UpdateBundle", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) UpdateFederatedEntry(ctx context.Context, in *UpdateFederatedEntryRequest, opts ...grpc.CallOption) (*UpdateFederatedEntryResponse, error) {
-	out := new(UpdateFederatedEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/UpdateFederatedEntry", in, out, c.cc, opts...)
+func (c *dataStoreClient) AppendBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error) {
+	out := new(Bundle)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/AppendBundle", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) DeleteFederatedEntry(ctx context.Context, in *DeleteFederatedEntryRequest, opts ...grpc.CallOption) (*DeleteFederatedEntryResponse, error) {
-	out := new(DeleteFederatedEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteFederatedEntry", in, out, c.cc, opts...)
+func (c *dataStoreClient) DeleteBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error) {
+	out := new(Bundle)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteBundle", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) FetchBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error) {
+	out := new(Bundle)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchBundle", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStoreClient) ListBundles(ctx context.Context, in *spire_common.Empty, opts ...grpc.CallOption) (*Bundles, error) {
+	out := new(Bundles)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/ListBundles", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1559,14 +1445,18 @@ func (c *dataStoreClient) GetPluginInfo(ctx context.Context, in *spire_common_pl
 // Server API for DataStore service
 
 type DataStoreServer interface {
-	// Creates a Federated Bundle
-	CreateFederatedEntry(context.Context, *CreateFederatedEntryRequest) (*CreateFederatedEntryResponse, error)
-	// List all Federated SPIFFE IDs
-	ListFederatedEntry(context.Context, *ListFederatedEntryRequest) (*ListFederatedEntryResponse, error)
-	// Updates the specified Federated Bundle
-	UpdateFederatedEntry(context.Context, *UpdateFederatedEntryRequest) (*UpdateFederatedEntryResponse, error)
-	// Deletes the specified Federated Bundle
-	DeleteFederatedEntry(context.Context, *DeleteFederatedEntryRequest) (*DeleteFederatedEntryResponse, error)
+	// Creates a Bundle
+	CreateBundle(context.Context, *Bundle) (*Bundle, error)
+	// Updates the specified Bundle, overwriting existing certs
+	UpdateBundle(context.Context, *Bundle) (*Bundle, error)
+	// Appends the provided certs onto an existing bundle
+	AppendBundle(context.Context, *Bundle) (*Bundle, error)
+	// Deletes the specified Bundle
+	DeleteBundle(context.Context, *Bundle) (*Bundle, error)
+	// Returns the specified Bundle
+	FetchBundle(context.Context, *Bundle) (*Bundle, error)
+	// List all Bundles
+	ListBundles(context.Context, *spire_common.Empty) (*Bundles, error)
 	// Creates an Attested Node Entry
 	CreateAttestedNodeEntry(context.Context, *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error)
 	// Retrieves the Attested Node Entry
@@ -1621,74 +1511,110 @@ func RegisterDataStoreServer(s *grpc.Server, srv DataStoreServer) {
 	s.RegisterService(&_DataStore_serviceDesc, srv)
 }
 
-func _DataStore_CreateFederatedEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateFederatedEntryRequest)
+func _DataStore_CreateBundle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Bundle)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).CreateFederatedEntry(ctx, in)
+		return srv.(DataStoreServer).CreateBundle(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/CreateFederatedEntry",
+		FullMethod: "/spire.server.datastore.DataStore/CreateBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).CreateFederatedEntry(ctx, req.(*CreateFederatedEntryRequest))
+		return srv.(DataStoreServer).CreateBundle(ctx, req.(*Bundle))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataStore_ListFederatedEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListFederatedEntryRequest)
+func _DataStore_UpdateBundle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Bundle)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).ListFederatedEntry(ctx, in)
+		return srv.(DataStoreServer).UpdateBundle(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/ListFederatedEntry",
+		FullMethod: "/spire.server.datastore.DataStore/UpdateBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).ListFederatedEntry(ctx, req.(*ListFederatedEntryRequest))
+		return srv.(DataStoreServer).UpdateBundle(ctx, req.(*Bundle))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataStore_UpdateFederatedEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateFederatedEntryRequest)
+func _DataStore_AppendBundle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Bundle)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).UpdateFederatedEntry(ctx, in)
+		return srv.(DataStoreServer).AppendBundle(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/UpdateFederatedEntry",
+		FullMethod: "/spire.server.datastore.DataStore/AppendBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).UpdateFederatedEntry(ctx, req.(*UpdateFederatedEntryRequest))
+		return srv.(DataStoreServer).AppendBundle(ctx, req.(*Bundle))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataStore_DeleteFederatedEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteFederatedEntryRequest)
+func _DataStore_DeleteBundle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Bundle)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).DeleteFederatedEntry(ctx, in)
+		return srv.(DataStoreServer).DeleteBundle(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/DeleteFederatedEntry",
+		FullMethod: "/spire.server.datastore.DataStore/DeleteBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).DeleteFederatedEntry(ctx, req.(*DeleteFederatedEntryRequest))
+		return srv.(DataStoreServer).DeleteBundle(ctx, req.(*Bundle))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_FetchBundle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Bundle)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).FetchBundle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.server.datastore.DataStore/FetchBundle",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).FetchBundle(ctx, req.(*Bundle))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStore_ListBundles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(spire_common.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStoreServer).ListBundles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.server.datastore.DataStore/ListBundles",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStoreServer).ListBundles(ctx, req.(*spire_common.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2130,20 +2056,28 @@ var _DataStore_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*DataStoreServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateFederatedEntry",
-			Handler:    _DataStore_CreateFederatedEntry_Handler,
+			MethodName: "CreateBundle",
+			Handler:    _DataStore_CreateBundle_Handler,
 		},
 		{
-			MethodName: "ListFederatedEntry",
-			Handler:    _DataStore_ListFederatedEntry_Handler,
+			MethodName: "UpdateBundle",
+			Handler:    _DataStore_UpdateBundle_Handler,
 		},
 		{
-			MethodName: "UpdateFederatedEntry",
-			Handler:    _DataStore_UpdateFederatedEntry_Handler,
+			MethodName: "AppendBundle",
+			Handler:    _DataStore_AppendBundle_Handler,
 		},
 		{
-			MethodName: "DeleteFederatedEntry",
-			Handler:    _DataStore_DeleteFederatedEntry_Handler,
+			MethodName: "DeleteBundle",
+			Handler:    _DataStore_DeleteBundle_Handler,
+		},
+		{
+			MethodName: "FetchBundle",
+			Handler:    _DataStore_FetchBundle_Handler,
+		},
+		{
+			MethodName: "ListBundles",
+			Handler:    _DataStore_ListBundles_Handler,
 		},
 		{
 			MethodName: "CreateAttestedNodeEntry",
@@ -2249,94 +2183,88 @@ var _DataStore_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("datastore.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 1416 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x5a, 0x5f, 0x4f, 0xdc, 0x46,
-	0x10, 0xaf, 0xa1, 0x89, 0x72, 0x43, 0x22, 0xc2, 0x42, 0xc8, 0xc5, 0x10, 0xfe, 0x58, 0x4d, 0x4b,
-	0xa2, 0xe8, 0x28, 0x07, 0xa1, 0x50, 0xb5, 0x52, 0x1b, 0x0e, 0x22, 0xaa, 0x42, 0xa8, 0xa1, 0x8a,
-	0x94, 0x87, 0xb6, 0xe6, 0x6e, 0x0f, 0x2c, 0x0e, 0xdb, 0xb1, 0xf7, 0xa2, 0x40, 0xa5, 0xaa, 0x95,
-	0xfa, 0x47, 0xaa, 0xd4, 0x2a, 0x51, 0x9f, 0x2a, 0xf5, 0xa1, 0xdf, 0xa0, 0x1f, 0xa1, 0x5f, 0xad,
-	0xb2, 0x77, 0x6d, 0x38, 0x7b, 0x67, 0xef, 0x7c, 0x70, 0xd7, 0x27, 0xb0, 0x67, 0x67, 0xe6, 0x37,
-	0xb3, 0xbb, 0xe3, 0xf9, 0x8d, 0x0e, 0x86, 0x6b, 0x16, 0xb3, 0x02, 0xe6, 0xfa, 0xb4, 0xe4, 0xf9,
-	0x2e, 0x73, 0xc9, 0x78, 0xe0, 0xd9, 0x3e, 0x2d, 0x05, 0xd4, 0x7f, 0x49, 0xfd, 0x52, 0x22, 0xd5,
-	0x57, 0x0e, 0x6c, 0x76, 0xd8, 0xdc, 0x2f, 0x55, 0xdd, 0xe3, 0xf9, 0xc0, 0xb3, 0xeb, 0x75, 0x3a,
-	0x1f, 0xad, 0x9c, 0x8f, 0xd4, 0xe6, 0xab, 0xee, 0xf1, 0xb1, 0xeb, 0xcc, 0x7b, 0x8d, 0xe6, 0x81,
-	0x1d, 0xff, 0xe1, 0x16, 0xf5, 0x85, 0x8e, 0x34, 0xf9, 0x1f, 0xae, 0x62, 0xbc, 0xd1, 0x60, 0x78,
-	0x83, 0xd6, 0xa8, 0x6f, 0x31, 0x5a, 0x7b, 0xdc, 0x74, 0x6a, 0x0d, 0x4a, 0x56, 0xe0, 0x76, 0xbd,
-	0xf5, 0xd5, 0x6e, 0x64, 0x6c, 0xb3, 0x56, 0xd4, 0x66, 0xb4, 0xb9, 0x82, 0x89, 0x89, 0x49, 0x19,
-	0xc6, 0x12, 0xd1, 0x9e, 0xdf, 0x0c, 0x18, 0x97, 0x17, 0x07, 0x66, 0xb4, 0xb9, 0xeb, 0xa6, 0x54,
-	0x46, 0x6e, 0xc2, 0x20, 0x63, 0x8d, 0xe2, 0xe0, 0x8c, 0x36, 0x77, 0xc5, 0x0c, 0xff, 0x35, 0x1c,
-	0x18, 0xdb, 0x76, 0x6b, 0xd4, 0xa4, 0x81, 0xdb, 0x78, 0x49, 0xfd, 0x2d, 0xcb, 0x5b, 0x77, 0x98,
-	0x7f, 0x42, 0x0c, 0xb8, 0xbe, 0x6f, 0x05, 0x69, 0x30, 0x2d, 0xef, 0x48, 0x19, 0xae, 0x05, 0xb4,
-	0x41, 0xab, 0xcc, 0xf5, 0x23, 0xaf, 0x43, 0xe5, 0xf1, 0x12, 0xcf, 0xb3, 0x08, 0x7b, 0x57, 0x48,
-	0xcd, 0x64, 0x9d, 0xf1, 0xaf, 0x06, 0x23, 0x9f, 0x32, 0x46, 0x03, 0x46, 0x6b, 0xa1, 0xe3, 0xce,
-	0xbd, 0x3d, 0x80, 0x9b, 0x96, 0x50, 0xac, 0x58, 0xcc, 0xda, 0x3b, 0xf1, 0x78, 0xac, 0x05, 0x33,
-	0xf3, 0x3e, 0x5c, 0x5b, 0xa5, 0x3e, 0xdb, 0xa5, 0xbe, 0x6d, 0x35, 0xb6, 0x9b, 0xc7, 0xfb, 0xd4,
-	0x8f, 0x82, 0x2e, 0x98, 0x99, 0xf7, 0xa4, 0x04, 0x24, 0x7c, 0xb7, 0xfe, 0xca, 0xb3, 0x7d, 0x8b,
-	0xd9, 0xae, 0x53, 0xb1, 0x18, 0x2d, 0xbe, 0x1d, 0xad, 0x96, 0x48, 0x0c, 0x0f, 0x26, 0xd6, 0x7c,
-	0x6a, 0x31, 0x9a, 0x6c, 0x65, 0x14, 0x83, 0x49, 0x5f, 0x34, 0x69, 0xc0, 0xc8, 0x17, 0x30, 0x9c,
-	0xda, 0xb1, 0x28, 0x9a, 0xa1, 0xf2, 0x7b, 0x25, 0xf9, 0x19, 0x2c, 0xa5, 0x8e, 0x84, 0x99, 0xd6,
-	0x37, 0xa6, 0x60, 0x52, 0xee, 0x31, 0xf0, 0x5c, 0x27, 0xa0, 0xc6, 0x04, 0xdc, 0xf9, 0xdc, 0x0e,
-	0x98, 0x14, 0x8f, 0xf1, 0x15, 0xe8, 0x32, 0x21, 0x57, 0x25, 0x9f, 0xc0, 0x04, 0x72, 0xbe, 0x42,
-	0xa5, 0xa2, 0x36, 0x33, 0x38, 0x57, 0x30, 0x55, 0x4b, 0xc2, 0x74, 0x7c, 0xe9, 0xd5, 0xfa, 0x99,
-	0x8e, 0x17, 0x30, 0x29, 0xf7, 0x28, 0x62, 0xea, 0x81, 0xcb, 0x67, 0x30, 0x51, 0xa1, 0x0d, 0x8a,
-	0x05, 0xd9, 0xf5, 0x25, 0x0e, 0x63, 0x91, 0x1b, 0xee, 0x5d, 0x2c, 0x27, 0x30, 0xc5, 0x4f, 0x53,
-	0xe6, 0x1a, 0xc6, 0xe1, 0x3c, 0x83, 0x11, 0x2b, 0x2d, 0x13, 0x6e, 0xef, 0x63, 0x6e, 0xb3, 0xc6,
-	0xb2, 0x36, 0x8c, 0x53, 0x98, 0x46, 0x5d, 0x8b, 0x80, 0x7b, 0xe6, 0x7b, 0x0d, 0xee, 0x6e, 0x50,
-	0x56, 0x3d, 0x44, 0xa3, 0xee, 0xa0, 0x06, 0x85, 0xb9, 0xc3, 0x8c, 0xf4, 0x1a, 0xff, 0x14, 0x4c,
-	0x46, 0xae, 0x77, 0x99, 0xd5, 0xa0, 0xf1, 0x6b, 0x9b, 0x06, 0xf1, 0x3d, 0xff, 0x5e, 0x13, 0x01,
-	0x66, 0x17, 0x08, 0x68, 0x5f, 0xc3, 0xad, 0x8c, 0xd9, 0xe4, 0x96, 0xe7, 0x82, 0x27, 0xb7, 0x63,
-	0xfc, 0xad, 0xc1, 0x14, 0xbf, 0x99, 0x17, 0x49, 0xb2, 0xb4, 0x78, 0x0f, 0xe4, 0x2a, 0xde, 0x83,
-	0x68, 0xf1, 0x3e, 0x85, 0x69, 0x14, 0x61, 0xaf, 0x77, 0xb0, 0x02, 0x53, 0xfc, 0xae, 0x5f, 0xe8,
-	0x08, 0x9e, 0xc2, 0x34, 0x6a, 0xa5, 0xd7, 0x11, 0xfc, 0xa4, 0xc1, 0x2c, 0xbf, 0xc0, 0xb2, 0x9e,
-	0x21, 0x8e, 0xe2, 0x1b, 0x18, 0x73, 0x24, 0x62, 0x81, 0xe0, 0x21, 0x86, 0x40, 0x6a, 0x52, 0x6a,
-	0xc9, 0xf8, 0x59, 0x03, 0x43, 0x85, 0x43, 0xe4, 0xa1, 0xf7, 0x40, 0x36, 0x60, 0x26, 0xba, 0x73,
-	0xaa, 0x74, 0x74, 0xb2, 0xa9, 0xbf, 0x69, 0x30, 0xab, 0x30, 0x24, 0xe2, 0x39, 0x84, 0xa2, 0x0c,
-	0xc5, 0xb9, 0x3b, 0x9c, 0x2f, 0x26, 0xd4, 0x5a, 0xb4, 0xd1, 0xfc, 0x94, 0xfd, 0xbf, 0x1b, 0xfd,
-	0xbb, 0x06, 0x86, 0x0a, 0x47, 0xdf, 0x13, 0xf3, 0x5a, 0x83, 0x77, 0x4c, 0x5a, 0x65, 0x76, 0xfd,
-	0x44, 0xa2, 0x79, 0x56, 0x8e, 0xfb, 0x08, 0xe9, 0x8d, 0x06, 0xf7, 0xda, 0x40, 0xea, 0x7b, 0x9a,
-	0x8e, 0xe2, 0x1e, 0xc3, 0xa4, 0x07, 0x76, 0xc0, 0x78, 0x01, 0x6e, 0x39, 0x3b, 0x9b, 0x30, 0xec,
-	0x47, 0x32, 0xea, 0x8b, 0x9e, 0x47, 0x1c, 0x9b, 0xe9, 0x56, 0x0a, 0x91, 0x35, 0x90, 0xd6, 0x33,
-	0x9e, 0xc6, 0x5d, 0x85, 0xc4, 0x99, 0x88, 0xfc, 0x21, 0x8c, 0xa4, 0xb4, 0x92, 0x8b, 0x98, 0x15,
-	0x18, 0x5b, 0xe2, 0x4b, 0x8a, 0x82, 0xcf, 0x67, 0xee, 0x48, 0x34, 0x0d, 0x38, 0xbc, 0x4b, 0x4c,
-	0x46, 0x20, 0x2a, 0x52, 0x7a, 0xe9, 0xf9, 0x73, 0xf0, 0x34, 0x0d, 0xdf, 0xa6, 0x81, 0x70, 0x38,
-	0xab, 0x76, 0x18, 0x5a, 0xc9, 0xea, 0x1a, 0x7f, 0x26, 0x1f, 0xfe, 0xcb, 0x49, 0x99, 0x2c, 0x21,
-	0x03, 0x5d, 0x26, 0xa4, 0x11, 0x7f, 0xf1, 0xfb, 0x92, 0xfe, 0xed, 0xf8, 0x1b, 0x7f, 0x49, 0x67,
-	0xa7, 0x11, 0x7f, 0xed, 0xfb, 0x82, 0x7e, 0x85, 0x73, 0xc5, 0x1d, 0xcb, 0xa7, 0x0e, 0xdb, 0xac,
-	0xa4, 0x4a, 0x9a, 0x0e, 0xd7, 0x3c, 0x2e, 0x89, 0x01, 0x27, 0xcf, 0x21, 0x0b, 0x94, 0x6a, 0x26,
-	0x34, 0x66, 0x34, 0xe5, 0xeb, 0x5c, 0xd1, 0x69, 0x8b, 0x53, 0xa6, 0x6b, 0x98, 0x1c, 0x6b, 0x3c,
-	0x62, 0x48, 0x61, 0x5d, 0x82, 0x42, 0x3c, 0x72, 0x08, 0x84, 0x1b, 0x6c, 0x36, 0x71, 0xb6, 0x30,
-	0x8e, 0x22, 0x63, 0xb3, 0x77, 0x51, 0x2c, 0x43, 0x31, 0xf2, 0x18, 0x35, 0x02, 0xd9, 0x7c, 0x07,
-	0xad, 0x4d, 0x43, 0xf2, 0x6c, 0x38, 0x9c, 0xf2, 0xa7, 0xf4, 0x7a, 0x87, 0x73, 0x15, 0x0a, 0x9f,
-	0xb9, 0xb6, 0xb3, 0xe7, 0x1e, 0x51, 0x87, 0x8c, 0xc1, 0x15, 0x16, 0xfe, 0x23, 0x50, 0xf1, 0x07,
-	0x32, 0x0e, 0x57, 0x69, 0xd8, 0x6c, 0xf3, 0xab, 0x3a, 0x68, 0x8a, 0xa7, 0xf2, 0x3f, 0x13, 0x50,
-	0xa8, 0x58, 0xcc, 0xda, 0x0d, 0x3f, 0x24, 0xe4, 0x07, 0x0d, 0xc6, 0x64, 0xc3, 0x0c, 0xb2, 0x88,
-	0x7d, 0x7a, 0x14, 0xc3, 0x16, 0x7d, 0x29, 0x9f, 0x92, 0xc8, 0xcf, 0xb7, 0x40, 0xb2, 0x23, 0x11,
-	0xb2, 0x80, 0xd9, 0x42, 0x67, 0x2b, 0x7a, 0x39, 0x8f, 0x8a, 0x70, 0x1e, 0x26, 0x40, 0x36, 0xbe,
-	0xc0, 0x13, 0xa0, 0x18, 0xaf, 0xe0, 0x09, 0x50, 0x4e, 0x48, 0x42, 0x0c, 0xb2, 0xb1, 0x03, 0x8e,
-	0x41, 0x31, 0xfd, 0xc0, 0x31, 0x28, 0x27, 0x1b, 0xbf, 0x6a, 0x70, 0x1b, 0x19, 0x06, 0x90, 0x65,
-	0xf5, 0xb6, 0x62, 0xfc, 0x49, 0xff, 0x20, 0xb7, 0x9e, 0x00, 0xf3, 0x8b, 0x06, 0xe3, 0x72, 0x62,
-	0x4f, 0x1e, 0xe1, 0x83, 0x16, 0xc5, 0x34, 0x41, 0x5f, 0xce, 0xab, 0x26, 0x90, 0xfc, 0xa8, 0xc1,
-	0x2d, 0x29, 0x8d, 0x27, 0x4b, 0x4a, 0x8b, 0xc8, 0x58, 0x40, 0x7f, 0x94, 0x53, 0xeb, 0xdc, 0xee,
-	0x20, 0x44, 0x19, 0xdf, 0x1d, 0x35, 0xf7, 0xc7, 0x77, 0xa7, 0x1d, 0x23, 0x0f, 0xc1, 0x20, 0x9c,
-	0x17, 0x07, 0xa3, 0xa6, 0xda, 0x38, 0x98, 0x76, 0xe4, 0xfa, 0x0f, 0x0d, 0x74, 0x9c, 0x7b, 0x92,
-	0x55, 0xf5, 0x11, 0x54, 0xd0, 0x29, 0xfd, 0xc3, 0x6e, 0x54, 0x05, 0xaa, 0xd7, 0x1a, 0xdc, 0x41,
-	0x09, 0x24, 0x59, 0x51, 0x1e, 0x02, 0x15, 0xa6, 0xd5, 0x2e, 0x34, 0xcf, 0x25, 0x0a, 0xe7, 0x6e,
-	0x78, 0xa2, 0xda, 0xf2, 0x4e, 0x3c, 0x51, 0x1d, 0x50, 0xc5, 0xbf, 0x34, 0xb8, 0xab, 0x64, 0x4b,
-	0xe4, 0x23, 0xcc, 0x7a, 0x27, 0xbc, 0x4f, 0xff, 0xb8, 0x4b, 0xed, 0x4c, 0x55, 0xcc, 0x7c, 0x98,
-	0xdb, 0x55, 0x45, 0xac, 0xe3, 0x6c, 0x57, 0x15, 0xf1, 0xce, 0x32, 0xa9, 0x8a, 0x59, 0x2c, 0xea,
-	0xb2, 0x82, 0x42, 0x59, 0xce, 0xab, 0x26, 0x90, 0xd8, 0x50, 0xc4, 0x58, 0x0d, 0x19, 0x6d, 0x6d,
-	0x68, 0xd6, 0x8f, 0x3d, 0x76, 0xa2, 0xaf, 0xe4, 0x72, 0x24, 0xaf, 0x7c, 0x39, 0x76, 0x40, 0x4d,
-	0x7e, 0xda, 0x55, 0x3e, 0x3c, 0xee, 0xb3, 0xca, 0x97, 0x03, 0x8c, 0x9a, 0x80, 0xb4, 0xab, 0x7c,
-	0x38, 0x98, 0xef, 0x60, 0x54, 0xd2, 0xe3, 0x13, 0x65, 0x13, 0x24, 0xa7, 0x12, 0xfa, 0x62, 0x2e,
-	0x9d, 0x56, 0xff, 0xa9, 0xee, 0x5c, 0xed, 0x5f, 0x4e, 0x0f, 0xd4, 0xfe, 0xb1, 0xf6, 0x5f, 0xf8,
-	0xdf, 0xb2, 0x58, 0xf5, 0xd0, 0x76, 0x0e, 0xfa, 0xee, 0xff, 0x15, 0x8c, 0x64, 0x7a, 0x7e, 0xf2,
-	0xbe, 0xd2, 0x92, 0x84, 0x56, 0xe8, 0x0b, 0x39, 0x34, 0x84, 0xe7, 0x27, 0x70, 0xc3, 0x14, 0xa4,
-	0x80, 0x33, 0x80, 0x59, 0xcc, 0x46, 0x42, 0x12, 0x74, 0xd9, 0xb5, 0x24, 0x26, 0x40, 0x74, 0x01,
-	0x3b, 0xb6, 0xd2, 0x7e, 0x09, 0x59, 0x87, 0x21, 0x7e, 0x72, 0x2f, 0x06, 0x6d, 0x1d, 0x86, 0x76,
-	0xfc, 0xa6, 0xc3, 0xad, 0x04, 0x5d, 0x9b, 0x79, 0x0e, 0x85, 0x35, 0xd7, 0xa9, 0xdb, 0x07, 0x4d,
-	0x9f, 0x92, 0x7b, 0xad, 0x2b, 0xc4, 0xef, 0x07, 0x12, 0x79, 0xbc, 0x23, 0xef, 0xb6, 0x5b, 0x26,
-	0xb6, 0xa1, 0x0e, 0x37, 0x9e, 0x50, 0xb6, 0x13, 0x89, 0x37, 0x9d, 0xba, 0x4b, 0xee, 0x4b, 0x15,
-	0x5b, 0xd6, 0xc4, 0x3e, 0x1e, 0x74, 0xb2, 0x94, 0xfb, 0x79, 0x3c, 0xf4, 0xbc, 0x90, 0xc4, 0xbb,
-	0xf3, 0xd6, 0x8e, 0xb6, 0x7f, 0x35, 0xfa, 0xfd, 0xc2, 0xe2, 0x7f, 0x01, 0x00, 0x00, 0xff, 0xff,
-	0x34, 0x86, 0x57, 0x68, 0x57, 0x21, 0x00, 0x00,
+	// 1327 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x59, 0x5d, 0x6f, 0xdb, 0x36,
+	0x17, 0x7e, 0x95, 0xbc, 0x4b, 0xe2, 0xe3, 0x14, 0x5d, 0x98, 0x34, 0x73, 0xb4, 0x35, 0x1f, 0xc2,
+	0x3a, 0xa4, 0x45, 0xe1, 0xac, 0x6e, 0x9b, 0x25, 0xc3, 0x76, 0xd1, 0xda, 0x49, 0x91, 0x61, 0x49,
+	0x33, 0xa5, 0xc3, 0x80, 0xde, 0x64, 0x8a, 0x4d, 0x27, 0x42, 0x6c, 0x49, 0x13, 0xe9, 0xa2, 0xe9,
+	0xc5, 0xb0, 0x8b, 0x7d, 0x00, 0x03, 0x36, 0x74, 0xd8, 0xd5, 0x80, 0x5d, 0xec, 0x9f, 0xec, 0x7f,
+	0xed, 0x6a, 0x10, 0x49, 0x39, 0xb6, 0x44, 0x52, 0x56, 0x6a, 0x7b, 0x57, 0x89, 0x44, 0x9e, 0xe7,
+	0x3c, 0xe7, 0x90, 0x3c, 0x3c, 0x8f, 0x0c, 0xd7, 0x1b, 0x0e, 0x75, 0x08, 0xf5, 0x43, 0x5c, 0x0e,
+	0x42, 0x9f, 0xfa, 0x68, 0x91, 0x04, 0x6e, 0x88, 0xcb, 0x04, 0x87, 0x2f, 0x70, 0x58, 0xee, 0x8e,
+	0x9a, 0x5b, 0xa7, 0x2e, 0x3d, 0xeb, 0x9c, 0x94, 0xeb, 0x7e, 0x7b, 0x83, 0x04, 0x6e, 0xb3, 0x89,
+	0x37, 0xd8, 0xcc, 0x0d, 0x66, 0xb6, 0x51, 0xf7, 0xdb, 0x6d, 0xdf, 0xdb, 0x08, 0x5a, 0x9d, 0x53,
+	0x37, 0xfe, 0xc3, 0x11, 0xcd, 0x7b, 0x03, 0x59, 0xf2, 0x3f, 0xdc, 0xc4, 0xda, 0x85, 0xa9, 0xc7,
+	0x1d, 0xaf, 0xd1, 0xc2, 0x68, 0x0d, 0x66, 0x69, 0xd8, 0x21, 0xf4, 0xb8, 0xe1, 0xb7, 0x1d, 0xd7,
+	0x2b, 0x19, 0xab, 0xc6, 0x7a, 0xc1, 0x2e, 0xb2, 0x77, 0x35, 0xf6, 0x0a, 0x2d, 0xc1, 0x4c, 0xdd,
+	0x39, 0xae, 0xe3, 0x90, 0x92, 0xd2, 0xc4, 0xaa, 0xb1, 0x3e, 0x6b, 0x4f, 0xd7, 0x9d, 0x6a, 0xf4,
+	0x68, 0x55, 0x61, 0x9a, 0xe3, 0x10, 0xb4, 0x05, 0xd3, 0x27, 0xfc, 0xdf, 0x92, 0xb1, 0x3a, 0xb9,
+	0x5e, 0xac, 0x2c, 0x97, 0xe5, 0x91, 0x96, 0xb9, 0x85, 0x1d, 0x4f, 0xb7, 0x3c, 0x58, 0x38, 0xf0,
+	0x1b, 0xd8, 0xc6, 0xc4, 0x6f, 0xbd, 0xc0, 0xe1, 0xbe, 0x13, 0xec, 0x78, 0x34, 0xbc, 0x40, 0x16,
+	0xcc, 0x9e, 0x38, 0x04, 0x1f, 0xb1, 0x90, 0xf6, 0x1a, 0x82, 0x5a, 0xdf, 0x3b, 0x54, 0x81, 0x19,
+	0x82, 0x5b, 0xb8, 0x4e, 0xfd, 0x90, 0x71, 0x2b, 0x56, 0x16, 0x85, 0x5b, 0x11, 0xef, 0x91, 0x18,
+	0xb5, 0xbb, 0xf3, 0xac, 0xbf, 0x0d, 0x98, 0x7b, 0x44, 0x29, 0x26, 0x14, 0x37, 0x22, 0xc7, 0x83,
+	0x7b, 0xbb, 0x03, 0x6f, 0x3b, 0xc2, 0xb0, 0xe6, 0x50, 0xe7, 0xd9, 0x45, 0x80, 0x99, 0xd7, 0x82,
+	0x9d, 0x7a, 0x1f, 0xcd, 0x8d, 0x52, 0x76, 0x84, 0x43, 0xd7, 0x69, 0x1d, 0x74, 0xda, 0x27, 0x38,
+	0x2c, 0x4d, 0xf2, 0xb9, 0xc9, 0xf7, 0xa8, 0x0c, 0x28, 0x7a, 0xb7, 0xf3, 0x32, 0x70, 0x43, 0x87,
+	0xba, 0xbe, 0x57, 0x73, 0x28, 0x2e, 0xfd, 0x9f, 0xcd, 0x96, 0x8c, 0x58, 0x17, 0xb0, 0x5c, 0x0d,
+	0xb1, 0x43, 0x71, 0x2a, 0x0c, 0x1b, 0x7f, 0xd3, 0xc1, 0x84, 0xa2, 0xaf, 0x60, 0xce, 0x49, 0x8e,
+	0xb1, 0x90, 0x8a, 0x95, 0xdb, 0xaa, 0x75, 0x49, 0x83, 0xa5, 0x31, 0xac, 0x57, 0xb0, 0xa2, 0x74,
+	0x4d, 0x02, 0xdf, 0x23, 0x78, 0x74, 0xbe, 0xab, 0x70, 0x73, 0x17, 0xd3, 0xfa, 0x99, 0x32, 0xea,
+	0x01, 0xd6, 0x30, 0xca, 0x9d, 0x0a, 0x64, 0xd4, 0xfc, 0x97, 0xe1, 0x3d, 0xe6, 0xfa, 0x88, 0x3a,
+	0x2d, 0x1c, 0xbf, 0x76, 0x31, 0x11, 0xf4, 0xad, 0xef, 0x0c, 0x11, 0x60, 0x7a, 0x82, 0xa0, 0x76,
+	0x0c, 0x37, 0x52, 0xb0, 0x9f, 0xbb, 0x84, 0x8a, 0x23, 0x97, 0x83, 0x9e, 0x1c, 0xc7, 0xfa, 0xcb,
+	0x80, 0xe5, 0x2f, 0x83, 0x86, 0x6e, 0x6b, 0x0d, 0x78, 0x50, 0x52, 0x9b, 0x7f, 0x22, 0xd7, 0xe6,
+	0x9f, 0x54, 0x6e, 0xfe, 0x57, 0xb0, 0xa2, 0x64, 0x38, 0xea, 0x15, 0xac, 0xc1, 0x72, 0x0d, 0xb7,
+	0xf0, 0x9b, 0x65, 0x27, 0x8a, 0x40, 0x89, 0x32, 0xea, 0x08, 0x7e, 0x30, 0x60, 0x8d, 0x1f, 0x60,
+	0x59, 0xcd, 0x8d, 0xa3, 0xf8, 0x1a, 0x16, 0x3c, 0xc9, 0xb0, 0x60, 0x70, 0x57, 0xc5, 0x40, 0x0a,
+	0x29, 0x45, 0xb2, 0x7e, 0x34, 0xc0, 0xd2, 0xf1, 0x10, 0x79, 0x18, 0x3d, 0x91, 0x5d, 0x58, 0x65,
+	0x67, 0x4e, 0x97, 0x8e, 0x41, 0x16, 0xf5, 0x17, 0x03, 0xd6, 0x34, 0x40, 0x22, 0x9e, 0x33, 0x28,
+	0xc9, 0x58, 0xf4, 0x9c, 0xe1, 0x7c, 0x31, 0x29, 0xd1, 0xd8, 0x42, 0xf3, 0x5d, 0xf6, 0xdf, 0x2e,
+	0xf4, 0xaf, 0x06, 0x58, 0x3a, 0x1e, 0x63, 0x4f, 0xcc, 0x6b, 0x03, 0xde, 0xb7, 0x71, 0x9d, 0xba,
+	0xcd, 0x0b, 0x89, 0xe5, 0x65, 0x39, 0x1e, 0x23, 0xa5, 0xdf, 0x0c, 0xb8, 0x95, 0x41, 0x69, 0xec,
+	0x69, 0x3a, 0x8f, 0x7b, 0x0c, 0x1b, 0x9f, 0xba, 0x84, 0xf2, 0x02, 0xdc, 0xb7, 0x77, 0xf6, 0xe0,
+	0x7a, 0xc8, 0xc6, 0x70, 0x88, 0x1b, 0xbd, 0xdb, 0x66, 0xa5, 0xbf, 0x05, 0x4b, 0x03, 0x24, 0xed,
+	0xac, 0xa7, 0x71, 0x57, 0x21, 0x71, 0x26, 0x22, 0xbf, 0x0b, 0x73, 0x09, 0xab, 0xee, 0x41, 0x4c,
+	0x0f, 0x58, 0xfb, 0xe2, 0x26, 0x55, 0x92, 0xcf, 0x07, 0x77, 0x2e, 0x9a, 0x06, 0x35, 0xbd, 0x21,
+	0x26, 0x83, 0x88, 0x8a, 0x94, 0x9c, 0xda, 0xbb, 0x0f, 0x9e, 0x26, 0xe9, 0xbb, 0xac, 0xef, 0x8e,
+	0x1c, 0xae, 0xe9, 0x1d, 0x46, 0x28, 0x69, 0x5b, 0xeb, 0x8f, 0xee, 0xc5, 0x3f, 0x9c, 0x94, 0xc9,
+	0x12, 0x32, 0x71, 0xc5, 0x84, 0xb4, 0xe2, 0x1b, 0x7f, 0x2c, 0xe9, 0x3f, 0x88, 0xef, 0xf8, 0x21,
+	0xed, 0x9d, 0x56, 0x7c, 0xdb, 0x8f, 0x85, 0xfd, 0x16, 0x98, 0xd1, 0xf1, 0x3d, 0x74, 0x42, 0xec,
+	0xd1, 0xbd, 0x5a, 0xa2, 0xa4, 0x99, 0x30, 0x13, 0xf0, 0x91, 0x98, 0x70, 0xf7, 0xd9, 0x0a, 0xe0,
+	0x5d, 0xa9, 0xa5, 0xe0, 0xf8, 0x05, 0xcc, 0x27, 0x7c, 0xf5, 0x14, 0x9d, 0x4c, 0x9e, 0x32, 0x5b,
+	0xcb, 0xe6, 0x5c, 0x63, 0x89, 0x96, 0xe0, 0xfa, 0x00, 0x0a, 0xb1, 0x64, 0x8b, 0x25, 0xa5, 0x4a,
+	0xdb, 0x5d, 0x4e, 0x8c, 0xa3, 0x48, 0x61, 0x8e, 0x2e, 0x8a, 0x4d, 0x28, 0x31, 0x8f, 0xac, 0x11,
+	0x48, 0xe7, 0x9b, 0xf4, 0x37, 0x0d, 0xdd, 0x67, 0xcb, 0x83, 0x25, 0x89, 0xdd, 0xe8, 0x78, 0x6e,
+	0x43, 0xe1, 0x33, 0xdf, 0xf5, 0x9e, 0xf9, 0xe7, 0xd8, 0x43, 0x0b, 0xf0, 0x16, 0x8d, 0xfe, 0x11,
+	0xac, 0xf8, 0x03, 0x5a, 0x84, 0x29, 0x1c, 0x35, 0xdb, 0xfc, 0xa8, 0x4e, 0xda, 0xe2, 0xa9, 0xf2,
+	0x8f, 0x09, 0x85, 0x48, 0xd8, 0x1e, 0x45, 0x17, 0x09, 0x3a, 0x80, 0x59, 0x5e, 0xac, 0xc5, 0x27,
+	0x84, 0x0c, 0xa1, 0x6f, 0x66, 0x8c, 0x47, 0x78, 0xfc, 0x78, 0x0f, 0x0f, 0xef, 0x51, 0x10, 0x60,
+	0xaf, 0x31, 0x3c, 0x3c, 0x7e, 0x80, 0x87, 0x84, 0xb7, 0x0f, 0x45, 0x56, 0xdf, 0x87, 0x04, 0x57,
+	0x85, 0x62, 0xb4, 0xbe, 0xf1, 0x77, 0x98, 0xf9, 0xfe, 0xcd, 0xb1, 0xd3, 0x0e, 0xe8, 0x85, 0xb9,
+	0xa2, 0xc7, 0x20, 0xe8, 0x67, 0x03, 0xde, 0x51, 0xe8, 0x7a, 0xb4, 0xa9, 0x32, 0xd6, 0x7f, 0x83,
+	0x30, 0x3f, 0xca, 0x6d, 0x27, 0x36, 0xff, 0x4f, 0x06, 0x2c, 0xca, 0x35, 0x3a, 0x7a, 0xa8, 0xc2,
+	0xd4, 0x7e, 0x18, 0x30, 0x37, 0xf3, 0x9a, 0x09, 0x26, 0xdf, 0x1b, 0x70, 0x43, 0xaa, 0xc8, 0xd1,
+	0x03, 0x2d, 0xa2, 0x42, 0xe1, 0x9b, 0x0f, 0x73, 0x5a, 0x09, 0x1a, 0xd1, 0xea, 0x28, 0x34, 0xaf,
+	0x7a, 0x75, 0xf4, 0x32, 0x5e, 0xbd, 0x3a, 0x59, 0xe2, 0x3a, 0x22, 0xa3, 0x90, 0xaf, 0x6a, 0x32,
+	0x7a, 0xd5, 0xac, 0x26, 0x93, 0xa5, 0x93, 0x7f, 0x37, 0xc0, 0x54, 0xcb, 0x48, 0xb4, 0xad, 0xdf,
+	0x82, 0x1a, 0x65, 0x64, 0x7e, 0x7c, 0x15, 0x53, 0xc1, 0xea, 0xb5, 0x01, 0x4b, 0x4a, 0x2d, 0x88,
+	0xb6, 0xb4, 0x9b, 0x40, 0xc7, 0x69, 0xfb, 0x0a, 0x96, 0x3d, 0x89, 0x52, 0xcb, 0x30, 0x75, 0xa2,
+	0x32, 0x25, 0xa4, 0x3a, 0x51, 0x03, 0xa8, 0xbe, 0x3f, 0x0d, 0xb8, 0xa9, 0x15, 0x3e, 0xe8, 0x13,
+	0x15, 0xfa, 0x20, 0x12, 0xce, 0xfc, 0xf4, 0x8a, 0xd6, 0x3d, 0x5b, 0x5d, 0xa1, 0x4b, 0xb2, 0xaa,
+	0xa2, 0xaa, 0x79, 0xcc, 0xaa, 0x8a, 0xea, 0x26, 0xb1, 0x5b, 0x15, 0xd3, 0x5c, 0xf4, 0x65, 0x45,
+	0x49, 0x65, 0x33, 0xaf, 0x99, 0x60, 0xe2, 0x42, 0x49, 0x25, 0x50, 0xe4, 0xd7, 0xcf, 0x56, 0x2e,
+	0x47, 0xf2, 0xca, 0x97, 0x63, 0x05, 0xf4, 0x3a, 0x26, 0xab, 0xf2, 0xa9, 0xe3, 0xbe, 0xac, 0x7c,
+	0x39, 0xc8, 0xe8, 0xb5, 0x44, 0x56, 0xe5, 0x53, 0x93, 0xf9, 0x16, 0xe6, 0x25, 0xed, 0x3a, 0xaa,
+	0xa8, 0xf0, 0xd4, 0xaa, 0xc0, 0xbc, 0x9f, 0xcb, 0xa6, 0xdf, 0x7f, 0xa2, 0xd1, 0xd6, 0xfb, 0x97,
+	0x77, 0xfa, 0x7a, 0xff, 0xaa, 0x4e, 0x5e, 0xf8, 0xdf, 0x77, 0x68, 0xfd, 0xcc, 0xf5, 0x4e, 0xc7,
+	0xee, 0xff, 0x25, 0xcc, 0xa5, 0xda, 0x77, 0xf4, 0xa1, 0x16, 0x49, 0xa2, 0x10, 0xcc, 0x7b, 0x39,
+	0x2c, 0x84, 0xe7, 0x27, 0x70, 0xcd, 0x16, 0xfd, 0x3d, 0x6f, 0xe6, 0xd7, 0x54, 0x18, 0xdd, 0x7e,
+	0xdf, 0x94, 0x1d, 0x4b, 0x64, 0x03, 0xb0, 0x03, 0x38, 0x30, 0x4a, 0xf6, 0x14, 0xb4, 0x03, 0x45,
+	0xbe, 0x73, 0xdf, 0x8c, 0xda, 0x0e, 0x14, 0x0f, 0xc3, 0x8e, 0xc7, 0x51, 0xc8, 0x95, 0x61, 0x9e,
+	0x43, 0xa1, 0xea, 0x7b, 0x4d, 0xf7, 0xb4, 0x13, 0x62, 0x74, 0xab, 0x7f, 0x86, 0xf8, 0x0d, 0xb5,
+	0x3b, 0x1e, 0xaf, 0xc8, 0x07, 0x59, 0xd3, 0xc4, 0x32, 0x34, 0xe1, 0xda, 0x13, 0x4c, 0x0f, 0xd9,
+	0xf0, 0x9e, 0xd7, 0xf4, 0xd1, 0x6d, 0xa9, 0x61, 0xdf, 0x9c, 0xd8, 0xc7, 0x9d, 0x41, 0xa6, 0x72,
+	0x3f, 0x8f, 0x8b, 0xcf, 0x0b, 0xdd, 0x78, 0x0f, 0xff, 0x77, 0x68, 0x9c, 0x4c, 0xb1, 0xdf, 0x70,
+	0xef, 0xff, 0x1b, 0x00, 0x00, 0xff, 0xff, 0xce, 0xfa, 0x7f, 0xa1, 0x5b, 0x1e, 0x00, 0x00,
 }
