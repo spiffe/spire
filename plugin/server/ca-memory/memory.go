@@ -213,7 +213,7 @@ func (m *memoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*c
 	}
 
 	certUris, err := uri.GetURINamesFromCertificate(m.cert)
-	if err != nil && len(certUris) > 0 {
+	if err == nil && len(certUris) > 0 {
 		log.Printf("Certificate with SPIFFE ID: '%v' found", certUris[0])
 	} else {
 		log.Print("The signing certificate loaded does not have a SPIFFE ID!")
