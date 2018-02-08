@@ -10,10 +10,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	common "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
-	"github.com/spiffe/spire/proto/server/ca"
-	"github.com/spiffe/spire/proto/server/upstreamca"
 	tomb "gopkg.in/tomb.v2"
 )
 
@@ -39,6 +38,7 @@ type Config struct {
 type Server struct {
 	Catalog    catalog.Catalog
 	Config     *Config
+	caManager  ca.Manager
 	endpoints  endpoints.Server
 	privateKey *ecdsa.PrivateKey
 	svid       *x509.Certificate
@@ -50,121 +50,120 @@ type Server struct {
 // Run the server
 // This method initializes the server, including its plugins,
 // and then blocks until it's shut down or an error is encountered.
-func (server *Server) Run() error {
-	if server.t == nil {
-		server.t = new(tomb.Tomb)
+func (s *Server) Run() error {
+	if s.t == nil {
+		s.t = new(tomb.Tomb)
 	}
 
-	if server.m == nil {
-		server.m = new(sync.RWMutex)
+	if s.m == nil {
+		s.m = new(sync.RWMutex)
 	}
 
-	server.t.Go(server.run)
+	s.t.Go(s.run)
 
-	return server.t.Wait()
+	return s.t.Wait()
 }
 
-func (server *Server) run() error {
-	server.prepareUmask()
+func (s *Server) run() error {
+	s.prepareUmask()
 
-	err := server.initPlugins()
+	err := s.initPlugins()
 	if err != nil {
 		return err
 	}
 
-	err = server.rotateSigningCert()
+	err = s.startCAManager()
 	if err != nil {
-		server.Catalog.Stop()
+		s.Catalog.Stop()
 		return err
 	}
 
-	server.t.Go(server.startEndpoints)
+	s.t.Go(s.caManager.Wait)
+	s.t.Go(s.startEndpoints)
 
-	<-server.t.Dying()
-	if server.t.Err() != nil {
-		server.Config.Log.Errorf("fatal: %v", server.t.Err())
+	<-s.t.Dying()
+	if s.t.Err() != nil {
+		s.Config.Log.Errorf("fatal: %v", s.t.Err())
 	}
 
-	server.shutdown()
+	s.shutdown()
 	return nil
 }
 
-func (server *Server) Shutdown() {
-	server.t.Kill(nil)
+func (s *Server) Shutdown() {
+	s.t.Kill(nil)
 }
 
-func (server *Server) shutdown() {
-	if server.endpoints != nil {
-		server.endpoints.Shutdown()
+func (s *Server) shutdown() {
+	if s.endpoints != nil {
+		s.endpoints.Shutdown()
 	}
 
-	if server.Catalog != nil {
-		server.Catalog.Stop()
+	if s.caManager != nil {
+		s.caManager.Shutdown()
+	}
+
+	if s.Catalog != nil {
+		s.Catalog.Stop()
 	}
 
 	return
 }
 
-func (server *Server) prepareUmask() {
-	server.Config.Log.Debug("Setting umask to ", server.Config.Umask)
-	syscall.Umask(server.Config.Umask)
+func (s *Server) prepareUmask() {
+	s.Config.Log.Debug("Setting umask to ", s.Config.Umask)
+	syscall.Umask(s.Config.Umask)
 }
 
-func (server *Server) initPlugins() error {
+func (s *Server) initPlugins() error {
 	config := &catalog.Config{
-		PluginConfigs: server.Config.PluginConfigs,
-		Log:           server.Config.Log.WithField("subsystem_name", "catalog"),
+		PluginConfigs: s.Config.PluginConfigs,
+		Log:           s.Config.Log.WithField("subsystem_name", "catalog"),
 	}
 
-	server.Catalog = catalog.New(config)
+	s.Catalog = catalog.New(config)
 
-	err := server.Catalog.Run()
+	err := s.Catalog.Run()
 	if err != nil {
 		return err
 	}
 
-	server.Config.Log.Info("plugins started")
+	s.Config.Log.Info("plugins started")
 	return nil
 }
 
-func (server *Server) startEndpoints() error {
-	server.m.Lock()
+func (s *Server) startCAManager() error {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	config := &ca.Config{
+		Catalog:     s.Catalog,
+		TrustDomain: s.Config.TrustDomain,
+		Log:         s.Config.Log.WithField("subsystem_name", "ca_manager"),
+	}
+
+	s.caManager = ca.New(config)
+	return s.caManager.Start()
+}
+
+func (s *Server) startEndpoints() error {
+	s.m.Lock()
 
 	c := &endpoints.Config{
-		GRPCAddr:    server.Config.BindAddress,
-		HTTPAddr:    server.Config.BindHTTPAddress,
-		TrustDomain: server.Config.TrustDomain,
-		Catalog:     server.Catalog,
-		Log:         server.Config.Log.WithField("subsystem_name", "endpoints"),
+		GRPCAddr:    s.Config.BindAddress,
+		HTTPAddr:    s.Config.BindHTTPAddress,
+		TrustDomain: s.Config.TrustDomain,
+		Catalog:     s.Catalog,
+		Log:         s.Config.Log.WithField("subsystem_name", "endpoints"),
 	}
 
-	server.endpoints = endpoints.New(c)
-	server.m.Unlock()
+	s.endpoints = endpoints.New(c)
+	s.m.Unlock()
 
-	server.t.Go(server.endpoints.ListenAndServe)
+	s.t.Go(s.endpoints.ListenAndServe)
 
-	<-server.t.Dying()
-	server.endpoints.Shutdown()
+	<-s.t.Dying()
+	s.endpoints.Shutdown()
 
 	return nil
-}
-
-func (server *Server) rotateSigningCert() error {
-	server.Config.Log.Info("Initiating rotation of signing certificate")
-
-	serverCA := server.Catalog.CAs()[0]
-	csrRes, err := serverCA.GenerateCsr(&ca.GenerateCsrRequest{})
-	if err != nil {
-		return err
-	}
-	upstreamCA := server.Catalog.UpstreamCAs()[0]
-	signRes, err := upstreamCA.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
-	if err != nil {
-		return err
-	}
-
-	req := &ca.LoadCertificateRequest{SignedIntermediateCert: signRes.Cert}
-	_, err = serverCA.LoadCertificate(req)
-
-	return err
 }

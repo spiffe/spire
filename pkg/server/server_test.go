@@ -6,13 +6,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/spiffe/spire/test/mock/proto/server/upstreamca"
-
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/proto/server/ca"
-	"github.com/spiffe/spire/proto/server/upstreamca"
 	"github.com/spiffe/spire/test/mock/proto/server/ca"
+	"github.com/spiffe/spire/test/mock/proto/server/upstreamca"
 	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/stretchr/testify/suite"
 )
@@ -50,21 +47,6 @@ func (suite *ServerTestSuite) SetupTest() {
 
 func TestServerTestSuite(t *testing.T) {
 	suite.Run(t, new(ServerTestSuite))
-}
-
-func (suite *ServerTestSuite) TestRotateSigningCert() {
-	generateCsrResponse := &ca.GenerateCsrResponse{}
-	suite.ca.EXPECT().GenerateCsr(&ca.GenerateCsrRequest{}).Return(generateCsrResponse, nil)
-	submitCSRResponse := &upstreamca.SubmitCSRResponse{
-		Cert: []byte{0},
-	}
-	suite.upsCa.EXPECT().SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResponse.Csr}).Return(submitCSRResponse, nil)
-	loadCertificateResponse := &ca.LoadCertificateResponse{}
-	suite.ca.EXPECT().LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResponse.Cert}).Return(loadCertificateResponse, nil)
-	suite.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{suite.ca})
-	suite.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{suite.upsCa})
-	err := suite.server.rotateSigningCert()
-	suite.NoError(err)
 }
 
 func (suite *ServerTestSuite) TestUmask() {
