@@ -923,7 +923,7 @@ Represents the updated Registration entry
 | ----------- | ------------ | ------------- | ------------|
 | CreateBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Creates a Bundle |
 | UpdateBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Updates the specified Bundle, overwriting existing certs |
-| AppendBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Appends the provided certs onto an existing bundle |
+| AppendBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Appends the provided certs onto an existing bundle, creating a new bundle if one doesn&#39;t exist |
 | DeleteBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Deletes the specified Bundle |
 | FetchBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Returns the specified Bundle |
 | ListBundles | [spire.common.Empty](#spire.common.Empty) | [Bundles](#spire.common.Empty) | List all Bundles |

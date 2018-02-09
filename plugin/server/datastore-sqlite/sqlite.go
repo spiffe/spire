@@ -45,9 +45,6 @@ type sqlitePlugin struct {
 
 // CreateBundle stores the given bundle
 func (ds *sqlitePlugin) CreateBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
 	model, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -64,9 +61,6 @@ func (ds *sqlitePlugin) CreateBundle(req *datastore.Bundle) (*datastore.Bundle, 
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
 func (ds *sqlitePlugin) UpdateBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
 	newModel, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -75,8 +69,8 @@ func (ds *sqlitePlugin) UpdateBundle(req *datastore.Bundle) (*datastore.Bundle, 
 	tx := ds.db.Begin()
 
 	// Fetch the model to get its ID
-	model := &Bundle{TrustDomain: newModel.TrustDomain}
-	result := tx.Find(model)
+	model := &Bundle{}
+	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
 	if result.Error != nil {
 		tx.Rollback()
 		return nil, result.Error
@@ -100,11 +94,9 @@ func (ds *sqlitePlugin) UpdateBundle(req *datastore.Bundle) (*datastore.Bundle, 
 	return req, tx.Commit().Error
 }
 
-// AppendBundle adds the specified CA certificates to an existing bundle. Returns the entirety.
+// AppendBundle adds the specified CA certificates to an existing bundle. If no bundle exists for the
+// specified trust domain, create one. Returns the entirety.
 func (ds *sqlitePlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
 	newModel, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -112,9 +104,14 @@ func (ds *sqlitePlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, 
 
 	tx := ds.db.Begin()
 
-	model := &Bundle{TrustDomain: newModel.TrustDomain}
-	result := tx.Find(model)
-	if result.Error != nil {
+	// First, fetch the existing model
+	model := &Bundle{}
+	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
+
+	if result.RecordNotFound() {
+		tx.Rollback()
+		return ds.CreateBundle(req)
+	} else if result.Error != nil {
 		tx.Rollback()
 		return nil, result.Error
 	}
@@ -147,9 +144,6 @@ func (ds *sqlitePlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, 
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
 func (ds *sqlitePlugin) DeleteBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
 	// We don't care if cert data was sent - remove it now to prevent
 	// further processing.
 	req.CaCerts = []byte{}
@@ -161,7 +155,7 @@ func (ds *sqlitePlugin) DeleteBundle(req *datastore.Bundle) (*datastore.Bundle, 
 
 	tx := ds.db.Begin()
 
-	result := tx.Find(model)
+	result := tx.Find(model, "trust_domain = ?", model.TrustDomain)
 	if result.Error != nil {
 		tx.Rollback()
 		return nil, result.Error
@@ -199,15 +193,12 @@ func (ds *sqlitePlugin) DeleteBundle(req *datastore.Bundle) (*datastore.Bundle, 
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
 func (ds *sqlitePlugin) FetchBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
 	model, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
 	}
 
-	result := ds.db.Find(model)
+	result := ds.db.Find(model, "trust_domain = ?", model.TrustDomain)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -224,9 +215,6 @@ func (ds *sqlitePlugin) FetchBundle(req *datastore.Bundle) (*datastore.Bundle, e
 
 // ListBundles can be used to fetch all existing bundles.
 func (ds *sqlitePlugin) ListBundles(*common.Empty) (*datastore.Bundles, error) {
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
 	// Get a consistent view
 	tx := ds.db.Begin()
 	defer tx.Rollback()
@@ -691,10 +679,8 @@ func (sqlitePlugin) UpdateRegistrationEntry(
 func (ds *sqlitePlugin) DeleteRegistrationEntry(
 	request *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
 
-	entry := RegisteredEntry{
-		EntryID: request.RegisteredEntryId,
-	}
-	if err := ds.db.Find(&entry).Error; err != nil {
+	entry := RegisteredEntry{}
+	if err := ds.db.Find(&entry, "entry_id = ?", request.RegisteredEntryId).Error; err != nil {
 		return &datastore.DeleteRegistrationEntryResponse{}, err
 	}
 

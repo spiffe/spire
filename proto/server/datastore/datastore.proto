@@ -287,7 +287,7 @@ service DataStore {
     rpc CreateBundle(Bundle) returns (Bundle);
     // Updates the specified Bundle, overwriting existing certs
     rpc UpdateBundle(Bundle) returns (Bundle);
-    // Appends the provided certs onto an existing bundle
+    // Appends the provided certs onto an existing bundle, creating a new bundle if one doesn't exist
     rpc AppendBundle(Bundle) returns (Bundle);
     // Deletes the specified Bundle
     rpc DeleteBundle(Bundle) returns (Bundle);

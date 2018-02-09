@@ -1106,7 +1106,7 @@ type DataStoreClient interface {
 	CreateBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error)
 	// Updates the specified Bundle, overwriting existing certs
 	UpdateBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error)
-	// Appends the provided certs onto an existing bundle
+	// Appends the provided certs onto an existing bundle, creating a new bundle if one doesn't exist
 	AppendBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error)
 	// Deletes the specified Bundle
 	DeleteBundle(ctx context.Context, in *Bundle, opts ...grpc.CallOption) (*Bundle, error)
@@ -1449,7 +1449,7 @@ type DataStoreServer interface {
 	CreateBundle(context.Context, *Bundle) (*Bundle, error)
 	// Updates the specified Bundle, overwriting existing certs
 	UpdateBundle(context.Context, *Bundle) (*Bundle, error)
-	// Appends the provided certs onto an existing bundle
+	// Appends the provided certs onto an existing bundle, creating a new bundle if one doesn't exist
 	AppendBundle(context.Context, *Bundle) (*Bundle, error)
 	// Deletes the specified Bundle
 	DeleteBundle(context.Context, *Bundle) (*Bundle, error)

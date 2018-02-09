@@ -57,6 +57,15 @@ func TestBundle_CRUD(t *testing.T) {
 	certs := append(bundle.CaCerts, cert.Raw...)
 	assert.Equal(t, certs, aresp.CaCerts)
 
+	// append on a new bundle
+	bundle3 := &datastore.Bundle{
+		TrustDomain: "spiffe://bar/",
+		CaCerts:     cert.Raw,
+	}
+	anresp, err := ds.AppendBundle(bundle3)
+	require.NoError(t, err)
+	assert.Equal(t, bundle3, anresp)
+
 	// update
 	uresp, err := ds.UpdateBundle(bundle2)
 	require.NoError(t, err)
@@ -64,8 +73,8 @@ func TestBundle_CRUD(t *testing.T) {
 
 	lresp, err = ds.ListBundles(&common.Empty{})
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(lresp.Bundles))
-	assert.Equal(t, bundle2, lresp.Bundles[0])
+	assert.Equal(t, 2, len(lresp.Bundles))
+	assert.Equal(t, []*datastore.Bundle{bundle2, bundle3}, lresp.Bundles)
 
 	// delete
 	dresp, err := ds.DeleteBundle(&datastore.Bundle{
@@ -76,7 +85,7 @@ func TestBundle_CRUD(t *testing.T) {
 
 	lresp, err = ds.ListBundles(&common.Empty{})
 	require.NoError(t, err)
-	assert.Equal(t, 0, len(lresp.Bundles))
+	assert.Equal(t, 1, len(lresp.Bundles))
 }
 
 func Test_CreateAttestedNodeEntry(t *testing.T) {
@@ -448,7 +457,42 @@ func Test_UpdateRegistrationEntry(t *testing.T) {
 }
 
 func Test_DeleteRegistrationEntry(t *testing.T) {
-	t.Skipf("TODO")
+	ds := createDefault(t)
+
+	entry1 := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type2", Value: "Value2"},
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId: "spiffe://example.org/foo",
+		ParentId: "spiffe://example.org/bar",
+		Ttl:      1,
+	}
+
+	entry2 := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type3", Value: "Value3"},
+			{Type: "Type4", Value: "Value4"},
+			{Type: "Type5", Value: "Value5"},
+		},
+		SpiffeId: "spiffe://example.org/baz",
+		ParentId: "spiffe://example.org/bat",
+		Ttl:      2,
+	}
+
+	res1, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{entry1})
+	require.NoError(t, err)
+	require.NotNil(t, res1)
+
+	res2, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{entry2})
+	require.NoError(t, err)
+	require.NotNil(t, res2)
+
+	// Make sure we deleted the right one
+	delRes, err := ds.DeleteRegistrationEntry(&datastore.DeleteRegistrationEntryRequest{RegisteredEntryId: res1.RegisteredEntryId})
+	require.NoError(t, err)
+	require.Equal(t, entry1, delRes.RegisteredEntry)
 }
 
 func TestSqlitePlugin_ListParentIDEntries(t *testing.T) {
