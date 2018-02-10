@@ -327,7 +327,7 @@ func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *syn
 					return
 				}
 			}
-			vanityRecord := m.managedCache.Entry([]*proto.Selector{&proto.Selector{
+			vanityRecord := m.managedCache.Entry([]*proto.Selector{{
 				Type: "spiffe_id", Value: m.baseSPIFFEID}})
 
 			if vanityRecord != nil {
@@ -454,7 +454,6 @@ func (m *manager) getGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*g
 }
 
 func (m *manager) rotateBaseSVID() error {
-	m.log.Debug("Checking for BaseSVID expiration")
 	entry := m.getBaseSVIDEntry()
 
 	ttl := entry.svid.NotAfter.Sub(time.Now())
@@ -480,7 +479,6 @@ func (m *manager) rotateBaseSVID() error {
 
 		stream, err := node.NewNodeClient(conn).FetchSVID(context.Background())
 		if err != nil {
-			stream.CloseSend()
 			return err
 		}
 
