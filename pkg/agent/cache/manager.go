@@ -454,7 +454,6 @@ func (m *manager) getGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*g
 }
 
 func (m *manager) rotateBaseSVID() error {
-	m.log.Debug("Checking for BaseSVID expiration")
 	entry := m.getBaseSVIDEntry()
 
 	ttl := entry.svid.NotAfter.Sub(time.Now())
