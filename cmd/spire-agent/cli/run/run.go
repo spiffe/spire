@@ -84,7 +84,7 @@ func (*RunCLI) Run(args []string) int {
 
 	err = mergeConfigs(c, fileConfig, cliConfig)
 	if err != nil {
-		fmt.Println(err.Error)
+		fmt.Println(err.Error())
 	}
 
 	err = validateConfig(c)
