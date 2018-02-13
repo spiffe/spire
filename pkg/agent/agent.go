@@ -84,7 +84,7 @@ type Agent struct {
 func New(ctx context.Context, c *Config) *Agent {
 	config := &catalog.Config{
 		PluginConfigs: c.PluginConfigs,
-		Log:            c.Log.WithField("subsystem_name", "catalog"),
+		Log:           c.Log.WithField("subsystem_name", "catalog"),
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	return &Agent{
