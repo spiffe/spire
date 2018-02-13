@@ -1,11 +1,13 @@
 package endpoints
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -22,6 +24,7 @@ import (
 	node_pb "github.com/spiffe/spire/proto/api/node"
 	registration_pb "github.com/spiffe/spire/proto/api/registration"
 	ca_pb "github.com/spiffe/spire/proto/server/ca"
+	datastore_pb "github.com/spiffe/spire/proto/server/datastore"
 
 	"golang.org/x/net/context"
 
@@ -51,7 +54,6 @@ type endpoints struct {
 
 	svid    *x509.Certificate
 	svidKey *ecdsa.PrivateKey
-	caCerts []*x509.Certificate
 
 	svidCheck *time.Ticker
 
@@ -110,24 +112,8 @@ func (e *endpoints) createGRPCServer() *grpc.Server {
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 
-	caPool := x509.NewCertPool()
-	for _, c := range e.caCerts {
-		caPool.AddCert(c)
-	}
-
 	tlsConfig := &tls.Config{
-		// When bootstrapping, the agent does not yet have
-		// an SVID. In order to include the bootstrap endpoint
-		// in the same server as the rest of the Node API,
-		// request but don't require a client certificate
-		ClientAuth: tls.RequestClientCert,
-
-		// Hook TLS with a custom function so we can always provide the
-		// latest TLS credentials.
-		GetCertificate: e.getSVID,
-
-		// Use our own CA certs as the root for client auth
-		ClientCAs: caPool,
+		GetConfigForClient: e.getGRPCServerConfig,
 	}
 
 	opts := grpc.Creds(credentials.NewTLS(tlsConfig))
@@ -138,10 +124,8 @@ func (e *endpoints) createHTTPServer() *http.Server {
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 
-	// Hook TLS with a custom function so we can always provide the
-	// latest TLS credentials.
 	tlsConfig := &tls.Config{
-		GetCertificate: e.getSVID,
+		GetConfigForClient: e.getHTTPServerConfig,
 	}
 
 	s := &http.Server{
@@ -173,16 +157,10 @@ func (e *endpoints) registerRegistrationAPI(gs *grpc.Server, hs *http.Server) er
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 
-	caPool := x509.NewCertPool()
-	for _, c := range e.caCerts {
-		caPool.AddCert(c)
-	}
-
 	// gRPC client config for HTTP-to-gRPC gateway
-	// This must be defined while registering the registration API handler
-	tlsConfig := &tls.Config{RootCAs: caPool}
-	opt := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
-	grpcOpts := []grpc.DialOption{opt}
+	// Configure WithInsecure because 1) it's assumed to be local, and 2) because
+	// TLS config can't be hooked here to support root rotation
+	grpcOpts := []grpc.DialOption{grpc.WithInsecure()}
 
 	// This should never really fail since we have initially set it as this
 	// type in createHTTPServer()
@@ -320,40 +298,104 @@ func (e *endpoints) rotateSVID() error {
 		return err
 	}
 
-	// Also grab the signing cert
-	// TODO: Fix me when adding CA rotation
-	caReq := &ca_pb.FetchCertificateRequest{}
-	caResp, err := ca.FetchCertificate(caReq)
-	if err != nil {
-		return err
-	}
-
-	caCert, err := x509.ParseCertificate(caResp.StoredIntermediateCert)
-	if err != nil {
-		return err
-	}
-
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	e.svid = cert
 	e.svidKey = key
-	e.caCerts = []*x509.Certificate{caCert}
 	return nil
 }
 
-// getSVID implements a TLS hook which allows us to do hitless TLS certificate
-// rotation by providing the latest credentials for every new request.
-func (e *endpoints) getSVID(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+// getGRPCServerConfig implements a TLS Config hook for the gRPC server
+func (e *endpoints) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+	certs, roots, err := e.getCerts()
+	if err != nil {
+		e.c.Log.Errorf("Could not generate TLS config for gRPC client %v: %v", hello.Conn.RemoteAddr(), err)
+		return nil, err
+	}
+
+	c := &tls.Config{
+		// When bootstrapping, the agent does not yet have
+		// an SVID. In order to include the bootstrap endpoint
+		// in the same server as the rest of the Node API,
+		// request but don't require a client certificate
+		ClientAuth: tls.RequestClientCert,
+
+		Certificates: certs,
+		ClientCAs:    roots,
+	}
+
+	return c, nil
+}
+
+// getHTTPConfig implements a TLS Config hook for the HTTP server.
+func (e *endpoints) getHTTPServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+	certs, _, err := e.getCerts()
+	if err != nil {
+		e.c.Log.Errorf("Could not generate TLS config for HTTP client %v: %v", hello.Conn.RemoteAddr(), err)
+		return nil, err
+	}
+
+	c := &tls.Config{
+		Certificates: certs,
+	}
+
+	return c, nil
+}
+
+// getCerts queries the datastore and returns a TLS serving certificate(s) plus
+// the current CA root bundle.
+func (e *endpoints) getCerts() ([]tls.Certificate, *x509.CertPool, error) {
+	ds := e.c.Catalog.DataStores()[0]
+	req := &datastore_pb.Bundle{
+		TrustDomain: e.c.TrustDomain.String(),
+	}
+	b, err := ds.FetchBundle(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get bundle from datastore: %v", err)
+	}
+
+	caCerts, err := x509.ParseCertificates(b.CaCerts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse bundle: %v", err)
+	}
+
+	caPool := x509.NewCertPool()
+	for _, c := range caCerts {
+		caPool.AddCert(c)
+	}
+
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 
-	// Include our CA cert in the chain for bootstrapping
-	// TODO: Fix me when adding CA rotation
-	certChain := [][]byte{e.svid.Raw, e.caCerts[0].Raw}
-	tlsCert := &tls.Certificate{
+	servingCA, err := e.findServingCA(e.svid, caCerts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("find serving CA: %v", err)
+	}
+
+	certChain := [][]byte{e.svid.Raw, servingCA.Raw}
+	tlsCert := tls.Certificate{
 		Certificate: certChain,
 		PrivateKey:  e.svidKey,
 	}
 
-	return tlsCert, nil
+	return []tls.Certificate{tlsCert}, caPool, nil
+}
+
+// findServingCA attempts to identify which CA certificate issued our current serving SVID.
+func (e *endpoints) findServingCA(svid *x509.Certificate, caCerts []*x509.Certificate) (*x509.Certificate, error) {
+	var servingCA *x509.Certificate
+	for _, ca := range caCerts {
+		result := bytes.Compare(svid.AuthorityKeyId, ca.SubjectKeyId)
+
+		if result == 0 {
+			servingCA = ca
+			break
+		}
+	}
+
+	if servingCA == nil {
+		return nil, errors.New("no match found")
+	}
+
+	return servingCA, nil
 }

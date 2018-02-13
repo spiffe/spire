@@ -1,8 +1,9 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -53,8 +54,8 @@ type configuration struct {
 type memoryPlugin struct {
 	config *configuration
 
-	key    *rsa.PrivateKey
-	newKey *rsa.PrivateKey
+	key    *ecdsa.PrivateKey
+	newKey *ecdsa.PrivateKey
 	cert   *x509.Certificate
 	serial int64
 
@@ -158,7 +159,7 @@ func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 
 	log.Print("Starting generation of CSR")
 
-	newKey, err := rsa.GenerateKey(rand.Reader, m.config.KeySize)
+	newKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	if err != nil {
 		return nil, errors.New("Can't generate private key: " + err.Error())
 	}
@@ -182,7 +183,7 @@ func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 
 	template := x509.CertificateRequest{
 		Subject:            subject,
-		SignatureAlgorithm: x509.SHA256WithRSA,
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
 		ExtraExtensions: []pkix.Extension{
 			{
 				Id:       uri.OidExtensionSubjectAltName,
