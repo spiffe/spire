@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
 	"github.com/spiffe/spire/test/mock/proto/server/noderesolver"
 	"github.com/spiffe/spire/test/mock/server/catalog"
+	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -329,6 +330,16 @@ func setFetchBaseSVIDExpectations(
 		}).
 		Return(&datastore.FetchAttestedNodeEntryResponse{AttestedNodeEntry: nil}, nil)
 
+	caCert, _, err := util.LoadCAFixture()
+	require.NoError(suite.T(), err)
+
+	suite.mockDataStore.EXPECT().
+		FetchBundle(&datastore.Bundle{
+			TrustDomain: suite.handler.TrustDomain.String()}).
+		Return(&datastore.Bundle{
+			TrustDomain: suite.handler.TrustDomain.String(),
+			CaCerts:     caCert.Raw}, nil)
+
 	suite.mockNodeAttestor.EXPECT().Attest(&nodeattestor.AttestRequest{
 		AttestedBefore: false,
 		AttestedData:   data.request.AttestedData,
@@ -414,8 +425,10 @@ func getExpectedFetchBaseSVID(baseSpiffeID string, cert []byte) *node.SvidUpdate
 	svids := make(map[string]*node.Svid)
 	svids[baseSpiffeID] = &node.Svid{SvidCert: cert, Ttl: ttl}
 
+	caCert, _, _ := util.LoadCAFixture()
 	svidUpdate := &node.SvidUpdate{
 		Svids:               svids,
+		Bundle:              caCert.Raw,
 		RegistrationEntries: expectedRegEntries,
 	}
 
@@ -487,6 +500,9 @@ func getFetchSVIDTestData() *fetchSVIDData {
 func setFetchSVIDExpectations(
 	suite *HandlerTestSuite, data *fetchSVIDData) {
 
+	caCert, _, err := util.LoadCAFixture()
+	require.NoError(suite.T(), err)
+
 	suite.mockCatalog.EXPECT().DataStores().AnyTimes().
 		Return([]datastore.DataStore{suite.mockDataStore})
 	suite.mockCatalog.EXPECT().CAs().AnyTimes().
@@ -515,6 +531,13 @@ func setFetchSVIDExpectations(
 			ParentId: data.baseSpiffeID}).
 		Return(&datastore.ListParentIDEntriesResponse{
 			RegisteredEntryList: data.byParentIDEntries}, nil)
+
+	suite.mockDataStore.EXPECT().
+		FetchBundle(&datastore.Bundle{
+			TrustDomain: suite.handler.TrustDomain.String()}).
+		Return(&datastore.Bundle{
+			TrustDomain: suite.handler.TrustDomain.String(),
+			CaCerts:     caCert.Raw}, nil)
 
 	suite.mockServerCA.EXPECT().
 		SignCsr(&ca.SignCsrRequest{
@@ -558,8 +581,10 @@ func getExpectedFetchSVID(data *fetchSVIDData) *node.SvidUpdate {
 		data.byParentIDEntries[2],
 	}
 
+	caCert, _, _ := util.LoadCAFixture()
 	svidUpdate := &node.SvidUpdate{
 		Svids:               svids,
+		Bundle:              caCert.Raw,
 		RegistrationEntries: registrationEntries,
 	}
 
