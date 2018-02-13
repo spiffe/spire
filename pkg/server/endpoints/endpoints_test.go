@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"net"
 	"net/url"
@@ -10,7 +11,9 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/server/ca"
+	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/mock/proto/server/ca"
+	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
@@ -28,6 +31,7 @@ type EndpointsTestSuite struct {
 	ctrl *gomock.Controller
 
 	ca      *mock_ca.MockControlPlaneCa
+	ds      *mock_datastore.MockDataStore
 	catalog *mock_catalog.MockCatalog
 
 	e *endpoints
@@ -36,6 +40,7 @@ type EndpointsTestSuite struct {
 func (s *EndpointsTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 	s.ca = mock_ca.NewMockControlPlaneCa(s.ctrl)
+	s.ds = mock_datastore.NewMockDataStore(s.ctrl)
 	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 
 	log, _ := test.NewNullLogger()
@@ -80,7 +85,6 @@ func (s *EndpointsTestSuite) TestRotateSvid() {
 	s.expectSVIDRotation(cert)
 	s.Assert().NoError(s.e.rotateSVID())
 	s.Assert().Equal(cert, s.e.svid)
-	s.Assert().Equal(cert, s.e.caCerts[0])
 }
 
 func (s *EndpointsTestSuite) TestStartRotator() {
@@ -143,6 +147,56 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 	s.e.Shutdown()
 	err = <-errChan
 	require.NoError(s.T(), err)
+}
+
+func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
+	cert, pool := s.expectBundleLookup()
+
+	tlsConfig, err := s.e.getGRPCServerConfig(nil)
+	require.NoError(s.T(), err)
+
+	s.Assert().Equal(tls.RequestClientCert, tlsConfig.ClientAuth)
+	s.Assert().Equal(cert, tlsConfig.Certificates)
+	s.Assert().Equal(pool, tlsConfig.ClientCAs)
+}
+
+func (s *EndpointsTestSuite) TestHTTPServerConfig() {
+	cert, _ := s.expectBundleLookup()
+
+	tlsConfig, err := s.e.getGRPCServerConfig(nil)
+	require.NoError(s.T(), err)
+
+	s.Assert().Equal(cert, tlsConfig.Certificates)
+}
+
+// expectBundleLookup sets datastore expectations for CA bundle lookups, and returns the served
+// certificates plus an svid in the form of TLS certificate chain and CA pool.
+func (s *EndpointsTestSuite) expectBundleLookup() ([]tls.Certificate, *x509.CertPool) {
+	svid, svidKey, err := util.LoadSVIDFixture()
+	require.NoError(s.T(), err)
+	ca, _, err := util.LoadCAFixture()
+	require.NoError(s.T(), err)
+
+	dsReq := &datastore.Bundle{TrustDomain: s.e.c.TrustDomain.String()}
+	dsResp := &datastore.Bundle{
+		TrustDomain: s.e.c.TrustDomain.String(),
+		CaCerts:     ca.Raw,
+	}
+	s.catalog.EXPECT().DataStores().Return([]datastore.DataStore{s.ds})
+	s.ds.EXPECT().FetchBundle(dsReq).Return(dsResp, nil)
+
+	s.e.svid = svid
+	s.e.svidKey = svidKey
+	caPool := x509.NewCertPool()
+	caPool.AddCert(ca)
+
+	certChain := [][]byte{svid.Raw, ca.Raw}
+	tlsCert := tls.Certificate{
+		Certificate: certChain,
+		PrivateKey:  svidKey,
+	}
+
+	return []tls.Certificate{tlsCert}, caPool
 }
 
 // expectSVIDRotation sets the appropriate expectations for an SVID rotation, and returns

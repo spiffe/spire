@@ -3,7 +3,10 @@ package pkg
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/sha1"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -32,6 +35,12 @@ var (
 		Company:     "",
 	}
 )
+
+// Borrowed with love from cfssl under the BSD 2-Clause license
+type subjectPublicKeyInfo struct {
+	Algorithm        pkix.AlgorithmIdentifier
+	SubjectPublicKey asn1.BitString
+}
 
 type configuration struct {
 	TTL          string `hcl:"ttl" json:"ttl"` // time to live for generated certs
@@ -141,10 +150,25 @@ func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstrea
 	}
 
 	csr, err := ParseSpiffeCsr(request.Csr, m.config.TrustDomain)
-
 	if err != nil {
 		return nil, err
 	}
+
+	// Calculate Subject Key ID
+	// Borrowed with love from cfssl under the BSD 2-Clause license
+	// TODO: just use cfssl...
+	encodedPubKey, err := x509.MarshalPKIXPublicKey(csr.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	var subjectKeyInfo subjectPublicKeyInfo
+	_, err = asn1.Unmarshal(encodedPubKey, &subjectKeyInfo)
+	if err != nil {
+		return nil, err
+	}
+	keyHash := sha1.New()
+	keyHash.Write(subjectKeyInfo.SubjectPublicKey.Bytes)
+	keyID := keyHash.Sum(nil)
 
 	serial := atomic.AddInt64(&m.serial, 1)
 	now := time.Now()
@@ -161,6 +185,7 @@ func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstrea
 		SerialNumber:    big.NewInt(serial),
 		NotBefore:       now.Add(time.Duration(-10) * time.Second),
 		NotAfter:        now.Add(expiry),
+		SubjectKeyId:    keyID,
 		KeyUsage: x509.KeyUsageDigitalSignature |
 			x509.KeyUsageCertSign |
 			x509.KeyUsageCRLSign,
