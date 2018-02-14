@@ -157,9 +157,16 @@ func (h *Handler) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
 			return errors.New("Error trying sign CSRs")
 		}
 
+		bundle, err := h.getBundle()
+		if err != nil {
+			h.Log.Errorf("Error retreiving bundle from datastore: %v", err)
+			return fmt.Errorf("Error retreiving bundle")
+		}
+
 		server.Send(&node.FetchSVIDResponse{
 			SvidUpdate: &node.SvidUpdate{
 				Svids:               svids,
+				Bundle:              bundle,
 				RegistrationEntries: regEntries,
 			},
 		})
@@ -446,8 +453,15 @@ func (h *Handler) getFetchBaseSVIDResponse(
 	if err != nil {
 		return nil, err
 	}
+
+	bundle, err := h.getBundle()
+	if err != nil {
+		return nil, err
+	}
+
 	svidUpdate := &node.SvidUpdate{
 		Svids:               svids,
+		Bundle:              bundle,
 		RegistrationEntries: regEntries,
 	}
 	return &node.FetchBaseSVIDResponse{SvidUpdate: svidUpdate}, nil
@@ -573,6 +587,20 @@ func (h *Handler) buildBaseSVID(csr []byte) (*node.Svid, error) {
 		SvidCert: signResponse.SignedCertificate,
 		Ttl:      int32(time.Until(cert.NotAfter).Seconds()),
 	}, nil
+}
+
+// getBundle fetches the current CA bundle from the datastore.
+func (h *Handler) getBundle() ([]byte, error) {
+	ds := h.Catalog.DataStores()[0]
+	req := &datastore.Bundle{
+		TrustDomain: h.TrustDomain.String(),
+	}
+	b, err := ds.FetchBundle(req)
+	if err != nil {
+		return nil, fmt.Errorf("get bundle from datastore: %v", err)
+	}
+
+	return b.CaCerts, nil
 }
 
 //TODO: put this into go-spiffe uri?
