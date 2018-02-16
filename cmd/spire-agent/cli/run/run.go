@@ -1,9 +1,8 @@
 package run
 
 import (
-	"context"
 	"crypto/x509"
-	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
@@ -91,10 +90,9 @@ func (*RunCLI) Run(args []string) int {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	signalListener(ctx, cancel)
 
-	agt := agent.New(ctx, c)
+	agt := agent.New(c)
+	signalListener(agt)
 
 	err = agt.Run()
 	if err != nil {
@@ -269,37 +267,50 @@ func validateConfig(c *agent.Config) error {
 func newDefaultConfig() *agent.Config {
 	bindAddr := &net.UnixAddr{Name: defaultSocketPath, Net: "unix"}
 
-	certDN := &pkix.Name{
-		Country:      []string{"US"},
-		Organization: []string{"SPIRE"},
-	}
-	errCh := make(chan error)
 	// log.NewLogger() cannot return error when using STDOUT
 	logger, _ := log.NewLogger(defaultLogLevel, "")
 	serverAddress := &net.TCPAddr{}
 
 	return &agent.Config{
 		BindAddress:   bindAddr,
-		CertDN:        certDN,
 		DataDir:       defaultDataDir,
-		ErrorCh:       errCh,
 		Log:           logger,
 		ServerAddress: serverAddress,
 		Umask:         defaultUmask,
 	}
 }
 
-func parseTrustBundle(path string) (*x509.CertPool, error) {
-	data, err := ioutil.ReadFile(path)
+func parseTrustBundle(path string) ([]*x509.Certificate, error) {
+	pemData, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	certPool := x509.NewCertPool()
-	if ok := certPool.AppendCertsFromPEM(data); !ok {
-		return nil, fmt.Errorf("No valid certificates found at %s", path)
+	var data []byte
+	for len(pemData) > 1 {
+		var block *pem.Block
+		block, pemData = pem.Decode(pemData)
+		if block == nil && len(data) < 1 {
+			return nil, errors.New("no certificates found")
+		}
+
+		if block == nil {
+			return nil, errors.New("encountered unknown data in trust bundle")
+		}
+
+		if block.Type != "CERTIFICATE" {
+			return nil, fmt.Errorf("non-certificate type %v found in trust bundle", block.Type)
+		}
+
+		data = append(data, block.Bytes...)
 	}
-	return certPool, nil
+
+	bundle, err := x509.ParseCertificates(data)
+	if err != nil {
+		return nil, fmt.Errorf("parse certificates from %v, %v", path, err)
+	}
+
+	return bundle, nil
 }
 
 func stringDefault(option string, defaultValue string) string {
@@ -310,16 +321,14 @@ func stringDefault(option string, defaultValue string) string {
 	return option
 }
 
-func signalListener(ctx context.Context, cancel context.CancelFunc) {
-
+func signalListener(agt *agent.Agent) {
 	go func() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-		defer signal.Stop(signalCh)
+
 		select {
-		case <-ctx.Done():
 		case <-signalCh:
-			cancel()
+			agt.Shutdown()
 		}
 	}()
 	return
