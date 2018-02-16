@@ -46,7 +46,6 @@ type MgrConfig struct {
 	BaseSVID       *x509.Certificate
 	BaseSVIDKey    *ecdsa.PrivateKey
 	BaseSVIDPath   string
-	BaseRegEntries []*proto.RegistrationEntry
 	Logger         logrus.FieldLogger
 	TrustDomain    url.URL
 }
@@ -71,7 +70,6 @@ type manager struct {
 	baseSVIDKey      *ecdsa.PrivateKey
 	baseSVIDPath     string
 	baseSPIFFEID     string
-	baseRegEntries   []*proto.RegistrationEntry
 	log              logrus.FieldLogger
 	ctx              context.Context
 	cancel           context.CancelFunc
@@ -98,7 +96,6 @@ func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
 		baseSVIDKey:      c.BaseSVIDKey,
 		baseSVIDPath:     c.BaseSVIDPath,
 		baseSPIFFEID:     basespiffeID[0],
-		baseRegEntries:   c.BaseRegEntries,
 		log:              c.Logger.WithField("subsystem_name", "cacheManager"),
 		spiffeIdEntryMap: make(map[string]CacheEntry),
 		entryRequestCh:   make(chan map[string][]EntryRequest),
@@ -145,8 +142,7 @@ func (m *manager) Init() {
 		go m.rotateBaseSVIDHandler(30*time.Second, &wg)
 
 		m.log.Debug("Initializing Cache Manager")
-		m.regEntriesCh <- m.baseRegEntries
-		m.addToPipeline(len(m.baseRegEntries) - 1)
+		m.fetchWithEmptyCSR(m.baseSVID, m.baseSVIDKey)
 
 		for {
 

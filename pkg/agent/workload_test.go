@@ -66,7 +66,7 @@ func (s *WorkloadServerTestSuite) SetupTest() {
 		cacheMrg: s.manager,
 		catalog:  s.catalog,
 		l:        log,
-		bundle:   []byte{},
+		bundle:   []*x509.Certificate{},
 		maxTTL:   maxTTL,
 		minTTL:   minTTL,
 	}

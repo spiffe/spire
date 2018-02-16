@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	testServerCerts = []*x509.Certificate{&x509.Certificate{}, &x509.Certificate{}}
+	testServerCerts = []*x509.Certificate{{}, {}}
 	serverId        = "spiffe://testDomain/spiffe/cp"
 	baseSVIDKey, _  = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	testLogger, _   = testlog.NewNullLogger()
@@ -32,7 +32,7 @@ var (
 			SpiffeId: "spiffe://example.org/Blog",
 			ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
 			Selectors: []*common.Selector{
-				&common.Selector{Type: "unix", Value: "uid:111"},
+				{Type: "unix", Value: "uid:111"},
 			},
 			Ttl: 200,
 		},
@@ -44,7 +44,7 @@ var (
 	}
 
 	svidMap = map[string]*node.Svid{
-		"spiffe://example.org/Blog": &node.Svid{SvidCert: certsFixture.GetTestBlogSVID()}}
+		"spiffe://example.org/Blog": {SvidCert: certsFixture.GetTestBlogSVID()}}
 
 	svidUpdate = &node.SvidUpdate{
 		Svids:               svidMap,
@@ -67,7 +67,6 @@ func TestManager_FetchSVID(t *testing.T) {
 		ServerAddr:     "fakeServerAddr",
 		BaseSVID:       baseSVID,
 		BaseSVIDKey:    baseSVIDKey,
-		BaseRegEntries: regEntries,
 		Logger:         testLogger,
 	}
 	m, _ := NewManager(context.Background(), c)
@@ -91,7 +90,7 @@ func TestManager_FetchSVID(t *testing.T) {
 
 	wg.Wait()
 	expiry := cm.managedCache.Entry([]*common.Selector{
-		&common.Selector{Type: "unix", Value: "uid:111"},
+		{Type: "unix", Value: "uid:111"},
 	})[0].SVID.NotAfter
 
 	//TODO: review this
@@ -104,10 +103,9 @@ func TestManager_RegEntriesHandler(t *testing.T) {
 	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
 	c := &MgrConfig{ServerCerts: testServerCerts,
 		ServerSPIFFEID: serverId, ServerAddr: "fakeServerAddr",
-		BaseSVID:       baseSVID,
-		BaseSVIDKey:    baseSVIDKey,
-		BaseRegEntries: regEntries,
-		Logger:         testLogger}
+		BaseSVID:    baseSVID,
+		BaseSVIDKey: baseSVIDKey,
+		Logger:      testLogger}
 	m, _ := NewManager(context.Background(), c)
 	cm := m.(*manager)
 	cm.regEntriesCh = make(chan []*common.RegistrationEntry)
@@ -145,10 +143,9 @@ func TestManager_UpdateCache(t *testing.T) {
 	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
 	c := &MgrConfig{ServerCerts: testServerCerts,
 		ServerSPIFFEID: serverId, ServerAddr: "fakeServerAddr",
-		BaseSVID:       baseSVID,
-		BaseSVIDKey:    baseSVIDKey,
-		BaseRegEntries: regEntries,
-		Logger:         testLogger}
+		BaseSVID:    baseSVID,
+		BaseSVIDKey: baseSVIDKey,
+		Logger:      testLogger}
 	m, _ := NewManager(context.Background(), c)
 	cm := m.(*manager)
 	cm.Init()
