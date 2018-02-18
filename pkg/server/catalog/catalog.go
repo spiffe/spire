@@ -5,8 +5,9 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
-
-	// Plugin interfaces
+	"github.com/spiffe/spire/pkg/server/plugin/datastore/sqlite"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
+	"github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
@@ -15,6 +16,8 @@ import (
 
 	goplugin "github.com/hashicorp/go-plugin"
 	common "github.com/spiffe/spire/pkg/common/catalog"
+	ca_memory "github.com/spiffe/spire/pkg/server/plugin/ca/memory"
+	upca_memory "github.com/spiffe/spire/pkg/server/plugin/upstreamca/memory"
 )
 
 const (
@@ -43,6 +46,24 @@ var (
 		NodeResolverType: &noderesolver.NodeResolverPlugin{},
 		UpstreamCAType:   &upstreamca.UpstreamCaPlugin{},
 	}
+
+	builtinPlugins = common.BuiltinPluginMap{
+		CAType: {
+			"memory": ca_memory.NewWithDefault(),
+		},
+		DataStoreType: {
+			"sqlite": sqlite.New(),
+		},
+		NodeAttestorType: {
+			"join_token": jointoken.New(),
+		},
+		NodeResolverType: {
+			"noop": noop.New(),
+		},
+		UpstreamCAType: {
+			"memory": upca_memory.New(),
+		},
+	}
 )
 
 type Config struct {
@@ -66,6 +87,7 @@ func New(c *Config) Catalog {
 	commonConfig := &common.Config{
 		PluginConfigs:    c.PluginConfigs,
 		SupportedPlugins: supportedPlugins,
+		BuiltinPlugins:   builtinPlugins,
 		Log:              c.Log,
 	}
 

@@ -1,4 +1,4 @@
-package pkg
+package memory
 
 import (
 	"crypto/ecdsa"
@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -42,7 +41,7 @@ type subjectPublicKeyInfo struct {
 	SubjectPublicKey asn1.BitString
 }
 
-type configuration struct {
+type Configuration struct {
 	TTL          string `hcl:"ttl" json:"ttl"` // time to live for generated certs
 	TrustDomain  string `hcl:"trust_domain" json:"trust_domain"`
 	CertFilePath string `hcl:"cert_file_path" json:"cert_file_path"`
@@ -50,7 +49,7 @@ type configuration struct {
 }
 
 type memoryPlugin struct {
-	config *configuration
+	config *Configuration
 
 	key    *ecdsa.PrivateKey
 	cert   *x509.Certificate
@@ -65,7 +64,7 @@ func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
-	config := &configuration{}
+	config := &Configuration{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
 		resp.ErrorList = []string{err.Error()}
@@ -117,7 +116,7 @@ func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 	// Set local vars from config struct
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	m.config = &configuration{}
+	m.config = &Configuration{}
 	m.config.TrustDomain = config.TrustDomain
 	m.config.TTL = config.TTL
 	m.config.KeyFilePath = config.KeyFilePath
@@ -246,29 +245,7 @@ func ParseSpiffeCsr(csrDER []byte, trustDomain string) (csr *x509.CertificateReq
 	return csr, nil
 }
 
-func NewWithDefault(keyFilePath string, certFilePath string) (m upstreamca.UpstreamCa, err error) {
-	config := configuration{
-		TrustDomain:  "localhost",
-		KeyFilePath:  keyFilePath,
-		CertFilePath: certFilePath,
-		TTL:          "1h",
-	}
-
-	jsonConfig, err := json.Marshal(config)
-	pluginConfig := &spi.ConfigureRequest{
-		Configuration: string(jsonConfig),
-	}
-
-	m = &memoryPlugin{
-		mtx: &sync.RWMutex{},
-	}
-
-	_, err = m.Configure(pluginConfig)
-
-	return m, err
-}
-
-func NewEmpty() (m upstreamca.UpstreamCa) {
+func New() (m upstreamca.UpstreamCa) {
 	return &memoryPlugin{
 		mtx: &sync.RWMutex{},
 	}

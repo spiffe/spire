@@ -1,4 +1,4 @@
-package main
+package sqlite
 
 import (
 	"crypto/x509"
@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
@@ -889,7 +888,11 @@ func (ds *sqlitePlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResp
 		return resp, err
 	}
 
-	if config.FileName != "" && config.FileName != ds.fileName {
+	if config.FileName == "" {
+		return resp, errors.New("filename must be set")
+	}
+
+	if config.FileName != ds.fileName {
 		ds.fileName = config.FileName
 		return resp, ds.restart()
 	}
@@ -1093,45 +1096,31 @@ func (ds *sqlitePlugin) restart() error {
 	return nil
 }
 
-func newPlugin(path string) (*sqlitePlugin, error) {
+func newPlugin() *sqlitePlugin {
 	p := &sqlitePlugin{
-		fileName: path,
 		mutex:    new(sync.Mutex),
 	}
 
-	return p, p.restart()
+	return p
 }
 
-// New creates a new sqlite plugin with
-// an in-memory database and shared cache
-func New() (datastore.DataStore, error) {
-	return newPlugin(":memory:")
+// New creates a new sqlite plugin struct. Configure must be called
+// in order to start the db.
+func New() datastore.DataStore {
+	return newPlugin()
 }
 
 // NewTemp create a new plugin with a temporal database, allowing new
 // connections to receive a fresh copy. Primarily meant for testing.
 func NewTemp() (datastore.DataStore, error) {
-	p, err := newPlugin("")
+	p := newPlugin()
+
+	// Call restart() to start the db - normally triggered by call to Configure
+	err := p.restart()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("start database: %v", err)
 	}
 
 	p.db.LogMode(true)
-
-	return p, nil
-}
-
-func main() {
-	impl, err := New()
-	if err != nil {
-		panic(err.Error())
-	}
-
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: datastore.Handshake,
-		Plugins: map[string]plugin.Plugin{
-			"datastore": datastore.DataStorePlugin{DataStoreImpl: impl},
-		},
-		GRPCServer: plugin.DefaultGRPCServer,
-	})
+	return p, p.restart()
 }

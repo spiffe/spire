@@ -1,10 +1,11 @@
-package main
+package memory
 
 import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"io/ioutil"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/uri"
-	upca "github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
+	upca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/memory"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/upstreamca"
@@ -28,7 +29,7 @@ func TestMemory_Configure(t *testing.T) {
 		Configuration: config,
 	}
 
-	m := &memoryPlugin{
+	m := &MemoryPlugin{
 		mtx: &sync.RWMutex{},
 	}
 	resp, err := m.Configure(pluginConfig)
@@ -42,7 +43,7 @@ func TestMemory_ConfigureParseHclError(t *testing.T) {
 		Configuration: config,
 	}
 
-	m := &memoryPlugin{
+	m := &MemoryPlugin{
 		mtx: &sync.RWMutex{},
 	}
 
@@ -60,7 +61,7 @@ func TestMemory_ConfigureDecodeObjectError(t *testing.T) {
 		Configuration: config,
 	}
 
-	m := &memoryPlugin{
+	m := &MemoryPlugin{
 		mtx: &sync.RWMutex{},
 	}
 
@@ -73,16 +74,14 @@ func TestMemory_ConfigureDecodeObjectError(t *testing.T) {
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m := NewWithDefault()
 	res, err := m.GetPluginInfo(&spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	assert.NotNil(t, res)
 }
 
 func TestMemory_GenerateCsr(t *testing.T) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m := NewWithDefault()
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
 	require.NoError(t, err)
@@ -90,8 +89,7 @@ func TestMemory_GenerateCsr(t *testing.T) {
 }
 
 func TestMemory_LoadValidCertificate(t *testing.T) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m := NewWithDefault()
 
 	const testDataDir = "_test_data/cert_valid"
 	validCertFiles, err := ioutil.ReadDir(testDataDir)
@@ -115,8 +113,7 @@ func TestMemory_LoadValidCertificate(t *testing.T) {
 }
 
 func TestMemory_LoadInvalidCertificate(t *testing.T) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m := NewWithDefault()
 
 	const testDataDir = "_test_data/cert_invalid"
 	invalidCertFiles, err := ioutil.ReadDir(testDataDir)
@@ -134,18 +131,16 @@ func TestMemory_LoadInvalidCertificate(t *testing.T) {
 }
 
 func TestMemory_FetchCertificate(t *testing.T) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m := NewWithDefault()
 	cert, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
 	require.NoError(t, err)
 	assert.Empty(t, cert.StoredIntermediateCert)
 }
 
 func TestMemory_bootstrap(t *testing.T) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m := NewWithDefault()
 
-	upca, err := upca.NewWithDefault("../upstreamca-memory/pkg/_test_data/keys/private_key.pem", "../upstreamca-memory/pkg/_test_data/keys/cert.pem")
+	upca, err := newUpCA("../../upstreamca/memory/_test_data/keys/private_key.pem", "../../upstreamca/memory/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
@@ -171,10 +166,9 @@ func TestMemory_bootstrap(t *testing.T) {
 }
 
 func TestMemory_race(t *testing.T) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m := NewWithDefault()
 
-	upca, err := upca.NewWithDefault("../upstreamca-memory/pkg/_test_data/keys/private_key.pem", "../upstreamca-memory/pkg/_test_data/keys/cert.pem")
+	upca, err := newUpCA("../../upstreamca/memory/_test_data/keys/private_key.pem", "../../upstreamca/memory/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
@@ -226,8 +220,7 @@ func TestMemory_SignCsrExpire(t *testing.T) {
 }
 
 func TestMemory_SignCsrNoCert(t *testing.T) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m := NewWithDefault()
 
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
@@ -278,10 +271,9 @@ func TestMemory_SignCsrErrorInvalidTTL(t *testing.T) {
 //func TestMemory_GenerateCsrCreateCertificateRequestError(t *testing.T) {}
 
 func TestMemory_LoadCertificateInvalidCertFormat(t *testing.T) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m := NewWithDefault()
 
-	upca, err := upca.NewWithDefault("../upstreamca-memory/pkg/_test_data/keys/private_key.pem", "../upstreamca-memory/pkg/_test_data/keys/cert.pem")
+	upca, err := newUpCA("../../upstreamca/memory/_test_data/keys/private_key.pem", "../../upstreamca/memory/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
@@ -298,10 +290,9 @@ func TestMemory_LoadCertificateInvalidCertFormat(t *testing.T) {
 }
 
 func TestMemory_LoadCertificateTooManyCerts(t *testing.T) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m := NewWithDefault()
 
-	upca, err := upca.NewWithDefault("../upstreamca-memory/pkg/_test_data/keys/private_key.pem", "../upstreamca-memory/pkg/_test_data/keys/cert.pem")
+	upca, err := newUpCA("../../upstreamca/memory/_test_data/keys/private_key.pem", "../../upstreamca/memory/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
@@ -352,10 +343,9 @@ func createWorkloadCSR(t *testing.T, spiffeID string) []byte {
 }
 
 func populateCert(t *testing.T) (m ca.ControlPlaneCa) {
-	m, err := NewWithDefault()
-	require.NoError(t, err)
+	m = NewWithDefault()
 
-	upca, err := upca.NewWithDefault("../upstreamca-memory/pkg/_test_data/keys/private_key.pem", "../upstreamca-memory/pkg/_test_data/keys/cert.pem")
+	upca, err := newUpCA("../../upstreamca/memory/_test_data/keys/private_key.pem", "../../upstreamca/memory/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
@@ -379,4 +369,22 @@ func getRoots(t *testing.T, m ca.ControlPlaneCa) (roots *x509.CertPool) {
 	roots.AddCert(rootCert)
 
 	return roots
+}
+
+func newUpCA(keyFilePath string, certFilePath string) (upstreamca.UpstreamCa, error) {
+	config := upca.Configuration{
+		TrustDomain:  "localhost",
+		KeyFilePath:  keyFilePath,
+		CertFilePath: certFilePath,
+		TTL:          "1h",
+	}
+
+	jsonConfig, err := json.Marshal(config)
+	pluginConfig := &spi.ConfigureRequest{
+		Configuration: string(jsonConfig),
+	}
+
+	m := upca.New()
+	_, err = m.Configure(pluginConfig)
+	return m, err
 }

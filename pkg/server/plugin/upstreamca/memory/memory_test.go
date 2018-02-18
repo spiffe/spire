@@ -1,6 +1,7 @@
-package pkg
+package memory
 
 import (
+	"encoding/json"
 	"encoding/pem"
 	"io/ioutil"
 	"path/filepath"
@@ -30,7 +31,7 @@ func TestMemory_Configure(t *testing.T) {
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
-	m, err := NewWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
 	require.NoError(t, err)
 	res, err := m.GetPluginInfo(&spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
@@ -38,7 +39,7 @@ func TestMemory_GetPluginInfo(t *testing.T) {
 }
 
 func TestMemory_SubmitValidCSR(t *testing.T) {
-	m, err := NewWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
 
 	const testDataDir = "_test_data/csr_valid"
 	validCsrFiles, err := ioutil.ReadDir(testDataDir)
@@ -57,7 +58,7 @@ func TestMemory_SubmitValidCSR(t *testing.T) {
 }
 
 func TestMemory_SubmitInvalidCSR(t *testing.T) {
-	m, err := NewWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
 
 	const testDataDir = "_test_data/csr_invalid"
 	validCsrFiles, err := ioutil.ReadDir(testDataDir)
@@ -76,7 +77,7 @@ func TestMemory_SubmitInvalidCSR(t *testing.T) {
 }
 
 func TestMemory_race(t *testing.T) {
-	m, err := NewWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	csr, err := ioutil.ReadFile("_test_data/csr_valid/csr_1.pem")
@@ -87,3 +88,24 @@ func TestMemory_race(t *testing.T) {
 		m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csr})
 	})
 }
+
+func newWithDefault(keyFilePath string, certFilePath string) (upstreamca.UpstreamCa, error) {
+	config := Configuration{
+		TrustDomain:  "localhost",
+		KeyFilePath:  keyFilePath,
+		CertFilePath: certFilePath,
+		TTL:          "1h",
+	}
+
+	jsonConfig, err := json.Marshal(config)
+	pluginConfig := &spi.ConfigureRequest{
+		Configuration: string(jsonConfig),
+	}
+
+	m := &memoryPlugin{
+		mtx: &sync.RWMutex{},
+	}
+
+	_, err = m.Configure(pluginConfig)
+	return m, err
+} 
