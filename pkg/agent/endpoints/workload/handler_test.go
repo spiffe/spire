@@ -1,4 +1,4 @@
-package agent
+package workload
 
 import (
 	"crypto/ecdsa"
@@ -31,10 +31,10 @@ var (
 	selector4 = &selector.Selector{Type: "baz", Value: "quz"}
 )
 
-type WorkloadServerTestSuite struct {
+type HandlerTestSuite struct {
 	suite.Suite
 
-	w *workloadServer
+	h *Handler
 
 	attestor1 *mock_workloadattestor.MockWorkloadAttestor
 	attestor2 *mock_workloadattestor.MockWorkloadAttestor
@@ -50,7 +50,7 @@ type WorkloadServerTestSuite struct {
 	ctrl *gomock.Controller
 }
 
-func (s *WorkloadServerTestSuite) SetupTest() {
+func (s *HandlerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.t)
 	log, logHook := test.NewNullLogger()
 	maxTTL := 12 * time.Hour
@@ -62,25 +62,25 @@ func (s *WorkloadServerTestSuite) SetupTest() {
 	s.catalog = mock_catalog.NewMockCatalog(mockCtrl)
 	s.manager = mock_cache.NewMockManager(mockCtrl)
 
-	ws := &workloadServer{
-		cacheMrg: s.manager,
-		catalog:  s.catalog,
-		l:        log,
-		bundle:   []*x509.Certificate{},
-		maxTTL:   maxTTL,
-		minTTL:   minTTL,
+	ws := &Handler{
+		CacheMgr: s.manager,
+		Catalog:  s.catalog,
+		L:        log,
+		Bundle:   []*x509.Certificate{},
+		MaxTTL:   maxTTL,
+		MinTTL:   minTTL,
 	}
 
-	s.w = ws
+	s.h = ws
 	s.logHook = logHook
 	s.ctrl = mockCtrl
 }
 
-func (s *WorkloadServerTestSuite) TeardownTest() {
+func (s *HandlerTestSuite) TeardownTest() {
 	s.ctrl.Finish()
 }
 
-func (s *WorkloadServerTestSuite) TestAttestCaller() {
+func (s *HandlerTestSuite) TestAttestCaller() {
 	var testPID int32 = 1000
 	plugins := []workloadattestor.WorkloadAttestor{s.attestor1, s.attestor2}
 	pRequest := &workloadattestor.AttestRequest{Pid: testPID}
@@ -91,7 +91,7 @@ func (s *WorkloadServerTestSuite) TestAttestCaller() {
 	s.attestor1.EXPECT().Attest(pRequest).Return(pRes1, nil)
 	s.attestor2.EXPECT().Attest(pRequest).Return(pRes2, nil)
 
-	selectors, err := s.w.attestCaller(testPID)
+	selectors, err := s.h.attestCaller(testPID)
 	if s.Assert().Nil(err) {
 		expected := selector.Set{selector1, selector2, selector3}
 		got := selector.NewSet(selectors)
@@ -101,7 +101,7 @@ func (s *WorkloadServerTestSuite) TestAttestCaller() {
 	}
 }
 
-func (s *WorkloadServerTestSuite) TestAttestCallerError() {
+func (s *HandlerTestSuite) TestAttestCallerError() {
 	var testPID int32 = 1000
 	pluginName := "WorkloadAttestor"
 	plugins := []workloadattestor.WorkloadAttestor{s.attestor1, s.attestor2}
@@ -120,7 +120,7 @@ func (s *WorkloadServerTestSuite) TestAttestCallerError() {
 	s.attestor2.EXPECT().Attest(pRequest).Return(pRes2, pError2)
 	s.catalog.EXPECT().Find(plugins[1].(common_catalog.Plugin)).Return(pInfo2)
 
-	selectors, errs := s.w.attestCaller(testPID)
+	selectors, errs := s.h.attestCaller(testPID)
 	s.Assert().Nil(errs)
 
 	expected := selector.Set{selector1}
@@ -130,7 +130,7 @@ func (s *WorkloadServerTestSuite) TestAttestCallerError() {
 	s.Assert().Equal(expected, got)
 }
 
-func (s *WorkloadServerTestSuite) TestComposeResponse() {
+func (s *HandlerTestSuite) TestComposeResponse() {
 	sel := &common.Selector{Type: "foo", Value: "bar"}
 	registrationEntry := &common.RegistrationEntry{
 		Selectors:   []*common.Selector{sel},
@@ -155,7 +155,7 @@ func (s *WorkloadServerTestSuite) TestComposeResponse() {
 	}
 
 	entries := []cache.CacheEntry{cacheEntry}
-	resp, err := s.w.composeResponse(entries)
+	resp, err := s.h.composeResponse(entries)
 	s.Assert().Nil(err)
 
 	if s.Assert().NotNil(resp) {
@@ -169,7 +169,7 @@ func (s *WorkloadServerTestSuite) TestComposeResponse() {
 	}
 }
 
-func (s *WorkloadServerTestSuite) TestCalculateTTL() {
+func (s *HandlerTestSuite) TestCalculateTTL() {
 	// int approximations of Time
 	var ttlCases = []struct {
 		in  []int
@@ -192,7 +192,7 @@ func (s *WorkloadServerTestSuite) TestCalculateTTL() {
 		}
 
 		// Assert output given cert slice
-		res := s.w.calculateTTL(certs)
+		res := s.h.calculateTTL(certs)
 		s.Assert().Equal(c.out, int(res.Seconds()))
 	}
 }
@@ -226,5 +226,5 @@ func generateCacheEntry(spiffeID, parentID string, selectors selector.Set) (cach
 }
 
 func TestWorkloadServer(t *testing.T) {
-	suite.Run(t, new(WorkloadServerTestSuite))
+	suite.Run(t, new(HandlerTestSuite))
 }
