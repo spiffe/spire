@@ -154,46 +154,38 @@ func (m *manager) synchronize() error {
 
 	regEntries, svids, bundle := m.fetchUpdate(nil)
 
-	entryRequestMap, err := m.regEntriesToEntryRequestMap(regEntries)
-	if err != nil {
-		return err
-	}
+	for len(regEntries) > 0 {
+		// Get a map with the CSR and a pre-built cache entry for each registration entry.
+		entryRequestMap, err := m.regEntriesToEntryRequestMap(regEntries)
+		if err != nil {
+			return err
+		}
 
-	csrs := [][]byte{}
-	for _, entryRequest := range entryRequestMap {
-		/*
-			parentID := entryRequest.entry.RegistrationEntry.ParentId
-
-			if _, ok := m.spiffeIdEntryMap[parentID]; ok {
-				svid = m.spiffeIdEntryMap[parentID].SVID
-				key = m.spiffeIdEntryMap[parentID].PrivateKey
-			} else if parentID == m.spiffeID || parentID == m.serverSPIFFEID {
-				entry := m.getBaseSVIDEntry()
-				svid = entry.svid
-				key = entry.key
-			} else {
-				m.c.Log.Warnf("Unknown parent %s... ignoring", parentID)
-				continue
-			}
-		*/
-		csrs = append(csrs, entryRequest.CSR)
-	}
-	if len(csrs) > 0 {
-		regEntries, svids, bundle = m.fetchUpdate(csrs)
+		// Put all the CSRs in an array.
+		csrs := [][]byte{}
 		for _, entryRequest := range entryRequestMap {
-			svid, ok := svids[entryRequest.entry.RegistrationEntry.SpiffeId]
-			if ok {
-				cert, err := x509.ParseCertificate(svid.SvidCert)
-				if err != nil {
-					return err
+			csrs = append(csrs, entryRequest.CSR)
+		}
+		if len(csrs) > 0 {
+			// Fetch updates for the specified CSRs to get the corresponding SVIDs.
+			regEntries, svids, bundle = m.fetchUpdate(csrs)
+			for _, entryRequest := range entryRequestMap {
+				svid, ok := svids[entryRequest.entry.RegistrationEntry.SpiffeId]
+				if ok {
+					cert, err := x509.ParseCertificate(svid.SvidCert)
+					if err != nil {
+						return err
+					}
+					// Complete the pre-built cache entry with the SVID and put it on the cache.
+					entryRequest.entry.SVID = cert
+					m.cache.SetEntry(entryRequest.entry)
+					m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", entryRequest.entry.RegistrationEntry.SpiffeId)
 				}
-				entryRequest.entry.SVID = cert
-				m.cache.SetEntry(entryRequest.entry)
-				m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", entryRequest.entry.RegistrationEntry.SpiffeId)
 			}
 		}
 	}
 
+	m.setBundle(bundle)
 	return nil
 }
 
@@ -230,6 +222,8 @@ func (m *manager) regEntriesToEntryRequestMap(regEntries map[string]*proto.Regis
 			}
 			entryRequestMap[key] = entryRequest{csr, cacheEntry}
 		}
+		// Remove the processed entry from the map
+		delete(regEntries, key)
 	}
 
 	return entryRequestMap, nil
@@ -293,24 +287,26 @@ func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*g
 	return conn, nil
 }
 
-func (m *manager) fetchUpdate(csrs [][]byte) (regEntries map[string]*common.RegistrationEntry, svids map[string]*node.Svid, bundle []byte) {
+func (m *manager) fetchUpdate(csrs [][]byte) (regEntries map[string]*common.RegistrationEntry, svids map[string]*node.Svid, bundle []*x509.Certificate) {
 	err := m.fetchSVIDStream.Send(&node.FetchSVIDRequest{Csrs: csrs})
 	if err != nil {
-		// TODO: try to create a new stream
+		// TODO: should we try to create a new stream?
 		m.shutdown(err)
 		return
 	}
 
 	regEntries = map[string]*common.RegistrationEntry{}
 	svids = map[string]*node.Svid{}
+	var lastBundle []byte
 	for {
 		resp, err := m.fetchSVIDStream.Recv()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
+			// TODO: should we try to create a new stream?
 			m.shutdown(err)
-			return
+			return nil, nil, nil
 		}
 
 		for _, re := range resp.SvidUpdate.RegistrationEntries {
@@ -320,7 +316,16 @@ func (m *manager) fetchUpdate(csrs [][]byte) (regEntries map[string]*common.Regi
 		for spiffeid, svid := range resp.SvidUpdate.Svids {
 			svids[spiffeid] = svid
 		}
-		bundle = resp.SvidUpdate.Bundle
+		lastBundle = resp.SvidUpdate.Bundle
+	}
+
+	if lastBundle != nil {
+		bundle, err = x509.ParseCertificates(lastBundle)
+		if err != nil {
+			m.shutdown(err)
+			return nil, nil, nil
+		}
+
 	}
 
 	return
@@ -423,4 +428,11 @@ func (m *manager) rotateBaseSVID() error {
 
 func (m *manager) isAlreadyCached(regEntry *proto.RegistrationEntry) bool {
 	return m.cache.Entry(regEntry.Selectors) != nil
+}
+
+func (m *manager) setBundle(bundle []*x509.Certificate) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	m.bundle = bundle
+	m.storeBundle()
 }
