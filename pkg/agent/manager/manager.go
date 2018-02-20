@@ -46,11 +46,6 @@ type Manager interface {
 	Stopped() chan error
 }
 
-type baseSVIDEntry struct {
-	svid *x509.Certificate
-	key  *ecdsa.PrivateKey
-}
-
 type manager struct {
 	c     *Config
 	t     *tomb.Tomb
@@ -144,9 +139,48 @@ func (m *manager) initialize() error {
 	return nil
 }
 
+// TODO
+func (m *manager) synchronizer() error {
+	t := time.NewTicker(5 * time.Second)
+	for {
+		select {
+		case <-t.C:
+			err := m.synchronize()
+			if err != nil {
+				return err
+			}
+		case <-m.t.Dying():
+			return nil
+		}
+	}
+}
+
+// TODO
+func (m *manager) rotator() error {
+	t := time.NewTicker(1 * time.Minute)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-t.C:
+			err := m.rotateSVID()
+			if err != nil {
+				return err
+			}
+		case <-m.t.Dying():
+			return nil
+		}
+	}
+}
+
 type entryRequest struct {
 	CSR   []byte
 	entry cache.Entry
+}
+
+func (m *manager) newCSR(id url.URL) error {
+	// TODO
+	return nil
 }
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
@@ -229,45 +263,64 @@ func (m *manager) regEntriesToEntryRequestMap(regEntries map[string]*proto.Regis
 	return entryRequestMap, nil
 }
 
-func (m *manager) newCSR(id url.URL) error {
-	// TODO
-	return nil
-}
-
-// TODO
-func (m *manager) synchronizer() error {
-	t := time.NewTicker(5 * time.Second)
-	for {
-		select {
-		case <-t.C:
-			m.synchronize()
-		}
-	}
-	return nil
-}
-
-// TODO
-func (m *manager) rotator() error {
-	t := time.NewTicker(1 * time.Minute)
-	defer t.Stop()
-
-	//defer wg.Done()
-	//ticker := time.NewTicker(frequency)
+/*
+func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *sync.WaitGroup) {
+	defer wg.Done()
+	ticker := time.NewTicker(cacheFrequency)
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-t.C:
-			err := m.rotateBaseSVID()
-			if err != nil {
-				return err
+		case <-ticker.C:
+			entryRequestMap := make(map[string][]EntryRequest)
+			for _, entries := range m.managedCache.Entries() {
+				for _, entry := range entries {
+					ttl := entry.SVID.NotAfter.Sub(time.Now())
+					lifetime := entry.SVID.NotAfter.Sub(entry.SVID.NotBefore)
+					if ttl < lifetime/2 {
+						privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+						if err != nil {
+							m.Shutdown(err)
+							break
+						}
+						csr, err := util.MakeCSR(privateKey, entry.RegistrationEntry.SpiffeId)
+						entry.PrivateKey = privateKey
+						parentID := entry.RegistrationEntry.ParentId
+						entryRequestMap[parentID] = append(entryRequestMap[parentID], EntryRequest{csr, entry})
+					}
+					spiffeID := entry.RegistrationEntry.SpiffeId
+					m.spiffeIdEntryMap[spiffeID] = entry
+				}
 			}
-		case <-m.t.Dying():
-			m.Shutdown()
-			return nil
+			if len(entryRequestMap) != 0 {
+				select {
+				case m.entryRequestCh <- entryRequestMap:
+				case <-m.ctx.Done():
+					m.Shutdown(m.ctx.Err())
+					return
+				}
+			}
+			vanityRecord := m.managedCache.Entry([]*proto.Selector{{
+				Type: "spiffe_id", Value: m.baseSPIFFEID}})
+
+			if vanityRecord != nil {
+				m.fetchWithEmptyCSR(vanityRecord[0].SVID, vanityRecord[0].PrivateKey)
+			} else {
+				baseEntry := m.getBaseSVIDEntry()
+				m.fetchWithEmptyCSR(baseEntry.svid, baseEntry.key)
+			}
+
+			entry, ok := m.spiffeIdEntryMap[m.aliasSPIFFEID]
+			if ok {
+				m.fetchWithEmptyCSR(entry.SVID, entry.PrivateKey)
+			}
+
+		case <-m.ctx.Done():
+			return
 		}
 	}
 }
-
+*/
 func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*grpc.ClientConn, error) {
 	var tlsCert []tls.Certificate
 	var tlsConfig *tls.Config
@@ -331,20 +384,19 @@ func (m *manager) fetchUpdate(csrs [][]byte) (regEntries map[string]*common.Regi
 	return
 }
 
-func (m *manager) getBaseSVIDEntry() *baseSVIDEntry {
+func (m *manager) getBaseSVIDEntry() (svid *x509.Certificate, key *ecdsa.PrivateKey) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
-	return &baseSVIDEntry{
-		key:  m.svidKey,
-		svid: m.svid,
-	}
+	key = m.svidKey
+	svid = m.svid
+	return
 }
 
-func (m *manager) setBaseSVIDEntry(entry *baseSVIDEntry) {
+func (m *manager) setBaseSVIDEntry(svid *x509.Certificate, key *ecdsa.PrivateKey) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	m.svidKey = entry.key
-	m.svid = entry.svid
+	m.svidKey = key
+	m.svid = svid
 }
 
 func (m *manager) bundleAsCertPool() *x509.CertPool {
@@ -357,11 +409,11 @@ func (m *manager) bundleAsCertPool() *x509.CertPool {
 	return certPool
 }
 
-func (m *manager) rotateBaseSVID() error {
-	entry := m.getBaseSVIDEntry()
+func (m *manager) rotateSVID() error {
+	svid, key := m.getBaseSVIDEntry()
 
-	ttl := entry.svid.NotAfter.Sub(time.Now())
-	lifetime := entry.svid.NotAfter.Sub(entry.svid.NotBefore)
+	ttl := svid.NotAfter.Sub(time.Now())
+	lifetime := svid.NotAfter.Sub(svid.NotBefore)
 
 	if ttl < lifetime/2 {
 		m.c.Log.Debug("Generating new CSR for BaseSVID")
@@ -376,7 +428,7 @@ func (m *manager) rotateBaseSVID() error {
 			return err
 		}
 
-		conn, err := m.newGRPCConn(entry.svid, entry.key)
+		conn, err := m.newGRPCConn(svid, key)
 		if err != nil {
 			return err
 		}
@@ -411,13 +463,8 @@ func (m *manager) rotateBaseSVID() error {
 			return err
 		}
 
-		entry := baseSVIDEntry{
-			key:  privateKey,
-			svid: cert,
-		}
-
 		m.c.Log.Debug("Updating manager with new BaseSVID")
-		m.setBaseSVIDEntry(&entry)
+		m.setBaseSVIDEntry(cert, privateKey)
 		err = m.storeSVID()
 		if err != nil {
 			return err
