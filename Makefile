@@ -47,6 +47,9 @@ vendor: glide.yaml glide.lock
 $(binary_dirs): noop
 	$(docker) /bin/sh -c "cd $@; go build -i"
 
+artifact:
+	$(docker) ./build.sh artifact
+
 test:
 	$(docker) go test -race $$(glide novendor)
 
