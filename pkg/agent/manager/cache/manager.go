@@ -36,7 +36,7 @@ type Manager interface {
 
 type EntryRequest struct {
 	CSR   []byte
-	entry CacheEntry
+	entry Entry
 }
 
 type MgrConfig struct {
@@ -64,8 +64,8 @@ type manager struct {
 	reason           error
 	entryRequestCh   chan map[string][]EntryRequest
 	regEntriesCh     chan []*proto.RegistrationEntry
-	cacheEntryCh     chan CacheEntry
-	spiffeIdEntryMap map[string]CacheEntry
+	cacheEntryCh     chan Entry
+	spiffeIdEntryMap map[string]Entry
 	baseSVID         *x509.Certificate
 	baseSVIDKey      *ecdsa.PrivateKey
 	baseSVIDPath     string
@@ -97,10 +97,10 @@ func NewManager(ctx context.Context, c *MgrConfig) (Manager, error) {
 		baseSVIDPath:     c.BaseSVIDPath,
 		baseSPIFFEID:     basespiffeID[0],
 		log:              c.Logger.WithField("subsystem_name", "cacheManager"),
-		spiffeIdEntryMap: make(map[string]CacheEntry),
+		spiffeIdEntryMap: make(map[string]Entry),
 		entryRequestCh:   make(chan map[string][]EntryRequest),
 		regEntriesCh:     make(chan []*proto.RegistrationEntry),
-		cacheEntryCh:     make(chan CacheEntry),
+		cacheEntryCh:     make(chan Entry),
 		ctx:              ctx,
 		cancel:           cancel,
 		doneCh:           make(chan struct{}),
@@ -354,6 +354,7 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 			entryRequestMap := make(map[string][]EntryRequest)
 
 			for _, regEntry := range regEntries {
+				// If the parent spiffeid is the server spiffeid, this is an alias for the agent.
 				if regEntry.ParentId == m.magicSPIFFEID {
 					m.aliasSPIFFEID = regEntry.SpiffeId
 				}
@@ -374,7 +375,7 @@ func (m *manager) regEntriesHandler(wg *sync.WaitGroup) {
 					}
 					parentID := regEntry.ParentId
 					bundles := make(map[string][]byte) //TODO: walmav Populate Bundles
-					cacheEntry := CacheEntry{
+					cacheEntry := Entry{
 						RegistrationEntry: regEntry,
 						SVID:              nil,
 						PrivateKey:        privateKey,

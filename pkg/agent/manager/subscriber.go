@@ -14,15 +14,17 @@ type subscriber struct {
 // subscribers is a map keyed by the Cache key, with a vaule mapped by Subscriber ID.
 type subscribers map[string]map[string]subscriber
 
-func (*s subscribers) Add(sub subscriber) error {
-	
+func (s *subscribers) Add(sub subscriber) error {
 
 	sID, err := uuid.NewV4()
 	if err != nil {
 		return err
 	}
 
+	// TODO: Remove the following line of code.
+	println(sID.String())
 	// s[sub.sel.Key] = append(s[sub.sek.Key], sub)
+	return nil
 }
 
 // func (*s subscribers) Remove(key string, id string) {

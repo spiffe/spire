@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -17,8 +16,8 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/auth"
-	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
@@ -38,7 +37,7 @@ type Agent struct {
 	t   *tomb.Tomb
 	mtx *sync.RWMutex
 
-	Manager cache.Manager
+	Manager manager.Manager
 	Catalog catalog.Catalog
 
 	grpcServer *grpc.Server
@@ -81,15 +80,22 @@ func (a *Agent) run() error {
 		}
 	}
 
-	ctx, err := a.startManager(svid, key, bundle)
+	err = a.startManager(svid, key, bundle)
 	if err != nil {
 		return err
 	}
 
-	a.t.Go(func() error { return a.managerWait(ctx) })
 	a.t.Go(func() error { return a.startWorkloadAPI(bundle) })
 
-	<-a.t.Dying()
+	// Wait until the agent's tomb is dying or the manager stopped working.
+	select {
+	case <-a.t.Dying():
+	case <-a.Manager.Stopped():
+		a.mtx.Lock()
+		// TODO: Should we try to restart manager here?
+		a.Manager = nil
+		a.mtx.Unlock()
+	}
 	a.shutdown()
 	return nil
 }
@@ -100,7 +106,7 @@ func (a *Agent) shutdown() {
 	}
 
 	if a.Manager != nil {
-		a.Manager.Shutdown(nil)
+		a.Manager.Shutdown()
 	}
 
 	if a.Catalog != nil {
@@ -114,17 +120,23 @@ func (a *Agent) startPlugins() error {
 
 // loadBundle tries to recover a cached bundle from previous executions, and falls back
 // to the configured trust bundle if an updated bundle isn't found.
-// TODO: Actually check for cached bundle
 func (a *Agent) loadBundle() ([]*x509.Certificate, error) {
-	if a.c.TrustBundle == nil {
+	bundle, err := manager.ReadBundle(a.bundleCachePath())
+	if err == manager.ErrNotCached {
+		bundle = a.c.TrustBundle
+	} else if err != nil {
+		return nil, err
+	}
+
+	if bundle == nil {
 		return nil, errors.New("load bundle: no bundle provided")
 	}
 
-	if len(a.c.TrustBundle) < 1 {
+	if len(bundle) < 1 {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
-	return a.c.TrustBundle, nil
+	return bundle, nil
 }
 
 // loadSVID loads the private key from key manager and the cached SVID from disk. If the key
@@ -204,35 +216,56 @@ func (a *Agent) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x50
 	return svid, bundle, nil
 }
 
-func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) (context.Context, error) {
-	mgrConfig := &cache.MgrConfig{
-		ServerCerts:    bundle,
-		ServerSPIFFEID: a.serverID().String(),
-		ServerAddr:     a.c.ServerAddress.String(),
-		TrustDomain:    a.c.TrustDomain,
+func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) error {
+	/*
+		mgrConfig := &cache.MgrConfig{
+			ServerCerts:    bundle,
+			ServerSPIFFEID: a.serverID().String(),
+			ServerAddr:     a.c.ServerAddress.String(),
+			TrustDomain:    a.c.TrustDomain,
 
-		BaseSVID:     svid,
-		BaseSVIDKey:  key,
-		BaseSVIDPath: a.agentSVIDPath(),
-		Logger:       a.c.Log.WithField("subsystem_name", "manager"),
-	}
+			BaseSVID:     svid,
+			BaseSVIDKey:  key,
+			BaseSVIDPath: a.agentSVIDPath(),
+			Logger:       a.c.Log.WithField("subsystem_name", "manager"),
+		}
 
-	ctx := context.Background()
-	mgr, err := cache.NewManager(ctx, mgrConfig)
-	if err != nil {
-		return ctx, err
-	}
+		ctx := context.Background()
+		mgr, err := cache.NewManager(ctx, mgrConfig)
+		if err != nil {
+			return ctx, err
+		}
 
-	mgr.Init()
+		mgr.Init()
+		a.mtx.Lock()
+		defer a.mtx.Unlock()
+		a.Manager = mgr
+		return ctx, nil
+
+	*/
+
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
-	a.Manager = mgr
-	return ctx, nil
-}
 
-func (a *Agent) managerWait(ctx context.Context) error {
-	<-a.Manager.Done()
-	return a.Manager.Err()
+	if a.Manager != nil {
+		return errors.New("cannot start cache manager, there is a manager instantiated already")
+	}
+
+	mgrConfig := &manager.Config{
+		SVID:        svid,
+		SVIDKey:     key,
+		Bundle:      bundle,
+		TrustDomain: a.c.TrustDomain,
+		ServerAddr:  a.c.ServerAddress,
+		Log:         a.c.Log.WithField("subsystem_name", "manager"),
+	}
+
+	a.Manager, err = manager.New(mgrConfig)
+	if err != nil {
+		return err
+	}
+
+	return a.Manager.Start()
 }
 
 // attestableData examines the agent configuation, and returns attestableData
@@ -344,20 +377,12 @@ func (a *Agent) serverConn(bundle []*x509.Certificate) (*grpc.ClientConn, error)
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
 // will be returned.
 func (a *Agent) readSVIDFromDisk() *x509.Certificate {
-	if _, err := os.Stat(a.agentSVIDPath()); os.IsNotExist(err) {
+	cert, err := manager.ReadSVID(a.agentSVIDPath())
+	if err == manager.ErrNotCached {
 		a.c.Log.Debug("No pre-existing agent SVID found. Will perform node attestation")
 		return nil
-	}
-
-	data, err := ioutil.ReadFile(a.agentSVIDPath())
-	if err != nil {
-		a.c.Log.Warnf("Could not read agent SVID from %s: %s", a.agentSVIDPath(), err)
-		return nil
-	}
-
-	cert, err := x509.ParseCertificate(data)
-	if err != nil {
-		a.c.Log.Warnf("Could not parse agent SVID at %s: %s", a.agentSVIDPath(), err)
+	} else if err != nil {
+		a.c.Log.Warnf("Could not get agent SVID from %s: %s", a.agentSVIDPath(), err)
 		return nil
 	}
 
@@ -374,4 +399,8 @@ func (a *Agent) serverID() *url.URL {
 
 func (a *Agent) agentSVIDPath() string {
 	return path.Join(a.c.DataDir, "agent_svid.der")
+}
+
+func (a *Agent) bundleCachePath() string {
+	return path.Join(a.c.DataDir, "bundle.der")
 }

@@ -27,7 +27,7 @@ var (
 	regEntries      = testutil.GetRegistrationEntries("good.json")
 	blogSVID, _     = x509.ParseCertificate(certsFixture.GetTestBlogSVID())
 
-	testCacheEntry = CacheEntry{
+	testCacheEntry = Entry{
 		RegistrationEntry: &common.RegistrationEntry{
 			SpiffeId: "spiffe://example.org/Blog",
 			ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
@@ -82,7 +82,7 @@ func TestManager_FetchSVID(t *testing.T) {
 	wg.Add(1)
 	go cm.fetchSVID(requests, nodeClient, &wg)
 
-	cm.cacheEntryCh = make(chan CacheEntry)
+	cm.cacheEntryCh = make(chan Entry)
 
 	<-cm.regEntriesCh
 	entry := <-cm.cacheEntryCh

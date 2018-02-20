@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/spiffe/spire/pkg/agent/cache"
+	"github.com/spiffe/spire/pkg/agent/manager"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"

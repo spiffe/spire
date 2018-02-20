@@ -14,9 +14,9 @@ import (
 	"github.com/spiffe/spire/proto/common"
 )
 
-type selectors []*common.Selector
+type Selectors []*common.Selector
 
-type CacheEntry struct {
+type Entry struct {
 	RegistrationEntry *common.RegistrationEntry
 	SVID              *x509.Certificate
 	PrivateKey        *ecdsa.PrivateKey
@@ -28,32 +28,32 @@ type CacheEntry struct {
 }
 
 type Cache interface {
-	Entry([]*common.Selector) (entry []CacheEntry)
-	SetEntry(cacheEntry CacheEntry)
+	Entry([]*common.Selector) (entry []Entry)
+	SetEntry(cacheEntry Entry)
 	DeleteEntry([]*common.Selector) (deleted bool)
-	Entries() map[string][]CacheEntry
-	MatchingEntries([]*common.Selector) (entry []CacheEntry)
+	Entries() map[string][]Entry
+	MatchingEntries([]*common.Selector) (entry []Entry)
 }
 
 type cacheImpl struct {
-	cache map[string][]CacheEntry
+	cache map[string][]Entry
 	log   logrus.FieldLogger
 	m     sync.Mutex
 }
 
 func NewCache(Logger logrus.FieldLogger) *cacheImpl {
-	return &cacheImpl{cache: make(map[string][]CacheEntry),
+	return &cacheImpl{cache: make(map[string][]Entry),
 		log: Logger.WithField("subsystem_name", "cache")}
 }
 
-func (c *cacheImpl) Entries() map[string][]CacheEntry {
+func (c *cacheImpl) Entries() map[string][]Entry {
 	c.m.Lock()
 	defer c.m.Unlock()
 	return c.cache
 
 }
 
-func (c *cacheImpl) Entry(selectors []*common.Selector) (entry []CacheEntry) {
+func (c *cacheImpl) Entry(selectors []*common.Selector) (entry []Entry) {
 	key := deriveCacheKey(selectors)
 	c.m.Lock()
 	defer c.m.Unlock()
@@ -65,7 +65,7 @@ func (c *cacheImpl) Entry(selectors []*common.Selector) (entry []CacheEntry) {
 
 // MatchingEntries takes a slice of selectors, and works through all the combinations in order to
 // find matching cache entries
-func (c *cacheImpl) MatchingEntries(selectors []*common.Selector) (entries []CacheEntry) {
+func (c *cacheImpl) MatchingEntries(selectors []*common.Selector) (entries []Entry) {
 	selectorSet := selector.NewSet(selectors)
 	c.m.Lock()
 	defer c.m.Unlock()
@@ -79,7 +79,7 @@ func (c *cacheImpl) MatchingEntries(selectors []*common.Selector) (entries []Cac
 	return entries
 }
 
-func (c *cacheImpl) SetEntry(cacheEntry CacheEntry) {
+func (c *cacheImpl) SetEntry(cacheEntry Entry) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	key := deriveCacheKey(cacheEntry.RegistrationEntry.Selectors)
@@ -87,7 +87,7 @@ func (c *cacheImpl) SetEntry(cacheEntry CacheEntry) {
 	for i, entry := range c.cache[key] {
 		if entry.RegistrationEntry.SpiffeId == cacheEntry.RegistrationEntry.SpiffeId {
 			copy(c.cache[key][i:], c.cache[key][i+1:])
-			c.cache[key][len(c.cache[key])-1] = CacheEntry{}
+			c.cache[key][len(c.cache[key])-1] = Entry{}
 			c.cache[key] = c.cache[key][:len(c.cache[key])-1]
 			break
 		}
@@ -108,7 +108,7 @@ func (c *cacheImpl) DeleteEntry(selectors []*common.Selector) (deleted bool) {
 	return
 }
 
-func deriveCacheKey(s selectors) (key string) {
+func deriveCacheKey(s Selectors) (key string) {
 	var concatSelectors string
 	sort.Slice(s, util.SelectorsSortFunction(s))
 

@@ -21,10 +21,10 @@ var (
 func TestCacheImpl_Valid(t *testing.T) {
 	tests := []struct {
 		name string
-		ce   CacheEntry
+		ce   Entry
 	}{
 		{name: "test_single_selector",
-			ce: CacheEntry{
+			ce: Entry{
 				RegistrationEntry: &common.RegistrationEntry{
 					Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",
@@ -35,7 +35,7 @@ func TestCacheImpl_Valid(t *testing.T) {
 			}},
 
 		{name: "test_multiple_selectors_sort_same_type",
-			ce: CacheEntry{
+			ce: Entry{
 				RegistrationEntry: &common.RegistrationEntry{
 					Selectors: selectors{&common.Selector{Type: "testtype3", Value: "testValue1"},
 						&common.Selector{Type: "testtype1", Value: "testValue2"},
@@ -93,10 +93,10 @@ func TestCacheImpl_Invalid(t *testing.T) {
 func TestCacheImpl_DeleteEntry(t *testing.T) {
 	tests := []struct {
 		name string
-		ce   CacheEntry
+		ce   Entry
 	}{
 		{name: "test_single_selector",
-			ce: CacheEntry{
+			ce: Entry{
 				RegistrationEntry: &common.RegistrationEntry{
 					Selectors: selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",

@@ -4,6 +4,8 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"sync"
 	"time"
 
@@ -11,7 +13,6 @@ import (
 	context "golang.org/x/net/context"
 
 	"github.com/spiffe/spire/pkg/agent/auth"
-	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
@@ -21,7 +22,7 @@ import (
 
 // workloadServer implements the Workload API interface
 type workloadServer struct {
-	cacheMrg cache.Manager
+	cacheMrg manager.Manager
 	catalog  catalog.Catalog
 	l        logrus.FieldLogger
 
@@ -57,7 +58,7 @@ func (s *workloadServer) FetchBundles(ctx context.Context, spiffeID *workload.Sp
 		return nil, err
 	}
 
-	var myEntry *cache.CacheEntry
+	var myEntry *cache.Entry
 	for _, e := range entries {
 		if e.RegistrationEntry.SpiffeId == spiffeID.Id {
 			myEntry = &e
@@ -71,7 +72,7 @@ func (s *workloadServer) FetchBundles(ctx context.Context, spiffeID *workload.Sp
 		return &workload.Bundles{}, fmt.Errorf("SVID for %s not found or not authorized", spiffeID.Id)
 	}
 
-	return s.composeResponse([]cache.CacheEntry{*myEntry})
+	return s.composeResponse([]cache.Entry{*myEntry})
 }
 
 func (s *workloadServer) FetchAllBundles(ctx context.Context, _ *workload.Empty) (*workload.Bundles, error) {
@@ -86,7 +87,7 @@ func (s *workloadServer) FetchAllBundles(ctx context.Context, _ *workload.Empty)
 // fetchAllEntries ties this whole thing together, and is called by both API endpoints. Given
 // a context, it works out all cache entries to which the workload is entitled. Returns the
 // set of entries, and an error if one is encountered along the way.
-func (s *workloadServer) fetchAllEntries(ctx context.Context) (entries []cache.CacheEntry, err error) {
+func (s *workloadServer) fetchAllEntries(ctx context.Context) (entries []cache.Entry, err error) {
 	pid, err := s.resolveCaller(ctx)
 	if err != nil {
 		err = fmt.Errorf("Error encountered while trying to identify the caller: %s", err)
@@ -171,7 +172,7 @@ func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, 
 }
 
 // composeResponse takes a set of cache entries, and packs them into a protobuf response
-func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *workload.Bundles, err error) {
+func (s *workloadServer) composeResponse(entries []cache.Entry) (response *workload.Bundles, err error) {
 	var certs []*x509.Certificate
 	var bundles []*workload.WorkloadEntry
 
