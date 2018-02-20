@@ -38,12 +38,12 @@ type workloadServer struct {
 	// distrubution to workloads. It is updaetd periodically,
 	// protect it with a mutex.
 	m      sync.RWMutex
-	bundle []byte
+	bundle []*x509.Certificate
 }
 
 // SetBundle exposes a setter for configuring the CA bundle. This
 // bundle is passed to the workload.
-func (s *workloadServer) SetBundle(bundle []byte) {
+func (s *workloadServer) SetBundle(bundle []*x509.Certificate) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
@@ -175,12 +175,11 @@ func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *
 	var certs []*x509.Certificate
 	var bundles []*workload.WorkloadEntry
 
-	// TODO: Better way to do this?
 	// Grab a copy of the SVID bundle
 	s.m.RLock()
 	var svidBundle []byte
 	for _, b := range s.bundle {
-		svidBundle = append(svidBundle, b)
+		svidBundle = append(svidBundle, b.Raw...)
 	}
 	s.m.RUnlock()
 
