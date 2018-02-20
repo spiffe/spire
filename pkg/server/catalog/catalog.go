@@ -17,7 +17,7 @@ import (
 	goplugin "github.com/hashicorp/go-plugin"
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	ca_memory "github.com/spiffe/spire/pkg/server/plugin/ca/memory"
-	upca_memory "github.com/spiffe/spire/pkg/server/plugin/upstreamca/memory"
+	upca_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
 )
 
 const (
@@ -61,7 +61,7 @@ var (
 			"noop": noop.New(),
 		},
 		UpstreamCAType: {
-			"memory": upca_memory.New(),
+			"disk": upca_disk.New(),
 		},
 	}
 )

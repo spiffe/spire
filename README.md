@@ -51,20 +51,32 @@ Add **spire-server** and **spire-agent** to our $PATH for convenience:
 
 ## Configure the SPIRE Server
 
-After putting the agent and server binaries at the proper location we have to configure them. The SPIRE Server relies on plugins for much of it's functionality, so we must make sure the agent and server can find the relevant plugins.
+After putting the agent and server binaries at the proper location we have to configure them. The SPIRE Server relies on plugins for much of it's functionality. Many of these plugins are built in, but for those which are not, we must make sure the agent and server can find the associated binary.
 
-Server plugins configurations can be found under the `plugins { ... }` section in  **/opt/spire/conf/server/server.conf**. Ensure each plugin is configured with the path to the appropriate plugin binary:
+Server plugins configurations can be found under the `plugins { ... }` section in  **/opt/spire/conf/server/server.conf**. For plugins which are not built in (see list below), ensure that the corresponding configuration includes the path to the appropriate plugin binary:
 
     plugin_cmd = "/opt/spire/plugin/server/{plugin_binary}"
 
-Every SVID issued by a SPIRE installation is issued from a common trust root. SPIRE provides a pluggable mechanism for how this trust root can be retrieved, by default it will use a key distributed on disk. The release includes a dummy CA key that we can use for testing purposes, but the default plugin (the `upstream_ca_memory` plugin) must be configured to find it.
+Every SVID issued by a SPIRE installation is issued from a common trust root. SPIRE provides a pluggable mechanism for how this trust root can be retrieved, by default it will use a key distributed on disk. The release includes a dummy CA key that we can use for testing purposes, but the default plugin (the `upstream_ca_disk` plugin) must be configured to find it.
 
-in **server.conf**, identify the `UpstreamCA "upstream_ca" { .. }` section that holds the `upstream_ca_memory` plugin configuration, and modify `key_file_path` and `cert_file_path` appropriately:
+in **server.conf**, identify the `UpstreamCA "disk" { .. }` section that holds the `upstream_ca_disk` plugin configuration, and modify `key_file_path` and `cert_file_path` appropriately:
 
     key_file_path = "/opt/spire/conf/server/dummy_upstream_ca.key"
     cert_file_path = "/opt/spire/conf/server/dummy_upstream_ca.crt"
 
 The [SPIRE Server](/doc/spire_server.md) reference guide covers in more detail the specific configuration options and plugins available.
+
+### SPIRE Server built-in plugins
+
+Below is a list of built in SPIRE server plugins.
+
+| Type | Name | Description |
+| ---- | ---- | ----------- |
+| ControlPlaneCA | memory | An in-memory CA for signing SVIDs |
+| DataStore | sqlite | An sqlite-based implementation of the SPIRE datastore |
+| NodeAttestor | join_token | A node attestor which validates agents attesting with server-generated join tokens |
+| NodeResolver | noop | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
+| UpstreamCA | disk | Uses a CA loaded from disk to generate SPIRE server intermediate certificates for use in the ControlPlaneCA plugin |
 
 ## Configure the SPIRE Agent
 

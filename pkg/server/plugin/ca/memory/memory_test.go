@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/uri"
-	upca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/memory"
+	upca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/upstreamca"
@@ -140,7 +140,7 @@ func TestMemory_FetchCertificate(t *testing.T) {
 func TestMemory_bootstrap(t *testing.T) {
 	m := NewWithDefault()
 
-	upca, err := newUpCA("../../upstreamca/memory/_test_data/keys/private_key.pem", "../../upstreamca/memory/_test_data/keys/cert.pem")
+	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
@@ -168,7 +168,7 @@ func TestMemory_bootstrap(t *testing.T) {
 func TestMemory_race(t *testing.T) {
 	m := NewWithDefault()
 
-	upca, err := newUpCA("../../upstreamca/memory/_test_data/keys/private_key.pem", "../../upstreamca/memory/_test_data/keys/cert.pem")
+	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
@@ -273,7 +273,7 @@ func TestMemory_SignCsrErrorInvalidTTL(t *testing.T) {
 func TestMemory_LoadCertificateInvalidCertFormat(t *testing.T) {
 	m := NewWithDefault()
 
-	upca, err := newUpCA("../../upstreamca/memory/_test_data/keys/private_key.pem", "../../upstreamca/memory/_test_data/keys/cert.pem")
+	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
@@ -292,7 +292,7 @@ func TestMemory_LoadCertificateInvalidCertFormat(t *testing.T) {
 func TestMemory_LoadCertificateTooManyCerts(t *testing.T) {
 	m := NewWithDefault()
 
-	upca, err := newUpCA("../../upstreamca/memory/_test_data/keys/private_key.pem", "../../upstreamca/memory/_test_data/keys/cert.pem")
+	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
@@ -345,7 +345,7 @@ func createWorkloadCSR(t *testing.T, spiffeID string) []byte {
 func populateCert(t *testing.T) (m ca.ControlPlaneCa) {
 	m = NewWithDefault()
 
-	upca, err := newUpCA("../../upstreamca/memory/_test_data/keys/private_key.pem", "../../upstreamca/memory/_test_data/keys/cert.pem")
+	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})

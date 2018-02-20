@@ -1,4 +1,4 @@
-package memory
+package disk
 
 import (
 	"crypto/ecdsa"
@@ -48,7 +48,7 @@ type Configuration struct {
 	KeyFilePath  string `hcl:"key_file_path" json:"key_file_path"`
 }
 
-type memoryPlugin struct {
+type diskPlugin struct {
 	config *Configuration
 
 	key    *ecdsa.PrivateKey
@@ -58,7 +58,7 @@ type memoryPlugin struct {
 	mtx *sync.RWMutex
 }
 
-func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (m *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	log.Print("Starting Configure")
 
 	resp := &spi.ConfigureResponse{}
@@ -128,13 +128,13 @@ func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*memoryPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*diskPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	log.Print("Getting plugin information")
 
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+func (m *diskPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -246,7 +246,7 @@ func ParseSpiffeCsr(csrDER []byte, trustDomain string) (csr *x509.CertificateReq
 }
 
 func New() (m upstreamca.UpstreamCa) {
-	return &memoryPlugin{
+	return &diskPlugin{
 		mtx: &sync.RWMutex{},
 	}
 }
