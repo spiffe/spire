@@ -1,4 +1,4 @@
-package main
+package k8s
 
 import (
 	"bytes"
@@ -22,9 +22,9 @@ const (
 	kubeletReadOnlyPort   = "10255"
 	validConfig           = `{"kubelet_read_only_port":"` + kubeletReadOnlyPort + `"}`
 	invalidConfig         = `{"kubelet_read_only_port":"invalid"}`
-	podListFilePath       = "../../../test/fixture/workloadattestor/k8s/pod_list.json"
-	cgPidInPodFilePath    = "../../../test/fixture/workloadattestor/k8s/cgroups_pid_in_pod.txt"
-	cgPidNotInPodFilePath = "../../../test/fixture/workloadattestor/k8s/cgroups_pid_not_in_pod.txt"
+	podListFilePath       = "../../../../../test/fixture/workloadattestor/k8s/pod_list.json"
+	cgPidInPodFilePath    = "../../../../../test/fixture/workloadattestor/k8s/cgroups_pid_in_pod.txt"
+	cgPidNotInPodFilePath = "../../../../../test/fixture/workloadattestor/k8s/cgroups_pid_not_in_pod.txt"
 )
 
 func PluginGenerator(config string, client httpClient, fs fileSystem) (workloadattestor.WorkloadAttestor, *spi.ConfigureResponse, error) {
@@ -32,7 +32,9 @@ func PluginGenerator(config string, client httpClient, fs fileSystem) (workloada
 		Configuration: config,
 	}
 
-	p := New(client, fs)
+	p := New()
+	p.httpClient = client
+	p.fs = fs
 
 	r, err := p.Configure(pluginConfig)
 	return p, r, err

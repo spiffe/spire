@@ -1,6 +1,6 @@
 //go:generate mockgen -source=$GOFILE -destination=../../../test/mock/common/http/http_client.go -package=http_client_mock
 
-package main
+package k8s
 
 import "net/http"
 

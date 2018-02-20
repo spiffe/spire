@@ -1,13 +1,11 @@
-package main
+package unix
 
 import (
 	"errors"
 	"fmt"
 	"log"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/shirou/gopsutil/process"
-
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -73,12 +71,6 @@ func (UnixPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoRe
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func main() {
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: workloadattestor.Handshake,
-		Plugins: map[string]plugin.Plugin{
-			"wla_unix": workloadattestor.WorkloadAttestorPlugin{WorkloadAttestorImpl: &UnixPlugin{}},
-		},
-		GRPCServer: plugin.DefaultGRPCServer,
-	})
+func New() *UnixPlugin {
+	return &UnixPlugin{}
 }

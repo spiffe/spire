@@ -6,7 +6,7 @@ else
 	container = 
 endif
 
-binary_dirs := $(shell find cmd/* plugin/*/* functional/tools/* -maxdepth 0 -type d)
+binary_dirs := $(shell find cmd/* functional/tools/* -maxdepth 0 -type d)
 docker_volume := $(shell echo $${PWD%/src/*}):/root/go
 docker_image = spire-dev:latest
 gopath := $(shell go env GOPATH)

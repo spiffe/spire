@@ -1,4 +1,4 @@
-package main
+package memory
 
 import (
 	"crypto/x509"
@@ -12,7 +12,7 @@ import (
 )
 
 func TestMemory_GenerateKeyPair(t *testing.T) {
-	var plugin MemoryPlugin
+	plugin := New()
 	data, e := plugin.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
 	require.NoError(t, e)
 	priv, err := x509.ParseECPrivateKey(data.PrivateKey)
@@ -21,7 +21,7 @@ func TestMemory_GenerateKeyPair(t *testing.T) {
 }
 
 func TestMemory_FetchPrivateKey(t *testing.T) {
-	var plugin MemoryPlugin
+	plugin := New()
 	data, e := plugin.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
 	require.NoError(t, e)
 
@@ -31,7 +31,7 @@ func TestMemory_FetchPrivateKey(t *testing.T) {
 }
 
 func TestMemory_Configure(t *testing.T) {
-	var plugin MemoryPlugin
+	plugin := New()
 	data, e := plugin.Configure(&spi.ConfigureRequest{})
 	require.NoError(t, e)
 	assert.Equal(t, &spi.ConfigureResponse{}, data)
@@ -39,7 +39,7 @@ func TestMemory_Configure(t *testing.T) {
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
-	var plugin MemoryPlugin
+	plugin := New()
 	data, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
 	require.NoError(t, e)
 	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)

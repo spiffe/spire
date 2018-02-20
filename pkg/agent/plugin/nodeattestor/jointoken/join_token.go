@@ -1,4 +1,4 @@
-package main
+package jointoken
 
 import (
 	"errors"
@@ -6,9 +6,7 @@ import (
 	"path"
 	"sync"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
-
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -99,14 +97,4 @@ func New() nodeattestor.NodeAttestor {
 	return &JoinTokenPlugin{
 		mtx: &sync.RWMutex{},
 	}
-}
-
-func main() {
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: nodeattestor.Handshake,
-		Plugins: map[string]plugin.Plugin{
-			pluginName: nodeattestor.NodeAttestorPlugin{NodeAttestorImpl: New()},
-		},
-		GRPCServer: plugin.DefaultGRPCServer,
-	})
 }
