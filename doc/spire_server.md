@@ -42,8 +42,8 @@ The following configuration options are available to configure a plugin:
 
 | Configuration   | Description                              |
 | --------------- | ---------------------------------------- |
-| plugin_cmd      | Path to the plugin implementation binary |
-| plugin_checksum | An optional sha256 of the plugin binary  |
+| plugin_cmd      | Path to the plugin implementation binary (optional, not needed for built-ins) |
+| plugin_checksum | An optional sha256 of the plugin binary  (optional, not needed for built-ins) |
 | enabled         | Enable or disable the plugin             |
 | plugin_data     | Plugin-specific data                     |
 
@@ -77,7 +77,7 @@ API and the Node API, with which agents communicate with the server.
 
 ![spire agent architecture](images/SPIRE_server.png)
 
-## Available plugins
+## Available plugin types
 
 | Type           | Name                                                                   | Description |
 |:---------------|:-----------------------------------------------------------------------|:------------|
@@ -86,6 +86,16 @@ API and the Node API, with which agents communicate with the server.
 | NodeAttestor   | [nodeattestor-jointoken](/doc/plugin_server_nodeattestor_jointoken.md) |             |
 | NodeResolver   | [noderesolver-noop](/doc/plugin_server_noderesolver_noop.md)           |             |
 | UpstreamCA     | [upstreamca-memory](/doc/plugin_server_upstreamca_memory.md)           |             |
+
+## Built-in plugins
+
+| Type | Name | Description |
+| ---- | ---- | ----------- |
+| ControlPlaneCA | memory | An in-memory CA for signing SVIDs |
+| DataStore | sqlite | An sqlite-based implementation of the SPIRE datastore |
+| NodeAttestor | join_token | A node attestor which validates agents attesting with server-generated join tokens |
+| NodeResolver | noop | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
+| UpstreamCA | disk | Uses a CA loaded from disk to generate SPIRE server intermediate certificates for use in the ControlPlaneCA plugin |
 
 ## Further reading
 

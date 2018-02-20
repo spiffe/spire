@@ -1,6 +1,7 @@
-package pkg
+package disk
 
 import (
+	"encoding/json"
 	"encoding/pem"
 	"io/ioutil"
 	"path/filepath"
@@ -16,12 +17,12 @@ import (
 
 const config = `{"trust_domain":"example.com", "ttl":"1h", "key_size":2048, "key_file_path":"_test_data/keys/private_key.pem", "cert_file_path":"_test_data/keys/cert.pem"}`
 
-func TestMemory_Configure(t *testing.T) {
+func TestDisk_Configure(t *testing.T) {
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
 
-	m := &memoryPlugin{
+	m := &diskPlugin{
 		mtx: &sync.RWMutex{},
 	}
 	resp, err := m.Configure(pluginConfig)
@@ -29,16 +30,16 @@ func TestMemory_Configure(t *testing.T) {
 	assert.Equal(t, &spi.ConfigureResponse{}, resp)
 }
 
-func TestMemory_GetPluginInfo(t *testing.T) {
-	m, err := NewWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+func TestDisk_GetPluginInfo(t *testing.T) {
+	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
 	require.NoError(t, err)
 	res, err := m.GetPluginInfo(&spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	assert.NotNil(t, res)
 }
 
-func TestMemory_SubmitValidCSR(t *testing.T) {
-	m, err := NewWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+func TestDisk_SubmitValidCSR(t *testing.T) {
+	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
 
 	const testDataDir = "_test_data/csr_valid"
 	validCsrFiles, err := ioutil.ReadDir(testDataDir)
@@ -56,8 +57,8 @@ func TestMemory_SubmitValidCSR(t *testing.T) {
 	}
 }
 
-func TestMemory_SubmitInvalidCSR(t *testing.T) {
-	m, err := NewWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+func TestDisk_SubmitInvalidCSR(t *testing.T) {
+	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
 
 	const testDataDir = "_test_data/csr_invalid"
 	validCsrFiles, err := ioutil.ReadDir(testDataDir)
@@ -75,8 +76,8 @@ func TestMemory_SubmitInvalidCSR(t *testing.T) {
 	}
 }
 
-func TestMemory_race(t *testing.T) {
-	m, err := NewWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+func TestDisk_race(t *testing.T) {
+	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
 	csr, err := ioutil.ReadFile("_test_data/csr_valid/csr_1.pem")
@@ -87,3 +88,24 @@ func TestMemory_race(t *testing.T) {
 		m.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csr})
 	})
 }
+
+func newWithDefault(keyFilePath string, certFilePath string) (upstreamca.UpstreamCa, error) {
+	config := Configuration{
+		TrustDomain:  "localhost",
+		KeyFilePath:  keyFilePath,
+		CertFilePath: certFilePath,
+		TTL:          "1h",
+	}
+
+	jsonConfig, err := json.Marshal(config)
+	pluginConfig := &spi.ConfigureRequest{
+		Configuration: string(jsonConfig),
+	}
+
+	m := &diskPlugin{
+		mtx: &sync.RWMutex{},
+	}
+
+	_, err = m.Configure(pluginConfig)
+	return m, err
+} 

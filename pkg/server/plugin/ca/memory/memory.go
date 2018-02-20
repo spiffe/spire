@@ -1,4 +1,4 @@
-package main
+package memory
 
 import (
 	"crypto/ecdsa"
@@ -16,11 +16,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/uri"
 
-	"github.com/spiffe/spire/plugin/server/upstreamca-memory/pkg"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/ca"
 )
@@ -51,7 +50,7 @@ type configuration struct {
 	DefaultTTL   int               `hcl:"default_ttl" json:"default_ttl"`
 }
 
-type memoryPlugin struct {
+type MemoryPlugin struct {
 	config *configuration
 
 	key    *ecdsa.PrivateKey
@@ -62,7 +61,7 @@ type memoryPlugin struct {
 	mtx *sync.RWMutex
 }
 
-func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (m *MemoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	log.Print("Starting Configure")
 
 	resp := &spi.ConfigureResponse{}
@@ -98,13 +97,13 @@ func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 	return resp, nil
 }
 
-func (*memoryPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*MemoryPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	log.Print("Getting plugin information")
 
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
+func (m *MemoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -120,7 +119,7 @@ func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 		return nil, fmt.Errorf("Invalid TTL: %v", request.Ttl)
 	}
 
-	csr, err := pkg.ParseSpiffeCsr(request.Csr, m.config.TrustDomain)
+	csr, err := disk.ParseSpiffeCsr(request.Csr, m.config.TrustDomain)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +152,7 @@ func (m *memoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 	return &ca.SignCsrResponse{SignedCertificate: signedCertificate}, nil
 }
 
-func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrResponse, error) {
+func (m *MemoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrResponse, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -201,7 +200,7 @@ func (m *memoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 	return &ca.GenerateCsrResponse{Csr: csr}, nil
 }
 
-func (m *memoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
+func (m *MemoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -223,7 +222,7 @@ func (m *memoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*c
 	return &ca.FetchCertificateResponse{StoredIntermediateCert: m.cert.Raw}, nil
 }
 
-func (m *memoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (response *ca.LoadCertificateResponse, err error) {
+func (m *MemoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (response *ca.LoadCertificateResponse, err error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -299,7 +298,7 @@ func (m *memoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (resp
 	return &ca.LoadCertificateResponse{}, nil
 }
 
-func NewWithDefault() (m ca.ControlPlaneCa, err error) {
+func NewWithDefault() ca.ControlPlaneCa {
 	config := configuration{
 		TrustDomain:  "localhost",
 		BackdateSecs: 10,
@@ -310,39 +309,18 @@ func NewWithDefault() (m ca.ControlPlaneCa, err error) {
 			CommonName:   "",
 		}}
 
-	jsonConfig, err := json.Marshal(config)
-
-	if err != nil {
-		return nil, err
-	}
+	// Safe to ignore error here since we control the input
+	jsonConfig, _ := json.Marshal(config)
 
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: string(jsonConfig),
 	}
 
-	m = &memoryPlugin{
+	m := &MemoryPlugin{
 		mtx: &sync.RWMutex{},
 	}
 
-	_, err = m.Configure(pluginConfig)
+	m.Configure(pluginConfig)
 
-	return m, err
-}
-
-func main() {
-	log.Print("Starting plugin")
-
-	cax, err := NewWithDefault()
-	if err != nil {
-		panic(err.Error())
-	}
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: ca.Handshake,
-		Plugins: map[string]plugin.Plugin{
-			"ca": ca.ControlPlaneCaPlugin{
-				ControlPlaneCaImpl: cax,
-			},
-		},
-		GRPCServer: plugin.DefaultGRPCServer,
-	})
+	return m
 }
