@@ -193,17 +193,6 @@ func (m *manager) synchronize() error {
 		}
 	}
 
-	/*
-		if len(entryRequestMap) != 0 {
-			select {
-			case m.entryRequestCh <- entryRequestMap:
-			case <-m.ctx.Done():
-				m.Shutdown(m.ctx.Err())
-				return
-			}
-		}
-	*/
-
 	return nil
 }
 
@@ -334,19 +323,6 @@ func (m *manager) fetchUpdate(csrs [][]byte) (regEntries map[string]*common.Regi
 	}
 
 	return
-	/*
-		svid := resp.SvidUpdate.Svids[req.entry.RegistrationEntry.SpiffeId]
-		cert, err := x509.ParseCertificate(svid.SvidCert)
-		if err != nil {
-			m.Shutdown(err)
-			return
-		}
-
-		m.regEntriesCh <- resp.SvidUpdate.RegistrationEntries
-		m.addToPipeline(len(resp.SvidUpdate.RegistrationEntries))
-		req.entry.SVID = cert
-	*/
-
 }
 
 func (m *manager) getBaseSVIDEntry() *baseSVIDEntry {
