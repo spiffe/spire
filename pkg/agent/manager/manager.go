@@ -145,8 +145,9 @@ func (m *manager) initialize() error {
 }
 
 type entryRequest struct {
-	CSR   []byte
-	entry cache.Entry
+	CSR      []byte
+	entry    cache.Entry
+	spiffeID string // spiffeID on which CSR is based on
 }
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
@@ -180,6 +181,16 @@ func (m *manager) synchronize() error {
 	}
 	if len(csrs) > 0 {
 		regEntries, svids, bundle = m.fetchUpdate(csrs)
+		for _, entryRequest := range entryRequestMap {
+			svid, ok := svids[entryRequest.spiffeID]
+			if ok {
+				cert, err := x509.ParseCertificate(svid.SvidCert)
+				if err != nil {
+					return err
+				}
+				entryRequest.entry.SVID = cert
+			}
+		}
 	}
 
 	/*
@@ -227,7 +238,7 @@ func (m *manager) regEntriesToEntryRequestMap(regEntries map[string]*proto.Regis
 				PrivateKey:        privateKey,
 				Bundles:           bundles,
 			}
-			entryRequestMap[key] = entryRequest{csr, cacheEntry}
+			entryRequestMap[key] = entryRequest{csr, cacheEntry, regEntry.SpiffeId}
 		}
 	}
 
