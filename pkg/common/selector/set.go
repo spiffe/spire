@@ -2,12 +2,11 @@ package selector
 
 import (
 	"bytes"
-	"sort"
 
 	"github.com/spiffe/spire/proto/common"
 )
 
-type Set []*Selector
+type Set map[string]*Selector
 
 func NewSet(c []*common.Selector) Set {
 	set := Set{}
@@ -16,7 +15,7 @@ func NewSet(c []*common.Selector) Set {
 			Type:  cs.Type,
 			Value: cs.Value,
 		}
-		set = append(set, s)
+		set[deriveKey(s)] = s
 	}
 
 	return set
@@ -47,39 +46,29 @@ func (s Set) Includes(selector *Selector) bool {
 	return Includes(s, selector)
 }
 
+func (s Set) IncludesSet(s2 Set) bool {
+	return IncludesSet(s, s2)
+}
+
 func (s Set) String() string {
 	var b bytes.Buffer
 
 	b.WriteString("[")
 
 	if len(s) > 0 {
-		// Preceding space starts after first element
-		b.WriteString(s[0].Type)
-		b.WriteString(":")
-		b.WriteString(s[0].Value)
-		for _, selector := range s[1:] {
-			b.WriteString(" ")
+
+		i := 0
+		for _, selector := range s {
+			if i > 0 {
+				b.WriteString(" ")
+			}
 			b.WriteString(selector.Type)
 			b.WriteString(":")
 			b.WriteString(selector.Value)
+			i++
 		}
 	}
 
 	b.WriteString("]")
 	return b.String()
-}
-
-func (s Set) Sort() {
-	sort.Sort(s)
-}
-
-// Satisfy the sort interface
-func (s Set) Len() int      { return len(s) }
-func (s Set) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s Set) Less(i, j int) bool {
-	if s[i].Type != s[j].Type {
-		return s[i].Type < s[j].Type
-	} else {
-		return s[i].Value < s[j].Value
-	}
 }

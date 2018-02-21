@@ -95,9 +95,7 @@ func (s *WorkloadServerTestSuite) TestAttestCaller() {
 	if s.Assert().Nil(err) {
 		expected := selector.Set{selector1, selector2, selector3}
 		got := selector.NewSet(selectors)
-		sort.Sort(expected)
-		sort.Sort(got)
-		s.Assert().Equal(expected, got)
+		s.Assert().True(expected.Equal(got))
 	}
 }
 
@@ -125,9 +123,7 @@ func (s *WorkloadServerTestSuite) TestAttestCallerError() {
 
 	expected := selector.Set{selector1}
 	got := selector.NewSet(selectors)
-	sort.Sort(expected)
-	sort.Sort(got)
-	s.Assert().Equal(expected, got)
+	s.Assert().True(expected.Equal(got))
 }
 
 func (s *WorkloadServerTestSuite) TestComposeResponse() {
