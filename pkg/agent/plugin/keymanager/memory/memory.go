@@ -1,12 +1,10 @@
-package main
+package memory
 
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
-
-	"github.com/hashicorp/go-plugin"
 
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -49,12 +47,6 @@ func (m *MemoryPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginI
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func main() {
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: keymanager.Handshake,
-		Plugins: map[string]plugin.Plugin{
-			"km_memory": keymanager.KeyManagerPlugin{KeyManagerImpl: &MemoryPlugin{}},
-		},
-		GRPCServer: plugin.DefaultGRPCServer,
-	})
+func New() *MemoryPlugin {
+	return &MemoryPlugin{}
 }

@@ -1,6 +1,6 @@
 //go:generate mockgen -source=$GOFILE -destination=../../../test/mock/common/filesystem/filesystem.go -package=filesystem_mock
 
-package main
+package k8s
 
 import (
 	"os"

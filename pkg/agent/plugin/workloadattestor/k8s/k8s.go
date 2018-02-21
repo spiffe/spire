@@ -1,4 +1,4 @@
-package main
+package k8s
 
 import (
 	"bufio"
@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/common"
@@ -175,20 +174,10 @@ func (*k8sPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoRe
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func New(client httpClient, fs fileSystem) workloadattestor.WorkloadAttestor {
+func New() *k8sPlugin {
 	return &k8sPlugin{
 		mtx:        &sync.RWMutex{},
-		httpClient: client,
-		fs:         fs,
+		httpClient: &http.Client{},
+		fs:         osFS{},
 	}
-}
-
-func main() {
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: workloadattestor.Handshake,
-		Plugins: map[string]plugin.Plugin{
-			"wla_k8s": workloadattestor.WorkloadAttestorPlugin{WorkloadAttestorImpl: New(&http.Client{}, osFS{})},
-		},
-		GRPCServer: plugin.DefaultGRPCServer,
-	})
 }

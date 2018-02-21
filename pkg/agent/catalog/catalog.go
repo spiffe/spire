@@ -5,8 +5,10 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
-
-	// Plugin interfaces
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/jointoken"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/unix"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
@@ -35,6 +37,19 @@ var (
 		NodeAttestorType:     &nodeattestor.NodeAttestorPlugin{},
 		WorkloadAttestorType: &workloadattestor.WorkloadAttestorPlugin{},
 	}
+
+	builtinPlugins = common.BuiltinPluginMap{
+		KeyManagerType: {
+			"memory": memory.New(),
+		},
+		NodeAttestorType: {
+			"join_token": jointoken.New(),
+		},
+		WorkloadAttestorType: {
+			"k8s":  k8s.New(),
+			"unix": unix.New(),
+		},
+	}
 )
 
 type Config struct {
@@ -56,6 +71,7 @@ func New(c *Config) Catalog {
 	commonConfig := &common.Config{
 		PluginConfigs:    c.PluginConfigs,
 		SupportedPlugins: supportedPlugins,
+		BuiltinPlugins:   builtinPlugins,
 		Log:              c.Log,
 	}
 
