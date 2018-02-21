@@ -35,10 +35,9 @@ type Agent struct {
 	t   *tomb.Tomb
 	mtx *sync.RWMutex
 
-	Manager cache.Manager
-	Catalog catalog.Catalog
-
-	grpcServer *grpc.Server
+	Manager   cache.Manager
+	Catalog   catalog.Catalog
+	Endpoints endpoints.Endpoints
 }
 
 // Run the agent
@@ -84,7 +83,7 @@ func (a *Agent) run() error {
 	}
 
 	a.t.Go(func() error { return a.managerWait(ctx) })
-	a.t.Go(func() error { return a.startWorkloadAPI(bundle) })
+	a.t.Go(func() error { return a.startEndpoints(bundle) })
 
 	<-a.t.Dying()
 	a.shutdown()
@@ -92,8 +91,8 @@ func (a *Agent) run() error {
 }
 
 func (a *Agent) shutdown() {
-	if a.grpcServer != nil {
-		a.grpcServer.Stop()
+	if a.Endpoints != nil {
+		a.Endpoints.Shutdown()
 	}
 
 	if a.Manager != nil {
@@ -233,7 +232,7 @@ func (a *Agent) managerWait(ctx context.Context) error {
 }
 
 // TODO: Shouldn't need to pass bundle here
-func (a *Agent) startWorkloadAPI(bundle []*x509.Certificate) error {
+func (a *Agent) startEndpoints(bundle []*x509.Certificate) error {
 	config := &endpoints.Config{
 		Bundle:   bundle,
 		BindAddr: a.c.BindAddress,
@@ -243,13 +242,15 @@ func (a *Agent) startWorkloadAPI(bundle []*x509.Certificate) error {
 	}
 
 	e := endpoints.New(config)
-
 	err := e.Start()
 	if err != nil {
 		return err
 	}
 
-	return e.Wait()
+	a.mtx.Lock()
+	a.Endpoints = e
+	a.mtx.Unlock()
+	return a.Endpoints.Wait()
 }
 
 // attestableData examines the agent configuation, and returns attestableData
