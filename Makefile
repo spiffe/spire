@@ -56,6 +56,9 @@ test:
 race-test:
 	$(docker) go test -race $$(glide novendor)
 
+integration:
+	$(docker) script/e2e_test.sh
+
 clean:
 	$(docker) go clean $$(glide novendor)
 

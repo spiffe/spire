@@ -187,6 +187,10 @@ build_test() {
 	fi
 }
 
+build_integration() {
+	make integration
+}
+
 build_release() {
 	local _tag _always
 	_tag="$(git describe --abbrev=0 2>/dev/null || true)"
@@ -276,6 +280,7 @@ case "$1" in
 	protobuf_verify) build_protobuf_verify ;;
 	binaries|bin) build_binaries $2 ;;
 	test) build_test ;;
+	integration) build_integration ;;
 	artifact) build_artifact ;;
 	release) build_release ;;
 	clean) build_clean ;;
