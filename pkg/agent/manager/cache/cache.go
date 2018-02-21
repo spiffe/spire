@@ -16,6 +16,7 @@ import (
 
 type Selectors []*common.Selector
 
+// Entry holds the data of a single cache entry.
 type Entry struct {
 	RegistrationEntry *common.RegistrationEntry
 	SVID              *x509.Certificate
@@ -31,6 +32,7 @@ type Cache interface {
 	Entry([]*common.Selector) (entry []Entry)
 	SetEntry(cacheEntry Entry)
 	DeleteEntry([]*common.Selector) (deleted bool)
+	// Entries returns the current cached entries state.
 	Entries() map[string][]Entry
 	MatchingEntries([]*common.Selector) (entry []Entry)
 }
@@ -47,9 +49,19 @@ func NewCache(Logger logrus.FieldLogger) *cacheImpl {
 }
 
 func (c *cacheImpl) Entries() map[string][]Entry {
+	// We make a copy of the current cache state to prevent:
+	// 1) Callers to be affected by future cache modifications when iterating
+	// over the returned entries.
+	// 2) The cache itself to be affected by external modifications that could be
+	// done to the returned entries.
 	c.m.Lock()
 	defer c.m.Unlock()
-	return c.cache
+	entries := map[string][]Entry{}
+	for k, e := range c.cache {
+		entries[k] = make([]Entry, len(e))
+		copy(entries[k], c.cache[k])
+	}
+	return entries
 
 }
 
