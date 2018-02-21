@@ -1,4 +1,4 @@
-package pkg
+package disk
 
 import (
 	"crypto/ecdsa"
@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -42,15 +41,15 @@ type subjectPublicKeyInfo struct {
 	SubjectPublicKey asn1.BitString
 }
 
-type configuration struct {
+type Configuration struct {
 	TTL          string `hcl:"ttl" json:"ttl"` // time to live for generated certs
 	TrustDomain  string `hcl:"trust_domain" json:"trust_domain"`
 	CertFilePath string `hcl:"cert_file_path" json:"cert_file_path"`
 	KeyFilePath  string `hcl:"key_file_path" json:"key_file_path"`
 }
 
-type memoryPlugin struct {
-	config *configuration
+type diskPlugin struct {
+	config *Configuration
 
 	key    *ecdsa.PrivateKey
 	cert   *x509.Certificate
@@ -59,13 +58,13 @@ type memoryPlugin struct {
 	mtx *sync.RWMutex
 }
 
-func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (m *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	log.Print("Starting Configure")
 
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
-	config := &configuration{}
+	config := &Configuration{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
 		resp.ErrorList = []string{err.Error()}
@@ -117,7 +116,7 @@ func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 	// Set local vars from config struct
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	m.config = &configuration{}
+	m.config = &Configuration{}
 	m.config.TrustDomain = config.TrustDomain
 	m.config.TTL = config.TTL
 	m.config.KeyFilePath = config.KeyFilePath
@@ -129,13 +128,13 @@ func (m *memoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*memoryPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*diskPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	log.Print("Getting plugin information")
 
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (m *memoryPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+func (m *diskPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -246,30 +245,8 @@ func ParseSpiffeCsr(csrDER []byte, trustDomain string) (csr *x509.CertificateReq
 	return csr, nil
 }
 
-func NewWithDefault(keyFilePath string, certFilePath string) (m upstreamca.UpstreamCa, err error) {
-	config := configuration{
-		TrustDomain:  "localhost",
-		KeyFilePath:  keyFilePath,
-		CertFilePath: certFilePath,
-		TTL:          "1h",
-	}
-
-	jsonConfig, err := json.Marshal(config)
-	pluginConfig := &spi.ConfigureRequest{
-		Configuration: string(jsonConfig),
-	}
-
-	m = &memoryPlugin{
-		mtx: &sync.RWMutex{},
-	}
-
-	_, err = m.Configure(pluginConfig)
-
-	return m, err
-}
-
-func NewEmpty() (m upstreamca.UpstreamCa) {
-	return &memoryPlugin{
+func New() (m upstreamca.UpstreamCa) {
+	return &diskPlugin{
 		mtx: &sync.RWMutex{},
 	}
 }

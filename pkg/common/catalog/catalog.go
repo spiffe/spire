@@ -39,6 +39,7 @@ type Catalog interface {
 type Config struct {
 	PluginConfigs    PluginConfigMap
 	SupportedPlugins map[string]goplugin.Plugin
+	BuiltinPlugins   BuiltinPluginMap
 	Log              logrus.FieldLogger
 }
 
@@ -46,10 +47,15 @@ type catalog struct {
 	pluginConfigs    PluginConfigMap
 	plugins          []*ManagedPlugin
 	supportedPlugins map[string]goplugin.Plugin
+	builtinPlugins   BuiltinPluginMap
 
 	l logrus.FieldLogger
 	m *sync.RWMutex
 }
+
+// BuiltinPluginMap organizes builtin plugin sets, accessed by
+// [plugin type][plugin name]
+type BuiltinPluginMap map[string]map[string]Plugin
 
 // PluginConfigMap maps plugin configurations, accessed by
 // [plugin type][plugin name]
@@ -59,6 +65,7 @@ func New(config *Config) Catalog {
 	return &catalog{
 		pluginConfigs:    config.PluginConfigs,
 		supportedPlugins: config.SupportedPlugins,
+		builtinPlugins:   config.BuiltinPlugins,
 		l:                config.Log,
 		m:                new(sync.RWMutex),
 	}
@@ -181,6 +188,12 @@ func (c *catalog) startPlugins() error {
 			continue
 		}
 
+		builtin := c.builtins(p.Config.PluginType, p.Config.PluginName)
+		if builtin != nil {
+			p.Plugin = builtin
+			continue
+		}
+
 		config, err := c.newPluginConfig(p)
 		if err != nil {
 			return err
@@ -231,20 +244,9 @@ func (c *catalog) configurePlugins() error {
 // newPluginConfig generates a go-plugin client config, given a ManagedPlugin
 // struct. Useful when starting a plugin
 func (c *catalog) newPluginConfig(p *ManagedPlugin) (*goplugin.ClientConfig, error) {
-	// Build plugin secureConfig struct if a checksum
-	// is defined
-	var secureConfig *goplugin.SecureConfig
-	if p.Config.PluginChecksum != "" {
-		hexChecksum, err := hex.DecodeString(p.Config.PluginChecksum)
-		if err != nil {
-			return nil, err
-		}
-		secureConfig = &goplugin.SecureConfig{
-			Checksum: hexChecksum,
-			Hash:     sha256.New(),
-		}
-	} else {
-		c.l.Warnf("%s plugin %s not using secure config", p.Config.PluginType, p.Config.PluginName)
+	secureConfig, err := c.secureConfig(p)
+	if err != nil {
+		return nil, err
 	}
 
 	// Build go-plugin client config struct
@@ -273,4 +275,39 @@ func (c *catalog) newPluginConfig(p *ManagedPlugin) (*goplugin.ClientConfig, err
 	}
 
 	return config, nil
+}
+
+func (c *catalog) secureConfig(p *ManagedPlugin) (*goplugin.SecureConfig, error) {
+	if p.Config.PluginChecksum == "" {
+		c.l.Warnf("%s plugin %s not using secure config", p.Config.PluginType, p.Config.PluginName)
+		return nil, nil
+	}
+
+	sum, err := hex.DecodeString(p.Config.PluginChecksum)
+	if err != nil {
+		return nil, fmt.Errorf("decode plugin hash: %v", err)
+	}
+
+	config := &goplugin.SecureConfig{
+		Checksum: sum,
+		Hash:     sha256.New(),
+	}
+
+	return config, nil
+}
+
+// builtins determines, given a configured plugin's name and type, if it is an
+// available builtin. Returns nil if it is not.
+func (c *catalog) builtins(pType, pName string) Plugin {
+	plugins, ok := c.builtinPlugins[pType]
+	if !ok {
+		return nil
+	}
+
+	plugin, ok := plugins[pName]
+	if !ok {
+		return nil
+	}
+
+	return plugin
 }

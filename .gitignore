@@ -20,13 +20,6 @@ plugin/agent/workloadattestor-secretfile/workloadattestor-secretfile
 plugin/agent/workloadattestor-unix/workloadattestor-unix
 plugin/agent/workloadattestor-k8s/workloadattestor-k8s
 
-plugin/server/ca-memory/ca-memory
-plugin/server/datastore-sqlite/datastore-sqlite
-plugin/server/nodeattestor-jointoken/nodeattestor-jointoken
-plugin/server/noderesolver-noop/noop
-plugin/server/noderesolver-noop/noderesolver-noop
-plugin/server/upstreamca-memory/upstreamca-memory
-
 functional/tools/stresstest/stresstest
 functional/tools/tokengenerator/tokengenerator
 functional/tools/workload/workload

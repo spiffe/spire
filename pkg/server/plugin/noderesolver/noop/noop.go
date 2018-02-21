@@ -1,8 +1,6 @@
-package main
+package noop
 
 import (
-	"github.com/hashicorp/go-plugin"
-
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/noderesolver"
@@ -22,12 +20,6 @@ func (NoOp) Resolve(physicalSpiffeIdList []string) (resolutions map[string]*comm
 	return resolutions, nil
 }
 
-func main() {
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: noderesolver.Handshake,
-		Plugins: map[string]plugin.Plugin{
-			"nr_noop": noderesolver.NodeResolverPlugin{NodeResolverImpl: &NoOp{}},
-		},
-		GRPCServer: plugin.DefaultGRPCServer,
-	})
+func New() noderesolver.NodeResolver {
+	return &NoOp{}
 }
