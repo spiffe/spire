@@ -15,7 +15,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"io"
 	"net"
-	"net/url"
 	"sync"
 	"time"
 
@@ -30,6 +29,7 @@ var (
 	ErrNotCached = errors.New("bundle not cached")
 )
 
+// Manager provides cache management functionalities for agents.
 type Manager interface {
 	// Start starts the manager. It blocks until fully initialized.
 	Start() error
@@ -52,8 +52,6 @@ type manager struct {
 	cache cache.Cache
 
 	fetchSVIDStream node.Node_FetchSVIDClient
-	svidRequests    chan *node.FetchSVIDRequest
-	svidResponses   chan *node.FetchSVIDResponse
 
 	stopped chan error
 
@@ -63,7 +61,6 @@ type manager struct {
 	svidKey *ecdsa.PrivateKey
 	bundle  []*x509.Certificate // Latest CA bundle
 
-	regEntriesCh   chan []*proto.RegistrationEntry
 	spiffeID       string
 	serverSPIFFEID string
 	serverAddr     *net.TCPAddr
@@ -178,18 +175,30 @@ type entryRequest struct {
 	entry cache.Entry
 }
 
-func (m *manager) newCSR(id url.URL) error {
-	// TODO
-	return nil
+func (m *manager) newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err error) {
+	pk, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+	if err != nil {
+		return
+	}
+	csr, err = util.MakeCSR(pk, spiffeID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return
 }
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
 func (m *manager) synchronize() error {
 
+	err := m.checkExpiredCacheEntries()
+	if err != nil {
+		return err
+	}
+
 	regEntries, svids, bundle := m.fetchUpdate(nil)
 
 	for len(regEntries) > 0 {
-		// Get a map with the CSR and a pre-built cache entry for each registration entry.
+		// Get a map containing the CSR and a pre-built cache entry for each registration entry.
 		entryRequestMap, err := m.regEntriesToEntryRequestMap(regEntries)
 		if err != nil {
 			return err
@@ -234,18 +243,14 @@ func (m *manager) regEntriesToEntryRequestMap(regEntries map[string]*proto.Regis
 		*/
 
 		if !m.isAlreadyCached(regEntry) {
-			privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+			m.c.Log.Debugf("Generating CSR for spiffeId: %s  parentId: %s", regEntry.SpiffeId, regEntry.ParentId)
+
+			privateKey, csr, err := m.newCSR(regEntry.SpiffeId)
 			if err != nil {
 				//m.shutdown(err)
 				return nil, err
 			}
 
-			m.c.Log.Debugf("Generating CSR for spiffeId: %s  parentId: %s", regEntry.SpiffeId, regEntry.ParentId)
-			csr, err := util.MakeCSR(privateKey, regEntry.SpiffeId)
-			if err != nil {
-				//m.shutdown(err)
-				return nil, err
-			}
 			//parentID := regEntry.ParentId
 			bundles := make(map[string][]byte) //TODO: walmav Populate Bundles
 			cacheEntry := cache.Entry{
@@ -263,64 +268,67 @@ func (m *manager) regEntriesToEntryRequestMap(regEntries map[string]*proto.Regis
 	return entryRequestMap, nil
 }
 
-/*
-func (m *manager) expiredCacheEntryHandler(cacheFrequency time.Duration, wg *sync.WaitGroup) {
-	defer wg.Done()
-	ticker := time.NewTicker(cacheFrequency)
-	defer ticker.Stop()
+func (m *manager) checkExpiredCacheEntries() error {
 
-	for {
-		select {
-		case <-ticker.C:
-			entryRequestMap := make(map[string][]EntryRequest)
-			for _, entries := range m.managedCache.Entries() {
-				for _, entry := range entries {
-					ttl := entry.SVID.NotAfter.Sub(time.Now())
-					lifetime := entry.SVID.NotAfter.Sub(entry.SVID.NotBefore)
-					if ttl < lifetime/2 {
-						privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
-						if err != nil {
-							m.Shutdown(err)
-							break
-						}
-						csr, err := util.MakeCSR(privateKey, entry.RegistrationEntry.SpiffeId)
-						entry.PrivateKey = privateKey
-						parentID := entry.RegistrationEntry.ParentId
-						entryRequestMap[parentID] = append(entryRequestMap[parentID], EntryRequest{csr, entry})
-					}
-					spiffeID := entry.RegistrationEntry.SpiffeId
-					m.spiffeIdEntryMap[spiffeID] = entry
+	entryRequestMap := make(map[string][]entryRequest)
+	for _, entries := range m.cache.Entries() {
+		for _, entry := range entries {
+			ttl := entry.SVID.NotAfter.Sub(time.Now())
+			lifetime := entry.SVID.NotAfter.Sub(entry.SVID.NotBefore)
+			// If the cached SVID has a remaining lifetime less than 50%, prepare a
+			// new CSR and entryRequest to renew it.
+			if ttl < lifetime/2 {
+				privateKey, csr, err := m.newCSR(entry.RegistrationEntry.SpiffeId)
+				if err != nil {
+					return err
 				}
-			}
-			if len(entryRequestMap) != 0 {
-				select {
-				case m.entryRequestCh <- entryRequestMap:
-				case <-m.ctx.Done():
-					m.Shutdown(m.ctx.Err())
-					return
+
+				bundles := make(map[string][]byte) //TODO: walmav Populate Bundles
+				cacheEntry := cache.Entry{
+					RegistrationEntry: regEntry,
+					SVID:              nil,
+					PrivateKey:        privateKey,
+					Bundles:           bundles,
 				}
+				entryRequestMap[key] = entryRequest{csr, cacheEntry}
+				//entry.PrivateKey = privateKey
+				//parentID := entry.RegistrationEntry.ParentId
+				//entryRequestMap[parentID] = append(entryRequestMap[parentID], entryRequest{csr, entry})
 			}
-			vanityRecord := m.managedCache.Entry([]*proto.Selector{{
-				Type: "spiffe_id", Value: m.baseSPIFFEID}})
-
-			if vanityRecord != nil {
-				m.fetchWithEmptyCSR(vanityRecord[0].SVID, vanityRecord[0].PrivateKey)
-			} else {
-				baseEntry := m.getBaseSVIDEntry()
-				m.fetchWithEmptyCSR(baseEntry.svid, baseEntry.key)
-			}
-
-			entry, ok := m.spiffeIdEntryMap[m.aliasSPIFFEID]
-			if ok {
-				m.fetchWithEmptyCSR(entry.SVID, entry.PrivateKey)
-			}
-
-		case <-m.ctx.Done():
-			return
+			//spiffeID := entry.RegistrationEntry.SpiffeId
+			//m.spiffeIdEntryMap[spiffeID] = entry
 		}
 	}
+	/*
+		if len(entryRequestMap) != 0 {
+			select {
+			case m.entryRequestCh <- entryRequestMap:
+			case <-m.ctx.Done():
+				m.Shutdown(m.ctx.Err())
+				return
+			}
+		}
+	*/
+
+	/*
+		vanityRecord := m.cache.Entry([]*proto.Selector{{
+			Type: "spiffe_id", Value: m.spiffeID}})
+
+		if vanityRecord != nil {
+			m.fetchWithEmptyCSR(vanityRecord[0].SVID, vanityRecord[0].PrivateKey)
+		} else {
+			baseEntry := m.getBaseSVIDEntry()
+			m.fetchWithEmptyCSR(baseEntry.svid, baseEntry.key)
+		}
+
+		entry, ok := m.spiffeIdEntryMap[m.aliasSPIFFEID]
+		if ok {
+			m.fetchWithEmptyCSR(entry.SVID, entry.PrivateKey)
+		}
+	*/
+	return nil
 }
-*/
+
 func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*grpc.ClientConn, error) {
 	var tlsCert []tls.Certificate
 	var tlsConfig *tls.Config
@@ -418,12 +426,7 @@ func (m *manager) rotateSVID() error {
 	if ttl < lifetime/2 {
 		m.c.Log.Debug("Generating new CSR for BaseSVID")
 
-		privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
-		if err != nil {
-			return err
-		}
-
-		csr, err := util.MakeCSR(privateKey, m.spiffeID)
+		privateKey, csr, err := m.newCSR(m.spiffeID)
 		if err != nil {
 			return err
 		}
@@ -433,6 +436,7 @@ func (m *manager) rotateSVID() error {
 			return err
 		}
 
+		// TODO: Should we use FecthBaseSVID instead?
 		stream, err := node.NewNodeClient(conn).FetchSVID(context.Background())
 		if err != nil {
 			return err
