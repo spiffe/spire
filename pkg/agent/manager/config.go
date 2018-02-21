@@ -12,7 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 
-	proto "github.com/spiffe/spire/proto/common"
 	tomb "gopkg.in/tomb.v2"
 )
 
@@ -31,7 +30,7 @@ type Config struct {
 }
 
 // New creates a cache manager based on c's configuration
-func New(c *Config) (*manager, error) {
+func New(c *Config) (Manager, error) {
 	URIs, err := uri.GetURINamesFromCertificate(c.SVID)
 	if err != nil {
 		return nil, err
@@ -49,7 +48,6 @@ func New(c *Config) (*manager, error) {
 		spiffeID:        URIs[0],
 		serverSPIFFEID:  "spiffe://" + c.TrustDomain.Host + "/cp",
 		serverAddr:      c.ServerAddr,
-		regEntriesCh:    make(chan []*proto.RegistrationEntry),
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
 	}
