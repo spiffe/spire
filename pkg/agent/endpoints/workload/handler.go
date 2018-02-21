@@ -1,4 +1,4 @@
-package agent
+package workload
 
 import (
 	"crypto/x509"
@@ -19,40 +19,40 @@ import (
 	"github.com/spiffe/spire/proto/common"
 )
 
-// workloadServer implements the Workload API interface
-type workloadServer struct {
-	cacheMrg cache.Manager
-	catalog  catalog.Catalog
-	l        logrus.FieldLogger
+// Handler implements the Workload API interface
+type Handler struct {
+	CacheMgr cache.Manager
+	Catalog  catalog.Catalog
+	L        logrus.FieldLogger
 
 	// TTL in SVID response will never
 	// be larger than this
-	maxTTL time.Duration
+	MaxTTL time.Duration
 
 	// TTL in SVID response will never
 	// be smaller than this. Prevents
 	// hammering towards the end
-	minTTL time.Duration
+	MinTTL time.Duration
 
 	// We must store the current server bundle for
 	// distrubution to workloads. It is updaetd periodically,
 	// protect it with a mutex.
-	m      sync.RWMutex
-	bundle []*x509.Certificate
+	M      sync.RWMutex
+	Bundle []*x509.Certificate
 }
 
 // SetBundle exposes a setter for configuring the CA bundle. This
 // bundle is passed to the workload.
-func (s *workloadServer) SetBundle(bundle []*x509.Certificate) {
-	s.m.Lock()
-	defer s.m.Unlock()
+func (h *Handler) SetBundle(bundle []*x509.Certificate) {
+	h.M.Lock()
+	defer h.M.Unlock()
 
-	s.bundle = bundle
+	h.Bundle = bundle
 	return
 }
 
-func (s *workloadServer) FetchBundles(ctx context.Context, spiffeID *workload.SpiffeID) (*workload.Bundles, error) {
-	entries, err := s.fetchAllEntries(ctx)
+func (h *Handler) FetchBundles(ctx context.Context, spiffeID *workload.SpiffeID) (*workload.Bundles, error) {
+	entries, err := h.fetchAllEntries(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -71,43 +71,43 @@ func (s *workloadServer) FetchBundles(ctx context.Context, spiffeID *workload.Sp
 		return &workload.Bundles{}, fmt.Errorf("SVID for %s not found or not authorized", spiffeID.Id)
 	}
 
-	return s.composeResponse([]cache.CacheEntry{*myEntry})
+	return h.composeResponse([]cache.CacheEntry{*myEntry})
 }
 
-func (s *workloadServer) FetchAllBundles(ctx context.Context, _ *workload.Empty) (*workload.Bundles, error) {
-	entries, err := s.fetchAllEntries(ctx)
+func (h *Handler) FetchAllBundles(ctx context.Context, _ *workload.Empty) (*workload.Bundles, error) {
+	entries, err := h.fetchAllEntries(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.composeResponse(entries)
+	return h.composeResponse(entries)
 }
 
 // fetchAllEntries ties this whole thing together, and is called by both API endpoints. Given
 // a context, it works out all cache entries to which the workload is entitled. Returns the
 // set of entries, and an error if one is encountered along the way.
-func (s *workloadServer) fetchAllEntries(ctx context.Context) (entries []cache.CacheEntry, err error) {
-	pid, err := s.resolveCaller(ctx)
+func (h *Handler) fetchAllEntries(ctx context.Context) (entries []cache.CacheEntry, err error) {
+	pid, err := h.resolveCaller(ctx)
 	if err != nil {
 		err = fmt.Errorf("Error encountered while trying to identify the caller: %s", err)
 		return entries, err
 	}
 
 	// Workload attestor errors are non-fatal
-	selectors, err := s.attestCaller(pid)
+	selectors, err := h.attestCaller(pid)
 	if err != nil {
 		err = fmt.Errorf("Error encountered while attesting caller: %s", err)
 		return entries, err
 	}
 
-	return s.cacheMrg.Cache().MatchingEntries(selectors), nil
+	return h.CacheMgr.Cache().MatchingEntries(selectors), nil
 }
 
 // resolveCaller takes a grpc context, and returns the PID of the caller which has issued
 // the request. Returns an error if the call was not made locally, if the necessary
 // syscalls aren't unsupported, or if the transport security was not properly configured.
 // See the auth package for more information.
-func (s *workloadServer) resolveCaller(ctx context.Context) (pid int32, err error) {
+func (h *Handler) resolveCaller(ctx context.Context) (pid int32, err error) {
 	info, ok := auth.CallerFromContext(ctx)
 	if !ok {
 		return 0, errors.New("Unable to fetch credentials from context")
@@ -128,9 +128,9 @@ func (s *workloadServer) resolveCaller(ctx context.Context) (pid int32, err erro
 // attestCaller takes a PID and invokes attestation plugins against it, and returns the union
 // of selectors discovered by the attestors. If a plugin encounters an error, its returned
 // selectors are discarded and the error is logged.
-func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, err error) {
+func (h *Handler) attestCaller(pid int32) (selectors []*common.Selector, err error) {
 	// Call the workload attestors concurrently
-	plugins := s.catalog.WorkloadAttestors()
+	plugins := h.Catalog.WorkloadAttestors()
 	selectorChan := make(chan []*common.Selector)
 	errorChan := make(chan struct {
 		workloadattestor.WorkloadAttestor
@@ -158,12 +158,12 @@ func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, 
 		case selectorSet := <-selectorChan:
 			selectors = append(selectors, selectorSet...)
 		case pluginError := <-errorChan:
-			pluginInfo := s.catalog.Find(pluginError.WorkloadAttestor.(common_catalog.Plugin))
+			pluginInfo := h.Catalog.Find(pluginError.WorkloadAttestor.(common_catalog.Plugin))
 			pluginName := "UnknownPlugin"
 			if pluginInfo != nil {
 				pluginName = pluginInfo.Config.PluginName
 			}
-			s.l.Warnf("Workload attestor %s returned an error: %s", pluginName, pluginError.error)
+			h.L.Warnf("Workload attestor %s returned an error: %s", pluginName, pluginError.error)
 		}
 	}
 
@@ -171,17 +171,17 @@ func (s *workloadServer) attestCaller(pid int32) (selectors []*common.Selector, 
 }
 
 // composeResponse takes a set of cache entries, and packs them into a protobuf response
-func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *workload.Bundles, err error) {
+func (h *Handler) composeResponse(entries []cache.CacheEntry) (response *workload.Bundles, err error) {
 	var certs []*x509.Certificate
 	var bundles []*workload.WorkloadEntry
 
 	// Grab a copy of the SVID bundle
-	s.m.RLock()
+	h.M.RLock()
 	var svidBundle []byte
-	for _, b := range s.bundle {
+	for _, b := range h.Bundle {
 		svidBundle = append(svidBundle, b.Raw...)
 	}
-	s.m.RUnlock()
+	h.M.RUnlock()
 
 	for _, e := range entries {
 		keyData, err := x509.MarshalECPrivateKey(e.PrivateKey)
@@ -202,12 +202,12 @@ func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *
 		bundles = append(bundles, we)
 	}
 
-	ttl := s.calculateTTL(certs).Seconds()
+	ttl := h.calculateTTL(certs).Seconds()
 	response = &workload.Bundles{
 		Bundles: bundles,
 		Ttl:     int32(ttl),
 	}
-	if len(bundles) == 0 && s.cacheMrg.Busy() {
+	if len(bundles) == 0 && h.CacheMgr.Busy() {
 		err = fmt.Errorf("Cache is busy. Retry later")
 	}
 	return response, err
@@ -216,8 +216,8 @@ func (s *workloadServer) composeResponse(entries []cache.CacheEntry) (response *
 // calculateTTL takes a slice of certificates and iterates over them,
 // returning a TTL for use in the workload API response. Workload API
 // clients should check back for updates after TTL has elapsed
-func (s *workloadServer) calculateTTL(certs []*x509.Certificate) time.Duration {
-	ttl := s.maxTTL
+func (h *Handler) calculateTTL(certs []*x509.Certificate) time.Duration {
+	ttl := h.MaxTTL
 	for _, cert := range certs {
 		var t time.Duration
 
@@ -226,7 +226,7 @@ func (s *workloadServer) calculateTTL(certs []*x509.Certificate) time.Duration {
 		renewTime := cert.NotBefore.Add(watermark)
 
 		if time.Now().After(renewTime) {
-			t = s.minTTL
+			t = h.MinTTL
 		} else {
 			t = time.Until(renewTime) + time.Second
 		}
@@ -236,8 +236,8 @@ func (s *workloadServer) calculateTTL(certs []*x509.Certificate) time.Duration {
 		}
 	}
 
-	if ttl < s.minTTL {
-		ttl = s.minTTL
+	if ttl < h.MinTTL {
+		ttl = h.MinTTL
 	}
 
 	return ttl

@@ -8,22 +8,19 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/url"
 	"os"
 	"path"
 	"sync"
 	"syscall"
-	"time"
 
-	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
 
 	"google.golang.org/grpc"
@@ -235,6 +232,26 @@ func (a *Agent) managerWait(ctx context.Context) error {
 	return a.Manager.Err()
 }
 
+// TODO: Shouldn't need to pass bundle here
+func (a *Agent) startWorkloadAPI(bundle []*x509.Certificate) error {
+	config := &endpoints.Config{
+		Bundle:   bundle,
+		BindAddr: a.c.BindAddress,
+		Catalog:  a.Catalog,
+		Manager:  a.Manager,
+		Log:      a.c.Log.WithField("subsystem_name", "endpoints"),
+	}
+
+	e := endpoints.New(config)
+
+	err := e.Start()
+	if err != nil {
+		return err
+	}
+
+	return e.Wait()
+}
+
 // attestableData examines the agent configuation, and returns attestableData
 // for use when joining a trust domain for the first time.
 func (a *Agent) attestableData() (*nodeattestor.FetchAttestationDataResponse, error) {
@@ -264,40 +281,6 @@ func (a *Agent) attestableData() (*nodeattestor.FetchAttestationDataResponse, er
 	attestor := plugins[0]
 
 	return attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
-}
-
-// TODO: Refactor into endpoints package
-// TODO: Shouldn't need to pass bundle here
-func (a *Agent) startWorkloadAPI(bundle []*x509.Certificate) error {
-	addr := a.c.BindAddress
-	if addr.Network() != "unix" {
-		return fmt.Errorf("only unix socket supported, got type %v", addr.Network())
-	}
-
-	// Create a gRPC server with our custom "credential" resolver
-	a.mtx.Lock()
-	a.grpcServer = grpc.NewServer(grpc.Creds(auth.NewCredentials()))
-	a.mtx.Unlock()
-
-	ws := &workloadServer{
-		bundle:   bundle, // TODO: update bundle type in workload
-		cacheMrg: a.Manager,
-		catalog:  a.Catalog,
-		l:        a.c.Log.WithField("subsystem_name", "workload"),
-		maxTTL:   1 * time.Minute,
-		minTTL:   5 * time.Second,
-	}
-	workload.RegisterWorkloadServer(a.grpcServer, ws)
-
-	// Create world-writable socket
-	os.Remove(addr.String())
-	listener, err := net.Listen(addr.Network(), addr.String())
-	if err != nil {
-		return fmt.Errorf("create gRPC listener: %s", err)
-	}
-	os.Chmod(addr.String(), os.ModePerm)
-
-	return a.grpcServer.Serve(listener)
 }
 
 func (a *Agent) parseAttestationResponse(id string, r *node.FetchBaseSVIDResponse) (*x509.Certificate, []*x509.Certificate, error) {
