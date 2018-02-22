@@ -2,14 +2,10 @@ package cache
 
 import (
 	"crypto/ecdsa"
-	"crypto/sha256"
 	"crypto/x509"
-	"hash"
-	"sort"
 	"sync"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 )
@@ -29,105 +25,99 @@ type Entry struct {
 }
 
 type Cache interface {
-	Entry([]*common.Selector) (entry []Entry)
-	SetEntry(cacheEntry Entry)
-	DeleteEntry([]*common.Selector) (deleted bool)
-	// Entries returns the current cached entries state.
-	Entries() map[string][]Entry
-	MatchingEntries([]*common.Selector) (entry []Entry)
+	// Entry gets the first cache entry for the specified RegistrationEntry.
+	Entry(regEntry *common.RegistrationEntry) *Entry
+	// SetEntry puts a new cache entry at the end of the list of entries for the entry's RegistrationEntry.
+	SetEntry(entry *Entry)
+	// DeleteEntries deletes all the Entries for the specified RegistrationEntry, returns an integer
+	// with the number of cache entries that were removed.
+	DeleteEntries(regEntry *common.RegistrationEntry) int
+	// DeleteEntry removes the first cache entry for the specified RegistrationEntry if any,
+	// returns true if it removed some entry or false otherwise.
+	DeleteEntry(regEntry *common.RegistrationEntry) bool
+	// Entries returns all the in force cached entries.
+	Entries() chan Entry
+	// IsEmpty returns true if this cache doesn't have any entry.
+	IsEmpty() bool
 }
 
 type cacheImpl struct {
+	// Map keyed by a combination of SpiffeId + ParentId + Selectors holding a list of
+	// Entry instances ordered by SVID expiration date.
 	cache map[string][]Entry
 	log   logrus.FieldLogger
 	m     sync.Mutex
 }
 
-func NewCache(Logger logrus.FieldLogger) *cacheImpl {
-	return &cacheImpl{cache: make(map[string][]Entry),
-		log: Logger.WithField("subsystem_name", "cache")}
-}
-
-func (c *cacheImpl) Entries() map[string][]Entry {
-	// We make a copy of the current cache state to prevent:
-	// 1) Callers to be affected by future cache modifications when iterating
-	// over the returned entries.
-	// 2) The cache itself to be affected by external modifications that could be
-	// done to the returned entries.
-	c.m.Lock()
-	defer c.m.Unlock()
-	entries := map[string][]Entry{}
-	for k, e := range c.cache {
-		entries[k] = make([]Entry, len(e))
-		copy(entries[k], c.cache[k])
+// New creates a new Cache.
+func New(log logrus.FieldLogger) Cache {
+	return &cacheImpl{
+		cache: make(map[string][]Entry),
+		log:   log.WithField("subsystem_name", "cache"),
 	}
-	return entries
-
 }
 
-func (c *cacheImpl) Entry(selectors []*common.Selector) (entry []Entry) {
-	key := deriveCacheKey(selectors)
+func (c *cacheImpl) Entries() chan Entry {
 	c.m.Lock()
 	defer c.m.Unlock()
-	if entry, found := c.cache[key]; found {
-		return entry
+	entries := make(chan Entry, len(c.cache))
+	for _, e := range c.cache {
+		// Only return the first element for each array of entries because it is the
+		// in force entry.
+		entries <- e[0]
+	}
+	close(entries)
+	return entries
+}
+
+func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
+	key := util.DeriveRegEntryhash(regEntry)
+	c.m.Lock()
+	defer c.m.Unlock()
+	if entries, found := c.cache[key]; found {
+		return &entries[0]
 	}
 	return nil
 }
 
-// MatchingEntries takes a slice of selectors, and works through all the combinations in order to
-// find matching cache entries
-func (c *cacheImpl) MatchingEntries(selectors []*common.Selector) (entries []Entry) {
-	selectorSet := selector.NewSet(selectors)
+func (c *cacheImpl) SetEntry(entry *Entry) {
 	c.m.Lock()
 	defer c.m.Unlock()
-
-	for subSet := range selectorSet.Power() {
-		key := deriveCacheKey(subSet.Raw())
-		if entry, found := c.cache[key]; found {
-			entries = append(entries, entry...)
-		}
-	}
-	return entries
-}
-
-func (c *cacheImpl) SetEntry(cacheEntry Entry) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	key := deriveCacheKey(cacheEntry.RegistrationEntry.Selectors)
-
-	for i, entry := range c.cache[key] {
-		if entry.RegistrationEntry.SpiffeId == cacheEntry.RegistrationEntry.SpiffeId {
-			copy(c.cache[key][i:], c.cache[key][i+1:])
-			c.cache[key][len(c.cache[key])-1] = Entry{}
-			c.cache[key] = c.cache[key][:len(c.cache[key])-1]
-			break
-		}
-	}
-	c.cache[key] = append(c.cache[key], cacheEntry)
+	key := util.DeriveRegEntryhash(entry.RegistrationEntry)
+	c.cache[key] = append(c.cache[key], *entry)
 	return
 
 }
 
-func (c *cacheImpl) DeleteEntry(selectors []*common.Selector) (deleted bool) {
+func (c *cacheImpl) DeleteEntries(regEntry *common.RegistrationEntry) int {
 	c.m.Lock()
 	defer c.m.Unlock()
-	key := deriveCacheKey(selectors)
-	if _, exists := c.cache[key]; exists == true {
+	key := util.DeriveRegEntryhash(regEntry)
+	if entries, found := c.cache[key]; found {
 		delete(c.cache, key)
-		deleted = true
+		return len(entries)
 	}
-	return
+	return 0
 }
 
-func deriveCacheKey(s Selectors) (key string) {
-	var concatSelectors string
-	sort.Slice(s, util.SelectorsSortFunction(s))
-
-	for _, selector := range s {
-		concatSelectors = concatSelectors + "::" + selector.Type + ":" + selector.Value
+func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) bool {
+	c.m.Lock()
+	defer c.m.Unlock()
+	key := util.DeriveRegEntryhash(regEntry)
+	if entries, found := c.cache[key]; found {
+		if len(entries) > 0 {
+			c.cache[key] = entries[1:]
+			if len(c.cache[key]) == 0 {
+				delete(c.cache, key)
+			}
+			return true
+		}
 	}
-	hashedSelectors := hash.Hash.Sum(sha256.New(), []byte(concatSelectors))
+	return false
+}
 
-	return string(hashedSelectors)
+func (c *cacheImpl) IsEmpty() bool {
+	c.m.Lock()
+	defer c.m.Unlock()
+	return len(c.cache) == 0
 }

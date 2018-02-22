@@ -101,7 +101,7 @@ func (s *workloadServer) fetchAllEntries(ctx context.Context) (entries []cache.E
 		return entries, err
 	}
 
-	return s.cacheMrg.Cache().MatchingEntries(selectors), nil
+	return s.cacheMrg.MatchingEntries(selectors), nil
 }
 
 // resolveCaller takes a grpc context, and returns the PID of the caller which has issued
@@ -208,7 +208,7 @@ func (s *workloadServer) composeResponse(entries []cache.Entry) (response *workl
 		Bundles: bundles,
 		Ttl:     int32(ttl),
 	}
-	if len(bundles) == 0 && s.cacheMrg.Busy() {
+	if len(bundles) == 0 {
 		err = fmt.Errorf("Cache is busy. Retry later")
 	}
 	return response, err

@@ -3,14 +3,14 @@ package manager
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"github.com/spiffe/go-spiffe/uri"
-
 	"net"
 	"net/url"
 	"sync"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/manager/cache"
 
 	tomb "gopkg.in/tomb.v2"
 )
@@ -31,15 +31,18 @@ type Config struct {
 
 // New creates a cache manager based on c's configuration
 func New(c *Config) (Manager, error) {
+	c.Log = c.Log.WithField("subsystem_name", "manager")
+
 	URIs, err := uri.GetURINamesFromCertificate(c.SVID)
 	if err != nil {
 		return nil, err
 	}
 
 	m := &manager{
-		c:   c,
-		t:   new(tomb.Tomb),
-		mtx: new(sync.RWMutex),
+		cache: cache.New(c.Log),
+		c:     c,
+		t:     new(tomb.Tomb),
+		mtx:   new(sync.RWMutex),
 
 		// Copy SVID into the manager to facilitate rotation
 		svid:            c.SVID,

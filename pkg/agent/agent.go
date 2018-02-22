@@ -216,34 +216,7 @@ func (a *Agent) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x50
 	return svid, bundle, nil
 }
 
-func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) error {
-	/*
-		mgrConfig := &cache.MgrConfig{
-			ServerCerts:    bundle,
-			ServerSPIFFEID: a.serverID().String(),
-			ServerAddr:     a.c.ServerAddress.String(),
-			TrustDomain:    a.c.TrustDomain,
-
-			BaseSVID:     svid,
-			BaseSVIDKey:  key,
-			BaseSVIDPath: a.agentSVIDPath(),
-			Logger:       a.c.Log.WithField("subsystem_name", "manager"),
-		}
-
-		ctx := context.Background()
-		mgr, err := cache.NewManager(ctx, mgrConfig)
-		if err != nil {
-			return ctx, err
-		}
-
-		mgr.Init()
-		a.mtx.Lock()
-		defer a.mtx.Unlock()
-		a.Manager = mgr
-		return ctx, nil
-
-	*/
-
+func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) (err error) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -257,14 +230,13 @@ func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bund
 		Bundle:      bundle,
 		TrustDomain: a.c.TrustDomain,
 		ServerAddr:  a.c.ServerAddress,
-		Log:         a.c.Log.WithField("subsystem_name", "manager"),
+		Log:         a.c.Log,
 	}
 
 	a.Manager, err = manager.New(mgrConfig)
 	if err != nil {
 		return err
 	}
-
 	return a.Manager.Start()
 }
 
