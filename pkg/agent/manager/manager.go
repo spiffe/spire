@@ -63,9 +63,22 @@ func (m *manager) Shutdown() {
 	m.shutdown(nil)
 }
 
-func (m *manager) Subscribe(key cache.Selectors, done chan struct{}) chan []cache.Entry {
-	// TODO
-	return nil
+func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan cache.Entry {
+	// creates a subscriber
+	// adds it to the manager
+	// returns the added subscriber channel
+	sub := &subscriber{
+		c:    make(chan cache.Entry),
+		sel:  selectors,
+		done: done,
+	}
+
+	if err := m.subscribers.Add(sub); err != nil {
+		m.c.Log.Error(err)
+		return nil
+	}
+
+	return sub.c
 }
 
 // MatchingEntries takes a slice of selectors, and works through all the combinations
