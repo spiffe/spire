@@ -260,11 +260,11 @@ func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bund
 		Log:         a.c.Log.WithField("subsystem_name", "manager"),
 	}
 
-	a.Manager, err = manager.New(mgrConfig)
+	mgr, err := manager.New(mgrConfig)
 	if err != nil {
 		return err
 	}
-
+	a.Manager = mgr
 	return a.Manager.Start()
 }
 

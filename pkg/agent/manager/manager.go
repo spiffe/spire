@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
@@ -104,9 +105,22 @@ func (m *manager) shutdown(err error) {
 	m.t.Kill(err)
 }
 
-func (m *manager) Subscribe(key cache.Selectors, done chan struct{}) chan []cache.Entry {
-	// TODO
-	return nil
+func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan cache.Entry {
+	// creates a subscriber
+	// adds it to the manager
+	// returns the added subscriber channel
+	sub := &subscriber{
+		c:    make(chan cache.Entry),
+		sel:  selectors,
+		done: done,
+	}
+
+	if err := m.subscribers.Add(sub); err != nil {
+		m.c.Log.Error(err)
+		return nil
+	}
+
+	return sub.c
 }
 
 func (m *manager) Stopped() chan error {
@@ -222,6 +236,7 @@ func (m *manager) synchronize() error {
 					// Complete the pre-built cache entry with the SVID and put it on the cache.
 					entryRequest.entry.SVID = cert
 					m.cache.SetEntry(entryRequest.entry)
+					m.subscribers.Notify(entryRequest.entry)
 					m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", entryRequest.entry.RegistrationEntry.SpiffeId)
 				}
 			}
