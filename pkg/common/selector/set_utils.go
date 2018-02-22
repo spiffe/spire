@@ -3,6 +3,9 @@ package selector
 import (
 	"crypto/sha256"
 	"hash"
+	"math"
+	"strconv"
+	"strings"
 )
 
 // PowerSet implements a range-able combination generator. It takes a set, and
@@ -68,16 +71,28 @@ func IncludesSet(s1, s2 Set) bool {
 //
 // https://en.wikipedia.org/wiki/Power_set
 func powerSet(s Set, c chan Set) {
-	set := Set{}
-	for k, sel := range s {
-		set[k] = sel
-		// Copy the last set to have as starting point for the next subset
-		lastset := Set{}
-		for lk, lsel := range set {
-			lastset[lk] = lsel
+	sarr := s.Array()
+	powSetSize := math.Pow(2, float64(len(s)))
+
+	// Skip the empty set by starting the counter at 1
+	for i := 1; i < int(powSetSize); i++ {
+		set := Set{}
+
+		// Form binary representation of the counter
+		binaryString := strconv.FormatUint(uint64(i), 2)
+		binary := strings.Split(binaryString, "")
+
+		// Walk through the binary, and append
+		// "enabled" elements to the working set
+		for position := 0; position < len(binary); position++ {
+			// Read the binary right to left
+			negPosition := (len(binary) - position - 1)
+			if binary[negPosition] == "1" {
+				set.Add(sarr[position])
+			}
 		}
+
 		c <- set
-		set = lastset
 	}
 }
 

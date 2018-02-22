@@ -15,7 +15,7 @@ func NewSet(c []*common.Selector) Set {
 			Type:  cs.Type,
 			Value: cs.Value,
 		}
-		set[deriveKey(s)] = s
+		set.Add(s)
 	}
 
 	return set
@@ -34,6 +34,15 @@ func (s Set) Raw() []*common.Selector {
 	return c
 }
 
+// Array returns an array with the elements of the set in any order.
+func (s Set) Array() []*Selector {
+	c := []*Selector{}
+	for _, selector := range s {
+		c = append(c, selector)
+	}
+	return c
+}
+
 func (s Set) Power() <-chan Set {
 	return PowerSet(s)
 }
@@ -48,6 +57,10 @@ func (s Set) Includes(selector *Selector) bool {
 
 func (s Set) IncludesSet(s2 Set) bool {
 	return IncludesSet(s, s2)
+}
+
+func (s Set) Add(selector *Selector) {
+	s[deriveKey(selector)] = selector
 }
 
 func (s Set) String() string {
