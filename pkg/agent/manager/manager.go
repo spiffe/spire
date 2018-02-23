@@ -35,12 +35,7 @@ type Manager interface {
 }
 
 func (m *manager) Start() error {
-	err := m.initialize()
-	if err != nil {
-		return err
-	}
-
-	err = m.synchronize()
+	err := m.synchronize()
 	if err != nil {
 		return err
 	}

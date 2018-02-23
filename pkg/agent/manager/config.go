@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/uri"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 
@@ -33,7 +32,7 @@ type Config struct {
 func New(c *Config) (Manager, error) {
 	c.Log = c.Log.WithField("subsystem_name", "manager")
 
-	URIs, err := uri.GetURINamesFromCertificate(c.SVID)
+	spiffeID, err := getSpiffeIDFromSVID(c.SVID)
 	if err != nil {
 		return nil, err
 	}
@@ -48,11 +47,19 @@ func New(c *Config) (Manager, error) {
 		svid:            c.SVID,
 		svidKey:         c.SVIDKey,
 		bundle:          c.Bundle,
-		spiffeID:        URIs[0],
+		spiffeID:        spiffeID,
 		serverSPIFFEID:  "spiffe://" + c.TrustDomain.Host + "/cp",
 		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
+
+		clients: &clientsPool{},
 	}
+
+	err = m.newClient([]string{m.spiffeID, m.serverSPIFFEID}, m.svid, m.svidKey)
+	if err != nil {
+		return nil, err
+	}
+
 	return m, nil
 }

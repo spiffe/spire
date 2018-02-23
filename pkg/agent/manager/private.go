@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"net"
@@ -9,9 +8,8 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/proto/api/node"
 	proto "github.com/spiffe/spire/proto/common"
-	"google.golang.org/grpc"
+
 	tomb "gopkg.in/tomb.v2"
 )
 
@@ -19,8 +17,6 @@ type manager struct {
 	c     *Config
 	t     *tomb.Tomb
 	cache cache.Cache
-
-	fetchSVIDStream node.Node_FetchSVIDClient
 
 	stopped chan error
 
@@ -39,24 +35,7 @@ type manager struct {
 
 	subscribers subscribers
 
-	agentConnPool []*grpc.ClientConn
-}
-
-func (m *manager) initialize() error {
-	conn, err := m.newGRPCConn(m.svid, m.svidKey)
-	if err != nil {
-		return err
-	}
-
-	nodeClient := node.NewNodeClient(conn)
-
-	fetchSVIDStream, err := nodeClient.FetchSVID(context.TODO())
-	if err != nil {
-		return err
-	}
-
-	m.fetchSVIDStream = fetchSVIDStream
-	return nil
+	clients *clientsPool
 }
 
 func (m *manager) run() error {

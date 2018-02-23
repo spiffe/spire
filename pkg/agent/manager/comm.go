@@ -1,19 +1,27 @@
 package manager
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
-	"io"
 
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/common"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
+
+type client struct {
+	conn   *grpc.ClientConn
+	stream node.Node_FetchSVIDClient
+}
+
+type clientsPool struct {
+	// Map of client connections to the server keyed by SPIFFEID.
+	clients map[string]*client
+}
 
 func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*grpc.ClientConn, error) {
 	var tlsCert []tls.Certificate
@@ -34,46 +42,42 @@ func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*g
 	return conn, nil
 }
 
-func (m *manager) fetchUpdate(csrs [][]byte) (regEntries map[string]*common.RegistrationEntry, svids map[string]*node.Svid) {
-	err := m.fetchSVIDStream.Send(&node.FetchSVIDRequest{Csrs: csrs})
+// newClient adds a new client to the pool and associates it to the specified list of spiffeIDs.
+func (m *manager) newClient(spiffeIDs []string, svid *x509.Certificate, key *ecdsa.PrivateKey) error {
+	conn, err := m.newGRPCConn(svid, key)
 	if err != nil {
-		// TODO: should we try to create a new stream?
-		m.shutdown(err)
-		return
+		return err
 	}
 
-	regEntries = map[string]*common.RegistrationEntry{}
-	svids = map[string]*node.Svid{}
-	var lastBundle []byte
-	for {
-		resp, err := m.fetchSVIDStream.Recv()
-		if err == io.EOF {
-			break
-		}
+	for _, id := range spiffeIDs {
+		err = m.clients.add(id, conn)
 		if err != nil {
-			// TODO: should we try to create a new stream?
-			m.shutdown(err)
-			return nil, nil
+			conn.Close()
+			return err
 		}
-
-		for _, re := range resp.SvidUpdate.RegistrationEntries {
-			regEntryKey := util.DeriveRegEntryhash(re)
-			regEntries[regEntryKey] = re
-		}
-		for spiffeid, svid := range resp.SvidUpdate.Svids {
-			svids[spiffeid] = svid
-		}
-		lastBundle = resp.SvidUpdate.Bundle
 	}
 
-	if lastBundle != nil {
-		bundle, err := x509.ParseCertificates(lastBundle)
-		if err != nil {
-			m.shutdown(err)
-			return nil, nil
-		}
-		m.setBundle(bundle)
+	return nil
+}
+
+func (p *clientsPool) add(spiffeID string, conn *grpc.ClientConn) error {
+	// If there is a connection with the specified spiffeID, close it first.
+	if c := p.get(spiffeID); c != nil {
+		c.stream.CloseSend()
+		c.conn.Close()
 	}
 
-	return
+	nodeClient := node.NewNodeClient(conn)
+
+	stream, err := nodeClient.FetchSVID(context.TODO())
+	if err != nil {
+		return err
+	}
+
+	p.clients[spiffeID] = &client{conn: conn, stream: stream}
+	return nil
+}
+
+func (p *clientsPool) get(spiffeID string) *client {
+	return p.clients[spiffeID]
 }

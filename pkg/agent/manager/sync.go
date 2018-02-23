@@ -20,22 +20,17 @@ import (
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
 func (m *manager) synchronize() (err error) {
 	var regEntries map[string]*proto.RegistrationEntry
-	entryRequests := []*entryRequest{}
-	// If cache is empty we need to make the first fetchUpdate without any CSRs.
-	if m.cache.IsEmpty() {
-		regEntries, _ = m.fetchUpdate(nil)
-	} else {
-		entryRequests, err = m.checkExpiredCacheEntries()
-		if err != nil {
-			return err
-		}
 
-		regEntries = m.processEntryRequests(entryRequests)
+	regEntries, _ = m.fetchUpdates(m.spiffeID, nil)
+
+	entryRequests, err := m.checkExpiredCacheEntries()
+	if err != nil {
+		return err
 	}
 
 	// While there are registration entries to process...
-	for regEntries != nil && len(regEntries) > 0 {
-		entryRequests, err := m.checkForNewEntries(regEntries)
+	for len(regEntries) > 0 {
+		entryRequests, err := m.checkForNewCacheEntries(regEntries, entryRequests)
 		if err != nil {
 			return err
 		}
@@ -53,41 +48,108 @@ type entryRequest struct {
 	entry *cache.Entry
 }
 
-func (m *manager) processEntryRequests(entryRequests []*entryRequest) (regEntries map[string]*common.RegistrationEntry) {
-	// Put all the CSRs in an array to make just one fetchUpdate call with all the CSRs.
+// entryRequests is a map keyed by SPIFFEID where each value is a list
+// of entryRequest that should be processed using the SVID and PrivateKey
+// created for it.
+type entryRequests map[string][]*entryRequest
+
+func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (regEntries map[string]*common.RegistrationEntry, svids map[string]*node.Svid) {
+	regEntries = map[string]*common.RegistrationEntry{}
+	svids = map[string]*node.Svid{}
+	// TODO: handle error when no client was found.
+	client := m.clients.get(spiffeID)
+
+	// Put all the CSRs in an array to make just one call with all the CSRs.
 	csrs := [][]byte{}
-	for _, entryRequest := range entryRequests {
-		csrs = append(csrs, entryRequest.CSR)
-	}
-	if len(csrs) > 0 {
-		// Fetch updates for the specified CSRs to get the corresponding SVIDs.
-		var svids map[string]*node.Svid
-		regEntries, svids = m.fetchUpdate(csrs)
+	if entryRequests != nil {
 		for _, entryRequest := range entryRequests {
-			svid, ok := svids[entryRequest.entry.RegistrationEntry.SpiffeId]
-			if ok {
-				cert, err := x509.ParseCertificate(svid.SvidCert)
-				if err != nil {
-					m.shutdown(err)
-					return
-				}
-				// Complete the pre-built cache entry with the SVID and put it on the cache.
-				entryRequest.entry.SVID = cert
-				if m.isNodeType(entryRequest) {
-					entryRequest.entry.IsNodeType = true
-					m.addToConnPoolEntry(entryRequest.entry.SVID, entryRequest.entry.PrivateKey)
-				}
-				m.cache.SetEntry(entryRequest.entry)
-				m.subscribers.Notify(entryRequest.entry)
-				m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", entryRequest.entry.RegistrationEntry.SpiffeId)
-			}
+			csrs = append(csrs, entryRequest.CSR)
+		}
+	}
+
+	err := client.stream.Send(&node.FetchSVIDRequest{Csrs: csrs})
+	if err != nil {
+		// TODO: should we try to create a new stream?
+		m.shutdown(err)
+		return
+	}
+
+	var lastBundle []byte
+	for {
+		resp, err := client.stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			// TODO: should we try to create a new stream?
+			m.shutdown(err)
+			return nil, nil
+		}
+
+		for _, re := range resp.SvidUpdate.RegistrationEntries {
+			regEntryKey := util.DeriveRegEntryhash(re)
+			regEntries[regEntryKey] = re
+		}
+		for spiffeid, svid := range resp.SvidUpdate.Svids {
+			svids[spiffeid] = svid
+		}
+		lastBundle = resp.SvidUpdate.Bundle
+	}
+
+	if lastBundle != nil {
+		bundle, err := x509.ParseCertificates(lastBundle)
+		if err != nil {
+			m.shutdown(err)
+			return nil, nil
+		}
+		m.setBundle(bundle)
+	}
+
+	return
+}
+
+func (m *manager) processEntryRequests(entryRequests entryRequests) (regEntries map[string]*common.RegistrationEntry) {
+	regEntries = map[string]*common.RegistrationEntry{}
+	if len(entryRequests) == 0 {
+		return
+	}
+
+	for parentID, entryRequestsList := range entryRequests {
+		re, svids := m.fetchUpdates(parentID, entryRequestsList)
+		m.updateEtriesSVIDs(entryRequestsList, svids)
+		// Collect registrations entries.
+		for k, e := range re {
+			regEntries[k] = e
 		}
 	}
 	return
 }
 
-func (m *manager) checkExpiredCacheEntries() ([]*entryRequest, error) {
-	entryRequests := []*entryRequest{}
+func (m *manager) updateEtriesSVIDs(entryRequestsList []*entryRequest, svids map[string]*node.Svid) {
+	for _, entryRequest := range entryRequestsList {
+		ce := entryRequest.entry
+		svid, ok := svids[ce.RegistrationEntry.SpiffeId]
+		if ok {
+			cert, err := x509.ParseCertificate(svid.SvidCert)
+			if err != nil {
+				m.shutdown(err)
+				return
+			}
+			// Complete the pre-built cache entry with the SVID and put it on the cache.
+			ce.SVID = cert
+			if m.isAgentAlias(ce.RegistrationEntry) {
+				ce.IsAgentAlias = true
+				m.newClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
+			}
+			m.cache.SetEntry(ce)
+			m.subscribers.Notify(ce)
+			m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", ce.RegistrationEntry.SpiffeId)
+		}
+	}
+}
+
+func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
+	entryRequests := entryRequests{}
 	for entry := range m.cache.Entries() {
 		ttl := entry.SVID.NotAfter.Sub(time.Now())
 		lifetime := entry.SVID.NotAfter.Sub(entry.SVID.NotBefore)
@@ -107,34 +169,17 @@ func (m *manager) checkExpiredCacheEntries() ([]*entryRequest, error) {
 				PrivateKey:        privateKey,
 				Bundles:           bundles,
 			}
-			entryRequests = append(entryRequests, &entryRequest{csr, cacheEntry})
+			parentID := entry.RegistrationEntry.ParentId
+			entryRequests[parentID] = append(entryRequests[parentID], &entryRequest{csr, cacheEntry})
 		} else if ttl <= 0 {
 			// Cached SVID expired, remove entry from the cache.
 			m.cache.DeleteEntry(entry.RegistrationEntry)
 		}
 	}
-
-	/*
-		vanityRecord := m.cache.Entry([]*proto.Selector{{
-			Type: "spiffe_id", Value: m.spiffeID}})
-
-		if vanityRecord != nil {
-			m.fetchWithEmptyCSR(vanityRecord[0].SVID, vanityRecord[0].PrivateKey)
-		} else {
-			baseEntry := m.getBaseSVIDEntry()
-			m.fetchWithEmptyCSR(baseEntry.svid, baseEntry.key)
-		}
-
-		entry, ok := m.spiffeIdEntryMap[m.aliasSPIFFEID]
-		if ok {
-			m.fetchWithEmptyCSR(entry.SVID, entry.PrivateKey)
-		}
-	*/
 	return entryRequests, nil
 }
 
-func (m *manager) checkForNewEntries(regEntries map[string]*proto.RegistrationEntry) ([]*entryRequest, error) {
-	entryRequests := []*entryRequest{}
+func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.RegistrationEntry, entryRequests entryRequests) (entryRequests, error) {
 	for _, regEntry := range regEntries {
 		if !m.isAlreadyCached(regEntry) {
 			m.c.Log.Debugf("Generating CSR for spiffeId: %s  parentId: %s", regEntry.SpiffeId, regEntry.ParentId)
@@ -152,7 +197,8 @@ func (m *manager) checkForNewEntries(regEntries map[string]*proto.RegistrationEn
 				PrivateKey:        privateKey,
 				Bundles:           bundles,
 			}
-			entryRequests = append(entryRequests, &entryRequest{csr, cacheEntry})
+			parentID := regEntry.ParentId
+			entryRequests[parentID] = append(entryRequests[parentID], &entryRequest{csr, cacheEntry})
 		}
 	}
 
@@ -177,6 +223,7 @@ func (m *manager) rotateSVID() error {
 		if err != nil {
 			return err
 		}
+		defer conn.Close()
 
 		// TODO: Should we use FecthBaseSVID instead?
 		stream, err := node.NewNodeClient(conn).FetchSVID(context.Background())
@@ -231,27 +278,16 @@ func (m *manager) newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err
 	return
 }
 
-func (m *manager) isNodeType(er *entryRequest) bool {
-
-	if er.entry.RegistrationEntry.ParentId == m.serverSPIFFEID {
+func (m *manager) isAgentAlias(re *common.RegistrationEntry) bool {
+	if re.ParentId == m.serverSPIFFEID {
 		return true
 	}
 
-	for _, s := range er.entry.RegistrationEntry.Selectors {
+	for _, s := range re.Selectors {
 		if s.Type == "spiffe_id" && s.Value == m.spiffeID {
 			return true
 		}
 	}
 
 	return false
-
-}
-
-func (m *manager) addToConnPoolEntry(svid *x509.Certificate, pkey *ecdsa.PrivateKey) error {
-	conn, err := m.newGRPCConn(svid, pkey)
-	if err != nil {
-		return err
-	}
-	m.agentConnPool = append(m.agentConnPool, conn)
-	return nil
 }
