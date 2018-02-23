@@ -73,7 +73,12 @@ func (m *manager) processEntryRequests(entryRequests []*entryRequest) (regEntrie
 				}
 				// Complete the pre-built cache entry with the SVID and put it on the cache.
 				entryRequest.entry.SVID = cert
+				if m.isNodeType(entryRequest) {
+					entryRequest.entry.IsNodeType = true
+					m.addToConnPoolEntry(entryRequest.entry.SVID, entryRequest.entry.PrivateKey)
+				}
 				m.cache.SetEntry(entryRequest.entry)
+				m.subscribers.Notify(entryRequest.entry)
 				m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", entryRequest.entry.RegistrationEntry.SpiffeId)
 			}
 		}
@@ -224,4 +229,29 @@ func (m *manager) newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err
 		return nil, nil, err
 	}
 	return
+}
+
+func (m *manager) isNodeType(er *entryRequest) bool {
+
+	if er.entry.RegistrationEntry.ParentId == m.serverSPIFFEID {
+		return true
+	}
+
+	for _, s := range er.entry.RegistrationEntry.Selectors {
+		if s.Type == "spiffe_id" && s.Value == m.spiffeID {
+			return true
+		}
+	}
+
+	return false
+
+}
+
+func (m *manager) addToConnPoolEntry(svid *x509.Certificate, pkey *ecdsa.PrivateKey) error {
+	conn, err := m.newGRPCConn(svid, pkey)
+	if err != nil {
+		return err
+	}
+	m.agentConnPool = append(m.agentConnPool, conn)
+	return nil
 }

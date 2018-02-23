@@ -11,7 +11,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/proto/api/node"
 	proto "github.com/spiffe/spire/proto/common"
-
+	"google.golang.org/grpc"
 	tomb "gopkg.in/tomb.v2"
 )
 
@@ -38,6 +38,8 @@ type manager struct {
 	bundleCachePath string
 
 	subscribers subscribers
+
+	agentConnPool []*grpc.ClientConn
 }
 
 func (m *manager) initialize() error {
