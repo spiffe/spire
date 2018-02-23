@@ -6,7 +6,7 @@ else
 	container = 
 endif
 
-binary_dirs := $(shell find cmd/* plugin/*/* functional/tools/* -maxdepth 0 -type d)
+binary_dirs := $(shell find cmd/* functional/tools/* -maxdepth 0 -type d)
 docker_volume := $(shell echo $${PWD%/src/*}):/root/go
 docker_image = spire-dev:latest
 gopath := $(shell go env GOPATH)
@@ -47,11 +47,17 @@ vendor: glide.yaml glide.lock
 $(binary_dirs): noop
 	$(docker) /bin/sh -c "cd $@; go build -i"
 
+artifact:
+	$(docker) ./build.sh artifact
+
 test:
 	$(docker) go test -race $$(glide novendor)
 
 race-test:
 	$(docker) go test -race $$(glide novendor)
+
+integration:
+	$(docker) script/e2e_test.sh
 
 clean:
 	$(docker) go clean $$(glide novendor)

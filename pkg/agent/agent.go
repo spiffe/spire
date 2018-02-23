@@ -7,22 +7,20 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
 	"sync"
 	"syscall"
-	"time"
 
-	"github.com/spiffe/spire/pkg/agent/auth"
+	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
-	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
 
 	"google.golang.org/grpc"
@@ -37,10 +35,9 @@ type Agent struct {
 	t   *tomb.Tomb
 	mtx *sync.RWMutex
 
-	Manager manager.Manager
-	Catalog catalog.Catalog
-
-	grpcServer *grpc.Server
+	Manager   cache.Manager
+	Catalog   catalog.Catalog
+	Endpoints endpoints.Endpoints
 }
 
 // Run the agent
@@ -85,7 +82,7 @@ func (a *Agent) run() error {
 		return err
 	}
 
-	a.t.Go(func() error { return a.startWorkloadAPI(bundle) })
+	a.t.Go(func() error { return a.startEndpoints(bundle) })
 
 	// Wait until the agent's tomb is dying or the manager stopped working.
 	select {
@@ -101,12 +98,12 @@ func (a *Agent) run() error {
 }
 
 func (a *Agent) shutdown() {
-	if a.grpcServer != nil {
-		a.grpcServer.Stop()
+	if a.Endpoints != nil {
+		a.Endpoints.Shutdown()
 	}
 
 	if a.Manager != nil {
-		a.Manager.Shutdown()
+		a.Manager.Shutdown(nil)
 	}
 
 	if a.Catalog != nil {
@@ -120,6 +117,7 @@ func (a *Agent) startPlugins() error {
 
 // loadBundle tries to recover a cached bundle from previous executions, and falls back
 // to the configured trust bundle if an updated bundle isn't found.
+// TODO: Actually check for cached bundle
 func (a *Agent) loadBundle() ([]*x509.Certificate, error) {
 	bundle, err := manager.ReadBundle(a.bundleCachePath())
 	if err == manager.ErrNotCached {
@@ -128,15 +126,15 @@ func (a *Agent) loadBundle() ([]*x509.Certificate, error) {
 		return nil, err
 	}
 
-	if bundle == nil {
+	if a.c.TrustBundle == nil {
 		return nil, errors.New("load bundle: no bundle provided")
 	}
 
-	if len(bundle) < 1 {
+	if len(a.c.TrustBundle) < 1 {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
-	return bundle, nil
+	return a.c.TrustBundle, nil
 }
 
 // loadSVID loads the private key from key manager and the cached SVID from disk. If the key
@@ -216,7 +214,7 @@ func (a *Agent) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x50
 	return svid, bundle, nil
 }
 
-func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) (err error) {
+func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) (context.Context, error) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -238,6 +236,28 @@ func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bund
 		return err
 	}
 	return a.Manager.Start()
+}
+
+// TODO: Shouldn't need to pass bundle here
+func (a *Agent) startEndpoints(bundle []*x509.Certificate) error {
+	config := &endpoints.Config{
+		Bundle:   bundle,
+		BindAddr: a.c.BindAddress,
+		Catalog:  a.Catalog,
+		Manager:  a.Manager,
+		Log:      a.c.Log.WithField("subsystem_name", "endpoints"),
+	}
+
+	e := endpoints.New(config)
+	err := e.Start()
+	if err != nil {
+		return err
+	}
+
+	a.mtx.Lock()
+	a.Endpoints = e
+	a.mtx.Unlock()
+	return a.Endpoints.Wait()
 }
 
 // attestableData examines the agent configuation, and returns attestableData
@@ -271,40 +291,6 @@ func (a *Agent) attestableData() (*nodeattestor.FetchAttestationDataResponse, er
 	return attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
 }
 
-// TODO: Refactor into endpoints package
-// TODO: Shouldn't need to pass bundle here
-func (a *Agent) startWorkloadAPI(bundle []*x509.Certificate) error {
-	addr := a.c.BindAddress
-	if addr.Network() != "unix" {
-		return fmt.Errorf("only unix socket supported, got type %v", addr.Network())
-	}
-
-	// Create a gRPC server with our custom "credential" resolver
-	a.mtx.Lock()
-	a.grpcServer = grpc.NewServer(grpc.Creds(auth.NewCredentials()))
-	a.mtx.Unlock()
-
-	ws := &workloadServer{
-		bundle:   bundle, // TODO: update bundle type in workload
-		cacheMrg: a.Manager,
-		catalog:  a.Catalog,
-		l:        a.c.Log.WithField("subsystem_name", "workload"),
-		maxTTL:   1 * time.Minute,
-		minTTL:   5 * time.Second,
-	}
-	workload.RegisterWorkloadServer(a.grpcServer, ws)
-
-	// Create world-writable socket
-	os.Remove(addr.String())
-	listener, err := net.Listen(addr.Network(), addr.String())
-	if err != nil {
-		return fmt.Errorf("create gRPC listener: %s", err)
-	}
-	os.Chmod(addr.String(), os.ModePerm)
-
-	return a.grpcServer.Serve(listener)
-}
-
 func (a *Agent) parseAttestationResponse(id string, r *node.FetchBaseSVIDResponse) (*x509.Certificate, []*x509.Certificate, error) {
 	if len(r.SvidUpdate.Svids) < 1 {
 		return nil, nil, errors.New("no svid received")
@@ -319,11 +305,13 @@ func (a *Agent) parseAttestationResponse(id string, r *node.FetchBaseSVIDRespons
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid svid: %v", err)
 	}
+	workload.RegisterWorkloadServer(a.grpcServer, ws)
 
 	bundle, err := x509.ParseCertificates(r.SvidUpdate.Bundle)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid bundle: %v", bundle)
 	}
+	os.Chmod(addr.String(), os.ModePerm)
 
 	return svid, bundle, nil
 }
@@ -349,13 +337,13 @@ func (a *Agent) serverConn(bundle []*x509.Certificate) (*grpc.ClientConn, error)
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
 // will be returned.
 func (a *Agent) readSVIDFromDisk() *x509.Certificate {
+
 	cert, err := manager.ReadSVID(a.agentSVIDPath())
 	if err == manager.ErrNotCached {
 		a.c.Log.Debug("No pre-existing agent SVID found. Will perform node attestation")
 		return nil
 	} else if err != nil {
 		a.c.Log.Warnf("Could not get agent SVID from %s: %s", a.agentSVIDPath(), err)
-		return nil
 	}
 
 	return cert

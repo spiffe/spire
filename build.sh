@@ -3,9 +3,9 @@
 set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
-declare -r ARTIFACT_DIRS="$(find cmd/* plugin/*/* functional/* -maxdepth 0 -type d 2>/dev/null)"
-declare -r RELEASE_DIRS="$(find cmd/* plugin/*/* -maxdepth 0 -type d 2>/dev/null)"
-declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... ./plugin/... 2>/dev/null)"
+declare -r ARTIFACT_DIRS="$(find cmd/* functional/* -maxdepth 0 -type d 2>/dev/null)"
+declare -r RELEASE_DIRS="$(find cmd/* -maxdepth 0 -type d 2>/dev/null)"
+declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... 2>/dev/null)"
 declare -r RELEASE_FILES="LICENSE README.md conf"
 declare -r PROTO_FILES="$(find proto -name '*.proto' 2>/dev/null)"
 
@@ -187,6 +187,10 @@ build_test() {
 	fi
 }
 
+build_integration() {
+	make integration
+}
+
 build_release() {
 	local _tag _always
 	_tag="$(git describe --abbrev=0 2>/dev/null || true)"
@@ -245,13 +249,6 @@ build_artifact() {
 		cp -r $_n $_tmp
 	done
 
-	## munge config files
-	# fix plugin path names to match tgz layout
-	sed -i-new  -e 's/\(.*plugin_cmd.*\)\/.*\"/\1\"/'  $(find ${_tmp}/conf -name \*.conf)
-	for _n in $(find $_tmp -name \*-new); do
-		mv $_n ${_n%-new}
-	done
-	
 	tar --directory .tmp $_tar_opts -cvzf $_tgz $(basename $_tmp)
 	echo "$(shasum -a 256 $_tgz | cut -d' ' -f1) $(basename $_tgz)" > $_sum
 }
@@ -283,6 +280,7 @@ case "$1" in
 	protobuf_verify) build_protobuf_verify ;;
 	binaries|bin) build_binaries $2 ;;
 	test) build_test ;;
+	integration) build_integration ;;
 	artifact) build_artifact ;;
 	release) build_release ;;
 	clean) build_clean ;;
