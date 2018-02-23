@@ -23,7 +23,7 @@ type Manager interface {
 
 	// Subscribe returns a channel on which cache entry updates are sent
 	// for a particular set of selectors.
-	Subscribe(key cache.Selectors, done chan struct{}) chan []cache.Entry
+	Subscribe(key cache.Selectors, done chan struct{}) chan *cache.Entry
 
 	// MatchingEntries takes a slice of selectors, and works through all the combinations in order to
 	// find matching cache entries.
@@ -63,12 +63,12 @@ func (m *manager) Shutdown() {
 	m.shutdown(nil)
 }
 
-func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan cache.Entry {
+func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan *cache.Entry {
 	// creates a subscriber
 	// adds it to the manager
 	// returns the added subscriber channel
 	sub := &subscriber{
-		c:    make(chan cache.Entry),
+		c:    make(chan *cache.Entry),
 		sel:  selectors,
 		done: done,
 	}

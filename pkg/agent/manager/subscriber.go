@@ -7,7 +7,7 @@ import (
 )
 
 type subscriber struct {
-	c    chan cache.Entry
+	c    chan *cache.Entry
 	sel  cache.Selectors
 	done chan struct{}
 }
@@ -39,7 +39,7 @@ func (s *subscribers) Add(sub *subscriber) error {
 	return nil
 }
 
-func (s *subscribers) Notify(entry cache.Entry) {
+func (s *subscribers) Notify(entry *cache.Entry) {
 	sids := []uuid.UUID{}
 	selSet := selector.NewSet(entry.RegistrationEntry.Selectors)
 	selPSet := selSet.Power()
