@@ -61,7 +61,7 @@ func (m *manager) newClient(spiffeIDs []string, svid *x509.Certificate, key *ecd
 }
 
 func (p *clientsPool) add(spiffeID string, conn *grpc.ClientConn) error {
-	// If there is a connection with the specified spiffeID, close it first.
+	// If there is already a connection with the specified spiffeID, close it first.
 	if c := p.get(spiffeID); c != nil {
 		c.stream.CloseSend()
 		c.conn.Close()

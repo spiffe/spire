@@ -7,16 +7,14 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/url"
-	"os"
 	"path"
 	"sync"
 	"syscall"
 
-	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
+	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
@@ -35,7 +33,7 @@ type Agent struct {
 	t   *tomb.Tomb
 	mtx *sync.RWMutex
 
-	Manager   cache.Manager
+	Manager   manager.Manager
 	Catalog   catalog.Catalog
 	Endpoints endpoints.Endpoints
 }
@@ -103,7 +101,7 @@ func (a *Agent) shutdown() {
 	}
 
 	if a.Manager != nil {
-		a.Manager.Shutdown(nil)
+		a.Manager.Shutdown()
 	}
 
 	if a.Catalog != nil {
@@ -134,7 +132,7 @@ func (a *Agent) loadBundle() ([]*x509.Certificate, error) {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
-	return a.c.TrustBundle, nil
+	return bundle, nil
 }
 
 // loadSVID loads the private key from key manager and the cached SVID from disk. If the key
@@ -214,7 +212,7 @@ func (a *Agent) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x50
 	return svid, bundle, nil
 }
 
-func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) (context.Context, error) {
+func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) (err error) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -305,13 +303,11 @@ func (a *Agent) parseAttestationResponse(id string, r *node.FetchBaseSVIDRespons
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid svid: %v", err)
 	}
-	workload.RegisterWorkloadServer(a.grpcServer, ws)
 
 	bundle, err := x509.ParseCertificates(r.SvidUpdate.Bundle)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid bundle: %v", bundle)
 	}
-	os.Chmod(addr.String(), os.ModePerm)
 
 	return svid, bundle, nil
 }
