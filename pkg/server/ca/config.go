@@ -3,6 +3,7 @@ package ca
 import (
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -22,5 +23,7 @@ func New(c *Config) *manager {
 		c:   c,
 		t:   new(tomb.Tomb),
 		mtx: new(sync.RWMutex),
+
+		pruneTicker: time.NewTicker(6 * time.Hour),
 	}
 }
