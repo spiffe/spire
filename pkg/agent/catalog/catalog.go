@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/jointoken"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
@@ -40,6 +41,7 @@ var (
 
 	builtinPlugins = common.BuiltinPluginMap{
 		KeyManagerType: {
+			"disk":   disk.New(),
 			"memory": memory.New(),
 		},
 		NodeAttestorType: {
