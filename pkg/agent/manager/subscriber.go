@@ -7,17 +7,17 @@ import (
 )
 
 type subscriber struct {
-	c    chan *cache.Entry
+	c    chan []cache.Entry
 	sel  cache.Selectors
 	done chan struct{}
 }
 
 //type sID string
-// subscribers is a map keyed by the string representation of the selector sets, with a value mapped by Subscriber ID.
+// Get is a map keyed by the string representation of the selector sets, with a value mapped by Subscriber ID.
 // used to maintain a subscription of workloads
 
 type subscribers struct {
-	selMap map[string][]uuid.UUID
+	selMap map[string][]uuid.UUID // map of selector to UID
 	sidMap map[uuid.UUID]*subscriber
 }
 
@@ -39,19 +39,20 @@ func (s *subscribers) Add(sub *subscriber) error {
 	return nil
 }
 
-func (s *subscribers) Notify(entry *cache.Entry) {
-	sids := []uuid.UUID{}
-	selSet := selector.NewSet(entry.RegistrationEntry.Selectors)
+func (s *subscribers) Get(sels cache.Selectors) []uuid.UUID {
+	subIds := []uuid.UUID{}
+
+	selSet := selector.NewSet(sels)
 	selPSet := selSet.Power()
 
 	for sel := range selPSet {
 		selStr := sel.String()
-		sids = append(sids, s.selMap[selStr]...)
+		subIds = append(subIds, s.selMap[selStr]...)
 	}
-	sids = dedupe(sids)
-	for _, sid := range sids {
-		s.sidMap[sid].c <- entry
-	}
+
+	subIds = dedupe(subIds)
+
+	return subIds
 }
 
 func dedupe(ids []uuid.UUID) (deduped []uuid.UUID) {

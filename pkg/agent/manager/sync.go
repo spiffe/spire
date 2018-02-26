@@ -116,7 +116,7 @@ func (m *manager) processEntryRequests(entryRequests entryRequests) (regEntries 
 
 	for parentID, entryRequestsList := range entryRequests {
 		re, svids := m.fetchUpdates(parentID, entryRequestsList)
-		m.updateEtriesSVIDs(entryRequestsList, svids)
+		m.updateEntriesSVIDs(entryRequestsList, svids)
 		// Collect registrations entries.
 		for k, e := range re {
 			regEntries[k] = e
@@ -125,7 +125,7 @@ func (m *manager) processEntryRequests(entryRequests entryRequests) (regEntries 
 	return
 }
 
-func (m *manager) updateEtriesSVIDs(entryRequestsList []*entryRequest, svids map[string]*node.Svid) {
+func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids map[string]*node.Svid) {
 	for _, entryRequest := range entryRequestsList {
 		ce := entryRequest.entry
 		svid, ok := svids[ce.RegistrationEntry.SpiffeId]
@@ -142,10 +142,19 @@ func (m *manager) updateEtriesSVIDs(entryRequestsList []*entryRequest, svids map
 				m.newClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
 			}
 			m.cache.SetEntry(ce)
-			m.subscribers.Notify(ce)
+			sids := m.subscribers.Get(ce.RegistrationEntry.Selectors)
+			for _, id := range sids {
+				sub := m.subscribers.sidMap[id]
+				go m.notifySubscriber(sub)
+			}
 			m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", ce.RegistrationEntry.SpiffeId)
 		}
 	}
+}
+
+func (m *manager) notifySubscriber(sub *subscriber) {
+	cacheEntries := m.MatchingEntries(sub.sel)
+	sub.c <- cacheEntries
 }
 
 func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
