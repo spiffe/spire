@@ -23,7 +23,7 @@ type Manager interface {
 
 	// Subscribe returns a channel on which cache entry updates are sent
 	// for a particular set of selectors.
-	Subscribe(key cache.Selectors, done chan struct{}) chan *cache.Entry
+	Subscribe(key cache.Selectors, done chan struct{}) chan *workloadUpdate
 
 	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
