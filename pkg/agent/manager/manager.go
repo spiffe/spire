@@ -25,8 +25,9 @@ type Manager interface {
 	// for a particular set of selectors.
 	Subscribe(key cache.Selectors, done chan struct{}) chan *cache.Entry
 
-	// MatchingEntries takes a slice of selectors, and works through all the combinations in order to
-	// find matching cache entries.
+	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
+	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
+	// selectors are included in the set of selectors passed as parameter.
 	MatchingEntries(selectors []*common.Selector) []cache.Entry
 
 	// Stopped returns a channel on which the receiver can block until it
@@ -48,6 +49,7 @@ func (m *manager) Start() error {
 		if err != nil {
 			m.c.Log.Warning(err)
 		}
+		m.clients.close()
 		m.stopped <- err
 		close(m.stopped)
 	}()
@@ -76,12 +78,10 @@ func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan 
 	return sub.c
 }
 
-// MatchingEntries takes a slice of selectors, and works through all the combinations
-// in order to find matching cache entries.
 func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []cache.Entry) {
 	for entry := range m.cache.Entries() {
-		regEntrySelectors := selector.NewSet(entry.RegistrationEntry.Selectors)
-		if selector.NewSet(selectors).IncludesSet(regEntrySelectors) {
+		regEntrySelectors := selector.NewSetFromRaw(entry.RegistrationEntry.Selectors)
+		if selector.NewSetFromRaw(selectors).IncludesSet(regEntrySelectors) {
 			entries = append(entries, entries[0])
 		}
 	}

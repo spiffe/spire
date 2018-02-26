@@ -195,7 +195,7 @@ func (h *Handler) fetchRegistrationEntries(selectors []*common.Selector, spiffeI
 	var entries []*common.RegistrationEntry
 
 	///lookup Registration Entries for resolved selectors
-	for combination := range selector.PowerSet(selector.NewSet(selectors)) {
+	for combination := range selector.NewSetFromRaw(selectors).Power() {
 		req := &datastore.ListSelectorEntriesRequest{Selectors: combination.Raw()}
 		listSelectorResponse, err := dataStore.ListMatchingEntries(req)
 		if err != nil {

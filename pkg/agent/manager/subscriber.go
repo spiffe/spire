@@ -29,7 +29,7 @@ func (s *subscribers) Add(sub *subscriber) error {
 	}
 	s.sidMap[id] = sub
 
-	selSet := selector.NewSet(sub.sel)
+	selSet := selector.NewSetFromRaw(sub.sel)
 	selPSet := selSet.Power()
 	for sel := range selPSet {
 		selStr := sel.String()
@@ -41,7 +41,7 @@ func (s *subscribers) Add(sub *subscriber) error {
 
 func (s *subscribers) Notify(entry *cache.Entry) {
 	sids := []uuid.UUID{}
-	selSet := selector.NewSet(entry.RegistrationEntry.Selectors)
+	selSet := selector.NewSetFromRaw(entry.RegistrationEntry.Selectors)
 	selPSet := selSet.Power()
 
 	for sel := range selPSet {

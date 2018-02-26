@@ -12,7 +12,7 @@ import (
 // returns a channel over which all possible combinations of selectors are eventually
 // returned. It is meant to aid in the discovery of applicable cache entries, given the
 // superset of selectors discovered during attestation.
-func PowerSet(selectors Set) <-chan Set {
+func PowerSet(selectors *set) <-chan Set {
 	c := make(chan Set)
 
 	go func() {
@@ -25,13 +25,13 @@ func PowerSet(selectors Set) <-chan Set {
 }
 
 // EqualSet determines whether two sets of selectors are equal or not
-func EqualSet(a, b Set) bool {
-	if len(a) != len(b) {
+func EqualSet(a, b *set) bool {
+	if a.Size() != b.Size() {
 		return false
 	}
 
-	for keyA, selA := range a {
-		if selA != b[keyA] {
+	for keyA, selA := range *a {
+		if *selA != *(*b)[keyA] {
 			return false
 		}
 	}
@@ -40,26 +40,20 @@ func EqualSet(a, b Set) bool {
 }
 
 // Includes determines whether a given selector is present in a set
-func Includes(set Set, item *Selector) bool {
-	for _, s := range set {
-		if item == s {
-			return true
-		}
-	}
-
-	return false
+func Includes(set *set, item *Selector) bool {
+	return (*set)[deriveKey(item)] == item
 }
 
 // IncludesSet returns true if s2 is included in s1. This is, all the s2 selectors
 // are also present in s1.
-func IncludesSet(s1, s2 Set) bool {
+func IncludesSet(s1, s2 *set) bool {
 	// If s2 has more elements than s1, it cannot be included.
-	if len(s2) > len(s1) {
+	if len(*s2) > len(*s1) {
 		return false
 	}
 
-	for key2, sel2 := range s2 {
-		if sel2 != s1[key2] {
+	for key2, sel2 := range *s2 {
+		if *sel2 != *(*s1)[key2] {
 			return false
 		}
 	}
@@ -70,13 +64,13 @@ func IncludesSet(s1, s2 Set) bool {
 // of selector subsets.
 //
 // https://en.wikipedia.org/wiki/Power_set
-func powerSet(s Set, c chan Set) {
+func powerSet(s *set, c chan Set) {
 	sarr := s.Array()
-	powSetSize := math.Pow(2, float64(len(s)))
+	powSetSize := math.Pow(2, float64(len(*s)))
 
 	// Skip the empty set by starting the counter at 1
 	for i := 1; i < int(powSetSize); i++ {
-		set := Set{}
+		set := &set{}
 
 		// Form binary representation of the counter
 		binaryString := strconv.FormatUint(uint64(i), 2)
