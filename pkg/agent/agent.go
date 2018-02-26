@@ -212,7 +212,7 @@ func (a *Agent) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x50
 	return svid, bundle, nil
 }
 
-func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) (err error) {
+func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -229,10 +229,11 @@ func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bund
 		Log:         a.c.Log,
 	}
 
-	a.Manager, err = manager.New(mgrConfig)
+	mgr, err := manager.New(mgrConfig)
 	if err != nil {
 		return err
 	}
+	a.Manager = mgr
 	return a.Manager.Start()
 }
 
