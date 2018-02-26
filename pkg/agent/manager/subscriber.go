@@ -1,13 +1,19 @@
 package manager
 
 import (
+	"crypto/x509"
 	"github.com/satori/go.uuid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/selector"
 )
 
+type workloadUpdate struct {
+	cacheEntries []cache.Entry
+	bundle       []*x509.Certificate
+}
+
 type subscriber struct {
-	c    chan []cache.Entry
+	c    chan *workloadUpdate
 	sel  cache.Selectors
 	done chan struct{}
 }

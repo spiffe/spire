@@ -154,7 +154,8 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 
 func (m *manager) notifySubscriber(sub *subscriber) {
 	cacheEntries := m.MatchingEntries(sub.sel)
-	sub.c <- cacheEntries
+	sub.c <- &workloadUpdate{cacheEntries: cacheEntries, bundle: m.bundle}
+
 }
 
 func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {

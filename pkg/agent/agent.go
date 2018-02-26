@@ -258,7 +258,7 @@ func (a *Agent) startEndpoints(bundle []*x509.Certificate) error {
 	return a.Endpoints.Wait()
 }
 
-// attestableData examines the agent configuation, and returns attestableData
+// attestableData examines the agent configuration, and returns attestableData
 // for use when joining a trust domain for the first time.
 func (a *Agent) attestableData() (*nodeattestor.FetchAttestationDataResponse, error) {
 	resp := &nodeattestor.FetchAttestationDataResponse{}
