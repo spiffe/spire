@@ -14,6 +14,10 @@ import (
 	tomb "gopkg.in/tomb.v2"
 )
 
+// rotatorTag is a special string used to locate the client (on the clients' pool) used to
+// rotate the agent's SVID.
+const rotatorTag string = "_rotator_"
+
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
@@ -54,7 +58,12 @@ func New(c *Config) (Manager, error) {
 		bundleCachePath: c.BundleCachePath,
 	}
 
-	err = m.newClient([]string{m.spiffeID, m.serverSPIFFEID}, m.svid, m.svidKey)
+	err = m.newSyncClient([]string{m.spiffeID, m.serverSPIFFEID}, m.svid, m.svidKey)
+	if err != nil {
+		return nil, err
+	}
+
+	err = m.newSyncClient([]string{rotatorTag}, m.svid, m.svidKey)
 	if err != nil {
 		return nil, err
 	}

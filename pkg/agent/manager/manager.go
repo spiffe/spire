@@ -49,7 +49,7 @@ func (m *manager) Start() error {
 		if err != nil {
 			m.c.Log.Warning(err)
 		}
-		m.clients.close()
+		m.syncClients.close()
 		m.stopped <- err
 		close(m.stopped)
 	}()

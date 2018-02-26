@@ -1,12 +1,12 @@
 package manager
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -57,7 +57,7 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 	regEntries = map[string]*common.RegistrationEntry{}
 	svids = map[string]*node.Svid{}
 	// TODO: handle error when no client was found.
-	client := m.clients.get(spiffeID)
+	client := m.syncClients.get(spiffeID)
 
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	csrs := [][]byte{}
@@ -139,7 +139,7 @@ func (m *manager) updateEtriesSVIDs(entryRequestsList []*entryRequest, svids map
 			ce.SVID = cert
 			if m.isAgentAlias(ce.RegistrationEntry) {
 				ce.IsAgentAlias = true
-				m.newClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
+				m.newSyncClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
 			}
 			m.cache.SetEntry(ce)
 			m.subscribers.Notify(ce)
@@ -206,8 +206,7 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 }
 
 func (m *manager) rotateSVID() error {
-	svid, key := m.getBaseSVIDEntry()
-
+	svid, _ := m.getBaseSVIDEntry()
 	ttl := svid.NotAfter.Sub(time.Now())
 	lifetime := svid.NotAfter.Sub(svid.NotBefore)
 
@@ -219,27 +218,16 @@ func (m *manager) rotateSVID() error {
 			return err
 		}
 
-		conn, err := m.newGRPCConn(svid, key)
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
-
-		// TODO: Should we use FecthBaseSVID instead?
-		stream, err := node.NewNodeClient(conn).FetchSVID(context.Background())
-		if err != nil {
-			return err
-		}
+		client := m.getRotationClient()
 
 		m.c.Log.Debug("Sending CSR")
-		err = stream.Send(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
+		err = client.stream.Send(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
 		if err != nil {
-			stream.CloseSend()
+			//client.reconnect()
 			return err
 		}
-		stream.CloseSend()
 
-		resp, err := stream.Recv()
+		resp, err := client.stream.Recv()
 		if err == io.EOF {
 			return errors.New("FetchSVID stream was empty while trying to rotate BaseSVID")
 		}
@@ -261,6 +249,11 @@ func (m *manager) rotateSVID() error {
 		err = m.storeSVID()
 		if err != nil {
 			return err
+		}
+
+		err = m.renewRotatorClient()
+		if err != nil {
+			return fmt.Errorf("Could not renew rotator client: %v", err)
 		}
 	}
 	return nil

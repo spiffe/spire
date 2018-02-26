@@ -35,7 +35,7 @@ type manager struct {
 
 	subscribers subscribers
 
-	clients *clientsPool
+	syncClients *clientsPool
 }
 
 func (m *manager) run() error {
