@@ -66,7 +66,7 @@ func dedupe(ids []uuid.UUID) (deduped []uuid.UUID) {
 	for i := range ids {
 		uniqueMap[ids[i]] = true
 	}
-	for key, _ := range uniqueMap {
+	for key := range uniqueMap {
 		deduped = append(deduped, key)
 	}
 	return
