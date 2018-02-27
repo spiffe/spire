@@ -38,7 +38,7 @@ func New(c *Config) (Manager, error) {
 	}
 
 	m := &manager{
-		cache: cache.New(c.Log),
+		cache: cache.New(c.Log, c.Bundle),
 		c:     c,
 		t:     new(tomb.Tomb),
 		mtx:   new(sync.RWMutex),
@@ -52,8 +52,6 @@ func New(c *Config) (Manager, error) {
 		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
-
-		clients: &clientsPool{},
 	}
 
 	err = m.newClient([]string{m.spiffeID, m.serverSPIFFEID}, m.svid, m.svidKey)

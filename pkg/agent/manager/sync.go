@@ -142,20 +142,9 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 				m.newClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
 			}
 			m.cache.SetEntry(ce)
-			sids := m.subscribers.Get(ce.RegistrationEntry.Selectors)
-			for _, id := range sids {
-				sub := m.subscribers.sidMap[id]
-				go m.notifySubscriber(sub)
-			}
 			m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", ce.RegistrationEntry.SpiffeId)
 		}
 	}
-}
-
-func (m *manager) notifySubscriber(sub *subscriber) {
-	cacheEntries := m.MatchingEntries(sub.sel)
-	sub.c <- &workloadUpdate{cacheEntries: cacheEntries, bundle: m.bundle}
-
 }
 
 func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {

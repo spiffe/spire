@@ -25,8 +25,9 @@ type Manager interface {
 	// for a particular set of selectors.
 	Subscribe(key cache.Selectors, done chan struct{}) chan *cache.Entry
 
-	// MatchingEntries takes a slice of selectors, and works through all the combinations in order to
-	// find matching cache entries.
+	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
+	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
+	// selectors are included in the set of selectors passed as parameter.
 	MatchingEntries(selectors []*common.Selector) []cache.Entry
 
 	// Stopped returns a channel on which the receiver can block until it
@@ -48,6 +49,8 @@ func (m *manager) Start() error {
 		if err != nil {
 			m.c.Log.Warning(err)
 		}
+		m.clients.close()
+		m.closeSubs()
 		m.stopped <- err
 		close(m.stopped)
 	}()
@@ -58,30 +61,24 @@ func (m *manager) Shutdown() {
 	m.shutdown(nil)
 }
 
-func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan *workloadUpdate {
+func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan *cache.WorkloadUpdate {
 	// creates a subscriber
 	// adds it to the manager
 	// returns the added subscriber channel
-	sub := &subscriber{
-		c:    make(chan *workloadUpdate),
-		sel:  selectors,
-		done: done,
-	}
+	sub, err := cache.NewSubscriber(selectors, done)
+	if err != nil {
+		m.c.Log.Warning(err)
 
-	if err := m.subscribers.Add(sub); err != nil {
-		m.c.Log.Error(err)
-		return nil
 	}
+	m.cache.Subscribe(sub)
 
-	return sub.c
+	return sub.C
 }
 
-// MatchingEntries takes a slice of selectors, and works through all the combinations
-// in order to find matching cache entries.
 func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []cache.Entry) {
 	for entry := range m.cache.Entries() {
-		regEntrySelectors := selector.NewSet(entry.RegistrationEntry.Selectors)
-		if selector.NewSet(selectors).IncludesSet(regEntrySelectors) {
+		regEntrySelectors := selector.NewSetFromRaw(entry.RegistrationEntry.Selectors)
+		if selector.NewSetFromRaw(selectors).IncludesSet(regEntrySelectors) {
 			entries = append(entries, entries[0])
 		}
 	}
@@ -90,4 +87,8 @@ func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []cache
 
 func (m *manager) Stopped() chan error {
 	return m.stopped
+}
+
+func (m *manager) closeSubs() {
+
 }

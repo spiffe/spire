@@ -33,8 +33,6 @@ type manager struct {
 	svidCachePath   string
 	bundleCachePath string
 
-	subscribers subscribers
-
 	clients *clientsPool
 }
 
