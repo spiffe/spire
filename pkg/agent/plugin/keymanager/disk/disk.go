@@ -23,12 +23,12 @@ type pluginConfig struct {
 	Directory string `hcl:"directory" json:"directory"`
 }
 
-type DiskPlugin struct {
+type diskPlugin struct {
 	mtx *sync.RWMutex
 	dir string
 }
 
-func (d *DiskPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
+func (d *diskPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
 	d.mtx.RLock()
 	if d.dir == "" {
 		d.mtx.RUnlock()
@@ -62,7 +62,7 @@ func (d *DiskPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (*keyma
 	return resp, nil
 }
 
-func (d *DiskPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
+func (d *diskPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
 	// Start with empty response
 	resp := &keymanager.FetchPrivateKeyResponse{[]byte{}}
 
@@ -88,7 +88,7 @@ func (d *DiskPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*keyma
 	return resp, nil
 }
 
-func (d *DiskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (d *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config := &pluginConfig{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
@@ -105,12 +105,12 @@ func (d *DiskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespons
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (d *DiskPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (d *diskPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func New() *DiskPlugin {
-	return &DiskPlugin{
+func New() *diskPlugin {
+	return &diskPlugin{
 		mtx: new(sync.RWMutex),
 	}
 }
