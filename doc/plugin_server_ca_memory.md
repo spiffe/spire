@@ -1,9 +1,7 @@
-# Server plugin: ca-memory
+# Server plugin: ControlPlaneCA "memory"
 
-The `ca-memory` plugin is responsible for processing CSR requests from Agents if the Server is
-configured to carry an intermediate signing certificate. This plugin is also responsible for
-generating the CSR necessary for an intermediate signing cert, as well as storing the key in memory
-or hardware.
+The `memory` plugin implements an in-memory signing authority. No keys are persisted to disk, and
+if the server is restarted, a new signing authority is generated against the upstream CA.
 
 | Configuration | Description                                    |
 | ------------- | ---------------------------------------------- |
