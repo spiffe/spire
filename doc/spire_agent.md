@@ -44,10 +44,12 @@ The following configuration options are available to configure a plugin:
 
 | Configuration   | Description                              |
 | --------------- | ---------------------------------------- |
-| plugin_cmd      | Path to the plugin implementation binary |
-| plugin_checksum | An optional sha256 of the plugin binary  |
+| plugin_cmd      | Path to the plugin implementation binary (optional, not needed for built-ins) |
+| plugin_checksum | An optional sha256 of the plugin binary  (optional, not needed for built-ins) |
 | enabled         | Enable or disable the plugin             |
 | plugin_data     | Plugin-specific data                     |
+
+Please see the [built-in plugins](#built-in-plugins) section below for information on plugins that are available out-of-the-box.
 
 ## Command line options
 
@@ -68,14 +70,23 @@ communicates with spire-server via the Node API.
 
 ![spire agent architecture](images/SPIRE_agent.png)
 
-## Available plugins
+## Plugin types
 
-| Type             | Name                                                                            | Description |
-| ---------------- | ------------------------------------------------------------------------------- | ----------- |
-| KeyManager       | [keymanager-memory](/doc/plugin_agent_keymanager_memory.md)                     |             |
-| NodeAttestor     | [nodeattestor-jointoken](/doc/plugin_agent_nodeattestor_jointoken.md)           |             |
-| WorkloadAttestor | [workloadattestor-secretfile](/doc/plugin_agent_workloadattestor_secretfile.md) |             |
-| WorkloadAttestor | [workloadattestor-unix](/doc/plugin_agent_workloadattestor_unix.md)             |             |
+| Type             | Description |
+| ---------------- | ----------- |
+| KeyManager       | Generates and stores the agent's private key. Useful for binding keys to hardware, etc. |
+| NodeAttestor     | Gathers information used to attest the agent's identity to the server. Generally paired with a server plugin of the same type. |
+| WorkloadAttestor | Introspects a workload to determine its properties, generating a set of selectors associated with it. |
+
+## Built-in plugins
+
+| Type             | Name | Description |
+| ---------------- | ---- | ----------- |
+| KeyManager       | [memory](/doc/plugin_agent_keymanager_memory.md) | An in-memory key manager which does not persist private keys (must re-attest after restarts) |
+| KeyManager       | [disk](/doc/plugin_agent_keymanager_disk.md) | A key manager which writes the private key to disk |
+| NodeAttestor     | [join_token](/doc/plugin_agent_nodeattestor_jointoken.md) | A node attestor which uses a server-generated join token |
+| WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md) | A workload attestor which generates unix-based selectors like `uid` and `gid` |
+| WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md) | A workload attestor which generates k8s-based selectors like `ns` and `sa` |
 
 ## Further reading
 
