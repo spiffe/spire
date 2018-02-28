@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -21,7 +20,10 @@ import (
 func (m *manager) synchronize() (err error) {
 	var regEntries map[string]*proto.RegistrationEntry
 
-	regEntries, _ = m.fetchUpdates(m.spiffeID, nil)
+	regEntries, _, err = m.fetchUpdates(m.spiffeID, nil)
+	if err != nil {
+		return err
+	}
 
 	entryRequests, err := m.checkExpiredCacheEntries()
 	if err != nil {
@@ -35,7 +37,10 @@ func (m *manager) synchronize() (err error) {
 			return err
 		}
 
-		regEntries = m.processEntryRequests(entryRequests)
+		regEntries, err = m.processEntryRequests(entryRequests)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -53,11 +58,11 @@ type entryRequest struct {
 // created for it.
 type entryRequests map[string][]*entryRequest
 
-func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (regEntries map[string]*common.RegistrationEntry, svids map[string]*node.Svid) {
-	regEntries = map[string]*common.RegistrationEntry{}
-	svids = map[string]*node.Svid{}
-	// TODO: handle error when no client was found.
+func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.Svid, error) {
 	client := m.syncClients.get(spiffeID)
+	if client == nil {
+		return nil, nil, fmt.Errorf("No client found for %s", spiffeID)
+	}
 
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	csrs := [][]byte{}
@@ -67,79 +72,62 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 		}
 	}
 
-	err := client.stream.Send(&node.FetchSVIDRequest{Csrs: csrs})
+	update, err := client.sendAndReceive(&node.FetchSVIDRequest{Csrs: csrs})
 	if err != nil {
-		// TODO: should we try to create a new stream?
-		m.shutdown(err)
-		return
+		return nil, nil, err
 	}
 
-	var lastBundle []byte
-	for {
-		resp, err := client.stream.Recv()
-		if err == io.EOF {
-			break
-		}
+	if update.lastBundle != nil {
+		bundle, err := x509.ParseCertificates(update.lastBundle)
 		if err != nil {
-			// TODO: should we try to create a new stream?
-			m.shutdown(err)
-			return nil, nil
-		}
-
-		for _, re := range resp.SvidUpdate.RegistrationEntries {
-			regEntryKey := util.DeriveRegEntryhash(re)
-			regEntries[regEntryKey] = re
-		}
-		for spiffeid, svid := range resp.SvidUpdate.Svids {
-			svids[spiffeid] = svid
-		}
-		lastBundle = resp.SvidUpdate.Bundle
-	}
-
-	if lastBundle != nil {
-		bundle, err := x509.ParseCertificates(lastBundle)
-		if err != nil {
-			m.shutdown(err)
-			return nil, nil
+			return nil, nil, err
 		}
 		m.setBundle(bundle)
 	}
 
-	return
+	return update.regEntries, update.svids, nil
 }
 
-func (m *manager) processEntryRequests(entryRequests entryRequests) (regEntries map[string]*common.RegistrationEntry) {
-	regEntries = map[string]*common.RegistrationEntry{}
+func (m *manager) processEntryRequests(entryRequests entryRequests) (map[string]*common.RegistrationEntry, error) {
+	regEntries := map[string]*common.RegistrationEntry{}
 	if len(entryRequests) == 0 {
-		return
+		return regEntries, nil
 	}
 
 	for parentID, entryRequestsList := range entryRequests {
-		re, svids := m.fetchUpdates(parentID, entryRequestsList)
-		m.updateEntriesSVIDs(entryRequestsList, svids)
+		re, svids, err := m.fetchUpdates(parentID, entryRequestsList)
+		if err != nil {
+			return nil, err
+		}
+		err = m.updateEntriesSVIDs(entryRequestsList, svids)
+		if err != nil {
+			return nil, err
+		}
 		// Collect registrations entries.
 		for k, e := range re {
 			regEntries[k] = e
 		}
 	}
-	return
+	return regEntries, nil
 }
 
-func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids map[string]*node.Svid) {
+func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids map[string]*node.Svid) error {
 	for _, entryRequest := range entryRequestsList {
 		ce := entryRequest.entry
 		svid, ok := svids[ce.RegistrationEntry.SpiffeId]
 		if ok {
 			cert, err := x509.ParseCertificate(svid.SvidCert)
 			if err != nil {
-				m.shutdown(err)
-				return
+				return err
 			}
 			// Complete the pre-built cache entry with the SVID and put it on the cache.
 			ce.SVID = cert
 			if m.isAgentAlias(ce.RegistrationEntry) {
 				ce.IsAgentAlias = true
-				m.newSyncClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
+				err := m.newSyncClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
+				if err != nil {
+					return err
+				}
 			}
 			m.cache.SetEntry(ce)
 			sids := m.subscribers.Get(ce.RegistrationEntry.Selectors)
@@ -150,6 +138,7 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 			m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", ce.RegistrationEntry.SpiffeId)
 		}
 	}
+	return nil
 }
 
 func (m *manager) notifySubscriber(sub *subscriber) {
@@ -196,7 +185,6 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 
 			privateKey, csr, err := m.newCSR(regEntry.SpiffeId)
 			if err != nil {
-				//m.shutdown(err)
 				return nil, err
 			}
 
@@ -231,21 +219,16 @@ func (m *manager) rotateSVID() error {
 		client := m.getRotationClient()
 
 		m.c.Log.Debug("Sending CSR")
-		err = client.stream.Send(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
-		if err != nil {
-			//client.reconnect()
-			return err
-		}
 
-		resp, err := client.stream.Recv()
-		if err == io.EOF {
-			return errors.New("FetchSVID stream was empty while trying to rotate BaseSVID")
-		}
+		update, err := client.sendAndReceive(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
 		if err != nil {
 			return err
 		}
+		if len(update.svids) == 0 {
+			return errors.New("No SVID received when rotating BaseSVID")
+		}
 
-		svid, ok := resp.SvidUpdate.Svids[m.spiffeID]
+		svid, ok := update.svids[m.spiffeID]
 		if !ok {
 			return errors.New("It was not possible to get base SVID from FetchSVID response")
 		}

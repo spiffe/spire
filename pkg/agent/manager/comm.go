@@ -5,7 +5,11 @@ import (
 	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/common"
+	"io"
 	"sync"
+	"time"
 
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/proto/api/node"
@@ -20,7 +24,8 @@ type client struct {
 }
 
 type clientsPool struct {
-	// Map of client connections to the server keyed by SPIFFEID.
+	// Map of client connections to the server keyed by SPIFFEID (there is a special case
+	// where the key is a string that identifies the client used for SVID rotation).
 	clients map[string]*client
 	// Protects access to the pool.
 	m *sync.Mutex
@@ -38,11 +43,31 @@ func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*g
 	tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
 	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 
-	conn, err := grpc.Dial(m.serverAddr.String(), dialCreds)
+	// We don't need cancel, so discard it.
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second) // TODO: Make this timeout configurable?
+	conn, err := grpc.DialContext(ctx, m.serverAddr.String(), dialCreds)
 	if err != nil {
 		return nil, err
 	}
 	return conn, nil
+}
+
+// newClient creates a client.
+func (m *manager) newClient(svid *x509.Certificate, key *ecdsa.PrivateKey) (*client, error) {
+	conn, err := m.newGRPCConn(svid, key)
+	if err != nil {
+		return nil, err
+	}
+
+	nodeClient := node.NewNodeClient(conn)
+
+	stream, err := nodeClient.FetchSVID(context.Background())
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	return &client{conn: conn, stream: stream}, nil
 }
 
 // newClient adds a new client to the pool and associates it to the specified list of spiffeIDs.
@@ -64,24 +89,6 @@ func (m *manager) newSyncClient(spiffeIDs []string, svid *x509.Certificate, key 
 	}
 
 	return nil
-}
-
-// newClient creates a client.
-func (m *manager) newClient(svid *x509.Certificate, key *ecdsa.PrivateKey) (*client, error) {
-	conn, err := m.newGRPCConn(svid, key)
-	if err != nil {
-		return nil, err
-	}
-
-	nodeClient := node.NewNodeClient(conn)
-
-	stream, err := nodeClient.FetchSVID(context.TODO())
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
-
-	return &client{conn: conn, stream: stream}, nil
 }
 
 func (p *clientsPool) add(spiffeID string, client *client) {
@@ -127,4 +134,44 @@ func (p *clientsPool) close() {
 func (c *client) close() {
 	c.stream.CloseSend()
 	c.conn.Close()
+}
+
+type update struct {
+	regEntries map[string]*common.RegistrationEntry
+	svids      map[string]*node.Svid
+	lastBundle []byte
+}
+
+func (c *client) sendAndReceive(req *node.FetchSVIDRequest) (*update, error) {
+	err := c.stream.Send(req)
+	if err != nil {
+		// TODO: should we try to create a new stream?
+		//m.shutdown(err)
+		return nil, err
+	}
+
+	regEntries := map[string]*common.RegistrationEntry{}
+	svids := map[string]*node.Svid{}
+	var lastBundle []byte
+	for {
+		resp, err := c.stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			// TODO: should we try to create a new stream?
+			//m.shutdown(err)
+			return nil, err
+		}
+
+		for _, re := range resp.SvidUpdate.RegistrationEntries {
+			regEntryKey := util.DeriveRegEntryhash(re)
+			regEntries[regEntryKey] = re
+		}
+		for spiffeid, svid := range resp.SvidUpdate.Svids {
+			svids[spiffeid] = svid
+		}
+		lastBundle = resp.SvidUpdate.Bundle
+	}
+	return &update{regEntries, svids, lastBundle}, nil
 }
