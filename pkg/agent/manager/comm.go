@@ -19,8 +19,10 @@ import (
 )
 
 type client struct {
-	conn   *grpc.ClientConn
-	stream node.Node_FetchSVIDClient
+	// Channel used to as a requests pipeline.
+	requests   chan *node.FetchSVIDRequest
+	conn       *grpc.ClientConn
+	nodeClient node.NodeClient
 }
 
 type clientsPool struct {
@@ -58,16 +60,9 @@ func (m *manager) newClient(svid *x509.Certificate, key *ecdsa.PrivateKey) (*cli
 	if err != nil {
 		return nil, err
 	}
-
 	nodeClient := node.NewNodeClient(conn)
 
-	stream, err := nodeClient.FetchSVID(context.Background())
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
-
-	return &client{conn: conn, stream: stream}, nil
+	return &client{requests: make(chan *node.FetchSVIDRequest), conn: conn, nodeClient: nodeClient}, nil
 }
 
 // newClient adds a new client to the pool and associates it to the specified list of spiffeIDs.
@@ -132,7 +127,6 @@ func (p *clientsPool) close() {
 }
 
 func (c *client) close() {
-	c.stream.CloseSend()
 	c.conn.Close()
 }
 
@@ -142,25 +136,50 @@ type update struct {
 	lastBundle []byte
 }
 
-func (c *client) sendAndReceive(req *node.FetchSVIDRequest) (*update, error) {
-	err := c.stream.Send(req)
+func (c *client) sendAndReceive(r *node.FetchSVIDRequest) (*update, error) {
+	// Enable pipelined access by client to this function.
+	go func() {
+		c.requests <- r
+	}()
+	req := <-c.requests
+
+	var stream node.Node_FetchSVIDClient
+	var err error
+	// Create a new stream, we retry some times because under certain conditions
+	// the stream cannot be created because it throws an "all SubConns are in TransientFailure"
+	// which can be recovered retrying. Some times it is not possible to avoid that error,
+	// which could be because the server is down, or because there are some problem with the
+	// connection's mTLS configuration.
+	for retries := 0; retries < 5; retries++ {
+		stream, err = c.nodeClient.FetchSVID(context.Background())
+		if err == nil {
+			break
+		}
+	}
+	// We weren't able to get a stream...close the client and return the error.
+	if err != nil {
+		c.close()
+		return nil, err
+	}
+	// Send the request to the server using the stream.
+	err = stream.Send(req)
+	// Close the stream whether there was an error or not
+	stream.CloseSend()
 	if err != nil {
 		// TODO: should we try to create a new stream?
-		//m.shutdown(err)
 		return nil, err
 	}
 
 	regEntries := map[string]*common.RegistrationEntry{}
 	svids := map[string]*node.Svid{}
 	var lastBundle []byte
+	// Read all the server responses from the stream.
 	for {
-		resp, err := c.stream.Recv()
+		resp, err := stream.Recv()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			// TODO: should we try to create a new stream?
-			//m.shutdown(err)
 			return nil, err
 		}
 
