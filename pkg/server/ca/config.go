@@ -24,6 +24,7 @@ func New(c *Config) *manager {
 		t:   new(tomb.Tomb),
 		mtx: new(sync.RWMutex),
 
-		pruneTicker: time.NewTicker(6 * time.Hour),
+		rotateTicker: time.NewTicker(30 * time.Minute),
+		pruneTicker:  time.NewTicker(6 * time.Hour),
 	}
 }
