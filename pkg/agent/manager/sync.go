@@ -25,22 +25,23 @@ func (m *manager) synchronize() (err error) {
 		return err
 	}
 
-	entryRequests, err := m.checkExpiredCacheEntries()
+	cEntryRequests, err := m.checkExpiredCacheEntries()
 	if err != nil {
 		return err
 	}
 
 	// While there are registration entries to process...
-	for len(regEntries) > 0 {
-		entryRequests, err := m.checkForNewCacheEntries(regEntries, entryRequests)
+	for len(regEntries) > 0 || len(cEntryRequests) > 0 {
+		cEntryRequests, err := m.checkForNewCacheEntries(regEntries, cEntryRequests)
 		if err != nil {
 			return err
 		}
 
-		regEntries, err = m.processEntryRequests(entryRequests)
+		regEntries, err = m.processEntryRequests(cEntryRequests)
 		if err != nil {
 			return err
 		}
+		cEntryRequests = entryRequests{}
 	}
 
 	return nil
