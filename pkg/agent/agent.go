@@ -117,7 +117,6 @@ func (a *Agent) startPlugins() error {
 
 // loadBundle tries to recover a cached bundle from previous executions, and falls back
 // to the configured trust bundle if an updated bundle isn't found.
-// TODO: Actually check for cached bundle
 func (a *Agent) loadBundle() ([]*x509.Certificate, error) {
 	bundle, err := manager.ReadBundle(a.bundleCachePath())
 	if err == manager.ErrNotCached {
