@@ -163,13 +163,16 @@ func (h *Handler) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
 			return fmt.Errorf("Error retreiving bundle")
 		}
 
-		server.Send(&node.FetchSVIDResponse{
+		err = server.Send(&node.FetchSVIDResponse{
 			SvidUpdate: &node.SvidUpdate{
 				Svids:               svids,
 				Bundle:              bundle,
 				RegistrationEntries: regEntries,
 			},
 		})
+		if err != nil {
+			h.Log.Errorf("Error sending FetchSVIDResponse: %v", err)
+		}
 	}
 }
 
