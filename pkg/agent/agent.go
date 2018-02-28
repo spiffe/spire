@@ -221,12 +221,14 @@ func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bund
 	}
 
 	mgrConfig := &manager.Config{
-		SVID:        svid,
-		SVIDKey:     key,
-		Bundle:      bundle,
-		TrustDomain: a.c.TrustDomain,
-		ServerAddr:  a.c.ServerAddress,
-		Log:         a.c.Log,
+		SVID:            svid,
+		SVIDKey:         key,
+		Bundle:          bundle,
+		TrustDomain:     a.c.TrustDomain,
+		ServerAddr:      a.c.ServerAddress,
+		Log:             a.c.Log,
+		BundleCachePath: a.bundleCachePath(),
+		SVIDCachePath:   a.agentSVIDPath(),
 	}
 
 	mgr, err := manager.New(mgrConfig)
