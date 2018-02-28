@@ -43,10 +43,11 @@ func New(c *Config) (Manager, error) {
 	}
 
 	m := &manager{
-		cache: cache.New(c.Log),
-		c:     c,
-		t:     new(tomb.Tomb),
-		mtx:   new(sync.RWMutex),
+		cache:   cache.New(c.Log),
+		c:       c,
+		t:       new(tomb.Tomb),
+		mtx:     new(sync.RWMutex),
+		stopped: make(chan struct{}),
 
 		// Copy SVID into the manager to facilitate rotation
 		svid:            c.SVID,

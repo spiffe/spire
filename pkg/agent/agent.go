@@ -86,8 +86,10 @@ func (a *Agent) run() error {
 	select {
 	case <-a.t.Dying():
 	case <-a.Manager.Stopped():
+		if a.Manager.Err() != nil {
+			// TODO: Should we try to restart manager here?
+		}
 		a.mtx.Lock()
-		// TODO: Should we try to restart manager here?
 		a.Manager = nil
 		a.mtx.Unlock()
 	}

@@ -18,7 +18,7 @@ type Manager interface {
 	// Start starts the manager. It blocks until fully initialized.
 	Start() error
 
-	// Shutdown stops the manager.
+	// Shutdown blocks until the manager stops.
 	Shutdown()
 
 	// Subscribe returns a channel on which cache entry updates are sent
@@ -30,9 +30,13 @@ type Manager interface {
 	// selectors are included in the set of selectors passed as parameter.
 	MatchingEntries(selectors []*common.Selector) []cache.Entry
 
-	// Stopped returns a channel on which the receiver can block until it
-	// get the reason of why the manager stopped running.
-	Stopped() chan error
+	// Stopped returns a channel on which the receiver can block until
+	// the manager stops running.
+	Stopped() chan struct{}
+
+	// Err returns the reason why the manager stopped running. If this returns
+	// nil, then the manager was stopped externally by calling its Shutdown() method.
+	Err() error
 }
 
 func (m *manager) Start() error {
@@ -45,12 +49,13 @@ func (m *manager) Start() error {
 
 	go func() {
 		err := m.t.Wait()
-		m.c.Log.Info("Cache Manager Stopped")
-		if err != nil {
-			m.c.Log.Warning(err)
-		}
 		m.syncClients.close()
-		m.stopped <- err
+		if err != nil {
+			m.err = err
+			m.c.Log.Errorf("Cache Manager crashed: %v", err)
+		} else {
+			m.c.Log.Info("Cache Manager stopped gracefully")
+		}
 		close(m.stopped)
 	}()
 	return nil
@@ -58,6 +63,7 @@ func (m *manager) Start() error {
 
 func (m *manager) Shutdown() {
 	m.shutdown(nil)
+	<-m.stopped
 }
 
 func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan *workloadUpdate {
@@ -88,6 +94,10 @@ func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []cache
 	return entries
 }
 
-func (m *manager) Stopped() chan error {
+func (m *manager) Stopped() chan struct{} {
 	return m.stopped
+}
+
+func (m *manager) Err() error {
+	return m.err
 }

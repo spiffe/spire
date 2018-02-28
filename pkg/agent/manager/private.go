@@ -18,7 +18,8 @@ type manager struct {
 	t     *tomb.Tomb
 	cache cache.Cache
 
-	stopped chan error
+	stopped chan struct{}
+	err     error
 
 	// Fields protected by mtx mutex.
 	mtx     *sync.RWMutex
