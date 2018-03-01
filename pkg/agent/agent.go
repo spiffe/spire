@@ -81,13 +81,19 @@ func (a *Agent) run() error {
 	}
 
 	a.t.Go(func() error { return a.startEndpoints(bundle) })
+	a.t.Go(a.superviseManager)
+	return nil
+}
 
+func (a *Agent) superviseManager() error {
 	// Wait until the agent's tomb is dying or the manager stopped working.
 	select {
 	case <-a.t.Dying():
 	case <-a.Manager.Stopped():
+		if a.Manager.Err() != nil {
+			// TODO: Should we try to restart manager here?
+		}
 		a.mtx.Lock()
-		// TODO: Should we try to restart manager here?
 		a.Manager = nil
 		a.mtx.Unlock()
 	}
@@ -115,7 +121,6 @@ func (a *Agent) startPlugins() error {
 
 // loadBundle tries to recover a cached bundle from previous executions, and falls back
 // to the configured trust bundle if an updated bundle isn't found.
-// TODO: Actually check for cached bundle
 func (a *Agent) loadBundle() ([]*x509.Certificate, error) {
 	bundle, err := manager.ReadBundle(a.bundleCachePath())
 	if err == manager.ErrNotCached {
@@ -200,7 +205,7 @@ func (a *Agent) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x50
 		Csr:          csr,
 	}
 	resp, err := c.FetchBaseSVID(context.TODO(), req)
-	fmt.Println(resp)
+
 	if err != nil {
 		return nil, nil, fmt.Errorf("attesting to SPIRE server: %v", err)
 	}
@@ -222,12 +227,14 @@ func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bund
 	}
 
 	mgrConfig := &manager.Config{
-		SVID:        svid,
-		SVIDKey:     key,
-		Bundle:      bundle,
-		TrustDomain: a.c.TrustDomain,
-		ServerAddr:  a.c.ServerAddress,
-		Log:         a.c.Log,
+		SVID:            svid,
+		SVIDKey:         key,
+		Bundle:          bundle,
+		TrustDomain:     a.c.TrustDomain,
+		ServerAddr:      a.c.ServerAddress,
+		Log:             a.c.Log,
+		BundleCachePath: a.bundleCachePath(),
+		SVIDCachePath:   a.agentSVIDPath(),
 	}
 
 	mgr, err := manager.New(mgrConfig)

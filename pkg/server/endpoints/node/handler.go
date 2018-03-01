@@ -37,7 +37,7 @@ type Handler struct {
 func (h *Handler) FetchBaseSVID(
 	ctx context.Context, request *node.FetchBaseSVIDRequest) (
 	response *node.FetchBaseSVIDResponse, err error) {
-	h.Log.Println("In FetchBaseSVID")
+
 	serverCA := h.Catalog.CAs()[0]
 
 	baseSpiffeIDFromCSR, err := getSpiffeIDFromCSR(request.Csr)
@@ -116,8 +116,6 @@ func (h *Handler) FetchBaseSVID(
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
 func (h *Handler) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
-	h.Log.Println("In FetchSVID")
-
 	for {
 		request, err := server.Recv()
 		if err == io.EOF {
@@ -164,13 +162,16 @@ func (h *Handler) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
 			return fmt.Errorf("Error retreiving bundle")
 		}
 
-		server.Send(&node.FetchSVIDResponse{
+		err = server.Send(&node.FetchSVIDResponse{
 			SvidUpdate: &node.SvidUpdate{
 				Svids:               svids,
 				Bundle:              bundle,
 				RegistrationEntries: regEntries,
 			},
 		})
+		if err != nil {
+			h.Log.Errorf("Error sending FetchSVIDResponse: %v", err)
+		}
 	}
 }
 

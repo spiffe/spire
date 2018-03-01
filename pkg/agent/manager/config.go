@@ -3,6 +3,7 @@ package manager
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
+	"fmt"
 	"net"
 	"net/url"
 	"sync"
@@ -38,14 +39,15 @@ func New(c *Config) (Manager, error) {
 
 	spiffeID, err := getSpiffeIDFromSVID(c.SVID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot get spiffe id from SVID: %v", err)
 	}
 
 	m := &manager{
-		cache: cache.New(c.Log, c.Bundle),
-		c:     c,
-		t:     new(tomb.Tomb),
-		mtx:   new(sync.RWMutex),
+		cache:   cache.New(c.Log, c.Bundle),
+		c:       c,
+		t:       new(tomb.Tomb),
+		mtx:     new(sync.RWMutex),
+		stopped: make(chan struct{}),
 
 		// Copy SVID into the manager to facilitate rotation
 		svid:            c.SVID,
@@ -60,12 +62,12 @@ func New(c *Config) (Manager, error) {
 
 	err = m.newSyncClient([]string{m.spiffeID, m.serverSPIFFEID}, m.svid, m.svidKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot create sync client: %v", err)
 	}
 
 	err = m.newSyncClient([]string{rotatorTag}, m.svid, m.svidKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot create rotator client: %v", err)
 	}
 
 	return m, nil

@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -19,23 +18,34 @@ import (
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
 func (m *manager) synchronize() (err error) {
+	m.c.Log.Debug("synchronize started")
+	defer m.c.Log.Debug("synchronize finished")
+
 	var regEntries map[string]*proto.RegistrationEntry
+	var cEntryRequests entryRequests
 
-	regEntries, _ = m.fetchUpdates(m.spiffeID, nil)
+	regEntries, _, err = m.fetchUpdates(m.spiffeID, nil)
+	if err != nil {
+		return err
+	}
 
-	entryRequests, err := m.checkExpiredCacheEntries()
+	cEntryRequests, err = m.checkExpiredCacheEntries()
 	if err != nil {
 		return err
 	}
 
 	// While there are registration entries to process...
-	for len(regEntries) > 0 {
-		entryRequests, err := m.checkForNewCacheEntries(regEntries, entryRequests)
+	for len(regEntries) > 0 || len(cEntryRequests) > 0 {
+		cEntryRequests, err = m.checkForNewCacheEntries(regEntries, cEntryRequests)
 		if err != nil {
 			return err
 		}
 
-		regEntries = m.processEntryRequests(entryRequests)
+		regEntries, err = m.processEntryRequests(cEntryRequests)
+		if err != nil {
+			return err
+		}
+		cEntryRequests = entryRequests{}
 	}
 
 	return nil
@@ -53,11 +63,14 @@ type entryRequest struct {
 // created for it.
 type entryRequests map[string][]*entryRequest
 
-func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (regEntries map[string]*common.RegistrationEntry, svids map[string]*node.Svid) {
-	regEntries = map[string]*common.RegistrationEntry{}
-	svids = map[string]*node.Svid{}
-	// TODO: handle error when no client was found.
+func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.Svid, error) {
+	m.c.Log.Debugf("fetchUpdates started spiffeID: %s", spiffeID)
+	defer m.c.Log.Debug("fetchUpdates finished")
+
 	client := m.syncClients.get(spiffeID)
+	if client == nil {
+		return nil, nil, fmt.Errorf("No client found for %s", spiffeID)
+	}
 
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	csrs := [][]byte{}
@@ -67,87 +80,79 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 		}
 	}
 
-	err := client.stream.Send(&node.FetchSVIDRequest{Csrs: csrs})
-	if err != nil {
-		// TODO: should we try to create a new stream?
-		m.shutdown(err)
-		return
+	update, err := client.sendAndReceive(&node.FetchSVIDRequest{Csrs: csrs})
+	if err != nil && err != ErrPartialResponse {
+		return nil, nil, err
 	}
 
-	var lastBundle []byte
-	for {
-		resp, err := client.stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			// TODO: should we try to create a new stream?
-			m.shutdown(err)
-			return nil, nil
-		}
+	m.c.Log.Debugf("update received: %s", update)
 
-		for _, re := range resp.SvidUpdate.RegistrationEntries {
-			regEntryKey := util.DeriveRegEntryhash(re)
-			regEntries[regEntryKey] = re
-		}
-		for spiffeid, svid := range resp.SvidUpdate.Svids {
-			svids[spiffeid] = svid
-		}
-		lastBundle = resp.SvidUpdate.Bundle
-	}
-
-	if lastBundle != nil {
-		bundle, err := x509.ParseCertificates(lastBundle)
+	if update.lastBundle != nil {
+		bundle, err := x509.ParseCertificates(update.lastBundle)
 		if err != nil {
-			m.shutdown(err)
-			return nil, nil
+			return nil, nil, err
 		}
 		m.setBundle(bundle)
 	}
 
-	return
+	return update.regEntries, update.svids, nil
 }
 
-func (m *manager) processEntryRequests(entryRequests entryRequests) (regEntries map[string]*common.RegistrationEntry) {
-	regEntries = map[string]*common.RegistrationEntry{}
+func (m *manager) processEntryRequests(entryRequests entryRequests) (map[string]*common.RegistrationEntry, error) {
+	m.c.Log.Debug("processEntryRequests started")
+	defer m.c.Log.Debug("processEntryRequests finished")
+
+	regEntries := map[string]*common.RegistrationEntry{}
 	if len(entryRequests) == 0 {
-		return
+		return regEntries, nil
 	}
 
 	for parentID, entryRequestsList := range entryRequests {
-		re, svids := m.fetchUpdates(parentID, entryRequestsList)
-		m.updateEntriesSVIDs(entryRequestsList, svids)
+		re, svids, err := m.fetchUpdates(parentID, entryRequestsList)
+		if err != nil {
+			return nil, err
+		}
+		err = m.updateEntriesSVIDs(entryRequestsList, svids)
+		if err != nil {
+			return nil, err
+		}
 		// Collect registrations entries.
 		for k, e := range re {
 			regEntries[k] = e
 		}
 	}
-	return
+	return regEntries, nil
 }
 
-func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids map[string]*node.Svid) {
+func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids map[string]*node.Svid) error {
 	for _, entryRequest := range entryRequestsList {
 		ce := entryRequest.entry
 		svid, ok := svids[ce.RegistrationEntry.SpiffeId]
 		if ok {
 			cert, err := x509.ParseCertificate(svid.SvidCert)
 			if err != nil {
-				m.shutdown(err)
-				return
+				return err
 			}
 			// Complete the pre-built cache entry with the SVID and put it on the cache.
 			ce.SVID = cert
 			if m.isAgentAlias(ce.RegistrationEntry) {
 				ce.IsAgentAlias = true
-				m.newSyncClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
+				err := m.newSyncClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
+				if err != nil {
+					return err
+				}
 			}
 			m.cache.SetEntry(ce)
 			m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", ce.RegistrationEntry.SpiffeId)
 		}
 	}
+	return nil
 }
 
 func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
+	m.c.Log.Debug("checkExpiredCacheEntries started")
+	defer m.c.Log.Debug("checkExpiredCacheEntries finished")
+
 	entryRequests := entryRequests{}
 	for entry := range m.cache.Entries() {
 		ttl := entry.SVID.NotAfter.Sub(time.Now())
@@ -179,13 +184,15 @@ func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
 }
 
 func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.RegistrationEntry, entryRequests entryRequests) (entryRequests, error) {
+	m.c.Log.Debug("checkForNewCacheEntries started")
+	defer m.c.Log.Debug("checkForNewCacheEntries finished")
+
 	for _, regEntry := range regEntries {
 		if !m.isAlreadyCached(regEntry) {
 			m.c.Log.Debugf("Generating CSR for spiffeId: %s  parentId: %s", regEntry.SpiffeId, regEntry.ParentId)
 
 			privateKey, csr, err := m.newCSR(regEntry.SpiffeId)
 			if err != nil {
-				//m.shutdown(err)
 				return nil, err
 			}
 
@@ -198,6 +205,8 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 			}
 			parentID := regEntry.ParentId
 			entryRequests[parentID] = append(entryRequests[parentID], &entryRequest{csr, cacheEntry})
+		} else {
+			m.c.Log.Debugf("cache hit for spiffeId: %s, parentId: %s, selectors: %v", regEntry.SpiffeId, regEntry.ParentId, regEntry.Selectors)
 		}
 	}
 
@@ -205,6 +214,9 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 }
 
 func (m *manager) rotateSVID() error {
+	m.c.Log.Debug("rotateSVID started")
+	defer m.c.Log.Debug("rotateSVID finished")
+
 	svid, _ := m.getBaseSVIDEntry()
 	ttl := svid.NotAfter.Sub(time.Now())
 	lifetime := svid.NotAfter.Sub(svid.NotBefore)
@@ -220,21 +232,17 @@ func (m *manager) rotateSVID() error {
 		client := m.getRotationClient()
 
 		m.c.Log.Debug("Sending CSR")
-		err = client.stream.Send(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
-		if err != nil {
-			//client.reconnect()
+
+		update, err := client.sendAndReceive(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
+		if err != nil && err != ErrPartialResponse {
 			return err
 		}
 
-		resp, err := client.stream.Recv()
-		if err == io.EOF {
-			return errors.New("FetchSVID stream was empty while trying to rotate BaseSVID")
-		}
-		if err != nil {
-			return err
+		if len(update.svids) == 0 {
+			return errors.New("No SVID received when rotating BaseSVID")
 		}
 
-		svid, ok := resp.SvidUpdate.Svids[m.spiffeID]
+		svid, ok := update.svids[m.spiffeID]
 		if !ok {
 			return errors.New("It was not possible to get base SVID from FetchSVID response")
 		}
