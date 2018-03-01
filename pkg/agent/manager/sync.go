@@ -22,20 +22,21 @@ func (m *manager) synchronize() (err error) {
 	defer m.c.Log.Debug("synchronize finished")
 
 	var regEntries map[string]*proto.RegistrationEntry
+	var cEntryRequests entryRequests
 
 	regEntries, _, err = m.fetchUpdates(m.spiffeID, nil)
 	if err != nil {
 		return err
 	}
 
-	cEntryRequests, err := m.checkExpiredCacheEntries()
+	cEntryRequests, err = m.checkExpiredCacheEntries()
 	if err != nil {
 		return err
 	}
 
 	// While there are registration entries to process...
 	for len(regEntries) > 0 || len(cEntryRequests) > 0 {
-		cEntryRequests, err := m.checkForNewCacheEntries(regEntries, cEntryRequests)
+		cEntryRequests, err = m.checkForNewCacheEntries(regEntries, cEntryRequests)
 		if err != nil {
 			return err
 		}
@@ -63,6 +64,9 @@ type entryRequest struct {
 type entryRequests map[string][]*entryRequest
 
 func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.Svid, error) {
+	m.c.Log.Debugf("fetchUpdates started spiffeID: %s", spiffeID)
+	defer m.c.Log.Debug("fetchUpdates finished")
+
 	client := m.syncClients.get(spiffeID)
 	if client == nil {
 		return nil, nil, fmt.Errorf("No client found for %s", spiffeID)
@@ -81,6 +85,8 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 		return nil, nil, err
 	}
 
+	m.c.Log.Debugf("update received: %s", update)
+
 	if update.lastBundle != nil {
 		bundle, err := x509.ParseCertificates(update.lastBundle)
 		if err != nil {
@@ -93,6 +99,9 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 }
 
 func (m *manager) processEntryRequests(entryRequests entryRequests) (map[string]*common.RegistrationEntry, error) {
+	m.c.Log.Debug("processEntryRequests started")
+	defer m.c.Log.Debug("processEntryRequests finished")
+
 	regEntries := map[string]*common.RegistrationEntry{}
 	if len(entryRequests) == 0 {
 		return regEntries, nil
@@ -141,6 +150,9 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 }
 
 func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
+	m.c.Log.Debug("checkExpiredCacheEntries started")
+	defer m.c.Log.Debug("checkExpiredCacheEntries finished")
+
 	entryRequests := entryRequests{}
 	for entry := range m.cache.Entries() {
 		ttl := entry.SVID.NotAfter.Sub(time.Now())
@@ -172,6 +184,9 @@ func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
 }
 
 func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.RegistrationEntry, entryRequests entryRequests) (entryRequests, error) {
+	m.c.Log.Debug("checkForNewCacheEntries started")
+	defer m.c.Log.Debug("checkForNewCacheEntries finished")
+
 	for _, regEntry := range regEntries {
 		if !m.isAlreadyCached(regEntry) {
 			m.c.Log.Debugf("Generating CSR for spiffeId: %s  parentId: %s", regEntry.SpiffeId, regEntry.ParentId)
@@ -190,6 +205,8 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 			}
 			parentID := regEntry.ParentId
 			entryRequests[parentID] = append(entryRequests[parentID], &entryRequest{csr, cacheEntry})
+		} else {
+			m.c.Log.Debugf("cache hit for spiffeId: %s, parentId: %s, selectors: %v", regEntry.SpiffeId, regEntry.ParentId, regEntry.Selectors)
 		}
 	}
 
