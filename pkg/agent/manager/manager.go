@@ -24,7 +24,7 @@ type Manager interface {
 
 	// Subscribe returns a channel on which cache entry updates are sent
 	// for a particular set of selectors.
-	Subscribe(key cache.Selectors, done chan struct{}) chan *workloadUpdate
+	Subscribe(key cache.Selectors, done chan struct{}) chan *cache.WorkloadUpdate
 
 	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
@@ -67,29 +67,25 @@ func (m *manager) Shutdown() {
 	<-m.stopped
 }
 
-func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan *workloadUpdate {
+func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan *cache.WorkloadUpdate {
 	// creates a subscriber
 	// adds it to the manager
 	// returns the added subscriber channel
-	sub := &subscriber{
-		c:    make(chan *workloadUpdate),
-		sel:  selectors,
-		done: done,
-	}
+	sub, err := cache.NewSubscriber(selectors, done)
+	if err != nil {
+		m.c.Log.Warning(err)
 
-	if err := m.subscribers.Add(sub); err != nil {
-		m.c.Log.Error(err)
-		return nil
 	}
+	m.cache.Subscribe(sub)
 
-	return sub.c
+	return sub.C
 }
 
 func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []cache.Entry) {
 	for entry := range m.cache.Entries() {
 		regEntrySelectors := selector.NewSetFromRaw(entry.RegistrationEntry.Selectors)
 		if selector.NewSetFromRaw(selectors).IncludesSet(regEntrySelectors) {
-			entries = append(entries, entries[0])
+			entries = append(entries, entry)
 		}
 	}
 	return entries

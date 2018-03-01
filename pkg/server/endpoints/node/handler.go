@@ -116,7 +116,6 @@ func (h *Handler) FetchBaseSVID(
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
 func (h *Handler) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
-
 	for {
 		request, err := server.Recv()
 		if err == io.EOF {

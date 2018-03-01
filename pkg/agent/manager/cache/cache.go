@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 )
@@ -40,22 +41,39 @@ type Cache interface {
 	Entries() chan Entry
 	// IsEmpty returns true if this cache doesn't have any entry.
 	IsEmpty() bool
+	// Register a Subscriber and return WorkloadUpdate on the subscriber's channel
+	Subscribe(sub *Subscriber)
 }
 
 type cacheImpl struct {
 	// Map keyed by a combination of SpiffeId + ParentId + Selectors holding a list of
 	// Entry instances ordered by SVID expiration date.
-	cache map[string][]Entry
-	log   logrus.FieldLogger
-	m     sync.Mutex
+	cache       map[string][]Entry
+	log         logrus.FieldLogger
+	m           sync.Mutex
+	Subscribers subscribers
+	bundle      []*x509.Certificate
 }
 
 // New creates a new Cache.
-func New(log logrus.FieldLogger) Cache {
+func New(log logrus.FieldLogger, bundle []*x509.Certificate) Cache {
 	return &cacheImpl{
-		cache: make(map[string][]Entry),
-		log:   log.WithField("subsystem_name", "cache"),
+		cache:  make(map[string][]Entry),
+		log:    log.WithField("subsystem_name", "cache"),
+		bundle: bundle,
 	}
+}
+
+func (c *cacheImpl) SetServerBundle(bundle []*x509.Certificate) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.bundle = bundle
+}
+
+func (c *cacheImpl) serverBundle() []*x509.Certificate {
+	c.m.Lock()
+	defer c.m.Unlock()
+	return c.bundle
 }
 
 func (c *cacheImpl) Entries() chan Entry {
@@ -71,6 +89,20 @@ func (c *cacheImpl) Entries() chan Entry {
 	return entries
 }
 
+func (c *cacheImpl) Subscribe(sub *Subscriber) {
+	entries := c.Entries()
+	c.m.Lock()
+	defer c.m.Unlock()
+	subEntries := SubscriberEntries(sub, entries)
+	select {
+	case <-sub.done:
+		c.Subscribers.remove(sub)
+		close(sub.C)
+	case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
+		c.Subscribers.Add(sub)
+	}
+}
+
 func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
 	key := util.DeriveRegEntryhash(regEntry)
 	c.m.Lock()
@@ -82,12 +114,24 @@ func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
 }
 
 func (c *cacheImpl) SetEntry(entry *Entry) {
+	entries := c.Entries()
 	c.m.Lock()
 	defer c.m.Unlock()
-	key := util.DeriveRegEntryhash(entry.RegistrationEntry)
-	c.cache[key] = append(c.cache[key], *entry)
-	return
+	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
 
+	for _, sub := range subs {
+		subEntries := SubscriberEntries(sub, entries)
+		select {
+		case <-sub.done:
+			c.Subscribers.remove(sub)
+			close(sub.C)
+		case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
+			key := util.DeriveRegEntryhash(entry.RegistrationEntry)
+			c.cache[key] = append(c.cache[key], *entry)
+		}
+	}
+
+	return
 }
 
 func (c *cacheImpl) DeleteEntries(regEntry *common.RegistrationEntry) int {
@@ -121,4 +165,15 @@ func (c *cacheImpl) IsEmpty() bool {
 	c.m.Lock()
 	defer c.m.Unlock()
 	return len(c.cache) == 0
+}
+
+func SubscriberEntries(sub *Subscriber, entryCh chan Entry) (entries []Entry) {
+
+	for e := range entryCh {
+		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
+		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {
+			entries = append(entries, entries[0])
+		}
+	}
+	return
 }
