@@ -81,7 +81,11 @@ func (a *Agent) run() error {
 	}
 
 	a.t.Go(func() error { return a.startEndpoints(bundle) })
+	a.t.Go(a.superviseManager)
+	return nil
+}
 
+func (a *Agent) superviseManager() error {
 	// Wait until the agent's tomb is dying or the manager stopped working.
 	select {
 	case <-a.t.Dying():
