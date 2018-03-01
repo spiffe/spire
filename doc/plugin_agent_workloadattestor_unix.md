@@ -1,6 +1,10 @@
-# Agent plugin: workloadattestor-unix
+# Agent plugin: WorkloadAttestor "unix"
 
-The `workloadattestor-unix` plugin attests a workload based on its PID and the UID associated with
-it.
+The `unix` plugin generates unix-based selectors for workloads calling the agent.
 
 This plugin does not accept any configuration options.
+
+| Selector | Value |
+| -------- | ----- |
+| unix:uid | The user ID of the workload (e.g. `unix:uid:1000`) |
+| unix:gid | The group ID of the workload (e.g. `unix:gid:1000`) |

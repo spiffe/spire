@@ -2,8 +2,10 @@ package ca
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -28,7 +30,8 @@ type manager struct {
 	t   *tomb.Tomb
 	mtx *sync.RWMutex
 
-	caCert *x509.Certificate
+	caCert      *x509.Certificate
+	pruneTicker *time.Ticker
 }
 
 func (m *manager) Start() error {
@@ -37,13 +40,12 @@ func (m *manager) Start() error {
 		return fmt.Errorf("rotate ca cert: %v", err)
 	}
 
+	m.t.Go(m.startPruner)
 	return nil
 }
 
 func (m *manager) Wait() error {
-	// Until we actually need tomb, just wait for dying state
-	<-m.t.Dying()
-	return nil
+	return m.t.Wait()
 }
 
 func (m *manager) Shutdown() {
@@ -98,5 +100,66 @@ func (m *manager) rotateCA() error {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	m.caCert = cert
+	return nil
+}
+
+func (m *manager) startPruner() error {
+	for {
+		select {
+		case <-m.pruneTicker.C:
+			err := m.prune()
+			if err != nil {
+				m.c.Log.Errorf("Could not prune CA certificates: %v", err)
+			}
+		case <-m.t.Dying():
+			return tomb.ErrDying
+		}
+	}
+}
+
+func (m *manager) prune() error {
+	ds := m.c.Catalog.DataStores()[0]
+
+	oldBundle := &datastore.Bundle{TrustDomain: m.c.TrustDomain.String()}
+	oldBundle, err := ds.FetchBundle(oldBundle)
+	if err != nil {
+		return fmt.Errorf("fetch bundle: %v", err)
+	}
+
+	newBundle := &datastore.Bundle{
+		TrustDomain: oldBundle.TrustDomain,
+		CaCerts:     []byte{},
+	}
+
+	certs, err := x509.ParseCertificates(oldBundle.CaCerts)
+	if err != nil {
+		return fmt.Errorf("parse bundle from datastore: %v", err)
+	}
+
+	var reload bool
+	for _, c := range certs {
+		// Be gentle while removing CA certificates
+		// If expired < 24hrs ago, keep it.
+		// TODO: should this be relaxed even further?
+		if c.NotAfter.After(time.Now().Add(-24 * time.Hour)) {
+			newBundle.CaCerts = append(newBundle.CaCerts, c.Raw...)
+		} else {
+			reload = true
+			m.c.Log.Infof("Pruning CA certificate number %v with expiry date %v", c.SerialNumber, c.NotAfter)
+		}
+	}
+
+	if len(newBundle.CaCerts) == 0 {
+		m.c.Log.Warn("All known CA certificates have expired! Pruning has been halted.")
+		return errors.New("would prune all certificates")
+	}
+
+	if reload {
+		_, err = ds.UpdateBundle(newBundle)
+		if err != nil {
+			return fmt.Errorf("write new bundle: %v", err)
+		}
+	}
+
 	return nil
 }

@@ -1,7 +1,6 @@
-# Agent plugin: keymanager-memory
+# Agent plugin: KeyManager "memory"
 
-The `keymanager-memory` plugin is responsible for generating certificates for the Agent and
-Workloads. Certificates contain ECDSA P-521 keys and are stored in memory only - any keys generated
-are lost on restart.
+The `memory` plugin generates an in-memory key pair for the agent's identity. If the agent is restarted,
+the key pair is lost, and node attestation must be re-performed.
 
 This plugin does not accept any configuration options.

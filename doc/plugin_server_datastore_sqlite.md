@@ -1,7 +1,6 @@
-# Server plugin: datastore-sqlite
+# Server plugin: DataStore "sqlite"
 
-The `datastore-sqlite` stores registration entries, selector maps, and attested nodes in a
-SQLite database.
+The `sqlite` plugin implements an SQLite-based storage option for SPIRE server. 
 
 The plugin accepts the following configuration options:
 
