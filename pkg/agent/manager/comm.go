@@ -180,6 +180,11 @@ func (c *client) sendAndReceive(r *node.FetchSVIDRequest) (*update, error) {
 			break
 		}
 		if err != nil {
+			if len(regEntries) > 0 || len(svids) > 0 || lastBundle != nil {
+				// There was an error receiving a response, exit loop to return what we have.
+				return &update{regEntries, svids, lastBundle}, ErrPartialResponse
+			}
+
 			return nil, err
 		}
 

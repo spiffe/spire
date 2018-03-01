@@ -18,6 +18,9 @@ import (
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
 func (m *manager) synchronize() (err error) {
+	m.c.Log.Debug("synchronize started")
+	defer m.c.Log.Debug("synchronize finished")
+
 	var regEntries map[string]*proto.RegistrationEntry
 
 	regEntries, _, err = m.fetchUpdates(m.spiffeID, nil)
@@ -74,7 +77,7 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 	}
 
 	update, err := client.sendAndReceive(&node.FetchSVIDRequest{Csrs: csrs})
-	if err != nil {
+	if err != nil && err != ErrPartialResponse {
 		return nil, nil, err
 	}
 
@@ -205,6 +208,9 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 }
 
 func (m *manager) rotateSVID() error {
+	m.c.Log.Debug("rotateSVID started")
+	defer m.c.Log.Debug("rotateSVID finished")
+
 	svid, _ := m.getBaseSVIDEntry()
 	ttl := svid.NotAfter.Sub(time.Now())
 	lifetime := svid.NotAfter.Sub(svid.NotBefore)
@@ -222,9 +228,10 @@ func (m *manager) rotateSVID() error {
 		m.c.Log.Debug("Sending CSR")
 
 		update, err := client.sendAndReceive(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
-		if err != nil {
+		if err != nil && err != ErrPartialResponse {
 			return err
 		}
+
 		if len(update.svids) == 0 {
 			return errors.New("No SVID received when rotating BaseSVID")
 		}

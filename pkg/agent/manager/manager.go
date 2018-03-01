@@ -10,7 +10,8 @@ import (
 
 // Cache Manager errors
 var (
-	ErrNotCached = errors.New("bundle not cached")
+	ErrNotCached       = errors.New("bundle not cached")
+	ErrPartialResponse = errors.New("partial response received")
 )
 
 // Manager provides cache management functionalities for agents.
