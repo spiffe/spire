@@ -1,10 +1,12 @@
 package manager
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	"io"
@@ -134,6 +136,35 @@ type update struct {
 	regEntries map[string]*common.RegistrationEntry
 	svids      map[string]*node.Svid
 	lastBundle []byte
+}
+
+func (u *update) String() string {
+	var buffer bytes.Buffer
+	buffer.WriteString("{ regEntries: [")
+	for _, re := range u.regEntries {
+		buffer.WriteString("{ spiffeID: ")
+		buffer.WriteString(re.SpiffeId)
+		buffer.WriteString(", parentID: ")
+		buffer.WriteString(re.ParentId)
+		buffer.WriteString(", selectors: ")
+		buffer.WriteString(fmt.Sprintf("%v", re.Selectors))
+		buffer.WriteString("}")
+	}
+	buffer.WriteString("], svids: [")
+	for key, svid := range u.svids {
+		buffer.WriteString(key)
+		buffer.WriteString(": ")
+		buffer.WriteString(svid.String()[:30])
+		buffer.WriteString(" ")
+	}
+	buffer.WriteString("], lastBundle: ")
+	if u.lastBundle != nil && len(u.lastBundle) > 0 {
+		buffer.WriteString("bytes")
+	} else {
+		buffer.WriteString("none")
+	}
+	buffer.WriteString("}")
+	return buffer.String()
 }
 
 func (c *client) sendAndReceive(r *node.FetchSVIDRequest) (*update, error) {
