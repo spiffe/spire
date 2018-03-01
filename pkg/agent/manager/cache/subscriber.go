@@ -4,11 +4,12 @@ import (
 	"crypto/x509"
 	"github.com/satori/go.uuid"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"sync"
 )
 
 type WorkloadUpdate struct {
-	cacheEntries []Entry
-	bundle       []*x509.Certificate
+	Entries []Entry
+	Bundle  []*x509.Certificate
 }
 
 type Subscriber struct {
@@ -38,10 +39,12 @@ func NewSubscriber(selectors Selectors, done chan struct{}) (*Subscriber, error)
 type subscribers struct {
 	selMap map[string][]uuid.UUID // map of selector to UID
 	sidMap map[uuid.UUID]*Subscriber
+	m      *sync.Mutex
 }
 
 func (s *subscribers) Add(sub *Subscriber) error {
-
+	s.m.Lock()
+	defer s.m.Unlock()
 	s.sidMap[sub.sid] = sub
 
 	selSet := selector.NewSetFromRaw(sub.sel)
@@ -62,12 +65,22 @@ func (s *subscribers) Get(sels Selectors) (subs []*Subscriber) {
 	return
 }
 
-func (s *subscribers) Remove(sid uuid.UUID) {
-	s.sidMap[sid].done <- struct{}{}
-	delete(s.sidMap, sid)
+func (s *subscribers) remove(sub *Subscriber) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	delete(s.sidMap, sub.sid)
+	for sel, sids := range s.selMap {
+		for i, uid := range sids {
+			if uid == sub.sid {
+				s.selMap[sel] = append(sids[:i], sids[i+1:]...)
+			}
+
+		}
+	}
 }
 
 func (s *subscribers) getSubIds(sels Selectors) []uuid.UUID {
+
 	subIds := []uuid.UUID{}
 
 	selSet := selector.NewSetFromRaw(sels)
@@ -88,7 +101,7 @@ func dedupe(ids []uuid.UUID) (deduped []uuid.UUID) {
 	for i := range ids {
 		uniqueMap[ids[i]] = true
 	}
-	for key, _ := range uniqueMap {
+	for key := range uniqueMap {
 		deduped = append(deduped, key)
 	}
 	return

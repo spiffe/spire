@@ -90,22 +90,17 @@ func (c *cacheImpl) Entries() chan Entry {
 }
 
 func (c *cacheImpl) Subscribe(sub *Subscriber) {
+	entries := c.Entries()
 	c.m.Lock()
 	defer c.m.Unlock()
-	var entries []Entry
-	for _, e := range c.cache {
-		regEntrySelectors := selector.NewSetFromRaw(e[0].RegistrationEntry.Selectors)
-		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {
-			entries = append(entries, e[0])
-		}
-	}
+	subEntries := SubscriberEntries(sub, entries)
 	select {
-	case sub.C <- &WorkloadUpdate{cacheEntries: entries, bundle: c.bundle}:
-	default:
-		c.log.Warn("Failed to send workload update sid:%v method:subscribe", sub.sid)
-
+	case <-sub.done:
+		c.Subscribers.remove(sub)
+		close(sub.C)
+	case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
+		c.Subscribers.Add(sub)
 	}
-	c.Subscribers.Add(sub)
 }
 
 func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
@@ -119,25 +114,23 @@ func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
 }
 
 func (c *cacheImpl) SetEntry(entry *Entry) {
+	entries := c.Entries()
 	c.m.Lock()
 	defer c.m.Unlock()
 	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
+
 	for _, sub := range subs {
-		var entries []Entry
-		for _, e := range c.cache {
-			regEntrySelectors := selector.NewSetFromRaw(e[0].RegistrationEntry.Selectors)
-			if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {
-				entries = append(entries, e[0])
-			}
-		}
+		subEntries := SubscriberEntries(sub, entries)
 		select {
-		case sub.C <- &WorkloadUpdate{cacheEntries: entries, bundle: c.bundle}:
-		default:
-			c.log.Warn("Failed to send workload update sid:%v method:setentry", sub.sid)
+		case <-sub.done:
+			c.Subscribers.remove(sub)
+			close(sub.C)
+		case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
+			key := util.DeriveRegEntryhash(entry.RegistrationEntry)
+			c.cache[key] = append(c.cache[key], *entry)
 		}
 	}
-	key := util.DeriveRegEntryhash(entry.RegistrationEntry)
-	c.cache[key] = append(c.cache[key], *entry)
+
 	return
 }
 
@@ -172,4 +165,15 @@ func (c *cacheImpl) IsEmpty() bool {
 	c.m.Lock()
 	defer c.m.Unlock()
 	return len(c.cache) == 0
+}
+
+func SubscriberEntries(sub *Subscriber, entryCh chan Entry) (entries []Entry) {
+
+	for e := range entryCh {
+		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
+		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {
+			entries = append(entries, entries[0])
+		}
+	}
+	return
 }

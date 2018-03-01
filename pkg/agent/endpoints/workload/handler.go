@@ -100,7 +100,11 @@ func (h *Handler) fetchAllEntries(ctx context.Context) (entries []cache.Entry, e
 		err = fmt.Errorf("Error encountered while attesting caller: %s", err)
 		return entries, err
 	}
-
+	//done := make(chan struct{})
+	//entriesCh := h.CacheMgr.Subscribe(selectors, done)
+	//for e := range entriesCh {
+	//	entries = append(entries, e.Entries)
+	//}
 	return h.CacheMgr.MatchingEntries(selectors), nil
 }
 

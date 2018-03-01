@@ -33,7 +33,7 @@ type manager struct {
 	svidCachePath   string
 	bundleCachePath string
 
-	clients *clientsPool
+	syncClients *clientsPool
 }
 
 func (m *manager) run() error {
