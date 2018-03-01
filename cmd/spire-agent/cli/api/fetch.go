@@ -10,18 +10,18 @@ import (
 	"net"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/spiffe/spire/proto/api/workload"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 type FetchConfig struct {
 	silent     bool
 	socketPath string
-	spiffeID   string
+	timeout    int
 	writePath  string
 }
 
@@ -52,7 +52,7 @@ func (f *FetchCLI) Run(args []string) int {
 	}
 
 	start := time.Now()
-	bundles, err := f.fetchBundles(context.TODO(), client)
+	resp, err := f.fetchX509SVID(client)
 	respTime := time.Now().Sub(start)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -60,11 +60,11 @@ func (f *FetchCLI) Run(args []string) int {
 	}
 
 	if !f.config.silent {
-		f.printBundles(bundles, respTime)
+		f.printResponse(resp, respTime)
 	}
 
 	if f.config.writePath != "" {
-		err = f.writeBundles(bundles)
+		err = f.writeResponse(resp)
 		if err != nil {
 			fmt.Println(err.Error())
 			return 1
@@ -78,7 +78,7 @@ func (f *FetchCLI) parseConfig(args []string) error {
 	fs := flag.NewFlagSet("fetch", flag.ContinueOnError)
 	c := &FetchConfig{}
 	fs.BoolVar(&c.silent, "silent", false, "Suppress stdout")
-	fs.StringVar(&c.spiffeID, "spiffeID", "", "Retrieve only a specific SPIFFE ID (optional)")
+	fs.IntVar(&c.timeout, "timeout", 1, "Number of seconds to wait for a response")
 	fs.StringVar(&c.socketPath, "socketPath", "/tmp/agent.sock", "Path to the Workload API socket")
 	fs.StringVar(&c.writePath, "write", "", "Write SVID data to the specified path (optional)")
 
@@ -86,68 +86,55 @@ func (f *FetchCLI) parseConfig(args []string) error {
 	return fs.Parse(args)
 }
 
-func (f *FetchCLI) fetchBundles(ctx context.Context, c workload.WorkloadClient) (*workload.Bundles, error) {
-	var resp *workload.Bundles
-	var err error
+func (f *FetchCLI) fetchX509SVID(c workload.SpiffeWorkloadAPIClient) (*workload.X509SVIDResponse, error) {
+	timeout := time.Duration(f.config.timeout) * time.Second
+	header := metadata.Pairs("workload.spiffe.io", "true")
 
-	if f.config.spiffeID == "" {
-		resp, err = c.FetchAllBundles(ctx, &workload.Empty{})
-	} else {
-		id := &workload.SpiffeID{Id: f.config.spiffeID}
-		resp, err = c.FetchBundles(ctx, id)
-	}
+	ctx := context.Background()
+	ctx = metadata.NewOutgoingContext(ctx, header)
+	ctx, _ = context.WithTimeout(ctx, timeout)
 
+	stream, err := c.FetchX509SVID(ctx, &workload.X509SVIDRequest{})
 	if err != nil {
-		return &workload.Bundles{}, err
+		return nil, err
 	}
 
-	return resp, nil
+	return stream.Recv()
 }
 
-func (f FetchCLI) printBundles(bundles *workload.Bundles, respTime time.Duration) {
-	lenMsg := fmt.Sprintf("Fetched %v bundle", len(bundles.Bundles))
-	if len(bundles.Bundles) != 1 {
+func (f FetchCLI) printResponse(resp *workload.X509SVIDResponse, respTime time.Duration) {
+	lenMsg := fmt.Sprintf("Fetched %v bundle", len(resp.Svids))
+	if len(resp.Svids) != 1 {
 		lenMsg = lenMsg + "s"
 	}
 	lenMsg = lenMsg + fmt.Sprintf(" in %s", respTime)
 
-	ttlMsg := fmt.Sprintf("Check back in %v second", bundles.Ttl)
-	if bundles.Ttl != 1 {
-		ttlMsg = ttlMsg + "s"
-	}
-
 	fmt.Println(lenMsg)
-	fmt.Println(ttlMsg)
-	for _, b := range bundles.Bundles {
+	for _, s := range resp.Svids {
 		fmt.Println()
-		f.printBundle(b)
+		f.printSVID(s)
 	}
 
 	fmt.Println()
 }
 
-func (f FetchCLI) printBundle(bundle *workload.WorkloadEntry) {
+func (f FetchCLI) printSVID(msg *workload.X509SVID) {
 	// Print SPIFFE ID first so if we run into a problem, we
 	// get to know which record it was
-	fmt.Printf("SPIFFE ID:\t\t%s\n", bundle.SpiffeId)
+	fmt.Printf("SPIFFE ID:\t\t%s\n", msg.SpiffeId)
 
 	// Parse SVID and CA bundle. If we encounter an error,
 	// simply print it and return so we can go to the next bundle
-	svid, err := x509.ParseCertificate(bundle.Svid)
+	svid, err := x509.ParseCertificate(msg.X509Svid)
 	if err != nil {
 		fmt.Printf("ERROR: Could not parse SVID: %s\n", err)
 		return
 	}
 
-	svidBundle, err := x509.ParseCertificates(bundle.SvidBundle)
+	svidBundle, err := x509.ParseCertificates(msg.Bundle)
 	if err != nil {
 		fmt.Printf("ERROR: Could not parse CA Certificates: %s\n", err)
 		return
-	}
-
-	var federatedBundleIDs []string
-	for id := range bundle.FederatedBundles {
-		federatedBundleIDs = append(federatedBundleIDs, id)
 	}
 
 	fmt.Printf("SVID Valid After:\t%v\n", svid.NotBefore)
@@ -157,47 +144,27 @@ func (f FetchCLI) printBundle(bundle *workload.WorkloadEntry) {
 		fmt.Printf("CA #%v Valid After:\t%v\n", num, ca.NotBefore)
 		fmt.Printf("CA #%v Valid Until:\t%v\n", num, ca.NotAfter)
 	}
-
-	if len(federatedBundleIDs) > 0 {
-		idList := strings.Join(federatedBundleIDs, ", ")
-		fmt.Printf("Federated with: %v", idList)
-	}
 }
 
-func (f FetchCLI) writeBundles(bundles *workload.Bundles) error {
-	for i, bundle := range bundles.Bundles {
+func (f FetchCLI) writeResponse(resp *workload.X509SVIDResponse) error {
+	for i, svid := range resp.Svids {
 		svidName := fmt.Sprintf("svid.%v.pem", i)
 		keyName := fmt.Sprintf("svid.%v.key", i)
 		bundleName := fmt.Sprintf("bundle.%v.pem", i)
-		fBundleName := fmt.Sprintf("federated_bundle.%v.pem", i)
 
-		err := f.writeCerts(svidName, bundle.Svid)
+		err := f.writeCerts(svidName, svid.X509Svid)
 		if err != nil {
 			return err
 		}
 
-		err = f.writeKey(keyName, bundle.SvidPrivateKey)
+		err = f.writeKey(keyName, svid.X509SvidKey)
 		if err != nil {
 			return err
 		}
 
-		err = f.writeCerts(bundleName, bundle.SvidBundle)
+		err = f.writeCerts(bundleName, svid.Bundle)
 		if err != nil {
 			return err
-		}
-
-		// Collapse federated bundles
-		// TODO: Validate SPIFFE ID of CA certs against the
-		// ID returned from the workload API
-		fBundles := []byte{}
-		for _, b := range bundle.FederatedBundles {
-			fBundles = append(fBundles, b...)
-		}
-		if len(fBundles) > 0 {
-			err = f.writeCerts(fBundleName, fBundles)
-			if err != nil {
-				return err
-			}
 		}
 	}
 
@@ -241,14 +208,14 @@ func (f FetchCLI) writeFile(filename string, data []byte) error {
 	return ioutil.WriteFile(p, data, os.ModePerm)
 }
 
-func (f FetchCLI) dial() (workload.WorkloadClient, error) {
+func (f FetchCLI) dial() (workload.SpiffeWorkloadAPIClient, error) {
 	// Workload API is unauthenticated
 	conn, err := grpc.Dial(f.config.socketPath, grpc.WithInsecure(), grpc.WithDialer(f.dialer))
 	if err != nil {
 		return nil, err
 	}
 
-	return workload.NewWorkloadClient(conn), nil
+	return workload.NewSpiffeWorkloadAPIClient(conn), nil
 }
 
 // dialer gets passed to grpc and serves as the mechanism for

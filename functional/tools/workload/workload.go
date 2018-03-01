@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -17,13 +17,13 @@ const cacheBusyRetrySeconds = 10
 
 // Workload is the component that consumes Workload API and renews certs
 type Workload struct {
-	workloadClient        workload.WorkloadClient
+	workloadClient        workload.SpiffeWorkloadAPIClient
 	workloadClientContext context.Context
 	timeout               int
 }
 
 // NewWorkload creates a new workload
-func NewWorkload(workloadClientContext context.Context, workloadClient workload.WorkloadClient, timeout int) *Workload {
+func NewWorkload(workloadClientContext context.Context, workloadClient workload.SpiffeWorkloadAPIClient, timeout int) *Workload {
 	return &Workload{
 		workloadClientContext: workloadClientContext,
 		workloadClient:        workloadClient,
@@ -32,6 +32,7 @@ func NewWorkload(workloadClientContext context.Context, workloadClient workload.
 }
 
 // RunDaemon starts the main loop
+// TODO: consume go-spiffe
 func (w *Workload) RunDaemon() error {
 	// Create channel for interrupt signal
 	interrupt := make(chan os.Signal, 1)
@@ -40,32 +41,34 @@ func (w *Workload) RunDaemon() error {
 	// Create timer for timeout
 	timeoutTimer := time.NewTimer(time.Second * time.Duration(w.timeout))
 
+	stream, err := w.workloadClient.FetchX509SVID(context.TODO(), &workload.X509SVIDRequest{})
+	if err != nil {
+		return err
+	}
+
 	// Main loop
 	for {
-		var timer *time.Timer
-
-		// Fetch certificates
-		ttl, err := w.fetchBundles()
-		if err != nil {
-			// TODO: improve cache busy detection logic
-			if !strings.Contains(err.Error(), "busy") {
-				return err
+		respChan := make(chan *workload.X509SVIDResponse)
+		errChan := make(chan error)
+		go func() {
+			resp, err := stream.Recv()
+			if err != nil {
+				errChan <- err
+				return
 			}
 
-			// Create timer for retry
-			timer = time.NewTimer(time.Second * time.Duration(cacheBusyRetrySeconds))
-			log("Cache busy. Will wait for %d seconds\n", cacheBusyRetrySeconds)
-		} else {
-			// Create timer for TTL
-			timer = time.NewTimer(time.Second * time.Duration(ttl))
-			log("Will wait for TTL (%d seconds)\n", ttl)
-		}
+			respChan <- resp
+			return
+		}()
 
-		// Wait for either timer or interrupt signal
 		select {
-		case <-timer.C:
-			log("Time is up!\n")
-			// Continue
+		case resp := <-respChan:
+			err = w.validate(resp)
+			if err != nil {
+				return err
+			}
+		case err := <-errChan:
+			return err
 		case <-timeoutTimer.C:
 			log("Global timeout! Will exit.\n")
 			return nil
@@ -76,19 +79,38 @@ func (w *Workload) RunDaemon() error {
 	}
 }
 
-func (w *Workload) fetchBundles() (ttl int32, err error) {
-	bundles, err := w.workloadClient.FetchAllBundles(w.workloadClientContext, &workload.Empty{})
-	if err != nil {
-		return
+func (w *Workload) validate(resp *workload.X509SVIDResponse) error {
+	if len(resp.Svids) == 0 {
+		return errors.New("Fetched zero bundles")
 	}
 
-	if len(bundles.Bundles) == 0 {
-		err = errors.New("Fetched zero bundles")
-		return
+	for _, svid := range resp.Svids {
+		cert, err := x509.ParseCertificate(svid.X509Svid)
+		if err != nil {
+			return err
+		}
+
+		bundle, err := x509.ParseCertificates(svid.Bundle)
+		if err != nil {
+			return err
+		}
+
+		pool := x509.NewCertPool()
+		for _, c := range bundle {
+			pool.AddCert(c)
+		}
+
+		verifyOpts := x509.VerifyOptions{
+			Roots: pool,
+		}
+
+		_, err = cert.Verify(verifyOpts)
+		if err != nil {
+			return err
+		}
 	}
 
-	ttl = bundles.Ttl
-	return
+	return nil
 }
 
 func log(format string, a ...interface{}) {
