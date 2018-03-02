@@ -22,8 +22,7 @@ type Entry struct {
 	// Bundles stores the ID => Bundle map for
 	// federated bundles. The registration entry
 	// only stores references to the keys here.
-	Bundles      map[string][]byte
-	IsAgentAlias bool
+	Bundles map[string][]byte
 }
 
 type Cache interface {
