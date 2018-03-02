@@ -23,29 +23,30 @@ func (m *manager) synchronize() (err error) {
 
 	var regEntries map[string]*proto.RegistrationEntry
 	var cEntryRequests entryRequests
-
-	regEntries, _, err = m.fetchUpdates(m.spiffeID, nil)
-	if err != nil {
-		return err
-	}
-
-	cEntryRequests, err = m.checkExpiredCacheEntries()
-	if err != nil {
-		return err
-	}
-
-	// While there are registration entries or cache entries to process...
-	for len(regEntries) > 0 || len(cEntryRequests) > 0 {
-		cEntryRequests, err = m.checkForNewCacheEntries(regEntries, cEntryRequests)
+	for spiffeId, _ := range m.syncClients.clients {
+		regEntries, _, err = m.fetchUpdates(spiffeId, nil)
 		if err != nil {
 			return err
 		}
 
-		regEntries, err = m.processEntryRequests(cEntryRequests)
+		cEntryRequests, err = m.checkExpiredCacheEntries()
 		if err != nil {
 			return err
 		}
-		cEntryRequests = entryRequests{}
+
+		// While there are registration entries or cache entries to process...
+		for len(regEntries) > 0 || len(cEntryRequests) > 0 {
+			cEntryRequests, err = m.checkForNewCacheEntries(regEntries, cEntryRequests)
+			if err != nil {
+				return err
+			}
+
+			regEntries, err = m.processEntryRequests(cEntryRequests)
+			if err != nil {
+				return err
+			}
+			cEntryRequests = entryRequests{}
+		}
 	}
 
 	return nil

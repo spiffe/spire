@@ -131,7 +131,6 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 		case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
 		}
 	}
-
 	return
 }
 
