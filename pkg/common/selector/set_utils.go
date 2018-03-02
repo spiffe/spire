@@ -53,7 +53,11 @@ func IncludesSet(s1, s2 *set) bool {
 	}
 
 	for key2, sel2 := range *s2 {
-		if *sel2 != *(*s1)[key2] {
+		if sel1, found := (*s1)[key2]; found {
+			if *sel2 != *sel1 {
+				return false
+			}
+		} else {
 			return false
 		}
 	}
