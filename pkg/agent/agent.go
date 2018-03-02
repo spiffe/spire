@@ -85,20 +85,18 @@ func (a *Agent) run() error {
 	return nil
 }
 
-func (a *Agent) superviseManager() error {
+func (a *Agent) superviseManager() (err error) {
 	// Wait until the agent's tomb is dying or the manager stopped working.
 	select {
 	case <-a.t.Dying():
 	case <-a.Manager.Stopped():
-		if a.Manager.Err() != nil {
-			// TODO: Should we try to restart manager here?
-		}
+		err = a.Manager.Err()
 		a.mtx.Lock()
 		a.Manager = nil
 		a.mtx.Unlock()
 	}
 	a.shutdown()
-	return nil
+	return err
 }
 
 func (a *Agent) shutdown() {
