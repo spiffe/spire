@@ -18,8 +18,9 @@ import (
 
 // Cache Manager errors
 var (
-	ErrNotCached       = errors.New("bundle not cached")
-	ErrPartialResponse = errors.New("partial response received")
+	ErrNotCached         = errors.New("bundle not cached")
+	ErrPartialResponse   = errors.New("partial response received")
+	ErrUnableToGetStream = errors.New("unable to get a stream")
 )
 
 // Manager provides cache management functionalities for agents.
@@ -146,7 +147,7 @@ func (m *manager) synchronizer() error {
 			err := m.synchronize(m.spiffeID)
 			if err != nil {
 				// Just log the error to keep waiting for next sinchronization...
-				m.c.Log.Errorf("synchronize failed for %s", m.spiffeID)
+				m.c.Log.Errorf("synchronize failed for %s: %v", m.spiffeID, err)
 			}
 		case <-m.t.Dying():
 			return nil

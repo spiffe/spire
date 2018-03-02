@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	"io"
@@ -21,6 +22,7 @@ import (
 )
 
 type client struct {
+	log logrus.FieldLogger
 	// Channel used to as a requests pipeline.
 	requests   chan *node.FetchSVIDRequest
 	conn       *grpc.ClientConn
@@ -64,7 +66,7 @@ func (m *manager) newClient(svid *x509.Certificate, key *ecdsa.PrivateKey) (*cli
 	}
 	nodeClient := node.NewNodeClient(conn)
 
-	return &client{requests: make(chan *node.FetchSVIDRequest), conn: conn, nodeClient: nodeClient}, nil
+	return &client{log: m.c.Log, requests: make(chan *node.FetchSVIDRequest), conn: conn, nodeClient: nodeClient}, nil
 }
 
 // newClient adds a new client to the pool and associates it to the specified list of spiffeIDs.
@@ -186,11 +188,13 @@ func (c *client) sendAndReceive(r *node.FetchSVIDRequest) (*update, error) {
 		if err == nil {
 			break
 		}
+		c.log.Errorf("failed to get stream: %v. try number: %d", err, retries)
 	}
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
 		c.close()
-		return nil, err
+		c.log.Errorf("%v: %v", ErrUnableToGetStream, err)
+		return nil, ErrUnableToGetStream
 	}
 	// Send the request to the server using the stream.
 	err = stream.Send(req)
