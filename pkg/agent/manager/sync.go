@@ -34,7 +34,7 @@ func (m *manager) synchronize() (err error) {
 		return err
 	}
 
-	// While there are registration entries to process...
+	// While there are registration entries or cache entries to process...
 	for len(regEntries) > 0 || len(cEntryRequests) > 0 {
 		cEntryRequests, err = m.checkForNewCacheEntries(regEntries, cEntryRequests)
 		if err != nil {
@@ -64,7 +64,7 @@ type entryRequest struct {
 type entryRequests map[string][]*entryRequest
 
 func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.Svid, error) {
-	m.c.Log.Debugf("fetchUpdates started spiffeID: %s", spiffeID)
+	m.c.Log.Debugf("fetchUpdates started using SVID and key for spiffeID: %s", spiffeID)
 	defer m.c.Log.Debug("fetchUpdates finished")
 
 	client := m.syncClients.get(spiffeID)
@@ -136,6 +136,8 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 			// Complete the pre-built cache entry with the SVID and put it on the cache.
 			ce.SVID = cert
 			if m.isAgentAlias(ce.RegistrationEntry) {
+				m.c.Log.Debugf("agent alias detected: %s", ce.RegistrationEntry.SpiffeId)
+
 				ce.IsAgentAlias = true
 				err := m.newSyncClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
 				if err != nil {
