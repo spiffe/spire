@@ -117,8 +117,11 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 	entries := c.Entries()
 	c.m.Lock()
 	defer c.m.Unlock()
-	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
 
+	key := util.DeriveRegEntryhash(entry.RegistrationEntry)
+	c.cache[key] = append(c.cache[key], *entry)
+
+	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
 	for _, sub := range subs {
 		subEntries := SubscriberEntries(sub, entries)
 		select {
@@ -126,8 +129,6 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 			c.Subscribers.remove(sub)
 			close(sub.C)
 		case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
-			key := util.DeriveRegEntryhash(entry.RegistrationEntry)
-			c.cache[key] = append(c.cache[key], *entry)
 		}
 	}
 
