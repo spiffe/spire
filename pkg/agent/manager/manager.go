@@ -72,7 +72,7 @@ type manager struct {
 }
 
 func (m *manager) Start() error {
-	err := m.synchronize()
+	err := m.synchronize(m.spiffeID)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (m *manager) synchronizer() error {
 	for {
 		select {
 		case <-t.C:
-			err := m.synchronize()
+			err := m.synchronize(m.spiffeID)
 			if err != nil {
 				return err
 			}

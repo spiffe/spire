@@ -17,36 +17,35 @@ import (
 )
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
-func (m *manager) synchronize() (err error) {
-	m.c.Log.Debug("synchronize started")
+func (m *manager) synchronize(spiffeID string) (err error) {
+	m.c.Log.Debugf("synchronize started for %s", spiffeID)
 	defer m.c.Log.Debug("synchronize finished")
 
 	var regEntries map[string]*proto.RegistrationEntry
 	var cEntryRequests entryRequests
-	for spiffeId, _ := range m.syncClients.clients {
-		regEntries, _, err = m.fetchUpdates(spiffeId, nil)
+
+	regEntries, _, err = m.fetchUpdates(spiffeID, nil)
+	if err != nil {
+		return err
+	}
+
+	cEntryRequests, err = m.checkExpiredCacheEntries()
+	if err != nil {
+		return err
+	}
+
+	// While there are registration entries or cache entries to process...
+	for len(regEntries) > 0 || len(cEntryRequests) > 0 {
+		cEntryRequests, err = m.checkForNewCacheEntries(regEntries, cEntryRequests)
 		if err != nil {
 			return err
 		}
 
-		cEntryRequests, err = m.checkExpiredCacheEntries()
+		regEntries, err = m.processEntryRequests(cEntryRequests)
 		if err != nil {
 			return err
 		}
-
-		// While there are registration entries or cache entries to process...
-		for len(regEntries) > 0 || len(cEntryRequests) > 0 {
-			cEntryRequests, err = m.checkForNewCacheEntries(regEntries, cEntryRequests)
-			if err != nil {
-				return err
-			}
-
-			regEntries, err = m.processEntryRequests(cEntryRequests)
-			if err != nil {
-				return err
-			}
-			cEntryRequests = entryRequests{}
-		}
+		cEntryRequests = entryRequests{}
 	}
 
 	return nil
@@ -138,8 +137,8 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 			ce.SVID = cert
 			if m.isAgentAlias(ce.RegistrationEntry) {
 				m.c.Log.Debugf("agent alias detected: %s", ce.RegistrationEntry.SpiffeId)
-
-				ce.IsAgentAlias = true
+				// Create a new client to be used when checking for new entries on behalf of this
+				// agent's alias.
 				err := m.newSyncClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
 				if err != nil {
 					return err
@@ -210,6 +209,13 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 			entryRequests[parentID] = append(entryRequests[parentID], &entryRequest{csr, cacheEntry})
 		} else {
 			m.c.Log.Debugf("cache hit for spiffeId: %s, parentId: %s, selectors: %v", regEntry.SpiffeId, regEntry.ParentId, regEntry.Selectors)
+			// This entry is a cached agent alias, we must synchronize updates on behalf of it.
+			if m.isAgentAlias(regEntry) {
+				err := m.synchronize(regEntry.SpiffeId)
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 
