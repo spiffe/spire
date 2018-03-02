@@ -115,6 +115,9 @@ func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan 
 func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []cache.Entry) {
 	for entry := range m.cache.Entries() {
 		regEntrySelectors := selector.NewSetFromRaw(entry.RegistrationEntry.Selectors)
+		m.c.Log.Debugf("regSel:%v", regEntrySelectors.String())
+		m.c.Log.Debugf("workloadSel:%v", selector.NewSetFromRaw(selectors).String())
+
 		if selector.NewSetFromRaw(selectors).IncludesSet(regEntrySelectors) {
 			entries = append(entries, entry)
 		}
