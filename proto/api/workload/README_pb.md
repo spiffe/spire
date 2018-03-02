@@ -4,15 +4,14 @@
 ## Table of Contents
 
 - [workload.proto](#workload.proto)
-    - [Bundles](#spire.api.workload.Bundles)
-    - [Empty](#spire.api.workload.Empty)
-    - [SpiffeID](#spire.api.workload.SpiffeID)
-    - [WorkloadEntry](#spire.api.workload.WorkloadEntry)
-    - [WorkloadEntry.FederatedBundlesEntry](#spire.api.workload.WorkloadEntry.FederatedBundlesEntry)
+    - [X509SVID](#.X509SVID)
+    - [X509SVIDRequest](#.X509SVIDRequest)
+    - [X509SVIDResponse](#.X509SVIDResponse)
+    - [X509SVIDResponse.FederatedBundlesEntry](#.X509SVIDResponse.FederatedBundlesEntry)
   
   
   
-    - [Workload](#spire.api.workload.Workload)
+    - [SpiffeWorkloadAPI](#.SpiffeWorkloadAPI)
   
 
 - [Scalar Value Types](#scalar-value-types)
@@ -26,72 +25,57 @@
 
 
 
-<a name="spire.api.workload.Bundles"/>
+<a name=".X509SVID"/>
 
-### Bundles
-The Bundles message carries a group of workload SVIDs and their
-associated information. It also carries a TTL to inform the workload
-when it should check back next.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| bundles | [WorkloadEntry](#spire.api.workload.WorkloadEntry) | repeated |  |
-| ttl | [int32](#int32) |  |  |
-
-
-
-
-
-
-<a name="spire.api.workload.Empty"/>
-
-### Empty
-Represents a message with no fields
-
-
-
-
-
-
-<a name="spire.api.workload.SpiffeID"/>
-
-### SpiffeID
-The SpiffeID message carries only a SPIFFE ID
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| id | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="spire.api.workload.WorkloadEntry"/>
-
-### WorkloadEntry
-The WorkloadEntry message carries a single SVID and all associated
-information, including CA bundles. All `bytes` types are ASN.1 DER encoded
+### X509SVID
+The X509SVID message carries a single SVID and all associated
+information, including CA bundles.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | The SPIFFE ID of the SVID in this entry |
-| svid | [bytes](#bytes) |  | The SVID itself |
-| svid_private_key | [bytes](#bytes) |  | The SVID private key |
-| svid_bundle | [bytes](#bytes) |  | CA certificates belonging to the SVID |
-| federated_bundles | [WorkloadEntry.FederatedBundlesEntry](#spire.api.workload.WorkloadEntry.FederatedBundlesEntry) | repeated | CA certificates that the workload should trust, mapped by the trust domain of the external authority |
+| x509_svid | [bytes](#bytes) |  | ASN.1 DER encoded certificate chain. MAY include intermediates, the leaf certificate (or SVID itself) MUST come first. |
+| x509_svid_key | [bytes](#bytes) |  | ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted. |
+| bundle | [bytes](#bytes) |  | CA certificates belonging to the Trust Domain ASN.1 DER encoded |
 
 
 
 
 
 
-<a name="spire.api.workload.WorkloadEntry.FederatedBundlesEntry"/>
+<a name=".X509SVIDRequest"/>
 
-### WorkloadEntry.FederatedBundlesEntry
+### X509SVIDRequest
+
+
+
+
+
+
+
+<a name=".X509SVIDResponse"/>
+
+### X509SVIDResponse
+The X509SVIDResponse message carries a set of X.509 SVIDs and their
+associated information. It also carries a set of global CRLs, and a
+TTL to inform the workload when it should check back next.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| svids | [.X509SVID](#..X509SVID) | repeated | A list of X509SVID messages, each of which includes a single SPIFFE Verifiable Identity Document, along with its private key and bundle. |
+| crl | [bytes](#bytes) | repeated | ASN.1 DER encoded |
+| federated_bundles | [.X509SVIDResponse.FederatedBundlesEntry](#..X509SVIDResponse.FederatedBundlesEntry) | repeated | CA certificate bundles belonging to foreign Trust Domains that the workload should trust, keyed by the SPIFFE ID of the foreign domain. Bundles are ASN.1 DER encoded. |
+
+
+
+
+
+
+<a name=".X509SVIDResponse.FederatedBundlesEntry"/>
+
+### X509SVIDResponse.FederatedBundlesEntry
 
 
 
@@ -111,15 +95,14 @@ information, including CA bundles. All `bytes` types are ASN.1 DER encoded
  
 
 
-<a name="spire.api.workload.Workload"/>
+<a name=".SpiffeWorkloadAPI"/>
 
-### Workload
+### SpiffeWorkloadAPI
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchBundles | [SpiffeID](#spire.api.workload.SpiffeID) | [Bundles](#spire.api.workload.SpiffeID) | Fetch bundles for the SVID with the given SPIFFE ID |
-| FetchAllBundles | [Empty](#spire.api.workload.Empty) | [Bundles](#spire.api.workload.Empty) | Fetch all bundles the workload is entitled to |
+| FetchX509SVID | [X509SVIDRequest](#X509SVIDRequest) | [X509SVIDResponse](#X509SVIDRequest) | X.509-SVID Profile Fetch all SPIFFE identities the workload is entitled to, as well as related information like trust bundles and CRLs. As this information changes, subsequent messages will be sent. |
 
  
 
