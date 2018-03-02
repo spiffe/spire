@@ -209,7 +209,7 @@ func (h *Handler) composeResponse(entries []cache.Entry) (response *workload.Bun
 		Ttl:     int32(ttl),
 	}
 	if len(bundles) == 0 {
-		err = fmt.Errorf("Cache is busy. Retry later")
+		err = fmt.Errorf("No cache entries found")
 	}
 	return response, err
 }
