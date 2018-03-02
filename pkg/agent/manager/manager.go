@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -83,8 +84,8 @@ func (m *manager) Start() error {
 		err := m.t.Wait()
 		m.syncClients.close()
 		if err != nil {
-			m.err = err
-			m.c.Log.Errorf("Cache Manager crashed: %v", err)
+			m.err = fmt.Errorf("Cache Manager crashed: %v", err)
+			m.c.Log.Error(m.err)
 		} else {
 			m.c.Log.Info("Cache Manager stopped gracefully")
 		}
@@ -138,12 +139,14 @@ func (m *manager) run() error {
 
 func (m *manager) synchronizer() error {
 	t := time.NewTicker(5 * time.Second)
+
 	for {
 		select {
 		case <-t.C:
 			err := m.synchronize(m.spiffeID)
 			if err != nil {
-				return err
+				// Just log the error to keep waiting for next sinchronization...
+				m.c.Log.Errorf("synchronize failed for %s", m.spiffeID)
 			}
 		case <-m.t.Dying():
 			return nil
@@ -160,7 +163,8 @@ func (m *manager) rotator() error {
 		case <-t.C:
 			err := m.rotateSVID()
 			if err != nil {
-				return err
+				// Just log the error to keep waiting for next SVID rotation...
+				m.c.Log.Error("SVID rotation failed")
 			}
 		case <-m.t.Dying():
 			return nil
