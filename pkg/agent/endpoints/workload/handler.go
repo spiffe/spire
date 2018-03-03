@@ -18,6 +18,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 )
 
 // Handler implements the Workload API interface
@@ -28,8 +29,8 @@ type Handler struct {
 }
 
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
-	header, ok := stream.Context().Value("workload.spiffe.io").(string)
-	if !ok || header != "true" {
+	md, ok := metadata.FromIncomingContext(stream.Context())
+	if !ok || len(md["workload.spiffe.io"]) != 1 || md["workload.spiffe.io"][0] != "true" {
 		return grpc.Errorf(codes.InvalidArgument, "Security header missing from request")
 	}
 

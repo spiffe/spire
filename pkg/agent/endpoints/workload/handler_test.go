@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/api/workload"
 	"github.com/spiffe/spire/test/util"
 
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 
 	cc "github.com/spiffe/spire/pkg/common/catalog"
@@ -79,8 +80,9 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	s.Assert().Error(err)
 
 	// Without PID data
+	header := metadata.Pairs("workload.spiffe.io", "true")
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, "workload.spiffe.io", "true")
+	ctx = metadata.NewIncomingContext(ctx, header)
 	s.stream.EXPECT().Context().Return(ctx).Times(2)
 	err = s.h.FetchX509SVID(nil, s.stream)
 	s.Assert().Error(err)
@@ -91,7 +93,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 		},
 	}
 	ctx = peer.NewContext(context.Background(), p)
-	ctx = context.WithValue(ctx, "workload.spiffe.io", "true")
+	ctx = metadata.NewIncomingContext(ctx, header)
 	ctx, cancel := context.WithCancel(ctx)
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
 	subscription := make(chan *cache.WorkloadUpdate)

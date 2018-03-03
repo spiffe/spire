@@ -50,16 +50,17 @@ type cacheImpl struct {
 	cache       map[string][]Entry
 	log         logrus.FieldLogger
 	m           sync.Mutex
-	Subscribers subscribers
+	Subscribers *subscribers
 	bundle      []*x509.Certificate
 }
 
 // New creates a new Cache.
 func New(log logrus.FieldLogger, bundle []*x509.Certificate) Cache {
 	return &cacheImpl{
-		cache:  make(map[string][]Entry),
-		log:    log.WithField("subsystem_name", "cache"),
-		bundle: bundle,
+		cache:       make(map[string][]Entry),
+		log:         log.WithField("subsystem_name", "cache"),
+		bundle:      bundle,
+		Subscribers: NewSubscribers(),
 	}
 }
 
@@ -93,13 +94,16 @@ func (c *cacheImpl) Subscribe(sub *Subscriber) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	subEntries := SubscriberEntries(sub, entries)
-	select {
-	case <-sub.done:
-		c.Subscribers.remove(sub)
-		close(sub.C)
-	case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
-		c.Subscribers.Add(sub)
-	}
+	go func() {
+		select {
+		case <-sub.done:
+			c.Subscribers.remove(sub)
+			close(sub.C)
+		case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
+		}
+	}()
+
+	c.Subscribers.Add(sub)
 }
 
 func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
@@ -171,7 +175,7 @@ func SubscriberEntries(sub *Subscriber, entryCh chan Entry) (entries []Entry) {
 	for e := range entryCh {
 		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
 		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {
-			entries = append(entries, entries[0])
+			entries = append(entries, e)
 		}
 	}
 	return
