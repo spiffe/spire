@@ -5,8 +5,8 @@ import (
 	"net"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/manager"
 
 	tomb "gopkg.in/tomb.v2"
 )
@@ -16,7 +16,7 @@ type Config struct {
 	BindAddr *net.UnixAddr
 
 	Catalog catalog.Catalog
-	Manager cache.Manager
+	Manager manager.Manager
 
 	Log logrus.FieldLogger
 }

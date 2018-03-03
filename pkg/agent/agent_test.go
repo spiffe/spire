@@ -16,8 +16,8 @@ import (
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/test/mock/agent/cache"
 	"github.com/spiffe/spire/test/mock/agent/catalog"
+	"github.com/spiffe/spire/test/mock/agent/manager"
 	"github.com/spiffe/spire/test/mock/proto/agent/keymanager"
 	"github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/test/util"
@@ -35,7 +35,7 @@ type AgentTestSuite struct {
 	catalog    *mock_catalog.MockCatalog
 	attestor   *mock_nodeattestor.MockNodeAttestor
 	keyManager *mock_keymanager.MockKeyManager
-	manager    *mock_cache.MockManager
+	manager    *mock_manager.MockManager
 }
 
 func (s *AgentTestSuite) SetupTest() {
@@ -44,7 +44,7 @@ func (s *AgentTestSuite) SetupTest() {
 	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 	s.attestor = mock_nodeattestor.NewMockNodeAttestor(s.ctrl)
 	s.keyManager = mock_keymanager.NewMockKeyManager(s.ctrl)
-	s.manager = mock_cache.NewMockManager(s.ctrl)
+	s.manager = mock_manager.NewMockManager(s.ctrl)
 
 	addr := &net.UnixAddr{Name: "./spire_api", Net: "unix"}
 	log, _ := test.NewNullLogger()
