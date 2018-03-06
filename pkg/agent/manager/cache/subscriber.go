@@ -39,7 +39,7 @@ func NewSubscriber(selectors Selectors, done chan struct{}) (*Subscriber, error)
 type subscribers struct {
 	selMap map[string][]uuid.UUID // map of selector to UID
 	sidMap map[uuid.UUID]*Subscriber
-	m      *sync.Mutex
+	m      sync.Mutex
 }
 
 func (s *subscribers) Add(sub *Subscriber) error {
@@ -94,6 +94,13 @@ func (s *subscribers) getSubIds(sels Selectors) []uuid.UUID {
 	subIds = dedupe(subIds)
 
 	return subIds
+}
+
+func NewSubscribers() *subscribers {
+	return &subscribers{
+		selMap: make(map[string][]uuid.UUID),
+		sidMap: make(map[uuid.UUID]*Subscriber),
+	}
 }
 
 func dedupe(ids []uuid.UUID) (deduped []uuid.UUID) {
