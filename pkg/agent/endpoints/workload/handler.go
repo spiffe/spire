@@ -8,20 +8,21 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	context "golang.org/x/net/context"
-
 	"github.com/spiffe/spire/pkg/agent/auth"
-	"github.com/spiffe/spire/pkg/agent/cache"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
+
+	context "golang.org/x/net/context"
 )
 
 // Handler implements the Workload API interface
 type Handler struct {
-	CacheMgr cache.Manager
+	CacheMgr manager.Manager
 	Catalog  catalog.Catalog
 	L        logrus.FieldLogger
 
@@ -57,7 +58,7 @@ func (h *Handler) FetchBundles(ctx context.Context, spiffeID *workload.SpiffeID)
 		return nil, err
 	}
 
-	var myEntry *cache.CacheEntry
+	var myEntry *cache.Entry
 	for _, e := range entries {
 		if e.RegistrationEntry.SpiffeId == spiffeID.Id {
 			myEntry = &e
@@ -71,7 +72,7 @@ func (h *Handler) FetchBundles(ctx context.Context, spiffeID *workload.SpiffeID)
 		return &workload.Bundles{}, fmt.Errorf("SVID for %s not found or not authorized", spiffeID.Id)
 	}
 
-	return h.composeResponse([]cache.CacheEntry{*myEntry})
+	return h.composeResponse([]cache.Entry{*myEntry})
 }
 
 func (h *Handler) FetchAllBundles(ctx context.Context, _ *workload.Empty) (*workload.Bundles, error) {
@@ -86,7 +87,7 @@ func (h *Handler) FetchAllBundles(ctx context.Context, _ *workload.Empty) (*work
 // fetchAllEntries ties this whole thing together, and is called by both API endpoints. Given
 // a context, it works out all cache entries to which the workload is entitled. Returns the
 // set of entries, and an error if one is encountered along the way.
-func (h *Handler) fetchAllEntries(ctx context.Context) (entries []cache.CacheEntry, err error) {
+func (h *Handler) fetchAllEntries(ctx context.Context) (entries []cache.Entry, err error) {
 	pid, err := h.resolveCaller(ctx)
 	if err != nil {
 		err = fmt.Errorf("Error encountered while trying to identify the caller: %s", err)
@@ -100,7 +101,7 @@ func (h *Handler) fetchAllEntries(ctx context.Context) (entries []cache.CacheEnt
 		return entries, err
 	}
 
-	return h.CacheMgr.Cache().MatchingEntries(selectors), nil
+	return h.CacheMgr.MatchingEntries(selectors), nil
 }
 
 // resolveCaller takes a grpc context, and returns the PID of the caller which has issued
@@ -171,7 +172,7 @@ func (h *Handler) attestCaller(pid int32) (selectors []*common.Selector, err err
 }
 
 // composeResponse takes a set of cache entries, and packs them into a protobuf response
-func (h *Handler) composeResponse(entries []cache.CacheEntry) (response *workload.Bundles, err error) {
+func (h *Handler) composeResponse(entries []cache.Entry) (response *workload.Bundles, err error) {
 	var certs []*x509.Certificate
 	var bundles []*workload.WorkloadEntry
 
@@ -207,8 +208,8 @@ func (h *Handler) composeResponse(entries []cache.CacheEntry) (response *workloa
 		Bundles: bundles,
 		Ttl:     int32(ttl),
 	}
-	if len(bundles) == 0 && h.CacheMgr.Busy() {
-		err = fmt.Errorf("Cache is busy. Retry later")
+	if len(bundles) == 0 {
+		err = fmt.Errorf("No cache entries found")
 	}
 	return response, err
 }

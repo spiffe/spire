@@ -2,6 +2,7 @@ package util
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"github.com/spiffe/spire/proto/common"
 	"hash"
 	"sort"
@@ -17,5 +18,5 @@ func DeriveRegEntryhash(entry *common.RegistrationEntry) (key string) {
 
 	hashValue := hash.Hash.Sum(sha256.New(), []byte(concatSelectors+entry.SpiffeId+entry.ParentId))
 
-	return string(hashValue)
+	return hex.EncodeToString(hashValue)
 }
