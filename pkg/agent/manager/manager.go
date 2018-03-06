@@ -76,6 +76,7 @@ type manager struct {
 func (m *manager) Start() error {
 	err := m.synchronize(m.spiffeID)
 	if err != nil {
+		m.close(err)
 		return err
 	}
 
@@ -83,16 +84,20 @@ func (m *manager) Start() error {
 
 	go func() {
 		err := m.t.Wait()
-		m.syncClients.close()
-		if err != nil {
-			m.err = fmt.Errorf("Cache Manager crashed: %v", err)
-			m.c.Log.Error(m.err)
-		} else {
-			m.c.Log.Info("Cache Manager stopped gracefully")
-		}
-		close(m.stopped)
+		m.close(err)
 	}()
 	return nil
+}
+
+func (m *manager) close(err error) {
+	m.syncClients.close()
+	if err != nil {
+		m.err = fmt.Errorf("Cache Manager crashed: %v", err)
+		m.c.Log.Error(m.err)
+	} else {
+		m.c.Log.Info("Cache Manager stopped gracefully")
+	}
+	close(m.stopped)
 }
 
 func (m *manager) Shutdown() {
