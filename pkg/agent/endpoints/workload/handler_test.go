@@ -6,14 +6,12 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"errors"
-	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/stretchr/testify/suite"
-
+	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
@@ -22,6 +20,7 @@ import (
 	"github.com/spiffe/spire/test/mock/agent/manager"
 	"github.com/spiffe/spire/test/mock/agent/manager/cache"
 	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
+	"github.com/stretchr/testify/suite"
 )
 
 var (
