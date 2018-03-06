@@ -202,7 +202,6 @@ func (a *Agent) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x50
 		Csr:          csr,
 	}
 	resp, err := c.FetchBaseSVID(context.TODO(), req)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("attesting to SPIRE server: %v", err)
 	}
