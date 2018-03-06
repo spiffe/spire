@@ -51,110 +51,110 @@ var (
 	}
 )
 
-func TestManager_FetchSVID(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var requests []entryRequest
-	requests = append(requests, testEntryRequest)
-	//var wg sync.WaitGroup
-
-	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
-	c := &Config{
-		ServerAddr:  &net.TCPAddr{},
-		SVID:        baseSVID,
-		SVIDKey:     baseSVIDKey,
-		Log:         testLogger,
-		TrustDomain: url.URL{},
-	}
-	m, _ := New(c)
-	stream := nodeMock.NewMockNode_FetchSVIDClient(ctrl)
-	stream.EXPECT().Send(gomock.Any()).Return(nil)
-	stream.EXPECT().Recv().Return(&node.FetchSVIDResponse{SvidUpdate: svidUpdate}, nil)
-	stream.EXPECT().CloseSend().Return(nil)
-	nodeClient := nodeMock.NewMockNodeClient(ctrl)
-	nodeClient.EXPECT().FetchSVID(gomock.Any()).Return(stream, nil)
-
-	m.Start()
-	m.Shutdown()
-	//cm.regEntriesCh = make(chan []*common.RegistrationEntry)
-
-	//wg.Add(1)
-	//go cm.fetchSVID(requests, nodeClient, &wg)
-
-	//cm.cacheEntryCh = make(chan Entry)
-
-	//<-cm.regEntriesCh
-	//entry := <-cm.cacheEntryCh
-	//cm.managedCache.SetEntry(entry)
-
-	//wg.Wait()
-	//expiry := cm.managedCache.Entry([]*common.Selector{
-	//	{Type: "unix", Value: "uid:111"},
-	//})[0].SVID.NotAfter
-
-	//TODO: review this
-	//assert.True(t, expiry.Equal(testCacheEntry.SVID.NotAfter))
-
-}
-
-func TestManager_RegEntriesHandler(t *testing.T) {
-	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
-	c := &Config{
-		ServerAddr: &net.TCPAddr{},
-		SVID:       baseSVID,
-		SVIDKey:    baseSVIDKey,
-		Log:        testLogger}
-	m, _ := New(c)
-	m.Start()
-	m.Shutdown()
-	//cm.regEntriesCh = make(chan []*common.RegistrationEntry)
-	//wg.Add(1)
-	//go cm.regEntriesHandler(&wg)
-	//cm.entryRequestCh = make(chan map[string][]EntryRequest)
-
-	//cm.regEntriesCh <- regEntries
-	//entryRequests := <-cm.entryRequestCh
-	//for _, regEntry := range regEntries {
-	//	assert.NotEmpty(t, entryRequests[regEntry.ParentId])
-	//}
-	//cm.cancel()
-	//wg.Wait()
-}
-
-//func TestManager_ExpiredCacheEntryHandler(t *testing.T) {
-//	cm := NewManager(
-//		testCache, testServerCerts,
-//		serverId, "fakeServerAddr",
-//		errorCh, certsFixture.GetTestBaseSVID(), baseSVIDKey, regEntries, testLogger)
-//	cm.entryRequestCh = make(chan map[string][]EntryRequest)
-//	cm.spiffeIdEntryMap = make(map[string]CacheEntry)
+//func TestManager_RegEntriesHandler(t *testing.T) {
+//	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
+//	c := &Config{
+//		ServerAddr: &net.TCPAddr{},
+//		SVID:       baseSVID,
+//		SVIDKey:    baseSVIDKey,
+//		Log:        testLogger}
+//	m, _ := New(c)
+//	m.Start()
+//	m.Shutdown()
+//	//cm.regEntriesCh = make(chan []*common.RegistrationEntry)
+//	//wg.Add(1)
+//	//go cm.regEntriesHandler(&wg)
+//	//cm.entryRequestCh = make(chan map[string][]EntryRequest)
 //
-//	stop := make(chan struct{})
-//	go cm.expiredCacheEntryHandler(3000*time.Millisecond, stop)
-//	cm.managedSetEntry(testCacheEntry)
-//	entryRequest := <-cm.entryRequestCh
-//	assert.NotEmpty(t, entryRequest[testCacheEntry.RegistrationEntry.ParentId])
-//	stop <- struct{}{}
+//	//cm.regEntriesCh <- regEntries
+//	//entryRequests := <-cm.entryRequestCh
+//	//for _, regEntry := range regEntries {
+//	//	assert.NotEmpty(t, entryRequests[regEntry.ParentId])
+//	//}
+//	//cm.cancel()
+//	//wg.Wait()
+//}
+//
+//func TestManager_FetchSVID(t *testing.T) {
+//	ctrl := gomock.NewController(t)
+//	defer ctrl.Finish()
+//
+//	var requests []entryRequest
+//	requests = append(requests, testEntryRequest)
+//	//var wg sync.WaitGroup
+//
+//	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
+//	c := &Config{
+//		ServerAddr:  &net.TCPAddr{},
+//		SVID:        baseSVID,
+//		SVIDKey:     baseSVIDKey,
+//		Log:         testLogger,
+//		TrustDomain: url.URL{},
+//	}
+//	m, _ := New(c)
+//	stream := nodeMock.NewMockNode_FetchSVIDClient(ctrl)
+//	stream.EXPECT().Send(gomock.Any()).Return(nil)
+//	stream.EXPECT().Recv().Return(&node.FetchSVIDResponse{SvidUpdate: svidUpdate}, nil)
+//	stream.EXPECT().CloseSend().Return(nil)
+//	nodeClient := nodeMock.NewMockNodeClient(ctrl)
+//	nodeClient.EXPECT().FetchSVID(gomock.Any()).Return(stream, nil)
+//
+//	m.Start()
+//	m.Shutdown()
+//	//cm.regEntriesCh = make(chan []*common.RegistrationEntry)
+//
+//	//wg.Add(1)
+//	//go cm.fetchSVID(requests, nodeClient, &wg)
+//
+//	//cm.cacheEntryCh = make(chan Entry)
+//
+//	//<-cm.regEntriesCh
+//	//entry := <-cm.cacheEntryCh
+//	//cm.managedCache.SetEntry(entry)
+//
+//	//wg.Wait()
+//	//expiry := cm.managedCache.Entry([]*common.Selector{
+//	//	{Type: "unix", Value: "uid:111"},
+//	//})[0].SVID.NotAfter
+//
+//	//TODO: review this
+//	//assert.True(t, expiry.Equal(testCacheEntry.SVID.NotAfter))
 //
 //}
-
-func TestManager_UpdateCache(t *testing.T) {
-	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
-	c := &Config{
-		ServerAddr: &net.TCPAddr{},
-		SVID:       baseSVID,
-		SVIDKey:    baseSVIDKey,
-		Log:        testLogger}
-	m, _ := New(c)
-	m.Start()
-	m.Shutdown()
-	//cm.Init()
-	//time.Sleep(1*time.Second)
-	//cm.cacheEntryCh = make(chan CacheEntry)
-	//cm.cacheEntryCh<-testCacheEntry
-	//assert.NotEmpty(t,cm.managedEntry([]*common.Selector{
-	//	&common.Selector{Type: "unix", Value: "uid:111"},
-	//}))
-	//cm.cancel()
-}
+//
+////func TestManager_ExpiredCacheEntryHandler(t *testing.T) {
+////	cm := NewManager(
+////		testCache, testServerCerts,
+////		serverId, "fakeServerAddr",
+////		errorCh, certsFixture.GetTestBaseSVID(), baseSVIDKey, regEntries, testLogger)
+////	cm.entryRequestCh = make(chan map[string][]EntryRequest)
+////	cm.spiffeIdEntryMap = make(map[string]CacheEntry)
+////
+////	stop := make(chan struct{})
+////	go cm.expiredCacheEntryHandler(3000*time.Millisecond, stop)
+////	cm.managedSetEntry(testCacheEntry)
+////	entryRequest := <-cm.entryRequestCh
+////	assert.NotEmpty(t, entryRequest[testCacheEntry.RegistrationEntry.ParentId])
+////	stop <- struct{}{}
+////
+////}
+//
+//func TestManager_UpdateCache(t *testing.T) {
+//	baseSVID, _ := x509.ParseCertificate(certsFixture.GetTestBaseSVID())
+//	c := &Config{
+//		ServerAddr: &net.TCPAddr{},
+//		SVID:       baseSVID,
+//		SVIDKey:    baseSVIDKey,
+//		Log:        testLogger}
+//	m, _ := New(c)
+//	m.Start()
+//	m.Shutdown()
+//	//cm.Init()
+//	//time.Sleep(1*time.Second)
+//	//cm.cacheEntryCh = make(chan CacheEntry)
+//	//cm.cacheEntryCh<-testCacheEntry
+//	//assert.NotEmpty(t,cm.managedEntry([]*common.Selector{
+//	//	&common.Selector{Type: "unix", Value: "uid:111"},
+//	//}))
+//	//cm.cancel()
+//}
