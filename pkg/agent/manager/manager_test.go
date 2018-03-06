@@ -6,16 +6,16 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"net"
-	"net/url"
-	"testing"
+	//"net"
+	//"net/url"
+	//"testing"
 
-	"github.com/golang/mock/gomock"
+	//"github.com/golang/mock/gomock"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	certsFixture "github.com/spiffe/spire/test/fixture/certs"
-	nodeMock "github.com/spiffe/spire/test/mock/proto/api/node"
+	//nodeMock "github.com/spiffe/spire/test/mock/proto/api/node"
 	testutil "github.com/spiffe/spire/test/util"
 )
 
