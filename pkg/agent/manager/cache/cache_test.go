@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"github.com/sirupsen/logrus"
 	"testing"
 
 	testlog "github.com/sirupsen/logrus/hooks/test"
@@ -14,11 +15,16 @@ import (
 
 var (
 	privateKey, _ = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	logger, _     = testlog.NewNullLogger()
+	logger        logrus.FieldLogger
 )
 
+func init() {
+	l, _ := testlog.NewNullLogger()
+	logger = l.WithField("subsystem_name", "manager")
+}
+
 func TestCacheImpl_Valid(t *testing.T) {
-	cache := New(logger)
+	cache := New(logger, nil)
 	tests := []struct {
 		name string
 		ce   *Entry
@@ -56,7 +62,7 @@ func TestCacheImpl_Valid(t *testing.T) {
 }
 
 func TestCacheImpl_Invalid(t *testing.T) {
-	cache := New(logger)
+	cache := New(logger, nil)
 	tests := []struct {
 		name string
 		ce   *Entry
@@ -94,7 +100,7 @@ func TestCacheImpl_Invalid(t *testing.T) {
 }
 
 func TestCacheImpl_DeleteEntry(t *testing.T) {
-	cache := New(logger)
+	cache := New(logger, nil)
 	tests := []struct {
 		name string
 		ce   *Entry
