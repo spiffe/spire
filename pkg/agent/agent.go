@@ -82,20 +82,19 @@ func (a *Agent) run() error {
 
 	a.t.Go(func() error { return a.startEndpoints(bundle) })
 	a.t.Go(a.superviseManager)
+
+	<-a.t.Dying()
+	a.shutdown()
 	return nil
 }
 
-func (a *Agent) superviseManager() (err error) {
-	// Wait until the agent's tomb is dying or the manager stopped working.
-	select {
-	case <-a.t.Dying():
-	case <-a.Manager.Stopped():
-		err = a.Manager.Err()
-		a.mtx.Lock()
-		a.Manager = nil
-		a.mtx.Unlock()
-	}
-	a.shutdown()
+func (a *Agent) superviseManager() error {
+	// Wait until the manager stopped working.
+	<-a.Manager.Stopped()
+	err := a.Manager.Err()
+	a.mtx.Lock()
+	a.Manager = nil
+	a.mtx.Unlock()
 	return err
 }
 
