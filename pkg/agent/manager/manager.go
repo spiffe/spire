@@ -162,7 +162,6 @@ func (m *manager) synchronizer() error {
 
 func (m *manager) rotator() error {
 	t := time.NewTicker(1 * time.Minute)
-	defer t.Stop()
 
 	for {
 		select {
