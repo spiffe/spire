@@ -80,7 +80,6 @@ func (s *subscribers) remove(sub *Subscriber) {
 }
 
 func (s *subscribers) getSubIds(sels Selectors) []uuid.UUID {
-
 	subIds := []uuid.UUID{}
 
 	selSet := selector.NewSetFromRaw(sels)

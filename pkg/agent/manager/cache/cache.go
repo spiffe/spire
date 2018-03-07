@@ -93,16 +93,7 @@ func (c *cacheImpl) Subscribe(sub *Subscriber) {
 	entries := c.Entries()
 	c.m.Lock()
 	defer c.m.Unlock()
-	subEntries := SubscriberEntries(sub, entries)
-	go func() {
-		select {
-		case <-sub.done:
-			c.Subscribers.remove(sub)
-			close(sub.C)
-		case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
-		}
-	}()
-
+	go c.updateSubscrbers([]*Subscriber{sub}, entries)
 	c.Subscribers.Add(sub)
 }
 
@@ -125,43 +116,55 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 	c.cache[key] = append(c.cache[key], *entry)
 
 	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
+	c.updateSubscrbers(subs, entries)
+	return
+}
+
+func (c *cacheImpl) updateSubscrbers(subs []*Subscriber, entryCh chan Entry) {
 	for _, sub := range subs {
-		subEntries := SubscriberEntries(sub, entries)
+		subEntries := SubscriberEntries(sub, entryCh)
 		select {
 		case <-sub.done:
 			c.Subscribers.remove(sub)
-			close(sub.C)
 		case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
 		}
+	}
+}
+func (c *cacheImpl) DeleteEntries(regEntry *common.RegistrationEntry) (numOfEntries int) {
+	c.m.Lock()
+	var subs []*Subscriber
+	key := util.DeriveRegEntryhash(regEntry)
+	if entries, found := c.cache[key]; found {
+		subs = c.Subscribers.Get(entries[0].RegistrationEntry.Selectors)
+		delete(c.cache, key)
+		numOfEntries = len(entries)
+	}
+	c.m.Unlock()
+	if numOfEntries > 0 {
+		c.updateSubscrbers(subs, c.Entries())
 	}
 	return
 }
 
-func (c *cacheImpl) DeleteEntries(regEntry *common.RegistrationEntry) int {
+func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) (deleted bool) {
 	c.m.Lock()
-	defer c.m.Unlock()
+	var subs []*Subscriber
 	key := util.DeriveRegEntryhash(regEntry)
 	if entries, found := c.cache[key]; found {
-		delete(c.cache, key)
-		return len(entries)
-	}
-	return 0
-}
-
-func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) bool {
-	c.m.Lock()
-	defer c.m.Unlock()
-	key := util.DeriveRegEntryhash(regEntry)
-	if entries, found := c.cache[key]; found {
+		subs = c.Subscribers.Get(entries[0].RegistrationEntry.Selectors)
 		if len(entries) > 0 {
 			c.cache[key] = entries[1:]
 			if len(c.cache[key]) == 0 {
 				delete(c.cache, key)
 			}
-			return true
+			deleted = true
 		}
 	}
-	return false
+	c.m.Unlock()
+	if deleted {
+		c.updateSubscrbers(subs, c.Entries())
+	}
+	return
 }
 
 func (c *cacheImpl) IsEmpty() bool {
@@ -171,7 +174,6 @@ func (c *cacheImpl) IsEmpty() bool {
 }
 
 func SubscriberEntries(sub *Subscriber, entryCh chan Entry) (entries []Entry) {
-
 	for e := range entryCh {
 		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
 		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {
