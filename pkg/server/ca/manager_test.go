@@ -59,34 +59,90 @@ func TestManager(t *testing.T) {
 	suite.Run(t, new(ManagerTestSuite))
 }
 
-func (m *ManagerTestSuite) TestRotateSigningCert() {
-	cert, _, err := util.LoadSVIDFixture()
-	require.NoError(m.T(), err)
+func (m *ManagerTestSuite) TestCARotate() {
+	// Should return error when uninitialized
+	m.Assert().Error(m.m.caRotate())
 
-	// Set expectations
+	// Should do nothing when called with new-ish cert
+	template, err := util.NewSVIDTemplate(m.m.c.TrustDomain.String())
+	cert1, _, err := util.SelfSign(template)
+	m.Require().NoError(err)
+	m.m.caCert = cert1
+	m.Assert().NoError(m.m.caRotate())
+	m.Assert().Equal(cert1, m.m.caCert)
+	m.Assert().Nil(m.m.nextCACert)
+
 	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
 	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
 	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
 
-	generateCsrResponse := &ca.GenerateCsrResponse{}
-	m.ca.EXPECT().GenerateCsr(&ca.GenerateCsrRequest{}).Return(generateCsrResponse, nil)
-	submitCSRResponse := &upstreamca.SubmitCSRResponse{
-		Cert: cert.Raw,
-	}
-	m.upsCa.EXPECT().SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResponse.Csr}).Return(submitCSRResponse, nil)
+	// Should call prepareNextCA() when past 50% of validity period
+	template.NotBefore = time.Now().Add(-2 * time.Hour)
+	template.NotAfter = time.Now().Add(1 * time.Hour)
+	cert2, _, err := util.SelfSign(template)
+	m.Require().NoError(err)
+	m.m.caCert = cert2
 
-	dsBundle := &datastore.Bundle{
-		TrustDomain: "spiffe://example.org",
+	resp := &upstreamca.SubmitCSRResponse{Cert: cert1.Raw}
+	m.ca.EXPECT().GenerateCsr(gomock.Any()).Return(new(ca.GenerateCsrResponse), nil)
+	m.upsCa.EXPECT().SubmitCSR(gomock.Any()).Return(resp, nil)
+	m.ds.EXPECT().AppendBundle(gomock.Any())
+	m.Assert().NoError(m.m.caRotate())
+	m.Assert().Equal(cert1, m.m.nextCACert)
+
+	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
+	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
+
+	// Should call activateNextCA() when we're almost expired
+	template.NotBefore = time.Now().Add(-2 * time.Hour)
+	template.NotAfter = time.Now().Add(1 * time.Minute)
+	cert3, _, err := util.SelfSign(template)
+	m.Require().NoError(err)
+	m.m.caCert = cert3
+	m.ca.EXPECT().LoadCertificate(gomock.Any())
+	m.Assert().NoError(m.m.caRotate())
+	m.Assert().Equal(cert1, m.m.caCert)
+	m.Assert().Nil(m.m.nextCACert)
+}
+
+func (m *ManagerTestSuite) TestPrepareNextCA() {
+	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
+	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
+
+	cert, _, err := util.LoadSVIDFixture()
+	m.Require().NoError(err)
+
+	resp := &upstreamca.SubmitCSRResponse{Cert: cert.Raw}
+	m.ca.EXPECT().GenerateCsr(gomock.Any()).Return(new(ca.GenerateCsrResponse), nil)
+	m.upsCa.EXPECT().SubmitCSR(gomock.Any()).Return(resp, nil)
+
+	req := &datastore.Bundle{
+		TrustDomain: m.m.c.TrustDomain.String(),
 		CaCerts:     cert.Raw,
 	}
-	m.ds.EXPECT().AppendBundle(dsBundle).Return(dsBundle, nil)
+	m.ds.EXPECT().AppendBundle(req)
 
-	loadCertificateResponse := &ca.LoadCertificateResponse{}
-	m.ca.EXPECT().LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResponse.Cert}).Return(loadCertificateResponse, nil)
+	m.Assert().NoError(m.m.prepareNextCA())
+	m.Assert().Equal(cert, m.m.nextCACert)
+}
 
-	err = m.m.rotateCA()
-	m.NoError(err)
-	m.Equal(cert, m.m.caCert)
+func (m *ManagerTestSuite) TestActivateNextCA() {
+	// Should return error if we're not ready
+	m.Assert().Error(m.m.activateNextCA())
+
+	cert, _, err := util.LoadSVIDFixture()
+	m.Require().NoError(err)
+	m.m.nextCACert = cert
+
+	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	req := &ca.LoadCertificateRequest{cert.Raw}
+	m.ca.EXPECT().LoadCertificate(req)
+
+	m.Assert().NoError(m.m.activateNextCA())
+	m.Assert().Equal(cert, m.m.caCert)
+	m.Assert().Nil(m.m.nextCACert)
 }
 
 func (m *ManagerTestSuite) TestPrune() {
