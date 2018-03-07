@@ -23,8 +23,8 @@ import (
 
 type client struct {
 	log logrus.FieldLogger
-	// Channel used to as a requests pipeline.
-	requests   chan *node.FetchSVIDRequest
+	// Mutex used to pipeline requests to sendAndReceive function.
+	requests   *sync.Mutex
 	conn       *grpc.ClientConn
 	nodeClient node.NodeClient
 }
@@ -37,144 +37,15 @@ type clientsPool struct {
 	m *sync.Mutex
 }
 
-func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*grpc.ClientConn, error) {
-	var tlsCert []tls.Certificate
-	var tlsConfig *tls.Config
-
-	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{m.serverSPIFFEID},
-		TrustRoots: m.bundleAsCertPool(),
-	}
-	tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
-	tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
-	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
-
-	// We don't need cancel, so discard it.
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second) // TODO: Make this timeout configurable?
-	conn, err := grpc.DialContext(ctx, m.serverAddr.String(), dialCreds)
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
-}
-
-// newClient creates a client.
-func (m *manager) newClient(svid *x509.Certificate, key *ecdsa.PrivateKey) (*client, error) {
-	conn, err := m.newGRPCConn(svid, key)
-	if err != nil {
-		return nil, err
-	}
-	nodeClient := node.NewNodeClient(conn)
-
-	return &client{log: m.c.Log, requests: make(chan *node.FetchSVIDRequest), conn: conn, nodeClient: nodeClient}, nil
-}
-
-// newClient adds a new client to the pool and associates it to the specified list of spiffeIDs.
-func (m *manager) newSyncClient(spiffeIDs []string, svid *x509.Certificate, key *ecdsa.PrivateKey) error {
-	// If there is no pool yet, create one.
-	m.mtx.Lock()
-	if m.syncClients == nil {
-		m.syncClients = &clientsPool{clients: map[string]*client{}, m: &sync.Mutex{}}
-	}
-	m.mtx.Unlock()
-
-	client, err := m.newClient(svid, key)
-	if err != nil {
-		return err
-	}
-
-	for _, id := range spiffeIDs {
-		m.syncClients.add(id, client)
-	}
-
-	return nil
-}
-
-func (p *clientsPool) add(spiffeID string, client *client) {
-	// If there is already a connection with the specified spiffeID, close it first.
-	if c := p.get(spiffeID); c != nil {
-		c.close()
-	}
-
-	p.m.Lock()
-	defer p.m.Unlock()
-	p.clients[spiffeID] = client
-}
-
-func (p *clientsPool) get(spiffeID string) *client {
-	p.m.Lock()
-	defer p.m.Unlock()
-	return p.clients[spiffeID]
-}
-
-func (m *manager) getRotationClient() *client {
-	return m.syncClients.get(rotatorTag)
-}
-
-func (m *manager) renewRotatorClient() error {
-	svid, key := m.getBaseSVIDEntry()
-	c, err := m.newClient(svid, key)
-	if err != nil {
-		return err
-	}
-	m.syncClients.add(rotatorTag, c)
-	return nil
-}
-
-// close releases the pool's resources.
-func (p *clientsPool) close() {
-	p.m.Lock()
-	defer p.m.Unlock()
-	for _, c := range p.clients {
-		c.close()
-	}
-}
-
-func (c *client) close() {
-	c.conn.Close()
-}
-
 type update struct {
 	regEntries map[string]*common.RegistrationEntry
 	svids      map[string]*node.Svid
 	lastBundle []byte
 }
 
-func (u *update) String() string {
-	var buffer bytes.Buffer
-	buffer.WriteString("{ regEntries: [")
-	for _, re := range u.regEntries {
-		buffer.WriteString("{ spiffeID: ")
-		buffer.WriteString(re.SpiffeId)
-		buffer.WriteString(", parentID: ")
-		buffer.WriteString(re.ParentId)
-		buffer.WriteString(", selectors: ")
-		buffer.WriteString(fmt.Sprintf("%v", re.Selectors))
-		buffer.WriteString("}")
-	}
-	buffer.WriteString("], svids: [")
-	for key, svid := range u.svids {
-		buffer.WriteString(key)
-		buffer.WriteString(": ")
-		buffer.WriteString(svid.String()[:30])
-		buffer.WriteString(" ")
-	}
-	buffer.WriteString("], lastBundle: ")
-	if u.lastBundle != nil && len(u.lastBundle) > 0 {
-		buffer.WriteString("bytes")
-	} else {
-		buffer.WriteString("none")
-	}
-	buffer.WriteString("}")
-	return buffer.String()
-}
-
-func (c *client) sendAndReceive(r *node.FetchSVIDRequest) (*update, error) {
-	// Enable pipelined access by client to this function.
-	go func() {
-		c.requests <- r
-	}()
-	req := <-c.requests
+func (c *client) sendAndReceive(req *node.FetchSVIDRequest) (*update, error) {
+	c.requests.Lock()
+	defer c.requests.Unlock()
 
 	var stream node.Node_FetchSVIDClient
 	var err error
@@ -233,4 +104,135 @@ func (c *client) sendAndReceive(r *node.FetchSVIDRequest) (*update, error) {
 		lastBundle = resp.SvidUpdate.Bundle
 	}
 	return &update{regEntries, svids, lastBundle}, nil
+}
+
+func (c *client) close() {
+	c.conn.Close()
+}
+
+func (p *clientsPool) add(spiffeID string, client *client) {
+	// If there is already a connection with the specified spiffeID, close it first.
+	if c := p.get(spiffeID); c != nil {
+		c.close()
+	}
+
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.clients[spiffeID] = client
+}
+
+func (p *clientsPool) get(spiffeID string) *client {
+	p.m.Lock()
+	defer p.m.Unlock()
+	return p.clients[spiffeID]
+}
+
+// close releases the pool's resources.
+func (p *clientsPool) close() {
+	p.m.Lock()
+	defer p.m.Unlock()
+	for _, c := range p.clients {
+		c.close()
+	}
+}
+
+func (u *update) String() string {
+	var buffer bytes.Buffer
+	buffer.WriteString("{ regEntries: [")
+	for _, re := range u.regEntries {
+		buffer.WriteString("{ spiffeID: ")
+		buffer.WriteString(re.SpiffeId)
+		buffer.WriteString(", parentID: ")
+		buffer.WriteString(re.ParentId)
+		buffer.WriteString(", selectors: ")
+		buffer.WriteString(fmt.Sprintf("%v", re.Selectors))
+		buffer.WriteString("}")
+	}
+	buffer.WriteString("], svids: [")
+	for key, svid := range u.svids {
+		buffer.WriteString(key)
+		buffer.WriteString(": ")
+		buffer.WriteString(svid.String()[:30])
+		buffer.WriteString(" ")
+	}
+	buffer.WriteString("], lastBundle: ")
+	if u.lastBundle != nil && len(u.lastBundle) > 0 {
+		buffer.WriteString("bytes")
+	} else {
+		buffer.WriteString("none")
+	}
+	buffer.WriteString("}")
+	return buffer.String()
+}
+
+func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*grpc.ClientConn, error) {
+	var tlsCert []tls.Certificate
+	var tlsConfig *tls.Config
+
+	spiffePeer := &spiffe_tls.TLSPeer{
+		SpiffeIDs:  []string{m.serverSPIFFEID},
+		TrustRoots: m.bundleAsCertPool(),
+	}
+	tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
+	tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
+	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+
+	// We don't need cancel, so discard it.
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second) // TODO: Make this timeout configurable?
+	conn, err := grpc.DialContext(ctx, m.serverAddr.String(), dialCreds)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
+
+// newClient creates a client.
+func (m *manager) newClient(svid *x509.Certificate, key *ecdsa.PrivateKey) (*client, error) {
+	conn, err := m.newGRPCConn(svid, key)
+	if err != nil {
+		return nil, err
+	}
+	nodeClient := node.NewNodeClient(conn)
+
+	return &client{
+		log:        m.c.Log,
+		requests:   &sync.Mutex{},
+		conn:       conn,
+		nodeClient: nodeClient,
+	}, nil
+}
+
+// newClient adds a new client to the pool and associates it to the specified list of spiffeIDs.
+func (m *manager) newSyncClient(spiffeIDs []string, svid *x509.Certificate, key *ecdsa.PrivateKey) error {
+	// If there is no pool yet, create one.
+	m.mtx.Lock()
+	if m.syncClients == nil {
+		m.syncClients = &clientsPool{clients: map[string]*client{}, m: &sync.Mutex{}}
+	}
+	m.mtx.Unlock()
+
+	client, err := m.newClient(svid, key)
+	if err != nil {
+		return err
+	}
+
+	for _, id := range spiffeIDs {
+		m.syncClients.add(id, client)
+	}
+
+	return nil
+}
+
+func (m *manager) getRotationClient() *client {
+	return m.syncClients.get(rotatorTag)
+}
+
+func (m *manager) renewRotatorClient() error {
+	svid, key := m.getBaseSVIDEntry()
+	c, err := m.newClient(svid, key)
+	if err != nil {
+		return err
+	}
+	m.syncClients.add(rotatorTag, c)
+	return nil
 }
