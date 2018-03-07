@@ -14,7 +14,7 @@ func getSpiffeIDFromSVID(svid *x509.Certificate) (string, error) {
 	}
 
 	if len(URIs) == 0 {
-		return "", errors.New("certificate does not have a SPIFFE ID")
+		return "", errors.New("certificate does not have a spiffeId")
 	}
 
 	return URIs[0], nil

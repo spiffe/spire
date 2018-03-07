@@ -92,10 +92,10 @@ func (m *manager) Start() error {
 func (m *manager) close(err error) {
 	m.syncClients.close()
 	if err != nil {
-		m.err = fmt.Errorf("Cache Manager crashed: %v", err)
+		m.err = fmt.Errorf("cache manager crashed: %v", err)
 		m.c.Log.Error(m.err)
 	} else {
-		m.c.Log.Info("Cache Manager stopped gracefully")
+		m.c.Log.Info("cache manager stopped gracefully")
 	}
 	close(m.stopped)
 }

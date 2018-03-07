@@ -64,14 +64,13 @@ type entryRequest struct {
 type entryRequests map[string][]*entryRequest
 
 func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.Svid, error) {
-	m.c.Log.Debugf("fetchUpdates started using SVID and key for spiffeID: %s", spiffeID)
+	m.c.Log.Debugf("fetchUpdates started using SVID and key for spiffeId: %s", spiffeID)
 	defer m.c.Log.Debug("fetchUpdates finished")
 
 	client := m.syncClients.get(spiffeID)
 	if client == nil {
-		return nil, nil, fmt.Errorf("No client found for %s", spiffeID)
+		return nil, nil, fmt.Errorf("no client found for %s", spiffeID)
 	}
-
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	csrs := [][]byte{}
 	if entryRequests != nil {
@@ -145,7 +144,7 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 				}
 			}
 			m.cache.SetEntry(ce)
-			m.c.Log.Debugf("Updated CacheEntry for SPIFFEId: %s", ce.RegistrationEntry.SpiffeId)
+			m.c.Log.Debugf("updated CacheEntry for spiffeId: %s", ce.RegistrationEntry.SpiffeId)
 		}
 	}
 	return nil
@@ -191,7 +190,7 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 
 	for _, regEntry := range regEntries {
 		if !m.isAlreadyCached(regEntry) {
-			m.c.Log.Debugf("Generating CSR for spiffeId: %s  parentId: %s", regEntry.SpiffeId, regEntry.ParentId)
+			m.c.Log.Debugf("generating CSR for spiffeId: %s  parentId: %s", regEntry.SpiffeId, regEntry.ParentId)
 
 			privateKey, csr, err := m.newCSR(regEntry.SpiffeId)
 			if err != nil {
@@ -231,7 +230,7 @@ func (m *manager) rotateSVID() error {
 	lifetime := svid.NotAfter.Sub(svid.NotBefore)
 
 	if ttl < lifetime/2 {
-		m.c.Log.Debug("Generating new CSR for BaseSVID")
+		m.c.Log.Debug("generating new CSR for BaseSVID")
 
 		privateKey, csr, err := m.newCSR(m.spiffeID)
 		if err != nil {
@@ -239,28 +238,25 @@ func (m *manager) rotateSVID() error {
 		}
 
 		client := m.getRotationClient()
-
-		m.c.Log.Debug("Sending CSR")
-
 		update, err := client.sendAndReceive(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
 		if err != nil && err != ErrPartialResponse {
 			return err
 		}
 
 		if len(update.svids) == 0 {
-			return errors.New("No SVID received when rotating BaseSVID")
+			return errors.New("no SVID received when rotating BaseSVID")
 		}
 
 		svid, ok := update.svids[m.spiffeID]
 		if !ok {
-			return errors.New("It was not possible to get base SVID from FetchSVID response")
+			return errors.New("it was not possible to get base SVID from FetchSVID response")
 		}
 		cert, err := x509.ParseCertificate(svid.SvidCert)
 		if err != nil {
 			return err
 		}
 
-		m.c.Log.Debug("Updating manager with new BaseSVID")
+		m.c.Log.Debug("updating manager with new BaseSVID")
 		m.setBaseSVIDEntry(cert, privateKey)
 		err = m.storeSVID()
 		if err != nil {
@@ -269,7 +265,7 @@ func (m *manager) rotateSVID() error {
 
 		err = m.renewRotatorClient()
 		if err != nil {
-			return fmt.Errorf("Could not renew rotator client: %v", err)
+			return fmt.Errorf("could not renew rotator client: %v", err)
 		}
 	}
 	return nil
