@@ -5,9 +5,9 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
-	"github.com/sirupsen/logrus"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/stretchr/testify/assert"
