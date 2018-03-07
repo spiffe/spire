@@ -38,7 +38,7 @@ func (m *manager) storeBundle() error {
 	}
 
 	// Write data to disk.
-	return ioutil.WriteFile(m.bundleCachePath, data.Bytes(), 0666)
+	return ioutil.WriteFile(m.bundleCachePath, data.Bytes(), 0600)
 }
 
 // ReadSVID returns the SVID located at svidCachePath. Returns nil
@@ -67,5 +67,5 @@ func (m *manager) storeSVID() error {
 	m.mtx.RLock()
 	data := m.svid.Raw
 	m.mtx.RUnlock()
-	return ioutil.WriteFile(m.svidCachePath, data, 0666)
+	return ioutil.WriteFile(m.svidCachePath, data, 0600)
 }
