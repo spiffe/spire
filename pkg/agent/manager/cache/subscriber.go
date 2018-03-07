@@ -2,9 +2,10 @@ package cache
 
 import (
 	"crypto/x509"
+	"sync"
+
 	"github.com/satori/go.uuid"
 	"github.com/spiffe/spire/pkg/common/selector"
-	"sync"
 )
 
 type WorkloadUpdate struct {

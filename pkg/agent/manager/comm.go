@@ -7,15 +7,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/common"
 	"io"
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/common"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
