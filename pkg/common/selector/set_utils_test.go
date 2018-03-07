@@ -76,8 +76,15 @@ func TestPowerSet(t *testing.T) {
 	}
 
 	if a.Equal(len(expectedResults), len(results)) {
-		for i := 0; i < len(expectedResults); i++ {
-			a.True(EqualSet(expectedResults[i].(*set), results[i].(*set)))
+		for _, resultSet := range results {
+			var isIncluded bool
+			for _, expectedSet := range expectedResults {
+				if expectedSet.Equal(resultSet) {
+					isIncluded = true
+					break
+				}
+			}
+			a.True(isIncluded)
 		}
 	}
 }
