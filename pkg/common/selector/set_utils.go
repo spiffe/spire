@@ -29,14 +29,7 @@ func EqualSet(a, b *set) bool {
 	if a.Size() != b.Size() {
 		return false
 	}
-
-	for keyA, selA := range *a {
-		if *selA != *(*b)[keyA] {
-			return false
-		}
-	}
-
-	return true
+	return IncludesSet(a, b)
 }
 
 // Includes determines whether a given selector is present in a set
