@@ -80,9 +80,9 @@ func (_mr *MockManagerMockRecorder) Start() *gomock.Call {
 }
 
 // Stopped mocks base method
-func (_m *MockManager) Stopped() chan struct{} {
+func (_m *MockManager) Stopped() <-chan struct{} {
 	ret := _m.ctrl.Call(_m, "Stopped")
-	ret0, _ := ret[0].(chan struct{})
+	ret0, _ := ret[0].(<-chan struct{})
 	return ret0
 }
 

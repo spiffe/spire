@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -42,7 +41,7 @@ type Manager interface {
 
 	// Stopped returns a channel on which the receiver can block until
 	// the manager stops running.
-	Stopped() chan struct{}
+	Stopped() <-chan struct{}
 
 	// Err returns the reason why the manager stopped running. If this returns
 	// nil, then the manager was stopped externally by calling its Shutdown() method.
@@ -53,9 +52,6 @@ type manager struct {
 	c     *Config
 	t     *tomb.Tomb
 	cache cache.Cache
-
-	stopped chan struct{}
-	err     error
 
 	// Fields protected by mtx mutex.
 	mtx     *sync.RWMutex
@@ -92,17 +88,15 @@ func (m *manager) Start() error {
 func (m *manager) close(err error) {
 	m.syncClients.close()
 	if err != nil {
-		m.err = fmt.Errorf("cache manager crashed: %v", err)
-		m.c.Log.Error(m.err)
+		m.c.Log.Errorf("cache manager crashed: %v", err)
 	} else {
 		m.c.Log.Info("cache manager stopped gracefully")
 	}
-	close(m.stopped)
 }
 
 func (m *manager) Shutdown() {
 	m.shutdown(nil)
-	<-m.stopped
+	<-m.t.Dead()
 }
 
 func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan *cache.WorkloadUpdate {
@@ -129,12 +123,12 @@ func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []cache
 	return entries
 }
 
-func (m *manager) Stopped() chan struct{} {
-	return m.stopped
+func (m *manager) Stopped() <-chan struct{} {
+	return m.t.Dead()
 }
 
 func (m *manager) Err() error {
-	return m.err
+	return m.t.Err()
 }
 
 func (m *manager) run() error {
