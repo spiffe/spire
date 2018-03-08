@@ -1,8 +1,10 @@
 package ca
 
 import (
+	"errors"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -18,7 +20,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type ServerTestSuite struct {
+type ManagerTestSuite struct {
 	suite.Suite
 
 	t       *testing.T
@@ -29,20 +31,20 @@ type ServerTestSuite struct {
 	upsCa   *mock_upstreamca.MockUpstreamCa
 }
 
-func (s *ServerTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(s.t)
+func (m *ManagerTestSuite) SetupTest() {
+	mockCtrl := gomock.NewController(m.t)
 	defer mockCtrl.Finish()
 
-	s.catalog = mock_catalog.NewMockCatalog(mockCtrl)
-	s.ca = mock_ca.NewMockControlPlaneCa(mockCtrl)
-	s.ds = mock_datastore.NewMockDataStore(mockCtrl)
-	s.upsCa = mock_upstreamca.NewMockUpstreamCa(mockCtrl)
+	m.catalog = mock_catalog.NewMockCatalog(mockCtrl)
+	m.ca = mock_ca.NewMockControlPlaneCa(mockCtrl)
+	m.ds = mock_datastore.NewMockDataStore(mockCtrl)
+	m.upsCa = mock_upstreamca.NewMockUpstreamCa(mockCtrl)
 
 	logger, err := log.NewLogger("DEBUG", "")
-	s.Nil(err)
+	m.Nil(err)
 
 	config := &Config{
-		Catalog: s.catalog,
+		Catalog: m.catalog,
 		Log:     logger,
 		TrustDomain: url.URL{
 			Scheme: "spiffe",
@@ -50,35 +52,156 @@ func (s *ServerTestSuite) SetupTest() {
 		},
 	}
 
-	s.m = New(config)
+	m.m = New(config)
 }
 
-func (s *ServerTestSuite) TestRotateSigningCert() {
+func TestManager(t *testing.T) {
+	suite.Run(t, new(ManagerTestSuite))
+}
+
+func (m *ManagerTestSuite) TestCARotate() {
+	// Should return error when uninitialized
+	m.Assert().Error(m.m.caRotate())
+
+	// Should do nothing when called with new-ish cert
+	template, err := util.NewSVIDTemplate(m.m.c.TrustDomain.String())
+	cert1, _, err := util.SelfSign(template)
+	m.Require().NoError(err)
+	m.m.caCert = cert1
+	m.Assert().NoError(m.m.caRotate())
+	m.Assert().Equal(cert1, m.m.caCert)
+	m.Assert().Nil(m.m.nextCACert)
+
+	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
+	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
+
+	// Should call prepareNextCA() when past 50% of validity period
+	template.NotBefore = time.Now().Add(-2 * time.Hour)
+	template.NotAfter = time.Now().Add(1 * time.Hour)
+	cert2, _, err := util.SelfSign(template)
+	m.Require().NoError(err)
+	m.m.caCert = cert2
+
+	resp := &upstreamca.SubmitCSRResponse{Cert: cert1.Raw}
+	m.ca.EXPECT().GenerateCsr(gomock.Any()).Return(new(ca.GenerateCsrResponse), nil)
+	m.upsCa.EXPECT().SubmitCSR(gomock.Any()).Return(resp, nil)
+	m.ds.EXPECT().AppendBundle(gomock.Any())
+	m.Assert().NoError(m.m.caRotate())
+	m.Assert().Equal(cert1, m.m.nextCACert)
+
+	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
+	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
+
+	// Should call activateNextCA() when we're almost expired
+	template.NotBefore = time.Now().Add(-2 * time.Hour)
+	template.NotAfter = time.Now().Add(1 * time.Minute)
+	cert3, _, err := util.SelfSign(template)
+	m.Require().NoError(err)
+	m.m.caCert = cert3
+	m.ca.EXPECT().LoadCertificate(gomock.Any())
+	m.Assert().NoError(m.m.caRotate())
+	m.Assert().Equal(cert1, m.m.caCert)
+	m.Assert().Nil(m.m.nextCACert)
+}
+
+func (m *ManagerTestSuite) TestPrepareNextCA() {
+	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
+	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
+
 	cert, _, err := util.LoadSVIDFixture()
-	require.NoError(s.T(), err)
+	m.Require().NoError(err)
 
-	// Set expectations
-	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca})
-	s.catalog.EXPECT().DataStores().Return([]datastore.DataStore{s.ds})
-	s.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{s.upsCa})
+	resp := &upstreamca.SubmitCSRResponse{Cert: cert.Raw}
+	m.ca.EXPECT().GenerateCsr(gomock.Any()).Return(new(ca.GenerateCsrResponse), nil)
+	m.upsCa.EXPECT().SubmitCSR(gomock.Any()).Return(resp, nil)
 
-	generateCsrResponse := &ca.GenerateCsrResponse{}
-	s.ca.EXPECT().GenerateCsr(&ca.GenerateCsrRequest{}).Return(generateCsrResponse, nil)
-	submitCSRResponse := &upstreamca.SubmitCSRResponse{
-		Cert: cert.Raw,
-	}
-	s.upsCa.EXPECT().SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResponse.Csr}).Return(submitCSRResponse, nil)
-
-	dsBundle := &datastore.Bundle{
-		TrustDomain: "spiffe://example.org",
+	req := &datastore.Bundle{
+		TrustDomain: m.m.c.TrustDomain.String(),
 		CaCerts:     cert.Raw,
 	}
-	s.ds.EXPECT().AppendBundle(dsBundle).Return(dsBundle)
+	m.ds.EXPECT().AppendBundle(req)
 
-	loadCertificateResponse := &ca.LoadCertificateResponse{}
-	s.ca.EXPECT().LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResponse.Cert}).Return(loadCertificateResponse, nil)
+	m.Assert().NoError(m.m.prepareNextCA())
+	m.Assert().Equal(cert, m.m.nextCACert)
+}
 
-	err = s.m.rotateCA()
-	s.NoError(err)
-	s.Equal(cert, s.m.caCert)
+func (m *ManagerTestSuite) TestActivateNextCA() {
+	// Should return error if we're not ready
+	m.Assert().Error(m.m.activateNextCA())
+
+	cert, _, err := util.LoadSVIDFixture()
+	m.Require().NoError(err)
+	m.m.nextCACert = cert
+
+	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	req := &ca.LoadCertificateRequest{cert.Raw}
+	m.ca.EXPECT().LoadCertificate(req)
+
+	m.Assert().NoError(m.m.activateNextCA())
+	m.Assert().Equal(cert, m.m.caCert)
+	m.Assert().Nil(m.m.nextCACert)
+}
+
+func (m *ManagerTestSuite) TestPrune() {
+	template, err := util.NewSVIDTemplate(m.m.c.TrustDomain.String())
+	template.NotAfter = time.Now()
+	ca1, _, err := util.SelfSign(template)
+	require.NoError(m.T(), err)
+
+	template.NotAfter = time.Now().Add(-48 * time.Hour)
+	ca2, _, err := util.SelfSign(template)
+	require.NoError(m.T(), err)
+
+	caCerts := ca1.Raw
+	caCerts = append(caCerts, ca2.Raw...)
+	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds}).AnyTimes()
+	oldBundle := &datastore.Bundle{
+		TrustDomain: m.m.c.TrustDomain.String(),
+		CaCerts:     caCerts,
+	}
+	m.ds.EXPECT().FetchBundle(gomock.Any()).Return(oldBundle, nil)
+
+	// Expect only ca2 to be pruned
+	newBundle := &datastore.Bundle{
+		TrustDomain: m.m.c.TrustDomain.String(),
+		CaCerts:     ca1.Raw,
+	}
+	m.ds.EXPECT().UpdateBundle(newBundle).Return(newBundle, nil)
+
+	err = m.m.prune()
+	m.Assert().NoError(err)
+
+	// Pruning should not occur in steady state
+	m.ds.EXPECT().FetchBundle(gomock.Any()).Return(newBundle, nil)
+	m.ds.EXPECT().UpdateBundle(gomock.Any()).Times(0)
+	err = m.m.prune()
+	m.Assert().NoError(err)
+
+	// Pruning should not occur if all certs will be removed
+	badBundle := &datastore.Bundle{
+		TrustDomain: m.m.c.TrustDomain.String(),
+		CaCerts:     ca2.Raw,
+	}
+	m.ds.EXPECT().FetchBundle(gomock.Any()).Return(badBundle, nil)
+	m.ds.EXPECT().UpdateBundle(gomock.Any()).Times(0)
+	err = m.m.prune()
+	m.Assert().Error(err)
+}
+
+func (m *ManagerTestSuite) TestPruner() {
+	// Pruner shouldn't exit on pruning error
+	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds}).MinTimes(1)
+	m.ds.EXPECT().FetchBundle(gomock.Any()).Return(nil, errors.New("i'm an error")).MinTimes(1)
+
+	m.m.pruneTicker = time.NewTicker(1 * time.Millisecond)
+	m.m.t.Go(m.m.startPruner)
+	time.Sleep(2 * time.Millisecond)
+	m.Assert().True(m.m.t.Alive())
+
+	// Pruner should shut down when we tell it to
+	m.m.t.Kill(nil)
+	m.Assert().False(m.m.t.Alive())
 }

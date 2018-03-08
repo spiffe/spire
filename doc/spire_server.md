@@ -47,6 +47,8 @@ The following configuration options are available to configure a plugin:
 | enabled         | Enable or disable the plugin             |
 | plugin_data     | Plugin-specific data                     |
 
+Please see the [built-in plugins](#built-in-plugins) section below for information on plugins that are available out-of-the-box.
+
 ## Command line options
 
 ### `spire-server run`
@@ -77,25 +79,25 @@ API and the Node API, with which agents communicate with the server.
 
 ![spire agent architecture](images/SPIRE_server.png)
 
-## Available plugin types
+## Plugin types
 
-| Type           | Name                                                                   | Description |
-|:---------------|:-----------------------------------------------------------------------|:------------|
-| ControlPlaneCA | [ca-memory](/doc/plugin_server_ca_memory.md)                           |             |
-| DataStore      | [datastore-sqlite](/doc/plugin_server_datastore_sqlite.md)             |             |
-| NodeAttestor   | [nodeattestor-jointoken](/doc/plugin_server_nodeattestor_jointoken.md) |             |
-| NodeResolver   | [noderesolver-noop](/doc/plugin_server_noderesolver_noop.md)           |             |
-| UpstreamCA     | [upstreamca-memory](/doc/plugin_server_upstreamca_memory.md)           |             |
+| Type           | Description |
+|:---------------|:------------|
+| ControlPlaneCA | Implements both signing and key storage logic for the server's CA operations. Useful for leveraging hardware-based key operations. |
+| DataStore      | Provides persistent storage and HA features. |
+| NodeAttestor   | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type. |
+| NodeResolver   | A plugin capable of discovering platform-specific metadata of nodes which have been successfully attested. Discovered metadata is stored as selectors and can be used when creating registration entries. |
+| UpstreamCA     | Allows SPIRE server to integrate with existing PKI systems. The ControlPlaneCA plugin generates CSRs for its signing authority, which are submitted to the upstream CA for signing. |
 
 ## Built-in plugins
 
 | Type | Name | Description |
 | ---- | ---- | ----------- |
-| ControlPlaneCA | memory | An in-memory CA for signing SVIDs |
-| DataStore | sqlite | An sqlite-based implementation of the SPIRE datastore |
-| NodeAttestor | join_token | A node attestor which validates agents attesting with server-generated join tokens |
-| NodeResolver | noop | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
-| UpstreamCA | disk | Uses a CA loaded from disk to generate SPIRE server intermediate certificates for use in the ControlPlaneCA plugin |
+| ControlPlaneCA | [memory](/doc/plugin_server_ca_memory.md) | An in-memory CA for signing SVIDs |
+| DataStore | [sqlite](/doc/plugin_server_datastore_sqlite.md) | An sqlite-based implementation of the SPIRE datastore |
+| NodeAttestor | [join_token](/doc/plugin_server_nodeattestor_jointoken.md) | A node attestor which validates agents attesting with server-generated join tokens |
+| NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
+| UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to generate SPIRE server intermediate certificates for use in the ControlPlaneCA plugin |
 
 ## Further reading
 
