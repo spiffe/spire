@@ -231,8 +231,6 @@ func (m *MemoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (resp
 		return &ca.LoadCertificateResponse{}, errors.New("Invalid state: no private key. GenerateCsr() should be called first")
 	}
 
-	m.key = m.newKey
-
 	cert, err := x509.ParseCertificate(request.SignedIntermediateCert)
 	if err != nil {
 		return &ca.LoadCertificateResponse{}, err
@@ -292,6 +290,7 @@ func (m *MemoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (resp
 	}
 
 	m.cert = cert
+	m.key = m.newKey
 
 	log.Printf("Signing certificate with SPIFFE ID: '%v' successfully loaded", spiffeidUrl.String())
 
