@@ -8,7 +8,10 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -27,6 +30,8 @@ type client struct {
 	requests   *sync.Mutex
 	conn       *grpc.ClientConn
 	nodeClient node.NodeClient
+	// Time to sleep between retries when trying to get a stream from nodeClient.
+	sleepTime time.Duration
 }
 
 type clientsPool struct {
@@ -57,12 +62,14 @@ func (c *client) sendAndReceive(req *node.FetchSVIDRequest) (*update, error) {
 	for retries := 0; retries < 5; retries++ {
 		stream, err = c.nodeClient.FetchSVID(context.Background())
 		if err == nil {
+			c.sleepTime = time.Duration(0)
 			break
 		}
-		sleepSecs := time.Duration(retries + 1)
-		c.log.Errorf("failed to get stream: %v. try number: %d. Waiting %d seconds to retry", err, retries, sleepSecs)
-		// Sleep some time before retrying.
-		time.Sleep(sleepSecs * time.Second)
+		c.log.Errorf("failed to get stream: %v. try number: %d. Waiting %d seconds to retry", err, retries, c.sleepTime)
+		interrupted := c.sleep()
+		if interrupted {
+			break
+		}
 	}
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
@@ -111,6 +118,24 @@ func (c *client) sendAndReceive(req *node.FetchSVIDRequest) (*update, error) {
 
 func (c *client) close() {
 	c.conn.Close()
+}
+
+// sleep implements an interruptible sleep for sleepTime+1 seconds.
+// It updates sleepTime = sleepTime+1 and limits it to be less than 5 seconds.
+func (c *client) sleep() bool {
+	if c.sleepTime < 5 {
+		c.sleepTime++
+	}
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
+	t := time.NewTimer(c.sleepTime * time.Second)
+	select {
+	case <-t.C:
+	case <-signalCh:
+		return true
+	}
+	t.Stop()
+	return false
 }
 
 func (p *clientsPool) add(spiffeID string, client *client) {
