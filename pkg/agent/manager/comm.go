@@ -59,7 +59,10 @@ func (c *client) sendAndReceive(req *node.FetchSVIDRequest) (*update, error) {
 		if err == nil {
 			break
 		}
-		c.log.Errorf("failed to get stream: %v. try number: %d", err, retries)
+		sleepSecs := time.Duration(retries + 1)
+		c.log.Errorf("failed to get stream: %v. try number: %d. Waiting %d seconds to retry", err, retries, sleepSecs)
+		// Sleep some time before retrying.
+		time.Sleep(sleepSecs * time.Second)
 	}
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
