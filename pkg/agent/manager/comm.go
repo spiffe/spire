@@ -129,13 +129,14 @@ func (c *client) sleep() bool {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 	t := time.NewTimer(c.sleepTime * time.Second)
+	var interrupted bool
 	select {
 	case <-t.C:
 	case <-signalCh:
-		return true
+		interrupted = true
 	}
 	t.Stop()
-	return false
+	return interrupted
 }
 
 func (p *clientsPool) add(spiffeID string, client *client) {
