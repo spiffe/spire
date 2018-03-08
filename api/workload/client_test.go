@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/test/util"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 func TestClient_StartAndStop(t *testing.T) {
@@ -120,6 +121,12 @@ type mockHandler struct {
 }
 
 func (m *mockHandler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
+	// Ensure security header is sent
+	md, ok := metadata.FromIncomingContext(stream.Context())
+	if !ok || len(md["workload.spiffe.io"]) != 1 || md["workload.spiffe.io"][0] != "true" {
+		m.t.Error("request received without security header")
+	}
+
 	resp := m.resp1()
 	stream.Send(resp)
 

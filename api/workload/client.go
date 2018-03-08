@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/proto/api/workload"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 type Client interface {
@@ -71,6 +72,7 @@ func NewClient(c *ClientConfig) Client {
 func (c *client) Start() error {
 	respChan := make(chan *workload.X509SVIDResponse)
 	errChan := make(chan error)
+	header := metadata.Pairs("workload.spiffe.io", "true")
 
 	go c.updater()
 	for {
@@ -82,6 +84,7 @@ func (c *client) Start() error {
 	FetchLoop:
 		for {
 			ctx := context.Background()
+			ctx = metadata.NewOutgoingContext(ctx, header)
 			ctx, cancel := context.WithCancel(ctx)
 			stream, err := c.fetchWithBackoff(ctx, apiClient)
 			if err != nil {
