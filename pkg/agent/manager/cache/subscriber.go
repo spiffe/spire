@@ -33,10 +33,6 @@ func NewSubscriber(selectors Selectors, done chan struct{}) (*Subscriber, error)
 	}, nil
 }
 
-//type sID string
-// Get is a map keyed by the string representation of the selector sets, with a value mapped by Subscriber ID.
-// used to maintain a subscription of workloads
-
 type subscribers struct {
 	selMap map[string][]uuid.UUID // map of selector to UID
 	sidMap map[uuid.UUID]*Subscriber
@@ -69,6 +65,7 @@ func (s *subscribers) Get(sels Selectors) (subs []*Subscriber) {
 func (s *subscribers) remove(sub *Subscriber) {
 	s.m.Lock()
 	defer s.m.Unlock()
+	close(sub.C)
 	delete(s.sidMap, sub.sid)
 	for sel, sids := range s.selMap {
 		for i, uid := range sids {
