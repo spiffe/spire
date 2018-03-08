@@ -159,9 +159,9 @@ func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
 		ttl := entry.SVID.NotAfter.Sub(time.Now())
 		lifetime := entry.SVID.NotAfter.Sub(entry.SVID.NotBefore)
 		// If the cached SVID has a remaining lifetime less than 50%, prepare a
-		// new entryRequest to ask for a new cache entry to be used in the future
-		// when this entry expires.
+		// new entryRequest.
 		if ttl < lifetime/2 {
+			m.c.Log.Debugf("cache entry ttl for spiffeId %s is less than a half its lifetime", entry.RegistrationEntry.SpiffeId)
 			privateKey, csr, err := m.newCSR(entry.RegistrationEntry.SpiffeId)
 			if err != nil {
 				return nil, err
@@ -176,7 +176,6 @@ func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
 			}
 			parentID := entry.RegistrationEntry.ParentId
 			entryRequests[parentID] = append(entryRequests[parentID], &entryRequest{csr, cacheEntry})
-		} else if ttl <= 0 {
 			// Cached SVID expired, remove entry from the cache.
 			m.cache.DeleteEntry(entry.RegistrationEntry)
 		}
@@ -189,7 +188,7 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 	defer m.c.Log.Debug("checkForNewCacheEntries finished")
 
 	for _, regEntry := range regEntries {
-		if !m.isAlreadyCached(regEntry) {
+		if !m.isAlreadyCached(regEntry) && !m.isEntryRequestAlreadyCreated(regEntry, entryRequests) {
 			m.c.Log.Debugf("generating CSR for spiffeId: %s  parentId: %s", regEntry.SpiffeId, regEntry.ParentId)
 
 			privateKey, csr, err := m.newCSR(regEntry.SpiffeId)
