@@ -1,10 +1,41 @@
-hash: b4c879b27535d6987759f7bb53a2d5d52dc4f89b54d51856dc756fbc93afc77b
-updated: 2018-01-23T15:07:07.496953-08:00
+hash: 61e6d4c3d4134479c98f392514a4e9d6b1562a99de5d7257ea8556904e658410
+updated: 2018-02-25T17:16:42.85033-08:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
+- name: github.com/aws/aws-sdk-go
+  version: f7f1ee9550cc76ceea731d99c8dbe00a0c39f66d
+  subpackages:
+  - aws
+  - aws/awserr
+  - aws/awsutil
+  - aws/client
+  - aws/client/metadata
+  - aws/corehandlers
+  - aws/credentials
+  - aws/credentials/ec2rolecreds
+  - aws/credentials/endpointcreds
+  - aws/credentials/stscreds
+  - aws/defaults
+  - aws/ec2metadata
+  - aws/endpoints
+  - aws/request
+  - aws/session
+  - aws/signer/v4
+  - internal/sdkrand
+  - internal/shareddefaults
+  - private/protocol
+  - private/protocol/ec2query
+  - private/protocol/query
+  - private/protocol/query/queryutil
+  - private/protocol/rest
+  - private/protocol/xml/xmlutil
+  - service/ec2
+  - service/sts
 - name: github.com/bgentry/speakeasy
   version: 4aabc24848ce5fd31929f7d1e4ea74d3709c14cd
+- name: github.com/go-ini/ini
+  version: 32e4be5f41bb918afb6e37c07426e2ddbcb6647e
 - name: github.com/go-ole/go-ole
   version: a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506
   subpackages:
@@ -60,6 +91,8 @@ imports:
   - dialects/sqlite
 - name: github.com/jinzhu/inflection
   version: 1c35d901db3da928c72a72d8458480cc9ade058f
+- name: github.com/jmespath/go-jmespath
+  version: c2b33e8439af944379acbdd9c3a5fe0bc44bd8a5
 - name: github.com/jstemmer/go-junit-report
   version: a009038a6334cbda8dd5984dfd2f387a2ce9fdbf
 - name: github.com/jteeuwen/go-bindata
@@ -137,7 +170,7 @@ imports:
   - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 6b51017f791ae1cfbec89c52efdf444b13b550ef
+  version: 8e4536a86ab602859c20df5ebfd0bd4228d08655
   subpackages:
   - balancer
   - balancer/base
@@ -146,6 +179,7 @@ imports:
   - connectivity
   - credentials
   - encoding
+  - encoding/proto
   - grpclb/grpc_lb_v1/messages
   - grpclog
   - health
