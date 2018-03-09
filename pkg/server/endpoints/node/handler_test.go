@@ -205,17 +205,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	}, nil)
 
 	suite.mockDataStore.EXPECT().ListMatchingEntries(
-		&datastore.ListSelectorEntriesRequest{Selectors: []*common.Selector{
-			{
-				Type:  "a",
-				Value: "1",
-			},
-			{
-				Type:  "b",
-				Value: "2",
-			},
-		}},
-	).Return(&datastore.ListSelectorEntriesResponse{}, nil)
+		gomock.Any()).Return(&datastore.ListSelectorEntriesResponse{}, nil)
 
 	suite.mockDataStore.EXPECT().ListParentIDEntries(
 		&datastore.ListParentIDEntriesRequest{ParentId: spiffeID},
