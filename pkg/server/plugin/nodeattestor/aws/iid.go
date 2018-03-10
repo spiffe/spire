@@ -163,7 +163,7 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 	}
 
 	if rootDeviceIndex == -1 {
-		innerErr := fmt.Errorf("could not locate a device mapping with name '%s'", instance.RootDeviceName)
+		innerErr := fmt.Errorf("could not locate a device mapping with name '%v'", instance.RootDeviceName)
 		err = caws.AttestationStepError("locating the root device block mapping", innerErr)
 		return &nodeattestor.AttestResponse{Valid: false}, err
 	}
