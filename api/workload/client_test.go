@@ -142,6 +142,7 @@ func (m *mockHandler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload
 	m.mtx.Unlock()
 
 	time.Sleep(delay)
+	resp.Svids[0].SpiffeId = "spiffe://example.org/bar"
 	stream.Send(resp)
 	return nil
 }
