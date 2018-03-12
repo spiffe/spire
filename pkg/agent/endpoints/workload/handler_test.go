@@ -287,7 +287,7 @@ func (s *HandlerTestSuite) workloadUpdate() *cache.WorkloadUpdate {
 		},
 	}
 	update := &cache.WorkloadUpdate{
-		Entries: []cache.Entry{entry},
+		Entries: []*cache.Entry{&entry},
 		Bundle:  []*x509.Certificate{ca},
 	}
 

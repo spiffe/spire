@@ -38,7 +38,7 @@ type Manager interface {
 	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
 	// selectors are included in the set of selectors passed as parameter.
-	MatchingEntries(selectors []*common.Selector) []cache.Entry
+	MatchingEntries(selectors []*common.Selector) []*cache.Entry
 
 	// Stopped returns a channel on which the receiver can block until
 	// the manager stops running.
@@ -114,7 +114,7 @@ func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan 
 	return sub.C
 }
 
-func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []cache.Entry) {
+func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []*cache.Entry) {
 	for entry := range m.cache.Entries() {
 		regEntrySelectors := selector.NewSetFromRaw(entry.RegistrationEntry.Selectors)
 		if selector.NewSetFromRaw(selectors).IncludesSet(regEntrySelectors) {
