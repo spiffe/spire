@@ -1,56 +1,48 @@
-/** A workload uses this API to retrieve a list of identities that
-it should be allowed to represent itself as (SPIFFE IDs) as well as,
-optionally, documents (in the form of SPIFFE Verifiable Identity
-Documents(SVID) ) that can be used to prove those identities to other
-systems.
-
-Finally, the API can also be used to retrieve trust bundles that can be
-used to verify SVIDs from other SPIFFE-identified workloads. */
-
 syntax = "proto3";
-package spire.api.workload;
-option go_package = "workload";
 
-// The Bundles message carries a group of workload SVIDs and their
-// associated information. It also carries a TTL to inform the workload
-// when it should check back next.
-message Bundles {
-    repeated WorkloadEntry bundles = 1;
-    int32 ttl = 2;
+message X509SVIDRequest {  }
+
+// The X509SVIDResponse message carries a set of X.509 SVIDs and their
+// associated information. It also carries a set of global CRLs, and a
+// TTL to inform the workload when it should check back next.
+message X509SVIDResponse {
+    // A list of X509SVID messages, each of which includes a single
+    // SPIFFE Verifiable Identity Document, along with its private key
+    // and bundle.
+    repeated X509SVID svids = 1;
+
+    // ASN.1 DER encoded
+    repeated bytes crl = 2;
+
+    // CA certificate bundles belonging to foreign Trust Domains that the
+    // workload should trust, keyed by the SPIFFE ID of the foreign
+    // domain. Bundles are ASN.1 DER encoded.
+    map<string, bytes> federated_bundles = 3;
 }
 
-// The WorkloadEntry message carries a single SVID and all associated
-// information, including CA bundles. All `bytes` types are ASN.1 DER encoded
-message WorkloadEntry {
+// The X509SVID message carries a single SVID and all associated
+// information, including CA bundles.
+message X509SVID {
     // The SPIFFE ID of the SVID in this entry
     string spiffe_id = 1;
 
-    // The SVID itself
-    bytes svid = 2;
+    // ASN.1 DER encoded certificate chain. MAY include intermediates,
+    // the leaf certificate (or SVID itself) MUST come first.
+    bytes x509_svid = 2;
 
-    // The SVID private key
-    bytes svid_private_key = 3;
+    // ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted.
+    bytes x509_svid_key = 3;
 
-    // CA certificates belonging to the SVID
-    bytes svid_bundle = 4;
+    // CA certificates belonging to the Trust Domain
+    // ASN.1 DER encoded
+    bytes bundle = 4;
 
-    // CA certificates that the workload should trust, mapped
-    // by the trust domain of the external authority
-    map<string, bytes> federated_bundles = 5;
 }
 
-// The SpiffeID message carries only a SPIFFE ID
-message SpiffeID {
-    string id = 1;
-}
-
-// Represents a message with no fields
-message Empty {  }
-
-service Workload {
-    // Fetch bundles for the SVID with the given SPIFFE ID
-    rpc FetchBundles(SpiffeID) returns (Bundles);
-
-    // Fetch all bundles the workload is entitled to
-    rpc FetchAllBundles(Empty) returns (Bundles);
+service SpiffeWorkloadAPI {
+    // X.509-SVID Profile
+    // Fetch all SPIFFE identities the workload is entitled to, as
+    // well as related information like trust bundles and CRLs. As
+    // this information changes, subsequent messages will be sent.
+    rpc FetchX509SVID(X509SVIDRequest) returns (stream X509SVIDResponse);
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
 
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
@@ -60,15 +59,12 @@ func (e *endpoints) start(l net.Listener) error {
 
 func (e *endpoints) registerWorkloadAPI() {
 	w := &workload.Handler{
-		Bundle:   e.c.Bundle,
-		CacheMgr: e.c.Manager,
-		Catalog:  e.c.Catalog,
-		L:        e.c.Log.WithField("subsystem_name", "workload_api"),
-		MaxTTL:   1 * time.Minute,
-		MinTTL:   5 * time.Second,
+		Manager: e.c.Manager,
+		Catalog: e.c.Catalog,
+		L:       e.c.Log.WithField("subsystem_name", "workload_api"),
 	}
 
-	workload_pb.RegisterWorkloadServer(e.grpc, w)
+	workload_pb.RegisterSpiffeWorkloadAPIServer(e.grpc, w)
 }
 
 func (e *endpoints) createUDSListener() (net.Listener, error) {
