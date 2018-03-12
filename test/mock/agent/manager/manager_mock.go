@@ -46,9 +46,9 @@ func (_mr *MockManagerMockRecorder) Err() *gomock.Call {
 }
 
 // MatchingEntries mocks base method
-func (_m *MockManager) MatchingEntries(_param0 []*common.Selector) []cache.Entry {
+func (_m *MockManager) MatchingEntries(_param0 []*common.Selector) []*cache.Entry {
 	ret := _m.ctrl.Call(_m, "MatchingEntries", _param0)
-	ret0, _ := ret[0].([]cache.Entry)
+	ret0, _ := ret[0].([]*cache.Entry)
 	return ret0
 }
 

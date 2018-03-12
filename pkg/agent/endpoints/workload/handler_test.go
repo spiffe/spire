@@ -149,7 +149,7 @@ func (s *HandlerTestSuite) TestComposeResponse() {
 		Bundles:           make(map[string][]byte),
 	}
 
-	entries := []cache.Entry{cacheEntry}
+	entries := []*cache.Entry{&cacheEntry}
 	resp, err := s.h.composeResponse(entries)
 	s.Assert().Nil(err)
 
