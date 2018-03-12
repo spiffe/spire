@@ -137,7 +137,7 @@ func (c *client) UpdateChan() <-chan *workload.X509SVIDResponse {
 // is decoupled from updates being received from the Workload API in order to be easier on the node agent,
 // ensuring updates are read in a timely fashion. Only sends an update if the response has changed.
 func (c *client) updater() {
-	var update *workload.X509SVIDResponse
+	var lastUpdate *workload.X509SVIDResponse
 
 	for {
 		select {
@@ -148,10 +148,10 @@ func (c *client) updater() {
 
 	Update:
 		c.mtx.RLock()
-		newUpdate := c.current
+		update := c.current
 		c.mtx.RUnlock()
 
-		if reflect.DeepEqual(update, newUpdate) {
+		if reflect.DeepEqual(lastUpdate, update) {
 			continue
 		}
 
@@ -162,8 +162,8 @@ func (c *client) updater() {
 			// If we get another update before the consumer has
 			// read the current one, re-evaluate the update.
 			goto Update
-		case c.updateChan <- newUpdate:
-			update = newUpdate
+		case c.updateChan <- update:
+			lastUpdate = update
 		}
 	}
 }
