@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ func TestClient_StartAndStop(t *testing.T) {
 	c := NewClient(config)
 
 	// Test single update and clean shutdown
-	handler.delay = 10 * time.Second
+	handler.setDelay(10 * time.Second)
 	errChan := make(chan error)
 	go func() { errChan <- c.Start() }()
 	updateChan := c.UpdateChan()
@@ -54,7 +55,7 @@ func TestClient_StartAndStop(t *testing.T) {
 	}
 
 	// Test successive updates
-	handler.delay = 100 * time.Millisecond
+	handler.setDelay(100 * time.Millisecond)
 	c = NewClient(config)
 	go func() { errChan <- c.Start() }()
 	updateChan = c.UpdateChan()
@@ -105,7 +106,10 @@ func newStubbedAPI(t *testing.T) (string, *grpc.Server, *mockHandler) {
 	}
 
 	s := grpc.NewServer()
-	h := &mockHandler{t: t}
+	h := &mockHandler{
+		t:   t,
+		mtx: new(sync.Mutex),
+	}
 	workload.RegisterSpiffeWorkloadAPIServer(s, h)
 	go func() { s.Serve(l) }()
 
@@ -116,6 +120,9 @@ func newStubbedAPI(t *testing.T) (string, *grpc.Server, *mockHandler) {
 
 type mockHandler struct {
 	t *testing.T
+
+	// Make sure this mock passes race tests
+	mtx *sync.Mutex
 
 	delay time.Duration
 }
@@ -130,7 +137,11 @@ func (m *mockHandler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload
 	resp := m.resp1()
 	stream.Send(resp)
 
-	time.Sleep(m.delay)
+	m.mtx.Lock()
+	delay := m.delay
+	m.mtx.Unlock()
+
+	time.Sleep(delay)
 	stream.Send(resp)
 	return nil
 }
@@ -159,4 +170,10 @@ func (m *mockHandler) resp1() *workload.X509SVIDResponse {
 	return &workload.X509SVIDResponse{
 		Svids: []*workload.X509SVID{svidMsg},
 	}
+}
+
+func (m *mockHandler) setDelay(delay time.Duration) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	m.delay = delay
 }
