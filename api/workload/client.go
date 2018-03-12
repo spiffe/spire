@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/proto/api/workload"
 
 	"google.golang.org/grpc"
@@ -36,6 +37,9 @@ type ClientConfig struct {
 
 	// The maximum number of seconds we should backoff for on dial and rpc calls
 	Timeout time.Duration
+
+	// A logging interface which is satisfied by stdlib logger. Can be nil.
+	Logger logrus.StdLogger
 }
 
 type client struct {
@@ -104,8 +108,11 @@ func (c *client) Start() error {
 				case err := <-errChan:
 					cancel()
 					if err == io.EOF {
+						c.log("SPIFFE server hung up. Redialing.")
 						break FetchLoop
 					} else {
+						msg := fmt.Sprintf("Received error from SPIFFE Workload API: %v", err)
+						c.log(msg)
 						break RecvLoop
 					}
 				case resp = <-respChan:
@@ -185,6 +192,8 @@ func (c *client) fetchWithBackoff(ctx context.Context, apiClient workload.Spiffe
 	for {
 		stream, err := apiClient.FetchX509SVID(ctx, &workload.X509SVIDRequest{})
 		if err != nil && b.goAgain(c.shutdown) {
+			msg := fmt.Sprintf("Received error from SPIFFE Workload API: %v", err)
+			c.log(msg)
 			continue
 		} else if err != nil {
 			return nil, err
@@ -200,6 +209,8 @@ func (c *client) dialWithBackoff() (workload.SpiffeWorkloadAPIClient, error) {
 	for {
 		apiClient, err := c.dial()
 		if err != nil && b.goAgain(c.shutdown) {
+			msg := fmt.Sprintf("Received error while dialing SPIFFE Workload API: %v", err)
+			c.log(msg)
 			continue
 		} else if err != nil {
 			return nil, err
@@ -231,6 +242,12 @@ func (c *client) addr() (net.Addr, error) {
 	}
 
 	return c.addrFromEnv()
+}
+
+func (c *client) log(msg string) {
+	if c.c.Logger != nil {
+		c.c.Logger.Println(msg)
+	}
 }
 
 func (c client) addrFromEnv() (net.Addr, error) {
@@ -300,7 +317,6 @@ func (client) parseUDSAddr(u *url.URL) (net.Addr, error) {
 }
 
 func (client) dialer(network string) func(addr string, timeout time.Duration) (net.Conn, error) {
-	// Assume we're only dialing sockets
 	return func(addr string, timeout time.Duration) (net.Conn, error) {
 		return net.DialTimeout(network, addr, timeout)
 	}
