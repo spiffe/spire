@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/aws"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/jointoken"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/unix"
@@ -45,6 +46,7 @@ var (
 			"memory": memory.New(),
 		},
 		NodeAttestorType: {
+			"aws_iid":    aws.NewIID(),
 			"join_token": jointoken.New(),
 		},
 		WorkloadAttestorType: {

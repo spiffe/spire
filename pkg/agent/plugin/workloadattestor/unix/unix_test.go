@@ -24,7 +24,7 @@ func TestUnix_AttestInvalidPID(t *testing.T) {
 	switch runtime.GOOS {
 	case "darwin":
 		// all PIDs including -1 are valid on Darwin
-		t.Skip("skipping test on %v", runtime.GOOS)
+		t.Skip("skipping test on ", runtime.GOOS)
 	}
 	plugin := New()
 	req := workloadattestor.AttestRequest{Pid: -1}
