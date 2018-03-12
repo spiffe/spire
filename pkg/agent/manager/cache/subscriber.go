@@ -9,7 +9,7 @@ import (
 )
 
 type WorkloadUpdate struct {
-	Entries []Entry
+	Entries []*Entry
 	Bundle  []*x509.Certificate
 }
 

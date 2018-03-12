@@ -61,7 +61,7 @@ func (h *Handler) FetchBundles(ctx context.Context, spiffeID *workload.SpiffeID)
 	var myEntry *cache.Entry
 	for _, e := range entries {
 		if e.RegistrationEntry.SpiffeId == spiffeID.Id {
-			myEntry = &e
+			myEntry = e
 			break
 		}
 	}
@@ -72,7 +72,7 @@ func (h *Handler) FetchBundles(ctx context.Context, spiffeID *workload.SpiffeID)
 		return &workload.Bundles{}, fmt.Errorf("SVID for %s not found or not authorized", spiffeID.Id)
 	}
 
-	return h.composeResponse([]cache.Entry{*myEntry})
+	return h.composeResponse([]*cache.Entry{myEntry})
 }
 
 func (h *Handler) FetchAllBundles(ctx context.Context, _ *workload.Empty) (*workload.Bundles, error) {
@@ -87,7 +87,7 @@ func (h *Handler) FetchAllBundles(ctx context.Context, _ *workload.Empty) (*work
 // fetchAllEntries ties this whole thing together, and is called by both API endpoints. Given
 // a context, it works out all cache entries to which the workload is entitled. Returns the
 // set of entries, and an error if one is encountered along the way.
-func (h *Handler) fetchAllEntries(ctx context.Context) (entries []cache.Entry, err error) {
+func (h *Handler) fetchAllEntries(ctx context.Context) (entries []*cache.Entry, err error) {
 	pid, err := h.resolveCaller(ctx)
 	if err != nil {
 		err = fmt.Errorf("Error encountered while trying to identify the caller: %s", err)
@@ -172,7 +172,7 @@ func (h *Handler) attestCaller(pid int32) (selectors []*common.Selector, err err
 }
 
 // composeResponse takes a set of cache entries, and packs them into a protobuf response
-func (h *Handler) composeResponse(entries []cache.Entry) (response *workload.Bundles, err error) {
+func (h *Handler) composeResponse(entries []*cache.Entry) (response *workload.Bundles, err error) {
 	var certs []*x509.Certificate
 	var bundles []*workload.WorkloadEntry
 
