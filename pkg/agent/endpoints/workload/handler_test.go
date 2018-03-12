@@ -1,9 +1,7 @@
 package workload
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
+	"context"
 	"crypto/x509"
 	"errors"
 	"testing"
@@ -11,215 +9,287 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/stretchr/testify/suite"
+
+	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
+	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/mock/agent/catalog"
 	"github.com/spiffe/spire/test/mock/agent/manager"
 	"github.com/spiffe/spire/test/mock/agent/manager/cache"
 	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
-	"github.com/stretchr/testify/suite"
-)
+	"github.com/spiffe/spire/test/mock/proto/api/workload"
+	"github.com/spiffe/spire/test/util"
 
-var (
-	selector1 = &selector.Selector{Type: "foo", Value: "bar"}
-	selector2 = &selector.Selector{Type: "bar", Value: "bat"}
-	selector3 = &selector.Selector{Type: "bat", Value: "baz"}
-	selector4 = &selector.Selector{Type: "baz", Value: "quz"}
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
+
+	cc "github.com/spiffe/spire/pkg/common/catalog"
 )
 
 type HandlerTestSuite struct {
 	suite.Suite
 
-	h *Handler
+	h    *Handler
+	ctrl *gomock.Controller
 
 	attestor1 *mock_workloadattestor.MockWorkloadAttestor
 	attestor2 *mock_workloadattestor.MockWorkloadAttestor
 	cache     *mock_cache.MockCache
 	catalog   *mock_catalog.MockCatalog
 	manager   *mock_manager.MockManager
-
-	// Logrus test hook for asserting
-	// log messages, if desired
-	logHook *test.Hook
-
-	t    *testing.T
-	ctrl *gomock.Controller
+	stream    *mock_workload.MockSpiffeWorkloadAPI_FetchX509SVIDServer
 }
 
 func (s *HandlerTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(s.t)
-	log, logHook := test.NewNullLogger()
-	maxTTL := 12 * time.Hour
-	minTTL := 5 * time.Second
+	mockCtrl := gomock.NewController(s.T())
+	log, _ := test.NewNullLogger()
 
 	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
 	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
 	s.cache = mock_cache.NewMockCache(mockCtrl)
 	s.catalog = mock_catalog.NewMockCatalog(mockCtrl)
 	s.manager = mock_manager.NewMockManager(mockCtrl)
+	s.stream = mock_workload.NewMockSpiffeWorkloadAPI_FetchX509SVIDServer(mockCtrl)
 
-	ws := &Handler{
-		CacheMgr: s.manager,
-		Catalog:  s.catalog,
-		L:        log,
-		Bundle:   []*x509.Certificate{},
-		MaxTTL:   maxTTL,
-		MinTTL:   minTTL,
+	h := &Handler{
+		Manager: s.manager,
+		Catalog: s.catalog,
+		L:       log,
 	}
 
-	s.h = ws
-	s.logHook = logHook
+	s.h = h
 	s.ctrl = mockCtrl
+}
+
+func TestWorkloadServer(t *testing.T) {
+	suite.Run(t, new(HandlerTestSuite))
 }
 
 func (s *HandlerTestSuite) TeardownTest() {
 	s.ctrl.Finish()
 }
 
-func (s *HandlerTestSuite) TestAttestCaller() {
-	var testPID int32 = 1000
-	plugins := []workloadattestor.WorkloadAttestor{s.attestor1, s.attestor2}
-	pRequest := &workloadattestor.AttestRequest{Pid: testPID}
-	pRes1 := &workloadattestor.AttestResponse{Selectors: selector.NewSet(selector1).Raw()}
-	pRes2 := &workloadattestor.AttestResponse{Selectors: selector.NewSet(selector2, selector3).Raw()}
+func (s *HandlerTestSuite) TestFetchX509SVID() {
+	// Without the security header
+	s.stream.EXPECT().Context().Return(context.Background())
+	err := s.h.FetchX509SVID(nil, s.stream)
+	s.Assert().Error(err)
 
-	s.catalog.EXPECT().WorkloadAttestors().Return(plugins)
-	s.attestor1.EXPECT().Attest(pRequest).Return(pRes1, nil)
-	s.attestor2.EXPECT().Attest(pRequest).Return(pRes2, nil)
+	// Without PID data
+	header := metadata.Pairs("workload.spiffe.io", "true")
+	ctx := context.Background()
+	ctx = metadata.NewIncomingContext(ctx, header)
+	s.stream.EXPECT().Context().Return(ctx).Times(2)
+	err = s.h.FetchX509SVID(nil, s.stream)
+	s.Assert().Error(err)
 
-	selectors, err := s.h.attestCaller(testPID)
-	if s.Assert().Nil(err) {
-		expected := selector.NewSet(selector1, selector2, selector3)
-		got := selector.NewSetFromRaw(selectors)
-		s.Assert().True(expected.Equal(got))
+	p := &peer.Peer{
+		AuthInfo: auth.CallerInfo{
+			PID: 1,
+		},
+	}
+	ctx = peer.NewContext(context.Background(), p)
+	ctx = metadata.NewIncomingContext(ctx, header)
+	ctx, cancel := context.WithCancel(ctx)
+	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
+	subscription := make(chan *cache.WorkloadUpdate)
+	result := make(chan error)
+	s.stream.EXPECT().Context().Return(ctx).Times(4)
+	s.catalog.EXPECT().WorkloadAttestors().Return([]workloadattestor.WorkloadAttestor{s.attestor1})
+	s.attestor1.EXPECT().Attest(&workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{selectors}, nil)
+	s.manager.EXPECT().Subscribe(cache.Selectors{selectors[0]}, gomock.Any()).Return(subscription)
+	s.stream.EXPECT().Send(gomock.Any())
+	go func() { result <- s.h.FetchX509SVID(nil, s.stream) }()
+
+	// Make sure it's still running...
+	select {
+	case err := <-result:
+		s.T().Errorf("hander exited immediately: %v", err)
+	case <-time.NewTicker(1 * time.Millisecond).C:
+	}
+
+	select {
+	case <-time.NewTicker(1 * time.Second).C:
+		s.T().Error("timeout sending update to workload handler")
+	case subscription <- s.workloadUpdate():
+	}
+
+	cancel()
+	select {
+	case err := <-result:
+		s.Assert().NoError(err)
+	case <-time.NewTicker(1 * time.Second).C:
+		s.T().Error("workload handler hung, shutdown timer exceeded")
 	}
 }
 
-func (s *HandlerTestSuite) TestAttestCallerError() {
-	var testPID int32 = 1000
-	pluginName := "WorkloadAttestor"
-	plugins := []workloadattestor.WorkloadAttestor{s.attestor1, s.attestor2}
-	pRequest := &workloadattestor.AttestRequest{Pid: testPID}
-	pRes1 := &workloadattestor.AttestResponse{Selectors: selector.NewSet(selector1).Raw()}
-	pRes2 := &workloadattestor.AttestResponse{}
-	pError2 := errors.New("failed")
-	pInfo2 := &common_catalog.ManagedPlugin{
-		Config: common_catalog.PluginConfig{
-			PluginName: pluginName,
-		},
-	}
+func (s *HandlerTestSuite) TestSendResponse() {
+	emptyUpdate := new(cache.WorkloadUpdate)
+	s.stream.EXPECT().Send(gomock.Any()).Times(0)
+	err := s.h.sendResponse(emptyUpdate, s.stream)
+	s.Assert().Error(err)
 
-	s.catalog.EXPECT().WorkloadAttestors().Return(plugins)
-	s.attestor1.EXPECT().Attest(pRequest).Return(pRes1, nil)
-	s.attestor2.EXPECT().Attest(pRequest).Return(pRes2, pError2)
-	s.catalog.EXPECT().Find(plugins[1].(common_catalog.Plugin)).Return(pInfo2)
-
-	selectors, errs := s.h.attestCaller(testPID)
-	s.Assert().Nil(errs)
-
-	expected := selector.NewSet(selector1)
-	got := selector.NewSetFromRaw(selectors)
-	s.Assert().True(expected.Equal(got))
+	resp, err := s.h.composeResponse(s.workloadUpdate())
+	s.Require().NoError(err)
+	s.stream.EXPECT().Send(resp)
+	err = s.h.sendResponse(s.workloadUpdate(), s.stream)
+	s.Assert().NoError(err)
 }
 
 func (s *HandlerTestSuite) TestComposeResponse() {
-	sel := &common.Selector{Type: "foo", Value: "bar"}
-	registrationEntry := &common.RegistrationEntry{
-		Selectors:   []*common.Selector{sel},
-		ParentId:    "spiffe://example.org/bat",
-		SpiffeId:    "spiffe://example.org/baz",
-		Ttl:         3600,
-		FbSpiffeIds: []string{},
+	update := s.workloadUpdate()
+	keyData, err := x509.MarshalPKCS8PrivateKey(update.Entries[0].PrivateKey)
+	s.Require().NoError(err)
+
+	svidMsg := &workload.X509SVID{
+		SpiffeId:    "spiffe://example.org/foo",
+		X509Svid:    update.Entries[0].SVID.Raw,
+		X509SvidKey: keyData,
+		Bundle:      update.Bundle[0].Raw,
+	}
+	apiMsg := &workload.X509SVIDResponse{
+		Svids: []*workload.X509SVID{svidMsg},
 	}
 
-	key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
-	s.Assert().Nil(err)
+	resp, err := s.h.composeResponse(s.workloadUpdate())
+	s.Assert().NoError(err)
+	s.Assert().Equal(apiMsg, resp)
+}
 
-	svid := &x509.Certificate{
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(3600 * time.Second),
+func (s *HandlerTestSuite) TestCallerPID() {
+	p := &peer.Peer{
+		AuthInfo: auth.CallerInfo{
+			PID: 1,
+		},
 	}
-	cacheEntry := cache.Entry{
-		RegistrationEntry: registrationEntry,
-		SVID:              svid,
-		PrivateKey:        key,
-		Bundles:           make(map[string][]byte),
+	ctx := peer.NewContext(context.Background(), p)
+
+	pid, err := s.h.callerPID(ctx)
+	s.Assert().NoError(err)
+	s.Assert().Equal(int32(1), pid)
+
+	// Couldn't get PID via socket opt
+	p = &peer.Peer{
+		AuthInfo: auth.CallerInfo{
+			PID: 0,
+			Err: errors.New("i'm an error"),
+		},
+	}
+	ctx = peer.NewContext(context.Background(), p)
+	_, err = s.h.callerPID(ctx)
+	s.Assert().Error(err)
+
+	// Implementation error - custom auth creds not in use
+	p.AuthInfo = nil
+	ctx = peer.NewContext(context.Background(), p)
+	_, err = s.h.callerPID(ctx)
+	s.Assert().Error(err)
+}
+
+func (s *HandlerTestSuite) TestAttest() {
+	attestors := []workloadattestor.WorkloadAttestor{
+		s.attestor1,
+		s.attestor2,
+	}
+	s.catalog.EXPECT().WorkloadAttestors().Return(attestors)
+
+	sel1 := []*common.Selector{{Type: "foo", Value: "bar"}}
+	sel2 := []*common.Selector{{Type: "bat", Value: "baz"}}
+	s.attestor1.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{sel1}, nil)
+	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{sel2}, nil)
+
+	// Use selector package to work around sort ordering
+	expected := selector.NewSetFromRaw([]*common.Selector{sel1[0], sel2[0]})
+	result := s.h.attest(1)
+	s.Assert().Equal(expected, selector.NewSetFromRaw(result))
+
+	findResp := &cc.ManagedPlugin{
+		Plugin: s.attestor1,
+		Config: cc.PluginConfig{
+			PluginName: "foo",
+		},
+	}
+	s.catalog.EXPECT().Find(s.attestor1).Return(findResp)
+	s.catalog.EXPECT().WorkloadAttestors().Return(attestors)
+	s.attestor1.EXPECT().Attest(gomock.Any()).Return(nil, errors.New("i'm an error"))
+	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{sel2}, nil)
+
+	s.Assert().Equal(sel2, s.h.attest(1))
+}
+
+func (s *HandlerTestSuite) TestInvokeAttestor() {
+	sChan := make(chan []*common.Selector)
+	errChan := make(chan error)
+
+	req := &workloadattestor.AttestRequest{Pid: 1}
+	sel := []*common.Selector{{Type: "foo", Value: "bar"}}
+	resp := &workloadattestor.AttestResponse{Selectors: sel}
+	s.attestor1.EXPECT().Attest(req).Return(resp, nil)
+
+	timeout := time.NewTicker(5 * time.Millisecond)
+	go s.h.invokeAttestor(s.attestor1, 1, sChan, errChan)
+	select {
+	case result := <-sChan:
+		s.Assert().Equal(sel, result)
+	case err := <-errChan:
+		s.T().Errorf("Unexpected failure trying to invoke workload attestor: %v", err)
+	case <-timeout.C:
+		s.T().Error("Workload invocation has hung")
 	}
 
-	entries := []*cache.Entry{&cacheEntry}
-	resp, err := s.h.composeResponse(entries)
-	s.Assert().Nil(err)
-
-	if s.Assert().NotNil(resp) {
-		s.Assert().True(resp.Ttl == 1800)
-		s.Assert().NotEqual(0, resp.Ttl)
-
-		if s.Assert().NotNil(resp.Bundles[0]) {
-			entry := resp.Bundles[0]
-			s.Assert().Equal("spiffe://example.org/baz", entry.SpiffeId)
-		}
+	findResp := &cc.ManagedPlugin{
+		Plugin: s.attestor1,
+		Config: cc.PluginConfig{
+			PluginName: "foo",
+		},
+	}
+	s.catalog.EXPECT().Find(s.attestor1).Return(findResp)
+	s.attestor1.EXPECT().Attest(req).Return(nil, errors.New("i'm an error"))
+	go s.h.invokeAttestor(s.attestor1, 1, sChan, errChan)
+	select {
+	case sel := <-sChan:
+		s.T().Errorf("Wanted error, got selectors: %v", sel)
+	case <-timeout.C:
+		s.T().Error("Workload invocation has hung")
+	case <-errChan:
 	}
 }
 
-func (s *HandlerTestSuite) TestCalculateTTL() {
-	// int approximations of Time
-	var ttlCases = []struct {
-		in  []int
-		out int
-	}{
-		{[]int{1, 20}, 5}, // 5s is the configured minTTL
-		{[]int{20}, 10},
+func (s *HandlerTestSuite) TestAttestorName() {
+	resp := &cc.ManagedPlugin{
+		Plugin: s.attestor1,
+		Config: cc.PluginConfig{
+			PluginName: "foo",
+		},
 	}
+	s.catalog.EXPECT().Find(s.attestor1).Return(resp)
+	s.Assert().Equal("foo", s.h.attestorName(s.attestor1))
 
-	// Create dummy certs with NotAfter set using input data
-	for _, c := range ttlCases {
-		var certs []*x509.Certificate
-		for _, ttl := range c.in {
-			notAfter := time.Now().Add(time.Duration(ttl) * time.Second)
-			cert := &x509.Certificate{
-				NotBefore: time.Now(),
-				NotAfter:  notAfter,
-			}
-			certs = append(certs, cert)
-		}
-
-		// Assert output given cert slice
-		res := s.h.calculateTTL(certs)
-		s.Assert().Equal(c.out, int(res.Seconds()))
-	}
+	s.catalog.EXPECT().Find(s.attestor1).Return(nil)
+	s.Assert().Equal("unknown", s.h.attestorName(s.attestor1))
 }
 
-func generateCacheEntry(spiffeID, parentID string, selectors selector.Set) (cache.Entry, error) {
-	registrationEntry := &common.RegistrationEntry{
-		Selectors:   selectors.Raw(),
-		ParentId:    parentID,
-		SpiffeId:    spiffeID,
-		Ttl:         3600,
-		FbSpiffeIds: []string{},
+func (s *HandlerTestSuite) workloadUpdate() *cache.WorkloadUpdate {
+	svid, key, err := util.LoadSVIDFixture()
+	s.Require().NoError(err)
+	ca, _, err := util.LoadCAFixture()
+	s.Require().NoError(err)
+
+	entry := cache.Entry{
+		SVID:       svid,
+		PrivateKey: key,
+		RegistrationEntry: &common.RegistrationEntry{
+			SpiffeId: "spiffe://example.org/foo",
+		},
+	}
+	update := &cache.WorkloadUpdate{
+		Entries: []*cache.Entry{&entry},
+		Bundle:  []*x509.Certificate{ca},
 	}
 
-	key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
-	if err != nil {
-		return cache.Entry{}, err
-	}
-
-	svid := &x509.Certificate{
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(3600 * time.Second),
-	}
-	cacheEntry := cache.Entry{
-		RegistrationEntry: registrationEntry,
-		SVID:              svid,
-		PrivateKey:        key,
-		Bundles:           make(map[string][]byte),
-	}
-
-	return cacheEntry, nil
-}
-
-func TestWorkloadServer(t *testing.T) {
-	suite.Run(t, new(HandlerTestSuite))
+	return update
 }

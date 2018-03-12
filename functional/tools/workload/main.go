@@ -40,7 +40,7 @@ func main() {
 	}
 }
 
-func createGrpcClient(agentAddr string) (workloadClient workload.WorkloadClient, ctx context.Context, cancel context.CancelFunc, err error) {
+func createGrpcClient(agentAddr string) (workloadClient workload.SpiffeWorkloadAPIClient, ctx context.Context, cancel context.CancelFunc, err error) {
 	ctx = context.Background()
 	ctx, cancel = context.WithCancel(ctx)
 
@@ -50,7 +50,7 @@ func createGrpcClient(agentAddr string) (workloadClient workload.WorkloadClient,
 			return net.DialTimeout("unix", addr, timeout)
 		}))
 
-	workloadClient = workload.NewWorkloadClient(conn)
+	workloadClient = workload.NewSpiffeWorkloadAPIClient(conn)
 
 	return
 }

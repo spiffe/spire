@@ -1,10 +1,10 @@
 package workload
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -12,103 +12,104 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
 
-	context "golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 )
 
 // Handler implements the Workload API interface
 type Handler struct {
-	CacheMgr manager.Manager
-	Catalog  catalog.Catalog
-	L        logrus.FieldLogger
-
-	// TTL in SVID response will never
-	// be larger than this
-	MaxTTL time.Duration
-
-	// TTL in SVID response will never
-	// be smaller than this. Prevents
-	// hammering towards the end
-	MinTTL time.Duration
-
-	// We must store the current server bundle for
-	// distrubution to workloads. It is updaetd periodically,
-	// protect it with a mutex.
-	M      sync.RWMutex
-	Bundle []*x509.Certificate
+	Manager manager.Manager
+	Catalog catalog.Catalog
+	L       logrus.FieldLogger
 }
 
-// SetBundle exposes a setter for configuring the CA bundle. This
-// bundle is passed to the workload.
-func (h *Handler) SetBundle(bundle []*x509.Certificate) {
-	h.M.Lock()
-	defer h.M.Unlock()
-
-	h.Bundle = bundle
-	return
-}
-
-func (h *Handler) FetchBundles(ctx context.Context, spiffeID *workload.SpiffeID) (*workload.Bundles, error) {
-	entries, err := h.fetchAllEntries(ctx)
-	if err != nil {
-		return nil, err
+func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
+	md, ok := metadata.FromIncomingContext(stream.Context())
+	if !ok || len(md["workload.spiffe.io"]) != 1 || md["workload.spiffe.io"][0] != "true" {
+		return grpc.Errorf(codes.InvalidArgument, "Security header missing from request")
 	}
 
-	var myEntry *cache.Entry
-	for _, e := range entries {
-		if e.RegistrationEntry.SpiffeId == spiffeID.Id {
-			myEntry = e
-			break
+	pid, err := h.callerPID(stream.Context())
+	if err != nil {
+		return grpc.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
+	}
+
+	selectors := h.attest(pid)
+	done := make(chan struct{})
+	defer close(done)
+	subscription := h.Manager.Subscribe(selectors, done)
+
+	for {
+		select {
+		case update := <-subscription:
+			start := time.Now()
+			err := h.sendResponse(update, stream)
+			if err != nil {
+				return err
+			}
+
+			if time.Since(start) > (1 * time.Second) {
+				h.L.Warnf("Took %v seconds to send update to PID %v", time.Since(start).Seconds, pid)
+			}
+		case <-stream.Context().Done():
+			return nil
 		}
 	}
-
-	// We didn't find an entry for the requested SPIFFE ID. It either
-	// doesn't exist, or the workload is not entitled to it.
-	if myEntry == nil {
-		return &workload.Bundles{}, fmt.Errorf("SVID for %s not found or not authorized", spiffeID.Id)
-	}
-
-	return h.composeResponse([]*cache.Entry{myEntry})
 }
 
-func (h *Handler) FetchAllBundles(ctx context.Context, _ *workload.Empty) (*workload.Bundles, error) {
-	entries, err := h.fetchAllEntries(ctx)
-	if err != nil {
-		return nil, err
+func (h *Handler) sendResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
+	if len(update.Entries) == 0 {
+		return grpc.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
-	return h.composeResponse(entries)
+	resp, err := h.composeResponse(update)
+	if err != nil {
+		return grpc.Errorf(codes.Unavailable, "Could not serialize response: %v", err)
+	}
+
+	return stream.Send(resp)
 }
 
-// fetchAllEntries ties this whole thing together, and is called by both API endpoints. Given
-// a context, it works out all cache entries to which the workload is entitled. Returns the
-// set of entries, and an error if one is encountered along the way.
-func (h *Handler) fetchAllEntries(ctx context.Context) (entries []*cache.Entry, err error) {
-	pid, err := h.resolveCaller(ctx)
-	if err != nil {
-		err = fmt.Errorf("Error encountered while trying to identify the caller: %s", err)
-		return entries, err
+func (h *Handler) composeResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDResponse, error) {
+	resp := new(workload.X509SVIDResponse)
+	resp.Svids = []*workload.X509SVID{}
+
+	bundle := []byte{}
+	for _, c := range update.Bundle {
+		bundle = append(bundle, c.Raw...)
 	}
 
-	// Workload attestor errors are non-fatal
-	selectors, err := h.attestCaller(pid)
-	if err != nil {
-		err = fmt.Errorf("Error encountered while attesting caller: %s", err)
-		return entries, err
+	for _, e := range update.Entries {
+		id := e.RegistrationEntry.SpiffeId
+
+		keyData, err := x509.MarshalPKCS8PrivateKey(e.PrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("marshal key for %v: %v", id, err)
+		}
+
+		svid := &workload.X509SVID{
+			SpiffeId:    id,
+			X509Svid:    e.SVID.Raw,
+			X509SvidKey: keyData,
+			Bundle:      bundle,
+		}
+
+		resp.Svids = append(resp.Svids, svid)
 	}
 
-	return h.CacheMgr.MatchingEntries(selectors), nil
+	return resp, nil
 }
 
-// resolveCaller takes a grpc context, and returns the PID of the caller which has issued
+// callerPID takes a grpc context, and returns the PID of the caller which has issued
 // the request. Returns an error if the call was not made locally, if the necessary
 // syscalls aren't unsupported, or if the transport security was not properly configured.
 // See the auth package for more information.
-func (h *Handler) resolveCaller(ctx context.Context) (pid int32, err error) {
+func (h *Handler) callerPID(ctx context.Context) (pid int32, err error) {
 	info, ok := auth.CallerFromContext(ctx)
 	if !ok {
 		return 0, errors.New("Unable to fetch credentials from context")
@@ -126,120 +127,53 @@ func (h *Handler) resolveCaller(ctx context.Context) (pid int32, err error) {
 	return info.PID, nil
 }
 
-// attestCaller takes a PID and invokes attestation plugins against it, and returns the union
-// of selectors discovered by the attestors. If a plugin encounters an error, its returned
-// selectors are discarded and the error is logged.
-func (h *Handler) attestCaller(pid int32) (selectors []*common.Selector, err error) {
-	// Call the workload attestors concurrently
+// attest invokes all workload attestor plugins against the provided PID. If an error
+// is encountered, it is logged and selectors from the failing plugin are discarded.
+func (h *Handler) attest(pid int32) []*common.Selector {
 	plugins := h.Catalog.WorkloadAttestors()
-	selectorChan := make(chan []*common.Selector)
-	errorChan := make(chan struct {
-		workloadattestor.WorkloadAttestor
-		error
-	})
-	for _, plugin := range plugins {
-		go func(p workloadattestor.WorkloadAttestor) {
-			s, err := p.Attest(&workloadattestor.AttestRequest{Pid: pid})
-			if err != nil {
-				errorChan <- struct {
-					workloadattestor.WorkloadAttestor
-					error
-				}{p, err}
-				return
-			}
+	sChan := make(chan []*common.Selector)
+	errChan := make(chan error)
 
-			selectorChan <- s.Selectors
-			return
-		}(plugin)
+	for _, p := range plugins {
+		go h.invokeAttestor(p, pid, sChan, errChan)
 	}
 
 	// Collect the results
+	selectors := []*common.Selector{}
 	for i := 0; i < len(plugins); i++ {
 		select {
-		case selectorSet := <-selectorChan:
-			selectors = append(selectors, selectorSet...)
-		case pluginError := <-errorChan:
-			pluginInfo := h.Catalog.Find(pluginError.WorkloadAttestor.(common_catalog.Plugin))
-			pluginName := "UnknownPlugin"
-			if pluginInfo != nil {
-				pluginName = pluginInfo.Config.PluginName
-			}
-			h.L.Warnf("Workload attestor %s returned an error: %s", pluginName, pluginError.error)
+		case s := <-sChan:
+			selectors = append(selectors, s...)
+		case err := <-errChan:
+			h.L.Errorf("Failed to collect all selectors for PID %v: %v", pid, err)
 		}
 	}
 
-	return selectors, nil
+	return selectors
 }
 
-// composeResponse takes a set of cache entries, and packs them into a protobuf response
-func (h *Handler) composeResponse(entries []*cache.Entry) (response *workload.Bundles, err error) {
-	var certs []*x509.Certificate
-	var bundles []*workload.WorkloadEntry
-
-	// Grab a copy of the SVID bundle
-	h.M.RLock()
-	var svidBundle []byte
-	for _, b := range h.Bundle {
-		svidBundle = append(svidBundle, b.Raw...)
-	}
-	h.M.RUnlock()
-
-	for _, e := range entries {
-		keyData, err := x509.MarshalECPrivateKey(e.PrivateKey)
-		if err != nil {
-			err = fmt.Errorf("Could not marshall cached private key for %s: %s", e.RegistrationEntry.SpiffeId, err)
-			return nil, err
-		}
-
-		we := &workload.WorkloadEntry{
-			SpiffeId:         e.RegistrationEntry.SpiffeId,
-			Svid:             e.SVID.Raw,
-			SvidPrivateKey:   keyData,
-			SvidBundle:       svidBundle,
-			FederatedBundles: e.Bundles,
-		}
-
-		certs = append(certs, e.SVID)
-		bundles = append(bundles, we)
+// invokeAttestor invokes attestation against the supplied plugin. Should be called from a goroutine.
+func (h *Handler) invokeAttestor(a workloadattestor.WorkloadAttestor, pid int32, sChan chan []*common.Selector, errChan chan error) {
+	req := &workloadattestor.AttestRequest{
+		Pid: pid,
 	}
 
-	ttl := h.calculateTTL(certs).Seconds()
-	response = &workload.Bundles{
-		Bundles: bundles,
-		Ttl:     int32(ttl),
+	resp, err := a.Attest(req)
+	if err != nil {
+		errChan <- fmt.Errorf("call %v workload attestor: %v", h.attestorName(a), err)
+		return
 	}
-	if len(bundles) == 0 {
-		err = fmt.Errorf("No cache entries found")
-	}
-	return response, err
+
+	sChan <- resp.Selectors
+	return
 }
 
-// calculateTTL takes a slice of certificates and iterates over them,
-// returning a TTL for use in the workload API response. Workload API
-// clients should check back for updates after TTL has elapsed
-func (h *Handler) calculateTTL(certs []*x509.Certificate) time.Duration {
-	ttl := h.MaxTTL
-	for _, cert := range certs {
-		var t time.Duration
-
-		// set the watermark at half way
-		watermark := cert.NotAfter.Sub(cert.NotBefore) / 2
-		renewTime := cert.NotBefore.Add(watermark)
-
-		if time.Now().After(renewTime) {
-			t = h.MinTTL
-		} else {
-			t = time.Until(renewTime) + time.Second
-		}
-
-		if t < ttl {
-			ttl = t
-		}
+// attestorName attempts to find the name of a workload attestor, given the WorkloadAttestor interface.
+func (h *Handler) attestorName(a workloadattestor.WorkloadAttestor) string {
+	mp := h.Catalog.Find(a)
+	if mp == nil {
+		return "unknown"
 	}
 
-	if ttl < h.MinTTL {
-		ttl = h.MinTTL
-	}
-
-	return ttl
+	return mp.Config.PluginName
 }
