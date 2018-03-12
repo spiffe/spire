@@ -93,7 +93,7 @@ func (c *cacheImpl) Subscribe(sub *Subscriber) {
 	entries := c.Entries()
 	c.m.Lock()
 	defer c.m.Unlock()
-	go c.updateSubscrbers([]*Subscriber{sub}, entries)
+	go c.updateSubscribers([]*Subscriber{sub}, entries)
 	c.Subscribers.Add(sub)
 }
 
@@ -116,11 +116,11 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 	c.cache[key] = append(c.cache[key], *entry)
 
 	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
-	c.updateSubscrbers(subs, entries)
+	c.updateSubscribers(subs, entries)
 	return
 }
 
-func (c *cacheImpl) updateSubscrbers(subs []*Subscriber, entryCh chan Entry) {
+func (c *cacheImpl) updateSubscribers(subs []*Subscriber, entryCh <-chan *Entry) {
 	for _, sub := range subs {
 		subEntries := SubscriberEntries(sub, entryCh)
 		select {
@@ -162,7 +162,7 @@ func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) (deleted boo
 	}
 	c.m.Unlock()
 	if deleted {
-		c.updateSubscrbers(subs, c.Entries())
+		c.updateSubscribers(subs, c.Entries())
 	}
 	return
 }
