@@ -8,11 +8,13 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/proto/api/workload"
 
 	"google.golang.org/grpc"
@@ -35,6 +37,9 @@ type ClientConfig struct {
 
 	// The maximum number of seconds we should backoff for on dial and rpc calls
 	Timeout time.Duration
+
+	// A logging interface which is satisfied by stdlib logger. Can be nil.
+	Logger logrus.StdLogger
 }
 
 type client struct {
@@ -103,8 +108,11 @@ func (c *client) Start() error {
 				case err := <-errChan:
 					cancel()
 					if err == io.EOF {
+						c.log("SPIFFE server hung up. Redialing.")
 						break FetchLoop
 					} else {
+						msg := fmt.Sprintf("Received error from SPIFFE Workload API: %v", err)
+						c.log(msg)
 						break RecvLoop
 					}
 				case resp = <-respChan:
@@ -134,8 +142,10 @@ func (c *client) UpdateChan() <-chan *workload.X509SVIDResponse {
 
 // updater implements a waiter which attempts to send the consumer a copy of the latest response. It
 // is decoupled from updates being received from the Workload API in order to be easier on the node agent,
-// ensuring updates are read in a timely fashion.
+// ensuring updates are read in a timely fashion. Only sends an update if the response has changed.
 func (c *client) updater() {
+	var lastUpdate *workload.X509SVIDResponse
+
 	for {
 		select {
 		case <-c.shutdown:
@@ -148,6 +158,10 @@ func (c *client) updater() {
 		update := c.current
 		c.mtx.RUnlock()
 
+		if reflect.DeepEqual(lastUpdate, update) {
+			continue
+		}
+
 		select {
 		case <-c.shutdown:
 			return
@@ -156,6 +170,7 @@ func (c *client) updater() {
 			// read the current one, re-evaluate the update.
 			goto Update
 		case c.updateChan <- update:
+			lastUpdate = update
 		}
 	}
 }
@@ -177,6 +192,8 @@ func (c *client) fetchWithBackoff(ctx context.Context, apiClient workload.Spiffe
 	for {
 		stream, err := apiClient.FetchX509SVID(ctx, &workload.X509SVIDRequest{})
 		if err != nil && b.goAgain(c.shutdown) {
+			msg := fmt.Sprintf("Received error from SPIFFE Workload API: %v", err)
+			c.log(msg)
 			continue
 		} else if err != nil {
 			return nil, err
@@ -192,6 +209,8 @@ func (c *client) dialWithBackoff() (workload.SpiffeWorkloadAPIClient, error) {
 	for {
 		apiClient, err := c.dial()
 		if err != nil && b.goAgain(c.shutdown) {
+			msg := fmt.Sprintf("Received error while dialing SPIFFE Workload API: %v", err)
+			c.log(msg)
 			continue
 		} else if err != nil {
 			return nil, err
@@ -223,6 +242,12 @@ func (c *client) addr() (net.Addr, error) {
 	}
 
 	return c.addrFromEnv()
+}
+
+func (c *client) log(msg string) {
+	if c.c.Logger != nil {
+		c.c.Logger.Println(msg)
+	}
 }
 
 func (c client) addrFromEnv() (net.Addr, error) {
@@ -292,7 +317,6 @@ func (client) parseUDSAddr(u *url.URL) (net.Addr, error) {
 }
 
 func (client) dialer(network string) func(addr string, timeout time.Duration) (net.Conn, error) {
-	// Assume we're only dialing sockets
 	return func(addr string, timeout time.Duration) (net.Conn, error) {
 		return net.DialTimeout(network, addr, timeout)
 	}
