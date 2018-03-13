@@ -91,7 +91,7 @@ func (m *manager) close(err error) {
 	if err != nil {
 		m.c.Log.Errorf("cache manager crashed: %v", err)
 	} else {
-		m.c.Log.Info("cache manager stopped gracefully")
+		m.c.Log.Info("Cache manager stopped")
 	}
 }
 
