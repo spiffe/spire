@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -83,7 +84,7 @@ func TestFetchBaseSVID(t *testing.T) {
 
 	data := getFetchBaseSVIDTestData()
 	setFetchBaseSVIDExpectations(suite, data)
-	response, err := suite.handler.FetchBaseSVID(nil, data.request)
+	response, err := suite.handler.FetchBaseSVID(context.Background(), data.request)
 	expected := getExpectedFetchBaseSVID(data.baseSpiffeID, data.generatedCert)
 
 	if err != nil {

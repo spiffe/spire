@@ -27,7 +27,7 @@ sleep 2
 
 TOKEN=$(./cmd/spire-server/spire-server token generate -spiffeID spiffe://example.org/agent | awk '{print $2}')
 ./cmd/spire-agent/spire-agent run -joinToken $TOKEN &
-sleep 8
+sleep 2
 
 set +e
 RESULT=$(./cmd/spire-agent/spire-agent api fetch)

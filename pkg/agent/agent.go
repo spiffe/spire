@@ -180,6 +180,8 @@ func (a *Agent) loadSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
 func (a *Agent) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x509.Certificate, []*x509.Certificate, error) {
+	a.c.Log.Info("Performing node attestation")
+
 	data, err := a.attestableData()
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetch attestable data: %v", err)

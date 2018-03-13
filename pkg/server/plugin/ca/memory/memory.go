@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math/big"
 	"net/url"
 	"sync"
@@ -62,8 +61,6 @@ type MemoryPlugin struct {
 }
 
 func (m *MemoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	log.Print("Starting Configure")
-
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -98,8 +95,6 @@ func (m *MemoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 }
 
 func (*MemoryPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	log.Print("Getting plugin information")
-
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
@@ -107,13 +102,11 @@ func (m *MemoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	log.Print("Starting SignCsr")
 	if m.cert == nil {
 		return nil, errors.New("Invalid state: no certificate")
 	}
 
 	if request.Ttl == 0 {
-		log.Printf("TTL is set to 0. Using default TTL: %v", m.config.DefaultTTL)
 		request.Ttl = int32(m.config.DefaultTTL)
 	} else if request.Ttl < 0 {
 		return nil, fmt.Errorf("Invalid TTL: %v", request.Ttl)
@@ -148,15 +141,12 @@ func (m *MemoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 		return nil, err
 	}
 
-	log.Print("Certificate successfully created")
 	return &ca.SignCsrResponse{SignedCertificate: signedCertificate}, nil
 }
 
 func (m *MemoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrResponse, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-
-	log.Print("Starting generation of CSR")
 
 	newKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	if err != nil {
@@ -196,7 +186,6 @@ func (m *MemoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 		return nil, err
 	}
 
-	log.Printf("CSR with SPIFFE ID: '%v' successfully generated", spiffeID.String())
 	return &ca.GenerateCsrResponse{Csr: csr}, nil
 }
 
@@ -204,19 +193,9 @@ func (m *MemoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*c
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	log.Print("Starting fetching signing certificate")
-
 	if m.cert == nil {
 		// return empty result if uninitialized.
-		log.Print("No certificate to fetch")
 		return &ca.FetchCertificateResponse{}, nil
-	}
-
-	certUris, err := uri.GetURINamesFromCertificate(m.cert)
-	if err == nil && len(certUris) > 0 {
-		log.Printf("Certificate with SPIFFE ID: '%v' found", certUris[0])
-	} else {
-		log.Print("The signing certificate loaded does not have a SPIFFE ID!")
 	}
 
 	return &ca.FetchCertificateResponse{StoredIntermediateCert: m.cert.Raw}, nil
@@ -226,7 +205,6 @@ func (m *MemoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (resp
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	log.Print("Loading signing certificate")
 	if m.newKey == nil {
 		return &ca.LoadCertificateResponse{}, errors.New("Invalid state: no private key. GenerateCsr() should be called first")
 	}
@@ -291,8 +269,6 @@ func (m *MemoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (resp
 
 	m.cert = cert
 	m.key = m.newKey
-
-	log.Printf("Signing certificate with SPIFFE ID: '%v' successfully loaded", spiffeidUrl.String())
 
 	return &ca.LoadCertificateResponse{}, nil
 }

@@ -100,7 +100,7 @@ func (*RunCLI) Run(args []string) int {
 		return 1
 	}
 
-	c.Log.Infof("agent stopped gracefully")
+	c.Log.Infof("Agent stopped gracefully")
 	return 0
 }
 
