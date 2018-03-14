@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 
 	tomb "gopkg.in/tomb.v2"
 )
@@ -28,6 +29,7 @@ type Config struct {
 	Catalog         catalog.Catalog
 	TrustDomain     url.URL
 	Log             logrus.FieldLogger
+	Tel             telemetry.Sink
 	ServerAddr      *net.TCPAddr
 	SVIDCachePath   string
 	BundleCachePath string

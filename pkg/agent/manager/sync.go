@@ -140,6 +140,8 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 }
 
 func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
+	defer m.c.Tel.MeasureSince([]string{"cache_manager", "expiry_check_duration"}, time.Now())
+
 	entryRequests := entryRequests{}
 	for entry := range m.cache.Entries() {
 		ttl := entry.SVID.NotAfter.Sub(time.Now())
@@ -166,6 +168,8 @@ func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
 			m.cache.DeleteEntry(entry.RegistrationEntry)
 		}
 	}
+
+	m.c.Tel.AddSample([]string{"cache_manager", "expiring_svids"}, float32(len(entryRequests)))
 	return entryRequests, nil
 }
 
