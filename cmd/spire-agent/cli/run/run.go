@@ -53,6 +53,9 @@ type agentConfig struct {
 
 	ConfigPath string
 	Umask      string `hcl:"umask"`
+
+	ProfilingEnabled string `hcl:"profiling_enabled"`
+	ProfilingPort    string `hcl:"profiling_port"`
 }
 
 type RunCLI struct {
@@ -246,6 +249,27 @@ func mergeConfig(orig *agent.Config, cmd *runConfig) error {
 		orig.Umask = int(umask)
 	}
 
+	if cmd.AgentConfig.ProfilingEnabled != "" {
+		value, err := strconv.ParseBool(cmd.AgentConfig.ProfilingEnabled)
+		if err != nil {
+			return fmt.Errorf("Could not parse profiling_enabled %s: %s", cmd.AgentConfig.ProfilingEnabled, err)
+		}
+		orig.ProfilingEnabled = value
+	}
+
+	if orig.ProfilingEnabled {
+		if cmd.AgentConfig.ProfilingPort != "" {
+			value, err := strconv.ParseInt(cmd.AgentConfig.ProfilingPort, 0, 0)
+			if err != nil {
+				orig.ProfilingEnabled = false
+				if orig.Log != nil {
+					orig.Log.Warnf("Could not parse profiling_port %s: %s. Profiling has been disabled", cmd.AgentConfig.ProfilingPort, err)
+				}
+			} else {
+				orig.ProfilingPort = int(value)
+			}
+		}
+	}
 	return nil
 }
 

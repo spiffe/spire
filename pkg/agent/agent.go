@@ -7,10 +7,16 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"net/url"
 	"path"
+
+	"strconv"
 	"sync"
 	"syscall"
+
+	_ "golang.org/x/net/trace"
 
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
@@ -53,6 +59,9 @@ func (a *Agent) Shutdown() {
 }
 
 func (a *Agent) run() error {
+
+	a.setupProfiling()
+
 	err := a.startPlugins()
 	if err != nil {
 		return err
@@ -109,6 +118,16 @@ func (a *Agent) shutdown() {
 
 	if a.Catalog != nil {
 		a.Catalog.Stop()
+	}
+}
+
+func (a *Agent) setupProfiling() {
+	if a.c.ProfilingEnabled {
+		grpc.EnableTracing = true
+		go func() {
+			port := strconv.Itoa(a.c.ProfilingPort)
+			a.c.Log.Info(http.ListenAndServe("localhost:"+port, nil))
+		}()
 	}
 }
 

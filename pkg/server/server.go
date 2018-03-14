@@ -4,7 +4,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"net/url"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -13,6 +16,11 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+
+	_ "golang.org/x/net/trace"
+
+	"google.golang.org/grpc"
+
 	tomb "gopkg.in/tomb.v2"
 )
 
@@ -33,6 +41,12 @@ type Config struct {
 
 	// Umask value to use
 	Umask int
+
+	// If true enables profiling.
+	ProfilingEnabled bool
+
+	// Port used by the pprof web server when ProfilingEnabled == true
+	ProfilingPort int
 }
 
 type Server struct {
@@ -65,6 +79,9 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) run() error {
+
+	s.setupProfiling()
+
 	s.prepareUmask()
 
 	err := s.initPlugins()
@@ -108,6 +125,16 @@ func (s *Server) shutdown() {
 	}
 
 	return
+}
+
+func (s *Server) setupProfiling() {
+	if s.Config.ProfilingEnabled {
+		grpc.EnableTracing = true
+		go func() {
+			port := strconv.Itoa(s.Config.ProfilingPort)
+			s.Config.Log.Info(http.ListenAndServe("localhost:"+port, nil))
+		}()
+	}
 }
 
 func (s *Server) prepareUmask() {

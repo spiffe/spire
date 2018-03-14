@@ -35,16 +35,18 @@ type runConfig struct {
 }
 
 type serverConfig struct {
-	BindAddress   string `hcl:"bind_address"`
-	BindPort      int    `hcl:"bind_port"`
-	BindHTTPPort  int    `hcl:"bind_http_port"`
-	TrustDomain   string `hcl:"trust_domain"`
-	LogFile       string `hcl:"log_file"`
-	LogLevel      string `hcl:"log_level"`
-	BaseSVIDTtl   int    `hcl:"base_svid_ttl"`
-	ServerSVIDTtl int    `hcl:"server_svid_ttl"`
-	ConfigPath    string
-	Umask         string `hcl:"umask"`
+	BindAddress      string `hcl:"bind_address"`
+	BindPort         int    `hcl:"bind_port"`
+	BindHTTPPort     int    `hcl:"bind_http_port"`
+	TrustDomain      string `hcl:"trust_domain"`
+	LogFile          string `hcl:"log_file"`
+	LogLevel         string `hcl:"log_level"`
+	BaseSVIDTtl      int    `hcl:"base_svid_ttl"`
+	ServerSVIDTtl    int    `hcl:"server_svid_ttl"`
+	ConfigPath       string
+	Umask            string `hcl:"umask"`
+	ProfilingEnabled string `hcl:"profiling_enabled"`
+	ProfilingPort    string `hcl:"profiling_port"`
 }
 
 // Run CLI struct
@@ -213,6 +215,28 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 			return fmt.Errorf("Could not parse umask %s: %s", cmd.Server.Umask, err)
 		}
 		orig.Umask = int(umask)
+	}
+
+	if cmd.Server.ProfilingEnabled != "" {
+		value, err := strconv.ParseBool(cmd.Server.ProfilingEnabled)
+		if err != nil {
+			return fmt.Errorf("Could not parse profiling_enabled %s: %s", cmd.Server.ProfilingEnabled, err)
+		}
+		orig.ProfilingEnabled = value
+	}
+
+	if orig.ProfilingEnabled {
+		if cmd.Server.ProfilingPort != "" {
+			value, err := strconv.ParseInt(cmd.Server.ProfilingPort, 0, 0)
+			if err != nil {
+				orig.ProfilingEnabled = false
+				if orig.Log != nil {
+					orig.Log.Warnf("Could not parse profiling_port %s: %s. Profiling has been disabled", cmd.Server.ProfilingPort, err)
+				}
+			} else {
+				orig.ProfilingPort = int(value)
+			}
+		}
 	}
 
 	return nil

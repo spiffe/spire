@@ -37,6 +37,12 @@ type Config struct {
 
 	// Umask value to use
 	Umask int
+
+	// If true enables profiling.
+	ProfilingEnabled bool
+
+	// Port used by the pprof web server when ProfilingEnabled == true
+	ProfilingPort int
 }
 
 func New(c *Config) *Agent {
