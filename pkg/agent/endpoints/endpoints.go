@@ -37,6 +37,7 @@ func (e *endpoints) Start() error {
 		return err
 	}
 
+	e.c.Log.Info("Starting workload API")
 	e.t.Go(func() error { return e.start(l) })
 	return nil
 }

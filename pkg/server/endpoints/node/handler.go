@@ -70,6 +70,7 @@ func (h *Handler) FetchBaseSVID(
 		return response, errors.New("Error trying to validate attestation")
 	}
 
+	h.Log.Debugf("Signing CSR for Agent SVID %v", baseSpiffeIDFromCSR)
 	signResponse, err := serverCA.SignCsr(&ca.SignCsrRequest{Csr: request.Csr})
 	if err != nil {
 		h.Log.Error(err)
@@ -105,9 +106,10 @@ func (h *Handler) FetchBaseSVID(
 		return response, errors.New("Error trying to compose response")
 	}
 
-	h.Log.Info("Received node attestation request from ", baseSpiffeIDFromCSR,
-		" using strategy '", request.AttestedData.Type,
-		"' completed successfully.")
+	p, ok := peer.FromContext(ctx)
+	if ok {
+		h.Log.Infof("Node attestation request from %v completed using strategy %v", p.Addr, request.AttestedData.Type)
+	}
 
 	return response, nil
 }
@@ -527,6 +529,7 @@ func (h *Handler) signCSRs(
 				return nil, err
 			}
 
+			h.Log.Debugf("Signing SVID for %v on request by %v", spiffeID, callerID)
 			svid, err := h.buildBaseSVID(csr)
 			if err != nil {
 				return nil, err
@@ -539,6 +542,7 @@ func (h *Handler) signCSRs(
 			}
 
 		} else {
+			h.Log.Debugf("Signing SVID for %v on request by %v", spiffeID, callerID)
 			svid, err := h.buildSVID(spiffeID, regEntriesMap, csr)
 			if err != nil {
 				return nil, err
