@@ -53,11 +53,11 @@ func NewSink(c *SinkConfig) Sink {
 		inmemCloser: inmemSignal.Stop,
 	}
 
-	go t.wait()
+	go t.cleanup()
 	return t
 }
 
-func (t *sink) wait() {
+func (t *sink) cleanup() {
 	<-t.stopChan
 	t.inmemCloser()
 }
