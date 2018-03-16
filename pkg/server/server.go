@@ -3,10 +3,12 @@ package server
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
+	"github.com/spiffe/spire/pkg/common/profiling"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
+	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -47,6 +49,9 @@ type Config struct {
 
 	// Port used by the pprof web server when ProfilingEnabled == true
 	ProfilingPort int
+
+	// Frequency in seconds by which each profile file will be generated.
+	ProfilingFreq int
 }
 
 type Server struct {
@@ -129,12 +134,38 @@ func (s *Server) shutdown() {
 
 func (s *Server) setupProfiling() {
 	if s.Config.ProfilingEnabled {
-		grpc.EnableTracing = true
-		go func() {
-			port := strconv.Itoa(s.Config.ProfilingPort)
-			s.Config.Log.Info(http.ListenAndServe("localhost:"+port, nil))
-		}()
+		if runtime.MemProfileRate == 0 {
+			s.Config.Log.Warn("Memory profiles are disabled")
+		}
+		if s.Config.ProfilingPort > 0 {
+			grpc.EnableTracing = true
+			go func() {
+				port := strconv.Itoa(s.Config.ProfilingPort)
+				s.Config.Log.Info(http.ListenAndServe("localhost:"+port, nil))
+			}()
+		}
+		if s.Config.ProfilingFreq > 0 {
+			c := &profiling.Config{
+				Tag:                    "server",
+				Frequency:              s.Config.ProfilingFreq,
+				DebugLevel:             0,
+				RunGCBeforeHeapProfile: true,
+				Profiles:               []string{"goroutine", "threadcreate", "heap", "block", "mutex", "trace", "cpu"},
+			}
+			err := profiling.Start(c)
+			if err != nil {
+				s.Config.Log.Error("Profiler failed to start: %v", err)
+			} else {
+				s.t.Go(s.stopProfiling)
+			}
+		}
 	}
+}
+
+func (s *Server) stopProfiling() error {
+	<-s.t.Dying()
+	profiling.Stop()
+	return nil
 }
 
 func (s *Server) prepareUmask() {

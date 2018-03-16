@@ -47,6 +47,7 @@ type serverConfig struct {
 	Umask            string `hcl:"umask"`
 	ProfilingEnabled string `hcl:"profiling_enabled"`
 	ProfilingPort    string `hcl:"profiling_port"`
+	ProfilingFreq    string `hcl:"profiling_freq"`
 }
 
 // Run CLI struct
@@ -229,12 +230,22 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 		if cmd.Server.ProfilingPort != "" {
 			value, err := strconv.ParseInt(cmd.Server.ProfilingPort, 0, 0)
 			if err != nil {
-				orig.ProfilingEnabled = false
 				if orig.Log != nil {
-					orig.Log.Warnf("Could not parse profiling_port %s: %s. Profiling has been disabled", cmd.Server.ProfilingPort, err)
+					orig.Log.Warnf("Could not parse profiling_port %s: %s. pprof web server would not be run", cmd.Server.ProfilingPort, err)
 				}
 			} else {
 				orig.ProfilingPort = int(value)
+			}
+		}
+
+		if cmd.Server.ProfilingFreq != "" {
+			value, err := strconv.ParseInt(cmd.Server.ProfilingFreq, 0, 0)
+			if err != nil {
+				if orig.Log != nil {
+					orig.Log.Warnf("Could not parse profiling_freq %s: %s. Profiling data would not be generated", cmd.Server.ProfilingFreq, err)
+				}
+			} else {
+				orig.ProfilingFreq = int(value)
 			}
 		}
 	}

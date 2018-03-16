@@ -7,10 +7,12 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"github.com/spiffe/spire/pkg/common/profiling"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
 	"path"
+	"runtime"
 
 	"strconv"
 	"sync"
@@ -123,12 +125,37 @@ func (a *Agent) shutdown() {
 
 func (a *Agent) setupProfiling() {
 	if a.c.ProfilingEnabled {
-		grpc.EnableTracing = true
-		go func() {
-			port := strconv.Itoa(a.c.ProfilingPort)
-			a.c.Log.Info(http.ListenAndServe("localhost:"+port, nil))
-		}()
+		if runtime.MemProfileRate == 0 {
+			a.c.Log.Warn("Memory profiles are disabled")
+		}
+		if a.c.ProfilingPort > 0 {
+			grpc.EnableTracing = true
+			go func() {
+				port := strconv.Itoa(a.c.ProfilingPort)
+				a.c.Log.Info(http.ListenAndServe("localhost:"+port, nil))
+			}()
+		}
+		if a.c.ProfilingFreq > 0 {
+			c := &profiling.Config{
+				Tag:        "agent",
+				Frequency:  a.c.ProfilingFreq,
+				DebugLevel: 0,
+				Profiles:   []string{"goroutine", "threadcreate", "heap", "block", "mutex", "trace", "cpu"},
+			}
+			err := profiling.Start(c)
+			if err != nil {
+				a.c.Log.Error("Profiler failed to start: %v", err)
+			} else {
+				a.t.Go(a.stopProfiling)
+			}
+		}
 	}
+}
+
+func (a *Agent) stopProfiling() error {
+	<-a.t.Dying()
+	profiling.Stop()
+	return nil
 }
 
 func (a *Agent) startPlugins() error {

@@ -56,6 +56,7 @@ type agentConfig struct {
 
 	ProfilingEnabled string `hcl:"profiling_enabled"`
 	ProfilingPort    string `hcl:"profiling_port"`
+	ProfilingFreq    string `hcl:"profiling_freq"`
 }
 
 type RunCLI struct {
@@ -261,12 +262,22 @@ func mergeConfig(orig *agent.Config, cmd *runConfig) error {
 		if cmd.AgentConfig.ProfilingPort != "" {
 			value, err := strconv.ParseInt(cmd.AgentConfig.ProfilingPort, 0, 0)
 			if err != nil {
-				orig.ProfilingEnabled = false
 				if orig.Log != nil {
-					orig.Log.Warnf("Could not parse profiling_port %s: %s. Profiling has been disabled", cmd.AgentConfig.ProfilingPort, err)
+					orig.Log.Warnf("Could not parse profiling_port %s: %s. pprof web server would not be run", cmd.AgentConfig.ProfilingPort, err)
 				}
 			} else {
 				orig.ProfilingPort = int(value)
+			}
+		}
+
+		if cmd.AgentConfig.ProfilingFreq != "" {
+			value, err := strconv.ParseInt(cmd.AgentConfig.ProfilingFreq, 0, 0)
+			if err != nil {
+				if orig.Log != nil {
+					orig.Log.Warnf("Could not parse profiling_freq %s: %s. Profiling data would not be generated", cmd.AgentConfig.ProfilingFreq, err)
+				}
+			} else {
+				orig.ProfilingFreq = int(value)
 			}
 		}
 	}

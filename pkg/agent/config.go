@@ -43,6 +43,9 @@ type Config struct {
 
 	// Port used by the pprof web server when ProfilingEnabled == true
 	ProfilingPort int
+
+	// Frequency in seconds by which each profile file will be generated.
+	ProfilingFreq int
 }
 
 func New(c *Config) *Agent {
