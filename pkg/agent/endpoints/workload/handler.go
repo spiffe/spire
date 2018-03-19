@@ -141,7 +141,7 @@ func (h *Handler) callerPID(ctx context.Context) (pid int32, err error) {
 // is encountered, it is logged and selectors from the failing plugin are discarded.
 func (h *Handler) attest(pid int32) []*common.Selector {
 	tLabels := []telemetry.Label{{"workload_pid", string(pid)}}
-	defer h.T.MeasureSinceWithLabels([]string{"workload_api", "attest_duration"}, time.Now(), tLabels)
+	defer h.T.MeasureSinceWithLabels([]string{"workload_api", "workload_attestation_duration"}, time.Now(), tLabels)
 
 	plugins := h.Catalog.WorkloadAttestors()
 	sChan := make(chan []*common.Selector)
@@ -177,7 +177,7 @@ func (h *Handler) invokeAttestor(a workloadattestor.WorkloadAttestor, pid int32,
 
 	start := time.Now()
 	resp, err := a.Attest(req)
-	h.T.MeasureSinceWithLabels([]string{"workload_api", "attestor_latency"}, start, tLabels)
+	h.T.MeasureSinceWithLabels([]string{"workload_api", "workload_attestor_latency"}, start, tLabels)
 	if err != nil {
 		errChan <- fmt.Errorf("call %v workload attestor: %v", attestorName, err)
 		return

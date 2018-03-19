@@ -38,9 +38,6 @@ type Config struct {
 
 	// Umask value to use
 	Umask int
-
-	// Address of optional statsd server
-	StatsdAddr string
 }
 
 func New(c *Config) *Agent {
@@ -53,7 +50,6 @@ func New(c *Config) *Agent {
 	telConfig := &telemetry.SinkConfig{
 		Logger:      c.Log.WithField("subsystem_name", "telemetry").Writer(),
 		ServiceName: "spire_agent",
-		StatsdAddr:  c.StatsdAddr,
 		StopChan:    t.Dying(),
 	}
 

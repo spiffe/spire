@@ -10,7 +10,6 @@ import (
 type SinkConfig struct {
 	Logger      io.Writer
 	ServiceName string
-	StatsdAddr  string
 
 	StopChan <-chan struct{}
 }
@@ -36,12 +35,6 @@ func NewSink(c *SinkConfig) Sink {
 
 	// Allow the in-memory sink to be signaled, printing stats to the log
 	inmemSignal := metrics.NewInmemSignal(inmemSink, metrics.DefaultSignal, c.Logger)
-
-	if c.StatsdAddr != "" {
-		// Although NewStatsdSink returns an error type, there is no codepath for non-nil error.
-		statsdSink, _ := metrics.NewStatsdSink(c.StatsdAddr)
-		sinks = append(sinks, statsdSink)
-	}
 
 	// Although New returns an error type, there is no codepath for non-nil error.
 	config := metrics.DefaultConfig(c.ServiceName)
