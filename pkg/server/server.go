@@ -3,18 +3,18 @@ package server
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"github.com/spiffe/spire/pkg/common/profiling"
+	"fmt"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
 	"runtime"
-	"strconv"
 	"sync"
 	"syscall"
 
 	"github.com/sirupsen/logrus"
 	common "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
@@ -85,7 +85,9 @@ func (s *Server) Run() error {
 
 func (s *Server) run() error {
 
-	s.setupProfiling()
+	if s.Config.ProfilingEnabled {
+		s.setupProfiling()
+	}
 
 	s.prepareUmask()
 
@@ -133,32 +135,30 @@ func (s *Server) shutdown() {
 }
 
 func (s *Server) setupProfiling() {
-	if s.Config.ProfilingEnabled {
-		if runtime.MemProfileRate == 0 {
-			s.Config.Log.Warn("Memory profiles are disabled")
+	if runtime.MemProfileRate == 0 {
+		s.Config.Log.Warn("Memory profiles are disabled")
+	}
+	if s.Config.ProfilingPort > 0 {
+		grpc.EnableTracing = true
+		go func() {
+			addr := fmt.Sprintf("localhost:%d", s.Config.ProfilingPort)
+			s.Config.Log.Info(http.ListenAndServe(addr, nil))
+		}()
+	}
+	if s.Config.ProfilingFreq > 0 {
+		c := &profiling.Config{
+			Tag:                    "server",
+			Frequency:              s.Config.ProfilingFreq,
+			DebugLevel:             0,
+			RunGCBeforeHeapProfile: true,
+			Profiles:               []string{"goroutine", "threadcreate", "heap", "block", "mutex", "trace", "cpu"},
 		}
-		if s.Config.ProfilingPort > 0 {
-			grpc.EnableTracing = true
-			go func() {
-				port := strconv.Itoa(s.Config.ProfilingPort)
-				s.Config.Log.Info(http.ListenAndServe("localhost:"+port, nil))
-			}()
+		err := profiling.Start(c)
+		if err != nil {
+			s.Config.Log.Error("Profiler failed to start: %v", err)
+			return
 		}
-		if s.Config.ProfilingFreq > 0 {
-			c := &profiling.Config{
-				Tag:                    "server",
-				Frequency:              s.Config.ProfilingFreq,
-				DebugLevel:             0,
-				RunGCBeforeHeapProfile: true,
-				Profiles:               []string{"goroutine", "threadcreate", "heap", "block", "mutex", "trace", "cpu"},
-			}
-			err := profiling.Start(c)
-			if err != nil {
-				s.Config.Log.Error("Profiler failed to start: %v", err)
-			} else {
-				s.t.Go(s.stopProfiling)
-			}
-		}
+		s.t.Go(s.stopProfiling)
 	}
 }
 

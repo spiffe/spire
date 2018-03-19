@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"path"
 	"runtime"
-	"strconv"
 	"sync"
 	"syscall"
 
@@ -60,8 +59,9 @@ func (a *Agent) Shutdown() {
 }
 
 func (a *Agent) run() error {
-
-	a.setupProfiling()
+	if a.c.ProfilingEnabled {
+		a.setupProfiling()
+	}
 
 	err := a.startPlugins()
 	if err != nil {
@@ -123,31 +123,29 @@ func (a *Agent) shutdown() {
 }
 
 func (a *Agent) setupProfiling() {
-	if a.c.ProfilingEnabled {
-		if runtime.MemProfileRate == 0 {
-			a.c.Log.Warn("Memory profiles are disabled")
+	if runtime.MemProfileRate == 0 {
+		a.c.Log.Warn("Memory profiles are disabled")
+	}
+	if a.c.ProfilingPort > 0 {
+		grpc.EnableTracing = true
+		go func() {
+			addr := fmt.Sprintf("localhost:%d", a.c.ProfilingPort)
+			a.c.Log.Info(http.ListenAndServe(addr, nil))
+		}()
+	}
+	if a.c.ProfilingFreq > 0 {
+		c := &profiling.Config{
+			Tag:        "agent",
+			Frequency:  a.c.ProfilingFreq,
+			DebugLevel: 0,
+			Profiles:   []string{"goroutine", "threadcreate", "heap", "block", "mutex", "trace", "cpu"},
 		}
-		if a.c.ProfilingPort > 0 {
-			grpc.EnableTracing = true
-			go func() {
-				port := strconv.Itoa(a.c.ProfilingPort)
-				a.c.Log.Info(http.ListenAndServe("localhost:"+port, nil))
-			}()
+		err := profiling.Start(c)
+		if err != nil {
+			a.c.Log.Error("Profiler failed to start: %v", err)
+			return
 		}
-		if a.c.ProfilingFreq > 0 {
-			c := &profiling.Config{
-				Tag:        "agent",
-				Frequency:  a.c.ProfilingFreq,
-				DebugLevel: 0,
-				Profiles:   []string{"goroutine", "threadcreate", "heap", "block", "mutex", "trace", "cpu"},
-			}
-			err := profiling.Start(c)
-			if err != nil {
-				a.c.Log.Error("Profiler failed to start: %v", err)
-			} else {
-				a.t.Go(a.stopProfiling)
-			}
-		}
+		a.t.Go(a.stopProfiling)
 	}
 }
 
