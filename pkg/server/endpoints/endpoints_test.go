@@ -3,8 +3,10 @@ package endpoints
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"net"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +20,8 @@ import (
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"google.golang.org/grpc"
 
 	"gopkg.in/tomb.v2"
 )
@@ -133,7 +137,7 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 
 	// Give the server some time to initialize
 	// https://github.com/golang/go/issues/20239
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// It should not exit "immediately"
 	select {
@@ -147,6 +151,65 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 	s.e.Shutdown()
 	err = <-errChan
 	require.NoError(s.T(), err)
+}
+
+func (s *EndpointsTestSuite) TestGRPCHook() {
+	// Set all expectations for running gRPC server
+	cert, _, err := util.LoadSVIDFixture()
+	require.NoError(s.T(), err)
+	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
+	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
+	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca})
+	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
+	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
+
+	// Protect the snitch w/ a mutex to satisfy the race detector
+	var snitch bool
+	snitchMtx := new(sync.Mutex)
+	hook := func(g *grpc.Server) error {
+		snitchMtx.Lock()
+		defer snitchMtx.Unlock()
+		snitch = true
+		return nil
+	}
+	s.e.c.GRPCHook = hook
+
+	errChan := make(chan error)
+	go func() { errChan <- s.e.ListenAndServe() }()
+	time.Sleep(100 * time.Millisecond)
+
+	snitchMtx.Lock()
+	defer snitchMtx.Unlock()
+	s.Assert().True(snitch)
+	s.e.Shutdown()
+	s.Assert().Nil(<-errChan)
+}
+
+func (s *EndpointsTestSuite) TestGRPCHookFailure() {
+	// Set all expectations for running gRPC server
+	cert, _, err := util.LoadSVIDFixture()
+	require.NoError(s.T(), err)
+	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
+	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
+	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca})
+	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
+	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
+
+	hook := func(_ *grpc.Server) error { return errors.New("i'm an error") }
+	s.e.c.GRPCHook = hook
+
+	errChan := make(chan error)
+	go func() { errChan <- s.e.ListenAndServe() }()
+	time.Sleep(100 * time.Millisecond)
+
+	select {
+	case err := <-errChan:
+		s.Assert().NotNil(err)
+	default:
+		s.Fail("grpc server still running after hook failure")
+		s.e.Shutdown()
+		<-errChan
+	}
 }
 
 func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
