@@ -7,32 +7,31 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"github.com/spiffe/spire/pkg/common/profiling"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
 	"path"
 	"runtime"
-
 	"strconv"
 	"sync"
 	"syscall"
 
-	_ "golang.org/x/net/trace"
-
+	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 
+	_ "golang.org/x/net/trace"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	tomb "gopkg.in/tomb.v2"
 )
 
