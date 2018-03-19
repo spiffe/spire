@@ -63,6 +63,7 @@ func (e *endpoints) registerWorkloadAPI() {
 		Manager: e.c.Manager,
 		Catalog: e.c.Catalog,
 		L:       e.c.Log.WithField("subsystem_name", "workload_api"),
+		T:       e.c.Tel,
 	}
 
 	workload_pb.RegisterSpiffeWorkloadAPIServer(e.grpc, w)

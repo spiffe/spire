@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/profiling"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
@@ -38,6 +39,7 @@ type Agent struct {
 	c   *Config
 	t   *tomb.Tomb
 	mtx *sync.RWMutex
+	tel telemetry.Sink
 
 	Manager   manager.Manager
 	Catalog   catalog.Catalog
@@ -274,6 +276,7 @@ func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bund
 		TrustDomain:     a.c.TrustDomain,
 		ServerAddr:      a.c.ServerAddress,
 		Log:             a.c.Log,
+		Tel:             a.tel,
 		BundleCachePath: a.bundleCachePath(),
 		SVIDCachePath:   a.agentSVIDPath(),
 	}
@@ -294,6 +297,7 @@ func (a *Agent) startEndpoints(bundle []*x509.Certificate) error {
 		Catalog:  a.Catalog,
 		Manager:  a.Manager,
 		Log:      a.c.Log.WithField("subsystem_name", "endpoints"),
+		Tel:      a.tel,
 	}
 
 	e := endpoints.New(config)
