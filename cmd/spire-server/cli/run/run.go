@@ -44,10 +44,11 @@ type serverConfig struct {
 	BaseSVIDTtl      int    `hcl:"base_svid_ttl"`
 	ServerSVIDTtl    int    `hcl:"server_svid_ttl"`
 	ConfigPath       string
-	Umask            string `hcl:"umask"`
-	ProfilingEnabled string `hcl:"profiling_enabled"`
-	ProfilingPort    string `hcl:"profiling_port"`
-	ProfilingFreq    string `hcl:"profiling_freq"`
+	Umask            string   `hcl:"umask"`
+	ProfilingEnabled string   `hcl:"profiling_enabled"`
+	ProfilingPort    string   `hcl:"profiling_port"`
+	ProfilingFreq    string   `hcl:"profiling_freq"`
+	ProfilingNames   []string `hcl:"profiling_names"`
 }
 
 // Run CLI struct
@@ -247,6 +248,10 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 			} else {
 				orig.ProfilingFreq = int(value)
 			}
+		}
+
+		if len(cmd.Server.ProfilingNames) > 0 {
+			orig.ProfilingNames = cmd.Server.ProfilingNames
 		}
 	}
 

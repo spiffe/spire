@@ -54,9 +54,10 @@ type agentConfig struct {
 	ConfigPath string
 	Umask      string `hcl:"umask"`
 
-	ProfilingEnabled string `hcl:"profiling_enabled"`
-	ProfilingPort    string `hcl:"profiling_port"`
-	ProfilingFreq    string `hcl:"profiling_freq"`
+	ProfilingEnabled string   `hcl:"profiling_enabled"`
+	ProfilingPort    string   `hcl:"profiling_port"`
+	ProfilingFreq    string   `hcl:"profiling_freq"`
+	ProfilingNames   []string `hcl:"profiling_names"`
 }
 
 type RunCLI struct {
@@ -279,6 +280,10 @@ func mergeConfig(orig *agent.Config, cmd *runConfig) error {
 			} else {
 				orig.ProfilingFreq = int(value)
 			}
+		}
+
+		if len(cmd.AgentConfig.ProfilingNames) > 0 {
+			orig.ProfilingNames = cmd.AgentConfig.ProfilingNames
 		}
 	}
 	return nil

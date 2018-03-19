@@ -138,7 +138,7 @@ func (a *Agent) setupProfiling() {
 			Tag:        "agent",
 			Frequency:  a.c.ProfilingFreq,
 			DebugLevel: 0,
-			Profiles:   []string{"goroutine", "threadcreate", "heap", "block", "mutex", "trace", "cpu"},
+			Profiles:   a.c.ProfilingNames,
 		}
 		err := profiling.Start(c)
 		if err != nil {

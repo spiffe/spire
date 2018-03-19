@@ -52,6 +52,9 @@ type Config struct {
 
 	// Frequency in seconds by which each profile file will be generated.
 	ProfilingFreq int
+
+	// Array of profiles names that will be generated on each profiling tick.
+	ProfilingNames []string
 }
 
 type Server struct {
@@ -151,7 +154,7 @@ func (s *Server) setupProfiling() {
 			Frequency:              s.Config.ProfilingFreq,
 			DebugLevel:             0,
 			RunGCBeforeHeapProfile: true,
-			Profiles:               []string{"goroutine", "threadcreate", "heap", "block", "mutex", "trace", "cpu"},
+			Profiles:               s.Config.ProfilingNames,
 		}
 		err := profiling.Start(c)
 		if err != nil {

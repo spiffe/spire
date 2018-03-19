@@ -46,6 +46,9 @@ type Config struct {
 
 	// Frequency in seconds by which each profile file will be generated.
 	ProfilingFreq int
+
+	// Array of profiles names that will be generated on each profiling tick.
+	ProfilingNames []string
 }
 
 func New(c *Config) *Agent {
