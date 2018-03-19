@@ -3,16 +3,26 @@ package server
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
+	"fmt"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"net/url"
+	"runtime"
 	"sync"
 	"syscall"
 
 	"github.com/sirupsen/logrus"
 	common "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+
+	_ "golang.org/x/net/trace"
+
+	"google.golang.org/grpc"
+
 	tomb "gopkg.in/tomb.v2"
 )
 
@@ -33,6 +43,18 @@ type Config struct {
 
 	// Umask value to use
 	Umask int
+
+	// If true enables profiling.
+	ProfilingEnabled bool
+
+	// Port used by the pprof web server when ProfilingEnabled == true
+	ProfilingPort int
+
+	// Frequency in seconds by which each profile file will be generated.
+	ProfilingFreq int
+
+	// Array of profiles names that will be generated on each profiling tick.
+	ProfilingNames []string
 }
 
 type Server struct {
@@ -65,6 +87,11 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) run() error {
+
+	if s.Config.ProfilingEnabled {
+		s.setupProfiling()
+	}
+
 	s.prepareUmask()
 
 	err := s.initPlugins()
@@ -108,6 +135,40 @@ func (s *Server) shutdown() {
 	}
 
 	return
+}
+
+func (s *Server) setupProfiling() {
+	if runtime.MemProfileRate == 0 {
+		s.Config.Log.Warn("Memory profiles are disabled")
+	}
+	if s.Config.ProfilingPort > 0 {
+		grpc.EnableTracing = true
+		go func() {
+			addr := fmt.Sprintf("localhost:%d", s.Config.ProfilingPort)
+			s.Config.Log.Info(http.ListenAndServe(addr, nil))
+		}()
+	}
+	if s.Config.ProfilingFreq > 0 {
+		c := &profiling.Config{
+			Tag:                    "server",
+			Frequency:              s.Config.ProfilingFreq,
+			DebugLevel:             0,
+			RunGCBeforeHeapProfile: true,
+			Profiles:               s.Config.ProfilingNames,
+		}
+		err := profiling.Start(c)
+		if err != nil {
+			s.Config.Log.Error("Profiler failed to start: %v", err)
+			return
+		}
+		s.t.Go(s.stopProfiling)
+	}
+}
+
+func (s *Server) stopProfiling() error {
+	<-s.t.Dying()
+	profiling.Stop()
+	return nil
 }
 
 func (s *Server) prepareUmask() {

@@ -38,6 +38,18 @@ type Config struct {
 
 	// Umask value to use
 	Umask int
+
+	// If true enables profiling.
+	ProfilingEnabled bool
+
+	// Port used by the pprof web server when ProfilingEnabled == true
+	ProfilingPort int
+
+	// Frequency in seconds by which each profile file will be generated.
+	ProfilingFreq int
+
+	// Array of profiles names that will be generated on each profiling tick.
+	ProfilingNames []string
 }
 
 func New(c *Config) *Agent {
