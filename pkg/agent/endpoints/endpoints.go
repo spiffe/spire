@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
@@ -18,13 +19,18 @@ type Endpoints interface {
 	Start() error
 	Wait() error
 	Shutdown()
+	GRPC() *grpc.Server
 }
 
 type endpoints struct {
-	c *Config
-	t *tomb.Tomb
+	c       *Config
+	t       *tomb.Tomb
+	grpc    *grpc.Server
+	runOnce *sync.Once
+}
 
-	grpc *grpc.Server
+func (e *endpoints) GRPC() *grpc.Server {
+	return e.grpc
 }
 
 func (e *endpoints) Start() error {

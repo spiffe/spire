@@ -9,6 +9,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager"
 
 	tomb "gopkg.in/tomb.v2"
+	"sync"
 )
 
 type Config struct {
@@ -23,7 +24,8 @@ type Config struct {
 
 func New(c *Config) *endpoints {
 	return &endpoints{
-		c: c,
-		t: new(tomb.Tomb),
+		c:       c,
+		t:       new(tomb.Tomb),
+		runOnce: new(sync.Once),
 	}
 }

@@ -45,6 +45,9 @@ type Server interface {
 	// ListenAndServe will unblock with `nil` if/when shutdown completes
 	// cleanly
 	Shutdown()
+
+	GRPC() *grpc.Server
+	HTTP() *http.Server
 }
 
 type endpoints struct {
@@ -77,6 +80,18 @@ func (e *endpoints) ListenAndServe() error {
 func (e *endpoints) Shutdown() {
 	e.t.Kill(nil)
 	return
+}
+
+func (e *endpoints) GRPC() *grpc.Server {
+	run := func() { e.t.Go(e.listenAndServe) }
+	e.runOnce.Do(run)
+	return e.grpcServer
+}
+
+func (e *endpoints) HTTP() *http.Server {
+	run := func() { e.t.Go(e.listenAndServe) }
+	e.runOnce.Do(run)
+	return e.httpServer
 }
 
 // listenAndServe creates listeners and starts all servers. It serves

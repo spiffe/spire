@@ -38,8 +38,8 @@ type Config struct {
 type Server struct {
 	Catalog    catalog.Catalog
 	Config     *Config
+	Endpoints  endpoints.Server
 	caManager  ca.Manager
-	endpoints  endpoints.Server
 	privateKey *ecdsa.PrivateKey
 	svid       *x509.Certificate
 
@@ -95,8 +95,8 @@ func (s *Server) Shutdown() {
 }
 
 func (s *Server) shutdown() {
-	if s.endpoints != nil {
-		s.endpoints.Shutdown()
+	if s.Endpoints != nil {
+		s.Endpoints.Shutdown()
 	}
 
 	if s.caManager != nil {
@@ -157,13 +157,13 @@ func (s *Server) startEndpoints() error {
 		Log:         s.Config.Log.WithField("subsystem_name", "endpoints"),
 	}
 
-	s.endpoints = endpoints.New(c)
+	s.Endpoints = endpoints.New(c)
 	s.m.Unlock()
 
-	s.t.Go(s.endpoints.ListenAndServe)
+	s.t.Go(s.Endpoints.ListenAndServe)
 
 	<-s.t.Dying()
-	s.endpoints.Shutdown()
+	s.Endpoints.Shutdown()
 
 	return nil
 }
