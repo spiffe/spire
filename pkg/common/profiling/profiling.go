@@ -74,6 +74,18 @@ var (
 	ErrUnknownProfile         = errors.New("unknown profile")
 )
 
+// OverrideDumper overrides the implementation for the dumper which has
+// the specified profile name.
+// Valid values for name are:
+// "goroutine", "threadcreate", "heap", "block", "mutex", "trace" and "cpu".
+func OverrideDumper(name string, dumper Dumper) error {
+	if _, ok := dumpers[name]; ok {
+		dumpers[name] = dumper
+		return nil
+	}
+	return ErrUnknownProfile
+}
+
 // Start profiling
 func Start(conf *Config) error {
 	profM.Lock()
