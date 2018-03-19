@@ -14,6 +14,7 @@ const (
 )
 
 type dumper struct {
+	c *Config
 }
 
 type heapDumper struct {
@@ -21,10 +22,12 @@ type heapDumper struct {
 }
 
 type cpuDumper struct {
+	c    *Config
 	data *os.File
 }
 
 type traceDumper struct {
+	c    *Config
 	data *os.File
 }
 
@@ -33,20 +36,20 @@ func (d *dumper) Prepare() error {
 	return nil
 }
 
-func (d *dumper) Dump(timestamp string, config *Config, name string) error {
+func (d *dumper) Dump(timestamp string, name string) error {
 	profile := pprof.Lookup(name)
 	if profile == nil {
 		return ErrUnknownProfile
 	}
 
-	filename := getFilename(timestamp, name)
+	filename := getFilename(timestamp, d.c.Tag, name)
 	f, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	return profile.WriteTo(f, config.DebugLevel)
+	return profile.WriteTo(f, d.c.DebugLevel)
 }
 
 func (d *dumper) Release() error {
@@ -58,11 +61,11 @@ func (d *heapDumper) Prepare() error {
 	return d.dumper.Prepare()
 }
 
-func (d *heapDumper) Dump(timestamp string, config *Config, name string) error {
-	if config.RunGCBeforeHeapProfile {
+func (d *heapDumper) Dump(timestamp string, name string) error {
+	if d.dumper.c.RunGCBeforeHeapProfile {
 		runtime.GC()
 	}
-	return d.dumper.Dump(timestamp, config, name)
+	return d.dumper.Dump(timestamp, name)
 }
 
 func (d *heapDumper) Release() error {
@@ -70,7 +73,7 @@ func (d *heapDumper) Release() error {
 }
 
 func (d *traceDumper) Prepare() error {
-	f, err := os.Create(getTempFilename(traceProfTmpFilename))
+	f, err := os.Create(getTempFilename(d.c.Tag, traceProfTmpFilename))
 	if err != nil {
 		return err
 	}
@@ -82,22 +85,22 @@ func (d *traceDumper) Prepare() error {
 	return nil
 }
 
-func (d *traceDumper) Dump(timestamp string, config *Config, name string) error {
+func (d *traceDumper) Dump(timestamp string, name string) error {
 	trace.Stop()
 	d.data.Close()
-	filename := getFilename(timestamp, name)
-	os.Rename(getTempFilename(traceProfTmpFilename), filename)
+	filename := getFilename(timestamp, d.c.Tag, name)
+	os.Rename(getTempFilename(d.c.Tag, traceProfTmpFilename), filename)
 	return d.Prepare()
 }
 
 func (d *traceDumper) Release() error {
 	d.data.Close()
-	os.Remove(getTempFilename(traceProfTmpFilename))
+	os.Remove(getTempFilename(d.c.Tag, traceProfTmpFilename))
 	return nil
 }
 
 func (d *cpuDumper) Prepare() error {
-	f, err := os.Create(getTempFilename(cpuProfTmpFilename))
+	f, err := os.Create(getTempFilename(d.c.Tag, cpuProfTmpFilename))
 	if err != nil {
 		return err
 	}
@@ -110,33 +113,37 @@ func (d *cpuDumper) Prepare() error {
 	return nil
 }
 
-func (d *cpuDumper) Dump(timestamp string, config *Config, name string) error {
+func (d *cpuDumper) Dump(timestamp string, name string) error {
 	pprof.StopCPUProfile()
 	d.data.Close()
-	filename := getFilename(timestamp, name)
-	os.Rename(getTempFilename(cpuProfTmpFilename), filename)
+	filename := getFilename(timestamp, d.c.Tag, name)
+	os.Rename(getTempFilename(d.c.Tag, cpuProfTmpFilename), filename)
 	return d.Prepare()
 }
 
 func (d *cpuDumper) Release() error {
 	d.data.Close()
-	os.Remove(getTempFilename(cpuProfTmpFilename))
+	os.Remove(getTempFilename(d.c.Tag, cpuProfTmpFilename))
 	return nil
 }
 
-func getTempFilename(name string) string {
+func getTempFilename(tag, name string) string {
 	filename := &strings.Builder{}
 	filename.WriteString(profilesDir)
 	filename.WriteString("/")
+	filename.WriteString(tag)
+	filename.WriteString("_")
 	filename.WriteString(name)
 	return filename.String()
 }
 
-func getFilename(timestamp string, name string) string {
+func getFilename(timestamp, tag, name string) string {
 	filename := &strings.Builder{}
 	filename.WriteString(profilesDir)
 	filename.WriteString("/")
 	filename.WriteString(timestamp)
+	filename.WriteString("_")
+	filename.WriteString(tag)
 	filename.WriteString("_")
 	filename.WriteString(name)
 	filename.WriteString(".pb.gz")

@@ -36,17 +36,17 @@ type Dumper interface {
 	// Dumps the profiling data to some destination.
 	// timestamp - string containing the time where the profiling tick begun executing,
 	//             in the format yyyy-MM-dd_mmhhss.
-	// config - configuration used to start the profiling component.
 	// name - name of the profile that is currently dumping data.
-	Dump(timestamp string, config *Config, name string) error
+	Dump(timestamp string, name string) error
 	// Releases any resources associated with this Dumper.
 	Release() error
 }
 
 type profiler struct {
-	c      *Config
-	t      *tomb.Tomb
-	ticker *time.Ticker
+	c       *Config
+	dumpers map[string]Dumper
+	t       *tomb.Tomb
+	ticker  *time.Ticker
 }
 
 const (
@@ -85,10 +85,13 @@ func Start(conf *Config) error {
 			return err
 		}
 
+		configureDefaultDumpers(conf)
+
 		prof = &profiler{
-			c:      conf,
-			t:      &tomb.Tomb{},
-			ticker: time.NewTicker(time.Duration(conf.Frequency) * time.Second),
+			c:       conf,
+			dumpers: getDumpers(conf.Profiles),
+			t:       &tomb.Tomb{},
+			ticker:  time.NewTicker(time.Duration(conf.Frequency) * time.Second),
 		}
 
 		prof.t.Go(prof.run)
@@ -109,6 +112,17 @@ func Stop() {
 	}
 }
 
+// getDumpers returns a map of valid dumpers, it filters out any non existent profile name.
+func getDumpers(profiles []string) map[string]Dumper {
+	result := map[string]Dumper{}
+	for _, name := range profiles {
+		if dumper, ok := dumpers[name]; ok {
+			result[name] = dumper
+		}
+	}
+	return result
+}
+
 func (p *profiler) run() error {
 	p.prepareDumpers()
 	for {
@@ -124,33 +138,35 @@ func (p *profiler) run() error {
 }
 
 func (p *profiler) prepareDumpers() {
-	for _, name := range p.c.Profiles {
-		if dumper, ok := dumpers[name]; ok {
-			err := dumper.Prepare()
-			if err != nil {
-				// TODO: remove dumper name from p.c.Profiles
-			}
+	for name, dumper := range p.dumpers {
+		err := dumper.Prepare()
+		if err != nil {
+			// Failed to prepare the dumper, delete it from valid dumpers.
+			delete(p.dumpers, name)
 		}
 	}
 }
 
 func (p *profiler) dumpProfiles() {
 	now := time.Now().Format("2006-01-02_150405")
-	for _, name := range p.c.Profiles {
-		if dumper, ok := dumpers[name]; ok {
-			dumper.Dump(now, p.c, name)
-		}
+	for name, dumper := range p.dumpers {
+		dumper.Dump(now, name)
 	}
 }
 
 func (p *profiler) releaseDumpers() {
-	for _, name := range p.c.Profiles {
-		if dumper, ok := dumpers[name]; ok {
-			dumper.Release()
-		}
+	for _, dumper := range p.dumpers {
+		dumper.Release()
 	}
 }
 
 func createProfilesFolder() error {
 	return os.MkdirAll(profilesDir, os.ModePerm)
+}
+
+func configureDefaultDumpers(conf *Config) {
+	profileDumper.c = conf
+	heapProfileDumper.dumper.c = conf
+	traceProfileDumper.c = conf
+	cpuProfileDumper.c = conf
 }
