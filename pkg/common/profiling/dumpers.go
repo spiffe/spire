@@ -32,7 +32,10 @@ type traceDumper struct {
 }
 
 func (d *dumper) Prepare() error {
-	// Do nothing
+	err := createProfilesFolder()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -73,6 +76,10 @@ func (d *heapDumper) Release() error {
 }
 
 func (d *traceDumper) Prepare() error {
+	err := createProfilesFolder()
+	if err != nil {
+		return err
+	}
 	f, err := os.Create(getTempFilename(d.c.Tag, traceProfTmpFilename))
 	if err != nil {
 		return err
@@ -100,6 +107,10 @@ func (d *traceDumper) Release() error {
 }
 
 func (d *cpuDumper) Prepare() error {
+	err := createProfilesFolder()
+	if err != nil {
+		return err
+	}
 	f, err := os.Create(getTempFilename(d.c.Tag, cpuProfTmpFilename))
 	if err != nil {
 		return err
@@ -148,4 +159,8 @@ func getFilename(timestamp, tag, name string) string {
 	filename.WriteString(name)
 	filename.WriteString(".pb.gz")
 	return filename.String()
+}
+
+func createProfilesFolder() error {
+	return os.MkdirAll(profilesDir, os.ModePerm)
 }

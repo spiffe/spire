@@ -2,7 +2,6 @@ package profiling
 
 import (
 	"errors"
-	"os"
 	"sync"
 	"time"
 
@@ -46,7 +45,6 @@ type profiler struct {
 	c       *Config
 	dumpers map[string]Dumper
 	t       *tomb.Tomb
-	ticker  *time.Ticker
 }
 
 const (
@@ -72,13 +70,18 @@ var (
 
 	ErrProfilerAlreadyStarted = errors.New("profiler already started")
 	ErrUnknownProfile         = errors.New("unknown profile")
+	ErrNoDumpersActive        = errors.New("there are no dumpers active")
 )
 
 // OverrideDumper overrides the implementation for the dumper which has
-// the specified profile name.
+// the specified profile name. This method must be called before calling Start() to
+// take effect.
 // Valid values for name are:
 // "goroutine", "threadcreate", "heap", "block", "mutex", "trace" and "cpu".
 func OverrideDumper(name string, dumper Dumper) error {
+	profM.Lock()
+	defer profM.Unlock()
+
 	if _, ok := dumpers[name]; ok {
 		dumpers[name] = dumper
 		return nil
@@ -92,18 +95,12 @@ func Start(conf *Config) error {
 	defer profM.Unlock()
 
 	if prof == nil {
-		err := createProfilesFolder()
-		if err != nil {
-			return err
-		}
-
 		configureDefaultDumpers(conf)
 
 		prof = &profiler{
 			c:       conf,
 			dumpers: getDumpers(conf.Profiles),
 			t:       &tomb.Tomb{},
-			ticker:  time.NewTicker(time.Duration(conf.Frequency) * time.Second),
 		}
 
 		prof.t.Go(prof.run)
@@ -137,12 +134,17 @@ func getDumpers(profiles []string) map[string]Dumper {
 
 func (p *profiler) run() error {
 	p.prepareDumpers()
+	if len(p.dumpers) == 0 {
+		return ErrNoDumpersActive
+	}
+
+	ticker := time.NewTicker(time.Duration(p.c.Frequency) * time.Second)
 	for {
 		select {
-		case <-p.ticker.C:
+		case <-ticker.C:
 			p.dumpProfiles()
 		case <-p.t.Dying():
-			p.ticker.Stop()
+			ticker.Stop()
 			p.releaseDumpers()
 			return nil
 		}
@@ -170,10 +172,6 @@ func (p *profiler) releaseDumpers() {
 	for _, dumper := range p.dumpers {
 		dumper.Release()
 	}
-}
-
-func createProfilesFolder() error {
-	return os.MkdirAll(profilesDir, os.ModePerm)
 }
 
 func configureDefaultDumpers(conf *Config) {
