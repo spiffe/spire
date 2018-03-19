@@ -45,9 +45,9 @@ type serverConfig struct {
 	ServerSVIDTtl    int    `hcl:"server_svid_ttl"`
 	ConfigPath       string
 	Umask            string   `hcl:"umask"`
-	ProfilingEnabled string   `hcl:"profiling_enabled"`
-	ProfilingPort    string   `hcl:"profiling_port"`
-	ProfilingFreq    string   `hcl:"profiling_freq"`
+	ProfilingEnabled bool     `hcl:"profiling_enabled"`
+	ProfilingPort    int      `hcl:"profiling_port"`
+	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
 }
 
@@ -219,35 +219,17 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 		orig.Umask = int(umask)
 	}
 
-	if cmd.Server.ProfilingEnabled != "" {
-		value, err := strconv.ParseBool(cmd.Server.ProfilingEnabled)
-		if err != nil {
-			return fmt.Errorf("Could not parse profiling_enabled %s: %s", cmd.Server.ProfilingEnabled, err)
-		}
-		orig.ProfilingEnabled = value
+	if cmd.Server.ProfilingEnabled {
+		orig.ProfilingEnabled = cmd.Server.ProfilingEnabled
 	}
 
 	if orig.ProfilingEnabled {
-		if cmd.Server.ProfilingPort != "" {
-			value, err := strconv.ParseInt(cmd.Server.ProfilingPort, 0, 0)
-			if err != nil {
-				if orig.Log != nil {
-					orig.Log.Warnf("Could not parse profiling_port %s: %s. pprof web server would not be run", cmd.Server.ProfilingPort, err)
-				}
-			} else {
-				orig.ProfilingPort = int(value)
-			}
+		if cmd.Server.ProfilingPort > 0 {
+			orig.ProfilingPort = cmd.Server.ProfilingPort
 		}
 
-		if cmd.Server.ProfilingFreq != "" {
-			value, err := strconv.ParseInt(cmd.Server.ProfilingFreq, 0, 0)
-			if err != nil {
-				if orig.Log != nil {
-					orig.Log.Warnf("Could not parse profiling_freq %s: %s. Profiling data would not be generated", cmd.Server.ProfilingFreq, err)
-				}
-			} else {
-				orig.ProfilingFreq = int(value)
-			}
+		if cmd.Server.ProfilingFreq > 0 {
+			orig.ProfilingFreq = cmd.Server.ProfilingFreq
 		}
 
 		if len(cmd.Server.ProfilingNames) > 0 {
