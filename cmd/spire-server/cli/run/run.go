@@ -35,16 +35,21 @@ type runConfig struct {
 }
 
 type serverConfig struct {
-	BindAddress   string `hcl:"bind_address"`
-	BindPort      int    `hcl:"bind_port"`
-	BindHTTPPort  int    `hcl:"bind_http_port"`
-	TrustDomain   string `hcl:"trust_domain"`
-	LogFile       string `hcl:"log_file"`
-	LogLevel      string `hcl:"log_level"`
-	BaseSVIDTtl   int    `hcl:"base_svid_ttl"`
-	ServerSVIDTtl int    `hcl:"server_svid_ttl"`
-	ConfigPath    string
-	Umask         string `hcl:"umask"`
+	BindAddress      string `hcl:"bind_address"`
+	BindPort         int    `hcl:"bind_port"`
+	BindHTTPPort     int    `hcl:"bind_http_port"`
+	TrustDomain      string `hcl:"trust_domain"`
+	LogFile          string `hcl:"log_file"`
+	LogLevel         string `hcl:"log_level"`
+	BaseSVIDTtl      int    `hcl:"base_svid_ttl"`
+	ServerSVIDTtl    int    `hcl:"server_svid_ttl"`
+	ConfigPath       string
+	Umask            string   `hcl:"umask"`
+	UpstreamBundle   bool     `hcl:"upstream_bundle"`
+	ProfilingEnabled bool     `hcl:"profiling_enabled"`
+	ProfilingPort    int      `hcl:"profiling_port"`
+	ProfilingFreq    int      `hcl:"profiling_freq"`
+	ProfilingNames   []string `hcl:"profiling_names"`
 }
 
 // Run CLI struct
@@ -145,6 +150,7 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
 	flags.StringVar(&c.Server.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
 	flags.StringVar(&c.Server.Umask, "umask", "", "Umask value to use for new files")
+	flags.BoolVar(&c.Server.UpstreamBundle, "upstreamBundle", false, "Include upstream CA certificates in the bundle")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -213,6 +219,29 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 			return fmt.Errorf("Could not parse umask %s: %s", cmd.Server.Umask, err)
 		}
 		orig.Umask = int(umask)
+	}
+
+	// TODO: CLI should be able to override with `false` value
+	if cmd.Server.UpstreamBundle {
+		orig.UpstreamBundle = cmd.Server.UpstreamBundle
+	}
+
+	if cmd.Server.ProfilingEnabled {
+		orig.ProfilingEnabled = cmd.Server.ProfilingEnabled
+	}
+
+	if orig.ProfilingEnabled {
+		if cmd.Server.ProfilingPort > 0 {
+			orig.ProfilingPort = cmd.Server.ProfilingPort
+		}
+
+		if cmd.Server.ProfilingFreq > 0 {
+			orig.ProfilingFreq = cmd.Server.ProfilingFreq
+		}
+
+		if len(cmd.Server.ProfilingNames) > 0 {
+			orig.ProfilingNames = cmd.Server.ProfilingNames
+		}
 	}
 
 	return nil

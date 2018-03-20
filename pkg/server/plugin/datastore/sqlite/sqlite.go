@@ -124,8 +124,12 @@ func (ds *sqlitePlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, 
 	}
 	model.CACerts = caCerts
 
-	// Set the new values
-	model.CACerts = append(model.CACerts, newModel.CACerts...)
+	for _, newCA := range newModel.CACerts {
+		if !model.Contains(newCA) {
+			model.Append(newCA)
+		}
+	}
+
 	result = tx.Save(model)
 	if result.Error != nil {
 		tx.Rollback()
@@ -1098,7 +1102,7 @@ func (ds *sqlitePlugin) restart() error {
 
 func newPlugin() *sqlitePlugin {
 	p := &sqlitePlugin{
-		mutex:    new(sync.Mutex),
+		mutex: new(sync.Mutex),
 	}
 
 	return p

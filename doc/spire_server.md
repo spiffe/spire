@@ -19,6 +19,7 @@ a .conf file or passed as command line args, the command line configurations tak
 | `log_level`       | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>    | INFO                          |
 | `trust_domain`    | The trust domain that this server belongs to           |                               |
 | `umask`           | Umask value to use for new files                       | 0077                          |
+| `upstream_bundle` | Include upstream CA certificates in the trust bundle   | false                         |
 
 **Note:** Changing the umask may expose your signing authority to users other than the SPIRE
 agent/server.

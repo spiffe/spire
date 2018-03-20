@@ -7,14 +7,19 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"net/url"
 	"path"
+	"runtime"
 	"sync"
 	"syscall"
 
+	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
@@ -22,10 +27,11 @@ import (
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 
+	_ "golang.org/x/net/trace"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	tomb "gopkg.in/tomb.v2"
 )
 
@@ -55,6 +61,10 @@ func (a *Agent) Shutdown() {
 }
 
 func (a *Agent) run() error {
+	if a.c.ProfilingEnabled {
+		a.setupProfiling()
+	}
+
 	err := a.startPlugins()
 	if err != nil {
 		return err
@@ -112,6 +122,39 @@ func (a *Agent) shutdown() {
 	if a.Catalog != nil {
 		a.Catalog.Stop()
 	}
+}
+
+func (a *Agent) setupProfiling() {
+	if runtime.MemProfileRate == 0 {
+		a.c.Log.Warn("Memory profiles are disabled")
+	}
+	if a.c.ProfilingPort > 0 {
+		grpc.EnableTracing = true
+		go func() {
+			addr := fmt.Sprintf("localhost:%d", a.c.ProfilingPort)
+			a.c.Log.Info(http.ListenAndServe(addr, nil))
+		}()
+	}
+	if a.c.ProfilingFreq > 0 {
+		c := &profiling.Config{
+			Tag:        "agent",
+			Frequency:  a.c.ProfilingFreq,
+			DebugLevel: 0,
+			Profiles:   a.c.ProfilingNames,
+		}
+		err := profiling.Start(c)
+		if err != nil {
+			a.c.Log.Error("Profiler failed to start: %v", err)
+			return
+		}
+		a.t.Go(a.stopProfiling)
+	}
+}
+
+func (a *Agent) stopProfiling() error {
+	<-a.t.Dying()
+	profiling.Stop()
+	return nil
 }
 
 func (a *Agent) startPlugins() error {
