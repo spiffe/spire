@@ -57,6 +57,11 @@ func TestBundle_CRUD(t *testing.T) {
 	certs := append(bundle.CaCerts, cert.Raw...)
 	assert.Equal(t, certs, aresp.CaCerts)
 
+	// append identical
+	aresp, err = ds.AppendBundle(bundle2)
+	require.NoError(t, err)
+	assert.Equal(t, certs, aresp.CaCerts)
+
 	// append on a new bundle
 	bundle3 := &datastore.Bundle{
 		TrustDomain: "spiffe://bar/",
