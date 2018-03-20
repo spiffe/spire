@@ -44,6 +44,9 @@ type Config struct {
 	// Umask value to use
 	Umask int
 
+	// Include upstream CA certificates in the bundle
+	UpstreamBundle bool
+
 	// If true enables profiling.
 	ProfilingEnabled bool
 
