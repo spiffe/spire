@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"bytes"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -125,18 +124,9 @@ func (ds *sqlitePlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, 
 	}
 	model.CACerts = caCerts
 
-	// Make sure we don't already have the certs stored
 	for _, newCA := range newModel.CACerts {
-		var found bool
-		for _, c := range model.CACerts {
-			if bytes.Compare(newCA.Cert, c.Cert) == 0 {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			model.CACerts = append(model.CACerts, newCA)
+		if !model.Contains(newCA) {
+			model.Append(newCA)
 		}
 	}
 
