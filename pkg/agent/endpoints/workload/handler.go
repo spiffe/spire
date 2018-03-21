@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
@@ -26,6 +27,7 @@ type Handler struct {
 	Manager manager.Manager
 	Catalog catalog.Catalog
 	L       logrus.FieldLogger
+	T       telemetry.Sink
 }
 
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
@@ -39,6 +41,11 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 		return grpc.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
+	tLabels := []telemetry.Label{{"workload_pid", string(pid)}}
+	h.T.IncrCounterWithLabels([]string{"workload_api", "connection"}, 1, tLabels)
+	h.T.IncrCounterWithLabels([]string{"workload_api", "connections"}, 1, tLabels)
+	defer h.T.IncrCounterWithLabels([]string{"workload_api", "connections"}, -1, tLabels)
+
 	selectors := h.attest(pid)
 	done := make(chan struct{})
 	defer close(done)
@@ -47,12 +54,15 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	for {
 		select {
 		case update := <-subscription:
+			h.T.IncrCounterWithLabels([]string{"workload_api", "update"}, 1, tLabels)
+
 			start := time.Now()
 			err := h.sendResponse(update, stream)
 			if err != nil {
 				return err
 			}
 
+			h.T.MeasureSinceWithLabels([]string{"workload_api", "update_latency"}, start, tLabels)
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send update to PID %v", time.Since(start).Seconds, pid)
 			}
@@ -130,6 +140,9 @@ func (h *Handler) callerPID(ctx context.Context) (pid int32, err error) {
 // attest invokes all workload attestor plugins against the provided PID. If an error
 // is encountered, it is logged and selectors from the failing plugin are discarded.
 func (h *Handler) attest(pid int32) []*common.Selector {
+	tLabels := []telemetry.Label{{"workload_pid", string(pid)}}
+	defer h.T.MeasureSinceWithLabels([]string{"workload_api", "workload_attestation_duration"}, time.Now(), tLabels)
+
 	plugins := h.Catalog.WorkloadAttestors()
 	sChan := make(chan []*common.Selector)
 	errChan := make(chan error)
@@ -149,18 +162,24 @@ func (h *Handler) attest(pid int32) []*common.Selector {
 		}
 	}
 
+	h.T.AddSampleWithLabels([]string{"workload_api", "discovered_selectors"}, float32(len(selectors)), tLabels)
 	return selectors
 }
 
 // invokeAttestor invokes attestation against the supplied plugin. Should be called from a goroutine.
 func (h *Handler) invokeAttestor(a workloadattestor.WorkloadAttestor, pid int32, sChan chan []*common.Selector, errChan chan error) {
+	attestorName := h.attestorName(a)
+	tLabels := []telemetry.Label{{"workload_pid", string(pid)}, {"attestor_name", attestorName}}
+
 	req := &workloadattestor.AttestRequest{
 		Pid: pid,
 	}
 
+	start := time.Now()
 	resp, err := a.Attest(req)
+	h.T.MeasureSinceWithLabels([]string{"workload_api", "workload_attestor_latency"}, start, tLabels)
 	if err != nil {
-		errChan <- fmt.Errorf("call %v workload attestor: %v", h.attestorName(a), err)
+		errChan <- fmt.Errorf("call %v workload attestor: %v", attestorName, err)
 		return
 	}
 

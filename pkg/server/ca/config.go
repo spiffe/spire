@@ -15,6 +15,8 @@ type Config struct {
 	Catalog     catalog.Catalog
 	TrustDomain url.URL
 
+	UpstreamBundle bool
+
 	Log logrus.FieldLogger
 }
 

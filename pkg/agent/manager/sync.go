@@ -18,9 +18,6 @@ import (
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
 func (m *manager) synchronize(spiffeID string) (err error) {
-	m.c.Log.Debugf("synchronize started for %s", spiffeID)
-	defer m.c.Log.Debug("synchronize finished")
-
 	var regEntries map[string]*proto.RegistrationEntry
 	var cEntryRequests entryRequests
 
@@ -64,9 +61,6 @@ type entryRequest struct {
 type entryRequests map[string][]*entryRequest
 
 func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.Svid, error) {
-	m.c.Log.Debugf("fetchUpdates started using SVID and key for spiffeId: %s", spiffeID)
-	defer m.c.Log.Debug("fetchUpdates finished")
-
 	client := m.syncClients.get(spiffeID)
 	if client == nil {
 		return nil, nil, fmt.Errorf("no client found for %s", spiffeID)
@@ -75,6 +69,7 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 	csrs := [][]byte{}
 	if entryRequests != nil {
 		for _, entryRequest := range entryRequests {
+			m.c.Log.Debugf("Requesting SVID for %v", entryRequest.entry.RegistrationEntry.SpiffeId)
 			csrs = append(csrs, entryRequest.CSR)
 		}
 	}
@@ -83,8 +78,6 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 	if err != nil && err != ErrPartialResponse {
 		return nil, nil, err
 	}
-
-	m.c.Log.Debugf("update received: %s", update)
 
 	if update.lastBundle != nil {
 		bundle, err := x509.ParseCertificates(update.lastBundle)
@@ -98,9 +91,6 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 }
 
 func (m *manager) processEntryRequests(entryRequests entryRequests) (map[string]*common.RegistrationEntry, error) {
-	m.c.Log.Debug("processEntryRequests started")
-	defer m.c.Log.Debug("processEntryRequests finished")
-
 	regEntries := map[string]*common.RegistrationEntry{}
 	if len(entryRequests) == 0 {
 		return regEntries, nil
@@ -135,7 +125,7 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 			// Complete the pre-built cache entry with the SVID and put it on the cache.
 			ce.SVID = cert
 			if m.isAgentAlias(ce.RegistrationEntry) {
-				m.c.Log.Debugf("agent alias detected: %s", ce.RegistrationEntry.SpiffeId)
+				m.c.Log.Debugf("Agent alias detected: %s", ce.RegistrationEntry.SpiffeId)
 				// Create a new client to be used when checking for new entries on behalf of this
 				// agent's alias.
 				err := m.newSyncClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
@@ -144,15 +134,13 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 				}
 			}
 			m.cache.SetEntry(ce)
-			m.c.Log.Debugf("updated CacheEntry for spiffeId: %s", ce.RegistrationEntry.SpiffeId)
 		}
 	}
 	return nil
 }
 
 func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
-	m.c.Log.Debug("checkExpiredCacheEntries started")
-	defer m.c.Log.Debug("checkExpiredCacheEntries finished")
+	defer m.c.Tel.MeasureSince([]string{"cache_manager", "expiry_check_duration"}, time.Now())
 
 	entryRequests := entryRequests{}
 	for entry := range m.cache.Entries() {
@@ -180,17 +168,14 @@ func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
 			m.cache.DeleteEntry(entry.RegistrationEntry)
 		}
 	}
+
+	m.c.Tel.AddSample([]string{"cache_manager", "expiring_svids"}, float32(len(entryRequests)))
 	return entryRequests, nil
 }
 
 func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.RegistrationEntry, entryRequests entryRequests) (entryRequests, error) {
-	m.c.Log.Debug("checkForNewCacheEntries started")
-	defer m.c.Log.Debug("checkForNewCacheEntries finished")
-
 	for _, regEntry := range regEntries {
 		if !m.isAlreadyCached(regEntry) && !m.isEntryRequestAlreadyCreated(regEntry, entryRequests) {
-			m.c.Log.Debugf("generating CSR for spiffeId: %s  parentId: %s", regEntry.SpiffeId, regEntry.ParentId)
-
 			privateKey, csr, err := m.newCSR(regEntry.SpiffeId)
 			if err != nil {
 				return nil, err
@@ -206,7 +191,6 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 			parentID := regEntry.ParentId
 			entryRequests[parentID] = append(entryRequests[parentID], &entryRequest{csr, cacheEntry})
 		} else {
-			m.c.Log.Debugf("cache hit for spiffeId: %s, parentId: %s, selectors: %v", regEntry.SpiffeId, regEntry.ParentId, regEntry.Selectors)
 			// This entry is a cached agent alias, we must synchronize updates on behalf of it.
 			if m.isAgentAlias(regEntry) {
 				err := m.synchronize(regEntry.SpiffeId)
@@ -221,15 +205,12 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 }
 
 func (m *manager) rotateSVID() error {
-	m.c.Log.Debug("rotateSVID started")
-	defer m.c.Log.Debug("rotateSVID finished")
-
 	svid, _ := m.getBaseSVIDEntry()
 	ttl := svid.NotAfter.Sub(time.Now())
 	lifetime := svid.NotAfter.Sub(svid.NotBefore)
 
 	if ttl < lifetime/2 {
-		m.c.Log.Debug("generating new CSR for BaseSVID")
+		m.c.Log.Debug("Rotating agent SVID")
 
 		privateKey, csr, err := m.newCSR(m.spiffeID)
 		if err != nil {
@@ -255,7 +236,6 @@ func (m *manager) rotateSVID() error {
 			return err
 		}
 
-		m.c.Log.Debug("updating manager with new BaseSVID")
 		m.setBaseSVIDEntry(cert, privateKey)
 		err = m.storeSVID()
 		if err != nil {

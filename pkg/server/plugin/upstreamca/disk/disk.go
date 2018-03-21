@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math/big"
 	"net/url"
 	"sync"
@@ -59,8 +58,6 @@ type diskPlugin struct {
 }
 
 func (m *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	log.Print("Starting Configure")
-
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -124,21 +121,16 @@ func (m *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespons
 	m.cert = cert
 	m.key = key
 
-	log.Print("Plugin successfully configured")
 	return &spi.ConfigureResponse{}, nil
 }
 
 func (*diskPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	log.Print("Getting plugin information")
-
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
 func (m *diskPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
-
-	log.Print("Starting SubmitCSR")
 
 	if m.cert == nil {
 		return nil, errors.New("Invalid state: no cert")
@@ -199,8 +191,6 @@ func (m *diskPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamc
 		return nil, err
 	}
 
-	log.Print("Successfully created certificate")
-
 	return &upstreamca.SubmitCSRResponse{
 		Cert:                cert,
 		UpstreamTrustBundle: m.cert.Raw,
@@ -231,8 +221,6 @@ func ParseSpiffeCsr(csrDER []byte, trustDomain string) (csr *x509.CertificateReq
 	if err != nil {
 		return nil, err
 	}
-
-	log.Printf("Parsing CSR with SPIFFE ID: '%v'", csrSpiffeID.String())
 
 	if csrSpiffeID.Scheme != "spiffe" {
 		return nil, fmt.Errorf("SPIFFE ID '%v' is not prefixed with the spiffe:// scheme.", csrSpiffeID)

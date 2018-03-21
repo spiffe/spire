@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -141,8 +142,10 @@ func (c *client) UpdateChan() <-chan *workload.X509SVIDResponse {
 
 // updater implements a waiter which attempts to send the consumer a copy of the latest response. It
 // is decoupled from updates being received from the Workload API in order to be easier on the node agent,
-// ensuring updates are read in a timely fashion.
+// ensuring updates are read in a timely fashion. Only sends an update if the response has changed.
 func (c *client) updater() {
+	var lastUpdate *workload.X509SVIDResponse
+
 	for {
 		select {
 		case <-c.shutdown:
@@ -155,6 +158,10 @@ func (c *client) updater() {
 		update := c.current
 		c.mtx.RUnlock()
 
+		if reflect.DeepEqual(lastUpdate, update) {
+			continue
+		}
+
 		select {
 		case <-c.shutdown:
 			return
@@ -163,6 +170,7 @@ func (c *client) updater() {
 			// read the current one, re-evaluate the update.
 			goto Update
 		case c.updateChan <- update:
+			lastUpdate = update
 		}
 	}
 }

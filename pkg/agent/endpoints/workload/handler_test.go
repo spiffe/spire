@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
@@ -59,6 +60,7 @@ func (s *HandlerTestSuite) SetupTest() {
 		Manager: s.manager,
 		Catalog: s.catalog,
 		L:       log,
+		T:       telemetry.Blackhole{},
 	}
 
 	s.h = h
@@ -99,6 +101,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	subscription := make(chan *cache.WorkloadUpdate)
 	result := make(chan error)
 	s.stream.EXPECT().Context().Return(ctx).Times(4)
+	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
 	s.catalog.EXPECT().WorkloadAttestors().Return([]workloadattestor.WorkloadAttestor{s.attestor1})
 	s.attestor1.EXPECT().Attest(&workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{selectors}, nil)
 	s.manager.EXPECT().Subscribe(cache.Selectors{selectors[0]}, gomock.Any()).Return(subscription)
@@ -196,6 +199,7 @@ func (s *HandlerTestSuite) TestAttest() {
 		s.attestor2,
 	}
 	s.catalog.EXPECT().WorkloadAttestors().Return(attestors)
+	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
 
 	sel1 := []*common.Selector{{Type: "foo", Value: "bar"}}
 	sel2 := []*common.Selector{{Type: "bat", Value: "baz"}}
@@ -207,13 +211,6 @@ func (s *HandlerTestSuite) TestAttest() {
 	result := s.h.attest(1)
 	s.Assert().Equal(expected, selector.NewSetFromRaw(result))
 
-	findResp := &cc.ManagedPlugin{
-		Plugin: s.attestor1,
-		Config: cc.PluginConfig{
-			PluginName: "foo",
-		},
-	}
-	s.catalog.EXPECT().Find(s.attestor1).Return(findResp)
 	s.catalog.EXPECT().WorkloadAttestors().Return(attestors)
 	s.attestor1.EXPECT().Attest(gomock.Any()).Return(nil, errors.New("i'm an error"))
 	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{sel2}, nil)
@@ -229,6 +226,7 @@ func (s *HandlerTestSuite) TestInvokeAttestor() {
 	sel := []*common.Selector{{Type: "foo", Value: "bar"}}
 	resp := &workloadattestor.AttestResponse{Selectors: sel}
 	s.attestor1.EXPECT().Attest(req).Return(resp, nil)
+	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
 
 	timeout := time.NewTicker(5 * time.Millisecond)
 	go s.h.invokeAttestor(s.attestor1, 1, sChan, errChan)

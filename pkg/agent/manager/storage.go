@@ -28,7 +28,7 @@ func ReadBundle(bundleCachePath string) ([]*x509.Certificate, error) {
 	return bundle, nil
 }
 
-// storeBundle writes manager's bundle to disk into BundleCachePath. Returns nil if all went
+// storeBundle writes manager's bundle to disk into bundleCachePath. Returns nil if all went
 // fine, otherwise ir returns an error.
 func (m *manager) storeBundle() error {
 	// Write all certs to data bytes buffer.

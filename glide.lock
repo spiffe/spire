@@ -1,10 +1,12 @@
 hash: 61e6d4c3d4134479c98f392514a4e9d6b1562a99de5d7257ea8556904e658410
-updated: 2018-02-25T17:16:42.85033-08:00
+updated: 2018-03-14T13:22:55.903554-07:00
 imports:
+- name: github.com/armon/go-metrics
+  version: 783273d703149aaeb9897cf58613d5af48861c25
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/aws/aws-sdk-go
-  version: f7f1ee9550cc76ceea731d99c8dbe00a0c39f66d
+  version: 4c9c8e98642a1a5e7c27d7a644cf9140809d49ee
   subpackages:
   - aws
   - aws/awserr
@@ -22,6 +24,7 @@ imports:
   - aws/request
   - aws/session
   - aws/signer/v4
+  - internal/sdkio
   - internal/sdkrand
   - internal/shareddefaults
   - private/protocol
@@ -67,10 +70,16 @@ imports:
   version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
 - name: github.com/hashicorp/go-hclog
   version: ca137eb4b4389c9bc6f1a6d887f056bf16c00510
+- name: github.com/hashicorp/go-immutable-radix
+  version: 7f3cd4390caab3250a57f30efdb2a65dd7649ecf
 - name: github.com/hashicorp/go-multierror
   version: b7773ae218740a7be65057fc60b366a49b538a44
 - name: github.com/hashicorp/go-plugin
   version: e37881a3f1a07fce82b3d99ce0342a72e53386bc
+- name: github.com/hashicorp/golang-lru
+  version: 0fb14efe8c47ae851c0034ed7a448854d3d34cf3
+  subpackages:
+  - simplelru
 - name: github.com/hashicorp/hcl
   version: 23c074d0eceb2b8a5bfdbb271ab780cde70f05a8
   subpackages:

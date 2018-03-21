@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
@@ -19,18 +18,13 @@ type Endpoints interface {
 	Start() error
 	Wait() error
 	Shutdown()
-	GRPC() *grpc.Server
 }
 
 type endpoints struct {
-	c       *Config
-	t       *tomb.Tomb
-	grpc    *grpc.Server
-	runOnce *sync.Once
-}
+	c *Config
+	t *tomb.Tomb
 
-func (e *endpoints) GRPC() *grpc.Server {
-	return e.grpc
+	grpc *grpc.Server
 }
 
 func (e *endpoints) Start() error {
@@ -43,6 +37,7 @@ func (e *endpoints) Start() error {
 		return err
 	}
 
+	e.c.Log.Info("Starting workload API")
 	e.t.Go(func() error { return e.start(l) })
 	return nil
 }
@@ -68,6 +63,7 @@ func (e *endpoints) registerWorkloadAPI() {
 		Manager: e.c.Manager,
 		Catalog: e.c.Catalog,
 		L:       e.c.Log.WithField("subsystem_name", "workload_api"),
+		T:       e.c.Tel,
 	}
 
 	workload_pb.RegisterSpiffeWorkloadAPIServer(e.grpc, w)

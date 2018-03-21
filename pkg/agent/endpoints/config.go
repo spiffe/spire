@@ -7,9 +7,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 
 	tomb "gopkg.in/tomb.v2"
-	"sync"
 )
 
 type Config struct {
@@ -20,12 +20,12 @@ type Config struct {
 	Manager manager.Manager
 
 	Log logrus.FieldLogger
+	Tel telemetry.Sink
 }
 
 func New(c *Config) *endpoints {
 	return &endpoints{
-		c:       c,
-		t:       new(tomb.Tomb),
-		runOnce: new(sync.Once),
+		c: c,
+		t: new(tomb.Tomb),
 	}
 }

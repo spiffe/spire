@@ -14,6 +14,7 @@ var (
 	svidKeyPath = path.Join(ProjectRoot(), "test/fixture/certs/svid_key.pem")
 	caPath      = path.Join(ProjectRoot(), "test/fixture/certs/ca.pem")
 	caKeyPath   = path.Join(ProjectRoot(), "test/fixture/certs/ca_key.pem")
+	bundlePath  = path.Join(ProjectRoot(), "test/fixture/certs/bundle.der")
 )
 
 // LoadCAFixture reads, parses, and returns the pre-defined CA fixture and key
@@ -24,6 +25,11 @@ func LoadCAFixture() (ca *x509.Certificate, key *ecdsa.PrivateKey, err error) {
 // LoadCAFixture reads, parses, and returns the pre-defined SVID fixture and key
 func LoadSVIDFixture() (svid *x509.Certificate, key *ecdsa.PrivateKey, err error) {
 	return LoadCertAndKey(svidPath, svidKeyPath)
+}
+
+func LoadBundleFixture() ([]*x509.Certificate, error) {
+	return LoadBundle(bundlePath)
+
 }
 
 // LoadCertAndKey reads and parses both a certificate and a private key at once
@@ -80,4 +86,17 @@ func LoadPEM(path string) (*pem.Block, error) {
 	}
 
 	return blk, nil
+}
+
+func LoadBundle(path string) ([]*x509.Certificate, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading bundle at %s: %s", path, err)
+	}
+
+	bundle, err := x509.ParseCertificates(data)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing bundle at %s: %s", path, err)
+	}
+	return bundle, nil
 }

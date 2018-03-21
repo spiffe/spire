@@ -8,6 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	tomb "gopkg.in/tomb.v2"
@@ -37,6 +38,18 @@ type Config struct {
 
 	// Umask value to use
 	Umask int
+
+	// If true enables profiling.
+	ProfilingEnabled bool
+
+	// Port used by the pprof web server when ProfilingEnabled == true
+	ProfilingPort int
+
+	// Frequency in seconds by which each profile file will be generated.
+	ProfilingFreq int
+
+	// Array of profiles names that will be generated on each profiling tick.
+	ProfilingNames []string
 }
 
 func New(c *Config) *Agent {
@@ -45,10 +58,18 @@ func New(c *Config) *Agent {
 		Log:           c.Log.WithField("subsystem_name", "catalog"),
 	}
 
+	t := new(tomb.Tomb)
+	telConfig := &telemetry.SinkConfig{
+		Logger:      c.Log.WithField("subsystem_name", "telemetry").Writer(),
+		ServiceName: "spire_agent",
+		StopChan:    t.Dying(),
+	}
+
 	return &Agent{
 		c:       c,
-		t:       new(tomb.Tomb),
+		t:       t,
 		mtx:     new(sync.RWMutex),
+		tel:     telemetry.NewSink(telConfig),
 		Catalog: catalog.New(catConfig),
 	}
 }

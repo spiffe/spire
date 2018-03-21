@@ -118,21 +118,12 @@ func (m *manager) prepareNextCA() error {
 		return fmt.Errorf("submit csr to upstream ca: %v", err)
 	}
 
-	// Store the new cert
 	cert, err := x509.ParseCertificate(signRes.Cert)
 	if err != nil {
 		return fmt.Errorf("invalid cert from upstream: %v", err)
 	}
 
-	m.mtx.RLock()
-	storeReq := &datastore.Bundle{
-		TrustDomain: m.c.TrustDomain.String(),
-		CaCerts:     cert.Raw,
-	}
-	m.mtx.RUnlock()
-
-	ds := m.c.Catalog.DataStores()[0]
-	_, err = ds.AppendBundle(storeReq)
+	err = m.storeCACert(cert, signRes.UpstreamTrustBundle)
 	if err != nil {
 		return fmt.Errorf("store new ca cert: %v", err)
 	}
@@ -222,6 +213,27 @@ func (m *manager) prune() error {
 		if err != nil {
 			return fmt.Errorf("write new bundle: %v", err)
 		}
+	}
+
+	return nil
+}
+
+func (m *manager) storeCACert(caCert *x509.Certificate, upstreamBundle []byte) error {
+	m.mtx.RLock()
+	storeReq := &datastore.Bundle{
+		TrustDomain: m.c.TrustDomain.String(),
+		CaCerts:     caCert.Raw,
+	}
+	m.mtx.RUnlock()
+
+	if m.c.UpstreamBundle {
+		storeReq.CaCerts = append(storeReq.CaCerts, upstreamBundle...)
+	}
+
+	ds := m.c.Catalog.DataStores()[0]
+	_, err := ds.AppendBundle(storeReq)
+	if err != nil {
+		return err
 	}
 
 	return nil
