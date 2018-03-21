@@ -272,7 +272,9 @@ func (s *EndpointsTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 		StoredIntermediateCert: cert.Raw,
 	}
 
-	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca})
-	s.ca.EXPECT().SignCsr(gomock.Any()).Return(signedCert, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(caCert, nil)
+	// TODO: Why is .AnyTimes() required here?
+	// TODO: See my commit message
+	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca}).AnyTimes()
+	s.ca.EXPECT().SignCsr(gomock.Any()).Return(signedCert, nil).AnyTimes()
+	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(caCert, nil).AnyTimes()
 }
