@@ -45,6 +45,9 @@ type Server interface {
 	// ListenAndServe will unblock with `nil` if/when shutdown completes
 	// cleanly
 	Shutdown()
+
+	// SVID returns the server's SVID and private key
+	SVID() (*x509.Certificate, *ecdsa.PrivateKey)
 }
 
 type endpoints struct {
@@ -77,6 +80,14 @@ func (e *endpoints) ListenAndServe() error {
 func (e *endpoints) Shutdown() {
 	e.t.Kill(nil)
 	return
+}
+
+// SVID returns the server's SVID and private key
+func (e *endpoints) SVID() (*x509.Certificate, *ecdsa.PrivateKey) {
+	e.mtx.RLock()
+	defer e.mtx.RUnlock()
+
+	return e.svid, e.svidKey
 }
 
 // listenAndServe creates listeners and starts all servers. It serves
