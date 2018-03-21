@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net"
 	"net/url"
-	"sync"
 	"testing"
 	"time"
 
@@ -105,7 +104,7 @@ func (s *EndpointsTestSuite) TestStartRotator() {
 	// Let rotator fire exactly once
 	s.e.svidCheck = time.NewTicker(10 * time.Millisecond)
 	s.e.t.Go(s.e.startRotator)
-	time.Sleep(12 * time.Millisecond)
+	time.Sleep(17 * time.Millisecond)
 	s.e.svidCheck.Stop()
 
 	// Make sure the rotator is still alive
@@ -113,7 +112,7 @@ func (s *EndpointsTestSuite) TestStartRotator() {
 
 	// Generating the keys and signing the cert take a bit of time. Wait long
 	// enough for it to complete - some build systems are slower than others
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 
 	// Make sure the cert was installed, and take the lock since
 	// we might race the update.
@@ -135,22 +134,22 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 	errChan := make(chan error)
 	go func() { errChan <- s.e.ListenAndServe() }()
 
-	// Give the server some time to initialize
-	// https://github.com/golang/go/issues/20239
-	time.Sleep(100 * time.Millisecond)
-
-	// It should not exit "immediately"
+	// It should be stable
 	select {
 	case err := <-errChan:
-		require.NoError(s.T(), err)
-	default:
+		s.T().Errorf("endpoints listener stopped unexpectedly: %v", err)
+	case <-time.NewTicker(100 * time.Millisecond).C:
 		break
 	}
 
 	// It should shutdown cleanly
 	s.e.Shutdown()
-	err = <-errChan
-	require.NoError(s.T(), err)
+	select {
+	case err := <-errChan:
+		s.Assert().NoError(err)
+	case <-time.NewTicker(5 * time.Second).C:
+		s.T().Errorf("endpoints listener did not shut down")
+	}
 }
 
 func (s *EndpointsTestSuite) TestGRPCHook() {
@@ -163,26 +162,22 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
 	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
 
-	// Protect the snitch w/ a mutex to satisfy the race detector
-	var snitch bool
-	snitchMtx := new(sync.Mutex)
+	snitchChan := make(chan struct{}, 1)
 	hook := func(g *grpc.Server) error {
-		snitchMtx.Lock()
-		defer snitchMtx.Unlock()
-		snitch = true
+		snitchChan <- struct{}{}
 		return nil
 	}
 	s.e.c.GRPCHook = hook
 
-	errChan := make(chan error)
-	go func() { errChan <- s.e.ListenAndServe() }()
-	time.Sleep(100 * time.Millisecond)
+	go s.e.ListenAndServe()
 
-	snitchMtx.Lock()
-	defer snitchMtx.Unlock()
-	s.Assert().True(snitch)
+	select {
+	case <-snitchChan:
+	case <-time.NewTicker(5 * time.Second).C:
+		s.T().Error("grpc hook did not fire")
+	}
+
 	s.e.Shutdown()
-	s.Assert().Nil(<-errChan)
 }
 
 func (s *EndpointsTestSuite) TestGRPCHookFailure() {
@@ -198,17 +193,15 @@ func (s *EndpointsTestSuite) TestGRPCHookFailure() {
 	hook := func(_ *grpc.Server) error { return errors.New("i'm an error") }
 	s.e.c.GRPCHook = hook
 
-	errChan := make(chan error)
+	errChan := make(chan error, 1)
 	go func() { errChan <- s.e.ListenAndServe() }()
-	time.Sleep(100 * time.Millisecond)
 
 	select {
 	case err := <-errChan:
 		s.Assert().NotNil(err)
-	default:
-		s.Fail("grpc server still running after hook failure")
+	case <-time.NewTicker(5 * time.Second).C:
+		s.Fail("grpc server did not stop after hook failure")
 		s.e.Shutdown()
-		<-errChan
 	}
 }
 
