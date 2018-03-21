@@ -29,7 +29,6 @@ func LoadSVIDFixture() (svid *x509.Certificate, key *ecdsa.PrivateKey, err error
 
 func LoadBundleFixture() ([]*x509.Certificate, error) {
 	return LoadBundle(bundlePath)
-
 }
 
 // LoadCertAndKey reads and parses both a certificate and a private key at once

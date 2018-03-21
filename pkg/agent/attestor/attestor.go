@@ -7,6 +7,10 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
+	"path"
+
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/pkg/agent/catalog"
@@ -18,9 +22,6 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"net"
-	"net/url"
-	"path"
 )
 
 type AttestationResult struct {
@@ -34,14 +35,15 @@ type Attestor interface {
 }
 
 type Config struct {
-	Catalog       catalog.Catalog
-	JoinToken     string
-	TrustDomain   url.URL
-	TrustBundle   []*x509.Certificate
-	DataDir       string
-	Log           logrus.FieldLogger
-	ServerAddress *net.TCPAddr
-	NodeClient    node.NodeClient
+	Catalog         catalog.Catalog
+	JoinToken       string
+	TrustDomain     url.URL
+	TrustBundle     []*x509.Certificate
+	BundleCachePath string
+	SVIDCachePath   string
+	Log             logrus.FieldLogger
+	ServerAddress   *net.TCPAddr
+	NodeClient      node.NodeClient
 }
 
 type attestor struct {
@@ -111,7 +113,7 @@ func (a *attestor) loadSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 }
 
 func (a *attestor) loadBundle() ([]*x509.Certificate, error) {
-	bundle, err := manager.ReadBundle(a.bundleCachePath())
+	bundle, err := manager.ReadBundle(a.c.BundleCachePath)
 	if err == manager.ErrNotCached {
 		bundle = a.c.TrustBundle
 	} else if err != nil {
@@ -127,7 +129,6 @@ func (a *attestor) loadBundle() ([]*x509.Certificate, error) {
 	}
 
 	return bundle, nil
-
 }
 
 func (a *attestor) attestationData() (*nodeattestor.FetchAttestationDataResponse, error) {
@@ -160,26 +161,17 @@ func (a *attestor) attestationData() (*nodeattestor.FetchAttestationDataResponse
 	return attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
 }
 
-func (a *attestor) bundleCachePath() string {
-	return path.Join(a.c.DataDir, "bundle.der")
-}
-
-func (a *attestor) agentSVIDPath() string {
-	return path.Join(a.c.DataDir, "agent_svid.der")
-}
-
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
 // will be returned.
 func (a *attestor) readSVIDFromDisk() *x509.Certificate {
 
-	cert, err := manager.ReadSVID(a.agentSVIDPath())
+	cert, err := manager.ReadSVID(a.c.SVIDCachePath)
 	if err == manager.ErrNotCached {
 		a.c.Log.Debug("No pre-existing agent SVID found. Will perform node attestation")
 		return nil
 	} else if err != nil {
-		a.c.Log.Warnf("Could not get agent SVID from %s: %s", a.agentSVIDPath(), err)
+		a.c.Log.Warnf("Could not get agent SVID from %s: %s", a.c.SVIDCachePath, err)
 	}
-
 	return cert
 }
 

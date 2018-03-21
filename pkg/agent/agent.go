@@ -12,18 +12,14 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/spiffe/spire/pkg/agent/attestor"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-
 	_ "golang.org/x/net/trace"
-
 	"google.golang.org/grpc"
-
-	"github.com/spiffe/spire/pkg/agent/attestor"
-
 	tomb "gopkg.in/tomb.v2"
 )
 
@@ -86,13 +82,14 @@ func (a *Agent) startPlugins() error {
 
 func (a *Agent) attest() (*attestor.AttestationResult, error) {
 	config := attestor.Config{
-		Catalog:       a.Catalog,
-		JoinToken:     a.c.JoinToken,
-		TrustDomain:   a.c.TrustDomain,
-		TrustBundle:   a.c.TrustBundle,
-		DataDir:       a.c.DataDir,
-		Log:           a.c.Log.WithField("subsystem_name", "attestor"),
-		ServerAddress: a.c.ServerAddress,
+		Catalog:         a.Catalog,
+		JoinToken:       a.c.JoinToken,
+		TrustDomain:     a.c.TrustDomain,
+		TrustBundle:     a.c.TrustBundle,
+		BundleCachePath: a.bundleCachePath(),
+		SVIDCachePath:   a.agentSVIDPath(),
+		Log:             a.c.Log.WithField("subsystem_name", "attestor"),
+		ServerAddress:   a.c.ServerAddress,
 	}
 	a.Attestor = attestor.New(&config)
 	return a.Attestor.Attest()
@@ -171,8 +168,8 @@ func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bund
 		ServerAddr:      a.c.ServerAddress,
 		Log:             a.c.Log,
 		Tel:             a.tel,
-		BundleCachePath: path.Join(a.c.DataDir, "bundle.der"),
-		SVIDCachePath:   path.Join(a.c.DataDir, "agent_svid.der"),
+		BundleCachePath: a.bundleCachePath(),
+		SVIDCachePath:   a.agentSVIDPath(),
 	}
 
 	mgr, err := manager.New(mgrConfig)
@@ -204,4 +201,12 @@ func (a *Agent) startEndpoints(bundle []*x509.Certificate) error {
 	a.Endpoints = e
 	a.mtx.Unlock()
 	return a.Endpoints.Wait()
+}
+
+func (a *Agent) bundleCachePath() string {
+	return path.Join(a.c.DataDir, "bundle.der")
+}
+
+func (a *Agent) agentSVIDPath() string {
+	return path.Join(a.c.DataDir, "agent_svid.der")
 }

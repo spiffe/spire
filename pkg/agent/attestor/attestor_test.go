@@ -1,14 +1,15 @@
 package attestor
 
 import (
+	"crypto/x509"
 	"io/ioutil"
 	"net/url"
 	"os"
+	"path"
+	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
-
-	"crypto/x509"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/api/node"
@@ -19,8 +20,6 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
-	"path"
-	"testing"
 )
 
 type AttestorTestSuite struct {
