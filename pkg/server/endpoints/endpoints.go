@@ -191,6 +191,13 @@ func (e *endpoints) startGRPCServer() error {
 		return err
 	}
 
+	if e.c.GRPCHook != nil {
+		err := e.c.GRPCHook(e.grpcServer)
+		if err != nil {
+			return fmt.Errorf("call grpc hook: %v", err)
+		}
+	}
+
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
 	e.c.Log.Info("Starting gRPC server")
 	errChan := make(chan error)

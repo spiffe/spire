@@ -3,6 +3,7 @@ package endpoints
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"net"
 	"net/url"
 	"testing"
@@ -18,6 +19,8 @@ import (
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"google.golang.org/grpc"
 
 	"gopkg.in/tomb.v2"
 )
@@ -101,7 +104,7 @@ func (s *EndpointsTestSuite) TestStartRotator() {
 	// Let rotator fire exactly once
 	s.e.svidCheck = time.NewTicker(10 * time.Millisecond)
 	s.e.t.Go(s.e.startRotator)
-	time.Sleep(12 * time.Millisecond)
+	time.Sleep(17 * time.Millisecond)
 	s.e.svidCheck.Stop()
 
 	// Make sure the rotator is still alive
@@ -109,7 +112,7 @@ func (s *EndpointsTestSuite) TestStartRotator() {
 
 	// Generating the keys and signing the cert take a bit of time. Wait long
 	// enough for it to complete - some build systems are slower than others
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 
 	// Make sure the cert was installed, and take the lock since
 	// we might race the update.
@@ -131,22 +134,75 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 	errChan := make(chan error)
 	go func() { errChan <- s.e.ListenAndServe() }()
 
-	// Give the server some time to initialize
-	// https://github.com/golang/go/issues/20239
-	time.Sleep(10 * time.Millisecond)
-
-	// It should not exit "immediately"
+	// It should be stable
 	select {
 	case err := <-errChan:
-		require.NoError(s.T(), err)
-	default:
+		s.T().Errorf("endpoints listener stopped unexpectedly: %v", err)
+	case <-time.NewTicker(100 * time.Millisecond).C:
 		break
 	}
 
 	// It should shutdown cleanly
 	s.e.Shutdown()
-	err = <-errChan
+	select {
+	case err := <-errChan:
+		s.Assert().NoError(err)
+	case <-time.NewTicker(5 * time.Second).C:
+		s.T().Errorf("endpoints listener did not shut down")
+	}
+}
+
+func (s *EndpointsTestSuite) TestGRPCHook() {
+	// Set all expectations for running gRPC server
+	cert, _, err := util.LoadSVIDFixture()
 	require.NoError(s.T(), err)
+	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
+	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
+	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca})
+	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
+	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
+
+	snitchChan := make(chan struct{}, 1)
+	hook := func(g *grpc.Server) error {
+		snitchChan <- struct{}{}
+		return nil
+	}
+	s.e.c.GRPCHook = hook
+
+	go s.e.ListenAndServe()
+
+	select {
+	case <-snitchChan:
+	case <-time.NewTicker(5 * time.Second).C:
+		s.T().Error("grpc hook did not fire")
+	}
+
+	s.e.Shutdown()
+}
+
+func (s *EndpointsTestSuite) TestGRPCHookFailure() {
+	// Set all expectations for running gRPC server
+	cert, _, err := util.LoadSVIDFixture()
+	require.NoError(s.T(), err)
+	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
+	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
+	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca})
+	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
+	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
+
+	hook := func(_ *grpc.Server) error { return errors.New("i'm an error") }
+	s.e.c.GRPCHook = hook
+
+	errChan := make(chan error, 1)
+	go func() { errChan <- s.e.ListenAndServe() }()
+
+	select {
+	case err := <-errChan:
+		s.Assert().NotNil(err)
+	case <-time.NewTicker(5 * time.Second).C:
+		s.Fail("grpc server did not stop after hook failure")
+		s.e.Shutdown()
+	}
 }
 
 func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
@@ -209,7 +265,9 @@ func (s *EndpointsTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 		StoredIntermediateCert: cert.Raw,
 	}
 
-	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca})
-	s.ca.EXPECT().SignCsr(gomock.Any()).Return(signedCert, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(caCert, nil)
+	// TODO: Why is .AnyTimes() required here?
+	// TODO: See my commit message
+	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca}).AnyTimes()
+	s.ca.EXPECT().SignCsr(gomock.Any()).Return(signedCert, nil).AnyTimes()
+	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(caCert, nil).AnyTimes()
 }

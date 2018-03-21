@@ -37,6 +37,13 @@ func (e *endpoints) Start() error {
 		return err
 	}
 
+	if e.c.GRPCHook != nil {
+		err = e.c.GRPCHook(e.grpc)
+		if err != nil {
+			return fmt.Errorf("call grpc hook: %v", err)
+		}
+	}
+
 	e.c.Log.Info("Starting workload API")
 	e.t.Go(func() error { return e.start(l) })
 	return nil
