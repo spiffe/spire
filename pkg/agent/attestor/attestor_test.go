@@ -9,7 +9,6 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 
 	"crypto/x509"
-	"github.com/spiffe/spire/.xbuild-darwin-x86_64/src/path"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/api/node"
@@ -20,6 +19,7 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
+	"path"
 	"testing"
 )
 
