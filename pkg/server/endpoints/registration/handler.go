@@ -3,6 +3,7 @@ package registration
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/satori/go.uuid"
@@ -17,8 +18,9 @@ import (
 //Service is used to register SPIFFE IDs, and the attestation logic that should
 //be performed on a workload before those IDs can be issued.
 type Handler struct {
-	Log     logrus.FieldLogger
-	Catalog catalog.Catalog
+	Log         logrus.FieldLogger
+	Catalog     catalog.Catalog
+	TrustDomain url.URL
 }
 
 //Creates an entry in the Registration table,
@@ -210,4 +212,20 @@ func (h *Handler) CreateJoinToken(
 	}
 
 	return request, nil
+}
+
+// FetchBundle retrieves the CA bundle.
+func (h *Handler) FetchBundle(
+	ctx context.Context, request *common.Empty) (
+	response *registration.Bundle, err error) {
+	ds := h.Catalog.DataStores()[0]
+	req := &datastore.Bundle{
+		TrustDomain: h.TrustDomain.String(),
+	}
+	b, err := ds.FetchBundle(req)
+	if err != nil {
+		return nil, fmt.Errorf("get bundle from datastore: %v", err)
+	}
+
+	return &registration.Bundle{Asn1Data: b.CaCerts}, nil
 }

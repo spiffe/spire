@@ -170,8 +170,9 @@ func (e *endpoints) registerRegistrationAPI(gs *grpc.Server, hs *http.Server) er
 	}
 
 	r := &registration.Handler{
-		Log:     e.c.Log.WithField("subsystem_name", "registration_api"),
-		Catalog: e.c.Catalog,
+		Log:         e.c.Log.WithField("subsystem_name", "registration_api"),
+		Catalog:     e.c.Catalog,
+		TrustDomain: e.c.TrustDomain,
 	}
 
 	// Register the handler with gRPC first

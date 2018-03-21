@@ -75,6 +75,12 @@ message JoinToken {
     int32 ttl = 2;
 }
 
+// CA Bundle of the server  
+message Bundle {
+    // ASN.1 DER data of the bundle.
+    bytes asn1Data = 1;
+}
+
 service Registration {
     // Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
     rpc CreateEntry(spire.common.RegistrationEntry) returns (RegistrationEntryID) {
@@ -118,4 +124,7 @@ service Registration {
 
     // Create a new join token
     rpc CreateJoinToken(JoinToken) returns (JoinToken);
+
+    // Retrieves the CA bundle. 
+    rpc FetchBundle(spire.common.Empty) returns (Bundle);
 }
