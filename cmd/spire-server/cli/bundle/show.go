@@ -6,30 +6,45 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 
+	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 )
 
-type ShowCLI struct{}
-
-type ShowConfig struct {
-	// Address of SPIRE server
-	Addr string
+type showCLI struct {
+	newRegistrationClient func(addr string) (registration.RegistrationClient, error)
+	writer                io.Writer
 }
 
-func (*ShowCLI) Synopsis() string {
+type showConfig struct {
+	// Address of SPIRE server
+	addr string
+}
+
+// NewShowCommand creates a new "show" subcommand for "bundle" command.
+func NewShowCommand() cli.Command {
+	return &showCLI{
+		writer: os.Stdout,
+		newRegistrationClient: func(addr string) (registration.RegistrationClient, error) {
+			return util.NewRegistrationClient(addr)
+		},
+	}
+}
+
+func (*showCLI) Synopsis() string {
 	return "Prints CA bundle to standard out"
 }
 
-func (s *ShowCLI) Help() string {
+func (s *showCLI) Help() string {
 	_, err := s.newConfig([]string{"-h"})
 	return err.Error()
 }
 
-func (s *ShowCLI) Run(args []string) int {
+func (s *showCLI) Run(args []string) int {
 
 	config, err := s.newConfig(args)
 	if err != nil {
@@ -37,13 +52,19 @@ func (s *ShowCLI) Run(args []string) int {
 		return 1
 	}
 
-	c, err := util.NewRegistrationClient(config.Addr)
+	c, err := s.newRegistrationClient(config.addr)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	err = s.printBundlePEM(c)
+	bundle, err := c.FetchBundle(context.TODO(), &common.Empty{})
+	if err != nil {
+		fmt.Println(err.Error())
+		return 1
+	}
+
+	err = s.printBundleAsPEM(bundle)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -52,32 +73,24 @@ func (s *ShowCLI) Run(args []string) int {
 	return 0
 }
 
-func (*ShowCLI) newConfig(args []string) (*ShowConfig, error) {
+func (*showCLI) newConfig(args []string) (*showConfig, error) {
 	f := flag.NewFlagSet("bundle show", flag.ContinueOnError)
-	c := &ShowConfig{}
-	f.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
+	c := &showConfig{}
+	f.StringVar(&c.addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
 	return c, f.Parse(args)
 }
 
-func (*ShowCLI) printBundlePEM(c registration.RegistrationClient) error {
-	b, err := c.FetchBundle(context.TODO(), &common.Empty{})
-	if err != nil {
-		fmt.Println("FAILED to fetch server bundle")
-		return err
-	}
-
-	printBundle(b)
-
-	return nil
-}
-
-func printBundle(bundle *registration.Bundle) {
+func (s *showCLI) printBundleAsPEM(bundle *registration.Bundle) error {
 	certs, err := x509.ParseCertificates(bundle.Asn1Data)
 	if err != nil {
-		fmt.Println("FAILED to parse bundle's ASN.1 DER data")
+		return fmt.Errorf("FAILED to parse bundle's ASN.1 DER data: %v", err)
 	}
 
 	for _, cert := range certs {
-		pem.Encode(os.Stdout, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+		err := pem.Encode(s.writer, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }

@@ -15,7 +15,7 @@ func Run(args []string) int {
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
 		"bundle show": func() (cli.Command, error) {
-			return &bundle.ShowCLI{}, nil
+			return bundle.NewShowCommand(), nil
 		},
 		"entry create": func() (cli.Command, error) {
 			return &entry.CreateCLI{}, nil
