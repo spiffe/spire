@@ -205,3 +205,29 @@ func (m *ManagerTestSuite) TestPruner() {
 	m.m.t.Kill(nil)
 	m.Assert().False(m.m.t.Alive())
 }
+
+func (m *ManagerTestSuite) TestStoreCACert() {
+	cert, _, err := util.LoadSVIDFixture()
+	m.Require().NoError(err)
+	upstream, _, err := util.LoadCAFixture()
+	m.Require().NoError(err)
+
+	// With upstream bundle disabled
+	m.m.c.UpstreamBundle = false
+	req := &datastore.Bundle{
+		TrustDomain: m.m.c.TrustDomain.String(),
+		CaCerts:     cert.Raw,
+	}
+	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
+	m.ds.EXPECT().AppendBundle(req)
+
+	m.Assert().NoError(m.m.storeCACert(cert, upstream.Raw))
+
+	// With upstream bundle enabled
+	m.m.c.UpstreamBundle = true
+	req.CaCerts = append(req.CaCerts, upstream.Raw...)
+	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
+	m.ds.EXPECT().AppendBundle(req)
+
+	m.Assert().NoError(m.m.storeCACert(cert, upstream.Raw))
+}
