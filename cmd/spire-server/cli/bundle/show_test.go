@@ -33,6 +33,14 @@ func (s *ShowTestSuite) SetupTest() {
 	s.mockClient = mock_registration.NewMockRegistrationClient(mockCtrl)
 }
 
+func (s *ShowTestSuite) TestSynopsisAndHelp() {
+	cmd := NewShowCommand()
+
+	s.Assert().Equal("Prints CA bundle to standard out", cmd.Synopsis())
+
+	s.Assert().Equal("flag: help requested", cmd.Help())
+}
+
 func (s *ShowTestSuite) TestRunWithDefaultArgs() {
 	cli := &showCLI{
 		newRegistrationClient: func(addr string) (registration.RegistrationClient, error) {
