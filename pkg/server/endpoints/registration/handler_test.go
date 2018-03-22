@@ -2,6 +2,7 @@ package registration
 
 import (
 	"errors"
+	"net/url"
 	"reflect"
 	"testing"
 
@@ -18,11 +19,11 @@ import (
 
 type handlerTestSuite struct {
 	suite.Suite
-	t                  *testing.T
-	ctrl               *gomock.Controller
-	handler            *Handler
-	mockCatalog        *mock_catalog.MockCatalog
-	mockDataStore      *mock_datastore.MockDataStore
+	t             *testing.T
+	ctrl          *gomock.Controller
+	handler       *Handler
+	mockCatalog   *mock_catalog.MockCatalog
+	mockDataStore *mock_datastore.MockDataStore
 }
 
 func setupRegistrationTest(t *testing.T) *handlerTestSuite {
@@ -34,8 +35,9 @@ func setupRegistrationTest(t *testing.T) *handlerTestSuite {
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
 
 	suite.handler = &Handler{
-		Log:     log,
-		Catalog: suite.mockCatalog,
+		Log:         log,
+		Catalog:     suite.mockCatalog,
+		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
 	}
 	return suite
 }
@@ -477,6 +479,37 @@ func TestCreateJoinTokenWithoutToken(t *testing.T) {
 	}
 }
 
+func TestFetchBundle(t *testing.T) {
+	request := &common.Empty{}
+	goodResponse := &registration.Bundle{Asn1Data: []byte{1, 2, 3}}
+	var testCases = []struct {
+		request          *common.Empty
+		expectedResponse *registration.Bundle
+		expectedError    error
+		setExpectations  func(*handlerTestSuite)
+	}{
+		{request, goodResponse, nil, createFetchBundleExpectations},
+		{request, nil, errors.New("get bundle from datastore: bundle not found"), createFetchBundleErrorExpectations},
+	}
+
+	for _, tt := range testCases {
+		suite := setupRegistrationTest(t)
+
+		tt.setExpectations(suite)
+		response, err := suite.handler.FetchBundle(nil, tt.request)
+
+		//verification
+		if !reflect.DeepEqual(response, tt.expectedResponse) {
+			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
+		}
+
+		if !reflect.DeepEqual(err, tt.expectedError) {
+			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
+		}
+		suite.ctrl.Finish()
+	}
+}
+
 func noExpectations(*handlerTestSuite) {}
 
 func createEntryExpectations(suite *handlerTestSuite) {
@@ -622,4 +655,24 @@ func createJoinTokenErrorExpectations(suite *handlerTestSuite) {
 func expectDataStore(suite *handlerTestSuite) {
 	suite.mockCatalog.EXPECT().DataStores().
 		Return([]datastore.DataStore{suite.mockDataStore})
+}
+
+func createFetchBundleExpectations(suite *handlerTestSuite) {
+	expectDataStore(suite)
+
+	suite.mockDataStore.EXPECT().
+		FetchBundle(&datastore.Bundle{
+			TrustDomain: "spiffe://example.org",
+		}).
+		Return(&datastore.Bundle{CaCerts: []byte{1, 2, 3}}, nil)
+}
+
+func createFetchBundleErrorExpectations(suite *handlerTestSuite) {
+	expectDataStore(suite)
+
+	suite.mockDataStore.EXPECT().
+		FetchBundle(&datastore.Bundle{
+			TrustDomain: "spiffe://example.org",
+		}).
+		Return(nil, errors.New("bundle not found"))
 }
