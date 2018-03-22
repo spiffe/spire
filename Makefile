@@ -51,7 +51,7 @@ artifact:
 	$(docker) ./build.sh artifact
 
 test:
-	$(docker) go test -race $$(glide novendor)
+	$(docker) go test -race -timeout 8m $$(glide novendor)
 
 race-test:
 	$(docker) go test -race $$(glide novendor)

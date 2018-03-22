@@ -67,7 +67,8 @@ func (a *Agent) run() error {
 	if err != nil {
 		return err
 	}
-	a.t.Go(func() error { return a.startEndpoints(as.Bundle) })
+
+	a.t.Go(a.startEndpoints)
 	a.t.Go(a.superviseManager)
 
 	<-a.t.Dying()
@@ -178,10 +179,8 @@ func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bund
 	return a.Manager.Start()
 }
 
-// TODO: Shouldn't need to pass bundle here
-func (a *Agent) startEndpoints(bundle []*x509.Certificate) error {
+func (a *Agent) startEndpoints() error {
 	config := &endpoints.Config{
-		Bundle:   bundle,
 		BindAddr: a.c.BindAddress,
 		Catalog:  a.Catalog,
 		Manager:  a.Manager,

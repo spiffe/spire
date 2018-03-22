@@ -1,7 +1,6 @@
 package endpoints
 
 import (
-	"crypto/x509"
 	"net"
 
 	"github.com/sirupsen/logrus"
@@ -9,12 +8,15 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 
+	"google.golang.org/grpc"
+
 	tomb "gopkg.in/tomb.v2"
 )
 
 type Config struct {
-	Bundle   []*x509.Certificate
 	BindAddr *net.UnixAddr
+
+	GRPCHook func(*grpc.Server) error
 
 	Catalog catalog.Catalog
 	Manager manager.Manager
