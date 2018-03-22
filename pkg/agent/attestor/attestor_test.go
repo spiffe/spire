@@ -40,52 +40,19 @@ func (s *AttestorTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 
 	s.nodeAttestor = mock_nodeattestor.NewMockNodeAttestor(s.ctrl)
-	attestationData := &common.AttestedData{
-		Type: "join_token",
-		Data: []byte("foobar"),
-	}
-	fa := &nodeattestor.FetchAttestationDataResponse{
-		AttestedData: attestationData,
-		SpiffeId:     "spiffe://example.com/spire/agent/join_token/foobar",
-	}
-	s.nodeAttestor.EXPECT().FetchAttestationData(gomock.Any()).
-		Return(fa, nil)
-
-	svid, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
-	keyDer, err := x509.MarshalECPrivateKey(key)
-	s.Require().NoError(err)
-
 	s.keyManager = mock_keymanager.NewMockKeyManager(s.ctrl)
-	s.keyManager.EXPECT().FetchPrivateKey(gomock.Any()).Return(
-		&keymanager.FetchPrivateKeyResponse{PrivateKey: keyDer}, nil)
-	s.keyManager.EXPECT().GenerateKeyPair(gomock.Any()).Return(
-		&keymanager.GenerateKeyPairResponse{key.Y.Bytes(), keyDer}, nil)
-
 	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
-	s.catalog.EXPECT().NodeAttestors().
-		Return([]nodeattestor.NodeAttestor{s.nodeAttestor})
-	s.catalog.EXPECT().KeyManagers().
-		Return([]keymanager.KeyManager{s.keyManager})
-
 	s.nodeClient = mock_node.NewMockNodeClient(s.ctrl)
-	s.nodeClient.EXPECT().FetchBaseSVID(gomock.Any(), gomock.Any()).
-		Return(&node.FetchBaseSVIDResponse{&node.SvidUpdate{
-			Svids: map[string]*node.Svid{
-				"spiffe://example.com/spire/agent/join_token/foobar": &node.Svid{
-					svid.Raw,
-					300,
-				}},
-		}}, nil)
+
 	log, _ := test.NewNullLogger()
 	tempDir, err := ioutil.TempDir(os.TempDir(), "spire-test")
 	s.Require().NoError(err)
 
 	s.config = &Config{
-		Catalog: s.catalog,
-		DataDir: tempDir,
-		Log:     log,
+		Catalog:         s.catalog,
+		SVIDCachePath:   path.Join(tempDir, "agent_svid.der"),
+		BundleCachePath: path.Join(tempDir, "bundle.der"),
+		Log:             log,
 		TrustDomain: url.URL{
 			Scheme: "spiffe",
 			Host:   "example.com",
@@ -97,45 +64,43 @@ func (s *AttestorTestSuite) SetupTest() {
 }
 
 func (s *AttestorTestSuite) TeardownTest() {
-	os.RemoveAll(s.config.DataDir)
+	os.Remove(s.config.SVIDCachePath)
+	os.Remove(s.config.BundleCachePath)
 	s.ctrl.Finish()
 }
 
 func (s *AttestorTestSuite) TestAttestLoadFromDisk() {
-	err := os.Link(
-		"../../../test/fixture/certs/bundle.der",
-		path.Join(s.config.DataDir, "bundle.der"))
-	s.Require().NoError(err)
-	err = os.Link(
-		"../../../test/fixture/certs/base_cert.der",
-		path.Join(s.config.DataDir, "agent_svid.der"))
+	s.linkBundle()
+	s.linkAgentSVIDPath()
 
-	s.Require().NoError(err)
+	s.setCatalog()
+	s.setFetchAttestationDataResponse()
+	s.setFetchPrivateKeyResponse()
+
 	as, err := s.attestor.Attest()
 	s.Require().NoError(err)
+
 	_, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 
 	s.Assert().Equal(as.Key, key)
+
 	bundle, err := util.LoadBundleFixture()
+	s.Require().NoError(err)
 	s.Assert().Equal(as.Bundle, bundle)
 }
 
 func (s *AttestorTestSuite) TestAttest() {
-	tempDir, err := ioutil.TempDir(os.TempDir(), "spire-test")
-	s.config.DataDir = tempDir
-
-	err = os.Link(
-		"../../../test/fixture/certs/bundle.der",
-		path.Join(s.config.DataDir, "bundle.der"))
-	s.Require().NoError(err)
-
+	s.linkBundle()
+	s.setCatalog()
+	s.setFetchPrivateKeyResponse()
+	s.setGenerateKeyPairResponse()
+	s.setFetchAttestationDataResponse()
+	s.setFetchBaseSVIDResponse()
 	as, err := s.attestor.Attest()
 	s.Require().NoError(err)
 
 	svid, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
 	s.Require().NoError(err)
 
 	s.Assert().Equal(as.Key, key)
@@ -143,20 +108,17 @@ func (s *AttestorTestSuite) TestAttest() {
 }
 
 func (s *AttestorTestSuite) TestAttestJoinToken() {
-	tempDir, err := ioutil.TempDir(os.TempDir(), "spire-test")
-	s.config.DataDir = tempDir
 	s.config.JoinToken = "foobar"
-	err = os.Link(
-		"../../../test/fixture/certs/bundle.der",
-		path.Join(s.config.DataDir, "bundle.der"))
-	s.Require().NoError(err)
+	s.linkBundle()
+	s.setCatalog()
+	s.setFetchPrivateKeyResponse()
+	s.setGenerateKeyPairResponse()
+	s.setFetchBaseSVIDResponse()
 
 	as, err := s.attestor.Attest()
 	s.Require().NoError(err)
 
 	svid, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
 	s.Require().NoError(err)
 
 	s.Assert().Equal(as.Key, key)
@@ -165,4 +127,74 @@ func (s *AttestorTestSuite) TestAttestJoinToken() {
 
 func TestAttestorTestSuite(t *testing.T) {
 	suite.Run(t, new(AttestorTestSuite))
+}
+
+func (s *AttestorTestSuite) linkAgentSVIDPath() {
+	err := os.Link(
+		path.Join(util.ProjectRoot(), "test/fixture/certs/agent_svid.der"),
+		s.config.SVIDCachePath)
+	s.Require().NoError(err)
+}
+
+func (s *AttestorTestSuite) linkBundle() {
+	err := os.Link(
+		path.Join(util.ProjectRoot(), "test/fixture/certs/bundle.der"),
+		s.config.BundleCachePath)
+	s.Require().NoError(err)
+}
+
+func (s *AttestorTestSuite) setFetchAttestationDataResponse() {
+	attestationData := &common.AttestedData{
+		Type: "join_token",
+		Data: []byte("foobar"),
+	}
+	fa := &nodeattestor.FetchAttestationDataResponse{
+		AttestedData: attestationData,
+		SpiffeId:     "spiffe://example.com/spire/agent/join_token/foobar",
+	}
+	s.nodeAttestor.EXPECT().FetchAttestationData(gomock.Any()).
+		Return(fa, nil)
+}
+
+func (s *AttestorTestSuite) setFetchPrivateKeyResponse() {
+	_, key, err := util.LoadSVIDFixture()
+	s.Require().NoError(err)
+
+	keyDer, err := x509.MarshalECPrivateKey(key)
+	s.Require().NoError(err)
+
+	s.keyManager.EXPECT().FetchPrivateKey(gomock.Any()).Return(
+		&keymanager.FetchPrivateKeyResponse{PrivateKey: keyDer}, nil)
+}
+
+func (s *AttestorTestSuite) setGenerateKeyPairResponse() {
+	svid, key, err := util.LoadSVIDFixture()
+	s.Require().NoError(err)
+
+	keyDer, err := x509.MarshalECPrivateKey(key)
+	s.Require().NoError(err)
+
+	s.keyManager.EXPECT().GenerateKeyPair(gomock.Any()).Return(
+		&keymanager.GenerateKeyPairResponse{svid.RawSubjectPublicKeyInfo, keyDer}, nil)
+}
+
+func (s *AttestorTestSuite) setCatalog() {
+	s.catalog.EXPECT().NodeAttestors().
+		Return([]nodeattestor.NodeAttestor{s.nodeAttestor})
+	s.catalog.EXPECT().KeyManagers().
+		Return([]keymanager.KeyManager{s.keyManager})
+}
+
+func (s *AttestorTestSuite) setFetchBaseSVIDResponse() {
+	svid, _, err := util.LoadSVIDFixture()
+	s.Require().NoError(err)
+
+	s.nodeClient.EXPECT().FetchBaseSVID(gomock.Any(), gomock.Any()).
+		Return(&node.FetchBaseSVIDResponse{&node.SvidUpdate{
+			Svids: map[string]*node.Svid{
+				"spiffe://example.com/spire/agent/join_token/foobar": &node.Svid{
+					svid.Raw,
+					300,
+				}},
+		}}, nil)
 }

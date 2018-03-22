@@ -30,7 +30,6 @@ type Agent struct {
 	tel telemetry.Sink
 
 	Catalog   catalog.Catalog
-	Attestor  attestor.Attestor
 	Manager   manager.Manager
 	Endpoints endpoints.Endpoints
 }
@@ -91,8 +90,7 @@ func (a *Agent) attest() (*attestor.AttestationResult, error) {
 		Log:             a.c.Log.WithField("subsystem_name", "attestor"),
 		ServerAddress:   a.c.ServerAddress,
 	}
-	a.Attestor = attestor.New(&config)
-	return a.Attestor.Attest()
+	return attestor.New(&config).Attest()
 }
 
 func (a *Agent) superviseManager() error {

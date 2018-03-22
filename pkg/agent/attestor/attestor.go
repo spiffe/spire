@@ -164,7 +164,6 @@ func (a *attestor) attestationData() (*nodeattestor.FetchAttestationDataResponse
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
 // will be returned.
 func (a *attestor) readSVIDFromDisk() *x509.Certificate {
-
 	cert, err := manager.ReadSVID(a.c.SVIDCachePath)
 	if err == manager.ErrNotCached {
 		a.c.Log.Debug("No pre-existing agent SVID found. Will perform node attestation")
