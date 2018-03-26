@@ -5,10 +5,10 @@
 package mock_registration
 
 import (
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	registration "github.com/spiffe/spire/proto/api/registration"
 	common "github.com/spiffe/spire/proto/common"
-	context "golang.org/x/net/context"
 	grpc "google.golang.org/grpc"
 	reflect "reflect"
 )
@@ -124,6 +124,24 @@ func (m *MockRegistrationClient) DeleteFederatedBundle(arg0 context.Context, arg
 func (mr *MockRegistrationClientMockRecorder) DeleteFederatedBundle(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
 	varargs := append([]interface{}{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFederatedBundle", reflect.TypeOf((*MockRegistrationClient)(nil).DeleteFederatedBundle), varargs...)
+}
+
+// FetchBundle mocks base method
+func (m *MockRegistrationClient) FetchBundle(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (*registration.Bundle, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "FetchBundle", varargs...)
+	ret0, _ := ret[0].(*registration.Bundle)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBundle indicates an expected call of FetchBundle
+func (mr *MockRegistrationClientMockRecorder) FetchBundle(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBundle", reflect.TypeOf((*MockRegistrationClient)(nil).FetchBundle), varargs...)
 }
 
 // FetchEntries mocks base method
@@ -356,6 +374,19 @@ func (m *MockRegistrationServer) DeleteFederatedBundle(arg0 context.Context, arg
 // DeleteFederatedBundle indicates an expected call of DeleteFederatedBundle
 func (mr *MockRegistrationServerMockRecorder) DeleteFederatedBundle(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFederatedBundle", reflect.TypeOf((*MockRegistrationServer)(nil).DeleteFederatedBundle), arg0, arg1)
+}
+
+// FetchBundle mocks base method
+func (m *MockRegistrationServer) FetchBundle(arg0 context.Context, arg1 *common.Empty) (*registration.Bundle, error) {
+	ret := m.ctrl.Call(m, "FetchBundle", arg0, arg1)
+	ret0, _ := ret[0].(*registration.Bundle)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBundle indicates an expected call of FetchBundle
+func (mr *MockRegistrationServerMockRecorder) FetchBundle(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBundle", reflect.TypeOf((*MockRegistrationServer)(nil).FetchBundle), arg0, arg1)
 }
 
 // FetchEntries mocks base method

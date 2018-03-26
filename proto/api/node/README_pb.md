@@ -18,8 +18,6 @@
 - [node.proto](#node.proto)
     - [FetchBaseSVIDRequest](#spire.api.node.FetchBaseSVIDRequest)
     - [FetchBaseSVIDResponse](#spire.api.node.FetchBaseSVIDResponse)
-    - [FetchCPBundleRequest](#spire.api.node.FetchCPBundleRequest)
-    - [FetchCPBundleResponse](#spire.api.node.FetchCPBundleResponse)
     - [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest)
     - [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleResponse)
     - [FetchFederatedBundleResponse.FederatedBundlesEntry](#spire.api.node.FetchFederatedBundleResponse.FederatedBundlesEntry)
@@ -186,31 +184,6 @@ all current Registration Entries which are relevant to the caller SPIFFE ID
 
 
 
-<a name="spire.api.node.FetchCPBundleRequest"/>
-
-### FetchCPBundleRequest
-Represents an empty message.
-
-
-
-
-
-
-<a name="spire.api.node.FetchCPBundleResponse"/>
-
-### FetchCPBundleResponse
-Represents a response with a Spire Server certificate bundle.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| server_bundle | [bytes](#bytes) |  | Spire Server certificate bundle. |
-
-
-
-
-
-
 <a name="spire.api.node.FetchFederatedBundleRequest"/>
 
 ### FetchFederatedBundleRequest
@@ -354,7 +327,6 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | ----------- | ------------ | ------------- | ------------|
 | FetchBaseSVID | [FetchBaseSVIDRequest](#spire.api.node.FetchBaseSVIDRequest) | [FetchBaseSVIDResponse](#spire.api.node.FetchBaseSVIDRequest) | Attest the node, get base node SVID. |
 | FetchSVID | [FetchSVIDRequest](#spire.api.node.FetchSVIDRequest) | [FetchSVIDResponse](#spire.api.node.FetchSVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
-| FetchCPBundle | [FetchCPBundleRequest](#spire.api.node.FetchCPBundleRequest) | [FetchCPBundleResponse](#spire.api.node.FetchCPBundleRequest) | Called by Node Agent periodically to support Spire Server certificate rotation. Cached in Node Agent memory for WorkLoads as well. |
 | FetchFederatedBundle | [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleRequest) | Called by the Node Agent to fetch the named Federated CA Bundle. Used in the event that authorized workloads reference a Federated Bundle. |
 
  

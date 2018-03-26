@@ -65,16 +65,6 @@ message FetchSVIDResponse {
     SvidUpdate svid_update = 1;
 }
 
-// Represents an empty message.
-message FetchCPBundleRequest {
-}
-
-// Represents a response with a Spire Server certificate bundle.
-message FetchCPBundleResponse {
-    // Spire Server certificate bundle.
-    bytes server_bundle = 1;
-}
-
 // Represents a request with an array of SPIFFE Ids.
 message FetchFederatedBundleRequest {
     // An array of SPIFFE Ids.
@@ -95,10 +85,6 @@ service Node {
     // Base Node SVID or the Registered Node SVID used for this call)
     // List can be empty to allow Node Agent cache refresh).
     rpc FetchSVID(stream FetchSVIDRequest) returns (stream FetchSVIDResponse);
-
-    // Called by Node Agent periodically to support Spire Server certificate
-    // rotation. Cached in Node Agent memory for WorkLoads as well.
-    rpc FetchCPBundle(FetchCPBundleRequest) returns (FetchCPBundleResponse);
 
     // Called by the Node Agent to fetch the named Federated CA Bundle.
     // Used in the event that authorized workloads reference a Federated Bundle.
