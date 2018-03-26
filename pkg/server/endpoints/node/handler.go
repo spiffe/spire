@@ -178,13 +178,6 @@ func (h *Handler) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
 }
 
 //TODO
-func (h *Handler) FetchCPBundle(
-	ctx context.Context, request *node.FetchCPBundleRequest) (
-	response *node.FetchCPBundleResponse, err error) {
-	return response, nil
-}
-
-//TODO
 func (h *Handler) FetchFederatedBundle(
 	ctx context.Context, request *node.FetchFederatedBundleRequest) (
 	response *node.FetchFederatedBundleResponse, err error) {
