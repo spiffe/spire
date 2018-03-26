@@ -3,27 +3,21 @@ package endpoints
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
-	"path"
 	"sync"
-	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
+	"github.com/spiffe/spire/pkg/server/svid"
 
 	node_pb "github.com/spiffe/spire/proto/api/node"
 	registration_pb "github.com/spiffe/spire/proto/api/registration"
-	ca_pb "github.com/spiffe/spire/proto/server/ca"
 	datastore_pb "github.com/spiffe/spire/proto/server/datastore"
 
 	"golang.org/x/net/context"
@@ -45,9 +39,6 @@ type Server interface {
 	// ListenAndServe will unblock with `nil` if/when shutdown completes
 	// cleanly
 	Shutdown()
-
-	// SVID returns the server's SVID and private key
-	SVID() (*x509.Certificate, *ecdsa.PrivateKey)
 }
 
 type endpoints struct {
@@ -57,8 +48,6 @@ type endpoints struct {
 
 	svid    *x509.Certificate
 	svidKey *ecdsa.PrivateKey
-
-	svidCheck *time.Ticker
 
 	grpcServer *grpc.Server
 	httpServer *http.Server
@@ -82,29 +71,18 @@ func (e *endpoints) Shutdown() {
 	return
 }
 
-// SVID returns the server's SVID and private key
-func (e *endpoints) SVID() (*x509.Certificate, *ecdsa.PrivateKey) {
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
-
-	return e.svid, e.svidKey
-}
-
 // listenAndServe creates listeners and starts all servers. It serves
 // as the top-most tomb routine.
 func (e *endpoints) listenAndServe() error {
 	// Certs must be ready before anything else
-	err := e.rotateSVID()
-	if err != nil {
-		return err
-	}
+	e.updateSVID()
 
 	e.c.Log.Debug("Initializing API endpoints")
 	gs := e.createGRPCServer()
 	hs := e.createHTTPServer()
 
 	e.registerNodeAPI(gs)
-	err = e.registerRegistrationAPI(gs, hs)
+	err := e.registerRegistrationAPI(gs, hs)
 	if err != nil {
 		return err
 	}
@@ -114,7 +92,7 @@ func (e *endpoints) listenAndServe() error {
 
 	e.t.Go(e.startGRPCServer)
 	e.t.Go(e.startHTTPServer)
-	e.t.Go(e.startRotator)
+	e.t.Go(e.startSVIDObserver)
 
 	return nil
 }
@@ -254,73 +232,16 @@ func (e *endpoints) startHTTPServer() error {
 	return nil
 }
 
-// startRotator starts a ticker which monitors the server SVID
-// for expiration and invokes rotateSVID() as necessary.
-func (e *endpoints) startRotator() error {
+func (e *endpoints) startSVIDObserver() error {
 	for {
 		select {
 		case <-e.t.Dying():
-			e.c.Log.Debug("Stopping SVID rotator")
 			return nil
-		case <-e.svidCheck.C:
-			e.mtx.RLock()
-			ttl := e.svid.NotAfter.Sub(time.Now())
-			watermark := e.svid.NotAfter.Sub(e.svid.NotBefore) / 2
-			e.mtx.RUnlock()
-
-			if ttl < watermark {
-				err := e.rotateSVID()
-				if err != nil {
-					return err
-				}
-			}
-
+		case <-e.c.SVIDStream.Changes():
+			e.c.SVIDStream.Next()
+			e.updateSVID()
 		}
 	}
-}
-
-// rotateSVID cuts a new server SVID from the CA plugin and installs
-// it on the endpoints struct. Also updates the CA certificates.
-func (e *endpoints) rotateSVID() error {
-	e.c.Log.Debug("Rotating server SVID")
-
-	e.mtx.RLock()
-	id := &url.URL{
-		Scheme: "spiffe",
-		Host:   e.c.TrustDomain.Host,
-		Path:   path.Join("spiffe", "cp"),
-	}
-	e.mtx.RUnlock()
-
-	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-	if err != nil {
-		return err
-	}
-
-	csr, err := util.MakeCSR(key, id.String())
-	if err != nil {
-		return err
-	}
-
-	ca := e.c.Catalog.CAs()[0]
-
-	// Sign the CSR
-	csrReq := &ca_pb.SignCsrRequest{Csr: csr}
-	csrRes, err := ca.SignCsr(csrReq)
-	if err != nil {
-		return err
-	}
-
-	cert, err := x509.ParseCertificate(csrRes.SignedCertificate)
-	if err != nil {
-		return err
-	}
-
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	e.svid = cert
-	e.svidKey = key
-	return nil
 }
 
 // getGRPCServerConfig implements a TLS Config hook for the gRPC server
@@ -416,4 +337,13 @@ func (e *endpoints) findServingCA(svid *x509.Certificate, caCerts []*x509.Certif
 	}
 
 	return servingCA, nil
+}
+
+func (e *endpoints) updateSVID() {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	state := e.c.SVIDStream.Value().(svid.State)
+	e.svid = state.SVID
+	e.svidKey = state.Key
 }

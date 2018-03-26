@@ -1,8 +1,6 @@
 package server
 
 import (
-	"crypto/ecdsa"
-	"crypto/x509"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+	"github.com/spiffe/spire/pkg/server/svid"
 
 	_ "golang.org/x/net/trace"
 
@@ -61,12 +60,11 @@ type Config struct {
 }
 
 type Server struct {
-	Catalog    catalog.Catalog
-	Config     *Config
-	caManager  ca.Manager
-	endpoints  endpoints.Server
-	privateKey *ecdsa.PrivateKey
-	svid       *x509.Certificate
+	Catalog   catalog.Catalog
+	Config    *Config
+	caManager ca.Manager
+	endpoints endpoints.Server
+	svid      svid.Rotator
 
 	m *sync.RWMutex
 	t *tomb.Tomb
@@ -90,7 +88,6 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) run() error {
-
 	if s.Config.ProfilingEnabled {
 		s.setupProfiling()
 	}
@@ -104,7 +101,13 @@ func (s *Server) run() error {
 
 	err = s.startCAManager()
 	if err != nil {
-		s.Catalog.Stop()
+		s.shutdown()
+		return err
+	}
+
+	err = s.startSVIDRotator()
+	if err != nil {
+		s.shutdown()
 		return err
 	}
 
@@ -127,6 +130,10 @@ func (s *Server) Shutdown() {
 func (s *Server) shutdown() {
 	if s.endpoints != nil {
 		s.endpoints.Shutdown()
+	}
+
+	if s.svid != nil {
+		s.svid.Stop()
 	}
 
 	if s.caManager != nil {
@@ -210,12 +217,24 @@ func (s *Server) startCAManager() error {
 	return s.caManager.Start()
 }
 
+func (s *Server) startSVIDRotator() error {
+	c := &svid.RotatorConfig{
+		Catalog:     s.Catalog,
+		Log:         s.Config.Log.WithField("subsystem_name", "svid_rotator"),
+		TrustDomain: s.Config.TrustDomain,
+	}
+
+	s.svid = svid.NewRotator(c)
+	return s.svid.Start()
+}
+
 func (s *Server) startEndpoints() error {
 	s.m.Lock()
 
 	c := &endpoints.Config{
 		GRPCAddr:    s.Config.BindAddress,
 		HTTPAddr:    s.Config.BindHTTPAddress,
+		SVIDStream:  s.svid.Subscribe(),
 		TrustDomain: s.Config.TrustDomain,
 		Catalog:     s.Catalog,
 		Log:         s.Config.Log.WithField("subsystem_name", "endpoints"),

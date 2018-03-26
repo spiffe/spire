@@ -1,12 +1,12 @@
 hash: 61e6d4c3d4134479c98f392514a4e9d6b1562a99de5d7257ea8556904e658410
-updated: 2018-03-14T13:22:55.903554-07:00
+updated: 2018-03-23T15:18:36.884483-07:00
 imports:
 - name: github.com/armon/go-metrics
   version: 783273d703149aaeb9897cf58613d5af48861c25
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/aws/aws-sdk-go
-  version: 4c9c8e98642a1a5e7c27d7a644cf9140809d49ee
+  version: c8c4e0c0514d87f930c1342fef390db5329928b7
   subpackages:
   - aws
   - aws/awserr
@@ -94,6 +94,8 @@ imports:
   - json/token
 - name: github.com/hashicorp/yamux
   version: 683f49123a33db61abfb241b7ac5e4af4dc54d55
+- name: github.com/imkira/go-observer
+  version: 2b5c0039075a41408f1a33aa6391bd77d3e5a132
 - name: github.com/jinzhu/gorm
   version: 5174cc5c242a728b435ea2be8a2f7f998e15429b
   subpackages:
