@@ -4,8 +4,8 @@ import (
 	"net"
 	"net/url"
 	"sync"
-	"time"
 
+	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/catalog"
 
@@ -22,6 +22,9 @@ type Config struct {
 	// A hook allowing the consumer to customize the gRPC server before it starts.
 	GRPCHook func(*grpc.Server) error
 
+	// A subscription to the SVID stream
+	SVIDStream observer.Stream
+
 	// The server's configured trust domain. Used for validation, server SVID, etc.
 	TrustDomain url.URL
 
@@ -33,10 +36,9 @@ type Config struct {
 
 func New(c *Config) *endpoints {
 	return &endpoints{
-		c:         c,
-		mtx:       new(sync.RWMutex),
-		t:         new(tomb.Tomb),
-		svidCheck: time.NewTicker(30 * time.Second),
-		runOnce:   new(sync.Once),
+		c:       c,
+		mtx:     new(sync.RWMutex),
+		t:       new(tomb.Tomb),
+		runOnce: new(sync.Once),
 	}
 }
