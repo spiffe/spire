@@ -69,6 +69,7 @@
   
 
 - [registration.proto](#registration.proto)
+    - [Bundle](#spire.api.registration.Bundle)
     - [CreateFederatedBundleRequest](#spire.api.registration.CreateFederatedBundleRequest)
     - [FederatedBundle](#spire.api.registration.FederatedBundle)
     - [FederatedSpiffeID](#spire.api.registration.FederatedSpiffeID)
@@ -1095,6 +1096,21 @@ Represents a type with a list of NodeResolution.
 
 
 
+<a name="spire.api.registration.Bundle"/>
+
+### Bundle
+CA Bundle of the server
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| ca_certs | [bytes](#bytes) |  | ASN.1 DER data of the bundle. |
+
+
+
+
+
+
 <a name="spire.api.registration.CreateFederatedBundleRequest"/>
 
 ### CreateFederatedBundleRequest
@@ -1260,6 +1276,7 @@ A type with the id with want to update plus values to modify.
 | UpdateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [spire.common.Empty](#spire.api.registration.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
 | DeleteFederatedBundle | [FederatedSpiffeID](#spire.api.registration.FederatedSpiffeID) | [spire.common.Empty](#spire.api.registration.FederatedSpiffeID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 | CreateJoinToken | [JoinToken](#spire.api.registration.JoinToken) | [JoinToken](#spire.api.registration.JoinToken) | Create a new join token |
+| FetchBundle | [spire.common.Empty](#spire.common.Empty) | [Bundle](#spire.common.Empty) | Retrieves the CA bundle. |
 
  
 
