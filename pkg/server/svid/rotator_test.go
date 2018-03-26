@@ -104,8 +104,8 @@ func (s *RotatorTestSuite) TestRun() {
 	case <-time.NewTicker(5 * time.Second).C:
 		s.T().Error("SVID rotation timeout reached")
 	case <-stream.Changes():
-		// Update received
-		break
+		state = stream.Next().(State)
+		s.Assert().Equal(goodCert, state.SVID)
 	}
 
 	s.r.Stop()
