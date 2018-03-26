@@ -45,7 +45,6 @@ func (s *showCLI) Help() string {
 }
 
 func (s *showCLI) Run(args []string) int {
-
 	config, err := s.newConfig(args)
 	if err != nil {
 		fmt.Println(err.Error())
