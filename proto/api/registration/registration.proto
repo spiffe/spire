@@ -78,7 +78,7 @@ message JoinToken {
 // CA Bundle of the server  
 message Bundle {
     // ASN.1 DER data of the bundle.
-    bytes asn1Data = 1;
+    bytes ca_certs = 1;
 }
 
 service Registration {

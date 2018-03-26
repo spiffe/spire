@@ -81,7 +81,7 @@ func (*showCLI) newConfig(args []string) (*showConfig, error) {
 }
 
 func (s *showCLI) printBundleAsPEM(bundle *registration.Bundle) error {
-	certs, err := x509.ParseCertificates(bundle.Asn1Data)
+	certs, err := x509.ParseCertificates(bundle.CaCerts)
 	if err != nil {
 		return fmt.Errorf("FAILED to parse bundle's ASN.1 DER data: %v", err)
 	}

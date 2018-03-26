@@ -1104,7 +1104,7 @@ CA Bundle of the server
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| asn1Data | [bytes](#bytes) |  | ASN.1 DER data of the bundle. |
+| ca_certs | [bytes](#bytes) |  | ASN.1 DER data of the bundle. |
 
 
 

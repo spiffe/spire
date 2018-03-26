@@ -52,7 +52,7 @@ func (s *ShowTestSuite) TestRunWithDefaultArgs() {
 	ca, _, err := util.LoadCAFixture()
 	s.Require().Nil(err)
 
-	resp := &registration.Bundle{Asn1Data: ca.Raw}
+	resp := &registration.Bundle{CaCerts: ca.Raw}
 	s.mockClient.EXPECT().FetchBundle(context.TODO(), &common.Empty{}).Return(resp, nil)
 
 	args := []string{}

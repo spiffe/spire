@@ -227,5 +227,5 @@ func (h *Handler) FetchBundle(
 		return nil, fmt.Errorf("get bundle from datastore: %v", err)
 	}
 
-	return &registration.Bundle{Asn1Data: b.CaCerts}, nil
+	return &registration.Bundle{CaCerts: b.CaCerts}, nil
 }

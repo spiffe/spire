@@ -481,7 +481,7 @@ func TestCreateJoinTokenWithoutToken(t *testing.T) {
 
 func TestFetchBundle(t *testing.T) {
 	request := &common.Empty{}
-	goodResponse := &registration.Bundle{Asn1Data: []byte{1, 2, 3}}
+	goodResponse := &registration.Bundle{CaCerts: []byte{1, 2, 3}}
 	var testCases = []struct {
 		request          *common.Empty
 		expectedResponse *registration.Bundle
