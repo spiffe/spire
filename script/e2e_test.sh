@@ -31,7 +31,7 @@ sleep 2
 
 set +e
 RESULT=$(./cmd/spire-agent/spire-agent api fetch)
-echo $RESULT | grep "Fetched 1 bundle"
+echo $RESULT | grep "Received 1 bundle"
 if [ $? != 0 ]; then
     CODE=1
     echo
