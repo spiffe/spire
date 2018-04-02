@@ -16,7 +16,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 
@@ -105,8 +104,7 @@ func (c *client) sendAndReceive(req *node.FetchSVIDRequest) (*update, error) {
 		}
 
 		for _, re := range resp.SvidUpdate.RegistrationEntries {
-			regEntryKey := util.DeriveRegEntryhash(re)
-			regEntries[regEntryKey] = re
+			regEntries[re.EntryId] = re
 		}
 		for spiffeid, svid := range resp.SvidUpdate.Svids {
 			svids[spiffeid] = svid

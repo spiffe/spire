@@ -196,51 +196,32 @@ func (s *ShowCLI) fetchBySelectors() error {
 // do not match every selector specified by the user
 func (s *ShowCLI) filterEntries() {
 	newSlice := []*common.RegistrationEntry{}
+	// Map used to skip duplicated entries.
+	matchingEntries := map[string]*common.RegistrationEntry{}
 	for _, e := range s.Entries {
 		match, _ := hasSelectors(e, s.Config.Selectors)
 		if !match {
 			continue
 		}
 
-		// If both parentID and spiffeID have been specified,
-		// only keep entries retaining both properties. If only
-		// one is set, no need for further filtering.
-		if s.Config.SpiffeID != "" && s.Config.ParentID != "" {
-			if e.SpiffeId != s.Config.SpiffeID || e.ParentId != s.Config.ParentID {
-				continue
-			}
-		}
-
-		newSlice = append(newSlice, e)
-	}
-
-	s.Entries = s.dedupEntries(newSlice)
-}
-
-// dedupEntries naively de-duplicates registration entries in the given slice, returning
-// a new slice. This is necessary because Registration Entry ID is not always returned,
-// making it difficult to tell entries apart from each other. This will become simpler
-// following a registration API refactor.
-func (ShowCLI) dedupEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {
-	resp := []*common.RegistrationEntry{}
-	for i, e := range entries {
-		var found bool
-
-		for ii := i + 1; ii < len(entries); ii++ {
-			if entries[ii] == e {
-				found = true
-				break
-			}
-		}
-
-		if found {
+		// If SpiffeID was specified, discard entries that don't match.
+		if s.Config.SpiffeID != "" && e.SpiffeId != s.Config.SpiffeID {
 			continue
-		} else {
-			resp = append(resp, e)
+		}
+
+		// If ParentID was specified, discard entries that don't match.
+		if s.Config.ParentID != "" && e.ParentId != s.Config.ParentID {
+			continue
+		}
+
+		// If this entry wasn't matched before, save it.
+		if _, ok := matchingEntries[e.EntryId]; !ok {
+			matchingEntries[e.EntryId] = e
+			newSlice = append(newSlice, e)
 		}
 	}
 
-	return resp
+	s.Entries = newSlice
 }
 
 func (s *ShowCLI) printEntries() {
@@ -249,7 +230,7 @@ func (s *ShowCLI) printEntries() {
 
 	fmt.Println(msg)
 	for _, e := range s.Entries {
-		printEntry(e, "")
+		printEntry(e)
 	}
 }
 

@@ -397,6 +397,7 @@ func Test_FetchRegistrationEntry(t *testing.T) {
 	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{registeredEntry})
 	require.NoError(t, err)
 	require.NotNil(t, createRegistrationEntryResponse)
+	registeredEntry.EntryId = createRegistrationEntryResponse.RegisteredEntryId
 
 	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&datastore.FetchRegistrationEntryRequest{createRegistrationEntryResponse.RegisteredEntryId})
 	require.NoError(t, err)
@@ -440,10 +441,12 @@ func Test_FetchRegistrationEntries(t *testing.T) {
 	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{entry1})
 	require.NoError(t, err)
 	require.NotNil(t, createRegistrationEntryResponse)
+	entry1.EntryId = createRegistrationEntryResponse.RegisteredEntryId
 
 	createRegistrationEntryResponse, err = ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{entry2})
 	require.NoError(t, err)
 	require.NotNil(t, createRegistrationEntryResponse)
+	entry2.EntryId = createRegistrationEntryResponse.RegisteredEntryId
 
 	fetchRegistrationEntriesResponse, err := ds.FetchRegistrationEntries(&common.Empty{})
 	require.NoError(t, err)
@@ -489,10 +492,12 @@ func Test_DeleteRegistrationEntry(t *testing.T) {
 	res1, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{entry1})
 	require.NoError(t, err)
 	require.NotNil(t, res1)
+	entry1.EntryId = res1.RegisteredEntryId
 
 	res2, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{entry2})
 	require.NoError(t, err)
 	require.NotNil(t, res2)
+	entry2.EntryId = res2.RegisteredEntryId
 
 	// Make sure we deleted the right one
 	delRes, err := ds.DeleteRegistrationEntry(&datastore.DeleteRegistrationEntryRequest{RegisteredEntryId: res1.RegisteredEntryId})
@@ -526,7 +531,8 @@ func TestSqlitePlugin_ListParentIDEntries(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ds := createDefault(t)
 			for _, entry := range test.registrationEntries {
-				ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				r, _ := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				entry.EntryId = r.RegisteredEntryId
 			}
 			result, err := ds.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{
 				ParentId: test.parentID})
@@ -567,7 +573,8 @@ func Test_ListSelectorEntries(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ds := createDefault(t)
 			for _, entry := range test.registrationEntries {
-				ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				r, _ := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				entry.EntryId = r.RegisteredEntryId
 			}
 			result, err := ds.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{
 				Selectors: test.selectors})
@@ -611,7 +618,8 @@ func Test_ListMatchingEntries(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ds := createDefault(t)
 			for _, entry := range test.registrationEntries {
-				ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				r, _ := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				entry.EntryId = r.RegisteredEntryId
 			}
 			result, err := ds.ListMatchingEntries(&datastore.ListSelectorEntriesRequest{
 				Selectors: test.selectors})
