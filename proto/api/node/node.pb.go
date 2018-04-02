@@ -89,9 +89,6 @@ type RegistrationEntry spire_common.RegistrationEntry
 func (m *RegistrationEntry) Reset()         { (*spire_common.RegistrationEntry)(m).Reset() }
 func (m *RegistrationEntry) String() string { return (*spire_common.RegistrationEntry)(m).String() }
 func (*RegistrationEntry) ProtoMessage()    {}
-func (m *RegistrationEntry) GetEntryId() string {
-	return (*spire_common.RegistrationEntry)(m).GetEntryId()
-}
 func (m *RegistrationEntry) GetSelectors() []*Selector {
 	o := (*spire_common.RegistrationEntry)(m).GetSelectors()
 	if o == nil {
@@ -112,6 +109,9 @@ func (m *RegistrationEntry) GetSpiffeId() string {
 func (m *RegistrationEntry) GetTtl() int32 { return (*spire_common.RegistrationEntry)(m).GetTtl() }
 func (m *RegistrationEntry) GetFbSpiffeIds() []string {
 	return (*spire_common.RegistrationEntry)(m).GetFbSpiffeIds()
+}
+func (m *RegistrationEntry) GetEntryId() string {
+	return (*spire_common.RegistrationEntry)(m).GetEntryId()
 }
 
 // RegistrationEntries from public import github.com/spiffe/spire/proto/common/common.proto

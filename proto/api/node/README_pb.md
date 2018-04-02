@@ -93,12 +93,12 @@ manage the various registered nodes and workloads that are controlled by it.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry_id | [string](#string) |  | Entry ID |
 | selectors | [Selector](#spire.common.Selector) | repeated | A list of selectors. |
 | parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
 | spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
 | ttl | [int32](#int32) |  | Time to live. |
 | fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
+| entry_id | [string](#string) |  | Entry ID |
 
 
 

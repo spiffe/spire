@@ -32,21 +32,21 @@ message Selectors {
 /** This is a curated record that the Control Plane uses to set up and
 manage the various registered nodes and workloads that are controlled by it. */
 message RegistrationEntry {
-    /** Entry ID */
-    string entry_id = 1;
     /** A list of selectors. */
-    repeated Selector selectors = 2;
+    repeated Selector selectors = 1;
     /** The SPIFFE ID of an entity that is authorized to attest the validity
     of a selector */
-    string parent_id = 3;
+    string parent_id = 2;
     /** The SPIFFE ID is a structured string used to identify a resource or
     caller. It is defined as a URI comprising a “trust domain” and an
     associated path. */
-    string spiffe_id = 4;
+    string spiffe_id = 3;
     /** Time to live. */
-    int32 ttl = 5;
+    int32 ttl = 4;
     /** A list of federated bundle spiffe ids. */
-    repeated string fb_spiffe_ids = 6;
+    repeated string fb_spiffe_ids = 5;
+    /** Entry ID */
+    string entry_id = 6;
 }
 
 /** A list of registration entries. */
