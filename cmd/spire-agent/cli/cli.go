@@ -16,6 +16,9 @@ func Run(args []string) int {
 		"api fetch": func() (cli.Command, error) {
 			return &api.FetchCLI{}, nil
 		},
+		"api watch": func() (cli.Command, error) {
+			return &api.WatchCLI{}, nil
+		},
 		"run": func() (cli.Command, error) {
 			return &run.RunCLI{}, nil
 		},
