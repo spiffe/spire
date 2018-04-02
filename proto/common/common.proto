@@ -33,7 +33,7 @@ message Selectors {
 manage the various registered nodes and workloads that are controlled by it. */
 message RegistrationEntry {
     /** Entry ID */
-    string id = 1;
+    string entry_id = 1;
     /** A list of selectors. */
     repeated Selector selectors = 2;
     /** The SPIFFE ID of an entity that is authorized to attest the validity

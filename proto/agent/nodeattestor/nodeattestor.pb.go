@@ -84,7 +84,9 @@ type RegistrationEntry spire_common.RegistrationEntry
 func (m *RegistrationEntry) Reset()         { (*spire_common.RegistrationEntry)(m).Reset() }
 func (m *RegistrationEntry) String() string { return (*spire_common.RegistrationEntry)(m).String() }
 func (*RegistrationEntry) ProtoMessage()    {}
-func (m *RegistrationEntry) GetId() string  { return (*spire_common.RegistrationEntry)(m).GetId() }
+func (m *RegistrationEntry) GetEntryId() string {
+	return (*spire_common.RegistrationEntry)(m).GetEntryId()
+}
 func (m *RegistrationEntry) GetSelectors() []*Selector {
 	o := (*spire_common.RegistrationEntry)(m).GetSelectors()
 	if o == nil {
