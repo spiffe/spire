@@ -130,14 +130,14 @@ func TestAttestorTestSuite(t *testing.T) {
 }
 
 func (s *AttestorTestSuite) linkAgentSVIDPath() {
-	err := os.Link(
+	err := os.Symlink(
 		path.Join(util.ProjectRoot(), "test/fixture/certs/agent_svid.der"),
 		s.config.SVIDCachePath)
 	s.Require().NoError(err)
 }
 
 func (s *AttestorTestSuite) linkBundle() {
-	err := os.Link(
+	err := os.Symlink(
 		path.Join(util.ProjectRoot(), "test/fixture/certs/bundle.der"),
 		s.config.BundleCachePath)
 	s.Require().NoError(err)
