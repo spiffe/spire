@@ -3,6 +3,7 @@ package api
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -72,8 +73,11 @@ func (w *WatchCLI) startClient() (workload.Client, error) {
 		Name: w.config.socketPath,
 	}
 
+	l := log.New(os.Stdout, "", log.LstdFlags)
+
 	c := &workload.ClientConfig{
-		Addr: addr,
+		Addr:   addr,
+		Logger: l,
 	}
 
 	client := workload.NewClient(c)
