@@ -158,21 +158,25 @@ func (ShowTestSuite) registrationEntries(count int) []*common.RegistrationEntry 
 			ParentId:  "spiffe://example.org/father",
 			SpiffeId:  "spiffe://example.org/daughter",
 			Selectors: []*common.Selector{selectors[0]},
+			EntryId:   "00000000-0000-0000-0000-000000000000",
 		},
 		{
 			ParentId:  "spiffe://example.org/father",
 			SpiffeId:  "spiffe://example.org/son",
 			Selectors: []*common.Selector{selectors[0], selectors[1]},
+			EntryId:   "00000000-0000-0000-0000-000000000001",
 		},
 		{
 			ParentId:  "spiffe://example.org/mother",
 			SpiffeId:  "spiffe://example.org/daughter",
 			Selectors: []*common.Selector{selectors[1], selectors[2]},
+			EntryId:   "00000000-0000-0000-0000-000000000002",
 		},
 		{
 			ParentId:  "spiffe://example.org/mother",
 			SpiffeId:  "spiffe://example.org/son",
 			Selectors: []*common.Selector{selectors[2]},
+			EntryId:   "00000000-0000-0000-0000-000000000003",
 		},
 	}
 

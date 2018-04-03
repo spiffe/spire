@@ -213,6 +213,9 @@ func (m *RegistrationEntry) GetTtl() int32 { return (*spire_common.RegistrationE
 func (m *RegistrationEntry) GetFbSpiffeIds() []string {
 	return (*spire_common.RegistrationEntry)(m).GetFbSpiffeIds()
 }
+func (m *RegistrationEntry) GetEntryId() string {
+	return (*spire_common.RegistrationEntry)(m).GetEntryId()
+}
 
 // RegistrationEntries from public import github.com/spiffe/spire/proto/common/common.proto
 type RegistrationEntries spire_common.RegistrationEntries

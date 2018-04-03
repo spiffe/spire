@@ -626,6 +626,7 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 
 	return &datastore.FetchRegistrationEntryResponse{
 		RegisteredEntry: &common.RegistrationEntry{
+			EntryId:   fetchedRegisteredEntry.EntryID,
 			Selectors: selectors,
 			SpiffeId:  fetchedRegisteredEntry.SpiffeID,
 			ParentId:  fetchedRegisteredEntry.ParentID,
@@ -1042,6 +1043,7 @@ func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []RegisteredEntr
 				Value: selector.Value})
 		}
 		responseEntries = append(responseEntries, &common.RegistrationEntry{
+			EntryId:   regEntry.EntryID,
 			Selectors: selectors,
 			SpiffeId:  regEntry.SpiffeID,
 			ParentId:  regEntry.ParentID,

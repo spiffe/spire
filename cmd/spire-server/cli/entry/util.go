@@ -56,10 +56,8 @@ func parseSelector(str string) (*common.Selector, error) {
 	return s, nil
 }
 
-func printEntry(e *common.RegistrationEntry, id string) {
-	if id != "" {
-		fmt.Printf("Entry ID:\t%s\n", id)
-	}
+func printEntry(e *common.RegistrationEntry) {
+	fmt.Printf("Entry ID:\t%s\n", e.EntryId)
 	fmt.Printf("SPIFFE ID:\t%s\n", e.SpiffeId)
 	fmt.Printf("Parent ID:\t%s\n", e.ParentId)
 	fmt.Printf("TTL:\t\t%v\n", e.Ttl)
