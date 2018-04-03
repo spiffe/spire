@@ -1,8 +1,6 @@
 package selector
 
 import (
-	"crypto/sha256"
-	"hash"
 	"math"
 	"strconv"
 	"strings"
@@ -34,7 +32,7 @@ func EqualSet(a, b *set) bool {
 
 // Includes determines whether a given selector is present in a set
 func Includes(set *set, item *Selector) bool {
-	return (*set)[deriveKey(item)] == item
+	return (*set)[*item] == item
 }
 
 // IncludesSet returns true if s2 is included in s1. This is, all the s2 selectors
@@ -85,10 +83,4 @@ func powerSet(s *set, c chan Set) {
 
 		c <- set
 	}
-}
-
-func deriveKey(selector *Selector) string {
-	selectorString := selector.Type + ":" + selector.Value
-	hashedSelectors := hash.Hash.Sum(sha256.New(), []byte(selectorString))
-	return string(hashedSelectors)
 }

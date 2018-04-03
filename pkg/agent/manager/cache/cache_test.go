@@ -72,7 +72,9 @@ func TestCacheImpl_Invalid(t *testing.T) {
 				RegistrationEntry: &common.RegistrationEntry{
 					Selectors: Selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",
-					SpiffeId:  "spiffe:test"},
+					SpiffeId:  "spiffe:test",
+					EntryId:   "00000000-0000-0000-0000-000000000000",
+				},
 				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}},
@@ -84,7 +86,9 @@ func TestCacheImpl_Invalid(t *testing.T) {
 						&common.Selector{Type: "testtype2", Value: "testValue2"},
 						&common.Selector{Type: "testtype1", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
-					SpiffeId: "spiffe:test"},
+					SpiffeId: "spiffe:test",
+					EntryId:  "00000000-0000-0000-0000-000000000001",
+				},
 				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}}}

@@ -150,11 +150,12 @@ func (CreateCLI) registerEntries(c registration.RegistrationClient, entries []*c
 		id, err := c.CreateEntry(context.TODO(), e)
 		if err != nil {
 			fmt.Println("FAILED to create the following entry:")
-			printEntry(e, "")
+			printEntry(e)
 			return err
 		}
 
-		printEntry(e, id.Id)
+		e.EntryId = id.Id
+		printEntry(e)
 	}
 
 	return nil
