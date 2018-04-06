@@ -57,7 +57,7 @@ func TestCreateEntry(t *testing.T) {
 	}{
 		{goodRequest, goodResponse, nil, createEntryExpectations},
 		{goodRequest, nil, errors.New("Error trying to create entry"), createEntryErrorExpectations},
-		{goodRequest, nil, errors.New("Error trying to create entry"), createEntryNonUniqueExpectations},
+		{goodRequest, nil, errors.New("Entry already exists"), createEntryNonUniqueExpectations},
 	}
 
 	for _, tt := range testCases {

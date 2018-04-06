@@ -32,10 +32,16 @@ func (h *Handler) CreateEntry(
 
 	dataStore := h.Catalog.DataStores()[0]
 
-	err = h.checkEntryUniqueness(dataStore, request)
+	unique, err := h.isEntryUnique(dataStore, request)
 	if err != nil {
 		h.Log.Error(err)
 		return nil, errors.New("Error trying to create entry")
+	}
+
+	if !unique {
+		err = errors.New("Entry already exists")
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	createResponse, err := dataStore.CreateRegistrationEntry(
@@ -237,12 +243,12 @@ func (h *Handler) FetchBundle(
 	return &registration.Bundle{CaCerts: b.CaCerts}, nil
 }
 
-func (h *Handler) checkEntryUniqueness(ds datastore.DataStore, entry *common.RegistrationEntry) error {
+func (h *Handler) isEntryUnique(ds datastore.DataStore, entry *common.RegistrationEntry) (bool, error) {
 	// First we get all the entries that matches the entry's spiffe id.
 	req := &datastore.ListSpiffeEntriesRequest{SpiffeId: entry.SpiffeId}
 	res, err := ds.ListSpiffeEntries(req)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	for _, re := range res.RegisteredEntryList {
@@ -252,10 +258,10 @@ func (h *Handler) checkEntryUniqueness(ds datastore.DataStore, entry *common.Reg
 			reSelSet := selector.NewSetFromRaw(re.Selectors)
 			entrySelSet := selector.NewSetFromRaw(entry.Selectors)
 			if reSelSet.Equal(entrySelSet) {
-				return errors.New("entry already exists")
+				return false, nil
 			}
 		}
 	}
 
-	return nil
+	return true, nil
 }
