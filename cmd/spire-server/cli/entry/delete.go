@@ -67,7 +67,7 @@ func (d DeleteCLI) Run(args []string) int {
 	}
 
 	fmt.Printf("Deleted the following entry:\n\n")
-	printEntry(e, config.EntryID)
+	printEntry(e)
 	return 0
 }
 

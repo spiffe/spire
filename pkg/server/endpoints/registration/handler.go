@@ -8,6 +8,7 @@ import (
 
 	"github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
@@ -30,10 +31,22 @@ func (h *Handler) CreateEntry(
 	response *registration.RegistrationEntryID, err error) {
 
 	dataStore := h.Catalog.DataStores()[0]
+
+	unique, err := h.isEntryUnique(dataStore, request)
+	if err != nil {
+		h.Log.Error(err)
+		return nil, errors.New("Error trying to create entry")
+	}
+
+	if !unique {
+		err = errors.New("Entry already exists")
+		h.Log.Error(err)
+		return nil, err
+	}
+
 	createResponse, err := dataStore.CreateRegistrationEntry(
 		&datastore.CreateRegistrationEntryRequest{RegisteredEntry: request},
 	)
-
 	if err != nil {
 		h.Log.Error(err)
 		return response, errors.New("Error trying to create entry")
@@ -228,4 +241,27 @@ func (h *Handler) FetchBundle(
 	}
 
 	return &registration.Bundle{CaCerts: b.CaCerts}, nil
+}
+
+func (h *Handler) isEntryUnique(ds datastore.DataStore, entry *common.RegistrationEntry) (bool, error) {
+	// First we get all the entries that matches the entry's spiffe id.
+	req := &datastore.ListSpiffeEntriesRequest{SpiffeId: entry.SpiffeId}
+	res, err := ds.ListSpiffeEntries(req)
+	if err != nil {
+		return false, err
+	}
+
+	for _, re := range res.RegisteredEntryList {
+		// If an existing entry matches the new entry's parent id also, we must check its
+		// selectors...
+		if re.ParentId == entry.ParentId {
+			reSelSet := selector.NewSetFromRaw(re.Selectors)
+			entrySelSet := selector.NewSetFromRaw(entry.Selectors)
+			if reSelSet.Equal(entrySelSet) {
+				return false, nil
+			}
+		}
+	}
+
+	return true, nil
 }
