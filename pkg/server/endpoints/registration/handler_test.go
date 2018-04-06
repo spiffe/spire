@@ -57,6 +57,7 @@ func TestCreateEntry(t *testing.T) {
 	}{
 		{goodRequest, goodResponse, nil, createEntryExpectations},
 		{goodRequest, nil, errors.New("Error trying to create entry"), createEntryErrorExpectations},
+		{goodRequest, nil, errors.New("Entry already exists"), createEntryNonUniqueExpectations},
 	}
 
 	for _, tt := range testCases {
@@ -515,8 +516,16 @@ func noExpectations(*handlerTestSuite) {}
 func createEntryExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
+	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
+
+	suite.mockDataStore.EXPECT().
+		ListSpiffeEntries(&datastore.ListSpiffeEntriesRequest{SpiffeId: newRegEntry.SpiffeId}).
+		Return(&datastore.ListSpiffeEntriesResponse{
+			RegisteredEntryList: []*common.RegistrationEntry{},
+		}, nil)
+
 	createRequest := &datastore.CreateRegistrationEntryRequest{
-		RegisteredEntry: testutil.GetRegistrationEntries("good.json")[0],
+		RegisteredEntry: newRegEntry,
 	}
 
 	createResponse := &datastore.CreateRegistrationEntryResponse{
@@ -532,8 +541,26 @@ func createEntryErrorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
+		ListSpiffeEntries(gomock.Any()).
+		Return(&datastore.ListSpiffeEntriesResponse{
+			RegisteredEntryList: []*common.RegistrationEntry{},
+		}, nil)
+
+	suite.mockDataStore.EXPECT().
 		CreateRegistrationEntry(gomock.Any()).
 		Return(nil, errors.New("foo"))
+}
+
+func createEntryNonUniqueExpectations(suite *handlerTestSuite) {
+	expectDataStore(suite)
+
+	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
+
+	suite.mockDataStore.EXPECT().
+		ListSpiffeEntries(&datastore.ListSpiffeEntriesRequest{SpiffeId: newRegEntry.SpiffeId}).
+		Return(&datastore.ListSpiffeEntriesResponse{
+			RegisteredEntryList: []*common.RegistrationEntry{newRegEntry},
+		}, nil)
 }
 
 func fetchEntryExpectations(suite *handlerTestSuite) {

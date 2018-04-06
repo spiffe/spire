@@ -19,7 +19,7 @@ type Set interface {
 	Size() int
 }
 
-type set map[string]*Selector
+type set map[Selector]*Selector
 
 func NewSet(selectors ...*Selector) Set {
 	set := set{}
@@ -81,11 +81,11 @@ func (s *set) IncludesSet(s2 Set) bool {
 }
 
 func (s *set) Add(selector *Selector) {
-	(*s)[deriveKey(selector)] = selector
+	(*s)[*selector] = selector
 }
 
 func (s *set) Remove(selector *Selector) *Selector {
-	key := deriveKey(selector)
+	key := *selector
 	if removed, ok := (*s)[key]; ok {
 		delete(*s, key)
 		return removed

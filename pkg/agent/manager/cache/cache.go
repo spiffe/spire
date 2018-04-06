@@ -7,7 +7,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/selector"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 )
 
@@ -42,7 +41,7 @@ type Cache interface {
 }
 
 type cacheImpl struct {
-	// Map keyed by a combination of SpiffeId + ParentId + Selectors holding Entry instances.
+	// Map keyed by RegistrationEntry.EntryId holding Entry instances.
 	cache       map[string]*Entry
 	log         logrus.FieldLogger
 	m           sync.Mutex
@@ -92,10 +91,9 @@ func (c *cacheImpl) Subscribe(sub *Subscriber) {
 }
 
 func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
-	key := util.DeriveRegEntryhash(regEntry)
 	c.m.Lock()
 	defer c.m.Unlock()
-	if entry, found := c.cache[key]; found {
+	if entry, found := c.cache[regEntry.EntryId]; found {
 		return entry
 	}
 	return nil
@@ -106,8 +104,7 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	key := util.DeriveRegEntryhash(entry.RegistrationEntry)
-	c.cache[key] = entry
+	c.cache[entry.RegistrationEntry.EntryId] = entry
 
 	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
 	c.updateSubscribers(subs, entries)
@@ -128,10 +125,9 @@ func (c *cacheImpl) updateSubscribers(subs []*Subscriber, entryCh <-chan *Entry)
 func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) (deleted bool) {
 	c.m.Lock()
 	var subs []*Subscriber
-	key := util.DeriveRegEntryhash(regEntry)
-	if entry, found := c.cache[key]; found {
+	if entry, found := c.cache[regEntry.EntryId]; found {
 		subs = c.Subscribers.Get(entry.RegistrationEntry.Selectors)
-		delete(c.cache, key)
+		delete(c.cache, regEntry.EntryId)
 		deleted = true
 	}
 	c.m.Unlock()

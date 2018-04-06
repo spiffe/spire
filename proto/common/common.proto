@@ -45,6 +45,8 @@ message RegistrationEntry {
     int32 ttl = 4;
     /** A list of federated bundle spiffe ids. */
     repeated string fb_spiffe_ids = 5;
+    /** Entry ID */
+    string entry_id = 6;
 }
 
 /** A list of registration entries. */
