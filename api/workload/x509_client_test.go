@@ -27,11 +27,11 @@ func TestClient_StartAndStop(t *testing.T) {
 		Net:  "unix",
 		Name: sockPath,
 	}
-	config := &ClientConfig{
-		Addr:        addr,
-		FailOnError: true,
+	config := &X509ClientConfig{
+		Addr:    addr,
+		Timeout: 5 * time.Second,
 	}
-	c := NewClient(config)
+	c := NewX509Client(config)
 
 	// Test single update and clean shutdown
 	handler.setDelay(10 * time.Second)
@@ -44,7 +44,7 @@ func TestClient_StartAndStop(t *testing.T) {
 	case <-updateChan:
 	}
 
-	c.Shutdown()
+	c.Stop()
 	select {
 	case <-time.NewTicker(1 * time.Millisecond).C:
 		t.Error("shutdown timed out")
@@ -56,7 +56,7 @@ func TestClient_StartAndStop(t *testing.T) {
 
 	// Test successive updates
 	handler.setDelay(100 * time.Millisecond)
-	c = NewClient(config)
+	c = NewX509Client(config)
 	go func() { errChan <- c.Start() }()
 	updateChan = c.UpdateChan()
 	select {
@@ -75,14 +75,14 @@ func TestClient_StartAndStop(t *testing.T) {
 	}
 
 	select {
-	case <-time.NewTicker(1 * time.Second).C:
+	case <-time.NewTicker(5 * time.Second).C:
 		t.Error("update not received after server reconnect")
-	case <-errChan:
-		t.Error("failed to reconnect to server")
+	case err := <-errChan:
+		t.Fatalf("failed to reconnect to server: %v", err)
 	case <-updateChan:
 	}
 
-	c.Shutdown()
+	c.Stop()
 	select {
 	case <-time.NewTicker(1 * time.Millisecond).C:
 		t.Error("shutdown timed out")

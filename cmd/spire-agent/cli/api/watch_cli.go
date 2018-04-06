@@ -39,18 +39,19 @@ func (w *WatchCLI) Run(args []string) int {
 		return 1
 	}
 
-	client, err := w.startClient()
-	if err != nil {
-		fmt.Println(err)
-		return 1
-	}
+	w.stopChan = make(chan struct{})
+	client, errChan := w.startClient()
 
 	updateTime := time.Now()
 	go w.signalListener()
 	for {
 		select {
 		case <-w.stopChan:
+			client.Stop()
 			return 0
+		case err := <-errChan:
+			fmt.Println(err)
+			return 1
 		case u := <-client.UpdateChan():
 			printX509SVIDResponse(u, time.Since(updateTime))
 			updateTime = time.Now()
@@ -67,7 +68,7 @@ func (w *WatchCLI) parseConfig(args []string) error {
 	return fs.Parse(args)
 }
 
-func (w *WatchCLI) startClient() (workload.Client, error) {
+func (w *WatchCLI) startClient() (workload.X509Client, chan error) {
 	addr := &net.UnixAddr{
 		Net:  "unix",
 		Name: w.config.socketPath,
@@ -75,13 +76,16 @@ func (w *WatchCLI) startClient() (workload.Client, error) {
 
 	l := log.New(os.Stdout, "", log.LstdFlags)
 
-	c := &workload.ClientConfig{
-		Addr:   addr,
-		Logger: l,
+	c := &workload.X509ClientConfig{
+		Addr: addr,
+		Log:  l,
 	}
 
-	client := workload.NewClient(c)
-	return client, client.Start()
+	client := workload.NewX509Client(c)
+	errChan := make(chan error)
+	go func() { errChan <- client.Start() }()
+
+	return client, errChan
 }
 
 func (w *WatchCLI) signalListener() {
