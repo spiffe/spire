@@ -9,8 +9,6 @@ The following details the configurations for the spire agent. Agent specific con
 
 | Configuration      | Description                                                      | Default             |
 | ------------------ | --------------------------------------------------------------- | -------------------- |
-| `bind_address`      | IP address or DNS name of the SPIRE server                     |                      |
-| `bind_port`         | Port number of the SPIRE server                                |                      |
 | `data_dir`          | A directory the agent can use for its runtime data             | $PWD                 |
 | `log_file`          | File to write logs to                                          |                      |
 | `log_level`         | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>            | INFO                 |
