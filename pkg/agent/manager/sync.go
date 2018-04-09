@@ -72,8 +72,6 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests map[string]*entryR
 		m.setBundle(bundle)
 	}
 
-	m.c.Log.Infof("regEntries: %v\n", update.regEntries)
-
 	return update.regEntries, update.svids, nil
 }
 
