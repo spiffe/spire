@@ -16,6 +16,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 
@@ -25,12 +26,14 @@ import (
 
 type client struct {
 	log logrus.FieldLogger
-	// Mutex used to pipeline requests to sendAndReceive function.
+	// Mutex used to pipeline requests to fecthUpdates function.
 	requests   *sync.Mutex
 	conn       *grpc.ClientConn
 	nodeClient node.NodeClient
 	// Time to sleep between retries when trying to get a stream from nodeClient.
 	sleepTime time.Duration
+	svid      *x509.Certificate
+	key       *ecdsa.PrivateKey
 }
 
 type clientsPool struct {
@@ -47,7 +50,7 @@ type update struct {
 	lastBundle []byte
 }
 
-func (c *client) sendAndReceive(req *node.FetchSVIDRequest) (*update, error) {
+func (c *client) fetchUpdates(req *node.FetchSVIDRequest) (*update, error) {
 	c.requests.Lock()
 	defer c.requests.Unlock()
 
@@ -115,7 +118,12 @@ func (c *client) sendAndReceive(req *node.FetchSVIDRequest) (*update, error) {
 }
 
 func (c *client) close() {
-	c.conn.Close()
+	if c.conn != nil {
+		c.nodeClient = nil
+		c.conn.Close()
+		c.conn = nil
+		c.sleepTime = time.Duration(0)
+	}
 }
 
 // sleep implements an interruptible sleep for sleepTime+1 seconds.
@@ -202,11 +210,12 @@ func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*g
 	}
 	tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
 	tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
-	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+	credentials := credentials.NewTLS(tlsConfig)
 
-	// We don't need cancel, so discard it.
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second) // TODO: Make this timeout configurable?
-	conn, err := grpc.DialContext(ctx, m.serverAddr.String(), dialCreds)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // TODO: Make this timeout configurable?
+	defer cancel()
+
+	conn, err := util.BlockingDial(ctx, "tcp", m.serverAddr.String(), credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -226,6 +235,8 @@ func (m *manager) newClient(svid *x509.Certificate, key *ecdsa.PrivateKey) (*cli
 		requests:   &sync.Mutex{},
 		conn:       conn,
 		nodeClient: nodeClient,
+		svid:       svid,
+		key:        key,
 	}, nil
 }
 
@@ -250,16 +261,39 @@ func (m *manager) newSyncClient(spiffeIDs []string, svid *x509.Certificate, key 
 	return nil
 }
 
-func (m *manager) getRotationClient() *client {
-	return m.syncClients.get(rotatorTag)
+func (m *manager) ensureRotationClient() (*client, error) {
+	currentCli := m.syncClients.get(rotatorTag)
+	if currentCli == nil {
+		return nil, fmt.Errorf("no client found for rotator")
+	}
+
+	if currentCli.conn != nil {
+		return currentCli, nil
+	}
+
+	svid, key := m.getBaseSVIDEntry()
+	newCli, err := m.newClient(svid, key)
+	if err != nil {
+		return nil, err
+	}
+	m.syncClients.add(rotatorTag, newCli)
+	return newCli, nil
 }
 
-func (m *manager) renewRotatorClient() error {
-	svid, key := m.getBaseSVIDEntry()
-	c, err := m.newClient(svid, key)
-	if err != nil {
-		return err
+func (m *manager) ensureSyncClient(spiffeID string) (*client, error) {
+	currentCli := m.syncClients.get(spiffeID)
+	if currentCli == nil {
+		return nil, fmt.Errorf("no client found for %s", spiffeID)
 	}
-	m.syncClients.add(rotatorTag, c)
-	return nil
+
+	if currentCli.conn != nil {
+		return currentCli, nil
+	}
+
+	newCli, err := m.newClient(currentCli.svid, currentCli.key)
+	if err != nil {
+		return nil, err
+	}
+	m.syncClients.add(spiffeID, newCli)
+	return newCli, nil
 }

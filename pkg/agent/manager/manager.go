@@ -11,7 +11,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/common"
-	proto "github.com/spiffe/spire/proto/common"
 
 	tomb "gopkg.in/tomb.v2"
 )
@@ -164,7 +163,7 @@ func (m *manager) rotator() error {
 			err := m.rotateSVID()
 			if err != nil {
 				// Just log the error to keep waiting for next SVID rotation...
-				m.c.Log.Error("SVID rotation failed")
+				m.c.Log.Errorf("SVID rotation failed: %v", err)
 			}
 		case <-m.t.Dying():
 			return nil
@@ -178,12 +177,6 @@ func (m *manager) shutdown(err error) {
 
 func (m *manager) isAlreadyCached(regEntry *common.RegistrationEntry) bool {
 	return m.cache.Entry(regEntry) != nil
-}
-
-// isEntryRequestAlreadyCreated if entryRequests has an element already created for regEntry.
-func (m *manager) isEntryRequestAlreadyCreated(regEntry *proto.RegistrationEntry, entryRequests entryRequests) bool {
-	_, ok := entryRequests[regEntry.ParentId]
-	return ok
 }
 
 func (m *manager) getBaseSVIDEntry() (svid *x509.Certificate, key *ecdsa.PrivateKey) {

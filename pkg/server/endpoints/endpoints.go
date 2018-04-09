@@ -247,6 +247,8 @@ func (e *endpoints) startSVIDObserver() error {
 
 // getGRPCServerConfig implements a TLS Config hook for the gRPC server
 func (e *endpoints) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+	e.c.Log.Infof("Hello client %v", hello.Conn.RemoteAddr())
+
 	certs, roots, err := e.getCerts()
 	if err != nil {
 		e.c.Log.Errorf("Could not generate TLS config for gRPC client %v: %v", hello.Conn.RemoteAddr(), err)
