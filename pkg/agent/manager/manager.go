@@ -146,7 +146,7 @@ func (m *manager) synchronizer() error {
 			err := m.synchronize(m.spiffeID)
 			if err != nil {
 				// Just log the error to keep waiting for next sinchronization...
-				m.c.Log.Errorf("synchronize failed for %s: %v", m.spiffeID, err)
+				m.c.Log.Errorf("synchronize failed: %v", err)
 			}
 		case <-m.t.Dying():
 			return nil

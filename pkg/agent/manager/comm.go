@@ -217,7 +217,8 @@ func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*g
 
 	conn, err := util.BlockingDial(ctx, "tcp", m.serverAddr.String(), credentials)
 	if err != nil {
-		return nil, err
+		spiffeID, _ := getSpiffeIDFromSVID(svid)
+		return nil, fmt.Errorf("cannot create connection for spiffeID %s: %v", spiffeID, err)
 	}
 	return conn, nil
 }

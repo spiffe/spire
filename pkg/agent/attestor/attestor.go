@@ -225,9 +225,9 @@ func (a *attestor) serverConn(bundle []*x509.Certificate) (*grpc.ClientConn, err
 
 	// Explicitly not mTLS since we don't have an SVID yet
 	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
-	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+	credentials := credentials.NewTLS(tlsConfig)
 
-	return grpc.DialContext(context.TODO(), a.c.ServerAddress.String(), dialCreds)
+	return util.BlockingDial(context.TODO(), "tcp", a.c.ServerAddress.String(), credentials)
 }
 
 func (a *attestor) parseAttestationResponse(id string, r *node.FetchBaseSVIDResponse) (*x509.Certificate, []*x509.Certificate, error) {
