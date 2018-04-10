@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	pluginName = "aws_iid_attestor"
+	pluginName = "aws_iid"
 
 	accessIDVarName  = "AWS_ACCESS_KEY_ID"
 	secretKeyVarName = "AWS_SECRET_ACCESS_KEY"

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	pluginName                  = "aws_iid_attestor"
+	pluginName                  = "aws_iid"
 	defaultIdentityDocumentUrl  = "http://169.254.169.254/latest/dynamic/instance-identity/document"
 	defaultIdentitySignatureUrl = "http://169.254.169.254/latest/dynamic/instance-identity/signature"
 )
