@@ -3,8 +3,6 @@ package attestor
 import (
 	"context"
 	"crypto/x509"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -23,6 +21,9 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 type AttestorTestSuite struct {
