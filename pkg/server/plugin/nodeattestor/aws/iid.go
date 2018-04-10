@@ -56,10 +56,11 @@ C1haGgSI/A1uZUKs/Zfnph0oEI0/hu1IIJ/SKBDtN5lvmZ/IzbOPIJWirlsllQIQ
 -----END CERTIFICATE-----`
 
 type IIDAttestorConfig struct {
-	TrustDomain string `hcl:"trust_domain"`
-	AccessId    string `hcl:"access_id"`
-	Secret      string `hcl:"secret"`
-	SessionId   string `hcl:"session_id"`
+	TrustDomain     string `hcl:"trust_domain"`
+	AccessId        string `hcl:"access_id"`
+	Secret          string `hcl:"secret"`
+	SessionId       string `hcl:"session_id"`
+	SkipBlockDevice bool   `hcl:"skip_block_device"`
 }
 
 type IIDAttestorPlugin struct {
@@ -69,8 +70,8 @@ type IIDAttestorPlugin struct {
 	accessId           string
 	secret             string
 	sessionId          string
-
-	mtx *sync.Mutex
+	skipBlockDevice    bool
+	mtx                *sync.Mutex
 }
 
 func (p *IIDAttestorPlugin) spiffeID(awsAccountId, awsInstanceId string) *url.URL {
@@ -154,28 +155,30 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 
 	ifaceZeroAttachTime := instance.NetworkInterfaces[0].Attachment.AttachTime
 
-	rootDeviceIndex := -1
-	for i, bdm := range instance.BlockDeviceMappings {
-		if *bdm.DeviceName == *instance.RootDeviceName {
-			rootDeviceIndex = i
-			break
+	if p.skipBlockDevice != true {
+		rootDeviceIndex := -1
+		for i, bdm := range instance.BlockDeviceMappings {
+			if *bdm.DeviceName == *instance.RootDeviceName {
+				rootDeviceIndex = i
+				break
+			}
 		}
-	}
 
-	if rootDeviceIndex == -1 {
-		innerErr := fmt.Errorf("could not locate a device mapping with name '%v'", instance.RootDeviceName)
-		err = caws.AttestationStepError("locating the root device block mapping", innerErr)
-		return &nodeattestor.AttestResponse{Valid: false}, err
-	}
+		if rootDeviceIndex == -1 {
+			innerErr := fmt.Errorf("could not locate a device mapping with name '%v'", instance.RootDeviceName)
+			err = caws.AttestationStepError("locating the root device block mapping", innerErr)
+			return &nodeattestor.AttestResponse{Valid: false}, err
+		}
 
-	rootDeviceAttachTime := instance.BlockDeviceMappings[rootDeviceIndex].Ebs.AttachTime
+		rootDeviceAttachTime := instance.BlockDeviceMappings[rootDeviceIndex].Ebs.AttachTime
 
-	attachTimeDisparitySeconds := int64(math.Abs(float64(ifaceZeroAttachTime.Unix() - rootDeviceAttachTime.Unix())))
+		attachTimeDisparitySeconds := int64(math.Abs(float64(ifaceZeroAttachTime.Unix() - rootDeviceAttachTime.Unix())))
 
-	if attachTimeDisparitySeconds > maxSecondsBetweenDeviceAttachments {
-		innerErr := fmt.Errorf("root BlockDeviceMapping and NetworkInterface[0] attach times differ by %d seconds", attachTimeDisparitySeconds)
-		err = caws.AttestationStepError("checking the disparity device attach times", innerErr)
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		if attachTimeDisparitySeconds > maxSecondsBetweenDeviceAttachments {
+			innerErr := fmt.Errorf("root BlockDeviceMapping and NetworkInterface[0] attach times differ by %d seconds", attachTimeDisparitySeconds)
+			err = caws.AttestationStepError("checking the disparity device attach times", innerErr)
+			return &nodeattestor.AttestResponse{Valid: false}, err
+		}
 	}
 
 	resp := &nodeattestor.AttestResponse{
@@ -232,6 +235,7 @@ func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.Configure
 	p.accessId = config.AccessId
 	p.secret = config.Secret
 	p.sessionId = config.SessionId
+	p.skipBlockDevice = config.SkipBlockDevice
 
 	return &spi.ConfigureResponse{}, nil
 }
