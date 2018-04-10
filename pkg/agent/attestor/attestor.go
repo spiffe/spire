@@ -47,11 +47,15 @@ type Config struct {
 }
 
 type attestor struct {
-	c *Config
+	c    *Config
+	dial func(ctx context.Context, network, address string, creds credentials.TransportCredentials, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
 
 func New(config *Config) Attestor {
-	return &attestor{c: config}
+	return &attestor{
+		c:    config,
+		dial: util.BlockingDial,
+	}
 
 }
 
@@ -227,7 +231,7 @@ func (a *attestor) serverConn(bundle []*x509.Certificate) (*grpc.ClientConn, err
 	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
 	credentials := credentials.NewTLS(tlsConfig)
 
-	return util.BlockingDial(context.TODO(), "tcp", a.c.ServerAddress.String(), credentials)
+	return a.dial(context.TODO(), "tcp", a.c.ServerAddress.String(), credentials)
 }
 
 func (a *attestor) parseAttestationResponse(id string, r *node.FetchBaseSVIDResponse) (*x509.Certificate, []*x509.Certificate, error) {

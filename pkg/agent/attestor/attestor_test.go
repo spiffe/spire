@@ -1,7 +1,10 @@
 package attestor
 
 import (
+	"context"
 	"crypto/x509"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -61,6 +64,10 @@ func (s *AttestorTestSuite) SetupTest() {
 	}
 
 	s.attestor = New(s.config)
+	// Replace dial method to a non-blocking one to be able to make easier to test some methods.
+	s.attestor.(*attestor).dial = func(ctx context.Context, network, address string, creds credentials.TransportCredentials, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		return grpc.DialContext(ctx, address, grpc.WithTransportCredentials(creds))
+	}
 }
 
 func (s *AttestorTestSuite) TeardownTest() {
