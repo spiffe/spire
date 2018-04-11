@@ -22,6 +22,11 @@ import (
 // - Queries are not allowed
 // - Port is not allowed
 func ValidateSpiffeID(spiffeID string, trustDomain url.URL) error {
+	// Validate configured trust domain
+	if trustDomain.Host == "" {
+		return errors.New("configured trust domain is empty")
+	}
+
 	// Validate Spiffe Id is provided
 	if spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")
@@ -55,26 +60,22 @@ func ValidateSpiffeID(spiffeID string, trustDomain url.URL) error {
 
 	// Verify scheme
 	if id.Scheme != "spiffe" {
-		return formatSpiffeIDValidationError(id.String(), "invalid scheme")
+		return formatSpiffeIDValidationError(id.String(), "spiffe id must start with \"spiffe://\"")
 	}
 
 	// Verify host
 	if id.Host == "" {
-		return formatSpiffeIDValidationError(id.String(), "host is not specified")
+		return formatSpiffeIDValidationError(id.String(), "trust domain can not be empty")
 	}
 
 	// Verify Path
 	if id.Path == "" {
-		return formatSpiffeIDValidationError(id.String(), "path is not specified")
+		return formatSpiffeIDValidationError(id.String(), "path can not be empty")
 	}
 
 	// '/spire/' is not allowed as path, since it is reserved for agent, server, etc.
 	if strings.HasPrefix(id.Path, "/spire") {
-		return formatSpiffeIDValidationError(id.String(), "invalid path")
-	}
-
-	if trustDomain.Host == "" {
-		return errors.New("a trust domain is required")
+		return formatSpiffeIDValidationError(id.String(), "invalid path, \"/spire*\" namespace is restricted")
 	}
 
 	// Verify that the provided spiffe id belongs to the configured trust domain
