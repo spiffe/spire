@@ -15,6 +15,7 @@ import (
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
@@ -47,16 +48,11 @@ type Config struct {
 }
 
 type attestor struct {
-	c    *Config
-	dial func(ctx context.Context, network, address string, creds credentials.TransportCredentials, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	c *Config
 }
 
 func New(config *Config) Attestor {
-	return &attestor{
-		c:    config,
-		dial: util.BlockingDial,
-	}
-
+	return &attestor{c: config}
 }
 
 func (a *attestor) Attest() (*AttestationResult, error) {
@@ -231,7 +227,12 @@ func (a *attestor) serverConn(bundle []*x509.Certificate) (*grpc.ClientConn, err
 	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
 	credentials := credentials.NewTLS(tlsConfig)
 
-	return a.dial(context.TODO(), "tcp", a.c.ServerAddress.String(), credentials)
+	config := grpcutil.GRPCDialerConfig{
+		Log:   a.c.Log,
+		Creds: credentials,
+	}
+	dialer := grpcutil.NewGRPCDialer(config)
+	return dialer.Dial(context.TODO(), a.c.ServerAddress)
 }
 
 func (a *attestor) parseAttestationResponse(id string, r *node.FetchBaseSVIDResponse) (*x509.Certificate, []*x509.Certificate, error) {
