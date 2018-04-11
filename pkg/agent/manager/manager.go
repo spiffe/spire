@@ -70,7 +70,12 @@ type manager struct {
 }
 
 func (m *manager) Start() error {
-	err := m.synchronize(m.spiffeID)
+	err := m.storeSVID()
+	if err != nil {
+		m.c.Log.Warnf("Could not write SVID to %v: %v", m.svidCachePath, err)
+	}
+
+	err = m.synchronize(m.spiffeID)
 	if err != nil {
 		m.close(err)
 		return err

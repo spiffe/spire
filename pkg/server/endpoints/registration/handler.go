@@ -30,6 +30,13 @@ func (h *Handler) CreateEntry(
 	ctx context.Context, request *common.RegistrationEntry) (
 	response *registration.RegistrationEntryID, err error) {
 
+	// Validate Spiffe ID
+	err = ValidateSpiffeID(request.SpiffeId, h.TrustDomain)
+	if err != nil {
+		h.Log.Error(err)
+		return response, errors.New("Error while validating provided Spiffe ID")
+	}
+
 	dataStore := h.Catalog.DataStores()[0]
 
 	unique, err := h.isEntryUnique(dataStore, request)
