@@ -15,6 +15,7 @@ import (
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
@@ -52,7 +53,6 @@ type attestor struct {
 
 func New(config *Config) Attestor {
 	return &attestor{c: config}
-
 }
 
 func (a *attestor) Attest() (*AttestationResult, error) {
@@ -225,9 +225,14 @@ func (a *attestor) serverConn(bundle []*x509.Certificate) (*grpc.ClientConn, err
 
 	// Explicitly not mTLS since we don't have an SVID yet
 	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
-	dialCreds := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+	credentials := credentials.NewTLS(tlsConfig)
 
-	return grpc.DialContext(context.TODO(), a.c.ServerAddress.String(), dialCreds)
+	config := grpcutil.GRPCDialerConfig{
+		Log:   a.c.Log,
+		Creds: credentials,
+	}
+	dialer := grpcutil.NewGRPCDialer(config)
+	return dialer.Dial(context.TODO(), a.c.ServerAddress)
 }
 
 func (a *attestor) parseAttestationResponse(id string, r *node.FetchBaseSVIDResponse) (*x509.Certificate, []*x509.Certificate, error) {

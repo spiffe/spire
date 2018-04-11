@@ -48,6 +48,7 @@ func TestCreateEntry(t *testing.T) {
 	goodResponse := &registration.RegistrationEntryID{
 		Id: "abcdefgh",
 	}
+	invalidRequest := testutil.GetRegistrationEntries("invalid.json")[0]
 
 	var testCases = []struct {
 		request          *common.RegistrationEntry
@@ -58,6 +59,7 @@ func TestCreateEntry(t *testing.T) {
 		{goodRequest, goodResponse, nil, createEntryExpectations},
 		{goodRequest, nil, errors.New("Error trying to create entry"), createEntryErrorExpectations},
 		{goodRequest, nil, errors.New("Entry already exists"), createEntryNonUniqueExpectations},
+		{invalidRequest, nil, errors.New("Error while validating provided Spiffe ID"), func(suite *handlerTestSuite) {}},
 	}
 
 	for _, tt := range testCases {
