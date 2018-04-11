@@ -208,9 +208,10 @@ func (s *Server) startCAManager() error {
 	defer s.m.Unlock()
 
 	config := &ca.Config{
-		Catalog:     s.Catalog,
-		TrustDomain: s.Config.TrustDomain,
-		Log:         s.Config.Log.WithField("subsystem_name", "ca_manager"),
+		Catalog:        s.Catalog,
+		TrustDomain:    s.Config.TrustDomain,
+		Log:            s.Config.Log.WithField("subsystem_name", "ca_manager"),
+		UpstreamBundle: s.Config.UpstreamBundle,
 	}
 
 	s.caManager = ca.New(config)
