@@ -69,9 +69,12 @@ func TestClient_StartAndStop(t *testing.T) {
 	}
 
 	select {
-	case <-time.NewTicker(105 * time.Millisecond).C:
-		t.Errorf("did not receive update in time")
-	case <-updateChan:
+	case <-time.NewTicker(1 * time.Second).C:
+		t.Fatal("did not receive update in time")
+	case u := <-updateChan:
+		if !reflect.DeepEqual(u, handler.resp2()) {
+			t.Errorf("want %v; got %v", handler.resp2(), u)
+		}
 	}
 
 	select {
@@ -79,7 +82,10 @@ func TestClient_StartAndStop(t *testing.T) {
 		t.Error("update not received after server reconnect")
 	case err := <-errChan:
 		t.Fatalf("failed to reconnect to server: %v", err)
-	case <-updateChan:
+	case u := <-updateChan:
+		if !reflect.DeepEqual(u, handler.resp1()) {
+			t.Errorf("want %v; got %v", handler.resp1(), u)
+		}
 	}
 
 	c.Stop()
@@ -134,16 +140,14 @@ func (m *mockHandler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload
 		m.t.Error("request received without security header")
 	}
 
-	resp := m.resp1()
-	stream.Send(resp)
+	stream.Send(m.resp1())
 
 	m.mtx.Lock()
 	delay := m.delay
 	m.mtx.Unlock()
 
 	time.Sleep(delay)
-	resp.Svids[0].SpiffeId = "spiffe://example.org/bar"
-	stream.Send(resp)
+	stream.Send(m.resp2())
 	return nil
 }
 
@@ -171,6 +175,12 @@ func (m *mockHandler) resp1() *workload.X509SVIDResponse {
 	return &workload.X509SVIDResponse{
 		Svids: []*workload.X509SVID{svidMsg},
 	}
+}
+
+func (m *mockHandler) resp2() *workload.X509SVIDResponse {
+	resp := m.resp1()
+	resp.Svids[0].SpiffeId = "spiffe://example.org/bar"
+	return resp
 }
 
 func (m *mockHandler) setDelay(delay time.Duration) {
