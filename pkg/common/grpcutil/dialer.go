@@ -39,9 +39,6 @@ func NewGRPCDialer(c GRPCDialerConfig) Dialer {
 // Dial dials the given address, using TLS credentials, and logs information about connection
 // errors.
 func (d *grpcDialer) Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn, error) {
-	// grpc.Dial doesn't provide any information on permanent connection errors (like
-	// TLS handshake failures). So in order to provide good error messages, we need a
-	// custom dialer that can provide that info. That means we manage the TLS handshake.
 	if d.creds == nil {
 		return nil, errors.New("credentials are required")
 	}
@@ -68,7 +65,7 @@ func (d *grpcDialer) Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn,
 	opts := append(d.opts,
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithDialer(dialer),
-		grpc.WithInsecure(), // we are handling TLS, so tell grpc not to
+		grpc.WithInsecure(), // we want to handle TLS by ourselves
 	)
 	return grpc.DialContext(ctx, addr.String(), opts...)
 }
