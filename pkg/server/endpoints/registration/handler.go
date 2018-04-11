@@ -6,9 +6,10 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
@@ -29,6 +30,13 @@ type Handler struct {
 func (h *Handler) CreateEntry(
 	ctx context.Context, request *common.RegistrationEntry) (
 	response *registration.RegistrationEntryID, err error) {
+
+	// Validate Spiffe ID
+	err = util.ValidateSpiffeID(request.SpiffeId, h.TrustDomain)
+	if err != nil {
+		h.Log.Error(err)
+		return response, errors.New("Error while validating provided Spiffe ID")
+	}
 
 	dataStore := h.Catalog.DataStores()[0]
 
