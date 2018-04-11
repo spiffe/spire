@@ -163,6 +163,7 @@ func (h *Handler) attest(pid int32) []*common.Selector {
 	}
 
 	h.T.AddSampleWithLabels([]string{"workload_api", "discovered_selectors"}, float32(len(selectors)), tLabels)
+	h.L.Debugf("PID %v attested to have selectors %v", pid, selectors)
 	return selectors
 }
 
