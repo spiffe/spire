@@ -8,15 +8,12 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 
@@ -30,10 +27,9 @@ type client struct {
 	requests   *sync.Mutex
 	conn       *grpc.ClientConn
 	nodeClient node.NodeClient
-	// Time to sleep between retries when trying to get a stream from nodeClient.
-	sleepTime time.Duration
-	svid      *x509.Certificate
-	key       *ecdsa.PrivateKey
+
+	svid *x509.Certificate
+	key  *ecdsa.PrivateKey
 }
 
 type clientsPool struct {
@@ -54,31 +50,14 @@ func (c *client) fetchUpdates(req *node.FetchSVIDRequest) (*update, error) {
 	c.requests.Lock()
 	defer c.requests.Unlock()
 
-	var stream node.Node_FetchSVIDClient
-	var err error
-	// Create a new stream, we retry some times because under certain conditions
-	// the stream cannot be created because it throws an "all SubConns are in TransientFailure"
-	// which can be recovered retrying. Some times it is not possible to avoid that error,
-	// which could be because the server is down, or because there are some problem with the
-	// connection's mTLS configuration.
-	for retries := 0; retries < 5; retries++ {
-		stream, err = c.nodeClient.FetchSVID(context.Background())
-		if err == nil {
-			c.sleepTime = time.Duration(0)
-			break
-		}
-		c.log.Errorf("failed to get stream: %v. try number: %d. Waiting %d seconds to retry", err, retries, c.sleepTime)
-		interrupted := c.sleep()
-		if interrupted {
-			break
-		}
-	}
+	stream, err := c.nodeClient.FetchSVID(context.Background())
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
 		c.close()
 		c.log.Errorf("%v: %v", ErrUnableToGetStream, err)
 		return nil, ErrUnableToGetStream
 	}
+
 	// Send the request to the server using the stream.
 	err = stream.Send(req)
 	// Close the stream whether there was an error or not
@@ -122,27 +101,7 @@ func (c *client) close() {
 		c.nodeClient = nil
 		c.conn.Close()
 		c.conn = nil
-		c.sleepTime = time.Duration(0)
 	}
-}
-
-// sleep implements an interruptible sleep for sleepTime+1 seconds.
-// It updates sleepTime = sleepTime+1 and limits it to be less than 5 seconds.
-func (c *client) sleep() bool {
-	if c.sleepTime < 5 {
-		c.sleepTime++
-	}
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-	t := time.NewTimer(c.sleepTime * time.Second)
-	var interrupted bool
-	select {
-	case <-t.C:
-	case <-signalCh:
-		interrupted = true
-	}
-	t.Stop()
-	return interrupted
 }
 
 func (p *clientsPool) add(spiffeID string, client *client) {
@@ -215,7 +174,12 @@ func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*g
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // TODO: Make this timeout configurable?
 	defer cancel()
 
-	conn, err := util.BlockingDial(ctx, "tcp", m.serverAddr.String(), credentials)
+	config := grpcutil.GRPCDialerConfig{
+		Log:   m.c.Log,
+		Creds: credentials,
+	}
+	dialer := grpcutil.NewGRPCDialer(config)
+	conn, err := dialer.Dial(ctx, m.serverAddr)
 	if err != nil {
 		spiffeID, _ := getSpiffeIDFromSVID(svid)
 		return nil, fmt.Errorf("cannot create connection for spiffeID %s: %v", spiffeID, err)
