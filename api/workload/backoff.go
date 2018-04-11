@@ -1,38 +1,68 @@
 package workload
 
 import (
+	"sync"
 	"time"
 )
 
+const backoffStartDuration = 1 * time.Second
+
+// backoff implements a backoff timer used to space out retries against
+// the workload api.
 type backoff struct {
+	mtx     *sync.Mutex
 	current time.Duration
 	timeout time.Duration
 
-	failOnError bool
+	lastErr error
 }
 
-func newBackoff(timeout time.Duration, failOnError bool) *backoff {
+// newBackoff creates a new backoff struct with the requested timeout applied.
+func newBackoff(timeout time.Duration) *backoff {
 	return &backoff{
-		current:     1 * time.Second,
-		timeout:     timeout,
-		failOnError: failOnError,
+		mtx:     new(sync.Mutex),
+		current: backoffStartDuration,
+		timeout: timeout,
 	}
 }
 
-func (b *backoff) goAgain(shutdown <-chan struct{}) bool {
-	if b.failOnError {
-		return false
-	}
+// ticker returns a tick channel configured for with the current backoff
+// delay. Consumers can use this to wait for the appropriate period of time.
+func (b *backoff) ticker() <-chan time.Time {
+	return time.NewTicker(b.next()).C
+}
 
-	if b.current > b.timeout {
-		return false
-	}
+// expired returns true if the backoff timer has exceeded the timeout value.
+func (b *backoff) expired() bool {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
 
-	select {
-	case <-time.NewTicker(b.current).C:
-		b.current = b.current + b.current
-		return true
-	case <-shutdown:
-		return false
-	}
+	return b.current >= b.timeout
+}
+
+// delay returns the current backoff duration without incrementing it.
+func (b *backoff) delay() time.Duration {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	return b.current
+}
+
+// next returns the current backoff duration, and increments the internal
+// backoff timer.
+func (b *backoff) next() time.Duration {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	old := b.current
+	b.current = b.current + b.current
+	return old
+}
+
+// reset can be used to reset the internal backoff timer.
+func (b *backoff) reset() {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	b.current = backoffStartDuration
 }
