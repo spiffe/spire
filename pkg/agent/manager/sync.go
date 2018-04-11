@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -19,52 +18,38 @@ import (
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
 func (m *manager) synchronize(spiffeID string) (err error) {
 	var regEntries map[string]*proto.RegistrationEntry
-	var cEntryRequests entryRequests
+	var cEntryRequests = entryRequests{}
 
 	regEntries, _, err = m.fetchUpdates(spiffeID, nil)
 	if err != nil {
 		return err
 	}
 
-	cEntryRequests, err = m.checkExpiredCacheEntries()
+	err = m.checkExpiredCacheEntries(cEntryRequests)
 	if err != nil {
 		return err
 	}
 
-	// While there are registration entries or cache entries to process...
-	for len(regEntries) > 0 || len(cEntryRequests) > 0 {
-		cEntryRequests, err = m.checkForNewCacheEntries(regEntries, cEntryRequests)
-		if err != nil {
-			return err
-		}
+	err = m.checkForNewCacheEntries(regEntries, cEntryRequests)
+	if err != nil {
+		return err
+	}
 
-		regEntries, err = m.processEntryRequests(cEntryRequests)
-		if err != nil {
-			return err
-		}
-		cEntryRequests = entryRequests{}
+	err = m.processEntryRequests(cEntryRequests)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// entryRequest holds a CSR and a pre-built cache entry for the RegistrationEntry
-// contained in the entry field.
-type entryRequest struct {
-	CSR   []byte
-	entry *cache.Entry
-}
-
-// entryRequests is a map keyed by SPIFFEID where each value is a list
-// of entryRequest that should be processed using the SVID and PrivateKey
-// created for it.
-type entryRequests map[string][]*entryRequest
-
-func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.Svid, error) {
-	client := m.syncClients.get(spiffeID)
-	if client == nil {
-		return nil, nil, fmt.Errorf("no client found for %s", spiffeID)
+func (m *manager) fetchUpdates(spiffeID string, entryRequests map[string]*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.Svid, error) {
+	// Ensure that we have a client connected to the server.
+	client, err := m.ensureSyncClient(spiffeID)
+	if err != nil {
+		return nil, nil, err
 	}
+
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	csrs := [][]byte{}
 	if entryRequests != nil {
@@ -74,8 +59,8 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 		}
 	}
 
-	update, err := client.sendAndReceive(&node.FetchSVIDRequest{Csrs: csrs})
-	if err != nil && err != ErrPartialResponse {
+	update, err := client.fetchUpdates(&node.FetchSVIDRequest{Csrs: csrs})
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -90,31 +75,44 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests []*entryRequest) (
 	return update.regEntries, update.svids, nil
 }
 
-func (m *manager) processEntryRequests(entryRequests entryRequests) (map[string]*common.RegistrationEntry, error) {
-	regEntries := map[string]*common.RegistrationEntry{}
+func (m *manager) processEntryRequests(entryRequests entryRequests) error {
 	if len(entryRequests) == 0 {
-		return regEntries, nil
+		return nil
 	}
 
-	for parentID, entryRequestsList := range entryRequests {
-		re, svids, err := m.fetchUpdates(parentID, entryRequestsList)
+	// Array of aliases that should be synchronized
+	aliases := &[]*cache.Entry{}
+	for parentID, entryRequestsMap := range entryRequests {
+		_, svids, err := m.fetchUpdates(parentID, entryRequestsMap)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		err = m.updateEntriesSVIDs(entryRequestsList, svids)
+		err = m.updateEntriesSVIDs(entryRequestsMap, svids, aliases)
 		if err != nil {
-			return nil, err
-		}
-		// Collect registrations entries.
-		for k, e := range re {
-			regEntries[k] = e
+			return err
 		}
 	}
-	return regEntries, nil
+
+	// For each alias we must synchronize updates on behalf of it.
+	for _, alias := range *aliases {
+		// Create a new client to be used when checking for new entries on behalf of this
+		// agent's alias.
+		err := m.newSyncClient([]string{alias.RegistrationEntry.SpiffeId}, alias.SVID, alias.PrivateKey)
+		if err != nil {
+			return err
+		}
+
+		err = m.synchronize(alias.RegistrationEntry.SpiffeId)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids map[string]*node.Svid) error {
-	for _, entryRequest := range entryRequestsList {
+func (m *manager) updateEntriesSVIDs(entryRequestsMap map[string]*entryRequest, svids map[string]*node.Svid, aliases *[]*cache.Entry) error {
+	for _, entryRequest := range entryRequestsMap {
 		ce := entryRequest.entry
 		svid, ok := svids[ce.RegistrationEntry.SpiffeId]
 		if ok {
@@ -124,25 +122,20 @@ func (m *manager) updateEntriesSVIDs(entryRequestsList []*entryRequest, svids ma
 			}
 			// Complete the pre-built cache entry with the SVID and put it on the cache.
 			ce.SVID = cert
+			m.cache.SetEntry(ce)
+			// This entry is an agent alias, collect it
 			if m.isAgentAlias(ce.RegistrationEntry) {
 				m.c.Log.Debugf("Agent alias detected: %s", ce.RegistrationEntry.SpiffeId)
-				// Create a new client to be used when checking for new entries on behalf of this
-				// agent's alias.
-				err := m.newSyncClient([]string{ce.RegistrationEntry.SpiffeId}, ce.SVID, ce.PrivateKey)
-				if err != nil {
-					return err
-				}
+				*aliases = append(*aliases, ce)
 			}
-			m.cache.SetEntry(ce)
 		}
 	}
 	return nil
 }
 
-func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
+func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
 	defer m.c.Tel.MeasureSince([]string{"cache_manager", "expiry_check_duration"}, time.Now())
 
-	entryRequests := entryRequests{}
 	for entry := range m.cache.Entries() {
 		ttl := entry.SVID.NotAfter.Sub(time.Now())
 		lifetime := entry.SVID.NotAfter.Sub(entry.SVID.NotBefore)
@@ -152,56 +145,55 @@ func (m *manager) checkExpiredCacheEntries() (entryRequests, error) {
 			m.c.Log.Debugf("cache entry ttl for spiffeId %s is less than a half its lifetime", entry.RegistrationEntry.SpiffeId)
 			privateKey, csr, err := m.newCSR(entry.RegistrationEntry.SpiffeId)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
-			bundles := make(map[string][]byte) //TODO: walmav Populate Bundles
+			bundles := make(map[string][]byte) //TODO: Populate Bundles
 			cacheEntry := &cache.Entry{
 				RegistrationEntry: entry.RegistrationEntry,
 				SVID:              nil,
 				PrivateKey:        privateKey,
 				Bundles:           bundles,
 			}
-			parentID := entry.RegistrationEntry.ParentId
-			entryRequests[parentID] = append(entryRequests[parentID], &entryRequest{csr, cacheEntry})
-			// Cached SVID expired, remove entry from the cache.
-			m.cache.DeleteEntry(entry.RegistrationEntry)
+			cEntryRequests.add(&entryRequest{csr, cacheEntry})
 		}
 	}
 
-	m.c.Tel.AddSample([]string{"cache_manager", "expiring_svids"}, float32(len(entryRequests)))
-	return entryRequests, nil
+	m.c.Tel.AddSample([]string{"cache_manager", "expiring_svids"}, float32(len(cEntryRequests)))
+	return nil
 }
 
-func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.RegistrationEntry, entryRequests entryRequests) (entryRequests, error) {
+func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.RegistrationEntry, cEntryRequests entryRequests) error {
 	for _, regEntry := range regEntries {
-		if !m.isAlreadyCached(regEntry) && !m.isEntryRequestAlreadyCreated(regEntry, entryRequests) {
+		if !m.isAlreadyCached(regEntry) {
 			privateKey, csr, err := m.newCSR(regEntry.SpiffeId)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
-			bundles := make(map[string][]byte) //TODO: walmav Populate Bundles
+			bundles := make(map[string][]byte) //TODO: Populate Bundles
 			cacheEntry := &cache.Entry{
 				RegistrationEntry: regEntry,
 				SVID:              nil,
 				PrivateKey:        privateKey,
 				Bundles:           bundles,
 			}
-			parentID := regEntry.ParentId
-			entryRequests[parentID] = append(entryRequests[parentID], &entryRequest{csr, cacheEntry})
-		} else {
-			// This entry is a cached agent alias, we must synchronize updates on behalf of it.
-			if m.isAgentAlias(regEntry) {
-				err := m.synchronize(regEntry.SpiffeId)
-				if err != nil {
-					return nil, err
-				}
+			cEntryRequests.add(&entryRequest{csr, cacheEntry})
+		} else if m.isAgentAlias(regEntry) {
+			// Entry is already cached and is an alias, so we have to check if there are new entries for it.
+			re, _, err := m.fetchUpdates(regEntry.SpiffeId, nil)
+			if err != nil {
+				return err
+			}
+
+			err = m.checkForNewCacheEntries(re, cEntryRequests)
+			if err != nil {
+				return err
 			}
 		}
 	}
 
-	return entryRequests, nil
+	return nil
 }
 
 func (m *manager) rotateSVID() error {
@@ -217,9 +209,13 @@ func (m *manager) rotateSVID() error {
 			return err
 		}
 
-		client := m.getRotationClient()
-		update, err := client.sendAndReceive(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
-		if err != nil && err != ErrPartialResponse {
+		client, err := m.ensureRotationClient()
+		if err != nil {
+			return err
+		}
+
+		update, err := client.fetchUpdates(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
+		if err != nil {
 			return err
 		}
 
@@ -237,14 +233,15 @@ func (m *manager) rotateSVID() error {
 		}
 
 		m.setBaseSVIDEntry(cert, privateKey)
+
+		// We must close the client connection because it is tied to an expired SVID,
+		// so next time this method gets called, we will use a new connection with
+		// the most up-to-date SVID.
+		client.close()
+
 		err = m.storeSVID()
 		if err != nil {
 			return err
-		}
-
-		err = m.renewRotatorClient()
-		if err != nil {
-			return fmt.Errorf("could not renew rotator client: %v", err)
 		}
 	}
 	return nil
@@ -273,5 +270,37 @@ func (m *manager) isAgentAlias(re *common.RegistrationEntry) bool {
 		}
 	}
 
+	return false
+}
+
+// entryRequest holds a CSR and a pre-built cache entry for the RegistrationEntry
+// contained in the entry field.
+type entryRequest struct {
+	CSR   []byte
+	entry *cache.Entry
+}
+
+// entryRequests is a map keyed by Parent SPIFFEID where each value is another map
+// (keyed by Registration Entry ID) of entryRequest that should be processed using
+// the SVID and PrivateKey created for it.
+type entryRequests map[string]map[string]*entryRequest
+
+func (er entryRequests) add(e *entryRequest) {
+	parentID := e.entry.RegistrationEntry.ParentId
+	entryID := e.entry.RegistrationEntry.EntryId
+	erMap, ok := er[parentID]
+	if !ok {
+		erMap = map[string]*entryRequest{}
+		er[parentID] = erMap
+	}
+	erMap[entryID] = e
+}
+
+// isEntryRequestAlreadyCreated if er has an element already created for regEntry.
+func (er entryRequests) isEntryRequestAlreadyCreated(regEntry *proto.RegistrationEntry) bool {
+	if entryRequestsMap, ok := er[regEntry.ParentId]; ok {
+		_, ok := entryRequestsMap[regEntry.EntryId]
+		return ok
+	}
 	return false
 }
