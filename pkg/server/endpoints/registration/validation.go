@@ -1,4 +1,4 @@
-package util
+package registration
 
 import (
 	"errors"
@@ -16,13 +16,12 @@ import (
 // - host is not empty
 // - host belongs to provided trust domain
 // - path is not empty
-// - path does not start with '/spire/' since it is reserved for agent, server, etc.
+// - path does not start with '/spire' since it is reserved for agent, server, etc.
 // - Fragments are not allowed
 // - User info is not allowed
 // - Queries are not allowed
 // - Port is not allowed
 func ValidateSpiffeID(spiffeID string, trustDomain url.URL) error {
-
 	// Validate Spiffe Id is provided
 	if spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")
@@ -70,7 +69,7 @@ func ValidateSpiffeID(spiffeID string, trustDomain url.URL) error {
 	}
 
 	// '/spire/' is not allowed as path, since it is reserved for agent, server, etc.
-	if strings.HasPrefix(id.Path, "/spire/") {
+	if strings.HasPrefix(id.Path, "/spire") {
 		return formatSpiffeIDValidationError(id.String(), "invalid path")
 	}
 

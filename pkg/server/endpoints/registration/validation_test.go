@@ -1,4 +1,4 @@
-package util
+package registration
 
 import (
 	"net/url"
