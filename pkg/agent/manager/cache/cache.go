@@ -38,6 +38,10 @@ type Cache interface {
 	IsEmpty() bool
 	// Register a Subscriber and return WorkloadUpdate on the subscriber's channel
 	Subscribe(sub *Subscriber)
+	// Set the bundle
+	SetBundle([]*x509.Certificate)
+	// Retrieve the bundle
+	Bundle() []*x509.Certificate
 }
 
 type cacheImpl struct {
@@ -59,13 +63,13 @@ func New(log logrus.FieldLogger, bundle []*x509.Certificate) Cache {
 	}
 }
 
-func (c *cacheImpl) SetServerBundle(bundle []*x509.Certificate) {
+func (c *cacheImpl) SetBundle(bundle []*x509.Certificate) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.bundle = bundle
 }
 
-func (c *cacheImpl) serverBundle() []*x509.Certificate {
+func (c *cacheImpl) Bundle() []*x509.Certificate {
 	c.m.Lock()
 	defer c.m.Unlock()
 	return c.bundle
