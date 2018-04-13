@@ -3,7 +3,6 @@ package unix
 import (
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/shirou/gopsutil/process"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
@@ -16,8 +15,6 @@ type UnixPlugin struct{}
 const selectorType string = "unix"
 
 func (UnixPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
-	log.Printf("Attesting PID: %v", req.Pid)
-
 	p, err := process.NewProcess(req.Pid)
 	resp := workloadattestor.AttestResponse{}
 
@@ -59,7 +56,6 @@ func (UnixPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattestor
 		return &resp, errors.New(fmt.Sprintf("Unable to get effective GID for PID: %v", req.Pid))
 	}
 
-	log.Printf("Selectors found: %v", resp.Selectors)
 	return &resp, nil
 }
 
