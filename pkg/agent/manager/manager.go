@@ -17,7 +17,7 @@ import (
 
 // Cache Manager errors
 var (
-	ErrNotCached         = errors.New("bundle not cached")
+	ErrNotCached         = errors.New("not cached")
 	ErrPartialResponse   = errors.New("partial response received")
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 )
@@ -49,9 +49,10 @@ type Manager interface {
 }
 
 type manager struct {
-	c     *Config
-	t     *tomb.Tomb
-	cache cache.Cache
+	started bool
+	c       *Config
+	t       *tomb.Tomb
+	cache   cache.Cache
 
 	// Fields protected by mtx mutex.
 	mtx     *sync.RWMutex
@@ -61,7 +62,7 @@ type manager struct {
 
 	spiffeID       string
 	serverSPIFFEID string
-	serverAddr     *net.TCPAddr
+	serverAddr     net.Addr
 
 	svidCachePath   string
 	bundleCachePath string
@@ -101,7 +102,9 @@ func (m *manager) close(err error) {
 
 func (m *manager) Shutdown() {
 	m.shutdown(nil)
-	<-m.t.Dead()
+	if m.started {
+		<-m.t.Dead()
+	}
 }
 
 func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan *cache.WorkloadUpdate {
@@ -137,6 +140,7 @@ func (m *manager) Err() error {
 }
 
 func (m *manager) run() error {
+	m.started = true
 	m.t.Go(m.synchronizer)
 	m.t.Go(m.rotator)
 	return nil
