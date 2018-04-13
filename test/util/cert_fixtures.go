@@ -10,11 +10,13 @@ import (
 )
 
 var (
-	svidPath    = path.Join(ProjectRoot(), "test/fixture/certs/svid.pem")
-	svidKeyPath = path.Join(ProjectRoot(), "test/fixture/certs/svid_key.pem")
-	caPath      = path.Join(ProjectRoot(), "test/fixture/certs/ca.pem")
-	caKeyPath   = path.Join(ProjectRoot(), "test/fixture/certs/ca_key.pem")
-	bundlePath  = path.Join(ProjectRoot(), "test/fixture/certs/bundle.der")
+	svidPath     = path.Join(ProjectRoot(), "test/fixture/certs/svid.pem")
+	svidKeyPath  = path.Join(ProjectRoot(), "test/fixture/certs/svid_key.pem")
+	caPath       = path.Join(ProjectRoot(), "test/fixture/certs/ca.pem")
+	caKeyPath    = path.Join(ProjectRoot(), "test/fixture/certs/ca_key.pem")
+	bundlePath   = path.Join(ProjectRoot(), "test/fixture/certs/bundle.der")
+	blogCsrPath  = path.Join(ProjectRoot(), "test/fixture/certs/blog_csr.pem")
+	blogSvidPath = path.Join(ProjectRoot(), "test/fixture/certs/blog_cert.pem")
 )
 
 // LoadCAFixture reads, parses, and returns the pre-defined CA fixture and key
@@ -22,7 +24,7 @@ func LoadCAFixture() (ca *x509.Certificate, key *ecdsa.PrivateKey, err error) {
 	return LoadCertAndKey(caPath, caKeyPath)
 }
 
-// LoadCAFixture reads, parses, and returns the pre-defined SVID fixture and key
+// LoadSVIDFixture reads, parses, and returns the pre-defined SVID fixture and key
 func LoadSVIDFixture() (svid *x509.Certificate, key *ecdsa.PrivateKey, err error) {
 	return LoadCertAndKey(svidPath, svidKeyPath)
 }
@@ -98,4 +100,13 @@ func LoadBundle(path string) ([]*x509.Certificate, error) {
 		return nil, fmt.Errorf("error parsing bundle at %s: %s", path, err)
 	}
 	return bundle, nil
+}
+
+func LoadBlogCSRBytes() []byte {
+	b, _ := LoadPEM(blogCsrPath)
+	return b.Bytes
+}
+
+func LoadBlogSVID() (*x509.Certificate, error) {
+	return LoadCert(blogSvidPath)
 }
