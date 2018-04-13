@@ -30,7 +30,7 @@ type Config struct {
 	TrustDomain     url.URL
 	Log             logrus.FieldLogger
 	Tel             telemetry.Sink
-	ServerAddr      *net.TCPAddr
+	ServerAddr      net.Addr
 	SVIDCachePath   string
 	BundleCachePath string
 }
