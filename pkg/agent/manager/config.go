@@ -53,7 +53,6 @@ func New(c *Config) (Manager, error) {
 		// Copy SVID into the manager to facilitate rotation
 		svid:            c.SVID,
 		svidKey:         c.SVIDKey,
-		bundle:          c.Bundle,
 		spiffeID:        spiffeID,
 		serverSPIFFEID:  "spiffe://" + c.TrustDomain.Host + "/spiffe/cp",
 		serverAddr:      c.ServerAddr,

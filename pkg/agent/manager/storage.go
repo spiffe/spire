@@ -33,7 +33,7 @@ func ReadBundle(bundleCachePath string) ([]*x509.Certificate, error) {
 func (m *manager) storeBundle() error {
 	// Write all certs to data bytes buffer.
 	data := &bytes.Buffer{}
-	for _, cert := range m.bundle {
+	for _, cert := range m.cache.Bundle() {
 		data.Write(cert.Raw)
 	}
 
