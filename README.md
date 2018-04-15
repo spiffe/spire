@@ -26,7 +26,7 @@ Alternatively you can [build SPIRE from source](/CONTRIBUTING.md)
 
 # Getting started
 
-Before trying out SPIRE, we recommend becoming familiar with it's [architecture](https://spiffe.io/spire/) and design goals.
+Before trying out SPIRE, we recommend becoming familiar with its [architecture](https://spiffe.io/spire/) and design goals.
 
 To provide a minimal example of how SPIRE can be used, we are going to set up an [SPIRE Server](/doc/spire_server.md) and [SPIRE Agent](/doc/spire_agent.md). We will use them to issue identities to a workload identified by being run under a specified unix user ID.
 
