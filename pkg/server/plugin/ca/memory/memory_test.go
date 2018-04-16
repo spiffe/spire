@@ -342,7 +342,7 @@ func createWorkloadCSR(t *testing.T, spiffeID string) []byte {
 	return csr
 }
 
-func populateCert(t *testing.T) (m ca.ControlPlaneCa) {
+func populateCert(t *testing.T) (m ca.ServerCa) {
 	m = NewWithDefault()
 
 	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
@@ -360,7 +360,7 @@ func populateCert(t *testing.T) (m ca.ControlPlaneCa) {
 	return m
 }
 
-func getRoots(t *testing.T, m ca.ControlPlaneCa) (roots *x509.CertPool) {
+func getRoots(t *testing.T, m ca.ServerCa) (roots *x509.CertPool) {
 	fetchResp, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
 	require.NoError(t, err)
 	rootCert, err := x509.ParseCertificate(fetchResp.StoredIntermediateCert)

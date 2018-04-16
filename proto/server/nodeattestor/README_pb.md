@@ -230,7 +230,7 @@ A list of registration entries.
 <a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
-This is a curated record that the Control Plane uses to set up and
+This is a curated record that the Server uses to set up and
 manage the various registered nodes and workloads that are controlled by it.
 
 
@@ -321,7 +321,7 @@ Represents a response when attesting a node.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | valid | [bool](#bool) |  | True/False |
-| baseSPIFFEID | [string](#string) |  | Used for the Control Plane to validate the SPIFFE Id in the Certificate signing request. |
+| baseSPIFFEID | [string](#string) |  | Used for the Server to validate the SPIFFE Id in the Certificate signing request. |
 
 
 

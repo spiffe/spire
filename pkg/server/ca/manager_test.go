@@ -26,7 +26,7 @@ type ManagerTestSuite struct {
 	t       *testing.T
 	m       *manager
 	catalog *mock_catalog.MockCatalog
-	ca      *mock_ca.MockControlPlaneCa
+	ca      *mock_ca.MockServerCa
 	ds      *mock_datastore.MockDataStore
 	upsCa   *mock_upstreamca.MockUpstreamCa
 }
@@ -36,7 +36,7 @@ func (m *ManagerTestSuite) SetupTest() {
 	defer mockCtrl.Finish()
 
 	m.catalog = mock_catalog.NewMockCatalog(mockCtrl)
-	m.ca = mock_ca.NewMockControlPlaneCa(mockCtrl)
+	m.ca = mock_ca.NewMockServerCa(mockCtrl)
 	m.ds = mock_datastore.NewMockDataStore(mockCtrl)
 	m.upsCa = mock_upstreamca.NewMockUpstreamCa(mockCtrl)
 
@@ -72,7 +72,7 @@ func (m *ManagerTestSuite) TestCARotate() {
 	m.Assert().Equal(cert1, m.m.caCert)
 	m.Assert().Nil(m.m.nextCACert)
 
-	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	m.catalog.EXPECT().CAs().Return([]ca.ServerCa{m.ca})
 	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
 	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
 
@@ -90,7 +90,7 @@ func (m *ManagerTestSuite) TestCARotate() {
 	m.Assert().NoError(m.m.caRotate())
 	m.Assert().Equal(cert1, m.m.nextCACert)
 
-	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	m.catalog.EXPECT().CAs().Return([]ca.ServerCa{m.ca})
 	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
 	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
 
@@ -107,7 +107,7 @@ func (m *ManagerTestSuite) TestCARotate() {
 }
 
 func (m *ManagerTestSuite) TestPrepareNextCA() {
-	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	m.catalog.EXPECT().CAs().Return([]ca.ServerCa{m.ca})
 	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
 	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
 
@@ -136,7 +136,7 @@ func (m *ManagerTestSuite) TestActivateNextCA() {
 	m.Require().NoError(err)
 	m.m.nextCACert = cert
 
-	m.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{m.ca})
+	m.catalog.EXPECT().CAs().Return([]ca.ServerCa{m.ca})
 	req := &ca.LoadCertificateRequest{cert.Raw}
 	m.ca.EXPECT().LoadCertificate(req)
 

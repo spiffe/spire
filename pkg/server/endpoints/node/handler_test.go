@@ -44,7 +44,7 @@ type HandlerTestSuite struct {
 	handler          *Handler
 	mockCatalog      *mock_catalog.MockCatalog
 	mockDataStore    *mock_datastore.MockDataStore
-	mockServerCA     *mock_ca.MockControlPlaneCa
+	mockServerCA     *mock_ca.MockServerCa
 	mockNodeAttestor *mock_nodeattestor.MockNodeAttestor
 	mockNodeResolver *mock_noderesolver.MockNodeResolver
 	mockContext      *mock_context.MockContext
@@ -58,7 +58,7 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	log, _ := test.NewNullLogger()
 	suite.mockCatalog = mock_catalog.NewMockCatalog(mockCtrl)
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
-	suite.mockServerCA = mock_ca.NewMockControlPlaneCa(mockCtrl)
+	suite.mockServerCA = mock_ca.NewMockServerCa(mockCtrl)
 	suite.mockNodeAttestor = mock_nodeattestor.NewMockNodeAttestor(mockCtrl)
 	suite.mockNodeResolver = mock_noderesolver.NewMockNodeResolver(mockCtrl)
 	suite.mockContext = mock_context.NewMockContext(mockCtrl)
@@ -300,7 +300,7 @@ func setFetchBaseSVIDExpectations(
 	suite.mockCatalog.EXPECT().DataStores().AnyTimes().
 		Return([]datastore.DataStore{suite.mockDataStore})
 	suite.mockCatalog.EXPECT().CAs().AnyTimes().
-		Return([]ca.ControlPlaneCa{suite.mockServerCA})
+		Return([]ca.ServerCa{suite.mockServerCA})
 	suite.mockCatalog.EXPECT().NodeAttestors().AnyTimes().
 		Return([]nodeattestor.NodeAttestor{suite.mockNodeAttestor})
 	suite.mockCatalog.EXPECT().NodeResolvers().AnyTimes().
@@ -496,7 +496,7 @@ func setFetchSVIDExpectations(
 	suite.mockCatalog.EXPECT().DataStores().AnyTimes().
 		Return([]datastore.DataStore{suite.mockDataStore})
 	suite.mockCatalog.EXPECT().CAs().AnyTimes().
-		Return([]ca.ControlPlaneCa{suite.mockServerCA})
+		Return([]ca.ServerCa{suite.mockServerCA})
 
 	suite.server.EXPECT().Context().Return(suite.mockContext)
 	suite.server.EXPECT().Recv().Return(data.request, nil)

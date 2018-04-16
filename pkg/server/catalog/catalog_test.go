@@ -30,7 +30,7 @@ type ServerCatalogTestSuite struct {
 
 var plugins = []*common_catalog.ManagedPlugin{
 	{
-		Plugin: &mock_ca.MockControlPlaneCa{},
+		Plugin: &mock_ca.MockServerCa{},
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: CAType,
@@ -106,7 +106,7 @@ func (c *ServerCatalogTestSuite) TestCategorizeNotEnoughTypes() {
 	// Have only one plugin
 	var onePlugin = []*common_catalog.ManagedPlugin{
 		{
-			Plugin: &mock_ca.MockControlPlaneCa{},
+			Plugin: &mock_ca.MockServerCa{},
 			Config: common_catalog.PluginConfig{
 				Enabled:    true,
 				PluginType: CAType,

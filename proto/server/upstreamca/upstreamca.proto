@@ -1,7 +1,7 @@
 /** Responsible for processing Certificate Signing Requests for
 intermediate signing certificates (or from Node Agents if the user does
-not want the Control Plane to retain signing material).  This plugin
-will manage/own the Trust Bundles for the Control Plane, and act as the
+not want the Server to retain signing material).  This plugin
+will manage/own the Trust Bundles for the Server, and act as the
 interface for upstream CAs. */
 
 syntax = "proto3";

@@ -36,12 +36,12 @@ message UpdateEntryRequest {
     spire.common.RegistrationEntry entry = 2;
 }
 
-// A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
+// A CA bundle for a different Trust Domain than the one used and managed by the Server.
 message FederatedBundle {
     // A SPIFFE ID that has a Federated Bundle
     string spiffe_id = 1;
 
-    // A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain
+    // A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain
     bytes federated_bundle = 2;
 
     // Time to live.
@@ -50,7 +50,7 @@ message FederatedBundle {
 
 // It represents a request with a FederatedBundle to create.
 message CreateFederatedBundleRequest {
-    // A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain.
+    // A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain.
     FederatedBundle federated_bundle = 1;
 }
 
