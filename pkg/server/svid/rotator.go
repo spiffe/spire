@@ -19,6 +19,7 @@ type Rotator interface {
 	Start() error
 	Stop()
 
+	State()     State
 	Subscribe() observer.Stream
 }
 
@@ -47,6 +48,10 @@ func (r *rotator) Start() error {
 
 func (r *rotator) Stop() {
 	close(r.stop)
+}
+
+func (r *rotator) State() State {
+	return r.state.Value().(State)
 }
 
 func (r *rotator) Subscribe() observer.Stream {

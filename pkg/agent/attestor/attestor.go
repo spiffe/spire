@@ -213,6 +213,16 @@ func (a *attestor) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*
 }
 
 func (a *attestor) serverConn(bundle []*x509.Certificate) (*grpc.ClientConn, error) {
+	config := grpcutil.GRPCDialerConfig{
+		Log:      a.c.Log,
+		CredFunc: a.serverCredFunc(bundle),
+	}
+
+	dialer := grpcutil.NewGRPCDialer(config)
+	return dialer.Dial(context.TODO(), a.c.ServerAddress)
+}
+
+func (a *attestor) serverCredFunc(bundle []*x509.Certificate) func() (credentials.TransportCredentials, error) {
 	pool := x509.NewCertPool()
 	for _, c := range bundle {
 		pool.AddCert(c)
@@ -225,14 +235,8 @@ func (a *attestor) serverConn(bundle []*x509.Certificate) (*grpc.ClientConn, err
 
 	// Explicitly not mTLS since we don't have an SVID yet
 	tlsConfig := spiffePeer.NewTLSConfig([]tls.Certificate{})
-	credentials := credentials.NewTLS(tlsConfig)
-
-	config := grpcutil.GRPCDialerConfig{
-		Log:   a.c.Log,
-		Creds: credentials,
-	}
-	dialer := grpcutil.NewGRPCDialer(config)
-	return dialer.Dial(context.TODO(), a.c.ServerAddress)
+	credFunc := func() (credentials.TransportCredentials, error) { return credentials.NewTLS(tlsConfig), nil }
+	return credFunc
 }
 
 func (a *attestor) parseAttestationResponse(id string, r *node.FetchBaseSVIDResponse) (*x509.Certificate, []*x509.Certificate, error) {
