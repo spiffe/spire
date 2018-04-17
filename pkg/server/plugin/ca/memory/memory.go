@@ -273,7 +273,7 @@ func (m *MemoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (resp
 	return &ca.LoadCertificateResponse{}, nil
 }
 
-func NewWithDefault() ca.ControlPlaneCa {
+func NewWithDefault() ca.ServerCa {
 	config := configuration{
 		TrustDomain:  "localhost",
 		BackdateSecs: 10,

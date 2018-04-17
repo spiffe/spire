@@ -40,9 +40,9 @@ func (m *MockCatalog) EXPECT() *MockCatalogMockRecorder {
 }
 
 // CAs mocks base method
-func (m *MockCatalog) CAs() []ca.ControlPlaneCa {
+func (m *MockCatalog) CAs() []ca.ServerCa {
 	ret := m.ctrl.Call(m, "CAs")
-	ret0, _ := ret[0].([]ca.ControlPlaneCa)
+	ret0, _ := ret[0].([]ca.ServerCa)
 	return ret0
 }
 

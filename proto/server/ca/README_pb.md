@@ -30,7 +30,7 @@
   
   
   
-    - [ControlPlaneCA](#spire.server.ca.ControlPlaneCA)
+    - [ServerCA](#spire.server.ca.ServerCA)
   
 
 - [Scalar Value Types](#scalar-value-types)
@@ -292,16 +292,16 @@ Represents a response with a signed certificate.
  
 
 
-<a name="spire.server.ca.ControlPlaneCA"/>
+<a name="spire.server.ca.ServerCA"/>
 
-### ControlPlaneCA
+### ServerCA
 
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
 | SignCsr | [SignCsrRequest](#spire.server.ca.SignCsrRequest) | [SignCsrResponse](#spire.server.ca.SignCsrRequest) | Interface will take in a CSR and sign it with the stored intermediate certificate. |
 | GenerateCsr | [GenerateCsrRequest](#spire.server.ca.GenerateCsrRequest) | [GenerateCsrResponse](#spire.server.ca.GenerateCsrRequest) | Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. |
-| FetchCertificate | [FetchCertificateRequest](#spire.server.ca.FetchCertificateRequest) | [FetchCertificateResponse](#spire.server.ca.FetchCertificateRequest) | Used to read the stored Intermediate CP cert. |
+| FetchCertificate | [FetchCertificateRequest](#spire.server.ca.FetchCertificateRequest) | [FetchCertificateResponse](#spire.server.ca.FetchCertificateRequest) | Used to read the stored Intermediate Server cert. |
 | LoadCertificate | [LoadCertificateRequest](#spire.server.ca.LoadCertificateRequest) | [LoadCertificateResponse](#spire.server.ca.LoadCertificateRequest) | Used for setting/storing the signed intermediate certificate. |
 | Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
 | GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin. |

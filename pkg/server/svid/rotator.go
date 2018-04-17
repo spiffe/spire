@@ -97,7 +97,7 @@ func (r *rotator) rotateSVID() error {
 	id := &url.URL{
 		Scheme: "spiffe",
 		Host:   r.c.TrustDomain.Host,
-		Path:   path.Join("spiffe", "cp"),
+		Path:   path.Join("spiffe", "server"),
 	}
 
 	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)

@@ -33,7 +33,7 @@ type EndpointsTestSuite struct {
 	suite.Suite
 	ctrl *gomock.Controller
 
-	ca      *mock_ca.MockControlPlaneCa
+	ca      *mock_ca.MockServerCa
 	ds      *mock_datastore.MockDataStore
 	catalog *mock_catalog.MockCatalog
 
@@ -42,7 +42,7 @@ type EndpointsTestSuite struct {
 
 func (s *EndpointsTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
-	s.ca = mock_ca.NewMockControlPlaneCa(s.ctrl)
+	s.ca = mock_ca.NewMockServerCa(s.ctrl)
 	s.ds = mock_datastore.NewMockDataStore(s.ctrl)
 	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 
@@ -88,7 +88,7 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 	require.NoError(s.T(), err)
 	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
 	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca})
+	s.catalog.EXPECT().CAs().Return([]ca.ServerCa{s.ca})
 	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
 	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
 
@@ -119,7 +119,7 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 	require.NoError(s.T(), err)
 	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
 	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca})
+	s.catalog.EXPECT().CAs().Return([]ca.ServerCa{s.ca})
 	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
 	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
 
@@ -147,7 +147,7 @@ func (s *EndpointsTestSuite) TestGRPCHookFailure() {
 	require.NoError(s.T(), err)
 	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
 	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.catalog.EXPECT().CAs().Return([]ca.ControlPlaneCa{s.ca})
+	s.catalog.EXPECT().CAs().Return([]ca.ServerCa{s.ca})
 	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
 	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
 

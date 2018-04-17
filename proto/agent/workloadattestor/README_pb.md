@@ -94,7 +94,7 @@ A list of registration entries.
 <a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
-This is a curated record that the Control Plane uses to set up and
+This is a curated record that the Server uses to set up and
 manage the various registered nodes and workloads that are controlled by it.
 
 

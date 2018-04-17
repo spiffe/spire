@@ -19,7 +19,7 @@ type ServerTestSuite struct {
 	t       *testing.T
 	server  Server
 	catalog *mock_catalog.MockCatalog
-	ca      *mock_ca.MockControlPlaneCa
+	ca      *mock_ca.MockServerCa
 	upsCa   *mock_upstreamca.MockUpstreamCa
 }
 
@@ -28,7 +28,7 @@ func (suite *ServerTestSuite) SetupTest() {
 	defer mockCtrl.Finish()
 
 	suite.catalog = mock_catalog.NewMockCatalog(mockCtrl)
-	suite.ca = mock_ca.NewMockControlPlaneCa(mockCtrl)
+	suite.ca = mock_ca.NewMockServerCa(mockCtrl)
 	suite.upsCa = mock_upstreamca.NewMockUpstreamCa(mockCtrl)
 
 	logger, err := log.NewLogger("DEBUG", "")

@@ -7,35 +7,35 @@ import (
 )
 
 type GRPCServer struct {
-	ControlPlaneCaImpl ControlPlaneCa
+	ServerCaImpl ServerCa
 }
 
 func (m *GRPCServer) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	return m.ControlPlaneCaImpl.Configure(req)
+	return m.ServerCaImpl.Configure(req)
 }
 
 func (m *GRPCServer) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return m.ControlPlaneCaImpl.GetPluginInfo(req)
+	return m.ServerCaImpl.GetPluginInfo(req)
 }
 
 func (m *GRPCServer) SignCsr(ctx context.Context, req *SignCsrRequest) (*SignCsrResponse, error) {
-	return m.ControlPlaneCaImpl.SignCsr(req)
+	return m.ServerCaImpl.SignCsr(req)
 }
 
 func (m *GRPCServer) GenerateCsr(ctx context.Context, req *GenerateCsrRequest) (*GenerateCsrResponse, error) {
-	return m.ControlPlaneCaImpl.GenerateCsr(req)
+	return m.ServerCaImpl.GenerateCsr(req)
 }
 
 func (m *GRPCServer) FetchCertificate(ctx context.Context, req *FetchCertificateRequest) (*FetchCertificateResponse, error) {
-	return m.ControlPlaneCaImpl.FetchCertificate(req)
+	return m.ServerCaImpl.FetchCertificate(req)
 }
 
 func (m *GRPCServer) LoadCertificate(ctx context.Context, req *LoadCertificateRequest) (*LoadCertificateResponse, error) {
-	return m.ControlPlaneCaImpl.LoadCertificate(req)
+	return m.ServerCaImpl.LoadCertificate(req)
 }
 
 type GRPCClient struct {
-	client ControlPlaneCAClient
+	client ServerCAClient
 }
 
 func (m *GRPCClient) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {

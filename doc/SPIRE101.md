@@ -92,7 +92,7 @@ server {
 }
 
 plugins {
-        ControlPlaneCA "ca" {
+        ServerCA "memory" { 
         plugin_cmd = "plugin/server/ca-memory/ca-memory"
         plugin_checksum = ""
         enabled = true
