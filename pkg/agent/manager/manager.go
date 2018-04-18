@@ -68,6 +68,11 @@ type manager struct {
 	bundleCachePath string
 
 	syncClients *clientsPool
+
+	// Frequency of synchronization events in seconds.
+	syncFreq time.Duration
+	// Frequency of Agent's SVID rotation events in seconds.
+	rotationFreq time.Duration
 }
 
 func (m *manager) Start() error {
@@ -147,7 +152,7 @@ func (m *manager) run() error {
 }
 
 func (m *manager) synchronizer() error {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(m.syncFreq * time.Second)
 
 	for {
 		select {
@@ -164,7 +169,7 @@ func (m *manager) synchronizer() error {
 }
 
 func (m *manager) rotator() error {
-	t := time.NewTicker(1 * time.Minute)
+	t := time.NewTicker(m.rotationFreq * time.Second)
 
 	for {
 		select {

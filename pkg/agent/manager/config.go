@@ -59,6 +59,8 @@ func New(c *Config) (Manager, error) {
 		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
+		syncFreq:        5,
+		rotationFreq:    60,
 	}
 
 	err = m.newSyncClient([]string{m.spiffeID, m.serverSPIFFEID}, m.svid, m.svidKey)
