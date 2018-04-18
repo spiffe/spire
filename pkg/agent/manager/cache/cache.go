@@ -113,7 +113,7 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 
 func (c *cacheImpl) updateSubscribers(subs []*Subscriber, entryCh <-chan *Entry) {
 	for _, sub := range subs {
-		subEntries := SubscriberEntries(sub, entryCh)
+		subEntries := subscriberEntries(sub, entryCh)
 		select {
 		case <-sub.done:
 			c.Subscribers.remove(sub)
@@ -143,7 +143,7 @@ func (c *cacheImpl) IsEmpty() bool {
 	return len(c.cache) == 0
 }
 
-func SubscriberEntries(sub *Subscriber, entryCh <-chan *Entry) (entries []*Entry) {
+func subscriberEntries(sub *Subscriber, entryCh <-chan *Entry) (entries []*Entry) {
 	for e := range entryCh {
 		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
 		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {

@@ -175,15 +175,11 @@ func TestManager_(t *testing.T) {
 		Bundle:        []*x509.Certificate{apiHandler.ca},
 		Tel:           &telemetry.Blackhole{},
 	}
-	mgr, err := New(c)
+	m, err := New(c)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-
-	m := mgr.(*manager)
-	//m.syncFreq = 100000000
-
 	err = m.Start()
 	if err != nil {
 		t.Error(err)
@@ -207,7 +203,8 @@ func TestManager_(t *testing.T) {
 			t.Error("received bundle should be equals to the server bundle")
 		}
 
-		//u.Entries[0]
+		compareRegistrationEntries(t, regEntriesMap["req2"][0], u.Entries[0].RegistrationEntry)
+		compareRegistrationEntries(t, regEntriesMap["req2"][1], u.Entries[1].RegistrationEntry)
 	})
 
 	/*
@@ -305,6 +302,10 @@ func newFetchSVIDResponse(regEntriesKey string, svids svidMap, ca *x509.Certific
 			Bundle:              ca.Raw,
 		},
 	}
+}
+
+func compareRegistrationEntries(t *testing.T, expected, actual *common.RegistrationEntry) {
+
 }
 
 type svidMap map[string]*node.Svid
