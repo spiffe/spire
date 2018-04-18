@@ -1,6 +1,7 @@
 package util
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -22,6 +23,31 @@ func NewSVIDTemplate(spiffeID string) (*x509.Certificate, error) {
 	return cert, err
 }
 
+func NewSVIDTemplateFromCSR(csr []byte, ca *x509.Certificate, ttl int) (*x509.Certificate, error) {
+	cr, err := x509.ParseCertificateRequest(csr)
+	if err != nil {
+		return nil, err
+	}
+
+	cert := &x509.Certificate{
+		Subject:            cr.Subject,
+		Issuer:             ca.Subject,
+		PublicKey:          cr.PublicKey,
+		PublicKeyAlgorithm: cr.PublicKeyAlgorithm,
+		Signature:          cr.Signature,
+		SignatureAlgorithm: cr.SignatureAlgorithm,
+		NotBefore:          time.Now(),
+		NotAfter:           time.Now().Add(time.Duration(ttl) * time.Second),
+		KeyUsage: x509.KeyUsageKeyEncipherment |
+			x509.KeyUsageKeyAgreement |
+			x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+		ExtraExtensions:       cr.Extensions,
+	}
+	return cert, nil
+}
+
 // NewCATemplate returns a default CA template with the specified trust domain. Must
 // be signed before it's valid.
 func NewCATemplate(trustDomain string) (*x509.Certificate, error) {
@@ -39,9 +65,16 @@ func SelfSign(req *x509.Certificate) (*x509.Certificate, *ecdsa.PrivateKey, erro
 // Sign creates a new certificate based on the provided template and signed using parent
 // certificate and signerPrivateKey.
 func Sign(req, parent *x509.Certificate, signerPrivateKey interface{}) (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
-	if err != nil {
-		return nil, nil, err
+	var err error
+	var key *ecdsa.PrivateKey
+
+	publicKey, ok := req.PublicKey.(crypto.PublicKey)
+	if !ok {
+		key, err = ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+		if err != nil {
+			return nil, nil, err
+		}
+		publicKey = key.Public()
 	}
 
 	if signerPrivateKey == nil {
@@ -52,7 +85,7 @@ func Sign(req, parent *x509.Certificate, signerPrivateKey interface{}) (*x509.Ce
 		req.SerialNumber = randomSerial()
 	}
 
-	certData, err := x509.CreateCertificate(rand.Reader, req, parent, key.Public(), signerPrivateKey)
+	certData, err := x509.CreateCertificate(rand.Reader, req, parent, publicKey, signerPrivateKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -90,13 +123,12 @@ func defaultCATemplate() *x509.Certificate {
 		Organization: []string{"SPIRE"},
 	}
 	return &x509.Certificate{
-		Subject:   name,
-		Issuer:    name,
-		IsCA:      true,
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(1 * time.Hour),
-		KeyUsage:  x509.KeyUsageCertSign,
-		//ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		Subject:               name,
+		Issuer:                name,
+		IsCA:                  true,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(1 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
 }
