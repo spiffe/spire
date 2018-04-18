@@ -5,6 +5,8 @@ import (
 	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -32,35 +34,37 @@ const (
 )
 
 var (
-	testServerCerts = []*x509.Certificate{{}, {}}
+	//testServerCerts = []*x509.Certificate{{}, {}}
 	//baseSVIDKey, _  = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	testLogger, _ = testlog.NewNullLogger()
-	regEntries    = testutil.GetRegistrationEntries("good.json")
-	blogSVID, _   = util.LoadBlogSVID()
+	regEntriesMap = testutil.GetRegistrationEntriesMap("manager_test_entries.json")
+	/*
+		blogSVID, _   = util.LoadBlogSVID()
 
-	testCacheEntry = &cache.Entry{
-		RegistrationEntry: &common.RegistrationEntry{
-			SpiffeId: "spiffe://example.org/Blog",
-			ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
-			Selectors: []*common.Selector{
-				{Type: "unix", Value: "uid:111"},
+		testCacheEntry = &cache.Entry{
+			RegistrationEntry: &common.RegistrationEntry{
+				SpiffeId: "spiffe://example.org/Blog",
+				ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
+				Selectors: []*common.Selector{
+					{Type: "unix", Value: "uid:111"},
+				},
+				Ttl: 200,
 			},
-			Ttl: 200,
-		},
-		SVID: blogSVID,
-	}
-	testEntryRequest = entryRequest{
-		CSR:   util.LoadBlogCSRBytes(),
-		entry: testCacheEntry,
-	}
+			SVID: blogSVID,
+		}
+		testEntryRequest = entryRequest{
+			CSR:   util.LoadBlogCSRBytes(),
+			entry: testCacheEntry,
+		}
 
-	svidMap = map[string]*node.Svid{
-		"spiffe://example.org/Blog": {SvidCert: blogSVID.Raw}}
+		svidMap = map[string]*node.Svid{
+			"spiffe://example.org/Blog": {SvidCert: blogSVID.Raw}}
 
-	svidUpdate = &node.SvidUpdate{
-		Svids:               svidMap,
-		RegistrationEntries: testutil.GetRegistrationEntries("good.json"),
-	}
+		svidUpdate = &node.SvidUpdate{
+			Svids:               svidMap,
+			RegistrationEntries: testutil.GetRegistrationEntries("good.json"),
+		}
+	*/
 )
 
 func TestManager_ShutdownDoesntHangAfterFailedStart(t *testing.T) {
@@ -77,26 +81,20 @@ func TestManager_ShutdownDoesntHangAfterFailedStart(t *testing.T) {
 	}
 	m, err := New(c)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return
+
 	}
 
 	err = m.Start()
 	if err == nil {
-		t.Fatalf("wanted error")
+		t.Errorf("wanted error")
+		return
 	}
 
-	done := make(chan bool)
-	ti := time.NewTicker(1 * time.Second)
-	go func() {
+	util.RunWithTimeout(t, 1*time.Second, func() {
 		m.Shutdown()
-		done <- true
-	}()
-
-	select {
-	case <-ti.C:
-		t.Fatal("shutdown took too long")
-	case <-done:
-	}
+	})
 }
 
 func TestManager_StoreSVIDOnStartup(t *testing.T) {
@@ -118,12 +116,14 @@ func TestManager_StoreSVIDOnStartup(t *testing.T) {
 
 	_, err := ReadSVID(c.SVIDCachePath)
 	if err != ErrNotCached {
-		t.Fatalf("wanted: %v, got: %v", ErrNotCached, err)
+		t.Errorf("wanted: %v, got: %v", ErrNotCached, err)
+		return
 	}
 
 	m, err := New(c)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return
 	}
 
 	err = m.Start()
@@ -132,10 +132,12 @@ func TestManager_StoreSVIDOnStartup(t *testing.T) {
 		// the first thing the manager does at startup.
 		cert, err := ReadSVID(c.SVIDCachePath)
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
 		if !cert.Equal(baseSVID) {
-			t.Fatal("SVID was not correctly stored.")
+			t.Error("SVID was not correctly stored.")
+			return
 		}
 	}
 
@@ -149,11 +151,16 @@ func TestManager_(t *testing.T) {
 
 	trustDomain := "example.org"
 
-	apiHandler := newStubbedNodeAPI(t, trustDomain, dir)
+	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
+		t:                 t,
+		trustDomain:       trustDomain,
+		dir:               dir,
+		fetchSVIDResponse: fetchSVIDResponse_,
+	})
 	apiHandler.start()
 	defer apiHandler.stop()
 
-	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://" + trustDomain + "/spire/agent/join_token/token")
+	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://" + trustDomain + "/spire/agent/join_token/abcd")
 
 	c := &Config{
 		ServerAddr: &net.UnixAddr{
@@ -168,14 +175,52 @@ func TestManager_(t *testing.T) {
 		Bundle:        []*x509.Certificate{apiHandler.ca},
 		Tel:           &telemetry.Blackhole{},
 	}
-	m, _ := New(c)
-	err := m.Start()
+	mgr, err := New(c)
 	if err != nil {
 		t.Error(err)
+		return
 	}
 
-	time.Sleep(60 * time.Second)
+	m := mgr.(*manager)
+	//m.syncFreq = 100000000
 
+	err = m.Start()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	util.RunWithTimeout(t, 1*time.Second, func() {
+		done := make(chan struct{})
+		wu := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}}, done)
+		u := <-wu
+
+		if len(u.Entries) != 2 {
+			t.Error("expected 2 entries")
+		}
+
+		if len(u.Bundle) != 1 {
+			t.Error("expected 1 bundle")
+		}
+
+		if !u.Bundle[0].Equal(apiHandler.ca) {
+			t.Error("received bundle should be equals to the server bundle")
+		}
+
+		//u.Entries[0]
+	})
+
+	/*
+	   ReceiveUpdates:
+	   	for {
+	   		select {
+	   		case u := <-wu:
+	   			fmt.Printf("%v", u.Entries[0])
+	   		case <-done:
+	   			break ReceiveUpdates
+	   		}
+	   	}
+	*/
 	m.Shutdown()
 
 	//	//cm.regEntriesCh = make(chan []*common.RegistrationEntry)
@@ -192,8 +237,89 @@ func TestManager_(t *testing.T) {
 	//	//wg.Wait()
 }
 
+func fetchSVIDResponse_(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+	switch h.reqCount {
+	case 1:
+		if len(req.Csrs) != 0 {
+			return fmt.Errorf("server expected 0 CRS, got: %d", len(req.Csrs))
+		}
+
+		return stream.Send(newFetchSVIDResponse("resp1", nil, h.ca))
+	case 2:
+		if len(req.Csrs) != 1 {
+			return fmt.Errorf("server expected 1 CRS, got: %d", len(req.Csrs))
+		}
+
+		svid := h.newSVIDFromCSR(req.Csrs[0], 200)
+		spiffeID, err := getSpiffeIDFromSVID(svid)
+		if err != nil {
+			return err
+		}
+
+		return stream.Send(newFetchSVIDResponse(
+			"resp1",
+			svidMap{
+				spiffeID: {SvidCert: svid.Raw},
+			},
+			h.ca))
+	case 3:
+		if len(req.Csrs) != 0 {
+			return fmt.Errorf("server expected 0 CRS, got: %d", len(req.Csrs))
+		}
+
+		return stream.Send(newFetchSVIDResponse("resp2", nil, h.ca))
+	case 4:
+		if len(req.Csrs) != 2 {
+			return fmt.Errorf("server expected 2 CRS, got: %d", len(req.Csrs))
+		}
+
+		svid1 := h.newSVIDFromCSR(req.Csrs[0], 200)
+		spiffeID1, err := getSpiffeIDFromSVID(svid1)
+		if err != nil {
+			return err
+		}
+
+		svid2 := h.newSVIDFromCSR(req.Csrs[1], 200)
+		spiffeID2, err := getSpiffeIDFromSVID(svid2)
+		if err != nil {
+			return err
+		}
+
+		return stream.Send(newFetchSVIDResponse(
+			"resp2",
+			svidMap{
+				spiffeID1: {SvidCert: svid1.Raw},
+				spiffeID2: {SvidCert: svid2.Raw},
+			},
+			h.ca))
+	default:
+		return errors.New("server received unexpected call")
+	}
+}
+
+func newFetchSVIDResponse(regEntriesKey string, svids svidMap, ca *x509.Certificate) *node.FetchSVIDResponse {
+	return &node.FetchSVIDResponse{
+		SvidUpdate: &node.SvidUpdate{
+			RegistrationEntries: regEntriesMap[regEntriesKey],
+			Svids:               svids,
+			Bundle:              ca.Raw,
+		},
+	}
+}
+
+type svidMap map[string]*node.Svid
+
+type mockNodeAPIHandlerConfig struct {
+	t           *testing.T
+	trustDomain string
+	// Directory used to save server related files, like unix sockets files.
+	dir string
+	// Callback used to build the response according to the request and state of mockNodeAPIHandler.
+	fetchSVIDResponse func(*mockNodeAPIHandler, *node.FetchSVIDRequest, node.Node_FetchSVIDServer) error
+}
+
 type mockNodeAPIHandler struct {
-	t *testing.T
+	c *mockNodeAPIHandlerConfig
 
 	ca    *x509.Certificate
 	cakey *ecdsa.PrivateKey
@@ -201,47 +327,27 @@ type mockNodeAPIHandler struct {
 	sockPath string
 	server   *grpc.Server
 
+	// Counts the number of requests received from clients
+	reqCount int
+
 	// Make sure this mock passes race tests
 	mtx *sync.Mutex
 
 	delay time.Duration
 }
 
-func (h *mockNodeAPIHandler) FetchBaseSVID(context.Context, *node.FetchBaseSVIDRequest) (*node.FetchBaseSVIDResponse, error) {
-	return nil, nil
-}
-
-func (h *mockNodeAPIHandler) FetchSVID(stream node.Node_FetchSVIDServer) error {
-
-	_, _ = stream.Recv()
-
-	stream.Send(h.resp1())
-
-	//m.mtx.Lock()
-	//delay := m.delay
-	//m.mtx.Unlock()
-
-	//time.Sleep(delay)
-	//stream.Send(m.resp2())
-	return nil
-}
-
-func (h *mockNodeAPIHandler) FetchFederatedBundle(context.Context, *node.FetchFederatedBundleRequest) (*node.FetchFederatedBundleResponse, error) {
-	return nil, nil
-}
-
-func newStubbedNodeAPI(t *testing.T, trustDomain, dir string) *mockNodeAPIHandler {
-	ca, cakey := createCA(t, trustDomain)
+func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig) *mockNodeAPIHandler {
+	ca, cakey := createCA(config.t, config.trustDomain)
 
 	h := &mockNodeAPIHandler{
-		t:        t,
+		c:        config,
 		mtx:      new(sync.Mutex),
 		ca:       ca,
 		cakey:    cakey,
-		sockPath: path.Join(dir, "node_api.sock"),
+		sockPath: path.Join(config.dir, "node_api.sock"),
 	}
 
-	serverSVID, serverSVIDKey := h.newSVID("spiffe://" + trustDomain + "/spiffe/cp")
+	serverSVID, serverSVIDKey := h.newSVID("spiffe://" + config.trustDomain + "/spiffe/cp")
 	opts := grpc.Creds(h.newTLS(serverSVID, serverSVIDKey))
 	s := grpc.NewServer(opts)
 
@@ -250,10 +356,37 @@ func newStubbedNodeAPI(t *testing.T, trustDomain, dir string) *mockNodeAPIHandle
 	return h
 }
 
+func (h *mockNodeAPIHandler) countRequest() {
+	h.reqCount++
+}
+
+func (h *mockNodeAPIHandler) FetchBaseSVID(context.Context, *node.FetchBaseSVIDRequest) (*node.FetchBaseSVIDResponse, error) {
+	h.countRequest()
+	return nil, nil
+}
+
+func (h *mockNodeAPIHandler) FetchSVID(stream node.Node_FetchSVIDServer) error {
+	h.countRequest()
+
+	req, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	if h.c.fetchSVIDResponse != nil {
+		return h.c.fetchSVIDResponse(h, req, stream)
+	}
+	return nil
+}
+
+func (h *mockNodeAPIHandler) FetchFederatedBundle(context.Context, *node.FetchFederatedBundleRequest) (*node.FetchFederatedBundleResponse, error) {
+	h.countRequest()
+	return nil, nil
+}
+
 func (h *mockNodeAPIHandler) start() {
 	l, err := net.Listen("unix", h.sockPath)
 	if err != nil {
-		h.t.Fatalf("create UDS listener: %s", err)
+		h.c.t.Fatalf("create UDS listener: %s", err)
 	}
 
 	go func() { h.server.Serve(l) }()
@@ -268,7 +401,11 @@ func (h *mockNodeAPIHandler) stop() {
 }
 
 func (h *mockNodeAPIHandler) newSVID(spiffeID string) (*x509.Certificate, *ecdsa.PrivateKey) {
-	return createSVID(h.t, h.ca, h.cakey, spiffeID)
+	return createSVID(h.c.t, h.ca, h.cakey, spiffeID)
+}
+
+func (h *mockNodeAPIHandler) newSVIDFromCSR(csr []byte, ttl int) *x509.Certificate {
+	return createSVIDFromCSR(h.c.t, h.ca, h.cakey, csr, ttl)
 }
 
 func (h *mockNodeAPIHandler) newTLS(svid *x509.Certificate, key *ecdsa.PrivateKey) credentials.TransportCredentials {
@@ -287,16 +424,6 @@ func (h *mockNodeAPIHandler) newTLS(svid *x509.Certificate, key *ecdsa.PrivateKe
 		ClientCAs:    roots,
 	}
 	return credentials.NewTLS(tlsConfig)
-}
-
-func (h *mockNodeAPIHandler) resp1() *node.FetchSVIDResponse {
-	return &node.FetchSVIDResponse{
-		SvidUpdate: &node.SvidUpdate{
-			RegistrationEntries: testutil.GetRegistrationEntries("good.json"),
-			Svids:               nil,
-			Bundle:              h.ca.Raw,
-		},
-	}
 }
 
 //
@@ -420,4 +547,17 @@ func createSVID(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spi
 		t.Fatalf("cannot sign svid template for %s: %v", spiffeID, err)
 	}
 	return svid, svidkey
+}
+
+func createSVIDFromCSR(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateKey, csr []byte, ttl int) *x509.Certificate {
+	tmpl, err := util.NewSVIDTemplateFromCSR(csr, ca, ttl)
+	if err != nil {
+		t.Fatalf("cannot create svid template from CSR: %v", err)
+	}
+
+	svid, _, err := util.Sign(tmpl, ca, cakey)
+	if err != nil {
+		t.Fatalf("cannot sign svid template for CSR: %v", err)
+	}
+	return svid
 }
