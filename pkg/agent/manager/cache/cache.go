@@ -89,7 +89,6 @@ func (c *cacheImpl) Subscribe(sub *Subscriber) {
 	entries := c.Entries()
 	c.m.Lock()
 	defer c.m.Unlock()
-	c.log.Infof("len(entries): %d", len(entries))
 	go c.updateSubscribers([]*Subscriber{sub}, entries)
 	c.Subscribers.Add(sub)
 }
@@ -111,16 +110,13 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 	c.cache[entry.RegistrationEntry.EntryId] = entry
 
 	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
-	c.log.Infof("SetEntry")
 	c.updateSubscribers(subs, entries)
 	return
 }
 
 func (c *cacheImpl) updateSubscribers(subs []*Subscriber, entries []*Entry) {
 	for _, sub := range subs {
-		c.log.Infof("len(entryCh): %d", len(entries))
 		subEntries := SubscriberEntries(sub, entries)
-		c.log.Infof("len(subEntries): %d", len(subEntries))
 		select {
 		case <-sub.done:
 			c.Subscribers.remove(sub)
