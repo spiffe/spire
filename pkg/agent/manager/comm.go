@@ -169,14 +169,14 @@ func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*g
 	}
 	tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
 	tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
-	credentials := credentials.NewTLS(tlsConfig)
+	credFunc := func() (credentials.TransportCredentials, error) { return  credentials.NewTLS(tlsConfig), nil }
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // TODO: Make this timeout configurable?
 	defer cancel()
 
 	config := grpcutil.GRPCDialerConfig{
 		Log:   m.c.Log,
-		Creds: credentials,
+		CredFunc: credFunc,
 	}
 	dialer := grpcutil.NewGRPCDialer(config)
 	conn, err := dialer.Dial(ctx, m.serverAddr)

@@ -58,7 +58,6 @@ type manager struct {
 	mtx     *sync.RWMutex
 	svid    *x509.Certificate
 	svidKey *ecdsa.PrivateKey
-	bundle  []*x509.Certificate // Latest CA bundle
 
 	spiffeID       string
 	serverSPIFFEID string
@@ -127,7 +126,7 @@ func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan 
 }
 
 func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []*cache.Entry) {
-	for entry := range m.cache.Entries() {
+	for _, entry := range m.cache.Entries() {
 		regEntrySelectors := selector.NewSetFromRaw(entry.RegistrationEntry.Selectors)
 		if selector.NewSetFromRaw(selectors).IncludesSet(regEntrySelectors) {
 			entries = append(entries, entry)
@@ -209,18 +208,14 @@ func (m *manager) setBaseSVIDEntry(svid *x509.Certificate, key *ecdsa.PrivateKey
 }
 
 func (m *manager) bundleAsCertPool() *x509.CertPool {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
 	certPool := x509.NewCertPool()
-	for _, cert := range m.bundle {
+	for _, cert := range m.cache.Bundle() {
 		certPool.AddCert(cert)
 	}
 	return certPool
 }
 
 func (m *manager) setBundle(bundle []*x509.Certificate) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-	m.bundle = bundle
+	m.cache.SetBundle(bundle)
 	m.storeBundle()
 }

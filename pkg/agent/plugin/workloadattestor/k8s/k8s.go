@@ -55,7 +55,6 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
-	log.Printf("Attesting PID: %v", req.Pid)
 	resp := workloadattestor.AttestResponse{}
 
 	cgroups, err := getCgroups(fmt.Sprintf("/proc/%v/cgroup", req.Pid), p.fs)
@@ -84,8 +83,8 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 		}
 	}
 
+	// Not a Kubernetes pod
 	if containerID == "" {
-		log.Printf("No kube pod entry found in /proc/%v/cgroup", req.Pid)
 		return &resp, nil
 	}
 
@@ -112,14 +111,12 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 			if containerID == containerURL.Host {
 				resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("sa:%v", item.Spec.ServiceAccountName)})
 				resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("ns:%v", item.Metadata.Namespace)})
-				log.Printf("Selectors found: %v", resp.Selectors)
 				return &resp, nil
 			}
 		}
 	}
 
-	log.Print("No selectors found")
-	return &resp, nil
+	return &resp, fmt.Errorf("no selectors found")
 }
 
 func getCgroups(path string, fs fileSystem) (cgroups [][]string, err error) {

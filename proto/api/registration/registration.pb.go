@@ -219,11 +219,11 @@ func (m *UpdateEntryRequest) GetEntry() *spire_common.RegistrationEntry {
 	return nil
 }
 
-// A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
+// A CA bundle for a different Trust Domain than the one used and managed by the Server.
 type FederatedBundle struct {
 	// A SPIFFE ID that has a Federated Bundle
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
-	// A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain
+	// A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain
 	FederatedBundle []byte `protobuf:"bytes,2,opt,name=federated_bundle,json=federatedBundle,proto3" json:"federated_bundle,omitempty"`
 	// Time to live.
 	Ttl int32 `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
@@ -257,7 +257,7 @@ func (m *FederatedBundle) GetTtl() int32 {
 
 // It represents a request with a FederatedBundle to create.
 type CreateFederatedBundleRequest struct {
-	// A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain.
+	// A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain.
 	FederatedBundle *FederatedBundle `protobuf:"bytes,1,opt,name=federated_bundle,json=federatedBundle" json:"federated_bundle,omitempty"`
 }
 

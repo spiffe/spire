@@ -33,11 +33,15 @@ type Cache interface {
 	// returns true if it removed some entry or false otherwise.
 	DeleteEntry(regEntry *common.RegistrationEntry) bool
 	// Entries returns all the in force cached entries.
-	Entries() <-chan *Entry
+	Entries() []*Entry
 	// IsEmpty returns true if this cache doesn't have any entry.
 	IsEmpty() bool
 	// Register a Subscriber and return WorkloadUpdate on the subscriber's channel
 	Subscribe(sub *Subscriber)
+	// Set the bundle
+	SetBundle([]*x509.Certificate)
+	// Retrieve the bundle
+	Bundle() []*x509.Certificate
 }
 
 type cacheImpl struct {
@@ -59,26 +63,25 @@ func New(log logrus.FieldLogger, bundle []*x509.Certificate) Cache {
 	}
 }
 
-func (c *cacheImpl) SetServerBundle(bundle []*x509.Certificate) {
+func (c *cacheImpl) SetBundle(bundle []*x509.Certificate) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.bundle = bundle
 }
 
-func (c *cacheImpl) serverBundle() []*x509.Certificate {
+func (c *cacheImpl) Bundle() []*x509.Certificate {
 	c.m.Lock()
 	defer c.m.Unlock()
 	return c.bundle
 }
 
-func (c *cacheImpl) Entries() <-chan *Entry {
+func (c *cacheImpl) Entries() []*Entry {
 	c.m.Lock()
 	defer c.m.Unlock()
-	entries := make(chan *Entry, len(c.cache))
+	entries := []*Entry{}
 	for _, e := range c.cache {
-		entries <- e
+		entries = append(entries, e)
 	}
-	close(entries)
 	return entries
 }
 
@@ -111,9 +114,9 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 	return
 }
 
-func (c *cacheImpl) updateSubscribers(subs []*Subscriber, entryCh <-chan *Entry) {
+func (c *cacheImpl) updateSubscribers(subs []*Subscriber, entries []*Entry) {
 	for _, sub := range subs {
-		subEntries := subscriberEntries(sub, entryCh)
+		subEntries := SubscriberEntries(sub, entries)
 		select {
 		case <-sub.done:
 			c.Subscribers.remove(sub)
@@ -143,11 +146,11 @@ func (c *cacheImpl) IsEmpty() bool {
 	return len(c.cache) == 0
 }
 
-func subscriberEntries(sub *Subscriber, entryCh <-chan *Entry) (entries []*Entry) {
-	for e := range entryCh {
+func SubscriberEntries(sub *Subscriber, entries []*Entry) (subentries []*Entry) {
+	for _, e := range entries {
 		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
 		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {
-			entries = append(entries, e)
+			subentries = append(subentries, e)
 		}
 	}
 	return

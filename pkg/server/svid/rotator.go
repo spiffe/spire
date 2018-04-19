@@ -19,6 +19,7 @@ type Rotator interface {
 	Start() error
 	Stop()
 
+	State()     State
 	Subscribe() observer.Stream
 }
 
@@ -47,6 +48,10 @@ func (r *rotator) Start() error {
 
 func (r *rotator) Stop() {
 	close(r.stop)
+}
+
+func (r *rotator) State() State {
+	return r.state.Value().(State)
 }
 
 func (r *rotator) Subscribe() observer.Stream {
@@ -92,7 +97,7 @@ func (r *rotator) rotateSVID() error {
 	id := &url.URL{
 		Scheme: "spiffe",
 		Host:   r.c.TrustDomain.Host,
-		Path:   path.Join("spiffe", "cp"),
+		Path:   path.Join("spiffe", "server"),
 	}
 
 	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
