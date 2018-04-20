@@ -15,7 +15,7 @@ import (
 
 type GRPCDialerConfig struct {
 	// Log is used to log errors when used in non-blocking mode.
-	Log      logrus.FieldLogger
+	Log      logrus.StdLogger
 	CredFunc func() (credentials.TransportCredentials, error)
 	Opts     []grpc.DialOption
 }
@@ -25,7 +25,7 @@ type Dialer interface {
 }
 
 type grpcDialer struct {
-	log      logrus.FieldLogger
+	log      logrus.StdLogger
 	credFunc func() (credentials.TransportCredentials, error)
 	opts     []grpc.DialOption
 }
@@ -48,7 +48,7 @@ func (d *grpcDialer) Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn,
 	dialer := func(address string, timeout time.Duration) (net.Conn, error) {
 		creds, err := d.credFunc()
 		if err != nil {
-			d.log.Errorf("Could not fetch transport credentials: %v", err)
+			d.log.Printf("Could not fetch transport credentials: %v", err)
 			return nil, fmt.Errorf("fetch transport credentials: %v", err)
 		}
 
@@ -57,13 +57,13 @@ func (d *grpcDialer) Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn,
 
 		conn, err := (&net.Dialer{}).DialContext(ctx, addr.Network(), addr.String())
 		if err != nil {
-			d.log.Error(err)
+			d.log.Print(err)
 			return nil, err
 		}
 
 		conn, _, err = creds.ClientHandshake(ctx, address, conn)
 		if err != nil {
-			d.log.Error(err)
+			d.log.Print(err)
 			return nil, err
 		}
 

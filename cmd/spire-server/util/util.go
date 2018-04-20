@@ -1,11 +1,15 @@
 package util
 
 import (
+	"context"
 	"crypto/tls"
+	"log"
+	"net"
+	"os"
 
+	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/proto/api/registration"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
@@ -18,8 +22,20 @@ func NewRegistrationClient(address string) (registration.RegistrationClient, err
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
 	}
+	credFunc := func() (credentials.TransportCredentials, error) { return credentials.NewTLS(tlsConfig), nil }
 
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	dc := grpcutil.GRPCDialerConfig{
+		Log:      log.New(os.Stdout, "", 0),
+		CredFunc: credFunc,
+	}
+	dialer := grpcutil.NewGRPCDialer(dc)
+
+	addr, err := net.ResolveTCPAddr("tcp", address)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := dialer.Dial(context.TODO(), addr)
 	return registration.NewRegistrationClient(conn), err
 }
 
