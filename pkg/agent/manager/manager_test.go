@@ -145,7 +145,7 @@ func TestManager_StoreSVIDOnStartup(t *testing.T) {
 	os.Remove(c.SVIDCachePath)
 }
 
-func TestManager_(t *testing.T) {
+func TestManager_HappyPath(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
@@ -175,16 +175,35 @@ func TestManager_(t *testing.T) {
 		Bundle:        []*x509.Certificate{apiHandler.ca},
 		Tel:           &telemetry.Blackhole{},
 	}
-	m, err := New(c)
+	mgr, err := New(c)
 	if err != nil {
 		t.Error(err)
 		return
 	}
+
+	m := mgr.(*manager)
 	err = m.Start()
 	if err != nil {
 		t.Error(err)
 		return
 	}
+
+	cert, key := m.getBaseSVIDEntry()
+	if !cert.Equal(baseSVID) {
+		t.Error("SVID is not equals to configured one")
+	}
+	if key != baseSVIDKey {
+		t.Error("PrivateKey is not equals to configured one")
+	}
+
+	me := m.MatchingEntries(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	if len(me) != 2 {
+		t.Error("expected 2 entries")
+	}
+
+	compareRegistrationEntries(t,
+		regEntriesMap["resp2"],
+		[]*common.RegistrationEntry{me[0].RegistrationEntry, me[1].RegistrationEntry})
 
 	util.RunWithTimeout(t, 1*time.Second, func() {
 		done := make(chan struct{})
@@ -203,35 +222,12 @@ func TestManager_(t *testing.T) {
 			t.Error("received bundle should be equals to the server bundle")
 		}
 
-		compareRegistrationEntries(t, regEntriesMap["req2"][0], u.Entries[0].RegistrationEntry)
-		compareRegistrationEntries(t, regEntriesMap["req2"][1], u.Entries[1].RegistrationEntry)
+		compareRegistrationEntries(t,
+			regEntriesMap["resp2"],
+			[]*common.RegistrationEntry{u.Entries[0].RegistrationEntry, u.Entries[1].RegistrationEntry})
 	})
 
-	/*
-	   ReceiveUpdates:
-	   	for {
-	   		select {
-	   		case u := <-wu:
-	   			fmt.Printf("%v", u.Entries[0])
-	   		case <-done:
-	   			break ReceiveUpdates
-	   		}
-	   	}
-	*/
 	m.Shutdown()
-
-	//	//cm.regEntriesCh = make(chan []*common.RegistrationEntry)
-	//	//wg.Add(1)
-	//	//go cm.regEntriesHandler(&wg)
-	//	//cm.entryRequestCh = make(chan map[string][]EntryRequest)
-	//
-	//	//cm.regEntriesCh <- regEntries
-	//	//entryRequests := <-cm.entryRequestCh
-	//	//for _, regEntry := range regEntries {
-	//	//	assert.NotEmpty(t, entryRequests[regEntry.ParentId])
-	//	//}
-	//	//cm.cancel()
-	//	//wg.Wait()
 }
 
 func fetchSVIDResponse_(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
@@ -304,7 +300,35 @@ func newFetchSVIDResponse(regEntriesKey string, svids svidMap, ca *x509.Certific
 	}
 }
 
-func compareRegistrationEntries(t *testing.T, expected, actual *common.RegistrationEntry) {
+func asMap(res []*common.RegistrationEntry) (result map[string]*common.RegistrationEntry) {
+	result = map[string]*common.RegistrationEntry{}
+	for _, re := range res {
+		result[re.EntryId] = re
+	}
+	return result
+}
+
+func compareRegistrationEntries(t *testing.T, expected, actual []*common.RegistrationEntry) {
+	if len(expected) != len(actual) {
+		t.Errorf("entries count doesn't match, expected: %d, got: %d", len(expected), len(actual))
+		return
+	}
+
+	expectedMap := asMap(expected)
+	actualMap := asMap(actual)
+
+	for id, ee := range expectedMap {
+		ae, ok := actualMap[id]
+		if !ok {
+			t.Errorf("entries should be equals, expected: %s, got: <none>", ee.String())
+			return
+		}
+
+		if ee.String() != ae.String() {
+			t.Errorf("entries should be equals, expected: %s, got: %s", ee.String(), ae.String())
+			return
+		}
+	}
 
 }
 
@@ -348,7 +372,7 @@ func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig) *mockNodeAPIHandler
 		sockPath: path.Join(config.dir, "node_api.sock"),
 	}
 
-	serverSVID, serverSVIDKey := h.newSVID("spiffe://" + config.trustDomain + "/spiffe/cp")
+	serverSVID, serverSVIDKey := h.newSVID("spiffe://" + config.trustDomain + "/spiffe/server")
 	opts := grpc.Creds(h.newTLS(serverSVID, serverSVIDKey))
 	s := grpc.NewServer(opts)
 
