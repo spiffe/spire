@@ -295,12 +295,3 @@ func (er entryRequests) add(e *entryRequest) {
 	}
 	erMap[entryID] = e
 }
-
-// isEntryRequestAlreadyCreated if er has an element already created for regEntry.
-func (er entryRequests) isEntryRequestAlreadyCreated(regEntry *proto.RegistrationEntry) bool {
-	if entryRequestsMap, ok := er[regEntry.ParentId]; ok {
-		_, ok := entryRequestsMap[regEntry.EntryId]
-		return ok
-	}
-	return false
-}
