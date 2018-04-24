@@ -126,6 +126,7 @@ func TestManager_HappyPath(t *testing.T) {
 		trustDomain:       trustDomain,
 		dir:               dir,
 		fetchSVIDResponse: fetchSVIDResponse_HappyPath,
+		svidTTL:           200,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -157,6 +158,7 @@ func TestManager_HappyPath(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	defer m.Shutdown()
 
 	cert, key := m.getBaseSVIDEntry()
 	if !cert.Equal(baseSVID) {
@@ -196,8 +198,6 @@ func TestManager_HappyPath(t *testing.T) {
 			regEntriesMap["resp2"],
 			[]*common.RegistrationEntry{u.Entries[0].RegistrationEntry, u.Entries[1].RegistrationEntry})
 	})
-
-	m.Shutdown()
 }
 
 func TestManager_SVIDRotation(t *testing.T) {
@@ -211,6 +211,7 @@ func TestManager_SVIDRotation(t *testing.T) {
 		trustDomain:       trustDomain,
 		dir:               dir,
 		fetchSVIDResponse: fetchSVIDResponse_SVIDRotation,
+		svidTTL:           3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -245,6 +246,7 @@ func TestManager_SVIDRotation(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	defer m.Shutdown()
 
 	elapsed := time.Since(baseSVID.NotBefore)
 	if elapsed > 2*baseTTL/3 {
@@ -262,7 +264,7 @@ func TestManager_SVIDRotation(t *testing.T) {
 		return
 	}
 
-	// Sleep to ensure that rotation will happen
+	// Sleep to ensure that rotation happened
 	time.Sleep(baseTTL - elapsed)
 
 	cert, key = m.getBaseSVIDEntry()
@@ -274,8 +276,87 @@ func TestManager_SVIDRotation(t *testing.T) {
 		t.Error("PrivateKey did not rotate")
 		return
 	}
+}
 
-	m.Shutdown()
+func TestManager_Synchronization(t *testing.T) {
+	dir := createTempDir(t)
+	defer removeTempDir(dir)
+
+	trustDomain := "example.org"
+
+	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
+		t:                 t,
+		trustDomain:       trustDomain,
+		dir:               dir,
+		fetchSVIDResponse: fetchSVIDResponse_Synchronization,
+		svidTTL:           4,
+	})
+	apiHandler.start()
+	defer apiHandler.stop()
+
+	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+
+	c := &Config{
+		ServerAddr: &net.UnixAddr{
+			Net:  "unix",
+			Name: apiHandler.sockPath,
+		},
+		SVID:          baseSVID,
+		SVIDKey:       baseSVIDKey,
+		Log:           logrus.New(),
+		TrustDomain:   url.URL{Host: trustDomain},
+		SVIDCachePath: path.Join(dir, "svid.der"),
+		Bundle:        []*x509.Certificate{apiHandler.ca},
+		Tel:           &telemetry.Blackhole{},
+	}
+	mgr, err := New(c)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	m := mgr.(*manager)
+	m.rotationFreq = 1 * time.Hour
+	m.syncFreq = 2 * time.Second
+	start := time.Now()
+	err = m.Start()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer m.Shutdown()
+
+	elapsed := time.Since(start)
+	// If synchronization could already have happened, we cannot continue with this test.
+	if elapsed > m.syncFreq {
+		t.Errorf("manager startup took too long: %dms", elapsed/time.Millisecond)
+		return
+	}
+
+	// Before synchronization
+	entriesBefore := m.cache.Entries()
+	if len(entriesBefore) != 3 {
+		t.Error("3 cached entries were expected")
+		return
+	}
+
+	// Sleep to ensure that sync happened
+	time.Sleep(2*m.syncFreq - elapsed)
+
+	entriesAfter := m.cache.Entries()
+	if len(entriesAfter) != 3 {
+		t.Error("3 cached entries were expected")
+		return
+	}
+
+	for _, eb := range entriesBefore {
+		for _, ea := range entriesAfter {
+			if eb == ea {
+				t.Errorf("there is at least one entry that was not refreshed")
+				return
+			}
+		}
+	}
 }
 
 func fetchSVIDResponse_HappyPath(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
@@ -291,7 +372,7 @@ func fetchSVIDResponse_HappyPath(h *mockNodeAPIHandler, req *node.FetchSVIDReque
 			return fmt.Errorf("server expected 1 CRS, got: %d", len(req.Csrs))
 		}
 
-		svid := h.newSVIDFromCSR(req.Csrs[0], 200)
+		svid := h.newSVIDFromCSR(req.Csrs[0])
 		spiffeID, err := getSpiffeIDFromSVID(svid)
 		if err != nil {
 			return err
@@ -314,13 +395,13 @@ func fetchSVIDResponse_HappyPath(h *mockNodeAPIHandler, req *node.FetchSVIDReque
 			return fmt.Errorf("server expected 2 CRS, got: %d", len(req.Csrs))
 		}
 
-		svid1 := h.newSVIDFromCSR(req.Csrs[0], 200)
+		svid1 := h.newSVIDFromCSR(req.Csrs[0])
 		spiffeID1, err := getSpiffeIDFromSVID(svid1)
 		if err != nil {
 			return err
 		}
 
-		svid2 := h.newSVIDFromCSR(req.Csrs[1], 200)
+		svid2 := h.newSVIDFromCSR(req.Csrs[1])
 		spiffeID2, err := getSpiffeIDFromSVID(svid2)
 		if err != nil {
 			return err
@@ -345,7 +426,7 @@ func fetchSVIDResponse_SVIDRotation(h *mockNodeAPIHandler, req *node.FetchSVIDRe
 			return fmt.Errorf("server expected 1 CRS, got: %d", len(req.Csrs))
 		}
 
-		svid := h.newSVIDFromCSR(req.Csrs[0], 3)
+		svid := h.newSVIDFromCSR(req.Csrs[0])
 		spiffeID, err := getSpiffeIDFromSVID(svid)
 		if err != nil {
 			return err
@@ -357,6 +438,72 @@ func fetchSVIDResponse_SVIDRotation(h *mockNodeAPIHandler, req *node.FetchSVIDRe
 				spiffeID: {SvidCert: svid.Raw},
 			},
 			h.ca))
+	default:
+		return fetchSVIDResponse_HappyPath(h, req, stream)
+	}
+}
+
+func fetchSVIDResponse_Synchronization(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+	switch h.reqCount {
+	case 5:
+		if len(req.Csrs) != 0 {
+			return fmt.Errorf("server expected 0 CRS, got: %d", len(req.Csrs))
+		}
+
+		return stream.Send(newFetchSVIDResponse("resp1", nil, h.ca))
+	case 6:
+		if len(req.Csrs) != 0 {
+			return fmt.Errorf("server expected 0 CRS, got: %d", len(req.Csrs))
+		}
+
+		return stream.Send(newFetchSVIDResponse("resp2", nil, h.ca))
+	case 7:
+		if len(req.Csrs) != 1 {
+			return fmt.Errorf("server expected 1 CRS, got: %d", len(req.Csrs))
+		}
+
+		svid := h.newSVIDFromCSR(req.Csrs[0])
+		spiffeID, err := getSpiffeIDFromSVID(svid)
+		if err != nil {
+			return err
+		}
+
+		return stream.Send(newFetchSVIDResponse(
+			"resp2",
+			svidMap{
+				spiffeID: {SvidCert: svid.Raw},
+			},
+			h.ca))
+	case 8:
+		if len(req.Csrs) != 2 {
+			return fmt.Errorf("server expected 2 CRS, got: %d", len(req.Csrs))
+		}
+
+		svid1 := h.newSVIDFromCSR(req.Csrs[0])
+		spiffeID1, err := getSpiffeIDFromSVID(svid1)
+		if err != nil {
+			return err
+		}
+
+		svid2 := h.newSVIDFromCSR(req.Csrs[1])
+		spiffeID2, err := getSpiffeIDFromSVID(svid2)
+		if err != nil {
+			return err
+		}
+
+		return stream.Send(newFetchSVIDResponse(
+			"resp0",
+			svidMap{
+				spiffeID1: {SvidCert: svid1.Raw},
+				spiffeID2: {SvidCert: svid2.Raw},
+			},
+			h.ca))
+	case 9:
+		if len(req.Csrs) != 0 {
+			return fmt.Errorf("server expected 0 CRS, got: %d", len(req.Csrs))
+		}
+
+		return stream.Send(newFetchSVIDResponse("resp2", nil, h.ca))
 	default:
 		return fetchSVIDResponse_HappyPath(h, req, stream)
 	}
@@ -413,6 +560,8 @@ type mockNodeAPIHandlerConfig struct {
 	dir string
 	// Callback used to build the response according to the request and state of mockNodeAPIHandler.
 	fetchSVIDResponse func(*mockNodeAPIHandler, *node.FetchSVIDRequest, node.Node_FetchSVIDServer) error
+
+	svidTTL int
 }
 
 type mockNodeAPIHandler struct {
@@ -497,8 +646,8 @@ func (h *mockNodeAPIHandler) newSVID(spiffeID string, ttl time.Duration) (*x509.
 	return createSVID(h.c.t, h.ca, h.cakey, spiffeID, ttl)
 }
 
-func (h *mockNodeAPIHandler) newSVIDFromCSR(csr []byte, ttl int) *x509.Certificate {
-	return createSVIDFromCSR(h.c.t, h.ca, h.cakey, csr, ttl)
+func (h *mockNodeAPIHandler) newSVIDFromCSR(csr []byte) *x509.Certificate {
+	return createSVIDFromCSR(h.c.t, h.ca, h.cakey, csr, h.c.svidTTL)
 }
 
 func (h *mockNodeAPIHandler) newTLS(svid *x509.Certificate, key *ecdsa.PrivateKey) credentials.TransportCredentials {
