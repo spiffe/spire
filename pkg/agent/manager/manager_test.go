@@ -34,43 +34,14 @@ const (
 )
 
 var (
-	//testServerCerts = []*x509.Certificate{{}, {}}
-	//baseSVIDKey, _  = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	testLogger, _ = testlog.NewNullLogger()
 	regEntriesMap = testutil.GetRegistrationEntriesMap("manager_test_entries.json")
-	/*
-		blogSVID, _   = util.LoadBlogSVID()
-
-		testCacheEntry = &cache.Entry{
-			RegistrationEntry: &common.RegistrationEntry{
-				SpiffeId: "spiffe://example.org/Blog",
-				ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
-				Selectors: []*common.Selector{
-					{Type: "unix", Value: "uid:111"},
-				},
-				Ttl: 200,
-			},
-			SVID: blogSVID,
-		}
-		testEntryRequest = entryRequest{
-			CSR:   util.LoadBlogCSRBytes(),
-			entry: testCacheEntry,
-		}
-
-		svidMap = map[string]*node.Svid{
-			"spiffe://example.org/Blog": {SvidCert: blogSVID.Raw}}
-
-		svidUpdate = &node.SvidUpdate{
-			Svids:               svidMap,
-			RegistrationEntries: testutil.GetRegistrationEntries("good.json"),
-		}
-	*/
 )
 
 func TestManager_ShutdownDoesntHangAfterFailedStart(t *testing.T) {
 	trustDomain := "somedomain.com"
 	ca, cakey := createCA(t, trustDomain)
-	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent")
+	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
 	c := &Config{
 		ServerAddr:  &net.TCPAddr{},
@@ -103,7 +74,7 @@ func TestManager_StoreSVIDOnStartup(t *testing.T) {
 
 	trustDomain := "somedomain.com"
 	ca, cakey := createCA(t, trustDomain)
-	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent")
+	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
 	c := &Config{
 		ServerAddr:    &net.TCPAddr{},
@@ -155,12 +126,12 @@ func TestManager_HappyPath(t *testing.T) {
 		t:                 t,
 		trustDomain:       trustDomain,
 		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponse_,
+		fetchSVIDResponse: fetchSVIDResponse_HappyPath,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
 
-	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://" + trustDomain + "/spire/agent/join_token/abcd")
+	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 
 	c := &Config{
 		ServerAddr: &net.UnixAddr{
@@ -230,7 +201,85 @@ func TestManager_HappyPath(t *testing.T) {
 	m.Shutdown()
 }
 
-func fetchSVIDResponse_(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func TestManager_SVIDRotation(t *testing.T) {
+	dir := createTempDir(t)
+	defer removeTempDir(dir)
+
+	trustDomain := "example.org"
+
+	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
+		t:                 t,
+		trustDomain:       trustDomain,
+		dir:               dir,
+		fetchSVIDResponse: fetchSVIDResponse_SVIDRotation,
+	})
+	apiHandler.start()
+	defer apiHandler.stop()
+
+	baseTTL := 3 * time.Second
+	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", baseTTL)
+
+	c := &Config{
+		ServerAddr: &net.UnixAddr{
+			Net:  "unix",
+			Name: apiHandler.sockPath,
+		},
+		SVID:          baseSVID,
+		SVIDKey:       baseSVIDKey,
+		Log:           logrus.New(),
+		TrustDomain:   url.URL{Host: trustDomain},
+		SVIDCachePath: path.Join(dir, "svid.der"),
+		Bundle:        []*x509.Certificate{apiHandler.ca},
+		Tel:           &telemetry.Blackhole{},
+	}
+	mgr, err := New(c)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	m := mgr.(*manager)
+	m.rotationFreq = baseTTL / 2
+	m.syncFreq = 1 * time.Hour
+	err = m.Start()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	elapsed := time.Since(baseSVID.NotBefore)
+	if elapsed > 2*baseTTL/3 {
+		t.Errorf("manager startup took too long: %dms", elapsed/time.Millisecond)
+		return
+	}
+
+	cert, key := m.getBaseSVIDEntry()
+	if !cert.Equal(baseSVID) {
+		t.Error("SVID is not equals to configured one")
+		return
+	}
+	if key != baseSVIDKey {
+		t.Error("PrivateKey is not equals to configured one")
+		return
+	}
+
+	// Sleep to ensure that rotation will happen
+	time.Sleep(baseTTL - elapsed)
+
+	cert, key = m.getBaseSVIDEntry()
+	if cert.Equal(baseSVID) {
+		t.Error("SVID did not rotate")
+		return
+	}
+	if key == baseSVIDKey {
+		t.Error("PrivateKey did not rotate")
+		return
+	}
+
+	m.Shutdown()
+}
+
+func fetchSVIDResponse_HappyPath(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
 	switch h.reqCount {
 	case 1:
 		if len(req.Csrs) != 0 {
@@ -287,6 +336,30 @@ func fetchSVIDResponse_(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, strea
 			h.ca))
 	default:
 		return errors.New("server received unexpected call")
+	}
+}
+
+func fetchSVIDResponse_SVIDRotation(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+	switch h.reqCount {
+	case 5:
+		if len(req.Csrs) != 1 {
+			return fmt.Errorf("server expected 1 CRS, got: %d", len(req.Csrs))
+		}
+
+		svid := h.newSVIDFromCSR(req.Csrs[0], 3)
+		spiffeID, err := getSpiffeIDFromSVID(svid)
+		if err != nil {
+			return err
+		}
+
+		return stream.Send(newFetchSVIDResponse(
+			"resp1",
+			svidMap{
+				spiffeID: {SvidCert: svid.Raw},
+			},
+			h.ca))
+	default:
+		return fetchSVIDResponse_HappyPath(h, req, stream)
 	}
 }
 
@@ -372,7 +445,7 @@ func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig) *mockNodeAPIHandler
 		sockPath: path.Join(config.dir, "node_api.sock"),
 	}
 
-	serverSVID, serverSVIDKey := h.newSVID("spiffe://" + config.trustDomain + "/spiffe/server")
+	serverSVID, serverSVIDKey := h.newSVID("spiffe://"+config.trustDomain+"/spiffe/server", 1*time.Hour)
 	opts := grpc.Creds(h.newTLS(serverSVID, serverSVIDKey))
 	s := grpc.NewServer(opts)
 
@@ -425,8 +498,8 @@ func (h *mockNodeAPIHandler) stop() {
 	os.RemoveAll(path.Dir(h.sockPath))
 }
 
-func (h *mockNodeAPIHandler) newSVID(spiffeID string) (*x509.Certificate, *ecdsa.PrivateKey) {
-	return createSVID(h.c.t, h.ca, h.cakey, spiffeID)
+func (h *mockNodeAPIHandler) newSVID(spiffeID string, ttl time.Duration) (*x509.Certificate, *ecdsa.PrivateKey) {
+	return createSVID(h.c.t, h.ca, h.cakey, spiffeID, ttl)
 }
 
 func (h *mockNodeAPIHandler) newSVIDFromCSR(csr []byte, ttl int) *x509.Certificate {
@@ -561,11 +634,13 @@ func createCA(t *testing.T, trustDomain string) (*x509.Certificate, *ecdsa.Priva
 	return ca, cakey
 }
 
-func createSVID(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID string) (*x509.Certificate, *ecdsa.PrivateKey) {
+func createSVID(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID string, ttl time.Duration) (*x509.Certificate, *ecdsa.PrivateKey) {
 	tmpl, err := util.NewSVIDTemplate(spiffeID)
 	if err != nil {
 		t.Fatalf("cannot create svid template for %s: %v", spiffeID, err)
 	}
+
+	tmpl.NotAfter = tmpl.NotBefore.Add(ttl)
 
 	svid, svidkey, err := util.Sign(tmpl, ca, cakey)
 	if err != nil {
