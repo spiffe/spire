@@ -151,7 +151,7 @@ func (m *manager) run() error {
 }
 
 func (m *manager) synchronizer() error {
-	t := time.NewTicker(m.syncFreq * time.Second)
+	t := time.NewTicker(m.syncFreq)
 
 	for {
 		select {
@@ -168,7 +168,7 @@ func (m *manager) synchronizer() error {
 }
 
 func (m *manager) rotator() error {
-	t := time.NewTicker(m.rotationFreq * time.Second)
+	t := time.NewTicker(m.rotationFreq)
 
 	for {
 		select {
