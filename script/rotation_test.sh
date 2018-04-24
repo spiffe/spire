@@ -37,6 +37,16 @@ TOKEN=$(./cmd/spire-server/spire-server token generate -spiffeID spiffe://exampl
 
 set +e
 
+function finish ()
+{
+    kill %2
+    kill %1
+    wait
+    rm bundle.0.pem
+    rm svid.0.pem
+    rm svid.0.key
+}
+
 while [ $? == 0 ]; do
     if [ $END -lt $(date +%s) ]; then
         finish
@@ -58,11 +68,3 @@ echo $RESULT
 echo
 echo "Test failed."
 
-function finish ()
-{
-    kill %2
-    kill %1
-    wait
-    rm bundle.0.pem
-    rm svid.0.pem
-}
