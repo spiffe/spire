@@ -289,7 +289,7 @@ func TestManager_Synchronization(t *testing.T) {
 		trustDomain:       trustDomain,
 		dir:               dir,
 		fetchSVIDResponse: fetchSVIDResponse_Synchronization,
-		svidTTL:           4,
+		svidTTL:           2,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -326,35 +326,112 @@ func TestManager_Synchronization(t *testing.T) {
 	}
 	defer m.Shutdown()
 
-	elapsed := time.Since(start)
-	// If synchronization could already have happened, we cannot continue with this test.
-	if elapsed > m.syncFreq {
-		t.Errorf("manager startup took too long: %dms", elapsed/time.Millisecond)
-		return
-	}
+	done := make(chan struct{})
+	wu := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}}, done)
 
 	// Before synchronization
-	entriesBefore := m.cache.Entries()
+	entriesBefore := cacheEntriesAsMap(m.cache.Entries())
 	if len(entriesBefore) != 3 {
 		t.Error("3 cached entries were expected")
 		return
 	}
 
-	// Sleep to ensure that sync happened
-	time.Sleep(2*m.syncFreq - elapsed)
+	// If synchronization could already have happened, we cannot continue with this test.
+	elapsed := time.Since(start)
+	if elapsed > m.syncFreq {
+		t.Errorf("manager startup took too long: %dms", elapsed/time.Millisecond)
+		return
+	}
 
-	entriesAfter := m.cache.Entries()
+	util.RunWithTimeout(t, 1*time.Second, func() {
+		u := <-wu
+
+		if len(u.Entries) != 2 {
+			t.Error("expected 2 entries")
+		}
+
+		if len(u.Bundle) != 1 {
+			t.Error("expected 1 bundle")
+		}
+
+		if !u.Bundle[0].Equal(apiHandler.ca) {
+			t.Error("received bundle should be equals to the server bundle")
+		}
+
+		compareRegistrationEntries(t,
+			regEntriesMap["resp2"],
+			[]*common.RegistrationEntry{u.Entries[0].RegistrationEntry, u.Entries[1].RegistrationEntry})
+
+		entriesUpdated := cacheEntriesAsMap(u.Entries)
+		for key, eu := range entriesUpdated {
+			eb, ok := entriesBefore[key]
+			if !ok {
+				t.Errorf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
+				return
+			}
+			if eb != eu {
+				t.Error("entry received does not match entry on cache")
+				return
+			}
+		}
+	})
+
+	// Wait until next update to ensure that sync happened. After
+	// sync it should be 2 updates, here we consume one.
+	util.RunWithTimeout(t, 2*m.syncFreq-elapsed, func() {
+		<-wu
+	})
+
+	entriesAfter := cacheEntriesAsMap(m.cache.Entries())
 	if len(entriesAfter) != 3 {
 		t.Error("3 cached entries were expected")
 		return
 	}
 
-	for _, eb := range entriesBefore {
-		for _, ea := range entriesAfter {
-			if eb == ea {
-				t.Errorf("there is at least one entry that was not refreshed")
+	util.RunWithTimeout(t, 1*time.Second, func() {
+		// Here we cosume the second update after sync.
+		u := <-wu
+		close(done)
+
+		if len(u.Entries) != 2 {
+			t.Error("expected 2 entries")
+		}
+
+		if len(u.Bundle) != 1 {
+			t.Error("expected 1 bundle")
+		}
+
+		if !u.Bundle[0].Equal(apiHandler.ca) {
+			t.Error("received bundle should be equals to the server bundle")
+		}
+
+		compareRegistrationEntries(t,
+			regEntriesMap["resp2"],
+			[]*common.RegistrationEntry{u.Entries[0].RegistrationEntry, u.Entries[1].RegistrationEntry})
+
+		entriesUpdated := cacheEntriesAsMap(u.Entries)
+		for key, eu := range entriesUpdated {
+			ea, ok := entriesAfter[key]
+			if !ok {
+				t.Errorf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
 				return
 			}
+			if ea != eu {
+				t.Error("entry received does not match entry on cache")
+				return
+			}
+		}
+	})
+
+	for key, eb := range entriesBefore {
+		ea, ok := entriesAfter[key]
+		if !ok {
+			t.Errorf("expected entry with EntryId=%v after synchronization", key)
+			return
+		}
+		if ea == eb {
+			t.Error("there is at least one entry that was not refreshed")
+			return
 		}
 	}
 }
@@ -519,10 +596,18 @@ func newFetchSVIDResponse(regEntriesKey string, svids svidMap, ca *x509.Certific
 	}
 }
 
-func asMap(res []*common.RegistrationEntry) (result map[string]*common.RegistrationEntry) {
+func regEntriesAsMap(res []*common.RegistrationEntry) (result map[string]*common.RegistrationEntry) {
 	result = map[string]*common.RegistrationEntry{}
 	for _, re := range res {
 		result[re.EntryId] = re
+	}
+	return result
+}
+
+func cacheEntriesAsMap(ces []*cache.Entry) (result map[string]*cache.Entry) {
+	result = map[string]*cache.Entry{}
+	for _, ce := range ces {
+		result[ce.RegistrationEntry.EntryId] = ce
 	}
 	return result
 }
@@ -533,8 +618,8 @@ func compareRegistrationEntries(t *testing.T, expected, actual []*common.Registr
 		return
 	}
 
-	expectedMap := asMap(expected)
-	actualMap := asMap(actual)
+	expectedMap := regEntriesAsMap(expected)
+	actualMap := regEntriesAsMap(actual)
 
 	for id, ee := range expectedMap {
 		ae, ok := actualMap[id]
