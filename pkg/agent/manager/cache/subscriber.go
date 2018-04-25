@@ -55,6 +55,8 @@ func (s *subscribers) Add(sub *Subscriber) error {
 }
 
 func (s *subscribers) Get(sels Selectors) (subs []*Subscriber) {
+	s.m.Lock()
+	defer s.m.Unlock()
 	sids := s.getSubIds(sels)
 	for _, id := range sids {
 		subs = append(subs, s.sidMap[id])

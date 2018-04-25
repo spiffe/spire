@@ -86,11 +86,8 @@ func (c *cacheImpl) Entries() []*Entry {
 }
 
 func (c *cacheImpl) Subscribe(sub *Subscriber) {
-	entries := c.Entries()
-	c.m.Lock()
-	defer c.m.Unlock()
-	go c.updateSubscribers([]*Subscriber{sub}, entries)
 	c.Subscribers.Add(sub)
+	c.notifySubscribers([]*Subscriber{sub})
 }
 
 func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
@@ -103,40 +100,41 @@ func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
 }
 
 func (c *cacheImpl) SetEntry(entry *Entry) {
-	entries := c.Entries()
 	c.m.Lock()
-	defer c.m.Unlock()
-
 	c.cache[entry.RegistrationEntry.EntryId] = entry
+	c.m.Unlock()
 
 	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
-	c.updateSubscribers(subs, entries)
+	c.notifySubscribers(subs)
 	return
 }
 
-func (c *cacheImpl) updateSubscribers(subs []*Subscriber, entries []*Entry) {
-	for _, sub := range subs {
-		subEntries := SubscriberEntries(sub, entries)
-		select {
-		case <-sub.done:
-			c.Subscribers.remove(sub)
-		case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
+func (c *cacheImpl) notifySubscribers(subs []*Subscriber) {
+	go func() {
+		entries := c.Entries()
+		for _, sub := range subs {
+			subEntries := subscriberEntries(sub, entries)
+			select {
+			case <-sub.done:
+				c.Subscribers.remove(sub)
+			case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
+			}
 		}
-	}
+	}()
 }
 
 func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) (deleted bool) {
 	c.m.Lock()
+	defer c.m.Unlock()
+
 	var subs []*Subscriber
 	if entry, found := c.cache[regEntry.EntryId]; found {
 		subs = c.Subscribers.Get(entry.RegistrationEntry.Selectors)
 		delete(c.cache, regEntry.EntryId)
 		deleted = true
+		c.notifySubscribers(subs)
 	}
-	c.m.Unlock()
-	if deleted {
-		c.updateSubscribers(subs, c.Entries())
-	}
+
 	return
 }
 
@@ -146,7 +144,7 @@ func (c *cacheImpl) IsEmpty() bool {
 	return len(c.cache) == 0
 }
 
-func SubscriberEntries(sub *Subscriber, entries []*Entry) (subentries []*Entry) {
+func subscriberEntries(sub *Subscriber, entries []*Entry) (subentries []*Entry) {
 	for _, e := range entries {
 		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
 		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {

@@ -117,8 +117,7 @@ func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan 
 	// returns the added subscriber channel
 	sub, err := cache.NewSubscriber(selectors, done)
 	if err != nil {
-		m.c.Log.Warning(err)
-
+		m.c.Log.Error(err)
 	}
 	m.cache.Subscribe(sub)
 
