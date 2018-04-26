@@ -180,7 +180,7 @@ func (m *manager) newGRPCConn(svid *x509.Certificate, key *ecdsa.PrivateKey) (*g
 	defer cancel()
 
 	config := grpcutil.GRPCDialerConfig{
-		Log:      m.c.Log,
+		Log:      grpcutil.LoggerFromFieldLogger(m.c.Log),
 		CredFunc: credFunc,
 	}
 	dialer := grpcutil.NewGRPCDialer(config)

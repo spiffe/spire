@@ -214,7 +214,7 @@ func (a *attestor) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*
 
 func (a *attestor) serverConn(bundle []*x509.Certificate) (*grpc.ClientConn, error) {
 	config := grpcutil.GRPCDialerConfig{
-		Log:      a.c.Log,
+		Log:      grpcutil.LoggerFromFieldLogger(a.c.Log),
 		CredFunc: a.serverCredFunc(bundle),
 	}
 
