@@ -215,6 +215,29 @@ func (m *manager) bundleAsCertPool() *x509.CertPool {
 }
 
 func (m *manager) setBundle(bundle []*x509.Certificate) {
+	err := m.storeBundle()
+	if err != nil {
+		m.c.Log.Errorf("could not store bundle: %v", err)
+	}
 	m.cache.SetBundle(bundle)
-	m.storeBundle()
+}
+
+func (m *manager) bundleAlreadyCached(bundle []*x509.Certificate) bool {
+	currentBundle := m.cache.Bundle()
+
+	if currentBundle == nil {
+		return bundle == nil
+	}
+
+	if len(bundle) != len(currentBundle) {
+		return false
+	}
+
+	for i, cert := range currentBundle {
+		if !cert.Equal(bundle[i]) {
+			return false
+		}
+	}
+
+	return true
 }

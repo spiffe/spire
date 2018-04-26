@@ -65,8 +65,11 @@ func New(log logrus.FieldLogger, bundle []*x509.Certificate) Cache {
 
 func (c *cacheImpl) SetBundle(bundle []*x509.Certificate) {
 	c.m.Lock()
-	defer c.m.Unlock()
 	c.bundle = bundle
+	c.m.Unlock()
+
+	subs := c.Subscribers.GetAll()
+	c.notifySubscribers(subs)
 }
 
 func (c *cacheImpl) Bundle() []*x509.Certificate {
@@ -106,18 +109,18 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 
 	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
 	c.notifySubscribers(subs)
-	return
 }
 
 func (c *cacheImpl) notifySubscribers(subs []*Subscriber) {
 	go func() {
 		entries := c.Entries()
+		bundle := c.Bundle()
 		for _, sub := range subs {
 			subEntries := subscriberEntries(sub, entries)
 			select {
 			case <-sub.done:
 				c.Subscribers.remove(sub)
-			case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: c.bundle}:
+			case sub.C <- &WorkloadUpdate{Entries: subEntries, Bundle: bundle}:
 			}
 		}
 	}()

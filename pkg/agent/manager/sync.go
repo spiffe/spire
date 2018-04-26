@@ -69,7 +69,10 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests map[string]*entryR
 		if err != nil {
 			return nil, nil, err
 		}
-		m.setBundle(bundle)
+
+		if !m.bundleAlreadyCached(bundle) {
+			m.setBundle(bundle)
+		}
 	}
 
 	return update.regEntries, update.svids, nil

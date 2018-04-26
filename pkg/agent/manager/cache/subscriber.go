@@ -64,6 +64,16 @@ func (s *subscribers) Get(sels Selectors) (subs []*Subscriber) {
 	return
 }
 
+func (s *subscribers) GetAll() (subs []*Subscriber) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	for _, sub := range s.sidMap {
+		subs = append(subs, sub)
+	}
+	return
+}
+
 func (s *subscribers) remove(sub *Subscriber) {
 	s.m.Lock()
 	defer s.m.Unlock()
