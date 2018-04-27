@@ -91,6 +91,7 @@ func (m *manager) Start() error {
 	go func() {
 		err := m.t.Wait()
 		m.close(err)
+		m.started = false
 	}()
 	return nil
 }
