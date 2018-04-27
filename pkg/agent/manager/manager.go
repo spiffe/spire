@@ -91,7 +91,7 @@ func (m *manager) Start() error {
 	go func() {
 		err := m.t.Wait()
 		m.close(err)
-		m.started = false
+		m.setStarted(false)
 	}()
 	return nil
 }
@@ -107,7 +107,7 @@ func (m *manager) close(err error) {
 
 func (m *manager) Shutdown() {
 	m.shutdown(nil)
-	if m.started {
+	if m.isStarted() {
 		<-m.t.Dead()
 	}
 }
@@ -144,7 +144,7 @@ func (m *manager) Err() error {
 }
 
 func (m *manager) run() error {
-	m.started = true
+	m.setStarted(true)
 	m.t.Go(m.synchronizer)
 	m.t.Go(m.rotator)
 	return nil
@@ -186,6 +186,18 @@ func (m *manager) rotator() error {
 
 func (m *manager) shutdown(err error) {
 	m.t.Kill(err)
+}
+
+func (m *manager) isStarted() bool {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+	return m.started
+}
+
+func (m *manager) setStarted(value bool) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	m.started = value
 }
 
 func (m *manager) isAlreadyCached(regEntry *common.RegistrationEntry) bool {
