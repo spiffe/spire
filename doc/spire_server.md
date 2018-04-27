@@ -70,7 +70,42 @@ human-readable registration entry name in addition to the token-based entry.
 |:--------------|:----------------------------------------------------------|:---------------|
 | `-serverAddr` | Address of the SPIRE server to register with              | localhost:8081 |
 | `-spiffeID`   | Additional SPIFFE ID to assign the token owner (optional) |                |
-| `-ttl int`    | Token TTL in seconds                                      | 600            |
+| `-ttl`        | Token TTL in seconds                                      | 600            |
+
+### `spire-server entry create`
+
+Creates registration entries.
+
+| Command       | Action                                                                 | Default        |
+|:--------------|:-----------------------------------------------------------------------|:---------------|
+| `-data`       | Path to a file containing registration data in JSON format (optional). |                |
+| `-parentID`   | The SPIFFE ID of this record's parent.                                 |                |
+| `-selector`   | A colon-delimeted type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
+| `-serverAddr` | Address of the SPIRE server.                                           | localhost:8081 |
+| `-spiffeID`   | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
+| `-ttl`        | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+
+### `spire-server entry delete`
+
+Deletes a specified registration entry.
+
+| Command       | Action                                             | Default        |
+|:--------------|:---------------------------------------------------|:---------------|
+| `-entryID`    | The Registration Entry ID of the record to delete  |                |
+| `-serverAddr` | Address of the SPIRE server                        | localhost:8081 |
+
+### `spire-server entry show`
+
+Displays configured registration entries.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-entryID`    | The Entry ID of the record to show.                                |                |
+| `-parentID`   | The Parent ID of the records to show.                              |                |
+| `-selector`   | A colon-delimeted type:value selector. Can be used more than once to specify multiple selectors. | |
+| `-serverAddr` | Address of the SPIRE server.                                       | localhost:8081 |
+| `-spiffeID`   | The SPIFFE ID of the records to show.                              |                |
+| `-selector`   | A TTL, in seconds, for any SVID issued as a result of this record. | 3600           |
 
 ## Architechture
 
