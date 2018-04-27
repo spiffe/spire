@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -142,7 +141,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		},
 		SVID:          baseSVID,
 		SVIDKey:       baseSVIDKey,
-		Log:           logrus.New(),
+		Log:           testLogger,
 		TrustDomain:   url.URL{Host: trustDomain},
 		SVIDCachePath: path.Join(dir, "svid.der"),
 		Bundle:        apiHandler.bundle,
@@ -234,7 +233,7 @@ func TestSVIDRotation(t *testing.T) {
 		},
 		SVID:          baseSVID,
 		SVIDKey:       baseSVIDKey,
-		Log:           logrus.New(),
+		Log:           testLogger,
 		TrustDomain:   url.URL{Host: trustDomain},
 		SVIDCachePath: path.Join(dir, "svid.der"),
 		Bundle:        apiHandler.bundle,
@@ -256,12 +255,6 @@ func TestSVIDRotation(t *testing.T) {
 	}
 	defer m.Shutdown()
 
-	elapsed := time.Since(baseSVID.NotBefore)
-	if elapsed > 2*baseTTL/3 {
-		t.Errorf("manager startup took too long: %dms", elapsed/time.Millisecond)
-		return
-	}
-
 	cert, key := m.getBaseSVIDEntry()
 	if !cert.Equal(baseSVID) {
 		t.Error("SVID is not equals to configured one")
@@ -272,8 +265,11 @@ func TestSVIDRotation(t *testing.T) {
 		return
 	}
 
-	// Sleep to ensure that rotation happened
-	time.Sleep(baseTTL - elapsed)
+	// Loop until we detect a rotation
+	util.RunWithTimeout(t, 2*m.rotationFreq, func() {
+		for cert, _ = m.getBaseSVIDEntry(); cert.Equal(baseSVID); cert, _ = m.getBaseSVIDEntry() {
+		}
+	})
 
 	cert, key = m.getBaseSVIDEntry()
 	if cert.Equal(baseSVID) {
@@ -311,13 +307,12 @@ func TestSynchronization(t *testing.T) {
 		},
 		SVID:          baseSVID,
 		SVIDKey:       baseSVIDKey,
-		Log:           logrus.New(),
+		Log:           testLogger,
 		TrustDomain:   url.URL{Host: trustDomain},
 		SVIDCachePath: path.Join(dir, "svid.der"),
 		Bundle:        apiHandler.bundle,
 		Tel:           &telemetry.Blackhole{},
 	}
-	c.Log.(*logrus.Logger).SetLevel(logrus.DebugLevel)
 
 	mgr, err := New(c)
 	if err != nil {
@@ -328,7 +323,7 @@ func TestSynchronization(t *testing.T) {
 	m := mgr.(*manager)
 	m.rotationFreq = 1 * time.Hour
 	m.syncFreq = 2 * time.Second
-	start := time.Now()
+	//start := time.Now()
 	err = m.Start()
 	if err != nil {
 		t.Error(err)
@@ -346,13 +341,6 @@ func TestSynchronization(t *testing.T) {
 	entriesBefore := cacheEntriesAsMap(m.cache.Entries())
 	if len(entriesBefore) != 3 {
 		t.Error("3 cached entries were expected")
-		return
-	}
-
-	// If synchronization could already have happened, we cannot continue with this test.
-	elapsed := time.Since(start)
-	if elapsed > m.syncFreq {
-		t.Errorf("manager startup took too long: %dms", elapsed/time.Millisecond)
 		return
 	}
 
@@ -385,12 +373,12 @@ func TestSynchronization(t *testing.T) {
 		}
 	})
 
-	util.RunWithTimeout(t, 2*m.syncFreq-elapsed, func() {
-		// There should be 3 updates on sync.
+	util.RunWithTimeout(t, 2*m.syncFreq, func() {
+		// There should be 3 updates after sync, because we are subcribed to selectors that
+		// matches with 3 entries that were renewed on the cache.
 		<-wu
 		<-wu
 		u := <-wu
-		close(done)
 
 		entriesAfter := cacheEntriesAsMap(m.cache.Entries())
 		if len(entriesAfter) != 3 {
@@ -462,13 +450,12 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		},
 		SVID:          baseSVID,
 		SVIDKey:       baseSVIDKey,
-		Log:           logrus.New(),
+		Log:           testLogger,
 		TrustDomain:   url.URL{Host: trustDomain},
 		SVIDCachePath: path.Join(dir, "svid.der"),
 		Bundle:        []*x509.Certificate{apiHandler.bundle[0]},
 		Tel:           &telemetry.Blackhole{},
 	}
-	c.Log.(*logrus.Logger).SetLevel(logrus.DebugLevel)
 
 	mgr, err := New(c)
 	if err != nil {
