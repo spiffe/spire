@@ -77,12 +77,13 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
 	c := &Config{
-		ServerAddr:    &net.TCPAddr{},
-		SVID:          baseSVID,
-		SVIDKey:       baseSVIDKey,
-		Log:           testLogger,
-		TrustDomain:   url.URL{Host: "somedomain.com"},
-		SVIDCachePath: path.Join(dir, "svid.der"),
+		ServerAddr:      &net.TCPAddr{},
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		TrustDomain:     url.URL{Host: "somedomain.com"},
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
 	}
 
 	_, err := ReadSVID(c.SVIDCachePath)
@@ -139,13 +140,14 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 			Net:  "unix",
 			Name: apiHandler.sockPath,
 		},
-		SVID:          baseSVID,
-		SVIDKey:       baseSVIDKey,
-		Log:           testLogger,
-		TrustDomain:   url.URL{Host: trustDomain},
-		SVIDCachePath: path.Join(dir, "svid.der"),
-		Bundle:        apiHandler.bundle,
-		Tel:           &telemetry.Blackhole{},
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		TrustDomain:     url.URL{Host: trustDomain},
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Bundle:          apiHandler.bundle,
+		Tel:             &telemetry.Blackhole{},
 	}
 	mgr, err := New(c)
 	if err != nil {
@@ -217,7 +219,7 @@ func TestSVIDRotation(t *testing.T) {
 		t:                 t,
 		trustDomain:       trustDomain,
 		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponseForTestSVIDRotation,
+		fetchSVIDResponse: fetchSVIDResponse,
 		svidTTL:           3,
 	})
 	apiHandler.start()
@@ -231,13 +233,14 @@ func TestSVIDRotation(t *testing.T) {
 			Net:  "unix",
 			Name: apiHandler.sockPath,
 		},
-		SVID:          baseSVID,
-		SVIDKey:       baseSVIDKey,
-		Log:           testLogger,
-		TrustDomain:   url.URL{Host: trustDomain},
-		SVIDCachePath: path.Join(dir, "svid.der"),
-		Bundle:        apiHandler.bundle,
-		Tel:           &telemetry.Blackhole{},
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		TrustDomain:     url.URL{Host: trustDomain},
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Bundle:          apiHandler.bundle,
+		Tel:             &telemetry.Blackhole{},
 	}
 	mgr, err := New(c)
 	if err != nil {
@@ -265,17 +268,12 @@ func TestSVIDRotation(t *testing.T) {
 		return
 	}
 
-	// Loop until we detect a rotation
+	// Loop until we detect an SVID rotation
 	util.RunWithTimeout(t, 2*m.rotationFreq, func() {
-		for cert, _ = m.getBaseSVIDEntry(); cert.Equal(baseSVID); cert, _ = m.getBaseSVIDEntry() {
+		for cert, key = m.getBaseSVIDEntry(); cert.Equal(baseSVID); cert, key = m.getBaseSVIDEntry() {
 		}
 	})
 
-	cert, key = m.getBaseSVIDEntry()
-	if cert.Equal(baseSVID) {
-		t.Error("SVID did not rotate")
-		return
-	}
 	if key == baseSVIDKey {
 		t.Error("PrivateKey did not rotate")
 		return
@@ -292,7 +290,7 @@ func TestSynchronization(t *testing.T) {
 		t:                 t,
 		trustDomain:       trustDomain,
 		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponseForTestSynchronization,
+		fetchSVIDResponse: fetchSVIDResponse,
 		svidTTL:           2,
 	})
 	apiHandler.start()
@@ -305,13 +303,14 @@ func TestSynchronization(t *testing.T) {
 			Net:  "unix",
 			Name: apiHandler.sockPath,
 		},
-		SVID:          baseSVID,
-		SVIDKey:       baseSVIDKey,
-		Log:           testLogger,
-		TrustDomain:   url.URL{Host: trustDomain},
-		SVIDCachePath: path.Join(dir, "svid.der"),
-		Bundle:        apiHandler.bundle,
-		Tel:           &telemetry.Blackhole{},
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		TrustDomain:     url.URL{Host: trustDomain},
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Bundle:          apiHandler.bundle,
+		Tel:             &telemetry.Blackhole{},
 	}
 
 	mgr, err := New(c)
@@ -447,13 +446,14 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 			Net:  "unix",
 			Name: apiHandler.sockPath,
 		},
-		SVID:          baseSVID,
-		SVIDKey:       baseSVIDKey,
-		Log:           testLogger,
-		TrustDomain:   url.URL{Host: trustDomain},
-		SVIDCachePath: path.Join(dir, "svid.der"),
-		Bundle:        []*x509.Certificate{apiHandler.bundle[0]},
-		Tel:           &telemetry.Blackhole{},
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		TrustDomain:     url.URL{Host: trustDomain},
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Bundle:          []*x509.Certificate{apiHandler.bundle[0]},
+		Tel:             &telemetry.Blackhole{},
 	}
 
 	mgr, err := New(c)
@@ -497,6 +497,77 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		if !u.Bundle[1].Equal(apiHandler.bundle[1]) {
 			t.Error("new bundles were expected to be equals")
 		}
+	})
+}
+
+func TestSurvivesCARotation(t *testing.T) {
+	dir := createTempDir(t)
+	defer removeTempDir(dir)
+
+	trustDomain := "example.org"
+
+	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
+		t:                 t,
+		trustDomain:       trustDomain,
+		dir:               dir,
+		fetchSVIDResponse: fetchSVIDResponseForTestSurvivesCARotation,
+		// Give a low ttl to get expired entries on each synchronization, forcing
+		// the manager to fetch entries from the server.
+		svidTTL: 3,
+	})
+	apiHandler.start()
+	defer apiHandler.stop()
+
+	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+
+	c := &Config{
+		ServerAddr: &net.UnixAddr{
+			Net:  "unix",
+			Name: apiHandler.sockPath,
+		},
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		TrustDomain:     url.URL{Host: trustDomain},
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Bundle:          []*x509.Certificate{apiHandler.bundle[0]},
+		Tel:             &telemetry.Blackhole{},
+	}
+
+	mgr, err := New(c)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	m := mgr.(*manager)
+	m.rotationFreq = 1 * time.Hour
+	// We want frequent synchronizations to speed up the test.
+	m.syncFreq = 1 * time.Second
+
+	done := make(chan struct{})
+	wu := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}}, done)
+
+	err = m.Start()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer m.Shutdown()
+
+	util.RunWithTimeout(t, 4*time.Second, func() {
+		// This should be the update received when Subscribe function was called.
+		<-wu
+		// 3 updates should came from updates to the bundle and 2 cache entries on startup
+		<-wu
+		<-wu
+		<-wu
+	})
+
+	util.RunWithTimeout(t, 8*time.Second, func() {
+		// This additional update should be received once connection is restablished by synchronization
+		<-wu
 	})
 }
 
@@ -560,31 +631,7 @@ func fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandl
 	}
 }
 
-func fetchSVIDResponseForTestSVIDRotation(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
-	switch h.reqCount {
-	case 5:
-		if len(req.Csrs) != 1 {
-			return fmt.Errorf("server expected 1 CRS, got: %d. reqCount: %d", len(req.Csrs), h.reqCount)
-		}
-
-		svid := h.newSVIDFromCSR(req.Csrs[0])
-		spiffeID, err := getSpiffeIDFromSVID(svid)
-		if err != nil {
-			return err
-		}
-
-		return stream.Send(newFetchSVIDResponse(
-			"resp1",
-			svidMap{
-				spiffeID: {SvidCert: svid.Raw},
-			},
-			h.bundle))
-	default:
-		return fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h, req, stream)
-	}
-}
-
-func fetchSVIDResponseForTestSynchronization(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func fetchSVIDResponse(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
 	svid, err := h.getCertFromCtx(stream.Context())
 	if err != nil {
 		return fmt.Errorf("cannot get SVID from stream context: %v. reqCount: %d", err, h.reqCount)
@@ -623,7 +670,23 @@ func fetchSVIDResponseForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler,
 		h.bundle = append(h.bundle, ca)
 	}
 
-	return fetchSVIDResponseForTestSynchronization(h, req, stream)
+	return fetchSVIDResponse(h, req, stream)
+}
+
+func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+	switch h.reqCount {
+	case 2:
+		ca, key := createCA(h.c.t, h.c.trustDomain)
+		h.cakey = key
+		h.bundle = append(h.bundle, ca)
+	case 5:
+		h.stop()
+		time.Sleep(1 * time.Second)
+		h.start()
+		return fmt.Errorf("server was restarted")
+	}
+
+	return fetchSVIDResponse(h, req, stream)
 }
 
 func newFetchSVIDResponse(regEntriesKey string, svids svidMap, bundle []*x509.Certificate) *node.FetchSVIDResponse {
@@ -704,6 +767,7 @@ type mockNodeAPIHandler struct {
 
 	sockPath string
 	server   *grpc.Server
+	creds    grpc.ServerOption
 
 	// Counts the number of requests received from clients
 	reqCount int
@@ -728,11 +792,7 @@ func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig) *mockNodeAPIHandler
 		GetConfigForClient: h.getGRPCServerConfig,
 	}
 
-	opts := grpc.Creds(credentials.NewTLS(tlsConfig))
-	s := grpc.NewServer(opts)
-
-	node.RegisterNodeServer(s, h)
-	h.server = s
+	h.creds = grpc.Creds(credentials.NewTLS(tlsConfig))
 	return h
 }
 
@@ -764,12 +824,21 @@ func (h *mockNodeAPIHandler) FetchFederatedBundle(context.Context, *node.FetchFe
 }
 
 func (h *mockNodeAPIHandler) start() {
+	s := grpc.NewServer(h.creds)
+	node.RegisterNodeServer(s, h)
+	h.server = s
+
 	l, err := net.Listen("unix", h.sockPath)
 	if err != nil {
 		h.c.t.Fatalf("create UDS listener: %s", err)
 	}
 
-	go func() { h.server.Serve(l) }()
+	go func() {
+		err := h.server.Serve(l)
+		if err != nil {
+			panic(fmt.Errorf("error starting mock server: %v", err))
+		}
+	}()
 
 	// Let grpc server initialize
 	time.Sleep(1 * time.Millisecond)
@@ -777,7 +846,7 @@ func (h *mockNodeAPIHandler) start() {
 
 func (h *mockNodeAPIHandler) stop() {
 	h.server.Stop()
-	os.RemoveAll(path.Dir(h.sockPath))
+	os.Remove(h.sockPath)
 }
 
 func (h *mockNodeAPIHandler) ca() *x509.Certificate {
