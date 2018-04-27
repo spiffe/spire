@@ -323,7 +323,6 @@ func TestSynchronization(t *testing.T) {
 	m := mgr.(*manager)
 	m.rotationFreq = 1 * time.Hour
 	m.syncFreq = 2 * time.Second
-	//start := time.Now()
 	err = m.Start()
 	if err != nil {
 		t.Error(err)
