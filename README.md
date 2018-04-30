@@ -1,5 +1,6 @@
 ![Build Status](https://travis-ci.org/spiffe/spire.svg?branch=master)
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=master)](https://coveralls.io/github/spiffe/spire?branch=master)
+[![Slack Status](https://slack.spiffe.io/badge.svg)](https://slack.spiffe.io)
 
 ![SPIRE Logo](/doc/images/spire_logo.png)
 
@@ -14,7 +15,9 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
   - [Joining to the SPIRE server with a join token](#joining-to-the-spire-server-with-a-join-token)
   - [Workload Registration](#workload-registration)
   - [Workload SVID Retrieval](#workload-svid-retrieval)
+- [Getting help](#getting-help)
 - [Community](#community)
+- [Roadmap](#roadmap)
 
 > Please note that the SPIRE project is pre-alpha. It is under heavy development, and is NOT suitable for production use. See the [open issues](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/) for more information.
 
@@ -193,6 +196,10 @@ Optionally, you may write the SVID and key to disk with `-write` in order to exa
     #          16:87:b2:97:2f:98:ed:80:2a:5e:62:f4:7f:87:82:ff:67:96:
     #          e6:2e:fa:a1
 
+# Getting Help
+
+If you have any questions about how SPIRE works, or how to get it up and running, the best place to ask questions is the [SPIRE Slack Organization](https://slack.spiffe.io/). Most of the maintainers monitor the #spire channel there, and can help direct you to other channels if need be. Please feel free to drop by any time!
+
 # Community
 
 The SPIFFE community, and [Scytale](https://scytale.io) in particular, maintain the SPIRE project.
@@ -201,3 +208,11 @@ https://github.com/spiffe/spiffe.
 
 The SPIFFE and SPIRE governance policies are detailed in
 [GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md)
+
+# Roadmap
+
+In case you're wondering where this project is headed, here is the SPIRE major feature roadmap:
+- **JWT-SVID:** Support in SPIRE for generating JWT-based SVIDs through the Workload API. Pending finalization of the JWT-SVID specification in [SIG-Spec](https://github.com/spiffe/spiffe/blob/master/community/sig-spec/README.md). Target date: end of July 2018.
+- **Federation:** Support for federating trust domains by joining SPIRE servers together. Pending finalization of the Federation API specification in [SIG-Spec](https://github.com/spiffe/spiffe/blob/master/community/sig-spec/README.md). Target date: end of August 2018.
+- **High Availability:** Support for clustering multiple SPIRE servers together within a single trust domain. Target date: end of October 2018.
+- **Revocation:** Support for revoking X509-SVIDs through the use of CRLs delivered over the Workload API. Target date: end of November 2018.
