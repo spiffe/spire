@@ -264,6 +264,7 @@ func TestSVIDRotation(t *testing.T) {
 			if !cert.Equal(baseSVID) {
 				break
 			}
+			time.Sleep(100 * time.Millisecond)
 		}
 	})
 
