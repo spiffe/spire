@@ -1,4 +1,4 @@
-# Server plugin: ControlPlaneCA "memory"
+# Server plugin: ServerCA "memory"
 
 The `memory` plugin implements an in-memory signing authority. No keys are persisted to disk, and
 if the server is restarted, a new signing authority is generated against the upstream CA.

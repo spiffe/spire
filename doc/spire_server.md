@@ -70,7 +70,42 @@ human-readable registration entry name in addition to the token-based entry.
 |:--------------|:----------------------------------------------------------|:---------------|
 | `-serverAddr` | Address of the SPIRE server to register with              | localhost:8081 |
 | `-spiffeID`   | Additional SPIFFE ID to assign the token owner (optional) |                |
-| `-ttl int`    | Token TTL in seconds                                      | 600            |
+| `-ttl`        | Token TTL in seconds                                      | 600            |
+
+### `spire-server entry create`
+
+Creates registration entries.
+
+| Command       | Action                                                                 | Default        |
+|:--------------|:-----------------------------------------------------------------------|:---------------|
+| `-data`       | Path to a file containing registration data in JSON format (optional). |                |
+| `-parentID`   | The SPIFFE ID of this record's parent.                                 |                |
+| `-selector`   | A colon-delimeted type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
+| `-serverAddr` | Address of the SPIRE server.                                           | localhost:8081 |
+| `-spiffeID`   | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
+| `-ttl`        | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+
+### `spire-server entry delete`
+
+Deletes a specified registration entry.
+
+| Command       | Action                                             | Default        |
+|:--------------|:---------------------------------------------------|:---------------|
+| `-entryID`    | The Registration Entry ID of the record to delete  |                |
+| `-serverAddr` | Address of the SPIRE server                        | localhost:8081 |
+
+### `spire-server entry show`
+
+Displays configured registration entries.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-entryID`    | The Entry ID of the record to show.                                |                |
+| `-parentID`   | The Parent ID of the records to show.                              |                |
+| `-selector`   | A colon-delimeted type:value selector. Can be used more than once to specify multiple selectors. | |
+| `-serverAddr` | Address of the SPIRE server.                                       | localhost:8081 |
+| `-spiffeID`   | The SPIFFE ID of the records to show.                              |                |
+| `-selector`   | A TTL, in seconds, for any SVID issued as a result of this record. | 3600           |
 
 ## Architechture
 
@@ -84,21 +119,21 @@ API and the Node API, with which agents communicate with the server.
 
 | Type           | Description |
 |:---------------|:------------|
-| ControlPlaneCA | Implements both signing and key storage logic for the server's CA operations. Useful for leveraging hardware-based key operations. |
+| ServerCA       | Implements both signing and key storage logic for the server's CA operations. Useful for leveraging hardware-based key operations. |
 | DataStore      | Provides persistent storage and HA features. |
 | NodeAttestor   | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type. |
 | NodeResolver   | A plugin capable of discovering platform-specific metadata of nodes which have been successfully attested. Discovered metadata is stored as selectors and can be used when creating registration entries. |
-| UpstreamCA     | Allows SPIRE server to integrate with existing PKI systems. The ControlPlaneCA plugin generates CSRs for its signing authority, which are submitted to the upstream CA for signing. |
+| UpstreamCA     | Allows SPIRE server to integrate with existing PKI systems. The ServerCA plugin generates CSRs for its signing authority, which are submitted to the upstream CA for signing. |
 
 ## Built-in plugins
 
 | Type | Name | Description |
 | ---- | ---- | ----------- |
-| ControlPlaneCA | [memory](/doc/plugin_server_ca_memory.md) | An in-memory CA for signing SVIDs |
+| ServerCA  | [memory](/doc/plugin_server_ca_memory.md) | An in-memory CA for signing SVIDs |
 | DataStore | [sqlite](/doc/plugin_server_datastore_sqlite.md) | An sqlite-based implementation of the SPIRE datastore |
 | NodeAttestor | [join_token](/doc/plugin_server_nodeattestor_jointoken.md) | A node attestor which validates agents attesting with server-generated join tokens |
 | NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
-| UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to generate SPIRE server intermediate certificates for use in the ControlPlaneCA plugin |
+| UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to generate SPIRE server intermediate certificates for use in the ServerCA plugin |
 
 ## Further reading
 

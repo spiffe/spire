@@ -136,7 +136,7 @@ func (m *manager) updateEntriesSVIDs(entryRequestsMap map[string]*entryRequest, 
 func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
 	defer m.c.Tel.MeasureSince([]string{"cache_manager", "expiry_check_duration"}, time.Now())
 
-	for entry := range m.cache.Entries() {
+	for _, entry := range m.cache.Entries() {
 		ttl := entry.SVID.NotAfter.Sub(time.Now())
 		lifetime := entry.SVID.NotAfter.Sub(entry.SVID.NotBefore)
 		// If the cached SVID has a remaining lifetime less than 50%, prepare a

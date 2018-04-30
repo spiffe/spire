@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	CAType           = "ControlPlaneCA"
+	CAType           = "ServerCA"
 	DataStoreType    = "DataStore"
 	NodeAttestorType = "NodeAttestor"
 	NodeResolverType = "NodeResolver"
@@ -32,7 +32,7 @@ const (
 type Catalog interface {
 	common.Catalog
 
-	CAs() []ca.ControlPlaneCa
+	CAs() []ca.ServerCa
 	DataStores() []datastore.DataStore
 	NodeAttestors() []nodeattestor.NodeAttestor
 	NodeResolvers() []noderesolver.NodeResolver
@@ -41,7 +41,7 @@ type Catalog interface {
 
 var (
 	supportedPlugins = map[string]goplugin.Plugin{
-		CAType:           &ca.ControlPlaneCaPlugin{},
+		CAType:           &ca.ServerCaPlugin{},
 		DataStoreType:    &datastore.DataStorePlugin{},
 		NodeAttestorType: &nodeattestor.NodeAttestorPlugin{},
 		NodeResolverType: &noderesolver.NodeResolverPlugin{},
@@ -78,7 +78,7 @@ type catalog struct {
 	m   *sync.RWMutex
 	log logrus.FieldLogger
 
-	caPlugins           []ca.ControlPlaneCa
+	caPlugins           []ca.ServerCa
 	dataStorePlugins    []datastore.DataStore
 	nodeAttestorPlugins []nodeattestor.NodeAttestor
 	nodeResolverPlugins []noderesolver.NodeResolver
@@ -148,7 +148,7 @@ func (c *catalog) Find(plugin common.Plugin) *common.ManagedPlugin {
 	return c.com.Find(plugin)
 }
 
-func (c *catalog) CAs() []ca.ControlPlaneCa {
+func (c *catalog) CAs() []ca.ServerCa {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -198,7 +198,7 @@ func (c *catalog) categorize() error {
 
 		switch p.Config.PluginType {
 		case CAType:
-			pl, ok := p.Plugin.(ca.ControlPlaneCa)
+			pl, ok := p.Plugin.(ca.ServerCa)
 			if !ok {
 				return fmt.Errorf("Plugin %s does not adhere to CA interface", p.Config.PluginName)
 			}

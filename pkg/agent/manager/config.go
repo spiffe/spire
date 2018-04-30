@@ -54,7 +54,7 @@ func New(c *Config) (Manager, error) {
 		svid:            c.SVID,
 		svidKey:         c.SVIDKey,
 		spiffeID:        spiffeID,
-		serverSPIFFEID:  "spiffe://" + c.TrustDomain.Host + "/spiffe/cp",
+		serverSPIFFEID:  "spiffe://" + c.TrustDomain.Host + "/spiffe/server",
 		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,

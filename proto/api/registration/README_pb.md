@@ -1031,7 +1031,7 @@ A list of registration entries.
 <a name="spire.common.RegistrationEntry"/>
 
 ### RegistrationEntry
-This is a curated record that the Control Plane uses to set up and
+This is a curated record that the Server uses to set up and
 manage the various registered nodes and workloads that are controlled by it.
 
 
@@ -1120,7 +1120,7 @@ It represents a request with a FederatedBundle to create.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federated_bundle | [FederatedBundle](#spire.api.registration.FederatedBundle) |  | A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain. |
+| federated_bundle | [FederatedBundle](#spire.api.registration.FederatedBundle) |  | A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain. |
 
 
 
@@ -1130,13 +1130,13 @@ It represents a request with a FederatedBundle to create.
 <a name="spire.api.registration.FederatedBundle"/>
 
 ### FederatedBundle
-A CA bundle for a different Trust Domain than the one used and managed by the Control Plane.
+A CA bundle for a different Trust Domain than the one used and managed by the Server.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | A SPIFFE ID that has a Federated Bundle |
-| federated_bundle | [bytes](#bytes) |  | A trusted cert bundle that is not part of Control Planes trust domain but belongs to a different Trust Domain |
+| federated_bundle | [bytes](#bytes) |  | A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain |
 | ttl | [int32](#int32) |  | Time to live. |
 
 

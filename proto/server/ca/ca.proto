@@ -1,5 +1,5 @@
 /** Responsible for processing CSR requests from Node Agents if the
-Control Plane is configured to carry an intermediate signing certificate.
+Server is configured to carry an intermediate signing certificate.
 This plugin is also responsible for generating the CSR necessary for
 an intermediate signing cert, as well as storing the key in memory
 or hardware. */
@@ -54,12 +54,12 @@ message LoadCertificateRequest {
 message LoadCertificateResponse {
 }
 
-service ControlPlaneCA {
+service ServerCA {
     /** Interface will take in a CSR and sign it with the stored intermediate certificate. */
     rpc SignCsr(SignCsrRequest) returns (SignCsrResponse);
     /** Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. */
     rpc GenerateCsr(GenerateCsrRequest) returns (GenerateCsrResponse);
-    /** Used to read the stored Intermediate CP cert. */
+    /** Used to read the stored Intermediate Server cert. */
     rpc FetchCertificate(FetchCertificateRequest) returns (FetchCertificateResponse);
     /** Used for setting/storing the signed intermediate certificate. */
     rpc LoadCertificate(LoadCertificateRequest) returns (LoadCertificateResponse);

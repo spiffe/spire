@@ -115,7 +115,7 @@ func (m *Selectors) GetEntries() []*Selector {
 	return nil
 }
 
-// * This is a curated record that the Control Plane uses to set up and
+// * This is a curated record that the Server uses to set up and
 // manage the various registered nodes and workloads that are controlled by it.
 type RegistrationEntry struct {
 	// * A list of selectors.

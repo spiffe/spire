@@ -19,7 +19,7 @@ message AttestRequest {
 message AttestResponse {
     /** True/False */
     bool valid = 1;
-    /** Used for the Control Plane to validate the SPIFFE Id in the Certificate signing request. */
+    /** Used for the Server to validate the SPIFFE Id in the Certificate signing request. */
     string baseSPIFFEID = 2;
 }
 

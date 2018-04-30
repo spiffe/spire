@@ -9,34 +9,34 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	plugin "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/ca"
+	ca "github.com/spiffe/spire/proto/server/ca"
 )
 
-// MockControlPlaneCa is a mock of ControlPlaneCa interface
-type MockControlPlaneCa struct {
+// MockServerCa is a mock of ServerCa interface
+type MockServerCa struct {
 	ctrl     *gomock.Controller
-	recorder *MockControlPlaneCaMockRecorder
+	recorder *MockServerCaMockRecorder
 }
 
-// MockControlPlaneCaMockRecorder is the mock recorder for MockControlPlaneCa
-type MockControlPlaneCaMockRecorder struct {
-	mock *MockControlPlaneCa
+// MockServerCaMockRecorder is the mock recorder for MockServerCa
+type MockServerCaMockRecorder struct {
+	mock *MockServerCa
 }
 
-// NewMockControlPlaneCa creates a new mock instance
-func NewMockControlPlaneCa(ctrl *gomock.Controller) *MockControlPlaneCa {
-	mock := &MockControlPlaneCa{ctrl: ctrl}
-	mock.recorder = &MockControlPlaneCaMockRecorder{mock}
+// NewMockServerCa creates a new mock instance
+func NewMockServerCa(ctrl *gomock.Controller) *MockServerCa {
+	mock := &MockServerCa{ctrl: ctrl}
+	mock.recorder = &MockServerCaMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockControlPlaneCa) EXPECT() *MockControlPlaneCaMockRecorder {
+func (m *MockServerCa) EXPECT() *MockServerCaMockRecorder {
 	return m.recorder
 }
 
 // Configure mocks base method
-func (m *MockControlPlaneCa) Configure(request *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (m *MockServerCa) Configure(request *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	ret := m.ctrl.Call(m, "Configure", request)
 	ret0, _ := ret[0].(*plugin.ConfigureResponse)
 	ret1, _ := ret[1].(error)
@@ -44,12 +44,12 @@ func (m *MockControlPlaneCa) Configure(request *plugin.ConfigureRequest) (*plugi
 }
 
 // Configure indicates an expected call of Configure
-func (mr *MockControlPlaneCaMockRecorder) Configure(request interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockControlPlaneCa)(nil).Configure), request)
+func (mr *MockServerCaMockRecorder) Configure(request interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockServerCa)(nil).Configure), request)
 }
 
 // GetPluginInfo mocks base method
-func (m *MockControlPlaneCa) GetPluginInfo(arg0 *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (m *MockServerCa) GetPluginInfo(arg0 *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	ret := m.ctrl.Call(m, "GetPluginInfo", arg0)
 	ret0, _ := ret[0].(*plugin.GetPluginInfoResponse)
 	ret1, _ := ret[1].(error)
@@ -57,12 +57,12 @@ func (m *MockControlPlaneCa) GetPluginInfo(arg0 *plugin.GetPluginInfoRequest) (*
 }
 
 // GetPluginInfo indicates an expected call of GetPluginInfo
-func (mr *MockControlPlaneCaMockRecorder) GetPluginInfo(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPluginInfo", reflect.TypeOf((*MockControlPlaneCa)(nil).GetPluginInfo), arg0)
+func (mr *MockServerCaMockRecorder) GetPluginInfo(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPluginInfo", reflect.TypeOf((*MockServerCa)(nil).GetPluginInfo), arg0)
 }
 
 // SignCsr mocks base method
-func (m *MockControlPlaneCa) SignCsr(arg0 *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
+func (m *MockServerCa) SignCsr(arg0 *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
 	ret := m.ctrl.Call(m, "SignCsr", arg0)
 	ret0, _ := ret[0].(*ca.SignCsrResponse)
 	ret1, _ := ret[1].(error)
@@ -70,12 +70,12 @@ func (m *MockControlPlaneCa) SignCsr(arg0 *ca.SignCsrRequest) (*ca.SignCsrRespon
 }
 
 // SignCsr indicates an expected call of SignCsr
-func (mr *MockControlPlaneCaMockRecorder) SignCsr(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignCsr", reflect.TypeOf((*MockControlPlaneCa)(nil).SignCsr), arg0)
+func (mr *MockServerCaMockRecorder) SignCsr(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignCsr", reflect.TypeOf((*MockServerCa)(nil).SignCsr), arg0)
 }
 
 // GenerateCsr mocks base method
-func (m *MockControlPlaneCa) GenerateCsr(arg0 *ca.GenerateCsrRequest) (*ca.GenerateCsrResponse, error) {
+func (m *MockServerCa) GenerateCsr(arg0 *ca.GenerateCsrRequest) (*ca.GenerateCsrResponse, error) {
 	ret := m.ctrl.Call(m, "GenerateCsr", arg0)
 	ret0, _ := ret[0].(*ca.GenerateCsrResponse)
 	ret1, _ := ret[1].(error)
@@ -83,12 +83,12 @@ func (m *MockControlPlaneCa) GenerateCsr(arg0 *ca.GenerateCsrRequest) (*ca.Gener
 }
 
 // GenerateCsr indicates an expected call of GenerateCsr
-func (mr *MockControlPlaneCaMockRecorder) GenerateCsr(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateCsr", reflect.TypeOf((*MockControlPlaneCa)(nil).GenerateCsr), arg0)
+func (mr *MockServerCaMockRecorder) GenerateCsr(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateCsr", reflect.TypeOf((*MockServerCa)(nil).GenerateCsr), arg0)
 }
 
 // FetchCertificate mocks base method
-func (m *MockControlPlaneCa) FetchCertificate(request *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
+func (m *MockServerCa) FetchCertificate(request *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
 	ret := m.ctrl.Call(m, "FetchCertificate", request)
 	ret0, _ := ret[0].(*ca.FetchCertificateResponse)
 	ret1, _ := ret[1].(error)
@@ -96,12 +96,12 @@ func (m *MockControlPlaneCa) FetchCertificate(request *ca.FetchCertificateReques
 }
 
 // FetchCertificate indicates an expected call of FetchCertificate
-func (mr *MockControlPlaneCaMockRecorder) FetchCertificate(request interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCertificate", reflect.TypeOf((*MockControlPlaneCa)(nil).FetchCertificate), request)
+func (mr *MockServerCaMockRecorder) FetchCertificate(request interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCertificate", reflect.TypeOf((*MockServerCa)(nil).FetchCertificate), request)
 }
 
 // LoadCertificate mocks base method
-func (m *MockControlPlaneCa) LoadCertificate(arg0 *ca.LoadCertificateRequest) (*ca.LoadCertificateResponse, error) {
+func (m *MockServerCa) LoadCertificate(arg0 *ca.LoadCertificateRequest) (*ca.LoadCertificateResponse, error) {
 	ret := m.ctrl.Call(m, "LoadCertificate", arg0)
 	ret0, _ := ret[0].(*ca.LoadCertificateResponse)
 	ret1, _ := ret[1].(error)
@@ -109,6 +109,6 @@ func (m *MockControlPlaneCa) LoadCertificate(arg0 *ca.LoadCertificateRequest) (*
 }
 
 // LoadCertificate indicates an expected call of LoadCertificate
-func (mr *MockControlPlaneCaMockRecorder) LoadCertificate(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadCertificate", reflect.TypeOf((*MockControlPlaneCa)(nil).LoadCertificate), arg0)
+func (mr *MockServerCaMockRecorder) LoadCertificate(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadCertificate", reflect.TypeOf((*MockServerCa)(nil).LoadCertificate), arg0)
 }

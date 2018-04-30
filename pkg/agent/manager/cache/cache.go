@@ -33,7 +33,7 @@ type Cache interface {
 	// returns true if it removed some entry or false otherwise.
 	DeleteEntry(regEntry *common.RegistrationEntry) bool
 	// Entries returns all the in force cached entries.
-	Entries() <-chan *Entry
+	Entries() []*Entry
 	// IsEmpty returns true if this cache doesn't have any entry.
 	IsEmpty() bool
 	// Register a Subscriber and return WorkloadUpdate on the subscriber's channel
@@ -75,14 +75,13 @@ func (c *cacheImpl) Bundle() []*x509.Certificate {
 	return c.bundle
 }
 
-func (c *cacheImpl) Entries() <-chan *Entry {
+func (c *cacheImpl) Entries() []*Entry {
 	c.m.Lock()
 	defer c.m.Unlock()
-	entries := make(chan *Entry, len(c.cache))
+	entries := []*Entry{}
 	for _, e := range c.cache {
-		entries <- e
+		entries = append(entries, e)
 	}
-	close(entries)
 	return entries
 }
 
@@ -115,9 +114,9 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 	return
 }
 
-func (c *cacheImpl) updateSubscribers(subs []*Subscriber, entryCh <-chan *Entry) {
+func (c *cacheImpl) updateSubscribers(subs []*Subscriber, entries []*Entry) {
 	for _, sub := range subs {
-		subEntries := SubscriberEntries(sub, entryCh)
+		subEntries := SubscriberEntries(sub, entries)
 		select {
 		case <-sub.done:
 			c.Subscribers.remove(sub)
@@ -147,11 +146,11 @@ func (c *cacheImpl) IsEmpty() bool {
 	return len(c.cache) == 0
 }
 
-func SubscriberEntries(sub *Subscriber, entryCh <-chan *Entry) (entries []*Entry) {
-	for e := range entryCh {
+func SubscriberEntries(sub *Subscriber, entries []*Entry) (subentries []*Entry) {
+	for _, e := range entries {
 		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
 		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {
-			entries = append(entries, e)
+			subentries = append(subentries, e)
 		}
 	}
 	return

@@ -266,7 +266,7 @@ func (m *AttestRequest) GetAttestedBefore() bool {
 type AttestResponse struct {
 	// * True/False
 	Valid bool `protobuf:"varint,1,opt,name=valid" json:"valid,omitempty"`
-	// * Used for the Control Plane to validate the SPIFFE Id in the Certificate signing request.
+	// * Used for the Server to validate the SPIFFE Id in the Certificate signing request.
 	BaseSPIFFEID string `protobuf:"bytes,2,opt,name=baseSPIFFEID" json:"baseSPIFFEID,omitempty"`
 }
 
