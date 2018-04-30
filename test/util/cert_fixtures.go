@@ -10,13 +10,11 @@ import (
 )
 
 var (
-	svidPath     = path.Join(ProjectRoot(), "test/fixture/certs/svid.pem")
-	svidKeyPath  = path.Join(ProjectRoot(), "test/fixture/certs/svid_key.pem")
-	caPath       = path.Join(ProjectRoot(), "test/fixture/certs/ca.pem")
-	caKeyPath    = path.Join(ProjectRoot(), "test/fixture/certs/ca_key.pem")
-	bundlePath   = path.Join(ProjectRoot(), "test/fixture/certs/bundle.der")
-	blogCsrPath  = path.Join(ProjectRoot(), "test/fixture/certs/blog_csr.pem")
-	blogSvidPath = path.Join(ProjectRoot(), "test/fixture/certs/blog_cert.pem")
+	svidPath    = path.Join(ProjectRoot(), "test/fixture/certs/svid.pem")
+	svidKeyPath = path.Join(ProjectRoot(), "test/fixture/certs/svid_key.pem")
+	caPath      = path.Join(ProjectRoot(), "test/fixture/certs/ca.pem")
+	caKeyPath   = path.Join(ProjectRoot(), "test/fixture/certs/ca_key.pem")
+	bundlePath  = path.Join(ProjectRoot(), "test/fixture/certs/bundle.der")
 )
 
 // LoadCAFixture reads, parses, and returns the pre-defined CA fixture and key
@@ -100,13 +98,4 @@ func LoadBundle(path string) ([]*x509.Certificate, error) {
 		return nil, fmt.Errorf("error parsing bundle at %s: %s", path, err)
 	}
 	return bundle, nil
-}
-
-func LoadBlogCSRBytes() []byte {
-	b, _ := LoadPEM(blogCsrPath)
-	return b.Bytes
-}
-
-func LoadBlogSVID() (*x509.Certificate, error) {
-	return LoadCert(blogSvidPath)
 }

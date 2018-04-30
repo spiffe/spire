@@ -54,13 +54,11 @@ func TestShutdownDoesntHangAfterFailedStart(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 		return
-
 	}
 
 	err = m.Start()
 	if err == nil {
-		t.Errorf("wanted error")
-		return
+		t.Fatal("wanted error")
 	}
 
 	util.RunWithTimeout(t, 1*time.Second, func() {
@@ -88,33 +86,30 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 
 	_, err := ReadSVID(c.SVIDCachePath)
 	if err != ErrNotCached {
-		t.Errorf("wanted: %v, got: %v", ErrNotCached, err)
-		return
+		t.Fatalf("wanted: %v, got: %v", ErrNotCached, err)
 	}
 
 	m, err := New(c)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	err = m.Start()
+	if err == nil {
+		t.Fatal("manager was expected to fail during startup")
+	}
+
+	// Althought start failed, the SVID should have been saved, because it should be
+	// the first thing the manager does at startup.
+	cert, err := ReadSVID(c.SVIDCachePath)
 	if err != nil {
-		// Althought start failed, the SVID should have been saved, because it should be
-		// the first thing the manager does at startup.
-		cert, err := ReadSVID(c.SVIDCachePath)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		if !cert.Equal(baseSVID) {
-			t.Error("SVID was not correctly stored.")
-			return
-		}
+		t.Fatal(err)
+	}
+	if !cert.Equal(baseSVID) {
+		t.Fatal("SVID was not correctly stored.")
 	}
 
 	m.Shutdown()
-	os.Remove(c.SVIDCachePath)
 }
 
 func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
@@ -149,62 +144,59 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		Bundle:          apiHandler.bundle,
 		Tel:             &telemetry.Blackhole{},
 	}
-	mgr, err := New(c)
+	m, err := New(c)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
-	m := mgr.(*manager)
 	err = m.Start()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer m.Shutdown()
 
 	cert, key := m.getBaseSVIDEntry()
 	if !cert.Equal(baseSVID) {
-		t.Error("SVID is not equals to configured one")
+		t.Fatal("SVID is not equals to configured one")
 	}
 	if key != baseSVIDKey {
-		t.Error("PrivateKey is not equals to configured one")
+		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
 	me := m.MatchingEntries(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 	if len(me) != 2 {
-		t.Error("expected 2 entries")
+		t.Fatal("expected 2 entries")
 	}
 
 	err = compareRegistrationEntries(
 		regEntriesMap["resp2"],
 		[]*common.RegistrationEntry{me[0].RegistrationEntry, me[1].RegistrationEntry})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
-	util.RunWithTimeout(t, 1*time.Second, func() {
+	util.RunWithTimeout(t, 5*time.Second, func() {
 		done := make(chan struct{})
 		wu := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}}, done)
 		u := <-wu
 
 		if len(u.Entries) != 2 {
-			t.Error("expected 2 entries")
+			t.Fatal("expected 2 entries")
 		}
 
 		if len(u.Bundle) != 1 {
-			t.Error("expected 1 bundle")
+			t.Fatal("expected 1 bundle")
 		}
 
 		if !u.Bundle[0].Equal(apiHandler.bundle[0]) {
-			t.Error("received bundle should be equals to the server bundle")
+			t.Fatal("received bundle should be equals to the server bundle")
 		}
 
 		err := compareRegistrationEntries(
 			regEntriesMap["resp2"],
 			[]*common.RegistrationEntry{u.Entries[0].RegistrationEntry, u.Entries[1].RegistrationEntry})
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 	})
 }
@@ -242,30 +234,25 @@ func TestSVIDRotation(t *testing.T) {
 		Bundle:          apiHandler.bundle,
 		Tel:             &telemetry.Blackhole{},
 	}
-	mgr, err := New(c)
+	m, err := New(c)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
-	m := mgr.(*manager)
 	m.rotationFreq = baseTTL / 2
 	m.syncFreq = 1 * time.Hour
 	err = m.Start()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer m.Shutdown()
 
 	cert, key := m.getBaseSVIDEntry()
 	if !cert.Equal(baseSVID) {
-		t.Error("SVID is not equals to configured one")
-		return
+		t.Fatal("SVID is not equals to configured one")
 	}
 	if key != baseSVIDKey {
-		t.Error("PrivateKey is not equals to configured one")
-		return
+		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
 	// Loop until we detect an SVID rotation
@@ -275,8 +262,7 @@ func TestSVIDRotation(t *testing.T) {
 	})
 
 	if key == baseSVIDKey {
-		t.Error("PrivateKey did not rotate")
-		return
+		t.Fatal("PrivateKey did not rotate")
 	}
 }
 
@@ -313,19 +299,16 @@ func TestSynchronization(t *testing.T) {
 		Tel:             &telemetry.Blackhole{},
 	}
 
-	mgr, err := New(c)
+	m, err := New(c)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
-	m := mgr.(*manager)
 	m.rotationFreq = 1 * time.Hour
 	m.syncFreq = 2 * time.Second
 	err = m.Start()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer m.Shutdown()
 
@@ -338,35 +321,32 @@ func TestSynchronization(t *testing.T) {
 	// Before synchronization
 	entriesBefore := cacheEntriesAsMap(m.cache.Entries())
 	if len(entriesBefore) != 3 {
-		t.Error("3 cached entries were expected")
-		return
+		t.Fatal("3 cached entries were expected")
 	}
 
-	util.RunWithTimeout(t, 1*time.Second, func() {
+	util.RunWithTimeout(t, 5*time.Second, func() {
 		u := <-wu
 
 		if len(u.Entries) != 3 {
-			t.Errorf("expected 3 entries, got: %d", len(u.Entries))
+			t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
 		}
 
 		if len(u.Bundle) != 1 {
-			t.Error("expected 1 bundle")
+			t.Fatal("expected 1 bundle")
 		}
 
 		if !u.Bundle[0].Equal(apiHandler.bundle[0]) {
-			t.Error("received bundle should be equals to the server bundle")
+			t.Fatal("received bundle should be equals to the server bundle")
 		}
 
 		entriesUpdated := cacheEntriesAsMap(u.Entries)
 		for key, eu := range entriesUpdated {
 			eb, ok := entriesBefore[key]
 			if !ok {
-				t.Errorf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
-				return
+				t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
 			}
 			if eb != eu {
-				t.Error("entry received does not match entry on cache")
-				return
+				t.Fatal("entry received does not match entry on cache")
 			}
 		}
 	})
@@ -380,44 +360,39 @@ func TestSynchronization(t *testing.T) {
 
 		entriesAfter := cacheEntriesAsMap(m.cache.Entries())
 		if len(entriesAfter) != 3 {
-			t.Error("3 cached entries were expected")
-			return
+			t.Fatal("3 cached entries were expected")
 		}
 
 		for key, eb := range entriesBefore {
 			ea, ok := entriesAfter[key]
 			if !ok {
-				t.Errorf("expected entry with EntryId=%v after synchronization", key)
-				return
+				t.Fatalf("expected entry with EntryId=%v after synchronization", key)
 			}
 			if ea == eb {
-				t.Errorf("there is at least one entry that was not refreshed: %v", ea)
-				return
+				t.Fatalf("there is at least one entry that was not refreshed: %v", ea)
 			}
 		}
 
 		if len(u.Entries) != 3 {
-			t.Errorf("expected 3 entries, got: %d", len(u.Entries))
+			t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
 		}
 
 		if len(u.Bundle) != 1 {
-			t.Error("expected 1 bundle")
+			t.Fatal("expected 1 bundle")
 		}
 
 		if !u.Bundle[0].Equal(apiHandler.bundle[0]) {
-			t.Error("received bundle should be equals to the server bundle")
+			t.Fatal("received bundle should be equals to the server bundle")
 		}
 
 		entriesUpdated := cacheEntriesAsMap(u.Entries)
 		for key, eu := range entriesUpdated {
 			ea, ok := entriesAfter[key]
 			if !ok {
-				t.Errorf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
-				return
+				t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
 			}
 			if ea != eu {
-				t.Error("entry received does not match entry on cache")
-				return
+				t.Fatal("entry received does not match entry on cache")
 			}
 		}
 	})
@@ -456,13 +431,11 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		Tel:             &telemetry.Blackhole{},
 	}
 
-	mgr, err := New(c)
+	m, err := New(c)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
-	m := mgr.(*manager)
 	m.rotationFreq = 1 * time.Hour
 	m.syncFreq = 1 * time.Hour
 
@@ -471,8 +444,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	err = m.Start()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer m.Shutdown()
 
@@ -480,22 +452,22 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		// This should be the update received when Subscribe function was called.
 		u := <-wu
 		if len(u.Bundle) != 1 {
-			t.Errorf("expected 1 bundle, got: %d", len(u.Bundle))
+			t.Fatalf("expected 1 bundle, got: %d", len(u.Bundle))
 		}
 		if !u.Bundle[0].Equal(c.Bundle[0]) {
-			t.Error("bundles were expected to be equals")
+			t.Fatal("bundles were expected to be equals")
 		}
 
 		// Second update should contain a new bundle.
 		u = <-wu
 		if len(u.Bundle) != 2 {
-			t.Errorf("expected 2 bundles, got: %d", len(u.Bundle))
+			t.Fatalf("expected 2 bundles, got: %d", len(u.Bundle))
 		}
 		if !u.Bundle[0].Equal(c.Bundle[0]) {
-			t.Error("old bundles were expected to be equals")
+			t.Fatal("old bundles were expected to be equals")
 		}
 		if !u.Bundle[1].Equal(apiHandler.bundle[1]) {
-			t.Error("new bundles were expected to be equals")
+			t.Fatal("new bundles were expected to be equals")
 		}
 	})
 }
@@ -535,13 +507,12 @@ func TestSurvivesCARotation(t *testing.T) {
 		Tel:             &telemetry.Blackhole{},
 	}
 
-	mgr, err := New(c)
+	m, err := New(c)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	m := mgr.(*manager)
 	m.rotationFreq = 1 * time.Hour
 	// We want frequent synchronizations to speed up the test.
 	m.syncFreq = 1 * time.Second
@@ -551,8 +522,7 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	err = m.Start()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer m.Shutdown()
 
@@ -801,7 +771,7 @@ func (h *mockNodeAPIHandler) countRequest() {
 }
 
 func (h *mockNodeAPIHandler) FetchBaseSVID(context.Context, *node.FetchBaseSVIDRequest) (*node.FetchBaseSVIDResponse, error) {
-	h.countRequest()
+	h.c.t.Fatalf("unexpected call to FetchBaseSVID")
 	return nil, nil
 }
 
@@ -819,7 +789,7 @@ func (h *mockNodeAPIHandler) FetchSVID(stream node.Node_FetchSVIDServer) error {
 }
 
 func (h *mockNodeAPIHandler) FetchFederatedBundle(context.Context, *node.FetchFederatedBundleRequest) (*node.FetchFederatedBundleResponse, error) {
-	h.countRequest()
+	h.c.t.Fatalf("unexpected call to FetchFederatedBundle")
 	return nil, nil
 }
 
@@ -901,7 +871,7 @@ func (h *mockNodeAPIHandler) getCertFromCtx(ctx context.Context) (certificate *x
 func createTempDir(t *testing.T) string {
 	dir, err := ioutil.TempDir("", tmpSubdirName)
 	if err != nil {
-		t.Errorf("could not create temp dir: %v", err)
+		t.Fatalf("could not create temp dir: %v", err)
 	}
 	return dir
 }

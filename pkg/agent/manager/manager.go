@@ -49,7 +49,7 @@ type Manager interface {
 }
 
 type manager struct {
-	started bool
+	running bool
 	c       *Config
 	t       *tomb.Tomb
 	cache   cache.Cache
@@ -91,7 +91,7 @@ func (m *manager) Start() error {
 	go func() {
 		err := m.t.Wait()
 		m.close(err)
-		m.setStarted(false)
+		m.setRunning(false)
 	}()
 	return nil
 }
@@ -107,7 +107,7 @@ func (m *manager) close(err error) {
 
 func (m *manager) Shutdown() {
 	m.shutdown(nil)
-	if m.isStarted() {
+	if m.isRunning() {
 		<-m.t.Dead()
 	}
 }
@@ -144,7 +144,7 @@ func (m *manager) Err() error {
 }
 
 func (m *manager) run() error {
-	m.setStarted(true)
+	m.setRunning(true)
 	m.t.Go(m.synchronizer)
 	m.t.Go(m.rotator)
 	return nil
@@ -188,16 +188,16 @@ func (m *manager) shutdown(err error) {
 	m.t.Kill(err)
 }
 
-func (m *manager) isStarted() bool {
+func (m *manager) isRunning() bool {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
-	return m.started
+	return m.running
 }
 
-func (m *manager) setStarted(value bool) {
+func (m *manager) setRunning(value bool) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	m.started = value
+	m.running = value
 }
 
 func (m *manager) isAlreadyCached(regEntry *common.RegistrationEntry) bool {

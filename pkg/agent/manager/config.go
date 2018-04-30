@@ -37,7 +37,7 @@ type Config struct {
 }
 
 // New creates a cache manager based on c's configuration
-func New(c *Config) (Manager, error) {
+func New(c *Config) (*manager, error) {
 	c.Log = c.Log.WithField("subsystem_name", "manager")
 
 	spiffeID, err := getSpiffeIDFromSVID(c.SVID)
