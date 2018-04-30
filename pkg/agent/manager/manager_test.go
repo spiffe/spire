@@ -257,7 +257,13 @@ func TestSVIDRotation(t *testing.T) {
 
 	// Loop until we detect an SVID rotation
 	util.RunWithTimeout(t, 2*m.rotationFreq, func() {
-		for cert, key = m.getBaseSVIDEntry(); cert.Equal(baseSVID); cert, key = m.getBaseSVIDEntry() {
+		for {
+			// If manager's current SVID is not equals to the first one we generated
+			// it means it rotated, so we must exit the loop.
+			cert, key = m.getBaseSVIDEntry()
+			if !cert.Equal(baseSVID) {
+				break
+			}
 		}
 	})
 
