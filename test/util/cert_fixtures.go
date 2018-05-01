@@ -22,7 +22,7 @@ func LoadCAFixture() (ca *x509.Certificate, key *ecdsa.PrivateKey, err error) {
 	return LoadCertAndKey(caPath, caKeyPath)
 }
 
-// LoadCAFixture reads, parses, and returns the pre-defined SVID fixture and key
+// LoadSVIDFixture reads, parses, and returns the pre-defined SVID fixture and key
 func LoadSVIDFixture() (svid *x509.Certificate, key *ecdsa.PrivateKey, err error) {
 	return LoadCertAndKey(svidPath, svidKeyPath)
 }

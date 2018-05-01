@@ -146,7 +146,12 @@ func (u *update) String() string {
 	for key, svid := range u.svids {
 		buffer.WriteString(key)
 		buffer.WriteString(": ")
-		buffer.WriteString(svid.String()[:30])
+		svidStr := svid.String()
+		if len(svidStr) < 30 {
+			buffer.WriteString(svidStr)
+		} else {
+			buffer.WriteString(svidStr[:30])
+		}
 		buffer.WriteString(" ")
 	}
 	buffer.WriteString("], lastBundle: ")
