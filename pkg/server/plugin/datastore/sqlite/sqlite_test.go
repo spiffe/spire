@@ -461,7 +461,38 @@ func Test_FetchRegistrationEntries(t *testing.T) {
 }
 
 func Test_UpdateRegistrationEntry(t *testing.T) {
-	t.Skipf("TODO")
+	ds := createDefault(t)
+
+	entry1 := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type2", Value: "Value2"},
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId: "spiffe://example.org/foo",
+		ParentId: "spiffe://example.org/bar",
+		Ttl:      1,
+	}
+
+	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{entry1})
+	require.NoError(t, err)
+	require.NotNil(t, createRegistrationEntryResponse)
+
+	entry1.Ttl = 2
+	updReq := &datastore.UpdateRegistrationEntryRequest{
+		RegisteredEntryId: createRegistrationEntryResponse.RegisteredEntryId,
+		RegisteredEntry:   entry1,
+	}
+	updateRegistrationEntryResponse, err := ds.UpdateRegistrationEntry(updReq)
+	require.NoError(t, err)
+	require.NotNil(t, updateRegistrationEntryResponse)
+
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&datastore.FetchRegistrationEntryRequest{RegisteredEntryId: updReq.RegisteredEntryId})
+	require.NoError(t, err)
+	require.NotNil(t, fetchRegistrationEntryResponse)
+
+	expectedResponse := &datastore.FetchRegistrationEntryResponse{RegisteredEntry: entry1}
+	assert.Equal(t, expectedResponse, fetchRegistrationEntryResponse)
 }
 
 func Test_DeleteRegistrationEntry(t *testing.T) {
