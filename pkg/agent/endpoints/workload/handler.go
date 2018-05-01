@@ -47,13 +47,13 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	defer h.T.IncrCounterWithLabels([]string{"workload_api", "connections"}, -1, tLabels)
 
 	selectors := h.attest(pid)
-	done := make(chan struct{})
-	defer close(done)
-	subscription := h.Manager.Subscribe(selectors, done)
+
+	subscriber := h.Manager.Subscribe(selectors)
+	defer subscriber.Finish()
 
 	for {
 		select {
-		case update := <-subscription:
+		case update := <-subscriber.Updates():
 			h.T.IncrCounterWithLabels([]string{"workload_api", "update"}, 1, tLabels)
 
 			start := time.Now()

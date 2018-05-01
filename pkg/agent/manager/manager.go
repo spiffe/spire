@@ -30,9 +30,9 @@ type Manager interface {
 	// Shutdown blocks until the manager stops.
 	Shutdown()
 
-	// Subscribe returns a channel on which cache entry updates are sent
+	// Subscribe returns a Subscriber on which cache entry updates are sent
 	// for a particular set of selectors.
-	Subscribe(key cache.Selectors, done chan struct{}) chan *cache.WorkloadUpdate
+	Subscribe(key cache.Selectors) *cache.Subscriber
 
 	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
@@ -112,17 +112,16 @@ func (m *manager) Shutdown() {
 	}
 }
 
-func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan *cache.WorkloadUpdate {
+func (m *manager) Subscribe(selectors cache.Selectors) *cache.Subscriber {
 	// creates a subscriber
 	// adds it to the manager
-	// returns the added subscriber channel
-	sub, err := cache.NewSubscriber(selectors, done)
+	// returns the added subscriber
+	sub, err := cache.NewSubscriber(selectors)
 	if err != nil {
 		m.c.Log.Error(err)
 	}
 	m.cache.Subscribe(sub)
-
-	return sub.C
+	return sub
 }
 
 func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []*cache.Entry) {

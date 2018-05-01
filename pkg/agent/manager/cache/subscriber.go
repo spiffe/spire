@@ -14,23 +14,40 @@ type WorkloadUpdate struct {
 }
 
 type Subscriber struct {
-	C    chan *WorkloadUpdate
-	sel  Selectors
-	done chan struct{}
-	sid  uuid.UUID
+	c      chan *WorkloadUpdate
+	m      sync.Mutex
+	sel    Selectors
+	sid    uuid.UUID
+	active bool
 }
 
-func NewSubscriber(selectors Selectors, done chan struct{}) (*Subscriber, error) {
+func NewSubscriber(selectors Selectors) (*Subscriber, error) {
 	id, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
 	}
+
 	return &Subscriber{
-		C:    make(chan *WorkloadUpdate),
-		sel:  selectors,
-		done: done,
-		sid:  id,
+		c:      make(chan *WorkloadUpdate, 1),
+		sel:    selectors,
+		sid:    id,
+		active: true,
 	}, nil
+}
+
+// Updates returns a channel used to receive a subscriber's updates
+func (sub *Subscriber) Updates() <-chan *WorkloadUpdate {
+	sub.m.Lock()
+	defer sub.m.Unlock()
+	return sub.c
+}
+
+// Finish finishes subscriber's updates subscription. Hence no more updates
+// will be received on its channel.
+func (sub *Subscriber) Finish() {
+	sub.m.Lock()
+	defer sub.m.Unlock()
+	sub.active = false
 }
 
 type subscribers struct {
@@ -77,7 +94,7 @@ func (s *subscribers) GetAll() (subs []*Subscriber) {
 func (s *subscribers) remove(sub *Subscriber) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	close(sub.C)
+	close(sub.c)
 	delete(s.sidMap, sub.sid)
 	for sel, sids := range s.selMap {
 		for i, uid := range sids {
