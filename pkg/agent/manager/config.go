@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
@@ -30,13 +31,13 @@ type Config struct {
 	TrustDomain     url.URL
 	Log             logrus.FieldLogger
 	Tel             telemetry.Sink
-	ServerAddr      *net.TCPAddr
+	ServerAddr      net.Addr
 	SVIDCachePath   string
 	BundleCachePath string
 }
 
 // New creates a cache manager based on c's configuration
-func New(c *Config) (Manager, error) {
+func New(c *Config) (*manager, error) {
 	c.Log = c.Log.WithField("subsystem_name", "manager")
 
 	spiffeID, err := getSpiffeIDFromSVID(c.SVID)
@@ -58,6 +59,8 @@ func New(c *Config) (Manager, error) {
 		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
+		syncFreq:        5 * time.Second,
+		rotationFreq:    60 * time.Second,
 	}
 
 	err = m.newSyncClient([]string{m.spiffeID, m.serverSPIFFEID}, m.svid, m.svidKey)

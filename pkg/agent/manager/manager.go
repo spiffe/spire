@@ -17,7 +17,7 @@ import (
 
 // Cache Manager errors
 var (
-	ErrNotCached         = errors.New("bundle not cached")
+	ErrNotCached         = errors.New("not cached")
 	ErrPartialResponse   = errors.New("partial response received")
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 )
@@ -49,9 +49,10 @@ type Manager interface {
 }
 
 type manager struct {
-	c     *Config
-	t     *tomb.Tomb
-	cache cache.Cache
+	running bool
+	c       *Config
+	t       *tomb.Tomb
+	cache   cache.Cache
 
 	// Fields protected by mtx mutex.
 	mtx     *sync.RWMutex
@@ -60,12 +61,17 @@ type manager struct {
 
 	spiffeID       string
 	serverSPIFFEID string
-	serverAddr     *net.TCPAddr
+	serverAddr     net.Addr
 
 	svidCachePath   string
 	bundleCachePath string
 
 	syncClients *clientsPool
+
+	// Frequency of synchronization events in seconds.
+	syncFreq time.Duration
+	// Frequency of Agent's SVID rotation events in seconds.
+	rotationFreq time.Duration
 }
 
 func (m *manager) Start() error {
@@ -85,6 +91,7 @@ func (m *manager) Start() error {
 	go func() {
 		err := m.t.Wait()
 		m.close(err)
+		m.setRunning(false)
 	}()
 	return nil
 }
@@ -100,7 +107,9 @@ func (m *manager) close(err error) {
 
 func (m *manager) Shutdown() {
 	m.shutdown(nil)
-	<-m.t.Dead()
+	if m.isRunning() {
+		<-m.t.Dead()
+	}
 }
 
 func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan *cache.WorkloadUpdate {
@@ -109,8 +118,7 @@ func (m *manager) Subscribe(selectors cache.Selectors, done chan struct{}) chan 
 	// returns the added subscriber channel
 	sub, err := cache.NewSubscriber(selectors, done)
 	if err != nil {
-		m.c.Log.Warning(err)
-
+		m.c.Log.Error(err)
 	}
 	m.cache.Subscribe(sub)
 
@@ -136,13 +144,14 @@ func (m *manager) Err() error {
 }
 
 func (m *manager) run() error {
+	m.setRunning(true)
 	m.t.Go(m.synchronizer)
 	m.t.Go(m.rotator)
 	return nil
 }
 
 func (m *manager) synchronizer() error {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(m.syncFreq)
 
 	for {
 		select {
@@ -159,7 +168,7 @@ func (m *manager) synchronizer() error {
 }
 
 func (m *manager) rotator() error {
-	t := time.NewTicker(1 * time.Minute)
+	t := time.NewTicker(m.rotationFreq)
 
 	for {
 		select {
@@ -177,6 +186,18 @@ func (m *manager) rotator() error {
 
 func (m *manager) shutdown(err error) {
 	m.t.Kill(err)
+}
+
+func (m *manager) isRunning() bool {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+	return m.running
+}
+
+func (m *manager) setRunning(value bool) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	m.running = value
 }
 
 func (m *manager) isAlreadyCached(regEntry *common.RegistrationEntry) bool {
@@ -207,6 +228,29 @@ func (m *manager) bundleAsCertPool() *x509.CertPool {
 }
 
 func (m *manager) setBundle(bundle []*x509.Certificate) {
+	err := m.storeBundle()
+	if err != nil {
+		m.c.Log.Errorf("could not store bundle: %v", err)
+	}
 	m.cache.SetBundle(bundle)
-	m.storeBundle()
+}
+
+func (m *manager) bundleAlreadyCached(bundle []*x509.Certificate) bool {
+	currentBundle := m.cache.Bundle()
+
+	if currentBundle == nil {
+		return bundle == nil
+	}
+
+	if len(bundle) != len(currentBundle) {
+		return false
+	}
+
+	for i, cert := range currentBundle {
+		if !cert.Equal(bundle[i]) {
+			return false
+		}
+	}
+
+	return true
 }

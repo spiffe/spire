@@ -14,7 +14,6 @@ import (
 )
 
 type GRPCDialerConfig struct {
-	// Log is used to log errors when used in non-blocking mode.
 	Log      logrus.StdLogger
 	CredFunc func() (credentials.TransportCredentials, error)
 	Opts     []grpc.DialOption

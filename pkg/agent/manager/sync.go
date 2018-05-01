@@ -69,7 +69,10 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests map[string]*entryR
 		if err != nil {
 			return nil, nil, err
 		}
-		m.setBundle(bundle)
+
+		if !m.bundleAlreadyCached(bundle) {
+			m.setBundle(bundle)
+		}
 	}
 
 	return update.regEntries, update.svids, nil
@@ -294,13 +297,4 @@ func (er entryRequests) add(e *entryRequest) {
 		er[parentID] = erMap
 	}
 	erMap[entryID] = e
-}
-
-// isEntryRequestAlreadyCreated if er has an element already created for regEntry.
-func (er entryRequests) isEntryRequestAlreadyCreated(regEntry *proto.RegistrationEntry) bool {
-	if entryRequestsMap, ok := er[regEntry.ParentId]; ok {
-		_, ok := entryRequestsMap[regEntry.EntryId]
-		return ok
-	}
-	return false
 }
