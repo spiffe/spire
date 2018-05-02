@@ -6,17 +6,18 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"fmt"
-	"github.com/spiffe/spire/test/util"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -241,46 +242,59 @@ func TestNotifySubscribersNotifiesLatestUpdatesToSlowSubscriber(t *testing.T) {
 	cache.Subscribe(sub)
 
 	var wg sync.WaitGroup
+	// Shared counter to keep track of number of updates made.
+	var i int32
 
+	// This go routine send updates notifications as fast as it can.
 	wg.Add(1)
-	var i int
-
 	go func() {
 		defer wg.Done()
-		for i = 0; i < 1000; i++ {
+		// Use of atomic functions to avoid race condition.
+		for atomic.StoreInt32(&i, 0); atomic.LoadInt32(&i) < 1000; atomic.AddInt32(&i, 1) {
 			e := &Entry{
 				RegistrationEntry: &common.RegistrationEntry{
 					Selectors: Selectors{
 						&common.Selector{Type: "unix", Value: "uid:1111"},
 					},
 					ParentId: "spiffe:parent2",
+					// We set a numeric (crescent by 1) suffix to the spiffe id to know at
+					// the receiver if we are getting updates in the correct order.
 					SpiffeId: fmt.Sprintf("spiffe:test2_%d", i),
 					EntryId:  "00000000-0000-0000-0000-000000000002",
 				},
 				SVID:       &x509.Certificate{},
 				PrivateKey: privateKey,
 			}
+			// SetEntry updates the cache entry and fires a notification for the subscribers
+			// that match the entry's selectors.
 			cache.SetEntry(e)
 		}
 	}()
 
+	// This go routine reads the updates slowly and checks if it receives the updates
+	// in order.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		var lastI int = -1
-		for i != 1000 || len(sub.Updates()) != 0 {
+		var lastSuffix int = -1
+		// Loop while the writer didn't finished writing updates or there are some update
+		// left. This way we ensure this go routine will read the last update sent by the writer.
+		for atomic.LoadInt32(&i) != 1000 || len(sub.Updates()) != 0 {
 			wu := <-sub.Updates()
 			if len(wu.Entries) == 1 {
+				// Get the SpiffeId's numeric suffix
 				parts := strings.Split(wu.Entries[0].RegistrationEntry.SpiffeId, "_")
-				currentI, _ := strconv.Atoi(parts[1])
-				// SpiffeId suffixes should be always increasing.
-				assert.True(t, lastI < currentI)
-				lastI = currentI
-
-				fmt.Printf("%v\n", lastI)
+				currentSuffix, _ := strconv.Atoi(parts[1])
+				// SpiffeId suffixes should be always increasing, if they aren't
+				// it means we are receiving unordered updates.
+				assert.True(t, lastSuffix < currentSuffix)
+				lastSuffix = currentSuffix
+				// We sleep a bit to make this a slow reader.
 				time.Sleep(2 * time.Millisecond)
 			}
 		}
+		// Assert that we got the last update
+		assert.Equal(t, 999, lastSuffix)
 	}()
 
 	wg.Wait()
