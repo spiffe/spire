@@ -553,12 +553,11 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
 	if request.RegisteredEntry == nil {
 		return nil, errors.New("Invalid request: missing registered entry")
-	} else if request.RegisteredEntry.Selectors == nil || len(request.RegisteredEntry.Selectors) == 0 {
-		return nil, errors.New("Invalid request: missing selector list")
-	} else if len(request.RegisteredEntry.SpiffeId) == 0 {
-		return nil, errors.New("Invalid request: missing SPIFFE ID")
-	} else if request.RegisteredEntry.Ttl < 0 {
-		return nil, errors.New("Invalid request: TTL < 0")
+	}
+
+	err := ds.validateRegistrationEntry(request.RegisteredEntry)
+	if err != nil {
+		return nil, fmt.Errorf("Invalid registration entry: %v", err)
 	}
 
 	entryID, err := uuid.NewV4()
@@ -675,9 +674,60 @@ func (ds *sqlitePlugin) FetchRegistrationEntries(
 	return res, nil
 }
 
-func (sqlitePlugin) UpdateRegistrationEntry(
-	*datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
-	return &datastore.UpdateRegistrationEntryResponse{}, errors.New("Not Implemented")
+func (ds sqlitePlugin) UpdateRegistrationEntry(
+	request *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
+
+	if request.RegisteredEntry == nil {
+		return nil, errors.New("No registration entry provided")
+	}
+
+	err := ds.validateRegistrationEntry(request.RegisteredEntry)
+	if err != nil {
+		return nil, fmt.Errorf("Invalid registration entry: %v", err)
+	}
+
+	tx := ds.db.Begin()
+
+	// Get the existing entry
+	// TODO: Refactor message type to take EntryID directly from the entry - see #449
+	entry := RegisteredEntry{}
+	if err = tx.Find(&entry, "entry_id = ?", request.RegisteredEntryId).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// Delete existing selectors - we will write new ones
+	if err = tx.Exec("DELETE FROM selectors WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	selectors := []Selector{}
+	for _, s := range request.RegisteredEntry.Selectors {
+		selector := Selector{
+			Type:  s.Type,
+			Value: s.Value,
+		}
+
+		selectors = append(selectors, selector)
+	}
+
+	entry.SpiffeID = request.RegisteredEntry.SpiffeId
+	entry.ParentID = request.RegisteredEntry.ParentId
+	entry.TTL = request.RegisteredEntry.Ttl
+	entry.Selectors = selectors
+	if err = tx.Save(&entry).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err = tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	request.RegisteredEntry.EntryId = entry.EntryID
+	return &datastore.UpdateRegistrationEntryResponse{RegisteredEntry: request.RegisteredEntry}, nil
 }
 
 func (ds *sqlitePlugin) DeleteRegistrationEntry(
@@ -1007,6 +1057,22 @@ func (ds *sqlitePlugin) modelToBundle(model *Bundle) (*datastore.Bundle, error) 
 	return pb, nil
 }
 
+func (ds *sqlitePlugin) validateRegistrationEntry(entry *common.RegistrationEntry) error {
+	if entry.Selectors == nil || len(entry.Selectors) == 0 {
+		return errors.New("missing selector list")
+	}
+
+	if len(entry.SpiffeId) == 0 {
+		return errors.New("missing SPIFFE ID")
+	}
+
+	if entry.Ttl < 0 {
+		return errors.New("TTL is not set")
+	}
+
+	return nil
+}
+
 // validateTrustDomain converts the given string to a URL, and ensures that it is a correctly
 // formatted SPIFFE trust domain. String is taken as the argument here since neither Protobuf nor
 // GORM natively support the url.URL type.
@@ -1128,5 +1194,5 @@ func NewTemp() (datastore.DataStore, error) {
 	}
 
 	p.db.LogMode(true)
-	return p, p.restart()
+	return p, nil
 }
