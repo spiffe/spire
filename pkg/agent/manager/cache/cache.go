@@ -37,7 +37,7 @@ type Cache interface {
 	// IsEmpty returns true if this cache doesn't have any entry.
 	IsEmpty() bool
 	// Register a Subscriber and sends WorkloadUpdate on the subscriber's channel
-	Subscribe(sub *Subscriber)
+	Subscribe(sub *subscriber)
 	// Set the bundle
 	SetBundle([]*x509.Certificate)
 	// Retrieve the bundle
@@ -49,7 +49,7 @@ type cacheImpl struct {
 	cache       map[string]*Entry
 	log         logrus.FieldLogger
 	m           sync.Mutex
-	Subscribers *subscribers
+	subscribers *subscribers
 	bundle      []*x509.Certificate
 	notifyMutex sync.Mutex
 }
@@ -60,7 +60,7 @@ func New(log logrus.FieldLogger, bundle []*x509.Certificate) *cacheImpl {
 		cache:       make(map[string]*Entry),
 		log:         log.WithField("subsystem_name", "cache"),
 		bundle:      bundle,
-		Subscribers: NewSubscribers(),
+		subscribers: NewSubscribers(),
 	}
 }
 
@@ -69,14 +69,15 @@ func (c *cacheImpl) SetBundle(bundle []*x509.Certificate) {
 	c.bundle = bundle
 	c.m.Unlock()
 
-	subs := c.Subscribers.GetAll()
+	subs := c.subscribers.getAll()
 	c.notifySubscribers(subs)
 }
 
-func (c *cacheImpl) Bundle() []*x509.Certificate {
+func (c *cacheImpl) Bundle() (result []*x509.Certificate) {
 	c.m.Lock()
 	defer c.m.Unlock()
-	return c.bundle
+	result = append(result, c.bundle...)
+	return result
 }
 
 func (c *cacheImpl) Entries() []*Entry {
@@ -89,9 +90,9 @@ func (c *cacheImpl) Entries() []*Entry {
 	return entries
 }
 
-func (c *cacheImpl) Subscribe(sub *Subscriber) {
-	c.Subscribers.Add(sub)
-	c.notifySubscribers([]*Subscriber{sub})
+func (c *cacheImpl) Subscribe(sub *subscriber) {
+	c.subscribers.add(sub)
+	c.notifySubscribers([]*subscriber{sub})
 }
 
 func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
@@ -108,11 +109,11 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 	c.cache[entry.RegistrationEntry.EntryId] = entry
 	c.m.Unlock()
 
-	subs := c.Subscribers.Get(entry.RegistrationEntry.Selectors)
+	subs := c.subscribers.get(entry.RegistrationEntry.Selectors)
 	c.notifySubscribers(subs)
 }
 
-func (c *cacheImpl) notifySubscribers(subs []*Subscriber) {
+func (c *cacheImpl) notifySubscribers(subs []*subscriber) {
 	if subs == nil {
 		return
 	}
@@ -126,7 +127,7 @@ func (c *cacheImpl) notifySubscribers(subs []*Subscriber) {
 		sub.m.Lock()
 		// If subscriber is not active any more, remove it.
 		if !sub.active {
-			c.Subscribers.remove(sub)
+			c.subscribers.remove(sub)
 			sub.m.Unlock()
 			continue
 		}
@@ -143,9 +144,9 @@ func (c *cacheImpl) notifySubscribers(subs []*Subscriber) {
 
 func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) (deleted bool) {
 	c.m.Lock()
-	var subs []*Subscriber
+	var subs []*subscriber
 	if entry, found := c.cache[regEntry.EntryId]; found {
-		subs = c.Subscribers.Get(entry.RegistrationEntry.Selectors)
+		subs = c.subscribers.get(entry.RegistrationEntry.Selectors)
 		delete(c.cache, regEntry.EntryId)
 		deleted = true
 	}
@@ -161,7 +162,7 @@ func (c *cacheImpl) IsEmpty() bool {
 	return len(c.cache) == 0
 }
 
-func subscriberEntries(sub *Subscriber, entries []*Entry) (subentries []*Entry) {
+func subscriberEntries(sub *subscriber, entries []*Entry) (subentries []*Entry) {
 	for _, e := range entries {
 		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
 		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {

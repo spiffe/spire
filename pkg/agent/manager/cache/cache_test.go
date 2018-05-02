@@ -189,7 +189,7 @@ func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
 	sub2, err := NewSubscriber(Selectors{&common.Selector{Type: "unix", Value: "uid:1000"}})
 	assert.Nil(t, err)
 
-	cache.notifySubscribers([]*Subscriber{sub1, sub2})
+	cache.notifySubscribers([]*subscriber{sub1, sub2})
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
 		wu := <-sub2.Updates()
@@ -227,8 +227,8 @@ func TestNotifySubscribersDoesntPileUpGoroutines(t *testing.T) {
 	util.RunWithTimeout(t, 5*time.Second, func() {
 		ng := runtime.NumGoroutine()
 		for i := 0; i < 1000; i++ {
-			cache.notifySubscribers([]*Subscriber{sub1})
-			assert.Equal(t, ng, runtime.NumGoroutine())
+			cache.notifySubscribers([]*subscriber{sub1})
+			assert.True(t, runtime.NumGoroutine() <= ng)
 		}
 	})
 }

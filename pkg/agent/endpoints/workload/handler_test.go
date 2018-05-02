@@ -98,13 +98,16 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	ctx = metadata.NewIncomingContext(ctx, header)
 	ctx, cancel := context.WithCancel(ctx)
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
+	subscriber := mock_cache.NewMockSubscriber(s.ctrl)
 	subscription := make(chan *cache.WorkloadUpdate)
+	subscriber.EXPECT().Updates().Return(subscription).AnyTimes()
+	subscriber.EXPECT().Finish()
 	result := make(chan error)
 	s.stream.EXPECT().Context().Return(ctx).Times(4)
 	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
 	s.catalog.EXPECT().WorkloadAttestors().Return([]workloadattestor.WorkloadAttestor{s.attestor1})
 	s.attestor1.EXPECT().Attest(&workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{selectors}, nil)
-	s.manager.EXPECT().Subscribe(cache.Selectors{selectors[0]}, gomock.Any()).Return(subscription)
+	s.manager.EXPECT().Subscribe(cache.Selectors{selectors[0]}).Return(subscriber)
 	s.stream.EXPECT().Send(gomock.Any())
 	go func() { result <- s.h.FetchX509SVID(nil, s.stream) }()
 

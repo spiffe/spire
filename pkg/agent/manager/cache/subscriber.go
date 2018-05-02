@@ -8,12 +8,17 @@ import (
 	"github.com/spiffe/spire/pkg/common/selector"
 )
 
+type Subscriber interface {
+	Updates() <-chan *WorkloadUpdate
+	Finish()
+}
+
 type WorkloadUpdate struct {
 	Entries []*Entry
 	Bundle  []*x509.Certificate
 }
 
-type Subscriber struct {
+type subscriber struct {
 	c      chan *WorkloadUpdate
 	m      sync.Mutex
 	sel    Selectors
@@ -21,13 +26,19 @@ type Subscriber struct {
 	active bool
 }
 
-func NewSubscriber(selectors Selectors) (*Subscriber, error) {
+type subscribers struct {
+	selMap map[string][]uuid.UUID // map of selector to UID
+	sidMap map[uuid.UUID]*subscriber
+	m      sync.Mutex
+}
+
+func NewSubscriber(selectors Selectors) (*subscriber, error) {
 	id, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
 	}
 
-	return &Subscriber{
+	return &subscriber{
 		c:      make(chan *WorkloadUpdate, 1),
 		sel:    selectors,
 		sid:    id,
@@ -35,8 +46,7 @@ func NewSubscriber(selectors Selectors) (*Subscriber, error) {
 	}, nil
 }
 
-// Updates returns a channel used to receive a subscriber's updates
-func (sub *Subscriber) Updates() <-chan *WorkloadUpdate {
+func (sub *subscriber) Updates() <-chan *WorkloadUpdate {
 	sub.m.Lock()
 	defer sub.m.Unlock()
 	return sub.c
@@ -44,20 +54,14 @@ func (sub *Subscriber) Updates() <-chan *WorkloadUpdate {
 
 // Finish finishes subscriber's updates subscription. Hence no more updates
 // will be received on its channel.
-func (sub *Subscriber) Finish() {
+func (sub *subscriber) Finish() {
 	sub.m.Lock()
 	defer sub.m.Unlock()
 	sub.active = false
 	close(sub.c)
 }
 
-type subscribers struct {
-	selMap map[string][]uuid.UUID // map of selector to UID
-	sidMap map[uuid.UUID]*Subscriber
-	m      sync.Mutex
-}
-
-func (s *subscribers) Add(sub *Subscriber) error {
+func (s *subscribers) add(sub *subscriber) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.sidMap[sub.sid] = sub
@@ -72,7 +76,7 @@ func (s *subscribers) Add(sub *Subscriber) error {
 	return nil
 }
 
-func (s *subscribers) Get(sels Selectors) (subs []*Subscriber) {
+func (s *subscribers) get(sels Selectors) (subs []*subscriber) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	sids := s.getSubIds(sels)
@@ -82,7 +86,7 @@ func (s *subscribers) Get(sels Selectors) (subs []*Subscriber) {
 	return
 }
 
-func (s *subscribers) GetAll() (subs []*Subscriber) {
+func (s *subscribers) getAll() (subs []*subscriber) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
@@ -92,7 +96,7 @@ func (s *subscribers) GetAll() (subs []*Subscriber) {
 	return
 }
 
-func (s *subscribers) remove(sub *Subscriber) {
+func (s *subscribers) remove(sub *subscriber) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	delete(s.sidMap, sub.sid)
@@ -124,7 +128,7 @@ func (s *subscribers) getSubIds(sels Selectors) []uuid.UUID {
 func NewSubscribers() *subscribers {
 	return &subscribers{
 		selMap: make(map[string][]uuid.UUID),
-		sidMap: make(map[uuid.UUID]*Subscriber),
+		sidMap: make(map[uuid.UUID]*subscriber),
 	}
 }
 
