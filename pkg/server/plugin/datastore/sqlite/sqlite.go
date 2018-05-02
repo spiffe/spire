@@ -689,6 +689,7 @@ func (ds sqlitePlugin) UpdateRegistrationEntry(
 	tx := ds.db.Begin()
 
 	// Get the existing entry
+	// TODO: Refactor message type to take EntryID directly from the entry - see #449
 	entry := RegisteredEntry{}
 	if err = tx.Find(&entry, "entry_id = ?", request.RegisteredEntryId).Error; err != nil {
 		tx.Rollback()

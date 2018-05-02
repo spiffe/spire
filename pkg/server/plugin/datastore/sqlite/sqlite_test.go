@@ -478,6 +478,7 @@ func Test_UpdateRegistrationEntry(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, createRegistrationEntryResponse)
 
+	// TODO: Refactor message type to take EntryID directly from the entry - see #449
 	entry1.Ttl = 2
 	updReq := &datastore.UpdateRegistrationEntryRequest{
 		RegisteredEntryId: createRegistrationEntryResponse.RegisteredEntryId,
