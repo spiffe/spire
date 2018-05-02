@@ -48,6 +48,7 @@ func (sub *Subscriber) Finish() {
 	sub.m.Lock()
 	defer sub.m.Unlock()
 	sub.active = false
+	close(sub.c)
 }
 
 type subscribers struct {
@@ -94,14 +95,12 @@ func (s *subscribers) GetAll() (subs []*Subscriber) {
 func (s *subscribers) remove(sub *Subscriber) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	close(sub.c)
 	delete(s.sidMap, sub.sid)
 	for sel, sids := range s.selMap {
 		for i, uid := range sids {
 			if uid == sub.sid {
 				s.selMap[sel] = append(sids[:i], sids[i+1:]...)
 			}
-
 		}
 	}
 }

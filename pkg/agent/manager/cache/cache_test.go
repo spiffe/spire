@@ -299,3 +299,42 @@ func TestNotifySubscribersNotifiesLatestUpdatesToSlowSubscriber(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestSubscriberFinish(t *testing.T) {
+	cache := New(logger, nil)
+
+	sub, err := NewSubscriber(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	assert.Nil(t, err)
+
+	cache.Subscribe(sub)
+
+	// Comsume the update sent by Subscribe function.
+	<-sub.Updates()
+
+	sub.Finish()
+
+	// This read shouldn't block.
+	util.RunWithTimeout(t, 5*time.Second, func() {
+		wu := <-sub.Updates()
+		assert.Nil(t, wu)
+	})
+
+	// SetEntry will notify updates, but our subscriber shouldn't get any because it is finished.
+	cache.SetEntry(&Entry{
+		RegistrationEntry: &common.RegistrationEntry{
+			Selectors: Selectors{
+				&common.Selector{Type: "unix", Value: "uid:1111"},
+			},
+			ParentId: "spiffe:parent2",
+			SpiffeId: "spiffe:test2",
+			EntryId:  "00000000-0000-0000-0000-000000000002",
+		},
+		SVID:       &x509.Certificate{},
+		PrivateKey: privateKey,
+	})
+
+	util.RunWithTimeout(t, 5*time.Second, func() {
+		wu := <-sub.Updates()
+		assert.Nil(t, wu)
+	})
+}
