@@ -152,7 +152,9 @@ func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) (deleted boo
 	}
 	c.m.Unlock()
 
-	c.notifySubscribers(subs)
+	if deleted {
+		c.notifySubscribers(subs)
+	}
 	return
 }
 
