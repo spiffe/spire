@@ -176,9 +176,8 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	}
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		done := make(chan struct{})
-		wu := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}}, done)
-		u := <-wu
+		sub := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+		u := <-sub.Updates()
 
 		if len(u.Entries) != 2 {
 			t.Fatal("expected 2 entries")
@@ -284,7 +283,7 @@ func TestSynchronization(t *testing.T) {
 		trustDomain:       trustDomain,
 		dir:               dir,
 		fetchSVIDResponse: fetchSVIDResponse,
-		svidTTL:           2,
+		svidTTL:           3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -312,18 +311,17 @@ func TestSynchronization(t *testing.T) {
 	}
 
 	m.rotationFreq = 1 * time.Hour
-	m.syncFreq = 2 * time.Second
+	m.syncFreq = 3 * time.Second
 	err = m.Start()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer m.Shutdown()
 
-	done := make(chan struct{})
-	wu := m.Subscribe(cache.Selectors{
+	sub := m.Subscribe(cache.Selectors{
 		&common.Selector{Type: "unix", Value: "uid:1111"},
 		&common.Selector{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"},
-	}, done)
+	})
 
 	// Before synchronization
 	entriesBefore := cacheEntriesAsMap(m.cache.Entries())
@@ -332,7 +330,7 @@ func TestSynchronization(t *testing.T) {
 	}
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		u := <-wu
+		u := <-sub.Updates()
 
 		if len(u.Entries) != 3 {
 			t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
@@ -361,9 +359,9 @@ func TestSynchronization(t *testing.T) {
 	util.RunWithTimeout(t, 2*m.syncFreq, func() {
 		// There should be 3 updates after sync, because we are subcribed to selectors that
 		// matches with 3 entries that were renewed on the cache.
-		<-wu
-		<-wu
-		u := <-wu
+		<-sub.Updates()
+		<-sub.Updates()
+		u := <-sub.Updates()
 
 		entriesAfter := cacheEntriesAsMap(m.cache.Entries())
 		if len(entriesAfter) != 3 {
@@ -446,8 +444,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	m.rotationFreq = 1 * time.Hour
 	m.syncFreq = 1 * time.Hour
 
-	done := make(chan struct{})
-	wu := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}}, done)
+	sub := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 
 	err = m.Start()
 	if err != nil {
@@ -456,17 +453,8 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	defer m.Shutdown()
 
 	util.RunWithTimeout(t, 1*time.Second, func() {
-		// This should be the update received when Subscribe function was called.
-		u := <-wu
-		if len(u.Bundle) != 1 {
-			t.Fatalf("expected 1 bundle, got: %d", len(u.Bundle))
-		}
-		if !u.Bundle[0].Equal(c.Bundle[0]) {
-			t.Fatal("bundles were expected to be equals")
-		}
-
-		// Second update should contain a new bundle.
-		u = <-wu
+		// Update should contain a new bundle.
+		u := <-sub.Updates()
 		if len(u.Bundle) != 2 {
 			t.Fatalf("expected 2 bundles, got: %d", len(u.Bundle))
 		}
@@ -524,8 +512,9 @@ func TestSurvivesCARotation(t *testing.T) {
 	// We want frequent synchronizations to speed up the test.
 	m.syncFreq = 1 * time.Second
 
-	done := make(chan struct{})
-	wu := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}}, done)
+	sub := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	// This should be the update received when Subscribe function was called.
+	<-sub.Updates()
 
 	err = m.Start()
 	if err != nil {
@@ -533,19 +522,21 @@ func TestSurvivesCARotation(t *testing.T) {
 	}
 	defer m.Shutdown()
 
+	// Get latest update
 	util.RunWithTimeout(t, 4*time.Second, func() {
-		// This should be the update received when Subscribe function was called.
-		<-wu
-		// 3 updates should came from updates to the bundle and 2 cache entries on startup
-		<-wu
-		<-wu
-		<-wu
+		<-sub.Updates()
 	})
 
-	util.RunWithTimeout(t, 8*time.Second, func() {
-		// This additional update should be received once connection is restablished by synchronization
-		<-wu
+	// Wait update, it should be received once connection is restablished by synchronization
+	elapsed := util.RunWithTimeout(t, 8*time.Second, func() {
+		<-sub.Updates()
 	})
+
+	// If we received an update too soon, then we assume that the connection to the server never
+	// was lost and hence we are not testing if the manager can survive the CA rotation.
+	if elapsed < 3*time.Second {
+		t.Fatalf("update received too soon: elapsed %dms since last one", elapsed/time.Millisecond)
+	}
 }
 
 func fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
@@ -658,7 +649,7 @@ func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node
 		h.bundle = append(h.bundle, ca)
 	case 5:
 		h.stop()
-		time.Sleep(1 * time.Second)
+		time.Sleep(3 * time.Second)
 		h.start()
 		return fmt.Errorf("server was restarted")
 	}
