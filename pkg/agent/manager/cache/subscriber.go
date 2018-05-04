@@ -46,6 +46,10 @@ func NewSubscriber(selectors Selectors) (*subscriber, error) {
 	}, nil
 }
 
+// Updates is the channel where the updates are received.
+// WARNING: Use this function as the actual channel, do not assign its
+// return value to a chan variable, because the underlaying channel is replaced
+// when a new update is available and the current channel was not read yet.
 func (sub *subscriber) Updates() <-chan *WorkloadUpdate {
 	sub.m.Lock()
 	defer sub.m.Unlock()
@@ -53,7 +57,7 @@ func (sub *subscriber) Updates() <-chan *WorkloadUpdate {
 }
 
 // Finish finishes subscriber's updates subscription. Hence no more updates
-// will be received on its channel.
+// will be received on Updates() channel.
 func (sub *subscriber) Finish() {
 	sub.m.Lock()
 	defer sub.m.Unlock()
