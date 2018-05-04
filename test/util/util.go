@@ -41,12 +41,14 @@ func GetRegistrationEntriesMap(fileName string) map[string][]*common.Registratio
 
 // RunWithTimeout runs code within the specified timeout, if execution
 // takes longer than that, an error is logged to t with information
-// about the caller of this function.
-func RunWithTimeout(t *testing.T, timeout time.Duration, code func()) {
+// about the caller of this function. Returns how much time it took to
+// run the function.
+func RunWithTimeout(t *testing.T, timeout time.Duration, code func()) time.Duration {
 	_, file, line, _ := runtime.Caller(1)
 
 	done := make(chan struct{})
 	ti := time.NewTicker(timeout)
+	start := time.Now()
 	go func() {
 		code()
 		close(done)
@@ -55,6 +57,8 @@ func RunWithTimeout(t *testing.T, timeout time.Duration, code func()) {
 	select {
 	case <-ti.C:
 		t.Errorf("%s:%d: code execution took more than %v", file, line, timeout)
+		return time.Since(start)
 	case <-done:
+		return time.Since(start)
 	}
 }

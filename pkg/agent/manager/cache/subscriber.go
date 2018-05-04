@@ -8,38 +8,64 @@ import (
 	"github.com/spiffe/spire/pkg/common/selector"
 )
 
+type Subscriber interface {
+	Updates() <-chan *WorkloadUpdate
+	Finish()
+}
+
 type WorkloadUpdate struct {
 	Entries []*Entry
 	Bundle  []*x509.Certificate
 }
 
-type Subscriber struct {
-	C    chan *WorkloadUpdate
-	sel  Selectors
-	done chan struct{}
-	sid  uuid.UUID
-}
-
-func NewSubscriber(selectors Selectors, done chan struct{}) (*Subscriber, error) {
-	id, err := uuid.NewV4()
-	if err != nil {
-		return nil, err
-	}
-	return &Subscriber{
-		C:    make(chan *WorkloadUpdate),
-		sel:  selectors,
-		done: done,
-		sid:  id,
-	}, nil
+type subscriber struct {
+	c      chan *WorkloadUpdate
+	m      sync.Mutex
+	sel    Selectors
+	sid    uuid.UUID
+	active bool
 }
 
 type subscribers struct {
 	selMap map[string][]uuid.UUID // map of selector to UID
-	sidMap map[uuid.UUID]*Subscriber
+	sidMap map[uuid.UUID]*subscriber
 	m      sync.Mutex
 }
 
-func (s *subscribers) Add(sub *Subscriber) error {
+func NewSubscriber(selectors Selectors) (*subscriber, error) {
+	id, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+
+	return &subscriber{
+		c:      make(chan *WorkloadUpdate, 1),
+		sel:    selectors,
+		sid:    id,
+		active: true,
+	}, nil
+}
+
+// Updates is the channel where the updates are received.
+// WARNING: Use this function as the actual channel, do not assign its
+// return value to a chan variable, because the underlaying channel is replaced
+// when a new update is available and the current channel was not read yet.
+func (sub *subscriber) Updates() <-chan *WorkloadUpdate {
+	sub.m.Lock()
+	defer sub.m.Unlock()
+	return sub.c
+}
+
+// Finish finishes subscriber's updates subscription. Hence no more updates
+// will be received on Updates() channel.
+func (sub *subscriber) Finish() {
+	sub.m.Lock()
+	defer sub.m.Unlock()
+	sub.active = false
+	close(sub.c)
+}
+
+func (s *subscribers) add(sub *subscriber) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.sidMap[sub.sid] = sub
@@ -54,7 +80,7 @@ func (s *subscribers) Add(sub *Subscriber) error {
 	return nil
 }
 
-func (s *subscribers) Get(sels Selectors) (subs []*Subscriber) {
+func (s *subscribers) get(sels Selectors) (subs []*subscriber) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	sids := s.getSubIds(sels)
@@ -64,7 +90,7 @@ func (s *subscribers) Get(sels Selectors) (subs []*Subscriber) {
 	return
 }
 
-func (s *subscribers) GetAll() (subs []*Subscriber) {
+func (s *subscribers) getAll() (subs []*subscriber) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
@@ -74,17 +100,15 @@ func (s *subscribers) GetAll() (subs []*Subscriber) {
 	return
 }
 
-func (s *subscribers) remove(sub *Subscriber) {
+func (s *subscribers) remove(sub *subscriber) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	close(sub.C)
 	delete(s.sidMap, sub.sid)
 	for sel, sids := range s.selMap {
 		for i, uid := range sids {
 			if uid == sub.sid {
 				s.selMap[sel] = append(sids[:i], sids[i+1:]...)
 			}
-
 		}
 	}
 }
@@ -108,7 +132,7 @@ func (s *subscribers) getSubIds(sels Selectors) []uuid.UUID {
 func NewSubscribers() *subscribers {
 	return &subscribers{
 		selMap: make(map[string][]uuid.UUID),
-		sidMap: make(map[uuid.UUID]*Subscriber),
+		sidMap: make(map[uuid.UUID]*subscriber),
 	}
 }
 
