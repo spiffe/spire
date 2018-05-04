@@ -283,7 +283,7 @@ func TestSynchronization(t *testing.T) {
 		trustDomain:       trustDomain,
 		dir:               dir,
 		fetchSVIDResponse: fetchSVIDResponse,
-		svidTTL:           2,
+		svidTTL:           3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -311,7 +311,7 @@ func TestSynchronization(t *testing.T) {
 	}
 
 	m.rotationFreq = 1 * time.Hour
-	m.syncFreq = 2 * time.Second
+	m.syncFreq = 3 * time.Second
 	err = m.Start()
 	if err != nil {
 		t.Fatal(err)
