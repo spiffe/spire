@@ -28,7 +28,8 @@ and that your GOPATH only contains one element.
 Because of the use of Glide and the unusual layout of this repository a Makefile is provide for
 common actions.
 
-* `make all` - installs 3rd-party dependancies, build all binaries, and run all tests
+* `glide install` - installs all the dependencies listed in glide.yaml
+* `make all` - installs 3rd-party dependencies, build all binaries, and run all tests
 * `make` - builds all binaries
 * `make cmd/spire-agent` - builds one binary
 * `make test` - runs all tests

@@ -23,3 +23,6 @@ plugin/agent/workloadattestor-k8s/workloadattestor-k8s
 functional/tools/stresstest/stresstest
 functional/tools/tokengenerator/tokengenerator
 functional/tools/workload/workload
+
+# Editor specific configuration
+.idea
