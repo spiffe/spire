@@ -39,12 +39,17 @@ type podList struct {
 		Spec struct {
 			ServiceAccountName string `json:"serviceAccountName"`
 		} `json:"spec"`
-		Status struct {
-			ContainerStatuses []struct {
-				ContainerID string `json:"containerID"`
-			} `json:"containerStatuses"`
-		} `json:"status"`
+		Status podStatus `json:"status"`
 	} `json:"items"`
+}
+
+type podStatus struct {
+	InitContainerStatuses []struct {
+		ContainerID string `json:"containerID"`
+	} `json:"initContainerStatuses"`
+	ContainerStatuses []struct {
+		ContainerID string `json:"containerID"`
+	} `json:"containerStatuses"`
 }
 
 const (
@@ -102,21 +107,45 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 	}
 
 	for _, item := range podInfo.Items {
-		for _, status := range item.Status.ContainerStatuses {
-			containerURL, err := url.Parse(status.ContainerID)
-			if err != nil {
-				return &resp, err
-			}
+		match, err := statusMatches(containerID, item.Status)
+		if err != nil {
+			return &resp, err
+		}
 
-			if containerID == containerURL.Host {
-				resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("sa:%v", item.Spec.ServiceAccountName)})
-				resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("ns:%v", item.Metadata.Namespace)})
-				return &resp, nil
-			}
+		if match {
+			resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("sa:%v", item.Spec.ServiceAccountName)})
+			resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("ns:%v", item.Metadata.Namespace)})
+			return &resp, nil
 		}
 	}
 
 	return &resp, fmt.Errorf("no selectors found")
+}
+
+func statusMatches(containerID string, status podStatus) (bool, error) {
+	for _, status := range status.ContainerStatuses {
+		containerURL, err := url.Parse(status.ContainerID)
+		if err != nil {
+			return false, err
+		}
+
+		if containerID == containerURL.Host {
+			return true, nil
+		}
+	}
+
+	for _, status := range status.InitContainerStatuses {
+		containerURL, err := url.Parse(status.ContainerID)
+		if err != nil {
+			return false, err
+		}
+
+		if containerID == containerURL.Host {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func getCgroups(path string, fs fileSystem) (cgroups [][]string, err error) {
