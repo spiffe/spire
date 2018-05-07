@@ -123,7 +123,7 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 }
 
 func statusMatches(containerID string, status podStatus) (bool, error) {
-	for _, status := range status.InitContainerStatuses {
+	for _, status := range status.ContainerStatuses {
 		containerURL, err := url.Parse(status.ContainerID)
 		if err != nil {
 			return false, err
@@ -134,7 +134,7 @@ func statusMatches(containerID string, status podStatus) (bool, error) {
 		}
 	}
 
-	for _, status := range status.ContainerStatuses {
+	for _, status := range status.InitContainerStatuses {
 		containerURL, err := url.Parse(status.ContainerID)
 		if err != nil {
 			return false, err
