@@ -155,7 +155,8 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 
 	ifaceZeroAttachTime := instance.NetworkInterfaces[0].Attachment.AttachTime
 
-	if p.skipBlockDevice != true {
+	// skip anti-tampering mechanism when RootDeviceType is instance-store
+	if *instance.RootDeviceType != ec2.DeviceTypeInstanceStore && p.skipBlockDevice != true {
 		rootDeviceIndex := -1
 		for i, bdm := range instance.BlockDeviceMappings {
 			if *bdm.DeviceName == *instance.RootDeviceName {
