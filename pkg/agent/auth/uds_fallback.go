@@ -1,4 +1,8 @@
 // +build !linux
+// +build !darwin
+// +build !freebsd
+// +build !netbsd
+// +build !openbsd
 
 package auth
 
