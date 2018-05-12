@@ -9,11 +9,6 @@
 # default datastore file before beginning in order to ensure accurate resutls.
 #
 
-if [[ $(uname -s) == "Darwin" ]]; then
-	echo "This test is not Darwin compatible, exiting"
-	exit 0
-fi
-
 set -e
 
 rm -f .data/datastore.sqlite3

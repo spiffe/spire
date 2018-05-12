@@ -15,11 +15,6 @@ TIMEOUT=${1:-600}
 START=`date +%s`
 END=$(($START + $TIMEOUT))
 
-if [[ $(uname -s) == "Darwin" ]]; then
-	echo "This test is not Darwin compatible, exiting"
-	exit 0
-fi
-
 set -e
 
 rm -f .data/datastore.sqlite3
