@@ -7,7 +7,6 @@ import (
 	"syscall"
 )
 
-// TODO: Figure out portability - can this work elsewhere? FreeBSD supports SO_PEERCRED
 func FromUDSConn(conn net.Conn) CallerInfo {
 	var info CallerInfo
 
