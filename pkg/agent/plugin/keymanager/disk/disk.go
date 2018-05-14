@@ -38,7 +38,7 @@ func (d *diskPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (*keyma
 	keyPath := path.Join(d.dir, keyFileName)
 	d.mtx.RUnlock()
 
-	key, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}
