@@ -251,7 +251,7 @@ func (m *manager) rotateSVID() error {
 }
 
 func (m *manager) newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err error) {
-	pk, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+	pk, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return
 	}
