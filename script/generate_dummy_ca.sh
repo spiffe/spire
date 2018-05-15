@@ -5,7 +5,7 @@
 # and key in the configuration directory, replacing any existing dummy certificates.
 #
 
-openssl ecparam -name secp521r1 -genkey -noout -out dummy_upstream_ca.key
+openssl ecparam -name secp384r1 -genkey -noout -out dummy_upstream_ca.key
 openssl req -new -x509 -key dummy_upstream_ca.key -out dummy_upstream_ca.crt -days 1825 -subj "/C=US/ST=/L=/O=SPIFFE/OU=/CN=/"  -config <(
 cat <<-EOF
 [req]

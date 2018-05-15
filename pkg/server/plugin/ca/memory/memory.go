@@ -148,7 +148,7 @@ func (m *MemoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	newKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+	newKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
 		return nil, errors.New("Can't generate private key: " + err.Error())
 	}
