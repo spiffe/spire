@@ -17,12 +17,13 @@ import (
 	"github.com/spiffe/spire/test/mock/agent/catalog"
 	"github.com/spiffe/spire/test/mock/proto/agent/keymanager"
 	"github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
+	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
 )
 
-type AttestorTestSuite struct {
+type NodeAttestorTestSuite struct {
 	suite.Suite
 
 	ctrl *gomock.Controller
@@ -34,12 +35,16 @@ type AttestorTestSuite struct {
 	nodeClient   *mock_node.MockNodeClient
 	config       *Config
 	expectation  *node.SvidUpdate
+	attestor1    *mock_workloadattestor.MockWorkloadAttestor
+	attestor2    *mock_workloadattestor.MockWorkloadAttestor
 }
 
-func (s *AttestorTestSuite) SetupTest() {
+func (s *NodeAttestorTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 
 	s.nodeAttestor = mock_nodeattestor.NewMockNodeAttestor(s.ctrl)
+	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(s.ctrl)
+	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(s.ctrl)
 	s.keyManager = mock_keymanager.NewMockKeyManager(s.ctrl)
 	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 	s.nodeClient = mock_node.NewMockNodeClient(s.ctrl)
@@ -63,13 +68,13 @@ func (s *AttestorTestSuite) SetupTest() {
 	s.attestor = New(s.config)
 }
 
-func (s *AttestorTestSuite) TeardownTest() {
+func (s *NodeAttestorTestSuite) TeardownTest() {
 	os.Remove(s.config.SVIDCachePath)
 	os.Remove(s.config.BundleCachePath)
 	s.ctrl.Finish()
 }
 
-func (s *AttestorTestSuite) TestAttestLoadFromDisk() {
+func (s *NodeAttestorTestSuite) TestAttestLoadFromDisk() {
 	s.linkBundle()
 	s.linkAgentSVIDPath()
 
@@ -90,7 +95,7 @@ func (s *AttestorTestSuite) TestAttestLoadFromDisk() {
 	s.Assert().Equal(as.Bundle, bundle)
 }
 
-func (s *AttestorTestSuite) TestAttest() {
+func (s *NodeAttestorTestSuite) TestAttestNode() {
 	s.linkBundle()
 	s.setCatalog()
 	s.setFetchPrivateKeyResponse()
@@ -107,7 +112,7 @@ func (s *AttestorTestSuite) TestAttest() {
 	s.Assert().Equal(as.SVID, svid)
 }
 
-func (s *AttestorTestSuite) TestAttestJoinToken() {
+func (s *NodeAttestorTestSuite) TestAttestJoinToken() {
 	s.config.JoinToken = "foobar"
 	s.linkBundle()
 	s.setCatalog()
@@ -125,25 +130,25 @@ func (s *AttestorTestSuite) TestAttestJoinToken() {
 	s.Assert().Equal(as.SVID, svid)
 }
 
-func TestAttestorTestSuite(t *testing.T) {
-	suite.Run(t, new(AttestorTestSuite))
+func TestNodeAttestorTestSuite(t *testing.T) {
+	suite.Run(t, new(NodeAttestorTestSuite))
 }
 
-func (s *AttestorTestSuite) linkAgentSVIDPath() {
+func (s *NodeAttestorTestSuite) linkAgentSVIDPath() {
 	err := os.Symlink(
 		path.Join(util.ProjectRoot(), "test/fixture/certs/agent_svid.der"),
 		s.config.SVIDCachePath)
 	s.Require().NoError(err)
 }
 
-func (s *AttestorTestSuite) linkBundle() {
+func (s *NodeAttestorTestSuite) linkBundle() {
 	err := os.Symlink(
 		path.Join(util.ProjectRoot(), "test/fixture/certs/bundle.der"),
 		s.config.BundleCachePath)
 	s.Require().NoError(err)
 }
 
-func (s *AttestorTestSuite) setFetchAttestationDataResponse() {
+func (s *NodeAttestorTestSuite) setFetchAttestationDataResponse() {
 	attestationData := &common.AttestedData{
 		Type: "join_token",
 		Data: []byte("foobar"),
@@ -156,7 +161,7 @@ func (s *AttestorTestSuite) setFetchAttestationDataResponse() {
 		Return(fa, nil)
 }
 
-func (s *AttestorTestSuite) setFetchPrivateKeyResponse() {
+func (s *NodeAttestorTestSuite) setFetchPrivateKeyResponse() {
 	_, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 
@@ -167,7 +172,7 @@ func (s *AttestorTestSuite) setFetchPrivateKeyResponse() {
 		&keymanager.FetchPrivateKeyResponse{PrivateKey: keyDer}, nil)
 }
 
-func (s *AttestorTestSuite) setGenerateKeyPairResponse() {
+func (s *NodeAttestorTestSuite) setGenerateKeyPairResponse() {
 	svid, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 
@@ -178,14 +183,14 @@ func (s *AttestorTestSuite) setGenerateKeyPairResponse() {
 		&keymanager.GenerateKeyPairResponse{svid.RawSubjectPublicKeyInfo, keyDer}, nil)
 }
 
-func (s *AttestorTestSuite) setCatalog() {
+func (s *NodeAttestorTestSuite) setCatalog() {
 	s.catalog.EXPECT().NodeAttestors().
 		Return([]nodeattestor.NodeAttestor{s.nodeAttestor})
 	s.catalog.EXPECT().KeyManagers().
 		Return([]keymanager.KeyManager{s.keyManager})
 }
 
-func (s *AttestorTestSuite) setFetchBaseSVIDResponse() {
+func (s *NodeAttestorTestSuite) setFetchBaseSVIDResponse() {
 	svid, _, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 
