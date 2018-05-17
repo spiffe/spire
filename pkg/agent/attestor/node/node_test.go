@@ -17,7 +17,6 @@ import (
 	"github.com/spiffe/spire/test/mock/agent/catalog"
 	"github.com/spiffe/spire/test/mock/proto/agent/keymanager"
 	"github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
@@ -35,16 +34,12 @@ type NodeAttestorTestSuite struct {
 	nodeClient   *mock_node.MockNodeClient
 	config       *Config
 	expectation  *node.SvidUpdate
-	attestor1    *mock_workloadattestor.MockWorkloadAttestor
-	attestor2    *mock_workloadattestor.MockWorkloadAttestor
 }
 
 func (s *NodeAttestorTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 
 	s.nodeAttestor = mock_nodeattestor.NewMockNodeAttestor(s.ctrl)
-	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(s.ctrl)
-	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(s.ctrl)
 	s.keyManager = mock_keymanager.NewMockKeyManager(s.ctrl)
 	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 	s.nodeClient = mock_node.NewMockNodeClient(s.ctrl)
