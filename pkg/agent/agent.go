@@ -12,7 +12,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/spiffe/spire/pkg/agent/attestor"
+	"github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
