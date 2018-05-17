@@ -66,6 +66,43 @@ func TestShutdownDoesntHangAfterFailedStart(t *testing.T) {
 	})
 }
 
+func TestStoreBundleAtManagerCreation(t *testing.T) {
+	dir := createTempDir(t)
+	defer removeTempDir(dir)
+
+	trustDomain := "somedomain.com"
+	ca, cakey := createCA(t, trustDomain)
+	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
+
+	c := &Config{
+		ServerAddr:      &net.TCPAddr{},
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		TrustDomain:     url.URL{Host: trustDomain},
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Bundle:          []*x509.Certificate{ca},
+	}
+	m, err := New(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !m.bundleAlreadyCached([]*x509.Certificate{ca}) {
+		t.Fatal("bundle should have been cached in memory")
+	}
+
+	bundle, err := ReadBundle(c.BundleCachePath)
+	if err != nil {
+		t.Fatalf("bundle should have been saved in a file: %v", err)
+	}
+
+	if !bundle[0].Equal(ca) {
+		t.Fatal("bundle should have included CA certificate")
+	}
+}
+
 func TestStoreSVIDOnStartup(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
@@ -79,7 +116,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     url.URL{Host: "somedomain.com"},
+		TrustDomain:     url.URL{Host: trustDomain},
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 	}
