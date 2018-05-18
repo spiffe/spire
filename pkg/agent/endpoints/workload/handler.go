@@ -29,6 +29,11 @@ type Handler struct {
 	T       telemetry.Sink
 }
 
+const (
+	workloadApi = "workload_api"
+	workloadPid = "workload_pid"
+)
+
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
 	md, ok := metadata.FromIncomingContext(stream.Context())
 	if !ok || len(md["workload.spiffe.io"]) != 1 || md["workload.spiffe.io"][0] != "true" {
@@ -40,15 +45,16 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 		return grpc.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
-	tLabels := []telemetry.Label{{"workload_pid", string(pid)}}
-	h.T.IncrCounterWithLabels([]string{"workload_api", "connection"}, 1, tLabels)
-	h.T.IncrCounterWithLabels([]string{"workload_api", "connections"}, 1, tLabels)
-	defer h.T.IncrCounterWithLabels([]string{"workload_api", "connections"}, -1, tLabels)
+	tLabels := []telemetry.Label{{workloadPid, string(pid)}}
+	h.T.IncrCounterWithLabels([]string{workloadApi, "connection"}, 1, tLabels)
+	h.T.IncrCounterWithLabels([]string{workloadApi, "connections"}, 1, tLabels)
+	defer h.T.IncrCounterWithLabels([]string{workloadApi, "connections"}, -1, tLabels)
 
 	config := attestor.Config{
 		Catalog: h.Catalog,
 		L:       h.L,
-		T:       h.T}
+		T:       h.T,
+	}
 
 	selectors := attestor.New(&config).Attest(pid)
 
@@ -58,7 +64,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			h.T.IncrCounterWithLabels([]string{"workload_api", "update"}, 1, tLabels)
+			h.T.IncrCounterWithLabels([]string{workloadApi, "update"}, 1, tLabels)
 
 			start := time.Now()
 			err := h.sendResponse(update, stream)
@@ -66,7 +72,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 				return err
 			}
 
-			h.T.MeasureSinceWithLabels([]string{"workload_api", "update_latency"}, start, tLabels)
+			h.T.MeasureSinceWithLabels([]string{workloadApi, "update_latency"}, start, tLabels)
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send update to PID %v", time.Since(start).Seconds, pid)
 			}

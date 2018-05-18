@@ -29,11 +29,18 @@ type Config struct {
 	T       telemetry.Sink
 }
 
+const (
+	workloadApi    = "workload_api"
+	workloadPid    = "workload_pid"
+	workloadAttDur = "workload_attestation_duration"
+	unknownName    = "unknown"
+)
+
 // Attest invokes all workload attestor plugins against the provided PID. If an error
 // is encountered, it is logged and selectors from the failing plugin are discarded.
 func (wla *attestor) Attest(pid int32) []*common.Selector {
-	tLabels := []telemetry.Label{{"workload_pid", string(pid)}}
-	defer wla.c.T.MeasureSinceWithLabels([]string{"workload_api", "workload_attestation_duration"}, time.Now(), tLabels)
+	tLabels := []telemetry.Label{{workloadPid, string(pid)}}
+	defer wla.c.T.MeasureSinceWithLabels([]string{workloadApi, workloadAttDur}, time.Now(), tLabels)
 
 	plugins := wla.c.Catalog.WorkloadAttestors()
 	sChan := make(chan []*common.Selector)
@@ -54,7 +61,7 @@ func (wla *attestor) Attest(pid int32) []*common.Selector {
 		}
 	}
 
-	wla.c.T.AddSampleWithLabels([]string{"workload_api", "discovered_selectors"}, float32(len(selectors)), tLabels)
+	wla.c.T.AddSampleWithLabels([]string{workloadApi, "discovered_selectors"}, float32(len(selectors)), tLabels)
 	wla.c.L.Debugf("PID %v attested to have selectors %v", pid, selectors)
 	return selectors
 }
@@ -62,7 +69,7 @@ func (wla *attestor) Attest(pid int32) []*common.Selector {
 // invokeAttestor invokes attestation against the supplied plugin. Should be called from a goroutine.
 func (wla *attestor) invokeAttestor(a workloadattestor.WorkloadAttestor, pid int32, sChan chan []*common.Selector, errChan chan error) {
 	attestorName := wla.attestorName(a)
-	tLabels := []telemetry.Label{{"workload_pid", string(pid)}, {"attestor_name", attestorName}}
+	tLabels := []telemetry.Label{{workloadPid, string(pid)}, {"attestor_name", attestorName}}
 
 	req := &workloadattestor.AttestRequest{
 		Pid: pid,
@@ -70,7 +77,9 @@ func (wla *attestor) invokeAttestor(a workloadattestor.WorkloadAttestor, pid int
 
 	start := time.Now()
 	resp, err := a.Attest(req)
-	wla.c.T.MeasureSinceWithLabels([]string{"workload_api", "workload_attestor_latency"}, start, tLabels)
+
+	// Capture the attestor latency metrics regardless of whether an error condition was encountered or not
+	wla.c.T.MeasureSinceWithLabels([]string{workloadApi, "workload_attestor_latency"}, start, tLabels)
 	if err != nil {
 		errChan <- fmt.Errorf("call %v workload attestor: %v", attestorName, err)
 		return
@@ -84,7 +93,7 @@ func (wla *attestor) invokeAttestor(a workloadattestor.WorkloadAttestor, pid int
 func (wla *attestor) attestorName(a workloadattestor.WorkloadAttestor) string {
 	mp := wla.c.Catalog.Find(a)
 	if mp == nil {
-		return "unknown"
+		return unknownName
 	}
 
 	return mp.Config.PluginName

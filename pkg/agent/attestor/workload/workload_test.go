@@ -123,5 +123,5 @@ func (s *WorkloadAttestorTestSuite) TestAttestorName() {
 	s.Assert().Equal("foo", s.attestor.attestorName(s.attestor1))
 
 	s.catalog.EXPECT().Find(s.attestor1).Return(nil)
-	s.Assert().Equal("unknown", s.attestor.attestorName(s.attestor1))
+	s.Assert().Equal(unknownName, s.attestor.attestorName(s.attestor1))
 }
