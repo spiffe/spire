@@ -10,6 +10,12 @@ binary_dirs := $(shell find cmd/* functional/tools/* -maxdepth 0 -type d)
 docker_volume := $(shell echo $${PWD%/src/*}):/root/go
 docker_image = spire-dev:latest
 gopath := $(shell go env GOPATH)
+githash := $(shell git rev-parse --short=8 HEAD)
+gitdirty := $(shell git status -s)
+ifneq ($(gitdirty),)
+	githash := $(githash)-dirty
+endif
+ldflags := '-X github.com/spiffe/spire/pkg/common/version.githash=$(githash)'
 
 utils = github.com/golang/protobuf/protoc-gen-go \
 		github.com/grpc-ecosystem/grpc-gateway \
@@ -45,7 +51,7 @@ vendor: glide.yaml glide.lock
 	$(docker) glide --home .cache install
 
 $(binary_dirs): noop
-	$(docker) /bin/sh -c "cd $@; go build -i"
+	$(docker) /bin/sh -c "cd $@; go build -i -ldflags $(ldflags)"
 
 artifact:
 	$(docker) ./build.sh artifact
