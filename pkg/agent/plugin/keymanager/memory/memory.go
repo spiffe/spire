@@ -21,22 +21,22 @@ func (m *MemoryPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (key 
 		return
 	}
 	publicKey, err := x509.MarshalPKIXPublicKey(&m.key.PublicKey)
-	key = &keymanager.GenerateKeyPairResponse{publicKey, privateKey}
+	key = &keymanager.GenerateKeyPairResponse{PublicKey: publicKey, PrivateKey: privateKey}
 	return
 }
 
 func (m *MemoryPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
 	if m.key == nil {
 		// No key set yet
-		return &keymanager.FetchPrivateKeyResponse{[]byte{}}, nil
+		return &keymanager.FetchPrivateKeyResponse{PrivateKey: []byte{}}, nil
 	}
 
 	privateKey, err := x509.MarshalECPrivateKey(m.key)
 	if err != nil {
-		return &keymanager.FetchPrivateKeyResponse{[]byte{}}, err
+		return &keymanager.FetchPrivateKeyResponse{PrivateKey: []byte{}}, err
 	}
 
-	return &keymanager.FetchPrivateKeyResponse{privateKey}, nil
+	return &keymanager.FetchPrivateKeyResponse{PrivateKey: privateKey}, nil
 }
 
 func (m *MemoryPlugin) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {

@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore/sqlite"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
@@ -53,7 +53,7 @@ var (
 			"memory": ca_memory.NewWithDefault(),
 		},
 		DataStoreType: {
-			"sqlite": sqlite.New(),
+			"sql": sql.New(),
 		},
 		NodeAttestorType: {
 			"aws_iid":    aws.NewIID(),

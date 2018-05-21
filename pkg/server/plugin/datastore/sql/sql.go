@@ -1,10 +1,9 @@
-package sqlite
+package sql
 
 import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"log"
 	"net/url"
 	"sort"
 	"sync"
@@ -30,20 +29,25 @@ var (
 )
 
 type configuration struct {
-	FileName string `hcl:"file_name" json:"file_name"`
+	DatabaseType     string `hcl:"database_type" json:"database_type"`
+	ConnectionString string `hcl:"connection_string" json:"connection_string"`
 }
 
-type sqlitePlugin struct {
+type database interface {
+	connect(string) (*gorm.DB, error)
+}
+
+type sqlPlugin struct {
 	db *gorm.DB
 
-	// Path to use for sqlite db
-	fileName string
+	DatabaseType     string
+	ConnectionString string
 
 	mutex *sync.Mutex
 }
 
 // CreateBundle stores the given bundle
-func (ds *sqlitePlugin) CreateBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) CreateBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
 	model, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -59,7 +63,7 @@ func (ds *sqlitePlugin) CreateBundle(req *datastore.Bundle) (*datastore.Bundle, 
 
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
-func (ds *sqlitePlugin) UpdateBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) UpdateBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
 	newModel, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -95,7 +99,7 @@ func (ds *sqlitePlugin) UpdateBundle(req *datastore.Bundle) (*datastore.Bundle, 
 
 // AppendBundle adds the specified CA certificates to an existing bundle. If no bundle exists for the
 // specified trust domain, create one. Returns the entirety.
-func (ds *sqlitePlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
 	newModel, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -146,7 +150,7 @@ func (ds *sqlitePlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, 
 }
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
-func (ds *sqlitePlugin) DeleteBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) DeleteBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
 	// We don't care if cert data was sent - remove it now to prevent
 	// further processing.
 	req.CaCerts = []byte{}
@@ -195,7 +199,7 @@ func (ds *sqlitePlugin) DeleteBundle(req *datastore.Bundle) (*datastore.Bundle, 
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func (ds *sqlitePlugin) FetchBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) FetchBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
 	model, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -217,7 +221,7 @@ func (ds *sqlitePlugin) FetchBundle(req *datastore.Bundle) (*datastore.Bundle, e
 }
 
 // ListBundles can be used to fetch all existing bundles.
-func (ds *sqlitePlugin) ListBundles(*common.Empty) (*datastore.Bundles, error) {
+func (ds *sqlPlugin) ListBundles(*common.Empty) (*datastore.Bundles, error) {
 	// Get a consistent view
 	tx := ds.db.Begin()
 	defer tx.Rollback()
@@ -266,7 +270,7 @@ func (ds *sqlitePlugin) ListBundles(*common.Empty) (*datastore.Bundles, error) {
 	return resp, nil
 }
 
-func (ds *sqlitePlugin) CreateAttestedNodeEntry(
+func (ds *sqlPlugin) CreateAttestedNodeEntry(
 	req *datastore.CreateAttestedNodeEntryRequest) (*datastore.CreateAttestedNodeEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -303,7 +307,7 @@ func (ds *sqlitePlugin) CreateAttestedNodeEntry(
 	}, nil
 }
 
-func (ds *sqlitePlugin) FetchAttestedNodeEntry(
+func (ds *sqlPlugin) FetchAttestedNodeEntry(
 	req *datastore.FetchAttestedNodeEntryRequest) (*datastore.FetchAttestedNodeEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -327,7 +331,7 @@ func (ds *sqlitePlugin) FetchAttestedNodeEntry(
 	}, nil
 }
 
-func (ds *sqlitePlugin) FetchStaleNodeEntries(
+func (ds *sqlPlugin) FetchStaleNodeEntries(
 	*datastore.FetchStaleNodeEntriesRequest) (*datastore.FetchStaleNodeEntriesResponse, error) {
 
 	ds.mutex.Lock()
@@ -353,7 +357,7 @@ func (ds *sqlitePlugin) FetchStaleNodeEntries(
 	return resp, nil
 }
 
-func (ds *sqlitePlugin) UpdateAttestedNodeEntry(
+func (ds *sqlPlugin) UpdateAttestedNodeEntry(
 	req *datastore.UpdateAttestedNodeEntryRequest) (*datastore.UpdateAttestedNodeEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -393,7 +397,7 @@ func (ds *sqlitePlugin) UpdateAttestedNodeEntry(
 	}, db.Commit().Error
 }
 
-func (ds *sqlitePlugin) DeleteAttestedNodeEntry(
+func (ds *sqlPlugin) DeleteAttestedNodeEntry(
 	req *datastore.DeleteAttestedNodeEntryRequest) (*datastore.DeleteAttestedNodeEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -423,7 +427,7 @@ func (ds *sqlitePlugin) DeleteAttestedNodeEntry(
 	}, db.Commit().Error
 }
 
-func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
+func (ds *sqlPlugin) CreateNodeResolverMapEntry(
 	req *datastore.CreateNodeResolverMapEntryRequest) (*datastore.CreateNodeResolverMapEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -460,7 +464,7 @@ func (ds *sqlitePlugin) CreateNodeResolverMapEntry(
 	}, nil
 }
 
-func (ds *sqlitePlugin) FetchNodeResolverMapEntry(
+func (ds *sqlPlugin) FetchNodeResolverMapEntry(
 	req *datastore.FetchNodeResolverMapEntryRequest) (*datastore.FetchNodeResolverMapEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -488,7 +492,7 @@ func (ds *sqlitePlugin) FetchNodeResolverMapEntry(
 	return resp, nil
 }
 
-func (ds *sqlitePlugin) DeleteNodeResolverMapEntry(
+func (ds *sqlPlugin) DeleteNodeResolverMapEntry(
 	req *datastore.DeleteNodeResolverMapEntryRequest) (*datastore.DeleteNodeResolverMapEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -539,12 +543,12 @@ func (ds *sqlitePlugin) DeleteNodeResolverMapEntry(
 	return resp, tx.Commit().Error
 }
 
-func (sqlitePlugin) RectifyNodeResolverMapEntries(
+func (sqlPlugin) RectifyNodeResolverMapEntries(
 	*datastore.RectifyNodeResolverMapEntriesRequest) (*datastore.RectifyNodeResolverMapEntriesResponse, error) {
 	return &datastore.RectifyNodeResolverMapEntriesResponse{}, errors.New("Not Implemented")
 }
 
-func (ds *sqlitePlugin) CreateRegistrationEntry(
+func (ds *sqlPlugin) CreateRegistrationEntry(
 	request *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -596,7 +600,7 @@ func (ds *sqlitePlugin) CreateRegistrationEntry(
 	}, tx.Commit().Error
 }
 
-func (ds *sqlitePlugin) FetchRegistrationEntry(
+func (ds *sqlPlugin) FetchRegistrationEntry(
 	request *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -634,7 +638,7 @@ func (ds *sqlitePlugin) FetchRegistrationEntry(
 	}, nil
 }
 
-func (ds *sqlitePlugin) FetchRegistrationEntries(
+func (ds *sqlPlugin) FetchRegistrationEntries(
 	request *common.Empty) (*datastore.FetchRegistrationEntriesResponse, error) {
 
 	var entries []RegisteredEntry
@@ -674,7 +678,7 @@ func (ds *sqlitePlugin) FetchRegistrationEntries(
 	return res, nil
 }
 
-func (ds sqlitePlugin) UpdateRegistrationEntry(
+func (ds sqlPlugin) UpdateRegistrationEntry(
 	request *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
 
 	if request.RegisteredEntry == nil {
@@ -730,7 +734,7 @@ func (ds sqlitePlugin) UpdateRegistrationEntry(
 	return &datastore.UpdateRegistrationEntryResponse{RegisteredEntry: request.RegisteredEntry}, nil
 }
 
-func (ds *sqlitePlugin) DeleteRegistrationEntry(
+func (ds *sqlPlugin) DeleteRegistrationEntry(
 	request *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
 
 	entry := RegisteredEntry{}
@@ -753,7 +757,7 @@ func (ds *sqlitePlugin) DeleteRegistrationEntry(
 	return resp, nil
 }
 
-func (ds *sqlitePlugin) ListParentIDEntries(
+func (ds *sqlPlugin) ListParentIDEntries(
 	request *datastore.ListParentIDEntriesRequest) (response *datastore.ListParentIDEntriesResponse, err error) {
 
 	ds.mutex.Lock()
@@ -776,7 +780,7 @@ func (ds *sqlitePlugin) ListParentIDEntries(
 	return &datastore.ListParentIDEntriesResponse{RegisteredEntryList: regEntryList}, nil
 }
 
-func (ds *sqlitePlugin) ListSelectorEntries(
+func (ds *sqlPlugin) ListSelectorEntries(
 	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
 
 	ds.mutex.Lock()
@@ -803,7 +807,7 @@ func (ds *sqlitePlugin) ListSelectorEntries(
 	return resp, err
 }
 
-func (ds *sqlitePlugin) ListMatchingEntries(
+func (ds *sqlPlugin) ListMatchingEntries(
 	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
 
 	ds.mutex.Lock()
@@ -822,7 +826,7 @@ func (ds *sqlitePlugin) ListMatchingEntries(
 	return resp, nil
 }
 
-func (ds *sqlitePlugin) ListSpiffeEntries(
+func (ds *sqlPlugin) ListSpiffeEntries(
 	request *datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
 
 	var entries []RegisteredEntry
@@ -843,7 +847,7 @@ func (ds *sqlitePlugin) ListSpiffeEntries(
 }
 
 // RegisterToken takes a Token message and stores it
-func (ds *sqlitePlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, error) {
+func (ds *sqlPlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, error) {
 
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
@@ -863,7 +867,7 @@ func (ds *sqlitePlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, 
 
 // FetchToken takes a Token message and returns one, populating the fields
 // we have knowledge of
-func (ds *sqlitePlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinToken, error) {
+func (ds *sqlPlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinToken, error) {
 
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
@@ -882,7 +886,7 @@ func (ds *sqlitePlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinTok
 	return resp, err
 }
 
-func (ds *sqlitePlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, error) {
+func (ds *sqlPlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, error) {
 
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
@@ -904,7 +908,7 @@ func (ds *sqlitePlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, er
 
 // PruneTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
-func (ds *sqlitePlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, error) {
+func (ds *sqlPlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, error) {
 
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
@@ -927,7 +931,7 @@ func (ds *sqlitePlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, er
 	return resp, nil
 }
 
-func (ds *sqlitePlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (ds *sqlPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -943,26 +947,31 @@ func (ds *sqlitePlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResp
 		return resp, err
 	}
 
-	if config.FileName == "" {
-		return resp, errors.New("filename must be set")
+	if config.DatabaseType == "" {
+		return resp, errors.New("database_type must be set")
 	}
 
-	if config.FileName != ds.fileName {
-		ds.fileName = config.FileName
+	if config.ConnectionString == "" {
+		return resp, errors.New("connection_string must be set")
+	}
+
+	if config.ConnectionString != ds.ConnectionString {
+		ds.DatabaseType = config.DatabaseType
+		ds.ConnectionString = config.ConnectionString
 		return resp, ds.restart()
 	}
 
 	return resp, nil
 }
 
-func (sqlitePlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (sqlPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
 // listMatchingEntries finds registered entries containing all specified selectors. Note
 // that entries containing _more_ than the specified selectors may be returned, since
 // that is also considered a "match"
-func (ds *sqlitePlugin) listMatchingEntries(selectors []*common.Selector) ([]*common.RegistrationEntry, error) {
+func (ds *sqlPlugin) listMatchingEntries(selectors []*common.Selector) ([]*common.RegistrationEntry, error) {
 	// Count references to each entry ID
 	refCount := make(map[uint]int)
 	for _, s := range selectors {
@@ -1006,7 +1015,7 @@ func (ds *sqlitePlugin) listMatchingEntries(selectors []*common.Selector) ([]*co
 
 // bundleToModel converts the given Protobuf bundle message to a database model. It
 // performs validation, and fully parses certificates to form CACert embedded models.
-func (ds *sqlitePlugin) bundleToModel(pb *datastore.Bundle) (*Bundle, error) {
+func (ds *sqlPlugin) bundleToModel(pb *datastore.Bundle) (*Bundle, error) {
 	id, err := ds.validateTrustDomain(pb.TrustDomain)
 	if err != nil {
 		return nil, err
@@ -1038,7 +1047,7 @@ func (ds *sqlitePlugin) bundleToModel(pb *datastore.Bundle) (*Bundle, error) {
 
 // modelToBundle converts the given bundle model to a Protobuf bundle message. It will also
 // include any embedded CACert models.
-func (ds *sqlitePlugin) modelToBundle(model *Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) modelToBundle(model *Bundle) (*datastore.Bundle, error) {
 	id, err := ds.validateTrustDomain(model.TrustDomain)
 	if err != nil {
 		return nil, err
@@ -1057,7 +1066,7 @@ func (ds *sqlitePlugin) modelToBundle(model *Bundle) (*datastore.Bundle, error) 
 	return pb, nil
 }
 
-func (ds *sqlitePlugin) validateRegistrationEntry(entry *common.RegistrationEntry) error {
+func (ds *sqlPlugin) validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	if entry.Selectors == nil || len(entry.Selectors) == 0 {
 		return errors.New("missing selector list")
 	}
@@ -1078,7 +1087,7 @@ func (ds *sqlitePlugin) validateRegistrationEntry(entry *common.RegistrationEntr
 // GORM natively support the url.URL type.
 //
 // A valid trust domain has the SPIFFE scheme, a non-zero host component, and no path
-func (ds *sqlitePlugin) validateTrustDomain(in string) (*url.URL, error) {
+func (ds *sqlPlugin) validateTrustDomain(in string) (*url.URL, error) {
 	if in == "" {
 		return nil, errors.New("trust domain is required")
 	}
@@ -1095,7 +1104,7 @@ func (ds *sqlitePlugin) validateTrustDomain(in string) (*url.URL, error) {
 	return id, nil
 }
 
-func (ds *sqlitePlugin) convertEntries(fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
+func (ds *sqlPlugin) convertEntries(fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
 	for _, regEntry := range fetchedRegisteredEntries {
 		var selectors []*common.Selector
 		var fetchedSelectors []*Selector
@@ -1134,26 +1143,29 @@ func (re registrationEntries) Less(i, j int) bool {
 	return false
 }
 
-func (ds *sqlitePlugin) sortEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {
+func (ds *sqlPlugin) sortEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {
 	e := registrationEntries(entries)
 	sort.Sort(e)
 	return []*common.RegistrationEntry(e)
 }
 
-// restart will close and re-open the sqlite database.
-func (ds *sqlitePlugin) restart() error {
+// restart will close and re-open the gorm database.
+func (ds *sqlPlugin) restart() error {
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	// Build sqlite connect string
-	path := ds.fileName
-	if path == ":memory:" {
-		path = path + "?cache=shared"
-	}
-	path = "file:" + path
+	var db *gorm.DB
+	var err error
 
-	log.Printf("opening sqlite database with path %s", path)
-	db, err := gorm.Open("sqlite3", path)
+	switch ds.DatabaseType {
+	case "sqlite3":
+		db, err = sqlite{}.connect(ds.ConnectionString)
+	case "postgres":
+		db, err = postgres{}.connect(ds.ConnectionString)
+	default:
+		return fmt.Errorf("unsupported database_type: %v", ds.DatabaseType)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -1162,21 +1174,22 @@ func (ds *sqlitePlugin) restart() error {
 		ds.db.Close()
 	}
 
-	db.Exec("PRAGMA foreign_keys = ON")
 	migrateDB(db)
 	ds.db = db
 	return nil
 }
 
-func newPlugin() *sqlitePlugin {
-	p := &sqlitePlugin{
-		mutex: new(sync.Mutex),
+func newPlugin() *sqlPlugin {
+	p := &sqlPlugin{
+		mutex:            new(sync.Mutex),
+		ConnectionString: ":memory:",
+		DatabaseType:     "sqlite3",
 	}
 
 	return p
 }
 
-// New creates a new sqlite plugin struct. Configure must be called
+// New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
 func New() datastore.DataStore {
 	return newPlugin()

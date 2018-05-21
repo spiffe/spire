@@ -1,4 +1,4 @@
-package sqlite
+package sql
 
 import (
 	"time"
@@ -67,7 +67,7 @@ type Selector struct {
 }
 
 func migrateDB(db *gorm.DB) {
-	db.AutoMigrate(&CACert{}, &Bundle{}, &AttestedNodeEntry{},
+	db.AutoMigrate(&Bundle{}, &CACert{}, &AttestedNodeEntry{},
 		&NodeResolverMapEntry{}, &RegisteredEntry{}, &JoinToken{},
 		&Selector{})
 

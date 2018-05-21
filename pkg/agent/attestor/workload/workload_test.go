@@ -58,8 +58,8 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 
 	sel1 := []*common.Selector{{Type: "foo", Value: "bar"}}
 	sel2 := []*common.Selector{{Type: "bat", Value: "baz"}}
-	s.attestor1.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{sel1}, nil)
-	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{sel2}, nil)
+	s.attestor1.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel1}, nil)
+	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
 
 	// Use selector package to work around sort ordering
 	expected := selector.NewSetFromRaw([]*common.Selector{sel1[0], sel2[0]})
@@ -68,7 +68,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 
 	s.catalog.EXPECT().WorkloadAttestors().Return(attestors)
 	s.attestor1.EXPECT().Attest(gomock.Any()).Return(nil, errors.New("i'm an error"))
-	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{sel2}, nil)
+	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
 
 	s.Assert().Equal(sel2, s.attestor.Attest(1))
 }

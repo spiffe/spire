@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # This script performs a lightweight end-to-end test of the SPIRE server and
-# agent. It creates a registration entry, and uses the SPIRE agent cli tool
+# AGENT. It creates a registration entry, and uses the SPIRE AGENT cli tool
 # to fetch the minted SVID from the Workload API. This script will exit with
 # code 0 if all steps are completed successfully.
 #
@@ -11,17 +11,46 @@
 
 set -e
 
+
+run_e2e_test() {
 rm -f .data/datastore.sqlite3
-./cmd/spire-server/spire-server run &
+CONFIG_LOCATION=$1
+
+run_test $CONFIG_LOCATION
+}
+
+run_docker_test() {
+CONFIG_LOCATION=$1
+DOCKER_COMMAND=$2
+
+output=(docker version)
+if [ $? -ne 0 ]; then
+    echo "No working docker installation found. Skipping e2e test for configuration file $CONFIG_LOCATION"
+    return
+fi
+
+echo "Starting container $DOCKER_COMMAND"
+CONTAINER_ID=$(docker run $DOCKER_COMMAND)
+sleep 10
+run_test $CONFIG_LOCATION
+docker rm -f $CONTAINER_ID
+}
+
+run_test() {
+CONFIG_LOCATION=$1
+
+./cmd/spire-server/spire-server run -config $CONFIG_LOCATION &
+SERVER_PID=$!
 sleep 2
 
 ./cmd/spire-server/spire-server entry create \
 -spiffeID spiffe://example.org/test \
 -parentID spiffe://example.org/agent \
--selector unix:uid:$(id -u)
+-selector unix:uid:$(id -u) \
 
 TOKEN=$(./cmd/spire-server/spire-server token generate -spiffeID spiffe://example.org/agent | awk '{print $2}')
 ./cmd/spire-agent/spire-agent run -joinToken $TOKEN &
+AGENT_PID=$!
 sleep 2
 
 set +e
@@ -43,8 +72,14 @@ else
     echo
 fi
 
-kill %2
-kill %1
+kill $AGENT_PID
+kill $SERVER_PID
 wait
 
-exit $CODE
+if [ $CODE -ne "0" ]; then
+    exit $CODE
+fi
+}
+
+run_e2e_test "conf/server/server.conf"
+run_docker_test "test/configs/postgres.conf" "-e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres"

@@ -137,7 +137,7 @@ func (m *ManagerTestSuite) TestActivateNextCA() {
 	m.m.nextCACert = cert
 
 	m.catalog.EXPECT().CAs().Return([]ca.ServerCa{m.ca})
-	req := &ca.LoadCertificateRequest{cert.Raw}
+	req := &ca.LoadCertificateRequest{SignedIntermediateCert: cert.Raw}
 	m.ca.EXPECT().LoadCertificate(req)
 
 	m.Assert().NoError(m.m.activateNextCA())

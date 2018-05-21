@@ -31,7 +31,7 @@ func hasSelector(entry *common.RegistrationEntry, selector *common.Selector) boo
 	var found bool
 
 	for _, s := range entry.Selectors {
-		if *s == *selector {
+		if s.Type == selector.Type && s.Value == selector.Value {
 			found = true
 			break
 		}

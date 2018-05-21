@@ -130,7 +130,7 @@ API and the Node API, with which agents communicate with the server.
 | Type | Name | Description |
 | ---- | ---- | ----------- |
 | ServerCA  | [memory](/doc/plugin_server_ca_memory.md) | An in-memory CA for signing SVIDs |
-| DataStore | [sqlite](/doc/plugin_server_datastore_sqlite.md) | An sqlite-based implementation of the SPIRE datastore |
+| DataStore | [sql](/doc/plugin_server_datastore_sql.md) | An sql database storage for SQLite and PostgreSQL databases for the SPIRE datastore |
 | NodeAttestor | [join_token](/doc/plugin_server_nodeattestor_jointoken.md) | A node attestor which validates agents attesting with server-generated join tokens |
 | NodeAttestor | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) | A node attestor which validates agents attesting with AWS Instance Identity Document and Signatures. |
 | NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |

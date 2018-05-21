@@ -1,12 +1,12 @@
-hash: 61e6d4c3d4134479c98f392514a4e9d6b1562a99de5d7257ea8556904e658410
-updated: 2018-03-23T15:18:36.884483-07:00
+hash: 594c42315502da06ee1b4c9ea42fb85a7915cae238dbb86c146c8eca5053802a
+updated: 2018-05-19T09:35:01.423141+02:00
 imports:
 - name: github.com/armon/go-metrics
   version: 783273d703149aaeb9897cf58613d5af48861c25
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/aws/aws-sdk-go
-  version: c8c4e0c0514d87f930c1342fef390db5329928b7
+  version: 5f796043d63bfddca929cfbcffce01e5a894aad5
   subpackages:
   - aws
   - aws/awserr
@@ -48,7 +48,7 @@ imports:
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
+  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
   subpackages:
   - jsonpb
   - proto
@@ -99,6 +99,7 @@ imports:
 - name: github.com/jinzhu/gorm
   version: 5174cc5c242a728b435ea2be8a2f7f998e15429b
   subpackages:
+  - dialects/postgres
   - dialects/sqlite
 - name: github.com/jinzhu/inflection
   version: 1c35d901db3da928c72a72d8458480cc9ade058f
@@ -108,6 +109,11 @@ imports:
   version: a009038a6334cbda8dd5984dfd2f387a2ce9fdbf
 - name: github.com/jteeuwen/go-bindata
   version: bbd0c6e271208dce66d8fda4bc536453cd27fc4a
+- name: github.com/lib/pq
+  version: d34b9ff171c21ad295489235aec8b6626023cd04
+  subpackages:
+  - hstore
+  - oid
 - name: github.com/mattn/go-isatty
   version: 6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c
 - name: github.com/mattn/go-sqlite3
@@ -181,11 +187,12 @@ imports:
   - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 8e4536a86ab602859c20df5ebfd0bd4228d08655
+  version: 41344da2231b913fa3d983840a57a6b1b7b631a1
   subpackages:
   - balancer
   - balancer/base
   - balancer/roundrobin
+  - channelz
   - codes
   - connectivity
   - credentials
