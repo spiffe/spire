@@ -63,6 +63,8 @@ func New(c *Config) (*manager, error) {
 		rotationFreq:    60 * time.Second,
 	}
 
+	m.setBundle(c.Bundle)
+
 	err = m.newSyncClient([]string{m.spiffeID, m.serverSPIFFEID}, m.svid, m.svidKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create sync client: %v", err)
