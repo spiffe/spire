@@ -1,4 +1,5 @@
 syntax = "proto3";
+package spire.api.workload;
 
 message X509SVIDRequest {  }
 
