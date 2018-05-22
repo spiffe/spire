@@ -10,12 +10,13 @@ binary_dirs := $(shell find cmd/* functional/tools/* -maxdepth 0 -type d)
 docker_volume := $(shell echo $${PWD%/src/*}):/root/go
 docker_image = spire-dev:latest
 gopath := $(shell go env GOPATH)
-githash := $(shell git rev-parse --short=8 HEAD)
+gittag := $(shell git tag --points-at)
 gitdirty := $(shell git status -s)
+# don't provide the git tag if the git status is dirty.
 ifneq ($(gitdirty),)
-	githash := $(githash)-dirty
+	gittag :=
 endif
-ldflags := '-X github.com/spiffe/spire/pkg/common/version.githash=$(githash)'
+ldflags := '-X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)'
 
 utils = github.com/golang/protobuf/protoc-gen-go \
 		github.com/grpc-ecosystem/grpc-gateway \

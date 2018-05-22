@@ -7,12 +7,12 @@ const (
 )
 
 var (
-	githash = ""
+	gittag = ""
 )
 
 func Version() string {
-	if githash == "" {
+	if gittag == "" {
 		return fmt.Sprintf("%s-dev", Base)
 	}
-	return fmt.Sprintf("%s (%s)", Base, githash)
+	return Base
 }
