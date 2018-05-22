@@ -1,6 +1,9 @@
 sudo: true
 dist: trusty
 
+services:
+  - docker
+
 language: go
 
 cache:

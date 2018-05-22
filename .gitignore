@@ -26,3 +26,4 @@ functional/tools/workload/workload
 
 # Editor specific configuration
 .idea
+.vscode

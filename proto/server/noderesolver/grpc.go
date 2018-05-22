@@ -43,6 +43,6 @@ func (m *GRPCClient) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPlugi
 
 func (m *GRPCClient) Resolve(physicalSpiffeIdList []string) (map[string]*common.Selectors, error) {
 	node_res, err := m.client.Resolve(context.Background(), &ResolveRequest{
-		physicalSpiffeIdList})
+		BaseSpiffeIdList: physicalSpiffeIdList})
 	return node_res.Map, err
 }

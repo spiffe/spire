@@ -1,9 +1,12 @@
 #!/bin/bash
 #
 # This script performs a lightweight end-to-end test of the SPIRE server and
-# agent. It creates a registration entry, and uses the SPIRE agent cli tool
+# agent using the SQLite database. It creates a registration entry, and uses the SPIRE agent cli tool
 # to fetch the minted SVID from the Workload API. This script will exit with
 # code 0 if all steps are completed successfully.
+#
+# If a running docker system is available from the machine this test will also create a new PostgreSQL instance
+# as a docker container. This database instance is then used to run the e2e test with PostgreSQL as a datastore. 
 #
 # PLEASE NOTE: This script must be run from the project root, and will remove the
 # default datastore file before beginning in order to ensure accurate resutls.
@@ -11,40 +14,75 @@
 
 set -e
 
-rm -f .data/datastore.sqlite3
-./cmd/spire-server/spire-server run &
-sleep 2
 
-./cmd/spire-server/spire-server entry create \
--spiffeID spiffe://example.org/test \
--parentID spiffe://example.org/agent \
--selector unix:uid:$(id -u)
+run_e2e_test() {
+    rm -f .data/datastore.sqlite3
+    CONFIG_LOCATION=$1
 
-TOKEN=$(./cmd/spire-server/spire-server token generate -spiffeID spiffe://example.org/agent | awk '{print $2}')
-./cmd/spire-agent/spire-agent run -joinToken $TOKEN &
-sleep 2
+    run_test $CONFIG_LOCATION
+}
 
-set +e
-RESULT=$(./cmd/spire-agent/spire-agent api fetch)
-echo $RESULT | grep "Received 1 bundle"
-if [ $? != 0 ]; then
-    CODE=1
-    echo
-    echo
-    echo $RESULT
-    echo
-    echo "Test failed."
-    echo
-else
-    CODE=0
-    echo
-    echo
-    echo "Test passed."
-    echo
-fi
+run_docker_test() {
+    CONFIG_LOCATION=$1
+    DOCKER_COMMAND=$2
 
-kill %2
-kill %1
-wait
+    output=(docker version)
+    if [ $? -ne 0 ]; then
+        echo "No working docker installation found. Skipping e2e test for configuration file $CONFIG_LOCATION"
+        return
+    fi
 
-exit $CODE
+    echo "Starting container $DOCKER_COMMAND"
+    CONTAINER_ID=$(docker run $DOCKER_COMMAND)
+    sleep 10
+    run_test $CONFIG_LOCATION
+    docker rm -f $CONTAINER_ID
+}
+
+run_test() {
+    CONFIG_LOCATION=$1
+
+    ./cmd/spire-server/spire-server run -config $CONFIG_LOCATION &
+    SERVER_PID=$!
+    sleep 2
+
+    ./cmd/spire-server/spire-server entry create \
+    -spiffeID spiffe://example.org/test \
+    -parentID spiffe://example.org/agent \
+    -selector unix:uid:$(id -u) 
+
+    TOKEN=$(./cmd/spire-server/spire-server token generate -spiffeID spiffe://example.org/agent | awk '{print $2}')
+    ./cmd/spire-agent/spire-agent run -joinToken $TOKEN &
+    AGENT_PID=$!
+    sleep 2
+
+    set +e
+    RESULT=$(./cmd/spire-agent/spire-agent api fetch)
+    echo $RESULT | grep "Received 1 bundle"
+    if [ $? != 0 ]; then
+        CODE=1
+        echo
+        echo
+        echo $RESULT
+        echo
+        echo "Test failed."
+        echo
+    else
+        CODE=0
+        echo
+        echo
+        echo "Test passed."
+        echo
+    fi
+
+    kill $AGENT_PID
+    kill $SERVER_PID
+    wait
+
+    if [ $CODE -ne "0" ]; then
+        exit $CODE
+    fi
+}
+
+run_e2e_test "conf/server/server.conf"
+run_docker_test "test/configs/postgres.conf" "-e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres"

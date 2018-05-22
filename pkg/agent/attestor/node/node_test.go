@@ -175,7 +175,7 @@ func (s *NodeAttestorTestSuite) setGenerateKeyPairResponse() {
 	s.Require().NoError(err)
 
 	s.keyManager.EXPECT().GenerateKeyPair(gomock.Any()).Return(
-		&keymanager.GenerateKeyPairResponse{svid.RawSubjectPublicKeyInfo, keyDer}, nil)
+		&keymanager.GenerateKeyPairResponse{PublicKey: svid.RawSubjectPublicKeyInfo, PrivateKey: keyDer}, nil)
 }
 
 func (s *NodeAttestorTestSuite) setCatalog() {
@@ -190,11 +190,11 @@ func (s *NodeAttestorTestSuite) setFetchBaseSVIDResponse() {
 	s.Require().NoError(err)
 
 	s.nodeClient.EXPECT().FetchBaseSVID(gomock.Any(), gomock.Any()).
-		Return(&node.FetchBaseSVIDResponse{&node.SvidUpdate{
+		Return(&node.FetchBaseSVIDResponse{SvidUpdate: &node.SvidUpdate{
 			Svids: map[string]*node.Svid{
 				"spiffe://example.com/spire/agent/join_token/foobar": &node.Svid{
-					svid.Raw,
-					300,
+					SvidCert: svid.Raw,
+					Ttl:      300,
 				}},
 		}}, nil)
 }

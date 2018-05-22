@@ -58,13 +58,13 @@ func (d *diskPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (*keyma
 		return nil, err
 	}
 
-	resp := &keymanager.GenerateKeyPairResponse{pubData, privData}
+	resp := &keymanager.GenerateKeyPairResponse{PublicKey: pubData, PrivateKey: privData}
 	return resp, nil
 }
 
 func (d *diskPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
 	// Start with empty response
-	resp := &keymanager.FetchPrivateKeyResponse{[]byte{}}
+	resp := &keymanager.FetchPrivateKeyResponse{PrivateKey: []byte{}}
 
 	d.mtx.RLock()
 	p := path.Join(d.dir, keyFileName)

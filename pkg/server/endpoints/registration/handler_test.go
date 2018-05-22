@@ -584,7 +584,7 @@ func fetchEntriesExpectations(suite *handlerTestSuite) {
 
 	fetchResponse := &datastore.FetchRegistrationEntriesResponse{
 		RegisteredEntries: &common.RegistrationEntries{
-			testutil.GetRegistrationEntries("good.json"),
+			Entries: testutil.GetRegistrationEntries("good.json"),
 		},
 	}
 	suite.mockDataStore.EXPECT().
