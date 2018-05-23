@@ -6,11 +6,11 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/api"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/run"
+	"github.com/spiffe/spire/pkg/common/version"
 )
 
 func Run(args []string) int {
-
-	c := cli.NewCLI("spire-agent", "0.0.1") //TODO expose version configuration
+	c := cli.NewCLI("spire-agent", version.Version())
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
 		"api fetch": func() (cli.Command, error) {
