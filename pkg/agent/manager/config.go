@@ -12,14 +12,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 
 	tomb "gopkg.in/tomb.v2"
 )
-
-// rotatorTag is a special string used to locate the client (on the clients' pool) used to
-// rotate the agent's SVID.
-const rotatorTag string = "_rotator_"
 
 // Config holds a cache manager configuration
 type Config struct {
@@ -38,41 +35,41 @@ type Config struct {
 
 // New creates a cache manager based on c's configuration
 func New(c *Config) (*manager, error) {
-	c.Log = c.Log.WithField("subsystem_name", "manager")
-
 	spiffeID, err := getSpiffeIDFromSVID(c.SVID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get spiffe id from SVID: %v", err)
 	}
 
-	m := &manager{
-		cache: cache.New(c.Log, c.Bundle),
-		c:     c,
-		t:     new(tomb.Tomb),
-		mtx:   new(sync.RWMutex),
+	cache := cache.New(c.Log, c.Bundle)
 
-		// Copy SVID into the manager to facilitate rotation
-		svid:            c.SVID,
-		svidKey:         c.SVIDKey,
+	rotCfg := &svid.RotatorConfig{
+		Log:          c.Log,
+		SVID:         c.SVID,
+		SVIDKey:      c.SVIDKey,
+		SpiffeID:     spiffeID,
+		BundleStream: cache.BundleSubscribe(),
+		ServerAddr:   c.ServerAddr,
+		TrustDomain:  c.TrustDomain,
+	}
+	svidRotator, client := svid.NewRotator(rotCfg)
+
+	m := &manager{
+		cache:           cache,
+		c:               c,
+		t:               new(tomb.Tomb),
+		mtx:             new(sync.RWMutex),
+		svid:            svidRotator,
 		spiffeID:        spiffeID,
 		serverSPIFFEID:  "spiffe://" + c.TrustDomain.Host + "/spiffe/server",
 		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
 		syncFreq:        5 * time.Second,
-		rotationFreq:    60 * time.Second,
 	}
 
-	m.setBundle(c.Bundle)
-
-	err = m.newSyncClient([]string{m.spiffeID, m.serverSPIFFEID}, m.svid, m.svidKey)
+	err = m.addClient(client, m.spiffeID, m.serverSPIFFEID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create sync client: %v", err)
-	}
-
-	err = m.newSyncClient([]string{rotatorTag}, m.svid, m.svidKey)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create rotator client: %v", err)
 	}
 
 	return m, nil
