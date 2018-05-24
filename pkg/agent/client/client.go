@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -55,6 +56,7 @@ type client struct {
 	c          *Config
 	conn       *grpc.ClientConn
 	nodeClient node.NodeClient
+	m          sync.Mutex
 }
 
 // New creates a new client struct with the configuration provided
@@ -65,7 +67,6 @@ func New(c *Config) *client {
 }
 
 func newGRPCConn(c *Config) (*grpc.ClientConn, error) {
-
 	credFunc := func() (credentials.TransportCredentials, error) {
 		var tlsCert []tls.Certificate
 		var tlsConfig *tls.Config
@@ -148,6 +149,9 @@ func (c *client) FetchUpdates(req *node.FetchSVIDRequest) (*Update, error) {
 }
 
 func (c *client) Release() {
+	c.m.Lock()
+	defer c.m.Unlock()
+
 	if c.conn != nil {
 		c.nodeClient = nil
 		c.conn.Close()
@@ -156,6 +160,9 @@ func (c *client) Release() {
 }
 
 func (c *client) getNodeClient() (node.NodeClient, error) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
 	if c.conn == nil {
 		conn, err := newGRPCConn(c.c)
 		if err != nil {

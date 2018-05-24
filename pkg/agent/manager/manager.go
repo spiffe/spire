@@ -74,9 +74,6 @@ type manager struct {
 	bundleCachePath string
 
 	syncClients *clientsPool
-
-	// Frequency of synchronization events in seconds.
-	syncFreq time.Duration
 }
 
 func (m *manager) Start() error {
@@ -163,7 +160,7 @@ func (m *manager) run() error {
 }
 
 func (m *manager) synchronizer() error {
-	t := time.NewTicker(m.syncFreq)
+	t := time.NewTicker(m.c.SyncInterval)
 
 	for {
 		select {

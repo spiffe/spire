@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/imkira/go-observer"
@@ -29,6 +30,11 @@ type rotator struct {
 	client client.Client
 
 	state observer.Property
+
+	m       sync.RWMutex
+	running bool
+	// Mutex used to protect access to c.BundleStream.
+	bsm *sync.RWMutex
 }
 
 type State struct {
@@ -43,7 +49,10 @@ func (r *rotator) Start() {
 
 func (r *rotator) Stop() {
 	close(r.stop)
-	<-r.done
+	if r.isRunning() {
+		<-r.done
+		r.setRunning(false)
+	}
 }
 
 func (r *rotator) State() State {
@@ -59,6 +68,7 @@ func (r *rotator) Subscribe() observer.Stream {
 // rotateSVID() as necessary.
 // - Reads the next trust bundle received on BundleStream.
 func (r *rotator) run() {
+	r.setRunning(true)
 	t := time.NewTicker(r.c.Interval)
 
 	for {
@@ -75,7 +85,9 @@ func (r *rotator) run() {
 				}
 			}
 		case <-r.c.BundleStream.Changes():
+			r.bsm.Lock()
 			r.c.BundleStream.Next()
+			r.bsm.Unlock()
 		}
 	}
 }
@@ -135,4 +147,16 @@ func (r *rotator) rotateSVID() error {
 
 	r.state.Update(s)
 	return nil
+}
+
+func (r *rotator) isRunning() bool {
+	r.m.RLock()
+	defer r.m.RUnlock()
+	return r.running
+}
+
+func (r *rotator) setRunning(value bool) {
+	r.m.Lock()
+	defer r.m.Unlock()
+	r.running = value
 }

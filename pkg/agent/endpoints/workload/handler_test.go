@@ -104,7 +104,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
 	s.catalog.EXPECT().WorkloadAttestors().Return([]workloadattestor.WorkloadAttestor{s.attestor1})
 	s.attestor1.EXPECT().Attest(&workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
-	s.manager.EXPECT().Subscribe(cache.Selectors{selectors[0]}).Return(subscriber)
+	s.manager.EXPECT().NewSubscriber(cache.Selectors{selectors[0]}).Return(subscriber)
 	s.stream.EXPECT().Send(gomock.Any())
 	go func() { result <- s.h.FetchX509SVID(nil, s.stream) }()
 

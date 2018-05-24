@@ -66,7 +66,7 @@ func TestShutdownDoesntHangAfterFailedStart(t *testing.T) {
 	})
 }
 
-func TestStoreBundleAtManagerCreation(t *testing.T) {
+func TestStoreBundleOnStartup(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
@@ -93,6 +93,13 @@ func TestStoreBundleAtManagerCreation(t *testing.T) {
 		t.Fatal("bundle should have been cached in memory")
 	}
 
+	err = m.Start()
+	if err == nil {
+		t.Fatal("manager was expected to fail during startup")
+	}
+
+	// Althought start failed, the Bundle should have been saved, because it should be
+	// one of the first thing the manager does at startup.
 	bundle, err := ReadBundle(c.BundleCachePath)
 	if err != nil {
 		t.Fatalf("bundle should have been saved in a file: %v", err)
@@ -101,6 +108,7 @@ func TestStoreBundleAtManagerCreation(t *testing.T) {
 	if !bundle[0].Equal(ca) {
 		t.Fatal("bundle should have included CA certificate")
 	}
+	m.Shutdown()
 }
 
 func TestStoreSVIDOnStartup(t *testing.T) {
@@ -137,7 +145,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	}
 
 	// Althought start failed, the SVID should have been saved, because it should be
-	// the first thing the manager does at startup.
+	// one of the first thing the manager does at startup.
 	cert, err := ReadSVID(c.SVIDCachePath)
 	if err != nil {
 		t.Fatal(err)
@@ -192,10 +200,12 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	}
 	defer m.Shutdown()
 
-	cert, key := m.getBaseSVIDEntry()
+	cert := m.svid.State().SVID
 	if !cert.Equal(baseSVID) {
 		t.Fatal("SVID is not equals to configured one")
 	}
+
+	key := m.svid.State().Key
 	if key != baseSVIDKey {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
@@ -213,7 +223,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	}
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		sub := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+		sub := m.NewSubscriber(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 		u := <-sub.Updates()
 
 		if len(u.Entries) != 2 {
@@ -261,42 +271,46 @@ func TestSVIDRotation(t *testing.T) {
 			Net:  "unix",
 			Name: apiHandler.sockPath,
 		},
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		TrustDomain:     url.URL{Host: trustDomain},
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
-		Bundle:          apiHandler.bundle,
-		Tel:             &telemetry.Blackhole{},
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      url.URL{Host: trustDomain},
+		SVIDCachePath:    path.Join(dir, "svid.der"),
+		BundleCachePath:  path.Join(dir, "bundle.der"),
+		Bundle:           apiHandler.bundle,
+		Tel:              &telemetry.Blackhole{},
+		RotationInterval: baseTTL / 2,
+		SyncInterval:     1 * time.Hour,
 	}
 	m, err := New(c)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	m.rotationFreq = baseTTL / 2
-	m.syncFreq = 1 * time.Hour
 	err = m.Start()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer m.Shutdown()
 
-	cert, key := m.getBaseSVIDEntry()
+	cert := m.svid.State().SVID
 	if !cert.Equal(baseSVID) {
 		t.Fatal("SVID is not equals to configured one")
 	}
+
+	key := m.svid.State().Key
 	if key != baseSVIDKey {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
 	// Loop until we detect an SVID rotation
-	util.RunWithTimeout(t, 2*m.rotationFreq, func() {
+	util.RunWithTimeout(t, 2*m.c.RotationInterval, func() {
 		for {
 			// If manager's current SVID is not equals to the first one we generated
 			// it means it rotated, so we must exit the loop.
-			cert, key = m.getBaseSVIDEntry()
+			s := m.svid.State()
+			cert = s.SVID
+			key = s.Key
 			if !cert.Equal(baseSVID) {
 				break
 			}
@@ -332,14 +346,16 @@ func TestSynchronization(t *testing.T) {
 			Net:  "unix",
 			Name: apiHandler.sockPath,
 		},
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		TrustDomain:     url.URL{Host: trustDomain},
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
-		Bundle:          apiHandler.bundle,
-		Tel:             &telemetry.Blackhole{},
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      url.URL{Host: trustDomain},
+		SVIDCachePath:    path.Join(dir, "svid.der"),
+		BundleCachePath:  path.Join(dir, "bundle.der"),
+		Bundle:           apiHandler.bundle,
+		Tel:              &telemetry.Blackhole{},
+		RotationInterval: 1 * time.Hour,
+		SyncInterval:     3 * time.Second,
 	}
 
 	m, err := New(c)
@@ -347,15 +363,13 @@ func TestSynchronization(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.rotationFreq = 1 * time.Hour
-	m.syncFreq = 3 * time.Second
 	err = m.Start()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer m.Shutdown()
 
-	sub := m.Subscribe(cache.Selectors{
+	sub := m.NewSubscriber(cache.Selectors{
 		&common.Selector{Type: "unix", Value: "uid:1111"},
 		&common.Selector{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"},
 	})
@@ -393,7 +407,7 @@ func TestSynchronization(t *testing.T) {
 		}
 	})
 
-	util.RunWithTimeout(t, 2*m.syncFreq, func() {
+	util.RunWithTimeout(t, 2*m.c.SyncInterval, func() {
 		// There should be 3 updates after sync, because we are subcribed to selectors that
 		// matches with 3 entries that were renewed on the cache.
 		<-sub.Updates()
@@ -463,14 +477,16 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 			Net:  "unix",
 			Name: apiHandler.sockPath,
 		},
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		TrustDomain:     url.URL{Host: trustDomain},
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
-		Bundle:          []*x509.Certificate{apiHandler.bundle[0]},
-		Tel:             &telemetry.Blackhole{},
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      url.URL{Host: trustDomain},
+		SVIDCachePath:    path.Join(dir, "svid.der"),
+		BundleCachePath:  path.Join(dir, "bundle.der"),
+		Bundle:           []*x509.Certificate{apiHandler.bundle[0]},
+		Tel:              &telemetry.Blackhole{},
+		RotationInterval: 1 * time.Hour,
+		SyncInterval:     1 * time.Hour,
 	}
 
 	m, err := New(c)
@@ -478,10 +494,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.rotationFreq = 1 * time.Hour
-	m.syncFreq = 1 * time.Hour
-
-	sub := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	sub := m.NewSubscriber(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 
 	err = m.Start()
 	if err != nil {
@@ -529,14 +542,17 @@ func TestSurvivesCARotation(t *testing.T) {
 			Net:  "unix",
 			Name: apiHandler.sockPath,
 		},
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		TrustDomain:     url.URL{Host: trustDomain},
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
-		Bundle:          []*x509.Certificate{apiHandler.bundle[0]},
-		Tel:             &telemetry.Blackhole{},
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      url.URL{Host: trustDomain},
+		SVIDCachePath:    path.Join(dir, "svid.der"),
+		BundleCachePath:  path.Join(dir, "bundle.der"),
+		Bundle:           []*x509.Certificate{apiHandler.bundle[0]},
+		Tel:              &telemetry.Blackhole{},
+		RotationInterval: 1 * time.Hour,
+		// We want frequent synchronizations to speed up the test.
+		SyncInterval: 1 * time.Second,
 	}
 
 	m, err := New(c)
@@ -545,11 +561,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		return
 	}
 
-	m.rotationFreq = 1 * time.Hour
-	// We want frequent synchronizations to speed up the test.
-	m.syncFreq = 1 * time.Second
-
-	sub := m.Subscribe(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	sub := m.NewSubscriber(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 	// This should be the update received when Subscribe function was called.
 	<-sub.Updates()
 

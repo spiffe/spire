@@ -21,16 +21,18 @@ import (
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
-	SVID            *x509.Certificate
-	SVIDKey         *ecdsa.PrivateKey
-	Bundle          []*x509.Certificate // Initial CA bundle
-	Catalog         catalog.Catalog
-	TrustDomain     url.URL
-	Log             logrus.FieldLogger
-	Tel             telemetry.Sink
-	ServerAddr      net.Addr
-	SVIDCachePath   string
-	BundleCachePath string
+	SVID             *x509.Certificate
+	SVIDKey          *ecdsa.PrivateKey
+	Bundle           []*x509.Certificate // Initial CA bundle
+	Catalog          catalog.Catalog
+	TrustDomain      url.URL
+	Log              logrus.FieldLogger
+	Tel              telemetry.Sink
+	ServerAddr       net.Addr
+	SVIDCachePath    string
+	BundleCachePath  string
+	SyncInterval     time.Duration
+	RotationInterval time.Duration
 }
 
 // New creates a cache manager based on c's configuration
@@ -38,6 +40,14 @@ func New(c *Config) (*manager, error) {
 	spiffeID, err := getSpiffeIDFromSVID(c.SVID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get spiffe id from SVID: %v", err)
+	}
+
+	if c.SyncInterval == 0 {
+		c.SyncInterval = 5 * time.Second
+	}
+
+	if c.RotationInterval == 0 {
+		c.RotationInterval = 60 * time.Second
 	}
 
 	cache := cache.New(c.Log, c.Bundle)
@@ -50,6 +60,7 @@ func New(c *Config) (*manager, error) {
 		BundleStream: cache.BundleSubscribe(),
 		ServerAddr:   c.ServerAddr,
 		TrustDomain:  c.TrustDomain,
+		Interval:     c.RotationInterval,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 
@@ -64,7 +75,6 @@ func New(c *Config) (*manager, error) {
 		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
-		syncFreq:        5 * time.Second,
 	}
 
 	err = m.addClient(client, m.spiffeID, m.serverSPIFFEID)
