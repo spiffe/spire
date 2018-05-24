@@ -30,9 +30,9 @@ type Manager interface {
 	// Shutdown blocks until the manager stops.
 	Shutdown()
 
-	// Subscribe returns a Subscriber on which cache entry updates are sent
+	// NewSubscriber returns a Subscriber on which cache entry updates are sent
 	// for a particular set of selectors.
-	Subscribe(key cache.Selectors) cache.Subscriber
+	NewSubscriber(key cache.Selectors) cache.Subscriber
 
 	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
@@ -112,7 +112,7 @@ func (m *manager) Shutdown() {
 	}
 }
 
-func (m *manager) Subscribe(selectors cache.Selectors) cache.Subscriber {
+func (m *manager) NewSubscriber(selectors cache.Selectors) cache.Subscriber {
 	// creates a subscriber
 	// adds it to the manager
 	// returns the added subscriber

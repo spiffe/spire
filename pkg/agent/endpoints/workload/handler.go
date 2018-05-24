@@ -58,7 +58,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 
 	selectors := attestor.New(&config).Attest(pid)
 
-	subscriber := h.Manager.Subscribe(selectors)
+	subscriber := h.Manager.NewSubscriber(selectors)
 	defer subscriber.Finish()
 
 	for {
