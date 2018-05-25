@@ -3,9 +3,9 @@ package cache
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"github.com/imkira/go-observer"
 	"sync"
 
+	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/common"
