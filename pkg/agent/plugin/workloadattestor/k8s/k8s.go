@@ -18,8 +18,16 @@ import (
 )
 
 const (
-	defaultMaxPollAttempts   = 15
-	defaultPollRetryInterval = 1
+	defaultMaxPollAttempts   = 5
+	defaultPollRetryInterval = time.Millisecond * 300
+)
+
+type containerLookup int
+
+const (
+	containerInPod = iota
+	containerNotInPod
+	containerMaybeInPod
 )
 
 type k8sPlugin struct {
@@ -32,24 +40,24 @@ type k8sPlugin struct {
 }
 
 type k8sPluginConfig struct {
-	KubeletReadOnlyPort int `hcl:"kubelet_read_only_port"`
-	MaxPollAttempts     int `hcl:"max_poll_attempts"`
-	PollRetryInterval   int `hcl:"poll_retry_interval"`
+	KubeletReadOnlyPort int    `hcl:"kubelet_read_only_port"`
+	MaxPollAttempts     int    `hcl:"max_poll_attempts"`
+	PollRetryInterval   string `hcl:"poll_retry_interval"`
+}
+
+type podInfo struct {
+	// We only care about namespace, serviceAccountName and containerID
+	Metadata struct {
+		Namespace string `json:"namespace"`
+	} `json:"metadata"`
+	Spec struct {
+		ServiceAccountName string `json:"serviceAccountName"`
+	} `json:"spec"`
+	Status podStatus `json:"status"`
 }
 
 type podList struct {
-	// We only care about namespace, serviceAccountName and containerID
-	Metadata struct {
-	} `json:"metadata"`
-	Items []struct {
-		Metadata struct {
-			Namespace string `json:"namespace"`
-		} `json:"metadata"`
-		Spec struct {
-			ServiceAccountName string `json:"serviceAccountName"`
-		} `json:"spec"`
-		Status podStatus `json:"status"`
-	} `json:"items"`
+	Items []*podInfo `json:"items"`
 }
 
 type podStatus struct {
@@ -106,17 +114,16 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 	// the pod is not found, and there are pods with containers that aren't
 	// fully initialized, delay for a little bit and try again.
 	for attempt := 1; ; attempt++ {
-		podInfo, err := p.getPodInfoFromInsecureKubeletPort()
+		list, err := p.getPodListFromInsecureKubeletPort()
 		if err != nil {
 			return &resp, err
 		}
 
 		notAllContainersReady := false
-		for _, item := range podInfo.Items {
+		for _, item := range list.Items {
 			switch lookUpContainerInPod(containerID, item.Status) {
 			case containerInPod:
-				resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("sa:%v", item.Spec.ServiceAccountName)})
-				resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("ns:%v", item.Metadata.Namespace)})
+				resp.Selectors = getSelectorsFromPodInfo(item)
 				return &resp, nil
 			case containerMaybeInPod:
 				notAllContainersReady = true
@@ -139,7 +146,7 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 	}
 }
 
-func (p *k8sPlugin) getPodInfoFromInsecureKubeletPort() (out *podList, err error) {
+func (p *k8sPlugin) getPodListFromInsecureKubeletPort() (out *podList, err error) {
 	httpResp, err := p.httpClient.Get(fmt.Sprintf("http://localhost:%d/pods", p.kubeletReadOnlyPort))
 	if err != nil {
 		return nil, err
@@ -157,14 +164,6 @@ func (p *k8sPlugin) getPodInfoFromInsecureKubeletPort() (out *podList, err error
 
 	return out, nil
 }
-
-type containerLookup int
-
-const (
-	containerInPod = iota
-	containerNotInPod
-	containerMaybeInPod
-)
 
 func lookUpContainerInPod(containerID string, status podStatus) containerLookup {
 	notReady := false
@@ -241,6 +240,13 @@ func getCgroups(path string, fs fileSystem) (cgroups [][]string, err error) {
 	return cgroups, err
 }
 
+func getSelectorsFromPodInfo(info *podInfo) []*common.Selector {
+	return []*common.Selector{
+		{Type: selectorType, Value: fmt.Sprintf("sa:%v", info.Spec.ServiceAccountName)},
+		{Type: selectorType, Value: fmt.Sprintf("ns:%v", info.Metadata.Namespace)},
+	}
+}
+
 func (p *k8sPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
@@ -264,13 +270,21 @@ func (p *k8sPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse
 	if config.MaxPollAttempts <= 0 {
 		config.MaxPollAttempts = defaultMaxPollAttempts
 	}
-	if config.PollRetryInterval <= 0 {
-		config.PollRetryInterval = defaultPollRetryInterval
+
+	var pollRetryInterval time.Duration
+	if config.PollRetryInterval != "" {
+		pollRetryInterval, err = time.ParseDuration(config.PollRetryInterval)
+		if err != nil {
+			return resp, err
+		}
+	}
+	if pollRetryInterval <= 0 {
+		pollRetryInterval = defaultPollRetryInterval
 	}
 
 	// Set local vars from config struct
 	p.kubeletReadOnlyPort = config.KubeletReadOnlyPort
-	p.pollRetryInterval = time.Duration(config.PollRetryInterval) * time.Second
+	p.pollRetryInterval = pollRetryInterval
 	p.maxPollAttempts = config.MaxPollAttempts
 	return &spi.ConfigureResponse{}, nil
 }

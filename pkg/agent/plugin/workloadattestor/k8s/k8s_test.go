@@ -117,11 +117,13 @@ func TestK8s_AttestPidInPodAfterRetry(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Body:       ioutil.NopCloser(bytes.NewReader(podListNotRunning)),
 		}, nil)
+
 	mockHttpClient.EXPECT().Get(podsURL).Return(
 		&http.Response{
 			StatusCode: http.StatusOK,
 			Body:       ioutil.NopCloser(bytes.NewReader(podListNotRunning)),
 		}, nil)
+
 	mockHttpClient.EXPECT().Get(podsURL).Return(
 		&http.Response{
 			StatusCode: http.StatusOK,
@@ -191,7 +193,7 @@ func TestK8s_ConfigureValidConfig(t *testing.T) {
 	assert := assert.New(t)
 	p := New()
 	r, err := p.Configure(&spi.ConfigureRequest{
-		Configuration: `{"kubelet_read_only_port":1, "max_poll_attempts": 2, "poll_retry_interval": 3}`,
+		Configuration: `{"kubelet_read_only_port":1, "max_poll_attempts": 2, "poll_retry_interval": "3s"}`,
 	})
 	assert.NoError(err)
 	assert.Equal(&spi.ConfigureResponse{}, r)
