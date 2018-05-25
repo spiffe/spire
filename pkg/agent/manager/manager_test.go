@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ var (
 	regEntriesMap = util.GetRegistrationEntriesMap("manager_test_entries.json")
 )
 
-func TestShutdownDoesntHangAfterFailedStart(t *testing.T) {
+func TestInitializationFailure(t *testing.T) {
 	trustDomain := "somedomain.com"
 	ca, cakey := createCA(t, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
@@ -51,18 +52,13 @@ func TestShutdownDoesntHangAfterFailedStart(t *testing.T) {
 	}
 	m, err := New(c)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
-	err = m.Start()
+	err = m.Initialize(context.Background())
 	if err == nil {
 		t.Fatal("wanted error")
 	}
-
-	util.RunWithTimeout(t, 1*time.Second, func() {
-		m.Shutdown()
-	})
 }
 
 func TestStoreBundleOnStartup(t *testing.T) {
@@ -92,13 +88,13 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		t.Fatal("bundle should have been cached in memory")
 	}
 
-	err = m.Start()
+	err = m.Initialize(context.Background())
 	if err == nil {
-		t.Fatal("manager was expected to fail during startup")
+		t.Fatal("manager was expected to fail during initialization")
 	}
 
 	// Althought start failed, the Bundle should have been saved, because it should be
-	// one of the first thing the manager does at startup.
+	// one of the first thing the manager does at initialization.
 	bundle, err := ReadBundle(c.BundleCachePath)
 	if err != nil {
 		t.Fatalf("bundle should have been saved in a file: %v", err)
@@ -107,7 +103,6 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	if !bundle[0].Equal(ca) {
 		t.Fatal("bundle should have included CA certificate")
 	}
-	m.Shutdown()
 }
 
 func TestStoreSVIDOnStartup(t *testing.T) {
@@ -138,13 +133,13 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = m.Start()
+	err = m.Initialize(context.Background())
 	if err == nil {
-		t.Fatal("manager was expected to fail during startup")
+		t.Fatal("manager was expected to fail during initialization")
 	}
 
 	// Althought start failed, the SVID should have been saved, because it should be
-	// one of the first thing the manager does at startup.
+	// one of the first thing the manager does at initialization.
 	cert, err := ReadSVID(c.SVIDCachePath)
 	if err != nil {
 		t.Fatal(err)
@@ -152,8 +147,6 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	if !cert.Equal(baseSVID) {
 		t.Fatal("SVID was not correctly stored.")
 	}
-
-	m.Shutdown()
 }
 
 func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
@@ -188,16 +181,9 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		Bundle:          apiHandler.bundle,
 		Tel:             &telemetry.Blackhole{},
 	}
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	err = m.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Shutdown()
+	m, closer := initializeAndRunNewManager(t, c)
+	defer closer()
 
 	cert := m.svid.State().SVID
 	if !cert.Equal(baseSVID) {
@@ -214,7 +200,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		t.Fatal("expected 2 entries")
 	}
 
-	err = compareRegistrationEntries(
+	err := compareRegistrationEntries(
 		regEntriesMap["resp2"],
 		[]*common.RegistrationEntry{me[0].RegistrationEntry, me[1].RegistrationEntry})
 	if err != nil {
@@ -281,16 +267,9 @@ func TestSVIDRotation(t *testing.T) {
 		RotationInterval: baseTTL / 2,
 		SyncInterval:     1 * time.Hour,
 	}
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	err = m.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Shutdown()
+	m, closer := initializeAndRunNewManager(t, c)
+	defer closer()
 
 	cert := m.svid.State().SVID
 	if !cert.Equal(baseSVID) {
@@ -357,16 +336,8 @@ func TestSynchronization(t *testing.T) {
 		SyncInterval:     3 * time.Second,
 	}
 
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = m.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Shutdown()
+	m, closer := initializeAndRunNewManager(t, c)
+	defer closer()
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{
 		&common.Selector{Type: "unix", Value: "uid:1111"},
@@ -489,18 +460,11 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		SyncInterval:     1 * time.Hour,
 	}
 
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
+	m := newManager(t, c)
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 
-	err = m.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Shutdown()
+	defer initializeAndRunManager(t, m)()
 
 	util.RunWithTimeout(t, 1*time.Second, func() {
 		// Update should contain a new bundle.
@@ -555,22 +519,14 @@ func TestSurvivesCARotation(t *testing.T) {
 		SyncInterval: 1 * time.Second,
 	}
 
-	m, err := New(c)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	m := newManager(t, c)
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 	// This should be the update received when Subscribe function was called.
 	updates := sub.Updates()
 	<-updates
 
-	err = m.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Shutdown()
+	defer initializeAndRunManager(t, m)()
 
 	// Get latest update
 	util.RunWithTimeout(t, 4*time.Second, func() {
@@ -967,4 +923,42 @@ func createSVIDFromCSR(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateK
 		t.Fatalf("cannot sign svid template for CSR: %v", err)
 	}
 	return svid
+}
+
+func newManager(t *testing.T, c *Config) *manager {
+	m, err := New(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func initializeAndRunNewManager(t *testing.T, c *Config) (m *manager, closer func()) {
+	m, err := New(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m, initializeAndRunManager(t, m)
+}
+
+func initializeAndRunManager(t *testing.T, m *manager) (closer func()) {
+	ctx := context.Background()
+
+	if err := m.Initialize(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(ctx)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := m.Run(ctx); err != nil {
+			t.Error(err)
+		}
+	}()
+	return func() {
+		cancel()
+		wg.Wait()
+	}
 }

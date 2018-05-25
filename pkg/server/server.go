@@ -1,10 +1,11 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"net/url"
 	"runtime"
 	"sync"
@@ -13,16 +14,14 @@ import (
 	"github.com/sirupsen/logrus"
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/profiling"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/svid"
-
-	_ "golang.org/x/net/trace"
-
 	"google.golang.org/grpc"
 
-	tomb "gopkg.in/tomb.v2"
+	_ "golang.org/x/net/trace"
 )
 
 type Config struct {
@@ -60,194 +59,171 @@ type Config struct {
 }
 
 type Server struct {
-	Catalog   catalog.Catalog
-	Config    *Config
-	caManager ca.Manager
-	endpoints endpoints.Server
-	svid      svid.Rotator
+	config Config
 
-	m *sync.RWMutex
-	t *tomb.Tomb
+	// test hooks
+	hooks struct {
+		newCAManager func(*ca.Config) ca.Manager
+	}
+}
+
+func New(config Config) *Server {
+	s := &Server{
+		config: config,
+	}
+	s.hooks.newCAManager = ca.New
+	return s
 }
 
 // Run the server
 // This method initializes the server, including its plugins,
 // and then blocks until it's shut down or an error is encountered.
-func (s *Server) Run() error {
-	if s.t == nil {
-		s.t = new(tomb.Tomb)
-	}
-
-	if s.m == nil {
-		s.m = new(sync.RWMutex)
-	}
-
-	s.t.Go(s.run)
-
-	return s.t.Wait()
-}
-
-func (s *Server) run() error {
-	if s.Config.ProfilingEnabled {
-		s.setupProfiling()
-	}
-
+func (s *Server) Run(ctx context.Context) error {
 	s.prepareUmask()
 
-	err := s.initPlugins()
-	if err != nil {
+	if err := s.run(ctx); err != nil {
+		s.config.Log.Errorf("fatal: %v", err)
 		return err
 	}
-
-	err = s.startCAManager()
-	if err != nil {
-		s.shutdown()
-		return err
-	}
-
-	err = s.startSVIDRotator()
-	if err != nil {
-		s.shutdown()
-		return err
-	}
-
-	s.t.Go(s.caManager.Wait)
-	s.t.Go(s.startEndpoints)
-
-	<-s.t.Dying()
-	if s.t.Err() != nil {
-		s.Config.Log.Errorf("fatal: %v", s.t.Err())
-	}
-
-	s.shutdown()
 	return nil
 }
 
-func (s *Server) Shutdown() {
-	s.t.Kill(nil)
+func (s *Server) run(ctx context.Context) (err error) {
+	if s.config.ProfilingEnabled {
+		defer s.setupProfiling(ctx)()
+	}
+
+	cat := s.newCatalog()
+	defer cat.Stop()
+
+	if err := cat.Run(ctx); err != nil {
+		return err
+	}
+	s.config.Log.Info("plugins started")
+
+	// CA manager needs to be initialized before the rotator, otherwise the
+	// server CA plugin won't be able to sign CSRs
+	caManager, err := s.newCAManager(ctx, cat)
+	if err != nil {
+		return err
+	}
+
+	svidRotator, err := s.newSVIDRotator(ctx, cat)
+	if err != nil {
+		return err
+	}
+
+	endpointsServer := s.newEndpointsServer(cat, svidRotator)
+
+	err = util.RunTasks(ctx,
+		caManager.Run,
+		svidRotator.Run,
+		endpointsServer.ListenAndServe,
+	)
+	if err == context.Canceled {
+		err = nil
+	}
+	return err
 }
 
-func (s *Server) shutdown() {
-	if s.endpoints != nil {
-		s.endpoints.Shutdown()
-	}
+func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
+	ctx, cancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
 
-	if s.svid != nil {
-		s.svid.Stop()
-	}
-
-	if s.caManager != nil {
-		s.caManager.Shutdown()
-	}
-
-	if s.Catalog != nil {
-		s.Catalog.Stop()
-	}
-
-	return
-}
-
-func (s *Server) setupProfiling() {
 	if runtime.MemProfileRate == 0 {
-		s.Config.Log.Warn("Memory profiles are disabled")
+		s.config.Log.Warn("Memory profiles are disabled")
 	}
-	if s.Config.ProfilingPort > 0 {
+	if s.config.ProfilingPort > 0 {
 		grpc.EnableTracing = true
+
+		server := http.Server{
+			Addr:    fmt.Sprintf("localhost:%d", s.config.ProfilingPort),
+			Handler: http.HandlerFunc(pprof.Index),
+		}
+
+		// kick off a goroutine to serve the pprof endpoints and one to
+		// gracefully shut down the server when profiling is being torn down
+		wg.Add(1)
 		go func() {
-			addr := fmt.Sprintf("localhost:%d", s.Config.ProfilingPort)
-			s.Config.Log.Info(http.ListenAndServe(addr, nil))
+			defer wg.Done()
+			if err := server.ListenAndServe(); err != nil {
+				s.config.Log.Warnf("unable to serve profiling server: %v", err)
+			}
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-ctx.Done()
+			server.Shutdown(ctx)
 		}()
 	}
-	if s.Config.ProfilingFreq > 0 {
+	if s.config.ProfilingFreq > 0 {
 		c := &profiling.Config{
 			Tag:                    "server",
-			Frequency:              s.Config.ProfilingFreq,
+			Frequency:              s.config.ProfilingFreq,
 			DebugLevel:             0,
 			RunGCBeforeHeapProfile: true,
-			Profiles:               s.Config.ProfilingNames,
+			Profiles:               s.config.ProfilingNames,
 		}
-		err := profiling.Start(c)
-		if err != nil {
-			s.Config.Log.Error("Profiler failed to start: %v", err)
-			return
-		}
-		s.t.Go(s.stopProfiling)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := profiling.Run(ctx, c); err != nil {
+				s.config.Log.Warnf("Failed to run profiling: %v", err)
+			}
+		}()
 	}
-}
 
-func (s *Server) stopProfiling() error {
-	<-s.t.Dying()
-	profiling.Stop()
-	return nil
+	return func() {
+		cancel()
+		wg.Wait()
+	}
 }
 
 func (s *Server) prepareUmask() {
-	s.Config.Log.Debug("Setting umask to ", s.Config.Umask)
-	syscall.Umask(s.Config.Umask)
+	s.config.Log.Debugf("Setting umask to %#o", s.config.Umask)
+	syscall.Umask(s.config.Umask)
 }
 
-func (s *Server) initPlugins() error {
-	config := &catalog.Config{
-		PluginConfigs: s.Config.PluginConfigs,
-		Log:           s.Config.Log.WithField("subsystem_name", "catalog"),
-	}
-
-	s.Catalog = catalog.New(config)
-
-	err := s.Catalog.Run()
-	if err != nil {
-		return err
-	}
-
-	s.Config.Log.Info("plugins started")
-	return nil
+func (s *Server) newCatalog() catalog.Catalog {
+	return catalog.New(&catalog.Config{
+		PluginConfigs: s.config.PluginConfigs,
+		Log:           s.config.Log.WithField("subsystem_name", "catalog"),
+	})
 }
 
-func (s *Server) startCAManager() error {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	config := &ca.Config{
-		Catalog:        s.Catalog,
-		TrustDomain:    s.Config.TrustDomain,
-		Log:            s.Config.Log.WithField("subsystem_name", "ca_manager"),
-		UpstreamBundle: s.Config.UpstreamBundle,
+func (s *Server) newCAManager(ctx context.Context, catalog catalog.Catalog) (ca.Manager, error) {
+	caManager := s.hooks.newCAManager(&ca.Config{
+		Catalog:        catalog,
+		TrustDomain:    s.config.TrustDomain,
+		Log:            s.config.Log.WithField("subsystem_name", "ca_manager"),
+		UpstreamBundle: s.config.UpstreamBundle,
+	})
+	if err := caManager.Initialize(ctx); err != nil {
+		return nil, err
 	}
-
-	s.caManager = ca.New(config)
-	return s.caManager.Start()
+	return caManager, nil
 }
 
-func (s *Server) startSVIDRotator() error {
-	c := &svid.RotatorConfig{
-		Catalog:     s.Catalog,
-		Log:         s.Config.Log.WithField("subsystem_name", "svid_rotator"),
-		TrustDomain: s.Config.TrustDomain,
+func (s *Server) newSVIDRotator(ctx context.Context, catalog catalog.Catalog) (svid.Rotator, error) {
+	svidRotator := svid.NewRotator(&svid.RotatorConfig{
+		Catalog:     catalog,
+		Log:         s.config.Log.WithField("subsystem_name", "svid_rotator"),
+		TrustDomain: s.config.TrustDomain,
+	})
+	if err := svidRotator.Initialize(ctx); err != nil {
+		return nil, err
 	}
-
-	s.svid = svid.NewRotator(c)
-	return s.svid.Start()
+	return svidRotator, nil
 }
 
-func (s *Server) startEndpoints() error {
-	s.m.Lock()
-
-	c := &endpoints.Config{
-		GRPCAddr:    s.Config.BindAddress,
-		HTTPAddr:    s.Config.BindHTTPAddress,
-		SVIDStream:  s.svid.Subscribe(),
-		TrustDomain: s.Config.TrustDomain,
-		Catalog:     s.Catalog,
-		Log:         s.Config.Log.WithField("subsystem_name", "endpoints"),
-	}
-
-	s.endpoints = endpoints.New(c)
-	s.m.Unlock()
-
-	s.t.Go(s.endpoints.ListenAndServe)
-
-	<-s.t.Dying()
-	s.endpoints.Shutdown()
-
-	return nil
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Rotator) endpoints.Server {
+	return endpoints.New(&endpoints.Config{
+		GRPCAddr:    s.config.BindAddress,
+		HTTPAddr:    s.config.BindHTTPAddress,
+		SVIDStream:  svidRotator.Subscribe(),
+		TrustDomain: s.config.TrustDomain,
+		Catalog:     catalog,
+		Log:         s.config.Log.WithField("subsystem_name", "endpoints"),
+	})
 }

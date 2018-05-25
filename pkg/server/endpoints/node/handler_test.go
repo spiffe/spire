@@ -130,7 +130,7 @@ func TestFetchSVIDWithRotation(t *testing.T) {
 	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: data.generatedCerts[3], Ttl: ttl}
 	setFetchSVIDExpectations(suite, data)
 
-	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(
+	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(gomock.Any(),
 		&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: data.baseSpiffeID},
 	).
 		Return(&datastore.FetchAttestedNodeEntryResponse{
@@ -140,13 +140,13 @@ func TestFetchSVIDWithRotation(t *testing.T) {
 		}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignCsr(&ca.SignCsrRequest{
+		SignCsr(gomock.Any(), &ca.SignCsrRequest{
 			Csr: data.request.Csrs[3],
 		}).
 		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[3]}, nil)
 
 	suite.mockDataStore.EXPECT().
-		UpdateAttestedNodeEntry(gomock.Any()).
+		UpdateAttestedNodeEntry(gomock.Any(), gomock.Any()).
 		Return(&datastore.UpdateAttestedNodeEntryResponse{}, nil)
 
 	err = suite.handler.FetchSVID(suite.server)
@@ -184,7 +184,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		},
 	}
 
-	suite.mockDataStore.EXPECT().ListMatchingEntries(
+	suite.mockDataStore.EXPECT().ListMatchingEntries(gomock.Any(),
 		&datastore.ListSelectorEntriesRequest{Selectors: []*common.Selector{
 			{
 				Type:  "a",
@@ -193,7 +193,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		}},
 	).Return(&datastore.ListSelectorEntriesResponse{}, nil)
 
-	suite.mockDataStore.EXPECT().ListMatchingEntries(
+	suite.mockDataStore.EXPECT().ListMatchingEntries(gomock.Any(),
 		&datastore.ListSelectorEntriesRequest{Selectors: []*common.Selector{
 			{
 				Type:  "b",
@@ -204,14 +204,14 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		RegisteredEntryList: regEntries,
 	}, nil)
 
-	suite.mockDataStore.EXPECT().ListMatchingEntries(
+	suite.mockDataStore.EXPECT().ListMatchingEntries(gomock.Any(),
 		gomock.Any()).Return(&datastore.ListSelectorEntriesResponse{}, nil)
 
-	suite.mockDataStore.EXPECT().ListParentIDEntries(
+	suite.mockDataStore.EXPECT().ListParentIDEntries(gomock.Any(),
 		&datastore.ListParentIDEntriesRequest{ParentId: spiffeID},
 	).Return(&datastore.ListParentIDEntriesResponse{}, nil)
 
-	entries, err := suite.handler.fetchRegistrationEntries(selectors, spiffeID)
+	entries, err := suite.handler.fetchRegistrationEntries(context.Background(), selectors, spiffeID)
 	if err != nil {
 		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
 	}
@@ -314,7 +314,7 @@ func setFetchBaseSVIDExpectations(
 	}
 	suite.mockCatalog.EXPECT().Find(suite.mockNodeAttestor).Return(p)
 
-	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(
+	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(gomock.Any(),
 		&datastore.FetchAttestedNodeEntryRequest{
 			BaseSpiffeId: data.baseSpiffeID,
 		}).
@@ -324,13 +324,13 @@ func setFetchBaseSVIDExpectations(
 	require.NoError(suite.T(), err)
 
 	suite.mockDataStore.EXPECT().
-		FetchBundle(&datastore.Bundle{
+		FetchBundle(gomock.Any(), &datastore.Bundle{
 			TrustDomain: suite.handler.TrustDomain.String()}).
 		Return(&datastore.Bundle{
 			TrustDomain: suite.handler.TrustDomain.String(),
 			CaCerts:     caCert.Raw}, nil)
 
-	suite.mockNodeAttestor.EXPECT().Attest(&nodeattestor.AttestRequest{
+	suite.mockNodeAttestor.EXPECT().Attest(gomock.Any(), &nodeattestor.AttestRequest{
 		AttestedBefore: false,
 		AttestedData:   data.request.AttestedData,
 	}).
@@ -338,12 +338,12 @@ func setFetchBaseSVIDExpectations(
 			BaseSPIFFEID: data.baseSpiffeID,
 			Valid:        true}, nil)
 
-	suite.mockServerCA.EXPECT().SignCsr(&ca.SignCsrRequest{
+	suite.mockServerCA.EXPECT().SignCsr(gomock.Any(), &ca.SignCsrRequest{
 		Csr: data.request.Csr,
 	}).
 		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCert}, nil)
 
-	suite.mockDataStore.EXPECT().CreateAttestedNodeEntry(
+	suite.mockDataStore.EXPECT().CreateAttestedNodeEntry(gomock.Any(),
 		&datastore.CreateAttestedNodeEntryRequest{
 			AttestedNodeEntry: &datastore.AttestedNodeEntry{
 				AttestedDataType:   "fake type",
@@ -353,10 +353,15 @@ func setFetchBaseSVIDExpectations(
 			}}).
 		Return(nil, nil)
 
-	suite.mockNodeResolver.EXPECT().Resolve([]string{data.baseSpiffeID}).
-		Return(data.selectors, nil)
+	suite.mockNodeResolver.EXPECT().Resolve(gomock.Any(),
+		&noderesolver.ResolveRequest{
+			BaseSpiffeIdList: []string{data.baseSpiffeID},
+		}).
+		Return(&noderesolver.ResolveResponse{
+			Map: data.selectors,
+		}, nil)
 
-	suite.mockDataStore.EXPECT().CreateNodeResolverMapEntry(
+	suite.mockDataStore.EXPECT().CreateNodeResolverMapEntry(gomock.Any(),
 		&datastore.CreateNodeResolverMapEntryRequest{
 			NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
 				BaseSpiffeId: data.baseSpiffeID,
@@ -366,7 +371,7 @@ func setFetchBaseSVIDExpectations(
 		Return(nil, nil)
 
 	suite.mockDataStore.EXPECT().
-		ListMatchingEntries(&datastore.ListSelectorEntriesRequest{
+		ListMatchingEntries(gomock.Any(), &datastore.ListSelectorEntriesRequest{
 			Selectors: []*common.Selector{data.selector},
 		}).
 		Return(&datastore.ListSelectorEntriesResponse{
@@ -374,7 +379,7 @@ func setFetchBaseSVIDExpectations(
 		}, nil)
 
 	suite.mockDataStore.EXPECT().
-		ListParentIDEntries(
+		ListParentIDEntries(gomock.Any(),
 			&datastore.ListParentIDEntriesRequest{ParentId: data.baseSpiffeID}).
 		Return(&datastore.ListParentIDEntriesResponse{
 			RegisteredEntryList: data.regEntryParentIDList}, nil)
@@ -503,13 +508,13 @@ func setFetchSVIDExpectations(
 
 	suite.mockContext.EXPECT().Value(gomock.Any()).Return(getFakePeer())
 
-	suite.mockDataStore.EXPECT().FetchNodeResolverMapEntry(
+	suite.mockDataStore.EXPECT().FetchNodeResolverMapEntry(gomock.Any(),
 		&datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: data.baseSpiffeID}).
 		Return(&datastore.FetchNodeResolverMapEntryResponse{
 			NodeResolverMapEntryList: data.nodeResolutionList}, nil)
 
 	suite.mockDataStore.EXPECT().
-		ListMatchingEntries(&datastore.ListSelectorEntriesRequest{
+		ListMatchingEntries(gomock.Any(), &datastore.ListSelectorEntriesRequest{
 			Selectors: []*common.Selector{data.selector},
 		}).
 		Return(&datastore.ListSelectorEntriesResponse{
@@ -517,32 +522,32 @@ func setFetchSVIDExpectations(
 		}, nil)
 
 	suite.mockDataStore.EXPECT().
-		ListParentIDEntries(&datastore.ListParentIDEntriesRequest{
+		ListParentIDEntries(gomock.Any(), &datastore.ListParentIDEntriesRequest{
 			ParentId: data.baseSpiffeID}).
 		Return(&datastore.ListParentIDEntriesResponse{
 			RegisteredEntryList: data.byParentIDEntries}, nil)
 
 	suite.mockDataStore.EXPECT().
-		FetchBundle(&datastore.Bundle{
+		FetchBundle(gomock.Any(), &datastore.Bundle{
 			TrustDomain: suite.handler.TrustDomain.String()}).
 		Return(&datastore.Bundle{
 			TrustDomain: suite.handler.TrustDomain.String(),
 			CaCerts:     caCert.Raw}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignCsr(&ca.SignCsrRequest{
+		SignCsr(gomock.Any(), &ca.SignCsrRequest{
 			Csr: data.request.Csrs[0], Ttl: data.byParentIDEntries[2].Ttl,
 		}).
 		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[0]}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignCsr(&ca.SignCsrRequest{
+		SignCsr(gomock.Any(), &ca.SignCsrRequest{
 			Csr: data.request.Csrs[1], Ttl: data.byParentIDEntries[0].Ttl,
 		}).
 		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[1]}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignCsr(&ca.SignCsrRequest{
+		SignCsr(gomock.Any(), &ca.SignCsrRequest{
 			Csr: data.request.Csrs[2], Ttl: data.byParentIDEntries[1].Ttl,
 		}).
 		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[2]}, nil)

@@ -32,7 +32,7 @@ type AttestationResult struct {
 }
 
 type Attestor interface {
-	Attest() (*AttestationResult, error)
+	Attest(ctx context.Context) (*AttestationResult, error)
 }
 
 type Config struct {
@@ -55,18 +55,18 @@ func New(config *Config) Attestor {
 	return &attestor{c: config}
 }
 
-func (a *attestor) Attest() (*AttestationResult, error) {
+func (a *attestor) Attest(ctx context.Context) (*AttestationResult, error) {
 	bundle, err := a.loadBundle()
 	if err != nil {
 		return nil, err
 	}
-	svid, key, err := a.loadSVID()
+	svid, key, err := a.loadSVID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if svid == nil {
-		svid, bundle, err = a.newSVID(key, bundle)
+		svid, bundle, err = a.newSVID(ctx, key, bundle)
 		if err != nil {
 			return nil, err
 		}
@@ -74,14 +74,14 @@ func (a *attestor) Attest() (*AttestationResult, error) {
 	return &AttestationResult{Bundle: bundle, SVID: svid, Key: key}, nil
 }
 
-func (a *attestor) loadSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
+func (a *attestor) loadSVID(ctx context.Context) (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	mgrs := a.c.Catalog.KeyManagers()
 	if len(mgrs) > 1 {
 		return nil, nil, errors.New("more than one key manager configured")
 	}
 
 	mgr := mgrs[0]
-	fResp, err := mgr.FetchPrivateKey(&keymanager.FetchPrivateKeyRequest{})
+	fResp, err := mgr.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("load private key: %v", err)
 	}
@@ -95,7 +95,7 @@ func (a *attestor) loadSVID() (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	if len(fResp.PrivateKey) > 0 && svid != nil {
 		keyData = fResp.PrivateKey
 	} else {
-		gResp, err := mgr.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
+		gResp, err := mgr.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 		if err != nil {
 			return nil, nil, fmt.Errorf("generate key pair: %s", err)
 		}
@@ -131,8 +131,7 @@ func (a *attestor) loadBundle() ([]*x509.Certificate, error) {
 	return bundle, nil
 }
 
-func (a *attestor) attestationData() (*nodeattestor.FetchAttestationDataResponse, error) {
-
+func (a *attestor) attestationData(ctx context.Context) (*nodeattestor.FetchAttestationDataResponse, error) {
 	resp := &nodeattestor.FetchAttestationDataResponse{}
 
 	if a.c.JoinToken != "" {
@@ -158,7 +157,7 @@ func (a *attestor) attestationData() (*nodeattestor.FetchAttestationDataResponse
 	}
 	attestor := plugins[0]
 
-	return attestor.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
+	return attestor.FetchAttestationData(ctx, &nodeattestor.FetchAttestationDataRequest{})
 }
 
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
@@ -176,8 +175,8 @@ func (a *attestor) readSVIDFromDisk() *x509.Certificate {
 
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
-func (a *attestor) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x509.Certificate, []*x509.Certificate, error) {
-	data, err := a.attestationData()
+func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x509.Certificate, []*x509.Certificate, error) {
+	data, err := a.attestationData(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetch attestable data: %v", err)
 	}
@@ -187,7 +186,7 @@ func (a *attestor) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*
 		return nil, nil, fmt.Errorf("generate CSR for agent SVID: %v", err)
 	}
 
-	conn, err := a.serverConn(bundle)
+	conn, err := a.serverConn(ctx, bundle)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create attestation client: %v", err)
 	}
@@ -199,7 +198,7 @@ func (a *attestor) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*
 		AttestedData: data.AttestedData,
 		Csr:          csr,
 	}
-	resp, err := a.c.NodeClient.FetchBaseSVID(context.TODO(), req)
+	resp, err := a.c.NodeClient.FetchBaseSVID(ctx, req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("attesting to SPIRE server: %v", err)
 	}
@@ -212,14 +211,14 @@ func (a *attestor) newSVID(key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*
 	return svid, bundle, nil
 }
 
-func (a *attestor) serverConn(bundle []*x509.Certificate) (*grpc.ClientConn, error) {
+func (a *attestor) serverConn(ctx context.Context, bundle []*x509.Certificate) (*grpc.ClientConn, error) {
 	config := grpcutil.GRPCDialerConfig{
 		Log:      grpcutil.LoggerFromFieldLogger(a.c.Log),
 		CredFunc: a.serverCredFunc(bundle),
 	}
 
 	dialer := grpcutil.NewGRPCDialer(config)
-	return dialer.Dial(context.TODO(), a.c.ServerAddress)
+	return dialer.Dial(ctx, a.c.ServerAddress)
 }
 
 func (a *attestor) serverCredFunc(bundle []*x509.Certificate) func() (credentials.TransportCredentials, error) {

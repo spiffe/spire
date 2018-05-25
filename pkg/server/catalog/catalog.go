@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -100,11 +101,11 @@ func New(c *Config) Catalog {
 	}
 }
 
-func (c *catalog) Run() error {
+func (c *catalog) Run(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	err := c.com.Run()
+	err := c.com.Run(ctx)
 	if err != nil {
 		return err
 	}
@@ -122,11 +123,11 @@ func (c *catalog) Stop() {
 	return
 }
 
-func (c *catalog) Reload() error {
+func (c *catalog) Reload(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	err := c.com.Reload()
+	err := c.com.Reload(ctx)
 	if err != nil {
 		return err
 	}

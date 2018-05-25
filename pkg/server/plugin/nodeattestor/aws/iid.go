@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -84,7 +85,7 @@ func (p *IIDAttestorPlugin) spiffeID(awsAccountId, awsInstanceId string) *url.UR
 	return id
 }
 
-func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (p *IIDAttestorPlugin) Attest(ctx context.Context, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 
 	var attestedData caws.IidAttestedData
 	err := json.Unmarshal(req.AttestedData.Data, &attestedData)
@@ -190,7 +191,7 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 	return resp, nil
 }
 
-func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -241,7 +242,7 @@ func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.Configure
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*IIDAttestorPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 

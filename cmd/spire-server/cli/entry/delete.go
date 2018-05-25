@@ -44,6 +44,8 @@ func (d DeleteCLI) Help() string {
 }
 
 func (d DeleteCLI) Run(args []string) int {
+	ctx := context.Background()
+
 	config, err := d.newConfig(args)
 	if err != nil {
 		return d.printErr(err)
@@ -53,7 +55,7 @@ func (d DeleteCLI) Run(args []string) int {
 		return d.printErr(err)
 	}
 
-	cl, err := util.NewRegistrationClient(config.Addr)
+	cl, err := util.NewRegistrationClient(ctx, config.Addr)
 	if err != nil {
 		return d.printErr(err)
 	}
@@ -61,7 +63,7 @@ func (d DeleteCLI) Run(args []string) int {
 	req := &registration.RegistrationEntryID{
 		Id: config.EntryID,
 	}
-	e, err := cl.DeleteEntry(context.TODO(), req)
+	e, err := cl.DeleteEntry(ctx, req)
 	if err != nil {
 		return d.printErr(err)
 	}

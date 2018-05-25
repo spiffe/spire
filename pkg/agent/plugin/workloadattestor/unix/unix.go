@@ -1,6 +1,7 @@
 package unix
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -14,7 +15,7 @@ type UnixPlugin struct{}
 
 const selectorType string = "unix"
 
-func (UnixPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	p, err := process.NewProcess(req.Pid)
 	resp := workloadattestor.AttestResponse{}
 
@@ -59,11 +60,11 @@ func (UnixPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattestor
 	return &resp, nil
 }
 
-func (UnixPlugin) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (UnixPlugin) Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (UnixPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (UnixPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 

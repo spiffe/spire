@@ -1,6 +1,7 @@
 package jointoken
 
 import (
+	"context"
 	"errors"
 	"net/url"
 	"path"
@@ -39,7 +40,7 @@ func (p *JoinTokenPlugin) spiffeID() *url.URL {
 	return id
 }
 
-func (p *JoinTokenPlugin) FetchAttestationData(req *nodeattestor.FetchAttestationDataRequest) (*nodeattestor.FetchAttestationDataResponse, error) {
+func (p *JoinTokenPlugin) FetchAttestationData(ctx context.Context, req *nodeattestor.FetchAttestationDataRequest) (*nodeattestor.FetchAttestationDataResponse, error) {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
@@ -63,7 +64,7 @@ func (p *JoinTokenPlugin) FetchAttestationData(req *nodeattestor.FetchAttestatio
 	return resp, nil
 }
 
-func (p *JoinTokenPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *JoinTokenPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -89,7 +90,7 @@ func (p *JoinTokenPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRe
 	return resp, nil
 }
 
-func (*JoinTokenPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*JoinTokenPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 

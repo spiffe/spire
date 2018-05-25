@@ -5,6 +5,7 @@
 package mock_catalog
 
 import (
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	plugin "github.com/spiffe/spire/proto/common/plugin"
 	reflect "reflect"
@@ -34,27 +35,27 @@ func (m *MockPlugin) EXPECT() *MockPluginMockRecorder {
 }
 
 // Configure mocks base method
-func (m *MockPlugin) Configure(arg0 *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	ret := m.ctrl.Call(m, "Configure", arg0)
+func (m *MockPlugin) Configure(arg0 context.Context, arg1 *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	ret := m.ctrl.Call(m, "Configure", arg0, arg1)
 	ret0, _ := ret[0].(*plugin.ConfigureResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Configure indicates an expected call of Configure
-func (mr *MockPluginMockRecorder) Configure(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockPlugin)(nil).Configure), arg0)
+func (mr *MockPluginMockRecorder) Configure(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockPlugin)(nil).Configure), arg0, arg1)
 }
 
 // GetPluginInfo mocks base method
-func (m *MockPlugin) GetPluginInfo(arg0 *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	ret := m.ctrl.Call(m, "GetPluginInfo", arg0)
+func (m *MockPlugin) GetPluginInfo(arg0 context.Context, arg1 *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	ret := m.ctrl.Call(m, "GetPluginInfo", arg0, arg1)
 	ret0, _ := ret[0].(*plugin.GetPluginInfoResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetPluginInfo indicates an expected call of GetPluginInfo
-func (mr *MockPluginMockRecorder) GetPluginInfo(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPluginInfo", reflect.TypeOf((*MockPlugin)(nil).GetPluginInfo), arg0)
+func (mr *MockPluginMockRecorder) GetPluginInfo(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPluginInfo", reflect.TypeOf((*MockPlugin)(nil).GetPluginInfo), arg0, arg1)
 }

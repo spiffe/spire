@@ -35,12 +35,14 @@ const (
 )
 
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
-	md, ok := metadata.FromIncomingContext(stream.Context())
+	ctx := stream.Context()
+
+	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok || len(md["workload.spiffe.io"]) != 1 || md["workload.spiffe.io"][0] != "true" {
 		return grpc.Errorf(codes.InvalidArgument, "Security header missing from request")
 	}
 
-	pid, err := h.callerPID(stream.Context())
+	pid, err := h.callerPID(ctx)
 	if err != nil {
 		return grpc.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
@@ -56,11 +58,12 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 		T:       h.T,
 	}
 
-	selectors := attestor.New(&config).Attest(pid)
+	selectors := attestor.New(&config).Attest(ctx, pid)
 
 	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
 
+	done := ctx.Done()
 	for {
 		select {
 		case update := <-subscriber.Updates():
@@ -76,7 +79,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send update to PID %v", time.Since(start).Seconds, pid)
 			}
-		case <-stream.Context().Done():
+		case <-done:
 			return nil
 		}
 	}

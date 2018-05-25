@@ -3,12 +3,9 @@ package ca
 import (
 	"net/url"
 	"sync"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/catalog"
-
-	tomb "gopkg.in/tomb.v2"
 )
 
 type Config struct {
@@ -20,13 +17,9 @@ type Config struct {
 	Log logrus.FieldLogger
 }
 
-func New(c *Config) *manager {
+func New(c *Config) Manager {
 	return &manager{
 		c:   c,
-		t:   new(tomb.Tomb),
 		mtx: new(sync.RWMutex),
-
-		rotateTicker: time.NewTicker(1 * time.Minute),
-		pruneTicker:  time.NewTicker(6 * time.Hour),
 	}
 }

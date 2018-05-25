@@ -25,7 +25,6 @@ func NewRotator(c *RotatorConfig) *rotator {
 
 	return &rotator{
 		c:     c,
-		stop:  make(chan struct{}),
 		state: observer.NewProperty(State{}),
 	}
 }

@@ -1,11 +1,10 @@
 package profiling
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
-
-	"gopkg.in/tomb.v2"
 )
 
 type Config struct {
@@ -44,7 +43,6 @@ type Dumper interface {
 type profiler struct {
 	c       *Config
 	dumpers map[string]Dumper
-	t       *tomb.Tomb
 }
 
 const (
@@ -89,36 +87,29 @@ func OverrideDumper(name string, dumper Dumper) error {
 	return ErrUnknownProfile
 }
 
-// Start profiling
-func Start(conf *Config) error {
+// Run runs the profiling using the provided configuration until the context
+// has been cancelled.
+func Run(ctx context.Context, conf *Config) error {
 	profM.Lock()
 	defer profM.Unlock()
 
 	if prof == nil {
-		configureDefaultDumpers(conf)
-
-		prof = &profiler{
-			c:       conf,
-			dumpers: getDumpers(conf.Profiles),
-			t:       &tomb.Tomb{},
-		}
-
-		prof.t.Go(prof.run)
-	} else {
 		return ErrProfilerAlreadyStarted
 	}
-	return nil
-}
 
-// Stop stops profiling and releases resources.
-func Stop() {
-	profM.Lock()
-	defer profM.Unlock()
+	configureDefaultDumpers(conf)
 
-	if prof != nil {
-		prof.t.Kill(nil)
-		<-prof.t.Dead()
+	prof = &profiler{
+		c:       conf,
+		dumpers: getDumpers(conf.Profiles),
 	}
+
+	profM.Unlock()
+	err := prof.run(ctx)
+	profM.Lock()
+
+	prof = nil
+	return err
 }
 
 // getDumpers returns a map of valid dumpers, it filters out any non existent profile name.
@@ -132,19 +123,21 @@ func getDumpers(profiles []string) map[string]Dumper {
 	return result
 }
 
-func (p *profiler) run() error {
+func (p *profiler) run(ctx context.Context) error {
 	p.prepareDumpers()
 	if len(p.dumpers) == 0 {
 		return ErrNoDumpersActive
 	}
 
 	ticker := time.NewTicker(time.Duration(p.c.Frequency) * time.Second)
+	defer ticker.Stop()
+
+	done := ctx.Done()
 	for {
 		select {
 		case <-ticker.C:
 			p.dumpProfiles()
-		case <-p.t.Dying():
-			ticker.Stop()
+		case <-done:
 			p.releaseDumpers()
 			return nil
 		}

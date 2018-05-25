@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -18,9 +19,9 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type WorkloadAttestor interface {
-	Attest(*AttestRequest) (*AttestResponse, error)
-	Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error)
-	GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
+	Attest(context.Context, *AttestRequest) (*AttestResponse, error)
+	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
 }
 
 type WorkloadAttestorPlugin struct {
@@ -36,7 +37,7 @@ func (p WorkloadAttestorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (inte
 }
 
 func (p WorkloadAttestorPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterWorkloadAttestorServer(s, &GRPCServer{WorkloadAttestorImpl: p.WorkloadAttestorImpl})
+	RegisterWorkloadAttestorServer(s, p.WorkloadAttestorImpl)
 	return nil
 }
 

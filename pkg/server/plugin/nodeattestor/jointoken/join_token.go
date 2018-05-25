@@ -1,6 +1,7 @@
 package jointoken
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -39,7 +40,7 @@ func (p *JoinTokenPlugin) spiffeID(token string) *url.URL {
 	return id
 }
 
-func (p *JoinTokenPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (p *JoinTokenPlugin) Attest(ctx context.Context, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	joinToken := string(req.AttestedData.Data)
 
 	// OK to echo the token here because it becomes public knowledge after attestation
@@ -72,7 +73,7 @@ func (p *JoinTokenPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor
 	return resp, nil
 }
 
-func (p *JoinTokenPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *JoinTokenPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -98,7 +99,7 @@ func (p *JoinTokenPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRe
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*JoinTokenPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*JoinTokenPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 

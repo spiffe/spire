@@ -1,6 +1,7 @@
 package unix
 
 import (
+	"context"
 	"os"
 	"runtime"
 	"testing"
@@ -12,10 +13,14 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
+var (
+	ctx = context.Background()
+)
+
 func TestUnix_AttestValidPID(t *testing.T) {
 	plugin := New()
 	req := workloadattestor.AttestRequest{Pid: int32(os.Getpid())}
-	resp, err := plugin.Attest(&req)
+	resp, err := plugin.Attest(ctx, &req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Selectors)
 }
@@ -28,21 +33,21 @@ func TestUnix_AttestInvalidPID(t *testing.T) {
 	}
 	plugin := New()
 	req := workloadattestor.AttestRequest{Pid: -1}
-	resp, err := plugin.Attest(&req)
+	resp, err := plugin.Attest(ctx, &req)
 	require.Error(t, err)
 	require.Empty(t, resp.Selectors)
 }
 
 func TestUnix_Configure(t *testing.T) {
 	plugin := New()
-	data, e := plugin.Configure(&spi.ConfigureRequest{})
+	data, e := plugin.Configure(ctx, &spi.ConfigureRequest{})
 	assert.Equal(t, &spi.ConfigureResponse{}, data)
 	assert.Equal(t, nil, e)
 }
 
 func TestUnix_GetPluginInfo(t *testing.T) {
 	plugin := New()
-	data, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
+	data, e := plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
 	assert.Equal(t, nil, e)
 }

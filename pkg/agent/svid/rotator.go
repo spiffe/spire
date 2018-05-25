@@ -1,6 +1,7 @@
 package svid
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -16,8 +17,7 @@ import (
 )
 
 type Rotator interface {
-	Start()
-	Stop()
+	Run(ctx context.Context) error
 
 	State() State
 	Subscribe() observer.Stream
@@ -25,14 +25,11 @@ type Rotator interface {
 
 type rotator struct {
 	c      *RotatorConfig
-	stop   chan struct{}
-	done   chan struct{}
 	client client.Client
 
 	state observer.Property
 
-	m       sync.RWMutex
-	running bool
+	m sync.RWMutex
 	// Mutex used to protect access to c.BundleStream.
 	bsm *sync.RWMutex
 }
@@ -42,43 +39,19 @@ type State struct {
 	Key  *ecdsa.PrivateKey
 }
 
-// Start starts the rotator.
-func (r *rotator) Start() {
-	go r.run()
-}
-
-func (r *rotator) Stop() {
-	close(r.stop)
-	if r.isRunning() {
-		<-r.done
-		r.setRunning(false)
-	}
-}
-
-func (r *rotator) State() State {
-	return r.state.Value().(State)
-}
-
-func (r *rotator) Subscribe() observer.Stream {
-	return r.state.Observe()
-}
-
-// run
-// - Starts a ticker which monitors the server SVID for expiration and invokes
-// rotateSVID() as necessary.
-// - Reads the next trust bundle received on BundleStream.
-func (r *rotator) run() {
-	r.setRunning(true)
+// Run runs the rotator. It monitors the server SVID for expiration and rotates
+// as necessary. It also watches for changes to the trust bundle.
+func (r *rotator) Run(ctx context.Context) error {
 	t := time.NewTicker(r.c.Interval)
 	defer t.Stop()
 
+	done := ctx.Done()
 	for {
 		select {
-		case <-r.stop:
+		case <-done:
 			r.c.Log.Debug("Stopping SVID rotator")
 			r.client.Release()
-			close(r.done)
-			return
+			return nil
 		case <-t.C:
 			if r.shouldRotate() {
 				if err := r.rotateSVID(); err != nil {
@@ -91,6 +64,14 @@ func (r *rotator) run() {
 			r.bsm.Unlock()
 		}
 	}
+}
+
+func (r *rotator) State() State {
+	return r.state.Value().(State)
+}
+
+func (r *rotator) Subscribe() observer.Stream {
+	return r.state.Observe()
 }
 
 // shouldRotate returns a boolean informing the caller of whether or not the
@@ -148,16 +129,4 @@ func (r *rotator) rotateSVID() error {
 
 	r.state.Update(s)
 	return nil
-}
-
-func (r *rotator) isRunning() bool {
-	r.m.RLock()
-	defer r.m.RUnlock()
-	return r.running
-}
-
-func (r *rotator) setRunning(value bool) {
-	r.m.Lock()
-	defer r.m.Unlock()
-	r.running = value
 }

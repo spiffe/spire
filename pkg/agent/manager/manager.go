@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"net"
@@ -11,9 +12,8 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
-
-	tomb "gopkg.in/tomb.v2"
 )
 
 // Cache Manager errors
@@ -23,11 +23,11 @@ var (
 
 // Manager provides cache management functionalities for agents.
 type Manager interface {
-	// Start starts the manager. It blocks until fully initialized.
-	Start() error
+	// Initialize initializes the manager.
+	Initialize(ctx context.Context) error
 
-	// Shutdown blocks until the manager stops.
-	Shutdown()
+	// Run runs the manager. It will block until the context is cancelled.
+	Run(ctx context.Context) error
 
 	// SubscribeToCacheChanges returns a Subscriber on which cache entry updates are sent
 	// for a particular set of selectors.
@@ -45,24 +45,14 @@ type Manager interface {
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
 	// selectors are included in the set of selectors passed as parameter.
 	MatchingEntries(selectors []*common.Selector) []*cache.Entry
-
-	// Stopped returns a channel on which the receiver can block until
-	// the manager stops running.
-	Stopped() <-chan struct{}
-
-	// Err returns the reason why the manager stopped running. If this returns
-	// nil, then the manager was stopped externally by calling its Shutdown() method.
-	Err() error
 }
 
 type manager struct {
 	c *Config
 
 	// Fields protected by mtx mutex.
-	mtx     *sync.RWMutex
-	running bool
+	mtx *sync.RWMutex
 
-	t     *tomb.Tomb
 	cache cache.Cache
 	svid  svid.Rotator
 
@@ -76,40 +66,27 @@ type manager struct {
 	syncClients *clientsPool
 }
 
-func (m *manager) Start() error {
+func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID)
 	m.storeBundle(m.cache.Bundle())
 
-	err := m.synchronize(m.spiffeID)
-	if err != nil {
-		m.close(err)
+	return m.synchronize(m.spiffeID)
+}
+
+func (m *manager) Run(ctx context.Context) error {
+	err := util.RunTasks(ctx,
+		m.runSynchronizer,
+		m.runSVIDObserver,
+		m.runBundleObserver,
+		m.svid.Run)
+	m.syncClients.close()
+	if err != nil && err != context.Canceled {
+		m.c.Log.Errorf("cache manager crashed: %v", err)
 		return err
 	}
 
-	m.t.Go(m.run)
-
-	go func() {
-		err := m.t.Wait()
-		m.close(err)
-		m.setRunning(false)
-	}()
+	m.c.Log.Info("cache manager stopped")
 	return nil
-}
-
-func (m *manager) close(err error) {
-	m.syncClients.close()
-	if err != nil {
-		m.c.Log.Errorf("cache manager crashed: %v", err)
-	} else {
-		m.c.Log.Info("Cache manager stopped")
-	}
-}
-
-func (m *manager) Shutdown() {
-	m.shutdown(nil)
-	if m.isRunning() {
-		<-m.t.Dead()
-	}
 }
 
 func (m *manager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
@@ -134,27 +111,11 @@ func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []*cach
 	return entries
 }
 
-func (m *manager) Stopped() <-chan struct{} {
-	return m.t.Dead()
-}
-
-func (m *manager) Err() error {
-	return m.t.Err()
-}
-
-func (m *manager) run() error {
-	m.setRunning(true)
-	m.t.Go(m.synchronizer)
-	m.t.Go(m.startSVIDObserver)
-	m.t.Go(m.startBundleObserver)
-	m.svid.Start()
-	return nil
-}
-
-func (m *manager) synchronizer() error {
+func (m *manager) runSynchronizer(ctx context.Context) error {
 	t := time.NewTicker(m.c.SyncInterval)
 	defer t.Stop()
 
+	done := ctx.Done()
 	for {
 		select {
 		case <-t.C:
@@ -163,17 +124,18 @@ func (m *manager) synchronizer() error {
 				// Just log the error to keep waiting for next sinchronization...
 				m.c.Log.Errorf("synchronize failed: %v", err)
 			}
-		case <-m.t.Dying():
+		case <-done:
 			return nil
 		}
 	}
 }
 
-func (m *manager) startSVIDObserver() error {
+func (m *manager) runSVIDObserver(ctx context.Context) error {
 	svidStream := m.SubscribeToSVIDChanges()
+	done := ctx.Done()
 	for {
 		select {
-		case <-m.t.Dying():
+		case <-done:
 			return nil
 		case <-svidStream.Changes():
 			s := svidStream.Next().(svid.State)
@@ -182,34 +144,18 @@ func (m *manager) startSVIDObserver() error {
 	}
 }
 
-func (m *manager) startBundleObserver() error {
+func (m *manager) runBundleObserver(ctx context.Context) error {
 	bundleStream := m.SubscribeToBundleChanges()
+	done := ctx.Done()
 	for {
 		select {
-		case <-m.t.Dying():
+		case <-done:
 			return nil
 		case <-bundleStream.Changes():
 			b := bundleStream.Next().([]*x509.Certificate)
 			m.storeBundle(b)
 		}
 	}
-}
-
-func (m *manager) shutdown(err error) {
-	m.svid.Stop()
-	m.t.Kill(err)
-}
-
-func (m *manager) isRunning() bool {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-	return m.running
-}
-
-func (m *manager) setRunning(value bool) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-	m.running = value
 }
 
 func (m *manager) isAlreadyCached(regEntry *common.RegistrationEntry) bool {

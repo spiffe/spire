@@ -36,19 +36,21 @@ func (g GenerateCLI) Help() string {
 }
 
 func (g GenerateCLI) Run(args []string) int {
+	ctx := context.Background()
+
 	config, err := g.newConfig(args)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	c, err := util.NewRegistrationClient(config.Addr)
+	c, err := util.NewRegistrationClient(ctx, config.Addr)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	token, err := g.createToken(c, config.TTL)
+	token, err := g.createToken(ctx, c, config.TTL)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -56,7 +58,7 @@ func (g GenerateCLI) Run(args []string) int {
 	fmt.Printf("Token: %s\n", token)
 
 	if config.SpiffeID != "" {
-		err = g.createVanityRecord(c, token, config.SpiffeID)
+		err = g.createVanityRecord(ctx, c, token, config.SpiffeID)
 		if err != nil {
 			fmt.Printf("Error assigning SPIFFE ID: %s\n", err.Error())
 			return 1
@@ -68,9 +70,9 @@ func (g GenerateCLI) Run(args []string) int {
 
 // createToken calls the registration API and creates a new token
 // with the given TTL. It returns the raw token and an error, if any
-func (GenerateCLI) createToken(c registration.RegistrationClient, ttl int) (string, error) {
+func (GenerateCLI) createToken(ctx context.Context, c registration.RegistrationClient, ttl int) (string, error) {
 	req := &registration.JoinToken{Ttl: int32(ttl)}
-	resp, err := c.CreateJoinToken(context.TODO(), req)
+	resp, err := c.CreateJoinToken(ctx, req)
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +83,7 @@ func (GenerateCLI) createToken(c registration.RegistrationClient, ttl int) (stri
 // createVanityRecord inserts a registration entry with parent ID set to the SPIFFE ID
 // belonging to a token. The purpose is to allow folks to easily create vanity names
 // backed by token IDs.
-func (GenerateCLI) createVanityRecord(c registration.RegistrationClient, token, spiffeID string) error {
+func (GenerateCLI) createVanityRecord(ctx context.Context, c registration.RegistrationClient, token, spiffeID string) error {
 	id, err := url.Parse(spiffeID)
 	if err != nil {
 		return fmt.Errorf("could not parse SPIFFE ID: %s", err.Error())
@@ -105,7 +107,7 @@ func (GenerateCLI) createVanityRecord(c registration.RegistrationClient, token, 
 		},
 	}
 
-	_, err = c.CreateEntry(context.TODO(), req)
+	_, err = c.CreateEntry(ctx, req)
 	if err != nil {
 		return err
 	}

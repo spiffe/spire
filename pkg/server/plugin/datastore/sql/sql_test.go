@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"sync"
@@ -13,6 +14,10 @@ import (
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	ctx = context.Background()
 )
 
 type selectors []*common.Selector
@@ -42,16 +47,16 @@ func TestBundle_CRUD(t *testing.T) {
 	}
 
 	// create
-	_, err = ds.CreateBundle(bundle)
+	_, err = ds.CreateBundle(ctx, bundle)
 	require.NoError(t, err)
 
 	// fetch
-	fresp, err := ds.FetchBundle(&datastore.Bundle{TrustDomain: "spiffe://foo/"})
+	fresp, err := ds.FetchBundle(ctx, &datastore.Bundle{TrustDomain: "spiffe://foo/"})
 	require.NoError(t, err)
 	assert.Equal(t, bundle, fresp)
 
 	// list
-	lresp, err := ds.ListBundles(&common.Empty{})
+	lresp, err := ds.ListBundles(ctx, &common.Empty{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(lresp.Bundles))
 	assert.Equal(t, bundle, lresp.Bundles[0])
@@ -65,13 +70,13 @@ func TestBundle_CRUD(t *testing.T) {
 	}
 
 	// append
-	aresp, err := ds.AppendBundle(bundle2)
+	aresp, err := ds.AppendBundle(ctx, bundle2)
 	require.NoError(t, err)
 	certs := append(bundle.CaCerts, cert.Raw...)
 	assert.Equal(t, certs, aresp.CaCerts)
 
 	// append identical
-	aresp, err = ds.AppendBundle(bundle2)
+	aresp, err = ds.AppendBundle(ctx, bundle2)
 	require.NoError(t, err)
 	assert.Equal(t, certs, aresp.CaCerts)
 
@@ -80,28 +85,28 @@ func TestBundle_CRUD(t *testing.T) {
 		TrustDomain: "spiffe://bar/",
 		CaCerts:     cert.Raw,
 	}
-	anresp, err := ds.AppendBundle(bundle3)
+	anresp, err := ds.AppendBundle(ctx, bundle3)
 	require.NoError(t, err)
 	assert.Equal(t, bundle3, anresp)
 
 	// update
-	uresp, err := ds.UpdateBundle(bundle2)
+	uresp, err := ds.UpdateBundle(ctx, bundle2)
 	require.NoError(t, err)
 	assert.Equal(t, bundle2, uresp)
 
-	lresp, err = ds.ListBundles(&common.Empty{})
+	lresp, err = ds.ListBundles(ctx, &common.Empty{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(lresp.Bundles))
 	assert.Equal(t, []*datastore.Bundle{bundle2, bundle3}, lresp.Bundles)
 
 	// delete
-	dresp, err := ds.DeleteBundle(&datastore.Bundle{
+	dresp, err := ds.DeleteBundle(ctx, &datastore.Bundle{
 		TrustDomain: bundle.TrustDomain,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, bundle2, dresp)
 
-	lresp, err = ds.ListBundles(&common.Empty{})
+	lresp, err = ds.ListBundles(ctx, &common.Empty{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(lresp.Bundles))
 }
@@ -116,22 +121,22 @@ func Test_CreateAttestedNodeEntry(t *testing.T) {
 		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
 	}
 
-	cresp, err := ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
+	cresp, err := ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
 	require.NoError(t, err)
 	assert.Equal(t, entry, cresp.AttestedNodeEntry)
 
-	fresp, err := ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+	fresp, err := ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
 	require.NoError(t, err)
 	assert.Equal(t, entry, fresp.AttestedNodeEntry)
 
-	sresp, err := ds.FetchStaleNodeEntries(&datastore.FetchStaleNodeEntriesRequest{})
+	sresp, err := ds.FetchStaleNodeEntries(ctx, &datastore.FetchStaleNodeEntriesRequest{})
 	require.NoError(t, err)
 	assert.Empty(t, sresp.AttestedNodeEntryList)
 }
 
 func Test_FetchAttestedNodeEntry_missing(t *testing.T) {
 	ds := createDefault(t)
-	fresp, err := ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: "missing"})
+	fresp, err := ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: "missing"})
 	require.NoError(t, err)
 	require.Nil(t, fresp.AttestedNodeEntry)
 }
@@ -153,13 +158,13 @@ func Test_FetchStaleNodeEntries(t *testing.T) {
 		CertExpirationDate: time.Now().Add(-time.Hour).Format(datastore.TimeFormat),
 	}
 
-	_, err := ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: efuture})
+	_, err := ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: efuture})
 	require.NoError(t, err)
 
-	_, err = ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: epast})
+	_, err = ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: epast})
 	require.NoError(t, err)
 
-	sresp, err := ds.FetchStaleNodeEntries(&datastore.FetchStaleNodeEntriesRequest{})
+	sresp, err := ds.FetchStaleNodeEntries(ctx, &datastore.FetchStaleNodeEntriesRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, []*datastore.AttestedNodeEntry{epast}, sresp.AttestedNodeEntryList)
 }
@@ -177,10 +182,10 @@ func Test_UpdateAttestedNodeEntry(t *testing.T) {
 	userial := "deadbeef"
 	uexpires := time.Now().Add(time.Hour * 2).Format(datastore.TimeFormat)
 
-	_, err := ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
+	_, err := ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
 	require.NoError(t, err)
 
-	uresp, err := ds.UpdateAttestedNodeEntry(&datastore.UpdateAttestedNodeEntryRequest{
+	uresp, err := ds.UpdateAttestedNodeEntry(ctx, &datastore.UpdateAttestedNodeEntryRequest{
 		BaseSpiffeId:       entry.BaseSpiffeId,
 		CertSerialNumber:   userial,
 		CertExpirationDate: uexpires,
@@ -195,7 +200,7 @@ func Test_UpdateAttestedNodeEntry(t *testing.T) {
 	assert.Equal(t, userial, uentry.CertSerialNumber)
 	assert.Equal(t, uexpires, uentry.CertExpirationDate)
 
-	fresp, err := ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+	fresp, err := ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
 	require.NoError(t, err)
 
 	fentry := fresp.AttestedNodeEntry
@@ -217,14 +222,14 @@ func Test_DeleteAttestedNodeEntry(t *testing.T) {
 		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
 	}
 
-	_, err := ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
+	_, err := ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
 	require.NoError(t, err)
 
-	dresp, err := ds.DeleteAttestedNodeEntry(&datastore.DeleteAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+	dresp, err := ds.DeleteAttestedNodeEntry(ctx, &datastore.DeleteAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
 	require.NoError(t, err)
 	assert.Equal(t, entry, dresp.AttestedNodeEntry)
 
-	fresp, err := ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+	fresp, err := ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
 	require.NoError(t, err)
 	assert.Nil(t, fresp.AttestedNodeEntry)
 }
@@ -240,7 +245,7 @@ func Test_CreateNodeResolverMapEntry(t *testing.T) {
 		},
 	}
 
-	cresp, err := ds.CreateNodeResolverMapEntry(&datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
+	cresp, err := ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
 	require.NoError(t, err)
 
 	centry := cresp.NodeResolverMapEntry
@@ -252,7 +257,7 @@ func Test_CreateNodeResolverMapEntry_dupe(t *testing.T) {
 	entries := createNodeResolverMapEntries(t, ds)
 
 	entry := entries[0]
-	cresp, err := ds.CreateNodeResolverMapEntry(&datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
+	cresp, err := ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
 	assert.Error(t, err)
 	require.Nil(t, cresp)
 }
@@ -268,7 +273,7 @@ func Test_FetchNodeResolverMapEntry(t *testing.T) {
 		},
 	}
 
-	cresp, err := ds.CreateNodeResolverMapEntry(&datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
+	cresp, err := ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
 	require.NoError(t, err)
 
 	centry := cresp.NodeResolverMapEntry
@@ -283,13 +288,13 @@ func Test_DeleteNodeResolverMapEntry_specific(t *testing.T) {
 
 	entry_removed := entries[0]
 
-	dresp, err := ds.DeleteNodeResolverMapEntry(&datastore.DeleteNodeResolverMapEntryRequest{NodeResolverMapEntry: entry_removed})
+	dresp, err := ds.DeleteNodeResolverMapEntry(ctx, &datastore.DeleteNodeResolverMapEntryRequest{NodeResolverMapEntry: entry_removed})
 	require.NoError(t, err)
 
 	assert.Equal(t, entries[0:1], dresp.NodeResolverMapEntryList)
 
 	for idx, entry := range entries[1:] {
-		fresp, err := ds.FetchNodeResolverMapEntry(&datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+		fresp, err := ds.FetchNodeResolverMapEntry(ctx, &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
 		require.NoError(t, err, idx)
 		require.Len(t, fresp.NodeResolverMapEntryList, 1, "%v", idx)
 		assert.Equal(t, entry, fresp.NodeResolverMapEntryList[0], "%v", idx)
@@ -306,21 +311,21 @@ func Test_DeleteNodeResolverMapEntry_all(t *testing.T) {
 		BaseSpiffeId: entries[0].BaseSpiffeId,
 	}
 
-	dresp, err := ds.DeleteNodeResolverMapEntry(&datastore.DeleteNodeResolverMapEntryRequest{NodeResolverMapEntry: entry_removed})
+	dresp, err := ds.DeleteNodeResolverMapEntry(ctx, &datastore.DeleteNodeResolverMapEntryRequest{NodeResolverMapEntry: entry_removed})
 	require.NoError(t, err)
 
 	assert.Equal(t, entries[0:2], dresp.NodeResolverMapEntryList)
 
 	{
 		entry := entry_removed
-		fresp, err := ds.FetchNodeResolverMapEntry(&datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+		fresp, err := ds.FetchNodeResolverMapEntry(ctx, &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
 		require.NoError(t, err)
 		assert.Empty(t, fresp.NodeResolverMapEntryList)
 	}
 
 	{
 		entry := entries[2]
-		fresp, err := ds.FetchNodeResolverMapEntry(&datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+		fresp, err := ds.FetchNodeResolverMapEntry(ctx, &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
 		require.NoError(t, err)
 		assert.NotEmpty(t, fresp.NodeResolverMapEntryList)
 	}
@@ -355,7 +360,7 @@ func createNodeResolverMapEntries(t *testing.T, ds datastore.DataStore) []*datas
 	}
 
 	for idx, entry := range entries {
-		_, err := ds.CreateNodeResolverMapEntry(&datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
+		_, err := ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
 		require.NoError(t, err, "%v", idx)
 	}
 
@@ -370,7 +375,7 @@ func Test_CreateRegistrationEntry(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
-		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: validRegistrationEntry})
+		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: validRegistrationEntry})
 		require.NoError(t, err)
 		assert.NotNil(t, createRegistrationEntryResponse)
 		assert.NotEmpty(t, createRegistrationEntryResponse.RegisteredEntryId)
@@ -385,7 +390,7 @@ func Test_CreateInvalidRegistrationEntry(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, invalidRegisteredEntry := range invalidRegistrationEntries {
-		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: invalidRegisteredEntry})
+		createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: invalidRegisteredEntry})
 		require.Error(t, err)
 		require.Nil(t, createRegistrationEntryResponse)
 	}
@@ -407,12 +412,12 @@ func Test_FetchRegistrationEntry(t *testing.T) {
 		Ttl:      1,
 	}
 
-	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: registeredEntry})
+	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: registeredEntry})
 	require.NoError(t, err)
 	require.NotNil(t, createRegistrationEntryResponse)
 	registeredEntry.EntryId = createRegistrationEntryResponse.RegisteredEntryId
 
-	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&datastore.FetchRegistrationEntryRequest{RegisteredEntryId: createRegistrationEntryResponse.RegisteredEntryId})
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{RegisteredEntryId: createRegistrationEntryResponse.RegisteredEntryId})
 	require.NoError(t, err)
 	require.NotNil(t, fetchRegistrationEntryResponse)
 	assert.Equal(t, registeredEntry, fetchRegistrationEntryResponse.RegisteredEntry)
@@ -421,7 +426,7 @@ func Test_FetchRegistrationEntry(t *testing.T) {
 func Test_FetchInexistentRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
-	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&datastore.FetchRegistrationEntryRequest{RegisteredEntryId: "INEXISTENT"})
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{RegisteredEntryId: "INEXISTENT"})
 	require.NoError(t, err)
 	require.Nil(t, fetchRegistrationEntryResponse.RegisteredEntry)
 }
@@ -451,17 +456,17 @@ func Test_FetchRegistrationEntries(t *testing.T) {
 		Ttl:      2,
 	}
 
-	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry1})
+	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry1})
 	require.NoError(t, err)
 	require.NotNil(t, createRegistrationEntryResponse)
 	entry1.EntryId = createRegistrationEntryResponse.RegisteredEntryId
 
-	createRegistrationEntryResponse, err = ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry2})
+	createRegistrationEntryResponse, err = ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry2})
 	require.NoError(t, err)
 	require.NotNil(t, createRegistrationEntryResponse)
 	entry2.EntryId = createRegistrationEntryResponse.RegisteredEntryId
 
-	fetchRegistrationEntriesResponse, err := ds.FetchRegistrationEntries(&common.Empty{})
+	fetchRegistrationEntriesResponse, err := ds.FetchRegistrationEntries(ctx, &common.Empty{})
 	require.NoError(t, err)
 	require.NotNil(t, fetchRegistrationEntriesResponse)
 
@@ -487,7 +492,7 @@ func Test_UpdateRegistrationEntry(t *testing.T) {
 		Ttl:      1,
 	}
 
-	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry1})
+	createRegistrationEntryResponse, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry1})
 	require.NoError(t, err)
 	require.NotNil(t, createRegistrationEntryResponse)
 
@@ -497,11 +502,11 @@ func Test_UpdateRegistrationEntry(t *testing.T) {
 		RegisteredEntryId: createRegistrationEntryResponse.RegisteredEntryId,
 		RegisteredEntry:   entry1,
 	}
-	updateRegistrationEntryResponse, err := ds.UpdateRegistrationEntry(updReq)
+	updateRegistrationEntryResponse, err := ds.UpdateRegistrationEntry(ctx, updReq)
 	require.NoError(t, err)
 	require.NotNil(t, updateRegistrationEntryResponse)
 
-	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(&datastore.FetchRegistrationEntryRequest{RegisteredEntryId: updReq.RegisteredEntryId})
+	fetchRegistrationEntryResponse, err := ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{RegisteredEntryId: updReq.RegisteredEntryId})
 	require.NoError(t, err)
 	require.NotNil(t, fetchRegistrationEntryResponse)
 
@@ -534,18 +539,18 @@ func Test_DeleteRegistrationEntry(t *testing.T) {
 		Ttl:      2,
 	}
 
-	res1, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry1})
+	res1, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry1})
 	require.NoError(t, err)
 	require.NotNil(t, res1)
 	entry1.EntryId = res1.RegisteredEntryId
 
-	res2, err := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry2})
+	res2, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry2})
 	require.NoError(t, err)
 	require.NotNil(t, res2)
 	entry2.EntryId = res2.RegisteredEntryId
 
 	// Make sure we deleted the right one
-	delRes, err := ds.DeleteRegistrationEntry(&datastore.DeleteRegistrationEntryRequest{RegisteredEntryId: res1.RegisteredEntryId})
+	delRes, err := ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{RegisteredEntryId: res1.RegisteredEntryId})
 	require.NoError(t, err)
 	require.Equal(t, entry1, delRes.RegisteredEntry)
 }
@@ -576,10 +581,10 @@ func TestgormPlugin_ListParentIDEntries(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ds := createDefault(t)
 			for _, entry := range test.registrationEntries {
-				r, _ := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				r, _ := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
 				entry.EntryId = r.RegisteredEntryId
 			}
-			result, err := ds.ListParentIDEntries(&datastore.ListParentIDEntriesRequest{
+			result, err := ds.ListParentIDEntries(ctx, &datastore.ListParentIDEntriesRequest{
 				ParentId: test.parentID})
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedList, result.RegisteredEntryList)
@@ -618,10 +623,10 @@ func Test_ListSelectorEntries(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ds := createDefault(t)
 			for _, entry := range test.registrationEntries {
-				r, _ := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				r, _ := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
 				entry.EntryId = r.RegisteredEntryId
 			}
-			result, err := ds.ListSelectorEntries(&datastore.ListSelectorEntriesRequest{
+			result, err := ds.ListSelectorEntries(ctx, &datastore.ListSelectorEntriesRequest{
 				Selectors: test.selectors})
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedList, result.RegisteredEntryList)
@@ -663,10 +668,10 @@ func Test_ListMatchingEntries(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ds := createDefault(t)
 			for _, entry := range test.registrationEntries {
-				r, _ := ds.CreateRegistrationEntry(&datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				r, _ := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
 				entry.EntryId = r.RegisteredEntryId
 			}
-			result, err := ds.ListMatchingEntries(&datastore.ListSelectorEntriesRequest{
+			result, err := ds.ListMatchingEntries(ctx, &datastore.ListSelectorEntriesRequest{
 				Selectors: test.selectors})
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedList, result.RegisteredEntryList)
@@ -685,11 +690,11 @@ func Test_RegisterToken(t *testing.T) {
 		Token:  "foobar",
 		Expiry: now,
 	}
-	_, err := ds.RegisterToken(req)
+	_, err := ds.RegisterToken(ctx, req)
 	require.NoError(t, err)
 
 	// Make sure we can't re-register
-	_, err = ds.RegisterToken(req)
+	_, err = ds.RegisterToken(ctx, req)
 	assert.NotNil(t, err)
 }
 
@@ -700,12 +705,12 @@ func Test_RegisterAndFetchToken(t *testing.T) {
 		Token:  "foobar",
 		Expiry: now,
 	}
-	_, err := ds.RegisterToken(req)
+	_, err := ds.RegisterToken(ctx, req)
 	require.NoError(t, err)
 
 	// Don't need expiry for fetch
 	req.Expiry = 0
-	res, err := ds.FetchToken(req)
+	res, err := ds.FetchToken(ctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, "foobar", res.Token)
 	assert.Equal(t, now, res.Expiry)
@@ -718,28 +723,28 @@ func Test_DeleteToken(t *testing.T) {
 		Token:  "foobar",
 		Expiry: now,
 	}
-	_, err := ds.RegisterToken(req1)
+	_, err := ds.RegisterToken(ctx, req1)
 	require.NoError(t, err)
 
 	req2 := &datastore.JoinToken{
 		Token:  "batbaz",
 		Expiry: now,
 	}
-	_, err = ds.RegisterToken(req2)
+	_, err = ds.RegisterToken(ctx, req2)
 	require.NoError(t, err)
 
 	// Don't need expiry for delete
 	req1.Expiry = 0
-	_, err = ds.DeleteToken(req1)
+	_, err = ds.DeleteToken(ctx, req1)
 	require.NoError(t, err)
 
 	// Should not be able to fetch after delete
-	resp, err := ds.FetchToken(req1)
+	resp, err := ds.FetchToken(ctx, req1)
 	require.NoError(t, err)
 	assert.Equal(t, "", resp.Token)
 
 	// Second token should still be present
-	resp, err = ds.FetchToken(req2)
+	resp, err = ds.FetchToken(ctx, req2)
 	require.NoError(t, err)
 	assert.Equal(t, req2.Token, resp.Token)
 }
@@ -751,22 +756,22 @@ func Test_PruneTokens(t *testing.T) {
 		Token:  "foobar",
 		Expiry: now,
 	}
-	_, err := ds.RegisterToken(req)
+	_, err := ds.RegisterToken(ctx, req)
 	require.NoError(t, err)
 
 	// Ensure we don't prune valid tokens, wind clock back 10s
 	req.Expiry = (now - 10)
-	_, err = ds.PruneTokens(req)
+	_, err = ds.PruneTokens(ctx, req)
 	require.NoError(t, err)
-	resp, err := ds.FetchToken(req)
+	resp, err := ds.FetchToken(ctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, "foobar", resp.Token)
 
 	// Ensure we prune old tokens
 	req.Expiry = (now + 10)
-	_, err = ds.PruneTokens(req)
+	_, err = ds.PruneTokens(ctx, req)
 	require.NoError(t, err)
-	resp, err = ds.FetchToken(req)
+	resp, err = ds.FetchToken(ctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, "", resp.Token)
 }
@@ -777,7 +782,7 @@ func Test_Configure(t *testing.T) {
 
 func Test_GetPluginInfo(t *testing.T) {
 	ds := createDefault(t)
-	resp, err := ds.GetPluginInfo(&spi.GetPluginInfoRequest{})
+	resp, err := ds.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 }
@@ -793,8 +798,8 @@ func Test_race(t *testing.T) {
 	}
 
 	testutil.RaceTest(t, func(t *testing.T) {
-		ds.CreateAttestedNodeEntry(&datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
-		ds.FetchAttestedNodeEntry(&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+		ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
+		ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
 	})
 }
 

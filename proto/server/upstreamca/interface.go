@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -18,9 +19,9 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type UpstreamCa interface {
-	Configure(request *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
-	GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
-	SubmitCSR(*SubmitCSRRequest) (*SubmitCSRResponse, error)
+	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
+	SubmitCSR(context.Context, *SubmitCSRRequest) (*SubmitCSRResponse, error)
 }
 
 type UpstreamCaPlugin struct {
@@ -36,7 +37,7 @@ func (p UpstreamCaPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{
 }
 
 func (p UpstreamCaPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterUpstreamCAServer(s, &GRPCServer{UpstreamCaImpl: p.UpstreamCaImpl})
+	RegisterUpstreamCAServer(s, p.UpstreamCaImpl)
 	return nil
 }
 

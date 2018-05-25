@@ -5,6 +5,7 @@
 package mock_catalog
 
 import (
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	catalog "github.com/spiffe/spire/pkg/common/catalog"
 	reflect "reflect"
@@ -58,27 +59,27 @@ func (mr *MockCatalogMockRecorder) Plugins() *gomock.Call {
 }
 
 // Reload mocks base method
-func (m *MockCatalog) Reload() error {
-	ret := m.ctrl.Call(m, "Reload")
+func (m *MockCatalog) Reload(arg0 context.Context) error {
+	ret := m.ctrl.Call(m, "Reload", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Reload indicates an expected call of Reload
-func (mr *MockCatalogMockRecorder) Reload() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reload", reflect.TypeOf((*MockCatalog)(nil).Reload))
+func (mr *MockCatalogMockRecorder) Reload(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reload", reflect.TypeOf((*MockCatalog)(nil).Reload), arg0)
 }
 
 // Run mocks base method
-func (m *MockCatalog) Run() error {
-	ret := m.ctrl.Call(m, "Run")
+func (m *MockCatalog) Run(arg0 context.Context) error {
+	ret := m.ctrl.Call(m, "Run", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Run indicates an expected call of Run
-func (mr *MockCatalogMockRecorder) Run() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockCatalog)(nil).Run))
+func (mr *MockCatalogMockRecorder) Run(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockCatalog)(nil).Run), arg0)
 }
 
 // Stop mocks base method

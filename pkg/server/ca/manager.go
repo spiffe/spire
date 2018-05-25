@@ -1,76 +1,76 @@
 package ca
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/upstreamca"
-
-	tomb "gopkg.in/tomb.v2"
 )
 
 type Manager interface {
-	// Start the CA Manager. Blocks until the CA is fully intialized.
-	Start() error
+	// Initializes the CA manager. Must be called before a call to Run().
+	Initialize(ctx context.Context) error
 
-	// Wait on the CA manager to either encounter an error or shutdown.
-	Wait() error
-
-	// Shutdown the CA manager.
-	Shutdown()
+	// Run runs the CA manager. It blocks until a failure or the context is
+	// canceled.
+	Run(ctx context.Context) error
 }
 
 type manager struct {
 	c   *Config
-	t   *tomb.Tomb
 	mtx *sync.RWMutex
 
 	caCert     *x509.Certificate
 	nextCACert *x509.Certificate
-
-	rotateTicker *time.Ticker
-	pruneTicker  *time.Ticker
 }
 
-func (m *manager) Start() error {
-	err := m.prepareNextCA()
-	if err != nil {
+func (m *manager) Initialize(ctx context.Context) error {
+	if err := m.prepareNextCA(ctx); err != nil {
 		return fmt.Errorf("create ca certificate: %v", err)
 	}
 
-	err = m.activateNextCA()
-	if err != nil {
+	if err := m.activateNextCA(ctx); err != nil {
 		return fmt.Errorf("activate ca certificate: %v", err)
 	}
 
-	m.t.Go(m.startCARotator)
-	m.t.Go(m.startPruner)
 	return nil
 }
 
-func (m *manager) Wait() error {
-	return m.t.Wait()
+func (m *manager) Run(ctx context.Context) error {
+	err := util.RunTasks(ctx,
+		func(ctx context.Context) error {
+			return m.startCARotator(ctx, 1*time.Minute)
+		},
+		func(ctx context.Context) error {
+			return m.startPruner(ctx, 6*time.Hour)
+		})
+	if err == context.Canceled {
+		err = nil
+	}
+	return nil
 }
 
-func (m *manager) Shutdown() {
-	m.t.Kill(nil)
-}
+func (m *manager) startCARotator(ctx context.Context, interval time.Duration) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
-func (m *manager) startCARotator() error {
+	done := ctx.Done()
 	for {
 		select {
-		case <-m.rotateTicker.C:
-			err := m.caRotate()
+		case <-ticker.C:
+			err := m.caRotate(ctx)
 			if err != nil {
 				m.c.Log.Errorf("Problem encountered while tending to CA rotation: %v", err)
 			}
-		case <-m.t.Dying():
-			return tomb.ErrDying
+		case <-done:
+			return nil
 		}
 	}
 }
@@ -80,7 +80,7 @@ func (m *manager) startCARotator() error {
 // as needed.
 //
 // TODO: This could probably be simplified with something like a FSM
-func (m *manager) caRotate() error {
+func (m *manager) caRotate(ctx context.Context) error {
 	if m.caCert == nil {
 		return errors.New("ca manager not initialized; no ca cert present")
 	}
@@ -89,31 +89,31 @@ func (m *manager) caRotate() error {
 	ttl := time.Until(m.caCert.NotAfter)
 	lifetime := m.caCert.NotAfter.Sub(m.caCert.NotBefore)
 	if (ttl < lifetime/2) && m.nextCACert == nil {
-		return m.prepareNextCA()
+		return m.prepareNextCA(ctx)
 	}
 
 	// Activate the new CA once the current one is 5/6ths of the way to expiration
 	if ttl < lifetime/6 {
-		return m.activateNextCA()
+		return m.activateNextCA(ctx)
 	}
 
 	// Nothing to see here, move along now...
 	return nil
 }
 
-func (m *manager) prepareNextCA() error {
+func (m *manager) prepareNextCA(ctx context.Context) error {
 	m.c.Log.Debug("Creating a new CA certificate")
 
 	// Get a CSR from the CA plugin
 	serverCA := m.c.Catalog.CAs()[0]
-	csrRes, err := serverCA.GenerateCsr(&ca.GenerateCsrRequest{})
+	csrRes, err := serverCA.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
 	if err != nil {
 		return fmt.Errorf("generate csr: %v", err)
 	}
 
 	// Get it signed by Upstream
 	upstreamCA := m.c.Catalog.UpstreamCAs()[0]
-	signRes, err := upstreamCA.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
+	signRes, err := upstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csrRes.Csr})
 	if err != nil {
 		return fmt.Errorf("submit csr to upstream ca: %v", err)
 	}
@@ -123,7 +123,7 @@ func (m *manager) prepareNextCA() error {
 		return fmt.Errorf("invalid cert from upstream: %v", err)
 	}
 
-	err = m.storeCACert(cert, signRes.UpstreamTrustBundle)
+	err = m.storeCACert(ctx, cert, signRes.UpstreamTrustBundle)
 	if err != nil {
 		return fmt.Errorf("store new ca cert: %v", err)
 	}
@@ -134,7 +134,7 @@ func (m *manager) prepareNextCA() error {
 	return nil
 }
 
-func (m *manager) activateNextCA() error {
+func (m *manager) activateNextCA(ctx context.Context) error {
 	if m.nextCACert == nil {
 		return errors.New("next ca cert not prepared")
 	}
@@ -145,7 +145,7 @@ func (m *manager) activateNextCA() error {
 	loadReq := &ca.LoadCertificateRequest{
 		SignedIntermediateCert: m.nextCACert.Raw,
 	}
-	_, err := serverCA.LoadCertificate(loadReq)
+	_, err := serverCA.LoadCertificate(ctx, loadReq)
 	if err != nil {
 		return fmt.Errorf("load new ca cert: %v", err)
 	}
@@ -157,25 +157,28 @@ func (m *manager) activateNextCA() error {
 	return nil
 }
 
-func (m *manager) startPruner() error {
+func (m *manager) startPruner(ctx context.Context, interval time.Duration) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	done := ctx.Done()
 	for {
 		select {
-		case <-m.pruneTicker.C:
-			err := m.prune()
-			if err != nil {
+		case <-ticker.C:
+			if err := m.prune(ctx); err != nil {
 				m.c.Log.Errorf("Could not prune CA certificates: %v", err)
 			}
-		case <-m.t.Dying():
-			return tomb.ErrDying
+		case <-done:
+			return nil
 		}
 	}
 }
 
-func (m *manager) prune() error {
+func (m *manager) prune(ctx context.Context) error {
 	ds := m.c.Catalog.DataStores()[0]
 
 	oldBundle := &datastore.Bundle{TrustDomain: m.c.TrustDomain.String()}
-	oldBundle, err := ds.FetchBundle(oldBundle)
+	oldBundle, err := ds.FetchBundle(ctx, oldBundle)
 	if err != nil {
 		return fmt.Errorf("fetch bundle: %v", err)
 	}
@@ -209,7 +212,7 @@ func (m *manager) prune() error {
 	}
 
 	if reload {
-		_, err = ds.UpdateBundle(newBundle)
+		_, err = ds.UpdateBundle(ctx, newBundle)
 		if err != nil {
 			return fmt.Errorf("write new bundle: %v", err)
 		}
@@ -218,7 +221,7 @@ func (m *manager) prune() error {
 	return nil
 }
 
-func (m *manager) storeCACert(caCert *x509.Certificate, upstreamBundle []byte) error {
+func (m *manager) storeCACert(ctx context.Context, caCert *x509.Certificate, upstreamBundle []byte) error {
 	m.mtx.RLock()
 	storeReq := &datastore.Bundle{
 		TrustDomain: m.c.TrustDomain.String(),
@@ -231,7 +234,7 @@ func (m *manager) storeCACert(caCert *x509.Certificate, upstreamBundle []byte) e
 	}
 
 	ds := m.c.Catalog.DataStores()[0]
-	_, err := ds.AppendBundle(storeReq)
+	_, err := ds.AppendBundle(ctx, storeReq)
 	if err != nil {
 		return err
 	}

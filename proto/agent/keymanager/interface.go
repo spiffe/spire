@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -18,10 +19,10 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type KeyManager interface {
-	GenerateKeyPair(*GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
-	FetchPrivateKey(*FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
-	Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error)
-	GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
+	GenerateKeyPair(context.Context, *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
+	FetchPrivateKey(context.Context, *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
+	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
 }
 
 type KeyManagerPlugin struct {
@@ -37,7 +38,7 @@ func (p KeyManagerPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{
 }
 
 func (p KeyManagerPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterKeyManagerServer(s, &GRPCServer{KeyManagerImpl: p.KeyManagerImpl})
+	RegisterKeyManagerServer(s, p.KeyManagerImpl)
 	return nil
 }
 

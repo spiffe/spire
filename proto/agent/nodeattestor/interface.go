@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -18,9 +19,9 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type NodeAttestor interface {
-	FetchAttestationData(*FetchAttestationDataRequest) (*FetchAttestationDataResponse, error)
-	Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error)
-	GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
+	FetchAttestationData(context.Context, *FetchAttestationDataRequest) (*FetchAttestationDataResponse, error)
+	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
 }
 
 type NodeAttestorPlugin struct {
@@ -36,7 +37,7 @@ func (p NodeAttestorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interfac
 }
 
 func (p NodeAttestorPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterNodeAttestorServer(s, &GRPCServer{NodeAttestorImpl: p.NodeAttestorImpl})
+	RegisterNodeAttestorServer(s, p.NodeAttestorImpl)
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -97,9 +98,11 @@ func (*RunCLI) Run(args []string) int {
 	}
 
 	agt := agent.New(c)
-	signalListener(agt)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	signalListener(ctx, cancel)
 
-	err = agt.Run()
+	err = agt.Run(ctx)
 	if err != nil {
 		c.Log.Errorf("agent crashed: %v", err)
 		return 1
@@ -344,15 +347,16 @@ func stringDefault(option string, defaultValue string) string {
 	return option
 }
 
-func signalListener(agt *agent.Agent) {
+func signalListener(ctx context.Context, cancel func()) {
 	go func() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
 		select {
+		case <-ctx.Done():
+			return
 		case <-signalCh:
-			agt.Shutdown()
+			cancel()
 		}
 	}()
-	return
 }

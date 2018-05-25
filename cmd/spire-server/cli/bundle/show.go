@@ -16,7 +16,7 @@ import (
 )
 
 type showCLI struct {
-	newRegistrationClient func(addr string) (registration.RegistrationClient, error)
+	newRegistrationClient func(ctx context.Context, addr string) (registration.RegistrationClient, error)
 	writer                io.Writer
 }
 
@@ -28,10 +28,8 @@ type showConfig struct {
 // NewShowCommand creates a new "show" subcommand for "bundle" command.
 func NewShowCommand() cli.Command {
 	return &showCLI{
-		writer: os.Stdout,
-		newRegistrationClient: func(addr string) (registration.RegistrationClient, error) {
-			return util.NewRegistrationClient(addr)
-		},
+		writer:                os.Stdout,
+		newRegistrationClient: util.NewRegistrationClient,
 	}
 }
 
@@ -45,19 +43,21 @@ func (s *showCLI) Help() string {
 }
 
 func (s *showCLI) Run(args []string) int {
+	ctx := context.Background()
+
 	config, err := s.newConfig(args)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	c, err := s.newRegistrationClient(config.addr)
+	c, err := s.newRegistrationClient(ctx, config.addr)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	bundle, err := c.FetchBundle(context.TODO(), &common.Empty{})
+	bundle, err := c.FetchBundle(ctx, &common.Empty{})
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1

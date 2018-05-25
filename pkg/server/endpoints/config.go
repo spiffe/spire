@@ -10,8 +10,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 
 	"google.golang.org/grpc"
-
-	"gopkg.in/tomb.v2"
 )
 
 type Config struct {
@@ -36,9 +34,7 @@ type Config struct {
 
 func New(c *Config) *endpoints {
 	return &endpoints{
-		c:       c,
-		mtx:     new(sync.RWMutex),
-		t:       new(tomb.Tomb),
-		runOnce: new(sync.Once),
+		c:   c,
+		mtx: new(sync.RWMutex),
 	}
 }

@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -21,8 +22,13 @@ import (
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	tomb "gopkg.in/tomb.v2"
 
 	"google.golang.org/grpc"
+)
+
+var (
+	ctx = context.Background()
 )
 
 func TestEndpoints(t *testing.T) {
@@ -66,19 +72,19 @@ func (s *EndpointsTestSuite) SetupTest() {
 }
 
 func (s *EndpointsTestSuite) TestCreateGRPCServer() {
-	s.Assert().NotNil(s.e.createGRPCServer())
+	s.Assert().NotNil(s.e.createGRPCServer(ctx))
 }
 
 func (s *EndpointsTestSuite) TestCreateHTTPServer() {
-	s.Assert().NotNil(s.e.createHTTPServer())
+	s.Assert().NotNil(s.e.createHTTPServer(ctx))
 }
 
 func (s *EndpointsTestSuite) TestRegisterNodeAPI() {
-	s.Assert().NotPanics(func() { s.e.registerNodeAPI(s.e.createGRPCServer()) })
+	s.Assert().NotPanics(func() { s.e.registerNodeAPI(s.e.createGRPCServer(ctx)) })
 }
 
 func (s *EndpointsTestSuite) TestRegisterRegistrationAPI() {
-	err := s.e.registerRegistrationAPI(s.e.createGRPCServer(), s.e.createHTTPServer())
+	err := s.e.registerRegistrationAPI(ctx, s.e.createGRPCServer(ctx), s.e.createHTTPServer(ctx))
 	s.Assert().Nil(err)
 }
 
@@ -89,26 +95,27 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
 	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
 	s.catalog.EXPECT().CAs().Return([]ca.ServerCa{s.ca})
-	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
+	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
+	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
 
+	ctx, cancel := context.WithCancel(ctx)
 	errChan := make(chan error)
-	go func() { errChan <- s.e.ListenAndServe() }()
+	go func() { errChan <- s.e.ListenAndServe(ctx) }()
 
 	// It should be stable
 	select {
 	case err := <-errChan:
 		s.T().Errorf("endpoints listener stopped unexpectedly: %v", err)
-	case <-time.NewTicker(100 * time.Millisecond).C:
+	case <-time.NewTimer(100 * time.Millisecond).C:
 		break
 	}
 
 	// It should shutdown cleanly
-	s.e.Shutdown()
+	cancel()
 	select {
 	case err := <-errChan:
 		s.Assert().NoError(err)
-	case <-time.NewTicker(5 * time.Second).C:
+	case <-time.NewTimer(5 * time.Second).C:
 		s.T().Errorf("endpoints listener did not shut down")
 	}
 }
@@ -120,8 +127,8 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
 	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
 	s.catalog.EXPECT().CAs().Return([]ca.ServerCa{s.ca})
-	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
+	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
+	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
 
 	snitchChan := make(chan struct{}, 1)
 	hook := func(g *grpc.Server) error {
@@ -130,7 +137,8 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 	}
 	s.e.c.GRPCHook = hook
 
-	go s.e.ListenAndServe()
+	ctx, cancel := context.WithCancel(ctx)
+	go s.e.ListenAndServe(ctx)
 
 	select {
 	case <-snitchChan:
@@ -138,7 +146,7 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 		s.T().Error("grpc hook did not fire")
 	}
 
-	s.e.Shutdown()
+	cancel()
 }
 
 func (s *EndpointsTestSuite) TestGRPCHookFailure() {
@@ -148,28 +156,31 @@ func (s *EndpointsTestSuite) TestGRPCHookFailure() {
 	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
 	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
 	s.catalog.EXPECT().CAs().Return([]ca.ServerCa{s.ca})
-	s.ca.EXPECT().SignCsr(gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(certResp, nil)
+	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
+	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
 
 	hook := func(_ *grpc.Server) error { return errors.New("i'm an error") }
 	s.e.c.GRPCHook = hook
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	errChan := make(chan error, 1)
-	go func() { errChan <- s.e.ListenAndServe() }()
+	go func() { errChan <- s.e.ListenAndServe(ctx) }()
 
 	select {
 	case err := <-errChan:
 		s.Assert().NotNil(err)
-	case <-time.NewTicker(5 * time.Second).C:
+	case <-time.NewTimer(5 * time.Second).C:
 		s.Fail("grpc server did not stop after hook failure")
-		s.e.Shutdown()
+		cancel()
 	}
 }
 
 func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
 	cert, pool := s.expectBundleLookup()
 
-	tlsConfig, err := s.e.getGRPCServerConfig(nil)
+	tlsConfig, err := s.e.getGRPCServerConfig(ctx, nil)
 	require.NoError(s.T(), err)
 
 	s.Assert().Equal(tls.RequestClientCert, tlsConfig.ClientAuth)
@@ -180,7 +191,7 @@ func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
 func (s *EndpointsTestSuite) TestHTTPServerConfig() {
 	cert, _ := s.expectBundleLookup()
 
-	tlsConfig, err := s.e.getGRPCServerConfig(nil)
+	tlsConfig, err := s.e.getGRPCServerConfig(ctx, nil)
 	require.NoError(s.T(), err)
 
 	s.Assert().Equal(cert, tlsConfig.Certificates)
@@ -189,7 +200,16 @@ func (s *EndpointsTestSuite) TestHTTPServerConfig() {
 func (s *EndpointsTestSuite) TestSVIDObserver() {
 	state := observer.NewProperty(svid.State{})
 	s.e.c.SVIDStream = state.Observe()
-	s.e.t.Go(s.e.startSVIDObserver)
+
+	ctx, cancel := context.WithCancel(ctx)
+	t := new(tomb.Tomb)
+	defer func() {
+		cancel()
+		s.Require().NoError(t.Wait())
+	}()
+	t.Go(func() error {
+		return s.e.runSVIDObserver(ctx)
+	})
 
 	cert, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
@@ -220,7 +240,7 @@ func (s *EndpointsTestSuite) expectBundleLookup() ([]tls.Certificate, *x509.Cert
 		CaCerts:     ca.Raw,
 	}
 	s.catalog.EXPECT().DataStores().Return([]datastore.DataStore{s.ds})
-	s.ds.EXPECT().FetchBundle(dsReq).Return(dsResp, nil)
+	s.ds.EXPECT().FetchBundle(gomock.Any(), dsReq).Return(dsResp, nil)
 
 	s.e.svid = svid
 	s.e.svidKey = svidKey
