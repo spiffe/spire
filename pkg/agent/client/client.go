@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/pkg/common/grpcutil"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 
@@ -76,7 +77,7 @@ func newGRPCConn(c *Config) (*grpc.ClientConn, error) {
 		svid, key, bundle := c.KeysAndBundle()
 		spiffePeer := &spiffe_tls.TLSPeer{
 			SpiffeIDs:  []string{"spiffe://" + c.TrustDomain.Host + "/spiffe/server"},
-			TrustRoots: bundleAsCertPool(bundle),
+			TrustRoots: util.NewCertPool(bundle...),
 		}
 		tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
 		tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
@@ -212,12 +213,4 @@ func (u *Update) String() string {
 	}
 	buffer.WriteString("}")
 	return buffer.String()
-}
-
-func bundleAsCertPool(bundle []*x509.Certificate) *x509.CertPool {
-	certPool := x509.NewCertPool()
-	for _, cert := range bundle {
-		certPool.AddCert(cert)
-	}
-	return certPool
 }

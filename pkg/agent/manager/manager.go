@@ -223,14 +223,6 @@ func (m *manager) isAlreadyCached(regEntry *common.RegistrationEntry) bool {
 	return m.cache.Entry(regEntry) != nil
 }
 
-func (m *manager) bundleAsCertPool() *x509.CertPool {
-	certPool := x509.NewCertPool()
-	for _, cert := range m.cache.Bundle() {
-		certPool.AddCert(cert)
-	}
-	return certPool
-}
-
 func (m *manager) storeSVID(svid *x509.Certificate) {
 	err := StoreSVID(m.svidCachePath, svid)
 	if err != nil {
