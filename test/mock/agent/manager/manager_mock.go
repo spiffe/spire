@@ -6,6 +6,7 @@ package mock_manager
 
 import (
 	gomock "github.com/golang/mock/gomock"
+	go_observer "github.com/imkira/go-observer"
 	cache "github.com/spiffe/spire/pkg/agent/manager/cache"
 	common "github.com/spiffe/spire/proto/common"
 	reflect "reflect"
@@ -34,6 +35,18 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return m.recorder
 }
 
+// BundleSubscribe mocks base method
+func (m *MockManager) BundleSubscribe() go_observer.Stream {
+	ret := m.ctrl.Call(m, "BundleSubscribe")
+	ret0, _ := ret[0].(go_observer.Stream)
+	return ret0
+}
+
+// BundleSubscribe indicates an expected call of BundleSubscribe
+func (mr *MockManagerMockRecorder) BundleSubscribe() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BundleSubscribe", reflect.TypeOf((*MockManager)(nil).BundleSubscribe))
+}
+
 // Err mocks base method
 func (m *MockManager) Err() error {
 	ret := m.ctrl.Call(m, "Err")
@@ -56,6 +69,30 @@ func (m *MockManager) MatchingEntries(arg0 []*common.Selector) []*cache.Entry {
 // MatchingEntries indicates an expected call of MatchingEntries
 func (mr *MockManagerMockRecorder) MatchingEntries(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchingEntries", reflect.TypeOf((*MockManager)(nil).MatchingEntries), arg0)
+}
+
+// NewSubscriber mocks base method
+func (m *MockManager) NewSubscriber(arg0 cache.Selectors) cache.Subscriber {
+	ret := m.ctrl.Call(m, "NewSubscriber", arg0)
+	ret0, _ := ret[0].(cache.Subscriber)
+	return ret0
+}
+
+// NewSubscriber indicates an expected call of NewSubscriber
+func (mr *MockManagerMockRecorder) NewSubscriber(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSubscriber", reflect.TypeOf((*MockManager)(nil).NewSubscriber), arg0)
+}
+
+// SVIDSubscribe mocks base method
+func (m *MockManager) SVIDSubscribe() go_observer.Stream {
+	ret := m.ctrl.Call(m, "SVIDSubscribe")
+	ret0, _ := ret[0].(go_observer.Stream)
+	return ret0
+}
+
+// SVIDSubscribe indicates an expected call of SVIDSubscribe
+func (mr *MockManagerMockRecorder) SVIDSubscribe() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SVIDSubscribe", reflect.TypeOf((*MockManager)(nil).SVIDSubscribe))
 }
 
 // Shutdown mocks base method
@@ -90,16 +127,4 @@ func (m *MockManager) Stopped() <-chan struct{} {
 // Stopped indicates an expected call of Stopped
 func (mr *MockManagerMockRecorder) Stopped() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stopped", reflect.TypeOf((*MockManager)(nil).Stopped))
-}
-
-// Subscribe mocks base method
-func (m *MockManager) Subscribe(arg0 cache.Selectors) cache.Subscriber {
-	ret := m.ctrl.Call(m, "Subscribe", arg0)
-	ret0, _ := ret[0].(cache.Subscriber)
-	return ret0
-}
-
-// Subscribe indicates an expected call of Subscribe
-func (mr *MockManagerMockRecorder) Subscribe(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockManager)(nil).Subscribe), arg0)
 }

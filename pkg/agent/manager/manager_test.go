@@ -22,7 +22,6 @@ import (
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/util"
-	testutil "github.com/spiffe/spire/test/util"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -35,7 +34,7 @@ const (
 
 var (
 	testLogger, _ = testlog.NewNullLogger()
-	regEntriesMap = testutil.GetRegistrationEntriesMap("manager_test_entries.json")
+	regEntriesMap = util.GetRegistrationEntriesMap("manager_test_entries.json")
 )
 
 func TestShutdownDoesntHangAfterFailedStart(t *testing.T) {

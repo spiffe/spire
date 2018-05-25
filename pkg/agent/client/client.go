@@ -57,6 +57,8 @@ type client struct {
 	conn       *grpc.ClientConn
 	nodeClient node.NodeClient
 	m          sync.Mutex
+	// Callback to be used for testing purposes.
+	getNodeClientCallback func() (node.NodeClient, error)
 }
 
 // New creates a new client struct with the configuration provided
@@ -160,6 +162,10 @@ func (c *client) Release() {
 }
 
 func (c *client) getNodeClient() (node.NodeClient, error) {
+	if c.getNodeClientCallback != nil {
+		return c.getNodeClientCallback()
+	}
+
 	c.m.Lock()
 	defer c.m.Unlock()
 
