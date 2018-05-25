@@ -75,8 +75,6 @@ func (c *cacheImpl) SetBundle(bundle []*x509.Certificate) {
 }
 
 func (c *cacheImpl) Bundle() (result []*x509.Certificate) {
-	c.m.Lock()
-	defer c.m.Unlock()
 	return append(result, c.bundle.Value().([]*x509.Certificate)...)
 }
 
