@@ -409,9 +409,10 @@ func TestSynchronization(t *testing.T) {
 	util.RunWithTimeout(t, 2*m.c.SyncInterval, func() {
 		// There should be 3 updates after sync, because we are subcribed to selectors that
 		// matches with 3 entries that were renewed on the cache.
-		<-sub.Updates()
-		<-sub.Updates()
-		u := <-sub.Updates()
+		updates := sub.Updates()
+		<-updates
+		<-updates
+		u := <-updates
 
 		entriesAfter := cacheEntriesAsMap(m.cache.Entries())
 		if len(entriesAfter) != 3 {
@@ -562,7 +563,8 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	sub := m.NewSubscriber(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 	// This should be the update received when Subscribe function was called.
-	<-sub.Updates()
+	updates := sub.Updates()
+	<-updates
 
 	err = m.Start()
 	if err != nil {
@@ -572,12 +574,12 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	// Get latest update
 	util.RunWithTimeout(t, 4*time.Second, func() {
-		<-sub.Updates()
+		<-updates
 	})
 
 	// Wait update, it should be received once connection is restablished by synchronization
 	elapsed := util.RunWithTimeout(t, 8*time.Second, func() {
-		<-sub.Updates()
+		<-updates
 	})
 
 	// If we received an update too soon, then we assume that the connection to the server never
