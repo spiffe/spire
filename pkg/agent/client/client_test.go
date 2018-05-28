@@ -48,7 +48,7 @@ func TestFetchUpdates(t *testing.T) {
 	nodeFsc := mock_node.NewMockNode_FetchSVIDClient(ctrl)
 
 	client := New(cfg)
-	client.getNodeClientCallback = func() (node.NodeClient, error) {
+	client.newNodeClientCallback = func() (node.NodeClient, error) {
 		return nodeClient, nil
 	}
 	req := &node.FetchSVIDRequest{

@@ -54,12 +54,11 @@ type Update struct {
 }
 
 type client struct {
-	c          *Config
-	conn       *grpc.ClientConn
-	nodeClient node.NodeClient
-	m          sync.Mutex
+	c    *Config
+	conn *grpc.ClientConn
+	m    sync.Mutex
 	// Callback to be used for testing purposes.
-	getNodeClientCallback func() (node.NodeClient, error)
+	newNodeClientCallback func() (node.NodeClient, error)
 }
 
 // New creates a new client struct with the configuration provided
@@ -100,7 +99,7 @@ func newGRPCConn(c *Config) (*grpc.ClientConn, error) {
 }
 
 func (c *client) FetchUpdates(req *node.FetchSVIDRequest) (*Update, error) {
-	nodeClient, err := c.getNodeClient()
+	nodeClient, err := c.newNodeClient()
 	if err != nil {
 		return nil, err
 	}
@@ -156,15 +155,14 @@ func (c *client) Release() {
 	defer c.m.Unlock()
 
 	if c.conn != nil {
-		c.nodeClient = nil
 		c.conn.Close()
 		c.conn = nil
 	}
 }
 
-func (c *client) getNodeClient() (node.NodeClient, error) {
-	if c.getNodeClientCallback != nil {
-		return c.getNodeClientCallback()
+func (c *client) newNodeClient() (node.NodeClient, error) {
+	if c.newNodeClientCallback != nil {
+		return c.newNodeClientCallback()
 	}
 
 	c.m.Lock()
@@ -176,9 +174,8 @@ func (c *client) getNodeClient() (node.NodeClient, error) {
 			return nil, err
 		}
 		c.conn = conn
-		c.nodeClient = node.NewNodeClient(conn)
 	}
-	return c.nodeClient, nil
+	return node.NewNodeClient(c.conn), nil
 }
 
 func (u *Update) String() string {
