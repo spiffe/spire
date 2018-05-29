@@ -801,7 +801,7 @@ func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig) *mockNodeAPIHandler
 		bundle:   []*x509.Certificate{ca},
 		cakey:    cakey,
 		sockPath: path.Join(config.dir, "node_api.sock"),
-		serverID: "spiffe://" + config.trustDomain + "/spiffe/server",
+		serverID: "spiffe://" + config.trustDomain + "/spire/server",
 	}
 
 	h.svid, h.svidKey = h.newSVID(h.serverID, 1*time.Hour)

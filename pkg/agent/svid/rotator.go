@@ -70,6 +70,7 @@ func (r *rotator) Subscribe() observer.Stream {
 func (r *rotator) run() {
 	r.setRunning(true)
 	t := time.NewTicker(r.c.Interval)
+	defer t.Stop()
 
 	for {
 		select {
@@ -100,7 +101,7 @@ func (r *rotator) shouldRotate() bool {
 	ttl := time.Until(s.SVID.NotAfter)
 	watermark := s.SVID.NotAfter.Sub(s.SVID.NotBefore) / 2
 
-	return (ttl < watermark)
+	return ttl < watermark
 }
 
 // rotateSVID asks SPIRE's server for a new agent's SVID.

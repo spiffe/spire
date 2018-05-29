@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/tls"
@@ -26,7 +25,6 @@ import (
 )
 
 var (
-	ErrPartialResponse   = errors.New("partial response received")
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 )
 
@@ -47,12 +45,6 @@ type Config struct {
 	KeysAndBundle func() (*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate)
 }
 
-type Update struct {
-	Entries map[string]*common.RegistrationEntry
-	SVIDs   map[string]*node.Svid
-	Bundle  []byte
-}
-
 type client struct {
 	c    *Config
 	conn *grpc.ClientConn
@@ -68,30 +60,30 @@ func New(c *Config) *client {
 	}
 }
 
-func newGRPCConn(c *Config) (*grpc.ClientConn, error) {
-	credFunc := func() (credentials.TransportCredentials, error) {
-		var tlsCert []tls.Certificate
-		var tlsConfig *tls.Config
+func (c *client) credsFunc() (credentials.TransportCredentials, error) {
+	var tlsCert []tls.Certificate
+	var tlsConfig *tls.Config
 
-		svid, key, bundle := c.KeysAndBundle()
-		spiffePeer := &spiffe_tls.TLSPeer{
-			SpiffeIDs:  []string{"spiffe://" + c.TrustDomain.Host + "/spiffe/server"},
-			TrustRoots: util.NewCertPool(bundle...),
-		}
-		tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
-		tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
-		return credentials.NewTLS(tlsConfig), nil
+	svid, key, bundle := c.c.KeysAndBundle()
+	spiffePeer := &spiffe_tls.TLSPeer{
+		SpiffeIDs:  []string{"spiffe://" + c.c.TrustDomain.Host + "/spire/server"},
+		TrustRoots: util.NewCertPool(bundle...),
 	}
+	tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
+	tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
+	return credentials.NewTLS(tlsConfig), nil
+}
 
+func (c *client) dial() (*grpc.ClientConn, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // TODO: Make this timeout configurable?
 	defer cancel()
 
 	config := grpcutil.GRPCDialerConfig{
-		Log:      grpcutil.LoggerFromFieldLogger(c.Log),
-		CredFunc: credFunc,
+		Log:      grpcutil.LoggerFromFieldLogger(c.c.Log),
+		CredFunc: c.credsFunc,
 	}
 	dialer := grpcutil.NewGRPCDialer(config)
-	conn, err := dialer.Dial(ctx, c.Addr)
+	conn, err := dialer.Dial(ctx, c.c.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create connection: %v", err)
 	}
@@ -131,12 +123,8 @@ func (c *client) FetchUpdates(req *node.FetchSVIDRequest) (*Update, error) {
 			break
 		}
 		if err != nil {
-			if len(regEntries) > 0 || len(svids) > 0 || lastBundle != nil {
-				// There was an error receiving a response, exit loop to return what we have.
-				return &Update{regEntries, svids, lastBundle}, ErrPartialResponse
-			}
-
-			return nil, err
+			// There was an error receiving a response, exit loop to return what we have.
+			return &Update{regEntries, svids, lastBundle}, err
 		}
 
 		for _, re := range resp.SvidUpdate.RegistrationEntries {
@@ -147,7 +135,11 @@ func (c *client) FetchUpdates(req *node.FetchSVIDRequest) (*Update, error) {
 		}
 		lastBundle = resp.SvidUpdate.Bundle
 	}
-	return &Update{regEntries, svids, lastBundle}, nil
+	return &Update{
+		Entries: regEntries,
+		SVIDs:   svids,
+		Bundle:  lastBundle,
+	}, nil
 }
 
 func (c *client) Release() {
@@ -169,45 +161,11 @@ func (c *client) newNodeClient() (node.NodeClient, error) {
 	defer c.m.Unlock()
 
 	if c.conn == nil {
-		conn, err := newGRPCConn(c.c)
+		conn, err := c.dial()
 		if err != nil {
 			return nil, err
 		}
 		c.conn = conn
 	}
 	return node.NewNodeClient(c.conn), nil
-}
-
-func (u *Update) String() string {
-	var buffer bytes.Buffer
-	buffer.WriteString("{ Entries: [")
-	for _, re := range u.Entries {
-		buffer.WriteString("{ spiffeID: ")
-		buffer.WriteString(re.SpiffeId)
-		buffer.WriteString(", parentID: ")
-		buffer.WriteString(re.ParentId)
-		buffer.WriteString(", selectors: ")
-		buffer.WriteString(fmt.Sprintf("%v", re.Selectors))
-		buffer.WriteString("}")
-	}
-	buffer.WriteString("], SVIDs: [")
-	for key, svid := range u.SVIDs {
-		buffer.WriteString(key)
-		buffer.WriteString(": ")
-		svidStr := svid.String()
-		if len(svidStr) < 30 {
-			buffer.WriteString(svidStr)
-		} else {
-			buffer.WriteString(svidStr[:30])
-		}
-		buffer.WriteString(" ")
-	}
-	buffer.WriteString("], Bundle: ")
-	if u.Bundle != nil && len(u.Bundle) > 0 {
-		buffer.WriteString("bytes")
-	} else {
-		buffer.WriteString("none")
-	}
-	buffer.WriteString("}")
-	return buffer.String()
 }

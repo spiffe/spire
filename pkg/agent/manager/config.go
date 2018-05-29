@@ -71,7 +71,7 @@ func New(c *Config) (*manager, error) {
 		mtx:             new(sync.RWMutex),
 		svid:            svidRotator,
 		spiffeID:        spiffeID,
-		serverSPIFFEID:  "spiffe://" + c.TrustDomain.Host + "/spiffe/server",
+		serverSPIFFEID:  "spiffe://" + c.TrustDomain.Host + "/spire/server",
 		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,

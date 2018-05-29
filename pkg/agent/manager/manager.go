@@ -161,6 +161,7 @@ func (m *manager) run() error {
 
 func (m *manager) synchronizer() error {
 	t := time.NewTicker(m.c.SyncInterval)
+	defer t.Stop()
 
 	for {
 		select {
