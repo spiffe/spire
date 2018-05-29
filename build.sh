@@ -236,6 +236,9 @@ build_artifact() {
 	rm -rf $(dirname $_tmp)
 	mkdir -p $_tmp
 
+	# ensure empty .data dir is available
+	mkdir $_tmp/.data
+
 	# we munge the file structure a bit here
 	for _n in $_binaries; do
 		if [[ $_n == *cmd/* ]]; then
