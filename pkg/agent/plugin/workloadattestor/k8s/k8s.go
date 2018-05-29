@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
@@ -17,30 +17,47 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
+const (
+	defaultMaxPollAttempts   = 5
+	defaultPollRetryInterval = time.Millisecond * 300
+)
+
+type containerLookup int
+
+const (
+	containerInPod = iota
+	containerNotInPod
+	containerMaybeInPod
+)
+
 type k8sPlugin struct {
 	kubeletReadOnlyPort int
+	maxPollAttempts     int
+	pollRetryInterval   time.Duration
 	httpClient          httpClient
 	fs                  fileSystem
 	mtx                 *sync.RWMutex
 }
 
 type k8sPluginConfig struct {
-	KubeletReadOnlyPort int `hcl:"kubelet_read_only_port"`
+	KubeletReadOnlyPort int    `hcl:"kubelet_read_only_port"`
+	MaxPollAttempts     int    `hcl:"max_poll_attempts"`
+	PollRetryInterval   string `hcl:"poll_retry_interval"`
+}
+
+type podInfo struct {
+	// We only care about namespace, serviceAccountName and containerID
+	Metadata struct {
+		Namespace string `json:"namespace"`
+	} `json:"metadata"`
+	Spec struct {
+		ServiceAccountName string `json:"serviceAccountName"`
+	} `json:"spec"`
+	Status podStatus `json:"status"`
 }
 
 type podList struct {
-	// We only care about namespace, serviceAccountName and containerID
-	Metadata struct {
-	} `json:"metadata"`
-	Items []struct {
-		Metadata struct {
-			Namespace string `json:"namespace"`
-		} `json:"metadata"`
-		Spec struct {
-			ServiceAccountName string `json:"serviceAccountName"`
-		} `json:"spec"`
-		Status podStatus `json:"status"`
-	} `json:"items"`
+	Items []*podInfo `json:"items"`
 }
 
 type podStatus struct {
@@ -93,59 +110,106 @@ func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattest
 		return &resp, nil
 	}
 
-	httpResp, err := p.httpClient.Get(fmt.Sprintf("http://localhost:%v/pods", p.kubeletReadOnlyPort))
-	if err != nil {
-		return &resp, err
-	}
-	defer httpResp.Body.Close()
-	respBytes, err := ioutil.ReadAll(httpResp.Body)
-
-	var podInfo *podList
-	err = json.Unmarshal(respBytes, &podInfo)
-	if err != nil {
-		return &resp, err
-	}
-
-	for _, item := range podInfo.Items {
-		match, err := statusMatches(containerID, item.Status)
+	// Poll pod information and search for the pod with the container. If
+	// the pod is not found, and there are pods with containers that aren't
+	// fully initialized, delay for a little bit and try again.
+	for attempt := 1; ; attempt++ {
+		list, err := p.getPodListFromInsecureKubeletPort()
 		if err != nil {
 			return &resp, err
 		}
 
-		if match {
-			resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("sa:%v", item.Spec.ServiceAccountName)})
-			resp.Selectors = append(resp.Selectors, &common.Selector{Type: selectorType, Value: fmt.Sprintf("ns:%v", item.Metadata.Namespace)})
-			return &resp, nil
+		notAllContainersReady := false
+		for _, item := range list.Items {
+			switch lookUpContainerInPod(containerID, item.Status) {
+			case containerInPod:
+				resp.Selectors = getSelectorsFromPodInfo(item)
+				return &resp, nil
+			case containerMaybeInPod:
+				notAllContainersReady = true
+			case containerNotInPod:
+			}
 		}
-	}
 
-	return &resp, fmt.Errorf("no selectors found")
+		// if the container was not located and there were no pods with
+		// uninitialized containers, then the search is over.
+		if !notAllContainersReady || attempt >= p.maxPollAttempts {
+			log.Printf("container id %q not found (attempt %d of %d)", containerID, attempt, p.maxPollAttempts)
+			return &resp, fmt.Errorf("no selectors found")
+		}
+
+		// wait a bit for containers to initialize before trying again.
+		log.Printf("container id %q not found (attempt %d of %d); trying again in %s", containerID, attempt, p.maxPollAttempts, p.pollRetryInterval)
+
+		// TODO: bail early via context cancelation
+		time.Sleep(p.pollRetryInterval)
+	}
 }
 
-func statusMatches(containerID string, status podStatus) (bool, error) {
+func (p *k8sPlugin) getPodListFromInsecureKubeletPort() (out *podList, err error) {
+	httpResp, err := p.httpClient.Get(fmt.Sprintf("http://localhost:%d/pods", p.kubeletReadOnlyPort))
+	if err != nil {
+		return nil, err
+	}
+	defer httpResp.Body.Close()
+
+	if httpResp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", httpResp.StatusCode)
+	}
+
+	out = new(podList)
+	if err := json.NewDecoder(httpResp.Body).Decode(out); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+func lookUpContainerInPod(containerID string, status podStatus) containerLookup {
+	notReady := false
 	for _, status := range status.ContainerStatuses {
+		// TODO: should we be keying off of the status or is the lack of a
+		// container id sufficient to know the container is not ready?
+		if status.ContainerID == "" {
+			notReady = true
+			continue
+		}
+
 		containerURL, err := url.Parse(status.ContainerID)
 		if err != nil {
-			return false, err
+			log.Printf("malformed container id %q: %v", status.ContainerID, err)
+			continue
 		}
 
 		if containerID == containerURL.Host {
-			return true, nil
+			return containerInPod
 		}
 	}
 
 	for _, status := range status.InitContainerStatuses {
+		// TODO: should we be keying off of the status or is the lack of a
+		// container id sufficient to know the container is not ready?
+		if status.ContainerID == "" {
+			notReady = true
+			continue
+		}
+
 		containerURL, err := url.Parse(status.ContainerID)
 		if err != nil {
-			return false, err
+			log.Printf("malformed container id %q: %v", status.ContainerID, err)
+			continue
 		}
 
 		if containerID == containerURL.Host {
-			return true, nil
+			return containerInPod
 		}
 	}
 
-	return false, nil
+	if notReady {
+		return containerMaybeInPod
+	}
+
+	return containerNotInPod
 }
 
 func getCgroups(path string, fs fileSystem) (cgroups [][]string, err error) {
@@ -169,7 +233,18 @@ func getCgroups(path string, fs fileSystem) (cgroups [][]string, err error) {
 		cgroups = append(cgroups, substrings)
 	}
 
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
 	return cgroups, err
+}
+
+func getSelectorsFromPodInfo(info *podInfo) []*common.Selector {
+	return []*common.Selector{
+		{Type: selectorType, Value: fmt.Sprintf("sa:%v", info.Spec.ServiceAccountName)},
+		{Type: selectorType, Value: fmt.Sprintf("ns:%v", info.Metadata.Namespace)},
+	}
 }
 
 func (p *k8sPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
@@ -191,8 +266,26 @@ func (p *k8sPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse
 		return resp, err
 	}
 
+	// set up defaults
+	if config.MaxPollAttempts <= 0 {
+		config.MaxPollAttempts = defaultMaxPollAttempts
+	}
+
+	var pollRetryInterval time.Duration
+	if config.PollRetryInterval != "" {
+		pollRetryInterval, err = time.ParseDuration(config.PollRetryInterval)
+		if err != nil {
+			return resp, err
+		}
+	}
+	if pollRetryInterval <= 0 {
+		pollRetryInterval = defaultPollRetryInterval
+	}
+
 	// Set local vars from config struct
 	p.kubeletReadOnlyPort = config.KubeletReadOnlyPort
+	p.pollRetryInterval = pollRetryInterval
+	p.maxPollAttempts = config.MaxPollAttempts
 	return &spi.ConfigureResponse{}, nil
 }
 
