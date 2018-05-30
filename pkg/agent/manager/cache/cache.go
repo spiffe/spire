@@ -74,8 +74,8 @@ func (c *cacheImpl) SetBundle(bundle []*x509.Certificate) {
 	c.notifySubscribers(subs)
 }
 
-func (c *cacheImpl) Bundle() (result []*x509.Certificate) {
-	return append(result, c.bundle.Value().([]*x509.Certificate)...)
+func (c *cacheImpl) Bundle() []*x509.Certificate {
+	return c.bundle.Value().([]*x509.Certificate)
 }
 
 func (c *cacheImpl) SubscribeToBundleChanges() observer.Stream {
