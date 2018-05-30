@@ -236,10 +236,7 @@ func TestNotifySubscribersDoesntPileUpGoroutines(t *testing.T) {
 func TestNotifySubscribersNotifiesLatestUpdatesToSlowSubscriber(t *testing.T) {
 	cache := New(logger, nil)
 
-	sub, err := NewSubscriber(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
-	assert.Nil(t, err)
-
-	cache.Subscribe(sub)
+	sub := cache.Subscribe(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 
 	var wg sync.WaitGroup
 	// Shared counter to keep track of number of updates made.
@@ -303,10 +300,7 @@ func TestNotifySubscribersNotifiesLatestUpdatesToSlowSubscriber(t *testing.T) {
 func TestSubscriberFinish(t *testing.T) {
 	cache := New(logger, nil)
 
-	sub, err := NewSubscriber(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
-	assert.Nil(t, err)
-
-	cache.Subscribe(sub)
+	sub := cache.Subscribe(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 
 	// Comsume the update sent by Subscribe function.
 	<-sub.Updates()

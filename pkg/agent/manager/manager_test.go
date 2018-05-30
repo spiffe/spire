@@ -222,7 +222,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	}
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		sub := m.NewSubscriber(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+		sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 		u := <-sub.Updates()
 
 		if len(u.Entries) != 2 {
@@ -368,7 +368,7 @@ func TestSynchronization(t *testing.T) {
 	}
 	defer m.Shutdown()
 
-	sub := m.NewSubscriber(cache.Selectors{
+	sub := m.SubscribeToCacheChanges(cache.Selectors{
 		&common.Selector{Type: "unix", Value: "uid:1111"},
 		&common.Selector{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"},
 	})
@@ -494,7 +494,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sub := m.NewSubscriber(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 
 	err = m.Start()
 	if err != nil {
@@ -561,7 +561,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		return
 	}
 
-	sub := m.NewSubscriber(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 	// This should be the update received when Subscribe function was called.
 	updates := sub.Updates()
 	<-updates

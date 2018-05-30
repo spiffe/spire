@@ -57,7 +57,7 @@ func New(c *Config) (*manager, error) {
 		SVID:         c.SVID,
 		SVIDKey:      c.SVIDKey,
 		SpiffeID:     spiffeID,
-		BundleStream: cache.BundleSubscribe(),
+		BundleStream: cache.SubscribeToBundleChanges(),
 		ServerAddr:   c.ServerAddr,
 		TrustDomain:  c.TrustDomain,
 		Interval:     c.RotationInterval,

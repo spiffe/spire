@@ -29,17 +29,17 @@ type Manager interface {
 	// Shutdown blocks until the manager stops.
 	Shutdown()
 
-	// NewSubscriber returns a Subscriber on which cache entry updates are sent
+	// SubscribeToCacheChanges returns a Subscriber on which cache entry updates are sent
 	// for a particular set of selectors.
-	NewSubscriber(key cache.Selectors) cache.Subscriber
+	SubscribeToCacheChanges(key cache.Selectors) cache.Subscriber
 
-	// SVIDSubscribe returns a new observer.Stream on which svid.State instances are received
+	// SubscribeToSVIDChanges returns a new observer.Stream on which svid.State instances are received
 	// each time an SVID rotation finishes.
-	SVIDSubscribe() observer.Stream
+	SubscribeToSVIDChanges() observer.Stream
 
-	// BundleSubscribe returns a new observer.Stream on which []*x509.Certificate instances are
+	// SubscribeToBundleChanges returns a new observer.Stream on which []*x509.Certificate instances are
 	// received each time the bundle changes.
-	BundleSubscribe() observer.Stream
+	SubscribeToBundleChanges() observer.Stream
 
 	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
@@ -112,24 +112,16 @@ func (m *manager) Shutdown() {
 	}
 }
 
-func (m *manager) NewSubscriber(selectors cache.Selectors) cache.Subscriber {
-	// creates a subscriber
-	// adds it to the manager
-	// returns the added subscriber
-	sub, err := cache.NewSubscriber(selectors)
-	if err != nil {
-		m.c.Log.Error(err)
-	}
-	m.cache.Subscribe(sub)
-	return sub
+func (m *manager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
+	return m.cache.Subscribe(selectors)
 }
 
-func (m *manager) SVIDSubscribe() observer.Stream {
+func (m *manager) SubscribeToSVIDChanges() observer.Stream {
 	return m.svid.Subscribe()
 }
 
-func (m *manager) BundleSubscribe() observer.Stream {
-	return m.cache.BundleSubscribe()
+func (m *manager) SubscribeToBundleChanges() observer.Stream {
+	return m.cache.SubscribeToBundleChanges()
 }
 
 func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []*cache.Entry) {
@@ -178,7 +170,7 @@ func (m *manager) synchronizer() error {
 }
 
 func (m *manager) startSVIDObserver() error {
-	svidStream := m.SVIDSubscribe()
+	svidStream := m.SubscribeToSVIDChanges()
 	for {
 		select {
 		case <-m.t.Dying():
@@ -191,7 +183,7 @@ func (m *manager) startSVIDObserver() error {
 }
 
 func (m *manager) startBundleObserver() error {
-	bundleStream := m.BundleSubscribe()
+	bundleStream := m.SubscribeToBundleChanges()
 	for {
 		select {
 		case <-m.t.Dying():

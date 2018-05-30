@@ -37,15 +37,15 @@ type Cache interface {
 	Entries() []*Entry
 	// IsEmpty returns true if this cache doesn't have any entry.
 	IsEmpty() bool
-	// Register a Subscriber and sends WorkloadUpdate on the subscriber's channel
-	Subscribe(sub *subscriber)
+	// Registers and returns a Subscriber, and then sends latest WorkloadUpdate on its channel
+	Subscribe(selectors Selectors) Subscriber
 	// Set the bundle
 	SetBundle([]*x509.Certificate)
 	// Retrieve the bundle
 	Bundle() []*x509.Certificate
-	// BundleSubscribe returns a new observer.Stream of []*x509.Certificate instances. Each
+	// SubscribeToBundleChanges returns a new observer.Stream of []*x509.Certificate instances. Each
 	// time the bundle is updated, a new instance is streamed.
-	BundleSubscribe() observer.Stream
+	SubscribeToBundleChanges() observer.Stream
 }
 
 type cacheImpl struct {
@@ -78,7 +78,7 @@ func (c *cacheImpl) Bundle() (result []*x509.Certificate) {
 	return append(result, c.bundle.Value().([]*x509.Certificate)...)
 }
 
-func (c *cacheImpl) BundleSubscribe() observer.Stream {
+func (c *cacheImpl) SubscribeToBundleChanges() observer.Stream {
 	return c.bundle.Observe()
 }
 
@@ -92,9 +92,17 @@ func (c *cacheImpl) Entries() []*Entry {
 	return entries
 }
 
-func (c *cacheImpl) Subscribe(sub *subscriber) {
+func (c *cacheImpl) Subscribe(selectors Selectors) Subscriber {
+	// creates a subscriber
+	// adds it to the manager
+	// returns the added subscriber
+	sub, err := NewSubscriber(selectors)
+	if err != nil {
+		c.log.Error(err)
+	}
 	c.subscribers.add(sub)
 	c.notifySubscribers([]*subscriber{sub})
+	return sub
 }
 
 func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
