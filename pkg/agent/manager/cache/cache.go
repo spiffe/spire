@@ -134,14 +134,13 @@ func (c *cacheImpl) notifySubscribers(subs []*subscriber) {
 			continue
 		}
 
-		if len(sub.c) > 0 {
-			select {
-			case <-sub.c:
-				// Discard current update because there is a new one.
-			default:
-				// To prevent blocking if the update was read after entering the if block.
-			}
+		select {
+		case <-sub.c:
+			// Discard current update if there is one.
+		default:
+			// To prevent blocking if there is no update available.
 		}
+
 		subEntries := subscriberEntries(sub, entries)
 		sub.c <- &WorkloadUpdate{Entries: subEntries, Bundle: bundle}
 		sub.m.Unlock()
