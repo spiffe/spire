@@ -67,6 +67,10 @@ In **server.conf**, identify the `UpstreamCA "disk" { .. }` plugin configuration
     key_file_path = "/opt/spire/conf/server/dummy_upstream_ca.key"
     cert_file_path = "/opt/spire/conf/server/dummy_upstream_ca.crt"
 
+Prebuilt binaries may not have a default .data directory. You will need to create it.
+
+    $ mkdir -p /opt/spire/.data
+
 The [SPIRE Server](/doc/spire_server.md) reference guide covers in more detail the specific configuration options and plugins available.
 
 ## Configure the SPIRE Agent
