@@ -6,12 +6,11 @@ package mock_cache
 
 import (
 	x509 "crypto/x509"
-	reflect "reflect"
-
 	gomock "github.com/golang/mock/gomock"
 	go_observer "github.com/imkira/go-observer"
 	cache "github.com/spiffe/spire/pkg/agent/manager/cache"
 	common "github.com/spiffe/spire/proto/common"
+	reflect "reflect"
 )
 
 // MockCache is a mock of Cache interface

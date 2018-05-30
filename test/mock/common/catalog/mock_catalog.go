@@ -5,10 +5,9 @@
 package mock_catalog
 
 import (
-	reflect "reflect"
-
 	gomock "github.com/golang/mock/gomock"
 	catalog "github.com/spiffe/spire/pkg/common/catalog"
+	reflect "reflect"
 )
 
 // MockCatalog is a mock of Catalog interface
