@@ -5,9 +5,9 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
-	"errors"
 	"time"
 
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
@@ -59,23 +59,23 @@ func (m *manager) fetchUpdates(spiffeID string, entryRequests map[string]*entryR
 		}
 	}
 
-	update, err := client.fetchUpdates(&node.FetchSVIDRequest{Csrs: csrs})
+	update, err := client.FetchUpdates(&node.FetchSVIDRequest{Csrs: csrs})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if update.lastBundle != nil {
-		bundle, err := x509.ParseCertificates(update.lastBundle)
+	if update.Bundle != nil {
+		bundle, err := x509.ParseCertificates(update.Bundle)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		if !m.bundleAlreadyCached(bundle) {
-			m.setBundle(bundle)
+			m.cache.SetBundle(bundle)
 		}
 	}
 
-	return update.regEntries, update.svids, nil
+	return update.Entries, update.SVIDs, nil
 }
 
 func (m *manager) processEntryRequests(entryRequests entryRequests) error {
@@ -100,7 +100,16 @@ func (m *manager) processEntryRequests(entryRequests entryRequests) error {
 	for _, alias := range *aliases {
 		// Create a new client to be used when checking for new entries on behalf of this
 		// agent's alias.
-		err := m.newSyncClient([]string{alias.RegistrationEntry.SpiffeId}, alias.SVID, alias.PrivateKey)
+		cfg := &client.Config{
+			TrustDomain: m.c.TrustDomain,
+			Log:         m.c.Log,
+			Addr:        m.c.ServerAddr,
+			KeysAndBundle: func() (*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
+				return alias.SVID, alias.PrivateKey, m.cache.Bundle()
+			},
+		}
+		client := client.New(cfg)
+		err := m.addClient(client, alias.RegistrationEntry.SpiffeId)
 		if err != nil {
 			return err
 		}
@@ -199,57 +208,6 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 	return nil
 }
 
-func (m *manager) rotateSVID() error {
-	svid, _ := m.getBaseSVIDEntry()
-	ttl := svid.NotAfter.Sub(time.Now())
-	lifetime := svid.NotAfter.Sub(svid.NotBefore)
-
-	if ttl < lifetime/2 {
-		m.c.Log.Debug("Rotating agent SVID")
-
-		privateKey, csr, err := m.newCSR(m.spiffeID)
-		if err != nil {
-			return err
-		}
-
-		client, err := m.ensureRotationClient()
-		if err != nil {
-			return err
-		}
-
-		update, err := client.fetchUpdates(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
-		if err != nil {
-			return err
-		}
-
-		if len(update.svids) == 0 {
-			return errors.New("no SVID received when rotating BaseSVID")
-		}
-
-		svid, ok := update.svids[m.spiffeID]
-		if !ok {
-			return errors.New("it was not possible to get base SVID from FetchSVID response")
-		}
-		cert, err := x509.ParseCertificate(svid.SvidCert)
-		if err != nil {
-			return err
-		}
-
-		m.setBaseSVIDEntry(cert, privateKey)
-
-		// We must close the client connection because it is tied to an expired SVID,
-		// so next time this method gets called, we will use a new connection with
-		// the most up-to-date SVID.
-		client.close()
-
-		err = m.storeSVID()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (m *manager) newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err error) {
 	pk, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -274,6 +232,26 @@ func (m *manager) isAgentAlias(re *common.RegistrationEntry) bool {
 	}
 
 	return false
+}
+
+func (m *manager) bundleAlreadyCached(bundle []*x509.Certificate) bool {
+	currentBundle := m.cache.Bundle()
+
+	if currentBundle == nil {
+		return bundle == nil
+	}
+
+	if len(bundle) != len(currentBundle) {
+		return false
+	}
+
+	for i, cert := range currentBundle {
+		if !cert.Equal(bundle[i]) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // entryRequest holds a CSR and a pre-built cache entry for the RegistrationEntry
