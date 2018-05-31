@@ -848,10 +848,6 @@ func (ds *sqlPlugin) ListSpiffeEntries(
 
 // RegisterToken takes a Token message and stores it
 func (ds *sqlPlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, error) {
-
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
 	resp := new(common.Empty)
 	if req.Token == "" || req.Expiry == 0 {
 		return resp, errors.New("token and expiry are required")
@@ -868,10 +864,6 @@ func (ds *sqlPlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, err
 // FetchToken takes a Token message and returns one, populating the fields
 // we have knowledge of
 func (ds *sqlPlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinToken, error) {
-
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
 	var t JoinToken
 
 	err := ds.db.Find(&t, "token = ?", req.Token).Error
@@ -887,32 +879,19 @@ func (ds *sqlPlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinToken,
 }
 
 func (ds *sqlPlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, error) {
+	var t JoinToken
 
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
-	resp := new(common.Empty)
-
-	// Protect the data - if gorm gets a delete w/ an empty primary
-	// key, it deletes _all_ the records...
-	if req.Token == "" {
-		return &common.Empty{}, errors.New("no token specified")
+	err := ds.db.Find(&t, "token = ?", req.Token).Error
+	if err != nil {
+		return &common.Empty{}, err
 	}
 
-	t := JoinToken{
-		Token:  req.Token,
-		Expiry: req.Expiry,
-	}
-	return resp, ds.db.Delete(&t).Error
+	return &common.Empty{}, ds.db.Delete(&t).Error
 }
 
 // PruneTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
 func (ds *sqlPlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, error) {
-
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
 	var staleTokens []JoinToken
 	resp := new(common.Empty)
 
