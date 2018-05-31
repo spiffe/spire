@@ -714,22 +714,34 @@ func Test_RegisterAndFetchToken(t *testing.T) {
 func Test_DeleteToken(t *testing.T) {
 	ds := createDefault(t)
 	now := time.Now().Unix()
-	req := &datastore.JoinToken{
+	req1 := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
-	_, err := ds.RegisterToken(req)
+	_, err := ds.RegisterToken(req1)
+	require.NoError(t, err)
+
+	req2 := &datastore.JoinToken{
+		Token:  "batbaz",
+		Expiry: now,
+	}
+	_, err = ds.RegisterToken(req2)
 	require.NoError(t, err)
 
 	// Don't need expiry for delete
-	req.Expiry = 0
-	_, err = ds.DeleteToken(req)
+	req1.Expiry = 0
+	_, err = ds.DeleteToken(req1)
 	require.NoError(t, err)
 
 	// Should not be able to fetch after delete
-	resp, err := ds.FetchToken(req)
+	resp, err := ds.FetchToken(req1)
 	require.NoError(t, err)
 	assert.Equal(t, "", resp.Token)
+
+	// Second token should still be present
+	resp, err = ds.FetchToken(req2)
+	require.NoError(t, err)
+	assert.Equal(t, req2.Token, resp.Token)
 }
 
 func Test_PruneTokens(t *testing.T) {
