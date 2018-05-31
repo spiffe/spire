@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
 	"github.com/spiffe/spire/proto/server/ca"
@@ -59,6 +60,7 @@ var (
 		NodeAttestorType: {
 			"aws_iid":    aws.NewIID(),
 			"join_token": jointoken.New(),
+			"gcp_iid":    gcp.NewIID(),
 		},
 		NodeResolverType: {
 			"noop": noop.New(),

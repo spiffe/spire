@@ -9,6 +9,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/aws"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/gcp"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/jointoken"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/unix"
@@ -49,6 +50,7 @@ var (
 		NodeAttestorType: {
 			"aws_iid":    aws.NewIID(),
 			"join_token": jointoken.New(),
+			"gcp_iid":    gcp.NewIID(),
 		},
 		WorkloadAttestorType: {
 			"k8s":  k8s.New(),
