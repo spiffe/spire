@@ -39,7 +39,7 @@ func (h *Handler) CreateEntry(
 
 	dataStore := h.Catalog.DataStores()[0]
 
-	unique, err := h.isEntryUnique(dataStore, request)
+	unique, err := h.isEntryUnique(ctx, dataStore, request)
 	if err != nil {
 		h.Log.Error(err)
 		return nil, errors.New("Error trying to create entry")
@@ -51,7 +51,7 @@ func (h *Handler) CreateEntry(
 		return nil, err
 	}
 
-	createResponse, err := dataStore.CreateRegistrationEntry(
+	createResponse, err := dataStore.CreateRegistrationEntry(ctx,
 		&datastore.CreateRegistrationEntryRequest{RegisteredEntry: request},
 	)
 	if err != nil {
@@ -70,7 +70,7 @@ func (h *Handler) DeleteEntry(
 	req := &datastore.DeleteRegistrationEntryRequest{
 		RegisteredEntryId: request.Id,
 	}
-	resp, err := ds.DeleteRegistrationEntry(req)
+	resp, err := ds.DeleteRegistrationEntry(ctx, req)
 	if err != nil {
 		return &common.RegistrationEntry{}, err
 	}
@@ -85,7 +85,7 @@ func (h *Handler) FetchEntry(
 	response *common.RegistrationEntry, err error) {
 
 	dataStore := h.Catalog.DataStores()[0]
-	fetchResponse, err := dataStore.FetchRegistrationEntry(
+	fetchResponse, err := dataStore.FetchRegistrationEntry(ctx,
 		&datastore.FetchRegistrationEntryRequest{RegisteredEntryId: request.Id},
 	)
 	if err != nil {
@@ -100,7 +100,7 @@ func (h *Handler) FetchEntries(
 	response *common.RegistrationEntries, err error) {
 
 	dataStore := h.Catalog.DataStores()[0]
-	fetchResponse, err := dataStore.FetchRegistrationEntries(&common.Empty{})
+	fetchResponse, err := dataStore.FetchRegistrationEntries(ctx, &common.Empty{})
 	if err != nil {
 		h.Log.Error(err)
 		return response, errors.New("Error trying to fetch entries")
@@ -121,7 +121,7 @@ func (h *Handler) ListByParentID(
 	response *common.RegistrationEntries, err error) {
 
 	dataStore := h.Catalog.DataStores()[0]
-	listResponse, err := dataStore.ListParentIDEntries(
+	listResponse, err := dataStore.ListParentIDEntries(ctx,
 		&datastore.ListParentIDEntriesRequest{ParentId: request.Id},
 	)
 	if err != nil {
@@ -142,7 +142,7 @@ func (h *Handler) ListBySelector(
 	req := &datastore.ListSelectorEntriesRequest{
 		Selectors: []*common.Selector{request},
 	}
-	resp, err := ds.ListSelectorEntries(req)
+	resp, err := ds.ListSelectorEntries(ctx, req)
 	if err != nil {
 		return &common.RegistrationEntries{}, err
 	}
@@ -161,7 +161,7 @@ func (h *Handler) ListBySpiffeID(
 	req := &datastore.ListSpiffeEntriesRequest{
 		SpiffeId: request.Id,
 	}
-	resp, err := ds.ListSpiffeEntries(req)
+	resp, err := ds.ListSpiffeEntries(ctx, req)
 	if err != nil {
 		return &common.RegistrationEntries{}, err
 	}
@@ -225,7 +225,7 @@ func (h *Handler) CreateJoinToken(
 		Expiry: expiry,
 	}
 
-	_, err := ds.RegisterToken(req)
+	_, err := ds.RegisterToken(ctx, req)
 	if err != nil {
 		h.Log.Error(err)
 		return nil, errors.New("Error trying to register your token")
@@ -242,7 +242,7 @@ func (h *Handler) FetchBundle(
 	req := &datastore.Bundle{
 		TrustDomain: h.TrustDomain.String(),
 	}
-	b, err := ds.FetchBundle(req)
+	b, err := ds.FetchBundle(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("get bundle from datastore: %v", err)
 	}
@@ -250,10 +250,10 @@ func (h *Handler) FetchBundle(
 	return &registration.Bundle{CaCerts: b.CaCerts}, nil
 }
 
-func (h *Handler) isEntryUnique(ds datastore.DataStore, entry *common.RegistrationEntry) (bool, error) {
+func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (bool, error) {
 	// First we get all the entries that matches the entry's spiffe id.
 	req := &datastore.ListSpiffeEntriesRequest{SpiffeId: entry.SpiffeId}
-	res, err := ds.ListSpiffeEntries(req)
+	res, err := ds.ListSpiffeEntries(ctx, req)
 	if err != nil {
 		return false, err
 	}

@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -14,18 +15,26 @@ type MemoryPlugin struct {
 	key *ecdsa.PrivateKey
 }
 
-func (m *MemoryPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (key *keymanager.GenerateKeyPairResponse, err error) {
+func (m *MemoryPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (key *keymanager.GenerateKeyPairResponse, err error) {
 	m.key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
 	privateKey, err := x509.MarshalECPrivateKey(m.key)
 	if err != nil {
-		return
+		return nil, err
 	}
 	publicKey, err := x509.MarshalPKIXPublicKey(&m.key.PublicKey)
-	key = &keymanager.GenerateKeyPairResponse{PublicKey: publicKey, PrivateKey: privateKey}
-	return
+	if err != nil {
+		return nil, err
+	}
+	return &keymanager.GenerateKeyPairResponse{
+		PublicKey:  publicKey,
+		PrivateKey: privateKey,
+	}, nil
 }
 
-func (m *MemoryPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
+func (m *MemoryPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
 	if m.key == nil {
 		// No key set yet
 		return &keymanager.FetchPrivateKeyResponse{PrivateKey: []byte{}}, nil
@@ -39,11 +48,11 @@ func (m *MemoryPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*key
 	return &keymanager.FetchPrivateKeyResponse{PrivateKey: privateKey}, nil
 }
 
-func (m *MemoryPlugin) Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (m *MemoryPlugin) Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (m *MemoryPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (m *MemoryPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 

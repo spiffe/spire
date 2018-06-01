@@ -2,6 +2,7 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"path"
 	"runtime"
@@ -46,19 +47,32 @@ func GetRegistrationEntriesMap(fileName string) map[string][]*common.Registratio
 func RunWithTimeout(t *testing.T, timeout time.Duration, code func()) time.Duration {
 	_, file, line, _ := runtime.Caller(1)
 
-	done := make(chan struct{})
-	ti := time.NewTicker(timeout)
+	done := make(chan error, 1)
+	ti := time.NewTimer(timeout)
+	defer ti.Stop()
+
 	start := time.Now()
 	go func() {
+		// make sure the done channel is sent on in the face of panic's or
+		// other unwinding events (e.g. runtime.Goexit via t.Fatal)
+		defer func() {
+			if r := recover(); r != nil {
+				done <- fmt.Errorf("panic: %v", r)
+			} else {
+				done <- nil
+			}
+		}()
 		code()
-		close(done)
 	}()
 
 	select {
 	case <-ti.C:
 		t.Errorf("%s:%d: code execution took more than %v", file, line, timeout)
 		return time.Since(start)
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Errorf("%s:%d: code panicked: %v", file, line, err)
+		}
 		return time.Since(start)
 	}
 }

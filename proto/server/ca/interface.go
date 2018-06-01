@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -18,12 +19,12 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type ServerCa interface {
-	Configure(request *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
-	GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
-	SignCsr(*SignCsrRequest) (*SignCsrResponse, error)
-	GenerateCsr(*GenerateCsrRequest) (*GenerateCsrResponse, error)
-	FetchCertificate(request *FetchCertificateRequest) (*FetchCertificateResponse, error)
-	LoadCertificate(*LoadCertificateRequest) (*LoadCertificateResponse, error)
+	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
+	SignCsr(context.Context, *SignCsrRequest) (*SignCsrResponse, error)
+	GenerateCsr(context.Context, *GenerateCsrRequest) (*GenerateCsrResponse, error)
+	FetchCertificate(context.Context, *FetchCertificateRequest) (*FetchCertificateResponse, error)
+	LoadCertificate(context.Context, *LoadCertificateRequest) (*LoadCertificateResponse, error)
 }
 
 type ServerCaPlugin struct {
@@ -39,7 +40,7 @@ func (p ServerCaPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{},
 }
 
 func (p ServerCaPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterServerCAServer(s, &GRPCServer{ServerCaImpl: p.ServerCaImpl})
+	RegisterServerCAServer(s, p.ServerCaImpl)
 	return nil
 }
 

@@ -5,12 +5,12 @@
 package mock_manager
 
 import (
-	reflect "reflect"
-
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	go_observer "github.com/imkira/go-observer"
 	cache "github.com/spiffe/spire/pkg/agent/manager/cache"
 	common "github.com/spiffe/spire/proto/common"
+	reflect "reflect"
 )
 
 // MockManager is a mock of Manager interface
@@ -36,16 +36,16 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return m.recorder
 }
 
-// Err mocks base method
-func (m *MockManager) Err() error {
-	ret := m.ctrl.Call(m, "Err")
+// Initialize mocks base method
+func (m *MockManager) Initialize(arg0 context.Context) error {
+	ret := m.ctrl.Call(m, "Initialize", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Err indicates an expected call of Err
-func (mr *MockManagerMockRecorder) Err() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockManager)(nil).Err))
+// Initialize indicates an expected call of Initialize
+func (mr *MockManagerMockRecorder) Initialize(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Initialize", reflect.TypeOf((*MockManager)(nil).Initialize), arg0)
 }
 
 // MatchingEntries mocks base method
@@ -60,38 +60,16 @@ func (mr *MockManagerMockRecorder) MatchingEntries(arg0 interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchingEntries", reflect.TypeOf((*MockManager)(nil).MatchingEntries), arg0)
 }
 
-// Shutdown mocks base method
-func (m *MockManager) Shutdown() {
-	m.ctrl.Call(m, "Shutdown")
-}
-
-// Shutdown indicates an expected call of Shutdown
-func (mr *MockManagerMockRecorder) Shutdown() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shutdown", reflect.TypeOf((*MockManager)(nil).Shutdown))
-}
-
-// Start mocks base method
-func (m *MockManager) Start() error {
-	ret := m.ctrl.Call(m, "Start")
+// Run mocks base method
+func (m *MockManager) Run(arg0 context.Context) error {
+	ret := m.ctrl.Call(m, "Run", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Start indicates an expected call of Start
-func (mr *MockManagerMockRecorder) Start() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockManager)(nil).Start))
-}
-
-// Stopped mocks base method
-func (m *MockManager) Stopped() <-chan struct{} {
-	ret := m.ctrl.Call(m, "Stopped")
-	ret0, _ := ret[0].(<-chan struct{})
-	return ret0
-}
-
-// Stopped indicates an expected call of Stopped
-func (mr *MockManagerMockRecorder) Stopped() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stopped", reflect.TypeOf((*MockManager)(nil).Stopped))
+// Run indicates an expected call of Run
+func (mr *MockManagerMockRecorder) Run(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockManager)(nil).Run), arg0)
 }
 
 // SubscribeToBundleChanges mocks base method

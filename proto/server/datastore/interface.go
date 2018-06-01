@@ -7,6 +7,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
 	"github.com/spiffe/spire/proto/common"
+	"golang.org/x/net/context"
 
 	"google.golang.org/grpc"
 
@@ -23,42 +24,42 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type DataStore interface {
-	CreateBundle(request *Bundle) (*Bundle, error)
-	UpdateBundle(request *Bundle) (*Bundle, error)
-	AppendBundle(request *Bundle) (*Bundle, error)
-	DeleteBundle(request *Bundle) (*Bundle, error)
-	FetchBundle(request *Bundle) (*Bundle, error)
-	ListBundles(request *common.Empty) (*Bundles, error)
+	CreateBundle(ctx context.Context, request *Bundle) (*Bundle, error)
+	UpdateBundle(ctx context.Context, request *Bundle) (*Bundle, error)
+	AppendBundle(ctx context.Context, request *Bundle) (*Bundle, error)
+	DeleteBundle(ctx context.Context, request *Bundle) (*Bundle, error)
+	FetchBundle(ctx context.Context, request *Bundle) (*Bundle, error)
+	ListBundles(ctx context.Context, request *common.Empty) (*Bundles, error)
 
-	CreateAttestedNodeEntry(request *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error)
-	FetchAttestedNodeEntry(request *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error)
-	FetchStaleNodeEntries(request *FetchStaleNodeEntriesRequest) (*FetchStaleNodeEntriesResponse, error)
-	UpdateAttestedNodeEntry(request *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error)
-	DeleteAttestedNodeEntry(request *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error)
+	CreateAttestedNodeEntry(ctx context.Context, request *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error)
+	FetchAttestedNodeEntry(ctx context.Context, request *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error)
+	FetchStaleNodeEntries(ctx context.Context, request *FetchStaleNodeEntriesRequest) (*FetchStaleNodeEntriesResponse, error)
+	UpdateAttestedNodeEntry(ctx context.Context, request *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error)
+	DeleteAttestedNodeEntry(ctx context.Context, request *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error)
 
-	CreateNodeResolverMapEntry(request *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error)
-	FetchNodeResolverMapEntry(request *FetchNodeResolverMapEntryRequest) (*FetchNodeResolverMapEntryResponse, error)
-	DeleteNodeResolverMapEntry(request *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error)
-	RectifyNodeResolverMapEntries(request *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error)
+	CreateNodeResolverMapEntry(ctx context.Context, request *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error)
+	FetchNodeResolverMapEntry(ctx context.Context, request *FetchNodeResolverMapEntryRequest) (*FetchNodeResolverMapEntryResponse, error)
+	DeleteNodeResolverMapEntry(ctx context.Context, request *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error)
+	RectifyNodeResolverMapEntries(ctx context.Context, request *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error)
 
-	CreateRegistrationEntry(request *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
-	FetchRegistrationEntry(request *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
-	FetchRegistrationEntries(request *common.Empty) (*FetchRegistrationEntriesResponse, error)
-	UpdateRegistrationEntry(request *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
-	DeleteRegistrationEntry(request *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
+	CreateRegistrationEntry(ctx context.Context, request *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
+	FetchRegistrationEntry(ctx context.Context, request *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
+	FetchRegistrationEntries(ctx context.Context, request *common.Empty) (*FetchRegistrationEntriesResponse, error)
+	UpdateRegistrationEntry(ctx context.Context, request *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
+	DeleteRegistrationEntry(ctx context.Context, request *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
 
-	ListParentIDEntries(request *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error)
-	ListSelectorEntries(request *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
-	ListMatchingEntries(request *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
-	ListSpiffeEntries(request *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error)
+	ListParentIDEntries(ctx context.Context, request *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error)
+	ListSelectorEntries(ctx context.Context, request *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
+	ListMatchingEntries(ctx context.Context, request *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error)
+	ListSpiffeEntries(ctx context.Context, request *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error)
 
-	RegisterToken(request *JoinToken) (*common.Empty, error)
-	FetchToken(request *JoinToken) (*JoinToken, error)
-	DeleteToken(request *JoinToken) (*common.Empty, error)
-	PruneTokens(request *JoinToken) (*common.Empty, error)
+	RegisterToken(ctx context.Context, request *JoinToken) (*common.Empty, error)
+	FetchToken(ctx context.Context, request *JoinToken) (*JoinToken, error)
+	DeleteToken(ctx context.Context, request *JoinToken) (*common.Empty, error)
+	PruneTokens(ctx context.Context, request *JoinToken) (*common.Empty, error)
 
-	Configure(request *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
-	GetPluginInfo(request *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
+	Configure(ctx context.Context, request *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	GetPluginInfo(ctx context.Context, request *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
 }
 
 type DataStorePlugin struct {
@@ -74,7 +75,7 @@ func (p DataStorePlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}
 }
 
 func (p DataStorePlugin) GRPCServer(s *grpc.Server) error {
-	RegisterDataStoreServer(s, &GRPCServer{DataStoreImpl: p.DataStoreImpl})
+	RegisterDataStoreServer(s, p.DataStoreImpl)
 	return nil
 }
 

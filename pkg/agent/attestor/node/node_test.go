@@ -1,6 +1,7 @@
 package attestor
 
 import (
+	"context"
 	"crypto/x509"
 	"io/ioutil"
 	"net/url"
@@ -20,6 +21,10 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
+)
+
+var (
+	ctx = context.Background()
 )
 
 type NodeAttestorTestSuite struct {
@@ -77,7 +82,7 @@ func (s *NodeAttestorTestSuite) TestAttestLoadFromDisk() {
 	s.setFetchAttestationDataResponse()
 	s.setFetchPrivateKeyResponse()
 
-	as, err := s.attestor.Attest()
+	as, err := s.attestor.Attest(ctx)
 	s.Require().NoError(err)
 
 	_, key, err := util.LoadSVIDFixture()
@@ -97,7 +102,7 @@ func (s *NodeAttestorTestSuite) TestAttestNode() {
 	s.setGenerateKeyPairResponse()
 	s.setFetchAttestationDataResponse()
 	s.setFetchBaseSVIDResponse()
-	as, err := s.attestor.Attest()
+	as, err := s.attestor.Attest(ctx)
 	s.Require().NoError(err)
 
 	svid, key, err := util.LoadSVIDFixture()
@@ -115,7 +120,7 @@ func (s *NodeAttestorTestSuite) TestAttestJoinToken() {
 	s.setGenerateKeyPairResponse()
 	s.setFetchBaseSVIDResponse()
 
-	as, err := s.attestor.Attest()
+	as, err := s.attestor.Attest(ctx)
 	s.Require().NoError(err)
 
 	svid, key, err := util.LoadSVIDFixture()
@@ -152,7 +157,7 @@ func (s *NodeAttestorTestSuite) setFetchAttestationDataResponse() {
 		AttestedData: attestationData,
 		SpiffeId:     "spiffe://example.com/spire/agent/join_token/foobar",
 	}
-	s.nodeAttestor.EXPECT().FetchAttestationData(gomock.Any()).
+	s.nodeAttestor.EXPECT().FetchAttestationData(gomock.Any(), gomock.Any()).
 		Return(fa, nil)
 }
 
@@ -163,7 +168,7 @@ func (s *NodeAttestorTestSuite) setFetchPrivateKeyResponse() {
 	keyDer, err := x509.MarshalECPrivateKey(key)
 	s.Require().NoError(err)
 
-	s.keyManager.EXPECT().FetchPrivateKey(gomock.Any()).Return(
+	s.keyManager.EXPECT().FetchPrivateKey(gomock.Any(), gomock.Any()).Return(
 		&keymanager.FetchPrivateKeyResponse{PrivateKey: keyDer}, nil)
 }
 
@@ -174,7 +179,7 @@ func (s *NodeAttestorTestSuite) setGenerateKeyPairResponse() {
 	keyDer, err := x509.MarshalECPrivateKey(key)
 	s.Require().NoError(err)
 
-	s.keyManager.EXPECT().GenerateKeyPair(gomock.Any()).Return(
+	s.keyManager.EXPECT().GenerateKeyPair(gomock.Any(), gomock.Any()).Return(
 		&keymanager.GenerateKeyPairResponse{PublicKey: svid.RawSubjectPublicKeyInfo, PrivateKey: keyDer}, nil)
 }
 

@@ -459,7 +459,7 @@ func TestCreateJoinTokenWithoutToken(t *testing.T) {
 	suite.mockCatalog.EXPECT().DataStores().
 		Return([]datastore.DataStore{suite.mockDataStore})
 	suite.mockDataStore.EXPECT().
-		RegisterToken(gomock.Any()).
+		RegisterToken(gomock.Any(), gomock.Any()).
 		Return(&common.Empty{}, nil)
 
 	//exercise
@@ -521,7 +521,7 @@ func createEntryExpectations(suite *handlerTestSuite) {
 	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
 
 	suite.mockDataStore.EXPECT().
-		ListSpiffeEntries(&datastore.ListSpiffeEntriesRequest{SpiffeId: newRegEntry.SpiffeId}).
+		ListSpiffeEntries(gomock.Any(), &datastore.ListSpiffeEntriesRequest{SpiffeId: newRegEntry.SpiffeId}).
 		Return(&datastore.ListSpiffeEntriesResponse{
 			RegisteredEntryList: []*common.RegistrationEntry{},
 		}, nil)
@@ -535,7 +535,7 @@ func createEntryExpectations(suite *handlerTestSuite) {
 	}
 
 	suite.mockDataStore.EXPECT().
-		CreateRegistrationEntry(createRequest).
+		CreateRegistrationEntry(gomock.Any(), createRequest).
 		Return(createResponse, nil)
 }
 
@@ -543,13 +543,13 @@ func createEntryErrorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
-		ListSpiffeEntries(gomock.Any()).
+		ListSpiffeEntries(gomock.Any(), gomock.Any()).
 		Return(&datastore.ListSpiffeEntriesResponse{
 			RegisteredEntryList: []*common.RegistrationEntry{},
 		}, nil)
 
 	suite.mockDataStore.EXPECT().
-		CreateRegistrationEntry(gomock.Any()).
+		CreateRegistrationEntry(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("foo"))
 }
 
@@ -559,7 +559,7 @@ func createEntryNonUniqueExpectations(suite *handlerTestSuite) {
 	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
 
 	suite.mockDataStore.EXPECT().
-		ListSpiffeEntries(&datastore.ListSpiffeEntriesRequest{SpiffeId: newRegEntry.SpiffeId}).
+		ListSpiffeEntries(gomock.Any(), &datastore.ListSpiffeEntriesRequest{SpiffeId: newRegEntry.SpiffeId}).
 		Return(&datastore.ListSpiffeEntriesResponse{
 			RegisteredEntryList: []*common.RegistrationEntry{newRegEntry},
 		}, nil)
@@ -575,7 +575,7 @@ func fetchEntryExpectations(suite *handlerTestSuite) {
 		RegisteredEntry: testutil.GetRegistrationEntries("good.json")[0],
 	}
 	suite.mockDataStore.EXPECT().
-		FetchRegistrationEntry(fetchRequest).
+		FetchRegistrationEntry(gomock.Any(), fetchRequest).
 		Return(fetchResponse, nil)
 }
 
@@ -588,7 +588,7 @@ func fetchEntriesExpectations(suite *handlerTestSuite) {
 		},
 	}
 	suite.mockDataStore.EXPECT().
-		FetchRegistrationEntries(&common.Empty{}).
+		FetchRegistrationEntries(gomock.Any(), &common.Empty{}).
 		Return(fetchResponse, nil)
 }
 
@@ -596,7 +596,7 @@ func fetchEntryErrorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
-		FetchRegistrationEntry(gomock.Any()).
+		FetchRegistrationEntry(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("foo"))
 }
 
@@ -608,7 +608,7 @@ func deleteEntryExpectations(suite *handlerTestSuite) {
 	}
 
 	suite.mockDataStore.EXPECT().
-		DeleteRegistrationEntry(gomock.Any()).
+		DeleteRegistrationEntry(gomock.Any(), gomock.Any()).
 		Return(resp, nil)
 }
 
@@ -620,7 +620,7 @@ func listByParentIDExpectations(suite *handlerTestSuite) {
 		RegisteredEntryList: testutil.GetRegistrationEntries("good.json"),
 	}
 	suite.mockDataStore.EXPECT().
-		ListParentIDEntries(listRequest).
+		ListParentIDEntries(gomock.Any(), listRequest).
 		Return(listResponse, nil)
 }
 
@@ -628,7 +628,7 @@ func listByParentIDErrorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
-		ListParentIDEntries(gomock.Any()).
+		ListParentIDEntries(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("foo"))
 }
 
@@ -645,7 +645,7 @@ func listBySelectorExpectations(suite *handlerTestSuite) {
 	}
 
 	suite.mockDataStore.EXPECT().
-		ListSelectorEntries(req).
+		ListSelectorEntries(gomock.Any(), req).
 		Return(resp, nil)
 }
 
@@ -661,7 +661,7 @@ func listBySpiffeIDExpectations(suite *handlerTestSuite) {
 	}
 
 	suite.mockDataStore.EXPECT().
-		ListSpiffeEntries(req).
+		ListSpiffeEntries(gomock.Any(), req).
 		Return(resp, nil)
 }
 
@@ -669,7 +669,7 @@ func createJoinTokenExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
-		RegisterToken(gomock.Any()).
+		RegisterToken(gomock.Any(), gomock.Any()).
 		Return(&common.Empty{}, nil)
 }
 
@@ -677,7 +677,7 @@ func createJoinTokenErrorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
-		RegisterToken(gomock.Any()).
+		RegisterToken(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("foo"))
 }
 
@@ -690,7 +690,7 @@ func createFetchBundleExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
-		FetchBundle(&datastore.Bundle{
+		FetchBundle(gomock.Any(), &datastore.Bundle{
 			TrustDomain: "spiffe://example.org",
 		}).
 		Return(&datastore.Bundle{CaCerts: []byte{1, 2, 3}}, nil)
@@ -700,7 +700,7 @@ func createFetchBundleErrorExpectations(suite *handlerTestSuite) {
 	expectDataStore(suite)
 
 	suite.mockDataStore.EXPECT().
-		FetchBundle(&datastore.Bundle{
+		FetchBundle(gomock.Any(), &datastore.Bundle{
 			TrustDomain: "spiffe://example.org",
 		}).
 		Return(nil, errors.New("bundle not found"))

@@ -33,7 +33,7 @@ func NewWorkload(workloadClientContext context.Context, workloadClient workload.
 
 // RunDaemon starts the main loop
 // TODO: consume go-spiffe
-func (w *Workload) RunDaemon() error {
+func (w *Workload) RunDaemon(ctx context.Context) error {
 	// Create channel for interrupt signal
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -41,7 +41,7 @@ func (w *Workload) RunDaemon() error {
 	// Create timer for timeout
 	timeoutTimer := time.NewTimer(time.Second * time.Duration(w.timeout))
 
-	stream, err := w.workloadClient.FetchX509SVID(context.TODO(), &workload.X509SVIDRequest{})
+	stream, err := w.workloadClient.FetchX509SVID(ctx, &workload.X509SVIDRequest{})
 	if err != nil {
 		return err
 	}

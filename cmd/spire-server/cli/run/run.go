@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -90,12 +91,16 @@ func (*RunCLI) Run(args []string) int {
 	err = validateConfig(c)
 	if err != nil {
 		fmt.Println(err.Error())
+		return 1
 	}
 
-	server := &server.Server{Config: c}
-	signalListener(server)
+	s := server.New(*c)
 
-	err = server.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	signalListener(ctx, cancel)
+
+	err = s.Run(ctx)
 	if err != nil {
 		c.Log.Error(err.Error())
 		return 1
@@ -277,14 +282,16 @@ func newDefaultConfig() *server.Config {
 	}
 }
 
-func signalListener(s *server.Server) {
+func signalListener(ctx context.Context, cancel func()) {
 	go func() {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
 		select {
+		case <-ctx.Done():
+			return
 		case <-signalCh:
-			s.Shutdown()
+			cancel()
 		}
 	}()
 	return

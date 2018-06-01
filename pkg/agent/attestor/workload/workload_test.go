@@ -1,6 +1,7 @@
 package attestor
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -15,6 +16,10 @@ import (
 	"github.com/spiffe/spire/test/mock/agent/catalog"
 	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
 	"github.com/stretchr/testify/suite"
+)
+
+var (
+	ctx = context.Background()
 )
 
 type WorkloadAttestorTestSuite struct {
@@ -58,19 +63,19 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 
 	sel1 := []*common.Selector{{Type: "foo", Value: "bar"}}
 	sel2 := []*common.Selector{{Type: "bat", Value: "baz"}}
-	s.attestor1.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel1}, nil)
-	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
+	s.attestor1.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel1}, nil)
+	s.attestor2.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
 
 	// Use selector package to work around sort ordering
 	expected := selector.NewSetFromRaw([]*common.Selector{sel1[0], sel2[0]})
-	result := s.attestor.Attest(1)
+	result := s.attestor.Attest(ctx, 1)
 	s.Assert().Equal(expected, selector.NewSetFromRaw(result))
 
 	s.catalog.EXPECT().WorkloadAttestors().Return(attestors)
-	s.attestor1.EXPECT().Attest(gomock.Any()).Return(nil, errors.New("i'm an error"))
-	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
+	s.attestor1.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(nil, errors.New("i'm an error"))
+	s.attestor2.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
 
-	s.Assert().Equal(sel2, s.attestor.Attest(1))
+	s.Assert().Equal(sel2, s.attestor.Attest(ctx, 1))
 }
 
 func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
@@ -80,11 +85,11 @@ func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
 	req := &workloadattestor.AttestRequest{Pid: 1}
 	sel := []*common.Selector{{Type: "foo", Value: "bar"}}
 	resp := &workloadattestor.AttestResponse{Selectors: sel}
-	s.attestor1.EXPECT().Attest(req).Return(resp, nil)
+	s.attestor1.EXPECT().Attest(gomock.Any(), req).Return(resp, nil)
 	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
 
 	timeout := time.NewTicker(5 * time.Millisecond)
-	go s.attestor.invokeAttestor(s.attestor1, 1, sChan, errChan)
+	go s.attestor.invokeAttestor(ctx, s.attestor1, 1, sChan, errChan)
 	select {
 	case result := <-sChan:
 		s.Assert().Equal(sel, result)
@@ -101,8 +106,8 @@ func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
 		},
 	}
 	s.catalog.EXPECT().Find(s.attestor1).Return(findResp)
-	s.attestor1.EXPECT().Attest(req).Return(nil, errors.New("i'm an error"))
-	go s.attestor.invokeAttestor(s.attestor1, 1, sChan, errChan)
+	s.attestor1.EXPECT().Attest(gomock.Any(), req).Return(nil, errors.New("i'm an error"))
+	go s.attestor.invokeAttestor(ctx, s.attestor1, 1, sChan, errChan)
 	select {
 	case sel := <-sChan:
 		s.T().Errorf("Wanted error, got selectors: %v", sel)

@@ -43,7 +43,7 @@ func (s *ShowTestSuite) TestSynopsisAndHelp() {
 
 func (s *ShowTestSuite) TestRunWithDefaultArgs() {
 	cli := &showCLI{
-		newRegistrationClient: func(addr string) (registration.RegistrationClient, error) {
+		newRegistrationClient: func(ctx context.Context, addr string) (registration.RegistrationClient, error) {
 			return s.mockClient, nil
 		},
 		writer: &bytes.Buffer{},
@@ -53,7 +53,7 @@ func (s *ShowTestSuite) TestRunWithDefaultArgs() {
 	s.Require().Nil(err)
 
 	resp := &registration.Bundle{CaCerts: ca.Raw}
-	s.mockClient.EXPECT().FetchBundle(context.TODO(), &common.Empty{}).Return(resp, nil)
+	s.mockClient.EXPECT().FetchBundle(gomock.Any(), &common.Empty{}).Return(resp, nil)
 
 	args := []string{}
 	s.Require().Equal(0, cli.Run(args))
@@ -67,7 +67,7 @@ func (s *ShowTestSuite) TestRunWithDefaultArgsAndFailedNewRegClient() {
 	expecterError := errors.New("error creating client")
 
 	cli := &showCLI{
-		newRegistrationClient: func(addr string) (registration.RegistrationClient, error) {
+		newRegistrationClient: func(ctx context.Context, addr string) (registration.RegistrationClient, error) {
 			return nil, expecterError
 		},
 	}
@@ -89,12 +89,12 @@ func (s *ShowTestSuite) TestRunWithDefaultArgsAndFailedFetchBundle() {
 	expecterError := errors.New("error fetching bundle")
 
 	cli := &showCLI{
-		newRegistrationClient: func(addr string) (registration.RegistrationClient, error) {
+		newRegistrationClient: func(ctx context.Context, addr string) (registration.RegistrationClient, error) {
 			return s.mockClient, nil
 		},
 	}
 
-	s.mockClient.EXPECT().FetchBundle(context.TODO(), &common.Empty{}).Return(nil, expecterError)
+	s.mockClient.EXPECT().FetchBundle(gomock.Any(), &common.Empty{}).Return(nil, expecterError)
 
 	stdOutRedir := &util.OutputRedirection{}
 	err := stdOutRedir.Start(os.Stdout)
@@ -113,14 +113,14 @@ func (s *ShowTestSuite) TestRunWithArgs() {
 	expecterAddr := "localhost:8080"
 
 	cli := &showCLI{
-		newRegistrationClient: func(addr string) (registration.RegistrationClient, error) {
+		newRegistrationClient: func(ctx context.Context, addr string) (registration.RegistrationClient, error) {
 			s.Assert().Equal(expecterAddr, addr)
 			return s.mockClient, nil
 		},
 	}
 
 	resp := &registration.Bundle{}
-	s.mockClient.EXPECT().FetchBundle(context.TODO(), &common.Empty{}).Return(resp, nil)
+	s.mockClient.EXPECT().FetchBundle(gomock.Any(), &common.Empty{}).Return(resp, nil)
 
 	args := []string{"-serverAddr", expecterAddr}
 	s.Require().Equal(0, cli.Run(args))
@@ -128,13 +128,13 @@ func (s *ShowTestSuite) TestRunWithArgs() {
 
 func (s *ShowTestSuite) TestRunWithWrongArgs() {
 	cli := &showCLI{
-		newRegistrationClient: func(addr string) (registration.RegistrationClient, error) {
+		newRegistrationClient: func(ctx context.Context, addr string) (registration.RegistrationClient, error) {
 			return s.mockClient, nil
 		},
 	}
 
 	resp := &registration.Bundle{}
-	s.mockClient.EXPECT().FetchBundle(context.TODO(), &common.Empty{}).Return(resp, nil)
+	s.mockClient.EXPECT().FetchBundle(gomock.Any(), &common.Empty{}).Return(resp, nil)
 
 	stdOutRedir := util.OutputRedirection{}
 	stdErrRedir := util.OutputRedirection{}

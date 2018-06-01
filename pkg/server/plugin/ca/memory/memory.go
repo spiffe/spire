@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -60,7 +61,7 @@ type MemoryPlugin struct {
 	mtx *sync.RWMutex
 }
 
-func (m *MemoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (m *MemoryPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -94,11 +95,11 @@ func (m *MemoryPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespo
 	return resp, nil
 }
 
-func (*MemoryPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*MemoryPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (m *MemoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
+func (m *MemoryPlugin) SignCsr(ctx context.Context, request *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -144,7 +145,7 @@ func (m *MemoryPlugin) SignCsr(request *ca.SignCsrRequest) (*ca.SignCsrResponse,
 	return &ca.SignCsrResponse{SignedCertificate: signedCertificate}, nil
 }
 
-func (m *MemoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrResponse, error) {
+func (m *MemoryPlugin) GenerateCsr(ctx context.Context, req *ca.GenerateCsrRequest) (*ca.GenerateCsrResponse, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -189,7 +190,7 @@ func (m *MemoryPlugin) GenerateCsr(*ca.GenerateCsrRequest) (*ca.GenerateCsrRespo
 	return &ca.GenerateCsrResponse{Csr: csr}, nil
 }
 
-func (m *MemoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
+func (m *MemoryPlugin) FetchCertificate(ctx context.Context, request *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -201,7 +202,7 @@ func (m *MemoryPlugin) FetchCertificate(request *ca.FetchCertificateRequest) (*c
 	return &ca.FetchCertificateResponse{StoredIntermediateCert: m.cert.Raw}, nil
 }
 
-func (m *MemoryPlugin) LoadCertificate(request *ca.LoadCertificateRequest) (response *ca.LoadCertificateResponse, err error) {
+func (m *MemoryPlugin) LoadCertificate(ctx context.Context, request *ca.LoadCertificateRequest) (response *ca.LoadCertificateResponse, err error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -295,7 +296,9 @@ func NewWithDefault() ca.ServerCa {
 		mtx: &sync.RWMutex{},
 	}
 
-	m.Configure(pluginConfig)
+	// TODO: currently NewWithDefault is called during package init time where
+	// a context isn't available...
+	m.Configure(context.TODO(), pluginConfig)
 
 	return m
 }

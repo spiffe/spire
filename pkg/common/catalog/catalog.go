@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -18,7 +19,7 @@ import (
 type Catalog interface {
 	// Run reads all config files and initializes
 	// the plugins they define.
-	Run() error
+	Run(ctx context.Context) error
 
 	// Stop terminates all plugin instances and
 	// resets the catalog
@@ -26,7 +27,7 @@ type Catalog interface {
 
 	// Reload re-reads all plugin config files and
 	// reconfigures the plugins accordingly
-	Reload() error
+	Reload(ctx context.Context) error
 
 	// Plugins returns all plugins managed by this catalog as
 	// the generic Plugin type
@@ -71,7 +72,7 @@ func New(config *Config) Catalog {
 	}
 }
 
-func (c *catalog) Run() error {
+func (c *catalog) Run(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.l.Info("Starting plugin catalog")
@@ -90,7 +91,7 @@ func (c *catalog) Run() error {
 		return err
 	}
 
-	err = c.configurePlugins()
+	err = c.configurePlugins(ctx)
 	if err != nil {
 		return err
 	}
@@ -108,7 +109,7 @@ func (c *catalog) Stop() {
 	return
 }
 
-func (c *catalog) Reload() error {
+func (c *catalog) Reload(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.l.Info("Reloading plugin configurations")
@@ -118,7 +119,7 @@ func (c *catalog) Reload() error {
 		return err
 	}
 
-	err = c.configurePlugins()
+	err = c.configurePlugins(ctx)
 	if err != nil {
 		return err
 	}
@@ -220,7 +221,7 @@ func (c *catalog) startPlugins() error {
 	return nil
 }
 
-func (c *catalog) configurePlugins() error {
+func (c *catalog) configurePlugins(ctx context.Context) error {
 	for _, p := range c.plugins {
 		if !p.Config.Enabled {
 			c.l.Debugf("%s plugin %s is disabled and will not be configured", p.Config.PluginType, p.Config.PluginName)
@@ -232,7 +233,7 @@ func (c *catalog) configurePlugins() error {
 		}
 
 		c.l.Debugf("Configuring %s plugin: %s", p.Config.PluginType, p.Config.PluginName)
-		_, err := p.Plugin.Configure(req)
+		_, err := p.Plugin.Configure(ctx, req)
 		if err != nil {
 			return fmt.Errorf("Error encountered while configuring plugin %s: %s", p.Config.PluginName, err)
 		}

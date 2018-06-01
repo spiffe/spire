@@ -5,9 +5,9 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/hashicorp/go-plugin"
+	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
 
-	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
@@ -19,9 +19,9 @@ var Handshake = plugin.HandshakeConfig{
 }
 
 type NodeResolver interface {
-	Configure(*spi.ConfigureRequest) (*spi.ConfigureResponse, error)
-	GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
-	Resolve([]string) (map[string]*common.Selectors, error)
+	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
+	Resolve(context.Context, *ResolveRequest) (*ResolveResponse, error)
 }
 
 type NodeResolverPlugin struct {
@@ -37,7 +37,7 @@ func (p NodeResolverPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interfac
 }
 
 func (p NodeResolverPlugin) GRPCServer(s *grpc.Server) error {
-	RegisterNodeResolverServer(s, &GRPCServer{NodeResolverImpl: p.NodeResolverImpl})
+	RegisterNodeResolverServer(s, p.NodeResolverImpl)
 	return nil
 }
 

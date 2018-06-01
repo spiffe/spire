@@ -14,8 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-
-	tomb "gopkg.in/tomb.v2"
 )
 
 // Config holds a cache manager configuration
@@ -67,7 +65,6 @@ func New(c *Config) (*manager, error) {
 	m := &manager{
 		cache:           cache,
 		c:               c,
-		t:               new(tomb.Tomb),
 		mtx:             new(sync.RWMutex),
 		svid:            svidRotator,
 		spiffeID:        spiffeID,

@@ -17,7 +17,7 @@ import (
 type ServerTestSuite struct {
 	suite.Suite
 	t       *testing.T
-	server  Server
+	server  *Server
 	catalog *mock_catalog.MockCatalog
 	ca      *mock_ca.MockServerCa
 	upsCa   *mock_upstreamca.MockUpstreamCa
@@ -33,16 +33,13 @@ func (suite *ServerTestSuite) SetupTest() {
 
 	logger, err := log.NewLogger("DEBUG", "")
 	suite.Nil(err)
-	suite.server = Server{
-		Config: &Config{
-			Log: logger,
-			TrustDomain: url.URL{
-				Scheme: "spiffe",
-				Host:   "example.org",
-			},
+	suite.server = New(Config{
+		Log: logger,
+		TrustDomain: url.URL{
+			Scheme: "spiffe",
+			Host:   "example.org",
 		},
-		Catalog: suite.catalog,
-	}
+	})
 }
 
 func TestServerTestSuite(t *testing.T) {
@@ -50,7 +47,7 @@ func TestServerTestSuite(t *testing.T) {
 }
 
 func (suite *ServerTestSuite) TestUmask() {
-	suite.server.Config.Umask = 0000
+	suite.server.config.Umask = 0000
 	suite.server.prepareUmask()
 	f, err := ioutil.TempFile("", "")
 	suite.Nil(err)
@@ -59,7 +56,7 @@ func (suite *ServerTestSuite) TestUmask() {
 	suite.Nil(err)
 	suite.Equal(os.FileMode(0600), fi.Mode().Perm()) //0600 is permission set by TempFile()
 
-	suite.server.Config.Umask = 0777
+	suite.server.config.Umask = 0777
 	suite.server.prepareUmask()
 	f, err = ioutil.TempFile("", "")
 	suite.Nil(err)

@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -24,97 +25,67 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-
-	"gopkg.in/tomb.v2"
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
 type Server interface {
 	// ListenAndServe starts all endpoints, and blocks for as long as the
 	// underlying servers are still running. Returns an error if any of the
-	// endpoints encounter one.
-	ListenAndServe() error
-
-	// Shutdown gracefully closes all underlying endpoint servers.
-	// ListenAndServe will unblock with `nil` if/when shutdown completes
-	// cleanly
-	Shutdown()
+	// endpoints encounter one. ListenAndServe will return an
+	ListenAndServe(ctx context.Context) error
 }
 
 type endpoints struct {
 	c   *Config
 	mtx *sync.RWMutex
-	t   *tomb.Tomb
 
 	svid    *x509.Certificate
 	svidKey *ecdsa.PrivateKey
-
-	grpcServer *grpc.Server
-	httpServer *http.Server
-
-	runOnce *sync.Once
 }
 
 // ListenAndServe starts all maintenance routines and endpoints, then blocks
-// for as long as the underlying servers are still running. Returns an error
-// if any of the endpoints encounter one.
-func (e *endpoints) ListenAndServe() error {
-	run := func() { e.t.Go(e.listenAndServe) }
-	e.runOnce.Do(run)
-
-	return e.t.Wait()
-}
-
-// Shutdown gracefully closes all underlying endpoint servers.
-func (e *endpoints) Shutdown() {
-	e.t.Kill(nil)
-	return
-}
-
-// listenAndServe creates listeners and starts all servers. It serves
-// as the top-most tomb routine.
-func (e *endpoints) listenAndServe() error {
+// until the context is cancelled or there is an error encountered listening
+// on one of the servers.
+func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	// Certs must be ready before anything else
 	e.updateSVID()
 
 	e.c.Log.Debug("Initializing API endpoints")
-	gs := e.createGRPCServer()
-	hs := e.createHTTPServer()
+	gs := e.createGRPCServer(ctx)
+	hs := e.createHTTPServer(ctx)
 
 	e.registerNodeAPI(gs)
-	err := e.registerRegistrationAPI(gs, hs)
-	if err != nil {
+	if err := e.registerRegistrationAPI(ctx, gs, hs); err != nil {
 		return err
 	}
 
-	e.grpcServer = gs
-	e.httpServer = hs
-
-	e.t.Go(e.startGRPCServer)
-	e.t.Go(e.startHTTPServer)
-	e.t.Go(e.startSVIDObserver)
-
-	return nil
+	err := util.RunTasks(ctx,
+		func(ctx context.Context) error {
+			return e.runGRPCServer(ctx, gs)
+		},
+		func(ctx context.Context) error {
+			return e.runHTTPServer(ctx, hs)
+		},
+		e.runSVIDObserver,
+	)
+	if err == context.Canceled {
+		err = nil
+	}
+	return err
 }
 
-func (e *endpoints) createGRPCServer() *grpc.Server {
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
-
+func (e *endpoints) createGRPCServer(ctx context.Context) *grpc.Server {
 	tlsConfig := &tls.Config{
-		GetConfigForClient: e.getGRPCServerConfig,
+		GetConfigForClient: e.getGRPCServerConfig(ctx),
 	}
 
 	opts := grpc.Creds(credentials.NewTLS(tlsConfig))
 	return grpc.NewServer(opts)
 }
 
-func (e *endpoints) createHTTPServer() *http.Server {
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
-
+func (e *endpoints) createHTTPServer(ctx context.Context) *http.Server {
 	tlsConfig := &tls.Config{
-		GetConfigForClient: e.getHTTPServerConfig,
+		GetConfigForClient: e.getHTTPServerConfig(ctx),
 	}
 
 	s := &http.Server{
@@ -128,9 +99,6 @@ func (e *endpoints) createHTTPServer() *http.Server {
 // registerNodeAPI creates a Node API handler and registers it against
 // the provided gRPC server.
 func (e *endpoints) registerNodeAPI(gs *grpc.Server) {
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
-
 	n := &node.Handler{
 		Log:         e.c.Log.WithField("subsystem_name", "node_api"),
 		Catalog:     e.c.Catalog,
@@ -142,10 +110,7 @@ func (e *endpoints) registerNodeAPI(gs *grpc.Server) {
 
 // registerRegistrationAPI creates a Registration API handler and registers
 // it against the provided gRPC and HTTP servers.
-func (e *endpoints) registerRegistrationAPI(gs *grpc.Server, hs *http.Server) error {
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
-
+func (e *endpoints) registerRegistrationAPI(ctx context.Context, gs *grpc.Server, hs *http.Server) error {
 	// gRPC client config for HTTP-to-gRPC gateway
 	// Configure WithInsecure because 1) it's assumed to be local, and 2) because
 	// TLS config can't be hooked here to support root rotation
@@ -166,7 +131,7 @@ func (e *endpoints) registerRegistrationAPI(gs *grpc.Server, hs *http.Server) er
 
 	// Register the handler with gRPC first
 	registration_pb.RegisterRegistrationServer(gs, r)
-	err := registration_pb.RegisterRegistrationHandlerFromEndpoint(context.TODO(), httpMux, e.c.GRPCAddr.String(), grpcOpts)
+	err := registration_pb.RegisterRegistrationHandlerFromEndpoint(ctx, httpMux, e.c.GRPCAddr.String(), grpcOpts)
 	if err != nil {
 		return fmt.Errorf("error creating http gateway: %s", err.Error())
 	}
@@ -174,15 +139,16 @@ func (e *endpoints) registerRegistrationAPI(gs *grpc.Server, hs *http.Server) er
 	return nil
 }
 
-// startGRPCServer will start the server and block until it exits or we are dying.
-func (e *endpoints) startGRPCServer() error {
+// runGRPCServer will start the server and block until it exits or we are dying.
+func (e *endpoints) runGRPCServer(ctx context.Context, server *grpc.Server) error {
 	l, err := net.Listen(e.c.GRPCAddr.Network(), e.c.GRPCAddr.String())
 	if err != nil {
 		return err
 	}
+	defer l.Close()
 
 	if e.c.GRPCHook != nil {
-		err := e.c.GRPCHook(e.grpcServer)
+		err := e.c.GRPCHook(server)
 		if err != nil {
 			return fmt.Errorf("call grpc hook: %v", err)
 		}
@@ -191,40 +157,38 @@ func (e *endpoints) startGRPCServer() error {
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
 	e.c.Log.Info("Starting gRPC server")
 	errChan := make(chan error)
-	go func() { errChan <- e.grpcServer.Serve(l) }()
+	go func() { errChan <- server.Serve(l) }()
 
 	select {
 	case err = <-errChan:
 		return err
-	case <-e.t.Dying():
+	case <-ctx.Done():
 		e.c.Log.Info("Stopping gRPC server")
-		e.grpcServer.Stop()
-		l.Close()
+		server.Stop()
 		<-errChan
 		return nil
 	}
-
-	return nil
 }
 
-// startHTTPServer will start the server and block until it exits or we are dying.
-func (e *endpoints) startHTTPServer() error {
+// runHTTPServer will start the server and block until it exits or we are dying.
+func (e *endpoints) runHTTPServer(ctx context.Context, server *http.Server) error {
 	l, err := net.Listen(e.c.HTTPAddr.Network(), e.c.HTTPAddr.String())
 	if err != nil {
 		return err
 	}
+	defer l.Close()
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
 	e.c.Log.Info("Starting HTTP server")
 	errChan := make(chan error)
-	go func() { errChan <- e.httpServer.Serve(l) }()
+	go func() { errChan <- server.Serve(l) }()
 
 	select {
 	case err := <-errChan:
 		return err
-	case <-e.t.Dying():
+	case <-ctx.Done():
 		e.c.Log.Info("Stopping HTTP server")
-		e.httpServer.Close()
+		server.Close()
 		l.Close()
 		<-errChan
 		return nil
@@ -233,10 +197,10 @@ func (e *endpoints) startHTTPServer() error {
 	return nil
 }
 
-func (e *endpoints) startSVIDObserver() error {
+func (e *endpoints) runSVIDObserver(ctx context.Context) error {
 	for {
 		select {
-		case <-e.t.Dying():
+		case <-ctx.Done():
 			return nil
 		case <-e.c.SVIDStream.Changes():
 			e.c.SVIDStream.Next()
@@ -245,51 +209,54 @@ func (e *endpoints) startSVIDObserver() error {
 	}
 }
 
-// getGRPCServerConfig implements a TLS Config hook for the gRPC server
-func (e *endpoints) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-	certs, roots, err := e.getCerts()
-	if err != nil {
-		e.c.Log.Errorf("Could not generate TLS config for gRPC client %v: %v", hello.Conn.RemoteAddr(), err)
-		return nil, err
+// getGRPCServerConfig returns a TLS Config hook for the gRPC server
+func (e *endpoints) getGRPCServerConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+		certs, roots, err := e.getCerts(ctx)
+		if err != nil {
+			e.c.Log.Errorf("Could not generate TLS config for gRPC client %v: %v", hello.Conn.RemoteAddr(), err)
+			return nil, err
+		}
+
+		c := &tls.Config{
+			// When bootstrapping, the agent does not yet have
+			// an SVID. In order to include the bootstrap endpoint
+			// in the same server as the rest of the Node API,
+			// request but don't require a client certificate
+			ClientAuth: tls.RequestClientCert,
+
+			Certificates: certs,
+			ClientCAs:    roots,
+		}
+		return c, nil
 	}
-
-	c := &tls.Config{
-		// When bootstrapping, the agent does not yet have
-		// an SVID. In order to include the bootstrap endpoint
-		// in the same server as the rest of the Node API,
-		// request but don't require a client certificate
-		ClientAuth: tls.RequestClientCert,
-
-		Certificates: certs,
-		ClientCAs:    roots,
-	}
-
-	return c, nil
 }
 
-// getHTTPConfig implements a TLS Config hook for the HTTP server.
-func (e *endpoints) getHTTPServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-	certs, _, err := e.getCerts()
-	if err != nil {
-		e.c.Log.Errorf("Could not generate TLS config for HTTP client %v: %v", hello.Conn.RemoteAddr(), err)
-		return nil, err
-	}
+// getHTTPConfig returns a TLS Config hook for the HTTP server.
+func (e *endpoints) getHTTPServerConfig(ctx context.Context) func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+		certs, _, err := e.getCerts(ctx)
+		if err != nil {
+			e.c.Log.Errorf("Could not generate TLS config for HTTP client %v: %v", hello.Conn.RemoteAddr(), err)
+			return nil, err
+		}
 
-	c := &tls.Config{
-		Certificates: certs,
-	}
+		c := &tls.Config{
+			Certificates: certs,
+		}
 
-	return c, nil
+		return c, nil
+	}
 }
 
 // getCerts queries the datastore and returns a TLS serving certificate(s) plus
 // the current CA root bundle.
-func (e *endpoints) getCerts() ([]tls.Certificate, *x509.CertPool, error) {
+func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
 	ds := e.c.Catalog.DataStores()[0]
 	req := &datastore_pb.Bundle{
 		TrustDomain: e.c.TrustDomain.String(),
 	}
-	b, err := ds.FetchBundle(req)
+	b, err := ds.FetchBundle(ctx, req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get bundle from datastore: %v", err)
 	}

@@ -7,7 +7,6 @@ package mock_noderesolver
 import (
 	context "context"
 	gomock "github.com/golang/mock/gomock"
-	common "github.com/spiffe/spire/proto/common"
 	plugin "github.com/spiffe/spire/proto/common/plugin"
 	noderesolver "github.com/spiffe/spire/proto/server/noderesolver"
 	grpc "google.golang.org/grpc"
@@ -38,42 +37,42 @@ func (m *MockNodeResolver) EXPECT() *MockNodeResolverMockRecorder {
 }
 
 // Configure mocks base method
-func (m *MockNodeResolver) Configure(arg0 *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	ret := m.ctrl.Call(m, "Configure", arg0)
+func (m *MockNodeResolver) Configure(arg0 context.Context, arg1 *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	ret := m.ctrl.Call(m, "Configure", arg0, arg1)
 	ret0, _ := ret[0].(*plugin.ConfigureResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Configure indicates an expected call of Configure
-func (mr *MockNodeResolverMockRecorder) Configure(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockNodeResolver)(nil).Configure), arg0)
+func (mr *MockNodeResolverMockRecorder) Configure(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockNodeResolver)(nil).Configure), arg0, arg1)
 }
 
 // GetPluginInfo mocks base method
-func (m *MockNodeResolver) GetPluginInfo(arg0 *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	ret := m.ctrl.Call(m, "GetPluginInfo", arg0)
+func (m *MockNodeResolver) GetPluginInfo(arg0 context.Context, arg1 *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	ret := m.ctrl.Call(m, "GetPluginInfo", arg0, arg1)
 	ret0, _ := ret[0].(*plugin.GetPluginInfoResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetPluginInfo indicates an expected call of GetPluginInfo
-func (mr *MockNodeResolverMockRecorder) GetPluginInfo(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPluginInfo", reflect.TypeOf((*MockNodeResolver)(nil).GetPluginInfo), arg0)
+func (mr *MockNodeResolverMockRecorder) GetPluginInfo(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPluginInfo", reflect.TypeOf((*MockNodeResolver)(nil).GetPluginInfo), arg0, arg1)
 }
 
 // Resolve mocks base method
-func (m *MockNodeResolver) Resolve(arg0 []string) (map[string]*common.Selectors, error) {
-	ret := m.ctrl.Call(m, "Resolve", arg0)
-	ret0, _ := ret[0].(map[string]*common.Selectors)
+func (m *MockNodeResolver) Resolve(arg0 context.Context, arg1 *noderesolver.ResolveRequest) (*noderesolver.ResolveResponse, error) {
+	ret := m.ctrl.Call(m, "Resolve", arg0, arg1)
+	ret0, _ := ret[0].(*noderesolver.ResolveResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Resolve indicates an expected call of Resolve
-func (mr *MockNodeResolverMockRecorder) Resolve(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockNodeResolver)(nil).Resolve), arg0)
+func (mr *MockNodeResolverMockRecorder) Resolve(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockNodeResolver)(nil).Resolve), arg0, arg1)
 }
 
 // MockNodeResolverClient is a mock of NodeResolverClient interface

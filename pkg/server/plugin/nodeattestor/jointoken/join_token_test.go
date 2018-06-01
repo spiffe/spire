@@ -1,6 +1,7 @@
 package jointoken
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -16,6 +17,10 @@ const (
 	config = `{"join_tokens":{"foo":600,"bar":1}, "trust_domain":"example.com"}`
 
 	spiffeId = "spiffe://example.com/spiffe/node-id/foobar"
+)
+
+var (
+	ctx = context.Background()
 )
 
 func AttestRequestGenerator(token string) *nodeattestor.AttestRequest {
@@ -40,7 +45,7 @@ func TestJoinToken_Configure(t *testing.T) {
 	p := &JoinTokenPlugin{
 		mtx: &sync.Mutex{},
 	}
-	resp, err := p.Configure(pluginConfig)
+	resp, err := p.Configure(ctx, pluginConfig)
 	assert.Nil(err)
 	assert.Equal(&spi.ConfigureResponse{}, resp)
 }
@@ -56,12 +61,12 @@ func TestJoinToken_Attest(t *testing.T) {
 	p := &JoinTokenPlugin{
 		mtx: &sync.Mutex{},
 	}
-	_, err := p.Configure(pluginConfig)
+	_, err := p.Configure(ctx, pluginConfig)
 	assert.Nil(err)
 
 	// Test valid token
 	request := AttestRequestGenerator("foo")
-	resp, err := p.Attest(request)
+	resp, err := p.Attest(ctx, request)
 	assert.Nil(err)
 	assert.True(resp.Valid)
 
@@ -70,14 +75,14 @@ func TestJoinToken_Attest(t *testing.T) {
 
 	// Token is not re-usable
 	// Token must be registered
-	resp, err = p.Attest(request)
+	resp, err = p.Attest(ctx, request)
 	assert.NotNil(err)
 	assert.False(resp.Valid)
 
 	// Plugin doesn't support AttestedBefore
 	request = AttestRequestGenerator("bar")
 	request.AttestedBefore = true
-	resp, err = p.Attest(request)
+	resp, err = p.Attest(ctx, request)
 	assert.NotNil(err)
 	assert.False(resp.Valid)
 
@@ -85,14 +90,14 @@ func TestJoinToken_Attest(t *testing.T) {
 	// 1s ttl on `bat`
 	time.Sleep(time.Second * 1)
 	request = AttestRequestGenerator("bat")
-	resp, err = p.Attest(request)
+	resp, err = p.Attest(ctx, request)
 	assert.NotNil(err)
 	assert.False(resp.Valid)
 }
 
 func TestJoinToken_GetPluginInfo(t *testing.T) {
 	var plugin JoinTokenPlugin
-	data, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
+	data, e := plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	assert.Nil(t, e)
 	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
 }
@@ -100,9 +105,9 @@ func TestJoinToken_GetPluginInfo(t *testing.T) {
 func TestJoinToken_race(t *testing.T) {
 	p := New()
 	testutil.RaceTest(t, func(t *testing.T) {
-		p.Configure(&spi.ConfigureRequest{
+		p.Configure(ctx, &spi.ConfigureRequest{
 			Configuration: config,
 		})
-		p.Attest(AttestRequestGenerator("foo"))
+		p.Attest(ctx, AttestRequestGenerator("foo"))
 	})
 }

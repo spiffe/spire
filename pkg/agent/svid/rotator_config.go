@@ -3,11 +3,12 @@ package svid
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"github.com/spiffe/spire/pkg/agent/client"
 	"net"
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/spiffe/spire/pkg/agent/client"
 
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
@@ -57,8 +58,6 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 	return &rotator{
 		c:      c,
 		client: client,
-		stop:   make(chan struct{}),
-		done:   make(chan struct{}),
 		state:  state,
 		bsm:    bsm,
 	}, client

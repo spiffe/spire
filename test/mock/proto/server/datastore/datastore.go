@@ -5,6 +5,7 @@
 package mock_datastore
 
 import (
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	common "github.com/spiffe/spire/proto/common"
 	plugin "github.com/spiffe/spire/proto/common/plugin"
@@ -36,391 +37,391 @@ func (m *MockDataStore) EXPECT() *MockDataStoreMockRecorder {
 }
 
 // AppendBundle mocks base method
-func (m *MockDataStore) AppendBundle(arg0 *datastore.Bundle) (*datastore.Bundle, error) {
-	ret := m.ctrl.Call(m, "AppendBundle", arg0)
+func (m *MockDataStore) AppendBundle(arg0 context.Context, arg1 *datastore.Bundle) (*datastore.Bundle, error) {
+	ret := m.ctrl.Call(m, "AppendBundle", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.Bundle)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AppendBundle indicates an expected call of AppendBundle
-func (mr *MockDataStoreMockRecorder) AppendBundle(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendBundle", reflect.TypeOf((*MockDataStore)(nil).AppendBundle), arg0)
+func (mr *MockDataStoreMockRecorder) AppendBundle(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendBundle", reflect.TypeOf((*MockDataStore)(nil).AppendBundle), arg0, arg1)
 }
 
 // Configure mocks base method
-func (m *MockDataStore) Configure(arg0 *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	ret := m.ctrl.Call(m, "Configure", arg0)
+func (m *MockDataStore) Configure(arg0 context.Context, arg1 *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	ret := m.ctrl.Call(m, "Configure", arg0, arg1)
 	ret0, _ := ret[0].(*plugin.ConfigureResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Configure indicates an expected call of Configure
-func (mr *MockDataStoreMockRecorder) Configure(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockDataStore)(nil).Configure), arg0)
+func (mr *MockDataStoreMockRecorder) Configure(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockDataStore)(nil).Configure), arg0, arg1)
 }
 
 // CreateAttestedNodeEntry mocks base method
-func (m *MockDataStore) CreateAttestedNodeEntry(arg0 *datastore.CreateAttestedNodeEntryRequest) (*datastore.CreateAttestedNodeEntryResponse, error) {
-	ret := m.ctrl.Call(m, "CreateAttestedNodeEntry", arg0)
+func (m *MockDataStore) CreateAttestedNodeEntry(arg0 context.Context, arg1 *datastore.CreateAttestedNodeEntryRequest) (*datastore.CreateAttestedNodeEntryResponse, error) {
+	ret := m.ctrl.Call(m, "CreateAttestedNodeEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.CreateAttestedNodeEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateAttestedNodeEntry indicates an expected call of CreateAttestedNodeEntry
-func (mr *MockDataStoreMockRecorder) CreateAttestedNodeEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAttestedNodeEntry", reflect.TypeOf((*MockDataStore)(nil).CreateAttestedNodeEntry), arg0)
+func (mr *MockDataStoreMockRecorder) CreateAttestedNodeEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAttestedNodeEntry", reflect.TypeOf((*MockDataStore)(nil).CreateAttestedNodeEntry), arg0, arg1)
 }
 
 // CreateBundle mocks base method
-func (m *MockDataStore) CreateBundle(arg0 *datastore.Bundle) (*datastore.Bundle, error) {
-	ret := m.ctrl.Call(m, "CreateBundle", arg0)
+func (m *MockDataStore) CreateBundle(arg0 context.Context, arg1 *datastore.Bundle) (*datastore.Bundle, error) {
+	ret := m.ctrl.Call(m, "CreateBundle", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.Bundle)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateBundle indicates an expected call of CreateBundle
-func (mr *MockDataStoreMockRecorder) CreateBundle(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBundle", reflect.TypeOf((*MockDataStore)(nil).CreateBundle), arg0)
+func (mr *MockDataStoreMockRecorder) CreateBundle(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBundle", reflect.TypeOf((*MockDataStore)(nil).CreateBundle), arg0, arg1)
 }
 
 // CreateNodeResolverMapEntry mocks base method
-func (m *MockDataStore) CreateNodeResolverMapEntry(arg0 *datastore.CreateNodeResolverMapEntryRequest) (*datastore.CreateNodeResolverMapEntryResponse, error) {
-	ret := m.ctrl.Call(m, "CreateNodeResolverMapEntry", arg0)
+func (m *MockDataStore) CreateNodeResolverMapEntry(arg0 context.Context, arg1 *datastore.CreateNodeResolverMapEntryRequest) (*datastore.CreateNodeResolverMapEntryResponse, error) {
+	ret := m.ctrl.Call(m, "CreateNodeResolverMapEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.CreateNodeResolverMapEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateNodeResolverMapEntry indicates an expected call of CreateNodeResolverMapEntry
-func (mr *MockDataStoreMockRecorder) CreateNodeResolverMapEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNodeResolverMapEntry", reflect.TypeOf((*MockDataStore)(nil).CreateNodeResolverMapEntry), arg0)
+func (mr *MockDataStoreMockRecorder) CreateNodeResolverMapEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNodeResolverMapEntry", reflect.TypeOf((*MockDataStore)(nil).CreateNodeResolverMapEntry), arg0, arg1)
 }
 
 // CreateRegistrationEntry mocks base method
-func (m *MockDataStore) CreateRegistrationEntry(arg0 *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
-	ret := m.ctrl.Call(m, "CreateRegistrationEntry", arg0)
+func (m *MockDataStore) CreateRegistrationEntry(arg0 context.Context, arg1 *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
+	ret := m.ctrl.Call(m, "CreateRegistrationEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.CreateRegistrationEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateRegistrationEntry indicates an expected call of CreateRegistrationEntry
-func (mr *MockDataStoreMockRecorder) CreateRegistrationEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRegistrationEntry", reflect.TypeOf((*MockDataStore)(nil).CreateRegistrationEntry), arg0)
+func (mr *MockDataStoreMockRecorder) CreateRegistrationEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRegistrationEntry", reflect.TypeOf((*MockDataStore)(nil).CreateRegistrationEntry), arg0, arg1)
 }
 
 // DeleteAttestedNodeEntry mocks base method
-func (m *MockDataStore) DeleteAttestedNodeEntry(arg0 *datastore.DeleteAttestedNodeEntryRequest) (*datastore.DeleteAttestedNodeEntryResponse, error) {
-	ret := m.ctrl.Call(m, "DeleteAttestedNodeEntry", arg0)
+func (m *MockDataStore) DeleteAttestedNodeEntry(arg0 context.Context, arg1 *datastore.DeleteAttestedNodeEntryRequest) (*datastore.DeleteAttestedNodeEntryResponse, error) {
+	ret := m.ctrl.Call(m, "DeleteAttestedNodeEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.DeleteAttestedNodeEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteAttestedNodeEntry indicates an expected call of DeleteAttestedNodeEntry
-func (mr *MockDataStoreMockRecorder) DeleteAttestedNodeEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAttestedNodeEntry", reflect.TypeOf((*MockDataStore)(nil).DeleteAttestedNodeEntry), arg0)
+func (mr *MockDataStoreMockRecorder) DeleteAttestedNodeEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAttestedNodeEntry", reflect.TypeOf((*MockDataStore)(nil).DeleteAttestedNodeEntry), arg0, arg1)
 }
 
 // DeleteBundle mocks base method
-func (m *MockDataStore) DeleteBundle(arg0 *datastore.Bundle) (*datastore.Bundle, error) {
-	ret := m.ctrl.Call(m, "DeleteBundle", arg0)
+func (m *MockDataStore) DeleteBundle(arg0 context.Context, arg1 *datastore.Bundle) (*datastore.Bundle, error) {
+	ret := m.ctrl.Call(m, "DeleteBundle", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.Bundle)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteBundle indicates an expected call of DeleteBundle
-func (mr *MockDataStoreMockRecorder) DeleteBundle(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBundle", reflect.TypeOf((*MockDataStore)(nil).DeleteBundle), arg0)
+func (mr *MockDataStoreMockRecorder) DeleteBundle(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBundle", reflect.TypeOf((*MockDataStore)(nil).DeleteBundle), arg0, arg1)
 }
 
 // DeleteNodeResolverMapEntry mocks base method
-func (m *MockDataStore) DeleteNodeResolverMapEntry(arg0 *datastore.DeleteNodeResolverMapEntryRequest) (*datastore.DeleteNodeResolverMapEntryResponse, error) {
-	ret := m.ctrl.Call(m, "DeleteNodeResolverMapEntry", arg0)
+func (m *MockDataStore) DeleteNodeResolverMapEntry(arg0 context.Context, arg1 *datastore.DeleteNodeResolverMapEntryRequest) (*datastore.DeleteNodeResolverMapEntryResponse, error) {
+	ret := m.ctrl.Call(m, "DeleteNodeResolverMapEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.DeleteNodeResolverMapEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteNodeResolverMapEntry indicates an expected call of DeleteNodeResolverMapEntry
-func (mr *MockDataStoreMockRecorder) DeleteNodeResolverMapEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNodeResolverMapEntry", reflect.TypeOf((*MockDataStore)(nil).DeleteNodeResolverMapEntry), arg0)
+func (mr *MockDataStoreMockRecorder) DeleteNodeResolverMapEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNodeResolverMapEntry", reflect.TypeOf((*MockDataStore)(nil).DeleteNodeResolverMapEntry), arg0, arg1)
 }
 
 // DeleteRegistrationEntry mocks base method
-func (m *MockDataStore) DeleteRegistrationEntry(arg0 *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
-	ret := m.ctrl.Call(m, "DeleteRegistrationEntry", arg0)
+func (m *MockDataStore) DeleteRegistrationEntry(arg0 context.Context, arg1 *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
+	ret := m.ctrl.Call(m, "DeleteRegistrationEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.DeleteRegistrationEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteRegistrationEntry indicates an expected call of DeleteRegistrationEntry
-func (mr *MockDataStoreMockRecorder) DeleteRegistrationEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRegistrationEntry", reflect.TypeOf((*MockDataStore)(nil).DeleteRegistrationEntry), arg0)
+func (mr *MockDataStoreMockRecorder) DeleteRegistrationEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRegistrationEntry", reflect.TypeOf((*MockDataStore)(nil).DeleteRegistrationEntry), arg0, arg1)
 }
 
 // DeleteToken mocks base method
-func (m *MockDataStore) DeleteToken(arg0 *datastore.JoinToken) (*common.Empty, error) {
-	ret := m.ctrl.Call(m, "DeleteToken", arg0)
+func (m *MockDataStore) DeleteToken(arg0 context.Context, arg1 *datastore.JoinToken) (*common.Empty, error) {
+	ret := m.ctrl.Call(m, "DeleteToken", arg0, arg1)
 	ret0, _ := ret[0].(*common.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteToken indicates an expected call of DeleteToken
-func (mr *MockDataStoreMockRecorder) DeleteToken(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteToken", reflect.TypeOf((*MockDataStore)(nil).DeleteToken), arg0)
+func (mr *MockDataStoreMockRecorder) DeleteToken(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteToken", reflect.TypeOf((*MockDataStore)(nil).DeleteToken), arg0, arg1)
 }
 
 // FetchAttestedNodeEntry mocks base method
-func (m *MockDataStore) FetchAttestedNodeEntry(arg0 *datastore.FetchAttestedNodeEntryRequest) (*datastore.FetchAttestedNodeEntryResponse, error) {
-	ret := m.ctrl.Call(m, "FetchAttestedNodeEntry", arg0)
+func (m *MockDataStore) FetchAttestedNodeEntry(arg0 context.Context, arg1 *datastore.FetchAttestedNodeEntryRequest) (*datastore.FetchAttestedNodeEntryResponse, error) {
+	ret := m.ctrl.Call(m, "FetchAttestedNodeEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.FetchAttestedNodeEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchAttestedNodeEntry indicates an expected call of FetchAttestedNodeEntry
-func (mr *MockDataStoreMockRecorder) FetchAttestedNodeEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchAttestedNodeEntry", reflect.TypeOf((*MockDataStore)(nil).FetchAttestedNodeEntry), arg0)
+func (mr *MockDataStoreMockRecorder) FetchAttestedNodeEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchAttestedNodeEntry", reflect.TypeOf((*MockDataStore)(nil).FetchAttestedNodeEntry), arg0, arg1)
 }
 
 // FetchBundle mocks base method
-func (m *MockDataStore) FetchBundle(arg0 *datastore.Bundle) (*datastore.Bundle, error) {
-	ret := m.ctrl.Call(m, "FetchBundle", arg0)
+func (m *MockDataStore) FetchBundle(arg0 context.Context, arg1 *datastore.Bundle) (*datastore.Bundle, error) {
+	ret := m.ctrl.Call(m, "FetchBundle", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.Bundle)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchBundle indicates an expected call of FetchBundle
-func (mr *MockDataStoreMockRecorder) FetchBundle(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBundle", reflect.TypeOf((*MockDataStore)(nil).FetchBundle), arg0)
+func (mr *MockDataStoreMockRecorder) FetchBundle(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBundle", reflect.TypeOf((*MockDataStore)(nil).FetchBundle), arg0, arg1)
 }
 
 // FetchNodeResolverMapEntry mocks base method
-func (m *MockDataStore) FetchNodeResolverMapEntry(arg0 *datastore.FetchNodeResolverMapEntryRequest) (*datastore.FetchNodeResolverMapEntryResponse, error) {
-	ret := m.ctrl.Call(m, "FetchNodeResolverMapEntry", arg0)
+func (m *MockDataStore) FetchNodeResolverMapEntry(arg0 context.Context, arg1 *datastore.FetchNodeResolverMapEntryRequest) (*datastore.FetchNodeResolverMapEntryResponse, error) {
+	ret := m.ctrl.Call(m, "FetchNodeResolverMapEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.FetchNodeResolverMapEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchNodeResolverMapEntry indicates an expected call of FetchNodeResolverMapEntry
-func (mr *MockDataStoreMockRecorder) FetchNodeResolverMapEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchNodeResolverMapEntry", reflect.TypeOf((*MockDataStore)(nil).FetchNodeResolverMapEntry), arg0)
+func (mr *MockDataStoreMockRecorder) FetchNodeResolverMapEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchNodeResolverMapEntry", reflect.TypeOf((*MockDataStore)(nil).FetchNodeResolverMapEntry), arg0, arg1)
 }
 
 // FetchRegistrationEntries mocks base method
-func (m *MockDataStore) FetchRegistrationEntries(arg0 *common.Empty) (*datastore.FetchRegistrationEntriesResponse, error) {
-	ret := m.ctrl.Call(m, "FetchRegistrationEntries", arg0)
+func (m *MockDataStore) FetchRegistrationEntries(arg0 context.Context, arg1 *common.Empty) (*datastore.FetchRegistrationEntriesResponse, error) {
+	ret := m.ctrl.Call(m, "FetchRegistrationEntries", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.FetchRegistrationEntriesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchRegistrationEntries indicates an expected call of FetchRegistrationEntries
-func (mr *MockDataStoreMockRecorder) FetchRegistrationEntries(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRegistrationEntries", reflect.TypeOf((*MockDataStore)(nil).FetchRegistrationEntries), arg0)
+func (mr *MockDataStoreMockRecorder) FetchRegistrationEntries(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRegistrationEntries", reflect.TypeOf((*MockDataStore)(nil).FetchRegistrationEntries), arg0, arg1)
 }
 
 // FetchRegistrationEntry mocks base method
-func (m *MockDataStore) FetchRegistrationEntry(arg0 *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
-	ret := m.ctrl.Call(m, "FetchRegistrationEntry", arg0)
+func (m *MockDataStore) FetchRegistrationEntry(arg0 context.Context, arg1 *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
+	ret := m.ctrl.Call(m, "FetchRegistrationEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.FetchRegistrationEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchRegistrationEntry indicates an expected call of FetchRegistrationEntry
-func (mr *MockDataStoreMockRecorder) FetchRegistrationEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRegistrationEntry", reflect.TypeOf((*MockDataStore)(nil).FetchRegistrationEntry), arg0)
+func (mr *MockDataStoreMockRecorder) FetchRegistrationEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRegistrationEntry", reflect.TypeOf((*MockDataStore)(nil).FetchRegistrationEntry), arg0, arg1)
 }
 
 // FetchStaleNodeEntries mocks base method
-func (m *MockDataStore) FetchStaleNodeEntries(arg0 *datastore.FetchStaleNodeEntriesRequest) (*datastore.FetchStaleNodeEntriesResponse, error) {
-	ret := m.ctrl.Call(m, "FetchStaleNodeEntries", arg0)
+func (m *MockDataStore) FetchStaleNodeEntries(arg0 context.Context, arg1 *datastore.FetchStaleNodeEntriesRequest) (*datastore.FetchStaleNodeEntriesResponse, error) {
+	ret := m.ctrl.Call(m, "FetchStaleNodeEntries", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.FetchStaleNodeEntriesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchStaleNodeEntries indicates an expected call of FetchStaleNodeEntries
-func (mr *MockDataStoreMockRecorder) FetchStaleNodeEntries(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchStaleNodeEntries", reflect.TypeOf((*MockDataStore)(nil).FetchStaleNodeEntries), arg0)
+func (mr *MockDataStoreMockRecorder) FetchStaleNodeEntries(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchStaleNodeEntries", reflect.TypeOf((*MockDataStore)(nil).FetchStaleNodeEntries), arg0, arg1)
 }
 
 // FetchToken mocks base method
-func (m *MockDataStore) FetchToken(arg0 *datastore.JoinToken) (*datastore.JoinToken, error) {
-	ret := m.ctrl.Call(m, "FetchToken", arg0)
+func (m *MockDataStore) FetchToken(arg0 context.Context, arg1 *datastore.JoinToken) (*datastore.JoinToken, error) {
+	ret := m.ctrl.Call(m, "FetchToken", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.JoinToken)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchToken indicates an expected call of FetchToken
-func (mr *MockDataStoreMockRecorder) FetchToken(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchToken", reflect.TypeOf((*MockDataStore)(nil).FetchToken), arg0)
+func (mr *MockDataStoreMockRecorder) FetchToken(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchToken", reflect.TypeOf((*MockDataStore)(nil).FetchToken), arg0, arg1)
 }
 
 // GetPluginInfo mocks base method
-func (m *MockDataStore) GetPluginInfo(arg0 *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	ret := m.ctrl.Call(m, "GetPluginInfo", arg0)
+func (m *MockDataStore) GetPluginInfo(arg0 context.Context, arg1 *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+	ret := m.ctrl.Call(m, "GetPluginInfo", arg0, arg1)
 	ret0, _ := ret[0].(*plugin.GetPluginInfoResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetPluginInfo indicates an expected call of GetPluginInfo
-func (mr *MockDataStoreMockRecorder) GetPluginInfo(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPluginInfo", reflect.TypeOf((*MockDataStore)(nil).GetPluginInfo), arg0)
+func (mr *MockDataStoreMockRecorder) GetPluginInfo(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPluginInfo", reflect.TypeOf((*MockDataStore)(nil).GetPluginInfo), arg0, arg1)
 }
 
 // ListBundles mocks base method
-func (m *MockDataStore) ListBundles(arg0 *common.Empty) (*datastore.Bundles, error) {
-	ret := m.ctrl.Call(m, "ListBundles", arg0)
+func (m *MockDataStore) ListBundles(arg0 context.Context, arg1 *common.Empty) (*datastore.Bundles, error) {
+	ret := m.ctrl.Call(m, "ListBundles", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.Bundles)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListBundles indicates an expected call of ListBundles
-func (mr *MockDataStoreMockRecorder) ListBundles(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBundles", reflect.TypeOf((*MockDataStore)(nil).ListBundles), arg0)
+func (mr *MockDataStoreMockRecorder) ListBundles(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBundles", reflect.TypeOf((*MockDataStore)(nil).ListBundles), arg0, arg1)
 }
 
 // ListMatchingEntries mocks base method
-func (m *MockDataStore) ListMatchingEntries(arg0 *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
-	ret := m.ctrl.Call(m, "ListMatchingEntries", arg0)
+func (m *MockDataStore) ListMatchingEntries(arg0 context.Context, arg1 *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
+	ret := m.ctrl.Call(m, "ListMatchingEntries", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.ListSelectorEntriesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListMatchingEntries indicates an expected call of ListMatchingEntries
-func (mr *MockDataStoreMockRecorder) ListMatchingEntries(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMatchingEntries", reflect.TypeOf((*MockDataStore)(nil).ListMatchingEntries), arg0)
+func (mr *MockDataStoreMockRecorder) ListMatchingEntries(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMatchingEntries", reflect.TypeOf((*MockDataStore)(nil).ListMatchingEntries), arg0, arg1)
 }
 
 // ListParentIDEntries mocks base method
-func (m *MockDataStore) ListParentIDEntries(arg0 *datastore.ListParentIDEntriesRequest) (*datastore.ListParentIDEntriesResponse, error) {
-	ret := m.ctrl.Call(m, "ListParentIDEntries", arg0)
+func (m *MockDataStore) ListParentIDEntries(arg0 context.Context, arg1 *datastore.ListParentIDEntriesRequest) (*datastore.ListParentIDEntriesResponse, error) {
+	ret := m.ctrl.Call(m, "ListParentIDEntries", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.ListParentIDEntriesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListParentIDEntries indicates an expected call of ListParentIDEntries
-func (mr *MockDataStoreMockRecorder) ListParentIDEntries(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListParentIDEntries", reflect.TypeOf((*MockDataStore)(nil).ListParentIDEntries), arg0)
+func (mr *MockDataStoreMockRecorder) ListParentIDEntries(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListParentIDEntries", reflect.TypeOf((*MockDataStore)(nil).ListParentIDEntries), arg0, arg1)
 }
 
 // ListSelectorEntries mocks base method
-func (m *MockDataStore) ListSelectorEntries(arg0 *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
-	ret := m.ctrl.Call(m, "ListSelectorEntries", arg0)
+func (m *MockDataStore) ListSelectorEntries(arg0 context.Context, arg1 *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
+	ret := m.ctrl.Call(m, "ListSelectorEntries", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.ListSelectorEntriesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListSelectorEntries indicates an expected call of ListSelectorEntries
-func (mr *MockDataStoreMockRecorder) ListSelectorEntries(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSelectorEntries", reflect.TypeOf((*MockDataStore)(nil).ListSelectorEntries), arg0)
+func (mr *MockDataStoreMockRecorder) ListSelectorEntries(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSelectorEntries", reflect.TypeOf((*MockDataStore)(nil).ListSelectorEntries), arg0, arg1)
 }
 
 // ListSpiffeEntries mocks base method
-func (m *MockDataStore) ListSpiffeEntries(arg0 *datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
-	ret := m.ctrl.Call(m, "ListSpiffeEntries", arg0)
+func (m *MockDataStore) ListSpiffeEntries(arg0 context.Context, arg1 *datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
+	ret := m.ctrl.Call(m, "ListSpiffeEntries", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.ListSpiffeEntriesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListSpiffeEntries indicates an expected call of ListSpiffeEntries
-func (mr *MockDataStoreMockRecorder) ListSpiffeEntries(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSpiffeEntries", reflect.TypeOf((*MockDataStore)(nil).ListSpiffeEntries), arg0)
+func (mr *MockDataStoreMockRecorder) ListSpiffeEntries(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSpiffeEntries", reflect.TypeOf((*MockDataStore)(nil).ListSpiffeEntries), arg0, arg1)
 }
 
 // PruneTokens mocks base method
-func (m *MockDataStore) PruneTokens(arg0 *datastore.JoinToken) (*common.Empty, error) {
-	ret := m.ctrl.Call(m, "PruneTokens", arg0)
+func (m *MockDataStore) PruneTokens(arg0 context.Context, arg1 *datastore.JoinToken) (*common.Empty, error) {
+	ret := m.ctrl.Call(m, "PruneTokens", arg0, arg1)
 	ret0, _ := ret[0].(*common.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PruneTokens indicates an expected call of PruneTokens
-func (mr *MockDataStoreMockRecorder) PruneTokens(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneTokens", reflect.TypeOf((*MockDataStore)(nil).PruneTokens), arg0)
+func (mr *MockDataStoreMockRecorder) PruneTokens(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneTokens", reflect.TypeOf((*MockDataStore)(nil).PruneTokens), arg0, arg1)
 }
 
 // RectifyNodeResolverMapEntries mocks base method
-func (m *MockDataStore) RectifyNodeResolverMapEntries(arg0 *datastore.RectifyNodeResolverMapEntriesRequest) (*datastore.RectifyNodeResolverMapEntriesResponse, error) {
-	ret := m.ctrl.Call(m, "RectifyNodeResolverMapEntries", arg0)
+func (m *MockDataStore) RectifyNodeResolverMapEntries(arg0 context.Context, arg1 *datastore.RectifyNodeResolverMapEntriesRequest) (*datastore.RectifyNodeResolverMapEntriesResponse, error) {
+	ret := m.ctrl.Call(m, "RectifyNodeResolverMapEntries", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.RectifyNodeResolverMapEntriesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RectifyNodeResolverMapEntries indicates an expected call of RectifyNodeResolverMapEntries
-func (mr *MockDataStoreMockRecorder) RectifyNodeResolverMapEntries(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RectifyNodeResolverMapEntries", reflect.TypeOf((*MockDataStore)(nil).RectifyNodeResolverMapEntries), arg0)
+func (mr *MockDataStoreMockRecorder) RectifyNodeResolverMapEntries(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RectifyNodeResolverMapEntries", reflect.TypeOf((*MockDataStore)(nil).RectifyNodeResolverMapEntries), arg0, arg1)
 }
 
 // RegisterToken mocks base method
-func (m *MockDataStore) RegisterToken(arg0 *datastore.JoinToken) (*common.Empty, error) {
-	ret := m.ctrl.Call(m, "RegisterToken", arg0)
+func (m *MockDataStore) RegisterToken(arg0 context.Context, arg1 *datastore.JoinToken) (*common.Empty, error) {
+	ret := m.ctrl.Call(m, "RegisterToken", arg0, arg1)
 	ret0, _ := ret[0].(*common.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RegisterToken indicates an expected call of RegisterToken
-func (mr *MockDataStoreMockRecorder) RegisterToken(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterToken", reflect.TypeOf((*MockDataStore)(nil).RegisterToken), arg0)
+func (mr *MockDataStoreMockRecorder) RegisterToken(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterToken", reflect.TypeOf((*MockDataStore)(nil).RegisterToken), arg0, arg1)
 }
 
 // UpdateAttestedNodeEntry mocks base method
-func (m *MockDataStore) UpdateAttestedNodeEntry(arg0 *datastore.UpdateAttestedNodeEntryRequest) (*datastore.UpdateAttestedNodeEntryResponse, error) {
-	ret := m.ctrl.Call(m, "UpdateAttestedNodeEntry", arg0)
+func (m *MockDataStore) UpdateAttestedNodeEntry(arg0 context.Context, arg1 *datastore.UpdateAttestedNodeEntryRequest) (*datastore.UpdateAttestedNodeEntryResponse, error) {
+	ret := m.ctrl.Call(m, "UpdateAttestedNodeEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.UpdateAttestedNodeEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateAttestedNodeEntry indicates an expected call of UpdateAttestedNodeEntry
-func (mr *MockDataStoreMockRecorder) UpdateAttestedNodeEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAttestedNodeEntry", reflect.TypeOf((*MockDataStore)(nil).UpdateAttestedNodeEntry), arg0)
+func (mr *MockDataStoreMockRecorder) UpdateAttestedNodeEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAttestedNodeEntry", reflect.TypeOf((*MockDataStore)(nil).UpdateAttestedNodeEntry), arg0, arg1)
 }
 
 // UpdateBundle mocks base method
-func (m *MockDataStore) UpdateBundle(arg0 *datastore.Bundle) (*datastore.Bundle, error) {
-	ret := m.ctrl.Call(m, "UpdateBundle", arg0)
+func (m *MockDataStore) UpdateBundle(arg0 context.Context, arg1 *datastore.Bundle) (*datastore.Bundle, error) {
+	ret := m.ctrl.Call(m, "UpdateBundle", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.Bundle)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateBundle indicates an expected call of UpdateBundle
-func (mr *MockDataStoreMockRecorder) UpdateBundle(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBundle", reflect.TypeOf((*MockDataStore)(nil).UpdateBundle), arg0)
+func (mr *MockDataStoreMockRecorder) UpdateBundle(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBundle", reflect.TypeOf((*MockDataStore)(nil).UpdateBundle), arg0, arg1)
 }
 
 // UpdateRegistrationEntry mocks base method
-func (m *MockDataStore) UpdateRegistrationEntry(arg0 *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
-	ret := m.ctrl.Call(m, "UpdateRegistrationEntry", arg0)
+func (m *MockDataStore) UpdateRegistrationEntry(arg0 context.Context, arg1 *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
+	ret := m.ctrl.Call(m, "UpdateRegistrationEntry", arg0, arg1)
 	ret0, _ := ret[0].(*datastore.UpdateRegistrationEntryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateRegistrationEntry indicates an expected call of UpdateRegistrationEntry
-func (mr *MockDataStoreMockRecorder) UpdateRegistrationEntry(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRegistrationEntry", reflect.TypeOf((*MockDataStore)(nil).UpdateRegistrationEntry), arg0)
+func (mr *MockDataStoreMockRecorder) UpdateRegistrationEntry(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRegistrationEntry", reflect.TypeOf((*MockDataStore)(nil).UpdateRegistrationEntry), arg0, arg1)
 }

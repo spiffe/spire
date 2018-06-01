@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"context"
 	"crypto/x509"
 	"io/ioutil"
 	"os"
@@ -14,6 +15,10 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
+var (
+	ctx = context.Background()
+)
+
 func TestMemory_GenerateKeyPair(t *testing.T) {
 	plugin := New()
 	tempDir, err := ioutil.TempDir("", "km-disk-test")
@@ -21,7 +26,7 @@ func TestMemory_GenerateKeyPair(t *testing.T) {
 	plugin.dir = tempDir
 	defer os.RemoveAll(tempDir)
 
-	genResp, err := plugin.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
+	genResp, err := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 	require.NoError(t, err)
 	_, err = os.Stat(path.Join(tempDir, keyFileName))
 	assert.False(t, os.IsNotExist(err))
@@ -42,10 +47,10 @@ func TestMemory_FetchPrivateKey(t *testing.T) {
 	plugin.dir = tempDir
 	defer os.RemoveAll(tempDir)
 
-	genResp, err := plugin.GenerateKeyPair(&keymanager.GenerateKeyPairRequest{})
+	genResp, err := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 	require.NoError(t, err)
 
-	fetchResp, err := plugin.FetchPrivateKey(&keymanager.FetchPrivateKeyRequest{})
+	fetchResp, err := plugin.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, genResp.PrivateKey, fetchResp.PrivateKey)
 }
@@ -55,13 +60,13 @@ func TestMemory_Configure(t *testing.T) {
 	cReq := &spi.ConfigureRequest{
 		Configuration: "directory = \"foo/bar\"",
 	}
-	_, e := plugin.Configure(cReq)
+	_, e := plugin.Configure(ctx, cReq)
 	assert.NoError(t, e)
 	assert.Equal(t, "foo/bar", plugin.dir)
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
 	plugin := New()
-	_, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
+	_, e := plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, e)
 }

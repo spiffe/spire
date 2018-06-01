@@ -1,6 +1,7 @@
 package svid
 
 import (
+	"context"
 	"crypto/x509"
 	"net/url"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/spiffe/spire/test/mock/agent/client"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
+	tomb "gopkg.in/tomb.v2"
 )
 
 func TestRotator(t *testing.T) {
@@ -60,7 +62,7 @@ func (s *RotatorTestSuite) TeardownTest() {
 	s.ctrl.Finish()
 }
 
-func (s *RotatorTestSuite) TestStart() {
+func (s *RotatorTestSuite) TestRun() {
 	cert, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 	s.expectSVIDRotation(cert)
@@ -71,9 +73,13 @@ func (s *RotatorTestSuite) TestStart() {
 	}
 	s.r.state = observer.NewProperty(state)
 
-	s.r.Start()
-
 	stream := s.r.Subscribe()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t := new(tomb.Tomb)
+	t.Go(func() error {
+		return s.r.Run(ctx)
+	})
 
 	// We should have the latest state
 	s.Assert().False(stream.HasNext())
@@ -83,10 +89,11 @@ func (s *RotatorTestSuite) TestStart() {
 	s.Assert().Equal(cert, state.SVID)
 	s.Assert().Equal(key, state.Key)
 
-	s.r.Stop()
+	cancel()
+	s.Require().NoError(t.Wait())
 }
 
-func (s *RotatorTestSuite) TestRun() {
+func (s *RotatorTestSuite) TestRunWithUpdates() {
 	// Cert that's valid for 1hr
 	temp, err := util.NewSVIDTemplate("spiffe://example.org/test")
 	s.Require().NoError(err)
@@ -110,16 +117,23 @@ func (s *RotatorTestSuite) TestRun() {
 	s.r.c.Interval = 10 * time.Millisecond
 
 	stream := s.r.Subscribe()
-	go s.r.run()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t := new(tomb.Tomb)
+	t.Go(func() error {
+		return s.r.Run(ctx)
+	})
+
 	select {
-	case <-time.NewTicker(5 * time.Second).C:
+	case <-time.NewTimer(5 * time.Second).C:
 		s.T().Error("SVID rotation timeout reached")
 	case <-stream.Changes():
 		state = stream.Next().(State)
 		s.Assert().Equal(goodCert, state.SVID)
 	}
 
-	s.r.Stop()
+	cancel()
+	s.Require().NoError(t.Wait())
 }
 
 func (s *RotatorTestSuite) TestShouldRotate() {
