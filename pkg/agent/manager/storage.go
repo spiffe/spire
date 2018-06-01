@@ -28,17 +28,17 @@ func ReadBundle(bundleCachePath string) ([]*x509.Certificate, error) {
 	return bundle, nil
 }
 
-// storeBundle writes manager's bundle to disk into bundleCachePath. Returns nil if all went
+// StoreBundle writes the bundle to disk into bundleCachePath. Returns nil if all went
 // fine, otherwise ir returns an error.
-func (m *manager) storeBundle() error {
+func StoreBundle(bundleCachePath string, bundle []*x509.Certificate) error {
 	// Write all certs to data bytes buffer.
 	data := &bytes.Buffer{}
-	for _, cert := range m.cache.Bundle() {
+	for _, cert := range bundle {
 		data.Write(cert.Raw)
 	}
 
 	// Write data to disk.
-	return ioutil.WriteFile(m.bundleCachePath, data.Bytes(), 0600)
+	return ioutil.WriteFile(bundleCachePath, data.Bytes(), 0600)
 }
 
 // ReadSVID returns the SVID located at svidCachePath. Returns nil
@@ -61,11 +61,8 @@ func ReadSVID(svidCachePath string) (*x509.Certificate, error) {
 	return cert, nil
 }
 
-// storeSVID writes manager's svid to disk into SVIDCachePath. Returns nil if all went
+// StoreSVID writes the specified svid to disk into svidCachePath. Returns nil if all went
 // fine, otherwise ir returns an error.
-func (m *manager) storeSVID() error {
-	m.mtx.RLock()
-	data := m.svid.Raw
-	m.mtx.RUnlock()
-	return ioutil.WriteFile(m.svidCachePath, data, 0600)
+func StoreSVID(svidCachePath string, svid *x509.Certificate) error {
+	return ioutil.WriteFile(svidCachePath, svid.Raw, 0600)
 }

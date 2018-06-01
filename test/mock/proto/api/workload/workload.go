@@ -5,9 +5,9 @@
 package mock_workload
 
 import (
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	workload "github.com/spiffe/spire/proto/api/workload"
-	context "golang.org/x/net/context"
 	grpc "google.golang.org/grpc"
 	metadata "google.golang.org/grpc/metadata"
 	reflect "reflect"

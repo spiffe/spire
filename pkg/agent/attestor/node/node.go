@@ -266,6 +266,6 @@ func (a *attestor) serverID() *url.URL {
 	return &url.URL{
 		Scheme: "spiffe",
 		Host:   a.c.TrustDomain.Host,
-		Path:   path.Join("spiffe", "server"),
+		Path:   path.Join("spire", "server"),
 	}
 }

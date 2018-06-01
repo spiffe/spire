@@ -1,14 +1,15 @@
 package manager
 
 import (
-	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/common"
 
@@ -17,9 +18,7 @@ import (
 
 // Cache Manager errors
 var (
-	ErrNotCached         = errors.New("not cached")
-	ErrPartialResponse   = errors.New("partial response received")
-	ErrUnableToGetStream = errors.New("unable to get a stream")
+	ErrNotCached = errors.New("not cached")
 )
 
 // Manager provides cache management functionalities for agents.
@@ -30,9 +29,17 @@ type Manager interface {
 	// Shutdown blocks until the manager stops.
 	Shutdown()
 
-	// Subscribe returns a Subscriber on which cache entry updates are sent
+	// SubscribeToCacheChanges returns a Subscriber on which cache entry updates are sent
 	// for a particular set of selectors.
-	Subscribe(key cache.Selectors) cache.Subscriber
+	SubscribeToCacheChanges(key cache.Selectors) cache.Subscriber
+
+	// SubscribeToSVIDChanges returns a new observer.Stream on which svid.State instances are received
+	// each time an SVID rotation finishes.
+	SubscribeToSVIDChanges() observer.Stream
+
+	// SubscribeToBundleChanges returns a new observer.Stream on which []*x509.Certificate instances are
+	// received each time the bundle changes.
+	SubscribeToBundleChanges() observer.Stream
 
 	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
@@ -49,15 +56,15 @@ type Manager interface {
 }
 
 type manager struct {
-	running bool
-	c       *Config
-	t       *tomb.Tomb
-	cache   cache.Cache
+	c *Config
 
 	// Fields protected by mtx mutex.
 	mtx     *sync.RWMutex
-	svid    *x509.Certificate
-	svidKey *ecdsa.PrivateKey
+	running bool
+
+	t     *tomb.Tomb
+	cache cache.Cache
+	svid  svid.Rotator
 
 	spiffeID       string
 	serverSPIFFEID string
@@ -67,20 +74,13 @@ type manager struct {
 	bundleCachePath string
 
 	syncClients *clientsPool
-
-	// Frequency of synchronization events in seconds.
-	syncFreq time.Duration
-	// Frequency of Agent's SVID rotation events in seconds.
-	rotationFreq time.Duration
 }
 
 func (m *manager) Start() error {
-	err := m.storeSVID()
-	if err != nil {
-		m.c.Log.Warnf("Could not write SVID to %v: %v", m.svidCachePath, err)
-	}
+	m.storeSVID(m.svid.State().SVID)
+	m.storeBundle(m.cache.Bundle())
 
-	err = m.synchronize(m.spiffeID)
+	err := m.synchronize(m.spiffeID)
 	if err != nil {
 		m.close(err)
 		return err
@@ -112,16 +112,16 @@ func (m *manager) Shutdown() {
 	}
 }
 
-func (m *manager) Subscribe(selectors cache.Selectors) cache.Subscriber {
-	// creates a subscriber
-	// adds it to the manager
-	// returns the added subscriber
-	sub, err := cache.NewSubscriber(selectors)
-	if err != nil {
-		m.c.Log.Error(err)
-	}
-	m.cache.Subscribe(sub)
-	return sub
+func (m *manager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
+	return m.cache.Subscribe(selectors)
+}
+
+func (m *manager) SubscribeToSVIDChanges() observer.Stream {
+	return m.svid.Subscribe()
+}
+
+func (m *manager) SubscribeToBundleChanges() observer.Stream {
+	return m.cache.SubscribeToBundleChanges()
 }
 
 func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []*cache.Entry) {
@@ -145,12 +145,15 @@ func (m *manager) Err() error {
 func (m *manager) run() error {
 	m.setRunning(true)
 	m.t.Go(m.synchronizer)
-	m.t.Go(m.rotator)
+	m.t.Go(m.startSVIDObserver)
+	m.t.Go(m.startBundleObserver)
+	m.svid.Start()
 	return nil
 }
 
 func (m *manager) synchronizer() error {
-	t := time.NewTicker(m.syncFreq)
+	t := time.NewTicker(m.c.SyncInterval)
+	defer t.Stop()
 
 	for {
 		select {
@@ -166,24 +169,34 @@ func (m *manager) synchronizer() error {
 	}
 }
 
-func (m *manager) rotator() error {
-	t := time.NewTicker(m.rotationFreq)
-
+func (m *manager) startSVIDObserver() error {
+	svidStream := m.SubscribeToSVIDChanges()
 	for {
 		select {
-		case <-t.C:
-			err := m.rotateSVID()
-			if err != nil {
-				// Just log the error to keep waiting for next SVID rotation...
-				m.c.Log.Errorf("SVID rotation failed: %v", err)
-			}
 		case <-m.t.Dying():
 			return nil
+		case <-svidStream.Changes():
+			s := svidStream.Next().(svid.State)
+			m.storeSVID(s.SVID)
+		}
+	}
+}
+
+func (m *manager) startBundleObserver() error {
+	bundleStream := m.SubscribeToBundleChanges()
+	for {
+		select {
+		case <-m.t.Dying():
+			return nil
+		case <-bundleStream.Changes():
+			b := bundleStream.Next().([]*x509.Certificate)
+			m.storeBundle(b)
 		}
 	}
 }
 
 func (m *manager) shutdown(err error) {
+	m.svid.Stop()
 	m.t.Kill(err)
 }
 
@@ -203,53 +216,16 @@ func (m *manager) isAlreadyCached(regEntry *common.RegistrationEntry) bool {
 	return m.cache.Entry(regEntry) != nil
 }
 
-func (m *manager) getBaseSVIDEntry() (svid *x509.Certificate, key *ecdsa.PrivateKey) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-	key = m.svidKey
-	svid = m.svid
-	return
-}
-
-func (m *manager) setBaseSVIDEntry(svid *x509.Certificate, key *ecdsa.PrivateKey) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-	m.svidKey = key
-	m.svid = svid
-}
-
-func (m *manager) bundleAsCertPool() *x509.CertPool {
-	certPool := x509.NewCertPool()
-	for _, cert := range m.cache.Bundle() {
-		certPool.AddCert(cert)
+func (m *manager) storeSVID(svid *x509.Certificate) {
+	err := StoreSVID(m.svidCachePath, svid)
+	if err != nil {
+		m.c.Log.Warnf("could not store SVID: %v", err)
 	}
-	return certPool
 }
 
-func (m *manager) setBundle(bundle []*x509.Certificate) {
-	err := m.storeBundle()
+func (m *manager) storeBundle(bundle []*x509.Certificate) {
+	err := StoreBundle(m.bundleCachePath, bundle)
 	if err != nil {
 		m.c.Log.Errorf("could not store bundle: %v", err)
 	}
-	m.cache.SetBundle(bundle)
-}
-
-func (m *manager) bundleAlreadyCached(bundle []*x509.Certificate) bool {
-	currentBundle := m.cache.Bundle()
-
-	if currentBundle == nil {
-		return bundle == nil
-	}
-
-	if len(bundle) != len(currentBundle) {
-		return false
-	}
-
-	for i, cert := range currentBundle {
-		if !cert.Equal(bundle[i]) {
-			return false
-		}
-	}
-
-	return true
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"sync"
 
+	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/common"
@@ -36,12 +37,15 @@ type Cache interface {
 	Entries() []*Entry
 	// IsEmpty returns true if this cache doesn't have any entry.
 	IsEmpty() bool
-	// Register a Subscriber and sends WorkloadUpdate on the subscriber's channel
-	Subscribe(sub *subscriber)
+	// Registers and returns a Subscriber, and then sends latest WorkloadUpdate on its channel
+	Subscribe(selectors Selectors) Subscriber
 	// Set the bundle
 	SetBundle([]*x509.Certificate)
 	// Retrieve the bundle
 	Bundle() []*x509.Certificate
+	// SubscribeToBundleChanges returns a new observer.Stream of []*x509.Certificate instances. Each
+	// time the bundle is updated, a new instance is streamed.
+	SubscribeToBundleChanges() observer.Stream
 }
 
 type cacheImpl struct {
@@ -50,7 +54,7 @@ type cacheImpl struct {
 	log         logrus.FieldLogger
 	m           sync.Mutex
 	subscribers *subscribers
-	bundle      []*x509.Certificate
+	bundle      observer.Property
 	notifyMutex sync.Mutex
 }
 
@@ -59,25 +63,23 @@ func New(log logrus.FieldLogger, bundle []*x509.Certificate) *cacheImpl {
 	return &cacheImpl{
 		cache:       make(map[string]*Entry),
 		log:         log.WithField("subsystem_name", "cache"),
-		bundle:      bundle,
+		bundle:      observer.NewProperty(bundle),
 		subscribers: NewSubscribers(),
 	}
 }
 
 func (c *cacheImpl) SetBundle(bundle []*x509.Certificate) {
-	c.m.Lock()
-	c.bundle = bundle
-	c.m.Unlock()
-
+	c.bundle.Update(bundle)
 	subs := c.subscribers.getAll()
 	c.notifySubscribers(subs)
 }
 
-func (c *cacheImpl) Bundle() (result []*x509.Certificate) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	result = append(result, c.bundle...)
-	return result
+func (c *cacheImpl) Bundle() []*x509.Certificate {
+	return c.bundle.Value().([]*x509.Certificate)
+}
+
+func (c *cacheImpl) SubscribeToBundleChanges() observer.Stream {
+	return c.bundle.Observe()
 }
 
 func (c *cacheImpl) Entries() []*Entry {
@@ -90,9 +92,17 @@ func (c *cacheImpl) Entries() []*Entry {
 	return entries
 }
 
-func (c *cacheImpl) Subscribe(sub *subscriber) {
+func (c *cacheImpl) Subscribe(selectors Selectors) Subscriber {
+	// creates a subscriber
+	// adds it to the manager
+	// returns the added subscriber
+	sub, err := NewSubscriber(selectors)
+	if err != nil {
+		c.log.Error(err)
+	}
 	c.subscribers.add(sub)
 	c.notifySubscribers([]*subscriber{sub})
+	return sub
 }
 
 func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
@@ -132,10 +142,13 @@ func (c *cacheImpl) notifySubscribers(subs []*subscriber) {
 			continue
 		}
 
-		if len(sub.c) > 0 {
-			close(sub.c)
-			sub.c = make(chan *WorkloadUpdate, 1)
+		select {
+		case <-sub.c:
+			// Discard current update if there is one.
+		default:
+			// To prevent blocking if there is no update available.
 		}
+
 		subEntries := subscriberEntries(sub, entries)
 		sub.c <- &WorkloadUpdate{Entries: subEntries, Bundle: bundle}
 		sub.m.Unlock()

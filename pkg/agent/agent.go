@@ -165,7 +165,7 @@ func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bund
 		Bundle:          bundle,
 		TrustDomain:     a.c.TrustDomain,
 		ServerAddr:      a.c.ServerAddress,
-		Log:             a.c.Log,
+		Log:             a.c.Log.WithField("subsystem_name", "manager"),
 		Tel:             a.tel,
 		BundleCachePath: a.bundleCachePath(),
 		SVIDCachePath:   a.agentSVIDPath(),

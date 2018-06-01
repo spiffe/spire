@@ -5,11 +5,10 @@
 package mock_nodeattestor
 
 import (
-	reflect "reflect"
-
 	gomock "github.com/golang/mock/gomock"
 	nodeattestor "github.com/spiffe/spire/proto/agent/nodeattestor"
 	plugin "github.com/spiffe/spire/proto/common/plugin"
+	reflect "reflect"
 )
 
 // MockNodeAttestor is a mock of NodeAttestor interface
