@@ -7,8 +7,6 @@ import (
 	"io"
 	"net/url"
 	"path"
-	"reflect"
-	"sort"
 	"strings"
 	"time"
 
@@ -93,14 +91,13 @@ func (h *Handler) FetchBaseSVID(
 
 	}
 
-	selectors, err := h.resolveSelectors(ctx, baseSpiffeIDFromCSR)
-	if err != nil {
+	if err := h.updateNodeResolverMap(ctx, baseSpiffeIDFromCSR); err != nil {
 		h.Log.Error(err)
 		return response, errors.New("Error trying to get selectors for baseSpiffeID")
 	}
 
 	response, err = h.getFetchBaseSVIDResponse(ctx,
-		baseSpiffeIDFromCSR, signResponse.SignedCertificate, selectors)
+		baseSpiffeIDFromCSR, signResponse.SignedCertificate)
 	if err != nil {
 		h.Log.Error(err)
 		return response, errors.New("Error trying to compose response")
@@ -114,7 +111,7 @@ func (h *Handler) FetchBaseSVID(
 	return response, nil
 }
 
-//FetchSVID gets Workload, Agent certs and CA trust bundleh.
+//FetchSVID gets Workload, Agent certs and CA trust bundles.
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
 func (h *Handler) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
@@ -142,13 +139,7 @@ func (h *Handler) FetchSVID(server node.Node_FetchSVIDServer) (err error) {
 		}
 		ctxSpiffeID := uriNames[0]
 
-		selectors, err := h.getStoredSelectors(ctx, ctxSpiffeID)
-		if err != nil {
-			h.Log.Error(err)
-			return errors.New("Error trying to get stored selectors")
-		}
-
-		regEntries, err := h.fetchRegistrationEntries(ctx, selectors, ctxSpiffeID)
+		regEntries, err := FetchRegistrationEntries(ctx, h.Catalog.DataStores()[0], ctxSpiffeID)
 		if err != nil {
 			h.Log.Error(err)
 			return errors.New("Error trying to get registration entries")
@@ -184,48 +175,6 @@ func (h *Handler) FetchFederatedBundle(
 	ctx context.Context, request *node.FetchFederatedBundleRequest) (
 	response *node.FetchFederatedBundleResponse, err error) {
 	return response, nil
-}
-
-//TODO: add unit test and review this
-func (h *Handler) fetchRegistrationEntries(ctx context.Context, selectors []*common.Selector, spiffeID string) (
-	[]*common.RegistrationEntry, error) {
-
-	dataStore := h.Catalog.DataStores()[0]
-
-	///lookup Registration Entries for resolved selectors
-	listSelectorResponse, err := dataStore.ListMatchingEntries(ctx,
-		&datastore.ListSelectorEntriesRequest{Selectors: selectors})
-	if err != nil {
-		return nil, err
-	}
-
-	// sort the entries for deduplication comparison below
-	for _, entry := range listSelectorResponse.RegisteredEntryList {
-		sort.Slice(entry.Selectors, util.SelectorsSortFunction(entry.Selectors))
-	}
-	selectorsEntries := listSelectorResponse.RegisteredEntryList
-
-	///lookup Registration Entries where spiffeID is the parent ID
-	listResponse, err := dataStore.ListParentIDEntries(ctx, &datastore.ListParentIDEntriesRequest{ParentId: spiffeID})
-	if err != nil {
-		return nil, err
-	}
-
-	///append parentEntries
-	entries := selectorsEntries
-	for _, entry := range listResponse.RegisteredEntryList {
-		exists := false
-		sort.Slice(entry.Selectors, util.SelectorsSortFunction(entry.Selectors))
-		for _, oldEntry := range selectorsEntries {
-			if reflect.DeepEqual(entry, oldEntry) {
-				exists = true
-			}
-		}
-		if !exists {
-			entries = append(entries, entry)
-		}
-	}
-	return entries, err
 }
 
 func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, error) {
@@ -382,8 +331,8 @@ func (h *Handler) createAttestationEntry(ctx context.Context,
 	return nil
 }
 
-func (h *Handler) resolveSelectors(ctx context.Context,
-	baseSpiffeID string) ([]*common.Selector, error) {
+func (h *Handler) updateNodeResolverMap(ctx context.Context,
+	baseSpiffeID string) error {
 
 	dataStore := h.Catalog.DataStores()[0]
 	nodeResolver := h.Catalog.NodeResolvers()[0]
@@ -392,13 +341,12 @@ func (h *Handler) resolveSelectors(ctx context.Context,
 		BaseSpiffeIdList: []string{baseSpiffeID},
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	baseSelectors, ok := response.Map[baseSpiffeID]
-	if ok {
+	if selectors, ok := response.Map[baseSpiffeID]; ok {
 		// TODO: Fix complexity
-		for _, selector := range baseSelectors.Entries {
+		for _, selector := range selectors.Entries {
 			mapEntryRequest := &datastore.CreateNodeResolverMapEntryRequest{
 				NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
 					BaseSpiffeId: baseSpiffeID,
@@ -407,13 +355,11 @@ func (h *Handler) resolveSelectors(ctx context.Context,
 			}
 			_, err = dataStore.CreateNodeResolverMapEntry(ctx, mapEntryRequest)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
-		return baseSelectors.Entries, nil
 	}
-
-	return []*common.Selector{}, nil
+	return nil
 }
 
 func (h *Handler) getStoredSelectors(ctx context.Context,
@@ -436,7 +382,7 @@ func (h *Handler) getStoredSelectors(ctx context.Context,
 }
 
 func (h *Handler) getFetchBaseSVIDResponse(ctx context.Context,
-	baseSpiffeID string, baseSvid []byte, selectors []*common.Selector) (
+	baseSpiffeID string, baseSvid []byte) (
 	*node.FetchBaseSVIDResponse, error) {
 
 	// Parse base svid to approximate TTL
@@ -451,7 +397,7 @@ func (h *Handler) getFetchBaseSVIDResponse(ctx context.Context,
 		Ttl:      int32(time.Until(cert.NotAfter).Seconds()),
 	}
 
-	regEntries, err := h.fetchRegistrationEntries(ctx, selectors, baseSpiffeID)
+	regEntries, err := FetchRegistrationEntries(ctx, h.Catalog.DataStores()[0], baseSpiffeID)
 	if err != nil {
 		return nil, err
 	}
@@ -623,4 +569,115 @@ func getSpiffeIDFromCSR(csr []byte) (spiffeID string, err error) {
 	spiffeID = uris[0]
 
 	return spiffeID, nil
+}
+
+func FetchRegistrationEntries(ctx context.Context,
+	dataStore datastore.DataStore, spiffeID string) (
+	entries []*common.RegistrationEntry, err error) {
+
+	fetcher := newRegistrationEntryFetcher(dataStore)
+	return fetcher.Fetch(ctx, spiffeID)
+}
+
+type registrationEntryFetcher struct {
+	dataStore datastore.DataStore
+}
+
+func newRegistrationEntryFetcher(dataStore datastore.DataStore) *registrationEntryFetcher {
+	return &registrationEntryFetcher{
+		dataStore: dataStore,
+	}
+}
+
+func (f *registrationEntryFetcher) Fetch(ctx context.Context, id string) ([]*common.RegistrationEntry, error) {
+	entries, err := f.fetch(ctx, id, make(map[string]bool))
+	if err != nil {
+		return nil, err
+	}
+	return util.DedupRegistrationEntries(entries), nil
+}
+
+func (f *registrationEntryFetcher) fetch(ctx context.Context, id string, visited map[string]bool) ([]*common.RegistrationEntry, error) {
+	if visited[id] {
+		return nil, nil
+	}
+	visited[id] = true
+
+	directEntries, err := f.directEntries(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := directEntries
+	for _, directEntry := range directEntries {
+		descendantEntries, err := f.fetch(ctx, directEntry.SpiffeId, visited)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, descendantEntries...)
+	}
+
+	return entries, nil
+}
+
+// directEntries queries the datastore to determine the registration entries
+// the provided ID is immediately authorized to issue.
+func (f *registrationEntryFetcher) directEntries(ctx context.Context, id string) ([]*common.RegistrationEntry, error) {
+	childEntries, err := f.childEntries(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	mappedEntries, err := f.mappedEntries(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(childEntries, mappedEntries...), nil
+}
+
+// childEntries returns all registration entries for which the given ID is
+// defined as a parent.
+func (f *registrationEntryFetcher) childEntries(ctx context.Context, clientID string) ([]*common.RegistrationEntry, error) {
+	resp, err := f.dataStore.ListParentIDEntries(ctx,
+		&datastore.ListParentIDEntriesRequest{
+			ParentId: clientID,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.RegisteredEntryList, nil
+}
+
+// mappedEntries returns all registration entries for which the given ID has
+// been mapped to by a node resolver.
+func (f *registrationEntryFetcher) mappedEntries(ctx context.Context, clientID string) ([]*common.RegistrationEntry, error) {
+	resolveResp, err := f.dataStore.FetchNodeResolverMapEntry(ctx,
+		&datastore.FetchNodeResolverMapEntryRequest{
+			BaseSpiffeId: clientID,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	selectors := []*common.Selector{}
+	for _, entry := range resolveResp.NodeResolverMapEntryList {
+		selectors = append(selectors, entry.Selector)
+	}
+
+	// No need to look for more entries if we didn't get any selectors
+	if len(selectors) < 1 {
+		return nil, nil
+	}
+
+	listResp, err := f.dataStore.ListMatchingEntries(ctx,
+		&datastore.ListSelectorEntriesRequest{
+			Selectors: selectors,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return listResp.RegisteredEntryList, nil
 }

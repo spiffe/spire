@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/mock/common/context"
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/mock/proto/server/ca"
@@ -30,11 +31,16 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/server/noderesolver"
 	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+)
+
+var (
+	ctx = context.Background()
 )
 
 type HandlerTestSuite struct {
@@ -158,60 +164,90 @@ func TestFetchSVIDWithRotation(t *testing.T) {
 }
 
 func TestFetchRegistrationEntries(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	defer suite.ctrl.Finish()
+	assert := assert.New(t)
+	dataStore := fakedatastore.New()
 
-	spiffeID := "spiffe://example.org/a"
-	wlSpiffeID := "spiffe://example.org/wl1"
-
-	suite.mockCatalog.EXPECT().DataStores().AnyTimes().
-		Return([]datastore.DataStore{suite.mockDataStore})
-
-	selectors := []*common.Selector{
-		{
-			Type:  "a",
-			Value: "1",
-		},
-		{
-			Type:  "b",
-			Value: "2",
-		},
+	createRegistrationEntry := func(entry *datastore.RegistrationEntry) *datastore.RegistrationEntry {
+		resp, err := dataStore.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+			RegisteredEntry: entry,
+		})
+		assert.NoError(err)
+		entry.EntryId = resp.RegisteredEntryId
+		return entry
 	}
 
-	regEntries := []*common.RegistrationEntry{
-		{
-			SpiffeId: wlSpiffeID,
-		},
+	createNodeResolverMapEntry := func(entry *datastore.NodeResolverMapEntry) *datastore.NodeResolverMapEntry {
+		resp, err := dataStore.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{
+			NodeResolverMapEntry: entry,
+		})
+		assert.NoError(err)
+		return resp.NodeResolverMapEntry
 	}
 
-	suite.mockDataStore.EXPECT().ListMatchingEntries(gomock.Any(),
-		&datastore.ListSelectorEntriesRequest{Selectors: []*common.Selector{
-			{
-				Type:  "a",
-				Value: "1",
-			},
-			{
-				Type:  "b",
-				Value: "2",
-			},
-		}},
-	).Return(&datastore.ListSelectorEntriesResponse{
-		RegisteredEntryList: regEntries,
-	}, nil)
+	rootID := "spiffe://example.org/root"
+	oneID := "spiffe://example.org/1"
+	twoID := "spiffe://example.org/2"
+	threeID := "spiffe://example.org/3"
+	fourID := "spiffe://example.org/4"
+	fiveID := "spiffe://example.org/5"
 
-	suite.mockDataStore.EXPECT().ListParentIDEntries(gomock.Any(),
-		&datastore.ListParentIDEntriesRequest{ParentId: spiffeID},
-	).Return(&datastore.ListParentIDEntriesResponse{}, nil)
+	a1 := &common.Selector{Type: "a", Value: "1"}
+	b2 := &common.Selector{Type: "b", Value: "2"}
 
-	entries, err := suite.handler.fetchRegistrationEntries(context.Background(), selectors, spiffeID)
-	if err != nil {
-		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
+	//
+	//        root             4(a1,b2)
+	//        /   \           /
+	//       1     2         5
+	//            /
+	//           3
+	//
+	// node resolvers map from 2 to 4
+
+	oneEntry := createRegistrationEntry(&datastore.RegistrationEntry{
+		ParentId: rootID,
+		SpiffeId: oneID,
+	})
+
+	twoEntry := createRegistrationEntry(&datastore.RegistrationEntry{
+		ParentId: rootID,
+		SpiffeId: twoID,
+	})
+
+	threeEntry := createRegistrationEntry(&datastore.RegistrationEntry{
+		ParentId: twoID,
+		SpiffeId: threeID,
+	})
+
+	fourEntry := createRegistrationEntry(&datastore.RegistrationEntry{
+		SpiffeId:  fourID,
+		Selectors: []*common.Selector{a1, b2},
+	})
+
+	fiveEntry := createRegistrationEntry(&datastore.RegistrationEntry{
+		ParentId: fourID,
+		SpiffeId: fiveID,
+	})
+
+	createNodeResolverMapEntry(&datastore.NodeResolverMapEntry{
+		BaseSpiffeId: twoID,
+		Selector:     a1,
+	})
+	createNodeResolverMapEntry(&datastore.NodeResolverMapEntry{
+		BaseSpiffeId: twoID,
+		Selector:     b2,
+	})
+
+	actual, err := FetchRegistrationEntries(ctx, dataStore, rootID)
+	assert.NoError(err)
+
+	expected := []*common.RegistrationEntry{
+		oneEntry,
+		twoEntry,
+		threeEntry,
+		fourEntry,
+		fiveEntry,
 	}
-
-	if !reflect.DeepEqual(entries, regEntries) {
-		t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n",
-			entries, regEntries)
-	}
+	assert.Equal(expected, actual)
 }
 
 func getBytesFromPem(fileName string) []byte {
@@ -254,14 +290,12 @@ func getFetchBaseSVIDTestData() *fetchBaseSVIDData {
 		{
 			Selectors: []*common.Selector{
 				{Type: "foo", Value: "bar"},
-				{Type: "foo", Value: "car"},
 			},
 			ParentId: "spiffe://example.org/path",
 			SpiffeId: "spiffe://test1"},
 		{
 			Selectors: []*common.Selector{
 				{Type: "foo", Value: "bar"},
-				{Type: "foo", Value: "car"},
 			},
 			ParentId: "spiffe://example.org/path",
 			SpiffeId: "spiffe://repeated"}}
@@ -269,7 +303,6 @@ func getFetchBaseSVIDTestData() *fetchBaseSVIDData {
 	data.regEntrySelectorList = []*common.RegistrationEntry{
 		{
 			Selectors: []*common.Selector{
-				{Type: "foo", Value: "car"},
 				{Type: "foo", Value: "bar"},
 			},
 			ParentId: "spiffe://example.org/path",
@@ -306,22 +339,6 @@ func setFetchBaseSVIDExpectations(
 	}
 	suite.mockCatalog.EXPECT().Find(suite.mockNodeAttestor).Return(p)
 
-	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(gomock.Any(),
-		&datastore.FetchAttestedNodeEntryRequest{
-			BaseSpiffeId: data.baseSpiffeID,
-		}).
-		Return(&datastore.FetchAttestedNodeEntryResponse{AttestedNodeEntry: nil}, nil)
-
-	caCert, _, err := util.LoadCAFixture()
-	require.NoError(suite.T(), err)
-
-	suite.mockDataStore.EXPECT().
-		FetchBundle(gomock.Any(), &datastore.Bundle{
-			TrustDomain: suite.handler.TrustDomain.String()}).
-		Return(&datastore.Bundle{
-			TrustDomain: suite.handler.TrustDomain.String(),
-			CaCerts:     caCert.Raw}, nil)
-
 	suite.mockNodeAttestor.EXPECT().Attest(gomock.Any(), &nodeattestor.AttestRequest{
 		AttestedBefore: false,
 		AttestedData:   data.request.AttestedData,
@@ -329,6 +346,12 @@ func setFetchBaseSVIDExpectations(
 		Return(&nodeattestor.AttestResponse{
 			BaseSPIFFEID: data.baseSpiffeID,
 			Valid:        true}, nil)
+
+	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(gomock.Any(),
+		&datastore.FetchAttestedNodeEntryRequest{
+			BaseSpiffeId: data.baseSpiffeID,
+		}).
+		Return(&datastore.FetchAttestedNodeEntryResponse{AttestedNodeEntry: nil}, nil)
 
 	suite.mockServerCA.EXPECT().SignCsr(gomock.Any(), &ca.SignCsrRequest{
 		Csr: data.request.Csr,
@@ -362,6 +385,24 @@ func setFetchBaseSVIDExpectations(
 		}).
 		Return(nil, nil)
 
+	// begin FetchRegistrationEntries(baseSpiffeID)
+
+	suite.mockDataStore.EXPECT().
+		ListParentIDEntries(gomock.Any(),
+			&datastore.ListParentIDEntriesRequest{ParentId: data.baseSpiffeID}).
+		Return(&datastore.ListParentIDEntriesResponse{
+			RegisteredEntryList: data.regEntryParentIDList}, nil)
+
+	suite.mockDataStore.EXPECT().
+		FetchNodeResolverMapEntry(gomock.Any(), &datastore.FetchNodeResolverMapEntryRequest{
+			BaseSpiffeId: data.baseSpiffeID,
+		}).
+		Return(&datastore.FetchNodeResolverMapEntryResponse{
+			NodeResolverMapEntryList: []*datastore.NodeResolverMapEntry{
+				{BaseSpiffeId: data.baseSpiffeID, Selector: data.selector},
+			},
+		}, nil)
+
 	suite.mockDataStore.EXPECT().
 		ListMatchingEntries(gomock.Any(), &datastore.ListSelectorEntriesRequest{
 			Selectors: []*common.Selector{data.selector},
@@ -370,12 +411,47 @@ func setFetchBaseSVIDExpectations(
 			RegisteredEntryList: data.regEntrySelectorList,
 		}, nil)
 
-	suite.mockDataStore.EXPECT().
-		ListParentIDEntries(gomock.Any(),
-			&datastore.ListParentIDEntriesRequest{ParentId: data.baseSpiffeID}).
-		Return(&datastore.ListParentIDEntriesResponse{
-			RegisteredEntryList: data.regEntryParentIDList}, nil)
+	for _, entry := range data.regEntryParentIDList {
+		suite.mockDataStore.EXPECT().
+			ListParentIDEntries(gomock.Any(), &datastore.ListParentIDEntriesRequest{
+				ParentId: entry.SpiffeId}).
+			Return(&datastore.ListParentIDEntriesResponse{}, nil)
+		suite.mockDataStore.EXPECT().
+			FetchNodeResolverMapEntry(gomock.Any(), &datastore.FetchNodeResolverMapEntryRequest{
+				BaseSpiffeId: entry.SpiffeId,
+			}).
+			Return(&datastore.FetchNodeResolverMapEntryResponse{}, nil)
+	}
 
+	// none of the selector entries have children or node resolver entries.
+	// the "repeated" entry is not expected to be processed again since it was
+	// already processed as a child.
+	for _, entry := range data.regEntrySelectorList {
+		if entry.SpiffeId == "spiffe://repeated" {
+			continue
+		}
+		suite.mockDataStore.EXPECT().
+			ListParentIDEntries(gomock.Any(), &datastore.ListParentIDEntriesRequest{
+				ParentId: entry.SpiffeId}).
+			Return(&datastore.ListParentIDEntriesResponse{}, nil)
+		suite.mockDataStore.EXPECT().
+			FetchNodeResolverMapEntry(gomock.Any(), &datastore.FetchNodeResolverMapEntryRequest{
+				BaseSpiffeId: entry.SpiffeId,
+			}).
+			Return(&datastore.FetchNodeResolverMapEntryResponse{}, nil)
+	}
+
+	// end FetchRegistrationEntries(baseSpiffeID)
+
+	caCert, _, err := util.LoadCAFixture()
+	require.NoError(suite.T(), err)
+
+	suite.mockDataStore.EXPECT().
+		FetchBundle(gomock.Any(), &datastore.Bundle{
+			TrustDomain: suite.handler.TrustDomain.String()}).
+		Return(&datastore.Bundle{
+			TrustDomain: suite.handler.TrustDomain.String(),
+			CaCerts:     caCert.Raw}, nil)
 }
 
 func getExpectedFetchBaseSVID(baseSpiffeID string, cert []byte) *node.SvidUpdate {
@@ -383,7 +459,6 @@ func getExpectedFetchBaseSVID(baseSpiffeID string, cert []byte) *node.SvidUpdate
 		{
 			Selectors: []*common.Selector{
 				{Type: "foo", Value: "bar"},
-				{Type: "foo", Value: "car"},
 			},
 			ParentId: "spiffe://example.org/path",
 			SpiffeId: "spiffe://repeated",
@@ -393,15 +468,14 @@ func getExpectedFetchBaseSVID(baseSpiffeID string, cert []byte) *node.SvidUpdate
 				{Type: "foo", Value: "bar"},
 			},
 			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://test2",
+			SpiffeId: "spiffe://test1",
 		},
 		{
 			Selectors: []*common.Selector{
 				{Type: "foo", Value: "bar"},
-				{Type: "foo", Value: "car"},
 			},
 			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://test1",
+			SpiffeId: "spiffe://test2",
 		},
 	}
 
@@ -500,10 +574,21 @@ func setFetchSVIDExpectations(
 
 	suite.mockContext.EXPECT().Value(gomock.Any()).Return(getFakePeer())
 
-	suite.mockDataStore.EXPECT().FetchNodeResolverMapEntry(gomock.Any(),
-		&datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: data.baseSpiffeID}).
+	// begin FetchRegistrationEntries()
+
+	suite.mockDataStore.EXPECT().
+		ListParentIDEntries(gomock.Any(),
+			&datastore.ListParentIDEntriesRequest{ParentId: data.baseSpiffeID}).
+		Return(&datastore.ListParentIDEntriesResponse{
+			RegisteredEntryList: data.byParentIDEntries}, nil)
+
+	suite.mockDataStore.EXPECT().
+		FetchNodeResolverMapEntry(gomock.Any(), &datastore.FetchNodeResolverMapEntryRequest{
+			BaseSpiffeId: data.baseSpiffeID,
+		}).
 		Return(&datastore.FetchNodeResolverMapEntryResponse{
-			NodeResolverMapEntryList: data.nodeResolutionList}, nil)
+			NodeResolverMapEntryList: data.nodeResolutionList,
+		}, nil)
 
 	suite.mockDataStore.EXPECT().
 		ListMatchingEntries(gomock.Any(), &datastore.ListSelectorEntriesRequest{
@@ -513,11 +598,19 @@ func setFetchSVIDExpectations(
 			RegisteredEntryList: data.bySelectorsEntries,
 		}, nil)
 
-	suite.mockDataStore.EXPECT().
-		ListParentIDEntries(gomock.Any(), &datastore.ListParentIDEntriesRequest{
-			ParentId: data.baseSpiffeID}).
-		Return(&datastore.ListParentIDEntriesResponse{
-			RegisteredEntryList: data.byParentIDEntries}, nil)
+	for _, entry := range data.byParentIDEntries {
+		suite.mockDataStore.EXPECT().
+			ListParentIDEntries(gomock.Any(), &datastore.ListParentIDEntriesRequest{
+				ParentId: entry.SpiffeId}).
+			Return(&datastore.ListParentIDEntriesResponse{}, nil)
+		suite.mockDataStore.EXPECT().
+			FetchNodeResolverMapEntry(gomock.Any(), &datastore.FetchNodeResolverMapEntryRequest{
+				BaseSpiffeId: entry.SpiffeId,
+			}).
+			Return(&datastore.FetchNodeResolverMapEntryResponse{}, nil)
+	}
+
+	// end FetchRegistrationEntries(baseSpiffeID)
 
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.Bundle{
@@ -561,10 +654,11 @@ func getExpectedFetchSVID(data *fetchSVIDData) *node.SvidUpdate {
 		data.blogSpiffeID:     {SvidCert: data.generatedCerts[2], Ttl: 3333},
 	}
 
+	// returned in sorted order (according to sorting rules in util.SortRegistrationEntries)
 	registrationEntries := []*common.RegistrationEntry{
-		data.bySelectorsEntries[0],
-		data.byParentIDEntries[0],
 		data.byParentIDEntries[1],
+		data.byParentIDEntries[0],
+		data.bySelectorsEntries[0],
 		data.byParentIDEntries[2],
 	}
 
