@@ -115,7 +115,6 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 	t := time.NewTicker(m.c.SyncInterval)
 	defer t.Stop()
 
-	done := ctx.Done()
 	for {
 		select {
 		case <-t.C:
@@ -124,7 +123,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 				// Just log the error to keep waiting for next sinchronization...
 				m.c.Log.Errorf("synchronize failed: %v", err)
 			}
-		case <-done:
+		case <-ctx.Done():
 			return nil
 		}
 	}
@@ -132,10 +131,9 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 
 func (m *manager) runSVIDObserver(ctx context.Context) error {
 	svidStream := m.SubscribeToSVIDChanges()
-	done := ctx.Done()
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			return nil
 		case <-svidStream.Changes():
 			s := svidStream.Next().(svid.State)
@@ -146,10 +144,9 @@ func (m *manager) runSVIDObserver(ctx context.Context) error {
 
 func (m *manager) runBundleObserver(ctx context.Context) error {
 	bundleStream := m.SubscribeToBundleChanges()
-	done := ctx.Done()
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			return nil
 		case <-bundleStream.Changes():
 			b := bundleStream.Next().([]*x509.Certificate)

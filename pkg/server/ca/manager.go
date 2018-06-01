@@ -61,7 +61,6 @@ func (m *manager) startCARotator(ctx context.Context, interval time.Duration) er
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	done := ctx.Done()
 	for {
 		select {
 		case <-ticker.C:
@@ -69,7 +68,7 @@ func (m *manager) startCARotator(ctx context.Context, interval time.Duration) er
 			if err != nil {
 				m.c.Log.Errorf("Problem encountered while tending to CA rotation: %v", err)
 			}
-		case <-done:
+		case <-ctx.Done():
 			return nil
 		}
 	}
@@ -161,14 +160,13 @@ func (m *manager) startPruner(ctx context.Context, interval time.Duration) error
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	done := ctx.Done()
 	for {
 		select {
 		case <-ticker.C:
 			if err := m.prune(ctx); err != nil {
 				m.c.Log.Errorf("Could not prune CA certificates: %v", err)
 			}
-		case <-done:
+		case <-ctx.Done():
 			return nil
 		}
 	}

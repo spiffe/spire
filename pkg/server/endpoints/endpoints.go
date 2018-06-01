@@ -76,9 +76,7 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 
 func (e *endpoints) createGRPCServer(ctx context.Context) *grpc.Server {
 	tlsConfig := &tls.Config{
-		GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-			return e.getGRPCServerConfig(ctx, hello)
-		},
+		GetConfigForClient: e.getGRPCServerConfig(ctx),
 	}
 
 	opts := grpc.Creds(credentials.NewTLS(tlsConfig))
@@ -87,9 +85,7 @@ func (e *endpoints) createGRPCServer(ctx context.Context) *grpc.Server {
 
 func (e *endpoints) createHTTPServer(ctx context.Context) *http.Server {
 	tlsConfig := &tls.Config{
-		GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-			return e.getHTTPServerConfig(ctx, hello)
-		},
+		GetConfigForClient: e.getHTTPServerConfig(ctx),
 	}
 
 	s := &http.Server{
@@ -163,11 +159,10 @@ func (e *endpoints) runGRPCServer(ctx context.Context, server *grpc.Server) erro
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
-	done := ctx.Done()
 	select {
 	case err = <-errChan:
 		return err
-	case <-done:
+	case <-ctx.Done():
 		e.c.Log.Info("Stopping gRPC server")
 		server.Stop()
 		<-errChan
@@ -188,11 +183,10 @@ func (e *endpoints) runHTTPServer(ctx context.Context, server *http.Server) erro
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
-	done := ctx.Done()
 	select {
 	case err := <-errChan:
 		return err
-	case <-done:
+	case <-ctx.Done():
 		e.c.Log.Info("Stopping HTTP server")
 		server.Close()
 		l.Close()
@@ -204,10 +198,9 @@ func (e *endpoints) runHTTPServer(ctx context.Context, server *http.Server) erro
 }
 
 func (e *endpoints) runSVIDObserver(ctx context.Context) error {
-	done := ctx.Done()
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			return nil
 		case <-e.c.SVIDStream.Changes():
 			e.c.SVIDStream.Next()
@@ -216,41 +209,44 @@ func (e *endpoints) runSVIDObserver(ctx context.Context) error {
 	}
 }
 
-// getGRPCServerConfig implements a TLS Config hook for the gRPC server
-func (e *endpoints) getGRPCServerConfig(ctx context.Context, hello *tls.ClientHelloInfo) (*tls.Config, error) {
-	certs, roots, err := e.getCerts(ctx)
-	if err != nil {
-		e.c.Log.Errorf("Could not generate TLS config for gRPC client %v: %v", hello.Conn.RemoteAddr(), err)
-		return nil, err
+// getGRPCServerConfig returns a TLS Config hook for the gRPC server
+func (e *endpoints) getGRPCServerConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+		certs, roots, err := e.getCerts(ctx)
+		if err != nil {
+			e.c.Log.Errorf("Could not generate TLS config for gRPC client %v: %v", hello.Conn.RemoteAddr(), err)
+			return nil, err
+		}
+
+		c := &tls.Config{
+			// When bootstrapping, the agent does not yet have
+			// an SVID. In order to include the bootstrap endpoint
+			// in the same server as the rest of the Node API,
+			// request but don't require a client certificate
+			ClientAuth: tls.RequestClientCert,
+
+			Certificates: certs,
+			ClientCAs:    roots,
+		}
+		return c, nil
 	}
-
-	c := &tls.Config{
-		// When bootstrapping, the agent does not yet have
-		// an SVID. In order to include the bootstrap endpoint
-		// in the same server as the rest of the Node API,
-		// request but don't require a client certificate
-		ClientAuth: tls.RequestClientCert,
-
-		Certificates: certs,
-		ClientCAs:    roots,
-	}
-
-	return c, nil
 }
 
-// getHTTPConfig implements a TLS Config hook for the HTTP server.
-func (e *endpoints) getHTTPServerConfig(ctx context.Context, hello *tls.ClientHelloInfo) (*tls.Config, error) {
-	certs, _, err := e.getCerts(ctx)
-	if err != nil {
-		e.c.Log.Errorf("Could not generate TLS config for HTTP client %v: %v", hello.Conn.RemoteAddr(), err)
-		return nil, err
-	}
+// getHTTPConfig returns a TLS Config hook for the HTTP server.
+func (e *endpoints) getHTTPServerConfig(ctx context.Context) func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+		certs, _, err := e.getCerts(ctx)
+		if err != nil {
+			e.c.Log.Errorf("Could not generate TLS config for HTTP client %v: %v", hello.Conn.RemoteAddr(), err)
+			return nil, err
+		}
 
-	c := &tls.Config{
-		Certificates: certs,
-	}
+		c := &tls.Config{
+			Certificates: certs,
+		}
 
-	return c, nil
+		return c, nil
+	}
 }
 
 // getCerts queries the datastore and returns a TLS serving certificate(s) plus

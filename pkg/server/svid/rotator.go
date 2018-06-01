@@ -54,10 +54,9 @@ func (r *rotator) Run(ctx context.Context) error {
 	t := time.NewTicker(r.c.Interval)
 	defer t.Stop()
 
-	done := ctx.Done()
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			r.c.Log.Debug("Stopping SVID rotator")
 			return nil
 		case <-t.C:

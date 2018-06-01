@@ -29,7 +29,6 @@ type rotator struct {
 
 	state observer.Property
 
-	m sync.RWMutex
 	// Mutex used to protect access to c.BundleStream.
 	bsm *sync.RWMutex
 }
@@ -45,10 +44,9 @@ func (r *rotator) Run(ctx context.Context) error {
 	t := time.NewTicker(r.c.Interval)
 	defer t.Stop()
 
-	done := ctx.Done()
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			r.c.Log.Debug("Stopping SVID rotator")
 			r.client.Release()
 			return nil

@@ -132,12 +132,11 @@ func (p *profiler) run(ctx context.Context) error {
 	ticker := time.NewTicker(time.Duration(p.c.Frequency) * time.Second)
 	defer ticker.Stop()
 
-	done := ctx.Done()
 	for {
 		select {
 		case <-ticker.C:
 			p.dumpProfiles()
-		case <-done:
+		case <-ctx.Done():
 			p.releaseDumpers()
 			return nil
 		}

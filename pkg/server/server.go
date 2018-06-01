@@ -60,19 +60,12 @@ type Config struct {
 
 type Server struct {
 	config Config
-
-	// test hooks
-	hooks struct {
-		newCAManager func(*ca.Config) ca.Manager
-	}
 }
 
 func New(config Config) *Server {
-	s := &Server{
+	return &Server{
 		config: config,
 	}
-	s.hooks.newCAManager = ca.New
-	return s
 }
 
 // Run the server
@@ -193,7 +186,7 @@ func (s *Server) newCatalog() catalog.Catalog {
 }
 
 func (s *Server) newCAManager(ctx context.Context, catalog catalog.Catalog) (ca.Manager, error) {
-	caManager := s.hooks.newCAManager(&ca.Config{
+	caManager := ca.New(&ca.Config{
 		Catalog:        catalog,
 		TrustDomain:    s.config.TrustDomain,
 		Log:            s.config.Log.WithField("subsystem_name", "ca_manager"),

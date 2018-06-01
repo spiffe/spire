@@ -45,10 +45,9 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 		go runTask(task)
 	}
 
-	done := ctx.Done()
 	for complete := 0; complete < len(tasks); {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			return ctx.Err()
 		case err := <-errch:
 			if err != nil {

@@ -57,7 +57,7 @@ func (m *ManagerTestSuite) SetupTest() {
 		},
 	}
 
-	m.m = New(config).(*manager)
+	m.m = New(config)
 }
 
 func TestManager(t *testing.T) {
@@ -203,7 +203,18 @@ func (m *ManagerTestSuite) TestPruner() {
 
 	ctx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 	defer cancel()
-	m.Assert().NoError(m.m.startPruner(ctx, 25*time.Millisecond))
+
+	errch := make(chan error, 1)
+	go func() {
+		errch <- m.m.startPruner(ctx, 25*time.Millisecond)
+	}()
+
+	select {
+	case <-time.NewTimer(time.Second).C:
+		m.T().Fatalf("timed out waiting for pruner to exit.")
+	case err := <-errch:
+		m.Assert().NoError(err)
+	}
 }
 
 func (m *ManagerTestSuite) TestStoreCACert() {

@@ -63,7 +63,6 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
 
-	done := ctx.Done()
 	for {
 		select {
 		case update := <-subscriber.Updates():
@@ -79,7 +78,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send update to PID %v", time.Since(start).Seconds, pid)
 			}
-		case <-done:
+		case <-ctx.Done():
 			return nil
 		}
 	}

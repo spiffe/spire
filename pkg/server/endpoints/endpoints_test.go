@@ -180,7 +180,7 @@ func (s *EndpointsTestSuite) TestGRPCHookFailure() {
 func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
 	cert, pool := s.expectBundleLookup()
 
-	tlsConfig, err := s.e.getGRPCServerConfig(ctx, nil)
+	tlsConfig, err := s.e.getGRPCServerConfig(ctx)(nil)
 	require.NoError(s.T(), err)
 
 	s.Assert().Equal(tls.RequestClientCert, tlsConfig.ClientAuth)
@@ -191,7 +191,7 @@ func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
 func (s *EndpointsTestSuite) TestHTTPServerConfig() {
 	cert, _ := s.expectBundleLookup()
 
-	tlsConfig, err := s.e.getGRPCServerConfig(ctx, nil)
+	tlsConfig, err := s.e.getHTTPServerConfig(ctx)(nil)
 	require.NoError(s.T(), err)
 
 	s.Assert().Equal(cert, tlsConfig.Certificates)

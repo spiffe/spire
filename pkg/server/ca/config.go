@@ -17,7 +17,7 @@ type Config struct {
 	Log logrus.FieldLogger
 }
 
-func New(c *Config) Manager {
+func New(c *Config) *manager {
 	return &manager{
 		c:   c,
 		mtx: new(sync.RWMutex),
