@@ -85,4 +85,4 @@ run_test() {
 }
 
 run_e2e_test "conf/server/server.conf"
-run_docker_test "test/configs/postgres.conf" "-e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres"
+run_docker_test "test/configs/server/postgres.conf" "-e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres"
