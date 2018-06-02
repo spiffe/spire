@@ -58,9 +58,9 @@ var (
 			"sql": sql.New(),
 		},
 		NodeAttestorType: {
-			"aws_iid":    aws.NewIID(),
-			"join_token": jointoken.New(),
-			"gcp_iid":    gcp.NewIID(),
+			"aws_iid":                     aws.NewIID(),
+			"join_token":                  jointoken.New(),
+			"gcp_instance_identity_token": gcp.NewInstanceIdentityToken(),
 		},
 		NodeResolverType: {
 			"noop": noop.New(),

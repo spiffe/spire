@@ -1,6 +1,7 @@
 package gcp
 
 import (
+	"context"
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -24,14 +25,13 @@ import (
 )
 
 const (
-	pluginName           = "gcp_iid"
-	defaultGoogleCertURL = "https://www.googleapis.com/oauth2/v1/certs"
-
+	pluginName                        = "gcp_instance_identity_token"
+	defaultGoogleCertURL              = "https://www.googleapis.com/oauth2/v1/certs"
 	defaultMaxTokenLifetimeSecs int64 = 86400 // 1 day in seconds
 	defaultClockSkewSecs        int64 = 300   // 5 min in seconds
 )
 
-type IIDAttestorConfig struct {
+type InstanceIdentityTokenAttestorConfig struct {
 	TrustDomain          string `hcl:"trust_domain"`
 	Audience             string `hcl:"audience"`
 	GoogleCertURL        string `hcl:"google_cert_url"`
@@ -39,7 +39,7 @@ type IIDAttestorConfig struct {
 	ClockSkewSecs        int64  `hcl:"clock_skew_secs"`
 }
 
-type IIDAttestorPlugin struct {
+type InstanceIdentityTokenAttestorPlugin struct {
 	trustDomain          string
 	audience             string
 	googleCertURL        string
@@ -48,7 +48,7 @@ type IIDAttestorPlugin struct {
 	mtx                  *sync.Mutex
 }
 
-func (p *IIDAttestorPlugin) spiffeID(gcpAccountID string, gcpInstanceID string) *url.URL {
+func (p *InstanceIdentityTokenAttestorPlugin) spiffeID(gcpAccountID string, gcpInstanceID string) *url.URL {
 	spiffePath := path.Join("spire", "agent", pluginName, gcpAccountID, gcpInstanceID)
 	id := &url.URL{
 		Scheme: "spiffe",
@@ -71,7 +71,7 @@ func httpGetBytes(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (p *InstanceIdentityTokenAttestorPlugin) Attest(ctx context.Context, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 
 	var attestedData cgcp.IIDAttestedData
 	err := json.Unmarshal(req.AttestedData.Data, &attestedData)
@@ -100,8 +100,6 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 	}
 
 	playloadToSign := base64.RawURLEncoding.EncodeToString([]byte(attestedData.Header)) + "." + base64.RawURLEncoding.EncodeToString([]byte(attestedData.Token))
-	fmt.Println(playloadToSign)
-
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -152,10 +150,10 @@ func verifySignature(payload []byte, signature []byte, certs map[string]string) 
 			return err
 		}
 		err = rsa.VerifyPKCS1v15(cert.PublicKey.(*rsa.PublicKey), crypto.SHA256, hashed[:], signature)
-		if err == nil {
+		if err == nil { // successful signature validation
 			return nil
 		}
-		if err != nil && err != rsa.ErrVerification {
+		if err != nil && err != rsa.ErrVerification { // technical error while validating the signature
 			return err
 		}
 
@@ -193,10 +191,10 @@ func verifyAudience(audience string, token cgcp.IdentityToken) error {
 	return nil
 }
 
-func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *InstanceIdentityTokenAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	resp := &spi.ConfigureResponse{}
 
-	config := &IIDAttestorConfig{}
+	config := &InstanceIdentityTokenAttestorConfig{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
 		err := fmt.Errorf("Error parsing GCP IID Attestor configuration %v", err)
@@ -241,12 +239,12 @@ func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.Configure
 	return resp, nil
 }
 
-func (*IIDAttestorPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*InstanceIdentityTokenAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewIID() nodeattestor.NodeAttestor {
-	return &IIDAttestorPlugin{
+func NewInstanceIdentityToken() nodeattestor.NodeAttestor {
+	return &InstanceIdentityTokenAttestorPlugin{
 		mtx: &sync.Mutex{},
 	}
 }

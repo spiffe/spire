@@ -1,6 +1,7 @@
 package gcp
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -21,18 +22,18 @@ import (
 )
 
 const (
-	pluginName              = "gcp_iid"
+	pluginName              = "gcp_instance_identity_token"
 	defaultIdentityTokenURL = "http://metadata/computeMetadata/v1/instance/service-accounts/default/identity"
 	queryParameters         = "?audience=%v&format=full"
 )
 
-type IIDAttestorConfig struct {
+type InstanceIdentityTokenAttestorConfig struct {
 	TrustDomain      string `hcl:"trust_domain"`
 	Audience         string `hcl:"audience"`
 	IdentityTokenURL string `hcl:"identity_troken_url"`
 }
 
-type IIDAttestorPlugin struct {
+type InstanceIdentityTokenAttestorPlugin struct {
 	trustDomain      string
 	audience         string
 	identityTokenURL string
@@ -40,7 +41,7 @@ type IIDAttestorPlugin struct {
 	mtx *sync.RWMutex
 }
 
-func (p *IIDAttestorPlugin) spiffeID(gcpAccountID string, gcpInstanceID string) *url.URL {
+func (p *InstanceIdentityTokenAttestorPlugin) spiffeID(gcpAccountID string, gcpInstanceID string) *url.URL {
 	spiffePath := path.Join("spire", "agent", pluginName, gcpAccountID, gcpInstanceID)
 	id := &url.URL{
 		Scheme: "spiffe",
@@ -70,7 +71,7 @@ func httpGetBytes(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func (p *IIDAttestorPlugin) FetchAttestationData(req *nodeattestor.FetchAttestationDataRequest) (*nodeattestor.FetchAttestationDataResponse, error) {
+func (p *InstanceIdentityTokenAttestorPlugin) FetchAttestationData(ctx context.Context, req *nodeattestor.FetchAttestationDataRequest) (*nodeattestor.FetchAttestationDataResponse, error) {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
@@ -79,7 +80,6 @@ func (p *IIDAttestorPlugin) FetchAttestationData(req *nodeattestor.FetchAttestat
 		err = gcp.AttestationStepError("retrieving the Token from GCP", err)
 		return &nodeattestor.FetchAttestationDataResponse{}, err
 	}
-	fmt.Println(string(docBytes))
 
 	parts := strings.Split(string(docBytes), ".")
 	iidAttestData := &cgcp.IIDAttestedData{}
@@ -128,13 +128,13 @@ func (p *IIDAttestorPlugin) FetchAttestationData(req *nodeattestor.FetchAttestat
 	return resp, nil
 }
 
-func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *InstanceIdentityTokenAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
 	resp := &spi.ConfigureResponse{}
 
-	config := &IIDAttestorConfig{}
+	config := &InstanceIdentityTokenAttestorConfig{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
 		resp.ErrorList = []string{err.Error()}
@@ -167,12 +167,12 @@ func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.Configure
 	return resp, nil
 }
 
-func (*IIDAttestorPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*InstanceIdentityTokenAttestorPlugin) GetPluginInfo(ctx context.Context,req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewIID() nodeattestor.NodeAttestor {
-	return &IIDAttestorPlugin{
+func NewInstanceIdentityToken() nodeattestor.NodeAttestor {
+	return &InstanceIdentityTokenAttestorPlugin{
 		mtx: &sync.RWMutex{},
 	}
 }
