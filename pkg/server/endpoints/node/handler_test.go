@@ -190,11 +190,6 @@ func TestFetchRegistrationEntries(t *testing.T) {
 				Type:  "a",
 				Value: "1",
 			},
-		}},
-	).Return(&datastore.ListSelectorEntriesResponse{}, nil)
-
-	suite.mockDataStore.EXPECT().ListMatchingEntries(gomock.Any(),
-		&datastore.ListSelectorEntriesRequest{Selectors: []*common.Selector{
 			{
 				Type:  "b",
 				Value: "2",
@@ -203,9 +198,6 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	).Return(&datastore.ListSelectorEntriesResponse{
 		RegisteredEntryList: regEntries,
 	}, nil)
-
-	suite.mockDataStore.EXPECT().ListMatchingEntries(gomock.Any(),
-		gomock.Any()).Return(&datastore.ListSelectorEntriesResponse{}, nil)
 
 	suite.mockDataStore.EXPECT().ListParentIDEntries(gomock.Any(),
 		&datastore.ListParentIDEntriesRequest{ParentId: spiffeID},
