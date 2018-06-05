@@ -938,7 +938,7 @@ func (sqlPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi
 	return &pluginInfo, nil
 }
 
-// listMatchingEntries finds registered entries containing all specified selectors.
+// listMatchingEntries finds registered entries containing exactly the specified selectors.
 func (ds *sqlPlugin) listMatchingEntries(selectors []*common.Selector) ([]*common.RegistrationEntry, error) {
 	if len(selectors) < 1 {
 		return nil, nil
