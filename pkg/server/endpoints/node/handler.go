@@ -14,7 +14,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/uri"
-	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/node"
@@ -192,31 +191,32 @@ func (h *Handler) fetchRegistrationEntries(ctx context.Context, selectors []*com
 	[]*common.RegistrationEntry, error) {
 
 	dataStore := h.Catalog.DataStores()[0]
-	var entries []*common.RegistrationEntry
 
 	///lookup Registration Entries for resolved selectors
-	for combination := range selector.NewSetFromRaw(selectors).Power() {
-		req := &datastore.ListSelectorEntriesRequest{Selectors: combination.Raw()}
-		listSelectorResponse, err := dataStore.ListMatchingEntries(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-
-		entries = append(entries, listSelectorResponse.RegisteredEntryList...)
+	listSelectorResponse, err := dataStore.ListMatchingEntries(ctx,
+		&datastore.ListSelectorEntriesRequest{Selectors: selectors})
+	if err != nil {
+		return nil, err
 	}
-	selectorsEntries := append([]*common.RegistrationEntry(nil), entries...)
+
+	// sort the entries for deduplication comparison below
+	for _, entry := range listSelectorResponse.RegisteredEntryList {
+		sort.Slice(entry.Selectors, util.SelectorsSortFunction(entry.Selectors))
+	}
+	selectorsEntries := listSelectorResponse.RegisteredEntryList
 
 	///lookup Registration Entries where spiffeID is the parent ID
 	listResponse, err := dataStore.ListParentIDEntries(ctx, &datastore.ListParentIDEntriesRequest{ParentId: spiffeID})
 	if err != nil {
 		return nil, err
 	}
+
 	///append parentEntries
+	entries := selectorsEntries
 	for _, entry := range listResponse.RegisteredEntryList {
 		exists := false
 		sort.Slice(entry.Selectors, util.SelectorsSortFunction(entry.Selectors))
 		for _, oldEntry := range selectorsEntries {
-			sort.Slice(oldEntry.Selectors, util.SelectorsSortFunction(oldEntry.Selectors))
 			if reflect.DeepEqual(entry, oldEntry) {
 				exists = true
 			}
