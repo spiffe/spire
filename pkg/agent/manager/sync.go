@@ -24,6 +24,8 @@ func (m *manager) synchronize() (err error) {
 		return err
 	}
 
+	m.clearStaleCacheEntries(regEntries)
+
 	err = m.checkExpiredCacheEntries(cEntryRequests)
 	if err != nil {
 		return err
@@ -103,6 +105,14 @@ func (m *manager) updateEntriesSVIDs(entryRequestsMap map[string]*entryRequest, 
 		}
 	}
 	return nil
+}
+
+func (m *manager) clearStaleCacheEntries(regEntries map[string]*proto.RegistrationEntry) {
+	for _, entry := range m.cache.Entries() {
+		if _, ok := regEntries[entry.RegistrationEntry.EntryId]; !ok {
+			m.cache.DeleteEntry(entry.RegistrationEntry)
+		}
+	}
 }
 
 func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
