@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +14,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -794,7 +793,7 @@ func (ds *sqlPlugin) ListSelectorEntries(ctx context.Context,
 		return &datastore.ListSelectorEntriesResponse{}, err
 	}
 
-	sortRegistrationEntries(entries)
+	util.SortRegistrationEntries(entries)
 	return &datastore.ListSelectorEntriesResponse{RegisteredEntryList: entries}, nil
 }
 
@@ -813,7 +812,7 @@ func (ds *sqlPlugin) ListMatchingEntries(ctx context.Context,
 		resp.RegisteredEntryList = append(resp.RegisteredEntryList, entries...)
 	}
 
-	sortRegistrationEntries(resp.RegisteredEntryList)
+	util.SortRegistrationEntries(resp.RegisteredEntryList)
 	return resp, nil
 }
 
@@ -1094,7 +1093,7 @@ func (ds *sqlPlugin) convertEntries(fetchedRegisteredEntries []RegisteredEntry) 
 	if err != nil {
 		return nil, err
 	}
-	sortRegistrationEntries(entries)
+	util.SortRegistrationEntries(entries)
 	return entries, nil
 }
 
@@ -1120,77 +1119,6 @@ func (ds *sqlPlugin) convertEntriesNoSort(fetchedRegisteredEntries []RegisteredE
 		})
 	}
 	return responseEntries, nil
-}
-
-func sortRegistrationEntries(entries []*common.RegistrationEntry) {
-	// first, sort the selectors for each entry, since the registration
-	// entry comparison relies on them being sorted
-	for _, entry := range entries {
-		sortSelectors(entry.Selectors)
-	}
-
-	// second, sort the registration entries
-	sort.Slice(entries, func(i, j int) bool {
-		return compareRegistrationEntries(entries[i], entries[j]) < 0
-	})
-}
-
-func sortSelectors(selectors []*common.Selector) {
-	sort.Slice(selectors, func(i, j int) bool {
-		return compareSelector(selectors[i], selectors[j]) < 0
-	})
-}
-
-func compareRegistrationEntries(a, b *common.RegistrationEntry) int {
-	c := strings.Compare(a.SpiffeId, b.SpiffeId)
-	if c != 0 {
-		return c
-	}
-
-	c = strings.Compare(a.ParentId, b.ParentId)
-	if c != 0 {
-		return c
-	}
-
-	switch {
-	case a.Ttl < b.Ttl:
-		return -1
-	case a.Ttl > b.Ttl:
-		return 1
-	}
-
-	switch {
-	case len(a.Selectors) < len(b.Selectors):
-		return -1
-	case len(a.Selectors) > len(b.Selectors):
-		return 1
-	}
-
-	return compareSelectors(a.Selectors, b.Selectors)
-}
-
-func compareSelectors(a, b []*common.Selector) int {
-	switch {
-	case len(a) < len(b):
-		return -1
-	case len(a) > len(b):
-		return 1
-	}
-	for i := range a {
-		c := compareSelector(a[i], b[i])
-		if c != 0 {
-			return c
-		}
-	}
-	return 0
-}
-
-func compareSelector(a, b *common.Selector) int {
-	c := strings.Compare(a.Type, b.Type)
-	if c != 0 {
-		return c
-	}
-	return strings.Compare(a.Value, b.Value)
 }
 
 // restart will close and re-open the gorm database.
