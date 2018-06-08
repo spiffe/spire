@@ -35,7 +35,8 @@ func (a *Agent) Run(ctx context.Context) error {
 	defer cancel()
 
 	if a.c.ProfilingEnabled {
-		defer a.setupProfiling(ctx)()
+		stopProfiling := a.setupProfiling(ctx)
+		defer stopProfiling()
 	}
 
 	tel := telemetry.NewSink(&telemetry.SinkConfig{

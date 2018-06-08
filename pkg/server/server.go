@@ -83,7 +83,8 @@ func (s *Server) Run(ctx context.Context) error {
 
 func (s *Server) run(ctx context.Context) (err error) {
 	if s.config.ProfilingEnabled {
-		defer s.setupProfiling(ctx)()
+		stopProfiling := s.setupProfiling(ctx)
+		defer stopProfiling()
 	}
 
 	cat := s.newCatalog()

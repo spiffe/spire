@@ -11,15 +11,14 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strconv"
-	"syscall"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 const (
@@ -100,7 +99,7 @@ func (*RunCLI) Run(args []string) int {
 	agt := agent.New(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	signalListener(ctx, cancel)
+	util.SignalListener(ctx, cancel)
 
 	err = agt.Run(ctx)
 	if err != nil {
@@ -345,18 +344,4 @@ func stringDefault(option string, defaultValue string) string {
 	}
 
 	return option
-}
-
-func signalListener(ctx context.Context, cancel func()) {
-	go func() {
-		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-signalCh:
-			cancel()
-		}
-	}()
 }
