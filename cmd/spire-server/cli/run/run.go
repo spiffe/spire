@@ -9,14 +9,13 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strconv"
-	"syscall"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
 )
 
@@ -98,7 +97,7 @@ func (*RunCLI) Run(args []string) int {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	signalListener(ctx, cancel)
+	util.SignalListener(ctx, cancel)
 
 	err = s.Run(ctx)
 	if err != nil {
@@ -280,19 +279,4 @@ func newDefaultConfig() *server.Config {
 		BindHTTPAddress: serverHTTPAddress,
 		Umask:           defaultUmask,
 	}
-}
-
-func signalListener(ctx context.Context, cancel func()) {
-	go func() {
-		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-signalCh:
-			cancel()
-		}
-	}()
-	return
 }
