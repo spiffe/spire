@@ -24,6 +24,10 @@ functional/tools/stresstest/stresstest
 functional/tools/tokengenerator/tokengenerator
 functional/tools/workload/workload
 
+proto/test/dummy/dummyplugin/dummyplugin
+
+tools/protoc-gen-spireplugin/protoc-gen-spireplugin
+
 # Editor specific configuration
 .idea
 .vscode

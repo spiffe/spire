@@ -113,6 +113,8 @@ build_protobuf() {
 	local _n _d _dir _prefix="$1"
 	eval $(build_env)
 
+	go install github.com/spiffe/spire/tools/protoc-gen-spireplugin
+
 	for _n in ${PROTO_FILES}; do
 		_dir="$(dirname ${_n})"
 		if [[ -n ${_prefix} ]]; then
@@ -124,6 +126,7 @@ build_protobuf() {
 		_log_info "creating \"${_n%.proto}.pb.go\""
 		protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
 			--proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+			--spireplugin_out=${_d} \
 			--go_out=plugins=grpc:${_d} ${_n}
 		_log_info "creating \"${_d}/README_pb.md\""
 		protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
