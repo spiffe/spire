@@ -1,12 +1,12 @@
-hash: 594c42315502da06ee1b4c9ea42fb85a7915cae238dbb86c146c8eca5053802a
-updated: 2018-05-19T09:35:01.423141+02:00
+hash: 35f27a42ef95c2096d1e978ff87429ab29a41fb0e5d4fd4f8ef3a89c2964ee5d
+updated: 2018-06-09T11:32:20.976069+02:00
 imports:
 - name: github.com/armon/go-metrics
   version: 783273d703149aaeb9897cf58613d5af48861c25
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/aws/aws-sdk-go
-  version: 5f796043d63bfddca929cfbcffce01e5a894aad5
+  version: c9af76f2478f81c6566d0f7f4d522254ec7c0b52
   subpackages:
   - aws
   - aws/awserr
@@ -18,6 +18,7 @@ imports:
   - aws/credentials/ec2rolecreds
   - aws/credentials/endpointcreds
   - aws/credentials/stscreds
+  - aws/csm
   - aws/defaults
   - aws/ec2metadata
   - aws/endpoints
@@ -37,6 +38,8 @@ imports:
   - service/sts
 - name: github.com/bgentry/speakeasy
   version: 4aabc24848ce5fd31929f7d1e4ea74d3709c14cd
+- name: github.com/dgrijalva/jwt-go
+  version: 01aeca54ebda6e0fbfafd0a524d234159c05ec20
 - name: github.com/go-ini/ini
   version: 32e4be5f41bb918afb6e37c07426e2ddbcb6647e
 - name: github.com/go-ole/go-ole
@@ -187,7 +190,7 @@ imports:
   - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 41344da2231b913fa3d983840a57a6b1b7b631a1
+  version: 7a6a684ca69eb4cae85ad0a484f2e531598c047b
   subpackages:
   - balancer
   - balancer/base

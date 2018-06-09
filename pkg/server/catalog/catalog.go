@@ -60,7 +60,7 @@ var (
 		NodeAttestorType: {
 			"aws_iid":                     aws.NewIID(),
 			"join_token":                  jointoken.New(),
-			"gcp_instance_identity_token": gcp.NewInstanceIdentityToken(),
+			"gcp_iit": gcp.NewInstanceIdentityToken(),
 		},
 		NodeResolverType: {
 			"noop": noop.New(),

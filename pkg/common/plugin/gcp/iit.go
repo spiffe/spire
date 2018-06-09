@@ -2,19 +2,13 @@ package gcp
 
 import (
 	"fmt"
+
+	jwt "github.com/dgrijalva/jwt-go"
 )
 
-type Header struct {
-	Algorithm string `json:"alg"`
-	KeyID     string `json:"kid"`
-}
-
 type IdentityToken struct {
-	Issuer          string `json:"iss"`
-	IssuedAt        int64  `json:"iat"`
-	ExpiresAt       int64  `json:"exp"`
-	Audience        string `json:"aud"`
-	Subject         string `json:"sub"`
+	jwt.StandardClaims
+
 	AuthorizedParty string `json:"azp"`
 	Google          Google `json:"google"`
 }
@@ -30,12 +24,6 @@ type ComputeEngine struct {
 	InstanceID                string `json:"instance_id"`
 	InstanceName              string `json:"instance_name"`
 	InstanceCreationTimestamp int64  `json:"instance_creation_timestamp"`
-}
-
-type IIDAttestedData struct {
-	Header    string `json:"header"`
-	Token     string `json:"payload"`
-	Signature []byte `json:"signature"`
 }
 
 func AttestationStepError(step string, cause error) error {

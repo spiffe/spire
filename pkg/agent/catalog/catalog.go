@@ -48,9 +48,9 @@ var (
 			"memory": memory.New(),
 		},
 		NodeAttestorType: {
-			"aws_iid":                     aws.NewIID(),
-			"join_token":                  jointoken.New(),
-			"gcp_instance_identity_token": gcp.NewInstanceIdentityToken(),
+			"aws_iid":    aws.NewIID(),
+			"join_token": jointoken.New(),
+			"gcp_iit":    gcp.NewIITPlugin(),
 		},
 		WorkloadAttestorType: {
 			"k8s":  k8s.New(),
