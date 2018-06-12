@@ -1,12 +1,12 @@
 hash: 594c42315502da06ee1b4c9ea42fb85a7915cae238dbb86c146c8eca5053802a
-updated: 2018-05-19T09:35:01.423141+02:00
+updated: 2018-06-11T21:19:28.389117323-03:00
 imports:
 - name: github.com/armon/go-metrics
   version: 783273d703149aaeb9897cf58613d5af48861c25
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/aws/aws-sdk-go
-  version: 5f796043d63bfddca929cfbcffce01e5a894aad5
+  version: d2d4fca90395039f60821c231da759cab8f318c7
   subpackages:
   - aws
   - aws/awserr
@@ -18,6 +18,7 @@ imports:
   - aws/credentials/ec2rolecreds
   - aws/credentials/endpointcreds
   - aws/credentials/stscreds
+  - aws/csm
   - aws/defaults
   - aws/ec2metadata
   - aws/endpoints
@@ -43,6 +44,8 @@ imports:
   version: a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506
   subpackages:
   - oleutil
+- name: github.com/go-sql-driver/mysql
+  version: d743639f9cefbadabe171d5fe22c9008b06dd2f5
 - name: github.com/golang/mock
   version: 87106cff4623c0d8f41c0fef931007bc18b61f78
   subpackages:
@@ -99,6 +102,7 @@ imports:
 - name: github.com/jinzhu/gorm
   version: 5174cc5c242a728b435ea2be8a2f7f998e15429b
   subpackages:
+  - dialects/mysql
   - dialects/postgres
   - dialects/sqlite
 - name: github.com/jinzhu/inflection
@@ -181,13 +185,17 @@ imports:
   - transform
   - unicode/bidi
   - unicode/norm
+- name: google.golang.org/appengine
+  version: b1f26356af11148e710935ed1ac8a7f5702c7612
+  subpackages:
+  - cloudsql
 - name: google.golang.org/genproto
   version: a8101f21cf983e773d0c1133ebc5424792003214
   subpackages:
   - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 41344da2231b913fa3d983840a57a6b1b7b631a1
+  version: 7a6a684ca69eb4cae85ad0a484f2e531598c047b
   subpackages:
   - balancer
   - balancer/base
