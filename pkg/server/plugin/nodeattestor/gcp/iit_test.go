@@ -146,3 +146,17 @@ func TestSuccesfullyProcessAttestationRequest(t *testing.T) {
 	require.NotNil(t, res)
 	require.True(t, res.Valid)
 }
+
+func TestErrorOnInvalidAlgorithm(t *testing.T) {
+	token := buildToken()
+	tokenString, _ := token.SignedString([]byte("secret"))
+	data := &common.AttestedData{
+		Type: pluginName,
+		Data: []byte(tokenString),
+	}
+	p := buildIITPlugin()
+	p.tokenKeyRetriever = &googlePublicKeyRetriever{}
+	_, err := p.Attest(context.Background(), &nodeattestor.AttestRequest{AttestedData: data})
+	require.Error(t, err)
+
+}

@@ -15,7 +15,7 @@ func TestSuccesfullyRetrieveGooglePublicKeys(t *testing.T) {
 		mtx:          &sync.Mutex{},
 	}
 
-	token := jwt.New(jwt.SigningMethodHS256)
+	token := jwt.New(jwt.SigningMethodRS256)
 	token.Header["kid"] = "1923397381d9574bb873202a90c32b7ceeaed027"
 
 	key, err := retriever.retrieveKey(token)
