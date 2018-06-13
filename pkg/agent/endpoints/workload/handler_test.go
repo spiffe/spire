@@ -68,7 +68,7 @@ func TestWorkloadServer(t *testing.T) {
 	suite.Run(t, new(HandlerTestSuite))
 }
 
-func (s *HandlerTestSuite) TeardownTest() {
+func (s *HandlerTestSuite) TearDownTest() {
 	s.ctrl.Finish()
 }
 

@@ -49,7 +49,7 @@ func (s *WorkloadAttestorTestSuite) SetupTest() {
 	}
 }
 
-func (s *WorkloadAttestorTestSuite) TeardownTest() {
+func (s *WorkloadAttestorTestSuite) TearDownTest() {
 	s.ctrl.Finish()
 }
 

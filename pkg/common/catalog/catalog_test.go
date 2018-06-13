@@ -60,7 +60,7 @@ func (c *CatalogTestSuite) SetupTest() {
 	c.logHook = logHook
 }
 
-func (c *CatalogTestSuite) TeardownTest() {
+func (c *CatalogTestSuite) TearDownTest() {
 	c.ctrl.Finish()
 }
 

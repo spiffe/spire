@@ -56,7 +56,7 @@ func (s *AgentTestSuite) SetupTest() {
 	s.agent = New(config)
 }
 
-func (s *AgentTestSuite) TeardownTest() {
+func (s *AgentTestSuite) TearDownTest() {
 	os.RemoveAll(s.agent.c.DataDir)
 	s.ctrl.Finish()
 }
