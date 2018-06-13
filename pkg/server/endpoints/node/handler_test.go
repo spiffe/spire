@@ -36,6 +36,13 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
+var (
+	testTrustDomain = url.URL{
+		Scheme: "spiffe",
+		Host:   "example.org",
+	}
+)
+
 type HandlerTestSuite struct {
 	suite.Suite
 	t                *testing.T
@@ -48,6 +55,7 @@ type HandlerTestSuite struct {
 	mockNodeResolver *mock_noderesolver.MockNodeResolver
 	mockContext      *mock_context.MockContext
 	server           *mock_node.MockNode_FetchX509SVIDServer
+	now              time.Time
 }
 
 func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
@@ -63,16 +71,15 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	suite.mockNodeResolver = mock_noderesolver.NewMockNodeResolver(mockCtrl)
 	suite.mockContext = mock_context.NewMockContext(mockCtrl)
 	suite.server = mock_node.NewMockNode_FetchX509SVIDServer(suite.ctrl)
+	suite.now = time.Now()
 
-	trustDomain := url.URL{
-		Scheme: "spiffe",
-		Host:   "example.org",
-	}
-
-	suite.handler = &Handler{
+	suite.handler = NewHandler(HandlerConfig{
 		Log:         log,
 		Catalog:     suite.mockCatalog,
-		TrustDomain: trustDomain,
+		TrustDomain: testTrustDomain,
+	})
+	suite.handler.hooks.now = func() time.Time {
+		return suite.now
 	}
 	return suite
 }
@@ -84,7 +91,7 @@ func TestAttest(t *testing.T) {
 	data := getAttestTestData()
 	setAttestExpectations(suite, data)
 
-	expected := getExpectedAttest(data.baseSpiffeID, data.generatedCert)
+	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
 
 	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
 	stream.EXPECT().Context().Return(context.Background())
@@ -107,7 +114,7 @@ func TestAttestChallengeResponse(t *testing.T) {
 	}
 	setAttestExpectations(suite, data)
 
-	expected := getExpectedAttest(data.baseSpiffeID, data.generatedCert)
+	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
 
 	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
 	stream.EXPECT().Context().Return(context.Background())
@@ -158,7 +165,7 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 	// Calculate expected TTL
 	cert, err := x509.ParseCertificate(data.generatedCerts[3])
 	require.NoError(t, err)
-	ttl := int32(time.Until(cert.NotAfter).Seconds())
+	ttl := int32(cert.NotAfter.Sub(suite.now).Seconds())
 
 	data.expectation = getExpectedFetchX509SVID(data)
 	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: data.generatedCerts[3], Ttl: ttl}
@@ -408,13 +415,13 @@ func setAttestExpectations(
 
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.Bundle{
-			TrustDomain: suite.handler.TrustDomain.String()}).
+			TrustDomain: testTrustDomain.String()}).
 		Return(&datastore.Bundle{
-			TrustDomain: suite.handler.TrustDomain.String(),
+			TrustDomain: testTrustDomain.String(),
 			CaCerts:     caCert.Raw}, nil)
 }
 
-func getExpectedAttest(baseSpiffeID string, cert []byte) *node.SvidUpdate {
+func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert []byte) *node.SvidUpdate {
 	expectedRegEntries := []*common.RegistrationEntry{
 		{
 			Selectors: []*common.Selector{
@@ -441,7 +448,7 @@ func getExpectedAttest(baseSpiffeID string, cert []byte) *node.SvidUpdate {
 
 	// Calculate expected TTL
 	c, _ := x509.ParseCertificate(cert)
-	ttl := int32(time.Until(c.NotAfter).Seconds())
+	ttl := int32(c.NotAfter.Sub(suite.now).Seconds())
 
 	svids := make(map[string]*node.Svid)
 	svids[baseSpiffeID] = &node.Svid{SvidCert: cert, Ttl: ttl}
@@ -574,9 +581,9 @@ func setFetchX509SVIDExpectations(
 
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.Bundle{
-			TrustDomain: suite.handler.TrustDomain.String()}).
+			TrustDomain: testTrustDomain.String()}).
 		Return(&datastore.Bundle{
-			TrustDomain: suite.handler.TrustDomain.String(),
+			TrustDomain: testTrustDomain.String(),
 			CaCerts:     caCert.Raw}, nil)
 
 	suite.mockServerCA.EXPECT().
