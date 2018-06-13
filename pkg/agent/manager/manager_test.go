@@ -595,14 +595,14 @@ func TestSurvivesCARotation(t *testing.T) {
 	}
 }
 
-func fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	switch h.reqCount {
 	case 1:
 		if len(req.Csrs) != 0 {
 			return fmt.Errorf("server expected 0 CRS, got: %d. reqCount: %d", len(req.Csrs), h.reqCount)
 		}
 
-		return stream.Send(newFetchSVIDResponse([]string{"resp1", "resp2"}, nil, h.bundle))
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp1", "resp2"}, nil, h.bundle))
 	case 2:
 		if len(req.Csrs) != 3 {
 			return fmt.Errorf("server expected 3 CRS, got: %d. reqCount: %d", len(req.Csrs), h.reqCount)
@@ -613,7 +613,7 @@ func fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandl
 			return err
 		}
 
-		return stream.Send(newFetchSVIDResponse(
+		return stream.Send(newFetchX509SVIDResponse(
 			[]string{"resp1", "resp2"},
 			svids,
 			h.bundle))
@@ -622,7 +622,7 @@ func fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandl
 	}
 }
 
-func fetchSVIDResponse(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func fetchSVIDResponse(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	svid, err := h.getCertFromCtx(stream.Context())
 	if err != nil {
 		return fmt.Errorf("cannot get SVID from stream context: %v. reqCount: %d", err, h.reqCount)
@@ -648,10 +648,10 @@ func fetchSVIDResponse(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream
 		return err
 	}
 
-	return stream.Send(newFetchSVIDResponse(resps, svids, h.bundle))
+	return stream.Send(newFetchX509SVIDResponse(resps, svids, h.bundle))
 }
 
-func fetchSVIDResponseForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func fetchSVIDResponseForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	svids, err := h.makeSvids(req.Csrs)
 	if err != nil {
 		return err
@@ -659,18 +659,18 @@ func fetchSVIDResponseForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchSV
 
 	switch h.reqCount {
 	case 1:
-		return stream.Send(newFetchSVIDResponse([]string{"resp1", "resp2"}, nil, h.bundle))
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp1", "resp2"}, nil, h.bundle))
 	case 2:
-		return stream.Send(newFetchSVIDResponse([]string{"resp1", "resp2"}, svids, h.bundle))
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp1", "resp2"}, svids, h.bundle))
 	case 3:
-		return stream.Send(newFetchSVIDResponse([]string{"resp1"}, nil, h.bundle))
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp1"}, nil, h.bundle))
 	case 4:
-		return stream.Send(newFetchSVIDResponse([]string{"resp1"}, svids, h.bundle))
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp1"}, svids, h.bundle))
 	}
-	return stream.Send(newFetchSVIDResponse(nil, nil, h.bundle))
+	return stream.Send(newFetchX509SVIDResponse(nil, nil, h.bundle))
 }
 
-func fetchSVIDResponseForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func fetchSVIDResponseForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	switch h.reqCount {
 	case 2:
 		ca, _ := createCA(h.c.t, h.c.trustDomain)
@@ -680,7 +680,7 @@ func fetchSVIDResponseForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler,
 	return fetchSVIDResponse(h, req, stream)
 }
 
-func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	switch h.reqCount {
 	case 2:
 		ca, key := createCA(h.c.t, h.c.trustDomain)
@@ -696,7 +696,7 @@ func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node
 	return fetchSVIDResponse(h, req, stream)
 }
 
-func newFetchSVIDResponse(regEntriesKeys []string, svids svidMap, bundle []*x509.Certificate) *node.FetchSVIDResponse {
+func newFetchX509SVIDResponse(regEntriesKeys []string, svids svidMap, bundle []*x509.Certificate) *node.FetchX509SVIDResponse {
 	bundleBytes := &bytes.Buffer{}
 	for _, c := range bundle {
 		bundleBytes.Write(c.Raw)
@@ -709,7 +709,7 @@ func newFetchSVIDResponse(regEntriesKeys []string, svids svidMap, bundle []*x509
 		}
 	}
 
-	return &node.FetchSVIDResponse{
+	return &node.FetchX509SVIDResponse{
 		SvidUpdate: &node.SvidUpdate{
 			RegistrationEntries: regEntries,
 			Svids:               svids,
@@ -769,7 +769,7 @@ type mockNodeAPIHandlerConfig struct {
 	// Directory used to save server related files, like unix sockets files.
 	dir string
 	// Callback used to build the response according to the request and state of mockNodeAPIHandler.
-	fetchSVIDResponse func(*mockNodeAPIHandler, *node.FetchSVIDRequest, node.Node_FetchSVIDServer) error
+	fetchSVIDResponse func(*mockNodeAPIHandler, *node.FetchX509SVIDRequest, node.Node_FetchX509SVIDServer) error
 
 	svidTTL int
 }
@@ -833,12 +833,12 @@ func (h *mockNodeAPIHandler) countRequest() {
 	h.reqCount++
 }
 
-func (h *mockNodeAPIHandler) FetchBaseSVID(context.Context, *node.FetchBaseSVIDRequest) (*node.FetchBaseSVIDResponse, error) {
-	h.c.t.Fatalf("unexpected call to FetchBaseSVID")
-	return nil, nil
+func (h *mockNodeAPIHandler) Attest(stream node.Node_AttestServer) error {
+	h.c.t.Fatalf("unexpected call to Attest")
+	return nil
 }
 
-func (h *mockNodeAPIHandler) FetchSVID(stream node.Node_FetchSVIDServer) error {
+func (h *mockNodeAPIHandler) FetchX509SVID(stream node.Node_FetchX509SVIDServer) error {
 	h.countRequest()
 
 	req, err := stream.Recv()

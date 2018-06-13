@@ -33,8 +33,9 @@ type Catalog interface {
 	// the generic Plugin type
 	Plugins() []*ManagedPlugin
 
-	// Finds plugin metadata
-	Find(Plugin) *ManagedPlugin
+	// ConfigFor finds the plugin configuration for the supplied plugin. nil
+	// is returned if the plugin is not managed by the catalog.
+	ConfigFor(interface{}) *PluginConfig
 }
 
 type Config struct {
@@ -144,10 +145,14 @@ func (c *catalog) Plugins() []*ManagedPlugin {
 	return newSlice
 }
 
-func (c *catalog) Find(plugin Plugin) *ManagedPlugin {
+func (c *catalog) ConfigFor(plugin interface{}) *PluginConfig {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
 	for _, p := range c.plugins {
 		if p.Plugin == plugin {
-			return p
+			config := p.Config
+			return &config
 		}
 	}
 	return nil

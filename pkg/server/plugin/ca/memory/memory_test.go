@@ -347,7 +347,7 @@ func createWorkloadCSR(t *testing.T, spiffeID string) []byte {
 	return csr
 }
 
-func populateCert(t *testing.T) (m ca.ServerCa) {
+func populateCert(t *testing.T) (m ca.ServerCA) {
 	m = NewWithDefault()
 
 	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
@@ -365,7 +365,7 @@ func populateCert(t *testing.T) (m ca.ServerCa) {
 	return m
 }
 
-func getRoots(t *testing.T, m ca.ServerCa) (roots *x509.CertPool) {
+func getRoots(t *testing.T, m ca.ServerCA) (roots *x509.CertPool) {
 	fetchResp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
 	require.NoError(t, err)
 	rootCert, err := x509.ParseCertificate(fetchResp.StoredIntermediateCert)
@@ -376,7 +376,7 @@ func getRoots(t *testing.T, m ca.ServerCa) (roots *x509.CertPool) {
 	return roots
 }
 
-func newUpCA(keyFilePath string, certFilePath string) (upstreamca.UpstreamCa, error) {
+func newUpCA(keyFilePath string, certFilePath string) (upstreamca.UpstreamCA, error) {
 	config := upca.Configuration{
 		TrustDomain:  "localhost",
 		KeyFilePath:  keyFilePath,

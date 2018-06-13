@@ -8,18 +8,13 @@
     - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
     - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
     - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
-    - [PluginInfoReply](#spire.common.plugin.PluginInfoReply)
-    - [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest)
-    - [StopReply](#spire.common.plugin.StopReply)
-    - [StopRequest](#spire.common.plugin.StopRequest)
   
   
   
-    - [Server](#spire.common.plugin.Server)
   
 
 - [common.proto](#common.proto)
-    - [AttestedData](#spire.common.AttestedData)
+    - [AttestationData](#spire.common.AttestationData)
     - [Empty](#spire.common.Empty)
     - [RegistrationEntries](#spire.common.RegistrationEntries)
     - [RegistrationEntry](#spire.common.RegistrationEntry)
@@ -149,67 +144,11 @@ Represents the plugin metadata.
 
 
 
-
-<a name="spire.common.plugin.PluginInfoReply"/>
-
-### PluginInfoReply
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| pluginInfo | [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse) | repeated |  |
-
-
-
-
-
-
-<a name="spire.common.plugin.PluginInfoRequest"/>
-
-### PluginInfoRequest
-
-
-
-
-
-
-
-<a name="spire.common.plugin.StopReply"/>
-
-### StopReply
-
-
-
-
-
-
-
-<a name="spire.common.plugin.StopRequest"/>
-
-### StopRequest
-
-
-
-
-
-
  
 
  
 
  
-
-
-<a name="spire.common.plugin.Server"/>
-
-### Server
-
-
-| Method Name | Request Type | Response Type | Description |
-| ----------- | ------------ | ------------- | ------------|
-| Stop | [StopRequest](#spire.common.plugin.StopRequest) | [StopReply](#spire.common.plugin.StopRequest) |  |
-| PluginInfo | [PluginInfoRequest](#spire.common.plugin.PluginInfoRequest) | [PluginInfoReply](#spire.common.plugin.PluginInfoRequest) |  |
 
  
 
@@ -222,16 +161,16 @@ Represents the plugin metadata.
 
 
 
-<a name="spire.common.AttestedData"/>
+<a name="spire.common.AttestationData"/>
 
-### AttestedData
+### AttestationData
 A type which contains attestation data for specific platform.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | type | [string](#string) |  | Type of attestation to perform. |
-| data | [bytes](#bytes) |  | The attestetion data. |
+| data | [bytes](#bytes) |  | The attestation data. |
 
 
 
@@ -343,7 +282,7 @@ number and expiration date of its node SVID.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | baseSpiffeId | [string](#string) |  | Spiffe ID |
-| attestedDataType | [string](#string) |  | Attestation type |
+| attestationDataType | [string](#string) |  | Attestation type |
 | certSerialNumber | [string](#string) |  | Serial number |
 | certExpirationDate | [string](#string) |  | Expiration date |
 

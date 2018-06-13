@@ -97,7 +97,7 @@ func (r *rotator) rotateSVID() error {
 		return err
 	}
 
-	update, err := r.client.FetchUpdates(&node.FetchSVIDRequest{Csrs: [][]byte{csr}})
+	update, err := r.client.FetchUpdates(&node.FetchX509SVIDRequest{Csrs: [][]byte{csr}})
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (r *rotator) rotateSVID() error {
 
 	svid, ok := update.SVIDs[r.c.SpiffeID]
 	if !ok {
-		return errors.New("it was not possible to get agent SVID from FetchSVID response")
+		return errors.New("it was not possible to get agent SVID from FetchX509SVID response")
 	}
 	cert, err := x509.ParseCertificate(svid.SvidCert)
 	if err != nil {

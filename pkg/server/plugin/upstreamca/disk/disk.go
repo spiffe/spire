@@ -237,7 +237,7 @@ func ParseSpiffeCsr(csrDER []byte, trustDomain string) (csr *x509.CertificateReq
 	return csr, nil
 }
 
-func New() (m upstreamca.UpstreamCa) {
+func New() (m upstreamca.UpstreamCAPlugin) {
 	return &diskPlugin{
 		mtx: &sync.RWMutex{},
 	}

@@ -57,7 +57,7 @@
   
 
 - [common.proto](#common.proto)
-    - [AttestedData](#spire.common.AttestedData)
+    - [AttestationData](#spire.common.AttestationData)
     - [Empty](#spire.common.Empty)
     - [RegistrationEntries](#spire.common.RegistrationEntries)
     - [RegistrationEntry](#spire.common.RegistrationEntry)
@@ -987,16 +987,16 @@ methods, and PUT verb for idempotent methods instead of the default POST.
 
 
 
-<a name="spire.common.AttestedData"/>
+<a name="spire.common.AttestationData"/>
 
-### AttestedData
+### AttestationData
 A type which contains attestation data for specific platform.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | type | [string](#string) |  | Type of attestation to perform. |
-| data | [bytes](#bytes) |  | The attestetion data. |
+| data | [bytes](#bytes) |  | The attestation data. |
 
 
 

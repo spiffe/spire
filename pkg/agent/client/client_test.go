@@ -24,16 +24,16 @@ func TestFetchUpdates(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	nodeClient := mock_node.NewMockNodeClient(ctrl)
-	nodeFsc := mock_node.NewMockNode_FetchSVIDClient(ctrl)
+	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(ctrl)
 
 	client := New(cfg)
 	client.newNodeClientCallback = func() (node.NodeClient, error) {
 		return nodeClient, nil
 	}
-	req := &node.FetchSVIDRequest{
+	req := &node.FetchX509SVIDRequest{
 		Csrs: [][]byte{{1, 2, 3, 4}},
 	}
-	res := &node.FetchSVIDResponse{
+	res := &node.FetchX509SVIDResponse{
 		SvidUpdate: &node.SvidUpdate{
 			Bundle: []byte{10, 20, 30, 40},
 			RegistrationEntries: []*common.RegistrationEntry{{
@@ -47,7 +47,7 @@ func TestFetchUpdates(t *testing.T) {
 		},
 	}
 
-	nodeClient.EXPECT().FetchSVID(gomock.Any()).Return(nodeFsc, nil)
+	nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
 	nodeFsc.EXPECT().Send(req)
 	nodeFsc.EXPECT().CloseSend()
 	nodeFsc.EXPECT().Recv().Return(res, nil)

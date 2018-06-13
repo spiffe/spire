@@ -6,6 +6,9 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/proto/agent/keymanager"
+	"github.com/spiffe/spire/proto/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/test/mock/common/catalog"
 	"github.com/spiffe/spire/test/mock/proto/agent/keymanager"
 	"github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
@@ -15,21 +18,21 @@ import (
 
 var plugins = []*common_catalog.ManagedPlugin{
 	{
-		Plugin: &mock_keymanager.MockKeyManager{},
+		Plugin: keymanager.NewKeyManagerBuiltIn(&mock_keymanager.MockKeyManagerPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: KeyManagerType,
 			Enabled:    true,
 		},
 	},
 	{
-		Plugin: &mock_nodeattestor.MockNodeAttestor{},
+		Plugin: nodeattestor.NewNodeAttestorBuiltIn(&mock_nodeattestor.MockNodeAttestorPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: NodeAttestorType,
 			Enabled:    true,
 		},
 	},
 	{
-		Plugin: &mock_workloadattestor.MockWorkloadAttestor{},
+		Plugin: workloadattestor.NewWorkloadAttestorBuiltIn(&mock_workloadattestor.MockWorkloadAttestorPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: WorkloadAttestorType,
 			Enabled:    true,
@@ -37,7 +40,7 @@ var plugins = []*common_catalog.ManagedPlugin{
 	},
 	{
 		// Have another WorkloadAttestor plugin, but disabled
-		Plugin: &mock_workloadattestor.MockWorkloadAttestor{},
+		Plugin: workloadattestor.NewWorkloadAttestorBuiltIn(&mock_workloadattestor.MockWorkloadAttestorPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: WorkloadAttestorType,
 			Enabled:    false,
@@ -90,7 +93,7 @@ func (c *AgentCatalogTestSuite) TestCategorizeNotEnoughTypes() {
 	// Have only one plugin
 	var onePlugin = []*common_catalog.ManagedPlugin{
 		{
-			Plugin: &mock_workloadattestor.MockWorkloadAttestor{},
+			Plugin: &mock_workloadattestor.MockWorkloadAttestorPlugin{},
 			Config: common_catalog.PluginConfig{
 				PluginType: WorkloadAttestorType,
 				Enabled:    true,

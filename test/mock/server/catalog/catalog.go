@@ -40,15 +40,27 @@ func (m *MockCatalog) EXPECT() *MockCatalogMockRecorder {
 }
 
 // CAs mocks base method
-func (m *MockCatalog) CAs() []ca.ServerCa {
+func (m *MockCatalog) CAs() []ca.ServerCA {
 	ret := m.ctrl.Call(m, "CAs")
-	ret0, _ := ret[0].([]ca.ServerCa)
+	ret0, _ := ret[0].([]ca.ServerCA)
 	return ret0
 }
 
 // CAs indicates an expected call of CAs
 func (mr *MockCatalogMockRecorder) CAs() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CAs", reflect.TypeOf((*MockCatalog)(nil).CAs))
+}
+
+// ConfigFor mocks base method
+func (m *MockCatalog) ConfigFor(arg0 interface{}) *catalog.PluginConfig {
+	ret := m.ctrl.Call(m, "ConfigFor", arg0)
+	ret0, _ := ret[0].(*catalog.PluginConfig)
+	return ret0
+}
+
+// ConfigFor indicates an expected call of ConfigFor
+func (mr *MockCatalogMockRecorder) ConfigFor(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfigFor", reflect.TypeOf((*MockCatalog)(nil).ConfigFor), arg0)
 }
 
 // DataStores mocks base method
@@ -61,18 +73,6 @@ func (m *MockCatalog) DataStores() []datastore.DataStore {
 // DataStores indicates an expected call of DataStores
 func (mr *MockCatalogMockRecorder) DataStores() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DataStores", reflect.TypeOf((*MockCatalog)(nil).DataStores))
-}
-
-// Find mocks base method
-func (m *MockCatalog) Find(arg0 catalog.Plugin) *catalog.ManagedPlugin {
-	ret := m.ctrl.Call(m, "Find", arg0)
-	ret0, _ := ret[0].(*catalog.ManagedPlugin)
-	return ret0
-}
-
-// Find indicates an expected call of Find
-func (mr *MockCatalogMockRecorder) Find(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockCatalog)(nil).Find), arg0)
 }
 
 // NodeAttestors mocks base method
@@ -146,9 +146,9 @@ func (mr *MockCatalogMockRecorder) Stop() *gomock.Call {
 }
 
 // UpstreamCAs mocks base method
-func (m *MockCatalog) UpstreamCAs() []upstreamca.UpstreamCa {
+func (m *MockCatalog) UpstreamCAs() []upstreamca.UpstreamCA {
 	ret := m.ctrl.Call(m, "UpstreamCAs")
-	ret0, _ := ret[0].([]upstreamca.UpstreamCa)
+	ret0, _ := ret[0].([]upstreamca.UpstreamCA)
 	return ret0
 }
 

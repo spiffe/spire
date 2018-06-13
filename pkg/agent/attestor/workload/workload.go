@@ -92,10 +92,10 @@ func (wla *attestor) invokeAttestor(ctx context.Context, a workloadattestor.Work
 
 // attestorName attempts to find the name of a workload attestor, given the WorkloadAttestor interface.
 func (wla *attestor) attestorName(a workloadattestor.WorkloadAttestor) string {
-	mp := wla.c.Catalog.Find(a)
-	if mp == nil {
+	config := wla.c.Catalog.ConfigFor(a)
+	if config == nil {
 		return unknownName
 	}
 
-	return mp.Config.PluginName
+	return config.PluginName
 }

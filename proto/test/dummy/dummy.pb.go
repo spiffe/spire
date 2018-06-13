@@ -56,7 +56,7 @@ type GetPluginInfoRequest = plugin.GetPluginInfoRequest
 type GetPluginInfoResponse = plugin.GetPluginInfoResponse
 
 type NoStreamRequest struct {
-	Value                int64    `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	Value                int64    `protobuf:"varint,1,opt,name=value" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -94,7 +94,7 @@ func (m *NoStreamRequest) GetValue() int64 {
 }
 
 type NoStreamResponse struct {
-	Value                int64    `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	Value                int64    `protobuf:"varint,1,opt,name=value" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -132,7 +132,7 @@ func (m *NoStreamResponse) GetValue() int64 {
 }
 
 type ClientStreamRequest struct {
-	Value                int64    `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	Value                int64    `protobuf:"varint,1,opt,name=value" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -170,7 +170,7 @@ func (m *ClientStreamRequest) GetValue() int64 {
 }
 
 type ClientStreamResponse struct {
-	Value                int64    `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	Value                int64    `protobuf:"varint,1,opt,name=value" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -208,7 +208,7 @@ func (m *ClientStreamResponse) GetValue() int64 {
 }
 
 type ServerStreamRequest struct {
-	Value                int64    `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	Value                int64    `protobuf:"varint,1,opt,name=value" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -246,7 +246,7 @@ func (m *ServerStreamRequest) GetValue() int64 {
 }
 
 type ServerStreamResponse struct {
-	Value                int64    `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	Value                int64    `protobuf:"varint,1,opt,name=value" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -284,7 +284,7 @@ func (m *ServerStreamResponse) GetValue() int64 {
 }
 
 type BothStreamRequest struct {
-	Value                int64    `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	Value                int64    `protobuf:"varint,1,opt,name=value" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -322,7 +322,7 @@ func (m *BothStreamRequest) GetValue() int64 {
 }
 
 type BothStreamResponse struct {
-	Value                int64    `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	Value                int64    `protobuf:"varint,1,opt,name=value" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -378,9 +378,8 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// DummyClient is the client API for Dummy service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+// Client API for Dummy service
+
 type DummyClient interface {
 	// No streaming
 	NoStream(ctx context.Context, in *NoStreamRequest, opts ...grpc.CallOption) (*NoStreamResponse, error)
@@ -404,7 +403,7 @@ func NewDummyClient(cc *grpc.ClientConn) DummyClient {
 
 func (c *dummyClient) NoStream(ctx context.Context, in *NoStreamRequest, opts ...grpc.CallOption) (*NoStreamResponse, error) {
 	out := new(NoStreamResponse)
-	err := c.cc.Invoke(ctx, "/spire.dummy.Dummy/NoStream", in, out, opts...)
+	err := grpc.Invoke(ctx, "/spire.dummy.Dummy/NoStream", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +411,7 @@ func (c *dummyClient) NoStream(ctx context.Context, in *NoStreamRequest, opts ..
 }
 
 func (c *dummyClient) ClientStream(ctx context.Context, opts ...grpc.CallOption) (Dummy_ClientStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Dummy_serviceDesc.Streams[0], "/spire.dummy.Dummy/ClientStream", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Dummy_serviceDesc.Streams[0], c.cc, "/spire.dummy.Dummy/ClientStream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +445,7 @@ func (x *dummyClientStreamClient) CloseAndRecv() (*ClientStreamResponse, error) 
 }
 
 func (c *dummyClient) ServerStream(ctx context.Context, in *ServerStreamRequest, opts ...grpc.CallOption) (Dummy_ServerStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Dummy_serviceDesc.Streams[1], "/spire.dummy.Dummy/ServerStream", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Dummy_serviceDesc.Streams[1], c.cc, "/spire.dummy.Dummy/ServerStream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +477,7 @@ func (x *dummyServerStreamClient) Recv() (*ServerStreamResponse, error) {
 }
 
 func (c *dummyClient) BothStream(ctx context.Context, opts ...grpc.CallOption) (Dummy_BothStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Dummy_serviceDesc.Streams[2], "/spire.dummy.Dummy/BothStream", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_Dummy_serviceDesc.Streams[2], c.cc, "/spire.dummy.Dummy/BothStream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +509,7 @@ func (x *dummyBothStreamClient) Recv() (*BothStreamResponse, error) {
 
 func (c *dummyClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
 	out := new(plugin.ConfigureResponse)
-	err := c.cc.Invoke(ctx, "/spire.dummy.Dummy/Configure", in, out, opts...)
+	err := grpc.Invoke(ctx, "/spire.dummy.Dummy/Configure", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -519,14 +518,15 @@ func (c *dummyClient) Configure(ctx context.Context, in *plugin.ConfigureRequest
 
 func (c *dummyClient) GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error) {
 	out := new(plugin.GetPluginInfoResponse)
-	err := c.cc.Invoke(ctx, "/spire.dummy.Dummy/GetPluginInfo", in, out, opts...)
+	err := grpc.Invoke(ctx, "/spire.dummy.Dummy/GetPluginInfo", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// DummyServer is the server API for Dummy service.
+// Server API for Dummy service
+
 type DummyServer interface {
 	// No streaming
 	NoStream(context.Context, *NoStreamRequest) (*NoStreamResponse, error)

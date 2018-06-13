@@ -29,7 +29,7 @@ var (
 )
 
 type Client interface {
-	FetchUpdates(req *node.FetchSVIDRequest) (*Update, error)
+	FetchUpdates(req *node.FetchX509SVIDRequest) (*Update, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -90,13 +90,13 @@ func (c *client) dial() (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-func (c *client) FetchUpdates(req *node.FetchSVIDRequest) (*Update, error) {
+func (c *client) FetchUpdates(req *node.FetchX509SVIDRequest) (*Update, error) {
 	nodeClient, err := c.newNodeClient()
 	if err != nil {
 		return nil, err
 	}
 
-	stream, err := nodeClient.FetchSVID(context.Background())
+	stream, err := nodeClient.FetchX509SVID(context.Background())
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
 		c.Release()

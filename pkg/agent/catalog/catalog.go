@@ -37,24 +37,24 @@ type Catalog interface {
 
 var (
 	supportedPlugins = map[string]goplugin.Plugin{
-		KeyManagerType:       &keymanager.KeyManagerPlugin{},
-		NodeAttestorType:     &nodeattestor.NodeAttestorPlugin{},
-		WorkloadAttestorType: &workloadattestor.WorkloadAttestorPlugin{},
+		KeyManagerType:       &keymanager.KeyManagerGRPCPlugin{},
+		NodeAttestorType:     &nodeattestor.NodeAttestorGRPCPlugin{},
+		WorkloadAttestorType: &workloadattestor.WorkloadAttestorGRPCPlugin{},
 	}
 
 	builtinPlugins = common.BuiltinPluginMap{
 		KeyManagerType: {
-			"disk":   disk.New(),
-			"memory": memory.New(),
+			"disk":   keymanager.NewKeyManagerBuiltIn(disk.New()),
+			"memory": keymanager.NewKeyManagerBuiltIn(memory.New()),
 		},
 		NodeAttestorType: {
-			"aws_iid":    aws.NewIID(),
-			"join_token": jointoken.New(),
-			"gcp_iit":    gcp.NewIITPlugin(),
+			"aws_iid":    nodeattestor.NewNodeAttestorBuiltIn(aws.NewIID()),
+			"join_token": nodeattestor.NewNodeAttestorBuiltIn(jointoken.New()),
+			"gcp_iit":    nodeattestor.NewNodeAttestorBuiltIn(gcp.NewIITPlugin()),
 		},
 		WorkloadAttestorType: {
-			"k8s":  k8s.New(),
-			"unix": unix.New(),
+			"k8s":  workloadattestor.NewWorkloadAttestorBuiltIn(k8s.New()),
+			"unix": workloadattestor.NewWorkloadAttestorBuiltIn(unix.New()),
 		},
 	}
 )
@@ -130,11 +130,11 @@ func (c *catalog) Plugins() []*common.ManagedPlugin {
 	return c.com.Plugins()
 }
 
-func (c *catalog) Find(plugin common.Plugin) *common.ManagedPlugin {
+func (c *catalog) ConfigFor(plugin interface{}) *common.PluginConfig {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.com.Find(plugin)
+	return c.com.ConfigFor(plugin)
 }
 
 func (c *catalog) KeyManagers() []keymanager.KeyManager {

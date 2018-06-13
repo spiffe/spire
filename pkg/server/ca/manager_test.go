@@ -31,9 +31,9 @@ type ManagerTestSuite struct {
 	t       *testing.T
 	m       *manager
 	catalog *mock_catalog.MockCatalog
-	ca      *mock_ca.MockServerCa
+	ca      *mock_ca.MockServerCA
 	ds      *mock_datastore.MockDataStore
-	upsCa   *mock_upstreamca.MockUpstreamCa
+	upsCa   *mock_upstreamca.MockUpstreamCA
 }
 
 func (m *ManagerTestSuite) SetupTest() {
@@ -41,9 +41,9 @@ func (m *ManagerTestSuite) SetupTest() {
 	defer mockCtrl.Finish()
 
 	m.catalog = mock_catalog.NewMockCatalog(mockCtrl)
-	m.ca = mock_ca.NewMockServerCa(mockCtrl)
+	m.ca = mock_ca.NewMockServerCA(mockCtrl)
 	m.ds = mock_datastore.NewMockDataStore(mockCtrl)
-	m.upsCa = mock_upstreamca.NewMockUpstreamCa(mockCtrl)
+	m.upsCa = mock_upstreamca.NewMockUpstreamCA(mockCtrl)
 
 	logger, err := log.NewLogger("DEBUG", "")
 	m.NoError(err)
@@ -77,9 +77,9 @@ func (m *ManagerTestSuite) TestCARotate() {
 	m.Assert().Equal(cert1, m.m.caCert)
 	m.Assert().Nil(m.m.nextCACert)
 
-	m.catalog.EXPECT().CAs().Return([]ca.ServerCa{m.ca})
+	m.catalog.EXPECT().CAs().Return([]ca.ServerCA{m.ca})
 	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
-	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
+	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCA{m.upsCa})
 
 	// Should call prepareNextCA() when past 50% of validity period
 	template.NotBefore = time.Now().Add(-2 * time.Hour)
@@ -95,9 +95,9 @@ func (m *ManagerTestSuite) TestCARotate() {
 	m.Assert().NoError(m.m.caRotate(ctx))
 	m.Assert().Equal(cert1, m.m.nextCACert)
 
-	m.catalog.EXPECT().CAs().Return([]ca.ServerCa{m.ca})
+	m.catalog.EXPECT().CAs().Return([]ca.ServerCA{m.ca})
 	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
-	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
+	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCA{m.upsCa})
 
 	// Should call activateNextCA() when we're almost expired
 	template.NotBefore = time.Now().Add(-2 * time.Hour)
@@ -112,9 +112,9 @@ func (m *ManagerTestSuite) TestCARotate() {
 }
 
 func (m *ManagerTestSuite) TestPrepareNextCA() {
-	m.catalog.EXPECT().CAs().Return([]ca.ServerCa{m.ca})
+	m.catalog.EXPECT().CAs().Return([]ca.ServerCA{m.ca})
 	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
-	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCa{m.upsCa})
+	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCA{m.upsCa})
 
 	cert, _, err := util.LoadSVIDFixture()
 	m.Require().NoError(err)
@@ -141,7 +141,7 @@ func (m *ManagerTestSuite) TestActivateNextCA() {
 	m.Require().NoError(err)
 	m.m.nextCACert = cert
 
-	m.catalog.EXPECT().CAs().Return([]ca.ServerCa{m.ca})
+	m.catalog.EXPECT().CAs().Return([]ca.ServerCA{m.ca})
 	req := &ca.LoadCertificateRequest{SignedIntermediateCert: cert.Raw}
 	m.ca.EXPECT().LoadCertificate(gomock.Any(), req)
 

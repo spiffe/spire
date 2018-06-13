@@ -101,7 +101,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	subscriber.EXPECT().Finish()
 	result := make(chan error)
 	s.stream.EXPECT().Context().Return(ctx).AnyTimes()
-	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
+	s.catalog.EXPECT().ConfigFor(gomock.Any()).AnyTimes()
 	s.catalog.EXPECT().WorkloadAttestors().Return([]workloadattestor.WorkloadAttestor{s.attestor1})
 	s.attestor1.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)

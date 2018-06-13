@@ -115,10 +115,10 @@ func Test_CreateAttestedNodeEntry(t *testing.T) {
 	ds := createDefault(t)
 
 	entry := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:       "foo",
-		AttestedDataType:   "aws-tag",
-		CertSerialNumber:   "badcafe",
-		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+		BaseSpiffeId:        "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertExpirationDate:  time.Now().Add(time.Hour).Format(datastore.TimeFormat),
 	}
 
 	cresp, err := ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
@@ -145,17 +145,17 @@ func Test_FetchStaleNodeEntries(t *testing.T) {
 	ds := createDefault(t)
 
 	efuture := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:       "foo",
-		AttestedDataType:   "aws-tag",
-		CertSerialNumber:   "badcafe",
-		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+		BaseSpiffeId:        "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertExpirationDate:  time.Now().Add(time.Hour).Format(datastore.TimeFormat),
 	}
 
 	epast := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:       "bar",
-		AttestedDataType:   "aws-tag",
-		CertSerialNumber:   "deadbeef",
-		CertExpirationDate: time.Now().Add(-time.Hour).Format(datastore.TimeFormat),
+		BaseSpiffeId:        "bar",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "deadbeef",
+		CertExpirationDate:  time.Now().Add(-time.Hour).Format(datastore.TimeFormat),
 	}
 
 	_, err := ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: efuture})
@@ -173,10 +173,10 @@ func Test_UpdateAttestedNodeEntry(t *testing.T) {
 	ds := createDefault(t)
 
 	entry := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:       "foo",
-		AttestedDataType:   "aws-tag",
-		CertSerialNumber:   "badcafe",
-		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+		BaseSpiffeId:        "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertExpirationDate:  time.Now().Add(time.Hour).Format(datastore.TimeFormat),
 	}
 
 	userial := "deadbeef"
@@ -196,7 +196,7 @@ func Test_UpdateAttestedNodeEntry(t *testing.T) {
 	require.NotNil(t, uentry)
 
 	assert.Equal(t, entry.BaseSpiffeId, uentry.BaseSpiffeId)
-	assert.Equal(t, entry.AttestedDataType, uentry.AttestedDataType)
+	assert.Equal(t, entry.AttestationDataType, uentry.AttestationDataType)
 	assert.Equal(t, userial, uentry.CertSerialNumber)
 	assert.Equal(t, uexpires, uentry.CertExpirationDate)
 
@@ -207,7 +207,7 @@ func Test_UpdateAttestedNodeEntry(t *testing.T) {
 	require.NotNil(t, fentry)
 
 	assert.Equal(t, entry.BaseSpiffeId, fentry.BaseSpiffeId)
-	assert.Equal(t, entry.AttestedDataType, fentry.AttestedDataType)
+	assert.Equal(t, entry.AttestationDataType, fentry.AttestationDataType)
 	assert.Equal(t, userial, fentry.CertSerialNumber)
 	assert.Equal(t, uexpires, fentry.CertExpirationDate)
 }
@@ -216,10 +216,10 @@ func Test_DeleteAttestedNodeEntry(t *testing.T) {
 	ds := createDefault(t)
 
 	entry := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:       "foo",
-		AttestedDataType:   "aws-tag",
-		CertSerialNumber:   "badcafe",
-		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+		BaseSpiffeId:        "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertExpirationDate:  time.Now().Add(time.Hour).Format(datastore.TimeFormat),
 	}
 
 	_, err := ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
@@ -792,10 +792,10 @@ func Test_race(t *testing.T) {
 	ds := createDefault(t)
 
 	entry := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:       "foo",
-		AttestedDataType:   "aws-tag",
-		CertSerialNumber:   "badcafe",
-		CertExpirationDate: time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+		BaseSpiffeId:        "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertExpirationDate:  time.Now().Add(time.Hour).Format(datastore.TimeFormat),
 	}
 
 	testutil.RaceTest(t, func(t *testing.T) {
@@ -804,7 +804,7 @@ func Test_race(t *testing.T) {
 	})
 }
 
-func createDefault(t *testing.T) datastore.DataStore {
+func createDefault(t *testing.T) datastore.DataStorePlugin {
 	ds, err := NewTemp()
 	if err != nil {
 		t.Fatal(err)

@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"path"
@@ -131,11 +132,14 @@ func (a *attestor) loadBundle() ([]*x509.Certificate, error) {
 	return bundle, nil
 }
 
-func (a *attestor) attestationData(ctx context.Context) (*nodeattestor.FetchAttestationDataResponse, error) {
-	resp := &nodeattestor.FetchAttestationDataResponse{}
+func (a *attestor) fetchAttestationData(
+	fetchStream nodeattestor.NodeAttestor_FetchAttestationData_Stream,
+	challenge []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
 
-	if a.c.JoinToken != "" {
-		data := &common.AttestedData{
+	// the stream should only be nil if this node attestation is via a join
+	// token.
+	if fetchStream == nil {
+		data := &common.AttestationData{
 			Type: "join_token",
 			Data: []byte(a.c.JoinToken),
 		}
@@ -146,18 +150,26 @@ func (a *attestor) attestationData(ctx context.Context) (*nodeattestor.FetchAtte
 			Path:   path.Join("spire", "agent", "join_token", a.c.JoinToken),
 		}
 
-		resp.AttestedData = data
-		resp.SpiffeId = id.String()
-		return resp, nil
+		return &nodeattestor.FetchAttestationDataResponse{
+			AttestationData: data,
+			SpiffeId:        id.String(),
+		}, nil
 	}
 
-	plugins := a.c.Catalog.NodeAttestors()
-	if len(plugins) > 1 {
-		return nil, errors.New("more then one node attestor configured")
+	fetchReq := &nodeattestor.FetchAttestationDataRequest{
+		Challenge: challenge,
 	}
-	attestor := plugins[0]
 
-	return attestor.FetchAttestationData(ctx, &nodeattestor.FetchAttestationDataRequest{})
+	if err := fetchStream.Send(fetchReq); err != nil {
+		return nil, fmt.Errorf("requesting attestation data: %v", err)
+	}
+
+	fetchResp, err := fetchStream.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("receiving attestation data: %v", err)
+	}
+
+	return fetchResp, nil
 }
 
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
@@ -176,14 +188,22 @@ func (a *attestor) readSVIDFromDisk() *x509.Certificate {
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
 func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x509.Certificate, []*x509.Certificate, error) {
-	data, err := a.attestationData(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("fetch attestable data: %v", err)
-	}
+	// make sure all of the streams are cancelled if something goes awry
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	csr, err := util.MakeCSR(key, data.SpiffeId)
-	if err != nil {
-		return nil, nil, fmt.Errorf("generate CSR for agent SVID: %v", err)
+	var fetchStream nodeattestor.NodeAttestor_FetchAttestationData_Stream
+	if a.c.JoinToken == "" {
+		plugins := a.c.Catalog.NodeAttestors()
+		if len(plugins) > 1 {
+			return nil, nil, errors.New("more then one node attestor configured")
+		}
+		attestor := plugins[0]
+		var err error
+		fetchStream, err = attestor.FetchAttestationData(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("opening stream for fetching attestation: %v", err)
+		}
 	}
 
 	conn, err := a.serverConn(ctx, bundle)
@@ -194,16 +214,64 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle []
 	if a.c.NodeClient == nil {
 		a.c.NodeClient = node.NewNodeClient(conn)
 	}
-	req := &node.FetchBaseSVIDRequest{
-		AttestedData: data.AttestedData,
-		Csr:          csr,
-	}
-	resp, err := a.c.NodeClient.FetchBaseSVID(ctx, req)
+
+	attestStream, err := a.c.NodeClient.Attest(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("attesting to SPIRE server: %v", err)
+		return nil, nil, fmt.Errorf("opening stream for attestation: %v", err)
 	}
 
-	svid, bundle, err := a.parseAttestationResponse(data.SpiffeId, resp)
+	var spiffeID string
+	var csr []byte
+	attestResp := new(node.AttestResponse)
+	for {
+		data, err := a.fetchAttestationData(fetchStream, attestResp.Challenge)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// (re)generate the SVID if the spiffeid changes.
+		if spiffeID != data.SpiffeId {
+			csr, err = util.MakeCSR(key, data.SpiffeId)
+			if err != nil {
+				return nil, nil, fmt.Errorf("generate CSR for agent SVID: %v", err)
+			}
+			spiffeID = data.SpiffeId
+		}
+
+		attestReq := &node.AttestRequest{
+			AttestationData: data.AttestationData,
+			Csr:             csr,
+			Response:        data.Response,
+		}
+
+		if err := attestStream.Send(attestReq); err != nil {
+			return nil, nil, fmt.Errorf("sending attestation request to SPIRE server: %v", err)
+		}
+
+		attestResp, err = attestStream.Recv()
+		if err != nil {
+			return nil, nil, fmt.Errorf("attesting to SPIRE server: %v", err)
+		}
+
+		// if the response has no additional data then break out and parse
+		// the response.
+		if attestResp.Challenge == nil {
+			break
+		}
+	}
+
+	if fetchStream != nil {
+		fetchStream.CloseSend()
+		if _, err := fetchStream.Recv(); err != io.EOF {
+			a.c.Log.Warnf("received unexpected result on trailing recv: %v", err)
+		}
+	}
+	attestStream.CloseSend()
+	if _, err := attestStream.Recv(); err != io.EOF {
+		a.c.Log.Warnf("received unexpected result on trailing recv: %v", err)
+	}
+
+	svid, bundle, err := a.parseAttestationResponse(spiffeID, attestResp)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse attestation response: %v", err)
 	}
@@ -238,7 +306,7 @@ func (a *attestor) serverCredFunc(bundle []*x509.Certificate) func() (credential
 	return credFunc
 }
 
-func (a *attestor) parseAttestationResponse(id string, r *node.FetchBaseSVIDResponse) (*x509.Certificate, []*x509.Certificate, error) {
+func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) (*x509.Certificate, []*x509.Certificate, error) {
 	if len(r.SvidUpdate.Svids) < 1 {
 		return nil, nil, errors.New("no svid received")
 	}

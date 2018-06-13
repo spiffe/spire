@@ -34,39 +34,39 @@ const (
 type Catalog interface {
 	common.Catalog
 
-	CAs() []ca.ServerCa
+	CAs() []ca.ServerCA
 	DataStores() []datastore.DataStore
 	NodeAttestors() []nodeattestor.NodeAttestor
 	NodeResolvers() []noderesolver.NodeResolver
-	UpstreamCAs() []upstreamca.UpstreamCa
+	UpstreamCAs() []upstreamca.UpstreamCA
 }
 
 var (
 	supportedPlugins = map[string]goplugin.Plugin{
-		CAType:           &ca.ServerCaPlugin{},
-		DataStoreType:    &datastore.DataStorePlugin{},
-		NodeAttestorType: &nodeattestor.NodeAttestorPlugin{},
-		NodeResolverType: &noderesolver.NodeResolverPlugin{},
-		UpstreamCAType:   &upstreamca.UpstreamCaPlugin{},
+		CAType:           &ca.ServerCAGRPCPlugin{},
+		DataStoreType:    &datastore.DataStoreGRPCPlugin{},
+		NodeAttestorType: &nodeattestor.NodeAttestorGRPCPlugin{},
+		NodeResolverType: &noderesolver.NodeResolverGRPCPlugin{},
+		UpstreamCAType:   &upstreamca.UpstreamCAGRPCPlugin{},
 	}
 
 	builtinPlugins = common.BuiltinPluginMap{
 		CAType: {
-			"memory": ca_memory.NewWithDefault(),
+			"memory": ca.NewServerCABuiltIn(ca_memory.NewWithDefault()),
 		},
 		DataStoreType: {
-			"sql": sql.New(),
+			"sql": datastore.NewDataStoreBuiltIn(sql.New()),
 		},
 		NodeAttestorType: {
-			"aws_iid":                     aws.NewIID(),
-			"join_token":                  jointoken.New(),
-			"gcp_iit": gcp.NewInstanceIdentityToken(),
+			"aws_iid":    nodeattestor.NewNodeAttestorBuiltIn(aws.NewIID()),
+			"join_token": nodeattestor.NewNodeAttestorBuiltIn(jointoken.New()),
+			"gcp_iit":    nodeattestor.NewNodeAttestorBuiltIn(gcp.NewInstanceIdentityToken()),
 		},
 		NodeResolverType: {
-			"noop": noop.New(),
+			"noop": noderesolver.NewNodeResolverBuiltIn(noop.New()),
 		},
 		UpstreamCAType: {
-			"disk": upca_disk.New(),
+			"disk": upstreamca.NewUpstreamCABuiltIn(upca_disk.New()),
 		},
 	}
 )
@@ -81,11 +81,11 @@ type catalog struct {
 	m   *sync.RWMutex
 	log logrus.FieldLogger
 
-	caPlugins           []ca.ServerCa
+	caPlugins           []ca.ServerCA
 	dataStorePlugins    []datastore.DataStore
 	nodeAttestorPlugins []nodeattestor.NodeAttestor
 	nodeResolverPlugins []noderesolver.NodeResolver
-	upstreamCAPlugins   []upstreamca.UpstreamCa
+	upstreamCAPlugins   []upstreamca.UpstreamCA
 }
 
 func New(c *Config) Catalog {
@@ -144,14 +144,14 @@ func (c *catalog) Plugins() []*common.ManagedPlugin {
 	return c.com.Plugins()
 }
 
-func (c *catalog) Find(plugin common.Plugin) *common.ManagedPlugin {
+func (c *catalog) ConfigFor(plugin interface{}) *common.PluginConfig {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.com.Find(plugin)
+	return c.com.ConfigFor(plugin)
 }
 
-func (c *catalog) CAs() []ca.ServerCa {
+func (c *catalog) CAs() []ca.ServerCA {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -179,7 +179,7 @@ func (c *catalog) NodeResolvers() []noderesolver.NodeResolver {
 	return c.nodeResolverPlugins
 }
 
-func (c *catalog) UpstreamCAs() []upstreamca.UpstreamCa {
+func (c *catalog) UpstreamCAs() []upstreamca.UpstreamCA {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -201,7 +201,7 @@ func (c *catalog) categorize() error {
 
 		switch p.Config.PluginType {
 		case CAType:
-			pl, ok := p.Plugin.(ca.ServerCa)
+			pl, ok := p.Plugin.(ca.ServerCA)
 			if !ok {
 				return fmt.Errorf("Plugin %s does not adhere to CA interface", p.Config.PluginName)
 			}
@@ -215,7 +215,7 @@ func (c *catalog) categorize() error {
 		case NodeAttestorType:
 			pl, ok := p.Plugin.(nodeattestor.NodeAttestor)
 			if !ok {
-				return fmt.Errorf("Plugin %s does not adhere to NodeAttestor interface", p.Config.PluginName)
+				return fmt.Errorf("Plugin %s (%T) does not adhere to NodeAttestor interface", p.Config.PluginName, p.Plugin)
 			}
 			c.nodeAttestorPlugins = append(c.nodeAttestorPlugins, pl)
 		case NodeResolverType:
@@ -225,9 +225,9 @@ func (c *catalog) categorize() error {
 			}
 			c.nodeResolverPlugins = append(c.nodeResolverPlugins, pl)
 		case UpstreamCAType:
-			pl, ok := p.Plugin.(upstreamca.UpstreamCa)
+			pl, ok := p.Plugin.(upstreamca.UpstreamCA)
 			if !ok {
-				return fmt.Errorf("Plugin %s does not adhere to UpstreamCa interface", p.Config.PluginName)
+				return fmt.Errorf("Plugin %s does not adhere to UpstreamCA interface", p.Config.PluginName)
 			}
 			c.upstreamCAPlugins = append(c.upstreamCAPlugins, pl)
 		default:
