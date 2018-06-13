@@ -71,7 +71,7 @@ func (c *AgentCatalogTestSuite) SetupTest() {
 	c.logHook = logHook
 }
 
-func (c *AgentCatalogTestSuite) TeardownTest() {
+func (c *AgentCatalogTestSuite) TearDownTest() {
 	c.ctrl.Finish()
 }
 

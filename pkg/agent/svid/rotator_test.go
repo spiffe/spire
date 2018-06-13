@@ -58,14 +58,14 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.r.client = s.client
 }
 
-func (s *RotatorTestSuite) TeardownTest() {
+func (s *RotatorTestSuite) TearDownTest() {
 	s.ctrl.Finish()
 }
 
 func (s *RotatorTestSuite) TestRun() {
 	cert, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
-	s.expectSVIDRotation(cert)
+	s.client.EXPECT().Release()
 
 	state := State{
 		SVID: cert,

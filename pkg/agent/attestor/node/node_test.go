@@ -30,7 +30,8 @@ var (
 type NodeAttestorTestSuite struct {
 	suite.Suite
 
-	ctrl *gomock.Controller
+	ctrl    *gomock.Controller
+	tempDir string
 
 	attestor     Attestor
 	catalog      *mock_catalog.MockCatalog
@@ -52,6 +53,7 @@ func (s *NodeAttestorTestSuite) SetupTest() {
 	log, _ := test.NewNullLogger()
 	tempDir, err := ioutil.TempDir(os.TempDir(), "spire-test")
 	s.Require().NoError(err)
+	s.tempDir = tempDir
 
 	s.config = &Config{
 		Catalog:         s.catalog,
@@ -68,9 +70,8 @@ func (s *NodeAttestorTestSuite) SetupTest() {
 	s.attestor = New(s.config)
 }
 
-func (s *NodeAttestorTestSuite) TeardownTest() {
-	os.Remove(s.config.SVIDCachePath)
-	os.Remove(s.config.BundleCachePath)
+func (s *NodeAttestorTestSuite) TearDownTest() {
+	os.RemoveAll(s.tempDir)
 	s.ctrl.Finish()
 }
 
@@ -78,8 +79,7 @@ func (s *NodeAttestorTestSuite) TestAttestLoadFromDisk() {
 	s.linkBundle()
 	s.linkAgentSVIDPath()
 
-	s.setCatalog()
-	s.setFetchAttestationDataResponse()
+	s.setCatalog(false)
 	s.setFetchPrivateKeyResponse()
 
 	as, err := s.attestor.Attest(ctx)
@@ -97,7 +97,7 @@ func (s *NodeAttestorTestSuite) TestAttestLoadFromDisk() {
 
 func (s *NodeAttestorTestSuite) TestAttestNode() {
 	s.linkBundle()
-	s.setCatalog()
+	s.setCatalog(true)
 	s.setFetchPrivateKeyResponse()
 	s.setGenerateKeyPairResponse()
 	s.setFetchAttestationDataResponse()
@@ -115,7 +115,7 @@ func (s *NodeAttestorTestSuite) TestAttestNode() {
 func (s *NodeAttestorTestSuite) TestAttestJoinToken() {
 	s.config.JoinToken = "foobar"
 	s.linkBundle()
-	s.setCatalog()
+	s.setCatalog(false)
 	s.setFetchPrivateKeyResponse()
 	s.setGenerateKeyPairResponse()
 	s.setFetchBaseSVIDResponse()
@@ -183,9 +183,11 @@ func (s *NodeAttestorTestSuite) setGenerateKeyPairResponse() {
 		&keymanager.GenerateKeyPairResponse{PublicKey: svid.RawSubjectPublicKeyInfo, PrivateKey: keyDer}, nil)
 }
 
-func (s *NodeAttestorTestSuite) setCatalog() {
-	s.catalog.EXPECT().NodeAttestors().
-		Return([]nodeattestor.NodeAttestor{s.nodeAttestor})
+func (s *NodeAttestorTestSuite) setCatalog(usesNodeAttestor bool) {
+	if usesNodeAttestor {
+		s.catalog.EXPECT().NodeAttestors().
+			Return([]nodeattestor.NodeAttestor{s.nodeAttestor})
+	}
 	s.catalog.EXPECT().KeyManagers().
 		Return([]keymanager.KeyManager{s.keyManager})
 }
