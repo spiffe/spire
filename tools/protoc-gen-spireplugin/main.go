@@ -300,7 +300,7 @@ type {{ .Name }} interface {
 {{- range .Methods }}
 {{- if not .ForPlugin }}
 {{- $m := . }}
-{{- $streamname := printf "%s_%s_Stream" $s.Name $m.Name }}
+{{- $streamname := printf "%s_Stream" $m.Name }}
 
 {{- with (eq .StreamType "") }}
 	{{ $m.Name }}(context.Context, {{ $m.InputType }}) ({{ $m.OutputType }}, error)
@@ -322,11 +322,11 @@ type {{ .Name }} interface {
 {{- end }}
 }
 
-// {{ .Name }} is the interface implemented by plugin implementations
-type {{ .Name }}Plugin interface {
+// Plugin is the interface implemented by plugin implementations
+type Plugin interface {
 {{- range .Methods }}
 {{- $m := . }}
-{{- $streamname := printf "%s_%s_PluginStream" $s.Name $m.Name }}
+{{- $streamname := printf "%s_PluginStream" $m.Name }}
 
 {{- with (eq .StreamType "") }}
 	{{ $m.Name }}(context.Context, {{ $m.InputType }}) ({{ $m.OutputType }}, error)
@@ -349,9 +349,9 @@ type {{ .Name }}Plugin interface {
 
 {{ range .Methods }}
 {{ $m := . }}
-{{ $clientintf := printf "%s_%s_Stream" $s.Name $m.Name }}
+{{ $clientintf := printf "%s_Stream" $m.Name }}
 {{ $clientimpl := unexport $clientintf }}
-{{ $serverintf := printf "%s_%s_PluginStream" $s.Name $m.Name }}
+{{ $serverintf := printf "%s_PluginStream" $m.Name }}
 {{ $serverimpl := unexport $serverintf }}
 
 {{- with (eq .StreamType "Send") }}
@@ -509,33 +509,33 @@ func (s {{ $serverimpl }}) Recv() ({{ $m.InputType }}, error) {
 
 {{- end }}
 
-type {{ .Name }}BuiltIn struct {
-	plugin {{ .Name }}Plugin
+type BuiltIn struct {
+	plugin Plugin
 }
 
-var _ {{ .Name }} = (*{{ .Name }}BuiltIn)(nil)
+var _ {{ .Name }} = (*BuiltIn)(nil)
 
-func New{{ .Name }}BuiltIn(plugin {{ .Name }}Plugin) *{{ .Name }}BuiltIn {
-	return &{{ .Name }}BuiltIn{
+func NewBuiltIn(plugin Plugin) *BuiltIn {
+	return &BuiltIn{
 		plugin: plugin,
 	}
 }
 
 {{- range .Methods }}
 {{- $m := . }}
-{{ $clientintf := printf "%s_%s_Stream" $s.Name $m.Name }}
+{{ $clientintf := printf "%s_Stream" $m.Name }}
 {{ $clientimpl := unexport $clientintf }}
-{{ $serverintf := printf "%s_%s_PluginStream" $s.Name $m.Name }}
+{{ $serverintf := printf "%s_PluginStream" $m.Name }}
 {{ $serverimpl := unexport $serverintf }}
 
 {{- with (eq .StreamType "") }}
-func (b {{ $s.Name }}BuiltIn) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $m.OutputType }}, error) {
+func (b BuiltIn) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $m.OutputType }}, error) {
 	return b.plugin.{{ $m.Name }}(ctx, req)
 }
 {{- end }}
 
 {{- with (eq .StreamType "Send") }}
-func (b {{ $s.Name }}BuiltIn) {{ $m.Name }}(ctx context.Context) ({{ $clientintf }}, error) {
+func (b BuiltIn) {{ $m.Name }}(ctx context.Context) ({{ $clientintf }}, error) {
 	clientStream, serverStream := builtin.{{ $m.StreamType }}StreamPipe(ctx)
 	go func() {
 		serverStream.Close(b.plugin.{{ $m.Name }}({{ $serverimpl }}{stream: serverStream}))
@@ -545,7 +545,7 @@ func (b {{ $s.Name }}BuiltIn) {{ $m.Name }}(ctx context.Context) ({{ $clientintf
 {{- end }}
 
 {{- with (eq .StreamType "Recv") }}
-func (b {{ $s.Name }}BuiltIn) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $clientintf }}, error) {
+func (b BuiltIn) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $clientintf }}, error) {
 	clientStream, serverStream := builtin.{{ $m.StreamType }}StreamPipe(ctx)
 	go func() {
 		serverStream.Close(b.plugin.{{ $m.Name }}(req, {{ $serverimpl }}{stream: serverStream}))
@@ -555,7 +555,7 @@ func (b {{ $s.Name }}BuiltIn) {{ $m.Name }}(ctx context.Context, req {{ $m.Input
 {{- end }}
 
 {{- with (eq .StreamType "Bidi") }}
-func (b {{ $s.Name }}BuiltIn) {{ $m.Name }}(ctx context.Context) ({{ $clientintf }}, error) {
+func (b BuiltIn) {{ $m.Name }}(ctx context.Context) ({{ $clientintf }}, error) {
 	clientStream, serverStream := builtin.{{ $m.StreamType }}StreamPipe(ctx)
 	go func() {
 		serverStream.Close(b.plugin.{{ $m.Name }}({{ $serverimpl }}{stream: serverStream}))
@@ -572,29 +572,29 @@ var Handshake = go_plugin.HandshakeConfig{
 	MagicCookieValue: "{{ .Name }}",
 }
 
-type {{ .Name }}GRPCPlugin struct {
+type GRPCPlugin struct {
 	ServerImpl {{ .Name }}Server
 }
 
-func (p {{ .Name }}GRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
+func (p GRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p {{ .Name }}GRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p GRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p {{ .Name }}GRPCPlugin) GRPCServer(s *grpc.Server) error {
+func (p GRPCPlugin) GRPCServer(s *grpc.Server) error {
 	Register{{ .Name }}Server(s, p.ServerImpl)
 	return nil
 }
 
-func (p {{ .Name }}GRPCPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &{{ .Name }}GRPCClient{client: New{{ .Name }}Client(c)}, nil
+func (p GRPCPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &GRPCClient{client: New{{ .Name }}Client(c)}, nil
 }
 
-type {{ .Name }}GRPCServer struct {
-	Plugin {{ .Name }}Plugin
+type GRPCServer struct {
+	Plugin Plugin
 }
 
 {{- range .Methods }}
@@ -602,25 +602,25 @@ type {{ .Name }}GRPCServer struct {
 {{- $streamname := printf "%s_%sServer" $s.Name $m.Name }}
 
 {{- with (eq .StreamType "") }}
-func (s *{{ $s.Name }}GRPCServer) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $m.OutputType }}, error) {
+func (s *GRPCServer) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $m.OutputType }}, error) {
 	return s.Plugin.{{ $m.Name }}(ctx, req)
 }
 {{- end }}
 
 {{- with (eq .StreamType "Send") }}
-func (s *{{ $s.Name }}GRPCServer) {{ $m.Name }}(stream {{ $streamname }}) error {
+func (s *GRPCServer) {{ $m.Name }}(stream {{ $streamname }}) error {
 	return s.Plugin.{{ $m.Name }}(stream)
 }
 {{- end }}
 
 {{- with (eq .StreamType "Recv") }}
-func (s *{{ $s.Name }}GRPCServer) {{ $m.Name }}(req {{ $m.InputType }}, stream {{ $streamname }}) error {
+func (s *GRPCServer) {{ $m.Name }}(req {{ $m.InputType }}, stream {{ $streamname }}) error {
 	return s.Plugin.{{ $m.Name }}(req, stream)
 }
 {{- end }}
 
 {{- with (eq .StreamType "Bidi") }}
-func (s *{{ $s.Name }}GRPCServer) {{ $m.Name }}(stream {{ $streamname }}) error {
+func (s *GRPCServer) {{ $m.Name }}(stream {{ $streamname }}) error {
 	return s.Plugin.{{ $m.Name }}(stream)
 }
 {{- end }}
@@ -628,34 +628,34 @@ func (s *{{ $s.Name }}GRPCServer) {{ $m.Name }}(stream {{ $streamname }}) error 
 {{- end }}
 
 
-type {{ .Name }}GRPCClient struct {
+type GRPCClient struct {
 	client {{ .Name }}Client
 }
 
 {{- range .Methods }}
 {{- $m := . }}
-{{- $streamname := printf "%s_%s_Stream" $s.Name $m.Name }}
+{{- $streamname := printf "%s_Stream" $m.Name }}
 
 {{- with (eq .StreamType "") }}
-func (c *{{ $s.Name }}GRPCClient) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $m.OutputType }}, error) {
+func (c *GRPCClient) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $m.OutputType }}, error) {
 	return c.client.{{ $m.Name }}(ctx, req)
 }
 {{- end }}
 
 {{- with (eq .StreamType "Send") }}
-func (c *{{ $s.Name }}GRPCClient) {{ $m.Name }}(ctx context.Context) ({{ $streamname }}, error) {
+func (c *GRPCClient) {{ $m.Name }}(ctx context.Context) ({{ $streamname }}, error) {
 	return c.client.{{ $m.Name }}(ctx)
 }
 {{- end }}
 
 {{- with (eq .StreamType "Recv") }}
-func (c *{{ $s.Name }}GRPCClient) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $streamname }}, error) {
+func (c *GRPCClient) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $streamname }}, error) {
 	return c.client.{{ $m.Name }}(ctx, req)
 }
 {{- end }}
 
 {{- with (eq .StreamType "Bidi") }}
-func (c *{{ $s.Name }}GRPCClient) {{ $m.Name }}(ctx context.Context) ({{ $streamname }}, error) {
+func (c *GRPCClient) {{ $m.Name }}(ctx context.Context) ({{ $streamname }}, error) {
 	return c.client.{{ $m.Name }}(ctx)
 }
 {{- end }}
