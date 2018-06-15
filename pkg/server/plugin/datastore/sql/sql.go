@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"sort"
 	"sync"
 	"time"
 
@@ -14,6 +13,8 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
+	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -787,25 +788,13 @@ func (ds *sqlPlugin) ListSelectorEntries(ctx context.Context,
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	if len(request.Selectors) < 1 {
-		return &datastore.ListSelectorEntriesResponse{}, nil
-	}
-
-	matches, err := ds.listMatchingEntries(request.Selectors)
+	entries, err := ds.listMatchingEntries(request.Selectors)
 	if err != nil {
 		return &datastore.ListSelectorEntriesResponse{}, err
 	}
 
-	// Only keep entries which match the specified list exactly
-	var entries []*common.RegistrationEntry
-	for _, m := range matches {
-		if len(m.Selectors) == len(request.Selectors) {
-			entries = append(entries, m)
-		}
-	}
-
-	resp := &datastore.ListSelectorEntriesResponse{RegisteredEntryList: entries}
-	return resp, err
+	util.SortRegistrationEntries(entries)
+	return &datastore.ListSelectorEntriesResponse{RegisteredEntryList: entries}, nil
 }
 
 func (ds *sqlPlugin) ListMatchingEntries(ctx context.Context,
@@ -814,16 +803,16 @@ func (ds *sqlPlugin) ListMatchingEntries(ctx context.Context,
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 
-	if len(request.Selectors) < 1 {
-		return &datastore.ListSelectorEntriesResponse{}, nil
+	resp := &datastore.ListSelectorEntriesResponse{}
+	for combination := range selector.NewSetFromRaw(request.Selectors).Power() {
+		entries, err := ds.listMatchingEntries(combination.Raw())
+		if err != nil {
+			return &datastore.ListSelectorEntriesResponse{}, err
+		}
+		resp.RegisteredEntryList = append(resp.RegisteredEntryList, entries...)
 	}
 
-	entries, err := ds.listMatchingEntries(request.Selectors)
-	if err != nil {
-		return &datastore.ListSelectorEntriesResponse{}, err
-	}
-
-	resp := &datastore.ListSelectorEntriesResponse{RegisteredEntryList: entries}
+	util.SortRegistrationEntries(resp.RegisteredEntryList)
 	return resp, nil
 }
 
@@ -948,17 +937,19 @@ func (sqlPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi
 	return &pluginInfo, nil
 }
 
-// listMatchingEntries finds registered entries containing all specified selectors. Note
-// that entries containing _more_ than the specified selectors may be returned, since
-// that is also considered a "match"
+// listMatchingEntries finds registered entries containing exactly the specified selectors.
 func (ds *sqlPlugin) listMatchingEntries(selectors []*common.Selector) ([]*common.RegistrationEntry, error) {
+	if len(selectors) < 1 {
+		return nil, nil
+	}
+
 	// Count references to each entry ID
 	refCount := make(map[uint]int)
 	for _, s := range selectors {
 		var results []Selector
 		err := ds.db.Find(&results, "type = ? AND value = ?", s.Type, s.Value).Error
 		if err != nil {
-			return []*common.RegistrationEntry{}, err
+			return nil, err
 		}
 
 		for _, r := range results {
@@ -978,19 +969,32 @@ func (ds *sqlPlugin) listMatchingEntries(selectors []*common.Selector) ([]*commo
 		}
 	}
 
-	// Finally, fetch and return the distilled entries
+	// Fetch the distilled entries.
 	var resp []RegisteredEntry
 	for _, id := range entryIDs {
 		var result RegisteredEntry
 		err := ds.db.Find(&result, "id = ?", id).Error
 		if err != nil {
-			return []*common.RegistrationEntry{}, err
+			return nil, err
 		}
 
 		resp = append(resp, result)
 	}
 
-	return ds.convertEntries(resp)
+	// Weed out entries that have more selectors than requested, since only
+	// EXACT matches should be returned.
+	convertedEntries, err := ds.convertEntriesNoSort(resp)
+	if err != nil {
+		return nil, err
+	}
+	var entries []*common.RegistrationEntry
+	for _, entry := range convertedEntries {
+		if len(entry.Selectors) == len(selectors) {
+			entries = append(entries, entry)
+		}
+	}
+
+	return entries, nil
 }
 
 // bundleToModel converts the given Protobuf bundle message to a database model. It
@@ -1085,6 +1089,15 @@ func (ds *sqlPlugin) validateTrustDomain(in string) (*url.URL, error) {
 }
 
 func (ds *sqlPlugin) convertEntries(fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
+	entries, err := ds.convertEntriesNoSort(fetchedRegisteredEntries)
+	if err != nil {
+		return nil, err
+	}
+	util.SortRegistrationEntries(entries)
+	return entries, nil
+}
+
+func (ds *sqlPlugin) convertEntriesNoSort(fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
 	for _, regEntry := range fetchedRegisteredEntries {
 		var selectors []*common.Selector
 		var fetchedSelectors []*Selector
@@ -1105,28 +1118,7 @@ func (ds *sqlPlugin) convertEntries(fetchedRegisteredEntries []RegisteredEntry) 
 			Ttl:       regEntry.TTL,
 		})
 	}
-	return ds.sortEntries(responseEntries), nil
-}
-
-// registrationEntries provides a sortable type to help ensure stable
-// return ordering
-type registrationEntries []*common.RegistrationEntry
-
-func (re registrationEntries) Len() int      { return len(re) }
-func (re registrationEntries) Swap(i, j int) { re[i], re[j] = re[j], re[i] }
-func (re registrationEntries) Less(i, j int) bool {
-	if re[i].SpiffeId < re[j].SpiffeId || re[i].ParentId < re[j].ParentId ||
-		re[i].Ttl < re[j].Ttl || len(re[i].Selectors) < len(re[i].Selectors) {
-		return true
-	}
-
-	return false
-}
-
-func (ds *sqlPlugin) sortEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {
-	e := registrationEntries(entries)
-	sort.Sort(e)
-	return []*common.RegistrationEntry(e)
+	return responseEntries, nil
 }
 
 // restart will close and re-open the gorm database.

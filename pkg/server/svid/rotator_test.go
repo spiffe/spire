@@ -57,7 +57,7 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.r = NewRotator(c)
 }
 
-func (s *RotatorTestSuite) TeardownTest() {
+func (s *RotatorTestSuite) TearDownTest() {
 	s.ctrl.Finish()
 }
 
@@ -169,11 +169,7 @@ func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 	signedCert := &ca.SignCsrResponse{
 		SignedCertificate: cert.Raw,
 	}
-	caCert := &ca.FetchCertificateResponse{
-		StoredIntermediateCert: cert.Raw,
-	}
 
 	s.catalog.EXPECT().CAs().Return([]ca.ServerCa{s.ca})
 	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(signedCert, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(caCert, nil)
 }

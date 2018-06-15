@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/imkira/go-observer"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/selector"
@@ -63,23 +64,24 @@ type manager struct {
 	svidCachePath   string
 	bundleCachePath string
 
-	syncClients *clientsPool
+	client client.Client
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID)
 	m.storeBundle(m.cache.Bundle())
 
-	return m.synchronize(m.spiffeID)
+	return m.synchronize()
 }
 
 func (m *manager) Run(ctx context.Context) error {
+	defer m.client.Release()
+
 	err := util.RunTasks(ctx,
 		m.runSynchronizer,
 		m.runSVIDObserver,
 		m.runBundleObserver,
 		m.svid.Run)
-	m.syncClients.close()
 	if err != nil && err != context.Canceled {
 		m.c.Log.Errorf("cache manager crashed: %v", err)
 		return err
@@ -118,7 +120,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 	for {
 		select {
 		case <-t.C:
-			err := m.synchronize(m.spiffeID)
+			err := m.synchronize()
 			if err != nil {
 				// Just log the error to keep waiting for next sinchronization...
 				m.c.Log.Errorf("synchronize failed: %v", err)

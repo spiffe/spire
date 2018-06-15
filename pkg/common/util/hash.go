@@ -3,14 +3,14 @@ package util
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/spiffe/spire/proto/common"
 	"hash"
-	"sort"
+
+	"github.com/spiffe/spire/proto/common"
 )
 
 func DeriveRegEntryhash(entry *common.RegistrationEntry) (key string) {
 	var concatSelectors string
-	sort.Slice(entry.Selectors, SelectorsSortFunction(entry.Selectors))
+	SortSelectors(entry.Selectors)
 
 	for _, selector := range entry.Selectors {
 		concatSelectors = concatSelectors + "::" + selector.Type + ":" + selector.Value

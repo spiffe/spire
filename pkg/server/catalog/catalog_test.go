@@ -87,7 +87,7 @@ func (c *ServerCatalogTestSuite) SetupTest() {
 	c.logHook = logHook
 }
 
-func (c *ServerCatalogTestSuite) TeardownTest() {
+func (c *ServerCatalogTestSuite) TearDownTest() {
 	c.ctrl.Finish()
 }
 

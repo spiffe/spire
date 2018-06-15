@@ -68,15 +68,10 @@ func New(c *Config) (*manager, error) {
 		mtx:             new(sync.RWMutex),
 		svid:            svidRotator,
 		spiffeID:        spiffeID,
-		serverSPIFFEID:  "spiffe://" + c.TrustDomain.Host + "/spire/server",
 		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
-	}
-
-	err = m.addClient(client, m.spiffeID, m.serverSPIFFEID)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create sync client: %v", err)
+		client:          client,
 	}
 
 	return m, nil

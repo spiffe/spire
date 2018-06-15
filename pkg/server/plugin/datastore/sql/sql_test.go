@@ -652,7 +652,8 @@ func Test_ListMatchingEntries(t *testing.T) {
 			},
 			expectedList: []*common.RegistrationEntry{
 				allEntries[0],
-				allEntries[3],
+				allEntries[1],
+				allEntries[2],
 			},
 		},
 		{
@@ -661,7 +662,7 @@ func Test_ListMatchingEntries(t *testing.T) {
 			selectors: []*common.Selector{
 				{Type: "d", Value: "4"},
 			},
-			expectedList: allEntries[3:],
+			expectedList: nil,
 		},
 	}
 	for _, test := range tests {
