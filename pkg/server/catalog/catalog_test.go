@@ -6,6 +6,11 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/proto/server/ca"
+	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 	"github.com/spiffe/spire/test/mock/common/catalog"
 	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
@@ -30,14 +35,14 @@ type ServerCatalogTestSuite struct {
 
 var plugins = []*common_catalog.ManagedPlugin{
 	{
-		Plugin: &mock_ca.MockServerCa{},
+		Plugin: ca.NewBuiltIn(&mock_ca.MockServerCAPlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: CAType,
 		},
 	},
 	{
-		Plugin: &mock_datastore.MockDataStore{},
+		Plugin: datastore.NewBuiltIn(&mock_datastore.MockDataStorePlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: DataStoreType,
@@ -45,28 +50,28 @@ var plugins = []*common_catalog.ManagedPlugin{
 	},
 	{
 		// Have another DataStore plugin, but disabled
-		Plugin: &mock_datastore.MockDataStore{},
+		Plugin: datastore.NewBuiltIn(&mock_datastore.MockDataStorePlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    false,
 			PluginType: DataStoreType,
 		},
 	},
 	{
-		Plugin: &mock_nodeattestor.MockNodeAttestor{},
+		Plugin: nodeattestor.NewBuiltIn(&mock_nodeattestor.MockNodeAttestorPlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: NodeAttestorType,
 		},
 	},
 	{
-		Plugin: &mock_noderesolver.MockNodeResolver{},
+		Plugin: noderesolver.NewBuiltIn(&mock_noderesolver.MockNodeResolverPlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: NodeResolverType,
 		},
 	},
 	{
-		Plugin: &mock_upstreamca.MockUpstreamCa{},
+		Plugin: upstreamca.NewBuiltIn(&mock_upstreamca.MockUpstreamCAPlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: UpstreamCAType,
@@ -106,7 +111,7 @@ func (c *ServerCatalogTestSuite) TestCategorizeNotEnoughTypes() {
 	// Have only one plugin
 	var onePlugin = []*common_catalog.ManagedPlugin{
 		{
-			Plugin: &mock_ca.MockServerCa{},
+			Plugin: ca.NewBuiltIn(&mock_ca.MockServerCAPlugin{}),
 			Config: common_catalog.PluginConfig{
 				Enabled:    true,
 				PluginType: CAType,

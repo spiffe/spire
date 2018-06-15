@@ -31,7 +31,7 @@ type RotatorTestSuite struct {
 
 	ctrl *gomock.Controller
 
-	ca      *mock_ca.MockServerCa
+	ca      *mock_ca.MockServerCA
 	catalog *mock_catalog.MockCatalog
 
 	r *rotator
@@ -39,7 +39,7 @@ type RotatorTestSuite struct {
 
 func (s *RotatorTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
-	s.ca = mock_ca.NewMockServerCa(s.ctrl)
+	s.ca = mock_ca.NewMockServerCA(s.ctrl)
 	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 
 	log, _ := test.NewNullLogger()
@@ -170,6 +170,6 @@ func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 		SignedCertificate: cert.Raw,
 	}
 
-	s.catalog.EXPECT().CAs().Return([]ca.ServerCa{s.ca})
+	s.catalog.EXPECT().CAs().Return([]ca.ServerCA{s.ca})
 	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(signedCert, nil)
 }

@@ -59,7 +59,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 		s.attestor2,
 	}
 	s.catalog.EXPECT().WorkloadAttestors().Return(attestors)
-	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
+	s.catalog.EXPECT().ConfigFor(gomock.Any()).AnyTimes()
 
 	sel1 := []*common.Selector{{Type: "foo", Value: "bar"}}
 	sel2 := []*common.Selector{{Type: "bat", Value: "baz"}}
@@ -86,7 +86,7 @@ func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
 	sel := []*common.Selector{{Type: "foo", Value: "bar"}}
 	resp := &workloadattestor.AttestResponse{Selectors: sel}
 	s.attestor1.EXPECT().Attest(gomock.Any(), req).Return(resp, nil)
-	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
+	s.catalog.EXPECT().ConfigFor(gomock.Any()).AnyTimes()
 
 	timeout := time.NewTicker(5 * time.Millisecond)
 	go s.attestor.invokeAttestor(ctx, s.attestor1, 1, sChan, errChan)
@@ -99,13 +99,10 @@ func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
 		s.T().Error("Workload invocation has hung")
 	}
 
-	findResp := &cc.ManagedPlugin{
-		Plugin: s.attestor1,
-		Config: cc.PluginConfig{
-			PluginName: "foo",
-		},
+	findResp := &cc.PluginConfig{
+		PluginName: "foo",
 	}
-	s.catalog.EXPECT().Find(s.attestor1).Return(findResp)
+	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(findResp)
 	s.attestor1.EXPECT().Attest(gomock.Any(), req).Return(nil, errors.New("i'm an error"))
 	go s.attestor.invokeAttestor(ctx, s.attestor1, 1, sChan, errChan)
 	select {
@@ -118,15 +115,12 @@ func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
 }
 
 func (s *WorkloadAttestorTestSuite) TestAttestorName() {
-	resp := &cc.ManagedPlugin{
-		Plugin: s.attestor1,
-		Config: cc.PluginConfig{
-			PluginName: "foo",
-		},
+	resp := &cc.PluginConfig{
+		PluginName: "foo",
 	}
-	s.catalog.EXPECT().Find(s.attestor1).Return(resp)
+	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(resp)
 	s.Assert().Equal("foo", s.attestor.attestorName(s.attestor1))
 
-	s.catalog.EXPECT().Find(s.attestor1).Return(nil)
+	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(nil)
 	s.Assert().Equal(unknownName, s.attestor.attestorName(s.attestor1))
 }

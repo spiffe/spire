@@ -11,19 +11,23 @@ import public "github.com/spiffe/spire/proto/common/common.proto";
 import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
 
 /** Represents an empty request */
-message FetchAttestationDataRequest {}
+message FetchAttestationDataRequest {
+	bytes challenge = 1;
+}
 
 /** Represents the attested data and base SPIFFE ID */
 message FetchAttestationDataResponse {
     /** A type which contains attestation data for specific platform */
-    spire.common.AttestedData attestedData = 1;
+    spire.common.AttestationData attestationData = 1;
     /** SPIFFE ID */
     string spiffeId = 2;
+	/** response to the challenge (if challenge was present) **/
+	bytes response = 3;
 }
 
 service NodeAttestor {
     /** Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation */
-    rpc FetchAttestationData(FetchAttestationDataRequest) returns (FetchAttestationDataResponse);
+    rpc FetchAttestationData(stream FetchAttestationDataRequest) returns (stream FetchAttestationDataResponse);
 
     /** Applies the plugin configuration and returns configuration errors */
     rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);

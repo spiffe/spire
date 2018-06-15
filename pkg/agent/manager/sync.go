@@ -54,7 +54,7 @@ func (m *manager) fetchUpdates(entryRequests map[string]*entryRequest) (map[stri
 		}
 	}
 
-	update, err := m.client.FetchUpdates(&node.FetchSVIDRequest{Csrs: csrs})
+	update, err := m.client.FetchUpdates(&node.FetchX509SVIDRequest{Csrs: csrs})
 	if err != nil {
 		return nil, nil, err
 	}

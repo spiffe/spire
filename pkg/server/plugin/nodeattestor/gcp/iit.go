@@ -39,6 +39,8 @@ type IITAttestorPlugin struct {
 }
 
 func (p *IITAttestorPlugin) spiffeID(gcpAccountID string, gcpInstanceID string) *url.URL {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
 	spiffePath := path.Join("spire", "agent", pluginName, gcpAccountID, gcpInstanceID)
 	id := &url.URL{
 		Scheme: "spiffe",
@@ -48,27 +50,28 @@ func (p *IITAttestorPlugin) spiffeID(gcpAccountID string, gcpInstanceID string) 
 	return id
 }
 
-func (p *IITAttestorPlugin) Attest(ctx context.Context, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
-	if req == nil || req.GetAttestedData() == nil {
-		err := cgcp.AttestationStepError("retrieving the attested data", fmt.Errorf("AttestRequest or attestedData is nil"))
-		return &nodeattestor.AttestResponse{Valid: false}, err
+func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+	req, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	if req.GetAttestationData() == nil {
+		return cgcp.AttestationStepError("retrieving the attested data", fmt.Errorf("AttestRequest or attestedData is nil"))
 	}
 
 	if req.AttestedBefore {
-		err := cgcp.AttestationStepError("validation the InstanceID", fmt.Errorf("the InstanceID has been used and cannot be registered again"))
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return cgcp.AttestationStepError("validation the InstanceID", fmt.Errorf("the InstanceID has been used and cannot be registered again"))
 	}
 
 	identityToken := &cgcp.IdentityToken{}
-	_, err := jwt.ParseWithClaims(string(req.GetAttestedData().Data), identityToken, p.tokenKeyRetriever.retrieveKey)
+	_, err = jwt.ParseWithClaims(string(req.GetAttestationData().Data), identityToken, p.tokenKeyRetriever.retrieveKey)
 	if err != nil {
-		err = cgcp.AttestationStepError("parsing the identity token", err)
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return cgcp.AttestationStepError("parsing the identity token", err)
 	}
 
 	if identityToken.Audience != audience {
-		err = cgcp.AttestationStepError("Audience claim in the token doesn't match the expected audience", err)
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return cgcp.AttestationStepError("Audience claim in the token doesn't match the expected audience", err)
 	}
 
 	projectIDMatchesWhitelist := false
@@ -79,19 +82,21 @@ func (p *IITAttestorPlugin) Attest(ctx context.Context, req *nodeattestor.Attest
 		}
 	}
 	if !projectIDMatchesWhitelist {
-		err = cgcp.AttestationStepError("validation of the ProjectID", fmt.Errorf("the projectID doen't match the projectID whitelist"))
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return cgcp.AttestationStepError("validation of the ProjectID", fmt.Errorf("the projectID doen't match the projectID whitelist"))
 	}
 
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
+	spiffeID := p.spiffeID(identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID)
 
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: p.spiffeID(identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID).String(),
+		BaseSPIFFEID: spiffeID.String(),
 	}
-	return resp, nil
 
+	if err := stream.Send(resp); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
@@ -131,9 +136,8 @@ func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginI
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewInstanceIdentityToken() nodeattestor.NodeAttestor {
+func NewInstanceIdentityToken() nodeattestor.Plugin {
 	return &IITAttestorPlugin{
-		mtx: &sync.Mutex{},
 		tokenKeyRetriever: &googlePublicKeyRetriever{
 			certificates: make(map[string]*x509.Certificate),
 			mtx:          &sync.Mutex{},

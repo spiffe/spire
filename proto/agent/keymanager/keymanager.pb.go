@@ -36,18 +36,6 @@ type GetPluginInfoRequest = plugin.GetPluginInfoRequest
 // GetPluginInfoResponse from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
 type GetPluginInfoResponse = plugin.GetPluginInfoResponse
 
-// PluginInfoRequest from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
-type PluginInfoRequest = plugin.PluginInfoRequest
-
-// PluginInfoReply from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
-type PluginInfoReply = plugin.PluginInfoReply
-
-// StopRequest from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
-type StopRequest = plugin.StopRequest
-
-// StopReply from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
-type StopReply = plugin.StopReply
-
 // * Represents an empty request
 type GenerateKeyPairRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

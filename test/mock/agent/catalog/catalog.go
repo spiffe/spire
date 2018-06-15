@@ -37,16 +37,17 @@ func (m *MockCatalog) EXPECT() *MockCatalogMockRecorder {
 	return m.recorder
 }
 
-// Find mocks base method
-func (m *MockCatalog) Find(arg0 catalog.Plugin) *catalog.ManagedPlugin {
-	ret := m.ctrl.Call(m, "Find", arg0)
-	ret0, _ := ret[0].(*catalog.ManagedPlugin)
-	return ret0
+// ConfigFor mocks base method
+func (m *MockCatalog) ConfigFor(arg0 interface{}) (*catalog.PluginConfig, bool) {
+	ret := m.ctrl.Call(m, "ConfigFor", arg0)
+	ret0, _ := ret[0].(*catalog.PluginConfig)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
 }
 
-// Find indicates an expected call of Find
-func (mr *MockCatalogMockRecorder) Find(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockCatalog)(nil).Find), arg0)
+// ConfigFor indicates an expected call of ConfigFor
+func (mr *MockCatalogMockRecorder) ConfigFor(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfigFor", reflect.TypeOf((*MockCatalog)(nil).ConfigFor), arg0)
 }
 
 // KeyManagers mocks base method

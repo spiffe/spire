@@ -3,6 +3,7 @@ package gcp
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 	"testing"
 
@@ -42,8 +43,8 @@ func buildToken() *jwt.Token {
 	return token
 }
 
-func buildIITPlugin() IITAttestorPlugin {
-	return IITAttestorPlugin{
+func buildIITPlugin() *IITAttestorPlugin {
+	return &IITAttestorPlugin{
 		tokenKeyRetriever:  &staticKeyRetriever{key: "secret"},
 		mtx:                &sync.Mutex{},
 		projectIDWhitelist: []string{"project-123"},
@@ -52,7 +53,7 @@ func buildIITPlugin() IITAttestorPlugin {
 
 func TestErrorOnInvalidToken(t *testing.T) {
 	p := buildIITPlugin()
-	_, err := p.Attest(context.Background(), &nodeattestor.AttestRequest{})
+	_, err := doAttest(p, &nodeattestor.AttestRequest{})
 	require.Error(t, err)
 }
 
@@ -61,13 +62,13 @@ func TestErrorOnMissingKid(t *testing.T) {
 	token.Header["kid"] = nil
 	tokenString, _ := token.SignedString([]byte("secret"))
 
-	data := &common.AttestedData{
+	data := &common.AttestationData{
 		Type: pluginName,
 		Data: []byte(tokenString),
 	}
 
 	p := buildIITPlugin()
-	_, err := p.Attest(context.Background(), &nodeattestor.AttestRequest{AttestedData: data})
+	_, err := doAttest(p, &nodeattestor.AttestRequest{AttestationData: data})
 	require.Error(t, err)
 }
 
@@ -77,13 +78,13 @@ func TestErrorOnInvalidClaims(t *testing.T) {
 	})
 	tokenString, _ := token.SignedString([]byte("secret"))
 
-	data := &common.AttestedData{
+	data := &common.AttestationData{
 		Type: pluginName,
 		Data: []byte(tokenString),
 	}
 
 	p := buildIITPlugin()
-	_, err := p.Attest(context.Background(), &nodeattestor.AttestRequest{AttestedData: data})
+	_, err := doAttest(p, &nodeattestor.AttestRequest{AttestationData: data})
 	require.Error(t, err)
 }
 
@@ -94,13 +95,13 @@ func TestErrorOnInvalidAudience(t *testing.T) {
 	token.Header["kid"] = "123"
 	tokenString, _ := token.SignedString([]byte("secret"))
 
-	data := &common.AttestedData{
+	data := &common.AttestationData{
 		Type: pluginName,
 		Data: []byte(tokenString),
 	}
 
 	p := buildIITPlugin()
-	_, err := p.Attest(context.Background(), &nodeattestor.AttestRequest{AttestedData: data})
+	_, err := doAttest(p, &nodeattestor.AttestRequest{AttestationData: data})
 	require.Error(t, err)
 }
 
@@ -108,13 +109,13 @@ func TestErrorOnAttestedBefore(t *testing.T) {
 	token := buildToken()
 	tokenString, _ := token.SignedString([]byte("secret"))
 
-	data := &common.AttestedData{
+	data := &common.AttestationData{
 		Type: pluginName,
 		Data: []byte(tokenString),
 	}
 
 	p := buildIITPlugin()
-	_, err := p.Attest(context.Background(), &nodeattestor.AttestRequest{AttestedData: data, AttestedBefore: true})
+	_, err := doAttest(p, &nodeattestor.AttestRequest{AttestationData: data, AttestedBefore: true})
 	require.Error(t, err)
 }
 
@@ -122,13 +123,13 @@ func TestErrorOnProjectIdMismatch(t *testing.T) {
 	token := buildToken()
 	tokenString, _ := token.SignedString([]byte("secret"))
 
-	data := &common.AttestedData{
+	data := &common.AttestationData{
 		Type: pluginName,
 		Data: []byte(tokenString),
 	}
 	p := buildIITPlugin()
 	p.projectIDWhitelist = []string{"invalid-id"}
-	_, err := p.Attest(context.Background(), &nodeattestor.AttestRequest{AttestedData: data})
+	_, err := doAttest(p, &nodeattestor.AttestRequest{AttestationData: data})
 	require.Error(t, err)
 }
 
@@ -136,12 +137,12 @@ func TestSuccesfullyProcessAttestationRequest(t *testing.T) {
 	token := buildToken()
 	tokenString, _ := token.SignedString([]byte("secret"))
 
-	data := &common.AttestedData{
+	data := &common.AttestationData{
 		Type: pluginName,
 		Data: []byte(tokenString),
 	}
 	p := buildIITPlugin()
-	res, err := p.Attest(context.Background(), &nodeattestor.AttestRequest{AttestedData: data})
+	res, err := doAttest(p, &nodeattestor.AttestRequest{AttestationData: data})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.True(t, res.Valid)
@@ -150,13 +151,46 @@ func TestSuccesfullyProcessAttestationRequest(t *testing.T) {
 func TestErrorOnInvalidAlgorithm(t *testing.T) {
 	token := buildToken()
 	tokenString, _ := token.SignedString([]byte("secret"))
-	data := &common.AttestedData{
+	data := &common.AttestationData{
 		Type: pluginName,
 		Data: []byte(tokenString),
 	}
 	p := buildIITPlugin()
 	p.tokenKeyRetriever = &googlePublicKeyRetriever{}
-	_, err := p.Attest(context.Background(), &nodeattestor.AttestRequest{AttestedData: data})
+	_, err := doAttest(p, &nodeattestor.AttestRequest{AttestationData: data})
 	require.Error(t, err)
+}
 
+type fakeAttestPluginStream struct {
+	req  *nodeattestor.AttestRequest
+	resp *nodeattestor.AttestResponse
+}
+
+func (f *fakeAttestPluginStream) Context() context.Context {
+	return context.Background()
+}
+
+func (f *fakeAttestPluginStream) Recv() (*nodeattestor.AttestRequest, error) {
+	req := f.req
+	f.req = nil
+	if req == nil {
+		return nil, io.EOF
+	}
+	return req, nil
+}
+
+func (f *fakeAttestPluginStream) Send(resp *nodeattestor.AttestResponse) error {
+	if f.resp != nil {
+		return io.EOF
+	}
+	f.resp = resp
+	return nil
+}
+
+func doAttest(p nodeattestor.Plugin, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+	s := &fakeAttestPluginStream{req: req}
+	if err := p.Attest(s); err != nil {
+		return nil, err
+	}
+	return s.resp, nil
 }

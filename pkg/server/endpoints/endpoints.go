@@ -99,12 +99,11 @@ func (e *endpoints) createHTTPServer(ctx context.Context) *http.Server {
 // registerNodeAPI creates a Node API handler and registers it against
 // the provided gRPC server.
 func (e *endpoints) registerNodeAPI(gs *grpc.Server) {
-	n := &node.Handler{
+	n := node.NewHandler(node.HandlerConfig{
 		Log:         e.c.Log.WithField("subsystem_name", "node_api"),
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
-	}
-
+	})
 	node_pb.RegisterNodeServer(gs, n)
 }
 

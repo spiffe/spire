@@ -40,28 +40,26 @@ func (p *JoinTokenPlugin) spiffeID() *url.URL {
 	return id
 }
 
-func (p *JoinTokenPlugin) FetchAttestationData(ctx context.Context, req *nodeattestor.FetchAttestationDataRequest) (*nodeattestor.FetchAttestationDataResponse, error) {
+func (p *JoinTokenPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
 	if p.joinToken == "" {
 		err := errors.New("Join token attestation attempted but no token provided")
-		return &nodeattestor.FetchAttestationDataResponse{}, err
+		return err
 	}
 
 	// FIXME: NA should be the one dictating type of this message
 	// Change the proto to just take plain byte here
-	data := &common.AttestedData{
+	data := &common.AttestationData{
 		Type: pluginName,
 		Data: []byte(p.joinToken),
 	}
 
-	resp := &nodeattestor.FetchAttestationDataResponse{
-		AttestedData: data,
-		SpiffeId:     p.spiffeID().String(),
-	}
-
-	return resp, nil
+	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
+		AttestationData: data,
+		SpiffeId:        p.spiffeID().String(),
+	})
 }
 
 func (p *JoinTokenPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
@@ -94,7 +92,7 @@ func (*JoinTokenPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func New() nodeattestor.NodeAttestor {
+func New() nodeattestor.Plugin {
 	return &JoinTokenPlugin{
 		mtx: &sync.RWMutex{},
 	}

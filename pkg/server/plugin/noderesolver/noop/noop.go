@@ -21,6 +21,6 @@ func (NoOp) Resolve(context.Context, *noderesolver.ResolveRequest) (*noderesolve
 	return &noderesolver.ResolveResponse{}, nil
 }
 
-func New() noderesolver.NodeResolver {
+func New() noderesolver.Plugin {
 	return &NoOp{}
 }

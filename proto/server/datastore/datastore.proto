@@ -34,7 +34,7 @@ message AttestedNodeEntry {
     string baseSpiffeId = 1;
 
     // Attestation type
-    string attestedDataType = 2;
+    string attestationDataType = 2;
 
     // Serial number
     string certSerialNumber = 3;

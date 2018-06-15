@@ -27,8 +27,8 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 // Empty from public import github.com/spiffe/spire/proto/common/common.proto
 type Empty = common.Empty
 
-// AttestedData from public import github.com/spiffe/spire/proto/common/common.proto
-type AttestedData = common.AttestedData
+// AttestationData from public import github.com/spiffe/spire/proto/common/common.proto
+type AttestationData = common.AttestationData
 
 // Selector from public import github.com/spiffe/spire/proto/common/common.proto
 type Selector = common.Selector
@@ -58,7 +58,7 @@ func (m *Svid) Reset()         { *m = Svid{} }
 func (m *Svid) String() string { return proto.CompactTextString(m) }
 func (*Svid) ProtoMessage()    {}
 func (*Svid) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_bf8089dd136930dc, []int{0}
+	return fileDescriptor_node_4be23de3db683a67, []int{0}
 }
 func (m *Svid) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Svid.Unmarshal(m, b)
@@ -112,7 +112,7 @@ func (m *SvidUpdate) Reset()         { *m = SvidUpdate{} }
 func (m *SvidUpdate) String() string { return proto.CompactTextString(m) }
 func (*SvidUpdate) ProtoMessage()    {}
 func (*SvidUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_bf8089dd136930dc, []int{1}
+	return fileDescriptor_node_4be23de3db683a67, []int{1}
 }
 func (m *SvidUpdate) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SvidUpdate.Unmarshal(m, b)
@@ -154,98 +154,118 @@ func (m *SvidUpdate) GetRegistrationEntries() []*common.RegistrationEntry {
 }
 
 // Represents a request to attest the node.
-type FetchBaseSVIDRequest struct {
+type AttestRequest struct {
 	// A type which contains attestation data for specific platform.
-	AttestedData *common.AttestedData `protobuf:"bytes,1,opt,name=attested_data,json=attestedData" json:"attested_data,omitempty"`
+	AttestationData *common.AttestationData `protobuf:"bytes,1,opt,name=attestation_data,json=attestationData" json:"attestation_data,omitempty"`
 	// Certificate signing request.
-	Csr                  []byte   `protobuf:"bytes,2,opt,name=csr,proto3" json:"csr,omitempty"`
+	Csr []byte `protobuf:"bytes,2,opt,name=csr,proto3" json:"csr,omitempty"`
+	// Attestation challenge response
+	Response             []byte   `protobuf:"bytes,3,opt,name=response,proto3" json:"response,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FetchBaseSVIDRequest) Reset()         { *m = FetchBaseSVIDRequest{} }
-func (m *FetchBaseSVIDRequest) String() string { return proto.CompactTextString(m) }
-func (*FetchBaseSVIDRequest) ProtoMessage()    {}
-func (*FetchBaseSVIDRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_bf8089dd136930dc, []int{2}
+func (m *AttestRequest) Reset()         { *m = AttestRequest{} }
+func (m *AttestRequest) String() string { return proto.CompactTextString(m) }
+func (*AttestRequest) ProtoMessage()    {}
+func (*AttestRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_node_4be23de3db683a67, []int{2}
 }
-func (m *FetchBaseSVIDRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_FetchBaseSVIDRequest.Unmarshal(m, b)
+func (m *AttestRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AttestRequest.Unmarshal(m, b)
 }
-func (m *FetchBaseSVIDRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_FetchBaseSVIDRequest.Marshal(b, m, deterministic)
+func (m *AttestRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AttestRequest.Marshal(b, m, deterministic)
 }
-func (dst *FetchBaseSVIDRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FetchBaseSVIDRequest.Merge(dst, src)
+func (dst *AttestRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AttestRequest.Merge(dst, src)
 }
-func (m *FetchBaseSVIDRequest) XXX_Size() int {
-	return xxx_messageInfo_FetchBaseSVIDRequest.Size(m)
+func (m *AttestRequest) XXX_Size() int {
+	return xxx_messageInfo_AttestRequest.Size(m)
 }
-func (m *FetchBaseSVIDRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_FetchBaseSVIDRequest.DiscardUnknown(m)
+func (m *AttestRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_AttestRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_FetchBaseSVIDRequest proto.InternalMessageInfo
+var xxx_messageInfo_AttestRequest proto.InternalMessageInfo
 
-func (m *FetchBaseSVIDRequest) GetAttestedData() *common.AttestedData {
+func (m *AttestRequest) GetAttestationData() *common.AttestationData {
 	if m != nil {
-		return m.AttestedData
+		return m.AttestationData
 	}
 	return nil
 }
 
-func (m *FetchBaseSVIDRequest) GetCsr() []byte {
+func (m *AttestRequest) GetCsr() []byte {
 	if m != nil {
 		return m.Csr
 	}
 	return nil
 }
 
+func (m *AttestRequest) GetResponse() []byte {
+	if m != nil {
+		return m.Response
+	}
+	return nil
+}
+
 // Represents a response that contains  map of signed SVIDs and an array of
 // all current Registration Entries which are relevant to the caller SPIFFE ID
-type FetchBaseSVIDResponse struct {
+type AttestResponse struct {
 	// It includes a map of signed SVIDs and an array of all current
 	// Registration Entries which are relevant to the caller SPIFFE ID.
-	SvidUpdate           *SvidUpdate `protobuf:"bytes,1,opt,name=svid_update,json=svidUpdate" json:"svid_update,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
+	SvidUpdate *SvidUpdate `protobuf:"bytes,1,opt,name=svid_update,json=svidUpdate" json:"svid_update,omitempty"`
+	// This is a challenge issued by the server to the node. If populated, the
+	// node is expected to respond with another AttestRequest with the response.
+	// This field is mutually exclusive with the svid_update field.
+	Challenge            []byte   `protobuf:"bytes,2,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FetchBaseSVIDResponse) Reset()         { *m = FetchBaseSVIDResponse{} }
-func (m *FetchBaseSVIDResponse) String() string { return proto.CompactTextString(m) }
-func (*FetchBaseSVIDResponse) ProtoMessage()    {}
-func (*FetchBaseSVIDResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_bf8089dd136930dc, []int{3}
+func (m *AttestResponse) Reset()         { *m = AttestResponse{} }
+func (m *AttestResponse) String() string { return proto.CompactTextString(m) }
+func (*AttestResponse) ProtoMessage()    {}
+func (*AttestResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_node_4be23de3db683a67, []int{3}
 }
-func (m *FetchBaseSVIDResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_FetchBaseSVIDResponse.Unmarshal(m, b)
+func (m *AttestResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AttestResponse.Unmarshal(m, b)
 }
-func (m *FetchBaseSVIDResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_FetchBaseSVIDResponse.Marshal(b, m, deterministic)
+func (m *AttestResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AttestResponse.Marshal(b, m, deterministic)
 }
-func (dst *FetchBaseSVIDResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FetchBaseSVIDResponse.Merge(dst, src)
+func (dst *AttestResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AttestResponse.Merge(dst, src)
 }
-func (m *FetchBaseSVIDResponse) XXX_Size() int {
-	return xxx_messageInfo_FetchBaseSVIDResponse.Size(m)
+func (m *AttestResponse) XXX_Size() int {
+	return xxx_messageInfo_AttestResponse.Size(m)
 }
-func (m *FetchBaseSVIDResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_FetchBaseSVIDResponse.DiscardUnknown(m)
+func (m *AttestResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_AttestResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_FetchBaseSVIDResponse proto.InternalMessageInfo
+var xxx_messageInfo_AttestResponse proto.InternalMessageInfo
 
-func (m *FetchBaseSVIDResponse) GetSvidUpdate() *SvidUpdate {
+func (m *AttestResponse) GetSvidUpdate() *SvidUpdate {
 	if m != nil {
 		return m.SvidUpdate
 	}
 	return nil
 }
 
+func (m *AttestResponse) GetChallenge() []byte {
+	if m != nil {
+		return m.Challenge
+	}
+	return nil
+}
+
 // Represents a request with a list of CSR.
-type FetchSVIDRequest struct {
+type FetchX509SVIDRequest struct {
 	// A list of CSRs
 	Csrs                 [][]byte `protobuf:"bytes,2,rep,name=csrs,proto3" json:"csrs,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -253,31 +273,31 @@ type FetchSVIDRequest struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FetchSVIDRequest) Reset()         { *m = FetchSVIDRequest{} }
-func (m *FetchSVIDRequest) String() string { return proto.CompactTextString(m) }
-func (*FetchSVIDRequest) ProtoMessage()    {}
-func (*FetchSVIDRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_bf8089dd136930dc, []int{4}
+func (m *FetchX509SVIDRequest) Reset()         { *m = FetchX509SVIDRequest{} }
+func (m *FetchX509SVIDRequest) String() string { return proto.CompactTextString(m) }
+func (*FetchX509SVIDRequest) ProtoMessage()    {}
+func (*FetchX509SVIDRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_node_4be23de3db683a67, []int{4}
 }
-func (m *FetchSVIDRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_FetchSVIDRequest.Unmarshal(m, b)
+func (m *FetchX509SVIDRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FetchX509SVIDRequest.Unmarshal(m, b)
 }
-func (m *FetchSVIDRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_FetchSVIDRequest.Marshal(b, m, deterministic)
+func (m *FetchX509SVIDRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FetchX509SVIDRequest.Marshal(b, m, deterministic)
 }
-func (dst *FetchSVIDRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FetchSVIDRequest.Merge(dst, src)
+func (dst *FetchX509SVIDRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FetchX509SVIDRequest.Merge(dst, src)
 }
-func (m *FetchSVIDRequest) XXX_Size() int {
-	return xxx_messageInfo_FetchSVIDRequest.Size(m)
+func (m *FetchX509SVIDRequest) XXX_Size() int {
+	return xxx_messageInfo_FetchX509SVIDRequest.Size(m)
 }
-func (m *FetchSVIDRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_FetchSVIDRequest.DiscardUnknown(m)
+func (m *FetchX509SVIDRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_FetchX509SVIDRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_FetchSVIDRequest proto.InternalMessageInfo
+var xxx_messageInfo_FetchX509SVIDRequest proto.InternalMessageInfo
 
-func (m *FetchSVIDRequest) GetCsrs() [][]byte {
+func (m *FetchX509SVIDRequest) GetCsrs() [][]byte {
 	if m != nil {
 		return m.Csrs
 	}
@@ -286,7 +306,7 @@ func (m *FetchSVIDRequest) GetCsrs() [][]byte {
 
 // Represents a response that contains  map of signed SVIDs and an array
 // of all current Registration Entries which are relevant to the caller SPIFFE ID.
-type FetchSVIDResponse struct {
+type FetchX509SVIDResponse struct {
 	// It includes a map of signed SVIDs and an array of all current Registration
 	// Entries which are relevant to the caller SPIFFE ID.
 	SvidUpdate           *SvidUpdate `protobuf:"bytes,1,opt,name=svid_update,json=svidUpdate" json:"svid_update,omitempty"`
@@ -295,31 +315,31 @@ type FetchSVIDResponse struct {
 	XXX_sizecache        int32       `json:"-"`
 }
 
-func (m *FetchSVIDResponse) Reset()         { *m = FetchSVIDResponse{} }
-func (m *FetchSVIDResponse) String() string { return proto.CompactTextString(m) }
-func (*FetchSVIDResponse) ProtoMessage()    {}
-func (*FetchSVIDResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_bf8089dd136930dc, []int{5}
+func (m *FetchX509SVIDResponse) Reset()         { *m = FetchX509SVIDResponse{} }
+func (m *FetchX509SVIDResponse) String() string { return proto.CompactTextString(m) }
+func (*FetchX509SVIDResponse) ProtoMessage()    {}
+func (*FetchX509SVIDResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_node_4be23de3db683a67, []int{5}
 }
-func (m *FetchSVIDResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_FetchSVIDResponse.Unmarshal(m, b)
+func (m *FetchX509SVIDResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FetchX509SVIDResponse.Unmarshal(m, b)
 }
-func (m *FetchSVIDResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_FetchSVIDResponse.Marshal(b, m, deterministic)
+func (m *FetchX509SVIDResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FetchX509SVIDResponse.Marshal(b, m, deterministic)
 }
-func (dst *FetchSVIDResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FetchSVIDResponse.Merge(dst, src)
+func (dst *FetchX509SVIDResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FetchX509SVIDResponse.Merge(dst, src)
 }
-func (m *FetchSVIDResponse) XXX_Size() int {
-	return xxx_messageInfo_FetchSVIDResponse.Size(m)
+func (m *FetchX509SVIDResponse) XXX_Size() int {
+	return xxx_messageInfo_FetchX509SVIDResponse.Size(m)
 }
-func (m *FetchSVIDResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_FetchSVIDResponse.DiscardUnknown(m)
+func (m *FetchX509SVIDResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_FetchX509SVIDResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_FetchSVIDResponse proto.InternalMessageInfo
+var xxx_messageInfo_FetchX509SVIDResponse proto.InternalMessageInfo
 
-func (m *FetchSVIDResponse) GetSvidUpdate() *SvidUpdate {
+func (m *FetchX509SVIDResponse) GetSvidUpdate() *SvidUpdate {
 	if m != nil {
 		return m.SvidUpdate
 	}
@@ -339,7 +359,7 @@ func (m *FetchFederatedBundleRequest) Reset()         { *m = FetchFederatedBundl
 func (m *FetchFederatedBundleRequest) String() string { return proto.CompactTextString(m) }
 func (*FetchFederatedBundleRequest) ProtoMessage()    {}
 func (*FetchFederatedBundleRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_bf8089dd136930dc, []int{6}
+	return fileDescriptor_node_4be23de3db683a67, []int{6}
 }
 func (m *FetchFederatedBundleRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchFederatedBundleRequest.Unmarshal(m, b)
@@ -379,7 +399,7 @@ func (m *FetchFederatedBundleResponse) Reset()         { *m = FetchFederatedBund
 func (m *FetchFederatedBundleResponse) String() string { return proto.CompactTextString(m) }
 func (*FetchFederatedBundleResponse) ProtoMessage()    {}
 func (*FetchFederatedBundleResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_bf8089dd136930dc, []int{7}
+	return fileDescriptor_node_4be23de3db683a67, []int{7}
 }
 func (m *FetchFederatedBundleResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchFederatedBundleResponse.Unmarshal(m, b)
@@ -410,10 +430,10 @@ func init() {
 	proto.RegisterType((*Svid)(nil), "spire.api.node.Svid")
 	proto.RegisterType((*SvidUpdate)(nil), "spire.api.node.SvidUpdate")
 	proto.RegisterMapType((map[string]*Svid)(nil), "spire.api.node.SvidUpdate.SvidsEntry")
-	proto.RegisterType((*FetchBaseSVIDRequest)(nil), "spire.api.node.FetchBaseSVIDRequest")
-	proto.RegisterType((*FetchBaseSVIDResponse)(nil), "spire.api.node.FetchBaseSVIDResponse")
-	proto.RegisterType((*FetchSVIDRequest)(nil), "spire.api.node.FetchSVIDRequest")
-	proto.RegisterType((*FetchSVIDResponse)(nil), "spire.api.node.FetchSVIDResponse")
+	proto.RegisterType((*AttestRequest)(nil), "spire.api.node.AttestRequest")
+	proto.RegisterType((*AttestResponse)(nil), "spire.api.node.AttestResponse")
+	proto.RegisterType((*FetchX509SVIDRequest)(nil), "spire.api.node.FetchX509SVIDRequest")
+	proto.RegisterType((*FetchX509SVIDResponse)(nil), "spire.api.node.FetchX509SVIDResponse")
 	proto.RegisterType((*FetchFederatedBundleRequest)(nil), "spire.api.node.FetchFederatedBundleRequest")
 	proto.RegisterType((*FetchFederatedBundleResponse)(nil), "spire.api.node.FetchFederatedBundleResponse")
 	proto.RegisterMapType((map[string][]byte)(nil), "spire.api.node.FetchFederatedBundleResponse.FederatedBundlesEntry")
@@ -431,11 +451,11 @@ const _ = grpc.SupportPackageIsVersion4
 
 type NodeClient interface {
 	// Attest the node, get base node SVID.
-	FetchBaseSVID(ctx context.Context, in *FetchBaseSVIDRequest, opts ...grpc.CallOption) (*FetchBaseSVIDResponse, error)
+	Attest(ctx context.Context, opts ...grpc.CallOption) (Node_AttestClient, error)
 	// Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
 	// Base Node SVID or the Registered Node SVID used for this call)
 	// List can be empty to allow Node Agent cache refresh).
-	FetchSVID(ctx context.Context, opts ...grpc.CallOption) (Node_FetchSVIDClient, error)
+	FetchX509SVID(ctx context.Context, opts ...grpc.CallOption) (Node_FetchX509SVIDClient, error)
 	// Called by the Node Agent to fetch the named Federated CA Bundle.
 	// Used in the event that authorized workloads reference a Federated Bundle.
 	FetchFederatedBundle(ctx context.Context, in *FetchFederatedBundleRequest, opts ...grpc.CallOption) (*FetchFederatedBundleResponse, error)
@@ -449,40 +469,62 @@ func NewNodeClient(cc *grpc.ClientConn) NodeClient {
 	return &nodeClient{cc}
 }
 
-func (c *nodeClient) FetchBaseSVID(ctx context.Context, in *FetchBaseSVIDRequest, opts ...grpc.CallOption) (*FetchBaseSVIDResponse, error) {
-	out := new(FetchBaseSVIDResponse)
-	err := grpc.Invoke(ctx, "/spire.api.node.Node/FetchBaseSVID", in, out, c.cc, opts...)
+func (c *nodeClient) Attest(ctx context.Context, opts ...grpc.CallOption) (Node_AttestClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Node_serviceDesc.Streams[0], c.cc, "/spire.api.node.Node/Attest", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
-}
-
-func (c *nodeClient) FetchSVID(ctx context.Context, opts ...grpc.CallOption) (Node_FetchSVIDClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Node_serviceDesc.Streams[0], c.cc, "/spire.api.node.Node/FetchSVID", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodeFetchSVIDClient{stream}
+	x := &nodeAttestClient{stream}
 	return x, nil
 }
 
-type Node_FetchSVIDClient interface {
-	Send(*FetchSVIDRequest) error
-	Recv() (*FetchSVIDResponse, error)
+type Node_AttestClient interface {
+	Send(*AttestRequest) error
+	Recv() (*AttestResponse, error)
 	grpc.ClientStream
 }
 
-type nodeFetchSVIDClient struct {
+type nodeAttestClient struct {
 	grpc.ClientStream
 }
 
-func (x *nodeFetchSVIDClient) Send(m *FetchSVIDRequest) error {
+func (x *nodeAttestClient) Send(m *AttestRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *nodeFetchSVIDClient) Recv() (*FetchSVIDResponse, error) {
-	m := new(FetchSVIDResponse)
+func (x *nodeAttestClient) Recv() (*AttestResponse, error) {
+	m := new(AttestResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *nodeClient) FetchX509SVID(ctx context.Context, opts ...grpc.CallOption) (Node_FetchX509SVIDClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Node_serviceDesc.Streams[1], c.cc, "/spire.api.node.Node/FetchX509SVID", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &nodeFetchX509SVIDClient{stream}
+	return x, nil
+}
+
+type Node_FetchX509SVIDClient interface {
+	Send(*FetchX509SVIDRequest) error
+	Recv() (*FetchX509SVIDResponse, error)
+	grpc.ClientStream
+}
+
+type nodeFetchX509SVIDClient struct {
+	grpc.ClientStream
+}
+
+func (x *nodeFetchX509SVIDClient) Send(m *FetchX509SVIDRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *nodeFetchX509SVIDClient) Recv() (*FetchX509SVIDResponse, error) {
+	m := new(FetchX509SVIDResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -502,11 +544,11 @@ func (c *nodeClient) FetchFederatedBundle(ctx context.Context, in *FetchFederate
 
 type NodeServer interface {
 	// Attest the node, get base node SVID.
-	FetchBaseSVID(context.Context, *FetchBaseSVIDRequest) (*FetchBaseSVIDResponse, error)
+	Attest(Node_AttestServer) error
 	// Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
 	// Base Node SVID or the Registered Node SVID used for this call)
 	// List can be empty to allow Node Agent cache refresh).
-	FetchSVID(Node_FetchSVIDServer) error
+	FetchX509SVID(Node_FetchX509SVIDServer) error
 	// Called by the Node Agent to fetch the named Federated CA Bundle.
 	// Used in the event that authorized workloads reference a Federated Bundle.
 	FetchFederatedBundle(context.Context, *FetchFederatedBundleRequest) (*FetchFederatedBundleResponse, error)
@@ -516,44 +558,52 @@ func RegisterNodeServer(s *grpc.Server, srv NodeServer) {
 	s.RegisterService(&_Node_serviceDesc, srv)
 }
 
-func _Node_FetchBaseSVID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FetchBaseSVIDRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeServer).FetchBaseSVID(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/spire.api.node.Node/FetchBaseSVID",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).FetchBaseSVID(ctx, req.(*FetchBaseSVIDRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+func _Node_Attest_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(NodeServer).Attest(&nodeAttestServer{stream})
 }
 
-func _Node_FetchSVID_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NodeServer).FetchSVID(&nodeFetchSVIDServer{stream})
-}
-
-type Node_FetchSVIDServer interface {
-	Send(*FetchSVIDResponse) error
-	Recv() (*FetchSVIDRequest, error)
+type Node_AttestServer interface {
+	Send(*AttestResponse) error
+	Recv() (*AttestRequest, error)
 	grpc.ServerStream
 }
 
-type nodeFetchSVIDServer struct {
+type nodeAttestServer struct {
 	grpc.ServerStream
 }
 
-func (x *nodeFetchSVIDServer) Send(m *FetchSVIDResponse) error {
+func (x *nodeAttestServer) Send(m *AttestResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *nodeFetchSVIDServer) Recv() (*FetchSVIDRequest, error) {
-	m := new(FetchSVIDRequest)
+func (x *nodeAttestServer) Recv() (*AttestRequest, error) {
+	m := new(AttestRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func _Node_FetchX509SVID_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(NodeServer).FetchX509SVID(&nodeFetchX509SVIDServer{stream})
+}
+
+type Node_FetchX509SVIDServer interface {
+	Send(*FetchX509SVIDResponse) error
+	Recv() (*FetchX509SVIDRequest, error)
+	grpc.ServerStream
+}
+
+type nodeFetchX509SVIDServer struct {
+	grpc.ServerStream
+}
+
+func (x *nodeFetchX509SVIDServer) Send(m *FetchX509SVIDResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *nodeFetchX509SVIDServer) Recv() (*FetchX509SVIDRequest, error) {
+	m := new(FetchX509SVIDRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -583,18 +633,20 @@ var _Node_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*NodeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "FetchBaseSVID",
-			Handler:    _Node_FetchBaseSVID_Handler,
-		},
-		{
 			MethodName: "FetchFederatedBundle",
 			Handler:    _Node_FetchFederatedBundle_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "FetchSVID",
-			Handler:       _Node_FetchSVID_Handler,
+			StreamName:    "Attest",
+			Handler:       _Node_Attest_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "FetchX509SVID",
+			Handler:       _Node_FetchX509SVID_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
@@ -602,43 +654,45 @@ var _Node_serviceDesc = grpc.ServiceDesc{
 	Metadata: "node.proto",
 }
 
-func init() { proto.RegisterFile("node.proto", fileDescriptor_node_bf8089dd136930dc) }
+func init() { proto.RegisterFile("node.proto", fileDescriptor_node_4be23de3db683a67) }
 
-var fileDescriptor_node_bf8089dd136930dc = []byte{
-	// 548 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x54, 0x6d, 0x6b, 0x13, 0x41,
-	0x10, 0xf6, 0xf2, 0x46, 0x33, 0x49, 0x25, 0x5d, 0xa3, 0x84, 0x54, 0x30, 0x1e, 0x56, 0x82, 0xca,
-	0x45, 0x23, 0x82, 0xd4, 0x0f, 0x62, 0x5a, 0x0b, 0xfd, 0x52, 0xca, 0xb6, 0xfa, 0x41, 0x84, 0xb0,
-	0xb9, 0x9d, 0xb4, 0x8b, 0xc9, 0xdd, 0x75, 0x77, 0x2f, 0xd0, 0x1f, 0xe0, 0xcf, 0xf1, 0xdf, 0xf8,
-	0x83, 0x64, 0x77, 0x2f, 0xf5, 0x72, 0x1c, 0x55, 0xc1, 0x4f, 0x99, 0x9d, 0x3c, 0x33, 0xcf, 0x33,
-	0x33, 0x4f, 0x02, 0x10, 0xc5, 0x1c, 0x83, 0x44, 0xc6, 0x3a, 0x26, 0x77, 0x55, 0x22, 0x24, 0x06,
-	0x2c, 0x11, 0x81, 0xc9, 0xf6, 0x5f, 0x5d, 0x08, 0x7d, 0x99, 0xce, 0x82, 0x30, 0x5e, 0x8e, 0x54,
-	0x22, 0xe6, 0x73, 0x1c, 0x59, 0xc4, 0xc8, 0xc2, 0x47, 0x61, 0xbc, 0x5c, 0xc6, 0x51, 0xf6, 0xe1,
-	0x5a, 0xf8, 0x6f, 0xa0, 0x76, 0xb6, 0x12, 0x9c, 0xec, 0x42, 0x53, 0xad, 0x04, 0x9f, 0x86, 0x28,
-	0x75, 0xcf, 0x1b, 0x78, 0xc3, 0x36, 0xdd, 0x32, 0x89, 0x03, 0x94, 0x9a, 0x74, 0xa0, 0xaa, 0xf5,
-	0xa2, 0x57, 0x19, 0x78, 0xc3, 0x3a, 0x35, 0xa1, 0xff, 0xbd, 0x02, 0x60, 0xea, 0x3e, 0x25, 0x9c,
-	0x69, 0x24, 0xef, 0xa0, 0x6e, 0xc0, 0xaa, 0xe7, 0x0d, 0xaa, 0xc3, 0xd6, 0x78, 0x2f, 0xd8, 0x14,
-	0x16, 0xfc, 0x86, 0xda, 0x50, 0x7d, 0x8c, 0xb4, 0xbc, 0xa6, 0xae, 0x86, 0x3c, 0x80, 0xc6, 0x2c,
-	0x8d, 0xf8, 0x02, 0x2d, 0x41, 0x9b, 0x66, 0x2f, 0x42, 0xa1, 0x2b, 0xf1, 0x42, 0x28, 0x2d, 0x99,
-	0x16, 0x71, 0x34, 0xc5, 0x48, 0x4b, 0x81, 0xaa, 0x57, 0xb5, 0x1c, 0x8f, 0x32, 0x8e, 0x6c, 0x1a,
-	0x9a, 0x43, 0xba, 0xee, 0xf7, 0x64, 0x21, 0x25, 0x50, 0xf5, 0x4f, 0x9c, 0x6c, 0x27, 0xc0, 0xcc,
-	0xf5, 0x0d, 0xaf, 0xed, 0xb8, 0x4d, 0x6a, 0x42, 0xf2, 0x0c, 0xea, 0x2b, 0xb6, 0x48, 0x9d, 0x94,
-	0xd6, 0xb8, 0x5b, 0x36, 0x08, 0x75, 0x90, 0xfd, 0xca, 0x5b, 0xcf, 0x17, 0xd0, 0x3d, 0x42, 0x1d,
-	0x5e, 0x4e, 0x98, 0xc2, 0xb3, 0xcf, 0xc7, 0x87, 0x14, 0xaf, 0x52, 0x54, 0x9a, 0xbc, 0x87, 0x6d,
-	0xa6, 0x35, 0x2a, 0x8d, 0x7c, 0xca, 0x99, 0x66, 0x96, 0xa3, 0x35, 0xee, 0x6f, 0x8a, 0xfe, 0x90,
-	0x41, 0x0e, 0x99, 0x66, 0xb4, 0xcd, 0x72, 0x2f, 0x23, 0x2d, 0x54, 0x32, 0xdb, 0x88, 0x09, 0xfd,
-	0x73, 0xb8, 0x5f, 0xa0, 0x52, 0x49, 0x1c, 0x29, 0xb3, 0xfc, 0x96, 0x3d, 0x5d, 0x6a, 0x17, 0x5c,
-	0x60, 0x2a, 0x39, 0x01, 0x05, 0x75, 0x13, 0xfb, 0x4f, 0xa1, 0x63, 0xbb, 0xe6, 0xc5, 0x13, 0xa8,
-	0x85, 0x4a, 0xaa, 0x5e, 0x65, 0x50, 0x1d, 0xb6, 0xa9, 0x8d, 0xfd, 0x53, 0xd8, 0xc9, 0xe1, 0xfe,
-	0x07, 0xf3, 0x3e, 0xec, 0xda, 0x8e, 0x47, 0xc8, 0x51, 0x32, 0x8d, 0x7c, 0x62, 0xcf, 0xbe, 0x16,
-	0x61, 0x0c, 0x69, 0x2d, 0x3c, 0x15, 0xdc, 0xda, 0xaa, 0x49, 0xb7, 0x5c, 0xe2, 0x98, 0xfb, 0x3f,
-	0x3d, 0x78, 0x58, 0x5e, 0x9c, 0x29, 0x8b, 0x61, 0x67, 0xbe, 0xfe, 0x6a, 0xea, 0xfc, 0xb4, 0x36,
-	0xe7, 0xa4, 0xa8, 0xef, 0xb6, 0x46, 0x41, 0x21, 0x9f, 0x39, 0xb7, 0x33, 0x2f, 0xa4, 0xfb, 0x07,
-	0xe6, 0x3a, 0x25, 0xd0, 0x12, 0x8f, 0x75, 0xf3, 0x1e, 0x6b, 0xe7, 0xdc, 0x34, 0xfe, 0x51, 0x81,
-	0xda, 0x49, 0xcc, 0x91, 0x7c, 0x85, 0xed, 0x8d, 0x5b, 0x93, 0x27, 0xa5, 0xa2, 0x0b, 0xae, 0xeb,
-	0xef, 0xfd, 0x01, 0x95, 0x2d, 0xe7, 0x1c, 0x9a, 0x37, 0xb7, 0x24, 0x83, 0xd2, 0x9a, 0x7c, 0xd7,
-	0xc7, 0xb7, 0x20, 0x5c, 0xc7, 0xa1, 0xf7, 0xd2, 0x23, 0x57, 0xd9, 0x4f, 0xa1, 0xb0, 0x06, 0xf2,
-	0xfc, 0xef, 0xf6, 0xed, 0xb8, 0x5e, 0xfc, 0xcb, 0x71, 0x26, 0x8d, 0x2f, 0x35, 0x03, 0x3a, 0xbd,
-	0x33, 0x6b, 0xd8, 0x7f, 0xb3, 0xd7, 0xbf, 0x02, 0x00, 0x00, 0xff, 0xff, 0x9c, 0x3d, 0x75, 0xc5,
-	0x1e, 0x05, 0x00, 0x00,
+var fileDescriptor_node_4be23de3db683a67 = []byte{
+	// 583 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x54, 0x6f, 0x6f, 0x12, 0x4f,
+	0x10, 0xfe, 0x1d, 0x50, 0x02, 0x03, 0xed, 0x0f, 0x57, 0x34, 0x97, 0x6b, 0xab, 0xe4, 0x62, 0x13,
+	0x52, 0xcd, 0x51, 0x31, 0x4d, 0xb4, 0x7d, 0x55, 0x5a, 0x1b, 0x1b, 0x93, 0xc6, 0x6c, 0xd5, 0x18,
+	0xdf, 0xe0, 0x72, 0x37, 0xc0, 0xa5, 0x70, 0x77, 0xdd, 0x5d, 0x48, 0xfa, 0x01, 0x8c, 0x5f, 0xc5,
+	0x0f, 0xe4, 0x07, 0x32, 0xbb, 0x7b, 0x17, 0xe0, 0x42, 0xfd, 0x93, 0xf8, 0x8a, 0xd9, 0x67, 0x9f,
+	0x9d, 0x79, 0x66, 0xe6, 0xe1, 0x00, 0xa2, 0x38, 0x40, 0x2f, 0xe1, 0xb1, 0x8c, 0xc9, 0x96, 0x48,
+	0x42, 0x8e, 0x1e, 0x4b, 0x42, 0x4f, 0xa1, 0xce, 0xf3, 0x51, 0x28, 0xc7, 0xb3, 0x81, 0xe7, 0xc7,
+	0xd3, 0x8e, 0x48, 0xc2, 0xe1, 0x10, 0x3b, 0x9a, 0xd1, 0xd1, 0xf4, 0x8e, 0x1f, 0x4f, 0xa7, 0x71,
+	0x94, 0xfe, 0x98, 0x14, 0xee, 0x21, 0x94, 0xae, 0xe6, 0x61, 0x40, 0xb6, 0xa1, 0x2a, 0xe6, 0x61,
+	0xd0, 0xf7, 0x91, 0x4b, 0xdb, 0x6a, 0x59, 0xed, 0x3a, 0xad, 0x28, 0xe0, 0x14, 0xb9, 0x24, 0x0d,
+	0x28, 0x4a, 0x39, 0xb1, 0x0b, 0x2d, 0xab, 0xbd, 0x41, 0x55, 0xe8, 0x7e, 0x2d, 0x00, 0xa8, 0x77,
+	0x1f, 0x92, 0x80, 0x49, 0x24, 0xc7, 0xb0, 0xa1, 0xc8, 0xc2, 0xb6, 0x5a, 0xc5, 0x76, 0xad, 0xbb,
+	0xe7, 0xad, 0x0a, 0xf3, 0x16, 0x54, 0x1d, 0x8a, 0xd7, 0x91, 0xe4, 0xb7, 0xd4, 0xbc, 0x21, 0x0f,
+	0xa1, 0x3c, 0x98, 0x45, 0xc1, 0x04, 0x75, 0x81, 0x3a, 0x4d, 0x4f, 0x84, 0x42, 0x93, 0xe3, 0x28,
+	0x14, 0x92, 0x33, 0x19, 0xc6, 0x51, 0x1f, 0x23, 0xc9, 0x43, 0x14, 0x76, 0x51, 0xd7, 0x78, 0x9c,
+	0xd6, 0x48, 0xbb, 0xa1, 0x4b, 0x4c, 0x93, 0xfd, 0x3e, 0xcf, 0x41, 0x21, 0x0a, 0xe7, 0xd2, 0xc8,
+	0x36, 0x02, 0x54, 0x5f, 0xd7, 0x78, 0xab, 0xdb, 0xad, 0x52, 0x15, 0x92, 0x7d, 0xd8, 0x98, 0xb3,
+	0xc9, 0xcc, 0x48, 0xa9, 0x75, 0x9b, 0xeb, 0x1a, 0xa1, 0x86, 0x72, 0x54, 0x78, 0x69, 0xb9, 0xdf,
+	0x2c, 0xd8, 0x3c, 0x91, 0x12, 0x85, 0xa4, 0x78, 0x33, 0x43, 0x21, 0xc9, 0x1b, 0x68, 0x30, 0x0d,
+	0x18, 0xd1, 0x01, 0x93, 0x4c, 0x17, 0xa8, 0x75, 0x77, 0x57, 0x15, 0x9f, 0x2c, 0x58, 0x67, 0x4c,
+	0x32, 0xfa, 0x3f, 0x5b, 0x05, 0x94, 0x3a, 0x5f, 0xf0, 0x74, 0x28, 0x2a, 0x24, 0x0e, 0x54, 0x38,
+	0x8a, 0x24, 0x8e, 0x04, 0xda, 0x45, 0xb3, 0xa3, 0xec, 0xec, 0x5e, 0xc3, 0x56, 0x26, 0xc4, 0x20,
+	0xe4, 0x18, 0x6a, 0x7a, 0xa5, 0x33, 0x3d, 0xf8, 0x54, 0x84, 0x73, 0xf7, 0x6a, 0x28, 0x88, 0xc5,
+	0x46, 0x77, 0xa0, 0xea, 0x8f, 0xd9, 0x64, 0x82, 0xd1, 0x28, 0xdb, 0xcb, 0x02, 0x70, 0xf7, 0xa1,
+	0x79, 0x8e, 0xd2, 0x1f, 0x7f, 0x3a, 0x3c, 0x78, 0x75, 0xf5, 0xf1, 0xe2, 0x2c, 0x6b, 0x9e, 0x40,
+	0xc9, 0x17, 0x5c, 0xd8, 0x85, 0x56, 0xb1, 0x5d, 0xa7, 0x3a, 0x76, 0xdf, 0xc3, 0x83, 0x1c, 0xf7,
+	0x1f, 0xe8, 0x73, 0x8f, 0x60, 0x5b, 0x67, 0x3d, 0xc7, 0x00, 0x39, 0x93, 0x18, 0xf4, 0xb4, 0x69,
+	0x32, 0x21, 0xca, 0xce, 0xfa, 0x0f, 0xd0, 0x0f, 0x03, 0x6d, 0xca, 0x2a, 0xad, 0x18, 0xe0, 0x22,
+	0x70, 0x7f, 0x58, 0xb0, 0xb3, 0xfe, 0x71, 0xaa, 0x2c, 0x86, 0x7b, 0xc3, 0xec, 0xaa, 0x6f, 0xdc,
+	0x98, 0x59, 0xbb, 0x97, 0xd7, 0xf7, 0xab, 0x44, 0x5e, 0x0e, 0x4f, 0x7d, 0xdf, 0x18, 0xe6, 0x60,
+	0xe7, 0x54, 0xcd, 0x68, 0x0d, 0x75, 0x8d, 0x43, 0x9b, 0xcb, 0x0e, 0xad, 0x2f, 0x79, 0xb1, 0xfb,
+	0xbd, 0x00, 0xa5, 0xcb, 0x38, 0x40, 0xf2, 0x16, 0xca, 0xc6, 0x0a, 0x64, 0x37, 0xaf, 0x76, 0xc5,
+	0xab, 0xce, 0xa3, 0xbb, 0xae, 0x8d, 0xfc, 0xb6, 0x75, 0x60, 0x91, 0x2f, 0xb0, 0xb9, 0xb2, 0x3e,
+	0xf2, 0x64, 0xed, 0x04, 0x72, 0x4e, 0x70, 0xf6, 0x7e, 0xc3, 0x5a, 0xaa, 0x70, 0x93, 0x9a, 0x29,
+	0x37, 0x01, 0xf2, 0xf4, 0xcf, 0x46, 0x6d, 0xea, 0x3d, 0xfb, 0x9b, 0xbd, 0xf4, 0xca, 0x9f, 0x4b,
+	0x8a, 0xf4, 0xee, 0xbf, 0x41, 0x59, 0x7f, 0x06, 0x5f, 0xfc, 0x0c, 0x00, 0x00, 0xff, 0xff, 0xfc,
+	0x7e, 0x82, 0x00, 0x57, 0x05, 0x00, 0x00,
 }

@@ -290,7 +290,7 @@ func (ds *sqlPlugin) CreateAttestedNodeEntry(ctx context.Context,
 
 	model := AttestedNodeEntry{
 		SpiffeID:     entry.BaseSpiffeId,
-		DataType:     entry.AttestedDataType,
+		DataType:     entry.AttestationDataType,
 		SerialNumber: entry.CertSerialNumber,
 		ExpiresAt:    expiresAt,
 	}
@@ -302,7 +302,7 @@ func (ds *sqlPlugin) CreateAttestedNodeEntry(ctx context.Context,
 	return &datastore.CreateAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeID,
-			AttestedDataType:   model.DataType,
+			AttestationDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: expiresAt.Format(datastore.TimeFormat),
 		},
@@ -326,7 +326,7 @@ func (ds *sqlPlugin) FetchAttestedNodeEntry(ctx context.Context,
 	return &datastore.FetchAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeID,
-			AttestedDataType:   model.DataType,
+			AttestationDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
 		},
@@ -351,7 +351,7 @@ func (ds *sqlPlugin) FetchStaleNodeEntries(ctx context.Context,
 	for _, model := range models {
 		resp.AttestedNodeEntryList = append(resp.AttestedNodeEntryList, &datastore.AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeID,
-			AttestedDataType:   model.DataType,
+			AttestationDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
 		})
@@ -392,7 +392,7 @@ func (ds *sqlPlugin) UpdateAttestedNodeEntry(ctx context.Context,
 	return &datastore.UpdateAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeID,
-			AttestedDataType:   model.DataType,
+			AttestationDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
 		},
@@ -422,7 +422,7 @@ func (ds *sqlPlugin) DeleteAttestedNodeEntry(ctx context.Context,
 	return &datastore.DeleteAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeID,
-			AttestedDataType:   model.DataType,
+			AttestationDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
 		},
@@ -1163,13 +1163,13 @@ func newPlugin() *sqlPlugin {
 
 // New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
-func New() datastore.DataStore {
+func New() datastore.Plugin {
 	return newPlugin()
 }
 
 // NewTemp create a new plugin with a temporal database, allowing new
 // connections to receive a fresh copy. Primarily meant for testing.
-func NewTemp() (datastore.DataStore, error) {
+func NewTemp() (datastore.Plugin, error) {
 	p := newPlugin()
 
 	// Call restart() to start the db - normally triggered by call to Configure

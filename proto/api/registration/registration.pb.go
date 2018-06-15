@@ -31,8 +31,8 @@ var E_Http = annotations.E_Http
 // Empty from public import github.com/spiffe/spire/proto/common/common.proto
 type Empty = common.Empty
 
-// AttestedData from public import github.com/spiffe/spire/proto/common/common.proto
-type AttestedData = common.AttestedData
+// AttestationData from public import github.com/spiffe/spire/proto/common/common.proto
+type AttestationData = common.AttestationData
 
 // Selector from public import github.com/spiffe/spire/proto/common/common.proto
 type Selector = common.Selector

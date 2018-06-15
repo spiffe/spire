@@ -37,23 +37,11 @@ type GetPluginInfoRequest = plugin.GetPluginInfoRequest
 // GetPluginInfoResponse from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
 type GetPluginInfoResponse = plugin.GetPluginInfoResponse
 
-// PluginInfoRequest from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
-type PluginInfoRequest = plugin.PluginInfoRequest
-
-// PluginInfoReply from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
-type PluginInfoReply = plugin.PluginInfoReply
-
-// StopRequest from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
-type StopRequest = plugin.StopRequest
-
-// StopReply from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
-type StopReply = plugin.StopReply
-
 // Empty from public import github.com/spiffe/spire/proto/common/common.proto
 type Empty = common.Empty
 
-// AttestedData from public import github.com/spiffe/spire/proto/common/common.proto
-type AttestedData = common.AttestedData
+// AttestationData from public import github.com/spiffe/spire/proto/common/common.proto
+type AttestationData = common.AttestationData
 
 // Selector from public import github.com/spiffe/spire/proto/common/common.proto
 type Selector = common.Selector
@@ -70,9 +58,11 @@ type RegistrationEntries = common.RegistrationEntries
 // * Represents a request to attest a node.
 type AttestRequest struct {
 	// * A type which contains attestation data for specific platform.
-	AttestedData *common.AttestedData `protobuf:"bytes,1,opt,name=attestedData" json:"attestedData,omitempty"`
+	AttestationData *common.AttestationData `protobuf:"bytes,1,opt,name=attestationData" json:"attestationData,omitempty"`
 	// * Is true if the Base SPIFFE ID is present in the Attested Node table.
-	AttestedBefore       bool     `protobuf:"varint,2,opt,name=attestedBefore" json:"attestedBefore,omitempty"`
+	AttestedBefore bool `protobuf:"varint,2,opt,name=attestedBefore" json:"attestedBefore,omitempty"`
+	// * Challenge response
+	Response             []byte   `protobuf:"bytes,3,opt,name=response,proto3" json:"response,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -82,7 +72,7 @@ func (m *AttestRequest) Reset()         { *m = AttestRequest{} }
 func (m *AttestRequest) String() string { return proto.CompactTextString(m) }
 func (*AttestRequest) ProtoMessage()    {}
 func (*AttestRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_nodeattestor_ea7a50c0f43d681c, []int{0}
+	return fileDescriptor_nodeattestor_a993627cd19248db, []int{0}
 }
 func (m *AttestRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AttestRequest.Unmarshal(m, b)
@@ -102,9 +92,9 @@ func (m *AttestRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AttestRequest proto.InternalMessageInfo
 
-func (m *AttestRequest) GetAttestedData() *common.AttestedData {
+func (m *AttestRequest) GetAttestationData() *common.AttestationData {
 	if m != nil {
-		return m.AttestedData
+		return m.AttestationData
 	}
 	return nil
 }
@@ -116,12 +106,21 @@ func (m *AttestRequest) GetAttestedBefore() bool {
 	return false
 }
 
+func (m *AttestRequest) GetResponse() []byte {
+	if m != nil {
+		return m.Response
+	}
+	return nil
+}
+
 // * Represents a response when attesting a node.
 type AttestResponse struct {
 	// * True/False
 	Valid bool `protobuf:"varint,1,opt,name=valid" json:"valid,omitempty"`
 	// * Used for the Server to validate the SPIFFE Id in the Certificate signing request.
-	BaseSPIFFEID         string   `protobuf:"bytes,2,opt,name=baseSPIFFEID" json:"baseSPIFFEID,omitempty"`
+	BaseSPIFFEID string `protobuf:"bytes,2,opt,name=baseSPIFFEID" json:"baseSPIFFEID,omitempty"`
+	// * Challenge required for attestation
+	Challenge            []byte   `protobuf:"bytes,3,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -131,7 +130,7 @@ func (m *AttestResponse) Reset()         { *m = AttestResponse{} }
 func (m *AttestResponse) String() string { return proto.CompactTextString(m) }
 func (*AttestResponse) ProtoMessage()    {}
 func (*AttestResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_nodeattestor_ea7a50c0f43d681c, []int{1}
+	return fileDescriptor_nodeattestor_a993627cd19248db, []int{1}
 }
 func (m *AttestResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AttestResponse.Unmarshal(m, b)
@@ -165,6 +164,13 @@ func (m *AttestResponse) GetBaseSPIFFEID() string {
 	return ""
 }
 
+func (m *AttestResponse) GetChallenge() []byte {
+	if m != nil {
+		return m.Challenge
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*AttestRequest)(nil), "spire.agent.nodeattestor.AttestRequest")
 	proto.RegisterType((*AttestResponse)(nil), "spire.agent.nodeattestor.AttestResponse")
@@ -182,7 +188,7 @@ const _ = grpc.SupportPackageIsVersion4
 
 type NodeAttestorClient interface {
 	// * Attesta a node.
-	Attest(ctx context.Context, in *AttestRequest, opts ...grpc.CallOption) (*AttestResponse, error)
+	Attest(ctx context.Context, opts ...grpc.CallOption) (NodeAttestor_AttestClient, error)
 	// * Responsible for configuration of the plugin.
 	Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error)
 	// * Returns the  version and related metadata of the installed plugin.
@@ -197,13 +203,35 @@ func NewNodeAttestorClient(cc *grpc.ClientConn) NodeAttestorClient {
 	return &nodeAttestorClient{cc}
 }
 
-func (c *nodeAttestorClient) Attest(ctx context.Context, in *AttestRequest, opts ...grpc.CallOption) (*AttestResponse, error) {
-	out := new(AttestResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.nodeattestor.NodeAttestor/Attest", in, out, c.cc, opts...)
+func (c *nodeAttestorClient) Attest(ctx context.Context, opts ...grpc.CallOption) (NodeAttestor_AttestClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_NodeAttestor_serviceDesc.Streams[0], c.cc, "/spire.agent.nodeattestor.NodeAttestor/Attest", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &nodeAttestorAttestClient{stream}
+	return x, nil
+}
+
+type NodeAttestor_AttestClient interface {
+	Send(*AttestRequest) error
+	Recv() (*AttestResponse, error)
+	grpc.ClientStream
+}
+
+type nodeAttestorAttestClient struct {
+	grpc.ClientStream
+}
+
+func (x *nodeAttestorAttestClient) Send(m *AttestRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *nodeAttestorAttestClient) Recv() (*AttestResponse, error) {
+	m := new(AttestResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *nodeAttestorClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
@@ -228,7 +256,7 @@ func (c *nodeAttestorClient) GetPluginInfo(ctx context.Context, in *plugin.GetPl
 
 type NodeAttestorServer interface {
 	// * Attesta a node.
-	Attest(context.Context, *AttestRequest) (*AttestResponse, error)
+	Attest(NodeAttestor_AttestServer) error
 	// * Responsible for configuration of the plugin.
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	// * Returns the  version and related metadata of the installed plugin.
@@ -239,22 +267,30 @@ func RegisterNodeAttestorServer(s *grpc.Server, srv NodeAttestorServer) {
 	s.RegisterService(&_NodeAttestor_serviceDesc, srv)
 }
 
-func _NodeAttestor_Attest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AttestRequest)
-	if err := dec(in); err != nil {
+func _NodeAttestor_Attest_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(NodeAttestorServer).Attest(&nodeAttestorAttestServer{stream})
+}
+
+type NodeAttestor_AttestServer interface {
+	Send(*AttestResponse) error
+	Recv() (*AttestRequest, error)
+	grpc.ServerStream
+}
+
+type nodeAttestorAttestServer struct {
+	grpc.ServerStream
+}
+
+func (x *nodeAttestorAttestServer) Send(m *AttestResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *nodeAttestorAttestServer) Recv() (*AttestRequest, error) {
+	m := new(AttestRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(NodeAttestorServer).Attest(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/spire.agent.nodeattestor.NodeAttestor/Attest",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAttestorServer).Attest(ctx, req.(*AttestRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 func _NodeAttestor_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -298,10 +334,6 @@ var _NodeAttestor_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*NodeAttestorServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Attest",
-			Handler:    _NodeAttestor_Attest_Handler,
-		},
-		{
 			MethodName: "Configure",
 			Handler:    _NodeAttestor_Configure_Handler,
 		},
@@ -310,32 +342,42 @@ var _NodeAttestor_serviceDesc = grpc.ServiceDesc{
 			Handler:    _NodeAttestor_GetPluginInfo_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Attest",
+			Handler:       _NodeAttestor_Attest_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "nodeattestor.proto",
 }
 
-func init() { proto.RegisterFile("nodeattestor.proto", fileDescriptor_nodeattestor_ea7a50c0f43d681c) }
+func init() { proto.RegisterFile("nodeattestor.proto", fileDescriptor_nodeattestor_a993627cd19248db) }
 
-var fileDescriptor_nodeattestor_ea7a50c0f43d681c = []byte{
-	// 320 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x52, 0xcf, 0x4e, 0xf2, 0x40,
-	0x10, 0xff, 0x4a, 0xf2, 0x11, 0x58, 0x0b, 0x87, 0x8d, 0x07, 0xd2, 0x13, 0x21, 0x11, 0xd1, 0xc3,
-	0x36, 0xe2, 0xc5, 0x93, 0x09, 0x88, 0x18, 0x3c, 0x98, 0xa6, 0xde, 0xf0, 0xb4, 0xd0, 0xd9, 0xba,
-	0x09, 0xec, 0xd4, 0xee, 0x56, 0x1f, 0xcb, 0x57, 0x34, 0xd9, 0x6d, 0x4d, 0x6b, 0x34, 0x70, 0x9a,
-	0xce, 0xcc, 0xef, 0xcf, 0xcc, 0x74, 0x09, 0x55, 0x98, 0x00, 0x37, 0x06, 0xb4, 0xc1, 0x9c, 0x65,
-	0x39, 0x1a, 0xa4, 0x03, 0x9d, 0xc9, 0x1c, 0x18, 0x4f, 0x41, 0x19, 0x56, 0xef, 0x07, 0x37, 0xa9,
-	0x34, 0xaf, 0xc5, 0x86, 0x6d, 0x71, 0x1f, 0xea, 0x4c, 0x0a, 0x01, 0xa1, 0xc5, 0x86, 0x96, 0x18,
-	0x6e, 0x71, 0xbf, 0x47, 0x15, 0x66, 0xbb, 0x22, 0x95, 0x55, 0x70, 0x9a, 0xc1, 0xd5, 0x51, 0x4c,
-	0x17, 0x1c, 0x65, 0xf4, 0x41, 0x7a, 0x33, 0x6b, 0x1c, 0xc3, 0x5b, 0x01, 0xda, 0xd0, 0x5b, 0xe2,
-	0xbb, 0x49, 0x20, 0x59, 0x70, 0xc3, 0x07, 0xde, 0xd0, 0x9b, 0x9c, 0x4c, 0x03, 0xe6, 0xc6, 0x2d,
-	0xb9, 0xb3, 0x1a, 0x22, 0x6e, 0xe0, 0xe9, 0x98, 0xf4, 0xab, 0x7c, 0x0e, 0x02, 0x73, 0x18, 0xb4,
-	0x86, 0xde, 0xa4, 0x13, 0xff, 0xa8, 0x8e, 0x1e, 0x49, 0xbf, 0x32, 0xd6, 0x19, 0x2a, 0x0d, 0xf4,
-	0x94, 0xfc, 0x7f, 0xe7, 0x3b, 0x99, 0x58, 0xcb, 0x4e, 0xec, 0x12, 0x3a, 0x22, 0xfe, 0x86, 0x6b,
-	0x78, 0x8e, 0x56, 0xcb, 0xe5, 0xfd, 0x6a, 0x61, 0xd5, 0xba, 0x71, 0xa3, 0x36, 0xfd, 0x6c, 0x11,
-	0xff, 0x09, 0x13, 0x98, 0x95, 0x27, 0xa4, 0x2f, 0xa4, 0xed, 0xbe, 0xe9, 0x39, 0xfb, 0xeb, 0xce,
-	0xac, 0xb1, 0x77, 0x30, 0x39, 0x0c, 0x2c, 0xe7, 0x5c, 0x93, 0xee, 0x1d, 0x2a, 0x21, 0xd3, 0x22,
-	0x07, 0x7a, 0xd6, 0x3c, 0x4c, 0xf9, 0x3b, 0xbe, 0xfb, 0x95, 0xfa, 0xf8, 0x10, 0xac, 0xd4, 0x16,
-	0xa4, 0xf7, 0x00, 0x26, 0xb2, 0xed, 0x95, 0x12, 0x48, 0x2f, 0x7e, 0x25, 0x36, 0x30, 0x95, 0xc7,
-	0xe5, 0x31, 0x50, 0xe7, 0x33, 0xef, 0xaf, 0xfd, 0xfa, 0x8a, 0xd1, 0xbf, 0xc8, 0xdb, 0xb4, 0xed,
-	0x8b, 0xb8, 0xfe, 0x0a, 0x00, 0x00, 0xff, 0xff, 0xe8, 0x7e, 0xc2, 0xb8, 0xae, 0x02, 0x00, 0x00,
+var fileDescriptor_nodeattestor_a993627cd19248db = []byte{
+	// 357 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x52, 0x51, 0x4f, 0xf2, 0x30,
+	0x14, 0xfd, 0xca, 0x17, 0x09, 0xd4, 0x81, 0x49, 0xe3, 0xc3, 0xb2, 0x68, 0x42, 0x48, 0xc4, 0xe9,
+	0xc3, 0xa6, 0xf8, 0xe2, 0x2b, 0x88, 0x10, 0x5e, 0xcc, 0x32, 0xdf, 0x78, 0x31, 0x85, 0xdd, 0x8d,
+	0x26, 0xa3, 0x9d, 0x6b, 0xe7, 0xaf, 0xf1, 0x5f, 0xf8, 0x07, 0x4d, 0xda, 0x0d, 0x19, 0xd1, 0xc0,
+	0x53, 0xd7, 0x73, 0xcf, 0xd9, 0x39, 0xf7, 0xde, 0x62, 0xc2, 0x45, 0x04, 0x54, 0x29, 0x90, 0x4a,
+	0xe4, 0x5e, 0x96, 0x0b, 0x25, 0x88, 0x2d, 0x33, 0x96, 0x83, 0x47, 0x13, 0xe0, 0xca, 0xdb, 0xad,
+	0x3b, 0x8f, 0x09, 0x53, 0xeb, 0x62, 0xe9, 0xad, 0xc4, 0xc6, 0x97, 0x19, 0x8b, 0x63, 0xf0, 0x35,
+	0xd7, 0xd7, 0x42, 0x7f, 0x25, 0x36, 0x1b, 0xc1, 0xfd, 0x2c, 0x2d, 0x12, 0x56, 0x1d, 0xe6, 0x9f,
+	0xce, 0xfd, 0x51, 0x4a, 0x73, 0x18, 0x49, 0xff, 0x13, 0xe1, 0xce, 0x48, 0x3b, 0x87, 0xf0, 0x5e,
+	0x80, 0x54, 0x64, 0x86, 0xcf, 0x4c, 0x14, 0xaa, 0x98, 0xe0, 0x13, 0xaa, 0xa8, 0x8d, 0x7a, 0xc8,
+	0x3d, 0x1d, 0x5e, 0x7a, 0x26, 0x72, 0xa9, 0x1f, 0xd5, 0x49, 0xe1, 0xbe, 0x8a, 0x0c, 0x70, 0xd7,
+	0x40, 0x10, 0x8d, 0x21, 0x16, 0x39, 0xd8, 0x8d, 0x1e, 0x72, 0x5b, 0xe1, 0x1e, 0x4a, 0x1c, 0xdc,
+	0xca, 0x41, 0x66, 0x82, 0x4b, 0xb0, 0xff, 0xf7, 0x90, 0x6b, 0x85, 0xdb, 0x7b, 0x7f, 0x8d, 0xbb,
+	0x55, 0x3a, 0x83, 0x90, 0x73, 0x7c, 0xf2, 0x41, 0x53, 0x16, 0xe9, 0x50, 0xad, 0xd0, 0x5c, 0x48,
+	0x1f, 0x5b, 0x4b, 0x2a, 0xe1, 0x35, 0x98, 0x4f, 0xa7, 0xcf, 0xf3, 0x89, 0x76, 0x6a, 0x87, 0x35,
+	0x8c, 0x5c, 0xe0, 0xf6, 0x6a, 0x4d, 0xd3, 0x14, 0x78, 0x52, 0x19, 0xfd, 0x00, 0xc3, 0xaf, 0x06,
+	0xb6, 0x5e, 0x44, 0x04, 0xa3, 0x72, 0x0d, 0xe4, 0x0d, 0x37, 0xcd, 0x37, 0xb9, 0xf6, 0xfe, 0xda,
+	0x95, 0x57, 0x1b, 0x9d, 0xe3, 0x1e, 0x26, 0x9a, 0x2e, 0x5c, 0x74, 0x87, 0xc8, 0x02, 0xb7, 0x9f,
+	0x04, 0x8f, 0x59, 0x52, 0xe4, 0x40, 0xae, 0xea, 0xc3, 0x2d, 0xd7, 0xba, 0xad, 0x57, 0x0e, 0x83,
+	0x43, 0xb4, 0x72, 0x4a, 0x31, 0xee, 0xcc, 0x40, 0x05, 0xba, 0x3c, 0xe7, 0xb1, 0x20, 0x37, 0xbf,
+	0x0a, 0x6b, 0x9c, 0xca, 0xe3, 0xf6, 0x18, 0xaa, 0xf1, 0x19, 0x77, 0x17, 0xd6, 0x6e, 0x9b, 0xc1,
+	0xbf, 0x00, 0x2d, 0x9b, 0xfa, 0x65, 0x3d, 0x7c, 0x07, 0x00, 0x00, 0xff, 0xff, 0x38, 0xb9, 0x84,
+	0x32, 0xf6, 0x02, 0x00, 0x00,
 }

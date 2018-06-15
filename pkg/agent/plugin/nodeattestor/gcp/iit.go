@@ -65,17 +65,25 @@ func retrieveInstanceIdentityToken(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func (p *IITAttestorPlugin) FetchAttestationData(ctx context.Context, req *nodeattestor.FetchAttestationDataRequest) (*nodeattestor.FetchAttestationDataResponse, error) {
+func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
 	docBytes, err := retrieveInstanceIdentityToken(fmt.Sprintf(identityTokenUrl, audience))
 	if err != nil {
-		err = gcp.AttestationStepError("retrieving the identity token", err)
-		return nil, err
+		return gcp.AttestationStepError("retrieving the identity token", err)
 	}
 
-	return p.BuildAttestationResponse(docBytes)
+	resp, err := p.BuildAttestationResponse(docBytes)
+	if err != nil {
+		return err
+	}
+
+	if err := stream.Send(resp); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *IITAttestorPlugin) BuildAttestationResponse(identityTokenBytes []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
@@ -95,14 +103,14 @@ func (p *IITAttestorPlugin) BuildAttestationResponse(identityTokenBytes []byte) 
 		return &nodeattestor.FetchAttestationDataResponse{}, err
 	}
 
-	data := &common.AttestedData{
+	data := &common.AttestationData{
 		Type: pluginName,
 		Data: identityTokenBytes,
 	}
 
 	resp := &nodeattestor.FetchAttestationDataResponse{
-		AttestedData: data,
-		SpiffeId:     p.spiffeID(identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID).String(),
+		AttestationData: data,
+		SpiffeId:        p.spiffeID(identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID).String(),
 	}
 	return resp, nil
 }
@@ -139,7 +147,7 @@ func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginI
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewIITPlugin() nodeattestor.NodeAttestor {
+func NewIITPlugin() nodeattestor.Plugin {
 	return &IITAttestorPlugin{
 		mtx: &sync.RWMutex{},
 	}

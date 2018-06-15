@@ -35,31 +35,39 @@ message SvidUpdate {
 }
 
 // Represents a request to attest the node.
-message FetchBaseSVIDRequest {
+message AttestRequest {
     // A type which contains attestation data for specific platform.
-    spire.common.AttestedData attested_data = 1;
+    spire.common.AttestationData attestation_data = 1;
 
     // Certificate signing request.
     bytes csr = 2;
+
+    // Attestation challenge response
+    bytes response = 3;
 }
 
 // Represents a response that contains  map of signed SVIDs and an array of
 // all current Registration Entries which are relevant to the caller SPIFFE ID
-message FetchBaseSVIDResponse {
+message AttestResponse {
     // It includes a map of signed SVIDs and an array of all current
     // Registration Entries which are relevant to the caller SPIFFE ID.
     SvidUpdate svid_update = 1;
+
+    // This is a challenge issued by the server to the node. If populated, the
+    // node is expected to respond with another AttestRequest with the response.
+    // This field is mutually exclusive with the svid_update field.
+    bytes challenge = 2;
 }
 
 // Represents a request with a list of CSR.
-message FetchSVIDRequest {
+message FetchX509SVIDRequest {
     // A list of CSRs
     repeated bytes csrs = 2;
 }
 
 // Represents a response that contains  map of signed SVIDs and an array
 // of all current Registration Entries which are relevant to the caller SPIFFE ID.
-message FetchSVIDResponse {
+message FetchX509SVIDResponse {
     // It includes a map of signed SVIDs and an array of all current Registration
     // Entries which are relevant to the caller SPIFFE ID.
     SvidUpdate svid_update = 1;
@@ -79,12 +87,12 @@ message FetchFederatedBundleResponse {
 
 service Node {
     // Attest the node, get base node SVID.
-    rpc FetchBaseSVID(FetchBaseSVIDRequest) returns (FetchBaseSVIDResponse);
+    rpc Attest(stream AttestRequest) returns (stream AttestResponse);
 
     // Get Workload, Node Agent certs and CA trust bundles. Also used for rotation 
     // Base Node SVID or the Registered Node SVID used for this call)
     // List can be empty to allow Node Agent cache refresh).
-    rpc FetchSVID(stream FetchSVIDRequest) returns (stream FetchSVIDResponse);
+    rpc FetchX509SVID(stream FetchX509SVIDRequest) returns (stream FetchX509SVIDResponse);
 
     // Called by the Node Agent to fetch the named Federated CA Bundle.
     // Used in the event that authorized workloads reference a Federated Bundle.

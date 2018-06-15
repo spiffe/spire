@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"net/url"
 	"path"
-	"reflect"
 	"testing"
 	"time"
 
@@ -37,6 +36,13 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
+var (
+	testTrustDomain = url.URL{
+		Scheme: "spiffe",
+		Host:   "example.org",
+	}
+)
+
 type HandlerTestSuite struct {
 	suite.Suite
 	t                *testing.T
@@ -44,78 +50,113 @@ type HandlerTestSuite struct {
 	handler          *Handler
 	mockCatalog      *mock_catalog.MockCatalog
 	mockDataStore    *mock_datastore.MockDataStore
-	mockServerCA     *mock_ca.MockServerCa
+	mockServerCA     *mock_ca.MockServerCA
 	mockNodeAttestor *mock_nodeattestor.MockNodeAttestor
 	mockNodeResolver *mock_noderesolver.MockNodeResolver
 	mockContext      *mock_context.MockContext
-	server           *mock_node.MockNode_FetchSVIDServer
+	server           *mock_node.MockNode_FetchX509SVIDServer
+	now              time.Time
 }
 
 func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	suite := &HandlerTestSuite{}
+	suite.SetT(t)
 	mockCtrl := gomock.NewController(t)
 	suite.ctrl = mockCtrl
 	log, _ := test.NewNullLogger()
 	suite.mockCatalog = mock_catalog.NewMockCatalog(mockCtrl)
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
-	suite.mockServerCA = mock_ca.NewMockServerCa(mockCtrl)
+	suite.mockServerCA = mock_ca.NewMockServerCA(mockCtrl)
 	suite.mockNodeAttestor = mock_nodeattestor.NewMockNodeAttestor(mockCtrl)
 	suite.mockNodeResolver = mock_noderesolver.NewMockNodeResolver(mockCtrl)
 	suite.mockContext = mock_context.NewMockContext(mockCtrl)
-	suite.server = mock_node.NewMockNode_FetchSVIDServer(suite.ctrl)
+	suite.server = mock_node.NewMockNode_FetchX509SVIDServer(suite.ctrl)
+	suite.now = time.Now()
 
-	trustDomain := url.URL{
-		Scheme: "spiffe",
-		Host:   "example.org",
-	}
-
-	suite.handler = &Handler{
+	suite.handler = NewHandler(HandlerConfig{
 		Log:         log,
 		Catalog:     suite.mockCatalog,
-		TrustDomain: trustDomain,
+		TrustDomain: testTrustDomain,
+	})
+	suite.handler.hooks.now = func() time.Time {
+		return suite.now
 	}
 	return suite
 }
 
-func TestFetchBaseSVID(t *testing.T) {
+func TestAttest(t *testing.T) {
 	suite := SetupHandlerTest(t)
 	defer suite.ctrl.Finish()
 
-	data := getFetchBaseSVIDTestData()
-	setFetchBaseSVIDExpectations(suite, data)
-	response, err := suite.handler.FetchBaseSVID(context.Background(), data.request)
-	expected := getExpectedFetchBaseSVID(data.baseSpiffeID, data.generatedCert)
+	data := getAttestTestData()
+	setAttestExpectations(suite, data)
 
+	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
+
+	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
+	stream.EXPECT().Context().Return(context.Background())
+	stream.EXPECT().Recv().Return(data.request, nil)
+
+	stream.EXPECT().Send(&node.AttestResponse{
+		SvidUpdate: expected,
+	})
+	suite.NoError(suite.handler.Attest(stream))
+}
+
+func TestAttestChallengeResponse(t *testing.T) {
+	suite := SetupHandlerTest(t)
+	defer suite.ctrl.Finish()
+
+	data := getAttestTestData()
+	data.challenges = []challengeResponse{
+		{challenge: "1+1", response: "2"},
+		{challenge: "5+7", response: "12"},
+	}
+	setAttestExpectations(suite, data)
+
+	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
+
+	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
+	stream.EXPECT().Context().Return(context.Background())
+	stream.EXPECT().Recv().Return(data.request, nil)
+	stream.EXPECT().Send(&node.AttestResponse{
+		Challenge: []byte("1+1"),
+	})
+	challenge1 := *data.request
+	challenge1.Response = []byte("2")
+	stream.EXPECT().Recv().Return(&challenge1, nil)
+	stream.EXPECT().Send(&node.AttestResponse{
+		Challenge: []byte("5+7"),
+	})
+	challenge2 := *data.request
+	challenge2.Response = []byte("12")
+	stream.EXPECT().Recv().Return(&challenge2, nil)
+	stream.EXPECT().Send(&node.AttestResponse{
+		SvidUpdate: expected,
+	})
+	suite.NoError(suite.handler.Attest(stream))
+}
+
+func TestFetchX509SVID(t *testing.T) {
+	suite := SetupHandlerTest(t)
+	defer suite.ctrl.Finish()
+
+	data := getFetchX509SVIDTestData()
+	data.expectation = getExpectedFetchX509SVID(data)
+	setFetchX509SVIDExpectations(suite, data)
+
+	err := suite.handler.FetchX509SVID(suite.server)
 	if err != nil {
 		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
 	}
 
-	if !reflect.DeepEqual(response.SvidUpdate, expected) {
-		t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n",
-			response.SvidUpdate, expected)
-	}
 }
 
-func TestFetchSVID(t *testing.T) {
+func TestFetchX509SVIDWithRotation(t *testing.T) {
 	suite := SetupHandlerTest(t)
 	defer suite.ctrl.Finish()
 
-	data := getFetchSVIDTestData()
-	data.expectation = getExpectedFetchSVID(data)
-	setFetchSVIDExpectations(suite, data)
-
-	err := suite.handler.FetchSVID(suite.server)
-	if err != nil {
-		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
-	}
-
-}
-
-func TestFetchSVIDWithRotation(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	defer suite.ctrl.Finish()
-
-	data := getFetchSVIDTestData()
+	data := getFetchX509SVIDTestData()
 	data.request.Csrs = append(
 		data.request.Csrs, getBytesFromPem("base_rotated_csr.pem"))
 	data.generatedCerts = append(
@@ -124,11 +165,11 @@ func TestFetchSVIDWithRotation(t *testing.T) {
 	// Calculate expected TTL
 	cert, err := x509.ParseCertificate(data.generatedCerts[3])
 	require.NoError(t, err)
-	ttl := int32(time.Until(cert.NotAfter).Seconds())
+	ttl := int32(cert.NotAfter.Sub(suite.now).Seconds())
 
-	data.expectation = getExpectedFetchSVID(data)
+	data.expectation = getExpectedFetchX509SVID(data)
 	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: data.generatedCerts[3], Ttl: ttl}
-	setFetchSVIDExpectations(suite, data)
+	setFetchX509SVIDExpectations(suite, data)
 
 	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(gomock.Any(),
 		&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: data.baseSpiffeID},
@@ -149,7 +190,7 @@ func TestFetchSVIDWithRotation(t *testing.T) {
 		UpdateAttestedNodeEntry(gomock.Any(), gomock.Any()).
 		Return(&datastore.UpdateAttestedNodeEntryResponse{}, nil)
 
-	err = suite.handler.FetchSVID(suite.server)
+	err = suite.handler.FetchX509SVID(suite.server)
 
 	if err != nil {
 		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
@@ -163,22 +204,28 @@ func getBytesFromPem(fileName string) []byte {
 	return decodedFile.Bytes
 }
 
+type challengeResponse struct {
+	challenge string
+	response  string
+}
+
 type fetchBaseSVIDData struct {
-	request              *node.FetchBaseSVIDRequest
+	request              *node.AttestRequest
 	generatedCert        []byte
 	baseSpiffeID         string
 	selector             *common.Selector
 	selectors            map[string]*common.Selectors
 	regEntryParentIDList []*common.RegistrationEntry
 	regEntrySelectorList []*common.RegistrationEntry
+	challenges           []challengeResponse
 }
 
-func getFetchBaseSVIDTestData() *fetchBaseSVIDData {
+func getAttestTestData() *fetchBaseSVIDData {
 	data := &fetchBaseSVIDData{}
 
-	data.request = &node.FetchBaseSVIDRequest{
+	data.request = &node.AttestRequest{
 		Csr: getBytesFromPem("base_csr.pem"),
-		AttestedData: &common.AttestedData{
+		AttestationData: &common.AttestationData{
 			Type: "fake type",
 			Data: []byte("fake attestation data"),
 		},
@@ -226,33 +273,46 @@ func getFetchBaseSVIDTestData() *fetchBaseSVIDData {
 	return data
 }
 
-func setFetchBaseSVIDExpectations(
+func setAttestExpectations(
 	suite *HandlerTestSuite, data *fetchBaseSVIDData) {
 
 	suite.mockCatalog.EXPECT().DataStores().AnyTimes().
 		Return([]datastore.DataStore{suite.mockDataStore})
 	suite.mockCatalog.EXPECT().CAs().AnyTimes().
-		Return([]ca.ServerCa{suite.mockServerCA})
+		Return([]ca.ServerCA{suite.mockServerCA})
 	suite.mockCatalog.EXPECT().NodeAttestors().AnyTimes().
 		Return([]nodeattestor.NodeAttestor{suite.mockNodeAttestor})
 	suite.mockCatalog.EXPECT().NodeResolvers().AnyTimes().
 		Return([]noderesolver.NodeResolver{suite.mockNodeResolver})
 
-	p := &catalog.ManagedPlugin{
-		Plugin: suite.mockNodeAttestor,
-		Config: catalog.PluginConfig{
-			PluginName: "fake type",
-		},
+	p := &catalog.PluginConfig{
+		PluginName: "fake type",
 	}
-	suite.mockCatalog.EXPECT().Find(suite.mockNodeAttestor).Return(p)
+	suite.mockCatalog.EXPECT().ConfigFor(suite.mockNodeAttestor).Return(p, true)
 
-	suite.mockNodeAttestor.EXPECT().Attest(gomock.Any(), &nodeattestor.AttestRequest{
-		AttestedBefore: false,
-		AttestedData:   data.request.AttestedData,
-	}).
-		Return(&nodeattestor.AttestResponse{
-			BaseSPIFFEID: data.baseSpiffeID,
-			Valid:        true}, nil)
+	stream := mock_nodeattestor.NewMockNodeAttestor_Attest_Stream(suite.ctrl)
+	stream.EXPECT().Send(&nodeattestor.AttestRequest{
+		AttestedBefore:  false,
+		AttestationData: data.request.AttestationData,
+	})
+	for _, challenge := range data.challenges {
+		stream.EXPECT().Recv().Return(&nodeattestor.AttestResponse{
+			Challenge: []byte(challenge.challenge),
+		}, nil)
+		stream.EXPECT().Send(&nodeattestor.AttestRequest{
+			AttestedBefore:  false,
+			AttestationData: data.request.AttestationData,
+			Response:        []byte(challenge.response),
+		})
+	}
+	stream.EXPECT().Recv().Return(&nodeattestor.AttestResponse{
+		BaseSPIFFEID: data.baseSpiffeID,
+		Valid:        true,
+	}, nil)
+	stream.EXPECT().CloseSend()
+	stream.EXPECT().Recv().Return(nil, io.EOF)
+
+	suite.mockNodeAttestor.EXPECT().Attest(gomock.Any()).Return(stream, nil)
 
 	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(gomock.Any(),
 		&datastore.FetchAttestedNodeEntryRequest{
@@ -268,10 +328,10 @@ func setFetchBaseSVIDExpectations(
 	suite.mockDataStore.EXPECT().CreateAttestedNodeEntry(gomock.Any(),
 		&datastore.CreateAttestedNodeEntryRequest{
 			AttestedNodeEntry: &datastore.AttestedNodeEntry{
-				AttestedDataType:   "fake type",
-				BaseSpiffeId:       data.baseSpiffeID,
-				CertExpirationDate: "Mon, 04 Oct 2027 21:19:54 +0000",
-				CertSerialNumber:   "18392437442709699290",
+				AttestationDataType: "fake type",
+				BaseSpiffeId:        data.baseSpiffeID,
+				CertExpirationDate:  "Mon, 04 Oct 2027 21:19:54 +0000",
+				CertSerialNumber:    "18392437442709699290",
 			}}).
 		Return(nil, nil)
 
@@ -355,13 +415,13 @@ func setFetchBaseSVIDExpectations(
 
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.Bundle{
-			TrustDomain: suite.handler.TrustDomain.String()}).
+			TrustDomain: testTrustDomain.String()}).
 		Return(&datastore.Bundle{
-			TrustDomain: suite.handler.TrustDomain.String(),
+			TrustDomain: testTrustDomain.String(),
 			CaCerts:     caCert.Raw}, nil)
 }
 
-func getExpectedFetchBaseSVID(baseSpiffeID string, cert []byte) *node.SvidUpdate {
+func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert []byte) *node.SvidUpdate {
 	expectedRegEntries := []*common.RegistrationEntry{
 		{
 			Selectors: []*common.Selector{
@@ -388,7 +448,7 @@ func getExpectedFetchBaseSVID(baseSpiffeID string, cert []byte) *node.SvidUpdate
 
 	// Calculate expected TTL
 	c, _ := x509.ParseCertificate(cert)
-	ttl := int32(time.Until(c.NotAfter).Seconds())
+	ttl := int32(c.NotAfter.Sub(suite.now).Seconds())
 
 	svids := make(map[string]*node.Svid)
 	svids[baseSpiffeID] = &node.Svid{SvidCert: cert, Ttl: ttl}
@@ -404,7 +464,7 @@ func getExpectedFetchBaseSVID(baseSpiffeID string, cert []byte) *node.SvidUpdate
 }
 
 type fetchSVIDData struct {
-	request            *node.FetchSVIDRequest
+	request            *node.FetchX509SVIDRequest
 	baseSpiffeID       string
 	nodeSpiffeID       string
 	databaseSpiffeID   string
@@ -418,7 +478,7 @@ type fetchSVIDData struct {
 	expectation        *node.SvidUpdate
 }
 
-func getFetchSVIDTestData() *fetchSVIDData {
+func getFetchX509SVIDTestData() *fetchSVIDData {
 	data := &fetchSVIDData{}
 	data.spiffeIDs = []string{
 		"spiffe://example.org/database",
@@ -431,7 +491,7 @@ func getFetchSVIDTestData() *fetchSVIDData {
 	data.databaseSpiffeID = "spiffe://example.org/database"
 	data.blogSpiffeID = "spiffe://example.org/blog"
 
-	data.request = &node.FetchSVIDRequest{}
+	data.request = &node.FetchX509SVIDRequest{}
 	data.request.Csrs = [][]byte{
 		getBytesFromPem("node_csr.pem"),
 		getBytesFromPem("database_csr.pem"),
@@ -465,7 +525,7 @@ func getFetchSVIDTestData() *fetchSVIDData {
 	return data
 }
 
-func setFetchSVIDExpectations(
+func setFetchX509SVIDExpectations(
 	suite *HandlerTestSuite, data *fetchSVIDData) {
 
 	caCert, _, err := util.LoadCAFixture()
@@ -474,7 +534,7 @@ func setFetchSVIDExpectations(
 	suite.mockCatalog.EXPECT().DataStores().AnyTimes().
 		Return([]datastore.DataStore{suite.mockDataStore})
 	suite.mockCatalog.EXPECT().CAs().AnyTimes().
-		Return([]ca.ServerCa{suite.mockServerCA})
+		Return([]ca.ServerCA{suite.mockServerCA})
 
 	suite.server.EXPECT().Context().Return(suite.mockContext)
 	suite.server.EXPECT().Recv().Return(data.request, nil)
@@ -521,9 +581,9 @@ func setFetchSVIDExpectations(
 
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.Bundle{
-			TrustDomain: suite.handler.TrustDomain.String()}).
+			TrustDomain: testTrustDomain.String()}).
 		Return(&datastore.Bundle{
-			TrustDomain: suite.handler.TrustDomain.String(),
+			TrustDomain: testTrustDomain.String(),
 			CaCerts:     caCert.Raw}, nil)
 
 	suite.mockServerCA.EXPECT().
@@ -544,7 +604,7 @@ func setFetchSVIDExpectations(
 		}).
 		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[2]}, nil)
 
-	suite.server.EXPECT().Send(&node.FetchSVIDResponse{
+	suite.server.EXPECT().Send(&node.FetchX509SVIDResponse{
 		SvidUpdate: data.expectation,
 	}).
 		Return(nil)
@@ -553,7 +613,7 @@ func setFetchSVIDExpectations(
 
 }
 
-func getExpectedFetchSVID(data *fetchSVIDData) *node.SvidUpdate {
+func getExpectedFetchX509SVID(data *fetchSVIDData) *node.SvidUpdate {
 	//TODO: improve this, put it in an array in data and iterate it
 	svids := map[string]*node.Svid{
 		data.nodeSpiffeID:     {SvidCert: data.generatedCerts[0], Ttl: 4444},

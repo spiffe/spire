@@ -10,22 +10,28 @@ import public "github.com/spiffe/spire/proto/common/common.proto";
 /** Represents a request to attest a node. */
 message AttestRequest {
     /** A type which contains attestation data for specific platform. */
-    spire.common.AttestedData attestedData = 1;
+    spire.common.AttestationData attestationData = 1;
     /** Is true if the Base SPIFFE ID is present in the Attested Node table. */
     bool attestedBefore = 2;
+    /** Challenge response */
+    bytes response = 3;
 }
 
 /** Represents a response when attesting a node.*/
 message AttestResponse {
     /** True/False */
     bool valid = 1;
+
     /** Used for the Server to validate the SPIFFE Id in the Certificate signing request. */
     string baseSPIFFEID = 2;
+
+    /** Challenge required for attestation */
+    bytes challenge = 3;
 }
 
 service NodeAttestor {
     /** Attesta a node. */
-    rpc Attest(AttestRequest) returns (AttestResponse);
+    rpc Attest(stream AttestRequest) returns (stream AttestResponse);
 
     /** Responsible for configuration of the plugin. */
     rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
