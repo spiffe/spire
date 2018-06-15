@@ -66,7 +66,7 @@ func (m *NoStreamRequest) Reset()         { *m = NoStreamRequest{} }
 func (m *NoStreamRequest) String() string { return proto.CompactTextString(m) }
 func (*NoStreamRequest) ProtoMessage()    {}
 func (*NoStreamRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dummy_50641bf2c7f7ff0f, []int{0}
+	return fileDescriptor_dummy_d0597ab042f1bafd, []int{0}
 }
 func (m *NoStreamRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_NoStreamRequest.Unmarshal(m, b)
@@ -104,7 +104,7 @@ func (m *NoStreamResponse) Reset()         { *m = NoStreamResponse{} }
 func (m *NoStreamResponse) String() string { return proto.CompactTextString(m) }
 func (*NoStreamResponse) ProtoMessage()    {}
 func (*NoStreamResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dummy_50641bf2c7f7ff0f, []int{1}
+	return fileDescriptor_dummy_d0597ab042f1bafd, []int{1}
 }
 func (m *NoStreamResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_NoStreamResponse.Unmarshal(m, b)
@@ -142,7 +142,7 @@ func (m *ClientStreamRequest) Reset()         { *m = ClientStreamRequest{} }
 func (m *ClientStreamRequest) String() string { return proto.CompactTextString(m) }
 func (*ClientStreamRequest) ProtoMessage()    {}
 func (*ClientStreamRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dummy_50641bf2c7f7ff0f, []int{2}
+	return fileDescriptor_dummy_d0597ab042f1bafd, []int{2}
 }
 func (m *ClientStreamRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ClientStreamRequest.Unmarshal(m, b)
@@ -180,7 +180,7 @@ func (m *ClientStreamResponse) Reset()         { *m = ClientStreamResponse{} }
 func (m *ClientStreamResponse) String() string { return proto.CompactTextString(m) }
 func (*ClientStreamResponse) ProtoMessage()    {}
 func (*ClientStreamResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dummy_50641bf2c7f7ff0f, []int{3}
+	return fileDescriptor_dummy_d0597ab042f1bafd, []int{3}
 }
 func (m *ClientStreamResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ClientStreamResponse.Unmarshal(m, b)
@@ -218,7 +218,7 @@ func (m *ServerStreamRequest) Reset()         { *m = ServerStreamRequest{} }
 func (m *ServerStreamRequest) String() string { return proto.CompactTextString(m) }
 func (*ServerStreamRequest) ProtoMessage()    {}
 func (*ServerStreamRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dummy_50641bf2c7f7ff0f, []int{4}
+	return fileDescriptor_dummy_d0597ab042f1bafd, []int{4}
 }
 func (m *ServerStreamRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ServerStreamRequest.Unmarshal(m, b)
@@ -256,7 +256,7 @@ func (m *ServerStreamResponse) Reset()         { *m = ServerStreamResponse{} }
 func (m *ServerStreamResponse) String() string { return proto.CompactTextString(m) }
 func (*ServerStreamResponse) ProtoMessage()    {}
 func (*ServerStreamResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dummy_50641bf2c7f7ff0f, []int{5}
+	return fileDescriptor_dummy_d0597ab042f1bafd, []int{5}
 }
 func (m *ServerStreamResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ServerStreamResponse.Unmarshal(m, b)
@@ -294,7 +294,7 @@ func (m *BothStreamRequest) Reset()         { *m = BothStreamRequest{} }
 func (m *BothStreamRequest) String() string { return proto.CompactTextString(m) }
 func (*BothStreamRequest) ProtoMessage()    {}
 func (*BothStreamRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dummy_50641bf2c7f7ff0f, []int{6}
+	return fileDescriptor_dummy_d0597ab042f1bafd, []int{6}
 }
 func (m *BothStreamRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BothStreamRequest.Unmarshal(m, b)
@@ -332,7 +332,7 @@ func (m *BothStreamResponse) Reset()         { *m = BothStreamResponse{} }
 func (m *BothStreamResponse) String() string { return proto.CompactTextString(m) }
 func (*BothStreamResponse) ProtoMessage()    {}
 func (*BothStreamResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dummy_50641bf2c7f7ff0f, []int{7}
+	return fileDescriptor_dummy_d0597ab042f1bafd, []int{7}
 }
 func (m *BothStreamResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BothStreamResponse.Unmarshal(m, b)
@@ -709,9 +709,9 @@ var _Dummy_serviceDesc = grpc.ServiceDesc{
 	Metadata: "dummy.proto",
 }
 
-func init() { proto.RegisterFile("dummy.proto", fileDescriptor_dummy_50641bf2c7f7ff0f) }
+func init() { proto.RegisterFile("dummy.proto", fileDescriptor_dummy_d0597ab042f1bafd) }
 
-var fileDescriptor_dummy_50641bf2c7f7ff0f = []byte{
+var fileDescriptor_dummy_d0597ab042f1bafd = []byte{
 	// 350 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0x4d, 0x4f, 0xc2, 0x30,
 	0x18, 0xc7, 0x5d, 0x14, 0x5f, 0x1e, 0x34, 0x6a, 0xe5, 0x60, 0x16, 0x5f, 0x90, 0x44, 0x05, 0x34,

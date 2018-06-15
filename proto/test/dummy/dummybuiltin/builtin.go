@@ -26,7 +26,7 @@ func (f *BuiltIn) NoStream(ctx context.Context, req *dummy.NoStreamRequest) (*du
 	return &dummy.NoStreamResponse{Value: req.Value}, nil
 }
 
-func (f *BuiltIn) ClientStream(stream dummy.Dummy_ClientStream_PluginStream) error {
+func (f *BuiltIn) ClientStream(stream dummy.ClientStream_PluginStream) error {
 	value := int64(0)
 recvLoop:
 	for {
@@ -46,7 +46,7 @@ recvLoop:
 	return stream.SendAndClose(&dummy.ClientStreamResponse{Value: value})
 }
 
-func (f *BuiltIn) ServerStream(req *dummy.ServerStreamRequest, stream dummy.Dummy_ServerStream_PluginStream) error {
+func (f *BuiltIn) ServerStream(req *dummy.ServerStreamRequest, stream dummy.ServerStream_PluginStream) error {
 	if req.Value == 0 {
 		return ZeroError
 	}
@@ -58,7 +58,7 @@ func (f *BuiltIn) ServerStream(req *dummy.ServerStreamRequest, stream dummy.Dumm
 	return nil
 }
 
-func (f *BuiltIn) BothStream(stream dummy.Dummy_BothStream_PluginStream) error {
+func (f *BuiltIn) BothStream(stream dummy.BothStream_PluginStream) error {
 recvLoop:
 	for {
 		req, err := stream.Recv()

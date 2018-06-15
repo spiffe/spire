@@ -46,7 +46,7 @@ func newClient(t *testing.T) (dummy.Dummy, func()) {
 	config := &go_plugin.ClientConfig{
 		HandshakeConfig: dummy.Handshake,
 		Plugins: map[string]go_plugin.Plugin{
-			"dummy": &dummy.DummyGRPCPlugin{},
+			"dummy": &dummy.GRPCPlugin{},
 		},
 		Cmd:              exec.Command("./dummyplugin"),
 		AllowedProtocols: []go_plugin.Protocol{go_plugin.ProtocolGRPC},
@@ -59,7 +59,7 @@ func newClient(t *testing.T) (dummy.Dummy, func()) {
 	raw, err := client.Dispense("dummy")
 	require.NoError(err)
 
-	plugin, ok := raw.(*dummy.DummyGRPCClient)
+	plugin, ok := raw.(*dummy.GRPCClient)
 	require.True(ok)
 
 	return plugin, func() {

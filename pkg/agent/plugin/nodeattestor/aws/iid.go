@@ -60,7 +60,7 @@ func httpGetBytes(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationData_PluginStream) error {
+func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
@@ -149,7 +149,7 @@ func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoReque
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewIID() nodeattestor.NodeAttestorPlugin {
+func NewIID() nodeattestor.Plugin {
 	return &IIDAttestorPlugin{
 		mtx: &sync.RWMutex{},
 	}

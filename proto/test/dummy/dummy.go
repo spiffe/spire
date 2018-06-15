@@ -14,40 +14,40 @@ import (
 // Dummy is the interface used by all non-catalog components.
 type Dummy interface {
 	NoStream(context.Context, *NoStreamRequest) (*NoStreamResponse, error)
-	ClientStream(context.Context) (Dummy_ClientStream_Stream, error)
-	ServerStream(context.Context, *ServerStreamRequest) (Dummy_ServerStream_Stream, error)
-	BothStream(context.Context) (Dummy_BothStream_Stream, error)
+	ClientStream(context.Context) (ClientStream_Stream, error)
+	ServerStream(context.Context, *ServerStreamRequest) (ServerStream_Stream, error)
+	BothStream(context.Context) (BothStream_Stream, error)
 }
 
-// Dummy is the interface implemented by plugin implementations
-type DummyPlugin interface {
+// Plugin is the interface implemented by plugin implementations
+type Plugin interface {
 	NoStream(context.Context, *NoStreamRequest) (*NoStreamResponse, error)
-	ClientStream(Dummy_ClientStream_PluginStream) error
-	ServerStream(*ServerStreamRequest, Dummy_ServerStream_PluginStream) error
-	BothStream(Dummy_BothStream_PluginStream) error
+	ClientStream(ClientStream_PluginStream) error
+	ServerStream(*ServerStreamRequest, ServerStream_PluginStream) error
+	BothStream(BothStream_PluginStream) error
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
 }
 
-type Dummy_ClientStream_Stream interface {
+type ClientStream_Stream interface {
 	Context() context.Context
 	Send(*ClientStreamRequest) error
 	CloseAndRecv() (*ClientStreamResponse, error)
 }
 
-type dummy_ClientStream_Stream struct {
+type clientStream_Stream struct {
 	stream builtin.SendStreamClient
 }
 
-func (s dummy_ClientStream_Stream) Context() context.Context {
+func (s clientStream_Stream) Context() context.Context {
 	return s.stream.Context()
 }
 
-func (s dummy_ClientStream_Stream) Send(m *ClientStreamRequest) error {
+func (s clientStream_Stream) Send(m *ClientStreamRequest) error {
 	return s.stream.Send(m)
 }
 
-func (s dummy_ClientStream_Stream) CloseAndRecv() (*ClientStreamResponse, error) {
+func (s clientStream_Stream) CloseAndRecv() (*ClientStreamResponse, error) {
 	m, err := s.stream.CloseAndRecv()
 	if err != nil {
 		return nil, err
@@ -55,25 +55,25 @@ func (s dummy_ClientStream_Stream) CloseAndRecv() (*ClientStreamResponse, error)
 	return m.(*ClientStreamResponse), nil
 }
 
-type Dummy_ClientStream_PluginStream interface {
+type ClientStream_PluginStream interface {
 	Context() context.Context
 	SendAndClose(*ClientStreamResponse) error
 	Recv() (*ClientStreamRequest, error)
 }
 
-type dummy_ClientStream_PluginStream struct {
+type clientStream_PluginStream struct {
 	stream builtin.SendStreamServer
 }
 
-func (s dummy_ClientStream_PluginStream) Context() context.Context {
+func (s clientStream_PluginStream) Context() context.Context {
 	return s.stream.Context()
 }
 
-func (s dummy_ClientStream_PluginStream) SendAndClose(m *ClientStreamResponse) error {
+func (s clientStream_PluginStream) SendAndClose(m *ClientStreamResponse) error {
 	return s.stream.SendAndClose(m)
 }
 
-func (s dummy_ClientStream_PluginStream) Recv() (*ClientStreamRequest, error) {
+func (s clientStream_PluginStream) Recv() (*ClientStreamRequest, error) {
 	m, err := s.stream.Recv()
 	if err != nil {
 		return nil, err
@@ -81,20 +81,20 @@ func (s dummy_ClientStream_PluginStream) Recv() (*ClientStreamRequest, error) {
 	return m.(*ClientStreamRequest), nil
 }
 
-type Dummy_ServerStream_Stream interface {
+type ServerStream_Stream interface {
 	Context() context.Context
 	Recv() (*ServerStreamResponse, error)
 }
 
-type dummy_ServerStream_Stream struct {
+type serverStream_Stream struct {
 	stream builtin.RecvStreamClient
 }
 
-func (s dummy_ServerStream_Stream) Context() context.Context {
+func (s serverStream_Stream) Context() context.Context {
 	return s.stream.Context()
 }
 
-func (s dummy_ServerStream_Stream) Recv() (*ServerStreamResponse, error) {
+func (s serverStream_Stream) Recv() (*ServerStreamResponse, error) {
 	m, err := s.stream.Recv()
 	if err != nil {
 		return nil, err
@@ -102,43 +102,43 @@ func (s dummy_ServerStream_Stream) Recv() (*ServerStreamResponse, error) {
 	return m.(*ServerStreamResponse), nil
 }
 
-type Dummy_ServerStream_PluginStream interface {
+type ServerStream_PluginStream interface {
 	Context() context.Context
 	Send(*ServerStreamResponse) error
 }
 
-type dummy_ServerStream_PluginStream struct {
+type serverStream_PluginStream struct {
 	stream builtin.RecvStreamServer
 }
 
-func (s dummy_ServerStream_PluginStream) Context() context.Context {
+func (s serverStream_PluginStream) Context() context.Context {
 	return s.stream.Context()
 }
 
-func (s dummy_ServerStream_PluginStream) Send(m *ServerStreamResponse) error {
+func (s serverStream_PluginStream) Send(m *ServerStreamResponse) error {
 	return s.stream.Send(m)
 }
 
-type Dummy_BothStream_Stream interface {
+type BothStream_Stream interface {
 	Context() context.Context
 	Send(*BothStreamRequest) error
 	Recv() (*BothStreamResponse, error)
 	CloseSend() error
 }
 
-type dummy_BothStream_Stream struct {
+type bothStream_Stream struct {
 	stream builtin.BidiStreamClient
 }
 
-func (s dummy_BothStream_Stream) Context() context.Context {
+func (s bothStream_Stream) Context() context.Context {
 	return s.stream.Context()
 }
 
-func (s dummy_BothStream_Stream) Send(m *BothStreamRequest) error {
+func (s bothStream_Stream) Send(m *BothStreamRequest) error {
 	return s.stream.Send(m)
 }
 
-func (s dummy_BothStream_Stream) Recv() (*BothStreamResponse, error) {
+func (s bothStream_Stream) Recv() (*BothStreamResponse, error) {
 	m, err := s.stream.Recv()
 	if err != nil {
 		return nil, err
@@ -146,29 +146,29 @@ func (s dummy_BothStream_Stream) Recv() (*BothStreamResponse, error) {
 	return m.(*BothStreamResponse), nil
 }
 
-func (s dummy_BothStream_Stream) CloseSend() error {
+func (s bothStream_Stream) CloseSend() error {
 	return s.stream.CloseSend()
 }
 
-type Dummy_BothStream_PluginStream interface {
+type BothStream_PluginStream interface {
 	Context() context.Context
 	Send(*BothStreamResponse) error
 	Recv() (*BothStreamRequest, error)
 }
 
-type dummy_BothStream_PluginStream struct {
+type bothStream_PluginStream struct {
 	stream builtin.BidiStreamServer
 }
 
-func (s dummy_BothStream_PluginStream) Context() context.Context {
+func (s bothStream_PluginStream) Context() context.Context {
 	return s.stream.Context()
 }
 
-func (s dummy_BothStream_PluginStream) Send(m *BothStreamResponse) error {
+func (s bothStream_PluginStream) Send(m *BothStreamResponse) error {
 	return s.stream.Send(m)
 }
 
-func (s dummy_BothStream_PluginStream) Recv() (*BothStreamRequest, error) {
+func (s bothStream_PluginStream) Recv() (*BothStreamRequest, error) {
 	m, err := s.stream.Recv()
 	if err != nil {
 		return nil, err
@@ -176,51 +176,51 @@ func (s dummy_BothStream_PluginStream) Recv() (*BothStreamRequest, error) {
 	return m.(*BothStreamRequest), nil
 }
 
-type DummyBuiltIn struct {
-	plugin DummyPlugin
+type BuiltIn struct {
+	plugin Plugin
 }
 
-var _ Dummy = (*DummyBuiltIn)(nil)
+var _ Dummy = (*BuiltIn)(nil)
 
-func NewDummyBuiltIn(plugin DummyPlugin) *DummyBuiltIn {
-	return &DummyBuiltIn{
+func NewBuiltIn(plugin Plugin) *BuiltIn {
+	return &BuiltIn{
 		plugin: plugin,
 	}
 }
 
-func (b DummyBuiltIn) NoStream(ctx context.Context, req *NoStreamRequest) (*NoStreamResponse, error) {
+func (b BuiltIn) NoStream(ctx context.Context, req *NoStreamRequest) (*NoStreamResponse, error) {
 	return b.plugin.NoStream(ctx, req)
 }
 
-func (b DummyBuiltIn) ClientStream(ctx context.Context) (Dummy_ClientStream_Stream, error) {
+func (b BuiltIn) ClientStream(ctx context.Context) (ClientStream_Stream, error) {
 	clientStream, serverStream := builtin.SendStreamPipe(ctx)
 	go func() {
-		serverStream.Close(b.plugin.ClientStream(dummy_ClientStream_PluginStream{stream: serverStream}))
+		serverStream.Close(b.plugin.ClientStream(clientStream_PluginStream{stream: serverStream}))
 	}()
-	return dummy_ClientStream_Stream{stream: clientStream}, nil
+	return clientStream_Stream{stream: clientStream}, nil
 }
 
-func (b DummyBuiltIn) ServerStream(ctx context.Context, req *ServerStreamRequest) (Dummy_ServerStream_Stream, error) {
+func (b BuiltIn) ServerStream(ctx context.Context, req *ServerStreamRequest) (ServerStream_Stream, error) {
 	clientStream, serverStream := builtin.RecvStreamPipe(ctx)
 	go func() {
-		serverStream.Close(b.plugin.ServerStream(req, dummy_ServerStream_PluginStream{stream: serverStream}))
+		serverStream.Close(b.plugin.ServerStream(req, serverStream_PluginStream{stream: serverStream}))
 	}()
-	return dummy_ServerStream_Stream{stream: clientStream}, nil
+	return serverStream_Stream{stream: clientStream}, nil
 }
 
-func (b DummyBuiltIn) BothStream(ctx context.Context) (Dummy_BothStream_Stream, error) {
+func (b BuiltIn) BothStream(ctx context.Context) (BothStream_Stream, error) {
 	clientStream, serverStream := builtin.BidiStreamPipe(ctx)
 	go func() {
-		serverStream.Close(b.plugin.BothStream(dummy_BothStream_PluginStream{stream: serverStream}))
+		serverStream.Close(b.plugin.BothStream(bothStream_PluginStream{stream: serverStream}))
 	}()
-	return dummy_BothStream_Stream{stream: clientStream}, nil
+	return bothStream_Stream{stream: clientStream}, nil
 }
 
-func (b DummyBuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	return b.plugin.Configure(ctx, req)
 }
 
-func (b DummyBuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return b.plugin.GetPluginInfo(ctx, req)
 }
 
@@ -230,69 +230,69 @@ var Handshake = go_plugin.HandshakeConfig{
 	MagicCookieValue: "Dummy",
 }
 
-type DummyGRPCPlugin struct {
+type GRPCPlugin struct {
 	ServerImpl DummyServer
 }
 
-func (p DummyGRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
+func (p GRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p DummyGRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p GRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p DummyGRPCPlugin) GRPCServer(s *grpc.Server) error {
+func (p GRPCPlugin) GRPCServer(s *grpc.Server) error {
 	RegisterDummyServer(s, p.ServerImpl)
 	return nil
 }
 
-func (p DummyGRPCPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &DummyGRPCClient{client: NewDummyClient(c)}, nil
+func (p GRPCPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &GRPCClient{client: NewDummyClient(c)}, nil
 }
 
-type DummyGRPCServer struct {
-	Plugin DummyPlugin
+type GRPCServer struct {
+	Plugin Plugin
 }
 
-func (s *DummyGRPCServer) NoStream(ctx context.Context, req *NoStreamRequest) (*NoStreamResponse, error) {
+func (s *GRPCServer) NoStream(ctx context.Context, req *NoStreamRequest) (*NoStreamResponse, error) {
 	return s.Plugin.NoStream(ctx, req)
 }
-func (s *DummyGRPCServer) ClientStream(stream Dummy_ClientStreamServer) error {
+func (s *GRPCServer) ClientStream(stream Dummy_ClientStreamServer) error {
 	return s.Plugin.ClientStream(stream)
 }
-func (s *DummyGRPCServer) ServerStream(req *ServerStreamRequest, stream Dummy_ServerStreamServer) error {
+func (s *GRPCServer) ServerStream(req *ServerStreamRequest, stream Dummy_ServerStreamServer) error {
 	return s.Plugin.ServerStream(req, stream)
 }
-func (s *DummyGRPCServer) BothStream(stream Dummy_BothStreamServer) error {
+func (s *GRPCServer) BothStream(stream Dummy_BothStreamServer) error {
 	return s.Plugin.BothStream(stream)
 }
-func (s *DummyGRPCServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (s *GRPCServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	return s.Plugin.Configure(ctx, req)
 }
-func (s *DummyGRPCServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (s *GRPCServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return s.Plugin.GetPluginInfo(ctx, req)
 }
 
-type DummyGRPCClient struct {
+type GRPCClient struct {
 	client DummyClient
 }
 
-func (c *DummyGRPCClient) NoStream(ctx context.Context, req *NoStreamRequest) (*NoStreamResponse, error) {
+func (c *GRPCClient) NoStream(ctx context.Context, req *NoStreamRequest) (*NoStreamResponse, error) {
 	return c.client.NoStream(ctx, req)
 }
-func (c *DummyGRPCClient) ClientStream(ctx context.Context) (Dummy_ClientStream_Stream, error) {
+func (c *GRPCClient) ClientStream(ctx context.Context) (ClientStream_Stream, error) {
 	return c.client.ClientStream(ctx)
 }
-func (c *DummyGRPCClient) ServerStream(ctx context.Context, req *ServerStreamRequest) (Dummy_ServerStream_Stream, error) {
+func (c *GRPCClient) ServerStream(ctx context.Context, req *ServerStreamRequest) (ServerStream_Stream, error) {
 	return c.client.ServerStream(ctx, req)
 }
-func (c *DummyGRPCClient) BothStream(ctx context.Context) (Dummy_BothStream_Stream, error) {
+func (c *GRPCClient) BothStream(ctx context.Context) (BothStream_Stream, error) {
 	return c.client.BothStream(ctx)
 }
-func (c *DummyGRPCClient) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (c *GRPCClient) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	return c.client.Configure(ctx, req)
 }
-func (c *DummyGRPCClient) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (c *GRPCClient) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return c.client.GetPluginInfo(ctx, req)
 }

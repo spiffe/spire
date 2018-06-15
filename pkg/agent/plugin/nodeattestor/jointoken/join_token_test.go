@@ -56,7 +56,7 @@ func (f *fakeFetchAttestationDataStream) Send(resp *nodeattestor.FetchAttestatio
 	return nil
 }
 
-func PluginGenerator(config string) (nodeattestor.NodeAttestorPlugin, *spi.ConfigureResponse, error) {
+func PluginGenerator(config string) (nodeattestor.Plugin, *spi.ConfigureResponse, error) {
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}

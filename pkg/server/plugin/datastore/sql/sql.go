@@ -1163,13 +1163,13 @@ func newPlugin() *sqlPlugin {
 
 // New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
-func New() datastore.DataStorePlugin {
+func New() datastore.Plugin {
 	return newPlugin()
 }
 
 // NewTemp create a new plugin with a temporal database, allowing new
 // connections to receive a fresh copy. Primarily meant for testing.
-func NewTemp() (datastore.DataStorePlugin, error) {
+func NewTemp() (datastore.Plugin, error) {
 	p := newPlugin()
 
 	// Call restart() to start the db - normally triggered by call to Configure

@@ -15,34 +15,34 @@ type UpstreamCA interface {
 	SubmitCSR(context.Context, *SubmitCSRRequest) (*SubmitCSRResponse, error)
 }
 
-// UpstreamCA is the interface implemented by plugin implementations
-type UpstreamCAPlugin interface {
+// Plugin is the interface implemented by plugin implementations
+type Plugin interface {
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
 	SubmitCSR(context.Context, *SubmitCSRRequest) (*SubmitCSRResponse, error)
 }
 
-type UpstreamCABuiltIn struct {
-	plugin UpstreamCAPlugin
+type BuiltIn struct {
+	plugin Plugin
 }
 
-var _ UpstreamCA = (*UpstreamCABuiltIn)(nil)
+var _ UpstreamCA = (*BuiltIn)(nil)
 
-func NewUpstreamCABuiltIn(plugin UpstreamCAPlugin) *UpstreamCABuiltIn {
-	return &UpstreamCABuiltIn{
+func NewBuiltIn(plugin Plugin) *BuiltIn {
+	return &BuiltIn{
 		plugin: plugin,
 	}
 }
 
-func (b UpstreamCABuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	return b.plugin.Configure(ctx, req)
 }
 
-func (b UpstreamCABuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return b.plugin.GetPluginInfo(ctx, req)
 }
 
-func (b UpstreamCABuiltIn) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
+func (b BuiltIn) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
 	return b.plugin.SubmitCSR(ctx, req)
 }
 
@@ -52,51 +52,51 @@ var Handshake = go_plugin.HandshakeConfig{
 	MagicCookieValue: "UpstreamCA",
 }
 
-type UpstreamCAGRPCPlugin struct {
+type GRPCPlugin struct {
 	ServerImpl UpstreamCAServer
 }
 
-func (p UpstreamCAGRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
+func (p GRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p UpstreamCAGRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p GRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p UpstreamCAGRPCPlugin) GRPCServer(s *grpc.Server) error {
+func (p GRPCPlugin) GRPCServer(s *grpc.Server) error {
 	RegisterUpstreamCAServer(s, p.ServerImpl)
 	return nil
 }
 
-func (p UpstreamCAGRPCPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &UpstreamCAGRPCClient{client: NewUpstreamCAClient(c)}, nil
+func (p GRPCPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &GRPCClient{client: NewUpstreamCAClient(c)}, nil
 }
 
-type UpstreamCAGRPCServer struct {
-	Plugin UpstreamCAPlugin
+type GRPCServer struct {
+	Plugin Plugin
 }
 
-func (s *UpstreamCAGRPCServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (s *GRPCServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	return s.Plugin.Configure(ctx, req)
 }
-func (s *UpstreamCAGRPCServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (s *GRPCServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return s.Plugin.GetPluginInfo(ctx, req)
 }
-func (s *UpstreamCAGRPCServer) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
+func (s *GRPCServer) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
 	return s.Plugin.SubmitCSR(ctx, req)
 }
 
-type UpstreamCAGRPCClient struct {
+type GRPCClient struct {
 	client UpstreamCAClient
 }
 
-func (c *UpstreamCAGRPCClient) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (c *GRPCClient) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	return c.client.Configure(ctx, req)
 }
-func (c *UpstreamCAGRPCClient) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (c *GRPCClient) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return c.client.GetPluginInfo(ctx, req)
 }
-func (c *UpstreamCAGRPCClient) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
+func (c *GRPCClient) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
 	return c.client.SubmitCSR(ctx, req)
 }

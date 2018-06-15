@@ -50,7 +50,7 @@ func (p *IITAttestorPlugin) spiffeID(gcpAccountID string, gcpInstanceID string) 
 	return id
 }
 
-func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_Attest_PluginStream) error {
+func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return err
@@ -136,7 +136,7 @@ func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginI
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewInstanceIdentityToken() nodeattestor.NodeAttestorPlugin {
+func NewInstanceIdentityToken() nodeattestor.Plugin {
 	return &IITAttestorPlugin{
 		tokenKeyRetriever: &googlePublicKeyRetriever{
 			certificates: make(map[string]*x509.Certificate),

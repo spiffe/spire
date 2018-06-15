@@ -133,7 +133,7 @@ func (a *attestor) loadBundle() ([]*x509.Certificate, error) {
 }
 
 func (a *attestor) fetchAttestationData(
-	fetchStream nodeattestor.NodeAttestor_FetchAttestationData_Stream,
+	fetchStream nodeattestor.FetchAttestationData_Stream,
 	challenge []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
 
 	// the stream should only be nil if this node attestation is via a join
@@ -193,7 +193,7 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle []
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var fetchStream nodeattestor.NodeAttestor_FetchAttestationData_Stream
+	var fetchStream nodeattestor.FetchAttestationData_Stream
 	if a.c.JoinToken == "" {
 		plugins := a.c.Catalog.NodeAttestors()
 		if len(plugins) > 1 {

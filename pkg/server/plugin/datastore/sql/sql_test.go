@@ -804,7 +804,7 @@ func Test_race(t *testing.T) {
 	})
 }
 
-func createDefault(t *testing.T) datastore.DataStorePlugin {
+func createDefault(t *testing.T) datastore.Plugin {
 	ds, err := NewTemp()
 	if err != nil {
 		t.Fatal(err)

@@ -187,7 +187,7 @@ func (f *fakeAttestPluginStream) Send(resp *nodeattestor.AttestResponse) error {
 	return nil
 }
 
-func doAttest(p nodeattestor.NodeAttestorPlugin, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func doAttest(p nodeattestor.Plugin, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	s := &fakeAttestPluginStream{req: req}
 	if err := p.Attest(s); err != nil {
 		return nil, err

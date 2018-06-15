@@ -40,7 +40,7 @@ func (p *JoinTokenPlugin) spiffeID() *url.URL {
 	return id
 }
 
-func (p *JoinTokenPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationData_PluginStream) error {
+func (p *JoinTokenPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
@@ -92,7 +92,7 @@ func (*JoinTokenPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func New() nodeattestor.NodeAttestorPlugin {
+func New() nodeattestor.Plugin {
 	return &JoinTokenPlugin{
 		mtx: &sync.RWMutex{},
 	}

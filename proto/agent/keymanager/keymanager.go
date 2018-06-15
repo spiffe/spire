@@ -16,39 +16,39 @@ type KeyManager interface {
 	FetchPrivateKey(context.Context, *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
 }
 
-// KeyManager is the interface implemented by plugin implementations
-type KeyManagerPlugin interface {
+// Plugin is the interface implemented by plugin implementations
+type Plugin interface {
 	GenerateKeyPair(context.Context, *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
 	FetchPrivateKey(context.Context, *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
 }
 
-type KeyManagerBuiltIn struct {
-	plugin KeyManagerPlugin
+type BuiltIn struct {
+	plugin Plugin
 }
 
-var _ KeyManager = (*KeyManagerBuiltIn)(nil)
+var _ KeyManager = (*BuiltIn)(nil)
 
-func NewKeyManagerBuiltIn(plugin KeyManagerPlugin) *KeyManagerBuiltIn {
-	return &KeyManagerBuiltIn{
+func NewBuiltIn(plugin Plugin) *BuiltIn {
+	return &BuiltIn{
 		plugin: plugin,
 	}
 }
 
-func (b KeyManagerBuiltIn) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
+func (b BuiltIn) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
 	return b.plugin.GenerateKeyPair(ctx, req)
 }
 
-func (b KeyManagerBuiltIn) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
+func (b BuiltIn) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
 	return b.plugin.FetchPrivateKey(ctx, req)
 }
 
-func (b KeyManagerBuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	return b.plugin.Configure(ctx, req)
 }
 
-func (b KeyManagerBuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return b.plugin.GetPluginInfo(ctx, req)
 }
 
@@ -58,57 +58,57 @@ var Handshake = go_plugin.HandshakeConfig{
 	MagicCookieValue: "KeyManager",
 }
 
-type KeyManagerGRPCPlugin struct {
+type GRPCPlugin struct {
 	ServerImpl KeyManagerServer
 }
 
-func (p KeyManagerGRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
+func (p GRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p KeyManagerGRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
+func (p GRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
 	return empty.Empty{}, nil
 }
 
-func (p KeyManagerGRPCPlugin) GRPCServer(s *grpc.Server) error {
+func (p GRPCPlugin) GRPCServer(s *grpc.Server) error {
 	RegisterKeyManagerServer(s, p.ServerImpl)
 	return nil
 }
 
-func (p KeyManagerGRPCPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
-	return &KeyManagerGRPCClient{client: NewKeyManagerClient(c)}, nil
+func (p GRPCPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+	return &GRPCClient{client: NewKeyManagerClient(c)}, nil
 }
 
-type KeyManagerGRPCServer struct {
-	Plugin KeyManagerPlugin
+type GRPCServer struct {
+	Plugin Plugin
 }
 
-func (s *KeyManagerGRPCServer) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
+func (s *GRPCServer) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
 	return s.Plugin.GenerateKeyPair(ctx, req)
 }
-func (s *KeyManagerGRPCServer) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
+func (s *GRPCServer) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
 	return s.Plugin.FetchPrivateKey(ctx, req)
 }
-func (s *KeyManagerGRPCServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (s *GRPCServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	return s.Plugin.Configure(ctx, req)
 }
-func (s *KeyManagerGRPCServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (s *GRPCServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return s.Plugin.GetPluginInfo(ctx, req)
 }
 
-type KeyManagerGRPCClient struct {
+type GRPCClient struct {
 	client KeyManagerClient
 }
 
-func (c *KeyManagerGRPCClient) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
+func (c *GRPCClient) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
 	return c.client.GenerateKeyPair(ctx, req)
 }
-func (c *KeyManagerGRPCClient) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
+func (c *GRPCClient) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
 	return c.client.FetchPrivateKey(ctx, req)
 }
-func (c *KeyManagerGRPCClient) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (c *GRPCClient) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	return c.client.Configure(ctx, req)
 }
-func (c *KeyManagerGRPCClient) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (c *GRPCClient) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return c.client.GetPluginInfo(ctx, req)
 }

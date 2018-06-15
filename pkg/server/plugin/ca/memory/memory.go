@@ -274,7 +274,7 @@ func (m *MemoryPlugin) LoadCertificate(ctx context.Context, request *ca.LoadCert
 	return &ca.LoadCertificateResponse{}, nil
 }
 
-func NewWithDefault() ca.ServerCAPlugin {
+func NewWithDefault() ca.Plugin {
 	config := configuration{
 		TrustDomain:  "localhost",
 		BackdateSecs: 10,

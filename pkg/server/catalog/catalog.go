@@ -43,30 +43,30 @@ type Catalog interface {
 
 var (
 	supportedPlugins = map[string]goplugin.Plugin{
-		CAType:           &ca.ServerCAGRPCPlugin{},
-		DataStoreType:    &datastore.DataStoreGRPCPlugin{},
-		NodeAttestorType: &nodeattestor.NodeAttestorGRPCPlugin{},
-		NodeResolverType: &noderesolver.NodeResolverGRPCPlugin{},
-		UpstreamCAType:   &upstreamca.UpstreamCAGRPCPlugin{},
+		CAType:           &ca.GRPCPlugin{},
+		DataStoreType:    &datastore.GRPCPlugin{},
+		NodeAttestorType: &nodeattestor.GRPCPlugin{},
+		NodeResolverType: &noderesolver.GRPCPlugin{},
+		UpstreamCAType:   &upstreamca.GRPCPlugin{},
 	}
 
 	builtinPlugins = common.BuiltinPluginMap{
 		CAType: {
-			"memory": ca.NewServerCABuiltIn(ca_memory.NewWithDefault()),
+			"memory": ca.NewBuiltIn(ca_memory.NewWithDefault()),
 		},
 		DataStoreType: {
-			"sql": datastore.NewDataStoreBuiltIn(sql.New()),
+			"sql": datastore.NewBuiltIn(sql.New()),
 		},
 		NodeAttestorType: {
-			"aws_iid":    nodeattestor.NewNodeAttestorBuiltIn(aws.NewIID()),
-			"join_token": nodeattestor.NewNodeAttestorBuiltIn(jointoken.New()),
-			"gcp_iit":    nodeattestor.NewNodeAttestorBuiltIn(gcp.NewInstanceIdentityToken()),
+			"aws_iid":    nodeattestor.NewBuiltIn(aws.NewIID()),
+			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
+			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewInstanceIdentityToken()),
 		},
 		NodeResolverType: {
-			"noop": noderesolver.NewNodeResolverBuiltIn(noop.New()),
+			"noop": noderesolver.NewBuiltIn(noop.New()),
 		},
 		UpstreamCAType: {
-			"disk": upstreamca.NewUpstreamCABuiltIn(upca_disk.New()),
+			"disk": upstreamca.NewBuiltIn(upca_disk.New()),
 		},
 	}
 )

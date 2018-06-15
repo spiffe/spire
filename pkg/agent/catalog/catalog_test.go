@@ -18,21 +18,21 @@ import (
 
 var plugins = []*common_catalog.ManagedPlugin{
 	{
-		Plugin: keymanager.NewKeyManagerBuiltIn(&mock_keymanager.MockKeyManagerPlugin{}),
+		Plugin: keymanager.NewBuiltIn(&mock_keymanager.MockKeyManagerPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: KeyManagerType,
 			Enabled:    true,
 		},
 	},
 	{
-		Plugin: nodeattestor.NewNodeAttestorBuiltIn(&mock_nodeattestor.MockNodeAttestorPlugin{}),
+		Plugin: nodeattestor.NewBuiltIn(&mock_nodeattestor.MockNodeAttestorPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: NodeAttestorType,
 			Enabled:    true,
 		},
 	},
 	{
-		Plugin: workloadattestor.NewWorkloadAttestorBuiltIn(&mock_workloadattestor.MockWorkloadAttestorPlugin{}),
+		Plugin: workloadattestor.NewBuiltIn(&mock_workloadattestor.MockWorkloadAttestorPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: WorkloadAttestorType,
 			Enabled:    true,
@@ -40,7 +40,7 @@ var plugins = []*common_catalog.ManagedPlugin{
 	},
 	{
 		// Have another WorkloadAttestor plugin, but disabled
-		Plugin: workloadattestor.NewWorkloadAttestorBuiltIn(&mock_workloadattestor.MockWorkloadAttestorPlugin{}),
+		Plugin: workloadattestor.NewBuiltIn(&mock_workloadattestor.MockWorkloadAttestorPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: WorkloadAttestorType,
 			Enabled:    false,

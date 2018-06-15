@@ -40,7 +40,7 @@ func (p *JoinTokenPlugin) spiffeID(token string) *url.URL {
 	return id
 }
 
-func (p *JoinTokenPlugin) Attest(stream nodeattestor.NodeAttestor_Attest_PluginStream) error {
+func (p *JoinTokenPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ func (*JoinTokenPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func New() nodeattestor.NodeAttestorPlugin {
+func New() nodeattestor.Plugin {
 	return &JoinTokenPlugin{
 		mtx: &sync.Mutex{},
 	}

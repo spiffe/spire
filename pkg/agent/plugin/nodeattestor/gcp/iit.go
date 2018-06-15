@@ -65,7 +65,7 @@ func retrieveInstanceIdentityToken(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationData_PluginStream) error {
+func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
@@ -147,7 +147,7 @@ func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginI
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewIITPlugin() nodeattestor.NodeAttestorPlugin {
+func NewIITPlugin() nodeattestor.Plugin {
 	return &IITAttestorPlugin{
 		mtx: &sync.RWMutex{},
 	}

@@ -72,7 +72,7 @@ func (m *AttestRequest) Reset()         { *m = AttestRequest{} }
 func (m *AttestRequest) String() string { return proto.CompactTextString(m) }
 func (*AttestRequest) ProtoMessage()    {}
 func (*AttestRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_nodeattestor_14977cd9bb599edf, []int{0}
+	return fileDescriptor_nodeattestor_a993627cd19248db, []int{0}
 }
 func (m *AttestRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AttestRequest.Unmarshal(m, b)
@@ -130,7 +130,7 @@ func (m *AttestResponse) Reset()         { *m = AttestResponse{} }
 func (m *AttestResponse) String() string { return proto.CompactTextString(m) }
 func (*AttestResponse) ProtoMessage()    {}
 func (*AttestResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_nodeattestor_14977cd9bb599edf, []int{1}
+	return fileDescriptor_nodeattestor_a993627cd19248db, []int{1}
 }
 func (m *AttestResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AttestResponse.Unmarshal(m, b)
@@ -353,9 +353,9 @@ var _NodeAttestor_serviceDesc = grpc.ServiceDesc{
 	Metadata: "nodeattestor.proto",
 }
 
-func init() { proto.RegisterFile("nodeattestor.proto", fileDescriptor_nodeattestor_14977cd9bb599edf) }
+func init() { proto.RegisterFile("nodeattestor.proto", fileDescriptor_nodeattestor_a993627cd19248db) }
 
-var fileDescriptor_nodeattestor_14977cd9bb599edf = []byte{
+var fileDescriptor_nodeattestor_a993627cd19248db = []byte{
 	// 357 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x52, 0x51, 0x4f, 0xf2, 0x30,
 	0x14, 0xfd, 0xca, 0x17, 0x09, 0xd4, 0x81, 0x49, 0xe3, 0xc3, 0xb2, 0x68, 0x42, 0x48, 0xc4, 0xe9,

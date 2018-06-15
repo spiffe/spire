@@ -85,7 +85,7 @@ func (p *IIDAttestorPlugin) spiffeID(awsAccountId, awsInstanceId string) *url.UR
 	return id
 }
 
-func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_Attest_PluginStream) error {
+func (p *IIDAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return err
@@ -241,7 +241,7 @@ func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoReque
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewIID() nodeattestor.NodeAttestorPlugin {
+func NewIID() nodeattestor.Plugin {
 	return &IIDAttestorPlugin{
 		mtx: &sync.Mutex{},
 	}

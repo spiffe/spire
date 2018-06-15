@@ -94,7 +94,7 @@ func TestDisk_race(t *testing.T) {
 	})
 }
 
-func newWithDefault(keyFilePath string, certFilePath string) (upstreamca.UpstreamCAPlugin, error) {
+func newWithDefault(keyFilePath string, certFilePath string) (upstreamca.Plugin, error) {
 	config := Configuration{
 		TrustDomain:  "localhost",
 		KeyFilePath:  keyFilePath,

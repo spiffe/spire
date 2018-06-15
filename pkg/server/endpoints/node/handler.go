@@ -75,7 +75,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	// Pick the right node attestor
-	var attestStream nodeattestor.NodeAttestor_Attest_Stream
+	var attestStream nodeattestor.Attest_Stream
 	if request.AttestationData.Type != "join_token" {
 		var nodeAttestor nodeattestor.NodeAttestor
 		for _, a := range h.c.Catalog.NodeAttestors() {
@@ -250,7 +250,7 @@ func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, er
 
 func (h *Handler) doAttestChallengeResponse(ctx context.Context,
 	nodeStream node.Node_AttestServer,
-	attestStream nodeattestor.NodeAttestor_Attest_Stream,
+	attestStream nodeattestor.Attest_Stream,
 	request *node.AttestRequest, attestedBefore bool) (*nodeattestor.AttestResponse, error) {
 	// challenge/response loop
 	for {
@@ -279,7 +279,7 @@ func (h *Handler) doAttestChallengeResponse(ctx context.Context,
 }
 
 func (h *Handler) attest(ctx context.Context,
-	attestStream nodeattestor.NodeAttestor_Attest_Stream,
+	attestStream nodeattestor.Attest_Stream,
 	nodeRequest *node.AttestRequest, attestedBefore bool) (
 	response *nodeattestor.AttestResponse, err error) {
 

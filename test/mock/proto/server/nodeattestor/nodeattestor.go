@@ -36,9 +36,9 @@ func (m *MockNodeAttestor) EXPECT() *MockNodeAttestorMockRecorder {
 }
 
 // Attest mocks base method
-func (m *MockNodeAttestor) Attest(arg0 context.Context) (nodeattestor.NodeAttestor_Attest_Stream, error) {
+func (m *MockNodeAttestor) Attest(arg0 context.Context) (nodeattestor.Attest_Stream, error) {
 	ret := m.ctrl.Call(m, "Attest", arg0)
-	ret0, _ := ret[0].(nodeattestor.NodeAttestor_Attest_Stream)
+	ret0, _ := ret[0].(nodeattestor.Attest_Stream)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -72,7 +72,7 @@ func (m *MockNodeAttestorPlugin) EXPECT() *MockNodeAttestorPluginMockRecorder {
 }
 
 // Attest mocks base method
-func (m *MockNodeAttestorPlugin) Attest(arg0 nodeattestor.NodeAttestor_Attest_PluginStream) error {
+func (m *MockNodeAttestorPlugin) Attest(arg0 nodeattestor.Attest_PluginStream) error {
 	ret := m.ctrl.Call(m, "Attest", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0

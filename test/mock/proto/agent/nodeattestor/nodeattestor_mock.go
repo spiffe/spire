@@ -36,9 +36,9 @@ func (m *MockNodeAttestor) EXPECT() *MockNodeAttestorMockRecorder {
 }
 
 // FetchAttestationData mocks base method
-func (m *MockNodeAttestor) FetchAttestationData(arg0 context.Context) (nodeattestor.NodeAttestor_FetchAttestationData_Stream, error) {
+func (m *MockNodeAttestor) FetchAttestationData(arg0 context.Context) (nodeattestor.FetchAttestationData_Stream, error) {
 	ret := m.ctrl.Call(m, "FetchAttestationData", arg0)
-	ret0, _ := ret[0].(nodeattestor.NodeAttestor_FetchAttestationData_Stream)
+	ret0, _ := ret[0].(nodeattestor.FetchAttestationData_Stream)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -85,7 +85,7 @@ func (mr *MockNodeAttestorPluginMockRecorder) Configure(arg0, arg1 interface{}) 
 }
 
 // FetchAttestationData mocks base method
-func (m *MockNodeAttestorPlugin) FetchAttestationData(arg0 nodeattestor.NodeAttestor_FetchAttestationData_PluginStream) error {
+func (m *MockNodeAttestorPlugin) FetchAttestationData(arg0 nodeattestor.FetchAttestationData_PluginStream) error {
 	ret := m.ctrl.Call(m, "FetchAttestationData", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
