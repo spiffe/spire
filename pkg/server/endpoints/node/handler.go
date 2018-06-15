@@ -79,9 +79,8 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	if request.AttestationData.Type != "join_token" {
 		var nodeAttestor nodeattestor.NodeAttestor
 		for _, a := range h.c.Catalog.NodeAttestors() {
-			config := h.c.Catalog.ConfigFor(a)
-			if config != nil &&
-				config.PluginName == request.AttestationData.Type {
+			config, ok := h.c.Catalog.ConfigFor(a)
+			if ok && config.PluginName == request.AttestationData.Type {
 				nodeAttestor = a
 				break
 			}

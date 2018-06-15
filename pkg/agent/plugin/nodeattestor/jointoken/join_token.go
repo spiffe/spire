@@ -49,11 +49,6 @@ func (p *JoinTokenPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_
 		return err
 	}
 
-	_, err := stream.Recv()
-	if err != nil {
-		return err
-	}
-
 	// FIXME: NA should be the one dictating type of this message
 	// Change the proto to just take plain byte here
 	data := &common.AttestationData{
@@ -63,7 +58,7 @@ func (p *JoinTokenPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_
 
 	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
 		AttestationData: data,
-		SpiffeId:     p.spiffeID().String(),
+		SpiffeId:        p.spiffeID().String(),
 	})
 }
 

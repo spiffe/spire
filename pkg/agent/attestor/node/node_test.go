@@ -188,7 +188,6 @@ func (s *NodeAttestorTestSuite) setFetchAttestationDataResponse(challenges []cha
 	}
 
 	stream := mock_nodeattestor.NewMockNodeAttestor_FetchAttestationData_Stream(s.ctrl)
-	stream.EXPECT().Send(&nodeattestor.FetchAttestationDataRequest{})
 	stream.EXPECT().Recv().Return(fa, nil)
 	for _, challenge := range challenges {
 		stream.EXPECT().Send(&nodeattestor.FetchAttestationDataRequest{

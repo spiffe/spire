@@ -55,7 +55,7 @@ message AttestResponse {
 
     // This is a challenge issued by the server to the node. If populated, the
     // node is expected to respond with another AttestRequest with the response.
-	// This field is mutually exclusive with the svid_update field.
+    // This field is mutually exclusive with the svid_update field.
     bytes challenge = 2;
 }
 

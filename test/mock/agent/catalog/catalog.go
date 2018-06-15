@@ -38,10 +38,11 @@ func (m *MockCatalog) EXPECT() *MockCatalogMockRecorder {
 }
 
 // ConfigFor mocks base method
-func (m *MockCatalog) ConfigFor(arg0 interface{}) *catalog.PluginConfig {
+func (m *MockCatalog) ConfigFor(arg0 interface{}) (*catalog.PluginConfig, bool) {
 	ret := m.ctrl.Call(m, "ConfigFor", arg0)
 	ret0, _ := ret[0].(*catalog.PluginConfig)
-	return ret0
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
 }
 
 // ConfigFor indicates an expected call of ConfigFor

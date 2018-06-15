@@ -64,11 +64,6 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
-	_, err := stream.Recv()
-	if err != nil {
-		return err
-	}
-
 	docBytes, err := httpGetBytes(p.identityDocumentUrl)
 	if err != nil {
 		err = aws.AttestationStepError("retrieving the IID from AWS", err)
@@ -108,7 +103,7 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 
 	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
 		AttestationData: data,
-		SpiffeId:     p.spiffeID(doc.AccountId, doc.InstanceId).String(),
+		SpiffeId:        p.spiffeID(doc.AccountId, doc.InstanceId).String(),
 	})
 }
 

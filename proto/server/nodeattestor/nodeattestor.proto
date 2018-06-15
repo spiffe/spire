@@ -13,8 +13,8 @@ message AttestRequest {
     spire.common.AttestationData attestationData = 1;
     /** Is true if the Base SPIFFE ID is present in the Attested Node table. */
     bool attestedBefore = 2;
-	/** Challenge response */
-	bytes response = 3;
+    /** Challenge response */
+    bytes response = 3;
 }
 
 /** Represents a response when attesting a node.*/
@@ -25,7 +25,7 @@ message AttestResponse {
     /** Used for the Server to validate the SPIFFE Id in the Certificate signing request. */
     string baseSPIFFEID = 2;
 
-	/** Challenge required for attestation */
+    /** Challenge required for attestation */
     bytes challenge = 3;
 }
 

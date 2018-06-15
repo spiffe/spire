@@ -144,7 +144,6 @@ build_protobuf() {
 			[[ ${_n} == "proto/test/"* ]]; then
 			_log_info "creating plugin interface \"${_n%.proto}.go\""
 			protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-				--proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
 				--spireplugin_out=${_d} ${_n}
 		fi
 	done

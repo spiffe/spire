@@ -288,7 +288,7 @@ func setAttestExpectations(
 	p := &catalog.PluginConfig{
 		PluginName: "fake type",
 	}
-	suite.mockCatalog.EXPECT().ConfigFor(suite.mockNodeAttestor).Return(p)
+	suite.mockCatalog.EXPECT().ConfigFor(suite.mockNodeAttestor).Return(p, true)
 
 	stream := mock_nodeattestor.NewMockNodeAttestor_Attest_Stream(suite.ctrl)
 	stream.EXPECT().Send(&nodeattestor.AttestRequest{

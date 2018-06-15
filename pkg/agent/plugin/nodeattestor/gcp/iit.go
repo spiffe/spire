@@ -69,10 +69,6 @@ func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
-	if _, err := stream.Recv(); err != nil {
-		return err
-	}
-
 	docBytes, err := retrieveInstanceIdentityToken(fmt.Sprintf(identityTokenUrl, audience))
 	if err != nil {
 		return gcp.AttestationStepError("retrieving the identity token", err)

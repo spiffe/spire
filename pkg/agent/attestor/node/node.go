@@ -156,12 +156,13 @@ func (a *attestor) fetchAttestationData(
 		}, nil
 	}
 
-	fetchReq := &nodeattestor.FetchAttestationDataRequest{
-		Challenge: challenge,
-	}
-
-	if err := fetchStream.Send(fetchReq); err != nil {
-		return nil, fmt.Errorf("requesting attestation data: %v", err)
+	if challenge != nil {
+		fetchReq := &nodeattestor.FetchAttestationDataRequest{
+			Challenge: challenge,
+		}
+		if err := fetchStream.Send(fetchReq); err != nil {
+			return nil, fmt.Errorf("requesting attestation data: %v", err)
+		}
 	}
 
 	fetchResp, err := fetchStream.Recv()

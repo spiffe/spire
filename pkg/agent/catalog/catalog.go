@@ -130,7 +130,7 @@ func (c *catalog) Plugins() []*common.ManagedPlugin {
 	return c.com.Plugins()
 }
 
-func (c *catalog) ConfigFor(plugin interface{}) *common.PluginConfig {
+func (c *catalog) ConfigFor(plugin interface{}) (*common.PluginConfig, bool) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
