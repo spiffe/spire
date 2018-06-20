@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -14,54 +15,81 @@ import (
 )
 
 type googlePublicKeyRetriever struct {
+	url    string
+	expiry time.Time
+
+	mtx          sync.Mutex
 	certificates map[string]*x509.Certificate
-	expirey      int64
-	mtx          *sync.Mutex
 }
 
 func (r *googlePublicKeyRetriever) retrieveKey(token *jwt.Token) (interface{}, error) {
 	if token.Header["kid"] == nil {
-		return nil, fmt.Errorf("Missing kid in identityToken header. Cannot verify token")
+		return nil, errors.New("token is missing kid value")
 	}
-	kid := token.Header["kid"].(string)
+	kid, ok := token.Header["kid"].(string)
+	if !ok || kid == "" {
+		return nil, errors.New("token has unexpected kid value")
+	}
 	if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-		return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		return nil, fmt.Errorf("unexpected signing method: %T", token.Method)
 	}
 
-	if r.expirey == 0 || time.Now().Unix() > r.expirey {
-		r.mtx.Lock()
-		defer r.mtx.Unlock()
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	if r.expiry.IsZero() || time.Now().After(r.expiry) {
 		err := r.downloadCertificates()
 		if err != nil {
 			return nil, err
 		}
 	}
-	return r.certificates[kid].PublicKey, nil
+	cert, ok := r.certificates[kid]
+	if !ok {
+		return nil, errors.New("no certificate found for kid")
+	}
+	return cert.PublicKey, nil
 }
 
 func (r *googlePublicKeyRetriever) downloadCertificates() error {
-	resp, err := http.Get(googleCertURL)
+	resp, err := http.Get(r.url)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
 	bytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
 	var data map[string]string
-	err = json.Unmarshal(bytes, &data)
+	if err := json.Unmarshal(bytes, &data); err != nil {
+		return fmt.Errorf("unable to unmarshal certificate response: %v", err)
+	}
 
+	certificates := make(map[string]*x509.Certificate)
 	for k, v := range data {
 		block, _ := pem.Decode([]byte(v))
+		if block == nil {
+			return errors.New("unable to unmarshal certificate response: malformed PEM block")
+		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to unmarshal certificate response: malformed certificate PEM")
 		}
-		r.certificates[k] = cert
+		certificates[k] = cert
 	}
-	t, err := time.Parse("Mon, 2 Jan 2006 15:04:05 MST", resp.Header["Expires"][0])
-	r.expirey = t.Unix()
+
+	r.expiry = time.Time{}
+	if expires := resp.Header.Get("Expires"); expires != "" {
+		if t, err := time.Parse("Mon, 2 Jan 2006 15:04:05 MST", expires); err == nil {
+			r.expiry = t
+		}
+	}
+	r.certificates = certificates
 	return nil
 }
