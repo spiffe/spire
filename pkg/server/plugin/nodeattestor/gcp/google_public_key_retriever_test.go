@@ -48,7 +48,6 @@ func TestGooglePublicKeyRetriever(t *testing.T) {
 	_, err = retriever.retrieveKey(emptyKid)
 	require.EqualError(err, "token has unexpected kid value")
 
-	// token has malformed kid
 	token := jwt.New(jwt.SigningMethodRS256)
 	token.Header["kid"] = "7ddf54d3032d1f0d48c3618892ca74c1ac30ad77"
 
