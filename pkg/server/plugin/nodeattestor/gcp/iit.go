@@ -2,7 +2,6 @@ package gcp
 
 import (
 	"context"
-	"crypto/x509"
 	"fmt"
 	"net/url"
 	"path"
@@ -138,9 +137,6 @@ func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginI
 
 func NewInstanceIdentityToken() nodeattestor.Plugin {
 	return &IITAttestorPlugin{
-		tokenKeyRetriever: &googlePublicKeyRetriever{
-			certificates: make(map[string]*x509.Certificate),
-			url:          googleCertURL,
-		},
+		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
 	}
 }

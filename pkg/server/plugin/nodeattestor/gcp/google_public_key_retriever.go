@@ -22,6 +22,13 @@ type googlePublicKeyRetriever struct {
 	certificates map[string]*x509.Certificate
 }
 
+func newGooglePublicKeyRetriever(url string) *googlePublicKeyRetriever {
+	return &googlePublicKeyRetriever{
+		url:          url,
+		certificates: make(map[string]*x509.Certificate),
+	}
+}
+
 func (r *googlePublicKeyRetriever) retrieveKey(token *jwt.Token) (interface{}, error) {
 	if token.Header["kid"] == nil {
 		return nil, errors.New("token is missing kid value")
@@ -45,7 +52,7 @@ func (r *googlePublicKeyRetriever) retrieveKey(token *jwt.Token) (interface{}, e
 	}
 	cert, ok := r.certificates[kid]
 	if !ok {
-		return nil, errors.New("no certificate found for kid")
+		return nil, errors.New("no public key found for kid")
 	}
 	return cert.PublicKey, nil
 }
