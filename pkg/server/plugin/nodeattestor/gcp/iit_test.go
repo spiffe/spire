@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 	"testing"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -46,7 +45,6 @@ func buildToken() *jwt.Token {
 func buildIITPlugin() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
 		tokenKeyRetriever:  &staticKeyRetriever{key: "secret"},
-		mtx:                &sync.Mutex{},
 		projectIDWhitelist: []string{"project-123"},
 	}
 }
