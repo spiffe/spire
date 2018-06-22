@@ -88,15 +88,18 @@ func (m *manager) caRotate(ctx context.Context) error {
 	ttl := time.Until(m.caCert.NotAfter)
 	lifetime := m.caCert.NotAfter.Sub(m.caCert.NotBefore)
 	if (ttl < lifetime/2) && m.nextCACert == nil {
-		return m.prepareNextCA(ctx)
+		if err := m.prepareNextCA(ctx); err != nil {
+			return err
+		}
 	}
 
 	// Activate the new CA once the current one is 5/6ths of the way to expiration
 	if ttl < lifetime/6 {
-		return m.activateNextCA(ctx)
+		if err := m.activateNextCA(ctx); err != nil {
+			return err
+		}
 	}
 
-	// Nothing to see here, move along now...
 	return nil
 }
 
