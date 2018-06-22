@@ -2,22 +2,20 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/url"
-	"path"
 	"sync"
 
 	"github.com/hashicorp/hcl"
 
 	jwt "github.com/dgrijalva/jwt-go"
-	cgcp "github.com/spiffe/spire/pkg/common/plugin/gcp"
+	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 )
 
 const (
-	pluginName    = "gcp_iit"
-	audience      = "spire-gcp-node-attestor"
+	tokenAudience = "spire-gcp-node-attestor"
 	googleCertURL = "https://www.googleapis.com/oauth2/v1/certs"
 )
 
@@ -27,68 +25,66 @@ type tokenKeyRetriever interface {
 
 type IITAttestorConfig struct {
 	TrustDomain        string   `hcl:"trust_domain"`
-	ProjectIDWhitelist []string `hcl:"projectid_whitelist`
+	ProjectIDWhitelist []string `hcl:"projectid_whitelist"`
 }
 
 type IITAttestorPlugin struct {
-	trustDomain        string
-	projectIDWhitelist []string
-	tokenKeyRetriever  tokenKeyRetriever
-	mtx                sync.Mutex
-}
+	tokenKeyRetriever tokenKeyRetriever
 
-func (p *IITAttestorPlugin) spiffeID(gcpAccountID string, gcpInstanceID string) *url.URL {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-	spiffePath := path.Join("spire", "agent", pluginName, gcpAccountID, gcpInstanceID)
-	id := &url.URL{
-		Scheme: "spiffe",
-		Host:   p.trustDomain,
-		Path:   spiffePath,
-	}
-	return id
+	mtx    sync.Mutex
+	config *IITAttestorConfig
 }
 
 func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+	c, err := p.getConfig()
+	if err != nil {
+		return err
+	}
+
 	req, err := stream.Recv()
 	if err != nil {
 		return err
 	}
 
-	if req.GetAttestationData() == nil {
-		return cgcp.AttestationStepError("retrieving the attested data", fmt.Errorf("AttestRequest or attestedData is nil"))
+	attestationData := req.GetAttestationData()
+	if attestationData == nil {
+		return gcp.AttestationStepError("retrieving the attested data", errors.New("missing attestation data"))
+	}
+
+	if attestationData.Type != gcp.PluginName {
+		return gcp.AttestationStepError("retrieving the attested data", errors.New("invalid attestation data type"))
 	}
 
 	if req.AttestedBefore {
-		return cgcp.AttestationStepError("validation the InstanceID", fmt.Errorf("the InstanceID has been used and cannot be registered again"))
+		return gcp.AttestationStepError("validation the InstanceID", fmt.Errorf("the InstanceID has been used and cannot be registered again"))
 	}
 
-	identityToken := &cgcp.IdentityToken{}
+	identityToken := &gcp.IdentityToken{}
 	_, err = jwt.ParseWithClaims(string(req.GetAttestationData().Data), identityToken, p.tokenKeyRetriever.retrieveKey)
 	if err != nil {
-		return cgcp.AttestationStepError("parsing the identity token", err)
+		return gcp.AttestationStepError("parsing the identity token", err)
 	}
 
-	if identityToken.Audience != audience {
-		return cgcp.AttestationStepError("Audience claim in the token doesn't match the expected audience", err)
+	if identityToken.Audience != tokenAudience {
+		return gcp.AttestationStepError("Audience claim in the token doesn't match the expected audience", err)
 	}
 
 	projectIDMatchesWhitelist := false
-	for _, projectID := range p.projectIDWhitelist {
+	for _, projectID := range c.ProjectIDWhitelist {
 		if identityToken.Google.ComputeEngine.ProjectID == projectID {
 			projectIDMatchesWhitelist = true
 			break
 		}
 	}
 	if !projectIDMatchesWhitelist {
-		return cgcp.AttestationStepError("validation of the ProjectID", fmt.Errorf("the projectID doen't match the projectID whitelist"))
+		return gcp.AttestationStepError("validation of the ProjectID", errors.New("the projectID doesn't match the projectID whitelist"))
 	}
 
-	spiffeID := p.spiffeID(identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID)
+	spiffeID := gcp.MakeSpiffeID(c.TrustDomain, identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID)
 
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: spiffeID.String(),
+		BaseSPIFFEID: spiffeID,
 	}
 
 	if err := stream.Send(resp); err != nil {
@@ -99,44 +95,41 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 }
 
 func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	resp := &spi.ConfigureResponse{}
-
 	config := &IITAttestorConfig{}
-	hclTree, err := hcl.Parse(req.Configuration)
-	if err != nil {
-		err := fmt.Errorf("Error parsing GCP IID Attestor configuration %v", err)
-		return resp, err
+	if err := hcl.Decode(config, req.Configuration); err != nil {
+		return nil, fmt.Errorf("Error parsing GCP IIT Attestor configuration %v", err)
 	}
-	err = hcl.DecodeObject(&config, hclTree)
-	if err != nil {
-		err := fmt.Errorf("Error decoding GCP IID Attestor configuration: %v", err)
-		return resp, err
+	if config.TrustDomain == "" {
+		return nil, fmt.Errorf("Missing trust_domain configuration parameter")
+	}
+	if len(config.ProjectIDWhitelist) == 0 {
+		return nil, fmt.Errorf("Missing projectid_whitelist configuration parameter")
 	}
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	if config.TrustDomain == "" {
-		err := fmt.Errorf("Missing trust_domain configuration parameter")
-		return resp, err
-	}
-	p.trustDomain = config.TrustDomain
+	p.config = config
 
-	if config.ProjectIDWhitelist == nil || len(config.ProjectIDWhitelist) == 0 {
-		err := fmt.Errorf("Missing domain_whitelist configuration parameter")
-		return resp, err
-	}
-	p.projectIDWhitelist = config.ProjectIDWhitelist
-
-	return resp, nil
+	return &spi.ConfigureResponse{}, nil
 }
 
 func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewInstanceIdentityToken() nodeattestor.Plugin {
+func NewIITAttestorPlugin() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
 		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
 	}
+}
+
+func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	if p.config == nil {
+		return nil, errors.New("gcp-iit: not configured")
+	}
+	return p.config, nil
 }

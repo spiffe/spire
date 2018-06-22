@@ -2,8 +2,14 @@ package gcp
 
 import (
 	"fmt"
+	"net/url"
+	"path"
 
 	jwt "github.com/dgrijalva/jwt-go"
+)
+
+const (
+	PluginName = "gcp_iit"
 )
 
 type IdentityToken struct {
@@ -27,5 +33,19 @@ type ComputeEngine struct {
 }
 
 func AttestationStepError(step string, cause error) error {
-	return fmt.Errorf("Attempted GCP IID attestation but an error occured %s: %s", step, cause)
+	const prefix = "Attempted GCP IIT attestation but an error occured "
+	if cause == nil {
+		return fmt.Errorf(prefix+"%s", step)
+	}
+	return fmt.Errorf(prefix+"%s: %s", step, cause)
+}
+
+func MakeSpiffeID(trustDomain, gcpAccountID, gcpInstanceID string) string {
+	spiffePath := path.Join("spire", "agent", PluginName, gcpAccountID, gcpInstanceID)
+	id := &url.URL{
+		Scheme: "spiffe",
+		Host:   trustDomain,
+		Path:   spiffePath,
+	}
+	return id.String()
 }
