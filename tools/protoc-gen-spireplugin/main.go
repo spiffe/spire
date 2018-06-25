@@ -530,7 +530,11 @@ func NewBuiltIn(plugin Plugin) *BuiltIn {
 
 {{- with (eq .StreamType "") }}
 func (b BuiltIn) {{ $m.Name }}(ctx context.Context, req {{ $m.InputType }}) ({{ $m.OutputType }}, error) {
-	return b.plugin.{{ $m.Name }}(ctx, req)
+	resp, err := b.plugin.{{ $m.Name }}(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 {{- end }}
 
