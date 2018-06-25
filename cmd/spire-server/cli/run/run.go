@@ -20,12 +20,9 @@ import (
 )
 
 const (
-	defaultConfigPath   = "conf/server/server.conf"
-	defaultBindAddress  = "127.0.0.1"
-	defaultBindPort     = 8081
-	defaultBindHTTPPort = 8080
-	defaultLogLevel     = "INFO"
-	defaultUmask        = 0077
+	defaultConfigPath = "conf/server/server.conf"
+	defaultLogLevel   = "INFO"
+	defaultUmask      = 0077
 )
 
 // runConfig represents available configurables for file and CLI options
