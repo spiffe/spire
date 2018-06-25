@@ -70,7 +70,7 @@ func Sign(req, parent *x509.Certificate, signerPrivateKey interface{}) (*x509.Ce
 
 	publicKey, ok := req.PublicKey.(crypto.PublicKey)
 	if !ok {
-		key, err = ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+		key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			return nil, nil, err
 		}
