@@ -189,7 +189,11 @@ func NewBuiltIn(plugin Plugin) *BuiltIn {
 }
 
 func (b BuiltIn) NoStream(ctx context.Context, req *NoStreamRequest) (*NoStreamResponse, error) {
-	return b.plugin.NoStream(ctx, req)
+	resp, err := b.plugin.NoStream(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) ClientStream(ctx context.Context) (ClientStream_Stream, error) {
@@ -217,11 +221,19 @@ func (b BuiltIn) BothStream(ctx context.Context) (BothStream_Stream, error) {
 }
 
 func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return b.plugin.Configure(ctx, req)
+	resp, err := b.plugin.Configure(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return b.plugin.GetPluginInfo(ctx, req)
+	resp, err := b.plugin.GetPluginInfo(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 var Handshake = go_plugin.HandshakeConfig{

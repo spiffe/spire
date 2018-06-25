@@ -35,15 +35,27 @@ func NewBuiltIn(plugin Plugin) *BuiltIn {
 }
 
 func (b BuiltIn) Attest(ctx context.Context, req *AttestRequest) (*AttestResponse, error) {
-	return b.plugin.Attest(ctx, req)
+	resp, err := b.plugin.Attest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return b.plugin.Configure(ctx, req)
+	resp, err := b.plugin.Configure(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return b.plugin.GetPluginInfo(ctx, req)
+	resp, err := b.plugin.GetPluginInfo(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 var Handshake = go_plugin.HandshakeConfig{

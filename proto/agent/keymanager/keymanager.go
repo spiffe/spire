@@ -37,19 +37,35 @@ func NewBuiltIn(plugin Plugin) *BuiltIn {
 }
 
 func (b BuiltIn) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
-	return b.plugin.GenerateKeyPair(ctx, req)
+	resp, err := b.plugin.GenerateKeyPair(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
-	return b.plugin.FetchPrivateKey(ctx, req)
+	resp, err := b.plugin.FetchPrivateKey(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return b.plugin.Configure(ctx, req)
+	resp, err := b.plugin.Configure(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return b.plugin.GetPluginInfo(ctx, req)
+	resp, err := b.plugin.GetPluginInfo(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 var Handshake = go_plugin.HandshakeConfig{
