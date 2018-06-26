@@ -314,7 +314,7 @@ func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) (
 
 	svidMsg, ok := r.SvidUpdate.Svids[id]
 	if !ok {
-		return nil, nil, errors.New("incorrect svid")
+		return nil, nil, fmt.Errorf("incorrect svid: %s", id)
 	}
 
 	svid, err := x509.ParseCertificate(svidMsg.SvidCert)

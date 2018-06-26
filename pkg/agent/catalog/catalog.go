@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/aws"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/gcp"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/jointoken"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/x509pop"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/unix"
 	"github.com/spiffe/spire/proto/agent/keymanager"
@@ -51,6 +52,7 @@ var (
 			"aws_iid":    nodeattestor.NewBuiltIn(aws.NewIID()),
 			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
 			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITPlugin()),
+			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
 		},
 		WorkloadAttestorType: {
 			"k8s":  workloadattestor.NewBuiltIn(k8s.New()),
