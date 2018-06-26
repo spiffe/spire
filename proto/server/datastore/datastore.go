@@ -90,123 +90,243 @@ func NewBuiltIn(plugin Plugin) *BuiltIn {
 }
 
 func (b BuiltIn) CreateBundle(ctx context.Context, req *Bundle) (*Bundle, error) {
-	return b.plugin.CreateBundle(ctx, req)
+	resp, err := b.plugin.CreateBundle(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) UpdateBundle(ctx context.Context, req *Bundle) (*Bundle, error) {
-	return b.plugin.UpdateBundle(ctx, req)
+	resp, err := b.plugin.UpdateBundle(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) AppendBundle(ctx context.Context, req *Bundle) (*Bundle, error) {
-	return b.plugin.AppendBundle(ctx, req)
+	resp, err := b.plugin.AppendBundle(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) DeleteBundle(ctx context.Context, req *Bundle) (*Bundle, error) {
-	return b.plugin.DeleteBundle(ctx, req)
+	resp, err := b.plugin.DeleteBundle(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) FetchBundle(ctx context.Context, req *Bundle) (*Bundle, error) {
-	return b.plugin.FetchBundle(ctx, req)
+	resp, err := b.plugin.FetchBundle(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) ListBundles(ctx context.Context, req *common.Empty) (*Bundles, error) {
-	return b.plugin.ListBundles(ctx, req)
+	resp, err := b.plugin.ListBundles(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) CreateAttestedNodeEntry(ctx context.Context, req *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error) {
-	return b.plugin.CreateAttestedNodeEntry(ctx, req)
+	resp, err := b.plugin.CreateAttestedNodeEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) FetchAttestedNodeEntry(ctx context.Context, req *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error) {
-	return b.plugin.FetchAttestedNodeEntry(ctx, req)
+	resp, err := b.plugin.FetchAttestedNodeEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) FetchStaleNodeEntries(ctx context.Context, req *FetchStaleNodeEntriesRequest) (*FetchStaleNodeEntriesResponse, error) {
-	return b.plugin.FetchStaleNodeEntries(ctx, req)
+	resp, err := b.plugin.FetchStaleNodeEntries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) UpdateAttestedNodeEntry(ctx context.Context, req *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error) {
-	return b.plugin.UpdateAttestedNodeEntry(ctx, req)
+	resp, err := b.plugin.UpdateAttestedNodeEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) DeleteAttestedNodeEntry(ctx context.Context, req *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error) {
-	return b.plugin.DeleteAttestedNodeEntry(ctx, req)
+	resp, err := b.plugin.DeleteAttestedNodeEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) CreateNodeResolverMapEntry(ctx context.Context, req *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error) {
-	return b.plugin.CreateNodeResolverMapEntry(ctx, req)
+	resp, err := b.plugin.CreateNodeResolverMapEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) FetchNodeResolverMapEntry(ctx context.Context, req *FetchNodeResolverMapEntryRequest) (*FetchNodeResolverMapEntryResponse, error) {
-	return b.plugin.FetchNodeResolverMapEntry(ctx, req)
+	resp, err := b.plugin.FetchNodeResolverMapEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) DeleteNodeResolverMapEntry(ctx context.Context, req *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error) {
-	return b.plugin.DeleteNodeResolverMapEntry(ctx, req)
+	resp, err := b.plugin.DeleteNodeResolverMapEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) RectifyNodeResolverMapEntries(ctx context.Context, req *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error) {
-	return b.plugin.RectifyNodeResolverMapEntries(ctx, req)
+	resp, err := b.plugin.RectifyNodeResolverMapEntries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) CreateRegistrationEntry(ctx context.Context, req *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error) {
-	return b.plugin.CreateRegistrationEntry(ctx, req)
+	resp, err := b.plugin.CreateRegistrationEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) FetchRegistrationEntry(ctx context.Context, req *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error) {
-	return b.plugin.FetchRegistrationEntry(ctx, req)
+	resp, err := b.plugin.FetchRegistrationEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) FetchRegistrationEntries(ctx context.Context, req *common.Empty) (*FetchRegistrationEntriesResponse, error) {
-	return b.plugin.FetchRegistrationEntries(ctx, req)
+	resp, err := b.plugin.FetchRegistrationEntries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) UpdateRegistrationEntry(ctx context.Context, req *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error) {
-	return b.plugin.UpdateRegistrationEntry(ctx, req)
+	resp, err := b.plugin.UpdateRegistrationEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) DeleteRegistrationEntry(ctx context.Context, req *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error) {
-	return b.plugin.DeleteRegistrationEntry(ctx, req)
+	resp, err := b.plugin.DeleteRegistrationEntry(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) ListParentIDEntries(ctx context.Context, req *ListParentIDEntriesRequest) (*ListParentIDEntriesResponse, error) {
-	return b.plugin.ListParentIDEntries(ctx, req)
+	resp, err := b.plugin.ListParentIDEntries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) ListSelectorEntries(ctx context.Context, req *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error) {
-	return b.plugin.ListSelectorEntries(ctx, req)
+	resp, err := b.plugin.ListSelectorEntries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) ListMatchingEntries(ctx context.Context, req *ListSelectorEntriesRequest) (*ListSelectorEntriesResponse, error) {
-	return b.plugin.ListMatchingEntries(ctx, req)
+	resp, err := b.plugin.ListMatchingEntries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) ListSpiffeEntries(ctx context.Context, req *ListSpiffeEntriesRequest) (*ListSpiffeEntriesResponse, error) {
-	return b.plugin.ListSpiffeEntries(ctx, req)
+	resp, err := b.plugin.ListSpiffeEntries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) RegisterToken(ctx context.Context, req *JoinToken) (*common.Empty, error) {
-	return b.plugin.RegisterToken(ctx, req)
+	resp, err := b.plugin.RegisterToken(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) FetchToken(ctx context.Context, req *JoinToken) (*JoinToken, error) {
-	return b.plugin.FetchToken(ctx, req)
+	resp, err := b.plugin.FetchToken(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) DeleteToken(ctx context.Context, req *JoinToken) (*common.Empty, error) {
-	return b.plugin.DeleteToken(ctx, req)
+	resp, err := b.plugin.DeleteToken(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) PruneTokens(ctx context.Context, req *JoinToken) (*common.Empty, error) {
-	return b.plugin.PruneTokens(ctx, req)
+	resp, err := b.plugin.PruneTokens(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return b.plugin.Configure(ctx, req)
+	resp, err := b.plugin.Configure(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return b.plugin.GetPluginInfo(ctx, req)
+	resp, err := b.plugin.GetPluginInfo(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 var Handshake = go_plugin.HandshakeConfig{

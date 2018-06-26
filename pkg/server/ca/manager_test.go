@@ -28,22 +28,21 @@ var (
 type ManagerTestSuite struct {
 	suite.Suite
 
-	t       *testing.T
-	m       *manager
-	catalog *mock_catalog.MockCatalog
-	ca      *mock_ca.MockServerCA
-	ds      *mock_datastore.MockDataStore
-	upsCa   *mock_upstreamca.MockUpstreamCA
+	m        *manager
+	mockCtrl *gomock.Controller
+	catalog  *mock_catalog.MockCatalog
+	ca       *mock_ca.MockServerCA
+	ds       *mock_datastore.MockDataStore
+	upsCa    *mock_upstreamca.MockUpstreamCA
 }
 
 func (m *ManagerTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(m.t)
-	defer mockCtrl.Finish()
+	m.mockCtrl = gomock.NewController(m.T())
 
-	m.catalog = mock_catalog.NewMockCatalog(mockCtrl)
-	m.ca = mock_ca.NewMockServerCA(mockCtrl)
-	m.ds = mock_datastore.NewMockDataStore(mockCtrl)
-	m.upsCa = mock_upstreamca.NewMockUpstreamCA(mockCtrl)
+	m.catalog = mock_catalog.NewMockCatalog(m.mockCtrl)
+	m.ca = mock_ca.NewMockServerCA(m.mockCtrl)
+	m.ds = mock_datastore.NewMockDataStore(m.mockCtrl)
+	m.upsCa = mock_upstreamca.NewMockUpstreamCA(m.mockCtrl)
 
 	logger, err := log.NewLogger("DEBUG", "")
 	m.NoError(err)
@@ -60,11 +59,19 @@ func (m *ManagerTestSuite) SetupTest() {
 	m.m = New(config)
 }
 
+func (m *ManagerTestSuite) TearDownTest() {
+	m.mockCtrl.Finish()
+}
+
 func TestManager(t *testing.T) {
 	suite.Run(t, new(ManagerTestSuite))
 }
 
 func (m *ManagerTestSuite) TestCARotate() {
+	m.catalog.EXPECT().CAs().AnyTimes().Return([]ca.ServerCA{m.ca})
+	m.catalog.EXPECT().DataStores().AnyTimes().Return([]datastore.DataStore{m.ds})
+	m.catalog.EXPECT().UpstreamCAs().AnyTimes().Return([]upstreamca.UpstreamCA{m.upsCa})
+
 	// Should return error when uninitialized
 	m.Assert().Error(m.m.caRotate(ctx))
 
@@ -76,10 +83,6 @@ func (m *ManagerTestSuite) TestCARotate() {
 	m.Assert().NoError(m.m.caRotate(ctx))
 	m.Assert().Equal(cert1, m.m.caCert)
 	m.Assert().Nil(m.m.nextCACert)
-
-	m.catalog.EXPECT().CAs().Return([]ca.ServerCA{m.ca})
-	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
-	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCA{m.upsCa})
 
 	// Should call prepareNextCA() when past 50% of validity period
 	template.NotBefore = time.Now().Add(-2 * time.Hour)
@@ -95,16 +98,28 @@ func (m *ManagerTestSuite) TestCARotate() {
 	m.Assert().NoError(m.m.caRotate(ctx))
 	m.Assert().Equal(cert1, m.m.nextCACert)
 
-	m.catalog.EXPECT().CAs().Return([]ca.ServerCA{m.ca})
-	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
-	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCA{m.upsCa})
-
 	// Should call activateNextCA() when we're almost expired
 	template.NotBefore = time.Now().Add(-2 * time.Hour)
 	template.NotAfter = time.Now().Add(1 * time.Minute)
 	cert3, _, err := util.SelfSign(template)
 	m.Require().NoError(err)
 	m.m.caCert = cert3
+	m.ca.EXPECT().LoadCertificate(gomock.Any(), gomock.Any())
+	m.Assert().NoError(m.m.caRotate(ctx))
+	m.Assert().Equal(cert1, m.m.caCert)
+	m.Assert().Nil(m.m.nextCACert)
+
+	// If the ttl has expired, or has almost expired, but the new CA hasn't
+	// been prepared yet due to the rotation interval, make sure the CA is both
+	// prepared and activated on the same rotation call (issue #501)
+	template.NotBefore = time.Now().Add(-3 * time.Hour)
+	template.NotAfter = time.Now().Add(-2 * time.Hour)
+	cert4, _, err := util.SelfSign(template)
+	m.Require().NoError(err)
+	m.m.caCert = cert4
+	m.ca.EXPECT().GenerateCsr(gomock.Any(), gomock.Any()).Return(new(ca.GenerateCsrResponse), nil)
+	m.upsCa.EXPECT().SubmitCSR(gomock.Any(), gomock.Any()).Return(resp, nil)
+	m.ds.EXPECT().AppendBundle(gomock.Any(), gomock.Any())
 	m.ca.EXPECT().LoadCertificate(gomock.Any(), gomock.Any())
 	m.Assert().NoError(m.m.caRotate(ctx))
 	m.Assert().Equal(cert1, m.m.caCert)

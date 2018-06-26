@@ -41,27 +41,51 @@ func NewBuiltIn(plugin Plugin) *BuiltIn {
 }
 
 func (b BuiltIn) SignCsr(ctx context.Context, req *SignCsrRequest) (*SignCsrResponse, error) {
-	return b.plugin.SignCsr(ctx, req)
+	resp, err := b.plugin.SignCsr(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) GenerateCsr(ctx context.Context, req *GenerateCsrRequest) (*GenerateCsrResponse, error) {
-	return b.plugin.GenerateCsr(ctx, req)
+	resp, err := b.plugin.GenerateCsr(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) FetchCertificate(ctx context.Context, req *FetchCertificateRequest) (*FetchCertificateResponse, error) {
-	return b.plugin.FetchCertificate(ctx, req)
+	resp, err := b.plugin.FetchCertificate(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) LoadCertificate(ctx context.Context, req *LoadCertificateRequest) (*LoadCertificateResponse, error) {
-	return b.plugin.LoadCertificate(ctx, req)
+	resp, err := b.plugin.LoadCertificate(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return b.plugin.Configure(ctx, req)
+	resp, err := b.plugin.Configure(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return b.plugin.GetPluginInfo(ctx, req)
+	resp, err := b.plugin.GetPluginInfo(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 var Handshake = go_plugin.HandshakeConfig{
