@@ -81,7 +81,7 @@ func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 
 	docBytes, err := retrieveInstanceIdentityToken(identityTokenURL(p.tokenHost))
 	if err != nil {
-		return gcp.AttestationStepError("retrieving the identity token", err)
+		return newErrorf("unable to retrieve identity token: %v", err)
 	}
 
 	resp, err := p.buildAttestationResponse(c.TrustDomain, docBytes)
@@ -100,11 +100,11 @@ func (p *IITAttestorPlugin) buildAttestationResponse(trustDomain string, identit
 	identityToken := &gcp.IdentityToken{}
 	_, _, err := new(jwt.Parser).ParseUnverified(string(identityTokenBytes), identityToken)
 	if err != nil {
-		return nil, gcp.AttestationStepError("parsing the identity token", err)
+		return nil, newErrorf("unable to parse identity token: %v", err)
 	}
 
 	if identityToken.Google == (gcp.Google{}) {
-		return nil, gcp.AttestationStepError("retrieving the claims of the identity token", nil)
+		return nil, newError("identity token is missing google claims")
 	}
 
 	data := &common.AttestationData{
@@ -124,11 +124,11 @@ func (p *IITAttestorPlugin) buildAttestationResponse(trustDomain string, identit
 func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config := &IITAttestorConfig{}
 	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, err
+		return nil, newErrorf("unable to decode configuration: %v", err)
 	}
 
 	if config.TrustDomain == "" {
-		return nil, fmt.Errorf("Missing trust_domain configuration parameter")
+		return nil, newError("trust_domain is required")
 	}
 
 	p.mtx.Lock()
@@ -153,7 +153,15 @@ func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	defer p.mtx.Unlock()
 
 	if p.config == nil {
-		return nil, errors.New("gcp-iit: not configured")
+		return nil, newError("gcp-iit: not configured")
 	}
 	return p.config, nil
+}
+
+func newError(msg string) error {
+	return errors.New("gcp-iit: " + msg)
+}
+
+func newErrorf(format string, args ...interface{}) error {
+	return fmt.Errorf("gcp-iit: "+format, args...)
 }

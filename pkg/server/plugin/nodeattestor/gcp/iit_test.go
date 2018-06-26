@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"testing"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -37,7 +36,7 @@ type staticKeyRetriever struct {
 
 func (s staticKeyRetriever) retrieveKey(token *jwt.Token) (interface{}, error) {
 	if token.Header["kid"] == nil {
-		return nil, fmt.Errorf("Missing kid in identityToken header. Cannot verify token")
+		return nil, newError("identity token missing kid header")
 	}
 	return s.key, nil
 }
@@ -104,13 +103,13 @@ func (s *IITAttestorSuite) TestErrorWhenNotConfigured() {
 	stream, err := p.Attest(context.Background())
 	defer stream.CloseSend()
 	resp, err := stream.Recv()
-	s.requireErrorContains(err, "not configured")
+	s.requireErrorContains(err, "gcp-iit: not configured")
 	s.Require().Nil(resp)
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidToken() {
 	_, err := s.attest(&nodeattestor.AttestRequest{})
-	s.requireErrorContains(err, "missing attestation data")
+	s.requireErrorContains(err, "gcp-iit: request missing attestation data")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidType() {
@@ -119,7 +118,7 @@ func (s *IITAttestorSuite) TestErrorOnInvalidType() {
 			Type: "foo",
 		},
 	})
-	s.requireErrorContains(err, "invalid attestation data type")
+	s.requireErrorContains(err, `gcp-iit: unexpected attestation data type "foo"`)
 }
 
 func (s *IITAttestorSuite) TestErrorOnMissingKid() {
@@ -132,7 +131,7 @@ func (s *IITAttestorSuite) TestErrorOnMissingKid() {
 	}
 
 	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
-	s.requireErrorContains(err, "Missing kid in identityToken header")
+	s.requireErrorContains(err, "gcp-iit: identity token missing kid header")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidClaims() {
@@ -146,7 +145,7 @@ func (s *IITAttestorSuite) TestErrorOnInvalidClaims() {
 	}
 
 	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
-	s.requireErrorContains(err, "token is expired")
+	s.requireErrorContains(err, "gcp-iit: unable to parse/validate the identity token: token is expired")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidAudience() {
@@ -159,7 +158,7 @@ func (s *IITAttestorSuite) TestErrorOnInvalidAudience() {
 	}
 
 	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
-	s.requireErrorContains(err, "token doesn't match the expected audience")
+	s.requireErrorContains(err, `gcp-iit: unexpected identity token audience "invalid"`)
 }
 
 func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
@@ -171,7 +170,7 @@ func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
 	}
 
 	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data, AttestedBefore: true})
-	s.requireErrorContains(err, "InstanceID has been used and cannot be registered again")
+	s.requireErrorContains(err, "gcp-iit: instance ID has already been attested")
 }
 
 func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
@@ -183,7 +182,7 @@ func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
 		Data: s.signToken(token),
 	}
 	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
-	s.requireErrorContains(err, "projectID doesn't match")
+	s.requireErrorContains(err, `gcp-iit: identity token project ID "project-whatever" is not in the whitelist`)
 }
 
 func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequest() {
@@ -210,7 +209,7 @@ func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
 	}
 
 	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
-	s.requireErrorContains(err, "token contains an invalid number of segments")
+	s.requireErrorContains(err, "gcp-iit: unable to parse/validate the identity token: token contains an invalid number of segments")
 }
 
 func (s *IITAttestorSuite) TestConfigure() {
@@ -220,7 +219,7 @@ func (s *IITAttestorSuite) TestConfigure() {
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `trust_domain`,
 	})
-	s.requireErrorContains(err, "Error parsing GCP IIT Attestor configuration")
+	s.requireErrorContains(err, "gcp-iit: unable to decode configuration")
 	require.Nil(resp)
 
 	// missing trust domain
@@ -228,7 +227,7 @@ func (s *IITAttestorSuite) TestConfigure() {
 		Configuration: `
 projectid_whitelist = ["bar"]
 `})
-	s.requireErrorContains(err, "Missing trust_domain configuration parameter")
+	s.requireErrorContains(err, "gcp-iit: trust_domain is required")
 	require.Nil(resp)
 
 	// missing projectID whitelist
@@ -236,7 +235,7 @@ projectid_whitelist = ["bar"]
 		Configuration: `
 trust_domain = "foo"
 `})
-	s.requireErrorContains(err, "Missing projectid_whitelist configuration parameter")
+	s.requireErrorContains(err, "gcp-iit: projectid_whitelist is required")
 	require.Nil(resp)
 
 	// success

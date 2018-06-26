@@ -68,7 +68,7 @@ func (s *Suite) TestErrorWhenNotConfigured() {
 	stream, err := p.FetchAttestationData(context.Background())
 	defer stream.CloseSend()
 	resp, err := stream.Recv()
-	s.requireErrorContains(err, "not configured")
+	s.requireErrorContains(err, "gcp-iit: not configured")
 	s.Require().Nil(resp)
 }
 
@@ -76,20 +76,20 @@ func (s *Suite) TestUnexpectedStatus() {
 	s.status = http.StatusBadGateway
 	s.body = ""
 	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "unexpected status code: 502")
+	s.requireErrorContains(err, "gcp-iit: unable to retrieve identity token: unexpected status code: 502")
 }
 
 func (s *Suite) TestErrorOnInvalidToken() {
 	s.body = "invalid"
 	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "token contains an invalid number of segments")
+	s.requireErrorContains(err, "gcp-iit: unable to parse identity token: token contains an invalid number of segments")
 }
 
 func (s *Suite) TestErrorOnMissingClaimsInIdentityToken() {
 	token := jwt.New(jwt.SigningMethodHS256)
 	s.body = s.signToken(token)
 	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "error occured retrieving the claims of the identity token")
+	s.requireErrorContains(err, "gcp-iit: identity token is missing google claims")
 }
 
 func (s *Suite) TestSuccessfulIdentityTokenProcessing() {
@@ -123,7 +123,7 @@ func (s *Suite) TestConfigure() {
 
 	// missing trust domain
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.requireErrorContains(err, "Missing trust_domain configuration parameter")
+	s.requireErrorContains(err, "gcp-iit: trust_domain is required")
 	require.Nil(resp)
 
 	// success

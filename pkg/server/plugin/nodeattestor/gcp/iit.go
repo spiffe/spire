@@ -48,25 +48,25 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 
 	attestationData := req.GetAttestationData()
 	if attestationData == nil {
-		return gcp.AttestationStepError("retrieving the attested data", errors.New("missing attestation data"))
+		return newError("request missing attestation data")
 	}
 
 	if attestationData.Type != gcp.PluginName {
-		return gcp.AttestationStepError("retrieving the attested data", errors.New("invalid attestation data type"))
+		return newErrorf("unexpected attestation data type %q", attestationData.Type)
 	}
 
 	if req.AttestedBefore {
-		return gcp.AttestationStepError("validation the InstanceID", fmt.Errorf("the InstanceID has been used and cannot be registered again"))
+		return newError("instance ID has already been attested")
 	}
 
 	identityToken := &gcp.IdentityToken{}
 	_, err = jwt.ParseWithClaims(string(req.GetAttestationData().Data), identityToken, p.tokenKeyRetriever.retrieveKey)
 	if err != nil {
-		return gcp.AttestationStepError("parsing the identity token", err)
+		return newErrorf("unable to parse/validate the identity token: %v", err)
 	}
 
 	if identityToken.Audience != tokenAudience {
-		return gcp.AttestationStepError("Audience claim in the token doesn't match the expected audience", err)
+		return newErrorf("unexpected identity token audience %q", identityToken.Audience)
 	}
 
 	projectIDMatchesWhitelist := false
@@ -77,7 +77,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		}
 	}
 	if !projectIDMatchesWhitelist {
-		return gcp.AttestationStepError("validation of the ProjectID", errors.New("the projectID doesn't match the projectID whitelist"))
+		return newErrorf("identity token project ID %q is not in the whitelist", identityToken.Google.ComputeEngine.ProjectID)
 	}
 
 	spiffeID := gcp.MakeSpiffeID(c.TrustDomain, identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID)
@@ -97,13 +97,13 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config := &IITAttestorConfig{}
 	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, fmt.Errorf("Error parsing GCP IIT Attestor configuration %v", err)
+		return nil, newErrorf("unable to decode configuration: %v", err)
 	}
 	if config.TrustDomain == "" {
-		return nil, fmt.Errorf("Missing trust_domain configuration parameter")
+		return nil, newError("trust_domain is required")
 	}
 	if len(config.ProjectIDWhitelist) == 0 {
-		return nil, fmt.Errorf("Missing projectid_whitelist configuration parameter")
+		return nil, newError("projectid_whitelist is required")
 	}
 
 	p.mtx.Lock()
@@ -129,7 +129,15 @@ func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	defer p.mtx.Unlock()
 
 	if p.config == nil {
-		return nil, errors.New("gcp-iit: not configured")
+		return nil, newError("not configured")
 	}
 	return p.config, nil
+}
+
+func newError(msg string) error {
+	return errors.New("gcp-iit: " + msg)
+}
+
+func newErrorf(format string, args ...interface{}) error {
+	return fmt.Errorf("gcp-iit: "+format, args...)
 }

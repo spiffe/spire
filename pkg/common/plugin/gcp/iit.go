@@ -1,7 +1,6 @@
 package gcp
 
 import (
-	"fmt"
 	"net/url"
 	"path"
 
@@ -30,14 +29,6 @@ type ComputeEngine struct {
 	InstanceID                string `json:"instance_id"`
 	InstanceName              string `json:"instance_name"`
 	InstanceCreationTimestamp int64  `json:"instance_creation_timestamp"`
-}
-
-func AttestationStepError(step string, cause error) error {
-	const prefix = "Attempted GCP IIT attestation but an error occured "
-	if cause == nil {
-		return fmt.Errorf(prefix+"%s", step)
-	}
-	return fmt.Errorf(prefix+"%s: %s", step, cause)
 }
 
 func MakeSpiffeID(trustDomain, gcpAccountID, gcpInstanceID string) string {
