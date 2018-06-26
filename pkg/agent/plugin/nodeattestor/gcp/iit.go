@@ -2,27 +2,26 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"path"
 	"sync"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/hashicorp/hcl"
 
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
-	cgcp "github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
 const (
-	pluginName       = "gcp_iit"
-	identityTokenUrl = "http://metadata/computeMetadata/v1/instance/service-accounts/default/identity?audience=%v&format=full"
-	audience         = "spire-gcp-node-attestor"
+	identityTokenURLHost  = "metadata"
+	identityTokenURLPath  = "/computeMetadata/v1/instance/service-accounts/default/identity"
+	identityTokenAudience = "spire-gcp-node-attestor"
 )
 
 type IITAttestorConfig struct {
@@ -30,19 +29,23 @@ type IITAttestorConfig struct {
 }
 
 type IITAttestorPlugin struct {
-	trustDomain string
+	tokenHost string
 
-	mtx *sync.RWMutex
+	mtx    sync.RWMutex
+	config *IITAttestorConfig
 }
 
-func (p *IITAttestorPlugin) spiffeID(gcpAccountID string, gcpInstanceID string) *url.URL {
-	spiffePath := path.Join("spire", "agent", pluginName, gcpAccountID, gcpInstanceID)
-	id := &url.URL{
-		Scheme: "spiffe",
-		Host:   p.trustDomain,
-		Path:   spiffePath,
+func identityTokenURL(host string) string {
+	query := url.Values{}
+	query.Set("audience", identityTokenAudience)
+	query.Set("format", "full")
+	url := &url.URL{
+		Scheme:   "http",
+		Host:     host,
+		Path:     identityTokenURLPath,
+		RawQuery: query.Encode(),
 	}
-	return id
+	return url.String()
 }
 
 func retrieveInstanceIdentityToken(url string) ([]byte, error) {
@@ -58,6 +61,11 @@ func retrieveInstanceIdentityToken(url string) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
 	bytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -66,15 +74,17 @@ func retrieveInstanceIdentityToken(url string) ([]byte, error) {
 }
 
 func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
-	p.mtx.RLock()
-	defer p.mtx.RUnlock()
-
-	docBytes, err := retrieveInstanceIdentityToken(fmt.Sprintf(identityTokenUrl, audience))
+	c, err := p.getConfig()
 	if err != nil {
-		return gcp.AttestationStepError("retrieving the identity token", err)
+		return err
 	}
 
-	resp, err := p.BuildAttestationResponse(docBytes)
+	docBytes, err := retrieveInstanceIdentityToken(identityTokenURL(p.tokenHost))
+	if err != nil {
+		return newErrorf("unable to retrieve identity token: %v", err)
+	}
+
+	resp, err := p.buildAttestationResponse(c.TrustDomain, docBytes)
 	if err != nil {
 		return err
 	}
@@ -86,69 +96,72 @@ func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 	return nil
 }
 
-func (p *IITAttestorPlugin) BuildAttestationResponse(identityTokenBytes []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
-
-	identityToken := &cgcp.IdentityToken{}
-	_, err := jwt.ParseWithClaims(string(identityTokenBytes), identityToken, nil)
+func (p *IITAttestorPlugin) buildAttestationResponse(trustDomain string, identityTokenBytes []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
+	identityToken := &gcp.IdentityToken{}
+	_, _, err := new(jwt.Parser).ParseUnverified(string(identityTokenBytes), identityToken)
 	if err != nil {
-		_, ok := err.(*jwt.ValidationError) // we are ignoring validation error since we are not checking the signature on the client side
-		if !ok {
-			err = gcp.AttestationStepError("parsing the identity token", err)
-			return &nodeattestor.FetchAttestationDataResponse{}, err
-		}
+		return nil, newErrorf("unable to parse identity token: %v", err)
 	}
 
-	if identityToken.Google == (cgcp.Google{}) {
-		err = gcp.AttestationStepError("retrieving the claims of the identity token", err)
-		return &nodeattestor.FetchAttestationDataResponse{}, err
+	if identityToken.Google == (gcp.Google{}) {
+		return nil, newError("identity token is missing google claims")
 	}
 
 	data := &common.AttestationData{
-		Type: pluginName,
+		Type: gcp.PluginName,
 		Data: identityTokenBytes,
 	}
 
+	spiffeID := gcp.MakeSpiffeID(trustDomain, identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID)
+
 	resp := &nodeattestor.FetchAttestationDataResponse{
 		AttestationData: data,
-		SpiffeId:        p.spiffeID(identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID).String(),
+		SpiffeId:        spiffeID,
 	}
 	return resp, nil
 }
 
 func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
-	resp := &spi.ConfigureResponse{}
-
 	config := &IITAttestorConfig{}
-	hclTree, err := hcl.Parse(req.Configuration)
-	if err != nil {
-		resp.ErrorList = []string{err.Error()}
-		return resp, err
-	}
-
-	err = hcl.DecodeObject(&config, hclTree)
-	if err != nil {
-		resp.ErrorList = []string{err.Error()}
-		return resp, err
+	if err := hcl.Decode(config, req.Configuration); err != nil {
+		return nil, newErrorf("unable to decode configuration: %v", err)
 	}
 
 	if config.TrustDomain == "" {
-		err = fmt.Errorf("Missing trust_domain configuration parameter")
-		return nil, err
+		return nil, newError("trust_domain is required")
 	}
-	p.trustDomain = config.TrustDomain
 
-	return resp, nil
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.config = config
+
+	return &spi.ConfigureResponse{}, nil
 }
 
 func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewIITPlugin() nodeattestor.Plugin {
+func NewIITAttestorPlugin() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
-		mtx: &sync.RWMutex{},
+		tokenHost: identityTokenURLHost,
 	}
+}
+
+func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	if p.config == nil {
+		return nil, newError("gcp-iit: not configured")
+	}
+	return p.config, nil
+}
+
+func newError(msg string) error {
+	return errors.New("gcp-iit: " + msg)
+}
+
+func newErrorf(format string, args ...interface{}) error {
+	return fmt.Errorf("gcp-iit: "+format, args...)
 }

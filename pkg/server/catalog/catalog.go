@@ -61,7 +61,7 @@ var (
 		NodeAttestorType: {
 			"aws_iid":    nodeattestor.NewBuiltIn(aws.NewIID()),
 			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
-			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewInstanceIdentityToken()),
+			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
 			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
 		},
 		NodeResolverType: {
