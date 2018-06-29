@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/ssh"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
 	"github.com/spiffe/spire/proto/server/ca"
@@ -63,6 +64,7 @@ var (
 			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
 			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
 			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
+			"ssh":        nodeattestor.NewBuiltIn(ssh.New()),
 		},
 		NodeResolverType: {
 			"noop": noderesolver.NewBuiltIn(noop.New()),
