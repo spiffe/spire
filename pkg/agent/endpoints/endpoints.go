@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -11,61 +12,51 @@ import (
 	"google.golang.org/grpc"
 
 	workload_pb "github.com/spiffe/spire/proto/api/workload"
-	tomb "gopkg.in/tomb.v2"
 )
 
-type Endpoints interface {
-	Start() error
-	Wait() error
-	Shutdown()
+type Server interface {
+	ListenAndServe(ctx context.Context) error
 }
 
 type endpoints struct {
 	c *Config
-	t *tomb.Tomb
-
-	grpc *grpc.Server
 }
 
-func (e *endpoints) Start() error {
-	e.grpc = grpc.NewServer(grpc.Creds(auth.NewCredentials()))
+func (e *endpoints) ListenAndServe(ctx context.Context) error {
+	server := grpc.NewServer(grpc.Creds(auth.NewCredentials()))
 
-	e.registerWorkloadAPI()
+	e.registerWorkloadAPI(server)
 
 	l, err := e.createUDSListener()
 	if err != nil {
 		return err
 	}
+	defer l.Close()
 
 	if e.c.GRPCHook != nil {
-		err = e.c.GRPCHook(e.grpc)
+		err = e.c.GRPCHook(server)
 		if err != nil {
 			return fmt.Errorf("call grpc hook: %v", err)
 		}
 	}
 
 	e.c.Log.Info("Starting workload API")
-	e.t.Go(func() error { return e.start(l) })
-	return nil
+	errChan := make(chan error)
+	go func() { errChan <- server.Serve(l) }()
+
+	select {
+	case err = <-errChan:
+		return err
+	case <-ctx.Done():
+		e.c.Log.Info("Stopping workload API")
+		server.Stop()
+		l.Close()
+		<-errChan
+		return nil
+	}
 }
 
-func (e *endpoints) Wait() error {
-	return e.t.Wait()
-}
-
-func (e *endpoints) Shutdown() {
-	e.t.Kill(nil)
-}
-
-func (e *endpoints) start(l net.Listener) error {
-	e.t.Go(func() error { return e.startGRPCServer(l) })
-
-	<-e.t.Dying()
-	e.grpc.Stop()
-	return tomb.ErrDying
-}
-
-func (e *endpoints) registerWorkloadAPI() {
+func (e *endpoints) registerWorkloadAPI(server *grpc.Server) {
 	w := &workload.Handler{
 		Manager: e.c.Manager,
 		Catalog: e.c.Catalog,
@@ -73,7 +64,7 @@ func (e *endpoints) registerWorkloadAPI() {
 		T:       e.c.Tel,
 	}
 
-	workload_pb.RegisterSpiffeWorkloadAPIServer(e.grpc, w)
+	workload_pb.RegisterSpiffeWorkloadAPIServer(server, w)
 }
 
 func (e *endpoints) createUDSListener() (net.Listener, error) {
@@ -86,8 +77,4 @@ func (e *endpoints) createUDSListener() (net.Listener, error) {
 
 	os.Chmod(e.c.BindAddr.String(), os.ModePerm)
 	return l, nil
-}
-
-func (e *endpoints) startGRPCServer(l net.Listener) error {
-	return e.grpc.Serve(l)
 }

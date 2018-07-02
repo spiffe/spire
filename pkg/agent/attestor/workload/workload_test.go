@@ -1,7 +1,9 @@
 package attestor
 
 import (
+	"context"
 	"errors"
+	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
@@ -16,6 +18,14 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
 	"github.com/stretchr/testify/suite"
 )
+
+var (
+	ctx = context.Background()
+)
+
+func TestWorkloadAttestor(t *testing.T) {
+	suite.Run(t, new(WorkloadAttestorTestSuite))
+}
 
 type WorkloadAttestorTestSuite struct {
 	suite.Suite
@@ -32,19 +42,20 @@ type WorkloadAttestorTestSuite struct {
 func (s *WorkloadAttestorTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 
+	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(s.ctrl)
 	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(s.ctrl)
 
 	log, _ := test.NewNullLogger()
 
-	s.attestor.c = &Config{
+	s.attestor = newAttestor(&Config{
 		Catalog: s.catalog,
 		L:       log,
 		T:       telemetry.Blackhole{},
-	}
+	})
 }
 
-func (s *WorkloadAttestorTestSuite) TeardownTest() {
+func (s *WorkloadAttestorTestSuite) TearDownTest() {
 	s.ctrl.Finish()
 }
 
@@ -54,23 +65,23 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 		s.attestor2,
 	}
 	s.catalog.EXPECT().WorkloadAttestors().Return(attestors)
-	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
+	s.catalog.EXPECT().ConfigFor(gomock.Any()).AnyTimes()
 
 	sel1 := []*common.Selector{{Type: "foo", Value: "bar"}}
 	sel2 := []*common.Selector{{Type: "bat", Value: "baz"}}
-	s.attestor1.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel1}, nil)
-	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
+	s.attestor1.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel1}, nil)
+	s.attestor2.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
 
 	// Use selector package to work around sort ordering
 	expected := selector.NewSetFromRaw([]*common.Selector{sel1[0], sel2[0]})
-	result := s.attestor.Attest(1)
+	result := s.attestor.Attest(ctx, 1)
 	s.Assert().Equal(expected, selector.NewSetFromRaw(result))
 
 	s.catalog.EXPECT().WorkloadAttestors().Return(attestors)
-	s.attestor1.EXPECT().Attest(gomock.Any()).Return(nil, errors.New("i'm an error"))
-	s.attestor2.EXPECT().Attest(gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
+	s.attestor1.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(nil, errors.New("i'm an error"))
+	s.attestor2.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
 
-	s.Assert().Equal(sel2, s.attestor.Attest(1))
+	s.Assert().Equal(sel2, s.attestor.Attest(ctx, 1))
 }
 
 func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
@@ -80,11 +91,11 @@ func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
 	req := &workloadattestor.AttestRequest{Pid: 1}
 	sel := []*common.Selector{{Type: "foo", Value: "bar"}}
 	resp := &workloadattestor.AttestResponse{Selectors: sel}
-	s.attestor1.EXPECT().Attest(req).Return(resp, nil)
-	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
+	s.attestor1.EXPECT().Attest(gomock.Any(), req).Return(resp, nil)
+	s.catalog.EXPECT().ConfigFor(gomock.Any()).Return(nil, false)
 
 	timeout := time.NewTicker(5 * time.Millisecond)
-	go s.attestor.invokeAttestor(s.attestor1, 1, sChan, errChan)
+	go s.attestor.invokeAttestor(ctx, s.attestor1, 1, sChan, errChan)
 	select {
 	case result := <-sChan:
 		s.Assert().Equal(sel, result)
@@ -94,15 +105,12 @@ func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
 		s.T().Error("Workload invocation has hung")
 	}
 
-	findResp := &cc.ManagedPlugin{
-		Plugin: s.attestor1,
-		Config: cc.PluginConfig{
-			PluginName: "foo",
-		},
+	findResp := &cc.PluginConfig{
+		PluginName: "foo",
 	}
-	s.catalog.EXPECT().Find(s.attestor1).Return(findResp)
-	s.attestor1.EXPECT().Attest(req).Return(nil, errors.New("i'm an error"))
-	go s.attestor.invokeAttestor(s.attestor1, 1, sChan, errChan)
+	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(findResp, true)
+	s.attestor1.EXPECT().Attest(gomock.Any(), req).Return(nil, errors.New("i'm an error"))
+	go s.attestor.invokeAttestor(ctx, s.attestor1, 1, sChan, errChan)
 	select {
 	case sel := <-sChan:
 		s.T().Errorf("Wanted error, got selectors: %v", sel)
@@ -113,15 +121,12 @@ func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
 }
 
 func (s *WorkloadAttestorTestSuite) TestAttestorName() {
-	resp := &cc.ManagedPlugin{
-		Plugin: s.attestor1,
-		Config: cc.PluginConfig{
-			PluginName: "foo",
-		},
+	resp := &cc.PluginConfig{
+		PluginName: "foo",
 	}
-	s.catalog.EXPECT().Find(s.attestor1).Return(resp)
+	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(resp, true)
 	s.Assert().Equal("foo", s.attestor.attestorName(s.attestor1))
 
-	s.catalog.EXPECT().Find(s.attestor1).Return(nil)
+	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(nil, false)
 	s.Assert().Equal(unknownName, s.attestor.attestorName(s.attestor1))
 }

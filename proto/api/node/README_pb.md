@@ -4,7 +4,7 @@
 ## Table of Contents
 
 - [common.proto](#common.proto)
-    - [AttestedData](#spire.common.AttestedData)
+    - [AttestationData](#spire.common.AttestationData)
     - [Empty](#spire.common.Empty)
     - [RegistrationEntries](#spire.common.RegistrationEntries)
     - [RegistrationEntry](#spire.common.RegistrationEntry)
@@ -16,13 +16,13 @@
   
 
 - [node.proto](#node.proto)
-    - [FetchBaseSVIDRequest](#spire.api.node.FetchBaseSVIDRequest)
-    - [FetchBaseSVIDResponse](#spire.api.node.FetchBaseSVIDResponse)
+    - [AttestRequest](#spire.api.node.AttestRequest)
+    - [AttestResponse](#spire.api.node.AttestResponse)
     - [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest)
     - [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleResponse)
     - [FetchFederatedBundleResponse.FederatedBundlesEntry](#spire.api.node.FetchFederatedBundleResponse.FederatedBundlesEntry)
-    - [FetchSVIDRequest](#spire.api.node.FetchSVIDRequest)
-    - [FetchSVIDResponse](#spire.api.node.FetchSVIDResponse)
+    - [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest)
+    - [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse)
     - [Svid](#spire.api.node.Svid)
     - [SvidUpdate](#spire.api.node.SvidUpdate)
     - [SvidUpdate.SvidsEntry](#spire.api.node.SvidUpdate.SvidsEntry)
@@ -43,16 +43,16 @@
 
 
 
-<a name="spire.common.AttestedData"/>
+<a name="spire.common.AttestationData"/>
 
-### AttestedData
+### AttestationData
 A type which contains attestation data for specific platform.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | type | [string](#string) |  | Type of attestation to perform. |
-| data | [bytes](#bytes) |  | The attestetion data. |
+| data | [bytes](#bytes) |  | The attestation data. |
 
 
 
@@ -153,25 +153,26 @@ Represents a type with a list of NodeResolution.
 
 
 
-<a name="spire.api.node.FetchBaseSVIDRequest"/>
+<a name="spire.api.node.AttestRequest"/>
 
-### FetchBaseSVIDRequest
+### AttestRequest
 Represents a request to attest the node.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attested_data | [.spire.common.AttestedData](#spire.api.node..spire.common.AttestedData) |  | A type which contains attestation data for specific platform. |
+| attestation_data | [.spire.common.AttestationData](#spire.api.node..spire.common.AttestationData) |  | A type which contains attestation data for specific platform. |
 | csr | [bytes](#bytes) |  | Certificate signing request. |
+| response | [bytes](#bytes) |  | Attestation challenge response |
 
 
 
 
 
 
-<a name="spire.api.node.FetchBaseSVIDResponse"/>
+<a name="spire.api.node.AttestResponse"/>
 
-### FetchBaseSVIDResponse
+### AttestResponse
 Represents a response that contains  map of signed SVIDs and an array of
 all current Registration Entries which are relevant to the caller SPIFFE ID
 
@@ -179,6 +180,7 @@ all current Registration Entries which are relevant to the caller SPIFFE ID
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | svid_update | [SvidUpdate](#spire.api.node.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
+| challenge | [bytes](#bytes) |  | This is a challenge issued by the server to the node. If populated, the node is expected to respond with another AttestRequest with the response. This field is mutually exclusive with the svid_update field. |
 
 
 
@@ -231,9 +233,9 @@ Represents a response with a map of SPIFFE Id, Federated CA Bundle.
 
 
 
-<a name="spire.api.node.FetchSVIDRequest"/>
+<a name="spire.api.node.FetchX509SVIDRequest"/>
 
-### FetchSVIDRequest
+### FetchX509SVIDRequest
 Represents a request with a list of CSR.
 
 
@@ -246,9 +248,9 @@ Represents a request with a list of CSR.
 
 
 
-<a name="spire.api.node.FetchSVIDResponse"/>
+<a name="spire.api.node.FetchX509SVIDResponse"/>
 
-### FetchSVIDResponse
+### FetchX509SVIDResponse
 Represents a response that contains  map of signed SVIDs and an array
 of all current Registration Entries which are relevant to the caller SPIFFE ID.
 
@@ -326,8 +328,8 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchBaseSVID | [FetchBaseSVIDRequest](#spire.api.node.FetchBaseSVIDRequest) | [FetchBaseSVIDResponse](#spire.api.node.FetchBaseSVIDRequest) | Attest the node, get base node SVID. |
-| FetchSVID | [FetchSVIDRequest](#spire.api.node.FetchSVIDRequest) | [FetchSVIDResponse](#spire.api.node.FetchSVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
+| Attest | [AttestRequest](#spire.api.node.AttestRequest) | [AttestResponse](#spire.api.node.AttestRequest) | Attest the node, get base node SVID. |
+| FetchX509SVID | [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest) | [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
 | FetchFederatedBundle | [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleRequest) | Called by the Node Agent to fetch the named Federated CA Bundle. Used in the event that authorized workloads reference a Federated Bundle. |
 
  

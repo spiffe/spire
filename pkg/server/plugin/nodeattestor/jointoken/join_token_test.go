@@ -1,6 +1,8 @@
 package jointoken
 
 import (
+	"context"
+	"io"
 	"sync"
 	"testing"
 	"time"
@@ -18,14 +20,45 @@ const (
 	spiffeId = "spiffe://example.com/spiffe/node-id/foobar"
 )
 
-func AttestRequestGenerator(token string) *nodeattestor.AttestRequest {
-	attestedData := &common.AttestedData{
-		Type: "join_token",
-		Data: []byte(token),
+var (
+	ctx = context.Background()
+)
+
+type fakeAttestPluginStream struct {
+	req  *nodeattestor.AttestRequest
+	resp *nodeattestor.AttestResponse
+}
+
+func (f *fakeAttestPluginStream) Context() context.Context {
+	return ctx
+}
+
+func (f *fakeAttestPluginStream) Recv() (*nodeattestor.AttestRequest, error) {
+	req := f.req
+	f.req = nil
+	if req == nil {
+		return nil, io.EOF
 	}
-	return &nodeattestor.AttestRequest{
-		AttestedData:   attestedData,
-		AttestedBefore: false,
+	return req, nil
+}
+
+func (f *fakeAttestPluginStream) Send(resp *nodeattestor.AttestResponse) error {
+	if f.resp != nil {
+		return io.EOF
+	}
+	f.resp = resp
+	return nil
+}
+
+func AttestStreamGenerator(token string, attestedBefore bool) *fakeAttestPluginStream {
+	return &fakeAttestPluginStream{
+		req: &nodeattestor.AttestRequest{
+			AttestationData: &common.AttestationData{
+				Type: "join_token",
+				Data: []byte(token),
+			},
+			AttestedBefore: attestedBefore,
+		},
 	}
 }
 
@@ -40,7 +73,7 @@ func TestJoinToken_Configure(t *testing.T) {
 	p := &JoinTokenPlugin{
 		mtx: &sync.Mutex{},
 	}
-	resp, err := p.Configure(pluginConfig)
+	resp, err := p.Configure(ctx, pluginConfig)
 	assert.Nil(err)
 	assert.Equal(&spi.ConfigureResponse{}, resp)
 }
@@ -56,43 +89,39 @@ func TestJoinToken_Attest(t *testing.T) {
 	p := &JoinTokenPlugin{
 		mtx: &sync.Mutex{},
 	}
-	_, err := p.Configure(pluginConfig)
+	_, err := p.Configure(ctx, pluginConfig)
 	assert.Nil(err)
 
 	// Test valid token
-	request := AttestRequestGenerator("foo")
-	resp, err := p.Attest(request)
-	assert.Nil(err)
-	assert.True(resp.Valid)
+	f := AttestStreamGenerator("foo", false)
+	assert.NoError(p.Attest(f))
+	assert.True(f.resp.Valid)
 
 	// SPIFFE ID is well-formed
-	assert.Equal(resp.BaseSPIFFEID, "spiffe://example.com/spiffe/node-id/foo")
+	assert.Equal(f.resp.BaseSPIFFEID, "spiffe://example.com/spiffe/node-id/foo")
 
 	// Token is not re-usable
 	// Token must be registered
-	resp, err = p.Attest(request)
-	assert.NotNil(err)
-	assert.False(resp.Valid)
+	f = AttestStreamGenerator("foo", false)
+	assert.NotNil(p.Attest(f))
+	assert.Nil(f.resp)
 
 	// Plugin doesn't support AttestedBefore
-	request = AttestRequestGenerator("bar")
-	request.AttestedBefore = true
-	resp, err = p.Attest(request)
-	assert.NotNil(err)
-	assert.False(resp.Valid)
+	f = AttestStreamGenerator("bar", true)
+	assert.NotNil(p.Attest(f))
+	assert.Nil(f.resp)
 
 	// Token must not be expired
 	// 1s ttl on `bat`
 	time.Sleep(time.Second * 1)
-	request = AttestRequestGenerator("bat")
-	resp, err = p.Attest(request)
-	assert.NotNil(err)
-	assert.False(resp.Valid)
+	f = AttestStreamGenerator("bat", false)
+	assert.NotNil(p.Attest(f))
+	assert.Nil(f.resp)
 }
 
 func TestJoinToken_GetPluginInfo(t *testing.T) {
 	var plugin JoinTokenPlugin
-	data, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
+	data, e := plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	assert.Nil(t, e)
 	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
 }
@@ -100,9 +129,9 @@ func TestJoinToken_GetPluginInfo(t *testing.T) {
 func TestJoinToken_race(t *testing.T) {
 	p := New()
 	testutil.RaceTest(t, func(t *testing.T) {
-		p.Configure(&spi.ConfigureRequest{
+		p.Configure(ctx, &spi.ConfigureRequest{
 			Configuration: config,
 		})
-		p.Attest(AttestRequestGenerator("foo"))
+		p.Attest(AttestStreamGenerator("foo", false))
 	})
 }

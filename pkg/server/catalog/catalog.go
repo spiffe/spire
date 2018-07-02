@@ -1,13 +1,16 @@
 package catalog
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -32,38 +35,40 @@ const (
 type Catalog interface {
 	common.Catalog
 
-	CAs() []ca.ServerCa
+	CAs() []ca.ServerCA
 	DataStores() []datastore.DataStore
 	NodeAttestors() []nodeattestor.NodeAttestor
 	NodeResolvers() []noderesolver.NodeResolver
-	UpstreamCAs() []upstreamca.UpstreamCa
+	UpstreamCAs() []upstreamca.UpstreamCA
 }
 
 var (
 	supportedPlugins = map[string]goplugin.Plugin{
-		CAType:           &ca.ServerCaPlugin{},
-		DataStoreType:    &datastore.DataStorePlugin{},
-		NodeAttestorType: &nodeattestor.NodeAttestorPlugin{},
-		NodeResolverType: &noderesolver.NodeResolverPlugin{},
-		UpstreamCAType:   &upstreamca.UpstreamCaPlugin{},
+		CAType:           &ca.GRPCPlugin{},
+		DataStoreType:    &datastore.GRPCPlugin{},
+		NodeAttestorType: &nodeattestor.GRPCPlugin{},
+		NodeResolverType: &noderesolver.GRPCPlugin{},
+		UpstreamCAType:   &upstreamca.GRPCPlugin{},
 	}
 
 	builtinPlugins = common.BuiltinPluginMap{
 		CAType: {
-			"memory": ca_memory.NewWithDefault(),
+			"memory": ca.NewBuiltIn(ca_memory.NewWithDefault()),
 		},
 		DataStoreType: {
-			"sql": sql.New(),
+			"sql": datastore.NewBuiltIn(sql.New()),
 		},
 		NodeAttestorType: {
-			"aws_iid":    aws.NewIID(),
-			"join_token": jointoken.New(),
+			"aws_iid":    nodeattestor.NewBuiltIn(aws.NewIID()),
+			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
+			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
+			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
 		},
 		NodeResolverType: {
-			"noop": noop.New(),
+			"noop": noderesolver.NewBuiltIn(noop.New()),
 		},
 		UpstreamCAType: {
-			"disk": upca_disk.New(),
+			"disk": upstreamca.NewBuiltIn(upca_disk.New()),
 		},
 	}
 )
@@ -78,11 +83,11 @@ type catalog struct {
 	m   *sync.RWMutex
 	log logrus.FieldLogger
 
-	caPlugins           []ca.ServerCa
+	caPlugins           []ca.ServerCA
 	dataStorePlugins    []datastore.DataStore
 	nodeAttestorPlugins []nodeattestor.NodeAttestor
 	nodeResolverPlugins []noderesolver.NodeResolver
-	upstreamCAPlugins   []upstreamca.UpstreamCa
+	upstreamCAPlugins   []upstreamca.UpstreamCA
 }
 
 func New(c *Config) Catalog {
@@ -100,11 +105,11 @@ func New(c *Config) Catalog {
 	}
 }
 
-func (c *catalog) Run() error {
+func (c *catalog) Run(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	err := c.com.Run()
+	err := c.com.Run(ctx)
 	if err != nil {
 		return err
 	}
@@ -122,11 +127,11 @@ func (c *catalog) Stop() {
 	return
 }
 
-func (c *catalog) Reload() error {
+func (c *catalog) Reload(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	err := c.com.Reload()
+	err := c.com.Reload(ctx)
 	if err != nil {
 		return err
 	}
@@ -141,14 +146,14 @@ func (c *catalog) Plugins() []*common.ManagedPlugin {
 	return c.com.Plugins()
 }
 
-func (c *catalog) Find(plugin common.Plugin) *common.ManagedPlugin {
+func (c *catalog) ConfigFor(plugin interface{}) (*common.PluginConfig, bool) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.com.Find(plugin)
+	return c.com.ConfigFor(plugin)
 }
 
-func (c *catalog) CAs() []ca.ServerCa {
+func (c *catalog) CAs() []ca.ServerCA {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -176,7 +181,7 @@ func (c *catalog) NodeResolvers() []noderesolver.NodeResolver {
 	return c.nodeResolverPlugins
 }
 
-func (c *catalog) UpstreamCAs() []upstreamca.UpstreamCa {
+func (c *catalog) UpstreamCAs() []upstreamca.UpstreamCA {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -198,7 +203,7 @@ func (c *catalog) categorize() error {
 
 		switch p.Config.PluginType {
 		case CAType:
-			pl, ok := p.Plugin.(ca.ServerCa)
+			pl, ok := p.Plugin.(ca.ServerCA)
 			if !ok {
 				return fmt.Errorf("Plugin %s does not adhere to CA interface", p.Config.PluginName)
 			}
@@ -212,7 +217,7 @@ func (c *catalog) categorize() error {
 		case NodeAttestorType:
 			pl, ok := p.Plugin.(nodeattestor.NodeAttestor)
 			if !ok {
-				return fmt.Errorf("Plugin %s does not adhere to NodeAttestor interface", p.Config.PluginName)
+				return fmt.Errorf("Plugin %s (%T) does not adhere to NodeAttestor interface", p.Config.PluginName, p.Plugin)
 			}
 			c.nodeAttestorPlugins = append(c.nodeAttestorPlugins, pl)
 		case NodeResolverType:
@@ -222,9 +227,9 @@ func (c *catalog) categorize() error {
 			}
 			c.nodeResolverPlugins = append(c.nodeResolverPlugins, pl)
 		case UpstreamCAType:
-			pl, ok := p.Plugin.(upstreamca.UpstreamCa)
+			pl, ok := p.Plugin.(upstreamca.UpstreamCA)
 			if !ok {
-				return fmt.Errorf("Plugin %s does not adhere to UpstreamCa interface", p.Config.PluginName)
+				return fmt.Errorf("Plugin %s does not adhere to UpstreamCA interface", p.Config.PluginName)
 			}
 			c.upstreamCAPlugins = append(c.upstreamCAPlugins, pl)
 		default:

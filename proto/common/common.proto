@@ -6,10 +6,10 @@ option go_package = "common";
 message Empty {}
 
 /** A type which contains attestation data for specific platform. */
-message AttestedData {
+message AttestationData {
     /** Type of attestation to perform. */
     string type = 1;
-    /** The attestetion data. */
+    /** The attestation data. */
     bytes data = 2;
 }
 

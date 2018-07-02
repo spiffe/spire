@@ -1,11 +1,11 @@
 package sql
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/url"
-	"sort"
 	"sync"
 	"time"
 
@@ -13,6 +13,8 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
+	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -47,7 +49,7 @@ type sqlPlugin struct {
 }
 
 // CreateBundle stores the given bundle
-func (ds *sqlPlugin) CreateBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) CreateBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
 	model, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -63,7 +65,7 @@ func (ds *sqlPlugin) CreateBundle(req *datastore.Bundle) (*datastore.Bundle, err
 
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
-func (ds *sqlPlugin) UpdateBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) UpdateBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
 	newModel, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -99,7 +101,7 @@ func (ds *sqlPlugin) UpdateBundle(req *datastore.Bundle) (*datastore.Bundle, err
 
 // AppendBundle adds the specified CA certificates to an existing bundle. If no bundle exists for the
 // specified trust domain, create one. Returns the entirety.
-func (ds *sqlPlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) AppendBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
 	newModel, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -113,7 +115,7 @@ func (ds *sqlPlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, err
 
 	if result.RecordNotFound() {
 		tx.Rollback()
-		return ds.CreateBundle(req)
+		return ds.CreateBundle(ctx, req)
 	} else if result.Error != nil {
 		tx.Rollback()
 		return nil, result.Error
@@ -150,7 +152,7 @@ func (ds *sqlPlugin) AppendBundle(req *datastore.Bundle) (*datastore.Bundle, err
 }
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
-func (ds *sqlPlugin) DeleteBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) DeleteBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
 	// We don't care if cert data was sent - remove it now to prevent
 	// further processing.
 	req.CaCerts = []byte{}
@@ -199,7 +201,7 @@ func (ds *sqlPlugin) DeleteBundle(req *datastore.Bundle) (*datastore.Bundle, err
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func (ds *sqlPlugin) FetchBundle(req *datastore.Bundle) (*datastore.Bundle, error) {
+func (ds *sqlPlugin) FetchBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
 	model, err := ds.bundleToModel(req)
 	if err != nil {
 		return nil, err
@@ -221,7 +223,7 @@ func (ds *sqlPlugin) FetchBundle(req *datastore.Bundle) (*datastore.Bundle, erro
 }
 
 // ListBundles can be used to fetch all existing bundles.
-func (ds *sqlPlugin) ListBundles(*common.Empty) (*datastore.Bundles, error) {
+func (ds *sqlPlugin) ListBundles(ctx context.Context, req *common.Empty) (*datastore.Bundles, error) {
 	// Get a consistent view
 	tx := ds.db.Begin()
 	defer tx.Rollback()
@@ -270,7 +272,7 @@ func (ds *sqlPlugin) ListBundles(*common.Empty) (*datastore.Bundles, error) {
 	return resp, nil
 }
 
-func (ds *sqlPlugin) CreateAttestedNodeEntry(
+func (ds *sqlPlugin) CreateAttestedNodeEntry(ctx context.Context,
 	req *datastore.CreateAttestedNodeEntryRequest) (*datastore.CreateAttestedNodeEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -288,7 +290,7 @@ func (ds *sqlPlugin) CreateAttestedNodeEntry(
 
 	model := AttestedNodeEntry{
 		SpiffeID:     entry.BaseSpiffeId,
-		DataType:     entry.AttestedDataType,
+		DataType:     entry.AttestationDataType,
 		SerialNumber: entry.CertSerialNumber,
 		ExpiresAt:    expiresAt,
 	}
@@ -300,14 +302,14 @@ func (ds *sqlPlugin) CreateAttestedNodeEntry(
 	return &datastore.CreateAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeID,
-			AttestedDataType:   model.DataType,
+			AttestationDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: expiresAt.Format(datastore.TimeFormat),
 		},
 	}, nil
 }
 
-func (ds *sqlPlugin) FetchAttestedNodeEntry(
+func (ds *sqlPlugin) FetchAttestedNodeEntry(ctx context.Context,
 	req *datastore.FetchAttestedNodeEntryRequest) (*datastore.FetchAttestedNodeEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -324,15 +326,15 @@ func (ds *sqlPlugin) FetchAttestedNodeEntry(
 	return &datastore.FetchAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeID,
-			AttestedDataType:   model.DataType,
+			AttestationDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
 		},
 	}, nil
 }
 
-func (ds *sqlPlugin) FetchStaleNodeEntries(
-	*datastore.FetchStaleNodeEntriesRequest) (*datastore.FetchStaleNodeEntriesResponse, error) {
+func (ds *sqlPlugin) FetchStaleNodeEntries(ctx context.Context,
+	req *datastore.FetchStaleNodeEntriesRequest) (*datastore.FetchStaleNodeEntriesResponse, error) {
 
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
@@ -349,7 +351,7 @@ func (ds *sqlPlugin) FetchStaleNodeEntries(
 	for _, model := range models {
 		resp.AttestedNodeEntryList = append(resp.AttestedNodeEntryList, &datastore.AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeID,
-			AttestedDataType:   model.DataType,
+			AttestationDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
 		})
@@ -357,7 +359,7 @@ func (ds *sqlPlugin) FetchStaleNodeEntries(
 	return resp, nil
 }
 
-func (ds *sqlPlugin) UpdateAttestedNodeEntry(
+func (ds *sqlPlugin) UpdateAttestedNodeEntry(ctx context.Context,
 	req *datastore.UpdateAttestedNodeEntryRequest) (*datastore.UpdateAttestedNodeEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -390,14 +392,14 @@ func (ds *sqlPlugin) UpdateAttestedNodeEntry(
 	return &datastore.UpdateAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeID,
-			AttestedDataType:   model.DataType,
+			AttestationDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
 		},
 	}, db.Commit().Error
 }
 
-func (ds *sqlPlugin) DeleteAttestedNodeEntry(
+func (ds *sqlPlugin) DeleteAttestedNodeEntry(ctx context.Context,
 	req *datastore.DeleteAttestedNodeEntryRequest) (*datastore.DeleteAttestedNodeEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -420,14 +422,14 @@ func (ds *sqlPlugin) DeleteAttestedNodeEntry(
 	return &datastore.DeleteAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
 			BaseSpiffeId:       model.SpiffeID,
-			AttestedDataType:   model.DataType,
+			AttestationDataType:   model.DataType,
 			CertSerialNumber:   model.SerialNumber,
 			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
 		},
 	}, db.Commit().Error
 }
 
-func (ds *sqlPlugin) CreateNodeResolverMapEntry(
+func (ds *sqlPlugin) CreateNodeResolverMapEntry(ctx context.Context,
 	req *datastore.CreateNodeResolverMapEntryRequest) (*datastore.CreateNodeResolverMapEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -464,7 +466,7 @@ func (ds *sqlPlugin) CreateNodeResolverMapEntry(
 	}, nil
 }
 
-func (ds *sqlPlugin) FetchNodeResolverMapEntry(
+func (ds *sqlPlugin) FetchNodeResolverMapEntry(ctx context.Context,
 	req *datastore.FetchNodeResolverMapEntryRequest) (*datastore.FetchNodeResolverMapEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -492,7 +494,7 @@ func (ds *sqlPlugin) FetchNodeResolverMapEntry(
 	return resp, nil
 }
 
-func (ds *sqlPlugin) DeleteNodeResolverMapEntry(
+func (ds *sqlPlugin) DeleteNodeResolverMapEntry(ctx context.Context,
 	req *datastore.DeleteNodeResolverMapEntryRequest) (*datastore.DeleteNodeResolverMapEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -543,12 +545,12 @@ func (ds *sqlPlugin) DeleteNodeResolverMapEntry(
 	return resp, tx.Commit().Error
 }
 
-func (sqlPlugin) RectifyNodeResolverMapEntries(
-	*datastore.RectifyNodeResolverMapEntriesRequest) (*datastore.RectifyNodeResolverMapEntriesResponse, error) {
+func (sqlPlugin) RectifyNodeResolverMapEntries(ctx context.Context,
+	req *datastore.RectifyNodeResolverMapEntriesRequest) (*datastore.RectifyNodeResolverMapEntriesResponse, error) {
 	return &datastore.RectifyNodeResolverMapEntriesResponse{}, errors.New("Not Implemented")
 }
 
-func (ds *sqlPlugin) CreateRegistrationEntry(
+func (ds *sqlPlugin) CreateRegistrationEntry(ctx context.Context,
 	request *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -600,7 +602,7 @@ func (ds *sqlPlugin) CreateRegistrationEntry(
 	}, tx.Commit().Error
 }
 
-func (ds *sqlPlugin) FetchRegistrationEntry(
+func (ds *sqlPlugin) FetchRegistrationEntry(ctx context.Context,
 	request *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
 
 	ds.mutex.Lock()
@@ -638,7 +640,7 @@ func (ds *sqlPlugin) FetchRegistrationEntry(
 	}, nil
 }
 
-func (ds *sqlPlugin) FetchRegistrationEntries(
+func (ds *sqlPlugin) FetchRegistrationEntries(ctx context.Context,
 	request *common.Empty) (*datastore.FetchRegistrationEntriesResponse, error) {
 
 	var entries []RegisteredEntry
@@ -678,7 +680,7 @@ func (ds *sqlPlugin) FetchRegistrationEntries(
 	return res, nil
 }
 
-func (ds sqlPlugin) UpdateRegistrationEntry(
+func (ds sqlPlugin) UpdateRegistrationEntry(ctx context.Context,
 	request *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
 
 	if request.RegisteredEntry == nil {
@@ -734,7 +736,7 @@ func (ds sqlPlugin) UpdateRegistrationEntry(
 	return &datastore.UpdateRegistrationEntryResponse{RegisteredEntry: request.RegisteredEntry}, nil
 }
 
-func (ds *sqlPlugin) DeleteRegistrationEntry(
+func (ds *sqlPlugin) DeleteRegistrationEntry(ctx context.Context,
 	request *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
 
 	entry := RegisteredEntry{}
@@ -757,7 +759,7 @@ func (ds *sqlPlugin) DeleteRegistrationEntry(
 	return resp, nil
 }
 
-func (ds *sqlPlugin) ListParentIDEntries(
+func (ds *sqlPlugin) ListParentIDEntries(ctx context.Context,
 	request *datastore.ListParentIDEntriesRequest) (response *datastore.ListParentIDEntriesResponse, err error) {
 
 	ds.mutex.Lock()
@@ -780,53 +782,41 @@ func (ds *sqlPlugin) ListParentIDEntries(
 	return &datastore.ListParentIDEntriesResponse{RegisteredEntryList: regEntryList}, nil
 }
 
-func (ds *sqlPlugin) ListSelectorEntries(
+func (ds *sqlPlugin) ListSelectorEntries(ctx context.Context,
 	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
 
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
-
-	if len(request.Selectors) < 1 {
-		return &datastore.ListSelectorEntriesResponse{}, nil
-	}
-
-	matches, err := ds.listMatchingEntries(request.Selectors)
-	if err != nil {
-		return &datastore.ListSelectorEntriesResponse{}, err
-	}
-
-	// Only keep entries which match the specified list exactly
-	var entries []*common.RegistrationEntry
-	for _, m := range matches {
-		if len(m.Selectors) == len(request.Selectors) {
-			entries = append(entries, m)
-		}
-	}
-
-	resp := &datastore.ListSelectorEntriesResponse{RegisteredEntryList: entries}
-	return resp, err
-}
-
-func (ds *sqlPlugin) ListMatchingEntries(
-	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
-
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
-	if len(request.Selectors) < 1 {
-		return &datastore.ListSelectorEntriesResponse{}, nil
-	}
 
 	entries, err := ds.listMatchingEntries(request.Selectors)
 	if err != nil {
 		return &datastore.ListSelectorEntriesResponse{}, err
 	}
 
-	resp := &datastore.ListSelectorEntriesResponse{RegisteredEntryList: entries}
+	util.SortRegistrationEntries(entries)
+	return &datastore.ListSelectorEntriesResponse{RegisteredEntryList: entries}, nil
+}
+
+func (ds *sqlPlugin) ListMatchingEntries(ctx context.Context,
+	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
+
+	ds.mutex.Lock()
+	defer ds.mutex.Unlock()
+
+	resp := &datastore.ListSelectorEntriesResponse{}
+	for combination := range selector.NewSetFromRaw(request.Selectors).Power() {
+		entries, err := ds.listMatchingEntries(combination.Raw())
+		if err != nil {
+			return &datastore.ListSelectorEntriesResponse{}, err
+		}
+		resp.RegisteredEntryList = append(resp.RegisteredEntryList, entries...)
+	}
+
+	util.SortRegistrationEntries(resp.RegisteredEntryList)
 	return resp, nil
 }
 
-func (ds *sqlPlugin) ListSpiffeEntries(
+func (ds *sqlPlugin) ListSpiffeEntries(ctx context.Context,
 	request *datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
 
 	var entries []RegisteredEntry
@@ -847,11 +837,7 @@ func (ds *sqlPlugin) ListSpiffeEntries(
 }
 
 // RegisterToken takes a Token message and stores it
-func (ds *sqlPlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, error) {
-
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
+func (ds *sqlPlugin) RegisterToken(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
 	resp := new(common.Empty)
 	if req.Token == "" || req.Expiry == 0 {
 		return resp, errors.New("token and expiry are required")
@@ -867,11 +853,7 @@ func (ds *sqlPlugin) RegisterToken(req *datastore.JoinToken) (*common.Empty, err
 
 // FetchToken takes a Token message and returns one, populating the fields
 // we have knowledge of
-func (ds *sqlPlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinToken, error) {
-
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
+func (ds *sqlPlugin) FetchToken(ctx context.Context, req *datastore.JoinToken) (*datastore.JoinToken, error) {
 	var t JoinToken
 
 	err := ds.db.Find(&t, "token = ?", req.Token).Error
@@ -886,33 +868,20 @@ func (ds *sqlPlugin) FetchToken(req *datastore.JoinToken) (*datastore.JoinToken,
 	return resp, err
 }
 
-func (ds *sqlPlugin) DeleteToken(req *datastore.JoinToken) (*common.Empty, error) {
+func (ds *sqlPlugin) DeleteToken(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
+	var t JoinToken
 
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
-	resp := new(common.Empty)
-
-	// Protect the data - if gorm gets a delete w/ an empty primary
-	// key, it deletes _all_ the records...
-	if req.Token == "" {
-		return &common.Empty{}, errors.New("no token specified")
+	err := ds.db.Find(&t, "token = ?", req.Token).Error
+	if err != nil {
+		return &common.Empty{}, err
 	}
 
-	t := JoinToken{
-		Token:  req.Token,
-		Expiry: req.Expiry,
-	}
-	return resp, ds.db.Delete(&t).Error
+	return &common.Empty{}, ds.db.Delete(&t).Error
 }
 
 // PruneTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
-func (ds *sqlPlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, error) {
-
-	ds.mutex.Lock()
-	defer ds.mutex.Unlock()
-
+func (ds *sqlPlugin) PruneTokens(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
 	var staleTokens []JoinToken
 	resp := new(common.Empty)
 
@@ -931,7 +900,7 @@ func (ds *sqlPlugin) PruneTokens(req *datastore.JoinToken) (*common.Empty, error
 	return resp, nil
 }
 
-func (ds *sqlPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (ds *sqlPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -964,21 +933,23 @@ func (ds *sqlPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespons
 	return resp, nil
 }
 
-func (sqlPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (sqlPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
-// listMatchingEntries finds registered entries containing all specified selectors. Note
-// that entries containing _more_ than the specified selectors may be returned, since
-// that is also considered a "match"
+// listMatchingEntries finds registered entries containing exactly the specified selectors.
 func (ds *sqlPlugin) listMatchingEntries(selectors []*common.Selector) ([]*common.RegistrationEntry, error) {
+	if len(selectors) < 1 {
+		return nil, nil
+	}
+
 	// Count references to each entry ID
 	refCount := make(map[uint]int)
 	for _, s := range selectors {
 		var results []Selector
 		err := ds.db.Find(&results, "type = ? AND value = ?", s.Type, s.Value).Error
 		if err != nil {
-			return []*common.RegistrationEntry{}, err
+			return nil, err
 		}
 
 		for _, r := range results {
@@ -998,19 +969,32 @@ func (ds *sqlPlugin) listMatchingEntries(selectors []*common.Selector) ([]*commo
 		}
 	}
 
-	// Finally, fetch and return the distilled entries
+	// Fetch the distilled entries.
 	var resp []RegisteredEntry
 	for _, id := range entryIDs {
 		var result RegisteredEntry
 		err := ds.db.Find(&result, "id = ?", id).Error
 		if err != nil {
-			return []*common.RegistrationEntry{}, err
+			return nil, err
 		}
 
 		resp = append(resp, result)
 	}
 
-	return ds.convertEntries(resp)
+	// Weed out entries that have more selectors than requested, since only
+	// EXACT matches should be returned.
+	convertedEntries, err := ds.convertEntriesNoSort(resp)
+	if err != nil {
+		return nil, err
+	}
+	var entries []*common.RegistrationEntry
+	for _, entry := range convertedEntries {
+		if len(entry.Selectors) == len(selectors) {
+			entries = append(entries, entry)
+		}
+	}
+
+	return entries, nil
 }
 
 // bundleToModel converts the given Protobuf bundle message to a database model. It
@@ -1105,6 +1089,15 @@ func (ds *sqlPlugin) validateTrustDomain(in string) (*url.URL, error) {
 }
 
 func (ds *sqlPlugin) convertEntries(fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
+	entries, err := ds.convertEntriesNoSort(fetchedRegisteredEntries)
+	if err != nil {
+		return nil, err
+	}
+	util.SortRegistrationEntries(entries)
+	return entries, nil
+}
+
+func (ds *sqlPlugin) convertEntriesNoSort(fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
 	for _, regEntry := range fetchedRegisteredEntries {
 		var selectors []*common.Selector
 		var fetchedSelectors []*Selector
@@ -1125,28 +1118,7 @@ func (ds *sqlPlugin) convertEntries(fetchedRegisteredEntries []RegisteredEntry) 
 			Ttl:       regEntry.TTL,
 		})
 	}
-	return ds.sortEntries(responseEntries), nil
-}
-
-// registrationEntries provides a sortable type to help ensure stable
-// return ordering
-type registrationEntries []*common.RegistrationEntry
-
-func (re registrationEntries) Len() int      { return len(re) }
-func (re registrationEntries) Swap(i, j int) { re[i], re[j] = re[j], re[i] }
-func (re registrationEntries) Less(i, j int) bool {
-	if re[i].SpiffeId < re[j].SpiffeId || re[i].ParentId < re[j].ParentId ||
-		re[i].Ttl < re[j].Ttl || len(re[i].Selectors) < len(re[i].Selectors) {
-		return true
-	}
-
-	return false
-}
-
-func (ds *sqlPlugin) sortEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {
-	e := registrationEntries(entries)
-	sort.Sort(e)
-	return []*common.RegistrationEntry(e)
+	return responseEntries, nil
 }
 
 // restart will close and re-open the gorm database.
@@ -1193,13 +1165,13 @@ func newPlugin() *sqlPlugin {
 
 // New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
-func New() datastore.DataStore {
+func New() datastore.Plugin {
 	return newPlugin()
 }
 
 // NewTemp create a new plugin with a temporal database, allowing new
 // connections to receive a fresh copy. Primarily meant for testing.
-func NewTemp() (datastore.DataStore, error) {
+func NewTemp() (datastore.Plugin, error) {
 	p := newPlugin()
 
 	// Call restart() to start the db - normally triggered by call to Configure

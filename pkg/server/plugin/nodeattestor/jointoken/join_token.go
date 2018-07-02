@@ -1,6 +1,7 @@
 package jointoken
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -39,13 +40,18 @@ func (p *JoinTokenPlugin) spiffeID(token string) *url.URL {
 	return id
 }
 
-func (p *JoinTokenPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
-	joinToken := string(req.AttestedData.Data)
+func (p *JoinTokenPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+	req, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	joinToken := string(req.AttestationData.Data)
 
 	// OK to echo the token here because it becomes public knowledge after attestation
 	if req.AttestedBefore {
 		err := fmt.Errorf("Join token %s has been used and is no longer valid", joinToken)
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return err
 	}
 
 	p.mtx.Lock()
@@ -53,7 +59,7 @@ func (p *JoinTokenPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor
 	tokenTTL, ok := p.joinTokens[joinToken]
 	if !ok {
 		err := errors.New("Unknown or expired join token")
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return err
 	}
 
 	// Check for expiration
@@ -61,7 +67,7 @@ func (p *JoinTokenPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor
 	if time.Since(p.ConfigTime) > ttlDuration {
 		delete(p.joinTokens, joinToken)
 		err := errors.New("Expired join token")
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return err
 	}
 
 	resp := &nodeattestor.AttestResponse{
@@ -69,10 +75,11 @@ func (p *JoinTokenPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor
 		BaseSPIFFEID: p.spiffeID(joinToken).String(),
 	}
 	delete(p.joinTokens, joinToken)
-	return resp, nil
+
+	return stream.Send(resp)
 }
 
-func (p *JoinTokenPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *JoinTokenPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -98,11 +105,11 @@ func (p *JoinTokenPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRe
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*JoinTokenPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*JoinTokenPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func New() nodeattestor.NodeAttestor {
+func New() nodeattestor.Plugin {
 	return &JoinTokenPlugin{
 		mtx: &sync.Mutex{},
 	}

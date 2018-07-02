@@ -1,6 +1,7 @@
 package svid
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -16,16 +17,15 @@ import (
 )
 
 type Rotator interface {
-	Start() error
-	Stop()
+	Initialize(ctx context.Context) error
+	Run(ctx context.Context) error
 
 	State() State
 	Subscribe() observer.Stream
 }
 
 type rotator struct {
-	c    *RotatorConfig
-	stop chan struct{}
+	c *RotatorConfig
 
 	state observer.Property
 }
@@ -36,18 +36,8 @@ type State struct {
 }
 
 // Start generates a new SVID and then starts the rotator.
-func (r *rotator) Start() error {
-	err := r.rotateSVID()
-	if err != nil {
-		return err
-	}
-
-	go r.run()
-	return nil
-}
-
-func (r *rotator) Stop() {
-	close(r.stop)
+func (r *rotator) Initialize(ctx context.Context) error {
+	return r.rotateSVID(ctx)
 }
 
 func (r *rotator) State() State {
@@ -58,19 +48,20 @@ func (r *rotator) Subscribe() observer.Stream {
 	return r.state.Observe()
 }
 
-// run starts a ticker which monitors the server SVID
-// for expiration and invokes rotateSVID() as necessary.
-func (r *rotator) run() {
+// Run starts a ticker which monitors the server SVID
+// for expiration and rotates the SVID as necessary.
+func (r *rotator) Run(ctx context.Context) error {
 	t := time.NewTicker(r.c.Interval)
+	defer t.Stop()
 
 	for {
 		select {
-		case <-r.stop:
+		case <-ctx.Done():
 			r.c.Log.Debug("Stopping SVID rotator")
-			return
+			return nil
 		case <-t.C:
 			if r.shouldRotate() {
-				if err := r.rotateSVID(); err != nil {
+				if err := r.rotateSVID(ctx); err != nil {
 					r.c.Log.Errorf("Could not rotate server SVID: %v", err)
 				}
 			}
@@ -91,7 +82,7 @@ func (r *rotator) shouldRotate() bool {
 
 // rotateSVID cuts a new server SVID from the CA plugin and installs
 // it on the endpoints struct. Also updates the CA certificates.
-func (r *rotator) rotateSVID() error {
+func (r *rotator) rotateSVID(ctx context.Context) error {
 	r.c.Log.Debug("Rotating server SVID")
 
 	id := &url.URL{
@@ -114,7 +105,7 @@ func (r *rotator) rotateSVID() error {
 
 	// Sign the CSR
 	csrReq := &ca_pb.SignCsrRequest{Csr: csr}
-	csrRes, err := ca.SignCsr(csrReq)
+	csrRes, err := ca.SignCsr(ctx, csrReq)
 	if err != nil {
 		return err
 	}

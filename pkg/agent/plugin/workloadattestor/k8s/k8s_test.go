@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -33,6 +34,8 @@ const (
 
 var (
 	pidCgroupPath = fmt.Sprintf("/proc/%v/cgroup", pid)
+
+	ctx = context.Background()
 )
 
 func InitPlugin(t *testing.T, client httpClient, fs fileSystem) workloadattestor.WorkloadAttestor {
@@ -44,7 +47,7 @@ func InitPlugin(t *testing.T, client httpClient, fs fileSystem) workloadattestor
 	p.httpClient = client
 	p.fs = fs
 
-	_, err := p.Configure(pluginConfig)
+	_, err := p.Configure(ctx, pluginConfig)
 	assert.NoError(t, err)
 
 	// the default retry config is much too long for tests.
@@ -72,7 +75,7 @@ func TestK8s_AttestPidInPod(t *testing.T) {
 
 	plugin := InitPlugin(t, mockHttpClient, mockFilesystem)
 	req := workloadattestor.AttestRequest{Pid: int32(pid)}
-	resp, err := plugin.Attest(&req)
+	resp, err := plugin.Attest(ctx, &req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Selectors)
 }
@@ -96,7 +99,7 @@ func TestK8s_AttestInitPidInPod(t *testing.T) {
 
 	plugin := InitPlugin(t, mockHttpClient, mockFilesystem)
 	req := workloadattestor.AttestRequest{Pid: int32(pid)}
-	resp, err := plugin.Attest(&req)
+	resp, err := plugin.Attest(ctx, &req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Selectors)
 }
@@ -135,7 +138,7 @@ func TestK8s_AttestPidInPodAfterRetry(t *testing.T) {
 
 	plugin := InitPlugin(t, mockHttpClient, mockFilesystem)
 	req := workloadattestor.AttestRequest{Pid: int32(pid)}
-	resp, err := plugin.Attest(&req)
+	resp, err := plugin.Attest(ctx, &req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.Selectors)
 }
@@ -169,7 +172,7 @@ func TestK8s_AttestPidNotInPodAfterRetry(t *testing.T) {
 
 	plugin := InitPlugin(t, mockHttpClient, mockFilesystem)
 	req := workloadattestor.AttestRequest{Pid: int32(pid)}
-	resp, err := plugin.Attest(&req)
+	resp, err := plugin.Attest(ctx, &req)
 	require.Error(t, err)
 	require.Empty(t, resp.Selectors)
 }
@@ -184,7 +187,7 @@ func TestK8s_AttestPidNotInPod(t *testing.T) {
 
 	plugin := InitPlugin(t, mockHttpClient, mockFilesystem)
 	req := workloadattestor.AttestRequest{Pid: int32(pid)}
-	resp, err := plugin.Attest(&req)
+	resp, err := plugin.Attest(ctx, &req)
 	require.NoError(t, err)
 	require.Empty(t, resp.Selectors)
 }
@@ -192,7 +195,7 @@ func TestK8s_AttestPidNotInPod(t *testing.T) {
 func TestK8s_ConfigureValidConfig(t *testing.T) {
 	assert := assert.New(t)
 	p := New()
-	r, err := p.Configure(&spi.ConfigureRequest{
+	r, err := p.Configure(ctx, &spi.ConfigureRequest{
 		Configuration: `{"kubelet_read_only_port":1, "max_poll_attempts": 2, "poll_retry_interval": "3s"}`,
 	})
 	assert.NoError(err)
@@ -205,7 +208,7 @@ func TestK8s_ConfigureValidConfig(t *testing.T) {
 func TestK8s_ConfigureInvalidConfig(t *testing.T) {
 	assert := assert.New(t)
 	p := New()
-	r, err := p.Configure(&spi.ConfigureRequest{
+	r, err := p.Configure(ctx, &spi.ConfigureRequest{
 		Configuration: invalidConfig,
 	})
 	assert.Error(err)
@@ -214,7 +217,7 @@ func TestK8s_ConfigureInvalidConfig(t *testing.T) {
 
 func TestK8s_GetPluginInfo(t *testing.T) {
 	var plugin k8sPlugin
-	data, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
+	data, e := plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
 	assert.Equal(t, nil, e)
 }

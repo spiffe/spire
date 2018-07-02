@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"bytes"
+	"context"
 
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/printer"
@@ -9,8 +10,8 @@ import (
 )
 
 type Plugin interface {
-	Configure(*pb.ConfigureRequest) (*pb.ConfigureResponse, error)
-	GetPluginInfo(*pb.GetPluginInfoRequest) (*pb.GetPluginInfoResponse, error)
+	Configure(context.Context, *pb.ConfigureRequest) (*pb.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *pb.GetPluginInfoRequest) (*pb.GetPluginInfoResponse, error)
 }
 
 type PluginConfig struct {

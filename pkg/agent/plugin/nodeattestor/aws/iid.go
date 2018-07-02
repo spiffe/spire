@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -59,56 +60,54 @@ func httpGetBytes(url string) ([]byte, error) {
 	return bytes, nil
 }
 
-func (p *IIDAttestorPlugin) FetchAttestationData(req *nodeattestor.FetchAttestationDataRequest) (*nodeattestor.FetchAttestationDataResponse, error) {
+func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
 	docBytes, err := httpGetBytes(p.identityDocumentUrl)
 	if err != nil {
 		err = aws.AttestationStepError("retrieving the IID from AWS", err)
-		return &nodeattestor.FetchAttestationDataResponse{}, err
+		return err
 	}
 
 	var doc aws.InstanceIdentityDocument
 	err = json.Unmarshal(docBytes, &doc)
 	if err != nil {
 		err = aws.AttestationStepError("unmarshaling the IID", err)
-		return &nodeattestor.FetchAttestationDataResponse{}, err
+		return err
 	}
 
 	sigBytes, err := httpGetBytes(p.identitySignatureUrl)
 	if err != nil {
 		err = aws.AttestationStepError("retrieving the IID signature from AWS", err)
-		return &nodeattestor.FetchAttestationDataResponse{}, err
+		return err
 	}
 
-	attestedData := aws.IidAttestedData{
+	attestationData := aws.IidAttestationData{
 		Document:  string(docBytes),
 		Signature: string(sigBytes),
 	}
 
-	respData, err := json.Marshal(attestedData)
+	respData, err := json.Marshal(attestationData)
 	if err != nil {
 		err = aws.AttestationStepError("marshaling the attested data", err)
-		return &nodeattestor.FetchAttestationDataResponse{}, err
+		return err
 	}
 
 	// FIXME: NA should be the one dictating type of this message
 	// Change the proto to just take plain byte here
-	data := &common.AttestedData{
+	data := &common.AttestationData{
 		Type: pluginName,
 		Data: respData,
 	}
 
-	resp := &nodeattestor.FetchAttestationDataResponse{
-		AttestedData: data,
-		SpiffeId:     p.spiffeID(doc.AccountId, doc.InstanceId).String(),
-	}
-
-	return resp, nil
+	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
+		AttestationData: data,
+		SpiffeId:        p.spiffeID(doc.AccountId, doc.InstanceId).String(),
+	})
 }
 
-func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -146,11 +145,11 @@ func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.Configure
 	return resp, nil
 }
 
-func (*IIDAttestorPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewIID() nodeattestor.NodeAttestor {
+func NewIID() nodeattestor.Plugin {
 	return &IIDAttestorPlugin{
 		mtx: &sync.RWMutex{},
 	}

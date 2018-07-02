@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ var (
 	regEntriesMap = util.GetRegistrationEntriesMap("manager_test_entries.json")
 )
 
-func TestShutdownDoesntHangAfterFailedStart(t *testing.T) {
+func TestInitializationFailure(t *testing.T) {
 	trustDomain := "somedomain.com"
 	ca, cakey := createCA(t, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
@@ -51,18 +52,13 @@ func TestShutdownDoesntHangAfterFailedStart(t *testing.T) {
 	}
 	m, err := New(c)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
-	err = m.Start()
+	err = m.Initialize(context.Background())
 	if err == nil {
 		t.Fatal("wanted error")
 	}
-
-	util.RunWithTimeout(t, 1*time.Second, func() {
-		m.Shutdown()
-	})
 }
 
 func TestStoreBundleOnStartup(t *testing.T) {
@@ -92,13 +88,13 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		t.Fatal("bundle should have been cached in memory")
 	}
 
-	err = m.Start()
+	err = m.Initialize(context.Background())
 	if err == nil {
-		t.Fatal("manager was expected to fail during startup")
+		t.Fatal("manager was expected to fail during initialization")
 	}
 
 	// Althought start failed, the Bundle should have been saved, because it should be
-	// one of the first thing the manager does at startup.
+	// one of the first thing the manager does at initialization.
 	bundle, err := ReadBundle(c.BundleCachePath)
 	if err != nil {
 		t.Fatalf("bundle should have been saved in a file: %v", err)
@@ -107,7 +103,6 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	if !bundle[0].Equal(ca) {
 		t.Fatal("bundle should have included CA certificate")
 	}
-	m.Shutdown()
 }
 
 func TestStoreSVIDOnStartup(t *testing.T) {
@@ -138,13 +133,13 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = m.Start()
+	err = m.Initialize(context.Background())
 	if err == nil {
-		t.Fatal("manager was expected to fail during startup")
+		t.Fatal("manager was expected to fail during initialization")
 	}
 
 	// Althought start failed, the SVID should have been saved, because it should be
-	// one of the first thing the manager does at startup.
+	// one of the first thing the manager does at initialization.
 	cert, err := ReadSVID(c.SVIDCachePath)
 	if err != nil {
 		t.Fatal(err)
@@ -152,8 +147,6 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	if !cert.Equal(baseSVID) {
 		t.Fatal("SVID was not correctly stored.")
 	}
-
-	m.Shutdown()
 }
 
 func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
@@ -188,16 +181,9 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		Bundle:          apiHandler.bundle,
 		Tel:             &telemetry.Blackhole{},
 	}
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	err = m.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Shutdown()
+	m, closer := initializeAndRunNewManager(t, c)
+	defer closer()
 
 	cert := m.svid.State().SVID
 	if !cert.Equal(baseSVID) {
@@ -214,12 +200,9 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		t.Fatal("expected 2 entries")
 	}
 
-	err = compareRegistrationEntries(
+	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
 		[]*common.RegistrationEntry{me[0].RegistrationEntry, me[1].RegistrationEntry})
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
 		sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
@@ -237,12 +220,9 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 			t.Fatal("received bundle should be equals to the server bundle")
 		}
 
-		err := compareRegistrationEntries(
+		compareRegistrationEntries(t,
 			regEntriesMap["resp2"],
 			[]*common.RegistrationEntry{u.Entries[0].RegistrationEntry, u.Entries[1].RegistrationEntry})
-		if err != nil {
-			t.Fatal(err)
-		}
 	})
 }
 
@@ -281,16 +261,9 @@ func TestSVIDRotation(t *testing.T) {
 		RotationInterval: baseTTL / 2,
 		SyncInterval:     1 * time.Hour,
 	}
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	err = m.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Shutdown()
+	m, closer := initializeAndRunNewManager(t, c)
+	defer closer()
 
 	cert := m.svid.State().SVID
 	if !cert.Equal(baseSVID) {
@@ -357,16 +330,8 @@ func TestSynchronization(t *testing.T) {
 		SyncInterval:     3 * time.Second,
 	}
 
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = m.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Shutdown()
+	m, closer := initializeAndRunNewManager(t, c)
+	defer closer()
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{
 		&common.Selector{Type: "unix", Value: "uid:1111"},
@@ -376,7 +341,7 @@ func TestSynchronization(t *testing.T) {
 	// Before synchronization
 	entriesBefore := cacheEntriesAsMap(m.cache.Entries())
 	if len(entriesBefore) != 3 {
-		t.Fatal("3 cached entries were expected")
+		t.Fatalf("3 cached entries were expected; got %d", len(entriesBefore))
 	}
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
@@ -454,6 +419,62 @@ func TestSynchronization(t *testing.T) {
 	})
 }
 
+func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
+	dir := createTempDir(t)
+	defer removeTempDir(dir)
+
+	trustDomain := "example.org"
+
+	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
+		t:                 t,
+		trustDomain:       trustDomain,
+		dir:               dir,
+		fetchSVIDResponse: fetchSVIDResponseForStaleCacheTest,
+		svidTTL:           3,
+	})
+	apiHandler.start()
+	defer apiHandler.stop()
+
+	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+
+	c := &Config{
+		ServerAddr: &net.UnixAddr{
+			Net:  "unix",
+			Name: apiHandler.sockPath,
+		},
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		TrustDomain:     url.URL{Host: trustDomain},
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Bundle:          apiHandler.bundle,
+		Tel:             &telemetry.Blackhole{},
+	}
+
+	m := newManager(t, c)
+
+	if err := m.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// after initialization, the cache should contain both resp1 and resp2
+	// entries.
+	compareRegistrationEntries(t,
+		append(regEntriesMap["resp1"], regEntriesMap["resp2"]...),
+		regEntriesFromCacheEntries(m.cache.Entries()))
+
+	// manually synchronize again
+	if err := m.synchronize(); err != nil {
+		t.Fatal(err)
+	}
+
+	// now the cache should have entries from resp2 removed
+	compareRegistrationEntries(t,
+		regEntriesMap["resp1"],
+		regEntriesFromCacheEntries(m.cache.Entries()))
+}
+
 func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
@@ -489,18 +510,11 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		SyncInterval:     1 * time.Hour,
 	}
 
-	m, err := New(c)
-	if err != nil {
-		t.Fatal(err)
-	}
+	m := newManager(t, c)
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 
-	err = m.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Shutdown()
+	defer initializeAndRunManager(t, m)()
 
 	util.RunWithTimeout(t, 1*time.Second, func() {
 		// Update should contain a new bundle.
@@ -555,22 +569,14 @@ func TestSurvivesCARotation(t *testing.T) {
 		SyncInterval: 1 * time.Second,
 	}
 
-	m, err := New(c)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	m := newManager(t, c)
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 	// This should be the update received when Subscribe function was called.
 	updates := sub.Updates()
 	<-updates
 
-	err = m.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Shutdown()
+	defer initializeAndRunManager(t, m)()
 
 	// Get latest update
 	util.RunWithTimeout(t, 4*time.Second, func() {
@@ -584,72 +590,39 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	// If we received an update too soon, then we assume that the connection to the server never
 	// was lost and hence we are not testing if the manager can survive the CA rotation.
-	if elapsed < 3*time.Second {
+	if elapsed < time.Second {
 		t.Fatalf("update received too soon: elapsed %dms since last one", elapsed/time.Millisecond)
 	}
 }
 
-func fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	switch h.reqCount {
 	case 1:
 		if len(req.Csrs) != 0 {
 			return fmt.Errorf("server expected 0 CRS, got: %d. reqCount: %d", len(req.Csrs), h.reqCount)
 		}
 
-		return stream.Send(newFetchSVIDResponse("resp1", nil, h.bundle))
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp1", "resp2"}, nil, h.bundle))
 	case 2:
-		if len(req.Csrs) != 1 {
-			return fmt.Errorf("server expected 1 CRS, got: %d. reqCount: %d", len(req.Csrs), h.reqCount)
+		if len(req.Csrs) != 3 {
+			return fmt.Errorf("server expected 3 CRS, got: %d. reqCount: %d", len(req.Csrs), h.reqCount)
 		}
 
-		svid := h.newSVIDFromCSR(req.Csrs[0])
-		spiffeID, err := getSpiffeIDFromSVID(svid)
+		svids, err := h.makeSvids(req.Csrs)
 		if err != nil {
 			return err
 		}
 
-		return stream.Send(newFetchSVIDResponse(
-			"resp1",
-			svidMap{
-				spiffeID: {SvidCert: svid.Raw},
-			},
-			h.bundle))
-	case 3:
-		if len(req.Csrs) != 0 {
-			return fmt.Errorf("server expected 0 CRS, got: %d. reqCount: %d", len(req.Csrs), h.reqCount)
-		}
-
-		return stream.Send(newFetchSVIDResponse("resp2", nil, h.bundle))
-	case 4:
-		if len(req.Csrs) != 2 {
-			return fmt.Errorf("server expected 2 CRS, got: %d. reqCount: %d", len(req.Csrs), h.reqCount)
-		}
-
-		svid1 := h.newSVIDFromCSR(req.Csrs[0])
-		spiffeID1, err := getSpiffeIDFromSVID(svid1)
-		if err != nil {
-			return err
-		}
-
-		svid2 := h.newSVIDFromCSR(req.Csrs[1])
-		spiffeID2, err := getSpiffeIDFromSVID(svid2)
-		if err != nil {
-			return err
-		}
-
-		return stream.Send(newFetchSVIDResponse(
-			"resp2",
-			svidMap{
-				spiffeID1: {SvidCert: svid1.Raw},
-				spiffeID2: {SvidCert: svid2.Raw},
-			},
+		return stream.Send(newFetchX509SVIDResponse(
+			[]string{"resp1", "resp2"},
+			svids,
 			h.bundle))
 	default:
 		return fmt.Errorf("server received unexpected call. reqCount: %d", h.reqCount)
 	}
 }
 
-func fetchSVIDResponse(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func fetchSVIDResponse(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	svid, err := h.getCertFromCtx(stream.Context())
 	if err != nil {
 		return fmt.Errorf("cannot get SVID from stream context: %v. reqCount: %d", err, h.reqCount)
@@ -660,28 +633,44 @@ func fetchSVIDResponse(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream
 		return fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.reqCount)
 	}
 
-	resp := "resp0"
+	var resps []string
 	switch spiffeID {
 	case "spiffe://example.org/spire/agent/join_token/abcd":
-		resp = "resp1"
+		resps = append(resps, "resp1", "resp2")
 	case "spiffe://example.org/spire/agent":
-		resp = "resp2"
+		resps = append(resps, "resp2")
+	default:
+		resps = append(resps, "resp0")
 	}
 
-	svids := map[string]*node.Svid{}
-	for _, csr := range req.Csrs {
-		svid := h.newSVIDFromCSR(csr)
-		spiffeID, err := getSpiffeIDFromSVID(svid)
-		if err != nil {
-			return fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.reqCount)
-		}
-		svids[spiffeID] = &node.Svid{SvidCert: svid.Raw, Ttl: int32(h.c.svidTTL)}
+	svids, err := h.makeSvids(req.Csrs)
+	if err != nil {
+		return err
 	}
 
-	return stream.Send(newFetchSVIDResponse(resp, svids, h.bundle))
+	return stream.Send(newFetchX509SVIDResponse(resps, svids, h.bundle))
 }
 
-func fetchSVIDResponseForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func fetchSVIDResponseForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
+	svids, err := h.makeSvids(req.Csrs)
+	if err != nil {
+		return err
+	}
+
+	switch h.reqCount {
+	case 1:
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp1", "resp2"}, nil, h.bundle))
+	case 2:
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp1", "resp2"}, svids, h.bundle))
+	case 3:
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp1"}, nil, h.bundle))
+	case 4:
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp1"}, svids, h.bundle))
+	}
+	return stream.Send(newFetchX509SVIDResponse(nil, nil, h.bundle))
+}
+
+func fetchSVIDResponseForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	switch h.reqCount {
 	case 2:
 		ca, _ := createCA(h.c.t, h.c.trustDomain)
@@ -691,7 +680,7 @@ func fetchSVIDResponseForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler,
 	return fetchSVIDResponse(h, req, stream)
 }
 
-func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node.FetchSVIDRequest, stream node.Node_FetchSVIDServer) error {
+func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	switch h.reqCount {
 	case 2:
 		ca, key := createCA(h.c.t, h.c.trustDomain)
@@ -707,15 +696,22 @@ func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node
 	return fetchSVIDResponse(h, req, stream)
 }
 
-func newFetchSVIDResponse(regEntriesKey string, svids svidMap, bundle []*x509.Certificate) *node.FetchSVIDResponse {
+func newFetchX509SVIDResponse(regEntriesKeys []string, svids svidMap, bundle []*x509.Certificate) *node.FetchX509SVIDResponse {
 	bundleBytes := &bytes.Buffer{}
 	for _, c := range bundle {
 		bundleBytes.Write(c.Raw)
 	}
 
-	return &node.FetchSVIDResponse{
+	var regEntries []*common.RegistrationEntry
+	for _, regEntriesKey := range regEntriesKeys {
+		for _, regEntry := range regEntriesMap[regEntriesKey] {
+			regEntries = append(regEntries, regEntry)
+		}
+	}
+
+	return &node.FetchX509SVIDResponse{
 		SvidUpdate: &node.SvidUpdate{
-			RegistrationEntries: regEntriesMap[regEntriesKey],
+			RegistrationEntries: regEntries,
 			Svids:               svids,
 			Bundle:              bundleBytes.Bytes(),
 		},
@@ -738,9 +734,16 @@ func cacheEntriesAsMap(ces []*cache.Entry) (result map[string]*cache.Entry) {
 	return result
 }
 
-func compareRegistrationEntries(expected, actual []*common.RegistrationEntry) error {
+func regEntriesFromCacheEntries(ces []*cache.Entry) (result []*common.RegistrationEntry) {
+	for _, ce := range ces {
+		result = append(result, ce.RegistrationEntry)
+	}
+	return result
+}
+
+func compareRegistrationEntries(t *testing.T, expected, actual []*common.RegistrationEntry) {
 	if len(expected) != len(actual) {
-		return fmt.Errorf("entries count doesn't match, expected: %d, got: %d", len(expected), len(actual))
+		t.Fatalf("entries count doesn't match, expected: %d, got: %d", len(expected), len(actual))
 	}
 
 	expectedMap := regEntriesAsMap(expected)
@@ -749,14 +752,13 @@ func compareRegistrationEntries(expected, actual []*common.RegistrationEntry) er
 	for id, ee := range expectedMap {
 		ae, ok := actualMap[id]
 		if !ok {
-			return fmt.Errorf("entries should be equals, expected: %s, got: <none>", ee.String())
+			t.Fatalf("entries should be equals, expected: %s, got: <none>", ee.String())
 		}
 
 		if ee.String() != ae.String() {
-			return fmt.Errorf("entries should be equals, expected: %s, got: %s", ee.String(), ae.String())
+			t.Fatalf("entries should be equals, expected: %s, got: %s", ee.String(), ae.String())
 		}
 	}
-	return nil
 }
 
 type svidMap map[string]*node.Svid
@@ -767,7 +769,7 @@ type mockNodeAPIHandlerConfig struct {
 	// Directory used to save server related files, like unix sockets files.
 	dir string
 	// Callback used to build the response according to the request and state of mockNodeAPIHandler.
-	fetchSVIDResponse func(*mockNodeAPIHandler, *node.FetchSVIDRequest, node.Node_FetchSVIDServer) error
+	fetchSVIDResponse func(*mockNodeAPIHandler, *node.FetchX509SVIDRequest, node.Node_FetchX509SVIDServer) error
 
 	svidTTL int
 }
@@ -814,16 +816,29 @@ func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig) *mockNodeAPIHandler
 	return h
 }
 
+func (h *mockNodeAPIHandler) makeSvids(csrs [][]byte) (svidMap, error) {
+	svids := make(svidMap)
+	for _, csr := range csrs {
+		svid := h.newSVIDFromCSR(csr)
+		spiffeID, err := getSpiffeIDFromSVID(svid)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.reqCount)
+		}
+		svids[spiffeID] = &node.Svid{SvidCert: svid.Raw, Ttl: int32(h.c.svidTTL)}
+	}
+	return svids, nil
+}
+
 func (h *mockNodeAPIHandler) countRequest() {
 	h.reqCount++
 }
 
-func (h *mockNodeAPIHandler) FetchBaseSVID(context.Context, *node.FetchBaseSVIDRequest) (*node.FetchBaseSVIDResponse, error) {
-	h.c.t.Fatalf("unexpected call to FetchBaseSVID")
-	return nil, nil
+func (h *mockNodeAPIHandler) Attest(stream node.Node_AttestServer) error {
+	h.c.t.Fatalf("unexpected call to Attest")
+	return nil
 }
 
-func (h *mockNodeAPIHandler) FetchSVID(stream node.Node_FetchSVIDServer) error {
+func (h *mockNodeAPIHandler) FetchX509SVID(stream node.Node_FetchX509SVIDServer) error {
 	h.countRequest()
 
 	req, err := stream.Recv()
@@ -967,4 +982,42 @@ func createSVIDFromCSR(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateK
 		t.Fatalf("cannot sign svid template for CSR: %v", err)
 	}
 	return svid
+}
+
+func newManager(t *testing.T, c *Config) *manager {
+	m, err := New(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func initializeAndRunNewManager(t *testing.T, c *Config) (m *manager, closer func()) {
+	m, err := New(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m, initializeAndRunManager(t, m)
+}
+
+func initializeAndRunManager(t *testing.T, m *manager) (closer func()) {
+	ctx := context.Background()
+
+	if err := m.Initialize(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(ctx)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := m.Run(ctx); err != nil {
+			t.Error(err)
+		}
+	}()
+	return func() {
+		cancel()
+		wg.Wait()
+	}
 }

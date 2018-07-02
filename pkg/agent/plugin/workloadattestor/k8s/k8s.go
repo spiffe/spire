@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -73,7 +74,7 @@ const (
 	selectorType string = "k8s"
 )
 
-func (p *k8sPlugin) Attest(req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
@@ -247,7 +248,7 @@ func getSelectorsFromPodInfo(info *podInfo) []*common.Selector {
 	}
 }
 
-func (p *k8sPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -289,7 +290,7 @@ func (p *k8sPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*k8sPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*k8sPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 

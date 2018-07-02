@@ -74,6 +74,8 @@ func (c CreateCLI) Help() string {
 }
 
 func (c CreateCLI) Run(args []string) int {
+	ctx := context.Background()
+
 	config, err := c.newConfig(args)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -96,13 +98,13 @@ func (c CreateCLI) Run(args []string) int {
 		return 1
 	}
 
-	cl, err := util.NewRegistrationClient(config.Addr)
+	cl, err := util.NewRegistrationClient(ctx, config.Addr)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
 	}
 
-	err = c.registerEntries(cl, entries)
+	err = c.registerEntries(ctx, cl, entries)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -145,9 +147,9 @@ func (CreateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
 	return entries.Entries, nil
 }
 
-func (CreateCLI) registerEntries(c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
+func (CreateCLI) registerEntries(ctx context.Context, c registration.RegistrationClient, entries []*common.RegistrationEntry) error {
 	for _, e := range entries {
-		id, err := c.CreateEntry(context.TODO(), e)
+		id, err := c.CreateEntry(ctx, e)
 		if err != nil {
 			fmt.Println("FAILED to create the following entry:")
 			printEntry(e)

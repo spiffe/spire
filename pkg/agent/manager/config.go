@@ -14,8 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-
-	tomb "gopkg.in/tomb.v2"
 )
 
 // Config holds a cache manager configuration
@@ -67,19 +65,13 @@ func New(c *Config) (*manager, error) {
 	m := &manager{
 		cache:           cache,
 		c:               c,
-		t:               new(tomb.Tomb),
 		mtx:             new(sync.RWMutex),
 		svid:            svidRotator,
 		spiffeID:        spiffeID,
-		serverSPIFFEID:  "spiffe://" + c.TrustDomain.Host + "/spire/server",
 		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
-	}
-
-	err = m.addClient(client, m.spiffeID, m.serverSPIFFEID)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create sync client: %v", err)
+		client:          client,
 	}
 
 	return m, nil

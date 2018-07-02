@@ -25,6 +25,8 @@ func (*CreateUsers) Help() string {
 
 //Run create users
 func (*CreateUsers) Run(args []string) int {
+	ctx := context.Background()
+
 	var users, ttl int
 	var token string
 	flags := flag.NewFlagSet("createusers", flag.ContinueOnError)
@@ -82,7 +84,7 @@ func (*CreateUsers) Run(args []string) int {
 				SpiffeId: spiffeID,
 				Ttl:      int32(ttl),
 			}
-			entryID, err := c.CreateEntry(context.TODO(), entry)
+			entryID, err := c.CreateEntry(ctx, entry)
 			if err != nil {
 				panic(err)
 			}

@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -10,15 +11,14 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strconv"
-	"syscall"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 const (
@@ -97,9 +97,11 @@ func (*RunCLI) Run(args []string) int {
 	}
 
 	agt := agent.New(c)
-	signalListener(agt)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	util.SignalListener(ctx, cancel)
 
-	err = agt.Run()
+	err = agt.Run(ctx)
 	if err != nil {
 		c.Log.Errorf("agent crashed: %v", err)
 		return 1
@@ -342,17 +344,4 @@ func stringDefault(option string, defaultValue string) string {
 	}
 
 	return option
-}
-
-func signalListener(agt *agent.Agent) {
-	go func() {
-		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-
-		select {
-		case <-signalCh:
-			agt.Shutdown()
-		}
-	}()
-	return
 }

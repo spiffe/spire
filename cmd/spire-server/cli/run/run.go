@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -8,24 +9,20 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strconv"
-	"syscall"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
 )
 
 const (
-	defaultConfigPath   = "conf/server/server.conf"
-	defaultBindAddress  = "127.0.0.1"
-	defaultBindPort     = 8081
-	defaultBindHTTPPort = 8080
-	defaultLogLevel     = "INFO"
-	defaultUmask        = 0077
+	defaultConfigPath = "conf/server/server.conf"
+	defaultLogLevel   = "INFO"
+	defaultUmask      = 0077
 )
 
 // runConfig represents available configurables for file and CLI options
@@ -90,12 +87,16 @@ func (*RunCLI) Run(args []string) int {
 	err = validateConfig(c)
 	if err != nil {
 		fmt.Println(err.Error())
+		return 1
 	}
 
-	server := &server.Server{Config: c}
-	signalListener(server)
+	s := server.New(*c)
 
-	err = server.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	util.SignalListener(ctx, cancel)
+
+	err = s.Run(ctx)
 	if err != nil {
 		c.Log.Error(err.Error())
 		return 1
@@ -275,17 +276,4 @@ func newDefaultConfig() *server.Config {
 		BindHTTPAddress: serverHTTPAddress,
 		Umask:           defaultUmask,
 	}
-}
-
-func signalListener(s *server.Server) {
-	go func() {
-		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-
-		select {
-		case <-signalCh:
-			s.Shutdown()
-		}
-	}()
-	return
 }

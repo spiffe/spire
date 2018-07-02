@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -28,7 +29,7 @@ type diskPlugin struct {
 	dir string
 }
 
-func (d *diskPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
+func (d *diskPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
 	d.mtx.RLock()
 	if d.dir == "" {
 		d.mtx.RUnlock()
@@ -62,7 +63,7 @@ func (d *diskPlugin) GenerateKeyPair(*keymanager.GenerateKeyPairRequest) (*keyma
 	return resp, nil
 }
 
-func (d *diskPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
+func (d *diskPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
 	// Start with empty response
 	resp := &keymanager.FetchPrivateKeyResponse{PrivateKey: []byte{}}
 
@@ -88,7 +89,7 @@ func (d *diskPlugin) FetchPrivateKey(*keymanager.FetchPrivateKeyRequest) (*keyma
 	return resp, nil
 }
 
-func (d *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (d *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config := &pluginConfig{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
@@ -105,7 +106,7 @@ func (d *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespons
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (d *diskPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (d *diskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 

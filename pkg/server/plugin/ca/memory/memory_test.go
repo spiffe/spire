@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -23,6 +24,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	ctx = context.Background()
+)
+
 func TestMemory_Configure(t *testing.T) {
 	config := `{"trust_domain":"example.com", "key_size":2048}`
 	pluginConfig := &spi.ConfigureRequest{
@@ -32,7 +37,7 @@ func TestMemory_Configure(t *testing.T) {
 	m := &MemoryPlugin{
 		mtx: &sync.RWMutex{},
 	}
-	resp, err := m.Configure(pluginConfig)
+	resp, err := m.Configure(ctx, pluginConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, &spi.ConfigureResponse{}, resp)
 }
@@ -47,7 +52,7 @@ func TestMemory_ConfigureParseHclError(t *testing.T) {
 		mtx: &sync.RWMutex{},
 	}
 
-	resp, err := m.Configure(pluginConfig)
+	resp, err := m.Configure(ctx, pluginConfig)
 	expectedError := "At 1:1: illegal char"
 	expectedErrorList := []string{expectedError}
 
@@ -65,7 +70,7 @@ func TestMemory_ConfigureDecodeObjectError(t *testing.T) {
 		mtx: &sync.RWMutex{},
 	}
 
-	resp, err := m.Configure(pluginConfig)
+	resp, err := m.Configure(ctx, pluginConfig)
 	expectedError := "strconv.ParseInt: parsing \"foo\": invalid syntax"
 	expectedErrorList := []string{expectedError}
 
@@ -75,7 +80,7 @@ func TestMemory_ConfigureDecodeObjectError(t *testing.T) {
 
 func TestMemory_GetPluginInfo(t *testing.T) {
 	m := NewWithDefault()
-	res, err := m.GetPluginInfo(&spi.GetPluginInfoRequest{})
+	res, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	assert.NotNil(t, res)
 }
@@ -83,7 +88,7 @@ func TestMemory_GetPluginInfo(t *testing.T) {
 func TestMemory_GenerateCsr(t *testing.T) {
 	m := NewWithDefault()
 
-	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
+	generateCsrResp, err := m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, generateCsrResp.Csr)
 }
@@ -95,17 +100,17 @@ func TestMemory_LoadValidCertificate(t *testing.T) {
 	validCertFiles, err := ioutil.ReadDir(testDataDir)
 	assert.NoError(t, err)
 
-	m.GenerateCsr(&ca.GenerateCsrRequest{})
+	m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
 
 	for _, file := range validCertFiles {
 		certPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, file.Name()))
 		if assert.NoError(t, err, file.Name()) {
 			block, rest := pem.Decode(certPEM)
 			assert.Len(t, rest, 0, file.Name())
-			_, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: block.Bytes})
+			_, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: block.Bytes})
 			assert.NoError(t, err, file.Name())
 
-			resp, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
+			resp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
 			require.NoError(t, err, file.Name())
 			require.Equal(t, resp.StoredIntermediateCert, block.Bytes, file.Name())
 		}
@@ -124,7 +129,7 @@ func TestMemory_LoadInvalidCertificate(t *testing.T) {
 		if assert.NoError(t, err, file.Name()) {
 			block, rest := pem.Decode(certPEM)
 			assert.Len(t, rest, 0, file.Name())
-			_, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: block.Bytes})
+			_, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: block.Bytes})
 			assert.Error(t, err, file.Name())
 		}
 	}
@@ -132,7 +137,7 @@ func TestMemory_LoadInvalidCertificate(t *testing.T) {
 
 func TestMemory_FetchCertificate(t *testing.T) {
 	m := NewWithDefault()
-	cert, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
+	cert, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
 	require.NoError(t, err)
 	assert.Empty(t, cert.StoredIntermediateCert)
 }
@@ -143,23 +148,23 @@ func TestMemory_bootstrap(t *testing.T) {
 	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
-	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
+	generateCsrResp, err := m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
 	require.NoError(t, err)
 
-	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
+	submitCSRResp, err := upca.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
 	require.NoError(t, err)
 
-	_, err = m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+	_, err = m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 	require.NoError(t, err)
 
-	fetchCertificateResp, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
+	fetchCertificateResp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
 	require.NoError(t, err)
 
 	assert.Equal(t, submitCSRResp.Cert, fetchCertificateResp.StoredIntermediateCert)
 
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
-	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
+	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, wcert)
@@ -171,19 +176,19 @@ func TestMemory_race(t *testing.T) {
 	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
-	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
+	generateCsrResp, err := m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
 	require.NoError(t, err)
 
-	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
+	submitCSRResp, err := upca.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
 	require.NoError(t, err)
 
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
 	testutil.RaceTest(t, func(t *testing.T) {
-		m.GenerateCsr(&ca.GenerateCsrRequest{})
-		m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
-		m.FetchCertificate(&ca.FetchCertificateRequest{})
-		m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
+		m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
+		m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+		m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
+		m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 	})
 }
 
@@ -192,7 +197,7 @@ func TestMemory_SignCsr(t *testing.T) {
 
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
-	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
+	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 	require.NoError(t, err)
 	assert.NotEmpty(t, wcert)
 
@@ -207,7 +212,7 @@ func TestMemory_SignCsrExpire(t *testing.T) {
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
 	// Set a TTL of one second
-	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr, Ttl: 1})
+	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr, Ttl: 1})
 	require.NoError(t, err)
 	assert.NotEmpty(t, wcert)
 
@@ -224,7 +229,7 @@ func TestMemory_SignCsrNoCert(t *testing.T) {
 
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
-	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
+	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 
 	assert.Equal(t, "Invalid state: no certificate", err.Error())
 	assert.Empty(t, wcert)
@@ -235,7 +240,7 @@ func TestMemory_SignCsrErrorParsingSpiffeId(t *testing.T) {
 
 	wcsr := createWorkloadCSR(t, "spif://localhost")
 
-	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr})
+	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 
 	assert.Equal(t, "SPIFFE ID 'spif://localhost' is not prefixed with the spiffe:// scheme.", err.Error())
 	assert.Empty(t, wcert)
@@ -246,7 +251,7 @@ func TestMemory_SignCsrErrorInvalidTTL(t *testing.T) {
 
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
-	wcert, err := m.SignCsr(&ca.SignCsrRequest{Csr: wcsr, Ttl: -5})
+	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr, Ttl: -5})
 	assert.Equal(t, "Invalid TTL: -5", err.Error())
 	assert.Empty(t, wcert)
 }
@@ -276,14 +281,14 @@ func TestMemory_LoadCertificateInvalidCertFormat(t *testing.T) {
 	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
-	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
+	generateCsrResp, err := m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
 	require.NoError(t, err)
 
-	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
+	submitCSRResp, err := upca.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
 	require.NoError(t, err)
 
 	submitCSRResp.Cert = []byte{}
-	cert, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+	cert, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 
 	assert.Equal(t, "asn1: syntax error: sequence truncated", err.Error())
 	assert.Equal(t, &ca.LoadCertificateResponse{}, cert)
@@ -295,15 +300,15 @@ func TestMemory_LoadCertificateTooManyCerts(t *testing.T) {
 	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
-	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
+	generateCsrResp, err := m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
 	require.NoError(t, err)
 
-	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
+	submitCSRResp, err := upca.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
 	require.NoError(t, err)
 
 	oldCert := submitCSRResp.Cert
 	submitCSRResp.Cert = append(oldCert, oldCert...)
-	cert, err := m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+	cert, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 
 	assert.Equal(t, "asn1: syntax error: trailing data", err.Error())
 	assert.Equal(t, &ca.LoadCertificateResponse{}, cert)
@@ -342,26 +347,26 @@ func createWorkloadCSR(t *testing.T, spiffeID string) []byte {
 	return csr
 }
 
-func populateCert(t *testing.T) (m ca.ServerCa) {
+func populateCert(t *testing.T) (m ca.ServerCA) {
 	m = NewWithDefault()
 
 	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
-	generateCsrResp, err := m.GenerateCsr(&ca.GenerateCsrRequest{})
+	generateCsrResp, err := m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
 	require.NoError(t, err)
 
-	submitCSRResp, err := upca.SubmitCSR(&upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
+	submitCSRResp, err := upca.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: generateCsrResp.Csr})
 	require.NoError(t, err)
 
-	_, err = m.LoadCertificate(&ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+	_, err = m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 	require.NoError(t, err)
 
 	return m
 }
 
-func getRoots(t *testing.T, m ca.ServerCa) (roots *x509.CertPool) {
-	fetchResp, err := m.FetchCertificate(&ca.FetchCertificateRequest{})
+func getRoots(t *testing.T, m ca.ServerCA) (roots *x509.CertPool) {
+	fetchResp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
 	require.NoError(t, err)
 	rootCert, err := x509.ParseCertificate(fetchResp.StoredIntermediateCert)
 	require.NoError(t, err)
@@ -371,7 +376,7 @@ func getRoots(t *testing.T, m ca.ServerCa) (roots *x509.CertPool) {
 	return roots
 }
 
-func newUpCA(keyFilePath string, certFilePath string) (upstreamca.UpstreamCa, error) {
+func newUpCA(keyFilePath string, certFilePath string) (upstreamca.UpstreamCA, error) {
 	config := upca.Configuration{
 		TrustDomain:  "localhost",
 		KeyFilePath:  keyFilePath,
@@ -385,6 +390,6 @@ func newUpCA(keyFilePath string, certFilePath string) (upstreamca.UpstreamCa, er
 	}
 
 	m := upca.New()
-	_, err = m.Configure(pluginConfig)
+	_, err = m.Configure(ctx, pluginConfig)
 	return m, err
 }

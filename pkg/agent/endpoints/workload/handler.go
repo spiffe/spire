@@ -16,9 +16,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/api/workload"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // Handler implements the Workload API interface
@@ -35,14 +35,16 @@ const (
 )
 
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
-	md, ok := metadata.FromIncomingContext(stream.Context())
+	ctx := stream.Context()
+
+	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok || len(md["workload.spiffe.io"]) != 1 || md["workload.spiffe.io"][0] != "true" {
-		return grpc.Errorf(codes.InvalidArgument, "Security header missing from request")
+		return status.Errorf(codes.InvalidArgument, "Security header missing from request")
 	}
 
-	pid, err := h.callerPID(stream.Context())
+	pid, err := h.callerPID(ctx)
 	if err != nil {
-		return grpc.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
+		return status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
 	tLabels := []telemetry.Label{{workloadPid, string(pid)}}
@@ -56,7 +58,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 		T:       h.T,
 	}
 
-	selectors := attestor.New(&config).Attest(pid)
+	selectors := attestor.New(&config).Attest(ctx, pid)
 
 	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
@@ -76,7 +78,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send update to PID %v", time.Since(start).Seconds, pid)
 			}
-		case <-stream.Context().Done():
+		case <-ctx.Done():
 			return nil
 		}
 	}
@@ -84,12 +86,12 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 
 func (h *Handler) sendResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
 	if len(update.Entries) == 0 {
-		return grpc.Errorf(codes.PermissionDenied, "no identity issued")
+		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
 	resp, err := h.composeResponse(update)
 	if err != nil {
-		return grpc.Errorf(codes.Unavailable, "Could not serialize response: %v", err)
+		return status.Errorf(codes.Unavailable, "Could not serialize response: %v", err)
 	}
 
 	return stream.Send(resp)

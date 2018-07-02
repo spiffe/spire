@@ -1,7 +1,9 @@
 package attestor
 
 import (
+	"context"
 	"crypto/x509"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -22,10 +24,15 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+var (
+	ctx = context.Background()
+)
+
 type NodeAttestorTestSuite struct {
 	suite.Suite
 
-	ctrl *gomock.Controller
+	ctrl    *gomock.Controller
+	tempDir string
 
 	attestor     Attestor
 	catalog      *mock_catalog.MockCatalog
@@ -45,8 +52,9 @@ func (s *NodeAttestorTestSuite) SetupTest() {
 	s.nodeClient = mock_node.NewMockNodeClient(s.ctrl)
 
 	log, _ := test.NewNullLogger()
-	tempDir, err := ioutil.TempDir(os.TempDir(), "spire-test")
+	tempDir, err := ioutil.TempDir("", "spire-test")
 	s.Require().NoError(err)
+	s.tempDir = tempDir
 
 	s.config = &Config{
 		Catalog:         s.catalog,
@@ -63,9 +71,8 @@ func (s *NodeAttestorTestSuite) SetupTest() {
 	s.attestor = New(s.config)
 }
 
-func (s *NodeAttestorTestSuite) TeardownTest() {
-	os.Remove(s.config.SVIDCachePath)
-	os.Remove(s.config.BundleCachePath)
+func (s *NodeAttestorTestSuite) TearDownTest() {
+	os.RemoveAll(s.tempDir)
 	s.ctrl.Finish()
 }
 
@@ -73,11 +80,10 @@ func (s *NodeAttestorTestSuite) TestAttestLoadFromDisk() {
 	s.linkBundle()
 	s.linkAgentSVIDPath()
 
-	s.setCatalog()
-	s.setFetchAttestationDataResponse()
+	s.setCatalog(false)
 	s.setFetchPrivateKeyResponse()
 
-	as, err := s.attestor.Attest()
+	as, err := s.attestor.Attest(ctx)
 	s.Require().NoError(err)
 
 	_, key, err := util.LoadSVIDFixture()
@@ -92,12 +98,34 @@ func (s *NodeAttestorTestSuite) TestAttestLoadFromDisk() {
 
 func (s *NodeAttestorTestSuite) TestAttestNode() {
 	s.linkBundle()
-	s.setCatalog()
+	s.setCatalog(true)
 	s.setFetchPrivateKeyResponse()
 	s.setGenerateKeyPairResponse()
-	s.setFetchAttestationDataResponse()
-	s.setFetchBaseSVIDResponse()
-	as, err := s.attestor.Attest()
+	s.setFetchAttestationDataResponse(nil)
+	s.setAttestResponse(nil)
+	as, err := s.attestor.Attest(ctx)
+	s.Require().NoError(err)
+
+	svid, key, err := util.LoadSVIDFixture()
+	s.Require().NoError(err)
+
+	s.Assert().Equal(as.Key, key)
+	s.Assert().Equal(as.SVID, svid)
+}
+
+func (s *NodeAttestorTestSuite) TestAttestNodeWithChallengeResponse() {
+	challenges := []challengeResponse{
+		{challenge: "1+1", response: "2"},
+		{challenge: "5+7", response: "12"},
+	}
+
+	s.linkBundle()
+	s.setCatalog(true)
+	s.setFetchPrivateKeyResponse()
+	s.setGenerateKeyPairResponse()
+	s.setFetchAttestationDataResponse(challenges)
+	s.setAttestResponse(challenges)
+	as, err := s.attestor.Attest(ctx)
 	s.Require().NoError(err)
 
 	svid, key, err := util.LoadSVIDFixture()
@@ -110,12 +138,12 @@ func (s *NodeAttestorTestSuite) TestAttestNode() {
 func (s *NodeAttestorTestSuite) TestAttestJoinToken() {
 	s.config.JoinToken = "foobar"
 	s.linkBundle()
-	s.setCatalog()
+	s.setCatalog(false)
 	s.setFetchPrivateKeyResponse()
 	s.setGenerateKeyPairResponse()
-	s.setFetchBaseSVIDResponse()
+	s.setAttestResponse(nil)
 
-	as, err := s.attestor.Attest()
+	as, err := s.attestor.Attest(ctx)
 	s.Require().NoError(err)
 
 	svid, key, err := util.LoadSVIDFixture()
@@ -143,17 +171,35 @@ func (s *NodeAttestorTestSuite) linkBundle() {
 	s.Require().NoError(err)
 }
 
-func (s *NodeAttestorTestSuite) setFetchAttestationDataResponse() {
-	attestationData := &common.AttestedData{
+type challengeResponse struct {
+	challenge string
+	response  string
+}
+
+func (s *NodeAttestorTestSuite) setFetchAttestationDataResponse(challenges []challengeResponse) {
+	attestationData := &common.AttestationData{
 		Type: "join_token",
 		Data: []byte("foobar"),
 	}
+
 	fa := &nodeattestor.FetchAttestationDataResponse{
-		AttestedData: attestationData,
-		SpiffeId:     "spiffe://example.com/spire/agent/join_token/foobar",
+		AttestationData: attestationData,
+		SpiffeId:        "spiffe://example.com/spire/agent/join_token/foobar",
 	}
-	s.nodeAttestor.EXPECT().FetchAttestationData(gomock.Any()).
-		Return(fa, nil)
+
+	stream := mock_nodeattestor.NewMockNodeAttestor_FetchAttestationData_Stream(s.ctrl)
+	stream.EXPECT().Recv().Return(fa, nil)
+	for _, challenge := range challenges {
+		stream.EXPECT().Send(&nodeattestor.FetchAttestationDataRequest{
+			Challenge: []byte(challenge.challenge),
+		})
+		fa := *fa
+		fa.Response = []byte(challenge.response)
+		stream.EXPECT().Recv().Return(&fa, nil)
+	}
+	stream.EXPECT().CloseSend()
+	stream.EXPECT().Recv().Return(nil, io.EOF)
+	s.nodeAttestor.EXPECT().FetchAttestationData(gomock.Any()).Return(stream, nil)
 }
 
 func (s *NodeAttestorTestSuite) setFetchPrivateKeyResponse() {
@@ -163,7 +209,7 @@ func (s *NodeAttestorTestSuite) setFetchPrivateKeyResponse() {
 	keyDer, err := x509.MarshalECPrivateKey(key)
 	s.Require().NoError(err)
 
-	s.keyManager.EXPECT().FetchPrivateKey(gomock.Any()).Return(
+	s.keyManager.EXPECT().FetchPrivateKey(gomock.Any(), gomock.Any()).Return(
 		&keymanager.FetchPrivateKeyResponse{PrivateKey: keyDer}, nil)
 }
 
@@ -174,27 +220,41 @@ func (s *NodeAttestorTestSuite) setGenerateKeyPairResponse() {
 	keyDer, err := x509.MarshalECPrivateKey(key)
 	s.Require().NoError(err)
 
-	s.keyManager.EXPECT().GenerateKeyPair(gomock.Any()).Return(
+	s.keyManager.EXPECT().GenerateKeyPair(gomock.Any(), gomock.Any()).Return(
 		&keymanager.GenerateKeyPairResponse{PublicKey: svid.RawSubjectPublicKeyInfo, PrivateKey: keyDer}, nil)
 }
 
-func (s *NodeAttestorTestSuite) setCatalog() {
-	s.catalog.EXPECT().NodeAttestors().
-		Return([]nodeattestor.NodeAttestor{s.nodeAttestor})
+func (s *NodeAttestorTestSuite) setCatalog(usesNodeAttestor bool) {
+	if usesNodeAttestor {
+		s.catalog.EXPECT().NodeAttestors().
+			Return([]nodeattestor.NodeAttestor{s.nodeAttestor})
+	}
 	s.catalog.EXPECT().KeyManagers().
 		Return([]keymanager.KeyManager{s.keyManager})
 }
 
-func (s *NodeAttestorTestSuite) setFetchBaseSVIDResponse() {
+func (s *NodeAttestorTestSuite) setAttestResponse(challenges []challengeResponse) {
 	svid, _, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 
-	s.nodeClient.EXPECT().FetchBaseSVID(gomock.Any(), gomock.Any()).
-		Return(&node.FetchBaseSVIDResponse{SvidUpdate: &node.SvidUpdate{
+	stream := mock_node.NewMockNode_AttestClient(s.ctrl)
+	stream.EXPECT().Send(gomock.Any())
+	for _, challenge := range challenges {
+		stream.EXPECT().Send(gomock.Any())
+		stream.EXPECT().Recv().Return(&node.AttestResponse{
+			Challenge: []byte(challenge.challenge),
+		}, nil)
+	}
+	stream.EXPECT().Recv().Return(&node.AttestResponse{
+		SvidUpdate: &node.SvidUpdate{
 			Svids: map[string]*node.Svid{
 				"spiffe://example.com/spire/agent/join_token/foobar": &node.Svid{
 					SvidCert: svid.Raw,
 					Ttl:      300,
 				}},
 		}}, nil)
+	stream.EXPECT().CloseSend()
+	stream.EXPECT().Recv().Return(nil, io.EOF)
+
+	s.nodeClient.EXPECT().Attest(gomock.Any()).Return(stream, nil)
 }

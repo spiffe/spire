@@ -1,12 +1,10 @@
 package agent
 
 import (
-	"crypto/ecdsa"
-	"crypto/x509"
-	"errors"
+	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"path"
 	"runtime"
 	"sync"
@@ -18,71 +16,124 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	_ "golang.org/x/net/trace"
 	"google.golang.org/grpc"
-	tomb "gopkg.in/tomb.v2"
 )
 
 type Agent struct {
-	c   *Config
-	t   *tomb.Tomb
-	mtx *sync.RWMutex
-	tel telemetry.Sink
-
-	Catalog   catalog.Catalog
-	Manager   manager.Manager
-	Endpoints endpoints.Endpoints
+	c *Config
 }
 
 // Run the agent
 // This method initializes the agent, including its plugins,
 // and then blocks on the main event loop.
-func (a *Agent) Run() error {
+func (a *Agent) Run(ctx context.Context) error {
 	syscall.Umask(a.c.Umask)
 
-	a.t.Go(a.run)
-	return a.t.Wait()
-}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-func (a *Agent) Shutdown() {
-	a.t.Kill(nil)
-}
-
-func (a *Agent) run() error {
 	if a.c.ProfilingEnabled {
-		a.setupProfiling()
+		stopProfiling := a.setupProfiling(ctx)
+		defer stopProfiling()
 	}
 
-	err := a.startPlugins()
+	tel := telemetry.NewSink(&telemetry.SinkConfig{
+		Logger:      a.c.Log.WithField("subsystem_name", "telemetry").Writer(),
+		ServiceName: "spire_agent",
+		StopChan:    ctx.Done(),
+	})
+
+	cat := catalog.New(&catalog.Config{
+		PluginConfigs: a.c.PluginConfigs,
+		Log:           a.c.Log.WithField("subsystem_name", "catalog"),
+	})
+	defer cat.Stop()
+
+	if err := cat.Run(ctx); err != nil {
+		return err
+	}
+
+	as, err := a.attest(ctx, cat)
 	if err != nil {
 		return err
 	}
 
-	as, err := a.attest()
+	manager, err := a.newManager(ctx, tel, as)
 	if err != nil {
 		return err
 	}
 
-	err = a.startManager(as.SVID, as.Key, as.Bundle)
-	if err != nil {
-		return err
+	endpoints := a.newEndpoints(ctx, cat, tel, manager)
+
+	err = util.RunTasks(ctx,
+		manager.Run,
+		endpoints.ListenAndServe,
+	)
+	if err == context.Canceled {
+		err = nil
 	}
-
-	a.t.Go(a.startEndpoints)
-	a.t.Go(a.superviseManager)
-
-	<-a.t.Dying()
-	a.shutdown()
-	return nil
+	return err
 }
 
-func (a *Agent) startPlugins() error {
-	return a.Catalog.Run()
+func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(ctx)
+
+	if runtime.MemProfileRate == 0 {
+		a.c.Log.Warn("Memory profiles are disabled")
+	}
+	if a.c.ProfilingPort > 0 {
+		grpc.EnableTracing = true
+
+		server := http.Server{
+			Addr:    fmt.Sprintf("localhost:%d", a.c.ProfilingPort),
+			Handler: http.HandlerFunc(pprof.Index),
+		}
+
+		// kick off a goroutine to serve the pprof endpoints and one to
+		// gracefully shut down the server when profiling is being torn down
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := server.ListenAndServe(); err != nil {
+				a.c.Log.Warnf("unable to serve profiling server: %v", err)
+			}
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-ctx.Done()
+			server.Shutdown(ctx)
+		}()
+	}
+	if a.c.ProfilingFreq > 0 {
+		c := &profiling.Config{
+			Tag:                    "agent",
+			Frequency:              a.c.ProfilingFreq,
+			DebugLevel:             0,
+			RunGCBeforeHeapProfile: true,
+			Profiles:               a.c.ProfilingNames,
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := profiling.Run(ctx, c); err != nil {
+				a.c.Log.Warnf("Failed to run profiling: %v", err)
+			}
+		}()
+	}
+
+	return func() {
+		cancel()
+		wg.Wait()
+	}
 }
 
-func (a *Agent) attest() (*attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, cat catalog.Catalog) (*attestor.AttestationResult, error) {
 	config := attestor.Config{
-		Catalog:         a.Catalog,
+		Catalog:         cat,
 		JoinToken:       a.c.JoinToken,
 		TrustDomain:     a.c.TrustDomain,
 		TrustBundle:     a.c.TrustBundle,
@@ -91,113 +142,44 @@ func (a *Agent) attest() (*attestor.AttestationResult, error) {
 		Log:             a.c.Log.WithField("subsystem_name", "attestor"),
 		ServerAddress:   a.c.ServerAddress,
 	}
-	return attestor.New(&config).Attest()
+	return attestor.New(&config).Attest(ctx)
 }
 
-func (a *Agent) superviseManager() error {
-	// Wait until the manager stopped working.
-	<-a.Manager.Stopped()
-	err := a.Manager.Err()
-	a.mtx.Lock()
-	a.Manager = nil
-	a.mtx.Unlock()
-	return err
-}
-
-func (a *Agent) shutdown() {
-	if a.Endpoints != nil {
-		a.Endpoints.Shutdown()
-	}
-
-	if a.Manager != nil {
-		a.Manager.Shutdown()
-	}
-
-	if a.Catalog != nil {
-		a.Catalog.Stop()
-	}
-}
-
-func (a *Agent) setupProfiling() {
-	if runtime.MemProfileRate == 0 {
-		a.c.Log.Warn("Memory profiles are disabled")
-	}
-	if a.c.ProfilingPort > 0 {
-		grpc.EnableTracing = true
-		go func() {
-			addr := fmt.Sprintf("localhost:%d", a.c.ProfilingPort)
-			a.c.Log.Info(http.ListenAndServe(addr, nil))
-		}()
-	}
-	if a.c.ProfilingFreq > 0 {
-		c := &profiling.Config{
-			Tag:        "agent",
-			Frequency:  a.c.ProfilingFreq,
-			DebugLevel: 0,
-			Profiles:   a.c.ProfilingNames,
-		}
-		err := profiling.Start(c)
-		if err != nil {
-			a.c.Log.Error("Profiler failed to start: %v", err)
-			return
-		}
-		a.t.Go(a.stopProfiling)
-	}
-}
-
-func (a *Agent) stopProfiling() error {
-	<-a.t.Dying()
-	profiling.Stop()
-	return nil
-}
-
-func (a *Agent) startManager(svid *x509.Certificate, key *ecdsa.PrivateKey, bundle []*x509.Certificate) error {
-	a.mtx.Lock()
-	defer a.mtx.Unlock()
-
-	if a.Manager != nil {
-		return errors.New("cannot start cache manager, there is a manager instantiated already")
-	}
-
-	mgrConfig := &manager.Config{
-		SVID:            svid,
-		SVIDKey:         key,
-		Bundle:          bundle,
+func (a *Agent) newManager(ctx context.Context, tel telemetry.Sink, as *attestor.AttestationResult) (manager.Manager, error) {
+	config := &manager.Config{
+		SVID:            as.SVID,
+		SVIDKey:         as.Key,
+		Bundle:          as.Bundle,
 		TrustDomain:     a.c.TrustDomain,
 		ServerAddr:      a.c.ServerAddress,
 		Log:             a.c.Log.WithField("subsystem_name", "manager"),
-		Tel:             a.tel,
+		Tel:             tel,
 		BundleCachePath: a.bundleCachePath(),
 		SVIDCachePath:   a.agentSVIDPath(),
 	}
 
-	mgr, err := manager.New(mgrConfig)
+	mgr, err := manager.New(config)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	a.Manager = mgr
-	return a.Manager.Start()
+
+	if err := mgr.Initialize(ctx); err != nil {
+		return nil, err
+	}
+
+	return mgr, nil
 }
 
-func (a *Agent) startEndpoints() error {
+func (a *Agent) newEndpoints(ctx context.Context, cat catalog.Catalog, tel telemetry.Sink, mgr manager.Manager) endpoints.Server {
 	config := &endpoints.Config{
 		BindAddr: a.c.BindAddress,
-		Catalog:  a.Catalog,
-		Manager:  a.Manager,
+		Catalog:  cat,
+		Manager:  mgr,
 		Log:      a.c.Log.WithField("subsystem_name", "endpoints"),
-		Tel:      a.tel,
+		Tel:      tel,
 	}
 
-	e := endpoints.New(config)
-	err := e.Start()
-	if err != nil {
-		return err
-	}
-
-	a.mtx.Lock()
-	a.Endpoints = e
-	a.mtx.Unlock()
-	return a.Endpoints.Wait()
+	return endpoints.New(config)
 }
 
 func (a *Agent) bundleCachePath() string {

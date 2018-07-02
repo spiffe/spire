@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -8,7 +9,9 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/aws"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/gcp"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/jointoken"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/x509pop"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/unix"
 	"github.com/spiffe/spire/proto/agent/keymanager"
@@ -35,23 +38,25 @@ type Catalog interface {
 
 var (
 	supportedPlugins = map[string]goplugin.Plugin{
-		KeyManagerType:       &keymanager.KeyManagerPlugin{},
-		NodeAttestorType:     &nodeattestor.NodeAttestorPlugin{},
-		WorkloadAttestorType: &workloadattestor.WorkloadAttestorPlugin{},
+		KeyManagerType:       &keymanager.GRPCPlugin{},
+		NodeAttestorType:     &nodeattestor.GRPCPlugin{},
+		WorkloadAttestorType: &workloadattestor.GRPCPlugin{},
 	}
 
 	builtinPlugins = common.BuiltinPluginMap{
 		KeyManagerType: {
-			"disk":   disk.New(),
-			"memory": memory.New(),
+			"disk":   keymanager.NewBuiltIn(disk.New()),
+			"memory": keymanager.NewBuiltIn(memory.New()),
 		},
 		NodeAttestorType: {
-			"aws_iid":    aws.NewIID(),
-			"join_token": jointoken.New(),
+			"aws_iid":    nodeattestor.NewBuiltIn(aws.NewIID()),
+			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
+			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
+			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
 		},
 		WorkloadAttestorType: {
-			"k8s":  k8s.New(),
-			"unix": unix.New(),
+			"k8s":  workloadattestor.NewBuiltIn(k8s.New()),
+			"unix": workloadattestor.NewBuiltIn(unix.New()),
 		},
 	}
 )
@@ -86,11 +91,11 @@ func New(c *Config) Catalog {
 	}
 }
 
-func (c *catalog) Run() error {
+func (c *catalog) Run(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	err := c.com.Run()
+	err := c.com.Run(ctx)
 	if err != nil {
 		return err
 	}
@@ -108,11 +113,11 @@ func (c *catalog) Stop() {
 	return
 }
 
-func (c *catalog) Reload() error {
+func (c *catalog) Reload(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	err := c.com.Reload()
+	err := c.com.Reload(ctx)
 	if err != nil {
 		return err
 	}
@@ -127,11 +132,11 @@ func (c *catalog) Plugins() []*common.ManagedPlugin {
 	return c.com.Plugins()
 }
 
-func (c *catalog) Find(plugin common.Plugin) *common.ManagedPlugin {
+func (c *catalog) ConfigFor(plugin interface{}) (*common.PluginConfig, bool) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.com.Find(plugin)
+	return c.com.ConfigFor(plugin)
 }
 
 func (c *catalog) KeyManagers() []keymanager.KeyManager {

@@ -15,6 +15,8 @@ const (
 )
 
 func main() {
+	ctx := context.Background()
+
 	c, err := newRegistrationClient(serverAddr)
 	if err != nil {
 		panic(err)
@@ -23,7 +25,7 @@ func main() {
 	req := &registration.JoinToken{
 		Ttl: int32(^uint32(0) >> 1), // Max Int32
 	}
-	req, err = c.CreateJoinToken(context.TODO(), req)
+	req, err = c.CreateJoinToken(ctx, req)
 	if err != nil {
 		panic(err)
 	}

@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -84,33 +85,33 @@ func (p *IIDAttestorPlugin) spiffeID(awsAccountId, awsInstanceId string) *url.UR
 	return id
 }
 
-func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
-
-	var attestedData caws.IidAttestedData
-	err := json.Unmarshal(req.AttestedData.Data, &attestedData)
+func (p *IIDAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+	req, err := stream.Recv()
 	if err != nil {
-		err = caws.AttestationStepError("unmarshaling the attestation data", err)
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return err
+	}
+
+	var attestationData caws.IidAttestationData
+	err = json.Unmarshal(req.AttestationData.Data, &attestationData)
+	if err != nil {
+		return caws.AttestationStepError("unmarshaling the attestation data", err)
 	}
 
 	var doc caws.InstanceIdentityDocument
-	err = json.Unmarshal([]byte(attestedData.Document), &doc)
+	err = json.Unmarshal([]byte(attestationData.Document), &doc)
 	if err != nil {
-		err = caws.AttestationStepError("unmarshaling the IID", err)
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return caws.AttestationStepError("unmarshaling the IID", err)
 	}
 
 	if req.AttestedBefore {
-		err = caws.AttestationStepError("validating the IID", fmt.Errorf("the IID has been used and is no longer valid"))
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return caws.AttestationStepError("validating the IID", fmt.Errorf("the IID has been used and is no longer valid"))
 	}
 
-	docHash := sha256.Sum256([]byte(attestedData.Document))
+	docHash := sha256.Sum256([]byte(attestationData.Document))
 
-	sigBytes, err := base64.StdEncoding.DecodeString(attestedData.Signature)
+	sigBytes, err := base64.StdEncoding.DecodeString(attestationData.Signature)
 	if err != nil {
-		err = caws.AttestationStepError("base64 decoding the IID signature", err)
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return caws.AttestationStepError("base64 decoding the IID signature", err)
 	}
 
 	p.mtx.Lock()
@@ -118,8 +119,7 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 
 	err = rsa.VerifyPKCS1v15(p.awsCaCertPublicKey, crypto.SHA256, docHash[:], sigBytes)
 	if err != nil {
-		err = caws.AttestationStepError("verifying the cryptographic signature", err)
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return caws.AttestationStepError("verifying the cryptographic signature", err)
 	}
 
 	var awsSession *session.Session
@@ -139,8 +139,7 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 
 	result, err := ec2Client.DescribeInstances(query)
 	if err != nil {
-		err = caws.AttestationStepError("querying AWS via describe-instances", err)
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return caws.AttestationStepError("querying AWS via describe-instances", err)
 	}
 
 	instance := result.Reservations[0].Instances[0]
@@ -149,8 +148,7 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 
 	if ifaceZeroDeviceIndex != 0 {
 		innerErr := fmt.Errorf("DeviceIndex is %d", ifaceZeroDeviceIndex)
-		err = caws.AttestationStepError("verifying the EC2 instance's NetworkInterface[0].DeviceIndex is 0", innerErr)
-		return &nodeattestor.AttestResponse{Valid: false}, err
+		return caws.AttestationStepError("verifying the EC2 instance's NetworkInterface[0].DeviceIndex is 0", innerErr)
 	}
 
 	ifaceZeroAttachTime := instance.NetworkInterfaces[0].Attachment.AttachTime
@@ -167,8 +165,7 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 
 		if rootDeviceIndex == -1 {
 			innerErr := fmt.Errorf("could not locate a device mapping with name '%v'", instance.RootDeviceName)
-			err = caws.AttestationStepError("locating the root device block mapping", innerErr)
-			return &nodeattestor.AttestResponse{Valid: false}, err
+			return caws.AttestationStepError("locating the root device block mapping", innerErr)
 		}
 
 		rootDeviceAttachTime := instance.BlockDeviceMappings[rootDeviceIndex].Ebs.AttachTime
@@ -177,8 +174,7 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 
 		if attachTimeDisparitySeconds > maxSecondsBetweenDeviceAttachments {
 			innerErr := fmt.Errorf("root BlockDeviceMapping and NetworkInterface[0] attach times differ by %d seconds", attachTimeDisparitySeconds)
-			err = caws.AttestationStepError("checking the disparity device attach times", innerErr)
-			return &nodeattestor.AttestResponse{Valid: false}, err
+			return caws.AttestationStepError("checking the disparity device attach times", innerErr)
 		}
 	}
 
@@ -187,10 +183,10 @@ func (p *IIDAttestorPlugin) Attest(req *nodeattestor.AttestRequest) (*nodeattest
 		BaseSPIFFEID: p.spiffeID(doc.AccountId, doc.InstanceId).String(),
 	}
 
-	return resp, nil
+	return stream.Send(resp)
 }
 
-func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -241,11 +237,11 @@ func (p *IIDAttestorPlugin) Configure(req *spi.ConfigureRequest) (*spi.Configure
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*IIDAttestorPlugin) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewIID() nodeattestor.NodeAttestor {
+func NewIID() nodeattestor.Plugin {
 	return &IIDAttestorPlugin{
 		mtx: &sync.Mutex{},
 	}

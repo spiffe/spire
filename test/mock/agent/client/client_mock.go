@@ -5,10 +5,11 @@
 package mock_client
 
 import (
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	client "github.com/spiffe/spire/pkg/agent/client"
 	node "github.com/spiffe/spire/proto/api/node"
-	reflect "reflect"
 )
 
 // MockClient is a mock of Client interface
@@ -35,7 +36,7 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // FetchUpdates mocks base method
-func (m *MockClient) FetchUpdates(arg0 *node.FetchSVIDRequest) (*client.Update, error) {
+func (m *MockClient) FetchUpdates(arg0 *node.FetchX509SVIDRequest) (*client.Update, error) {
 	ret := m.ctrl.Call(m, "FetchUpdates", arg0)
 	ret0, _ := ret[0].(*client.Update)
 	ret1, _ := ret[1].(error)

@@ -1,6 +1,8 @@
 package jointoken
 
 import (
+	"context"
+	"io"
 	"testing"
 
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
@@ -18,13 +20,49 @@ const (
 	spiffeId = "spiffe://example.com/spire/agent/join_token/foobar"
 )
 
-func PluginGenerator(config string) (nodeattestor.NodeAttestor, *spi.ConfigureResponse, error) {
+var (
+	ctx = context.Background()
+)
+
+type fakeFetchAttestationDataStream struct {
+	req  *nodeattestor.FetchAttestationDataRequest
+	resp *nodeattestor.FetchAttestationDataResponse
+}
+
+func newFakeFetchAttestationStream() *fakeFetchAttestationDataStream {
+	return &fakeFetchAttestationDataStream{
+		req: new(nodeattestor.FetchAttestationDataRequest),
+	}
+}
+
+func (f *fakeFetchAttestationDataStream) Context() context.Context {
+	return ctx
+}
+
+func (f *fakeFetchAttestationDataStream) Recv() (*nodeattestor.FetchAttestationDataRequest, error) {
+	req := f.req
+	f.req = nil
+	if req == nil {
+		return nil, io.EOF
+	}
+	return req, nil
+}
+
+func (f *fakeFetchAttestationDataStream) Send(resp *nodeattestor.FetchAttestationDataResponse) error {
+	if f.resp != nil {
+		return io.EOF
+	}
+	f.resp = resp
+	return nil
+}
+
+func PluginGenerator(config string) (nodeattestor.Plugin, *spi.ConfigureResponse, error) {
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
 
 	p := New()
-	r, err := p.Configure(pluginConfig)
+	r, err := p.Configure(ctx, pluginConfig)
 	return p, r, err
 }
 
@@ -39,21 +77,22 @@ func TestJoinToken_FetchAttestationData_TokenPresent(t *testing.T) {
 	assert := assert.New(t)
 
 	// Build expected response
-	attestationData := &common.AttestedData{
+	attestationData := &common.AttestationData{
 		Type: "join_token",
 		Data: []byte(token),
 	}
 	expectedResp := &nodeattestor.FetchAttestationDataResponse{
-		AttestedData: attestationData,
-		SpiffeId:     spiffeId,
+		AttestationData: attestationData,
+		SpiffeId:        spiffeId,
 	}
 
 	p, _, err := PluginGenerator(goodConfig)
 	assert.Nil(err)
 
-	resp, err := p.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
+	stream := newFakeFetchAttestationStream()
+	assert.NoError(p.FetchAttestationData(stream))
 	assert.Nil(err)
-	assert.Equal(expectedResp, resp)
+	assert.Equal(expectedResp, stream.resp)
 }
 
 func TestJoinToken_FetchAttestationData_TokenNotPresent(t *testing.T) {
@@ -61,13 +100,13 @@ func TestJoinToken_FetchAttestationData_TokenNotPresent(t *testing.T) {
 	p, _, err := PluginGenerator(badConfig)
 	assert.Nil(err)
 
-	_, err = p.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
-	assert.NotNil(err)
+	stream := newFakeFetchAttestationStream()
+	assert.NotNil(p.FetchAttestationData(stream))
 }
 
 func TestJoinToken_GetPluginInfo(t *testing.T) {
 	plugin := New()
-	data, e := plugin.GetPluginInfo(&spi.GetPluginInfoRequest{})
+	data, e := plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	assert.Nil(t, e)
 	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
 }
@@ -75,9 +114,10 @@ func TestJoinToken_GetPluginInfo(t *testing.T) {
 func TestJoinToken_race(t *testing.T) {
 	p := New()
 	testutil.RaceTest(t, func(t *testing.T) {
-		p.Configure(&spi.ConfigureRequest{
+		p.Configure(ctx, &spi.ConfigureRequest{
 			Configuration: goodConfig,
 		})
-		p.FetchAttestationData(&nodeattestor.FetchAttestationDataRequest{})
+		stream := newFakeFetchAttestationStream()
+		p.FetchAttestationData(stream)
 	})
 }

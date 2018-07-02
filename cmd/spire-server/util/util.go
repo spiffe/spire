@@ -17,7 +17,7 @@ const (
 	DefaultServerAddr = "localhost:8081"
 )
 
-func NewRegistrationClient(address string) (registration.RegistrationClient, error) {
+func NewRegistrationClient(ctx context.Context, address string) (registration.RegistrationClient, error) {
 	// TODO: Pass a bundle in here
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
@@ -35,7 +35,10 @@ func NewRegistrationClient(address string) (registration.RegistrationClient, err
 		return nil, err
 	}
 
-	conn, err := dialer.Dial(context.TODO(), addr)
+	conn, err := dialer.Dial(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
 	return registration.NewRegistrationClient(conn), err
 }
 

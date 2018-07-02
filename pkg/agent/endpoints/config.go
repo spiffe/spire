@@ -9,8 +9,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 
 	"google.golang.org/grpc"
-
-	tomb "gopkg.in/tomb.v2"
 )
 
 type Config struct {
@@ -28,6 +26,5 @@ type Config struct {
 func New(c *Config) *endpoints {
 	return &endpoints{
 		c: c,
-		t: new(tomb.Tomb),
 	}
 }

@@ -10,7 +10,7 @@ type InstanceIdentityDocument struct {
 	Region     string `json:"region"`
 }
 
-type IidAttestedData struct {
+type IidAttestationData struct {
 	Document  string `json:"document"`
 	Signature string `json:"signature"`
 }

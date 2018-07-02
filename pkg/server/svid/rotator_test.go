@@ -1,6 +1,7 @@
 package svid
 
 import (
+	"context"
 	"crypto/x509"
 	"net/url"
 	"testing"
@@ -14,6 +15,11 @@ import (
 	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
+	tomb "gopkg.in/tomb.v2"
+)
+
+var (
+	ctx = context.Background()
 )
 
 func TestRotator(t *testing.T) {
@@ -25,7 +31,7 @@ type RotatorTestSuite struct {
 
 	ctrl *gomock.Controller
 
-	ca      *mock_ca.MockServerCa
+	ca      *mock_ca.MockServerCA
 	catalog *mock_catalog.MockCatalog
 
 	r *rotator
@@ -33,7 +39,7 @@ type RotatorTestSuite struct {
 
 func (s *RotatorTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
-	s.ca = mock_ca.NewMockServerCa(s.ctrl)
+	s.ca = mock_ca.NewMockServerCA(s.ctrl)
 	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 
 	log, _ := test.NewNullLogger()
@@ -51,16 +57,16 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.r = NewRotator(c)
 }
 
-func (s *RotatorTestSuite) TeardownTest() {
+func (s *RotatorTestSuite) TearDownTest() {
 	s.ctrl.Finish()
 }
 
-func (s *RotatorTestSuite) TestStart() {
+func (s *RotatorTestSuite) TestInitialize() {
 	cert, _, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 	s.expectSVIDRotation(cert)
 
-	err = s.r.Start()
+	err = s.r.Initialize(ctx)
 	s.Require().NoError(err)
 
 	stream := s.r.Subscribe()
@@ -71,8 +77,6 @@ func (s *RotatorTestSuite) TestStart() {
 	// Should be equal to the fixture
 	state := stream.Value().(State)
 	s.Assert().Equal(cert, state.SVID)
-
-	s.r.Stop()
 }
 
 func (s *RotatorTestSuite) TestRun() {
@@ -99,16 +103,24 @@ func (s *RotatorTestSuite) TestRun() {
 	s.r.c.Interval = 10 * time.Millisecond
 
 	stream := s.r.Subscribe()
-	go s.r.run()
+	s.Require().NoError(s.r.Initialize(ctx))
+	ctx, cancel := context.WithCancel(ctx)
+	tomb := new(tomb.Tomb)
+	tomb.Go(func() error {
+		return s.r.Run(ctx)
+	})
+	defer func() {
+		cancel()
+		s.Require().NoError(tomb.Wait())
+	}()
+
 	select {
-	case <-time.NewTicker(5 * time.Second).C:
+	case <-time.NewTimer(5 * time.Second).C:
 		s.T().Error("SVID rotation timeout reached")
 	case <-stream.Changes():
 		state = stream.Next().(State)
 		s.Assert().Equal(goodCert, state.SVID)
 	}
-
-	s.r.Stop()
 }
 
 func (s *RotatorTestSuite) TestShouldRotate() {
@@ -143,7 +155,7 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 
 	stream := s.r.Subscribe()
 	s.expectSVIDRotation(cert)
-	err = s.r.rotateSVID()
+	err = s.r.rotateSVID(ctx)
 	s.Assert().NoError(err)
 	s.Require().True(stream.HasNext())
 
@@ -157,11 +169,7 @@ func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 	signedCert := &ca.SignCsrResponse{
 		SignedCertificate: cert.Raw,
 	}
-	caCert := &ca.FetchCertificateResponse{
-		StoredIntermediateCert: cert.Raw,
-	}
 
-	s.catalog.EXPECT().CAs().Return([]ca.ServerCa{s.ca})
-	s.ca.EXPECT().SignCsr(gomock.Any()).Return(signedCert, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any()).Return(caCert, nil)
+	s.catalog.EXPECT().CAs().Return([]ca.ServerCA{s.ca})
+	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(signedCert, nil)
 }

@@ -8,8 +8,6 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/mock/proto/api/registration"
 	"github.com/stretchr/testify/suite"
-
-	"golang.org/x/net/context"
 )
 
 type ShowTestSuite struct {
@@ -47,7 +45,7 @@ func (s *ShowTestSuite) TestRunWithEntryID() {
 
 	req := &registration.RegistrationEntryID{Id: entryID}
 	resp := s.registrationEntries(1)[0]
-	s.mockClient.EXPECT().FetchEntry(context.TODO(), req).Return(resp, nil)
+	s.mockClient.EXPECT().FetchEntry(gomock.Any(), req).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
 	s.Assert().Equal(s.registrationEntries(1), s.cli.Entries)
@@ -63,7 +61,7 @@ func (s *ShowTestSuite) TestRunWithParentID() {
 
 	req := &registration.ParentID{Id: entries[0].ParentId}
 	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListByParentID(context.TODO(), req).Return(resp, nil)
+	s.mockClient.EXPECT().ListByParentID(gomock.Any(), req).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
 	s.Assert().Equal(entries, s.cli.Entries)
@@ -80,7 +78,7 @@ func (s *ShowTestSuite) TestRunWithSpiffeID() {
 
 	req := &registration.SpiffeID{Id: entry.SpiffeId}
 	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListBySpiffeID(context.TODO(), req).Return(resp, nil)
+	s.mockClient.EXPECT().ListBySpiffeID(gomock.Any(), req).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
 	s.Assert().Equal(entries, s.cli.Entries)
@@ -96,7 +94,7 @@ func (s *ShowTestSuite) TestRunWithSelector() {
 
 	req := &common.Selector{Type: "foo", Value: "bar"}
 	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListBySelector(context.TODO(), req).Return(resp, nil)
+	s.mockClient.EXPECT().ListBySelector(gomock.Any(), req).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
 	s.Assert().Equal(entries, s.cli.Entries)
@@ -114,11 +112,11 @@ func (s *ShowTestSuite) TestRunWithSelectors() {
 
 	req := &common.Selector{Type: "foo", Value: "bar"}
 	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListBySelector(context.TODO(), req).Return(resp, nil)
+	s.mockClient.EXPECT().ListBySelector(gomock.Any(), req).Return(resp, nil)
 
 	req = &common.Selector{Type: "bar", Value: "baz"}
 	resp.Entries = entries[1:2]
-	s.mockClient.EXPECT().ListBySelector(context.TODO(), req).Return(resp, nil)
+	s.mockClient.EXPECT().ListBySelector(gomock.Any(), req).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
 	s.Assert().Equal(entries[1:2], s.cli.Entries)
@@ -136,11 +134,11 @@ func (s *ShowTestSuite) TestRunWithParentIDAndSelectors() {
 
 	req1 := &registration.ParentID{Id: entries[0].ParentId}
 	resp := &common.RegistrationEntries{Entries: entries}
-	s.mockClient.EXPECT().ListByParentID(context.TODO(), req1).Return(resp, nil)
+	s.mockClient.EXPECT().ListByParentID(gomock.Any(), req1).Return(resp, nil)
 
 	req2 := &common.Selector{Type: "bar", Value: "baz"}
 	resp = &common.RegistrationEntries{Entries: entries[0:1]}
-	s.mockClient.EXPECT().ListBySelector(context.TODO(), req2).Return(resp, nil)
+	s.mockClient.EXPECT().ListBySelector(gomock.Any(), req2).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
 	s.Assert().Equal(entries[0:1], s.cli.Entries)

@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha1"
@@ -57,7 +58,7 @@ type diskPlugin struct {
 	mtx *sync.RWMutex
 }
 
-func (m *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (m *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -81,11 +82,11 @@ func (m *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespons
 	block, rest := pem.Decode(keyPEM)
 
 	if block == nil {
-		return nil, errors.New("Invalid cert format")
+		return nil, errors.New("Invalid key format")
 	}
 
 	if len(rest) > 0 {
-		return nil, errors.New("Invalid cert format: too many certs")
+		return nil, errors.New("Invalid key format: too many keys")
 	}
 
 	key, err := x509.ParseECPrivateKey(block.Bytes)
@@ -109,6 +110,9 @@ func (m *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespons
 	}
 
 	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
 
 	// Set local vars from config struct
 	m.mtx.Lock()
@@ -124,11 +128,11 @@ func (m *diskPlugin) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespons
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*diskPlugin) GetPluginInfo(req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*diskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (m *diskPlugin) SubmitCSR(request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+func (m *diskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -233,7 +237,7 @@ func ParseSpiffeCsr(csrDER []byte, trustDomain string) (csr *x509.CertificateReq
 	return csr, nil
 }
 
-func New() (m upstreamca.UpstreamCa) {
+func New() (m upstreamca.Plugin) {
 	return &diskPlugin{
 		mtx: &sync.RWMutex{},
 	}

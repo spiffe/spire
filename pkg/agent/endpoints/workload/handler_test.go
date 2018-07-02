@@ -68,7 +68,7 @@ func TestWorkloadServer(t *testing.T) {
 	suite.Run(t, new(HandlerTestSuite))
 }
 
-func (s *HandlerTestSuite) TeardownTest() {
+func (s *HandlerTestSuite) TearDownTest() {
 	s.ctrl.Finish()
 }
 
@@ -82,7 +82,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	header := metadata.Pairs("workload.spiffe.io", "true")
 	ctx := context.Background()
 	ctx = metadata.NewIncomingContext(ctx, header)
-	s.stream.EXPECT().Context().Return(ctx).Times(2)
+	s.stream.EXPECT().Context().Return(ctx)
 	err = s.h.FetchX509SVID(nil, s.stream)
 	s.Assert().Error(err)
 
@@ -91,19 +91,19 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 			PID: 1,
 		},
 	}
-	ctx = peer.NewContext(context.Background(), p)
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = peer.NewContext(ctx, p)
 	ctx = metadata.NewIncomingContext(ctx, header)
-	ctx, cancel := context.WithCancel(ctx)
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
 	subscriber := mock_cache.NewMockSubscriber(s.ctrl)
 	subscription := make(chan *cache.WorkloadUpdate)
 	subscriber.EXPECT().Updates().Return(subscription).AnyTimes()
 	subscriber.EXPECT().Finish()
 	result := make(chan error)
-	s.stream.EXPECT().Context().Return(ctx).Times(4)
-	s.catalog.EXPECT().Find(gomock.Any()).AnyTimes()
+	s.stream.EXPECT().Context().Return(ctx).AnyTimes()
+	s.catalog.EXPECT().ConfigFor(gomock.Any()).AnyTimes()
 	s.catalog.EXPECT().WorkloadAttestors().Return([]workloadattestor.WorkloadAttestor{s.attestor1})
-	s.attestor1.EXPECT().Attest(&workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor1.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	s.stream.EXPECT().Send(gomock.Any())
 	go func() { result <- s.h.FetchX509SVID(nil, s.stream) }()
@@ -112,11 +112,11 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	select {
 	case err := <-result:
 		s.T().Errorf("hander exited immediately: %v", err)
-	case <-time.NewTicker(1 * time.Millisecond).C:
+	case <-time.NewTimer(1 * time.Millisecond).C:
 	}
 
 	select {
-	case <-time.NewTicker(1 * time.Second).C:
+	case <-time.NewTimer(1 * time.Second).C:
 		s.T().Error("timeout sending update to workload handler")
 	case subscription <- s.workloadUpdate():
 	}
@@ -125,7 +125,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	select {
 	case err := <-result:
 		s.Assert().NoError(err)
-	case <-time.NewTicker(1 * time.Second).C:
+	case <-time.NewTimer(1 * time.Second).C:
 		s.T().Error("workload handler hung, shutdown timer exceeded")
 	}
 }
