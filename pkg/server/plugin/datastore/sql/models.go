@@ -67,8 +67,6 @@ type Selector struct {
 }
 
 func migrateDB(db *gorm.DB) {
-	db.LogMode(true)
-
 	db.AutoMigrate(&Bundle{}, &CACert{}, &AttestedNodeEntry{},
 		&NodeResolverMapEntry{}, &RegisteredEntry{}, &JoinToken{},
 		&Selector{})
