@@ -16,7 +16,7 @@ import (
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/test/mock/agent/catalog"
+	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/mock/proto/agent/keymanager"
 	"github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/test/mock/proto/api/node"
@@ -28,6 +28,10 @@ var (
 	ctx = context.Background()
 )
 
+func TestNodeAttestorTestSuite(t *testing.T) {
+	suite.Run(t, new(NodeAttestorTestSuite))
+}
+
 type NodeAttestorTestSuite struct {
 	suite.Suite
 
@@ -35,7 +39,7 @@ type NodeAttestorTestSuite struct {
 	tempDir string
 
 	attestor     Attestor
-	catalog      *mock_catalog.MockCatalog
+	catalog      *fakeagentcatalog.Catalog
 	nodeAttestor *mock_nodeattestor.MockNodeAttestor
 	keyManager   *mock_keymanager.MockKeyManager
 	nodeClient   *mock_node.MockNodeClient
@@ -48,8 +52,9 @@ func (s *NodeAttestorTestSuite) SetupTest() {
 
 	s.nodeAttestor = mock_nodeattestor.NewMockNodeAttestor(s.ctrl)
 	s.keyManager = mock_keymanager.NewMockKeyManager(s.ctrl)
-	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 	s.nodeClient = mock_node.NewMockNodeClient(s.ctrl)
+
+	s.catalog = fakeagentcatalog.New()
 
 	log, _ := test.NewNullLogger()
 	tempDir, err := ioutil.TempDir("", "spire-test")
@@ -153,10 +158,6 @@ func (s *NodeAttestorTestSuite) TestAttestJoinToken() {
 	s.Assert().Equal(as.SVID, svid)
 }
 
-func TestNodeAttestorTestSuite(t *testing.T) {
-	suite.Run(t, new(NodeAttestorTestSuite))
-}
-
 func (s *NodeAttestorTestSuite) linkAgentSVIDPath() {
 	err := os.Symlink(
 		path.Join(util.ProjectRoot(), "test/fixture/certs/agent_svid.der"),
@@ -226,11 +227,11 @@ func (s *NodeAttestorTestSuite) setGenerateKeyPairResponse() {
 
 func (s *NodeAttestorTestSuite) setCatalog(usesNodeAttestor bool) {
 	if usesNodeAttestor {
-		s.catalog.EXPECT().NodeAttestors().
-			Return([]nodeattestor.NodeAttestor{s.nodeAttestor})
+		s.catalog.SetNodeAttestors(s.nodeAttestor)
+	} else {
+		s.catalog.SetNodeAttestors(nil)
 	}
-	s.catalog.EXPECT().KeyManagers().
-		Return([]keymanager.KeyManager{s.keyManager})
+	s.catalog.SetKeyManagers(s.keyManager)
 }
 
 func (s *NodeAttestorTestSuite) setAttestResponse(challenges []challengeResponse) {
