@@ -3,6 +3,7 @@ package attestor
 import (
 	"context"
 	"errors"
+	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
@@ -22,6 +23,10 @@ var (
 	ctx = context.Background()
 )
 
+func TestWorkloadAttestor(t *testing.T) {
+	suite.Run(t, new(WorkloadAttestorTestSuite))
+}
+
 type WorkloadAttestorTestSuite struct {
 	suite.Suite
 
@@ -37,16 +42,17 @@ type WorkloadAttestorTestSuite struct {
 func (s *WorkloadAttestorTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 
+	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(s.ctrl)
 	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(s.ctrl)
 
 	log, _ := test.NewNullLogger()
 
-	s.attestor.c = &Config{
+	s.attestor = newAttestor(&Config{
 		Catalog: s.catalog,
 		L:       log,
 		T:       telemetry.Blackhole{},
-	}
+	})
 }
 
 func (s *WorkloadAttestorTestSuite) TearDownTest() {
@@ -86,7 +92,7 @@ func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
 	sel := []*common.Selector{{Type: "foo", Value: "bar"}}
 	resp := &workloadattestor.AttestResponse{Selectors: sel}
 	s.attestor1.EXPECT().Attest(gomock.Any(), req).Return(resp, nil)
-	s.catalog.EXPECT().ConfigFor(gomock.Any()).AnyTimes()
+	s.catalog.EXPECT().ConfigFor(gomock.Any()).Return(nil, false)
 
 	timeout := time.NewTicker(5 * time.Millisecond)
 	go s.attestor.invokeAttestor(ctx, s.attestor1, 1, sChan, errChan)
@@ -102,7 +108,7 @@ func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
 	findResp := &cc.PluginConfig{
 		PluginName: "foo",
 	}
-	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(findResp)
+	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(findResp, true)
 	s.attestor1.EXPECT().Attest(gomock.Any(), req).Return(nil, errors.New("i'm an error"))
 	go s.attestor.invokeAttestor(ctx, s.attestor1, 1, sChan, errChan)
 	select {
@@ -118,9 +124,9 @@ func (s *WorkloadAttestorTestSuite) TestAttestorName() {
 	resp := &cc.PluginConfig{
 		PluginName: "foo",
 	}
-	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(resp)
+	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(resp, true)
 	s.Assert().Equal("foo", s.attestor.attestorName(s.attestor1))
 
-	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(nil)
+	s.catalog.EXPECT().ConfigFor(s.attestor1).Return(nil, false)
 	s.Assert().Equal(unknownName, s.attestor.attestorName(s.attestor1))
 }
