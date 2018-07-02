@@ -33,7 +33,7 @@ type WorkloadAttestorTestSuite struct {
 	ctrl *gomock.Controller
 
 	attestor    *attestor
-	expectation *node.SvidUpdate
+	expectation *node.X509SVIDUpdate
 	attestor1   *mock_workloadattestor.MockWorkloadAttestor
 	attestor2   *mock_workloadattestor.MockWorkloadAttestor
 }

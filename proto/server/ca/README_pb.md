@@ -14,14 +14,14 @@
   
 
 - [ca.proto](#ca.proto)
-    - [FetchCertificateRequest](#spire.server.ca.FetchCertificateRequest)
-    - [FetchCertificateResponse](#spire.server.ca.FetchCertificateResponse)
     - [GenerateCsrRequest](#spire.server.ca.GenerateCsrRequest)
     - [GenerateCsrResponse](#spire.server.ca.GenerateCsrResponse)
     - [LoadCertificateRequest](#spire.server.ca.LoadCertificateRequest)
     - [LoadCertificateResponse](#spire.server.ca.LoadCertificateResponse)
-    - [SignCsrRequest](#spire.server.ca.SignCsrRequest)
-    - [SignCsrResponse](#spire.server.ca.SignCsrResponse)
+    - [SignJwtSvidRequest](#spire.server.ca.SignJwtSvidRequest)
+    - [SignJwtSvidResponse](#spire.server.ca.SignJwtSvidResponse)
+    - [SignX509SvidCsrRequest](#spire.server.ca.SignX509SvidCsrRequest)
+    - [SignX509SvidCsrResponse](#spire.server.ca.SignX509SvidCsrResponse)
   
   
   
@@ -119,31 +119,6 @@ Represents the plugin metadata.
 
 
 
-<a name="spire.server.ca.FetchCertificateRequest"/>
-
-### FetchCertificateRequest
-Represents an empty request.
-
-
-
-
-
-
-<a name="spire.server.ca.FetchCertificateResponse"/>
-
-### FetchCertificateResponse
-Represents a response with a stored intermediate certificate.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| storedIntermediateCert | [bytes](#bytes) |  | Stored intermediate certificate. |
-
-
-
-
-
-
 <a name="spire.server.ca.GenerateCsrRequest"/>
 
 ### GenerateCsrRequest
@@ -194,9 +169,41 @@ Represents an empty response.
 
 
 
-<a name="spire.server.ca.SignCsrRequest"/>
+<a name="spire.server.ca.SignJwtSvidRequest"/>
 
-### SignCsrRequest
+### SignJwtSvidRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  | SPIFFE ID to embed in the subject claim of the JWT |
+| ttl | [int32](#int32) |  | token time-to-live (in seconds) |
+| audience | [string](#string) | repeated | token audience |
+
+
+
+
+
+
+<a name="spire.server.ca.SignJwtSvidResponse"/>
+
+### SignJwtSvidResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| signed_jwt | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.ca.SignX509SvidCsrRequest"/>
+
+### SignX509SvidCsrRequest
 Represents a request with a certificate signing request.
 
 
@@ -210,15 +217,15 @@ Represents a request with a certificate signing request.
 
 
 
-<a name="spire.server.ca.SignCsrResponse"/>
+<a name="spire.server.ca.SignX509SvidCsrResponse"/>
 
-### SignCsrResponse
+### SignX509SvidCsrResponse
 Represents a response with a signed certificate.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| signedCertificate | [bytes](#bytes) |  | Signed certificate. |
+| signed_certificate | [bytes](#bytes) |  | Signed certificate. |
 
 
 
@@ -238,9 +245,9 @@ Represents a response with a signed certificate.
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| SignCsr | [SignCsrRequest](#spire.server.ca.SignCsrRequest) | [SignCsrResponse](#spire.server.ca.SignCsrRequest) | Interface will take in a CSR and sign it with the stored intermediate certificate. |
+| SignX509SvidCsr | [SignX509SvidCsrRequest](#spire.server.ca.SignX509SvidCsrRequest) | [SignX509SvidCsrResponse](#spire.server.ca.SignX509SvidCsrRequest) | SignX509SvidCsr will take in a CSR and sign it with the stored intermediate certificate. |
+| SignJwtSvid | [SignJwtSvidRequest](#spire.server.ca.SignJwtSvidRequest) | [SignJwtSvidResponse](#spire.server.ca.SignJwtSvidRequest) | SignJwtSvid will sign a JWT-A-SVID with the stored intermediate certificate. |
 | GenerateCsr | [GenerateCsrRequest](#spire.server.ca.GenerateCsrRequest) | [GenerateCsrResponse](#spire.server.ca.GenerateCsrRequest) | Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. |
-| FetchCertificate | [FetchCertificateRequest](#spire.server.ca.FetchCertificateRequest) | [FetchCertificateResponse](#spire.server.ca.FetchCertificateRequest) | Used to read the stored Intermediate Server cert. |
 | LoadCertificate | [LoadCertificateRequest](#spire.server.ca.LoadCertificateRequest) | [LoadCertificateResponse](#spire.server.ca.LoadCertificateRequest) | Used for setting/storing the signed intermediate certificate. |
 | Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
 | GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin. |

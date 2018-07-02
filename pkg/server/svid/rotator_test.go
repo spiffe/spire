@@ -167,9 +167,9 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 // expectSVIDRotation sets the appropriate expectations for an SVID rotation, and returns
 // the the provided certificate to the CA caller
 func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
-	signedCert := &ca.SignCsrResponse{
+	signedCert := &ca.SignX509SvidCsrResponse{
 		SignedCertificate: cert.Raw,
 	}
 
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(signedCert, nil)
+	s.ca.EXPECT().SignX509SvidCsr(gomock.Any(), gomock.Any()).Return(signedCert, nil)
 }

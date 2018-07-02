@@ -11,7 +11,7 @@ option go_package = "ca";
 import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
 
 /** Represents a request with a certificate signing request. */
-message SignCsrRequest {
+message SignX509SvidCsrRequest {
     /** Certificate signing request. */
     bytes csr = 1;
     /** TTL */
@@ -19,9 +19,9 @@ message SignCsrRequest {
 }
 
 /** Represents a response with a signed certificate. */
-message SignCsrResponse {
+message SignX509SvidCsrResponse {
     /** Signed certificate. */
-    bytes signedCertificate = 1;
+    bytes signed_certificate = 1;
 }
 
 /** Represents an empty request. */
@@ -34,14 +34,17 @@ message GenerateCsrResponse {
     bytes csr = 1;
 }
 
-/** Represents an empty request. */
-message FetchCertificateRequest {
+message SignJwtSvidRequest {
+    /** SPIFFE ID to embed in the subject claim of the JWT */
+    string spiffe_id = 1;
+    /** token time-to-live (in seconds) */
+    int32 ttl = 2;
+    /** token audience */
+    repeated string audience = 3;
 }
 
-/** Represents a response with a stored intermediate certificate. */
-message FetchCertificateResponse {
-    /** Stored intermediate certificate. */
-    bytes storedIntermediateCert = 1;
+message SignJwtSvidResponse {
+    string signed_jwt = 1;
 }
 
 /** Represents a request with a signed intermediate certificate. */
@@ -55,17 +58,17 @@ message LoadCertificateResponse {
 }
 
 service ServerCA {
-    /** Interface will take in a CSR and sign it with the stored intermediate certificate. */
-    rpc SignCsr(SignCsrRequest) returns (SignCsrResponse);
+    /** SignX509SvidCsr will take in a CSR and sign it with the stored intermediate certificate. */
+    rpc SignX509SvidCsr(SignX509SvidCsrRequest) returns (SignX509SvidCsrResponse);
+    /** SignJwtSvid will sign a JWT-A-SVID with the stored intermediate certificate. */
+    rpc SignJwtSvid(SignJwtSvidRequest) returns (SignJwtSvidResponse);
     /** Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing. */
     rpc GenerateCsr(GenerateCsrRequest) returns (GenerateCsrResponse);
-    /** Used to read the stored Intermediate Server cert. */
-    rpc FetchCertificate(FetchCertificateRequest) returns (FetchCertificateResponse);
     /** Used for setting/storing the signed intermediate certificate. */
     rpc LoadCertificate(LoadCertificateRequest) returns (LoadCertificateResponse);
 
     /** Responsible for configuration of the plugin. */
     rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
-    /** Returns the  version and related metadata of the installed plugin. */
+    /** Returns the version and related metadata of the installed plugin. */
     rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
 }

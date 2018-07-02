@@ -104,8 +104,9 @@ func (r *rotator) rotateSVID(ctx context.Context) error {
 	ca := r.c.Catalog.CAs()[0]
 
 	// Sign the CSR
-	csrReq := &ca_pb.SignCsrRequest{Csr: csr}
-	csrRes, err := ca.SignCsr(ctx, csrReq)
+	csrRes, err := ca.SignX509SvidCsr(ctx, &ca_pb.SignX509SvidCsrRequest{
+		Csr: csr,
+	})
 	if err != nil {
 		return err
 	}

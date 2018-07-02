@@ -17,15 +17,15 @@ func TestString(t *testing.T) {
 	u := &Update{
 		Bundle:  []byte{1, 2, 3},
 		Entries: map[string]*common.RegistrationEntry{entries[0].EntryId: entries[0]},
-		SVIDs: map[string]*node.Svid{
+		SVIDs: map[string]*node.X509SVID{
 			"spiffe://example.org": {
-				SvidCert: []byte{4, 5},
-				Ttl:      5,
+				Cert:      []byte{4, 5},
+				ExpiresAt: 5,
 			},
 		},
 	}
 
-	expected := "{ Entries: [{ spiffeID: spiffe://example.org/spire/agent, parentID: spiffe://example.org/spire/agent/join_token/abcd, selectors: [type:\"spiffe_id\" value:\"spiffe://example.org/spire/agent/join_token/abcd\" ]}], SVIDs: [spiffe://example.org: svid_cert:\"\\004\\005\" ttl:5  ], Bundle: bytes}"
+	expected := "{ Entries: [{ spiffeID: spiffe://example.org/spire/agent, parentID: spiffe://example.org/spire/agent/join_token/abcd, selectors: [type:\"spiffe_id\" value:\"spiffe://example.org/spire/agent/join_token/abcd\" ]}], SVIDs: [spiffe://example.org: cert:\"\\004\\005\" expires_at:5  ], Bundle: bytes}"
 	if u.String() != expected {
 		t.Errorf("expected: %s, got: %s", expected, u.String())
 	}

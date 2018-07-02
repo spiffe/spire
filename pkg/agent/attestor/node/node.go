@@ -308,21 +308,21 @@ func (a *attestor) serverCredFunc(bundle []*x509.Certificate) func() (credential
 }
 
 func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) (*x509.Certificate, []*x509.Certificate, error) {
-	if len(r.SvidUpdate.Svids) < 1 {
+	if len(r.Update.Svids) < 1 {
 		return nil, nil, errors.New("no svid received")
 	}
 
-	svidMsg, ok := r.SvidUpdate.Svids[id]
+	svidMsg, ok := r.Update.Svids[id]
 	if !ok {
 		return nil, nil, fmt.Errorf("incorrect svid: %s", id)
 	}
 
-	svid, err := x509.ParseCertificate(svidMsg.SvidCert)
+	svid, err := x509.ParseCertificate(svidMsg.Cert)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid svid: %v", err)
 	}
 
-	bundle, err := x509.ParseCertificates(r.SvidUpdate.Bundle)
+	bundle, err := x509.ParseCertificates(r.Update.Bundle)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid bundle: %v", bundle)
 	}

@@ -168,7 +168,7 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 
 	stream := s.r.Subscribe()
 	s.expectSVIDRotation(cert)
-	err = s.r.rotateSVID()
+	err = s.r.rotateSVID(context.Background())
 	s.Assert().NoError(err)
 	s.Require().True(stream.HasNext())
 
@@ -180,11 +180,11 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 // the the provided certificate to the client.Client caller.
 func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 	s.client.EXPECT().
-		FetchUpdates(gomock.Any()).
+		FetchUpdates(gomock.Any(), gomock.Any()).
 		Return(&client.Update{
-			SVIDs: map[string]*node.Svid{
+			SVIDs: map[string]*node.X509SVID{
 				s.r.c.SpiffeID: {
-					SvidCert: cert.Raw,
+					Cert: cert.Raw,
 				},
 			},
 		}, nil)

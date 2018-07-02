@@ -94,10 +94,8 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 	// Expectations
 	cert, _, err := util.LoadSVIDFixture()
 	require.NoError(s.T(), err)
-	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
-	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
+	csrResp := &ca.SignX509SvidCsrResponse{SignedCertificate: cert.Raw}
+	s.ca.EXPECT().SignX509SvidCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
 
 	ctx, cancel := context.WithCancel(ctx)
 	errChan := make(chan error)
@@ -125,10 +123,8 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 	// Set all expectations for running gRPC server
 	cert, _, err := util.LoadSVIDFixture()
 	require.NoError(s.T(), err)
-	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
-	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
+	csrResp := &ca.SignX509SvidCsrResponse{SignedCertificate: cert.Raw}
+	s.ca.EXPECT().SignX509SvidCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
 
 	snitchChan := make(chan struct{}, 1)
 	hook := func(g *grpc.Server) error {
@@ -153,10 +149,8 @@ func (s *EndpointsTestSuite) TestGRPCHookFailure() {
 	// Set all expectations for running gRPC server
 	cert, _, err := util.LoadSVIDFixture()
 	require.NoError(s.T(), err)
-	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
-	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
+	csrResp := &ca.SignX509SvidCsrResponse{SignedCertificate: cert.Raw}
+	s.ca.EXPECT().SignX509SvidCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
 
 	hook := func(_ *grpc.Server) error { return errors.New("i'm an error") }
 	s.e.c.GRPCHook = hook

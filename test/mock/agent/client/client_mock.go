@@ -5,11 +5,11 @@
 package mock_client
 
 import (
-	reflect "reflect"
-
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	client "github.com/spiffe/spire/pkg/agent/client"
 	node "github.com/spiffe/spire/proto/api/node"
+	reflect "reflect"
 )
 
 // MockClient is a mock of Client interface
@@ -35,17 +35,30 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
+// FetchJWTASVID mocks base method
+func (m *MockClient) FetchJWTASVID(arg0 context.Context, arg1 *node.JSR) (*client.JWTASVID, error) {
+	ret := m.ctrl.Call(m, "FetchJWTASVID", arg0, arg1)
+	ret0, _ := ret[0].(*client.JWTASVID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchJWTASVID indicates an expected call of FetchJWTASVID
+func (mr *MockClientMockRecorder) FetchJWTASVID(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTASVID", reflect.TypeOf((*MockClient)(nil).FetchJWTASVID), arg0, arg1)
+}
+
 // FetchUpdates mocks base method
-func (m *MockClient) FetchUpdates(arg0 *node.FetchX509SVIDRequest) (*client.Update, error) {
-	ret := m.ctrl.Call(m, "FetchUpdates", arg0)
+func (m *MockClient) FetchUpdates(arg0 context.Context, arg1 *node.FetchX509SVIDRequest) (*client.Update, error) {
+	ret := m.ctrl.Call(m, "FetchUpdates", arg0, arg1)
 	ret0, _ := ret[0].(*client.Update)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchUpdates indicates an expected call of FetchUpdates
-func (mr *MockClientMockRecorder) FetchUpdates(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchUpdates", reflect.TypeOf((*MockClient)(nil).FetchUpdates), arg0)
+func (mr *MockClientMockRecorder) FetchUpdates(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchUpdates", reflect.TypeOf((*MockClient)(nil).FetchUpdates), arg0, arg1)
 }
 
 // Release mocks base method

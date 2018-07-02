@@ -156,11 +156,11 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	trustDomain := "example.org"
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation,
-		svidTTL:           200,
+		t:             t,
+		trustDomain:   trustDomain,
+		dir:           dir,
+		fetchX509SVID: fetchX509SVIDForTestHappyPathWithoutSyncNorRotation,
+		svidTTL:       200,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -233,11 +233,11 @@ func TestSVIDRotation(t *testing.T) {
 	trustDomain := "example.org"
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponse,
-		svidTTL:           3,
+		t:             t,
+		trustDomain:   trustDomain,
+		dir:           dir,
+		fetchX509SVID: fetchX509SVID,
+		svidTTL:       3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -302,11 +302,11 @@ func TestSynchronization(t *testing.T) {
 	trustDomain := "example.org"
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponse,
-		svidTTL:           3,
+		t:             t,
+		trustDomain:   trustDomain,
+		dir:           dir,
+		fetchX509SVID: fetchX509SVID,
+		svidTTL:       3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -426,11 +426,11 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	trustDomain := "example.org"
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponseForStaleCacheTest,
-		svidTTL:           3,
+		t:             t,
+		trustDomain:   trustDomain,
+		dir:           dir,
+		fetchX509SVID: fetchX509SVIDForStaleCacheTest,
+		svidTTL:       3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -465,7 +465,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		regEntriesFromCacheEntries(m.cache.Entries()))
 
 	// manually synchronize again
-	if err := m.synchronize(); err != nil {
+	if err := m.synchronize(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -482,11 +482,11 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	trustDomain := "example.org"
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponseForTestSubscribersGetUpToDateBundle,
-		svidTTL:           200,
+		t:             t,
+		trustDomain:   trustDomain,
+		dir:           dir,
+		fetchX509SVID: fetchX509SVIDForTestSubscribersGetUpToDateBundle,
+		svidTTL:       200,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -538,10 +538,10 @@ func TestSurvivesCARotation(t *testing.T) {
 	trustDomain := "example.org"
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponseForTestSurvivesCARotation,
+		t:             t,
+		trustDomain:   trustDomain,
+		dir:           dir,
+		fetchX509SVID: fetchX509SVIDForTestSurvivesCARotation,
 		// Give a low ttl to get expired entries on each synchronization, forcing
 		// the manager to fetch entries from the server.
 		svidTTL: 3,
@@ -595,7 +595,7 @@ func TestSurvivesCARotation(t *testing.T) {
 	}
 }
 
-func fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
+func fetchX509SVIDForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	switch h.reqCount {
 	case 1:
 		if len(req.Csrs) != 0 {
@@ -622,7 +622,7 @@ func fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandl
 	}
 }
 
-func fetchSVIDResponse(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
+func fetchX509SVID(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	svid, err := h.getCertFromCtx(stream.Context())
 	if err != nil {
 		return fmt.Errorf("cannot get SVID from stream context: %v. reqCount: %d", err, h.reqCount)
@@ -651,7 +651,7 @@ func fetchSVIDResponse(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, st
 	return stream.Send(newFetchX509SVIDResponse(resps, svids, h.bundle))
 }
 
-func fetchSVIDResponseForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
+func fetchX509SVIDForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	svids, err := h.makeSvids(req.Csrs)
 	if err != nil {
 		return err
@@ -670,17 +670,17 @@ func fetchSVIDResponseForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchX5
 	return stream.Send(newFetchX509SVIDResponse(nil, nil, h.bundle))
 }
 
-func fetchSVIDResponseForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
+func fetchX509SVIDForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	switch h.reqCount {
 	case 2:
 		ca, _ := createCA(h.c.t, h.c.trustDomain)
 		h.bundle = append(h.bundle, ca)
 	}
 
-	return fetchSVIDResponse(h, req, stream)
+	return fetchX509SVID(h, req, stream)
 }
 
-func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
+func fetchX509SVIDForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	switch h.reqCount {
 	case 2:
 		ca, key := createCA(h.c.t, h.c.trustDomain)
@@ -693,7 +693,7 @@ func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node
 		return fmt.Errorf("server was restarted")
 	}
 
-	return fetchSVIDResponse(h, req, stream)
+	return fetchX509SVID(h, req, stream)
 }
 
 func newFetchX509SVIDResponse(regEntriesKeys []string, svids svidMap, bundle []*x509.Certificate) *node.FetchX509SVIDResponse {
@@ -710,7 +710,7 @@ func newFetchX509SVIDResponse(regEntriesKeys []string, svids svidMap, bundle []*
 	}
 
 	return &node.FetchX509SVIDResponse{
-		SvidUpdate: &node.SvidUpdate{
+		Update: &node.X509SVIDUpdate{
 			RegistrationEntries: regEntries,
 			Svids:               svids,
 			Bundle:              bundleBytes.Bytes(),
@@ -761,15 +761,18 @@ func compareRegistrationEntries(t *testing.T, expected, actual []*common.Registr
 	}
 }
 
-type svidMap map[string]*node.Svid
+type svidMap map[string]*node.X509SVID
 
 type mockNodeAPIHandlerConfig struct {
 	t           *testing.T
 	trustDomain string
+
 	// Directory used to save server related files, like unix sockets files.
 	dir string
-	// Callback used to build the response according to the request and state of mockNodeAPIHandler.
-	fetchSVIDResponse func(*mockNodeAPIHandler, *node.FetchX509SVIDRequest, node.Node_FetchX509SVIDServer) error
+
+	// Callbacks used to build the response according to the request and state of mockNodeAPIHandler.
+	fetchX509SVID func(*mockNodeAPIHandler, *node.FetchX509SVIDRequest, node.Node_FetchX509SVIDServer) error
+	fetchJWTASVID func(*mockNodeAPIHandler, *node.FetchJWTASVIDRequest) (*node.FetchJWTASVIDResponse, error)
 
 	svidTTL int
 }
@@ -824,7 +827,10 @@ func (h *mockNodeAPIHandler) makeSvids(csrs [][]byte) (svidMap, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.reqCount)
 		}
-		svids[spiffeID] = &node.Svid{SvidCert: svid.Raw, Ttl: int32(h.c.svidTTL)}
+		svids[spiffeID] = &node.X509SVID{
+			Cert:      svid.Raw,
+			ExpiresAt: svid.NotAfter.Unix(),
+		}
 	}
 	return svids, nil
 }
@@ -845,10 +851,18 @@ func (h *mockNodeAPIHandler) FetchX509SVID(stream node.Node_FetchX509SVIDServer)
 	if err != nil {
 		return err
 	}
-	if h.c.fetchSVIDResponse != nil {
-		return h.c.fetchSVIDResponse(h, req, stream)
+	if h.c.fetchX509SVID != nil {
+		return h.c.fetchX509SVID(h, req, stream)
 	}
 	return nil
+}
+
+func (h *mockNodeAPIHandler) FetchJWTASVID(ctx context.Context, req *node.FetchJWTASVIDRequest) (*node.FetchJWTASVIDResponse, error) {
+	h.countRequest()
+	if h.c.fetchJWTASVID != nil {
+		return h.c.fetchJWTASVID(h, req)
+	}
+	return nil, errors.New("oh noes")
 }
 
 func (h *mockNodeAPIHandler) FetchFederatedBundle(context.Context, *node.FetchFederatedBundleRequest) (*node.FetchFederatedBundleResponse, error) {
