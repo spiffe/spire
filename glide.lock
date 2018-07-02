@@ -1,5 +1,5 @@
 hash: 35f27a42ef95c2096d1e978ff87429ab29a41fb0e5d4fd4f8ef3a89c2964ee5d
-updated: 2018-07-02T20:36:21.483841062-03:00
+updated: 2018-07-02T20:55:30.859991653-03:00
 imports:
 - name: github.com/armon/go-metrics
   version: 783273d703149aaeb9897cf58613d5af48861c25
