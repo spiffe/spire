@@ -57,3 +57,27 @@ connection_string="dbname=postgres user=postgres password=password host=localhos
   the server was signed by a trusted CA and the server host name
   matches the one in the certificate)
 
+  ### `database_type = "mysql"`
+
+  This configuration is valid for MySQL and mariadb.
+  The `connection_string` for the PostreSQL database connection is kind of DB URL as
+
+  ```
+  [username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
+  ```
+
+  #### example
+  ```
+  connection_string="mysql:password@tcp(localhost:3306)/mysql?charset=utf8&parseTime=True&multiStatements=true&loc=Local"
+  ```
+
+  Read MySQL driver for more `connection_string` options [here](https://github.com/go-sql-driver/mysql)
+
+  #### Configuration Options
+  * dbname - The name of the database to connect to
+  * username - The user to sign in as
+  * password - The user's password
+  * address - The host to connect to. Values that start with / are for unix
+    domain sockets. (default is localhost)
+
+  You may configure SSL/TLS mode via [tls](https://github.com/go-sql-driver/mysql#tls) param
