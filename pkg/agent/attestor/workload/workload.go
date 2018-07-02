@@ -21,6 +21,10 @@ type Attestor interface {
 }
 
 func New(config *Config) Attestor {
+	return newAttestor(config)
+}
+
+func newAttestor(config *Config) *attestor {
 	return &attestor{c: config}
 }
 
