@@ -18,21 +18,21 @@ import (
 
 var plugins = []*common_catalog.ManagedPlugin{
 	{
-		Plugin: keymanager.NewBuiltIn(&mock_keymanager.MockKeyManagerPlugin{}),
+		Plugin: keymanager.NewBuiltIn(&mock_keymanager.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: KeyManagerType,
 			Enabled:    true,
 		},
 	},
 	{
-		Plugin: nodeattestor.NewBuiltIn(&mock_nodeattestor.MockNodeAttestorPlugin{}),
+		Plugin: nodeattestor.NewBuiltIn(&mock_nodeattestor.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: NodeAttestorType,
 			Enabled:    true,
 		},
 	},
 	{
-		Plugin: workloadattestor.NewBuiltIn(&mock_workloadattestor.MockWorkloadAttestorPlugin{}),
+		Plugin: workloadattestor.NewBuiltIn(&mock_workloadattestor.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: WorkloadAttestorType,
 			Enabled:    true,
@@ -40,7 +40,7 @@ var plugins = []*common_catalog.ManagedPlugin{
 	},
 	{
 		// Have another WorkloadAttestor plugin, but disabled
-		Plugin: workloadattestor.NewBuiltIn(&mock_workloadattestor.MockWorkloadAttestorPlugin{}),
+		Plugin: workloadattestor.NewBuiltIn(&mock_workloadattestor.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
 			PluginType: WorkloadAttestorType,
 			Enabled:    false,
@@ -93,7 +93,7 @@ func (c *AgentCatalogTestSuite) TestCategorizeNotEnoughTypes() {
 	// Have only one plugin
 	var onePlugin = []*common_catalog.ManagedPlugin{
 		{
-			Plugin: &mock_workloadattestor.MockWorkloadAttestorPlugin{},
+			Plugin: &mock_workloadattestor.MockPlugin{},
 			Config: common_catalog.PluginConfig{
 				PluginType: WorkloadAttestorType,
 				Enabled:    true,
