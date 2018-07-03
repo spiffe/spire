@@ -290,7 +290,7 @@ func setAttestExpectations(
 	}
 	suite.mockCatalog.EXPECT().ConfigFor(suite.mockNodeAttestor).Return(p, true)
 
-	stream := mock_nodeattestor.NewMockNodeAttestor_Attest_Stream(suite.ctrl)
+	stream := mock_nodeattestor.NewMockAttest_Stream(suite.ctrl)
 	stream.EXPECT().Send(&nodeattestor.AttestRequest{
 		AttestedBefore:  false,
 		AttestationData: data.request.AttestationData,
