@@ -1,13 +1,12 @@
-package registration
+package util
 
 import (
-	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestValidateSpiffeId(t *testing.T) {
+func TestValidateSpiffeIdInTrustDomain(t *testing.T) {
 	tests := []struct {
 		name          string
 		spiffeID      string
@@ -30,37 +29,37 @@ func TestValidateSpiffeId(t *testing.T) {
 			name:          "test_validate_spiffe_id_invalid_scheme",
 			spiffeID:      "http://test.com/path/validate",
 			trustDomain:   "test.com",
-			expectedError: "\"http://test.com/path/validate\" is not a valid SPIFFE ID: spiffe id must start with \"spiffe://\"",
+			expectedError: "\"http://test.com/path/validate\" is not a valid SPIFFE ID: invalid scheme",
 		},
 		{
 			name:          "test_validate_spiffe_id_emtpy_host",
 			spiffeID:      "spiffe:///path/validate",
 			trustDomain:   "test.com",
-			expectedError: "\"spiffe:///path/validate\" is not a valid SPIFFE ID: trust domain can not be empty",
+			expectedError: "\"spiffe:///path/validate\" is not a valid SPIFFE ID: trust domain is empty",
 		},
 		{
 			name:          "test_validate_spiffe_id_empty_path",
 			spiffeID:      "spiffe://test.com",
 			trustDomain:   "test.com",
-			expectedError: "\"spiffe://test.com\" is not a valid SPIFFE ID: path can not be empty",
+			expectedError: "\"spiffe://test.com\" is not a valid SPIFFE ID: path is empty",
 		},
 		{
 			name:          "test_validate_spiffe_id_invalid_path",
 			spiffeID:      "spiffe://test.com/spire/validate",
 			trustDomain:   "test.com",
-			expectedError: "\"spiffe://test.com/spire/validate\" is not a valid SPIFFE ID: invalid path, \"/spire*\" namespace is restricted",
+			expectedError: "\"spiffe://test.com/spire/validate\" is not a valid SPIFFE ID: invalid path: \"/spire*\" namespace is restricted",
 		},
 		{
 			name:          "test_validate_spiffe_id_empty_domain",
 			spiffeID:      "spiffe://test.com/path/validate",
 			trustDomain:   "",
-			expectedError: "configured trust domain is empty",
+			expectedError: "trust domain to validate against cannot be empty",
 		},
 		{
 			name:          "test_validate_spiffe_id_domain_not_match",
 			spiffeID:      "spiffe://test.com/path/validate",
 			trustDomain:   "anotherdomain.com",
-			expectedError: "\"spiffe://test.com/path/validate\" does not belong to configured trust domain \"anotherdomain.com\"",
+			expectedError: "\"spiffe://test.com/path/validate\" does not belong to trust domain \"anotherdomain.com\"",
 		},
 		{
 			name:          "test_validate_spiffe_id_query_not_allowed",
@@ -90,26 +89,11 @@ func TestValidateSpiffeId(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			trustDomain := createTrustDomainURL(test.trustDomain)
-
-			error := ValidateSpiffeID(test.spiffeID, trustDomain)
-			if error == nil {
-				assert.Fail(t, "Error expeceted: \"%s\"", test.expectedError)
-			}
-			assert.Equal(t, test.expectedError, error.Error())
+			err := ValidateSpiffeIDInTrustDomain(test.spiffeID, test.trustDomain)
+			assert.EqualError(t, err, test.expectedError)
 		})
 	}
 
-	error := ValidateSpiffeID("spiffe://test.com/path/validate", createTrustDomainURL("test.com"))
-	if error != nil {
-		assert.Fail(t, "incorrect validation: %s", error.Error())
-	}
-
-}
-
-func createTrustDomainURL(trustDomain string) url.URL {
-	return url.URL{
-		Scheme: "spiffe",
-		Host:   trustDomain,
-	}
+	err := ValidateSpiffeIDInTrustDomain("spiffe://test.com/path/validate", "test.com")
+	assert.NoError(t, err)
 }
