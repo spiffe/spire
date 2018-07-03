@@ -187,7 +187,7 @@ func (s *NodeAttestorTestSuite) setFetchAttestationDataResponse(challenges []cha
 		SpiffeId:        "spiffe://example.com/spire/agent/join_token/foobar",
 	}
 
-	stream := mock_nodeattestor.NewMockNodeAttestor_FetchAttestationData_Stream(s.ctrl)
+	stream := mock_nodeattestor.NewMockFetchAttestationData_Stream(s.ctrl)
 	stream.EXPECT().Recv().Return(fa, nil)
 	for _, challenge := range challenges {
 		stream.EXPECT().Send(&nodeattestor.FetchAttestationDataRequest{

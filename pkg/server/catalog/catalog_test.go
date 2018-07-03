@@ -35,14 +35,14 @@ type ServerCatalogTestSuite struct {
 
 var plugins = []*common_catalog.ManagedPlugin{
 	{
-		Plugin: ca.NewBuiltIn(&mock_ca.MockServerCAPlugin{}),
+		Plugin: ca.NewBuiltIn(&mock_ca.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: CAType,
 		},
 	},
 	{
-		Plugin: datastore.NewBuiltIn(&mock_datastore.MockDataStorePlugin{}),
+		Plugin: datastore.NewBuiltIn(&mock_datastore.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: DataStoreType,
@@ -50,28 +50,28 @@ var plugins = []*common_catalog.ManagedPlugin{
 	},
 	{
 		// Have another DataStore plugin, but disabled
-		Plugin: datastore.NewBuiltIn(&mock_datastore.MockDataStorePlugin{}),
+		Plugin: datastore.NewBuiltIn(&mock_datastore.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    false,
 			PluginType: DataStoreType,
 		},
 	},
 	{
-		Plugin: nodeattestor.NewBuiltIn(&mock_nodeattestor.MockNodeAttestorPlugin{}),
+		Plugin: nodeattestor.NewBuiltIn(&mock_nodeattestor.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: NodeAttestorType,
 		},
 	},
 	{
-		Plugin: noderesolver.NewBuiltIn(&mock_noderesolver.MockNodeResolverPlugin{}),
+		Plugin: noderesolver.NewBuiltIn(&mock_noderesolver.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: NodeResolverType,
 		},
 	},
 	{
-		Plugin: upstreamca.NewBuiltIn(&mock_upstreamca.MockUpstreamCAPlugin{}),
+		Plugin: upstreamca.NewBuiltIn(&mock_upstreamca.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
 			Enabled:    true,
 			PluginType: UpstreamCAType,
@@ -111,7 +111,7 @@ func (c *ServerCatalogTestSuite) TestCategorizeNotEnoughTypes() {
 	// Have only one plugin
 	var onePlugin = []*common_catalog.ManagedPlugin{
 		{
-			Plugin: ca.NewBuiltIn(&mock_ca.MockServerCAPlugin{}),
+			Plugin: ca.NewBuiltIn(&mock_ca.MockPlugin{}),
 			Config: common_catalog.PluginConfig{
 				Enabled:    true,
 				PluginType: CAType,
