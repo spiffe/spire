@@ -121,6 +121,8 @@ func (p *X509PoPPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
 		BaseSPIFFEID: x509pop.SpiffeID(c.trustDomain, leaf),
+		// TODO: Discuss which selectors should be set here, and what format should they have.
+		//Selectors:
 	}
 
 	if err := stream.Send(resp); err != nil {

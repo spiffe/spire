@@ -138,7 +138,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 
 	}
 
-	if err := h.updateNodeResolverMap(ctx, baseSpiffeIDFromCSR); err != nil {
+	if err := h.updateNodeResolverMap(ctx, baseSpiffeIDFromCSR, attestResponse); err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to get selectors for baseSpiffeID")
 	}
@@ -404,9 +404,8 @@ func (h *Handler) createAttestationEntry(ctx context.Context,
 }
 
 func (h *Handler) updateNodeResolverMap(ctx context.Context,
-	baseSpiffeID string) error {
+	baseSpiffeID string, attestResponse *nodeattestor.AttestResponse) error {
 
-	dataStore := h.c.Catalog.DataStores()[0]
 	nodeResolver := h.c.Catalog.NodeResolvers()[0]
 	//Call node resolver plugin to get a map of spiffeID=>Selector
 	response, err := nodeResolver.Resolve(ctx, &noderesolver.ResolveRequest{
@@ -417,15 +416,17 @@ func (h *Handler) updateNodeResolverMap(ctx context.Context,
 	}
 
 	if selectors, ok := response.Map[baseSpiffeID]; ok {
-		// TODO: Fix complexity
 		for _, selector := range selectors.Entries {
-			mapEntryRequest := &datastore.CreateNodeResolverMapEntryRequest{
-				NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
-					BaseSpiffeId: baseSpiffeID,
-					Selector:     selector,
-				},
+			err := h.createNodeResolverMapEntry(ctx, baseSpiffeID, selector)
+			if err != nil {
+				return err
 			}
-			_, err = dataStore.CreateNodeResolverMapEntry(ctx, mapEntryRequest)
+		}
+	}
+
+	if attestResponse.Selectors != nil {
+		for _, selector := range attestResponse.Selectors {
+			err := h.createNodeResolverMapEntry(ctx, baseSpiffeID, selector)
 			if err != nil {
 				return err
 			}
@@ -434,23 +435,19 @@ func (h *Handler) updateNodeResolverMap(ctx context.Context,
 	return nil
 }
 
-func (h *Handler) getStoredSelectors(ctx context.Context,
-	baseSpiffeID string) ([]*common.Selector, error) {
-
+func (h *Handler) createNodeResolverMapEntry(ctx context.Context, baseSpiffeID string, selector *common.Selector) error {
 	dataStore := h.c.Catalog.DataStores()[0]
-
-	req := &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: baseSpiffeID}
-	nodeResolutionResponse, err := dataStore.FetchNodeResolverMapEntry(ctx, req)
+	mapEntryRequest := &datastore.CreateNodeResolverMapEntryRequest{
+		NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
+			BaseSpiffeId: baseSpiffeID,
+			Selector:     selector,
+		},
+	}
+	_, err := dataStore.CreateNodeResolverMapEntry(ctx, mapEntryRequest)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	var selectors []*common.Selector
-	for _, item := range nodeResolutionResponse.NodeResolverMapEntryList {
-		selectors = append(selectors, item.Selector)
-	}
-
-	return selectors, nil
+	return nil
 }
 
 func (h *Handler) getAttestResponse(ctx context.Context,
