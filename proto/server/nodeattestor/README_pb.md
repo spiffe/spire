@@ -207,12 +207,12 @@ entry is matched.
 <a name="spire.common.Selectors"/>
 
 ### Selectors
-Represents a type with a list of NodeResolution.
+Represents a type with a list of Selector.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [Selector](#spire.common.Selector) | repeated | A list of NodeResolution. |
+| entries | [Selector](#spire.common.Selector) | repeated | A list of Selector. |
 
 
 
@@ -261,8 +261,9 @@ Represents a response when attesting a node.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | valid | [bool](#bool) |  | True/False |
-| baseSPIFFEID | [string](#string) |  | Used for the Server to validate the SPIFFE Id in the Certificate signing request. |
+| baseSPIFFEID | [string](#string) |  | Used by the Server to validate the SPIFFE Id in the Certificate signing request. |
 | challenge | [bytes](#bytes) |  | Challenge required for attestation |
+| selectors | [.spire.common.Selector](#spire.agent.nodeattestor..spire.common.Selector) | repeated | Optional list of selectors |
 
 
 

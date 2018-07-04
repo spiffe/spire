@@ -29,7 +29,7 @@ func (m *Empty) Reset()         { *m = Empty{} }
 func (m *Empty) String() string { return proto.CompactTextString(m) }
 func (*Empty) ProtoMessage()    {}
 func (*Empty) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_1536e6f1da09990b, []int{0}
+	return fileDescriptor_common_450217a1e26bcceb, []int{0}
 }
 func (m *Empty) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Empty.Unmarshal(m, b)
@@ -64,7 +64,7 @@ func (m *AttestationData) Reset()         { *m = AttestationData{} }
 func (m *AttestationData) String() string { return proto.CompactTextString(m) }
 func (*AttestationData) ProtoMessage()    {}
 func (*AttestationData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_1536e6f1da09990b, []int{1}
+	return fileDescriptor_common_450217a1e26bcceb, []int{1}
 }
 func (m *AttestationData) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AttestationData.Unmarshal(m, b)
@@ -115,7 +115,7 @@ func (m *Selector) Reset()         { *m = Selector{} }
 func (m *Selector) String() string { return proto.CompactTextString(m) }
 func (*Selector) ProtoMessage()    {}
 func (*Selector) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_1536e6f1da09990b, []int{2}
+	return fileDescriptor_common_450217a1e26bcceb, []int{2}
 }
 func (m *Selector) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Selector.Unmarshal(m, b)
@@ -149,9 +149,9 @@ func (m *Selector) GetValue() string {
 	return ""
 }
 
-// * Represents a type with a list of NodeResolution.
+// * Represents a type with a list of Selector.
 type Selectors struct {
-	// * A list of NodeResolution.
+	// * A list of Selector.
 	Entries              []*Selector `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
@@ -162,7 +162,7 @@ func (m *Selectors) Reset()         { *m = Selectors{} }
 func (m *Selectors) String() string { return proto.CompactTextString(m) }
 func (*Selectors) ProtoMessage()    {}
 func (*Selectors) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_1536e6f1da09990b, []int{3}
+	return fileDescriptor_common_450217a1e26bcceb, []int{3}
 }
 func (m *Selectors) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Selectors.Unmarshal(m, b)
@@ -216,7 +216,7 @@ func (m *RegistrationEntry) Reset()         { *m = RegistrationEntry{} }
 func (m *RegistrationEntry) String() string { return proto.CompactTextString(m) }
 func (*RegistrationEntry) ProtoMessage()    {}
 func (*RegistrationEntry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_1536e6f1da09990b, []int{4}
+	return fileDescriptor_common_450217a1e26bcceb, []int{4}
 }
 func (m *RegistrationEntry) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RegistrationEntry.Unmarshal(m, b)
@@ -291,7 +291,7 @@ func (m *RegistrationEntries) Reset()         { *m = RegistrationEntries{} }
 func (m *RegistrationEntries) String() string { return proto.CompactTextString(m) }
 func (*RegistrationEntries) ProtoMessage()    {}
 func (*RegistrationEntries) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_1536e6f1da09990b, []int{5}
+	return fileDescriptor_common_450217a1e26bcceb, []int{5}
 }
 func (m *RegistrationEntries) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RegistrationEntries.Unmarshal(m, b)
@@ -327,9 +327,9 @@ func init() {
 	proto.RegisterType((*RegistrationEntries)(nil), "spire.common.RegistrationEntries")
 }
 
-func init() { proto.RegisterFile("common.proto", fileDescriptor_common_1536e6f1da09990b) }
+func init() { proto.RegisterFile("common.proto", fileDescriptor_common_450217a1e26bcceb) }
 
-var fileDescriptor_common_1536e6f1da09990b = []byte{
+var fileDescriptor_common_450217a1e26bcceb = []byte{
 	// 313 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x52, 0x4f, 0x4b, 0xfb, 0x40,
 	0x10, 0x25, 0xbf, 0x34, 0x6d, 0x32, 0xed, 0x0f, 0x75, 0x15, 0x89, 0x78, 0x30, 0xec, 0x29, 0xa7,
