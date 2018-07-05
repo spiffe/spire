@@ -51,7 +51,7 @@ var plugins = []*common_catalog.ManagedPlugin{
 type AgentCatalogTestSuite struct {
 	suite.Suite
 
-	catalog *catalog
+	catalog *AgentCatalog
 
 	// Logrus test hook for asserting
 	// log messages, if desired
@@ -65,7 +65,7 @@ func (c *AgentCatalogTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(c.t)
 	log, logHook := test.NewNullLogger()
 
-	cat := &catalog{
+	cat := &AgentCatalog{
 		log: log,
 	}
 

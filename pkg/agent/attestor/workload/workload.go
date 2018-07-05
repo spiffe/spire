@@ -52,7 +52,13 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 	errChan := make(chan error)
 
 	for _, p := range plugins {
-		go wla.invokeAttestor(ctx, p, pid, sChan, errChan)
+		go func(p *catalog.ManagedWorkloadAttestor) {
+			if selectors, err := wla.invokeAttestor(ctx, p, pid); err == nil {
+				sChan <- selectors
+			} else {
+				errChan <- err
+			}
+		}(p)
 	}
 
 	// Collect the results
@@ -72,8 +78,8 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 }
 
 // invokeAttestor invokes attestation against the supplied plugin. Should be called from a goroutine.
-func (wla *attestor) invokeAttestor(ctx context.Context, a workloadattestor.WorkloadAttestor, pid int32, sChan chan []*common.Selector, errChan chan error) {
-	attestorName := wla.attestorName(a)
+func (wla *attestor) invokeAttestor(ctx context.Context, a *catalog.ManagedWorkloadAttestor, pid int32) ([]*common.Selector, error) {
+	attestorName := a.Config().PluginName
 	tLabels := []telemetry.Label{{workloadPid, string(pid)}, {"attestor_name", attestorName}}
 
 	req := &workloadattestor.AttestRequest{
@@ -86,20 +92,8 @@ func (wla *attestor) invokeAttestor(ctx context.Context, a workloadattestor.Work
 	// Capture the attestor latency metrics regardless of whether an error condition was encountered or not
 	wla.c.T.MeasureSinceWithLabels([]string{workloadApi, "workload_attestor_latency"}, start, tLabels)
 	if err != nil {
-		errChan <- fmt.Errorf("call %v workload attestor: %v", attestorName, err)
-		return
+		return nil, fmt.Errorf("workload attestor %q failed: %v", attestorName, err)
 	}
 
-	sChan <- resp.Selectors
-	return
-}
-
-// attestorName attempts to find the name of a workload attestor, given the WorkloadAttestor interface.
-func (wla *attestor) attestorName(a workloadattestor.WorkloadAttestor) string {
-	config, ok := wla.c.Catalog.ConfigFor(a)
-	if !ok {
-		return unknownName
-	}
-
-	return config.PluginName
+	return resp.Selectors, nil
 }

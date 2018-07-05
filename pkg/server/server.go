@@ -179,7 +179,7 @@ func (s *Server) prepareUmask() {
 	syscall.Umask(s.config.Umask)
 }
 
-func (s *Server) newCatalog() catalog.Catalog {
+func (s *Server) newCatalog() *catalog.ServerCatalog {
 	return catalog.New(&catalog.Config{
 		PluginConfigs: s.config.PluginConfigs,
 		Log:           s.config.Log.WithField("subsystem_name", "catalog"),
