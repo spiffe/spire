@@ -40,15 +40,14 @@ func ValidateSpiffeID(spiffeID string, mode ValidationMode) error {
 func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 	options := mode.validationOptions()
 
-	var kind string
-	switch {
-	case options.idType == workloadId:
-		kind = "workload "
-	case options.idType == trustDomainId:
-		kind = "trust domain "
-	}
-
 	validationError := func(format string, args ...interface{}) error {
+		var kind string
+		switch options.idType {
+		case workloadId:
+			kind = "workload "
+		case trustDomainId:
+			kind = "trust domain "
+		}
 		return fmt.Errorf("%q is not a valid %sSPIFFE ID: "+format,
 			append([]interface{}{id.String(), kind}, args...)...)
 	}
