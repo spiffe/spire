@@ -60,7 +60,7 @@ the following flags are available:
 | ---------------- | --------------------------- | ----------------------- |
 | `-config string` | Path to a SPIRE config file | conf/server/server.conf |
 
-## Architechture
+## Architecture
 
 The agent consists of a master process (spire-agent) and three plugins - the Node Attestor, the
 Workload Attestor and the Key Manager. The master process implements the Workload API and
