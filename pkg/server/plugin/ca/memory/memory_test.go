@@ -207,6 +207,24 @@ func TestMemory_SignCsr(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestMemory_SignCsrWithProblematicTTL(t *testing.T) {
+	m := populateCert(t)
+	caResp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
+	require.NoError(t, err)
+	require.NotEmpty(t, caResp.StoredIntermediateCert)
+	caCert, err := x509.ParseCertificate(caResp.StoredIntermediateCert)
+	require.NoError(t, err)
+
+	ttl := time.Until(caCert.NotAfter.Add(1 * time.Hour))
+	csr := createWorkloadCSR(t, "spiffe://localhost")
+	sResp, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: csr, Ttl: int32(ttl.Seconds())})
+	require.NoError(t, err)
+
+	cert, err := x509.ParseCertificate(sResp.SignedCertificate)
+	require.NoError(t, err)
+	assert.Equal(t, caCert.NotAfter, cert.NotAfter)
+}
+
 func TestMemory_SignCsrExpire(t *testing.T) {
 	m := populateCert(t)
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
@@ -221,7 +239,7 @@ func TestMemory_SignCsrExpire(t *testing.T) {
 	cert, err := x509.ParseCertificate(wcert.SignedCertificate)
 	roots := getRoots(t, m)
 	_, err = cert.Verify(x509.VerifyOptions{Roots: roots})
-	assert.Equal(t, "x509: certificate has expired or is not yet valid", err.Error())
+	assert.Error(t, err)
 }
 
 func TestMemory_SignCsrNoCert(t *testing.T) {
@@ -231,7 +249,7 @@ func TestMemory_SignCsrNoCert(t *testing.T) {
 
 	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 
-	assert.Equal(t, "Invalid state: no certificate", err.Error())
+	assert.Error(t, err)
 	assert.Empty(t, wcert)
 }
 
@@ -242,17 +260,7 @@ func TestMemory_SignCsrErrorParsingSpiffeId(t *testing.T) {
 
 	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 
-	assert.Equal(t, "SPIFFE ID 'spif://localhost' is not prefixed with the spiffe:// scheme.", err.Error())
-	assert.Empty(t, wcert)
-}
-
-func TestMemory_SignCsrErrorInvalidTTL(t *testing.T) {
-	m := populateCert(t)
-
-	wcsr := createWorkloadCSR(t, "spiffe://localhost")
-
-	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr, Ttl: -5})
-	assert.Equal(t, "Invalid TTL: -5", err.Error())
+	assert.Error(t, err)
 	assert.Empty(t, wcert)
 }
 

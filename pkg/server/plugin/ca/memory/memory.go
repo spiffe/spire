@@ -104,13 +104,7 @@ func (m *MemoryPlugin) SignCsr(ctx context.Context, request *ca.SignCsrRequest) 
 	defer m.mtx.RUnlock()
 
 	if m.cert == nil {
-		return nil, errors.New("Invalid state: no certificate")
-	}
-
-	if request.Ttl == 0 {
-		request.Ttl = int32(m.config.DefaultTTL)
-	} else if request.Ttl < 0 {
-		return nil, fmt.Errorf("Invalid TTL: %v", request.Ttl)
+		return nil, errors.New("invalid state: no certificate")
 	}
 
 	csr, err := disk.ParseSpiffeCsr(request.Csr, m.config.TrustDomain)
@@ -127,7 +121,7 @@ func (m *MemoryPlugin) SignCsr(ctx context.Context, request *ca.SignCsrRequest) 
 		Issuer:          csr.Subject,
 		SerialNumber:    big.NewInt(serial),
 		NotBefore:       now.Add(time.Duration(-m.config.BackdateSecs) * time.Second),
-		NotAfter:        now.Add(time.Duration(request.Ttl) * time.Second),
+		NotAfter:        m.safeExpiry(request.Ttl),
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageKeyAgreement |
 			x509.KeyUsageDigitalSignature,
@@ -151,7 +145,7 @@ func (m *MemoryPlugin) GenerateCsr(ctx context.Context, req *ca.GenerateCsrReque
 
 	newKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
-		return nil, errors.New("Can't generate private key: " + err.Error())
+		return nil, errors.New("generate private key: " + err.Error())
 	}
 	m.newKey = newKey
 
@@ -207,7 +201,7 @@ func (m *MemoryPlugin) LoadCertificate(ctx context.Context, request *ca.LoadCert
 	defer m.mtx.Unlock()
 
 	if m.newKey == nil {
-		return &ca.LoadCertificateResponse{}, errors.New("Invalid state: no private key. GenerateCsr() should be called first")
+		return &ca.LoadCertificateResponse{}, errors.New("invalid state: no private key")
 	}
 
 	cert, err := x509.ParseCertificate(request.SignedIntermediateCert)
@@ -221,57 +215,70 @@ func (m *MemoryPlugin) LoadCertificate(ctx context.Context, request *ca.LoadCert
 	}
 
 	if len(uris) != 1 {
-		return &ca.LoadCertificateResponse{}, fmt.Errorf("X.509 SVID certificates must have exactly one URI SAN. Found %v URI(s)", len(uris))
+		return &ca.LoadCertificateResponse{}, fmt.Errorf("load certificate: found %v URI(s); must have exactly one", len(uris))
 	}
 
 	keyUsageExtensions := uri.GetKeyUsageExtensionsFromCertificate(cert)
 
 	if len(keyUsageExtensions) == 0 {
-		return &ca.LoadCertificateResponse{}, errors.New("The Key Usage extension must be set on X.509 SVID certificates")
+		return &ca.LoadCertificateResponse{}, errors.New("load certificate: key usage extension must be set")
 	}
 
 	if !keyUsageExtensions[0].Critical {
-		return &ca.LoadCertificateResponse{}, errors.New("The Key Usage extension must be marked critical on X.509 SVID certificates")
+		return &ca.LoadCertificateResponse{}, errors.New("load certificate: key usage extension must be marked critical")
 	}
 
 	spiffeidUrl, err := url.Parse(uris[0])
 
 	if spiffeidUrl.Scheme != "spiffe" {
-		return &ca.LoadCertificateResponse{}, errors.New("SPIFFE IDs in X.509 SVID certificates must be prefixed with the spiffe:// scheme.")
+		return &ca.LoadCertificateResponse{}, errors.New("load certificate: missing spiffe:// scheme")
 	}
 
 	if spiffeidUrl.Host != m.config.TrustDomain {
-		return &ca.LoadCertificateResponse{}, fmt.Errorf("The SPIFFE ID '%v' does not reside in the trust domain '%v'.", spiffeidUrl, m.config.TrustDomain)
+		return &ca.LoadCertificateResponse{}, fmt.Errorf("load certificate: wrong trust domain (want %v ; got %v)", spiffeidUrl.Host, m.config.TrustDomain)
 	}
 
 	if cert.MaxPathLen > 0 || (cert.MaxPathLen == 0 && cert.MaxPathLenZero) {
-		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must not set the pathLenConstraint field")
+		return &ca.LoadCertificateResponse{}, errors.New("load certificae: pathLenConstraint must not be set")
 	}
 
 	if !cert.IsCA {
-		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must set the CA field to true")
+		return &ca.LoadCertificateResponse{}, errors.New("load certificate: not a CA cert")
 	}
 
 	if len(spiffeidUrl.Path) > 0 {
-		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must not have a path component")
+		return &ca.LoadCertificateResponse{}, errors.New("load certificate: SPIFFE ID must not have a path component")
 	}
 
 	if cert.KeyUsage&x509.KeyUsageCertSign == 0 {
-		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must set KeyUsageCertSign")
+		return &ca.LoadCertificateResponse{}, errors.New("load certificate: KeyUsageCertSign must be set")
 	}
 
 	if cert.KeyUsage&x509.KeyUsageKeyEncipherment > 0 {
-		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must not set KeyUsageKeyEncipherment")
+		return &ca.LoadCertificateResponse{}, errors.New("load certificate: KeyUsageKeyEncipherment must not be set")
 	}
 
 	if cert.KeyUsage&x509.KeyUsageKeyAgreement > 0 {
-		return &ca.LoadCertificateResponse{}, errors.New("Signing certificates must not set KeyUsageKeyAgreement")
+		return &ca.LoadCertificateResponse{}, errors.New("load certificate: KeyUsageKeyAgreement must not be set")
 	}
 
 	m.cert = cert
 	m.key = m.newKey
 
 	return &ca.LoadCertificateResponse{}, nil
+}
+
+func (m *MemoryPlugin) safeExpiry(ttl int32) time.Time {
+	if ttl == 0 {
+		ttl = int32(m.config.DefaultTTL)
+	}
+
+	requestedExpiry := time.Now().Add(time.Duration(ttl) * time.Second)
+	if requestedExpiry.After(m.cert.NotAfter) {
+		return m.cert.NotAfter
+	}
+
+	return requestedExpiry
 }
 
 func NewWithDefault() ca.Plugin {
