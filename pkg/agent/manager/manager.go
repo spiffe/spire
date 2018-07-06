@@ -60,6 +60,7 @@ type manager struct {
 	spiffeID       string
 	serverSPIFFEID string
 	serverAddr     net.Addr
+	serverHostname string
 
 	svidCachePath   string
 	bundleCachePath string

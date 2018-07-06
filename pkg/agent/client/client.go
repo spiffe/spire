@@ -38,6 +38,7 @@ type Client interface {
 // Config holds a client configuration
 type Config struct {
 	Addr        net.Addr
+	Hostname    string
 	Log         logrus.FieldLogger
 	TrustDomain url.URL
 	// KeysAndBundle is a callback that must return the keys and bundle used by the client
@@ -83,6 +84,14 @@ func (c *client) dial() (*grpc.ClientConn, error) {
 		CredFunc: c.credsFunc,
 	}
 	dialer := grpcutil.NewGRPCDialer(config)
+
+	newAddr, err := util.UpdateAddress(c.c.Addr, c.c.Hostname)
+	if err != nil {
+		c.c.Log.Warningf("Fail to update address, will dial with original IP: %v", err)
+	} else {
+		c.c.Addr = newAddr
+	}
+
 	conn, err := dialer.Dial(ctx, c.c.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create connection: %v", err)
