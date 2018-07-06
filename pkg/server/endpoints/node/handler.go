@@ -423,12 +423,10 @@ func (h *Handler) updateNodeResolverMap(ctx context.Context,
 		}
 	}
 
-	if attestResponse.Selectors != nil {
-		for _, selector := range attestResponse.Selectors {
-			err := h.createNodeResolverMapEntry(ctx, baseSpiffeID, selector)
-			if err != nil {
-				return err
-			}
+	for _, selector := range attestResponse.Selectors {
+		err := h.createNodeResolverMapEntry(ctx, baseSpiffeID, selector)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
