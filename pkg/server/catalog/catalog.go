@@ -33,13 +33,11 @@ const (
 )
 
 type Catalog interface {
-	common.Catalog
-
-	CAs() []ca.ServerCA
-	DataStores() []datastore.DataStore
-	NodeAttestors() []nodeattestor.NodeAttestor
-	NodeResolvers() []noderesolver.NodeResolver
-	UpstreamCAs() []upstreamca.UpstreamCA
+	CAs() []*ManagedServerCA
+	DataStores() []*ManagedDataStore
+	NodeAttestors() []*ManagedNodeAttestor
+	NodeResolvers() []*ManagedNodeResolver
+	UpstreamCAs() []*ManagedUpstreamCA
 }
 
 var (
@@ -78,19 +76,19 @@ type Config struct {
 	Log           logrus.FieldLogger
 }
 
-type catalog struct {
+type ServerCatalog struct {
 	com common.Catalog
-	m   *sync.RWMutex
+	m   sync.RWMutex
 	log logrus.FieldLogger
 
-	caPlugins           []ca.ServerCA
-	dataStorePlugins    []datastore.DataStore
-	nodeAttestorPlugins []nodeattestor.NodeAttestor
-	nodeResolverPlugins []noderesolver.NodeResolver
-	upstreamCAPlugins   []upstreamca.UpstreamCA
+	caPlugins           []*ManagedServerCA
+	dataStorePlugins    []*ManagedDataStore
+	nodeAttestorPlugins []*ManagedNodeAttestor
+	nodeResolverPlugins []*ManagedNodeResolver
+	upstreamCAPlugins   []*ManagedUpstreamCA
 }
 
-func New(c *Config) Catalog {
+func New(c *Config) *ServerCatalog {
 	commonConfig := &common.Config{
 		PluginConfigs:    c.PluginConfigs,
 		SupportedPlugins: supportedPlugins,
@@ -98,14 +96,13 @@ func New(c *Config) Catalog {
 		Log:              c.Log,
 	}
 
-	return &catalog{
+	return &ServerCatalog{
 		log: c.Log,
 		com: common.New(commonConfig),
-		m:   new(sync.RWMutex),
 	}
 }
 
-func (c *catalog) Run(ctx context.Context) error {
+func (c *ServerCatalog) Run(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -117,7 +114,7 @@ func (c *catalog) Run(ctx context.Context) error {
 	return c.categorize()
 }
 
-func (c *catalog) Stop() {
+func (c *ServerCatalog) Stop() {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -127,7 +124,7 @@ func (c *catalog) Stop() {
 	return
 }
 
-func (c *catalog) Reload(ctx context.Context) error {
+func (c *ServerCatalog) Reload(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -139,60 +136,46 @@ func (c *catalog) Reload(ctx context.Context) error {
 	return c.categorize()
 }
 
-func (c *catalog) Plugins() []*common.ManagedPlugin {
+func (c *ServerCatalog) CAs() []*ManagedServerCA {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.com.Plugins()
+	return append([]*ManagedServerCA(nil), c.caPlugins...)
 }
 
-func (c *catalog) ConfigFor(plugin interface{}) (*common.PluginConfig, bool) {
+func (c *ServerCatalog) DataStores() []*ManagedDataStore {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.com.ConfigFor(plugin)
+	return append([]*ManagedDataStore(nil), c.dataStorePlugins...)
 }
 
-func (c *catalog) CAs() []ca.ServerCA {
+func (c *ServerCatalog) NodeAttestors() []*ManagedNodeAttestor {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.caPlugins
+	return append([]*ManagedNodeAttestor(nil), c.nodeAttestorPlugins...)
 }
 
-func (c *catalog) DataStores() []datastore.DataStore {
+func (c *ServerCatalog) NodeResolvers() []*ManagedNodeResolver {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.dataStorePlugins
+	return append([]*ManagedNodeResolver(nil), c.nodeResolverPlugins...)
 }
 
-func (c *catalog) NodeAttestors() []nodeattestor.NodeAttestor {
+func (c *ServerCatalog) UpstreamCAs() []*ManagedUpstreamCA {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.nodeAttestorPlugins
-}
-
-func (c *catalog) NodeResolvers() []noderesolver.NodeResolver {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.nodeResolverPlugins
-}
-
-func (c *catalog) UpstreamCAs() []upstreamca.UpstreamCA {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.upstreamCAPlugins
+	return append([]*ManagedUpstreamCA(nil), c.upstreamCAPlugins...)
 }
 
 // categorize iterates over all managed plugins and casts them into their
 // respective client types. This method is called during Run and Reload
 // to prevent the consumer from having to check for errors when fetching
 // a client from the catalog
-func (c *catalog) categorize() error {
+func (c *ServerCatalog) categorize() error {
 	c.reset()
 
 	for _, p := range c.com.Plugins() {
@@ -207,31 +190,31 @@ func (c *catalog) categorize() error {
 			if !ok {
 				return fmt.Errorf("Plugin %s does not adhere to CA interface", p.Config.PluginName)
 			}
-			c.caPlugins = append(c.caPlugins, pl)
+			c.caPlugins = append(c.caPlugins, NewManagedServerCA(pl, p.Config))
 		case DataStoreType:
 			pl, ok := p.Plugin.(datastore.DataStore)
 			if !ok {
 				return fmt.Errorf("Plugin %s does not adhere to DataStore interface", p.Config.PluginName)
 			}
-			c.dataStorePlugins = append(c.dataStorePlugins, pl)
+			c.dataStorePlugins = append(c.dataStorePlugins, NewManagedDataStore(pl, p.Config))
 		case NodeAttestorType:
 			pl, ok := p.Plugin.(nodeattestor.NodeAttestor)
 			if !ok {
 				return fmt.Errorf("Plugin %s (%T) does not adhere to NodeAttestor interface", p.Config.PluginName, p.Plugin)
 			}
-			c.nodeAttestorPlugins = append(c.nodeAttestorPlugins, pl)
+			c.nodeAttestorPlugins = append(c.nodeAttestorPlugins, NewManagedNodeAttestor(pl, p.Config))
 		case NodeResolverType:
 			pl, ok := p.Plugin.(noderesolver.NodeResolver)
 			if !ok {
 				return fmt.Errorf("Plugin %s does not adhere to NodeResolver interface", p.Config.PluginName)
 			}
-			c.nodeResolverPlugins = append(c.nodeResolverPlugins, pl)
+			c.nodeResolverPlugins = append(c.nodeResolverPlugins, NewManagedNodeResolver(pl, p.Config))
 		case UpstreamCAType:
 			pl, ok := p.Plugin.(upstreamca.UpstreamCA)
 			if !ok {
 				return fmt.Errorf("Plugin %s does not adhere to UpstreamCA interface", p.Config.PluginName)
 			}
-			c.upstreamCAPlugins = append(c.upstreamCAPlugins, pl)
+			c.upstreamCAPlugins = append(c.upstreamCAPlugins, NewManagedUpstreamCA(pl, p.Config))
 		default:
 			return fmt.Errorf("Unsupported plugin type %s", p.Config.PluginType)
 		}
@@ -253,7 +236,7 @@ func (c *catalog) categorize() error {
 	return nil
 }
 
-func (c *catalog) reset() {
+func (c *ServerCatalog) reset() {
 	c.caPlugins = nil
 	c.dataStorePlugins = nil
 	c.nodeAttestorPlugins = nil

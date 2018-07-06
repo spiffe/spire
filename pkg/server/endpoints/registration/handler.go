@@ -8,6 +8,7 @@ import (
 
 	"github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/registration"
@@ -31,7 +32,7 @@ func (h *Handler) CreateEntry(
 	response *registration.RegistrationEntryID, err error) {
 
 	// Validate Spiffe ID
-	err = ValidateSpiffeID(request.SpiffeId, h.TrustDomain)
+	err = idutil.ValidateSpiffeID(request.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
 	if err != nil {
 		h.Log.Error(err)
 		return response, errors.New("Error while validating provided Spiffe ID")

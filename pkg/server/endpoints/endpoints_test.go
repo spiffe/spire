@@ -16,9 +16,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
-	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -39,9 +39,8 @@ type EndpointsTestSuite struct {
 	suite.Suite
 	ctrl *gomock.Controller
 
-	ca      *mock_ca.MockServerCA
-	ds      *mock_datastore.MockDataStore
-	catalog *mock_catalog.MockCatalog
+	ca *mock_ca.MockServerCA
+	ds *mock_datastore.MockDataStore
 
 	e *endpoints
 }
@@ -50,7 +49,6 @@ func (s *EndpointsTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 	s.ca = mock_ca.NewMockServerCA(s.ctrl)
 	s.ds = mock_datastore.NewMockDataStore(s.ctrl)
-	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 
 	log, _ := test.NewNullLogger()
 	ip := net.ParseIP("127.0.0.1")
@@ -59,12 +57,16 @@ func (s *EndpointsTestSuite) SetupTest() {
 		Host:   "example.org",
 	}
 
+	catalog := fakeservercatalog.New()
+	catalog.SetCAs(s.ca)
+	catalog.SetDataStores(s.ds)
+
 	c := &Config{
 		GRPCAddr:    &net.TCPAddr{IP: ip, Port: 8000},
 		HTTPAddr:    &net.TCPAddr{IP: ip, Port: 8001},
 		SVIDStream:  observer.NewProperty(svid.State{}).Observe(),
 		TrustDomain: td,
-		Catalog:     s.catalog,
+		Catalog:     catalog,
 		Log:         log,
 	}
 
@@ -94,7 +96,6 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 	require.NoError(s.T(), err)
 	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
 	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.catalog.EXPECT().CAs().Return([]ca.ServerCA{s.ca})
 	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
 	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
 
@@ -126,7 +127,6 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 	require.NoError(s.T(), err)
 	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
 	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.catalog.EXPECT().CAs().Return([]ca.ServerCA{s.ca})
 	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
 	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
 
@@ -155,7 +155,6 @@ func (s *EndpointsTestSuite) TestGRPCHookFailure() {
 	require.NoError(s.T(), err)
 	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
 	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.catalog.EXPECT().CAs().Return([]ca.ServerCA{s.ca})
 	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
 	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
 
@@ -239,7 +238,6 @@ func (s *EndpointsTestSuite) expectBundleLookup() ([]tls.Certificate, *x509.Cert
 		TrustDomain: s.e.c.TrustDomain.String(),
 		CaCerts:     ca.Raw,
 	}
-	s.catalog.EXPECT().DataStores().Return([]datastore.DataStore{s.ds})
 	s.ds.EXPECT().FetchBundle(gomock.Any(), dsReq).Return(dsResp, nil)
 
 	s.e.svid = svid

@@ -107,7 +107,7 @@ Displays configured registration entries.
 | `-spiffeID`   | The SPIFFE ID of the records to show.                              |                |
 | `-selector`   | A TTL, in seconds, for any SVID issued as a result of this record. | 3600           |
 
-## Architechture
+## Architecture
 
 The server consists of a master process (spire-server) and five plugins - the CA, the Upstream CA,
 The Data Store, the Node Attestor, and the Node Resolver. The master process implements the Registration

@@ -11,8 +11,8 @@ import (
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/server/ca"
+	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/mock/proto/server/ca"
-	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
 	tomb "gopkg.in/tomb.v2"
@@ -31,8 +31,7 @@ type RotatorTestSuite struct {
 
 	ctrl *gomock.Controller
 
-	ca      *mock_ca.MockServerCA
-	catalog *mock_catalog.MockCatalog
+	ca *mock_ca.MockServerCA
 
 	r *rotator
 }
@@ -40,7 +39,9 @@ type RotatorTestSuite struct {
 func (s *RotatorTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 	s.ca = mock_ca.NewMockServerCA(s.ctrl)
-	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
+
+	catalog := fakeservercatalog.New()
+	catalog.SetCAs(s.ca)
 
 	log, _ := test.NewNullLogger()
 	td := url.URL{
@@ -49,7 +50,7 @@ func (s *RotatorTestSuite) SetupTest() {
 	}
 
 	c := &RotatorConfig{
-		Catalog:     s.catalog,
+		Catalog:     catalog,
 		Log:         log,
 		TrustDomain: td,
 	}
@@ -170,6 +171,5 @@ func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 		SignedCertificate: cert.Raw,
 	}
 
-	s.catalog.EXPECT().CAs().Return([]ca.ServerCA{s.ca})
 	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(signedCert, nil)
 }

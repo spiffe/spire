@@ -11,8 +11,8 @@ import (
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
-	"github.com/spiffe/spire/test/mock/server/catalog"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -22,7 +22,6 @@ type handlerTestSuite struct {
 	t             *testing.T
 	ctrl          *gomock.Controller
 	handler       *Handler
-	mockCatalog   *mock_catalog.MockCatalog
 	mockDataStore *mock_datastore.MockDataStore
 }
 
@@ -31,13 +30,15 @@ func setupRegistrationTest(t *testing.T) *handlerTestSuite {
 	mockCtrl := gomock.NewController(t)
 	suite.ctrl = mockCtrl
 	log, _ := test.NewNullLogger()
-	suite.mockCatalog = mock_catalog.NewMockCatalog(mockCtrl)
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
+
+	catalog := fakeservercatalog.New()
+	catalog.SetDataStores(suite.mockDataStore)
 
 	suite.handler = &Handler{
 		Log:         log,
-		Catalog:     suite.mockCatalog,
 		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
+		Catalog:     catalog,
 	}
 	return suite
 }
@@ -456,8 +457,6 @@ func TestCreateJoinTokenWithoutToken(t *testing.T) {
 	request := &registration.JoinToken{Ttl: 200}
 
 	//expectations
-	suite.mockCatalog.EXPECT().DataStores().
-		Return([]datastore.DataStore{suite.mockDataStore})
 	suite.mockDataStore.EXPECT().
 		RegisterToken(gomock.Any(), gomock.Any()).
 		Return(&common.Empty{}, nil)
@@ -516,8 +515,6 @@ func TestFetchBundle(t *testing.T) {
 func noExpectations(*handlerTestSuite) {}
 
 func createEntryExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
 
 	suite.mockDataStore.EXPECT().
@@ -540,8 +537,6 @@ func createEntryExpectations(suite *handlerTestSuite) {
 }
 
 func createEntryErrorExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	suite.mockDataStore.EXPECT().
 		ListSpiffeEntries(gomock.Any(), gomock.Any()).
 		Return(&datastore.ListSpiffeEntriesResponse{
@@ -554,8 +549,6 @@ func createEntryErrorExpectations(suite *handlerTestSuite) {
 }
 
 func createEntryNonUniqueExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
 
 	suite.mockDataStore.EXPECT().
@@ -566,8 +559,6 @@ func createEntryNonUniqueExpectations(suite *handlerTestSuite) {
 }
 
 func fetchEntryExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	fetchRequest := &datastore.FetchRegistrationEntryRequest{
 		RegisteredEntryId: "abcdefgh",
 	}
@@ -580,8 +571,6 @@ func fetchEntryExpectations(suite *handlerTestSuite) {
 }
 
 func fetchEntriesExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	fetchResponse := &datastore.FetchRegistrationEntriesResponse{
 		RegisteredEntries: &common.RegistrationEntries{
 			Entries: testutil.GetRegistrationEntries("good.json"),
@@ -593,16 +582,12 @@ func fetchEntriesExpectations(suite *handlerTestSuite) {
 }
 
 func fetchEntryErrorExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	suite.mockDataStore.EXPECT().
 		FetchRegistrationEntry(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("foo"))
 }
 
 func deleteEntryExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	resp := &datastore.DeleteRegistrationEntryResponse{
 		RegisteredEntry: testutil.GetRegistrationEntries("good.json")[0],
 	}
@@ -613,8 +598,6 @@ func deleteEntryExpectations(suite *handlerTestSuite) {
 }
 
 func listByParentIDExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	listRequest := &datastore.ListParentIDEntriesRequest{ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog"}
 	listResponse := &datastore.ListParentIDEntriesResponse{
 		RegisteredEntryList: testutil.GetRegistrationEntries("good.json"),
@@ -625,16 +608,12 @@ func listByParentIDExpectations(suite *handlerTestSuite) {
 }
 
 func listByParentIDErrorExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	suite.mockDataStore.EXPECT().
 		ListParentIDEntries(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("foo"))
 }
 
 func listBySelectorExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	req := &datastore.ListSelectorEntriesRequest{
 		Selectors: []*common.Selector{
 			{Type: "unix", Value: "uid:1111"},
@@ -650,8 +629,6 @@ func listBySelectorExpectations(suite *handlerTestSuite) {
 }
 
 func listBySpiffeIDExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	req := &datastore.ListSpiffeEntriesRequest{
 		SpiffeId: "spiffe://example.org/Blog",
 	}
@@ -666,29 +643,18 @@ func listBySpiffeIDExpectations(suite *handlerTestSuite) {
 }
 
 func createJoinTokenExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	suite.mockDataStore.EXPECT().
 		RegisterToken(gomock.Any(), gomock.Any()).
 		Return(&common.Empty{}, nil)
 }
 
 func createJoinTokenErrorExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	suite.mockDataStore.EXPECT().
 		RegisterToken(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("foo"))
 }
 
-func expectDataStore(suite *handlerTestSuite) {
-	suite.mockCatalog.EXPECT().DataStores().
-		Return([]datastore.DataStore{suite.mockDataStore})
-}
-
 func createFetchBundleExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.Bundle{
 			TrustDomain: "spiffe://example.org",
@@ -697,8 +663,6 @@ func createFetchBundleExpectations(suite *handlerTestSuite) {
 }
 
 func createFetchBundleErrorExpectations(suite *handlerTestSuite) {
-	expectDataStore(suite)
-
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.Bundle{
 			TrustDomain: "spiffe://example.org",
