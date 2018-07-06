@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
-
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
@@ -183,7 +182,7 @@ func buildSelectors(leaf *x509.Certificate, chains [][]*x509.Certificate) []*com
 
 	if leaf.Subject.CommonName != "" {
 		selectors = append(selectors, &common.Selector{
-			Type: "x509", Value: "subject:cn:" + leaf.Subject.CommonName,
+			Type: "x509pop", Value: "subject:cn:" + leaf.Subject.CommonName,
 		})
 	}
 
@@ -201,7 +200,7 @@ func buildSelectors(leaf *x509.Certificate, chains [][]*x509.Certificate) []*com
 			fingerprints[fp] = cert
 
 			selectors = append(selectors, &common.Selector{
-				Type: "x509", Value: "ca:fingerprint:" + fp,
+				Type: "x509pop", Value: "ca:fingerprint:" + fp,
 			})
 		}
 	}
