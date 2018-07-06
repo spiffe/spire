@@ -14,20 +14,19 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/mock/common/context"
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	"github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
 	"github.com/spiffe/spire/test/mock/proto/server/noderesolver"
-	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -48,7 +47,6 @@ type HandlerTestSuite struct {
 	t                *testing.T
 	ctrl             *gomock.Controller
 	handler          *Handler
-	mockCatalog      *mock_catalog.MockCatalog
 	mockDataStore    *mock_datastore.MockDataStore
 	mockServerCA     *mock_ca.MockServerCA
 	mockNodeAttestor *mock_nodeattestor.MockNodeAttestor
@@ -64,7 +62,6 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	mockCtrl := gomock.NewController(t)
 	suite.ctrl = mockCtrl
 	log, _ := test.NewNullLogger()
-	suite.mockCatalog = mock_catalog.NewMockCatalog(mockCtrl)
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
 	suite.mockServerCA = mock_ca.NewMockServerCA(mockCtrl)
 	suite.mockNodeAttestor = mock_nodeattestor.NewMockNodeAttestor(mockCtrl)
@@ -73,9 +70,15 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	suite.server = mock_node.NewMockNode_FetchX509SVIDServer(suite.ctrl)
 	suite.now = time.Now()
 
+	catalog := fakeservercatalog.New()
+	catalog.SetDataStores(suite.mockDataStore)
+	catalog.SetCAs(suite.mockServerCA)
+	catalog.SetNodeAttestors(suite.mockNodeAttestor)
+	catalog.SetNodeResolvers(suite.mockNodeResolver)
+
 	suite.handler = NewHandler(HandlerConfig{
 		Log:         log,
-		Catalog:     suite.mockCatalog,
+		Catalog:     catalog,
 		TrustDomain: testTrustDomain,
 	})
 	suite.handler.hooks.now = func() time.Time {
@@ -227,7 +230,7 @@ func getAttestTestData() *fetchBaseSVIDData {
 	data.request = &node.AttestRequest{
 		Csr: getBytesFromPem("base_csr.pem"),
 		AttestationData: &common.AttestationData{
-			Type: "fake type",
+			Type: "fake_nodeattestor_1",
 			Data: []byte("fake attestation data"),
 		},
 	}
@@ -281,20 +284,6 @@ func getAttestTestData() *fetchBaseSVIDData {
 func setAttestExpectations(
 	suite *HandlerTestSuite, data *fetchBaseSVIDData) {
 
-	suite.mockCatalog.EXPECT().DataStores().AnyTimes().
-		Return([]datastore.DataStore{suite.mockDataStore})
-	suite.mockCatalog.EXPECT().CAs().AnyTimes().
-		Return([]ca.ServerCA{suite.mockServerCA})
-	suite.mockCatalog.EXPECT().NodeAttestors().AnyTimes().
-		Return([]nodeattestor.NodeAttestor{suite.mockNodeAttestor})
-	suite.mockCatalog.EXPECT().NodeResolvers().AnyTimes().
-		Return([]noderesolver.NodeResolver{suite.mockNodeResolver})
-
-	p := &catalog.PluginConfig{
-		PluginName: "fake type",
-	}
-	suite.mockCatalog.EXPECT().ConfigFor(suite.mockNodeAttestor).Return(p, true)
-
 	stream := mock_nodeattestor.NewMockAttest_Stream(suite.ctrl)
 	stream.EXPECT().Send(&nodeattestor.AttestRequest{
 		AttestedBefore:  false,
@@ -334,7 +323,7 @@ func setAttestExpectations(
 	suite.mockDataStore.EXPECT().CreateAttestedNodeEntry(gomock.Any(),
 		&datastore.CreateAttestedNodeEntryRequest{
 			AttestedNodeEntry: &datastore.AttestedNodeEntry{
-				AttestationDataType: "fake type",
+				AttestationDataType: "fake_nodeattestor_1",
 				BaseSpiffeId:        data.baseSpiffeID,
 				CertExpirationDate:  "Mon, 04 Oct 2027 21:19:54 +0000",
 				CertSerialNumber:    "18392437442709699290",
@@ -553,11 +542,6 @@ func setFetchX509SVIDExpectations(
 
 	caCert, _, err := util.LoadCAFixture()
 	require.NoError(suite.T(), err)
-
-	suite.mockCatalog.EXPECT().DataStores().AnyTimes().
-		Return([]datastore.DataStore{suite.mockDataStore})
-	suite.mockCatalog.EXPECT().CAs().AnyTimes().
-		Return([]ca.ServerCA{suite.mockServerCA})
 
 	suite.server.EXPECT().Context().Return(suite.mockContext)
 	suite.server.EXPECT().Recv().Return(data.request, nil)

@@ -23,7 +23,7 @@ import (
 type ServerCatalogTestSuite struct {
 	suite.Suite
 
-	catalog *catalog
+	catalog *ServerCatalog
 
 	// Logrus test hook for asserting
 	// log messages, if desired
@@ -83,7 +83,7 @@ func (c *ServerCatalogTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(c.t)
 	log, logHook := test.NewNullLogger()
 
-	cat := &catalog{
+	cat := &ServerCatalog{
 		log: log,
 	}
 
