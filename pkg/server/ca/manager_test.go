@@ -12,10 +12,10 @@ import (
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	"github.com/spiffe/spire/test/mock/proto/server/upstreamca"
-	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -30,7 +30,6 @@ type ManagerTestSuite struct {
 
 	m        *manager
 	mockCtrl *gomock.Controller
-	catalog  *mock_catalog.MockCatalog
 	ca       *mock_ca.MockServerCA
 	ds       *mock_datastore.MockDataStore
 	upsCa    *mock_upstreamca.MockUpstreamCA
@@ -39,16 +38,20 @@ type ManagerTestSuite struct {
 func (m *ManagerTestSuite) SetupTest() {
 	m.mockCtrl = gomock.NewController(m.T())
 
-	m.catalog = mock_catalog.NewMockCatalog(m.mockCtrl)
 	m.ca = mock_ca.NewMockServerCA(m.mockCtrl)
 	m.ds = mock_datastore.NewMockDataStore(m.mockCtrl)
 	m.upsCa = mock_upstreamca.NewMockUpstreamCA(m.mockCtrl)
+
+	catalog := fakeservercatalog.New()
+	catalog.SetCAs(m.ca)
+	catalog.SetDataStores(m.ds)
+	catalog.SetUpstreamCAs(m.upsCa)
 
 	logger, err := log.NewLogger("DEBUG", "")
 	m.NoError(err)
 
 	config := &Config{
-		Catalog: m.catalog,
+		Catalog: catalog,
 		Log:     logger,
 		TrustDomain: url.URL{
 			Scheme: "spiffe",
@@ -68,10 +71,6 @@ func TestManager(t *testing.T) {
 }
 
 func (m *ManagerTestSuite) TestCARotate() {
-	m.catalog.EXPECT().CAs().AnyTimes().Return([]ca.ServerCA{m.ca})
-	m.catalog.EXPECT().DataStores().AnyTimes().Return([]datastore.DataStore{m.ds})
-	m.catalog.EXPECT().UpstreamCAs().AnyTimes().Return([]upstreamca.UpstreamCA{m.upsCa})
-
 	// Should return error when uninitialized
 	m.Assert().Error(m.m.caRotate(ctx))
 
@@ -127,10 +126,6 @@ func (m *ManagerTestSuite) TestCARotate() {
 }
 
 func (m *ManagerTestSuite) TestPrepareNextCA() {
-	m.catalog.EXPECT().CAs().Return([]ca.ServerCA{m.ca})
-	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
-	m.catalog.EXPECT().UpstreamCAs().Return([]upstreamca.UpstreamCA{m.upsCa})
-
 	cert, _, err := util.LoadSVIDFixture()
 	m.Require().NoError(err)
 
@@ -156,7 +151,6 @@ func (m *ManagerTestSuite) TestActivateNextCA() {
 	m.Require().NoError(err)
 	m.m.nextCACert = cert
 
-	m.catalog.EXPECT().CAs().Return([]ca.ServerCA{m.ca})
 	req := &ca.LoadCertificateRequest{SignedIntermediateCert: cert.Raw}
 	m.ca.EXPECT().LoadCertificate(gomock.Any(), req)
 
@@ -177,7 +171,6 @@ func (m *ManagerTestSuite) TestPrune() {
 
 	caCerts := ca1.Raw
 	caCerts = append(caCerts, ca2.Raw...)
-	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds}).AnyTimes()
 	oldBundle := &datastore.Bundle{
 		TrustDomain: m.m.c.TrustDomain.String(),
 		CaCerts:     caCerts,
@@ -213,7 +206,6 @@ func (m *ManagerTestSuite) TestPrune() {
 
 func (m *ManagerTestSuite) TestPruner() {
 	// Pruner shouldn't exit on pruning error
-	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds}).MinTimes(1)
 	m.ds.EXPECT().FetchBundle(gomock.Any(), gomock.Any()).Return(nil, errors.New("i'm an error")).MinTimes(1)
 
 	ctx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
@@ -244,7 +236,6 @@ func (m *ManagerTestSuite) TestStoreCACert() {
 		TrustDomain: m.m.c.TrustDomain.String(),
 		CaCerts:     cert.Raw,
 	}
-	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
 	m.ds.EXPECT().AppendBundle(gomock.Any(), req)
 
 	m.Assert().NoError(m.m.storeCACert(ctx, cert, upstream.Raw))
@@ -252,7 +243,6 @@ func (m *ManagerTestSuite) TestStoreCACert() {
 	// With upstream bundle enabled
 	m.m.c.UpstreamBundle = true
 	req.CaCerts = append(req.CaCerts, upstream.Raw...)
-	m.catalog.EXPECT().DataStores().Return([]datastore.DataStore{m.ds})
 	m.ds.EXPECT().AppendBundle(gomock.Any(), req)
 
 	m.Assert().NoError(m.m.storeCACert(ctx, cert, upstream.Raw))
