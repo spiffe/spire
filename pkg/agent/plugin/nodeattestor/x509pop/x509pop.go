@@ -11,10 +11,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/spiffe/spire/pkg/common/util"
-
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/common/plugin"
