@@ -42,7 +42,8 @@ function finish ()
     rm svid.0.key
 }
 
-while [ $? == 0 ]; do
+RESULT="svid.0.pem: OK"
+while [ "$RESULT" == "svid.0.pem: OK" ]; do
     if [ $END -lt $(date +%s) ]; then
         finish
         echo
@@ -51,9 +52,11 @@ while [ $? == 0 ]; do
         exit 0
     fi
 
-    sleep 5
+    sleep 1
     ./cmd/spire-agent/spire-agent api fetch -write .
+    echo "Current date: " $(date)
     RESULT=$(openssl verify -partial_chain -CAfile bundle.0.pem svid.0.pem)
+    echo $RESULT
 done
 
 finish
@@ -62,4 +65,3 @@ echo
 echo $RESULT
 echo
 echo "Test failed."
-
