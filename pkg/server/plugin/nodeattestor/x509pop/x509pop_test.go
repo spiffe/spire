@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/test/fixture"
+	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -24,10 +25,12 @@ func TestX509PoP(t *testing.T) {
 type Suite struct {
 	suite.Suite
 
-	p          *nodeattestor.BuiltIn
-	leafBundle [][]byte
-	leafKey    crypto.PrivateKey
-	leafCert   *x509.Certificate
+	p                *nodeattestor.BuiltIn
+	leafBundle       [][]byte
+	leafKey          crypto.PrivateKey
+	leafCert         *x509.Certificate
+	intermediateCert *x509.Certificate
+	rootCert         *x509.Certificate
 }
 
 func (s *Suite) SetupTest() {
@@ -51,6 +54,10 @@ ca_bundle_path = %q`, rootCertPath),
 	s.leafBundle = kp.Certificate
 	s.leafKey = kp.PrivateKey
 	s.leafCert, err = x509.ParseCertificate(s.leafBundle[0])
+	require.NoError(err)
+	s.intermediateCert, err = x509.ParseCertificate(s.leafBundle[1])
+	require.NoError(err)
+	s.rootCert, err = util.LoadCert(rootCertPath)
 	require.NoError(err)
 }
 
@@ -96,6 +103,12 @@ func (s *Suite) TestAttestSuccess() {
 	s.True(resp.Valid)
 	require.Equal("spiffe://example.org/spire/agent/x509pop/"+x509pop.Fingerprint(s.leafCert), resp.BaseSPIFFEID)
 	require.Nil(resp.Challenge)
+	require.Len(resp.Selectors, 3)
+	require.EqualValues([]*common.Selector{
+		{Type: "x509pop", Value: "subject:cn:some common name"},
+		{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
+		{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
+	}, resp.Selectors)
 }
 
 func (s *Suite) TestAttestFailure() {
@@ -146,6 +159,7 @@ func (s *Suite) TestAttestFailure() {
 
 	// not configured yet
 	stream, err := nodeattestor.NewBuiltIn(New()).Attest(context.Background())
+	require.NoError(err)
 	defer stream.CloseSend()
 	require.NoError(stream.Send(&nodeattestor.AttestRequest{}))
 	_, err = stream.Recv()

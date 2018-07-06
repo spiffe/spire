@@ -23,9 +23,9 @@ message Selector {
     string value = 2;
 }
 
-/** Represents a type with a list of NodeResolution. */
+/** Represents a type with a list of Selector. */
 message Selectors {
-    /** A list of NodeResolution. */
+    /** A list of Selector. */
     repeated Selector entries = 1;
 }
 
