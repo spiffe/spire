@@ -51,6 +51,8 @@ func main() {
 
 	writeKey("leaf-key.pem", leafKey)
 	writeCerts("leaf-crt-bundle.pem", leafCert, intermediateCert)
+	writeCerts("leaf.pem", leafCert)
+	writeCerts("intermediate.pem", intermediateCert)
 	writeCerts("root-crt.pem", rootCert)
 }
 
