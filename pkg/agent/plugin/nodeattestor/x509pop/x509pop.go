@@ -8,7 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
+
+	"github.com/spiffe/spire/pkg/common/util"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
@@ -28,9 +31,10 @@ type configData struct {
 }
 
 type X509PoPConfig struct {
-	TrustDomain     string `hcl:"trust_domain"`
-	PrivateKeyPath  string `hcl:"private_key_path"`
-	CertificatePath string `hcl:"certificate_path"`
+	TrustDomain       string `hcl:"trust_domain"`
+	PrivateKeyPath    string `hcl:"private_key_path"`
+	CertificatePath   string `hcl:"certificate_path"`
+	IntermediatesPath string `hcl:"intermediates_path"`
 }
 
 type X509PoPPlugin struct {
@@ -152,8 +156,22 @@ func loadConfigData(config *X509PoPConfig) (*configData, error) {
 		return nil, fmt.Errorf("x509pop: unable to parse leaf certificate: %v", err)
 	}
 
+	certificates := certificate.Certificate
+
+	// Append intermediate certificates if IntermediatesPath is set.
+	if strings.TrimSpace(config.IntermediatesPath) != "" {
+		intermediates, err := util.LoadCertificates(config.IntermediatesPath)
+		if err != nil {
+			return nil, fmt.Errorf("x509pop: unable to load intermediate certificates: %v", err)
+		}
+
+		for _, cert := range intermediates {
+			certificates = append(certificates, cert.Raw)
+		}
+	}
+
 	attestationDataBytes, err := json.Marshal(x509pop.AttestationData{
-		Certificates: certificate.Certificate,
+		Certificates: certificates,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("x509pop: unable to marshal attestation data: %v", err)
