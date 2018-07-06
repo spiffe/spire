@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
-
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
 	spi "github.com/spiffe/spire/proto/common/plugin"
