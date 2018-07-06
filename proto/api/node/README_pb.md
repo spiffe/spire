@@ -125,12 +125,12 @@ entry is matched.
 <a name="spire.common.Selectors"/>
 
 ### Selectors
-Represents a type with a list of NodeResolution.
+Represents a type with a list of Selector.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [Selector](#spire.common.Selector) | repeated | A list of NodeResolution. |
+| entries | [Selector](#spire.common.Selector) | repeated | A list of Selector. |
 
 
 

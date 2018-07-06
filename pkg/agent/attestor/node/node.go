@@ -197,7 +197,7 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle []
 	if a.c.JoinToken == "" {
 		plugins := a.c.Catalog.NodeAttestors()
 		if len(plugins) > 1 {
-			return nil, nil, errors.New("more then one node attestor configured")
+			return nil, nil, errors.New("more than one node attestor configured")
 		}
 		attestor := plugins[0]
 		var err error

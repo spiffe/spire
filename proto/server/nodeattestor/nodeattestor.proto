@@ -22,11 +22,14 @@ message AttestResponse {
     /** True/False */
     bool valid = 1;
 
-    /** Used for the Server to validate the SPIFFE Id in the Certificate signing request. */
+    /** Used by the Server to validate the SPIFFE Id in the Certificate signing request. */
     string baseSPIFFEID = 2;
 
     /** Challenge required for attestation */
     bytes challenge = 3;
+
+    /** Optional list of selectors */
+    repeated spire.common.Selector selectors = 4;
 }
 
 service NodeAttestor {
