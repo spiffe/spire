@@ -182,6 +182,7 @@ func mergeConfigs(c *agent.Config, fileConfig, cliConfig *runConfig) error {
 func mergeConfig(orig *agent.Config, cmd *runConfig) error {
 	// Parse server address
 	if cmd.AgentConfig.ServerAddress != "" {
+		orig.ServerHostname = cmd.AgentConfig.ServerAddress
 		ips, err := net.LookupIP(cmd.AgentConfig.ServerAddress)
 		if err != nil {
 			return err

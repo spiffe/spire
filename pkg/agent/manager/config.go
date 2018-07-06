@@ -27,6 +27,7 @@ type Config struct {
 	Log              logrus.FieldLogger
 	Tel              telemetry.Sink
 	ServerAddr       net.Addr
+	ServerHostname   string
 	SVIDCachePath    string
 	BundleCachePath  string
 	SyncInterval     time.Duration
@@ -51,14 +52,15 @@ func New(c *Config) (*manager, error) {
 	cache := cache.New(c.Log, c.Bundle)
 
 	rotCfg := &svid.RotatorConfig{
-		Log:          c.Log,
-		SVID:         c.SVID,
-		SVIDKey:      c.SVIDKey,
-		SpiffeID:     spiffeID,
-		BundleStream: cache.SubscribeToBundleChanges(),
-		ServerAddr:   c.ServerAddr,
-		TrustDomain:  c.TrustDomain,
-		Interval:     c.RotationInterval,
+		Log:            c.Log,
+		SVID:           c.SVID,
+		SVIDKey:        c.SVIDKey,
+		SpiffeID:       spiffeID,
+		BundleStream:   cache.SubscribeToBundleChanges(),
+		ServerAddr:     c.ServerAddr,
+		ServerHostname: c.ServerHostname,
+		TrustDomain:    c.TrustDomain,
+		Interval:       c.RotationInterval,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

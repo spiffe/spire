@@ -25,6 +25,9 @@ type Config struct {
 	// Address of SPIRE server
 	ServerAddress *net.TCPAddr
 
+	// Hostname of SPIRE server
+	ServerHostname string
+
 	// Trust domain and associated CA bundle
 	TrustDomain url.URL
 	TrustBundle []*x509.Certificate
