@@ -17,7 +17,7 @@ import (
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/test/mock/agent/catalog"
+	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/mock/agent/manager"
 	"github.com/spiffe/spire/test/mock/agent/manager/cache"
 	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
@@ -34,28 +34,27 @@ type HandlerTestSuite struct {
 	h    *Handler
 	ctrl *gomock.Controller
 
-	attestor1 *mock_workloadattestor.MockWorkloadAttestor
-	attestor2 *mock_workloadattestor.MockWorkloadAttestor
-	cache     *mock_cache.MockCache
-	catalog   *mock_catalog.MockCatalog
-	manager   *mock_manager.MockManager
-	stream    *mock_workload.MockSpiffeWorkloadAPI_FetchX509SVIDServer
+	attestor *mock_workloadattestor.MockWorkloadAttestor
+	cache    *mock_cache.MockCache
+	manager  *mock_manager.MockManager
+	stream   *mock_workload.MockSpiffeWorkloadAPI_FetchX509SVIDServer
 }
 
 func (s *HandlerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
 	log, _ := test.NewNullLogger()
 
-	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
-	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
+	s.attestor = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
 	s.cache = mock_cache.NewMockCache(mockCtrl)
-	s.catalog = mock_catalog.NewMockCatalog(mockCtrl)
 	s.manager = mock_manager.NewMockManager(mockCtrl)
 	s.stream = mock_workload.NewMockSpiffeWorkloadAPI_FetchX509SVIDServer(mockCtrl)
 
+	catalog := fakeagentcatalog.New()
+	catalog.SetWorkloadAttestors(s.attestor)
+
 	h := &Handler{
 		Manager: s.manager,
-		Catalog: s.catalog,
+		Catalog: catalog,
 		L:       log,
 		T:       telemetry.Blackhole{},
 	}
@@ -101,9 +100,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	subscriber.EXPECT().Finish()
 	result := make(chan error)
 	s.stream.EXPECT().Context().Return(ctx).AnyTimes()
-	s.catalog.EXPECT().ConfigFor(gomock.Any()).AnyTimes()
-	s.catalog.EXPECT().WorkloadAttestors().Return([]workloadattestor.WorkloadAttestor{s.attestor1})
-	s.attestor1.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	s.stream.EXPECT().Send(gomock.Any())
 	go func() { result <- s.h.FetchX509SVID(nil, s.stream) }()

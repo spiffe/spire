@@ -29,11 +29,9 @@ const (
 )
 
 type Catalog interface {
-	common.Catalog
-
-	KeyManagers() []keymanager.KeyManager
-	NodeAttestors() []nodeattestor.NodeAttestor
-	WorkloadAttestors() []workloadattestor.WorkloadAttestor
+	KeyManagers() []*ManagedKeyManager
+	NodeAttestors() []*ManagedNodeAttestor
+	WorkloadAttestors() []*ManagedWorkloadAttestor
 }
 
 var (
@@ -66,17 +64,17 @@ type Config struct {
 	Log           logrus.FieldLogger
 }
 
-type catalog struct {
+type AgentCatalog struct {
 	com common.Catalog
 	m   *sync.RWMutex
 	log logrus.FieldLogger
 
-	keyManagerPlugins       []keymanager.KeyManager
-	nodeAttestorPlugins     []nodeattestor.NodeAttestor
-	workloadAttestorPlugins []workloadattestor.WorkloadAttestor
+	keyManagerPlugins       []*ManagedKeyManager
+	nodeAttestorPlugins     []*ManagedNodeAttestor
+	workloadAttestorPlugins []*ManagedWorkloadAttestor
 }
 
-func New(c *Config) Catalog {
+func New(c *Config) *AgentCatalog {
 	commonConfig := &common.Config{
 		PluginConfigs:    c.PluginConfigs,
 		SupportedPlugins: supportedPlugins,
@@ -84,14 +82,14 @@ func New(c *Config) Catalog {
 		Log:              c.Log,
 	}
 
-	return &catalog{
+	return &AgentCatalog{
 		log: c.Log,
 		com: common.New(commonConfig),
 		m:   new(sync.RWMutex),
 	}
 }
 
-func (c *catalog) Run(ctx context.Context) error {
+func (c *AgentCatalog) Run(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -103,7 +101,7 @@ func (c *catalog) Run(ctx context.Context) error {
 	return c.categorize()
 }
 
-func (c *catalog) Stop() {
+func (c *AgentCatalog) Stop() {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -113,7 +111,7 @@ func (c *catalog) Stop() {
 	return
 }
 
-func (c *catalog) Reload(ctx context.Context) error {
+func (c *AgentCatalog) Reload(ctx context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -125,46 +123,32 @@ func (c *catalog) Reload(ctx context.Context) error {
 	return c.categorize()
 }
 
-func (c *catalog) Plugins() []*common.ManagedPlugin {
+func (c *AgentCatalog) KeyManagers() []*ManagedKeyManager {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.com.Plugins()
+	return append([]*ManagedKeyManager(nil), c.keyManagerPlugins...)
 }
 
-func (c *catalog) ConfigFor(plugin interface{}) (*common.PluginConfig, bool) {
+func (c *AgentCatalog) NodeAttestors() []*ManagedNodeAttestor {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.com.ConfigFor(plugin)
+	return append([]*ManagedNodeAttestor(nil), c.nodeAttestorPlugins...)
 }
 
-func (c *catalog) KeyManagers() []keymanager.KeyManager {
+func (c *AgentCatalog) WorkloadAttestors() []*ManagedWorkloadAttestor {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	return c.keyManagerPlugins
-}
-
-func (c *catalog) NodeAttestors() []nodeattestor.NodeAttestor {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.nodeAttestorPlugins
-}
-
-func (c *catalog) WorkloadAttestors() []workloadattestor.WorkloadAttestor {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.workloadAttestorPlugins
+	return append([]*ManagedWorkloadAttestor(nil), c.workloadAttestorPlugins...)
 }
 
 // categorize iterates over all managed plugins and casts them into their
 // respective client types. This method is called during Run and Reload
 // to prevent the consumer from having to check for errors when fetching
 // a client from the catalog
-func (c *catalog) categorize() error {
+func (c *AgentCatalog) categorize() error {
 	c.reset()
 
 	errMsg := "Plugin %s does not adhere to %s interface"
@@ -180,19 +164,19 @@ func (c *catalog) categorize() error {
 			if !ok {
 				return fmt.Errorf(errMsg, p.Config.PluginName, KeyManagerType)
 			}
-			c.keyManagerPlugins = append(c.keyManagerPlugins, pl)
+			c.keyManagerPlugins = append(c.keyManagerPlugins, NewManagedKeyManager(pl, p.Config))
 		case NodeAttestorType:
 			pl, ok := p.Plugin.(nodeattestor.NodeAttestor)
 			if !ok {
 				return fmt.Errorf(errMsg, p.Config.PluginName, NodeAttestorType)
 			}
-			c.nodeAttestorPlugins = append(c.nodeAttestorPlugins, pl)
+			c.nodeAttestorPlugins = append(c.nodeAttestorPlugins, NewManagedNodeAttestor(pl, p.Config))
 		case WorkloadAttestorType:
 			pl, ok := p.Plugin.(workloadattestor.WorkloadAttestor)
 			if !ok {
 				return fmt.Errorf(errMsg, p.Config.PluginName, WorkloadAttestorType)
 			}
-			c.workloadAttestorPlugins = append(c.workloadAttestorPlugins, pl)
+			c.workloadAttestorPlugins = append(c.workloadAttestorPlugins, NewManagedWorkloadAttestor(pl, p.Config))
 		default:
 			return fmt.Errorf("Unsupported plugin type %s", p.Config.PluginType)
 		}
@@ -212,7 +196,7 @@ func (c *catalog) categorize() error {
 	return nil
 }
 
-func (c *catalog) reset() {
+func (c *AgentCatalog) reset() {
 	c.keyManagerPlugins = nil
 	c.nodeAttestorPlugins = nil
 	c.workloadAttestorPlugins = nil
