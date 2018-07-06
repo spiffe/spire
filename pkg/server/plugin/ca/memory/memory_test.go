@@ -239,7 +239,7 @@ func TestMemory_SignCsrExpire(t *testing.T) {
 	cert, err := x509.ParseCertificate(wcert.SignedCertificate)
 	roots := getRoots(t, m)
 	_, err = cert.Verify(x509.VerifyOptions{Roots: roots})
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestMemory_SignCsrNoCert(t *testing.T) {
@@ -249,7 +249,7 @@ func TestMemory_SignCsrNoCert(t *testing.T) {
 
 	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Empty(t, wcert)
 }
 
@@ -260,7 +260,7 @@ func TestMemory_SignCsrErrorParsingSpiffeId(t *testing.T) {
 
 	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Empty(t, wcert)
 }
 
