@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/test/fixture"
@@ -28,24 +29,43 @@ type Suite struct {
 }
 
 func (s *Suite) SetupTest() {
-	require := s.Require()
-
 	leafKeyPath := fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
 	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
-
 	s.p = nodeattestor.NewBuiltIn(New())
+	s.configure(leafKeyPath, leafCertPath, "")
+}
+
+func (s *Suite) configure(privateKeyPath, certificatePath, intermediatesPath string) {
+	require := s.Require()
+	config := fmt.Sprintf(`
+		trust_domain = "example.org"
+		private_key_path = %q 
+		certificate_path = %q`, privateKeyPath, certificatePath)
+
+	if intermediatesPath != "" {
+		config += fmt.Sprintf(`
+			intermediates_path = %q`, intermediatesPath)
+	}
+
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-trust_domain = "example.org"
-private_key_path = %q 
-certificate_path = %q`, leafKeyPath, leafCertPath),
+		Configuration: config,
 	})
 	require.NoError(err)
 	require.Equal(resp, &plugin.ConfigureResponse{})
 
-	kp, err := tls.LoadX509KeyPair(leafCertPath, leafKeyPath)
+	kp, err := tls.LoadX509KeyPair(certificatePath, privateKeyPath)
 	require.NoError(err)
-	s.leafBundle = kp.Certificate
+
+	certificates := kp.Certificate
+	if intermediatesPath != "" {
+		certs, err := util.LoadCertificates(intermediatesPath)
+		require.NoError(err)
+		for _, c := range certs {
+			certificates = append(certificates, c.Raw)
+		}
+	}
+
+	s.leafBundle = certificates
 	s.leafCert, err = x509.ParseCertificate(s.leafBundle[0])
 	require.NoError(err)
 }
@@ -91,6 +111,14 @@ func (s *Suite) TestFetchAttestationDataSuccess() {
 	s.unmarshal(resp.Response, response)
 	err = x509pop.VerifyChallengeResponse(s.leafCert.PublicKey, challenge, response)
 	require.NoError(err)
+}
+
+func (s *Suite) TestFetchAttestationDataSuccessWithIntermediates() {
+	leafKeyPath := fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
+	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf.pem")
+	intermediatePath := fixture.Join("nodeattestor", "x509pop", "intermediate.pem")
+	s.configure(leafKeyPath, leafCertPath, intermediatePath)
+	s.TestFetchAttestationDataSuccess()
 }
 
 func (s *Suite) TestFetchAttestationDataFailure() {
@@ -179,6 +207,18 @@ func (s *Suite) TestConfigure() {
 	s.errorContains(err, "x509pop: unable to load keypair")
 	require.Nil(resp)
 
+	// cannot load intermediates
+	leafKeyPath := fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
+	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
+	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: fmt.Sprintf(`
+			trust_domain = "example.org"
+			private_key_path = %q 
+			certificate_path = %q
+			intermediates_path = "blah"`, leafKeyPath, leafCertPath),
+	})
+	s.errorContains(err, "x509pop: unable to load intermediate certificates")
+	require.Nil(resp)
 }
 
 func (s *Suite) TestGetPluginInfo() {
