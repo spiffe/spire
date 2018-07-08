@@ -6,7 +6,7 @@
 # code 0 if all steps are completed successfully.
 #
 # If a running docker system is available from the machine this test will also create a new PostgreSQL instance
-# as a docker container. This database instance is then used to run the e2e test with PostgreSQL as a datastore. 
+# as a docker container. This database instance is then used to run the e2e test with PostgreSQL as a datastore.
 #
 # PLEASE NOTE: This script must be run from the project root, and will remove the
 # default datastore file before beginning in order to ensure accurate resutls.
@@ -49,7 +49,7 @@ run_test() {
     ./cmd/spire-server/spire-server entry create \
     -spiffeID spiffe://example.org/test \
     -parentID spiffe://example.org/agent \
-    -selector unix:uid:$(id -u) 
+    -selector unix:uid:$(id -u)
 
     TOKEN=$(./cmd/spire-server/spire-server token generate -spiffeID spiffe://example.org/agent | awk '{print $2}')
     ./cmd/spire-agent/spire-agent run -joinToken $TOKEN &
@@ -86,3 +86,5 @@ run_test() {
 
 run_e2e_test "conf/server/server.conf"
 run_docker_test "test/configs/server/postgres.conf" "-e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres"
+run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=rootpassword -p 3306:3306 -d mariadb:5.5"
+run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 3306:3306 -d mysql:5.7.22"
