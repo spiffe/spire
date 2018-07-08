@@ -86,5 +86,5 @@ run_test() {
 
 run_e2e_test "conf/server/server.conf"
 run_docker_test "test/configs/server/postgres.conf" "-e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres"
-run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=rootpassword -p 3306:3306 -d mariadb:5.5"
-run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 3306:3306 -d mysql:5.7.22"
+run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=rootpassword -p 6612:3306 -d mariadb:5.5"
+run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.7.22"
