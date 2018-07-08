@@ -1134,8 +1134,6 @@ func (ds *sqlPlugin) restart() error {
 		db, err = sqlite{}.connect(ds.ConnectionString)
 	case "postgres":
 		db, err = postgres{}.connect(ds.ConnectionString)
-	case "mysql":
-		db, err = mysql{}.connect(ds.ConnectionString)
 	default:
 		return fmt.Errorf("unsupported database_type: %v", ds.DatabaseType)
 	}

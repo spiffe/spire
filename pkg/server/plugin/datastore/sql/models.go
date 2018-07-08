@@ -6,20 +6,20 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
+type CACert struct {
+	gorm.Model
+
+	Cert   []byte    `gorm:"not null"`
+	Expiry time.Time `gorm:"not null;index"`
+
+	BundleID uint `gorm:"not null;index" sql:"type:integer REFERENCES bundles(id)"`
+}
+
 type Bundle struct {
 	gorm.Model
 
 	TrustDomain string `gorm:"not null;unique_index"`
 	CACerts     []CACert
-}
-
-type CACert struct {
-	gorm.Model
-
-	Cert   []byte    `gorm:"size:4095;not null"`
-	Expiry time.Time `gorm:"not null;default:CURRENT_TIMESTAMP;index"`
-
-	BundleID uint `gorm:"index" sql:"NOT NULL, FOREIGN KEY (bundle_id) REFERENCES bundles(id)"`
 }
 
 type AttestedNodeEntry struct {
