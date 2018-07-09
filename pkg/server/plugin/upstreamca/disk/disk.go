@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl"
 
 	"github.com/spiffe/spire/pkg/common/x509svid"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/upstreamca"
 )
@@ -35,11 +36,11 @@ type Configuration struct {
 }
 
 type diskPlugin struct {
-	serialNumber x509svid.SerialNumber
+	serialNumber x509util.SerialNumber
 
 	mtx        sync.RWMutex
 	cert       *x509.Certificate
-	keypair    *x509svid.MemoryKeypair
+	keypair    *x509util.MemoryKeypair
 	upstreamCA *x509svid.UpstreamCA
 }
 
@@ -104,7 +105,7 @@ func (m *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 
 	m.cert = cert
 	m.upstreamCA = x509svid.NewUpstreamCA(
-		x509svid.NewMemoryKeypair(cert, key),
+		x509util.NewMemoryKeypair(cert, key),
 		config.TrustDomain,
 		x509svid.UpstreamCAOptions{
 			SerialNumber: m.serialNumber,
@@ -139,6 +140,6 @@ func (m *diskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCS
 
 func New() (m upstreamca.Plugin) {
 	return &diskPlugin{
-		serialNumber: x509svid.NewSerialNumber(),
+		serialNumber: x509util.NewSerialNumber(),
 	}
 }

@@ -1,4 +1,4 @@
-package x509svid
+package x509util
 
 import (
 	"context"

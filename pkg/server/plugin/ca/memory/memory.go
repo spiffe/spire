@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl"
 
 	"github.com/spiffe/spire/pkg/common/x509svid"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/ca"
 )
@@ -41,19 +42,19 @@ type configuration struct {
 }
 
 type MemoryPlugin struct {
-	serialNumber x509svid.SerialNumber
+	serialNumber x509util.SerialNumber
 
 	mtx sync.RWMutex
 	// everything below is protected by the mutex
 	config   *configuration
 	newKey   *ecdsa.PrivateKey
-	keypair  *x509svid.MemoryKeypair
+	keypair  *x509util.MemoryKeypair
 	serverCA *x509svid.ServerCA
 }
 
 func New() *MemoryPlugin {
 	return &MemoryPlugin{
-		serialNumber: x509svid.NewSerialNumber(),
+		serialNumber: x509util.NewSerialNumber(),
 	}
 }
 
@@ -177,7 +178,7 @@ func (m *MemoryPlugin) LoadCertificate(ctx context.Context, request *ca.LoadCert
 		return nil, err
 	}
 
-	m.keypair = x509svid.NewMemoryKeypair(cert, m.newKey)
+	m.keypair = x509util.NewMemoryKeypair(cert, m.newKey)
 	m.initializeCA()
 
 	return &ca.LoadCertificateResponse{}, nil
