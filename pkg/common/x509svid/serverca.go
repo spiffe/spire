@@ -23,17 +23,16 @@ const (
 type ServerCAOptions struct {
 	TTL          time.Duration
 	Backdate     time.Duration
-	SerialNumber SerialNumber
+	SerialNumber x509util.SerialNumber
 }
 
 type ServerCA struct {
-	keypair      Keypair
-	serialNumber SerialNumber
-	trustDomain  string
-	options      ServerCAOptions
+	keypair     x509util.Keypair
+	trustDomain string
+	options     ServerCAOptions
 }
 
-func NewServerCA(keypair Keypair, trustDomain string, options ServerCAOptions) *ServerCA {
+func NewServerCA(keypair x509util.Keypair, trustDomain string, options ServerCAOptions) *ServerCA {
 	if options.TTL <= 0 {
 		options.TTL = DefaultServerCATTL
 	}
@@ -41,7 +40,7 @@ func NewServerCA(keypair Keypair, trustDomain string, options ServerCAOptions) *
 		options.Backdate = DefaultServerCABackdate
 	}
 	if options.SerialNumber == nil {
-		options.SerialNumber = NewSerialNumber()
+		options.SerialNumber = x509util.NewSerialNumber()
 	}
 
 	return &ServerCA{
@@ -85,12 +84,12 @@ func (ca *ServerCA) SignCSR(ctx context.Context, csrDER []byte, ttl time.Duratio
 	}
 
 	template := &x509.Certificate{
-		SerialNumber:    serialNumber,
-		ExtraExtensions: csr.Extensions,
-		Subject:         csr.Subject,
-		NotBefore:       notBefore,
-		NotAfter:        notAfter,
-		SubjectKeyId:    keyID,
+		SerialNumber: serialNumber,
+		Subject:      csr.Subject,
+		URIs:         csr.URIs,
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
+		SubjectKeyId: keyID,
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageKeyAgreement |
 			x509.KeyUsageDigitalSignature,
@@ -119,26 +118,15 @@ type ServerCACSROptions struct {
 }
 
 func GenerateServerCACSR(key *ecdsa.PrivateKey, trustDomain string, options ServerCACSROptions) ([]byte, error) {
-	spiffeID := url.URL{
+	spiffeID := &url.URL{
 		Scheme: "spiffe",
 		Host:   trustDomain,
-	}
-
-	uriSans, err := uri.MarshalUriSANs([]string{spiffeID.String()})
-	if err != nil {
-		return nil, err
 	}
 
 	template := x509.CertificateRequest{
 		Subject:            options.Subject,
 		SignatureAlgorithm: x509.ECDSAWithSHA256,
-		ExtraExtensions: []pkix.Extension{
-			{
-				Id:       uri.OidExtensionSubjectAltName,
-				Value:    uriSans,
-				Critical: false,
-			},
-		},
+		URIs:               []*url.URL{spiffeID},
 	}
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &template, key)

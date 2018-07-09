@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -34,7 +35,7 @@ type caSuite struct {
 
 	caCert  *x509.Certificate
 	csrKey  *ecdsa.PrivateKey
-	keypair *MemoryKeypair
+	keypair *x509util.MemoryKeypair
 }
 
 func (s *caSuite) SetupTest() {
@@ -42,7 +43,7 @@ func (s *caSuite) SetupTest() {
 	caCert := s.createCA(caKey, 2*time.Hour)
 	s.caCert = caCert
 	s.csrKey = s.loadKey(csrKeyPEM)
-	s.keypair = NewMemoryKeypair(caCert, caKey)
+	s.keypair = x509util.NewMemoryKeypair(caCert, caKey)
 }
 
 func (s *caSuite) createCA(key *ecdsa.PrivateKey, ttl time.Duration) *x509.Certificate {
