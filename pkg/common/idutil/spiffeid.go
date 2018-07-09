@@ -10,9 +10,11 @@ import (
 type idType int
 
 const (
-	anyType idType = iota
+	anyId idType = iota
 	trustDomainId
 	workloadId
+	agentId
+	serverId
 )
 
 // ValidateSpiffeID validates the SPIFFE ID according to the SPIFFE
@@ -43,10 +45,14 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 	validationError := func(format string, args ...interface{}) error {
 		var kind string
 		switch options.idType {
-		case workloadId:
-			kind = "workload "
 		case trustDomainId:
 			kind = "trust domain "
+		case workloadId:
+			kind = "workload "
+		case serverId:
+			kind = "server "
+		case agentId:
+			kind = "agent "
 		}
 		return fmt.Errorf("%q is not a valid %sSPIFFE ID: "+format,
 			append([]interface{}{id.String(), kind}, args...)...)
@@ -83,21 +89,47 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 	}
 
 	// id type validation
-	if id.Path == "" {
-		if options.idType == workloadId {
-			return validationError("path is empty")
-		}
-	} else {
-		if options.idType == trustDomainId {
+	switch options.idType {
+	case trustDomainId:
+		if id.Path != "" {
 			return validationError("path is not empty")
 		}
-		// '/spire/' is not allowed as path, since it is reserved for agent, server, etc.
-		if id.Path == "/spire" || strings.HasPrefix(id.Path, "/spire/") {
-			return validationError("invalid path: \"/spire/*\" namespace is restricted")
+	case workloadId:
+		if id.Path == "" {
+			return validationError("path is empty")
+		}
+		if isReservedPath(id.Path) {
+			return validationError(`invalid path: "/spire/*" namespace is reserved`)
+		}
+	case serverId:
+		if id.Path == "" {
+			return validationError("path is empty")
+		}
+		if !isServerPath(id.Path) {
+			return validationError(`invalid path: expecting "/spire/server"`)
+		}
+	case agentId:
+		if id.Path == "" {
+			return validationError("path is empty")
+		}
+		if !isAgentPath(id.Path) {
+			return validationError(`invalid path: expecting "/spire/agent/*"`)
 		}
 	}
 
 	return nil
+}
+
+func isReservedPath(path string) bool {
+	return path == "/spire" || strings.HasPrefix(path, "/spire/")
+}
+
+func isServerPath(path string) bool {
+	return path == "/spire/server"
+}
+
+func isAgentPath(path string) bool {
+	return strings.HasPrefix(path, "/spire/agent/")
 }
 
 // ParseSpiffeID parses the SPIFFE ID and makes sure it is valid according to
@@ -169,6 +201,26 @@ func AllowTrustDomainWorkload(trustDomain string) ValidationMode {
 	}
 }
 
+func AllowTrustDomainServer(trustDomain string) ValidationMode {
+	return validationMode{
+		options: validationOptions{
+			trustDomain:         trustDomain,
+			trustDomainRequired: true,
+			idType:              serverId,
+		},
+	}
+}
+
+func AllowTrustDomainAgent(trustDomain string) ValidationMode {
+	return validationMode{
+		options: validationOptions{
+			trustDomain:         trustDomain,
+			trustDomainRequired: true,
+			idType:              agentId,
+		},
+	}
+}
+
 // Allows a well-formed SPIFFE ID for any trust domain.
 func AllowAnyTrustDomain() ValidationMode {
 	return validationMode{
@@ -183,6 +235,22 @@ func AllowAnyTrustDomainWorkload() ValidationMode {
 	return validationMode{
 		options: validationOptions{
 			idType: workloadId,
+		},
+	}
+}
+
+func AllowAnyTrustDomainServer() ValidationMode {
+	return validationMode{
+		options: validationOptions{
+			idType: serverId,
+		},
+	}
+}
+
+func AllowAnyTrustDomainAgent() ValidationMode {
+	return validationMode{
+		options: validationOptions{
+			idType: agentId,
 		},
 	}
 }
