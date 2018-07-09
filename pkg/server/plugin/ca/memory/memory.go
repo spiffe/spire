@@ -19,7 +19,8 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/uri"
 
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
+	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/x509svid"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/ca"
 )
@@ -107,7 +108,8 @@ func (m *MemoryPlugin) SignCsr(ctx context.Context, request *ca.SignCsrRequest) 
 		return nil, errors.New("invalid state: no certificate")
 	}
 
-	csr, err := disk.ParseSpiffeCsr(request.Csr, m.config.TrustDomain)
+	csr, err := x509svid.ParseAndValidateCSR(request.Csr,
+		idutil.AllowAnyInTrustDomain(m.config.TrustDomain))
 	if err != nil {
 		return nil, err
 	}
