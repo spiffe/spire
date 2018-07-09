@@ -16,14 +16,14 @@ const (
 	codeVersion = 7
 )
 
-func migrateDB(db *gorm.DB) (err error) {
+func migrateDB(db *gorm.DB, dbType string) (err error) {
 	isNew := !db.HasTable(&Bundle{})
 	if err := db.Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
 	if isNew {
-		return initDB(db)
+		return initDB(db, dbType)
 	}
 
 	if err := db.AutoMigrate(&Migration{}).Error; err != nil {
@@ -66,16 +66,24 @@ func migrateDB(db *gorm.DB) (err error) {
 	return nil
 }
 
-func initDB(db *gorm.DB) (err error) {
+func initDB(db *gorm.DB, dbType string) (err error) {
 	logrus.Infof("initializing database.")
 	tx := db.Begin()
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
-	if err := tx.AutoMigrate(&Bundle{}, &AttestedNode{},
-		&NodeSelector{}, &RegisteredEntry{}, &JoinToken{},
-		&Selector{}, &Migration{}).Error; err != nil {
+	tables := []interface{}{
+		&Bundle{},
+		&AttestedNode{},
+		&NodeSelector{},
+		&RegisteredEntry{},
+		&JoinToken{},
+		&Selector{},
+		&Migration{},
+	}
+
+	if err := tableOptionsForDialect(tx, dbType).AutoMigrate(tables...).Error; err != nil {
 		tx.Rollback()
 		return sqlError.Wrap(err)
 	}
@@ -90,6 +98,16 @@ func initDB(db *gorm.DB) (err error) {
 	}
 
 	return nil
+}
+
+func tableOptionsForDialect(tx *gorm.DB, dbType string) *gorm.DB {
+	// This allows for setting table options for a particular DB type.
+	// For MySQL, (for compatibility reasons) we want to make sure that
+	// we can support indexes on strings (varchar(255) in the DB).
+	if dbType == MySQL {
+		return tx.Set("gorm:table_options", "ENGINE=InnoDB  ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8")
+	}
+	return tx
 }
 
 func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {

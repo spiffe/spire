@@ -103,6 +103,16 @@ func (s *PluginSuite) TestInvalidPluginConfiguration() {
 	s.Require().EqualError(err, "datastore-sql: unsupported database_type: wrong")
 }
 
+func (s *PluginSuite) TestInvalidMySQLConfiguration() {
+	_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: `
+		database_type = "mysql"
+		connection_string = "username:@tcp(127.0.0.1)/spire_test"
+		`,
+	})
+	s.Require().EqualError(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
+}
+
 func (s *PluginSuite) TestBundleCRUD() {
 	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
