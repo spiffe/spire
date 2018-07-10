@@ -1,12 +1,18 @@
 package memory
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
+	"fmt"
+	"io/ioutil"
+	"os"
 	"sync"
 	"time"
 
@@ -39,6 +45,7 @@ type configuration struct {
 	BackdateSecs int               `hcl:"backdate_seconds" json:"backdate_seconds"`
 	CertSubject  certSubjectConfig `hcl:"cert_subject" json:"cert_subject"`
 	DefaultTTL   int               `hcl:"default_ttl" json:"default_ttl"`
+	KeypairPath  string            `hcl:"keypair_path" json:"keypair_path"`
 }
 
 type MemoryPlugin struct {
@@ -67,7 +74,7 @@ func NewWithDefault() *MemoryPlugin {
 			Organization: []string{"SPIFFE"},
 			CommonName:   "",
 		},
-	})
+	}, nil)
 	return m
 }
 
@@ -81,13 +88,26 @@ func (m *MemoryPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest)
 		return nil, errors.New("trust domain is required")
 	}
 
-	m.configure(config)
+	var keypair *x509util.MemoryKeypair
+	if config.KeypairPath != "" {
+		cert, key, err := loadKeypair(config.KeypairPath)
+		switch {
+		case err == nil:
+			keypair = x509util.NewMemoryKeypair(cert, key)
+		case os.IsNotExist(err):
+		default:
+			return nil, err
+		}
+	}
+
+	m.configure(config, keypair)
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (m *MemoryPlugin) configure(config *configuration) {
+func (m *MemoryPlugin) configure(config *configuration, keypair *x509util.MemoryKeypair) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
+	m.keypair = keypair
 	m.config = config
 	m.initializeCA()
 }
@@ -178,8 +198,96 @@ func (m *MemoryPlugin) LoadCertificate(ctx context.Context, request *ca.LoadCert
 		return nil, err
 	}
 
-	m.keypair = x509util.NewMemoryKeypair(cert, m.newKey)
+	keypair := x509util.NewMemoryKeypair(cert, m.newKey)
+	if m.config.KeypairPath != "" {
+		if err := writeKeypair(m.config.KeypairPath, cert, m.newKey); err != nil {
+			return nil, err
+		}
+	}
+
+	m.keypair = keypair
 	m.initializeCA()
 
 	return &ca.LoadCertificateResponse{}, nil
+}
+
+func loadKeypair(path string) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+	pemBytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// parse certificate
+	certBlock, pemBytes := pem.Decode(pemBytes)
+	if certBlock == nil {
+		return nil, nil, errors.New("missing CERTIFICATE block")
+	}
+	if certBlock.Type != "CERTIFICATE" {
+		return nil, nil, errors.New("expected first block to be CERTIFICATE")
+	}
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to parse certificate: %v", err)
+	}
+
+	// parse key
+	keyBlock, _ := pem.Decode(pemBytes)
+	if keyBlock == nil {
+		return nil, nil, errors.New("missing PRIVATE KEY block")
+	}
+	if keyBlock.Type != "PRIVATE KEY" {
+		return nil, nil, errors.New("expected second block to be PRIVATE KEY")
+	}
+	rawKey, err := x509.ParsePKCS8PrivateKey(keyBlock.Bytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	key, ok := rawKey.(*ecdsa.PrivateKey)
+	if !ok {
+		return nil, nil, fmt.Errorf("expecting ECDSA private key; got %T", rawKey)
+	}
+
+	publicKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, nil, fmt.Errorf("expected certificate to ECDSA public key; got %T", cert.PublicKey)
+	}
+
+	// make sure keys match
+	if !(key.X.Cmp(publicKey.X) == 0 && key.Y.Cmp(publicKey.Y) == 0) {
+		return nil, nil, errors.New("certificate and key do not match")
+	}
+
+	return cert, key, nil
+}
+
+func writeKeypair(path string, cert *x509.Certificate, key *ecdsa.PrivateKey) error {
+	keyBytes, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return fmt.Errorf("unable to marshal private key: %v", err)
+	}
+
+	buffer := new(bytes.Buffer)
+	if err := pem.Encode(buffer, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	}); err != nil {
+		return fmt.Errorf("unable to encode certificate: %v", err)
+	}
+
+	if err := pem.Encode(buffer, &pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyBytes,
+	}); err != nil {
+		return fmt.Errorf("unable to encode private key: %v", err)
+	}
+
+	if err := ioutil.WriteFile(path+".tmp", buffer.Bytes(), 0600); err != nil {
+		return fmt.Errorf("unable to write temporary keypair: %v", err)
+	}
+
+	if err := os.Rename(path+".tmp", path); err != nil {
+		return fmt.Errorf("unable to overwrite keypair: %v", err)
+	}
+
+	return nil
 }
