@@ -8,12 +8,14 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/spiffe/go-spiffe/uri"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	upca "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/ca"
@@ -46,8 +48,9 @@ func TestMemory_ConfigureDecodeError(t *testing.T) {
 	}
 
 	m := New()
+
 	resp, err := m.Configure(ctx, pluginConfig)
-	require.EqualError(t, err, "strconv.ParseInt: parsing \"foo\": invalid syntax")
+	require.EqualError(t, err, "unable to decode configuration: strconv.ParseInt: parsing \"foo\": invalid syntax")
 	require.Nil(t, resp)
 }
 
@@ -73,9 +76,8 @@ func TestMemory_LoadValidCertificate(t *testing.T) {
 	validCertFiles, err := ioutil.ReadDir(testDataDir)
 	assert.NoError(t, err)
 
-	m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
-
 	for _, file := range validCertFiles {
+		m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
 		certPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, file.Name()))
 		if assert.NoError(t, err, file.Name()) {
 			block, rest := pem.Decode(certPEM)
@@ -83,9 +85,9 @@ func TestMemory_LoadValidCertificate(t *testing.T) {
 			_, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: block.Bytes})
 			assert.NoError(t, err, file.Name())
 
-			resp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
-			require.NoError(t, err, file.Name())
-			require.Equal(t, resp.StoredIntermediateCert, block.Bytes, file.Name())
+			cert, err := m.getX509SVIDCertificate()
+			require.NoError(t, err)
+			require.Equal(t, cert.Raw, block.Bytes, file.Name())
 		}
 	}
 }
@@ -108,13 +110,6 @@ func TestMemory_LoadInvalidCertificate(t *testing.T) {
 	}
 }
 
-func TestMemory_FetchCertificate(t *testing.T) {
-	m := NewWithDefault()
-	cert, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
-	require.NoError(t, err)
-	assert.Empty(t, cert.StoredIntermediateCert)
-}
-
 func TestMemory_bootstrap(t *testing.T) {
 	m := NewWithDefault()
 
@@ -130,14 +125,14 @@ func TestMemory_bootstrap(t *testing.T) {
 	_, err = m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 	require.NoError(t, err)
 
-	fetchCertificateResp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
+	cert, err := m.getX509SVIDCertificate()
 	require.NoError(t, err)
 
-	assert.Equal(t, submitCSRResp.Cert, fetchCertificateResp.StoredIntermediateCert)
+	assert.Equal(t, submitCSRResp.Cert, cert.Raw)
 
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
-	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
+	wcert, err := m.SignX509SvidCsr(ctx, &ca.SignX509SvidCsrRequest{Csr: wcsr})
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, wcert)
@@ -160,17 +155,16 @@ func TestMemory_race(t *testing.T) {
 	testutil.RaceTest(t, func(t *testing.T) {
 		m.GenerateCsr(ctx, &ca.GenerateCsrRequest{})
 		m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
-		m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
-		m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
+		m.SignX509SvidCsr(ctx, &ca.SignX509SvidCsrRequest{Csr: wcsr})
 	})
 }
 
-func TestMemory_SignCsr(t *testing.T) {
+func TestMemory_SignX509SvidCsr(t *testing.T) {
 	m := populateCert(t)
 
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
-	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
+	wcert, err := m.SignX509SvidCsr(ctx, &ca.SignX509SvidCsrRequest{Csr: wcsr})
 	require.NoError(t, err)
 	assert.NotEmpty(t, wcert)
 
@@ -181,17 +175,14 @@ func TestMemory_SignCsr(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestMemory_SignCsrWithProblematicTTL(t *testing.T) {
+func TestMemory_SignX509SvidCsrWithProblematicTTL(t *testing.T) {
 	m := populateCert(t)
-	caResp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
-	require.NoError(t, err)
-	require.NotEmpty(t, caResp.StoredIntermediateCert)
-	caCert, err := x509.ParseCertificate(caResp.StoredIntermediateCert)
+	caCert, err := m.getX509SVIDCertificate()
 	require.NoError(t, err)
 
 	ttl := time.Until(caCert.NotAfter.Add(1 * time.Hour))
 	csr := createWorkloadCSR(t, "spiffe://localhost")
-	sResp, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: csr, Ttl: int32(ttl.Seconds())})
+	sResp, err := m.SignX509SvidCsr(ctx, &ca.SignX509SvidCsrRequest{Csr: csr, Ttl: int32(ttl.Seconds())})
 	require.NoError(t, err)
 
 	cert, err := x509.ParseCertificate(sResp.SignedCertificate)
@@ -199,12 +190,12 @@ func TestMemory_SignCsrWithProblematicTTL(t *testing.T) {
 	assert.Equal(t, caCert.NotAfter, cert.NotAfter)
 }
 
-func TestMemory_SignCsrExpire(t *testing.T) {
+func TestMemory_SignX509SvidCsrExpire(t *testing.T) {
 	m := populateCert(t)
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
 	// Set a TTL of one second
-	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr, Ttl: 1})
+	wcert, err := m.SignX509SvidCsr(ctx, &ca.SignX509SvidCsrRequest{Csr: wcsr, Ttl: 1})
 	require.NoError(t, err)
 	assert.NotEmpty(t, wcert)
 
@@ -219,33 +210,31 @@ func TestMemory_SignCsrExpire(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestMemory_SignCsrNoCert(t *testing.T) {
+func TestMemory_SignX509SvidCsrNoCert(t *testing.T) {
 	m := NewWithDefault()
 
 	wcsr := createWorkloadCSR(t, "spiffe://localhost")
 
-	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
-
+	wcert, err := m.SignX509SvidCsr(ctx, &ca.SignX509SvidCsrRequest{Csr: wcsr})
 	assert.Error(t, err)
-	assert.Empty(t, wcert)
+	assert.Nil(t, wcert)
 }
 
-func TestMemory_SignCsrErrorParsingSpiffeId(t *testing.T) {
+func TestMemory_SignX509SvidCsrErrorParsingSpiffeId(t *testing.T) {
 	m := populateCert(t)
 
 	wcsr := createWorkloadCSR(t, "spif://localhost")
 
-	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
-
+	wcert, err := m.SignX509SvidCsr(ctx, &ca.SignX509SvidCsrRequest{Csr: wcsr})
 	assert.Error(t, err)
-	assert.Empty(t, wcert)
+	assert.Nil(t, wcert)
 }
 
 /// This is supposed to test a failure on line 136, but its quite hard to inject a
 /// failure without changing the function considerably.
 /// Test left as documentation.
 ///
-// func TestMemory_SignCsrErrorCreatingCertificate(t *testing.T) {}
+// func TestMemory_SignX509SvidCsrErrorCreatingCertificate(t *testing.T) {}
 
 /// This would test the error case where we are unable to Marshal
 /// the uriSANS on line 169. However we are unable to inject a failure
@@ -275,8 +264,8 @@ func TestMemory_LoadCertificateInvalidCertFormat(t *testing.T) {
 	submitCSRResp.Cert = []byte{}
 	resp, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 
-	assert.EqualError(t, err, "unable to parse server CA certificate: asn1: syntax error: sequence truncated")
-	assert.Nil(t, resp)
+	require.EqualError(t, err, "unable to parse server CA certificate: asn1: syntax error: sequence truncated")
+	require.Nil(t, resp)
 }
 
 func TestMemory_LoadCertificateTooManyCerts(t *testing.T) {
@@ -295,8 +284,77 @@ func TestMemory_LoadCertificateTooManyCerts(t *testing.T) {
 	submitCSRResp.Cert = append(oldCert, oldCert...)
 	resp, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 
-	assert.EqualError(t, err, "unable to parse server CA certificate: asn1: syntax error: trailing data")
-	assert.Nil(t, resp)
+	require.EqualError(t, err, "unable to parse server CA certificate: asn1: syntax error: trailing data")
+	require.Nil(t, resp)
+}
+
+func TestMemory_SignJwtSvid(t *testing.T) {
+	m := NewWithDefault()
+
+	now := time.Now()
+	m.hooks.now = func() time.Time {
+		return now
+	}
+
+	goodRequest := &ca.SignJwtSvidRequest{
+		SpiffeId: "spiffe://example.org/blog",
+		Ttl:      1,
+		Audience: []string{"spiffe://example.org/db"},
+	}
+
+	// no certificate loaded
+	resp, err := m.SignJwtSvid(ctx, goodRequest)
+	require.EqualError(t, err, "Invalid state: no certificate")
+	require.Nil(t, resp)
+
+	// load cert
+	loadCert(t, m)
+
+	// No SPIFFE ID
+	resp, err = m.SignJwtSvid(ctx, &ca.SignJwtSvidRequest{
+		Ttl:      1,
+		Audience: []string{"spiffe://example.org/db"},
+	})
+	require.EqualError(t, err, "Invalid request: SPIFFE ID is required")
+	require.Nil(t, resp)
+
+	// Invalid expiration
+	resp, err = m.SignJwtSvid(ctx, &ca.SignJwtSvidRequest{
+		SpiffeId: "spiffe://example.org/blog",
+		Ttl:      -1,
+		Audience: []string{"spiffe://example.org/db"},
+	})
+	require.EqualError(t, err, "Invalid request: TTL is invalid")
+	require.Nil(t, resp)
+
+	// No audience
+	resp, err = m.SignJwtSvid(ctx, &ca.SignJwtSvidRequest{
+		SpiffeId: "spiffe://example.org/blog",
+	})
+	require.EqualError(t, err, "Invalid request: at least one audience is required")
+	require.Nil(t, resp)
+
+	// success
+	resp, err = m.SignJwtSvid(ctx, goodRequest)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.SignedJwt)
+
+	// validate returned token against trust bundle and assert that the proper
+	// claims were added.
+	cert, err := m.getJWTASVIDCertificate()
+	require.NoError(t, err)
+	trustBundle := jwtsvid.NewSimpleTrustBundle([]*x509.Certificate{
+		cert,
+	})
+	claims, err := jwtsvid.ValidateSimpleToken(ctx, resp.SignedJwt, trustBundle, "spiffe://example.org/db")
+	require.NoError(t, err)
+	require.NotNil(t, claims)
+	exp, err := json.Number(fmt.Sprint(now.Add(time.Second).Unix())).Float64()
+	require.NoError(t, err)
+	require.Len(t, claims, 3)
+	require.Equal(t, "spiffe://example.org/blog", claims["sub"])
+	require.Equal(t, "spiffe://example.org/db", claims["aud"])
+	require.Equal(t, exp, claims["exp"])
 }
 
 ///
@@ -332,9 +390,13 @@ func createWorkloadCSR(t *testing.T, spiffeID string) []byte {
 	return csr
 }
 
-func populateCert(t *testing.T) (m ca.ServerCA) {
+func populateCert(t *testing.T) (m *MemoryPlugin) {
 	m = NewWithDefault()
+	loadCert(t, m)
+	return m
+}
 
+func loadCert(t *testing.T, m *MemoryPlugin) {
 	upca, err := newUpCA("../../upstreamca/disk/_test_data/keys/private_key.pem", "../../upstreamca/disk/_test_data/keys/cert.pem")
 	require.NoError(t, err)
 
@@ -346,17 +408,13 @@ func populateCert(t *testing.T) (m ca.ServerCA) {
 
 	_, err = m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 	require.NoError(t, err)
-
-	return m
 }
 
-func getRoots(t *testing.T, m ca.ServerCA) (roots *x509.CertPool) {
-	fetchResp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
-	require.NoError(t, err)
-	rootCert, err := x509.ParseCertificate(fetchResp.StoredIntermediateCert)
+func getRoots(t *testing.T, m *MemoryPlugin) (roots *x509.CertPool) {
+	cert, err := m.getX509SVIDCertificate()
 	require.NoError(t, err)
 	roots = x509.NewCertPool()
-	roots.AddCert(rootCert)
+	roots.AddCert(cert)
 
 	return roots
 }

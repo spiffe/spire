@@ -37,7 +37,7 @@ type GetPluginInfoRequest = plugin.GetPluginInfoRequest
 type GetPluginInfoResponse = plugin.GetPluginInfoResponse
 
 // * Represents a request with a certificate signing request.
-type SignCsrRequest struct {
+type SignX509SvidCsrRequest struct {
 	// * Certificate signing request.
 	Csr []byte `protobuf:"bytes,1,opt,name=csr,proto3" json:"csr,omitempty"`
 	// * TTL
@@ -47,38 +47,38 @@ type SignCsrRequest struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *SignCsrRequest) Reset()         { *m = SignCsrRequest{} }
-func (m *SignCsrRequest) String() string { return proto.CompactTextString(m) }
-func (*SignCsrRequest) ProtoMessage()    {}
-func (*SignCsrRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ca_57dbdb4225bd218f, []int{0}
+func (m *SignX509SvidCsrRequest) Reset()         { *m = SignX509SvidCsrRequest{} }
+func (m *SignX509SvidCsrRequest) String() string { return proto.CompactTextString(m) }
+func (*SignX509SvidCsrRequest) ProtoMessage()    {}
+func (*SignX509SvidCsrRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ca_727e435acfe15d82, []int{0}
 }
-func (m *SignCsrRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_SignCsrRequest.Unmarshal(m, b)
+func (m *SignX509SvidCsrRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SignX509SvidCsrRequest.Unmarshal(m, b)
 }
-func (m *SignCsrRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_SignCsrRequest.Marshal(b, m, deterministic)
+func (m *SignX509SvidCsrRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SignX509SvidCsrRequest.Marshal(b, m, deterministic)
 }
-func (dst *SignCsrRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SignCsrRequest.Merge(dst, src)
+func (dst *SignX509SvidCsrRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SignX509SvidCsrRequest.Merge(dst, src)
 }
-func (m *SignCsrRequest) XXX_Size() int {
-	return xxx_messageInfo_SignCsrRequest.Size(m)
+func (m *SignX509SvidCsrRequest) XXX_Size() int {
+	return xxx_messageInfo_SignX509SvidCsrRequest.Size(m)
 }
-func (m *SignCsrRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_SignCsrRequest.DiscardUnknown(m)
+func (m *SignX509SvidCsrRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_SignX509SvidCsrRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_SignCsrRequest proto.InternalMessageInfo
+var xxx_messageInfo_SignX509SvidCsrRequest proto.InternalMessageInfo
 
-func (m *SignCsrRequest) GetCsr() []byte {
+func (m *SignX509SvidCsrRequest) GetCsr() []byte {
 	if m != nil {
 		return m.Csr
 	}
 	return nil
 }
 
-func (m *SignCsrRequest) GetTtl() int32 {
+func (m *SignX509SvidCsrRequest) GetTtl() int32 {
 	if m != nil {
 		return m.Ttl
 	}
@@ -86,39 +86,39 @@ func (m *SignCsrRequest) GetTtl() int32 {
 }
 
 // * Represents a response with a signed certificate.
-type SignCsrResponse struct {
+type SignX509SvidCsrResponse struct {
 	// * Signed certificate.
-	SignedCertificate    []byte   `protobuf:"bytes,1,opt,name=signedCertificate,proto3" json:"signedCertificate,omitempty"`
+	SignedCertificate    []byte   `protobuf:"bytes,1,opt,name=signed_certificate,json=signedCertificate,proto3" json:"signed_certificate,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *SignCsrResponse) Reset()         { *m = SignCsrResponse{} }
-func (m *SignCsrResponse) String() string { return proto.CompactTextString(m) }
-func (*SignCsrResponse) ProtoMessage()    {}
-func (*SignCsrResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ca_57dbdb4225bd218f, []int{1}
+func (m *SignX509SvidCsrResponse) Reset()         { *m = SignX509SvidCsrResponse{} }
+func (m *SignX509SvidCsrResponse) String() string { return proto.CompactTextString(m) }
+func (*SignX509SvidCsrResponse) ProtoMessage()    {}
+func (*SignX509SvidCsrResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ca_727e435acfe15d82, []int{1}
 }
-func (m *SignCsrResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_SignCsrResponse.Unmarshal(m, b)
+func (m *SignX509SvidCsrResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SignX509SvidCsrResponse.Unmarshal(m, b)
 }
-func (m *SignCsrResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_SignCsrResponse.Marshal(b, m, deterministic)
+func (m *SignX509SvidCsrResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SignX509SvidCsrResponse.Marshal(b, m, deterministic)
 }
-func (dst *SignCsrResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SignCsrResponse.Merge(dst, src)
+func (dst *SignX509SvidCsrResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SignX509SvidCsrResponse.Merge(dst, src)
 }
-func (m *SignCsrResponse) XXX_Size() int {
-	return xxx_messageInfo_SignCsrResponse.Size(m)
+func (m *SignX509SvidCsrResponse) XXX_Size() int {
+	return xxx_messageInfo_SignX509SvidCsrResponse.Size(m)
 }
-func (m *SignCsrResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_SignCsrResponse.DiscardUnknown(m)
+func (m *SignX509SvidCsrResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_SignX509SvidCsrResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_SignCsrResponse proto.InternalMessageInfo
+var xxx_messageInfo_SignX509SvidCsrResponse proto.InternalMessageInfo
 
-func (m *SignCsrResponse) GetSignedCertificate() []byte {
+func (m *SignX509SvidCsrResponse) GetSignedCertificate() []byte {
 	if m != nil {
 		return m.SignedCertificate
 	}
@@ -136,7 +136,7 @@ func (m *GenerateCsrRequest) Reset()         { *m = GenerateCsrRequest{} }
 func (m *GenerateCsrRequest) String() string { return proto.CompactTextString(m) }
 func (*GenerateCsrRequest) ProtoMessage()    {}
 func (*GenerateCsrRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ca_57dbdb4225bd218f, []int{2}
+	return fileDescriptor_ca_727e435acfe15d82, []int{2}
 }
 func (m *GenerateCsrRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GenerateCsrRequest.Unmarshal(m, b)
@@ -169,7 +169,7 @@ func (m *GenerateCsrResponse) Reset()         { *m = GenerateCsrResponse{} }
 func (m *GenerateCsrResponse) String() string { return proto.CompactTextString(m) }
 func (*GenerateCsrResponse) ProtoMessage()    {}
 func (*GenerateCsrResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ca_57dbdb4225bd218f, []int{3}
+	return fileDescriptor_ca_727e435acfe15d82, []int{3}
 }
 func (m *GenerateCsrResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GenerateCsrResponse.Unmarshal(m, b)
@@ -196,75 +196,99 @@ func (m *GenerateCsrResponse) GetCsr() []byte {
 	return nil
 }
 
-// * Represents an empty request.
-type FetchCertificateRequest struct {
+type SignJwtSvidRequest struct {
+	// * SPIFFE ID to embed in the subject claim of the JWT
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	// * token time-to-live (in seconds)
+	Ttl int32 `protobuf:"varint,2,opt,name=ttl" json:"ttl,omitempty"`
+	// * token audience
+	Audience             []string `protobuf:"bytes,3,rep,name=audience" json:"audience,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FetchCertificateRequest) Reset()         { *m = FetchCertificateRequest{} }
-func (m *FetchCertificateRequest) String() string { return proto.CompactTextString(m) }
-func (*FetchCertificateRequest) ProtoMessage()    {}
-func (*FetchCertificateRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ca_57dbdb4225bd218f, []int{4}
+func (m *SignJwtSvidRequest) Reset()         { *m = SignJwtSvidRequest{} }
+func (m *SignJwtSvidRequest) String() string { return proto.CompactTextString(m) }
+func (*SignJwtSvidRequest) ProtoMessage()    {}
+func (*SignJwtSvidRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ca_727e435acfe15d82, []int{4}
 }
-func (m *FetchCertificateRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_FetchCertificateRequest.Unmarshal(m, b)
+func (m *SignJwtSvidRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SignJwtSvidRequest.Unmarshal(m, b)
 }
-func (m *FetchCertificateRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_FetchCertificateRequest.Marshal(b, m, deterministic)
+func (m *SignJwtSvidRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SignJwtSvidRequest.Marshal(b, m, deterministic)
 }
-func (dst *FetchCertificateRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FetchCertificateRequest.Merge(dst, src)
+func (dst *SignJwtSvidRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SignJwtSvidRequest.Merge(dst, src)
 }
-func (m *FetchCertificateRequest) XXX_Size() int {
-	return xxx_messageInfo_FetchCertificateRequest.Size(m)
+func (m *SignJwtSvidRequest) XXX_Size() int {
+	return xxx_messageInfo_SignJwtSvidRequest.Size(m)
 }
-func (m *FetchCertificateRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_FetchCertificateRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_FetchCertificateRequest proto.InternalMessageInfo
-
-// * Represents a response with a stored intermediate certificate.
-type FetchCertificateResponse struct {
-	// * Stored intermediate certificate.
-	StoredIntermediateCert []byte   `protobuf:"bytes,1,opt,name=storedIntermediateCert,proto3" json:"storedIntermediateCert,omitempty"`
-	XXX_NoUnkeyedLiteral   struct{} `json:"-"`
-	XXX_unrecognized       []byte   `json:"-"`
-	XXX_sizecache          int32    `json:"-"`
+func (m *SignJwtSvidRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_SignJwtSvidRequest.DiscardUnknown(m)
 }
 
-func (m *FetchCertificateResponse) Reset()         { *m = FetchCertificateResponse{} }
-func (m *FetchCertificateResponse) String() string { return proto.CompactTextString(m) }
-func (*FetchCertificateResponse) ProtoMessage()    {}
-func (*FetchCertificateResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ca_57dbdb4225bd218f, []int{5}
-}
-func (m *FetchCertificateResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_FetchCertificateResponse.Unmarshal(m, b)
-}
-func (m *FetchCertificateResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_FetchCertificateResponse.Marshal(b, m, deterministic)
-}
-func (dst *FetchCertificateResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FetchCertificateResponse.Merge(dst, src)
-}
-func (m *FetchCertificateResponse) XXX_Size() int {
-	return xxx_messageInfo_FetchCertificateResponse.Size(m)
-}
-func (m *FetchCertificateResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_FetchCertificateResponse.DiscardUnknown(m)
-}
+var xxx_messageInfo_SignJwtSvidRequest proto.InternalMessageInfo
 
-var xxx_messageInfo_FetchCertificateResponse proto.InternalMessageInfo
-
-func (m *FetchCertificateResponse) GetStoredIntermediateCert() []byte {
+func (m *SignJwtSvidRequest) GetSpiffeId() string {
 	if m != nil {
-		return m.StoredIntermediateCert
+		return m.SpiffeId
+	}
+	return ""
+}
+
+func (m *SignJwtSvidRequest) GetTtl() int32 {
+	if m != nil {
+		return m.Ttl
+	}
+	return 0
+}
+
+func (m *SignJwtSvidRequest) GetAudience() []string {
+	if m != nil {
+		return m.Audience
 	}
 	return nil
+}
+
+type SignJwtSvidResponse struct {
+	SignedJwt            string   `protobuf:"bytes,1,opt,name=signed_jwt,json=signedJwt" json:"signed_jwt,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SignJwtSvidResponse) Reset()         { *m = SignJwtSvidResponse{} }
+func (m *SignJwtSvidResponse) String() string { return proto.CompactTextString(m) }
+func (*SignJwtSvidResponse) ProtoMessage()    {}
+func (*SignJwtSvidResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ca_727e435acfe15d82, []int{5}
+}
+func (m *SignJwtSvidResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SignJwtSvidResponse.Unmarshal(m, b)
+}
+func (m *SignJwtSvidResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SignJwtSvidResponse.Marshal(b, m, deterministic)
+}
+func (dst *SignJwtSvidResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SignJwtSvidResponse.Merge(dst, src)
+}
+func (m *SignJwtSvidResponse) XXX_Size() int {
+	return xxx_messageInfo_SignJwtSvidResponse.Size(m)
+}
+func (m *SignJwtSvidResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_SignJwtSvidResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SignJwtSvidResponse proto.InternalMessageInfo
+
+func (m *SignJwtSvidResponse) GetSignedJwt() string {
+	if m != nil {
+		return m.SignedJwt
+	}
+	return ""
 }
 
 // * Represents a request with a signed intermediate certificate.
@@ -280,7 +304,7 @@ func (m *LoadCertificateRequest) Reset()         { *m = LoadCertificateRequest{}
 func (m *LoadCertificateRequest) String() string { return proto.CompactTextString(m) }
 func (*LoadCertificateRequest) ProtoMessage()    {}
 func (*LoadCertificateRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ca_57dbdb4225bd218f, []int{6}
+	return fileDescriptor_ca_727e435acfe15d82, []int{6}
 }
 func (m *LoadCertificateRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LoadCertificateRequest.Unmarshal(m, b)
@@ -318,7 +342,7 @@ func (m *LoadCertificateResponse) Reset()         { *m = LoadCertificateResponse
 func (m *LoadCertificateResponse) String() string { return proto.CompactTextString(m) }
 func (*LoadCertificateResponse) ProtoMessage()    {}
 func (*LoadCertificateResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ca_57dbdb4225bd218f, []int{7}
+	return fileDescriptor_ca_727e435acfe15d82, []int{7}
 }
 func (m *LoadCertificateResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_LoadCertificateResponse.Unmarshal(m, b)
@@ -339,12 +363,12 @@ func (m *LoadCertificateResponse) XXX_DiscardUnknown() {
 var xxx_messageInfo_LoadCertificateResponse proto.InternalMessageInfo
 
 func init() {
-	proto.RegisterType((*SignCsrRequest)(nil), "spire.server.ca.SignCsrRequest")
-	proto.RegisterType((*SignCsrResponse)(nil), "spire.server.ca.SignCsrResponse")
+	proto.RegisterType((*SignX509SvidCsrRequest)(nil), "spire.server.ca.SignX509SvidCsrRequest")
+	proto.RegisterType((*SignX509SvidCsrResponse)(nil), "spire.server.ca.SignX509SvidCsrResponse")
 	proto.RegisterType((*GenerateCsrRequest)(nil), "spire.server.ca.GenerateCsrRequest")
 	proto.RegisterType((*GenerateCsrResponse)(nil), "spire.server.ca.GenerateCsrResponse")
-	proto.RegisterType((*FetchCertificateRequest)(nil), "spire.server.ca.FetchCertificateRequest")
-	proto.RegisterType((*FetchCertificateResponse)(nil), "spire.server.ca.FetchCertificateResponse")
+	proto.RegisterType((*SignJwtSvidRequest)(nil), "spire.server.ca.SignJwtSvidRequest")
+	proto.RegisterType((*SignJwtSvidResponse)(nil), "spire.server.ca.SignJwtSvidResponse")
 	proto.RegisterType((*LoadCertificateRequest)(nil), "spire.server.ca.LoadCertificateRequest")
 	proto.RegisterType((*LoadCertificateResponse)(nil), "spire.server.ca.LoadCertificateResponse")
 }
@@ -360,17 +384,17 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for ServerCA service
 
 type ServerCAClient interface {
-	// * Interface will take in a CSR and sign it with the stored intermediate certificate.
-	SignCsr(ctx context.Context, in *SignCsrRequest, opts ...grpc.CallOption) (*SignCsrResponse, error)
+	// * SignX509SvidCsr will take in a CSR and sign it with the stored intermediate certificate.
+	SignX509SvidCsr(ctx context.Context, in *SignX509SvidCsrRequest, opts ...grpc.CallOption) (*SignX509SvidCsrResponse, error)
+	// * SignJwtSvid will sign a JWT-A-SVID with the stored intermediate certificate.
+	SignJwtSvid(ctx context.Context, in *SignJwtSvidRequest, opts ...grpc.CallOption) (*SignJwtSvidResponse, error)
 	// * Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing.
 	GenerateCsr(ctx context.Context, in *GenerateCsrRequest, opts ...grpc.CallOption) (*GenerateCsrResponse, error)
-	// * Used to read the stored Intermediate Server cert.
-	FetchCertificate(ctx context.Context, in *FetchCertificateRequest, opts ...grpc.CallOption) (*FetchCertificateResponse, error)
 	// * Used for setting/storing the signed intermediate certificate.
 	LoadCertificate(ctx context.Context, in *LoadCertificateRequest, opts ...grpc.CallOption) (*LoadCertificateResponse, error)
 	// * Responsible for configuration of the plugin.
 	Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error)
-	// * Returns the  version and related metadata of the installed plugin.
+	// * Returns the version and related metadata of the installed plugin.
 	GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error)
 }
 
@@ -382,9 +406,18 @@ func NewServerCAClient(cc *grpc.ClientConn) ServerCAClient {
 	return &serverCAClient{cc}
 }
 
-func (c *serverCAClient) SignCsr(ctx context.Context, in *SignCsrRequest, opts ...grpc.CallOption) (*SignCsrResponse, error) {
-	out := new(SignCsrResponse)
-	err := grpc.Invoke(ctx, "/spire.server.ca.ServerCA/SignCsr", in, out, c.cc, opts...)
+func (c *serverCAClient) SignX509SvidCsr(ctx context.Context, in *SignX509SvidCsrRequest, opts ...grpc.CallOption) (*SignX509SvidCsrResponse, error) {
+	out := new(SignX509SvidCsrResponse)
+	err := grpc.Invoke(ctx, "/spire.server.ca.ServerCA/SignX509SvidCsr", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serverCAClient) SignJwtSvid(ctx context.Context, in *SignJwtSvidRequest, opts ...grpc.CallOption) (*SignJwtSvidResponse, error) {
+	out := new(SignJwtSvidResponse)
+	err := grpc.Invoke(ctx, "/spire.server.ca.ServerCA/SignJwtSvid", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -394,15 +427,6 @@ func (c *serverCAClient) SignCsr(ctx context.Context, in *SignCsrRequest, opts .
 func (c *serverCAClient) GenerateCsr(ctx context.Context, in *GenerateCsrRequest, opts ...grpc.CallOption) (*GenerateCsrResponse, error) {
 	out := new(GenerateCsrResponse)
 	err := grpc.Invoke(ctx, "/spire.server.ca.ServerCA/GenerateCsr", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *serverCAClient) FetchCertificate(ctx context.Context, in *FetchCertificateRequest, opts ...grpc.CallOption) (*FetchCertificateResponse, error) {
-	out := new(FetchCertificateResponse)
-	err := grpc.Invoke(ctx, "/spire.server.ca.ServerCA/FetchCertificate", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -439,17 +463,17 @@ func (c *serverCAClient) GetPluginInfo(ctx context.Context, in *plugin.GetPlugin
 // Server API for ServerCA service
 
 type ServerCAServer interface {
-	// * Interface will take in a CSR and sign it with the stored intermediate certificate.
-	SignCsr(context.Context, *SignCsrRequest) (*SignCsrResponse, error)
+	// * SignX509SvidCsr will take in a CSR and sign it with the stored intermediate certificate.
+	SignX509SvidCsr(context.Context, *SignX509SvidCsrRequest) (*SignX509SvidCsrResponse, error)
+	// * SignJwtSvid will sign a JWT-A-SVID with the stored intermediate certificate.
+	SignJwtSvid(context.Context, *SignJwtSvidRequest) (*SignJwtSvidResponse, error)
 	// * Used for generating a CSR for the intermediate signing certificate. The CSR will then be submitted to the CA plugin for signing.
 	GenerateCsr(context.Context, *GenerateCsrRequest) (*GenerateCsrResponse, error)
-	// * Used to read the stored Intermediate Server cert.
-	FetchCertificate(context.Context, *FetchCertificateRequest) (*FetchCertificateResponse, error)
 	// * Used for setting/storing the signed intermediate certificate.
 	LoadCertificate(context.Context, *LoadCertificateRequest) (*LoadCertificateResponse, error)
 	// * Responsible for configuration of the plugin.
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
-	// * Returns the  version and related metadata of the installed plugin.
+	// * Returns the version and related metadata of the installed plugin.
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
 }
 
@@ -457,20 +481,38 @@ func RegisterServerCAServer(s *grpc.Server, srv ServerCAServer) {
 	s.RegisterService(&_ServerCA_serviceDesc, srv)
 }
 
-func _ServerCA_SignCsr_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SignCsrRequest)
+func _ServerCA_SignX509SvidCsr_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignX509SvidCsrRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ServerCAServer).SignCsr(ctx, in)
+		return srv.(ServerCAServer).SignX509SvidCsr(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.ca.ServerCA/SignCsr",
+		FullMethod: "/spire.server.ca.ServerCA/SignX509SvidCsr",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ServerCAServer).SignCsr(ctx, req.(*SignCsrRequest))
+		return srv.(ServerCAServer).SignX509SvidCsr(ctx, req.(*SignX509SvidCsrRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServerCA_SignJwtSvid_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignJwtSvidRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServerCAServer).SignJwtSvid(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.server.ca.ServerCA/SignJwtSvid",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServerCAServer).SignJwtSvid(ctx, req.(*SignJwtSvidRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -489,24 +531,6 @@ func _ServerCA_GenerateCsr_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ServerCAServer).GenerateCsr(ctx, req.(*GenerateCsrRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ServerCA_FetchCertificate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FetchCertificateRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ServerCAServer).FetchCertificate(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/spire.server.ca.ServerCA/FetchCertificate",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ServerCAServer).FetchCertificate(ctx, req.(*FetchCertificateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -570,16 +594,16 @@ var _ServerCA_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*ServerCAServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "SignCsr",
-			Handler:    _ServerCA_SignCsr_Handler,
+			MethodName: "SignX509SvidCsr",
+			Handler:    _ServerCA_SignX509SvidCsr_Handler,
+		},
+		{
+			MethodName: "SignJwtSvid",
+			Handler:    _ServerCA_SignJwtSvid_Handler,
 		},
 		{
 			MethodName: "GenerateCsr",
 			Handler:    _ServerCA_GenerateCsr_Handler,
-		},
-		{
-			MethodName: "FetchCertificate",
-			Handler:    _ServerCA_FetchCertificate_Handler,
 		},
 		{
 			MethodName: "LoadCertificate",
@@ -598,34 +622,37 @@ var _ServerCA_serviceDesc = grpc.ServiceDesc{
 	Metadata: "ca.proto",
 }
 
-func init() { proto.RegisterFile("ca.proto", fileDescriptor_ca_57dbdb4225bd218f) }
+func init() { proto.RegisterFile("ca.proto", fileDescriptor_ca_727e435acfe15d82) }
 
-var fileDescriptor_ca_57dbdb4225bd218f = []byte{
-	// 412 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0x4f, 0x8f, 0xd3, 0x30,
-	0x10, 0xc5, 0xe9, 0xb2, 0xc0, 0x32, 0xfc, 0xe9, 0x62, 0xd0, 0x52, 0x72, 0xa1, 0x0a, 0x7f, 0x9a,
-	0x22, 0x94, 0x48, 0x80, 0x10, 0x37, 0x04, 0x91, 0xa8, 0x2a, 0xf5, 0x50, 0xa5, 0x17, 0xd4, 0x5b,
-	0xea, 0x4c, 0x52, 0x4b, 0x8d, 0x1d, 0x6c, 0x87, 0x6f, 0xc8, 0xf7, 0x42, 0x49, 0x9c, 0xd2, 0xd6,
-	0x0d, 0xed, 0x29, 0x91, 0xe7, 0xcd, 0xef, 0xd9, 0xf3, 0x34, 0x70, 0x45, 0x63, 0xbf, 0x90, 0x42,
-	0x0b, 0xd2, 0x57, 0x05, 0x93, 0xe8, 0x2b, 0x94, 0xbf, 0x51, 0xfa, 0x34, 0x76, 0xbe, 0x64, 0x4c,
-	0xaf, 0xcb, 0x95, 0x4f, 0x45, 0x1e, 0xa8, 0x82, 0xa5, 0x29, 0x06, 0xb5, 0x24, 0xa8, 0xf5, 0x01,
-	0x15, 0x79, 0x2e, 0x78, 0x50, 0x6c, 0xca, 0x8c, 0xb5, 0x9f, 0x06, 0xe5, 0x7e, 0x82, 0xc7, 0x0b,
-	0x96, 0xf1, 0x50, 0xc9, 0x08, 0x7f, 0x95, 0xa8, 0x34, 0xb9, 0x86, 0xdb, 0x54, 0xc9, 0x41, 0x6f,
-	0xd8, 0xf3, 0x1e, 0x46, 0xd5, 0x6f, 0x75, 0xa2, 0xf5, 0x66, 0x70, 0x31, 0xec, 0x79, 0x77, 0xa2,
-	0xea, 0xd7, 0xfd, 0x0a, 0xfd, 0x6d, 0x97, 0x2a, 0x04, 0x57, 0x48, 0xde, 0xc3, 0x13, 0xc5, 0x32,
-	0x8e, 0x49, 0x88, 0x52, 0xb3, 0x94, 0xd1, 0x58, 0xa3, 0x81, 0xd8, 0x05, 0xf7, 0x19, 0x90, 0x09,
-	0x72, 0x94, 0xb1, 0xc6, 0x7f, 0xd6, 0xee, 0x08, 0x9e, 0xee, 0x9d, 0x1a, 0xb4, 0x75, 0x23, 0xf7,
-	0x05, 0x3c, 0xff, 0x81, 0x9a, 0xae, 0x77, 0x90, 0x2d, 0x23, 0x82, 0x81, 0x5d, 0x32, 0xa0, 0xcf,
-	0x70, 0xa3, 0xb4, 0x90, 0x98, 0x4c, 0xb9, 0x46, 0x99, 0x63, 0xc2, 0x2a, 0x27, 0x94, 0xda, 0xb0,
-	0x3b, 0xaa, 0xee, 0x1c, 0x6e, 0x66, 0x22, 0x4e, 0x6c, 0xb7, 0x9a, 0x58, 0x3f, 0xae, 0x93, 0x78,
-	0xb4, 0x5a, 0x3d, 0xc0, 0x22, 0x36, 0x97, 0xfc, 0xf0, 0xe7, 0x12, 0xae, 0x16, 0x75, 0xb2, 0xe1,
-	0x37, 0x32, 0x83, 0x7b, 0x66, 0xd0, 0xe4, 0xa5, 0x7f, 0x90, 0xba, 0xbf, 0x1f, 0x9c, 0x33, 0xec,
-	0x16, 0x98, 0xf7, 0xff, 0x84, 0x07, 0x3b, 0xf3, 0x25, 0xaf, 0xac, 0x06, 0x3b, 0x13, 0xe7, 0xf5,
-	0xff, 0x45, 0x86, 0x9c, 0xc1, 0xf5, 0xe1, 0xd4, 0x89, 0x67, 0x75, 0x76, 0x64, 0xe6, 0x8c, 0xcf,
-	0x50, 0x1a, 0xa3, 0x04, 0xfa, 0x07, 0x83, 0x23, 0x23, 0xab, 0xfb, 0x78, 0x58, 0x8e, 0x77, 0x5a,
-	0x68, 0x5c, 0x96, 0x70, 0x3f, 0x14, 0x3c, 0x65, 0x59, 0x29, 0x91, 0xbc, 0x31, 0x6d, 0xcd, 0x16,
-	0xf9, 0x66, 0x7d, 0xb6, 0xf5, 0x96, 0xfe, 0xf6, 0x94, 0xcc, 0xb0, 0x53, 0x78, 0x34, 0x41, 0x3d,
-	0xaf, 0xcb, 0x53, 0x9e, 0x0a, 0x32, 0x3e, 0xda, 0xb8, 0xa7, 0x69, 0x3d, 0xde, 0x9d, 0x23, 0x6d,
-	0x7c, 0xbe, 0x5f, 0x2e, 0x2f, 0x68, 0x3c, 0xbf, 0xb5, 0xba, 0x5b, 0x2f, 0xfa, 0xc7, 0xbf, 0x01,
-	0x00, 0x00, 0xff, 0xff, 0xaa, 0xf6, 0x00, 0x38, 0x3f, 0x04, 0x00, 0x00,
+var fileDescriptor_ca_727e435acfe15d82 = []byte{
+	// 463 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x54, 0x4d, 0x6f, 0xd3, 0x40,
+	0x10, 0x25, 0x4d, 0x41, 0xc9, 0x00, 0x0a, 0x6c, 0x51, 0x1a, 0x82, 0x90, 0x22, 0xf3, 0xd1, 0x80,
+	0x84, 0x8d, 0xf8, 0x12, 0x48, 0x5c, 0x20, 0x87, 0x92, 0x8a, 0x43, 0x94, 0x5c, 0xaa, 0x5e, 0x22,
+	0x77, 0x77, 0x6c, 0x16, 0x35, 0xbb, 0x66, 0x77, 0xdd, 0xfc, 0x4b, 0x7e, 0x13, 0xb2, 0x77, 0x4d,
+	0xe2, 0x78, 0x4b, 0x39, 0xc5, 0x99, 0x79, 0xf3, 0xe6, 0xbd, 0x99, 0xb1, 0xa1, 0x43, 0xe3, 0x30,
+	0x53, 0xd2, 0x48, 0xd2, 0xd3, 0x19, 0x57, 0x18, 0x6a, 0x54, 0x97, 0xa8, 0x42, 0x1a, 0x0f, 0x3f,
+	0xa6, 0xdc, 0xfc, 0xc8, 0xcf, 0x43, 0x2a, 0x57, 0x91, 0xce, 0x78, 0x92, 0x60, 0x54, 0x42, 0xa2,
+	0x12, 0x1f, 0x51, 0xb9, 0x5a, 0x49, 0x11, 0x65, 0x17, 0x79, 0xca, 0xab, 0x1f, 0x4b, 0x15, 0x7c,
+	0x86, 0xfe, 0x82, 0xa7, 0xe2, 0xf4, 0xfd, 0xeb, 0x4f, 0x8b, 0x4b, 0xce, 0x26, 0x5a, 0xcd, 0xf1,
+	0x57, 0x8e, 0xda, 0x90, 0x7b, 0xd0, 0xa6, 0x5a, 0x0d, 0x5a, 0xa3, 0xd6, 0xf8, 0xce, 0xbc, 0x78,
+	0x2c, 0x22, 0xc6, 0x5c, 0x0c, 0xf6, 0x46, 0xad, 0xf1, 0xcd, 0x79, 0xf1, 0x18, 0x7c, 0x83, 0xc3,
+	0x46, 0xb5, 0xce, 0xa4, 0xd0, 0x48, 0x5e, 0x01, 0xd1, 0x3c, 0x15, 0xc8, 0x96, 0x14, 0x95, 0xe1,
+	0x09, 0xa7, 0xb1, 0x41, 0xc7, 0x76, 0xdf, 0x66, 0x26, 0x9b, 0x44, 0xf0, 0x00, 0xc8, 0x31, 0x0a,
+	0x54, 0xb1, 0xc1, 0x8d, 0x86, 0xe0, 0x08, 0x0e, 0x6a, 0x51, 0xc7, 0xdd, 0x90, 0x16, 0x2c, 0x81,
+	0x14, 0x42, 0x4e, 0xd6, 0xa6, 0xd0, 0x51, 0x59, 0x78, 0x04, 0x5d, 0x3b, 0x8d, 0x25, 0x67, 0x25,
+	0xba, 0x3b, 0xef, 0xd8, 0xc0, 0x94, 0x35, 0xdd, 0x90, 0x21, 0x74, 0xe2, 0x9c, 0x71, 0x14, 0x14,
+	0x07, 0xed, 0x51, 0xbb, 0x40, 0x57, 0xff, 0x83, 0x77, 0x70, 0x50, 0x6b, 0xe0, 0x94, 0x3c, 0x06,
+	0x70, 0x2e, 0x7f, 0xae, 0x8d, 0x6b, 0xd1, 0xb5, 0x91, 0x93, 0xb5, 0x09, 0x66, 0xd0, 0xff, 0x2e,
+	0xe3, 0x6d, 0xa3, 0x95, 0xb4, 0x0f, 0xd0, 0xb7, 0xb0, 0xa9, 0x30, 0xa8, 0x56, 0xc8, 0x78, 0xe1,
+	0x11, 0x95, 0x71, 0xae, 0xae, 0xc8, 0x06, 0x0f, 0xe1, 0xb0, 0xc1, 0x68, 0xb5, 0xbc, 0xf9, 0xbd,
+	0x0f, 0x9d, 0x45, 0x79, 0x12, 0x93, 0x2f, 0x84, 0x41, 0x6f, 0x67, 0x33, 0xe4, 0x28, 0xdc, 0x39,
+	0x9b, 0xd0, 0xbf, 0xf9, 0xe1, 0xf8, 0x7a, 0xa0, 0xb3, 0x7f, 0x0a, 0xb7, 0xb7, 0xa6, 0x42, 0x9e,
+	0x78, 0x0b, 0xeb, 0x4b, 0x19, 0x3e, 0xfd, 0x37, 0x68, 0xc3, 0xbc, 0xb5, 0x79, 0x0f, 0x73, 0xf3,
+	0x5a, 0x3c, 0xcc, 0xbe, 0xe3, 0x61, 0xd0, 0xdb, 0x99, 0xa0, 0x67, 0x32, 0xfe, 0xad, 0x79, 0x26,
+	0x73, 0xc5, 0x32, 0xc8, 0x19, 0x74, 0x27, 0x52, 0x24, 0x3c, 0xcd, 0x15, 0x92, 0x67, 0xae, 0xcc,
+	0xbe, 0x87, 0xa1, 0x7b, 0x01, 0xff, 0xe6, 0x2b, 0xf6, 0xe7, 0xd7, 0xc1, 0x1c, 0x77, 0x02, 0x77,
+	0x8f, 0xd1, 0xcc, 0xca, 0xf4, 0x54, 0x24, 0x92, 0xbc, 0xf0, 0x16, 0xd6, 0x30, 0x55, 0x8f, 0x97,
+	0xff, 0x03, 0xb5, 0x7d, 0xbe, 0xee, 0x9f, 0xed, 0xd1, 0x78, 0x76, 0xe3, 0xfc, 0x56, 0xf9, 0xa9,
+	0x78, 0xfb, 0x27, 0x00, 0x00, 0xff, 0xff, 0xe4, 0xb2, 0xad, 0xef, 0x81, 0x04, 0x00, 0x00,
 }

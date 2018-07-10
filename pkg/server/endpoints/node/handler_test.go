@@ -14,13 +14,17 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/server/plugin/ca/memory"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
+	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
 	"github.com/spiffe/spire/test/mock/common/context"
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/mock/proto/server/ca"
@@ -101,7 +105,7 @@ func TestAttest(t *testing.T) {
 	stream.EXPECT().Recv().Return(data.request, nil)
 
 	stream.EXPECT().Send(&node.AttestResponse{
-		SvidUpdate: expected,
+		Update: expected,
 	})
 	suite.NoError(suite.handler.Attest(stream))
 }
@@ -135,7 +139,7 @@ func TestAttestChallengeResponse(t *testing.T) {
 	challenge2.Response = []byte("12")
 	stream.EXPECT().Recv().Return(&challenge2, nil)
 	stream.EXPECT().Send(&node.AttestResponse{
-		SvidUpdate: expected,
+		Update: expected,
 	})
 	suite.NoError(suite.handler.Attest(stream))
 }
@@ -145,7 +149,7 @@ func TestFetchX509SVID(t *testing.T) {
 	defer suite.ctrl.Finish()
 
 	data := getFetchX509SVIDTestData()
-	data.expectation = getExpectedFetchX509SVID(data)
+	data.expectation = getExpectedFetchX509SVID(t, data)
 	setFetchX509SVIDExpectations(suite, data)
 
 	err := suite.handler.FetchX509SVID(suite.server)
@@ -166,12 +170,8 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 		data.generatedCerts, getBytesFromPem("base_rotated_cert.pem"))
 
 	// Calculate expected TTL
-	cert, err := x509.ParseCertificate(data.generatedCerts[3])
-	require.NoError(t, err)
-	ttl := int32(cert.NotAfter.Sub(suite.now).Seconds())
-
-	data.expectation = getExpectedFetchX509SVID(data)
-	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: data.generatedCerts[3], Ttl: ttl}
+	data.expectation = getExpectedFetchX509SVID(t, data)
+	data.expectation.Svids[data.baseSpiffeID] = makeX509SVID(t, data.generatedCerts[3])
 	setFetchX509SVIDExpectations(suite, data)
 
 	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(gomock.Any(),
@@ -184,21 +184,17 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 		}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignCsr(gomock.Any(), &ca.SignCsrRequest{
+		SignX509SvidCsr(gomock.Any(), &ca.SignX509SvidCsrRequest{
 			Csr: data.request.Csrs[3],
 		}).
-		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[3]}, nil)
+		Return(&ca.SignX509SvidCsrResponse{SignedCertificate: data.generatedCerts[3]}, nil)
 
 	suite.mockDataStore.EXPECT().
 		UpdateAttestedNodeEntry(gomock.Any(), gomock.Any()).
 		Return(&datastore.UpdateAttestedNodeEntryResponse{}, nil)
 
-	err = suite.handler.FetchX509SVID(suite.server)
-
-	if err != nil {
-		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
-	}
-
+	err := suite.handler.FetchX509SVID(suite.server)
+	suite.Require().NoError(err)
 }
 
 func getBytesFromPem(fileName string) []byte {
@@ -315,10 +311,10 @@ func setAttestExpectations(
 		}).
 		Return(&datastore.FetchAttestedNodeEntryResponse{AttestedNodeEntry: nil}, nil)
 
-	suite.mockServerCA.EXPECT().SignCsr(gomock.Any(), &ca.SignCsrRequest{
+	suite.mockServerCA.EXPECT().SignX509SvidCsr(gomock.Any(), &ca.SignX509SvidCsrRequest{
 		Csr: data.request.Csr,
 	}).
-		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCert}, nil)
+		Return(&ca.SignX509SvidCsrResponse{SignedCertificate: data.generatedCert}, nil)
 
 	suite.mockDataStore.EXPECT().CreateAttestedNodeEntry(gomock.Any(),
 		&datastore.CreateAttestedNodeEntryRequest{
@@ -433,7 +429,7 @@ func setAttestExpectations(
 			CaCerts:     caCert.Raw}, nil)
 }
 
-func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert []byte) *node.SvidUpdate {
+func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert []byte) *node.X509SVIDUpdate {
 	expectedRegEntries := []*common.RegistrationEntry{
 		{
 			Selectors: []*common.Selector{
@@ -459,14 +455,12 @@ func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert []byte
 	}
 
 	// Calculate expected TTL
-	c, _ := x509.ParseCertificate(cert)
-	ttl := int32(c.NotAfter.Sub(suite.now).Seconds())
-
-	svids := make(map[string]*node.Svid)
-	svids[baseSpiffeID] = &node.Svid{SvidCert: cert, Ttl: ttl}
+	svids := map[string]*node.X509SVID{
+		baseSpiffeID: makeX509SVID(suite.T(), cert),
+	}
 
 	caCert, _, _ := util.LoadCAFixture()
-	svidUpdate := &node.SvidUpdate{
+	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
 		Bundle:              caCert.Raw,
 		RegistrationEntries: expectedRegEntries,
@@ -487,7 +481,7 @@ type fetchSVIDData struct {
 	nodeResolutionList []*datastore.NodeResolverMapEntry
 	bySelectorsEntries []*common.RegistrationEntry
 	byParentIDEntries  []*common.RegistrationEntry
-	expectation        *node.SvidUpdate
+	expectation        *node.X509SVIDUpdate
 }
 
 func getFetchX509SVIDTestData() *fetchSVIDData {
@@ -594,25 +588,25 @@ func setFetchX509SVIDExpectations(
 			CaCerts:     caCert.Raw}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignCsr(gomock.Any(), &ca.SignCsrRequest{
+		SignX509SvidCsr(gomock.Any(), &ca.SignX509SvidCsrRequest{
 			Csr: data.request.Csrs[0], Ttl: data.byParentIDEntries[2].Ttl,
 		}).
-		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[0]}, nil)
+		Return(&ca.SignX509SvidCsrResponse{SignedCertificate: data.generatedCerts[0]}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignCsr(gomock.Any(), &ca.SignCsrRequest{
+		SignX509SvidCsr(gomock.Any(), &ca.SignX509SvidCsrRequest{
 			Csr: data.request.Csrs[1], Ttl: data.byParentIDEntries[0].Ttl,
 		}).
-		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[1]}, nil)
+		Return(&ca.SignX509SvidCsrResponse{SignedCertificate: data.generatedCerts[1]}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignCsr(gomock.Any(), &ca.SignCsrRequest{
+		SignX509SvidCsr(gomock.Any(), &ca.SignX509SvidCsrRequest{
 			Csr: data.request.Csrs[2], Ttl: data.byParentIDEntries[1].Ttl,
 		}).
-		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[2]}, nil)
+		Return(&ca.SignX509SvidCsrResponse{SignedCertificate: data.generatedCerts[2]}, nil)
 
 	suite.server.EXPECT().Send(&node.FetchX509SVIDResponse{
-		SvidUpdate: data.expectation,
+		Update: data.expectation,
 	}).
 		Return(nil)
 
@@ -620,12 +614,12 @@ func setFetchX509SVIDExpectations(
 
 }
 
-func getExpectedFetchX509SVID(data *fetchSVIDData) *node.SvidUpdate {
+func getExpectedFetchX509SVID(t testing.TB, data *fetchSVIDData) *node.X509SVIDUpdate {
 	//TODO: improve this, put it in an array in data and iterate it
-	svids := map[string]*node.Svid{
-		data.nodeSpiffeID:     {SvidCert: data.generatedCerts[0], Ttl: 4444},
-		data.databaseSpiffeID: {SvidCert: data.generatedCerts[1], Ttl: 2222},
-		data.blogSpiffeID:     {SvidCert: data.generatedCerts[2], Ttl: 3333},
+	svids := map[string]*node.X509SVID{
+		data.nodeSpiffeID:     makeX509SVID(t, data.generatedCerts[0]),
+		data.databaseSpiffeID: makeX509SVID(t, data.generatedCerts[1]),
+		data.blogSpiffeID:     makeX509SVID(t, data.generatedCerts[2]),
 	}
 
 	// returned in sorted order (according to sorting rules in util.SortRegistrationEntries)
@@ -637,7 +631,7 @@ func getExpectedFetchX509SVID(data *fetchSVIDData) *node.SvidUpdate {
 	}
 
 	caCert, _, _ := util.LoadCAFixture()
-	svidUpdate := &node.SvidUpdate{
+	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
 		Bundle:              caCert.Raw,
 		RegistrationEntries: registrationEntries,
@@ -660,4 +654,102 @@ func getFakePeer() *peer.Peer {
 	}
 
 	return fakePeer
+}
+
+func makeX509SVID(t testing.TB, certBytes []byte) *node.X509SVID {
+	cert, err := x509.ParseCertificate(certBytes)
+	require.NoError(t, err)
+	return &node.X509SVID{
+		Cert:      certBytes,
+		ExpiresAt: cert.NotAfter.Unix(),
+	}
+}
+
+func TestFetchJWTASVID(t *testing.T) {
+	ctx := peer.NewContext(context.Background(), getFakePeer())
+	log, _ := test.NewNullLogger()
+
+	dataStore := fakedatastore.New()
+	dataStore.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+		RegisteredEntry: &node.RegistrationEntry{
+			ParentId: "spiffe://example.org/spire/agent/join_token/token",
+			SpiffeId: "spiffe://example.org/blog",
+			Ttl:      1,
+		},
+	})
+
+	upstreamCA, err := fakeupstreamca.New("localhost")
+	require.NoError(t, err)
+	serverCa := newServerCA(t, upstreamCA)
+
+	catalog := fakeservercatalog.New()
+	catalog.SetUpstreamCAs(upstreamCA)
+	catalog.SetCAs(serverCa)
+	catalog.SetDataStores(dataStore)
+	handler := NewHandler(HandlerConfig{
+		Catalog: catalog,
+		Log:     log,
+	})
+
+	// no peer certificate on context
+	resp, err := handler.FetchJWTASVID(context.Background(), &node.FetchJWTASVIDRequest{})
+	require.EqualError(t, err, "node SVID is required for this request")
+	require.Nil(t, resp)
+
+	// missing JSR
+	resp, err = handler.FetchJWTASVID(ctx, &node.FetchJWTASVIDRequest{})
+	require.EqualError(t, err, "request missing JSR")
+	require.Nil(t, resp)
+
+	// missing SPIFFE ID
+	resp, err = handler.FetchJWTASVID(ctx, &node.FetchJWTASVIDRequest{
+		Jsr: &node.JSR{},
+	})
+	require.EqualError(t, err, "request missing SPIFFE ID")
+	require.Nil(t, resp)
+
+	// missing audiences
+	resp, err = handler.FetchJWTASVID(ctx, &node.FetchJWTASVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: "spiffe://example.org/blog",
+		},
+	})
+	require.EqualError(t, err, "request missing audience")
+	require.Nil(t, resp)
+
+	// not authorized for workload
+	resp, err = handler.FetchJWTASVID(ctx, &node.FetchJWTASVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: "spiffe://example.org/db",
+			Audience: []string{"AUDIENCE"},
+		},
+	})
+	require.EqualError(t, err, `agent "spiffe://example.org/spire/agent/join_token/token" is not authorized for workload "spiffe://example.org/db"`)
+	require.Nil(t, resp)
+
+	// add in a registration entry
+	resp, err = handler.FetchJWTASVID(ctx, &node.FetchJWTASVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: "spiffe://example.org/blog",
+			Audience: []string{"AUDIENCE"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotEmpty(t, resp.Svid.Token)
+	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
+}
+
+func newServerCA(t *testing.T, upstreamCA upstreamca.UpstreamCA) ca.ServerCA {
+	serverCa := memory.NewWithDefault()
+	genResp, err := serverCa.GenerateCsr(context.Background(), &ca.GenerateCsrRequest{})
+	require.NoError(t, err)
+	subResp, err := upstreamCA.SubmitCSR(context.Background(), &upstreamca.SubmitCSRRequest{
+		Csr: genResp.Csr,
+	})
+	require.NoError(t, err)
+	serverCa.LoadCertificate(context.Background(), &ca.LoadCertificateRequest{
+		SignedIntermediateCert: subResp.Cert,
+	})
+	return serverCa
 }

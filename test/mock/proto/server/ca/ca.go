@@ -35,19 +35,6 @@ func (m *MockServerCA) EXPECT() *MockServerCAMockRecorder {
 	return m.recorder
 }
 
-// FetchCertificate mocks base method
-func (m *MockServerCA) FetchCertificate(arg0 context.Context, arg1 *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
-	ret := m.ctrl.Call(m, "FetchCertificate", arg0, arg1)
-	ret0, _ := ret[0].(*ca.FetchCertificateResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchCertificate indicates an expected call of FetchCertificate
-func (mr *MockServerCAMockRecorder) FetchCertificate(arg0, arg1 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCertificate", reflect.TypeOf((*MockServerCA)(nil).FetchCertificate), arg0, arg1)
-}
-
 // GenerateCsr mocks base method
 func (m *MockServerCA) GenerateCsr(arg0 context.Context, arg1 *ca.GenerateCsrRequest) (*ca.GenerateCsrResponse, error) {
 	ret := m.ctrl.Call(m, "GenerateCsr", arg0, arg1)
@@ -74,17 +61,30 @@ func (mr *MockServerCAMockRecorder) LoadCertificate(arg0, arg1 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadCertificate", reflect.TypeOf((*MockServerCA)(nil).LoadCertificate), arg0, arg1)
 }
 
-// SignCsr mocks base method
-func (m *MockServerCA) SignCsr(arg0 context.Context, arg1 *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
-	ret := m.ctrl.Call(m, "SignCsr", arg0, arg1)
-	ret0, _ := ret[0].(*ca.SignCsrResponse)
+// SignJwtSvid mocks base method
+func (m *MockServerCA) SignJwtSvid(arg0 context.Context, arg1 *ca.SignJwtSvidRequest) (*ca.SignJwtSvidResponse, error) {
+	ret := m.ctrl.Call(m, "SignJwtSvid", arg0, arg1)
+	ret0, _ := ret[0].(*ca.SignJwtSvidResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// SignCsr indicates an expected call of SignCsr
-func (mr *MockServerCAMockRecorder) SignCsr(arg0, arg1 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignCsr", reflect.TypeOf((*MockServerCA)(nil).SignCsr), arg0, arg1)
+// SignJwtSvid indicates an expected call of SignJwtSvid
+func (mr *MockServerCAMockRecorder) SignJwtSvid(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignJwtSvid", reflect.TypeOf((*MockServerCA)(nil).SignJwtSvid), arg0, arg1)
+}
+
+// SignX509SvidCsr mocks base method
+func (m *MockServerCA) SignX509SvidCsr(arg0 context.Context, arg1 *ca.SignX509SvidCsrRequest) (*ca.SignX509SvidCsrResponse, error) {
+	ret := m.ctrl.Call(m, "SignX509SvidCsr", arg0, arg1)
+	ret0, _ := ret[0].(*ca.SignX509SvidCsrResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SignX509SvidCsr indicates an expected call of SignX509SvidCsr
+func (mr *MockServerCAMockRecorder) SignX509SvidCsr(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignX509SvidCsr", reflect.TypeOf((*MockServerCA)(nil).SignX509SvidCsr), arg0, arg1)
 }
 
 // MockPlugin is a mock of Plugin interface
@@ -121,19 +121,6 @@ func (m *MockPlugin) Configure(arg0 context.Context, arg1 *plugin.ConfigureReque
 // Configure indicates an expected call of Configure
 func (mr *MockPluginMockRecorder) Configure(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockPlugin)(nil).Configure), arg0, arg1)
-}
-
-// FetchCertificate mocks base method
-func (m *MockPlugin) FetchCertificate(arg0 context.Context, arg1 *ca.FetchCertificateRequest) (*ca.FetchCertificateResponse, error) {
-	ret := m.ctrl.Call(m, "FetchCertificate", arg0, arg1)
-	ret0, _ := ret[0].(*ca.FetchCertificateResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchCertificate indicates an expected call of FetchCertificate
-func (mr *MockPluginMockRecorder) FetchCertificate(arg0, arg1 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCertificate", reflect.TypeOf((*MockPlugin)(nil).FetchCertificate), arg0, arg1)
 }
 
 // GenerateCsr mocks base method
@@ -175,15 +162,28 @@ func (mr *MockPluginMockRecorder) LoadCertificate(arg0, arg1 interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadCertificate", reflect.TypeOf((*MockPlugin)(nil).LoadCertificate), arg0, arg1)
 }
 
-// SignCsr mocks base method
-func (m *MockPlugin) SignCsr(arg0 context.Context, arg1 *ca.SignCsrRequest) (*ca.SignCsrResponse, error) {
-	ret := m.ctrl.Call(m, "SignCsr", arg0, arg1)
-	ret0, _ := ret[0].(*ca.SignCsrResponse)
+// SignJwtSvid mocks base method
+func (m *MockPlugin) SignJwtSvid(arg0 context.Context, arg1 *ca.SignJwtSvidRequest) (*ca.SignJwtSvidResponse, error) {
+	ret := m.ctrl.Call(m, "SignJwtSvid", arg0, arg1)
+	ret0, _ := ret[0].(*ca.SignJwtSvidResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// SignCsr indicates an expected call of SignCsr
-func (mr *MockPluginMockRecorder) SignCsr(arg0, arg1 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignCsr", reflect.TypeOf((*MockPlugin)(nil).SignCsr), arg0, arg1)
+// SignJwtSvid indicates an expected call of SignJwtSvid
+func (mr *MockPluginMockRecorder) SignJwtSvid(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignJwtSvid", reflect.TypeOf((*MockPlugin)(nil).SignJwtSvid), arg0, arg1)
+}
+
+// SignX509SvidCsr mocks base method
+func (m *MockPlugin) SignX509SvidCsr(arg0 context.Context, arg1 *ca.SignX509SvidCsrRequest) (*ca.SignX509SvidCsrResponse, error) {
+	ret := m.ctrl.Call(m, "SignX509SvidCsr", arg0, arg1)
+	ret0, _ := ret[0].(*ca.SignX509SvidCsrResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SignX509SvidCsr indicates an expected call of SignX509SvidCsr
+func (mr *MockPluginMockRecorder) SignX509SvidCsr(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignX509SvidCsr", reflect.TypeOf((*MockPlugin)(nil).SignX509SvidCsr), arg0, arg1)
 }

@@ -12,17 +12,17 @@ import (
 
 // ServerCA is the interface used by all non-catalog components.
 type ServerCA interface {
-	SignCsr(context.Context, *SignCsrRequest) (*SignCsrResponse, error)
+	SignX509SvidCsr(context.Context, *SignX509SvidCsrRequest) (*SignX509SvidCsrResponse, error)
+	SignJwtSvid(context.Context, *SignJwtSvidRequest) (*SignJwtSvidResponse, error)
 	GenerateCsr(context.Context, *GenerateCsrRequest) (*GenerateCsrResponse, error)
-	FetchCertificate(context.Context, *FetchCertificateRequest) (*FetchCertificateResponse, error)
 	LoadCertificate(context.Context, *LoadCertificateRequest) (*LoadCertificateResponse, error)
 }
 
 // Plugin is the interface implemented by plugin implementations
 type Plugin interface {
-	SignCsr(context.Context, *SignCsrRequest) (*SignCsrResponse, error)
+	SignX509SvidCsr(context.Context, *SignX509SvidCsrRequest) (*SignX509SvidCsrResponse, error)
+	SignJwtSvid(context.Context, *SignJwtSvidRequest) (*SignJwtSvidResponse, error)
 	GenerateCsr(context.Context, *GenerateCsrRequest) (*GenerateCsrResponse, error)
-	FetchCertificate(context.Context, *FetchCertificateRequest) (*FetchCertificateResponse, error)
 	LoadCertificate(context.Context, *LoadCertificateRequest) (*LoadCertificateResponse, error)
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
@@ -40,8 +40,16 @@ func NewBuiltIn(plugin Plugin) *BuiltIn {
 	}
 }
 
-func (b BuiltIn) SignCsr(ctx context.Context, req *SignCsrRequest) (*SignCsrResponse, error) {
-	resp, err := b.plugin.SignCsr(ctx, req)
+func (b BuiltIn) SignX509SvidCsr(ctx context.Context, req *SignX509SvidCsrRequest) (*SignX509SvidCsrResponse, error) {
+	resp, err := b.plugin.SignX509SvidCsr(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (b BuiltIn) SignJwtSvid(ctx context.Context, req *SignJwtSvidRequest) (*SignJwtSvidResponse, error) {
+	resp, err := b.plugin.SignJwtSvid(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -50,14 +58,6 @@ func (b BuiltIn) SignCsr(ctx context.Context, req *SignCsrRequest) (*SignCsrResp
 
 func (b BuiltIn) GenerateCsr(ctx context.Context, req *GenerateCsrRequest) (*GenerateCsrResponse, error) {
 	resp, err := b.plugin.GenerateCsr(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (b BuiltIn) FetchCertificate(ctx context.Context, req *FetchCertificateRequest) (*FetchCertificateResponse, error) {
-	resp, err := b.plugin.FetchCertificate(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -119,14 +119,14 @@ type GRPCServer struct {
 	Plugin Plugin
 }
 
-func (s *GRPCServer) SignCsr(ctx context.Context, req *SignCsrRequest) (*SignCsrResponse, error) {
-	return s.Plugin.SignCsr(ctx, req)
+func (s *GRPCServer) SignX509SvidCsr(ctx context.Context, req *SignX509SvidCsrRequest) (*SignX509SvidCsrResponse, error) {
+	return s.Plugin.SignX509SvidCsr(ctx, req)
+}
+func (s *GRPCServer) SignJwtSvid(ctx context.Context, req *SignJwtSvidRequest) (*SignJwtSvidResponse, error) {
+	return s.Plugin.SignJwtSvid(ctx, req)
 }
 func (s *GRPCServer) GenerateCsr(ctx context.Context, req *GenerateCsrRequest) (*GenerateCsrResponse, error) {
 	return s.Plugin.GenerateCsr(ctx, req)
-}
-func (s *GRPCServer) FetchCertificate(ctx context.Context, req *FetchCertificateRequest) (*FetchCertificateResponse, error) {
-	return s.Plugin.FetchCertificate(ctx, req)
 }
 func (s *GRPCServer) LoadCertificate(ctx context.Context, req *LoadCertificateRequest) (*LoadCertificateResponse, error) {
 	return s.Plugin.LoadCertificate(ctx, req)
@@ -142,14 +142,14 @@ type GRPCClient struct {
 	client ServerCAClient
 }
 
-func (c *GRPCClient) SignCsr(ctx context.Context, req *SignCsrRequest) (*SignCsrResponse, error) {
-	return c.client.SignCsr(ctx, req)
+func (c *GRPCClient) SignX509SvidCsr(ctx context.Context, req *SignX509SvidCsrRequest) (*SignX509SvidCsrResponse, error) {
+	return c.client.SignX509SvidCsr(ctx, req)
+}
+func (c *GRPCClient) SignJwtSvid(ctx context.Context, req *SignJwtSvidRequest) (*SignJwtSvidResponse, error) {
+	return c.client.SignJwtSvid(ctx, req)
 }
 func (c *GRPCClient) GenerateCsr(ctx context.Context, req *GenerateCsrRequest) (*GenerateCsrResponse, error) {
 	return c.client.GenerateCsr(ctx, req)
-}
-func (c *GRPCClient) FetchCertificate(ctx context.Context, req *FetchCertificateRequest) (*FetchCertificateResponse, error) {
-	return c.client.FetchCertificate(ctx, req)
 }
 func (c *GRPCClient) LoadCertificate(ctx context.Context, req *LoadCertificateRequest) (*LoadCertificateResponse, error) {
 	return c.client.LoadCertificate(ctx, req)

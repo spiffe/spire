@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/uri"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
 	"github.com/spiffe/spire/proto/api/node"
@@ -115,7 +115,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	h.c.Log.Debugf("Signing CSR for Agent SVID %v", baseSpiffeIDFromCSR)
-	signResponse, err := serverCA.SignCsr(ctx, &ca.SignCsrRequest{Csr: request.Csr})
+	signResponse, err := serverCA.SignX509SvidCsr(ctx, &ca.SignX509SvidCsrRequest{Csr: request.Csr})
 	if err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to sign CSR")
@@ -182,14 +182,13 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return errors.New("An SVID is required for this request")
 		}
 
-		uriNames, err := uri.GetURINamesFromCertificate(peerCert)
+		agentID, err := getSpiffeIDFromCert(peerCert)
 		if err != nil {
 			h.c.Log.Error(err)
-			return errors.New("An SPIFFE ID is required for this request")
+			return err
 		}
-		ctxSpiffeID := uriNames[0]
 
-		regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.DataStores()[0], ctxSpiffeID)
+		regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.DataStores()[0], agentID)
 		if err != nil {
 			h.c.Log.Error(err)
 			return errors.New("Error trying to get registration entries")
@@ -203,12 +202,12 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 
 		bundle, err := h.getBundle(ctx)
 		if err != nil {
-			h.c.Log.Errorf("Error retreiving bundle from datastore: %v", err)
-			return fmt.Errorf("Error retreiving bundle")
+			h.c.Log.Errorf("Error retrieving bundle from datastore: %v", err)
+			return fmt.Errorf("Error retrieving bundle")
 		}
 
 		err = server.Send(&node.FetchX509SVIDResponse{
-			SvidUpdate: &node.SvidUpdate{
+			Update: &node.X509SVIDUpdate{
 				Svids:               svids,
 				Bundle:              bundle,
 				RegistrationEntries: regEntries,
@@ -218,6 +217,74 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			h.c.Log.Errorf("Error sending FetchX509SVIDResponse: %v", err)
 		}
 	}
+}
+
+func (h *Handler) FetchJWTASVID(ctx context.Context, req *node.FetchJWTASVIDRequest) (*node.FetchJWTASVIDResponse, error) {
+	peerCert, err := h.getCertFromCtx(ctx)
+	if err != nil {
+		h.c.Log.Error(err)
+		return nil, errors.New("node SVID is required for this request")
+	}
+
+	// validate request parameters
+	switch {
+	case req.Jsr == nil:
+		return nil, errors.New("request missing JSR")
+	case req.Jsr.SpiffeId == "":
+		return nil, errors.New("request missing SPIFFE ID")
+	case len(req.Jsr.Audience) == 0:
+		return nil, errors.New("request missing audience")
+	}
+
+	agentID, err := getSpiffeIDFromCert(peerCert)
+	if err != nil {
+		h.c.Log.Error(err)
+		return nil, err
+	}
+
+	dataStore := h.c.Catalog.DataStores()[0]
+	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, dataStore, agentID)
+	if err != nil {
+		return nil, err
+	}
+
+	var regEntry *common.RegistrationEntry
+	for _, candidateEntry := range regEntries {
+		if candidateEntry.SpiffeId == req.Jsr.SpiffeId {
+			regEntry = candidateEntry
+			break
+		}
+	}
+
+	if regEntry == nil {
+		err := fmt.Errorf("agent %q is not authorized for workload %q",
+			agentID, req.Jsr.SpiffeId)
+		h.c.Log.Error(err)
+		return nil, err
+	}
+
+	serverCA := h.c.Catalog.CAs()[0]
+	resp, err := serverCA.SignJwtSvid(ctx, &ca.SignJwtSvidRequest{
+		SpiffeId: req.Jsr.SpiffeId,
+		Audience: req.Jsr.Audience,
+		Ttl:      regEntry.Ttl,
+	})
+	if err != nil {
+		h.c.Log.Error(err)
+		return nil, err
+	}
+
+	expiresAt, err := jwtsvid.GetTokenExpiry(resp.SignedJwt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &node.FetchJWTASVIDResponse{
+		Svid: &node.JWTASVID{
+			Token:     resp.SignedJwt,
+			ExpiresAt: expiresAt.Unix(),
+		},
+	}, nil
 }
 
 //TODO
@@ -454,13 +521,13 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 	// Parse base svid to approximate TTL
 	cert, err := x509.ParseCertificate(baseSvid)
 	if err != nil {
-		return &node.AttestResponse{}, err
+		return nil, err
 	}
 
-	svids := make(map[string]*node.Svid)
-	svids[baseSpiffeID] = &node.Svid{
-		SvidCert: cert.Raw,
-		Ttl:      int32(h.timeUntil(cert.NotAfter).Seconds()),
+	svids := make(map[string]*node.X509SVID)
+	svids[baseSpiffeID] = &node.X509SVID{
+		Cert:      cert.Raw,
+		ExpiresAt: cert.NotAfter.Unix(),
 	}
 
 	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.DataStores()[0], baseSpiffeID)
@@ -473,12 +540,12 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 		return nil, err
 	}
 
-	svidUpdate := &node.SvidUpdate{
+	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
 		Bundle:              bundle,
 		RegistrationEntries: regEntries,
 	}
-	return &node.AttestResponse{SvidUpdate: svidUpdate}, nil
+	return &node.AttestResponse{Update: svidUpdate}, nil
 }
 
 func (h *Handler) getCertFromCtx(ctx context.Context) (certificate *x509.Certificate, err error) {
@@ -501,14 +568,12 @@ func (h *Handler) getCertFromCtx(ctx context.Context) (certificate *x509.Certifi
 
 func (h *Handler) signCSRs(ctx context.Context,
 	peerCert *x509.Certificate, csrs [][]byte, regEntries []*common.RegistrationEntry) (
-	svids map[string]*node.Svid, err error) {
+	svids map[string]*node.X509SVID, err error) {
 
-	uriNames, err := uri.GetURINamesFromCertificate(peerCert)
+	callerID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
-		h.c.Log.Error(err)
-		return nil, errors.New("An SPIFFE ID is required for this request")
+		return nil, err
 	}
-	callerID := uriNames[0]
 
 	//convert registration entries into a map for easy lookup
 	regEntriesMap := make(map[string]*common.RegistrationEntry)
@@ -517,7 +582,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 	}
 
 	dataStore := h.c.Catalog.DataStores()[0]
-	svids = make(map[string]*node.Svid)
+	svids = make(map[string]*node.X509SVID)
 	//iterate the CSRs and sign them
 	for _, csr := range csrs {
 		spiffeID, err := getSpiffeIDFromCSR(csr)
@@ -546,7 +611,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 			}
 			svids[spiffeID] = svid
 
-			h.updateAttestationEntry(ctx, svid.SvidCert, spiffeID)
+			h.updateAttestationEntry(ctx, svid.Cert, spiffeID)
 			if err != nil {
 				return nil, err
 			}
@@ -566,7 +631,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 
 func (h *Handler) buildSVID(ctx context.Context,
 	spiffeID string, regEntries map[string]*common.RegistrationEntry, csr []byte) (
-	*node.Svid, error) {
+	*node.X509SVID, error) {
 
 	serverCA := h.c.Catalog.CAs()[0]
 	//TODO: Validate that other fields are not populated https://github.com/spiffe/spire/issues/161
@@ -577,18 +642,27 @@ func (h *Handler) buildSVID(ctx context.Context,
 		return nil, err
 	}
 
-	signReq := &ca.SignCsrRequest{Csr: csr, Ttl: entry.Ttl}
-	signResponse, err := serverCA.SignCsr(ctx, signReq)
+	signReq := &ca.SignX509SvidCsrRequest{Csr: csr, Ttl: entry.Ttl}
+	signResponse, err := serverCA.SignX509SvidCsr(ctx, signReq)
 	if err != nil {
 		return nil, err
 	}
-	return &node.Svid{SvidCert: signResponse.SignedCertificate, Ttl: entry.Ttl}, nil
+
+	cert, err := x509.ParseCertificate(signResponse.SignedCertificate)
+	if err != nil {
+		return nil, err
+	}
+
+	return &node.X509SVID{
+		Cert:      cert.Raw,
+		ExpiresAt: cert.NotAfter.Unix(),
+	}, nil
 }
 
-func (h *Handler) buildBaseSVID(ctx context.Context, csr []byte) (*node.Svid, error) {
+func (h *Handler) buildBaseSVID(ctx context.Context, csr []byte) (*node.X509SVID, error) {
 	serverCA := h.c.Catalog.CAs()[0]
-	signReq := &ca.SignCsrRequest{Csr: csr}
-	signResponse, err := serverCA.SignCsr(ctx, signReq)
+	signReq := &ca.SignX509SvidCsrRequest{Csr: csr}
+	signResponse, err := serverCA.SignX509SvidCsr(ctx, signReq)
 	if err != nil {
 		return nil, err
 	}
@@ -599,9 +673,9 @@ func (h *Handler) buildBaseSVID(ctx context.Context, csr []byte) (*node.Svid, er
 		return nil, err
 	}
 
-	return &node.Svid{
-		SvidCert: signResponse.SignedCertificate,
-		Ttl:      int32(h.timeUntil(cert.NotAfter).Seconds()),
+	return &node.X509SVID{
+		Cert:      cert.Raw,
+		ExpiresAt: cert.NotAfter.Unix(),
 	}, nil
 }
 
@@ -619,26 +693,20 @@ func (h *Handler) getBundle(ctx context.Context) ([]byte, error) {
 	return b.CaCerts, nil
 }
 
-// timeUntil determines how much time until a date. It utilizes the test hook
-// so we can get deterministic ttl determination.
-func (h *Handler) timeUntil(t time.Time) time.Duration {
-	return t.Sub(h.hooks.now())
+func getSpiffeIDFromCSR(csrBytes []byte) (spiffeID string, err error) {
+	csr, err := x509.ParseCertificateRequest(csrBytes)
+	if err != nil {
+		return "", err
+	}
+	if len(csr.URIs) != 1 {
+		return "", errors.New("The CSR must have exactly one URI SAN")
+	}
+	return csr.URIs[0].String(), nil
 }
 
-//TODO: put this into go-spiffe uri?
-func getSpiffeIDFromCSR(csr []byte) (spiffeID string, err error) {
-	var parsedCSR *x509.CertificateRequest
-	if parsedCSR, err = x509.ParseCertificateRequest(csr); err != nil {
-		return spiffeID, err
+func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
+	if len(cert.URIs) == 0 {
+		return "", errors.New("No URI SANs in certificate")
 	}
-
-	var uris []string
-	uris, err = uri.GetURINamesFromExtensions(&parsedCSR.Extensions)
-
-	if len(uris) != 1 {
-		return spiffeID, errors.New("The CSR must have exactly one URI SAN")
-	}
-	spiffeID = uris[0]
-
-	return spiffeID, nil
+	return cert.URIs[0].String(), nil
 }
