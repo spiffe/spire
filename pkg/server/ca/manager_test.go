@@ -70,6 +70,36 @@ func TestManager(t *testing.T) {
 	suite.Run(t, new(ManagerTestSuite))
 }
 
+func (m *ManagerTestSuite) TestInitializeWithPristineCA() {
+	template, err := util.NewSVIDTemplate(m.m.c.TrustDomain.String())
+	m.Require().NoError(err)
+	cert, _, err := util.SelfSign(template)
+	m.Require().NoError(err)
+
+	// since the CA returns no certificate the manager should both
+	// prepare and activate a new CA keypair.
+	m.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(&ca.FetchCertificateResponse{}, nil)
+	m.ca.EXPECT().GenerateCsr(gomock.Any(), gomock.Any()).Return(new(ca.GenerateCsrResponse), nil)
+	m.upsCa.EXPECT().SubmitCSR(gomock.Any(), gomock.Any()).Return(&upstreamca.SubmitCSRResponse{Cert: cert.Raw}, nil)
+	m.ds.EXPECT().AppendBundle(gomock.Any(), gomock.Any())
+	m.ca.EXPECT().LoadCertificate(gomock.Any(), gomock.Any())
+	m.Require().NoError(m.m.Initialize(ctx))
+}
+
+func (m *ManagerTestSuite) TestInitializeWithLoadedCA() {
+	template, err := util.NewSVIDTemplate(m.m.c.TrustDomain.String())
+	m.Require().NoError(err)
+	cert, _, err := util.SelfSign(template)
+	m.Require().NoError(err)
+
+	// since the CA returns an unexpired certificate the manager should skip
+	// preparing and activating a new CA keypair.
+	m.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(&ca.FetchCertificateResponse{
+		StoredIntermediateCert: cert.Raw,
+	}, nil)
+	m.Require().NoError(m.m.Initialize(ctx))
+}
+
 func (m *ManagerTestSuite) TestCARotate() {
 	// Should return error when uninitialized
 	m.Assert().Error(m.m.caRotate(ctx))
