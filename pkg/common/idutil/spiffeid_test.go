@@ -85,6 +85,11 @@ func TestValidateSpiffeID(t *testing.T) {
 			mode:     AllowAnyInTrustDomain("test.com"),
 		},
 		{
+			name:     "test_allow_any_in_trust_domain_good_with_reserved_path",
+			spiffeID: "spiffe://test.com/spire/foo",
+			mode:     AllowAnyInTrustDomain("test.com"),
+		},
+		{
 			name:          "test_allow_any_in_trust_domain_invalid_domain_with_trust_domain_id",
 			spiffeID:      "spiffe://othertest.com",
 			mode:          AllowAnyInTrustDomain("test.com"),
@@ -96,12 +101,7 @@ func TestValidateSpiffeID(t *testing.T) {
 			mode:          AllowAnyInTrustDomain("test.com"),
 			expectedError: `"spiffe://othertest.com/path" does not belong to trust domain "test.com"`,
 		},
-		{
-			name:          "test_allow_any_in_trust_domain_invalid_path",
-			spiffeID:      "spiffe://test.com/spire/foo",
-			mode:          AllowAnyInTrustDomain("test.com"),
-			expectedError: `"spiffe://test.com/spire/foo" is not a valid SPIFFE ID: invalid path: "/spire/*" namespace is restricted`,
-		},
+
 		// AllowTrustDomain() mode
 		{
 			name:     "test_allow_trust_domain_good",
@@ -148,7 +148,7 @@ func TestValidateSpiffeID(t *testing.T) {
 			name:          "test_allow_trust_domain_workload_invalid_path",
 			spiffeID:      "spiffe://test.com/spire/foo",
 			mode:          AllowTrustDomainWorkload("test.com"),
-			expectedError: "\"spiffe://test.com/spire/foo\" is not a valid workload SPIFFE ID: invalid path: \"/spire/*\" namespace is restricted",
+			expectedError: "\"spiffe://test.com/spire/foo\" is not a valid workload SPIFFE ID: invalid path: \"/spire/*\" namespace is reserved",
 		},
 		// AllowAnyTrustDomain() mode
 		{
@@ -178,7 +178,67 @@ func TestValidateSpiffeID(t *testing.T) {
 			name:          "test_allow_any_trust_domain_workload_invalid_path",
 			spiffeID:      "spiffe://othertest.com/spire/foo",
 			mode:          AllowAnyTrustDomainWorkload(),
-			expectedError: "\"spiffe://othertest.com/spire/foo\" is not a valid workload SPIFFE ID: invalid path: \"/spire/*\" namespace is restricted",
+			expectedError: `"spiffe://othertest.com/spire/foo" is not a valid workload SPIFFE ID: invalid path: "/spire/*" namespace is reserved`,
+		},
+		// AllowTrustDomainAgent() mode
+		{
+			name:     "test_allow_trust_domain_agent_good",
+			spiffeID: "spiffe://test.com/spire/agent/foo",
+			mode:     AllowTrustDomainAgent("test.com"),
+		},
+		{
+			name:          "test_allow_trust_domain_agent_invalid_trust_domain",
+			spiffeID:      "spiffe://othertest.com/spire/agent/foo",
+			mode:          AllowTrustDomainAgent("test.com"),
+			expectedError: `"spiffe://othertest.com/spire/agent/foo" does not belong to trust domain "test.com"`,
+		},
+		{
+			name:          "test_allow_trust_domain_agent_with_server",
+			spiffeID:      "spiffe://test.com/spire/server",
+			mode:          AllowTrustDomainAgent("test.com"),
+			expectedError: `"spiffe://test.com/spire/server" is not a valid agent SPIFFE ID: invalid path: expecting "/spire/agent/*"`,
+		},
+		// AllowAnyTrustDomainAgent() mode
+		{
+			name:     "test_allow_any_trust_domain_agent_good",
+			spiffeID: "spiffe://othertest.com/spire/agent/foo",
+			mode:     AllowAnyTrustDomainAgent(),
+		},
+		{
+			name:          "test_allow_any_trust_domain_agent_with_server",
+			spiffeID:      "spiffe://othertest.com/spire/server",
+			mode:          AllowAnyTrustDomainAgent(),
+			expectedError: `"spiffe://othertest.com/spire/server" is not a valid agent SPIFFE ID: invalid path: expecting "/spire/agent/*"`,
+		},
+		// AllowTrustDomainServer() mode
+		{
+			name:     "test_allow_trust_domain_server_good",
+			spiffeID: "spiffe://test.com/spire/server",
+			mode:     AllowTrustDomainServer("test.com"),
+		},
+		{
+			name:          "test_allow_trust_domain_server_invalid_trust_domain",
+			spiffeID:      "spiffe://othertest.com/spire/server",
+			mode:          AllowTrustDomainServer("test.com"),
+			expectedError: `"spiffe://othertest.com/spire/server" does not belong to trust domain "test.com"`,
+		},
+		{
+			name:          "test_allow_trust_domain_server_with_agent",
+			spiffeID:      "spiffe://test.com/spire/agent/foo",
+			mode:          AllowTrustDomainServer("test.com"),
+			expectedError: `"spiffe://test.com/spire/agent/foo" is not a valid server SPIFFE ID: invalid path: expecting "/spire/server"`,
+		},
+		// AllowAnyTrustDomainServer() mode
+		{
+			name:     "test_allow_any_trust_domain_server_good",
+			spiffeID: "spiffe://othertest.com/spire/server",
+			mode:     AllowAnyTrustDomainServer(),
+		},
+		{
+			name:          "test_any_allow_trust_domain_server_with_agent",
+			spiffeID:      "spiffe://othertest.com/spire/agent/foo",
+			mode:          AllowAnyTrustDomainServer(),
+			expectedError: `"spiffe://othertest.com/spire/agent/foo" is not a valid server SPIFFE ID: invalid path: expecting "/spire/server"`,
 		},
 	}
 

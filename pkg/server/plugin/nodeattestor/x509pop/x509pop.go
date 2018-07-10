@@ -8,9 +8,9 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
-
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 )
@@ -76,7 +76,7 @@ func (p *X509PoPPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	}
 
 	// verify the chain of trust
-	_, err = leaf.Verify(x509.VerifyOptions{
+	chains, err := leaf.Verify(x509.VerifyOptions{
 		Intermediates: intermediates,
 		Roots:         c.trustBundle,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
@@ -121,6 +121,7 @@ func (p *X509PoPPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
 		BaseSPIFFEID: x509pop.SpiffeID(c.trustDomain, leaf),
+		Selectors:    buildSelectors(leaf, chains),
 	}
 
 	if err := stream.Send(resp); err != nil {
@@ -174,4 +175,35 @@ func (p *X509PoPPlugin) setConfiguration(c *configuration) {
 
 func newError(format string, args ...interface{}) error {
 	return fmt.Errorf("x509pop: "+format, args...)
+}
+
+func buildSelectors(leaf *x509.Certificate, chains [][]*x509.Certificate) []*common.Selector {
+	selectors := []*common.Selector{}
+
+	if leaf.Subject.CommonName != "" {
+		selectors = append(selectors, &common.Selector{
+			Type: "x509pop", Value: "subject:cn:" + leaf.Subject.CommonName,
+		})
+	}
+
+	// Used to avoid duplicating selectors.
+	fingerprints := map[string]*x509.Certificate{}
+	for _, chain := range chains {
+		// Iterate over all the certs in the chain (skip leaf at the 0 index)
+		for _, cert := range chain[1:] {
+			fp := x509pop.Fingerprint(cert)
+			// If the same fingerprint is generated, continue with the next certificate, because
+			// a selector should have been already created for it.
+			if _, ok := fingerprints[fp]; ok {
+				continue
+			}
+			fingerprints[fp] = cert
+
+			selectors = append(selectors, &common.Selector{
+				Type: "x509pop", Value: "ca:fingerprint:" + fp,
+			})
+		}
+	}
+
+	return selectors
 }

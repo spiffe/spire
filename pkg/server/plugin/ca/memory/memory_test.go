@@ -10,7 +10,6 @@ import (
 	"encoding/pem"
 	"io/ioutil"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -34,55 +33,29 @@ func TestMemory_Configure(t *testing.T) {
 		Configuration: config,
 	}
 
-	m := &MemoryPlugin{
-		mtx: &sync.RWMutex{},
-	}
+	m := New()
 	resp, err := m.Configure(ctx, pluginConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, &spi.ConfigureResponse{}, resp)
 }
 
-func TestMemory_ConfigureParseHclError(t *testing.T) {
-	config := "'" ///This should throw and error on parsing.
+func TestMemory_ConfigureDecodeError(t *testing.T) {
+	config := `{"default_ttl": "foo"}` /// This should fail on decoding object
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
 
-	m := &MemoryPlugin{
-		mtx: &sync.RWMutex{},
-	}
-
+	m := New()
 	resp, err := m.Configure(ctx, pluginConfig)
-	expectedError := "At 1:1: illegal char"
-	expectedErrorList := []string{expectedError}
-
-	assert.Equal(t, err.Error(), expectedError)
-	assert.Equal(t, resp.GetErrorList(), expectedErrorList)
-}
-
-func TestMemory_ConfigureDecodeObjectError(t *testing.T) {
-	config := `{"key_size": "foo"}` /// This should fail on decodeing object
-	pluginConfig := &spi.ConfigureRequest{
-		Configuration: config,
-	}
-
-	m := &MemoryPlugin{
-		mtx: &sync.RWMutex{},
-	}
-
-	resp, err := m.Configure(ctx, pluginConfig)
-	expectedError := "strconv.ParseInt: parsing \"foo\": invalid syntax"
-	expectedErrorList := []string{expectedError}
-
-	assert.Equal(t, err.Error(), expectedError)
-	assert.Equal(t, resp.GetErrorList(), expectedErrorList)
+	require.EqualError(t, err, "strconv.ParseInt: parsing \"foo\": invalid syntax")
+	require.Nil(t, resp)
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
 	m := NewWithDefault()
-	res, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
+	resp, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
-	assert.NotNil(t, res)
+	require.NotNil(t, resp)
 }
 
 func TestMemory_GenerateCsr(t *testing.T) {
@@ -202,9 +175,28 @@ func TestMemory_SignCsr(t *testing.T) {
 	assert.NotEmpty(t, wcert)
 
 	cert, err := x509.ParseCertificate(wcert.SignedCertificate)
+	require.NoError(t, err)
 	roots := getRoots(t, m)
 	_, err = cert.Verify(x509.VerifyOptions{Roots: roots})
 	require.NoError(t, err)
+}
+
+func TestMemory_SignCsrWithProblematicTTL(t *testing.T) {
+	m := populateCert(t)
+	caResp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
+	require.NoError(t, err)
+	require.NotEmpty(t, caResp.StoredIntermediateCert)
+	caCert, err := x509.ParseCertificate(caResp.StoredIntermediateCert)
+	require.NoError(t, err)
+
+	ttl := time.Until(caCert.NotAfter.Add(1 * time.Hour))
+	csr := createWorkloadCSR(t, "spiffe://localhost")
+	sResp, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: csr, Ttl: int32(ttl.Seconds())})
+	require.NoError(t, err)
+
+	cert, err := x509.ParseCertificate(sResp.SignedCertificate)
+	require.NoError(t, err)
+	assert.Equal(t, caCert.NotAfter, cert.NotAfter)
 }
 
 func TestMemory_SignCsrExpire(t *testing.T) {
@@ -216,12 +208,15 @@ func TestMemory_SignCsrExpire(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, wcert)
 
-	// Wait for two seconds. The certificate expires.
-	time.Sleep(2 * time.Second)
+	// Verify as if two seconds had elapsed and assert that the certificate
+	// has expired.
 	cert, err := x509.ParseCertificate(wcert.SignedCertificate)
 	roots := getRoots(t, m)
-	_, err = cert.Verify(x509.VerifyOptions{Roots: roots})
-	assert.Equal(t, "x509: certificate has expired or is not yet valid", err.Error())
+	_, err = cert.Verify(x509.VerifyOptions{
+		Roots:       roots,
+		CurrentTime: time.Now().Add(time.Second * 2),
+	})
+	assert.Error(t, err)
 }
 
 func TestMemory_SignCsrNoCert(t *testing.T) {
@@ -231,7 +226,7 @@ func TestMemory_SignCsrNoCert(t *testing.T) {
 
 	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 
-	assert.Equal(t, "Invalid state: no certificate", err.Error())
+	assert.Error(t, err)
 	assert.Empty(t, wcert)
 }
 
@@ -242,17 +237,7 @@ func TestMemory_SignCsrErrorParsingSpiffeId(t *testing.T) {
 
 	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr})
 
-	assert.Equal(t, "SPIFFE ID 'spif://localhost' is not prefixed with the spiffe:// scheme.", err.Error())
-	assert.Empty(t, wcert)
-}
-
-func TestMemory_SignCsrErrorInvalidTTL(t *testing.T) {
-	m := populateCert(t)
-
-	wcsr := createWorkloadCSR(t, "spiffe://localhost")
-
-	wcert, err := m.SignCsr(ctx, &ca.SignCsrRequest{Csr: wcsr, Ttl: -5})
-	assert.Equal(t, "Invalid TTL: -5", err.Error())
+	assert.Error(t, err)
 	assert.Empty(t, wcert)
 }
 
@@ -288,10 +273,10 @@ func TestMemory_LoadCertificateInvalidCertFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	submitCSRResp.Cert = []byte{}
-	cert, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+	resp, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 
-	assert.Equal(t, "asn1: syntax error: sequence truncated", err.Error())
-	assert.Equal(t, &ca.LoadCertificateResponse{}, cert)
+	assert.EqualError(t, err, "unable to parse server CA certificate: asn1: syntax error: sequence truncated")
+	assert.Nil(t, resp)
 }
 
 func TestMemory_LoadCertificateTooManyCerts(t *testing.T) {
@@ -308,10 +293,10 @@ func TestMemory_LoadCertificateTooManyCerts(t *testing.T) {
 
 	oldCert := submitCSRResp.Cert
 	submitCSRResp.Cert = append(oldCert, oldCert...)
-	cert, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+	resp, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 
-	assert.Equal(t, "asn1: syntax error: trailing data", err.Error())
-	assert.Equal(t, &ca.LoadCertificateResponse{}, cert)
+	assert.EqualError(t, err, "unable to parse server CA certificate: asn1: syntax error: trailing data")
+	assert.Nil(t, resp)
 }
 
 ///
@@ -385,6 +370,9 @@ func newUpCA(keyFilePath string, certFilePath string) (upstreamca.UpstreamCA, er
 	}
 
 	jsonConfig, err := json.Marshal(config)
+	if err != nil {
+		return nil, err
+	}
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: string(jsonConfig),
 	}
