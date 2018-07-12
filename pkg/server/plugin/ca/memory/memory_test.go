@@ -8,7 +8,9 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +31,7 @@ var (
 )
 
 func TestMemory_Configure(t *testing.T) {
-	config := `{"trust_domain":"example.com", "key_size":2048}`
+	config := `{"trust_domain":"example.com"}`
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
@@ -49,6 +52,45 @@ func TestMemory_ConfigureDecodeError(t *testing.T) {
 	resp, err := m.Configure(ctx, pluginConfig)
 	require.EqualError(t, err, "strconv.ParseInt: parsing \"foo\": invalid syntax")
 	require.Nil(t, resp)
+}
+
+func TestMemory_ConfigureWithKeypairPath(t *testing.T) {
+	m := New()
+
+	configure := func(name string) (*spi.ConfigureResponse, error) {
+		return m.Configure(ctx, &spi.ConfigureRequest{
+			Configuration: fmt.Sprintf(`{ "trust_domain":"example.com", "keypair_path":%q }`,
+				filepath.Join("_test_data", name)),
+		})
+	}
+	fetchCert := func() []byte {
+		resp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
+		require.NoError(t, err)
+		return resp.StoredIntermediateCert
+	}
+
+	// assert configure succeeds when no keypair on disk and that no certificate
+	// is returned.
+	resp, err := configure("does-not-exist.pem")
+	assert.Nil(t, err)
+	assert.Equal(t, &spi.ConfigureResponse{}, resp)
+	assert.Empty(t, fetchCert())
+
+	// assert configure fails when malformed keypair on disk
+	resp, err = configure("malformed-keypair.pem")
+	assert.EqualError(t, err, "missing CERTIFICATE block")
+	assert.Nil(t, resp)
+
+	// assert configure fails when the key and cert mismatch
+	resp, err = configure("mismatched-keypair.pem")
+	assert.EqualError(t, err, "certificate and key do not match")
+	assert.Nil(t, resp)
+
+	// assert configure succeeds when good keypair on disk
+	resp, err = configure("good-keypair.pem")
+	assert.Nil(t, err)
+	assert.Equal(t, &spi.ConfigureResponse{}, resp)
+	assert.NotEmpty(t, fetchCert())
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
@@ -88,6 +130,29 @@ func TestMemory_LoadValidCertificate(t *testing.T) {
 			require.Equal(t, resp.StoredIntermediateCert, block.Bytes, file.Name())
 		}
 	}
+}
+
+func TestMemory_LoadCertificateWithKeypairPath(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "ca-memory-load-certificate-")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	keypairPath := filepath.Join(tmpDir, "keypair.pem")
+
+	m := New()
+	_, err = m.Configure(ctx, &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`{ "trust_domain":"example.com", "keypair_path":%q }`, keypairPath),
+	})
+	require.NoError(t, err)
+
+	upstreamCA, err := fakeupstreamca.New("example.com")
+	require.NoError(t, err)
+	rotateServerCA(t, upstreamCA, m)
+
+	cert, key, err := loadKeypair(keypairPath)
+	require.NoError(t, err)
+	require.NotNil(t, cert)
+	require.NotNil(t, key)
 }
 
 func TestMemory_LoadInvalidCertificate(t *testing.T) {
@@ -380,4 +445,17 @@ func newUpCA(keyFilePath string, certFilePath string) (upstreamca.UpstreamCA, er
 	m := upca.New()
 	_, err = m.Configure(ctx, pluginConfig)
 	return m, err
+}
+
+func rotateServerCA(t *testing.T, upstreamCA upstreamca.UpstreamCA, serverCA ca.ServerCA) {
+	genResp, err := serverCA.GenerateCsr(context.Background(), &ca.GenerateCsrRequest{})
+	require.NoError(t, err)
+	subResp, err := upstreamCA.SubmitCSR(context.Background(), &upstreamca.SubmitCSRRequest{
+		Csr: genResp.Csr,
+	})
+	require.NoError(t, err)
+	_, err = serverCA.LoadCertificate(context.Background(), &ca.LoadCertificateRequest{
+		SignedIntermediateCert: subResp.Cert,
+	})
+	require.NoError(t, err)
 }
