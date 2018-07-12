@@ -15,6 +15,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
+	"github.com/spiffe/spire/pkg/agent/resolver"
 	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
@@ -47,9 +48,14 @@ type Config struct {
 }
 
 type client struct {
-	c    *Config
-	conn *grpc.ClientConn
-	m    sync.Mutex
+	conn        *grpc.ClientConn
+	m           sync.Mutex
+	r           resolver.Resolver
+	log         logrus.FieldLogger
+	trustDomain url.URL
+	// KeysAndBundle is a callback that must return the keys and bundle used by the client
+	// to connect via mTLS to Addr.
+	keysAndBundle func() (*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate)
 	// Callback to be used for testing purposes.
 	newNodeClientCallback func() (node.NodeClient, error)
 }
@@ -57,7 +63,10 @@ type client struct {
 // New creates a new client struct with the configuration provided
 func New(c *Config) *client {
 	return &client{
-		c: c,
+		r:             resolver.New(c.Hostname, c.Addr, resolver.LoggerFromFieldLogger(c.Log)),
+		log:           c.Log,
+		trustDomain:   c.TrustDomain,
+		keysAndBundle: c.KeysAndBundle,
 	}
 }
 
@@ -65,9 +74,9 @@ func (c *client) credsFunc() (credentials.TransportCredentials, error) {
 	var tlsCert []tls.Certificate
 	var tlsConfig *tls.Config
 
-	svid, key, bundle := c.c.KeysAndBundle()
+	svid, key, bundle := c.keysAndBundle()
 	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{"spiffe://" + c.c.TrustDomain.Host + "/spire/server"},
+		SpiffeIDs:  []string{"spiffe://" + c.trustDomain.Host + "/spire/server"},
 		TrustRoots: util.NewCertPool(bundle...),
 	}
 	tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
@@ -80,19 +89,12 @@ func (c *client) dial() (*grpc.ClientConn, error) {
 	defer cancel()
 
 	config := grpcutil.GRPCDialerConfig{
-		Log:      grpcutil.LoggerFromFieldLogger(c.c.Log),
+		Log:      grpcutil.LoggerFromFieldLogger(c.log),
 		CredFunc: c.credsFunc,
 	}
 	dialer := grpcutil.NewGRPCDialer(config)
 
-	newAddr, err := util.UpdateAddress(c.c.Addr, c.c.Hostname)
-	if err != nil {
-		c.c.Log.Warningf("Fail to update address, will dial with original IP: %v", err)
-	} else {
-		c.c.Addr = newAddr
-	}
-
-	conn, err := dialer.Dial(ctx, c.c.Addr)
+	conn, err := dialer.Dial(ctx, c.r.Lookup())
 	if err != nil {
 		return nil, fmt.Errorf("cannot create connection: %v", err)
 	}
@@ -109,7 +111,7 @@ func (c *client) FetchUpdates(req *node.FetchX509SVIDRequest) (*Update, error) {
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
 		c.Release()
-		c.c.Log.Errorf("%v: %v", ErrUnableToGetStream, err)
+		c.log.Errorf("%v: %v", ErrUnableToGetStream, err)
 		return nil, ErrUnableToGetStream
 	}
 
