@@ -15,10 +15,8 @@ import (
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
-	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
@@ -39,7 +37,6 @@ type EndpointsTestSuite struct {
 	suite.Suite
 	ctrl *gomock.Controller
 
-	ca *mock_ca.MockServerCA
 	ds *mock_datastore.MockDataStore
 
 	svidState observer.Property
@@ -48,7 +45,6 @@ type EndpointsTestSuite struct {
 
 func (s *EndpointsTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
-	s.ca = mock_ca.NewMockServerCA(s.ctrl)
 	s.ds = mock_datastore.NewMockDataStore(s.ctrl)
 
 	log, _ := test.NewNullLogger()
@@ -59,7 +55,6 @@ func (s *EndpointsTestSuite) SetupTest() {
 	}
 
 	catalog := fakeservercatalog.New()
-	catalog.SetCAs(s.ca)
 	catalog.SetDataStores(s.ds)
 
 	s.svidState = observer.NewProperty(svid.State{})
@@ -93,14 +88,6 @@ func (s *EndpointsTestSuite) TestRegisterRegistrationAPI() {
 }
 
 func (s *EndpointsTestSuite) TestListenAndServe() {
-	// Expectations
-	cert, _, err := util.LoadSVIDFixture()
-	require.NoError(s.T(), err)
-	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
-	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
-
 	ctx, cancel := context.WithCancel(ctx)
 	errChan := make(chan error)
 	go func() { errChan <- s.e.ListenAndServe(ctx) }()
@@ -124,14 +111,6 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 }
 
 func (s *EndpointsTestSuite) TestGRPCHook() {
-	// Set all expectations for running gRPC server
-	cert, _, err := util.LoadSVIDFixture()
-	require.NoError(s.T(), err)
-	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
-	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
-
 	snitchChan := make(chan struct{}, 1)
 	hook := func(g *grpc.Server) error {
 		snitchChan <- struct{}{}
@@ -152,14 +131,6 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 }
 
 func (s *EndpointsTestSuite) TestGRPCHookFailure() {
-	// Set all expectations for running gRPC server
-	cert, _, err := util.LoadSVIDFixture()
-	require.NoError(s.T(), err)
-	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
-	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
-
 	hook := func(_ *grpc.Server) error { return errors.New("i'm an error") }
 	s.e.c.GRPCHook = hook
 

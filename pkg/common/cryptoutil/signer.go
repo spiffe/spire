@@ -3,6 +3,7 @@ package cryptoutil
 import (
 	"context"
 	"crypto"
+	"crypto/x509"
 	"fmt"
 	"io"
 
@@ -49,4 +50,19 @@ func (s *KeyManagerSigner) Sign(rand io.Reader, digest []byte, opts crypto.Signe
 	// the plugin boundary. The crypto.Signer interface implies this is ok
 	// when it says "possibly using entropy from rand".
 	return s.SignContext(context.Background(), digest, opts)
+}
+
+func GenerateKeyAndSigner(ctx context.Context, km keymanager.KeyManager, keyId string, algorithm keymanager.KeyAlgorithm) (*KeyManagerSigner, error) {
+	resp, err := km.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
+		KeyId:        keyId,
+		KeyAlgorithm: algorithm,
+	})
+	if err != nil {
+		return nil, err
+	}
+	publicKey, err := x509.ParsePKIXPublicKey(resp.PublicKey.PkixData)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse public key pkix data: %v", err)
+	}
+	return NewKeyManagerSigner(km, keyId, publicKey), nil
 }

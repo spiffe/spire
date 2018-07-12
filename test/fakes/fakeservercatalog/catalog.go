@@ -5,37 +5,23 @@ import (
 
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/keymanager"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
 	"github.com/spiffe/spire/proto/server/upstreamca"
 )
 
 type Catalog struct {
-	cas           []*catalog.ManagedServerCA
 	dataStores    []*catalog.ManagedDataStore
 	nodeAttestors []*catalog.ManagedNodeAttestor
 	nodeResolvers []*catalog.ManagedNodeResolver
 	upstreamCAs   []*catalog.ManagedUpstreamCA
+	keyManagers   []*catalog.ManagedKeyManager
 }
 
 func New() *Catalog {
 	return &Catalog{}
-}
-
-func (c *Catalog) SetCAs(cas ...ca.ServerCA) {
-	c.cas = nil
-	for i, ca := range cas {
-		c.cas = append(c.cas, catalog.NewManagedServerCA(
-			ca, common.PluginConfig{
-				PluginName: pluginName("ca", i),
-			}))
-	}
-}
-
-func (c *Catalog) CAs() []*catalog.ManagedServerCA {
-	return c.cas
 }
 
 func (c *Catalog) SetDataStores(dataStores ...datastore.DataStore) {
@@ -94,6 +80,19 @@ func (c *Catalog) UpstreamCAs() []*catalog.ManagedUpstreamCA {
 	return c.upstreamCAs
 }
 
+func (c *Catalog) SetKeyManagers(keyManagers ...keymanager.KeyManager) {
+	c.keyManagers = nil
+	for i, keyManager := range keyManagers {
+		c.keyManagers = append(c.keyManagers, catalog.NewManagedKeyManager(
+			keyManager, common.PluginConfig{
+				PluginName: pluginName("keymanager", i),
+			}))
+	}
+}
+
+func (c *Catalog) KeyManagers() []*catalog.ManagedKeyManager {
+	return c.keyManagers
+}
 func pluginName(kind string, i int) string {
 	return fmt.Sprintf("fake_%s_%d", kind, i+1)
 }

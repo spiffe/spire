@@ -8,7 +8,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/proto/server/upstreamca"
 	"github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/stretchr/testify/suite"
@@ -19,7 +18,6 @@ type ServerTestSuite struct {
 	t       *testing.T
 	server  *Server
 	catalog *mock_catalog.MockCatalog
-	ca      *mock_ca.MockServerCA
 	upsCa   *mock_upstreamca.MockUpstreamCA
 }
 
@@ -28,7 +26,6 @@ func (suite *ServerTestSuite) SetupTest() {
 	defer mockCtrl.Finish()
 
 	suite.catalog = mock_catalog.NewMockCatalog(mockCtrl)
-	suite.ca = mock_ca.NewMockServerCA(mockCtrl)
 	suite.upsCa = mock_upstreamca.NewMockUpstreamCA(mockCtrl)
 
 	logger, err := log.NewLogger("DEBUG", "")

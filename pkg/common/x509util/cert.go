@@ -1,15 +1,30 @@
-package cryptoutil
+package x509util
 
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
-	"errors"
 	"fmt"
 
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/proto/server/keymanager"
 )
+
+func CertificateMatchesKey(certificate *x509.Certificate, publicKey crypto.PublicKey) (bool, error) {
+	switch certPublicKey := certificate.PublicKey.(type) {
+	case *rsa.PublicKey:
+		rsa, ok := publicKey.(*rsa.PublicKey)
+		return ok && cryptoutil.RSAPublicKeyEqual(certPublicKey, rsa), nil
+	case *ecdsa.PublicKey:
+		ecdsaPublicKey, ok := publicKey.(*ecdsa.PublicKey)
+		return ok && cryptoutil.ECDSAPublicKeyEqual(certPublicKey, ecdsaPublicKey), nil
+	default:
+		return false, fmt.Errorf("unsupported public key type %T", certificate.PublicKey)
+	}
+}
 
 func CreateCertificate(ctx context.Context, km keymanager.KeyManager, template, parent *x509.Certificate, parentKeyId string, publicKey crypto.PublicKey) (*x509.Certificate, error) {
 	parentPublicKey := parent.PublicKey
@@ -17,13 +32,13 @@ func CreateCertificate(ctx context.Context, km keymanager.KeyManager, template, 
 		// Pull the public key from the key manager. In the self-signing case, the
 		// parent certificate PublicKey field is not likely to be set.
 		var err error
-		parentPublicKey, err = GetPublicKey(ctx, km, parentKeyId)
+		parentPublicKey, err = cryptoutil.GetPublicKey(ctx, km, parentKeyId)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	signer := NewKeyManagerSigner(km, parentKeyId, parentPublicKey)
+	signer := cryptoutil.NewKeyManagerSigner(km, parentKeyId, parentPublicKey)
 	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, publicKey, signer)
 	if err != nil {
 		return nil, err
@@ -34,21 +49,4 @@ func CreateCertificate(ctx context.Context, km keymanager.KeyManager, template, 
 	}
 
 	return cert, nil
-}
-
-func GetPublicKey(ctx context.Context, km keymanager.KeyManager, keyId string) (crypto.PublicKey, error) {
-	resp, err := km.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
-		KeyId: keyId,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if resp.PublicKey == nil {
-		return nil, errors.New("response missing public key")
-	}
-	publicKey, err := x509.ParsePKIXPublicKey(resp.PublicKey.PkixData)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse public key pkix data: %v", err)
-	}
-	return publicKey, nil
 }

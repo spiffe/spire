@@ -2,19 +2,18 @@ package fakeupstreamca
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
-	"errors"
-	"fmt"
 	"math/big"
+	"testing"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -26,24 +25,14 @@ qQDuoXqa8i3YOPk5fLib4ORzqD9NJFcrKjI+LLtipQe9yu/eY1K0yhBa
 `)
 )
 
-type FakeUpstreamCA struct {
+type UpstreamCA struct {
 	cert       *x509.Certificate
 	upstreamCA *x509svid.UpstreamCA
 }
 
-func New(trustDomain string) (*FakeUpstreamCA, error) {
-	keyBlock, _ := pem.Decode(keyPEM)
-	if keyBlock == nil {
-		return nil, errors.New("unable to decode key PEM")
-	}
-	rawKey, err := x509.ParsePKCS8PrivateKey(keyBlock.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse key: %v", err)
-	}
-	key, ok := rawKey.(*ecdsa.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("expected ECDSA key; got %T", rawKey)
-	}
+func New(t *testing.T, trustDomain string) *UpstreamCA {
+	key, err := pemutil.ParseECPrivateKey(keyPEM)
+	require.NoError(t, err, "unable to parse key")
 
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
@@ -54,27 +43,27 @@ func New(trustDomain string) (*FakeUpstreamCA, error) {
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
-	if err != nil {
-		return nil, fmt.Errorf("unable to self-sign certificate: %v", err)
-	}
+	require.NoError(t, err, "unable to self-sign certificate")
 
 	cert, err := x509.ParseCertificate(certDER)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err, "unable to parse self-signed certificate")
 
 	upstreamCA := x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(cert, key),
 		trustDomain,
 		x509svid.UpstreamCAOptions{})
 
-	return &FakeUpstreamCA{
+	return &UpstreamCA{
 		cert:       cert,
 		upstreamCA: upstreamCA,
-	}, nil
+	}
 }
 
-func (m *FakeUpstreamCA) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+func (m *UpstreamCA) Cert() *x509.Certificate {
+	return m.cert
+}
+
+func (m *UpstreamCA) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
 	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr)
 	if err != nil {
 		return nil, err

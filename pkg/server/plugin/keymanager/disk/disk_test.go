@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager/keymanagertest"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/keymanager"
 	"github.com/stretchr/testify/require"
@@ -47,7 +47,7 @@ func (s *Suite) TearDownTest() {
 func (s *Suite) createManager() {
 	s.m = New()
 	resp, err := s.m.Configure(ctx, &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf("path = %q", s.keysPath()),
+		Configuration: fmt.Sprintf("keys_path = %q", s.keysPath()),
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(&plugin.ConfigureResponse{}, resp)
@@ -58,17 +58,17 @@ func (s *Suite) keysDir() string {
 }
 
 func (s *Suite) keysPath() string {
-	return filepath.Join(s.keysDir(), "keys.pem")
+	return filepath.Join(s.keysDir(), "keys.json")
 }
 
 func (s *Suite) TestGeneralFunctionality() {
-	keymanagertest.Run(s.T(), func(t *testing.T) keymanager.Plugin {
+	test.Run(s.T(), func(t *testing.T) keymanager.Plugin {
 		caseDir, err := ioutil.TempDir(s.tmpDir, "testcase-")
 		require.NoError(t, err)
 
 		m := New()
 		resp, err := m.Configure(context.Background(), &plugin.ConfigureRequest{
-			Configuration: fmt.Sprintf("path = %q", filepath.Join(caseDir, "keys.pem")),
+			Configuration: fmt.Sprintf("keys_path = %q", filepath.Join(caseDir, "keys.json")),
 		})
 		require.NoError(t, err)
 		require.Equal(t, &plugin.ConfigureResponse{}, resp)
@@ -79,7 +79,7 @@ func (s *Suite) TestGeneralFunctionality() {
 func (s *Suite) TestConfigureMissingPath() {
 	m := New()
 	resp, err := m.Configure(ctx, &keymanager.ConfigureRequest{})
-	s.Require().EqualError(err, "keymanager(disk): path is required")
+	s.Require().EqualError(err, "keymanager(disk): keys_path is required")
 	s.Require().Nil(resp)
 }
 
@@ -100,7 +100,7 @@ func (s *Suite) TestGenerateKeyPersistenceFailure() {
 		KeyAlgorithm: keymanager.KeyAlgorithm_ECDSA_P256,
 	})
 	s.Require().Error(err)
-	s.Require().Contains(err.Error(), "keymanager(disk): unable to write key file")
+	s.Require().Contains(err.Error(), "keymanager(disk): unable to write entries")
 	s.Require().Nil(resp)
 
 	// make sure key doesn't exist when it couldn't be saved to disk

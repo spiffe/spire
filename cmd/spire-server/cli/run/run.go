@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -41,12 +43,23 @@ type serverConfig struct {
 	BaseSVIDTtl      int    `hcl:"base_svid_ttl"`
 	ServerSVIDTtl    int    `hcl:"server_svid_ttl"`
 	ConfigPath       string
-	Umask            string   `hcl:"umask"`
-	UpstreamBundle   bool     `hcl:"upstream_bundle"`
-	ProfilingEnabled bool     `hcl:"profiling_enabled"`
-	ProfilingPort    int      `hcl:"profiling_port"`
-	ProfilingFreq    int      `hcl:"profiling_freq"`
-	ProfilingNames   []string `hcl:"profiling_names"`
+	Umask            string           `hcl:"umask"`
+	UpstreamBundle   bool             `hcl:"upstream_bundle"`
+	ProfilingEnabled bool             `hcl:"profiling_enabled"`
+	ProfilingPort    int              `hcl:"profiling_port"`
+	ProfilingFreq    int              `hcl:"profiling_freq"`
+	ProfilingNames   []string         `hcl:"profiling_names"`
+	Backdate         string           `hcl:"backdate"`
+	SVIDTTL          string           `hcl:"svid_ttl"`
+	CATTL            string           `hcl:"ca_ttl"`
+	CASubject        *caSubjectConfig `hcl:"ca_subject"`
+	CertsPath        string           `hcl:"certs_path"`
+}
+
+type caSubjectConfig struct {
+	Country      []string `hcl:"country"`
+	Organization []string `hcl:"organization"`
+	CommonName   string   `hcl:"common_name"`
 }
 
 // Run CLI struct
@@ -127,12 +140,7 @@ func parseFile(filePath string) (*runConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	hclTree, err := hcl.Parse(string(data))
-	if err != nil {
-		return nil, err
-	}
-
-	if err := hcl.DecodeObject(&c, hclTree); err != nil {
+	if err := hcl.Decode(&c, string(data)); err != nil {
 		return nil, err
 	}
 
@@ -243,6 +251,42 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 		if len(cmd.Server.ProfilingNames) > 0 {
 			orig.ProfilingNames = cmd.Server.ProfilingNames
 		}
+	}
+
+	if cmd.Server.Backdate != "" {
+		backdate, err := time.ParseDuration(cmd.Server.Backdate)
+		if err != nil {
+			return fmt.Errorf("unable to parse backdate %q: %v", cmd.Server.Backdate, err)
+		}
+		orig.Backdate = backdate
+	}
+
+	if cmd.Server.SVIDTTL != "" {
+		ttl, err := time.ParseDuration(cmd.Server.SVIDTTL)
+		if err != nil {
+			return fmt.Errorf("unable to parse default ttl %q: %v", cmd.Server.SVIDTTL, err)
+		}
+		orig.SVIDTTL = ttl
+	}
+
+	if cmd.Server.CATTL != "" {
+		ttl, err := time.ParseDuration(cmd.Server.CATTL)
+		if err != nil {
+			return fmt.Errorf("unable to parse default ttl %q: %v", cmd.Server.CATTL, err)
+		}
+		orig.CATTL = ttl
+	}
+
+	if subject := cmd.Server.CASubject; subject != nil {
+		orig.CASubject = pkix.Name{
+			Organization: subject.Organization,
+			Country:      subject.Country,
+			CommonName:   subject.CommonName,
+		}
+	}
+
+	if cmd.Server.CertsPath != "" {
+		orig.CertsPath = cmd.Server.CertsPath
 	}
 
 	return nil
