@@ -104,7 +104,8 @@ plugins {
         DataStore "datastore" {
                 enabled = true
                 plugin_data {
-                        file_name = "./.data/datastore.sqlite3"
+                        database_type = "sqlite3"
+                        connection_string = "./.data/datastore.sqlite3"
                 }
         }
 
