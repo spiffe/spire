@@ -16,8 +16,8 @@ import (
 func CertificateMatchesKey(certificate *x509.Certificate, publicKey crypto.PublicKey) (bool, error) {
 	switch certPublicKey := certificate.PublicKey.(type) {
 	case *rsa.PublicKey:
-		rsa, ok := publicKey.(*rsa.PublicKey)
-		return ok && cryptoutil.RSAPublicKeyEqual(certPublicKey, rsa), nil
+		rsaPublicKey, ok := publicKey.(*rsa.PublicKey)
+		return ok && cryptoutil.RSAPublicKeyEqual(certPublicKey, rsaPublicKey), nil
 	case *ecdsa.PublicKey:
 		ecdsaPublicKey, ok := publicKey.(*ecdsa.PublicKey)
 		return ok && cryptoutil.ECDSAPublicKeyEqual(certPublicKey, ecdsaPublicKey), nil

@@ -163,39 +163,27 @@ func (m *manager) rotateCAsEvery(ctx context.Context, interval time.Duration) er
 }
 
 func (m *manager) rotateCAs(ctx context.Context) error {
-	// swap in the next CA if the current one is expiring or expired
-	if m.current.x509CA != nil && m.isExpiringOrExpired(m.current.x509CA) {
-		if m.next.x509CA != nil {
-			m.c.Log.Debugf("Manager keypair %s expiring or expired", m.current.slot)
-			m.current.Reset()
-			m.current, m.next = m.next, m.current
-			m.setKeypairSet()
-		}
-	}
-
-	needsWrite := false
-
 	// if there is no current keypair set, generate one
 	if m.current.x509CA == nil {
-		if err := m.initializeKeypairSet(ctx, m.current, nil); err != nil {
+		if err := m.prepareKeypairSet(ctx, m.current); err != nil {
 			return err
 		}
 		m.setKeypairSet()
-		needsWrite = true
 	}
 
-	// if there is no next keypair set, generate one
-	if m.next.x509CA == nil {
-		if err := m.initializeKeypairSet(ctx, m.next, m.current); err != nil {
+	// if there is no next keypair set and the current is within the
+	// preparation threshold, generate one.
+	if m.next.x509CA == nil && m.shouldPrepare() {
+		if err := m.prepareKeypairSet(ctx, m.next); err != nil {
 			return err
 		}
-		needsWrite = true
 	}
 
-	if needsWrite {
-		if err := m.writeKeypairSets(); err != nil {
-			return err
-		}
+	if m.shouldActivate() {
+		m.current.Reset()
+		m.current, m.next = m.next, m.current
+		m.writeKeypairSets()
+		m.setKeypairSet()
 	}
 
 	return nil
@@ -278,33 +266,23 @@ func (m *manager) appendBundle(ctx context.Context, caCerts []byte) error {
 	return nil
 }
 
-func (m *manager) initializeKeypairSet(ctx context.Context, current, previous *keypairSet) error {
-	if previous == nil {
-		m.c.Log.Debugf("Manager is initializing keypair set %q", current.slot)
-	} else {
-		m.c.Log.Debugf("Manager is initializing keypair set %q after %q", current.slot, previous.slot)
-	}
+func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) error {
+	m.c.Log.Debugf("Manager is preparing keypair set %q", kps.slot)
+	kps.Reset()
 
-	// If there is a certificate before the one being initialized then base
-	// the start time off of the rotation threshold.
-	startTime := m.hooks.now()
-	if previous != nil {
-		startTime = rotationThreshold(previous.x509CA)
-	}
-	notBefore := startTime.Add(-m.c.Backdate)
-	notAfter := startTime.Add(m.c.CATTL)
+	now := m.hooks.now()
+	notBefore := now.Add(-m.c.Backdate)
+	notAfter := now.Add(m.c.CATTL)
 
 	km := m.c.Catalog.KeyManagers()[0]
-	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, current.X509CAKeyId(), keymanager.KeyAlgorithm_ECDSA_P384)
+
+	// create/rotate the keymanager key
+	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, kps.X509CAKeyId(), keymanager.KeyAlgorithm_ECDSA_P384)
 	if err != nil {
 		return err
 	}
-	// At this point the key associated with the certificate has been rotated.
-	// If we fail after this point, we shouldn't try and use the existing
-	// certificate, so clear it out.
-	current.x509CA = nil
 
-	// Either self-sign or sign with the upstream CA
+	// either self-sign or sign with the upstream CA
 	var cert *x509.Certificate
 	var upstreamBundle []byte
 	if upstreamCAs := m.c.Catalog.UpstreamCAs(); len(upstreamCAs) > 0 {
@@ -329,7 +307,8 @@ func (m *manager) initializeKeypairSet(ctx context.Context, current, previous *k
 		return err
 	}
 
-	current.x509CA = cert
+	kps.x509CA = cert
+	m.writeKeypairSets()
 	return nil
 }
 
@@ -383,13 +362,13 @@ func (m *manager) getNextKeypairSet() *keypairSet {
 }
 
 func (m *manager) setKeypairSet() {
-	m.c.Log.Debugf("Manager using keypair set %q", m.current.slot)
+	m.c.Log.Debugf("Manager activating keypair set %q", m.current.slot)
 	m.ca.setKeypairSet(*m.current)
 }
 
-func (m *manager) writeKeypairSets() error {
+func (m *manager) writeKeypairSets() {
 	if m.c.CertsPath == "" {
-		return nil
+		return
 	}
 	certificates := make(map[string]*x509.Certificate)
 	if m.current.x509CA != nil {
@@ -398,12 +377,17 @@ func (m *manager) writeKeypairSets() error {
 	if m.next.x509CA != nil {
 		certificates[m.next.X509CAKeyId()] = m.next.x509CA
 	}
-
-	return writeCertificates(m.c.CertsPath, certificates)
+	if err := writeCertificates(m.c.CertsPath, certificates); err != nil {
+		m.c.Log.Warnf("unable to write keypair sets: %v", err)
+	}
 }
 
-func (m *manager) isExpiringOrExpired(cert *x509.Certificate) bool {
-	return m.hooks.now().After(rotationThreshold(cert))
+func (m *manager) shouldPrepare() bool {
+	return m.current.x509CA == nil || m.hooks.now().After(preparationThreshold(m.current.x509CA))
+}
+
+func (m *manager) shouldActivate() bool {
+	return m.current.x509CA == nil || m.hooks.now().After(activationThreshold(m.current.x509CA))
 }
 
 func certMatchesKey(certificate *x509.Certificate, publicKey crypto.PublicKey) bool {
@@ -540,7 +524,12 @@ func writeCertificates(path string, certs map[string]*x509.Certificate) error {
 	return diskutil.AtomicWriteFile(path, jsonBytes, 0644)
 }
 
-func rotationThreshold(cert *x509.Certificate) time.Time {
+func preparationThreshold(cert *x509.Certificate) time.Time {
+	lifetime := cert.NotAfter.Sub(cert.NotBefore)
+	return cert.NotAfter.Add(-lifetime / 2)
+}
+
+func activationThreshold(cert *x509.Certificate) time.Time {
 	lifetime := cert.NotAfter.Sub(cert.NotBefore)
 	return cert.NotAfter.Add(-lifetime / 6)
 }

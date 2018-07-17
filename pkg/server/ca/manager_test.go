@@ -102,9 +102,7 @@ func (m *ManagerTestSuite) loadCertificates() (a, b *x509.Certificate) {
 	certs, err := loadCertificates(m.certsPath())
 	m.Require().NoError(err)
 	a = certs["x509-CA-A"]
-	m.Require().NotNil(a)
 	b = certs["x509-CA-B"]
-	m.Require().NotNil(b)
 	return a, b
 }
 
@@ -112,119 +110,134 @@ func (m *ManagerTestSuite) TestPersistence() {
 	// initialize a new keypair set
 	m.Require().NoError(m.m.Initialize(ctx))
 	current1 := m.m.getCurrentKeypairSet()
-	next1 := m.m.getNextKeypairSet()
 
 	// "reload" the manager and assert the keypairs are the same
 	m.m = NewManager(m.m.c)
 	m.Require().NoError(m.m.Initialize(ctx))
 	current2 := m.m.getCurrentKeypairSet()
-	next2 := m.m.getNextKeypairSet()
 	m.Require().Equal(current1, current2)
-	m.Require().Equal(next1, next2)
 
 	// drop the keys, "reload" the manager, and assert the keypairs are new
 	m.catalog.SetKeyManagers(memory.New())
 	m.m = NewManager(m.m.c)
 	m.Require().NoError(m.m.Initialize(ctx))
 	current3 := m.m.getCurrentKeypairSet()
-	next3 := m.m.getNextKeypairSet()
 	m.Require().NotEqual(current2, current3)
-	m.Require().NotEqual(next2, next3)
 
 	// load the old keys, "reload" the manager, and assert the keypairs are new
 	m.catalog.SetKeyManagers(m.keymanager)
 	m.m = NewManager(m.m.c)
 	m.Require().NoError(m.m.Initialize(ctx))
 	current4 := m.m.getCurrentKeypairSet()
-	next4 := m.m.getNextKeypairSet()
 	m.Require().NotEqual(current3, current4)
-	m.Require().NotEqual(next3, next4)
 }
 
 func (m *ManagerTestSuite) TestUpstreamSigning() {
 	upstreamCA := fakeupstreamca.New(m.T(), "example.org")
 	m.catalog.SetUpstreamCAs(upstreamCA)
+	upstreamCert := upstreamCA.Cert()
 
+	// generate a keypair make sure it was signed up upstream and that
+	// the upstream cert is in the bundle
 	m.Require().NoError(m.m.Initialize(ctx))
-	a1, b1 := m.loadCertificates()
-	m.requireBundle(upstreamCA.Cert(), a1, b1)
+	a := m.m.getCurrentKeypairSet().x509CA
+	m.Require().Equal(upstreamCert.Subject, a.Issuer)
+	m.requireBundle(upstreamCert, a)
 }
 
 func (m *ManagerTestSuite) TestRotation() {
-	// cause the initial rotation through initialization
+	// initialize the current keypair set
 	m.Require().NoError(m.m.Initialize(ctx))
 
-	// assert that both the A and B keypairs are created, that A is in use,
-	// and that both A and B certs have been added to the bundle
+	// assert that A has been created, is in use, and is stored in the bundle
+	// and that B has not been created.
 	a1, b1 := m.loadCertificates()
+	m.Require().NotNil(a1)
+	m.Require().Nil(b1)
 	m.requireKeypairSet("A", a1)
-	m.requireBundle(a1, b1)
+	m.requireBundle(a1)
 
-	// assert that B comes after A and that is active at the rotation
-	// threshold minus the backdate
-	m.Require().Equal(a1.NotAfter, m.nowHook().Add(DefaultCATTL))
-	m.Require().WithinDuration(b1.NotBefore, rotationThreshold(a1).Add(-DefaultBackdate), time.Second)
-	m.Require().WithinDuration(b1.NotAfter, rotationThreshold(a1).Add(DefaultCATTL), time.Second)
-
-	// advance up to the rotation threshold and make sure nothing changes
-	m.setTime(rotationThreshold(a1))
+	// advance up to the preparation threshold and assert nothing changes
+	m.setTime(preparationThreshold(a1))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	m.requireKeypairSet("A", a1)
-	m.requireBundle(a1, b1)
+	m.requireBundle(a1)
 
-	// cross the threshold and assert that B is now in use and that A was
-	// rotated and proceeds B
+	// advance past the preparation threshold and assert that B has been created
+	// but that A is unchanged and still active.
 	m.advanceTime(time.Second)
 	m.Require().NoError(m.m.rotateCAs(ctx))
-
 	a2, b2 := m.loadCertificates()
-	m.Require().Equal(b2, b1)
-	m.requireKeypairSet("B", b2)
-	m.requireBundle(a1, b1, a2)
+	m.Require().NotNil(a2)
+	m.Require().NotNil(b2)
+	m.Require().Equal(a2, a1)
+	m.requireKeypairSet("A", a1)
+	m.requireBundle(a1, b2)
 
-	m.Require().WithinDuration(a2.NotBefore, rotationThreshold(b1).Add(-DefaultBackdate), time.Second)
-	m.Require().WithinDuration(a2.NotAfter, rotationThreshold(b1).Add(DefaultCATTL), time.Second)
-
-	// rotate once more for good measure
-	m.setTime(rotationThreshold(b1).Add(time.Second))
+	// advance to the activation threshold and assert nothing changes
+	m.setTime(activationThreshold(a1))
 	m.Require().NoError(m.m.rotateCAs(ctx))
+	m.requireKeypairSet("A", a1)
+	m.requireBundle(a1, b2)
 
+	// advance past to the activation threshold and assert that B is active
+	// and A is reset
+	m.advanceTime(time.Second)
+	m.Require().NoError(m.m.rotateCAs(ctx))
 	a3, b3 := m.loadCertificates()
-	m.Require().Equal(a3, a2)
-	m.requireKeypairSet("A", a3)
-	m.requireBundle(a1, b1, a2, b3)
-	m.Require().WithinDuration(b3.NotBefore, rotationThreshold(a2).Add(-DefaultBackdate), time.Second)
-	m.Require().WithinDuration(b3.NotAfter, rotationThreshold(a2).Add(DefaultCATTL), time.Second)
+	m.Require().Nil(a3)
+	m.Require().NotNil(b3)
+	m.Require().Equal(b3, b2)
+	m.requireKeypairSet("B", b2)
+	m.requireBundle(a1, b2)
+
+	// now advance past both the preparation and activation threshold to make
+	// sure B is rotated out and A is active. This makes sure that however
+	// unlikely, preparation and activation can happen in the same pass, if
+	// necessary.
+	m.setTime(activationThreshold(b2).Add(time.Second))
+	m.Require().NoError(m.m.rotateCAs(ctx))
+	a4, b4 := m.loadCertificates()
+	m.Require().NotNil(a4)
+	m.Require().Nil(b4)
+	m.requireKeypairSet("A", a4)
+	m.requireBundle(a1, b2, a4)
 }
 
 func (m *ManagerTestSuite) TestPrune() {
+	// Initialize and prepare an extra keypair set
 	m.Require().NoError(m.m.Initialize(ctx))
-	a1, b1 := m.loadCertificates()
-	m.requireBundle(a1, b1)
+	a := m.m.getCurrentKeypairSet().x509CA
+	m.setTime(preparationThreshold(a).Add(time.Second))
+	m.Require().NoError(m.m.rotateCAs(ctx))
+	b := m.m.getNextKeypairSet().x509CA
+
+	// assert both certificates are in the bundle
+	m.requireBundle(a, b)
 
 	// prune and assert that nothing changed
 	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundle(a1, b1)
+	m.requireBundle(a, b)
 
-	// advance after the expiration of the a1, prune, and assert that nothing
+	// advance after the expiration of the A, prune, and assert that nothing
 	// changed (since we don't prune until the certificate has been expired
 	// longer than the safety threshold)
-	m.setTime(a1.NotAfter.Add(time.Second))
+	m.setTime(a.NotAfter.Add(time.Second))
 	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundle(a1, b1)
+	m.requireBundle(a, b)
 
-	// advance beyond the safety threshold, prune, and assert that a1 has been
+	// advance beyond the safety threshold, prune, and assert that A has been
 	// pruned
-	m.setTime(a1.NotAfter.Add(safetyThreshold))
+	m.setTime(a.NotAfter.Add(safetyThreshold))
 	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundle(b1)
+	m.requireBundle(b)
 
-	// advance beyond the b1's safety threshold and assert that prune fails
-	// because all certificates would be pruned and that b1 remains present
+	// advance beyond the B's safety threshold and assert that prune fails
+	// because all certificates would be pruned and that B remains present
 	// in the bundle
-	m.setTime(b1.NotAfter.Add(safetyThreshold))
+	m.setTime(b.NotAfter.Add(safetyThreshold))
 	m.Require().EqualError(m.m.pruneBundle(ctx), "would prune all certificates")
-	m.requireBundle(b1)
+	m.requireBundle(b)
 }
 
 func (m *ManagerTestSuite) requireBundle(expectedCerts ...*x509.Certificate) {
