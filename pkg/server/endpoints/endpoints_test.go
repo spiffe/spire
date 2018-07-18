@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -22,7 +23,6 @@ import (
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	tomb "gopkg.in/tomb.v2"
 
 	"google.golang.org/grpc"
 )
@@ -42,7 +42,8 @@ type EndpointsTestSuite struct {
 	ca *mock_ca.MockServerCA
 	ds *mock_datastore.MockDataStore
 
-	e *endpoints
+	svidState observer.Property
+	e         *endpoints
 }
 
 func (s *EndpointsTestSuite) SetupTest() {
@@ -61,10 +62,11 @@ func (s *EndpointsTestSuite) SetupTest() {
 	catalog.SetCAs(s.ca)
 	catalog.SetDataStores(s.ds)
 
+	s.svidState = observer.NewProperty(svid.State{})
 	c := &Config{
 		GRPCAddr:    &net.TCPAddr{IP: ip, Port: 8000},
 		HTTPAddr:    &net.TCPAddr{IP: ip, Port: 8001},
-		SVIDStream:  observer.NewProperty(svid.State{}).Observe(),
+		SVIDStream:  s.svidState.Observe(),
 		TrustDomain: td,
 		Catalog:     catalog,
 		Log:         log,
@@ -197,32 +199,37 @@ func (s *EndpointsTestSuite) TestHTTPServerConfig() {
 }
 
 func (s *EndpointsTestSuite) TestSVIDObserver() {
-	state := observer.NewProperty(svid.State{})
-	s.e.c.SVIDStream = state.Observe()
-
 	ctx, cancel := context.WithCancel(ctx)
-	t := new(tomb.Tomb)
-	defer func() {
-		cancel()
-		s.Require().NoError(t.Wait())
+	defer cancel()
+
+	go func() {
+		s.e.runSVIDObserver(ctx)
 	}()
-	t.Go(func() error {
-		return s.e.runSVIDObserver(ctx)
-	})
 
-	cert, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-	svid := svid.State{
-		SVID: cert,
-		Key:  key,
+	expectedState := svid.State{
+		SVID: &x509.Certificate{},
+		Key:  &ecdsa.PrivateKey{},
 	}
-	state.Update(svid)
+	s.svidState.Update(expectedState)
 
-	time.Sleep(1 * time.Millisecond)
-	s.e.mtx.RLock()
-	defer s.e.mtx.RUnlock()
-	s.Assert().Equal(cert, s.e.svid)
-	s.Assert().Equal(key, s.e.svidKey)
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	ticker := time.NewTicker(time.Millisecond * 50)
+	defer ticker.Stop()
+checkLoop:
+	for {
+		select {
+		case <-ticker.C:
+			actualState := s.e.getSVIDState()
+			if actualState.SVID == nil {
+				continue
+			}
+			s.Require().Equal(expectedState, actualState)
+			break checkLoop
+		case <-timer.C:
+			s.FailNow("timed out waiting for SVID state")
+		}
+	}
 }
 
 // expectBundleLookup sets datastore expectations for CA bundle lookups, and returns the served
