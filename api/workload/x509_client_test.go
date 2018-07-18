@@ -39,14 +39,14 @@ func TestClient_StartAndStop(t *testing.T) {
 	go func() { errChan <- c.Start() }()
 	updateChan := c.UpdateChan()
 	select {
-	case <-time.NewTicker(1 * time.Second).C:
+	case <-time.NewTimer(1 * time.Second).C:
 		t.Error("did not receive update in time")
 	case <-updateChan:
 	}
 
 	c.Stop()
 	select {
-	case <-time.NewTicker(1 * time.Millisecond).C:
+	case <-time.NewTimer(1 * time.Millisecond).C:
 		t.Error("shutdown timed out")
 	case err := <-errChan:
 		if err != nil {
@@ -60,7 +60,7 @@ func TestClient_StartAndStop(t *testing.T) {
 	go func() { errChan <- c.Start() }()
 	updateChan = c.UpdateChan()
 	select {
-	case <-time.NewTicker(1 * time.Second).C:
+	case <-time.NewTimer(1 * time.Second).C:
 		t.Error("did not receive update in time")
 	case u := <-updateChan:
 		if !reflect.DeepEqual(u, handler.resp1()) {
@@ -69,7 +69,7 @@ func TestClient_StartAndStop(t *testing.T) {
 	}
 
 	select {
-	case <-time.NewTicker(1 * time.Second).C:
+	case <-time.NewTimer(1 * time.Second).C:
 		t.Fatal("did not receive update in time")
 	case u := <-updateChan:
 		if !reflect.DeepEqual(u, handler.resp2()) {
@@ -78,7 +78,7 @@ func TestClient_StartAndStop(t *testing.T) {
 	}
 
 	select {
-	case <-time.NewTicker(5 * time.Second).C:
+	case <-time.NewTimer(5 * time.Second).C:
 		t.Error("update not received after server reconnect")
 	case err := <-errChan:
 		t.Fatalf("failed to reconnect to server: %v", err)
@@ -90,7 +90,7 @@ func TestClient_StartAndStop(t *testing.T) {
 
 	c.Stop()
 	select {
-	case <-time.NewTicker(1 * time.Millisecond).C:
+	case <-time.NewTimer(1 * time.Second).C:
 		t.Error("shutdown timed out")
 	case err := <-errChan:
 		if err != nil {
