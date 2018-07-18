@@ -262,6 +262,11 @@ build_artifact() {
 		cp -r $_n $_tmp
 	done
 
+	# anchor relative paths in configuration files to /opt/spire. the backup
+	# extension supplied to sed is only for easy cross-platform in-place
+	# replacement because of differences between macOS and linux sed.
+	find $_tmp/conf -type f -name "*.conf" | xargs -I % -n1 sh -c "sed -i.bak -e 's#= \"./#= \"/opt/spire/#g' %; rm %.bak"
+
 	tar --directory .tmp $_tar_opts -cvzf $_tgz $(basename $_tmp)
 	echo "$(shasum -a 256 $_tgz | cut -d' ' -f1) $(basename $_tgz)" > $_sum
 }
