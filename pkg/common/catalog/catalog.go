@@ -246,7 +246,7 @@ func (c *catalog) configurePlugins(ctx context.Context) error {
 		c.l.Debugf("%s(%s): configuring plugin", pluginType, pluginName)
 		_, err := p.Plugin.Configure(ctx, req)
 		if err != nil {
-			return fmt.Errorf("%s(%s): failed to configuring plugin %s: %v", pluginType, pluginName, err)
+			return fmt.Errorf("%s(%s): failed to configuring plugin: %v", pluginType, pluginName, err)
 		}
 	}
 
