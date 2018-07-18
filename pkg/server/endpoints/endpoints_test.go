@@ -2,9 +2,9 @@ package endpoints
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"net"
 	"net/url"
@@ -202,16 +202,21 @@ func (s *EndpointsTestSuite) TestSVIDObserver() {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// assert there is no SVID in the current state
+	state := s.e.getSVIDState()
+	s.Require().Nil(state.SVID)
+
 	go func() {
 		s.e.runSVIDObserver(ctx)
 	}()
 
+	// update the SVID property
 	expectedState := svid.State{
-		SVID: &x509.Certificate{},
-		Key:  &ecdsa.PrivateKey{},
+		SVID: &x509.Certificate{Subject: pkix.Name{CommonName: "COMMONNAME"}},
 	}
 	s.svidState.Update(expectedState)
 
+	// wait until the handler detects the change and updates the SVID
 	timer := time.NewTimer(5 * time.Second)
 	defer timer.Stop()
 	ticker := time.NewTicker(time.Millisecond * 50)
