@@ -189,8 +189,11 @@ func (c *catalog) loadConfigFromHclConfig(hclPluginConfig HclPluginConfig) error
 
 func (c *catalog) startPlugins() error {
 	for _, p := range c.plugins {
+		pluginType := p.Config.PluginType
+		pluginName := p.Config.PluginName
+
 		if !p.Config.Enabled {
-			c.l.Debugf("%s plugin %s is disabled and will not be started", p.Config.PluginType, p.Config.PluginName)
+			c.l.Debugf("%s(%s): plugin is disabled and will not be started", pluginType, pluginName)
 			continue
 		}
 
@@ -205,21 +208,21 @@ func (c *catalog) startPlugins() error {
 			return err
 		}
 
-		c.l.Debugf("Starting %s plugin: %s", p.Config.PluginType, p.Config.PluginName)
+		c.l.Debugf("%s(%s): starting plugin", pluginType, pluginName)
 		client, err := goplugin.NewClient(config).Client()
 		if err != nil {
-			return err
+			return fmt.Errorf("%s(%s): unable to create plugin client: %v", pluginType, pluginName, err)
 		}
 
 		raw, err := client.Dispense(p.Config.PluginName)
 		if err != nil {
-			return err
+			return fmt.Errorf("%s(%s): unable to start plugin instance: %v", pluginType, pluginName, err)
 		}
 
 		var ok bool
 		p.Plugin, ok = raw.(Plugin)
 		if !ok {
-			return fmt.Errorf("Plugin %s does not conform to the plugin interface", p.Config.PluginName)
+			return fmt.Errorf("%s(%s): does not conform to the plugin interface", pluginType, pluginName)
 		}
 	}
 
@@ -228,8 +231,11 @@ func (c *catalog) startPlugins() error {
 
 func (c *catalog) configurePlugins(ctx context.Context) error {
 	for _, p := range c.plugins {
+		pluginType := p.Config.PluginType
+		pluginName := p.Config.PluginName
+
 		if !p.Config.Enabled {
-			c.l.Debugf("%s plugin %s is disabled and will not be configured", p.Config.PluginType, p.Config.PluginName)
+			c.l.Debugf("%s(%s): plugin is disabled and will not be configured", pluginType, pluginName)
 			continue
 		}
 
@@ -237,10 +243,10 @@ func (c *catalog) configurePlugins(ctx context.Context) error {
 			Configuration: p.Config.PluginData,
 		}
 
-		c.l.Debugf("Configuring %s plugin: %s", p.Config.PluginType, p.Config.PluginName)
+		c.l.Debugf("%s(%s): configuring plugin", pluginType, pluginName)
 		_, err := p.Plugin.Configure(ctx, req)
 		if err != nil {
-			return fmt.Errorf("Error encountered while configuring plugin %s: %s", p.Config.PluginName, err)
+			return fmt.Errorf("%s(%s): failed to configuring plugin %s: %v", pluginType, pluginName, err)
 		}
 	}
 
