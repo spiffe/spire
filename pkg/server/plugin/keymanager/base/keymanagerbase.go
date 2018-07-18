@@ -226,16 +226,10 @@ func generateECDSAKey(curve elliptic.Curve) (*ecdsa.PrivateKey, *ecdsa.PublicKey
 }
 
 func entriesSliceFromMap(entriesMap map[string]*KeyEntry) (entriesSlice []*KeyEntry) {
-	// return keys in sorted order for consistency
-	ids := make([]string, 0, len(entriesMap))
-	for id := range entriesMap {
-		ids = append(ids, id)
+	for _, entry := range entriesMap {
+		entriesSlice = append(entriesSlice, entry)
 	}
-	sort.Strings(ids)
-
-	for _, id := range ids {
-		entriesSlice = append(entriesSlice, entriesMap[id])
-	}
+	SortKeyEntries(entriesSlice)
 	return entriesSlice
 }
 
@@ -250,4 +244,10 @@ func entriesMapFromSlice(entriesSlice []*KeyEntry) map[string]*KeyEntry {
 
 func clonePublicKey(publicKey *keymanager.PublicKey) *keymanager.PublicKey {
 	return proto.Clone(publicKey).(*keymanager.PublicKey)
+}
+
+func SortKeyEntries(entries []*KeyEntry) {
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Id < entries[j].Id
+	})
 }

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/keymanager"
@@ -152,6 +153,7 @@ func (s *Suite) TestGenerateKeyPersistence() {
 	// make sure keys have been saved
 	entries, err := loadEntries(s.keysPath())
 	s.Require().NoError(err)
+	base.SortKeyEntries(entries)
 	s.Require().Len(entries, 2)
 	s.Require().Equal(resp1.PublicKey, entries[0].PublicKey)
 	s.Require().Equal(resp2.PublicKey, entries[1].PublicKey)
