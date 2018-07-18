@@ -314,3 +314,12 @@ func (e *endpoints) updateSVID() {
 	e.svid = state.SVID
 	e.svidKey = state.Key
 }
+
+func (e *endpoints) getSVIDState() svid.State {
+	e.mtx.RLock()
+	defer e.mtx.RUnlock()
+	return svid.State{
+		SVID: e.svid,
+		Key:  e.svidKey,
+	}
+}
