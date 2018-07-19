@@ -61,7 +61,6 @@ func (s *CATestSuite) SetupTest() {
 			Scheme: "spiffe",
 			Host:   "example.org",
 		},
-		Backdate:   time.Second * 10,
 		DefaultTTL: time.Minute,
 	})
 	s.ca.setKeypairSet(keypairSet{
@@ -82,21 +81,21 @@ func (s *CATestSuite) TestNoX509KeypairSet() {
 func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLIfTTLUnspecified() {
 	cert, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
 	s.Require().NoError(err)
-	s.Require().Equal(s.now.Add(-10*time.Second), cert.NotBefore)
+	s.Require().Equal(s.now.Add(-backdate), cert.NotBefore)
 	s.Require().Equal(s.now.Add(time.Minute), cert.NotAfter)
 }
 
 func (s *CATestSuite) TestSignX509SVIDUsesTTLIfSpecified() {
 	cert, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), time.Minute+time.Second)
 	s.Require().NoError(err)
-	s.Require().Equal(s.now.Add(-10*time.Second), cert.NotBefore)
+	s.Require().Equal(s.now.Add(-backdate), cert.NotBefore)
 	s.Require().Equal(s.now.Add(time.Minute+time.Second), cert.NotAfter)
 }
 
 func (s *CATestSuite) TestSignX509SVIDCapsTTLToKeypairTTL() {
 	cert, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 3*time.Minute)
 	s.Require().NoError(err)
-	s.Require().Equal(s.now.Add(-10*time.Second), cert.NotBefore)
+	s.Require().Equal(s.now.Add(-backdate), cert.NotBefore)
 	s.Require().Equal(s.now.Add(2*time.Minute), cert.NotAfter)
 }
 

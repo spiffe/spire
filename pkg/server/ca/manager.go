@@ -27,19 +27,16 @@ import (
 )
 
 const (
-	DefaultBackdate = time.Second * 10
 	DefaultSVIDTTL  = time.Hour
 	DefaultCATTL    = 24 * time.Hour
+	backdate        = time.Second * 10
 	safetyThreshold = 24 * time.Hour
-
-	certIdHeader = "X-Spire-KeyId"
 )
 
 type ManagerConfig struct {
 	Catalog        catalog.Catalog
 	TrustDomain    url.URL
 	UpstreamBundle bool
-	Backdate       time.Duration
 	SVIDTTL        time.Duration
 	CATTL          time.Duration
 	CASubject      pkix.Name
@@ -85,9 +82,6 @@ type manager struct {
 }
 
 func NewManager(c *ManagerConfig) *manager {
-	if c.Backdate <= 0 {
-		c.Backdate = DefaultBackdate
-	}
 	if c.SVIDTTL <= 0 {
 		c.SVIDTTL = DefaultSVIDTTL
 	}
@@ -100,7 +94,6 @@ func NewManager(c *ManagerConfig) *manager {
 		ca: newServerCA(serverCAConfig{
 			Catalog:     c.Catalog,
 			TrustDomain: c.TrustDomain,
-			Backdate:    c.Backdate,
 			DefaultTTL:  c.SVIDTTL,
 		}),
 		current: &keypairSet{
@@ -271,7 +264,7 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) error 
 	kps.Reset()
 
 	now := m.hooks.now()
-	notBefore := now.Add(-m.c.Backdate)
+	notBefore := now.Add(-backdate)
 	notAfter := now.Add(m.c.CATTL)
 
 	km := m.c.Catalog.KeyManagers()[0]

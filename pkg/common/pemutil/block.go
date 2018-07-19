@@ -22,6 +22,10 @@ func LoadBlocks(path string) ([]Block, error) {
 	return loadBlocks(path, 0, "")
 }
 
+func ParseBlocks(pemBytes []byte) ([]Block, error) {
+	return parseBlocks(pemBytes, 0, "")
+}
+
 func loadBlock(path string, expectedTypes ...string) (*Block, error) {
 	blocks, err := loadBlocks(path, 1, expectedTypes...)
 	if err != nil {
@@ -36,10 +40,6 @@ func loadBlocks(path string, expectedCount int, expectedTypes ...string) (blocks
 		return nil, err
 	}
 	return parseBlocks(pemBytes, expectedCount, expectedTypes...)
-}
-
-func ParseBlocks(pemBytes []byte) ([]Block, error) {
-	return parseBlocks(pemBytes, 0, "")
 }
 
 func parseBlock(pemBytes []byte, expectedTypes ...string) (*Block, error) {
@@ -58,7 +58,7 @@ func parseBlocks(pemBytes []byte, expectedCount int, expectedTypes ...string) (b
 			if len(blocks) == 0 {
 				return nil, ErrNoBlocks
 			}
-			if expectedCount > 0 && len(blocks) > expectedCount {
+			if expectedCount > 0 && len(blocks) != expectedCount {
 				return nil, fmt.Errorf("expected %d PEM blocks; got %d", expectedCount, len(blocks))
 			}
 			return blocks, nil
@@ -87,15 +87,15 @@ func parseBlocks(pemBytes []byte, expectedCount int, expectedTypes ...string) (b
 		}
 
 		switch pemBlock.Type {
-		case "CERTIFICATE":
+		case certificateType:
 			block.Object, err = x509.ParseCertificate(pemBlock.Bytes)
-		case "CERTIFICATE REQUEST":
+		case certificateRequestType:
 			block.Object, err = x509.ParseCertificateRequest(pemBlock.Bytes)
-		case "RSA PRIVATE KEY":
+		case rsaPrivateKeyType:
 			block.Object, err = x509.ParsePKCS1PrivateKey(pemBlock.Bytes)
-		case "EC PRIVATE KEY":
+		case ecPrivateKeyType:
 			block.Object, err = x509.ParseECPrivateKey(pemBlock.Bytes)
-		case "PRIVATE KEY":
+		case privateKeyType:
 			block.Object, err = x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
 		}
 		if err != nil {

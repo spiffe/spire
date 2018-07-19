@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	defaultDataDir    = "."
 	defaultConfigPath = "conf/server/server.conf"
 	defaultLogLevel   = "INFO"
 	defaultUmask      = 0077
@@ -37,6 +38,7 @@ type serverConfig struct {
 	BindAddress      string `hcl:"bind_address"`
 	BindPort         int    `hcl:"bind_port"`
 	BindHTTPPort     int    `hcl:"bind_http_port"`
+	DataDir          string `hcl:"data_dir"`
 	TrustDomain      string `hcl:"trust_domain"`
 	LogFile          string `hcl:"log_file"`
 	LogLevel         string `hcl:"log_level"`
@@ -49,11 +51,9 @@ type serverConfig struct {
 	ProfilingPort    int              `hcl:"profiling_port"`
 	ProfilingFreq    int              `hcl:"profiling_freq"`
 	ProfilingNames   []string         `hcl:"profiling_names"`
-	Backdate         string           `hcl:"backdate"`
 	SVIDTTL          string           `hcl:"svid_ttl"`
 	CATTL            string           `hcl:"ca_ttl"`
 	CASubject        *caSubjectConfig `hcl:"ca_subject"`
-	CertsPath        string           `hcl:"certs_path"`
 }
 
 type caSubjectConfig struct {
@@ -157,6 +157,7 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.StringVar(&c.Server.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.StringVar(&c.Server.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
+	flags.StringVar(&c.Server.DataDir, "dataDir", defaultDataDir, "Directory to store runtime data to")
 	flags.StringVar(&c.Server.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
 	flags.StringVar(&c.Server.Umask, "umask", "", "Umask value to use for new files")
 	flags.BoolVar(&c.Server.UpstreamBundle, "upstreamBundle", false, "Include upstream CA certificates in the bundle")
@@ -196,6 +197,10 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 
 	if cmd.Server.BindHTTPPort != 0 {
 		orig.BindHTTPAddress.Port = cmd.Server.BindHTTPPort
+	}
+
+	if cmd.Server.DataDir != "" {
+		orig.DataDir = cmd.Server.DataDir
 	}
 
 	if cmd.Server.TrustDomain != "" {
@@ -253,14 +258,6 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 		}
 	}
 
-	if cmd.Server.Backdate != "" {
-		backdate, err := time.ParseDuration(cmd.Server.Backdate)
-		if err != nil {
-			return fmt.Errorf("unable to parse backdate %q: %v", cmd.Server.Backdate, err)
-		}
-		orig.Backdate = backdate
-	}
-
 	if cmd.Server.SVIDTTL != "" {
 		ttl, err := time.ParseDuration(cmd.Server.SVIDTTL)
 		if err != nil {
@@ -283,10 +280,6 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 			Country:      subject.Country,
 			CommonName:   subject.CommonName,
 		}
-	}
-
-	if cmd.Server.CertsPath != "" {
-		orig.CertsPath = cmd.Server.CertsPath
 	}
 
 	return nil

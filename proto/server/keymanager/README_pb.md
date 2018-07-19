@@ -267,8 +267,7 @@ Represents the plugin metadata.
 | Name | Number | Description |
 | ---- | ------ | ----------- |
 | UNSPECIFIED_HASH_ALGORITHM | 0 |  |
-| SHA1 | 3 | These entries (and their values) line up with a subset of the go crypto.Hash constants |
-| SHA224 | 4 |  |
+| SHA224 | 4 | These entries (and their values) line up with a subset of the go crypto.Hash constants |
 | SHA256 | 5 |  |
 | SHA384 | 6 |  |
 | SHA512 | 7 |  |

@@ -17,7 +17,6 @@ import (
 type serverCAConfig struct {
 	Catalog     catalog.Catalog
 	TrustDomain url.URL
-	Backdate    time.Duration
 	DefaultTTL  time.Duration
 }
 
@@ -29,7 +28,7 @@ type serverCA struct {
 	c      serverCAConfig
 	x509sn int64
 
-	mu sync.Mutex
+	mu sync.RWMutex
 	kp *keypairSet
 
 	hooks struct {
@@ -46,8 +45,8 @@ func newServerCA(config serverCAConfig) *serverCA {
 }
 
 func (ca *serverCA) setKeypairSet(kp keypairSet) {
-	ca.mu.Lock()
-	defer ca.mu.Unlock()
+	ca.mu.RLock()
+	defer ca.mu.RUnlock()
 	ca.kp = &kp
 }
 
@@ -63,11 +62,11 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 		return nil, errors.New("no X509-SVID keypair available")
 	}
 
-	now := time.Now()
+	now := ca.hooks.now()
 	if ttl <= 0 {
 		ttl = ca.c.DefaultTTL
 	}
-	notBefore := now.Add(-ca.c.Backdate)
+	notBefore := now.Add(-backdate)
 	notAfter := now.Add(ttl)
 	if notAfter.After(kp.x509CA.NotAfter) {
 		notAfter = kp.x509CA.NotAfter

@@ -15,7 +15,6 @@ enum HashAlgorithm {
     UNSPECIFIED_HASH_ALGORITHM = 0;
     // These entries (and their values) line up with a subset of the go
     // crypto.Hash constants
-    SHA1 = 3;
     SHA224 = 4;
     SHA256 = 5;
     SHA384 = 6;

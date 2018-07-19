@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 
@@ -45,7 +46,7 @@ func (s *KeyManagerSigner) SignContext(ctx context.Context, digest []byte, opts 
 	return resp.Signature, nil
 }
 
-func (s *KeyManagerSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+func (s *KeyManagerSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	// rand is purposefully ignored since it can't be communicated between
 	// the plugin boundary. The crypto.Signer interface implies this is ok
 	// when it says "possibly using entropy from rand".
@@ -59,6 +60,9 @@ func GenerateKeyAndSigner(ctx context.Context, km keymanager.KeyManager, keyId s
 	})
 	if err != nil {
 		return nil, err
+	}
+	if resp.PublicKey == nil {
+		return nil, errors.New("response missing public key")
 	}
 	publicKey, err := x509.ParsePKIXPublicKey(resp.PublicKey.PkixData)
 	if err != nil {

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/url"
+	"os"
+	"path"
 	"runtime"
 	"sync"
 	"syscall"
@@ -38,6 +40,9 @@ type Config struct {
 	// Address of the HTTP SPIRE server
 	BindHTTPAddress *net.TCPAddr
 
+	// Directory to store runtime data
+	DataDir string
+
 	// Trust domain
 	TrustDomain url.URL
 
@@ -59,10 +64,6 @@ type Config struct {
 	// Array of profiles names that will be generated on each profiling tick.
 	ProfilingNames []string
 
-	// Backdate is how long to backdate signed identities to account for clock
-	// skew.
-	Backdate time.Duration
-
 	// SVIDTTL is default time-to-live for SVIDs
 	SVIDTTL time.Duration
 
@@ -72,11 +73,6 @@ type Config struct {
 
 	// CASubject is the subject used in the CA certificate
 	CASubject pkix.Name
-
-	// CertsPath is the (optional) path that the server certificates persisted
-	// to. If unset, certificates are ephemeral and regenerated on every
-	// launch.
-	CertsPath string
 }
 
 type Server struct {
@@ -103,6 +99,11 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) run(ctx context.Context) (err error) {
+	// create the data directory if needed
+	if err := os.MkdirAll(s.config.DataDir, 0755); err != nil {
+		return err
+	}
+
 	if s.config.ProfilingEnabled {
 		stopProfiling := s.setupProfiling(ctx)
 		defer stopProfiling()
@@ -215,11 +216,10 @@ func (s *Server) newCAManager(ctx context.Context, catalog catalog.Catalog) (ca.
 		TrustDomain:    s.config.TrustDomain,
 		Log:            s.config.Log.WithField("subsystem_name", "ca_manager"),
 		UpstreamBundle: s.config.UpstreamBundle,
-		Backdate:       s.config.Backdate,
 		SVIDTTL:        s.config.SVIDTTL,
 		CATTL:          s.config.CATTL,
 		CASubject:      s.config.CASubject,
-		CertsPath:      s.config.CertsPath,
+		CertsPath:      s.caCertsPath(),
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err
@@ -249,4 +249,8 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Ro
 		ServerCA:    serverCA,
 		Log:         s.config.Log.WithField("subsystem_name", "endpoints"),
 	})
+}
+
+func (s *Server) caCertsPath() string {
+	return path.Join(s.config.DataDir, "certs.json")
 }
