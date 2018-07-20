@@ -12,8 +12,6 @@ import (
 
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/common/util"
-
-	ca_pb "github.com/spiffe/spire/proto/server/ca"
 )
 
 type Rotator interface {
@@ -28,6 +26,10 @@ type rotator struct {
 	c *RotatorConfig
 
 	state observer.Property
+
+	hooks struct {
+		now func() time.Time
+	}
 }
 
 type State struct {
@@ -74,7 +76,7 @@ func (r *rotator) Run(ctx context.Context) error {
 func (r *rotator) shouldRotate() bool {
 	s := r.state.Value().(State)
 
-	ttl := s.SVID.NotAfter.Sub(time.Now())
+	ttl := s.SVID.NotAfter.Sub(r.hooks.now())
 	watermark := s.SVID.NotAfter.Sub(s.SVID.NotBefore) / 2
 
 	return (ttl < watermark)
@@ -101,16 +103,8 @@ func (r *rotator) rotateSVID(ctx context.Context) error {
 		return err
 	}
 
-	ca := r.c.Catalog.CAs()[0]
-
 	// Sign the CSR
-	csrReq := &ca_pb.SignCsrRequest{Csr: csr}
-	csrRes, err := ca.SignCsr(ctx, csrReq)
-	if err != nil {
-		return err
-	}
-
-	cert, err := x509.ParseCertificate(csrRes.SignedCertificate)
+	cert, err := r.c.ServerCA.SignX509SVID(ctx, csr, 0)
 	if err != nil {
 		return err
 	}

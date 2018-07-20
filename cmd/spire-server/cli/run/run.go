@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -35,18 +37,28 @@ type serverConfig struct {
 	BindAddress      string `hcl:"bind_address"`
 	BindPort         int    `hcl:"bind_port"`
 	BindHTTPPort     int    `hcl:"bind_http_port"`
+	DataDir          string `hcl:"data_dir"`
 	TrustDomain      string `hcl:"trust_domain"`
 	LogFile          string `hcl:"log_file"`
 	LogLevel         string `hcl:"log_level"`
 	BaseSVIDTtl      int    `hcl:"base_svid_ttl"`
 	ServerSVIDTtl    int    `hcl:"server_svid_ttl"`
 	ConfigPath       string
-	Umask            string   `hcl:"umask"`
-	UpstreamBundle   bool     `hcl:"upstream_bundle"`
-	ProfilingEnabled bool     `hcl:"profiling_enabled"`
-	ProfilingPort    int      `hcl:"profiling_port"`
-	ProfilingFreq    int      `hcl:"profiling_freq"`
-	ProfilingNames   []string `hcl:"profiling_names"`
+	Umask            string           `hcl:"umask"`
+	UpstreamBundle   bool             `hcl:"upstream_bundle"`
+	ProfilingEnabled bool             `hcl:"profiling_enabled"`
+	ProfilingPort    int              `hcl:"profiling_port"`
+	ProfilingFreq    int              `hcl:"profiling_freq"`
+	ProfilingNames   []string         `hcl:"profiling_names"`
+	SVIDTTL          string           `hcl:"svid_ttl"`
+	CATTL            string           `hcl:"ca_ttl"`
+	CASubject        *caSubjectConfig `hcl:"ca_subject"`
+}
+
+type caSubjectConfig struct {
+	Country      []string `hcl:"country"`
+	Organization []string `hcl:"organization"`
+	CommonName   string   `hcl:"common_name"`
 }
 
 // Run CLI struct
@@ -127,12 +139,7 @@ func parseFile(filePath string) (*runConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	hclTree, err := hcl.Parse(string(data))
-	if err != nil {
-		return nil, err
-	}
-
-	if err := hcl.DecodeObject(&c, hclTree); err != nil {
+	if err := hcl.Decode(&c, string(data)); err != nil {
 		return nil, err
 	}
 
@@ -149,6 +156,7 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.StringVar(&c.Server.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.StringVar(&c.Server.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
+	flags.StringVar(&c.Server.DataDir, "dataDir", "", "Directory to store runtime data to")
 	flags.StringVar(&c.Server.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
 	flags.StringVar(&c.Server.Umask, "umask", "", "Umask value to use for new files")
 	flags.BoolVar(&c.Server.UpstreamBundle, "upstreamBundle", false, "Include upstream CA certificates in the bundle")
@@ -188,6 +196,10 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 
 	if cmd.Server.BindHTTPPort != 0 {
 		orig.BindHTTPAddress.Port = cmd.Server.BindHTTPPort
+	}
+
+	if cmd.Server.DataDir != "" {
+		orig.DataDir = cmd.Server.DataDir
 	}
 
 	if cmd.Server.TrustDomain != "" {
@@ -245,6 +257,30 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 		}
 	}
 
+	if cmd.Server.SVIDTTL != "" {
+		ttl, err := time.ParseDuration(cmd.Server.SVIDTTL)
+		if err != nil {
+			return fmt.Errorf("unable to parse default ttl %q: %v", cmd.Server.SVIDTTL, err)
+		}
+		orig.SVIDTTL = ttl
+	}
+
+	if cmd.Server.CATTL != "" {
+		ttl, err := time.ParseDuration(cmd.Server.CATTL)
+		if err != nil {
+			return fmt.Errorf("unable to parse default ttl %q: %v", cmd.Server.CATTL, err)
+		}
+		orig.CATTL = ttl
+	}
+
+	if subject := cmd.Server.CASubject; subject != nil {
+		orig.CASubject = pkix.Name{
+			Organization: subject.Organization,
+			Country:      subject.Country,
+			CommonName:   subject.CommonName,
+		}
+	}
+
 	return nil
 }
 
@@ -259,6 +295,10 @@ func validateConfig(c *server.Config) error {
 
 	if c.TrustDomain.String() == "" {
 		return errors.New("TrustDomain is required")
+	}
+
+	if c.DataDir == "" {
+		return errors.New("DataDir is required")
 	}
 
 	return nil

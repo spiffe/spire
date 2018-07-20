@@ -16,17 +16,16 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/mock/common/context"
 	"github.com/spiffe/spire/test/mock/proto/api/node"
-	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	"github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
 	"github.com/spiffe/spire/test/mock/proto/server/noderesolver"
+	"github.com/spiffe/spire/test/mock/server/ca"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -72,13 +71,13 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStores(suite.mockDataStore)
-	catalog.SetCAs(suite.mockServerCA)
 	catalog.SetNodeAttestors(suite.mockNodeAttestor)
 	catalog.SetNodeResolvers(suite.mockNodeResolver)
 
 	suite.handler = NewHandler(HandlerConfig{
 		Log:         log,
 		Catalog:     catalog,
+		ServerCA:    suite.mockServerCA,
 		TrustDomain: testTrustDomain,
 	})
 	suite.handler.hooks.now = func() time.Time {
@@ -163,15 +162,14 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 	data.request.Csrs = append(
 		data.request.Csrs, getBytesFromPem("base_rotated_csr.pem"))
 	data.generatedCerts = append(
-		data.generatedCerts, getBytesFromPem("base_rotated_cert.pem"))
+		data.generatedCerts, loadCertFromPEM("base_rotated_cert.pem"))
 
 	// Calculate expected TTL
-	cert, err := x509.ParseCertificate(data.generatedCerts[3])
-	require.NoError(t, err)
+	cert := data.generatedCerts[3]
 	ttl := int32(cert.NotAfter.Sub(suite.now).Seconds())
 
 	data.expectation = getExpectedFetchX509SVID(data)
-	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: data.generatedCerts[3], Ttl: ttl}
+	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: cert.Raw, Ttl: ttl}
 	setFetchX509SVIDExpectations(suite, data)
 
 	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(gomock.Any(),
@@ -184,21 +182,20 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 		}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignCsr(gomock.Any(), &ca.SignCsrRequest{
-			Csr: data.request.Csrs[3],
-		}).
-		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[3]}, nil)
+		SignX509SVID(gomock.Any(), data.request.Csrs[3], time.Duration(0)).Return(cert, nil)
 
 	suite.mockDataStore.EXPECT().
 		UpdateAttestedNodeEntry(gomock.Any(), gomock.Any()).
 		Return(&datastore.UpdateAttestedNodeEntryResponse{}, nil)
 
-	err = suite.handler.FetchX509SVID(suite.server)
+	err := suite.handler.FetchX509SVID(suite.server)
+	suite.Require().NoError(err)
+}
 
-	if err != nil {
-		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
-	}
-
+func loadCertFromPEM(fileName string) *x509.Certificate {
+	certDER := getBytesFromPem(fileName)
+	cert, _ := x509.ParseCertificate(certDER)
+	return cert
 }
 
 func getBytesFromPem(fileName string) []byte {
@@ -214,7 +211,7 @@ type challengeResponse struct {
 
 type fetchBaseSVIDData struct {
 	request                 *node.AttestRequest
-	generatedCert           []byte
+	generatedCert           *x509.Certificate
 	baseSpiffeID            string
 	selector                *common.Selector
 	selectors               map[string]*common.Selectors
@@ -235,7 +232,7 @@ func getAttestTestData() *fetchBaseSVIDData {
 		},
 	}
 
-	data.generatedCert = getBytesFromPem("base_cert.pem")
+	data.generatedCert = loadCertFromPEM("base_cert.pem")
 
 	data.baseSpiffeID = "spiffe://example.org/spire/agent/join_token/token"
 	data.selector = &common.Selector{Type: "foo", Value: "bar"}
@@ -315,10 +312,8 @@ func setAttestExpectations(
 		}).
 		Return(&datastore.FetchAttestedNodeEntryResponse{AttestedNodeEntry: nil}, nil)
 
-	suite.mockServerCA.EXPECT().SignCsr(gomock.Any(), &ca.SignCsrRequest{
-		Csr: data.request.Csr,
-	}).
-		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCert}, nil)
+	suite.mockServerCA.EXPECT().SignX509SVID(
+		gomock.Any(), data.request.Csr, time.Duration(0)).Return(data.generatedCert, nil)
 
 	suite.mockDataStore.EXPECT().CreateAttestedNodeEntry(gomock.Any(),
 		&datastore.CreateAttestedNodeEntryRequest{
@@ -433,7 +428,7 @@ func setAttestExpectations(
 			CaCerts:     caCert.Raw}, nil)
 }
 
-func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert []byte) *node.SvidUpdate {
+func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert *x509.Certificate) *node.SvidUpdate {
 	expectedRegEntries := []*common.RegistrationEntry{
 		{
 			Selectors: []*common.Selector{
@@ -459,11 +454,10 @@ func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert []byte
 	}
 
 	// Calculate expected TTL
-	c, _ := x509.ParseCertificate(cert)
-	ttl := int32(c.NotAfter.Sub(suite.now).Seconds())
+	ttl := int32(cert.NotAfter.Sub(suite.now).Seconds())
 
 	svids := make(map[string]*node.Svid)
-	svids[baseSpiffeID] = &node.Svid{SvidCert: cert, Ttl: ttl}
+	svids[baseSpiffeID] = &node.Svid{SvidCert: cert.Raw, Ttl: ttl}
 
 	caCert, _, _ := util.LoadCAFixture()
 	svidUpdate := &node.SvidUpdate{
@@ -481,7 +475,7 @@ type fetchSVIDData struct {
 	nodeSpiffeID       string
 	databaseSpiffeID   string
 	blogSpiffeID       string
-	generatedCerts     [][]byte
+	generatedCerts     []*x509.Certificate
 	selector           *common.Selector
 	spiffeIDs          []string
 	nodeResolutionList []*datastore.NodeResolverMapEntry
@@ -510,10 +504,10 @@ func getFetchX509SVIDTestData() *fetchSVIDData {
 		getBytesFromPem("blog_csr.pem"),
 	}
 
-	data.generatedCerts = [][]byte{
-		getBytesFromPem("node_cert.pem"),
-		getBytesFromPem("database_cert.pem"),
-		getBytesFromPem("blog_cert.pem"),
+	data.generatedCerts = []*x509.Certificate{
+		loadCertFromPEM("node_cert.pem"),
+		loadCertFromPEM("database_cert.pem"),
+		loadCertFromPEM("blog_cert.pem"),
 	}
 
 	data.selector = &common.Selector{Type: "foo", Value: "bar"}
@@ -593,23 +587,14 @@ func setFetchX509SVIDExpectations(
 			TrustDomain: testTrustDomain.String(),
 			CaCerts:     caCert.Raw}, nil)
 
-	suite.mockServerCA.EXPECT().
-		SignCsr(gomock.Any(), &ca.SignCsrRequest{
-			Csr: data.request.Csrs[0], Ttl: data.byParentIDEntries[2].Ttl,
-		}).
-		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[0]}, nil)
+	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
+		data.request.Csrs[0], durationFromTTL(data.byParentIDEntries[2].Ttl)).Return(data.generatedCerts[0], nil)
 
-	suite.mockServerCA.EXPECT().
-		SignCsr(gomock.Any(), &ca.SignCsrRequest{
-			Csr: data.request.Csrs[1], Ttl: data.byParentIDEntries[0].Ttl,
-		}).
-		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[1]}, nil)
+	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
+		data.request.Csrs[1], durationFromTTL(data.byParentIDEntries[0].Ttl)).Return(data.generatedCerts[1], nil)
 
-	suite.mockServerCA.EXPECT().
-		SignCsr(gomock.Any(), &ca.SignCsrRequest{
-			Csr: data.request.Csrs[2], Ttl: data.byParentIDEntries[1].Ttl,
-		}).
-		Return(&ca.SignCsrResponse{SignedCertificate: data.generatedCerts[2]}, nil)
+	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
+		data.request.Csrs[2], durationFromTTL(data.byParentIDEntries[1].Ttl)).Return(data.generatedCerts[2], nil)
 
 	suite.server.EXPECT().Send(&node.FetchX509SVIDResponse{
 		SvidUpdate: data.expectation,
@@ -623,9 +608,9 @@ func setFetchX509SVIDExpectations(
 func getExpectedFetchX509SVID(data *fetchSVIDData) *node.SvidUpdate {
 	//TODO: improve this, put it in an array in data and iterate it
 	svids := map[string]*node.Svid{
-		data.nodeSpiffeID:     {SvidCert: data.generatedCerts[0], Ttl: 4444},
-		data.databaseSpiffeID: {SvidCert: data.generatedCerts[1], Ttl: 2222},
-		data.blogSpiffeID:     {SvidCert: data.generatedCerts[2], Ttl: 3333},
+		data.nodeSpiffeID:     {SvidCert: data.generatedCerts[0].Raw, Ttl: 4444},
+		data.databaseSpiffeID: {SvidCert: data.generatedCerts[1].Raw, Ttl: 2222},
+		data.blogSpiffeID:     {SvidCert: data.generatedCerts[2].Raw, Ttl: 3333},
 	}
 
 	// returned in sorted order (according to sorting rules in util.SortRegistrationEntries)
@@ -647,8 +632,7 @@ func getExpectedFetchX509SVID(data *fetchSVIDData) *node.SvidUpdate {
 }
 
 func getFakePeer() *peer.Peer {
-	baseCert := getBytesFromPem("base_cert.pem")
-	parsedCert, _ := x509.ParseCertificate(baseCert)
+	parsedCert := loadCertFromPEM("base_cert.pem")
 
 	state := tls.ConnectionState{
 		PeerCertificates: []*x509.Certificate{parsedCert},
@@ -660,4 +644,8 @@ func getFakePeer() *peer.Peer {
 	}
 
 	return fakePeer
+}
+
+func durationFromTTL(ttl int32) time.Duration {
+	return time.Duration(ttl) * time.Second
 }

@@ -6,14 +6,14 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
 	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/keymanager"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
 	"github.com/spiffe/spire/proto/server/upstreamca"
 	"github.com/spiffe/spire/test/mock/common/catalog"
-	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
+	"github.com/spiffe/spire/test/mock/proto/server/keymanager"
 	"github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
 	"github.com/spiffe/spire/test/mock/proto/server/noderesolver"
 	"github.com/spiffe/spire/test/mock/proto/server/upstreamca"
@@ -29,18 +29,10 @@ type ServerCatalogTestSuite struct {
 	// log messages, if desired
 	logHook *test.Hook
 
-	t    *testing.T
 	ctrl *gomock.Controller
 }
 
 var plugins = []*common_catalog.ManagedPlugin{
-	{
-		Plugin: ca.NewBuiltIn(&mock_ca.MockPlugin{}),
-		Config: common_catalog.PluginConfig{
-			Enabled:    true,
-			PluginType: CAType,
-		},
-	},
 	{
 		Plugin: datastore.NewBuiltIn(&mock_datastore.MockPlugin{}),
 		Config: common_catalog.PluginConfig{
@@ -77,10 +69,17 @@ var plugins = []*common_catalog.ManagedPlugin{
 			PluginType: UpstreamCAType,
 		},
 	},
+	{
+		Plugin: keymanager.NewBuiltIn(&mock_keymanager.MockPlugin{}),
+		Config: common_catalog.PluginConfig{
+			Enabled:    true,
+			PluginType: KeyManagerType,
+		},
+	},
 }
 
 func (c *ServerCatalogTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(c.t)
+	mockCtrl := gomock.NewController(c.T())
 	log, logHook := test.NewNullLogger()
 
 	cat := &ServerCatalog{
@@ -111,10 +110,10 @@ func (c *ServerCatalogTestSuite) TestCategorizeNotEnoughTypes() {
 	// Have only one plugin
 	var onePlugin = []*common_catalog.ManagedPlugin{
 		{
-			Plugin: ca.NewBuiltIn(&mock_ca.MockPlugin{}),
+			Plugin: keymanager.NewBuiltIn(&mock_keymanager.MockPlugin{}),
 			Config: common_catalog.PluginConfig{
 				Enabled:    true,
-				PluginType: CAType,
+				PluginType: KeyManagerType,
 			},
 		},
 	}
