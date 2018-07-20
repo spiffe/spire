@@ -166,10 +166,9 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 
 	// Calculate expected TTL
 	cert := data.generatedCerts[3]
-	ttl := int32(cert.NotAfter.Sub(suite.now).Seconds())
 
 	data.expectation = getExpectedFetchX509SVID(data)
-	data.expectation.Svids[data.baseSpiffeID] = &node.Svid{SvidCert: cert.Raw, Ttl: ttl}
+	data.expectation.Svids[data.baseSpiffeID] = makeX509SVID(cert)
 	setFetchX509SVIDExpectations(suite, data)
 
 	suite.mockDataStore.EXPECT().FetchAttestedNodeEntry(gomock.Any(),
@@ -428,7 +427,7 @@ func setAttestExpectations(
 			CaCerts:     caCert.Raw}, nil)
 }
 
-func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert *x509.Certificate) *node.SvidUpdate {
+func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert *x509.Certificate) *node.X509SVIDUpdate {
 	expectedRegEntries := []*common.RegistrationEntry{
 		{
 			Selectors: []*common.Selector{
@@ -453,14 +452,11 @@ func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert *x509.
 		},
 	}
 
-	// Calculate expected TTL
-	ttl := int32(cert.NotAfter.Sub(suite.now).Seconds())
-
-	svids := make(map[string]*node.Svid)
-	svids[baseSpiffeID] = &node.Svid{SvidCert: cert.Raw, Ttl: ttl}
+	svids := make(map[string]*node.X509SVID)
+	svids[baseSpiffeID] = makeX509SVID(cert)
 
 	caCert, _, _ := util.LoadCAFixture()
-	svidUpdate := &node.SvidUpdate{
+	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
 		Bundle:              caCert.Raw,
 		RegistrationEntries: expectedRegEntries,
@@ -481,7 +477,7 @@ type fetchSVIDData struct {
 	nodeResolutionList []*datastore.NodeResolverMapEntry
 	bySelectorsEntries []*common.RegistrationEntry
 	byParentIDEntries  []*common.RegistrationEntry
-	expectation        *node.SvidUpdate
+	expectation        *node.X509SVIDUpdate
 }
 
 func getFetchX509SVIDTestData() *fetchSVIDData {
@@ -605,12 +601,12 @@ func setFetchX509SVIDExpectations(
 
 }
 
-func getExpectedFetchX509SVID(data *fetchSVIDData) *node.SvidUpdate {
+func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
 	//TODO: improve this, put it in an array in data and iterate it
-	svids := map[string]*node.Svid{
-		data.nodeSpiffeID:     {SvidCert: data.generatedCerts[0].Raw, Ttl: 4444},
-		data.databaseSpiffeID: {SvidCert: data.generatedCerts[1].Raw, Ttl: 2222},
-		data.blogSpiffeID:     {SvidCert: data.generatedCerts[2].Raw, Ttl: 3333},
+	svids := map[string]*node.X509SVID{
+		data.nodeSpiffeID:     makeX509SVID(data.generatedCerts[0]),
+		data.databaseSpiffeID: makeX509SVID(data.generatedCerts[1]),
+		data.blogSpiffeID:     makeX509SVID(data.generatedCerts[2]),
 	}
 
 	// returned in sorted order (according to sorting rules in util.SortRegistrationEntries)
@@ -622,7 +618,7 @@ func getExpectedFetchX509SVID(data *fetchSVIDData) *node.SvidUpdate {
 	}
 
 	caCert, _, _ := util.LoadCAFixture()
-	svidUpdate := &node.SvidUpdate{
+	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
 		Bundle:              caCert.Raw,
 		RegistrationEntries: registrationEntries,

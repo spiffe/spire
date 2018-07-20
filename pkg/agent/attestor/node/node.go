@@ -317,7 +317,7 @@ func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) (
 		return nil, nil, fmt.Errorf("incorrect svid: %s", id)
 	}
 
-	svid, err := x509.ParseCertificate(svidMsg.SvidCert)
+	svid, err := x509.ParseCertificate(svidMsg.Cert)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid svid: %v", err)
 	}

@@ -21,11 +21,15 @@
     - [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest)
     - [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleResponse)
     - [FetchFederatedBundleResponse.FederatedBundlesEntry](#spire.api.node.FetchFederatedBundleResponse.FederatedBundlesEntry)
+    - [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest)
+    - [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse)
     - [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest)
     - [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse)
-    - [Svid](#spire.api.node.Svid)
-    - [SvidUpdate](#spire.api.node.SvidUpdate)
-    - [SvidUpdate.SvidsEntry](#spire.api.node.SvidUpdate.SvidsEntry)
+    - [JSR](#spire.api.node.JSR)
+    - [JWTSVID](#spire.api.node.JWTSVID)
+    - [X509SVID](#spire.api.node.X509SVID)
+    - [X509SVIDUpdate](#spire.api.node.X509SVIDUpdate)
+    - [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry)
   
   
   
@@ -179,8 +183,8 @@ all current Registration Entries which are relevant to the caller SPIFFE ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svid_update | [SvidUpdate](#spire.api.node.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
-| challenge | [bytes](#bytes) |  | This is a challenge issued by the server to the node. If populated, the node is expected to respond with another AttestRequest with the response. This field is mutually exclusive with the svid_update field. |
+| svid_update | [X509SVIDUpdate](#spire.api.node.X509SVIDUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
+| challenge | [bytes](#bytes) |  | This is a challenge issued by the server to the node. If populated, the node is expected to respond with another AttestRequest with the response. This field is mutually exclusive with the update field. |
 
 
 
@@ -233,6 +237,36 @@ Represents a response with a map of SPIFFE Id, Federated CA Bundle.
 
 
 
+<a name="spire.api.node.FetchJWTSVIDRequest"/>
+
+### FetchJWTSVIDRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| jsr | [JSR](#spire.api.node.JSR) |  | The JWT signing request |
+
+
+
+
+
+
+<a name="spire.api.node.FetchJWTSVIDResponse"/>
+
+### FetchJWTSVIDResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| svid | [JWTSVID](#spire.api.node.JWTSVID) |  | The signed JWT-SVID |
+
+
+
+
+
+
 <a name="spire.api.node.FetchX509SVIDRequest"/>
 
 ### FetchX509SVIDRequest
@@ -257,40 +291,72 @@ of all current Registration Entries which are relevant to the caller SPIFFE ID.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svid_update | [SvidUpdate](#spire.api.node.SvidUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
+| svid_update | [X509SVIDUpdate](#spire.api.node.X509SVIDUpdate) |  | It includes a map of signed SVIDs and an array of all current Registration Entries which are relevant to the caller SPIFFE ID. |
 
 
 
 
 
 
-<a name="spire.api.node.Svid"/>
+<a name="spire.api.node.JSR"/>
 
-### Svid
+### JSR
+JSR is a JWT SVID signing request.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  | SPIFFE ID of the workload |
+| audience | [string](#string) | repeated | List of intended audience |
+
+
+
+
+
+
+<a name="spire.api.node.JWTSVID"/>
+
+### JWTSVID
+JWTSVID is a signed JWT-SVID with fields lifted out for convenience.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| token | [string](#string) |  | JWT-SVID JWT token |
+| expires_at | [int64](#int64) |  | SVID expiration timestamp (seconds since Unix epoch) |
+
+
+
+
+
+
+<a name="spire.api.node.X509SVID"/>
+
+### X509SVID
 A type which contains the &#34;Spiffe Verifiable Identity Document&#34; and
 a TTL indicating when the SVID expires.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svid_cert | [bytes](#bytes) |  | Spiffe Verifiable Identity Document. |
-| ttl | [int32](#int32) |  | SVID expiration. |
+| cert | [bytes](#bytes) |  | X509 SVID (ASN.1 encoding) |
+| expires_at | [int64](#int64) |  | SVID expiration timestamp (in seconds since Unix epoch) |
 
 
 
 
 
 
-<a name="spire.api.node.SvidUpdate"/>
+<a name="spire.api.node.X509SVIDUpdate"/>
 
-### SvidUpdate
+### X509SVIDUpdate
 A message returned by the Spire Server, which includes a map of signed SVIDs and
 a list of all current Registration Entries which are relevant to the caller SPIFFE ID.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| svids | [SvidUpdate.SvidsEntry](#spire.api.node.SvidUpdate.SvidsEntry) | repeated | A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] =&gt; SVID. |
+| svids | [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry) | repeated | A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] =&gt; SVID. |
 | bundle | [bytes](#bytes) |  | Latest SPIRE Server bundle |
 | registration_entries | [.spire.common.RegistrationEntry](#spire.api.node..spire.common.RegistrationEntry) | repeated | A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 
@@ -299,16 +365,16 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 
 
 
-<a name="spire.api.node.SvidUpdate.SvidsEntry"/>
+<a name="spire.api.node.X509SVIDUpdate.SvidsEntry"/>
 
-### SvidUpdate.SvidsEntry
+### X509SVIDUpdate.SvidsEntry
 
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [Svid](#spire.api.node.Svid) |  |  |
+| value | [X509SVID](#spire.api.node.X509SVID) |  |  |
 
 
 
@@ -330,6 +396,7 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | ----------- | ------------ | ------------- | ------------|
 | Attest | [AttestRequest](#spire.api.node.AttestRequest) | [AttestResponse](#spire.api.node.AttestRequest) | Attest the node, get base node SVID. |
 | FetchX509SVID | [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest) | [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
+| FetchJWTSVID | [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest) | [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDRequest) | Fetches a signed JWT-SVID for a workload intended for a specific audience. |
 | FetchFederatedBundle | [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleRequest) | Called by the Node Agent to fetch the named Federated CA Bundle. Used in the event that authorized workloads reference a Federated Bundle. |
 
  
