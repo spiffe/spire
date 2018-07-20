@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -57,16 +58,22 @@ type Manager interface {
 }
 
 type keypairSet struct {
-	slot   string
-	x509CA *x509.Certificate
+	slot      string
+	x509CA    *x509.Certificate
+	jwtSigner *x509.Certificate
 }
 
 func (k *keypairSet) X509CAKeyId() string {
 	return fmt.Sprintf("x509-CA-%s", k.slot)
 }
 
+func (k *keypairSet) JWTSignerKeyId() string {
+	return fmt.Sprintf("JWT-Signer-%s", k.slot)
+}
+
 func (k *keypairSet) Reset() {
 	k.x509CA = nil
+	k.jwtSigner = nil
 }
 
 type manager struct {
@@ -268,39 +275,50 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) error 
 	notAfter := now.Add(m.c.CATTL)
 
 	km := m.c.Catalog.KeyManagers()[0]
-
-	// create/rotate the keymanager key
-	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, kps.X509CAKeyId(), keymanager.KeyAlgorithm_ECDSA_P384)
+	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, kps.X509CAKeyId(), keymanager.KeyAlgorithm_ECDSA_P384)
 	if err != nil {
 		return err
 	}
 
 	// either self-sign or sign with the upstream CA
-	var cert *x509.Certificate
+	var x509CA *x509.Certificate
 	var upstreamBundle []byte
 	if upstreamCAs := m.c.Catalog.UpstreamCAs(); len(upstreamCAs) > 0 {
-		cert, upstreamBundle, err = UpstreamSignServerCACertificate(ctx, upstreamCAs[0], signer, m.c.TrustDomain.Host, m.c.CASubject)
+		x509CA, upstreamBundle, err = UpstreamSignServerCACertificate(ctx, upstreamCAs[0], x509CASigner, m.c.TrustDomain.Host, m.c.CASubject)
 		if err != nil {
 			return err
 		}
 	} else {
-		cert, err = SelfSignServerCACertificate(signer, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
+		x509CA, err = SelfSignServerCACertificate(x509CASigner, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
 		if err != nil {
 			return err
 		}
 	}
 
-	bundle := make([]byte, 0, len(cert.Raw)+len(upstreamBundle))
+	jwtSignerPublicKey, err := cryptoutil.GenerateKey(ctx, km, kps.JWTSignerKeyId(), keymanager.KeyAlgorithm_ECDSA_P256)
+	if err != nil {
+		return err
+	}
+
+	// Sign the JWT signer using the server CA
+	jwtSigner, err := SignJWTSignerCertificate(jwtSignerPublicKey, x509CA, x509CASigner)
+	if err != nil {
+		return err
+	}
+
+	bundle := make([]byte, 0, len(x509CA.Raw)+len(jwtSigner.Raw)+len(upstreamBundle))
 	if m.c.UpstreamBundle {
 		bundle = append(bundle, upstreamBundle...)
 	}
-	bundle = append(bundle, cert.Raw...)
+	bundle = append(bundle, x509CA.Raw...)
+	bundle = append(bundle, jwtSigner.Raw...)
 
 	if err := m.appendBundle(ctx, bundle); err != nil {
 		return err
 	}
 
-	kps.x509CA = cert
+	kps.x509CA = x509CA
+	kps.jwtSigner = jwtSigner
 	m.writeKeypairSets()
 	return nil
 }
@@ -330,8 +348,19 @@ func (m *manager) loadKeypairSets(ctx context.Context) error {
 		return nil
 	}
 
+	// load up the current keypair set and make sure it has all required certs
 	m.current.x509CA = lookup(m.current.X509CAKeyId())
+	m.current.jwtSigner = lookup(m.current.JWTSignerKeyId())
+	if m.current.x509CA == nil || m.current.jwtSigner == nil {
+		m.current.Reset()
+	}
+
+	// load up the next keypair set and make sure it has all required certs
 	m.next.x509CA = lookup(m.next.X509CAKeyId())
+	m.next.jwtSigner = lookup(m.next.JWTSignerKeyId())
+	if m.next.x509CA == nil || m.next.jwtSigner == nil {
+		m.next.Reset()
+	}
 
 	if m.current.x509CA != nil && m.next.x509CA != nil &&
 		m.current.x509CA.NotBefore.After(m.next.x509CA.NotBefore) {
@@ -367,8 +396,14 @@ func (m *manager) writeKeypairSets() {
 	if m.current.x509CA != nil {
 		certificates[m.current.X509CAKeyId()] = m.current.x509CA
 	}
+	if m.current.jwtSigner != nil {
+		certificates[m.current.JWTSignerKeyId()] = m.current.jwtSigner
+	}
 	if m.next.x509CA != nil {
 		certificates[m.next.X509CAKeyId()] = m.next.x509CA
+	}
+	if m.next.jwtSigner != nil {
+		certificates[m.next.JWTSignerKeyId()] = m.next.jwtSigner
 	}
 	if err := writeCertificates(m.c.CertsPath, certificates); err != nil {
 		m.c.Log.Warnf("unable to write keypair sets: %v", err)
@@ -442,6 +477,20 @@ func SelfSignServerCACertificate(signer crypto.Signer, trustDomain string, subje
 		return nil, err
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, template, template, signer.Public(), signer)
+	if err != nil {
+		return nil, err
+	}
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, err
+	}
+	return cert, nil
+}
+
+func SignJWTSignerCertificate(publicKey crypto.PublicKey, parent *x509.Certificate, signer crypto.Signer) (*x509.Certificate, error) {
+	template := jwtsvid.CreateCertificateTemplate(parent)
+	template.SerialNumber = big.NewInt(0)
+	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, publicKey, signer)
 	if err != nil {
 		return nil, err
 	}

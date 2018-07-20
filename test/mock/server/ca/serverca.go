@@ -7,9 +7,11 @@ package mock_ca
 import (
 	context "context"
 	x509 "crypto/x509"
-	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 	time "time"
+
+	gomock "github.com/golang/mock/gomock"
+	node "github.com/spiffe/spire/proto/api/node"
 )
 
 // MockServerCA is a mock of ServerCA interface
@@ -33,6 +35,19 @@ func NewMockServerCA(ctrl *gomock.Controller) *MockServerCA {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockServerCA) EXPECT() *MockServerCAMockRecorder {
 	return m.recorder
+}
+
+// SignJWTSVID mocks base method
+func (m *MockServerCA) SignJWTSVID(arg0 context.Context, arg1 *node.JSR, arg2 time.Duration) (string, error) {
+	ret := m.ctrl.Call(m, "SignJWTSVID", arg0, arg1, arg2)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SignJWTSVID indicates an expected call of SignJWTSVID
+func (mr *MockServerCAMockRecorder) SignJWTSVID(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignJWTSVID", reflect.TypeOf((*MockServerCA)(nil).SignJWTSVID), arg0, arg1, arg2)
 }
 
 // SignX509SVID mocks base method
