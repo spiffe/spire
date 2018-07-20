@@ -100,6 +100,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 func (s *Server) run(ctx context.Context) (err error) {
 	// create the data directory if needed
+	s.config.Log.Infof("data directory: %q", s.config.DataDir)
 	if err := os.MkdirAll(s.config.DataDir, 0755); err != nil {
 		return err
 	}

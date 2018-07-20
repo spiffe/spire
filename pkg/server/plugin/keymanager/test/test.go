@@ -179,7 +179,7 @@ func (s *baseSuite) TestSignData() {
 
 func (s *baseSuite) TestSignDataMissingKeyId() {
 	resp, err := s.m.SignData(ctx, &keymanager.SignDataRequest{
-		HashAlgorithm: keymanager.HashAlgorithm_SHA1,
+		HashAlgorithm: keymanager.HashAlgorithm_SHA256,
 	})
 	s.Require().Error(err)
 	s.Require().Nil(resp)
@@ -196,7 +196,7 @@ func (s *baseSuite) TestSignDataMissingHashAlgorithm() {
 func (s *baseSuite) TestSignDataNoKey() {
 	resp, err := s.m.SignData(ctx, &keymanager.SignDataRequest{
 		KeyId:         "KEY",
-		HashAlgorithm: keymanager.HashAlgorithm_SHA1,
+		HashAlgorithm: keymanager.HashAlgorithm_SHA256,
 	})
 	s.Require().Error(err)
 	s.Require().Nil(resp)

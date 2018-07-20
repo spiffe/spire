@@ -355,7 +355,7 @@ func (m *manager) getNextKeypairSet() *keypairSet {
 }
 
 func (m *manager) setKeypairSet() {
-	m.c.Log.Debugf("Manager activating keypair set %q", m.current.slot)
+	m.c.Log.Debugf("Manager is activating keypair set %q", m.current.slot)
 	m.ca.setKeypairSet(*m.current)
 }
 

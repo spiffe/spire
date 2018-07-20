@@ -22,7 +22,6 @@ import (
 )
 
 const (
-	defaultDataDir    = "."
 	defaultConfigPath = "conf/server/server.conf"
 	defaultLogLevel   = "INFO"
 	defaultUmask      = 0077
@@ -157,7 +156,7 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.StringVar(&c.Server.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.StringVar(&c.Server.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
-	flags.StringVar(&c.Server.DataDir, "dataDir", defaultDataDir, "Directory to store runtime data to")
+	flags.StringVar(&c.Server.DataDir, "dataDir", "", "Directory to store runtime data to")
 	flags.StringVar(&c.Server.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
 	flags.StringVar(&c.Server.Umask, "umask", "", "Umask value to use for new files")
 	flags.BoolVar(&c.Server.UpstreamBundle, "upstreamBundle", false, "Include upstream CA certificates in the bundle")
@@ -296,6 +295,10 @@ func validateConfig(c *server.Config) error {
 
 	if c.TrustDomain.String() == "" {
 		return errors.New("TrustDomain is required")
+	}
+
+	if c.DataDir == "" {
+		return errors.New("DataDir is required")
 	}
 
 	return nil
