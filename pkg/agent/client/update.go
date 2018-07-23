@@ -10,7 +10,7 @@ import (
 
 type Update struct {
 	Entries map[string]*common.RegistrationEntry
-	SVIDs   map[string]*node.Svid
+	SVIDs   map[string]*node.X509SVID
 	Bundle  []byte
 }
 

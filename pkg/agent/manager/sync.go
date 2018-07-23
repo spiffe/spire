@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -15,11 +16,11 @@ import (
 )
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
-func (m *manager) synchronize() (err error) {
+func (m *manager) synchronize(ctx context.Context) (err error) {
 	var regEntries map[string]*proto.RegistrationEntry
 	var cEntryRequests = entryRequests{}
 
-	regEntries, _, err = m.fetchUpdates(nil)
+	regEntries, _, err = m.fetchUpdates(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -36,7 +37,7 @@ func (m *manager) synchronize() (err error) {
 		return err
 	}
 
-	err = m.processEntryRequests(cEntryRequests)
+	err = m.processEntryRequests(ctx, cEntryRequests)
 	if err != nil {
 		return err
 	}
@@ -44,7 +45,7 @@ func (m *manager) synchronize() (err error) {
 	return nil
 }
 
-func (m *manager) fetchUpdates(entryRequests map[string]*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.Svid, error) {
+func (m *manager) fetchUpdates(ctx context.Context, entryRequests map[string]*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.X509SVID, error) {
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	csrs := [][]byte{}
 	if entryRequests != nil {
@@ -54,7 +55,7 @@ func (m *manager) fetchUpdates(entryRequests map[string]*entryRequest) (map[stri
 		}
 	}
 
-	update, err := m.client.FetchUpdates(&node.FetchX509SVIDRequest{Csrs: csrs})
+	update, err := m.client.FetchUpdates(ctx, &node.FetchX509SVIDRequest{Csrs: csrs})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -73,12 +74,12 @@ func (m *manager) fetchUpdates(entryRequests map[string]*entryRequest) (map[stri
 	return update.Entries, update.SVIDs, nil
 }
 
-func (m *manager) processEntryRequests(entryRequests entryRequests) error {
+func (m *manager) processEntryRequests(ctx context.Context, entryRequests entryRequests) error {
 	if len(entryRequests) == 0 {
 		return nil
 	}
 
-	_, svids, err := m.fetchUpdates(entryRequests)
+	_, svids, err := m.fetchUpdates(ctx, entryRequests)
 	if err != nil {
 		return err
 	}
@@ -90,12 +91,12 @@ func (m *manager) processEntryRequests(entryRequests entryRequests) error {
 	return nil
 }
 
-func (m *manager) updateEntriesSVIDs(entryRequestsMap map[string]*entryRequest, svids map[string]*node.Svid) error {
+func (m *manager) updateEntriesSVIDs(entryRequestsMap map[string]*entryRequest, svids map[string]*node.X509SVID) error {
 	for _, entryRequest := range entryRequestsMap {
 		ce := entryRequest.entry
 		svid, ok := svids[ce.RegistrationEntry.SpiffeId]
 		if ok {
-			cert, err := x509.ParseCertificate(svid.SvidCert)
+			cert, err := x509.ParseCertificate(svid.Cert)
 			if err != nil {
 				return err
 			}

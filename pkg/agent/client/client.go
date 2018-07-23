@@ -28,8 +28,14 @@ var (
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 )
 
+type JWTSVID struct {
+	Token     string
+	ExpiresAt time.Time
+}
+
 type Client interface {
-	FetchUpdates(req *node.FetchX509SVIDRequest) (*Update, error)
+	FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest) (*Update, error)
+	FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -74,8 +80,8 @@ func (c *client) credsFunc() (credentials.TransportCredentials, error) {
 	return credentials.NewTLS(tlsConfig), nil
 }
 
-func (c *client) dial() (*grpc.ClientConn, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // TODO: Make this timeout configurable?
+func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second) // TODO: Make this timeout configurable?
 	defer cancel()
 
 	config := grpcutil.GRPCDialerConfig{
@@ -90,13 +96,13 @@ func (c *client) dial() (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-func (c *client) FetchUpdates(req *node.FetchX509SVIDRequest) (*Update, error) {
-	nodeClient, err := c.newNodeClient()
+func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest) (*Update, error) {
+	nodeClient, err := c.newNodeClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	stream, err := nodeClient.FetchX509SVID(context.Background())
+	stream, err := nodeClient.FetchX509SVID(ctx)
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
 		c.Release()
@@ -114,7 +120,7 @@ func (c *client) FetchUpdates(req *node.FetchX509SVIDRequest) (*Update, error) {
 	}
 
 	regEntries := map[string]*common.RegistrationEntry{}
-	svids := map[string]*node.Svid{}
+	svids := map[string]*node.X509SVID{}
 	var lastBundle []byte
 	// Read all the server responses from the stream.
 	for {
@@ -142,6 +148,33 @@ func (c *client) FetchUpdates(req *node.FetchX509SVIDRequest) (*Update, error) {
 	}, nil
 }
 
+func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, error) {
+	nodeClient, err := c.newNodeClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := nodeClient.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
+		Jsr: jsr,
+	})
+	// We weren't able to make the request...close the client and return the error.
+	if err != nil {
+		c.Release()
+		c.c.Log.Errorf("%v: %v", ErrUnableToGetStream, err)
+		return nil, ErrUnableToGetStream
+	}
+
+	svid := response.GetSvid()
+	if svid == nil {
+		return nil, errors.New("JWTSVID response missing SVID")
+	}
+
+	return &JWTSVID{
+		Token:     svid.Token,
+		ExpiresAt: time.Unix(svid.ExpiresAt, 0),
+	}, nil
+}
+
 func (c *client) Release() {
 	c.m.Lock()
 	defer c.m.Unlock()
@@ -152,7 +185,7 @@ func (c *client) Release() {
 	}
 }
 
-func (c *client) newNodeClient() (node.NodeClient, error) {
+func (c *client) newNodeClient(ctx context.Context) (node.NodeClient, error) {
 	if c.newNodeClientCallback != nil {
 		return c.newNodeClientCallback()
 	}
@@ -161,7 +194,7 @@ func (c *client) newNodeClient() (node.NodeClient, error) {
 	defer c.m.Unlock()
 
 	if c.conn == nil {
-		conn, err := c.dial()
+		conn, err := c.dial(ctx)
 		if err != nil {
 			return nil, err
 		}

@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"io"
 	"testing"
 
@@ -34,14 +35,14 @@ func TestFetchUpdates(t *testing.T) {
 		Csrs: [][]byte{{1, 2, 3, 4}},
 	}
 	res := &node.FetchX509SVIDResponse{
-		SvidUpdate: &node.SvidUpdate{
+		SvidUpdate: &node.X509SVIDUpdate{
 			Bundle: []byte{10, 20, 30, 40},
 			RegistrationEntries: []*common.RegistrationEntry{{
 				EntryId: "1",
 			}},
-			Svids: map[string]*node.Svid{
+			Svids: map[string]*node.X509SVID{
 				"someSpiffeId": {
-					SvidCert: []byte{11, 22, 33},
+					Cert: []byte{11, 22, 33},
 				},
 			},
 		},
@@ -53,7 +54,7 @@ func TestFetchUpdates(t *testing.T) {
 	nodeFsc.EXPECT().Recv().Return(res, nil)
 	nodeFsc.EXPECT().Recv().Return(nil, io.EOF)
 
-	update, err := client.FetchUpdates(req)
+	update, err := client.FetchUpdates(context.Background(), req)
 	require.Nil(t, err)
 
 	assert.Equal(t, res.SvidUpdate.Bundle, update.Bundle)

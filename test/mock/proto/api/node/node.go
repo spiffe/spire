@@ -72,6 +72,24 @@ func (mr *MockNodeClientMockRecorder) FetchFederatedBundle(arg0, arg1 interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchFederatedBundle", reflect.TypeOf((*MockNodeClient)(nil).FetchFederatedBundle), varargs...)
 }
 
+// FetchJWTSVID mocks base method
+func (m *MockNodeClient) FetchJWTSVID(arg0 context.Context, arg1 *node.FetchJWTSVIDRequest, arg2 ...grpc.CallOption) (*node.FetchJWTSVIDResponse, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "FetchJWTSVID", varargs...)
+	ret0, _ := ret[0].(*node.FetchJWTSVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchJWTSVID indicates an expected call of FetchJWTSVID
+func (mr *MockNodeClientMockRecorder) FetchJWTSVID(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTSVID", reflect.TypeOf((*MockNodeClient)(nil).FetchJWTSVID), varargs...)
+}
+
 // FetchX509SVID mocks base method
 func (m *MockNodeClient) FetchX509SVID(arg0 context.Context, arg1 ...grpc.CallOption) (node.Node_FetchX509SVIDClient, error) {
 	varargs := []interface{}{arg0}
@@ -496,6 +514,19 @@ func (m *MockNodeServer) FetchFederatedBundle(arg0 context.Context, arg1 *node.F
 // FetchFederatedBundle indicates an expected call of FetchFederatedBundle
 func (mr *MockNodeServerMockRecorder) FetchFederatedBundle(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchFederatedBundle", reflect.TypeOf((*MockNodeServer)(nil).FetchFederatedBundle), arg0, arg1)
+}
+
+// FetchJWTSVID mocks base method
+func (m *MockNodeServer) FetchJWTSVID(arg0 context.Context, arg1 *node.FetchJWTSVIDRequest) (*node.FetchJWTSVIDResponse, error) {
+	ret := m.ctrl.Call(m, "FetchJWTSVID", arg0, arg1)
+	ret0, _ := ret[0].(*node.FetchJWTSVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchJWTSVID indicates an expected call of FetchJWTSVID
+func (mr *MockNodeServerMockRecorder) FetchJWTSVID(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTSVID", reflect.TypeOf((*MockNodeServer)(nil).FetchJWTSVID), arg0, arg1)
 }
 
 // FetchX509SVID mocks base method
