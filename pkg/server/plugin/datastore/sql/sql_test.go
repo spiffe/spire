@@ -20,7 +20,6 @@ var (
 	ctx = context.Background()
 )
 
-type selectors []*common.Selector
 type regEntries []*common.RegistrationEntry
 
 func TestInvalidPluginConfiguration(t *testing.T) {

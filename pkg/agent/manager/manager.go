@@ -57,9 +57,8 @@ type manager struct {
 	cache cache.Cache
 	svid  svid.Rotator
 
-	spiffeID       string
-	serverSPIFFEID string
-	serverAddr     net.Addr
+	spiffeID   string
+	serverAddr net.Addr
 
 	svidCachePath   string
 	bundleCachePath string

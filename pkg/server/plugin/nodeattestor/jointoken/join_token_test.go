@@ -16,8 +16,6 @@ import (
 
 const (
 	config = `{"join_tokens":{"foo":600,"bar":1}, "trust_domain":"example.com"}`
-
-	spiffeId = "spiffe://example.com/spiffe/node-id/foobar"
 )
 
 var (

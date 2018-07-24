@@ -772,7 +772,7 @@ type mockNodeAPIHandlerConfig struct {
 
 	// Callbacks used to build the response according to the request and state of mockNodeAPIHandler.
 	fetchX509SVID func(*mockNodeAPIHandler, *node.FetchX509SVIDRequest, node.Node_FetchX509SVIDServer) error
-	fetchJWTSVID func(*mockNodeAPIHandler, *node.FetchJWTSVIDRequest) (*node.FetchJWTSVIDResponse, error)
+	fetchJWTSVID  func(*mockNodeAPIHandler, *node.FetchJWTSVIDRequest) (*node.FetchJWTSVIDResponse, error)
 
 	svidTTL int
 }
@@ -794,8 +794,6 @@ type mockNodeAPIHandler struct {
 
 	// Counts the number of requests received from clients
 	reqCount int
-
-	delay time.Duration
 }
 
 func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig) *mockNodeAPIHandler {

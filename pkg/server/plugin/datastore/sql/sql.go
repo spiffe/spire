@@ -35,10 +35,6 @@ type configuration struct {
 	ConnectionString string `hcl:"connection_string" json:"connection_string"`
 }
 
-type database interface {
-	connect(string) (*gorm.DB, error)
-}
-
 type sqlPlugin struct {
 	db *gorm.DB
 
@@ -301,10 +297,10 @@ func (ds *sqlPlugin) CreateAttestedNodeEntry(ctx context.Context,
 
 	return &datastore.CreateAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:       model.SpiffeID,
-			AttestationDataType:   model.DataType,
-			CertSerialNumber:   model.SerialNumber,
-			CertExpirationDate: expiresAt.Format(datastore.TimeFormat),
+			BaseSpiffeId:        model.SpiffeID,
+			AttestationDataType: model.DataType,
+			CertSerialNumber:    model.SerialNumber,
+			CertExpirationDate:  expiresAt.Format(datastore.TimeFormat),
 		},
 	}, nil
 }
@@ -325,10 +321,10 @@ func (ds *sqlPlugin) FetchAttestedNodeEntry(ctx context.Context,
 	}
 	return &datastore.FetchAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:       model.SpiffeID,
-			AttestationDataType:   model.DataType,
-			CertSerialNumber:   model.SerialNumber,
-			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+			BaseSpiffeId:        model.SpiffeID,
+			AttestationDataType: model.DataType,
+			CertSerialNumber:    model.SerialNumber,
+			CertExpirationDate:  model.ExpiresAt.Format(datastore.TimeFormat),
 		},
 	}, nil
 }
@@ -350,10 +346,10 @@ func (ds *sqlPlugin) FetchStaleNodeEntries(ctx context.Context,
 
 	for _, model := range models {
 		resp.AttestedNodeEntryList = append(resp.AttestedNodeEntryList, &datastore.AttestedNodeEntry{
-			BaseSpiffeId:       model.SpiffeID,
-			AttestationDataType:   model.DataType,
-			CertSerialNumber:   model.SerialNumber,
-			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+			BaseSpiffeId:        model.SpiffeID,
+			AttestationDataType: model.DataType,
+			CertSerialNumber:    model.SerialNumber,
+			CertExpirationDate:  model.ExpiresAt.Format(datastore.TimeFormat),
 		})
 	}
 	return resp, nil
@@ -391,10 +387,10 @@ func (ds *sqlPlugin) UpdateAttestedNodeEntry(ctx context.Context,
 
 	return &datastore.UpdateAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:       model.SpiffeID,
-			AttestationDataType:   model.DataType,
-			CertSerialNumber:   model.SerialNumber,
-			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+			BaseSpiffeId:        model.SpiffeID,
+			AttestationDataType: model.DataType,
+			CertSerialNumber:    model.SerialNumber,
+			CertExpirationDate:  model.ExpiresAt.Format(datastore.TimeFormat),
 		},
 	}, db.Commit().Error
 }
@@ -421,10 +417,10 @@ func (ds *sqlPlugin) DeleteAttestedNodeEntry(ctx context.Context,
 
 	return &datastore.DeleteAttestedNodeEntryResponse{
 		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:       model.SpiffeID,
-			AttestationDataType:   model.DataType,
-			CertSerialNumber:   model.SerialNumber,
-			CertExpirationDate: model.ExpiresAt.Format(datastore.TimeFormat),
+			BaseSpiffeId:        model.SpiffeID,
+			AttestationDataType: model.DataType,
+			CertSerialNumber:    model.SerialNumber,
+			CertExpirationDate:  model.ExpiresAt.Format(datastore.TimeFormat),
 		},
 	}, db.Commit().Error
 }

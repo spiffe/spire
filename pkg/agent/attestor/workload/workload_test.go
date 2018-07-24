@@ -12,7 +12,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
-	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
@@ -32,10 +31,9 @@ type WorkloadAttestorTestSuite struct {
 
 	ctrl *gomock.Controller
 
-	attestor    *attestor
-	expectation *node.X509SVIDUpdate
-	attestor1   *mock_workloadattestor.MockWorkloadAttestor
-	attestor2   *mock_workloadattestor.MockWorkloadAttestor
+	attestor  *attestor
+	attestor1 *mock_workloadattestor.MockWorkloadAttestor
+	attestor2 *mock_workloadattestor.MockWorkloadAttestor
 }
 
 func (s *WorkloadAttestorTestSuite) SetupTest() {

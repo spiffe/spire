@@ -337,11 +337,3 @@ func parseTrustBundle(path string) ([]*x509.Certificate, error) {
 
 	return bundle, nil
 }
-
-func stringDefault(option string, defaultValue string) string {
-	if option == "" {
-		return defaultValue
-	}
-
-	return option
-}
