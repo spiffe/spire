@@ -38,7 +38,6 @@ const (
 	workloadApi    = "workload_api"
 	workloadPid    = "workload_pid"
 	workloadAttDur = "workload_attestation_duration"
-	unknownName    = "unknown"
 )
 
 // Attest invokes all workload attestor plugins against the provided PID. If an error

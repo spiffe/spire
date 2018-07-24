@@ -49,9 +49,9 @@ func TestBackoff_Ticker(t *testing.T) {
 
 	bo.current = 1 * time.Millisecond
 	select {
-	case <-time.NewTicker(5 * time.Millisecond).C:
-		t.Errorf("ticker did not fire in time")
-	case <-bo.ticker():
+	case <-time.NewTimer(5 * time.Millisecond).C:
+		t.Errorf("timer did not fire in time")
+	case <-bo.timer().C:
 		break
 	}
 }

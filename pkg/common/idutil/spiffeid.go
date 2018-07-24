@@ -90,6 +90,7 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 
 	// id type validation
 	switch options.idType {
+	case anyId:
 	case trustDomainId:
 		if id.Path != "" {
 			return validationError("path is not empty")
@@ -115,6 +116,8 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 		if !isAgentPath(id.Path) {
 			return validationError(`invalid path: expecting "/spire/agent/*"`)
 		}
+	default:
+		return validationError("internal error: unhandled id type %v", options.idType)
 	}
 
 	return nil
