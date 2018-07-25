@@ -18,16 +18,6 @@ import (
 	"github.com/spiffe/spire/proto/server/upstreamca"
 )
 
-var (
-	pluginInfo = spi.GetPluginInfoResponse{
-		Description: "",
-		DateCreated: "",
-		Version:     "",
-		Author:      "",
-		Company:     "",
-	}
-)
-
 type Configuration struct {
 	TTL          string `hcl:"ttl" json:"ttl"` // time to live for generated certs
 	TrustDomain  string `hcl:"trust_domain" json:"trust_domain"`
@@ -40,7 +30,6 @@ type diskPlugin struct {
 
 	mtx        sync.RWMutex
 	cert       *x509.Certificate
-	keypair    *x509util.MemoryKeypair
 	upstreamCA *x509svid.UpstreamCA
 }
 

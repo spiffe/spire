@@ -11,20 +11,20 @@ import public "github.com/spiffe/spire/proto/common/common.proto";
 
 // A type which contains the "Spiffe Verifiable Identity Document" and
 // a TTL indicating when the SVID expires.
-message Svid {
-    // Spiffe Verifiable Identity Document.
-    bytes svid_cert = 1;
+message X509SVID {
+    // X509 SVID (ASN.1 encoding)
+    bytes cert = 1;
 
-    // SVID expiration.
-    int32 ttl = 2;
+    // SVID expiration timestamp (in seconds since Unix epoch)
+    int64 expires_at = 2;
 }
 
 // A message returned by the Spire Server, which includes a map of signed SVIDs and
 //a list of all current Registration Entries which are relevant to the caller SPIFFE ID.
-message SvidUpdate {
+message X509SVIDUpdate {
     // A map containing SVID values and corresponding SPIFFE IDs as the
     // keys. Map[SPIFFE_ID] => SVID.
-    map<string, Svid>  svids = 1;
+    map<string, X509SVID> svids = 1;
 
     // Latest SPIRE Server bundle
     bytes bundle = 2;
@@ -32,6 +32,24 @@ message SvidUpdate {
     // A type representing a curated record that the Spire Server uses to set up
     //and manage the various registered nodes and workloads that are controlled by it.
     repeated spire.common.RegistrationEntry registration_entries = 3;
+}
+
+// JSR is a JWT SVID signing request.
+message JSR {
+     // SPIFFE ID of the workload
+    string spiffe_id = 1;
+
+    // List of intended audience
+    repeated string audience = 2;
+}
+
+// JWTSVID is a signed JWT-SVID with fields lifted out for convenience.
+message JWTSVID {
+    // JWT-SVID JWT token
+    string token = 1;
+
+    // SVID expiration timestamp (seconds since Unix epoch)
+    int64 expires_at = 2;
 }
 
 // Represents a request to attest the node.
@@ -51,11 +69,11 @@ message AttestRequest {
 message AttestResponse {
     // It includes a map of signed SVIDs and an array of all current
     // Registration Entries which are relevant to the caller SPIFFE ID.
-    SvidUpdate svid_update = 1;
+    X509SVIDUpdate svid_update = 1;
 
     // This is a challenge issued by the server to the node. If populated, the
     // node is expected to respond with another AttestRequest with the response.
-    // This field is mutually exclusive with the svid_update field.
+    // This field is mutually exclusive with the update field.
     bytes challenge = 2;
 }
 
@@ -70,7 +88,17 @@ message FetchX509SVIDRequest {
 message FetchX509SVIDResponse {
     // It includes a map of signed SVIDs and an array of all current Registration
     // Entries which are relevant to the caller SPIFFE ID.
-    SvidUpdate svid_update = 1;
+    X509SVIDUpdate svid_update = 1;
+}
+
+message FetchJWTSVIDRequest {
+    // The JWT signing request
+    JSR jsr = 1;
+}
+
+message FetchJWTSVIDResponse {
+    // The signed JWT-SVID
+    JWTSVID svid = 1;
 }
 
 // Represents a request with an array of SPIFFE Ids.
@@ -93,6 +121,9 @@ service Node {
     // Base Node SVID or the Registered Node SVID used for this call)
     // List can be empty to allow Node Agent cache refresh).
     rpc FetchX509SVID(stream FetchX509SVIDRequest) returns (stream FetchX509SVIDResponse);
+
+    // Fetches a signed JWT-SVID for a workload intended for a specific audience.
+    rpc FetchJWTSVID(FetchJWTSVIDRequest) returns (FetchJWTSVIDResponse);
 
     // Called by the Node Agent to fetch the named Federated CA Bundle.
     // Used in the event that authorized workloads reference a Federated Bundle.

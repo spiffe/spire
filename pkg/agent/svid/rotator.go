@@ -52,7 +52,7 @@ func (r *rotator) Run(ctx context.Context) error {
 			return nil
 		case <-t.C:
 			if r.shouldRotate() {
-				if err := r.rotateSVID(); err != nil {
+				if err := r.rotateSVID(ctx); err != nil {
 					r.c.Log.Errorf("Could not rotate agent SVID: %v", err)
 				}
 			}
@@ -84,7 +84,7 @@ func (r *rotator) shouldRotate() bool {
 }
 
 // rotateSVID asks SPIRE's server for a new agent's SVID.
-func (r *rotator) rotateSVID() error {
+func (r *rotator) rotateSVID(ctx context.Context) error {
 	r.c.Log.Debug("Rotating agent SVID")
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -97,7 +97,7 @@ func (r *rotator) rotateSVID() error {
 		return err
 	}
 
-	update, err := r.client.FetchUpdates(&node.FetchX509SVIDRequest{Csrs: [][]byte{csr}})
+	update, err := r.client.FetchUpdates(ctx, &node.FetchX509SVIDRequest{Csrs: [][]byte{csr}})
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (r *rotator) rotateSVID() error {
 	if !ok {
 		return errors.New("it was not possible to get agent SVID from FetchX509SVID response")
 	}
-	cert, err := x509.ParseCertificate(svid.SvidCert)
+	cert, err := x509.ParseCertificate(svid.Cert)
 	if err != nil {
 		return err
 	}

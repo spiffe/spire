@@ -5,14 +5,8 @@
 package mock_catalog
 
 import (
-	context "context"
 	gomock "github.com/golang/mock/gomock"
-	catalog "github.com/spiffe/spire/pkg/common/catalog"
-	ca "github.com/spiffe/spire/proto/server/ca"
-	datastore "github.com/spiffe/spire/proto/server/datastore"
-	nodeattestor "github.com/spiffe/spire/proto/server/nodeattestor"
-	noderesolver "github.com/spiffe/spire/proto/server/noderesolver"
-	upstreamca "github.com/spiffe/spire/proto/server/upstreamca"
+	catalog "github.com/spiffe/spire/pkg/server/catalog"
 	reflect "reflect"
 )
 
@@ -39,35 +33,10 @@ func (m *MockCatalog) EXPECT() *MockCatalogMockRecorder {
 	return m.recorder
 }
 
-// CAs mocks base method
-func (m *MockCatalog) CAs() []ca.ServerCA {
-	ret := m.ctrl.Call(m, "CAs")
-	ret0, _ := ret[0].([]ca.ServerCA)
-	return ret0
-}
-
-// CAs indicates an expected call of CAs
-func (mr *MockCatalogMockRecorder) CAs() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CAs", reflect.TypeOf((*MockCatalog)(nil).CAs))
-}
-
-// ConfigFor mocks base method
-func (m *MockCatalog) ConfigFor(arg0 interface{}) (*catalog.PluginConfig, bool) {
-	ret := m.ctrl.Call(m, "ConfigFor", arg0)
-	ret0, _ := ret[0].(*catalog.PluginConfig)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// ConfigFor indicates an expected call of ConfigFor
-func (mr *MockCatalogMockRecorder) ConfigFor(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfigFor", reflect.TypeOf((*MockCatalog)(nil).ConfigFor), arg0)
-}
-
 // DataStores mocks base method
-func (m *MockCatalog) DataStores() []datastore.DataStore {
+func (m *MockCatalog) DataStores() []*catalog.ManagedDataStore {
 	ret := m.ctrl.Call(m, "DataStores")
-	ret0, _ := ret[0].([]datastore.DataStore)
+	ret0, _ := ret[0].([]*catalog.ManagedDataStore)
 	return ret0
 }
 
@@ -76,10 +45,22 @@ func (mr *MockCatalogMockRecorder) DataStores() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DataStores", reflect.TypeOf((*MockCatalog)(nil).DataStores))
 }
 
+// KeyManagers mocks base method
+func (m *MockCatalog) KeyManagers() []*catalog.ManagedKeyManager {
+	ret := m.ctrl.Call(m, "KeyManagers")
+	ret0, _ := ret[0].([]*catalog.ManagedKeyManager)
+	return ret0
+}
+
+// KeyManagers indicates an expected call of KeyManagers
+func (mr *MockCatalogMockRecorder) KeyManagers() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "KeyManagers", reflect.TypeOf((*MockCatalog)(nil).KeyManagers))
+}
+
 // NodeAttestors mocks base method
-func (m *MockCatalog) NodeAttestors() []nodeattestor.NodeAttestor {
+func (m *MockCatalog) NodeAttestors() []*catalog.ManagedNodeAttestor {
 	ret := m.ctrl.Call(m, "NodeAttestors")
-	ret0, _ := ret[0].([]nodeattestor.NodeAttestor)
+	ret0, _ := ret[0].([]*catalog.ManagedNodeAttestor)
 	return ret0
 }
 
@@ -89,9 +70,9 @@ func (mr *MockCatalogMockRecorder) NodeAttestors() *gomock.Call {
 }
 
 // NodeResolvers mocks base method
-func (m *MockCatalog) NodeResolvers() []noderesolver.NodeResolver {
+func (m *MockCatalog) NodeResolvers() []*catalog.ManagedNodeResolver {
 	ret := m.ctrl.Call(m, "NodeResolvers")
-	ret0, _ := ret[0].([]noderesolver.NodeResolver)
+	ret0, _ := ret[0].([]*catalog.ManagedNodeResolver)
 	return ret0
 }
 
@@ -100,56 +81,10 @@ func (mr *MockCatalogMockRecorder) NodeResolvers() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NodeResolvers", reflect.TypeOf((*MockCatalog)(nil).NodeResolvers))
 }
 
-// Plugins mocks base method
-func (m *MockCatalog) Plugins() []*catalog.ManagedPlugin {
-	ret := m.ctrl.Call(m, "Plugins")
-	ret0, _ := ret[0].([]*catalog.ManagedPlugin)
-	return ret0
-}
-
-// Plugins indicates an expected call of Plugins
-func (mr *MockCatalogMockRecorder) Plugins() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Plugins", reflect.TypeOf((*MockCatalog)(nil).Plugins))
-}
-
-// Reload mocks base method
-func (m *MockCatalog) Reload(arg0 context.Context) error {
-	ret := m.ctrl.Call(m, "Reload", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Reload indicates an expected call of Reload
-func (mr *MockCatalogMockRecorder) Reload(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reload", reflect.TypeOf((*MockCatalog)(nil).Reload), arg0)
-}
-
-// Run mocks base method
-func (m *MockCatalog) Run(arg0 context.Context) error {
-	ret := m.ctrl.Call(m, "Run", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Run indicates an expected call of Run
-func (mr *MockCatalogMockRecorder) Run(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockCatalog)(nil).Run), arg0)
-}
-
-// Stop mocks base method
-func (m *MockCatalog) Stop() {
-	m.ctrl.Call(m, "Stop")
-}
-
-// Stop indicates an expected call of Stop
-func (mr *MockCatalogMockRecorder) Stop() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockCatalog)(nil).Stop))
-}
-
 // UpstreamCAs mocks base method
-func (m *MockCatalog) UpstreamCAs() []upstreamca.UpstreamCA {
+func (m *MockCatalog) UpstreamCAs() []*catalog.ManagedUpstreamCA {
 	ret := m.ctrl.Call(m, "UpstreamCAs")
-	ret0, _ := ret[0].([]upstreamca.UpstreamCA)
+	ret0, _ := ret[0].([]*catalog.ManagedUpstreamCA)
 	return ret0
 }
 

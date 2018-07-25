@@ -103,6 +103,7 @@ func (e *endpoints) registerNodeAPI(gs *grpc.Server) {
 		Log:         e.c.Log.WithField("subsystem_name", "node_api"),
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
+		ServerCA:    e.c.ServerCA,
 	})
 	node_pb.RegisterNodeServer(gs, n)
 }
@@ -154,7 +155,7 @@ func (e *endpoints) runGRPCServer(ctx context.Context, server *grpc.Server) erro
 	}
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.c.Log.Info("Starting gRPC server")
+	e.c.Log.Infof("Starting gRPC server on %s", l.Addr())
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
@@ -163,8 +164,10 @@ func (e *endpoints) runGRPCServer(ctx context.Context, server *grpc.Server) erro
 		return err
 	case <-ctx.Done():
 		e.c.Log.Info("Stopping gRPC server")
+		l.Close()
 		server.Stop()
 		<-errChan
+		e.c.Log.Info("gRPC server has stopped.")
 		return nil
 	}
 }
@@ -178,7 +181,7 @@ func (e *endpoints) runHTTPServer(ctx context.Context, server *http.Server) erro
 	defer l.Close()
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.c.Log.Info("Starting HTTP server")
+	e.c.Log.Infof("Starting HTTP server on %s", l.Addr())
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
@@ -187,9 +190,10 @@ func (e *endpoints) runHTTPServer(ctx context.Context, server *http.Server) erro
 		return err
 	case <-ctx.Done():
 		e.c.Log.Info("Stopping HTTP server")
-		server.Close()
 		l.Close()
+		server.Close()
 		<-errChan
+		e.c.Log.Info("HTTP server has stopped.")
 		return nil
 	}
 
@@ -313,4 +317,13 @@ func (e *endpoints) updateSVID() {
 	state := e.c.SVIDStream.Value().(svid.State)
 	e.svid = state.SVID
 	e.svidKey = state.Key
+}
+
+func (e *endpoints) getSVIDState() svid.State {
+	e.mtx.RLock()
+	defer e.mtx.RUnlock()
+	return svid.State{
+		SVID: e.svid,
+		Key:  e.svidKey,
+	}
 }

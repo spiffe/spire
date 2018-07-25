@@ -1,0 +1,90 @@
+syntax = "proto3";
+package spire.server.keymanager;
+option go_package = "keymanager";
+
+import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
+
+
+enum KeyAlgorithm {
+    UNSPECIFIED_KEY_ALGORITHM = 0;
+    ECDSA_P256 = 1;
+    ECDSA_P384 = 2;
+}
+
+enum HashAlgorithm {
+    UNSPECIFIED_HASH_ALGORITHM = 0;
+    // These entries (and their values) line up with a subset of the go
+    // crypto.Hash constants
+    SHA224 = 4;
+    SHA256 = 5;
+    SHA384 = 6;
+    SHA512 = 7;
+    SHA3_224 = 10;
+    SHA3_256 = 11;
+    SHA3_384 = 12;
+    SHA3_512 = 13;
+    SHA512_224 = 14;
+    SHA512_256 = 15;
+}
+
+
+message PublicKey {
+    string id = 1;
+    KeyAlgorithm algorithm = 2;
+    bytes pkix_data = 3;
+}
+
+message GenerateKeyRequest {
+    string key_id = 1;
+    KeyAlgorithm key_algorithm = 2;
+}
+
+message GenerateKeyResponse {
+    PublicKey public_key = 1;
+}
+
+message GetPublicKeyRequest {
+    string key_id = 1;
+}
+
+message GetPublicKeyResponse {
+    PublicKey public_key = 1;
+}
+
+
+message GetPublicKeysRequest {
+}
+
+message GetPublicKeysResponse {
+    repeated PublicKey public_keys = 1;
+}
+
+message SignDataRequest {
+    string key_id = 1;
+    HashAlgorithm hash_algorithm = 2;
+    bytes data = 3;
+}
+
+message SignDataResponse {
+    bytes signature = 1;
+}
+
+service KeyManager {
+    // Generates a new key
+    rpc GenerateKey(GenerateKeyRequest) returns (GenerateKeyResponse);
+
+    // Get a public key by key id
+    rpc GetPublicKey(GetPublicKeyRequest) returns (GetPublicKeyResponse);
+
+    // Gets all public keys
+    rpc GetPublicKeys(GetPublicKeysRequest) returns (GetPublicKeysResponse);
+
+    // Signs data with private key
+    rpc SignData(SignDataRequest) returns (SignDataResponse);
+
+    // Applies the plugin configuration
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+
+    // Returns the version and related metadata of the installed plugin
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+}

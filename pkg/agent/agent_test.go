@@ -5,10 +5,10 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/mock/agent/catalog"
 	"github.com/spiffe/spire/test/mock/agent/manager"
 	"github.com/spiffe/spire/test/mock/proto/agent/keymanager"
@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type selectors []*common.Selector
+func TestAgent(t *testing.T) {
+	suite.Run(t, new(AgentTestSuite))
+}
 
 type AgentTestSuite struct {
 	suite.Suite
@@ -40,7 +42,7 @@ func (s *AgentTestSuite) SetupTest() {
 
 	addr := &net.UnixAddr{Name: "./spire_api", Net: "unix"}
 	log, _ := test.NewNullLogger()
-	tempDir, err := ioutil.TempDir(os.TempDir(), "spire-test")
+	tempDir, err := ioutil.TempDir("", "spire-test")
 	s.Require().NoError(err)
 
 	config := &Config{
@@ -59,4 +61,8 @@ func (s *AgentTestSuite) SetupTest() {
 func (s *AgentTestSuite) TearDownTest() {
 	os.RemoveAll(s.agent.c.DataDir)
 	s.ctrl.Finish()
+}
+
+func (s *AgentTestSuite) TestSomething() {
+	// TODO: add meaningful test here.
 }

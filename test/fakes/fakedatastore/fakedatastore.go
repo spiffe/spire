@@ -1,7 +1,9 @@
 package fakedatastore
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"sync"
@@ -33,7 +35,7 @@ var (
 	ErrTokenAlreadyExists                = errors.New("token already exists")
 )
 
-type FakeDataStore struct {
+type DataStore struct {
 	mu sync.Mutex
 
 	bundles                map[string]*datastore.Bundle
@@ -43,10 +45,10 @@ type FakeDataStore struct {
 	tokens                 map[string]*datastore.JoinToken
 }
 
-var _ datastore.DataStore = (*FakeDataStore)(nil)
+var _ datastore.DataStore = (*DataStore)(nil)
 
-func New() *FakeDataStore {
-	return &FakeDataStore{
+func New() *DataStore {
+	return &DataStore{
 		bundles:                make(map[string]*datastore.Bundle),
 		attestedNodeEntries:    make(map[string]*datastore.AttestedNodeEntry),
 		nodeResolverMapEntries: radix.New(),
@@ -56,7 +58,7 @@ func New() *FakeDataStore {
 }
 
 // CreateBundle stores the given bundle
-func (s *FakeDataStore) CreateBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
+func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -70,7 +72,7 @@ func (s *FakeDataStore) CreateBundle(ctx context.Context, req *datastore.Bundle)
 
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
-func (s *FakeDataStore) UpdateBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
+func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -80,7 +82,7 @@ func (s *FakeDataStore) UpdateBundle(ctx context.Context, req *datastore.Bundle)
 
 // AppendBundle adds the specified CA certificates to an existing bundle. If no bundle exists for the
 // specified trust domain, create one. Returns the entirety.
-func (s *FakeDataStore) AppendBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
+func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -92,12 +94,35 @@ func (s *FakeDataStore) AppendBundle(ctx context.Context, req *datastore.Bundle)
 		s.bundles[req.TrustDomain] = bundle
 	}
 
-	bundle.CaCerts = append(bundle.CaCerts, cloneBundle(req).CaCerts...)
+	reqCerts, err := x509.ParseCertificates(req.CaCerts)
+	if err != nil {
+		return nil, err
+	}
+
+	bundleCerts, err := x509.ParseCertificates(bundle.CaCerts)
+	if err != nil {
+		return nil, err
+	}
+
+	// datastore has a job to dedup cacerts being appended to the bundle
+	for _, reqCert := range reqCerts {
+		found := false
+		for _, bundleCert := range bundleCerts {
+			if bytes.Equal(reqCert.Raw, bundleCert.Raw) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			bundle.CaCerts = append(bundle.CaCerts, cloneBytes(reqCert.Raw)...)
+		}
+	}
+
 	return cloneBundle(bundle), nil
 }
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
-func (s *FakeDataStore) DeleteBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
+func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -111,7 +136,7 @@ func (s *FakeDataStore) DeleteBundle(ctx context.Context, req *datastore.Bundle)
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func (s *FakeDataStore) FetchBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
+func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -124,7 +149,7 @@ func (s *FakeDataStore) FetchBundle(ctx context.Context, req *datastore.Bundle) 
 }
 
 // ListBundles can be used to fetch all existing bundles.
-func (s *FakeDataStore) ListBundles(ctx context.Context, req *common.Empty) (*datastore.Bundles, error) {
+func (s *DataStore) ListBundles(ctx context.Context, req *common.Empty) (*datastore.Bundles, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -136,7 +161,7 @@ func (s *FakeDataStore) ListBundles(ctx context.Context, req *common.Empty) (*da
 	return bundles, nil
 }
 
-func (s *FakeDataStore) CreateAttestedNodeEntry(ctx context.Context,
+func (s *DataStore) CreateAttestedNodeEntry(ctx context.Context,
 	req *datastore.CreateAttestedNodeEntryRequest) (*datastore.CreateAttestedNodeEntryResponse, error) {
 
 	s.mu.Lock()
@@ -154,7 +179,7 @@ func (s *FakeDataStore) CreateAttestedNodeEntry(ctx context.Context,
 	}, nil
 }
 
-func (s *FakeDataStore) FetchAttestedNodeEntry(ctx context.Context,
+func (s *DataStore) FetchAttestedNodeEntry(ctx context.Context,
 	req *datastore.FetchAttestedNodeEntryRequest) (*datastore.FetchAttestedNodeEntryResponse, error) {
 
 	s.mu.Lock()
@@ -170,7 +195,7 @@ func (s *FakeDataStore) FetchAttestedNodeEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (s *FakeDataStore) FetchStaleNodeEntries(ctx context.Context,
+func (s *DataStore) FetchStaleNodeEntries(ctx context.Context,
 	req *datastore.FetchStaleNodeEntriesRequest) (*datastore.FetchStaleNodeEntriesResponse, error) {
 
 	s.mu.Lock()
@@ -191,7 +216,7 @@ func (s *FakeDataStore) FetchStaleNodeEntries(ctx context.Context,
 	return resp, nil
 }
 
-func (s *FakeDataStore) UpdateAttestedNodeEntry(ctx context.Context,
+func (s *DataStore) UpdateAttestedNodeEntry(ctx context.Context,
 	req *datastore.UpdateAttestedNodeEntryRequest) (*datastore.UpdateAttestedNodeEntryResponse, error) {
 
 	s.mu.Lock()
@@ -209,7 +234,7 @@ func (s *FakeDataStore) UpdateAttestedNodeEntry(ctx context.Context,
 	}, nil
 }
 
-func (s *FakeDataStore) DeleteAttestedNodeEntry(ctx context.Context,
+func (s *DataStore) DeleteAttestedNodeEntry(ctx context.Context,
 	req *datastore.DeleteAttestedNodeEntryRequest) (*datastore.DeleteAttestedNodeEntryResponse, error) {
 
 	s.mu.Lock()
@@ -226,7 +251,7 @@ func (s *FakeDataStore) DeleteAttestedNodeEntry(ctx context.Context,
 	}, nil
 }
 
-func (s *FakeDataStore) CreateNodeResolverMapEntry(ctx context.Context,
+func (s *DataStore) CreateNodeResolverMapEntry(ctx context.Context,
 	req *datastore.CreateNodeResolverMapEntryRequest) (*datastore.CreateNodeResolverMapEntryResponse, error) {
 
 	s.mu.Lock()
@@ -245,7 +270,7 @@ func (s *FakeDataStore) CreateNodeResolverMapEntry(ctx context.Context,
 	}, nil
 }
 
-func (s *FakeDataStore) FetchNodeResolverMapEntry(ctx context.Context,
+func (s *DataStore) FetchNodeResolverMapEntry(ctx context.Context,
 	req *datastore.FetchNodeResolverMapEntryRequest) (*datastore.FetchNodeResolverMapEntryResponse, error) {
 
 	s.mu.Lock()
@@ -267,7 +292,7 @@ func (s *FakeDataStore) FetchNodeResolverMapEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (s *FakeDataStore) DeleteNodeResolverMapEntry(ctx context.Context,
+func (s *DataStore) DeleteNodeResolverMapEntry(ctx context.Context,
 	req *datastore.DeleteNodeResolverMapEntryRequest) (*datastore.DeleteNodeResolverMapEntryResponse, error) {
 
 	s.mu.Lock()
@@ -298,12 +323,12 @@ func (s *FakeDataStore) DeleteNodeResolverMapEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (FakeDataStore) RectifyNodeResolverMapEntries(ctx context.Context,
+func (DataStore) RectifyNodeResolverMapEntries(ctx context.Context,
 	req *datastore.RectifyNodeResolverMapEntriesRequest) (*datastore.RectifyNodeResolverMapEntriesResponse, error) {
 	return &datastore.RectifyNodeResolverMapEntriesResponse{}, errors.New("Not Implemented")
 }
 
-func (s *FakeDataStore) CreateRegistrationEntry(ctx context.Context,
+func (s *DataStore) CreateRegistrationEntry(ctx context.Context,
 	request *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 
 	s.mu.Lock()
@@ -323,7 +348,7 @@ func (s *FakeDataStore) CreateRegistrationEntry(ctx context.Context,
 	}, nil
 }
 
-func (s *FakeDataStore) FetchRegistrationEntry(ctx context.Context,
+func (s *DataStore) FetchRegistrationEntry(ctx context.Context,
 	request *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
 
 	s.mu.Lock()
@@ -339,7 +364,7 @@ func (s *FakeDataStore) FetchRegistrationEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (s *FakeDataStore) FetchRegistrationEntries(ctx context.Context,
+func (s *DataStore) FetchRegistrationEntries(ctx context.Context,
 	request *common.Empty) (*datastore.FetchRegistrationEntriesResponse, error) {
 
 	s.mu.Lock()
@@ -357,7 +382,7 @@ func (s *FakeDataStore) FetchRegistrationEntries(ctx context.Context,
 	}, nil
 }
 
-func (s FakeDataStore) UpdateRegistrationEntry(ctx context.Context,
+func (s DataStore) UpdateRegistrationEntry(ctx context.Context,
 	request *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
 
 	s.mu.Lock()
@@ -377,7 +402,7 @@ func (s FakeDataStore) UpdateRegistrationEntry(ctx context.Context,
 	}, nil
 }
 
-func (s *FakeDataStore) DeleteRegistrationEntry(ctx context.Context,
+func (s *DataStore) DeleteRegistrationEntry(ctx context.Context,
 	request *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
 
 	s.mu.Lock()
@@ -394,7 +419,7 @@ func (s *FakeDataStore) DeleteRegistrationEntry(ctx context.Context,
 	}, nil
 }
 
-func (s *FakeDataStore) ListParentIDEntries(ctx context.Context,
+func (s *DataStore) ListParentIDEntries(ctx context.Context,
 	request *datastore.ListParentIDEntriesRequest) (response *datastore.ListParentIDEntriesResponse, err error) {
 
 	s.mu.Lock()
@@ -412,7 +437,7 @@ func (s *FakeDataStore) ListParentIDEntries(ctx context.Context,
 	}, nil
 }
 
-func (s *FakeDataStore) ListSelectorEntries(ctx context.Context,
+func (s *DataStore) ListSelectorEntries(ctx context.Context,
 	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -422,7 +447,7 @@ func (s *FakeDataStore) ListSelectorEntries(ctx context.Context,
 	}, nil
 }
 
-func (s *FakeDataStore) ListMatchingEntries(ctx context.Context,
+func (s *DataStore) ListMatchingEntries(ctx context.Context,
 	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
 
 	s.mu.Lock()
@@ -437,7 +462,7 @@ func (s *FakeDataStore) ListMatchingEntries(ctx context.Context,
 	return resp, nil
 }
 
-func (s *FakeDataStore) listMatchingEntries(selectors []*common.Selector) (
+func (s *DataStore) listMatchingEntries(selectors []*common.Selector) (
 	matches []*common.RegistrationEntry) {
 
 	if len(selectors) == 0 {
@@ -458,7 +483,7 @@ func (s *FakeDataStore) listMatchingEntries(selectors []*common.Selector) (
 	return matches
 }
 
-func (s *FakeDataStore) ListSpiffeEntries(ctx context.Context,
+func (s *DataStore) ListSpiffeEntries(ctx context.Context,
 	request *datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
 
 	s.mu.Lock()
@@ -477,7 +502,7 @@ func (s *FakeDataStore) ListSpiffeEntries(ctx context.Context,
 }
 
 // RegisterToken takes a Token message and stores it
-func (s *FakeDataStore) RegisterToken(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
+func (s *DataStore) RegisterToken(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -491,7 +516,7 @@ func (s *FakeDataStore) RegisterToken(ctx context.Context, req *datastore.JoinTo
 
 // FetchToken takes a Token message and returns one, populating the fields
 // we have knowledge of
-func (s *FakeDataStore) FetchToken(ctx context.Context, req *datastore.JoinToken) (*datastore.JoinToken, error) {
+func (s *DataStore) FetchToken(ctx context.Context, req *datastore.JoinToken) (*datastore.JoinToken, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -503,7 +528,7 @@ func (s *FakeDataStore) FetchToken(ctx context.Context, req *datastore.JoinToken
 	return cloneJoinToken(token), nil
 }
 
-func (s *FakeDataStore) DeleteToken(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
+func (s *DataStore) DeleteToken(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -518,7 +543,7 @@ func (s *FakeDataStore) DeleteToken(ctx context.Context, req *datastore.JoinToke
 
 // PruneTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
-func (s *FakeDataStore) PruneTokens(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
+func (s *DataStore) PruneTokens(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -531,12 +556,16 @@ func (s *FakeDataStore) PruneTokens(ctx context.Context, req *datastore.JoinToke
 	return &common.Empty{}, nil
 }
 
-func (s *FakeDataStore) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (s *DataStore) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (FakeDataStore) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (DataStore) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
+}
+
+func cloneBytes(bytes []byte) []byte {
+	return append([]byte(nil), bytes...)
 }
 
 func cloneBundle(bundle *datastore.Bundle) *datastore.Bundle {

@@ -2,24 +2,16 @@ package svid
 
 import (
 	"context"
-	"crypto/x509"
+	"math/big"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/imkira/go-observer"
+	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/server/ca"
-	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
-	"github.com/spiffe/spire/test/mock/proto/server/ca"
-	"github.com/spiffe/spire/test/util"
+	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/stretchr/testify/suite"
-	tomb "gopkg.in/tomb.v2"
-)
-
-var (
-	ctx = context.Background()
 )
 
 func TestRotator(t *testing.T) {
@@ -29,147 +21,98 @@ func TestRotator(t *testing.T) {
 type RotatorTestSuite struct {
 	suite.Suite
 
-	ctrl *gomock.Controller
+	r        *rotator
+	serverCA *fakeserverca.ServerCA
 
-	ca *mock_ca.MockServerCA
-
-	r *rotator
+	mu  sync.Mutex
+	now time.Time
 }
 
 func (s *RotatorTestSuite) SetupTest() {
-	s.ctrl = gomock.NewController(s.T())
-	s.ca = mock_ca.NewMockServerCA(s.ctrl)
-
-	catalog := fakeservercatalog.New()
-	catalog.SetCAs(s.ca)
-
 	log, _ := test.NewNullLogger()
 	td := url.URL{
 		Scheme: "spiffe",
 		Host:   "example.org",
 	}
 
-	c := &RotatorConfig{
-		Catalog:     catalog,
+	s.now = time.Now()
+	s.serverCA = fakeserverca.New(s.T(), "example.org", s.nowHook, time.Minute)
+	s.r = NewRotator(&RotatorConfig{
+		ServerCA:    s.serverCA,
 		Log:         log,
 		TrustDomain: td,
-	}
-
-	s.r = NewRotator(c)
-}
-
-func (s *RotatorTestSuite) TearDownTest() {
-	s.ctrl.Finish()
-}
-
-func (s *RotatorTestSuite) TestInitialize() {
-	cert, _, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-	s.expectSVIDRotation(cert)
-
-	err = s.r.Initialize(ctx)
-	s.Require().NoError(err)
-
-	stream := s.r.Subscribe()
-
-	// We should have the latest state
-	s.Assert().False(stream.HasNext())
-
-	// Should be equal to the fixture
-	state := stream.Value().(State)
-	s.Assert().Equal(cert, state.SVID)
-}
-
-func (s *RotatorTestSuite) TestRun() {
-	// Cert that's valid for 1hr
-	temp, err := util.NewSVIDTemplate("spiffe://example.org/test")
-	s.Require().NoError(err)
-	goodCert, _, err := util.SelfSign(temp)
-	s.Require().NoError(err)
-
-	// Cert that's expiring
-	temp.NotBefore = time.Now().Add(-1 * time.Hour)
-	temp.NotAfter = time.Now()
-	badCert, _, err := util.SelfSign(temp)
-	s.Require().NoError(err)
-
-	state := State{
-		SVID: badCert,
-	}
-	s.r.state = observer.NewProperty(state)
-
-	s.expectSVIDRotation(goodCert)
-
-	// Fast ticker so the tests complete quickly
-	s.r.c.Interval = 10 * time.Millisecond
-
-	stream := s.r.Subscribe()
-	s.Require().NoError(s.r.Initialize(ctx))
-	ctx, cancel := context.WithCancel(ctx)
-	tomb := new(tomb.Tomb)
-	tomb.Go(func() error {
-		return s.r.Run(ctx)
+		Interval:    10 * time.Millisecond,
 	})
-	defer func() {
-		cancel()
-		s.Require().NoError(tomb.Wait())
+	s.r.hooks.now = s.nowHook
+}
+
+func (s *RotatorTestSuite) TestRotation() {
+	stream := s.r.Subscribe()
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := s.r.Initialize(ctx)
+	s.Require().NoError(err)
+
+	// The call to initialize should do the first rotation
+	s.requireNewCert(stream, 1)
+
+	// Run should rotate whenever the certificate is within half of its
+	// remaining lifetime.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s.r.Run(ctx)
 	}()
 
+	// "expire" the certificate and see that it rotates
+	s.advanceTime(time.Second * 30)
+	s.requireNewCert(stream, 2)
+
+	// one more time for good measure.
+	s.advanceTime(time.Second * 30)
+	s.requireNewCert(stream, 3)
+
+	// certificate just BARELY before the threshold, so it shouldn't rotate.
+	s.advanceTime(time.Second * 29)
+	s.requireStateChangeTimeout(stream)
+}
+
+func (s *RotatorTestSuite) nowHook() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.now
+}
+
+func (s *RotatorTestSuite) advanceTime(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.now = s.now.Add(d)
+}
+
+func (s *RotatorTestSuite) requireNewCert(stream observer.Stream, serialNumber int64) {
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
 	select {
-	case <-time.NewTimer(5 * time.Second).C:
-		s.T().Error("SVID rotation timeout reached")
 	case <-stream.Changes():
-		state = stream.Next().(State)
-		s.Assert().Equal(goodCert, state.SVID)
+		state := stream.Next().(State)
+		s.Require().NotNil(state.SVID)
+		s.Require().Equal(0, state.SVID.SerialNumber.Cmp(big.NewInt(serialNumber)))
+	case <-timer.C:
+		s.FailNow("timeout waiting from stream change")
 	}
 }
 
-func (s *RotatorTestSuite) TestShouldRotate() {
-	// Cert that's valid for 1hr
-	temp, err := util.NewSVIDTemplate("spiffe://example.org/test")
-	s.Require().NoError(err)
-	goodCert, _, err := util.SelfSign(temp)
-	s.Require().NoError(err)
-
-	state := State{
-		SVID: goodCert,
+func (s *RotatorTestSuite) requireStateChangeTimeout(stream observer.Stream) {
+	timer := time.NewTimer(time.Millisecond * 100)
+	defer timer.Stop()
+	select {
+	case <-stream.Changes():
+		s.FailNow("expected no state change")
+	case <-timer.C:
 	}
-	s.r.state = observer.NewProperty(state)
-
-	// Cert is brand new
-	s.Assert().False(s.r.shouldRotate())
-
-	// Cert that's almost expired
-	temp.NotBefore = time.Now().Add(-1 * time.Hour)
-	temp.NotAfter = time.Now().Add(1 * time.Minute)
-	badCert, _, err := util.SelfSign(temp)
-	s.Require().NoError(err)
-
-	state.SVID = badCert
-	s.r.state = observer.NewProperty(state)
-	s.Assert().True(s.r.shouldRotate())
-}
-
-func (s *RotatorTestSuite) TestRotateSVID() {
-	cert, _, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
-	stream := s.r.Subscribe()
-	s.expectSVIDRotation(cert)
-	err = s.r.rotateSVID(ctx)
-	s.Assert().NoError(err)
-	s.Require().True(stream.HasNext())
-
-	state := stream.Next().(State)
-	s.Assert().True(cert.Equal(state.SVID))
-}
-
-// expectSVIDRotation sets the appropriate expectations for an SVID rotation, and returns
-// the the provided certificate to the CA caller
-func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
-	signedCert := &ca.SignCsrResponse{
-		SignedCertificate: cert.Raw,
-	}
-
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(signedCert, nil)
 }

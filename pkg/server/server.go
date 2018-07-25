@@ -2,14 +2,18 @@ package server
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
 	"net/url"
+	"os"
+	"path"
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	common "github.com/spiffe/spire/pkg/common/catalog"
@@ -36,6 +40,9 @@ type Config struct {
 	// Address of the HTTP SPIRE server
 	BindHTTPAddress *net.TCPAddr
 
+	// Directory to store runtime data
+	DataDir string
+
 	// Trust domain
 	TrustDomain url.URL
 
@@ -56,6 +63,16 @@ type Config struct {
 
 	// Array of profiles names that will be generated on each profiling tick.
 	ProfilingNames []string
+
+	// SVIDTTL is default time-to-live for SVIDs
+	SVIDTTL time.Duration
+
+	// CATTL is the time-to-live for the server CA. This only applies to
+	// self-signed CA certificates, otherwise it is up to the upstream CA.
+	CATTL time.Duration
+
+	// CASubject is the subject used in the CA certificate
+	CASubject pkix.Name
 }
 
 type Server struct {
@@ -82,6 +99,12 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) run(ctx context.Context) (err error) {
+	// create the data directory if needed
+	s.config.Log.Infof("data directory: %q", s.config.DataDir)
+	if err := os.MkdirAll(s.config.DataDir, 0755); err != nil {
+		return err
+	}
+
 	if s.config.ProfilingEnabled {
 		stopProfiling := s.setupProfiling(ctx)
 		defer stopProfiling()
@@ -102,12 +125,14 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	svidRotator, err := s.newSVIDRotator(ctx, cat)
+	serverCA := caManager.CA()
+
+	svidRotator, err := s.newSVIDRotator(ctx, serverCA)
 	if err != nil {
 		return err
 	}
 
-	endpointsServer := s.newEndpointsServer(cat, svidRotator)
+	endpointsServer := s.newEndpointsServer(cat, svidRotator, serverCA)
 
 	err = util.RunTasks(ctx,
 		caManager.Run,
@@ -187,11 +212,15 @@ func (s *Server) newCatalog() *catalog.ServerCatalog {
 }
 
 func (s *Server) newCAManager(ctx context.Context, catalog catalog.Catalog) (ca.Manager, error) {
-	caManager := ca.New(&ca.Config{
+	caManager := ca.NewManager(&ca.ManagerConfig{
 		Catalog:        catalog,
 		TrustDomain:    s.config.TrustDomain,
 		Log:            s.config.Log.WithField("subsystem_name", "ca_manager"),
 		UpstreamBundle: s.config.UpstreamBundle,
+		SVIDTTL:        s.config.SVIDTTL,
+		CATTL:          s.config.CATTL,
+		CASubject:      s.config.CASubject,
+		CertsPath:      s.caCertsPath(),
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err
@@ -199,9 +228,9 @@ func (s *Server) newCAManager(ctx context.Context, catalog catalog.Catalog) (ca.
 	return caManager, nil
 }
 
-func (s *Server) newSVIDRotator(ctx context.Context, catalog catalog.Catalog) (svid.Rotator, error) {
+func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA) (svid.Rotator, error) {
 	svidRotator := svid.NewRotator(&svid.RotatorConfig{
-		Catalog:     catalog,
+		ServerCA:    serverCA,
 		Log:         s.config.Log.WithField("subsystem_name", "svid_rotator"),
 		TrustDomain: s.config.TrustDomain,
 	})
@@ -211,13 +240,18 @@ func (s *Server) newSVIDRotator(ctx context.Context, catalog catalog.Catalog) (s
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Rotator) endpoints.Server {
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Rotator, serverCA ca.ServerCA) endpoints.Server {
 	return endpoints.New(&endpoints.Config{
 		GRPCAddr:    s.config.BindAddress,
 		HTTPAddr:    s.config.BindHTTPAddress,
 		SVIDStream:  svidRotator.Subscribe(),
 		TrustDomain: s.config.TrustDomain,
 		Catalog:     catalog,
+		ServerCA:    serverCA,
 		Log:         s.config.Log.WithField("subsystem_name", "endpoints"),
 	})
+}
+
+func (s *Server) caCertsPath() string {
+	return path.Join(s.config.DataDir, "certs.json")
 }

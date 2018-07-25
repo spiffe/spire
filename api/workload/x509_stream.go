@@ -42,6 +42,7 @@ func (x *x509Stream) listen() error {
 	bo := newBackoff(x.c.Timeout)
 
 	x.handler.start()
+	defer x.handler.stop()
 
 	for {
 		x.wlClient, err = x.newClient()
@@ -209,8 +210,11 @@ func (x *x509Stream) goAgain(bo *backoff) bool {
 		return false
 	}
 
+	timer := bo.timer()
+	defer timer.Stop()
+
 	select {
-	case <-bo.ticker():
+	case <-timer.C:
 		return true
 	case <-x.stopChan:
 		return false

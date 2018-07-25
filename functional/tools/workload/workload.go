@@ -13,8 +13,6 @@ import (
 	workload "github.com/spiffe/spire/proto/api/workload"
 )
 
-const cacheBusyRetrySeconds = 10
-
 // Workload is the component that consumes Workload API and renews certs
 type Workload struct {
 	workloadClient        workload.SpiffeWorkloadAPIClient
@@ -40,6 +38,7 @@ func (w *Workload) RunDaemon(ctx context.Context) error {
 
 	// Create timer for timeout
 	timeoutTimer := time.NewTimer(time.Second * time.Duration(w.timeout))
+	defer timeoutTimer.Stop()
 
 	stream, err := w.workloadClient.FetchX509SVID(ctx, &workload.X509SVIDRequest{})
 	if err != nil {

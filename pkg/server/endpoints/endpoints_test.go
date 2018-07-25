@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"net"
 	"net/url"
@@ -14,15 +15,12 @@ import (
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
-	"github.com/spiffe/spire/test/mock/proto/server/ca"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	tomb "gopkg.in/tomb.v2"
 
 	"google.golang.org/grpc"
 )
@@ -39,15 +37,14 @@ type EndpointsTestSuite struct {
 	suite.Suite
 	ctrl *gomock.Controller
 
-	ca *mock_ca.MockServerCA
 	ds *mock_datastore.MockDataStore
 
-	e *endpoints
+	svidState observer.Property
+	e         *endpoints
 }
 
 func (s *EndpointsTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
-	s.ca = mock_ca.NewMockServerCA(s.ctrl)
 	s.ds = mock_datastore.NewMockDataStore(s.ctrl)
 
 	log, _ := test.NewNullLogger()
@@ -58,13 +55,13 @@ func (s *EndpointsTestSuite) SetupTest() {
 	}
 
 	catalog := fakeservercatalog.New()
-	catalog.SetCAs(s.ca)
 	catalog.SetDataStores(s.ds)
 
+	s.svidState = observer.NewProperty(svid.State{})
 	c := &Config{
 		GRPCAddr:    &net.TCPAddr{IP: ip, Port: 8000},
 		HTTPAddr:    &net.TCPAddr{IP: ip, Port: 8001},
-		SVIDStream:  observer.NewProperty(svid.State{}).Observe(),
+		SVIDStream:  s.svidState.Observe(),
 		TrustDomain: td,
 		Catalog:     catalog,
 		Log:         log,
@@ -91,14 +88,6 @@ func (s *EndpointsTestSuite) TestRegisterRegistrationAPI() {
 }
 
 func (s *EndpointsTestSuite) TestListenAndServe() {
-	// Expectations
-	cert, _, err := util.LoadSVIDFixture()
-	require.NoError(s.T(), err)
-	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
-	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
-
 	ctx, cancel := context.WithCancel(ctx)
 	errChan := make(chan error)
 	go func() { errChan <- s.e.ListenAndServe(ctx) }()
@@ -122,14 +111,6 @@ func (s *EndpointsTestSuite) TestListenAndServe() {
 }
 
 func (s *EndpointsTestSuite) TestGRPCHook() {
-	// Set all expectations for running gRPC server
-	cert, _, err := util.LoadSVIDFixture()
-	require.NoError(s.T(), err)
-	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
-	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
-
 	snitchChan := make(chan struct{}, 1)
 	hook := func(g *grpc.Server) error {
 		snitchChan <- struct{}{}
@@ -142,7 +123,7 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 
 	select {
 	case <-snitchChan:
-	case <-time.NewTicker(5 * time.Second).C:
+	case <-time.NewTimer(5 * time.Second).C:
 		s.T().Error("grpc hook did not fire")
 	}
 
@@ -150,14 +131,6 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 }
 
 func (s *EndpointsTestSuite) TestGRPCHookFailure() {
-	// Set all expectations for running gRPC server
-	cert, _, err := util.LoadSVIDFixture()
-	require.NoError(s.T(), err)
-	csrResp := &ca.SignCsrResponse{SignedCertificate: cert.Raw}
-	certResp := &ca.FetchCertificateResponse{StoredIntermediateCert: cert.Raw}
-	s.ca.EXPECT().SignCsr(gomock.Any(), gomock.Any()).Return(csrResp, nil)
-	s.ca.EXPECT().FetchCertificate(gomock.Any(), gomock.Any()).Return(certResp, nil)
-
 	hook := func(_ *grpc.Server) error { return errors.New("i'm an error") }
 	s.e.c.GRPCHook = hook
 
@@ -197,32 +170,42 @@ func (s *EndpointsTestSuite) TestHTTPServerConfig() {
 }
 
 func (s *EndpointsTestSuite) TestSVIDObserver() {
-	state := observer.NewProperty(svid.State{})
-	s.e.c.SVIDStream = state.Observe()
-
 	ctx, cancel := context.WithCancel(ctx)
-	t := new(tomb.Tomb)
-	defer func() {
-		cancel()
-		s.Require().NoError(t.Wait())
+	defer cancel()
+
+	// assert there is no SVID in the current state
+	state := s.e.getSVIDState()
+	s.Require().Nil(state.SVID)
+
+	go func() {
+		s.e.runSVIDObserver(ctx)
 	}()
-	t.Go(func() error {
-		return s.e.runSVIDObserver(ctx)
-	})
 
-	cert, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-	svid := svid.State{
-		SVID: cert,
-		Key:  key,
+	// update the SVID property
+	expectedState := svid.State{
+		SVID: &x509.Certificate{Subject: pkix.Name{CommonName: "COMMONNAME"}},
 	}
-	state.Update(svid)
+	s.svidState.Update(expectedState)
 
-	time.Sleep(1 * time.Millisecond)
-	s.e.mtx.RLock()
-	defer s.e.mtx.RUnlock()
-	s.Assert().Equal(cert, s.e.svid)
-	s.Assert().Equal(key, s.e.svidKey)
+	// wait until the handler detects the change and updates the SVID
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	ticker := time.NewTicker(time.Millisecond * 50)
+	defer ticker.Stop()
+checkLoop:
+	for {
+		select {
+		case <-ticker.C:
+			actualState := s.e.getSVIDState()
+			if actualState.SVID == nil {
+				continue
+			}
+			s.Require().Equal(expectedState, actualState)
+			break checkLoop
+		case <-timer.C:
+			s.FailNow("timed out waiting for SVID state")
+		}
+	}
 }
 
 // expectBundleLookup sets datastore expectations for CA bundle lookups, and returns the served

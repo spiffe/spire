@@ -44,7 +44,6 @@ type NodeAttestorTestSuite struct {
 	keyManager   *mock_keymanager.MockKeyManager
 	nodeClient   *mock_node.MockNodeClient
 	config       *Config
-	expectation  *node.SvidUpdate
 }
 
 func (s *NodeAttestorTestSuite) SetupTest() {
@@ -247,11 +246,11 @@ func (s *NodeAttestorTestSuite) setAttestResponse(challenges []challengeResponse
 		}, nil)
 	}
 	stream.EXPECT().Recv().Return(&node.AttestResponse{
-		SvidUpdate: &node.SvidUpdate{
-			Svids: map[string]*node.Svid{
-				"spiffe://example.com/spire/agent/join_token/foobar": &node.Svid{
-					SvidCert: svid.Raw,
-					Ttl:      300,
+		SvidUpdate: &node.X509SVIDUpdate{
+			Svids: map[string]*node.X509SVID{
+				"spiffe://example.com/spire/agent/join_token/foobar": &node.X509SVID{
+					Cert:      svid.Raw,
+					ExpiresAt: svid.NotAfter.Unix(),
 				}},
 		}}, nil)
 	stream.EXPECT().CloseSend()
