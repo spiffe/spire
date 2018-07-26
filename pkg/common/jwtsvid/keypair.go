@@ -38,7 +38,6 @@ func CreateCertificateTemplate(parentCert *x509.Certificate) *x509.Certificate {
 		SignatureAlgorithm:    x509.ECDSAWithSHA256,
 		BasicConstraintsValid: true,
 		IsCA:      false,
-		KeyUsage:  x509.KeyUsageDigitalSignature,
 		NotBefore: parentCert.NotBefore,
 		NotAfter:  parentCert.NotAfter,
 		URIs:      parentCert.URIs,
@@ -54,6 +53,9 @@ func ValidateSigningCertificate(cert *x509.Certificate) error {
 	}
 	if time.Now().After(cert.NotAfter) {
 		return errors.New("signing certificate is expired")
+	}
+	if cert.KeyUsage != 0 {
+		return errors.New("signing certificate cannot have any key usage")
 	}
 
 	// TODO: validate that the signing certificate has the special ExtKeyUsage OID

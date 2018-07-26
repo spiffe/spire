@@ -30,7 +30,7 @@ qQDuoXqa8i3YOPk5fLib4ORzqD9NJFcrKjI+LLtipQe9yu/eY1K0yhBa
 -----END PRIVATE KEY-----
 `)
 
-	expiredKeyPEM = []byte(`-----BEGIN PRIVATE KEY-----
+	otherKeyPEM = []byte(`-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgNp9vQd+cdlQhou4s
 6WFzVoRLAJP5pnWDISjqlvVIC02hRANCAASRSf3EdTX910uhqorzehrqi9I48rj5
 cM3DIfiWwosiykmhI0BmwtTWVD0kIFm7Mhf5XXP03Dj76UjImTLiQduQ
@@ -45,21 +45,15 @@ func TestSimpleToken(t *testing.T) {
 type SimpleTokenSuite struct {
 	suite.Suite
 
-	cert          *x509.Certificate
-	key           *ecdsa.PrivateKey
-	bundle        SimpleTrustBundle
-	expiredCert   *x509.Certificate
-	expiredKey    *ecdsa.PrivateKey
-	expiredBundle SimpleTrustBundle
+	cert   *x509.Certificate
+	key    *ecdsa.PrivateKey
+	bundle SimpleTrustBundle
 }
 
 func (s *SimpleTokenSuite) SetupTest() {
 	s.key = s.loadKey(keyPEM)
 	s.cert = s.signCert(s.key, createCertificateTemplate(time.Hour))
 	s.bundle = NewSimpleTrustBundle("example.org", []*x509.Certificate{s.cert})
-	s.expiredKey = s.loadKey(expiredKeyPEM)
-	s.expiredCert = s.signCert(s.expiredKey, createCertificateTemplate(-time.Hour))
-	s.expiredBundle = NewSimpleTrustBundle("example.org", []*x509.Certificate{s.expiredCert})
 }
 
 func (s *SimpleTokenSuite) loadKey(pemBytes []byte) *ecdsa.PrivateKey {
@@ -107,21 +101,24 @@ func (s *SimpleTokenSuite) TestSignWithNoExpiration() {
 }
 
 func (s *SimpleTokenSuite) TestSignMismatchedKeypair() {
-	_, err := SignSimpleToken(fakeSpiffeID, fakeAudience, time.Now(), s.expiredKey, s.cert)
+	key := s.loadKey(otherKeyPEM)
+	cert := s.signCert(key, createCertificateTemplate(time.Hour))
+
+	_, err := SignSimpleToken(fakeSpiffeID, fakeAudience, time.Now(), key, s.cert)
 	s.Require().EqualError(err, "certificate does not match signing key")
 
-	_, err = SignSimpleToken(fakeSpiffeID, fakeAudience, time.Now(), s.key, s.expiredCert)
+	_, err = SignSimpleToken(fakeSpiffeID, fakeAudience, time.Now(), s.key, cert)
 	s.Require().EqualError(err, "certificate does not match signing key")
 }
 
 func (s *SimpleTokenSuite) TestSignInvalidSpiffeID() {
 	// missing ID
 	_, err := SignSimpleToken("", fakeAudience, time.Now(), s.key, s.cert)
-	s.requireErrorContains(err, "is not a valid workload SPIFFE ID: SPIFFE ID is empty")
+	s.requireErrorContains(err, "is not a valid SPIFFE ID: SPIFFE ID is empty")
 
-	// only workload spiffe ID's are acceptable subjects
-	_, err = SignSimpleToken("spiffe://example.org", fakeAudience, time.Now(), s.key, s.cert)
-	s.requireErrorContains(err, "is not a valid workload SPIFFE ID: path is empty")
+	// not a spiffe ID
+	_, err = SignSimpleToken("sparfe://example.org", fakeAudience, time.Now(), s.key, s.cert)
+	s.requireErrorContains(err, "is not a valid SPIFFE ID: invalid scheme")
 }
 
 func (s *SimpleTokenSuite) TestSignNoAudience() {
@@ -223,19 +220,34 @@ func (s *SimpleTokenSuite) TestValidateCertificateNotFound() {
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
-	claims, err := ValidateSimpleToken(ctx, token, s.expiredBundle, fakeAudience[0])
+	bundle := NewSimpleTrustBundle("example.org", nil)
+	claims, err := ValidateSimpleToken(ctx, token, bundle, fakeAudience[0])
 	s.Require().EqualError(err, "signing certificate not found in trust bundle")
 	s.Require().Nil(claims)
 }
 
-func (s *SimpleTokenSuite) TestValidateCertificateExpired() {
-	token, err := SignSimpleToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), s.expiredKey, s.expiredCert)
-	s.Require().NoError(err)
-	s.Require().NotEmpty(token)
+func (s *SimpleTokenSuite) TestValidateCertificateIsBadOrExpired() {
+	testBadCert := func(tmpl *x509.Certificate, expectedErr string) {
+		cert := s.signCert(s.key, tmpl)
+		bundle := NewSimpleTrustBundle("example.org", []*x509.Certificate{cert})
+		token, err := SignSimpleToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), s.key, cert)
+		s.Require().NoError(err)
+		s.Require().NotEmpty(token)
+		claims, err := ValidateSimpleToken(ctx, token, bundle, fakeAudience[0])
+		s.Require().EqualError(err, expectedErr)
+		s.Require().Nil(claims)
+	}
 
-	claims, err := ValidateSimpleToken(ctx, token, s.expiredBundle, fakeAudience[0])
-	s.Require().EqualError(err, "signing certificate is expired")
-	s.Require().Nil(claims)
+	tmpl := createCertificateTemplate(time.Hour)
+	tmpl.IsCA = true
+	testBadCert(tmpl, "signing certificate cannot be a CA")
+
+	tmpl = createCertificateTemplate(-time.Hour)
+	testBadCert(tmpl, "signing certificate is expired")
+
+	tmpl = createCertificateTemplate(time.Hour)
+	tmpl.KeyUsage = x509.KeyUsageDigitalSignature
+	testBadCert(tmpl, "signing certificate cannot have any key usage")
 }
 
 func (s *SimpleTokenSuite) requireErrorContains(err error, contains string) {

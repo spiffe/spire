@@ -221,7 +221,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	peerCert, err := h.getCertFromCtx(ctx)
 	if err != nil {
 		h.c.Log.Error(err)
-		return nil, errors.New("node SVID is required for this request")
+		return nil, errors.New("client SVID is required for this request")
 	}
 
 	// validate request parameters
@@ -246,22 +246,22 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, err
 	}
 
-	var regEntry *common.RegistrationEntry
-	for _, candidateEntry := range regEntries {
-		if candidateEntry.SpiffeId == req.Jsr.SpiffeId {
-			regEntry = candidateEntry
-			break
+	if agentID != req.Jsr.SpiffeId {
+		found := false
+		for _, candidateEntry := range regEntries {
+			if candidateEntry.SpiffeId == req.Jsr.SpiffeId {
+				found = true
+				break
+			}
+		}
+		if !found {
+			err := fmt.Errorf("caller %q is not authorized for %q", agentID, req.Jsr.SpiffeId)
+			h.c.Log.Error(err)
+			return nil, err
 		}
 	}
 
-	if regEntry == nil {
-		err := fmt.Errorf("agent %q is not authorized for workload %q",
-			agentID, req.Jsr.SpiffeId)
-		h.c.Log.Error(err)
-		return nil, err
-	}
-
-	token, err := h.c.ServerCA.SignJWTSVID(ctx, req.Jsr, time.Duration(regEntry.Ttl)*time.Second)
+	token, err := h.c.ServerCA.SignJWTSVID(ctx, req.Jsr)
 	if err != nil {
 		h.c.Log.Error(err)
 		return nil, err

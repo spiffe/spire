@@ -51,7 +51,7 @@ func (s *CATestSuite) SetupTest() {
 	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, "x509-CA-FOO", keymanager.KeyAlgorithm_ECDSA_P256)
 	s.Require().NoError(err)
 
-	x509CA, err := SelfSignServerCACertificate(x509CASigner, "example.org", pkix.Name{}, time.Now(), time.Now().Add(time.Minute*2))
+	x509CA, err := SelfSignServerCACertificate(x509CASigner, "example.org", pkix.Name{}, s.now, s.now.Add(time.Minute*10))
 	s.Require().NoError(err)
 
 	jwtSignerPublicKey, err := cryptoutil.GenerateKey(ctx, km, "JWT-Signer-FOO", keymanager.KeyAlgorithm_ECDSA_P256)
@@ -102,10 +102,10 @@ func (s *CATestSuite) TestSignX509SVIDUsesTTLIfSpecified() {
 }
 
 func (s *CATestSuite) TestSignX509SVIDCapsTTLToKeypairTTL() {
-	cert, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 3*time.Minute)
+	cert, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), time.Hour)
 	s.Require().NoError(err)
 	s.Require().Equal(s.now.Add(-backdate), cert.NotBefore)
-	s.Require().Equal(s.now.Add(2*time.Minute), cert.NotAfter)
+	s.Require().Equal(s.now.Add(10*time.Minute), cert.NotAfter)
 }
 
 func (s *CATestSuite) TestSignX509SVIDValidatesCSR() {
@@ -124,20 +124,20 @@ func (s *CATestSuite) TestSignX509SVIDIncrementsSerialNumber() {
 
 func (s *CATestSuite) TestNoJWTKeypairSet() {
 	ca := newServerCA(s.ca.c)
-	_, err := ca.SignJWTSVID(ctx, s.generateJSR("example.org"), 0)
+	_, err := ca.SignJWTSVID(ctx, s.generateJSR("example.org", 0))
 	s.Require().EqualError(err, "no JWT-SVID keypair available")
 }
 
 func (s *CATestSuite) TestSignJWTSVIDUsesDefaultTTLIfTTLUnspecified() {
-	token, err := s.ca.SignJWTSVID(ctx, s.generateJSR("example.org"), 0)
+	token, err := s.ca.SignJWTSVID(ctx, s.generateJSR("example.org", 0))
 	s.Require().NoError(err)
 	expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
-	s.Require().Equal(s.now.Add(time.Minute), expiresAt)
+	s.Require().Equal(s.now.Add(DefaultJWTSVIDTTL), expiresAt)
 }
 
 func (s *CATestSuite) TestSignJWTSVIDUsesTTLIfSpecified() {
-	token, err := s.ca.SignJWTSVID(ctx, s.generateJSR("example.org"), time.Minute+time.Second)
+	token, err := s.ca.SignJWTSVID(ctx, s.generateJSR("example.org", time.Minute+time.Second))
 	s.Require().NoError(err)
 	expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
@@ -145,22 +145,22 @@ func (s *CATestSuite) TestSignJWTSVIDUsesTTLIfSpecified() {
 }
 
 func (s *CATestSuite) TestSignJWTSVIDCapsTTLToKeypairTTL() {
-	token, err := s.ca.SignJWTSVID(ctx, s.generateJSR("example.org"), 3*time.Minute)
+	token, err := s.ca.SignJWTSVID(ctx, s.generateJSR("example.org", time.Hour))
 	s.Require().NoError(err)
 	expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
-	s.Require().Equal(s.now.Add(2*time.Minute), expiresAt)
+	s.Require().Equal(s.now.Add(10*time.Minute), expiresAt)
 }
 
 func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
 	// spiffe id for wrong trust domain
-	_, err := s.ca.SignJWTSVID(ctx, s.generateJSR("foo.com"), 0)
+	_, err := s.ca.SignJWTSVID(ctx, s.generateJSR("foo.com", 0))
 	s.Require().EqualError(err, `"spiffe://foo.com/foo" does not belong to trust domain "example.org"`)
 
 	// audience is required
-	noAudience := s.generateJSR("example.org")
+	noAudience := s.generateJSR("example.org", 0)
 	noAudience.Audience = nil
-	_, err = s.ca.SignJWTSVID(ctx, noAudience, 0)
+	_, err = s.ca.SignJWTSVID(ctx, noAudience)
 	s.Require().EqualError(err, "unable to sign JWT-SVID: audience is required")
 }
 
@@ -172,12 +172,13 @@ func (s *CATestSuite) generateCSR(trustDomain string) []byte {
 	return csr
 }
 
-func (s *CATestSuite) generateJSR(trustDomain string) *node.JSR {
+func (s *CATestSuite) generateJSR(trustDomain string, ttl time.Duration) *node.JSR {
 	workloadId := makeSpiffeID(trustDomain)
 	workloadId.Path = "foo"
 	return &node.JSR{
 		SpiffeId: workloadId.String(),
 		Audience: []string{"AUDIENCE"},
+		Ttl:      int32(ttl / time.Second),
 	}
 }
 

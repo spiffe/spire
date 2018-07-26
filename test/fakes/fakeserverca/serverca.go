@@ -82,7 +82,8 @@ func (c *ServerCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Dur
 	return cert, nil
 }
 
-func (c *ServerCA) SignJWTSVID(ctx context.Context, jsr *node.JSR, ttl time.Duration) (string, error) {
+func (c *ServerCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
+	ttl := time.Duration(jsr.Ttl) * time.Second
 	if ttl <= 0 {
 		ttl = c.defaultTTL
 	}

@@ -19,6 +19,10 @@ import (
 	"github.com/spiffe/spire/proto/api/node"
 )
 
+const (
+	DefaultJWTSVIDTTL = time.Minute * 5
+)
+
 type serverCAConfig struct {
 	Catalog     catalog.Catalog
 	TrustDomain url.URL
@@ -27,7 +31,7 @@ type serverCAConfig struct {
 
 type ServerCA interface {
 	SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) (*x509.Certificate, error)
-	SignJWTSVID(ctx context.Context, jsr *node.JSR, ttl time.Duration) (string, error)
+	SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error)
 }
 
 type serverCA struct {
@@ -89,7 +93,7 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 	return x509util.CreateCertificate(ctx, km, template, kp.x509CA, kp.X509CAKeyId(), template.PublicKey)
 }
 
-func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR, ttl time.Duration) (string, error) {
+func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 	kp := ca.getKeypairSet()
 	if kp == nil {
 		return "", errors.New("no JWT-SVID keypair available")
@@ -99,10 +103,11 @@ func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR, ttl time.Dur
 		return "", err
 	}
 
+	ttl := time.Duration(jsr.Ttl) * time.Second
 	if ttl <= 0 {
-		ttl = ca.c.DefaultTTL
+		ttl = DefaultJWTSVIDTTL
 	}
-	expiresAt := time.Now().Add(ttl)
+	expiresAt := ca.hooks.now().Add(ttl)
 	if expiresAt.After(kp.jwtSigner.NotAfter) {
 		expiresAt = kp.jwtSigner.NotAfter
 	}

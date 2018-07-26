@@ -25,7 +25,7 @@ func SignSimpleToken(spiffeID string, audience []string, expires time.Time, sign
 		return "", err
 	}
 
-	if err := idutil.ValidateSpiffeID(spiffeID, idutil.AllowAnyTrustDomainWorkload()); err != nil {
+	if err := idutil.ValidateSpiffeID(spiffeID, idutil.AllowAny()); err != nil {
 		return "", err
 	}
 
@@ -33,10 +33,6 @@ func SignSimpleToken(spiffeID string, audience []string, expires time.Time, sign
 	if expires.IsZero() {
 		return "", errors.New("expiration is required")
 	}
-	if !cert.NotAfter.IsZero() && expires.After(cert.NotAfter) {
-		expires = cert.NotAfter
-	}
-
 	if len(audience) == 0 {
 		return "", errors.New("audience is required")
 	}

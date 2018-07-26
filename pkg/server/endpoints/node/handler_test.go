@@ -676,7 +676,7 @@ func TestFetchJWTSVID(t *testing.T) {
 
 	// no peer certificate on context
 	resp, err := handler.FetchJWTSVID(context.Background(), &node.FetchJWTSVIDRequest{})
-	require.EqualError(t, err, "node SVID is required for this request")
+	require.EqualError(t, err, "client SVID is required for this request")
 	require.Nil(t, resp)
 
 	// missing JSR
@@ -707,10 +707,22 @@ func TestFetchJWTSVID(t *testing.T) {
 			Audience: []string{"AUDIENCE"},
 		},
 	})
-	require.EqualError(t, err, `agent "spiffe://example.org/spire/agent/join_token/token" is not authorized for workload "spiffe://example.org/db"`)
+	require.EqualError(t, err, `caller "spiffe://example.org/spire/agent/join_token/token" is not authorized for "spiffe://example.org/db"`)
 	require.Nil(t, resp)
 
-	// add in a registration entry
+	// authorized for ones self
+	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: "spiffe://example.org/spire/agent/join_token/token",
+			Audience: []string{"AUDIENCE"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotEmpty(t, resp.Svid.Token)
+	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
+
+	// authorized against a registration entry
 	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
 		Jsr: &node.JSR{
 			SpiffeId: "spiffe://example.org/blog",
