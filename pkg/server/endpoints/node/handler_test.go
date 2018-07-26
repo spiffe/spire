@@ -46,7 +46,6 @@ var (
 
 type HandlerTestSuite struct {
 	suite.Suite
-	t                *testing.T
 	ctrl             *gomock.Controller
 	handler          *Handler
 	mockDataStore    *mock_datastore.MockDataStore

@@ -44,7 +44,6 @@ type NodeAttestorTestSuite struct {
 	keyManager   *mock_keymanager.MockKeyManager
 	nodeClient   *mock_node.MockNodeClient
 	config       *Config
-	expectation  *node.X509SVIDUpdate
 }
 
 func (s *NodeAttestorTestSuite) SetupTest() {

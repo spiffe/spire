@@ -123,7 +123,7 @@ func (s *EndpointsTestSuite) TestGRPCHook() {
 
 	select {
 	case <-snitchChan:
-	case <-time.NewTicker(5 * time.Second).C:
+	case <-time.NewTimer(5 * time.Second).C:
 		s.T().Error("grpc hook did not fire")
 	}
 

@@ -13,8 +13,6 @@ type backoff struct {
 	mtx     *sync.Mutex
 	current time.Duration
 	timeout time.Duration
-
-	lastErr error
 }
 
 // newBackoff creates a new backoff struct with the requested timeout applied.
@@ -26,10 +24,10 @@ func newBackoff(timeout time.Duration) *backoff {
 	}
 }
 
-// ticker returns a tick channel configured for with the current backoff
+// timer returns a timer configured for with the current backoff
 // delay. Consumers can use this to wait for the appropriate period of time.
-func (b *backoff) ticker() <-chan time.Time {
-	return time.NewTicker(b.next()).C
+func (b *backoff) timer() *time.Timer {
+	return time.NewTimer(b.next())
 }
 
 // expired returns true if the backoff timer has exceeded the timeout value.
