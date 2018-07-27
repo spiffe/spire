@@ -19,7 +19,10 @@ import (
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
+	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
 	"github.com/spiffe/spire/test/mock/common/context"
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
@@ -643,4 +646,91 @@ func getFakePeer() *peer.Peer {
 
 func durationFromTTL(ttl int32) time.Duration {
 	return time.Duration(ttl) * time.Second
+}
+
+func TestFetchJWTSVID(t *testing.T) {
+	ctx := peer.NewContext(context.Background(), getFakePeer())
+	log, _ := test.NewNullLogger()
+
+	dataStore := fakedatastore.New()
+	dataStore.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+		RegisteredEntry: &node.RegistrationEntry{
+			ParentId: "spiffe://example.org/spire/agent/join_token/token",
+			SpiffeId: "spiffe://example.org/blog",
+			Ttl:      1,
+		},
+	})
+
+	upstreamCA := fakeupstreamca.New(t, "localhost")
+	serverCA := fakeserverca.New(t, "example.org", nil, time.Minute)
+
+	catalog := fakeservercatalog.New()
+	catalog.SetUpstreamCAs(upstreamCA)
+	catalog.SetDataStores(dataStore)
+
+	handler := NewHandler(HandlerConfig{
+		Catalog:  catalog,
+		ServerCA: serverCA,
+		Log:      log,
+	})
+
+	// no peer certificate on context
+	resp, err := handler.FetchJWTSVID(context.Background(), &node.FetchJWTSVIDRequest{})
+	require.EqualError(t, err, "client SVID is required for this request")
+	require.Nil(t, resp)
+
+	// missing JSR
+	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{})
+	require.EqualError(t, err, "request missing JSR")
+	require.Nil(t, resp)
+
+	// missing SPIFFE ID
+	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{},
+	})
+	require.EqualError(t, err, "request missing SPIFFE ID")
+	require.Nil(t, resp)
+
+	// missing audiences
+	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: "spiffe://example.org/blog",
+		},
+	})
+	require.EqualError(t, err, "request missing audience")
+	require.Nil(t, resp)
+
+	// not authorized for workload
+	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: "spiffe://example.org/db",
+			Audience: []string{"AUDIENCE"},
+		},
+	})
+	require.EqualError(t, err, `caller "spiffe://example.org/spire/agent/join_token/token" is not authorized for "spiffe://example.org/db"`)
+	require.Nil(t, resp)
+
+	// authorized for ones self
+	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: "spiffe://example.org/spire/agent/join_token/token",
+			Audience: []string{"AUDIENCE"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotEmpty(t, resp.Svid.Token)
+	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
+
+	// authorized against a registration entry
+	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: "spiffe://example.org/blog",
+			Audience: []string{"AUDIENCE"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotEmpty(t, resp.Svid.Token)
+	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
 }

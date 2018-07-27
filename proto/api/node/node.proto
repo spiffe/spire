@@ -41,6 +41,10 @@ message JSR {
 
     // List of intended audience
     repeated string audience = 2;
+
+    // Time-to-live in seconds. If unspecified the JWT SVID will be assigned
+    // a default time-to-live by the server.
+    int32 ttl = 3;
 }
 
 // JWTSVID is a signed JWT-SVID with fields lifted out for convenience.

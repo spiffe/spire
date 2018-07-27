@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/proto/api/node"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +31,7 @@ type ServerCA struct {
 	defaultTTL  time.Duration
 	nowFn       func() time.Time
 	sn          int64
-	key         crypto.PrivateKey
+	signer      crypto.Signer
 	cert        *x509.Certificate
 }
 
@@ -51,7 +53,7 @@ func New(t *testing.T, trustDomain string, nowFn func() time.Time, defaultTTL ti
 		trustDomain: trustDomain,
 		defaultTTL:  defaultTTL,
 		nowFn:       nowFn,
-		key:         key,
+		signer:      key,
 		cert:        cert,
 	}
 }
@@ -67,7 +69,7 @@ func (c *ServerCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Dur
 		return nil, err
 	}
 
-	certDER, err := x509.CreateCertificate(rand.Reader, template, c.cert, template.PublicKey, c.key)
+	certDER, err := x509.CreateCertificate(rand.Reader, template, c.cert, template.PublicKey, c.signer)
 	if err != nil {
 		return nil, err
 	}
@@ -78,4 +80,13 @@ func (c *ServerCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Dur
 	}
 
 	return cert, nil
+}
+
+func (c *ServerCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
+	ttl := time.Duration(jsr.Ttl) * time.Second
+	if ttl <= 0 {
+		ttl = c.defaultTTL
+	}
+	expiresAt := time.Now().Add(ttl)
+	return jwtsvid.SignSimpleToken(jsr.SpiffeId, jsr.Audience, expiresAt, c.signer, c.cert)
 }

@@ -53,7 +53,7 @@ func (s *KeyManagerSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOp
 	return s.SignContext(context.Background(), digest, opts)
 }
 
-func GenerateKeyAndSigner(ctx context.Context, km keymanager.KeyManager, keyId string, algorithm keymanager.KeyAlgorithm) (*KeyManagerSigner, error) {
+func GenerateKey(ctx context.Context, km keymanager.KeyManager, keyId string, algorithm keymanager.KeyAlgorithm) (crypto.PublicKey, error) {
 	resp, err := km.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
 		KeyId:        keyId,
 		KeyAlgorithm: algorithm,
@@ -67,6 +67,14 @@ func GenerateKeyAndSigner(ctx context.Context, km keymanager.KeyManager, keyId s
 	publicKey, err := x509.ParsePKIXPublicKey(resp.PublicKey.PkixData)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse public key pkix data: %v", err)
+	}
+	return publicKey, nil
+}
+
+func GenerateKeyAndSigner(ctx context.Context, km keymanager.KeyManager, keyId string, algorithm keymanager.KeyAlgorithm) (*KeyManagerSigner, error) {
+	publicKey, err := GenerateKey(ctx, km, keyId, algorithm)
+	if err != nil {
+		return nil, err
 	}
 	return NewKeyManagerSigner(km, keyId, publicKey), nil
 }

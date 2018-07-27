@@ -308,6 +308,7 @@ JSR is a JWT SVID signing request.
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | SPIFFE ID of the workload |
 | audience | [string](#string) | repeated | List of intended audience |
+| ttl | [int32](#int32) |  | Time-to-live in seconds. If unspecified the JWT SVID will be assigned a default time-to-live by the server. |
 
 
 
