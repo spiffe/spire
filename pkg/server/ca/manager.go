@@ -32,12 +32,24 @@ type manager struct {
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
-	if err := m.prepareNextCA(ctx); err != nil {
-		return fmt.Errorf("create ca certificate: %v", err)
+	caCert, err := m.loadCertificate(ctx)
+	if err != nil {
+		return fmt.Errorf("load ca certificate: %v", err)
 	}
 
-	if err := m.activateNextCA(ctx); err != nil {
-		return fmt.Errorf("activate ca certificate: %v", err)
+	if caCert == nil {
+		if err := m.prepareNextCA(ctx); err != nil {
+			return fmt.Errorf("create ca certificate: %v", err)
+		}
+
+		if err := m.activateNextCA(ctx); err != nil {
+			return fmt.Errorf("activate ca certificate: %v", err)
+		}
+	} else {
+		m.caCert = caCert
+		if err := m.caRotate(ctx); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -101,6 +113,26 @@ func (m *manager) caRotate(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (m *manager) loadCertificate(ctx context.Context) (*x509.Certificate, error) {
+	serverCA := m.c.Catalog.CAs()[0]
+
+	resp, err := serverCA.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StoredIntermediateCert == nil {
+		return nil, nil
+	}
+
+	caCert, err := x509.ParseCertificate(resp.StoredIntermediateCert)
+	if err != nil {
+		return nil, err
+	}
+
+	return caCert, nil
 }
 
 func (m *manager) prepareNextCA(ctx context.Context) error {

@@ -8,9 +8,10 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,60 +31,73 @@ var (
 )
 
 func TestMemory_Configure(t *testing.T) {
-	config := `{"trust_domain":"example.com", "key_size":2048}`
+	config := `{"trust_domain":"example.com"}`
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
 
-	m := &MemoryPlugin{
-		mtx: &sync.RWMutex{},
-	}
+	m := New()
 	resp, err := m.Configure(ctx, pluginConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, &spi.ConfigureResponse{}, resp)
 }
 
-func TestMemory_ConfigureParseHclError(t *testing.T) {
-	config := "'" ///This should throw and error on parsing.
+func TestMemory_ConfigureDecodeError(t *testing.T) {
+	config := `{"default_ttl": "foo"}` /// This should fail on decoding object
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
 	}
 
-	m := &MemoryPlugin{
-		mtx: &sync.RWMutex{},
-	}
-
+	m := New()
 	resp, err := m.Configure(ctx, pluginConfig)
-	expectedError := "At 1:1: illegal char"
-	expectedErrorList := []string{expectedError}
-
-	assert.Equal(t, err.Error(), expectedError)
-	assert.Equal(t, resp.GetErrorList(), expectedErrorList)
+	require.EqualError(t, err, "strconv.ParseInt: parsing \"foo\": invalid syntax")
+	require.Nil(t, resp)
 }
 
-func TestMemory_ConfigureDecodeObjectError(t *testing.T) {
-	config := `{"key_size": "foo"}` /// This should fail on decodeing object
-	pluginConfig := &spi.ConfigureRequest{
-		Configuration: config,
+func TestMemory_ConfigureWithKeypairPath(t *testing.T) {
+	m := New()
+
+	configure := func(name string) (*spi.ConfigureResponse, error) {
+		return m.Configure(ctx, &spi.ConfigureRequest{
+			Configuration: fmt.Sprintf(`{ "trust_domain":"example.com", "keypair_path":%q }`,
+				filepath.Join("_test_data", name)),
+		})
+	}
+	fetchCert := func() []byte {
+		resp, err := m.FetchCertificate(ctx, &ca.FetchCertificateRequest{})
+		require.NoError(t, err)
+		return resp.StoredIntermediateCert
 	}
 
-	m := &MemoryPlugin{
-		mtx: &sync.RWMutex{},
-	}
+	// assert configure succeeds when no keypair on disk and that no certificate
+	// is returned.
+	resp, err := configure("does-not-exist.pem")
+	assert.Nil(t, err)
+	assert.Equal(t, &spi.ConfigureResponse{}, resp)
+	assert.Empty(t, fetchCert())
 
-	resp, err := m.Configure(ctx, pluginConfig)
-	expectedError := "strconv.ParseInt: parsing \"foo\": invalid syntax"
-	expectedErrorList := []string{expectedError}
+	// assert configure fails when malformed keypair on disk
+	resp, err = configure("malformed-keypair.pem")
+	assert.EqualError(t, err, "missing CERTIFICATE block")
+	assert.Nil(t, resp)
 
-	assert.Equal(t, err.Error(), expectedError)
-	assert.Equal(t, resp.GetErrorList(), expectedErrorList)
+	// assert configure fails when the key and cert mismatch
+	resp, err = configure("mismatched-keypair.pem")
+	assert.EqualError(t, err, "certificate and key do not match")
+	assert.Nil(t, resp)
+
+	// assert configure succeeds when good keypair on disk
+	resp, err = configure("good-keypair.pem")
+	assert.Nil(t, err)
+	assert.Equal(t, &spi.ConfigureResponse{}, resp)
+	assert.NotEmpty(t, fetchCert())
 }
 
 func TestMemory_GetPluginInfo(t *testing.T) {
 	m := NewWithDefault()
-	res, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
+	resp, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
-	assert.NotNil(t, res)
+	require.NotNil(t, resp)
 }
 
 func TestMemory_GenerateCsr(t *testing.T) {
@@ -115,6 +130,29 @@ func TestMemory_LoadValidCertificate(t *testing.T) {
 			require.Equal(t, resp.StoredIntermediateCert, block.Bytes, file.Name())
 		}
 	}
+}
+
+func TestMemory_LoadCertificateWithKeypairPath(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "ca-memory-load-certificate-")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	keypairPath := filepath.Join(tmpDir, "keypair.pem")
+
+	m := New()
+	_, err = m.Configure(ctx, &spi.ConfigureRequest{
+		Configuration: fmt.Sprintf(`{ "trust_domain":"example.com", "keypair_path":%q }`, keypairPath),
+	})
+	require.NoError(t, err)
+
+	upstreamCA, err := fakeupstreamca.New("example.com")
+	require.NoError(t, err)
+	rotateServerCA(t, upstreamCA, m)
+
+	cert, key, err := loadKeypair(keypairPath)
+	require.NoError(t, err)
+	require.NotNil(t, cert)
+	require.NotNil(t, key)
 }
 
 func TestMemory_LoadInvalidCertificate(t *testing.T) {
@@ -202,6 +240,7 @@ func TestMemory_SignCsr(t *testing.T) {
 	assert.NotEmpty(t, wcert)
 
 	cert, err := x509.ParseCertificate(wcert.SignedCertificate)
+	require.NoError(t, err)
 	roots := getRoots(t, m)
 	_, err = cert.Verify(x509.VerifyOptions{Roots: roots})
 	require.NoError(t, err)
@@ -234,11 +273,14 @@ func TestMemory_SignCsrExpire(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, wcert)
 
-	// Wait for two seconds. The certificate expires.
-	time.Sleep(2 * time.Second)
+	// Verify as if two seconds had elapsed and assert that the certificate
+	// has expired.
 	cert, err := x509.ParseCertificate(wcert.SignedCertificate)
 	roots := getRoots(t, m)
-	_, err = cert.Verify(x509.VerifyOptions{Roots: roots})
+	_, err = cert.Verify(x509.VerifyOptions{
+		Roots:       roots,
+		CurrentTime: time.Now().Add(time.Second * 2),
+	})
 	assert.Error(t, err)
 }
 
@@ -296,10 +338,10 @@ func TestMemory_LoadCertificateInvalidCertFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	submitCSRResp.Cert = []byte{}
-	cert, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+	resp, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 
-	assert.Equal(t, "asn1: syntax error: sequence truncated", err.Error())
-	assert.Equal(t, &ca.LoadCertificateResponse{}, cert)
+	assert.EqualError(t, err, "unable to parse server CA certificate: asn1: syntax error: sequence truncated")
+	assert.Nil(t, resp)
 }
 
 func TestMemory_LoadCertificateTooManyCerts(t *testing.T) {
@@ -316,10 +358,10 @@ func TestMemory_LoadCertificateTooManyCerts(t *testing.T) {
 
 	oldCert := submitCSRResp.Cert
 	submitCSRResp.Cert = append(oldCert, oldCert...)
-	cert, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
+	resp, err := m.LoadCertificate(ctx, &ca.LoadCertificateRequest{SignedIntermediateCert: submitCSRResp.Cert})
 
-	assert.Equal(t, "asn1: syntax error: trailing data", err.Error())
-	assert.Equal(t, &ca.LoadCertificateResponse{}, cert)
+	assert.EqualError(t, err, "unable to parse server CA certificate: asn1: syntax error: trailing data")
+	assert.Nil(t, resp)
 }
 
 ///
@@ -393,6 +435,9 @@ func newUpCA(keyFilePath string, certFilePath string) (upstreamca.UpstreamCA, er
 	}
 
 	jsonConfig, err := json.Marshal(config)
+	if err != nil {
+		return nil, err
+	}
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: string(jsonConfig),
 	}
@@ -400,4 +445,17 @@ func newUpCA(keyFilePath string, certFilePath string) (upstreamca.UpstreamCA, er
 	m := upca.New()
 	_, err = m.Configure(ctx, pluginConfig)
 	return m, err
+}
+
+func rotateServerCA(t *testing.T, upstreamCA upstreamca.UpstreamCA, serverCA ca.ServerCA) {
+	genResp, err := serverCA.GenerateCsr(context.Background(), &ca.GenerateCsrRequest{})
+	require.NoError(t, err)
+	subResp, err := upstreamCA.SubmitCSR(context.Background(), &upstreamca.SubmitCSRRequest{
+		Csr: genResp.Csr,
+	})
+	require.NoError(t, err)
+	_, err = serverCA.LoadCertificate(context.Background(), &ca.LoadCertificateRequest{
+		SignedIntermediateCert: subResp.Cert,
+	})
+	require.NoError(t, err)
 }

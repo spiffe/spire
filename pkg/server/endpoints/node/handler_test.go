@@ -213,14 +213,15 @@ type challengeResponse struct {
 }
 
 type fetchBaseSVIDData struct {
-	request              *node.AttestRequest
-	generatedCert        []byte
-	baseSpiffeID         string
-	selector             *common.Selector
-	selectors            map[string]*common.Selectors
-	regEntryParentIDList []*common.RegistrationEntry
-	regEntrySelectorList []*common.RegistrationEntry
-	challenges           []challengeResponse
+	request                 *node.AttestRequest
+	generatedCert           []byte
+	baseSpiffeID            string
+	selector                *common.Selector
+	selectors               map[string]*common.Selectors
+	attestResponseSelectors []*common.Selector
+	regEntryParentIDList    []*common.RegistrationEntry
+	regEntrySelectorList    []*common.RegistrationEntry
+	challenges              []challengeResponse
 }
 
 func getAttestTestData() *fetchBaseSVIDData {
@@ -273,6 +274,10 @@ func getAttestTestData() *fetchBaseSVIDData {
 		},
 	}
 
+	data.attestResponseSelectors = []*common.Selector{
+		{Type: "type1", Value: "value1"},
+		{Type: "type2", Value: "value2"},
+	}
 	return data
 }
 
@@ -297,6 +302,7 @@ func setAttestExpectations(
 	stream.EXPECT().Recv().Return(&nodeattestor.AttestResponse{
 		BaseSPIFFEID: data.baseSpiffeID,
 		Valid:        true,
+		Selectors:    data.attestResponseSelectors,
 	}, nil)
 	stream.EXPECT().CloseSend()
 	stream.EXPECT().Recv().Return(nil, io.EOF)
@@ -337,6 +343,23 @@ func setAttestExpectations(
 			NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
 				BaseSpiffeId: data.baseSpiffeID,
 				Selector:     data.selector,
+			},
+		}).
+		Return(nil, nil)
+
+	suite.mockDataStore.EXPECT().CreateNodeResolverMapEntry(gomock.Any(),
+		&datastore.CreateNodeResolverMapEntryRequest{
+			NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
+				BaseSpiffeId: data.baseSpiffeID,
+				Selector:     data.attestResponseSelectors[0],
+			},
+		}).
+		Return(nil, nil)
+	suite.mockDataStore.EXPECT().CreateNodeResolverMapEntry(gomock.Any(),
+		&datastore.CreateNodeResolverMapEntryRequest{
+			NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
+				BaseSpiffeId: data.baseSpiffeID,
+				Selector:     data.attestResponseSelectors[1],
 			},
 		}).
 		Return(nil, nil)

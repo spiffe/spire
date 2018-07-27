@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"io/ioutil"
 	"math/big"
@@ -45,10 +46,13 @@ func main() {
 		SerialNumber: big.NewInt(1),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		NotAfter:     neverExpires,
+		Subject:      pkix.Name{CommonName: "some common name"},
 	}, intermediateKey, intermediateCert)
 
 	writeKey("leaf-key.pem", leafKey)
 	writeCerts("leaf-crt-bundle.pem", leafCert, intermediateCert)
+	writeCerts("leaf.pem", leafCert)
+	writeCerts("intermediate.pem", intermediateCert)
 	writeCerts("root-crt.pem", rootCert)
 }
 

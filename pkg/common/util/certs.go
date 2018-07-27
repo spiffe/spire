@@ -21,6 +21,16 @@ func NewCertPool(certs ...*x509.Certificate) *x509.CertPool {
 // LoadCertPool loads one or more certificates into an *x509.CertPool from
 // a PEM file on disk.
 func LoadCertPool(path string) (*x509.CertPool, error) {
+	certs, err := LoadCertificates(path)
+	if err != nil {
+		return nil, err
+	}
+	return NewCertPool(certs...), nil
+}
+
+// LoadCertificates loads one or more certificates into an []*x509.Certificate from
+// a PEM file on disk.
+func LoadCertificates(path string) ([]*x509.Certificate, error) {
 	rest, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -48,5 +58,5 @@ func LoadCertPool(path string) (*x509.CertPool, error) {
 		return nil, errors.New("no certificates found in file")
 	}
 
-	return NewCertPool(certs...), nil
+	return certs, nil
 }
