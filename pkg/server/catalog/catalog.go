@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
@@ -59,6 +60,7 @@ var (
 			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
 			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
 			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
+			"azure_msi":  nodeattestor.NewBuiltIn(azure.NewMSIAttestorPlugin()),
 		},
 		NodeResolverType: {
 			"noop": noderesolver.NewBuiltIn(noop.New()),
