@@ -18,9 +18,14 @@ import (
 const (
 	pluginName = "azure_msi"
 
-	tokenLeeway           = time.Minute * 5
+	// MSI tokens have the not-before ("nbf") claim. If there are clock
+	// differences between the agent and server then token validation may fail
+	// unless we give a little leeway. Tokens are valid for 8 hours, so a few
+	// minutes extra in that direction does not seem like a big deal.
+	tokenLeeway = time.Minute * 5
+
 	keySetRefreshInterval = time.Hour
-	azureConfigURL        = "https://login.microsoftonline.com/common/.well-known/openid-configuration"
+	azureOIDCIssuer       = "https://login.microsoftonline.com/common/"
 )
 
 var (
@@ -51,7 +56,7 @@ var _ nodeattestor.Plugin = (*MSIAttestorPlugin)(nil)
 func NewMSIAttestorPlugin() *MSIAttestorPlugin {
 	p := &MSIAttestorPlugin{}
 	p.hooks.now = time.Now
-	p.hooks.keySetProvider = jwtutil.NewCachingKeySetProvider(jwtutil.KeySetConfigURL(azureConfigURL), keySetRefreshInterval)
+	p.hooks.keySetProvider = jwtutil.NewCachingKeySetProvider(jwtutil.OIDCIssuer(azureOIDCIssuer), keySetRefreshInterval)
 	return p
 }
 
@@ -122,7 +127,7 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 	}
 	tenant, ok := config.Tenants[claims.TenantID]
 	if !ok {
-		return msiError.New("tenant ID is not authorized")
+		return msiError.New("tenant %q is not authorized", claims.TenantID)
 	}
 
 	if err := claims.ValidateWithLeeway(jwt.Expected{
