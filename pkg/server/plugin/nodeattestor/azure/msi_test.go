@@ -139,6 +139,26 @@ func (s *MSIAttestorSuite) TestAttestFailsWithBadSignature() {
 		"unable to verify token")
 }
 
+func (s *MSIAttestorSuite) TestAttestFailsWithAlgorithmMismatch() {
+	s.addKey("KEYID")
+
+	// sign a token with a different key algorithm than that of the key in
+	// the key set.
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.HS256,
+		Key:       []byte("0123456789ABCDEF"),
+	}, &jose.SignerOptions{
+		ExtraHeaders: map[jose.HeaderKey]interface{}{
+			"kid": "KEYID",
+		},
+	})
+	token, err := jwt.Signed(signer).CompactSerialize()
+	s.Require().NoError(err)
+
+	s.requireAttestError(makeAttestRequest(token),
+		"unable to verify token")
+}
+
 func (s *MSIAttestorSuite) TestAttestFailsClaimValidation() {
 	s.addKey("KEYID")
 
@@ -148,7 +168,7 @@ func (s *MSIAttestorSuite) TestAttestFailsClaimValidation() {
 
 	// unauthorized tenant id claim
 	s.requireAttestError(s.signAttestRequest("KEYID", resourceID, "BADTENANTID", "PRINCIPALID"),
-		"tenant ID is not authorized")
+		`tenant "BADTENANTID" is not authorized`)
 
 	// no audience
 	s.requireAttestError(s.signAttestRequest("KEYID", "", "TENANTID", "PRINCIPALID"),
@@ -233,7 +253,7 @@ func (s *MSIAttestorSuite) adjustTime(d time.Duration) {
 
 func (s *MSIAttestorSuite) newSigner(keyID string) jose.Signer {
 	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: "RS256",
+		Algorithm: jose.RS256,
 		Key: jose.JSONWebKey{
 			Key:   s.key,
 			KeyID: keyID,

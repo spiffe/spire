@@ -24,6 +24,12 @@ It is important to note that the resource ID MUST be for a well known Azure
 service, or an app ID for a registered app in Azure AD. Azure will not issue an
 MSI token for resources it does not know about.
 
+The resource ID that is chosen has security implications. If the server was
+compromised, the agent would be granting the compromised server access to
+whatever resource on behalf of the agent VM. If that is a concern for your
+deployment, you should register an application with Azure AD with a dummy
+URI that you can use as a resource instead to limit the scope of replay-ability.
+
 A sample configuration with the default resource ID (i.e. resource manager):
 
 ```

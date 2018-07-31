@@ -5,12 +5,18 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
+	"path"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/zeebo/errs"
 	"gopkg.in/square/go-jose.v2"
+)
+
+const (
+	wellKnownOpenIdConfiguration = "/.well-known/openid-configuration"
 )
 
 type KeySetProvider interface {
@@ -23,10 +29,16 @@ func (fn KeySetProviderFunc) GetKeySet(ctx context.Context) (*jose.JSONWebKeySet
 	return fn(ctx)
 }
 
-type KeySetConfigURL string
+type OIDCIssuer string
 
-func (c KeySetConfigURL) GetKeySet(ctx context.Context) (*jose.JSONWebKeySet, error) {
-	uri, err := FetchKeySetURI(ctx, string(c))
+func (c OIDCIssuer) GetKeySet(ctx context.Context) (*jose.JSONWebKeySet, error) {
+	u, err := url.Parse(string(c))
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+	u.Path = path.Join(u.Path, wellKnownOpenIdConfiguration)
+
+	uri, err := DiscoverKeySetURI(ctx, u.String())
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +93,7 @@ func (c *CachingKeySetProvider) GetKeySet(ctx context.Context) (*jose.JSONWebKey
 	return c.jwks, nil
 }
 
-func FetchKeySetURI(ctx context.Context, configURL string) (string, error) {
+func DiscoverKeySetURI(ctx context.Context, configURL string) (string, error) {
 	req, err := http.NewRequest("GET", configURL, nil)
 	if err != nil {
 		return "", errs.Wrap(err)
