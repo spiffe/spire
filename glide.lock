@@ -1,5 +1,5 @@
 hash: 35f27a42ef95c2096d1e978ff87429ab29a41fb0e5d4fd4f8ef3a89c2964ee5d
-updated: 2018-07-31T08:34:53.388235-06:00
+updated: 2018-07-31T10:13:45.167019-06:00
 imports:
 - name: github.com/armon/go-metrics
   version: 783273d703149aaeb9897cf58613d5af48861c25
@@ -37,6 +37,24 @@ imports:
   - private/protocol/xml/xmlutil
   - service/ec2
   - service/sts
+- name: github.com/Azure/azure-sdk-for-go
+  version: 4e8cbbfb1aeab140cd0fa97fd16b64ee18c3ca6a
+  subpackages:
+  - services/compute/mgmt/2017-12-01/compute
+  - services/resources/mgmt/2018-02-01/resources
+  - version
+- name: github.com/Azure/go-autorest
+  version: dd94e014aaf16d1df746762e392aa201c1b4c461
+  subpackages:
+  - autorest
+  - autorest/adal
+  - autorest/azure
+  - autorest/azure/auth
+  - autorest/date
+  - autorest/to
+  - autorest/validation
+  - logger
+  - version
 - name: github.com/bgentry/speakeasy
   version: 4aabc24848ce5fd31929f7d1e4ea74d3709c14cd
 - name: github.com/davecgh/go-spew
@@ -45,6 +63,8 @@ imports:
   - spew
 - name: github.com/dgrijalva/jwt-go
   version: 06ea1031745cb8b3dab3f6a236daf2b0aa468b7e
+- name: github.com/dimchansky/utfbom
+  version: 5448fe645cb1964ba70ac8f9f2ffe975e61a536c
 - name: github.com/go-ini/ini
   version: 32e4be5f41bb918afb6e37c07426e2ddbcb6647e
 - name: github.com/go-ole/go-ole
@@ -182,6 +202,8 @@ imports:
   subpackages:
   - ed25519
   - ed25519/internal/edwards25519
+  - pkcs12
+  - pkcs12/internal/rc2
   - ssh/terminal
 - name: golang.org/x/net
   version: 5ccada7d0a7ba9aeb5d3aca8d3501b4c2a509fec
