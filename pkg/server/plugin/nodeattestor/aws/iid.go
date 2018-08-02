@@ -11,9 +11,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math"
-	"net/url"
 	"os"
-	"path"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -30,8 +28,8 @@ import (
 const (
 	pluginName = "aws_iid"
 
-	accessIDVarName  = "AWS_ACCESS_KEY_ID"
-	secretKeyVarName = "AWS_SECRET_ACCESS_KEY"
+	accessKeyIDVarName     = "AWS_ACCESS_KEY_ID"
+	secretAccessKeyVarName = "AWS_SECRET_ACCESS_KEY"
 
 	maxSecondsBetweenDeviceAttachments int64 = 60
 )
@@ -58,9 +56,8 @@ C1haGgSI/A1uZUKs/Zfnph0oEI0/hu1IIJ/SKBDtN5lvmZ/IzbOPIJWirlsllQIQ
 
 type IIDAttestorConfig struct {
 	TrustDomain     string `hcl:"trust_domain"`
-	AccessId        string `hcl:"access_id"`
-	Secret          string `hcl:"secret"`
-	SessionId       string `hcl:"session_id"`
+	AccessKeyID     string `hcl:"access_key_id"`
+	SecretAccessKey string `hcl:"secret_access_key"`
 	SkipBlockDevice bool   `hcl:"skip_block_device"`
 }
 
@@ -68,21 +65,10 @@ type IIDAttestorPlugin struct {
 	trustDomain string
 
 	awsCaCertPublicKey *rsa.PublicKey
-	accessId           string
-	secret             string
-	sessionId          string
+	accessKeyId        string
+	secretAccessKey    string
 	skipBlockDevice    bool
 	mtx                *sync.Mutex
-}
-
-func (p *IIDAttestorPlugin) spiffeID(awsAccountId, awsInstanceId string) *url.URL {
-	spiffePath := path.Join("spire", "agent", pluginName, awsAccountId, awsInstanceId)
-	id := &url.URL{
-		Scheme: "spiffe",
-		Host:   p.trustDomain,
-		Path:   spiffePath,
-	}
-	return id
 }
 
 func (p *IIDAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
@@ -91,7 +77,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		return err
 	}
 
-	var attestationData caws.IidAttestationData
+	var attestationData caws.IIDAttestationData
 	err = json.Unmarshal(req.AttestationData.Data, &attestationData)
 	if err != nil {
 		return caws.AttestationStepError("unmarshaling the attestation data", err)
@@ -124,8 +110,8 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 
 	var awsSession *session.Session
 
-	if p.secret != "" && p.accessId != "" {
-		creds := credentials.NewStaticCredentials(p.accessId, p.secret, p.sessionId)
+	if p.secretAccessKey != "" && p.accessKeyId != "" {
+		creds := credentials.NewStaticCredentials(p.accessKeyId, p.secretAccessKey, "")
 		awsSession = session.Must(session.NewSession(&aws.Config{Credentials: creds, Region: &doc.Region}))
 	} else {
 		awsSession = session.Must(session.NewSession(&aws.Config{Region: &doc.Region}))
@@ -180,7 +166,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: p.spiffeID(doc.AccountId, doc.InstanceId).String(),
+		BaseSPIFFEID: caws.IIDAgentID(p.trustDomain, doc.AccountId, doc.Region, doc.InstanceId),
 	}
 
 	return stream.Send(resp)
@@ -216,12 +202,12 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		return resp, err
 	}
 
-	if config.AccessId == "" {
-		config.AccessId = os.Getenv(accessIDVarName)
+	if config.AccessKeyID == "" {
+		config.AccessKeyID = os.Getenv(accessKeyIDVarName)
 	}
 
-	if config.Secret == "" {
-		config.Secret = os.Getenv(secretKeyVarName)
+	if config.SecretAccessKey == "" {
+		config.SecretAccessKey = os.Getenv(secretAccessKeyVarName)
 	}
 
 	p.mtx.Lock()
@@ -229,9 +215,8 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 
 	p.trustDomain = config.TrustDomain
 	p.awsCaCertPublicKey = awsCaCertPublicKey
-	p.accessId = config.AccessId
-	p.secret = config.Secret
-	p.sessionId = config.SessionId
+	p.accessKeyId = config.AccessKeyID
+	p.secretAccessKey = config.SecretAccessKey
 	p.skipBlockDevice = config.SkipBlockDevice
 
 	return &spi.ConfigureResponse{}, nil

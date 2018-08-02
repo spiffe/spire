@@ -37,8 +37,8 @@ type IIDAttestorPlugin struct {
 	mtx *sync.RWMutex
 }
 
-func (p *IIDAttestorPlugin) spiffeID(awsAccountId, awsInstanceId string) *url.URL {
-	spiffePath := path.Join("spire", "agent", pluginName, awsAccountId, awsInstanceId)
+func (p *IIDAttestorPlugin) spiffeID(awsAccountId, awsRegion, awsInstanceId string) *url.URL {
+	spiffePath := path.Join("spire", "agent", pluginName, awsAccountId, awsRegion, awsInstanceId)
 	id := &url.URL{
 		Scheme: "spiffe",
 		Host:   p.trustDomain,
@@ -83,7 +83,7 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 		return err
 	}
 
-	attestationData := aws.IidAttestationData{
+	attestationData := aws.IIDAttestationData{
 		Document:  string(docBytes),
 		Signature: string(sigBytes),
 	}
@@ -103,7 +103,7 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 
 	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
 		AttestationData: data,
-		SpiffeId:        p.spiffeID(doc.AccountId, doc.InstanceId).String(),
+		SpiffeId:        aws.IIDAgentID(p.trustDomain, doc.AccountId, doc.Region, doc.InstanceId),
 	})
 }
 
