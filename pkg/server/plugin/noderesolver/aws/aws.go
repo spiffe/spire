@@ -1,6 +1,7 @@
-package main
+package aws
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -11,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -45,7 +45,11 @@ const (
 	defaultRegion = "us-east-1"
 )
 
-func (a *AWSResolver) Configure(req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func NewAWSResolver() *AWSResolver {
+	return &AWSResolver{}
+}
+
+func (a *AWSResolver) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	resp := &spi.ConfigureResponse{}
@@ -71,11 +75,21 @@ func (a *AWSResolver) Configure(req *spi.ConfigureRequest) (*spi.ConfigureRespon
 	return resp, err
 }
 
-func (a *AWSResolver) GetPluginInfo(*spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (a *AWSResolver) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (a *AWSResolver) Resolve(physicalSpiffeIdList []string) (resolutions map[string]*common.Selectors, err error) {
+func (a *AWSResolver) Resolve(ctx context.Context, req *noderesolver.ResolveRequest) (*noderesolver.ResolveResponse, error) {
+	resolutions, err := a.resolve(req.BaseSpiffeIdList)
+	if err != nil {
+		return nil, err
+	}
+	return &noderesolver.ResolveResponse{
+		Map: resolutions,
+	}, nil
+}
+
+func (a *AWSResolver) resolve(physicalSpiffeIdList []string) (resolutions map[string]*common.Selectors, err error) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	a.resolutions = make(map[string]*common.Selectors)
@@ -132,7 +146,7 @@ func (a *AWSResolver) resolveTags(tags []*ec2.Tag, spiffeID string) {
 					Value: fmt.Sprintf("tag:%s:%s", aws.StringValue(tag.Key), aws.StringValue(tag.Value))})
 		} else {
 			a.resolutions[spiffeID] = &common.Selectors{
-				[]*common.Selector{
+				Entries: []*common.Selector{
 					{
 						Type:  "aws",
 						Value: fmt.Sprintf("tag:%s:%s", aws.StringValue(tag.Key), aws.StringValue(tag.Value))},
@@ -154,7 +168,7 @@ func (a *AWSResolver) resolveSecurityGroups(sgs []*ec2.GroupIdentifier, spiffeID
 					Type: "aws", Value: fmt.Sprintf("sg:name:%s", aws.StringValue(sg.GroupName))})
 		} else {
 			a.resolutions[spiffeID] = &common.Selectors{
-				[]*common.Selector{
+				Entries: []*common.Selector{
 					{
 						Type: "aws", Value: fmt.Sprintf("sg:id:%s", aws.StringValue(sg.GroupId))},
 					{
@@ -177,7 +191,7 @@ func (a *AWSResolver) resolveIAMRole(arn *string, spiffeID string) error {
 					Type: "aws", Value: fmt.Sprintf("iamrole:%s", aws.StringValue(role.Arn))})
 		} else {
 			a.resolutions[spiffeID] = &common.Selectors{
-				[]*common.Selector{
+				Entries: []*common.Selector{
 					{
 						Type: "aws", Value: fmt.Sprintf("iamrole:%s", aws.StringValue(role.Arn)),
 					},
@@ -241,15 +255,4 @@ func appendSelector(entries []*common.Selector, entry *common.Selector) []*commo
 		}
 	}
 	return append(entries, entry)
-}
-
-func main() {
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: noderesolver.Handshake,
-		Plugins: map[string]plugin.Plugin{
-			"nr_aws": noderesolver.NodeResolverPlugin{NodeResolverImpl: &AWSResolver{}},
-		},
-		GRPCServer: plugin.DefaultGRPCServer,
-	})
-
 }
