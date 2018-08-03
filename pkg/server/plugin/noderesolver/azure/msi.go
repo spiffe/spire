@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
+	"github.com/Azure/azure-sdk-for-go/profiles/latest/network/mgmt/network"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/hashicorp/hcl"
@@ -194,59 +196,27 @@ func (p *MSIResolverPlugin) resolveSpiffeID(ctx context.Context, spiffeID string
 
 	// build up a unique map of selectors. this is easier than deduping
 	// individual selectors (e.g. the virtual network for each interface)
-	selectorMap := make(map[string]bool)
-	addSelector := func(parts ...string) {
-		selectorMap[strings.Join(parts, ":")] = true
+	selectorMap := map[string]bool{
+		selectorValue("subscription-id", client.SubscriptionID()): true,
+		selectorValue("vm-name", vmResourceGroup, vmName):         true,
+	}
+	addSelectors := func(values []string) {
+		for _, value := range values {
+			selectorMap[value] = true
+		}
 	}
 
-	addSelector("subscription-id", client.SubscriptionID())
-	addSelector("vm-name", vmResourceGroup, vmName)
-
-	// pull the VM information
+	// pull the VM information and gather selectors
 	vm, err := client.GetVirtualMachine(ctx, vmResourceGroup, vmName)
 	if err != nil {
 		return nil, msiError.New("unable to get virtual machine %q: %v", resourceGroupName(vmResourceGroup, vmName), err)
 	}
-
-	if np := vm.NetworkProfile; np != nil {
-		if nis := np.NetworkInterfaces; nis != nil {
-			for _, ni := range *nis {
-				if ni.ID == nil {
-					continue
-				}
-				niResourceGroup, niName, err := parseNetworkInterfaceID(*ni.ID)
-				if err != nil {
-					return nil, err
-				}
-				networkInterface, err := client.GetNetworkInterface(ctx, niResourceGroup, niName)
-				if err != nil {
-					return nil, msiError.New("unable to get network interface %q: %v", resourceGroupName(niResourceGroup, niName), err)
-				}
-
-				if nsg := networkInterface.NetworkSecurityGroup; nsg != nil && nsg.ID != nil {
-					nsgResourceGroup, nsgName, err := parseNetworkSecurityGroupID(*nsg.ID)
-					if err != nil {
-						return nil, err
-					}
-					addSelector("network-security-group", nsgResourceGroup, nsgName)
-				}
-
-				if ipcs := networkInterface.IPConfigurations; ipcs != nil {
-					for _, ipc := range *ipcs {
-						if props := ipc.InterfaceIPConfigurationPropertiesFormat; props != nil {
-							if subnet := props.Subnet; subnet != nil && subnet.ID != nil {
-								subResourceGroup, subVirtualNetwork, subName, err := parseVirtualNetworkSubnetID(*subnet.ID)
-								if err != nil {
-									return nil, err
-								}
-								addSelector("virtual-network", subResourceGroup, subVirtualNetwork)
-								addSelector("virtual-network-subnet", subResourceGroup, subVirtualNetwork, subName)
-							}
-						}
-					}
-				}
-			}
+	if vm.NetworkProfile != nil {
+		networkProfileSelectors, err := getNetworkProfileSelectors(ctx, client, vm.NetworkProfile)
+		if err != nil {
+			return nil, err
 		}
+		addSelectors(networkProfileSelectors)
 	}
 
 	// sort and return selectors
@@ -262,6 +232,64 @@ func (p *MSIResolverPlugin) resolveSpiffeID(ctx context.Context, spiffeID string
 			Type:  pluginName,
 			Value: selectorValue,
 		})
+	}
+
+	return selectors, nil
+}
+
+func getNetworkProfileSelectors(ctx context.Context, client apiClient, networkProfile *compute.NetworkProfile) ([]string, error) {
+	if networkProfile.NetworkInterfaces == nil {
+		return nil, nil
+	}
+
+	var selectors []string
+	for _, interfaceRef := range *networkProfile.NetworkInterfaces {
+		if interfaceRef.ID == nil {
+			continue
+		}
+		niResourceGroup, niName, err := parseNetworkInterfaceID(*interfaceRef.ID)
+		if err != nil {
+			return nil, err
+		}
+		networkInterface, err := client.GetNetworkInterface(ctx, niResourceGroup, niName)
+		if err != nil {
+			return nil, msiError.New("unable to get network interface %q: %v", resourceGroupName(niResourceGroup, niName), err)
+		}
+
+		networkInterfaceSelectors, err := getNetworkInterfaceSelectors(networkInterface)
+		if err != nil {
+			return nil, err
+		}
+
+		selectors = append(selectors, networkInterfaceSelectors...)
+	}
+
+	return selectors, nil
+}
+
+func getNetworkInterfaceSelectors(networkInterface *network.Interface) ([]string, error) {
+	var selectors []string
+	if nsg := networkInterface.NetworkSecurityGroup; nsg != nil && nsg.ID != nil {
+		nsgResourceGroup, nsgName, err := parseNetworkSecurityGroupID(*nsg.ID)
+		if err != nil {
+			return nil, err
+		}
+		selectors = append(selectors, selectorValue("network-security-group", nsgResourceGroup, nsgName))
+	}
+
+	if ipcs := networkInterface.IPConfigurations; ipcs != nil {
+		for _, ipc := range *ipcs {
+			if props := ipc.InterfaceIPConfigurationPropertiesFormat; props != nil {
+				if subnet := props.Subnet; subnet != nil && subnet.ID != nil {
+					subResourceGroup, subVirtualNetwork, subName, err := parseVirtualNetworkSubnetID(*subnet.ID)
+					if err != nil {
+						return nil, err
+					}
+					selectors = append(selectors, selectorValue("virtual-network", subResourceGroup, subVirtualNetwork))
+					selectors = append(selectors, selectorValue("virtual-network-subnet", subResourceGroup, subVirtualNetwork, subName))
+				}
+			}
+		}
 	}
 
 	return selectors, nil
@@ -309,4 +337,8 @@ func parseVirtualNetworkSubnetID(id string) (resourceGroup, networkName, subnetN
 
 func resourceGroupName(resourceGroup, name string) string {
 	return fmt.Sprintf("%s:%s", resourceGroup, name)
+}
+
+func selectorValue(parts ...string) string {
+	return strings.Join(parts, ":")
 }
