@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	pluginName                  = "aws_iid"
+	iidPluginName               = "aws_iid"
 	defaultIdentityDocumentUrl  = "http://169.254.169.254/latest/dynamic/instance-identity/document"
 	defaultIdentitySignatureUrl = "http://169.254.169.254/latest/dynamic/instance-identity/signature"
 )
@@ -38,7 +38,7 @@ type IIDAttestorPlugin struct {
 }
 
 func (p *IIDAttestorPlugin) spiffeID(awsAccountId, awsRegion, awsInstanceId string) *url.URL {
-	spiffePath := path.Join("spire", "agent", pluginName, awsAccountId, awsRegion, awsInstanceId)
+	spiffePath := path.Join("spire", "agent", iidPluginName, awsAccountId, awsRegion, awsInstanceId)
 	id := &url.URL{
 		Scheme: "spiffe",
 		Host:   p.trustDomain,
@@ -97,7 +97,7 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 	// FIXME: NA should be the one dictating type of this message
 	// Change the proto to just take plain byte here
 	data := &common.AttestationData{
-		Type: pluginName,
+		Type: iidPluginName,
 		Data: respData,
 	}
 
