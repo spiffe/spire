@@ -414,7 +414,7 @@ func (h *Handler) updateNodeResolverMap(ctx context.Context,
 		return err
 	}
 
-	if selectors, ok := response.Map[baseSpiffeID]; ok {
+	if selectors := response.Map[baseSpiffeID]; selectors != nil {
 		for _, selector := range selectors.Entries {
 			err := h.createNodeResolverMapEntry(ctx, baseSpiffeID, selector)
 			if err != nil {

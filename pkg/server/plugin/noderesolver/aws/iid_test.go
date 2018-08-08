@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -73,13 +72,13 @@ func (s *IIDResolverSuite) TestResolve() {
 	resp, err = s.doResolve("spiffe://example.org/spire/server")
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().Empty(resp.Map)
+	s.Require().Empty(resp.Map["spiffe://example.org/spire/server"])
 
 	// not an IID-based agent ID
 	resp, err = s.doResolve("spiffe://example.org/spire/agent/whatever")
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().Empty(resp.Map)
+	s.Require().Empty(resp.Map["spiffe://example.org/spire/agent/whatever"])
 
 	// instance w/o tags or security groups or IAM
 	s.client.SetInstance(&ec2.Instance{})
@@ -194,21 +193,16 @@ func (s *IIDResolverSuite) newResolver() {
 	resolver.hooks.getenv = func(key string) string {
 		return s.env[key]
 	}
-	resolver.hooks.newClient = func(conf *aws.Config) (awsClient, error) {
+	resolver.hooks.newClient = func(config *IIDResolverConfig, region string) (awsClient, error) {
 		// assert that the right region is specified
-		s.Require().NotNil(conf.Region)
-		s.Require().Equal("REGION", *conf.Region)
+		s.Require().Equal("REGION", region)
 
 		// assert that the credentials are populated correctly
-		s.Require().NotNil(conf.Credentials)
-		value, err := conf.Credentials.Get()
-		s.Require().NoError(err)
-		s.Require().Equal(value, credentials.Value{
+		s.Require().NotNil(config)
+		s.Require().Equal(&IIDResolverConfig{
 			AccessKeyID:     "ACCESSKEYID",
 			SecretAccessKey: "SECRETACCESSKEY",
-			SessionToken:    "",
-			ProviderName:    "StaticProvider",
-		})
+		}, config)
 
 		// if s.client is nil, fail in a special way (see TestResolveRecreatesClientsOnConfigure)
 		if s.client == nil {

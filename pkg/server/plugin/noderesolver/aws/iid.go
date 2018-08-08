@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"sort"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -17,6 +16,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/noderesolver"
@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	pluginName    = "aws_iid"
+	iidPluginName = "aws_iid"
 	defaultRegion = "us-east-1"
 )
 
@@ -56,12 +56,12 @@ type IIDResolverConfig struct {
 
 type IIDResolverPlugin struct {
 	mu      sync.RWMutex
-	conf    *aws.Config
+	config  *IIDResolverConfig
 	clients map[string]awsClient
 
 	hooks struct {
 		getenv    func(string) string
-		newClient func(conf *aws.Config) (awsClient, error)
+		newClient func(config *IIDResolverConfig, region string) (awsClient, error)
 	}
 }
 
@@ -89,10 +89,8 @@ func (p *IIDResolverPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		config.SecretAccessKey = p.hooks.getenv("AWS_SECRET_ACCESS_KEY")
 	}
 
-	conf := aws.NewConfig()
 	switch {
 	case config.AccessKeyID != "" && config.SecretAccessKey != "":
-		conf.Credentials = credentials.NewStaticCredentials(config.AccessKeyID, config.SecretAccessKey, "")
 	case config.AccessKeyID != "" && config.SecretAccessKey == "":
 		return nil, iidError.New("configuration missing secret access key")
 	case config.AccessKeyID == "" && config.SecretAccessKey != "":
@@ -104,7 +102,7 @@ func (p *IIDResolverPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	// set the AWS configuration and reset clients
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.conf = conf
+	p.config = config
 	p.clients = make(map[string]awsClient)
 	return &spi.ConfigureResponse{}, nil
 }
@@ -122,9 +120,7 @@ func (p *IIDResolverPlugin) Resolve(ctx context.Context, req *noderesolver.Resol
 		if err != nil {
 			return nil, err
 		}
-		if selectors != nil {
-			resp.Map[spiffeID] = selectors
-		}
+		resp.Map[spiffeID] = selectors
 	}
 	return resp, nil
 }
@@ -172,20 +168,15 @@ func (p *IIDResolverPlugin) resolveSpiffeID(ctx context.Context, spiffeID string
 		}
 	}
 
-	// sort and dedup selectors
-	values := make([]string, 0, len(selectorSet))
-	for value := range selectorSet {
-		values = append(values, value)
-	}
-	sort.Strings(values)
-
+	// build and sort selectors
 	selectors := new(common.Selectors)
-	for _, value := range values {
+	for value := range selectorSet {
 		selectors.Entries = append(selectors.Entries, &common.Selector{
-			Type:  pluginName,
+			Type:  iidPluginName,
 			Value: value,
 		})
 	}
+	util.SortSelectors(selectors.Entries)
 
 	return selectors, nil
 }
@@ -211,12 +202,11 @@ func (p *IIDResolverPlugin) getRegionClient(region string) (awsClient, error) {
 		return client, nil
 	}
 
-	if p.conf == nil {
+	if p.config == nil {
 		return nil, iidError.New("not configured")
 	}
-	p.conf.Region = aws.String(region)
 
-	client, err := p.hooks.newClient(p.conf)
+	client, err := p.hooks.newClient(p.config, region)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +218,9 @@ func (p *IIDResolverPlugin) getRegionClient(region string) (awsClient, error) {
 func resolveTags(tags []*ec2.Tag) []string {
 	values := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		values = append(values, fmt.Sprintf("tag:%s:%s", aws.StringValue(tag.Key), aws.StringValue(tag.Value)))
+		if tag != nil {
+			values = append(values, fmt.Sprintf("tag:%s:%s", aws.StringValue(tag.Key), aws.StringValue(tag.Value)))
+		}
 	}
 	return values
 }
@@ -236,18 +228,23 @@ func resolveTags(tags []*ec2.Tag) []string {
 func resolveSecurityGroups(sgs []*ec2.GroupIdentifier) []string {
 	values := make([]string, 0, len(sgs)*2)
 	for _, sg := range sgs {
-		values = append(values,
-			fmt.Sprintf("sg:id:%s", aws.StringValue(sg.GroupId)),
-			fmt.Sprintf("sg:name:%s", aws.StringValue(sg.GroupName)),
-		)
+		if sg != nil {
+			values = append(values,
+				fmt.Sprintf("sg:id:%s", aws.StringValue(sg.GroupId)),
+				fmt.Sprintf("sg:name:%s", aws.StringValue(sg.GroupName)),
+			)
+		}
 	}
 	return values
 }
 
 func resolveInstanceProfile(instanceProfile *iam.InstanceProfile) []string {
+	if instanceProfile == nil {
+		return nil
+	}
 	values := make([]string, 0, len(instanceProfile.Roles))
 	for _, role := range instanceProfile.Roles {
-		if role.Arn != nil {
+		if role != nil && role.Arn != nil {
 			values = append(values, fmt.Sprintf("iamrole:%s", aws.StringValue(role.Arn)))
 		}
 	}
@@ -266,7 +263,11 @@ func parseAgentID(spiffeID string) (accountID, region, instanceId string, err er
 	return m[1], m[2], m[3], nil
 }
 
-func newAWSClient(conf *aws.Config) (awsClient, error) {
+func newAWSClient(config *IIDResolverConfig, region string) (awsClient, error) {
+	conf := aws.NewConfig()
+	conf.Credentials = credentials.NewStaticCredentials(config.AccessKeyID, config.SecretAccessKey, "")
+	conf.Region = aws.String(region)
+
 	sess, err := session.NewSession(conf)
 	if err != nil {
 		return nil, iidError.Wrap(err)
