@@ -19,6 +19,16 @@ const (
 	DefaultMSIResourceID = "https://management.azure.com/"
 )
 
+type ComputeMetadata struct {
+	Name              string `json:"name"`
+	SubscriptionID    string `json:"subscriptionId"`
+	ResourceGroupName string `json:"resourceGroupName"`
+}
+
+type InstanceMetadata struct {
+	Compute ComputeMetadata `json:"compute"`
+}
+
 type MSIAttestationData struct {
 	Token string `json:"token"`
 }
@@ -80,6 +90,39 @@ func FetchMSIToken(ctx context.Context, cl HTTPClient, resource string) (string,
 	}
 
 	return r.AccessToken, nil
+}
+
+func FetchInstanceMetadata(ctx context.Context, cl HTTPClient) (*InstanceMetadata, error) {
+	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json", nil)
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+	req.Header.Add("Metadata", "true")
+
+	resp, err := cl.Do(req)
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, errs.New("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
+	}
+
+	metadata := new(InstanceMetadata)
+	if err := json.NewDecoder(resp.Body).Decode(metadata); err != nil {
+		return nil, errs.New("unable to decode response: %v", err)
+	}
+
+	switch {
+	case metadata.Compute.Name == "":
+		return nil, errs.New("response missing instance name")
+	case metadata.Compute.SubscriptionID == "":
+		return nil, errs.New("response missing instance subscription id")
+	case metadata.Compute.ResourceGroupName == "":
+		return nil, errs.New("response missing instance resource group name")
+	}
+
+	return metadata, nil
 }
 
 func tryRead(r io.Reader) string {
