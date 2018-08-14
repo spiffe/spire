@@ -45,12 +45,6 @@ message FederatedBundle {
     bytes ca_certs = 2;
 }
 
-// It represents a list of federated bundles.
-message FederatedBundles {
-    // A list of FederatedBundle.
-    repeated FederatedBundle bundles = 1;
-}
-
 // A type that represents a federated bundle id.
 message FederatedBundleID {
     // SPIFFE ID of the federated bundle
@@ -109,7 +103,7 @@ service Registration {
     // Retrieves a single federated bundle
     rpc FetchFederatedBundle(FederatedBundleID) returns (FederatedBundle);
     // Retrieves Federated bundles for all the Federated SPIFFE IDs.
-    rpc ListFederatedBundles(spire.common.Empty) returns (FederatedBundles);
+    rpc ListFederatedBundles(spire.common.Empty) returns (stream FederatedBundle);
     // Updates a particular Federated Bundle. Useful for rotation.
     rpc UpdateFederatedBundle(FederatedBundle) returns (spire.common.Empty);
     // Delete a particular Federated Bundle. Used to destroy inter-domain trust.

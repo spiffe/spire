@@ -3,6 +3,7 @@ package registration
 import (
 	"context"
 	"errors"
+	"net"
 	"net/url"
 	"reflect"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc"
 )
 
 func TestHandler(t *testing.T) {
@@ -26,8 +28,10 @@ func TestHandler(t *testing.T) {
 type HandlerSuite struct {
 	suite.Suite
 
+	server *grpc.Server
+
 	ds      *fakedatastore.DataStore
-	handler *Handler
+	handler registration.RegistrationClient
 }
 
 func (s *HandlerSuite) SetupTest() {
@@ -38,11 +42,31 @@ func (s *HandlerSuite) SetupTest() {
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStores(s.ds)
 
-	s.handler = &Handler{
+	handler := &Handler{
 		Log:         log,
 		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
 		Catalog:     catalog,
 	}
+
+	// we need to test a streaming API. without doing the same codegen we
+	// did with plugins, implementing the server or client side interfaces
+	// is a pain. start up a localhost server and test over that.
+	s.server = grpc.NewServer()
+	registration.RegisterRegistrationServer(s.server, handler)
+
+	// start up a server over localhost
+	listener, err := net.Listen("tcp", "localhost:0")
+	s.Require().NoError(err)
+	go s.server.Serve(listener)
+
+	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
+	s.Require().NoError(err)
+
+	s.handler = registration.NewRegistrationClient(conn)
+}
+
+func (s *HandlerSuite) TearDownTest() {
+	s.server.Stop()
 }
 
 func (s *HandlerSuite) TestCreateFederatedBundle() {
@@ -64,7 +88,8 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 		})
 
 		if testCase.Err != "" {
-			s.Require().EqualError(err, testCase.Err)
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), testCase.Err)
 			continue
 		}
 		s.Require().NoError(err)
@@ -108,7 +133,8 @@ func (s *HandlerSuite) TestFetchFederatedBundle() {
 		})
 
 		if testCase.Err != "" {
-			s.Require().EqualError(err, testCase.Err)
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), testCase.Err)
 			continue
 		}
 		s.Require().NoError(err)
@@ -119,7 +145,6 @@ func (s *HandlerSuite) TestFetchFederatedBundle() {
 }
 
 func (s *HandlerSuite) TestListFederatedBundles() {
-	// Create three bundles
 	s.createBundle(&datastore.Bundle{
 		TrustDomain: "spiffe://example.org",
 		CaCerts:     []byte("EXAMPLE"),
@@ -128,28 +153,21 @@ func (s *HandlerSuite) TestListFederatedBundles() {
 		TrustDomain: "spiffe://example2.org",
 		CaCerts:     []byte("EXAMPLE2"),
 	})
-	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://example3.org",
-		CaCerts:     []byte("EXAMPLE3"),
-	})
 
 	// Assert that the listing does not contain the bundle for the server
 	// trust domain
-	response, err := s.handler.ListFederatedBundles(context.Background(), &common.Empty{})
+	stream, err := s.handler.ListFederatedBundles(context.Background(), &common.Empty{})
 	s.Require().NoError(err)
 
-	s.Require().Equal(response, &registration.FederatedBundles{
-		Bundles: []*registration.FederatedBundle{
-			{
-				SpiffeId: "spiffe://example2.org",
-				CaCerts:  []byte("EXAMPLE2"),
-			},
-			{
-				SpiffeId: "spiffe://example3.org",
-				CaCerts:  []byte("EXAMPLE3"),
-			},
-		},
-	})
+	bundle, err := stream.Recv()
+	s.Require().NoError(err)
+	s.Require().Equal(&registration.FederatedBundle{
+		SpiffeId: "spiffe://example2.org",
+		CaCerts:  []byte("EXAMPLE2"),
+	}, bundle)
+
+	_, err = stream.Recv()
+	s.Require().EqualError(err, "EOF")
 }
 
 func (s *HandlerSuite) TestUpdateFederatedBundle() {
@@ -171,7 +189,8 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 		})
 
 		if testCase.Err != "" {
-			s.Require().EqualError(err, testCase.Err)
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), testCase.Err)
 			continue
 		}
 		s.Require().NoError(err)
@@ -209,7 +228,8 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 		})
 
 		if testCase.Err != "" {
-			s.Require().EqualError(err, testCase.Err)
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), testCase.Err)
 			continue
 		}
 		s.Require().NoError(err)

@@ -72,7 +72,6 @@
     - [Bundle](#spire.api.registration.Bundle)
     - [FederatedBundle](#spire.api.registration.FederatedBundle)
     - [FederatedBundleID](#spire.api.registration.FederatedBundleID)
-    - [FederatedBundles](#spire.api.registration.FederatedBundles)
     - [JoinToken](#spire.api.registration.JoinToken)
     - [ParentID](#spire.api.registration.ParentID)
     - [RegistrationEntryID](#spire.api.registration.RegistrationEntryID)
@@ -1142,21 +1141,6 @@ A type that represents a federated bundle id.
 
 
 
-<a name="spire.api.registration.FederatedBundles"/>
-
-### FederatedBundles
-It represents a list of federated bundles.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| bundles | [FederatedBundle](#spire.api.registration.FederatedBundle) | repeated | A list of FederatedBundle. |
-
-
-
-
-
-
 <a name="spire.api.registration.JoinToken"/>
 
 ### JoinToken
@@ -1257,7 +1241,7 @@ A type with the id with want to update plus values to modify.
 | ListBySpiffeID | [SpiffeID](#spire.api.registration.SpiffeID) | [spire.common.RegistrationEntries](#spire.api.registration.SpiffeID) | Return all registration entries for which SPIFFE ID matches. |
 | CreateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [spire.common.Empty](#spire.api.registration.FederatedBundle) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
 | FetchFederatedBundle | [FederatedBundleID](#spire.api.registration.FederatedBundleID) | [FederatedBundle](#spire.api.registration.FederatedBundleID) | Retrieves a single federated bundle |
-| ListFederatedBundles | [spire.common.Empty](#spire.common.Empty) | [FederatedBundles](#spire.common.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
+| ListFederatedBundles | [spire.common.Empty](#spire.common.Empty) | [FederatedBundle](#spire.common.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
 | UpdateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [spire.common.Empty](#spire.api.registration.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
 | DeleteFederatedBundle | [FederatedBundleID](#spire.api.registration.FederatedBundleID) | [spire.common.Empty](#spire.api.registration.FederatedBundleID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 | CreateJoinToken | [JoinToken](#spire.api.registration.JoinToken) | [JoinToken](#spire.api.registration.JoinToken) | Create a new join token |

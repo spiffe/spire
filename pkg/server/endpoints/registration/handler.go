@@ -222,28 +222,26 @@ func (h *Handler) FetchFederatedBundle(
 	}, nil
 }
 
-func (h *Handler) ListFederatedBundles(
-	ctx context.Context, request *common.Empty) (
-	response *registration.FederatedBundles, err error) {
-
+func (h *Handler) ListFederatedBundles(request *common.Empty, stream registration.Registration_ListFederatedBundlesServer) (err error) {
 	ds := h.getDataStore()
-	bundles, err := ds.ListBundles(ctx, &common.Empty{})
+	bundles, err := ds.ListBundles(stream.Context(), &common.Empty{})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	response = new(registration.FederatedBundles)
 	for _, bundle := range bundles.Bundles {
 		if bundle.TrustDomain == h.TrustDomain.String() {
 			continue
 		}
-		response.Bundles = append(response.Bundles, &registration.FederatedBundle{
+		if err := stream.Send(&registration.FederatedBundle{
 			SpiffeId: bundle.TrustDomain,
 			CaCerts:  bundle.CaCerts,
-		})
+		}); err != nil {
+			return err
+		}
 	}
 
-	return response, nil
+	return nil
 }
 
 func (h *Handler) UpdateFederatedBundle(
