@@ -70,11 +70,10 @@
 
 - [registration.proto](#registration.proto)
     - [Bundle](#spire.api.registration.Bundle)
-    - [CreateFederatedBundleRequest](#spire.api.registration.CreateFederatedBundleRequest)
     - [FederatedBundle](#spire.api.registration.FederatedBundle)
-    - [FederatedSpiffeID](#spire.api.registration.FederatedSpiffeID)
+    - [FederatedBundleID](#spire.api.registration.FederatedBundleID)
+    - [FederatedBundles](#spire.api.registration.FederatedBundles)
     - [JoinToken](#spire.api.registration.JoinToken)
-    - [ListFederatedBundlesReply](#spire.api.registration.ListFederatedBundlesReply)
     - [ParentID](#spire.api.registration.ParentID)
     - [RegistrationEntryID](#spire.api.registration.RegistrationEntryID)
     - [SpiffeID](#spire.api.registration.SpiffeID)
@@ -1112,21 +1111,6 @@ CA Bundle of the server
 
 
 
-<a name="spire.api.registration.CreateFederatedBundleRequest"/>
-
-### CreateFederatedBundleRequest
-It represents a request with a FederatedBundle to create.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| federated_bundle | [FederatedBundle](#spire.api.registration.FederatedBundle) |  | A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain. |
-
-
-
-
-
-
 <a name="spire.api.registration.FederatedBundle"/>
 
 ### FederatedBundle
@@ -1136,23 +1120,37 @@ A CA bundle for a different Trust Domain than the one used and managed by the Se
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | A SPIFFE ID that has a Federated Bundle |
-| federated_bundle | [bytes](#bytes) |  | A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain |
-| ttl | [int32](#int32) |  | Time to live. |
+| ca_certs | [bytes](#bytes) |  | ASN.1 DER data of the bundle. |
 
 
 
 
 
 
-<a name="spire.api.registration.FederatedSpiffeID"/>
+<a name="spire.api.registration.FederatedBundleID"/>
 
-### FederatedSpiffeID
-A type that represents a Federated SPIFFE Id.
+### FederatedBundleID
+A type that represents a federated bundle id.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| id | [string](#string) |  | FederatedSpiffeID |
+| id | [string](#string) |  | SPIFFE ID of the federated bundle |
+
+
+
+
+
+
+<a name="spire.api.registration.FederatedBundles"/>
+
+### FederatedBundles
+It represents a list of federated bundles.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundles | [FederatedBundle](#spire.api.registration.FederatedBundle) | repeated | A list of FederatedBundle. |
 
 
 
@@ -1169,21 +1167,6 @@ JoinToken message is used for registering a new token
 | ----- | ---- | ----- | ----------- |
 | token | [string](#string) |  | The join token. If not set, one will be generated |
 | ttl | [int32](#int32) |  | TTL in seconds |
-
-
-
-
-
-
-<a name="spire.api.registration.ListFederatedBundlesReply"/>
-
-### ListFederatedBundlesReply
-It represents a reply with a list of FederatedBundle.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| bundles | [FederatedBundle](#spire.api.registration.FederatedBundle) | repeated | A list of FederatedBundle. |
 
 
 
@@ -1272,10 +1255,11 @@ A type with the id with want to update plus values to modify.
 | ListByParentID | [ParentID](#spire.api.registration.ParentID) | [spire.common.RegistrationEntries](#spire.api.registration.ParentID) | Returns all the Entries associated with the ParentID value. |
 | ListBySelector | [spire.common.Selector](#spire.common.Selector) | [spire.common.RegistrationEntries](#spire.common.Selector) | Returns all the entries associated with a selector value. |
 | ListBySpiffeID | [SpiffeID](#spire.api.registration.SpiffeID) | [spire.common.RegistrationEntries](#spire.api.registration.SpiffeID) | Return all registration entries for which SPIFFE ID matches. |
-| CreateFederatedBundle | [CreateFederatedBundleRequest](#spire.api.registration.CreateFederatedBundleRequest) | [spire.common.Empty](#spire.api.registration.CreateFederatedBundleRequest) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
-| ListFederatedBundles | [spire.common.Empty](#spire.common.Empty) | [ListFederatedBundlesReply](#spire.common.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
+| CreateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [spire.common.Empty](#spire.api.registration.FederatedBundle) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
+| FetchFederatedBundle | [FederatedBundleID](#spire.api.registration.FederatedBundleID) | [FederatedBundle](#spire.api.registration.FederatedBundleID) | Retrieves a single federated bundle |
+| ListFederatedBundles | [spire.common.Empty](#spire.common.Empty) | [FederatedBundles](#spire.common.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
 | UpdateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [spire.common.Empty](#spire.api.registration.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
-| DeleteFederatedBundle | [FederatedSpiffeID](#spire.api.registration.FederatedSpiffeID) | [spire.common.Empty](#spire.api.registration.FederatedSpiffeID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
+| DeleteFederatedBundle | [FederatedBundleID](#spire.api.registration.FederatedBundleID) | [spire.common.Empty](#spire.api.registration.FederatedBundleID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 | CreateJoinToken | [JoinToken](#spire.api.registration.JoinToken) | [JoinToken](#spire.api.registration.JoinToken) | Create a new join token |
 | FetchBundle | [spire.common.Empty](#spire.common.Empty) | [Bundle](#spire.common.Empty) | Retrieves the CA bundle. |
 

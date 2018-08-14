@@ -41,28 +41,19 @@ message FederatedBundle {
     // A SPIFFE ID that has a Federated Bundle
     string spiffe_id = 1;
 
-    // A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain
-    bytes federated_bundle = 2;
-
-    // Time to live.
-    int32 ttl = 3;
+    // ASN.1 DER data of the bundle.
+    bytes ca_certs = 2;
 }
 
-// It represents a request with a FederatedBundle to create.
-message CreateFederatedBundleRequest {
-    // A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain.
-    FederatedBundle federated_bundle = 1;
-}
-
-// It represents a reply with a list of FederatedBundle.
-message ListFederatedBundlesReply {
+// It represents a list of federated bundles.
+message FederatedBundles {
     // A list of FederatedBundle.
     repeated FederatedBundle bundles = 1;
 }
 
-// A type that represents a Federated SPIFFE Id.
-message FederatedSpiffeID {
-    // FederatedSpiffeID
+// A type that represents a federated bundle id.
+message FederatedBundleID {
+    // SPIFFE ID of the federated bundle
     string id  = 1;
 }
 
@@ -114,13 +105,15 @@ service Registration {
     rpc ListBySpiffeID(SpiffeID) returns (spire.common.RegistrationEntries);
 
     // Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
-    rpc CreateFederatedBundle(CreateFederatedBundleRequest) returns (spire.common.Empty);
+    rpc CreateFederatedBundle(FederatedBundle) returns (spire.common.Empty);
+    // Retrieves a single federated bundle
+    rpc FetchFederatedBundle(FederatedBundleID) returns (FederatedBundle);
     // Retrieves Federated bundles for all the Federated SPIFFE IDs.
-    rpc ListFederatedBundles(spire.common.Empty) returns (ListFederatedBundlesReply);
+    rpc ListFederatedBundles(spire.common.Empty) returns (FederatedBundles);
     // Updates a particular Federated Bundle. Useful for rotation.
     rpc UpdateFederatedBundle(FederatedBundle) returns (spire.common.Empty);
     // Delete a particular Federated Bundle. Used to destroy inter-domain trust.
-    rpc DeleteFederatedBundle(FederatedSpiffeID) returns (spire.common.Empty);
+    rpc DeleteFederatedBundle(FederatedBundleID) returns (spire.common.Empty);
 
     // Create a new join token
     rpc CreateJoinToken(JoinToken) returns (JoinToken);

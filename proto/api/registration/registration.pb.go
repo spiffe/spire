@@ -59,7 +59,7 @@ func (m *RegistrationEntryID) Reset()         { *m = RegistrationEntryID{} }
 func (m *RegistrationEntryID) String() string { return proto.CompactTextString(m) }
 func (*RegistrationEntryID) ProtoMessage()    {}
 func (*RegistrationEntryID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_registration_24dc75133328fa1a, []int{0}
+	return fileDescriptor_registration_f0d00f73febef181, []int{0}
 }
 func (m *RegistrationEntryID) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RegistrationEntryID.Unmarshal(m, b)
@@ -99,7 +99,7 @@ func (m *ParentID) Reset()         { *m = ParentID{} }
 func (m *ParentID) String() string { return proto.CompactTextString(m) }
 func (*ParentID) ProtoMessage()    {}
 func (*ParentID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_registration_24dc75133328fa1a, []int{1}
+	return fileDescriptor_registration_f0d00f73febef181, []int{1}
 }
 func (m *ParentID) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ParentID.Unmarshal(m, b)
@@ -139,7 +139,7 @@ func (m *SpiffeID) Reset()         { *m = SpiffeID{} }
 func (m *SpiffeID) String() string { return proto.CompactTextString(m) }
 func (*SpiffeID) ProtoMessage()    {}
 func (*SpiffeID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_registration_24dc75133328fa1a, []int{2}
+	return fileDescriptor_registration_f0d00f73febef181, []int{2}
 }
 func (m *SpiffeID) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SpiffeID.Unmarshal(m, b)
@@ -181,7 +181,7 @@ func (m *UpdateEntryRequest) Reset()         { *m = UpdateEntryRequest{} }
 func (m *UpdateEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateEntryRequest) ProtoMessage()    {}
 func (*UpdateEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_registration_24dc75133328fa1a, []int{3}
+	return fileDescriptor_registration_f0d00f73febef181, []int{3}
 }
 func (m *UpdateEntryRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateEntryRequest.Unmarshal(m, b)
@@ -219,10 +219,8 @@ func (m *UpdateEntryRequest) GetEntry() *common.RegistrationEntry {
 type FederatedBundle struct {
 	// A SPIFFE ID that has a Federated Bundle
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
-	// A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain
-	FederatedBundle []byte `protobuf:"bytes,2,opt,name=federated_bundle,json=federatedBundle,proto3" json:"federated_bundle,omitempty"`
-	// Time to live.
-	Ttl                  int32    `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
+	// ASN.1 DER data of the bundle.
+	CaCerts              []byte   `protobuf:"bytes,2,opt,name=ca_certs,json=caCerts,proto3" json:"ca_certs,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -232,7 +230,7 @@ func (m *FederatedBundle) Reset()         { *m = FederatedBundle{} }
 func (m *FederatedBundle) String() string { return proto.CompactTextString(m) }
 func (*FederatedBundle) ProtoMessage()    {}
 func (*FederatedBundle) Descriptor() ([]byte, []int) {
-	return fileDescriptor_registration_24dc75133328fa1a, []int{4}
+	return fileDescriptor_registration_f0d00f73febef181, []int{4}
 }
 func (m *FederatedBundle) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FederatedBundle.Unmarshal(m, b)
@@ -259,62 +257,15 @@ func (m *FederatedBundle) GetSpiffeId() string {
 	return ""
 }
 
-func (m *FederatedBundle) GetFederatedBundle() []byte {
+func (m *FederatedBundle) GetCaCerts() []byte {
 	if m != nil {
-		return m.FederatedBundle
+		return m.CaCerts
 	}
 	return nil
 }
 
-func (m *FederatedBundle) GetTtl() int32 {
-	if m != nil {
-		return m.Ttl
-	}
-	return 0
-}
-
-// It represents a request with a FederatedBundle to create.
-type CreateFederatedBundleRequest struct {
-	// A trusted cert bundle that is not part of Servers trust domain but belongs to a different Trust Domain.
-	FederatedBundle      *FederatedBundle `protobuf:"bytes,1,opt,name=federated_bundle,json=federatedBundle" json:"federated_bundle,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
-	XXX_unrecognized     []byte           `json:"-"`
-	XXX_sizecache        int32            `json:"-"`
-}
-
-func (m *CreateFederatedBundleRequest) Reset()         { *m = CreateFederatedBundleRequest{} }
-func (m *CreateFederatedBundleRequest) String() string { return proto.CompactTextString(m) }
-func (*CreateFederatedBundleRequest) ProtoMessage()    {}
-func (*CreateFederatedBundleRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_registration_24dc75133328fa1a, []int{5}
-}
-func (m *CreateFederatedBundleRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_CreateFederatedBundleRequest.Unmarshal(m, b)
-}
-func (m *CreateFederatedBundleRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_CreateFederatedBundleRequest.Marshal(b, m, deterministic)
-}
-func (dst *CreateFederatedBundleRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CreateFederatedBundleRequest.Merge(dst, src)
-}
-func (m *CreateFederatedBundleRequest) XXX_Size() int {
-	return xxx_messageInfo_CreateFederatedBundleRequest.Size(m)
-}
-func (m *CreateFederatedBundleRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_CreateFederatedBundleRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_CreateFederatedBundleRequest proto.InternalMessageInfo
-
-func (m *CreateFederatedBundleRequest) GetFederatedBundle() *FederatedBundle {
-	if m != nil {
-		return m.FederatedBundle
-	}
-	return nil
-}
-
-// It represents a reply with a list of FederatedBundle.
-type ListFederatedBundlesReply struct {
+// It represents a list of federated bundles.
+type FederatedBundles struct {
 	// A list of FederatedBundle.
 	Bundles              []*FederatedBundle `protobuf:"bytes,1,rep,name=bundles" json:"bundles,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
@@ -322,71 +273,71 @@ type ListFederatedBundlesReply struct {
 	XXX_sizecache        int32              `json:"-"`
 }
 
-func (m *ListFederatedBundlesReply) Reset()         { *m = ListFederatedBundlesReply{} }
-func (m *ListFederatedBundlesReply) String() string { return proto.CompactTextString(m) }
-func (*ListFederatedBundlesReply) ProtoMessage()    {}
-func (*ListFederatedBundlesReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_registration_24dc75133328fa1a, []int{6}
+func (m *FederatedBundles) Reset()         { *m = FederatedBundles{} }
+func (m *FederatedBundles) String() string { return proto.CompactTextString(m) }
+func (*FederatedBundles) ProtoMessage()    {}
+func (*FederatedBundles) Descriptor() ([]byte, []int) {
+	return fileDescriptor_registration_f0d00f73febef181, []int{5}
 }
-func (m *ListFederatedBundlesReply) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ListFederatedBundlesReply.Unmarshal(m, b)
+func (m *FederatedBundles) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FederatedBundles.Unmarshal(m, b)
 }
-func (m *ListFederatedBundlesReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ListFederatedBundlesReply.Marshal(b, m, deterministic)
+func (m *FederatedBundles) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FederatedBundles.Marshal(b, m, deterministic)
 }
-func (dst *ListFederatedBundlesReply) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ListFederatedBundlesReply.Merge(dst, src)
+func (dst *FederatedBundles) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FederatedBundles.Merge(dst, src)
 }
-func (m *ListFederatedBundlesReply) XXX_Size() int {
-	return xxx_messageInfo_ListFederatedBundlesReply.Size(m)
+func (m *FederatedBundles) XXX_Size() int {
+	return xxx_messageInfo_FederatedBundles.Size(m)
 }
-func (m *ListFederatedBundlesReply) XXX_DiscardUnknown() {
-	xxx_messageInfo_ListFederatedBundlesReply.DiscardUnknown(m)
+func (m *FederatedBundles) XXX_DiscardUnknown() {
+	xxx_messageInfo_FederatedBundles.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ListFederatedBundlesReply proto.InternalMessageInfo
+var xxx_messageInfo_FederatedBundles proto.InternalMessageInfo
 
-func (m *ListFederatedBundlesReply) GetBundles() []*FederatedBundle {
+func (m *FederatedBundles) GetBundles() []*FederatedBundle {
 	if m != nil {
 		return m.Bundles
 	}
 	return nil
 }
 
-// A type that represents a Federated SPIFFE Id.
-type FederatedSpiffeID struct {
-	// FederatedSpiffeID
+// A type that represents a federated bundle id.
+type FederatedBundleID struct {
+	// SPIFFE ID of the federated bundle
 	Id                   string   `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FederatedSpiffeID) Reset()         { *m = FederatedSpiffeID{} }
-func (m *FederatedSpiffeID) String() string { return proto.CompactTextString(m) }
-func (*FederatedSpiffeID) ProtoMessage()    {}
-func (*FederatedSpiffeID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_registration_24dc75133328fa1a, []int{7}
+func (m *FederatedBundleID) Reset()         { *m = FederatedBundleID{} }
+func (m *FederatedBundleID) String() string { return proto.CompactTextString(m) }
+func (*FederatedBundleID) ProtoMessage()    {}
+func (*FederatedBundleID) Descriptor() ([]byte, []int) {
+	return fileDescriptor_registration_f0d00f73febef181, []int{6}
 }
-func (m *FederatedSpiffeID) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_FederatedSpiffeID.Unmarshal(m, b)
+func (m *FederatedBundleID) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FederatedBundleID.Unmarshal(m, b)
 }
-func (m *FederatedSpiffeID) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_FederatedSpiffeID.Marshal(b, m, deterministic)
+func (m *FederatedBundleID) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FederatedBundleID.Marshal(b, m, deterministic)
 }
-func (dst *FederatedSpiffeID) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FederatedSpiffeID.Merge(dst, src)
+func (dst *FederatedBundleID) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FederatedBundleID.Merge(dst, src)
 }
-func (m *FederatedSpiffeID) XXX_Size() int {
-	return xxx_messageInfo_FederatedSpiffeID.Size(m)
+func (m *FederatedBundleID) XXX_Size() int {
+	return xxx_messageInfo_FederatedBundleID.Size(m)
 }
-func (m *FederatedSpiffeID) XXX_DiscardUnknown() {
-	xxx_messageInfo_FederatedSpiffeID.DiscardUnknown(m)
+func (m *FederatedBundleID) XXX_DiscardUnknown() {
+	xxx_messageInfo_FederatedBundleID.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_FederatedSpiffeID proto.InternalMessageInfo
+var xxx_messageInfo_FederatedBundleID proto.InternalMessageInfo
 
-func (m *FederatedSpiffeID) GetId() string {
+func (m *FederatedBundleID) GetId() string {
 	if m != nil {
 		return m.Id
 	}
@@ -408,7 +359,7 @@ func (m *JoinToken) Reset()         { *m = JoinToken{} }
 func (m *JoinToken) String() string { return proto.CompactTextString(m) }
 func (*JoinToken) ProtoMessage()    {}
 func (*JoinToken) Descriptor() ([]byte, []int) {
-	return fileDescriptor_registration_24dc75133328fa1a, []int{8}
+	return fileDescriptor_registration_f0d00f73febef181, []int{7}
 }
 func (m *JoinToken) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_JoinToken.Unmarshal(m, b)
@@ -455,7 +406,7 @@ func (m *Bundle) Reset()         { *m = Bundle{} }
 func (m *Bundle) String() string { return proto.CompactTextString(m) }
 func (*Bundle) ProtoMessage()    {}
 func (*Bundle) Descriptor() ([]byte, []int) {
-	return fileDescriptor_registration_24dc75133328fa1a, []int{9}
+	return fileDescriptor_registration_f0d00f73febef181, []int{8}
 }
 func (m *Bundle) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Bundle.Unmarshal(m, b)
@@ -488,9 +439,8 @@ func init() {
 	proto.RegisterType((*SpiffeID)(nil), "spire.api.registration.SpiffeID")
 	proto.RegisterType((*UpdateEntryRequest)(nil), "spire.api.registration.UpdateEntryRequest")
 	proto.RegisterType((*FederatedBundle)(nil), "spire.api.registration.FederatedBundle")
-	proto.RegisterType((*CreateFederatedBundleRequest)(nil), "spire.api.registration.CreateFederatedBundleRequest")
-	proto.RegisterType((*ListFederatedBundlesReply)(nil), "spire.api.registration.ListFederatedBundlesReply")
-	proto.RegisterType((*FederatedSpiffeID)(nil), "spire.api.registration.FederatedSpiffeID")
+	proto.RegisterType((*FederatedBundles)(nil), "spire.api.registration.FederatedBundles")
+	proto.RegisterType((*FederatedBundleID)(nil), "spire.api.registration.FederatedBundleID")
 	proto.RegisterType((*JoinToken)(nil), "spire.api.registration.JoinToken")
 	proto.RegisterType((*Bundle)(nil), "spire.api.registration.Bundle")
 }
@@ -523,13 +473,15 @@ type RegistrationClient interface {
 	// Return all registration entries for which SPIFFE ID matches.
 	ListBySpiffeID(ctx context.Context, in *SpiffeID, opts ...grpc.CallOption) (*common.RegistrationEntries, error)
 	// Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
-	CreateFederatedBundle(ctx context.Context, in *CreateFederatedBundleRequest, opts ...grpc.CallOption) (*common.Empty, error)
+	CreateFederatedBundle(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*common.Empty, error)
+	// Retrieves a single federated bundle
+	FetchFederatedBundle(ctx context.Context, in *FederatedBundleID, opts ...grpc.CallOption) (*FederatedBundle, error)
 	// Retrieves Federated bundles for all the Federated SPIFFE IDs.
-	ListFederatedBundles(ctx context.Context, in *common.Empty, opts ...grpc.CallOption) (*ListFederatedBundlesReply, error)
+	ListFederatedBundles(ctx context.Context, in *common.Empty, opts ...grpc.CallOption) (*FederatedBundles, error)
 	// Updates a particular Federated Bundle. Useful for rotation.
 	UpdateFederatedBundle(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*common.Empty, error)
 	// Delete a particular Federated Bundle. Used to destroy inter-domain trust.
-	DeleteFederatedBundle(ctx context.Context, in *FederatedSpiffeID, opts ...grpc.CallOption) (*common.Empty, error)
+	DeleteFederatedBundle(ctx context.Context, in *FederatedBundleID, opts ...grpc.CallOption) (*common.Empty, error)
 	// Create a new join token
 	CreateJoinToken(ctx context.Context, in *JoinToken, opts ...grpc.CallOption) (*JoinToken, error)
 	// Retrieves the CA bundle.
@@ -616,7 +568,7 @@ func (c *registrationClient) ListBySpiffeID(ctx context.Context, in *SpiffeID, o
 	return out, nil
 }
 
-func (c *registrationClient) CreateFederatedBundle(ctx context.Context, in *CreateFederatedBundleRequest, opts ...grpc.CallOption) (*common.Empty, error) {
+func (c *registrationClient) CreateFederatedBundle(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*common.Empty, error) {
 	out := new(common.Empty)
 	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/CreateFederatedBundle", in, out, c.cc, opts...)
 	if err != nil {
@@ -625,8 +577,17 @@ func (c *registrationClient) CreateFederatedBundle(ctx context.Context, in *Crea
 	return out, nil
 }
 
-func (c *registrationClient) ListFederatedBundles(ctx context.Context, in *common.Empty, opts ...grpc.CallOption) (*ListFederatedBundlesReply, error) {
-	out := new(ListFederatedBundlesReply)
+func (c *registrationClient) FetchFederatedBundle(ctx context.Context, in *FederatedBundleID, opts ...grpc.CallOption) (*FederatedBundle, error) {
+	out := new(FederatedBundle)
+	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/FetchFederatedBundle", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *registrationClient) ListFederatedBundles(ctx context.Context, in *common.Empty, opts ...grpc.CallOption) (*FederatedBundles, error) {
+	out := new(FederatedBundles)
 	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/ListFederatedBundles", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -643,7 +604,7 @@ func (c *registrationClient) UpdateFederatedBundle(ctx context.Context, in *Fede
 	return out, nil
 }
 
-func (c *registrationClient) DeleteFederatedBundle(ctx context.Context, in *FederatedSpiffeID, opts ...grpc.CallOption) (*common.Empty, error) {
+func (c *registrationClient) DeleteFederatedBundle(ctx context.Context, in *FederatedBundleID, opts ...grpc.CallOption) (*common.Empty, error) {
 	out := new(common.Empty)
 	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/DeleteFederatedBundle", in, out, c.cc, opts...)
 	if err != nil {
@@ -690,13 +651,15 @@ type RegistrationServer interface {
 	// Return all registration entries for which SPIFFE ID matches.
 	ListBySpiffeID(context.Context, *SpiffeID) (*common.RegistrationEntries, error)
 	// Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle.
-	CreateFederatedBundle(context.Context, *CreateFederatedBundleRequest) (*common.Empty, error)
+	CreateFederatedBundle(context.Context, *FederatedBundle) (*common.Empty, error)
+	// Retrieves a single federated bundle
+	FetchFederatedBundle(context.Context, *FederatedBundleID) (*FederatedBundle, error)
 	// Retrieves Federated bundles for all the Federated SPIFFE IDs.
-	ListFederatedBundles(context.Context, *common.Empty) (*ListFederatedBundlesReply, error)
+	ListFederatedBundles(context.Context, *common.Empty) (*FederatedBundles, error)
 	// Updates a particular Federated Bundle. Useful for rotation.
 	UpdateFederatedBundle(context.Context, *FederatedBundle) (*common.Empty, error)
 	// Delete a particular Federated Bundle. Used to destroy inter-domain trust.
-	DeleteFederatedBundle(context.Context, *FederatedSpiffeID) (*common.Empty, error)
+	DeleteFederatedBundle(context.Context, *FederatedBundleID) (*common.Empty, error)
 	// Create a new join token
 	CreateJoinToken(context.Context, *JoinToken) (*JoinToken, error)
 	// Retrieves the CA bundle.
@@ -852,7 +815,7 @@ func _Registration_ListBySpiffeID_Handler(srv interface{}, ctx context.Context, 
 }
 
 func _Registration_CreateFederatedBundle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateFederatedBundleRequest)
+	in := new(FederatedBundle)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -864,7 +827,25 @@ func _Registration_CreateFederatedBundle_Handler(srv interface{}, ctx context.Co
 		FullMethod: "/spire.api.registration.Registration/CreateFederatedBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).CreateFederatedBundle(ctx, req.(*CreateFederatedBundleRequest))
+		return srv.(RegistrationServer).CreateFederatedBundle(ctx, req.(*FederatedBundle))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Registration_FetchFederatedBundle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FederatedBundleID)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RegistrationServer).FetchFederatedBundle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.api.registration.Registration/FetchFederatedBundle",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RegistrationServer).FetchFederatedBundle(ctx, req.(*FederatedBundleID))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -906,7 +887,7 @@ func _Registration_UpdateFederatedBundle_Handler(srv interface{}, ctx context.Co
 }
 
 func _Registration_DeleteFederatedBundle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FederatedSpiffeID)
+	in := new(FederatedBundleID)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -918,7 +899,7 @@ func _Registration_DeleteFederatedBundle_Handler(srv interface{}, ctx context.Co
 		FullMethod: "/spire.api.registration.Registration/DeleteFederatedBundle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServer).DeleteFederatedBundle(ctx, req.(*FederatedSpiffeID))
+		return srv.(RegistrationServer).DeleteFederatedBundle(ctx, req.(*FederatedBundleID))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1000,6 +981,10 @@ var _Registration_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Registration_CreateFederatedBundle_Handler,
 		},
 		{
+			MethodName: "FetchFederatedBundle",
+			Handler:    _Registration_FetchFederatedBundle_Handler,
+		},
+		{
 			MethodName: "ListFederatedBundles",
 			Handler:    _Registration_ListFederatedBundles_Handler,
 		},
@@ -1024,50 +1009,47 @@ var _Registration_serviceDesc = grpc.ServiceDesc{
 	Metadata: "registration.proto",
 }
 
-func init() { proto.RegisterFile("registration.proto", fileDescriptor_registration_24dc75133328fa1a) }
+func init() { proto.RegisterFile("registration.proto", fileDescriptor_registration_f0d00f73febef181) }
 
-var fileDescriptor_registration_24dc75133328fa1a = []byte{
-	// 663 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x55, 0xcf, 0x4e, 0xdb, 0x4e,
-	0x10, 0xfe, 0x39, 0x08, 0x08, 0xe3, 0xfc, 0x02, 0x2c, 0x7f, 0x14, 0x5c, 0xd4, 0x06, 0xa3, 0xaa,
-	0x40, 0x25, 0x5b, 0x40, 0x7b, 0xe9, 0xad, 0xe1, 0x8f, 0x44, 0xdb, 0x03, 0x32, 0xa5, 0x95, 0x5a,
-	0x09, 0xe4, 0xd8, 0x93, 0xb0, 0xc5, 0xf1, 0xba, 0xf6, 0xe6, 0x10, 0x55, 0xbd, 0xf4, 0x15, 0xfa,
-	0x1a, 0x7d, 0x9b, 0xbe, 0x42, 0x1f, 0xa4, 0xca, 0xae, 0xd7, 0x04, 0x63, 0x93, 0x70, 0xe8, 0x29,
-	0xde, 0x9d, 0x99, 0xef, 0x9b, 0x6f, 0x66, 0x67, 0x02, 0x24, 0xc6, 0x2e, 0x4d, 0x78, 0xec, 0x72,
-	0xca, 0x42, 0x2b, 0x8a, 0x19, 0x67, 0x64, 0x35, 0x89, 0x68, 0x8c, 0x96, 0x1b, 0x51, 0x6b, 0xd4,
-	0x6a, 0xac, 0x77, 0x19, 0xeb, 0x06, 0x68, 0xbb, 0x11, 0xb5, 0xdd, 0x30, 0x64, 0x5c, 0x5c, 0x27,
-	0x32, 0xca, 0xd8, 0xed, 0x52, 0x7e, 0xd5, 0x6f, 0x5b, 0x1e, 0xeb, 0xd9, 0x49, 0x44, 0x3b, 0x1d,
-	0xb4, 0x05, 0x8e, 0x2d, 0xcc, 0xb6, 0xc7, 0x7a, 0x3d, 0x16, 0xa6, 0x3f, 0x32, 0xc4, 0x7c, 0x0a,
-	0x4b, 0xce, 0x08, 0xc1, 0x51, 0xc8, 0xe3, 0xc1, 0xc9, 0x21, 0xa9, 0x43, 0x85, 0xfa, 0x0d, 0xad,
-	0xa9, 0x6d, 0xcd, 0x39, 0x15, 0xea, 0x9b, 0x06, 0x54, 0x4f, 0xdd, 0x18, 0x43, 0x5e, 0x6c, 0x3b,
-	0x13, 0x64, 0x05, 0xb6, 0xcf, 0x40, 0xce, 0x23, 0xdf, 0xe5, 0x28, 0x80, 0x1d, 0xfc, 0xda, 0xc7,
-	0x84, 0xe7, 0xbd, 0xc8, 0x4b, 0x98, 0xc6, 0xa1, 0xbd, 0x51, 0x69, 0x6a, 0x5b, 0xfa, 0xde, 0x13,
-	0x4b, 0xaa, 0x4f, 0x13, 0xbd, 0x93, 0x9f, 0x23, 0xbd, 0xcd, 0x6b, 0x98, 0x3f, 0x46, 0x1f, 0x63,
-	0x97, 0xa3, 0xdf, 0xea, 0x87, 0x7e, 0x80, 0xe4, 0x11, 0xcc, 0x49, 0xe1, 0x97, 0x19, 0x41, 0x55,
-	0x5e, 0x9c, 0xf8, 0x64, 0x1b, 0x16, 0x3a, 0xca, 0xff, 0xb2, 0x2d, 0x02, 0x04, 0x63, 0xcd, 0x99,
-	0xef, 0xe4, 0x70, 0x16, 0x60, 0x8a, 0xf3, 0xa0, 0x31, 0xd5, 0xd4, 0xb6, 0xa6, 0x9d, 0xe1, 0xa7,
-	0x19, 0xc3, 0xfa, 0x41, 0x8c, 0x2e, 0xc7, 0x1c, 0xa5, 0xd2, 0xe4, 0x14, 0x80, 0x6b, 0x42, 0xce,
-	0x33, 0xab, 0xb8, 0x99, 0x56, 0x1e, 0x29, 0x9f, 0x85, 0x79, 0x01, 0x6b, 0xef, 0x68, 0xc2, 0x73,
-	0x7e, 0x89, 0x83, 0x51, 0x30, 0x20, 0xaf, 0x61, 0x56, 0xd2, 0x24, 0x0d, 0xad, 0x39, 0xf5, 0x10,
-	0x1e, 0x15, 0x67, 0x6e, 0xc2, 0x62, 0x66, 0x2b, 0x6d, 0xe1, 0x3e, 0xcc, 0xbd, 0x61, 0x34, 0x7c,
-	0xcf, 0xae, 0x31, 0x24, 0xcb, 0x30, 0xcd, 0x87, 0x1f, 0xa9, 0x5d, 0x1e, 0x54, 0xb5, 0x2a, 0x37,
-	0xd5, 0xda, 0x84, 0x99, 0xb4, 0x92, 0x6b, 0x50, 0xf5, 0xdc, 0x4b, 0x0f, 0x63, 0x9e, 0x88, 0xa0,
-	0x9a, 0x33, 0xeb, 0xb9, 0x07, 0xc3, 0xe3, 0xde, 0x2f, 0x80, 0xda, 0x68, 0x73, 0x49, 0x08, 0xba,
-	0xac, 0xb1, 0x68, 0x33, 0x19, 0xf7, 0x0e, 0x8c, 0xe7, 0x65, 0x8a, 0x0b, 0x9e, 0xb4, 0xb9, 0xf8,
-	0xe3, 0xf7, 0x9f, 0x9f, 0x15, 0xdd, 0x9c, 0xb1, 0xc5, 0xeb, 0x79, 0xa5, 0xed, 0x90, 0x6b, 0xd0,
-	0x0f, 0x31, 0x40, 0xc5, 0xf7, 0x10, 0x38, 0x63, 0x5c, 0x72, 0x66, 0x5d, 0xf0, 0x55, 0x77, 0x52,
-	0x3e, 0xc2, 0x00, 0x8e, 0x91, 0x7b, 0x57, 0xff, 0x82, 0x6b, 0x49, 0x70, 0xfd, 0x4f, 0x74, 0xc9,
-	0x65, 0x7f, 0xa3, 0xfe, 0x77, 0xf2, 0x01, 0x6a, 0x19, 0x21, 0xc5, 0x84, 0x2c, 0xdd, 0x46, 0x39,
-	0xea, 0x45, 0x7c, 0x60, 0x6c, 0xdc, 0x0f, 0x4d, 0x31, 0x51, 0x42, 0x88, 0x12, 0xf2, 0x05, 0xf4,
-	0x91, 0x99, 0x26, 0x3b, 0x65, 0x4a, 0xee, 0x0e, 0xfe, 0xc4, 0x45, 0x33, 0x14, 0xd7, 0x39, 0xd4,
-	0x87, 0x13, 0xd0, 0x1a, 0x64, 0xdb, 0xa7, 0x59, 0x46, 0xa7, 0x3c, 0x26, 0x90, 0x44, 0xde, 0x2a,
-	0xd8, 0x33, 0x0c, 0xd0, 0xe3, 0x2c, 0x26, 0xab, 0xb7, 0x83, 0xd4, 0xfd, 0x24, 0x60, 0x59, 0x8e,
-	0xd9, 0x08, 0x95, 0xe6, 0xa8, 0x3c, 0x26, 0x81, 0x6d, 0xc3, 0x4a, 0xe1, 0xc2, 0x21, 0x2f, 0xca,
-	0xd0, 0xef, 0xdb, 0x4f, 0x46, 0x51, 0xf7, 0xc9, 0x05, 0x2c, 0x17, 0x2d, 0x98, 0xe2, 0xa7, 0xb2,
-	0x5b, 0xc6, 0x5b, 0xbe, 0xa3, 0xce, 0x61, 0x45, 0xbe, 0x82, 0xbc, 0x86, 0x49, 0x77, 0x55, 0x71,
-	0xda, 0x1f, 0x61, 0x45, 0xce, 0x6d, 0x1e, 0x76, 0x7b, 0x2c, 0x6c, 0xd6, 0x81, 0x12, 0xe0, 0x79,
-	0x59, 0xc4, 0x9b, 0x8d, 0xb7, 0x51, 0x06, 0x99, 0xb9, 0x18, 0xe3, 0x5d, 0x48, 0x0b, 0x74, 0x31,
-	0x8b, 0x69, 0x9e, 0x85, 0xf5, 0x7d, 0x5c, 0x06, 0x23, 0x83, 0x5a, 0xf5, 0x4f, 0xb5, 0xd1, 0xeb,
-	0xd3, 0xff, 0x4e, 0xb5, 0xf6, 0x8c, 0xf8, 0x17, 0xdf, 0xff, 0x1b, 0x00, 0x00, 0xff, 0xff, 0x00,
-	0xe9, 0x25, 0x8f, 0x44, 0x08, 0x00, 0x00,
+var fileDescriptor_registration_f0d00f73febef181 = []byte{
+	// 621 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x55, 0xcd, 0x6e, 0xd3, 0x40,
+	0x10, 0xc6, 0xa9, 0xda, 0xa6, 0xe3, 0x90, 0xb6, 0xd3, 0x1f, 0x15, 0x83, 0x20, 0x75, 0x85, 0x08,
+	0x45, 0xb2, 0x45, 0x2b, 0x2e, 0xdc, 0x48, 0xd3, 0x4a, 0x01, 0x0e, 0x91, 0x4b, 0x40, 0x82, 0x43,
+	0xe5, 0xd8, 0xdb, 0x74, 0xdb, 0xc4, 0x6b, 0xec, 0xcd, 0x21, 0x42, 0x5c, 0xfa, 0x0a, 0x3c, 0x1a,
+	0xaf, 0xc0, 0x83, 0xa0, 0xec, 0xda, 0xc6, 0x71, 0x6c, 0x62, 0x04, 0x9c, 0xb2, 0xde, 0x99, 0xf9,
+	0xbe, 0xf9, 0x66, 0x76, 0x26, 0x80, 0x01, 0x19, 0xd0, 0x90, 0x07, 0x36, 0xa7, 0xcc, 0x33, 0xfc,
+	0x80, 0x71, 0x86, 0xbb, 0xa1, 0x4f, 0x03, 0x62, 0xd8, 0x3e, 0x35, 0xd2, 0x56, 0xed, 0xc1, 0x80,
+	0xb1, 0xc1, 0x90, 0x98, 0xb6, 0x4f, 0x4d, 0xdb, 0xf3, 0x18, 0x17, 0xd7, 0xa1, 0x8c, 0xd2, 0x9e,
+	0x0f, 0x28, 0xbf, 0x1a, 0xf7, 0x0d, 0x87, 0x8d, 0xcc, 0xd0, 0xa7, 0x97, 0x97, 0xc4, 0x14, 0x38,
+	0xa6, 0x30, 0x9b, 0x0e, 0x1b, 0x8d, 0x98, 0x17, 0xfd, 0xc8, 0x10, 0xfd, 0x31, 0x6c, 0x59, 0x29,
+	0x82, 0x53, 0x8f, 0x07, 0x93, 0x4e, 0x1b, 0xeb, 0x50, 0xa1, 0xee, 0x9e, 0xd2, 0x50, 0x9a, 0x6b,
+	0x56, 0x85, 0xba, 0xba, 0x06, 0xd5, 0xae, 0x1d, 0x10, 0x8f, 0xe7, 0xdb, 0xce, 0x05, 0x59, 0x8e,
+	0xed, 0x13, 0x60, 0xcf, 0x77, 0x6d, 0x4e, 0x04, 0xb0, 0x45, 0x3e, 0x8f, 0x49, 0xc8, 0xb3, 0x5e,
+	0xf8, 0x02, 0x96, 0xc9, 0xd4, 0xbe, 0x57, 0x69, 0x28, 0x4d, 0xf5, 0xe8, 0x91, 0x21, 0xd5, 0x47,
+	0x89, 0xce, 0xe5, 0x67, 0x49, 0x6f, 0xbd, 0x03, 0xeb, 0x67, 0xc4, 0x25, 0x81, 0xcd, 0x89, 0xdb,
+	0x1a, 0x7b, 0xee, 0x90, 0xe0, 0x7d, 0x58, 0x93, 0xc2, 0x2f, 0x12, 0x82, 0xaa, 0xbc, 0xe8, 0xb8,
+	0x78, 0x0f, 0xaa, 0x8e, 0x7d, 0xe1, 0x90, 0x80, 0x87, 0x82, 0xa9, 0x66, 0xad, 0x3a, 0xf6, 0xc9,
+	0xf4, 0x53, 0xef, 0xc1, 0x46, 0x06, 0x2a, 0xc4, 0x57, 0xb0, 0xda, 0x97, 0xc7, 0x3d, 0xa5, 0xb1,
+	0xd4, 0x54, 0x8f, 0x9e, 0x18, 0xf9, 0x5d, 0x31, 0x32, 0xa1, 0x56, 0x1c, 0xa7, 0x1f, 0xc0, 0x66,
+	0xc6, 0x96, 0x53, 0xa3, 0x63, 0x58, 0x7b, 0xcd, 0xa8, 0xf7, 0x8e, 0xdd, 0x10, 0x0f, 0xb7, 0x61,
+	0x99, 0x4f, 0x0f, 0x91, 0x5d, 0x7e, 0xe0, 0x06, 0x2c, 0x71, 0x3e, 0x14, 0x49, 0x2f, 0x5b, 0xd3,
+	0xa3, 0x7e, 0x00, 0x2b, 0x91, 0xe4, 0xb4, 0x2a, 0x65, 0x46, 0xd5, 0xd1, 0xad, 0x0a, 0xb5, 0x74,
+	0xf5, 0xd0, 0x03, 0xf5, 0x24, 0x20, 0x71, 0x3b, 0x70, 0x51, 0xa1, 0xb5, 0x67, 0x45, 0x8a, 0x73,
+	0xde, 0x8c, 0xbe, 0x79, 0xfb, 0xfd, 0xc7, 0xb7, 0x8a, 0xaa, 0xaf, 0x98, 0xa2, 0x3d, 0x2f, 0x95,
+	0x43, 0xbc, 0x01, 0xb5, 0x4d, 0x86, 0x24, 0xe6, 0xfb, 0x13, 0x38, 0x6d, 0x51, 0x72, 0x7a, 0x5d,
+	0xf0, 0x55, 0x0f, 0x23, 0x3e, 0x64, 0x00, 0x67, 0x84, 0x3b, 0x57, 0xff, 0x83, 0x6b, 0x4b, 0x70,
+	0xdd, 0x45, 0x55, 0x72, 0x99, 0x5f, 0xa8, 0xfb, 0x15, 0xdf, 0x43, 0x2d, 0x21, 0xa4, 0x24, 0xc4,
+	0xad, 0x59, 0x94, 0xd3, 0x91, 0xcf, 0x27, 0xda, 0xfe, 0xef, 0xa1, 0x29, 0x09, 0x63, 0x21, 0x18,
+	0x0b, 0xb9, 0x06, 0x35, 0x35, 0x34, 0x78, 0x58, 0xa4, 0x64, 0x7e, 0xb2, 0x4a, 0x17, 0x4d, 0x8b,
+	0xb9, 0x7a, 0x50, 0x7f, 0x4b, 0x43, 0xde, 0x9a, 0x24, 0xe3, 0xdd, 0x28, 0xa2, 0x8b, 0x3d, 0x4a,
+	0x48, 0xc2, 0x37, 0x31, 0xec, 0x39, 0x19, 0x12, 0x87, 0xb3, 0x00, 0x77, 0x67, 0x83, 0xe2, 0xfb,
+	0x32, 0x60, 0x49, 0x8e, 0xc9, 0x9a, 0x29, 0xcc, 0x31, 0xf6, 0x28, 0x07, 0xbb, 0x23, 0x87, 0x21,
+	0xbb, 0x44, 0xca, 0xce, 0xb9, 0x96, 0xd7, 0x70, 0xbc, 0x86, 0x6d, 0xf1, 0x2a, 0xb2, 0xa8, 0x4f,
+	0x4b, 0xa2, 0x76, 0xda, 0x5a, 0xd9, 0x04, 0xb0, 0x07, 0xdb, 0xd3, 0xca, 0xcc, 0xad, 0xae, 0xdc,
+	0x97, 0xd8, 0x2c, 0x89, 0x2a, 0x2a, 0x23, 0xdf, 0xd6, 0xbf, 0xad, 0xcc, 0x07, 0xd8, 0x91, 0xdb,
+	0xe0, 0x2f, 0x4a, 0x53, 0x00, 0xbc, 0x2e, 0x3b, 0xf9, 0x6b, 0x8f, 0xee, 0x17, 0x41, 0x26, 0x2e,
+	0xda, 0x62, 0x17, 0x6c, 0x81, 0x2a, 0x7a, 0x19, 0xe5, 0x99, 0x5b, 0xd6, 0x87, 0x45, 0x30, 0x32,
+	0xa8, 0x55, 0xff, 0x58, 0x4b, 0x5f, 0x77, 0xef, 0x74, 0x95, 0xfe, 0x8a, 0xf8, 0xf3, 0x3d, 0xfe,
+	0x19, 0x00, 0x00, 0xff, 0xff, 0x40, 0xe6, 0xd6, 0xee, 0xfb, 0x07, 0x00, 0x00,
 }
