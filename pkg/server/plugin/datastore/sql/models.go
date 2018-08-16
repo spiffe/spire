@@ -2,12 +2,17 @@ package sql
 
 import (
 	"time"
-
-	"github.com/jinzhu/gorm"
 )
 
+// Using our own model struct to remove DeletedAt. We don't want soft-delete support.
+type Model struct {
+	ID        uint `gorm:"primary_key"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type CACert struct {
-	gorm.Model
+	Model
 
 	Cert   []byte    `gorm:"not null"`
 	Expiry time.Time `gorm:"not null;index"`
@@ -16,14 +21,14 @@ type CACert struct {
 }
 
 type Bundle struct {
-	gorm.Model
+	Model
 
 	TrustDomain string `gorm:"not null;unique_index"`
 	CACerts     []CACert
 }
 
 type AttestedNodeEntry struct {
-	gorm.Model
+	Model
 
 	SpiffeID     string `gorm:"unique_index"`
 	DataType     string
@@ -32,7 +37,7 @@ type AttestedNodeEntry struct {
 }
 
 type NodeResolverMapEntry struct {
-	gorm.Model
+	Model
 
 	SpiffeID string `gorm:"unique_index:idx_node_resolver_map"`
 	Type     string `gorm:"unique_index:idx_node_resolver_map"`
@@ -40,7 +45,7 @@ type NodeResolverMapEntry struct {
 }
 
 type RegisteredEntry struct {
-	gorm.Model
+	Model
 
 	EntryID   string `gorm:"unique_index"`
 	SpiffeID  string
@@ -52,24 +57,23 @@ type RegisteredEntry struct {
 
 // Keep time simple and easily comparable with UNIX time
 type JoinToken struct {
-	gorm.Model
+	Model
 
 	Token  string `gorm:"unique_index"`
 	Expiry int64
 }
 
 type Selector struct {
-	gorm.Model
+	Model
 
 	RegisteredEntryID uint   `gorm:"unique_index:idx_selector_entry"`
 	Type              string `gorm:"unique_index:idx_selector_entry"`
 	Value             string `gorm:"unique_index:idx_selector_entry"`
 }
 
-func migrateDB(db *gorm.DB) {
-	db.AutoMigrate(&Bundle{}, &CACert{}, &AttestedNodeEntry{},
-		&NodeResolverMapEntry{}, &RegisteredEntry{}, &JoinToken{},
-		&Selector{})
+type Migration struct {
+	Model
 
-	return
+	// Database version
+	Version int
 }
