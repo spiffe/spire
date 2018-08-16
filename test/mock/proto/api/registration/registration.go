@@ -253,13 +253,13 @@ func (mr *MockRegistrationClientMockRecorder) ListBySpiffeID(arg0, arg1 interfac
 }
 
 // ListFederatedBundles mocks base method
-func (m *MockRegistrationClient) ListFederatedBundles(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (*registration.FederatedBundles, error) {
+func (m *MockRegistrationClient) ListFederatedBundles(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (registration.Registration_ListFederatedBundlesClient, error) {
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "ListFederatedBundles", varargs...)
-	ret0, _ := ret[0].(*registration.FederatedBundles)
+	ret0, _ := ret[0].(registration.Registration_ListFederatedBundlesClient)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -486,11 +486,10 @@ func (mr *MockRegistrationServerMockRecorder) ListBySpiffeID(arg0, arg1 interfac
 }
 
 // ListFederatedBundles mocks base method
-func (m *MockRegistrationServer) ListFederatedBundles(arg0 context.Context, arg1 *common.Empty) (*registration.FederatedBundles, error) {
+func (m *MockRegistrationServer) ListFederatedBundles(arg0 *common.Empty, arg1 registration.Registration_ListFederatedBundlesServer) error {
 	ret := m.ctrl.Call(m, "ListFederatedBundles", arg0, arg1)
-	ret0, _ := ret[0].(*registration.FederatedBundles)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // ListFederatedBundles indicates an expected call of ListFederatedBundles
