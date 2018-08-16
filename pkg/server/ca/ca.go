@@ -4,14 +4,23 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"math/big"
 	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
+	"github.com/spiffe/spire/proto/api/node"
+)
+
+const (
+	DefaultJWTSVIDTTL = time.Minute * 5
 )
 
 type serverCAConfig struct {
@@ -22,6 +31,7 @@ type serverCAConfig struct {
 
 type ServerCA interface {
 	SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) (*x509.Certificate, error)
+	SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error)
 }
 
 type serverCA struct {
@@ -81,4 +91,32 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 
 	km := ca.c.Catalog.KeyManagers()[0]
 	return x509util.CreateCertificate(ctx, km, template, kp.x509CA, kp.X509CAKeyId(), template.PublicKey)
+}
+
+func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
+	kp := ca.getKeypairSet()
+	if kp == nil {
+		return "", errors.New("no JWT-SVID keypair available")
+	}
+
+	if err := idutil.ValidateSpiffeID(jsr.SpiffeId, idutil.AllowTrustDomainWorkload(ca.c.TrustDomain.Host)); err != nil {
+		return "", err
+	}
+
+	ttl := time.Duration(jsr.Ttl) * time.Second
+	if ttl <= 0 {
+		ttl = DefaultJWTSVIDTTL
+	}
+	expiresAt := ca.hooks.now().Add(ttl)
+	if expiresAt.After(kp.jwtSigner.NotAfter) {
+		expiresAt = kp.jwtSigner.NotAfter
+	}
+
+	km := ca.c.Catalog.KeyManagers()[0]
+	signer := cryptoutil.NewKeyManagerSigner(km, kp.JWTSignerKeyId(), kp.jwtSigner.PublicKey)
+	token, err := jwtsvid.SignSimpleToken(jsr.SpiffeId, jsr.Audience, expiresAt, signer, kp.jwtSigner)
+	if err != nil {
+		return "", fmt.Errorf("unable to sign JWT-SVID: %v", err)
+	}
+	return token, nil
 }
