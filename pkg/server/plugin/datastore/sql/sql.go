@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/hcl"
@@ -28,6 +29,9 @@ var (
 		Author:      "",
 		Company:     "",
 	}
+
+	// nextDB is used to provide a unique name so there is not false sharing between in-memory sqlite3 databases
+	nextDB uint64
 )
 
 type configuration struct {
@@ -187,6 +191,7 @@ func (ds *sqlPlugin) DeleteBundle(ctx context.Context, req *datastore.Bundle) (*
 		return nil, result.Error
 	}
 
+	result = tx.Delete(model)
 	resp, err := ds.modelToBundle(model)
 	if err != nil {
 		tx.Rollback()
@@ -1133,8 +1138,12 @@ func (ds *sqlPlugin) restart() error {
 	default:
 		return fmt.Errorf("unsupported database_type: %v", ds.DatabaseType)
 	}
-
 	if err != nil {
+		return err
+	}
+
+	if err := migrateDB(db); err != nil {
+		db.Close()
 		return err
 	}
 
@@ -1142,15 +1151,16 @@ func (ds *sqlPlugin) restart() error {
 		ds.db.Close()
 	}
 
-	migrateDB(db)
 	ds.db = db
 	return nil
 }
 
 func newPlugin() *sqlPlugin {
+	u := fmt.Sprintf("file:memdb%d?mode=memory&cache=shared", atomic.AddUint64(&nextDB, 1))
+
 	p := &sqlPlugin{
 		mutex:            new(sync.Mutex),
-		ConnectionString: ":memory:",
+		ConnectionString: u,
 		DatabaseType:     "sqlite3",
 	}
 

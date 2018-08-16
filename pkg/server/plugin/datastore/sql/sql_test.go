@@ -3,7 +3,11 @@ package sql
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -370,7 +374,7 @@ func Test_CreateRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
 	var validRegistrationEntries []*common.RegistrationEntry
-	err := getTestDataFromJsonFile(t, "_test_data/valid_registration_entries.json", &validRegistrationEntries)
+	err := getTestDataFromJsonFile(t, filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
 	require.NoError(t, err)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
@@ -385,7 +389,7 @@ func Test_CreateInvalidRegistrationEntry(t *testing.T) {
 	ds := createDefault(t)
 
 	var invalidRegistrationEntries []*common.RegistrationEntry
-	err := getTestDataFromJsonFile(t, "_test_data/invalid_registration_entries.json", &invalidRegistrationEntries)
+	err := getTestDataFromJsonFile(t, filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
 	require.NoError(t, err)
 
 	for _, invalidRegisteredEntry := range invalidRegistrationEntries {
@@ -622,7 +626,8 @@ func Test_ListSelectorEntries(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ds := createDefault(t)
 			for _, entry := range test.registrationEntries {
-				r, _ := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				require.NoError(t, err)
 				entry.EntryId = r.RegisteredEntryId
 			}
 			result, err := ds.ListSelectorEntries(ctx, &datastore.ListSelectorEntriesRequest{
@@ -668,7 +673,8 @@ func Test_ListMatchingEntries(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ds := createDefault(t)
 			for _, entry := range test.registrationEntries {
-				r, _ := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				require.NoError(t, err)
 				entry.EntryId = r.RegisteredEntryId
 			}
 			result, err := ds.ListMatchingEntries(ctx, &datastore.ListSelectorEntriesRequest{
@@ -787,6 +793,47 @@ func Test_GetPluginInfo(t *testing.T) {
 	require.NotNil(t, resp)
 }
 
+func Test_Migration(t *testing.T) {
+	require := require.New(t)
+
+	tmpDir, err := ioutil.TempDir("", "spire-sql-datastore")
+	require.NoError(err)
+	defer os.RemoveAll(tmpDir)
+
+	ds := New()
+
+	for i := 0; i < codeVersion; i++ {
+		dbName := fmt.Sprintf("v%d.sqlite3", i)
+		dbPath := filepath.Join(tmpDir, dbName)
+		// copy the database file from the test data
+		require.NoError(copyFile(filepath.Join("testdata", "migration", dbName), dbPath))
+
+		// configure the datastore to use the new database
+		_, err = ds.Configure(context.Background(), &spi.ConfigureRequest{
+			Configuration: fmt.Sprintf(`
+				database_type = "sqlite3"
+				connection_string = "file://%s"
+			`, dbPath),
+		})
+		require.NoError(err)
+
+		switch i {
+		case 0:
+			// the v0 database has two bundles. the spiffe://otherdomain.org
+			// bundle has been soft-deleted. after migration, it should not
+			// exist. if we try and create a bundle with the same id, it should
+			// fail if the migration did not run, due to uniqueness
+			// constraints.
+			_, err := ds.CreateBundle(context.Background(), &datastore.Bundle{
+				TrustDomain: "spiffe://otherdomain.org",
+			})
+			require.NoError(err)
+		default:
+			t.Fatalf("no migration test added for version %d", i)
+		}
+	}
+}
+
 func Test_race(t *testing.T) {
 	ds := createDefault(t)
 
@@ -823,4 +870,24 @@ func getTestDataFromJsonFile(t *testing.T, filePath string, jsonValue interface{
 	}
 
 	return nil
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return out.Close()
 }
