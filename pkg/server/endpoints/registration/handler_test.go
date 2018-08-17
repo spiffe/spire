@@ -1,7 +1,9 @@
 package registration
 
 import (
+	"context"
 	"errors"
+	"net"
 	"net/url"
 	"reflect"
 	"testing"
@@ -11,11 +13,241 @@ import (
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc"
 )
+
+func TestHandler(t *testing.T) {
+	suite.Run(t, new(HandlerSuite))
+}
+
+type HandlerSuite struct {
+	suite.Suite
+
+	server *grpc.Server
+
+	ds      *fakedatastore.DataStore
+	handler registration.RegistrationClient
+}
+
+func (s *HandlerSuite) SetupTest() {
+	log, _ := test.NewNullLogger()
+
+	s.ds = fakedatastore.New()
+
+	catalog := fakeservercatalog.New()
+	catalog.SetDataStores(s.ds)
+
+	handler := &Handler{
+		Log:         log,
+		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
+		Catalog:     catalog,
+	}
+
+	// we need to test a streaming API. without doing the same codegen we
+	// did with plugins, implementing the server or client side interfaces
+	// is a pain. start up a localhost server and test over that.
+	s.server = grpc.NewServer()
+	registration.RegisterRegistrationServer(s.server, handler)
+
+	// start up a server over localhost
+	listener, err := net.Listen("tcp", "localhost:0")
+	s.Require().NoError(err)
+	go s.server.Serve(listener)
+
+	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
+	s.Require().NoError(err)
+
+	s.handler = registration.NewRegistrationClient(conn)
+}
+
+func (s *HandlerSuite) TearDownTest() {
+	s.server.Stop()
+}
+
+func (s *HandlerSuite) TestCreateFederatedBundle() {
+	testCases := []struct {
+		Id      string
+		CaCerts string
+		Err     string
+	}{
+		{Id: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
+		{Id: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{Id: "spiffe://otherdomain.org", CaCerts: "CACERTS", Err: ""},
+		{Id: "spiffe://otherdomain.org", CaCerts: "CACERTS", Err: "bundle already exists"},
+	}
+
+	for _, testCase := range testCases {
+		response, err := s.handler.CreateFederatedBundle(context.Background(), &registration.FederatedBundle{
+			SpiffeId: testCase.Id,
+			CaCerts:  []byte(testCase.CaCerts),
+		})
+
+		if testCase.Err != "" {
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), testCase.Err)
+			continue
+		}
+		s.Require().NoError(err)
+		s.Require().Equal(&common.Empty{}, response)
+
+		// assert that the bundle was created in the datastore
+		bundle, err := s.ds.FetchBundle(context.Background(), &datastore.Bundle{
+			TrustDomain: testCase.Id,
+		})
+		s.Require().NoError(err)
+		s.Require().Equal(bundle.TrustDomain, testCase.Id)
+		s.Require().Equal(string(bundle.CaCerts), testCase.CaCerts)
+	}
+}
+
+func (s *HandlerSuite) TestFetchFederatedBundle() {
+	// Create three bundles
+	s.createBundle(&datastore.Bundle{
+		TrustDomain: "spiffe://example.org",
+		CaCerts:     []byte("EXAMPLE"),
+	})
+	s.createBundle(&datastore.Bundle{
+		TrustDomain: "spiffe://otherdomain.org",
+		CaCerts:     []byte("OTHERDOMAIN"),
+	})
+
+	testCases := []struct {
+		Id      string
+		CaCerts string
+		Err     string
+	}{
+		{Id: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
+		{Id: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{Id: "spiffe://otherdomain.org", CaCerts: "OTHERDOMAIN", Err: ""},
+		{Id: "spiffe://yetotherdomain.org", CaCerts: "", Err: "no such bundle"},
+	}
+
+	for _, testCase := range testCases {
+		response, err := s.handler.FetchFederatedBundle(context.Background(), &registration.FederatedBundleID{
+			Id: testCase.Id,
+		})
+
+		if testCase.Err != "" {
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), testCase.Err)
+			continue
+		}
+		s.Require().NoError(err)
+		s.Require().NotNil(response)
+		s.Require().Equal(response.SpiffeId, testCase.Id)
+		s.Require().Equal(string(response.CaCerts), testCase.CaCerts)
+	}
+}
+
+func (s *HandlerSuite) TestListFederatedBundles() {
+	s.createBundle(&datastore.Bundle{
+		TrustDomain: "spiffe://example.org",
+		CaCerts:     []byte("EXAMPLE"),
+	})
+	s.createBundle(&datastore.Bundle{
+		TrustDomain: "spiffe://example2.org",
+		CaCerts:     []byte("EXAMPLE2"),
+	})
+
+	// Assert that the listing does not contain the bundle for the server
+	// trust domain
+	stream, err := s.handler.ListFederatedBundles(context.Background(), &common.Empty{})
+	s.Require().NoError(err)
+
+	bundle, err := stream.Recv()
+	s.Require().NoError(err)
+	s.Require().Equal(&registration.FederatedBundle{
+		SpiffeId: "spiffe://example2.org",
+		CaCerts:  []byte("EXAMPLE2"),
+	}, bundle)
+
+	_, err = stream.Recv()
+	s.Require().EqualError(err, "EOF")
+}
+
+func (s *HandlerSuite) TestUpdateFederatedBundle() {
+	testCases := []struct {
+		Id      string
+		CaCerts string
+		Err     string
+	}{
+		{Id: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
+		{Id: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{Id: "spiffe://otherdomain.org", CaCerts: "CACERTS", Err: ""},
+		{Id: "spiffe://otherdomain.org", CaCerts: "CACERTS2", Err: ""},
+	}
+
+	for _, testCase := range testCases {
+		response, err := s.handler.UpdateFederatedBundle(context.Background(), &registration.FederatedBundle{
+			SpiffeId: testCase.Id,
+			CaCerts:  []byte(testCase.CaCerts),
+		})
+
+		if testCase.Err != "" {
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), testCase.Err)
+			continue
+		}
+		s.Require().NoError(err)
+		s.Require().Equal(&common.Empty{}, response)
+
+		// assert that the bundle was created in the datastore
+		bundle, err := s.ds.FetchBundle(context.Background(), &datastore.Bundle{
+			TrustDomain: testCase.Id,
+		})
+		s.Require().NoError(err)
+		s.Require().Equal(bundle.TrustDomain, testCase.Id)
+		s.Require().Equal(string(bundle.CaCerts), testCase.CaCerts)
+	}
+}
+
+func (s *HandlerSuite) TestDeleteFederatedBundle() {
+	testCases := []struct {
+		Id  string
+		Err string
+	}{
+		{Id: "spiffe://example.org", Err: "federated bundle id cannot match server trust domain"},
+		{Id: "spiffe://otherdomain.org/spire/agent", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{Id: "spiffe://otherdomain.org", Err: ""},
+		{Id: "spiffe://otherdomain.org", Err: "no such bundle"},
+	}
+
+	s.createBundle(&datastore.Bundle{
+		TrustDomain: "spiffe://otherdomain.org",
+		CaCerts:     []byte("BLAH"),
+	})
+
+	for _, testCase := range testCases {
+		response, err := s.handler.DeleteFederatedBundle(context.Background(), &registration.FederatedBundleID{
+			Id: testCase.Id,
+		})
+
+		if testCase.Err != "" {
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), testCase.Err)
+			continue
+		}
+		s.Require().NoError(err)
+		s.Require().Equal(&common.Empty{}, response)
+
+		// assert that the bundle was deleted
+		bundle, err := s.ds.FetchBundle(context.Background(), &datastore.Bundle{
+			TrustDomain: testCase.Id,
+		})
+		s.Require().EqualError(err, "no such bundle")
+		s.Require().Nil(bundle)
+	}
+}
+
+func (s *HandlerSuite) createBundle(bundle *datastore.Bundle) {
+	_, err := s.ds.CreateBundle(context.Background(), bundle)
+	s.Require().NoError(err)
+}
 
 type handlerTestSuite struct {
 	suite.Suite
@@ -293,114 +525,6 @@ func TestListBySpiffeID(t *testing.T) {
 		suite := setupRegistrationTest(t)
 		tt.setExpectations(suite)
 		response, err := suite.handler.ListBySpiffeID(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-}
-
-func TestCreateFederatedBundle(t *testing.T) {
-	var testCases = []struct {
-		request          *registration.CreateFederatedBundleRequest
-		expectedResponse *common.Empty
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{nil, nil, nil, func(*handlerTestSuite) {}},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-		tt.setExpectations(suite)
-		response, err := suite.handler.CreateFederatedBundle(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-}
-
-func TestListFederatedBundles(t *testing.T) {
-	var testCases = []struct {
-		request          *common.Empty
-		expectedResponse *registration.ListFederatedBundlesReply
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{nil, nil, nil, func(*handlerTestSuite) {}},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-		tt.setExpectations(suite)
-		response, err := suite.handler.ListFederatedBundles(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-}
-
-func TestUpdateFederatedBundle(t *testing.T) {
-	var testCases = []struct {
-		request          *registration.FederatedBundle
-		expectedResponse *common.Empty
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{nil, nil, nil, func(*handlerTestSuite) {}},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-		tt.setExpectations(suite)
-		response, err := suite.handler.UpdateFederatedBundle(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-}
-
-func TestDeleteFederatedBundle(t *testing.T) {
-	var testCases = []struct {
-		request          *registration.FederatedSpiffeID
-		expectedResponse *common.Empty
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{nil, nil, nil, func(*handlerTestSuite) {}},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-		tt.setExpectations(suite)
-		response, err := suite.handler.DeleteFederatedBundle(nil, tt.request)
 
 		//verification
 		if !reflect.DeepEqual(response, tt.expectedResponse) {
