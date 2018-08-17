@@ -55,7 +55,7 @@ func (mr *MockRegistrationClientMockRecorder) CreateEntry(arg0, arg1 interface{}
 }
 
 // CreateFederatedBundle mocks base method
-func (m *MockRegistrationClient) CreateFederatedBundle(arg0 context.Context, arg1 *registration.CreateFederatedBundleRequest, arg2 ...grpc.CallOption) (*common.Empty, error) {
+func (m *MockRegistrationClient) CreateFederatedBundle(arg0 context.Context, arg1 *registration.FederatedBundle, arg2 ...grpc.CallOption) (*common.Empty, error) {
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
@@ -109,7 +109,7 @@ func (mr *MockRegistrationClientMockRecorder) DeleteEntry(arg0, arg1 interface{}
 }
 
 // DeleteFederatedBundle mocks base method
-func (m *MockRegistrationClient) DeleteFederatedBundle(arg0 context.Context, arg1 *registration.FederatedSpiffeID, arg2 ...grpc.CallOption) (*common.Empty, error) {
+func (m *MockRegistrationClient) DeleteFederatedBundle(arg0 context.Context, arg1 *registration.FederatedBundleID, arg2 ...grpc.CallOption) (*common.Empty, error) {
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
@@ -180,6 +180,24 @@ func (mr *MockRegistrationClientMockRecorder) FetchEntry(arg0, arg1 interface{},
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchEntry", reflect.TypeOf((*MockRegistrationClient)(nil).FetchEntry), varargs...)
 }
 
+// FetchFederatedBundle mocks base method
+func (m *MockRegistrationClient) FetchFederatedBundle(arg0 context.Context, arg1 *registration.FederatedBundleID, arg2 ...grpc.CallOption) (*registration.FederatedBundle, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "FetchFederatedBundle", varargs...)
+	ret0, _ := ret[0].(*registration.FederatedBundle)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchFederatedBundle indicates an expected call of FetchFederatedBundle
+func (mr *MockRegistrationClientMockRecorder) FetchFederatedBundle(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchFederatedBundle", reflect.TypeOf((*MockRegistrationClient)(nil).FetchFederatedBundle), varargs...)
+}
+
 // ListByParentID mocks base method
 func (m *MockRegistrationClient) ListByParentID(arg0 context.Context, arg1 *registration.ParentID, arg2 ...grpc.CallOption) (*common.RegistrationEntries, error) {
 	varargs := []interface{}{arg0, arg1}
@@ -235,13 +253,13 @@ func (mr *MockRegistrationClientMockRecorder) ListBySpiffeID(arg0, arg1 interfac
 }
 
 // ListFederatedBundles mocks base method
-func (m *MockRegistrationClient) ListFederatedBundles(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (*registration.ListFederatedBundlesReply, error) {
+func (m *MockRegistrationClient) ListFederatedBundles(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (registration.Registration_ListFederatedBundlesClient, error) {
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "ListFederatedBundles", varargs...)
-	ret0, _ := ret[0].(*registration.ListFederatedBundlesReply)
+	ret0, _ := ret[0].(registration.Registration_ListFederatedBundlesClient)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -325,7 +343,7 @@ func (mr *MockRegistrationServerMockRecorder) CreateEntry(arg0, arg1 interface{}
 }
 
 // CreateFederatedBundle mocks base method
-func (m *MockRegistrationServer) CreateFederatedBundle(arg0 context.Context, arg1 *registration.CreateFederatedBundleRequest) (*common.Empty, error) {
+func (m *MockRegistrationServer) CreateFederatedBundle(arg0 context.Context, arg1 *registration.FederatedBundle) (*common.Empty, error) {
 	ret := m.ctrl.Call(m, "CreateFederatedBundle", arg0, arg1)
 	ret0, _ := ret[0].(*common.Empty)
 	ret1, _ := ret[1].(error)
@@ -364,7 +382,7 @@ func (mr *MockRegistrationServerMockRecorder) DeleteEntry(arg0, arg1 interface{}
 }
 
 // DeleteFederatedBundle mocks base method
-func (m *MockRegistrationServer) DeleteFederatedBundle(arg0 context.Context, arg1 *registration.FederatedSpiffeID) (*common.Empty, error) {
+func (m *MockRegistrationServer) DeleteFederatedBundle(arg0 context.Context, arg1 *registration.FederatedBundleID) (*common.Empty, error) {
 	ret := m.ctrl.Call(m, "DeleteFederatedBundle", arg0, arg1)
 	ret0, _ := ret[0].(*common.Empty)
 	ret1, _ := ret[1].(error)
@@ -415,6 +433,19 @@ func (mr *MockRegistrationServerMockRecorder) FetchEntry(arg0, arg1 interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchEntry", reflect.TypeOf((*MockRegistrationServer)(nil).FetchEntry), arg0, arg1)
 }
 
+// FetchFederatedBundle mocks base method
+func (m *MockRegistrationServer) FetchFederatedBundle(arg0 context.Context, arg1 *registration.FederatedBundleID) (*registration.FederatedBundle, error) {
+	ret := m.ctrl.Call(m, "FetchFederatedBundle", arg0, arg1)
+	ret0, _ := ret[0].(*registration.FederatedBundle)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchFederatedBundle indicates an expected call of FetchFederatedBundle
+func (mr *MockRegistrationServerMockRecorder) FetchFederatedBundle(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchFederatedBundle", reflect.TypeOf((*MockRegistrationServer)(nil).FetchFederatedBundle), arg0, arg1)
+}
+
 // ListByParentID mocks base method
 func (m *MockRegistrationServer) ListByParentID(arg0 context.Context, arg1 *registration.ParentID) (*common.RegistrationEntries, error) {
 	ret := m.ctrl.Call(m, "ListByParentID", arg0, arg1)
@@ -455,11 +486,10 @@ func (mr *MockRegistrationServerMockRecorder) ListBySpiffeID(arg0, arg1 interfac
 }
 
 // ListFederatedBundles mocks base method
-func (m *MockRegistrationServer) ListFederatedBundles(arg0 context.Context, arg1 *common.Empty) (*registration.ListFederatedBundlesReply, error) {
+func (m *MockRegistrationServer) ListFederatedBundles(arg0 *common.Empty, arg1 registration.Registration_ListFederatedBundlesServer) error {
 	ret := m.ctrl.Call(m, "ListFederatedBundles", arg0, arg1)
-	ret0, _ := ret[0].(*registration.ListFederatedBundlesReply)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // ListFederatedBundles indicates an expected call of ListFederatedBundles
