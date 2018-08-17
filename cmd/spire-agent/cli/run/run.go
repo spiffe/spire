@@ -180,24 +180,14 @@ func mergeConfigs(c *agent.Config, fileConfig, cliConfig *runConfig) error {
 }
 
 func mergeConfig(orig *agent.Config, cmd *runConfig) error {
-	// Parse server address
 	if cmd.AgentConfig.ServerAddress != "" {
-		orig.ServerHostname = cmd.AgentConfig.ServerAddress
-		ips, err := net.LookupIP(cmd.AgentConfig.ServerAddress)
-		if err != nil {
-			return err
-		}
-
-		if len(ips) == 0 {
-			return fmt.Errorf("Could not resolve ServerAddress %s", cmd.AgentConfig.ServerAddress)
-		}
-		serverAddress := ips[0]
-
-		orig.ServerAddress.IP = serverAddress
+		_, port, _ := net.SplitHostPort(orig.ServerAddress)
+		orig.ServerAddress = net.JoinHostPort(cmd.AgentConfig.ServerAddress, port)
 	}
 
 	if cmd.AgentConfig.ServerPort != 0 {
-		orig.ServerAddress.Port = cmd.AgentConfig.ServerPort
+		host, _, _ := net.SplitHostPort(orig.ServerAddress)
+		orig.ServerAddress = net.JoinHostPort(host, strconv.Itoa(cmd.AgentConfig.ServerPort))
 	}
 
 	if cmd.AgentConfig.TrustDomain != "" {
@@ -275,8 +265,13 @@ func mergeConfig(orig *agent.Config, cmd *runConfig) error {
 }
 
 func validateConfig(c *agent.Config) error {
-	if c.ServerAddress.IP == nil || c.ServerAddress.Port == 0 {
-		return errors.New("ServerAddress and ServerPort are required")
+	host, port, _ := net.SplitHostPort(c.ServerAddress)
+	if host == "" {
+		return errors.New("ServerAddress is required")
+	}
+
+	if port == "" {
+		return errors.New("ServerPort is required")
 	}
 
 	if c.TrustDomain.String() == "" {
@@ -295,14 +290,12 @@ func newDefaultConfig() *agent.Config {
 
 	// log.NewLogger() cannot return error when using STDOUT
 	logger, _ := log.NewLogger(defaultLogLevel, "")
-	serverAddress := &net.TCPAddr{}
 
 	return &agent.Config{
-		BindAddress:   bindAddr,
-		DataDir:       defaultDataDir,
-		Log:           logger,
-		ServerAddress: serverAddress,
-		Umask:         defaultUmask,
+		BindAddress: bindAddr,
+		DataDir:     defaultDataDir,
+		Log:         logger,
+		Umask:       defaultUmask,
 	}
 }
 

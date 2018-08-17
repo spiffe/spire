@@ -6,8 +6,7 @@ import (
 	"net/url"
 
 	"github.com/sirupsen/logrus"
-
-	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/catalog"
 )
 
 type Config struct {
@@ -18,15 +17,12 @@ type Config struct {
 	DataDir string
 
 	// Configurations for agent plugins
-	PluginConfigs common_catalog.PluginConfigMap
+	PluginConfigs catalog.PluginConfigMap
 
 	Log logrus.FieldLogger
 
 	// Address of SPIRE server
-	ServerAddress *net.TCPAddr
-
-	// Hostname of SPIRE server
-	ServerHostname string
+	ServerAddress string
 
 	// Trust domain and associated CA bundle
 	TrustDomain url.URL

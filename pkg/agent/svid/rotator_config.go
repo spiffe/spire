@@ -3,7 +3,6 @@ package svid
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -15,10 +14,9 @@ import (
 )
 
 type RotatorConfig struct {
-	Log            logrus.FieldLogger
-	TrustDomain    url.URL
-	ServerAddr     net.Addr
-	ServerHostname string
+	Log         logrus.FieldLogger
+	TrustDomain url.URL
+	ServerAddr  string
 	// Initial SVID and key
 	SVID    *x509.Certificate
 	SVIDKey *ecdsa.PrivateKey
@@ -46,7 +44,6 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 		TrustDomain: c.TrustDomain,
 		Log:         c.Log,
 		Addr:        c.ServerAddr,
-		Hostname:    c.ServerHostname,
 		KeysAndBundle: func() (*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
 			s := state.Value().(State)
 			bsm.RLock()

@@ -20,7 +20,7 @@ type GRPCDialerConfig struct {
 }
 
 type Dialer interface {
-	Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn, error)
+	Dial(ctx context.Context, addr string) (*grpc.ClientConn, error)
 }
 
 type grpcDialer struct {
@@ -39,12 +39,12 @@ func NewGRPCDialer(c GRPCDialerConfig) Dialer {
 
 // Dial dials the given address, using TLS credentials, and logs information about connection
 // errors.
-func (d *grpcDialer) Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn, error) {
+func (d *grpcDialer) Dial(ctx context.Context, addr string) (*grpc.ClientConn, error) {
 	if d.credFunc == nil {
 		return nil, errors.New("credentials are required")
 	}
 
-	dialer := func(address string, timeout time.Duration) (net.Conn, error) {
+	dialer := func(_ string, timeout time.Duration) (net.Conn, error) {
 		creds, err := d.credFunc()
 		if err != nil {
 			d.log.Printf("Could not fetch transport credentials: %v", err)
@@ -54,13 +54,13 @@ func (d *grpcDialer) Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn,
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
-		conn, err := (&net.Dialer{}).DialContext(ctx, addr.Network(), addr.String())
+		conn, err := new(net.Dialer).DialContext(ctx, "tcp", addr)
 		if err != nil {
 			d.log.Print(err)
 			return nil, err
 		}
 
-		conn, _, err = creds.ClientHandshake(ctx, address, conn)
+		conn, _, err = creds.ClientHandshake(ctx, addr, conn)
 		if err != nil {
 			d.log.Print(err)
 			return nil, err
@@ -74,5 +74,5 @@ func (d *grpcDialer) Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn,
 		grpc.WithDialer(dialer),
 		grpc.WithInsecure(), // we want to handle TLS by ourselves
 	)
-	return grpc.DialContext(ctx, addr.String(), opts...)
+	return grpc.DialContext(ctx, addr, opts...)
 }
