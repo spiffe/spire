@@ -8,14 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
-	"github.com/spiffe/spire/pkg/agent/resolver"
 	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
@@ -38,8 +36,7 @@ type Client interface {
 
 // Config holds a client configuration
 type Config struct {
-	Addr        net.Addr
-	Hostname    string
+	Addr        string
 	Log         logrus.FieldLogger
 	TrustDomain url.URL
 	// KeysAndBundle is a callback that must return the keys and bundle used by the client
@@ -48,14 +45,9 @@ type Config struct {
 }
 
 type client struct {
-	conn        *grpc.ClientConn
-	m           sync.Mutex
-	r           resolver.Resolver
-	log         logrus.FieldLogger
-	trustDomain url.URL
-	// KeysAndBundle is a callback that must return the keys and bundle used by the client
-	// to connect via mTLS to Addr.
-	keysAndBundle func() (*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate)
+	c    *Config
+	conn *grpc.ClientConn
+	m    sync.Mutex
 	// Callback to be used for testing purposes.
 	newNodeClientCallback func() (node.NodeClient, error)
 }
@@ -63,10 +55,7 @@ type client struct {
 // New creates a new client struct with the configuration provided
 func New(c *Config) *client {
 	return &client{
-		r:             resolver.New(c.Hostname, c.Addr, resolver.LoggerFromFieldLogger(c.Log)),
-		log:           c.Log,
-		trustDomain:   c.TrustDomain,
-		keysAndBundle: c.KeysAndBundle,
+		c: c,
 	}
 }
 
@@ -74,9 +63,9 @@ func (c *client) credsFunc() (credentials.TransportCredentials, error) {
 	var tlsCert []tls.Certificate
 	var tlsConfig *tls.Config
 
-	svid, key, bundle := c.keysAndBundle()
+	svid, key, bundle := c.c.KeysAndBundle()
 	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{"spiffe://" + c.trustDomain.Host + "/spire/server"},
+		SpiffeIDs:  []string{"spiffe://" + c.c.TrustDomain.Host + "/spire/server"},
 		TrustRoots: util.NewCertPool(bundle...),
 	}
 	tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
@@ -89,12 +78,11 @@ func (c *client) dial() (*grpc.ClientConn, error) {
 	defer cancel()
 
 	config := grpcutil.GRPCDialerConfig{
-		Log:      grpcutil.LoggerFromFieldLogger(c.log),
+		Log:      grpcutil.LoggerFromFieldLogger(c.c.Log),
 		CredFunc: c.credsFunc,
 	}
 	dialer := grpcutil.NewGRPCDialer(config)
-
-	conn, err := dialer.Dial(ctx, c.r.Lookup())
+	conn, err := dialer.Dial(ctx, c.c.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create connection: %v", err)
 	}
@@ -111,7 +99,7 @@ func (c *client) FetchUpdates(req *node.FetchX509SVIDRequest) (*Update, error) {
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
 		c.Release()
-		c.log.Errorf("%v: %v", ErrUnableToGetStream, err)
+		c.c.Log.Errorf("%v: %v", ErrUnableToGetStream, err)
 		return nil, ErrUnableToGetStream
 	}
 
@@ -165,7 +153,7 @@ func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, err
 	// We weren't able to make the request...close the client and return the error.
 	if err != nil {
 		c.Release()
-		c.log.Errorf("%v: %v", ErrUnableToGetStream, err)
+		c.c.Log.Errorf("%v: %v", ErrUnableToGetStream, err)
 		return nil, ErrUnableToGetStream
 	}
 

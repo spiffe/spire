@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
-	"net"
 	"sync"
 	"time"
 
@@ -57,10 +56,7 @@ type manager struct {
 	cache cache.Cache
 	svid  svid.Rotator
 
-	spiffeID       string
-	serverSPIFFEID string
-	serverAddr     net.Addr
-	serverHostname string
+	spiffeID string
 
 	svidCachePath   string
 	bundleCachePath string

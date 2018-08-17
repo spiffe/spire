@@ -152,7 +152,6 @@ func (a *Agent) newManager(ctx context.Context, tel telemetry.Sink, as *attestor
 		Bundle:          as.Bundle,
 		TrustDomain:     a.c.TrustDomain,
 		ServerAddr:      a.c.ServerAddress,
-		ServerHostname:  a.c.ServerHostname,
 		Log:             a.c.Log.WithField("subsystem_name", "manager"),
 		Tel:             tel,
 		BundleCachePath: a.bundleCachePath(),

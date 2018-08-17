@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"path"
 
@@ -44,7 +43,7 @@ type Config struct {
 	BundleCachePath string
 	SVIDCachePath   string
 	Log             logrus.FieldLogger
-	ServerAddress   *net.TCPAddr
+	ServerAddress   string
 	NodeClient      node.NodeClient
 }
 
