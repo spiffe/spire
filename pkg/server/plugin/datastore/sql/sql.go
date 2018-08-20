@@ -1133,8 +1133,12 @@ func (ds *sqlPlugin) restart() error {
 	default:
 		return fmt.Errorf("unsupported database_type: %v", ds.DatabaseType)
 	}
-
 	if err != nil {
+		return err
+	}
+
+	if err := migrateDB(db); err != nil {
+		db.Close()
 		return err
 	}
 
@@ -1142,38 +1146,18 @@ func (ds *sqlPlugin) restart() error {
 		ds.db.Close()
 	}
 
-	migrateDB(db)
 	ds.db = db
 	return nil
 }
 
 func newPlugin() *sqlPlugin {
-	p := &sqlPlugin{
-		mutex:            new(sync.Mutex),
-		ConnectionString: ":memory:",
-		DatabaseType:     "sqlite3",
+	return &sqlPlugin{
+		mutex: new(sync.Mutex),
 	}
-
-	return p
 }
 
 // New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
 func New() datastore.Plugin {
 	return newPlugin()
-}
-
-// NewTemp create a new plugin with a temporal database, allowing new
-// connections to receive a fresh copy. Primarily meant for testing.
-func NewTemp() (datastore.Plugin, error) {
-	p := newPlugin()
-
-	// Call restart() to start the db - normally triggered by call to Configure
-	err := p.restart()
-	if err != nil {
-		return nil, fmt.Errorf("start database: %v", err)
-	}
-
-	p.db.LogMode(true)
-	return p, nil
 }
