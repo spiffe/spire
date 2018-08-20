@@ -85,7 +85,7 @@ func initDB(db *gorm.DB) (err error) {
 		return sqlError.Wrap(err)
 	}
 
-	return nil
+	return tx.Commit().Error
 }
 
 func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
