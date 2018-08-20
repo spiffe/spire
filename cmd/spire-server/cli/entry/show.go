@@ -20,11 +20,13 @@ type ShowConfig struct {
 
 	// Type and value are delimited by a colon (:)
 	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
-	Selectors SelectorFlag
+	Selectors StringsFlag
 
 	EntryID  string
 	ParentID string
 	SpiffeID string
+
+	FederatesWith StringsFlag
 }
 
 // Validate ensures that the values in ShowConfig are valid
@@ -98,6 +100,7 @@ func (s *ShowCLI) Run(args []string) int {
 			return 1
 		}
 
+		s.filterEntries()
 		s.printEntries()
 		return 0
 	}
@@ -208,6 +211,15 @@ func (s *ShowCLI) filterEntries() {
 	newSlice := []*common.RegistrationEntry{}
 	// Map used to skip duplicated entries.
 	matchingEntries := map[string]*common.RegistrationEntry{}
+
+	var federatedIDs map[string]bool
+	if len(s.Config.FederatesWith) > 0 {
+		federatedIDs = make(map[string]bool)
+		for _, federatesWith := range s.Config.FederatesWith {
+			federatedIDs[federatesWith] = true
+		}
+	}
+
 	for _, e := range s.Entries {
 		match, _ := hasSelectors(e, s.Config.Selectors)
 		if !match {
@@ -222,6 +234,20 @@ func (s *ShowCLI) filterEntries() {
 		// If ParentID was specified, discard entries that don't match.
 		if s.Config.ParentID != "" && e.ParentId != s.Config.ParentID {
 			continue
+		}
+
+		// If FederatesWith was specified, discard entries that don't match
+		if federatedIDs != nil {
+			found := false
+			for _, federatesWith := range e.FederatesWith {
+				if federatedIDs[federatesWith] {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
 		}
 
 		// If this entry wasn't matched before, save it.
@@ -254,6 +280,7 @@ func (s *ShowCLI) loadConfig(args []string) error {
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")
 
 	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
+	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
 
 	err := f.Parse(args)
 	if err != nil {

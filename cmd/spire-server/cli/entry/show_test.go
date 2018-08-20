@@ -144,6 +144,21 @@ func (s *ShowTestSuite) TestRunWithParentIDAndSelectors() {
 	s.Assert().Equal(entries[0:1], s.cli.Entries)
 }
 
+func (s *ShowTestSuite) TestRunWithFederatesWith() {
+	resp := &common.RegistrationEntries{
+		Entries: s.registrationEntries(4),
+	}
+	s.mockClient.EXPECT().FetchEntries(gomock.Any(), &common.Empty{}).Return(resp, nil)
+
+	args := []string{
+		"-federatesWith",
+		"spiffe://domain.test",
+	}
+
+	s.Require().Equal(0, s.cli.Run(args))
+	s.Assert().Equal(s.registrationEntries(4)[2:3], s.cli.Entries)
+}
+
 // registrationEntries returns `count` registration entry records. At most 4.
 func (ShowTestSuite) registrationEntries(count int) []*common.RegistrationEntry {
 	selectors := []*common.Selector{
@@ -165,10 +180,11 @@ func (ShowTestSuite) registrationEntries(count int) []*common.RegistrationEntry 
 			EntryId:   "00000000-0000-0000-0000-000000000001",
 		},
 		{
-			ParentId:  "spiffe://example.org/mother",
-			SpiffeId:  "spiffe://example.org/daughter",
-			Selectors: []*common.Selector{selectors[1], selectors[2]},
-			EntryId:   "00000000-0000-0000-0000-000000000002",
+			ParentId:      "spiffe://example.org/mother",
+			SpiffeId:      "spiffe://example.org/daughter",
+			Selectors:     []*common.Selector{selectors[1], selectors[2]},
+			EntryId:       "00000000-0000-0000-0000-000000000002",
+			FederatesWith: []string{"spiffe://domain.test"},
 		},
 		{
 			ParentId:  "spiffe://example.org/mother",
