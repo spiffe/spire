@@ -69,25 +69,19 @@ func initDB(db *gorm.DB) (err error) {
 		return err
 	}
 
-	defer func() {
-		if err != nil {
-			tx.Rollback()
-		} else {
-			err = tx.Commit().Error
-		}
-	}()
-
 	if err := tx.AutoMigrate(&Bundle{}, &CACert{}, &AttestedNodeEntry{},
 		&NodeResolverMapEntry{}, &RegisteredEntry{}, &JoinToken{},
 		&Selector{}, &Migration{}).Error; err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	if err := tx.Assign(Migration{Version: codeVersion}).FirstOrCreate(&Migration{}).Error; err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	return nil
+	return tx.Commit().Error
 }
 
 func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
