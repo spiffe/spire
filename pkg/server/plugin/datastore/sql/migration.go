@@ -9,7 +9,7 @@ import (
 
 const (
 	// version of the database in the code
-	codeVersion = 1
+	codeVersion = 2
 )
 
 func migrateDB(db *gorm.DB) (err error) {
@@ -98,6 +98,8 @@ func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
 	switch version {
 	case 0:
 		err = migrateToV1(tx)
+	case 1:
+		err = migrateToV2(tx)
 	default:
 		err = sqlError.New("no migration support for version %d", version)
 	}
@@ -133,5 +135,16 @@ func migrateToV1(tx *gorm.DB) error {
 			return sqlError.Wrap(err)
 		}
 	}
+	return nil
+}
+
+func migrateToV2(tx *gorm.DB) error {
+	// creates the join table.... no changes to the tables backing these
+	// models is expected. It's too bad GORM doesn't expose a way to piecemeal
+	// migrate.
+	if err := tx.AutoMigrate(&RegisteredEntry{}, &Bundle{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
 	return nil
 }
