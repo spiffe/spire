@@ -156,6 +156,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
@@ -235,6 +236,7 @@ func TestSVIDRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
@@ -306,6 +308,7 @@ func TestSynchronization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
@@ -432,6 +435,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
@@ -490,6 +494,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
@@ -548,6 +553,7 @@ func TestSurvivesCARotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
