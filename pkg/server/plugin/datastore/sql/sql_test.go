@@ -22,6 +22,13 @@ import (
 
 var (
 	ctx = context.Background()
+
+	// nextInMemoryId is atomically incremented and appended to the database
+	// name for in-memory databases. A unique name is required to prevent
+	// the in-memory database from being shared.
+	//
+	// See https://www.sqlite.org/inmemorydb.html for details.
+	nextInMemoryId uint64
 )
 
 func TestPlugin(t *testing.T) {

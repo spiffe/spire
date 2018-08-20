@@ -1379,18 +1379,3 @@ func newRegistrationEntryID() (string, error) {
 	}
 	return id.String(), nil
 }
-
-// NewTemp create a new plugin with a temporal database, allowing new
-// connections to receive a fresh copy. Primarily meant for testing.
-func NewTemp() (datastore.Plugin, error) {
-	p := newPlugin()
-
-	// Call restart() to start the db - normally triggered by call to Configure
-	err := p.restart()
-	if err != nil {
-		return nil, fmt.Errorf("start database: %v", err)
-	}
-
-	p.db.LogMode(true)
-	return p, nil
-}
