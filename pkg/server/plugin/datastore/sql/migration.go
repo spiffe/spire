@@ -38,9 +38,16 @@ func migrateDB(db *gorm.DB) (err error) {
 		return err
 	}
 
+	if version == codeVersion {
+		return nil
+	}
+
 	logrus.Infof("running migrations...")
 	for version < codeVersion {
 		tx := db.Begin()
+		if err := tx.Error; err != nil {
+			return err
+		}
 		version, err = migrateVersion(tx, version)
 		if err != nil {
 			tx.Rollback()
@@ -86,7 +93,7 @@ func initDB(db *gorm.DB) (err error) {
 func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
 	logrus.Infof("migrating from version %d", version)
 
-	// When a new version is added and entry here must be included that knows
+	// When a new version is added an entry must be included here that knows
 	// how to bring the previous version up. The migrations are run
 	// sequentially, each in its own transaction, to move from one version to
 	// the next.

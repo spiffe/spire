@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,6 +23,13 @@ import (
 
 var (
 	ctx = context.Background()
+
+	// nextInMemoryId is atomically incremented and appended to the database
+	// name for in-memory databases. A unique name is required to prevent
+	// the in-memory database from being shared.
+	//
+	// See https://www.sqlite.org/inmemorydb.html for details.
+	nextInMemoryId uint64
 )
 
 type regEntries []*common.RegistrationEntry
@@ -851,11 +859,14 @@ func Test_race(t *testing.T) {
 }
 
 func createDefault(t *testing.T) datastore.Plugin {
-	ds, err := NewTemp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ds
+	p := newPlugin()
+	p.DatabaseType = "sqlite3"
+	p.ConnectionString = fmt.Sprintf("file:memdb%d?mode=memory&cache=shared", atomic.AddUint64(&nextInMemoryId, 1))
+
+	require.NoError(t, p.restart())
+
+	p.db.LogMode(true)
+	return p
 }
 
 func getTestDataFromJsonFile(t *testing.T, filePath string, jsonValue interface{}) error {
