@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"fmt"
-	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -26,7 +25,7 @@ type Config struct {
 	TrustDomain      url.URL
 	Log              logrus.FieldLogger
 	Tel              telemetry.Sink
-	ServerAddr       net.Addr
+	ServerAddr       string
 	SVIDCachePath    string
 	BundleCachePath  string
 	SyncInterval     time.Duration
@@ -68,7 +67,6 @@ func New(c *Config) (*manager, error) {
 		mtx:             new(sync.RWMutex),
 		svid:            svidRotator,
 		spiffeID:        spiffeID,
-		serverAddr:      c.ServerAddr,
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
 		client:          client,
