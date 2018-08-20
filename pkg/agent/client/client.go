@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -43,7 +42,7 @@ type Client interface {
 
 // Config holds a client configuration
 type Config struct {
-	Addr        net.Addr
+	Addr        string
 	Log         logrus.FieldLogger
 	TrustDomain url.URL
 	// KeysAndBundle is a callback that must return the keys and bundle used by the client

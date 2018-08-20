@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"log"
-	"net"
 	"os"
 
 	"github.com/spiffe/spire/pkg/common/grpcutil"
@@ -30,12 +29,7 @@ func NewRegistrationClient(ctx context.Context, address string) (registration.Re
 	}
 	dialer := grpcutil.NewGRPCDialer(dc)
 
-	addr, err := net.ResolveTCPAddr("tcp", address)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := dialer.Dial(ctx, addr)
+	conn, err := dialer.Dial(ctx, address)
 	if err != nil {
 		return nil, err
 	}
