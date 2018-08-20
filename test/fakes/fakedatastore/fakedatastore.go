@@ -86,17 +86,17 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.Bundle) (*d
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	reqCerts, err := x509.ParseCertificates(req.CaCerts)
+	if err != nil {
+		return nil, err
+	}
+
 	bundle, ok := s.bundles[req.TrustDomain]
 	if !ok {
 		bundle = &datastore.Bundle{
 			TrustDomain: req.TrustDomain,
 		}
 		s.bundles[req.TrustDomain] = bundle
-	}
-
-	reqCerts, err := x509.ParseCertificates(req.CaCerts)
-	if err != nil {
-		return nil, err
 	}
 
 	bundleCerts, err := x509.ParseCertificates(bundle.CaCerts)
