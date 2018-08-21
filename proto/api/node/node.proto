@@ -9,6 +9,15 @@ option go_package = "node";
 
 import public "github.com/spiffe/spire/proto/common/common.proto";
 
+/** Trust domain bundle */
+message Bundle {
+    // bundle identifier, i.e. the SPIFFE ID for the trust domain
+    string id = 1;
+
+    // bundle data (ASN.1 encoded X.509 certificates)
+    bytes ca_certs = 2;
+}
+
 // A type which contains the "Spiffe Verifiable Identity Document" and
 // a TTL indicating when the SVID expires.
 message X509SVID {
@@ -26,12 +35,18 @@ message X509SVIDUpdate {
     // keys. Map[SPIFFE_ID] => SVID.
     map<string, X509SVID> svids = 1;
 
-    // Latest SPIRE Server bundle
-    bytes bundle = 2;
+    // DEPRECATED. Latest SPIRE Server bundle. 
+    bytes DEPRECATED_bundle = 2;
 
     // A type representing a curated record that the Spire Server uses to set up
-    //and manage the various registered nodes and workloads that are controlled by it.
+    // and manage the various registered nodes and workloads that are controlled by it.
     repeated spire.common.RegistrationEntry registration_entries = 3;
+
+    // Trust bundles associated with the SVIDs, keyed by trust domain SPIFFE
+    // ID. Bundles included are the trust bundle for the server trust domain
+    // and any federated trust domain bundles applicable to the SVIDs.
+    // Supersedes the deprecated `bundle` field.
+    map<string, Bundle> bundles = 4;
 }
 
 // JSR is a JWT SVID signing request.
@@ -103,18 +118,11 @@ message FetchJWTSVIDRequest {
 message FetchJWTSVIDResponse {
     // The signed JWT-SVID
     JWTSVID svid = 1;
-}
 
-// Represents a request with an array of SPIFFE Ids.
-message FetchFederatedBundleRequest {
-    // An array of SPIFFE Ids.
-    repeated string spiffe_id = 1;
-}
-
-// Represents a response with a map of SPIFFE Id, Federated CA Bundle.
-message FetchFederatedBundleResponse {
-    // Map [ SPIFFE ID ] => Federated CA Bundle
-    map<string, bytes> federated_bundles = 1;
+    // Trust bundles associated with the SVID, keyed by trust domain SPIFFE
+    // ID. Bundles included are the trust bundle for the server trust domain
+    // and any federated trust domain bundles applicable to the SVID.
+    map<string, Bundle> bundles = 2;
 }
 
 service Node {
@@ -128,8 +136,4 @@ service Node {
 
     // Fetches a signed JWT-SVID for a workload intended for a specific audience.
     rpc FetchJWTSVID(FetchJWTSVIDRequest) returns (FetchJWTSVIDResponse);
-
-    // Called by the Node Agent to fetch the named Federated CA Bundle.
-    // Used in the event that authorized workloads reference a Federated Bundle.
-    rpc FetchFederatedBundle(FetchFederatedBundleRequest) returns (FetchFederatedBundleResponse);
 }
