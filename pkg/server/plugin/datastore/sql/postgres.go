@@ -10,7 +10,7 @@ type postgres struct{}
 func (p postgres) connect(connectionString string) (*gorm.DB, error) {
 	db, err := gorm.Open("postgres", connectionString)
 	if err != nil {
-		return nil, err
+		return nil, sqlError.Wrap(err)
 	}
 	return db, nil
 
