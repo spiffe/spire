@@ -292,15 +292,15 @@ func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, er
 	dataStore := h.c.Catalog.DataStores()[0]
 
 	fetchRequest := &datastore.FetchAttestedNodeEntryRequest{
-		BaseSpiffeId: baseSpiffeID,
+		SpiffeId: baseSpiffeID,
 	}
 	fetchResponse, err := dataStore.FetchAttestedNodeEntry(ctx, fetchRequest)
 	if err != nil {
 		return false, err
 	}
 
-	attestedEntry := fetchResponse.AttestedNodeEntry
-	if attestedEntry != nil && attestedEntry.BaseSpiffeId == baseSpiffeID {
+	attestedEntry := fetchResponse.Entry
+	if attestedEntry != nil && attestedEntry.SpiffeId == baseSpiffeID {
 		return true, nil
 	}
 
@@ -366,37 +366,43 @@ func (h *Handler) attestToken(ctx context.Context,
 		return nil, errors.New("join token has already been used")
 	}
 
+	tokenValue := string(attestationData.Data)
+
 	ds := h.c.Catalog.DataStores()[0]
-	req := &datastore.JoinToken{Token: string(attestationData.Data)}
-	t, err := ds.FetchToken(ctx, req)
+	resp, err := ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
+		Token: tokenValue,
+	})
 	if err != nil {
 		return nil, err
 	}
+	if resp.JoinToken == nil {
+		return nil, errors.New("response missing token")
+	}
+	t := resp.JoinToken
 
 	if t.Token == "" {
 		return nil, errors.New("invalid join token")
 	}
 
+	// Don't fail if we can't delete
+	_, _ = ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
+		Token: tokenValue,
+	})
+
 	if time.Unix(t.Expiry, 0).Before(h.hooks.now()) {
-		// Don't fail if we can't delete
-		_, _ = ds.DeleteToken(ctx, req)
 		return nil, errors.New("join token expired")
 	}
 
 	// If we're here, the token is valid
-	// Don't fail if we can't delete
-	_, _ = ds.DeleteToken(ctx, req)
 	id := &url.URL{
 		Scheme: h.c.TrustDomain.Scheme,
 		Host:   h.c.TrustDomain.Host,
 		Path:   path.Join("spire", "agent", "join_token", t.Token),
 	}
-	resp := &nodeattestor.AttestResponse{
+	return &nodeattestor.AttestResponse{
 		Valid:        true,
 		BaseSPIFFEID: id.String(),
-	}
-
-	return resp, nil
+	}, nil
 }
 
 func (h *Handler) validateAttestation(
@@ -419,9 +425,9 @@ func (h *Handler) updateAttestationEntry(ctx context.Context,
 	dataStore := h.c.Catalog.DataStores()[0]
 
 	updateRequest := &datastore.UpdateAttestedNodeEntryRequest{
-		BaseSpiffeId:       baseSPIFFEID,
-		CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
-		CertSerialNumber:   cert.SerialNumber.String(),
+		SpiffeId:         baseSPIFFEID,
+		CertNotAfter:     cert.NotAfter.Unix(),
+		CertSerialNumber: cert.SerialNumber.String(),
 	}
 
 	if _, err := dataStore.UpdateAttestedNodeEntry(ctx, updateRequest); err != nil {
@@ -437,10 +443,10 @@ func (h *Handler) createAttestationEntry(ctx context.Context,
 	dataStore := h.c.Catalog.DataStores()[0]
 
 	createRequest := &datastore.CreateAttestedNodeEntryRequest{
-		AttestedNodeEntry: &datastore.AttestedNodeEntry{
+		Entry: &datastore.AttestedNodeEntry{
 			AttestationDataType: attestationType,
-			BaseSpiffeId:        baseSPIFFEID,
-			CertExpirationDate:  cert.NotAfter.Format(time.RFC1123Z),
+			SpiffeId:            baseSPIFFEID,
+			CertNotAfter:        cert.NotAfter.Unix(),
 			CertSerialNumber:    cert.SerialNumber.String(),
 		}}
 	if _, err := dataStore.CreateAttestedNodeEntry(ctx, createRequest); err != nil {
@@ -483,9 +489,9 @@ func (h *Handler) updateNodeResolverMap(ctx context.Context,
 func (h *Handler) createNodeResolverMapEntry(ctx context.Context, baseSpiffeID string, selector *common.Selector) error {
 	dataStore := h.c.Catalog.DataStores()[0]
 	mapEntryRequest := &datastore.CreateNodeResolverMapEntryRequest{
-		NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
-			BaseSpiffeId: baseSpiffeID,
-			Selector:     selector,
+		Entry: &datastore.NodeResolverMapEntry{
+			SpiffeId: baseSpiffeID,
+			Selector: selector,
 		},
 	}
 	_, err := dataStore.CreateNodeResolverMapEntry(ctx, mapEntryRequest)
@@ -572,12 +578,12 @@ func (h *Handler) signCSRs(ctx context.Context,
 
 		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
 			res, err := dataStore.FetchAttestedNodeEntry(ctx,
-				&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: spiffeID},
+				&datastore.FetchAttestedNodeEntryRequest{SpiffeId: spiffeID},
 			)
 			if err != nil {
 				return nil, err
 			}
-			if res.AttestedNodeEntry.CertSerialNumber != peerCert.SerialNumber.String() {
+			if res.Entry.CertSerialNumber != peerCert.SerialNumber.String() {
 				err := errors.New("SVID serial number does not match")
 				return nil, err
 			}
@@ -637,15 +643,18 @@ func (h *Handler) buildBaseSVID(ctx context.Context, csr []byte) (*node.X509SVID
 // getBundle fetches the current CA bundle from the datastore.
 func (h *Handler) getBundle(ctx context.Context) ([]byte, error) {
 	ds := h.c.Catalog.DataStores()[0]
-	req := &datastore.Bundle{
+
+	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomain: h.c.TrustDomain.String(),
-	}
-	b, err := ds.FetchBundle(ctx, req)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get bundle from datastore: %v", err)
 	}
+	if resp.Bundle == nil {
+		return nil, errors.New("response missing bundle")
+	}
 
-	return b.CaCerts, nil
+	return resp.Bundle.CaCerts, nil
 }
 
 func getSpiffeIDFromCSR(csrBytes []byte) (spiffeID string, err error) {

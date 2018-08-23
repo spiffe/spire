@@ -20,19 +20,19 @@ func TestFetchRegistrationEntries(t *testing.T) {
 
 	createRegistrationEntry := func(entry *datastore.RegistrationEntry) *datastore.RegistrationEntry {
 		resp, err := dataStore.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-			RegisteredEntry: entry,
+			Entry: entry,
 		})
 		assert.NoError(err)
-		entry.EntryId = resp.RegisteredEntryId
+		entry.EntryId = resp.EntryId
 		return entry
 	}
 
 	createNodeResolverMapEntry := func(entry *datastore.NodeResolverMapEntry) *datastore.NodeResolverMapEntry {
 		resp, err := dataStore.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{
-			NodeResolverMapEntry: entry,
+			Entry: entry,
 		})
 		assert.NoError(err)
-		return resp.NodeResolverMapEntry
+		return resp.Entry
 	}
 
 	rootID := "spiffe://example.org/root"
@@ -80,12 +80,12 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	})
 
 	createNodeResolverMapEntry(&datastore.NodeResolverMapEntry{
-		BaseSpiffeId: twoID,
-		Selector:     a1,
+		SpiffeId: twoID,
+		Selector: a1,
 	})
 	createNodeResolverMapEntry(&datastore.NodeResolverMapEntry{
-		BaseSpiffeId: twoID,
-		Selector:     b2,
+		SpiffeId: twoID,
+		Selector: b2,
 	})
 
 	actual, err := FetchRegistrationEntries(ctx, dataStore, rootID)

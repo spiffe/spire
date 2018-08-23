@@ -66,7 +66,7 @@ func New() datastore.Plugin {
 }
 
 // CreateBundle stores the given bundle
-func (ds *sqlPlugin) CreateBundle(ctx context.Context, req *datastore.Bundle) (resp *datastore.Bundle, err error) {
+func (ds *sqlPlugin) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (resp *datastore.CreateBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = createBundle(tx, req)
 		return err
@@ -78,7 +78,7 @@ func (ds *sqlPlugin) CreateBundle(ctx context.Context, req *datastore.Bundle) (r
 
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
-func (ds *sqlPlugin) UpdateBundle(ctx context.Context, req *datastore.Bundle) (resp *datastore.Bundle, err error) {
+func (ds *sqlPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateBundle(tx, req)
 		return err
@@ -90,7 +90,7 @@ func (ds *sqlPlugin) UpdateBundle(ctx context.Context, req *datastore.Bundle) (r
 
 // AppendBundle adds the specified CA certificates to an existing bundle. If no bundle exists for the
 // specified trust domain, create one. Returns the entirety.
-func (ds *sqlPlugin) AppendBundle(ctx context.Context, req *datastore.Bundle) (resp *datastore.Bundle, err error) {
+func (ds *sqlPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = appendBundle(tx, req)
 		return err
@@ -101,7 +101,7 @@ func (ds *sqlPlugin) AppendBundle(ctx context.Context, req *datastore.Bundle) (r
 }
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
-func (ds *sqlPlugin) DeleteBundle(ctx context.Context, req *datastore.Bundle) (resp *datastore.Bundle, err error) {
+func (ds *sqlPlugin) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (resp *datastore.DeleteBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = deleteBundle(tx, req)
 		return err
@@ -112,7 +112,7 @@ func (ds *sqlPlugin) DeleteBundle(ctx context.Context, req *datastore.Bundle) (r
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func (ds *sqlPlugin) FetchBundle(ctx context.Context, req *datastore.Bundle) (resp *datastore.Bundle, err error) {
+func (ds *sqlPlugin) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (resp *datastore.FetchBundleResponse, err error) {
 	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = fetchBundle(tx, req)
 		return err
@@ -123,7 +123,7 @@ func (ds *sqlPlugin) FetchBundle(ctx context.Context, req *datastore.Bundle) (re
 }
 
 // ListBundles can be used to fetch all existing bundles.
-func (ds *sqlPlugin) ListBundles(ctx context.Context, req *common.Empty) (resp *datastore.Bundles, err error) {
+func (ds *sqlPlugin) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (resp *datastore.ListBundlesResponse, err error) {
 	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = listBundles(tx, req)
 		return err
@@ -157,11 +157,11 @@ func (ds *sqlPlugin) FetchAttestedNodeEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (ds *sqlPlugin) FetchStaleNodeEntries(ctx context.Context,
-	req *datastore.FetchStaleNodeEntriesRequest) (resp *datastore.FetchStaleNodeEntriesResponse, err error) {
+func (ds *sqlPlugin) ListAttestedNodeEntries(ctx context.Context,
+	req *datastore.ListAttestedNodeEntriesRequest) (resp *datastore.ListAttestedNodeEntriesResponse, err error) {
 
 	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchStaleNodeEntries(tx, req)
+		resp, err = listAttestedNodeEntries(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -205,11 +205,11 @@ func (ds *sqlPlugin) CreateNodeResolverMapEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (ds *sqlPlugin) FetchNodeResolverMapEntry(ctx context.Context,
-	req *datastore.FetchNodeResolverMapEntryRequest) (resp *datastore.FetchNodeResolverMapEntryResponse, err error) {
+func (ds *sqlPlugin) ListNodeResolverMapEntries(ctx context.Context,
+	req *datastore.ListNodeResolverMapEntriesRequest) (resp *datastore.ListNodeResolverMapEntriesResponse, err error) {
 
 	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchNodeResolverMapEntry(tx, req)
+		resp, err = listNodeResolverMapEntries(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -258,11 +258,11 @@ func (ds *sqlPlugin) FetchRegistrationEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (ds *sqlPlugin) FetchRegistrationEntries(ctx context.Context,
-	req *common.Empty) (resp *datastore.FetchRegistrationEntriesResponse, err error) {
+func (ds *sqlPlugin) ListRegistrationEntries(ctx context.Context,
+	req *datastore.ListRegistrationEntriesRequest) (resp *datastore.ListRegistrationEntriesResponse, err error) {
 
 	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchRegistrationEntries(tx, req)
+		resp, err = listRegistrationEntries(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -294,58 +294,10 @@ func (ds *sqlPlugin) DeleteRegistrationEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (ds *sqlPlugin) ListParentIDEntries(ctx context.Context,
-	req *datastore.ListParentIDEntriesRequest) (resp *datastore.ListParentIDEntriesResponse, err error) {
-
-	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listParentIDEntries(tx, req)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (ds *sqlPlugin) ListSelectorEntries(ctx context.Context,
-	req *datastore.ListSelectorEntriesRequest) (resp *datastore.ListSelectorEntriesResponse, err error) {
-
-	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listSelectorEntries(tx, req)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (ds *sqlPlugin) ListMatchingEntries(ctx context.Context,
-	req *datastore.ListSelectorEntriesRequest) (resp *datastore.ListSelectorEntriesResponse, err error) {
-
-	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listMatchingEntries(tx, req)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (ds *sqlPlugin) ListSpiffeEntries(ctx context.Context,
-	req *datastore.ListSpiffeEntriesRequest) (resp *datastore.ListSpiffeEntriesResponse, err error) {
-
-	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listSpiffeEntries(tx, req)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-// RegisterToken takes a Token message and stores it
-func (ds *sqlPlugin) RegisterToken(ctx context.Context, req *datastore.JoinToken) (resp *common.Empty, err error) {
+// CreateJoinToken takes a Token message and stores it
+func (ds *sqlPlugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (resp *datastore.CreateJoinTokenResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = registerToken(tx, req)
+		resp, err = createJoinToken(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -353,11 +305,11 @@ func (ds *sqlPlugin) RegisterToken(ctx context.Context, req *datastore.JoinToken
 	return resp, nil
 }
 
-// FetchToken takes a Token message and returns one, populating the fields
+// FetchJoinToken takes a Token message and returns one, populating the fields
 // we have knowledge of
-func (ds *sqlPlugin) FetchToken(ctx context.Context, req *datastore.JoinToken) (resp *datastore.JoinToken, err error) {
+func (ds *sqlPlugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (resp *datastore.FetchJoinTokenResponse, err error) {
 	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchToken(tx, req)
+		resp, err = fetchJoinToken(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -365,9 +317,9 @@ func (ds *sqlPlugin) FetchToken(ctx context.Context, req *datastore.JoinToken) (
 	return resp, nil
 }
 
-func (ds *sqlPlugin) DeleteToken(ctx context.Context, req *datastore.JoinToken) (resp *common.Empty, err error) {
+func (ds *sqlPlugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (resp *datastore.DeleteJoinTokenResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = deleteToken(tx, req)
+		resp, err = deleteJoinToken(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -375,11 +327,11 @@ func (ds *sqlPlugin) DeleteToken(ctx context.Context, req *datastore.JoinToken) 
 	return resp, nil
 }
 
-// PruneTokens takes a Token message, and deletes all tokens which have expired
+// PruneJoinTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
-func (ds *sqlPlugin) PruneTokens(ctx context.Context, req *datastore.JoinToken) (resp *common.Empty, err error) {
+func (ds *sqlPlugin) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (resp *datastore.PruneJoinTokensResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = pruneTokens(tx, req)
+		resp, err = pruneJoinTokens(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -456,6 +408,7 @@ func (ds *sqlPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 	}
 
 	// TODO: as soon as GORM supports it, attach the context
+	// https://github.com/jinzhu/gorm/issues/1231
 	tx := db.Begin()
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)
@@ -499,8 +452,8 @@ func openDB(databaseType, connectionString string) (*gorm.DB, error) {
 	return db, nil
 }
 
-func createBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error) {
-	model, err := bundleToModel(req)
+func createBundle(tx *gorm.DB, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
+	model, err := bundleToModel(req.Bundle)
 	if err != nil {
 		return nil, err
 	}
@@ -509,11 +462,13 @@ func createBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error)
 		return nil, sqlError.Wrap(err)
 	}
 
-	return req, nil
+	return &datastore.CreateBundleResponse{
+		Bundle: req.Bundle,
+	}, nil
 }
 
-func updateBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error) {
-	newModel, err := bundleToModel(req)
+func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
+	newModel, err := bundleToModel(req.Bundle)
 	if err != nil {
 		return nil, err
 	}
@@ -535,11 +490,13 @@ func updateBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error)
 		return nil, sqlError.Wrap(err)
 	}
 
-	return req, nil
+	return &datastore.UpdateBundleResponse{
+		Bundle: req.Bundle,
+	}, nil
 }
 
-func appendBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error) {
-	newModel, err := bundleToModel(req)
+func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
+	newModel, err := bundleToModel(req.Bundle)
 	if err != nil {
 		return nil, err
 	}
@@ -548,7 +505,13 @@ func appendBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error)
 	model := &Bundle{}
 	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
 	if result.RecordNotFound() {
-		return createBundle(tx, req)
+		resp, err := createBundle(tx, &datastore.CreateBundleRequest{Bundle: req.Bundle})
+		if err != nil {
+			return nil, err
+		}
+		return &datastore.AppendBundleResponse{
+			Bundle: resp.Bundle,
+		}, nil
 	} else if result.Error != nil {
 		return nil, sqlError.Wrap(result.Error)
 	}
@@ -570,25 +533,19 @@ func appendBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error)
 		return nil, sqlError.Wrap(err)
 	}
 
-	resp, err := modelToBundle(model)
+	bundle, err := modelToBundle(model)
 	if err != nil {
 		return nil, err
 	}
 
-	return resp, nil
+	return &datastore.AppendBundleResponse{
+		Bundle: bundle,
+	}, nil
 }
 
-func deleteBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error) {
-	// We don't care if cert data was sent - remove it now to prevent
-	// further processing.
-	req.CaCerts = []byte{}
-
-	model, err := bundleToModel(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Find(model, "trust_domain = ?", model.TrustDomain).Error; err != nil {
+func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
+	model := new(Bundle)
+	if err := tx.Find(model, "trust_domain = ?", req.TrustDomain).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -607,22 +564,20 @@ func deleteBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error)
 		return nil, sqlError.Wrap(err)
 	}
 
-	resp, err := modelToBundle(model)
+	bundle, err := modelToBundle(model)
 	if err != nil {
 		return nil, err
 	}
 
-	return resp, nil
+	return &datastore.DeleteBundleResponse{
+		Bundle: bundle,
+	}, nil
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func fetchBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error) {
-	model, err := bundleToModel(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Find(model, "trust_domain = ?", model.TrustDomain).Error; err != nil {
+func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
+	model := new(Bundle)
+	if err := tx.Find(model, "trust_domain = ?", req.TrustDomain).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -630,11 +585,18 @@ func fetchBundle(tx *gorm.DB, req *datastore.Bundle) (*datastore.Bundle, error) 
 		return nil, sqlError.Wrap(err)
 	}
 
-	return modelToBundle(model)
+	bundle, err := modelToBundle(model)
+	if err != nil {
+		return nil, err
+	}
+
+	return &datastore.FetchBundleResponse{
+		Bundle: bundle,
+	}, nil
 }
 
 // ListBundles can be used to fetch all existing bundles.
-func listBundles(tx *gorm.DB, req *common.Empty) (*datastore.Bundles, error) {
+func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
 	var bundles []Bundle
 	if err := tx.Find(&bundles).Error; err != nil {
 		return nil, sqlError.Wrap(err)
@@ -657,7 +619,7 @@ func listBundles(tx *gorm.DB, req *common.Empty) (*datastore.Bundles, error) {
 		}
 	}
 
-	resp := &datastore.Bundles{}
+	resp := &datastore.ListBundlesResponse{}
 	for _, model := range bundles {
 		certs, ok := caMap[model.ID]
 		if ok {
@@ -678,21 +640,16 @@ func listBundles(tx *gorm.DB, req *common.Empty) (*datastore.Bundles, error) {
 }
 
 func createAttestedNodeEntry(tx *gorm.DB, req *datastore.CreateAttestedNodeEntryRequest) (*datastore.CreateAttestedNodeEntryResponse, error) {
-	entry := req.AttestedNodeEntry
+	entry := req.Entry
 	if entry == nil {
 		return nil, sqlError.New("invalid request: missing attested node")
 	}
 
-	expiresAt, err := time.Parse(datastore.TimeFormat, entry.CertExpirationDate)
-	if err != nil {
-		return nil, sqlError.New("invalid request: missing expiration")
-	}
-
 	model := AttestedNodeEntry{
-		SpiffeID:     entry.BaseSpiffeId,
+		SpiffeID:     entry.SpiffeId,
 		DataType:     entry.AttestationDataType,
 		SerialNumber: entry.CertSerialNumber,
-		ExpiresAt:    expiresAt,
+		ExpiresAt:    time.Unix(entry.CertNotAfter, 0),
 	}
 
 	if err := tx.Create(&model).Error; err != nil {
@@ -700,18 +657,13 @@ func createAttestedNodeEntry(tx *gorm.DB, req *datastore.CreateAttestedNodeEntry
 	}
 
 	return &datastore.CreateAttestedNodeEntryResponse{
-		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:        model.SpiffeID,
-			AttestationDataType: model.DataType,
-			CertSerialNumber:    model.SerialNumber,
-			CertExpirationDate:  expiresAt.Format(datastore.TimeFormat),
-		},
+		Entry: modelToAttestedNodeEntry(model),
 	}, nil
 }
 
 func fetchAttestedNodeEntry(tx *gorm.DB, req *datastore.FetchAttestedNodeEntryRequest) (*datastore.FetchAttestedNodeEntryResponse, error) {
 	var model AttestedNodeEntry
-	err := tx.Find(&model, "spiffe_id = ?", req.BaseSpiffeId).Error
+	err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
 		return &datastore.FetchAttestedNodeEntryResponse{}, nil
@@ -719,50 +671,39 @@ func fetchAttestedNodeEntry(tx *gorm.DB, req *datastore.FetchAttestedNodeEntryRe
 		return nil, sqlError.Wrap(err)
 	}
 	return &datastore.FetchAttestedNodeEntryResponse{
-		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:        model.SpiffeID,
-			AttestationDataType: model.DataType,
-			CertSerialNumber:    model.SerialNumber,
-			CertExpirationDate:  model.ExpiresAt.Format(datastore.TimeFormat),
-		},
+		Entry: modelToAttestedNodeEntry(model),
 	}, nil
 }
 
-func fetchStaleNodeEntries(tx *gorm.DB, req *datastore.FetchStaleNodeEntriesRequest) (*datastore.FetchStaleNodeEntriesResponse, error) {
+func listAttestedNodeEntries(tx *gorm.DB, req *datastore.ListAttestedNodeEntriesRequest) (*datastore.ListAttestedNodeEntriesResponse, error) {
+	if req.ByExpiresBefore != nil {
+		tx = tx.Where("expires_at < ?", time.Unix(req.ByExpiresBefore.Value, 0))
+	}
+
 	var models []AttestedNodeEntry
-	if err := tx.Find(&models, "expires_at < ?", time.Now()).Error; err != nil {
+	if err := tx.Find(&models).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	resp := &datastore.FetchStaleNodeEntriesResponse{
-		AttestedNodeEntryList: make([]*datastore.AttestedNodeEntry, 0, len(models)),
+	resp := &datastore.ListAttestedNodeEntriesResponse{
+		Entries: make([]*datastore.AttestedNodeEntry, 0, len(models)),
 	}
 
 	for _, model := range models {
-		resp.AttestedNodeEntryList = append(resp.AttestedNodeEntryList, &datastore.AttestedNodeEntry{
-			BaseSpiffeId:        model.SpiffeID,
-			AttestationDataType: model.DataType,
-			CertSerialNumber:    model.SerialNumber,
-			CertExpirationDate:  model.ExpiresAt.Format(datastore.TimeFormat),
-		})
+		resp.Entries = append(resp.Entries, modelToAttestedNodeEntry(model))
 	}
 	return resp, nil
 }
 
 func updateAttestedNodeEntry(tx *gorm.DB, req *datastore.UpdateAttestedNodeEntryRequest) (*datastore.UpdateAttestedNodeEntryResponse, error) {
-	expiresAt, err := time.Parse(datastore.TimeFormat, req.CertExpirationDate)
-	if err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
 	var model AttestedNodeEntry
-	if err := tx.Find(&model, "spiffe_id = ?", req.BaseSpiffeId).Error; err != nil {
+	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
 	updates := AttestedNodeEntry{
 		SerialNumber: req.CertSerialNumber,
-		ExpiresAt:    expiresAt,
+		ExpiresAt:    time.Unix(req.CertNotAfter, 0),
 	}
 
 	if err := tx.Model(&model).Updates(updates).Error; err != nil {
@@ -770,18 +711,13 @@ func updateAttestedNodeEntry(tx *gorm.DB, req *datastore.UpdateAttestedNodeEntry
 	}
 
 	return &datastore.UpdateAttestedNodeEntryResponse{
-		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:        model.SpiffeID,
-			AttestationDataType: model.DataType,
-			CertSerialNumber:    model.SerialNumber,
-			CertExpirationDate:  model.ExpiresAt.Format(datastore.TimeFormat),
-		},
+		Entry: modelToAttestedNodeEntry(model),
 	}, nil
 }
 
 func deleteAttestedNodeEntry(tx *gorm.DB, req *datastore.DeleteAttestedNodeEntryRequest) (*datastore.DeleteAttestedNodeEntryResponse, error) {
 	var model AttestedNodeEntry
-	if err := tx.Find(&model, "spiffe_id = ?", req.BaseSpiffeId).Error; err != nil {
+	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -790,17 +726,12 @@ func deleteAttestedNodeEntry(tx *gorm.DB, req *datastore.DeleteAttestedNodeEntry
 	}
 
 	return &datastore.DeleteAttestedNodeEntryResponse{
-		AttestedNodeEntry: &datastore.AttestedNodeEntry{
-			BaseSpiffeId:        model.SpiffeID,
-			AttestationDataType: model.DataType,
-			CertSerialNumber:    model.SerialNumber,
-			CertExpirationDate:  model.ExpiresAt.Format(datastore.TimeFormat),
-		},
+		Entry: modelToAttestedNodeEntry(model),
 	}, nil
 }
 
 func createNodeResolverMapEntry(tx *gorm.DB, req *datastore.CreateNodeResolverMapEntryRequest) (*datastore.CreateNodeResolverMapEntryResponse, error) {
-	entry := req.NodeResolverMapEntry
+	entry := req.Entry
 	if entry == nil {
 		return nil, sqlError.New("invalid request: no map entry")
 	}
@@ -811,7 +742,7 @@ func createNodeResolverMapEntry(tx *gorm.DB, req *datastore.CreateNodeResolverMa
 	}
 
 	model := NodeResolverMapEntry{
-		SpiffeID: entry.BaseSpiffeId,
+		SpiffeID: entry.SpiffeId,
 		Type:     selector.Type,
 		Value:    selector.Value,
 	}
@@ -821,46 +752,34 @@ func createNodeResolverMapEntry(tx *gorm.DB, req *datastore.CreateNodeResolverMa
 	}
 
 	return &datastore.CreateNodeResolverMapEntryResponse{
-		NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
-			BaseSpiffeId: model.SpiffeID,
-			Selector: &common.Selector{
-				Type:  model.Type,
-				Value: model.Value,
-			},
-		},
+		Entry: modelToNodeResolverMapEntry(model),
 	}, nil
 }
 
-func fetchNodeResolverMapEntry(tx *gorm.DB, req *datastore.FetchNodeResolverMapEntryRequest) (*datastore.FetchNodeResolverMapEntryResponse, error) {
+func listNodeResolverMapEntries(tx *gorm.DB, req *datastore.ListNodeResolverMapEntriesRequest) (*datastore.ListNodeResolverMapEntriesResponse, error) {
 	var models []NodeResolverMapEntry
-	if err := tx.Find(&models, "spiffe_id = ?", req.BaseSpiffeId).Error; err != nil {
+	if err := tx.Find(&models, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	resp := &datastore.FetchNodeResolverMapEntryResponse{
-		NodeResolverMapEntryList: make([]*datastore.NodeResolverMapEntry, 0, len(models)),
+	resp := &datastore.ListNodeResolverMapEntriesResponse{
+		Entries: make([]*datastore.NodeResolverMapEntry, 0, len(models)),
 	}
 
 	for _, model := range models {
-		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &datastore.NodeResolverMapEntry{
-			BaseSpiffeId: model.SpiffeID,
-			Selector: &common.Selector{
-				Type:  model.Type,
-				Value: model.Value,
-			},
-		})
+		resp.Entries = append(resp.Entries, modelToNodeResolverMapEntry(model))
 	}
 	return resp, nil
 }
 
 func deleteNodeResolverMapEntry(tx *gorm.DB, req *datastore.DeleteNodeResolverMapEntryRequest) (*datastore.DeleteNodeResolverMapEntryResponse, error) {
-	entry := req.NodeResolverMapEntry
+	entry := req.Entry
 	if entry == nil {
 		return nil, sqlError.New("invalid request: no map entry")
 	}
 
 	// if no selector is given, delete all entries with the given spiffe id
-	scope := tx.Where("spiffe_id = ?", entry.BaseSpiffeId)
+	scope := tx.Where("spiffe_id = ?", entry.SpiffeId)
 
 	if selector := entry.Selector; selector != nil {
 		scope = scope.Where("type  = ?", selector.Type)
@@ -878,17 +797,11 @@ func deleteNodeResolverMapEntry(tx *gorm.DB, req *datastore.DeleteNodeResolverMa
 	}
 
 	resp := &datastore.DeleteNodeResolverMapEntryResponse{
-		NodeResolverMapEntryList: make([]*datastore.NodeResolverMapEntry, 0, len(models)),
+		Entries: make([]*datastore.NodeResolverMapEntry, 0, len(models)),
 	}
 
 	for _, model := range models {
-		resp.NodeResolverMapEntryList = append(resp.NodeResolverMapEntryList, &datastore.NodeResolverMapEntry{
-			BaseSpiffeId: model.SpiffeID,
-			Selector: &common.Selector{
-				Type:  model.Type,
-				Value: model.Value,
-			},
-		})
+		resp.Entries = append(resp.Entries, modelToNodeResolverMapEntry(model))
 	}
 
 	return resp, nil
@@ -898,11 +811,11 @@ func createRegistrationEntry(tx *gorm.DB,
 	req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 
 	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
-	if req.RegisteredEntry == nil {
+	if req.Entry == nil {
 		return nil, sqlError.New("invalid request: missing registered entry")
 	}
 
-	if err := validateRegistrationEntry(req.RegisteredEntry); err != nil {
+	if err := validateRegistrationEntry(req.Entry); err != nil {
 		return nil, err
 	}
 
@@ -913,9 +826,9 @@ func createRegistrationEntry(tx *gorm.DB,
 
 	newRegisteredEntry := RegisteredEntry{
 		EntryID:  entryID,
-		SpiffeID: req.RegisteredEntry.SpiffeId,
-		ParentID: req.RegisteredEntry.ParentId,
-		TTL:      req.RegisteredEntry.Ttl,
+		SpiffeID: req.Entry.SpiffeId,
+		ParentID: req.Entry.ParentId,
+		TTL:      req.Entry.Ttl,
 		// TODO: Add support to Federated Bundles [https://github.com/spiffe/spire/issues/42]
 	}
 
@@ -923,7 +836,7 @@ func createRegistrationEntry(tx *gorm.DB,
 		return nil, sqlError.Wrap(err)
 	}
 
-	for _, registeredSelector := range req.RegisteredEntry.Selectors {
+	for _, registeredSelector := range req.Entry.Selectors {
 		newSelector := Selector{
 			RegisteredEntryID: newRegisteredEntry.ID,
 			Type:              registeredSelector.Type,
@@ -935,7 +848,7 @@ func createRegistrationEntry(tx *gorm.DB,
 	}
 
 	return &datastore.CreateRegistrationEntryResponse{
-		RegisteredEntryId: newRegisteredEntry.EntryID,
+		EntryId: newRegisteredEntry.EntryID,
 	}, nil
 }
 
@@ -943,7 +856,7 @@ func fetchRegistrationEntry(tx *gorm.DB,
 	req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
 
 	var fetchedRegisteredEntry RegisteredEntry
-	err := tx.Find(&fetchedRegisteredEntry, "entry_id = ?", req.RegisteredEntryId).Error
+	err := tx.Find(&fetchedRegisteredEntry, "entry_id = ?", req.EntryId).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
 		return &datastore.FetchRegistrationEntryResponse{}, nil
@@ -965,7 +878,7 @@ func fetchRegistrationEntry(tx *gorm.DB,
 	}
 
 	return &datastore.FetchRegistrationEntryResponse{
-		RegisteredEntry: &common.RegistrationEntry{
+		Entry: &common.RegistrationEntry{
 			EntryId:   fetchedRegisteredEntry.EntryID,
 			Selectors: selectors,
 			SpiffeId:  fetchedRegisteredEntry.SpiffeID,
@@ -975,59 +888,127 @@ func fetchRegistrationEntry(tx *gorm.DB,
 	}, nil
 }
 
-func fetchRegistrationEntries(tx *gorm.DB,
-	req *common.Empty) (*datastore.FetchRegistrationEntriesResponse, error) {
+func listRegistrationEntries(tx *gorm.DB,
+	req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 
-	var entries []RegisteredEntry
-	if err := tx.Find(&entries).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	var sel []Selector
-	if err := tx.Find(&sel).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	// Organize the selectors for easier access
-	selectors := map[uint][]Selector{}
-	for _, s := range sel {
-		selectors[s.RegisteredEntryID] = append(selectors[s.RegisteredEntryID], s)
-	}
-
-	// Populate registration entries with their related selectors
-	for _, entry := range entries {
-		if s, ok := selectors[entry.ID]; ok {
-			entry.Selectors = s
+	// list of selector sets to match against
+	var selectorsList [][]*common.Selector
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
+		selectorSet := selector.NewSetFromRaw(req.BySelectors.Selectors)
+		if req.BySelectors.AllowAnyCombination {
+			// find entries matching any combination of the filter set
+			for combination := range selectorSet.Power() {
+				selectorsList = append(selectorsList, combination.Raw())
+			}
+		} else {
+			// find entries matching EXACTLY the filter set
+			selectorsList = append(selectorsList, selectorSet.Raw())
 		}
 	}
 
-	resEntries, err := modelsToEntries(tx, entries)
+	// filter registration entries
+	entryTx := tx
+	if req.ByParentId != nil {
+		entryTx = entryTx.Where("parent_id = ?", req.ByParentId.Value)
+	}
+	if req.BySpiffeId != nil {
+		entryTx = entryTx.Where("spiffe_id = ?", req.BySpiffeId.Value)
+	}
+
+	if len(selectorsList) == 0 {
+		// no selectors to filter against.
+		var entries []RegisteredEntry
+		if err := entryTx.Find(&entries).Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+
+		respEntries, err := modelsToEntries(tx, entries)
+		if err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+
+		return &datastore.ListRegistrationEntriesResponse{
+			Entries: respEntries,
+		}, nil
+	}
+
+	modelsSet := make(map[uint]RegisteredEntry)
+	for _, selectors := range selectorsList {
+		refCount := make(map[uint]int)
+		for _, s := range selectors {
+			var results []Selector
+			if err := tx.Find(&results, "type = ? AND value = ?", s.Type, s.Value).Error; err != nil {
+				return nil, sqlError.Wrap(err)
+			}
+
+			for _, r := range results {
+				if count, ok := refCount[r.RegisteredEntryID]; ok {
+					refCount[r.RegisteredEntryID] = count + 1
+				} else {
+					refCount[r.RegisteredEntryID] = 1
+				}
+			}
+		}
+
+		// exclude entry ids that don't have an exect number of selectors
+		entryIDs := make([]uint, 0, len(refCount))
+		for id, count := range refCount {
+			if count == len(selectors) {
+				entryIDs = append(entryIDs, id)
+			}
+		}
+		if len(entryIDs) == 0 {
+			continue
+		}
+
+		// fetch the entries in the id set, filtered by any parent/spiffe id filters
+		// applied globally
+		var models []RegisteredEntry
+		if err := entryTx.Where(entryIDs).Find(&models).Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+
+		for _, model := range models {
+			var count int
+			if err := tx.Model(&Selector{}).Where("registered_entry_id = ?", model.ID).Count(&count).Error; err != nil {
+				return nil, sqlError.Wrap(err)
+			}
+			if count == len(selectors) {
+				modelsSet[model.ID] = model
+			}
+		}
+	}
+
+	models := make([]RegisteredEntry, 0, len(modelsSet))
+	for _, model := range modelsSet {
+		models = append(models, model)
+	}
+
+	entries, err := modelsToEntries(tx, models)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.FetchRegistrationEntriesResponse{
-		RegisteredEntries: &common.RegistrationEntries{
-			Entries: resEntries,
-		},
+	return &datastore.ListRegistrationEntriesResponse{
+		Entries: entries,
 	}, nil
 }
 
 func updateRegistrationEntry(tx *gorm.DB,
 	req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
 
-	if req.RegisteredEntry == nil {
+	if req.Entry == nil {
 		return nil, sqlError.New("no registration entry provided")
 	}
 
-	if err := validateRegistrationEntry(req.RegisteredEntry); err != nil {
+	if err := validateRegistrationEntry(req.Entry); err != nil {
 		return nil, err
 	}
 
 	// Get the existing entry
 	// TODO: Refactor message type to take EntryID directly from the entry - see #449
 	entry := RegisteredEntry{}
-	if err := tx.Find(&entry, "entry_id = ?", req.RegisteredEntryId).Error; err != nil {
+	if err := tx.Find(&entry, "entry_id = ?", req.Entry.EntryId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -1037,7 +1018,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	}
 
 	selectors := []Selector{}
-	for _, s := range req.RegisteredEntry.Selectors {
+	for _, s := range req.Entry.Selectors {
 		selector := Selector{
 			Type:  s.Type,
 			Value: s.Value,
@@ -1046,17 +1027,17 @@ func updateRegistrationEntry(tx *gorm.DB,
 		selectors = append(selectors, selector)
 	}
 
-	entry.SpiffeID = req.RegisteredEntry.SpiffeId
-	entry.ParentID = req.RegisteredEntry.ParentId
-	entry.TTL = req.RegisteredEntry.Ttl
+	entry.SpiffeID = req.Entry.SpiffeId
+	entry.ParentID = req.Entry.ParentId
+	entry.TTL = req.Entry.Ttl
 	entry.Selectors = selectors
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	req.RegisteredEntry.EntryId = entry.EntryID
+	req.Entry.EntryId = entry.EntryID
 	return &datastore.UpdateRegistrationEntryResponse{
-		RegisteredEntry: req.RegisteredEntry,
+		Entry: req.Entry,
 	}, nil
 }
 
@@ -1064,7 +1045,7 @@ func deleteRegistrationEntry(tx *gorm.DB,
 	req *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
 
 	entry := RegisteredEntry{}
-	if err := tx.Find(&entry, "entry_id = ?", req.RegisteredEntryId).Error; err != nil {
+	if err := tx.Find(&entry, "entry_id = ?", req.EntryId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -1078,126 +1059,64 @@ func deleteRegistrationEntry(tx *gorm.DB,
 	}
 
 	return &datastore.DeleteRegistrationEntryResponse{
-		RegisteredEntry: respEntry,
+		Entry: respEntry,
 	}, nil
 }
 
-func listParentIDEntries(tx *gorm.DB,
-	req *datastore.ListParentIDEntriesRequest) (*datastore.ListParentIDEntriesResponse, error) {
-
-	var fetchedRegisteredEntries []RegisteredEntry
-	err := tx.Find(&fetchedRegisteredEntries, "parent_id = ?", req.ParentId).Error
-	switch {
-	case err == gorm.ErrRecordNotFound:
-		return &datastore.ListParentIDEntriesResponse{}, nil
-	case err != nil:
-		return nil, sqlError.Wrap(err)
-	}
-
-	regEntryList, err := modelsToEntries(tx, fetchedRegisteredEntries)
-	if err != nil {
-		return nil, err
-	}
-	return &datastore.ListParentIDEntriesResponse{RegisteredEntryList: regEntryList}, nil
-}
-
-func listSelectorEntries(tx *gorm.DB,
-	req *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
-
-	entries, err := listEntriesWithExactSelectorMatch(tx, req.Selectors)
-	if err != nil {
-		return nil, err
-	}
-
-	util.SortRegistrationEntries(entries)
-	return &datastore.ListSelectorEntriesResponse{RegisteredEntryList: entries}, nil
-}
-
-func listMatchingEntries(tx *gorm.DB,
-	req *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
-
-	resp := &datastore.ListSelectorEntriesResponse{}
-	for combination := range selector.NewSetFromRaw(req.Selectors).Power() {
-		entries, err := listEntriesWithExactSelectorMatch(tx, combination.Raw())
-		if err != nil {
-			return nil, err
-		}
-		resp.RegisteredEntryList = append(resp.RegisteredEntryList, entries...)
-	}
-
-	util.SortRegistrationEntries(resp.RegisteredEntryList)
-	return resp, nil
-}
-
-func listSpiffeEntries(tx *gorm.DB,
-	req *datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
-
-	var entries []RegisteredEntry
-	if err := tx.Find(&entries, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	respEntries, err := modelsToEntries(tx, entries)
-	if err != nil {
-		return nil, err
-	}
-
-	return &datastore.ListSpiffeEntriesResponse{
-		RegisteredEntryList: respEntries,
-	}, nil
-}
-
-func registerToken(tx *gorm.DB, req *datastore.JoinToken) (*common.Empty, error) {
-	if req.Token == "" || req.Expiry == 0 {
+func createJoinToken(tx *gorm.DB, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
+	if req.JoinToken == nil || req.JoinToken.Token == "" || req.JoinToken.Expiry == 0 {
 		return nil, errors.New("token and expiry are required")
 	}
 
 	t := JoinToken{
-		Token:  req.Token,
-		Expiry: req.Expiry,
+		Token:  req.JoinToken.Token,
+		Expiry: req.JoinToken.Expiry,
 	}
 
 	if err := tx.Create(&t).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &common.Empty{}, nil
+	return &datastore.CreateJoinTokenResponse{
+		JoinToken: req.JoinToken,
+	}, nil
 }
 
-func fetchToken(tx *gorm.DB, req *datastore.JoinToken) (*datastore.JoinToken, error) {
-	var t JoinToken
-	err := tx.Find(&t, "token = ?", req.Token).Error
+func fetchJoinToken(tx *gorm.DB, req *datastore.FetchJoinTokenRequest) (*datastore.FetchJoinTokenResponse, error) {
+	var model JoinToken
+	err := tx.Find(&model, "token = ?", req.Token).Error
 	if err == gorm.ErrRecordNotFound {
-		return &datastore.JoinToken{}, nil
+		return &datastore.FetchJoinTokenResponse{}, nil
 	} else if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.JoinToken{
-		Token:  t.Token,
-		Expiry: t.Expiry,
+	return &datastore.FetchJoinTokenResponse{
+		JoinToken: modelToJoinToken(model),
 	}, nil
 }
 
-func deleteToken(tx *gorm.DB, req *datastore.JoinToken) (*common.Empty, error) {
-	var t JoinToken
-	if err := tx.Find(&t, "token = ?", req.Token).Error; err != nil {
+func deleteJoinToken(tx *gorm.DB, req *datastore.DeleteJoinTokenRequest) (*datastore.DeleteJoinTokenResponse, error) {
+	var model JoinToken
+	if err := tx.Find(&model, "token = ?", req.Token).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	if err := tx.Delete(&t).Error; err != nil {
+	if err := tx.Delete(&model).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &common.Empty{}, nil
+	return &datastore.DeleteJoinTokenResponse{
+		JoinToken: modelToJoinToken(model),
+	}, nil
 }
 
-func pruneTokens(tx *gorm.DB, req *datastore.JoinToken) (*common.Empty, error) {
-	if err := tx.Where("expiry <= ?", req.Expiry).Delete(&JoinToken{}).Error; err != nil {
+func pruneJoinTokens(tx *gorm.DB, req *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
+	if err := tx.Where("expiry <= ?", req.ExpiresBefore).Delete(&JoinToken{}).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &common.Empty{}, nil
+	return &datastore.PruneJoinTokensResponse{}, nil
 }
 
 // modelToBundle converts the given bundle model to a Protobuf bundle message. It will also
@@ -1237,67 +1156,12 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	return nil
 }
 
-// listEntriesWithExactSelectorMatch finds registered entries containing exactly the specified selectors.
-func listEntriesWithExactSelectorMatch(tx *gorm.DB, selectors []*common.Selector) ([]*common.RegistrationEntry, error) {
-	if len(selectors) < 1 {
-		return nil, nil
-	}
-
-	// Count references to each entry ID
-	refCount := make(map[uint]int)
-	for _, s := range selectors {
-		var results []Selector
-		if err := tx.Find(&results, "type = ? AND value = ?", s.Type, s.Value).Error; err != nil {
-			return nil, sqlError.Wrap(err)
-		}
-
-		for _, r := range results {
-			if count, ok := refCount[r.RegisteredEntryID]; ok {
-				refCount[r.RegisteredEntryID] = count + 1
-			} else {
-				refCount[r.RegisteredEntryID] = 1
-			}
-		}
-	}
-
-	// Weed out entries that don't have every selector
-	var entryIDs []uint
-	for id, count := range refCount {
-		if count == len(selectors) {
-			entryIDs = append(entryIDs, id)
-		}
-	}
-
-	// Fetch the distilled entries.
-	var resp []RegisteredEntry
-	for _, id := range entryIDs {
-		var result RegisteredEntry
-		if err := tx.Find(&result, "id = ?", id).Error; err != nil {
-			return nil, sqlError.Wrap(err)
-		}
-
-		resp = append(resp, result)
-	}
-
-	// Weed out entries that have more selectors than requested, since only
-	// EXACT matches should be returned.
-	convertedEntries, err := modelsToUnsortedEntries(tx, resp)
-	if err != nil {
-		return nil, err
-	}
-	var entries []*common.RegistrationEntry
-	for _, entry := range convertedEntries {
-		if len(entry.Selectors) == len(selectors) {
-			entries = append(entries, entry)
-		}
-	}
-
-	return entries, nil
-}
-
 // bundleToModel converts the given Protobuf bundle message to a database model. It
 // performs validation, and fully parses certificates to form CACert embedded models.
 func bundleToModel(pb *datastore.Bundle) (*Bundle, error) {
+	if pb == nil {
+		return nil, sqlError.New("missing bundle in request")
+	}
 	id, err := idutil.ParseSpiffeID(pb.TrustDomain, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		return nil, sqlError.Wrap(err)
@@ -1319,12 +1183,10 @@ func bundleToModel(pb *datastore.Bundle) (*Bundle, error) {
 		caCerts = append(caCerts, cert)
 	}
 
-	bundle := &Bundle{
+	return &Bundle{
 		TrustDomain: id.String(),
 		CACerts:     caCerts,
-	}
-
-	return bundle, nil
+	}, nil
 }
 
 func modelsToEntries(tx *gorm.DB, fetchedRegisteredEntries []RegisteredEntry) (responseEntries []*common.RegistrationEntry, err error) {
@@ -1374,4 +1236,30 @@ func newRegistrationEntryID() (string, error) {
 		return "", sqlError.New("unable to generate registration entry id: %v", err)
 	}
 	return id.String(), nil
+}
+
+func modelToAttestedNodeEntry(model AttestedNodeEntry) *datastore.AttestedNodeEntry {
+	return &datastore.AttestedNodeEntry{
+		SpiffeId:            model.SpiffeID,
+		AttestationDataType: model.DataType,
+		CertSerialNumber:    model.SerialNumber,
+		CertNotAfter:        model.ExpiresAt.Unix(),
+	}
+}
+
+func modelToNodeResolverMapEntry(model NodeResolverMapEntry) *datastore.NodeResolverMapEntry {
+	return &datastore.NodeResolverMapEntry{
+		SpiffeId: model.SpiffeID,
+		Selector: &common.Selector{
+			Type:  model.Type,
+			Value: model.Value,
+		},
+	}
+}
+
+func modelToJoinToken(model JoinToken) *datastore.JoinToken {
+	return &datastore.JoinToken{
+		Token:  model.Token,
+		Expiry: model.Expiry,
+	}
 }

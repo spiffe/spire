@@ -3,6 +3,21 @@
 
 ## Table of Contents
 
+- [wrappers.proto](#wrappers.proto)
+    - [BoolValue](#google.protobuf.BoolValue)
+    - [BytesValue](#google.protobuf.BytesValue)
+    - [DoubleValue](#google.protobuf.DoubleValue)
+    - [FloatValue](#google.protobuf.FloatValue)
+    - [Int32Value](#google.protobuf.Int32Value)
+    - [Int64Value](#google.protobuf.Int64Value)
+    - [StringValue](#google.protobuf.StringValue)
+    - [UInt32Value](#google.protobuf.UInt32Value)
+    - [UInt64Value](#google.protobuf.UInt64Value)
+  
+  
+  
+  
+
 - [plugin.proto](#plugin.proto)
     - [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
     - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
@@ -26,42 +41,57 @@
   
 
 - [datastore.proto](#datastore.proto)
+    - [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest)
+    - [AppendBundleResponse](#spire.server.datastore.AppendBundleResponse)
     - [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry)
     - [Bundle](#spire.server.datastore.Bundle)
-    - [Bundles](#spire.server.datastore.Bundles)
+    - [BySelectors](#spire.server.datastore.BySelectors)
     - [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest)
     - [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryResponse)
+    - [CreateBundleRequest](#spire.server.datastore.CreateBundleRequest)
+    - [CreateBundleResponse](#spire.server.datastore.CreateBundleResponse)
+    - [CreateJoinTokenRequest](#spire.server.datastore.CreateJoinTokenRequest)
+    - [CreateJoinTokenResponse](#spire.server.datastore.CreateJoinTokenResponse)
     - [CreateNodeResolverMapEntryRequest](#spire.server.datastore.CreateNodeResolverMapEntryRequest)
     - [CreateNodeResolverMapEntryResponse](#spire.server.datastore.CreateNodeResolverMapEntryResponse)
     - [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest)
     - [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryResponse)
     - [DeleteAttestedNodeEntryRequest](#spire.server.datastore.DeleteAttestedNodeEntryRequest)
     - [DeleteAttestedNodeEntryResponse](#spire.server.datastore.DeleteAttestedNodeEntryResponse)
+    - [DeleteBundleRequest](#spire.server.datastore.DeleteBundleRequest)
+    - [DeleteBundleResponse](#spire.server.datastore.DeleteBundleResponse)
+    - [DeleteJoinTokenRequest](#spire.server.datastore.DeleteJoinTokenRequest)
+    - [DeleteJoinTokenResponse](#spire.server.datastore.DeleteJoinTokenResponse)
     - [DeleteNodeResolverMapEntryRequest](#spire.server.datastore.DeleteNodeResolverMapEntryRequest)
     - [DeleteNodeResolverMapEntryResponse](#spire.server.datastore.DeleteNodeResolverMapEntryResponse)
     - [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest)
     - [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryResponse)
     - [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest)
     - [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryResponse)
-    - [FetchNodeResolverMapEntryRequest](#spire.server.datastore.FetchNodeResolverMapEntryRequest)
-    - [FetchNodeResolverMapEntryResponse](#spire.server.datastore.FetchNodeResolverMapEntryResponse)
-    - [FetchRegistrationEntriesResponse](#spire.server.datastore.FetchRegistrationEntriesResponse)
+    - [FetchBundleRequest](#spire.server.datastore.FetchBundleRequest)
+    - [FetchBundleResponse](#spire.server.datastore.FetchBundleResponse)
+    - [FetchJoinTokenRequest](#spire.server.datastore.FetchJoinTokenRequest)
+    - [FetchJoinTokenResponse](#spire.server.datastore.FetchJoinTokenResponse)
     - [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest)
     - [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryResponse)
-    - [FetchStaleNodeEntriesRequest](#spire.server.datastore.FetchStaleNodeEntriesRequest)
-    - [FetchStaleNodeEntriesResponse](#spire.server.datastore.FetchStaleNodeEntriesResponse)
     - [JoinToken](#spire.server.datastore.JoinToken)
-    - [ListParentIDEntriesRequest](#spire.server.datastore.ListParentIDEntriesRequest)
-    - [ListParentIDEntriesResponse](#spire.server.datastore.ListParentIDEntriesResponse)
-    - [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest)
-    - [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesResponse)
-    - [ListSpiffeEntriesRequest](#spire.server.datastore.ListSpiffeEntriesRequest)
-    - [ListSpiffeEntriesResponse](#spire.server.datastore.ListSpiffeEntriesResponse)
+    - [ListAttestedNodeEntriesRequest](#spire.server.datastore.ListAttestedNodeEntriesRequest)
+    - [ListAttestedNodeEntriesResponse](#spire.server.datastore.ListAttestedNodeEntriesResponse)
+    - [ListBundlesRequest](#spire.server.datastore.ListBundlesRequest)
+    - [ListBundlesResponse](#spire.server.datastore.ListBundlesResponse)
+    - [ListNodeResolverMapEntriesRequest](#spire.server.datastore.ListNodeResolverMapEntriesRequest)
+    - [ListNodeResolverMapEntriesResponse](#spire.server.datastore.ListNodeResolverMapEntriesResponse)
+    - [ListRegistrationEntriesRequest](#spire.server.datastore.ListRegistrationEntriesRequest)
+    - [ListRegistrationEntriesResponse](#spire.server.datastore.ListRegistrationEntriesResponse)
     - [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry)
+    - [PruneJoinTokensRequest](#spire.server.datastore.PruneJoinTokensRequest)
+    - [PruneJoinTokensResponse](#spire.server.datastore.PruneJoinTokensResponse)
     - [RectifyNodeResolverMapEntriesRequest](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest)
     - [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesResponse)
     - [UpdateAttestedNodeEntryRequest](#spire.server.datastore.UpdateAttestedNodeEntryRequest)
     - [UpdateAttestedNodeEntryResponse](#spire.server.datastore.UpdateAttestedNodeEntryResponse)
+    - [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest)
+    - [UpdateBundleResponse](#spire.server.datastore.UpdateBundleResponse)
     - [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest)
     - [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryResponse)
   
@@ -71,6 +101,175 @@
   
 
 - [Scalar Value Types](#scalar-value-types)
+
+
+
+<a name="wrappers.proto"/>
+<p align="right"><a href="#top">Top</a></p>
+
+## wrappers.proto
+
+
+
+<a name="google.protobuf.BoolValue"/>
+
+### BoolValue
+Wrapper message for `bool`.
+
+The JSON representation for `BoolValue` is JSON `true` and `false`.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| value | [bool](#bool) |  | The bool value. |
+
+
+
+
+
+
+<a name="google.protobuf.BytesValue"/>
+
+### BytesValue
+Wrapper message for `bytes`.
+
+The JSON representation for `BytesValue` is JSON string.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| value | [bytes](#bytes) |  | The bytes value. |
+
+
+
+
+
+
+<a name="google.protobuf.DoubleValue"/>
+
+### DoubleValue
+Wrapper message for `double`.
+
+The JSON representation for `DoubleValue` is JSON number.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| value | [double](#double) |  | The double value. |
+
+
+
+
+
+
+<a name="google.protobuf.FloatValue"/>
+
+### FloatValue
+Wrapper message for `float`.
+
+The JSON representation for `FloatValue` is JSON number.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| value | [float](#float) |  | The float value. |
+
+
+
+
+
+
+<a name="google.protobuf.Int32Value"/>
+
+### Int32Value
+Wrapper message for `int32`.
+
+The JSON representation for `Int32Value` is JSON number.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| value | [int32](#int32) |  | The int32 value. |
+
+
+
+
+
+
+<a name="google.protobuf.Int64Value"/>
+
+### Int64Value
+Wrapper message for `int64`.
+
+The JSON representation for `Int64Value` is JSON string.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| value | [int64](#int64) |  | The int64 value. |
+
+
+
+
+
+
+<a name="google.protobuf.StringValue"/>
+
+### StringValue
+Wrapper message for `string`.
+
+The JSON representation for `StringValue` is JSON string.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| value | [string](#string) |  | The string value. |
+
+
+
+
+
+
+<a name="google.protobuf.UInt32Value"/>
+
+### UInt32Value
+Wrapper message for `uint32`.
+
+The JSON representation for `UInt32Value` is JSON number.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| value | [uint32](#uint32) |  | The uint32 value. |
+
+
+
+
+
+
+<a name="google.protobuf.UInt64Value"/>
+
+### UInt64Value
+Wrapper message for `uint64`.
+
+The JSON representation for `UInt64Value` is JSON string.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| value | [uint64](#uint64) |  | The uint64 value. |
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+ 
 
 
 
@@ -271,20 +470,48 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.AttestedNodeEntry"/>
+<a name="spire.server.datastore.AppendBundleRequest"/>
 
-### AttestedNodeEntry
-Represents a single entry in AttestedNodes and stores the node&#39;s
-SPIFFE ID, the type of attestation it performed, as well as the serial
-number and expiration date of its node SVID.
+### AppendBundleRequest
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| baseSpiffeId | [string](#string) |  | Spiffe ID |
-| attestationDataType | [string](#string) |  | Attestation type |
-| certSerialNumber | [string](#string) |  | Serial number |
-| certExpirationDate | [string](#string) |  | Expiration date |
+| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.AppendBundleResponse"/>
+
+### AppendBundleResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.AttestedNodeEntry"/>
+
+### AttestedNodeEntry
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  | Node SPIFFE ID |
+| attestation_data_type | [string](#string) |  | Attestation data type |
+| cert_serial_number | [string](#string) |  | Node certificate serial number |
+| cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
 
 
 
@@ -294,22 +521,514 @@ number and expiration date of its node SVID.
 <a name="spire.server.datastore.Bundle"/>
 
 ### Bundle
-Represents the trust bundle of a foreign trust domain
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| trust_domain | [string](#string) |  | SPIFFE ID of the foreign trust domain |
-| ca_certs | [bytes](#bytes) |  | CA Certificates ASN.1 DER encoded |
+| trust_domain | [string](#string) |  | Trust domain SPIFFE ID |
+| ca_certs | [bytes](#bytes) |  | CA Certificates (ASN.1 DER encoded) |
 
 
 
 
 
 
-<a name="spire.server.datastore.Bundles"/>
+<a name="spire.server.datastore.BySelectors"/>
 
-### Bundles
+### BySelectors
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| selectors | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) | repeated |  |
+| allow_any_combination | [bool](#bool) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateAttestedNodeEntryRequest"/>
+
+### CreateAttestedNodeEntryRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateAttestedNodeEntryResponse"/>
+
+### CreateAttestedNodeEntryResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateBundleRequest"/>
+
+### CreateBundleRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateBundleResponse"/>
+
+### CreateBundleResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateJoinTokenRequest"/>
+
+### CreateJoinTokenRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| join_token | [JoinToken](#spire.server.datastore.JoinToken) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateJoinTokenResponse"/>
+
+### CreateJoinTokenResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| join_token | [JoinToken](#spire.server.datastore.JoinToken) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateNodeResolverMapEntryRequest"/>
+
+### CreateNodeResolverMapEntryRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateNodeResolverMapEntryResponse"/>
+
+### CreateNodeResolverMapEntryResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateRegistrationEntryRequest"/>
+
+### CreateRegistrationEntryRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateRegistrationEntryResponse"/>
+
+### CreateRegistrationEntryResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry_id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.DeleteAttestedNodeEntryRequest"/>
+
+### DeleteAttestedNodeEntryRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.DeleteAttestedNodeEntryResponse"/>
+
+### DeleteAttestedNodeEntryResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.DeleteBundleRequest"/>
+
+### DeleteBundleRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| trust_domain | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.DeleteBundleResponse"/>
+
+### DeleteBundleResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.DeleteJoinTokenRequest"/>
+
+### DeleteJoinTokenRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| token | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.DeleteJoinTokenResponse"/>
+
+### DeleteJoinTokenResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| join_token | [JoinToken](#spire.server.datastore.JoinToken) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.DeleteNodeResolverMapEntryRequest"/>
+
+### DeleteNodeResolverMapEntryRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.DeleteNodeResolverMapEntryResponse"/>
+
+### DeleteNodeResolverMapEntryResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.DeleteRegistrationEntryRequest"/>
+
+### DeleteRegistrationEntryRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry_id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.DeleteRegistrationEntryResponse"/>
+
+### DeleteRegistrationEntryResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.FetchAttestedNodeEntryRequest"/>
+
+### FetchAttestedNodeEntryRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.FetchAttestedNodeEntryResponse"/>
+
+### FetchAttestedNodeEntryResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.FetchBundleRequest"/>
+
+### FetchBundleRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| trust_domain | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.FetchBundleResponse"/>
+
+### FetchBundleResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.FetchJoinTokenRequest"/>
+
+### FetchJoinTokenRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| token | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.FetchJoinTokenResponse"/>
+
+### FetchJoinTokenResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| join_token | [JoinToken](#spire.server.datastore.JoinToken) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.FetchRegistrationEntryRequest"/>
+
+### FetchRegistrationEntryRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry_id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.FetchRegistrationEntryResponse"/>
+
+### FetchRegistrationEntryResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.JoinToken"/>
+
+### JoinToken
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| token | [string](#string) |  | Token value |
+| expiry | [int64](#int64) |  | Expiration in seconds since unix epoch |
+
+
+
+
+
+
+<a name="spire.server.datastore.ListAttestedNodeEntriesRequest"/>
+
+### ListAttestedNodeEntriesRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| by_expires_before | [.google.protobuf.Int64Value](#spire.server.datastore..google.protobuf.Int64Value) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.ListAttestedNodeEntriesResponse"/>
+
+### ListAttestedNodeEntriesResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| entries | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) | repeated |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.ListBundlesRequest"/>
+
+### ListBundlesRequest
+
+
+
+
+
+
+
+<a name="spire.server.datastore.ListBundlesResponse"/>
+
+### ListBundlesResponse
 
 
 
@@ -322,416 +1041,62 @@ Represents the trust bundle of a foreign trust domain
 
 
 
-<a name="spire.server.datastore.CreateAttestedNodeEntryRequest"/>
+<a name="spire.server.datastore.ListNodeResolverMapEntriesRequest"/>
 
-### CreateAttestedNodeEntryRequest
-Represents an Attested Node entry to create
+### ListNodeResolverMapEntriesRequest
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  | Attested node entry |
+| spiffe_id | [string](#string) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.CreateAttestedNodeEntryResponse"/>
+<a name="spire.server.datastore.ListNodeResolverMapEntriesResponse"/>
 
-### CreateAttestedNodeEntryResponse
-Represents the created Attested Node entry
+### ListNodeResolverMapEntriesResponse
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  | Attested node entry |
+| entries | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.CreateNodeResolverMapEntryRequest"/>
+<a name="spire.server.datastore.ListRegistrationEntriesRequest"/>
 
-### CreateNodeResolverMapEntryRequest
-Represents a Node resolver map entry to create
+### ListRegistrationEntriesRequest
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  | Node resolver map entry |
+| by_parent_id | [.google.protobuf.StringValue](#spire.server.datastore..google.protobuf.StringValue) |  |  |
+| by_selectors | [BySelectors](#spire.server.datastore.BySelectors) |  |  |
+| by_spiffe_id | [.google.protobuf.StringValue](#spire.server.datastore..google.protobuf.StringValue) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.CreateNodeResolverMapEntryResponse"/>
+<a name="spire.server.datastore.ListRegistrationEntriesResponse"/>
 
-### CreateNodeResolverMapEntryResponse
-Represents the created Node resolver map entry
+### ListRegistrationEntriesResponse
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  | Node resolver map entry |
-
-
-
-
-
-
-<a name="spire.server.datastore.CreateRegistrationEntryRequest"/>
-
-### CreateRegistrationEntryRequest
-Represents a Registration entry to create
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
-
-
-
-
-
-
-<a name="spire.server.datastore.CreateRegistrationEntryResponse"/>
-
-### CreateRegistrationEntryResponse
-Represents the created Registration entry
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntryId | [string](#string) |  | Registration entry ID |
-
-
-
-
-
-
-<a name="spire.server.datastore.DeleteAttestedNodeEntryRequest"/>
-
-### DeleteAttestedNodeEntryRequest
-Represents the Spiffe ID of the Attested node entry to delete
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| baseSpiffeId | [string](#string) |  | SPIFFE ID |
-
-
-
-
-
-
-<a name="spire.server.datastore.DeleteAttestedNodeEntryResponse"/>
-
-### DeleteAttestedNodeEntryResponse
-Represents the deleted Attested node entry
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
-
-
-
-
-
-
-<a name="spire.server.datastore.DeleteNodeResolverMapEntryRequest"/>
-
-### DeleteNodeResolverMapEntryRequest
-Represents a Node resolver map entry to delete
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  | Node resolver map entry |
-
-
-
-
-
-
-<a name="spire.server.datastore.DeleteNodeResolverMapEntryResponse"/>
-
-### DeleteNodeResolverMapEntryResponse
-Represents a list of Node resolver map entries
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
-
-
-
-
-
-
-<a name="spire.server.datastore.DeleteRegistrationEntryRequest"/>
-
-### DeleteRegistrationEntryRequest
-Represents a Registration entry ID to delete
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntryId | [string](#string) |  | Registration entry ID |
-
-
-
-
-
-
-<a name="spire.server.datastore.DeleteRegistrationEntryResponse"/>
-
-### DeleteRegistrationEntryResponse
-Represents the deleted Registration entry
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
-
-
-
-
-
-
-<a name="spire.server.datastore.FetchAttestedNodeEntryRequest"/>
-
-### FetchAttestedNodeEntryRequest
-Represents the Spiffe ID of the node entry to retrieve
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| baseSpiffeId | [string](#string) |  | SPIFFE ID |
-
-
-
-
-
-
-<a name="spire.server.datastore.FetchAttestedNodeEntryResponse"/>
-
-### FetchAttestedNodeEntryResponse
-Represents an Attested Node entry
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  | Attested node entry |
-
-
-
-
-
-
-<a name="spire.server.datastore.FetchNodeResolverMapEntryRequest"/>
-
-### FetchNodeResolverMapEntryRequest
-Represents a Spiffe ID
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| baseSpiffeId | [string](#string) |  | SPIFFE ID |
-
-
-
-
-
-
-<a name="spire.server.datastore.FetchNodeResolverMapEntryResponse"/>
-
-### FetchNodeResolverMapEntryResponse
-Represents a list of Node resolver map entries for the specified Spiffe ID
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
-
-
-
-
-
-
-<a name="spire.server.datastore.FetchRegistrationEntriesResponse"/>
-
-### FetchRegistrationEntriesResponse
-Represents a list of Registration entries
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntries | [.spire.common.RegistrationEntries](#spire.server.datastore..spire.common.RegistrationEntries) |  | Registration entries |
-
-
-
-
-
-
-<a name="spire.server.datastore.FetchRegistrationEntryRequest"/>
-
-### FetchRegistrationEntryRequest
-Represents a Registration entry ID to fetch
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntryId | [string](#string) |  | Registration entry ID |
-
-
-
-
-
-
-<a name="spire.server.datastore.FetchRegistrationEntryResponse"/>
-
-### FetchRegistrationEntryResponse
-Represents a Registration entry
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
-
-
-
-
-
-
-<a name="spire.server.datastore.FetchStaleNodeEntriesRequest"/>
-
-### FetchStaleNodeEntriesRequest
-Empty Request
-
-
-
-
-
-
-<a name="spire.server.datastore.FetchStaleNodeEntriesResponse"/>
-
-### FetchStaleNodeEntriesResponse
-Represents dead nodes for which the base SVID has expired
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| attestedNodeEntryList | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) | repeated | List of attested node entries |
-
-
-
-
-
-
-<a name="spire.server.datastore.JoinToken"/>
-
-### JoinToken
-Represents a join token and associated metadata, if known
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| token | [string](#string) |  |  |
-| expiry | [int64](#int64) |  | Expiration date, represented in UNIX time |
-
-
-
-
-
-
-<a name="spire.server.datastore.ListParentIDEntriesRequest"/>
-
-### ListParentIDEntriesRequest
-Represents a Parent ID
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| parentId | [string](#string) |  | Parent ID |
-
-
-
-
-
-
-<a name="spire.server.datastore.ListParentIDEntriesResponse"/>
-
-### ListParentIDEntriesResponse
-Represents a list of Registered entries with the specified Parent ID
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntryList | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) | repeated | List of Registration entries |
-
-
-
-
-
-
-<a name="spire.server.datastore.ListSelectorEntriesRequest"/>
-
-### ListSelectorEntriesRequest
-Represents a selector
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| selectors | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) | repeated | Selector |
-
-
-
-
-
-
-<a name="spire.server.datastore.ListSelectorEntriesResponse"/>
-
-### ListSelectorEntriesResponse
-Represents a list of Registered entries with the specified selector
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntryList | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) | repeated | List of Registration entries |
-
-
-
-
-
-
-<a name="spire.server.datastore.ListSpiffeEntriesRequest"/>
-
-### ListSpiffeEntriesRequest
-Represents a Spiffe ID
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffeId | [string](#string) |  | SPIFFE ID |
-
-
-
-
-
-
-<a name="spire.server.datastore.ListSpiffeEntriesResponse"/>
-
-### ListSpiffeEntriesResponse
-Represents a list of Registered entries with the specified Spiffe ID
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| registeredEntryList | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) | repeated | List of Registration entries |
+| entries | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) | repeated |  |
 
 
 
@@ -741,14 +1106,38 @@ Represents a list of Registered entries with the specified Spiffe ID
 <a name="spire.server.datastore.NodeResolverMapEntry"/>
 
 ### NodeResolverMapEntry
-Represents a single entry in NodeResolverMap and maps node properties
-to logical attributes (i.e. an AWS instance to its ASG).
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| baseSpiffeId | [string](#string) |  |  |
-| selector | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) |  |  |
+| spiffe_id | [string](#string) |  | Node SPIFFE ID |
+| selector | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) |  | Node selector |
+
+
+
+
+
+
+<a name="spire.server.datastore.PruneJoinTokensRequest"/>
+
+### PruneJoinTokensRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| expires_before | [int64](#int64) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.PruneJoinTokensResponse"/>
+
+### PruneJoinTokensResponse
+
 
 
 
@@ -758,12 +1147,12 @@ to logical attributes (i.e. an AWS instance to its ASG).
 <a name="spire.server.datastore.RectifyNodeResolverMapEntriesRequest"/>
 
 ### RectifyNodeResolverMapEntriesRequest
-Represents a list of Node resolver map entries
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
+| entries | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated |  |
 
 
 
@@ -773,12 +1162,12 @@ Represents a list of Node resolver map entries
 <a name="spire.server.datastore.RectifyNodeResolverMapEntriesResponse"/>
 
 ### RectifyNodeResolverMapEntriesResponse
-Represents a list of Node resolver map entries
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodeResolverMapEntryList | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated | List of Node resolver map entries |
+| entries | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated |  |
 
 
 
@@ -788,14 +1177,14 @@ Represents a list of Node resolver map entries
 <a name="spire.server.datastore.UpdateAttestedNodeEntryRequest"/>
 
 ### UpdateAttestedNodeEntryRequest
-Represents Attested node entry fields to update
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| baseSpiffeId | [string](#string) |  | SPIFFE ID |
-| certSerialNumber | [string](#string) |  | Serial number |
-| certExpirationDate | [string](#string) |  | Expiration date |
+| spiffe_id | [string](#string) |  |  |
+| cert_serial_number | [string](#string) |  |  |
+| cert_not_after | [int64](#int64) |  |  |
 
 
 
@@ -805,12 +1194,42 @@ Represents Attested node entry fields to update
 <a name="spire.server.datastore.UpdateAttestedNodeEntryResponse"/>
 
 ### UpdateAttestedNodeEntryResponse
-Represents the updated Attested node entry
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestedNodeEntry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  | Attested node entry |
+| entry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.UpdateBundleRequest"/>
+
+### UpdateBundleRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.UpdateBundleResponse"/>
+
+### UpdateBundleResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
 
 
 
@@ -820,13 +1239,12 @@ Represents the updated Attested node entry
 <a name="spire.server.datastore.UpdateRegistrationEntryRequest"/>
 
 ### UpdateRegistrationEntryRequest
-Represents a Registration entry to update
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntryId | [string](#string) |  | Registration entry ID |
-| registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
+| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
 
 
 
@@ -836,12 +1254,12 @@ Represents a Registration entry to update
 <a name="spire.server.datastore.UpdateRegistrationEntryResponse"/>
 
 ### UpdateRegistrationEntryResponse
-Represents the updated Registration entry
+
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| registeredEntry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  | Registration entry |
+| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
 
 
 
@@ -861,34 +1279,30 @@ Represents the updated Registration entry
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| CreateBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Creates a Bundle |
-| UpdateBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Updates the specified Bundle, overwriting existing certs |
-| AppendBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Appends the provided certs onto an existing bundle, creating a new bundle if one doesn&#39;t exist |
-| DeleteBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Deletes the specified Bundle |
-| FetchBundle | [Bundle](#spire.server.datastore.Bundle) | [Bundle](#spire.server.datastore.Bundle) | Returns the specified Bundle |
-| ListBundles | [spire.common.Empty](#spire.common.Empty) | [Bundles](#spire.common.Empty) | List all Bundles |
-| CreateAttestedNodeEntry | [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest) | [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryRequest) | Creates an Attested Node Entry |
-| FetchAttestedNodeEntry | [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest) | [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryRequest) | Retrieves the Attested Node Entry |
-| FetchStaleNodeEntries | [FetchStaleNodeEntriesRequest](#spire.server.datastore.FetchStaleNodeEntriesRequest) | [FetchStaleNodeEntriesResponse](#spire.server.datastore.FetchStaleNodeEntriesRequest) | Retrieves dead nodes for which the base SVID has expired |
-| UpdateAttestedNodeEntry | [UpdateAttestedNodeEntryRequest](#spire.server.datastore.UpdateAttestedNodeEntryRequest) | [UpdateAttestedNodeEntryResponse](#spire.server.datastore.UpdateAttestedNodeEntryRequest) | Updates the Attested Node Entry |
-| DeleteAttestedNodeEntry | [DeleteAttestedNodeEntryRequest](#spire.server.datastore.DeleteAttestedNodeEntryRequest) | [DeleteAttestedNodeEntryResponse](#spire.server.datastore.DeleteAttestedNodeEntryRequest) | Deletes the Attested Node Entry |
-| CreateNodeResolverMapEntry | [CreateNodeResolverMapEntryRequest](#spire.server.datastore.CreateNodeResolverMapEntryRequest) | [CreateNodeResolverMapEntryResponse](#spire.server.datastore.CreateNodeResolverMapEntryRequest) | Creates a Node resolver map Entry |
-| FetchNodeResolverMapEntry | [FetchNodeResolverMapEntryRequest](#spire.server.datastore.FetchNodeResolverMapEntryRequest) | [FetchNodeResolverMapEntryResponse](#spire.server.datastore.FetchNodeResolverMapEntryRequest) | Retrieves all Node Resolver Map Entry for the specific base SPIFFEID |
-| DeleteNodeResolverMapEntry | [DeleteNodeResolverMapEntryRequest](#spire.server.datastore.DeleteNodeResolverMapEntryRequest) | [DeleteNodeResolverMapEntryResponse](#spire.server.datastore.DeleteNodeResolverMapEntryRequest) | Deletes all Node Resolver Map Entry for the specific base SPIFFEID |
-| RectifyNodeResolverMapEntries | [RectifyNodeResolverMapEntriesRequest](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest) | [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest) | Used for rectifying updated node resolutions |
-| CreateRegistrationEntry | [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest) | [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryRequest) | Creates a Registered Entry |
-| FetchRegistrationEntry | [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest) | [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryRequest) | Retrieve a specific registered entry |
-| FetchRegistrationEntries | [spire.common.Empty](#spire.common.Empty) | [FetchRegistrationEntriesResponse](#spire.common.Empty) | Retrieve all registration entries |
-| UpdateRegistrationEntry | [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest) | [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryRequest) | Updates a specific registered entry |
-| DeleteRegistrationEntry | [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest) | [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryRequest) | Deletes a specific registered entry |
-| ListParentIDEntries | [ListParentIDEntriesRequest](#spire.server.datastore.ListParentIDEntriesRequest) | [ListParentIDEntriesResponse](#spire.server.datastore.ListParentIDEntriesRequest) | Retrieves all the registered entry with the same ParentID |
-| ListSelectorEntries | [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesRequest) | Retrieves all the registered entry matching exactly the compound Selector |
-| ListMatchingEntries | [ListSelectorEntriesRequest](#spire.server.datastore.ListSelectorEntriesRequest) | [ListSelectorEntriesResponse](#spire.server.datastore.ListSelectorEntriesRequest) | Retrieves registered entries containing all of the specified selectors |
-| ListSpiffeEntries | [ListSpiffeEntriesRequest](#spire.server.datastore.ListSpiffeEntriesRequest) | [ListSpiffeEntriesResponse](#spire.server.datastore.ListSpiffeEntriesRequest) | Retrieves all the registered entry with the same SpiffeId |
-| RegisterToken | [JoinToken](#spire.server.datastore.JoinToken) | [spire.common.Empty](#spire.server.datastore.JoinToken) | Register a new join token |
-| FetchToken | [JoinToken](#spire.server.datastore.JoinToken) | [JoinToken](#spire.server.datastore.JoinToken) | Fetch a token record |
-| DeleteToken | [JoinToken](#spire.server.datastore.JoinToken) | [spire.common.Empty](#spire.server.datastore.JoinToken) | Delete the referenced token |
-| PruneTokens | [JoinToken](#spire.server.datastore.JoinToken) | [spire.common.Empty](#spire.server.datastore.JoinToken) | Delete all tokens with expiry less than the one specified |
+| CreateBundle | [CreateBundleRequest](#spire.server.datastore.CreateBundleRequest) | [CreateBundleResponse](#spire.server.datastore.CreateBundleRequest) | Creates a bundle |
+| FetchBundle | [FetchBundleRequest](#spire.server.datastore.FetchBundleRequest) | [FetchBundleResponse](#spire.server.datastore.FetchBundleRequest) | Fetches a specific bundle |
+| ListBundles | [ListBundlesRequest](#spire.server.datastore.ListBundlesRequest) | [ListBundlesResponse](#spire.server.datastore.ListBundlesRequest) | Lists bundles (optionally filtered) |
+| UpdateBundle | [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest) | [UpdateBundleResponse](#spire.server.datastore.UpdateBundleRequest) | Updates a specific bundle, overwriting existing certs |
+| AppendBundle | [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest) | [AppendBundleResponse](#spire.server.datastore.AppendBundleRequest) | Appends the provided certs onto an existing bundle, creating a new bundle if one doesn&#39;t exist |
+| DeleteBundle | [DeleteBundleRequest](#spire.server.datastore.DeleteBundleRequest) | [DeleteBundleResponse](#spire.server.datastore.DeleteBundleRequest) | Deletes a specific bundle |
+| CreateAttestedNodeEntry | [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest) | [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryRequest) | Creates an attested node entry |
+| FetchAttestedNodeEntry | [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest) | [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryRequest) | Fetches a specific attested node entry |
+| ListAttestedNodeEntries | [ListAttestedNodeEntriesRequest](#spire.server.datastore.ListAttestedNodeEntriesRequest) | [ListAttestedNodeEntriesResponse](#spire.server.datastore.ListAttestedNodeEntriesRequest) | Lists attested node entries (optionally filtered) |
+| UpdateAttestedNodeEntry | [UpdateAttestedNodeEntryRequest](#spire.server.datastore.UpdateAttestedNodeEntryRequest) | [UpdateAttestedNodeEntryResponse](#spire.server.datastore.UpdateAttestedNodeEntryRequest) | Updates a specific attested node entry |
+| DeleteAttestedNodeEntry | [DeleteAttestedNodeEntryRequest](#spire.server.datastore.DeleteAttestedNodeEntryRequest) | [DeleteAttestedNodeEntryResponse](#spire.server.datastore.DeleteAttestedNodeEntryRequest) | Deletes a specific attested node entry |
+| CreateNodeResolverMapEntry | [CreateNodeResolverMapEntryRequest](#spire.server.datastore.CreateNodeResolverMapEntryRequest) | [CreateNodeResolverMapEntryResponse](#spire.server.datastore.CreateNodeResolverMapEntryRequest) | Creates a node resolver map entry |
+| ListNodeResolverMapEntries | [ListNodeResolverMapEntriesRequest](#spire.server.datastore.ListNodeResolverMapEntriesRequest) | [ListNodeResolverMapEntriesResponse](#spire.server.datastore.ListNodeResolverMapEntriesRequest) | Lists node resolver map entries for a specified SPIFFE ID |
+| DeleteNodeResolverMapEntry | [DeleteNodeResolverMapEntryRequest](#spire.server.datastore.DeleteNodeResolverMapEntryRequest) | [DeleteNodeResolverMapEntryResponse](#spire.server.datastore.DeleteNodeResolverMapEntryRequest) | Deletes a specific node resolver map entry |
+| RectifyNodeResolverMapEntries | [RectifyNodeResolverMapEntriesRequest](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest) | [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest) | Sets the list of node resolver map entries for the specified SPIFFE ID |
+| CreateRegistrationEntry | [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest) | [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryRequest) | Creates a registration entry |
+| FetchRegistrationEntry | [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest) | [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryRequest) | Fetches a specific registration entry |
+| ListRegistrationEntries | [ListRegistrationEntriesRequest](#spire.server.datastore.ListRegistrationEntriesRequest) | [ListRegistrationEntriesResponse](#spire.server.datastore.ListRegistrationEntriesRequest) | Lists registration entries (optionally filtered) |
+| UpdateRegistrationEntry | [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest) | [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryRequest) | Updates a specific registration entry |
+| DeleteRegistrationEntry | [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest) | [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryRequest) | Deletes a specific registration entry |
+| CreateJoinToken | [CreateJoinTokenRequest](#spire.server.datastore.CreateJoinTokenRequest) | [CreateJoinTokenResponse](#spire.server.datastore.CreateJoinTokenRequest) | Creates a join token |
+| FetchJoinToken | [FetchJoinTokenRequest](#spire.server.datastore.FetchJoinTokenRequest) | [FetchJoinTokenResponse](#spire.server.datastore.FetchJoinTokenRequest) | Fetches a specific join token |
+| DeleteJoinToken | [DeleteJoinTokenRequest](#spire.server.datastore.DeleteJoinTokenRequest) | [DeleteJoinTokenResponse](#spire.server.datastore.DeleteJoinTokenRequest) | Delete a specific join token |
+| PruneJoinTokens | [PruneJoinTokensRequest](#spire.server.datastore.PruneJoinTokensRequest) | [PruneJoinTokensResponse](#spire.server.datastore.PruneJoinTokensRequest) | Prunes all join tokens that expire before the specified timestamp |
 | Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Applies the plugin configuration |
 | GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin |
 

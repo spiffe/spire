@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -88,16 +89,18 @@ func (s *PluginSuite) TestBundleCRUD() {
 	}
 
 	// create
-	_, err = s.ds.CreateBundle(ctx, bundle)
+	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: bundle,
+	})
 	s.Require().NoError(err)
 
 	// fetch
-	fresp, err := s.ds.FetchBundle(ctx, &datastore.Bundle{TrustDomain: "spiffe://foo"})
+	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomain: "spiffe://foo"})
 	s.Require().NoError(err)
-	s.Equal(bundle, fresp)
+	s.Equal(bundle, fresp.Bundle)
 
 	// list
-	lresp, err := s.ds.ListBundles(ctx, &common.Empty{})
+	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
 	s.Equal(bundle, lresp.Bundles[0])
@@ -111,200 +114,214 @@ func (s *PluginSuite) TestBundleCRUD() {
 	}
 
 	// append
-	aresp, err := s.ds.AppendBundle(ctx, bundle2)
+	aresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+		Bundle: bundle2,
+	})
 	s.Require().NoError(err)
 	certs := append(bundle.CaCerts, cert.Raw...)
-	s.Equal(certs, aresp.CaCerts)
+	s.Require().NotNil(aresp.Bundle)
+	s.Equal(certs, aresp.Bundle.CaCerts)
 
 	// append identical
-	aresp, err = s.ds.AppendBundle(ctx, bundle2)
+	aresp, err = s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+		Bundle: bundle2,
+	})
 	s.Require().NoError(err)
-	s.Equal(certs, aresp.CaCerts)
+	s.Require().NotNil(aresp.Bundle)
+	s.Equal(certs, aresp.Bundle.CaCerts)
 
 	// append on a new bundle
 	bundle3 := &datastore.Bundle{
 		TrustDomain: "spiffe://bar",
 		CaCerts:     cert.Raw,
 	}
-	anresp, err := s.ds.AppendBundle(ctx, bundle3)
+	anresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+		Bundle: bundle3,
+	})
 	s.Require().NoError(err)
-	s.Equal(bundle3, anresp)
+	s.Equal(bundle3, anresp.Bundle)
 
 	// update
-	uresp, err := s.ds.UpdateBundle(ctx, bundle2)
+	uresp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
+		Bundle: bundle2,
+	})
 	s.Require().NoError(err)
-	s.Equal(bundle2, uresp)
+	s.Equal(bundle2, uresp.Bundle)
 
-	lresp, err = s.ds.ListBundles(ctx, &common.Empty{})
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
 	s.Equal(2, len(lresp.Bundles))
 	s.Equal([]*datastore.Bundle{bundle2, bundle3}, lresp.Bundles)
 
 	// delete
-	dresp, err := s.ds.DeleteBundle(ctx, &datastore.Bundle{
+	dresp, err := s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
 		TrustDomain: bundle.TrustDomain,
 	})
 	s.Require().NoError(err)
-	s.Equal(bundle2, dresp)
+	s.Equal(bundle2, dresp.Bundle)
 
-	lresp, err = s.ds.ListBundles(ctx, &common.Empty{})
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
 }
 
 func (s *PluginSuite) TestCreateAttestedNodeEntry() {
 	entry := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:        "foo",
+		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
-		CertExpirationDate:  time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	cresp, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
+	cresp, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: entry})
 	s.Require().NoError(err)
-	s.Equal(entry, cresp.AttestedNodeEntry)
+	s.Equal(entry, cresp.Entry)
 
-	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
-	s.Equal(entry, fresp.AttestedNodeEntry)
+	s.Equal(entry, fresp.Entry)
 
-	sresp, err := s.ds.FetchStaleNodeEntries(ctx, &datastore.FetchStaleNodeEntriesRequest{})
+	sresp, err := s.ds.ListAttestedNodeEntries(ctx, &datastore.ListAttestedNodeEntriesRequest{
+		ByExpiresBefore: &wrappers.Int64Value{
+			Value: time.Now().Unix(),
+		},
+	})
 	s.Require().NoError(err)
-	s.Empty(sresp.AttestedNodeEntryList)
+	s.Empty(sresp.Entries)
 }
 
 func (s *PluginSuite) TestFetchAttestedNodeEntryMissing() {
-	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: "missing"})
+	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{SpiffeId: "missing"})
 	s.Require().NoError(err)
-	s.Require().Nil(fresp.AttestedNodeEntry)
+	s.Require().Nil(fresp.Entry)
 }
 
 func (s *PluginSuite) TestFetchStaleNodeEntries() {
 	efuture := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:        "foo",
+		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
-		CertExpirationDate:  time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
 	epast := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:        "bar",
+		SpiffeId:            "bar",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "deadbeef",
-		CertExpirationDate:  time.Now().Add(-time.Hour).Format(datastore.TimeFormat),
+		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
 	}
 
-	_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: efuture})
+	_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: efuture})
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: epast})
+	_, err = s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: epast})
 	s.Require().NoError(err)
 
-	sresp, err := s.ds.FetchStaleNodeEntries(ctx, &datastore.FetchStaleNodeEntriesRequest{})
+	sresp, err := s.ds.ListAttestedNodeEntries(ctx, &datastore.ListAttestedNodeEntriesRequest{
+		ByExpiresBefore: &wrappers.Int64Value{
+			Value: time.Now().Unix(),
+		},
+	})
 	s.Require().NoError(err)
-	s.Equal([]*datastore.AttestedNodeEntry{epast}, sresp.AttestedNodeEntryList)
+	s.Equal([]*datastore.AttestedNodeEntry{epast}, sresp.Entries)
 }
 
 func (s *PluginSuite) TestUpdateAttestedNodeEntry() {
 	entry := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:        "foo",
+		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
-		CertExpirationDate:  time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
 	userial := "deadbeef"
-	uexpires := time.Now().Add(time.Hour * 2).Format(datastore.TimeFormat)
+	uexpires := time.Now().Add(time.Hour * 2).Unix()
 
-	_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
+	_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: entry})
 	s.Require().NoError(err)
 
 	uresp, err := s.ds.UpdateAttestedNodeEntry(ctx, &datastore.UpdateAttestedNodeEntryRequest{
-		BaseSpiffeId:       entry.BaseSpiffeId,
-		CertSerialNumber:   userial,
-		CertExpirationDate: uexpires,
+		SpiffeId:         entry.SpiffeId,
+		CertSerialNumber: userial,
+		CertNotAfter:     uexpires,
 	})
 	s.Require().NoError(err)
 
-	uentry := uresp.AttestedNodeEntry
+	uentry := uresp.Entry
 	s.Require().NotNil(uentry)
 
-	s.Equal(entry.BaseSpiffeId, uentry.BaseSpiffeId)
+	s.Equal(entry.SpiffeId, uentry.SpiffeId)
 	s.Equal(entry.AttestationDataType, uentry.AttestationDataType)
 	s.Equal(userial, uentry.CertSerialNumber)
-	s.Equal(uexpires, uentry.CertExpirationDate)
+	s.Equal(uexpires, uentry.CertNotAfter)
 
-	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
 
-	fentry := fresp.AttestedNodeEntry
+	fentry := fresp.Entry
 	s.Require().NotNil(fentry)
 
-	s.Equal(entry.BaseSpiffeId, fentry.BaseSpiffeId)
+	s.Equal(entry.SpiffeId, fentry.SpiffeId)
 	s.Equal(entry.AttestationDataType, fentry.AttestationDataType)
 	s.Equal(userial, fentry.CertSerialNumber)
-	s.Equal(uexpires, fentry.CertExpirationDate)
+	s.Equal(uexpires, fentry.CertNotAfter)
 }
 
 func (s *PluginSuite) TestDeleteAttestedNodeEntry() {
 	entry := &datastore.AttestedNodeEntry{
-		BaseSpiffeId:        "foo",
+		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
-		CertExpirationDate:  time.Now().Add(time.Hour).Format(datastore.TimeFormat),
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
+	_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: entry})
 	s.Require().NoError(err)
 
-	dresp, err := s.ds.DeleteAttestedNodeEntry(ctx, &datastore.DeleteAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+	dresp, err := s.ds.DeleteAttestedNodeEntry(ctx, &datastore.DeleteAttestedNodeEntryRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
-	s.Equal(entry, dresp.AttestedNodeEntry)
+	s.Equal(entry, dresp.Entry)
 
-	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
-	s.Nil(fresp.AttestedNodeEntry)
+	s.Nil(fresp.Entry)
 }
 
 func (s *PluginSuite) TestCreateNodeResolverMapEntry() {
 	entry := &datastore.NodeResolverMapEntry{
-		BaseSpiffeId: "main",
+		SpiffeId: "main",
 		Selector: &common.Selector{
 			Type:  "aws-tag",
 			Value: "a",
 		},
 	}
 
-	cresp, err := s.ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
+	cresp, err := s.ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{Entry: entry})
 	s.Require().NoError(err)
-
-	centry := cresp.NodeResolverMapEntry
-	s.Equal(entry, centry)
+	s.Equal(entry, cresp.Entry)
 }
 
 func (s *PluginSuite) TestCreateNodeResolverMapEntryDuplicate() {
 	entries := s.createNodeResolverMapEntries(s.ds)
 
 	entry := entries[0]
-	cresp, err := s.ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
+	cresp, err := s.ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{Entry: entry})
 	s.Error(err)
 	s.Require().Nil(cresp)
 }
 
 func (s *PluginSuite) TestFetchNodeResolverMapEntry() {
 	entry := &datastore.NodeResolverMapEntry{
-		BaseSpiffeId: "main",
+		SpiffeId: "main",
 		Selector: &common.Selector{
 			Type:  "aws-tag",
 			Value: "a",
 		},
 	}
 
-	cresp, err := s.ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
+	cresp, err := s.ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{Entry: entry})
 	s.Require().NoError(err)
-
-	centry := cresp.NodeResolverMapEntry
-	s.Equal(entry, centry)
+	s.Equal(entry, cresp.Entry)
 }
 
 func (s *PluginSuite) TestDeleteNodeResolverMapEntry() {
@@ -313,16 +330,16 @@ func (s *PluginSuite) TestDeleteNodeResolverMapEntry() {
 
 	entry_removed := entries[0]
 
-	dresp, err := s.ds.DeleteNodeResolverMapEntry(ctx, &datastore.DeleteNodeResolverMapEntryRequest{NodeResolverMapEntry: entry_removed})
+	dresp, err := s.ds.DeleteNodeResolverMapEntry(ctx, &datastore.DeleteNodeResolverMapEntryRequest{Entry: entry_removed})
 	s.Require().NoError(err)
 
-	s.Equal(entries[0:1], dresp.NodeResolverMapEntryList)
+	s.Equal(entries[0:1], dresp.Entries)
 
 	for idx, entry := range entries[1:] {
-		fresp, err := s.ds.FetchNodeResolverMapEntry(ctx, &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+		fresp, err := s.ds.ListNodeResolverMapEntries(ctx, &datastore.ListNodeResolverMapEntriesRequest{SpiffeId: entry.SpiffeId})
 		s.Require().NoError(err, idx)
-		s.Require().Len(fresp.NodeResolverMapEntryList, 1, "%v", idx)
-		s.Equal(entry, fresp.NodeResolverMapEntryList[0], "%v", idx)
+		s.Require().Len(fresp.Entries, 1, "%v", idx)
+		s.Equal(entry, fresp.Entries[0], "%v", idx)
 	}
 }
 
@@ -331,47 +348,47 @@ func (s *PluginSuite) TestDeleteNodeResolverMapEntryAll() {
 	entries := s.createNodeResolverMapEntries(s.ds)
 
 	entry_removed := &datastore.NodeResolverMapEntry{
-		BaseSpiffeId: entries[0].BaseSpiffeId,
+		SpiffeId: entries[0].SpiffeId,
 	}
 
-	dresp, err := s.ds.DeleteNodeResolverMapEntry(ctx, &datastore.DeleteNodeResolverMapEntryRequest{NodeResolverMapEntry: entry_removed})
+	dresp, err := s.ds.DeleteNodeResolverMapEntry(ctx, &datastore.DeleteNodeResolverMapEntryRequest{Entry: entry_removed})
 	s.Require().NoError(err)
 
-	s.Equal(entries[0:2], dresp.NodeResolverMapEntryList)
+	s.Equal(entries[0:2], dresp.Entries)
 
 	{
 		entry := entry_removed
-		fresp, err := s.ds.FetchNodeResolverMapEntry(ctx, &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+		fresp, err := s.ds.ListNodeResolverMapEntries(ctx, &datastore.ListNodeResolverMapEntriesRequest{SpiffeId: entry.SpiffeId})
 		s.Require().NoError(err)
-		s.Empty(fresp.NodeResolverMapEntryList)
+		s.Empty(fresp.Entries)
 	}
 
 	{
 		entry := entries[2]
-		fresp, err := s.ds.FetchNodeResolverMapEntry(ctx, &datastore.FetchNodeResolverMapEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+		fresp, err := s.ds.ListNodeResolverMapEntries(ctx, &datastore.ListNodeResolverMapEntriesRequest{SpiffeId: entry.SpiffeId})
 		s.Require().NoError(err)
-		s.NotEmpty(fresp.NodeResolverMapEntryList)
+		s.NotEmpty(fresp.Entries)
 	}
 }
 
 func (s *PluginSuite) createNodeResolverMapEntries(ds datastore.DataStore) []*datastore.NodeResolverMapEntry {
 	entries := []*datastore.NodeResolverMapEntry{
 		{
-			BaseSpiffeId: "main",
+			SpiffeId: "main",
 			Selector: &common.Selector{
 				Type:  "aws-tag",
 				Value: "a",
 			},
 		},
 		{
-			BaseSpiffeId: "main",
+			SpiffeId: "main",
 			Selector: &common.Selector{
 				Type:  "aws-tag",
 				Value: "b",
 			},
 		},
 		{
-			BaseSpiffeId: "other",
+			SpiffeId: "other",
 			Selector: &common.Selector{
 				Type:  "aws-tag",
 				Value: "a",
@@ -380,7 +397,7 @@ func (s *PluginSuite) createNodeResolverMapEntries(ds datastore.DataStore) []*da
 	}
 
 	for idx, entry := range entries {
-		_, err := ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{NodeResolverMapEntry: entry})
+		_, err := ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{Entry: entry})
 		s.Require().NoError(err, "%v", idx)
 	}
 
@@ -392,10 +409,10 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 	s.getTestDataFromJsonFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
-		createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: validRegistrationEntry})
+		createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: validRegistrationEntry})
 		s.Require().NoError(err)
 		s.NotNil(createRegistrationEntryResponse)
-		s.NotEmpty(createRegistrationEntryResponse.RegisteredEntryId)
+		s.NotEmpty(createRegistrationEntryResponse.EntryId)
 	}
 }
 
@@ -403,8 +420,8 @@ func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 	var invalidRegistrationEntries []*common.RegistrationEntry
 	s.getTestDataFromJsonFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
 
-	for _, invalidRegisteredEntry := range invalidRegistrationEntries {
-		createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: invalidRegisteredEntry})
+	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
+		createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: invalidRegistrationEntry})
 		s.Require().Error(err)
 		s.Require().Nil(createRegistrationEntryResponse)
 	}
@@ -424,21 +441,21 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 		Ttl:      1,
 	}
 
-	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: registeredEntry})
+	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
 	s.Require().NoError(err)
 	s.Require().NotNil(createRegistrationEntryResponse)
-	registeredEntry.EntryId = createRegistrationEntryResponse.RegisteredEntryId
+	registeredEntry.EntryId = createRegistrationEntryResponse.EntryId
 
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{RegisteredEntryId: createRegistrationEntryResponse.RegisteredEntryId})
+	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createRegistrationEntryResponse.EntryId})
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.Equal(registeredEntry, fetchRegistrationEntryResponse.RegisteredEntry)
+	s.Equal(registeredEntry, fetchRegistrationEntryResponse.Entry)
 }
 
 func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{RegisteredEntryId: "INEXISTENT"})
+	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: "INEXISTENT"})
 	s.Require().NoError(err)
-	s.Require().Nil(fetchRegistrationEntryResponse.RegisteredEntry)
+	s.Require().Nil(fetchRegistrationEntryResponse.Entry)
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntries() {
@@ -464,26 +481,24 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		Ttl:      2,
 	}
 
-	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry1})
+	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry1})
 	s.Require().NoError(err)
 	s.Require().NotNil(createRegistrationEntryResponse)
-	entry1.EntryId = createRegistrationEntryResponse.RegisteredEntryId
+	entry1.EntryId = createRegistrationEntryResponse.EntryId
 
-	createRegistrationEntryResponse, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry2})
+	createRegistrationEntryResponse, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry2})
 	s.Require().NoError(err)
 	s.Require().NotNil(createRegistrationEntryResponse)
-	entry2.EntryId = createRegistrationEntryResponse.RegisteredEntryId
+	entry2.EntryId = createRegistrationEntryResponse.EntryId
 
-	fetchRegistrationEntriesResponse, err := s.ds.FetchRegistrationEntries(ctx, &common.Empty{})
+	listRegistrationEntriesResponse, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 	s.Require().NoError(err)
-	s.Require().NotNil(fetchRegistrationEntriesResponse)
+	s.Require().NotNil(listRegistrationEntriesResponse)
 
-	expectedResponse := &datastore.FetchRegistrationEntriesResponse{
-		RegisteredEntries: &common.RegistrationEntries{
-			Entries: []*common.RegistrationEntry{entry2, entry1},
-		},
+	expectedResponse := &datastore.ListRegistrationEntriesResponse{
+		Entries: []*common.RegistrationEntry{entry2, entry1},
 	}
-	s.Equal(expectedResponse, fetchRegistrationEntriesResponse)
+	s.Equal(expectedResponse, listRegistrationEntriesResponse)
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntry() {
@@ -498,25 +513,25 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 		Ttl:      1,
 	}
 
-	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry1})
+	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry1})
 	s.Require().NoError(err)
 	s.Require().NotNil(createRegistrationEntryResponse)
 
 	// TODO: Refactor message type to take EntryID directly from the entry - see #449
+	entry1.EntryId = createRegistrationEntryResponse.EntryId
 	entry1.Ttl = 2
 	updReq := &datastore.UpdateRegistrationEntryRequest{
-		RegisteredEntryId: createRegistrationEntryResponse.RegisteredEntryId,
-		RegisteredEntry:   entry1,
+		Entry: entry1,
 	}
 	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, updReq)
 	s.Require().NoError(err)
 	s.Require().NotNil(updateRegistrationEntryResponse)
 
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{RegisteredEntryId: updReq.RegisteredEntryId})
+	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: updReq.Entry.EntryId})
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 
-	expectedResponse := &datastore.FetchRegistrationEntryResponse{RegisteredEntry: entry1}
+	expectedResponse := &datastore.FetchRegistrationEntryResponse{Entry: entry1}
 	s.Equal(expectedResponse, fetchRegistrationEntryResponse)
 }
 
@@ -543,20 +558,20 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 		Ttl:      2,
 	}
 
-	res1, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry1})
+	res1, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry1})
 	s.Require().NoError(err)
 	s.Require().NotNil(res1)
-	entry1.EntryId = res1.RegisteredEntryId
+	entry1.EntryId = res1.EntryId
 
-	res2, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry2})
+	res2, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry2})
 	s.Require().NoError(err)
 	s.Require().NotNil(res2)
-	entry2.EntryId = res2.RegisteredEntryId
+	entry2.EntryId = res2.EntryId
 
 	// Make sure we deleted the right one
-	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{RegisteredEntryId: res1.RegisteredEntryId})
+	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: res1.EntryId})
 	s.Require().NoError(err)
-	s.Require().Equal(entry1, delRes.RegisteredEntry)
+	s.Require().Equal(entry1, delRes.Entry)
 }
 
 func (s *PluginSuite) TestListParentIDEntries() {
@@ -585,13 +600,16 @@ func (s *PluginSuite) TestListParentIDEntries() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, _ := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
-				entry.EntryId = r.RegisteredEntryId
+				r, _ := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+				entry.EntryId = r.EntryId
 			}
-			result, err := ds.ListParentIDEntries(ctx, &datastore.ListParentIDEntriesRequest{
-				ParentId: test.parentID})
+			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				ByParentId: &wrappers.StringValue{
+					Value: test.parentID,
+				},
+			})
 			s.Require().NoError(err)
-			s.Equal(test.expectedList, result.RegisteredEntryList)
+			s.Equal(test.expectedList, result.Entries)
 		})
 	}
 }
@@ -627,14 +645,17 @@ func (s *PluginSuite) TestListSelectorEntries() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
-				s.Require().NoError(err)
-				entry.EntryId = r.RegisteredEntryId
+				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+				require.NoError(t, err)
+				entry.EntryId = r.EntryId
 			}
-			result, err := ds.ListSelectorEntries(ctx, &datastore.ListSelectorEntriesRequest{
-				Selectors: test.selectors})
-			s.Require().NoError(err)
-			s.Equal(test.expectedList, result.RegisteredEntryList)
+			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				BySelectors: &datastore.BySelectors{
+					Selectors: test.selectors,
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, test.expectedList, result.Entries)
 		})
 	}
 }
@@ -674,105 +695,130 @@ func (s *PluginSuite) TestListMatchingEntries() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{RegisteredEntry: entry})
+				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
 				s.Require().NoError(err)
-				entry.EntryId = r.RegisteredEntryId
+				entry.EntryId = r.EntryId
 			}
-			result, err := ds.ListMatchingEntries(ctx, &datastore.ListSelectorEntriesRequest{
-				Selectors: test.selectors})
+			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				BySelectors: &datastore.BySelectors{
+					Selectors:           test.selectors,
+					AllowAnyCombination: true,
+				},
+			})
 			s.Require().NoError(err)
-			s.Equal(test.expectedList, result.RegisteredEntryList)
+			s.Equal(test.expectedList, result.Entries)
 		})
 	}
 }
 
-func (s *PluginSuite) TestRegisterToken() {
+func (s *PluginSuite) TestCreateJoinToken() {
 	now := time.Now().Unix()
-	req := &datastore.JoinToken{
-		Token:  "foobar",
-		Expiry: now,
+	req := &datastore.CreateJoinTokenRequest{
+		JoinToken: &datastore.JoinToken{
+			Token:  "foobar",
+			Expiry: now,
+		},
 	}
-	_, err := s.ds.RegisterToken(ctx, req)
+	_, err := s.ds.CreateJoinToken(ctx, req)
 	s.Require().NoError(err)
 
 	// Make sure we can't re-register
-	_, err = s.ds.RegisterToken(ctx, req)
+	_, err = s.ds.CreateJoinToken(ctx, req)
 	s.NotNil(err)
 }
 
-func (s *PluginSuite) TestRegisterAndFetchToken() {
+func (s *PluginSuite) TestCreateAndFetchJoinToken() {
 	now := time.Now().Unix()
-	req := &datastore.JoinToken{
+	joinToken := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
-	_, err := s.ds.RegisterToken(ctx, req)
+	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
+		JoinToken: joinToken,
+	})
 	s.Require().NoError(err)
 
-	// Don't need expiry for fetch
-	req.Expiry = 0
-	res, err := s.ds.FetchToken(ctx, req)
+	res, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
+		Token: joinToken.Token,
+	})
 	s.Require().NoError(err)
-	s.Equal("foobar", res.Token)
-	s.Equal(now, res.Expiry)
+	s.Equal("foobar", res.JoinToken.Token)
+	s.Equal(now, res.JoinToken.Expiry)
 }
 
-func (s *PluginSuite) TestDeleteToken() {
+func (s *PluginSuite) TestDeleteJoinToken() {
 	now := time.Now().Unix()
-	req1 := &datastore.JoinToken{
+	joinToken1 := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
-	_, err := s.ds.RegisterToken(ctx, req1)
+	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
+		JoinToken: joinToken1,
+	})
 	s.Require().NoError(err)
 
-	req2 := &datastore.JoinToken{
+	joinToken2 := &datastore.JoinToken{
 		Token:  "batbaz",
 		Expiry: now,
 	}
-	_, err = s.ds.RegisterToken(ctx, req2)
+	_, err = s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
+		JoinToken: joinToken2,
+	})
 	s.Require().NoError(err)
 
-	// Don't need expiry for delete
-	req1.Expiry = 0
-	_, err = s.ds.DeleteToken(ctx, req1)
+	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
+		Token: joinToken1.Token,
+	})
 	s.Require().NoError(err)
 
 	// Should not be able to fetch after delete
-	resp, err := s.ds.FetchToken(ctx, req1)
+	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
+		Token: joinToken1.Token,
+	})
 	s.Require().NoError(err)
-	s.Equal("", resp.Token)
+	s.Nil(resp.JoinToken)
 
 	// Second token should still be present
-	resp, err = s.ds.FetchToken(ctx, req2)
+	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
+		Token: joinToken2.Token,
+	})
 	s.Require().NoError(err)
-	s.Equal(req2.Token, resp.Token)
+	s.Equal(joinToken2, resp.JoinToken)
 }
 
-func (s *PluginSuite) TestPruneTokens() {
+func (s *PluginSuite) TestPruneJoinTokens() {
 	now := time.Now().Unix()
-	req := &datastore.JoinToken{
+	joinToken := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
-	_, err := s.ds.RegisterToken(ctx, req)
+	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
+		JoinToken: joinToken,
+	})
 	s.Require().NoError(err)
 
 	// Ensure we don't prune valid tokens, wind clock back 10s
-	req.Expiry = (now - 10)
-	_, err = s.ds.PruneTokens(ctx, req)
+	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
+		ExpiresBefore: now - 10,
+	})
 	s.Require().NoError(err)
-	resp, err := s.ds.FetchToken(ctx, req)
+	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
+		Token: joinToken.Token,
+	})
 	s.Require().NoError(err)
-	s.Equal("foobar", resp.Token)
+	s.Equal("foobar", resp.JoinToken.Token)
 
 	// Ensure we prune old tokens
-	req.Expiry = (now + 10)
-	_, err = s.ds.PruneTokens(ctx, req)
+	joinToken.Expiry = (now + 10)
+	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
+		ExpiresBefore: now + 10,
+	})
 	s.Require().NoError(err)
-	resp, err = s.ds.FetchToken(ctx, req)
+	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
+		Token: joinToken.Token,
+	})
 	s.Require().NoError(err)
-	s.Equal("", resp.Token)
+	s.Nil(resp.JoinToken)
 }
 
 func (s *PluginSuite) TestGetPluginInfo() {
@@ -804,8 +850,10 @@ func (s *PluginSuite) TestMigration() {
 			// exist. if we try and create a bundle with the same id, it should
 			// fail if the migration did not run, due to uniqueness
 			// constraints.
-			_, err := s.ds.CreateBundle(context.Background(), &datastore.Bundle{
-				TrustDomain: "spiffe://otherdomain.org",
+			_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
+				Bundle: &datastore.Bundle{
+					TrustDomain: "spiffe://otherdomain.org",
+				},
 			})
 			s.Require().NoError(err)
 		default:
@@ -816,19 +864,19 @@ func (s *PluginSuite) TestMigration() {
 
 func (s *PluginSuite) TestRace() {
 	next := int64(0)
-	exp := time.Now().Add(time.Hour).Format(datastore.TimeFormat)
+	exp := time.Now().Add(time.Hour).Unix()
 
 	testutil.RaceTest(s.T(), func(t *testing.T) {
 		entry := &datastore.AttestedNodeEntry{
-			BaseSpiffeId:        fmt.Sprintf("foo%d", atomic.AddInt64(&next, 1)),
+			SpiffeId:            fmt.Sprintf("foo%d", atomic.AddInt64(&next, 1)),
 			AttestationDataType: "aws-tag",
 			CertSerialNumber:    "badcafe",
-			CertExpirationDate:  exp,
+			CertNotAfter:        exp,
 		}
 
-		_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{AttestedNodeEntry: entry})
+		_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: entry})
 		require.NoError(t, err)
-		_, err = s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: entry.BaseSpiffeId})
+		_, err = s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{SpiffeId: entry.SpiffeId})
 		require.NoError(t, err)
 	})
 }

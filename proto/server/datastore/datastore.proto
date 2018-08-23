@@ -2,348 +2,329 @@ syntax = "proto3";
 package spire.server.datastore;
 option go_package = "datastore";
 
+import public "google/protobuf/wrappers.proto";
 import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
 import public "github.com/spiffe/spire/proto/common/common.proto";
 
-// Represents the trust bundle of a foreign trust domain
+/////////////////////////////////////////////////////////////////////////////
+// Bundle Messages
+/////////////////////////////////////////////////////////////////////////////
+
 message Bundle {
-    // SPIFFE ID of the foreign trust domain
+    // Trust domain SPIFFE ID
     string trust_domain = 1;
 
-    // CA Certificates
-    // ASN.1 DER encoded
+    // CA Certificates (ASN.1 DER encoded)
     bytes ca_certs = 2;
 }
 
-message Bundles {
+message CreateBundleRequest {
+    Bundle bundle = 1;
+}
+
+message CreateBundleResponse {
+    Bundle bundle = 1;
+}
+
+message FetchBundleRequest {
+    string trust_domain = 1;
+}
+
+message FetchBundleResponse {
+    Bundle bundle = 1;
+}
+
+message ListBundlesRequest {
+}
+
+message ListBundlesResponse {
     repeated Bundle bundles = 1;
 }
 
-// Represents a single entry in NodeResolverMap and maps node properties
-// to logical attributes (i.e. an AWS instance to its ASG).
+message UpdateBundleRequest {
+    Bundle bundle = 1;
+}
+
+message UpdateBundleResponse {
+    Bundle bundle = 1;
+}
+
+message AppendBundleRequest {
+    Bundle bundle = 1;
+}
+
+message AppendBundleResponse {
+    Bundle bundle = 1;
+}
+
+message DeleteBundleRequest {
+    string trust_domain = 1;
+}
+
+message DeleteBundleResponse {
+    Bundle bundle = 1;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// NodeResolverMapEntry Messages
+/////////////////////////////////////////////////////////////////////////////
+
 message NodeResolverMapEntry {
-    string baseSpiffeId = 1;
+    // Node SPIFFE ID
+    string spiffe_id = 1;
+
+    // Node selector
     spire.common.Selector selector = 2;
 }
 
-// Represents a single entry in AttestedNodes and stores the node's
-// SPIFFE ID, the type of attestation it performed, as well as the serial
-// number and expiration date of its node SVID.
-message AttestedNodeEntry {
-    // Spiffe ID
-    string baseSpiffeId = 1;
-
-    // Attestation type
-    string attestationDataType = 2;
-
-    // Serial number
-    string certSerialNumber = 3;
-
-    // Expiration date
-    string certExpirationDate = 4;
-}
-
-//
-//
-//
-
-// Represents an Attested Node entry to create
-message CreateAttestedNodeEntryRequest {
-    // Attested node entry
-    AttestedNodeEntry attestedNodeEntry = 1;
-}
-
-// Represents the created Attested Node entry
-message CreateAttestedNodeEntryResponse {
-    // Attested node entry
-    AttestedNodeEntry attestedNodeEntry = 1;
-}
-
-
-// Represents the Spiffe ID of the node entry to retrieve
-message FetchAttestedNodeEntryRequest {
-    // SPIFFE ID
-    string baseSpiffeId = 1;
-}
-
-// Represents an Attested Node entry
-message FetchAttestedNodeEntryResponse {
-    // Attested node entry
-    AttestedNodeEntry attestedNodeEntry = 1;
-}
-
-
-// Empty Request
-message FetchStaleNodeEntriesRequest {
-}
-
-// Represents dead nodes for which the base SVID has expired
-message FetchStaleNodeEntriesResponse {
-    // List of attested node entries
-    repeated AttestedNodeEntry attestedNodeEntryList = 1;
-}
-
-// Represents Attested node entry fields to update
-message UpdateAttestedNodeEntryRequest {
-    // SPIFFE ID
-    string baseSpiffeId = 1;
-    // Serial number
-    string certSerialNumber = 2;
-    // Expiration date
-    string certExpirationDate = 3;
-}
-
-// Represents the updated Attested node entry
-message UpdateAttestedNodeEntryResponse {
-    // Attested node entry
-    AttestedNodeEntry attestedNodeEntry = 1;
-}
-
-
-// Represents the Spiffe ID of the Attested node entry to delete
-message DeleteAttestedNodeEntryRequest {
-    // SPIFFE ID
-    string baseSpiffeId = 1;
-}
-
-// Represents the deleted Attested node entry
-message DeleteAttestedNodeEntryResponse {
-    AttestedNodeEntry attestedNodeEntry = 1;
-}
-
-//
-//
-//
-
-// Represents a Node resolver map entry to create
 message CreateNodeResolverMapEntryRequest {
-    // Node resolver map entry
-    NodeResolverMapEntry nodeResolverMapEntry = 1;
+    NodeResolverMapEntry entry = 1;
 }
 
-// Represents the created Node resolver map entry
 message CreateNodeResolverMapEntryResponse {
-    // Node resolver map entry
-    NodeResolverMapEntry nodeResolverMapEntry = 1;
+    NodeResolverMapEntry entry = 1;
 }
 
-
-// Represents a Spiffe ID
-message FetchNodeResolverMapEntryRequest {
-    // SPIFFE ID
-    string baseSpiffeId = 1;
+message ListNodeResolverMapEntriesRequest {
+    string spiffe_id = 1;
 }
 
-// Represents a list of Node resolver map entries for the specified Spiffe ID
-message FetchNodeResolverMapEntryResponse {
-    // List of Node resolver map entries
-    repeated NodeResolverMapEntry nodeResolverMapEntryList = 1;
+message ListNodeResolverMapEntriesResponse {
+    repeated NodeResolverMapEntry entries = 1;
 }
 
-
-// Represents a Node resolver map entry to delete
 message DeleteNodeResolverMapEntryRequest {
-    // Node resolver map entry
-    NodeResolverMapEntry nodeResolverMapEntry = 1;
+    NodeResolverMapEntry entry = 1;
 }
 
-// Represents a list of Node resolver map entries
 message DeleteNodeResolverMapEntryResponse {
-    // List of Node resolver map entries
-    repeated NodeResolverMapEntry nodeResolverMapEntryList = 1;
+    repeated NodeResolverMapEntry entries = 1;
 }
 
-
-// Represents a list of Node resolver map entries
 message RectifyNodeResolverMapEntriesRequest {
-    // List of Node resolver map entries
-    repeated NodeResolverMapEntry nodeResolverMapEntryList = 1;
+    repeated NodeResolverMapEntry entries = 1;
 }
 
-// Represents a list of Node resolver map entries
 message RectifyNodeResolverMapEntriesResponse {
-    // List of Node resolver map entries
-    repeated NodeResolverMapEntry nodeResolverMapEntryList = 1;
+    repeated NodeResolverMapEntry entries = 1;
 }
 
-//
-//
-//
+/////////////////////////////////////////////////////////////////////////////
+// AttestedNodeEntry Messages
+/////////////////////////////////////////////////////////////////////////////
 
-// Represents a Registration entry to create
+message AttestedNodeEntry {
+    // Node SPIFFE ID
+    string spiffe_id = 1;
+
+    // Attestation data type
+    string attestation_data_type = 2;
+
+    // Node certificate serial number
+    string cert_serial_number = 3;
+
+    // Node certificate not_after (seconds since unix epoch)
+    int64 cert_not_after = 4;
+}
+
+message CreateAttestedNodeEntryRequest {
+    AttestedNodeEntry entry = 1;
+}
+
+message CreateAttestedNodeEntryResponse {
+    AttestedNodeEntry entry = 1;
+}
+
+message FetchAttestedNodeEntryRequest {
+    string spiffe_id = 1;
+}
+
+message FetchAttestedNodeEntryResponse {
+    AttestedNodeEntry entry = 1;
+}
+
+message ListAttestedNodeEntriesRequest {
+    google.protobuf.Int64Value by_expires_before = 1;
+}
+
+message ListAttestedNodeEntriesResponse {
+    repeated AttestedNodeEntry entries = 1;
+}
+
+message UpdateAttestedNodeEntryRequest {
+    string spiffe_id = 1;
+
+    string cert_serial_number = 2;
+
+    int64 cert_not_after = 3;
+}
+
+message UpdateAttestedNodeEntryResponse {
+    AttestedNodeEntry entry = 1;
+}
+
+message DeleteAttestedNodeEntryRequest {
+    string spiffe_id = 1;
+}
+
+message DeleteAttestedNodeEntryResponse {
+    AttestedNodeEntry entry = 1;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Registration Entries
+/////////////////////////////////////////////////////////////////////////////
+
 message CreateRegistrationEntryRequest {
-    // Registration entry
-    spire.common.RegistrationEntry registeredEntry = 1;
+    spire.common.RegistrationEntry entry = 1;
 }
 
-// Represents the created Registration entry
 message CreateRegistrationEntryResponse {
-    // Registration entry ID
-    string registeredEntryId = 1;
+    string entry_id = 1;
 }
 
-
-// Represents a Registration entry ID to fetch
 message FetchRegistrationEntryRequest {
-    // Registration entry ID
-    string registeredEntryId = 1;
+    string entry_id = 1;
 }
 
-// Represents a Registration entry
 message FetchRegistrationEntryResponse {
-    // Registration entry
-    spire.common.RegistrationEntry registeredEntry = 1;
+    spire.common.RegistrationEntry entry = 1;
 }
 
-// Represents a list of Registration entries
-message FetchRegistrationEntriesResponse {
-    // Registration entries
-    spire.common.RegistrationEntries registeredEntries = 1;
-}
-
-
-// Represents a Registration entry to update
-message UpdateRegistrationEntryRequest {
-    // Registration entry ID
-    string registeredEntryId = 1;
-
-    // Registration entry
-    spire.common.RegistrationEntry registeredEntry = 2;
-}
-
-// Represents the updated Registration entry
-message UpdateRegistrationEntryResponse {
-    // Registration entry
-    spire.common.RegistrationEntry registeredEntry = 1;
-}
-
-
-// Represents a Registration entry ID to delete
-message DeleteRegistrationEntryRequest {
-    // Registration entry ID
-    string registeredEntryId = 1;
-}
-
-// Represents the deleted Registration entry
-message DeleteRegistrationEntryResponse {
-    // Registration entry
-    spire.common.RegistrationEntry registeredEntry = 1;
-}
-
-//
-//
-//
-
-// Represents a Parent ID
-message ListParentIDEntriesRequest {
-    // Parent ID
-    string parentId = 1;
-}
-
-// Represents a list of Registered entries with the specified Parent ID
-message ListParentIDEntriesResponse {
-    // List of Registration entries
-    repeated spire.common.RegistrationEntry registeredEntryList = 1;
-}
-
-// Represents a selector
-message ListSelectorEntriesRequest {
-    // Selector
+message BySelectors {
     repeated spire.common.Selector selectors = 1;
+    bool allow_any_combination = 2;
 }
 
-// Represents a list of Registered entries with the specified selector
-message ListSelectorEntriesResponse {
-    // List of Registration entries
-    repeated spire.common.RegistrationEntry registeredEntryList = 1;
+message ListRegistrationEntriesRequest {
+    google.protobuf.StringValue by_parent_id = 1;
+    BySelectors by_selectors = 2;
+    google.protobuf.StringValue by_spiffe_id = 3;
 }
 
-// Represents a Spiffe ID
-message ListSpiffeEntriesRequest {
-    // SPIFFE ID
-    string spiffeId = 1;
+message ListRegistrationEntriesResponse {
+    repeated spire.common.RegistrationEntry entries = 1;
 }
 
-// Represents a list of Registered entries with the specified Spiffe ID
-message ListSpiffeEntriesResponse {
-    // List of Registration entries
-    repeated spire.common.RegistrationEntry registeredEntryList = 1;
+message UpdateRegistrationEntryRequest {
+    spire.common.RegistrationEntry entry = 1;
 }
 
-//
-//
-//
+message UpdateRegistrationEntryResponse {
+    spire.common.RegistrationEntry entry = 1;
+}
 
-// Represents a join token and associated metadata, if known
+message DeleteRegistrationEntryRequest {
+    string entry_id = 1;
+}
+
+message DeleteRegistrationEntryResponse {
+    spire.common.RegistrationEntry entry = 1;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// JoinToken Messages
+/////////////////////////////////////////////////////////////////////////////
+
 message JoinToken {
+    // Token value
     string token = 1;
 
-    // Expiration date, represented in UNIX time
+    // Expiration in seconds since unix epoch
     int64 expiry = 2;
 }
 
-service DataStore {
-    // Creates a Bundle
-    rpc CreateBundle(Bundle) returns (Bundle);
-    // Updates the specified Bundle, overwriting existing certs
-    rpc UpdateBundle(Bundle) returns (Bundle);
-    // Appends the provided certs onto an existing bundle, creating a new bundle if one doesn't exist
-    rpc AppendBundle(Bundle) returns (Bundle);
-    // Deletes the specified Bundle
-    rpc DeleteBundle(Bundle) returns (Bundle);
-    // Returns the specified Bundle
-    rpc FetchBundle(Bundle) returns (Bundle);
-    // List all Bundles
-    rpc ListBundles(spire.common.Empty) returns (Bundles);
+message CreateJoinTokenRequest {
+    JoinToken join_token = 1;
+}
 
-    // Creates an Attested Node Entry
+message CreateJoinTokenResponse {
+    JoinToken join_token = 1;
+}
+
+message FetchJoinTokenRequest {
+    string token = 1;
+}
+
+message FetchJoinTokenResponse {
+    JoinToken join_token = 1;
+}
+
+message DeleteJoinTokenRequest {
+    string token = 1;
+}
+
+message DeleteJoinTokenResponse {
+    JoinToken join_token = 1;
+}
+
+message PruneJoinTokensRequest {
+    int64 expires_before = 1;
+}
+
+message PruneJoinTokensResponse {
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Service Definition
+/////////////////////////////////////////////////////////////////////////////
+
+service DataStore {
+    // Creates a bundle
+    rpc CreateBundle(CreateBundleRequest) returns (CreateBundleResponse);
+    // Fetches a specific bundle
+    rpc FetchBundle(FetchBundleRequest) returns (FetchBundleResponse);
+    // Lists bundles (optionally filtered)
+    rpc ListBundles(ListBundlesRequest) returns (ListBundlesResponse);
+    // Updates a specific bundle, overwriting existing certs
+    rpc UpdateBundle(UpdateBundleRequest) returns (UpdateBundleResponse);
+    // Appends the provided certs onto an existing bundle, creating a new bundle if one doesn't exist
+    rpc AppendBundle(AppendBundleRequest) returns (AppendBundleResponse);
+    // Deletes a specific bundle
+    rpc DeleteBundle(DeleteBundleRequest) returns (DeleteBundleResponse);
+
+    // Creates an attested node entry
     rpc CreateAttestedNodeEntry(CreateAttestedNodeEntryRequest) returns (CreateAttestedNodeEntryResponse);
-    // Retrieves the Attested Node Entry
+    // Fetches a specific attested node entry
     rpc FetchAttestedNodeEntry(FetchAttestedNodeEntryRequest) returns (FetchAttestedNodeEntryResponse);
-    // Retrieves dead nodes for which the base SVID has expired
-    rpc FetchStaleNodeEntries(FetchStaleNodeEntriesRequest) returns (FetchStaleNodeEntriesResponse);
-    // Updates the Attested Node Entry
+    // Lists attested node entries (optionally filtered)
+    rpc ListAttestedNodeEntries(ListAttestedNodeEntriesRequest) returns (ListAttestedNodeEntriesResponse);
+    // Updates a specific attested node entry
     rpc UpdateAttestedNodeEntry(UpdateAttestedNodeEntryRequest) returns (UpdateAttestedNodeEntryResponse);
-    // Deletes the Attested Node Entry
+    // Deletes a specific attested node entry
     rpc DeleteAttestedNodeEntry(DeleteAttestedNodeEntryRequest) returns (DeleteAttestedNodeEntryResponse);
 
-    // Creates a Node resolver map Entry
+    // Creates a node resolver map entry
     rpc CreateNodeResolverMapEntry(CreateNodeResolverMapEntryRequest) returns (CreateNodeResolverMapEntryResponse);
-    // Retrieves all Node Resolver Map Entry for the specific base SPIFFEID
-    rpc FetchNodeResolverMapEntry(FetchNodeResolverMapEntryRequest) returns (FetchNodeResolverMapEntryResponse);
-    // Deletes all Node Resolver Map Entry for the specific base SPIFFEID
+    // Lists node resolver map entries for a specified SPIFFE ID
+    rpc ListNodeResolverMapEntries(ListNodeResolverMapEntriesRequest) returns (ListNodeResolverMapEntriesResponse);
+    // Deletes a specific node resolver map entry
     rpc DeleteNodeResolverMapEntry(DeleteNodeResolverMapEntryRequest) returns (DeleteNodeResolverMapEntryResponse);
-    // Used for rectifying updated node resolutions
+    // Sets the list of node resolver map entries for the specified SPIFFE ID
     rpc RectifyNodeResolverMapEntries(RectifyNodeResolverMapEntriesRequest) returns (RectifyNodeResolverMapEntriesResponse);
 
-    // Creates a Registered Entry
+    // Creates a registration entry
     rpc CreateRegistrationEntry(CreateRegistrationEntryRequest) returns (CreateRegistrationEntryResponse);
-    // Retrieve a specific registered entry
+    // Fetches a specific registration entry
     rpc FetchRegistrationEntry(FetchRegistrationEntryRequest) returns (FetchRegistrationEntryResponse);
-    // Retrieve all registration entries
-    rpc FetchRegistrationEntries(spire.common.Empty) returns (FetchRegistrationEntriesResponse);
-    // Updates a specific registered entry
+    // Lists registration entries (optionally filtered)
+    rpc ListRegistrationEntries(ListRegistrationEntriesRequest) returns (ListRegistrationEntriesResponse);
+    // Updates a specific registration entry
     rpc UpdateRegistrationEntry(UpdateRegistrationEntryRequest) returns (UpdateRegistrationEntryResponse);
-    // Deletes a specific registered entry
+    // Deletes a specific registration entry
     rpc DeleteRegistrationEntry(DeleteRegistrationEntryRequest) returns (DeleteRegistrationEntryResponse);
 
-    // Retrieves all the registered entry with the same ParentID
-    rpc ListParentIDEntries(ListParentIDEntriesRequest) returns (ListParentIDEntriesResponse);
-    // Retrieves all the registered entry matching exactly the compound Selector
-    rpc ListSelectorEntries(ListSelectorEntriesRequest) returns (ListSelectorEntriesResponse);
-    // Retrieves registered entries containing all of the specified selectors
-    rpc ListMatchingEntries(ListSelectorEntriesRequest) returns (ListSelectorEntriesResponse);
-    // Retrieves all the registered entry with the same SpiffeId
-    rpc ListSpiffeEntries(ListSpiffeEntriesRequest) returns (ListSpiffeEntriesResponse);
-
-    // Register a new join token
-    rpc RegisterToken(JoinToken) returns (spire.common.Empty);
-    // Fetch a token record
-    rpc FetchToken(JoinToken) returns (JoinToken);
-    // Delete the referenced token
-    rpc DeleteToken(JoinToken) returns (spire.common.Empty);
-    // Delete all tokens with expiry less than the one specified
-    rpc PruneTokens(JoinToken) returns (spire.common.Empty);
+    // Creates a join token
+    rpc CreateJoinToken(CreateJoinTokenRequest) returns (CreateJoinTokenResponse);
+    // Fetches a specific join token
+    rpc FetchJoinToken(FetchJoinTokenRequest) returns (FetchJoinTokenResponse);
+    // Delete a specific join token
+    rpc DeleteJoinToken(DeleteJoinTokenRequest) returns (DeleteJoinTokenResponse);
+    // Prunes all join tokens that expire before the specified timestamp
+    rpc PruneJoinTokens(PruneJoinTokensRequest) returns (PruneJoinTokensResponse);
 
     // Applies the plugin configuration
     rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
