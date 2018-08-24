@@ -85,6 +85,12 @@ func New(config Config) *Server {
 	}
 }
 
+func (c *Config) GlobalConfigs() *common.GlobalConfig {
+	return &common.GlobalConfig{
+		TrustDomain: c.TrustDomain.String(),
+	}
+}
+
 // Run the server
 // This method initializes the server, including its plugins,
 // and then blocks until it's shut down or an error is encountered.
@@ -206,6 +212,7 @@ func (s *Server) prepareUmask() {
 
 func (s *Server) newCatalog() *catalog.ServerCatalog {
 	return catalog.New(&catalog.Config{
+		GlobalConfigs: s.config.GlobalConfigs(),
 		PluginConfigs: s.config.PluginConfigs,
 		Log:           s.config.Log.WithField("subsystem_name", "catalog"),
 	})

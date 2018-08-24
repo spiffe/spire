@@ -4,8 +4,16 @@ option go_package = "plugin";
 
 /** Represents the plugin-specific configuration string. */
 message ConfigureRequest {
+    /** Global configuration nested type. */
+    message GlobalConfig {
+        string trustDomain = 1;
+    }
+
     /** The configuration for the plugin. */
     string configuration = 1;
+
+    /** Global configurations. */
+    GlobalConfig globalConfig = 2;
 }
 
 /** Represents a list of configuration problems

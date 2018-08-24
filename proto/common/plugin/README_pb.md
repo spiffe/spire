@@ -5,6 +5,7 @@
 
 - [plugin.proto](#plugin.proto)
     - [ConfigureRequest](#spire.common.plugin.ConfigureRequest)
+    - [ConfigureRequest.GlobalConfig](#spire.common.plugin.ConfigureRequest.GlobalConfig)
     - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
     - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
     - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
@@ -33,6 +34,22 @@ Represents the plugin-specific configuration string.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | configuration | [string](#string) |  | The configuration for the plugin. |
+| globalConfig | [ConfigureRequest.GlobalConfig](#spire.common.plugin.ConfigureRequest.GlobalConfig) |  | Global configurations. |
+
+
+
+
+
+
+<a name="spire.common.plugin.ConfigureRequest.GlobalConfig"/>
+
+### ConfigureRequest.GlobalConfig
+Global configuration nested type.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| trustDomain | [string](#string) |  |  |
 
 
 

@@ -52,3 +52,9 @@ func New(c *Config) *Agent {
 		c: c,
 	}
 }
+
+func (c *Config) GlobalConfigs() *catalog.GlobalConfig {
+	return &catalog.GlobalConfig{
+		TrustDomain: c.TrustDomain.String(),
+	}
+}

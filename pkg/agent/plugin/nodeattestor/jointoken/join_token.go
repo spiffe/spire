@@ -18,8 +18,7 @@ const (
 )
 
 type JoinTokenConfig struct {
-	JoinToken   string `hcl:"join_token"`
-	TrustDomain string `hcl:"trust_domain"`
+	JoinToken string `hcl:"join_token"`
 }
 
 type JoinTokenPlugin struct {
@@ -83,7 +82,7 @@ func (p *JoinTokenPlugin) Configure(ctx context.Context, req *spi.ConfigureReque
 
 	// Set local vars from config struct
 	p.joinToken = config.JoinToken
-	p.trustDomain = config.TrustDomain
+	p.trustDomain = req.GlobalConfig.TrustDomain
 
 	return resp, nil
 }
