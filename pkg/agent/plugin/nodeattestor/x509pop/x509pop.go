@@ -30,15 +30,15 @@ type configData struct {
 }
 
 type X509PoPConfig struct {
-	TrustDomain       string `hcl:"trust_domain"`
 	PrivateKeyPath    string `hcl:"private_key_path"`
 	CertificatePath   string `hcl:"certificate_path"`
 	IntermediatesPath string `hcl:"intermediates_path"`
 }
 
 type X509PoPPlugin struct {
-	m sync.Mutex
-	c *X509PoPConfig
+	trustDomain string
+	m           sync.Mutex
+	c           *X509PoPConfig
 }
 
 var _ nodeattestor.Plugin = (*X509PoPPlugin)(nil)
@@ -100,9 +100,14 @@ func (p *X509PoPPlugin) Configure(ctx context.Context, req *plugin.ConfigureRequ
 		return nil, fmt.Errorf("x509pop: unable to decode configuration: %v", err)
 	}
 
-	if config.TrustDomain == "" {
+	if req.GlobalConfig == nil {
+		return nil, errors.New("x509pop: global configuration is required")
+	}
+	if req.GlobalConfig.TrustDomain == "" {
 		return nil, errors.New("x509pop: trust_domain is required")
 	}
+	p.trustDomain = req.GlobalConfig.TrustDomain
+
 	if config.PrivateKeyPath == "" {
 		return nil, errors.New("x509pop: private_key_path is required")
 	}
@@ -111,7 +116,7 @@ func (p *X509PoPPlugin) Configure(ctx context.Context, req *plugin.ConfigureRequ
 	}
 
 	// make sure the configuration produces valid data
-	if _, err := loadConfigData(config); err != nil {
+	if _, err := loadConfigData(config, p.trustDomain); err != nil {
 		return nil, err
 	}
 
@@ -141,10 +146,10 @@ func (p *X509PoPPlugin) loadConfigData() (*configData, error) {
 	if config == nil {
 		return nil, errors.New("x509pop: not configured")
 	}
-	return loadConfigData(config)
+	return loadConfigData(config, p.trustDomain)
 }
 
-func loadConfigData(config *X509PoPConfig) (*configData, error) {
+func loadConfigData(config *X509PoPConfig, trustDomain string) (*configData, error) {
 	certificate, err := tls.LoadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("x509pop: unable to load keypair: %v", err)
@@ -177,7 +182,7 @@ func loadConfigData(config *X509PoPConfig) (*configData, error) {
 	}
 
 	return &configData{
-		spiffeID:   x509pop.SpiffeID(config.TrustDomain, leaf),
+		spiffeID:   x509pop.SpiffeID(trustDomain, leaf),
 		privateKey: certificate.PrivateKey,
 		attestationData: &common.AttestationData{
 			Type: pluginName,

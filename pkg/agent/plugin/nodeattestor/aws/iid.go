@@ -14,6 +14,8 @@ import (
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common"
 
+	"errors"
+
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
@@ -24,7 +26,6 @@ const (
 )
 
 type IIDAttestorConfig struct {
-	TrustDomain          string `hcl:"trust_domain"`
 	IdentityDocumentUrl  string `hcl:"identity_document_url"`
 	IdentitySignatureUrl string `hcl:"identity_signature_url"`
 }
@@ -127,8 +128,18 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		return resp, err
 	}
 
+	if req.GlobalConfig == nil {
+		err := errors.New("global configuration is required")
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+	if req.GlobalConfig.TrustDomain == "" {
+		err := errors.New("global configuration missing trust domain")
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
 	// Set local vars from config struct
-	p.trustDomain = config.TrustDomain
+	p.trustDomain = req.GlobalConfig.TrustDomain
 
 	if config.IdentityDocumentUrl != "" {
 		p.identityDocumentUrl = config.IdentityDocumentUrl

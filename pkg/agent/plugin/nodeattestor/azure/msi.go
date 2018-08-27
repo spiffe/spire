@@ -24,8 +24,6 @@ var (
 )
 
 type MSIAttestorConfig struct {
-	TrustDomain string `hcl:"trust_domain"`
-
 	// ResourceID assigned to the MSI token. This value is the intended
 	// audience of the token, in other words, which service the token can be
 	// used to authenticate with. Ideally deployments use the ID of an
@@ -36,8 +34,9 @@ type MSIAttestorConfig struct {
 }
 
 type MSIAttestorPlugin struct {
-	mu     sync.RWMutex
-	config *MSIAttestorConfig
+	mu          sync.RWMutex
+	config      *MSIAttestorConfig
+	trustDomain string
 
 	hooks struct {
 		fetchMSIToken func(context.Context, azure.HTTPClient, string) (string, error)
@@ -81,7 +80,7 @@ func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 			Type: pluginName,
 			Data: data,
 		},
-		SpiffeId: claims.AgentID(config.TrustDomain),
+		SpiffeId: claims.AgentID(p.trustDomain),
 	})
 }
 
@@ -90,9 +89,15 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, msiError.New("unable to decode configuration: %v", err)
 	}
-	if config.TrustDomain == "" {
-		return nil, msiError.New("configuration missing trust domain")
+
+	if req.GlobalConfig == nil {
+		return nil, msiError.New("global configuration is required")
 	}
+	if req.GlobalConfig.TrustDomain == "" {
+		return nil, msiError.New("global configuration missing trust domain")
+	}
+	p.trustDomain = req.GlobalConfig.TrustDomain
+
 	if config.ResourceID == "" {
 		config.ResourceID = azure.DefaultMSIResourceID
 	}

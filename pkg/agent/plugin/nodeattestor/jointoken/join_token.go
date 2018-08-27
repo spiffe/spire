@@ -80,6 +80,16 @@ func (p *JoinTokenPlugin) Configure(ctx context.Context, req *spi.ConfigureReque
 		return resp, err
 	}
 
+	if req.GlobalConfig == nil {
+		err := errors.New("global configuration is required")
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+	if req.GlobalConfig.TrustDomain == "" {
+		err := errors.New("trust_domain is required")
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
 	// Set local vars from config struct
 	p.joinToken = config.JoinToken
 	p.trustDomain = req.GlobalConfig.TrustDomain

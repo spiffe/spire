@@ -38,7 +38,9 @@ func (s *MSIAttestorSuite) SetupTest() {
 	s.newAttestor()
 
 	_, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `trust_domain = "example.org"`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
+			TrustDomain: "example.org",
+		},
 	})
 	s.Require().NoError(err)
 }
@@ -99,18 +101,23 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	// malformed configuration
 	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: "blah",
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
 	})
 	s.requireErrorContains(err, "azure-msi: unable to decode configuration")
 	s.Require().Nil(resp)
 
-	// missing trust domain
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.Require().EqualError(err, "azure-msi: configuration missing trust domain")
+	s.requireErrorContains(err, "azure-msi: global configuration is required")
+	s.Require().Nil(resp)
+
+	// missing trust domain
+	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
+	s.Require().EqualError(err, "azure-msi: global configuration missing trust domain")
 	s.Require().Nil(resp)
 
 	// success
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `trust_domain = "example.org"`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})

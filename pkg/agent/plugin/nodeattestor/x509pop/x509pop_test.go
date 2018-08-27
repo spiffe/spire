@@ -38,7 +38,6 @@ func (s *Suite) SetupTest() {
 func (s *Suite) configure(privateKeyPath, certificatePath, intermediatesPath string) {
 	require := s.Require()
 	config := fmt.Sprintf(`
-		trust_domain = "example.org"
 		private_key_path = %q 
 		certificate_path = %q`, privateKeyPath, certificatePath)
 
@@ -49,6 +48,7 @@ func (s *Suite) configure(privateKeyPath, certificatePath, intermediatesPath str
 
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: config,
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	require.NoError(err)
 	require.Equal(resp, &plugin.ConfigureResponse{})
@@ -166,12 +166,23 @@ func (s *Suite) TestConfigure() {
 	s.errorContains(err, "x509pop: unable to decode configuration")
 	require.Nil(resp)
 
+	// missing global configuration
+	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+		private_key_path = "blah"
+		certificate_path = "blah"
+		`,
+	})
+	require.EqualError(err, "x509pop: global configuration is required")
+	require.Nil(resp)
+
 	// missing trust_domain
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
 		private_key_path = "blah"
 		certificate_path = "blah"
 		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{},
 	})
 	require.EqualError(err, "x509pop: trust_domain is required")
 	require.Nil(resp)
@@ -179,9 +190,9 @@ func (s *Suite) TestConfigure() {
 	// missing private_key_path
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-		trust_domain = "spiffe://example.org"
 		certificate_path = "blah"
 		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
 	})
 	require.EqualError(err, "x509pop: private_key_path is required")
 	require.Nil(resp)
@@ -189,9 +200,9 @@ func (s *Suite) TestConfigure() {
 	// missing certificate_path
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-		trust_domain = "spiffe://example.org"
 		private_key_path = "blah"
 		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
 	})
 	require.EqualError(err, "x509pop: certificate_path is required")
 	require.Nil(resp)
@@ -199,10 +210,10 @@ func (s *Suite) TestConfigure() {
 	// cannot load keypair
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-		trust_domain = "spiffe://example.org"
 		private_key_path = "blah"
 		certificate_path = "blah"
 		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
 	})
 	s.errorContains(err, "x509pop: unable to load keypair")
 	require.Nil(resp)
@@ -212,10 +223,10 @@ func (s *Suite) TestConfigure() {
 	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
-			trust_domain = "example.org"
 			private_key_path = %q 
 			certificate_path = %q
 			intermediates_path = "blah"`, leafKeyPath, leafCertPath),
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
 	})
 	s.errorContains(err, "x509pop: unable to load intermediate certificates")
 	require.Nil(resp)
