@@ -67,54 +67,37 @@ message DeleteBundleResponse {
 
 
 /////////////////////////////////////////////////////////////////////////////
-// NodeResolverMapEntry Messages
+// NodeSelector Messages
 /////////////////////////////////////////////////////////////////////////////
 
-message NodeResolverMapEntry {
+message NodeSelectors {
     // Node SPIFFE ID
     string spiffe_id = 1;
 
-    // Node selector
-    spire.common.Selector selector = 2;
+    // Node selectors
+    repeated spire.common.Selector selectors = 2;
 }
 
-message CreateNodeResolverMapEntryRequest {
-    NodeResolverMapEntry entry = 1;
+message SetNodeSelectorsRequest {
+    NodeSelectors selectors = 1;
 }
 
-message CreateNodeResolverMapEntryResponse {
-    NodeResolverMapEntry entry = 1;
+message SetNodeSelectorsResponse {
 }
 
-message ListNodeResolverMapEntriesRequest {
+message GetNodeSelectorsRequest{
     string spiffe_id = 1;
 }
 
-message ListNodeResolverMapEntriesResponse {
-    repeated NodeResolverMapEntry entries = 1;
-}
-
-message DeleteNodeResolverMapEntryRequest {
-    NodeResolverMapEntry entry = 1;
-}
-
-message DeleteNodeResolverMapEntryResponse {
-    repeated NodeResolverMapEntry entries = 1;
-}
-
-message RectifyNodeResolverMapEntriesRequest {
-    repeated NodeResolverMapEntry entries = 1;
-}
-
-message RectifyNodeResolverMapEntriesResponse {
-    repeated NodeResolverMapEntry entries = 1;
+message GetNodeSelectorsResponse {
+    NodeSelectors selectors = 1;
 }
 
 /////////////////////////////////////////////////////////////////////////////
-// AttestedNodeEntry Messages
+// AttestedNode Messages
 /////////////////////////////////////////////////////////////////////////////
 
-message AttestedNodeEntry {
+message AttestedNode {
     // Node SPIFFE ID
     string spiffe_id = 1;
 
@@ -128,31 +111,31 @@ message AttestedNodeEntry {
     int64 cert_not_after = 4;
 }
 
-message CreateAttestedNodeEntryRequest {
-    AttestedNodeEntry entry = 1;
+message CreateAttestedNodeRequest {
+    AttestedNode node = 1;
 }
 
-message CreateAttestedNodeEntryResponse {
-    AttestedNodeEntry entry = 1;
+message CreateAttestedNodeResponse {
+    AttestedNode node = 1;
 }
 
-message FetchAttestedNodeEntryRequest {
+message FetchAttestedNodeRequest {
     string spiffe_id = 1;
 }
 
-message FetchAttestedNodeEntryResponse {
-    AttestedNodeEntry entry = 1;
+message FetchAttestedNodeResponse {
+    AttestedNode node = 1;
 }
 
-message ListAttestedNodeEntriesRequest {
+message ListAttestedNodesRequest {
     google.protobuf.Int64Value by_expires_before = 1;
 }
 
-message ListAttestedNodeEntriesResponse {
-    repeated AttestedNodeEntry entries = 1;
+message ListAttestedNodesResponse {
+    repeated AttestedNode nodes = 1;
 }
 
-message UpdateAttestedNodeEntryRequest {
+message UpdateAttestedNodeRequest {
     string spiffe_id = 1;
 
     string cert_serial_number = 2;
@@ -160,16 +143,16 @@ message UpdateAttestedNodeEntryRequest {
     int64 cert_not_after = 3;
 }
 
-message UpdateAttestedNodeEntryResponse {
-    AttestedNodeEntry entry = 1;
+message UpdateAttestedNodeResponse {
+    AttestedNode node = 1;
 }
 
-message DeleteAttestedNodeEntryRequest {
+message DeleteAttestedNodeRequest {
     string spiffe_id = 1;
 }
 
-message DeleteAttestedNodeEntryResponse {
-    AttestedNodeEntry entry = 1;
+message DeleteAttestedNodeResponse {
+    AttestedNode node = 1;
 }
 
 
@@ -182,7 +165,7 @@ message CreateRegistrationEntryRequest {
 }
 
 message CreateRegistrationEntryResponse {
-    string entry_id = 1;
+    spire.common.RegistrationEntry entry = 1;
 }
 
 message FetchRegistrationEntryRequest {
@@ -194,8 +177,12 @@ message FetchRegistrationEntryResponse {
 }
 
 message BySelectors {
+    enum MatchBehavior {
+        MATCH_EXACT = 0;
+        MATCH_SUBSET = 1;
+    }
     repeated spire.common.Selector selectors = 1;
-    bool allow_any_combination = 2;
+    MatchBehavior match = 2;
 }
 
 message ListRegistrationEntriesRequest {
@@ -286,25 +273,21 @@ service DataStore {
     // Deletes a specific bundle
     rpc DeleteBundle(DeleteBundleRequest) returns (DeleteBundleResponse);
 
-    // Creates an attested node entry
-    rpc CreateAttestedNodeEntry(CreateAttestedNodeEntryRequest) returns (CreateAttestedNodeEntryResponse);
-    // Fetches a specific attested node entry
-    rpc FetchAttestedNodeEntry(FetchAttestedNodeEntryRequest) returns (FetchAttestedNodeEntryResponse);
-    // Lists attested node entries (optionally filtered)
-    rpc ListAttestedNodeEntries(ListAttestedNodeEntriesRequest) returns (ListAttestedNodeEntriesResponse);
-    // Updates a specific attested node entry
-    rpc UpdateAttestedNodeEntry(UpdateAttestedNodeEntryRequest) returns (UpdateAttestedNodeEntryResponse);
-    // Deletes a specific attested node entry
-    rpc DeleteAttestedNodeEntry(DeleteAttestedNodeEntryRequest) returns (DeleteAttestedNodeEntryResponse);
+    // Creates an attested node
+    rpc CreateAttestedNode(CreateAttestedNodeRequest) returns (CreateAttestedNodeResponse);
+    // Fetches a specific attested node
+    rpc FetchAttestedNode(FetchAttestedNodeRequest) returns (FetchAttestedNodeResponse);
+    // Lists attested nodes (optionally filtered)
+    rpc ListAttestedNodes(ListAttestedNodesRequest) returns (ListAttestedNodesResponse);
+    // Updates a specific attested node
+    rpc UpdateAttestedNode(UpdateAttestedNodeRequest) returns (UpdateAttestedNodeResponse);
+    // Deletes a specific attested node
+    rpc DeleteAttestedNode(DeleteAttestedNodeRequest) returns (DeleteAttestedNodeResponse);
 
-    // Creates a node resolver map entry
-    rpc CreateNodeResolverMapEntry(CreateNodeResolverMapEntryRequest) returns (CreateNodeResolverMapEntryResponse);
-    // Lists node resolver map entries for a specified SPIFFE ID
-    rpc ListNodeResolverMapEntries(ListNodeResolverMapEntriesRequest) returns (ListNodeResolverMapEntriesResponse);
-    // Deletes a specific node resolver map entry
-    rpc DeleteNodeResolverMapEntry(DeleteNodeResolverMapEntryRequest) returns (DeleteNodeResolverMapEntryResponse);
-    // Sets the list of node resolver map entries for the specified SPIFFE ID
-    rpc RectifyNodeResolverMapEntries(RectifyNodeResolverMapEntriesRequest) returns (RectifyNodeResolverMapEntriesResponse);
+    // Sets the set of selectors for a specific node id
+    rpc SetNodeSelectors(SetNodeSelectorsRequest) returns (SetNodeSelectorsResponse);
+    // Gets the set of node selectors for a specific node id
+    rpc GetNodeSelectors(GetNodeSelectorsRequest) returns (GetNodeSelectorsResponse);
 
     // Creates a registration entry
     rpc CreateRegistrationEntry(CreateRegistrationEntryRequest) returns (CreateRegistrationEntryResponse);

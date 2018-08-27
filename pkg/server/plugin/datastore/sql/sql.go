@@ -133,11 +133,11 @@ func (ds *sqlPlugin) ListBundles(ctx context.Context, req *datastore.ListBundles
 	return resp, nil
 }
 
-func (ds *sqlPlugin) CreateAttestedNodeEntry(ctx context.Context,
-	req *datastore.CreateAttestedNodeEntryRequest) (resp *datastore.CreateAttestedNodeEntryResponse, err error) {
+func (ds *sqlPlugin) CreateAttestedNode(ctx context.Context,
+	req *datastore.CreateAttestedNodeRequest) (resp *datastore.CreateAttestedNodeResponse, err error) {
 
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = createAttestedNodeEntry(tx, req)
+		resp, err = createAttestedNode(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -145,11 +145,11 @@ func (ds *sqlPlugin) CreateAttestedNodeEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (ds *sqlPlugin) FetchAttestedNodeEntry(ctx context.Context,
-	req *datastore.FetchAttestedNodeEntryRequest) (resp *datastore.FetchAttestedNodeEntryResponse, err error) {
+func (ds *sqlPlugin) FetchAttestedNode(ctx context.Context,
+	req *datastore.FetchAttestedNodeRequest) (resp *datastore.FetchAttestedNodeResponse, err error) {
 
 	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchAttestedNodeEntry(tx, req)
+		resp, err = fetchAttestedNode(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -157,11 +157,11 @@ func (ds *sqlPlugin) FetchAttestedNodeEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (ds *sqlPlugin) ListAttestedNodeEntries(ctx context.Context,
-	req *datastore.ListAttestedNodeEntriesRequest) (resp *datastore.ListAttestedNodeEntriesResponse, err error) {
+func (ds *sqlPlugin) ListAttestedNodes(ctx context.Context,
+	req *datastore.ListAttestedNodesRequest) (resp *datastore.ListAttestedNodesResponse, err error) {
 
 	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listAttestedNodeEntries(tx, req)
+		resp, err = listAttestedNodes(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -169,11 +169,11 @@ func (ds *sqlPlugin) ListAttestedNodeEntries(ctx context.Context,
 	return resp, nil
 }
 
-func (ds *sqlPlugin) UpdateAttestedNodeEntry(ctx context.Context,
-	req *datastore.UpdateAttestedNodeEntryRequest) (resp *datastore.UpdateAttestedNodeEntryResponse, err error) {
+func (ds *sqlPlugin) UpdateAttestedNode(ctx context.Context,
+	req *datastore.UpdateAttestedNodeRequest) (resp *datastore.UpdateAttestedNodeResponse, err error) {
 
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = updateAttestedNodeEntry(tx, req)
+		resp, err = updateAttestedNode(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -181,11 +181,11 @@ func (ds *sqlPlugin) UpdateAttestedNodeEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (ds *sqlPlugin) DeleteAttestedNodeEntry(ctx context.Context,
-	req *datastore.DeleteAttestedNodeEntryRequest) (resp *datastore.DeleteAttestedNodeEntryResponse, err error) {
+func (ds *sqlPlugin) DeleteAttestedNode(ctx context.Context,
+	req *datastore.DeleteAttestedNodeRequest) (resp *datastore.DeleteAttestedNodeResponse, err error) {
 
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = deleteAttestedNodeEntry(tx, req)
+		resp, err = deleteAttestedNode(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -193,11 +193,9 @@ func (ds *sqlPlugin) DeleteAttestedNodeEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (ds *sqlPlugin) CreateNodeResolverMapEntry(ctx context.Context,
-	req *datastore.CreateNodeResolverMapEntryRequest) (resp *datastore.CreateNodeResolverMapEntryResponse, err error) {
-
+func (ds *sqlPlugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (resp *datastore.SetNodeSelectorsResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = createNodeResolverMapEntry(tx, req)
+		resp, err = setNodeSelectors(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -205,33 +203,16 @@ func (ds *sqlPlugin) CreateNodeResolverMapEntry(ctx context.Context,
 	return resp, nil
 }
 
-func (ds *sqlPlugin) ListNodeResolverMapEntries(ctx context.Context,
-	req *datastore.ListNodeResolverMapEntriesRequest) (resp *datastore.ListNodeResolverMapEntriesResponse, err error) {
+func (ds *sqlPlugin) GetNodeSelectors(ctx context.Context,
+	req *datastore.GetNodeSelectorsRequest) (resp *datastore.GetNodeSelectorsResponse, err error) {
 
 	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listNodeResolverMapEntries(tx, req)
+		resp, err = getNodeSelectors(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
 	}
 	return resp, nil
-}
-
-func (ds *sqlPlugin) DeleteNodeResolverMapEntry(ctx context.Context,
-	req *datastore.DeleteNodeResolverMapEntryRequest) (resp *datastore.DeleteNodeResolverMapEntryResponse, err error) {
-
-	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = deleteNodeResolverMapEntry(tx, req)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (sqlPlugin) RectifyNodeResolverMapEntries(ctx context.Context,
-	req *datastore.RectifyNodeResolverMapEntriesRequest) (*datastore.RectifyNodeResolverMapEntriesResponse, error) {
-	return &datastore.RectifyNodeResolverMapEntriesResponse{}, errors.New("Not Implemented")
 }
 
 func (ds *sqlPlugin) CreateRegistrationEntry(ctx context.Context,
@@ -639,69 +620,69 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 	return resp, nil
 }
 
-func createAttestedNodeEntry(tx *gorm.DB, req *datastore.CreateAttestedNodeEntryRequest) (*datastore.CreateAttestedNodeEntryResponse, error) {
-	entry := req.Entry
-	if entry == nil {
+func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
+	node := req.Node
+	if node == nil {
 		return nil, sqlError.New("invalid request: missing attested node")
 	}
 
-	model := AttestedNodeEntry{
-		SpiffeID:     entry.SpiffeId,
-		DataType:     entry.AttestationDataType,
-		SerialNumber: entry.CertSerialNumber,
-		ExpiresAt:    time.Unix(entry.CertNotAfter, 0),
+	model := AttestedNode{
+		SpiffeID:     node.SpiffeId,
+		DataType:     node.AttestationDataType,
+		SerialNumber: node.CertSerialNumber,
+		ExpiresAt:    time.Unix(node.CertNotAfter, 0),
 	}
 
 	if err := tx.Create(&model).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.CreateAttestedNodeEntryResponse{
-		Entry: modelToAttestedNodeEntry(model),
+	return &datastore.CreateAttestedNodeResponse{
+		Node: modelToAttestedNode(model),
 	}, nil
 }
 
-func fetchAttestedNodeEntry(tx *gorm.DB, req *datastore.FetchAttestedNodeEntryRequest) (*datastore.FetchAttestedNodeEntryResponse, error) {
-	var model AttestedNodeEntry
+func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
+	var model AttestedNode
 	err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
-		return &datastore.FetchAttestedNodeEntryResponse{}, nil
+		return &datastore.FetchAttestedNodeResponse{}, nil
 	case err != nil:
 		return nil, sqlError.Wrap(err)
 	}
-	return &datastore.FetchAttestedNodeEntryResponse{
-		Entry: modelToAttestedNodeEntry(model),
+	return &datastore.FetchAttestedNodeResponse{
+		Node: modelToAttestedNode(model),
 	}, nil
 }
 
-func listAttestedNodeEntries(tx *gorm.DB, req *datastore.ListAttestedNodeEntriesRequest) (*datastore.ListAttestedNodeEntriesResponse, error) {
+func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 	if req.ByExpiresBefore != nil {
 		tx = tx.Where("expires_at < ?", time.Unix(req.ByExpiresBefore.Value, 0))
 	}
 
-	var models []AttestedNodeEntry
+	var models []AttestedNode
 	if err := tx.Find(&models).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	resp := &datastore.ListAttestedNodeEntriesResponse{
-		Entries: make([]*datastore.AttestedNodeEntry, 0, len(models)),
+	resp := &datastore.ListAttestedNodesResponse{
+		Nodes: make([]*datastore.AttestedNode, 0, len(models)),
 	}
 
 	for _, model := range models {
-		resp.Entries = append(resp.Entries, modelToAttestedNodeEntry(model))
+		resp.Nodes = append(resp.Nodes, modelToAttestedNode(model))
 	}
 	return resp, nil
 }
 
-func updateAttestedNodeEntry(tx *gorm.DB, req *datastore.UpdateAttestedNodeEntryRequest) (*datastore.UpdateAttestedNodeEntryResponse, error) {
-	var model AttestedNodeEntry
+func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
+	var model AttestedNode
 	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	updates := AttestedNodeEntry{
+	updates := AttestedNode{
 		SerialNumber: req.CertSerialNumber,
 		ExpiresAt:    time.Unix(req.CertNotAfter, 0),
 	}
@@ -710,13 +691,13 @@ func updateAttestedNodeEntry(tx *gorm.DB, req *datastore.UpdateAttestedNodeEntry
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.UpdateAttestedNodeEntryResponse{
-		Entry: modelToAttestedNodeEntry(model),
+	return &datastore.UpdateAttestedNodeResponse{
+		Node: modelToAttestedNode(model),
 	}, nil
 }
 
-func deleteAttestedNodeEntry(tx *gorm.DB, req *datastore.DeleteAttestedNodeEntryRequest) (*datastore.DeleteAttestedNodeEntryResponse, error) {
-	var model AttestedNodeEntry
+func deleteAttestedNode(tx *gorm.DB, req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
+	var model AttestedNode
 	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -725,86 +706,52 @@ func deleteAttestedNodeEntry(tx *gorm.DB, req *datastore.DeleteAttestedNodeEntry
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.DeleteAttestedNodeEntryResponse{
-		Entry: modelToAttestedNodeEntry(model),
+	return &datastore.DeleteAttestedNodeResponse{
+		Node: modelToAttestedNode(model),
 	}, nil
 }
 
-func createNodeResolverMapEntry(tx *gorm.DB, req *datastore.CreateNodeResolverMapEntryRequest) (*datastore.CreateNodeResolverMapEntryResponse, error) {
-	entry := req.Entry
-	if entry == nil {
-		return nil, sqlError.New("invalid request: no map entry")
+func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
+	if req.Selectors == nil {
+		return nil, errors.New("invalid request: missing selectors")
 	}
-
-	selector := entry.Selector
-	if selector == nil {
-		return nil, sqlError.New("invalid request: no selector")
-	}
-
-	model := NodeResolverMapEntry{
-		SpiffeID: entry.SpiffeId,
-		Type:     selector.Type,
-		Value:    selector.Value,
-	}
-
-	if err := tx.Create(&model).Error; err != nil {
+	if err := tx.Delete(NodeSelector{}, "spiffe_id = ?", req.Selectors.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.CreateNodeResolverMapEntryResponse{
-		Entry: modelToNodeResolverMapEntry(model),
+	for _, selector := range req.Selectors.Selectors {
+		model := &NodeSelector{
+			SpiffeID: req.Selectors.SpiffeId,
+			Type:     selector.Type,
+			Value:    selector.Value,
+		}
+		if err := tx.Create(model).Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+	}
+
+	return &datastore.SetNodeSelectorsResponse{}, nil
+}
+
+func getNodeSelectors(tx *gorm.DB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
+	var models []NodeSelector
+	if err := tx.Where("spiffe_id = ?", req.SpiffeId).Find(&models).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	var selectors []*common.Selector
+	for _, selector := range models {
+		selectors = append(selectors, &common.Selector{
+			Type:  selector.Type,
+			Value: selector.Value,
+		})
+	}
+	return &datastore.GetNodeSelectorsResponse{
+		Selectors: &datastore.NodeSelectors{
+			SpiffeId:  req.SpiffeId,
+			Selectors: selectors,
+		},
 	}, nil
-}
-
-func listNodeResolverMapEntries(tx *gorm.DB, req *datastore.ListNodeResolverMapEntriesRequest) (*datastore.ListNodeResolverMapEntriesResponse, error) {
-	var models []NodeResolverMapEntry
-	if err := tx.Find(&models, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	resp := &datastore.ListNodeResolverMapEntriesResponse{
-		Entries: make([]*datastore.NodeResolverMapEntry, 0, len(models)),
-	}
-
-	for _, model := range models {
-		resp.Entries = append(resp.Entries, modelToNodeResolverMapEntry(model))
-	}
-	return resp, nil
-}
-
-func deleteNodeResolverMapEntry(tx *gorm.DB, req *datastore.DeleteNodeResolverMapEntryRequest) (*datastore.DeleteNodeResolverMapEntryResponse, error) {
-	entry := req.Entry
-	if entry == nil {
-		return nil, sqlError.New("invalid request: no map entry")
-	}
-
-	// if no selector is given, delete all entries with the given spiffe id
-	scope := tx.Where("spiffe_id = ?", entry.SpiffeId)
-
-	if selector := entry.Selector; selector != nil {
-		scope = scope.Where("type  = ?", selector.Type)
-		scope = scope.Where("value = ?", selector.Value)
-	}
-
-	var models []NodeResolverMapEntry
-
-	if err := scope.Find(&models).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	if err := scope.Delete(&NodeResolverMapEntry{}).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	resp := &datastore.DeleteNodeResolverMapEntryResponse{
-		Entries: make([]*datastore.NodeResolverMapEntry, 0, len(models)),
-	}
-
-	for _, model := range models {
-		resp.Entries = append(resp.Entries, modelToNodeResolverMapEntry(model))
-	}
-
-	return resp, nil
 }
 
 func createRegistrationEntry(tx *gorm.DB,
@@ -847,8 +794,13 @@ func createRegistrationEntry(tx *gorm.DB,
 		}
 	}
 
+	entry, err := modelToEntry(tx, newRegisteredEntry)
+	if err != nil {
+		return nil, err
+	}
+
 	return &datastore.CreateRegistrationEntryResponse{
-		EntryId: newRegisteredEntry.EntryID,
+		Entry: entry,
 	}, nil
 }
 
@@ -895,13 +847,12 @@ func listRegistrationEntries(tx *gorm.DB,
 	var selectorsList [][]*common.Selector
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
 		selectorSet := selector.NewSetFromRaw(req.BySelectors.Selectors)
-		if req.BySelectors.AllowAnyCombination {
-			// find entries matching any combination of the filter set
+		switch req.BySelectors.Match {
+		case datastore.BySelectors_MATCH_SUBSET:
 			for combination := range selectorSet.Power() {
 				selectorsList = append(selectorsList, combination.Raw())
 			}
-		} else {
-			// find entries matching EXACTLY the filter set
+		case datastore.BySelectors_MATCH_EXACT:
 			selectorsList = append(selectorsList, selectorSet.Raw())
 		}
 	}
@@ -942,11 +893,7 @@ func listRegistrationEntries(tx *gorm.DB,
 			}
 
 			for _, r := range results {
-				if count, ok := refCount[r.RegisteredEntryID]; ok {
-					refCount[r.RegisteredEntryID] = count + 1
-				} else {
-					refCount[r.RegisteredEntryID] = 1
-				}
+				refCount[r.RegisteredEntryID]++
 			}
 		}
 
@@ -1238,22 +1185,12 @@ func newRegistrationEntryID() (string, error) {
 	return id.String(), nil
 }
 
-func modelToAttestedNodeEntry(model AttestedNodeEntry) *datastore.AttestedNodeEntry {
-	return &datastore.AttestedNodeEntry{
+func modelToAttestedNode(model AttestedNode) *datastore.AttestedNode {
+	return &datastore.AttestedNode{
 		SpiffeId:            model.SpiffeID,
 		AttestationDataType: model.DataType,
 		CertSerialNumber:    model.SerialNumber,
 		CertNotAfter:        model.ExpiresAt.Unix(),
-	}
-}
-
-func modelToNodeResolverMapEntry(model NodeResolverMapEntry) *datastore.NodeResolverMapEntry {
-	return &datastore.NodeResolverMapEntry{
-		SpiffeId: model.SpiffeID,
-		Selector: &common.Selector{
-			Type:  model.Type,
-			Value: model.Value,
-		},
 	}
 }
 

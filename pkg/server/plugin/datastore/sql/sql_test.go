@@ -165,69 +165,69 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Equal(1, len(lresp.Bundles))
 }
 
-func (s *PluginSuite) TestCreateAttestedNodeEntry() {
-	entry := &datastore.AttestedNodeEntry{
+func (s *PluginSuite) TestCreateAttestedNode() {
+	node := &datastore.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	cresp, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: entry})
+	cresp, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
 	s.Require().NoError(err)
-	s.Equal(entry, cresp.Entry)
+	s.Equal(node, cresp.Node)
 
-	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{SpiffeId: entry.SpiffeId})
+	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
 	s.Require().NoError(err)
-	s.Equal(entry, fresp.Entry)
+	s.Equal(node, fresp.Node)
 
-	sresp, err := s.ds.ListAttestedNodeEntries(ctx, &datastore.ListAttestedNodeEntriesRequest{
+	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrappers.Int64Value{
 			Value: time.Now().Unix(),
 		},
 	})
 	s.Require().NoError(err)
-	s.Empty(sresp.Entries)
+	s.Empty(sresp.Nodes)
 }
 
-func (s *PluginSuite) TestFetchAttestedNodeEntryMissing() {
-	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{SpiffeId: "missing"})
+func (s *PluginSuite) TestFetchAttestedNodeMissing() {
+	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: "missing"})
 	s.Require().NoError(err)
-	s.Require().Nil(fresp.Entry)
+	s.Require().Nil(fresp.Node)
 }
 
-func (s *PluginSuite) TestFetchStaleNodeEntries() {
-	efuture := &datastore.AttestedNodeEntry{
+func (s *PluginSuite) TestFetchStaleNodes() {
+	efuture := &datastore.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	epast := &datastore.AttestedNodeEntry{
+	epast := &datastore.AttestedNode{
 		SpiffeId:            "bar",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "deadbeef",
 		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
 	}
 
-	_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: efuture})
+	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: efuture})
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: epast})
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: epast})
 	s.Require().NoError(err)
 
-	sresp, err := s.ds.ListAttestedNodeEntries(ctx, &datastore.ListAttestedNodeEntriesRequest{
+	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrappers.Int64Value{
 			Value: time.Now().Unix(),
 		},
 	})
 	s.Require().NoError(err)
-	s.Equal([]*datastore.AttestedNodeEntry{epast}, sresp.Entries)
+	s.Equal([]*datastore.AttestedNode{epast}, sresp.Nodes)
 }
 
-func (s *PluginSuite) TestUpdateAttestedNodeEntry() {
-	entry := &datastore.AttestedNodeEntry{
+func (s *PluginSuite) TestUpdateAttestedNode() {
+	node := &datastore.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
@@ -237,171 +237,92 @@ func (s *PluginSuite) TestUpdateAttestedNodeEntry() {
 	userial := "deadbeef"
 	uexpires := time.Now().Add(time.Hour * 2).Unix()
 
-	_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: entry})
+	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
 	s.Require().NoError(err)
 
-	uresp, err := s.ds.UpdateAttestedNodeEntry(ctx, &datastore.UpdateAttestedNodeEntryRequest{
-		SpiffeId:         entry.SpiffeId,
+	uresp, err := s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
+		SpiffeId:         node.SpiffeId,
 		CertSerialNumber: userial,
 		CertNotAfter:     uexpires,
 	})
 	s.Require().NoError(err)
 
-	uentry := uresp.Entry
-	s.Require().NotNil(uentry)
+	unode := uresp.Node
+	s.Require().NotNil(unode)
 
-	s.Equal(entry.SpiffeId, uentry.SpiffeId)
-	s.Equal(entry.AttestationDataType, uentry.AttestationDataType)
-	s.Equal(userial, uentry.CertSerialNumber)
-	s.Equal(uexpires, uentry.CertNotAfter)
+	s.Equal(node.SpiffeId, unode.SpiffeId)
+	s.Equal(node.AttestationDataType, unode.AttestationDataType)
+	s.Equal(userial, unode.CertSerialNumber)
+	s.Equal(uexpires, unode.CertNotAfter)
 
-	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{SpiffeId: entry.SpiffeId})
+	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
 	s.Require().NoError(err)
 
-	fentry := fresp.Entry
-	s.Require().NotNil(fentry)
+	fnode := fresp.Node
+	s.Require().NotNil(fnode)
 
-	s.Equal(entry.SpiffeId, fentry.SpiffeId)
-	s.Equal(entry.AttestationDataType, fentry.AttestationDataType)
-	s.Equal(userial, fentry.CertSerialNumber)
-	s.Equal(uexpires, fentry.CertNotAfter)
+	s.Equal(node.SpiffeId, fnode.SpiffeId)
+	s.Equal(node.AttestationDataType, fnode.AttestationDataType)
+	s.Equal(userial, fnode.CertSerialNumber)
+	s.Equal(uexpires, fnode.CertNotAfter)
 }
 
-func (s *PluginSuite) TestDeleteAttestedNodeEntry() {
-	entry := &datastore.AttestedNodeEntry{
+func (s *PluginSuite) TestDeleteAttestedNode() {
+	entry := &datastore.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: entry})
+	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
 	s.Require().NoError(err)
 
-	dresp, err := s.ds.DeleteAttestedNodeEntry(ctx, &datastore.DeleteAttestedNodeEntryRequest{SpiffeId: entry.SpiffeId})
+	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
-	s.Equal(entry, dresp.Entry)
+	s.Equal(entry, dresp.Node)
 
-	fresp, err := s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{SpiffeId: entry.SpiffeId})
+	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
-	s.Nil(fresp.Entry)
+	s.Nil(fresp.Node)
 }
 
-func (s *PluginSuite) TestCreateNodeResolverMapEntry() {
-	entry := &datastore.NodeResolverMapEntry{
-		SpiffeId: "main",
-		Selector: &common.Selector{
-			Type:  "aws-tag",
-			Value: "a",
-		},
+func (s *PluginSuite) TestNodeSelectors() {
+	foo1 := []*common.Selector{
+		{Type: "FOO1", Value: "1"},
+	}
+	foo2 := []*common.Selector{
+		{Type: "FOO2", Value: "1"},
+	}
+	bar := []*common.Selector{
+		{Type: "BAR", Value: "FIGHT"},
 	}
 
-	cresp, err := s.ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{Entry: entry})
-	s.Require().NoError(err)
-	s.Equal(entry, cresp.Entry)
-}
+	// assert there are no selectors for foo
+	selectors := s.getNodeSelectors("foo")
+	s.Require().Empty(selectors)
 
-func (s *PluginSuite) TestCreateNodeResolverMapEntryDuplicate() {
-	entries := s.createNodeResolverMapEntries(s.ds)
+	// set selectors on foo and bar
+	s.setNodeSelectors("foo", foo1)
+	s.setNodeSelectors("bar", bar)
 
-	entry := entries[0]
-	cresp, err := s.ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{Entry: entry})
-	s.Error(err)
-	s.Require().Nil(cresp)
-}
+	// get foo selectors
+	selectors = s.getNodeSelectors("foo")
+	s.Require().Equal(foo1, selectors)
 
-func (s *PluginSuite) TestFetchNodeResolverMapEntry() {
-	entry := &datastore.NodeResolverMapEntry{
-		SpiffeId: "main",
-		Selector: &common.Selector{
-			Type:  "aws-tag",
-			Value: "a",
-		},
-	}
+	// replace foo selectors
+	s.setNodeSelectors("foo", foo2)
+	selectors = s.getNodeSelectors("foo")
+	s.Require().Equal(foo2, selectors)
 
-	cresp, err := s.ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{Entry: entry})
-	s.Require().NoError(err)
-	s.Equal(entry, cresp.Entry)
-}
+	// delete foo selectors
+	s.setNodeSelectors("foo", nil)
+	selectors = s.getNodeSelectors("foo")
+	s.Require().Empty(selectors)
 
-func (s *PluginSuite) TestDeleteNodeResolverMapEntry() {
-	// remove entries for the specific (spiffe_id,type,value)
-	entries := s.createNodeResolverMapEntries(s.ds)
-
-	entry_removed := entries[0]
-
-	dresp, err := s.ds.DeleteNodeResolverMapEntry(ctx, &datastore.DeleteNodeResolverMapEntryRequest{Entry: entry_removed})
-	s.Require().NoError(err)
-
-	s.Equal(entries[0:1], dresp.Entries)
-
-	for idx, entry := range entries[1:] {
-		fresp, err := s.ds.ListNodeResolverMapEntries(ctx, &datastore.ListNodeResolverMapEntriesRequest{SpiffeId: entry.SpiffeId})
-		s.Require().NoError(err, idx)
-		s.Require().Len(fresp.Entries, 1, "%v", idx)
-		s.Equal(entry, fresp.Entries[0], "%v", idx)
-	}
-}
-
-func (s *PluginSuite) TestDeleteNodeResolverMapEntryAll() {
-	// remove all entries for the spiffe_id
-	entries := s.createNodeResolverMapEntries(s.ds)
-
-	entry_removed := &datastore.NodeResolverMapEntry{
-		SpiffeId: entries[0].SpiffeId,
-	}
-
-	dresp, err := s.ds.DeleteNodeResolverMapEntry(ctx, &datastore.DeleteNodeResolverMapEntryRequest{Entry: entry_removed})
-	s.Require().NoError(err)
-
-	s.Equal(entries[0:2], dresp.Entries)
-
-	{
-		entry := entry_removed
-		fresp, err := s.ds.ListNodeResolverMapEntries(ctx, &datastore.ListNodeResolverMapEntriesRequest{SpiffeId: entry.SpiffeId})
-		s.Require().NoError(err)
-		s.Empty(fresp.Entries)
-	}
-
-	{
-		entry := entries[2]
-		fresp, err := s.ds.ListNodeResolverMapEntries(ctx, &datastore.ListNodeResolverMapEntriesRequest{SpiffeId: entry.SpiffeId})
-		s.Require().NoError(err)
-		s.NotEmpty(fresp.Entries)
-	}
-}
-
-func (s *PluginSuite) createNodeResolverMapEntries(ds datastore.DataStore) []*datastore.NodeResolverMapEntry {
-	entries := []*datastore.NodeResolverMapEntry{
-		{
-			SpiffeId: "main",
-			Selector: &common.Selector{
-				Type:  "aws-tag",
-				Value: "a",
-			},
-		},
-		{
-			SpiffeId: "main",
-			Selector: &common.Selector{
-				Type:  "aws-tag",
-				Value: "b",
-			},
-		},
-		{
-			SpiffeId: "other",
-			Selector: &common.Selector{
-				Type:  "aws-tag",
-				Value: "a",
-			},
-		},
-	}
-
-	for idx, entry := range entries {
-		_, err := ds.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{Entry: entry})
-		s.Require().NoError(err, "%v", idx)
-	}
-
-	return entries
+	// get bar selectors (make sure they weren't impacted by deleting foo)
+	selectors = s.getNodeSelectors("bar")
+	s.Require().Equal(bar, selectors)
 }
 
 func (s *PluginSuite) TestCreateRegistrationEntry() {
@@ -409,10 +330,13 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 	s.getTestDataFromJsonFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
-		createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: validRegistrationEntry})
+		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: validRegistrationEntry})
 		s.Require().NoError(err)
-		s.NotNil(createRegistrationEntryResponse)
-		s.NotEmpty(createRegistrationEntryResponse.EntryId)
+		s.NotNil(resp)
+		s.Require().NotNil(resp.Entry)
+		s.NotEmpty(resp.Entry.EntryId)
+		resp.Entry.EntryId = ""
+		s.Require().Equal(resp.Entry, validRegistrationEntry)
 	}
 }
 
@@ -444,12 +368,12 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
 	s.Require().NoError(err)
 	s.Require().NotNil(createRegistrationEntryResponse)
-	registeredEntry.EntryId = createRegistrationEntryResponse.EntryId
+	createdEntry := createRegistrationEntryResponse.Entry
 
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createRegistrationEntryResponse.EntryId})
+	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.Equal(registeredEntry, fetchRegistrationEntryResponse.Entry)
+	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
 }
 
 func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
@@ -459,7 +383,7 @@ func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntries() {
-	entry1 := &common.RegistrationEntry{
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -468,9 +392,9 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		SpiffeId: "spiffe://example.org/foo",
 		ParentId: "spiffe://example.org/bar",
 		Ttl:      1,
-	}
+	})
 
-	entry2 := &common.RegistrationEntry{
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type3", Value: "Value3"},
 			{Type: "Type4", Value: "Value4"},
@@ -479,30 +403,20 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		SpiffeId: "spiffe://example.org/baz",
 		ParentId: "spiffe://example.org/bat",
 		Ttl:      2,
-	}
+	})
 
-	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry1})
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 	s.Require().NoError(err)
-	s.Require().NotNil(createRegistrationEntryResponse)
-	entry1.EntryId = createRegistrationEntryResponse.EntryId
-
-	createRegistrationEntryResponse, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry2})
-	s.Require().NoError(err)
-	s.Require().NotNil(createRegistrationEntryResponse)
-	entry2.EntryId = createRegistrationEntryResponse.EntryId
-
-	listRegistrationEntriesResponse, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-	s.Require().NoError(err)
-	s.Require().NotNil(listRegistrationEntriesResponse)
+	s.Require().NotNil(resp)
 
 	expectedResponse := &datastore.ListRegistrationEntriesResponse{
 		Entries: []*common.RegistrationEntry{entry2, entry1},
 	}
-	s.Equal(expectedResponse, listRegistrationEntriesResponse)
+	s.Equal(expectedResponse, resp)
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntry() {
-	entry1 := &common.RegistrationEntry{
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -511,32 +425,25 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 		SpiffeId: "spiffe://example.org/foo",
 		ParentId: "spiffe://example.org/bar",
 		Ttl:      1,
-	}
+	})
 
-	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry1})
-	s.Require().NoError(err)
-	s.Require().NotNil(createRegistrationEntryResponse)
-
-	// TODO: Refactor message type to take EntryID directly from the entry - see #449
-	entry1.EntryId = createRegistrationEntryResponse.EntryId
-	entry1.Ttl = 2
-	updReq := &datastore.UpdateRegistrationEntryRequest{
-		Entry: entry1,
-	}
-	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, updReq)
+	entry.Ttl = 2
+	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
+		Entry: entry,
+	})
 	s.Require().NoError(err)
 	s.Require().NotNil(updateRegistrationEntryResponse)
 
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: updReq.Entry.EntryId})
+	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: entry.EntryId})
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 
-	expectedResponse := &datastore.FetchRegistrationEntryResponse{Entry: entry1}
+	expectedResponse := &datastore.FetchRegistrationEntryResponse{Entry: entry}
 	s.Equal(expectedResponse, fetchRegistrationEntryResponse)
 }
 
 func (s *PluginSuite) TestDeleteRegistrationEntry() {
-	entry1 := &common.RegistrationEntry{
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -545,9 +452,9 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 		SpiffeId: "spiffe://example.org/foo",
 		ParentId: "spiffe://example.org/bar",
 		Ttl:      1,
-	}
+	})
 
-	entry2 := &common.RegistrationEntry{
+	s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type3", Value: "Value3"},
 			{Type: "Type4", Value: "Value4"},
@@ -556,20 +463,10 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 		SpiffeId: "spiffe://example.org/baz",
 		ParentId: "spiffe://example.org/bat",
 		Ttl:      2,
-	}
-
-	res1, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry1})
-	s.Require().NoError(err)
-	s.Require().NotNil(res1)
-	entry1.EntryId = res1.EntryId
-
-	res2, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry2})
-	s.Require().NoError(err)
-	s.Require().NotNil(res2)
-	entry2.EntryId = res2.EntryId
+	})
 
 	// Make sure we deleted the right one
-	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: res1.EntryId})
+	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
 	s.Require().NoError(err)
 	s.Require().Equal(entry1, delRes.Entry)
 }
@@ -600,8 +497,11 @@ func (s *PluginSuite) TestListParentIDEntries() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, _ := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
-				entry.EntryId = r.EntryId
+				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+				require.NoError(t, err)
+				require.NotNil(t, r)
+				require.NotNil(t, r.Entry)
+				entry.EntryId = r.Entry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				ByParentId: &wrappers.StringValue{
@@ -647,7 +547,9 @@ func (s *PluginSuite) TestListSelectorEntries() {
 			for _, entry := range test.registrationEntries {
 				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
 				require.NoError(t, err)
-				entry.EntryId = r.EntryId
+				require.NotNil(t, r)
+				require.NotNil(t, r.Entry)
+				entry.EntryId = r.Entry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
@@ -697,12 +599,15 @@ func (s *PluginSuite) TestListMatchingEntries() {
 			for _, entry := range test.registrationEntries {
 				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
 				s.Require().NoError(err)
-				entry.EntryId = r.EntryId
+				require.NoError(t, err)
+				require.NotNil(t, r)
+				require.NotNil(t, r.Entry)
+				entry.EntryId = r.Entry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
-					Selectors:           test.selectors,
-					AllowAnyCombination: true,
+					Selectors: test.selectors,
+					Match:     datastore.BySelectors_MATCH_SUBSET,
 				},
 			})
 			s.Require().NoError(err)
@@ -867,16 +772,16 @@ func (s *PluginSuite) TestRace() {
 	exp := time.Now().Add(time.Hour).Unix()
 
 	testutil.RaceTest(s.T(), func(t *testing.T) {
-		entry := &datastore.AttestedNodeEntry{
+		node := &datastore.AttestedNode{
 			SpiffeId:            fmt.Sprintf("foo%d", atomic.AddInt64(&next, 1)),
 			AttestationDataType: "aws-tag",
 			CertSerialNumber:    "badcafe",
 			CertNotAfter:        exp,
 		}
 
-		_, err := s.ds.CreateAttestedNodeEntry(ctx, &datastore.CreateAttestedNodeEntryRequest{Entry: entry})
+		_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
 		require.NoError(t, err)
-		_, err = s.ds.FetchAttestedNodeEntry(ctx, &datastore.FetchAttestedNodeEntryRequest{SpiffeId: entry.SpiffeId})
+		_, err = s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
 		require.NoError(t, err)
 	})
 }
@@ -887,6 +792,38 @@ func (s *PluginSuite) getTestDataFromJsonFile(filePath string, jsonValue interfa
 
 	err = json.Unmarshal(invalidRegistrationEntriesJson, &jsonValue)
 	s.Require().NoError(err)
+}
+
+func (s *PluginSuite) createRegistrationEntry(entry *datastore.RegistrationEntry) *datastore.RegistrationEntry {
+	resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+		Entry: entry,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().NotNil(resp.Entry)
+	return resp.Entry
+}
+
+func (s *PluginSuite) getNodeSelectors(spiffeID string) []*common.Selector {
+	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
+		SpiffeId: spiffeID,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().NotNil(resp.Selectors)
+	s.Require().Equal(spiffeID, resp.Selectors.SpiffeId)
+	return resp.Selectors.Selectors
+}
+
+func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {
+	resp, err := s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
+		Selectors: &datastore.NodeSelectors{
+			SpiffeId:  spiffeID,
+			Selectors: selectors,
+		},
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(&datastore.SetNodeSelectorsResponse{}, resp)
 }
 
 func copyFile(src, dst string) error {

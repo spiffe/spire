@@ -83,6 +83,29 @@ type RegistrationEntry = common.RegistrationEntry
 // RegistrationEntries from public import github.com/spiffe/spire/proto/common/common.proto
 type RegistrationEntries = common.RegistrationEntries
 
+type BySelectors_MatchBehavior int32
+
+const (
+	BySelectors_MATCH_EXACT  BySelectors_MatchBehavior = 0
+	BySelectors_MATCH_SUBSET BySelectors_MatchBehavior = 1
+)
+
+var BySelectors_MatchBehavior_name = map[int32]string{
+	0: "MATCH_EXACT",
+	1: "MATCH_SUBSET",
+}
+var BySelectors_MatchBehavior_value = map[string]int32{
+	"MATCH_EXACT":  0,
+	"MATCH_SUBSET": 1,
+}
+
+func (x BySelectors_MatchBehavior) String() string {
+	return proto.EnumName(BySelectors_MatchBehavior_name, int32(x))
+}
+func (BySelectors_MatchBehavior) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{33, 0}
+}
+
 type Bundle struct {
 	// Trust domain SPIFFE ID
 	TrustDomain string `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain" json:"trust_domain,omitempty"`
@@ -97,7 +120,7 @@ func (m *Bundle) Reset()         { *m = Bundle{} }
 func (m *Bundle) String() string { return proto.CompactTextString(m) }
 func (*Bundle) ProtoMessage()    {}
 func (*Bundle) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{0}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{0}
 }
 func (m *Bundle) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Bundle.Unmarshal(m, b)
@@ -142,7 +165,7 @@ func (m *CreateBundleRequest) Reset()         { *m = CreateBundleRequest{} }
 func (m *CreateBundleRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateBundleRequest) ProtoMessage()    {}
 func (*CreateBundleRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{1}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{1}
 }
 func (m *CreateBundleRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateBundleRequest.Unmarshal(m, b)
@@ -180,7 +203,7 @@ func (m *CreateBundleResponse) Reset()         { *m = CreateBundleResponse{} }
 func (m *CreateBundleResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateBundleResponse) ProtoMessage()    {}
 func (*CreateBundleResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{2}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{2}
 }
 func (m *CreateBundleResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateBundleResponse.Unmarshal(m, b)
@@ -218,7 +241,7 @@ func (m *FetchBundleRequest) Reset()         { *m = FetchBundleRequest{} }
 func (m *FetchBundleRequest) String() string { return proto.CompactTextString(m) }
 func (*FetchBundleRequest) ProtoMessage()    {}
 func (*FetchBundleRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{3}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{3}
 }
 func (m *FetchBundleRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchBundleRequest.Unmarshal(m, b)
@@ -256,7 +279,7 @@ func (m *FetchBundleResponse) Reset()         { *m = FetchBundleResponse{} }
 func (m *FetchBundleResponse) String() string { return proto.CompactTextString(m) }
 func (*FetchBundleResponse) ProtoMessage()    {}
 func (*FetchBundleResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{4}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{4}
 }
 func (m *FetchBundleResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchBundleResponse.Unmarshal(m, b)
@@ -293,7 +316,7 @@ func (m *ListBundlesRequest) Reset()         { *m = ListBundlesRequest{} }
 func (m *ListBundlesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListBundlesRequest) ProtoMessage()    {}
 func (*ListBundlesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{5}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{5}
 }
 func (m *ListBundlesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListBundlesRequest.Unmarshal(m, b)
@@ -324,7 +347,7 @@ func (m *ListBundlesResponse) Reset()         { *m = ListBundlesResponse{} }
 func (m *ListBundlesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListBundlesResponse) ProtoMessage()    {}
 func (*ListBundlesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{6}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{6}
 }
 func (m *ListBundlesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListBundlesResponse.Unmarshal(m, b)
@@ -362,7 +385,7 @@ func (m *UpdateBundleRequest) Reset()         { *m = UpdateBundleRequest{} }
 func (m *UpdateBundleRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateBundleRequest) ProtoMessage()    {}
 func (*UpdateBundleRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{7}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{7}
 }
 func (m *UpdateBundleRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateBundleRequest.Unmarshal(m, b)
@@ -400,7 +423,7 @@ func (m *UpdateBundleResponse) Reset()         { *m = UpdateBundleResponse{} }
 func (m *UpdateBundleResponse) String() string { return proto.CompactTextString(m) }
 func (*UpdateBundleResponse) ProtoMessage()    {}
 func (*UpdateBundleResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{8}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{8}
 }
 func (m *UpdateBundleResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateBundleResponse.Unmarshal(m, b)
@@ -438,7 +461,7 @@ func (m *AppendBundleRequest) Reset()         { *m = AppendBundleRequest{} }
 func (m *AppendBundleRequest) String() string { return proto.CompactTextString(m) }
 func (*AppendBundleRequest) ProtoMessage()    {}
 func (*AppendBundleRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{9}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{9}
 }
 func (m *AppendBundleRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AppendBundleRequest.Unmarshal(m, b)
@@ -476,7 +499,7 @@ func (m *AppendBundleResponse) Reset()         { *m = AppendBundleResponse{} }
 func (m *AppendBundleResponse) String() string { return proto.CompactTextString(m) }
 func (*AppendBundleResponse) ProtoMessage()    {}
 func (*AppendBundleResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{10}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{10}
 }
 func (m *AppendBundleResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AppendBundleResponse.Unmarshal(m, b)
@@ -514,7 +537,7 @@ func (m *DeleteBundleRequest) Reset()         { *m = DeleteBundleRequest{} }
 func (m *DeleteBundleRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteBundleRequest) ProtoMessage()    {}
 func (*DeleteBundleRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{11}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{11}
 }
 func (m *DeleteBundleRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteBundleRequest.Unmarshal(m, b)
@@ -552,7 +575,7 @@ func (m *DeleteBundleResponse) Reset()         { *m = DeleteBundleResponse{} }
 func (m *DeleteBundleResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteBundleResponse) ProtoMessage()    {}
 func (*DeleteBundleResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{12}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{12}
 }
 func (m *DeleteBundleResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteBundleResponse.Unmarshal(m, b)
@@ -579,359 +602,199 @@ func (m *DeleteBundleResponse) GetBundle() *Bundle {
 	return nil
 }
 
-type NodeResolverMapEntry struct {
+type NodeSelectors struct {
 	// Node SPIFFE ID
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
-	// Node selector
-	Selector             *common.Selector `protobuf:"bytes,2,opt,name=selector" json:"selector,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
-	XXX_unrecognized     []byte           `json:"-"`
-	XXX_sizecache        int32            `json:"-"`
+	// Node selectors
+	Selectors            []*common.Selector `protobuf:"bytes,2,rep,name=selectors" json:"selectors,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
+	XXX_unrecognized     []byte             `json:"-"`
+	XXX_sizecache        int32              `json:"-"`
 }
 
-func (m *NodeResolverMapEntry) Reset()         { *m = NodeResolverMapEntry{} }
-func (m *NodeResolverMapEntry) String() string { return proto.CompactTextString(m) }
-func (*NodeResolverMapEntry) ProtoMessage()    {}
-func (*NodeResolverMapEntry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{13}
+func (m *NodeSelectors) Reset()         { *m = NodeSelectors{} }
+func (m *NodeSelectors) String() string { return proto.CompactTextString(m) }
+func (*NodeSelectors) ProtoMessage()    {}
+func (*NodeSelectors) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{13}
 }
-func (m *NodeResolverMapEntry) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_NodeResolverMapEntry.Unmarshal(m, b)
+func (m *NodeSelectors) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_NodeSelectors.Unmarshal(m, b)
 }
-func (m *NodeResolverMapEntry) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_NodeResolverMapEntry.Marshal(b, m, deterministic)
+func (m *NodeSelectors) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_NodeSelectors.Marshal(b, m, deterministic)
 }
-func (dst *NodeResolverMapEntry) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_NodeResolverMapEntry.Merge(dst, src)
+func (dst *NodeSelectors) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NodeSelectors.Merge(dst, src)
 }
-func (m *NodeResolverMapEntry) XXX_Size() int {
-	return xxx_messageInfo_NodeResolverMapEntry.Size(m)
+func (m *NodeSelectors) XXX_Size() int {
+	return xxx_messageInfo_NodeSelectors.Size(m)
 }
-func (m *NodeResolverMapEntry) XXX_DiscardUnknown() {
-	xxx_messageInfo_NodeResolverMapEntry.DiscardUnknown(m)
+func (m *NodeSelectors) XXX_DiscardUnknown() {
+	xxx_messageInfo_NodeSelectors.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_NodeResolverMapEntry proto.InternalMessageInfo
+var xxx_messageInfo_NodeSelectors proto.InternalMessageInfo
 
-func (m *NodeResolverMapEntry) GetSpiffeId() string {
+func (m *NodeSelectors) GetSpiffeId() string {
 	if m != nil {
 		return m.SpiffeId
 	}
 	return ""
 }
 
-func (m *NodeResolverMapEntry) GetSelector() *common.Selector {
+func (m *NodeSelectors) GetSelectors() []*common.Selector {
 	if m != nil {
-		return m.Selector
+		return m.Selectors
 	}
 	return nil
 }
 
-type CreateNodeResolverMapEntryRequest struct {
-	Entry                *NodeResolverMapEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
+type SetNodeSelectorsRequest struct {
+	Selectors            *NodeSelectors `protobuf:"bytes,1,opt,name=selectors" json:"selectors,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
 }
 
-func (m *CreateNodeResolverMapEntryRequest) Reset()         { *m = CreateNodeResolverMapEntryRequest{} }
-func (m *CreateNodeResolverMapEntryRequest) String() string { return proto.CompactTextString(m) }
-func (*CreateNodeResolverMapEntryRequest) ProtoMessage()    {}
-func (*CreateNodeResolverMapEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{14}
+func (m *SetNodeSelectorsRequest) Reset()         { *m = SetNodeSelectorsRequest{} }
+func (m *SetNodeSelectorsRequest) String() string { return proto.CompactTextString(m) }
+func (*SetNodeSelectorsRequest) ProtoMessage()    {}
+func (*SetNodeSelectorsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{14}
 }
-func (m *CreateNodeResolverMapEntryRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_CreateNodeResolverMapEntryRequest.Unmarshal(m, b)
+func (m *SetNodeSelectorsRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SetNodeSelectorsRequest.Unmarshal(m, b)
 }
-func (m *CreateNodeResolverMapEntryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_CreateNodeResolverMapEntryRequest.Marshal(b, m, deterministic)
+func (m *SetNodeSelectorsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SetNodeSelectorsRequest.Marshal(b, m, deterministic)
 }
-func (dst *CreateNodeResolverMapEntryRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CreateNodeResolverMapEntryRequest.Merge(dst, src)
+func (dst *SetNodeSelectorsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SetNodeSelectorsRequest.Merge(dst, src)
 }
-func (m *CreateNodeResolverMapEntryRequest) XXX_Size() int {
-	return xxx_messageInfo_CreateNodeResolverMapEntryRequest.Size(m)
+func (m *SetNodeSelectorsRequest) XXX_Size() int {
+	return xxx_messageInfo_SetNodeSelectorsRequest.Size(m)
 }
-func (m *CreateNodeResolverMapEntryRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_CreateNodeResolverMapEntryRequest.DiscardUnknown(m)
+func (m *SetNodeSelectorsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_SetNodeSelectorsRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_CreateNodeResolverMapEntryRequest proto.InternalMessageInfo
+var xxx_messageInfo_SetNodeSelectorsRequest proto.InternalMessageInfo
 
-func (m *CreateNodeResolverMapEntryRequest) GetEntry() *NodeResolverMapEntry {
+func (m *SetNodeSelectorsRequest) GetSelectors() *NodeSelectors {
 	if m != nil {
-		return m.Entry
+		return m.Selectors
 	}
 	return nil
 }
 
-type CreateNodeResolverMapEntryResponse struct {
-	Entry                *NodeResolverMapEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
+type SetNodeSelectorsResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *CreateNodeResolverMapEntryResponse) Reset()         { *m = CreateNodeResolverMapEntryResponse{} }
-func (m *CreateNodeResolverMapEntryResponse) String() string { return proto.CompactTextString(m) }
-func (*CreateNodeResolverMapEntryResponse) ProtoMessage()    {}
-func (*CreateNodeResolverMapEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{15}
+func (m *SetNodeSelectorsResponse) Reset()         { *m = SetNodeSelectorsResponse{} }
+func (m *SetNodeSelectorsResponse) String() string { return proto.CompactTextString(m) }
+func (*SetNodeSelectorsResponse) ProtoMessage()    {}
+func (*SetNodeSelectorsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{15}
 }
-func (m *CreateNodeResolverMapEntryResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_CreateNodeResolverMapEntryResponse.Unmarshal(m, b)
+func (m *SetNodeSelectorsResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SetNodeSelectorsResponse.Unmarshal(m, b)
 }
-func (m *CreateNodeResolverMapEntryResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_CreateNodeResolverMapEntryResponse.Marshal(b, m, deterministic)
+func (m *SetNodeSelectorsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SetNodeSelectorsResponse.Marshal(b, m, deterministic)
 }
-func (dst *CreateNodeResolverMapEntryResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CreateNodeResolverMapEntryResponse.Merge(dst, src)
+func (dst *SetNodeSelectorsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SetNodeSelectorsResponse.Merge(dst, src)
 }
-func (m *CreateNodeResolverMapEntryResponse) XXX_Size() int {
-	return xxx_messageInfo_CreateNodeResolverMapEntryResponse.Size(m)
+func (m *SetNodeSelectorsResponse) XXX_Size() int {
+	return xxx_messageInfo_SetNodeSelectorsResponse.Size(m)
 }
-func (m *CreateNodeResolverMapEntryResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_CreateNodeResolverMapEntryResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_CreateNodeResolverMapEntryResponse proto.InternalMessageInfo
-
-func (m *CreateNodeResolverMapEntryResponse) GetEntry() *NodeResolverMapEntry {
-	if m != nil {
-		return m.Entry
-	}
-	return nil
+func (m *SetNodeSelectorsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_SetNodeSelectorsResponse.DiscardUnknown(m)
 }
 
-type ListNodeResolverMapEntriesRequest struct {
+var xxx_messageInfo_SetNodeSelectorsResponse proto.InternalMessageInfo
+
+type GetNodeSelectorsRequest struct {
 	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *ListNodeResolverMapEntriesRequest) Reset()         { *m = ListNodeResolverMapEntriesRequest{} }
-func (m *ListNodeResolverMapEntriesRequest) String() string { return proto.CompactTextString(m) }
-func (*ListNodeResolverMapEntriesRequest) ProtoMessage()    {}
-func (*ListNodeResolverMapEntriesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{16}
+func (m *GetNodeSelectorsRequest) Reset()         { *m = GetNodeSelectorsRequest{} }
+func (m *GetNodeSelectorsRequest) String() string { return proto.CompactTextString(m) }
+func (*GetNodeSelectorsRequest) ProtoMessage()    {}
+func (*GetNodeSelectorsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{16}
 }
-func (m *ListNodeResolverMapEntriesRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ListNodeResolverMapEntriesRequest.Unmarshal(m, b)
+func (m *GetNodeSelectorsRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetNodeSelectorsRequest.Unmarshal(m, b)
 }
-func (m *ListNodeResolverMapEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ListNodeResolverMapEntriesRequest.Marshal(b, m, deterministic)
+func (m *GetNodeSelectorsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetNodeSelectorsRequest.Marshal(b, m, deterministic)
 }
-func (dst *ListNodeResolverMapEntriesRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ListNodeResolverMapEntriesRequest.Merge(dst, src)
+func (dst *GetNodeSelectorsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetNodeSelectorsRequest.Merge(dst, src)
 }
-func (m *ListNodeResolverMapEntriesRequest) XXX_Size() int {
-	return xxx_messageInfo_ListNodeResolverMapEntriesRequest.Size(m)
+func (m *GetNodeSelectorsRequest) XXX_Size() int {
+	return xxx_messageInfo_GetNodeSelectorsRequest.Size(m)
 }
-func (m *ListNodeResolverMapEntriesRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_ListNodeResolverMapEntriesRequest.DiscardUnknown(m)
+func (m *GetNodeSelectorsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetNodeSelectorsRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ListNodeResolverMapEntriesRequest proto.InternalMessageInfo
+var xxx_messageInfo_GetNodeSelectorsRequest proto.InternalMessageInfo
 
-func (m *ListNodeResolverMapEntriesRequest) GetSpiffeId() string {
+func (m *GetNodeSelectorsRequest) GetSpiffeId() string {
 	if m != nil {
 		return m.SpiffeId
 	}
 	return ""
 }
 
-type ListNodeResolverMapEntriesResponse struct {
-	Entries              []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
+type GetNodeSelectorsResponse struct {
+	Selectors            *NodeSelectors `protobuf:"bytes,1,opt,name=selectors" json:"selectors,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
 }
 
-func (m *ListNodeResolverMapEntriesResponse) Reset()         { *m = ListNodeResolverMapEntriesResponse{} }
-func (m *ListNodeResolverMapEntriesResponse) String() string { return proto.CompactTextString(m) }
-func (*ListNodeResolverMapEntriesResponse) ProtoMessage()    {}
-func (*ListNodeResolverMapEntriesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{17}
+func (m *GetNodeSelectorsResponse) Reset()         { *m = GetNodeSelectorsResponse{} }
+func (m *GetNodeSelectorsResponse) String() string { return proto.CompactTextString(m) }
+func (*GetNodeSelectorsResponse) ProtoMessage()    {}
+func (*GetNodeSelectorsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{17}
 }
-func (m *ListNodeResolverMapEntriesResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ListNodeResolverMapEntriesResponse.Unmarshal(m, b)
+func (m *GetNodeSelectorsResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetNodeSelectorsResponse.Unmarshal(m, b)
 }
-func (m *ListNodeResolverMapEntriesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ListNodeResolverMapEntriesResponse.Marshal(b, m, deterministic)
+func (m *GetNodeSelectorsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetNodeSelectorsResponse.Marshal(b, m, deterministic)
 }
-func (dst *ListNodeResolverMapEntriesResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ListNodeResolverMapEntriesResponse.Merge(dst, src)
+func (dst *GetNodeSelectorsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetNodeSelectorsResponse.Merge(dst, src)
 }
-func (m *ListNodeResolverMapEntriesResponse) XXX_Size() int {
-	return xxx_messageInfo_ListNodeResolverMapEntriesResponse.Size(m)
+func (m *GetNodeSelectorsResponse) XXX_Size() int {
+	return xxx_messageInfo_GetNodeSelectorsResponse.Size(m)
 }
-func (m *ListNodeResolverMapEntriesResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_ListNodeResolverMapEntriesResponse.DiscardUnknown(m)
+func (m *GetNodeSelectorsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetNodeSelectorsResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ListNodeResolverMapEntriesResponse proto.InternalMessageInfo
+var xxx_messageInfo_GetNodeSelectorsResponse proto.InternalMessageInfo
 
-func (m *ListNodeResolverMapEntriesResponse) GetEntries() []*NodeResolverMapEntry {
+func (m *GetNodeSelectorsResponse) GetSelectors() *NodeSelectors {
 	if m != nil {
-		return m.Entries
+		return m.Selectors
 	}
 	return nil
 }
 
-type DeleteNodeResolverMapEntryRequest struct {
-	Entry                *NodeResolverMapEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
-}
-
-func (m *DeleteNodeResolverMapEntryRequest) Reset()         { *m = DeleteNodeResolverMapEntryRequest{} }
-func (m *DeleteNodeResolverMapEntryRequest) String() string { return proto.CompactTextString(m) }
-func (*DeleteNodeResolverMapEntryRequest) ProtoMessage()    {}
-func (*DeleteNodeResolverMapEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{18}
-}
-func (m *DeleteNodeResolverMapEntryRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_DeleteNodeResolverMapEntryRequest.Unmarshal(m, b)
-}
-func (m *DeleteNodeResolverMapEntryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_DeleteNodeResolverMapEntryRequest.Marshal(b, m, deterministic)
-}
-func (dst *DeleteNodeResolverMapEntryRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DeleteNodeResolverMapEntryRequest.Merge(dst, src)
-}
-func (m *DeleteNodeResolverMapEntryRequest) XXX_Size() int {
-	return xxx_messageInfo_DeleteNodeResolverMapEntryRequest.Size(m)
-}
-func (m *DeleteNodeResolverMapEntryRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_DeleteNodeResolverMapEntryRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_DeleteNodeResolverMapEntryRequest proto.InternalMessageInfo
-
-func (m *DeleteNodeResolverMapEntryRequest) GetEntry() *NodeResolverMapEntry {
-	if m != nil {
-		return m.Entry
-	}
-	return nil
-}
-
-type DeleteNodeResolverMapEntryResponse struct {
-	Entries              []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
-}
-
-func (m *DeleteNodeResolverMapEntryResponse) Reset()         { *m = DeleteNodeResolverMapEntryResponse{} }
-func (m *DeleteNodeResolverMapEntryResponse) String() string { return proto.CompactTextString(m) }
-func (*DeleteNodeResolverMapEntryResponse) ProtoMessage()    {}
-func (*DeleteNodeResolverMapEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{19}
-}
-func (m *DeleteNodeResolverMapEntryResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_DeleteNodeResolverMapEntryResponse.Unmarshal(m, b)
-}
-func (m *DeleteNodeResolverMapEntryResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_DeleteNodeResolverMapEntryResponse.Marshal(b, m, deterministic)
-}
-func (dst *DeleteNodeResolverMapEntryResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DeleteNodeResolverMapEntryResponse.Merge(dst, src)
-}
-func (m *DeleteNodeResolverMapEntryResponse) XXX_Size() int {
-	return xxx_messageInfo_DeleteNodeResolverMapEntryResponse.Size(m)
-}
-func (m *DeleteNodeResolverMapEntryResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_DeleteNodeResolverMapEntryResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_DeleteNodeResolverMapEntryResponse proto.InternalMessageInfo
-
-func (m *DeleteNodeResolverMapEntryResponse) GetEntries() []*NodeResolverMapEntry {
-	if m != nil {
-		return m.Entries
-	}
-	return nil
-}
-
-type RectifyNodeResolverMapEntriesRequest struct {
-	Entries              []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
-}
-
-func (m *RectifyNodeResolverMapEntriesRequest) Reset()         { *m = RectifyNodeResolverMapEntriesRequest{} }
-func (m *RectifyNodeResolverMapEntriesRequest) String() string { return proto.CompactTextString(m) }
-func (*RectifyNodeResolverMapEntriesRequest) ProtoMessage()    {}
-func (*RectifyNodeResolverMapEntriesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{20}
-}
-func (m *RectifyNodeResolverMapEntriesRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_RectifyNodeResolverMapEntriesRequest.Unmarshal(m, b)
-}
-func (m *RectifyNodeResolverMapEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_RectifyNodeResolverMapEntriesRequest.Marshal(b, m, deterministic)
-}
-func (dst *RectifyNodeResolverMapEntriesRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RectifyNodeResolverMapEntriesRequest.Merge(dst, src)
-}
-func (m *RectifyNodeResolverMapEntriesRequest) XXX_Size() int {
-	return xxx_messageInfo_RectifyNodeResolverMapEntriesRequest.Size(m)
-}
-func (m *RectifyNodeResolverMapEntriesRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_RectifyNodeResolverMapEntriesRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_RectifyNodeResolverMapEntriesRequest proto.InternalMessageInfo
-
-func (m *RectifyNodeResolverMapEntriesRequest) GetEntries() []*NodeResolverMapEntry {
-	if m != nil {
-		return m.Entries
-	}
-	return nil
-}
-
-type RectifyNodeResolverMapEntriesResponse struct {
-	Entries              []*NodeResolverMapEntry `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
-}
-
-func (m *RectifyNodeResolverMapEntriesResponse) Reset()         { *m = RectifyNodeResolverMapEntriesResponse{} }
-func (m *RectifyNodeResolverMapEntriesResponse) String() string { return proto.CompactTextString(m) }
-func (*RectifyNodeResolverMapEntriesResponse) ProtoMessage()    {}
-func (*RectifyNodeResolverMapEntriesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{21}
-}
-func (m *RectifyNodeResolverMapEntriesResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_RectifyNodeResolverMapEntriesResponse.Unmarshal(m, b)
-}
-func (m *RectifyNodeResolverMapEntriesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_RectifyNodeResolverMapEntriesResponse.Marshal(b, m, deterministic)
-}
-func (dst *RectifyNodeResolverMapEntriesResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RectifyNodeResolverMapEntriesResponse.Merge(dst, src)
-}
-func (m *RectifyNodeResolverMapEntriesResponse) XXX_Size() int {
-	return xxx_messageInfo_RectifyNodeResolverMapEntriesResponse.Size(m)
-}
-func (m *RectifyNodeResolverMapEntriesResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_RectifyNodeResolverMapEntriesResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_RectifyNodeResolverMapEntriesResponse proto.InternalMessageInfo
-
-func (m *RectifyNodeResolverMapEntriesResponse) GetEntries() []*NodeResolverMapEntry {
-	if m != nil {
-		return m.Entries
-	}
-	return nil
-}
-
-type AttestedNodeEntry struct {
+type AttestedNode struct {
 	// Node SPIFFE ID
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
 	// Attestation data type
@@ -945,287 +808,287 @@ type AttestedNodeEntry struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *AttestedNodeEntry) Reset()         { *m = AttestedNodeEntry{} }
-func (m *AttestedNodeEntry) String() string { return proto.CompactTextString(m) }
-func (*AttestedNodeEntry) ProtoMessage()    {}
-func (*AttestedNodeEntry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{22}
+func (m *AttestedNode) Reset()         { *m = AttestedNode{} }
+func (m *AttestedNode) String() string { return proto.CompactTextString(m) }
+func (*AttestedNode) ProtoMessage()    {}
+func (*AttestedNode) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{18}
 }
-func (m *AttestedNodeEntry) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_AttestedNodeEntry.Unmarshal(m, b)
+func (m *AttestedNode) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AttestedNode.Unmarshal(m, b)
 }
-func (m *AttestedNodeEntry) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_AttestedNodeEntry.Marshal(b, m, deterministic)
+func (m *AttestedNode) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AttestedNode.Marshal(b, m, deterministic)
 }
-func (dst *AttestedNodeEntry) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AttestedNodeEntry.Merge(dst, src)
+func (dst *AttestedNode) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AttestedNode.Merge(dst, src)
 }
-func (m *AttestedNodeEntry) XXX_Size() int {
-	return xxx_messageInfo_AttestedNodeEntry.Size(m)
+func (m *AttestedNode) XXX_Size() int {
+	return xxx_messageInfo_AttestedNode.Size(m)
 }
-func (m *AttestedNodeEntry) XXX_DiscardUnknown() {
-	xxx_messageInfo_AttestedNodeEntry.DiscardUnknown(m)
+func (m *AttestedNode) XXX_DiscardUnknown() {
+	xxx_messageInfo_AttestedNode.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_AttestedNodeEntry proto.InternalMessageInfo
+var xxx_messageInfo_AttestedNode proto.InternalMessageInfo
 
-func (m *AttestedNodeEntry) GetSpiffeId() string {
+func (m *AttestedNode) GetSpiffeId() string {
 	if m != nil {
 		return m.SpiffeId
 	}
 	return ""
 }
 
-func (m *AttestedNodeEntry) GetAttestationDataType() string {
+func (m *AttestedNode) GetAttestationDataType() string {
 	if m != nil {
 		return m.AttestationDataType
 	}
 	return ""
 }
 
-func (m *AttestedNodeEntry) GetCertSerialNumber() string {
+func (m *AttestedNode) GetCertSerialNumber() string {
 	if m != nil {
 		return m.CertSerialNumber
 	}
 	return ""
 }
 
-func (m *AttestedNodeEntry) GetCertNotAfter() int64 {
+func (m *AttestedNode) GetCertNotAfter() int64 {
 	if m != nil {
 		return m.CertNotAfter
 	}
 	return 0
 }
 
-type CreateAttestedNodeEntryRequest struct {
-	Entry                *AttestedNodeEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
+type CreateAttestedNodeRequest struct {
+	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
 }
 
-func (m *CreateAttestedNodeEntryRequest) Reset()         { *m = CreateAttestedNodeEntryRequest{} }
-func (m *CreateAttestedNodeEntryRequest) String() string { return proto.CompactTextString(m) }
-func (*CreateAttestedNodeEntryRequest) ProtoMessage()    {}
-func (*CreateAttestedNodeEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{23}
+func (m *CreateAttestedNodeRequest) Reset()         { *m = CreateAttestedNodeRequest{} }
+func (m *CreateAttestedNodeRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateAttestedNodeRequest) ProtoMessage()    {}
+func (*CreateAttestedNodeRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{19}
 }
-func (m *CreateAttestedNodeEntryRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_CreateAttestedNodeEntryRequest.Unmarshal(m, b)
+func (m *CreateAttestedNodeRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateAttestedNodeRequest.Unmarshal(m, b)
 }
-func (m *CreateAttestedNodeEntryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_CreateAttestedNodeEntryRequest.Marshal(b, m, deterministic)
+func (m *CreateAttestedNodeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateAttestedNodeRequest.Marshal(b, m, deterministic)
 }
-func (dst *CreateAttestedNodeEntryRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CreateAttestedNodeEntryRequest.Merge(dst, src)
+func (dst *CreateAttestedNodeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateAttestedNodeRequest.Merge(dst, src)
 }
-func (m *CreateAttestedNodeEntryRequest) XXX_Size() int {
-	return xxx_messageInfo_CreateAttestedNodeEntryRequest.Size(m)
+func (m *CreateAttestedNodeRequest) XXX_Size() int {
+	return xxx_messageInfo_CreateAttestedNodeRequest.Size(m)
 }
-func (m *CreateAttestedNodeEntryRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_CreateAttestedNodeEntryRequest.DiscardUnknown(m)
+func (m *CreateAttestedNodeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateAttestedNodeRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_CreateAttestedNodeEntryRequest proto.InternalMessageInfo
+var xxx_messageInfo_CreateAttestedNodeRequest proto.InternalMessageInfo
 
-func (m *CreateAttestedNodeEntryRequest) GetEntry() *AttestedNodeEntry {
+func (m *CreateAttestedNodeRequest) GetNode() *AttestedNode {
 	if m != nil {
-		return m.Entry
+		return m.Node
 	}
 	return nil
 }
 
-type CreateAttestedNodeEntryResponse struct {
-	Entry                *AttestedNodeEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
+type CreateAttestedNodeResponse struct {
+	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
 }
 
-func (m *CreateAttestedNodeEntryResponse) Reset()         { *m = CreateAttestedNodeEntryResponse{} }
-func (m *CreateAttestedNodeEntryResponse) String() string { return proto.CompactTextString(m) }
-func (*CreateAttestedNodeEntryResponse) ProtoMessage()    {}
-func (*CreateAttestedNodeEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{24}
+func (m *CreateAttestedNodeResponse) Reset()         { *m = CreateAttestedNodeResponse{} }
+func (m *CreateAttestedNodeResponse) String() string { return proto.CompactTextString(m) }
+func (*CreateAttestedNodeResponse) ProtoMessage()    {}
+func (*CreateAttestedNodeResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{20}
 }
-func (m *CreateAttestedNodeEntryResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_CreateAttestedNodeEntryResponse.Unmarshal(m, b)
+func (m *CreateAttestedNodeResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateAttestedNodeResponse.Unmarshal(m, b)
 }
-func (m *CreateAttestedNodeEntryResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_CreateAttestedNodeEntryResponse.Marshal(b, m, deterministic)
+func (m *CreateAttestedNodeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateAttestedNodeResponse.Marshal(b, m, deterministic)
 }
-func (dst *CreateAttestedNodeEntryResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CreateAttestedNodeEntryResponse.Merge(dst, src)
+func (dst *CreateAttestedNodeResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateAttestedNodeResponse.Merge(dst, src)
 }
-func (m *CreateAttestedNodeEntryResponse) XXX_Size() int {
-	return xxx_messageInfo_CreateAttestedNodeEntryResponse.Size(m)
+func (m *CreateAttestedNodeResponse) XXX_Size() int {
+	return xxx_messageInfo_CreateAttestedNodeResponse.Size(m)
 }
-func (m *CreateAttestedNodeEntryResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_CreateAttestedNodeEntryResponse.DiscardUnknown(m)
+func (m *CreateAttestedNodeResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateAttestedNodeResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_CreateAttestedNodeEntryResponse proto.InternalMessageInfo
+var xxx_messageInfo_CreateAttestedNodeResponse proto.InternalMessageInfo
 
-func (m *CreateAttestedNodeEntryResponse) GetEntry() *AttestedNodeEntry {
+func (m *CreateAttestedNodeResponse) GetNode() *AttestedNode {
 	if m != nil {
-		return m.Entry
+		return m.Node
 	}
 	return nil
 }
 
-type FetchAttestedNodeEntryRequest struct {
+type FetchAttestedNodeRequest struct {
 	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *FetchAttestedNodeEntryRequest) Reset()         { *m = FetchAttestedNodeEntryRequest{} }
-func (m *FetchAttestedNodeEntryRequest) String() string { return proto.CompactTextString(m) }
-func (*FetchAttestedNodeEntryRequest) ProtoMessage()    {}
-func (*FetchAttestedNodeEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{25}
+func (m *FetchAttestedNodeRequest) Reset()         { *m = FetchAttestedNodeRequest{} }
+func (m *FetchAttestedNodeRequest) String() string { return proto.CompactTextString(m) }
+func (*FetchAttestedNodeRequest) ProtoMessage()    {}
+func (*FetchAttestedNodeRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{21}
 }
-func (m *FetchAttestedNodeEntryRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_FetchAttestedNodeEntryRequest.Unmarshal(m, b)
+func (m *FetchAttestedNodeRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FetchAttestedNodeRequest.Unmarshal(m, b)
 }
-func (m *FetchAttestedNodeEntryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_FetchAttestedNodeEntryRequest.Marshal(b, m, deterministic)
+func (m *FetchAttestedNodeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FetchAttestedNodeRequest.Marshal(b, m, deterministic)
 }
-func (dst *FetchAttestedNodeEntryRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FetchAttestedNodeEntryRequest.Merge(dst, src)
+func (dst *FetchAttestedNodeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FetchAttestedNodeRequest.Merge(dst, src)
 }
-func (m *FetchAttestedNodeEntryRequest) XXX_Size() int {
-	return xxx_messageInfo_FetchAttestedNodeEntryRequest.Size(m)
+func (m *FetchAttestedNodeRequest) XXX_Size() int {
+	return xxx_messageInfo_FetchAttestedNodeRequest.Size(m)
 }
-func (m *FetchAttestedNodeEntryRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_FetchAttestedNodeEntryRequest.DiscardUnknown(m)
+func (m *FetchAttestedNodeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_FetchAttestedNodeRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_FetchAttestedNodeEntryRequest proto.InternalMessageInfo
+var xxx_messageInfo_FetchAttestedNodeRequest proto.InternalMessageInfo
 
-func (m *FetchAttestedNodeEntryRequest) GetSpiffeId() string {
+func (m *FetchAttestedNodeRequest) GetSpiffeId() string {
 	if m != nil {
 		return m.SpiffeId
 	}
 	return ""
 }
 
-type FetchAttestedNodeEntryResponse struct {
-	Entry                *AttestedNodeEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
+type FetchAttestedNodeResponse struct {
+	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
 }
 
-func (m *FetchAttestedNodeEntryResponse) Reset()         { *m = FetchAttestedNodeEntryResponse{} }
-func (m *FetchAttestedNodeEntryResponse) String() string { return proto.CompactTextString(m) }
-func (*FetchAttestedNodeEntryResponse) ProtoMessage()    {}
-func (*FetchAttestedNodeEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{26}
+func (m *FetchAttestedNodeResponse) Reset()         { *m = FetchAttestedNodeResponse{} }
+func (m *FetchAttestedNodeResponse) String() string { return proto.CompactTextString(m) }
+func (*FetchAttestedNodeResponse) ProtoMessage()    {}
+func (*FetchAttestedNodeResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{22}
 }
-func (m *FetchAttestedNodeEntryResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_FetchAttestedNodeEntryResponse.Unmarshal(m, b)
+func (m *FetchAttestedNodeResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FetchAttestedNodeResponse.Unmarshal(m, b)
 }
-func (m *FetchAttestedNodeEntryResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_FetchAttestedNodeEntryResponse.Marshal(b, m, deterministic)
+func (m *FetchAttestedNodeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FetchAttestedNodeResponse.Marshal(b, m, deterministic)
 }
-func (dst *FetchAttestedNodeEntryResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FetchAttestedNodeEntryResponse.Merge(dst, src)
+func (dst *FetchAttestedNodeResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FetchAttestedNodeResponse.Merge(dst, src)
 }
-func (m *FetchAttestedNodeEntryResponse) XXX_Size() int {
-	return xxx_messageInfo_FetchAttestedNodeEntryResponse.Size(m)
+func (m *FetchAttestedNodeResponse) XXX_Size() int {
+	return xxx_messageInfo_FetchAttestedNodeResponse.Size(m)
 }
-func (m *FetchAttestedNodeEntryResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_FetchAttestedNodeEntryResponse.DiscardUnknown(m)
+func (m *FetchAttestedNodeResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_FetchAttestedNodeResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_FetchAttestedNodeEntryResponse proto.InternalMessageInfo
+var xxx_messageInfo_FetchAttestedNodeResponse proto.InternalMessageInfo
 
-func (m *FetchAttestedNodeEntryResponse) GetEntry() *AttestedNodeEntry {
+func (m *FetchAttestedNodeResponse) GetNode() *AttestedNode {
 	if m != nil {
-		return m.Entry
+		return m.Node
 	}
 	return nil
 }
 
-type ListAttestedNodeEntriesRequest struct {
+type ListAttestedNodesRequest struct {
 	ByExpiresBefore      *wrappers.Int64Value `protobuf:"bytes,1,opt,name=by_expires_before,json=byExpiresBefore" json:"by_expires_before,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
 	XXX_unrecognized     []byte               `json:"-"`
 	XXX_sizecache        int32                `json:"-"`
 }
 
-func (m *ListAttestedNodeEntriesRequest) Reset()         { *m = ListAttestedNodeEntriesRequest{} }
-func (m *ListAttestedNodeEntriesRequest) String() string { return proto.CompactTextString(m) }
-func (*ListAttestedNodeEntriesRequest) ProtoMessage()    {}
-func (*ListAttestedNodeEntriesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{27}
+func (m *ListAttestedNodesRequest) Reset()         { *m = ListAttestedNodesRequest{} }
+func (m *ListAttestedNodesRequest) String() string { return proto.CompactTextString(m) }
+func (*ListAttestedNodesRequest) ProtoMessage()    {}
+func (*ListAttestedNodesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{23}
 }
-func (m *ListAttestedNodeEntriesRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ListAttestedNodeEntriesRequest.Unmarshal(m, b)
+func (m *ListAttestedNodesRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListAttestedNodesRequest.Unmarshal(m, b)
 }
-func (m *ListAttestedNodeEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ListAttestedNodeEntriesRequest.Marshal(b, m, deterministic)
+func (m *ListAttestedNodesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListAttestedNodesRequest.Marshal(b, m, deterministic)
 }
-func (dst *ListAttestedNodeEntriesRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ListAttestedNodeEntriesRequest.Merge(dst, src)
+func (dst *ListAttestedNodesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListAttestedNodesRequest.Merge(dst, src)
 }
-func (m *ListAttestedNodeEntriesRequest) XXX_Size() int {
-	return xxx_messageInfo_ListAttestedNodeEntriesRequest.Size(m)
+func (m *ListAttestedNodesRequest) XXX_Size() int {
+	return xxx_messageInfo_ListAttestedNodesRequest.Size(m)
 }
-func (m *ListAttestedNodeEntriesRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_ListAttestedNodeEntriesRequest.DiscardUnknown(m)
+func (m *ListAttestedNodesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListAttestedNodesRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ListAttestedNodeEntriesRequest proto.InternalMessageInfo
+var xxx_messageInfo_ListAttestedNodesRequest proto.InternalMessageInfo
 
-func (m *ListAttestedNodeEntriesRequest) GetByExpiresBefore() *wrappers.Int64Value {
+func (m *ListAttestedNodesRequest) GetByExpiresBefore() *wrappers.Int64Value {
 	if m != nil {
 		return m.ByExpiresBefore
 	}
 	return nil
 }
 
-type ListAttestedNodeEntriesResponse struct {
-	Entries              []*AttestedNodeEntry `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
-	XXX_unrecognized     []byte               `json:"-"`
-	XXX_sizecache        int32                `json:"-"`
+type ListAttestedNodesResponse struct {
+	Nodes                []*AttestedNode `protobuf:"bytes,1,rep,name=nodes" json:"nodes,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
+	XXX_unrecognized     []byte          `json:"-"`
+	XXX_sizecache        int32           `json:"-"`
 }
 
-func (m *ListAttestedNodeEntriesResponse) Reset()         { *m = ListAttestedNodeEntriesResponse{} }
-func (m *ListAttestedNodeEntriesResponse) String() string { return proto.CompactTextString(m) }
-func (*ListAttestedNodeEntriesResponse) ProtoMessage()    {}
-func (*ListAttestedNodeEntriesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{28}
+func (m *ListAttestedNodesResponse) Reset()         { *m = ListAttestedNodesResponse{} }
+func (m *ListAttestedNodesResponse) String() string { return proto.CompactTextString(m) }
+func (*ListAttestedNodesResponse) ProtoMessage()    {}
+func (*ListAttestedNodesResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{24}
 }
-func (m *ListAttestedNodeEntriesResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ListAttestedNodeEntriesResponse.Unmarshal(m, b)
+func (m *ListAttestedNodesResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListAttestedNodesResponse.Unmarshal(m, b)
 }
-func (m *ListAttestedNodeEntriesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ListAttestedNodeEntriesResponse.Marshal(b, m, deterministic)
+func (m *ListAttestedNodesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListAttestedNodesResponse.Marshal(b, m, deterministic)
 }
-func (dst *ListAttestedNodeEntriesResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ListAttestedNodeEntriesResponse.Merge(dst, src)
+func (dst *ListAttestedNodesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListAttestedNodesResponse.Merge(dst, src)
 }
-func (m *ListAttestedNodeEntriesResponse) XXX_Size() int {
-	return xxx_messageInfo_ListAttestedNodeEntriesResponse.Size(m)
+func (m *ListAttestedNodesResponse) XXX_Size() int {
+	return xxx_messageInfo_ListAttestedNodesResponse.Size(m)
 }
-func (m *ListAttestedNodeEntriesResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_ListAttestedNodeEntriesResponse.DiscardUnknown(m)
+func (m *ListAttestedNodesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListAttestedNodesResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ListAttestedNodeEntriesResponse proto.InternalMessageInfo
+var xxx_messageInfo_ListAttestedNodesResponse proto.InternalMessageInfo
 
-func (m *ListAttestedNodeEntriesResponse) GetEntries() []*AttestedNodeEntry {
+func (m *ListAttestedNodesResponse) GetNodes() []*AttestedNode {
 	if m != nil {
-		return m.Entries
+		return m.Nodes
 	}
 	return nil
 }
 
-type UpdateAttestedNodeEntryRequest struct {
+type UpdateAttestedNodeRequest struct {
 	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
 	CertSerialNumber     string   `protobuf:"bytes,2,opt,name=cert_serial_number,json=certSerialNumber" json:"cert_serial_number,omitempty"`
 	CertNotAfter         int64    `protobuf:"varint,3,opt,name=cert_not_after,json=certNotAfter" json:"cert_not_after,omitempty"`
@@ -1234,161 +1097,161 @@ type UpdateAttestedNodeEntryRequest struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *UpdateAttestedNodeEntryRequest) Reset()         { *m = UpdateAttestedNodeEntryRequest{} }
-func (m *UpdateAttestedNodeEntryRequest) String() string { return proto.CompactTextString(m) }
-func (*UpdateAttestedNodeEntryRequest) ProtoMessage()    {}
-func (*UpdateAttestedNodeEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{29}
+func (m *UpdateAttestedNodeRequest) Reset()         { *m = UpdateAttestedNodeRequest{} }
+func (m *UpdateAttestedNodeRequest) String() string { return proto.CompactTextString(m) }
+func (*UpdateAttestedNodeRequest) ProtoMessage()    {}
+func (*UpdateAttestedNodeRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{25}
 }
-func (m *UpdateAttestedNodeEntryRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateAttestedNodeEntryRequest.Unmarshal(m, b)
+func (m *UpdateAttestedNodeRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateAttestedNodeRequest.Unmarshal(m, b)
 }
-func (m *UpdateAttestedNodeEntryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateAttestedNodeEntryRequest.Marshal(b, m, deterministic)
+func (m *UpdateAttestedNodeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateAttestedNodeRequest.Marshal(b, m, deterministic)
 }
-func (dst *UpdateAttestedNodeEntryRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateAttestedNodeEntryRequest.Merge(dst, src)
+func (dst *UpdateAttestedNodeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateAttestedNodeRequest.Merge(dst, src)
 }
-func (m *UpdateAttestedNodeEntryRequest) XXX_Size() int {
-	return xxx_messageInfo_UpdateAttestedNodeEntryRequest.Size(m)
+func (m *UpdateAttestedNodeRequest) XXX_Size() int {
+	return xxx_messageInfo_UpdateAttestedNodeRequest.Size(m)
 }
-func (m *UpdateAttestedNodeEntryRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateAttestedNodeEntryRequest.DiscardUnknown(m)
+func (m *UpdateAttestedNodeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateAttestedNodeRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_UpdateAttestedNodeEntryRequest proto.InternalMessageInfo
+var xxx_messageInfo_UpdateAttestedNodeRequest proto.InternalMessageInfo
 
-func (m *UpdateAttestedNodeEntryRequest) GetSpiffeId() string {
+func (m *UpdateAttestedNodeRequest) GetSpiffeId() string {
 	if m != nil {
 		return m.SpiffeId
 	}
 	return ""
 }
 
-func (m *UpdateAttestedNodeEntryRequest) GetCertSerialNumber() string {
+func (m *UpdateAttestedNodeRequest) GetCertSerialNumber() string {
 	if m != nil {
 		return m.CertSerialNumber
 	}
 	return ""
 }
 
-func (m *UpdateAttestedNodeEntryRequest) GetCertNotAfter() int64 {
+func (m *UpdateAttestedNodeRequest) GetCertNotAfter() int64 {
 	if m != nil {
 		return m.CertNotAfter
 	}
 	return 0
 }
 
-type UpdateAttestedNodeEntryResponse struct {
-	Entry                *AttestedNodeEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
+type UpdateAttestedNodeResponse struct {
+	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
 }
 
-func (m *UpdateAttestedNodeEntryResponse) Reset()         { *m = UpdateAttestedNodeEntryResponse{} }
-func (m *UpdateAttestedNodeEntryResponse) String() string { return proto.CompactTextString(m) }
-func (*UpdateAttestedNodeEntryResponse) ProtoMessage()    {}
-func (*UpdateAttestedNodeEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{30}
+func (m *UpdateAttestedNodeResponse) Reset()         { *m = UpdateAttestedNodeResponse{} }
+func (m *UpdateAttestedNodeResponse) String() string { return proto.CompactTextString(m) }
+func (*UpdateAttestedNodeResponse) ProtoMessage()    {}
+func (*UpdateAttestedNodeResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{26}
 }
-func (m *UpdateAttestedNodeEntryResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateAttestedNodeEntryResponse.Unmarshal(m, b)
+func (m *UpdateAttestedNodeResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdateAttestedNodeResponse.Unmarshal(m, b)
 }
-func (m *UpdateAttestedNodeEntryResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateAttestedNodeEntryResponse.Marshal(b, m, deterministic)
+func (m *UpdateAttestedNodeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdateAttestedNodeResponse.Marshal(b, m, deterministic)
 }
-func (dst *UpdateAttestedNodeEntryResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateAttestedNodeEntryResponse.Merge(dst, src)
+func (dst *UpdateAttestedNodeResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateAttestedNodeResponse.Merge(dst, src)
 }
-func (m *UpdateAttestedNodeEntryResponse) XXX_Size() int {
-	return xxx_messageInfo_UpdateAttestedNodeEntryResponse.Size(m)
+func (m *UpdateAttestedNodeResponse) XXX_Size() int {
+	return xxx_messageInfo_UpdateAttestedNodeResponse.Size(m)
 }
-func (m *UpdateAttestedNodeEntryResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateAttestedNodeEntryResponse.DiscardUnknown(m)
+func (m *UpdateAttestedNodeResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateAttestedNodeResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_UpdateAttestedNodeEntryResponse proto.InternalMessageInfo
+var xxx_messageInfo_UpdateAttestedNodeResponse proto.InternalMessageInfo
 
-func (m *UpdateAttestedNodeEntryResponse) GetEntry() *AttestedNodeEntry {
+func (m *UpdateAttestedNodeResponse) GetNode() *AttestedNode {
 	if m != nil {
-		return m.Entry
+		return m.Node
 	}
 	return nil
 }
 
-type DeleteAttestedNodeEntryRequest struct {
+type DeleteAttestedNodeRequest struct {
 	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *DeleteAttestedNodeEntryRequest) Reset()         { *m = DeleteAttestedNodeEntryRequest{} }
-func (m *DeleteAttestedNodeEntryRequest) String() string { return proto.CompactTextString(m) }
-func (*DeleteAttestedNodeEntryRequest) ProtoMessage()    {}
-func (*DeleteAttestedNodeEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{31}
+func (m *DeleteAttestedNodeRequest) Reset()         { *m = DeleteAttestedNodeRequest{} }
+func (m *DeleteAttestedNodeRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteAttestedNodeRequest) ProtoMessage()    {}
+func (*DeleteAttestedNodeRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{27}
 }
-func (m *DeleteAttestedNodeEntryRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_DeleteAttestedNodeEntryRequest.Unmarshal(m, b)
+func (m *DeleteAttestedNodeRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteAttestedNodeRequest.Unmarshal(m, b)
 }
-func (m *DeleteAttestedNodeEntryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_DeleteAttestedNodeEntryRequest.Marshal(b, m, deterministic)
+func (m *DeleteAttestedNodeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteAttestedNodeRequest.Marshal(b, m, deterministic)
 }
-func (dst *DeleteAttestedNodeEntryRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DeleteAttestedNodeEntryRequest.Merge(dst, src)
+func (dst *DeleteAttestedNodeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteAttestedNodeRequest.Merge(dst, src)
 }
-func (m *DeleteAttestedNodeEntryRequest) XXX_Size() int {
-	return xxx_messageInfo_DeleteAttestedNodeEntryRequest.Size(m)
+func (m *DeleteAttestedNodeRequest) XXX_Size() int {
+	return xxx_messageInfo_DeleteAttestedNodeRequest.Size(m)
 }
-func (m *DeleteAttestedNodeEntryRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_DeleteAttestedNodeEntryRequest.DiscardUnknown(m)
+func (m *DeleteAttestedNodeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteAttestedNodeRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_DeleteAttestedNodeEntryRequest proto.InternalMessageInfo
+var xxx_messageInfo_DeleteAttestedNodeRequest proto.InternalMessageInfo
 
-func (m *DeleteAttestedNodeEntryRequest) GetSpiffeId() string {
+func (m *DeleteAttestedNodeRequest) GetSpiffeId() string {
 	if m != nil {
 		return m.SpiffeId
 	}
 	return ""
 }
 
-type DeleteAttestedNodeEntryResponse struct {
-	Entry                *AttestedNodeEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
+type DeleteAttestedNodeResponse struct {
+	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
 }
 
-func (m *DeleteAttestedNodeEntryResponse) Reset()         { *m = DeleteAttestedNodeEntryResponse{} }
-func (m *DeleteAttestedNodeEntryResponse) String() string { return proto.CompactTextString(m) }
-func (*DeleteAttestedNodeEntryResponse) ProtoMessage()    {}
-func (*DeleteAttestedNodeEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{32}
+func (m *DeleteAttestedNodeResponse) Reset()         { *m = DeleteAttestedNodeResponse{} }
+func (m *DeleteAttestedNodeResponse) String() string { return proto.CompactTextString(m) }
+func (*DeleteAttestedNodeResponse) ProtoMessage()    {}
+func (*DeleteAttestedNodeResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{28}
 }
-func (m *DeleteAttestedNodeEntryResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_DeleteAttestedNodeEntryResponse.Unmarshal(m, b)
+func (m *DeleteAttestedNodeResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteAttestedNodeResponse.Unmarshal(m, b)
 }
-func (m *DeleteAttestedNodeEntryResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_DeleteAttestedNodeEntryResponse.Marshal(b, m, deterministic)
+func (m *DeleteAttestedNodeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteAttestedNodeResponse.Marshal(b, m, deterministic)
 }
-func (dst *DeleteAttestedNodeEntryResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DeleteAttestedNodeEntryResponse.Merge(dst, src)
+func (dst *DeleteAttestedNodeResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteAttestedNodeResponse.Merge(dst, src)
 }
-func (m *DeleteAttestedNodeEntryResponse) XXX_Size() int {
-	return xxx_messageInfo_DeleteAttestedNodeEntryResponse.Size(m)
+func (m *DeleteAttestedNodeResponse) XXX_Size() int {
+	return xxx_messageInfo_DeleteAttestedNodeResponse.Size(m)
 }
-func (m *DeleteAttestedNodeEntryResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_DeleteAttestedNodeEntryResponse.DiscardUnknown(m)
+func (m *DeleteAttestedNodeResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteAttestedNodeResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_DeleteAttestedNodeEntryResponse proto.InternalMessageInfo
+var xxx_messageInfo_DeleteAttestedNodeResponse proto.InternalMessageInfo
 
-func (m *DeleteAttestedNodeEntryResponse) GetEntry() *AttestedNodeEntry {
+func (m *DeleteAttestedNodeResponse) GetNode() *AttestedNode {
 	if m != nil {
-		return m.Entry
+		return m.Node
 	}
 	return nil
 }
@@ -1404,7 +1267,7 @@ func (m *CreateRegistrationEntryRequest) Reset()         { *m = CreateRegistrati
 func (m *CreateRegistrationEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateRegistrationEntryRequest) ProtoMessage()    {}
 func (*CreateRegistrationEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{33}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{29}
 }
 func (m *CreateRegistrationEntryRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateRegistrationEntryRequest.Unmarshal(m, b)
@@ -1432,17 +1295,17 @@ func (m *CreateRegistrationEntryRequest) GetEntry() *common.RegistrationEntry {
 }
 
 type CreateRegistrationEntryResponse struct {
-	EntryId              string   `protobuf:"bytes,1,opt,name=entry_id,json=entryId" json:"entry_id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
+	XXX_unrecognized     []byte                    `json:"-"`
+	XXX_sizecache        int32                     `json:"-"`
 }
 
 func (m *CreateRegistrationEntryResponse) Reset()         { *m = CreateRegistrationEntryResponse{} }
 func (m *CreateRegistrationEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateRegistrationEntryResponse) ProtoMessage()    {}
 func (*CreateRegistrationEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{34}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{30}
 }
 func (m *CreateRegistrationEntryResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateRegistrationEntryResponse.Unmarshal(m, b)
@@ -1462,11 +1325,11 @@ func (m *CreateRegistrationEntryResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_CreateRegistrationEntryResponse proto.InternalMessageInfo
 
-func (m *CreateRegistrationEntryResponse) GetEntryId() string {
+func (m *CreateRegistrationEntryResponse) GetEntry() *common.RegistrationEntry {
 	if m != nil {
-		return m.EntryId
+		return m.Entry
 	}
-	return ""
+	return nil
 }
 
 type FetchRegistrationEntryRequest struct {
@@ -1480,7 +1343,7 @@ func (m *FetchRegistrationEntryRequest) Reset()         { *m = FetchRegistration
 func (m *FetchRegistrationEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*FetchRegistrationEntryRequest) ProtoMessage()    {}
 func (*FetchRegistrationEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{35}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{31}
 }
 func (m *FetchRegistrationEntryRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchRegistrationEntryRequest.Unmarshal(m, b)
@@ -1518,7 +1381,7 @@ func (m *FetchRegistrationEntryResponse) Reset()         { *m = FetchRegistratio
 func (m *FetchRegistrationEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*FetchRegistrationEntryResponse) ProtoMessage()    {}
 func (*FetchRegistrationEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{36}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{32}
 }
 func (m *FetchRegistrationEntryResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchRegistrationEntryResponse.Unmarshal(m, b)
@@ -1546,18 +1409,18 @@ func (m *FetchRegistrationEntryResponse) GetEntry() *common.RegistrationEntry {
 }
 
 type BySelectors struct {
-	Selectors            []*common.Selector `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
-	AllowAnyCombination  bool               `protobuf:"varint,2,opt,name=allow_any_combination,json=allowAnyCombination" json:"allow_any_combination,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
+	Selectors            []*common.Selector        `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
+	Match                BySelectors_MatchBehavior `protobuf:"varint,2,opt,name=match,enum=spire.server.datastore.BySelectors_MatchBehavior" json:"match,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
+	XXX_unrecognized     []byte                    `json:"-"`
+	XXX_sizecache        int32                     `json:"-"`
 }
 
 func (m *BySelectors) Reset()         { *m = BySelectors{} }
 func (m *BySelectors) String() string { return proto.CompactTextString(m) }
 func (*BySelectors) ProtoMessage()    {}
 func (*BySelectors) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{37}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{33}
 }
 func (m *BySelectors) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_BySelectors.Unmarshal(m, b)
@@ -1584,11 +1447,11 @@ func (m *BySelectors) GetSelectors() []*common.Selector {
 	return nil
 }
 
-func (m *BySelectors) GetAllowAnyCombination() bool {
+func (m *BySelectors) GetMatch() BySelectors_MatchBehavior {
 	if m != nil {
-		return m.AllowAnyCombination
+		return m.Match
 	}
-	return false
+	return BySelectors_MATCH_EXACT
 }
 
 type ListRegistrationEntriesRequest struct {
@@ -1604,7 +1467,7 @@ func (m *ListRegistrationEntriesRequest) Reset()         { *m = ListRegistration
 func (m *ListRegistrationEntriesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListRegistrationEntriesRequest) ProtoMessage()    {}
 func (*ListRegistrationEntriesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{38}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{34}
 }
 func (m *ListRegistrationEntriesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListRegistrationEntriesRequest.Unmarshal(m, b)
@@ -1656,7 +1519,7 @@ func (m *ListRegistrationEntriesResponse) Reset()         { *m = ListRegistratio
 func (m *ListRegistrationEntriesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListRegistrationEntriesResponse) ProtoMessage()    {}
 func (*ListRegistrationEntriesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{39}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{35}
 }
 func (m *ListRegistrationEntriesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ListRegistrationEntriesResponse.Unmarshal(m, b)
@@ -1694,7 +1557,7 @@ func (m *UpdateRegistrationEntryRequest) Reset()         { *m = UpdateRegistrati
 func (m *UpdateRegistrationEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateRegistrationEntryRequest) ProtoMessage()    {}
 func (*UpdateRegistrationEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{40}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{36}
 }
 func (m *UpdateRegistrationEntryRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateRegistrationEntryRequest.Unmarshal(m, b)
@@ -1732,7 +1595,7 @@ func (m *UpdateRegistrationEntryResponse) Reset()         { *m = UpdateRegistrat
 func (m *UpdateRegistrationEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*UpdateRegistrationEntryResponse) ProtoMessage()    {}
 func (*UpdateRegistrationEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{41}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{37}
 }
 func (m *UpdateRegistrationEntryResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpdateRegistrationEntryResponse.Unmarshal(m, b)
@@ -1770,7 +1633,7 @@ func (m *DeleteRegistrationEntryRequest) Reset()         { *m = DeleteRegistrati
 func (m *DeleteRegistrationEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteRegistrationEntryRequest) ProtoMessage()    {}
 func (*DeleteRegistrationEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{42}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{38}
 }
 func (m *DeleteRegistrationEntryRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteRegistrationEntryRequest.Unmarshal(m, b)
@@ -1808,7 +1671,7 @@ func (m *DeleteRegistrationEntryResponse) Reset()         { *m = DeleteRegistrat
 func (m *DeleteRegistrationEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteRegistrationEntryResponse) ProtoMessage()    {}
 func (*DeleteRegistrationEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{43}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{39}
 }
 func (m *DeleteRegistrationEntryResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteRegistrationEntryResponse.Unmarshal(m, b)
@@ -1849,7 +1712,7 @@ func (m *JoinToken) Reset()         { *m = JoinToken{} }
 func (m *JoinToken) String() string { return proto.CompactTextString(m) }
 func (*JoinToken) ProtoMessage()    {}
 func (*JoinToken) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{44}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{40}
 }
 func (m *JoinToken) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_JoinToken.Unmarshal(m, b)
@@ -1894,7 +1757,7 @@ func (m *CreateJoinTokenRequest) Reset()         { *m = CreateJoinTokenRequest{}
 func (m *CreateJoinTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateJoinTokenRequest) ProtoMessage()    {}
 func (*CreateJoinTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{45}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{41}
 }
 func (m *CreateJoinTokenRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateJoinTokenRequest.Unmarshal(m, b)
@@ -1932,7 +1795,7 @@ func (m *CreateJoinTokenResponse) Reset()         { *m = CreateJoinTokenResponse
 func (m *CreateJoinTokenResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateJoinTokenResponse) ProtoMessage()    {}
 func (*CreateJoinTokenResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{46}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{42}
 }
 func (m *CreateJoinTokenResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CreateJoinTokenResponse.Unmarshal(m, b)
@@ -1970,7 +1833,7 @@ func (m *FetchJoinTokenRequest) Reset()         { *m = FetchJoinTokenRequest{} }
 func (m *FetchJoinTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*FetchJoinTokenRequest) ProtoMessage()    {}
 func (*FetchJoinTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{47}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{43}
 }
 func (m *FetchJoinTokenRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchJoinTokenRequest.Unmarshal(m, b)
@@ -2008,7 +1871,7 @@ func (m *FetchJoinTokenResponse) Reset()         { *m = FetchJoinTokenResponse{}
 func (m *FetchJoinTokenResponse) String() string { return proto.CompactTextString(m) }
 func (*FetchJoinTokenResponse) ProtoMessage()    {}
 func (*FetchJoinTokenResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{48}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{44}
 }
 func (m *FetchJoinTokenResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchJoinTokenResponse.Unmarshal(m, b)
@@ -2046,7 +1909,7 @@ func (m *DeleteJoinTokenRequest) Reset()         { *m = DeleteJoinTokenRequest{}
 func (m *DeleteJoinTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteJoinTokenRequest) ProtoMessage()    {}
 func (*DeleteJoinTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{49}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{45}
 }
 func (m *DeleteJoinTokenRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteJoinTokenRequest.Unmarshal(m, b)
@@ -2084,7 +1947,7 @@ func (m *DeleteJoinTokenResponse) Reset()         { *m = DeleteJoinTokenResponse
 func (m *DeleteJoinTokenResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteJoinTokenResponse) ProtoMessage()    {}
 func (*DeleteJoinTokenResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{50}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{46}
 }
 func (m *DeleteJoinTokenResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DeleteJoinTokenResponse.Unmarshal(m, b)
@@ -2122,7 +1985,7 @@ func (m *PruneJoinTokensRequest) Reset()         { *m = PruneJoinTokensRequest{}
 func (m *PruneJoinTokensRequest) String() string { return proto.CompactTextString(m) }
 func (*PruneJoinTokensRequest) ProtoMessage()    {}
 func (*PruneJoinTokensRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{51}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{47}
 }
 func (m *PruneJoinTokensRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PruneJoinTokensRequest.Unmarshal(m, b)
@@ -2159,7 +2022,7 @@ func (m *PruneJoinTokensResponse) Reset()         { *m = PruneJoinTokensResponse
 func (m *PruneJoinTokensResponse) String() string { return proto.CompactTextString(m) }
 func (*PruneJoinTokensResponse) ProtoMessage()    {}
 func (*PruneJoinTokensResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_datastore_e3e0d519b06ed1bf, []int{52}
+	return fileDescriptor_datastore_5f1f189cc5ca3aad, []int{48}
 }
 func (m *PruneJoinTokensResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PruneJoinTokensResponse.Unmarshal(m, b)
@@ -2193,26 +2056,22 @@ func init() {
 	proto.RegisterType((*AppendBundleResponse)(nil), "spire.server.datastore.AppendBundleResponse")
 	proto.RegisterType((*DeleteBundleRequest)(nil), "spire.server.datastore.DeleteBundleRequest")
 	proto.RegisterType((*DeleteBundleResponse)(nil), "spire.server.datastore.DeleteBundleResponse")
-	proto.RegisterType((*NodeResolverMapEntry)(nil), "spire.server.datastore.NodeResolverMapEntry")
-	proto.RegisterType((*CreateNodeResolverMapEntryRequest)(nil), "spire.server.datastore.CreateNodeResolverMapEntryRequest")
-	proto.RegisterType((*CreateNodeResolverMapEntryResponse)(nil), "spire.server.datastore.CreateNodeResolverMapEntryResponse")
-	proto.RegisterType((*ListNodeResolverMapEntriesRequest)(nil), "spire.server.datastore.ListNodeResolverMapEntriesRequest")
-	proto.RegisterType((*ListNodeResolverMapEntriesResponse)(nil), "spire.server.datastore.ListNodeResolverMapEntriesResponse")
-	proto.RegisterType((*DeleteNodeResolverMapEntryRequest)(nil), "spire.server.datastore.DeleteNodeResolverMapEntryRequest")
-	proto.RegisterType((*DeleteNodeResolverMapEntryResponse)(nil), "spire.server.datastore.DeleteNodeResolverMapEntryResponse")
-	proto.RegisterType((*RectifyNodeResolverMapEntriesRequest)(nil), "spire.server.datastore.RectifyNodeResolverMapEntriesRequest")
-	proto.RegisterType((*RectifyNodeResolverMapEntriesResponse)(nil), "spire.server.datastore.RectifyNodeResolverMapEntriesResponse")
-	proto.RegisterType((*AttestedNodeEntry)(nil), "spire.server.datastore.AttestedNodeEntry")
-	proto.RegisterType((*CreateAttestedNodeEntryRequest)(nil), "spire.server.datastore.CreateAttestedNodeEntryRequest")
-	proto.RegisterType((*CreateAttestedNodeEntryResponse)(nil), "spire.server.datastore.CreateAttestedNodeEntryResponse")
-	proto.RegisterType((*FetchAttestedNodeEntryRequest)(nil), "spire.server.datastore.FetchAttestedNodeEntryRequest")
-	proto.RegisterType((*FetchAttestedNodeEntryResponse)(nil), "spire.server.datastore.FetchAttestedNodeEntryResponse")
-	proto.RegisterType((*ListAttestedNodeEntriesRequest)(nil), "spire.server.datastore.ListAttestedNodeEntriesRequest")
-	proto.RegisterType((*ListAttestedNodeEntriesResponse)(nil), "spire.server.datastore.ListAttestedNodeEntriesResponse")
-	proto.RegisterType((*UpdateAttestedNodeEntryRequest)(nil), "spire.server.datastore.UpdateAttestedNodeEntryRequest")
-	proto.RegisterType((*UpdateAttestedNodeEntryResponse)(nil), "spire.server.datastore.UpdateAttestedNodeEntryResponse")
-	proto.RegisterType((*DeleteAttestedNodeEntryRequest)(nil), "spire.server.datastore.DeleteAttestedNodeEntryRequest")
-	proto.RegisterType((*DeleteAttestedNodeEntryResponse)(nil), "spire.server.datastore.DeleteAttestedNodeEntryResponse")
+	proto.RegisterType((*NodeSelectors)(nil), "spire.server.datastore.NodeSelectors")
+	proto.RegisterType((*SetNodeSelectorsRequest)(nil), "spire.server.datastore.SetNodeSelectorsRequest")
+	proto.RegisterType((*SetNodeSelectorsResponse)(nil), "spire.server.datastore.SetNodeSelectorsResponse")
+	proto.RegisterType((*GetNodeSelectorsRequest)(nil), "spire.server.datastore.GetNodeSelectorsRequest")
+	proto.RegisterType((*GetNodeSelectorsResponse)(nil), "spire.server.datastore.GetNodeSelectorsResponse")
+	proto.RegisterType((*AttestedNode)(nil), "spire.server.datastore.AttestedNode")
+	proto.RegisterType((*CreateAttestedNodeRequest)(nil), "spire.server.datastore.CreateAttestedNodeRequest")
+	proto.RegisterType((*CreateAttestedNodeResponse)(nil), "spire.server.datastore.CreateAttestedNodeResponse")
+	proto.RegisterType((*FetchAttestedNodeRequest)(nil), "spire.server.datastore.FetchAttestedNodeRequest")
+	proto.RegisterType((*FetchAttestedNodeResponse)(nil), "spire.server.datastore.FetchAttestedNodeResponse")
+	proto.RegisterType((*ListAttestedNodesRequest)(nil), "spire.server.datastore.ListAttestedNodesRequest")
+	proto.RegisterType((*ListAttestedNodesResponse)(nil), "spire.server.datastore.ListAttestedNodesResponse")
+	proto.RegisterType((*UpdateAttestedNodeRequest)(nil), "spire.server.datastore.UpdateAttestedNodeRequest")
+	proto.RegisterType((*UpdateAttestedNodeResponse)(nil), "spire.server.datastore.UpdateAttestedNodeResponse")
+	proto.RegisterType((*DeleteAttestedNodeRequest)(nil), "spire.server.datastore.DeleteAttestedNodeRequest")
+	proto.RegisterType((*DeleteAttestedNodeResponse)(nil), "spire.server.datastore.DeleteAttestedNodeResponse")
 	proto.RegisterType((*CreateRegistrationEntryRequest)(nil), "spire.server.datastore.CreateRegistrationEntryRequest")
 	proto.RegisterType((*CreateRegistrationEntryResponse)(nil), "spire.server.datastore.CreateRegistrationEntryResponse")
 	proto.RegisterType((*FetchRegistrationEntryRequest)(nil), "spire.server.datastore.FetchRegistrationEntryRequest")
@@ -2233,6 +2092,7 @@ func init() {
 	proto.RegisterType((*DeleteJoinTokenResponse)(nil), "spire.server.datastore.DeleteJoinTokenResponse")
 	proto.RegisterType((*PruneJoinTokensRequest)(nil), "spire.server.datastore.PruneJoinTokensRequest")
 	proto.RegisterType((*PruneJoinTokensResponse)(nil), "spire.server.datastore.PruneJoinTokensResponse")
+	proto.RegisterEnum("spire.server.datastore.BySelectors_MatchBehavior", BySelectors_MatchBehavior_name, BySelectors_MatchBehavior_value)
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -2258,24 +2118,20 @@ type DataStoreClient interface {
 	AppendBundle(ctx context.Context, in *AppendBundleRequest, opts ...grpc.CallOption) (*AppendBundleResponse, error)
 	// Deletes a specific bundle
 	DeleteBundle(ctx context.Context, in *DeleteBundleRequest, opts ...grpc.CallOption) (*DeleteBundleResponse, error)
-	// Creates an attested node entry
-	CreateAttestedNodeEntry(ctx context.Context, in *CreateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*CreateAttestedNodeEntryResponse, error)
-	// Fetches a specific attested node entry
-	FetchAttestedNodeEntry(ctx context.Context, in *FetchAttestedNodeEntryRequest, opts ...grpc.CallOption) (*FetchAttestedNodeEntryResponse, error)
-	// Lists attested node entries (optionally filtered)
-	ListAttestedNodeEntries(ctx context.Context, in *ListAttestedNodeEntriesRequest, opts ...grpc.CallOption) (*ListAttestedNodeEntriesResponse, error)
-	// Updates a specific attested node entry
-	UpdateAttestedNodeEntry(ctx context.Context, in *UpdateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*UpdateAttestedNodeEntryResponse, error)
-	// Deletes a specific attested node entry
-	DeleteAttestedNodeEntry(ctx context.Context, in *DeleteAttestedNodeEntryRequest, opts ...grpc.CallOption) (*DeleteAttestedNodeEntryResponse, error)
-	// Creates a node resolver map entry
-	CreateNodeResolverMapEntry(ctx context.Context, in *CreateNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*CreateNodeResolverMapEntryResponse, error)
-	// Lists node resolver map entries for a specified SPIFFE ID
-	ListNodeResolverMapEntries(ctx context.Context, in *ListNodeResolverMapEntriesRequest, opts ...grpc.CallOption) (*ListNodeResolverMapEntriesResponse, error)
-	// Deletes a specific node resolver map entry
-	DeleteNodeResolverMapEntry(ctx context.Context, in *DeleteNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*DeleteNodeResolverMapEntryResponse, error)
-	// Sets the list of node resolver map entries for the specified SPIFFE ID
-	RectifyNodeResolverMapEntries(ctx context.Context, in *RectifyNodeResolverMapEntriesRequest, opts ...grpc.CallOption) (*RectifyNodeResolverMapEntriesResponse, error)
+	// Creates an attested node
+	CreateAttestedNode(ctx context.Context, in *CreateAttestedNodeRequest, opts ...grpc.CallOption) (*CreateAttestedNodeResponse, error)
+	// Fetches a specific attested node
+	FetchAttestedNode(ctx context.Context, in *FetchAttestedNodeRequest, opts ...grpc.CallOption) (*FetchAttestedNodeResponse, error)
+	// Lists attested nodes (optionally filtered)
+	ListAttestedNodes(ctx context.Context, in *ListAttestedNodesRequest, opts ...grpc.CallOption) (*ListAttestedNodesResponse, error)
+	// Updates a specific attested node
+	UpdateAttestedNode(ctx context.Context, in *UpdateAttestedNodeRequest, opts ...grpc.CallOption) (*UpdateAttestedNodeResponse, error)
+	// Deletes a specific attested node
+	DeleteAttestedNode(ctx context.Context, in *DeleteAttestedNodeRequest, opts ...grpc.CallOption) (*DeleteAttestedNodeResponse, error)
+	// Sets the set of selectors for a specific node id
+	SetNodeSelectors(ctx context.Context, in *SetNodeSelectorsRequest, opts ...grpc.CallOption) (*SetNodeSelectorsResponse, error)
+	// Gets the set of node selectors for a specific node id
+	GetNodeSelectors(ctx context.Context, in *GetNodeSelectorsRequest, opts ...grpc.CallOption) (*GetNodeSelectorsResponse, error)
 	// Creates a registration entry
 	CreateRegistrationEntry(ctx context.Context, in *CreateRegistrationEntryRequest, opts ...grpc.CallOption) (*CreateRegistrationEntryResponse, error)
 	// Fetches a specific registration entry
@@ -2362,81 +2218,63 @@ func (c *dataStoreClient) DeleteBundle(ctx context.Context, in *DeleteBundleRequ
 	return out, nil
 }
 
-func (c *dataStoreClient) CreateAttestedNodeEntry(ctx context.Context, in *CreateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*CreateAttestedNodeEntryResponse, error) {
-	out := new(CreateAttestedNodeEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateAttestedNodeEntry", in, out, c.cc, opts...)
+func (c *dataStoreClient) CreateAttestedNode(ctx context.Context, in *CreateAttestedNodeRequest, opts ...grpc.CallOption) (*CreateAttestedNodeResponse, error) {
+	out := new(CreateAttestedNodeResponse)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateAttestedNode", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) FetchAttestedNodeEntry(ctx context.Context, in *FetchAttestedNodeEntryRequest, opts ...grpc.CallOption) (*FetchAttestedNodeEntryResponse, error) {
-	out := new(FetchAttestedNodeEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchAttestedNodeEntry", in, out, c.cc, opts...)
+func (c *dataStoreClient) FetchAttestedNode(ctx context.Context, in *FetchAttestedNodeRequest, opts ...grpc.CallOption) (*FetchAttestedNodeResponse, error) {
+	out := new(FetchAttestedNodeResponse)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchAttestedNode", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) ListAttestedNodeEntries(ctx context.Context, in *ListAttestedNodeEntriesRequest, opts ...grpc.CallOption) (*ListAttestedNodeEntriesResponse, error) {
-	out := new(ListAttestedNodeEntriesResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/ListAttestedNodeEntries", in, out, c.cc, opts...)
+func (c *dataStoreClient) ListAttestedNodes(ctx context.Context, in *ListAttestedNodesRequest, opts ...grpc.CallOption) (*ListAttestedNodesResponse, error) {
+	out := new(ListAttestedNodesResponse)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/ListAttestedNodes", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) UpdateAttestedNodeEntry(ctx context.Context, in *UpdateAttestedNodeEntryRequest, opts ...grpc.CallOption) (*UpdateAttestedNodeEntryResponse, error) {
-	out := new(UpdateAttestedNodeEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/UpdateAttestedNodeEntry", in, out, c.cc, opts...)
+func (c *dataStoreClient) UpdateAttestedNode(ctx context.Context, in *UpdateAttestedNodeRequest, opts ...grpc.CallOption) (*UpdateAttestedNodeResponse, error) {
+	out := new(UpdateAttestedNodeResponse)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/UpdateAttestedNode", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) DeleteAttestedNodeEntry(ctx context.Context, in *DeleteAttestedNodeEntryRequest, opts ...grpc.CallOption) (*DeleteAttestedNodeEntryResponse, error) {
-	out := new(DeleteAttestedNodeEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteAttestedNodeEntry", in, out, c.cc, opts...)
+func (c *dataStoreClient) DeleteAttestedNode(ctx context.Context, in *DeleteAttestedNodeRequest, opts ...grpc.CallOption) (*DeleteAttestedNodeResponse, error) {
+	out := new(DeleteAttestedNodeResponse)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteAttestedNode", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) CreateNodeResolverMapEntry(ctx context.Context, in *CreateNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*CreateNodeResolverMapEntryResponse, error) {
-	out := new(CreateNodeResolverMapEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateNodeResolverMapEntry", in, out, c.cc, opts...)
+func (c *dataStoreClient) SetNodeSelectors(ctx context.Context, in *SetNodeSelectorsRequest, opts ...grpc.CallOption) (*SetNodeSelectorsResponse, error) {
+	out := new(SetNodeSelectorsResponse)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/SetNodeSelectors", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataStoreClient) ListNodeResolverMapEntries(ctx context.Context, in *ListNodeResolverMapEntriesRequest, opts ...grpc.CallOption) (*ListNodeResolverMapEntriesResponse, error) {
-	out := new(ListNodeResolverMapEntriesResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/ListNodeResolverMapEntries", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *dataStoreClient) DeleteNodeResolverMapEntry(ctx context.Context, in *DeleteNodeResolverMapEntryRequest, opts ...grpc.CallOption) (*DeleteNodeResolverMapEntryResponse, error) {
-	out := new(DeleteNodeResolverMapEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteNodeResolverMapEntry", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *dataStoreClient) RectifyNodeResolverMapEntries(ctx context.Context, in *RectifyNodeResolverMapEntriesRequest, opts ...grpc.CallOption) (*RectifyNodeResolverMapEntriesResponse, error) {
-	out := new(RectifyNodeResolverMapEntriesResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/RectifyNodeResolverMapEntries", in, out, c.cc, opts...)
+func (c *dataStoreClient) GetNodeSelectors(ctx context.Context, in *GetNodeSelectorsRequest, opts ...grpc.CallOption) (*GetNodeSelectorsResponse, error) {
+	out := new(GetNodeSelectorsResponse)
+	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/GetNodeSelectors", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2557,24 +2395,20 @@ type DataStoreServer interface {
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
 	// Deletes a specific bundle
 	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
-	// Creates an attested node entry
-	CreateAttestedNodeEntry(context.Context, *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error)
-	// Fetches a specific attested node entry
-	FetchAttestedNodeEntry(context.Context, *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error)
-	// Lists attested node entries (optionally filtered)
-	ListAttestedNodeEntries(context.Context, *ListAttestedNodeEntriesRequest) (*ListAttestedNodeEntriesResponse, error)
-	// Updates a specific attested node entry
-	UpdateAttestedNodeEntry(context.Context, *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error)
-	// Deletes a specific attested node entry
-	DeleteAttestedNodeEntry(context.Context, *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error)
-	// Creates a node resolver map entry
-	CreateNodeResolverMapEntry(context.Context, *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error)
-	// Lists node resolver map entries for a specified SPIFFE ID
-	ListNodeResolverMapEntries(context.Context, *ListNodeResolverMapEntriesRequest) (*ListNodeResolverMapEntriesResponse, error)
-	// Deletes a specific node resolver map entry
-	DeleteNodeResolverMapEntry(context.Context, *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error)
-	// Sets the list of node resolver map entries for the specified SPIFFE ID
-	RectifyNodeResolverMapEntries(context.Context, *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error)
+	// Creates an attested node
+	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
+	// Fetches a specific attested node
+	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
+	// Lists attested nodes (optionally filtered)
+	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
+	// Updates a specific attested node
+	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
+	// Deletes a specific attested node
+	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
+	// Sets the set of selectors for a specific node id
+	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
+	// Gets the set of node selectors for a specific node id
+	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
 	// Creates a registration entry
 	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
 	// Fetches a specific registration entry
@@ -2711,164 +2545,128 @@ func _DataStore_DeleteBundle_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataStore_CreateAttestedNodeEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateAttestedNodeEntryRequest)
+func _DataStore_CreateAttestedNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAttestedNodeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).CreateAttestedNodeEntry(ctx, in)
+		return srv.(DataStoreServer).CreateAttestedNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/CreateAttestedNodeEntry",
+		FullMethod: "/spire.server.datastore.DataStore/CreateAttestedNode",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).CreateAttestedNodeEntry(ctx, req.(*CreateAttestedNodeEntryRequest))
+		return srv.(DataStoreServer).CreateAttestedNode(ctx, req.(*CreateAttestedNodeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataStore_FetchAttestedNodeEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FetchAttestedNodeEntryRequest)
+func _DataStore_FetchAttestedNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchAttestedNodeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).FetchAttestedNodeEntry(ctx, in)
+		return srv.(DataStoreServer).FetchAttestedNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/FetchAttestedNodeEntry",
+		FullMethod: "/spire.server.datastore.DataStore/FetchAttestedNode",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).FetchAttestedNodeEntry(ctx, req.(*FetchAttestedNodeEntryRequest))
+		return srv.(DataStoreServer).FetchAttestedNode(ctx, req.(*FetchAttestedNodeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataStore_ListAttestedNodeEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListAttestedNodeEntriesRequest)
+func _DataStore_ListAttestedNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAttestedNodesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).ListAttestedNodeEntries(ctx, in)
+		return srv.(DataStoreServer).ListAttestedNodes(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/ListAttestedNodeEntries",
+		FullMethod: "/spire.server.datastore.DataStore/ListAttestedNodes",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).ListAttestedNodeEntries(ctx, req.(*ListAttestedNodeEntriesRequest))
+		return srv.(DataStoreServer).ListAttestedNodes(ctx, req.(*ListAttestedNodesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataStore_UpdateAttestedNodeEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateAttestedNodeEntryRequest)
+func _DataStore_UpdateAttestedNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAttestedNodeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).UpdateAttestedNodeEntry(ctx, in)
+		return srv.(DataStoreServer).UpdateAttestedNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/UpdateAttestedNodeEntry",
+		FullMethod: "/spire.server.datastore.DataStore/UpdateAttestedNode",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).UpdateAttestedNodeEntry(ctx, req.(*UpdateAttestedNodeEntryRequest))
+		return srv.(DataStoreServer).UpdateAttestedNode(ctx, req.(*UpdateAttestedNodeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataStore_DeleteAttestedNodeEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteAttestedNodeEntryRequest)
+func _DataStore_DeleteAttestedNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAttestedNodeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).DeleteAttestedNodeEntry(ctx, in)
+		return srv.(DataStoreServer).DeleteAttestedNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/DeleteAttestedNodeEntry",
+		FullMethod: "/spire.server.datastore.DataStore/DeleteAttestedNode",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).DeleteAttestedNodeEntry(ctx, req.(*DeleteAttestedNodeEntryRequest))
+		return srv.(DataStoreServer).DeleteAttestedNode(ctx, req.(*DeleteAttestedNodeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataStore_CreateNodeResolverMapEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateNodeResolverMapEntryRequest)
+func _DataStore_SetNodeSelectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetNodeSelectorsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).CreateNodeResolverMapEntry(ctx, in)
+		return srv.(DataStoreServer).SetNodeSelectors(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/CreateNodeResolverMapEntry",
+		FullMethod: "/spire.server.datastore.DataStore/SetNodeSelectors",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).CreateNodeResolverMapEntry(ctx, req.(*CreateNodeResolverMapEntryRequest))
+		return srv.(DataStoreServer).SetNodeSelectors(ctx, req.(*SetNodeSelectorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DataStore_ListNodeResolverMapEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListNodeResolverMapEntriesRequest)
+func _DataStore_GetNodeSelectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeSelectorsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataStoreServer).ListNodeResolverMapEntries(ctx, in)
+		return srv.(DataStoreServer).GetNodeSelectors(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/ListNodeResolverMapEntries",
+		FullMethod: "/spire.server.datastore.DataStore/GetNodeSelectors",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).ListNodeResolverMapEntries(ctx, req.(*ListNodeResolverMapEntriesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _DataStore_DeleteNodeResolverMapEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteNodeResolverMapEntryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DataStoreServer).DeleteNodeResolverMapEntry(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/DeleteNodeResolverMapEntry",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).DeleteNodeResolverMapEntry(ctx, req.(*DeleteNodeResolverMapEntryRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _DataStore_RectifyNodeResolverMapEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RectifyNodeResolverMapEntriesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DataStoreServer).RectifyNodeResolverMapEntries(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/spire.server.datastore.DataStore/RectifyNodeResolverMapEntries",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataStoreServer).RectifyNodeResolverMapEntries(ctx, req.(*RectifyNodeResolverMapEntriesRequest))
+		return srv.(DataStoreServer).GetNodeSelectors(ctx, req.(*GetNodeSelectorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3100,40 +2898,32 @@ var _DataStore_serviceDesc = grpc.ServiceDesc{
 			Handler:    _DataStore_DeleteBundle_Handler,
 		},
 		{
-			MethodName: "CreateAttestedNodeEntry",
-			Handler:    _DataStore_CreateAttestedNodeEntry_Handler,
+			MethodName: "CreateAttestedNode",
+			Handler:    _DataStore_CreateAttestedNode_Handler,
 		},
 		{
-			MethodName: "FetchAttestedNodeEntry",
-			Handler:    _DataStore_FetchAttestedNodeEntry_Handler,
+			MethodName: "FetchAttestedNode",
+			Handler:    _DataStore_FetchAttestedNode_Handler,
 		},
 		{
-			MethodName: "ListAttestedNodeEntries",
-			Handler:    _DataStore_ListAttestedNodeEntries_Handler,
+			MethodName: "ListAttestedNodes",
+			Handler:    _DataStore_ListAttestedNodes_Handler,
 		},
 		{
-			MethodName: "UpdateAttestedNodeEntry",
-			Handler:    _DataStore_UpdateAttestedNodeEntry_Handler,
+			MethodName: "UpdateAttestedNode",
+			Handler:    _DataStore_UpdateAttestedNode_Handler,
 		},
 		{
-			MethodName: "DeleteAttestedNodeEntry",
-			Handler:    _DataStore_DeleteAttestedNodeEntry_Handler,
+			MethodName: "DeleteAttestedNode",
+			Handler:    _DataStore_DeleteAttestedNode_Handler,
 		},
 		{
-			MethodName: "CreateNodeResolverMapEntry",
-			Handler:    _DataStore_CreateNodeResolverMapEntry_Handler,
+			MethodName: "SetNodeSelectors",
+			Handler:    _DataStore_SetNodeSelectors_Handler,
 		},
 		{
-			MethodName: "ListNodeResolverMapEntries",
-			Handler:    _DataStore_ListNodeResolverMapEntries_Handler,
-		},
-		{
-			MethodName: "DeleteNodeResolverMapEntry",
-			Handler:    _DataStore_DeleteNodeResolverMapEntry_Handler,
-		},
-		{
-			MethodName: "RectifyNodeResolverMapEntries",
-			Handler:    _DataStore_RectifyNodeResolverMapEntries_Handler,
+			MethodName: "GetNodeSelectors",
+			Handler:    _DataStore_GetNodeSelectors_Handler,
 		},
 		{
 			MethodName: "CreateRegistrationEntry",
@@ -3184,106 +2974,103 @@ var _DataStore_serviceDesc = grpc.ServiceDesc{
 	Metadata: "datastore.proto",
 }
 
-func init() { proto.RegisterFile("datastore.proto", fileDescriptor_datastore_e3e0d519b06ed1bf) }
+func init() { proto.RegisterFile("datastore.proto", fileDescriptor_datastore_5f1f189cc5ca3aad) }
 
-var fileDescriptor_datastore_e3e0d519b06ed1bf = []byte{
-	// 1562 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x59, 0xef, 0x72, 0xd3, 0xd6,
-	0x12, 0xbf, 0xc6, 0x97, 0x10, 0xaf, 0x0d, 0xb9, 0x28, 0x21, 0x24, 0xe6, 0xe2, 0x24, 0xba, 0x70,
-	0x87, 0xbf, 0xf6, 0x34, 0x85, 0xf0, 0xa7, 0x50, 0x48, 0x02, 0x61, 0xd2, 0x29, 0x69, 0x46, 0xa1,
-	0x85, 0x81, 0xce, 0x68, 0x24, 0xfb, 0xd8, 0x88, 0x3a, 0x3a, 0xaa, 0x74, 0x0c, 0xd5, 0x13, 0x74,
-	0xa6, 0xdf, 0x3a, 0xfd, 0xda, 0x07, 0xe9, 0x23, 0xf5, 0x05, 0xfa, 0xbd, 0xa3, 0x73, 0x8e, 0x6c,
-	0xcb, 0xd2, 0x4a, 0xb2, 0xa3, 0x7e, 0x8a, 0x7d, 0xce, 0xfe, 0xf9, 0xed, 0x9e, 0xdd, 0xf5, 0xee,
-	0x06, 0x16, 0x3a, 0x06, 0x33, 0x3c, 0x46, 0x5d, 0xd2, 0x74, 0x5c, 0xca, 0xa8, 0xb2, 0xec, 0x39,
-	0x96, 0x4b, 0x9a, 0x1e, 0x71, 0x3f, 0x12, 0xb7, 0x39, 0xbc, 0xad, 0x37, 0x7a, 0x94, 0xf6, 0xfa,
-	0xa4, 0xc5, 0xa9, 0xcc, 0x41, 0xb7, 0xf5, 0xc9, 0x35, 0x1c, 0x87, 0xb8, 0x9e, 0xe0, 0xab, 0xdf,
-	0xef, 0x59, 0xec, 0xfd, 0xc0, 0x6c, 0xb6, 0xe9, 0x71, 0xcb, 0x73, 0xac, 0x6e, 0x97, 0xb4, 0xb8,
-	0x24, 0xc1, 0xd0, 0x6a, 0xd3, 0xe3, 0x63, 0x6a, 0xb7, 0x9c, 0xfe, 0xa0, 0x67, 0x85, 0x7f, 0x24,
-	0xe7, 0x67, 0xb9, 0x38, 0xc5, 0x1f, 0xc1, 0xa2, 0xee, 0xc1, 0xdc, 0xce, 0xc0, 0xee, 0xf4, 0x89,
-	0xb2, 0x01, 0x35, 0xe6, 0x0e, 0x3c, 0xa6, 0x77, 0xe8, 0xb1, 0x61, 0xd9, 0x2b, 0xa5, 0xf5, 0xd2,
-	0xb5, 0x8a, 0x56, 0xe5, 0x67, 0xcf, 0xf8, 0x91, 0xb2, 0x0a, 0xf3, 0x6d, 0x43, 0x6f, 0x13, 0x97,
-	0x79, 0x2b, 0xa7, 0xd6, 0x4b, 0xd7, 0x6a, 0xda, 0x99, 0xb6, 0xb1, 0x1b, 0x7c, 0x55, 0x5f, 0xc2,
-	0xe2, 0xae, 0x4b, 0x0c, 0x46, 0x84, 0x34, 0x8d, 0xfc, 0x38, 0x20, 0x1e, 0x53, 0xb6, 0x60, 0xce,
-	0xe4, 0x07, 0x5c, 0x5c, 0x75, 0xb3, 0xd1, 0x4c, 0x76, 0x4a, 0x53, 0xb2, 0x49, 0x6a, 0xf5, 0x00,
-	0x96, 0xa2, 0xe2, 0x3c, 0x87, 0xda, 0x1e, 0x99, 0x59, 0xde, 0x3d, 0x50, 0xf6, 0x08, 0x6b, 0xbf,
-	0x8f, 0xa2, 0xcb, 0x36, 0x39, 0xb0, 0x2b, 0xc2, 0x78, 0x42, 0x1c, 0x4b, 0xa0, 0x7c, 0x6d, 0x79,
-	0x4c, 0x9c, 0x7a, 0x12, 0x87, 0xfa, 0x0d, 0x2c, 0x46, 0x4e, 0xa5, 0x92, 0xfb, 0x70, 0x46, 0xb0,
-	0x79, 0x2b, 0xa5, 0xf5, 0x72, 0x0e, 0x2d, 0x21, 0x79, 0x80, 0xfa, 0x5b, 0xa7, 0x53, 0xe4, 0x6b,
-	0x44, 0xc5, 0x9d, 0xd0, 0x0b, 0x2f, 0x61, 0x71, 0xdb, 0x71, 0x88, 0xdd, 0x29, 0x0c, 0x5e, 0x54,
-	0xdc, 0x09, 0xe1, 0xdd, 0x87, 0xc5, 0x67, 0xa4, 0x4f, 0x26, 0xbd, 0x97, 0x23, 0x5a, 0x0e, 0x60,
-	0x29, 0xca, 0x79, 0x42, 0x24, 0x3d, 0x58, 0x3a, 0xa0, 0x9d, 0x40, 0x0e, 0xed, 0x7f, 0x24, 0xee,
-	0x4b, 0xc3, 0x79, 0x6e, 0x33, 0xd7, 0x57, 0x2e, 0x41, 0x45, 0xe4, 0xb7, 0x6e, 0x75, 0x24, 0x8e,
-	0x79, 0x71, 0xb0, 0xdf, 0x51, 0x36, 0x61, 0xde, 0x23, 0x7d, 0xd2, 0x66, 0xd4, 0xe5, 0x59, 0x5a,
-	0xdd, 0x5c, 0x96, 0xea, 0x64, 0xe6, 0x1f, 0xc9, 0x5b, 0x6d, 0x48, 0xa7, 0xf6, 0x60, 0x43, 0xe4,
-	0x5b, 0x92, 0xba, 0xd0, 0x01, 0x3b, 0x70, 0x9a, 0x04, 0xdf, 0xa5, 0x11, 0xb7, 0x30, 0x23, 0x12,
-	0x65, 0x08, 0x56, 0xf5, 0x3d, 0xa8, 0x69, 0x8a, 0xa4, 0xbf, 0x8a, 0xd0, 0xf4, 0x14, 0x36, 0x82,
-	0xa4, 0x4a, 0x20, 0xb1, 0x86, 0x99, 0x97, 0xea, 0x48, 0xb5, 0x0f, 0x6a, 0x9a, 0x04, 0x89, 0x75,
-	0x0f, 0xce, 0x10, 0x71, 0x24, 0xb3, 0x74, 0x3a, 0xb4, 0x21, 0x73, 0xf0, 0x04, 0x22, 0x76, 0xfe,
-	0xe9, 0x27, 0xe8, 0x83, 0x9a, 0xa6, 0xa8, 0x60, 0xb3, 0x6c, 0xb8, 0xa2, 0x91, 0x36, 0xb3, 0xba,
-	0x7e, 0xfa, 0x4b, 0x14, 0xa5, 0x8f, 0xc2, 0xd5, 0x0c, 0x7d, 0x05, 0x1b, 0xf8, 0x47, 0x09, 0xce,
-	0x6f, 0x33, 0x46, 0x3c, 0x46, 0x3a, 0x01, 0x65, 0xae, 0x0c, 0xbd, 0x60, 0x70, 0x0e, 0x83, 0x59,
-	0xd4, 0xd6, 0x03, 0x4d, 0x3a, 0xf3, 0x1d, 0xc2, 0xd3, 0xb5, 0xa2, 0x2d, 0x8e, 0x5d, 0x3e, 0x33,
-	0x98, 0xf1, 0xca, 0x77, 0x88, 0x72, 0x0b, 0x94, 0xe0, 0x87, 0x57, 0xf7, 0x88, 0x6b, 0x19, 0x7d,
-	0xdd, 0x1e, 0x1c, 0x9b, 0xc4, 0x5d, 0x29, 0x73, 0x86, 0xff, 0x04, 0x37, 0x47, 0xfc, 0xe2, 0x80,
-	0x9f, 0x2b, 0x57, 0xe0, 0x1c, 0xa7, 0xb6, 0x29, 0xd3, 0x8d, 0x2e, 0x23, 0xee, 0xca, 0xbf, 0xd7,
-	0x4b, 0xd7, 0xca, 0x5a, 0x2d, 0x38, 0x3d, 0xa0, 0x6c, 0x3b, 0x38, 0x53, 0x0d, 0x68, 0x88, 0x64,
-	0x8c, 0xe1, 0x0f, 0x5f, 0xe5, 0x49, 0x34, 0xde, 0xae, 0x63, 0x2e, 0x8a, 0x0b, 0x90, 0xc1, 0x66,
-	0xc2, 0x1a, 0xaa, 0x42, 0x3e, 0xc4, 0x89, 0x75, 0x3c, 0x82, 0xcb, 0xfc, 0x37, 0x1a, 0xb5, 0x22,
-	0x35, 0xcb, 0x0d, 0x68, 0x60, 0xdc, 0x45, 0x01, 0xb4, 0xa0, 0x11, 0x14, 0x92, 0xc9, 0xfb, 0xb1,
-	0xe8, 0x7f, 0x01, 0xe7, 0x4d, 0x5f, 0x27, 0x3f, 0x05, 0x82, 0x3d, 0xdd, 0x24, 0x5d, 0xea, 0x86,
-	0xbf, 0x15, 0x97, 0x9a, 0xa2, 0x5f, 0x6c, 0x86, 0xfd, 0x62, 0x73, 0xdf, 0x66, 0x5b, 0x77, 0xbe,
-	0x33, 0xfa, 0x03, 0xa2, 0x2d, 0x98, 0xfe, 0x73, 0xc1, 0xb4, 0xc3, 0x79, 0xd4, 0x2e, 0xac, 0xa1,
-	0xaa, 0xa4, 0x39, 0xbb, 0x93, 0x81, 0x3f, 0x85, 0x41, 0xc3, 0xa8, 0xff, 0xb5, 0x04, 0x0d, 0xd1,
-	0x13, 0xcc, 0xe4, 0x75, 0x24, 0x9c, 0x4f, 0xe5, 0x0e, 0xe7, 0x72, 0x42, 0x38, 0x9b, 0xb0, 0x86,
-	0x42, 0x2a, 0xea, 0x29, 0x1f, 0x43, 0x43, 0x14, 0xcf, 0xd9, 0x82, 0xcd, 0x84, 0x35, 0x94, 0xbd,
-	0x28, 0x88, 0xaf, 0xc3, 0xac, 0xd6, 0x48, 0xcf, 0xf2, 0x98, 0xcb, 0xeb, 0x48, 0x04, 0xe2, 0xdd,
-	0xa8, 0x8a, 0xb5, 0x68, 0x7b, 0x10, 0x67, 0x1b, 0xe6, 0xd9, 0x1a, 0x2a, 0x58, 0x82, 0x5f, 0x85,
-	0x79, 0x4e, 0x3b, 0xb2, 0x9d, 0x47, 0x8c, 0xbf, 0xdf, 0x51, 0x1f, 0xca, 0x2c, 0x45, 0x51, 0xa5,
-	0xf0, 0xbe, 0x96, 0x39, 0x8a, 0x2b, 0x9e, 0xd1, 0xa4, 0x4f, 0x50, 0xdd, 0xf1, 0xc3, 0x7e, 0xc8,
-	0x53, 0xee, 0x40, 0x25, 0x6c, 0x89, 0xc2, 0xe4, 0xc0, 0x7a, 0xa7, 0x11, 0x21, 0x2f, 0xe7, 0xfd,
-	0x3e, 0xfd, 0xa4, 0x1b, 0xb6, 0xaf, 0xb7, 0xe9, 0xb1, 0x69, 0xd9, 0x5c, 0x13, 0x0f, 0xe7, 0x79,
-	0x6d, 0x91, 0x5f, 0x6e, 0xdb, 0xfe, 0xee, 0xe8, 0x4a, 0xfd, 0xb3, 0x24, 0x6a, 0xc2, 0x24, 0xb2,
-	0xb1, 0x9a, 0xf0, 0x25, 0xd4, 0x4c, 0x5f, 0x77, 0x0c, 0x97, 0xd8, 0x2c, 0xf4, 0x49, 0x75, 0xf3,
-	0xbf, 0xb1, 0x72, 0x70, 0xc4, 0x5c, 0xcb, 0xee, 0x89, 0x7a, 0x00, 0xa6, 0x7f, 0xc8, 0x19, 0xf6,
-	0x3b, 0xca, 0x1e, 0xe7, 0x1f, 0xd9, 0x23, 0x7a, 0xc1, 0xff, 0xa1, 0xad, 0xe7, 0xc8, 0x0f, 0x5a,
-	0xd5, 0x1c, 0x73, 0x8a, 0xc0, 0x31, 0x8a, 0xe9, 0x72, 0x3e, 0x1c, 0x47, 0x61, 0xcc, 0x7f, 0x2f,
-	0x4a, 0x52, 0xa2, 0xa5, 0xf2, 0xf5, 0x1e, 0x4c, 0x96, 0xa4, 0xcc, 0xf7, 0x1b, 0x16, 0xa2, 0xd7,
-	0x61, 0x1d, 0x2a, 0x3a, 0xda, 0xdf, 0x84, 0xd5, 0xa4, 0xf0, 0xa0, 0xfb, 0x22, 0xac, 0x21, 0xb3,
-	0xa4, 0xc2, 0x9b, 0xb0, 0x82, 0x14, 0x0e, 0xeb, 0x01, 0x54, 0xbe, 0xa2, 0x96, 0xfd, 0x8a, 0xfe,
-	0x40, 0x6c, 0x65, 0x09, 0x4e, 0xb3, 0xe0, 0x83, 0x54, 0x2f, 0xbe, 0x28, 0xcb, 0x30, 0xc7, 0x7f,
-	0xa3, 0x7c, 0x1e, 0x4c, 0x65, 0x4d, 0x7e, 0x53, 0xdf, 0xc2, 0xb2, 0xa8, 0x0c, 0x43, 0x01, 0xa1,
-	0x25, 0x4f, 0x01, 0x3e, 0x50, 0xcb, 0xd6, 0x47, 0xc2, 0xaa, 0x9b, 0x1b, 0x58, 0x08, 0x8e, 0xb8,
-	0x2b, 0x1f, 0xc2, 0x8f, 0xea, 0x3b, 0xb8, 0x18, 0x93, 0x2d, 0x0d, 0x3d, 0xb9, 0xf0, 0xdb, 0x70,
-	0x81, 0x17, 0x96, 0x18, 0xee, 0x44, 0xfb, 0x03, 0x3b, 0x27, 0xc9, 0x0b, 0x83, 0xd2, 0x84, 0x65,
-	0xf1, 0xb0, 0x39, 0xb1, 0xbc, 0x83, 0x8b, 0x31, 0xfa, 0xc2, 0xc0, 0x3c, 0x81, 0xe5, 0x43, 0x77,
-	0x60, 0x8f, 0x64, 0x0f, 0xab, 0xd2, 0x55, 0x38, 0x97, 0xd0, 0xa6, 0x94, 0xb5, 0xb3, 0x24, 0xd2,
-	0x87, 0xac, 0xc2, 0xc5, 0x98, 0x00, 0x81, 0x6e, 0xf3, 0xaf, 0x55, 0xa8, 0x04, 0x6d, 0xed, 0x51,
-	0xa0, 0x5e, 0xb1, 0xa0, 0x36, 0xbe, 0xe9, 0x51, 0x6e, 0x62, 0x38, 0x13, 0xd6, 0x4b, 0xf5, 0x5b,
-	0xf9, 0x88, 0xa5, 0x5b, 0xba, 0x50, 0x1d, 0xdb, 0xe5, 0x28, 0x37, 0x30, 0xe6, 0xf8, 0xa6, 0xa8,
-	0x7e, 0x33, 0x17, 0xed, 0x48, 0xcf, 0xd8, 0x3a, 0x07, 0xd7, 0x13, 0xdf, 0x04, 0xe1, 0x7a, 0x92,
-	0xf6, 0x43, 0x16, 0xd4, 0xc6, 0xd7, 0x32, 0xb8, 0xeb, 0x12, 0x76, 0x41, 0xb8, 0xeb, 0x12, 0x37,
-	0x3d, 0x16, 0xd4, 0xc6, 0x57, 0x2c, 0xb8, 0xaa, 0x84, 0xbd, 0x0e, 0xae, 0x2a, 0x71, 0x6b, 0x63,
-	0x41, 0x6d, 0x7c, 0x87, 0x82, 0xab, 0x4a, 0xd8, 0xd1, 0xe0, 0xaa, 0x12, 0xd7, 0x32, 0xbf, 0x94,
-	0xc2, 0xda, 0x12, 0x1f, 0xe0, 0xb6, 0xd2, 0x43, 0x0b, 0x6b, 0xff, 0xea, 0xf7, 0xa6, 0xe6, 0x93,
-	0x60, 0x7e, 0x2e, 0xc9, 0xe2, 0x12, 0xc7, 0x72, 0x37, 0x35, 0xfa, 0x50, 0x28, 0x5b, 0xd3, 0xb2,
-	0x8d, 0xb9, 0x05, 0x19, 0x22, 0x70, 0xb7, 0xa4, 0x0f, 0x38, 0xb8, 0x5b, 0xb2, 0xa6, 0x95, 0x00,
-	0x0c, 0xd2, 0xd5, 0xe3, 0x60, 0xd2, 0x27, 0x13, 0x1c, 0x4c, 0xd6, 0xf8, 0x10, 0x80, 0x41, 0xfa,
-	0x77, 0x1c, 0x4c, 0xfa, 0xbc, 0x80, 0x83, 0xc9, 0x1a, 0x14, 0x7e, 0x2b, 0x41, 0x1d, 0xdf, 0xa5,
-	0x29, 0x0f, 0xd2, 0x03, 0x31, 0x65, 0xcb, 0x54, 0x7f, 0x38, 0x0b, 0xeb, 0x18, 0x2a, 0x7c, 0x6b,
-	0x86, 0xa3, 0xca, 0xdc, 0xd5, 0xe1, 0xa8, 0x72, 0x2c, 0xe9, 0x02, 0x54, 0xf8, 0xd2, 0x0b, 0x47,
-	0x95, 0xb9, 0x91, 0xc3, 0x51, 0xe5, 0xd8, 0xb1, 0xfd, 0x5e, 0x82, 0xcb, 0xa9, 0xcb, 0x2a, 0xe5,
-	0x11, 0x26, 0x3d, 0xcf, 0x4e, 0xad, 0xfe, 0x78, 0x46, 0xee, 0x58, 0x79, 0x8c, 0xf5, 0x8c, 0x59,
-	0xe5, 0x11, 0xeb, 0x6c, 0xb3, 0xca, 0x23, 0xde, 0xd4, 0x0e, 0xcb, 0x63, 0x1c, 0x4b, 0x7a, 0x79,
-	0x44, 0xa1, 0x6c, 0x4d, 0xcb, 0x36, 0x51, 0x1e, 0x13, 0x06, 0x9a, 0xf4, 0xf2, 0x88, 0xcf, 0x7a,
-	0xe9, 0xe5, 0x31, 0x6d, 0x72, 0x1a, 0x95, 0xc7, 0x29, 0xde, 0x28, 0x7d, 0x60, 0xca, 0x2a, 0x8f,
-	0xe9, 0x9e, 0x41, 0x86, 0x93, 0xac, 0xf2, 0x38, 0x3d, 0x98, 0xac, 0x29, 0xc8, 0x85, 0x85, 0x89,
-	0xb9, 0x41, 0x69, 0xa6, 0x07, 0xdf, 0x64, 0xe3, 0x5d, 0x6f, 0xe5, 0xa6, 0x97, 0x3a, 0x29, 0x9c,
-	0x8b, 0xce, 0x07, 0xca, 0xed, 0xd4, 0x20, 0x8b, 0x69, 0x6c, 0xe6, 0x25, 0x1f, 0x19, 0x39, 0x31,
-	0x04, 0xe0, 0x46, 0x26, 0x4f, 0x17, 0xb8, 0x91, 0xd8, 0x74, 0xe1, 0xc2, 0xc2, 0x44, 0x6b, 0x8f,
-	0xeb, 0x4c, 0x1e, 0x22, 0x70, 0x9d, 0xc8, 0xcc, 0xa0, 0xbc, 0x85, 0xca, 0x2e, 0xb5, 0xbb, 0x56,
-	0x6f, 0xe0, 0x12, 0xe5, 0x6a, 0x74, 0xa0, 0x95, 0xff, 0x02, 0x1f, 0xde, 0x87, 0x4a, 0xfe, 0x9f,
-	0x45, 0x36, 0x6c, 0xd7, 0xcf, 0xbe, 0x20, 0xec, 0x90, 0x5f, 0xef, 0xdb, 0x5d, 0xaa, 0x5c, 0x4f,
-	0x64, 0x8c, 0xd0, 0x84, 0x3a, 0x6e, 0xe4, 0x21, 0x15, 0x7a, 0x76, 0xaa, 0x6f, 0x2b, 0x43, 0x43,
-	0x0f, 0xff, 0x75, 0x58, 0x3a, 0x3c, 0x65, 0xce, 0xf1, 0xe5, 0xc9, 0xe7, 0x7f, 0x07, 0x00, 0x00,
-	0xff, 0xff, 0x14, 0xfe, 0x43, 0x8a, 0x3c, 0x20, 0x00, 0x00,
+var fileDescriptor_datastore_5f1f189cc5ca3aad = []byte{
+	// 1519 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x59, 0x7f, 0x53, 0xdb, 0x46,
+	0x13, 0x8e, 0x71, 0x20, 0xf1, 0xda, 0xfc, 0xc8, 0x41, 0x8c, 0xed, 0xbc, 0x2f, 0x10, 0xbd, 0xc9,
+	0x3b, 0x69, 0x7e, 0xd8, 0xc1, 0x4d, 0x08, 0x49, 0x67, 0xda, 0x02, 0x21, 0x2e, 0x9d, 0x42, 0x19,
+	0x1b, 0x48, 0x26, 0xe9, 0x54, 0x23, 0xdb, 0x67, 0xa3, 0xd4, 0x48, 0xaa, 0x74, 0x4e, 0xe3, 0xc9,
+	0x07, 0xe8, 0x4c, 0xa7, 0xdf, 0xa5, 0x7f, 0xf4, 0x0b, 0xf4, 0xe3, 0xf4, 0x63, 0x74, 0x74, 0x27,
+	0x59, 0x92, 0xa5, 0x15, 0x32, 0xa6, 0x7f, 0x61, 0x9d, 0xf6, 0xd9, 0xe7, 0xb9, 0xf5, 0xde, 0xde,
+	0xae, 0x81, 0xf9, 0xb6, 0xc2, 0x14, 0x8b, 0xe9, 0x26, 0x2d, 0x1b, 0xa6, 0xce, 0x74, 0x92, 0xb7,
+	0x0c, 0xd5, 0xa4, 0x65, 0x8b, 0x9a, 0x1f, 0xa8, 0x59, 0x1e, 0xbe, 0x2d, 0xad, 0x74, 0x75, 0xbd,
+	0xdb, 0xa3, 0x15, 0x6e, 0xd5, 0xec, 0x77, 0x2a, 0xbf, 0x98, 0x8a, 0x61, 0x50, 0xd3, 0x12, 0xb8,
+	0xd2, 0x66, 0x57, 0x65, 0xa7, 0xfd, 0x66, 0xb9, 0xa5, 0x9f, 0x55, 0x2c, 0x43, 0xed, 0x74, 0x68,
+	0x85, 0x7b, 0x12, 0x80, 0x4a, 0x4b, 0x3f, 0x3b, 0xd3, 0xb5, 0x8a, 0xd1, 0xeb, 0x77, 0x55, 0xf7,
+	0x8f, 0x83, 0x5c, 0x4f, 0x84, 0x14, 0x7f, 0x04, 0x44, 0x7a, 0x05, 0x33, 0xdb, 0x7d, 0xad, 0xdd,
+	0xa3, 0xe4, 0x36, 0xe4, 0x98, 0xd9, 0xb7, 0x98, 0xdc, 0xd6, 0xcf, 0x14, 0x55, 0x2b, 0xa4, 0xd6,
+	0x52, 0xf7, 0x32, 0xf5, 0x2c, 0x5f, 0x7b, 0xc9, 0x97, 0x48, 0x11, 0xae, 0xb7, 0x14, 0xb9, 0x45,
+	0x4d, 0x66, 0x15, 0xa6, 0xd6, 0x52, 0xf7, 0x72, 0xf5, 0x6b, 0x2d, 0x65, 0xc7, 0x7e, 0x94, 0xf6,
+	0x61, 0x71, 0xc7, 0xa4, 0x0a, 0xa3, 0xc2, 0x5b, 0x9d, 0xfe, 0xdc, 0xa7, 0x16, 0x23, 0x1b, 0x30,
+	0xd3, 0xe4, 0x0b, 0xdc, 0x5d, 0xb6, 0xba, 0x52, 0x8e, 0x0e, 0x4a, 0xd9, 0x81, 0x39, 0xd6, 0xd2,
+	0x01, 0x2c, 0x05, 0xdd, 0x59, 0x86, 0xae, 0x59, 0xf4, 0xc2, 0xfe, 0x9e, 0x01, 0x79, 0x45, 0x59,
+	0xeb, 0x34, 0xa8, 0xee, 0xfc, 0x2d, 0xdb, 0xfb, 0x0a, 0x00, 0x27, 0xd4, 0xb1, 0x04, 0xe4, 0x3b,
+	0xd5, 0x62, 0x62, 0xd5, 0x72, 0x74, 0x48, 0xdf, 0xc3, 0x62, 0x60, 0xd5, 0x21, 0xd9, 0x84, 0x6b,
+	0x02, 0x66, 0x15, 0x52, 0x6b, 0xe9, 0x04, 0x2c, 0xae, 0xb9, 0xad, 0xfa, 0xd8, 0x68, 0x5f, 0xe6,
+	0xb7, 0x11, 0x74, 0x37, 0x61, 0x14, 0xf6, 0x61, 0x71, 0xcb, 0x30, 0xa8, 0xd6, 0xbe, 0x34, 0x79,
+	0x41, 0x77, 0x13, 0xca, 0xdb, 0x84, 0xc5, 0x97, 0xb4, 0x47, 0x47, 0xa3, 0x97, 0x20, 0x5b, 0x0e,
+	0x60, 0x29, 0x88, 0x9c, 0x50, 0x49, 0x13, 0x66, 0x0f, 0xf4, 0x36, 0x6d, 0xd0, 0x1e, 0x6d, 0x31,
+	0xdd, 0xb4, 0xc8, 0x2d, 0xc8, 0x88, 0x83, 0x2d, 0xab, 0x6d, 0x47, 0xc0, 0x75, 0xb1, 0xb0, 0xd7,
+	0x26, 0x4f, 0x20, 0x63, 0xb9, 0x96, 0x85, 0x29, 0x9e, 0x31, 0x79, 0x87, 0xc8, 0x39, 0xf3, 0xae,
+	0xa3, 0xba, 0x67, 0x28, 0xfd, 0x08, 0xcb, 0x0d, 0xca, 0x02, 0x34, 0xee, 0x8e, 0x77, 0xfc, 0x0e,
+	0x85, 0xf2, 0xbb, 0x98, 0xf2, 0xa0, 0x03, 0x9f, 0xff, 0x12, 0x14, 0xc2, 0xfe, 0x45, 0x5c, 0xa4,
+	0x0d, 0x58, 0xae, 0x21, 0xdc, 0x71, 0x3b, 0x95, 0x64, 0x28, 0xd4, 0x10, 0x9f, 0x97, 0x23, 0xfa,
+	0xcf, 0x14, 0xe4, 0xb6, 0x18, 0xa3, 0x16, 0xa3, 0x6d, 0xdb, 0x28, 0x3e, 0xf0, 0x55, 0xb8, 0xa9,
+	0x70, 0x63, 0x85, 0xa9, 0xba, 0x26, 0xdb, 0xfe, 0x65, 0x36, 0x30, 0x28, 0x2f, 0x92, 0x99, 0xfa,
+	0xa2, 0xef, 0xe5, 0x4b, 0x85, 0x29, 0x47, 0x03, 0x83, 0x92, 0x87, 0x40, 0xec, 0x42, 0x2a, 0x5b,
+	0xd4, 0x54, 0x95, 0x9e, 0xac, 0xf5, 0xcf, 0x9a, 0xd4, 0x2c, 0xa4, 0x39, 0x60, 0xc1, 0x7e, 0xd3,
+	0xe0, 0x2f, 0x0e, 0xf8, 0x3a, 0xb9, 0x03, 0x73, 0xdc, 0x5a, 0xd3, 0x99, 0xac, 0x74, 0x18, 0x35,
+	0x0b, 0x57, 0xd7, 0x52, 0xf7, 0xd2, 0xf5, 0x9c, 0xbd, 0x7a, 0xa0, 0xb3, 0x2d, 0x7b, 0x4d, 0x3a,
+	0x86, 0xa2, 0xa8, 0x9a, 0x7e, 0xe9, 0x6e, 0x40, 0x37, 0xe1, 0xaa, 0xa6, 0xb7, 0xdd, 0x0c, 0xbc,
+	0x83, 0x85, 0x24, 0x00, 0xe5, 0x08, 0xe9, 0x04, 0x4a, 0x51, 0x6e, 0x87, 0x55, 0xea, 0xa2, 0x7e,
+	0x9f, 0x41, 0x81, 0xd7, 0xd6, 0x28, 0xb5, 0xb1, 0x5f, 0xff, 0x31, 0x14, 0x23, 0x80, 0x13, 0xeb,
+	0x69, 0x41, 0xc1, 0x2e, 0xc3, 0xfe, 0x37, 0xc3, 0x74, 0xac, 0xc1, 0x8d, 0xe6, 0x40, 0xa6, 0x1f,
+	0x6d, 0x67, 0x96, 0xdc, 0xa4, 0x1d, 0xdd, 0x74, 0x29, 0x6e, 0x95, 0xc5, 0x85, 0x5e, 0x76, 0x2f,
+	0xf4, 0xf2, 0x9e, 0xc6, 0x36, 0x9e, 0x9c, 0x28, 0xbd, 0x3e, 0xad, 0xcf, 0x37, 0x07, 0xbb, 0x02,
+	0xb4, 0xcd, 0x31, 0xd2, 0x6b, 0x28, 0x46, 0x90, 0x38, 0xda, 0x5f, 0xc0, 0xb4, 0xad, 0xc4, 0xad,
+	0xf7, 0xc9, 0xc4, 0x0b, 0x88, 0xf4, 0x7b, 0x0a, 0x8a, 0xa2, 0x4a, 0x8f, 0x1b, 0x4f, 0x24, 0x17,
+	0xa7, 0x12, 0xe7, 0x62, 0x3a, 0x22, 0x17, 0x4f, 0xa0, 0x14, 0xa5, 0x66, 0xe2, 0x2f, 0x69, 0x13,
+	0x8a, 0xa2, 0xc4, 0x8e, 0x9d, 0x35, 0x27, 0x50, 0x8a, 0x42, 0x4e, 0xac, 0xe8, 0x35, 0xac, 0x88,
+	0xe3, 0x51, 0xa7, 0x5d, 0xd5, 0x62, 0x26, 0x3f, 0xe7, 0xbb, 0x1a, 0x33, 0x07, 0xae, 0xac, 0xa7,
+	0x30, 0x4d, 0xed, 0x67, 0xc7, 0xf9, 0x6a, 0xb0, 0x28, 0x87, 0x61, 0xc2, 0x5a, 0x7a, 0x03, 0xab,
+	0xa8, 0x63, 0x47, 0xf5, 0x05, 0x3d, 0xbf, 0x80, 0xff, 0xf2, 0x03, 0x84, 0x2a, 0x2e, 0xc2, 0x75,
+	0x6e, 0xe9, 0xc5, 0xf1, 0x1a, 0x7f, 0xde, 0x6b, 0xdb, 0xdb, 0xc5, 0xb0, 0x93, 0x89, 0xfa, 0x2b,
+	0x05, 0xd9, 0xed, 0x81, 0x77, 0xd7, 0x3d, 0x09, 0x16, 0xf2, 0x64, 0xd7, 0x19, 0xa9, 0xc1, 0xf4,
+	0x99, 0xc2, 0x5a, 0xa7, 0x3c, 0x7d, 0xe7, 0xaa, 0xeb, 0xe8, 0x4d, 0xeb, 0x31, 0x95, 0xf7, 0x6d,
+	0xc0, 0x36, 0x3d, 0x55, 0x3e, 0xa8, 0xba, 0x59, 0x17, 0x78, 0xa9, 0x0a, 0xb3, 0x81, 0x75, 0x32,
+	0x0f, 0xd9, 0xfd, 0xad, 0xa3, 0x9d, 0x6f, 0xe4, 0xdd, 0x37, 0x5b, 0x3b, 0x47, 0x0b, 0x57, 0xc8,
+	0x02, 0xe4, 0xc4, 0x42, 0xe3, 0x78, 0xbb, 0xb1, 0x7b, 0xb4, 0x90, 0x92, 0xfe, 0x4e, 0xc1, 0x8a,
+	0x7d, 0xba, 0x47, 0xf7, 0xa8, 0x7a, 0x85, 0xe4, 0x4b, 0xc8, 0x35, 0x07, 0xb2, 0xa1, 0x98, 0x54,
+	0x63, 0x6e, 0x74, 0xb3, 0xd5, 0xff, 0x84, 0x6a, 0x48, 0x83, 0x99, 0xaa, 0xd6, 0x15, 0x45, 0x04,
+	0x9a, 0x83, 0x43, 0x0e, 0xd8, 0x6b, 0x93, 0x57, 0x1c, 0xef, 0xbf, 0xe7, 0x6d, 0xfc, 0xff, 0x12,
+	0x6c, 0xb3, 0x9e, 0x6d, 0xfa, 0xa2, 0x2b, 0x74, 0x78, 0xa7, 0x25, 0x9d, 0x4c, 0x47, 0xc3, 0x3d,
+	0x4d, 0x3f, 0xc0, 0x2a, 0xba, 0x53, 0x27, 0x0f, 0x9e, 0x03, 0x4f, 0x1a, 0x75, 0x58, 0xcf, 0xce,
+	0xcd, 0x04, 0xd7, 0xde, 0x4e, 0x32, 0x51, 0x3d, 0xfe, 0x85, 0x33, 0x85, 0x3a, 0x9e, 0x2c, 0x7d,
+	0xbf, 0x80, 0x15, 0x51, 0x5e, 0x2e, 0x72, 0xa8, 0xde, 0xc0, 0x2a, 0x0a, 0x9e, 0x4c, 0xd6, 0x73,
+	0xc8, 0x7c, 0xab, 0xab, 0xda, 0x91, 0xfe, 0x13, 0xd5, 0xc8, 0x12, 0x4c, 0x33, 0xfb, 0x83, 0x43,
+	0x2f, 0x1e, 0x48, 0x1e, 0x66, 0xf8, 0xc5, 0x36, 0xe0, 0xc9, 0x94, 0xae, 0x3b, 0x4f, 0xd2, 0x5b,
+	0xc8, 0x8b, 0xfa, 0x33, 0x74, 0xe0, 0xee, 0xe4, 0x6b, 0x80, 0xf7, 0xba, 0xaa, 0xc9, 0x9e, 0xb3,
+	0x6c, 0xf5, 0x36, 0x96, 0x82, 0x1e, 0x3a, 0xf3, 0xde, 0xfd, 0x28, 0xbd, 0x83, 0xe5, 0x90, 0x6f,
+	0x67, 0xa3, 0x93, 0x3b, 0x7f, 0x04, 0x37, 0x79, 0x89, 0x0a, 0xe9, 0x8e, 0xdc, 0xbf, 0xbd, 0xcf,
+	0x51, 0xf3, 0x4b, 0x93, 0x52, 0x86, 0xbc, 0xf8, 0x62, 0x13, 0x6a, 0x79, 0x07, 0xcb, 0x21, 0xfb,
+	0x4b, 0x13, 0xf3, 0x15, 0xe4, 0x0f, 0xcd, 0xbe, 0xe6, 0xf9, 0x1e, 0x56, 0xa5, 0xbb, 0x30, 0x17,
+	0xd1, 0xdb, 0xa4, 0xeb, 0xb3, 0x34, 0xd0, 0xbc, 0x14, 0x61, 0x39, 0xe4, 0x40, 0xa8, 0xab, 0xfe,
+	0x91, 0x87, 0x8c, 0xdd, 0xdc, 0x36, 0x6c, 0x7a, 0xa2, 0x42, 0xce, 0x3f, 0xbf, 0x93, 0x07, 0x98,
+	0xce, 0x88, 0x1f, 0x0d, 0x4a, 0x0f, 0x93, 0x19, 0x3b, 0x61, 0xe9, 0x40, 0xd6, 0x37, 0xa1, 0x93,
+	0xfb, 0x18, 0x38, 0x3c, 0xff, 0x97, 0x1e, 0x24, 0xb2, 0xf5, 0x78, 0x7c, 0x43, 0x3a, 0xce, 0x13,
+	0x9e, 0xef, 0x71, 0x9e, 0xa8, 0xa9, 0x5f, 0x85, 0x9c, 0x7f, 0xd8, 0xc6, 0x43, 0x17, 0x31, 0xe1,
+	0xe3, 0xa1, 0x8b, 0x9c, 0xdf, 0x55, 0xc8, 0xf9, 0x07, 0x67, 0x9c, 0x2a, 0x62, 0x5a, 0xc7, 0xa9,
+	0x22, 0x67, 0x71, 0x15, 0x72, 0xfe, 0xc9, 0x18, 0xa7, 0x8a, 0x98, 0xbc, 0x71, 0xaa, 0xc8, 0x61,
+	0xfb, 0x13, 0x90, 0xf0, 0xb8, 0x42, 0xd6, 0xe3, 0x93, 0x2a, 0xa2, 0x9b, 0x2c, 0x55, 0xc7, 0x81,
+	0x38, 0xe4, 0x1f, 0xe1, 0x46, 0x68, 0x34, 0x21, 0x8f, 0x63, 0xf3, 0x2c, 0x8a, 0x7a, 0x7d, 0x0c,
+	0x84, 0xc7, 0x1c, 0x1a, 0x2c, 0x70, 0x66, 0x6c, 0xd0, 0xc1, 0x99, 0xf1, 0xa9, 0xe5, 0x13, 0x90,
+	0x70, 0xab, 0x8f, 0x07, 0x1c, 0x1d, 0x52, 0xf0, 0x80, 0xc7, 0x4c, 0x12, 0x9f, 0x80, 0x84, 0xbb,
+	0x7a, 0x9c, 0x1c, 0x9d, 0x1d, 0x70, 0xf2, 0x98, 0xa1, 0xa1, 0x0f, 0x0b, 0xa3, 0xbf, 0x6d, 0x90,
+	0x0a, 0xe6, 0x07, 0xf9, 0x95, 0xa5, 0xf4, 0x38, 0x39, 0xc0, 0xa3, 0xad, 0x25, 0xa6, 0xad, 0x8d,
+	0x4b, 0x8b, 0xfe, 0xb2, 0xf2, 0x5b, 0xca, 0xbd, 0xb4, 0x43, 0xdd, 0x06, 0xd9, 0x88, 0x3f, 0x2b,
+	0x58, 0x4f, 0x54, 0x7a, 0x36, 0x36, 0xce, 0x11, 0xf3, 0x6b, 0xca, 0xb9, 0xb5, 0xc3, 0x5a, 0x9e,
+	0xc6, 0x1e, 0x1e, 0x54, 0xca, 0xc6, 0xb8, 0x30, 0x5f, 0x58, 0x90, 0x56, 0x18, 0x0f, 0x4b, 0xfc,
+	0x94, 0x80, 0x87, 0xe5, 0xbc, 0x9e, 0xdb, 0x16, 0x83, 0x34, 0xb8, 0xb8, 0x98, 0xf8, 0x56, 0x1b,
+	0x17, 0x73, 0x5e, 0x27, 0x6d, 0x8b, 0x41, 0xda, 0x5a, 0x5c, 0x4c, 0x7c, 0x13, 0x8d, 0x8b, 0x39,
+	0xaf, 0x7f, 0x36, 0x61, 0x7e, 0xa4, 0xe3, 0x24, 0xe5, 0xf8, 0xe4, 0x1b, 0x6d, 0xd9, 0x4a, 0x95,
+	0xc4, 0xf6, 0x0e, 0xa7, 0x0e, 0x73, 0xc1, 0xce, 0x92, 0x3c, 0x8a, 0x4d, 0xb2, 0x10, 0x63, 0x39,
+	0xa9, 0xb9, 0xb7, 0xc9, 0x91, 0xf6, 0x11, 0xdf, 0x64, 0x74, 0x5f, 0x8a, 0x6f, 0x12, 0xeb, 0x4b,
+	0x4d, 0x98, 0x1f, 0x69, 0x0a, 0x71, 0xce, 0xe8, 0xf6, 0x13, 0xe7, 0x44, 0xba, 0x4d, 0xf2, 0x16,
+	0x32, 0x3b, 0xba, 0xd6, 0x51, 0xbb, 0x7d, 0x93, 0x92, 0xbb, 0xc1, 0x51, 0xc8, 0xf9, 0x97, 0xd8,
+	0xf0, 0xbd, 0x4b, 0xf2, 0xff, 0xf3, 0xcc, 0x86, 0x8d, 0xde, 0x6c, 0x8d, 0xb2, 0x43, 0xfe, 0x7a,
+	0x4f, 0xeb, 0xe8, 0xe4, 0xb3, 0x48, 0x60, 0xc0, 0xc6, 0xe5, 0xb8, 0x9f, 0xc4, 0x54, 0xf0, 0x6c,
+	0x67, 0xdf, 0x66, 0x86, 0x1b, 0x3d, 0xbc, 0x72, 0x98, 0x3a, 0x9c, 0x6a, 0xce, 0xf0, 0xb1, 0xfb,
+	0xf3, 0x7f, 0x02, 0x00, 0x00, 0xff, 0xff, 0x09, 0xde, 0xc2, 0x3f, 0x4c, 0x1c, 0x00, 0x00,
 }

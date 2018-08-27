@@ -18,15 +18,13 @@ type DataStore interface {
 	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
 	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
-	CreateAttestedNodeEntry(context.Context, *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error)
-	FetchAttestedNodeEntry(context.Context, *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error)
-	ListAttestedNodeEntries(context.Context, *ListAttestedNodeEntriesRequest) (*ListAttestedNodeEntriesResponse, error)
-	UpdateAttestedNodeEntry(context.Context, *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error)
-	DeleteAttestedNodeEntry(context.Context, *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error)
-	CreateNodeResolverMapEntry(context.Context, *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error)
-	ListNodeResolverMapEntries(context.Context, *ListNodeResolverMapEntriesRequest) (*ListNodeResolverMapEntriesResponse, error)
-	DeleteNodeResolverMapEntry(context.Context, *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error)
-	RectifyNodeResolverMapEntries(context.Context, *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error)
+	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
+	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
+	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
+	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
+	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
+	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
+	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
 	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
 	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
@@ -46,15 +44,13 @@ type Plugin interface {
 	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
 	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
-	CreateAttestedNodeEntry(context.Context, *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error)
-	FetchAttestedNodeEntry(context.Context, *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error)
-	ListAttestedNodeEntries(context.Context, *ListAttestedNodeEntriesRequest) (*ListAttestedNodeEntriesResponse, error)
-	UpdateAttestedNodeEntry(context.Context, *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error)
-	DeleteAttestedNodeEntry(context.Context, *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error)
-	CreateNodeResolverMapEntry(context.Context, *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error)
-	ListNodeResolverMapEntries(context.Context, *ListNodeResolverMapEntriesRequest) (*ListNodeResolverMapEntriesResponse, error)
-	DeleteNodeResolverMapEntry(context.Context, *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error)
-	RectifyNodeResolverMapEntries(context.Context, *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error)
+	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
+	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
+	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
+	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
+	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
+	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
+	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
 	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
 	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
@@ -128,72 +124,56 @@ func (b BuiltIn) DeleteBundle(ctx context.Context, req *DeleteBundleRequest) (*D
 	return resp, nil
 }
 
-func (b BuiltIn) CreateAttestedNodeEntry(ctx context.Context, req *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error) {
-	resp, err := b.plugin.CreateAttestedNodeEntry(ctx, req)
+func (b BuiltIn) CreateAttestedNode(ctx context.Context, req *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error) {
+	resp, err := b.plugin.CreateAttestedNode(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (b BuiltIn) FetchAttestedNodeEntry(ctx context.Context, req *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error) {
-	resp, err := b.plugin.FetchAttestedNodeEntry(ctx, req)
+func (b BuiltIn) FetchAttestedNode(ctx context.Context, req *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error) {
+	resp, err := b.plugin.FetchAttestedNode(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (b BuiltIn) ListAttestedNodeEntries(ctx context.Context, req *ListAttestedNodeEntriesRequest) (*ListAttestedNodeEntriesResponse, error) {
-	resp, err := b.plugin.ListAttestedNodeEntries(ctx, req)
+func (b BuiltIn) ListAttestedNodes(ctx context.Context, req *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error) {
+	resp, err := b.plugin.ListAttestedNodes(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (b BuiltIn) UpdateAttestedNodeEntry(ctx context.Context, req *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error) {
-	resp, err := b.plugin.UpdateAttestedNodeEntry(ctx, req)
+func (b BuiltIn) UpdateAttestedNode(ctx context.Context, req *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error) {
+	resp, err := b.plugin.UpdateAttestedNode(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (b BuiltIn) DeleteAttestedNodeEntry(ctx context.Context, req *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error) {
-	resp, err := b.plugin.DeleteAttestedNodeEntry(ctx, req)
+func (b BuiltIn) DeleteAttestedNode(ctx context.Context, req *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error) {
+	resp, err := b.plugin.DeleteAttestedNode(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (b BuiltIn) CreateNodeResolverMapEntry(ctx context.Context, req *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error) {
-	resp, err := b.plugin.CreateNodeResolverMapEntry(ctx, req)
+func (b BuiltIn) SetNodeSelectors(ctx context.Context, req *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error) {
+	resp, err := b.plugin.SetNodeSelectors(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (b BuiltIn) ListNodeResolverMapEntries(ctx context.Context, req *ListNodeResolverMapEntriesRequest) (*ListNodeResolverMapEntriesResponse, error) {
-	resp, err := b.plugin.ListNodeResolverMapEntries(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (b BuiltIn) DeleteNodeResolverMapEntry(ctx context.Context, req *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error) {
-	resp, err := b.plugin.DeleteNodeResolverMapEntry(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (b BuiltIn) RectifyNodeResolverMapEntries(ctx context.Context, req *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error) {
-	resp, err := b.plugin.RectifyNodeResolverMapEntries(ctx, req)
+func (b BuiltIn) GetNodeSelectors(ctx context.Context, req *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error) {
+	resp, err := b.plugin.GetNodeSelectors(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -337,32 +317,26 @@ func (s *GRPCServer) AppendBundle(ctx context.Context, req *AppendBundleRequest)
 func (s *GRPCServer) DeleteBundle(ctx context.Context, req *DeleteBundleRequest) (*DeleteBundleResponse, error) {
 	return s.Plugin.DeleteBundle(ctx, req)
 }
-func (s *GRPCServer) CreateAttestedNodeEntry(ctx context.Context, req *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error) {
-	return s.Plugin.CreateAttestedNodeEntry(ctx, req)
+func (s *GRPCServer) CreateAttestedNode(ctx context.Context, req *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error) {
+	return s.Plugin.CreateAttestedNode(ctx, req)
 }
-func (s *GRPCServer) FetchAttestedNodeEntry(ctx context.Context, req *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error) {
-	return s.Plugin.FetchAttestedNodeEntry(ctx, req)
+func (s *GRPCServer) FetchAttestedNode(ctx context.Context, req *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error) {
+	return s.Plugin.FetchAttestedNode(ctx, req)
 }
-func (s *GRPCServer) ListAttestedNodeEntries(ctx context.Context, req *ListAttestedNodeEntriesRequest) (*ListAttestedNodeEntriesResponse, error) {
-	return s.Plugin.ListAttestedNodeEntries(ctx, req)
+func (s *GRPCServer) ListAttestedNodes(ctx context.Context, req *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error) {
+	return s.Plugin.ListAttestedNodes(ctx, req)
 }
-func (s *GRPCServer) UpdateAttestedNodeEntry(ctx context.Context, req *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error) {
-	return s.Plugin.UpdateAttestedNodeEntry(ctx, req)
+func (s *GRPCServer) UpdateAttestedNode(ctx context.Context, req *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error) {
+	return s.Plugin.UpdateAttestedNode(ctx, req)
 }
-func (s *GRPCServer) DeleteAttestedNodeEntry(ctx context.Context, req *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error) {
-	return s.Plugin.DeleteAttestedNodeEntry(ctx, req)
+func (s *GRPCServer) DeleteAttestedNode(ctx context.Context, req *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error) {
+	return s.Plugin.DeleteAttestedNode(ctx, req)
 }
-func (s *GRPCServer) CreateNodeResolverMapEntry(ctx context.Context, req *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error) {
-	return s.Plugin.CreateNodeResolverMapEntry(ctx, req)
+func (s *GRPCServer) SetNodeSelectors(ctx context.Context, req *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error) {
+	return s.Plugin.SetNodeSelectors(ctx, req)
 }
-func (s *GRPCServer) ListNodeResolverMapEntries(ctx context.Context, req *ListNodeResolverMapEntriesRequest) (*ListNodeResolverMapEntriesResponse, error) {
-	return s.Plugin.ListNodeResolverMapEntries(ctx, req)
-}
-func (s *GRPCServer) DeleteNodeResolverMapEntry(ctx context.Context, req *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error) {
-	return s.Plugin.DeleteNodeResolverMapEntry(ctx, req)
-}
-func (s *GRPCServer) RectifyNodeResolverMapEntries(ctx context.Context, req *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error) {
-	return s.Plugin.RectifyNodeResolverMapEntries(ctx, req)
+func (s *GRPCServer) GetNodeSelectors(ctx context.Context, req *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error) {
+	return s.Plugin.GetNodeSelectors(ctx, req)
 }
 func (s *GRPCServer) CreateRegistrationEntry(ctx context.Context, req *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error) {
 	return s.Plugin.CreateRegistrationEntry(ctx, req)
@@ -420,32 +394,26 @@ func (c *GRPCClient) AppendBundle(ctx context.Context, req *AppendBundleRequest)
 func (c *GRPCClient) DeleteBundle(ctx context.Context, req *DeleteBundleRequest) (*DeleteBundleResponse, error) {
 	return c.client.DeleteBundle(ctx, req)
 }
-func (c *GRPCClient) CreateAttestedNodeEntry(ctx context.Context, req *CreateAttestedNodeEntryRequest) (*CreateAttestedNodeEntryResponse, error) {
-	return c.client.CreateAttestedNodeEntry(ctx, req)
+func (c *GRPCClient) CreateAttestedNode(ctx context.Context, req *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error) {
+	return c.client.CreateAttestedNode(ctx, req)
 }
-func (c *GRPCClient) FetchAttestedNodeEntry(ctx context.Context, req *FetchAttestedNodeEntryRequest) (*FetchAttestedNodeEntryResponse, error) {
-	return c.client.FetchAttestedNodeEntry(ctx, req)
+func (c *GRPCClient) FetchAttestedNode(ctx context.Context, req *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error) {
+	return c.client.FetchAttestedNode(ctx, req)
 }
-func (c *GRPCClient) ListAttestedNodeEntries(ctx context.Context, req *ListAttestedNodeEntriesRequest) (*ListAttestedNodeEntriesResponse, error) {
-	return c.client.ListAttestedNodeEntries(ctx, req)
+func (c *GRPCClient) ListAttestedNodes(ctx context.Context, req *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error) {
+	return c.client.ListAttestedNodes(ctx, req)
 }
-func (c *GRPCClient) UpdateAttestedNodeEntry(ctx context.Context, req *UpdateAttestedNodeEntryRequest) (*UpdateAttestedNodeEntryResponse, error) {
-	return c.client.UpdateAttestedNodeEntry(ctx, req)
+func (c *GRPCClient) UpdateAttestedNode(ctx context.Context, req *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error) {
+	return c.client.UpdateAttestedNode(ctx, req)
 }
-func (c *GRPCClient) DeleteAttestedNodeEntry(ctx context.Context, req *DeleteAttestedNodeEntryRequest) (*DeleteAttestedNodeEntryResponse, error) {
-	return c.client.DeleteAttestedNodeEntry(ctx, req)
+func (c *GRPCClient) DeleteAttestedNode(ctx context.Context, req *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error) {
+	return c.client.DeleteAttestedNode(ctx, req)
 }
-func (c *GRPCClient) CreateNodeResolverMapEntry(ctx context.Context, req *CreateNodeResolverMapEntryRequest) (*CreateNodeResolverMapEntryResponse, error) {
-	return c.client.CreateNodeResolverMapEntry(ctx, req)
+func (c *GRPCClient) SetNodeSelectors(ctx context.Context, req *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error) {
+	return c.client.SetNodeSelectors(ctx, req)
 }
-func (c *GRPCClient) ListNodeResolverMapEntries(ctx context.Context, req *ListNodeResolverMapEntriesRequest) (*ListNodeResolverMapEntriesResponse, error) {
-	return c.client.ListNodeResolverMapEntries(ctx, req)
-}
-func (c *GRPCClient) DeleteNodeResolverMapEntry(ctx context.Context, req *DeleteNodeResolverMapEntryRequest) (*DeleteNodeResolverMapEntryResponse, error) {
-	return c.client.DeleteNodeResolverMapEntry(ctx, req)
-}
-func (c *GRPCClient) RectifyNodeResolverMapEntries(ctx context.Context, req *RectifyNodeResolverMapEntriesRequest) (*RectifyNodeResolverMapEntriesResponse, error) {
-	return c.client.RectifyNodeResolverMapEntries(ctx, req)
+func (c *GRPCClient) GetNodeSelectors(ctx context.Context, req *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error) {
+	return c.client.GetNodeSelectors(ctx, req)
 }
 func (c *GRPCClient) CreateRegistrationEntry(ctx context.Context, req *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error) {
 	return c.client.CreateRegistrationEntry(ctx, req)

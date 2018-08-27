@@ -43,58 +43,55 @@
 - [datastore.proto](#datastore.proto)
     - [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest)
     - [AppendBundleResponse](#spire.server.datastore.AppendBundleResponse)
-    - [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry)
+    - [AttestedNode](#spire.server.datastore.AttestedNode)
     - [Bundle](#spire.server.datastore.Bundle)
     - [BySelectors](#spire.server.datastore.BySelectors)
-    - [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest)
-    - [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryResponse)
+    - [CreateAttestedNodeRequest](#spire.server.datastore.CreateAttestedNodeRequest)
+    - [CreateAttestedNodeResponse](#spire.server.datastore.CreateAttestedNodeResponse)
     - [CreateBundleRequest](#spire.server.datastore.CreateBundleRequest)
     - [CreateBundleResponse](#spire.server.datastore.CreateBundleResponse)
     - [CreateJoinTokenRequest](#spire.server.datastore.CreateJoinTokenRequest)
     - [CreateJoinTokenResponse](#spire.server.datastore.CreateJoinTokenResponse)
-    - [CreateNodeResolverMapEntryRequest](#spire.server.datastore.CreateNodeResolverMapEntryRequest)
-    - [CreateNodeResolverMapEntryResponse](#spire.server.datastore.CreateNodeResolverMapEntryResponse)
     - [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest)
     - [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryResponse)
-    - [DeleteAttestedNodeEntryRequest](#spire.server.datastore.DeleteAttestedNodeEntryRequest)
-    - [DeleteAttestedNodeEntryResponse](#spire.server.datastore.DeleteAttestedNodeEntryResponse)
+    - [DeleteAttestedNodeRequest](#spire.server.datastore.DeleteAttestedNodeRequest)
+    - [DeleteAttestedNodeResponse](#spire.server.datastore.DeleteAttestedNodeResponse)
     - [DeleteBundleRequest](#spire.server.datastore.DeleteBundleRequest)
     - [DeleteBundleResponse](#spire.server.datastore.DeleteBundleResponse)
     - [DeleteJoinTokenRequest](#spire.server.datastore.DeleteJoinTokenRequest)
     - [DeleteJoinTokenResponse](#spire.server.datastore.DeleteJoinTokenResponse)
-    - [DeleteNodeResolverMapEntryRequest](#spire.server.datastore.DeleteNodeResolverMapEntryRequest)
-    - [DeleteNodeResolverMapEntryResponse](#spire.server.datastore.DeleteNodeResolverMapEntryResponse)
     - [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest)
     - [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryResponse)
-    - [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest)
-    - [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryResponse)
+    - [FetchAttestedNodeRequest](#spire.server.datastore.FetchAttestedNodeRequest)
+    - [FetchAttestedNodeResponse](#spire.server.datastore.FetchAttestedNodeResponse)
     - [FetchBundleRequest](#spire.server.datastore.FetchBundleRequest)
     - [FetchBundleResponse](#spire.server.datastore.FetchBundleResponse)
     - [FetchJoinTokenRequest](#spire.server.datastore.FetchJoinTokenRequest)
     - [FetchJoinTokenResponse](#spire.server.datastore.FetchJoinTokenResponse)
     - [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest)
     - [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryResponse)
+    - [GetNodeSelectorsRequest](#spire.server.datastore.GetNodeSelectorsRequest)
+    - [GetNodeSelectorsResponse](#spire.server.datastore.GetNodeSelectorsResponse)
     - [JoinToken](#spire.server.datastore.JoinToken)
-    - [ListAttestedNodeEntriesRequest](#spire.server.datastore.ListAttestedNodeEntriesRequest)
-    - [ListAttestedNodeEntriesResponse](#spire.server.datastore.ListAttestedNodeEntriesResponse)
+    - [ListAttestedNodesRequest](#spire.server.datastore.ListAttestedNodesRequest)
+    - [ListAttestedNodesResponse](#spire.server.datastore.ListAttestedNodesResponse)
     - [ListBundlesRequest](#spire.server.datastore.ListBundlesRequest)
     - [ListBundlesResponse](#spire.server.datastore.ListBundlesResponse)
-    - [ListNodeResolverMapEntriesRequest](#spire.server.datastore.ListNodeResolverMapEntriesRequest)
-    - [ListNodeResolverMapEntriesResponse](#spire.server.datastore.ListNodeResolverMapEntriesResponse)
     - [ListRegistrationEntriesRequest](#spire.server.datastore.ListRegistrationEntriesRequest)
     - [ListRegistrationEntriesResponse](#spire.server.datastore.ListRegistrationEntriesResponse)
-    - [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry)
+    - [NodeSelectors](#spire.server.datastore.NodeSelectors)
     - [PruneJoinTokensRequest](#spire.server.datastore.PruneJoinTokensRequest)
     - [PruneJoinTokensResponse](#spire.server.datastore.PruneJoinTokensResponse)
-    - [RectifyNodeResolverMapEntriesRequest](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest)
-    - [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesResponse)
-    - [UpdateAttestedNodeEntryRequest](#spire.server.datastore.UpdateAttestedNodeEntryRequest)
-    - [UpdateAttestedNodeEntryResponse](#spire.server.datastore.UpdateAttestedNodeEntryResponse)
+    - [SetNodeSelectorsRequest](#spire.server.datastore.SetNodeSelectorsRequest)
+    - [SetNodeSelectorsResponse](#spire.server.datastore.SetNodeSelectorsResponse)
+    - [UpdateAttestedNodeRequest](#spire.server.datastore.UpdateAttestedNodeRequest)
+    - [UpdateAttestedNodeResponse](#spire.server.datastore.UpdateAttestedNodeResponse)
     - [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest)
     - [UpdateBundleResponse](#spire.server.datastore.UpdateBundleResponse)
     - [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest)
     - [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryResponse)
   
+    - [BySelectors.MatchBehavior](#spire.server.datastore.BySelectors.MatchBehavior)
   
   
     - [DataStore](#spire.server.datastore.DataStore)
@@ -500,9 +497,9 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.AttestedNodeEntry"/>
+<a name="spire.server.datastore.AttestedNode"/>
 
-### AttestedNodeEntry
+### AttestedNode
 
 
 
@@ -543,37 +540,37 @@ Represents a type with a list of Selector.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | selectors | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) | repeated |  |
-| allow_any_combination | [bool](#bool) |  |  |
+| match | [BySelectors.MatchBehavior](#spire.server.datastore.BySelectors.MatchBehavior) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.CreateAttestedNodeEntryRequest"/>
+<a name="spire.server.datastore.CreateAttestedNodeRequest"/>
 
-### CreateAttestedNodeEntryRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
-
-
-
-
-
-
-<a name="spire.server.datastore.CreateAttestedNodeEntryResponse"/>
-
-### CreateAttestedNodeEntryResponse
+### CreateAttestedNodeRequest
 
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
+| node | [AttestedNode](#spire.server.datastore.AttestedNode) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.CreateAttestedNodeResponse"/>
+
+### CreateAttestedNodeResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| node | [AttestedNode](#spire.server.datastore.AttestedNode) |  |  |
 
 
 
@@ -640,36 +637,6 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.CreateNodeResolverMapEntryRequest"/>
-
-### CreateNodeResolverMapEntryRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  |  |
-
-
-
-
-
-
-<a name="spire.server.datastore.CreateNodeResolverMapEntryResponse"/>
-
-### CreateNodeResolverMapEntryResponse
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  |  |
-
-
-
-
-
-
 <a name="spire.server.datastore.CreateRegistrationEntryRequest"/>
 
 ### CreateRegistrationEntryRequest
@@ -693,16 +660,16 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry_id | [string](#string) |  |  |
+| entry | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.DeleteAttestedNodeEntryRequest"/>
+<a name="spire.server.datastore.DeleteAttestedNodeRequest"/>
 
-### DeleteAttestedNodeEntryRequest
+### DeleteAttestedNodeRequest
 
 
 
@@ -715,15 +682,15 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.DeleteAttestedNodeEntryResponse"/>
+<a name="spire.server.datastore.DeleteAttestedNodeResponse"/>
 
-### DeleteAttestedNodeEntryResponse
+### DeleteAttestedNodeResponse
 
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
+| node | [AttestedNode](#spire.server.datastore.AttestedNode) |  |  |
 
 
 
@@ -790,36 +757,6 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.DeleteNodeResolverMapEntryRequest"/>
-
-### DeleteNodeResolverMapEntryRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entry | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) |  |  |
-
-
-
-
-
-
-<a name="spire.server.datastore.DeleteNodeResolverMapEntryResponse"/>
-
-### DeleteNodeResolverMapEntryResponse
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated |  |
-
-
-
-
-
-
 <a name="spire.server.datastore.DeleteRegistrationEntryRequest"/>
 
 ### DeleteRegistrationEntryRequest
@@ -850,9 +787,9 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.FetchAttestedNodeEntryRequest"/>
+<a name="spire.server.datastore.FetchAttestedNodeRequest"/>
 
-### FetchAttestedNodeEntryRequest
+### FetchAttestedNodeRequest
 
 
 
@@ -865,15 +802,15 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.FetchAttestedNodeEntryResponse"/>
+<a name="spire.server.datastore.FetchAttestedNodeResponse"/>
 
-### FetchAttestedNodeEntryResponse
+### FetchAttestedNodeResponse
 
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
+| node | [AttestedNode](#spire.server.datastore.AttestedNode) |  |  |
 
 
 
@@ -970,6 +907,36 @@ Represents a type with a list of Selector.
 
 
 
+<a name="spire.server.datastore.GetNodeSelectorsRequest"/>
+
+### GetNodeSelectorsRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.GetNodeSelectorsResponse"/>
+
+### GetNodeSelectorsResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| selectors | [NodeSelectors](#spire.server.datastore.NodeSelectors) |  |  |
+
+
+
+
+
+
 <a name="spire.server.datastore.JoinToken"/>
 
 ### JoinToken
@@ -986,9 +953,9 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.ListAttestedNodeEntriesRequest"/>
+<a name="spire.server.datastore.ListAttestedNodesRequest"/>
 
-### ListAttestedNodeEntriesRequest
+### ListAttestedNodesRequest
 
 
 
@@ -1001,15 +968,15 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.ListAttestedNodeEntriesResponse"/>
+<a name="spire.server.datastore.ListAttestedNodesResponse"/>
 
-### ListAttestedNodeEntriesResponse
+### ListAttestedNodesResponse
 
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) | repeated |  |
+| nodes | [AttestedNode](#spire.server.datastore.AttestedNode) | repeated |  |
 
 
 
@@ -1035,36 +1002,6 @@ Represents a type with a list of Selector.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | bundles | [Bundle](#spire.server.datastore.Bundle) | repeated |  |
-
-
-
-
-
-
-<a name="spire.server.datastore.ListNodeResolverMapEntriesRequest"/>
-
-### ListNodeResolverMapEntriesRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffe_id | [string](#string) |  |  |
-
-
-
-
-
-
-<a name="spire.server.datastore.ListNodeResolverMapEntriesResponse"/>
-
-### ListNodeResolverMapEntriesResponse
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated |  |
 
 
 
@@ -1103,16 +1040,16 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.NodeResolverMapEntry"/>
+<a name="spire.server.datastore.NodeSelectors"/>
 
-### NodeResolverMapEntry
+### NodeSelectors
 
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | Node SPIFFE ID |
-| selector | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) |  | Node selector |
+| selectors | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) | repeated | Node selectors |
 
 
 
@@ -1144,39 +1081,34 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.RectifyNodeResolverMapEntriesRequest"/>
+<a name="spire.server.datastore.SetNodeSelectorsRequest"/>
 
-### RectifyNodeResolverMapEntriesRequest
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| entries | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated |  |
-
-
-
-
-
-
-<a name="spire.server.datastore.RectifyNodeResolverMapEntriesResponse"/>
-
-### RectifyNodeResolverMapEntriesResponse
+### SetNodeSelectorsRequest
 
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entries | [NodeResolverMapEntry](#spire.server.datastore.NodeResolverMapEntry) | repeated |  |
+| selectors | [NodeSelectors](#spire.server.datastore.NodeSelectors) |  |  |
 
 
 
 
 
 
-<a name="spire.server.datastore.UpdateAttestedNodeEntryRequest"/>
+<a name="spire.server.datastore.SetNodeSelectorsResponse"/>
 
-### UpdateAttestedNodeEntryRequest
+### SetNodeSelectorsResponse
+
+
+
+
+
+
+
+<a name="spire.server.datastore.UpdateAttestedNodeRequest"/>
+
+### UpdateAttestedNodeRequest
 
 
 
@@ -1191,15 +1123,15 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.UpdateAttestedNodeEntryResponse"/>
+<a name="spire.server.datastore.UpdateAttestedNodeResponse"/>
 
-### UpdateAttestedNodeEntryResponse
+### UpdateAttestedNodeResponse
 
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| entry | [AttestedNodeEntry](#spire.server.datastore.AttestedNodeEntry) |  |  |
+| node | [AttestedNode](#spire.server.datastore.AttestedNode) |  |  |
 
 
 
@@ -1267,6 +1199,18 @@ Represents a type with a list of Selector.
 
  
 
+
+<a name="spire.server.datastore.BySelectors.MatchBehavior"/>
+
+### BySelectors.MatchBehavior
+
+
+| Name | Number | Description |
+| ---- | ------ | ----------- |
+| MATCH_EXACT | 0 |  |
+| MATCH_SUBSET | 1 |  |
+
+
  
 
  
@@ -1285,15 +1229,13 @@ Represents a type with a list of Selector.
 | UpdateBundle | [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest) | [UpdateBundleResponse](#spire.server.datastore.UpdateBundleRequest) | Updates a specific bundle, overwriting existing certs |
 | AppendBundle | [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest) | [AppendBundleResponse](#spire.server.datastore.AppendBundleRequest) | Appends the provided certs onto an existing bundle, creating a new bundle if one doesn&#39;t exist |
 | DeleteBundle | [DeleteBundleRequest](#spire.server.datastore.DeleteBundleRequest) | [DeleteBundleResponse](#spire.server.datastore.DeleteBundleRequest) | Deletes a specific bundle |
-| CreateAttestedNodeEntry | [CreateAttestedNodeEntryRequest](#spire.server.datastore.CreateAttestedNodeEntryRequest) | [CreateAttestedNodeEntryResponse](#spire.server.datastore.CreateAttestedNodeEntryRequest) | Creates an attested node entry |
-| FetchAttestedNodeEntry | [FetchAttestedNodeEntryRequest](#spire.server.datastore.FetchAttestedNodeEntryRequest) | [FetchAttestedNodeEntryResponse](#spire.server.datastore.FetchAttestedNodeEntryRequest) | Fetches a specific attested node entry |
-| ListAttestedNodeEntries | [ListAttestedNodeEntriesRequest](#spire.server.datastore.ListAttestedNodeEntriesRequest) | [ListAttestedNodeEntriesResponse](#spire.server.datastore.ListAttestedNodeEntriesRequest) | Lists attested node entries (optionally filtered) |
-| UpdateAttestedNodeEntry | [UpdateAttestedNodeEntryRequest](#spire.server.datastore.UpdateAttestedNodeEntryRequest) | [UpdateAttestedNodeEntryResponse](#spire.server.datastore.UpdateAttestedNodeEntryRequest) | Updates a specific attested node entry |
-| DeleteAttestedNodeEntry | [DeleteAttestedNodeEntryRequest](#spire.server.datastore.DeleteAttestedNodeEntryRequest) | [DeleteAttestedNodeEntryResponse](#spire.server.datastore.DeleteAttestedNodeEntryRequest) | Deletes a specific attested node entry |
-| CreateNodeResolverMapEntry | [CreateNodeResolverMapEntryRequest](#spire.server.datastore.CreateNodeResolverMapEntryRequest) | [CreateNodeResolverMapEntryResponse](#spire.server.datastore.CreateNodeResolverMapEntryRequest) | Creates a node resolver map entry |
-| ListNodeResolverMapEntries | [ListNodeResolverMapEntriesRequest](#spire.server.datastore.ListNodeResolverMapEntriesRequest) | [ListNodeResolverMapEntriesResponse](#spire.server.datastore.ListNodeResolverMapEntriesRequest) | Lists node resolver map entries for a specified SPIFFE ID |
-| DeleteNodeResolverMapEntry | [DeleteNodeResolverMapEntryRequest](#spire.server.datastore.DeleteNodeResolverMapEntryRequest) | [DeleteNodeResolverMapEntryResponse](#spire.server.datastore.DeleteNodeResolverMapEntryRequest) | Deletes a specific node resolver map entry |
-| RectifyNodeResolverMapEntries | [RectifyNodeResolverMapEntriesRequest](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest) | [RectifyNodeResolverMapEntriesResponse](#spire.server.datastore.RectifyNodeResolverMapEntriesRequest) | Sets the list of node resolver map entries for the specified SPIFFE ID |
+| CreateAttestedNode | [CreateAttestedNodeRequest](#spire.server.datastore.CreateAttestedNodeRequest) | [CreateAttestedNodeResponse](#spire.server.datastore.CreateAttestedNodeRequest) | Creates an attested node |
+| FetchAttestedNode | [FetchAttestedNodeRequest](#spire.server.datastore.FetchAttestedNodeRequest) | [FetchAttestedNodeResponse](#spire.server.datastore.FetchAttestedNodeRequest) | Fetches a specific attested node |
+| ListAttestedNodes | [ListAttestedNodesRequest](#spire.server.datastore.ListAttestedNodesRequest) | [ListAttestedNodesResponse](#spire.server.datastore.ListAttestedNodesRequest) | Lists attested nodes (optionally filtered) |
+| UpdateAttestedNode | [UpdateAttestedNodeRequest](#spire.server.datastore.UpdateAttestedNodeRequest) | [UpdateAttestedNodeResponse](#spire.server.datastore.UpdateAttestedNodeRequest) | Updates a specific attested node |
+| DeleteAttestedNode | [DeleteAttestedNodeRequest](#spire.server.datastore.DeleteAttestedNodeRequest) | [DeleteAttestedNodeResponse](#spire.server.datastore.DeleteAttestedNodeRequest) | Deletes a specific attested node |
+| SetNodeSelectors | [SetNodeSelectorsRequest](#spire.server.datastore.SetNodeSelectorsRequest) | [SetNodeSelectorsResponse](#spire.server.datastore.SetNodeSelectorsRequest) | Sets the set of selectors for a specific node id |
+| GetNodeSelectors | [GetNodeSelectorsRequest](#spire.server.datastore.GetNodeSelectorsRequest) | [GetNodeSelectorsResponse](#spire.server.datastore.GetNodeSelectorsRequest) | Gets the set of node selectors for a specific node id |
 | CreateRegistrationEntry | [CreateRegistrationEntryRequest](#spire.server.datastore.CreateRegistrationEntryRequest) | [CreateRegistrationEntryResponse](#spire.server.datastore.CreateRegistrationEntryRequest) | Creates a registration entry |
 | FetchRegistrationEntry | [FetchRegistrationEntryRequest](#spire.server.datastore.FetchRegistrationEntryRequest) | [FetchRegistrationEntryResponse](#spire.server.datastore.FetchRegistrationEntryRequest) | Fetches a specific registration entry |
 | ListRegistrationEntries | [ListRegistrationEntriesRequest](#spire.server.datastore.ListRegistrationEntriesRequest) | [ListRegistrationEntriesResponse](#spire.server.datastore.ListRegistrationEntriesRequest) | Lists registration entries (optionally filtered) |

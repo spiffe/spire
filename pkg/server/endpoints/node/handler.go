@@ -384,10 +384,12 @@ func (h *Handler) attestToken(ctx context.Context,
 		return nil, errors.New("invalid join token")
 	}
 
-	// Don't fail if we can't delete
-	_, _ = ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
+	_, err := ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
 		Token: tokenValue,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	if time.Unix(t.Expiry, 0).Before(h.hooks.now()) {
 		return nil, errors.New("join token expired")
