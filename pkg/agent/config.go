@@ -55,6 +55,6 @@ func New(c *Config) *Agent {
 
 func (c *Config) GlobalConfigs() *catalog.GlobalConfig {
 	return &catalog.GlobalConfig{
-		TrustDomain: c.TrustDomain.String(),
+		TrustDomain: c.TrustDomain.Host,
 	}
 }

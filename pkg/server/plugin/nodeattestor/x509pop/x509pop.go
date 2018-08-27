@@ -25,7 +25,6 @@ type configuration struct {
 }
 
 type X509PoPConfig struct {
-	TrustDomain  string `hcl:"trust_domain"`
 	CABundlePath string `hcl:"ca_bundle_path"`
 }
 
@@ -137,9 +136,14 @@ func (p *X509PoPPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest
 		return nil, newError("unable to decode configuration: %v", err)
 	}
 
-	if config.TrustDomain == "" {
+	if req.GlobalConfig == nil {
+		return nil, newError("global configuration is required")
+	}
+
+	if req.GlobalConfig.TrustDomain == "" {
 		return nil, newError("trust_domain is required")
 	}
+
 	if config.CABundlePath == "" {
 		return nil, newError("ca_bundle_path is required")
 	}
@@ -150,7 +154,7 @@ func (p *X509PoPPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest
 	}
 
 	p.setConfiguration(&configuration{
-		trustDomain: config.TrustDomain,
+		trustDomain: req.GlobalConfig.TrustDomain,
 		trustBundle: trustBundle,
 	})
 

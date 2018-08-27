@@ -87,7 +87,7 @@ func New(config Config) *Server {
 
 func (c *Config) GlobalConfigs() *common.GlobalConfig {
 	return &common.GlobalConfig{
-		TrustDomain: c.TrustDomain.String(),
+		TrustDomain: c.TrustDomain.Host,
 	}
 }
 

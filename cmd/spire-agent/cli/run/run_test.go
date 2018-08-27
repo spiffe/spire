@@ -23,7 +23,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.AgentConfig.Umask, "")
 
 	// Check for plugins configurations
-	expectedData := "join_token = \"PLUGIN-AGENT-NOT-A-SECRET\"\n\ntrust_domain = \"example.org\""
+	expectedData := "join_token = \"PLUGIN-AGENT-NOT-A-SECRET\""
 	var data bytes.Buffer
 	err = printer.DefaultConfig.Fprint(&data, c.PluginConfigs["plugin_type_agent"]["plugin_name_agent"].PluginData)
 	assert.NoError(t, err)
@@ -78,6 +78,7 @@ func TestMergeConfigGood(t *testing.T) {
 	assert.Equal(t, orig.ServerAddress, net.JoinHostPort("127.0.0.1", "8081"))
 	assert.Equal(t, orig.TrustDomain.Scheme, "spiffe")
 	assert.Equal(t, orig.TrustDomain.Host, "example.org")
+	assert.Equal(t, orig.GlobalConfigs().TrustDomain, "example.org")
 	assert.Equal(t, orig.DataDir, ".")
 	assert.Equal(t, orig.Umask, 0077)
 }

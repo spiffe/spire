@@ -63,9 +63,10 @@ func AttestStreamGenerator(token string, attestedBefore bool) *fakeAttestPluginS
 func TestJoinToken_Configure(t *testing.T) {
 	assert := assert.New(t)
 
-	config := `{"join_tokens":{"bar":1}, "trust_domain":"example.com"}`
+	config := `{"join_tokens":{"bar":1}}`
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
+		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "example.com"},
 	}
 
 	p := &JoinTokenPlugin{
@@ -79,9 +80,10 @@ func TestJoinToken_Configure(t *testing.T) {
 func TestJoinToken_Attest(t *testing.T) {
 	assert := assert.New(t)
 
-	config := `{"join_tokens":{"foo":600,"bar":60, "bat":1}, "trust_domain":"example.com"}`
+	config := `{"join_tokens":{"foo":600,"bar":60, "bat":1}}`
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
+		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "example.com"},
 	}
 
 	p := &JoinTokenPlugin{

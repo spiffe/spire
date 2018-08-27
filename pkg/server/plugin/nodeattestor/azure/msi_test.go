@@ -225,14 +225,20 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	s.requireErrorContains(err, "azure-msi: unable to decode configuration")
 	s.Require().Nil(resp)
 
-	// missing trust domain
+	// missing global configuration
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.Require().EqualError(err, "azure-msi: configuration missing trust domain")
+	s.Require().EqualError(err, "azure-msi: global configuration is required")
+	s.Require().Nil(resp)
+
+	// missing trust domain
+	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
+	s.Require().EqualError(err, "azure-msi: global configuration missing trust domain")
 	s.Require().Nil(resp)
 
 	// missing tenants
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `trust_domain = "example.org"`,
+		Configuration: ``,
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().EqualError(err, "azure-msi: configuration must have at least one tenant")
 	s.Require().Nil(resp)
@@ -314,7 +320,6 @@ func (s *MSIAttestorSuite) newAttestor() *nodeattestor.BuiltIn {
 func (s *MSIAttestorSuite) configureAttestor() {
 	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-		trust_domain = "example.org"
 		tenants = {
 			"TENANTID" = {
 				resource_id = "https://example.org/app/"
@@ -322,6 +327,7 @@ func (s *MSIAttestorSuite) configureAttestor() {
 			"TENANTID2" = {}
 		}
 		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
