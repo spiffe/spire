@@ -47,9 +47,11 @@ A sample configuration:
         plugin_data {
             use_msi = false
             tenants = {
-                subscription_id = SUBSCRIPTION_ID
-                app_id = APP_ID
-                app_secret = APP_SECRET
+                TENANT_ID = {
+                    subscription_id = SUBSCRIPTION_ID
+                    app_id = APP_ID
+                    app_secret = APP_SECRET
+                }
             }
         }
     }
