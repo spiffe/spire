@@ -54,7 +54,7 @@ func (d *grpcDialer) Dial(ctx context.Context, addr string) (*grpc.ClientConn, e
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
-		conn, err := new(net.Dialer).DialContext(ctx, "tcp", addr)
+		conn, err := proxyDial(ctx, addr)
 		if err != nil {
 			d.log.Print(err)
 			return nil, err
