@@ -471,7 +471,9 @@ func (h *Handler) updateNodeSelectors(ctx context.Context,
 	}
 
 	var selectors []*common.Selector
-	selectors = append(selectors, response.Map[baseSpiffeID].Entries...)
+	if resolved := response.Map[baseSpiffeID]; resolved != nil {
+		selectors = append(selectors, resolved.Entries...)
+	}
 	selectors = append(selectors, attestResponse.Selectors...)
 
 	dataStore := h.c.Catalog.DataStores()[0]
