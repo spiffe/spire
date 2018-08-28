@@ -18,5 +18,4 @@ spiffe://<trust domain>/spire/agent/x509pop/<fingerprint>
 
 | Configuration | Description | Default                 |
 | ------------- | ----------- | ----------------------- |
-| `trust_domain`  |  The trust domain that the node belongs to. |  |
 | `ca_bundle_path` | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. | |

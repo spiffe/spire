@@ -17,7 +17,6 @@ perform node attestation.
 
 | Configuration   | Description | Default                 |
 | --------------- | ----------- | ----------------------- |
-| `trust_domain`  | The trust domain that the node belongs to. |  |
 | `resource_id`   | The resource ID (or audience) to request for the MSI token. The server will reject tokens with resource IDs it does not recognize | https://management.azure.com/ |
 
 It is important to note that the resource ID MUST be for a well known Azure
@@ -36,7 +35,6 @@ A sample configuration with the default resource ID (i.e. resource manager):
     NodeAttestor "azure_msi" {
         enabled = true
         plugin_data {
-            trust_domain = "example.org"
         }
     }
 ```
@@ -47,7 +45,6 @@ A sample configuration with a custom resource ID:
     NodeAttestor "azure_msi" {
         enabled = true
         plugin_data {
-            trust_domain = "example.org"
             resource_id = "http://example.org/app/"
         }
     }

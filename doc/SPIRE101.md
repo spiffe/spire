@@ -90,7 +90,6 @@ plugins {
         ServerCA "memory" { 
         enabled = true
         plugin_data {
-                trust_domain = "example.org",
                 key_size = 2048,
                 backdate_seconds = 1,
                 cert_subject = {
@@ -112,7 +111,6 @@ plugins {
         NodeAttestor "join_token" {
                 enabled = true
                 plugin_data {
-                        trust_domain = "example.org"
                 }
         }
 
@@ -124,7 +122,6 @@ plugins {
         UpstreamCA "disk" {
                 enabled = true
                 plugin_data {
-                        trust_domain = "example.org"
                         ttl = "1h"
                         key_file_path = "conf/server/dummy_upstream_ca.key"
                         cert_file_path = "conf/server/dummy_upstream_ca.crt"
@@ -169,7 +166,6 @@ plugins {
         NodeAttestor "join_token" {
             enabled = true
             plugin_data {
-                trust_domain = "example.org"
             }
         }
         KeyManager "memory" {

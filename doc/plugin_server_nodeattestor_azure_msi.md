@@ -17,7 +17,6 @@ attestation.
 
 | Configuration   | Description | Default                 |
 | --------------- | ----------- | ----------------------- |
-| `trust_domain`  | The trust domain that the node belongs to. |  |
 | `tenants`       | A map of tenants, keyed by tenant ID, that are authorized for attestation. Tokens for unspecified tenants are rejected. | |
 
 Each tenant in the main configuration supports the following
@@ -36,7 +35,6 @@ A sample configuration:
     NodeAttestor "azure_msi" {
         enabled = true
         plugin_data {
-            trust_domain = "example.org"
             tenants = {
                 // Tenant configured with the default resource id (i.e. the resource manager)
                 "9E85E111-1103-48FC-A933-9533FE47DE05" : {}

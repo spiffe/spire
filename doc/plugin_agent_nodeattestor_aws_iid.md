@@ -6,6 +6,5 @@ The `aws_iid` plugin automatically attests instances using the AWS Instance Meta
 
 | Configuration | Description | Default                 |
 | ------------- | ----------- | ----------------------- |
-| trust_domain  |  The trust domain that the server belongs to. |  |
 | identity_document_url  |  URL pointing to the [AWS Instance Identity Document](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html). | http://169.254.169.254/latest/dynamic/instance-identity/document |
 | identity_signature_url | URL pointing to the [AWS Instance Identity Signature](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html). | http://169.254.169.254/latest/dynamic/instance-identity/signature |

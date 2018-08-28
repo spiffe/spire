@@ -6,4 +6,4 @@ The `gcp_iit` plugin automatically attests instances using the [GCP Instance Ide
 
 | Configuration       | Description                                                       | Default |
 |---------------------|-------------------------------------------------------------------|---------|
-| trust_domain        | The trust domain that the agent belongs to.                       |         |
+
