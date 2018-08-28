@@ -25,11 +25,11 @@ const (
 )
 
 type IITAttestorConfig struct {
+	trustDomain string
 }
 
 type IITAttestorPlugin struct {
-	tokenHost   string
-	trustDomain string
+	tokenHost string
 
 	mtx    sync.RWMutex
 	config *IITAttestorConfig
@@ -74,12 +74,17 @@ func retrieveInstanceIdentityToken(url string) ([]byte, error) {
 }
 
 func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
+	c, err := p.getConfig()
+	if err != nil {
+		return err
+	}
+
 	docBytes, err := retrieveInstanceIdentityToken(identityTokenURL(p.tokenHost))
 	if err != nil {
 		return newErrorf("unable to retrieve identity token: %v", err)
 	}
 
-	resp, err := p.buildAttestationResponse(p.trustDomain, docBytes)
+	resp, err := p.buildAttestationResponse(c.trustDomain, docBytes)
 	if err != nil {
 		return err
 	}
@@ -128,10 +133,10 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if req.GlobalConfig.TrustDomain == "" {
 		return nil, newError("trust_domain is required")
 	}
-	p.trustDomain = req.GlobalConfig.TrustDomain
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
+	config.trustDomain = req.GlobalConfig.TrustDomain
 	p.config = config
 
 	return &spi.ConfigureResponse{}, nil
@@ -145,6 +150,16 @@ func NewIITAttestorPlugin() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
 		tokenHost: identityTokenURLHost,
 	}
+}
+
+func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	if p.config == nil {
+		return nil, newError("gcp-iit: not configured")
+	}
+	return p.config, nil
 }
 
 func newError(msg string) error {

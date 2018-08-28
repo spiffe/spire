@@ -74,9 +74,9 @@ func TestJoinToken_Configure(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(&spi.ConfigureResponse{}, r)
 
-	// Global configuration no provided
+	// Global configuration not provided
 	_, r, err = PluginGenerator(goodConfig, "")
-	assert.Error(err, "trust_domain is required")
+	assert.EqualError(err, "trust_domain is required")
 	assert.Equal(1, len(r.ErrorList))
 	assert.Equal(err.Error(), r.ErrorList[0])
 

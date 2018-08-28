@@ -209,9 +209,6 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		config.SecretAccessKey = os.Getenv(secretAccessKeyVarName)
 	}
 
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
 	if req.GlobalConfig == nil {
 		err := fmt.Errorf("global configuration is required")
 		return resp, err
@@ -220,6 +217,10 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		err := fmt.Errorf("trust_domain is required")
 		return resp, err
 	}
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
 	p.trustDomain = req.GlobalConfig.TrustDomain
 	p.awsCaCertPublicKey = awsCaCertPublicKey
 	p.accessKeyId = config.AccessKeyID

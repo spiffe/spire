@@ -37,13 +37,13 @@ type TenantConfig struct {
 }
 
 type MSIAttestorConfig struct {
-	Tenants map[string]*TenantConfig `hcl:"tenants"`
+	trustDomain string
+	Tenants     map[string]*TenantConfig `hcl:"tenants"`
 }
 
 type MSIAttestorPlugin struct {
-	trustDomain string
-	mu          sync.RWMutex
-	config      *MSIAttestorConfig
+	mu     sync.RWMutex
+	config *MSIAttestorConfig
 
 	hooks struct {
 		now            func() time.Time
@@ -144,7 +144,7 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 
 	return stream.Send(&nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: claims.AgentID(p.trustDomain),
+		BaseSPIFFEID: claims.AgentID(config.trustDomain),
 	})
 }
 
@@ -159,7 +159,7 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if req.GlobalConfig.TrustDomain == "" {
 		return nil, msiError.New("global configuration missing trust domain")
 	}
-	p.trustDomain = req.GlobalConfig.TrustDomain
+	config.trustDomain = req.GlobalConfig.TrustDomain
 
 	if len(config.Tenants) == 0 {
 		return nil, msiError.New("configuration must have at least one tenant")

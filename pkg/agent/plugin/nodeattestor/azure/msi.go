@@ -24,6 +24,8 @@ var (
 )
 
 type MSIAttestorConfig struct {
+	trustDomain string
+
 	// ResourceID assigned to the MSI token. This value is the intended
 	// audience of the token, in other words, which service the token can be
 	// used to authenticate with. Ideally deployments use the ID of an
@@ -34,9 +36,8 @@ type MSIAttestorConfig struct {
 }
 
 type MSIAttestorPlugin struct {
-	mu          sync.RWMutex
-	config      *MSIAttestorConfig
-	trustDomain string
+	mu     sync.RWMutex
+	config *MSIAttestorConfig
 
 	hooks struct {
 		fetchMSIToken func(context.Context, azure.HTTPClient, string) (string, error)
@@ -80,7 +81,7 @@ func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 			Type: pluginName,
 			Data: data,
 		},
-		SpiffeId: claims.AgentID(p.trustDomain),
+		SpiffeId: claims.AgentID(config.trustDomain),
 	})
 }
 
@@ -96,7 +97,7 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if req.GlobalConfig.TrustDomain == "" {
 		return nil, msiError.New("global configuration missing trust domain")
 	}
-	p.trustDomain = req.GlobalConfig.TrustDomain
+	config.trustDomain = req.GlobalConfig.TrustDomain
 
 	if config.ResourceID == "" {
 		config.ResourceID = azure.DefaultMSIResourceID

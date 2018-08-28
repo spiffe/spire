@@ -47,7 +47,7 @@ type Config struct {
 }
 
 type catalog struct {
-	globalConfigs    *GlobalConfig
+	globalConfig     *GlobalConfig
 	pluginConfigs    PluginConfigMap
 	plugins          []*ManagedPlugin
 	supportedPlugins map[string]goplugin.Plugin
@@ -67,7 +67,7 @@ type PluginConfigMap map[string]map[string]HclPluginConfig
 
 func New(config *Config) Catalog {
 	return &catalog{
-		globalConfigs:    config.GlobalConfig,
+		globalConfig:     config.GlobalConfig,
 		pluginConfigs:    config.PluginConfigs,
 		supportedPlugins: config.SupportedPlugins,
 		builtinPlugins:   config.BuiltinPlugins,
@@ -251,7 +251,7 @@ func (c *catalog) configurePlugins(ctx context.Context) error {
 		}
 
 		req := &pb.ConfigureRequest{
-			GlobalConfig:  c.globalConfigs.toMessage(),
+			GlobalConfig:  c.globalConfig.toMessage(),
 			Configuration: p.Config.PluginData,
 		}
 

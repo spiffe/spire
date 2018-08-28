@@ -51,7 +51,7 @@ func (c *CatalogTestSuite) SetupTest() {
 			PluginData: pluginData,
 		}}},
 		supportedPlugins: supportedPlugins,
-		globalConfigs:    &GlobalConfig{TrustDomain: "example.org"},
+		globalConfig:     &GlobalConfig{TrustDomain: "example.org"},
 		l:                log,
 	}
 

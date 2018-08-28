@@ -65,6 +65,15 @@ func (s *Suite) TearDownTest() {
 	s.server.Close()
 }
 
+func (s *Suite) TestErrorWhenNotConfigured() {
+	p := nodeattestor.NewBuiltIn(NewIITAttestorPlugin())
+	stream, err := p.FetchAttestationData(context.Background())
+	defer stream.CloseSend()
+	resp, err := stream.Recv()
+	s.requireErrorContains(err, "gcp-iit: not configured")
+	s.Require().Nil(resp)
+}
+
 func (s *Suite) TestUnexpectedStatus() {
 	s.status = http.StatusBadGateway
 	s.body = ""
@@ -115,7 +124,7 @@ func (s *Suite) TestConfigure() {
 	require.Error(err)
 	require.Nil(resp)
 
-	// global configuration no provided
+	// global configuration not provided
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{})
 	s.requireErrorContains(err, "gcp-iit: global configuration is required")
 	require.Nil(resp)

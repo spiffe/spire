@@ -85,7 +85,7 @@ func New(config Config) *Server {
 	}
 }
 
-func (c *Config) GlobalConfigs() *common.GlobalConfig {
+func (c *Config) GlobalConfig() *common.GlobalConfig {
 	return &common.GlobalConfig{
 		TrustDomain: c.TrustDomain.Host,
 	}
@@ -212,7 +212,7 @@ func (s *Server) prepareUmask() {
 
 func (s *Server) newCatalog() *catalog.ServerCatalog {
 	return catalog.New(&catalog.Config{
-		GlobalConfigs: s.config.GlobalConfigs(),
+		GlobalConfig:  s.config.GlobalConfig(),
 		PluginConfigs: s.config.PluginConfigs,
 		Log:           s.config.Log.WithField("subsystem_name", "catalog"),
 	})

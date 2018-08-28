@@ -94,12 +94,6 @@ func (p *JoinTokenPlugin) Configure(ctx context.Context, req *spi.ConfigureReque
 		return resp, err
 	}
 
-	// Set local vars from config struct
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-	p.ConfigTime = time.Now()
-	p.joinTokens = config.JoinTokens
-
 	if req.GlobalConfig == nil {
 		err := errors.New("global configuration is required")
 		resp.ErrorList = []string{err.Error()}
@@ -110,6 +104,13 @@ func (p *JoinTokenPlugin) Configure(ctx context.Context, req *spi.ConfigureReque
 		resp.ErrorList = []string{err.Error()}
 		return resp, err
 	}
+
+	// Set local vars from config struct
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.ConfigTime = time.Now()
+	p.joinTokens = config.JoinTokens
+
 	p.trustDomain = req.GlobalConfig.TrustDomain
 
 	return &spi.ConfigureResponse{}, nil

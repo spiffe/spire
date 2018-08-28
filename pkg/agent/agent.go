@@ -46,7 +46,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	})
 
 	cat := catalog.New(&catalog.Config{
-		GlobalConfigs: a.c.GlobalConfigs(),
+		GlobalConfig:  a.c.GlobalConfig(),
 		PluginConfigs: a.c.PluginConfigs,
 		Log:           a.c.Log.WithField("subsystem_name", "catalog"),
 	})
