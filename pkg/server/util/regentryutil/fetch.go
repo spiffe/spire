@@ -2,6 +2,7 @@ package regentryutil
 
 import (
 	"context"
+	"errors"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -93,20 +94,19 @@ func (f *registrationEntryFetcher) childEntries(ctx context.Context, clientID st
 // mappedEntries returns all registration entries for which the given ID has
 // been mapped to by a node resolver.
 func (f *registrationEntryFetcher) mappedEntries(ctx context.Context, clientID string) ([]*common.RegistrationEntry, error) {
-	resolveResp, err := f.dataStore.ListNodeResolverMapEntries(ctx,
-		&datastore.ListNodeResolverMapEntriesRequest{
+	selectorsResp, err := f.dataStore.GetNodeSelectors(ctx,
+		&datastore.GetNodeSelectorsRequest{
 			SpiffeId: clientID,
 		})
 	if err != nil {
 		return nil, err
 	}
-
-	selectors := []*common.Selector{}
-	for _, entry := range resolveResp.Entries {
-		selectors = append(selectors, entry.Selector)
+	if selectorsResp.Selectors == nil {
+		return nil, errors.New("response missing selectors")
 	}
 
 	// No need to look for more entries if we didn't get any selectors
+	selectors := selectorsResp.Selectors.Selectors
 	if len(selectors) < 1 {
 		return nil, nil
 	}
@@ -115,8 +115,8 @@ func (f *registrationEntryFetcher) mappedEntries(ctx context.Context, clientID s
 	listResp, err := f.dataStore.ListRegistrationEntries(ctx,
 		&datastore.ListRegistrationEntriesRequest{
 			BySelectors: &datastore.BySelectors{
-				Selectors:           selectors,
-				AllowAnyCombination: true,
+				Selectors: selectors,
+				Match:     datastore.BySelectors_MATCH_SUBSET,
 			},
 		})
 	if err != nil {

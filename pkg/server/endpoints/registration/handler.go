@@ -61,7 +61,7 @@ func (h *Handler) CreateEntry(
 		return response, errors.New("Error trying to create entry")
 	}
 
-	return &registration.RegistrationEntryID{Id: createResponse.EntryId}, nil
+	return &registration.RegistrationEntryID{Id: createResponse.Entry.EntryId}, nil
 }
 
 func (h *Handler) DeleteEntry(

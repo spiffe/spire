@@ -641,20 +641,22 @@ func TestFetchBundle(t *testing.T) {
 func noExpectations(*handlerTestSuite) {}
 
 func createEntryExpectations(suite *handlerTestSuite) {
-	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
+	entryIn := testutil.GetRegistrationEntries("good.json")[0]
 
 	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{BySpiffeId: &wrappers.StringValue{Value: newRegEntry.SpiffeId}}).
+		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{BySpiffeId: &wrappers.StringValue{Value: entryIn.SpiffeId}}).
 		Return(&datastore.ListRegistrationEntriesResponse{
 			Entries: []*common.RegistrationEntry{},
 		}, nil)
 
 	createRequest := &datastore.CreateRegistrationEntryRequest{
-		Entry: newRegEntry,
+		Entry: entryIn,
 	}
 
+	entryOut := *entryIn
+	entryOut.EntryId = "abcdefgh"
 	createResponse := &datastore.CreateRegistrationEntryResponse{
-		EntryId: "abcdefgh",
+		Entry: &entryOut,
 	}
 
 	suite.mockDataStore.EXPECT().

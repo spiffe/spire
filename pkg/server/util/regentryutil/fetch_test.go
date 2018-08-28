@@ -23,16 +23,17 @@ func TestFetchRegistrationEntries(t *testing.T) {
 			Entry: entry,
 		})
 		assert.NoError(err)
-		entry.EntryId = resp.EntryId
-		return entry
+		return resp.Entry
 	}
 
-	createNodeResolverMapEntry := func(entry *datastore.NodeResolverMapEntry) *datastore.NodeResolverMapEntry {
-		resp, err := dataStore.CreateNodeResolverMapEntry(ctx, &datastore.CreateNodeResolverMapEntryRequest{
-			Entry: entry,
+	setNodeSelectors := func(spiffeID string, selectors ...*common.Selector) {
+		_, err := dataStore.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
+			Selectors: &datastore.NodeSelectors{
+				SpiffeId:  spiffeID,
+				Selectors: selectors,
+			},
 		})
 		assert.NoError(err)
-		return resp.Entry
 	}
 
 	rootID := "spiffe://example.org/root"
@@ -79,14 +80,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		SpiffeId: fiveID,
 	})
 
-	createNodeResolverMapEntry(&datastore.NodeResolverMapEntry{
-		SpiffeId: twoID,
-		Selector: a1,
-	})
-	createNodeResolverMapEntry(&datastore.NodeResolverMapEntry{
-		SpiffeId: twoID,
-		Selector: b2,
-	})
+	setNodeSelectors(twoID, a1, b2)
 
 	actual, err := FetchRegistrationEntries(ctx, dataStore, rootID)
 	assert.NoError(err)

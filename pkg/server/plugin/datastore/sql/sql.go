@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -854,6 +855,8 @@ func listRegistrationEntries(tx *gorm.DB,
 			}
 		case datastore.BySelectors_MATCH_EXACT:
 			selectorsList = append(selectorsList, selectorSet.Raw())
+		default:
+			return nil, fmt.Errorf("unhandled match behavior %q", req.BySelectors.Match)
 		}
 	}
 
