@@ -271,11 +271,12 @@ func (m *ManagerTestSuite) TestPrune() {
 }
 
 func (m *ManagerTestSuite) requireBundle(expectedCerts ...*x509.Certificate) {
-	bundle, err := m.datastore.FetchBundle(ctx, &datastore.Bundle{
+	resp, err := m.datastore.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomain: m.m.c.TrustDomain.String(),
 	})
 	m.Require().NoError(err)
-	actualCerts, err := x509.ParseCertificates(bundle.CaCerts)
+	m.Require().NotNil(resp.Bundle)
+	actualCerts, err := x509.ParseCertificates(resp.Bundle.CaCerts)
 	m.Require().NoError(err)
 	m.Require().Equal(len(expectedCerts), len(actualCerts))
 	for i := range actualCerts {

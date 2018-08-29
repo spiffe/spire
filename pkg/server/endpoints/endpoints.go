@@ -256,15 +256,18 @@ func (e *endpoints) getHTTPServerConfig(ctx context.Context) func(hello *tls.Cli
 // the current CA root bundle.
 func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
 	ds := e.c.Catalog.DataStores()[0]
-	req := &datastore_pb.Bundle{
+
+	resp, err := ds.FetchBundle(ctx, &datastore_pb.FetchBundleRequest{
 		TrustDomain: e.c.TrustDomain.String(),
-	}
-	b, err := ds.FetchBundle(ctx, req)
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("get bundle from datastore: %v", err)
 	}
+	if resp.Bundle == nil {
+		return nil, nil, errors.New("response missing bundle")
+	}
 
-	caCerts, err := x509.ParseCertificates(b.CaCerts)
+	caCerts, err := x509.ParseCertificates(resp.Bundle.CaCerts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse bundle: %v", err)
 	}

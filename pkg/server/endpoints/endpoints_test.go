@@ -11,13 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
-	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -35,17 +34,15 @@ func TestEndpoints(t *testing.T) {
 
 type EndpointsTestSuite struct {
 	suite.Suite
-	ctrl *gomock.Controller
 
-	ds *mock_datastore.MockDataStore
+	ds *fakedatastore.DataStore
 
 	svidState observer.Property
 	e         *endpoints
 }
 
 func (s *EndpointsTestSuite) SetupTest() {
-	s.ctrl = gomock.NewController(s.T())
-	s.ds = mock_datastore.NewMockDataStore(s.ctrl)
+	s.ds = fakedatastore.New()
 
 	log, _ := test.NewNullLogger()
 	ip := net.ParseIP("127.0.0.1")
@@ -150,23 +147,23 @@ func (s *EndpointsTestSuite) TestGRPCHookFailure() {
 }
 
 func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
-	cert, pool := s.expectBundleLookup()
+	certs, pool := s.configureBundle()
 
 	tlsConfig, err := s.e.getGRPCServerConfig(ctx)(nil)
 	require.NoError(s.T(), err)
 
 	s.Assert().Equal(tls.RequestClientCert, tlsConfig.ClientAuth)
-	s.Assert().Equal(cert, tlsConfig.Certificates)
+	s.Assert().Equal(certs, tlsConfig.Certificates)
 	s.Assert().Equal(pool, tlsConfig.ClientCAs)
 }
 
 func (s *EndpointsTestSuite) TestHTTPServerConfig() {
-	cert, _ := s.expectBundleLookup()
+	certs, _ := s.configureBundle()
 
 	tlsConfig, err := s.e.getHTTPServerConfig(ctx)(nil)
 	require.NoError(s.T(), err)
 
-	s.Assert().Equal(cert, tlsConfig.Certificates)
+	s.Assert().Equal(certs, tlsConfig.Certificates)
 }
 
 func (s *EndpointsTestSuite) TestSVIDObserver() {
@@ -208,31 +205,31 @@ checkLoop:
 	}
 }
 
-// expectBundleLookup sets datastore expectations for CA bundle lookups, and returns the served
+// configureBundle sets the bundle in the datastore, and returns the served
 // certificates plus an svid in the form of TLS certificate chain and CA pool.
-func (s *EndpointsTestSuite) expectBundleLookup() ([]tls.Certificate, *x509.CertPool) {
+func (s *EndpointsTestSuite) configureBundle() ([]tls.Certificate, *x509.CertPool) {
 	svid, svidKey, err := util.LoadSVIDFixture()
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 	ca, _, err := util.LoadCAFixture()
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
-	dsReq := &datastore.Bundle{TrustDomain: s.e.c.TrustDomain.String()}
-	dsResp := &datastore.Bundle{
-		TrustDomain: s.e.c.TrustDomain.String(),
-		CaCerts:     ca.Raw,
-	}
-	s.ds.EXPECT().FetchBundle(gomock.Any(), dsReq).Return(dsResp, nil)
+	_, err = s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
+		Bundle: &datastore.Bundle{
+			TrustDomain: s.e.c.TrustDomain.String(),
+			CaCerts:     ca.Raw,
+		},
+	})
+	s.Require().NoError(err)
 
-	s.e.svid = svid
-	s.e.svidKey = svidKey
 	caPool := x509.NewCertPool()
 	caPool.AddCert(ca)
 
-	certChain := [][]byte{svid.Raw, ca.Raw}
-	tlsCert := tls.Certificate{
-		Certificate: certChain,
-		PrivateKey:  svidKey,
-	}
-
-	return []tls.Certificate{tlsCert}, caPool
+	s.e.svid = svid
+	s.e.svidKey = svidKey
+	return []tls.Certificate{
+		{
+			Certificate: [][]byte{svid.Raw, ca.Raw},
+			PrivateKey:  svidKey,
+		},
+	}, caPool
 }

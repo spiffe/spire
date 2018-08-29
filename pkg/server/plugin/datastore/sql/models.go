@@ -27,7 +27,7 @@ type Bundle struct {
 	CACerts     []CACert
 }
 
-type AttestedNodeEntry struct {
+type AttestedNode struct {
 	Model
 
 	SpiffeID     string `gorm:"unique_index"`
@@ -36,12 +36,20 @@ type AttestedNodeEntry struct {
 	ExpiresAt    time.Time
 }
 
-type NodeResolverMapEntry struct {
+func (AttestedNode) TableName() string {
+	return "attested_node_entries"
+}
+
+type NodeSelector struct {
 	Model
 
 	SpiffeID string `gorm:"unique_index:idx_node_resolver_map"`
 	Type     string `gorm:"unique_index:idx_node_resolver_map"`
 	Value    string `gorm:"unique_index:idx_node_resolver_map"`
+}
+
+func (NodeSelector) TableName() string {
+	return "node_resolver_map_entries"
 }
 
 type RegisteredEntry struct {

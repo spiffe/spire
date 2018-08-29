@@ -69,8 +69,8 @@ func initDB(db *gorm.DB) (err error) {
 		return sqlError.Wrap(err)
 	}
 
-	if err := tx.AutoMigrate(&Bundle{}, &CACert{}, &AttestedNodeEntry{},
-		&NodeResolverMapEntry{}, &RegisteredEntry{}, &JoinToken{},
+	if err := tx.AutoMigrate(&Bundle{}, &CACert{}, &AttestedNode{},
+		&NodeSelector{}, &RegisteredEntry{}, &JoinToken{},
 		&Selector{}, &Migration{}).Error; err != nil {
 		tx.Rollback()
 		return sqlError.Wrap(err)

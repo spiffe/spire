@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
@@ -96,12 +97,12 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 		s.Require().Equal(&common.Empty{}, response)
 
 		// assert that the bundle was created in the datastore
-		bundle, err := s.ds.FetchBundle(context.Background(), &datastore.Bundle{
+		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
 			TrustDomain: testCase.Id,
 		})
 		s.Require().NoError(err)
-		s.Require().Equal(bundle.TrustDomain, testCase.Id)
-		s.Require().Equal(string(bundle.CaCerts), testCase.CaCerts)
+		s.Require().Equal(resp.Bundle.TrustDomain, testCase.Id)
+		s.Require().Equal(string(resp.Bundle.CaCerts), testCase.CaCerts)
 	}
 }
 
@@ -197,12 +198,12 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 		s.Require().Equal(&common.Empty{}, response)
 
 		// assert that the bundle was created in the datastore
-		bundle, err := s.ds.FetchBundle(context.Background(), &datastore.Bundle{
+		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
 			TrustDomain: testCase.Id,
 		})
 		s.Require().NoError(err)
-		s.Require().Equal(bundle.TrustDomain, testCase.Id)
-		s.Require().Equal(string(bundle.CaCerts), testCase.CaCerts)
+		s.Require().Equal(resp.Bundle.TrustDomain, testCase.Id)
+		s.Require().Equal(string(resp.Bundle.CaCerts), testCase.CaCerts)
 	}
 }
 
@@ -236,16 +237,18 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 		s.Require().Equal(&common.Empty{}, response)
 
 		// assert that the bundle was deleted
-		bundle, err := s.ds.FetchBundle(context.Background(), &datastore.Bundle{
+		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
 			TrustDomain: testCase.Id,
 		})
 		s.Require().EqualError(err, "no such bundle")
-		s.Require().Nil(bundle)
+		s.Require().Nil(resp)
 	}
 }
 
 func (s *HandlerSuite) createBundle(bundle *datastore.Bundle) {
-	_, err := s.ds.CreateBundle(context.Background(), bundle)
+	_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
+		Bundle: bundle,
+	})
 	s.Require().NoError(err)
 }
 
@@ -581,8 +584,8 @@ func TestCreateJoinTokenWithoutToken(t *testing.T) {
 
 	//expectations
 	suite.mockDataStore.EXPECT().
-		RegisterToken(gomock.Any(), gomock.Any()).
-		Return(&common.Empty{}, nil)
+		CreateJoinToken(gomock.Any(), gomock.Any()).
+		Return(&datastore.CreateJoinTokenResponse{}, nil)
 
 	//exercise
 	response, err := suite.handler.CreateJoinToken(nil, request)
@@ -638,20 +641,22 @@ func TestFetchBundle(t *testing.T) {
 func noExpectations(*handlerTestSuite) {}
 
 func createEntryExpectations(suite *handlerTestSuite) {
-	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
+	entryIn := testutil.GetRegistrationEntries("good.json")[0]
 
 	suite.mockDataStore.EXPECT().
-		ListSpiffeEntries(gomock.Any(), &datastore.ListSpiffeEntriesRequest{SpiffeId: newRegEntry.SpiffeId}).
-		Return(&datastore.ListSpiffeEntriesResponse{
-			RegisteredEntryList: []*common.RegistrationEntry{},
+		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{BySpiffeId: &wrappers.StringValue{Value: entryIn.SpiffeId}}).
+		Return(&datastore.ListRegistrationEntriesResponse{
+			Entries: []*common.RegistrationEntry{},
 		}, nil)
 
 	createRequest := &datastore.CreateRegistrationEntryRequest{
-		RegisteredEntry: newRegEntry,
+		Entry: entryIn,
 	}
 
+	entryOut := *entryIn
+	entryOut.EntryId = "abcdefgh"
 	createResponse := &datastore.CreateRegistrationEntryResponse{
-		RegisteredEntryId: "abcdefgh",
+		Entry: &entryOut,
 	}
 
 	suite.mockDataStore.EXPECT().
@@ -661,9 +666,9 @@ func createEntryExpectations(suite *handlerTestSuite) {
 
 func createEntryErrorExpectations(suite *handlerTestSuite) {
 	suite.mockDataStore.EXPECT().
-		ListSpiffeEntries(gomock.Any(), gomock.Any()).
-		Return(&datastore.ListSpiffeEntriesResponse{
-			RegisteredEntryList: []*common.RegistrationEntry{},
+		ListRegistrationEntries(gomock.Any(), gomock.Any()).
+		Return(&datastore.ListRegistrationEntriesResponse{
+			Entries: []*common.RegistrationEntry{},
 		}, nil)
 
 	suite.mockDataStore.EXPECT().
@@ -675,18 +680,22 @@ func createEntryNonUniqueExpectations(suite *handlerTestSuite) {
 	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
 
 	suite.mockDataStore.EXPECT().
-		ListSpiffeEntries(gomock.Any(), &datastore.ListSpiffeEntriesRequest{SpiffeId: newRegEntry.SpiffeId}).
-		Return(&datastore.ListSpiffeEntriesResponse{
-			RegisteredEntryList: []*common.RegistrationEntry{newRegEntry},
+		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{
+			BySpiffeId: &wrappers.StringValue{
+				Value: newRegEntry.SpiffeId,
+			},
+		}).
+		Return(&datastore.ListRegistrationEntriesResponse{
+			Entries: []*common.RegistrationEntry{newRegEntry},
 		}, nil)
 }
 
 func fetchEntryExpectations(suite *handlerTestSuite) {
 	fetchRequest := &datastore.FetchRegistrationEntryRequest{
-		RegisteredEntryId: "abcdefgh",
+		EntryId: "abcdefgh",
 	}
 	fetchResponse := &datastore.FetchRegistrationEntryResponse{
-		RegisteredEntry: testutil.GetRegistrationEntries("good.json")[0],
+		Entry: testutil.GetRegistrationEntries("good.json")[0],
 	}
 	suite.mockDataStore.EXPECT().
 		FetchRegistrationEntry(gomock.Any(), fetchRequest).
@@ -694,13 +703,11 @@ func fetchEntryExpectations(suite *handlerTestSuite) {
 }
 
 func fetchEntriesExpectations(suite *handlerTestSuite) {
-	fetchResponse := &datastore.FetchRegistrationEntriesResponse{
-		RegisteredEntries: &common.RegistrationEntries{
-			Entries: testutil.GetRegistrationEntries("good.json"),
-		},
+	fetchResponse := &datastore.ListRegistrationEntriesResponse{
+		Entries: testutil.GetRegistrationEntries("good.json"),
 	}
 	suite.mockDataStore.EXPECT().
-		FetchRegistrationEntries(gomock.Any(), &common.Empty{}).
+		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{}).
 		Return(fetchResponse, nil)
 }
 
@@ -712,7 +719,7 @@ func fetchEntryErrorExpectations(suite *handlerTestSuite) {
 
 func deleteEntryExpectations(suite *handlerTestSuite) {
 	resp := &datastore.DeleteRegistrationEntryResponse{
-		RegisteredEntry: testutil.GetRegistrationEntries("good.json")[0],
+		Entry: testutil.GetRegistrationEntries("good.json")[0],
 	}
 
 	suite.mockDataStore.EXPECT().
@@ -721,73 +728,81 @@ func deleteEntryExpectations(suite *handlerTestSuite) {
 }
 
 func listByParentIDExpectations(suite *handlerTestSuite) {
-	listRequest := &datastore.ListParentIDEntriesRequest{ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog"}
-	listResponse := &datastore.ListParentIDEntriesResponse{
-		RegisteredEntryList: testutil.GetRegistrationEntries("good.json"),
+	listRequest := &datastore.ListRegistrationEntriesRequest{
+		ByParentId: &wrappers.StringValue{
+			Value: "spiffe://example.org/spire/agent/join_token/TokenBlog",
+		},
+	}
+	listResponse := &datastore.ListRegistrationEntriesResponse{
+		Entries: testutil.GetRegistrationEntries("good.json"),
 	}
 	suite.mockDataStore.EXPECT().
-		ListParentIDEntries(gomock.Any(), listRequest).
+		ListRegistrationEntries(gomock.Any(), listRequest).
 		Return(listResponse, nil)
 }
 
 func listByParentIDErrorExpectations(suite *handlerTestSuite) {
 	suite.mockDataStore.EXPECT().
-		ListParentIDEntries(gomock.Any(), gomock.Any()).
+		ListRegistrationEntries(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("foo"))
 }
 
 func listBySelectorExpectations(suite *handlerTestSuite) {
-	req := &datastore.ListSelectorEntriesRequest{
-		Selectors: []*common.Selector{
-			{Type: "unix", Value: "uid:1111"},
+	req := &datastore.ListRegistrationEntriesRequest{
+		BySelectors: &datastore.BySelectors{
+			Selectors: []*common.Selector{{Type: "unix", Value: "uid:1111"}},
 		},
 	}
-	resp := &datastore.ListSelectorEntriesResponse{
-		RegisteredEntryList: testutil.GetRegistrationEntries("good.json"),
+	resp := &datastore.ListRegistrationEntriesResponse{
+		Entries: testutil.GetRegistrationEntries("good.json"),
 	}
 
 	suite.mockDataStore.EXPECT().
-		ListSelectorEntries(gomock.Any(), req).
+		ListRegistrationEntries(gomock.Any(), req).
 		Return(resp, nil)
 }
 
 func listBySpiffeIDExpectations(suite *handlerTestSuite) {
-	req := &datastore.ListSpiffeEntriesRequest{
-		SpiffeId: "spiffe://example.org/Blog",
+	req := &datastore.ListRegistrationEntriesRequest{
+		BySpiffeId: &wrappers.StringValue{
+			Value: "spiffe://example.org/Blog",
+		},
 	}
 
-	resp := &datastore.ListSpiffeEntriesResponse{
-		RegisteredEntryList: testutil.GetRegistrationEntries("good.json")[0:1],
+	resp := &datastore.ListRegistrationEntriesResponse{
+		Entries: testutil.GetRegistrationEntries("good.json")[0:1],
 	}
 
 	suite.mockDataStore.EXPECT().
-		ListSpiffeEntries(gomock.Any(), req).
+		ListRegistrationEntries(gomock.Any(), req).
 		Return(resp, nil)
 }
 
 func createJoinTokenExpectations(suite *handlerTestSuite) {
 	suite.mockDataStore.EXPECT().
-		RegisterToken(gomock.Any(), gomock.Any()).
-		Return(&common.Empty{}, nil)
+		CreateJoinToken(gomock.Any(), gomock.Any()).
+		Return(&datastore.CreateJoinTokenResponse{}, nil)
 }
 
 func createJoinTokenErrorExpectations(suite *handlerTestSuite) {
 	suite.mockDataStore.EXPECT().
-		RegisterToken(gomock.Any(), gomock.Any()).
+		CreateJoinToken(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("foo"))
 }
 
 func createFetchBundleExpectations(suite *handlerTestSuite) {
 	suite.mockDataStore.EXPECT().
-		FetchBundle(gomock.Any(), &datastore.Bundle{
+		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
 			TrustDomain: "spiffe://example.org",
 		}).
-		Return(&datastore.Bundle{CaCerts: []byte{1, 2, 3}}, nil)
+		Return(&datastore.FetchBundleResponse{
+			Bundle: &datastore.Bundle{CaCerts: []byte{1, 2, 3}},
+		}, nil)
 }
 
 func createFetchBundleErrorExpectations(suite *handlerTestSuite) {
 	suite.mockDataStore.EXPECT().
-		FetchBundle(gomock.Any(), &datastore.Bundle{
+		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
 			TrustDomain: "spiffe://example.org",
 		}).
 		Return(nil, errors.New("bundle not found"))
