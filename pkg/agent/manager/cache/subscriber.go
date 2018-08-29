@@ -14,8 +14,9 @@ type Subscriber interface {
 }
 
 type WorkloadUpdate struct {
-	Entries []*Entry
-	Bundle  []*x509.Certificate
+	Entries          []*Entry
+	Bundle           []*x509.Certificate
+	FederatedBundles map[string][]*x509.Certificate
 }
 
 type subscriber struct {

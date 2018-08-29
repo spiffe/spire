@@ -39,7 +39,7 @@ type Manager interface {
 
 	// SubscribeToBundleChanges returns a new observer.Stream on which []*x509.Certificate instances are
 	// received each time the bundle changes.
-	SubscribeToBundleChanges() observer.Stream
+	SubscribeToBundleChanges() *cache.BundleStream
 
 	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
@@ -96,7 +96,7 @@ func (m *manager) SubscribeToSVIDChanges() observer.Stream {
 	return m.svid.Subscribe()
 }
 
-func (m *manager) SubscribeToBundleChanges() observer.Stream {
+func (m *manager) SubscribeToBundleChanges() *cache.BundleStream {
 	return m.cache.SubscribeToBundleChanges()
 }
 
@@ -148,8 +148,8 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-bundleStream.Changes():
-			b := bundleStream.Next().([]*x509.Certificate)
-			m.storeBundle(b)
+			b := bundleStream.Next()
+			m.storeBundle(b[m.c.TrustDomain.String()])
 		}
 	}
 }

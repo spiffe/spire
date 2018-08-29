@@ -18,11 +18,57 @@ type Entry struct {
 	RegistrationEntry *common.RegistrationEntry
 	SVID              *x509.Certificate
 	PrivateKey        *ecdsa.PrivateKey
+}
 
-	// Bundles stores the ID => Bundle map for
-	// federated bundles. The registration entry
-	// only stores references to the keys here.
-	Bundles map[string][]byte
+// Wraps an observer stream to provide a type safe interface
+type BundleStream struct {
+	stream observer.Stream
+}
+
+func NewBundleStream(stream observer.Stream) *BundleStream {
+	return &BundleStream{
+		stream: stream,
+	}
+}
+
+// Value returns the current value for this stream.
+func (b *BundleStream) Value() map[string][]*x509.Certificate {
+	value, _ := b.stream.Value().(map[string][]*x509.Certificate)
+	return value
+}
+
+// Changes returns the channel that is closed when a new value is available.
+func (b *BundleStream) Changes() chan struct{} {
+	return b.stream.Changes()
+}
+
+// Next advances this stream to the next state.
+// You should never call this unless Changes channel is closed.
+func (b *BundleStream) Next() map[string][]*x509.Certificate {
+	value, _ := b.stream.Next().(map[string][]*x509.Certificate)
+	return value
+}
+
+// HasNext checks whether there is a new value available.
+func (b *BundleStream) HasNext() bool {
+	return b.stream.HasNext()
+}
+
+// WaitNext waits for Changes to be closed, advances the stream and returns
+// the current value.
+func (b *BundleStream) WaitNext() map[string][]*x509.Certificate {
+	value, _ := b.stream.WaitNext().(map[string][]*x509.Certificate)
+	return value
+}
+
+// Clone creates a new independent stream from this one but sharing the same
+// Property. Updates to the property will be reflected in both streams but
+// they may have different values depending on when they advance the stream
+// with Next.
+func (b *BundleStream) Clone() *BundleStream {
+	return &BundleStream{
+		stream: b.stream.Clone(),
+	}
 }
 
 type Cache interface {
@@ -35,17 +81,15 @@ type Cache interface {
 	DeleteEntry(regEntry *common.RegistrationEntry) bool
 	// Entries returns all the in force cached entries.
 	Entries() []*Entry
-	// IsEmpty returns true if this cache doesn't have any entry.
-	IsEmpty() bool
 	// Registers and returns a Subscriber, and then sends latest WorkloadUpdate on its channel
 	Subscribe(selectors Selectors) Subscriber
 	// Set the bundle
-	SetBundle([]*x509.Certificate)
-	// Retrieve the bundle
+	SetBundles(map[string][]*x509.Certificate)
+	// Retrieve the bundle for the trust domain
 	Bundle() []*x509.Certificate
 	// SubscribeToBundleChanges returns a new observer.Stream of []*x509.Certificate instances. Each
 	// time the bundle is updated, a new instance is streamed.
-	SubscribeToBundleChanges() observer.Stream
+	SubscribeToBundleChanges() *BundleStream
 }
 
 type cacheImpl struct {
@@ -54,32 +98,68 @@ type cacheImpl struct {
 	log         logrus.FieldLogger
 	m           sync.Mutex
 	subscribers *subscribers
-	bundle      observer.Property
+	trustDomain string
+	bundles     observer.Property
 	notifyMutex sync.Mutex
 }
 
 // New creates a new Cache.
-func New(log logrus.FieldLogger, bundle []*x509.Certificate) *cacheImpl {
+func New(log logrus.FieldLogger, trustDomain string, bundle []*x509.Certificate) *cacheImpl {
+	bundles := map[string][]*x509.Certificate{
+		trustDomain: bundle,
+	}
 	return &cacheImpl{
 		cache:       make(map[string]*Entry),
 		log:         log.WithField("subsystem_name", "cache"),
-		bundle:      observer.NewProperty(bundle),
+		trustDomain: trustDomain,
+		bundles:     observer.NewProperty(bundles),
 		subscribers: NewSubscribers(),
 	}
 }
 
-func (c *cacheImpl) SetBundle(bundle []*x509.Certificate) {
-	c.bundle.Update(bundle)
-	subs := c.subscribers.getAll()
-	c.notifySubscribers(subs)
+func (c *cacheImpl) SetBundles(newBundles map[string][]*x509.Certificate) {
+	// SetBundles() and Bundle()/Bundles() can be called concurrently since
+	// the "property" is atomic. Before the following code can merge in changes
+	// it needs to make a copy of the map to mutate so it doesn't modify
+	// the bundle map out from underneath readers. SetBundles() is not intended
+	// to be called by more than one goroutine at a time.
+
+	// copy the map
+	bundles := make(map[string][]*x509.Certificate)
+	for k, v := range c.Bundles() {
+		bundles[k] = v
+	}
+
+	// merge in changes
+	changed := false
+	for id, newBundle := range newBundles {
+		bundle, ok := bundles[id]
+		if !ok || !certsEqual(bundle, newBundle) {
+			bundles[id] = newBundle
+			changed = true
+		}
+	}
+
+	// notify subscribers
+	// TODO: be more selective about which subscribers get updated to reduce
+	// unnecessary workload updates.
+	if changed {
+		c.bundles.Update(bundles)
+		subs := c.subscribers.getAll()
+		c.notifySubscribers(subs)
+	}
 }
 
 func (c *cacheImpl) Bundle() []*x509.Certificate {
-	return c.bundle.Value().([]*x509.Certificate)
+	return c.Bundles()[c.trustDomain]
 }
 
-func (c *cacheImpl) SubscribeToBundleChanges() observer.Stream {
-	return c.bundle.Observe()
+func (c *cacheImpl) Bundles() map[string][]*x509.Certificate {
+	return c.bundles.Value().(map[string][]*x509.Certificate)
+}
+
+func (c *cacheImpl) SubscribeToBundleChanges() *BundleStream {
+	return NewBundleStream(c.bundles.Observe())
 }
 
 func (c *cacheImpl) Entries() []*Entry {
@@ -132,7 +212,10 @@ func (c *cacheImpl) notifySubscribers(subs []*subscriber) {
 	defer c.notifyMutex.Unlock()
 
 	entries := c.Entries()
-	bundle := c.Bundle()
+	bundles := c.Bundles()
+
+	bundle := bundles[c.trustDomain]
+
 	for _, sub := range subs {
 		sub.m.Lock()
 		// If subscriber is not active any more, remove it.
@@ -150,7 +233,24 @@ func (c *cacheImpl) notifySubscribers(subs []*subscriber) {
 		}
 
 		subEntries := subscriberEntries(sub, entries)
-		sub.c <- &WorkloadUpdate{Entries: subEntries, Bundle: bundle}
+
+		federatedBundles := make(map[string][]*x509.Certificate)
+		for _, subEntry := range subEntries {
+			for _, federatesWith := range subEntry.RegistrationEntry.FederatesWith {
+				federatedBundle := bundles[federatesWith]
+				if len(federatedBundle) > 0 {
+					federatedBundles[federatesWith] = federatedBundle
+				}
+			}
+		}
+
+		update := &WorkloadUpdate{
+			Entries:          subEntries,
+			Bundle:           bundle,
+			FederatedBundles: federatedBundles,
+		}
+
+		sub.c <- update
 		sub.m.Unlock()
 	}
 }
@@ -171,12 +271,6 @@ func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) (deleted boo
 	return
 }
 
-func (c *cacheImpl) IsEmpty() bool {
-	c.m.Lock()
-	defer c.m.Unlock()
-	return len(c.cache) == 0
-}
-
 func subscriberEntries(sub *subscriber, entries []*Entry) (subentries []*Entry) {
 	for _, e := range entries {
 		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
@@ -185,4 +279,18 @@ func subscriberEntries(sub *subscriber, entries []*Entry) (subentries []*Entry) 
 		}
 	}
 	return
+}
+
+func certsEqual(a, b []*x509.Certificate) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i, cert := range a {
+		if !cert.Equal(b[i]) {
+			return false
+		}
+	}
+
+	return true
 }

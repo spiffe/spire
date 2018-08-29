@@ -32,7 +32,7 @@ func init() {
 }
 
 func TestCacheImpl_Valid(t *testing.T) {
-	cache := New(logger, nil)
+	cache := New(logger, "spiffe://example.org", nil)
 	tests := []struct {
 		name string
 		ce   *Entry
@@ -70,7 +70,7 @@ func TestCacheImpl_Valid(t *testing.T) {
 }
 
 func TestCacheImpl_Invalid(t *testing.T) {
-	cache := New(logger, nil)
+	cache := New(logger, "spiffe://example.org", nil)
 	tests := []struct {
 		name string
 		ce   *Entry
@@ -112,7 +112,7 @@ func TestCacheImpl_Invalid(t *testing.T) {
 }
 
 func TestCacheImpl_DeleteEntry(t *testing.T) {
-	cache := New(logger, nil)
+	cache := New(logger, "spiffe://example.org", nil)
 	tests := []struct {
 		name string
 		ce   *Entry
@@ -153,7 +153,15 @@ func TestCacheImpl_DeleteEntry(t *testing.T) {
 }
 
 func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
-	cache := New(logger, nil)
+	cache := New(logger, "spiffe://example.org", nil)
+
+	exampleCerts := []*x509.Certificate{{Raw: []byte("EXAMPLE.ORG")}}
+	otherDomainCerts := []*x509.Certificate{{Raw: []byte("OTHERDOMAIN.TEST")}}
+
+	cache.SetBundles(map[string][]*x509.Certificate{
+		"spiffe://example.org":      exampleCerts,
+		"spiffe://otherdomain.test": otherDomainCerts,
+	})
 
 	e1 := &Entry{
 		RegistrationEntry: &common.RegistrationEntry{
@@ -174,9 +182,10 @@ func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
 			Selectors: Selectors{
 				&common.Selector{Type: "unix", Value: "uid:1111"},
 			},
-			ParentId: "spiffe:parent2",
-			SpiffeId: "spiffe:test2",
-			EntryId:  "00000000-0000-0000-0000-000000000002",
+			ParentId:      "spiffe:parent2",
+			SpiffeId:      "spiffe:test2",
+			EntryId:       "00000000-0000-0000-0000-000000000002",
+			FederatesWith: []string{"spiffe://otherdomain.test"},
 		},
 		SVID:       &x509.Certificate{},
 		PrivateKey: privateKey,
@@ -195,17 +204,24 @@ func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
 		wu := <-sub2.Updates()
 		assert.Equal(t, 1, len(wu.Entries))
 		assert.Equal(t, e1, wu.Entries[0])
+		assert.Equal(t, exampleCerts, wu.Bundle)
 	})
 
+	// The second registration entry federates with otherdomain.test. The
+	// WorkloadUpdate should include that bundle.
 	util.RunWithTimeout(t, 5*time.Second, func() {
 		wu := <-sub1.Updates()
 		assert.Equal(t, 1, len(wu.Entries))
 		assert.Equal(t, e2, wu.Entries[0])
+		assert.Equal(t, exampleCerts, wu.Bundle)
+		assert.Equal(t, map[string][]*x509.Certificate{
+			"spiffe://otherdomain.test": otherDomainCerts,
+		}, wu.FederatedBundles)
 	})
 }
 
 func TestNotifySubscribersDoesntPileUpGoroutines(t *testing.T) {
-	cache := New(logger, nil)
+	cache := New(logger, "spiffe://example.org", nil)
 
 	e2 := &Entry{
 		RegistrationEntry: &common.RegistrationEntry{
@@ -234,7 +250,7 @@ func TestNotifySubscribersDoesntPileUpGoroutines(t *testing.T) {
 }
 
 func TestNotifySubscribersNotifiesLatestUpdatesToSlowSubscriber(t *testing.T) {
-	cache := New(logger, nil)
+	cache := New(logger, "spiffe://example.org", nil)
 
 	sub := cache.Subscribe(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 
@@ -298,7 +314,7 @@ func TestNotifySubscribersNotifiesLatestUpdatesToSlowSubscriber(t *testing.T) {
 }
 
 func TestSubscriberFinish(t *testing.T) {
-	cache := New(logger, nil)
+	cache := New(logger, "spiffe://example.org", nil)
 
 	sub := cache.Subscribe(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 

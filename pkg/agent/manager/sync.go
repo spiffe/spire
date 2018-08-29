@@ -60,15 +60,12 @@ func (m *manager) fetchUpdates(ctx context.Context, entryRequests map[string]*en
 		return nil, nil, err
 	}
 
-	if update.Bundle != nil {
-		bundle, err := x509.ParseCertificates(update.Bundle)
+	if update.Bundles != nil {
+		bundles, err := parseBundles(update.Bundles)
 		if err != nil {
 			return nil, nil, err
 		}
-
-		if !m.bundleAlreadyCached(bundle) {
-			m.cache.SetBundle(bundle)
-		}
+		m.cache.SetBundles(bundles)
 	}
 
 	return update.Entries, update.SVIDs, nil
@@ -131,12 +128,10 @@ func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
 				return err
 			}
 
-			bundles := make(map[string][]byte) //TODO: Populate Bundles
 			cacheEntry := &cache.Entry{
 				RegistrationEntry: entry.RegistrationEntry,
 				SVID:              nil,
 				PrivateKey:        privateKey,
-				Bundles:           bundles,
 			}
 			cEntryRequests.add(&entryRequest{csr, cacheEntry})
 		}
@@ -154,12 +149,10 @@ func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.Registrat
 				return err
 			}
 
-			bundles := make(map[string][]byte) //TODO: Populate Bundles
 			cacheEntry := &cache.Entry{
 				RegistrationEntry: regEntry,
 				SVID:              nil,
 				PrivateKey:        privateKey,
-				Bundles:           bundles,
 			}
 			cEntryRequests.add(&entryRequest{csr, cacheEntry})
 		}
@@ -180,26 +173,6 @@ func (m *manager) newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err
 	return
 }
 
-func (m *manager) bundleAlreadyCached(bundle []*x509.Certificate) bool {
-	currentBundle := m.cache.Bundle()
-
-	if currentBundle == nil {
-		return bundle == nil
-	}
-
-	if len(bundle) != len(currentBundle) {
-		return false
-	}
-
-	for i, cert := range currentBundle {
-		if !cert.Equal(bundle[i]) {
-			return false
-		}
-	}
-
-	return true
-}
-
 // entryRequest holds a CSR and a pre-built cache entry for the RegistrationEntry
 // contained in the entry field.
 type entryRequest struct {
@@ -214,4 +187,16 @@ type entryRequests map[string]*entryRequest
 func (er entryRequests) add(e *entryRequest) {
 	entryID := e.entry.RegistrationEntry.EntryId
 	er[entryID] = e
+}
+
+func parseBundles(bundles map[string]*node.Bundle) (map[string][]*x509.Certificate, error) {
+	out := make(map[string][]*x509.Certificate)
+	for _, bundle := range bundles {
+		certs, err := x509.ParseCertificates(bundle.CaCerts)
+		if err != nil {
+			return nil, err
+		}
+		out[bundle.Id] = certs
+	}
+	return out, nil
 }

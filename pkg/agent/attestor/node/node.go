@@ -321,12 +321,21 @@ func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) (
 		return nil, nil, fmt.Errorf("invalid svid: %v", err)
 	}
 
-	bundle, err := x509.ParseCertificates(r.SvidUpdate.Bundle)
+	if r.SvidUpdate.Bundles == nil {
+		return nil, nil, errors.New("missing bundles")
+	}
+
+	bundle := r.SvidUpdate.Bundles[a.c.TrustDomain.String()]
+	if bundle == nil {
+		return nil, nil, errors.New("missing bundle")
+	}
+
+	bundleCerts, err := x509.ParseCertificates(bundle.CaCerts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid bundle: %v", bundle)
 	}
 
-	return svid, bundle, nil
+	return svid, bundleCerts, nil
 }
 
 func (a *attestor) serverID() *url.URL {

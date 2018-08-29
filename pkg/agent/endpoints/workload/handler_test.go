@@ -146,13 +146,17 @@ func (s *HandlerTestSuite) TestComposeResponse() {
 	s.Require().NoError(err)
 
 	svidMsg := &workload.X509SVID{
-		SpiffeId:    "spiffe://example.org/foo",
-		X509Svid:    update.Entries[0].SVID.Raw,
-		X509SvidKey: keyData,
-		Bundle:      update.Bundle[0].Raw,
+		SpiffeId:      "spiffe://example.org/foo",
+		X509Svid:      update.Entries[0].SVID.Raw,
+		X509SvidKey:   keyData,
+		Bundle:        update.Bundle[0].Raw,
+		FederatesWith: []string{"spiffe://otherdomain.test"},
 	}
 	apiMsg := &workload.X509SVIDResponse{
 		Svids: []*workload.X509SVID{svidMsg},
+		FederatedBundles: map[string][]byte{
+			"spiffe://otherdomain.test": update.Bundle[0].Raw,
+		},
 	}
 
 	resp, err := s.h.composeResponse(s.workloadUpdate())
@@ -200,12 +204,16 @@ func (s *HandlerTestSuite) workloadUpdate() *cache.WorkloadUpdate {
 		SVID:       svid,
 		PrivateKey: key,
 		RegistrationEntry: &common.RegistrationEntry{
-			SpiffeId: "spiffe://example.org/foo",
+			SpiffeId:      "spiffe://example.org/foo",
+			FederatesWith: []string{"spiffe://otherdomain.test"},
 		},
 	}
 	update := &cache.WorkloadUpdate{
 		Entries: []*cache.Entry{&entry},
 		Bundle:  []*x509.Certificate{ca},
+		FederatedBundles: map[string][]*x509.Certificate{
+			"spiffe://otherdomain.test": {ca},
+		},
 	}
 
 	return update

@@ -237,6 +237,9 @@ func (s *NodeAttestorTestSuite) setAttestResponse(challenges []challengeResponse
 	svid, _, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 
+	bundle, err := util.LoadBundleFixture()
+	s.Require().NoError(err)
+
 	stream := mock_node.NewMockNode_AttestClient(s.ctrl)
 	stream.EXPECT().Send(gomock.Any())
 	for _, challenge := range challenges {
@@ -251,7 +254,14 @@ func (s *NodeAttestorTestSuite) setAttestResponse(challenges []challengeResponse
 				"spiffe://example.com/spire/agent/join_token/foobar": &node.X509SVID{
 					Cert:      svid.Raw,
 					ExpiresAt: svid.NotAfter.Unix(),
-				}},
+				},
+			},
+			Bundles: map[string]*node.Bundle{
+				"spiffe://example.com": &node.Bundle{
+					Id:      "spiffe://example.com",
+					CaCerts: bundle[0].Raw,
+				},
+			},
 		}}, nil)
 	stream.EXPECT().CloseSend()
 	stream.EXPECT().Recv().Return(nil, io.EOF)

@@ -73,9 +73,9 @@ func (mr *MockManagerMockRecorder) Run(arg0 interface{}) *gomock.Call {
 }
 
 // SubscribeToBundleChanges mocks base method
-func (m *MockManager) SubscribeToBundleChanges() go_observer.Stream {
+func (m *MockManager) SubscribeToBundleChanges() *cache.BundleStream {
 	ret := m.ctrl.Call(m, "SubscribeToBundleChanges")
-	ret0, _ := ret[0].(go_observer.Stream)
+	ret0, _ := ret[0].(*cache.BundleStream)
 	return ret0
 }
 
