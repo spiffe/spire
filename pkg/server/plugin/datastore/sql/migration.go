@@ -15,7 +15,7 @@ const (
 func migrateDB(db *gorm.DB) (err error) {
 	isNew := !db.HasTable(&Bundle{})
 	if err := db.Error; err != nil {
-		return err
+		return sqlError.Wrap(err)
 	}
 
 	if isNew {
@@ -23,17 +23,17 @@ func migrateDB(db *gorm.DB) (err error) {
 	}
 
 	if err := db.AutoMigrate(&Migration{}).Error; err != nil {
-		return err
+		return sqlError.Wrap(err)
 	}
 
 	migration := new(Migration)
 	if err := db.Assign(Migration{}).FirstOrCreate(migration).Error; err != nil {
-		return err
+		return sqlError.Wrap(err)
 	}
 	version := migration.Version
 
 	if version > codeVersion {
-		err = fmt.Errorf("backwards migration not supported! (current=%d, code=%d)", version, codeVersion)
+		err = sqlError.New("backwards migration not supported! (current=%d, code=%d)", version, codeVersion)
 		logrus.Error(err)
 		return err
 	}
@@ -46,7 +46,7 @@ func migrateDB(db *gorm.DB) (err error) {
 	for version < codeVersion {
 		tx := db.Begin()
 		if err := tx.Error; err != nil {
-			return err
+			return sqlError.Wrap(err)
 		}
 		version, err = migrateVersion(tx, version)
 		if err != nil {
@@ -54,7 +54,7 @@ func migrateDB(db *gorm.DB) (err error) {
 			return err
 		}
 		if err := tx.Commit().Error; err != nil {
-			return err
+			return sqlError.Wrap(err)
 		}
 	}
 
@@ -66,22 +66,26 @@ func initDB(db *gorm.DB) (err error) {
 	logrus.Infof("initializing database.")
 	tx := db.Begin()
 	if err := tx.Error; err != nil {
-		return err
+		return sqlError.Wrap(err)
 	}
 
 	if err := tx.AutoMigrate(&Bundle{}, &CACert{}, &AttestedNodeEntry{},
 		&NodeResolverMapEntry{}, &RegisteredEntry{}, &JoinToken{},
 		&Selector{}, &Migration{}).Error; err != nil {
 		tx.Rollback()
-		return err
+		return sqlError.Wrap(err)
 	}
 
 	if err := tx.Assign(Migration{Version: codeVersion}).FirstOrCreate(&Migration{}).Error; err != nil {
 		tx.Rollback()
-		return err
+		return sqlError.Wrap(err)
 	}
 
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
 }
 
 func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
@@ -95,7 +99,7 @@ func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
 	case 0:
 		err = migrateToV1(tx)
 	default:
-		err = fmt.Errorf("no migration support for version %d", version)
+		err = sqlError.New("no migration support for version %d", version)
 	}
 	if err != nil {
 		return version, err
@@ -103,7 +107,7 @@ func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
 
 	nextVersion := version + 1
 	if err := tx.Model(&Migration{}).Updates(Migration{Version: nextVersion}).Error; err != nil {
-		return version, err
+		return version, sqlError.Wrap(err)
 	}
 
 	return nextVersion, nil
@@ -126,7 +130,7 @@ func migrateToV1(tx *gorm.DB) error {
 	// sqlite3).
 	for _, table := range v0tables {
 		if err := tx.Exec(fmt.Sprintf("DELETE FROM %s WHERE deleted_at IS NOT NULL;", table)).Error; err != nil {
-			return err
+			return sqlError.Wrap(err)
 		}
 	}
 	return nil
