@@ -52,7 +52,7 @@ func (s *PluginSuite) TearDownSuite() {
 }
 
 func (s *PluginSuite) newPlugin() datastore.Plugin {
-	p := New()
+	p := newPlugin()
 
 	s.nextId++
 	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextId))
@@ -61,10 +61,24 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 		Configuration: fmt.Sprintf(`
 		database_type = "sqlite3"
 		log_sql = true
-		connection_string = "file://%s"
+		connection_string = "%s"
 		`, dbPath),
 	})
 	s.Require().NoError(err)
+
+	// assert that WAL journal mode is enabled
+	jm := struct {
+		JournalMode string
+	}{}
+	p.db.Raw("PRAGMA journal_mode").Scan(&jm)
+	s.Require().Equal(jm.JournalMode, "wal")
+
+	// assert that foreign_key support is enabled
+	fk := struct {
+		ForeignKeys string
+	}{}
+	p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
+	s.Require().Equal(fk.ForeignKeys, "1")
 
 	return p
 }
