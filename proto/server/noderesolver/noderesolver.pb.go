@@ -61,7 +61,7 @@ type RegistrationEntries = common.RegistrationEntries
 // * Represents a request with a list of BaseSPIFFEIDs.
 type ResolveRequest struct {
 	// * A list of BaseSPIFFE Ids.
-	BaseSpiffeIdList     []string `protobuf:"bytes,1,rep,name=baseSpiffeIdList" json:"baseSpiffeIdList,omitempty"`
+	BaseSpiffeIdList     []string `protobuf:"bytes,1,rep,name=baseSpiffeIdList,proto3" json:"baseSpiffeIdList,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -101,7 +101,7 @@ func (m *ResolveRequest) GetBaseSpiffeIdList() []string {
 // * Represents a response with a map of SPIFFE ID to a list of Selectors.
 type ResolveResponse struct {
 	// * Map[SPIFFE_ID] => Selectors.
-	Map                  map[string]*common.Selectors `protobuf:"bytes,1,rep,name=map" json:"map,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Map                  map[string]*common.Selectors `protobuf:"bytes,1,rep,name=map,proto3" json:"map,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
 	XXX_unrecognized     []byte                       `json:"-"`
 	XXX_sizecache        int32                        `json:"-"`
@@ -152,8 +152,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for NodeResolver service
-
+// NodeResolverClient is the client API for NodeResolver service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type NodeResolverClient interface {
 	// * Retrieves a list of properties reflecting the current state of a particular node(s).
 	Resolve(ctx context.Context, in *ResolveRequest, opts ...grpc.CallOption) (*ResolveResponse, error)
@@ -173,7 +174,7 @@ func NewNodeResolverClient(cc *grpc.ClientConn) NodeResolverClient {
 
 func (c *nodeResolverClient) Resolve(ctx context.Context, in *ResolveRequest, opts ...grpc.CallOption) (*ResolveResponse, error) {
 	out := new(ResolveResponse)
-	err := grpc.Invoke(ctx, "/spire.server.noderesolver.NodeResolver/Resolve", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.noderesolver.NodeResolver/Resolve", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +183,7 @@ func (c *nodeResolverClient) Resolve(ctx context.Context, in *ResolveRequest, op
 
 func (c *nodeResolverClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
 	out := new(plugin.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/spire.server.noderesolver.NodeResolver/Configure", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.noderesolver.NodeResolver/Configure", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -191,15 +192,14 @@ func (c *nodeResolverClient) Configure(ctx context.Context, in *plugin.Configure
 
 func (c *nodeResolverClient) GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error) {
 	out := new(plugin.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/spire.server.noderesolver.NodeResolver/GetPluginInfo", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.noderesolver.NodeResolver/GetPluginInfo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for NodeResolver service
-
+// NodeResolverServer is the server API for NodeResolver service.
 type NodeResolverServer interface {
 	// * Retrieves a list of properties reflecting the current state of a particular node(s).
 	Resolve(context.Context, *ResolveRequest) (*ResolveResponse, error)

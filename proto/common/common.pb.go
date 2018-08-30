@@ -52,7 +52,7 @@ var xxx_messageInfo_Empty proto.InternalMessageInfo
 // * A type which contains attestation data for specific platform.
 type AttestationData struct {
 	// * Type of attestation to perform.
-	Type string `protobuf:"bytes,1,opt,name=type" json:"type,omitempty"`
+	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// * The attestation data.
 	Data                 []byte   `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -103,9 +103,9 @@ func (m *AttestationData) GetData() []byte {
 type Selector struct {
 	// * A selector type represents the type of attestation used in attesting
 	// the entity (Eg: AWS, K8).
-	Type string `protobuf:"bytes,1,opt,name=type" json:"type,omitempty"`
+	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// * The value to be attested.
-	Value                string   `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
+	Value                string   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -152,7 +152,7 @@ func (m *Selector) GetValue() string {
 // * Represents a type with a list of Selector.
 type Selectors struct {
 	// * A list of Selector.
-	Entries              []*Selector `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
+	Entries              []*Selector `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
 	XXX_sizecache        int32       `json:"-"`
@@ -193,20 +193,20 @@ func (m *Selectors) GetEntries() []*Selector {
 // manage the various registered nodes and workloads that are controlled by it.
 type RegistrationEntry struct {
 	// * A list of selectors.
-	Selectors []*Selector `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
+	Selectors []*Selector `protobuf:"bytes,1,rep,name=selectors,proto3" json:"selectors,omitempty"`
 	// * The SPIFFE ID of an entity that is authorized to attest the validity
 	// of a selector
-	ParentId string `protobuf:"bytes,2,opt,name=parent_id,json=parentId" json:"parent_id,omitempty"`
+	ParentId string `protobuf:"bytes,2,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	// * The SPIFFE ID is a structured string used to identify a resource or
 	// caller. It is defined as a URI comprising a “trust domain” and an
 	// associated path.
-	SpiffeId string `protobuf:"bytes,3,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	SpiffeId string `protobuf:"bytes,3,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	// * Time to live.
-	Ttl int32 `protobuf:"varint,4,opt,name=ttl" json:"ttl,omitempty"`
+	Ttl int32 `protobuf:"varint,4,opt,name=ttl,proto3" json:"ttl,omitempty"`
 	// * A list of federated bundle spiffe ids.
-	FbSpiffeIds []string `protobuf:"bytes,5,rep,name=fb_spiffe_ids,json=fbSpiffeIds" json:"fb_spiffe_ids,omitempty"`
+	FbSpiffeIds []string `protobuf:"bytes,5,rep,name=fb_spiffe_ids,json=fbSpiffeIds,proto3" json:"fb_spiffe_ids,omitempty"`
 	// * Entry ID
-	EntryId              string   `protobuf:"bytes,6,opt,name=entry_id,json=entryId" json:"entry_id,omitempty"`
+	EntryId              string   `protobuf:"bytes,6,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -281,7 +281,7 @@ func (m *RegistrationEntry) GetEntryId() string {
 // * A list of registration entries.
 type RegistrationEntries struct {
 	// * A list of RegistrationEntry.
-	Entries              []*RegistrationEntry `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
+	Entries              []*RegistrationEntry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
 	XXX_unrecognized     []byte               `json:"-"`
 	XXX_sizecache        int32                `json:"-"`

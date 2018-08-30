@@ -29,12 +29,11 @@ type CatalogTestSuite struct {
 	// log messages, if desired
 	logHook *test.Hook
 
-	t    *testing.T
 	ctrl *gomock.Controller
 }
 
 func (c *CatalogTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(c.t)
+	mockCtrl := gomock.NewController(c.T())
 	log, logHook := test.NewNullLogger()
 
 	supportedPlugins := map[string]plugin.Plugin{

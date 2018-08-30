@@ -21,9 +21,9 @@ const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 // * Represents the plugin-specific configuration string.
 type ConfigureRequest struct {
 	// * The configuration for the plugin.
-	Configuration string `protobuf:"bytes,1,opt,name=configuration" json:"configuration,omitempty"`
+	Configuration string `protobuf:"bytes,1,opt,name=configuration,proto3" json:"configuration,omitempty"`
 	// * Global configurations.
-	GlobalConfig         *ConfigureRequest_GlobalConfig `protobuf:"bytes,2,opt,name=globalConfig" json:"globalConfig,omitempty"`
+	GlobalConfig         *ConfigureRequest_GlobalConfig `protobuf:"bytes,2,opt,name=globalConfig,proto3" json:"globalConfig,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                       `json:"-"`
 	XXX_unrecognized     []byte                         `json:"-"`
 	XXX_sizecache        int32                          `json:"-"`
@@ -69,7 +69,7 @@ func (m *ConfigureRequest) GetGlobalConfig() *ConfigureRequest_GlobalConfig {
 
 // * Global configuration nested type.
 type ConfigureRequest_GlobalConfig struct {
-	TrustDomain          string   `protobuf:"bytes,1,opt,name=trustDomain" json:"trustDomain,omitempty"`
+	TrustDomain          string   `protobuf:"bytes,1,opt,name=trustDomain,proto3" json:"trustDomain,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -110,7 +110,7 @@ func (m *ConfigureRequest_GlobalConfig) GetTrustDomain() string {
 // found in the configuration string.
 type ConfigureResponse struct {
 	// * A list of errors
-	ErrorList            []string `protobuf:"bytes,1,rep,name=errorList" json:"errorList,omitempty"`
+	ErrorList            []string `protobuf:"bytes,1,rep,name=errorList,proto3" json:"errorList,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -180,15 +180,15 @@ var xxx_messageInfo_GetPluginInfoRequest proto.InternalMessageInfo
 
 // * Represents the plugin metadata.
 type GetPluginInfoResponse struct {
-	Name                 string   `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	Category             string   `protobuf:"bytes,2,opt,name=category" json:"category,omitempty"`
-	Type                 string   `protobuf:"bytes,3,opt,name=type" json:"type,omitempty"`
-	Description          string   `protobuf:"bytes,4,opt,name=description" json:"description,omitempty"`
-	DateCreated          string   `protobuf:"bytes,5,opt,name=dateCreated" json:"dateCreated,omitempty"`
-	Location             string   `protobuf:"bytes,6,opt,name=location" json:"location,omitempty"`
-	Version              string   `protobuf:"bytes,7,opt,name=version" json:"version,omitempty"`
-	Author               string   `protobuf:"bytes,8,opt,name=author" json:"author,omitempty"`
-	Company              string   `protobuf:"bytes,9,opt,name=company" json:"company,omitempty"`
+	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Category             string   `protobuf:"bytes,2,opt,name=category,proto3" json:"category,omitempty"`
+	Type                 string   `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
+	Description          string   `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	DateCreated          string   `protobuf:"bytes,5,opt,name=dateCreated,proto3" json:"dateCreated,omitempty"`
+	Location             string   `protobuf:"bytes,6,opt,name=location,proto3" json:"location,omitempty"`
+	Version              string   `protobuf:"bytes,7,opt,name=version,proto3" json:"version,omitempty"`
+	Author               string   `protobuf:"bytes,8,opt,name=author,proto3" json:"author,omitempty"`
+	Company              string   `protobuf:"bytes,9,opt,name=company,proto3" json:"company,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`

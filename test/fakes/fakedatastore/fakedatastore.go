@@ -294,10 +294,7 @@ func (s *DataStore) CreateRegistrationEntry(ctx context.Context,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	entryID, err := newRegistrationEntryID()
-	if err != nil {
-		return nil, err
-	}
+	entryID := newRegistrationEntryID()
 
 	entry := cloneRegistrationEntry(req.Entry)
 	entry.EntryId = entryID
@@ -515,12 +512,8 @@ func cloneJoinToken(token *datastore.JoinToken) *datastore.JoinToken {
 	return proto.Clone(token).(*datastore.JoinToken)
 }
 
-func newRegistrationEntryID() (string, error) {
-	entryID, err := uuid.NewV4()
-	if err != nil {
-		return "", fmt.Errorf("could not generate entry id: %v", err)
-	}
-	return entryID.String(), nil
+func newRegistrationEntryID() string {
+	return uuid.NewV4().String()
 }
 
 func containsSelectors(selectors, subset []*common.Selector) bool {

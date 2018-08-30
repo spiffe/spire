@@ -11,7 +11,7 @@ from the SPIFFE project.
 For basic development you will need:
 
 * **Go** (https://golang.org/dl/)
-* **Glide**, for managing third-party dependancies (https://github.com/Masterminds/glide)
+* **Dep**, for managing third-party dependancies (https://github.com/golang/dep)
 
 For development that requires changes to the gRPC interfaces you will need:
 
@@ -25,10 +25,10 @@ For development that requires changes to the gRPC interfaces you will need:
 It is assumed that this repository lives in $GOPATH/src/github.com/spiffe/spire on your local disk,
 and that your GOPATH only contains one element.
 
-Because of the use of Glide and the unusual layout of this repository a Makefile is provide for
+Because of the use of dep and the unusual layout of this repository a Makefile is provide for
 common actions.
 
-* `glide install` - installs all the dependencies listed in glide.yaml
+* `dep ensure` - installs all the dependencies listed in Gopkg.toml
 * `make all` - installs 3rd-party dependencies, build all binaries, and run all tests
 * `make` - builds all binaries
 * `make cmd/spire-agent` - builds one binary
@@ -36,9 +36,9 @@ common actions.
 
 **Other Makefile targets**
 
-* `vendor` - installs 3rd-party dependencies using glide
+* `vendor` - installs 3rd-party dependencies using dep
 * `race-test` - run `go test -race`
-* `clean` - cleans `vendor` directory, glide cache
+* `clean` - cleans `vendor` directory, dep cache
 * `distclean` - removes caches in addition to `make clean`
 * `utils` - installs gRPC related development utilities
 
@@ -74,7 +74,7 @@ checks. It is also used to bootstrap the Go environment in the Docker container.
 * `protobuf` - regenerate the gRPC pb.go and README.md files
 * `protobuf_verify` - check that the checked-in generated code is up-to-date
 * `distclean` - calls `make distclean` and removes the directory `.build-<os>-<arch>`
-* `vendor` - calls `make vendor` and checks that the `glide.lock` file is up-to-date
+* `vendor` - calls `make vendor` and checks that the `Gopkg.lock` file is up-to-date
 * `artifact` - generate a `.tgz` containing all of the SPIFFE binaries
 * `test` - when called from within a Travis-CI build, runs coverage tests in addition to the
   regular tests

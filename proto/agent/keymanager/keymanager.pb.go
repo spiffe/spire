@@ -205,8 +205,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for KeyManager service
-
+// KeyManagerClient is the client API for KeyManager service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type KeyManagerClient interface {
 	// * Creates a key pair that is bound to hardware.
 	GenerateKeyPair(ctx context.Context, in *GenerateKeyPairRequest, opts ...grpc.CallOption) (*GenerateKeyPairResponse, error)
@@ -228,7 +229,7 @@ func NewKeyManagerClient(cc *grpc.ClientConn) KeyManagerClient {
 
 func (c *keyManagerClient) GenerateKeyPair(ctx context.Context, in *GenerateKeyPairRequest, opts ...grpc.CallOption) (*GenerateKeyPairResponse, error) {
 	out := new(GenerateKeyPairResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.keymanager.KeyManager/GenerateKeyPair", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.keymanager.KeyManager/GenerateKeyPair", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +238,7 @@ func (c *keyManagerClient) GenerateKeyPair(ctx context.Context, in *GenerateKeyP
 
 func (c *keyManagerClient) FetchPrivateKey(ctx context.Context, in *FetchPrivateKeyRequest, opts ...grpc.CallOption) (*FetchPrivateKeyResponse, error) {
 	out := new(FetchPrivateKeyResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.keymanager.KeyManager/FetchPrivateKey", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.keymanager.KeyManager/FetchPrivateKey", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +247,7 @@ func (c *keyManagerClient) FetchPrivateKey(ctx context.Context, in *FetchPrivate
 
 func (c *keyManagerClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
 	out := new(plugin.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.keymanager.KeyManager/Configure", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.keymanager.KeyManager/Configure", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -255,15 +256,14 @@ func (c *keyManagerClient) Configure(ctx context.Context, in *plugin.ConfigureRe
 
 func (c *keyManagerClient) GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error) {
 	out := new(plugin.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.keymanager.KeyManager/GetPluginInfo", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.keymanager.KeyManager/GetPluginInfo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for KeyManager service
-
+// KeyManagerServer is the server API for KeyManager service.
 type KeyManagerServer interface {
 	// * Creates a key pair that is bound to hardware.
 	GenerateKeyPair(context.Context, *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)

@@ -15,18 +15,18 @@ import (
 
 type ServerTestSuite struct {
 	suite.Suite
-	t       *testing.T
 	server  *Server
 	catalog *mock_catalog.MockCatalog
 	upsCa   *mock_upstreamca.MockUpstreamCA
+
+	mockCtrl *gomock.Controller
 }
 
 func (suite *ServerTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(suite.t)
-	defer mockCtrl.Finish()
+	suite.mockCtrl = gomock.NewController(suite.T())
 
-	suite.catalog = mock_catalog.NewMockCatalog(mockCtrl)
-	suite.upsCa = mock_upstreamca.NewMockUpstreamCA(mockCtrl)
+	suite.catalog = mock_catalog.NewMockCatalog(suite.mockCtrl)
+	suite.upsCa = mock_upstreamca.NewMockUpstreamCA(suite.mockCtrl)
 
 	logger, err := log.NewLogger("DEBUG", "")
 	suite.Nil(err)
@@ -37,6 +37,10 @@ func (suite *ServerTestSuite) SetupTest() {
 			Host:   "example.org",
 		},
 	})
+}
+
+func (s *ServerTestSuite) TearDownTest() {
+	s.mockCtrl.Finish()
 }
 
 func TestServerTestSuite(t *testing.T) {

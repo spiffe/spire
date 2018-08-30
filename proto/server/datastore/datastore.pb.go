@@ -111,7 +111,7 @@ func (BySelectors_MatchBehavior) EnumDescriptor() ([]byte, []int) {
 
 type Bundle struct {
 	// Trust domain SPIFFE ID
-	TrustDomain string `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain" json:"trust_domain,omitempty"`
+	TrustDomain string `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain,proto3" json:"trust_domain,omitempty"`
 	// CA Certificates (ASN.1 DER encoded)
 	CaCerts              []byte   `protobuf:"bytes,2,opt,name=ca_certs,json=caCerts,proto3" json:"ca_certs,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -158,7 +158,7 @@ func (m *Bundle) GetCaCerts() []byte {
 }
 
 type CreateBundleRequest struct {
-	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle" json:"bundle,omitempty"`
+	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -196,7 +196,7 @@ func (m *CreateBundleRequest) GetBundle() *Bundle {
 }
 
 type CreateBundleResponse struct {
-	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle" json:"bundle,omitempty"`
+	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -234,7 +234,7 @@ func (m *CreateBundleResponse) GetBundle() *Bundle {
 }
 
 type FetchBundleRequest struct {
-	TrustDomain          string   `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain" json:"trust_domain,omitempty"`
+	TrustDomain          string   `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain,proto3" json:"trust_domain,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -272,7 +272,7 @@ func (m *FetchBundleRequest) GetTrustDomain() string {
 }
 
 type FetchBundleResponse struct {
-	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle" json:"bundle,omitempty"`
+	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -340,7 +340,7 @@ func (m *ListBundlesRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_ListBundlesRequest proto.InternalMessageInfo
 
 type ListBundlesResponse struct {
-	Bundles              []*Bundle `protobuf:"bytes,1,rep,name=bundles" json:"bundles,omitempty"`
+	Bundles              []*Bundle `protobuf:"bytes,1,rep,name=bundles,proto3" json:"bundles,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
 	XXX_sizecache        int32     `json:"-"`
@@ -378,7 +378,7 @@ func (m *ListBundlesResponse) GetBundles() []*Bundle {
 }
 
 type UpdateBundleRequest struct {
-	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle" json:"bundle,omitempty"`
+	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -416,7 +416,7 @@ func (m *UpdateBundleRequest) GetBundle() *Bundle {
 }
 
 type UpdateBundleResponse struct {
-	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle" json:"bundle,omitempty"`
+	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -454,7 +454,7 @@ func (m *UpdateBundleResponse) GetBundle() *Bundle {
 }
 
 type AppendBundleRequest struct {
-	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle" json:"bundle,omitempty"`
+	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -492,7 +492,7 @@ func (m *AppendBundleRequest) GetBundle() *Bundle {
 }
 
 type AppendBundleResponse struct {
-	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle" json:"bundle,omitempty"`
+	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -530,7 +530,7 @@ func (m *AppendBundleResponse) GetBundle() *Bundle {
 }
 
 type DeleteBundleRequest struct {
-	TrustDomain          string   `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain" json:"trust_domain,omitempty"`
+	TrustDomain          string   `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain,proto3" json:"trust_domain,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -568,7 +568,7 @@ func (m *DeleteBundleRequest) GetTrustDomain() string {
 }
 
 type DeleteBundleResponse struct {
-	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle" json:"bundle,omitempty"`
+	Bundle               *Bundle  `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -607,9 +607,9 @@ func (m *DeleteBundleResponse) GetBundle() *Bundle {
 
 type NodeSelectors struct {
 	// Node SPIFFE ID
-	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	// Node selectors
-	Selectors            []*common.Selector `protobuf:"bytes,2,rep,name=selectors" json:"selectors,omitempty"`
+	Selectors            []*common.Selector `protobuf:"bytes,2,rep,name=selectors,proto3" json:"selectors,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
 	XXX_sizecache        int32              `json:"-"`
@@ -654,7 +654,7 @@ func (m *NodeSelectors) GetSelectors() []*common.Selector {
 }
 
 type SetNodeSelectorsRequest struct {
-	Selectors            *NodeSelectors `protobuf:"bytes,1,opt,name=selectors" json:"selectors,omitempty"`
+	Selectors            *NodeSelectors `protobuf:"bytes,1,opt,name=selectors,proto3" json:"selectors,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
 	XXX_unrecognized     []byte         `json:"-"`
 	XXX_sizecache        int32          `json:"-"`
@@ -722,7 +722,7 @@ func (m *SetNodeSelectorsResponse) XXX_DiscardUnknown() {
 var xxx_messageInfo_SetNodeSelectorsResponse proto.InternalMessageInfo
 
 type GetNodeSelectorsRequest struct {
-	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -760,7 +760,7 @@ func (m *GetNodeSelectorsRequest) GetSpiffeId() string {
 }
 
 type GetNodeSelectorsResponse struct {
-	Selectors            *NodeSelectors `protobuf:"bytes,1,opt,name=selectors" json:"selectors,omitempty"`
+	Selectors            *NodeSelectors `protobuf:"bytes,1,opt,name=selectors,proto3" json:"selectors,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
 	XXX_unrecognized     []byte         `json:"-"`
 	XXX_sizecache        int32          `json:"-"`
@@ -799,13 +799,13 @@ func (m *GetNodeSelectorsResponse) GetSelectors() *NodeSelectors {
 
 type AttestedNode struct {
 	// Node SPIFFE ID
-	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	// Attestation data type
-	AttestationDataType string `protobuf:"bytes,2,opt,name=attestation_data_type,json=attestationDataType" json:"attestation_data_type,omitempty"`
+	AttestationDataType string `protobuf:"bytes,2,opt,name=attestation_data_type,json=attestationDataType,proto3" json:"attestation_data_type,omitempty"`
 	// Node certificate serial number
-	CertSerialNumber string `protobuf:"bytes,3,opt,name=cert_serial_number,json=certSerialNumber" json:"cert_serial_number,omitempty"`
+	CertSerialNumber string `protobuf:"bytes,3,opt,name=cert_serial_number,json=certSerialNumber,proto3" json:"cert_serial_number,omitempty"`
 	// Node certificate not_after (seconds since unix epoch)
-	CertNotAfter         int64    `protobuf:"varint,4,opt,name=cert_not_after,json=certNotAfter" json:"cert_not_after,omitempty"`
+	CertNotAfter         int64    `protobuf:"varint,4,opt,name=cert_not_after,json=certNotAfter,proto3" json:"cert_not_after,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -864,7 +864,7 @@ func (m *AttestedNode) GetCertNotAfter() int64 {
 }
 
 type CreateAttestedNodeRequest struct {
-	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`
 	XXX_sizecache        int32         `json:"-"`
@@ -902,7 +902,7 @@ func (m *CreateAttestedNodeRequest) GetNode() *AttestedNode {
 }
 
 type CreateAttestedNodeResponse struct {
-	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`
 	XXX_sizecache        int32         `json:"-"`
@@ -940,7 +940,7 @@ func (m *CreateAttestedNodeResponse) GetNode() *AttestedNode {
 }
 
 type FetchAttestedNodeRequest struct {
-	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -978,7 +978,7 @@ func (m *FetchAttestedNodeRequest) GetSpiffeId() string {
 }
 
 type FetchAttestedNodeResponse struct {
-	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`
 	XXX_sizecache        int32         `json:"-"`
@@ -1016,7 +1016,7 @@ func (m *FetchAttestedNodeResponse) GetNode() *AttestedNode {
 }
 
 type ListAttestedNodesRequest struct {
-	ByExpiresBefore      *wrappers.Int64Value `protobuf:"bytes,1,opt,name=by_expires_before,json=byExpiresBefore" json:"by_expires_before,omitempty"`
+	ByExpiresBefore      *wrappers.Int64Value `protobuf:"bytes,1,opt,name=by_expires_before,json=byExpiresBefore,proto3" json:"by_expires_before,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
 	XXX_unrecognized     []byte               `json:"-"`
 	XXX_sizecache        int32                `json:"-"`
@@ -1054,7 +1054,7 @@ func (m *ListAttestedNodesRequest) GetByExpiresBefore() *wrappers.Int64Value {
 }
 
 type ListAttestedNodesResponse struct {
-	Nodes                []*AttestedNode `protobuf:"bytes,1,rep,name=nodes" json:"nodes,omitempty"`
+	Nodes                []*AttestedNode `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
 	XXX_unrecognized     []byte          `json:"-"`
 	XXX_sizecache        int32           `json:"-"`
@@ -1092,9 +1092,9 @@ func (m *ListAttestedNodesResponse) GetNodes() []*AttestedNode {
 }
 
 type UpdateAttestedNodeRequest struct {
-	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
-	CertSerialNumber     string   `protobuf:"bytes,2,opt,name=cert_serial_number,json=certSerialNumber" json:"cert_serial_number,omitempty"`
-	CertNotAfter         int64    `protobuf:"varint,3,opt,name=cert_not_after,json=certNotAfter" json:"cert_not_after,omitempty"`
+	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
+	CertSerialNumber     string   `protobuf:"bytes,2,opt,name=cert_serial_number,json=certSerialNumber,proto3" json:"cert_serial_number,omitempty"`
+	CertNotAfter         int64    `protobuf:"varint,3,opt,name=cert_not_after,json=certNotAfter,proto3" json:"cert_not_after,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1146,7 +1146,7 @@ func (m *UpdateAttestedNodeRequest) GetCertNotAfter() int64 {
 }
 
 type UpdateAttestedNodeResponse struct {
-	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`
 	XXX_sizecache        int32         `json:"-"`
@@ -1184,7 +1184,7 @@ func (m *UpdateAttestedNodeResponse) GetNode() *AttestedNode {
 }
 
 type DeleteAttestedNodeRequest struct {
-	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	SpiffeId             string   `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1222,7 +1222,7 @@ func (m *DeleteAttestedNodeRequest) GetSpiffeId() string {
 }
 
 type DeleteAttestedNodeResponse struct {
-	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+	Node                 *AttestedNode `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`
 	XXX_sizecache        int32         `json:"-"`
@@ -1260,7 +1260,7 @@ func (m *DeleteAttestedNodeResponse) GetNode() *AttestedNode {
 }
 
 type CreateRegistrationEntryRequest struct {
-	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
+	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
 	XXX_unrecognized     []byte                    `json:"-"`
 	XXX_sizecache        int32                     `json:"-"`
@@ -1298,7 +1298,7 @@ func (m *CreateRegistrationEntryRequest) GetEntry() *common.RegistrationEntry {
 }
 
 type CreateRegistrationEntryResponse struct {
-	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
+	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
 	XXX_unrecognized     []byte                    `json:"-"`
 	XXX_sizecache        int32                     `json:"-"`
@@ -1336,7 +1336,7 @@ func (m *CreateRegistrationEntryResponse) GetEntry() *common.RegistrationEntry {
 }
 
 type FetchRegistrationEntryRequest struct {
-	EntryId              string   `protobuf:"bytes,1,opt,name=entry_id,json=entryId" json:"entry_id,omitempty"`
+	EntryId              string   `protobuf:"bytes,1,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1374,7 +1374,7 @@ func (m *FetchRegistrationEntryRequest) GetEntryId() string {
 }
 
 type FetchRegistrationEntryResponse struct {
-	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
+	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
 	XXX_unrecognized     []byte                    `json:"-"`
 	XXX_sizecache        int32                     `json:"-"`
@@ -1412,8 +1412,8 @@ func (m *FetchRegistrationEntryResponse) GetEntry() *common.RegistrationEntry {
 }
 
 type BySelectors struct {
-	Selectors            []*common.Selector        `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
-	Match                BySelectors_MatchBehavior `protobuf:"varint,2,opt,name=match,enum=spire.server.datastore.BySelectors_MatchBehavior" json:"match,omitempty"`
+	Selectors            []*common.Selector        `protobuf:"bytes,1,rep,name=selectors,proto3" json:"selectors,omitempty"`
+	Match                BySelectors_MatchBehavior `protobuf:"varint,2,opt,name=match,proto3,enum=spire.server.datastore.BySelectors_MatchBehavior" json:"match,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
 	XXX_unrecognized     []byte                    `json:"-"`
 	XXX_sizecache        int32                     `json:"-"`
@@ -1458,9 +1458,9 @@ func (m *BySelectors) GetMatch() BySelectors_MatchBehavior {
 }
 
 type ListRegistrationEntriesRequest struct {
-	ByParentId           *wrappers.StringValue `protobuf:"bytes,1,opt,name=by_parent_id,json=byParentId" json:"by_parent_id,omitempty"`
-	BySelectors          *BySelectors          `protobuf:"bytes,2,opt,name=by_selectors,json=bySelectors" json:"by_selectors,omitempty"`
-	BySpiffeId           *wrappers.StringValue `protobuf:"bytes,3,opt,name=by_spiffe_id,json=bySpiffeId" json:"by_spiffe_id,omitempty"`
+	ByParentId           *wrappers.StringValue `protobuf:"bytes,1,opt,name=by_parent_id,json=byParentId,proto3" json:"by_parent_id,omitempty"`
+	BySelectors          *BySelectors          `protobuf:"bytes,2,opt,name=by_selectors,json=bySelectors,proto3" json:"by_selectors,omitempty"`
+	BySpiffeId           *wrappers.StringValue `protobuf:"bytes,3,opt,name=by_spiffe_id,json=bySpiffeId,proto3" json:"by_spiffe_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
 	XXX_unrecognized     []byte                `json:"-"`
 	XXX_sizecache        int32                 `json:"-"`
@@ -1512,7 +1512,7 @@ func (m *ListRegistrationEntriesRequest) GetBySpiffeId() *wrappers.StringValue {
 }
 
 type ListRegistrationEntriesResponse struct {
-	Entries              []*common.RegistrationEntry `protobuf:"bytes,1,rep,name=entries" json:"entries,omitempty"`
+	Entries              []*common.RegistrationEntry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                    `json:"-"`
 	XXX_unrecognized     []byte                      `json:"-"`
 	XXX_sizecache        int32                       `json:"-"`
@@ -1550,7 +1550,7 @@ func (m *ListRegistrationEntriesResponse) GetEntries() []*common.RegistrationEnt
 }
 
 type UpdateRegistrationEntryRequest struct {
-	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
+	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
 	XXX_unrecognized     []byte                    `json:"-"`
 	XXX_sizecache        int32                     `json:"-"`
@@ -1588,7 +1588,7 @@ func (m *UpdateRegistrationEntryRequest) GetEntry() *common.RegistrationEntry {
 }
 
 type UpdateRegistrationEntryResponse struct {
-	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
+	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
 	XXX_unrecognized     []byte                    `json:"-"`
 	XXX_sizecache        int32                     `json:"-"`
@@ -1626,7 +1626,7 @@ func (m *UpdateRegistrationEntryResponse) GetEntry() *common.RegistrationEntry {
 }
 
 type DeleteRegistrationEntryRequest struct {
-	EntryId              string   `protobuf:"bytes,1,opt,name=entry_id,json=entryId" json:"entry_id,omitempty"`
+	EntryId              string   `protobuf:"bytes,1,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1664,7 +1664,7 @@ func (m *DeleteRegistrationEntryRequest) GetEntryId() string {
 }
 
 type DeleteRegistrationEntryResponse struct {
-	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry" json:"entry,omitempty"`
+	Entry                *common.RegistrationEntry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
 	XXX_unrecognized     []byte                    `json:"-"`
 	XXX_sizecache        int32                     `json:"-"`
@@ -1703,9 +1703,9 @@ func (m *DeleteRegistrationEntryResponse) GetEntry() *common.RegistrationEntry {
 
 type JoinToken struct {
 	// Token value
-	Token string `protobuf:"bytes,1,opt,name=token" json:"token,omitempty"`
+	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// Expiration in seconds since unix epoch
-	Expiry               int64    `protobuf:"varint,2,opt,name=expiry" json:"expiry,omitempty"`
+	Expiry               int64    `protobuf:"varint,2,opt,name=expiry,proto3" json:"expiry,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1750,7 +1750,7 @@ func (m *JoinToken) GetExpiry() int64 {
 }
 
 type CreateJoinTokenRequest struct {
-	JoinToken            *JoinToken `protobuf:"bytes,1,opt,name=join_token,json=joinToken" json:"join_token,omitempty"`
+	JoinToken            *JoinToken `protobuf:"bytes,1,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
 	XXX_sizecache        int32      `json:"-"`
@@ -1788,7 +1788,7 @@ func (m *CreateJoinTokenRequest) GetJoinToken() *JoinToken {
 }
 
 type CreateJoinTokenResponse struct {
-	JoinToken            *JoinToken `protobuf:"bytes,1,opt,name=join_token,json=joinToken" json:"join_token,omitempty"`
+	JoinToken            *JoinToken `protobuf:"bytes,1,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
 	XXX_sizecache        int32      `json:"-"`
@@ -1826,7 +1826,7 @@ func (m *CreateJoinTokenResponse) GetJoinToken() *JoinToken {
 }
 
 type FetchJoinTokenRequest struct {
-	Token                string   `protobuf:"bytes,1,opt,name=token" json:"token,omitempty"`
+	Token                string   `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1864,7 +1864,7 @@ func (m *FetchJoinTokenRequest) GetToken() string {
 }
 
 type FetchJoinTokenResponse struct {
-	JoinToken            *JoinToken `protobuf:"bytes,1,opt,name=join_token,json=joinToken" json:"join_token,omitempty"`
+	JoinToken            *JoinToken `protobuf:"bytes,1,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
 	XXX_sizecache        int32      `json:"-"`
@@ -1902,7 +1902,7 @@ func (m *FetchJoinTokenResponse) GetJoinToken() *JoinToken {
 }
 
 type DeleteJoinTokenRequest struct {
-	Token                string   `protobuf:"bytes,1,opt,name=token" json:"token,omitempty"`
+	Token                string   `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1940,7 +1940,7 @@ func (m *DeleteJoinTokenRequest) GetToken() string {
 }
 
 type DeleteJoinTokenResponse struct {
-	JoinToken            *JoinToken `protobuf:"bytes,1,opt,name=join_token,json=joinToken" json:"join_token,omitempty"`
+	JoinToken            *JoinToken `protobuf:"bytes,1,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
 	XXX_sizecache        int32      `json:"-"`
@@ -1978,7 +1978,7 @@ func (m *DeleteJoinTokenResponse) GetJoinToken() *JoinToken {
 }
 
 type PruneJoinTokensRequest struct {
-	ExpiresBefore        int64    `protobuf:"varint,1,opt,name=expires_before,json=expiresBefore" json:"expires_before,omitempty"`
+	ExpiresBefore        int64    `protobuf:"varint,1,opt,name=expires_before,json=expiresBefore,proto3" json:"expires_before,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -2106,8 +2106,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for DataStore service
-
+// DataStoreClient is the client API for DataStore service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type DataStoreClient interface {
 	// Creates a bundle
 	CreateBundle(ctx context.Context, in *CreateBundleRequest, opts ...grpc.CallOption) (*CreateBundleResponse, error)
@@ -2169,7 +2170,7 @@ func NewDataStoreClient(cc *grpc.ClientConn) DataStoreClient {
 
 func (c *dataStoreClient) CreateBundle(ctx context.Context, in *CreateBundleRequest, opts ...grpc.CallOption) (*CreateBundleResponse, error) {
 	out := new(CreateBundleResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2178,7 +2179,7 @@ func (c *dataStoreClient) CreateBundle(ctx context.Context, in *CreateBundleRequ
 
 func (c *dataStoreClient) FetchBundle(ctx context.Context, in *FetchBundleRequest, opts ...grpc.CallOption) (*FetchBundleResponse, error) {
 	out := new(FetchBundleResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2187,7 +2188,7 @@ func (c *dataStoreClient) FetchBundle(ctx context.Context, in *FetchBundleReques
 
 func (c *dataStoreClient) ListBundles(ctx context.Context, in *ListBundlesRequest, opts ...grpc.CallOption) (*ListBundlesResponse, error) {
 	out := new(ListBundlesResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/ListBundles", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/ListBundles", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2196,7 +2197,7 @@ func (c *dataStoreClient) ListBundles(ctx context.Context, in *ListBundlesReques
 
 func (c *dataStoreClient) UpdateBundle(ctx context.Context, in *UpdateBundleRequest, opts ...grpc.CallOption) (*UpdateBundleResponse, error) {
 	out := new(UpdateBundleResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/UpdateBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/UpdateBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2205,7 +2206,7 @@ func (c *dataStoreClient) UpdateBundle(ctx context.Context, in *UpdateBundleRequ
 
 func (c *dataStoreClient) AppendBundle(ctx context.Context, in *AppendBundleRequest, opts ...grpc.CallOption) (*AppendBundleResponse, error) {
 	out := new(AppendBundleResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/AppendBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/AppendBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2214,7 +2215,7 @@ func (c *dataStoreClient) AppendBundle(ctx context.Context, in *AppendBundleRequ
 
 func (c *dataStoreClient) DeleteBundle(ctx context.Context, in *DeleteBundleRequest, opts ...grpc.CallOption) (*DeleteBundleResponse, error) {
 	out := new(DeleteBundleResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2223,7 +2224,7 @@ func (c *dataStoreClient) DeleteBundle(ctx context.Context, in *DeleteBundleRequ
 
 func (c *dataStoreClient) CreateAttestedNode(ctx context.Context, in *CreateAttestedNodeRequest, opts ...grpc.CallOption) (*CreateAttestedNodeResponse, error) {
 	out := new(CreateAttestedNodeResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateAttestedNode", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateAttestedNode", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2232,7 +2233,7 @@ func (c *dataStoreClient) CreateAttestedNode(ctx context.Context, in *CreateAtte
 
 func (c *dataStoreClient) FetchAttestedNode(ctx context.Context, in *FetchAttestedNodeRequest, opts ...grpc.CallOption) (*FetchAttestedNodeResponse, error) {
 	out := new(FetchAttestedNodeResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchAttestedNode", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchAttestedNode", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2241,7 +2242,7 @@ func (c *dataStoreClient) FetchAttestedNode(ctx context.Context, in *FetchAttest
 
 func (c *dataStoreClient) ListAttestedNodes(ctx context.Context, in *ListAttestedNodesRequest, opts ...grpc.CallOption) (*ListAttestedNodesResponse, error) {
 	out := new(ListAttestedNodesResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/ListAttestedNodes", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/ListAttestedNodes", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2250,7 +2251,7 @@ func (c *dataStoreClient) ListAttestedNodes(ctx context.Context, in *ListAtteste
 
 func (c *dataStoreClient) UpdateAttestedNode(ctx context.Context, in *UpdateAttestedNodeRequest, opts ...grpc.CallOption) (*UpdateAttestedNodeResponse, error) {
 	out := new(UpdateAttestedNodeResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/UpdateAttestedNode", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/UpdateAttestedNode", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2259,7 +2260,7 @@ func (c *dataStoreClient) UpdateAttestedNode(ctx context.Context, in *UpdateAtte
 
 func (c *dataStoreClient) DeleteAttestedNode(ctx context.Context, in *DeleteAttestedNodeRequest, opts ...grpc.CallOption) (*DeleteAttestedNodeResponse, error) {
 	out := new(DeleteAttestedNodeResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteAttestedNode", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteAttestedNode", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2268,7 +2269,7 @@ func (c *dataStoreClient) DeleteAttestedNode(ctx context.Context, in *DeleteAtte
 
 func (c *dataStoreClient) SetNodeSelectors(ctx context.Context, in *SetNodeSelectorsRequest, opts ...grpc.CallOption) (*SetNodeSelectorsResponse, error) {
 	out := new(SetNodeSelectorsResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/SetNodeSelectors", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/SetNodeSelectors", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2277,7 +2278,7 @@ func (c *dataStoreClient) SetNodeSelectors(ctx context.Context, in *SetNodeSelec
 
 func (c *dataStoreClient) GetNodeSelectors(ctx context.Context, in *GetNodeSelectorsRequest, opts ...grpc.CallOption) (*GetNodeSelectorsResponse, error) {
 	out := new(GetNodeSelectorsResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/GetNodeSelectors", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/GetNodeSelectors", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2286,7 +2287,7 @@ func (c *dataStoreClient) GetNodeSelectors(ctx context.Context, in *GetNodeSelec
 
 func (c *dataStoreClient) CreateRegistrationEntry(ctx context.Context, in *CreateRegistrationEntryRequest, opts ...grpc.CallOption) (*CreateRegistrationEntryResponse, error) {
 	out := new(CreateRegistrationEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateRegistrationEntry", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateRegistrationEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2295,7 +2296,7 @@ func (c *dataStoreClient) CreateRegistrationEntry(ctx context.Context, in *Creat
 
 func (c *dataStoreClient) FetchRegistrationEntry(ctx context.Context, in *FetchRegistrationEntryRequest, opts ...grpc.CallOption) (*FetchRegistrationEntryResponse, error) {
 	out := new(FetchRegistrationEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchRegistrationEntry", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchRegistrationEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2304,7 +2305,7 @@ func (c *dataStoreClient) FetchRegistrationEntry(ctx context.Context, in *FetchR
 
 func (c *dataStoreClient) ListRegistrationEntries(ctx context.Context, in *ListRegistrationEntriesRequest, opts ...grpc.CallOption) (*ListRegistrationEntriesResponse, error) {
 	out := new(ListRegistrationEntriesResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/ListRegistrationEntries", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/ListRegistrationEntries", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2313,7 +2314,7 @@ func (c *dataStoreClient) ListRegistrationEntries(ctx context.Context, in *ListR
 
 func (c *dataStoreClient) UpdateRegistrationEntry(ctx context.Context, in *UpdateRegistrationEntryRequest, opts ...grpc.CallOption) (*UpdateRegistrationEntryResponse, error) {
 	out := new(UpdateRegistrationEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/UpdateRegistrationEntry", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/UpdateRegistrationEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2322,7 +2323,7 @@ func (c *dataStoreClient) UpdateRegistrationEntry(ctx context.Context, in *Updat
 
 func (c *dataStoreClient) DeleteRegistrationEntry(ctx context.Context, in *DeleteRegistrationEntryRequest, opts ...grpc.CallOption) (*DeleteRegistrationEntryResponse, error) {
 	out := new(DeleteRegistrationEntryResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteRegistrationEntry", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteRegistrationEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2331,7 +2332,7 @@ func (c *dataStoreClient) DeleteRegistrationEntry(ctx context.Context, in *Delet
 
 func (c *dataStoreClient) CreateJoinToken(ctx context.Context, in *CreateJoinTokenRequest, opts ...grpc.CallOption) (*CreateJoinTokenResponse, error) {
 	out := new(CreateJoinTokenResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateJoinToken", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/CreateJoinToken", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2340,7 +2341,7 @@ func (c *dataStoreClient) CreateJoinToken(ctx context.Context, in *CreateJoinTok
 
 func (c *dataStoreClient) FetchJoinToken(ctx context.Context, in *FetchJoinTokenRequest, opts ...grpc.CallOption) (*FetchJoinTokenResponse, error) {
 	out := new(FetchJoinTokenResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchJoinToken", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/FetchJoinToken", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2349,7 +2350,7 @@ func (c *dataStoreClient) FetchJoinToken(ctx context.Context, in *FetchJoinToken
 
 func (c *dataStoreClient) DeleteJoinToken(ctx context.Context, in *DeleteJoinTokenRequest, opts ...grpc.CallOption) (*DeleteJoinTokenResponse, error) {
 	out := new(DeleteJoinTokenResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteJoinToken", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/DeleteJoinToken", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2358,7 +2359,7 @@ func (c *dataStoreClient) DeleteJoinToken(ctx context.Context, in *DeleteJoinTok
 
 func (c *dataStoreClient) PruneJoinTokens(ctx context.Context, in *PruneJoinTokensRequest, opts ...grpc.CallOption) (*PruneJoinTokensResponse, error) {
 	out := new(PruneJoinTokensResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/PruneJoinTokens", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/PruneJoinTokens", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2367,7 +2368,7 @@ func (c *dataStoreClient) PruneJoinTokens(ctx context.Context, in *PruneJoinToke
 
 func (c *dataStoreClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
 	out := new(plugin.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/Configure", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/Configure", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2376,15 +2377,14 @@ func (c *dataStoreClient) Configure(ctx context.Context, in *plugin.ConfigureReq
 
 func (c *dataStoreClient) GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error) {
 	out := new(plugin.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/spire.server.datastore.DataStore/GetPluginInfo", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.datastore.DataStore/GetPluginInfo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for DataStore service
-
+// DataStoreServer is the server API for DataStore service.
 type DataStoreServer interface {
 	// Creates a bundle
 	CreateBundle(context.Context, *CreateBundleRequest) (*CreateBundleResponse, error)

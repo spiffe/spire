@@ -49,7 +49,7 @@ type RegistrationEntries = common.RegistrationEntries
 // A type that represents the id of an entry.
 type RegistrationEntryID struct {
 	// RegistrationEntryID.
-	Id                   string   `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -89,7 +89,7 @@ func (m *RegistrationEntryID) GetId() string {
 // A type that represents a parent Id.
 type ParentID struct {
 	// ParentId.
-	Id                   string   `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -129,7 +129,7 @@ func (m *ParentID) GetId() string {
 // A type that represents a SPIFFE Id.
 type SpiffeID struct {
 	// SpiffeId.
-	Id                   string   `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -169,9 +169,9 @@ func (m *SpiffeID) GetId() string {
 // A type with the id with want to update plus values to modify.
 type UpdateEntryRequest struct {
 	// Id of the entry to update.
-	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Values in the RegistrationEntry to update.
-	Entry                *common.RegistrationEntry `protobuf:"bytes,2,opt,name=entry" json:"entry,omitempty"`
+	Entry                *common.RegistrationEntry `protobuf:"bytes,2,opt,name=entry,proto3" json:"entry,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
 	XXX_unrecognized     []byte                    `json:"-"`
 	XXX_sizecache        int32                     `json:"-"`
@@ -218,7 +218,7 @@ func (m *UpdateEntryRequest) GetEntry() *common.RegistrationEntry {
 // A CA bundle for a different Trust Domain than the one used and managed by the Server.
 type FederatedBundle struct {
 	// A SPIFFE ID that has a Federated Bundle
-	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	// ASN.1 DER data of the bundle.
 	CaCerts              []byte   `protobuf:"bytes,2,opt,name=ca_certs,json=caCerts,proto3" json:"ca_certs,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -267,7 +267,7 @@ func (m *FederatedBundle) GetCaCerts() []byte {
 // A type that represents a federated bundle id.
 type FederatedBundleID struct {
 	// SPIFFE ID of the federated bundle
-	Id                   string   `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -307,9 +307,9 @@ func (m *FederatedBundleID) GetId() string {
 // JoinToken message is used for registering a new token
 type JoinToken struct {
 	// The join token. If not set, one will be generated
-	Token string `protobuf:"bytes,1,opt,name=token" json:"token,omitempty"`
+	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// TTL in seconds
-	Ttl                  int32    `protobuf:"varint,2,opt,name=ttl" json:"ttl,omitempty"`
+	Ttl                  int32    `protobuf:"varint,2,opt,name=ttl,proto3" json:"ttl,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -412,8 +412,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for Registration service
-
+// RegistrationClient is the client API for Registration service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type RegistrationClient interface {
 	// Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
 	CreateEntry(ctx context.Context, in *common.RegistrationEntry, opts ...grpc.CallOption) (*RegistrationEntryID, error)
@@ -457,7 +458,7 @@ func NewRegistrationClient(cc *grpc.ClientConn) RegistrationClient {
 
 func (c *registrationClient) CreateEntry(ctx context.Context, in *common.RegistrationEntry, opts ...grpc.CallOption) (*RegistrationEntryID, error) {
 	out := new(RegistrationEntryID)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/CreateEntry", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/CreateEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +467,7 @@ func (c *registrationClient) CreateEntry(ctx context.Context, in *common.Registr
 
 func (c *registrationClient) DeleteEntry(ctx context.Context, in *RegistrationEntryID, opts ...grpc.CallOption) (*common.RegistrationEntry, error) {
 	out := new(common.RegistrationEntry)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/DeleteEntry", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/DeleteEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +476,7 @@ func (c *registrationClient) DeleteEntry(ctx context.Context, in *RegistrationEn
 
 func (c *registrationClient) FetchEntry(ctx context.Context, in *RegistrationEntryID, opts ...grpc.CallOption) (*common.RegistrationEntry, error) {
 	out := new(common.RegistrationEntry)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/FetchEntry", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/FetchEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +485,7 @@ func (c *registrationClient) FetchEntry(ctx context.Context, in *RegistrationEnt
 
 func (c *registrationClient) FetchEntries(ctx context.Context, in *common.Empty, opts ...grpc.CallOption) (*common.RegistrationEntries, error) {
 	out := new(common.RegistrationEntries)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/FetchEntries", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/FetchEntries", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -493,7 +494,7 @@ func (c *registrationClient) FetchEntries(ctx context.Context, in *common.Empty,
 
 func (c *registrationClient) UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*common.RegistrationEntry, error) {
 	out := new(common.RegistrationEntry)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/UpdateEntry", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/UpdateEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -502,7 +503,7 @@ func (c *registrationClient) UpdateEntry(ctx context.Context, in *UpdateEntryReq
 
 func (c *registrationClient) ListByParentID(ctx context.Context, in *ParentID, opts ...grpc.CallOption) (*common.RegistrationEntries, error) {
 	out := new(common.RegistrationEntries)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/ListByParentID", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/ListByParentID", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +512,7 @@ func (c *registrationClient) ListByParentID(ctx context.Context, in *ParentID, o
 
 func (c *registrationClient) ListBySelector(ctx context.Context, in *common.Selector, opts ...grpc.CallOption) (*common.RegistrationEntries, error) {
 	out := new(common.RegistrationEntries)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/ListBySelector", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/ListBySelector", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -520,7 +521,7 @@ func (c *registrationClient) ListBySelector(ctx context.Context, in *common.Sele
 
 func (c *registrationClient) ListBySpiffeID(ctx context.Context, in *SpiffeID, opts ...grpc.CallOption) (*common.RegistrationEntries, error) {
 	out := new(common.RegistrationEntries)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/ListBySpiffeID", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/ListBySpiffeID", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -529,7 +530,7 @@ func (c *registrationClient) ListBySpiffeID(ctx context.Context, in *SpiffeID, o
 
 func (c *registrationClient) CreateFederatedBundle(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*common.Empty, error) {
 	out := new(common.Empty)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/CreateFederatedBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/CreateFederatedBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -538,7 +539,7 @@ func (c *registrationClient) CreateFederatedBundle(ctx context.Context, in *Fede
 
 func (c *registrationClient) FetchFederatedBundle(ctx context.Context, in *FederatedBundleID, opts ...grpc.CallOption) (*FederatedBundle, error) {
 	out := new(FederatedBundle)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/FetchFederatedBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/FetchFederatedBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -546,7 +547,7 @@ func (c *registrationClient) FetchFederatedBundle(ctx context.Context, in *Feder
 }
 
 func (c *registrationClient) ListFederatedBundles(ctx context.Context, in *common.Empty, opts ...grpc.CallOption) (Registration_ListFederatedBundlesClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Registration_serviceDesc.Streams[0], c.cc, "/spire.api.registration.Registration/ListFederatedBundles", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Registration_serviceDesc.Streams[0], "/spire.api.registration.Registration/ListFederatedBundles", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +580,7 @@ func (x *registrationListFederatedBundlesClient) Recv() (*FederatedBundle, error
 
 func (c *registrationClient) UpdateFederatedBundle(ctx context.Context, in *FederatedBundle, opts ...grpc.CallOption) (*common.Empty, error) {
 	out := new(common.Empty)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/UpdateFederatedBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/UpdateFederatedBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -588,7 +589,7 @@ func (c *registrationClient) UpdateFederatedBundle(ctx context.Context, in *Fede
 
 func (c *registrationClient) DeleteFederatedBundle(ctx context.Context, in *FederatedBundleID, opts ...grpc.CallOption) (*common.Empty, error) {
 	out := new(common.Empty)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/DeleteFederatedBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/DeleteFederatedBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -597,7 +598,7 @@ func (c *registrationClient) DeleteFederatedBundle(ctx context.Context, in *Fede
 
 func (c *registrationClient) CreateJoinToken(ctx context.Context, in *JoinToken, opts ...grpc.CallOption) (*JoinToken, error) {
 	out := new(JoinToken)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/CreateJoinToken", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/CreateJoinToken", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -606,15 +607,14 @@ func (c *registrationClient) CreateJoinToken(ctx context.Context, in *JoinToken,
 
 func (c *registrationClient) FetchBundle(ctx context.Context, in *common.Empty, opts ...grpc.CallOption) (*Bundle, error) {
 	out := new(Bundle)
-	err := grpc.Invoke(ctx, "/spire.api.registration.Registration/FetchBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.registration.Registration/FetchBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for Registration service
-
+// RegistrationServer is the server API for Registration service.
 type RegistrationServer interface {
 	// Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
 	CreateEntry(context.Context, *common.RegistrationEntry) (*RegistrationEntryID, error)

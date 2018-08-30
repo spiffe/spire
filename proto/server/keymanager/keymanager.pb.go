@@ -118,8 +118,8 @@ func (HashAlgorithm) EnumDescriptor() ([]byte, []int) {
 }
 
 type PublicKey struct {
-	Id                   string       `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
-	Algorithm            KeyAlgorithm `protobuf:"varint,2,opt,name=algorithm,enum=spire.server.keymanager.KeyAlgorithm" json:"algorithm,omitempty"`
+	Id                   string       `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Algorithm            KeyAlgorithm `protobuf:"varint,2,opt,name=algorithm,proto3,enum=spire.server.keymanager.KeyAlgorithm" json:"algorithm,omitempty"`
 	PkixData             []byte       `protobuf:"bytes,3,opt,name=pkix_data,json=pkixData,proto3" json:"pkix_data,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
 	XXX_unrecognized     []byte       `json:"-"`
@@ -172,8 +172,8 @@ func (m *PublicKey) GetPkixData() []byte {
 }
 
 type GenerateKeyRequest struct {
-	KeyId                string       `protobuf:"bytes,1,opt,name=key_id,json=keyId" json:"key_id,omitempty"`
-	KeyAlgorithm         KeyAlgorithm `protobuf:"varint,2,opt,name=key_algorithm,json=keyAlgorithm,enum=spire.server.keymanager.KeyAlgorithm" json:"key_algorithm,omitempty"`
+	KeyId                string       `protobuf:"bytes,1,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
+	KeyAlgorithm         KeyAlgorithm `protobuf:"varint,2,opt,name=key_algorithm,json=keyAlgorithm,proto3,enum=spire.server.keymanager.KeyAlgorithm" json:"key_algorithm,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
 	XXX_unrecognized     []byte       `json:"-"`
 	XXX_sizecache        int32        `json:"-"`
@@ -218,7 +218,7 @@ func (m *GenerateKeyRequest) GetKeyAlgorithm() KeyAlgorithm {
 }
 
 type GenerateKeyResponse struct {
-	PublicKey            *PublicKey `protobuf:"bytes,1,opt,name=public_key,json=publicKey" json:"public_key,omitempty"`
+	PublicKey            *PublicKey `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
 	XXX_sizecache        int32      `json:"-"`
@@ -256,7 +256,7 @@ func (m *GenerateKeyResponse) GetPublicKey() *PublicKey {
 }
 
 type GetPublicKeyRequest struct {
-	KeyId                string   `protobuf:"bytes,1,opt,name=key_id,json=keyId" json:"key_id,omitempty"`
+	KeyId                string   `protobuf:"bytes,1,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -294,7 +294,7 @@ func (m *GetPublicKeyRequest) GetKeyId() string {
 }
 
 type GetPublicKeyResponse struct {
-	PublicKey            *PublicKey `protobuf:"bytes,1,opt,name=public_key,json=publicKey" json:"public_key,omitempty"`
+	PublicKey            *PublicKey `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
 	XXX_sizecache        int32      `json:"-"`
@@ -362,7 +362,7 @@ func (m *GetPublicKeysRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_GetPublicKeysRequest proto.InternalMessageInfo
 
 type GetPublicKeysResponse struct {
-	PublicKeys           []*PublicKey `protobuf:"bytes,1,rep,name=public_keys,json=publicKeys" json:"public_keys,omitempty"`
+	PublicKeys           []*PublicKey `protobuf:"bytes,1,rep,name=public_keys,json=publicKeys,proto3" json:"public_keys,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
 	XXX_unrecognized     []byte       `json:"-"`
 	XXX_sizecache        int32        `json:"-"`
@@ -400,8 +400,8 @@ func (m *GetPublicKeysResponse) GetPublicKeys() []*PublicKey {
 }
 
 type SignDataRequest struct {
-	KeyId                string        `protobuf:"bytes,1,opt,name=key_id,json=keyId" json:"key_id,omitempty"`
-	HashAlgorithm        HashAlgorithm `protobuf:"varint,2,opt,name=hash_algorithm,json=hashAlgorithm,enum=spire.server.keymanager.HashAlgorithm" json:"hash_algorithm,omitempty"`
+	KeyId                string        `protobuf:"bytes,1,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
+	HashAlgorithm        HashAlgorithm `protobuf:"varint,2,opt,name=hash_algorithm,json=hashAlgorithm,proto3,enum=spire.server.keymanager.HashAlgorithm" json:"hash_algorithm,omitempty"`
 	Data                 []byte        `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`
@@ -513,8 +513,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for KeyManager service
-
+// KeyManagerClient is the client API for KeyManager service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type KeyManagerClient interface {
 	// Generates a new key
 	GenerateKey(ctx context.Context, in *GenerateKeyRequest, opts ...grpc.CallOption) (*GenerateKeyResponse, error)
@@ -540,7 +541,7 @@ func NewKeyManagerClient(cc *grpc.ClientConn) KeyManagerClient {
 
 func (c *keyManagerClient) GenerateKey(ctx context.Context, in *GenerateKeyRequest, opts ...grpc.CallOption) (*GenerateKeyResponse, error) {
 	out := new(GenerateKeyResponse)
-	err := grpc.Invoke(ctx, "/spire.server.keymanager.KeyManager/GenerateKey", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.keymanager.KeyManager/GenerateKey", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -549,7 +550,7 @@ func (c *keyManagerClient) GenerateKey(ctx context.Context, in *GenerateKeyReque
 
 func (c *keyManagerClient) GetPublicKey(ctx context.Context, in *GetPublicKeyRequest, opts ...grpc.CallOption) (*GetPublicKeyResponse, error) {
 	out := new(GetPublicKeyResponse)
-	err := grpc.Invoke(ctx, "/spire.server.keymanager.KeyManager/GetPublicKey", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.keymanager.KeyManager/GetPublicKey", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -558,7 +559,7 @@ func (c *keyManagerClient) GetPublicKey(ctx context.Context, in *GetPublicKeyReq
 
 func (c *keyManagerClient) GetPublicKeys(ctx context.Context, in *GetPublicKeysRequest, opts ...grpc.CallOption) (*GetPublicKeysResponse, error) {
 	out := new(GetPublicKeysResponse)
-	err := grpc.Invoke(ctx, "/spire.server.keymanager.KeyManager/GetPublicKeys", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.keymanager.KeyManager/GetPublicKeys", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -567,7 +568,7 @@ func (c *keyManagerClient) GetPublicKeys(ctx context.Context, in *GetPublicKeysR
 
 func (c *keyManagerClient) SignData(ctx context.Context, in *SignDataRequest, opts ...grpc.CallOption) (*SignDataResponse, error) {
 	out := new(SignDataResponse)
-	err := grpc.Invoke(ctx, "/spire.server.keymanager.KeyManager/SignData", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.keymanager.KeyManager/SignData", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -576,7 +577,7 @@ func (c *keyManagerClient) SignData(ctx context.Context, in *SignDataRequest, op
 
 func (c *keyManagerClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
 	out := new(plugin.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/spire.server.keymanager.KeyManager/Configure", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.keymanager.KeyManager/Configure", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -585,15 +586,14 @@ func (c *keyManagerClient) Configure(ctx context.Context, in *plugin.ConfigureRe
 
 func (c *keyManagerClient) GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error) {
 	out := new(plugin.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/spire.server.keymanager.KeyManager/GetPluginInfo", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.keymanager.KeyManager/GetPluginInfo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for KeyManager service
-
+// KeyManagerServer is the server API for KeyManager service.
 type KeyManagerServer interface {
 	// Generates a new key
 	GenerateKey(context.Context, *GenerateKeyRequest) (*GenerateKeyResponse, error)

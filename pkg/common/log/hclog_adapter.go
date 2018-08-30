@@ -57,6 +57,12 @@ func (a *HCLogAdapter) IsError() bool {
 	return a.shouldEmit(logrus.ErrorLevel)
 }
 
+func (a *HCLogAdapter) SetLevel(hclog.Level) {
+	// interface definition says it is ok for this to be a noop if
+	// implementations don't need/want to support dynamic level changing, which
+	// we don't currently.
+}
+
 func (a *HCLogAdapter) With(args ...interface{}) hclog.Logger {
 	e := a.CreateEntry(args)
 	return &HCLogAdapter{Log: e}

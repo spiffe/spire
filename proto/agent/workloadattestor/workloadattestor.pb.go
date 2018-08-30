@@ -61,7 +61,7 @@ type GetPluginInfoResponse = plugin.GetPluginInfoResponse
 // * Represents the workload PID.
 type AttestRequest struct {
 	// * Workload PID
-	Pid                  int32    `protobuf:"varint,1,opt,name=pid" json:"pid,omitempty"`
+	Pid                  int32    `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -101,7 +101,7 @@ func (m *AttestRequest) GetPid() int32 {
 // * Represents a list of selectors resolved for a given PID.
 type AttestResponse struct {
 	// * List of selectors
-	Selectors            []*common.Selector `protobuf:"bytes,1,rep,name=selectors" json:"selectors,omitempty"`
+	Selectors            []*common.Selector `protobuf:"bytes,1,rep,name=selectors,proto3" json:"selectors,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
 	XXX_sizecache        int32              `json:"-"`
@@ -151,8 +151,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for WorkloadAttestor service
-
+// WorkloadAttestorClient is the client API for WorkloadAttestor service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type WorkloadAttestorClient interface {
 	// * Returns a list of selectors resolved for a given PID
 	Attest(ctx context.Context, in *AttestRequest, opts ...grpc.CallOption) (*AttestResponse, error)
@@ -172,7 +173,7 @@ func NewWorkloadAttestorClient(cc *grpc.ClientConn) WorkloadAttestorClient {
 
 func (c *workloadAttestorClient) Attest(ctx context.Context, in *AttestRequest, opts ...grpc.CallOption) (*AttestResponse, error) {
 	out := new(AttestResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.workloadattestor.WorkloadAttestor/Attest", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.workloadattestor.WorkloadAttestor/Attest", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func (c *workloadAttestorClient) Attest(ctx context.Context, in *AttestRequest, 
 
 func (c *workloadAttestorClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
 	out := new(plugin.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.workloadattestor.WorkloadAttestor/Configure", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.workloadattestor.WorkloadAttestor/Configure", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -190,15 +191,14 @@ func (c *workloadAttestorClient) Configure(ctx context.Context, in *plugin.Confi
 
 func (c *workloadAttestorClient) GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error) {
 	out := new(plugin.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.workloadattestor.WorkloadAttestor/GetPluginInfo", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.workloadattestor.WorkloadAttestor/GetPluginInfo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for WorkloadAttestor service
-
+// WorkloadAttestorServer is the server API for WorkloadAttestor service.
 type WorkloadAttestorServer interface {
 	// * Returns a list of selectors resolved for a given PID
 	Attest(context.Context, *AttestRequest) (*AttestResponse, error)
