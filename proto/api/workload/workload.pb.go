@@ -60,13 +60,13 @@ type X509SVIDResponse struct {
 	// A list of X509SVID messages, each of which includes a single
 	// SPIFFE Verifiable Identity Document, along with its private key
 	// and bundle.
-	Svids []*X509SVID `protobuf:"bytes,1,rep,name=svids" json:"svids,omitempty"`
+	Svids []*X509SVID `protobuf:"bytes,1,rep,name=svids,proto3" json:"svids,omitempty"`
 	// ASN.1 DER encoded
 	Crl [][]byte `protobuf:"bytes,2,rep,name=crl,proto3" json:"crl,omitempty"`
 	// CA certificate bundles belonging to foreign Trust Domains that the
 	// workload should trust, keyed by the SPIFFE ID of the foreign
 	// domain. Bundles are ASN.1 DER encoded.
-	FederatedBundles     map[string][]byte `protobuf:"bytes,3,rep,name=federated_bundles,json=federatedBundles" json:"federated_bundles,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	FederatedBundles     map[string][]byte `protobuf:"bytes,3,rep,name=federated_bundles,json=federatedBundles,proto3" json:"federated_bundles,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
 	XXX_sizecache        int32             `json:"-"`
@@ -121,7 +121,7 @@ func (m *X509SVIDResponse) GetFederatedBundles() map[string][]byte {
 // information, including CA bundles.
 type X509SVID struct {
 	// The SPIFFE ID of the SVID in this entry
-	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	// ASN.1 DER encoded certificate chain. MAY include intermediates,
 	// the leaf certificate (or SVID itself) MUST come first.
 	X509Svid []byte `protobuf:"bytes,2,opt,name=x509_svid,json=x509Svid,proto3" json:"x509_svid,omitempty"`
@@ -202,8 +202,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for SpiffeWorkloadAPI service
-
+// SpiffeWorkloadAPIClient is the client API for SpiffeWorkloadAPI service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type SpiffeWorkloadAPIClient interface {
 	// X.509-SVID Profile
 	// Fetch all SPIFFE identities the workload is entitled to, as
@@ -221,7 +222,7 @@ func NewSpiffeWorkloadAPIClient(cc *grpc.ClientConn) SpiffeWorkloadAPIClient {
 }
 
 func (c *spiffeWorkloadAPIClient) FetchX509SVID(ctx context.Context, in *X509SVIDRequest, opts ...grpc.CallOption) (SpiffeWorkloadAPI_FetchX509SVIDClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_SpiffeWorkloadAPI_serviceDesc.Streams[0], c.cc, "/SpiffeWorkloadAPI/FetchX509SVID", opts...)
+	stream, err := c.cc.NewStream(ctx, &_SpiffeWorkloadAPI_serviceDesc.Streams[0], "/SpiffeWorkloadAPI/FetchX509SVID", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -252,8 +253,7 @@ func (x *spiffeWorkloadAPIFetchX509SVIDClient) Recv() (*X509SVIDResponse, error)
 	return m, nil
 }
 
-// Server API for SpiffeWorkloadAPI service
-
+// SpiffeWorkloadAPIServer is the server API for SpiffeWorkloadAPI service.
 type SpiffeWorkloadAPIServer interface {
 	// X.509-SVID Profile
 	// Fetch all SPIFFE identities the workload is entitled to, as

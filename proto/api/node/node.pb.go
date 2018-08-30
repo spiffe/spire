@@ -48,7 +48,7 @@ type X509SVID struct {
 	// X509 SVID (ASN.1 encoding)
 	Cert []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
 	// SVID expiration timestamp (in seconds since Unix epoch)
-	ExpiresAt            int64    `protobuf:"varint,2,opt,name=expires_at,json=expiresAt" json:"expires_at,omitempty"`
+	ExpiresAt            int64    `protobuf:"varint,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -97,12 +97,12 @@ func (m *X509SVID) GetExpiresAt() int64 {
 type X509SVIDUpdate struct {
 	// A map containing SVID values and corresponding SPIFFE IDs as the
 	// keys. Map[SPIFFE_ID] => SVID.
-	Svids map[string]*X509SVID `protobuf:"bytes,1,rep,name=svids" json:"svids,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Svids map[string]*X509SVID `protobuf:"bytes,1,rep,name=svids,proto3" json:"svids,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Latest SPIRE Server bundle
 	Bundle []byte `protobuf:"bytes,2,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	// A type representing a curated record that the Spire Server uses to set up
 	// and manage the various registered nodes and workloads that are controlled by it.
-	RegistrationEntries  []*common.RegistrationEntry `protobuf:"bytes,3,rep,name=registration_entries,json=registrationEntries" json:"registration_entries,omitempty"`
+	RegistrationEntries  []*common.RegistrationEntry `protobuf:"bytes,3,rep,name=registration_entries,json=registrationEntries,proto3" json:"registration_entries,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                    `json:"-"`
 	XXX_unrecognized     []byte                      `json:"-"`
 	XXX_sizecache        int32                       `json:"-"`
@@ -156,12 +156,12 @@ func (m *X509SVIDUpdate) GetRegistrationEntries() []*common.RegistrationEntry {
 // JSR is a JWT SVID signing request.
 type JSR struct {
 	// SPIFFE ID of the workload
-	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	// List of intended audience
-	Audience []string `protobuf:"bytes,2,rep,name=audience" json:"audience,omitempty"`
+	Audience []string `protobuf:"bytes,2,rep,name=audience,proto3" json:"audience,omitempty"`
 	// Time-to-live in seconds. If unspecified the JWT SVID will be assigned
 	// a default time-to-live by the server.
-	Ttl                  int32    `protobuf:"varint,3,opt,name=ttl" json:"ttl,omitempty"`
+	Ttl                  int32    `protobuf:"varint,3,opt,name=ttl,proto3" json:"ttl,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -215,9 +215,9 @@ func (m *JSR) GetTtl() int32 {
 // JWTSVID is a signed JWT-SVID with fields lifted out for convenience.
 type JWTSVID struct {
 	// JWT-SVID JWT token
-	Token string `protobuf:"bytes,1,opt,name=token" json:"token,omitempty"`
+	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// SVID expiration timestamp (seconds since Unix epoch)
-	ExpiresAt            int64    `protobuf:"varint,2,opt,name=expires_at,json=expiresAt" json:"expires_at,omitempty"`
+	ExpiresAt            int64    `protobuf:"varint,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -264,7 +264,7 @@ func (m *JWTSVID) GetExpiresAt() int64 {
 // Represents a request to attest the node.
 type AttestRequest struct {
 	// A type which contains attestation data for specific platform.
-	AttestationData *common.AttestationData `protobuf:"bytes,1,opt,name=attestation_data,json=attestationData" json:"attestation_data,omitempty"`
+	AttestationData *common.AttestationData `protobuf:"bytes,1,opt,name=attestation_data,json=attestationData,proto3" json:"attestation_data,omitempty"`
 	// Certificate signing request.
 	Csr []byte `protobuf:"bytes,2,opt,name=csr,proto3" json:"csr,omitempty"`
 	// Attestation challenge response
@@ -324,7 +324,7 @@ func (m *AttestRequest) GetResponse() []byte {
 type AttestResponse struct {
 	// It includes a map of signed SVIDs and an array of all current
 	// Registration Entries which are relevant to the caller SPIFFE ID.
-	SvidUpdate *X509SVIDUpdate `protobuf:"bytes,1,opt,name=svid_update,json=svidUpdate" json:"svid_update,omitempty"`
+	SvidUpdate *X509SVIDUpdate `protobuf:"bytes,1,opt,name=svid_update,json=svidUpdate,proto3" json:"svid_update,omitempty"`
 	// This is a challenge issued by the server to the node. If populated, the
 	// node is expected to respond with another AttestRequest with the response.
 	// This field is mutually exclusive with the update field.
@@ -417,7 +417,7 @@ func (m *FetchX509SVIDRequest) GetCsrs() [][]byte {
 type FetchX509SVIDResponse struct {
 	// It includes a map of signed SVIDs and an array of all current Registration
 	// Entries which are relevant to the caller SPIFFE ID.
-	SvidUpdate           *X509SVIDUpdate `protobuf:"bytes,1,opt,name=svid_update,json=svidUpdate" json:"svid_update,omitempty"`
+	SvidUpdate           *X509SVIDUpdate `protobuf:"bytes,1,opt,name=svid_update,json=svidUpdate,proto3" json:"svid_update,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
 	XXX_unrecognized     []byte          `json:"-"`
 	XXX_sizecache        int32           `json:"-"`
@@ -456,7 +456,7 @@ func (m *FetchX509SVIDResponse) GetSvidUpdate() *X509SVIDUpdate {
 
 type FetchJWTSVIDRequest struct {
 	// The JWT signing request
-	Jsr                  *JSR     `protobuf:"bytes,1,opt,name=jsr" json:"jsr,omitempty"`
+	Jsr                  *JSR     `protobuf:"bytes,1,opt,name=jsr,proto3" json:"jsr,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -495,7 +495,7 @@ func (m *FetchJWTSVIDRequest) GetJsr() *JSR {
 
 type FetchJWTSVIDResponse struct {
 	// The signed JWT-SVID
-	Svid                 *JWTSVID `protobuf:"bytes,1,opt,name=svid" json:"svid,omitempty"`
+	Svid                 *JWTSVID `protobuf:"bytes,1,opt,name=svid,proto3" json:"svid,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -535,7 +535,7 @@ func (m *FetchJWTSVIDResponse) GetSvid() *JWTSVID {
 // Represents a request with an array of SPIFFE Ids.
 type FetchFederatedBundleRequest struct {
 	// An array of SPIFFE Ids.
-	SpiffeId             []string `protobuf:"bytes,1,rep,name=spiffe_id,json=spiffeId" json:"spiffe_id,omitempty"`
+	SpiffeId             []string `protobuf:"bytes,1,rep,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -575,7 +575,7 @@ func (m *FetchFederatedBundleRequest) GetSpiffeId() []string {
 // Represents a response with a map of SPIFFE Id, Federated CA Bundle.
 type FetchFederatedBundleResponse struct {
 	// Map [ SPIFFE ID ] => Federated CA Bundle
-	FederatedBundles     map[string][]byte `protobuf:"bytes,1,rep,name=federated_bundles,json=federatedBundles" json:"federated_bundles,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	FederatedBundles     map[string][]byte `protobuf:"bytes,1,rep,name=federated_bundles,json=federatedBundles,proto3" json:"federated_bundles,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
 	XXX_sizecache        int32             `json:"-"`
@@ -637,8 +637,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for Node service
-
+// NodeClient is the client API for Node service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type NodeClient interface {
 	// Attest the node, get base node SVID.
 	Attest(ctx context.Context, opts ...grpc.CallOption) (Node_AttestClient, error)
@@ -662,7 +663,7 @@ func NewNodeClient(cc *grpc.ClientConn) NodeClient {
 }
 
 func (c *nodeClient) Attest(ctx context.Context, opts ...grpc.CallOption) (Node_AttestClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Node_serviceDesc.Streams[0], c.cc, "/spire.api.node.Node/Attest", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Node_serviceDesc.Streams[0], "/spire.api.node.Node/Attest", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -693,7 +694,7 @@ func (x *nodeAttestClient) Recv() (*AttestResponse, error) {
 }
 
 func (c *nodeClient) FetchX509SVID(ctx context.Context, opts ...grpc.CallOption) (Node_FetchX509SVIDClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Node_serviceDesc.Streams[1], c.cc, "/spire.api.node.Node/FetchX509SVID", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Node_serviceDesc.Streams[1], "/spire.api.node.Node/FetchX509SVID", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -725,7 +726,7 @@ func (x *nodeFetchX509SVIDClient) Recv() (*FetchX509SVIDResponse, error) {
 
 func (c *nodeClient) FetchJWTSVID(ctx context.Context, in *FetchJWTSVIDRequest, opts ...grpc.CallOption) (*FetchJWTSVIDResponse, error) {
 	out := new(FetchJWTSVIDResponse)
-	err := grpc.Invoke(ctx, "/spire.api.node.Node/FetchJWTSVID", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.node.Node/FetchJWTSVID", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -734,15 +735,14 @@ func (c *nodeClient) FetchJWTSVID(ctx context.Context, in *FetchJWTSVIDRequest, 
 
 func (c *nodeClient) FetchFederatedBundle(ctx context.Context, in *FetchFederatedBundleRequest, opts ...grpc.CallOption) (*FetchFederatedBundleResponse, error) {
 	out := new(FetchFederatedBundleResponse)
-	err := grpc.Invoke(ctx, "/spire.api.node.Node/FetchFederatedBundle", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.api.node.Node/FetchFederatedBundle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for Node service
-
+// NodeServer is the server API for Node service.
 type NodeServer interface {
 	// Attest the node, get base node SVID.
 	Attest(Node_AttestServer) error

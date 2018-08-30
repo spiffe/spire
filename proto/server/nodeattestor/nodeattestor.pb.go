@@ -61,9 +61,9 @@ type RegistrationEntries = common.RegistrationEntries
 // * Represents a request to attest a node.
 type AttestRequest struct {
 	// * A type which contains attestation data for specific platform.
-	AttestationData *common.AttestationData `protobuf:"bytes,1,opt,name=attestationData" json:"attestationData,omitempty"`
+	AttestationData *common.AttestationData `protobuf:"bytes,1,opt,name=attestationData,proto3" json:"attestationData,omitempty"`
 	// * Is true if the Base SPIFFE ID is present in the Attested Node table.
-	AttestedBefore bool `protobuf:"varint,2,opt,name=attestedBefore" json:"attestedBefore,omitempty"`
+	AttestedBefore bool `protobuf:"varint,2,opt,name=attestedBefore,proto3" json:"attestedBefore,omitempty"`
 	// * Challenge response
 	Response             []byte   `protobuf:"bytes,3,opt,name=response,proto3" json:"response,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -119,13 +119,13 @@ func (m *AttestRequest) GetResponse() []byte {
 // * Represents a response when attesting a node.
 type AttestResponse struct {
 	// * True/False
-	Valid bool `protobuf:"varint,1,opt,name=valid" json:"valid,omitempty"`
+	Valid bool `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
 	// * Used by the Server to validate the SPIFFE Id in the Certificate signing request.
-	BaseSPIFFEID string `protobuf:"bytes,2,opt,name=baseSPIFFEID" json:"baseSPIFFEID,omitempty"`
+	BaseSPIFFEID string `protobuf:"bytes,2,opt,name=baseSPIFFEID,proto3" json:"baseSPIFFEID,omitempty"`
 	// * Challenge required for attestation
 	Challenge []byte `protobuf:"bytes,3,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	// * Optional list of selectors
-	Selectors            []*common.Selector `protobuf:"bytes,4,rep,name=selectors" json:"selectors,omitempty"`
+	Selectors            []*common.Selector `protobuf:"bytes,4,rep,name=selectors,proto3" json:"selectors,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
 	XXX_sizecache        int32              `json:"-"`
@@ -196,8 +196,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for NodeAttestor service
-
+// NodeAttestorClient is the client API for NodeAttestor service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type NodeAttestorClient interface {
 	// * Attesta a node.
 	Attest(ctx context.Context, opts ...grpc.CallOption) (NodeAttestor_AttestClient, error)
@@ -216,7 +217,7 @@ func NewNodeAttestorClient(cc *grpc.ClientConn) NodeAttestorClient {
 }
 
 func (c *nodeAttestorClient) Attest(ctx context.Context, opts ...grpc.CallOption) (NodeAttestor_AttestClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_NodeAttestor_serviceDesc.Streams[0], c.cc, "/spire.agent.nodeattestor.NodeAttestor/Attest", opts...)
+	stream, err := c.cc.NewStream(ctx, &_NodeAttestor_serviceDesc.Streams[0], "/spire.agent.nodeattestor.NodeAttestor/Attest", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +249,7 @@ func (x *nodeAttestorAttestClient) Recv() (*AttestResponse, error) {
 
 func (c *nodeAttestorClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
 	out := new(plugin.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.nodeattestor.NodeAttestor/Configure", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.nodeattestor.NodeAttestor/Configure", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -257,15 +258,14 @@ func (c *nodeAttestorClient) Configure(ctx context.Context, in *plugin.Configure
 
 func (c *nodeAttestorClient) GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error) {
 	out := new(plugin.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.nodeattestor.NodeAttestor/GetPluginInfo", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.nodeattestor.NodeAttestor/GetPluginInfo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for NodeAttestor service
-
+// NodeAttestorServer is the server API for NodeAttestor service.
 type NodeAttestorServer interface {
 	// * Attesta a node.
 	Attest(NodeAttestor_AttestServer) error

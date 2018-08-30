@@ -314,12 +314,7 @@ func (h *Handler) CreateJoinToken(
 
 	// Generate a token if one wasn't specified
 	if request.Token == "" {
-		token, err := uuid.NewV4()
-		if err != nil {
-			return nil, fmt.Errorf("unable to generate new token: %v", err)
-		}
-
-		request.Token = token.String()
+		request.Token = uuid.NewV4().String()
 	}
 
 	ds := h.getDataStore()

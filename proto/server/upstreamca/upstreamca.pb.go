@@ -139,8 +139,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for UpstreamCA service
-
+// UpstreamCAClient is the client API for UpstreamCA service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type UpstreamCAClient interface {
 	// * Responsible for configuration of the plugin.
 	Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error)
@@ -161,7 +162,7 @@ func NewUpstreamCAClient(cc *grpc.ClientConn) UpstreamCAClient {
 
 func (c *upstreamCAClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
 	out := new(plugin.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/spire.server.upstreamca.UpstreamCA/Configure", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.upstreamca.UpstreamCA/Configure", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +171,7 @@ func (c *upstreamCAClient) Configure(ctx context.Context, in *plugin.ConfigureRe
 
 func (c *upstreamCAClient) GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error) {
 	out := new(plugin.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/spire.server.upstreamca.UpstreamCA/GetPluginInfo", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.upstreamca.UpstreamCA/GetPluginInfo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -179,15 +180,14 @@ func (c *upstreamCAClient) GetPluginInfo(ctx context.Context, in *plugin.GetPlug
 
 func (c *upstreamCAClient) SubmitCSR(ctx context.Context, in *SubmitCSRRequest, opts ...grpc.CallOption) (*SubmitCSRResponse, error) {
 	out := new(SubmitCSRResponse)
-	err := grpc.Invoke(ctx, "/spire.server.upstreamca.UpstreamCA/SubmitCSR", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.server.upstreamca.UpstreamCA/SubmitCSR", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for UpstreamCA service
-
+// UpstreamCAServer is the server API for UpstreamCA service.
 type UpstreamCAServer interface {
 	// * Responsible for configuration of the plugin.
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)

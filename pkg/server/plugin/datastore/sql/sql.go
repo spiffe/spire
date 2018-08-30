@@ -767,10 +767,7 @@ func createRegistrationEntry(tx *gorm.DB,
 		return nil, err
 	}
 
-	entryID, err := newRegistrationEntryID()
-	if err != nil {
-		return nil, err
-	}
+	entryID := newRegistrationEntryID()
 
 	newRegisteredEntry := RegisteredEntry{
 		EntryID:  entryID,
@@ -1180,12 +1177,8 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 	}, nil
 }
 
-func newRegistrationEntryID() (string, error) {
-	id, err := uuid.NewV4()
-	if err != nil {
-		return "", sqlError.New("unable to generate registration entry id: %v", err)
-	}
-	return id.String(), nil
+func newRegistrationEntryID() string {
+	return uuid.NewV4().String()
 }
 
 func modelToAttestedNode(model AttestedNode) *datastore.AttestedNode {

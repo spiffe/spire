@@ -33,15 +33,10 @@ type subscribers struct {
 }
 
 func NewSubscriber(selectors Selectors) (*subscriber, error) {
-	id, err := uuid.NewV4()
-	if err != nil {
-		return nil, err
-	}
-
 	return &subscriber{
 		c:      make(chan *WorkloadUpdate, 1),
 		sel:    selectors,
-		sid:    id,
+		sid:    uuid.NewV4(),
 		active: true,
 	}, nil
 }

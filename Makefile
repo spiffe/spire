@@ -24,7 +24,7 @@ utils = github.com/golang/protobuf/protoc-gen-go \
 		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger \
 		github.com/jteeuwen/go-bindata/go-bindata
 
-.PHONY: all utils container-push cmd build test race-test clean functional
+.PHONY: all utils container-push cmd build test race-test clean functional vendor
 
 build: $(binary_dirs)
 
@@ -48,8 +48,8 @@ $(utils): noop
 	$(docker) mkdir -p $(gopath)/src/$@
 	$(docker) cp -r vendor/$@/* $(gopath)/src/$@/
 
-vendor: glide.yaml glide.lock
-	$(docker) glide --home .cache install
+vendor: Gopkg.toml Gopkg.lock
+	$(docker) dep ensure -vendor-only
 
 $(binary_dirs): noop
 	$(docker) /bin/sh -c "cd $@; go build -i -ldflags $(ldflags)"
@@ -58,16 +58,16 @@ artifact:
 	$(docker) ./build.sh artifact
 
 test:
-	$(docker) go test -race -timeout 8m $$(glide novendor)
+	$(docker) go test -race -timeout 8m github.com/spiffe/spire/...
 
 race-test:
-	$(docker) go test -race $$(glide novendor)
+	$(docker) go test -race github.com/spiffe/spire/...
 
 integration:
 	$(docker) script/e2e_test.sh
 
 clean:
-	$(docker) go clean $$(glide novendor)
+	$(docker) go clean github.com/spiffe/spire/...
 
 distclean: clean
 	rm -rf .cache

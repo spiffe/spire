@@ -100,9 +100,9 @@ func (m *FetchAttestationDataRequest) GetChallenge() []byte {
 // * Represents the attested data and base SPIFFE ID
 type FetchAttestationDataResponse struct {
 	// * A type which contains attestation data for specific platform
-	AttestationData *common.AttestationData `protobuf:"bytes,1,opt,name=attestationData" json:"attestationData,omitempty"`
+	AttestationData *common.AttestationData `protobuf:"bytes,1,opt,name=attestationData,proto3" json:"attestationData,omitempty"`
 	// * SPIFFE ID
-	SpiffeId string `protobuf:"bytes,2,opt,name=spiffeId" json:"spiffeId,omitempty"`
+	SpiffeId string `protobuf:"bytes,2,opt,name=spiffeId,proto3" json:"spiffeId,omitempty"`
 	// * response to the challenge (if challenge was present) *
 	Response             []byte   `protobuf:"bytes,3,opt,name=response,proto3" json:"response,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -168,8 +168,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for NodeAttestor service
-
+// NodeAttestorClient is the client API for NodeAttestor service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type NodeAttestorClient interface {
 	// * Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation
 	FetchAttestationData(ctx context.Context, opts ...grpc.CallOption) (NodeAttestor_FetchAttestationDataClient, error)
@@ -188,7 +189,7 @@ func NewNodeAttestorClient(cc *grpc.ClientConn) NodeAttestorClient {
 }
 
 func (c *nodeAttestorClient) FetchAttestationData(ctx context.Context, opts ...grpc.CallOption) (NodeAttestor_FetchAttestationDataClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_NodeAttestor_serviceDesc.Streams[0], c.cc, "/spire.agent.nodeattestor.NodeAttestor/FetchAttestationData", opts...)
+	stream, err := c.cc.NewStream(ctx, &_NodeAttestor_serviceDesc.Streams[0], "/spire.agent.nodeattestor.NodeAttestor/FetchAttestationData", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +221,7 @@ func (x *nodeAttestorFetchAttestationDataClient) Recv() (*FetchAttestationDataRe
 
 func (c *nodeAttestorClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
 	out := new(plugin.ConfigureResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.nodeattestor.NodeAttestor/Configure", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.nodeattestor.NodeAttestor/Configure", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -229,15 +230,14 @@ func (c *nodeAttestorClient) Configure(ctx context.Context, in *plugin.Configure
 
 func (c *nodeAttestorClient) GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error) {
 	out := new(plugin.GetPluginInfoResponse)
-	err := grpc.Invoke(ctx, "/spire.agent.nodeattestor.NodeAttestor/GetPluginInfo", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/spire.agent.nodeattestor.NodeAttestor/GetPluginInfo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for NodeAttestor service
-
+// NodeAttestorServer is the server API for NodeAttestor service.
 type NodeAttestorServer interface {
 	// * Returns the node attestation data for specific platform and the generated Base SPIFFE ID for CSR formation
 	FetchAttestationData(NodeAttestor_FetchAttestationDataServer) error
