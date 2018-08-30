@@ -88,7 +88,6 @@ server {
 
 plugins {
         ServerCA "memory" { 
-        enabled = true
         plugin_data {
                 key_size = 2048,
                 backdate_seconds = 1,
@@ -101,7 +100,6 @@ plugins {
         }
 
         DataStore "datastore" {
-                enabled = true
                 plugin_data {
                         database_type = "sqlite3"
                         connection_string = "./.data/datastore.sqlite3"
@@ -109,18 +107,15 @@ plugins {
         }
 
         NodeAttestor "join_token" {
-                enabled = true
                 plugin_data {
                 }
         }
 
         NodeResolver "noop" {
-                enabled = true
                 plugin_data {}
         }
 
         UpstreamCA "disk" {
-                enabled = true
                 plugin_data {
                         ttl = "1h"
                         key_file_path = "conf/server/dummy_upstream_ca.key"
@@ -164,17 +159,14 @@ plugins {
 
     plugins {
         NodeAttestor "join_token" {
-            enabled = true
             plugin_data {
             }
         }
         KeyManager "memory" {
-            enabled = true
             plugin_data {
             }
         }
         WorkloadAttestor "unix" {
-            enabled = true
             plugin_data {
             }
         }

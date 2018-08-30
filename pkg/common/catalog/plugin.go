@@ -36,7 +36,15 @@ type HclPluginConfig struct {
 
 	PluginData ast.Node `hcl:"plugin_data"`
 	PluginType string
-	Enabled    bool `hcl:"enabled"`
+	Enabled    *bool `hcl:"enabled"`
+}
+
+func (c HclPluginConfig) IsEnabled() bool {
+	if c.Enabled == nil {
+		return true
+	}
+
+	return *c.Enabled
 }
 
 type ManagedPlugin struct {
@@ -59,7 +67,7 @@ func parsePluginConfig(hclPluginConfig HclPluginConfig) (PluginConfig, error) {
 		PluginCmd:      hclPluginConfig.PluginCmd,
 		PluginChecksum: hclPluginConfig.PluginChecksum,
 		PluginType:     hclPluginConfig.PluginType,
-		Enabled:        hclPluginConfig.Enabled,
+		Enabled:        hclPluginConfig.IsEnabled(),
 
 		// Handle PluginData as opaque string. This gets fed
 		// to the plugin, whos job it is to parse it.

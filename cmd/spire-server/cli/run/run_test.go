@@ -27,10 +27,31 @@ func TestParseConfigGood(t *testing.T) {
 	err = printer.DefaultConfig.Fprint(&data, c.PluginConfigs["plugin_type_server"]["plugin_name_server"].PluginData)
 	assert.NoError(t, err)
 
-	assert.Equal(t, len(c.PluginConfigs), 1)
-	assert.Equal(t, c.PluginConfigs["plugin_type_server"]["plugin_name_server"].Enabled, true)
-	assert.Equal(t, c.PluginConfigs["plugin_type_server"]["plugin_name_server"].PluginChecksum, "pluginServerChecksum")
-	assert.Equal(t, c.PluginConfigs["plugin_type_server"]["plugin_name_server"].PluginCmd, "./pluginServerCmd")
+	assert.Len(t, c.PluginConfigs, 1)
+	assert.Len(t, c.PluginConfigs["plugin_type_server"], 3)
+
+	// Default config
+	pluginConfig := c.PluginConfigs["plugin_type_server"]["plugin_name_server"]
+	assert.Nil(t, pluginConfig.Enabled)
+	assert.Equal(t, pluginConfig.IsEnabled(), true)
+	assert.Equal(t, pluginConfig.PluginChecksum, "pluginServerChecksum")
+	assert.Equal(t, pluginConfig.PluginCmd, "./pluginServerCmd")
+	assert.Equal(t, expectedData, data.String())
+
+	// Disabled plugin
+	pluginConfig = c.PluginConfigs["plugin_type_server"]["plugin_disabled"]
+	assert.NotNil(t, pluginConfig.Enabled)
+	assert.Equal(t, pluginConfig.IsEnabled(), false)
+	assert.Equal(t, pluginConfig.PluginChecksum, "pluginServerChecksum")
+	assert.Equal(t, pluginConfig.PluginCmd, "./pluginServerCmd")
+	assert.Equal(t, expectedData, data.String())
+
+	// Enabled plugin
+	pluginConfig = c.PluginConfigs["plugin_type_server"]["plugin_enabled"]
+	assert.NotNil(t, pluginConfig.Enabled)
+	assert.Equal(t, pluginConfig.IsEnabled(), true)
+	assert.Equal(t, pluginConfig.PluginChecksum, "pluginServerChecksum")
+	assert.Equal(t, pluginConfig.PluginCmd, "./pluginServerCmd")
 	assert.Equal(t, expectedData, data.String())
 }
 
