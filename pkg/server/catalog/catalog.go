@@ -80,6 +80,7 @@ var (
 )
 
 type Config struct {
+	GlobalConfig  *common.GlobalConfig
 	PluginConfigs common.PluginConfigMap
 	Log           logrus.FieldLogger
 }
@@ -98,6 +99,7 @@ type ServerCatalog struct {
 
 func New(c *Config) *ServerCatalog {
 	commonConfig := &common.Config{
+		GlobalConfig:     c.GlobalConfig,
 		PluginConfigs:    c.PluginConfigs,
 		SupportedPlugins: supportedPlugins,
 		BuiltinPlugins:   builtinPlugins,

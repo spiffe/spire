@@ -56,6 +56,9 @@ type BytesValue = wrappers.BytesValue
 // ConfigureRequest from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
 type ConfigureRequest = plugin.ConfigureRequest
 
+// GlobalConfig from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
+type ConfigureRequest_GlobalConfig = plugin.ConfigureRequest_GlobalConfig
+
 // ConfigureResponse from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
 type ConfigureResponse = plugin.ConfigureResponse
 

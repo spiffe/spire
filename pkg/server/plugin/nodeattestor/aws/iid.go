@@ -55,7 +55,6 @@ C1haGgSI/A1uZUKs/Zfnph0oEI0/hu1IIJ/SKBDtN5lvmZ/IzbOPIJWirlsllQIQ
 -----END CERTIFICATE-----`
 
 type IIDAttestorConfig struct {
-	TrustDomain     string `hcl:"trust_domain"`
 	AccessKeyID     string `hcl:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key"`
 	SkipBlockDevice bool   `hcl:"skip_block_device"`
@@ -210,10 +209,19 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		config.SecretAccessKey = os.Getenv(secretAccessKeyVarName)
 	}
 
+	if req.GlobalConfig == nil {
+		err := fmt.Errorf("global configuration is required")
+		return resp, err
+	}
+	if req.GlobalConfig.TrustDomain == "" {
+		err := fmt.Errorf("trust_domain is required")
+		return resp, err
+	}
+
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	p.trustDomain = config.TrustDomain
+	p.trustDomain = req.GlobalConfig.TrustDomain
 	p.awsCaCertPublicKey = awsCaCertPublicKey
 	p.accessKeyId = config.AccessKeyID
 	p.secretAccessKey = config.SecretAccessKey

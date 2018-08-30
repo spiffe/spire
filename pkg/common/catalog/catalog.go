@@ -39,6 +39,7 @@ type Catalog interface {
 }
 
 type Config struct {
+	GlobalConfig     *GlobalConfig
 	PluginConfigs    PluginConfigMap
 	SupportedPlugins map[string]goplugin.Plugin
 	BuiltinPlugins   BuiltinPluginMap
@@ -46,6 +47,7 @@ type Config struct {
 }
 
 type catalog struct {
+	globalConfig     *GlobalConfig
 	pluginConfigs    PluginConfigMap
 	plugins          []*ManagedPlugin
 	supportedPlugins map[string]goplugin.Plugin
@@ -65,12 +67,21 @@ type PluginConfigMap map[string]map[string]HclPluginConfig
 
 func New(config *Config) Catalog {
 	return &catalog{
+		globalConfig:     config.GlobalConfig,
 		pluginConfigs:    config.PluginConfigs,
 		supportedPlugins: config.SupportedPlugins,
 		builtinPlugins:   config.BuiltinPlugins,
 		l:                config.Log,
 		m:                new(sync.RWMutex),
 	}
+}
+
+type GlobalConfig struct {
+	TrustDomain string
+}
+
+func (c GlobalConfig) toMessage() *pb.ConfigureRequest_GlobalConfig {
+	return &pb.ConfigureRequest_GlobalConfig{TrustDomain: c.TrustDomain}
 }
 
 func (c *catalog) Run(ctx context.Context) error {
@@ -240,6 +251,7 @@ func (c *catalog) configurePlugins(ctx context.Context) error {
 		}
 
 		req := &pb.ConfigureRequest{
+			GlobalConfig:  c.globalConfig.toMessage(),
 			Configuration: p.Config.PluginData,
 		}
 

@@ -16,7 +16,6 @@ spiffe://<trust domain>/spire/agent/x509pop/<fingerprint>
 
 | Configuration | Description | Default                 |
 | ------------- | ----------- | ----------------------- |
-| `trust_domain`  |  The trust domain that the node belongs to. |  |
 | `private_key_path` | The path to the private key on disk (PEM encoded PKCS1 or PKCS8) | |
 | `certificate_path` | The path to the certificate bundle on disk. The file must contain one or more PEM blocks, starting with the identity certificate followed by any intermediate certificates necessary for chain-of-trust validation. | |
 | `intermediates_path` | Optional. The path to a chain of intermediate certificates on disk. The file must contain one or more PEM blocks, corresponding to intermediate certificates necessary for chain-of-trust validation. If the file pointed by `certificate_path` contains more than one certificate, this chain of certificates will be appended to it. | |

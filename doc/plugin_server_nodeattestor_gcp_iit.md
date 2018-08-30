@@ -8,5 +8,4 @@ This plugin requires a whitelist of ProjectID from which nodes can be attested. 
 
 | Configuration           | Description                                                                                        | Default                                    |
 |-------------------------|----------------------------------------------------------------------------------------------------|--------------------------------------------|
-| trust_domain            | The trust domain that the agent belongs to.                                                        |                                            |
 | projectid_whitelist     | List of whitelisted ProjectIDs from which nodes can be attested.  |         |

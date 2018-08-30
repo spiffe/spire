@@ -24,7 +24,7 @@ type tokenKeyRetriever interface {
 }
 
 type IITAttestorConfig struct {
-	TrustDomain        string   `hcl:"trust_domain"`
+	trustDomain        string
 	ProjectIDWhitelist []string `hcl:"projectid_whitelist"`
 }
 
@@ -80,7 +80,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		return newErrorf("identity token project ID %q is not in the whitelist", identityToken.Google.ComputeEngine.ProjectID)
 	}
 
-	spiffeID := gcp.MakeSpiffeID(c.TrustDomain, identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID)
+	spiffeID := gcp.MakeSpiffeID(c.trustDomain, identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID)
 
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
@@ -99,9 +99,16 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, newErrorf("unable to decode configuration: %v", err)
 	}
-	if config.TrustDomain == "" {
+
+	if req.GlobalConfig == nil {
+		return nil, newError("global configuration is required")
+	}
+
+	if req.GlobalConfig.TrustDomain == "" {
 		return nil, newError("trust_domain is required")
 	}
+	config.trustDomain = req.GlobalConfig.TrustDomain
+
 	if len(config.ProjectIDWhitelist) == 0 {
 		return nil, newError("projectid_whitelist is required")
 	}

@@ -53,7 +53,9 @@ func (s *Suite) SetupTest() {
 
 	s.p = nodeattestor.NewBuiltIn(p)
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `trust_domain = "example.org"`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
+			TrustDomain: "example.org",
+		},
 	})
 	s.Require().NoError(err)
 	s.status = http.StatusOK
@@ -116,19 +118,27 @@ func (s *Suite) TestConfigure() {
 
 	// malformed
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
 		Configuration: `trust_domain`,
 	})
 	require.Error(err)
 	require.Nil(resp)
 
-	// missing trust domain
+	// global configuration not provided
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{})
+	s.requireErrorContains(err, "gcp-iit: global configuration is required")
+	require.Nil(resp)
+
+	// missing trust domain
+	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
 	s.requireErrorContains(err, "gcp-iit: trust_domain is required")
 	require.Nil(resp)
 
 	// success
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `trust_domain = "example.org"`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
+			TrustDomain: "example.org",
+		},
 	})
 	require.NoError(err)
 	require.NotNil(resp)

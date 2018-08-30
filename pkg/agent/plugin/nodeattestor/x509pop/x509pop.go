@@ -30,7 +30,7 @@ type configData struct {
 }
 
 type X509PoPConfig struct {
-	TrustDomain       string `hcl:"trust_domain"`
+	trustDomain       string
 	PrivateKeyPath    string `hcl:"private_key_path"`
 	CertificatePath   string `hcl:"certificate_path"`
 	IntermediatesPath string `hcl:"intermediates_path"`
@@ -100,9 +100,14 @@ func (p *X509PoPPlugin) Configure(ctx context.Context, req *plugin.ConfigureRequ
 		return nil, fmt.Errorf("x509pop: unable to decode configuration: %v", err)
 	}
 
-	if config.TrustDomain == "" {
+	if req.GlobalConfig == nil {
+		return nil, errors.New("x509pop: global configuration is required")
+	}
+	if req.GlobalConfig.TrustDomain == "" {
 		return nil, errors.New("x509pop: trust_domain is required")
 	}
+	config.trustDomain = req.GlobalConfig.TrustDomain
+
 	if config.PrivateKeyPath == "" {
 		return nil, errors.New("x509pop: private_key_path is required")
 	}
@@ -177,7 +182,7 @@ func loadConfigData(config *X509PoPConfig) (*configData, error) {
 	}
 
 	return &configData{
-		spiffeID:   x509pop.SpiffeID(config.TrustDomain, leaf),
+		spiffeID:   x509pop.SpiffeID(config.trustDomain, leaf),
 		privateKey: certificate.PrivateKey,
 		attestationData: &common.AttestationData{
 			Type: pluginName,

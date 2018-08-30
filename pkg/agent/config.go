@@ -52,3 +52,9 @@ func New(c *Config) *Agent {
 		c: c,
 	}
 }
+
+func (c *Config) GlobalConfig() *catalog.GlobalConfig {
+	return &catalog.GlobalConfig{
+		TrustDomain: c.TrustDomain.Host,
+	}
+}

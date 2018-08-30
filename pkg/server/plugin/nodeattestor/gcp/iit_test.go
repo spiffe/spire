@@ -91,9 +91,9 @@ func (s *IITAttestorSuite) SetupTest() {
 
 	_, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-trust_domain = "example.org"
 projectid_whitelist = ["project-123"]
 `,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
 }
@@ -218,32 +218,42 @@ func (s *IITAttestorSuite) TestConfigure() {
 	// malformed
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `trust_domain`,
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.requireErrorContains(err, "gcp-iit: unable to decode configuration")
+	require.Nil(resp)
+
+	// missing global configuration
+	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+projectid_whitelist = ["bar"]
+`})
+	s.requireErrorContains(err, "gcp-iit: global configuration is required")
 	require.Nil(resp)
 
 	// missing trust domain
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
 projectid_whitelist = ["bar"]
-`})
+`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
 	s.requireErrorContains(err, "gcp-iit: trust_domain is required")
 	require.Nil(resp)
 
 	// missing projectID whitelist
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-trust_domain = "foo"
-`})
+		Configuration: ``,
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
 	s.requireErrorContains(err, "gcp-iit: projectid_whitelist is required")
 	require.Nil(resp)
 
 	// success
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-trust_domain = "example.org"
 projectid_whitelist = ["bar"]
-`})
+`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"}})
 	require.NoError(err)
 	require.NotNil(resp)
 	require.Equal(resp, &plugin.ConfigureResponse{})

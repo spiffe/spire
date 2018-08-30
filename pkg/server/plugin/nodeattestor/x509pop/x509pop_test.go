@@ -43,8 +43,8 @@ func (s *Suite) SetupTest() {
 	s.p = nodeattestor.NewBuiltIn(New())
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
-trust_domain = "example.org"
 ca_bundle_path = %q`, rootCertPath),
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	require.NoError(err)
 	require.Equal(resp, &plugin.ConfigureResponse{})
@@ -204,8 +204,18 @@ func (s *Suite) TestConfigure() {
 	// malformed
 	resp, err := p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `bad juju`,
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.errorContains(err, "x509pop: unable to decode configuration")
+	require.Nil(resp)
+
+	// missing global configuration
+	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+		ca_bundle_path = "blah"
+		`,
+	})
+	require.EqualError(err, "x509pop: global configuration is required")
 	require.Nil(resp)
 
 	// missing trust_domain
@@ -213,15 +223,15 @@ func (s *Suite) TestConfigure() {
 		Configuration: `
 		ca_bundle_path = "blah"
 		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{},
 	})
 	require.EqualError(err, "x509pop: trust_domain is required")
 	require.Nil(resp)
 
 	// missing ca_bundle_path
 	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-		trust_domain = "spiffe://example.org"
-		`,
+		Configuration: ``,
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	require.EqualError(err, "x509pop: ca_bundle_path is required")
 	require.Nil(resp)
@@ -229,9 +239,9 @@ func (s *Suite) TestConfigure() {
 	// bad trust bundle
 	resp, err = p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-		trust_domain = "spiffe://example.org"
 		ca_bundle_path = "blah"
 		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.errorContains(err, "x509pop: unable to load trust bundle")
 	require.Nil(resp)

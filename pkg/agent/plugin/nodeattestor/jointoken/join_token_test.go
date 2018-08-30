@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	goodConfig = `{"join_token":"foobar", "trust_domain":"example.com"}`
-	badConfig  = `{"trust_domain":"example.com"}`
+	goodConfig  = `{"join_token":"foobar"}`
+	badConfig   = `{}`
+	trustDomain = "example.com"
 
 	token    = "foobar"
 	spiffeId = "spiffe://example.com/spire/agent/join_token/foobar"
@@ -56,9 +57,10 @@ func (f *fakeFetchAttestationDataStream) Send(resp *nodeattestor.FetchAttestatio
 	return nil
 }
 
-func PluginGenerator(config string) (nodeattestor.Plugin, *spi.ConfigureResponse, error) {
+func PluginGenerator(config string, trustDomain string) (nodeattestor.Plugin, *spi.ConfigureResponse, error) {
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
+		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: trustDomain},
 	}
 
 	p := New()
@@ -68,9 +70,17 @@ func PluginGenerator(config string) (nodeattestor.Plugin, *spi.ConfigureResponse
 
 func TestJoinToken_Configure(t *testing.T) {
 	assert := assert.New(t)
-	_, r, err := PluginGenerator(goodConfig)
+	_, r, err := PluginGenerator(goodConfig, trustDomain)
 	assert.Nil(err)
 	assert.Equal(&spi.ConfigureResponse{}, r)
+
+	// Global configuration not provided
+	_, r, err = PluginGenerator(goodConfig, "")
+	assert.EqualError(err, "trust_domain is required")
+	assert.Equal(1, len(r.ErrorList))
+	assert.Equal(err.Error(), r.ErrorList[0])
+
+	// Trust domain no provided
 }
 
 func TestJoinToken_FetchAttestationData_TokenPresent(t *testing.T) {
@@ -86,7 +96,7 @@ func TestJoinToken_FetchAttestationData_TokenPresent(t *testing.T) {
 		SpiffeId:        spiffeId,
 	}
 
-	p, _, err := PluginGenerator(goodConfig)
+	p, _, err := PluginGenerator(goodConfig, trustDomain)
 	assert.Nil(err)
 
 	stream := newFakeFetchAttestationStream()
@@ -97,7 +107,7 @@ func TestJoinToken_FetchAttestationData_TokenPresent(t *testing.T) {
 
 func TestJoinToken_FetchAttestationData_TokenNotPresent(t *testing.T) {
 	assert := assert.New(t)
-	p, _, err := PluginGenerator(badConfig)
+	p, _, err := PluginGenerator(badConfig, trustDomain)
 	assert.Nil(err)
 
 	stream := newFakeFetchAttestationStream()

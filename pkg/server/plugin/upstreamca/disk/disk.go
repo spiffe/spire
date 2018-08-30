@@ -20,7 +20,6 @@ import (
 
 type Configuration struct {
 	TTL          string `hcl:"ttl" json:"ttl"` // time to live for generated certs
-	TrustDomain  string `hcl:"trust_domain" json:"trust_domain"`
 	CertFilePath string `hcl:"cert_file_path" json:"cert_file_path"`
 	KeyFilePath  string `hcl:"key_file_path" json:"key_file_path"`
 }
@@ -40,8 +39,12 @@ func (m *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		return nil, err
 	}
 
-	if config.TrustDomain == "" {
-		return nil, errors.New("trust domain is required")
+	if req.GlobalConfig == nil {
+		return nil, errors.New("global configuration is required")
+	}
+
+	if req.GlobalConfig.TrustDomain == "" {
+		return nil, errors.New("trust_domain is required")
 	}
 
 	keyPEM, err := ioutil.ReadFile(config.KeyFilePath)
@@ -95,7 +98,7 @@ func (m *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	m.cert = cert
 	m.upstreamCA = x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(cert, key),
-		config.TrustDomain,
+		req.GlobalConfig.TrustDomain,
 		x509svid.UpstreamCAOptions{
 			SerialNumber: m.serialNumber,
 			TTL:          ttl,

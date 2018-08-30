@@ -16,8 +16,7 @@ import (
 )
 
 type JoinTokenConfig struct {
-	JoinTokens  map[string]int `hcl:"join_tokens"`
-	TrustDomain string         `hcl:"trust_domain"`
+	JoinTokens map[string]int `hcl:"join_tokens"`
 }
 
 type JoinTokenPlugin struct {
@@ -95,12 +94,24 @@ func (p *JoinTokenPlugin) Configure(ctx context.Context, req *spi.ConfigureReque
 		return resp, err
 	}
 
+	if req.GlobalConfig == nil {
+		err := errors.New("global configuration is required")
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+	if req.GlobalConfig.TrustDomain == "" {
+		err := errors.New("trust_domain is required")
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+
 	// Set local vars from config struct
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	p.ConfigTime = time.Now()
 	p.joinTokens = config.JoinTokens
-	p.trustDomain = config.TrustDomain
+
+	p.trustDomain = req.GlobalConfig.TrustDomain
 
 	return &spi.ConfigureResponse{}, nil
 }

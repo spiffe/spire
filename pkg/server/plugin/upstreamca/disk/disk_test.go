@@ -14,12 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const config = `{
-	"trust_domain":"example.com",
+const (
+	config = `{
 	"ttl":"1h",
 	"key_file_path":"_test_data/keys/private_key.pem",
 	"cert_file_path":"_test_data/keys/cert.pem"
 }`
+	trustDomain = "example.com"
+)
 
 var (
 	ctx = context.Background()
@@ -28,6 +30,7 @@ var (
 func TestDisk_Configure(t *testing.T) {
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: config,
+		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: trustDomain},
 	}
 
 	m := New()
@@ -97,7 +100,6 @@ func TestDisk_race(t *testing.T) {
 
 func newWithDefault(keyFilePath string, certFilePath string) (upstreamca.Plugin, error) {
 	config := Configuration{
-		TrustDomain:  "localhost",
 		KeyFilePath:  keyFilePath,
 		CertFilePath: certFilePath,
 		TTL:          "1h",
@@ -106,6 +108,7 @@ func newWithDefault(keyFilePath string, certFilePath string) (upstreamca.Plugin,
 	jsonConfig, err := json.Marshal(config)
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: string(jsonConfig),
+		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
 	}
 
 	m := New()

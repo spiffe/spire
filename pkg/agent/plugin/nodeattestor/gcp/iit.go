@@ -25,7 +25,7 @@ const (
 )
 
 type IITAttestorConfig struct {
-	TrustDomain string `hcl:"trust_domain"`
+	trustDomain string
 }
 
 type IITAttestorPlugin struct {
@@ -84,7 +84,7 @@ func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 		return newErrorf("unable to retrieve identity token: %v", err)
 	}
 
-	resp, err := p.buildAttestationResponse(c.TrustDomain, docBytes)
+	resp, err := p.buildAttestationResponse(c.trustDomain, docBytes)
 	if err != nil {
 		return err
 	}
@@ -127,12 +127,16 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		return nil, newErrorf("unable to decode configuration: %v", err)
 	}
 
-	if config.TrustDomain == "" {
+	if req.GlobalConfig == nil {
+		return nil, newError("global configuration is required")
+	}
+	if req.GlobalConfig.TrustDomain == "" {
 		return nil, newError("trust_domain is required")
 	}
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
+	config.trustDomain = req.GlobalConfig.TrustDomain
 	p.config = config
 
 	return &spi.ConfigureResponse{}, nil

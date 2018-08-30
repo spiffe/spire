@@ -18,8 +18,7 @@ const (
 )
 
 type JoinTokenConfig struct {
-	JoinToken   string `hcl:"join_token"`
-	TrustDomain string `hcl:"trust_domain"`
+	JoinToken string `hcl:"join_token"`
 }
 
 type JoinTokenPlugin struct {
@@ -81,9 +80,19 @@ func (p *JoinTokenPlugin) Configure(ctx context.Context, req *spi.ConfigureReque
 		return resp, err
 	}
 
+	if req.GlobalConfig == nil {
+		err := errors.New("global configuration is required")
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
+	if req.GlobalConfig.TrustDomain == "" {
+		err := errors.New("trust_domain is required")
+		resp.ErrorList = []string{err.Error()}
+		return resp, err
+	}
 	// Set local vars from config struct
 	p.joinToken = config.JoinToken
-	p.trustDomain = config.TrustDomain
+	p.trustDomain = req.GlobalConfig.TrustDomain
 
 	return resp, nil
 }

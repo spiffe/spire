@@ -37,7 +37,7 @@ type TenantConfig struct {
 }
 
 type MSIAttestorConfig struct {
-	TrustDomain string                   `hcl:"trust_domain"`
+	trustDomain string
 	Tenants     map[string]*TenantConfig `hcl:"tenants"`
 }
 
@@ -144,7 +144,7 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 
 	return stream.Send(&nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: claims.AgentID(config.TrustDomain),
+		BaseSPIFFEID: claims.AgentID(config.trustDomain),
 	})
 }
 
@@ -153,9 +153,14 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, msiError.New("unable to decode configuration: %v", err)
 	}
-	if config.TrustDomain == "" {
-		return nil, msiError.New("configuration missing trust domain")
+	if req.GlobalConfig == nil {
+		return nil, msiError.New("global configuration is required")
 	}
+	if req.GlobalConfig.TrustDomain == "" {
+		return nil, msiError.New("global configuration missing trust domain")
+	}
+	config.trustDomain = req.GlobalConfig.TrustDomain
+
 	if len(config.Tenants) == 0 {
 		return nil, msiError.New("configuration must have at least one tenant")
 	}

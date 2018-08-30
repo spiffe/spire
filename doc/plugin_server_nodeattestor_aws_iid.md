@@ -10,7 +10,6 @@ attested by the aws_iid attestor will be issued a SPIFFE ID like
 
 | Configuration       | Description | Default                 |
 | --------------------| ----------- | ----------------------- |
-| `trust_domain`      | The trust domain that the agent belongs to |  |
 | `access_key_id`     | AWS access key id     | Value of `AWS_ACCESS_KEY_ID` environment variable |
 | `secret_access_key` | AWS secret access key | Value of `AWS_SECRET_ACCESS_KEY` environment variable |
 | `skip_block_device` | Skip anti-tampering mechanism which checks to make sure that the underlying root volume has not been detached prior to attestation. | false |

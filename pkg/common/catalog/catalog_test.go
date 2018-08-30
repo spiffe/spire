@@ -41,8 +41,7 @@ func (c *CatalogTestSuite) SetupTest() {
 		"NodeAttestor": testPlugin{},
 	}
 	pluginData, err := hcl.ParseString(`
-		join_token = "NOT-A-SECRET"
-		trust_domain = "example.org"`)
+		join_token = "NOT-A-SECRET"`)
 
 	c.Assert().NoError(err)
 	cat := &catalog{
@@ -52,6 +51,7 @@ func (c *CatalogTestSuite) SetupTest() {
 			PluginData: pluginData,
 		}}},
 		supportedPlugins: supportedPlugins,
+		globalConfig:     &GlobalConfig{TrustDomain: "example.org"},
 		l:                log,
 	}
 
@@ -74,7 +74,7 @@ func (c *CatalogTestSuite) TestLoadConfigs() {
 	c.Assert().Equal("join_token", p.Config.PluginName)
 	c.Assert().Equal(true, p.Config.Enabled)
 
-	expectedData := "join_token = \"NOT-A-SECRET\"\n\ntrust_domain = \"example.org\""
+	expectedData := "join_token = \"NOT-A-SECRET\""
 	c.Assert().Equal(expectedData, p.Config.PluginData)
 }
 
