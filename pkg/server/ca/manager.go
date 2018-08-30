@@ -208,11 +208,16 @@ func (m *manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 func (m *manager) pruneBundle(ctx context.Context) error {
 	ds := m.c.Catalog.DataStores()[0]
 
-	oldBundle := &datastore.Bundle{TrustDomain: m.c.TrustDomain.String()}
-	oldBundle, err := ds.FetchBundle(ctx, oldBundle)
+	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomain: m.c.TrustDomain.String(),
+	})
 	if err != nil {
 		return fmt.Errorf("fetch bundle: %v", err)
 	}
+	if resp.Bundle == nil {
+		return errors.New("no bundle in response")
+	}
+	oldBundle := resp.Bundle
 
 	newBundle := &datastore.Bundle{
 		TrustDomain: oldBundle.TrustDomain,
@@ -243,7 +248,9 @@ func (m *manager) pruneBundle(ctx context.Context) error {
 	}
 
 	if reload {
-		_, err = ds.UpdateBundle(ctx, newBundle)
+		_, err = ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
+			Bundle: newBundle,
+		})
 		if err != nil {
 			return fmt.Errorf("write new bundle: %v", err)
 		}
@@ -253,13 +260,13 @@ func (m *manager) pruneBundle(ctx context.Context) error {
 }
 
 func (m *manager) appendBundle(ctx context.Context, caCerts []byte) error {
-	req := &datastore.Bundle{
+	bundle := &datastore.Bundle{
 		TrustDomain: m.c.TrustDomain.String(),
 		CaCerts:     caCerts,
 	}
 
 	ds := m.c.Catalog.DataStores()[0]
-	if _, err := ds.AppendBundle(ctx, req); err != nil {
+	if _, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{Bundle: bundle}); err != nil {
 		return err
 	}
 

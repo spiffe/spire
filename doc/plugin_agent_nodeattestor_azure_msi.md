@@ -5,7 +5,7 @@
 The `azure_msi` plugin attests nodes running in Microsoft Azure that have 
 Managed Service Identity (MSI) enabled. Agent nodes acquire a signed MSI token
 which is passed to the server. The server validates the signed MSI token and
-extracts the Tenant ID and Principal ID to for the agent SPIFFE ID. The SPIFFE
+extracts the Tenant ID and Principal ID to form the agent SPIFFE ID. The SPIFFE
 ID has the form:
 
 ```
@@ -13,7 +13,7 @@ spiffe://<trust domain>/spire/agent/azure_msi/<tenant_id>/<principal_id>
 ```
 
 The agent needs to be running in Azure, in a VM with MSI enabled, in order to
-perform node attestation.
+use this method of node attestation.
 
 | Configuration   | Description | Default                 |
 | --------------- | ----------- | ----------------------- |

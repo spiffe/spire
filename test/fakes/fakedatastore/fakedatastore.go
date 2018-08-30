@@ -7,13 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
-	radix "github.com/armon/go-radix"
 	"github.com/golang/protobuf/proto"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -24,79 +23,87 @@ const (
 )
 
 var (
-	ErrBundleAlreadyExists               = errors.New("bundle already exists")
-	ErrNoSuchBundle                      = errors.New("no such bundle")
-	ErrAttestedNodeEntryAlreadyExists    = errors.New("attested node entry already exists")
-	ErrNoSuchAttestedNodeEntry           = errors.New("no such attested node entry")
-	ErrNodeResolverMapEntryAlreadyExists = errors.New("node resolver map entry already exists")
-	ErrNoSuchNodeResolverMapEntry        = errors.New("no such node resolver map entry")
-	ErrNoSuchRegistrationEntry           = errors.New("no such registration entry")
-	ErrNoSuchToken                       = errors.New("no such token")
-	ErrTokenAlreadyExists                = errors.New("token already exists")
+	ErrBundleAlreadyExists       = errors.New("bundle already exists")
+	ErrNoSuchBundle              = errors.New("no such bundle")
+	ErrAttestedNodeAlreadyExists = errors.New("attested node entry already exists")
+	ErrNoSuchAttestedNode        = errors.New("no such attested node entry")
+	ErrNoSuchRegistrationEntry   = errors.New("no such registration entry")
+	ErrNoSuchToken               = errors.New("no such token")
+	ErrTokenAlreadyExists        = errors.New("token already exists")
 )
 
 type DataStore struct {
 	mu sync.Mutex
 
-	bundles                map[string]*datastore.Bundle
-	attestedNodeEntries    map[string]*datastore.AttestedNodeEntry
-	nodeResolverMapEntries *radix.Tree
-	registrationEntries    map[string]*datastore.RegistrationEntry
-	tokens                 map[string]*datastore.JoinToken
+	bundles             map[string]*datastore.Bundle
+	attestedNodes       map[string]*datastore.AttestedNode
+	nodeSelectors       map[string][]*common.Selector
+	registrationEntries map[string]*datastore.RegistrationEntry
+	tokens              map[string]*datastore.JoinToken
 }
 
 var _ datastore.DataStore = (*DataStore)(nil)
 
 func New() *DataStore {
 	return &DataStore{
-		bundles:                make(map[string]*datastore.Bundle),
-		attestedNodeEntries:    make(map[string]*datastore.AttestedNodeEntry),
-		nodeResolverMapEntries: radix.New(),
-		registrationEntries:    make(map[string]*datastore.RegistrationEntry),
-		tokens:                 make(map[string]*datastore.JoinToken),
+		bundles:             make(map[string]*datastore.Bundle),
+		attestedNodes:       make(map[string]*datastore.AttestedNode),
+		nodeSelectors:       make(map[string][]*common.Selector),
+		registrationEntries: make(map[string]*datastore.RegistrationEntry),
+		tokens:              make(map[string]*datastore.JoinToken),
 	}
 }
 
 // CreateBundle stores the given bundle
-func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
+func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.bundles[req.TrustDomain]; ok {
+	bundle := req.Bundle
+
+	if _, ok := s.bundles[bundle.TrustDomain]; ok {
 		return nil, ErrBundleAlreadyExists
 	}
 
-	s.bundles[req.TrustDomain] = cloneBundle(req)
-	return cloneBundle(req), nil
+	s.bundles[bundle.TrustDomain] = cloneBundle(bundle)
+	return &datastore.CreateBundleResponse{
+		Bundle: cloneBundle(bundle),
+	}, nil
 }
 
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
-func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
+func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.bundles[req.TrustDomain] = cloneBundle(req)
-	return cloneBundle(req), nil
+	bundle := req.Bundle
+
+	s.bundles[bundle.TrustDomain] = cloneBundle(bundle)
+	return &datastore.UpdateBundleResponse{
+		Bundle: cloneBundle(bundle),
+	}, nil
 }
 
 // AppendBundle adds the specified CA certificates to an existing bundle. If no bundle exists for the
 // specified trust domain, create one. Returns the entirety.
-func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
+func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	reqCerts, err := x509.ParseCertificates(req.CaCerts)
+	bundleIn := req.Bundle
+
+	reqCerts, err := x509.ParseCertificates(bundleIn.CaCerts)
 	if err != nil {
 		return nil, err
 	}
 
-	bundle, ok := s.bundles[req.TrustDomain]
+	bundle, ok := s.bundles[bundleIn.TrustDomain]
 	if !ok {
 		bundle = &datastore.Bundle{
-			TrustDomain: req.TrustDomain,
+			TrustDomain: bundleIn.TrustDomain,
 		}
-		s.bundles[req.TrustDomain] = bundle
+		s.bundles[bundle.TrustDomain] = bundle
 	}
 
 	bundleCerts, err := x509.ParseCertificates(bundle.CaCerts)
@@ -118,11 +125,13 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.Bundle) (*d
 		}
 	}
 
-	return cloneBundle(bundle), nil
+	return &datastore.AppendBundleResponse{
+		Bundle: cloneBundle(bundle),
+	}, nil
 }
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
-func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
+func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -132,11 +141,13 @@ func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.Bundle) (*d
 	}
 	delete(s.bundles, req.TrustDomain)
 
-	return cloneBundle(bundle), nil
+	return &datastore.DeleteBundleResponse{
+		Bundle: cloneBundle(bundle),
+	}, nil
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.Bundle) (*datastore.Bundle, error) {
+func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -145,191 +156,140 @@ func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.Bundle) (*da
 		return nil, ErrNoSuchBundle
 	}
 
-	return cloneBundle(bundle), nil
+	return &datastore.FetchBundleResponse{
+		Bundle: cloneBundle(bundle),
+	}, nil
 }
 
 // ListBundles can be used to fetch all existing bundles.
-func (s *DataStore) ListBundles(ctx context.Context, req *common.Empty) (*datastore.Bundles, error) {
+func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	bundles := new(datastore.Bundles)
+	resp := new(datastore.ListBundlesResponse)
 	for _, bundle := range s.bundles {
-		bundles.Bundles = append(bundles.Bundles, cloneBundle(bundle))
+		resp.Bundles = append(resp.Bundles, cloneBundle(bundle))
 	}
 
-	return bundles, nil
+	return resp, nil
 }
 
-func (s *DataStore) CreateAttestedNodeEntry(ctx context.Context,
-	req *datastore.CreateAttestedNodeEntryRequest) (*datastore.CreateAttestedNodeEntryResponse, error) {
+func (s *DataStore) CreateAttestedNode(ctx context.Context,
+	req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	entry := req.AttestedNodeEntry
+	node := req.Node
 
-	if _, ok := s.attestedNodeEntries[entry.BaseSpiffeId]; ok {
-		return nil, ErrAttestedNodeEntryAlreadyExists
+	if _, ok := s.attestedNodes[node.SpiffeId]; ok {
+		return nil, ErrAttestedNodeAlreadyExists
 	}
 
-	s.attestedNodeEntries[entry.BaseSpiffeId] = cloneAttestedNodeEntry(entry)
-	return &datastore.CreateAttestedNodeEntryResponse{
-		AttestedNodeEntry: cloneAttestedNodeEntry(entry),
+	s.attestedNodes[node.SpiffeId] = cloneAttestedNode(node)
+	return &datastore.CreateAttestedNodeResponse{
+		Node: cloneAttestedNode(node),
 	}, nil
 }
 
-func (s *DataStore) FetchAttestedNodeEntry(ctx context.Context,
-	req *datastore.FetchAttestedNodeEntryRequest) (*datastore.FetchAttestedNodeEntryResponse, error) {
+func (s *DataStore) FetchAttestedNode(ctx context.Context,
+	req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	resp := new(datastore.FetchAttestedNodeEntryResponse)
-	bundle, ok := s.attestedNodeEntries[req.BaseSpiffeId]
+	resp := new(datastore.FetchAttestedNodeResponse)
+	node, ok := s.attestedNodes[req.SpiffeId]
 	if !ok {
 		return resp, nil
 	}
-	resp.AttestedNodeEntry = cloneAttestedNodeEntry(bundle)
+	resp.Node = cloneAttestedNode(node)
 
 	return resp, nil
 }
 
-func (s *DataStore) FetchStaleNodeEntries(ctx context.Context,
-	req *datastore.FetchStaleNodeEntriesRequest) (*datastore.FetchStaleNodeEntriesResponse, error) {
+func (s *DataStore) ListAttestedNodes(ctx context.Context,
+	req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	now := time.Now()
-
-	resp := new(datastore.FetchStaleNodeEntriesResponse)
-	for _, attestedNodeEntry := range s.attestedNodeEntries {
-		certExpirationDate, err := time.Parse(datastore.TimeFormat, attestedNodeEntry.CertExpirationDate)
-		if err == nil && !certExpirationDate.Before(now) {
-			continue
+	resp := new(datastore.ListAttestedNodesResponse)
+	for _, attestedNodeEntry := range s.attestedNodes {
+		if req.ByExpiresBefore != nil {
+			if attestedNodeEntry.CertNotAfter >= req.ByExpiresBefore.Value {
+				continue
+			}
 		}
-		resp.AttestedNodeEntryList = append(resp.AttestedNodeEntryList,
-			cloneAttestedNodeEntry(attestedNodeEntry))
+		resp.Nodes = append(resp.Nodes, cloneAttestedNode(attestedNodeEntry))
 	}
 
 	return resp, nil
 }
 
-func (s *DataStore) UpdateAttestedNodeEntry(ctx context.Context,
-	req *datastore.UpdateAttestedNodeEntryRequest) (*datastore.UpdateAttestedNodeEntryResponse, error) {
+func (s *DataStore) UpdateAttestedNode(ctx context.Context,
+	req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	attestedNodeEntry, ok := s.attestedNodeEntries[req.BaseSpiffeId]
+	node, ok := s.attestedNodes[req.SpiffeId]
 	if !ok {
-		return nil, ErrNoSuchAttestedNodeEntry
+		return nil, ErrNoSuchAttestedNode
 	}
-	attestedNodeEntry.CertSerialNumber = req.CertSerialNumber
-	attestedNodeEntry.CertExpirationDate = req.CertExpirationDate
+	node.CertSerialNumber = req.CertSerialNumber
+	node.CertNotAfter = req.CertNotAfter
 
-	return &datastore.UpdateAttestedNodeEntryResponse{
-		AttestedNodeEntry: cloneAttestedNodeEntry(attestedNodeEntry),
+	return &datastore.UpdateAttestedNodeResponse{
+		Node: cloneAttestedNode(node),
 	}, nil
 }
 
-func (s *DataStore) DeleteAttestedNodeEntry(ctx context.Context,
-	req *datastore.DeleteAttestedNodeEntryRequest) (*datastore.DeleteAttestedNodeEntryResponse, error) {
+func (s *DataStore) DeleteAttestedNode(ctx context.Context,
+	req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	attestedNodeEntry, ok := s.attestedNodeEntries[req.BaseSpiffeId]
+	node, ok := s.attestedNodes[req.SpiffeId]
 	if !ok {
-		return nil, ErrNoSuchAttestedNodeEntry
+		return nil, ErrNoSuchAttestedNode
 	}
-	delete(s.attestedNodeEntries, req.BaseSpiffeId)
+	delete(s.attestedNodes, req.SpiffeId)
 
-	return &datastore.DeleteAttestedNodeEntryResponse{
-		AttestedNodeEntry: cloneAttestedNodeEntry(attestedNodeEntry),
+	return &datastore.DeleteAttestedNodeResponse{
+		Node: cloneAttestedNode(node),
 	}, nil
 }
 
-func (s *DataStore) CreateNodeResolverMapEntry(ctx context.Context,
-	req *datastore.CreateNodeResolverMapEntryRequest) (*datastore.CreateNodeResolverMapEntryResponse, error) {
+func (s *DataStore) SetNodeSelectors(ctx context.Context,
+	req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	entry := req.NodeResolverMapEntry
-	key := nodeResolverMapEntryKey(entry)
+	s.nodeSelectors[req.Selectors.SpiffeId] = cloneSelectors(req.Selectors.Selectors)
+	return &datastore.SetNodeSelectorsResponse{}, nil
+}
 
-	if _, ok := s.nodeResolverMapEntries.Get(key); ok {
-		return nil, ErrNodeResolverMapEntryAlreadyExists
-	}
+func (s *DataStore) GetNodeSelectors(ctx context.Context,
+	req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
 
-	s.nodeResolverMapEntries.Insert(key, cloneNodeResolverMapEntry(entry))
-	return &datastore.CreateNodeResolverMapEntryResponse{
-		NodeResolverMapEntry: cloneNodeResolverMapEntry(entry),
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	selectors := s.nodeSelectors[req.SpiffeId]
+
+	return &datastore.GetNodeSelectorsResponse{
+		Selectors: &datastore.NodeSelectors{
+			SpiffeId:  req.SpiffeId,
+			Selectors: cloneSelectors(selectors),
+		},
 	}, nil
-}
-
-func (s *DataStore) FetchNodeResolverMapEntry(ctx context.Context,
-	req *datastore.FetchNodeResolverMapEntryRequest) (*datastore.FetchNodeResolverMapEntryResponse, error) {
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.nodeResolverMapEntries.Walk(func(key string, v interface{}) bool {
-		return false
-	})
-	resp := new(datastore.FetchNodeResolverMapEntryResponse)
-	s.nodeResolverMapEntries.WalkPrefix(
-		nodeResolverMapEntrySpiffeIDPrefix(req.BaseSpiffeId),
-		func(key string, v interface{}) bool {
-			resp.NodeResolverMapEntryList = append(
-				resp.NodeResolverMapEntryList,
-				cloneNodeResolverMapEntry(v.(*datastore.NodeResolverMapEntry)))
-			return false
-		})
-
-	return resp, nil
-}
-
-func (s *DataStore) DeleteNodeResolverMapEntry(ctx context.Context,
-	req *datastore.DeleteNodeResolverMapEntryRequest) (*datastore.DeleteNodeResolverMapEntryResponse, error) {
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	resp := new(datastore.DeleteNodeResolverMapEntryResponse)
-	if req.NodeResolverMapEntry.Selector != nil {
-		key := nodeResolverMapEntryKey(req.NodeResolverMapEntry)
-		v, ok := s.nodeResolverMapEntries.Get(key)
-		if !ok {
-			return nil, ErrNoSuchNodeResolverMapEntry
-		}
-		resp.NodeResolverMapEntryList = append(
-			resp.NodeResolverMapEntryList,
-			cloneNodeResolverMapEntry(v.(*datastore.NodeResolverMapEntry)))
-	} else {
-		prefix := nodeResolverMapEntrySpiffeIDPrefix(req.NodeResolverMapEntry.BaseSpiffeId)
-		s.nodeResolverMapEntries.WalkPrefix(prefix,
-			func(key string, v interface{}) bool {
-				resp.NodeResolverMapEntryList = append(
-					resp.NodeResolverMapEntryList,
-					cloneNodeResolverMapEntry(v.(*datastore.NodeResolverMapEntry)))
-				return true
-			})
-		s.nodeResolverMapEntries.DeletePrefix(prefix)
-	}
-
-	return resp, nil
-}
-
-func (DataStore) RectifyNodeResolverMapEntries(ctx context.Context,
-	req *datastore.RectifyNodeResolverMapEntriesRequest) (*datastore.RectifyNodeResolverMapEntriesResponse, error) {
-	return &datastore.RectifyNodeResolverMapEntriesResponse{}, errors.New("Not Implemented")
 }
 
 func (s *DataStore) CreateRegistrationEntry(ctx context.Context,
-	request *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
+	req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -339,221 +299,188 @@ func (s *DataStore) CreateRegistrationEntry(ctx context.Context,
 		return nil, err
 	}
 
-	entry := cloneRegistrationEntry(request.RegisteredEntry)
+	entry := cloneRegistrationEntry(req.Entry)
 	entry.EntryId = entryID
 	s.registrationEntries[entryID] = entry
 
 	return &datastore.CreateRegistrationEntryResponse{
-		RegisteredEntryId: entryID,
+		Entry: cloneRegistrationEntry(entry),
 	}, nil
 }
 
 func (s *DataStore) FetchRegistrationEntry(ctx context.Context,
-	request *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
+	req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	resp := new(datastore.FetchRegistrationEntryResponse)
-	entry, ok := s.registrationEntries[request.RegisteredEntryId]
+	entry, ok := s.registrationEntries[req.EntryId]
 	if !ok {
 		return resp, nil
 	}
-	resp.RegisteredEntry = cloneRegistrationEntry(entry)
+	resp.Entry = cloneRegistrationEntry(entry)
 
 	return resp, nil
 }
 
-func (s *DataStore) FetchRegistrationEntries(ctx context.Context,
-	request *common.Empty) (*datastore.FetchRegistrationEntriesResponse, error) {
+func (s *DataStore) ListRegistrationEntries(ctx context.Context,
+	req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	entries := new(common.RegistrationEntries)
+	// add the registration entries to the map
+	entriesSet := make(map[string]*common.RegistrationEntry)
 	for _, entry := range s.registrationEntries {
-		entries.Entries = append(entries.Entries, cloneRegistrationEntry(entry))
+		if req.ByParentId != nil && entry.ParentId != req.ByParentId.Value {
+			continue
+		}
+		if req.BySpiffeId != nil && entry.SpiffeId != req.BySpiffeId.Value {
+			continue
+		}
+
+		entriesSet[entry.EntryId] = entry
 	}
 
-	// TODO: do we really need to sort the entries?
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
+		var selectorsList [][]*common.Selector
+		selectorSet := selector.NewSetFromRaw(req.BySelectors.Selectors)
+		switch req.BySelectors.Match {
+		case datastore.BySelectors_MATCH_EXACT:
+			selectorsList = append(selectorsList, selectorSet.Raw())
+		case datastore.BySelectors_MATCH_SUBSET:
+			for combination := range selectorSet.Power() {
+				selectorsList = append(selectorsList, combination.Raw())
+			}
+		default:
+			return nil, fmt.Errorf("unhandled match behavior %q", req.BySelectors.Match)
+		}
 
-	return &datastore.FetchRegistrationEntriesResponse{
-		RegisteredEntries: entries,
+		// filter entries that don't match at least one selector set
+		for entryID, entry := range entriesSet {
+			matchesOne := false
+			for _, selectors := range selectorsList {
+				if !containsSelectors(entry.Selectors, selectors) {
+					continue
+				}
+				if len(entry.Selectors) != len(selectors) {
+					continue
+				}
+				matchesOne = true
+				break
+			}
+			if !matchesOne {
+				delete(entriesSet, entryID)
+			}
+		}
+	}
+
+	// clone and sort entries from the set
+	entries := make([]*common.RegistrationEntry, 0, len(entriesSet))
+	for _, entry := range entriesSet {
+		entries = append(entries, cloneRegistrationEntry(entry))
+	}
+	util.SortRegistrationEntries(entries)
+
+	return &datastore.ListRegistrationEntriesResponse{
+		Entries: entries,
 	}, nil
 }
 
 func (s DataStore) UpdateRegistrationEntry(ctx context.Context,
-	request *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
+	req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, ok := s.registrationEntries[request.RegisteredEntryId]
+	_, ok := s.registrationEntries[req.Entry.EntryId]
 	if !ok {
 		return nil, ErrNoSuchRegistrationEntry
 	}
 
-	entry := cloneRegistrationEntry(request.RegisteredEntry)
-	entry.EntryId = request.RegisteredEntryId
-	s.registrationEntries[request.RegisteredEntryId] = entry
+	entry := cloneRegistrationEntry(req.Entry)
+	s.registrationEntries[req.Entry.EntryId] = entry
 
 	return &datastore.UpdateRegistrationEntryResponse{
-		RegisteredEntry: cloneRegistrationEntry(entry),
+		Entry: cloneRegistrationEntry(entry),
 	}, nil
 }
 
 func (s *DataStore) DeleteRegistrationEntry(ctx context.Context,
-	request *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
+	req *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	registrationEntry, ok := s.registrationEntries[request.RegisteredEntryId]
+	registrationEntry, ok := s.registrationEntries[req.EntryId]
 	if !ok {
 		return nil, ErrNoSuchRegistrationEntry
 	}
-	delete(s.registrationEntries, request.RegisteredEntryId)
+	delete(s.registrationEntries, req.EntryId)
 
 	return &datastore.DeleteRegistrationEntryResponse{
-		RegisteredEntry: cloneRegistrationEntry(registrationEntry),
+		Entry: cloneRegistrationEntry(registrationEntry),
 	}, nil
 }
 
-func (s *DataStore) ListParentIDEntries(ctx context.Context,
-	request *datastore.ListParentIDEntriesRequest) (response *datastore.ListParentIDEntriesResponse, err error) {
-
+// CreateJoinToken takes a Token message and stores it
+func (s *DataStore) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	var registeredEntryList []*common.RegistrationEntry
-	for _, registrationEntry := range s.registrationEntries {
-		if registrationEntry.ParentId == request.ParentId {
-			registeredEntryList = append(registeredEntryList, cloneRegistrationEntry(registrationEntry))
-		}
-	}
-
-	return &datastore.ListParentIDEntriesResponse{
-		RegisteredEntryList: registeredEntryList,
-	}, nil
-}
-
-func (s *DataStore) ListSelectorEntries(ctx context.Context,
-	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return &datastore.ListSelectorEntriesResponse{
-		RegisteredEntryList: s.listMatchingEntries(request.Selectors),
-	}, nil
-}
-
-func (s *DataStore) ListMatchingEntries(ctx context.Context,
-	request *datastore.ListSelectorEntriesRequest) (*datastore.ListSelectorEntriesResponse, error) {
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	resp := &datastore.ListSelectorEntriesResponse{}
-	for combination := range selector.NewSetFromRaw(request.Selectors).Power() {
-		entries := s.listMatchingEntries(combination.Raw())
-		resp.RegisteredEntryList = append(resp.RegisteredEntryList, entries...)
-	}
-
-	return resp, nil
-}
-
-func (s *DataStore) listMatchingEntries(selectors []*common.Selector) (
-	matches []*common.RegistrationEntry) {
-
-	if len(selectors) == 0 {
-		return nil
-	}
-
-	for _, registrationEntry := range s.registrationEntries {
-		if !containsSelectors(registrationEntry.Selectors, selectors) {
-			continue
-		}
-		if len(registrationEntry.Selectors) != len(selectors) {
-			continue
-		}
-
-		matches = append(matches, cloneRegistrationEntry(registrationEntry))
-	}
-
-	return matches
-}
-
-func (s *DataStore) ListSpiffeEntries(ctx context.Context,
-	request *datastore.ListSpiffeEntriesRequest) (*datastore.ListSpiffeEntriesResponse, error) {
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var registeredEntryList []*common.RegistrationEntry
-	for _, registrationEntry := range s.registrationEntries {
-		if registrationEntry.SpiffeId == request.SpiffeId {
-			registeredEntryList = append(registeredEntryList, cloneRegistrationEntry(registrationEntry))
-		}
-	}
-
-	return &datastore.ListSpiffeEntriesResponse{
-		RegisteredEntryList: registeredEntryList,
-	}, nil
-}
-
-// RegisterToken takes a Token message and stores it
-func (s *DataStore) RegisterToken(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.tokens[req.Token]; ok {
+	if _, ok := s.tokens[req.JoinToken.Token]; ok {
 		return nil, ErrTokenAlreadyExists
 	}
-	s.tokens[req.Token] = cloneJoinToken(req)
+	s.tokens[req.JoinToken.Token] = cloneJoinToken(req.JoinToken)
 
-	return &common.Empty{}, nil
+	return &datastore.CreateJoinTokenResponse{
+		JoinToken: cloneJoinToken(req.JoinToken),
+	}, nil
 }
 
 // FetchToken takes a Token message and returns one, populating the fields
 // we have knowledge of
-func (s *DataStore) FetchToken(ctx context.Context, req *datastore.JoinToken) (*datastore.JoinToken, error) {
+func (s *DataStore) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (*datastore.FetchJoinTokenResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	token, ok := s.tokens[req.Token]
+	joinToken, ok := s.tokens[req.Token]
 	if !ok {
-		return &datastore.JoinToken{}, nil
+		return &datastore.FetchJoinTokenResponse{}, nil
 	}
 
-	return cloneJoinToken(token), nil
+	return &datastore.FetchJoinTokenResponse{
+		JoinToken: cloneJoinToken(joinToken),
+	}, nil
 }
 
-func (s *DataStore) DeleteToken(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
+func (s *DataStore) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (*datastore.DeleteJoinTokenResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, ok := s.tokens[req.Token]
+	joinToken, ok := s.tokens[req.Token]
 	if !ok {
 		return nil, ErrNoSuchToken
 	}
 	delete(s.tokens, req.Token)
 
-	return &common.Empty{}, nil
+	return &datastore.DeleteJoinTokenResponse{
+		JoinToken: cloneJoinToken(joinToken),
+	}, nil
 }
 
-// PruneTokens takes a Token message, and deletes all tokens which have expired
-// before the date in the message
-func (s *DataStore) PruneTokens(ctx context.Context, req *datastore.JoinToken) (*common.Empty, error) {
+func (s *DataStore) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for key, token := range s.tokens {
-		if token.Expiry <= req.Expiry {
+		if token.Expiry <= req.ExpiresBefore {
 			delete(s.tokens, key)
 		}
 	}
 
-	return &common.Empty{}, nil
+	return &datastore.PruneJoinTokensResponse{}, nil
 }
 
 func (s *DataStore) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
@@ -572,12 +499,12 @@ func cloneBundle(bundle *datastore.Bundle) *datastore.Bundle {
 	return proto.Clone(bundle).(*datastore.Bundle)
 }
 
-func cloneAttestedNodeEntry(attestedNodeEntry *datastore.AttestedNodeEntry) *datastore.AttestedNodeEntry {
-	return proto.Clone(attestedNodeEntry).(*datastore.AttestedNodeEntry)
+func cloneAttestedNode(attestedNodeEntry *datastore.AttestedNode) *datastore.AttestedNode {
+	return proto.Clone(attestedNodeEntry).(*datastore.AttestedNode)
 }
 
-func cloneNodeResolverMapEntry(nodeResolverMapEntry *datastore.NodeResolverMapEntry) *datastore.NodeResolverMapEntry {
-	return proto.Clone(nodeResolverMapEntry).(*datastore.NodeResolverMapEntry)
+func cloneSelectors(selectors []*common.Selector) []*common.Selector {
+	return proto.Clone(&common.Selectors{Entries: selectors}).(*common.Selectors).Entries
 }
 
 func cloneRegistrationEntry(registrationEntry *datastore.RegistrationEntry) *datastore.RegistrationEntry {
@@ -586,17 +513,6 @@ func cloneRegistrationEntry(registrationEntry *datastore.RegistrationEntry) *dat
 
 func cloneJoinToken(token *datastore.JoinToken) *datastore.JoinToken {
 	return proto.Clone(token).(*datastore.JoinToken)
-}
-
-func nodeResolverMapEntryKey(nodeResolverMapEntry *datastore.NodeResolverMapEntry) string {
-	return fmt.Sprintf("%s%c%s%c%s",
-		nodeResolverMapEntry.BaseSpiffeId, selectorKeySeparator,
-		nodeResolverMapEntry.Selector.Type, selectorKeySeparator,
-		nodeResolverMapEntry.Selector.Value)
-}
-
-func nodeResolverMapEntrySpiffeIDPrefix(spiffeID string) string {
-	return fmt.Sprintf("%s%c", spiffeID, selectorKeySeparator)
 }
 
 func newRegistrationEntryID() (string, error) {

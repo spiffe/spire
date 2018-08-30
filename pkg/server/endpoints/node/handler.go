@@ -136,7 +136,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 
 	}
 
-	if err := h.updateNodeResolverMap(ctx, baseSpiffeIDFromCSR, attestResponse); err != nil {
+	if err := h.updateNodeSelectors(ctx, baseSpiffeIDFromCSR, attestResponse); err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to get selectors for baseSpiffeID")
 	}
@@ -291,16 +291,16 @@ func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, er
 
 	dataStore := h.c.Catalog.DataStores()[0]
 
-	fetchRequest := &datastore.FetchAttestedNodeEntryRequest{
-		BaseSpiffeId: baseSpiffeID,
+	fetchRequest := &datastore.FetchAttestedNodeRequest{
+		SpiffeId: baseSpiffeID,
 	}
-	fetchResponse, err := dataStore.FetchAttestedNodeEntry(ctx, fetchRequest)
+	fetchResponse, err := dataStore.FetchAttestedNode(ctx, fetchRequest)
 	if err != nil {
 		return false, err
 	}
 
-	attestedEntry := fetchResponse.AttestedNodeEntry
-	if attestedEntry != nil && attestedEntry.BaseSpiffeId == baseSpiffeID {
+	node := fetchResponse.Node
+	if node != nil && node.SpiffeId == baseSpiffeID {
 		return true, nil
 	}
 
@@ -366,37 +366,45 @@ func (h *Handler) attestToken(ctx context.Context,
 		return nil, errors.New("join token has already been used")
 	}
 
+	tokenValue := string(attestationData.Data)
+
 	ds := h.c.Catalog.DataStores()[0]
-	req := &datastore.JoinToken{Token: string(attestationData.Data)}
-	t, err := ds.FetchToken(ctx, req)
+	resp, err := ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
+		Token: tokenValue,
+	})
 	if err != nil {
 		return nil, err
 	}
+	if resp.JoinToken == nil {
+		return nil, errors.New("response missing token")
+	}
+	t := resp.JoinToken
 
 	if t.Token == "" {
 		return nil, errors.New("invalid join token")
 	}
 
+	_, err = ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
+		Token: tokenValue,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	if time.Unix(t.Expiry, 0).Before(h.hooks.now()) {
-		// Don't fail if we can't delete
-		_, _ = ds.DeleteToken(ctx, req)
 		return nil, errors.New("join token expired")
 	}
 
 	// If we're here, the token is valid
-	// Don't fail if we can't delete
-	_, _ = ds.DeleteToken(ctx, req)
 	id := &url.URL{
 		Scheme: h.c.TrustDomain.Scheme,
 		Host:   h.c.TrustDomain.Host,
 		Path:   path.Join("spire", "agent", "join_token", t.Token),
 	}
-	resp := &nodeattestor.AttestResponse{
+	return &nodeattestor.AttestResponse{
 		Valid:        true,
 		BaseSPIFFEID: id.String(),
-	}
-
-	return resp, nil
+	}, nil
 }
 
 func (h *Handler) validateAttestation(
@@ -418,13 +426,13 @@ func (h *Handler) updateAttestationEntry(ctx context.Context,
 
 	dataStore := h.c.Catalog.DataStores()[0]
 
-	updateRequest := &datastore.UpdateAttestedNodeEntryRequest{
-		BaseSpiffeId:       baseSPIFFEID,
-		CertExpirationDate: cert.NotAfter.Format(time.RFC1123Z),
-		CertSerialNumber:   cert.SerialNumber.String(),
+	updateRequest := &datastore.UpdateAttestedNodeRequest{
+		SpiffeId:         baseSPIFFEID,
+		CertNotAfter:     cert.NotAfter.Unix(),
+		CertSerialNumber: cert.SerialNumber.String(),
 	}
 
-	if _, err := dataStore.UpdateAttestedNodeEntry(ctx, updateRequest); err != nil {
+	if _, err := dataStore.UpdateAttestedNode(ctx, updateRequest); err != nil {
 		return err
 	}
 
@@ -436,21 +444,21 @@ func (h *Handler) createAttestationEntry(ctx context.Context,
 
 	dataStore := h.c.Catalog.DataStores()[0]
 
-	createRequest := &datastore.CreateAttestedNodeEntryRequest{
-		AttestedNodeEntry: &datastore.AttestedNodeEntry{
+	createRequest := &datastore.CreateAttestedNodeRequest{
+		Node: &datastore.AttestedNode{
 			AttestationDataType: attestationType,
-			BaseSpiffeId:        baseSPIFFEID,
-			CertExpirationDate:  cert.NotAfter.Format(time.RFC1123Z),
+			SpiffeId:            baseSPIFFEID,
+			CertNotAfter:        cert.NotAfter.Unix(),
 			CertSerialNumber:    cert.SerialNumber.String(),
 		}}
-	if _, err := dataStore.CreateAttestedNodeEntry(ctx, createRequest); err != nil {
+	if _, err := dataStore.CreateAttestedNode(ctx, createRequest); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (h *Handler) updateNodeResolverMap(ctx context.Context,
+func (h *Handler) updateNodeSelectors(ctx context.Context,
 	baseSpiffeID string, attestResponse *nodeattestor.AttestResponse) error {
 
 	nodeResolver := h.c.Catalog.NodeResolvers()[0]
@@ -462,36 +470,23 @@ func (h *Handler) updateNodeResolverMap(ctx context.Context,
 		return err
 	}
 
-	if selectors := response.Map[baseSpiffeID]; selectors != nil {
-		for _, selector := range selectors.Entries {
-			err := h.createNodeResolverMapEntry(ctx, baseSpiffeID, selector)
-			if err != nil {
-				return err
-			}
-		}
+	var selectors []*common.Selector
+	if resolved := response.Map[baseSpiffeID]; resolved != nil {
+		selectors = append(selectors, resolved.Entries...)
 	}
+	selectors = append(selectors, attestResponse.Selectors...)
 
-	for _, selector := range attestResponse.Selectors {
-		err := h.createNodeResolverMapEntry(ctx, baseSpiffeID, selector)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (h *Handler) createNodeResolverMapEntry(ctx context.Context, baseSpiffeID string, selector *common.Selector) error {
 	dataStore := h.c.Catalog.DataStores()[0]
-	mapEntryRequest := &datastore.CreateNodeResolverMapEntryRequest{
-		NodeResolverMapEntry: &datastore.NodeResolverMapEntry{
-			BaseSpiffeId: baseSpiffeID,
-			Selector:     selector,
+	_, err = dataStore.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
+		Selectors: &datastore.NodeSelectors{
+			SpiffeId:  baseSpiffeID,
+			Selectors: selectors,
 		},
-	}
-	_, err := dataStore.CreateNodeResolverMapEntry(ctx, mapEntryRequest)
+	})
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -571,13 +566,13 @@ func (h *Handler) signCSRs(ctx context.Context,
 		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", h.c.TrustDomain.String())
 
 		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
-			res, err := dataStore.FetchAttestedNodeEntry(ctx,
-				&datastore.FetchAttestedNodeEntryRequest{BaseSpiffeId: spiffeID},
+			res, err := dataStore.FetchAttestedNode(ctx,
+				&datastore.FetchAttestedNodeRequest{SpiffeId: spiffeID},
 			)
 			if err != nil {
 				return nil, err
 			}
-			if res.AttestedNodeEntry.CertSerialNumber != peerCert.SerialNumber.String() {
+			if res.Node.CertSerialNumber != peerCert.SerialNumber.String() {
 				err := errors.New("SVID serial number does not match")
 				return nil, err
 			}
@@ -637,15 +632,18 @@ func (h *Handler) buildBaseSVID(ctx context.Context, csr []byte) (*node.X509SVID
 // getBundle fetches the current CA bundle from the datastore.
 func (h *Handler) getBundle(ctx context.Context) ([]byte, error) {
 	ds := h.c.Catalog.DataStores()[0]
-	req := &datastore.Bundle{
+
+	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomain: h.c.TrustDomain.String(),
-	}
-	b, err := ds.FetchBundle(ctx, req)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get bundle from datastore: %v", err)
 	}
+	if resp.Bundle == nil {
+		return nil, errors.New("response missing bundle")
+	}
 
-	return b.CaCerts, nil
+	return resp.Bundle.CaCerts, nil
 }
 
 func getSpiffeIDFromCSR(csrBytes []byte) (spiffeID string, err error) {
