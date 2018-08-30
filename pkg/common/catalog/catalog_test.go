@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
@@ -45,10 +44,11 @@ func (c *CatalogTestSuite) SetupTest() {
 		join_token = "NOT-A-SECRET"`)
 
 	c.Assert().NoError(err)
+	enabled := true
 	cat := &catalog{
 		pluginConfigs: PluginConfigMap{"NodeAttestor": {"join_token": HclPluginConfig{
 			PluginCmd:  "./attestor",
-			Enabled:    to.BoolPtr(true),
+			Enabled:    &enabled,
 			PluginData: pluginData,
 		}}},
 		supportedPlugins: supportedPlugins,

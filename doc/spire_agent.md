@@ -44,7 +44,7 @@ The following configuration options are available to configure a plugin:
 | --------------- | ---------------------------------------- |
 | plugin_cmd      | Path to the plugin implementation binary (optional, not needed for built-ins) |
 | plugin_checksum | An optional sha256 of the plugin binary  (optional, not needed for built-ins) |
-| enabled         | Enable or disable the plugin, enabled as default.             |
+| enabled         | Enable or disable the plugin (enabled by default)            |
 | plugin_data     | Plugin-specific data                     |
 
 Please see the [built-in plugins](#built-in-plugins) section below for information on plugins that are available out-of-the-box.
