@@ -33,7 +33,6 @@ A sample configuration with the default resource ID (i.e. resource manager):
 
 ```
     NodeAttestor "azure_msi" {
-        enabled = true
         plugin_data {
         }
     }
@@ -43,7 +42,6 @@ A sample configuration with a custom resource ID:
 
 ```
     NodeAttestor "azure_msi" {
-        enabled = true
         plugin_data {
             resource_id = "http://example.org/app/"
         }
