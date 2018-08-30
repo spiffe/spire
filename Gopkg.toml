@@ -80,8 +80,8 @@ required = ["github.com/hashicorp/go-plugin",
   version = "1.0.3"
 
 [[constraint]]
+  branch = "master"
   name = "github.com/jinzhu/gorm"
-  version = "1.9.1"
 
 [[constraint]]
   name = "github.com/mitchellh/cli"
