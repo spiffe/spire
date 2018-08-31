@@ -7,8 +7,10 @@ import (
 	"encoding/pem"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/url"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,7 +26,6 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
-	"github.com/spiffe/spire/test/mock/common/context"
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	"github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
@@ -49,11 +50,11 @@ type HandlerTestSuite struct {
 	suite.Suite
 	ctrl             *gomock.Controller
 	handler          *Handler
+	limiter          *fakeLimiter
 	mockDataStore    *mock_datastore.MockDataStore
 	mockServerCA     *mock_ca.MockServerCA
 	mockNodeAttestor *mock_nodeattestor.MockNodeAttestor
 	mockNodeResolver *mock_noderesolver.MockNodeResolver
-	mockContext      *mock_context.MockContext
 	server           *mock_node.MockNode_FetchX509SVIDServer
 	now              time.Time
 }
@@ -64,11 +65,11 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	mockCtrl := gomock.NewController(t)
 	suite.ctrl = mockCtrl
 	log, _ := test.NewNullLogger()
+	suite.limiter = new(fakeLimiter)
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
 	suite.mockServerCA = mock_ca.NewMockServerCA(mockCtrl)
 	suite.mockNodeAttestor = mock_nodeattestor.NewMockNodeAttestor(mockCtrl)
 	suite.mockNodeResolver = mock_noderesolver.NewMockNodeResolver(mockCtrl)
-	suite.mockContext = mock_context.NewMockContext(mockCtrl)
 	suite.server = mock_node.NewMockNode_FetchX509SVIDServer(suite.ctrl)
 	suite.now = time.Now()
 
@@ -86,6 +87,7 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	suite.handler.hooks.now = func() time.Time {
 		return suite.now
 	}
+	suite.handler.limiter = suite.limiter
 	return suite
 }
 
@@ -93,19 +95,21 @@ func TestAttest(t *testing.T) {
 	suite := SetupHandlerTest(t)
 	defer suite.ctrl.Finish()
 
+	ctx := peer.NewContext(context.Background(), getFakePeer())
 	data := getAttestTestData()
-	setAttestExpectations(suite, data)
-
-	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
 
 	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
-	stream.EXPECT().Context().Return(context.Background())
-	stream.EXPECT().Recv().Return(data.request, nil)
+	stream.EXPECT().Context().Return(ctx).AnyTimes()
+	stream.EXPECT().Recv().Return(data.request, nil).AnyTimes()
 
+	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
 	stream.EXPECT().Send(&node.AttestResponse{
 		SvidUpdate: expected,
-	})
+	}).AnyTimes()
+
+	setAttestExpectations(suite, data)
 	suite.NoError(suite.handler.Attest(stream))
+	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
 }
 
 func TestAttestChallengeResponse(t *testing.T) {
@@ -121,8 +125,9 @@ func TestAttestChallengeResponse(t *testing.T) {
 
 	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
 
+	ctx := peer.NewContext(context.Background(), getFakePeer())
 	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
-	stream.EXPECT().Context().Return(context.Background())
+	stream.EXPECT().Context().Return(ctx)
 	stream.EXPECT().Recv().Return(data.request, nil)
 	stream.EXPECT().Send(&node.AttestResponse{
 		Challenge: []byte("1+1"),
@@ -155,6 +160,10 @@ func TestFetchX509SVID(t *testing.T) {
 		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
 	}
 
+	limiterCalls := suite.limiter.callsFor(CSRMsg)
+	if len(data.request.Csrs) != limiterCalls {
+		t.Errorf("expected %v calls to limiter; got %v", len(data.request.Csrs), limiterCalls)
+	}
 }
 
 func TestFetchX509SVIDWithRotation(t *testing.T) {
@@ -543,10 +552,9 @@ func setFetchX509SVIDExpectations(
 	caCert, _, err := util.LoadCAFixture()
 	require.NoError(suite.T(), err)
 
-	suite.server.EXPECT().Context().Return(suite.mockContext)
+	ctx := peer.NewContext(context.Background(), getFakePeer())
+	suite.server.EXPECT().Context().Return(ctx)
 	suite.server.EXPECT().Recv().Return(data.request, nil)
-
-	suite.mockContext.EXPECT().Value(gomock.Any()).Return(getFakePeer())
 
 	// begin FetchRegistrationEntries()
 
@@ -664,8 +672,9 @@ func getFakePeer() *peer.Peer {
 		PeerCertificates: []*x509.Certificate{parsedCert},
 	}
 
+	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:12345")
 	fakePeer := &peer.Peer{
-		Addr:     nil,
+		Addr:     addr,
 		AuthInfo: credentials.TLSInfo{State: state},
 	}
 
@@ -702,8 +711,15 @@ func TestFetchJWTSVID(t *testing.T) {
 		Log:      log,
 	})
 
+	limiter := new(fakeLimiter)
+	handler.limiter = limiter
+
 	// no peer certificate on context
-	resp, err := handler.FetchJWTSVID(context.Background(), &node.FetchJWTSVIDRequest{})
+	badPeer := getFakePeer()
+	badPeer.AuthInfo = nil
+	badCtx := peer.NewContext(context.Background(), badPeer)
+	resp, err := handler.FetchJWTSVID(badCtx, &node.FetchJWTSVIDRequest{})
+	require.Equal(t, 1, limiter.callsFor(JSRMsg))
 	require.EqualError(t, err, "client SVID is required for this request")
 	require.Nil(t, resp)
 
@@ -761,4 +777,44 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.NotNil(t, resp)
 	require.NotEmpty(t, resp.Svid.Token)
 	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
+}
+
+type fakeLimiter struct {
+	callsForAttest int
+	callsForCSR    int
+	callsForJSR    int
+
+	mtx sync.Mutex
+}
+
+func (fl *fakeLimiter) Limit(_ context.Context, msgType, count int) error {
+	fl.mtx.Lock()
+	defer fl.mtx.Unlock()
+
+	switch msgType {
+	case AttestMsg:
+		fl.callsForAttest += count
+	case CSRMsg:
+		fl.callsForCSR += count
+	case JSRMsg:
+		fl.callsForJSR += count
+	}
+
+	return nil
+}
+
+func (fl *fakeLimiter) callsFor(msgType int) int {
+	fl.mtx.Lock()
+	defer fl.mtx.Unlock()
+
+	switch msgType {
+	case AttestMsg:
+		return fl.callsForAttest
+	case CSRMsg:
+		return fl.callsForCSR
+	case JSRMsg:
+		return fl.callsForJSR
+	}
+
+	return 0
 }
