@@ -87,10 +87,10 @@ func TestChallengeResponse(t *testing.T) {
 	require.EqualError(err, "expecting ECDSA response")
 
 	// mutate the signatures and assert verification fails
-	rsaResponse.RSASignature.Signature[0] ^= rsaResponse.RSASignature.Signature[0]
+	rsaResponse.RSASignature.Signature[0] += 1
 	err = VerifyChallengeResponse(rsaPublicKey, rsaChallenge, rsaResponse)
 	require.EqualError(err, "RSA signature verify failed")
-	ecdsaResponse.ECDSASignature.R[0] ^= ecdsaResponse.ECDSASignature.R[0]
+	ecdsaResponse.ECDSASignature.R[0] += 1
 	err = VerifyChallengeResponse(ecdsaPublicKey, ecdsaChallenge, ecdsaResponse)
 	require.EqualError(err, "ECDSA signature verify failed")
 
