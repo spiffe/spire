@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/golang/protobuf/proto"
@@ -166,9 +167,16 @@ func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// get an ordered list of keys so tests can rely on ordering for stability
+	keys := make([]string, 0, len(s.bundles))
+	for key := range s.bundles {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	resp := new(datastore.ListBundlesResponse)
-	for _, bundle := range s.bundles {
-		resp.Bundles = append(resp.Bundles, cloneBundle(bundle))
+	for _, key := range keys {
+		resp.Bundles = append(resp.Bundles, cloneBundle(s.bundles[key]))
 	}
 
 	return resp, nil
@@ -214,8 +222,16 @@ func (s *DataStore) ListAttestedNodes(ctx context.Context,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// get an ordered list of keys so tests can rely on ordering for stability
+	keys := make([]string, 0, len(s.attestedNodes))
+	for key := range s.attestedNodes {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	resp := new(datastore.ListAttestedNodesResponse)
-	for _, attestedNodeEntry := range s.attestedNodes {
+	for _, key := range keys {
+		attestedNodeEntry := s.attestedNodes[key]
 		if req.ByExpiresBefore != nil {
 			if attestedNodeEntry.CertNotAfter >= req.ByExpiresBefore.Value {
 				continue
