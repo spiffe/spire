@@ -1,10 +1,12 @@
 package sql
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -531,6 +533,39 @@ func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.D
 		return nil, sqlError.Wrap(err)
 	}
 
+	// Get a count of associated registration entries
+	entriesAssociation := tx.Model(model).Association("FederatedEntries")
+	entriesCount := entriesAssociation.Count()
+	if err := entriesAssociation.Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	if entriesCount > 0 {
+		switch req.Mode {
+		case datastore.DeleteBundleRequest_DELETE:
+			// TODO: figure out how to do this gracefully with GORM.
+			if err := tx.Exec(bindVars(tx, `DELETE FROM registered_entries WHERE id in (
+				SELECT
+					registered_entries.id
+				FROM
+					registered_entries
+				INNER JOIN
+					federated_registration_entries
+				ON
+					federated_registration_entries.registered_entry_id = registered_entries.id
+				WHERE
+					federated_registration_entries.bundle_id = ?)`), model.ID).Error; err != nil {
+				return nil, sqlError.Wrap(err)
+			}
+		case datastore.DeleteBundleRequest_DISSOCIATE:
+			if err := entriesAssociation.Clear().Error; err != nil {
+				return nil, sqlError.Wrap(err)
+			}
+		default:
+			return nil, sqlError.New("cannot delete bundle; federated with %d registration entries", entriesCount)
+		}
+	}
+
 	// Fetch related CA certs for response before we delete them
 	var caCerts []CACert
 	if err := tx.Model(model).Related(&caCerts).Error; err != nil {
@@ -774,11 +809,19 @@ func createRegistrationEntry(tx *gorm.DB,
 		SpiffeID: req.Entry.SpiffeId,
 		ParentID: req.Entry.ParentId,
 		TTL:      req.Entry.Ttl,
-		// TODO: Add support to Federated Bundles [https://github.com/spiffe/spire/issues/42]
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
+	}
+
+	federatesWith, err := makeFederatesWith(tx, req.Entry.FederatesWith)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Model(&newRegisteredEntry).Association("FederatesWith").Append(federatesWith).Error; err != nil {
+		return nil, err
 	}
 
 	for _, registeredSelector := range req.Entry.Selectors {
@@ -814,27 +857,13 @@ func fetchRegistrationEntry(tx *gorm.DB,
 		return nil, sqlError.Wrap(err)
 	}
 
-	var fetchedSelectors []*Selector
-	if err := tx.Model(&fetchedRegisteredEntry).Related(&fetchedSelectors).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	selectors := make([]*common.Selector, 0, len(fetchedSelectors))
-
-	for _, selector := range fetchedSelectors {
-		selectors = append(selectors, &common.Selector{
-			Type:  selector.Type,
-			Value: selector.Value})
+	entry, err := modelToEntry(tx, fetchedRegisteredEntry)
+	if err != nil {
+		return nil, err
 	}
 
 	return &datastore.FetchRegistrationEntryResponse{
-		Entry: &common.RegistrationEntry{
-			EntryId:   fetchedRegisteredEntry.EntryID,
-			Selectors: selectors,
-			SpiffeId:  fetchedRegisteredEntry.SpiffeID,
-			ParentId:  fetchedRegisteredEntry.ParentID,
-			Ttl:       fetchedRegisteredEntry.TTL,
-		},
+		Entry: entry,
 	}, nil
 }
 
@@ -953,7 +982,6 @@ func updateRegistrationEntry(tx *gorm.DB,
 	}
 
 	// Get the existing entry
-	// TODO: Refactor message type to take EntryID directly from the entry - see #449
 	entry := RegisteredEntry{}
 	if err := tx.Find(&entry, "entry_id = ?", req.Entry.EntryId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
@@ -982,6 +1010,15 @@ func updateRegistrationEntry(tx *gorm.DB,
 		return nil, sqlError.Wrap(err)
 	}
 
+	federatesWith, err := makeFederatesWith(tx, req.Entry.FederatesWith)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Model(&entry).Association("FederatesWith").Replace(federatesWith).Error; err != nil {
+		return nil, err
+	}
+
 	req.Entry.EntryId = entry.EntryID
 	return &datastore.UpdateRegistrationEntryResponse{
 		Entry: req.Entry,
@@ -996,13 +1033,17 @@ func deleteRegistrationEntry(tx *gorm.DB,
 		return nil, sqlError.Wrap(err)
 	}
 
-	if err := tx.Delete(&entry).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
 	respEntry, err := modelToEntry(tx, entry)
 	if err != nil {
 		return nil, err
+	}
+
+	if err := tx.Model(&entry).Association("FederatesWith").Clear().Error; err != nil {
+		return nil, err
+	}
+
+	if err := tx.Delete(&entry).Error; err != nil {
+		return nil, sqlError.Wrap(err)
 	}
 
 	return &datastore.DeleteRegistrationEntryResponse{
@@ -1157,23 +1198,36 @@ func modelsToUnsortedEntries(tx *gorm.DB, fetchedRegisteredEntries []RegisteredE
 }
 
 func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry, error) {
-	var selectors []*common.Selector
 	var fetchedSelectors []*Selector
 	if err := tx.Model(&model).Related(&fetchedSelectors).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
+	selectors := make([]*common.Selector, 0, len(fetchedSelectors))
 	for _, selector := range fetchedSelectors {
 		selectors = append(selectors, &common.Selector{
 			Type:  selector.Type,
-			Value: selector.Value})
+			Value: selector.Value,
+		})
 	}
+
+	var fetchedBundles []*Bundle
+	if err := tx.Model(&model).Association("FederatesWith").Find(&fetchedBundles).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	var federatesWith []string
+	for _, bundle := range fetchedBundles {
+		federatesWith = append(federatesWith, bundle.TrustDomain)
+	}
+
 	return &common.RegistrationEntry{
-		EntryId:   model.EntryID,
-		Selectors: selectors,
-		SpiffeId:  model.SpiffeID,
-		ParentId:  model.ParentID,
-		Ttl:       model.TTL,
+		EntryId:       model.EntryID,
+		Selectors:     selectors,
+		SpiffeId:      model.SpiffeID,
+		ParentId:      model.ParentID,
+		Ttl:           model.TTL,
+		FederatesWith: federatesWith,
 	}, nil
 }
 
@@ -1195,4 +1249,49 @@ func modelToJoinToken(model JoinToken) *datastore.JoinToken {
 		Token:  model.Token,
 		Expiry: model.Expiry,
 	}
+}
+
+func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
+	var bundles []*Bundle
+	if err := tx.Where("trust_domain in (?)", ids).Find(&bundles).Error; err != nil {
+		return nil, err
+	}
+
+	// make sure all of the ids were found
+	idset := make(map[string]bool)
+	for _, bundle := range bundles {
+		idset[bundle.TrustDomain] = true
+	}
+
+	for _, id := range ids {
+		if !idset[id] {
+			return nil, fmt.Errorf("unable to find federated bundle %q", id)
+		}
+	}
+
+	return bundles, nil
+}
+
+func bindVars(db *gorm.DB, query string) string {
+	dialect := db.Dialect()
+	if dialect.BindVar(1) == "?" {
+		return query
+	}
+
+	return bindVarsFn(func(n int) string {
+		return dialect.BindVar(n)
+	}, query)
+}
+
+func bindVarsFn(fn func(int) string, query string) string {
+	var buf bytes.Buffer
+	var n int
+	for i := strings.Index(query, "?"); i != -1; i = strings.Index(query, "?") {
+		n++
+		buf.WriteString(query[:i])
+		buf.WriteString(fn(n))
+		query = query[i+1:]
+	}
+	buf.WriteString(query)
+	return buf.String()
 }

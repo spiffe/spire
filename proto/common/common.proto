@@ -43,8 +43,8 @@ message RegistrationEntry {
     string spiffe_id = 3;
     /** Time to live. */
     int32 ttl = 4;
-    /** A list of federated bundle spiffe ids. */
-    repeated string fb_spiffe_ids = 5;
+    /** A list of federated trust domain SPIFFE IDs. */
+    repeated string federates_with = 5;
     /** Entry ID */
     string entry_id = 6;
 }

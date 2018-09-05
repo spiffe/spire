@@ -25,6 +25,8 @@ type Bundle struct {
 
 	TrustDomain string `gorm:"not null;unique_index"`
 	CACerts     []CACert
+
+	FederatedEntries []RegisteredEntry `gorm:"many2many:federated_registration_entries;"`
 }
 
 type AttestedNode struct {
@@ -55,12 +57,12 @@ func (NodeSelector) TableName() string {
 type RegisteredEntry struct {
 	Model
 
-	EntryID   string `gorm:"unique_index"`
-	SpiffeID  string
-	ParentID  string
-	TTL       int32
-	Selectors []Selector
-	// TODO: Add support to Federated Bundles [https://github.com/spiffe/spire/issues/42]
+	EntryID       string `gorm:"unique_index"`
+	SpiffeID      string
+	ParentID      string
+	TTL           int32
+	Selectors     []Selector
+	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
 }
 
 // Keep time simple and easily comparable with UNIX time
