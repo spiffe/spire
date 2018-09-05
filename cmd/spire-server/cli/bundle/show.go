@@ -2,94 +2,39 @@ package bundle
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/pem"
 	"flag"
-	"fmt"
-	"io"
-	"os"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/cmd/spire-server/util"
-	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 )
 
-type showCLI struct {
-	newRegistrationClient func(ctx context.Context, addr string) (registration.RegistrationClient, error)
-	writer                io.Writer
-}
-
-type showConfig struct {
-	// Address of SPIRE server
-	addr string
-}
-
 // NewShowCommand creates a new "show" subcommand for "bundle" command.
 func NewShowCommand() cli.Command {
-	return &showCLI{
-		writer:                os.Stdout,
-		newRegistrationClient: util.NewRegistrationClient,
-	}
+	return newShowCommand(defaultEnv, newClients)
 }
 
-func (*showCLI) Synopsis() string {
-	return "Prints CA bundle to standard out"
+func newShowCommand(env *env, clientsMaker clientsMaker) cli.Command {
+	return adaptCommand(env, clientsMaker, new(showCommand))
 }
 
-func (s *showCLI) Help() string {
-	_, err := s.newConfig([]string{"-h"})
-	return err.Error()
+type showCommand struct {
 }
 
-func (s *showCLI) Run(args []string) int {
-	ctx := context.Background()
-
-	config, err := s.newConfig(args)
-	if err != nil {
-		fmt.Println(err.Error())
-		return 1
-	}
-
-	c, err := s.newRegistrationClient(ctx, config.addr)
-	if err != nil {
-		fmt.Println(err.Error())
-		return 1
-	}
-
-	bundle, err := c.FetchBundle(ctx, &common.Empty{})
-	if err != nil {
-		fmt.Println(err.Error())
-		return 1
-	}
-
-	err = s.printBundleAsPEM(bundle)
-	if err != nil {
-		fmt.Println(err.Error())
-		return 1
-	}
-
-	return 0
+func (c *showCommand) name() string {
+	return "bundle show"
 }
 
-func (*showCLI) newConfig(args []string) (*showConfig, error) {
-	f := flag.NewFlagSet("bundle show", flag.ContinueOnError)
-	c := &showConfig{}
-	f.StringVar(&c.addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
-	return c, f.Parse(args)
+func (c *showCommand) synopsis() string {
+	return "Prints server CA bundle to stdout"
 }
 
-func (s *showCLI) printBundleAsPEM(bundle *registration.Bundle) error {
-	certs, err := x509.ParseCertificates(bundle.CaCerts)
-	if err != nil {
-		return fmt.Errorf("FAILED to parse bundle's ASN.1 DER data: %v", err)
-	}
+func (c *showCommand) appendFlags(fs *flag.FlagSet) {
+}
 
-	for _, cert := range certs {
-		err := pem.Encode(s.writer, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
-		if err != nil {
-			return err
-		}
+func (c *showCommand) run(ctx context.Context, env *env, clients *clients) error {
+	bundle, err := clients.r.FetchBundle(ctx, &common.Empty{})
+	if err != nil {
+		return err
 	}
-	return nil
+	return printCACertsPEM(env.stdout, bundle.CaCerts)
 }
