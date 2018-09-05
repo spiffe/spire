@@ -80,6 +80,10 @@ func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundl
 
 	bundle := req.Bundle
 
+	if _, ok := s.bundles[bundle.TrustDomain]; !ok {
+		return nil, ErrNoSuchBundle
+	}
+
 	s.bundles[bundle.TrustDomain] = cloneBundle(bundle)
 	return &datastore.UpdateBundleResponse{
 		Bundle: cloneBundle(bundle),

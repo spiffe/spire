@@ -58,10 +58,7 @@ func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error
 		if err != nil {
 			return err
 		}
-		if err := printCACertsPEM(env.stdout, bundle.CaCerts); err != nil {
-			return err
-		}
-		return nil
+		return printCACertsPEM(env.stdout, bundle.CaCerts)
 	}
 
 	stream, err := clients.r.ListFederatedBundles(ctx, &common.Empty{})
@@ -97,7 +94,7 @@ func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error
 func printCACertsPEM(out io.Writer, caCerts []byte) error {
 	certs, err := x509.ParseCertificates(caCerts)
 	if err != nil {
-		return fmt.Errorf("Unable to parse certificates ASN.1 DER data: %v", err)
+		return fmt.Errorf("unable to parse certificates ASN.1 DER data: %v", err)
 	}
 
 	for _, cert := range certs {

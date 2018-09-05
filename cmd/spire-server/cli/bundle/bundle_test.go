@@ -19,24 +19,22 @@ import (
 
 const (
 	cert1PEM = `-----BEGIN CERTIFICATE-----
-MIIBazCB9qADAgECAgEBMA0GCSqGSIb3DQEBCwUAMAAwIhgPMDAwMTAxMDEwMDAw
-MDBaGA85OTk5MTIzMTIzNTk1OVowADB8MA0GCSqGSIb3DQEBAQUAA2sAMGgCYQDa
-66N/dVJS7SG5QKfe7kNof1FazqxlIIdOUHkFP7NtsaAYl9KvRrhFvJL1cPGzUB/r
-DXHya800n2N+eTD9nMqGsyURsuZ6EmH+3ALJ4MHB23Nd4M2AqP1vodXJmGfEWZ8C
-AwEAAaM3MDUwDwYDVR0TAQH/BAUwAwEB/zAiBgNVHREBAf8EGDAWhhRzcGlmZmU6
-Ly9kb21haW4xLm9yZzANBgkqhkiG9w0BAQsFAANhAKhllc6dGydPMDpp1HcM3EHe
-GWMcEIh/9knXGn+RnofPcZ7wo/NAEWE1L6KDuoBqDebYuux8FMOUF9t0vxs8scoR
-A0kxWh3e9x+qgKAonawPNQjEejUNjVn5Ws9EgkQDwA==
+MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
+GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv
+sCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXs
+RxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
+F4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09X
+makw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA
+dZglS5kKnYigmwDh+/U=
 -----END CERTIFICATE-----`
 	cert2PEM = `-----BEGIN CERTIFICATE-----
-MIIBazCB9qADAgECAgEBMA0GCSqGSIb3DQEBCwUAMAAwIhgPMDAwMTAxMDEwMDAw
-MDBaGA85OTk5MTIzMTIzNTk1OVowADB8MA0GCSqGSIb3DQEBAQUAA2sAMGgCYQDa
-66N/dVJS7SG5QKfe7kNof1FazqxlIIdOUHkFP7NtsaAYl9KvRrhFvJL1cPGzUB/r
-DXHya800n2N+eTD9nMqGsyURsuZ6EmH+3ALJ4MHB23Nd4M2AqP1vodXJmGfEWZ8C
-AwEAAaM3MDUwDwYDVR0TAQH/BAUwAwEB/zAiBgNVHREBAf8EGDAWhhRzcGlmZmU6
-Ly9kb21haW4yLm9yZzANBgkqhkiG9w0BAQsFAANhAKUKjYz7/FGgaRx+UccbIwF2
-ADk0ZfIYCNa7vT9UdUlP90e5la6UL7jGT65GtjPG9R2aF3Mt2vOVEfKh3cDr2q4I
-kH9lL2vU0UCso2vZxSX7K3MBUCQBYCxZRZqPC7070w==
+MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
+GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8V
+bmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4
+o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
+F4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYt
+q+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcgg
+diIqWtxAqBLFrx8zNS4=
 -----END CERTIFICATE-----`
 )
 
@@ -76,7 +74,7 @@ func (s *BundleSuite) SetupTest() {
 	s.stderr = new(bytes.Buffer)
 
 	s.ds = fakedatastore.New()
-	s.registrationClient = fakeregistrationclient.New(s.T(), "spiffe://example.org", s.ds, nil)
+	s.registrationClient = fakeregistrationclient.New(s.T(), "spiffe://example.test", s.ds, nil)
 
 	testEnv := &env{
 		stdin:  s.stdin,
@@ -117,21 +115,20 @@ func (s *BundleSuite) TestShowHelp() {
 
 func (s *BundleSuite) TestShow() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://example.org",
+		TrustDomain: "spiffe://example.test",
 		CaCerts:     s.cert1.Raw,
 	})
 
 	s.Require().Equal(0, s.showCmd.Run([]string{}))
 
 	s.Require().Equal(s.stdout.String(), `-----BEGIN CERTIFICATE-----
-MIIBazCB9qADAgECAgEBMA0GCSqGSIb3DQEBCwUAMAAwIhgPMDAwMTAxMDEwMDAw
-MDBaGA85OTk5MTIzMTIzNTk1OVowADB8MA0GCSqGSIb3DQEBAQUAA2sAMGgCYQDa
-66N/dVJS7SG5QKfe7kNof1FazqxlIIdOUHkFP7NtsaAYl9KvRrhFvJL1cPGzUB/r
-DXHya800n2N+eTD9nMqGsyURsuZ6EmH+3ALJ4MHB23Nd4M2AqP1vodXJmGfEWZ8C
-AwEAAaM3MDUwDwYDVR0TAQH/BAUwAwEB/zAiBgNVHREBAf8EGDAWhhRzcGlmZmU6
-Ly9kb21haW4xLm9yZzANBgkqhkiG9w0BAQsFAANhAKhllc6dGydPMDpp1HcM3EHe
-GWMcEIh/9knXGn+RnofPcZ7wo/NAEWE1L6KDuoBqDebYuux8FMOUF9t0vxs8scoR
-A0kxWh3e9x+qgKAonawPNQjEejUNjVn5Ws9EgkQDwA==
+MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
+GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv
+sCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXs
+RxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
+F4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09X
+makw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA
+dZglS5kKnYigmwDh+/U=
 -----END CERTIFICATE-----
 `)
 }
@@ -155,13 +152,13 @@ func (s *BundleSuite) TestSetWithoutID() {
 }
 
 func (s *BundleSuite) TestSetWithInvalidTrustDomainID() {
-	rc := s.setCmd.Run([]string{"-id", "spiffe://otherdomain.org/spire/server"})
+	rc := s.setCmd.Run([]string{"-id", "spiffe://otherdomain.test/spire/server"})
 	s.Require().Equal(1, rc)
-	s.Require().Equal("\"spiffe://otherdomain.org/spire/server\" is not a valid trust domain SPIFFE ID: path is not empty\n", s.stderr.String())
+	s.Require().Equal("\"spiffe://otherdomain.test/spire/server\" is not a valid trust domain SPIFFE ID: path is not empty\n", s.stderr.String())
 }
 
 func (s *BundleSuite) TestSetWithBadBundleData() {
-	rc := s.setCmd.Run([]string{"-id", "spiffe://otherdomain.org"})
+	rc := s.setCmd.Run([]string{"-id", "spiffe://otherdomain.test"})
 	s.Require().Equal(1, rc)
 	s.Require().Equal("invalid bundle data: no PEM blocks\n", s.stderr.String())
 }
@@ -173,7 +170,7 @@ func (s *BundleSuite) TestSetCreatesBundle() {
 
 func (s *BundleSuite) TestSetUpdatesBundle() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://otherdomain.org",
+		TrustDomain: "spiffe://otherdomain.test",
 		CaCerts:     []byte("BOGUSCERTS"),
 	})
 	s.stdin.WriteString(cert1PEM)
@@ -181,7 +178,7 @@ func (s *BundleSuite) TestSetUpdatesBundle() {
 }
 
 func (s *BundleSuite) TestSetCannotLoadBundleFromFile() {
-	rc := s.setCmd.Run([]string{"-id", "spiffe://otherdomain.org", "-path", "/not/a/real/path/to/a/bundle"})
+	rc := s.setCmd.Run([]string{"-id", "spiffe://otherdomain.test", "-path", "/not/a/real/path/to/a/bundle"})
 	s.Require().Equal(1, rc)
 	s.Require().Equal("unable to load bundle data: open /not/a/real/path/to/a/bundle: no such file or directory\n", s.stderr.String())
 }
@@ -209,67 +206,64 @@ func (s *BundleSuite) TestListHelp() {
 
 func (s *BundleSuite) TestListAll() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain1.org",
+		TrustDomain: "spiffe://domain1.test",
 		CaCerts:     s.cert1.Raw,
 	})
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain2.org",
+		TrustDomain: "spiffe://domain2.test",
 		CaCerts:     s.cert2.Raw,
 	})
 
 	s.Require().Equal(0, s.listCmd.Run([]string{}))
 
 	s.Require().Equal(s.stdout.String(), `****************************************
-* spiffe://domain1.org
+* spiffe://domain1.test
 ****************************************
 -----BEGIN CERTIFICATE-----
-MIIBazCB9qADAgECAgEBMA0GCSqGSIb3DQEBCwUAMAAwIhgPMDAwMTAxMDEwMDAw
-MDBaGA85OTk5MTIzMTIzNTk1OVowADB8MA0GCSqGSIb3DQEBAQUAA2sAMGgCYQDa
-66N/dVJS7SG5QKfe7kNof1FazqxlIIdOUHkFP7NtsaAYl9KvRrhFvJL1cPGzUB/r
-DXHya800n2N+eTD9nMqGsyURsuZ6EmH+3ALJ4MHB23Nd4M2AqP1vodXJmGfEWZ8C
-AwEAAaM3MDUwDwYDVR0TAQH/BAUwAwEB/zAiBgNVHREBAf8EGDAWhhRzcGlmZmU6
-Ly9kb21haW4xLm9yZzANBgkqhkiG9w0BAQsFAANhAKhllc6dGydPMDpp1HcM3EHe
-GWMcEIh/9knXGn+RnofPcZ7wo/NAEWE1L6KDuoBqDebYuux8FMOUF9t0vxs8scoR
-A0kxWh3e9x+qgKAonawPNQjEejUNjVn5Ws9EgkQDwA==
+MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
+GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv
+sCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXs
+RxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
+F4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09X
+makw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA
+dZglS5kKnYigmwDh+/U=
 -----END CERTIFICATE-----
 
 ****************************************
-* spiffe://domain2.org
+* spiffe://domain2.test
 ****************************************
 -----BEGIN CERTIFICATE-----
-MIIBazCB9qADAgECAgEBMA0GCSqGSIb3DQEBCwUAMAAwIhgPMDAwMTAxMDEwMDAw
-MDBaGA85OTk5MTIzMTIzNTk1OVowADB8MA0GCSqGSIb3DQEBAQUAA2sAMGgCYQDa
-66N/dVJS7SG5QKfe7kNof1FazqxlIIdOUHkFP7NtsaAYl9KvRrhFvJL1cPGzUB/r
-DXHya800n2N+eTD9nMqGsyURsuZ6EmH+3ALJ4MHB23Nd4M2AqP1vodXJmGfEWZ8C
-AwEAAaM3MDUwDwYDVR0TAQH/BAUwAwEB/zAiBgNVHREBAf8EGDAWhhRzcGlmZmU6
-Ly9kb21haW4yLm9yZzANBgkqhkiG9w0BAQsFAANhAKUKjYz7/FGgaRx+UccbIwF2
-ADk0ZfIYCNa7vT9UdUlP90e5la6UL7jGT65GtjPG9R2aF3Mt2vOVEfKh3cDr2q4I
-kH9lL2vU0UCso2vZxSX7K3MBUCQBYCxZRZqPC7070w==
+MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
+GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8V
+bmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4
+o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
+F4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYt
+q+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcgg
+diIqWtxAqBLFrx8zNS4=
 -----END CERTIFICATE-----
 `)
 }
 
 func (s *BundleSuite) TestListOne() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain1.org",
+		TrustDomain: "spiffe://domain1.test",
 		CaCerts:     s.cert1.Raw,
 	})
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain2.org",
+		TrustDomain: "spiffe://domain2.test",
 		CaCerts:     s.cert2.Raw,
 	})
 
-	s.Require().Equal(0, s.listCmd.Run([]string{"-id", "spiffe://domain2.org"}))
+	s.Require().Equal(0, s.listCmd.Run([]string{"-id", "spiffe://domain2.test"}))
 
 	s.Require().Equal(s.stdout.String(), `-----BEGIN CERTIFICATE-----
-MIIBazCB9qADAgECAgEBMA0GCSqGSIb3DQEBCwUAMAAwIhgPMDAwMTAxMDEwMDAw
-MDBaGA85OTk5MTIzMTIzNTk1OVowADB8MA0GCSqGSIb3DQEBAQUAA2sAMGgCYQDa
-66N/dVJS7SG5QKfe7kNof1FazqxlIIdOUHkFP7NtsaAYl9KvRrhFvJL1cPGzUB/r
-DXHya800n2N+eTD9nMqGsyURsuZ6EmH+3ALJ4MHB23Nd4M2AqP1vodXJmGfEWZ8C
-AwEAAaM3MDUwDwYDVR0TAQH/BAUwAwEB/zAiBgNVHREBAf8EGDAWhhRzcGlmZmU6
-Ly9kb21haW4yLm9yZzANBgkqhkiG9w0BAQsFAANhAKUKjYz7/FGgaRx+UccbIwF2
-ADk0ZfIYCNa7vT9UdUlP90e5la6UL7jGT65GtjPG9R2aF3Mt2vOVEfKh3cDr2q4I
-kH9lL2vU0UCso2vZxSX7K3MBUCQBYCxZRZqPC7070w==
+MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
+GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8V
+bmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4
+o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
+F4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYt
+q+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcgg
+diIqWtxAqBLFrx8zNS4=
 -----END CERTIFICATE-----
 `)
 }
@@ -291,27 +285,27 @@ func (s *BundleSuite) TestDeleteWithoutID() {
 
 func (s *BundleSuite) TestDelete() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain1.org",
+		TrustDomain: "spiffe://domain1.test",
 		CaCerts:     s.cert1.Raw,
 	})
 
-	s.Require().Equal(0, s.deleteCmd.Run([]string{"-id", "spiffe://domain1.org"}))
+	s.Require().Equal(0, s.deleteCmd.Run([]string{"-id", "spiffe://domain1.test"}))
 	s.Require().Equal("bundle deleted.\n", s.stdout.String())
 
 	_, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-		TrustDomain: "spiffe://domain1.org",
+		TrustDomain: "spiffe://domain1.test",
 	})
 	s.Require().EqualError(err, "no such bundle")
 }
 
 func (s *BundleSuite) assertBundleSet(extraArgs ...string) {
-	rc := s.setCmd.Run(append([]string{"-id", "spiffe://otherdomain.org"}, extraArgs...))
+	rc := s.setCmd.Run(append([]string{"-id", "spiffe://otherdomain.test"}, extraArgs...))
 	s.Require().Equal(0, rc)
 	s.Require().Equal("bundle set.\n", s.stdout.String())
 
 	// make sure it made it into the datastore
 	resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-		TrustDomain: "spiffe://otherdomain.org",
+		TrustDomain: "spiffe://otherdomain.test",
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)

@@ -36,8 +36,5 @@ func (c *showCommand) run(ctx context.Context, env *env, clients *clients) error
 	if err != nil {
 		return err
 	}
-	if err := printCACertsPEM(env.stdout, bundle.CaCerts); err != nil {
-		return err
-	}
-	return nil
+	return printCACertsPEM(env.stdout, bundle.CaCerts)
 }

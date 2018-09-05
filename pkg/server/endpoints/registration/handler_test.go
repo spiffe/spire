@@ -173,11 +173,10 @@ func (s *HandlerSuite) TestListFederatedBundles() {
 
 func (s *HandlerSuite) TestUpdateFederatedBundle() {
 	// create a bundle to be updated
-	_, err := s.ds.CreateBundle(context.Background(), &datastore.Bundle{
+	s.createBundle(&datastore.Bundle{
 		TrustDomain: "spiffe://otherdomain.org",
 		CaCerts:     []byte("UPDATEME"),
 	})
-	s.Require().NoError(err)
 
 	testCases := []struct {
 		Id      string
