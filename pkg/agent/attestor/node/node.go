@@ -307,6 +307,9 @@ func (a *attestor) serverCredFunc(bundle []*x509.Certificate) func() (credential
 }
 
 func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) (*x509.Certificate, []*x509.Certificate, error) {
+	if r.SvidUpdate == nil {
+		return nil, nil, errors.New("response missing svid update")
+	}
 	if len(r.SvidUpdate.Svids) < 1 {
 		return nil, nil, errors.New("no svid received")
 	}

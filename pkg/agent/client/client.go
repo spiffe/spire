@@ -130,11 +130,12 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 		if err != nil {
 			// There was an error receiving a response, exit loop to return what we have.
 			logrus.Errorf("failed to consume entire SVID update stream: %v", err)
-			return &Update{
-				Entries: regEntries,
-				SVIDs:   svids,
-				Bundles: bundles,
-			}, nil
+			return nil, err
+		}
+
+		if resp.SvidUpdate == nil {
+			logrus.Warn("empty update in SVID update stream")
+			continue
 		}
 
 		for _, re := range resp.SvidUpdate.RegistrationEntries {

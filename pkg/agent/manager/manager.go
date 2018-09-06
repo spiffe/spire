@@ -37,8 +37,9 @@ type Manager interface {
 	// each time an SVID rotation finishes.
 	SubscribeToSVIDChanges() observer.Stream
 
-	// SubscribeToBundleChanges returns a new observer.Stream on which []*x509.Certificate instances are
-	// received each time the bundle changes.
+	// SubscribeToBundleChanges returns a new bundle stream on which
+	// map[string][]*x509.Certificate instances are received each time the
+	// bundle changes.
 	SubscribeToBundleChanges() *cache.BundleStream
 
 	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries

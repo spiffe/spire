@@ -83,12 +83,12 @@ type Cache interface {
 	Entries() []*Entry
 	// Registers and returns a Subscriber, and then sends latest WorkloadUpdate on its channel
 	Subscribe(selectors Selectors) Subscriber
-	// Set the bundle
+	// Set the bundles
 	SetBundles(map[string][]*x509.Certificate)
 	// Retrieve the bundle for the trust domain
 	Bundle() []*x509.Certificate
-	// SubscribeToBundleChanges returns a new observer.Stream of []*x509.Certificate instances. Each
-	// time the bundle is updated, a new instance is streamed.
+	// SubscribeToBundleChanges returns a bundle stream. Each
+	// time bundles are updated, a new bundle mapping is streamed.
 	SubscribeToBundleChanges() *BundleStream
 }
 
