@@ -76,14 +76,15 @@ human-readable registration entry name in addition to the token-based entry.
 
 Creates registration entries.
 
-| Command       | Action                                                                 | Default        |
-|:--------------|:-----------------------------------------------------------------------|:---------------|
-| `-data`       | Path to a file containing registration data in JSON format (optional). |                |
-| `-parentID`   | The SPIFFE ID of this record's parent.                                 |                |
-| `-selector`   | A colon-delimeted type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
-| `-serverAddr` | Address of the SPIRE server.                                           | localhost:8081 |
-| `-spiffeID`   | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
-| `-ttl`        | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+| Command          | Action                                                                 | Default        |
+|:-----------------|:-----------------------------------------------------------------------|:---------------|
+| `-data`          | Path to a file containing registration data in JSON format (optional). |                |
+| `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |
+| `-selector`      | A colon-delimeted type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
+| `-serverAddr`    | Address of the SPIRE server.                                           | localhost:8081 |
+| `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
+| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+| `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
 
 ### `spire-server entry delete`
 
@@ -106,6 +107,39 @@ Displays configured registration entries.
 | `-serverAddr` | Address of the SPIRE server.                                       | localhost:8081 |
 | `-spiffeID`   | The SPIFFE ID of the records to show.                              |                |
 | `-selector`   | A TTL, in seconds, for any SVID issued as a result of this record. | 3600           |
+
+### `spire-server bundle show`
+
+Displays the bundle for the trust domain of the server.
+
+| Command       | 
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-serverAddr` | Address of the SPIRE server.                                       | localhost:8081 |
+
+### `spire-server bundle list`
+
+Displays bundles from other trust domains.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-id`         | The trust domain SPIFFE ID of the bundle to show. If unset, all trust bundles are shown | |
+
+### `spire-server bundle set`
+
+Creates or updates bundle data for a trust domain. This command cannot be used to alter the server trust domain bundle, only bundles for other trust domains.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-id`         | The trust domain SPIFFE ID of the bundle to set. | |
+| `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
+
+### `spire-server bundle delete`
+
+Deletes bundle data for a trust domain. This command cannot be used to delete the server trust domain bundle, only bundles for other trust domains.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-id`         | The trust domain SPIFFE ID of the bundle to delete. | |
 
 ## Architecture
 
