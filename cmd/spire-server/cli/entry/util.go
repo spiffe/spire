@@ -10,7 +10,7 @@ import (
 // hasSelectors takes a registration entry and a selector flag set. It returns
 // true if the registration entry possesses all selectors in the set. An error
 // is returned if we run into trouble parsing the selector flags.
-func hasSelectors(entry *common.RegistrationEntry, flags SelectorFlag) (bool, error) {
+func hasSelectors(entry *common.RegistrationEntry, flags StringsFlag) (bool, error) {
 	for _, f := range flags {
 		selector, err := parseSelector(f)
 		if err != nil {
@@ -65,19 +65,22 @@ func printEntry(e *common.RegistrationEntry) {
 	for _, s := range e.Selectors {
 		fmt.Printf("Selector:\t%s:%s\n", s.Type, s.Value)
 	}
+	for _, id := range e.FederatesWith {
+		fmt.Printf("FederatesWith:\t%s\n", id)
+	}
 
 	fmt.Println()
 }
 
-// Define a custom type for selectors. Doing
-// this allows us to support repeatable flags
-type SelectorFlag []string
+// Define a custom type for string lists. Doing
+// this allows us to support repeatable string flags.
+type StringsFlag []string
 
-func (s *SelectorFlag) String() string {
+func (s *StringsFlag) String() string {
 	return fmt.Sprint(*s)
 }
 
-func (s *SelectorFlag) Set(val string) error {
+func (s *StringsFlag) Set(val string) error {
 	*s = append(*s, val)
 	return nil
 }

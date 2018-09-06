@@ -35,8 +35,8 @@ func TestHasSelectors(t *testing.T) {
 	a.False(hasSelectors(entry, selectorToFlag(selectors[2:4])))
 }
 
-func selectorToFlag(selectors []*common.Selector) SelectorFlag {
-	resp := SelectorFlag{}
+func selectorToFlag(selectors []*common.Selector) StringsFlag {
+	resp := StringsFlag{}
 	for _, s := range selectors {
 		str := s.Type + ":" + s.Value
 		resp.Set(str)
