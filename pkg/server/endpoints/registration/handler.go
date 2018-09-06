@@ -283,7 +283,7 @@ func (h *Handler) UpdateFederatedBundle(
 }
 
 func (h *Handler) DeleteFederatedBundle(
-	ctx context.Context, request *registration.FederatedBundleID) (
+	ctx context.Context, request *registration.DeleteFederatedBundleRequest) (
 	response *common.Empty, err error) {
 
 	if request.Id == h.TrustDomain.String() {
@@ -294,9 +294,15 @@ func (h *Handler) DeleteFederatedBundle(
 		return nil, err
 	}
 
+	mode, err := convertDeleteBundleMode(request.Mode)
+	if err != nil {
+		return nil, err
+	}
+
 	ds := h.getDataStore()
 	if _, err := ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
 		TrustDomain: request.Id,
+		Mode:        mode,
 	}); err != nil {
 		return nil, err
 	}
@@ -381,4 +387,16 @@ func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, ent
 
 func (h *Handler) getDataStore() datastore.DataStore {
 	return h.Catalog.DataStores()[0]
+}
+
+func convertDeleteBundleMode(in registration.DeleteFederatedBundleRequest_Mode) (datastore.DeleteBundleRequest_Mode, error) {
+	switch in {
+	case registration.DeleteFederatedBundleRequest_RESTRICT:
+		return datastore.DeleteBundleRequest_RESTRICT, nil
+	case registration.DeleteFederatedBundleRequest_DISSOCIATE:
+		return datastore.DeleteBundleRequest_DISSOCIATE, nil
+	case registration.DeleteFederatedBundleRequest_DELETE:
+		return datastore.DeleteBundleRequest_DELETE, nil
+	}
+	return datastore.DeleteBundleRequest_RESTRICT, fmt.Errorf("unhandled delete mode %q", in)
 }

@@ -51,6 +51,22 @@ message FederatedBundleID {
     string id  = 1;
 }
 
+message DeleteFederatedBundleRequest {
+    // Mode controls the delete behavior if there are other records
+    // associated with the bundle (e.g. registration entries).
+    enum Mode {
+        // RESTRICT prevents the bundle from being deleted in the presence of associated entries
+        RESTRICT = 0;
+        // DELETE deletes the bundle and associated entries
+        DELETE = 1;
+        // DISSOCIATE deletes the bundle and dissociates associated entries
+        DISSOCIATE = 2;
+    }
+
+    string id = 1;
+    Mode mode = 2;
+}
+
 // JoinToken message is used for registering a new token
 message JoinToken {
     // The join token. If not set, one will be generated
@@ -107,7 +123,7 @@ service Registration {
     // Updates a particular Federated Bundle. Useful for rotation.
     rpc UpdateFederatedBundle(FederatedBundle) returns (spire.common.Empty);
     // Delete a particular Federated Bundle. Used to destroy inter-domain trust.
-    rpc DeleteFederatedBundle(FederatedBundleID) returns (spire.common.Empty);
+    rpc DeleteFederatedBundle(DeleteFederatedBundleRequest) returns (spire.common.Empty);
 
     // Create a new join token
     rpc CreateJoinToken(JoinToken) returns (JoinToken);
