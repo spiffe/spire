@@ -36,13 +36,18 @@ func TestFetchUpdates(t *testing.T) {
 	}
 	res := &node.FetchX509SVIDResponse{
 		SvidUpdate: &node.X509SVIDUpdate{
-			Bundle: []byte{10, 20, 30, 40},
 			RegistrationEntries: []*common.RegistrationEntry{{
 				EntryId: "1",
 			}},
 			Svids: map[string]*node.X509SVID{
 				"someSpiffeId": {
 					Cert: []byte{11, 22, 33},
+				},
+			},
+			Bundles: map[string]*node.Bundle{
+				"spiffe://example.org": {
+					Id:      "spiffe://example.org",
+					CaCerts: []byte{10, 20, 30, 40},
 				},
 			},
 		},
@@ -57,7 +62,7 @@ func TestFetchUpdates(t *testing.T) {
 	update, err := client.FetchUpdates(context.Background(), req)
 	require.Nil(t, err)
 
-	assert.Equal(t, res.SvidUpdate.Bundle, update.Bundle)
+	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
 	assert.Equal(t, res.SvidUpdate.Svids, update.SVIDs)
 	for _, entry := range res.SvidUpdate.RegistrationEntries {
 		assert.Equal(t, entry, update.Entries[entry.EntryId])

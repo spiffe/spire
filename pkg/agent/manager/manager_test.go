@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -31,6 +32,11 @@ import (
 
 const (
 	tmpSubdirName = "manager-test"
+	trustDomain   = "example.org"
+)
+
+var (
+	trustDomainID = url.URL{Scheme: "spiffe", Host: "example.org"}
 )
 
 var (
@@ -39,7 +45,6 @@ var (
 )
 
 func TestInitializationFailure(t *testing.T) {
-	trustDomain := "somedomain.com"
 	ca, cakey := createCA(t, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
@@ -47,7 +52,7 @@ func TestInitializationFailure(t *testing.T) {
 		SVID:        baseSVID,
 		SVIDKey:     baseSVIDKey,
 		Log:         testLogger,
-		TrustDomain: url.URL{Host: trustDomain},
+		TrustDomain: trustDomainID,
 	}
 	m, err := New(c)
 	if err != nil {
@@ -64,7 +69,6 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	trustDomain := "somedomain.com"
 	ca, cakey := createCA(t, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
@@ -72,7 +76,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     url.URL{Host: trustDomain},
+		TrustDomain:     trustDomainID,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          []*x509.Certificate{ca},
@@ -82,9 +86,13 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !m.bundleAlreadyCached([]*x509.Certificate{ca}) {
-		t.Fatal("bundle should have been cached in memory")
-	}
+	util.RunWithTimeout(t, time.Second, func() {
+		sub := m.SubscribeToBundleChanges()
+		bundles := sub.Value()
+		require.NotNil(t, bundles)
+		bundleCerts := bundles[trustDomainID.String()]
+		require.Equal(t, bundleCerts, []*x509.Certificate{ca})
+	})
 
 	err = m.Initialize(context.Background())
 	if err == nil {
@@ -107,7 +115,6 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	trustDomain := "somedomain.com"
 	ca, cakey := createCA(t, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
@@ -115,7 +122,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     url.URL{Host: trustDomain},
+		TrustDomain:     trustDomainID,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 	}
@@ -150,8 +157,6 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	trustDomain := "example.org"
-
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
 		t.Fatal(err)
@@ -175,7 +180,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     url.URL{Host: trustDomain},
+		TrustDomain:     trustDomainID,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          apiHandler.bundle,
@@ -230,8 +235,6 @@ func TestSVIDRotation(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	trustDomain := "example.org"
-
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +259,7 @@ func TestSVIDRotation(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      url.URL{Host: trustDomain},
+		TrustDomain:      trustDomainID,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
@@ -302,8 +305,6 @@ func TestSynchronization(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	trustDomain := "example.org"
-
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
 		t.Fatal(err)
@@ -327,7 +328,7 @@ func TestSynchronization(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      url.URL{Host: trustDomain},
+		TrustDomain:      trustDomainID,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
@@ -429,8 +430,6 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	trustDomain := "example.org"
-
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
 		t.Fatal(err)
@@ -454,7 +453,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
-		TrustDomain:     url.URL{Host: trustDomain},
+		TrustDomain:     trustDomainID,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          apiHandler.bundle,
@@ -488,8 +487,6 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	trustDomain := "example.org"
-
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
 		t.Fatal(err)
@@ -513,7 +510,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      url.URL{Host: trustDomain},
+		TrustDomain:      trustDomainID,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           []*x509.Certificate{apiHandler.bundle[0]},
@@ -547,8 +544,6 @@ func TestSurvivesCARotation(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
 
-	trustDomain := "example.org"
-
 	l, err := net.Listen("tcp", "localhost:")
 	if err != nil {
 		t.Fatal(err)
@@ -574,7 +569,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
-		TrustDomain:      url.URL{Host: trustDomain},
+		TrustDomain:      trustDomainID,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           []*x509.Certificate{apiHandler.bundle[0]},
@@ -725,7 +720,12 @@ func newFetchX509SVIDResponse(regEntriesKeys []string, svids svidMap, bundle []*
 		SvidUpdate: &node.X509SVIDUpdate{
 			RegistrationEntries: regEntries,
 			Svids:               svids,
-			Bundle:              bundleBytes.Bytes(),
+			Bundles: map[string]*node.Bundle{
+				trustDomainID.String(): {
+					Id:      trustDomainID.String(),
+					CaCerts: bundleBytes.Bytes(),
+				},
+			},
 		},
 	}
 }
@@ -870,11 +870,6 @@ func (h *mockNodeAPIHandler) FetchJWTSVID(ctx context.Context, req *node.FetchJW
 		return h.c.fetchJWTSVID(h, req)
 	}
 	return nil, errors.New("oh noes")
-}
-
-func (h *mockNodeAPIHandler) FetchFederatedBundle(context.Context, *node.FetchFederatedBundleRequest) (*node.FetchFederatedBundleResponse, error) {
-	h.c.t.Fatalf("unexpected call to FetchFederatedBundle")
-	return nil, nil
 }
 
 func (h *mockNodeAPIHandler) start() {

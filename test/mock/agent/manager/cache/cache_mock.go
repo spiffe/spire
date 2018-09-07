@@ -7,7 +7,6 @@ package mock_cache
 import (
 	x509 "crypto/x509"
 	gomock "github.com/golang/mock/gomock"
-	go_observer "github.com/imkira/go-observer"
 	cache "github.com/spiffe/spire/pkg/agent/manager/cache"
 	common "github.com/spiffe/spire/proto/common"
 	reflect "reflect"
@@ -84,26 +83,14 @@ func (mr *MockCacheMockRecorder) Entry(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Entry", reflect.TypeOf((*MockCache)(nil).Entry), arg0)
 }
 
-// IsEmpty mocks base method
-func (m *MockCache) IsEmpty() bool {
-	ret := m.ctrl.Call(m, "IsEmpty")
-	ret0, _ := ret[0].(bool)
-	return ret0
+// SetBundles mocks base method
+func (m *MockCache) SetBundles(arg0 map[string][]*x509.Certificate) {
+	m.ctrl.Call(m, "SetBundles", arg0)
 }
 
-// IsEmpty indicates an expected call of IsEmpty
-func (mr *MockCacheMockRecorder) IsEmpty() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockCache)(nil).IsEmpty))
-}
-
-// SetBundle mocks base method
-func (m *MockCache) SetBundle(arg0 []*x509.Certificate) {
-	m.ctrl.Call(m, "SetBundle", arg0)
-}
-
-// SetBundle indicates an expected call of SetBundle
-func (mr *MockCacheMockRecorder) SetBundle(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBundle", reflect.TypeOf((*MockCache)(nil).SetBundle), arg0)
+// SetBundles indicates an expected call of SetBundles
+func (mr *MockCacheMockRecorder) SetBundles(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBundles", reflect.TypeOf((*MockCache)(nil).SetBundles), arg0)
 }
 
 // SetEntry mocks base method
@@ -129,9 +116,9 @@ func (mr *MockCacheMockRecorder) Subscribe(arg0 interface{}) *gomock.Call {
 }
 
 // SubscribeToBundleChanges mocks base method
-func (m *MockCache) SubscribeToBundleChanges() go_observer.Stream {
+func (m *MockCache) SubscribeToBundleChanges() *cache.BundleStream {
 	ret := m.ctrl.Call(m, "SubscribeToBundleChanges")
-	ret0, _ := ret[0].(go_observer.Stream)
+	ret0, _ := ret[0].(*cache.BundleStream)
 	return ret0
 }
 
