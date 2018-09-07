@@ -109,7 +109,7 @@ func (mr *MockRegistrationClientMockRecorder) DeleteEntry(arg0, arg1 interface{}
 }
 
 // DeleteFederatedBundle mocks base method
-func (m *MockRegistrationClient) DeleteFederatedBundle(arg0 context.Context, arg1 *registration.FederatedBundleID, arg2 ...grpc.CallOption) (*common.Empty, error) {
+func (m *MockRegistrationClient) DeleteFederatedBundle(arg0 context.Context, arg1 *registration.DeleteFederatedBundleRequest, arg2 ...grpc.CallOption) (*common.Empty, error) {
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
@@ -382,7 +382,7 @@ func (mr *MockRegistrationServerMockRecorder) DeleteEntry(arg0, arg1 interface{}
 }
 
 // DeleteFederatedBundle mocks base method
-func (m *MockRegistrationServer) DeleteFederatedBundle(arg0 context.Context, arg1 *registration.FederatedBundleID) (*common.Empty, error) {
+func (m *MockRegistrationServer) DeleteFederatedBundle(arg0 context.Context, arg1 *registration.DeleteFederatedBundleRequest) (*common.Empty, error) {
 	ret := m.ctrl.Call(m, "DeleteFederatedBundle", arg0, arg1)
 	ret0, _ := ret[0].(*common.Empty)
 	ret1, _ := ret[1].(error)

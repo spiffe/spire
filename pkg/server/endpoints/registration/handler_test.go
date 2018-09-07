@@ -232,7 +232,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 	})
 
 	for _, testCase := range testCases {
-		response, err := s.handler.DeleteFederatedBundle(context.Background(), &registration.FederatedBundleID{
+		response, err := s.handler.DeleteFederatedBundle(context.Background(), &registration.DeleteFederatedBundleRequest{
 			Id: testCase.Id,
 		})
 

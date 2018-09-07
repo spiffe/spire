@@ -11,6 +11,7 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeregistrationclient"
@@ -273,6 +274,8 @@ func (s *BundleSuite) TestDeleteHelp() {
 	s.Require().Equal(`Usage of bundle delete:
   -id string
     	SPIFFE ID of the trust domain
+  -mode string
+    	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
   -serverAddr string
     	Address of the SPIRE server (default "localhost:8081")
 `, s.stderr.String())
@@ -281,6 +284,14 @@ func (s *BundleSuite) TestDeleteHelp() {
 func (s *BundleSuite) TestDeleteWithoutID() {
 	s.Require().Equal(1, s.deleteCmd.Run([]string{}))
 	s.Require().Equal("id is required\n", s.stderr.String())
+}
+
+func (s *BundleSuite) TestDeleteWithUnsupportedMode() {
+	s.Require().Equal(1, s.deleteCmd.Run([]string{
+		"-id", "spiffe://domain1.test",
+		"-mode", "whatever",
+	}))
+	s.Require().Equal("unsupported mode \"whatever\"\n", s.stderr.String())
 }
 
 func (s *BundleSuite) TestDelete() {
@@ -296,6 +307,27 @@ func (s *BundleSuite) TestDelete() {
 		TrustDomain: "spiffe://domain1.test",
 	})
 	s.Require().EqualError(err, "no such bundle")
+}
+
+func (s *BundleSuite) TestDeleteWithRestrictMode() {
+	s.createBundle(&datastore.Bundle{
+		TrustDomain: "spiffe://domain1.test",
+		CaCerts:     s.cert1.Raw,
+	})
+	s.createRegistrationEntry(&datastore.RegistrationEntry{
+		ParentId:      "spiffe://example.test/spire/agent/foo",
+		SpiffeId:      "spiffe://example.test/blog",
+		Selectors:     []*common.Selector{{Type: "foo", Value: "bar"}},
+		FederatesWith: []string{"spiffe://domain1.test"},
+	})
+
+	s.Require().Equal(1, s.deleteCmd.Run([]string{"-id", "spiffe://domain1.test"}))
+	s.Require().Equal("rpc error: code = Unknown desc = cannot delete bundle; federated with 1 registration entries\n", s.stderr.String())
+
+	_, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
+		TrustDomain: "spiffe://domain1.test",
+	})
+	s.Require().Nil(err)
 }
 
 func (s *BundleSuite) assertBundleSet(extraArgs ...string) {
@@ -318,4 +350,12 @@ func (s *BundleSuite) createBundle(bundle *datastore.Bundle) {
 		Bundle: bundle,
 	})
 	s.Require().NoError(err)
+}
+
+func (s *BundleSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
+	resp, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
+		Entry: entry,
+	})
+	s.Require().NoError(err)
+	return resp.Entry
 }
