@@ -44,7 +44,7 @@ func (c *deleteCommand) synopsis() string {
 
 func (c *deleteCommand) appendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
-	fs.StringVar(&c.mode, "mode", deleteBundleRestrict, "Deletion mode: one of restrict, delete, or dissociate")
+	fs.StringVar(&c.mode, "mode", deleteBundleRestrict, fmt.Sprintf("Deletion mode: one of %s, %s, or %s", deleteBundleRestrict, deleteBundleDelete, deleteBundleDissociate))
 }
 
 func (c *deleteCommand) run(ctx context.Context, env *env, clients *clients) error {
