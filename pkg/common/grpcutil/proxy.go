@@ -24,6 +24,7 @@ package grpcutil
 
 import (
 	"bufio"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -31,13 +32,14 @@ import (
 	"net/http/httputil"
 	"net/url"
 
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 
 const grpcUA = "grpc-go/" + grpc.Version
 
-func mapAddress(ctx context.Context, address string) (string, error) {
+func getProxyURL(ctx context.Context, address string) (*url.URL, error) {
 	req := &http.Request{
 		URL: &url.URL{
 			Scheme: "https",
@@ -46,12 +48,17 @@ func mapAddress(ctx context.Context, address string) (string, error) {
 	}
 	url, err := http.ProxyFromEnvironment(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if url == nil {
-		return "", nil
+		return nil, nil
 	}
-	return url.Host, nil
+	switch url.Scheme {
+	case "http", "https":
+	default:
+		return nil, fmt.Errorf("unsupported proxy scheme: %q", url.Scheme)
+	}
+	return url, nil
 }
 
 // To read a response from a net.Conn, http.ReadResponse() takes a bufio.Reader.
@@ -106,26 +113,35 @@ func doHTTPConnectHandshake(ctx context.Context, conn net.Conn, addr string) (_ 
 // proxyDial dials to a proxy and does an HTTP CONNECT handshake if proxying is
 // enabled. Otherwise, it just does a regular TCP dial. It is based on the
 // newProxyDialer wrapper implementation from the gRPC codebase.
-func proxyDial(ctx context.Context, addr string) (conn net.Conn, err error) {
-	var skipHandshake bool
-	newAddr, err := mapAddress(ctx, addr)
+func proxyDial(ctx context.Context, log logrus.StdLogger, addr string) (conn net.Conn, err error) {
+	log.Printf("checking for proxy URL for %s", addr)
+	proxyURL, err := getProxyURL(ctx, addr)
 	if err != nil {
+		log.Printf("failed to obtain proxy url for address %s: %v", addr, err)
 		return nil, err
-	}
-	if newAddr == "" {
-		skipHandshake = true
-		newAddr = addr
 	}
 
-	conn, err = new(net.Dialer).DialContext(ctx, "tcp", newAddr)
+	if proxyURL == nil {
+		// no proxy; dial the address directly
+		return new(net.Dialer).DialContext(ctx, "tcp", addr)
+	}
+
+	// Dial the proxy
+	log.Printf("proxying via %s to reach %s", proxyURL.String(), addr)
+	conn, err = new(net.Dialer).DialContext(ctx, "tcp", proxyURL.Host)
 	if err != nil {
 		return nil, err
 	}
-	if !skipHandshake {
-		conn, err = doHTTPConnectHandshake(ctx, conn, addr)
-		if err != nil {
-			return nil, err
-		}
+
+	// if the proxy is over HTTPS, wrap the connection in a TLS connection
+	// before doing the HTTP CONNECT handshake.
+	if proxyURL.Scheme == "https" {
+		log.Printf("configuring TLS to connect to server %q", proxyURL.Hostname())
+		conn = tls.Client(conn, &tls.Config{
+			ServerName: proxyURL.Hostname(),
+		})
 	}
-	return conn, nil
+
+	// Do the HTTP-CONNECT handshake. If unsuccessful, conn is closed.
+	return doHTTPConnectHandshake(ctx, conn, addr)
 }
