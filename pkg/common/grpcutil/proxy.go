@@ -114,10 +114,9 @@ func doHTTPConnectHandshake(ctx context.Context, conn net.Conn, addr string) (_ 
 // enabled. Otherwise, it just does a regular TCP dial. It is based on the
 // newProxyDialer wrapper implementation from the gRPC codebase.
 func proxyDial(ctx context.Context, log logrus.StdLogger, addr string) (conn net.Conn, err error) {
-	log.Printf("checking for proxy URL for %s", addr)
 	proxyURL, err := getProxyURL(ctx, addr)
 	if err != nil {
-		log.Printf("failed to obtain proxy url for address %s: %v", addr, err)
+		log.Printf("Failed to obtain proxy url for address %s: %v", addr, err)
 		return nil, err
 	}
 
@@ -127,7 +126,7 @@ func proxyDial(ctx context.Context, log logrus.StdLogger, addr string) (conn net
 	}
 
 	// Dial the proxy
-	log.Printf("proxying via %s to reach %s", proxyURL.String(), addr)
+	log.Printf("Proxying via %s to reach %s", proxyURL.String(), addr)
 	conn, err = new(net.Dialer).DialContext(ctx, "tcp", proxyURL.Host)
 	if err != nil {
 		return nil, err
@@ -136,7 +135,6 @@ func proxyDial(ctx context.Context, log logrus.StdLogger, addr string) (conn net
 	// if the proxy is over HTTPS, wrap the connection in a TLS connection
 	// before doing the HTTP CONNECT handshake.
 	if proxyURL.Scheme == "https" {
-		log.Printf("configuring TLS to connect to server %q", proxyURL.Hostname())
 		conn = tls.Client(conn, &tls.Config{
 			ServerName: proxyURL.Hostname(),
 		})
