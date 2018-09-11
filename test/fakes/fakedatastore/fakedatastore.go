@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/golang/protobuf/proto"
@@ -40,6 +41,9 @@ type DataStore struct {
 	nodeSelectors       map[string][]*common.Selector
 	registrationEntries map[string]*datastore.RegistrationEntry
 	tokens              map[string]*datastore.JoinToken
+
+	// relates bundles with entries that federate with them
+	bundleEntries map[string]map[string]bool
 }
 
 var _ datastore.DataStore = (*DataStore)(nil)
@@ -51,6 +55,7 @@ func New() *DataStore {
 		nodeSelectors:       make(map[string][]*common.Selector),
 		registrationEntries: make(map[string]*datastore.RegistrationEntry),
 		tokens:              make(map[string]*datastore.JoinToken),
+		bundleEntries:       make(map[string]map[string]bool),
 	}
 }
 
@@ -66,6 +71,7 @@ func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.CreateBundl
 	}
 
 	s.bundles[bundle.TrustDomain] = cloneBundle(bundle)
+
 	return &datastore.CreateBundleResponse{
 		Bundle: cloneBundle(bundle),
 	}, nil
@@ -79,7 +85,12 @@ func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundl
 
 	bundle := req.Bundle
 
+	if _, ok := s.bundles[bundle.TrustDomain]; !ok {
+		return nil, ErrNoSuchBundle
+	}
+
 	s.bundles[bundle.TrustDomain] = cloneBundle(bundle)
+
 	return &datastore.UpdateBundleResponse{
 		Bundle: cloneBundle(bundle),
 	}, nil
@@ -103,7 +114,7 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundl
 		bundle = &datastore.Bundle{
 			TrustDomain: bundleIn.TrustDomain,
 		}
-		s.bundles[bundle.TrustDomain] = bundle
+		s.bundles[bundleIn.TrustDomain] = bundle
 	}
 
 	bundleCerts, err := x509.ParseCertificates(bundle.CaCerts)
@@ -139,6 +150,23 @@ func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundl
 	if !ok {
 		return nil, ErrNoSuchBundle
 	}
+
+	if bundleEntries := s.bundleEntries[req.TrustDomain]; len(bundleEntries) > 0 {
+		switch req.Mode {
+		case datastore.DeleteBundleRequest_DELETE:
+			for entryID := range bundleEntries {
+				delete(s.registrationEntries, entryID)
+			}
+		case datastore.DeleteBundleRequest_DISSOCIATE:
+			for entryID := range bundleEntries {
+				if entry := s.registrationEntries[entryID]; entry != nil {
+					entry.FederatesWith = removeString(entry.FederatesWith, req.TrustDomain)
+				}
+			}
+		default:
+			return nil, fmt.Errorf("cannot delete bundle; federated with %d registration entries", len(bundleEntries))
+		}
+	}
 	delete(s.bundles, req.TrustDomain)
 
 	return &datastore.DeleteBundleResponse{
@@ -166,9 +194,16 @@ func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// get an ordered list of keys so tests can rely on ordering for stability
+	keys := make([]string, 0, len(s.bundles))
+	for key := range s.bundles {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	resp := new(datastore.ListBundlesResponse)
-	for _, bundle := range s.bundles {
-		resp.Bundles = append(resp.Bundles, cloneBundle(bundle))
+	for _, key := range keys {
+		resp.Bundles = append(resp.Bundles, cloneBundle(s.bundles[key]))
 	}
 
 	return resp, nil
@@ -214,8 +249,16 @@ func (s *DataStore) ListAttestedNodes(ctx context.Context,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// get an ordered list of keys so tests can rely on ordering for stability
+	keys := make([]string, 0, len(s.attestedNodes))
+	for key := range s.attestedNodes {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	resp := new(datastore.ListAttestedNodesResponse)
-	for _, attestedNodeEntry := range s.attestedNodes {
+	for _, key := range keys {
+		attestedNodeEntry := s.attestedNodes[key]
 		if req.ByExpiresBefore != nil {
 			if attestedNodeEntry.CertNotAfter >= req.ByExpiresBefore.Value {
 				continue
@@ -299,6 +342,10 @@ func (s *DataStore) CreateRegistrationEntry(ctx context.Context,
 	entry := cloneRegistrationEntry(req.Entry)
 	entry.EntryId = entryID
 	s.registrationEntries[entryID] = entry
+
+	if err := s.addBundleLinks(entryID, req.Entry.FederatesWith); err != nil {
+		return nil, err
+	}
 
 	return &datastore.CreateRegistrationEntryResponse{
 		Entry: cloneRegistrationEntry(entry),
@@ -391,13 +438,19 @@ func (s DataStore) UpdateRegistrationEntry(ctx context.Context,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, ok := s.registrationEntries[req.Entry.EntryId]
+	oldEntry, ok := s.registrationEntries[req.Entry.EntryId]
 	if !ok {
 		return nil, ErrNoSuchRegistrationEntry
 	}
 
+	s.removeBundleLinks(oldEntry.EntryId, oldEntry.FederatesWith)
+
 	entry := cloneRegistrationEntry(req.Entry)
 	s.registrationEntries[req.Entry.EntryId] = entry
+
+	if err := s.addBundleLinks(entry.EntryId, req.Entry.FederatesWith); err != nil {
+		return nil, err
+	}
 
 	return &datastore.UpdateRegistrationEntryResponse{
 		Entry: cloneRegistrationEntry(entry),
@@ -415,6 +468,8 @@ func (s *DataStore) DeleteRegistrationEntry(ctx context.Context,
 		return nil, ErrNoSuchRegistrationEntry
 	}
 	delete(s.registrationEntries, req.EntryId)
+
+	s.removeBundleLinks(req.EntryId, registrationEntry.FederatesWith)
 
 	return &datastore.DeleteRegistrationEntryResponse{
 		Entry: cloneRegistrationEntry(registrationEntry),
@@ -488,6 +543,28 @@ func (DataStore) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
+func (s *DataStore) addBundleLinks(entryID string, bundleIDs []string) error {
+	for _, bundleID := range bundleIDs {
+		if _, ok := s.bundles[bundleID]; !ok {
+			return ErrNoSuchBundle
+		}
+		fmt.Printf("linking %s to %s\n", entryID, bundleID)
+		bundleEntries := s.bundleEntries[bundleID]
+		if bundleEntries == nil {
+			bundleEntries = make(map[string]bool)
+			s.bundleEntries[bundleID] = bundleEntries
+		}
+		bundleEntries[entryID] = true
+	}
+	return nil
+}
+
+func (s *DataStore) removeBundleLinks(entryID string, bundleIDs []string) {
+	for _, bundleID := range bundleIDs {
+		delete(s.bundleEntries[bundleID], entryID)
+	}
+}
+
 func cloneBytes(bytes []byte) []byte {
 	return append([]byte(nil), bytes...)
 }
@@ -527,4 +604,14 @@ nextSelector:
 		return false
 	}
 	return true
+}
+
+func removeString(list []string, s string) []string {
+	out := make([]string, 0, len(list))
+	for _, entry := range list {
+		if entry != s {
+			out = append(out, entry)
+		}
+	}
+	return out
 }

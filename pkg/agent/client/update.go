@@ -11,7 +11,7 @@ import (
 type Update struct {
 	Entries map[string]*common.RegistrationEntry
 	SVIDs   map[string]*node.X509SVID
-	Bundle  []byte
+	Bundles map[string]*node.Bundle
 }
 
 func (u *Update) String() string {
@@ -38,12 +38,11 @@ func (u *Update) String() string {
 		}
 		buffer.WriteString(" ")
 	}
-	buffer.WriteString("], Bundle: ")
-	if u.Bundle != nil && len(u.Bundle) > 0 {
-		buffer.WriteString("bytes")
-	} else {
-		buffer.WriteString("none")
+	buffer.WriteString("], Bundles: [")
+	for spiffeid := range u.Bundles {
+		buffer.WriteString(spiffeid)
+		buffer.WriteString(" ")
 	}
-	buffer.WriteString("}")
+	buffer.WriteString("]}")
 	return buffer.String()
 }

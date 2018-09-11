@@ -47,7 +47,7 @@ func New(c *Config) (*manager, error) {
 		c.RotationInterval = 60 * time.Second
 	}
 
-	cache := cache.New(c.Log, c.Bundle)
+	cache := cache.New(c.Log, c.TrustDomain.String(), c.Bundle)
 
 	rotCfg := &svid.RotatorConfig{
 		Log:          c.Log,

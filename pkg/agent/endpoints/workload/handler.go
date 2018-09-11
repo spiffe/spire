@@ -100,10 +100,12 @@ func (h *Handler) sendResponse(update *cache.WorkloadUpdate, stream workload.Spi
 func (h *Handler) composeResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDResponse, error) {
 	resp := new(workload.X509SVIDResponse)
 	resp.Svids = []*workload.X509SVID{}
+	resp.FederatedBundles = make(map[string][]byte)
 
-	bundle := []byte{}
-	for _, c := range update.Bundle {
-		bundle = append(bundle, c.Raw...)
+	bundle := marshalBundle(update.Bundle)
+
+	for id, federatedBundle := range update.FederatedBundles {
+		resp.FederatedBundles[id] = marshalBundle(federatedBundle)
 	}
 
 	for _, e := range update.Entries {
@@ -115,10 +117,11 @@ func (h *Handler) composeResponse(update *cache.WorkloadUpdate) (*workload.X509S
 		}
 
 		svid := &workload.X509SVID{
-			SpiffeId:    id,
-			X509Svid:    e.SVID.Raw,
-			X509SvidKey: keyData,
-			Bundle:      bundle,
+			SpiffeId:      id,
+			X509Svid:      e.SVID.Raw,
+			X509SvidKey:   keyData,
+			Bundle:        bundle,
+			FederatesWith: e.RegistrationEntry.FederatesWith,
 		}
 
 		resp.Svids = append(resp.Svids, svid)
@@ -147,4 +150,12 @@ func (h *Handler) callerPID(ctx context.Context) (pid int32, err error) {
 	}
 
 	return info.PID, nil
+}
+
+func marshalBundle(certs []*x509.Certificate) []byte {
+	bundle := []byte{}
+	for _, c := range certs {
+		bundle = append(bundle, c.Raw...)
+	}
+	return bundle
 }

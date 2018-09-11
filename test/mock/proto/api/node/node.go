@@ -54,24 +54,6 @@ func (mr *MockNodeClientMockRecorder) Attest(arg0 interface{}, arg1 ...interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Attest", reflect.TypeOf((*MockNodeClient)(nil).Attest), varargs...)
 }
 
-// FetchFederatedBundle mocks base method
-func (m *MockNodeClient) FetchFederatedBundle(arg0 context.Context, arg1 *node.FetchFederatedBundleRequest, arg2 ...grpc.CallOption) (*node.FetchFederatedBundleResponse, error) {
-	varargs := []interface{}{arg0, arg1}
-	for _, a := range arg2 {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "FetchFederatedBundle", varargs...)
-	ret0, _ := ret[0].(*node.FetchFederatedBundleResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchFederatedBundle indicates an expected call of FetchFederatedBundle
-func (mr *MockNodeClientMockRecorder) FetchFederatedBundle(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
-	varargs := append([]interface{}{arg0, arg1}, arg2...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchFederatedBundle", reflect.TypeOf((*MockNodeClient)(nil).FetchFederatedBundle), varargs...)
-}
-
 // FetchJWTSVID mocks base method
 func (m *MockNodeClient) FetchJWTSVID(arg0 context.Context, arg1 *node.FetchJWTSVIDRequest, arg2 ...grpc.CallOption) (*node.FetchJWTSVIDResponse, error) {
 	varargs := []interface{}{arg0, arg1}
@@ -501,19 +483,6 @@ func (m *MockNodeServer) Attest(arg0 node.Node_AttestServer) error {
 // Attest indicates an expected call of Attest
 func (mr *MockNodeServerMockRecorder) Attest(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Attest", reflect.TypeOf((*MockNodeServer)(nil).Attest), arg0)
-}
-
-// FetchFederatedBundle mocks base method
-func (m *MockNodeServer) FetchFederatedBundle(arg0 context.Context, arg1 *node.FetchFederatedBundleRequest) (*node.FetchFederatedBundleResponse, error) {
-	ret := m.ctrl.Call(m, "FetchFederatedBundle", arg0, arg1)
-	ret0, _ := ret[0].(*node.FetchFederatedBundleResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchFederatedBundle indicates an expected call of FetchFederatedBundle
-func (mr *MockNodeServerMockRecorder) FetchFederatedBundle(arg0, arg1 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchFederatedBundle", reflect.TypeOf((*MockNodeServer)(nil).FetchFederatedBundle), arg0, arg1)
 }
 
 // FetchJWTSVID mocks base method

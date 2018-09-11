@@ -258,13 +258,16 @@ func getAttestTestData() *fetchBaseSVIDData {
 				{Type: "foo", Value: "bar"},
 			},
 			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://test1"},
+			SpiffeId: "spiffe://test1",
+		},
 		{
 			Selectors: []*common.Selector{
 				{Type: "foo", Value: "bar"},
 			},
 			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://repeated"}}
+			SpiffeId: "spiffe://repeated",
+		},
+	}
 
 	data.regEntrySelectorList = []*common.RegistrationEntry{
 		{
@@ -272,7 +275,8 @@ func getAttestTestData() *fetchBaseSVIDData {
 				{Type: "foo", Value: "bar"},
 			},
 			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://repeated"},
+			SpiffeId: "spiffe://repeated",
+		},
 		{
 			Selectors: []*common.Selector{
 				{Type: "foo", Value: "bar"},
@@ -482,8 +486,14 @@ func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert *x509.
 	caCert, _, _ := util.LoadCAFixture()
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
-		Bundle:              caCert.Raw,
+		DEPRECATEDBundle:    caCert.Raw,
 		RegistrationEntries: expectedRegEntries,
+		Bundles: map[string]*node.Bundle{
+			testTrustDomain.String(): {
+				Id:      testTrustDomain.String(),
+				CaCerts: caCert.Raw,
+			},
+		},
 	}
 
 	return svidUpdate
@@ -534,7 +544,7 @@ func getFetchX509SVIDTestData() *fetchSVIDData {
 	data.nodeSelectors = []*common.Selector{data.selector}
 
 	data.bySelectorsEntries = []*common.RegistrationEntry{
-		{SpiffeId: data.baseSpiffeID, Ttl: 1111},
+		{SpiffeId: data.baseSpiffeID, Ttl: 1111, FederatesWith: []string{"spiffe://otherdomain.test"}},
 	}
 
 	data.byParentIDEntries = []*common.RegistrationEntry{
@@ -621,6 +631,17 @@ func setFetchX509SVIDExpectations(
 			},
 		}, nil)
 
+	suite.mockDataStore.EXPECT().
+		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
+			TrustDomain: "spiffe://otherdomain.test",
+		}).
+		Return(&datastore.FetchBundleResponse{
+			Bundle: &datastore.Bundle{
+				TrustDomain: "spiffe://otherdomain.test",
+				CaCerts:     caCert.Raw,
+			},
+		}, nil)
+
 	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
 		data.request.Csrs[0], durationFromTTL(data.byParentIDEntries[2].Ttl)).Return(data.generatedCerts[0], nil)
 
@@ -658,8 +679,18 @@ func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
 	caCert, _, _ := util.LoadCAFixture()
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
-		Bundle:              caCert.Raw,
+		DEPRECATEDBundle:    caCert.Raw,
 		RegistrationEntries: registrationEntries,
+		Bundles: map[string]*node.Bundle{
+			testTrustDomain.String(): {
+				Id:      testTrustDomain.String(),
+				CaCerts: caCert.Raw,
+			},
+			"spiffe://otherdomain.test": {
+				Id:      "spiffe://otherdomain.test",
+				CaCerts: caCert.Raw,
+			},
+		},
 	}
 
 	return svidUpdate
@@ -690,11 +721,24 @@ func TestFetchJWTSVID(t *testing.T) {
 	log, _ := test.NewNullLogger()
 
 	dataStore := fakedatastore.New()
+	dataStore.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: &datastore.Bundle{
+			TrustDomain: "spiffe://example.org",
+			CaCerts:     []byte("EXAMPLE-CERTS"),
+		},
+	})
+	dataStore.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: &datastore.Bundle{
+			TrustDomain: "spiffe://otherdomain.test",
+			CaCerts:     []byte("OTHERDOMAIN-CERTS"),
+		},
+	})
 	dataStore.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: &node.RegistrationEntry{
-			ParentId: "spiffe://example.org/spire/agent/join_token/token",
-			SpiffeId: "spiffe://example.org/blog",
-			Ttl:      1,
+			ParentId:      "spiffe://example.org/spire/agent/join_token/token",
+			SpiffeId:      "spiffe://example.org/blog",
+			Ttl:           1,
+			FederatesWith: []string{"spiffe://otherdomain.test"},
 		},
 	})
 
@@ -706,9 +750,10 @@ func TestFetchJWTSVID(t *testing.T) {
 	catalog.SetDataStores(dataStore)
 
 	handler := NewHandler(HandlerConfig{
-		Catalog:  catalog,
-		ServerCA: serverCA,
-		Log:      log,
+		Catalog:     catalog,
+		ServerCA:    serverCA,
+		Log:         log,
+		TrustDomain: testTrustDomain,
 	})
 
 	limiter := new(fakeLimiter)
@@ -765,6 +810,16 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.NotNil(t, resp)
 	require.NotEmpty(t, resp.Svid.Token)
 	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
+	require.Equal(t, map[string]*node.Bundle{
+		"spiffe://example.org": {
+			Id:      "spiffe://example.org",
+			CaCerts: []byte("EXAMPLE-CERTS"),
+		},
+		"spiffe://otherdomain.test": {
+			Id:      "spiffe://otherdomain.test",
+			CaCerts: []byte("OTHERDOMAIN-CERTS"),
+		},
+	}, resp.Bundles)
 
 	// authorized against a registration entry
 	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
@@ -777,6 +832,16 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.NotNil(t, resp)
 	require.NotEmpty(t, resp.Svid.Token)
 	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
+	require.Equal(t, map[string]*node.Bundle{
+		"spiffe://example.org": {
+			Id:      "spiffe://example.org",
+			CaCerts: []byte("EXAMPLE-CERTS"),
+		},
+		"spiffe://otherdomain.test": {
+			Id:      "spiffe://otherdomain.test",
+			CaCerts: []byte("OTHERDOMAIN-CERTS"),
+		},
+	}, resp.Bundles)
 }
 
 type fakeLimiter struct {

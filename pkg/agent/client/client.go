@@ -120,7 +120,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 
 	regEntries := map[string]*common.RegistrationEntry{}
 	svids := map[string]*node.X509SVID{}
-	var lastBundle []byte
+	bundles := map[string]*node.Bundle{}
 	// Read all the server responses from the stream.
 	for {
 		resp, err := stream.Recv()
@@ -129,7 +129,13 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 		}
 		if err != nil {
 			// There was an error receiving a response, exit loop to return what we have.
-			return &Update{regEntries, svids, lastBundle}, err
+			logrus.Errorf("failed to consume entire SVID update stream: %v", err)
+			return nil, err
+		}
+
+		if resp.SvidUpdate == nil {
+			logrus.Warn("empty update in SVID update stream")
+			continue
 		}
 
 		for _, re := range resp.SvidUpdate.RegistrationEntries {
@@ -138,12 +144,14 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 		for spiffeid, svid := range resp.SvidUpdate.Svids {
 			svids[spiffeid] = svid
 		}
-		lastBundle = resp.SvidUpdate.Bundle
+		for spiffeid, bundle := range resp.SvidUpdate.Bundles {
+			bundles[spiffeid] = bundle
+		}
 	}
 	return &Update{
 		Entries: regEntries,
 		SVIDs:   svids,
-		Bundle:  lastBundle,
+		Bundles: bundles,
 	}, nil
 }
 

@@ -58,7 +58,19 @@ message AppendBundleResponse {
 }
 
 message DeleteBundleRequest {
+    // Mode controls the delete behavior if there are other records
+    // associated with the bundle (e.g. registration entries).
+    enum Mode {
+        // RESTRICT prevents the bundle from being deleted in the presence of associated entries
+        RESTRICT = 0;
+        // DELETE deletes the bundle and associated entries
+        DELETE = 1;
+        // DISSOCIATE deletes the bundle and dissociates associated entries
+        DISSOCIATE = 2;
+    }
+
     string trust_domain = 1;
+    Mode mode = 2;
 }
 
 message DeleteBundleResponse {

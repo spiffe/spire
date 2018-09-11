@@ -2,6 +2,7 @@ package sql
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,7 +32,9 @@ func TestPlugin(t *testing.T) {
 
 type PluginSuite struct {
 	suite.Suite
-	dir string
+	cert   *x509.Certificate
+	cacert *x509.Certificate
+	dir    string
 
 	nextId int
 	ds     datastore.Plugin
@@ -39,6 +42,12 @@ type PluginSuite struct {
 
 func (s *PluginSuite) SetupSuite() {
 	var err error
+	s.cert, _, err = testutil.LoadSVIDFixture()
+	s.Require().NoError(err)
+
+	s.cacert, _, err = testutil.LoadCAFixture()
+	s.Require().NoError(err)
+
 	s.dir, err = ioutil.TempDir("", "spire-datastore-sql-tests")
 	s.Require().NoError(err)
 }
@@ -94,16 +103,13 @@ func (s *PluginSuite) TestInvalidPluginConfiguration() {
 }
 
 func (s *PluginSuite) TestBundleCRUD() {
-	cert, _, err := testutil.LoadSVIDFixture()
-	s.Require().NoError(err)
-
 	bundle := &datastore.Bundle{
 		TrustDomain: "spiffe://foo",
-		CaCerts:     cert.Raw,
+		CaCerts:     s.cert.Raw,
 	}
 
 	// create
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	})
 	s.Require().NoError(err)
@@ -119,12 +125,9 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Equal(1, len(lresp.Bundles))
 	s.Equal(bundle, lresp.Bundles[0])
 
-	cert, _, err = testutil.LoadCAFixture()
-	s.Require().NoError(err)
-
 	bundle2 := &datastore.Bundle{
 		TrustDomain: bundle.TrustDomain,
-		CaCerts:     cert.Raw,
+		CaCerts:     s.cacert.Raw,
 	}
 
 	// append
@@ -132,7 +135,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 		Bundle: bundle2,
 	})
 	s.Require().NoError(err)
-	certs := append(bundle.CaCerts, cert.Raw...)
+	certs := append(bundle.CaCerts, s.cacert.Raw...)
 	s.Require().NotNil(aresp.Bundle)
 	s.Equal(certs, aresp.Bundle.CaCerts)
 
@@ -147,7 +150,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 	// append on a new bundle
 	bundle3 := &datastore.Bundle{
 		TrustDomain: "spiffe://bar",
-		CaCerts:     cert.Raw,
+		CaCerts:     s.cacert.Raw,
 	}
 	anresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: bundle3,
@@ -630,6 +633,86 @@ func (s *PluginSuite) TestListMatchingEntries() {
 	}
 }
 
+func (s *PluginSuite) TestRegistrationEntriesFederatesWithAgainstMissingBundle() {
+	// cannot federate with a trust bundle that does not exist
+	_, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+		Entry: makeFederatedRegistrationEntry(),
+	})
+	s.Require().EqualError(err, `unable to find federated bundle "spiffe://otherdomain.org"`)
+}
+
+func (s *PluginSuite) TestRegistrationEntriesFederatesWithSuccess() {
+	// create two bundles but only federate with one. having a second bundle
+	// has the side effect of asserting that only the code only associates
+	// the entry with the exact bundle referenced during creation.
+	s.createBundle("spiffe://otherdomain.org")
+	s.createBundle("spiffe://otherdomain2.org")
+
+	expected := s.createRegistrationEntry(makeFederatedRegistrationEntry())
+	// fetch the entry and make sure the federated trust ids come back
+	actual := s.fetchRegistrationEntry(expected.EntryId)
+	s.Require().Equal(expected, actual)
+}
+
+func (s *PluginSuite) TestDeleteBundleRestrictedByRegistrationEntries() {
+	// create the bundle and associated entry
+	s.createBundle("spiffe://otherdomain.org")
+	s.createRegistrationEntry(makeFederatedRegistrationEntry())
+
+	// delete the bundle in RESTRICTED mode
+	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
+		TrustDomain: "spiffe://otherdomain.org",
+	})
+	s.Require().EqualError(err, "datastore-sql: cannot delete bundle; federated with 1 registration entries")
+}
+
+func (s *PluginSuite) TestDeleteBundleDeleteRegistrationEntries() {
+	// create an unrelated registration entry to make sure the delete
+	// operation only deletes associated registration entries.
+	unrelated := s.createRegistrationEntry(&common.RegistrationEntry{
+		SpiffeId:  "spiffe://example.org/foo",
+		Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
+	})
+
+	// create the bundle and associated entry
+	s.createBundle("spiffe://otherdomain.org")
+	entry := s.createRegistrationEntry(makeFederatedRegistrationEntry())
+
+	// delete the bundle in DELETE mode
+	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
+		TrustDomain: "spiffe://otherdomain.org",
+		Mode:        datastore.DeleteBundleRequest_DELETE,
+	})
+	s.Require().NoError(err)
+
+	// verify that the registeration entry has been deleted
+	resp, err := s.ds.FetchRegistrationEntry(context.Background(), &datastore.FetchRegistrationEntryRequest{
+		EntryId: entry.EntryId,
+	})
+	s.Require().NoError(err)
+	s.Require().Nil(resp.Entry)
+
+	// make sure the unrelated entry still exists
+	s.fetchRegistrationEntry(unrelated.EntryId)
+}
+
+func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
+	// create the bundle and associated entry
+	s.createBundle("spiffe://otherdomain.org")
+	entry := s.createRegistrationEntry(makeFederatedRegistrationEntry())
+
+	// delete the bundle in DISSOCIATE mode
+	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
+		TrustDomain: "spiffe://otherdomain.org",
+		Mode:        datastore.DeleteBundleRequest_DISSOCIATE,
+	})
+	s.Require().NoError(err)
+
+	// make sure the entry still exists, albeit without an associated bundle
+	entry = s.fetchRegistrationEntry(entry.EntryId)
+	s.Require().Empty(entry.FederatesWith)
+}
+
 func (s *PluginSuite) TestCreateJoinToken() {
 	now := time.Now().Unix()
 	req := &datastore.CreateJoinTokenRequest{
@@ -775,6 +858,16 @@ func (s *PluginSuite) TestMigration() {
 				},
 			})
 			s.Require().NoError(err)
+		case 1:
+			// registration entries should gain the federates_with column.
+			// creating a new registration entry with a federated trust domain
+			// should be sufficient to test.
+			s.createBundle("spiffe://otherdomain.org")
+			s.createRegistrationEntry(&common.RegistrationEntry{
+				SpiffeId:      "spiffe://example.org/foo",
+				Selectors:     []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
+				FederatesWith: []string{"spiffe://otherdomain.org"},
+			})
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
@@ -800,6 +893,14 @@ func (s *PluginSuite) TestRace() {
 	})
 }
 
+func (s *PluginSuite) TestBindVar() {
+	fn := func(n int) string {
+		return fmt.Sprintf("$%d", n)
+	}
+	bound := bindVarsFn(fn, "SELECT whatever FROM foo WHERE x = ? AND y = ?")
+	s.Require().Equal("SELECT whatever FROM foo WHERE x = $1 AND y = $2", bound)
+}
+
 func (s *PluginSuite) getTestDataFromJsonFile(filePath string, jsonValue interface{}) {
 	invalidRegistrationEntriesJson, err := ioutil.ReadFile(filePath)
 	s.Require().NoError(err)
@@ -808,7 +909,17 @@ func (s *PluginSuite) getTestDataFromJsonFile(filePath string, jsonValue interfa
 	s.Require().NoError(err)
 }
 
-func (s *PluginSuite) createRegistrationEntry(entry *datastore.RegistrationEntry) *datastore.RegistrationEntry {
+func (s *PluginSuite) createBundle(trustDomain string) {
+	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+		Bundle: &datastore.Bundle{
+			TrustDomain: trustDomain,
+			CaCerts:     s.cert.Raw,
+		},
+	})
+	s.Require().NoError(err)
+}
+
+func (s *PluginSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
 	resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: entry,
 	})
@@ -816,6 +927,26 @@ func (s *PluginSuite) createRegistrationEntry(entry *datastore.RegistrationEntry
 	s.Require().NotNil(resp)
 	s.Require().NotNil(resp.Entry)
 	return resp.Entry
+}
+
+func (s *PluginSuite) fetchRegistrationEntry(entryID string) *common.RegistrationEntry {
+	resp, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
+		EntryId: entryID,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().NotNil(resp.Entry)
+	return resp.Entry
+}
+
+func makeFederatedRegistrationEntry() *common.RegistrationEntry {
+	return &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+		},
+		SpiffeId:      "spiffe://example.org/foo",
+		FederatesWith: []string{"spiffe://otherdomain.org"},
+	}
 }
 
 func (s *PluginSuite) getNodeSelectors(spiffeID string) []*common.Selector {

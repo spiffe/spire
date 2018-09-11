@@ -70,6 +70,7 @@
 
 - [registration.proto](#registration.proto)
     - [Bundle](#spire.api.registration.Bundle)
+    - [DeleteFederatedBundleRequest](#spire.api.registration.DeleteFederatedBundleRequest)
     - [FederatedBundle](#spire.api.registration.FederatedBundle)
     - [FederatedBundleID](#spire.api.registration.FederatedBundleID)
     - [JoinToken](#spire.api.registration.JoinToken)
@@ -78,6 +79,7 @@
     - [SpiffeID](#spire.api.registration.SpiffeID)
     - [UpdateEntryRequest](#spire.api.registration.UpdateEntryRequest)
   
+    - [DeleteFederatedBundleRequest.Mode](#spire.api.registration.DeleteFederatedBundleRequest.Mode)
   
   
     - [Registration](#spire.api.registration.Registration)
@@ -1039,7 +1041,7 @@ manage the various registered nodes and workloads that are controlled by it.
 | parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
 | spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
 | ttl | [int32](#int32) |  | Time to live. |
-| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
+| federates_with | [string](#string) | repeated | A list of federated trust domain SPIFFE IDs. |
 | entry_id | [string](#string) |  | Entry ID |
 
 
@@ -1104,6 +1106,22 @@ CA Bundle of the server
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | ca_certs | [bytes](#bytes) |  | ASN.1 DER data of the bundle. |
+
+
+
+
+
+
+<a name="spire.api.registration.DeleteFederatedBundleRequest"/>
+
+### DeleteFederatedBundleRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| id | [string](#string) |  |  |
+| mode | [DeleteFederatedBundleRequest.Mode](#spire.api.registration.DeleteFederatedBundleRequest.Mode) |  |  |
 
 
 
@@ -1219,6 +1237,20 @@ A type with the id with want to update plus values to modify.
 
  
 
+
+<a name="spire.api.registration.DeleteFederatedBundleRequest.Mode"/>
+
+### DeleteFederatedBundleRequest.Mode
+Mode controls the delete behavior if there are other records
+associated with the bundle (e.g. registration entries).
+
+| Name | Number | Description |
+| ---- | ------ | ----------- |
+| RESTRICT | 0 | RESTRICT prevents the bundle from being deleted in the presence of associated entries |
+| DELETE | 1 | DELETE deletes the bundle and associated entries |
+| DISSOCIATE | 2 | DISSOCIATE deletes the bundle and dissociates associated entries |
+
+
  
 
  
@@ -1243,7 +1275,7 @@ A type with the id with want to update plus values to modify.
 | FetchFederatedBundle | [FederatedBundleID](#spire.api.registration.FederatedBundleID) | [FederatedBundle](#spire.api.registration.FederatedBundleID) | Retrieves a single federated bundle |
 | ListFederatedBundles | [spire.common.Empty](#spire.common.Empty) | [FederatedBundle](#spire.common.Empty) | Retrieves Federated bundles for all the Federated SPIFFE IDs. |
 | UpdateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [spire.common.Empty](#spire.api.registration.FederatedBundle) | Updates a particular Federated Bundle. Useful for rotation. |
-| DeleteFederatedBundle | [FederatedBundleID](#spire.api.registration.FederatedBundleID) | [spire.common.Empty](#spire.api.registration.FederatedBundleID) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
+| DeleteFederatedBundle | [DeleteFederatedBundleRequest](#spire.api.registration.DeleteFederatedBundleRequest) | [spire.common.Empty](#spire.api.registration.DeleteFederatedBundleRequest) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 | CreateJoinToken | [JoinToken](#spire.api.registration.JoinToken) | [JoinToken](#spire.api.registration.JoinToken) | Create a new join token |
 | FetchBundle | [spire.common.Empty](#spire.common.Empty) | [Bundle](#spire.common.Empty) | Retrieves the CA bundle. |
 

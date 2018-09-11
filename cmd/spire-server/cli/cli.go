@@ -18,6 +18,15 @@ func Run(args []string) int {
 		"bundle show": func() (cli.Command, error) {
 			return bundle.NewShowCommand(), nil
 		},
+		"bundle list": func() (cli.Command, error) {
+			return bundle.NewListCommand(), nil
+		},
+		"bundle set": func() (cli.Command, error) {
+			return bundle.NewSetCommand(), nil
+		},
+		"bundle delete": func() (cli.Command, error) {
+			return bundle.NewDeleteCommand(), nil
+		},
 		"entry create": func() (cli.Command, error) {
 			return &entry.CreateCLI{}, nil
 		},

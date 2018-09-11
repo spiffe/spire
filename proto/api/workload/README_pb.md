@@ -38,6 +38,7 @@ information, including CA bundles.
 | x509_svid | [bytes](#bytes) |  | ASN.1 DER encoded certificate chain. MAY include intermediates, the leaf certificate (or SVID itself) MUST come first. |
 | x509_svid_key | [bytes](#bytes) |  | ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted. |
 | bundle | [bytes](#bytes) |  | CA certificates belonging to the Trust Domain ASN.1 DER encoded |
+| federates_with | [string](#string) | repeated | List of trust domains the SVID federates with, which corresponds to keys in the federated_bundles map in the X509SVIDResponse message. |
 
 
 

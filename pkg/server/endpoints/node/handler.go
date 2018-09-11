@@ -212,17 +212,18 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return errors.New("Error trying sign CSRs")
 		}
 
-		bundle, err := h.getBundle(ctx)
+		ourBundle, bundles, err := h.getBundlesForEntries(ctx, regEntries)
 		if err != nil {
-			h.c.Log.Errorf("Error retrieving bundle from datastore: %v", err)
-			return fmt.Errorf("Error retrieving bundle")
+			h.c.Log.Error(err)
+			return err
 		}
 
 		err = server.Send(&node.FetchX509SVIDResponse{
 			SvidUpdate: &node.X509SVIDUpdate{
 				Svids:               svids,
-				Bundle:              bundle,
+				DEPRECATEDBundle:    ourBundle.CaCerts,
 				RegistrationEntries: regEntries,
+				Bundles:             bundles,
 			},
 		})
 		if err != nil {
@@ -291,19 +292,18 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, err
 	}
 
+	_, bundles, err := h.getBundlesForEntries(ctx, regEntries)
+	if err != nil {
+		return nil, err
+	}
+
 	return &node.FetchJWTSVIDResponse{
 		Svid: &node.JWTSVID{
 			Token:     token,
 			ExpiresAt: expiresAt.Unix(),
 		},
+		Bundles: bundles,
 	}, nil
-}
-
-//TODO
-func (h *Handler) FetchFederatedBundle(
-	ctx context.Context, request *node.FetchFederatedBundleRequest) (
-	response *node.FetchFederatedBundleResponse, err error) {
-	return response, nil
 }
 
 func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, error) {
@@ -395,7 +395,7 @@ func (h *Handler) attestToken(ctx context.Context,
 		return nil, err
 	}
 	if resp.JoinToken == nil {
-		return nil, errors.New("response missing token")
+		return nil, errors.New("no such token")
 	}
 	t := resp.JoinToken
 
@@ -527,15 +527,16 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 		return nil, err
 	}
 
-	bundle, err := h.getBundle(ctx)
+	ourBundle, bundles, err := h.getBundlesForEntries(ctx, regEntries)
 	if err != nil {
 		return nil, err
 	}
 
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
-		Bundle:              bundle,
+		DEPRECATEDBundle:    ourBundle.CaCerts,
 		RegistrationEntries: regEntries,
+		Bundles:             bundles,
 	}
 	return &node.AttestResponse{SvidUpdate: svidUpdate}, nil
 }
@@ -648,12 +649,36 @@ func (h *Handler) buildBaseSVID(ctx context.Context, csr []byte) (*node.X509SVID
 	return makeX509SVID(cert), cert, nil
 }
 
-// getBundle fetches the current CA bundle from the datastore.
-func (h *Handler) getBundle(ctx context.Context) ([]byte, error) {
+func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common.RegistrationEntry) (*node.Bundle, map[string]*node.Bundle, error) {
+	bundles := make(map[string]*node.Bundle)
+
+	ourBundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
+	if err != nil {
+		return nil, nil, err
+	}
+	bundles[ourBundle.Id] = ourBundle
+
+	for _, entry := range regEntries {
+		for _, id := range entry.FederatesWith {
+			if bundles[id] != nil {
+				continue
+			}
+			bundle, err := h.getBundle(ctx, id)
+			if err != nil {
+				return nil, nil, err
+			}
+			bundles[id] = bundle
+		}
+	}
+	return ourBundle, bundles, nil
+}
+
+// getBundle fetches a bundle from the datastore, by trust domain
+func (h *Handler) getBundle(ctx context.Context, trustDomain string) (*node.Bundle, error) {
 	ds := h.c.Catalog.DataStores()[0]
 
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomain: h.c.TrustDomain.String(),
+		TrustDomain: trustDomain,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get bundle from datastore: %v", err)
@@ -662,7 +687,10 @@ func (h *Handler) getBundle(ctx context.Context) ([]byte, error) {
 		return nil, errors.New("response missing bundle")
 	}
 
-	return resp.Bundle.CaCerts, nil
+	return &node.Bundle{
+		Id:      trustDomain,
+		CaCerts: resp.Bundle.CaCerts,
+	}, nil
 }
 
 func getSpiffeIDFromCSR(csrBytes []byte) (spiffeID string, err error) {

@@ -18,17 +18,17 @@
 - [node.proto](#node.proto)
     - [AttestRequest](#spire.api.node.AttestRequest)
     - [AttestResponse](#spire.api.node.AttestResponse)
-    - [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest)
-    - [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleResponse)
-    - [FetchFederatedBundleResponse.FederatedBundlesEntry](#spire.api.node.FetchFederatedBundleResponse.FederatedBundlesEntry)
+    - [Bundle](#spire.api.node.Bundle)
     - [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest)
     - [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse)
+    - [FetchJWTSVIDResponse.BundlesEntry](#spire.api.node.FetchJWTSVIDResponse.BundlesEntry)
     - [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest)
     - [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse)
     - [JSR](#spire.api.node.JSR)
     - [JWTSVID](#spire.api.node.JWTSVID)
     - [X509SVID](#spire.api.node.X509SVID)
     - [X509SVIDUpdate](#spire.api.node.X509SVIDUpdate)
+    - [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry)
     - [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry)
   
   
@@ -101,7 +101,7 @@ manage the various registered nodes and workloads that are controlled by it.
 | parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
 | spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
 | ttl | [int32](#int32) |  | Time to live. |
-| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
+| federates_with | [string](#string) | repeated | A list of federated trust domain SPIFFE IDs. |
 | entry_id | [string](#string) |  | Entry ID |
 
 
@@ -191,46 +191,16 @@ all current Registration Entries which are relevant to the caller SPIFFE ID
 
 
 
-<a name="spire.api.node.FetchFederatedBundleRequest"/>
+<a name="spire.api.node.Bundle"/>
 
-### FetchFederatedBundleRequest
-Represents a request with an array of SPIFFE Ids.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffe_id | [string](#string) | repeated | An array of SPIFFE Ids. |
-
-
-
-
-
-
-<a name="spire.api.node.FetchFederatedBundleResponse"/>
-
-### FetchFederatedBundleResponse
-Represents a response with a map of SPIFFE Id, Federated CA Bundle.
+### Bundle
+Trust domain bundle
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| federated_bundles | [FetchFederatedBundleResponse.FederatedBundlesEntry](#spire.api.node.FetchFederatedBundleResponse.FederatedBundlesEntry) | repeated | Map [ SPIFFE ID ] =&gt; Federated CA Bundle |
-
-
-
-
-
-
-<a name="spire.api.node.FetchFederatedBundleResponse.FederatedBundlesEntry"/>
-
-### FetchFederatedBundleResponse.FederatedBundlesEntry
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| key | [string](#string) |  |  |
-| value | [bytes](#bytes) |  |  |
+| id | [string](#string) |  | bundle identifier, i.e. the SPIFFE ID for the trust domain |
+| ca_certs | [bytes](#bytes) |  | bundle data (ASN.1 encoded X.509 certificates) |
 
 
 
@@ -261,6 +231,23 @@ Represents a response with a map of SPIFFE Id, Federated CA Bundle.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | svid | [JWTSVID](#spire.api.node.JWTSVID) |  | The signed JWT-SVID |
+| bundles | [FetchJWTSVIDResponse.BundlesEntry](#spire.api.node.FetchJWTSVIDResponse.BundlesEntry) | repeated | Trust bundles associated with the SVID, keyed by trust domain SPIFFE ID. Bundles included are the trust bundle for the server trust domain and any federated trust domain bundles applicable to the SVID. |
+
+
+
+
+
+
+<a name="spire.api.node.FetchJWTSVIDResponse.BundlesEntry"/>
+
+### FetchJWTSVIDResponse.BundlesEntry
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| key | [string](#string) |  |  |
+| value | [Bundle](#spire.api.node.Bundle) |  |  |
 
 
 
@@ -358,8 +345,25 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | svids | [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry) | repeated | A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] =&gt; SVID. |
-| bundle | [bytes](#bytes) |  | Latest SPIRE Server bundle |
+| DEPRECATED_bundle | [bytes](#bytes) |  | DEPRECATED. Latest SPIRE Server bundle. |
 | registration_entries | [.spire.common.RegistrationEntry](#spire.api.node..spire.common.RegistrationEntry) | repeated | A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it. |
+| bundles | [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry) | repeated | Trust bundles associated with the SVIDs, keyed by trust domain SPIFFE ID. Bundles included are the trust bundle for the server trust domain and any federated trust domain bundles applicable to the SVIDs. Supersedes the deprecated `bundle` field. |
+
+
+
+
+
+
+<a name="spire.api.node.X509SVIDUpdate.BundlesEntry"/>
+
+### X509SVIDUpdate.BundlesEntry
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| key | [string](#string) |  |  |
+| value | [Bundle](#spire.api.node.Bundle) |  |  |
 
 
 
@@ -398,7 +402,6 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | Attest | [AttestRequest](#spire.api.node.AttestRequest) | [AttestResponse](#spire.api.node.AttestRequest) | Attest the node, get base node SVID. |
 | FetchX509SVID | [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest) | [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
 | FetchJWTSVID | [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest) | [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDRequest) | Fetches a signed JWT-SVID for a workload intended for a specific audience. |
-| FetchFederatedBundle | [FetchFederatedBundleRequest](#spire.api.node.FetchFederatedBundleRequest) | [FetchFederatedBundleResponse](#spire.api.node.FetchFederatedBundleRequest) | Called by the Node Agent to fetch the named Federated CA Bundle. Used in the event that authorized workloads reference a Federated Bundle. |
 
  
 

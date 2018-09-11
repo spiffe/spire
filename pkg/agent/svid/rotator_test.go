@@ -11,6 +11,7 @@ import (
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/test/mock/agent/client"
 	"github.com/spiffe/spire/test/util"
@@ -52,7 +53,7 @@ func (s *RotatorTestSuite) SetupTest() {
 		Log:          log,
 		TrustDomain:  td,
 		SpiffeID:     "spiffe://example.org/spire/agent/1234",
-		BundleStream: s.bundle.Observe(),
+		BundleStream: cache.NewBundleStream(s.bundle.Observe()),
 	}
 	s.r, _ = NewRotator(c)
 	s.r.client = s.client

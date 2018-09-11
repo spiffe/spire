@@ -172,6 +172,12 @@ func (s *HandlerSuite) TestListFederatedBundles() {
 }
 
 func (s *HandlerSuite) TestUpdateFederatedBundle() {
+	// create a bundle to be updated
+	s.createBundle(&datastore.Bundle{
+		TrustDomain: "spiffe://otherdomain.org",
+		CaCerts:     []byte("UPDATEME"),
+	})
+
 	testCases := []struct {
 		Id      string
 		CaCerts string
@@ -179,11 +185,13 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 	}{
 		{Id: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
 		{Id: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{Id: "spiffe://unknowndomain.org", CaCerts: "CACERTS", Err: "no such bundle"},
 		{Id: "spiffe://otherdomain.org", CaCerts: "CACERTS", Err: ""},
 		{Id: "spiffe://otherdomain.org", CaCerts: "CACERTS2", Err: ""},
 	}
 
 	for _, testCase := range testCases {
+		s.T().Logf("case=%+v", testCase)
 		response, err := s.handler.UpdateFederatedBundle(context.Background(), &registration.FederatedBundle{
 			SpiffeId: testCase.Id,
 			CaCerts:  []byte(testCase.CaCerts),
@@ -224,7 +232,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 	})
 
 	for _, testCase := range testCases {
-		response, err := s.handler.DeleteFederatedBundle(context.Background(), &registration.FederatedBundleID{
+		response, err := s.handler.DeleteFederatedBundle(context.Background(), &registration.DeleteFederatedBundleRequest{
 			Id: testCase.Id,
 		})
 

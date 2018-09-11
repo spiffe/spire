@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 
@@ -24,11 +25,14 @@ type CreateConfig struct {
 
 	// Type and value are delimited by a colon (:)
 	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
-	Selectors SelectorFlag
+	Selectors StringsFlag
 
 	ParentID string
 	SpiffeID string
 	Ttl      int
+
+	// List of SPIFFE IDs of trust domains the registration entry is federated with
+	FederatesWith StringsFlag
 }
 
 // Perform basic validation, even on fields that we
@@ -57,6 +61,19 @@ func (rc *CreateConfig) Validate() error {
 
 	if rc.Ttl < 0 {
 		return errors.New("a TTL is required")
+	}
+
+	// make sure all SPIFFE ID's are well formed
+	if err := idutil.ValidateSpiffeID(rc.SpiffeID, idutil.AllowAny()); err != nil {
+		return err
+	}
+	if err := idutil.ValidateSpiffeID(rc.ParentID, idutil.AllowAny()); err != nil {
+		return err
+	}
+	for _, federatesWith := range rc.FederatesWith {
+		if err := idutil.ValidateSpiffeID(federatesWith, idutil.AllowAny()); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -132,6 +149,7 @@ func (c CreateCLI) parseConfig(config *CreateConfig) ([]*common.RegistrationEntr
 	}
 
 	e.Selectors = selectors
+	e.FederatesWith = config.FederatesWith
 	return []*common.RegistrationEntry{e}, nil
 }
 
@@ -143,7 +161,9 @@ func (CreateCLI) parseFile(path string) ([]*common.RegistrationEntry, error) {
 		return nil, err
 	}
 
-	json.Unmarshal(dat, &entries)
+	if err := json.Unmarshal(dat, &entries); err != nil {
+		return nil, err
+	}
 	return entries.Entries, nil
 }
 
@@ -175,6 +195,7 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f.StringVar(&c.Path, "data", "", "Path to a file containing registration JSON (optional)")
 
 	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
+	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
 
 	return c, f.Parse(args)
 }

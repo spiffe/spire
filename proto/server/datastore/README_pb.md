@@ -93,6 +93,7 @@
     - [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryResponse)
   
     - [BySelectors.MatchBehavior](#spire.server.datastore.BySelectors.MatchBehavior)
+    - [DeleteBundleRequest.Mode](#spire.server.datastore.DeleteBundleRequest.Mode)
   
   
     - [DataStore](#spire.server.datastore.DataStore)
@@ -428,7 +429,7 @@ manage the various registered nodes and workloads that are controlled by it.
 | parent_id | [string](#string) |  | The SPIFFE ID of an entity that is authorized to attest the validity of a selector |
 | spiffe_id | [string](#string) |  | The SPIFFE ID is a structured string used to identify a resource or caller. It is defined as a URI comprising a “trust domain” and an associated path. |
 | ttl | [int32](#int32) |  | Time to live. |
-| fb_spiffe_ids | [string](#string) | repeated | A list of federated bundle spiffe ids. |
+| federates_with | [string](#string) | repeated | A list of federated trust domain SPIFFE IDs. |
 | entry_id | [string](#string) |  | Entry ID |
 
 
@@ -723,6 +724,7 @@ Represents a type with a list of Selector.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | trust_domain | [string](#string) |  |  |
+| mode | [DeleteBundleRequest.Mode](#spire.server.datastore.DeleteBundleRequest.Mode) |  |  |
 
 
 
@@ -1226,6 +1228,20 @@ Represents a type with a list of Selector.
 | ---- | ------ | ----------- |
 | MATCH_EXACT | 0 |  |
 | MATCH_SUBSET | 1 |  |
+
+
+
+<a name="spire.server.datastore.DeleteBundleRequest.Mode"/>
+
+### DeleteBundleRequest.Mode
+Mode controls the delete behavior if there are other records
+associated with the bundle (e.g. registration entries).
+
+| Name | Number | Description |
+| ---- | ------ | ----------- |
+| RESTRICT | 0 | RESTRICT prevents the bundle from being deleted in the presence of associated entries |
+| DELETE | 1 | DELETE deletes the bundle and associated entries |
+| DISSOCIATE | 2 | DISSOCIATE deletes the bundle and dissociates associated entries |
 
 
  

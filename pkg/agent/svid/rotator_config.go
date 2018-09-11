@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/manager/cache"
 
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
@@ -21,7 +22,7 @@ type RotatorConfig struct {
 	SVID    *x509.Certificate
 	SVIDKey *ecdsa.PrivateKey
 
-	BundleStream observer.Stream
+	BundleStream *cache.BundleStream
 
 	SpiffeID string
 
@@ -48,8 +49,8 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 			s := state.Value().(State)
 			bsm.RLock()
 			defer bsm.RUnlock()
-			bundle := c.BundleStream.Value().([]*x509.Certificate)
-			return s.SVID, s.Key, bundle
+			bundles := c.BundleStream.Value()
+			return s.SVID, s.Key, bundles[c.TrustDomain.String()]
 		},
 	}
 	client := client.New(cfg)
