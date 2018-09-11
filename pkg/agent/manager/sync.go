@@ -78,7 +78,13 @@ func (m *manager) processEntryRequests(entryRequests entryRequests) error {
 		return nil
 	}
 
-	_, svids, err := m.fetchUpdates(entryRequests)
+	// Truncate the number of entry requests we are making if it exceeds the CSR
+	// burst limit. The rest of the requests will be made on the next pass
+	if len(entryRequests) > node.CSRLimit {
+		entryRequests.truncate(node.CSRLimit)
+	}
+
+	_, svids, err := m.fetchUpdates(ctx, entryRequests)
 	if err != nil {
 		return err
 	}
@@ -213,4 +219,15 @@ type entryRequests map[string]*entryRequest
 func (er entryRequests) add(e *entryRequest) {
 	entryID := e.entry.RegistrationEntry.EntryId
 	er[entryID] = e
+}
+
+func (er entryRequests) truncate(limit int) {
+	counter := 1
+	for id := range er {
+		if counter > limit {
+			delete(er, id)
+		}
+
+		counter++
+	}
 }
