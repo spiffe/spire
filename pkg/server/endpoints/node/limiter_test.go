@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/proto/api/node"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc/peer"
 )
@@ -15,12 +18,11 @@ func TestLimit(t *testing.T) {
 	l, log := newTestLimiter()
 
 	// Messages under limit are processed "immediately" without logging
-	for i := 1; i <= attestLimit; i++ {
+	for i := 1; i <= node.AttestLimit; i++ {
 		ctx, cancel := context.WithTimeout(newTestContext(), 1*time.Millisecond)
 		err := l.Limit(ctx, AttestMsg, 1)
-		if err != nil {
-			t.Errorf("expected operation to complete before deadline; got: %v", err)
-		}
+		assert.NoError(t, err)
+
 		if len(log.Entries) > 0 {
 			msg, _ := log.LastEntry().String()
 			t.Errorf("expected no log lines; got %v", msg)
@@ -32,20 +34,17 @@ func TestLimit(t *testing.T) {
 	// Bucket exhausted by above loop
 	ctx, cancel := context.WithTimeout(newTestContext(), 1*time.Millisecond)
 	err := l.Limit(ctx, AttestMsg, 1)
-	if err == nil {
-		t.Error("expected operation to fail due to deadline; got: nil")
-	}
+	assert.Error(t, err)
+
 	if len(log.Entries) != 1 {
 		t.Errorf("expected 1 log entry; got %v", len(log.Entries))
 	}
 	cancel()
 
 	// Can't exceed burst size
-	count := attestLimit + 1
+	count := node.AttestLimit + 1
 	err = l.Limit(newTestContext(), AttestMsg, count)
-	if err == nil {
-		t.Error("expected error while exceeding burst; got nil")
-	}
+	assert.Error(t, err)
 }
 
 func TestLimiterFor(t *testing.T) {
@@ -53,33 +52,19 @@ func TestLimiterFor(t *testing.T) {
 
 	// New caller for valid message type gets the right limiter
 	li, err := l.limiterFor(AttestMsg, "evan")
-	if err != nil {
-		t.Errorf("wanted nil; got %v", err)
-	}
-	if li == nil {
-		t.Error("wanted non-nil pointer; got nil")
-	}
-	if li.Burst() != attestLimit {
-		t.Errorf("wanted %v; got %v", attestLimit, li.Burst())
-	}
-	if li.Limit() != l.attestRate {
-		t.Errorf("wanted %v; got %v", l.attestRate, li.Limit())
-	}
+	require.NoError(t, err)
+	require.NotNil(t, li)
+	assert.Equal(t, node.AttestLimit, li.Burst())
+	assert.Equal(t, l.attestRate, li.Limit())
 
 	// Gets the same limiter when asked for it
 	li2, err := l.limiterFor(AttestMsg, "evan")
-	if err != nil {
-		t.Errorf("wanted no error; got %v", err)
-	}
-	if li != li2 {
-		t.Errorf("wanted %v; got %v", li, li2)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, li, li2)
 
 	// Invalid message type returns an error
 	li, err = l.limiterFor(100, "evan")
-	if err == nil {
-		t.Errorf("wanted an error; got nil")
-	}
+	assert.Error(t, err)
 }
 
 func TestCallerID(t *testing.T) {
@@ -87,25 +72,19 @@ func TestCallerID(t *testing.T) {
 	p := newTestPeer()
 
 	id, err := l.callerID(peer.NewContext(context.Background(), p))
-	if err != nil {
-		t.Errorf("wanted nil; got %v", err)
-	}
-	if id != "127.0.0.1" {
-		t.Errorf("wanted 127.0.0.1; got %v", id)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "127.0.0.1", id)
 
+	// Fails without IP defined
 	p.Addr = &net.TCPAddr{
 		Port: 100,
 	}
 	id, err = l.callerID(peer.NewContext(context.Background(), p))
-	if err == nil {
-		t.Error("wanted error when IP missing; got nil")
-	}
+	assert.Error(t, err)
 
+	// Fails when context is not a gRPC peer
 	id, err = l.callerID(context.Background())
-	if err == nil {
-		t.Error("wanted error when context not a peer; got nil")
-	}
+	assert.Error(t, err)
 }
 
 func TestNotify(t *testing.T) {
@@ -113,15 +92,11 @@ func TestNotify(t *testing.T) {
 
 	// First time caller gets logged
 	l.notify("evan", AttestMsg)
-	if len(log.Entries) != 1 {
-		t.Errorf("expected 1 log entry; got %v", len(log.Entries))
-	}
+	assert.Equal(t, 1, len(log.Entries))
 
 	// Should not get notified again, even for different message type
 	l.notify("evan", CSRMsg)
-	if len(log.Entries) != 1 {
-		t.Errorf("expected 0 additional log entries; got %v", len(log.Entries)-1)
-	}
+	assert.Equal(t, 1, len(log.Entries))
 }
 
 func newTestContext() context.Context {

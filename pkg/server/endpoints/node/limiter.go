@@ -9,16 +9,12 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/proto/api/node"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc/peer"
 )
 
 const (
-	// Max burst size
-	attestLimit int = 1
-	csrLimit    int = 500
-	jsrLimit    int = 500
-
 	AttestMsg = iota
 	CSRMsg
 	JSRMsg
@@ -72,7 +68,6 @@ func (l *limiter) Limit(ctx context.Context, msgType, count int) error {
 		l.notify(callerID, msgType)
 	}
 	if !res.OK() {
-		res.Cancel()
 		return errors.New("limiter: burst size exceeded")
 	}
 
@@ -96,10 +91,10 @@ func (l *limiter) Limit(ctx context.Context, msgType, count int) error {
 }
 
 func (l *limiter) limiterFor(msgType int, callerID string) (*rate.Limiter, error) {
-	limiters := l.limitersFor(msgType)
-
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
+
+	limiters := l.limitersFor(msgType)
 
 	var err error
 	rl, ok := limiters[callerID]
@@ -115,10 +110,8 @@ func (l *limiter) limiterFor(msgType int, callerID string) (*rate.Limiter, error
 	return rl, nil
 }
 
+// A lock must be held on `l` before calling this function
 func (l *limiter) limitersFor(msgType int) map[string]*rate.Limiter {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-
 	limiters, ok := l.limiters[msgType]
 	if !ok {
 		limiters = make(map[string]*rate.Limiter)
@@ -131,11 +124,11 @@ func (l *limiter) limitersFor(msgType int) map[string]*rate.Limiter {
 func (l *limiter) newLimiterFor(msgType int) (*rate.Limiter, error) {
 	switch msgType {
 	case AttestMsg:
-		return rate.NewLimiter(l.attestRate, attestLimit), nil
+		return rate.NewLimiter(l.attestRate, node.AttestLimit), nil
 	case CSRMsg:
-		return rate.NewLimiter(l.csrRate, csrLimit), nil
+		return rate.NewLimiter(l.csrRate, node.CSRLimit), nil
 	case JSRMsg:
-		return rate.NewLimiter(l.jsrRate, jsrLimit), nil
+		return rate.NewLimiter(l.jsrRate, node.JSRLimit), nil
 	}
 
 	return nil, fmt.Errorf("limiter: unknown message type %v", msgType)
