@@ -141,33 +141,6 @@ func (c *client) FetchUpdates(req *node.FetchX509SVIDRequest) (*Update, error) {
 	}, nil
 }
 
-func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, error) {
-	nodeClient, err := c.newNodeClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	response, err := nodeClient.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
-		Jsr: jsr,
-	})
-	// We weren't able to make the request...close the client and return the error.
-	if err != nil {
-		c.Release()
-		c.c.Log.Errorf("%v: %v", ErrUnableToGetStream, err)
-		return nil, ErrUnableToGetStream
-	}
-
-	svid := response.GetSvid()
-	if svid == nil {
-		return nil, errors.New("JWTSVID response missing SVID")
-	}
-
-	return &JWTSVID{
-		Token:     svid.Token,
-		ExpiresAt: time.Unix(svid.ExpiresAt, 0),
-	}, nil
-}
-
 func (c *client) Release() {
 	c.m.Lock()
 	defer c.m.Unlock()
