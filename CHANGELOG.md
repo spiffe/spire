@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.2] - 2018-09-12
+
+- Support for Azure node attestation (#551)
+- Support for Azure node resolution (#553)
+- Updated DNS resolution to support DNS-based HA failover (#561)
+- Updated x509pop challenge to strengthen against signature replay attacks (#562)
+- Removed sql plugin soft delete for better space management (#560)
+- Performance improvements and bugfixes in sql plugin (#564)
+- Support for HTTP/HTTPS CONNECT proxies (#568, #585)
+- Updated Node API to perform ratelimiting (#577)
+
 ## [0.6.1] - 2018-07-27
 
 - Fixed SVID renewal bug (#520)
