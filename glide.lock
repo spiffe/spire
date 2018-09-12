@@ -1,5 +1,5 @@
-hash: 35f27a42ef95c2096d1e978ff87429ab29a41fb0e5d4fd4f8ef3a89c2964ee5d
-updated: 2018-09-11T16:31:52.941378-07:00
+hash: 29e187b9ac0ad83714dfa95e164f692b2f5ec7b2538fd4910c8a9d8214d168d7
+updated: 2018-09-11T18:12:56.424825-07:00
 imports:
 - name: github.com/armon/go-metrics
   version: 783273d703149aaeb9897cf58613d5af48861c25
@@ -221,7 +221,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sys
-  version: 2c42eef0765b9837fbdab12011af7830f55f88f0
+  version: 1c9583448a9c3aa0f9a6a5241bf73c0bd8aafded
   subpackages:
   - unix
   - windows
@@ -242,7 +242,7 @@ imports:
   - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 8dea3dc473e90c8179e519d91302d0597c0ca1d1
+  version: 32fb0ac620c32ba40a4626ddf94d90d12cce3455
   subpackages:
   - balancer
   - balancer/base

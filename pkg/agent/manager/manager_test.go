@@ -159,11 +159,11 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:             t,
-		trustDomain:   trustDomain,
-		listener:      l,
-		fetchX509SVID: fetchX509SVIDForTestHappyPathWithoutSyncNorRotation,
-		svidTTL:       200,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation,
+		svidTTL:     200,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -239,11 +239,11 @@ func TestSVIDRotation(t *testing.T) {
 	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:             t,
-		trustDomain:   trustDomain,
-		listener:      l,
-		fetchX509SVID: fetchX509SVID,
-		svidTTL:       3,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponse,
+		svidTTL:     3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -311,11 +311,11 @@ func TestSynchronization(t *testing.T) {
 	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:             t,
-		trustDomain:   trustDomain,
-		listener:      l,
-		fetchX509SVID: fetchX509SVID,
-		svidTTL:       3,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponse,
+		svidTTL:     3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -438,11 +438,11 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:             t,
-		trustDomain:   trustDomain,
-		listener:      l,
-		fetchX509SVID: fetchX509SVIDForStaleCacheTest,
-		svidTTL:       3,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponseForStaleCacheTest,
+		svidTTL:     3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -497,11 +497,11 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:             t,
-		trustDomain:   trustDomain,
-		listener:      l,
-		fetchX509SVID: fetchX509SVIDForTestSubscribersGetUpToDateBundle,
-		svidTTL:       200,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponseForTestSubscribersGetUpToDateBundle,
+		svidTTL:     200,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -556,10 +556,10 @@ func TestSurvivesCARotation(t *testing.T) {
 	defer l.Close()
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:             t,
-		trustDomain:   trustDomain,
-		listener:      l,
-		fetchX509SVID: fetchX509SVIDForTestSurvivesCARotation,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponseForTestSurvivesCARotation,
 		// Give a low ttl to get expired entries on each synchronization, forcing
 		// the manager to fetch entries from the server.
 		svidTTL: 3,
@@ -782,8 +782,7 @@ type mockNodeAPIHandlerConfig struct {
 	listener net.Listener
 
 	// Callbacks used to build the response according to the request and state of mockNodeAPIHandler.
-	fetchX509SVID func(*mockNodeAPIHandler, *node.FetchX509SVIDRequest, node.Node_FetchX509SVIDServer) error
-	fetchJWTSVID  func(*mockNodeAPIHandler, *node.FetchJWTSVIDRequest) (*node.FetchJWTSVIDResponse, error)
+	fetchSVID func(*mockNodeAPIHandler, *node.FetchX509SVIDRequest, node.Node_FetchX509SVIDServer) error
 
 	svidTTL int
 }
@@ -857,8 +856,8 @@ func (h *mockNodeAPIHandler) FetchX509SVID(stream node.Node_FetchX509SVIDServer)
 	if err != nil {
 		return err
 	}
-	if h.c.fetchSVIDResponse != nil {
-		return h.c.fetchSVIDResponse(h, req, stream)
+	if h.c.fetchSVID != nil {
+		return h.c.fetchSVID(h, req, stream)
 	}
 	return nil
 }

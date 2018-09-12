@@ -84,7 +84,7 @@ func (m *manager) processEntryRequests(entryRequests entryRequests) error {
 		entryRequests.truncate(node.CSRLimit)
 	}
 
-	_, svids, err := m.fetchUpdates(ctx, entryRequests)
+	_, svids, err := m.fetchUpdates(entryRequests)
 	if err != nil {
 		return err
 	}
