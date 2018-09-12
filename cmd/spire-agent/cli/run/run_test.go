@@ -2,6 +2,7 @@ package run
 
 import (
 	"bytes"
+	"net"
 	"testing"
 
 	"github.com/hashicorp/hcl/hcl/printer"
@@ -74,8 +75,7 @@ func TestMergeConfigGood(t *testing.T) {
 	orig := newDefaultConfig()
 	err := mergeConfig(orig, c)
 	require.NoError(t, err)
-	assert.Equal(t, orig.ServerAddress.IP.String(), "127.0.0.1")
-	assert.Equal(t, orig.ServerAddress.Port, 8081)
+	assert.Equal(t, orig.ServerAddress, net.JoinHostPort("127.0.0.1", "8081"))
 	assert.Equal(t, orig.TrustDomain.Scheme, "spiffe")
 	assert.Equal(t, orig.TrustDomain.Host, "example.org")
 	assert.Equal(t, orig.DataDir, ".")

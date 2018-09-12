@@ -44,7 +44,6 @@ func TestInitializationFailure(t *testing.T) {
 	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
 	c := &Config{
-		ServerAddr:  &net.TCPAddr{},
 		SVID:        baseSVID,
 		SVIDKey:     baseSVIDKey,
 		Log:         testLogger,
@@ -70,7 +69,6 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
 	c := &Config{
-		ServerAddr:      &net.TCPAddr{},
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
@@ -114,7 +112,6 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 
 	c := &Config{
-		ServerAddr:      &net.TCPAddr{},
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
@@ -155,12 +152,18 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 
 	trustDomain := "example.org"
 
+	l, err := net.Listen("tcp", "localhost:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation,
-		svidTTL:           200,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponseForTestHappyPathWithoutSyncNorRotation,
+		svidTTL:     200,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -168,10 +171,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 
 	c := &Config{
-		ServerAddr: &net.UnixAddr{
-			Net:  "unix",
-			Name: apiHandler.sockPath,
-		},
+		ServerAddr:      l.Addr().String(),
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
@@ -232,12 +232,18 @@ func TestSVIDRotation(t *testing.T) {
 
 	trustDomain := "example.org"
 
+	l, err := net.Listen("tcp", "localhost:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponse,
-		svidTTL:           3,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponse,
+		svidTTL:     3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -246,10 +252,7 @@ func TestSVIDRotation(t *testing.T) {
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", baseTTL)
 
 	c := &Config{
-		ServerAddr: &net.UnixAddr{
-			Net:  "unix",
-			Name: apiHandler.sockPath,
-		},
+		ServerAddr:       l.Addr().String(),
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
@@ -301,12 +304,18 @@ func TestSynchronization(t *testing.T) {
 
 	trustDomain := "example.org"
 
+	l, err := net.Listen("tcp", "localhost:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponse,
-		svidTTL:           3,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponse,
+		svidTTL:     3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -314,10 +323,7 @@ func TestSynchronization(t *testing.T) {
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 
 	c := &Config{
-		ServerAddr: &net.UnixAddr{
-			Net:  "unix",
-			Name: apiHandler.sockPath,
-		},
+		ServerAddr:       l.Addr().String(),
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
@@ -425,12 +431,18 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 
 	trustDomain := "example.org"
 
+	l, err := net.Listen("tcp", "localhost:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponseForStaleCacheTest,
-		svidTTL:           3,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponseForStaleCacheTest,
+		svidTTL:     3,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -438,10 +450,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 
 	c := &Config{
-		ServerAddr: &net.UnixAddr{
-			Net:  "unix",
-			Name: apiHandler.sockPath,
-		},
+		ServerAddr:      l.Addr().String(),
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
@@ -481,12 +490,18 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	trustDomain := "example.org"
 
+	l, err := net.Listen("tcp", "localhost:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponseForTestSubscribersGetUpToDateBundle,
-		svidTTL:           200,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponseForTestSubscribersGetUpToDateBundle,
+		svidTTL:     200,
 	})
 	apiHandler.start()
 	defer apiHandler.stop()
@@ -494,10 +509,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 
 	c := &Config{
-		ServerAddr: &net.UnixAddr{
-			Net:  "unix",
-			Name: apiHandler.sockPath,
-		},
+		ServerAddr:       l.Addr().String(),
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
@@ -537,11 +549,17 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	trustDomain := "example.org"
 
+	l, err := net.Listen("tcp", "localhost:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
-		t:                 t,
-		trustDomain:       trustDomain,
-		dir:               dir,
-		fetchSVIDResponse: fetchSVIDResponseForTestSurvivesCARotation,
+		t:           t,
+		trustDomain: trustDomain,
+		listener:    l,
+		fetchSVID:   fetchSVIDResponseForTestSurvivesCARotation,
 		// Give a low ttl to get expired entries on each synchronization, forcing
 		// the manager to fetch entries from the server.
 		svidTTL: 3,
@@ -552,10 +570,7 @@ func TestSurvivesCARotation(t *testing.T) {
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 
 	c := &Config{
-		ServerAddr: &net.UnixAddr{
-			Net:  "unix",
-			Name: apiHandler.sockPath,
-		},
+		ServerAddr:       l.Addr().String(),
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
@@ -687,10 +702,7 @@ func fetchSVIDResponseForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node
 		h.cakey = key
 		h.bundle = append(h.bundle, ca)
 	case 5:
-		h.stop()
-		time.Sleep(3 * time.Second)
-		h.start()
-		return fmt.Errorf("server was restarted")
+		return fmt.Errorf("i'm an error")
 	}
 
 	return fetchSVIDResponse(h, req, stream)
@@ -766,10 +778,11 @@ type svidMap map[string]*node.Svid
 type mockNodeAPIHandlerConfig struct {
 	t           *testing.T
 	trustDomain string
-	// Directory used to save server related files, like unix sockets files.
-	dir string
-	// Callback used to build the response according to the request and state of mockNodeAPIHandler.
-	fetchSVIDResponse func(*mockNodeAPIHandler, *node.FetchX509SVIDRequest, node.Node_FetchX509SVIDServer) error
+
+	listener net.Listener
+
+	// Callbacks used to build the response according to the request and state of mockNodeAPIHandler.
+	fetchSVID func(*mockNodeAPIHandler, *node.FetchX509SVIDRequest, node.Node_FetchX509SVIDServer) error
 
 	svidTTL int
 }
@@ -785,9 +798,8 @@ type mockNodeAPIHandler struct {
 
 	serverID string
 
-	sockPath string
-	server   *grpc.Server
-	creds    grpc.ServerOption
+	server *grpc.Server
+	creds  grpc.ServerOption
 
 	// Counts the number of requests received from clients
 	reqCount int
@@ -802,7 +814,6 @@ func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig) *mockNodeAPIHandler
 		c:        config,
 		bundle:   []*x509.Certificate{ca},
 		cakey:    cakey,
-		sockPath: path.Join(config.dir, "node_api.sock"),
 		serverID: "spiffe://" + config.trustDomain + "/spire/server",
 	}
 
@@ -845,8 +856,8 @@ func (h *mockNodeAPIHandler) FetchX509SVID(stream node.Node_FetchX509SVIDServer)
 	if err != nil {
 		return err
 	}
-	if h.c.fetchSVIDResponse != nil {
-		return h.c.fetchSVIDResponse(h, req, stream)
+	if h.c.fetchSVID != nil {
+		return h.c.fetchSVID(h, req, stream)
 	}
 	return nil
 }
@@ -861,13 +872,8 @@ func (h *mockNodeAPIHandler) start() {
 	node.RegisterNodeServer(s, h)
 	h.server = s
 
-	l, err := net.Listen("unix", h.sockPath)
-	if err != nil {
-		h.c.t.Fatalf("create UDS listener: %s", err)
-	}
-
 	go func() {
-		err := h.server.Serve(l)
+		err := h.server.Serve(h.c.listener)
 		if err != nil {
 			panic(fmt.Errorf("error starting mock server: %v", err))
 		}
@@ -879,7 +885,6 @@ func (h *mockNodeAPIHandler) start() {
 
 func (h *mockNodeAPIHandler) stop() {
 	h.server.Stop()
-	os.Remove(h.sockPath)
 }
 
 func (h *mockNodeAPIHandler) ca() *x509.Certificate {

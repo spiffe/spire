@@ -21,8 +21,10 @@ import (
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 type HandlerConfig struct {
@@ -32,7 +34,8 @@ type HandlerConfig struct {
 }
 
 type Handler struct {
-	c HandlerConfig
+	c       HandlerConfig
+	limiter Limiter
 
 	// test hooks
 	hooks struct {
@@ -42,7 +45,8 @@ type Handler struct {
 
 func NewHandler(config HandlerConfig) *Handler {
 	h := &Handler{
-		c: config,
+		c:       config,
+		limiter: NewLimiter(config.Log),
 	}
 	h.hooks.now = time.Now
 	return h
@@ -60,6 +64,11 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	request, err := stream.Recv()
 	if err != nil {
 		return err
+	}
+
+	err = h.limiter.Limit(ctx, AttestMsg, 1)
+	if err != nil {
+		return status.Error(codes.ResourceExhausted, err.Error())
 	}
 
 	baseSpiffeIDFromCSR, err := getSpiffeIDFromCSR(request.Csr)
@@ -175,6 +184,11 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		}
 
 		ctx := server.Context()
+
+		err = h.limiter.Limit(ctx, CSRMsg, len(request.Csrs))
+		if err != nil {
+			return status.Error(codes.ResourceExhausted, err.Error())
+		}
 
 		peerCert, err := h.getCertFromCtx(ctx)
 		if err != nil {
@@ -414,7 +428,7 @@ func (h *Handler) updateNodeResolverMap(ctx context.Context,
 		return err
 	}
 
-	if selectors, ok := response.Map[baseSpiffeID]; ok {
+	if selectors := response.Map[baseSpiffeID]; selectors != nil {
 		for _, selector := range selectors.Entries {
 			err := h.createNodeResolverMapEntry(ctx, baseSpiffeID, selector)
 			if err != nil {

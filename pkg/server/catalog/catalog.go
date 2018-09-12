@@ -7,10 +7,13 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
+	aws_attestor "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
+	azure_attestor "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
+	aws_resolver "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
+	azure_resolver "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
 	"github.com/spiffe/spire/proto/server/ca"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -57,13 +60,16 @@ var (
 			"sql": datastore.NewBuiltIn(sql.New()),
 		},
 		NodeAttestorType: {
-			"aws_iid":    nodeattestor.NewBuiltIn(aws.NewIID()),
+			"aws_iid":    nodeattestor.NewBuiltIn(aws_attestor.NewIID()),
 			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
 			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
 			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
+			"azure_msi":  nodeattestor.NewBuiltIn(azure_attestor.NewMSIAttestorPlugin()),
 		},
 		NodeResolverType: {
-			"noop": noderesolver.NewBuiltIn(noop.New()),
+			"noop":      noderesolver.NewBuiltIn(noop.New()),
+			"aws_iid":   noderesolver.NewBuiltIn(aws_resolver.NewIIDResolverPlugin()),
+			"azure_msi": noderesolver.NewBuiltIn(azure_resolver.NewMSIResolverPlugin()),
 		},
 		UpstreamCAType: {
 			"disk": upstreamca.NewBuiltIn(upca_disk.New()),

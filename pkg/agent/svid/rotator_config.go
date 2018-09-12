@@ -3,7 +3,6 @@ package svid
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -17,7 +16,7 @@ import (
 type RotatorConfig struct {
 	Log         logrus.FieldLogger
 	TrustDomain url.URL
-	ServerAddr  net.Addr
+	ServerAddr  string
 	// Initial SVID and key
 	SVID    *x509.Certificate
 	SVIDKey *ecdsa.PrivateKey

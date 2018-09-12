@@ -1,12 +1,12 @@
-hash: 35f27a42ef95c2096d1e978ff87429ab29a41fb0e5d4fd4f8ef3a89c2964ee5d
-updated: 2018-06-09T11:32:20.976069+02:00
+hash: 29e187b9ac0ad83714dfa95e164f692b2f5ec7b2538fd4910c8a9d8214d168d7
+updated: 2018-09-11T18:12:56.424825-07:00
 imports:
 - name: github.com/armon/go-metrics
   version: 783273d703149aaeb9897cf58613d5af48861c25
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/aws/aws-sdk-go
-  version: c9af76f2478f81c6566d0f7f4d522254ec7c0b52
+  version: 1186f7e6f000ce13edff71ed5ecc8b0e27ba38d7
   subpackages:
   - aws
   - aws/awserr
@@ -27,6 +27,7 @@ imports:
   - aws/signer/v4
   - internal/sdkio
   - internal/sdkrand
+  - internal/sdkuri
   - internal/shareddefaults
   - private/protocol
   - private/protocol/ec2query
@@ -35,11 +36,40 @@ imports:
   - private/protocol/rest
   - private/protocol/xml/xmlutil
   - service/ec2
+  - service/iam
   - service/sts
+- name: github.com/Azure/azure-sdk-for-go
+  version: 4e8cbbfb1aeab140cd0fa97fd16b64ee18c3ca6a
+  subpackages:
+  - profiles/latest/compute/mgmt/compute
+  - profiles/latest/network/mgmt/network
+  - profiles/latest/resources/mgmt/resources
+  - services/compute/mgmt/2018-04-01/compute
+  - services/network/mgmt/2018-01-01/network
+  - services/resources/mgmt/2018-02-01/resources
+  - version
+- name: github.com/Azure/go-autorest
+  version: dd94e014aaf16d1df746762e392aa201c1b4c461
+  subpackages:
+  - autorest
+  - autorest/adal
+  - autorest/azure
+  - autorest/azure/auth
+  - autorest/date
+  - autorest/to
+  - autorest/validation
+  - logger
+  - version
 - name: github.com/bgentry/speakeasy
   version: 4aabc24848ce5fd31929f7d1e4ea74d3709c14cd
+- name: github.com/davecgh/go-spew
+  version: ecdeabc65495df2dec95d7c4a4c3e021903035e5
+  subpackages:
+  - spew
 - name: github.com/dgrijalva/jwt-go
   version: 06ea1031745cb8b3dab3f6a236daf2b0aa468b7e
+- name: github.com/dimchansky/utfbom
+  version: 5448fe645cb1964ba70ac8f9f2ffe975e61a536c
 - name: github.com/go-ini/ini
   version: 32e4be5f41bb918afb6e37c07426e2ddbcb6647e
 - name: github.com/go-ole/go-ole
@@ -57,12 +87,14 @@ imports:
   - proto
   - protoc-gen-go
   - protoc-gen-go/descriptor
+  - protoc-gen-go/plugin
   - ptypes
   - ptypes/any
   - ptypes/duration
   - ptypes/empty
   - ptypes/struct
   - ptypes/timestamp
+  - ptypes/wrappers
 - name: github.com/grpc-ecosystem/grpc-gateway
   version: 8cc3a55af3bcf171a1c23a90c4df9cf591706104
   subpackages:
@@ -125,6 +157,10 @@ imports:
   version: 518dc677a1e1222682f4e7db06721942cb8e9e4c
 - name: github.com/mitchellh/go-testing-interface
   version: a61a99592b77c9ba629d254a693acffaeb4b7e28
+- name: github.com/pmezard/go-difflib
+  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  subpackages:
+  - difflib
 - name: github.com/posener/complete
   version: cdc49b71388c2ab059f57997ef2575c9e8b4f146
   subpackages:
@@ -158,9 +194,21 @@ imports:
   - uri
 - name: github.com/StackExchange/wmi
   version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
+- name: github.com/stretchr/testify
+  version: 87b1dfb5b2fa649f52695dd9eae19abe404a4308
+  subpackages:
+  - assert
+  - require
+  - suite
+- name: github.com/zeebo/errs
+  version: 63dc8634da43f7c647c5921505363588cb833d29
 - name: golang.org/x/crypto
   version: a6600008915114d9c087fad9f03d75087b1a74df
   subpackages:
+  - ed25519
+  - ed25519/internal/edwards25519
+  - pkcs12
+  - pkcs12/internal/rc2
   - ssh/terminal
 - name: golang.org/x/net
   version: 5ccada7d0a7ba9aeb5d3aca8d3501b4c2a509fec
@@ -173,7 +221,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sys
-  version: 2c42eef0765b9837fbdab12011af7830f55f88f0
+  version: 1c9583448a9c3aa0f9a6a5241bf73c0bd8aafded
   subpackages:
   - unix
   - windows
@@ -184,28 +232,35 @@ imports:
   - transform
   - unicode/bidi
   - unicode/norm
+- name: golang.org/x/time
+  version: fbb02b2291d28baffd63558aa44b4b56f178d650
+  subpackages:
+  - rate
 - name: google.golang.org/genproto
   version: a8101f21cf983e773d0c1133ebc5424792003214
   subpackages:
   - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 7a6a684ca69eb4cae85ad0a484f2e531598c047b
+  version: 32fb0ac620c32ba40a4626ddf94d90d12cce3455
   subpackages:
   - balancer
   - balancer/base
   - balancer/roundrobin
-  - channelz
   - codes
   - connectivity
   - credentials
   - encoding
   - encoding/proto
-  - grpclb/grpc_lb_v1/messages
   - grpclog
   - health
   - health/grpc_health_v1
   - internal
+  - internal/backoff
+  - internal/channelz
+  - internal/envconfig
+  - internal/grpcrand
+  - internal/transport
   - keepalive
   - metadata
   - naming
@@ -216,21 +271,12 @@ imports:
   - stats
   - status
   - tap
-  - transport
+- name: gopkg.in/square/go-jose.v2
+  version: 349dc03548930652802aadc09fb126e2b7cb6d80
+  subpackages:
+  - cipher
+  - json
+  - jwt
 - name: gopkg.in/tomb.v2
   version: d5d1b5820637886def9eef33e03a27a9f166942c
-testImports:
-- name: github.com/davecgh/go-spew
-  version: ecdeabc65495df2dec95d7c4a4c3e021903035e5
-  subpackages:
-  - spew
-- name: github.com/pmezard/go-difflib
-  version: 792786c7400a136282c1664665ae0a8db921c6c2
-  subpackages:
-  - difflib
-- name: github.com/stretchr/testify
-  version: 87b1dfb5b2fa649f52695dd9eae19abe404a4308
-  subpackages:
-  - assert
-  - require
-  - suite
+testImports: []

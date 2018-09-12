@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
 	"errors"
@@ -272,9 +273,8 @@ func combineNonces(challenge, response []byte) ([]byte, error) {
 	if len(response) != nonceLen {
 		return nil, errors.New("invalid response nonce")
 	}
-	combined := make([]byte, nonceLen)
-	for i := range combined {
-		combined[i] = challenge[i] ^ response[i]
-	}
-	return combined, nil
+	h := sha256.New()
+	h.Write(challenge)
+	h.Write(response)
+	return h.Sum(nil), nil
 }

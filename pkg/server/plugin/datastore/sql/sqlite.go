@@ -8,17 +8,18 @@ import (
 type sqlite struct{}
 
 func (s sqlite) connect(connectionString string) (*gorm.DB, error) {
-	path := connectionString
-	if path == ":memory:" {
-		path = path + "?cache=shared"
-	}
-	path = "file:" + path
-
 	db, err := gorm.Open("sqlite3", connectionString)
 	if err != nil {
-		return nil, err
+		return nil, sqlError.Wrap(err)
 	}
-	db.Exec("PRAGMA foreign_keys = ON")
+	if err := db.Exec("PRAGMA journal_mode = WAL").Error; err != nil {
+		db.Close()
+		return nil, sqlError.Wrap(err)
+	}
+	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+		db.Close()
+		return nil, sqlError.Wrap(err)
+	}
 
 	return db, nil
 }
