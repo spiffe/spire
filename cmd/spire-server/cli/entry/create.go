@@ -16,8 +16,8 @@ import (
 )
 
 type CreateConfig struct {
-	// Address of SPIRE server
-	Addr string
+	// Socket path of registration API
+	RegistrationUDSPath string
 
 	// Path to an optional data file. If set, other
 	// opts will be ignored.
@@ -38,8 +38,8 @@ type CreateConfig struct {
 // Perform basic validation, even on fields that we
 // have defaults defined for
 func (rc *CreateConfig) Validate() error {
-	if rc.Addr == "" {
-		return errors.New("a server address is required")
+	if rc.RegistrationUDSPath == "" {
+		return errors.New("a socket path for registration api is required")
 	}
 
 	// If a path is set, we have all we need
@@ -115,7 +115,7 @@ func (c CreateCLI) Run(args []string) int {
 		return 1
 	}
 
-	cl, err := util.NewRegistrationClient(ctx, config.Addr)
+	cl, err := util.NewRegistrationClient(config.RegistrationUDSPath)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -187,7 +187,7 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f := flag.NewFlagSet("entry create", flag.ContinueOnError)
 	c := &CreateConfig{}
 
-	f.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
+	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS Path")
 	f.StringVar(&c.ParentID, "parentID", "", "The SPIFFE ID of this record's parent")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
 	f.IntVar(&c.Ttl, "ttl", 3600, "A TTL, in seconds, for any SVID issued as a result of this record")

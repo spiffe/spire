@@ -8,10 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"sync"
 
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
@@ -23,6 +21,9 @@ import (
 
 	"golang.org/x/net/context"
 
+	"os"
+
+	"github.com/spiffe/spire/pkg/agent/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -52,19 +53,17 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 
 	e.c.Log.Debug("Initializing API endpoints")
 	gs := e.createGRPCServer(ctx)
-	hs := e.createHTTPServer(ctx)
+	hs := e.createUDSServer(ctx)
 
 	e.registerNodeAPI(gs)
-	if err := e.registerRegistrationAPI(ctx, gs, hs); err != nil {
-		return err
-	}
+	e.registerRegistrationAPI(hs)
 
 	err := util.RunTasks(ctx,
 		func(ctx context.Context) error {
 			return e.runGRPCServer(ctx, gs)
 		},
 		func(ctx context.Context) error {
-			return e.runHTTPServer(ctx, hs)
+			return e.runUDSServer(ctx, hs)
 		},
 		e.runSVIDObserver,
 	)
@@ -83,17 +82,8 @@ func (e *endpoints) createGRPCServer(ctx context.Context) *grpc.Server {
 	return grpc.NewServer(opts)
 }
 
-func (e *endpoints) createHTTPServer(ctx context.Context) *http.Server {
-	tlsConfig := &tls.Config{
-		GetConfigForClient: e.getHTTPServerConfig(ctx),
-	}
-
-	s := &http.Server{
-		TLSConfig: tlsConfig,
-		Handler:   runtime.NewServeMux(),
-	}
-
-	return s
+func (e *endpoints) createUDSServer(ctx context.Context) *grpc.Server {
+	return grpc.NewServer(grpc.Creds(auth.NewCredentials()))
 }
 
 // registerNodeAPI creates a Node API handler and registers it against
@@ -109,34 +99,15 @@ func (e *endpoints) registerNodeAPI(gs *grpc.Server) {
 }
 
 // registerRegistrationAPI creates a Registration API handler and registers
-// it against the provided gRPC and HTTP servers.
-func (e *endpoints) registerRegistrationAPI(ctx context.Context, gs *grpc.Server, hs *http.Server) error {
-	// gRPC client config for HTTP-to-gRPC gateway
-	// Configure WithInsecure because 1) it's assumed to be local, and 2) because
-	// TLS config can't be hooked here to support root rotation
-	grpcOpts := []grpc.DialOption{grpc.WithInsecure()}
-
-	// This should never really fail since we have initially set it as this
-	// type in createHTTPServer()
-	httpMux, ok := hs.Handler.(*runtime.ServeMux)
-	if !ok {
-		return fmt.Errorf("error creating http gateway")
-	}
-
+// it against the provided gRPC.
+func (e *endpoints) registerRegistrationAPI(hs *grpc.Server) {
 	r := &registration.Handler{
 		Log:         e.c.Log.WithField("subsystem_name", "registration_api"),
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
 	}
 
-	// Register the handler with gRPC first
-	registration_pb.RegisterRegistrationServer(gs, r)
-	err := registration_pb.RegisterRegistrationHandlerFromEndpoint(ctx, httpMux, e.c.GRPCAddr.String(), grpcOpts)
-	if err != nil {
-		return fmt.Errorf("error creating http gateway: %s", err.Error())
-	}
-
-	return nil
+	registration_pb.RegisterRegistrationServer(hs, r)
 }
 
 // runGRPCServer will start the server and block until it exits or we are dying.
@@ -172,16 +143,18 @@ func (e *endpoints) runGRPCServer(ctx context.Context, server *grpc.Server) erro
 	}
 }
 
-// runHTTPServer will start the server and block until it exits or we are dying.
-func (e *endpoints) runHTTPServer(ctx context.Context, server *http.Server) error {
-	l, err := net.Listen(e.c.HTTPAddr.Network(), e.c.HTTPAddr.String())
+// runUDSServer  will start the server and block until it exits or we are dying.
+func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
+	os.Remove(e.c.UDSAddr.String())
+	l, err := net.Listen(e.c.UDSAddr.Network(), e.c.UDSAddr.String())
 	if err != nil {
 		return err
 	}
+	os.Chmod(e.c.UDSAddr.String(), 0770)
 	defer l.Close()
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.c.Log.Infof("Starting HTTP server on %s", l.Addr())
+	e.c.Log.Infof("Starting UDS server %s", l.Addr())
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
@@ -189,11 +162,11 @@ func (e *endpoints) runHTTPServer(ctx context.Context, server *http.Server) erro
 	case err := <-errChan:
 		return err
 	case <-ctx.Done():
-		e.c.Log.Info("Stopping HTTP server")
+		e.c.Log.Info("Stopping UDS server")
 		l.Close()
-		server.Close()
+		server.Stop()
 		<-errChan
-		e.c.Log.Info("HTTP server has stopped.")
+		e.c.Log.Info("UDS server has stopped.")
 		return nil
 	}
 

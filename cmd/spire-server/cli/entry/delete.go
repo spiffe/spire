@@ -12,8 +12,8 @@ import (
 )
 
 type DeleteConfig struct {
-	// Address of SPIRE server
-	Addr string
+	// Socket path of registration API
+	RegistrationUDSPath string
 
 	// ID of the record to delete
 	EntryID string
@@ -21,8 +21,8 @@ type DeleteConfig struct {
 
 // Perform basic validation
 func (dc *DeleteConfig) Validate() error {
-	if dc.Addr == "" {
-		return errors.New("a server address is required")
+	if dc.RegistrationUDSPath == "" {
+		return errors.New("a socket path for registration api is required")
 	}
 
 	if dc.EntryID == "" {
@@ -55,7 +55,7 @@ func (d DeleteCLI) Run(args []string) int {
 		return d.printErr(err)
 	}
 
-	cl, err := util.NewRegistrationClient(ctx, config.Addr)
+	cl, err := util.NewRegistrationClient(config.RegistrationUDSPath)
 	if err != nil {
 		return d.printErr(err)
 	}
@@ -77,7 +77,7 @@ func (DeleteCLI) newConfig(args []string) (*DeleteConfig, error) {
 	f := flag.NewFlagSet("entry delete", flag.ContinueOnError)
 	c := &DeleteConfig{}
 
-	f.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
+	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS Path")
 	f.StringVar(&c.EntryID, "entryID", "", "The Registration Entry ID of the record to delete")
 
 	return c, f.Parse(args)

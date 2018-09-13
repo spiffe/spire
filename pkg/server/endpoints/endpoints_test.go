@@ -57,7 +57,7 @@ func (s *EndpointsTestSuite) SetupTest() {
 	s.svidState = observer.NewProperty(svid.State{})
 	c := &Config{
 		GRPCAddr:    &net.TCPAddr{IP: ip, Port: 8000},
-		HTTPAddr:    &net.TCPAddr{IP: ip, Port: 8001},
+		UDSAddr:     &net.UnixAddr{Name: "./spire_api", Net: "unix"},
 		SVIDStream:  s.svidState.Observe(),
 		TrustDomain: td,
 		Catalog:     catalog,
@@ -71,8 +71,8 @@ func (s *EndpointsTestSuite) TestCreateGRPCServer() {
 	s.Assert().NotNil(s.e.createGRPCServer(ctx))
 }
 
-func (s *EndpointsTestSuite) TestCreateHTTPServer() {
-	s.Assert().NotNil(s.e.createHTTPServer(ctx))
+func (s *EndpointsTestSuite) TestCreateUDSServer() {
+	s.Assert().NotNil(s.e.createUDSServer(ctx))
 }
 
 func (s *EndpointsTestSuite) TestRegisterNodeAPI() {
@@ -80,8 +80,7 @@ func (s *EndpointsTestSuite) TestRegisterNodeAPI() {
 }
 
 func (s *EndpointsTestSuite) TestRegisterRegistrationAPI() {
-	err := s.e.registerRegistrationAPI(ctx, s.e.createGRPCServer(ctx), s.e.createHTTPServer(ctx))
-	s.Assert().Nil(err)
+	s.Assert().NotPanics(func() { s.e.registerRegistrationAPI(s.e.createUDSServer(ctx)) })
 }
 
 func (s *EndpointsTestSuite) TestListenAndServe() {

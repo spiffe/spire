@@ -23,6 +23,7 @@ import (
 
 const (
 	defaultConfigPath = "conf/server/server.conf"
+	defaultSocketPath = "./spire_api"
 	defaultLogLevel   = "INFO"
 	defaultUmask      = 0077
 )
@@ -34,25 +35,25 @@ type runConfig struct {
 }
 
 type serverConfig struct {
-	BindAddress      string `hcl:"bind_address"`
-	BindPort         int    `hcl:"bind_port"`
-	BindHTTPPort     int    `hcl:"bind_http_port"`
-	DataDir          string `hcl:"data_dir"`
-	TrustDomain      string `hcl:"trust_domain"`
-	LogFile          string `hcl:"log_file"`
-	LogLevel         string `hcl:"log_level"`
-	BaseSVIDTtl      int    `hcl:"base_svid_ttl"`
-	ServerSVIDTtl    int    `hcl:"server_svid_ttl"`
-	ConfigPath       string
-	Umask            string           `hcl:"umask"`
-	UpstreamBundle   bool             `hcl:"upstream_bundle"`
-	ProfilingEnabled bool             `hcl:"profiling_enabled"`
-	ProfilingPort    int              `hcl:"profiling_port"`
-	ProfilingFreq    int              `hcl:"profiling_freq"`
-	ProfilingNames   []string         `hcl:"profiling_names"`
-	SVIDTTL          string           `hcl:"svid_ttl"`
-	CATTL            string           `hcl:"ca_ttl"`
-	CASubject        *caSubjectConfig `hcl:"ca_subject"`
+	BindAddress         string `hcl:"bind_address"`
+	BindPort            int    `hcl:"bind_port"`
+	RegistrationUDSPath string `hcl:"registration_uds_path"`
+	DataDir             string `hcl:"data_dir"`
+	TrustDomain         string `hcl:"trust_domain"`
+	LogFile             string `hcl:"log_file"`
+	LogLevel            string `hcl:"log_level"`
+	BaseSVIDTtl         int    `hcl:"base_svid_ttl"`
+	ServerSVIDTtl       int    `hcl:"server_svid_ttl"`
+	ConfigPath          string
+	Umask               string           `hcl:"umask"`
+	UpstreamBundle      bool             `hcl:"upstream_bundle"`
+	ProfilingEnabled    bool             `hcl:"profiling_enabled"`
+	ProfilingPort       int              `hcl:"profiling_port"`
+	ProfilingFreq       int              `hcl:"profiling_freq"`
+	ProfilingNames      []string         `hcl:"profiling_names"`
+	SVIDTTL             string           `hcl:"svid_ttl"`
+	CATTL               string           `hcl:"ca_ttl"`
+	CASubject           *caSubjectConfig `hcl:"ca_subject"`
 }
 
 type caSubjectConfig struct {
@@ -152,7 +153,7 @@ func parseFlags(args []string) (*runConfig, error) {
 
 	flags.StringVar(&c.Server.BindAddress, "bindAddress", "", "IP address or DNS name of the SPIRE server")
 	flags.IntVar(&c.Server.BindPort, "serverPort", 0, "Port number of the SPIRE server")
-	flags.IntVar(&c.Server.BindHTTPPort, "bindHTTPPort", 0, "HTTP Port number of the SPIRE server")
+	flags.StringVar(&c.Server.RegistrationUDSPath, "registrationUDSPath", "", "UDS Path to bind registration API")
 	flags.StringVar(&c.Server.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.StringVar(&c.Server.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
@@ -187,15 +188,14 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 			return fmt.Errorf("It was not possible to parse BindAdress: %v", cmd.Server.BindAddress)
 		}
 		orig.BindAddress.IP = ip
-		orig.BindHTTPAddress.IP = ip
+	}
+
+	if cmd.Server.RegistrationUDSPath != "" {
+		orig.BindUDSAddress.Name = cmd.Server.RegistrationUDSPath
 	}
 
 	if cmd.Server.BindPort != 0 {
 		orig.BindAddress.Port = cmd.Server.BindPort
-	}
-
-	if cmd.Server.BindHTTPPort != 0 {
-		orig.BindHTTPAddress.Port = cmd.Server.BindHTTPPort
 	}
 
 	if cmd.Server.DataDir != "" {
@@ -289,8 +289,8 @@ func validateConfig(c *server.Config) error {
 		return errors.New("BindAddress and BindPort are required")
 	}
 
-	if c.BindHTTPAddress.IP == nil || c.BindHTTPAddress.Port == 0 {
-		return errors.New("BindAddress and BindHTTPPort are required")
+	if c.BindUDSAddress.Name == "" {
+		return errors.New("BindUDSAddress Name is required")
 	}
 
 	if c.TrustDomain.String() == "" {
@@ -308,12 +308,12 @@ func newDefaultConfig() *server.Config {
 	// log.NewLogger() cannot return error when using STDOUT
 	logger, _ := log.NewLogger(defaultLogLevel, "")
 	bindAddress := &net.TCPAddr{}
-	serverHTTPAddress := &net.TCPAddr{}
+	bindUDSAddress := &net.UnixAddr{Name: defaultSocketPath, Net: "unix"}
 
 	return &server.Config{
-		Log:             logger,
-		BindAddress:     bindAddress,
-		BindHTTPAddress: serverHTTPAddress,
-		Umask:           defaultUmask,
+		Log:            logger,
+		BindAddress:    bindAddress,
+		BindUDSAddress: bindUDSAddress,
+		Umask:          defaultUmask,
 	}
 }

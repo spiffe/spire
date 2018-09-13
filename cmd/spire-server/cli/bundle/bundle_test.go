@@ -82,7 +82,7 @@ func (s *BundleSuite) SetupTest() {
 		stdout: s.stdout,
 		stderr: s.stderr,
 	}
-	clientMaker := func(context.Context, string) (*clients, error) {
+	clientMaker := func(string) (*clients, error) {
 		return &clients{
 			r: s.registrationClient,
 		}, nil
@@ -109,8 +109,8 @@ func (s *BundleSuite) AfterTest(suiteName, testName string) {
 func (s *BundleSuite) TestShowHelp() {
 	s.showCmd.Help()
 	s.Require().Equal(`Usage of bundle show:
-  -serverAddr string
-    	Address of the SPIRE server (default "localhost:8081")
+  -registrationUDSPath string
+    	Registration API UDS Path (default "./spire_api")
 `, s.stderr.String())
 }
 
@@ -141,8 +141,8 @@ func (s *BundleSuite) TestSetHelp() {
     	SPIFFE ID of the trust domain
   -path string
     	Path to the bundle data
-  -serverAddr string
-    	Address of the SPIRE server (default "localhost:8081")
+  -registrationUDSPath string
+    	Registration API UDS Path (default "./spire_api")
 `, s.stderr.String())
 }
 
@@ -200,8 +200,8 @@ func (s *BundleSuite) TestListHelp() {
 	s.Require().Equal(`Usage of bundle list:
   -id string
     	SPIFFE ID of the trust domain
-  -serverAddr string
-    	Address of the SPIRE server (default "localhost:8081")
+  -registrationUDSPath string
+    	Registration API UDS Path (default "./spire_api")
 `, s.stderr.String())
 }
 
@@ -276,8 +276,8 @@ func (s *BundleSuite) TestDeleteHelp() {
     	SPIFFE ID of the trust domain
   -mode string
     	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
-  -serverAddr string
-    	Address of the SPIRE server (default "localhost:8081")
+  -registrationUDSPath string
+    	Registration API UDS Path (default "./spire_api")
 `, s.stderr.String())
 }
 

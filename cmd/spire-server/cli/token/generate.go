@@ -16,8 +16,8 @@ import (
 type GenerateCLI struct{}
 
 type GenerateConfig struct {
-	// Address of the SPIRE server
-	Addr string
+	// Socket path of registration API
+	RegistrationUDSPath string
 
 	// Optional SPIFFE ID to create with the token
 	SpiffeID string
@@ -44,7 +44,7 @@ func (g GenerateCLI) Run(args []string) int {
 		return 1
 	}
 
-	c, err := util.NewRegistrationClient(ctx, config.Addr)
+	c, err := util.NewRegistrationClient(config.RegistrationUDSPath)
 	if err != nil {
 		fmt.Println(err.Error())
 		return 1
@@ -121,7 +121,7 @@ func (GenerateCLI) newConfig(args []string) (GenerateConfig, error) {
 
 	flags.IntVar(&c.TTL, "ttl", 600, "Token TTL in seconds")
 	flags.StringVar(&c.SpiffeID, "spiffeID", "", "Additional SPIFFE ID to assign the token owner (optional)")
-	flags.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
+	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS Path")
 
 	err := flags.Parse(args)
 	if err != nil {
