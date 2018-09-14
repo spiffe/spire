@@ -3,47 +3,138 @@ package unix
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"os/user"
+	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
-func init() {
-	newProcess = newFakeProcess
-	lookupUserById = fakeLookupUserById
-	lookupGroupById = fakeLookupGroupById
-}
-
 var (
 	ctx = context.Background()
 )
 
-func TestUnix_Attest(t *testing.T) {
+func TestUnixPlugin(t *testing.T) {
+	suite.Run(t, new(Suite))
+}
+
+type Suite struct {
+	suite.Suite
+
+	dir string
+	p   *workloadattestor.BuiltIn
+}
+
+func (s *Suite) SetupTest() {
+	var err error
+	s.dir, err = ioutil.TempDir("", "unix-workload-attestor-test-")
+	s.Require().NoError(err)
+
+	p := New()
+	p.hooks.newProcess = func(pid int32) (processInfo, error) {
+		return newFakeProcess(pid, s.dir), nil
+	}
+	p.hooks.lookupUserById = fakeLookupUserById
+	p.hooks.lookupGroupById = fakeLookupGroupById
+	s.p = workloadattestor.NewBuiltIn(p)
+	s.configure("")
+}
+
+func (s *Suite) TearDownTest() {
+	os.RemoveAll(s.dir)
+}
+
+func (s *Suite) TestAttest() {
 	testCases := []struct {
 		name      string
 		pid       int32
 		err       string
 		selectors []string
+		config    string
 	}{
-		{name: "pid with no uids", pid: 1, err: "unix: unable to get effective UID for PID 1"},
-		{name: "fail to get uids", pid: 2, err: "unix: unable to get UIDs for PID 2"},
-		{name: "user lookup fails", pid: 3, err: "unix: no user with UID 1999"},
-		{name: "pid with no gids", pid: 4, err: "unix: unable to get effective GID for PID 4"},
-		{name: "fail to get gids", pid: 5, err: "unix: unable to get GIDs for PID 5"},
-		{name: "group lookup fails", pid: 6, err: "unix: no group with GID 2999"},
-		{name: "primary user and gid", pid: 7, selectors: []string{"uid:1000", "user:u1000", "gid:2000", "group:g2000"}},
-		{name: "effective user and gid", pid: 8, selectors: []string{"uid:1100", "user:u1100", "gid:2100", "group:g2100"}},
+		{
+			name: "pid with no uids",
+			pid:  1,
+			err:  "unix: unable to get effective UID for PID 1"},
+		{
+			name: "fail to get uids",
+			pid:  2,
+			err:  "unix: unable to get UIDs for PID 2"},
+		{
+			name: "user lookup fails",
+			pid:  3,
+			err:  "unix: no user with UID 1999"},
+		{
+			name: "pid with no gids",
+			pid:  4,
+			err:  "unix: unable to get effective GID for PID 4"},
+		{
+			name: "fail to get gids",
+			pid:  5,
+			err:  "unix: unable to get GIDs for PID 5"},
+		{
+			name: "group lookup fails",
+			pid:  6,
+			err:  "unix: no group with GID 2999"},
+		{
+			name: "primary user and gid",
+			pid:  7,
+			selectors: []string{
+				"uid:1000",
+				"user:u1000",
+				"gid:2000",
+				"group:g2000",
+			}},
+		{
+			name: "effective user and gid",
+			pid:  8,
+			selectors: []string{
+				"uid:1100",
+				"user:u1100",
+				"gid:2100",
+				"group:g2100",
+			},
+		},
+		{
+			name:   "fail to get process binary path",
+			pid:    9,
+			config: "discover_workload_path = true",
+			err:    "unix: unable to get EXE for PID 9",
+		},
+		{
+			name:   "fail to hash process binary",
+			pid:    10,
+			config: "discover_workload_path = true",
+			err:    fmt.Sprintf("unix: open %s: no such file or directory", filepath.Join(s.dir, "unreadable-exe")),
+		},
+		{
+			name:   "success getting path and hashing process binary",
+			pid:    11,
+			config: "discover_workload_path = true",
+			selectors: []string{
+				"uid:1000",
+				"user:u1000",
+				"gid:2000",
+				"group:g2000",
+				fmt.Sprintf("path:%s", filepath.Join(s.dir, "exe")),
+				"sha256:3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7",
+			},
+		},
 	}
 
-	plugin := New()
+	// prepare the "exe" for hashing
+	s.writeFile("exe", []byte("data"))
+
 	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			resp, err := plugin.Attest(ctx, &workloadattestor.AttestRequest{
+		s.T().Run(testCase.name, func(t *testing.T) {
+			s.configure(testCase.config)
+			resp, err := s.p.Attest(ctx, &workloadattestor.AttestRequest{
 				Pid: testCase.pid,
 			})
 			if testCase.err != "" {
@@ -64,22 +155,32 @@ func TestUnix_Attest(t *testing.T) {
 	}
 }
 
-func TestUnix_Configure(t *testing.T) {
-	plugin := New()
-	data, e := plugin.Configure(ctx, &spi.ConfigureRequest{})
-	assert.Equal(t, &spi.ConfigureResponse{}, data)
-	assert.Equal(t, nil, e)
+func (s *Suite) TestConfigure() {
+	resp, err := s.p.Configure(ctx, &spi.ConfigureRequest{})
+	s.NoError(err)
+	s.Equal(&spi.ConfigureResponse{}, resp)
 }
 
-func TestUnix_GetPluginInfo(t *testing.T) {
-	plugin := New()
-	data, e := plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
-	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
-	assert.Equal(t, nil, e)
+func (s *Suite) TestGetPluginInfo() {
+	resp, e := s.p.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
+	s.NoError(e)
+	s.Equal(&spi.GetPluginInfoResponse{}, resp)
+}
+
+func (s *Suite) configure(config string) {
+	_, err := s.p.Configure(ctx, &spi.ConfigureRequest{
+		Configuration: config,
+	})
+	s.Require().NoError(err)
+}
+
+func (s *Suite) writeFile(path string, data []byte) {
+	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, path), data, 0644))
 }
 
 type fakeProcess struct {
 	pid int32
+	dir string
 }
 
 func (p fakeProcess) Uids() ([]int32, error) {
@@ -90,7 +191,7 @@ func (p fakeProcess) Uids() ([]int32, error) {
 		return nil, fmt.Errorf("unable to get UIDs for PID %d", p.pid)
 	case 3:
 		return []int32{1999}, nil
-	case 4, 5, 6, 7:
+	case 4, 5, 6, 7, 9, 10, 11:
 		return []int32{1000}, nil
 	case 8:
 		return []int32{1000, 1100}, nil
@@ -107,7 +208,7 @@ func (p fakeProcess) Gids() ([]int32, error) {
 		return nil, fmt.Errorf("unable to get GIDs for PID %d", p.pid)
 	case 6:
 		return []int32{2999}, nil
-	case 7:
+	case 7, 9, 10, 11:
 		return []int32{2000}, nil
 	case 8:
 		return []int32{2000, 2100}, nil
@@ -116,8 +217,21 @@ func (p fakeProcess) Gids() ([]int32, error) {
 	}
 }
 
-func newFakeProcess(pid int32) (processInfo, error) {
-	return fakeProcess{pid: pid}, nil
+func (p fakeProcess) Exe() (string, error) {
+	switch p.pid {
+	case 7, 8, 9:
+		return "", fmt.Errorf("unable to get EXE for PID %d", p.pid)
+	case 10:
+		return filepath.Join(p.dir, "unreadable-exe"), nil
+	case 11:
+		return filepath.Join(p.dir, "exe"), nil
+	default:
+		return "", fmt.Errorf("unhandled exe test case %d", p.pid)
+	}
+}
+
+func newFakeProcess(pid int32, dir string) processInfo {
+	return fakeProcess{pid: pid, dir: dir}
 }
 
 func fakeLookupUserById(uid string) (*user.User, error) {
