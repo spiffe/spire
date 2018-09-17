@@ -77,7 +77,7 @@ Note: If you don't already have Docker installed, please follow these [installat
 server {
         bind_address = "127.0.0.1"
         bind_port = "8081"
-        bind_http_port = "8080"
+        registration_uds_path ="/tmp/spire-registration.sock"
         trust_domain = "example.org"
         plugin_dir = "conf/server/plugin"
         log_level = "DEBUG"

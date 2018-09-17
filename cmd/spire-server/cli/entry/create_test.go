@@ -15,12 +15,12 @@ import (
 // TODO: Test additional scenarios
 func TestCreateParseConfig(t *testing.T) {
 	c := &CreateConfig{
-		Addr:          cmdutil.DefaultServerAddr,
-		ParentID:      "spiffe://example.org/foo",
-		SpiffeID:      "spiffe://example.org/bar",
-		Ttl:           60,
-		Selectors:     StringsFlag{"unix:uid:1000", "unix:gid:1000"},
-		FederatesWith: StringsFlag{"spiffe://domain1.test", "spiffe://domain2.test"},
+		RegistrationUDSPath: cmdutil.DefaultSocketPath,
+		ParentID:            "spiffe://example.org/foo",
+		SpiffeID:            "spiffe://example.org/bar",
+		Ttl:                 60,
+		Selectors:           StringsFlag{"unix:uid:1000", "unix:gid:1000"},
+		FederatesWith:       StringsFlag{"spiffe://domain1.test", "spiffe://domain2.test"},
 	}
 
 	entries, err := CreateCLI{}.parseConfig(c)

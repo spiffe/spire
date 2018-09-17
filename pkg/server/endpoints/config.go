@@ -16,7 +16,7 @@ import (
 type Config struct {
 	// Addresses to bind the servers to
 	GRPCAddr *net.TCPAddr
-	HTTPAddr *net.TCPAddr
+	UDSAddr  *net.UnixAddr
 
 	// A hook allowing the consumer to customize the gRPC server before it starts.
 	GRPCHook func(*grpc.Server) error

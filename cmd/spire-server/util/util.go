@@ -1,39 +1,27 @@
 package util
 
 import (
-	"context"
-	"crypto/tls"
-	"log"
-	"os"
+	"net"
+	"time"
 
-	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/proto/api/registration"
-
-	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc"
 )
 
 const (
-	DefaultServerAddr = "localhost:8081"
+	DefaultSocketPath = "/tmp/spire-registration.sock"
 )
 
-func NewRegistrationClient(ctx context.Context, address string) (registration.RegistrationClient, error) {
-	// TODO: Pass a bundle in here
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-	}
-	credFunc := func() (credentials.TransportCredentials, error) { return credentials.NewTLS(tlsConfig), nil }
-
-	dc := grpcutil.GRPCDialerConfig{
-		Log:      log.New(os.Stdout, "", 0),
-		CredFunc: credFunc,
-	}
-	dialer := grpcutil.NewGRPCDialer(dc)
-
-	conn, err := dialer.Dial(ctx, address)
+func NewRegistrationClient(socketPath string) (registration.RegistrationClient, error) {
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer))
 	if err != nil {
 		return nil, err
 	}
 	return registration.NewRegistrationClient(conn), err
+}
+
+func dialer(addr string, timeout time.Duration) (net.Conn, error) {
+	return net.DialTimeout("unix", addr, timeout)
 }
 
 // Pluralizer concatenates `singular` to `msg` when `val` is one, and

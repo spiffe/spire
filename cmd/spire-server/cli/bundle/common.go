@@ -24,11 +24,11 @@ type clients struct {
 	r registration.RegistrationClient
 }
 
-type clientsMaker func(ctx context.Context, addr string) (*clients, error)
+type clientsMaker func(registrationUDSPath string) (*clients, error)
 
 // newClients is the default client maker
-func newClients(ctx context.Context, addr string) (*clients, error) {
-	registrationClient, err := util.NewRegistrationClient(ctx, addr)
+func newClients(registrationUDSPath string) (*clients, error) {
+	registrationClient, err := util.NewRegistrationClient(registrationUDSPath)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +52,8 @@ type adapter struct {
 	clientsMaker clientsMaker
 	cmd          command
 
-	addr  string
-	flags *flag.FlagSet
+	registrationUDSPath string
+	flags               *flag.FlagSet
 }
 
 // adaptCommand converts a command into one conforming to the Command interface from github.com/mitchellh/cli
@@ -66,7 +66,7 @@ func adaptCommand(env *env, clientsMaker clientsMaker, cmd command) *adapter {
 
 	f := flag.NewFlagSet(cmd.name(), flag.ContinueOnError)
 	f.SetOutput(env.stderr)
-	f.StringVar(&a.addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
+	f.StringVar(&a.registrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	a.cmd.appendFlags(f)
 	a.flags = f
 
@@ -81,7 +81,7 @@ func (a *adapter) Run(args []string) int {
 		return 1
 	}
 
-	clients, err := a.clientsMaker(ctx, a.addr)
+	clients, err := a.clientsMaker(a.registrationUDSPath)
 	if err != nil {
 		fmt.Fprintln(a.env.stderr, err)
 		return 1
