@@ -9,17 +9,17 @@ backed by the SPIRE Server datastore.
 The following details the configurations for the spire server. The configurations can be set through
 a .conf file or passed as command line args, the command line configurations takes precedence.
 
-| Configuration     | Description                                            | Default                       |
-|:------------------|:-------------------------------------------------------|:------------------------------|
-| `base_svid_ttl`   | TTL to use when creating the base SPIFFE ID            |                               |
-| `bind_address`    | IP address or DNS name of the SPIRE server             |                               |
-| `bind_port`       | HTTP Port number of the SPIRE server                   |                               |
-| `bind_http_port`  | The HTTP port where the SPIRE Service is set to listen |                               |
-| `log_file`        | File to write logs to                                  |                               |
-| `log_level`       | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>    | INFO                          |
-| `trust_domain`    | The trust domain that this server belongs to           |                               |
-| `umask`           | Umask value to use for new files                       | 0077                          |
-| `upstream_bundle` | Include upstream CA certificates in the trust bundle   | false                         |
+| Configuration               | Description                                            | Default                       |
+|:----------------------------|:-------------------------------------------------------|:------------------------------|
+| `base_svid_ttl`             | TTL to use when creating the base SPIFFE ID            |                               |
+| `bind_address`              | IP address or DNS name of the SPIRE server             |                               |
+| `bind_port`                 | HTTP Port number of the SPIRE server                   |                               |
+| `registration_uds_path`     | Location to bind the registration API socket           | $PWD/spire_api                |
+| `log_file`                  | File to write logs to                                  |                               |
+| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>    | INFO                          |
+| `trust_domain`              | The trust domain that this server belongs to           |                               |
+| `umask`                     | Umask value to use for new files                       | 0077                          |
+| `upstream_bundle`           | Include upstream CA certificates in the trust bundle   | false                         |
 
 **Note:** Changing the umask may expose your signing authority to users other than the SPIRE
 agent/server.

@@ -15,8 +15,8 @@ import (
 // ShowConfig is a configuration struct for the
 // `spire-server entry show` CLI command
 type ShowConfig struct {
-	// Address of SPIRE server
-	Addr string
+	// Socket path of registration API
+	RegistrationUDSPath string
 
 	// Type and value are delimited by a colon (:)
 	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
@@ -73,7 +73,7 @@ func (s *ShowCLI) Run(args []string) int {
 	}
 
 	if s.Client == nil {
-		s.Client, err = util.NewRegistrationClient(ctx, s.Config.Addr)
+		s.Client, err = util.NewRegistrationClient(s.Config.RegistrationUDSPath)
 		if err != nil {
 			fmt.Printf("Error creating new registration client: %v", err)
 			return 1
@@ -274,7 +274,7 @@ func (s *ShowCLI) loadConfig(args []string) error {
 	f := flag.NewFlagSet("entry show", flag.ContinueOnError)
 	c := &ShowConfig{}
 
-	f.StringVar(&c.Addr, "serverAddr", util.DefaultServerAddr, "Address of the SPIRE server")
+	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	f.StringVar(&c.EntryID, "entryID", "", "The Entry ID of the records to show")
 	f.StringVar(&c.ParentID, "parentID", "", "The Parent ID of the records to show")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")

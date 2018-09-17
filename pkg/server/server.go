@@ -37,8 +37,8 @@ type Config struct {
 	// Address of SPIRE server
 	BindAddress *net.TCPAddr
 
-	// Address of the HTTP SPIRE server
-	BindHTTPAddress *net.TCPAddr
+	// Address of the UDS SPIRE server
+	BindUDSAddress *net.UnixAddr
 
 	// Directory to store runtime data
 	DataDir string
@@ -250,7 +250,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA) (svid
 func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Rotator, serverCA ca.ServerCA) endpoints.Server {
 	return endpoints.New(&endpoints.Config{
 		GRPCAddr:    s.config.BindAddress,
-		HTTPAddr:    s.config.BindHTTPAddress,
+		UDSAddr:     s.config.BindUDSAddress,
 		SVIDStream:  svidRotator.Subscribe(),
 		TrustDomain: s.config.TrustDomain,
 		Catalog:     catalog,
