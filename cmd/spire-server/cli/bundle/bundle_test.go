@@ -110,7 +110,7 @@ func (s *BundleSuite) TestShowHelp() {
 	s.showCmd.Help()
 	s.Require().Equal(`Usage of bundle show:
   -registrationUDSPath string
-    	Registration API UDS Path (default "./spire_api")
+    	Registration API UDS path (default "/tmp/spire-registration.sock")
 `, s.stderr.String())
 }
 
@@ -142,7 +142,7 @@ func (s *BundleSuite) TestSetHelp() {
   -path string
     	Path to the bundle data
   -registrationUDSPath string
-    	Registration API UDS Path (default "./spire_api")
+    	Registration API UDS path (default "/tmp/spire-registration.sock")
 `, s.stderr.String())
 }
 
@@ -201,7 +201,7 @@ func (s *BundleSuite) TestListHelp() {
   -id string
     	SPIFFE ID of the trust domain
   -registrationUDSPath string
-    	Registration API UDS Path (default "./spire_api")
+    	Registration API UDS path (default "/tmp/spire-registration.sock")
 `, s.stderr.String())
 }
 
@@ -277,7 +277,7 @@ func (s *BundleSuite) TestDeleteHelp() {
   -mode string
     	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
   -registrationUDSPath string
-    	Registration API UDS Path (default "./spire_api")
+    	Registration API UDS path (default "/tmp/spire-registration.sock")
 `, s.stderr.String())
 }
 

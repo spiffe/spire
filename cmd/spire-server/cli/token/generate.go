@@ -121,7 +121,7 @@ func (GenerateCLI) newConfig(args []string) (GenerateConfig, error) {
 
 	flags.IntVar(&c.TTL, "ttl", 600, "Token TTL in seconds")
 	flags.StringVar(&c.SpiffeID, "spiffeID", "", "Additional SPIFFE ID to assign the token owner (optional)")
-	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS Path")
+	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 
 	err := flags.Parse(args)
 	if err != nil {

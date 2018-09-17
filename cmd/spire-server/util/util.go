@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	DefaultSocketPath = "./spire_api"
+	DefaultSocketPath = "/tmp/spire-registration.sock"
 )
 
 func NewRegistrationClient(socketPath string) (registration.RegistrationClient, error) {

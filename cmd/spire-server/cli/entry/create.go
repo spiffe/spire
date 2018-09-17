@@ -187,7 +187,7 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f := flag.NewFlagSet("entry create", flag.ContinueOnError)
 	c := &CreateConfig{}
 
-	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS Path")
+	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	f.StringVar(&c.ParentID, "parentID", "", "The SPIFFE ID of this record's parent")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
 	f.IntVar(&c.Ttl, "ttl", 3600, "A TTL, in seconds, for any SVID issued as a result of this record")

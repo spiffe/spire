@@ -66,7 +66,7 @@ func adaptCommand(env *env, clientsMaker clientsMaker, cmd command) *adapter {
 
 	f := flag.NewFlagSet(cmd.name(), flag.ContinueOnError)
 	f.SetOutput(env.stderr)
-	f.StringVar(&a.registrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS Path")
+	f.StringVar(&a.registrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	a.cmd.appendFlags(f)
 	a.flags = f
 

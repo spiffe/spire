@@ -23,7 +23,7 @@ import (
 
 const (
 	defaultConfigPath = "conf/server/server.conf"
-	defaultSocketPath = "./spire_api"
+	defaultSocketPath = "/tmp/spire-registration.sock"
 	defaultLogLevel   = "INFO"
 	defaultUmask      = 0077
 )

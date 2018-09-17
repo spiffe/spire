@@ -274,7 +274,7 @@ func (s *ShowCLI) loadConfig(args []string) error {
 	f := flag.NewFlagSet("entry show", flag.ContinueOnError)
 	c := &ShowConfig{}
 
-	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS Path")
+	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	f.StringVar(&c.EntryID, "entryID", "", "The Entry ID of the records to show")
 	f.StringVar(&c.ParentID, "parentID", "", "The Parent ID of the records to show")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")

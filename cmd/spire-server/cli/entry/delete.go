@@ -77,7 +77,7 @@ func (DeleteCLI) newConfig(args []string) (*DeleteConfig, error) {
 	f := flag.NewFlagSet("entry delete", flag.ContinueOnError)
 	c := &DeleteConfig{}
 
-	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS Path")
+	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	f.StringVar(&c.EntryID, "entryID", "", "The Registration Entry ID of the record to delete")
 
 	return c, f.Parse(args)

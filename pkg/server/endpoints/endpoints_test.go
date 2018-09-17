@@ -57,7 +57,7 @@ func (s *EndpointsTestSuite) SetupTest() {
 	s.svidState = observer.NewProperty(svid.State{})
 	c := &Config{
 		GRPCAddr:    &net.TCPAddr{IP: ip, Port: 8000},
-		UDSAddr:     &net.UnixAddr{Name: "./spire_api", Net: "unix"},
+		UDSAddr:     &net.UnixAddr{Name: "/tmp/spire-registration.sock", Net: "unix"},
 		SVIDStream:  s.svidState.Observe(),
 		TrustDomain: td,
 		Catalog:     catalog,
