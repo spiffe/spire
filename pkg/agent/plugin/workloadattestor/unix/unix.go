@@ -33,7 +33,8 @@ type processInfo interface {
 }
 
 type Configuration struct {
-	DiscoverWorkloadPath bool `hcl:"discover_workload_path"`
+	DiscoverWorkloadPath bool  `hcl:"discover_workload_path"`
+	WorkloadSizeLimit    int64 `hcl:"workload_size_limit"`
 }
 
 type UnixPlugin struct {
@@ -92,7 +93,7 @@ func (p *UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestReq
 		if err != nil {
 			return nil, err
 		}
-		sha256Digest, err = getSHA256Digest(processPath)
+		sha256Digest, err = getSHA256Digest(processPath, config.WorkloadSizeLimit)
 		if err != nil {
 			return nil, err
 		}
@@ -217,12 +218,22 @@ func (p *UnixPlugin) getPath(pid int32) (string, error) {
 	return path, nil
 }
 
-func getSHA256Digest(path string) (string, error) {
+func getSHA256Digest(path string, limit int64) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", unixErr.Wrap(err)
 	}
 	defer f.Close()
+
+	if limit > 0 {
+		fi, err := f.Stat()
+		if err != nil {
+			return "", unixErr.Wrap(err)
+		}
+		if fi.Size() > limit {
+			return "", unixErr.New("workload %s exceeds size limit (%d > %d)", path, fi.Size(), limit)
+		}
+	}
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {

@@ -114,8 +114,14 @@ func (s *Suite) TestAttest() {
 			err:    fmt.Sprintf("unix: open %s: no such file or directory", filepath.Join(s.dir, "unreadable-exe")),
 		},
 		{
-			name:   "success getting path and hashing process binary",
+			name:   "process binary exceeds size limits",
 			pid:    11,
+			config: "discover_workload_path = true\nworkload_size_limit = 2",
+			err:    fmt.Sprintf("unix: workload %s exceeds size limit (4 > 2)", filepath.Join(s.dir, "exe")),
+		},
+		{
+			name:   "success getting path and hashing process binary",
+			pid:    12,
 			config: "discover_workload_path = true",
 			selectors: []string{
 				"uid:1000",
@@ -191,7 +197,7 @@ func (p fakeProcess) Uids() ([]int32, error) {
 		return nil, fmt.Errorf("unable to get UIDs for PID %d", p.pid)
 	case 3:
 		return []int32{1999}, nil
-	case 4, 5, 6, 7, 9, 10, 11:
+	case 4, 5, 6, 7, 9, 10, 11, 12:
 		return []int32{1000}, nil
 	case 8:
 		return []int32{1000, 1100}, nil
@@ -208,7 +214,7 @@ func (p fakeProcess) Gids() ([]int32, error) {
 		return nil, fmt.Errorf("unable to get GIDs for PID %d", p.pid)
 	case 6:
 		return []int32{2999}, nil
-	case 7, 9, 10, 11:
+	case 7, 9, 10, 11, 12:
 		return []int32{2000}, nil
 	case 8:
 		return []int32{2000, 2100}, nil
@@ -223,7 +229,7 @@ func (p fakeProcess) Exe() (string, error) {
 		return "", fmt.Errorf("unable to get EXE for PID %d", p.pid)
 	case 10:
 		return filepath.Join(p.dir, "unreadable-exe"), nil
-	case 11:
+	case 11, 12:
 		return filepath.Join(p.dir, "exe"), nil
 	default:
 		return "", fmt.Errorf("unhandled exe test case %d", p.pid)
