@@ -61,27 +61,33 @@ func (s *Suite) TestAttest() {
 		{
 			name: "pid with no uids",
 			pid:  1,
-			err:  "unix: unable to get effective UID for PID 1"},
+			err:  "unix: UIDs lookup: no UIDs for process",
+		},
 		{
 			name: "fail to get uids",
 			pid:  2,
-			err:  "unix: unable to get UIDs for PID 2"},
+			err:  "unix: UIDs lookup: unable to get UIDs for PID 2",
+		},
 		{
 			name: "user lookup fails",
 			pid:  3,
-			err:  "unix: no user with UID 1999"},
+			err:  "unix: user lookup: no user with UID 1999",
+		},
 		{
 			name: "pid with no gids",
 			pid:  4,
-			err:  "unix: unable to get effective GID for PID 4"},
+			err:  "unix: GIDs lookup: no GIDs for process",
+		},
 		{
 			name: "fail to get gids",
 			pid:  5,
-			err:  "unix: unable to get GIDs for PID 5"},
+			err:  "unix: GIDs lookup: unable to get GIDs for PID 5",
+		},
 		{
 			name: "group lookup fails",
 			pid:  6,
-			err:  "unix: no group with GID 2999"},
+			err:  "unix: group lookup: no group with GID 2999",
+		},
 		{
 			name: "primary user and gid",
 			pid:  7,
@@ -90,7 +96,8 @@ func (s *Suite) TestAttest() {
 				"user:u1000",
 				"gid:2000",
 				"group:g2000",
-			}},
+			},
+		},
 		{
 			name: "effective user and gid",
 			pid:  8,
@@ -105,19 +112,19 @@ func (s *Suite) TestAttest() {
 			name:   "fail to get process binary path",
 			pid:    9,
 			config: "discover_workload_path = true",
-			err:    "unix: unable to get EXE for PID 9",
+			err:    "unix: path lookup: unable to get EXE for PID 9",
 		},
 		{
 			name:   "fail to hash process binary",
 			pid:    10,
 			config: "discover_workload_path = true",
-			err:    fmt.Sprintf("unix: open %s: no such file or directory", filepath.Join(s.dir, "unreadable-exe")),
+			err:    fmt.Sprintf("unix: SHA256 digest: open %s: no such file or directory", filepath.Join(s.dir, "unreadable-exe")),
 		},
 		{
 			name:   "process binary exceeds size limits",
 			pid:    11,
 			config: "discover_workload_path = true\nworkload_size_limit = 2",
-			err:    fmt.Sprintf("unix: workload %s exceeds size limit (4 > 2)", filepath.Join(s.dir, "exe")),
+			err:    fmt.Sprintf("unix: SHA256 digest: workload %s exceeds size limit (4 > 2)", filepath.Join(s.dir, "exe")),
 		},
 		{
 			name:   "success getting path and hashing process binary",

@@ -63,7 +63,12 @@ func (p *UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestReq
 		return nil, err
 	}
 
-	uid, err := p.getUid(req.Pid)
+	proc, err := p.hooks.newProcess(req.Pid)
+	if err != nil {
+		return nil, unixErr.New("getting process: %v", err)
+	}
+
+	uid, err := p.getUid(proc)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +78,7 @@ func (p *UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestReq
 		return nil, err
 	}
 
-	gid, err := p.getGid(req.Pid)
+	gid, err := p.getGid(proc)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +94,7 @@ func (p *UnixPlugin) Attest(ctx context.Context, req *workloadattestor.AttestReq
 	var processPath string
 	var sha256Digest string
 	if config.DiscoverWorkloadPath {
-		processPath, err = p.getPath(req.Pid)
+		processPath, err = p.getPath(proc)
 		if err != nil {
 			return nil, err
 		}
@@ -146,20 +151,15 @@ func (p *UnixPlugin) setConfig(config *Configuration) {
 	p.mu.Unlock()
 }
 
-func (p *UnixPlugin) getUid(pid int32) (string, error) {
-	proc, err := p.hooks.newProcess(pid)
-	if err != nil {
-		return "", unixErr.Wrap(err)
-	}
-
+func (p *UnixPlugin) getUid(proc processInfo) (string, error) {
 	uids, err := proc.Uids()
 	if err != nil {
-		return "", unixErr.Wrap(err)
+		return "", unixErr.New("UIDs lookup: %v", err)
 	}
 
 	switch len(uids) {
 	case 0:
-		return "", unixErr.New("unable to get effective UID for PID %d", pid)
+		return "", unixErr.New("UIDs lookup: no UIDs for process")
 	case 1:
 		return fmt.Sprint(uids[0]), nil
 	default:
@@ -170,25 +170,20 @@ func (p *UnixPlugin) getUid(pid int32) (string, error) {
 func (p *UnixPlugin) getUserName(uid string) (string, error) {
 	u, err := p.hooks.lookupUserById(uid)
 	if err != nil {
-		return "", unixErr.Wrap(err)
+		return "", unixErr.New("user lookup: %v", err)
 	}
 	return u.Username, nil
 }
 
-func (p *UnixPlugin) getGid(pid int32) (string, error) {
-	proc, err := p.hooks.newProcess(pid)
-	if err != nil {
-		return "", unixErr.Wrap(err)
-	}
-
+func (p *UnixPlugin) getGid(proc processInfo) (string, error) {
 	gids, err := proc.Gids()
 	if err != nil {
-		return "", unixErr.Wrap(err)
+		return "", unixErr.New("GIDs lookup: %v", err)
 	}
 
 	switch len(gids) {
 	case 0:
-		return "", unixErr.New("unable to get effective GID for PID %d", pid)
+		return "", unixErr.New("GIDs lookup: no GIDs for process")
 	case 1:
 		return fmt.Sprint(gids[0]), nil
 	default:
@@ -199,20 +194,15 @@ func (p *UnixPlugin) getGid(pid int32) (string, error) {
 func (p *UnixPlugin) getGroupName(gid string) (string, error) {
 	g, err := p.hooks.lookupGroupById(gid)
 	if err != nil {
-		return "", unixErr.Wrap(err)
+		return "", unixErr.New("group lookup: %v", err)
 	}
 	return g.Name, nil
 }
 
-func (p *UnixPlugin) getPath(pid int32) (string, error) {
-	proc, err := p.hooks.newProcess(pid)
-	if err != nil {
-		return "", unixErr.Wrap(err)
-	}
-
+func (p *UnixPlugin) getPath(proc processInfo) (string, error) {
 	path, err := proc.Exe()
 	if err != nil {
-		return "", unixErr.Wrap(err)
+		return "", unixErr.New("path lookup: %v", err)
 	}
 
 	return path, nil
@@ -221,23 +211,23 @@ func (p *UnixPlugin) getPath(pid int32) (string, error) {
 func getSHA256Digest(path string, limit int64) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", unixErr.Wrap(err)
+		return "", unixErr.New("SHA256 digest: %v", err)
 	}
 	defer f.Close()
 
 	if limit > 0 {
 		fi, err := f.Stat()
 		if err != nil {
-			return "", unixErr.Wrap(err)
+			return "", unixErr.New("SHA256 digest: %v", err)
 		}
 		if fi.Size() > limit {
-			return "", unixErr.New("workload %s exceeds size limit (%d > %d)", path, fi.Size(), limit)
+			return "", unixErr.New("SHA256 digest: workload %s exceeds size limit (%d > %d)", path, fi.Size(), limit)
 		}
 	}
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return "", unixErr.Wrap(err)
+		return "", unixErr.New("SHA256 digest: %v", err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
