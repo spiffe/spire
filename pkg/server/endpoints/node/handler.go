@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -693,7 +694,7 @@ func (h *Handler) getBundle(ctx context.Context, trustDomain string) (*node.Bund
 	}, nil
 }
 
-func getSpiffeIDFromCSR(csrBytes []byte) (spiffeID string, err error) {
+func getSpiffeIDFromCSR(csrBytes []byte) (string, error) {
 	csr, err := x509.ParseCertificateRequest(csrBytes)
 	if err != nil {
 		return "", err
@@ -701,14 +702,23 @@ func getSpiffeIDFromCSR(csrBytes []byte) (spiffeID string, err error) {
 	if len(csr.URIs) != 1 {
 		return "", errors.New("The CSR must have exactly one URI SAN")
 	}
-	return csr.URIs[0].String(), nil
+
+	spiffeID, err := idutil.NormalizeSpiffeIDURL(csr.URIs[0], idutil.AllowAny())
+	if err != nil {
+		return "", err
+	}
+	return spiffeID.String(), nil
 }
 
 func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 	if len(cert.URIs) == 0 {
 		return "", errors.New("No URI SANs in certificate")
 	}
-	return cert.URIs[0].String(), nil
+	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
+	if err != nil {
+		return "", err
+	}
+	return spiffeID.String(), nil
 }
 
 func makeX509SVID(cert *x509.Certificate) *node.X509SVID {

@@ -7,6 +7,7 @@ import (
 	"path"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 
@@ -84,14 +85,9 @@ func (GenerateCLI) createToken(ctx context.Context, c registration.RegistrationC
 // belonging to a token. The purpose is to allow folks to easily create vanity names
 // backed by token IDs.
 func (GenerateCLI) createVanityRecord(ctx context.Context, c registration.RegistrationClient, token, spiffeID string) error {
-	id, err := url.Parse(spiffeID)
+	id, err := idutil.ParseSpiffeID(spiffeID, idutil.AllowAnyTrustDomainWorkload())
 	if err != nil {
-		return fmt.Errorf("could not parse SPIFFE ID: %s", err.Error())
-	}
-
-	// Basic sanity check before calling the server
-	if id.Scheme != "spiffe" || id.Host == "" || id.Path == "" {
-		return fmt.Errorf("\"%s\" is not a valid SPIFFE ID", id.String())
+		return err
 	}
 
 	parentID := &url.URL{

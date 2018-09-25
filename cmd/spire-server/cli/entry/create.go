@@ -37,7 +37,7 @@ type CreateConfig struct {
 
 // Perform basic validation, even on fields that we
 // have defaults defined for
-func (rc *CreateConfig) Validate() error {
+func (rc *CreateConfig) Validate() (err error) {
 	if rc.RegistrationUDSPath == "" {
 		return errors.New("a socket path for registration api is required")
 	}
@@ -64,14 +64,17 @@ func (rc *CreateConfig) Validate() error {
 	}
 
 	// make sure all SPIFFE ID's are well formed
-	if err := idutil.ValidateSpiffeID(rc.SpiffeID, idutil.AllowAny()); err != nil {
+	rc.SpiffeID, err = idutil.NormalizeSpiffeID(rc.SpiffeID, idutil.AllowAny())
+	if err != nil {
 		return err
 	}
-	if err := idutil.ValidateSpiffeID(rc.ParentID, idutil.AllowAny()); err != nil {
+	rc.ParentID, err = idutil.NormalizeSpiffeID(rc.ParentID, idutil.AllowAny())
+	if err != nil {
 		return err
 	}
-	for _, federatesWith := range rc.FederatesWith {
-		if err := idutil.ValidateSpiffeID(federatesWith, idutil.AllowAny()); err != nil {
+	for i := range rc.FederatesWith {
+		rc.FederatesWith[i], err = idutil.NormalizeSpiffeID(rc.FederatesWith[i], idutil.AllowAny())
+		if err != nil {
 			return err
 		}
 	}

@@ -49,11 +49,12 @@ func (c *listCommand) appendFlags(fs *flag.FlagSet) {
 
 func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error {
 	if c.id != "" {
-		if err := idutil.ValidateSpiffeID(c.id, idutil.AllowAnyTrustDomain()); err != nil {
+		id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
+		if err != nil {
 			return err
 		}
 		bundle, err := clients.r.FetchFederatedBundle(ctx, &registration.FederatedBundleID{
-			Id: c.id,
+			Id: id,
 		})
 		if err != nil {
 			return err

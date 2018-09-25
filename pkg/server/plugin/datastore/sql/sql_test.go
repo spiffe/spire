@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -833,8 +832,9 @@ func (s *PluginSuite) TestMigration() {
 	for i := 0; i < codeVersion; i++ {
 		dbName := fmt.Sprintf("v%d.sqlite3", i)
 		dbPath := filepath.Join(s.dir, "migration-"+dbName)
-		// copy the database file from the test data
-		s.Require().NoError(copyFile(filepath.Join("testdata", "migration", dbName), dbPath))
+		dump := migrationDump(i)
+		s.Require().NotEmpty(dump, "no migration dump set up for version %d", i)
+		s.Require().NoError(dumpDB(dbPath, dump))
 
 		// configure the datastore to use the new database
 		_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
@@ -868,6 +868,38 @@ func (s *PluginSuite) TestMigration() {
 				Selectors:     []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
 				FederatesWith: []string{"spiffe://otherdomain.org"},
 			})
+		case 2:
+			// assert that SPIFFE IDs in bundles, attested nodes, node selectors, and registration entries
+			// are all normalized.
+			bundlesResp, err := s.ds.ListBundles(context.Background(), &datastore.ListBundlesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(bundlesResp.Bundles, 2)
+			s.Require().Equal("spiffe://example.org", bundlesResp.Bundles[0].TrustDomain)
+			s.Require().Equal("spiffe://otherdomain.test", bundlesResp.Bundles[1].TrustDomain)
+
+			attestedNodesResp, err := s.ds.ListAttestedNodes(context.Background(), &datastore.ListAttestedNodesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(attestedNodesResp.Nodes, 1)
+			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", attestedNodesResp.Nodes[0].SpiffeId)
+
+			nodeSelectorsResp, err := s.ds.GetNodeSelectors(context.Background(), &datastore.GetNodeSelectorsRequest{
+				SpiffeId: "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed",
+			})
+			s.Require().NoError(err)
+			s.Require().NotNil(nodeSelectorsResp.Selectors)
+			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", nodeSelectorsResp.Selectors.SpiffeId)
+
+			entriesResp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(entriesResp.Entries, 2)
+			s.Require().Equal("spiffe://example.org/nODe", entriesResp.Entries[0].ParentId)
+			s.Require().Equal("spiffe://example.org/bLOg", entriesResp.Entries[0].SpiffeId)
+			s.Require().Len(entriesResp.Entries[0].FederatesWith, 1)
+			s.Require().Equal("spiffe://otherdomain.test", entriesResp.Entries[0].FederatesWith[0])
+			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", entriesResp.Entries[1].ParentId)
+			s.Require().Equal("spiffe://example.org/nODe", entriesResp.Entries[1].SpiffeId)
+			s.Require().Len(entriesResp.Entries[1].FederatesWith, 0)
+
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
@@ -969,24 +1001,4 @@ func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Sele
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(&datastore.SetNodeSelectorsResponse{}, resp)
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, in)
-	if err != nil {
-		return err
-	}
-	return out.Close()
 }

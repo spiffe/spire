@@ -49,7 +49,8 @@ func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error 
 	if c.id == "" {
 		return errors.New("id is required")
 	}
-	if err := idutil.ValidateSpiffeID(c.id, idutil.AllowAnyTrustDomain()); err != nil {
+	id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
+	if err != nil {
 		return err
 	}
 
@@ -68,7 +69,7 @@ func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error 
 	}
 
 	bundle := &registration.FederatedBundle{
-		SpiffeId: c.id,
+		SpiffeId: id,
 		CaCerts:  caCerts,
 	}
 

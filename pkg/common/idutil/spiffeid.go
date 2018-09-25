@@ -64,7 +64,7 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 
 	// General validation
 	switch {
-	case id.Scheme != "spiffe":
+	case strings.ToLower(id.Scheme) != "spiffe":
 		return validationError("invalid scheme")
 	case id.User != nil:
 		return validationError("user info is not allowed")
@@ -146,7 +146,8 @@ func ParseSpiffeID(spiffeID string, mode ValidationMode) (*url.URL, error) {
 	if err := ValidateSpiffeIDURL(u, mode); err != nil {
 		return nil, err
 	}
-	return u, nil
+
+	return normalizeSpiffeIDURL(u), nil
 }
 
 type ValidationMode interface {
@@ -256,4 +257,31 @@ func AllowAnyTrustDomainAgent() ValidationMode {
 			idType: agentId,
 		},
 	}
+}
+
+// NormalizeSpiffeID normalizes the SPIFFE ID so it can be directly compared
+// for equality.
+func NormalizeSpiffeID(id string, mode ValidationMode) (string, error) {
+	u, err := ParseSpiffeID(id, mode)
+	if err != nil {
+		return "", err
+	}
+	return u.String(), nil
+}
+
+// NormalizeSpiffeIDURL normalizes the SPIFFE ID URL so it can be directly
+// compared for equality.
+func NormalizeSpiffeIDURL(u *url.URL, mode ValidationMode) (*url.URL, error) {
+	if err := ValidateSpiffeIDURL(u, mode); err != nil {
+		return nil, err
+	}
+	return normalizeSpiffeIDURL(u), nil
+}
+
+func normalizeSpiffeIDURL(u *url.URL) *url.URL {
+	c := *u
+	c.Scheme = strings.ToLower(c.Scheme)
+	// SPIFFE ID's can't contain ports so don't bother handling that here.
+	c.Host = strings.ToLower(u.Hostname())
+	return &c
 }
