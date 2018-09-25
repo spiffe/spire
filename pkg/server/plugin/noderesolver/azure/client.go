@@ -62,7 +62,7 @@ func (c *azureClient) GetVirtualMachineResourceID(ctx context.Context, principal
 		return "", errs.New("principal %q not found", principalID)
 	}
 	if len(values) > 1 {
-		return "", errs.New("expected one result at most", principalID)
+		return "", errs.New("expected one result for principal %q at most", principalID)
 	}
 	if values[0].ID == nil || *values[0].ID == "" {
 		return "", errs.New("resource missing ID")
