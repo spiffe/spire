@@ -271,7 +271,7 @@ func TestNormalizeSpiffeID(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			out, err := NormalizeSpiffeID(test.in)
+			out, err := NormalizeSpiffeID(test.in, AllowAny())
 			assert.NoError(t, err)
 			assert.Equal(t, test.out, out)
 		})
