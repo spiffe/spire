@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 
@@ -286,6 +287,20 @@ func (s *ShowCLI) loadConfig(args []string) error {
 	if err != nil {
 		return err
 	}
+
+	if c.ParentID != "" {
+		c.ParentID, err = idutil.NormalizeSpiffeID(c.ParentID, idutil.AllowAny())
+		if err != nil {
+			return err
+		}
+	}
+	if c.SpiffeID != "" {
+		c.SpiffeID, err = idutil.NormalizeSpiffeID(c.SpiffeID, idutil.AllowAny())
+		if err != nil {
+			return err
+		}
+	}
+
 	s.Config = c
 	return nil
 }

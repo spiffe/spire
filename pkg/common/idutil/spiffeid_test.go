@@ -33,6 +33,11 @@ func TestValidateSpiffeID(t *testing.T) {
 			expectedError: "\"http://test.com/path/validate\" is not a valid SPIFFE ID: invalid scheme",
 		},
 		{
+			name:     "test_validate_spiffe_id_scheme_mixed_case",
+			spiffeID: "SPIFFE://test.com/path/validate",
+			mode:     AllowAny(),
+		},
+		{
 			name:          "test_validate_spiffe_id_empty_host",
 			spiffeID:      "spiffe:///path/validate",
 			mode:          AllowAny(),
@@ -250,6 +255,25 @@ func TestValidateSpiffeID(t *testing.T) {
 			} else {
 				assert.EqualError(t, err, test.expectedError)
 			}
+		})
+	}
+}
+
+func TestNormalizeSpiffeID(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		out  string
+	}{
+		{name: "scheme and host are lowercased", in: "SpIfFe://HoSt", out: "spiffe://host"},
+		{name: "path casing is preserved", in: "SpIfFe://HoSt/PaTh", out: "spiffe://host/PaTh"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			out, err := NormalizeSpiffeID(test.in, AllowAny())
+			assert.NoError(t, err)
+			assert.Equal(t, test.out, out)
 		})
 	}
 }

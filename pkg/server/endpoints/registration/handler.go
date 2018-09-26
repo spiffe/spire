@@ -32,11 +32,17 @@ func (h *Handler) CreateEntry(
 	ctx context.Context, request *common.RegistrationEntry) (
 	response *registration.RegistrationEntryID, err error) {
 
-	// Validate Spiffe ID
-	err = idutil.ValidateSpiffeID(request.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	request.ParentId, err = idutil.NormalizeSpiffeID(request.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain.Host))
 	if err != nil {
 		h.Log.Error(err)
-		return response, errors.New("Error while validating provided Spiffe ID")
+		return nil, err
+	}
+
+	// Validate Spiffe ID
+	request.SpiffeId, err = idutil.NormalizeSpiffeID(request.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	if err != nil {
+		h.Log.Error(err)
+		return nil, err
 	}
 
 	ds := h.getDataStore()
@@ -58,7 +64,7 @@ func (h *Handler) CreateEntry(
 	)
 	if err != nil {
 		h.Log.Error(err)
-		return response, errors.New("Error trying to create entry")
+		return nil, errors.New("Error trying to create entry")
 	}
 
 	return &registration.RegistrationEntryID{Id: createResponse.Entry.EntryId}, nil
@@ -124,6 +130,12 @@ func (h *Handler) ListByParentID(
 	ctx context.Context, request *registration.ParentID) (
 	response *common.RegistrationEntries, err error) {
 
+	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
+	if err != nil {
+		h.Log.Error(err)
+		return nil, err
+	}
+
 	ds := h.getDataStore()
 	listResponse, err := ds.ListRegistrationEntries(ctx,
 		&datastore.ListRegistrationEntriesRequest{
@@ -133,7 +145,7 @@ func (h *Handler) ListByParentID(
 		})
 	if err != nil {
 		h.Log.Error(err)
-		return response, errors.New("Error trying to list entries by parent ID")
+		return nil, errors.New("Error trying to list entries by parent ID")
 	}
 
 	return &common.RegistrationEntries{
@@ -165,6 +177,12 @@ func (h *Handler) ListBySpiffeID(
 	ctx context.Context, request *registration.SpiffeID) (
 	response *common.RegistrationEntries, err error) {
 
+	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
+	if err != nil {
+		h.Log.Error(err)
+		return nil, err
+	}
+
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
 		BySpiffeId: &wrappers.StringValue{
@@ -173,7 +191,7 @@ func (h *Handler) ListBySpiffeID(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		return &common.RegistrationEntries{}, err
+		return nil, err
 	}
 
 	return &common.RegistrationEntries{
@@ -185,12 +203,13 @@ func (h *Handler) CreateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	if request.SpiffeId == h.TrustDomain.String() {
-		return nil, errors.New("federated bundle id cannot match server trust domain")
+	request.SpiffeId, err = idutil.NormalizeSpiffeID(request.SpiffeId, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, err
 	}
 
-	if err := idutil.ValidateSpiffeID(request.SpiffeId, idutil.AllowAnyTrustDomain()); err != nil {
-		return nil, err
+	if request.SpiffeId == h.TrustDomain.String() {
+		return nil, errors.New("federated bundle id cannot match server trust domain")
 	}
 
 	ds := h.getDataStore()
@@ -210,12 +229,13 @@ func (h *Handler) FetchFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundleID) (
 	response *registration.FederatedBundle, err error) {
 
-	if request.Id == h.TrustDomain.String() {
-		return nil, errors.New("federated bundle id cannot match server trust domain")
+	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, err
 	}
 
-	if err := idutil.ValidateSpiffeID(request.Id, idutil.AllowAnyTrustDomain()); err != nil {
-		return nil, err
+	if request.Id == h.TrustDomain.String() {
+		return nil, errors.New("federated bundle id cannot match server trust domain")
 	}
 
 	ds := h.getDataStore()
@@ -261,12 +281,13 @@ func (h *Handler) UpdateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	if request.SpiffeId == h.TrustDomain.String() {
-		return nil, errors.New("federated bundle id cannot match server trust domain")
+	request.SpiffeId, err = idutil.NormalizeSpiffeID(request.SpiffeId, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, err
 	}
 
-	if err := idutil.ValidateSpiffeID(request.SpiffeId, idutil.AllowAnyTrustDomain()); err != nil {
-		return nil, err
+	if request.SpiffeId == h.TrustDomain.String() {
+		return nil, errors.New("federated bundle id cannot match server trust domain")
 	}
 
 	ds := h.getDataStore()
@@ -286,12 +307,13 @@ func (h *Handler) DeleteFederatedBundle(
 	ctx context.Context, request *registration.DeleteFederatedBundleRequest) (
 	response *common.Empty, err error) {
 
-	if request.Id == h.TrustDomain.String() {
-		return nil, errors.New("federated bundle id cannot match server trust domain")
+	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, err
 	}
 
-	if err := idutil.ValidateSpiffeID(request.Id, idutil.AllowAnyTrustDomain()); err != nil {
-		return nil, err
+	if request.Id == h.TrustDomain.String() {
+		return nil, errors.New("federated bundle id cannot match server trust domain")
 	}
 
 	mode, err := convertDeleteBundleMode(request.Mode)

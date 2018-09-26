@@ -5,11 +5,12 @@ import (
 
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/idutil"
 )
 
 const (
 	// version of the database in the code
-	codeVersion = 2
+	codeVersion = 3
 )
 
 func migrateDB(db *gorm.DB) (err error) {
@@ -100,6 +101,8 @@ func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
 		err = migrateToV1(tx)
 	case 1:
 		err = migrateToV2(tx)
+	case 2:
+		err = migrateToV3(tx)
 	default:
 		err = sqlError.New("no migration support for version %d", version)
 	}
@@ -144,6 +147,72 @@ func migrateToV2(tx *gorm.DB) error {
 	// migrate.
 	if err := tx.AutoMigrate(&RegisteredEntry{}, &Bundle{}).Error; err != nil {
 		return sqlError.Wrap(err)
+	}
+
+	return nil
+}
+
+func migrateToV3(tx *gorm.DB) (err error) {
+	// need to normalize all of the SPIFFE IDs at rest.
+
+	var bundles []*Bundle
+	if err := tx.Find(&bundles).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	for _, bundle := range bundles {
+		bundle.TrustDomain, err = idutil.NormalizeSpiffeID(bundle.TrustDomain, idutil.AllowAny())
+		if err != nil {
+			return sqlError.Wrap(err)
+		}
+		if err := tx.Save(bundle).Error; err != nil {
+			return sqlError.Wrap(err)
+		}
+	}
+
+	var attestedNodes []*AttestedNode
+	if err := tx.Find(&attestedNodes).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	for _, attestedNode := range attestedNodes {
+		attestedNode.SpiffeID, err = idutil.NormalizeSpiffeID(attestedNode.SpiffeID, idutil.AllowAny())
+		if err != nil {
+			return sqlError.Wrap(err)
+		}
+		if err := tx.Save(attestedNode).Error; err != nil {
+			return sqlError.Wrap(err)
+		}
+	}
+
+	var nodeSelectors []*NodeSelector
+	if err := tx.Find(&nodeSelectors).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	for _, nodeSelector := range nodeSelectors {
+		nodeSelector.SpiffeID, err = idutil.NormalizeSpiffeID(nodeSelector.SpiffeID, idutil.AllowAny())
+		if err != nil {
+			return sqlError.Wrap(err)
+		}
+		if err := tx.Save(nodeSelector).Error; err != nil {
+			return sqlError.Wrap(err)
+		}
+	}
+
+	var registeredEntries []*RegisteredEntry
+	if err := tx.Find(&registeredEntries).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	for _, registeredEntry := range registeredEntries {
+		registeredEntry.ParentID, err = idutil.NormalizeSpiffeID(registeredEntry.ParentID, idutil.AllowAny())
+		if err != nil {
+			return sqlError.Wrap(err)
+		}
+		registeredEntry.SpiffeID, err = idutil.NormalizeSpiffeID(registeredEntry.SpiffeID, idutil.AllowAny())
+		if err != nil {
+			return sqlError.Wrap(err)
+		}
+		if err := tx.Save(registeredEntry).Error; err != nil {
+			return sqlError.Wrap(err)
+		}
 	}
 
 	return nil

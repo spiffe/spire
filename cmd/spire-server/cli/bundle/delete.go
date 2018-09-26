@@ -52,7 +52,8 @@ func (c *deleteCommand) run(ctx context.Context, env *env, clients *clients) err
 		return errors.New("id is required")
 	}
 
-	if err := idutil.ValidateSpiffeID(c.id, idutil.AllowAnyTrustDomain()); err != nil {
+	id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
+	if err != nil {
 		return err
 	}
 
@@ -62,7 +63,7 @@ func (c *deleteCommand) run(ctx context.Context, env *env, clients *clients) err
 	}
 
 	if _, err := clients.r.DeleteFederatedBundle(ctx, &registration.DeleteFederatedBundleRequest{
-		Id:   c.id,
+		Id:   id,
 		Mode: mode,
 	}); err != nil {
 		return err

@@ -302,7 +302,7 @@ func TestCreateEntry(t *testing.T) {
 		{goodRequest, goodResponse, nil, createEntryExpectations},
 		{goodRequest, nil, errors.New("Error trying to create entry"), createEntryErrorExpectations},
 		{goodRequest, nil, errors.New("Entry already exists"), createEntryNonUniqueExpectations},
-		{invalidRequest, nil, errors.New("Error while validating provided Spiffe ID"), func(suite *handlerTestSuite) {}},
+		{invalidRequest, nil, errors.New(`"http://example.org/Blog" is not a valid workload SPIFFE ID: invalid scheme`), func(suite *handlerTestSuite) {}},
 	}
 
 	for _, tt := range testCases {

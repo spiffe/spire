@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,6 +16,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/util"
 )
@@ -191,12 +191,11 @@ func mergeConfig(orig *agent.Config, cmd *runConfig) error {
 	}
 
 	if cmd.AgentConfig.TrustDomain != "" {
-		trustDomain := url.URL{
-			Scheme: "spiffe",
-			Host:   cmd.AgentConfig.TrustDomain,
+		trustDomain, err := idutil.ParseSpiffeID("spiffe://"+cmd.AgentConfig.TrustDomain, idutil.AllowAnyTrustDomain())
+		if err != nil {
+			return err
 		}
-
-		orig.TrustDomain = trustDomain
+		orig.TrustDomain = *trustDomain
 	}
 
 	// Parse trust bundle
