@@ -107,6 +107,7 @@ func (f FetchCLI) writeResponse(resp *workload.X509SVIDResponse) error {
 		svidName := fmt.Sprintf("svid.%v.pem", i)
 		keyName := fmt.Sprintf("svid.%v.key", i)
 		bundleName := fmt.Sprintf("bundle.%v.pem", i)
+		federatedBundleName := fmt.Sprintf("federated_bundle.%v.pem", i)
 
 		err := f.writeCerts(svidName, svid.X509Svid)
 		if err != nil {
@@ -121,6 +122,13 @@ func (f FetchCLI) writeResponse(resp *workload.X509SVIDResponse) error {
 		err = f.writeCerts(bundleName, svid.Bundle)
 		if err != nil {
 			return err
+		}
+
+		for _, trustDomain := range svid.FederatesWith {
+			err = f.writeCerts(federatedBundleName, resp.FederatedBundles[trustDomain])
+			if err != nil {
+				return err
+			}
 		}
 	}
 
