@@ -108,19 +108,31 @@ func (f FetchCLI) writeResponse(resp *workload.X509SVIDResponse) error {
 		keyName := fmt.Sprintf("svid.%v.key", i)
 		bundleName := fmt.Sprintf("bundle.%v.pem", i)
 
+		fmt.Printf("Writing SVID #%v to file %v.\n", i, path.Join(f.config.writePath, svidName))
 		err := f.writeCerts(svidName, svid.X509Svid)
 		if err != nil {
 			return err
 		}
 
+		fmt.Printf("Writing key #%v to file %v.\n", i, path.Join(f.config.writePath, keyName))
 		err = f.writeKey(keyName, svid.X509SvidKey)
 		if err != nil {
 			return err
 		}
 
+		fmt.Printf("Writing bundle #%v to file %v.\n", i, path.Join(f.config.writePath, bundleName))
 		err = f.writeCerts(bundleName, svid.Bundle)
 		if err != nil {
 			return err
+		}
+
+		for j, trustDomain := range svid.FederatesWith {
+			federatedBundleName := fmt.Sprintf("federated_bundle.%v.%v.pem", j, i)
+			fmt.Printf("Writing federated bundle #%v for trust domain %v to file %v.\n", i, trustDomain, path.Join(f.config.writePath, federatedBundleName))
+			err = f.writeCerts(federatedBundleName, resp.FederatedBundles[trustDomain])
+			if err != nil {
+				return err
+			}
 		}
 	}
 
