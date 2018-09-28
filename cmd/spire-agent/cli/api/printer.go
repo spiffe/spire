@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/x509"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spiffe/spire/proto/api/workload"
@@ -36,13 +37,13 @@ func printX509SVID(msg *workload.X509SVID) {
 	// simply print it and return so we can go to the next bundle
 	svid, err := x509.ParseCertificate(msg.X509Svid)
 	if err != nil {
-		fmt.Printf("ERROR: Could not parse SVID: %s\n", err)
+		fmt.Fprintf(os.Stderr, "ERROR: Could not parse SVID: %s\n", err)
 		return
 	}
 
 	svidBundle, err := x509.ParseCertificates(msg.Bundle)
 	if err != nil {
-		fmt.Printf("ERROR: Could not parse CA Certificates: %s\n", err)
+		fmt.Fprintf(os.Stderr, "ERROR: Could not parse CA Certificates: %s\n", err)
 		return
 	}
 
@@ -58,7 +59,7 @@ func printX509SVID(msg *workload.X509SVID) {
 func printX509FederatedBundle(resp *workload.X509SVIDResponse, trustDomain string) {
 	federatedBundle, err := x509.ParseCertificates(resp.FederatedBundles[trustDomain])
 	if err != nil {
-		fmt.Printf("ERROR: Could not parse CA Certificates of federated bundle: %s\n", err)
+		fmt.Fprintf(os.Stderr, "ERROR: Could not parse CA Certificates of federated bundle: %s\n", err)
 		return
 	}
 
