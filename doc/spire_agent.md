@@ -83,9 +83,12 @@ communicates with spire-server via the Node API.
 | KeyManager       | [memory](/doc/plugin_agent_keymanager_memory.md) | An in-memory key manager which does not persist private keys (must re-attest after restarts) |
 | KeyManager       | [disk](/doc/plugin_agent_keymanager_disk.md) | A key manager which writes the private key to disk |
 | NodeAttestor     | [join_token](/doc/plugin_agent_nodeattestor_jointoken.md) | A node attestor which uses a server-generated join token |
-| NodeAttestor     | [aws_iid](/doc/plugin_agent_nodeattestor_aws_iid.md) | An AWS IID attestor that automatically attests instances using the AWS Instance Metadata API and the AWS Instance Identity document. |
+| NodeAttestor     | [x509_pop](/doc/plugin_agent_nodeattestor_x509pop.md) | A node attestor which uses a pre-existing x.509 certificate and key |
+| NodeAttestor     | [aws_iid](/doc/plugin_agent_nodeattestor_aws_iid.md) | An AWS IID attestor that automatically attests EC2 instances using the AWS Instance Metadata API and the AWS Instance Identity document. |
+| NodeAttestor     | [azure_msi](/doc/plugin_agent_nodeattestor_azure_msi.md) | An Azure Node attestor that automatically attests Azure VMs using a signed Managed Service Identity (MSI) token. |
+| NodeAttestor     | [gcp_iid](/doc/plugin_agent_nodeattestor_gcp_iid.md) | An GCP IID attestor that automatically attests GCE instances using a signed token from Google retrieved via the Compute Engine Metadata API. |
 | WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md) | A workload attestor which generates unix-based selectors like `uid` and `gid` |
-| WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md) | A workload attestor which generates k8s-based selectors like `ns` and `sa` |
+| WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md) | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)|
 
 ## Further reading
 

@@ -167,7 +167,11 @@ API and the Node API, with which agents communicate with the server.
 | ServerCA  | [memory](/doc/plugin_server_ca_memory.md) | An in-memory CA for signing SVIDs |
 | DataStore | [sql](/doc/plugin_server_datastore_sql.md) | An sql database storage for SQLite and PostgreSQL databases for the SPIRE datastore |
 | NodeAttestor | [join_token](/doc/plugin_server_nodeattestor_jointoken.md) | A node attestor which validates agents attesting with server-generated join tokens |
-| NodeAttestor | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) | A node attestor which validates agents attesting with AWS Instance Identity Document and Signatures. |
+| NodeAttestor | [nodeattestor_aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) | A node attestor which validates agents attesting using the [aws_iid](/doc/plugin_agent_nodeattestor_aws_iid.md) node attestor plugin. |
+| NodeResolver | [noderesolver_aws_iid](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) node attestor plugin to support selecting nodes based on additional properties (such as Security Group ID). |
+| NodeAttestor | [nodeattestor_azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) | A node attestor which validates agents attesting using the [azure_msi](/doc/plugin_agent_nodeattestor_azure_msi.md) node attestor plugin. |
+| NodeResolver | [noderesolver_azure_msi](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [nodeattestor_azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
+| NodeAttestor | [nodeattestor_gcp_iid](/doc/plugin_server_nodeattestor_gcp_iid.md) | A node attestor which validates agents attesting using the [gcp_iid](/doc/plugin_agent_nodeattestor_gcp_iid.md) node attestor plugin. |
 | NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
 | UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to generate SPIRE server intermediate certificates for use in the ServerCA plugin |
 
