@@ -171,7 +171,7 @@ API and the Node API, with which agents communicate with the server.
 | NodeResolver | [noderesolver_aws_iid](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) node attestor plugin to support selecting nodes based on additional properties (such as Security Group ID). |
 | NodeAttestor | [nodeattestor_azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) | A node attestor which validates agents attesting using the [azure_msi](/doc/plugin_agent_nodeattestor_azure_msi.md) node attestor plugin. |
 | NodeResolver | [noderesolver_azure_msi](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [nodeattestor_azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
-| NodeAttestor | [nodeattestor_gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md) | A node attestor which validates agents attesting using the [gcp_iit](/doc/plugin_agent_nodeattestor_gcp_iit.md) node attestor plugin. |
+| NodeAttestor | [nodeattestor_gcp_iid](/doc/plugin_server_nodeattestor_gcp_iid.md) | A node attestor which validates agents attesting using the [gcp_iid](/doc/plugin_agent_nodeattestor_gcp_iid.md) node attestor plugin. |
 | NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
 | UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to generate SPIRE server intermediate certificates for use in the ServerCA plugin |
 
