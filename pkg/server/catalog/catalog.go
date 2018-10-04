@@ -7,14 +7,14 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
-	aws_attestor "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
-	azure_attestor "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azure"
+	aws_na "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
+	azure_na "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s"
+	k8s_na "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
-	aws_resolver "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
-	azure_resolver "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
+	aws_nr "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
+	azure_nr "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/keymanager"
@@ -59,17 +59,17 @@ var (
 			"sql": datastore.NewBuiltIn(sql.New()),
 		},
 		NodeAttestorType: {
-			"aws_iid":    nodeattestor.NewBuiltIn(aws_attestor.NewIID()),
+			"aws_iid":    nodeattestor.NewBuiltIn(aws_na.NewIID()),
 			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
 			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
 			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
-			"azure_msi":  nodeattestor.NewBuiltIn(azure_attestor.NewMSIAttestorPlugin()),
-			"k8s":        nodeattestor.NewBuiltIn(k8s.New()),
+			"azure_msi":  nodeattestor.NewBuiltIn(azure_na.NewMSIAttestorPlugin()),
+			"k8s_sat":    nodeattestor.NewBuiltIn(k8s_na.NewSATAttestorPlugin()),
 		},
 		NodeResolverType: {
 			"noop":      noderesolver.NewBuiltIn(noop.New()),
-			"aws_iid":   noderesolver.NewBuiltIn(aws_resolver.NewIIDResolverPlugin()),
-			"azure_msi": noderesolver.NewBuiltIn(azure_resolver.NewMSIResolverPlugin()),
+			"aws_iid":   noderesolver.NewBuiltIn(aws_nr.NewIIDResolverPlugin()),
+			"azure_msi": noderesolver.NewBuiltIn(azure_nr.NewMSIResolverPlugin()),
 		},
 		UpstreamCAType: {
 			"disk": upstreamca.NewBuiltIn(upstreamca_disk.New()),
