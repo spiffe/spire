@@ -185,7 +185,7 @@ func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 		Return(&client.Update{
 			SVIDs: map[string]*node.X509SVID{
 				s.r.c.SpiffeID: {
-					Cert: cert.Raw,
+					DEPRECATEDCert: cert.Raw,
 				},
 			},
 		}, nil)

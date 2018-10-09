@@ -5,12 +5,8 @@
 package mock_catalog
 
 import (
-	context "context"
 	gomock "github.com/golang/mock/gomock"
-	catalog "github.com/spiffe/spire/pkg/common/catalog"
-	keymanager "github.com/spiffe/spire/proto/agent/keymanager"
-	nodeattestor "github.com/spiffe/spire/proto/agent/nodeattestor"
-	workloadattestor "github.com/spiffe/spire/proto/agent/workloadattestor"
+	catalog "github.com/spiffe/spire/pkg/agent/catalog"
 	reflect "reflect"
 )
 
@@ -37,23 +33,10 @@ func (m *MockCatalog) EXPECT() *MockCatalogMockRecorder {
 	return m.recorder
 }
 
-// ConfigFor mocks base method
-func (m *MockCatalog) ConfigFor(arg0 interface{}) (*catalog.PluginConfig, bool) {
-	ret := m.ctrl.Call(m, "ConfigFor", arg0)
-	ret0, _ := ret[0].(*catalog.PluginConfig)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// ConfigFor indicates an expected call of ConfigFor
-func (mr *MockCatalogMockRecorder) ConfigFor(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfigFor", reflect.TypeOf((*MockCatalog)(nil).ConfigFor), arg0)
-}
-
 // KeyManagers mocks base method
-func (m *MockCatalog) KeyManagers() []keymanager.KeyManager {
+func (m *MockCatalog) KeyManagers() []*catalog.ManagedKeyManager {
 	ret := m.ctrl.Call(m, "KeyManagers")
-	ret0, _ := ret[0].([]keymanager.KeyManager)
+	ret0, _ := ret[0].([]*catalog.ManagedKeyManager)
 	return ret0
 }
 
@@ -63,9 +46,9 @@ func (mr *MockCatalogMockRecorder) KeyManagers() *gomock.Call {
 }
 
 // NodeAttestors mocks base method
-func (m *MockCatalog) NodeAttestors() []nodeattestor.NodeAttestor {
+func (m *MockCatalog) NodeAttestors() []*catalog.ManagedNodeAttestor {
 	ret := m.ctrl.Call(m, "NodeAttestors")
-	ret0, _ := ret[0].([]nodeattestor.NodeAttestor)
+	ret0, _ := ret[0].([]*catalog.ManagedNodeAttestor)
 	return ret0
 }
 
@@ -74,56 +57,10 @@ func (mr *MockCatalogMockRecorder) NodeAttestors() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NodeAttestors", reflect.TypeOf((*MockCatalog)(nil).NodeAttestors))
 }
 
-// Plugins mocks base method
-func (m *MockCatalog) Plugins() []*catalog.ManagedPlugin {
-	ret := m.ctrl.Call(m, "Plugins")
-	ret0, _ := ret[0].([]*catalog.ManagedPlugin)
-	return ret0
-}
-
-// Plugins indicates an expected call of Plugins
-func (mr *MockCatalogMockRecorder) Plugins() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Plugins", reflect.TypeOf((*MockCatalog)(nil).Plugins))
-}
-
-// Reload mocks base method
-func (m *MockCatalog) Reload(arg0 context.Context) error {
-	ret := m.ctrl.Call(m, "Reload", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Reload indicates an expected call of Reload
-func (mr *MockCatalogMockRecorder) Reload(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reload", reflect.TypeOf((*MockCatalog)(nil).Reload), arg0)
-}
-
-// Run mocks base method
-func (m *MockCatalog) Run(arg0 context.Context) error {
-	ret := m.ctrl.Call(m, "Run", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Run indicates an expected call of Run
-func (mr *MockCatalogMockRecorder) Run(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockCatalog)(nil).Run), arg0)
-}
-
-// Stop mocks base method
-func (m *MockCatalog) Stop() {
-	m.ctrl.Call(m, "Stop")
-}
-
-// Stop indicates an expected call of Stop
-func (mr *MockCatalogMockRecorder) Stop() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockCatalog)(nil).Stop))
-}
-
 // WorkloadAttestors mocks base method
-func (m *MockCatalog) WorkloadAttestors() []workloadattestor.WorkloadAttestor {
+func (m *MockCatalog) WorkloadAttestors() []*catalog.ManagedWorkloadAttestor {
 	ret := m.ctrl.Call(m, "WorkloadAttestors")
-	ret0, _ := ret[0].([]workloadattestor.WorkloadAttestor)
+	ret0, _ := ret[0].([]*catalog.ManagedWorkloadAttestor)
 	return ret0
 }
 

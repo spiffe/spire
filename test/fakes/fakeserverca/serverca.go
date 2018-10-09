@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/server/upstreamca"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,67 +27,87 @@ qQDuoXqa8i3YOPk5fLib4ORzqD9NJFcrKjI+LLtipQe9yu/eY1K0yhBa
 `)
 )
 
-type ServerCA struct {
-	trustDomain string
-	defaultTTL  time.Duration
-	nowFn       func() time.Time
-	sn          int64
-	signer      crypto.Signer
-	cert        *x509.Certificate
+type Options struct {
+	Now        func() time.Time
+	DefaultTTL time.Duration
+	UpstreamCA upstreamca.UpstreamCA
 }
 
-func New(t *testing.T, trustDomain string, nowFn func() time.Time, defaultTTL time.Duration) *ServerCA {
-	if nowFn == nil {
-		nowFn = time.Now
+type ServerCA struct {
+	trustDomain string
+	sn          int64
+	signer      crypto.Signer
+	certs       []*x509.Certificate
+	options     *Options
+}
+
+func New(t *testing.T, trustDomain string, options *Options) *ServerCA {
+	if options == nil {
+		options = new(Options)
+	}
+	if options.Now == nil {
+		options.Now = time.Now
+	}
+	if options.DefaultTTL == 0 {
+		options.DefaultTTL = time.Minute
 	}
 
 	key, err := pemutil.ParseECPrivateKey(keyPEM)
 	require.NoError(t, err)
 
-	now := nowFn()
-	cert, err := ca.SelfSignServerCACertificate(
-		key, trustDomain, pkix.Name{CommonName: "FAKE SERVER CA"},
-		now, now.Add(time.Hour))
-	require.NoError(t, err)
+	now := options.Now()
+	subject := pkix.Name{CommonName: "FAKE SERVER CA"}
+	var certs []*x509.Certificate
+	if options.UpstreamCA != nil {
+		cert, upstreamBundle, err := ca.UpstreamSignServerCACertificate(context.Background(), options.UpstreamCA, key, trustDomain, subject)
+		require.NoError(t, err)
+		certs = append(certs, cert)
+		certs = append(certs, upstreamBundle...)
+	} else {
+		cert, err := ca.SelfSignServerCACertificate(
+			key, trustDomain, subject,
+			now, now.Add(time.Hour))
+		require.NoError(t, err)
+		certs = append(certs, cert)
+	}
 
 	return &ServerCA{
 		trustDomain: trustDomain,
-		defaultTTL:  defaultTTL,
-		nowFn:       nowFn,
 		signer:      key,
-		cert:        cert,
+		certs:       certs,
+		options:     options,
 	}
 }
 
-func (c *ServerCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) (*x509.Certificate, error) {
+func (c *ServerCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) (*x509.Certificate, []*x509.Certificate, error) {
 	if ttl <= 0 {
-		ttl = c.defaultTTL
+		ttl = c.options.DefaultTTL
 	}
-	now := c.nowFn()
+	now := c.options.Now()
 	c.sn++
 	template, err := ca.CreateX509SVIDTemplate(csrDER, c.trustDomain, now, now.Add(ttl), big.NewInt(c.sn))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	certDER, err := x509.CreateCertificate(rand.Reader, template, c.cert, template.PublicKey, c.signer)
+	certDER, err := x509.CreateCertificate(rand.Reader, template, c.certs[0], template.PublicKey, c.signer)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	cert, err := x509.ParseCertificate(certDER)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return cert, nil
+	return cert, c.certs[:len(c.certs)-1], nil
 }
 
 func (c *ServerCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 	ttl := time.Duration(jsr.Ttl) * time.Second
 	if ttl <= 0 {
-		ttl = c.defaultTTL
+		ttl = c.options.DefaultTTL
 	}
 	expiresAt := time.Now().Add(ttl)
-	return jwtsvid.SignSimpleToken(jsr.SpiffeId, jsr.Audience, expiresAt, c.signer, c.cert)
+	return jwtsvid.SignToken(jsr.SpiffeId, jsr.Audience, expiresAt, c.signer, "fakekey")
 }

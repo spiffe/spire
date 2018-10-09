@@ -7,7 +7,7 @@ syntax = "proto3";
 package spire.api.node;
 option go_package = "node";
 
-import public "github.com/spiffe/spire/proto/common/common.proto";
+import "github.com/spiffe/spire/proto/common/common.proto";
 
 /** Trust domain bundle */
 message Bundle {
@@ -22,7 +22,11 @@ message Bundle {
 // a TTL indicating when the SVID expires.
 message X509SVID {
     // X509 SVID (ASN.1 encoding)
-    bytes cert = 1;
+    bytes DEPRECATED_cert = 1;
+
+    // X509 SVID and intermediates necessary to form a chain of trust back
+    // to a root CA in the bundle.
+    bytes cert_chain = 3;
 
     // SVID expiration timestamp (in seconds since Unix epoch)
     int64 expires_at = 2;
@@ -42,11 +46,14 @@ message X509SVIDUpdate {
     // and manage the various registered nodes and workloads that are controlled by it.
     repeated spire.common.RegistrationEntry registration_entries = 3;
 
+    // DEPRECATED. See bundles.
+    map<string, Bundle> DEPRECATED_bundles = 4;
+
     // Trust bundles associated with the SVIDs, keyed by trust domain SPIFFE
     // ID. Bundles included are the trust bundle for the server trust domain
     // and any federated trust domain bundles applicable to the SVIDs.
     // Supersedes the deprecated `bundle` field.
-    map<string, Bundle> bundles = 4;
+    map<string, spire.common.Bundle> bundles = 5;
 }
 
 // JSR is a JWT SVID signing request.
@@ -118,11 +125,6 @@ message FetchJWTSVIDRequest {
 message FetchJWTSVIDResponse {
     // The signed JWT-SVID
     JWTSVID svid = 1;
-
-    // Trust bundles associated with the SVID, keyed by trust domain SPIFFE
-    // ID. Bundles included are the trust bundle for the server trust domain
-    // and any federated trust domain bundles applicable to the SVID.
-    map<string, Bundle> bundles = 2;
 }
 
 service Node {

@@ -40,3 +40,16 @@ func GetPublicKey(ctx context.Context, km keymanager.KeyManager, keyId string) (
 	}
 	return publicKey, nil
 }
+
+func PublicKeyEqual(a, b crypto.PublicKey) (bool, error) {
+	switch a := a.(type) {
+	case *rsa.PublicKey:
+		rsaPublicKey, ok := b.(*rsa.PublicKey)
+		return ok && RSAPublicKeyEqual(a, rsaPublicKey), nil
+	case *ecdsa.PublicKey:
+		ecdsaPublicKey, ok := b.(*ecdsa.PublicKey)
+		return ok && ECDSAPublicKeyEqual(a, ecdsaPublicKey), nil
+	default:
+		return false, fmt.Errorf("unsupported public key type %T", a)
+	}
+}

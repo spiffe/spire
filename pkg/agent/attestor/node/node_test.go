@@ -252,11 +252,11 @@ func (s *NodeAttestorTestSuite) setAttestResponse(challenges []challengeResponse
 		SvidUpdate: &node.X509SVIDUpdate{
 			Svids: map[string]*node.X509SVID{
 				"spiffe://example.com/spire/agent/join_token/foobar": &node.X509SVID{
-					Cert:      svid.Raw,
-					ExpiresAt: svid.NotAfter.Unix(),
+					DEPRECATEDCert: svid.Raw,
+					ExpiresAt:      svid.NotAfter.Unix(),
 				},
 			},
-			Bundles: map[string]*node.Bundle{
+			DEPRECATEDBundles: map[string]*node.Bundle{
 				"spiffe://example.com": &node.Bundle{
 					Id:      "spiffe://example.com",
 					CaCerts: bundle[0].Raw,

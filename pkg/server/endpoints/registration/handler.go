@@ -9,6 +9,7 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -212,12 +213,14 @@ func (h *Handler) CreateFederatedBundle(
 		return nil, errors.New("federated bundle id cannot match server trust domain")
 	}
 
+	bundle, err := bundleutil.BundleProtoFromRootCAsDER(request.SpiffeId, request.CaCerts)
+	if err != nil {
+		return nil, err
+	}
+
 	ds := h.getDataStore()
 	if _, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &datastore.Bundle{
-			TrustDomain: request.SpiffeId,
-			CaCerts:     request.CaCerts,
-		},
+		Bundle: bundle,
 	}); err != nil {
 		return nil, err
 	}
@@ -240,7 +243,7 @@ func (h *Handler) FetchFederatedBundle(
 
 	ds := h.getDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomain: request.Id,
+		TrustDomainId: request.Id,
 	})
 	if err != nil {
 		return nil, err
@@ -250,8 +253,8 @@ func (h *Handler) FetchFederatedBundle(
 	}
 
 	return &registration.FederatedBundle{
-		SpiffeId: resp.Bundle.TrustDomain,
-		CaCerts:  resp.Bundle.CaCerts,
+		SpiffeId: resp.Bundle.TrustDomainId,
+		CaCerts:  bundleutil.RootCAsDERFromBundleProto(resp.Bundle),
 	}, nil
 }
 
@@ -263,12 +266,12 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 	}
 
 	for _, bundle := range resp.Bundles {
-		if bundle.TrustDomain == h.TrustDomain.String() {
+		if bundle.TrustDomainId == h.TrustDomain.String() {
 			continue
 		}
 		if err := stream.Send(&registration.FederatedBundle{
-			SpiffeId: bundle.TrustDomain,
-			CaCerts:  bundle.CaCerts,
+			SpiffeId: bundle.TrustDomainId,
+			CaCerts:  bundleutil.RootCAsDERFromBundleProto(bundle),
 		}); err != nil {
 			return err
 		}
@@ -290,12 +293,14 @@ func (h *Handler) UpdateFederatedBundle(
 		return nil, errors.New("federated bundle id cannot match server trust domain")
 	}
 
+	bundle, err := bundleutil.BundleProtoFromRootCAsDER(request.SpiffeId, request.CaCerts)
+	if err != nil {
+		return nil, err
+	}
+
 	ds := h.getDataStore()
 	if _, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: &datastore.Bundle{
-			TrustDomain: request.SpiffeId,
-			CaCerts:     request.CaCerts,
-		},
+		Bundle: bundle,
 	}); err != nil {
 		return nil, err
 	}
@@ -323,8 +328,8 @@ func (h *Handler) DeleteFederatedBundle(
 
 	ds := h.getDataStore()
 	if _, err := ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomain: request.Id,
-		Mode:        mode,
+		TrustDomainId: request.Id,
+		Mode:          mode,
 	}); err != nil {
 		return nil, err
 	}
@@ -368,7 +373,7 @@ func (h *Handler) FetchBundle(
 	response *registration.Bundle, err error) {
 	ds := h.getDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomain: h.TrustDomain.String(),
+		TrustDomainId: h.TrustDomain.String(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get bundle from datastore: %v", err)
@@ -377,7 +382,9 @@ func (h *Handler) FetchBundle(
 		return nil, errors.New("bundle not found")
 	}
 
-	return &registration.Bundle{CaCerts: resp.Bundle.CaCerts}, nil
+	return &registration.Bundle{
+		CaCerts: bundleutil.RootCAsDERFromBundleProto(resp.Bundle),
+	}, nil
 }
 
 func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (bool, error) {

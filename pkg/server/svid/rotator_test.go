@@ -36,7 +36,9 @@ func (s *RotatorTestSuite) SetupTest() {
 	}
 
 	s.now = time.Now()
-	s.serverCA = fakeserverca.New(s.T(), "example.org", s.nowHook, time.Minute)
+	s.serverCA = fakeserverca.New(s.T(), "example.org", &fakeserverca.Options{
+		Now: s.nowHook,
+	})
 	s.r = NewRotator(&RotatorConfig{
 		ServerCA:    s.serverCA,
 		Log:         log,

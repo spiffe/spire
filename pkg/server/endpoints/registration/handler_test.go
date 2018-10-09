@@ -2,6 +2,7 @@ package registration
 
 import (
 	"context"
+	"encoding/pem"
 	"errors"
 	"net"
 	"net/url"
@@ -20,6 +21,31 @@ import (
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
+)
+
+var (
+	rootCA1DER = pemBytes([]byte(`-----BEGIN CERTIFICATE-----
+MIIBVzCB4gIJAJur7ujAmyDhMA0GCSqGSIb3DQEBCwUAMBMxETAPBgNVBAMMCFRF
+U1RST09UMB4XDTE4MTAxNTE4NDQxMVoXDTE5MTAxNTE4NDQxMVowEzERMA8GA1UE
+AwwIVEVTVFJPT1QwfDANBgkqhkiG9w0BAQEFAANrADBoAmEAoYPq4DlrjDhanDM4
+gDbEefDYi4IOmwUkQPAiJgQ2+CRm/pb/qc2zuj5FQZps1jxt3VtoDJnwfJuX6B4M
+Zq0dHJF0ykfVonfxJbQsynge7yYA1avCLjlOv72Sk9/U8UQhAgMBAAEwDQYJKoZI
+hvcNAQELBQADYQAXWlJO3EoYW3Uss0QjlqJJCC2M21HkF1AkWP6mUDgQ0PtbH2Vu
+P58nzUo3Kzc3mfg3hocdt7vCDm75zdhjoDTLrT9IgU2XbDcbZF+yg51HZstonDiM
+3JzUe9WQUljuQlM=
+-----END CERTIFICATE-----
+`))
+	rootCA2DER = pemBytes([]byte(`-----BEGIN CERTIFICATE-----
+MIIBWTCB5AIJAOIaaEWcPCB2MA0GCSqGSIb3DQEBCwUAMBQxEjAQBgNVBAMMCVRF
+U1RST09UMjAeFw0xODEwMTUxODQ0MjdaFw0xOTEwMTUxODQ0MjdaMBQxEjAQBgNV
+BAMMCVRFU1RST09UMjB8MA0GCSqGSIb3DQEBAQUAA2sAMGgCYQCmsAlaUc8YCFs5
+hl44gZ3CJvpR0Yc4DAQkgSfed06iN0rmBuQzeCl3hiJ9ogqw4va2ciVQ8hTPeMw6
+047YCMKOkmhDa4dFgGzk9GlvUQF5qft1MTWYlCI6/jEfx4Zsd4ECAwEAATANBgkq
+hkiG9w0BAQsFAANhADQochC62F37uubcBDR70qhJlC7Bsz/KgxtduQR4pSOj4uZh
+zFHHu+k8dS32+KooMqtUp71bhMgtlvYIRay4OMD6VurfP70caOHkCVFPxibAW9o9
+NbyKVndd7aGvTed1PQ==
+-----END CERTIFICATE-----
+`))
 )
 
 func TestHandler(t *testing.T) {
@@ -72,20 +98,20 @@ func (s *HandlerSuite) TearDownTest() {
 
 func (s *HandlerSuite) TestCreateFederatedBundle() {
 	testCases := []struct {
-		Id      string
-		CaCerts string
-		Err     string
+		TrustDomainId string
+		CaCerts       []byte
+		Err           string
 	}{
-		{Id: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
-		{Id: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
-		{Id: "spiffe://otherdomain.org", CaCerts: "CACERTS", Err: ""},
-		{Id: "spiffe://otherdomain.org", CaCerts: "CACERTS", Err: "bundle already exists"},
+		{TrustDomainId: "spiffe://example.org", CaCerts: nil, Err: "federated bundle id cannot match server trust domain"},
+		{TrustDomainId: "spiffe://otherdomain.org/spire/agent", CaCerts: nil, Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: ""},
+		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: "bundle already exists"},
 	}
 
 	for _, testCase := range testCases {
 		response, err := s.handler.CreateFederatedBundle(context.Background(), &registration.FederatedBundle{
-			SpiffeId: testCase.Id,
-			CaCerts:  []byte(testCase.CaCerts),
+			SpiffeId: testCase.TrustDomainId,
+			CaCerts:  testCase.CaCerts,
 		})
 
 		if testCase.Err != "" {
@@ -98,39 +124,44 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 
 		// assert that the bundle was created in the datastore
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-			TrustDomain: testCase.Id,
+			TrustDomainId: testCase.TrustDomainId,
 		})
 		s.Require().NoError(err)
-		s.Require().Equal(resp.Bundle.TrustDomain, testCase.Id)
-		s.Require().Equal(string(resp.Bundle.CaCerts), testCase.CaCerts)
+		s.Require().Equal(resp.Bundle.TrustDomainId, testCase.TrustDomainId)
+		s.Require().Len(resp.Bundle.RootCas, 1)
+		s.Require().Equal(resp.Bundle.RootCas[0].DerBytes, testCase.CaCerts)
 	}
 }
 
 func (s *HandlerSuite) TestFetchFederatedBundle() {
 	// Create three bundles
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://example.org",
-		CaCerts:     []byte("EXAMPLE"),
+		TrustDomainId: "spiffe://example.org",
+		RootCas: []*common.Certificate{
+			{DerBytes: []byte("EXAMPLE")},
+		},
 	})
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://otherdomain.org",
-		CaCerts:     []byte("OTHERDOMAIN"),
+		TrustDomainId: "spiffe://otherdomain.org",
+		RootCas: []*common.Certificate{
+			{DerBytes: []byte("OTHERDOMAIN")},
+		},
 	})
 
 	testCases := []struct {
-		Id      string
-		CaCerts string
-		Err     string
+		TrustDomainId string
+		CaCerts       string
+		Err           string
 	}{
-		{Id: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
-		{Id: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
-		{Id: "spiffe://otherdomain.org", CaCerts: "OTHERDOMAIN", Err: ""},
-		{Id: "spiffe://yetotherdomain.org", CaCerts: "", Err: "bundle not found"},
+		{TrustDomainId: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
+		{TrustDomainId: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: "OTHERDOMAIN", Err: ""},
+		{TrustDomainId: "spiffe://yetotherdomain.org", CaCerts: "", Err: "bundle not found"},
 	}
 
 	for _, testCase := range testCases {
 		response, err := s.handler.FetchFederatedBundle(context.Background(), &registration.FederatedBundleID{
-			Id: testCase.Id,
+			Id: testCase.TrustDomainId,
 		})
 
 		if testCase.Err != "" {
@@ -140,19 +171,23 @@ func (s *HandlerSuite) TestFetchFederatedBundle() {
 		}
 		s.Require().NoError(err)
 		s.Require().NotNil(response)
-		s.Require().Equal(response.SpiffeId, testCase.Id)
+		s.Require().Equal(response.SpiffeId, testCase.TrustDomainId)
 		s.Require().Equal(string(response.CaCerts), testCase.CaCerts)
 	}
 }
 
 func (s *HandlerSuite) TestListFederatedBundles() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://example.org",
-		CaCerts:     []byte("EXAMPLE"),
+		TrustDomainId: "spiffe://example.org",
+		RootCas: []*common.Certificate{
+			{DerBytes: []byte("EXAMPLE")},
+		},
 	})
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://example2.org",
-		CaCerts:     []byte("EXAMPLE2"),
+		TrustDomainId: "spiffe://example2.org",
+		RootCas: []*common.Certificate{
+			{DerBytes: []byte("EXAMPLE2")},
+		},
 	})
 
 	// Assert that the listing does not contain the bundle for the server
@@ -174,27 +209,29 @@ func (s *HandlerSuite) TestListFederatedBundles() {
 func (s *HandlerSuite) TestUpdateFederatedBundle() {
 	// create a bundle to be updated
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://otherdomain.org",
-		CaCerts:     []byte("UPDATEME"),
+		TrustDomainId: "spiffe://otherdomain.org",
+		RootCas: []*common.Certificate{
+			{DerBytes: []byte("UPDATEME")},
+		},
 	})
 
 	testCases := []struct {
-		Id      string
-		CaCerts string
-		Err     string
+		TrustDomainId string
+		CaCerts       []byte
+		Err           string
 	}{
-		{Id: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
-		{Id: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
-		{Id: "spiffe://unknowndomain.org", CaCerts: "CACERTS", Err: "no such bundle"},
-		{Id: "spiffe://otherdomain.org", CaCerts: "CACERTS", Err: ""},
-		{Id: "spiffe://otherdomain.org", CaCerts: "CACERTS2", Err: ""},
+		{TrustDomainId: "spiffe://example.org", CaCerts: nil, Err: "federated bundle id cannot match server trust domain"},
+		{TrustDomainId: "spiffe://otherdomain.org/spire/agent", CaCerts: nil, Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{TrustDomainId: "spiffe://unknowndomain.org", CaCerts: rootCA1DER, Err: "no such bundle"},
+		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: ""},
+		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA2DER, Err: ""},
 	}
 
 	for _, testCase := range testCases {
 		s.T().Logf("case=%+v", testCase)
 		response, err := s.handler.UpdateFederatedBundle(context.Background(), &registration.FederatedBundle{
-			SpiffeId: testCase.Id,
-			CaCerts:  []byte(testCase.CaCerts),
+			SpiffeId: testCase.TrustDomainId,
+			CaCerts:  testCase.CaCerts,
 		})
 
 		if testCase.Err != "" {
@@ -207,33 +244,36 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 
 		// assert that the bundle was created in the datastore
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-			TrustDomain: testCase.Id,
+			TrustDomainId: testCase.TrustDomainId,
 		})
 		s.Require().NoError(err)
-		s.Require().Equal(resp.Bundle.TrustDomain, testCase.Id)
-		s.Require().Equal(string(resp.Bundle.CaCerts), testCase.CaCerts)
+		s.Require().Equal(resp.Bundle.TrustDomainId, testCase.TrustDomainId)
+		s.Require().Len(resp.Bundle.RootCas, 1)
+		s.Require().Equal(resp.Bundle.RootCas[0].DerBytes, testCase.CaCerts)
 	}
 }
 
 func (s *HandlerSuite) TestDeleteFederatedBundle() {
 	testCases := []struct {
-		Id  string
-		Err string
+		TrustDomainId string
+		Err           string
 	}{
-		{Id: "spiffe://example.org", Err: "federated bundle id cannot match server trust domain"},
-		{Id: "spiffe://otherdomain.org/spire/agent", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
-		{Id: "spiffe://otherdomain.org", Err: ""},
-		{Id: "spiffe://otherdomain.org", Err: "no such bundle"},
+		{TrustDomainId: "spiffe://example.org", Err: "federated bundle id cannot match server trust domain"},
+		{TrustDomainId: "spiffe://otherdomain.org/spire/agent", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{TrustDomainId: "spiffe://otherdomain.org", Err: ""},
+		{TrustDomainId: "spiffe://otherdomain.org", Err: "no such bundle"},
 	}
 
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://otherdomain.org",
-		CaCerts:     []byte("BLAH"),
+		TrustDomainId: "spiffe://otherdomain.org",
+		RootCas: []*common.Certificate{
+			{DerBytes: []byte("BLAH")},
+		},
 	})
 
 	for _, testCase := range testCases {
 		response, err := s.handler.DeleteFederatedBundle(context.Background(), &registration.DeleteFederatedBundleRequest{
-			Id: testCase.Id,
+			Id: testCase.TrustDomainId,
 		})
 
 		if testCase.Err != "" {
@@ -246,7 +286,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 
 		// assert that the bundle was deleted
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-			TrustDomain: testCase.Id,
+			TrustDomainId: testCase.TrustDomainId,
 		})
 		s.Require().NoError(err)
 		s.Require().NotNil(resp)
@@ -802,17 +842,29 @@ func createJoinTokenErrorExpectations(suite *handlerTestSuite) {
 func createFetchBundleExpectations(suite *handlerTestSuite) {
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomain: "spiffe://example.org",
+			TrustDomainId: "spiffe://example.org",
 		}).
 		Return(&datastore.FetchBundleResponse{
-			Bundle: &datastore.Bundle{CaCerts: []byte{1, 2, 3}},
+			Bundle: &datastore.Bundle{
+				RootCas: []*common.Certificate{
+					{DerBytes: []byte{1, 2, 3}},
+				},
+			},
 		}, nil)
 }
 
 func createFetchBundleErrorExpectations(suite *handlerTestSuite) {
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomain: "spiffe://example.org",
+			TrustDomainId: "spiffe://example.org",
 		}).
 		Return(nil, errors.New("bundle not found"))
+}
+
+func pemBytes(p []byte) []byte {
+	b, _ := pem.Decode(p)
+	if b != nil {
+		return b.Bytes
+	}
+	return nil
 }

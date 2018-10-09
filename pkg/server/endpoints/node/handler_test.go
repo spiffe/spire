@@ -151,7 +151,7 @@ func TestFetchX509SVID(t *testing.T) {
 	suite := SetupHandlerTest(t)
 	defer suite.ctrl.Finish()
 
-	data := getFetchX509SVIDTestData()
+	data := getFetchX509SVIDTestData(t)
 	data.expectation = getExpectedFetchX509SVID(data)
 	setFetchX509SVIDExpectations(suite, data)
 
@@ -170,7 +170,7 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 	suite := SetupHandlerTest(t)
 	defer suite.ctrl.Finish()
 
-	data := getFetchX509SVIDTestData()
+	data := getFetchX509SVIDTestData(t)
 	data.request.Csrs = append(
 		data.request.Csrs, getBytesFromPem("base_rotated_csr.pem"))
 	data.generatedCerts = append(
@@ -180,7 +180,7 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 	cert := data.generatedCerts[3]
 
 	data.expectation = getExpectedFetchX509SVID(data)
-	data.expectation.Svids[data.baseSpiffeID] = makeX509SVID(cert)
+	data.expectation.Svids[data.baseSpiffeID] = makeX509SVID(cert, nil)
 	setFetchX509SVIDExpectations(suite, data)
 
 	suite.mockDataStore.EXPECT().FetchAttestedNode(gomock.Any(),
@@ -193,7 +193,7 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 		}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignX509SVID(gomock.Any(), data.request.Csrs[3], time.Duration(0)).Return(cert, nil)
+		SignX509SVID(gomock.Any(), data.request.Csrs[3], time.Duration(0)).Return(cert, nil, nil)
 
 	suite.mockDataStore.EXPECT().
 		UpdateAttestedNode(gomock.Any(), gomock.Any()).
@@ -328,7 +328,7 @@ func setAttestExpectations(
 		Return(&datastore.FetchAttestedNodeResponse{Node: nil}, nil)
 
 	suite.mockServerCA.EXPECT().SignX509SVID(
-		gomock.Any(), data.request.Csr, time.Duration(0)).Return(data.generatedCert, nil)
+		gomock.Any(), data.request.Csr, time.Duration(0)).Return(data.generatedCert, nil, nil)
 
 	suite.mockDataStore.EXPECT().CreateAttestedNode(gomock.Any(),
 		&datastore.CreateAttestedNodeRequest{
@@ -446,11 +446,13 @@ func setAttestExpectations(
 
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomain: testTrustDomain.String()}).
+			TrustDomainId: testTrustDomain.String()}).
 		Return(&datastore.FetchBundleResponse{
 			Bundle: &datastore.Bundle{
-				TrustDomain: testTrustDomain.String(),
-				CaCerts:     caCert.Raw,
+				TrustDomainId: testTrustDomain.String(),
+				RootCas: []*common.Certificate{
+					{DerBytes: caCert.Raw},
+				},
 			},
 		}, nil)
 }
@@ -481,17 +483,25 @@ func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert *x509.
 	}
 
 	svids := make(map[string]*node.X509SVID)
-	svids[baseSpiffeID] = makeX509SVID(cert)
+	svids[baseSpiffeID] = makeX509SVID(cert, nil)
 
 	caCert, _, _ := util.LoadCAFixture()
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
 		DEPRECATEDBundle:    caCert.Raw,
 		RegistrationEntries: expectedRegEntries,
-		Bundles: map[string]*node.Bundle{
+		DEPRECATEDBundles: map[string]*node.Bundle{
 			testTrustDomain.String(): {
 				Id:      testTrustDomain.String(),
 				CaCerts: caCert.Raw,
+			},
+		},
+		Bundles: map[string]*common.Bundle{
+			testTrustDomain.String(): {
+				TrustDomainId: testTrustDomain.String(),
+				RootCas: []*common.Certificate{
+					{DerBytes: caCert.Raw},
+				},
 			},
 		},
 	}
@@ -501,6 +511,7 @@ func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert *x509.
 
 type fetchSVIDData struct {
 	request            *node.FetchX509SVIDRequest
+	caCert             *x509.Certificate
 	baseSpiffeID       string
 	nodeSpiffeID       string
 	databaseSpiffeID   string
@@ -514,8 +525,12 @@ type fetchSVIDData struct {
 	expectation        *node.X509SVIDUpdate
 }
 
-func getFetchX509SVIDTestData() *fetchSVIDData {
+func getFetchX509SVIDTestData(t *testing.T) *fetchSVIDData {
+	caCert, _, err := util.LoadCAFixture()
+	require.NoError(t, err)
+
 	data := &fetchSVIDData{}
+	data.caCert = caCert
 	data.spiffeIDs = []string{
 		"spiffe://example.org/database",
 		"spiffe://example.org/blog",
@@ -558,9 +573,6 @@ func getFetchX509SVIDTestData() *fetchSVIDData {
 
 func setFetchX509SVIDExpectations(
 	suite *HandlerTestSuite, data *fetchSVIDData) {
-
-	caCert, _, err := util.LoadCAFixture()
-	require.NoError(suite.T(), err)
 
 	ctx := peer.NewContext(context.Background(), getFakePeer())
 	suite.server.EXPECT().Context().Return(ctx)
@@ -623,33 +635,37 @@ func setFetchX509SVIDExpectations(
 
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomain: testTrustDomain.String()}).
+			TrustDomainId: testTrustDomain.String()}).
 		Return(&datastore.FetchBundleResponse{
 			Bundle: &datastore.Bundle{
-				TrustDomain: testTrustDomain.String(),
-				CaCerts:     caCert.Raw,
+				TrustDomainId: testTrustDomain.String(),
+				RootCas: []*common.Certificate{
+					{DerBytes: data.caCert.Raw},
+				},
 			},
 		}, nil)
 
 	suite.mockDataStore.EXPECT().
 		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomain: "spiffe://otherdomain.test",
+			TrustDomainId: "spiffe://otherdomain.test",
 		}).
 		Return(&datastore.FetchBundleResponse{
 			Bundle: &datastore.Bundle{
-				TrustDomain: "spiffe://otherdomain.test",
-				CaCerts:     caCert.Raw,
+				TrustDomainId: "spiffe://otherdomain.test",
+				RootCas: []*common.Certificate{
+					{DerBytes: data.caCert.Raw},
+				},
 			},
 		}, nil)
 
 	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
-		data.request.Csrs[0], durationFromTTL(data.byParentIDEntries[2].Ttl)).Return(data.generatedCerts[0], nil)
+		data.request.Csrs[0], durationFromTTL(data.byParentIDEntries[2].Ttl)).Return(data.generatedCerts[0], []*x509.Certificate{data.caCert}, nil)
 
 	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
-		data.request.Csrs[1], durationFromTTL(data.byParentIDEntries[0].Ttl)).Return(data.generatedCerts[1], nil)
+		data.request.Csrs[1], durationFromTTL(data.byParentIDEntries[0].Ttl)).Return(data.generatedCerts[1], nil, nil)
 
 	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
-		data.request.Csrs[2], durationFromTTL(data.byParentIDEntries[1].Ttl)).Return(data.generatedCerts[2], nil)
+		data.request.Csrs[2], durationFromTTL(data.byParentIDEntries[1].Ttl)).Return(data.generatedCerts[2], nil, nil)
 
 	suite.server.EXPECT().Send(&node.FetchX509SVIDResponse{
 		SvidUpdate: data.expectation,
@@ -663,9 +679,9 @@ func setFetchX509SVIDExpectations(
 func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
 	//TODO: improve this, put it in an array in data and iterate it
 	svids := map[string]*node.X509SVID{
-		data.nodeSpiffeID:     makeX509SVID(data.generatedCerts[0]),
-		data.databaseSpiffeID: makeX509SVID(data.generatedCerts[1]),
-		data.blogSpiffeID:     makeX509SVID(data.generatedCerts[2]),
+		data.nodeSpiffeID:     makeX509SVID(data.generatedCerts[0], []*x509.Certificate{data.caCert}),
+		data.databaseSpiffeID: makeX509SVID(data.generatedCerts[1], nil),
+		data.blogSpiffeID:     makeX509SVID(data.generatedCerts[2], nil),
 	}
 
 	// returned in sorted order (according to sorting rules in util.SortRegistrationEntries)
@@ -679,16 +695,31 @@ func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
 	caCert, _, _ := util.LoadCAFixture()
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
-		DEPRECATEDBundle:    caCert.Raw,
+		DEPRECATEDBundle:    append(caCert.Raw, data.caCert.Raw...),
 		RegistrationEntries: registrationEntries,
-		Bundles: map[string]*node.Bundle{
+		DEPRECATEDBundles: map[string]*node.Bundle{
 			testTrustDomain.String(): {
 				Id:      testTrustDomain.String(),
-				CaCerts: caCert.Raw,
+				CaCerts: append(caCert.Raw, data.caCert.Raw...),
 			},
 			"spiffe://otherdomain.test": {
 				Id:      "spiffe://otherdomain.test",
 				CaCerts: caCert.Raw,
+			},
+		},
+		Bundles: map[string]*common.Bundle{
+			testTrustDomain.String(): {
+				TrustDomainId: testTrustDomain.String(),
+				RootCas: []*common.Certificate{
+					{DerBytes: caCert.Raw},
+					{DerBytes: data.caCert.Raw},
+				},
+			},
+			"spiffe://otherdomain.test": {
+				TrustDomainId: "spiffe://otherdomain.test",
+				RootCas: []*common.Certificate{
+					{DerBytes: caCert.Raw},
+				},
 			},
 		},
 	}
@@ -723,18 +754,22 @@ func TestFetchJWTSVID(t *testing.T) {
 	dataStore := fakedatastore.New()
 	dataStore.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: &datastore.Bundle{
-			TrustDomain: "spiffe://example.org",
-			CaCerts:     []byte("EXAMPLE-CERTS"),
+			TrustDomainId: "spiffe://example.org",
+			RootCas: []*common.Certificate{
+				{DerBytes: []byte("EXAMPLE-CERTS")},
+			},
 		},
 	})
 	dataStore.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: &datastore.Bundle{
-			TrustDomain: "spiffe://otherdomain.test",
-			CaCerts:     []byte("OTHERDOMAIN-CERTS"),
+			TrustDomainId: "spiffe://otherdomain.test",
+			RootCas: []*common.Certificate{
+				{DerBytes: []byte("OTHERDOMAIN-CERTS")},
+			},
 		},
 	})
 	dataStore.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: &node.RegistrationEntry{
+		Entry: &common.RegistrationEntry{
 			ParentId:      "spiffe://example.org/spire/agent/join_token/token",
 			SpiffeId:      "spiffe://example.org/blog",
 			Ttl:           1,
@@ -742,8 +777,10 @@ func TestFetchJWTSVID(t *testing.T) {
 		},
 	})
 
-	upstreamCA := fakeupstreamca.New(t, "localhost")
-	serverCA := fakeserverca.New(t, "example.org", nil, time.Minute)
+	upstreamCA := fakeupstreamca.New(t, "example.org")
+	serverCA := fakeserverca.New(t, "example.org", &fakeserverca.Options{
+		UpstreamCA: upstreamCA,
+	})
 
 	catalog := fakeservercatalog.New()
 	catalog.SetUpstreamCAs(upstreamCA)
@@ -810,16 +847,6 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.NotNil(t, resp)
 	require.NotEmpty(t, resp.Svid.Token)
 	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
-	require.Equal(t, map[string]*node.Bundle{
-		"spiffe://example.org": {
-			Id:      "spiffe://example.org",
-			CaCerts: []byte("EXAMPLE-CERTS"),
-		},
-		"spiffe://otherdomain.test": {
-			Id:      "spiffe://otherdomain.test",
-			CaCerts: []byte("OTHERDOMAIN-CERTS"),
-		},
-	}, resp.Bundles)
 
 	// authorized against a registration entry
 	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
@@ -832,16 +859,6 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.NotNil(t, resp)
 	require.NotEmpty(t, resp.Svid.Token)
 	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
-	require.Equal(t, map[string]*node.Bundle{
-		"spiffe://example.org": {
-			Id:      "spiffe://example.org",
-			CaCerts: []byte("EXAMPLE-CERTS"),
-		},
-		"spiffe://otherdomain.test": {
-			Id:      "spiffe://otherdomain.test",
-			CaCerts: []byte("OTHERDOMAIN-CERTS"),
-		},
-	}, resp.Bundles)
 }
 
 type fakeLimiter struct {

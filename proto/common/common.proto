@@ -54,3 +54,31 @@ message RegistrationEntries {
     /** A list of RegistrationEntry. */
     repeated RegistrationEntry entries = 1;
 }
+
+/** Certificate represents a ASN.1/DER encoded X509 certificate */
+message Certificate {
+    bytes der_bytes = 1;
+}
+
+/** PublicKey represents a PKIX encoded public key */
+message PublicKey {
+    /** PKIX encoded key data */
+    bytes pkix_bytes = 1;
+
+    /** key identifier */
+    string kid = 2;
+
+    /** not after (seconds since unix epoch, 0 means "never expires") */
+    int64 not_after = 3;
+}
+
+message Bundle {
+    /** the SPIFFE ID of the trust domain the bundle belongs to */
+    string trust_domain_id = 1;
+
+    /** list of root CA certificates */
+    repeated Certificate root_cas = 2;
+
+    /** list of JWT signing keys */
+    repeated PublicKey jwt_signing_keys = 3;
+}

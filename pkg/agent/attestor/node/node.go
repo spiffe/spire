@@ -319,16 +319,16 @@ func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) (
 		return nil, nil, fmt.Errorf("incorrect svid: %s", id)
 	}
 
-	svid, err := x509.ParseCertificate(svidMsg.Cert)
+	svid, err := x509.ParseCertificate(svidMsg.DEPRECATEDCert)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid svid: %v", err)
 	}
 
-	if r.SvidUpdate.Bundles == nil {
+	if r.SvidUpdate.DEPRECATEDBundles == nil {
 		return nil, nil, errors.New("missing bundles")
 	}
 
-	bundle := r.SvidUpdate.Bundles[a.c.TrustDomain.String()]
+	bundle := r.SvidUpdate.DEPRECATEDBundles[a.c.TrustDomain.String()]
 	if bundle == nil {
 		return nil, nil, errors.New("missing bundle")
 	}

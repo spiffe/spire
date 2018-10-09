@@ -5,7 +5,10 @@
 
 - [common.proto](#common.proto)
     - [AttestationData](#spire.common.AttestationData)
+    - [Bundle](#spire.common.Bundle)
+    - [Certificate](#spire.common.Certificate)
     - [Empty](#spire.common.Empty)
+    - [PublicKey](#spire.common.PublicKey)
     - [RegistrationEntries](#spire.common.RegistrationEntries)
     - [RegistrationEntry](#spire.common.RegistrationEntry)
     - [Selector](#spire.common.Selector)
@@ -68,10 +71,59 @@ A type which contains attestation data for specific platform.
 
 
 
+<a name="spire.common.Bundle"/>
+
+### Bundle
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| trust_domain_id | [string](#string) |  | the SPIFFE ID of the trust domain the bundle belongs to |
+| root_cas | [Certificate](#spire.common.Certificate) | repeated | list of root CA certificates |
+| jwt_signing_keys | [PublicKey](#spire.common.PublicKey) | repeated | list of JWT signing keys |
+
+
+
+
+
+
+<a name="spire.common.Certificate"/>
+
+### Certificate
+Certificate represents a ASN.1/DER encoded X509 certificate
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| der_bytes | [bytes](#bytes) |  |  |
+
+
+
+
+
+
 <a name="spire.common.Empty"/>
 
 ### Empty
 Represents an empty message
+
+
+
+
+
+
+<a name="spire.common.PublicKey"/>
+
+### PublicKey
+PublicKey represents a PKIX encoded public key
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| pkix_bytes | [bytes](#bytes) |  | PKIX encoded key data |
+| kid | [string](#string) |  | key identifier |
+| not_after | [int64](#int64) |  | not after (seconds since unix epoch, 0 means &#34;never expires&#34;) |
 
 
 

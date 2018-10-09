@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -102,13 +104,10 @@ func (s *PluginSuite) TestInvalidPluginConfiguration() {
 }
 
 func (s *PluginSuite) TestBundleCRUD() {
-	bundle := &datastore.Bundle{
-		TrustDomain: "spiffe://foo",
-		CaCerts:     s.cert.Raw,
-	}
+	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
 	// fetch non-existant
-	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomain: "spiffe://foo"})
+	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
 	s.Require().NoError(err)
 	s.Require().NotNil(fresp)
 	s.Require().Nil(fresp.Bundle)
@@ -120,48 +119,17 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NoError(err)
 
 	// fetch
-	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomain: "spiffe://foo"})
+	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
 	s.Require().NoError(err)
-	s.Equal(bundle, fresp.Bundle)
+	s.True(proto.Equal(bundle, fresp.Bundle))
 
 	// list
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
-	s.Equal(bundle, lresp.Bundles[0])
+	s.True(proto.Equal(bundle, lresp.Bundles[0]))
 
-	bundle2 := &datastore.Bundle{
-		TrustDomain: bundle.TrustDomain,
-		CaCerts:     s.cacert.Raw,
-	}
-
-	// append
-	aresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: bundle2,
-	})
-	s.Require().NoError(err)
-	certs := append(bundle.CaCerts, s.cacert.Raw...)
-	s.Require().NotNil(aresp.Bundle)
-	s.Equal(certs, aresp.Bundle.CaCerts)
-
-	// append identical
-	aresp, err = s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: bundle2,
-	})
-	s.Require().NoError(err)
-	s.Require().NotNil(aresp.Bundle)
-	s.Equal(certs, aresp.Bundle.CaCerts)
-
-	// append on a new bundle
-	bundle3 := &datastore.Bundle{
-		TrustDomain: "spiffe://bar",
-		CaCerts:     s.cacert.Raw,
-	}
-	anresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: bundle3,
-	})
-	s.Require().NoError(err)
-	s.Equal(bundle3, anresp.Bundle)
+	bundle2 := bundleutil.BundleProtoFromRootCA(bundle.TrustDomainId, s.cacert)
 
 	// update
 	uresp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
@@ -172,19 +140,19 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
-	s.Equal(2, len(lresp.Bundles))
-	s.Equal([]*datastore.Bundle{bundle2, bundle3}, lresp.Bundles)
+	s.Equal(1, len(lresp.Bundles))
+	s.True(proto.Equal(bundle2, lresp.Bundles[0]))
 
 	// delete
 	dresp, err := s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomain: bundle.TrustDomain,
+		TrustDomainId: bundle.TrustDomainId,
 	})
 	s.Require().NoError(err)
-	s.Equal(bundle2, dresp.Bundle)
+	s.True(proto.Equal(bundle2, dresp.Bundle))
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
-	s.Equal(1, len(lresp.Bundles))
+	s.Equal(0, len(lresp.Bundles))
 }
 
 func (s *PluginSuite) TestCreateAttestedNode() {
@@ -666,7 +634,7 @@ func (s *PluginSuite) TestDeleteBundleRestrictedByRegistrationEntries() {
 
 	// delete the bundle in RESTRICTED mode
 	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomain: "spiffe://otherdomain.org",
+		TrustDomainId: "spiffe://otherdomain.org",
 	})
 	s.Require().EqualError(err, "datastore-sql: cannot delete bundle; federated with 1 registration entries")
 }
@@ -685,8 +653,8 @@ func (s *PluginSuite) TestDeleteBundleDeleteRegistrationEntries() {
 
 	// delete the bundle in DELETE mode
 	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomain: "spiffe://otherdomain.org",
-		Mode:        datastore.DeleteBundleRequest_DELETE,
+		TrustDomainId: "spiffe://otherdomain.org",
+		Mode:          datastore.DeleteBundleRequest_DELETE,
 	})
 	s.Require().NoError(err)
 
@@ -708,8 +676,8 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 
 	// delete the bundle in DISSOCIATE mode
 	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomain: "spiffe://otherdomain.org",
-		Mode:        datastore.DeleteBundleRequest_DISSOCIATE,
+		TrustDomainId: "spiffe://otherdomain.org",
+		Mode:          datastore.DeleteBundleRequest_DISSOCIATE,
 	})
 	s.Require().NoError(err)
 
@@ -859,9 +827,7 @@ func (s *PluginSuite) TestMigration() {
 			// fail if the migration did not run, due to uniqueness
 			// constraints.
 			_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-				Bundle: &datastore.Bundle{
-					TrustDomain: "spiffe://otherdomain.org",
-				},
+				Bundle: bundleutil.BundleProtoFromRootCAs("spiffe://otherdomain.org", nil),
 			})
 			s.Require().NoError(err)
 		case 1:
@@ -880,8 +846,8 @@ func (s *PluginSuite) TestMigration() {
 			bundlesResp, err := s.ds.ListBundles(context.Background(), &datastore.ListBundlesRequest{})
 			s.Require().NoError(err)
 			s.Require().Len(bundlesResp.Bundles, 2)
-			s.Require().Equal("spiffe://example.org", bundlesResp.Bundles[0].TrustDomain)
-			s.Require().Equal("spiffe://otherdomain.test", bundlesResp.Bundles[1].TrustDomain)
+			s.Require().Equal("spiffe://example.org", bundlesResp.Bundles[0].TrustDomainId)
+			s.Require().Equal("spiffe://otherdomain.test", bundlesResp.Bundles[1].TrustDomainId)
 
 			attestedNodesResp, err := s.ds.ListAttestedNodes(context.Background(), &datastore.ListAttestedNodesRequest{})
 			s.Require().NoError(err)
@@ -905,6 +871,14 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", entriesResp.Entries[1].ParentId)
 			s.Require().Equal("spiffe://example.org/nODe", entriesResp.Entries[1].SpiffeId)
 			s.Require().Len(entriesResp.Entries[1].FederatesWith, 0)
+		case 3:
+			bundlesResp, err := s.ds.ListBundles(context.Background(), &datastore.ListBundlesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(bundlesResp.Bundles, 2)
+			s.Require().Equal("spiffe://example.org", bundlesResp.Bundles[0].TrustDomainId)
+			s.Require().Len(bundlesResp.Bundles[0].RootCas, 3)
+			s.Require().Equal("spiffe://otherdomain.test", bundlesResp.Bundles[1].TrustDomainId)
+			s.Require().Len(bundlesResp.Bundles[1].RootCas, 1)
 
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
@@ -949,10 +923,7 @@ func (s *PluginSuite) getTestDataFromJsonFile(filePath string, jsonValue interfa
 
 func (s *PluginSuite) createBundle(trustDomain string) {
 	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &datastore.Bundle{
-			TrustDomain: trustDomain,
-			CaCerts:     s.cert.Raw,
-		},
+		Bundle: bundleutil.BundleProtoFromRootCA(trustDomain, s.cert),
 	})
 	s.Require().NoError(err)
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -156,15 +157,6 @@ func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
 	s.Assert().Equal(pool, tlsConfig.ClientCAs)
 }
 
-func (s *EndpointsTestSuite) TestHTTPServerConfig() {
-	certs, _ := s.configureBundle()
-
-	tlsConfig, err := s.e.getHTTPServerConfig(ctx)(nil)
-	require.NoError(s.T(), err)
-
-	s.Assert().Equal(certs, tlsConfig.Certificates)
-}
-
 func (s *EndpointsTestSuite) TestSVIDObserver() {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -213,10 +205,7 @@ func (s *EndpointsTestSuite) configureBundle() ([]tls.Certificate, *x509.CertPoo
 	s.Require().NoError(err)
 
 	_, err = s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-		Bundle: &datastore.Bundle{
-			TrustDomain: s.e.c.TrustDomain.String(),
-			CaCerts:     ca.Raw,
-		},
+		Bundle: bundleutil.BundleProtoFromRootCA(s.e.c.TrustDomain.String(), ca),
 	})
 	s.Require().NoError(err)
 
@@ -227,7 +216,7 @@ func (s *EndpointsTestSuite) configureBundle() ([]tls.Certificate, *x509.CertPoo
 	s.e.svidKey = svidKey
 	return []tls.Certificate{
 		{
-			Certificate: [][]byte{svid.Raw, ca.Raw},
+			Certificate: [][]byte{svid.Raw},
 			PrivateKey:  svidKey,
 		},
 	}, caPool

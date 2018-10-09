@@ -31,10 +31,10 @@ func (u *Update) String() string {
 		buffer.WriteString(spiffeid)
 		buffer.WriteString(": ")
 		svidStr := svid.String()
-		if len(svidStr) < 30 {
+		if len(svidStr) < 40 {
 			buffer.WriteString(svidStr)
 		} else {
-			buffer.WriteString(svidStr[:30])
+			buffer.WriteString(svidStr[:40])
 		}
 		buffer.WriteString(" ")
 	}

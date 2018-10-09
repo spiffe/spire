@@ -33,8 +33,9 @@ type rotator struct {
 }
 
 type State struct {
-	SVID *x509.Certificate
-	Key  *ecdsa.PrivateKey
+	SVID          *x509.Certificate
+	Intermediates []*x509.Certificate
+	Key           *ecdsa.PrivateKey
 }
 
 // Start generates a new SVID and then starts the rotator.
@@ -104,14 +105,15 @@ func (r *rotator) rotateSVID(ctx context.Context) error {
 	}
 
 	// Sign the CSR
-	cert, err := r.c.ServerCA.SignX509SVID(ctx, csr, 0)
+	cert, intermediates, err := r.c.ServerCA.SignX509SVID(ctx, csr, 0)
 	if err != nil {
 		return err
 	}
 
 	s := State{
-		SVID: cert,
-		Key:  key,
+		SVID:          cert,
+		Intermediates: intermediates,
+		Key:           key,
 	}
 
 	r.state.Update(s)

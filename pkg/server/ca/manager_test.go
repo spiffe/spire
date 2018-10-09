@@ -11,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
+	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
@@ -99,27 +101,27 @@ func (m *ManagerTestSuite) advanceTime(d time.Duration) {
 }
 
 func (m *ManagerTestSuite) loadKeypairSets() (a, b *keypairSet) {
-	certs, err := loadCertificates(m.certsPath())
+	certs, publicKeys, err := loadKeypairData(m.certsPath(), nil)
 	m.Require().NoError(err)
 	xa := certs["x509-CA-A"]
-	ja := certs["JWT-Signer-A"]
+	ja := publicKeys["JWT-Signer-A"]
 	xb := certs["x509-CA-B"]
-	jb := certs["JWT-Signer-B"]
+	jb := publicKeys["JWT-Signer-B"]
 	m.Require().True((xa != nil) == (ja != nil))
 	m.Require().True((xb != nil) == (jb != nil))
 
 	if xa != nil {
 		a = &keypairSet{
-			slot:      "A",
-			x509CA:    xa,
-			jwtSigner: ja,
+			slot:          "A",
+			x509CA:        xa,
+			jwtSigningKey: ja,
 		}
 	}
 	if xb != nil {
 		b = &keypairSet{
-			slot:      "B",
-			x509CA:    xb,
-			jwtSigner: jb,
+			slot:          "B",
+			x509CA:        xb,
+			jwtSigningKey: jb,
 		}
 	}
 	return a, b
@@ -134,21 +136,21 @@ func (m *ManagerTestSuite) TestPersistence() {
 	m.m = NewManager(m.m.c)
 	m.Require().NoError(m.m.Initialize(ctx))
 	current2 := m.m.getCurrentKeypairSet()
-	m.Require().Equal(current1, current2)
+	m.requireKeypairSetKeysEqual(current1, current2)
 
 	// drop the keys, "reload" the manager, and assert the keypairs are new
 	m.catalog.SetKeyManagers(memory.New())
 	m.m = NewManager(m.m.c)
 	m.Require().NoError(m.m.Initialize(ctx))
 	current3 := m.m.getCurrentKeypairSet()
-	m.Require().NotEqual(current2, current3)
+	m.requireKeypairSetKeysNotEqual(current2, current3)
 
 	// load the old keys, "reload" the manager, and assert the keypairs are new
 	m.catalog.SetKeyManagers(m.keymanager)
 	m.m = NewManager(m.m.c)
 	m.Require().NoError(m.m.Initialize(ctx))
 	current4 := m.m.getCurrentKeypairSet()
-	m.Require().NotEqual(current3, current4)
+	m.requireKeypairSetKeysNotEqual(current3, current4)
 }
 
 func (m *ManagerTestSuite) TestSelfSigning() {
@@ -156,9 +158,9 @@ func (m *ManagerTestSuite) TestSelfSigning() {
 	// the upstream cert is in the bundle
 	m.Require().NoError(m.m.Initialize(ctx))
 	a := m.m.getCurrentKeypairSet()
-	m.Require().Equal(a.x509CA.Subject, a.x509CA.Issuer)
-	m.Require().Equal(a.x509CA.Subject, a.jwtSigner.Issuer)
-	m.requireBundle(a.x509CA, a.jwtSigner)
+	m.Require().Equal(a.x509CA.cert.Subject, a.x509CA.cert.Issuer)
+	m.requireBundleRootCAs(a.x509CA.cert)
+	m.requireBundleJWTSigningKeys(a.jwtSigningKey)
 }
 
 func (m *ManagerTestSuite) TestUpstreamSigning() {
@@ -170,9 +172,8 @@ func (m *ManagerTestSuite) TestUpstreamSigning() {
 	// the upstream cert is in the bundle
 	m.Require().NoError(m.m.Initialize(ctx))
 	a := m.m.getCurrentKeypairSet()
-	m.Require().Equal(upstreamCert.Subject, a.x509CA.Issuer)
-	m.Require().Equal(a.x509CA.Subject, a.jwtSigner.Issuer)
-	m.requireBundle(upstreamCert, a.x509CA, a.jwtSigner)
+	m.Require().Equal(upstreamCert.Subject, a.x509CA.cert.Issuer)
+	m.requireBundleRootCAs(upstreamCert)
 }
 
 func (m *ManagerTestSuite) TestRotation() {
@@ -185,13 +186,15 @@ func (m *ManagerTestSuite) TestRotation() {
 	m.Require().NotNil(a1)
 	m.Require().Nil(b1)
 	m.requireKeypairSet("A", a1)
-	m.requireBundle(a1.x509CA, a1.jwtSigner)
+	m.requireBundleRootCAs(a1.x509CA.cert)
+	m.requireBundleJWTSigningKeys(a1.jwtSigningKey)
 
 	// advance up to the preparation threshold and assert nothing changes
-	m.setTime(preparationThreshold(a1.x509CA))
+	m.setTime(preparationThreshold(a1.x509CA.cert))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	m.requireKeypairSet("A", a1)
-	m.requireBundle(a1.x509CA, a1.jwtSigner)
+	m.requireBundleRootCAs(a1.x509CA.cert)
+	m.requireBundleJWTSigningKeys(a1.jwtSigningKey)
 
 	// advance past the preparation threshold and assert that B has been created
 	// but that A is unchanged and still active.
@@ -202,13 +205,15 @@ func (m *ManagerTestSuite) TestRotation() {
 	m.Require().NotNil(b2)
 	m.Require().Equal(a2, a1)
 	m.requireKeypairSet("A", a1)
-	m.requireBundle(a1.x509CA, a1.jwtSigner, b2.x509CA, b2.jwtSigner)
+	m.requireBundleRootCAs(a1.x509CA.cert, b2.x509CA.cert)
+	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey)
 
 	// advance to the activation threshold and assert nothing changes
-	m.setTime(activationThreshold(a1.x509CA))
+	m.setTime(activationThreshold(a1.x509CA.cert))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	m.requireKeypairSet("A", a1)
-	m.requireBundle(a1.x509CA, a1.jwtSigner, b2.x509CA, b2.jwtSigner)
+	m.requireBundleRootCAs(a1.x509CA.cert, b2.x509CA.cert)
+	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey)
 
 	// advance past to the activation threshold and assert that B is active
 	// and A is reset
@@ -219,71 +224,113 @@ func (m *ManagerTestSuite) TestRotation() {
 	m.Require().NotNil(b3)
 	m.Require().Equal(b3, b2)
 	m.requireKeypairSet("B", b2)
-	m.requireBundle(a1.x509CA, a1.jwtSigner, b2.x509CA, b2.jwtSigner)
+	m.requireBundleRootCAs(a1.x509CA.cert, b2.x509CA.cert)
+	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey)
 
 	// now advance past both the preparation and activation threshold to make
 	// sure B is rotated out and A is active. This makes sure that however
 	// unlikely, preparation and activation can happen in the same pass, if
 	// necessary.
-	m.setTime(activationThreshold(b2.x509CA).Add(time.Second))
+	m.setTime(activationThreshold(b2.x509CA.cert).Add(time.Second))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	a4, b4 := m.loadKeypairSets()
 	m.Require().NotNil(a4)
 	m.Require().Nil(b4)
 	m.requireKeypairSet("A", a4)
-	m.requireBundle(a1.x509CA, a1.jwtSigner, b2.x509CA, b2.jwtSigner, a4.x509CA, a4.jwtSigner)
+	m.requireBundleRootCAs(a1.x509CA.cert, b2.x509CA.cert, a4.x509CA.cert)
+	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey, a4.jwtSigningKey)
 }
 
 func (m *ManagerTestSuite) TestPrune() {
 	// Initialize and prepare an extra keypair set
 	m.Require().NoError(m.m.Initialize(ctx))
 	a := m.m.getCurrentKeypairSet()
-	m.setTime(preparationThreshold(a.x509CA).Add(time.Second))
+	m.setTime(preparationThreshold(a.x509CA.cert).Add(time.Second))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	b := m.m.getNextKeypairSet()
 
 	// assert both certificates are in the bundle
-	m.requireBundle(a.x509CA, a.jwtSigner, b.x509CA, b.jwtSigner)
+	m.requireBundleRootCAs(a.x509CA.cert, b.x509CA.cert)
+	m.requireBundleJWTSigningKeys(a.jwtSigningKey, b.jwtSigningKey)
 
 	// prune and assert that nothing changed
 	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundle(a.x509CA, a.jwtSigner, b.x509CA, b.jwtSigner)
+	m.requireBundleRootCAs(a.x509CA.cert, b.x509CA.cert)
+	m.requireBundleJWTSigningKeys(a.jwtSigningKey, b.jwtSigningKey)
 
 	// advance after the expiration of the A, prune, and assert that nothing
 	// changed (since we don't prune until the certificate has been expired
 	// longer than the safety threshold)
-	m.setTime(a.x509CA.NotAfter.Add(time.Second))
+	m.setTime(a.x509CA.cert.NotAfter.Add(time.Second))
 	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundle(a.x509CA, a.jwtSigner, b.x509CA, b.jwtSigner)
+	m.requireBundleRootCAs(a.x509CA.cert, b.x509CA.cert)
+	m.requireBundleJWTSigningKeys(a.jwtSigningKey, b.jwtSigningKey)
 
 	// advance beyond the safety threshold, prune, and assert that A has been
 	// pruned
-	m.setTime(a.x509CA.NotAfter.Add(safetyThreshold))
+	m.setTime(a.x509CA.cert.NotAfter.Add(safetyThreshold))
 	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundle(b.x509CA, b.jwtSigner)
+	m.requireBundleRootCAs(b.x509CA.cert)
+	m.requireBundleJWTSigningKeys(b.jwtSigningKey)
 
 	// advance beyond the B's safety threshold and assert that prune fails
 	// because all certificates would be pruned and that B remains present
 	// in the bundle
-	m.setTime(b.x509CA.NotAfter.Add(safetyThreshold))
+	m.setTime(b.x509CA.cert.NotAfter.Add(safetyThreshold))
 	m.Require().EqualError(m.m.pruneBundle(ctx), "would prune all certificates")
-	m.requireBundle(b.x509CA, b.jwtSigner)
+	m.requireBundleRootCAs(b.x509CA.cert)
+	m.requireBundleJWTSigningKeys(b.jwtSigningKey)
 }
 
-func (m *ManagerTestSuite) requireBundle(expectedCerts ...*x509.Certificate) {
+func (m *ManagerTestSuite) requireBundleRootCAs(expectedCerts ...*x509.Certificate) {
+	var expected []*common.Certificate
+	for _, expectedCert := range expectedCerts {
+		expected = append(expected, &common.Certificate{
+			DerBytes: expectedCert.Raw,
+		})
+	}
+
 	resp, err := m.datastore.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomain: m.m.c.TrustDomain.String(),
+		TrustDomainId: m.m.c.TrustDomain.String(),
 	})
 	m.Require().NoError(err)
 	m.Require().NotNil(resp.Bundle)
-	actualCerts, err := x509.ParseCertificates(resp.Bundle.CaCerts)
+	m.Require().Equal(expected, resp.Bundle.RootCas)
+}
+
+func (m *ManagerTestSuite) requireBundleJWTSigningKeys(expectedKeys ...*caPublicKey) {
+	var expected []*common.PublicKey
+	for _, expectedKey := range expectedKeys {
+		expected = append(expected, expectedKey.PublicKey)
+	}
+
+	resp, err := m.datastore.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: m.m.c.TrustDomain.String(),
+	})
 	m.Require().NoError(err)
-	m.Require().Equal(len(expectedCerts), len(actualCerts))
-	for i := range actualCerts {
-		m.Require().Equal(expectedCerts[i].Raw, actualCerts[i].Raw)
+	m.Require().NotNil(resp.Bundle)
+	m.requirePublicKeysEqual(expected, resp.Bundle.JwtSigningKeys)
+}
+
+func (m *ManagerTestSuite) requirePublicKeysEqual(as, bs []*common.PublicKey) {
+	m.Require().Equal(len(as), len(bs))
+	for i := range as {
+		m.Require().True(proto.Equal(as[i], bs[i]))
 	}
 }
 
 func (m *ManagerTestSuite) requireKeypairSet(slot string, expected *keypairSet) {
-	m.Require().Equal(expected, m.m.ca.getKeypairSet())
+	actual := m.m.ca.getKeypairSet()
+	m.Require().Equal(slot, actual.slot)
+	m.requireKeypairSetKeysEqual(expected, actual)
+}
+
+func (m *ManagerTestSuite) requireKeypairSetKeysEqual(set1, set2 *keypairSet) {
+	m.Require().Equal(set1.x509CA.chain, set2.x509CA.chain)
+	m.Require().Equal(set1.jwtSigningKey.PublicKey.String(), set2.jwtSigningKey.PublicKey.String())
+}
+
+func (m *ManagerTestSuite) requireKeypairSetKeysNotEqual(set1, set2 *keypairSet) {
+	m.Require().NotEqual(set1.x509CA.chain, set2.x509CA.chain)
+	m.Assert().NotEqual(set1.jwtSigningKey.PublicKey.String(), set2.jwtSigningKey.PublicKey.String())
 }
