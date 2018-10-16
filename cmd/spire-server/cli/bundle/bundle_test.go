@@ -303,10 +303,12 @@ func (s *BundleSuite) TestDelete() {
 	s.Require().Equal(0, s.deleteCmd.Run([]string{"-id", "spiffe://domain1.test"}))
 	s.Require().Equal("bundle deleted.\n", s.stdout.String())
 
-	_, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
+	resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
 		TrustDomain: "spiffe://domain1.test",
 	})
-	s.Require().EqualError(err, "no such bundle")
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Nil(resp.Bundle)
 }
 
 func (s *BundleSuite) TestDeleteWithRestrictMode() {
