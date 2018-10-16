@@ -88,7 +88,7 @@ func (a *attestor) loadSVID(ctx context.Context) (*x509.Certificate, *ecdsa.Priv
 
 	svid := a.readSVIDFromDisk()
 	if len(fResp.PrivateKey) > 0 && svid == nil {
-		a.c.Log.Warn("Private key recovered, but no SVID found")
+		a.c.Log.Debug("Private key recovered, but no SVID found")
 	}
 
 	var keyData []byte

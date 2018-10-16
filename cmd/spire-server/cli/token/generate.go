@@ -64,6 +64,8 @@ func (g GenerateCLI) Run(args []string) int {
 			fmt.Printf("Error assigning SPIFFE ID: %s\n", err.Error())
 			return 1
 		}
+	} else {
+		fmt.Printf("Warning: Missing SPIFFE ID.\n")
 	}
 
 	return 0

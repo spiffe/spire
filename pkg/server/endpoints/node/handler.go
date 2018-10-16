@@ -336,7 +336,7 @@ func (h *Handler) doAttestChallengeResponse(ctx context.Context,
 		response, err := h.attest(ctx, attestStream, request, attestedBefore)
 		if err != nil {
 			h.c.Log.Error(err)
-			return nil, errors.New("Error trying to attest")
+			return nil, errors.New("Error trying to attest: " + err.Error())
 		}
 		if response.Challenge == nil {
 			return response, nil
