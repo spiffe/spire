@@ -107,14 +107,20 @@ func (s *PluginSuite) TestBundleCRUD() {
 		CaCerts:     s.cert.Raw,
 	}
 
+	// fetch non-existant
+	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomain: "spiffe://foo"})
+	s.Require().NoError(err)
+	s.Require().NotNil(fresp)
+	s.Require().Nil(fresp.Bundle)
+
 	// create
-	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
+	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	})
 	s.Require().NoError(err)
 
 	// fetch
-	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomain: "spiffe://foo"})
+	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomain: "spiffe://foo"})
 	s.Require().NoError(err)
 	s.Equal(bundle, fresp.Bundle)
 
