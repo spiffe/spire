@@ -237,7 +237,7 @@ func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 		return nil, nil, fmt.Errorf("get bundle from datastore: %v", err)
 	}
 	if resp.Bundle == nil {
-		return nil, nil, errors.New("response missing bundle")
+		return nil, nil, errors.New("bundle not found")
 	}
 
 	caCerts, err := x509.ParseCertificates(resp.Bundle.CaCerts)

@@ -181,7 +181,7 @@ func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.FetchBundleR
 
 	bundle, ok := s.bundles[req.TrustDomain]
 	if !ok {
-		return nil, ErrNoSuchBundle
+		return &datastore.FetchBundleResponse{}, nil
 	}
 
 	return &datastore.FetchBundleResponse{

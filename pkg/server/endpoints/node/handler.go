@@ -685,7 +685,7 @@ func (h *Handler) getBundle(ctx context.Context, trustDomain string) (*node.Bund
 		return nil, fmt.Errorf("get bundle from datastore: %v", err)
 	}
 	if resp.Bundle == nil {
-		return nil, errors.New("response missing bundle")
+		return nil, errors.New("bundle not found")
 	}
 
 	return &node.Bundle{

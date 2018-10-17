@@ -125,7 +125,7 @@ func (s *HandlerSuite) TestFetchFederatedBundle() {
 		{Id: "spiffe://example.org", CaCerts: "", Err: "federated bundle id cannot match server trust domain"},
 		{Id: "spiffe://otherdomain.org/spire/agent", CaCerts: "", Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
 		{Id: "spiffe://otherdomain.org", CaCerts: "OTHERDOMAIN", Err: ""},
-		{Id: "spiffe://yetotherdomain.org", CaCerts: "", Err: "no such bundle"},
+		{Id: "spiffe://yetotherdomain.org", CaCerts: "", Err: "bundle not found"},
 	}
 
 	for _, testCase := range testCases {
@@ -248,8 +248,9 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
 			TrustDomain: testCase.Id,
 		})
-		s.Require().EqualError(err, "no such bundle")
-		s.Require().Nil(resp)
+		s.Require().NoError(err)
+		s.Require().NotNil(resp)
+		s.Require().Nil(resp.Bundle)
 	}
 }
 
