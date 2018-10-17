@@ -26,11 +26,13 @@ var (
 )
 
 type SATAttestorConfig struct {
+	Cluster   string `hcl:"cluster"`
 	TokenPath string `hcl:"token_path"`
 }
 
 type satAttestorConfig struct {
 	trustDomain string
+	cluster     string
 	tokenPath   string
 }
 
@@ -63,12 +65,13 @@ func (p *SATAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 
 	token, err := loadTokenFromFile(config.tokenPath)
 	if err != nil {
-		return satError.New("unable to get token value: %v", err)
+		return satError.New("unable to load token from %s: %v", config.tokenPath, err)
 	}
 
 	data, err := json.Marshal(k8s.SATAttestationData{
-		UUID:  uuid,
-		Token: token,
+		Cluster: config.cluster,
+		UUID:    uuid,
+		Token:   token,
 	})
 	if err != nil {
 		return satError.Wrap(err)
@@ -79,7 +82,7 @@ func (p *SATAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 			Type: pluginName,
 			Data: data,
 		},
-		SpiffeId: k8s.AgentID(config.trustDomain, uuid),
+		SpiffeId: k8s.AgentID(config.trustDomain, config.cluster, uuid),
 	})
 }
 
@@ -95,9 +98,13 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if req.GlobalConfig.TrustDomain == "" {
 		return nil, satError.New("global configuration missing trust domain")
 	}
+	if hclConfig.Cluster == "" {
+		return nil, satError.New("configuration missing cluster")
+	}
 
 	config := &satAttestorConfig{
 		trustDomain: req.GlobalConfig.TrustDomain,
+		cluster:     hclConfig.Cluster,
 		tokenPath:   hclConfig.TokenPath,
 	}
 	if config.tokenPath == "" {

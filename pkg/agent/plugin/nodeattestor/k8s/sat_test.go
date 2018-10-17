@@ -43,7 +43,7 @@ func (s *SATAttestorSuite) TestFetchAttestationDataNoToken() {
 	s.configure(SATAttestorConfig{
 		TokenPath: s.joinPath("token"),
 	})
-	s.requireFetchError("unable to get token value")
+	s.requireFetchError("unable to load token from")
 }
 
 func (s *SATAttestorSuite) TestFetchAttestationDataSuccess() {
@@ -60,10 +60,11 @@ func (s *SATAttestorSuite) TestFetchAttestationDataSuccess() {
 	s.Require().NotNil(resp)
 
 	// assert attestation data
-	s.Require().Equal("spiffe://example.org/spire/agent/k8s_sat/UUID", resp.SpiffeId)
+	s.Require().Equal("spiffe://example.org/spire/agent/k8s_sat/production/UUID", resp.SpiffeId)
 	s.Require().NotNil(resp.AttestationData)
 	s.Require().Equal("k8s_sat", resp.AttestationData.Type)
 	s.Require().JSONEq(`{
+		"cluster": "production",
 		"uuid": "UUID",
 		"token": "TOKEN"
 	}`, string(resp.AttestationData.Data))
@@ -91,9 +92,17 @@ func (s *SATAttestorSuite) TestConfigure() {
 	s.Require().EqualError(err, "k8s-sat: global configuration missing trust domain")
 	s.Require().Nil(resp)
 
-	// success
+	// missing cluster
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.Require().EqualError(err, "k8s-sat: configuration missing cluster")
+	s.Require().Nil(resp)
+
+	// success
+	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+		Configuration: `cluster = "production"`,
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
@@ -118,7 +127,9 @@ func (s *SATAttestorSuite) configure(config SATAttestorConfig) {
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
 			TrustDomain: "example.org",
 		},
-		Configuration: fmt.Sprintf(`token_path = %q`, config.TokenPath),
+		Configuration: fmt.Sprintf(`
+			cluster = "production"
+			token_path = %q`, config.TokenPath),
 	})
 	s.Require().NoError(err)
 

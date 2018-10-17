@@ -23,15 +23,16 @@ type SATClaims struct {
 }
 
 type SATAttestationData struct {
-	UUID  string `json:"uuid"`
-	Token string `json:"token"`
+	Cluster string `json:"cluster"`
+	UUID    string `json:"uuid"`
+	Token   string `json:"token"`
 }
 
-func AgentID(trustDomain, podUID string) string {
+func AgentID(trustDomain, cluster, uuid string) string {
 	u := url.URL{
 		Scheme: "spiffe",
 		Host:   trustDomain,
-		Path:   path.Join("spire", "agent", "k8s_sat", podUID),
+		Path:   path.Join("spire", "agent", "k8s_sat", cluster, uuid),
 	}
 	return u.String()
 }

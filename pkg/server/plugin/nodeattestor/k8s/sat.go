@@ -39,14 +39,13 @@ type SATAttestorConfig struct {
 }
 
 type clusterConfig struct {
-	name               string
 	serviceAccountKeys []crypto.PublicKey
 	serviceAccounts    map[string]bool
 }
 
 type satAttestorConfig struct {
 	trustDomain string
-	clusters    []*clusterConfig
+	clusters    map[string]*clusterConfig
 }
 
 type SATAttestorPlugin struct {
@@ -92,6 +91,10 @@ func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		return satError.New("failed to unmarshal data payload: %v", err)
 	}
 
+	if attestationData.Cluster == "" {
+		return satError.New("missing cluster in attestation data")
+	}
+
 	if attestationData.UUID == "" {
 		return satError.New("missing UUID in attestation data")
 	}
@@ -100,12 +103,17 @@ func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		return satError.New("missing token in attestation data")
 	}
 
+	cluster := config.clusters[attestationData.Cluster]
+	if cluster == nil {
+		return satError.New("not configured for cluster %q", attestationData.Cluster)
+	}
+
 	token, err := jwt.ParseSigned(attestationData.Token)
 	if err != nil {
 		return satError.New("unable to parse token: %v", err)
 	}
 
-	cluster, claims, err := verifyTokenSignature(config.clusters, token)
+	claims, err := verifyTokenSignature(cluster, token)
 	if err != nil {
 		return err
 	}
@@ -133,11 +141,11 @@ func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 
 	return stream.Send(&nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: k8s.AgentID(config.trustDomain, attestationData.UUID),
+		BaseSPIFFEID: k8s.AgentID(config.trustDomain, attestationData.Cluster, attestationData.UUID),
 		Selectors: []*common.Selector{
-			makeSelector("cluster:name", cluster.name),
-			makeSelector("service-account:namespace", claims.Namespace),
-			makeSelector("service-account:name", claims.ServiceAccountName),
+			makeSelector("cluster", attestationData.Cluster),
+			makeSelector("agent_ns", claims.Namespace),
+			makeSelector("agent_sa", claims.ServiceAccountName),
 		},
 	})
 }
@@ -160,6 +168,7 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 
 	config := &satAttestorConfig{
 		trustDomain: req.GlobalConfig.TrustDomain,
+		clusters:    make(map[string]*clusterConfig),
 	}
 	config.trustDomain = req.GlobalConfig.TrustDomain
 	for name, cluster := range hclConfig.Clusters {
@@ -184,11 +193,10 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 			serviceAccounts[serviceAccount] = true
 		}
 
-		config.clusters = append(config.clusters, &clusterConfig{
-			name:               name,
+		config.clusters[name] = &clusterConfig{
 			serviceAccountKeys: serviceAccountKeys,
 			serviceAccounts:    serviceAccounts,
-		})
+		}
 	}
 
 	p.setConfig(config)
@@ -214,22 +222,20 @@ func (p *SATAttestorPlugin) setConfig(config *satAttestorConfig) {
 	p.config = config
 }
 
-func verifyTokenSignature(clusters []*clusterConfig, token *jwt.JSONWebToken) (cluster *clusterConfig, claims *k8s.SATClaims, err error) {
+func verifyTokenSignature(cluster *clusterConfig, token *jwt.JSONWebToken) (claims *k8s.SATClaims, err error) {
 	var lastErr error
-	for _, cluster := range clusters {
-		for _, key := range cluster.serviceAccountKeys {
-			claims := new(k8s.SATClaims)
-			if err := token.Claims(key, claims); err != nil {
-				lastErr = satError.New("unable to verify token: %v", err)
-				continue
-			}
-			return cluster, claims, nil
+	for _, key := range cluster.serviceAccountKeys {
+		claims := new(k8s.SATClaims)
+		if err := token.Claims(key, claims); err != nil {
+			lastErr = satError.New("unable to verify token: %v", err)
+			continue
 		}
+		return claims, nil
 	}
 	if lastErr == nil {
 		lastErr = satError.New("token was not validated by any cluster")
 	}
-	return nil, nil, lastErr
+	return nil, lastErr
 }
 
 func makeSelector(kind, value string) *common.Selector {

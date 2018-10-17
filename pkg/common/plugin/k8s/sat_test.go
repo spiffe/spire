@@ -23,3 +23,7 @@ func TestSATTokenClaims(t *testing.T) {
 	require.Equal(t, "spire", claims.Namespace)
 	require.Equal(t, "spire-agent", claims.ServiceAccountName)
 }
+
+func TestAgentID(t *testing.T) {
+	require.Equal(t, "spiffe://example.org/spire/agent/k8s_sat/production/1234", AgentID("example.org", "production", "1234"))
+}

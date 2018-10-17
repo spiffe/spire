@@ -5,10 +5,10 @@
 The `k8s_sat` plugin attests nodes running in inside of Kubernetes. The server
 validates the signed service account token provided by the agent. It extracts
 the service account name and namespace from the token claims. The server uses a
-one-time UUID provided by the agent for generate a SPIFFE ID with the form:
+one-time UUID provided by the agent to generate a SPIFFE ID with the form:
 
 ```
-spiffe://<trust domain>/spire/agent/k8s_sat/<UUID>
+spiffe://<trust domain>/spire/agent/k8s_sat/<cluster>/<UUID>
 ```
 
 The server does not need to be running in Kubernetes in order to perform node
@@ -42,11 +42,24 @@ A sample configuration:
     }
 ```
 
-In addition, this plugin generates the following selectors of type `k8s_sat` for each node:
+In addition, this plugin generates the following selectors:
 
-| Value                       | Example                       | Description                                |
-| --------------------------- | ----------------------------- | ------------------------------------------ |
-| `cluster-name`              | `cluster-name:MyCluster`      | Name of the cluster (from the plugin config) used to verify the token signature |
-| `service-account:namespace` | `service-account:production`  | Namespace of the service account           |
-| `service-account:name`      | `service-account:spire-agent` | Name of the service account                |
+| Selector           | Example                        | Description                                |
+| -------------------| ------------------------------ | ------------------------------------------ |
+| `k8s_sat:cluster`  | `k8s_sat:cluster:MyCluster`    | Name of the cluster (from the plugin config) used to verify the token signature |
+| `k8s_sat:agent_ns` | `k8s_sat:agent_ns:production`  | Namespace that the agent is running under |
+| `k8s_sat:agent_sa` | `k8s_sat:agent_sa:spire-agent` | Service Account the agent is running under |
 
+## Security Considerations
+
+At this time, the service account token does not contain claims that could be
+used to strongly identify the node/daemonset/pod running the agent. This means
+that any container running in a whitelisted service account can masquerade as
+an agent, giving it access to any identity the agent is capable of issuing. It
+is **STRONGLY** recommended that agents run under a dedicated service account.
+
+It should be noted that due to the fact that SPIRE can't positively
+identify a node using this method, it is not possible to directly authorize
+identities for a distinct node or sets of nodes. Instead, this must be
+accomplished indirectly using a service account and deployment that
+leverages node affinity or node selectors.
