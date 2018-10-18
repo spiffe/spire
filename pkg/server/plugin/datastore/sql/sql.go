@@ -594,7 +594,11 @@ func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.D
 // FetchBundle returns the bundle matching the specified Trust Domain.
 func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
 	model := new(Bundle)
-	if err := tx.Find(model, "trust_domain = ?", req.TrustDomain).Error; err != nil {
+	err := tx.Find(model, "trust_domain = ?", req.TrustDomain).Error
+	switch {
+	case err == gorm.ErrRecordNotFound:
+		return &datastore.FetchBundleResponse{}, nil
+	case err != nil:
 		return nil, sqlError.Wrap(err)
 	}
 

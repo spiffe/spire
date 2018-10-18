@@ -246,7 +246,7 @@ func (h *Handler) FetchFederatedBundle(
 		return nil, err
 	}
 	if resp.Bundle == nil {
-		return nil, errors.New("no bundle in response")
+		return nil, errors.New("bundle not found")
 	}
 
 	return &registration.FederatedBundle{
@@ -374,7 +374,7 @@ func (h *Handler) FetchBundle(
 		return nil, fmt.Errorf("get bundle from datastore: %v", err)
 	}
 	if resp.Bundle == nil {
-		return nil, errors.New("response has no bundle")
+		return nil, errors.New("bundle not found")
 	}
 
 	return &registration.Bundle{CaCerts: resp.Bundle.CaCerts}, nil

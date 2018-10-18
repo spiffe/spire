@@ -215,7 +215,7 @@ func (m *manager) pruneBundle(ctx context.Context) error {
 		return fmt.Errorf("fetch bundle: %v", err)
 	}
 	if resp.Bundle == nil {
-		return errors.New("no bundle in response")
+		return errors.New("bundle not found")
 	}
 	oldBundle := resp.Bundle
 
