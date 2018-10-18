@@ -10,9 +10,11 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
+	"github.com/zeebo/errs"
 )
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
@@ -99,12 +101,15 @@ func (m *manager) updateEntriesSVIDs(entryRequestsMap map[string]*entryRequest, 
 		ce := entryRequest.entry
 		svid, ok := svids[ce.RegistrationEntry.SpiffeId]
 		if ok {
-			cert, err := x509.ParseCertificate(svid.DEPRECATEDCert)
+			certs, err := x509.ParseCertificates(svid.CertChain)
 			if err != nil {
 				return err
 			}
+			if len(certs) == 0 {
+				return errs.New("no certs in SVID")
+			}
 			// Complete the pre-built cache entry with the SVID and put it on the cache.
-			ce.SVID = cert
+			ce.SVID = certs
 			m.cache.SetEntry(ce)
 		}
 	}
@@ -123,8 +128,8 @@ func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
 	defer m.c.Tel.MeasureSince([]string{"cache_manager", "expiry_check_duration"}, time.Now())
 
 	for _, entry := range m.cache.Entries() {
-		ttl := entry.SVID.NotAfter.Sub(time.Now())
-		lifetime := entry.SVID.NotAfter.Sub(entry.SVID.NotBefore)
+		ttl := entry.SVID[0].NotAfter.Sub(time.Now())
+		lifetime := entry.SVID[0].NotAfter.Sub(entry.SVID[0].NotBefore)
 		// If the cached SVID has a remaining lifetime less than 50%, prepare a
 		// new entryRequest.
 		if ttl < lifetime/2 {
@@ -218,14 +223,14 @@ func (er entryRequests) truncate(limit int) {
 	}
 }
 
-func parseBundles(bundles map[string]*node.Bundle) (map[string][]*x509.Certificate, error) {
-	out := make(map[string][]*x509.Certificate)
+func parseBundles(bundles map[string]*common.Bundle) (map[string]*cache.Bundle, error) {
+	out := make(map[string]*cache.Bundle)
 	for _, bundle := range bundles {
-		certs, err := x509.ParseCertificates(bundle.CaCerts)
+		bundle, err := bundleutil.BundleFromProto(bundle)
 		if err != nil {
 			return nil, err
 		}
-		out[bundle.Id] = certs
+		out[bundle.TrustDomainID()] = bundle
 	}
 	return out, nil
 }

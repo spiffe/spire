@@ -47,7 +47,7 @@ type Config struct {
 	TrustDomain url.URL
 	// KeysAndBundle is a callback that must return the keys and bundle used by the client
 	// to connect via mTLS to Addr.
-	KeysAndBundle func() (*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate)
+	KeysAndBundle func() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate)
 }
 
 type client struct {
@@ -66,7 +66,7 @@ func New(c *Config) *client {
 }
 
 func (c *client) credsFunc() (credentials.TransportCredentials, error) {
-	var tlsCert []tls.Certificate
+	var tlsCerts []tls.Certificate
 	var tlsConfig *tls.Config
 
 	svid, key, bundle := c.c.KeysAndBundle()
@@ -74,8 +74,12 @@ func (c *client) credsFunc() (credentials.TransportCredentials, error) {
 		SpiffeIDs:  []string{"spiffe://" + c.c.TrustDomain.Host + "/spire/server"},
 		TrustRoots: util.NewCertPool(bundle...),
 	}
-	tlsCert = append(tlsCert, tls.Certificate{Certificate: [][]byte{svid.Raw}, PrivateKey: key})
-	tlsConfig = spiffePeer.NewTLSConfig(tlsCert)
+	tlsCert := tls.Certificate{PrivateKey: key}
+	for _, cert := range svid {
+		tlsCert.Certificate = append(tlsCert.Certificate, cert.Raw)
+	}
+	tlsCerts = append(tlsCerts, tlsCert)
+	tlsConfig = spiffePeer.NewTLSConfig(tlsCerts)
 	return credentials.NewTLS(tlsConfig), nil
 }
 
@@ -120,7 +124,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 
 	regEntries := map[string]*common.RegistrationEntry{}
 	svids := map[string]*node.X509SVID{}
-	bundles := map[string]*node.Bundle{}
+	bundles := map[string]*common.Bundle{}
 	// Read all the server responses from the stream.
 	for {
 		resp, err := stream.Recv()
@@ -144,7 +148,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 		for spiffeid, svid := range resp.SvidUpdate.Svids {
 			svids[spiffeid] = svid
 		}
-		for spiffeid, bundle := range resp.SvidUpdate.DEPRECATEDBundles {
+		for spiffeid, bundle := range resp.SvidUpdate.Bundles {
 			bundles[spiffeid] = bundle
 		}
 	}

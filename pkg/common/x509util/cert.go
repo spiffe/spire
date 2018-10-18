@@ -38,3 +38,10 @@ func CreateCertificate(ctx context.Context, km keymanager.KeyManager, template, 
 
 	return cert, nil
 }
+
+func DERFromCertificates(certs []*x509.Certificate) (derBytes []byte) {
+	for _, cert := range certs {
+		derBytes = append(derBytes, cert.Raw...)
+	}
+	return derBytes
+}

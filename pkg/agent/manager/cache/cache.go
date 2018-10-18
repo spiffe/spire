@@ -7,16 +7,18 @@ import (
 
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/common"
 )
 
 type Selectors []*common.Selector
+type Bundle = bundleutil.Bundle
 
 // Entry holds the data of a single cache entry.
 type Entry struct {
 	RegistrationEntry *common.RegistrationEntry
-	SVID              *x509.Certificate
+	SVID              []*x509.Certificate
 	PrivateKey        *ecdsa.PrivateKey
 }
 
@@ -32,8 +34,8 @@ func NewBundleStream(stream observer.Stream) *BundleStream {
 }
 
 // Value returns the current value for this stream.
-func (b *BundleStream) Value() map[string][]*x509.Certificate {
-	value, _ := b.stream.Value().(map[string][]*x509.Certificate)
+func (b *BundleStream) Value() map[string]*Bundle {
+	value, _ := b.stream.Value().(map[string]*Bundle)
 	return value
 }
 
@@ -44,8 +46,8 @@ func (b *BundleStream) Changes() chan struct{} {
 
 // Next advances this stream to the next state.
 // You should never call this unless Changes channel is closed.
-func (b *BundleStream) Next() map[string][]*x509.Certificate {
-	value, _ := b.stream.Next().(map[string][]*x509.Certificate)
+func (b *BundleStream) Next() map[string]*Bundle {
+	value, _ := b.stream.Next().(map[string]*Bundle)
 	return value
 }
 
@@ -56,8 +58,8 @@ func (b *BundleStream) HasNext() bool {
 
 // WaitNext waits for Changes to be closed, advances the stream and returns
 // the current value.
-func (b *BundleStream) WaitNext() map[string][]*x509.Certificate {
-	value, _ := b.stream.WaitNext().(map[string][]*x509.Certificate)
+func (b *BundleStream) WaitNext() map[string]*Bundle {
+	value, _ := b.stream.WaitNext().(map[string]*Bundle)
 	return value
 }
 
@@ -84,9 +86,9 @@ type Cache interface {
 	// Registers and returns a Subscriber, and then sends latest WorkloadUpdate on its channel
 	Subscribe(selectors Selectors) Subscriber
 	// Set the bundles
-	SetBundles(map[string][]*x509.Certificate)
+	SetBundles(map[string]*Bundle)
 	// Retrieve the bundle for the trust domain
-	Bundle() []*x509.Certificate
+	Bundle() *Bundle
 	// SubscribeToBundleChanges returns a bundle stream. Each
 	// time bundles are updated, a new bundle mapping is streamed.
 	SubscribeToBundleChanges() *BundleStream
@@ -104,8 +106,8 @@ type cacheImpl struct {
 }
 
 // New creates a new Cache.
-func New(log logrus.FieldLogger, trustDomain string, bundle []*x509.Certificate) *cacheImpl {
-	bundles := map[string][]*x509.Certificate{
+func New(log logrus.FieldLogger, trustDomain string, bundle *Bundle) *cacheImpl {
+	bundles := map[string]*Bundle{
 		trustDomain: bundle,
 	}
 	return &cacheImpl{
@@ -117,7 +119,7 @@ func New(log logrus.FieldLogger, trustDomain string, bundle []*x509.Certificate)
 	}
 }
 
-func (c *cacheImpl) SetBundles(newBundles map[string][]*x509.Certificate) {
+func (c *cacheImpl) SetBundles(newBundles map[string]*Bundle) {
 	// SetBundles() and Bundle()/Bundles() can be called concurrently since
 	// the "property" is atomic. Before the following code can merge in changes
 	// it needs to make a copy of the map to mutate so it doesn't modify
@@ -125,7 +127,7 @@ func (c *cacheImpl) SetBundles(newBundles map[string][]*x509.Certificate) {
 	// to be called by more than one goroutine at a time.
 
 	// copy the map
-	bundles := make(map[string][]*x509.Certificate)
+	bundles := make(map[string]*Bundle)
 	for k, v := range c.Bundles() {
 		bundles[k] = v
 	}
@@ -133,8 +135,8 @@ func (c *cacheImpl) SetBundles(newBundles map[string][]*x509.Certificate) {
 	// merge in changes
 	changed := false
 	for id, newBundle := range newBundles {
-		bundle, ok := bundles[id]
-		if !ok || !certsEqual(bundle, newBundle) {
+		bundle := bundles[id]
+		if bundle == nil || !bundle.EqualTo(newBundle) {
 			bundles[id] = newBundle
 			changed = true
 		}
@@ -150,12 +152,12 @@ func (c *cacheImpl) SetBundles(newBundles map[string][]*x509.Certificate) {
 	}
 }
 
-func (c *cacheImpl) Bundle() []*x509.Certificate {
+func (c *cacheImpl) Bundle() *Bundle {
 	return c.Bundles()[c.trustDomain]
 }
 
-func (c *cacheImpl) Bundles() map[string][]*x509.Certificate {
-	return c.bundles.Value().(map[string][]*x509.Certificate)
+func (c *cacheImpl) Bundles() map[string]*Bundle {
+	return c.bundles.Value().(map[string]*Bundle)
 }
 
 func (c *cacheImpl) SubscribeToBundleChanges() *BundleStream {
@@ -234,11 +236,11 @@ func (c *cacheImpl) notifySubscribers(subs []*subscriber) {
 
 		subEntries := subscriberEntries(sub, entries)
 
-		federatedBundles := make(map[string][]*x509.Certificate)
+		federatedBundles := make(map[string]*Bundle)
 		for _, subEntry := range subEntries {
 			for _, federatesWith := range subEntry.RegistrationEntry.FederatesWith {
 				federatedBundle := bundles[federatesWith]
-				if len(federatedBundle) > 0 {
+				if federatedBundle != nil {
 					federatedBundles[federatesWith] = federatedBundle
 				}
 			}

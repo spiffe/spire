@@ -22,10 +22,12 @@ func TestString(t *testing.T) {
 				ExpiresAt:      5,
 			},
 		},
-		Bundles: map[string]*node.Bundle{
+		Bundles: map[string]*common.Bundle{
 			"spiffe://example.org": {
-				Id:      "spiffe://example.org",
-				CaCerts: []byte{1, 2, 3},
+				TrustDomainId: "spiffe://example.org",
+				RootCas: []*common.Certificate{
+					{DerBytes: []byte{1, 2, 3}},
+				},
 			},
 		},
 	}

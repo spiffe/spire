@@ -69,7 +69,7 @@ func (s *RotatorTestSuite) TestRun() {
 	s.client.EXPECT().Release()
 
 	state := State{
-		SVID: cert,
+		SVID: []*x509.Certificate{cert},
 		Key:  key,
 	}
 	s.r.state = observer.NewProperty(state)
@@ -87,7 +87,8 @@ func (s *RotatorTestSuite) TestRun() {
 
 	// Should be equal to the fixture
 	state = stream.Value().(State)
-	s.Assert().Equal(cert, state.SVID)
+	s.Require().Len(state.SVID, 1)
+	s.Assert().Equal(cert, state.SVID[0])
 	s.Assert().Equal(key, state.Key)
 
 	cancel()
@@ -108,7 +109,7 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	s.Require().NoError(err)
 
 	state := State{
-		SVID: badCert,
+		SVID: []*x509.Certificate{badCert},
 	}
 	s.r.state = observer.NewProperty(state)
 
@@ -130,7 +131,8 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 		s.T().Error("SVID rotation timeout reached")
 	case <-stream.Changes():
 		state = stream.Next().(State)
-		s.Assert().Equal(goodCert, state.SVID)
+		s.Require().Len(state.SVID, 1)
+		s.Assert().Equal(goodCert, state.SVID[0])
 	}
 
 	cancel()
@@ -145,7 +147,7 @@ func (s *RotatorTestSuite) TestShouldRotate() {
 	s.Require().NoError(err)
 
 	state := State{
-		SVID: goodCert,
+		SVID: []*x509.Certificate{goodCert},
 	}
 	s.r.state = observer.NewProperty(state)
 
@@ -158,7 +160,7 @@ func (s *RotatorTestSuite) TestShouldRotate() {
 	badCert, _, err := util.SelfSign(temp)
 	s.Require().NoError(err)
 
-	state.SVID = badCert
+	state.SVID = []*x509.Certificate{badCert}
 	s.r.state = observer.NewProperty(state)
 	s.Assert().True(s.r.shouldRotate())
 }
@@ -174,7 +176,8 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 	s.Require().True(stream.HasNext())
 
 	state := stream.Next().(State)
-	s.Assert().True(cert.Equal(state.SVID))
+	s.Require().Len(state.SVID, 1)
+	s.Assert().True(cert.Equal(state.SVID[0]))
 }
 
 // expectSVIDRotation sets the appropriate expectations for an SVID rotation, and returns
@@ -185,7 +188,7 @@ func (s *RotatorTestSuite) expectSVIDRotation(cert *x509.Certificate) {
 		Return(&client.Update{
 			SVIDs: map[string]*node.X509SVID{
 				s.r.c.SpiffeID: {
-					DEPRECATEDCert: cert.Raw,
+					CertChain: cert.Raw,
 				},
 			},
 		}, nil)

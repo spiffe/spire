@@ -11,7 +11,7 @@ import (
 type Update struct {
 	Entries map[string]*common.RegistrationEntry
 	SVIDs   map[string]*node.X509SVID
-	Bundles map[string]*node.Bundle
+	Bundles map[string]*common.Bundle
 }
 
 func (u *Update) String() string {

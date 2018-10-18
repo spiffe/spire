@@ -16,6 +16,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	testlog "github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +45,7 @@ func TestCacheImpl_Valid(t *testing.T) {
 					ParentId:  "spiffe:parent",
 					SpiffeId:  "spiffe:test",
 				},
-				SVID:       &x509.Certificate{},
+				SVID:       []*x509.Certificate{{}},
 				PrivateKey: privateKey,
 			}},
 
@@ -56,7 +57,7 @@ func TestCacheImpl_Valid(t *testing.T) {
 						&common.Selector{Type: "testtype1", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test"},
-				SVID:       &x509.Certificate{},
+				SVID:       []*x509.Certificate{{}},
 				PrivateKey: privateKey,
 			}}}
 	for _, test := range tests {
@@ -81,7 +82,7 @@ func TestCacheImpl_DeleteEntry(t *testing.T) {
 					Selectors: Selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
 					ParentId:  "spiffe:parent",
 					SpiffeId:  "spiffe:test"},
-				SVID:       &x509.Certificate{},
+				SVID:       []*x509.Certificate{{}},
 				PrivateKey: privateKey,
 			}},
 
@@ -93,7 +94,7 @@ func TestCacheImpl_DeleteEntry(t *testing.T) {
 						&common.Selector{Type: "testtype1", Value: "testValue3"}},
 					ParentId: "spiffe:parent",
 					SpiffeId: "spiffe:test"},
-				SVID:       &x509.Certificate{},
+				SVID:       []*x509.Certificate{{}},
 				PrivateKey: privateKey,
 			}}}
 	for _, test := range tests {
@@ -113,12 +114,12 @@ func TestCacheImpl_DeleteEntry(t *testing.T) {
 func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
 	cache := New(logger, "spiffe://example.org", nil)
 
-	exampleCerts := []*x509.Certificate{{Raw: []byte("EXAMPLE.ORG")}}
-	otherDomainCerts := []*x509.Certificate{{Raw: []byte("OTHERDOMAIN.TEST")}}
+	exampleBundle := bundleutil.BundleFromRootCAs("spiffe://example.org", []*x509.Certificate{{Raw: []byte("EXAMPLE.ORG")}})
+	otherDomainBundle := bundleutil.BundleFromRootCAs("spiffe://otherdomain.test", []*x509.Certificate{{Raw: []byte("OTHERDOMAIN.TEST")}})
 
-	cache.SetBundles(map[string][]*x509.Certificate{
-		"spiffe://example.org":      exampleCerts,
-		"spiffe://otherdomain.test": otherDomainCerts,
+	cache.SetBundles(map[string]*Bundle{
+		"spiffe://example.org":      exampleBundle,
+		"spiffe://otherdomain.test": otherDomainBundle,
 	})
 
 	e1 := &Entry{
@@ -130,7 +131,7 @@ func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
 			SpiffeId: "spiffe:test1",
 			EntryId:  "00000000-0000-0000-0000-000000000001",
 		},
-		SVID:       &x509.Certificate{},
+		SVID:       []*x509.Certificate{{}},
 		PrivateKey: privateKey,
 	}
 	cache.SetEntry(e1)
@@ -145,7 +146,7 @@ func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
 			EntryId:       "00000000-0000-0000-0000-000000000002",
 			FederatesWith: []string{"spiffe://otherdomain.test"},
 		},
-		SVID:       &x509.Certificate{},
+		SVID:       []*x509.Certificate{{}},
 		PrivateKey: privateKey,
 	}
 	cache.SetEntry(e2)
@@ -162,7 +163,7 @@ func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
 		wu := <-sub2.Updates()
 		assert.Equal(t, 1, len(wu.Entries))
 		assert.Equal(t, e1, wu.Entries[0])
-		assert.Equal(t, exampleCerts, wu.Bundle)
+		assert.Equal(t, exampleBundle, wu.Bundle)
 	})
 
 	// The second registration entry federates with otherdomain.test. The
@@ -171,9 +172,9 @@ func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
 		wu := <-sub1.Updates()
 		assert.Equal(t, 1, len(wu.Entries))
 		assert.Equal(t, e2, wu.Entries[0])
-		assert.Equal(t, exampleCerts, wu.Bundle)
-		assert.Equal(t, map[string][]*x509.Certificate{
-			"spiffe://otherdomain.test": otherDomainCerts,
+		assert.Equal(t, exampleBundle, wu.Bundle)
+		assert.Equal(t, map[string]*Bundle{
+			"spiffe://otherdomain.test": otherDomainBundle,
 		}, wu.FederatedBundles)
 	})
 }
@@ -190,7 +191,7 @@ func TestNotifySubscribersDoesntPileUpGoroutines(t *testing.T) {
 			SpiffeId: "spiffe:test2",
 			EntryId:  "00000000-0000-0000-0000-000000000002",
 		},
-		SVID:       &x509.Certificate{},
+		SVID:       []*x509.Certificate{{}},
 		PrivateKey: privateKey,
 	}
 	cache.SetEntry(e2)
@@ -233,7 +234,7 @@ func TestNotifySubscribersNotifiesLatestUpdatesToSlowSubscriber(t *testing.T) {
 					SpiffeId: fmt.Sprintf("spiffe:test2_%d", i),
 					EntryId:  "00000000-0000-0000-0000-000000000002",
 				},
-				SVID:       &x509.Certificate{},
+				SVID:       []*x509.Certificate{{}},
 				PrivateKey: privateKey,
 			}
 			// SetEntry updates the cache entry and fires a notification for the subscribers
@@ -297,7 +298,7 @@ func TestSubscriberFinish(t *testing.T) {
 			SpiffeId: "spiffe:test2",
 			EntryId:  "00000000-0000-0000-0000-000000000002",
 		},
-		SVID:       &x509.Certificate{},
+		SVID:       []*x509.Certificate{{}},
 		PrivateKey: privateKey,
 	})
 

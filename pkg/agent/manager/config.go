@@ -18,9 +18,9 @@ import (
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
-	SVID             *x509.Certificate
+	SVID             []*x509.Certificate
 	SVIDKey          *ecdsa.PrivateKey
-	Bundle           []*x509.Certificate // Initial CA bundle
+	Bundle           *cache.Bundle
 	Catalog          catalog.Catalog
 	TrustDomain      url.URL
 	Log              logrus.FieldLogger
@@ -34,7 +34,7 @@ type Config struct {
 
 // New creates a cache manager based on c's configuration
 func New(c *Config) (*manager, error) {
-	spiffeID, err := getSpiffeIDFromSVID(c.SVID)
+	spiffeID, err := getSpiffeIDFromSVID(c.SVID[0])
 	if err != nil {
 		return nil, fmt.Errorf("cannot get spiffe id from SVID: %v", err)
 	}

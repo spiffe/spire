@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/api/workload"
 
 	"google.golang.org/grpc/codes"
@@ -102,10 +103,10 @@ func (h *Handler) composeResponse(update *cache.WorkloadUpdate) (*workload.X509S
 	resp.Svids = []*workload.X509SVID{}
 	resp.FederatedBundles = make(map[string][]byte)
 
-	bundle := marshalBundle(update.Bundle)
+	bundle := marshalBundle(update.Bundle.RootCAs())
 
 	for id, federatedBundle := range update.FederatedBundles {
-		resp.FederatedBundles[id] = marshalBundle(federatedBundle)
+		resp.FederatedBundles[id] = marshalBundle(federatedBundle.RootCAs())
 	}
 
 	for _, e := range update.Entries {
@@ -118,7 +119,7 @@ func (h *Handler) composeResponse(update *cache.WorkloadUpdate) (*workload.X509S
 
 		svid := &workload.X509SVID{
 			SpiffeId:      id,
-			X509Svid:      e.SVID.Raw,
+			X509Svid:      x509util.DERFromCertificates(e.SVID),
 			X509SvidKey:   keyData,
 			Bundle:        bundle,
 			FederatesWith: e.RegistrationEntry.FederatesWith,
