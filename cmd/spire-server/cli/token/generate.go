@@ -58,14 +58,15 @@ func (g GenerateCLI) Run(args []string) int {
 	}
 	fmt.Printf("Token: %s\n", token)
 
-	if config.SpiffeID != "" {
-		err = g.createVanityRecord(ctx, c, token, config.SpiffeID)
-		if err != nil {
-			fmt.Printf("Error assigning SPIFFE ID: %s\n", err.Error())
-			return 1
-		}
-	} else {
+	if config.SpiffeID == "" {
 		fmt.Printf("Warning: Missing SPIFFE ID.\n")
+		return 0
+	}
+
+	err = g.createVanityRecord(ctx, c, token, config.SpiffeID)
+	if err != nil {
+		fmt.Printf("Error assigning SPIFFE ID: %s\n", err.Error())
+		return 1
 	}
 
 	return 0
