@@ -233,7 +233,7 @@ func verifyTokenSignature(cluster *clusterConfig, token *jwt.JSONWebToken) (clai
 		return claims, nil
 	}
 	if lastErr == nil {
-		lastErr = satError.New("token was not validated by any cluster")
+		lastErr = satError.New("token signed by unknown authority")
 	}
 	return nil, lastErr
 }
