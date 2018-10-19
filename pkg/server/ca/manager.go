@@ -138,7 +138,7 @@ func (m *manager) Run(ctx context.Context) error {
 	if err == context.Canceled {
 		err = nil
 	}
-	return nil
+	return err
 }
 
 func (m *manager) CA() ServerCA {
@@ -413,7 +413,7 @@ func (m *manager) writeKeypairSets() {
 		certificates[m.next.JWTSignerKeyId()] = m.next.jwtSigner
 	}
 	if err := writeCertificates(m.c.CertsPath, certificates); err != nil {
-		m.c.Log.Warnf("unable to write keypair sets: %v", err)
+		m.c.Log.Errorf("unable to write keypair sets: %v", err)
 	}
 }
 

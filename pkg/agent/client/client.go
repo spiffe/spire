@@ -105,7 +105,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
 		c.Release()
-		c.c.Log.Errorf("%v: %v", ErrUnableToGetStream, err)
+		c.c.Log.Errorf("Failure fetching X509 SVID. %v: %v", ErrUnableToGetStream, err)
 		return nil, ErrUnableToGetStream
 	}
 
@@ -167,7 +167,7 @@ func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, err
 	// We weren't able to make the request...close the client and return the error.
 	if err != nil {
 		c.Release()
-		c.c.Log.Errorf("%v: %v", ErrUnableToGetStream, err)
+		c.c.Log.Errorf("Failure fetching JWT SVID. %v: %v", ErrUnableToGetStream, err)
 		return nil, ErrUnableToGetStream
 	}
 
