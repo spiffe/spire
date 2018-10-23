@@ -131,13 +131,13 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 func (s *HandlerTestSuite) TestSendResponse() {
 	emptyUpdate := new(cache.WorkloadUpdate)
 	s.stream.EXPECT().Send(gomock.Any()).Times(0)
-	err := s.h.sendResponse(emptyUpdate, s.stream)
+	err := s.h.sendX509SVIDResponse(emptyUpdate, s.stream)
 	s.Assert().Error(err)
 
-	resp, err := s.h.composeResponse(s.workloadUpdate())
+	resp, err := s.h.composeX509SVIDResponse(s.workloadUpdate())
 	s.Require().NoError(err)
 	s.stream.EXPECT().Send(resp)
-	err = s.h.sendResponse(s.workloadUpdate(), s.stream)
+	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), s.stream)
 	s.Assert().NoError(err)
 }
 
@@ -160,7 +160,7 @@ func (s *HandlerTestSuite) TestComposeResponse() {
 		},
 	}
 
-	resp, err := s.h.composeResponse(s.workloadUpdate())
+	resp, err := s.h.composeX509SVIDResponse(s.workloadUpdate())
 	s.Assert().NoError(err)
 	s.Assert().Equal(apiMsg, resp)
 }

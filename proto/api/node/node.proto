@@ -76,6 +76,9 @@ message JWTSVID {
 
     // SVID expiration timestamp (seconds since Unix epoch)
     int64 expires_at = 2;
+
+    // SVID issuance timestamp (seconds since Unix epoch)
+    int64 issued_at = 3;
 }
 
 // Represents a request to attest the node.

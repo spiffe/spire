@@ -16,10 +16,12 @@ import (
 
 	"github.com/sirupsen/logrus"
 	testlog "github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -306,4 +308,77 @@ func TestSubscriberFinish(t *testing.T) {
 		wu := <-sub.Updates()
 		assert.Nil(t, wu)
 	})
+}
+
+func TestFetchWorkloadUpdate(t *testing.T) {
+	one := &Entry{
+		RegistrationEntry: &common.RegistrationEntry{
+			EntryId:   "1",
+			Selectors: Selectors{{Type: "A", Value: "a"}},
+			ParentId:  "spiffe:parent",
+			SpiffeId:  "spiffe:id1",
+		},
+	}
+	two := &Entry{
+		RegistrationEntry: &common.RegistrationEntry{
+			EntryId: "2",
+			Selectors: Selectors{
+				{Type: "A", Value: "a"},
+				{Type: "B", Value: "b"},
+				{Type: "C", Value: "c"},
+			},
+			ParentId:      "spiffe:parent",
+			SpiffeId:      "spiffe:id2",
+			FederatesWith: []string{"spiffe://bar.test"},
+		},
+	}
+
+	cache := New(logger, "spiffe://example.org", nil)
+	cache.SetBundles(map[string]*Bundle{
+		"spiffe://example.org": {},
+		"spiffe://foo.test":    {},
+		"spiffe://bar.test":    {},
+	})
+	cache.SetEntry(one)
+	cache.SetEntry(two)
+
+	// selectors don't match anything
+	update := cache.FetchWorkloadUpdate(Selectors{})
+	require.NotNil(t, update)
+	assert.Empty(t, update.Entries)
+
+	// selectors match one
+	update = cache.FetchWorkloadUpdate(Selectors{{Type: "A", Value: "a"}})
+	require.NotNil(t, update)
+	assert.Equal(t, []*Entry{one}, update.Entries)
+	assert.NotNil(t, update.Bundle)
+	assert.Empty(t, update.FederatedBundles)
+
+	// selectors match one and two
+	update = cache.FetchWorkloadUpdate(Selectors{
+		{Type: "A", Value: "a"},
+		{Type: "B", Value: "b"},
+		{Type: "C", Value: "c"},
+	})
+	require.NotNil(t, update)
+	assert.Equal(t, []*Entry{one, two}, update.Entries)
+	assert.NotNil(t, update.Bundle)
+	assert.Len(t, update.FederatedBundles, 1)
+	assert.NotNil(t, update.FederatedBundles["spiffe://bar.test"])
+}
+
+func TestJWTSVID(t *testing.T) {
+	now := time.Now()
+	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+
+	cache := New(logger, "spiffe://example.org", nil)
+
+	// JWT is not cached
+	actual := cache.GetJWTSVID("spiffe://example.org/blog", []string{"bar"})
+	assert.Nil(t, actual)
+
+	// JWT is cached
+	cache.SetJWTSVID("spiffe://example.org/blog", []string{"bar"}, expected)
+	actual = cache.GetJWTSVID("spiffe://example.org/blog", []string{"bar"})
+	assert.Equal(t, expected, actual)
 }

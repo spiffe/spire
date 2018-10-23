@@ -36,6 +36,42 @@ func (m *MockSpiffeWorkloadAPIClient) EXPECT() *MockSpiffeWorkloadAPIClientMockR
 	return m.recorder
 }
 
+// FetchJWTABundles mocks base method
+func (m *MockSpiffeWorkloadAPIClient) FetchJWTABundles(arg0 context.Context, arg1 *workload.JWTABundlesRequest, arg2 ...grpc.CallOption) (workload.SpiffeWorkloadAPI_FetchJWTABundlesClient, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "FetchJWTABundles", varargs...)
+	ret0, _ := ret[0].(workload.SpiffeWorkloadAPI_FetchJWTABundlesClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchJWTABundles indicates an expected call of FetchJWTABundles
+func (mr *MockSpiffeWorkloadAPIClientMockRecorder) FetchJWTABundles(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTABundles", reflect.TypeOf((*MockSpiffeWorkloadAPIClient)(nil).FetchJWTABundles), varargs...)
+}
+
+// FetchJWTASVID mocks base method
+func (m *MockSpiffeWorkloadAPIClient) FetchJWTASVID(arg0 context.Context, arg1 *workload.JWTASVIDRequest, arg2 ...grpc.CallOption) (*workload.JWTASVIDResponse, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "FetchJWTASVID", varargs...)
+	ret0, _ := ret[0].(*workload.JWTASVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchJWTASVID indicates an expected call of FetchJWTASVID
+func (mr *MockSpiffeWorkloadAPIClientMockRecorder) FetchJWTASVID(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTASVID", reflect.TypeOf((*MockSpiffeWorkloadAPIClient)(nil).FetchJWTASVID), varargs...)
+}
+
 // FetchX509SVID mocks base method
 func (m *MockSpiffeWorkloadAPIClient) FetchX509SVID(arg0 context.Context, arg1 *workload.X509SVIDRequest, arg2 ...grpc.CallOption) (workload.SpiffeWorkloadAPI_FetchX509SVIDClient, error) {
 	varargs := []interface{}{arg0, arg1}
@@ -52,6 +88,24 @@ func (m *MockSpiffeWorkloadAPIClient) FetchX509SVID(arg0 context.Context, arg1 *
 func (mr *MockSpiffeWorkloadAPIClientMockRecorder) FetchX509SVID(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
 	varargs := append([]interface{}{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchX509SVID", reflect.TypeOf((*MockSpiffeWorkloadAPIClient)(nil).FetchX509SVID), varargs...)
+}
+
+// ValidateJWTASVID mocks base method
+func (m *MockSpiffeWorkloadAPIClient) ValidateJWTASVID(arg0 context.Context, arg1 *workload.ValidateJWTASVIDRequest, arg2 ...grpc.CallOption) (*workload.ValidateJWTASVIDResponse, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ValidateJWTASVID", varargs...)
+	ret0, _ := ret[0].(*workload.ValidateJWTASVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ValidateJWTASVID indicates an expected call of ValidateJWTASVID
+func (mr *MockSpiffeWorkloadAPIClientMockRecorder) ValidateJWTASVID(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateJWTASVID", reflect.TypeOf((*MockSpiffeWorkloadAPIClient)(nil).ValidateJWTASVID), varargs...)
 }
 
 // MockSpiffeWorkloadAPIServer is a mock of SpiffeWorkloadAPIServer interface
@@ -77,6 +131,31 @@ func (m *MockSpiffeWorkloadAPIServer) EXPECT() *MockSpiffeWorkloadAPIServerMockR
 	return m.recorder
 }
 
+// FetchJWTABundles mocks base method
+func (m *MockSpiffeWorkloadAPIServer) FetchJWTABundles(arg0 *workload.JWTABundlesRequest, arg1 workload.SpiffeWorkloadAPI_FetchJWTABundlesServer) error {
+	ret := m.ctrl.Call(m, "FetchJWTABundles", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FetchJWTABundles indicates an expected call of FetchJWTABundles
+func (mr *MockSpiffeWorkloadAPIServerMockRecorder) FetchJWTABundles(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTABundles", reflect.TypeOf((*MockSpiffeWorkloadAPIServer)(nil).FetchJWTABundles), arg0, arg1)
+}
+
+// FetchJWTASVID mocks base method
+func (m *MockSpiffeWorkloadAPIServer) FetchJWTASVID(arg0 context.Context, arg1 *workload.JWTASVIDRequest) (*workload.JWTASVIDResponse, error) {
+	ret := m.ctrl.Call(m, "FetchJWTASVID", arg0, arg1)
+	ret0, _ := ret[0].(*workload.JWTASVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchJWTASVID indicates an expected call of FetchJWTASVID
+func (mr *MockSpiffeWorkloadAPIServerMockRecorder) FetchJWTASVID(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTASVID", reflect.TypeOf((*MockSpiffeWorkloadAPIServer)(nil).FetchJWTASVID), arg0, arg1)
+}
+
 // FetchX509SVID mocks base method
 func (m *MockSpiffeWorkloadAPIServer) FetchX509SVID(arg0 *workload.X509SVIDRequest, arg1 workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
 	ret := m.ctrl.Call(m, "FetchX509SVID", arg0, arg1)
@@ -87,6 +166,19 @@ func (m *MockSpiffeWorkloadAPIServer) FetchX509SVID(arg0 *workload.X509SVIDReque
 // FetchX509SVID indicates an expected call of FetchX509SVID
 func (mr *MockSpiffeWorkloadAPIServerMockRecorder) FetchX509SVID(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchX509SVID", reflect.TypeOf((*MockSpiffeWorkloadAPIServer)(nil).FetchX509SVID), arg0, arg1)
+}
+
+// ValidateJWTASVID mocks base method
+func (m *MockSpiffeWorkloadAPIServer) ValidateJWTASVID(arg0 context.Context, arg1 *workload.ValidateJWTASVIDRequest) (*workload.ValidateJWTASVIDResponse, error) {
+	ret := m.ctrl.Call(m, "ValidateJWTASVID", arg0, arg1)
+	ret0, _ := ret[0].(*workload.ValidateJWTASVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ValidateJWTASVID indicates an expected call of ValidateJWTASVID
+func (mr *MockSpiffeWorkloadAPIServerMockRecorder) ValidateJWTASVID(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateJWTASVID", reflect.TypeOf((*MockSpiffeWorkloadAPIServer)(nil).ValidateJWTASVID), arg0, arg1)
 }
 
 // MockSpiffeWorkloadAPI_FetchX509SVIDClient is a mock of SpiffeWorkloadAPI_FetchX509SVIDClient interface

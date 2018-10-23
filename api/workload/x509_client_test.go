@@ -1,7 +1,9 @@
 package workload
 
 import (
+	"context"
 	"crypto/x509"
+	"errors"
 	"io/ioutil"
 	"net"
 	"os"
@@ -149,6 +151,18 @@ func (m *mockHandler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload
 	time.Sleep(delay)
 	stream.Send(m.resp2())
 	return nil
+}
+
+func (m *mockHandler) FetchJWTASVID(context.Context, *workload.JWTASVIDRequest) (*workload.JWTASVIDResponse, error) {
+	return nil, errors.New("unimplemented")
+}
+
+func (m *mockHandler) FetchJWTABundles(*workload.JWTABundlesRequest, workload.SpiffeWorkloadAPI_FetchJWTABundlesServer) error {
+	return errors.New("unimplemented")
+}
+
+func (m *mockHandler) ValidateJWTASVID(context.Context, *workload.ValidateJWTASVIDRequest) (*workload.ValidateJWTASVIDResponse, error) {
+	return nil, errors.New("unimplemented")
 }
 
 func (m *mockHandler) resp1() *workload.X509SVIDResponse {

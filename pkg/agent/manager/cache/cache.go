@@ -2,11 +2,16 @@ package cache
 
 import (
 	"crypto/ecdsa"
+	"crypto/sha1"
 	"crypto/x509"
+	"encoding/base64"
+	"io"
+	"sort"
 	"sync"
 
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/proto/common"
@@ -92,6 +97,14 @@ type Cache interface {
 	// SubscribeToBundleChanges returns a bundle stream. Each
 	// time bundles are updated, a new bundle mapping is streamed.
 	SubscribeToBundleChanges() *BundleStream
+	// FetchWorkloadUpdates gets the latest workload update for the selectors
+	FetchWorkloadUpdate(selectors Selectors) *WorkloadUpdate
+
+	// GetJWTSVID retrieves a cached JWT SVID based on the subject and
+	// intended audience.
+	GetJWTSVID(spiffeID string, audience []string) *client.JWTSVID
+	//	SetJWTSVID caches a JWT SVID based on the subject and intended audience.
+	SetJWTSVID(spiffeID string, audience []string, svid *client.JWTSVID)
 }
 
 type cacheImpl struct {
@@ -103,6 +116,7 @@ type cacheImpl struct {
 	trustDomain string
 	bundles     observer.Property
 	notifyMutex sync.Mutex
+	jwtSVIDS    map[string]*client.JWTSVID
 }
 
 // New creates a new Cache.
@@ -116,6 +130,7 @@ func New(log logrus.FieldLogger, trustDomain string, bundle *Bundle) *cacheImpl 
 		trustDomain: trustDomain,
 		bundles:     observer.NewProperty(bundles),
 		subscribers: NewSubscribers(),
+		jwtSVIDS:    make(map[string]*client.JWTSVID),
 	}
 }
 
@@ -216,8 +231,6 @@ func (c *cacheImpl) notifySubscribers(subs []*subscriber) {
 	entries := c.Entries()
 	bundles := c.Bundles()
 
-	bundle := bundles[c.trustDomain]
-
 	for _, sub := range subs {
 		sub.m.Lock()
 		// If subscriber is not active any more, remove it.
@@ -236,24 +249,29 @@ func (c *cacheImpl) notifySubscribers(subs []*subscriber) {
 
 		subEntries := subscriberEntries(sub, entries)
 
-		federatedBundles := make(map[string]*Bundle)
-		for _, subEntry := range subEntries {
-			for _, federatesWith := range subEntry.RegistrationEntry.FederatesWith {
-				federatedBundle := bundles[federatesWith]
-				if federatedBundle != nil {
-					federatedBundles[federatesWith] = federatedBundle
-				}
-			}
-		}
-
-		update := &WorkloadUpdate{
-			Entries:          subEntries,
-			Bundle:           bundle,
-			FederatedBundles: federatedBundles,
-		}
+		update := c.makeWorkloadUpdate(subEntries, bundles)
 
 		sub.c <- update
 		sub.m.Unlock()
+	}
+}
+
+func (c *cacheImpl) makeWorkloadUpdate(entries []*Entry, bundles map[string]*Bundle) *WorkloadUpdate {
+	bundle := bundles[c.trustDomain]
+
+	federatedBundles := make(map[string]*Bundle)
+	for _, entry := range entries {
+		for _, federatesWith := range entry.RegistrationEntry.FederatesWith {
+			if federatedBundle := bundles[federatesWith]; federatedBundle != nil {
+				federatedBundles[federatesWith] = federatedBundle
+			}
+		}
+	}
+
+	return &WorkloadUpdate{
+		Entries:          entries,
+		Bundle:           bundle,
+		FederatedBundles: federatedBundles,
 	}
 }
 
@@ -273,14 +291,40 @@ func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) (deleted boo
 	return
 }
 
+func (c *cacheImpl) FetchWorkloadUpdate(selectors Selectors) *WorkloadUpdate {
+	entries := c.Entries()
+	bundles := c.Bundles()
+
+	return c.makeWorkloadUpdate(selectorsEntries(selectors, entries), bundles)
+}
+
+func (c *cacheImpl) GetJWTSVID(spiffeID string, audience []string) *client.JWTSVID {
+	key := keyFromJWTSpiffeIDAndAudience(spiffeID, audience)
+	c.m.Lock()
+	defer c.m.Unlock()
+	return c.jwtSVIDS[key]
+}
+
+func (c *cacheImpl) SetJWTSVID(spiffeID string, audience []string, svid *client.JWTSVID) {
+	key := keyFromJWTSpiffeIDAndAudience(spiffeID, audience)
+
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.jwtSVIDS[key] = svid
+}
+
 func subscriberEntries(sub *subscriber, entries []*Entry) (subentries []*Entry) {
+	return selectorsEntries(sub.sel, entries)
+}
+
+func selectorsEntries(selectors Selectors, entries []*Entry) (subentries []*Entry) {
 	for _, e := range entries {
 		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
-		if selector.NewSetFromRaw(sub.sel).IncludesSet(regEntrySelectors) {
+		if selector.NewSetFromRaw(selectors).IncludesSet(regEntrySelectors) {
 			subentries = append(subentries, e)
 		}
 	}
-	return
+	return subentries
 }
 
 func certsEqual(a, b []*x509.Certificate) bool {
@@ -295,4 +339,19 @@ func certsEqual(a, b []*x509.Certificate) bool {
 	}
 
 	return true
+}
+
+func keyFromJWTSpiffeIDAndAudience(spiffeID string, audience []string) string {
+	h := sha1.New()
+
+	// duplicate and sort the audience slice before sorting
+	audience = append([]string(nil), audience...)
+	sort.Strings(audience)
+
+	io.WriteString(h, spiffeID)
+	for _, a := range audience {
+		io.WriteString(h, a)
+	}
+
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }

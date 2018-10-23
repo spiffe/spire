@@ -161,24 +161,27 @@ func (s *CATestSuite) TestNoJWTKeypairSet() {
 func (s *CATestSuite) TestSignJWTSVIDUsesDefaultTTLIfTTLUnspecified() {
 	token, err := s.ca.SignJWTSVID(ctx, s.generateJSR("example.org", 0))
 	s.Require().NoError(err)
-	expiresAt, err := jwtsvid.GetTokenExpiry(token)
+	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
+	s.Require().Equal(s.now, issuedAt)
 	s.Require().Equal(s.now.Add(DefaultJWTSVIDTTL), expiresAt)
 }
 
 func (s *CATestSuite) TestSignJWTSVIDUsesTTLIfSpecified() {
 	token, err := s.ca.SignJWTSVID(ctx, s.generateJSR("example.org", time.Minute+time.Second))
 	s.Require().NoError(err)
-	expiresAt, err := jwtsvid.GetTokenExpiry(token)
+	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
+	s.Require().Equal(s.now, issuedAt)
 	s.Require().Equal(s.now.Add(time.Minute+time.Second), expiresAt)
 }
 
 func (s *CATestSuite) TestSignJWTSVIDCapsTTLToKeypairTTL() {
 	token, err := s.ca.SignJWTSVID(ctx, s.generateJSR("example.org", time.Hour))
 	s.Require().NoError(err)
-	expiresAt, err := jwtsvid.GetTokenExpiry(token)
+	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
+	s.Require().Equal(s.now, issuedAt)
 	s.Require().Equal(s.now.Add(10*time.Minute), expiresAt)
 }
 
