@@ -19,7 +19,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 - [Community](#community)
 - [Roadmap](#roadmap)
 
-> Please note that the SPIRE project is pre-alpha. It is under heavy development, and is NOT suitable for production use. See the [open issues](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/) for more information.
+> The SPIRE project is under active development. If you encounter any problems, please [open an issue](https://github.com/spiffe/spire/issues) or drop by our [Slack channel](https://slack.spiffe.io/).
 
 # Get SPIRE
 
