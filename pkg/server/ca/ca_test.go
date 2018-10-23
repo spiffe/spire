@@ -49,13 +49,13 @@ func (s *CATestSuite) SetupTest() {
 	s.now = time.Now().Truncate(time.Second).UTC()
 
 	km := memory.New()
-	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, "x509-CA-FOO", keymanager.KeyAlgorithm_ECDSA_P256)
+	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, "x509-CA-FOO", keymanager.KeyType_EC_P256)
 	s.Require().NoError(err)
 
 	cert, err := SelfSignServerCACertificate(x509CASigner, "example.org", pkix.Name{}, s.now, s.now.Add(time.Minute*10))
 	s.Require().NoError(err)
 
-	jwtSigningKeyPKIX, err := cryptoutil.GenerateKeyRaw(ctx, km, "JWT-Signer-FOO", keymanager.KeyAlgorithm_ECDSA_P256)
+	jwtSigningKeyPKIX, err := cryptoutil.GenerateKeyRaw(ctx, km, "JWT-Signer-FOO", keymanager.KeyType_EC_P256)
 	s.Require().NoError(err)
 
 	jwtSigningKey, err := caPublicKeyFromPublicKey(&common.PublicKey{

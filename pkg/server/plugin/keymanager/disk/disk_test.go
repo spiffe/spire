@@ -87,8 +87,8 @@ func (s *Suite) TestConfigureMissingPath() {
 func (s *Suite) TestGenerateKeyBeforeConfigure() {
 	m := New()
 	resp, err := m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:        "KEY",
-		KeyAlgorithm: keymanager.KeyAlgorithm_ECDSA_P256,
+		KeyId:   "KEY",
+		KeyType: keymanager.KeyType_EC_P256,
 	})
 	s.Require().EqualError(err, "keymanager(disk): not configured")
 	s.Require().Nil(resp)
@@ -97,8 +97,8 @@ func (s *Suite) TestGenerateKeyBeforeConfigure() {
 func (s *Suite) TestGenerateKeyPersistenceFailure() {
 	s.Require().NoError(os.Remove(s.keysDir()))
 	resp, err := s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:        "KEY",
-		KeyAlgorithm: keymanager.KeyAlgorithm_ECDSA_P256,
+		KeyId:   "KEY",
+		KeyType: keymanager.KeyType_EC_P256,
 	})
 	s.Require().Error(err)
 	s.Require().Contains(err.Error(), "keymanager(disk): unable to write entries")
@@ -116,8 +116,8 @@ func (s *Suite) TestGenerateKeyPersistenceFailure() {
 
 	// generate and persist the key
 	resp, err = s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:        "KEY",
-		KeyAlgorithm: keymanager.KeyAlgorithm_ECDSA_P256,
+		KeyId:   "KEY",
+		KeyType: keymanager.KeyType_EC_P256,
 	})
 	s.Require().NoError(err)
 
@@ -125,8 +125,8 @@ func (s *Suite) TestGenerateKeyPersistenceFailure() {
 	// should remain intact after the generate call fails.
 	s.Require().NoError(os.RemoveAll(s.keysDir()))
 	_, err = s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:        "KEY",
-		KeyAlgorithm: keymanager.KeyAlgorithm_ECDSA_P256,
+		KeyId:   "KEY",
+		KeyType: keymanager.KeyType_EC_P256,
 	})
 	s.Require().Error(err)
 
@@ -139,14 +139,14 @@ func (s *Suite) TestGenerateKeyPersistenceFailure() {
 
 func (s *Suite) TestGenerateKeyPersistence() {
 	resp1, err := s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:        "KEY1",
-		KeyAlgorithm: keymanager.KeyAlgorithm_ECDSA_P256,
+		KeyId:   "KEY1",
+		KeyType: keymanager.KeyType_EC_P256,
 	})
 	s.Require().NoError(err)
 
 	resp2, err := s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:        "KEY2",
-		KeyAlgorithm: keymanager.KeyAlgorithm_ECDSA_P384,
+		KeyId:   "KEY2",
+		KeyType: keymanager.KeyType_EC_P384,
 	})
 	s.Require().NoError(err)
 
