@@ -39,9 +39,8 @@ type endpoints struct {
 	c   *Config
 	mtx *sync.RWMutex
 
-	svid          *x509.Certificate
-	intermediates []*x509.Certificate
-	svidKey       *ecdsa.PrivateKey
+	svid    []*x509.Certificate
+	svidKey *ecdsa.PrivateKey
 }
 
 // ListenAndServe starts all maintenance routines and endpoints, then blocks
@@ -240,11 +239,16 @@ func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 
-	certChain := [][]byte{e.svid.Raw}
-	for _, intermediate := range e.intermediates {
-		certChain = append(certChain, intermediate.Raw)
+	certChain := [][]byte{}
+	for i, cert := range e.svid {
+		certChain = append(certChain, cert.Raw)
+		// add the intermediates into the root CA pool since we need to
+		// validate old agents that don't present intermediates with the
+		// certificate request.
 		// TODO: remove this hack in 0.8
-		caPool.AddCert(intermediate)
+		if i > 0 {
+			caPool.AddCert(cert)
+		}
 	}
 	tlsCert := tls.Certificate{
 		Certificate: certChain,
@@ -260,7 +264,6 @@ func (e *endpoints) updateSVID() {
 
 	state := e.c.SVIDStream.Value().(svid.State)
 	e.svid = state.SVID
-	e.intermediates = state.Intermediates
 	e.svidKey = state.Key
 }
 
@@ -268,8 +271,7 @@ func (e *endpoints) getSVIDState() svid.State {
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 	return svid.State{
-		SVID:          e.svid,
-		Intermediates: e.intermediates,
-		Key:           e.svidKey,
+		SVID: e.svid,
+		Key:  e.svidKey,
 	}
 }

@@ -180,7 +180,7 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 	cert := data.generatedCerts[3]
 
 	data.expectation = getExpectedFetchX509SVID(data)
-	data.expectation.Svids[data.baseSpiffeID] = makeX509SVID(cert, nil)
+	data.expectation.Svids[data.baseSpiffeID] = makeX509SVIDN(cert)
 	setFetchX509SVIDExpectations(suite, data)
 
 	suite.mockDataStore.EXPECT().FetchAttestedNode(gomock.Any(),
@@ -193,7 +193,7 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 		}, nil)
 
 	suite.mockServerCA.EXPECT().
-		SignX509SVID(gomock.Any(), data.request.Csrs[3], time.Duration(0)).Return(cert, nil, nil)
+		SignX509SVID(gomock.Any(), data.request.Csrs[3], time.Duration(0)).Return([]*x509.Certificate{cert}, nil)
 
 	suite.mockDataStore.EXPECT().
 		UpdateAttestedNode(gomock.Any(), gomock.Any()).
@@ -328,7 +328,7 @@ func setAttestExpectations(
 		Return(&datastore.FetchAttestedNodeResponse{Node: nil}, nil)
 
 	suite.mockServerCA.EXPECT().SignX509SVID(
-		gomock.Any(), data.request.Csr, time.Duration(0)).Return(data.generatedCert, nil, nil)
+		gomock.Any(), data.request.Csr, time.Duration(0)).Return([]*x509.Certificate{data.generatedCert}, nil)
 
 	suite.mockDataStore.EXPECT().CreateAttestedNode(gomock.Any(),
 		&datastore.CreateAttestedNodeRequest{
@@ -483,7 +483,7 @@ func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert *x509.
 	}
 
 	svids := make(map[string]*node.X509SVID)
-	svids[baseSpiffeID] = makeX509SVID(cert, nil)
+	svids[baseSpiffeID] = makeX509SVIDN(cert)
 
 	caCert, _, _ := util.LoadCAFixture()
 	svidUpdate := &node.X509SVIDUpdate{
@@ -659,13 +659,13 @@ func setFetchX509SVIDExpectations(
 		}, nil)
 
 	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
-		data.request.Csrs[0], durationFromTTL(data.byParentIDEntries[2].Ttl)).Return(data.generatedCerts[0], []*x509.Certificate{data.caCert}, nil)
+		data.request.Csrs[0], durationFromTTL(data.byParentIDEntries[2].Ttl)).Return([]*x509.Certificate{data.generatedCerts[0], data.caCert}, nil)
 
 	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
-		data.request.Csrs[1], durationFromTTL(data.byParentIDEntries[0].Ttl)).Return(data.generatedCerts[1], nil, nil)
+		data.request.Csrs[1], durationFromTTL(data.byParentIDEntries[0].Ttl)).Return([]*x509.Certificate{data.generatedCerts[1]}, nil)
 
 	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
-		data.request.Csrs[2], durationFromTTL(data.byParentIDEntries[1].Ttl)).Return(data.generatedCerts[2], nil, nil)
+		data.request.Csrs[2], durationFromTTL(data.byParentIDEntries[1].Ttl)).Return([]*x509.Certificate{data.generatedCerts[2]}, nil)
 
 	suite.server.EXPECT().Send(&node.FetchX509SVIDResponse{
 		SvidUpdate: data.expectation,
@@ -679,9 +679,9 @@ func setFetchX509SVIDExpectations(
 func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
 	//TODO: improve this, put it in an array in data and iterate it
 	svids := map[string]*node.X509SVID{
-		data.nodeSpiffeID:     makeX509SVID(data.generatedCerts[0], []*x509.Certificate{data.caCert}),
-		data.databaseSpiffeID: makeX509SVID(data.generatedCerts[1], nil),
-		data.blogSpiffeID:     makeX509SVID(data.generatedCerts[2], nil),
+		data.nodeSpiffeID:     makeX509SVIDN(data.generatedCerts[0], data.caCert),
+		data.databaseSpiffeID: makeX509SVIDN(data.generatedCerts[1]),
+		data.blogSpiffeID:     makeX509SVIDN(data.generatedCerts[2]),
 	}
 
 	// returned in sorted order (according to sorting rules in util.SortRegistrationEntries)
@@ -887,4 +887,8 @@ func (fl *fakeLimiter) callsFor(msgType int) int {
 	}
 
 	return 0
+}
+
+func makeX509SVIDN(svid ...*x509.Certificate) *node.X509SVID {
+	return makeX509SVID(svid)
 }

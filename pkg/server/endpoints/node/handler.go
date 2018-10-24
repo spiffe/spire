@@ -125,21 +125,21 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	h.c.Log.Debugf("Signing CSR for Agent SVID %v", baseSpiffeIDFromCSR)
-	cert, intermediates, err := h.c.ServerCA.SignX509SVID(ctx, request.Csr, 0)
+	svid, err := h.c.ServerCA.SignX509SVID(ctx, request.Csr, 0)
 	if err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to sign CSR")
 	}
 
 	if attestedBefore {
-		err = h.updateAttestationEntry(ctx, cert, baseSpiffeIDFromCSR)
+		err = h.updateAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR)
 		if err != nil {
 			h.c.Log.Error(err)
 			return errors.New("Error trying to update attestation entry")
 		}
 
 	} else {
-		err = h.createAttestationEntry(ctx, cert, baseSpiffeIDFromCSR, request.AttestationData.Type)
+		err = h.createAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR, request.AttestationData.Type)
 		if err != nil {
 			h.c.Log.Error(err)
 			return errors.New("Error trying to create attestation entry")
@@ -152,7 +152,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return errors.New("Error trying to get selectors for baseSpiffeID")
 	}
 
-	response, err := h.getAttestResponse(ctx, baseSpiffeIDFromCSR, cert, intermediates)
+	response, err := h.getAttestResponse(ctx, baseSpiffeIDFromCSR, svid)
 	if err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to compose response")
@@ -511,11 +511,11 @@ func (h *Handler) updateNodeSelectors(ctx context.Context,
 }
 
 func (h *Handler) getAttestResponse(ctx context.Context,
-	baseSpiffeID string, cert *x509.Certificate, intermediates []*x509.Certificate) (
+	baseSpiffeID string, svid []*x509.Certificate) (
 	*node.AttestResponse, error) {
 
 	svids := make(map[string]*node.X509SVID)
-	svids[baseSpiffeID] = makeX509SVID(cert, intermediates)
+	svids[baseSpiffeID] = makeX509SVID(svid)
 
 	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.DataStores()[0], baseSpiffeID)
 	if err != nil {
@@ -633,20 +633,20 @@ func (h *Handler) buildSVID(ctx context.Context,
 		return nil, err
 	}
 
-	cert, intermediates, err := h.c.ServerCA.SignX509SVID(ctx, csr, time.Duration(entry.Ttl)*time.Second)
+	svid, err := h.c.ServerCA.SignX509SVID(ctx, csr, time.Duration(entry.Ttl)*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	return makeX509SVID(cert, intermediates), nil
+	return makeX509SVID(svid), nil
 }
 
 func (h *Handler) buildBaseSVID(ctx context.Context, csr []byte) (*node.X509SVID, *x509.Certificate, error) {
-	cert, intermediates, err := h.c.ServerCA.SignX509SVID(ctx, csr, 0)
+	svid, err := h.c.ServerCA.SignX509SVID(ctx, csr, 0)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return makeX509SVID(cert, intermediates), cert, nil
+	return makeX509SVID(svid), svid[0], nil
 }
 
 func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common.RegistrationEntry) (map[string]*common.Bundle, error) {
@@ -760,15 +760,14 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 	return spiffeID.String(), nil
 }
 
-func makeX509SVID(cert *x509.Certificate, intermediates []*x509.Certificate) *node.X509SVID {
-	var chainBytes []byte
-	chainBytes = append(chainBytes, cert.Raw...)
-	for _, intermediate := range intermediates {
-		chainBytes = append(chainBytes, intermediate.Raw...)
+func makeX509SVID(svid []*x509.Certificate) *node.X509SVID {
+	var certChain []byte
+	for _, cert := range svid {
+		certChain = append(certChain, cert.Raw...)
 	}
 	return &node.X509SVID{
-		DEPRECATEDCert: cert.Raw,
-		CertChain:      chainBytes,
-		ExpiresAt:      cert.NotAfter.Unix(),
+		DEPRECATEDCert: svid[0].Raw,
+		CertChain:      certChain,
+		ExpiresAt:      svid[0].NotAfter.Unix(),
 	}
 }

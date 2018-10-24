@@ -30,7 +30,7 @@ type serverCAConfig struct {
 }
 
 type ServerCA interface {
-	SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) (*x509.Certificate, []*x509.Certificate, error)
+	SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error)
 	SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error)
 }
 
@@ -66,10 +66,10 @@ func (ca *serverCA) getKeypairSet() *keypairSet {
 	return ca.kp
 }
 
-func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) (*x509.Certificate, []*x509.Certificate, error) {
+func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error) {
 	kp := ca.getKeypairSet()
 	if kp == nil || kp.x509CA == nil || kp.x509CA.cert == nil {
-		return nil, nil, errors.New("no X509-SVID keypair available")
+		return nil, errors.New("no X509-SVID keypair available")
 	}
 
 	now := ca.hooks.now()
@@ -86,18 +86,20 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 
 	template, err := CreateX509SVIDTemplate(csrDER, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	km := ca.c.Catalog.KeyManagers()[0]
 	cert, err := x509util.CreateCertificate(ctx, km, template, kp.x509CA.cert, kp.X509CAKeyID(), template.PublicKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	// the chain contains every cert from the ca to the root that signed the
-	// ca. return all but the root as the list of intermediates.
-	return cert, kp.x509CA.chain[:len(kp.x509CA.chain)-1], nil
+	// build and return the certificate chain, starting with the newly signed cert and any
+	// intermediates back to the signing root of the keypair. the keypair chain
+	// is a full chain from the ca back to the signing root, so all but the
+	// last element (i.e., the signing root) form the list of intermediates.
+	return append([]*x509.Certificate{cert}, kp.x509CA.chain[:len(kp.x509CA.chain)-1]...), nil
 }
 
 func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {

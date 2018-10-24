@@ -171,7 +171,7 @@ func (s *EndpointsTestSuite) TestSVIDObserver() {
 
 	// update the SVID property
 	expectedState := svid.State{
-		SVID: &x509.Certificate{Subject: pkix.Name{CommonName: "COMMONNAME"}},
+		SVID: []*x509.Certificate{{Subject: pkix.Name{CommonName: "COMMONNAME"}}},
 	}
 	s.svidState.Update(expectedState)
 
@@ -212,7 +212,7 @@ func (s *EndpointsTestSuite) configureBundle() ([]tls.Certificate, *x509.CertPoo
 	caPool := x509.NewCertPool()
 	caPool.AddCert(ca)
 
-	s.e.svid = svid
+	s.e.svid = []*x509.Certificate{svid}
 	s.e.svidKey = svidKey
 	return []tls.Certificate{
 		{
