@@ -101,7 +101,7 @@ func (m *ManagerTestSuite) advanceTime(d time.Duration) {
 }
 
 func (m *ManagerTestSuite) loadKeypairSets() (a, b *keypairSet) {
-	certs, publicKeys, err := loadKeypairData(m.certsPath(), nil)
+	certs, publicKeys, err := m.m.loadKeypairData(m.certsPath(), nil)
 	m.Require().NoError(err)
 	xa := certs["x509-CA-A"]
 	ja := publicKeys["JWT-Signer-A"]
@@ -294,7 +294,7 @@ func (m *ManagerTestSuite) requireBundleRootCAs(expectedCerts ...*x509.Certifica
 		TrustDomainId: m.m.c.TrustDomain.String(),
 	})
 	m.Require().NoError(err)
-	m.Require().NotNil(resp.Bundle)
+	m.Require().NotNil(resp.Bundle, "missing bundle for domain %q", m.m.c.TrustDomain.String())
 	m.Require().Equal(expected, resp.Bundle.RootCas)
 }
 

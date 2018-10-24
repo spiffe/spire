@@ -10,6 +10,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	uuid "github.com/satori/go.uuid"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
@@ -90,6 +91,25 @@ func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundl
 	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
 
 	return &datastore.UpdateBundleResponse{
+		Bundle: cloneBundle(bundle),
+	}, nil
+}
+
+// AppendBundle updates an existing bundle with the given CAs. Overwrites any
+// existing certificates.
+func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	bundle := req.Bundle
+
+	if existingBundle, ok := s.bundles[bundle.TrustDomainId]; ok {
+		bundle, _ = bundleutil.MergeBundles(existingBundle, bundle)
+	}
+
+	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
+
+	return &datastore.AppendBundleResponse{
 		Bundle: cloneBundle(bundle),
 	}, nil
 }

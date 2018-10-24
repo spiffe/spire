@@ -35,6 +35,19 @@ func (m *MockDataStore) EXPECT() *MockDataStoreMockRecorder {
 	return m.recorder
 }
 
+// AppendBundle mocks base method
+func (m *MockDataStore) AppendBundle(arg0 context.Context, arg1 *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
+	ret := m.ctrl.Call(m, "AppendBundle", arg0, arg1)
+	ret0, _ := ret[0].(*datastore.AppendBundleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AppendBundle indicates an expected call of AppendBundle
+func (mr *MockDataStoreMockRecorder) AppendBundle(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendBundle", reflect.TypeOf((*MockDataStore)(nil).AppendBundle), arg0, arg1)
+}
+
 // CreateAttestedNode mocks base method
 func (m *MockDataStore) CreateAttestedNode(arg0 context.Context, arg1 *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
 	ret := m.ctrl.Call(m, "CreateAttestedNode", arg0, arg1)
@@ -329,6 +342,19 @@ func NewMockPlugin(ctrl *gomock.Controller) *MockPlugin {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockPlugin) EXPECT() *MockPluginMockRecorder {
 	return m.recorder
+}
+
+// AppendBundle mocks base method
+func (m *MockPlugin) AppendBundle(arg0 context.Context, arg1 *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
+	ret := m.ctrl.Call(m, "AppendBundle", arg0, arg1)
+	ret0, _ := ret[0].(*datastore.AppendBundleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AppendBundle indicates an expected call of AppendBundle
+func (mr *MockPluginMockRecorder) AppendBundle(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendBundle", reflect.TypeOf((*MockPlugin)(nil).AppendBundle), arg0, arg1)
 }
 
 // Configure mocks base method

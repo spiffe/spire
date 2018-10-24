@@ -87,11 +87,11 @@ func (s *TokenSuite) TestSignWithNoExpiration() {
 func (s *TokenSuite) TestSignInvalidSpiffeID() {
 	// missing ID
 	_, err := SignToken("", fakeAudience, time.Now(), s.key, "kid")
-	s.requireErrorContains(err, "is not a valid SPIFFE ID: SPIFFE ID is empty")
+	s.requireErrorContains(err, "is not a valid workload SPIFFE ID: SPIFFE ID is empty")
 
 	// not a spiffe ID
 	_, err = SignToken("sparfe://example.org", fakeAudience, time.Now(), s.key, "kid")
-	s.requireErrorContains(err, "is not a valid SPIFFE ID: invalid scheme")
+	s.requireErrorContains(err, "is not a valid workload SPIFFE ID: invalid scheme")
 }
 
 func (s *TokenSuite) TestSignNoAudience() {

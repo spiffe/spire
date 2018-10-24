@@ -836,18 +836,6 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.EqualError(t, err, `caller "spiffe://example.org/spire/agent/join_token/token" is not authorized for "spiffe://example.org/db"`)
 	require.Nil(t, resp)
 
-	// authorized for ones self
-	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
-		Jsr: &node.JSR{
-			SpiffeId: "spiffe://example.org/spire/agent/join_token/token",
-			Audience: []string{"AUDIENCE"},
-		},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.NotEmpty(t, resp.Svid.Token)
-	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
-
 	// authorized against a registration entry
 	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
 		Jsr: &node.JSR{

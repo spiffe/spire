@@ -14,6 +14,7 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -84,6 +85,16 @@ func (ds *sqlPlugin) CreateBundle(ctx context.Context, req *datastore.CreateBund
 func (ds *sqlPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateBundle(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (ds *sqlPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
+	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = appendBundle(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -457,6 +468,50 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 
 	return &datastore.UpdateBundleResponse{
 		Bundle: req.Bundle,
+	}, nil
+}
+
+func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
+	newModel, err := bundleToModel(req.Bundle)
+	if err != nil {
+		return nil, err
+	}
+
+	// fetch existing or create new
+	model := &Bundle{}
+	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
+	if result.RecordNotFound() {
+		resp, err := createBundle(tx, &datastore.CreateBundleRequest{Bundle: req.Bundle})
+		if err != nil {
+			return nil, err
+		}
+		return &datastore.AppendBundleResponse{
+			Bundle: resp.Bundle,
+		}, nil
+	} else if result.Error != nil {
+		return nil, sqlError.Wrap(result.Error)
+	}
+
+	// parse the bundle data and add missing elements
+	bundle, err := modelToBundle(model)
+	if err != nil {
+		return nil, err
+	}
+
+	bundle, changed := bundleutil.MergeBundles(bundle, req.Bundle)
+	if changed {
+		newModel, err := bundleToModel(bundle)
+		if err != nil {
+			return nil, err
+		}
+		model.Data = newModel.Data
+		if err := tx.Save(model).Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+	}
+
+	return &datastore.AppendBundleResponse{
+		Bundle: bundle,
 	}, nil
 }
 

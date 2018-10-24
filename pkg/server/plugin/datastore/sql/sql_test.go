@@ -130,6 +130,32 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.True(proto.Equal(bundle, lresp.Bundles[0]))
 
 	bundle2 := bundleutil.BundleProtoFromRootCA(bundle.TrustDomainId, s.cacert)
+	appendedBundle := bundleutil.BundleProtoFromRootCAs(bundle.TrustDomainId,
+		[]*x509.Certificate{s.cert, s.cacert})
+
+	// append
+	aresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+		Bundle: bundle2,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(aresp.Bundle)
+	s.True(proto.Equal(appendedBundle, aresp.Bundle))
+
+	// append identical
+	aresp, err = s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+		Bundle: bundle2,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(aresp.Bundle)
+	s.True(proto.Equal(appendedBundle, aresp.Bundle))
+
+	// append on a new bundle
+	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cacert)
+	anresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+		Bundle: bundle3,
+	})
+	s.Require().NoError(err)
+	s.True(proto.Equal(bundle3, anresp.Bundle))
 
 	// update
 	uresp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
@@ -140,8 +166,9 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
-	s.Equal(1, len(lresp.Bundles))
+	s.Equal(2, len(lresp.Bundles))
 	s.True(proto.Equal(bundle2, lresp.Bundles[0]))
+	s.True(proto.Equal(bundle3, lresp.Bundles[1]))
 
 	// delete
 	dresp, err := s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
@@ -152,7 +179,8 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
-	s.Equal(0, len(lresp.Bundles))
+	s.Equal(1, len(lresp.Bundles))
+	s.True(proto.Equal(bundle3, lresp.Bundles[0]))
 }
 
 func (s *PluginSuite) TestCreateAttestedNode() {

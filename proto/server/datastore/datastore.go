@@ -16,6 +16,7 @@ type DataStore interface {
 	FetchBundle(context.Context, *FetchBundleRequest) (*FetchBundleResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
 	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
+	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
 	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
 	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
 	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
@@ -41,6 +42,7 @@ type Plugin interface {
 	FetchBundle(context.Context, *FetchBundleRequest) (*FetchBundleResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
 	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
+	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
 	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
 	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
 	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
@@ -100,6 +102,14 @@ func (b BuiltIn) ListBundles(ctx context.Context, req *ListBundlesRequest) (*Lis
 
 func (b BuiltIn) UpdateBundle(ctx context.Context, req *UpdateBundleRequest) (*UpdateBundleResponse, error) {
 	resp, err := b.plugin.UpdateBundle(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (b BuiltIn) AppendBundle(ctx context.Context, req *AppendBundleRequest) (*AppendBundleResponse, error) {
+	resp, err := b.plugin.AppendBundle(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -301,6 +311,9 @@ func (s *GRPCServer) ListBundles(ctx context.Context, req *ListBundlesRequest) (
 func (s *GRPCServer) UpdateBundle(ctx context.Context, req *UpdateBundleRequest) (*UpdateBundleResponse, error) {
 	return s.Plugin.UpdateBundle(ctx, req)
 }
+func (s *GRPCServer) AppendBundle(ctx context.Context, req *AppendBundleRequest) (*AppendBundleResponse, error) {
+	return s.Plugin.AppendBundle(ctx, req)
+}
 func (s *GRPCServer) DeleteBundle(ctx context.Context, req *DeleteBundleRequest) (*DeleteBundleResponse, error) {
 	return s.Plugin.DeleteBundle(ctx, req)
 }
@@ -374,6 +387,9 @@ func (c *GRPCClient) ListBundles(ctx context.Context, req *ListBundlesRequest) (
 }
 func (c *GRPCClient) UpdateBundle(ctx context.Context, req *UpdateBundleRequest) (*UpdateBundleResponse, error) {
 	return c.client.UpdateBundle(ctx, req)
+}
+func (c *GRPCClient) AppendBundle(ctx context.Context, req *AppendBundleRequest) (*AppendBundleResponse, error) {
+	return c.client.AppendBundle(ctx, req)
 }
 func (c *GRPCClient) DeleteBundle(ctx context.Context, req *DeleteBundleRequest) (*DeleteBundleResponse, error) {
 	return c.client.DeleteBundle(ctx, req)

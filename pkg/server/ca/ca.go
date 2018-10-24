@@ -68,7 +68,7 @@ func (ca *serverCA) getKeypairSet() *keypairSet {
 
 func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) (*x509.Certificate, []*x509.Certificate, error) {
 	kp := ca.getKeypairSet()
-	if kp == nil || kp.x509CA == nil {
+	if kp == nil || kp.x509CA == nil || kp.x509CA.cert == nil {
 		return nil, nil, errors.New("no X509-SVID keypair available")
 	}
 

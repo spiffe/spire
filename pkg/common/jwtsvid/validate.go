@@ -33,33 +33,38 @@ func (t *trustBundle) TrustDomain() string {
 }
 
 func (t *trustBundle) FindPublicKey(ctx context.Context, kid string) (crypto.PublicKey, error) {
-	publicKey := t.publicKeys[kid]
-	if publicKey == nil {
+	publicKey, ok := t.publicKeys[kid]
+	if !ok {
 		return nil, errors.New("public key not found in trust bundle")
 	}
 	return publicKey, nil
 }
 
+func getSigningKey(ctx context.Context, t *jwt.Token, trustBundle TrustBundle) (interface{}, error) {
+	if t.Method.Alg() != jwt.SigningMethodES256.Alg() {
+		return nil, fmt.Errorf("unexpected token signature algorithm: %s", t.Method.Alg())
+	}
+	kid, _ := t.Header[keyIDHeader].(string)
+	if kid == "" {
+		return nil, errors.New("token missing key id")
+	}
+	return trustBundle.FindPublicKey(ctx, kid)
+}
+
 func ValidateToken(ctx context.Context, token string, trustBundle TrustBundle, audience string) (jwt.MapClaims, error) {
 	claims := make(jwt.MapClaims)
 	if _, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
-		if t.Method.Alg() != jwt.SigningMethodES256.Alg() {
-			return nil, fmt.Errorf("unexpected token signature algorithm: %s", t.Method.Alg())
-		}
-		kid, _ := t.Header[keyIDHeader].(string)
-		if kid == "" {
-			return nil, errors.New("token missing key id")
-		}
-		sub, _ := claims["sub"].(string)
-		if sub == "" {
-			return nil, errors.New("token missing subject claim")
-		}
-		if err := idutil.ValidateSpiffeID(sub, idutil.AllowTrustDomainWorkload(trustBundle.TrustDomain())); err != nil {
-			return nil, fmt.Errorf("token has in invalid subject claim: %v", err)
-		}
-		return trustBundle.FindPublicKey(ctx, kid)
+		return getSigningKey(ctx, t, trustBundle)
 	}); err != nil {
 		return nil, err
+	}
+
+	sub, _ := claims["sub"].(string)
+	if sub == "" {
+		return nil, errors.New("token missing subject claim")
+	}
+	if err := idutil.ValidateSpiffeID(sub, idutil.AllowTrustDomainWorkload(trustBundle.TrustDomain())); err != nil {
+		return nil, fmt.Errorf("token has in invalid subject claim: %v", err)
 	}
 
 	switch audienceClaim := claims["aud"].(type) {

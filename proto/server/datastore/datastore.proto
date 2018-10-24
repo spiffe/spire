@@ -41,6 +41,14 @@ message UpdateBundleResponse {
     spire.common.Bundle bundle = 1;
 }
 
+message AppendBundleRequest {
+    spire.common.Bundle bundle = 1;
+}
+
+message AppendBundleResponse {
+    spire.common.Bundle bundle = 1;
+}
+
 message DeleteBundleRequest {
     // Mode controls the delete behavior if there are other records
     // associated with the bundle (e.g. registration entries).
@@ -264,6 +272,8 @@ service DataStore {
     rpc ListBundles(ListBundlesRequest) returns (ListBundlesResponse);
     // Updates a specific bundle
     rpc UpdateBundle(UpdateBundleRequest) returns (UpdateBundleResponse);
+    // Appends contents from a specific bundle (creates if it does not exist)
+    rpc AppendBundle(AppendBundleRequest) returns (AppendBundleResponse);
     // Deletes a specific bundle
     rpc DeleteBundle(DeleteBundleRequest) returns (DeleteBundleResponse);
 

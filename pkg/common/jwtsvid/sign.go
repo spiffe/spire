@@ -14,7 +14,7 @@ const (
 )
 
 func SignToken(spiffeID string, audience []string, expires time.Time, signer crypto.Signer, kid string) (string, error) {
-	if err := idutil.ValidateSpiffeID(spiffeID, idutil.AllowAny()); err != nil {
+	if err := idutil.ValidateSpiffeID(spiffeID, idutil.AllowAnyTrustDomainWorkload()); err != nil {
 		return "", err
 	}
 

@@ -45,6 +45,8 @@
   
 
 - [datastore.proto](#datastore.proto)
+    - [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest)
+    - [AppendBundleResponse](#spire.server.datastore.AppendBundleResponse)
     - [AttestedNode](#spire.server.datastore.AttestedNode)
     - [BySelectors](#spire.server.datastore.BySelectors)
     - [CreateAttestedNodeRequest](#spire.server.datastore.CreateAttestedNodeRequest)
@@ -531,6 +533,36 @@ Represents a type with a list of Selector.
 <p align="right"><a href="#top">Top</a></p>
 
 ## datastore.proto
+
+
+
+<a name="spire.server.datastore.AppendBundleRequest"/>
+
+### AppendBundleRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.AppendBundleResponse"/>
+
+### AppendBundleResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
+
+
+
 
 
 
@@ -1263,6 +1295,7 @@ associated with the bundle (e.g. registration entries).
 | FetchBundle | [FetchBundleRequest](#spire.server.datastore.FetchBundleRequest) | [FetchBundleResponse](#spire.server.datastore.FetchBundleRequest) | Fetches a specific bundle |
 | ListBundles | [ListBundlesRequest](#spire.server.datastore.ListBundlesRequest) | [ListBundlesResponse](#spire.server.datastore.ListBundlesRequest) | Lists bundles (optionally filtered) |
 | UpdateBundle | [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest) | [UpdateBundleResponse](#spire.server.datastore.UpdateBundleRequest) | Updates a specific bundle |
+| AppendBundle | [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest) | [AppendBundleResponse](#spire.server.datastore.AppendBundleRequest) | Appends contents from a specific bundle (creates if it does not exist) |
 | DeleteBundle | [DeleteBundleRequest](#spire.server.datastore.DeleteBundleRequest) | [DeleteBundleResponse](#spire.server.datastore.DeleteBundleRequest) | Deletes a specific bundle |
 | CreateAttestedNode | [CreateAttestedNodeRequest](#spire.server.datastore.CreateAttestedNodeRequest) | [CreateAttestedNodeResponse](#spire.server.datastore.CreateAttestedNodeRequest) | Creates an attested node |
 | FetchAttestedNode | [FetchAttestedNodeRequest](#spire.server.datastore.FetchAttestedNodeRequest) | [FetchAttestedNodeResponse](#spire.server.datastore.FetchAttestedNodeRequest) | Fetches a specific attested node |

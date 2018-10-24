@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"fmt"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/zeebo/errs"
 )
@@ -48,4 +49,36 @@ func RootCAsFromBundleProto(b *common.Bundle) (out []*x509.Certificate, err erro
 		out = append(out, cert)
 	}
 	return out, nil
+}
+
+func MergeBundles(a, b *common.Bundle) (*common.Bundle, bool) {
+	c := cloneBundle(a)
+
+	rootCAs := make(map[string]bool)
+	for _, rootCA := range a.RootCas {
+		rootCAs[rootCA.String()] = true
+	}
+	jwtSigningKeys := make(map[string]bool)
+	for _, jwtSigningKey := range a.JwtSigningKeys {
+		jwtSigningKeys[jwtSigningKey.String()] = true
+	}
+
+	var changed bool
+	for _, rootCA := range b.RootCas {
+		if !rootCAs[rootCA.String()] {
+			c.RootCas = append(c.RootCas, rootCA)
+			changed = true
+		}
+	}
+	for _, jwtSigningKey := range b.JwtSigningKeys {
+		if !jwtSigningKeys[jwtSigningKey.String()] {
+			c.JwtSigningKeys = append(c.JwtSigningKeys, jwtSigningKey)
+			changed = true
+		}
+	}
+	return c, changed
+}
+
+func cloneBundle(b *common.Bundle) *common.Bundle {
+	return proto.Clone(b).(*common.Bundle)
 }
