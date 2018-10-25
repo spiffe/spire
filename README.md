@@ -44,7 +44,7 @@ Get the latest tarball from [here](https://github.com/spiffe/spire/releases) and
 
     $ sudo tar zvxf {your_downloaded_tarball.tar.gz}
     $ sudo cp -r spire-0.2/. /opt/spire/
-    # the name spire-0.2 might change depending on the tarball version downloaded
+    # Replace "spire-0.2" with the version downloaded
     $ sudo chmod -R 777 /opt/spire/
 
 Add **spire-server** and **spire-agent** to our $PATH for convenience:
@@ -94,7 +94,7 @@ Start your server.
     $ spire-server run \
         -config /opt/spire/conf/server/server.conf
 
-In a different terminal generate a one time Join Token via **spire-server token generate** sub commmand. Use the **-spiffeID** option to associate the Join Token with **spiffe://example.org/host** SPIFFE ID.
+In a different terminal generate a one time Join Token via **spire-server token generate** sub command. Use the **-spiffeID** option to associate the Join Token with **spiffe://example.org/host** SPIFFE ID.
 
     $ spire-server token generate \
         -spiffeID spiffe://example.org/host
@@ -202,7 +202,7 @@ Optionally, you may write the SVID and key to disk with `-write` in order to exa
 
 # Getting Help
 
-If you have any questions about how SPIRE works, or how to get it up and running, the best place to ask questions is the [SPIRE Slack Organization](https://slack.spiffe.io/). Most of the maintainers monitor the #spire channel there, and can help direct you to other channels if need be. Please feel free to drop by any time!
+If you have any questions about how SPIRE works, or how to get it up and running, the best place to ask questions is the [SPIFFE Slack Organization](https://slack.spiffe.io/). Most of the maintainers monitor the #spire channel there, and can help direct you to other channels if need be. Please feel free to drop by any time!
 
 # Community
 
