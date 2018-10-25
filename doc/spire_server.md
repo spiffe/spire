@@ -63,7 +63,7 @@ All of the configuration file above options have identical command-line counterp
 ### `spire-server token generate`
 
 Generates one node join token and creates a registration entry for it. This token can be used to
-bootstrap one spire-agent installation. The optional `-spiffeID` can be used to give the tooken a
+bootstrap one spire-agent installation. The optional `-spiffeID` can be used to give the token a
 human-readable registration entry name in addition to the token-based entry.
 
 | Command       | Action                                                    | Default        |
@@ -80,7 +80,7 @@ Creates registration entries.
 |:-----------------|:-----------------------------------------------------------------------|:---------------|
 | `-data`          | Path to a file containing registration data in JSON format (optional). |                |
 | `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |
-| `-selector`      | A colon-delimeted type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
+| `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
 | `-serverAddr`    | Address of the SPIRE server.                                           | localhost:8081 |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
@@ -112,7 +112,7 @@ Displays configured registration entries.
 
 Displays the bundle for the trust domain of the server.
 
-| Command       | 
+| Command       |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-serverAddr` | Address of the SPIRE server.                                       | localhost:8081 |
 
