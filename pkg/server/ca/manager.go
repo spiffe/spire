@@ -1,6 +1,7 @@
 package ca
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -13,18 +14,22 @@ import (
 	"math/big"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/diskutil"
-	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
+	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/keymanager"
 	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/zeebo/errs"
 )
 
 const (
@@ -57,23 +62,43 @@ type Manager interface {
 	CA() ServerCA
 }
 
-type keypairSet struct {
-	slot      string
-	x509CA    *x509.Certificate
-	jwtSigner *x509.Certificate
+type caX509CA struct {
+	// the CA certificate
+	cert *x509.Certificate
+
+	// this is the full chain of trust from the server CA back to the upstream
+	// CA. If the server CA is self-signed, this list will only contain the
+	// server CA certificate.
+	chain []*x509.Certificate
 }
 
-func (k *keypairSet) X509CAKeyId() string {
+type caPublicKey struct {
+	*common.PublicKey
+
+	// public key parsed from the common.PublicKey message
+	publicKey crypto.PublicKey
+
+	// parsed "notAfter" time from the common.PublicKey message
+	notAfter time.Time
+}
+
+type keypairSet struct {
+	slot          string
+	x509CA        *caX509CA
+	jwtSigningKey *caPublicKey
+}
+
+func (k *keypairSet) X509CAKeyID() string {
 	return fmt.Sprintf("x509-CA-%s", k.slot)
 }
 
-func (k *keypairSet) JWTSignerKeyId() string {
+func (k *keypairSet) JWTSignerKeyID() string {
 	return fmt.Sprintf("JWT-Signer-%s", k.slot)
 }
 
 func (k *keypairSet) Reset() {
 	k.x509CA = nil
-	k.jwtSigner = nil
+	k.jwtSigningKey = nil
 }
 
 type manager struct {
@@ -208,47 +233,64 @@ func (m *manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 func (m *manager) pruneBundle(ctx context.Context) error {
 	ds := m.c.Catalog.DataStores()[0]
 
+	now := m.hooks.now().Add(-safetyThreshold)
+
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomain: m.c.TrustDomain.String(),
+		TrustDomainId: m.c.TrustDomain.String(),
 	})
 	if err != nil {
-		return fmt.Errorf("fetch bundle: %v", err)
-	}
-	if resp.Bundle == nil {
-		return errors.New("bundle not found")
+		return errs.Wrap(err)
 	}
 	oldBundle := resp.Bundle
+	if oldBundle == nil {
+		// no bundle to prune
+		return nil
+	}
 
 	newBundle := &datastore.Bundle{
-		TrustDomain: oldBundle.TrustDomain,
-		CaCerts:     []byte{},
+		TrustDomainId: oldBundle.TrustDomainId,
 	}
-
-	certs, err := x509.ParseCertificates(oldBundle.CaCerts)
-	if err != nil {
-		return fmt.Errorf("parse bundle from datastore: %v", err)
-	}
-
-	var reload bool
-	for _, c := range certs {
-		// Be gentle while removing CA certificates
-		// If expired < 24hrs ago, keep it.
-		// TODO: should this be relaxed even further?
-		if c.NotAfter.After(m.hooks.now().Add(-safetyThreshold)) {
-			newBundle.CaCerts = append(newBundle.CaCerts, c.Raw...)
-		} else {
-			reload = true
-			m.c.Log.Infof("Manager is pruning CA certificate number %v with expiry date %v", c.SerialNumber, c.NotAfter)
+	changed := false
+pruneRootCA:
+	for _, rootCA := range oldBundle.RootCas {
+		certs, err := x509.ParseCertificates(rootCA.DerBytes)
+		if err != nil {
+			return errs.Wrap(err)
 		}
+		// if any cert in the chain has expired beyond the safety
+		// threshhold, throw the whole chain out
+		for _, cert := range certs {
+			if !cert.NotAfter.After(now) {
+				m.c.Log.Infof("Manager is pruning CA certificate number %v with expiry date %v", cert.SerialNumber, cert.NotAfter)
+				changed = true
+				continue pruneRootCA
+			}
+		}
+		newBundle.RootCas = append(newBundle.RootCas, rootCA)
 	}
 
-	if len(newBundle.CaCerts) == 0 {
+	for _, jwtSigningKey := range oldBundle.JwtSigningKeys {
+		notAfter := time.Unix(jwtSigningKey.NotAfter, 0)
+		if !notAfter.After(now) {
+			m.c.Log.Infof("Manager is pruning JWT signing key %q with expiry date %v", jwtSigningKey.Kid, notAfter)
+			changed = true
+			continue
+		}
+		newBundle.JwtSigningKeys = append(newBundle.JwtSigningKeys, jwtSigningKey)
+	}
+
+	if len(newBundle.RootCas) == 0 {
 		m.c.Log.Warn("Manager pruning halted; all known CA certificates have expired")
 		return errors.New("would prune all certificates")
 	}
 
-	if reload {
-		_, err = ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
+	if len(newBundle.JwtSigningKeys) == 0 {
+		m.c.Log.Warn("Manager pruning halted; all known JWT signing keys have expired")
+		return errors.New("would prune all JWT signing keys")
+	}
+
+	if changed {
+		_, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
 			Bundle: newBundle,
 		})
 		if err != nil {
@@ -259,14 +301,19 @@ func (m *manager) pruneBundle(ctx context.Context) error {
 	return nil
 }
 
-func (m *manager) appendBundle(ctx context.Context, caCerts []byte) error {
-	bundle := &datastore.Bundle{
-		TrustDomain: m.c.TrustDomain.String(),
-		CaCerts:     caCerts,
-	}
-
+func (m *manager) appendBundle(ctx context.Context, rootCA *x509.Certificate, jwtSigningKey *common.PublicKey) error {
 	ds := m.c.Catalog.DataStores()[0]
-	if _, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{Bundle: bundle}); err != nil {
+	if _, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+		Bundle: &common.Bundle{
+			TrustDomainId: m.c.TrustDomain.String(),
+			RootCas: []*common.Certificate{
+				{DerBytes: rootCA.Raw},
+			},
+			JwtSigningKeys: []*common.PublicKey{
+				jwtSigningKey,
+			},
+		},
+	}); err != nil {
 		return err
 	}
 
@@ -282,50 +329,63 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) error 
 	notAfter := now.Add(m.c.CATTL)
 
 	km := m.c.Catalog.KeyManagers()[0]
-	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, kps.X509CAKeyId(), keymanager.KeyAlgorithm_ECDSA_P384)
+	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, kps.X509CAKeyID(), keymanager.KeyAlgorithm_ECDSA_P384)
 	if err != nil {
 		return err
 	}
 
 	// either self-sign or sign with the upstream CA
-	var x509CA *x509.Certificate
-	var upstreamBundle []byte
+	var cert *x509.Certificate
+	var upstreamBundle []*x509.Certificate
 	if upstreamCAs := m.c.Catalog.UpstreamCAs(); len(upstreamCAs) > 0 {
-		x509CA, upstreamBundle, err = UpstreamSignServerCACertificate(ctx, upstreamCAs[0], x509CASigner, m.c.TrustDomain.Host, m.c.CASubject)
+		cert, upstreamBundle, err = UpstreamSignServerCACertificate(ctx, upstreamCAs[0], x509CASigner, m.c.TrustDomain.Host, m.c.CASubject)
 		if err != nil {
 			return err
 		}
 	} else {
-		x509CA, err = SelfSignServerCACertificate(x509CASigner, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
+		cert, err = SelfSignServerCACertificate(x509CASigner, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
 		if err != nil {
 			return err
 		}
 	}
 
-	jwtSignerPublicKey, err := cryptoutil.GenerateKey(ctx, km, kps.JWTSignerKeyId(), keymanager.KeyAlgorithm_ECDSA_P256)
+	jwtSigningKeyPKIX, err := cryptoutil.GenerateKeyRaw(ctx, km, kps.JWTSignerKeyID(), keymanager.KeyAlgorithm_ECDSA_P256)
 	if err != nil {
 		return err
 	}
 
-	// Sign the JWT signer using the server CA
-	jwtSigner, err := SignJWTSignerCertificate(jwtSignerPublicKey, x509CA, x509CASigner)
+	kid, err := newKeyID()
 	if err != nil {
 		return err
 	}
 
-	bundle := make([]byte, 0, len(x509CA.Raw)+len(jwtSigner.Raw)+len(upstreamBundle))
-	if m.c.UpstreamBundle {
-		bundle = append(bundle, upstreamBundle...)
-	}
-	bundle = append(bundle, x509CA.Raw...)
-	bundle = append(bundle, jwtSigner.Raw...)
-
-	if err := m.appendBundle(ctx, bundle); err != nil {
+	jwtSigningKey, err := caPublicKeyFromPublicKey(&common.PublicKey{
+		PkixBytes: jwtSigningKeyPKIX,
+		Kid:       kid,
+		NotAfter:  cert.NotAfter.Unix(),
+	})
+	if err != nil {
 		return err
 	}
 
-	kps.x509CA = x509CA
-	kps.jwtSigner = jwtSigner
+	// The root CA added to the bundle is either the upstream "root" or the
+	// newly signed server CA.
+	rootCA := cert
+	chain := []*x509.Certificate{cert}
+	if m.c.UpstreamBundle && len(upstreamBundle) > 0 {
+		rootCA = upstreamBundle[len(upstreamBundle)-1]
+		chain = append(chain, upstreamBundle...)
+	}
+
+	if err := m.appendBundle(ctx, rootCA, jwtSigningKey.PublicKey); err != nil {
+		return err
+	}
+
+	kps.x509CA = &caX509CA{
+		cert:  cert,
+		chain: chain,
+	}
+	kps.jwtSigningKey = jwtSigningKey
 	m.writeKeypairSets()
 	return nil
 }
@@ -336,41 +396,66 @@ func (m *manager) loadKeypairSets(ctx context.Context) error {
 	}
 
 	km := m.c.Catalog.KeyManagers()[0]
-	publicKeys, err := loadPublicKeys(ctx, km)
+	keys, err := loadKeyManagerKeys(ctx, km)
 	if err != nil {
 		return err
 	}
 
-	certificates, err := loadCertificates(m.c.CertsPath)
+	ds := m.c.Catalog.DataStores()[0]
+	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: m.c.TrustDomain.String(),
+	})
+	if err != nil {
+		return errs.Wrap(err)
+	}
+
+	var rootCAs []*x509.Certificate
+	if resp.Bundle != nil {
+		rootCAs, err = bundleutil.RootCAsFromBundleProto(resp.Bundle)
+		if err != nil {
+			return err
+		}
+	}
+
+	x509CAs, publicKeys, err := m.loadKeypairData(m.c.CertsPath, rootCAs)
 	if err != nil {
 		return err
 	}
 
-	lookup := func(keyId string) *x509.Certificate {
-		certificate := certificates[keyId]
-		publicKey := publicKeys[keyId]
-		if certificate != nil && publicKey != nil && certMatchesKey(certificate, publicKey) {
-			return certificate
+	lookupX509CA := func(keyID string) *caX509CA {
+		x509CA := x509CAs[keyID]
+		key := keys[keyID]
+		if x509CA != nil && key != nil && certMatchesKey(x509CA.cert, key) {
+			return x509CA
+		}
+		return nil
+	}
+
+	lookupPublicKey := func(keyID string) *caPublicKey {
+		publicKey := publicKeys[keyID]
+		key := keys[keyID]
+		if publicKey != nil && key != nil && publicKeyEqual(publicKey.publicKey, key) {
+			return publicKey
 		}
 		return nil
 	}
 
 	// load up the current keypair set and make sure it has all required certs
-	m.current.x509CA = lookup(m.current.X509CAKeyId())
-	m.current.jwtSigner = lookup(m.current.JWTSignerKeyId())
-	if m.current.x509CA == nil || m.current.jwtSigner == nil {
+	m.current.x509CA = lookupX509CA(m.current.X509CAKeyID())
+	m.current.jwtSigningKey = lookupPublicKey(m.current.JWTSignerKeyID())
+	if m.current.x509CA == nil || m.current.jwtSigningKey == nil {
 		m.current.Reset()
 	}
 
 	// load up the next keypair set and make sure it has all required certs
-	m.next.x509CA = lookup(m.next.X509CAKeyId())
-	m.next.jwtSigner = lookup(m.next.JWTSignerKeyId())
-	if m.next.x509CA == nil || m.next.jwtSigner == nil {
+	m.next.x509CA = lookupX509CA(m.next.X509CAKeyID())
+	m.next.jwtSigningKey = lookupPublicKey(m.next.JWTSignerKeyID())
+	if m.next.x509CA == nil || m.next.jwtSigningKey == nil {
 		m.next.Reset()
 	}
 
 	if m.current.x509CA != nil && m.next.x509CA != nil &&
-		m.current.x509CA.NotBefore.After(m.next.x509CA.NotBefore) {
+		m.current.x509CA.cert.NotBefore.After(m.next.x509CA.cert.NotBefore) {
 		// swap the current and next keypair to get ascending order
 		m.current, m.next = m.next, m.current
 	}
@@ -399,30 +484,124 @@ func (m *manager) writeKeypairSets() {
 	if m.c.CertsPath == "" {
 		return
 	}
-	certificates := make(map[string]*x509.Certificate)
+	x509CAs := make(map[string]*caX509CA)
+	publicKeys := make(map[string]*caPublicKey)
 	if m.current.x509CA != nil {
-		certificates[m.current.X509CAKeyId()] = m.current.x509CA
+		x509CAs[m.current.X509CAKeyID()] = m.current.x509CA
 	}
-	if m.current.jwtSigner != nil {
-		certificates[m.current.JWTSignerKeyId()] = m.current.jwtSigner
+	if m.current.jwtSigningKey != nil {
+		publicKeys[m.current.JWTSignerKeyID()] = m.current.jwtSigningKey
 	}
 	if m.next.x509CA != nil {
-		certificates[m.next.X509CAKeyId()] = m.next.x509CA
+		x509CAs[m.next.X509CAKeyID()] = m.next.x509CA
 	}
-	if m.next.jwtSigner != nil {
-		certificates[m.next.JWTSignerKeyId()] = m.next.jwtSigner
+	if m.next.jwtSigningKey != nil {
+		publicKeys[m.next.JWTSignerKeyID()] = m.next.jwtSigningKey
 	}
-	if err := writeCertificates(m.c.CertsPath, certificates); err != nil {
+	if err := writeKeypairData(m.c.CertsPath, x509CAs, publicKeys); err != nil {
 		m.c.Log.Errorf("unable to write keypair sets: %v", err)
 	}
 }
 
 func (m *manager) shouldPrepare() bool {
-	return m.current.x509CA == nil || m.hooks.now().After(preparationThreshold(m.current.x509CA))
+	return m.current.x509CA == nil || m.hooks.now().After(preparationThreshold(m.current.x509CA.cert))
 }
 
 func (m *manager) shouldActivate() bool {
-	return m.current.x509CA == nil || m.hooks.now().After(activationThreshold(m.current.x509CA))
+	return m.current.x509CA == nil || m.hooks.now().After(activationThreshold(m.current.x509CA.cert))
+}
+
+type keypairData struct {
+	DEPRECATEDCerts map[string][]byte `json:"certs"`
+	CAs             map[string][]byte `json:"cas"`
+	PublicKeys      map[string][]byte `json:"public_keys"`
+}
+
+func (m *manager) loadKeypairData(path string, bundleCerts []*x509.Certificate) (map[string]*caX509CA, map[string]*caPublicKey, error) {
+	x509CAs := make(map[string]*caX509CA)
+	publicKeys := make(map[string]*caPublicKey)
+
+	jsonBytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return x509CAs, publicKeys, nil
+		}
+		return nil, nil, err
+	}
+
+	data := new(keypairData)
+	if err := json.Unmarshal(jsonBytes, data); err != nil {
+		return nil, nil, fmt.Errorf("unable to decode certificate JSON: %v", err)
+	}
+
+	for id, caBytes := range data.CAs {
+		certs, err := x509.ParseCertificates(caBytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to parse certificate %q: %v", id, err)
+		}
+		if len(certs) == 0 {
+			continue
+		}
+		x509CAs[id] = &caX509CA{
+			cert:  certs[0],
+			chain: certs,
+		}
+	}
+
+	for id, publicKeyBytes := range data.PublicKeys {
+		publicKey := new(common.PublicKey)
+		if err := proto.Unmarshal(publicKeyBytes, publicKey); err != nil {
+			return nil, nil, fmt.Errorf("unable to parse public key %q: %v", id, err)
+		}
+		mpk, err := caPublicKeyFromPublicKey(publicKey)
+		if err != nil {
+			return nil, nil, err
+		}
+		publicKeys[id] = mpk
+	}
+
+	for id, certBytes := range data.DEPRECATEDCerts {
+		// skip items that already exist (should never happen)
+		if x509CAs[id] != nil || publicKeys[id] != nil {
+			m.c.Log.Warnf("skipping deprecated cert %q in keypair data; already exists", id)
+			continue
+		}
+
+		cert, err := x509.ParseCertificate(certBytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to parse deprecated cert %q: %v", id, err)
+		}
+
+		if strings.HasPrefix(id, "x509-CA-") {
+			certs := buildCertChain(cert, bundleCerts)
+			x509CAs[id] = &caX509CA{
+				cert:  certs[0],
+				chain: certs,
+			}
+		}
+
+		if strings.HasPrefix(id, "JWT-Signer-") {
+			// converting the JWT cert to key is trivial. Just pull out
+			// the public key and expiration from the cert and generate
+			// a deterministic key id.
+			pkixBytes, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+			if err != nil {
+				return nil, nil, fmt.Errorf("unable to marshal public key from deprecated cert %q: %v", id, err)
+			}
+
+			publicKeys[id] = &caPublicKey{
+				PublicKey: &common.PublicKey{
+					Kid:       keyIDFromBytes(cert.Signature),
+					PkixBytes: pkixBytes,
+					NotAfter:  cert.NotAfter.Unix(),
+				},
+				publicKey: cert.PublicKey,
+				notAfter:  cert.NotAfter,
+			}
+		}
+	}
+
+	return x509CAs, publicKeys, nil
 }
 
 func certMatchesKey(certificate *x509.Certificate, publicKey crypto.PublicKey) bool {
@@ -430,7 +609,14 @@ func certMatchesKey(certificate *x509.Certificate, publicKey crypto.PublicKey) b
 	if err != nil {
 		return false
 	}
+	return matches
+}
 
+func publicKeyEqual(a, b crypto.PublicKey) bool {
+	matches, err := cryptoutil.PublicKeyEqual(a, b)
+	if err != nil {
+		return false
+	}
 	return matches
 }
 
@@ -454,7 +640,7 @@ func GenerateServerCACSR(signer crypto.Signer, trustDomain string, subject pkix.
 	return csr, nil
 }
 
-func UpstreamSignServerCACertificate(ctx context.Context, upstreamCA upstreamca.UpstreamCA, signer crypto.Signer, trustDomain string, subject pkix.Name) (*x509.Certificate, []byte, error) {
+func UpstreamSignServerCACertificate(ctx context.Context, upstreamCA upstreamca.UpstreamCA, signer crypto.Signer, trustDomain string, subject pkix.Name) (*x509.Certificate, []*x509.Certificate, error) {
 	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
 	if err != nil {
 		return nil, nil, err
@@ -470,7 +656,11 @@ func UpstreamSignServerCACertificate(ctx context.Context, upstreamCA upstreamca.
 	if err != nil {
 		return nil, nil, err
 	}
-	return cert, csrResp.UpstreamTrustBundle, nil
+	upstream, err := x509.ParseCertificates(csrResp.UpstreamTrustBundle)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cert, upstream, nil
 }
 
 func SelfSignServerCACertificate(signer crypto.Signer, trustDomain string, subject pkix.Name, notBefore, notAfter time.Time) (*x509.Certificate, error) {
@@ -494,21 +684,7 @@ func SelfSignServerCACertificate(signer crypto.Signer, trustDomain string, subje
 	return cert, nil
 }
 
-func SignJWTSignerCertificate(publicKey crypto.PublicKey, parent *x509.Certificate, signer crypto.Signer) (*x509.Certificate, error) {
-	template := jwtsvid.CreateCertificateTemplate(parent)
-	template.SerialNumber = big.NewInt(0)
-	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, publicKey, signer)
-	if err != nil {
-		return nil, err
-	}
-	cert, err := x509.ParseCertificate(certDER)
-	if err != nil {
-		return nil, err
-	}
-	return cert, nil
-}
-
-func loadPublicKeys(ctx context.Context, km keymanager.KeyManager) (map[string]crypto.PublicKey, error) {
+func loadKeyManagerKeys(ctx context.Context, km keymanager.KeyManager) (map[string]crypto.PublicKey, error) {
 	resp, err := km.GetPublicKeys(ctx, &keymanager.GetPublicKeysRequest{})
 	if err != nil {
 		return nil, err
@@ -526,48 +702,30 @@ func loadPublicKeys(ctx context.Context, km keymanager.KeyManager) (map[string]c
 	return publicKeys, nil
 }
 
-type certificateData struct {
-	Certs map[string][]byte `json:"certs"`
-}
-
-func loadCertificates(path string) (map[string]*x509.Certificate, error) {
-	certs := make(map[string]*x509.Certificate)
-
-	jsonBytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return certs, nil
+func writeKeypairData(path string, x509CAs map[string]*caX509CA, publicKeys map[string]*caPublicKey) error {
+	data := &keypairData{
+		CAs:        make(map[string][]byte),
+		PublicKeys: make(map[string][]byte),
+	}
+	for id, x509CA := range x509CAs {
+		var raw []byte
+		for _, cert := range x509CA.chain {
+			raw = append(raw, cert.Raw...)
 		}
-		return nil, err
+		data.CAs[id] = raw
 	}
 
-	data := new(certificateData)
-	if err := json.Unmarshal(jsonBytes, data); err != nil {
-		return nil, fmt.Errorf("unable to decode certificate JSON: %v", err)
-	}
-
-	for id, certBytes := range data.Certs {
-		cert, err := x509.ParseCertificate(certBytes)
+	for id, publicKey := range publicKeys {
+		publicKeyBytes, err := proto.Marshal(publicKey.PublicKey)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse certificate %q: %v", id, err)
+			return errs.Wrap(err)
 		}
-		certs[id] = cert
-	}
-
-	return certs, nil
-}
-
-func writeCertificates(path string, certs map[string]*x509.Certificate) error {
-	data := &certificateData{
-		Certs: make(map[string][]byte),
-	}
-	for id, cert := range certs {
-		data.Certs[id] = cert.Raw
+		data.PublicKeys[id] = publicKeyBytes
 	}
 
 	jsonBytes, err := json.MarshalIndent(data, "", "\t")
 	if err != nil {
-		return err
+		return errs.Wrap(err)
 	}
 
 	return diskutil.AtomicWriteFile(path, jsonBytes, 0644)
@@ -581,4 +739,56 @@ func preparationThreshold(cert *x509.Certificate) time.Time {
 func activationThreshold(cert *x509.Certificate) time.Time {
 	lifetime := cert.NotAfter.Sub(cert.NotBefore)
 	return cert.NotAfter.Add(-lifetime / 6)
+}
+
+func caPublicKeyFromPublicKey(pbPublicKey *common.PublicKey) (*caPublicKey, error) {
+	publicKey, err := x509.ParsePKIXPublicKey(pbPublicKey.PkixBytes)
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+	var notAfter time.Time
+	if pbPublicKey.NotAfter != 0 {
+		notAfter = time.Unix(pbPublicKey.NotAfter, 0)
+	}
+	return &caPublicKey{
+		PublicKey: pbPublicKey,
+		publicKey: publicKey,
+		notAfter:  notAfter,
+	}, nil
+}
+
+func cloneBundle(bundle *common.Bundle) *common.Bundle {
+	return proto.Clone(bundle).(*common.Bundle)
+}
+
+const keyIDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func keyIDFromBytes(choices []byte) string {
+	buf := new(bytes.Buffer)
+	for _, choice := range choices {
+		buf.WriteByte(keyIDAlphabet[int(choice)%len(keyIDAlphabet)])
+	}
+	return buf.String()
+}
+
+func newKeyID() (string, error) {
+	choices := make([]byte, 32)
+	_, err := rand.Read(choices)
+	if err != nil {
+		return "", err
+	}
+	return keyIDFromBytes(choices), nil
+}
+
+func buildCertChain(cert *x509.Certificate, candidates []*x509.Certificate) (chain []*x509.Certificate) {
+	chain = append(chain, cert)
+	for _, candidate := range candidates {
+		if cert.CheckSignatureFrom(candidate) == nil {
+			if !cert.Equal(candidate) {
+				chain = append(chain, buildCertChain(candidate, candidates)...)
+			}
+			break
+		}
+	}
+	return chain
 }

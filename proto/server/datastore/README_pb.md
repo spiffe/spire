@@ -31,7 +31,10 @@
 
 - [common.proto](#common.proto)
     - [AttestationData](#spire.common.AttestationData)
+    - [Bundle](#spire.common.Bundle)
+    - [Certificate](#spire.common.Certificate)
     - [Empty](#spire.common.Empty)
+    - [PublicKey](#spire.common.PublicKey)
     - [RegistrationEntries](#spire.common.RegistrationEntries)
     - [RegistrationEntry](#spire.common.RegistrationEntry)
     - [Selector](#spire.common.Selector)
@@ -45,7 +48,6 @@
     - [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest)
     - [AppendBundleResponse](#spire.server.datastore.AppendBundleResponse)
     - [AttestedNode](#spire.server.datastore.AttestedNode)
-    - [Bundle](#spire.server.datastore.Bundle)
     - [BySelectors](#spire.server.datastore.BySelectors)
     - [CreateAttestedNodeRequest](#spire.server.datastore.CreateAttestedNodeRequest)
     - [CreateAttestedNodeResponse](#spire.server.datastore.CreateAttestedNodeResponse)
@@ -391,10 +393,59 @@ A type which contains attestation data for specific platform.
 
 
 
+<a name="spire.common.Bundle"/>
+
+### Bundle
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| trust_domain_id | [string](#string) |  | the SPIFFE ID of the trust domain the bundle belongs to |
+| root_cas | [Certificate](#spire.common.Certificate) | repeated | list of root CA certificates |
+| jwt_signing_keys | [PublicKey](#spire.common.PublicKey) | repeated | list of JWT signing keys |
+
+
+
+
+
+
+<a name="spire.common.Certificate"/>
+
+### Certificate
+Certificate represents a ASN.1/DER encoded X509 certificate
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| der_bytes | [bytes](#bytes) |  |  |
+
+
+
+
+
+
 <a name="spire.common.Empty"/>
 
 ### Empty
 Represents an empty message
+
+
+
+
+
+
+<a name="spire.common.PublicKey"/>
+
+### PublicKey
+PublicKey represents a PKIX encoded public key
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| pkix_bytes | [bytes](#bytes) |  | PKIX encoded key data |
+| kid | [string](#string) |  | key identifier |
+| not_after | [int64](#int64) |  | not after (seconds since unix epoch, 0 means &#34;never expires&#34;) |
 
 
 
@@ -493,7 +544,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
 
 
 
@@ -508,7 +559,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
 
 
 
@@ -527,22 +578,6 @@ Represents a type with a list of Selector.
 | attestation_data_type | [string](#string) |  | Attestation data type |
 | cert_serial_number | [string](#string) |  | Node certificate serial number |
 | cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
-
-
-
-
-
-
-<a name="spire.server.datastore.Bundle"/>
-
-### Bundle
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| trust_domain | [string](#string) |  | Trust domain SPIFFE ID |
-| ca_certs | [bytes](#bytes) |  | CA Certificates (ASN.1 DER encoded) |
 
 
 
@@ -603,7 +638,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
 
 
 
@@ -618,7 +653,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
 
 
 
@@ -723,7 +758,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| trust_domain | [string](#string) |  |  |
+| trust_domain_id | [string](#string) |  |  |
 | mode | [DeleteBundleRequest.Mode](#spire.server.datastore.DeleteBundleRequest.Mode) |  |  |
 
 
@@ -739,7 +774,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
 
 
 
@@ -844,7 +879,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| trust_domain | [string](#string) |  |  |
+| trust_domain_id | [string](#string) |  |  |
 
 
 
@@ -859,7 +894,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
 
 
 
@@ -1020,7 +1055,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundles | [Bundle](#spire.server.datastore.Bundle) | repeated |  |
+| bundles | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) | repeated |  |
 
 
 
@@ -1165,7 +1200,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
 
 
 
@@ -1180,7 +1215,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundle | [Bundle](#spire.server.datastore.Bundle) |  |  |
+| bundle | [.spire.common.Bundle](#spire.server.datastore..spire.common.Bundle) |  |  |
 
 
 
@@ -1259,8 +1294,8 @@ associated with the bundle (e.g. registration entries).
 | CreateBundle | [CreateBundleRequest](#spire.server.datastore.CreateBundleRequest) | [CreateBundleResponse](#spire.server.datastore.CreateBundleRequest) | Creates a bundle |
 | FetchBundle | [FetchBundleRequest](#spire.server.datastore.FetchBundleRequest) | [FetchBundleResponse](#spire.server.datastore.FetchBundleRequest) | Fetches a specific bundle |
 | ListBundles | [ListBundlesRequest](#spire.server.datastore.ListBundlesRequest) | [ListBundlesResponse](#spire.server.datastore.ListBundlesRequest) | Lists bundles (optionally filtered) |
-| UpdateBundle | [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest) | [UpdateBundleResponse](#spire.server.datastore.UpdateBundleRequest) | Updates a specific bundle, overwriting existing certs |
-| AppendBundle | [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest) | [AppendBundleResponse](#spire.server.datastore.AppendBundleRequest) | Appends the provided certs onto an existing bundle, creating a new bundle if one doesn&#39;t exist |
+| UpdateBundle | [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest) | [UpdateBundleResponse](#spire.server.datastore.UpdateBundleRequest) | Updates a specific bundle |
+| AppendBundle | [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest) | [AppendBundleResponse](#spire.server.datastore.AppendBundleRequest) | Appends contents from a specific bundle (creates if it does not exist) |
 | DeleteBundle | [DeleteBundleRequest](#spire.server.datastore.DeleteBundleRequest) | [DeleteBundleResponse](#spire.server.datastore.DeleteBundleRequest) | Deletes a specific bundle |
 | CreateAttestedNode | [CreateAttestedNodeRequest](#spire.server.datastore.CreateAttestedNodeRequest) | [CreateAttestedNodeResponse](#spire.server.datastore.CreateAttestedNodeRequest) | Creates an attested node |
 | FetchAttestedNode | [FetchAttestedNodeRequest](#spire.server.datastore.FetchAttestedNodeRequest) | [FetchAttestedNodeResponse](#spire.server.datastore.FetchAttestedNodeRequest) | Fetches a specific attested node |

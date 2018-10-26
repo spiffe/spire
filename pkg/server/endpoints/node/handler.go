@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/server/ca"
@@ -124,21 +125,21 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	h.c.Log.Debugf("Signing CSR for Agent SVID %v", baseSpiffeIDFromCSR)
-	cert, err := h.c.ServerCA.SignX509SVID(ctx, request.Csr, 0)
+	svid, err := h.c.ServerCA.SignX509SVID(ctx, request.Csr, 0)
 	if err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to sign CSR")
 	}
 
 	if attestedBefore {
-		err = h.updateAttestationEntry(ctx, cert, baseSpiffeIDFromCSR)
+		err = h.updateAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR)
 		if err != nil {
 			h.c.Log.Error(err)
 			return errors.New("Error trying to update attestation entry")
 		}
 
 	} else {
-		err = h.createAttestationEntry(ctx, cert, baseSpiffeIDFromCSR, request.AttestationData.Type)
+		err = h.createAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR, request.AttestationData.Type)
 		if err != nil {
 			h.c.Log.Error(err)
 			return errors.New("Error trying to create attestation entry")
@@ -151,7 +152,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return errors.New("Error trying to get selectors for baseSpiffeID")
 	}
 
-	response, err := h.getAttestResponse(ctx, baseSpiffeIDFromCSR, cert.Raw)
+	response, err := h.getAttestResponse(ctx, baseSpiffeIDFromCSR, svid)
 	if err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to compose response")
@@ -213,17 +214,22 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return errors.New("Error trying sign CSRs")
 		}
 
-		ourBundle, bundles, err := h.getBundlesForEntries(ctx, regEntries)
+		bundles, err := h.getBundlesForEntries(ctx, regEntries)
 		if err != nil {
 			h.c.Log.Error(err)
 			return err
 		}
 
+		// TODO: remove in 0.8, along with deprecated fields
+		ourBundle := bundles[h.c.TrustDomain.String()]
+		addIntermediatesToBundle(ourBundle, svids)
+
 		err = server.Send(&node.FetchX509SVIDResponse{
 			SvidUpdate: &node.X509SVIDUpdate{
 				Svids:               svids,
-				DEPRECATEDBundle:    ourBundle.CaCerts,
+				DEPRECATEDBundle:    makeDeprecatedBundle(ourBundle).CaCerts,
 				RegistrationEntries: regEntries,
+				DEPRECATEDBundles:   makeDeprecatedBundles(bundles),
 				Bundles:             bundles,
 			},
 		})
@@ -293,17 +299,11 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, err
 	}
 
-	_, bundles, err := h.getBundlesForEntries(ctx, regEntries)
-	if err != nil {
-		return nil, err
-	}
-
 	return &node.FetchJWTSVIDResponse{
 		Svid: &node.JWTSVID{
 			Token:     token,
 			ExpiresAt: expiresAt.Unix(),
 		},
-		Bundles: bundles,
 	}, nil
 }
 
@@ -511,32 +511,31 @@ func (h *Handler) updateNodeSelectors(ctx context.Context,
 }
 
 func (h *Handler) getAttestResponse(ctx context.Context,
-	baseSpiffeID string, baseSvid []byte) (
+	baseSpiffeID string, svid []*x509.Certificate) (
 	*node.AttestResponse, error) {
 
-	// Parse base svid to approximate TTL
-	cert, err := x509.ParseCertificate(baseSvid)
-	if err != nil {
-		return nil, err
-	}
-
 	svids := make(map[string]*node.X509SVID)
-	svids[baseSpiffeID] = makeX509SVID(cert)
+	svids[baseSpiffeID] = makeX509SVID(svid)
 
 	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.DataStores()[0], baseSpiffeID)
 	if err != nil {
 		return nil, err
 	}
 
-	ourBundle, bundles, err := h.getBundlesForEntries(ctx, regEntries)
+	bundles, err := h.getBundlesForEntries(ctx, regEntries)
 	if err != nil {
 		return nil, err
 	}
 
+	// TODO: remove in 0.8, along with deprecated fields
+	ourBundle := bundles[h.c.TrustDomain.String()]
+	addIntermediatesToBundle(ourBundle, svids)
+
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
-		DEPRECATEDBundle:    ourBundle.CaCerts,
+		DEPRECATEDBundle:    makeDeprecatedBundle(ourBundle).CaCerts,
 		RegistrationEntries: regEntries,
+		DEPRECATEDBundles:   makeDeprecatedBundles(bundles),
 		Bundles:             bundles,
 	}
 	return &node.AttestResponse{SvidUpdate: svidUpdate}, nil
@@ -634,52 +633,52 @@ func (h *Handler) buildSVID(ctx context.Context,
 		return nil, err
 	}
 
-	cert, err := h.c.ServerCA.SignX509SVID(ctx, csr, time.Duration(entry.Ttl)*time.Second)
+	svid, err := h.c.ServerCA.SignX509SVID(ctx, csr, time.Duration(entry.Ttl)*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	return makeX509SVID(cert), nil
+	return makeX509SVID(svid), nil
 }
 
 func (h *Handler) buildBaseSVID(ctx context.Context, csr []byte) (*node.X509SVID, *x509.Certificate, error) {
-	cert, err := h.c.ServerCA.SignX509SVID(ctx, csr, 0)
+	svid, err := h.c.ServerCA.SignX509SVID(ctx, csr, 0)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return makeX509SVID(cert), cert, nil
+	return makeX509SVID(svid), svid[0], nil
 }
 
-func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common.RegistrationEntry) (*node.Bundle, map[string]*node.Bundle, error) {
-	bundles := make(map[string]*node.Bundle)
+func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common.RegistrationEntry) (map[string]*common.Bundle, error) {
+	bundles := make(map[string]*common.Bundle)
 
 	ourBundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	bundles[ourBundle.Id] = ourBundle
+	bundles[ourBundle.TrustDomainId] = ourBundle
 
 	for _, entry := range regEntries {
-		for _, id := range entry.FederatesWith {
-			if bundles[id] != nil {
+		for _, trustDomainId := range entry.FederatesWith {
+			if bundles[trustDomainId] != nil {
 				continue
 			}
-			bundle, err := h.getBundle(ctx, id)
+			bundle, err := h.getBundle(ctx, trustDomainId)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
-			bundles[id] = bundle
+			bundles[trustDomainId] = bundle
 		}
 	}
-	return ourBundle, bundles, nil
+	return bundles, nil
 }
 
 // getBundle fetches a bundle from the datastore, by trust domain
-func (h *Handler) getBundle(ctx context.Context, trustDomain string) (*node.Bundle, error) {
+func (h *Handler) getBundle(ctx context.Context, trustDomainId string) (*common.Bundle, error) {
 	ds := h.c.Catalog.DataStores()[0]
 
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomain: trustDomain,
+		TrustDomainId: trustDomainId,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get bundle from datastore: %v", err)
@@ -687,11 +686,51 @@ func (h *Handler) getBundle(ctx context.Context, trustDomain string) (*node.Bund
 	if resp.Bundle == nil {
 		return nil, errors.New("bundle not found")
 	}
+	return resp.Bundle, nil
+}
 
+func makeDeprecatedBundle(b *common.Bundle) *node.Bundle {
 	return &node.Bundle{
-		Id:      trustDomain,
-		CaCerts: resp.Bundle.CaCerts,
-	}, nil
+		Id:      b.TrustDomainId,
+		CaCerts: bundleutil.RootCAsDERFromBundleProto(b),
+	}
+}
+
+func makeDeprecatedBundles(bs map[string]*common.Bundle) map[string]*node.Bundle {
+	out := make(map[string]*node.Bundle)
+	for k, v := range bs {
+		out[k] = makeDeprecatedBundle(v)
+	}
+	return out
+}
+
+// this function adds the intermediate certificates from the svids the the
+// bundle for the trust domain.
+// TODO: remove in SPIRE 0.8
+func addIntermediatesToBundle(bundle *common.Bundle, svids map[string]*node.X509SVID) {
+	for _, intermediate := range gatherIntermediateCerts(svids) {
+		bundle.RootCas = append(bundle.RootCas, &common.Certificate{
+			DerBytes: intermediate,
+		})
+	}
+}
+
+func gatherIntermediateCerts(svids map[string]*node.X509SVID) (intermediates [][]byte) {
+	included := make(map[string]bool)
+	for _, svid := range svids {
+		certs, _ := x509.ParseCertificates(svid.CertChain)
+		if len(certs) > 0 {
+			for _, cert := range certs[1:] {
+				key := string(cert.Raw)
+				if included[key] {
+					continue
+				}
+				included[key] = true
+				intermediates = append(intermediates, cert.Raw)
+			}
+		}
+	}
+	return intermediates
 }
 
 func getSpiffeIDFromCSR(csrBytes []byte) (string, error) {
@@ -721,9 +760,14 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 	return spiffeID.String(), nil
 }
 
-func makeX509SVID(cert *x509.Certificate) *node.X509SVID {
+func makeX509SVID(svid []*x509.Certificate) *node.X509SVID {
+	var certChain []byte
+	for _, cert := range svid {
+		certChain = append(certChain, cert.Raw...)
+	}
 	return &node.X509SVID{
-		Cert:      cert.Raw,
-		ExpiresAt: cert.NotAfter.Unix(),
+		DEPRECATEDCert: svid[0].Raw,
+		CertChain:      certChain,
+		ExpiresAt:      svid[0].NotAfter.Unix(),
 	}
 }

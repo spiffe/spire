@@ -3,17 +3,18 @@ package sql
 import (
 	"bytes"
 	"context"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/satori/go.uuid"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -91,8 +92,6 @@ func (ds *sqlPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBund
 	return resp, nil
 }
 
-// AppendBundle adds the specified CA certificates to an existing bundle. If no bundle exists for the
-// specified trust domain, create one. Returns the entirety.
 func (ds *sqlPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = appendBundle(tx, req)
@@ -457,19 +456,12 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 		return nil, err
 	}
 
-	// Fetch the model to get its ID
 	model := &Bundle{}
 	if err := tx.Find(model, "trust_domain = ?", newModel.TrustDomain).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	// Delete existing CA certs - the provided list takes precedence
-	if err := tx.Where("bundle_id = ?", model.ID).Delete(CACert{}).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	// Set the new values
-	model.CACerts = newModel.CACerts
+	model.Data = newModel.Data
 	if err := tx.Save(model).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -485,7 +477,7 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 		return nil, err
 	}
 
-	// First, fetch the existing model
+	// fetch existing or create new
 	model := &Bundle{}
 	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
 	if result.RecordNotFound() {
@@ -500,26 +492,22 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 		return nil, sqlError.Wrap(result.Error)
 	}
 
-	// Get the existing certificates so we can include them in the response
-	var caCerts []CACert
-	if err := tx.Model(model).Related(&caCerts).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-	model.CACerts = caCerts
-
-	for _, newCA := range newModel.CACerts {
-		if !model.Contains(newCA) {
-			model.Append(newCA)
-		}
-	}
-
-	if err := tx.Save(model).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
+	// parse the bundle data and add missing elements
 	bundle, err := modelToBundle(model)
 	if err != nil {
 		return nil, err
+	}
+
+	bundle, changed := bundleutil.MergeBundles(bundle, req.Bundle)
+	if changed {
+		newModel, err := bundleToModel(bundle)
+		if err != nil {
+			return nil, err
+		}
+		model.Data = newModel.Data
+		if err := tx.Save(model).Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
 	}
 
 	return &datastore.AppendBundleResponse{
@@ -529,7 +517,7 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 
 func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
 	model := new(Bundle)
-	if err := tx.Find(model, "trust_domain = ?", req.TrustDomain).Error; err != nil {
+	if err := tx.Find(model, "trust_domain = ?", req.TrustDomainId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -566,17 +554,6 @@ func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.D
 		}
 	}
 
-	// Fetch related CA certs for response before we delete them
-	var caCerts []CACert
-	if err := tx.Model(model).Related(&caCerts).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-	model.CACerts = caCerts
-
-	if err := tx.Where("bundle_id = ?", model.ID).Delete(CACert{}).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
 	if err := tx.Delete(model).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -594,15 +571,11 @@ func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.D
 // FetchBundle returns the bundle matching the specified Trust Domain.
 func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
 	model := new(Bundle)
-	err := tx.Find(model, "trust_domain = ?", req.TrustDomain).Error
+	err := tx.Find(model, "trust_domain = ?", req.TrustDomainId).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
 		return &datastore.FetchBundleResponse{}, nil
 	case err != nil:
-		return nil, sqlError.Wrap(err)
-	}
-
-	if err := tx.Model(model).Related(&model.CACerts).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -623,32 +596,8 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 		return nil, sqlError.Wrap(err)
 	}
 
-	var caCerts []CACert
-	if err := tx.Find(&caCerts).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	// Index CA Certs by Bundle ID so we can reconstruct them more easily
-	caMap := make(map[uint][]CACert)
-	for _, cert := range caCerts {
-		bundleID := cert.BundleID
-
-		if _, ok := caMap[bundleID]; ok {
-			caMap[bundleID] = append(caMap[bundleID], cert)
-		} else {
-			caMap[bundleID] = []CACert{cert}
-		}
-	}
-
 	resp := &datastore.ListBundlesResponse{}
 	for _, model := range bundles {
-		certs, ok := caMap[model.ID]
-		if ok {
-			model.CACerts = certs
-		} else {
-			model.CACerts = []CACert{}
-		}
-
 		bundle, err := modelToBundle(&model)
 		if err != nil {
 			return nil, err
@@ -1114,22 +1063,12 @@ func pruneJoinTokens(tx *gorm.DB, req *datastore.PruneJoinTokensRequest) (*datas
 // modelToBundle converts the given bundle model to a Protobuf bundle message. It will also
 // include any embedded CACert models.
 func modelToBundle(model *Bundle) (*datastore.Bundle, error) {
-	id, err := idutil.ParseSpiffeID(model.TrustDomain, idutil.AllowAnyTrustDomain())
-	if err != nil {
+	bundle := new(datastore.Bundle)
+	if err := proto.Unmarshal(model.Data, bundle); err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	caCerts := []byte{}
-	for _, c := range model.CACerts {
-		caCerts = append(caCerts, c.Cert...)
-	}
-
-	pb := &datastore.Bundle{
-		TrustDomain: id.String(),
-		CaCerts:     caCerts,
-	}
-
-	return pb, nil
+	return bundle, nil
 }
 
 func validateRegistrationEntry(entry *common.RegistrationEntry) error {
@@ -1154,30 +1093,19 @@ func bundleToModel(pb *datastore.Bundle) (*Bundle, error) {
 	if pb == nil {
 		return nil, sqlError.New("missing bundle in request")
 	}
-	id, err := idutil.ParseSpiffeID(pb.TrustDomain, idutil.AllowAnyTrustDomain())
+	id, err := idutil.NormalizeSpiffeID(pb.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	certs, err := x509.ParseCertificates(pb.CaCerts)
+	data, err := proto.Marshal(pb)
 	if err != nil {
-		return nil, sqlError.New("could not parse CA certificates")
-	}
-
-	// Translate CACerts, if any
-	caCerts := []CACert{}
-	for _, c := range certs {
-		cert := CACert{
-			Cert:   c.Raw,
-			Expiry: c.NotAfter,
-		}
-
-		caCerts = append(caCerts, cert)
+		return nil, sqlError.Wrap(err)
 	}
 
 	return &Bundle{
-		TrustDomain: id.String(),
-		CACerts:     caCerts,
+		TrustDomain: id,
+		Data:        data,
 	}, nil
 }
 

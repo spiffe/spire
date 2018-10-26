@@ -53,7 +53,7 @@ func (s *KeyManagerSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOp
 	return s.SignContext(context.Background(), digest, opts)
 }
 
-func GenerateKey(ctx context.Context, km keymanager.KeyManager, keyId string, algorithm keymanager.KeyAlgorithm) (crypto.PublicKey, error) {
+func GenerateKeyRaw(ctx context.Context, km keymanager.KeyManager, keyId string, algorithm keymanager.KeyAlgorithm) ([]byte, error) {
 	resp, err := km.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
 		KeyId:        keyId,
 		KeyAlgorithm: algorithm,
@@ -64,7 +64,15 @@ func GenerateKey(ctx context.Context, km keymanager.KeyManager, keyId string, al
 	if resp.PublicKey == nil {
 		return nil, errors.New("response missing public key")
 	}
-	publicKey, err := x509.ParsePKIXPublicKey(resp.PublicKey.PkixData)
+	return resp.PublicKey.PkixData, nil
+}
+
+func GenerateKey(ctx context.Context, km keymanager.KeyManager, keyId string, algorithm keymanager.KeyAlgorithm) (crypto.PublicKey, error) {
+	pkixData, err := GenerateKeyRaw(ctx, km, keyId, algorithm)
+	if err != nil {
+		return nil, err
+	}
+	publicKey, err := x509.ParsePKIXPublicKey(pkixData)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse public key pkix data: %v", err)
 	}

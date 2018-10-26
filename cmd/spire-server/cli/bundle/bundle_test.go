@@ -116,8 +116,10 @@ func (s *BundleSuite) TestShowHelp() {
 
 func (s *BundleSuite) TestShow() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://example.test",
-		CaCerts:     s.cert1.Raw,
+		TrustDomainId: "spiffe://example.test",
+		RootCas: []*common.Certificate{
+			{DerBytes: s.cert1.Raw},
+		},
 	})
 
 	s.Require().Equal(0, s.showCmd.Run([]string{}))
@@ -171,8 +173,10 @@ func (s *BundleSuite) TestSetCreatesBundle() {
 
 func (s *BundleSuite) TestSetUpdatesBundle() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://otherdomain.test",
-		CaCerts:     []byte("BOGUSCERTS"),
+		TrustDomainId: "spiffe://otherdomain.test",
+		RootCas: []*common.Certificate{
+			{DerBytes: []byte("BOGUSCERTS")},
+		},
 	})
 	s.stdin.WriteString(cert1PEM)
 	s.assertBundleSet()
@@ -207,12 +211,16 @@ func (s *BundleSuite) TestListHelp() {
 
 func (s *BundleSuite) TestListAll() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain1.test",
-		CaCerts:     s.cert1.Raw,
+		TrustDomainId: "spiffe://domain1.test",
+		RootCas: []*common.Certificate{
+			{DerBytes: s.cert1.Raw},
+		},
 	})
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain2.test",
-		CaCerts:     s.cert2.Raw,
+		TrustDomainId: "spiffe://domain2.test",
+		RootCas: []*common.Certificate{
+			{DerBytes: s.cert2.Raw},
+		},
 	})
 
 	s.Require().Equal(0, s.listCmd.Run([]string{}))
@@ -247,12 +255,16 @@ diIqWtxAqBLFrx8zNS4=
 
 func (s *BundleSuite) TestListOne() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain1.test",
-		CaCerts:     s.cert1.Raw,
+		TrustDomainId: "spiffe://domain1.test",
+		RootCas: []*common.Certificate{
+			{DerBytes: s.cert1.Raw},
+		},
 	})
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain2.test",
-		CaCerts:     s.cert2.Raw,
+		TrustDomainId: "spiffe://domain2.test",
+		RootCas: []*common.Certificate{
+			{DerBytes: s.cert2.Raw},
+		},
 	})
 
 	s.Require().Equal(0, s.listCmd.Run([]string{"-id", "spiffe://domain2.test"}))
@@ -296,15 +308,17 @@ func (s *BundleSuite) TestDeleteWithUnsupportedMode() {
 
 func (s *BundleSuite) TestDelete() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain1.test",
-		CaCerts:     s.cert1.Raw,
+		TrustDomainId: "spiffe://domain1.test",
+		RootCas: []*common.Certificate{
+			{DerBytes: s.cert1.Raw},
+		},
 	})
 
 	s.Require().Equal(0, s.deleteCmd.Run([]string{"-id", "spiffe://domain1.test"}))
 	s.Require().Equal("bundle deleted.\n", s.stdout.String())
 
 	resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-		TrustDomain: "spiffe://domain1.test",
+		TrustDomainId: "spiffe://domain1.test",
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
@@ -313,8 +327,10 @@ func (s *BundleSuite) TestDelete() {
 
 func (s *BundleSuite) TestDeleteWithRestrictMode() {
 	s.createBundle(&datastore.Bundle{
-		TrustDomain: "spiffe://domain1.test",
-		CaCerts:     s.cert1.Raw,
+		TrustDomainId: "spiffe://domain1.test",
+		RootCas: []*common.Certificate{
+			{DerBytes: s.cert1.Raw},
+		},
 	})
 	s.createRegistrationEntry(&datastore.RegistrationEntry{
 		ParentId:      "spiffe://example.test/spire/agent/foo",
@@ -327,7 +343,7 @@ func (s *BundleSuite) TestDeleteWithRestrictMode() {
 	s.Require().Equal("rpc error: code = Unknown desc = cannot delete bundle; federated with 1 registration entries\n", s.stderr.String())
 
 	_, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-		TrustDomain: "spiffe://domain1.test",
+		TrustDomainId: "spiffe://domain1.test",
 	})
 	s.Require().Nil(err)
 }
@@ -339,12 +355,13 @@ func (s *BundleSuite) assertBundleSet(extraArgs ...string) {
 
 	// make sure it made it into the datastore
 	resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-		TrustDomain: "spiffe://otherdomain.test",
+		TrustDomainId: "spiffe://otherdomain.test",
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().NotNil(resp.Bundle)
-	s.Require().Equal(s.cert1.Raw, resp.Bundle.CaCerts)
+	s.Require().Len(resp.Bundle.RootCas, 1)
+	s.Require().Equal(s.cert1.Raw, resp.Bundle.RootCas[0].DerBytes)
 }
 
 func (s *BundleSuite) createBundle(bundle *datastore.Bundle) {

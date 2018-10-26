@@ -1,9 +1,7 @@
 package fakedatastore
 
 import (
-	"bytes"
 	"context"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"sort"
@@ -12,6 +10,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	uuid "github.com/satori/go.uuid"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
@@ -66,11 +65,11 @@ func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.CreateBundl
 
 	bundle := req.Bundle
 
-	if _, ok := s.bundles[bundle.TrustDomain]; ok {
+	if _, ok := s.bundles[bundle.TrustDomainId]; ok {
 		return nil, ErrBundleAlreadyExists
 	}
 
-	s.bundles[bundle.TrustDomain] = cloneBundle(bundle)
+	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
 
 	return &datastore.CreateBundleResponse{
 		Bundle: cloneBundle(bundle),
@@ -85,73 +84,47 @@ func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundl
 
 	bundle := req.Bundle
 
-	if _, ok := s.bundles[bundle.TrustDomain]; !ok {
+	if _, ok := s.bundles[bundle.TrustDomainId]; !ok {
 		return nil, ErrNoSuchBundle
 	}
 
-	s.bundles[bundle.TrustDomain] = cloneBundle(bundle)
+	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
 
 	return &datastore.UpdateBundleResponse{
 		Bundle: cloneBundle(bundle),
 	}, nil
 }
 
-// AppendBundle adds the specified CA certificates to an existing bundle. If no bundle exists for the
-// specified trust domain, create one. Returns the entirety.
+// AppendBundle updates an existing bundle with the given CAs. Overwrites any
+// existing certificates.
 func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	bundleIn := req.Bundle
+	bundle := req.Bundle
 
-	reqCerts, err := x509.ParseCertificates(bundleIn.CaCerts)
-	if err != nil {
-		return nil, err
+	if existingBundle, ok := s.bundles[bundle.TrustDomainId]; ok {
+		bundle, _ = bundleutil.MergeBundles(existingBundle, bundle)
 	}
 
-	bundle, ok := s.bundles[bundleIn.TrustDomain]
-	if !ok {
-		bundle = &datastore.Bundle{
-			TrustDomain: bundleIn.TrustDomain,
-		}
-		s.bundles[bundleIn.TrustDomain] = bundle
-	}
-
-	bundleCerts, err := x509.ParseCertificates(bundle.CaCerts)
-	if err != nil {
-		return nil, err
-	}
-
-	// datastore has a job to dedup cacerts being appended to the bundle
-	for _, reqCert := range reqCerts {
-		found := false
-		for _, bundleCert := range bundleCerts {
-			if bytes.Equal(reqCert.Raw, bundleCert.Raw) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			bundle.CaCerts = append(bundle.CaCerts, cloneBytes(reqCert.Raw)...)
-		}
-	}
+	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
 
 	return &datastore.AppendBundleResponse{
 		Bundle: cloneBundle(bundle),
 	}, nil
 }
 
-// DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
+// DeleteBundle deletes the bundle with the matching TrustDomainId. Any CACert data passed is ignored.
 func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	bundle, ok := s.bundles[req.TrustDomain]
+	bundle, ok := s.bundles[req.TrustDomainId]
 	if !ok {
 		return nil, ErrNoSuchBundle
 	}
 
-	if bundleEntries := s.bundleEntries[req.TrustDomain]; len(bundleEntries) > 0 {
+	if bundleEntries := s.bundleEntries[req.TrustDomainId]; len(bundleEntries) > 0 {
 		switch req.Mode {
 		case datastore.DeleteBundleRequest_DELETE:
 			for entryID := range bundleEntries {
@@ -160,14 +133,14 @@ func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundl
 		case datastore.DeleteBundleRequest_DISSOCIATE:
 			for entryID := range bundleEntries {
 				if entry := s.registrationEntries[entryID]; entry != nil {
-					entry.FederatesWith = removeString(entry.FederatesWith, req.TrustDomain)
+					entry.FederatesWith = removeString(entry.FederatesWith, req.TrustDomainId)
 				}
 			}
 		default:
 			return nil, fmt.Errorf("cannot delete bundle; federated with %d registration entries", len(bundleEntries))
 		}
 	}
-	delete(s.bundles, req.TrustDomain)
+	delete(s.bundles, req.TrustDomainId)
 
 	return &datastore.DeleteBundleResponse{
 		Bundle: cloneBundle(bundle),
@@ -179,7 +152,7 @@ func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.FetchBundleR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	bundle, ok := s.bundles[req.TrustDomain]
+	bundle, ok := s.bundles[req.TrustDomainId]
 	if !ok {
 		return &datastore.FetchBundleResponse{}, nil
 	}
@@ -548,7 +521,6 @@ func (s *DataStore) addBundleLinks(entryID string, bundleIDs []string) error {
 		if _, ok := s.bundles[bundleID]; !ok {
 			return ErrNoSuchBundle
 		}
-		fmt.Printf("linking %s to %s\n", entryID, bundleID)
 		bundleEntries := s.bundleEntries[bundleID]
 		if bundleEntries == nil {
 			bundleEntries = make(map[string]bool)

@@ -99,7 +99,7 @@ func (m *manager) updateEntriesSVIDs(entryRequestsMap map[string]*entryRequest, 
 		ce := entryRequest.entry
 		svid, ok := svids[ce.RegistrationEntry.SpiffeId]
 		if ok {
-			cert, err := x509.ParseCertificate(svid.Cert)
+			cert, err := x509.ParseCertificate(svid.DEPRECATEDCert)
 			if err != nil {
 				return err
 			}

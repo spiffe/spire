@@ -30,7 +30,7 @@ type serverCAConfig struct {
 }
 
 type ServerCA interface {
-	SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) (*x509.Certificate, error)
+	SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error)
 	SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error)
 }
 
@@ -66,9 +66,9 @@ func (ca *serverCA) getKeypairSet() *keypairSet {
 	return ca.kp
 }
 
-func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) (*x509.Certificate, error) {
+func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error) {
 	kp := ca.getKeypairSet()
-	if kp == nil {
+	if kp == nil || kp.x509CA == nil || kp.x509CA.cert == nil {
 		return nil, errors.New("no X509-SVID keypair available")
 	}
 
@@ -78,8 +78,8 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 	}
 	notBefore := now.Add(-backdate)
 	notAfter := now.Add(ttl)
-	if notAfter.After(kp.x509CA.NotAfter) {
-		notAfter = kp.x509CA.NotAfter
+	if notAfter.After(kp.x509CA.cert.NotAfter) {
+		notAfter = kp.x509CA.cert.NotAfter
 	}
 
 	serialNumber := big.NewInt(atomic.AddInt64(&ca.x509sn, 1))
@@ -90,7 +90,16 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 	}
 
 	km := ca.c.Catalog.KeyManagers()[0]
-	return x509util.CreateCertificate(ctx, km, template, kp.x509CA, kp.X509CAKeyId(), template.PublicKey)
+	cert, err := x509util.CreateCertificate(ctx, km, template, kp.x509CA.cert, kp.X509CAKeyID(), template.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// build and return the certificate chain, starting with the newly signed cert and any
+	// intermediates back to the signing root of the keypair. the keypair chain
+	// is a full chain from the ca back to the signing root, so all but the
+	// last element (i.e., the signing root) form the list of intermediates.
+	return append([]*x509.Certificate{cert}, kp.x509CA.chain[:len(kp.x509CA.chain)-1]...), nil
 }
 
 func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
@@ -108,13 +117,13 @@ func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, err
 		ttl = DefaultJWTSVIDTTL
 	}
 	expiresAt := ca.hooks.now().Add(ttl)
-	if expiresAt.After(kp.jwtSigner.NotAfter) {
-		expiresAt = kp.jwtSigner.NotAfter
+	if expiresAt.After(kp.jwtSigningKey.notAfter) {
+		expiresAt = kp.jwtSigningKey.notAfter
 	}
 
 	km := ca.c.Catalog.KeyManagers()[0]
-	signer := cryptoutil.NewKeyManagerSigner(km, kp.JWTSignerKeyId(), kp.jwtSigner.PublicKey)
-	token, err := jwtsvid.SignSimpleToken(jsr.SpiffeId, jsr.Audience, expiresAt, signer, kp.jwtSigner)
+	signer := cryptoutil.NewKeyManagerSigner(km, kp.JWTSignerKeyID(), kp.jwtSigningKey.publicKey)
+	token, err := jwtsvid.SignToken(jsr.SpiffeId, jsr.Audience, expiresAt, signer, kp.jwtSigningKey.Kid)
 	if err != nil {
 		return "", fmt.Errorf("unable to sign JWT-SVID: %v", err)
 	}

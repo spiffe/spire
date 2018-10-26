@@ -58,6 +58,15 @@ type RegistrationEntry = common.RegistrationEntry
 // RegistrationEntries from public import github.com/spiffe/spire/proto/common/common.proto
 type RegistrationEntries = common.RegistrationEntries
 
+// Certificate from public import github.com/spiffe/spire/proto/common/common.proto
+type Certificate = common.Certificate
+
+// PublicKey from public import github.com/spiffe/spire/proto/common/common.proto
+type PublicKey = common.PublicKey
+
+// Bundle from public import github.com/spiffe/spire/proto/common/common.proto
+type Bundle = common.Bundle
+
 // * Represents a request with a list of BaseSPIFFEIDs.
 type ResolveRequest struct {
 	// * A list of BaseSPIFFE Ids.

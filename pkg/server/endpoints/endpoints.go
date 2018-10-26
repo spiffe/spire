@@ -1,7 +1,6 @@
 package endpoints
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -40,7 +39,7 @@ type endpoints struct {
 	c   *Config
 	mtx *sync.RWMutex
 
-	svid    *x509.Certificate
+	svid    []*x509.Certificate
 	svidKey *ecdsa.PrivateKey
 }
 
@@ -208,30 +207,13 @@ func (e *endpoints) getGRPCServerConfig(ctx context.Context) func(*tls.ClientHel
 	}
 }
 
-// getHTTPConfig returns a TLS Config hook for the HTTP server.
-func (e *endpoints) getHTTPServerConfig(ctx context.Context) func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-		certs, _, err := e.getCerts(ctx)
-		if err != nil {
-			e.c.Log.Errorf("Could not generate TLS config for HTTP client %v: %v", hello.Conn.RemoteAddr(), err)
-			return nil, err
-		}
-
-		c := &tls.Config{
-			Certificates: certs,
-		}
-
-		return c, nil
-	}
-}
-
 // getCerts queries the datastore and returns a TLS serving certificate(s) plus
 // the current CA root bundle.
 func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
 	ds := e.c.Catalog.DataStores()[0]
 
 	resp, err := ds.FetchBundle(ctx, &datastore_pb.FetchBundleRequest{
-		TrustDomain: e.c.TrustDomain.String(),
+		TrustDomainId: e.c.TrustDomain.String(),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("get bundle from datastore: %v", err)
@@ -240,9 +222,13 @@ func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 		return nil, nil, errors.New("bundle not found")
 	}
 
-	caCerts, err := x509.ParseCertificates(resp.Bundle.CaCerts)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse bundle: %v", err)
+	var caCerts []*x509.Certificate
+	for _, rootCA := range resp.Bundle.RootCas {
+		rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse bundle: %v", err)
+		}
+		caCerts = append(caCerts, rootCACerts...)
 	}
 
 	caPool := x509.NewCertPool()
@@ -253,37 +239,23 @@ func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 
-	servingCA, err := e.findServingCA(e.svid, caCerts)
-	if err != nil {
-		return nil, nil, fmt.Errorf("find serving CA: %v", err)
+	certChain := [][]byte{}
+	for i, cert := range e.svid {
+		certChain = append(certChain, cert.Raw)
+		// add the intermediates into the root CA pool since we need to
+		// validate old agents that don't present intermediates with the
+		// certificate request.
+		// TODO: remove this hack in 0.8
+		if i > 0 {
+			caPool.AddCert(cert)
+		}
 	}
-
-	certChain := [][]byte{e.svid.Raw, servingCA.Raw}
 	tlsCert := tls.Certificate{
 		Certificate: certChain,
 		PrivateKey:  e.svidKey,
 	}
 
 	return []tls.Certificate{tlsCert}, caPool, nil
-}
-
-// findServingCA attempts to identify which CA certificate issued our current serving SVID.
-func (e *endpoints) findServingCA(svid *x509.Certificate, caCerts []*x509.Certificate) (*x509.Certificate, error) {
-	var servingCA *x509.Certificate
-	for _, ca := range caCerts {
-		result := bytes.Compare(svid.AuthorityKeyId, ca.SubjectKeyId)
-
-		if result == 0 {
-			servingCA = ca
-			break
-		}
-	}
-
-	if servingCA == nil {
-		return nil, errors.New("no match found")
-	}
-
-	return servingCA, nil
 }
 
 func (e *endpoints) updateSVID() {

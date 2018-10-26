@@ -110,7 +110,7 @@ func (r *rotator) rotateSVID(ctx context.Context) error {
 	if !ok {
 		return errors.New("it was not possible to get agent SVID from FetchX509SVID response")
 	}
-	cert, err := x509.ParseCertificate(svid.Cert)
+	cert, err := x509.ParseCertificate(svid.DEPRECATEDCert)
 	if err != nil {
 		return err
 	}

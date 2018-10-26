@@ -10,51 +10,43 @@ import public "github.com/spiffe/spire/proto/common/common.proto";
 // Bundle Messages
 /////////////////////////////////////////////////////////////////////////////
 
-message Bundle {
-    // Trust domain SPIFFE ID
-    string trust_domain = 1;
-
-    // CA Certificates (ASN.1 DER encoded)
-    bytes ca_certs = 2;
-}
-
 message CreateBundleRequest {
-    Bundle bundle = 1;
+    spire.common.Bundle bundle = 1;
 }
 
 message CreateBundleResponse {
-    Bundle bundle = 1;
+    spire.common.Bundle bundle = 1;
 }
 
 message FetchBundleRequest {
-    string trust_domain = 1;
+    string trust_domain_id = 1;
 }
 
 message FetchBundleResponse {
-    Bundle bundle = 1;
+    spire.common.Bundle bundle = 1;
 }
 
 message ListBundlesRequest {
 }
 
 message ListBundlesResponse {
-    repeated Bundle bundles = 1;
+    repeated spire.common.Bundle bundles = 1;
 }
 
 message UpdateBundleRequest {
-    Bundle bundle = 1;
+    spire.common.Bundle bundle = 1;
 }
 
 message UpdateBundleResponse {
-    Bundle bundle = 1;
+    spire.common.Bundle bundle = 1;
 }
 
 message AppendBundleRequest {
-    Bundle bundle = 1;
+    spire.common.Bundle bundle = 1;
 }
 
 message AppendBundleResponse {
-    Bundle bundle = 1;
+    spire.common.Bundle bundle = 1;
 }
 
 message DeleteBundleRequest {
@@ -69,12 +61,12 @@ message DeleteBundleRequest {
         DISSOCIATE = 2;
     }
 
-    string trust_domain = 1;
+    string trust_domain_id = 1;
     Mode mode = 2;
 }
 
 message DeleteBundleResponse {
-    Bundle bundle = 1;
+    spire.common.Bundle bundle = 1;
 }
 
 
@@ -278,9 +270,9 @@ service DataStore {
     rpc FetchBundle(FetchBundleRequest) returns (FetchBundleResponse);
     // Lists bundles (optionally filtered)
     rpc ListBundles(ListBundlesRequest) returns (ListBundlesResponse);
-    // Updates a specific bundle, overwriting existing certs
+    // Updates a specific bundle
     rpc UpdateBundle(UpdateBundleRequest) returns (UpdateBundleResponse);
-    // Appends the provided certs onto an existing bundle, creating a new bundle if one doesn't exist
+    // Appends contents from a specific bundle (creates if it does not exist)
     rpc AppendBundle(AppendBundleRequest) returns (AppendBundleResponse);
     // Deletes a specific bundle
     rpc DeleteBundle(DeleteBundleRequest) returns (DeleteBundleResponse);

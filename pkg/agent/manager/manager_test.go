@@ -720,7 +720,7 @@ func newFetchX509SVIDResponse(regEntriesKeys []string, svids svidMap, bundle []*
 		SvidUpdate: &node.X509SVIDUpdate{
 			RegistrationEntries: regEntries,
 			Svids:               svids,
-			Bundles: map[string]*node.Bundle{
+			DEPRECATEDBundles: map[string]*node.Bundle{
 				trustDomainID.String(): {
 					Id:      trustDomainID.String(),
 					CaCerts: bundleBytes.Bytes(),
@@ -835,8 +835,8 @@ func (h *mockNodeAPIHandler) makeSvids(csrs [][]byte) (svidMap, error) {
 			return nil, fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.reqCount)
 		}
 		svids[spiffeID] = &node.X509SVID{
-			Cert:      svid.Raw,
-			ExpiresAt: svid.NotAfter.Unix(),
+			DEPRECATEDCert: svid.Raw,
+			ExpiresAt:      svid.NotAfter.Unix(),
 		}
 	}
 	return svids, nil

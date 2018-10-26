@@ -144,7 +144,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 		for spiffeid, svid := range resp.SvidUpdate.Svids {
 			svids[spiffeid] = svid
 		}
-		for spiffeid, bundle := range resp.SvidUpdate.Bundles {
+		for spiffeid, bundle := range resp.SvidUpdate.DEPRECATEDBundles {
 			bundles[spiffeid] = bundle
 		}
 	}

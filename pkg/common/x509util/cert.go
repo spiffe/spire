@@ -3,27 +3,15 @@ package x509util
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
-	"fmt"
 
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/proto/server/keymanager"
 )
 
 func CertificateMatchesKey(certificate *x509.Certificate, publicKey crypto.PublicKey) (bool, error) {
-	switch certPublicKey := certificate.PublicKey.(type) {
-	case *rsa.PublicKey:
-		rsaPublicKey, ok := publicKey.(*rsa.PublicKey)
-		return ok && cryptoutil.RSAPublicKeyEqual(certPublicKey, rsaPublicKey), nil
-	case *ecdsa.PublicKey:
-		ecdsaPublicKey, ok := publicKey.(*ecdsa.PublicKey)
-		return ok && cryptoutil.ECDSAPublicKeyEqual(certPublicKey, ecdsaPublicKey), nil
-	default:
-		return false, fmt.Errorf("unsupported public key type %T", certificate.PublicKey)
-	}
+	return cryptoutil.PublicKeyEqual(certificate.PublicKey, publicKey)
 }
 
 func CreateCertificate(ctx context.Context, km keymanager.KeyManager, template, parent *x509.Certificate, parentKeyId string, publicKey crypto.PublicKey) (*x509.Certificate, error) {

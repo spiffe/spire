@@ -11,20 +11,11 @@ type Model struct {
 	UpdatedAt time.Time
 }
 
-type CACert struct {
-	Model
-
-	Cert   []byte    `gorm:"not null"`
-	Expiry time.Time `gorm:"not null;index"`
-
-	BundleID uint `gorm:"not null;index" sql:"type:integer REFERENCES bundles(id)"`
-}
-
 type Bundle struct {
 	Model
 
 	TrustDomain string `gorm:"not null;unique_index"`
-	CACerts     []CACert
+	Data        []byte
 
 	FederatedEntries []RegisteredEntry `gorm:"many2many:federated_registration_entries;"`
 }

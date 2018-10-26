@@ -33,7 +33,7 @@ type rotator struct {
 }
 
 type State struct {
-	SVID *x509.Certificate
+	SVID []*x509.Certificate
 	Key  *ecdsa.PrivateKey
 }
 
@@ -76,8 +76,12 @@ func (r *rotator) Run(ctx context.Context) error {
 func (r *rotator) shouldRotate() bool {
 	s := r.state.Value().(State)
 
-	ttl := s.SVID.NotAfter.Sub(r.hooks.now())
-	watermark := s.SVID.NotAfter.Sub(s.SVID.NotBefore) / 2
+	if len(s.SVID) == 0 {
+		return true
+	}
+
+	ttl := s.SVID[0].NotAfter.Sub(r.hooks.now())
+	watermark := s.SVID[0].NotAfter.Sub(s.SVID[0].NotBefore) / 2
 
 	return (ttl < watermark)
 }
@@ -104,13 +108,13 @@ func (r *rotator) rotateSVID(ctx context.Context) error {
 	}
 
 	// Sign the CSR
-	cert, err := r.c.ServerCA.SignX509SVID(ctx, csr, 0)
+	svid, err := r.c.ServerCA.SignX509SVID(ctx, csr, 0)
 	if err != nil {
 		return err
 	}
 
 	s := State{
-		SVID: cert,
+		SVID: svid,
 		Key:  key,
 	}
 

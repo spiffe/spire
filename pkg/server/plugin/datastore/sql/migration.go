@@ -2,15 +2,18 @@ package sql
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 )
 
 const (
 	// version of the database in the code
-	codeVersion = 3
+	codeVersion = 4
 )
 
 func migrateDB(db *gorm.DB) (err error) {
@@ -70,7 +73,7 @@ func initDB(db *gorm.DB) (err error) {
 		return sqlError.Wrap(err)
 	}
 
-	if err := tx.AutoMigrate(&Bundle{}, &CACert{}, &AttestedNode{},
+	if err := tx.AutoMigrate(&Bundle{}, &AttestedNode{},
 		&NodeSelector{}, &RegisteredEntry{}, &JoinToken{},
 		&Selector{}, &Migration{}).Error; err != nil {
 		tx.Rollback()
@@ -103,6 +106,8 @@ func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
 		err = migrateToV2(tx)
 	case 2:
 		err = migrateToV3(tx)
+	case 3:
+		err = migrateToV4(tx)
 	default:
 		err = sqlError.New("no migration support for version %d", version)
 	}
@@ -155,7 +160,7 @@ func migrateToV2(tx *gorm.DB) error {
 func migrateToV3(tx *gorm.DB) (err error) {
 	// need to normalize all of the SPIFFE IDs at rest.
 
-	var bundles []*Bundle
+	var bundles []*V3_Bundle
 	if err := tx.Find(&bundles).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -216,4 +221,75 @@ func migrateToV3(tx *gorm.DB) (err error) {
 	}
 
 	return nil
+}
+
+func migrateToV4(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&Bundle{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	var bundleModels []*Bundle
+	if err := tx.Find(&bundleModels).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	for _, bundleModel := range bundleModels {
+		// load up all certs for the bundle
+		var caCerts []V3_CACert
+		if err := tx.Model(bundleModel).Related(&caCerts).Error; err != nil {
+			return sqlError.Wrap(err)
+		}
+
+		var derBytes []byte
+		for _, caCert := range caCerts {
+			derBytes = append(derBytes, caCert.Cert...)
+		}
+
+		bundle, err := bundleutil.BundleProtoFromRootCAsDER(bundleModel.TrustDomain, derBytes)
+		if err != nil {
+			return sqlError.Wrap(err)
+		}
+
+		data, err := proto.Marshal(bundle)
+		if err != nil {
+			return sqlError.Wrap(err)
+		}
+
+		bundleModel.Data = data
+		if err := tx.Save(bundleModel).Error; err != nil {
+			return sqlError.Wrap(err)
+		}
+	}
+
+	if err := tx.Exec("DROP TABLE ca_certs").Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
+}
+
+type V3_Bundle struct {
+	Model
+
+	TrustDomain string `gorm:"not null;unique_index"`
+	CACerts     []V3_CACert
+
+	FederatedEntries []RegisteredEntry `gorm:"many2many:federated_registration_entries;"`
+}
+
+func (V3_Bundle) TableName() string {
+	return "bundles"
+}
+
+type V3_CACert struct {
+	Model
+
+	Cert   []byte    `gorm:"not null"`
+	Expiry time.Time `gorm:"not null;index"`
+
+	BundleID uint `gorm:"not null;index" sql:"type:integer REFERENCES bundles(id)"`
+}
+
+func (V3_CACert) TableName() string {
+	return "ca_certs"
 }
