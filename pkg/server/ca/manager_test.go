@@ -136,36 +136,65 @@ func (m *ManagerTestSuite) TestPersistence() {
 	// initialize a new keypair set
 	m.Require().NoError(m.m.Initialize(ctx))
 	current1 := m.m.getCurrentKeypairSet()
+	m.requireValidKeypairSet(current1)
+	next1 := m.m.getNextKeypairSet()
+	m.requireEmptyKeypairSet(next1)
 
 	// "reload" the manager and assert the keypairs are the same
 	m.newManager()
 	m.Require().NoError(m.m.Initialize(ctx))
 	current2 := m.m.getCurrentKeypairSet()
+	next2 := m.m.getNextKeypairSet()
 	m.requireKeypairSetKeysEqual(current1, current2)
+	m.requireEmptyKeypairSet(next2)
 
 	// drop the keys, "reload" the manager, and assert the keypairs are new
 	m.catalog.SetKeyManagers(memory.New())
 	m.newManager()
 	m.Require().NoError(m.m.Initialize(ctx))
 	current3 := m.m.getCurrentKeypairSet()
+	next3 := m.m.getNextKeypairSet()
 	m.requireKeypairSetKeysNotEqual(current2, current3)
+	m.requireEmptyKeypairSet(next3)
 
 	// load the old keys, "reload" the manager, and assert the keypairs are new
 	m.catalog.SetKeyManagers(m.keymanager)
 	m.newManager()
 	m.Require().NoError(m.m.Initialize(ctx))
 	current4 := m.m.getCurrentKeypairSet()
+	next4 := m.m.getNextKeypairSet()
 	m.requireKeypairSetKeysNotEqual(current3, current4)
+	m.requireEmptyKeypairSet(next4)
 
-	// rotate the keypairs, "reload" the manager, and make sure current is persisted.
-	m.setTime(activationThreshold(current4.x509CA.cert).Add(time.Second))
+	// prepare the next keypair, "reload" the manager, and assert "current"
+	// and "next" are maintained.
+	m.setTime(preparationThreshold(current4.x509CA.cert).Add(time.Second))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	current5 := m.m.getCurrentKeypairSet()
-	m.requireKeypairSetKeysNotEqual(current4, current5)
+	next5 := m.m.getNextKeypairSet()
+	m.requireKeypairSetKeysEqual(current4, current5)
+	m.requireValidKeypairSet(next5)
 	m.newManager()
 	m.Require().NoError(m.m.Initialize(ctx))
 	current6 := m.m.getCurrentKeypairSet()
+	next6 := m.m.getNextKeypairSet()
 	m.requireKeypairSetKeysEqual(current5, current6)
+	m.requireKeypairSetKeysEqual(next5, next6)
+
+	// activate the next keypair, "reload" the manager, and assert the new "current"
+	// is maintained and "next" is empty (since it hasn't been prepared yet)
+	m.setTime(activationThreshold(current6.x509CA.cert).Add(time.Second))
+	m.Require().NoError(m.m.rotateCAs(ctx))
+	current7 := m.m.getCurrentKeypairSet()
+	next7 := m.m.getNextKeypairSet()
+	m.requireKeypairSetKeysNotEqual(current6, current7)
+	m.requireEmptyKeypairSet(next7)
+	m.newManager()
+	m.Require().NoError(m.m.Initialize(ctx))
+	current8 := m.m.getCurrentKeypairSet()
+	next8 := m.m.getNextKeypairSet()
+	m.requireKeypairSetKeysEqual(current7, current8)
+	m.requireEmptyKeypairSet(next8)
 }
 
 func (m *ManagerTestSuite) TestSelfSigning() {
@@ -346,10 +375,20 @@ func (m *ManagerTestSuite) requireKeypairSetKeysEqual(set1, set2 *keypairSet) {
 }
 
 func (m *ManagerTestSuite) requireKeypairSetKeysNotEqual(set1, set2 *keypairSet) {
-	m.Require().NotNil(set1)
-	m.Require().NotNil(set1.x509CA)
-	m.Require().NotNil(set2)
-	m.Require().NotNil(set2.x509CA)
+	m.requireValidKeypairSet(set1)
+	m.requireValidKeypairSet(set2)
 	m.Require().NotEqual(set1.x509CA.chain, set2.x509CA.chain)
 	m.Assert().NotEqual(set1.jwtSigningKey.PublicKey.String(), set2.jwtSigningKey.PublicKey.String())
+}
+
+func (m *ManagerTestSuite) requireValidKeypairSet(set *keypairSet) {
+	m.Require().NotNil(set)
+	m.Require().NotNil(set.x509CA)
+	m.Require().NotNil(set.jwtSigningKey)
+}
+
+func (m *ManagerTestSuite) requireEmptyKeypairSet(set *keypairSet) {
+	m.Require().NotNil(set)
+	m.Require().Nil(set.x509CA)
+	m.Require().Nil(set.jwtSigningKey)
 }
