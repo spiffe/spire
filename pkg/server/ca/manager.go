@@ -454,9 +454,11 @@ func (m *manager) loadKeypairSets(ctx context.Context) error {
 		m.next.Reset()
 	}
 
-	if m.current.x509CA != nil && m.next.x509CA != nil &&
-		m.current.x509CA.cert.NotBefore.After(m.next.x509CA.cert.NotBefore) {
-		// swap the current and next keypair to get ascending order
+	// if B (next) was loaded but A (current) was not, OR if B comes before
+	// A, then swap B into the current slot.
+	if (m.current.x509CA == nil && m.next.x509CA != nil) ||
+		(m.current.x509CA != nil && m.next.x509CA != nil &&
+			m.current.x509CA.cert.NotBefore.After(m.next.x509CA.cert.NotBefore)) {
 		m.current, m.next = m.next, m.current
 	}
 
@@ -468,11 +470,13 @@ func (m *manager) loadKeypairSets(ctx context.Context) error {
 }
 
 func (m *manager) getCurrentKeypairSet() *keypairSet {
-	return m.current
+	copy := *m.current
+	return &copy
 }
 
 func (m *manager) getNextKeypairSet() *keypairSet {
-	return m.next
+	copy := *m.next
+	return &copy
 }
 
 func (m *manager) setKeypairSet() {
