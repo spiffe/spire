@@ -422,43 +422,59 @@ func (m *manager) loadKeypairSets(ctx context.Context) error {
 		return err
 	}
 
-	lookupX509CA := func(keyID string) *caX509CA {
-		x509CA := x509CAs[keyID]
-		key := keys[keyID]
-		if x509CA != nil && key != nil && certMatchesKey(x509CA.cert, key) {
-			return x509CA
+	populateKeypairSet := func(kps *keypairSet) bool {
+		kps.Reset()
+
+		x509CA := x509CAs[kps.X509CAKeyID()]
+		x509CAKMKey := keys[kps.X509CAKeyID()]
+		x509CAOK := x509CA != nil && x509CAKMKey != nil && certMatchesKey(x509CA.cert, x509CAKMKey)
+		jwtSigningKey := publicKeys[kps.JWTSignerKeyID()]
+		jwtSigningKMKey := keys[kps.JWTSignerKeyID()]
+		jwtSigningKeyOK := jwtSigningKey != nil && jwtSigningKMKey != nil && publicKeyEqual(jwtSigningKey.publicKey, jwtSigningKMKey)
+
+		if !(x509CAOK && jwtSigningKeyOK) {
+			if x509CA == nil && jwtSigningKey == nil {
+				// this is a normal condition when launching the server for the
+				// first time
+				m.c.Log.Debugf("Manager keypair set %q does not exist", kps.slot)
+				return false
+			}
+			if x509CA != nil && jwtSigningKey != nil && x509CAKMKey == nil && jwtSigningKMKey == nil {
+				m.c.Log.Infof("Manager keypair set %q not in key manager", kps.slot)
+				return false
+			}
+			switch {
+			case x509CA == nil:
+				m.c.Log.Warnf("Manager keypair set %q unusable: x509 CA is missing", kps.slot)
+			case x509CAKMKey == nil:
+				m.c.Log.Warnf("Manager keypair set %q unusable: x509 CA key not in key manager", kps.slot)
+			case !x509CAOK:
+				m.c.Log.Warnf("Manager keypair set %q unusable: x509 CA keypair is mismatched", kps.slot)
+			}
+			switch {
+			case jwtSigningKey == nil:
+				m.c.Log.Warnf("Manager keypair set %q unusable: JWT signing key is missing", kps.slot)
+			case jwtSigningKMKey == nil:
+				m.c.Log.Warnf("Manager keypair set %q unusable: JWT signing key not in key manager", kps.slot)
+			case !jwtSigningKeyOK:
+				m.c.Log.Warnf("Manager keypair set %q unusable: JWT signing keypair is mismatched", kps.slot)
+			}
+			return false
 		}
-		return nil
+
+		m.c.Log.Debugf("Manager loaded keypair set %q", kps.slot)
+		kps.x509CA = x509CA
+		kps.jwtSigningKey = jwtSigningKey
+		return true
 	}
 
-	lookupPublicKey := func(keyID string) *caPublicKey {
-		publicKey := publicKeys[keyID]
-		key := keys[keyID]
-		if publicKey != nil && key != nil && publicKeyEqual(publicKey.publicKey, key) {
-			return publicKey
-		}
-		return nil
-	}
-
-	// load up the current keypair set and make sure it has all required certs
-	m.current.x509CA = lookupX509CA(m.current.X509CAKeyID())
-	m.current.jwtSigningKey = lookupPublicKey(m.current.JWTSignerKeyID())
-	if m.current.x509CA == nil || m.current.jwtSigningKey == nil {
-		m.current.Reset()
-	}
-
-	// load up the next keypair set and make sure it has all required certs
-	m.next.x509CA = lookupX509CA(m.next.X509CAKeyID())
-	m.next.jwtSigningKey = lookupPublicKey(m.next.JWTSignerKeyID())
-	if m.next.x509CA == nil || m.next.jwtSigningKey == nil {
-		m.next.Reset()
-	}
+	currentValid := populateKeypairSet(m.current)
+	nextValid := populateKeypairSet(m.next)
 
 	// if B (next) was loaded but A (current) was not, OR if B comes before
 	// A, then swap B into the current slot.
-	if (m.current.x509CA == nil && m.next.x509CA != nil) ||
-		(m.current.x509CA != nil && m.next.x509CA != nil &&
-			m.current.x509CA.cert.NotBefore.After(m.next.x509CA.cert.NotBefore)) {
+	if nextValid && (!currentValid ||
+		m.current.x509CA.cert.NotBefore.After(m.next.x509CA.cert.NotBefore)) {
 		m.current, m.next = m.next, m.current
 	}
 
