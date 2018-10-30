@@ -483,6 +483,62 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		regEntriesFromCacheEntries(m.cache.Entries()))
 }
 
+func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
+	dir := createTempDir(t)
+	defer removeTempDir(dir)
+
+	l, err := net.Listen("tcp", "localhost:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
+		t:             t,
+		trustDomain:   trustDomain,
+		listener:      l,
+		fetchX509SVID: fetchX509SVIDForRegistrationEntryUpdateTest,
+		svidTTL:       3,
+	})
+	apiHandler.start()
+	defer apiHandler.stop()
+
+	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+
+	c := &Config{
+		ServerAddr:      l.Addr().String(),
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		TrustDomain:     trustDomainID,
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Bundle:          apiHandler.bundle,
+		Tel:             &telemetry.Blackhole{},
+	}
+
+	m := newManager(t, c)
+
+	if err := m.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// after initialization, the cache should contain resp2 entries
+	compareRegistrationEntries(t,
+		regEntriesMap["resp2"],
+		regEntriesFromCacheEntries(m.cache.Entries()))
+
+	// manually synchronize again
+	if err := m.synchronize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// now the cache should have the updated entries from resp3
+	compareRegistrationEntries(t,
+		regEntriesMap["resp3"],
+		regEntriesFromCacheEntries(m.cache.Entries()))
+}
+
 func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
@@ -676,6 +732,23 @@ func fetchX509SVIDForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchX509SV
 		return stream.Send(newFetchX509SVIDResponse([]string{"resp1"}, nil, h.bundle))
 	case 4:
 		return stream.Send(newFetchX509SVIDResponse([]string{"resp1"}, svids, h.bundle))
+	}
+	return stream.Send(newFetchX509SVIDResponse(nil, nil, h.bundle))
+}
+
+func fetchX509SVIDForRegistrationEntryUpdateTest(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
+	svids, err := h.makeSvids(req.Csrs)
+	if err != nil {
+		return err
+	}
+
+	switch h.reqCount {
+	case 1:
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp2"}, nil, h.bundle))
+	case 2:
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp2"}, svids, h.bundle))
+	case 3:
+		return stream.Send(newFetchX509SVIDResponse([]string{"resp3"}, nil, h.bundle))
 	}
 	return stream.Send(newFetchX509SVIDResponse(nil, nil, h.bundle))
 }

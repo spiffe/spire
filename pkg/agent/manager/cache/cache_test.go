@@ -62,51 +62,9 @@ func TestCacheImpl_Valid(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cache.SetEntry(test.ce)
-			actual := cache.Entry(test.ce.RegistrationEntry)
+			actual := cache.FetchEntry(test.ce.RegistrationEntry.EntryId)
 			assert.Equal(t, actual, test.ce)
 
-		})
-	}
-}
-
-func TestCacheImpl_Invalid(t *testing.T) {
-	cache := New(logger, "spiffe://example.org", nil)
-	tests := []struct {
-		name string
-		ce   *Entry
-	}{
-		{name: "test_single_selector",
-			ce: &Entry{
-				RegistrationEntry: &common.RegistrationEntry{
-					Selectors: Selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
-					ParentId:  "spiffe:parent",
-					SpiffeId:  "spiffe:test",
-					EntryId:   "00000000-0000-0000-0000-000000000000",
-				},
-				SVID:       &x509.Certificate{},
-				PrivateKey: privateKey,
-			}},
-
-		{name: "test_multiple_selectors_sort_different_types",
-			ce: &Entry{
-				RegistrationEntry: &common.RegistrationEntry{
-					Selectors: Selectors{&common.Selector{Type: "testtype3", Value: "testValue1"},
-						&common.Selector{Type: "testtype2", Value: "testValue2"},
-						&common.Selector{Type: "testtype1", Value: "testValue3"}},
-					ParentId: "spiffe:parent",
-					SpiffeId: "spiffe:test",
-					EntryId:  "00000000-0000-0000-0000-000000000001",
-				},
-				SVID:       &x509.Certificate{},
-				PrivateKey: privateKey,
-			}}}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			cache.SetEntry(test.ce)
-			actual := cache.Entry(&common.RegistrationEntry{
-				Selectors: Selectors{&common.Selector{Type: "invalid", Value: "testValue1"}},
-			})
-			assert.Empty(t, actual)
 		})
 	}
 }
@@ -143,7 +101,7 @@ func TestCacheImpl_DeleteEntry(t *testing.T) {
 			cache.SetEntry(test.ce)
 			deleted := cache.DeleteEntry(test.ce.RegistrationEntry)
 			assert.True(t, deleted)
-			entry := cache.Entry(test.ce.RegistrationEntry)
+			entry := cache.FetchEntry(test.ce.RegistrationEntry.EntryId)
 			assert.Empty(t, entry)
 			deleted = cache.DeleteEntry(test.ce.RegistrationEntry)
 			assert.False(t, deleted)
