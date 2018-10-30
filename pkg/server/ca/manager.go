@@ -179,7 +179,7 @@ func (m *manager) rotateCAsEvery(ctx context.Context, interval time.Duration) er
 		case <-ticker.C:
 			err := m.rotateCAs(ctx)
 			if err != nil {
-				m.c.Log.Errorf("Manager unable to rotate CAs: %v", err)
+				m.c.Log.Errorf("Unable to rotate CAs: %v", err)
 			}
 		case <-ctx.Done():
 			return nil
@@ -222,7 +222,7 @@ func (m *manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 		select {
 		case <-ticker.C:
 			if err := m.pruneBundle(ctx); err != nil {
-				m.c.Log.Errorf("Manager could not prune CA certificates: %v", err)
+				m.c.Log.Errorf("Could not prune CA certificates: %v", err)
 			}
 		case <-ctx.Done():
 			return nil
@@ -261,7 +261,7 @@ pruneRootCA:
 		// threshhold, throw the whole chain out
 		for _, cert := range certs {
 			if !cert.NotAfter.After(now) {
-				m.c.Log.Infof("Manager is pruning CA certificate number %v with expiry date %v", cert.SerialNumber, cert.NotAfter)
+				m.c.Log.Infof("Pruning CA certificate number %v with expiry date %v", cert.SerialNumber, cert.NotAfter)
 				changed = true
 				continue pruneRootCA
 			}
@@ -272,7 +272,7 @@ pruneRootCA:
 	for _, jwtSigningKey := range oldBundle.JwtSigningKeys {
 		notAfter := time.Unix(jwtSigningKey.NotAfter, 0)
 		if !notAfter.After(now) {
-			m.c.Log.Infof("Manager is pruning JWT signing key %q with expiry date %v", jwtSigningKey.Kid, notAfter)
+			m.c.Log.Infof("Pruning JWT signing key %q with expiry date %v", jwtSigningKey.Kid, notAfter)
 			changed = true
 			continue
 		}
@@ -280,12 +280,12 @@ pruneRootCA:
 	}
 
 	if len(newBundle.RootCas) == 0 {
-		m.c.Log.Warn("Manager pruning halted; all known CA certificates have expired")
+		m.c.Log.Warn("Pruning halted; all known CA certificates have expired")
 		return errors.New("would prune all certificates")
 	}
 
 	if len(newBundle.JwtSigningKeys) == 0 {
-		m.c.Log.Warn("Manager pruning halted; all known JWT signing keys have expired")
+		m.c.Log.Warn("Pruning halted; all known JWT signing keys have expired")
 		return errors.New("would prune all JWT signing keys")
 	}
 
@@ -321,7 +321,7 @@ func (m *manager) appendBundle(ctx context.Context, rootCA *x509.Certificate, jw
 }
 
 func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) error {
-	m.c.Log.Debugf("Manager is preparing keypair set %q", kps.slot)
+	m.c.Log.Debugf("Preparing keypair set %q", kps.slot)
 	kps.Reset()
 
 	now := m.hooks.now()
@@ -436,33 +436,33 @@ func (m *manager) loadKeypairSets(ctx context.Context) error {
 			if x509CA == nil && jwtSigningKey == nil {
 				// this is a normal condition when launching the server for the
 				// first time
-				m.c.Log.Debugf("Manager keypair set %q does not exist", kps.slot)
+				m.c.Log.Debugf("Keypair set %q does not exist", kps.slot)
 				return false
 			}
 			if x509CA != nil && jwtSigningKey != nil && x509CAKMKey == nil && jwtSigningKMKey == nil {
-				m.c.Log.Infof("Manager keypair set %q not in key manager", kps.slot)
+				m.c.Log.Infof("Private keys for keypair set %q not in keymanager", kps.slot)
 				return false
 			}
 			switch {
 			case x509CA == nil:
-				m.c.Log.Warnf("Manager keypair set %q unusable: x509 CA is missing", kps.slot)
+				m.c.Log.Warnf("Keypair set %q unusable: corresponding x509 CA certificate not found in %s", kps.slot, m.c.CertsPath)
 			case x509CAKMKey == nil:
-				m.c.Log.Warnf("Manager keypair set %q unusable: x509 CA key not in key manager", kps.slot)
+				m.c.Log.Warnf("keypair set %q unusable: x509 CA private key not found in keymanager", kps.slot)
 			case !x509CAOK:
-				m.c.Log.Warnf("Manager keypair set %q unusable: x509 CA keypair is mismatched", kps.slot)
+				m.c.Log.Warnf("Keypair set %q unusable: x509 CA certificate does not match private key in keymanager", kps.slot)
 			}
 			switch {
 			case jwtSigningKey == nil:
-				m.c.Log.Warnf("Manager keypair set %q unusable: JWT signing key is missing", kps.slot)
+				m.c.Log.Warnf("Keypair set %q unusable: corresponding JWT signing public key not found in %s", kps.slot, m.c.CertsPath)
 			case jwtSigningKMKey == nil:
-				m.c.Log.Warnf("Manager keypair set %q unusable: JWT signing key not in key manager", kps.slot)
+				m.c.Log.Warnf("Keypair set %q unusable: JWT signing private key not found in keymanager", kps.slot)
 			case !jwtSigningKeyOK:
-				m.c.Log.Warnf("Manager keypair set %q unusable: JWT signing keypair is mismatched", kps.slot)
+				m.c.Log.Warnf("Keypair set %q unusable: JWT signing public key does not match private key in keymanager", kps.slot)
 			}
 			return false
 		}
 
-		m.c.Log.Debugf("Manager loaded keypair set %q", kps.slot)
+		m.c.Log.Debugf("Loaded keypair set %q", kps.slot)
 		kps.x509CA = x509CA
 		kps.jwtSigningKey = jwtSigningKey
 		return true
@@ -478,7 +478,7 @@ func (m *manager) loadKeypairSets(ctx context.Context) error {
 		m.current, m.next = m.next, m.current
 	}
 
-	m.c.Log.Debugf("Manager has loaded keypair sets")
+	m.c.Log.Debugf("Loaded keypair sets")
 	if m.current.x509CA != nil {
 		m.setKeypairSet()
 	}
@@ -496,7 +496,7 @@ func (m *manager) getNextKeypairSet() *keypairSet {
 }
 
 func (m *manager) setKeypairSet() {
-	m.c.Log.Debugf("Manager is activating keypair set %q", m.current.slot)
+	m.c.Log.Debugf("Activating keypair set %q", m.current.slot)
 	m.ca.setKeypairSet(*m.current)
 }
 
