@@ -155,10 +155,6 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 	}
 }
 
-func (m *manager) isAlreadyCached(regEntry *common.RegistrationEntry) bool {
-	return m.cache.Entry(regEntry) != nil
-}
-
 func (m *manager) storeSVID(svid *x509.Certificate) {
 	err := StoreSVID(m.svidCachePath, svid)
 	if err != nil {

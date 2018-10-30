@@ -45,5 +45,35 @@
                 "ttl": 200
             }
         ]
+    },
+    "resp3" : {
+        "entries": [
+            {
+                "selectors": [
+                    {
+                        "type": "unix",
+                        "value": "uid:1111"
+                    }
+                ],
+                "entry_id": "0002",
+                "spiffe_id": "spiffe://example.org/blog",
+                "parent_id": "spiffe://example.org/spire/agent",
+                "ttl": 200
+            },
+            {
+                "selectors": [
+                    {
+                        "type": "unix",
+                        "value": "uid:1111"
+                    }
+                ],
+                "entry_id": "0003",
+                "spiffe_id": "spiffe://example.org/database",
+                "parent_id": "spiffe://example.org/spire/agent",
+                "ttl": 200,
+                "federates_with": ["spiffe://otherdomain.test"]
+            }
+        ]
     }
+
 }

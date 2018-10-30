@@ -72,8 +72,8 @@ func (b *BundleStream) Clone() *BundleStream {
 }
 
 type Cache interface {
-	// Entry gets the cache entry for the specified RegistrationEntry.
-	Entry(regEntry *common.RegistrationEntry) *Entry
+	// FetchEntry gets the cache entry for the specified registration entry id
+	FetchEntry(entryId string) *Entry
 	// SetEntry puts a new cache entry for the entry's RegistrationEntry.
 	SetEntry(entry *Entry)
 	// DeleteEntry removes the cache entry for the specified RegistrationEntry if it exists,
@@ -185,10 +185,10 @@ func (c *cacheImpl) Subscribe(selectors Selectors) Subscriber {
 	return sub
 }
 
-func (c *cacheImpl) Entry(regEntry *common.RegistrationEntry) *Entry {
+func (c *cacheImpl) FetchEntry(entryID string) *Entry {
 	c.m.Lock()
 	defer c.m.Unlock()
-	if entry, found := c.cache[regEntry.EntryId]; found {
+	if entry, found := c.cache[entryID]; found {
 		return entry
 	}
 	return nil

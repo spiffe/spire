@@ -8,16 +8,16 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
-	proto "github.com/spiffe/spire/proto/common"
 )
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
 func (m *manager) synchronize(ctx context.Context) (err error) {
-	var regEntries map[string]*proto.RegistrationEntry
+	var regEntries map[string]*common.RegistrationEntry
 	var cEntryRequests = entryRequests{}
 
 	regEntries, _, err = m.fetchUpdates(ctx, nil)
@@ -111,7 +111,7 @@ func (m *manager) updateEntriesSVIDs(entryRequestsMap map[string]*entryRequest, 
 	return nil
 }
 
-func (m *manager) clearStaleCacheEntries(regEntries map[string]*proto.RegistrationEntry) {
+func (m *manager) clearStaleCacheEntries(regEntries map[string]*common.RegistrationEntry) {
 	for _, entry := range m.cache.Entries() {
 		if _, ok := regEntries[entry.RegistrationEntry.EntryId]; !ok {
 			m.cache.DeleteEntry(entry.RegistrationEntry)
@@ -147,21 +147,33 @@ func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
 	return nil
 }
 
-func (m *manager) checkForNewCacheEntries(regEntries map[string]*proto.RegistrationEntry, cEntryRequests entryRequests) error {
+func (m *manager) checkForNewCacheEntries(regEntries map[string]*common.RegistrationEntry, cEntryRequests entryRequests) error {
 	for _, regEntry := range regEntries {
-		if !m.isAlreadyCached(regEntry) {
-			privateKey, csr, err := m.newCSR(regEntry.SpiffeId)
-			if err != nil {
-				return err
+		existingEntry := m.cache.FetchEntry(regEntry.EntryId)
+		if existingEntry != nil {
+			// entry exists. if the registration entry has changed, then
+			// update the cache and move on.
+			if !proto.Equal(existingEntry.RegistrationEntry, regEntry) {
+				m.cache.SetEntry(&cache.Entry{
+					RegistrationEntry: regEntry,
+					SVID:              existingEntry.SVID,
+					PrivateKey:        existingEntry.PrivateKey,
+				})
 			}
-
-			cacheEntry := &cache.Entry{
-				RegistrationEntry: regEntry,
-				SVID:              nil,
-				PrivateKey:        privateKey,
-			}
-			cEntryRequests.add(&entryRequest{csr, cacheEntry})
+			continue
 		}
+
+		privateKey, csr, err := m.newCSR(regEntry.SpiffeId)
+		if err != nil {
+			return err
+		}
+
+		cacheEntry := &cache.Entry{
+			RegistrationEntry: regEntry,
+			SVID:              nil,
+			PrivateKey:        privateKey,
+		}
+		cEntryRequests.add(&entryRequest{csr, cacheEntry})
 	}
 
 	return nil
