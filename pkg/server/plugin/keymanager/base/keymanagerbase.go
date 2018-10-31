@@ -54,7 +54,7 @@ func (m *Base) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReque
 		return nil, m.newError("key id is required")
 	}
 	if req.KeyType == keymanager.KeyType_UNSPECIFIED_KEY_TYPE {
-		return nil, m.newError("key algorithm is required")
+		return nil, m.newError("key type is required")
 	}
 
 	newEntry, err := m.generateKeyEntry(req.KeyId, req.KeyType)
@@ -188,7 +188,7 @@ func (m *Base) generateKeyEntry(keyId string, keyType keymanager.KeyType) (e *Ke
 	case keymanager.KeyType_RSA_4096:
 		privateKey, publicKey, err = generateRSAKey(4096)
 	default:
-		return nil, m.newError("unknown key algorithm %q", keyType)
+		return nil, m.newError("unknown key type %q", keyType)
 	}
 	if err != nil {
 		return nil, err

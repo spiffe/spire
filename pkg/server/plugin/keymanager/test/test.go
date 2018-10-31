@@ -48,7 +48,7 @@ func (s *baseSuite) TestGenerateKeyMissingKeyId() {
 }
 
 func (s *baseSuite) TestGenerateKeyMissingKeyType() {
-	// missing key algorithm
+	// missing key type
 	resp, err := s.m.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
 		KeyId: "KEY",
 	})
