@@ -5,10 +5,13 @@ option go_package = "keymanager";
 import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
 
 
-enum KeyAlgorithm {
-    UNSPECIFIED_KEY_ALGORITHM = 0;
-    ECDSA_P256 = 1;
-    ECDSA_P384 = 2;
+enum KeyType {
+    UNSPECIFIED_KEY_TYPE = 0;
+    EC_P256 = 1;
+    EC_P384 = 2;
+    RSA_1024 = 3;
+    RSA_2048 = 4;
+    RSA_4096 = 5;
 }
 
 enum HashAlgorithm {
@@ -30,13 +33,13 @@ enum HashAlgorithm {
 
 message PublicKey {
     string id = 1;
-    KeyAlgorithm algorithm = 2;
+    KeyType type = 2;
     bytes pkix_data = 3;
 }
 
 message GenerateKeyRequest {
     string key_id = 1;
-    KeyAlgorithm key_algorithm = 2;
+    KeyType key_type = 2;
 }
 
 message GenerateKeyResponse {
@@ -59,10 +62,18 @@ message GetPublicKeysResponse {
     repeated PublicKey public_keys = 1;
 }
 
+message PSSOptions {
+    int32 salt_length = 1;
+    HashAlgorithm hash_algorithm = 2;
+}
+
 message SignDataRequest {
     string key_id = 1;
-    HashAlgorithm hash_algorithm = 2;
     bytes data = 3;
+    oneof signer_opts {
+        HashAlgorithm hash_algorithm = 2;
+        PSSOptions pss_options = 4;
+    }
 }
 
 message SignDataResponse {

@@ -21,12 +21,13 @@
     - [GetPublicKeyResponse](#spire.server.keymanager.GetPublicKeyResponse)
     - [GetPublicKeysRequest](#spire.server.keymanager.GetPublicKeysRequest)
     - [GetPublicKeysResponse](#spire.server.keymanager.GetPublicKeysResponse)
+    - [PSSOptions](#spire.server.keymanager.PSSOptions)
     - [PublicKey](#spire.server.keymanager.PublicKey)
     - [SignDataRequest](#spire.server.keymanager.SignDataRequest)
     - [SignDataResponse](#spire.server.keymanager.SignDataResponse)
   
     - [HashAlgorithm](#spire.server.keymanager.HashAlgorithm)
-    - [KeyAlgorithm](#spire.server.keymanager.KeyAlgorithm)
+    - [KeyType](#spire.server.keymanager.KeyType)
   
   
     - [KeyManager](#spire.server.keymanager.KeyManager)
@@ -148,7 +149,7 @@ Represents the plugin metadata.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key_id | [string](#string) |  |  |
-| key_algorithm | [KeyAlgorithm](#spire.server.keymanager.KeyAlgorithm) |  |  |
+| key_type | [KeyType](#spire.server.keymanager.KeyType) |  |  |
 
 
 
@@ -225,6 +226,22 @@ Represents the plugin metadata.
 
 
 
+<a name="spire.server.keymanager.PSSOptions"/>
+
+### PSSOptions
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| salt_length | [int32](#int32) |  |  |
+| hash_algorithm | [HashAlgorithm](#spire.server.keymanager.HashAlgorithm) |  |  |
+
+
+
+
+
+
 <a name="spire.server.keymanager.PublicKey"/>
 
 ### PublicKey
@@ -234,7 +251,7 @@ Represents the plugin metadata.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | id | [string](#string) |  |  |
-| algorithm | [KeyAlgorithm](#spire.server.keymanager.KeyAlgorithm) |  |  |
+| type | [KeyType](#spire.server.keymanager.KeyType) |  |  |
 | pkix_data | [bytes](#bytes) |  |  |
 
 
@@ -251,8 +268,9 @@ Represents the plugin metadata.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key_id | [string](#string) |  |  |
-| hash_algorithm | [HashAlgorithm](#spire.server.keymanager.HashAlgorithm) |  |  |
 | data | [bytes](#bytes) |  |  |
+| hash_algorithm | [HashAlgorithm](#spire.server.keymanager.HashAlgorithm) |  |  |
+| pss_options | [PSSOptions](#spire.server.keymanager.PSSOptions) |  |  |
 
 
 
@@ -297,16 +315,19 @@ Represents the plugin metadata.
 
 
 
-<a name="spire.server.keymanager.KeyAlgorithm"/>
+<a name="spire.server.keymanager.KeyType"/>
 
-### KeyAlgorithm
+### KeyType
 
 
 | Name | Number | Description |
 | ---- | ------ | ----------- |
-| UNSPECIFIED_KEY_ALGORITHM | 0 |  |
-| ECDSA_P256 | 1 |  |
-| ECDSA_P384 | 2 |  |
+| UNSPECIFIED_KEY_TYPE | 0 |  |
+| EC_P256 | 1 |  |
+| EC_P384 | 2 |  |
+| RSA_1024 | 3 |  |
+| RSA_2048 | 4 |  |
+| RSA_4096 | 5 |  |
 
 
  

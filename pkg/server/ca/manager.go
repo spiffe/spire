@@ -329,7 +329,7 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) error 
 	notAfter := now.Add(m.c.CATTL)
 
 	km := m.c.Catalog.KeyManagers()[0]
-	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, kps.X509CAKeyID(), keymanager.KeyAlgorithm_ECDSA_P384)
+	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, kps.X509CAKeyID(), keymanager.KeyType_EC_P384)
 	if err != nil {
 		return err
 	}
@@ -349,7 +349,7 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) error 
 		}
 	}
 
-	jwtSigningKeyPKIX, err := cryptoutil.GenerateKeyRaw(ctx, km, kps.JWTSignerKeyID(), keymanager.KeyAlgorithm_ECDSA_P256)
+	jwtSigningKeyPKIX, err := cryptoutil.GenerateKeyRaw(ctx, km, kps.JWTSignerKeyID(), keymanager.KeyType_EC_P256)
 	if err != nil {
 		return err
 	}

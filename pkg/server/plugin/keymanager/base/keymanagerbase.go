@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"sort"
@@ -52,11 +53,11 @@ func (m *Base) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReque
 	if req.KeyId == "" {
 		return nil, m.newError("key id is required")
 	}
-	if req.KeyAlgorithm == keymanager.KeyAlgorithm_UNSPECIFIED_KEY_ALGORITHM {
-		return nil, m.newError("key algorithm is required")
+	if req.KeyType == keymanager.KeyType_UNSPECIFIED_KEY_TYPE {
+		return nil, m.newError("key type is required")
 	}
 
-	newEntry, err := m.generateKeyEntry(req.KeyId, req.KeyAlgorithm)
+	newEntry, err := m.generateKeyEntry(req.KeyId, req.KeyType)
 	if err != nil {
 		return nil, err
 	}
@@ -70,9 +71,10 @@ func (m *Base) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReque
 
 	if m.impl.WriteFn != nil {
 		if err := m.impl.WriteFn(ctx, entriesSliceFromMap(m.entries)); err != nil {
-			delete(m.entries, req.KeyId)
 			if hasEntry {
 				m.entries[req.KeyId] = oldEntry
+			} else {
+				delete(m.entries, req.KeyId)
 			}
 			return nil, err
 		}
@@ -116,8 +118,30 @@ func (m *Base) SignData(ctx context.Context, req *keymanager.SignDataRequest) (*
 	if req.KeyId == "" {
 		return nil, m.newError("key id is required")
 	}
-	if req.HashAlgorithm == keymanager.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM {
-		return nil, m.newError("hash algorithm is required")
+	if req.SignerOpts == nil {
+		return nil, m.newError("signer opts is required")
+	}
+
+	var signerOpts crypto.SignerOpts
+	switch opts := req.SignerOpts.(type) {
+	case *keymanager.SignDataRequest_HashAlgorithm:
+		if opts.HashAlgorithm == keymanager.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM {
+			return nil, m.newError("hash algorithm is required")
+		}
+		signerOpts = crypto.Hash(opts.HashAlgorithm)
+	case *keymanager.SignDataRequest_PssOptions:
+		if opts.PssOptions == nil {
+			return nil, m.newError("PSS options are nil")
+		}
+		if opts.PssOptions.HashAlgorithm == keymanager.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM {
+			return nil, m.newError("hash algorithm is required")
+		}
+		signerOpts = &rsa.PSSOptions{
+			SaltLength: int(opts.PssOptions.SaltLength),
+			Hash:       crypto.Hash(opts.PssOptions.HashAlgorithm),
+		}
+	default:
+		return nil, m.newError("unsupported signer opts type %T", opts)
 	}
 
 	privateKey := m.getPrivateKey(req.KeyId)
@@ -130,7 +154,7 @@ func (m *Base) SignData(ctx context.Context, req *keymanager.SignDataRequest) (*
 		return nil, m.newError("keypair %q not usable for signing", req.KeyId)
 	}
 
-	signature, err := signer.Sign(rand.Reader, req.Data, crypto.Hash(req.HashAlgorithm))
+	signature, err := signer.Sign(rand.Reader, req.Data, signerOpts)
 	if err != nil {
 		return nil, m.newError("keypair %q signing operation failed: %v", req.KeyId, err)
 	}
@@ -149,22 +173,28 @@ func (m *Base) getPrivateKey(id string) crypto.PrivateKey {
 	return nil
 }
 
-func (m *Base) generateKeyEntry(keyId string, keyAlgorithm keymanager.KeyAlgorithm) (e *KeyEntry, err error) {
+func (m *Base) generateKeyEntry(keyId string, keyType keymanager.KeyType) (e *KeyEntry, err error) {
 	var privateKey crypto.PrivateKey
 	var publicKey crypto.PublicKey
-	switch keyAlgorithm {
-	case keymanager.KeyAlgorithm_ECDSA_P256:
-		privateKey, publicKey, err = generateECDSAKey(elliptic.P256())
-	case keymanager.KeyAlgorithm_ECDSA_P384:
-		privateKey, publicKey, err = generateECDSAKey(elliptic.P384())
+	switch keyType {
+	case keymanager.KeyType_EC_P256:
+		privateKey, publicKey, err = generateECKey(elliptic.P256())
+	case keymanager.KeyType_EC_P384:
+		privateKey, publicKey, err = generateECKey(elliptic.P384())
+	case keymanager.KeyType_RSA_1024:
+		privateKey, publicKey, err = generateRSAKey(1024)
+	case keymanager.KeyType_RSA_2048:
+		privateKey, publicKey, err = generateRSAKey(2048)
+	case keymanager.KeyType_RSA_4096:
+		privateKey, publicKey, err = generateRSAKey(4096)
 	default:
-		return nil, m.newError("unknown key algorithm %q", keyAlgorithm)
+		return nil, m.newError("unknown key type %q", keyType)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	entry, err := makeKeyEntry(keyId, keyAlgorithm, privateKey, publicKey)
+	entry, err := makeKeyEntry(keyId, keyType, privateKey, publicKey)
 	if err != nil {
 		return nil, m.newError("unable to make key entry: %v", err)
 	}
@@ -176,7 +206,7 @@ func (m *Base) newError(format string, args ...interface{}) error {
 	return m.impl.ErrorFn(format, args...)
 }
 
-func makeKeyEntry(keyId string, keyAlgorithm keymanager.KeyAlgorithm, privateKey crypto.PrivateKey, publicKey crypto.PublicKey) (*KeyEntry, error) {
+func makeKeyEntry(keyId string, keyType keymanager.KeyType, privateKey crypto.PrivateKey, publicKey crypto.PublicKey) (*KeyEntry, error) {
 	pkixData, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
 		return nil, err
@@ -185,9 +215,9 @@ func makeKeyEntry(keyId string, keyAlgorithm keymanager.KeyAlgorithm, privateKey
 	return &KeyEntry{
 		PrivateKey: privateKey,
 		PublicKey: &keymanager.PublicKey{
-			Id:        keyId,
-			Algorithm: keyAlgorithm,
-			PkixData:  pkixData,
+			Id:       keyId,
+			Type:     keyType,
+			PkixData: pkixData,
 		},
 	}, nil
 }
@@ -195,29 +225,57 @@ func makeKeyEntry(keyId string, keyAlgorithm keymanager.KeyAlgorithm, privateKey
 func MakeKeyEntryFromKey(id string, privateKey crypto.PrivateKey) (*KeyEntry, error) {
 	switch privateKey := privateKey.(type) {
 	case *ecdsa.PrivateKey:
-		algorithm, err := ecdsaKeyAlgorithm(privateKey)
+		keyType, err := ecdsaKeyType(privateKey)
 		if err != nil {
 			return nil, err
 		}
-		return makeKeyEntry(id, algorithm, privateKey, privateKey.Public())
+		return makeKeyEntry(id, keyType, privateKey, privateKey.Public())
+	case *rsa.PrivateKey:
+		keyType, err := rsaKeyType(privateKey)
+		if err != nil {
+			return nil, err
+		}
+		return makeKeyEntry(id, keyType, privateKey, privateKey.Public())
 	default:
 		return nil, fmt.Errorf("unexpected private key type %T", privateKey)
 	}
 }
 
-func ecdsaKeyAlgorithm(privateKey *ecdsa.PrivateKey) (keymanager.KeyAlgorithm, error) {
+func rsaKeyType(privateKey *rsa.PrivateKey) (keymanager.KeyType, error) {
+	bits := privateKey.N.BitLen()
+	switch bits {
+	case 1024:
+		return keymanager.KeyType_RSA_1024, nil
+	case 2048:
+		return keymanager.KeyType_RSA_2048, nil
+	case 4096:
+		return keymanager.KeyType_RSA_4096, nil
+	default:
+		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("no RSA key type for key bit length: %d", bits)
+	}
+}
+
+func ecdsaKeyType(privateKey *ecdsa.PrivateKey) (keymanager.KeyType, error) {
 	switch {
 	case privateKey.Curve == elliptic.P256():
-		return keymanager.KeyAlgorithm_ECDSA_P256, nil
+		return keymanager.KeyType_EC_P256, nil
 	case privateKey.Curve == elliptic.P384():
-		return keymanager.KeyAlgorithm_ECDSA_P384, nil
+		return keymanager.KeyType_EC_P384, nil
 	default:
-		return keymanager.KeyAlgorithm_UNSPECIFIED_KEY_ALGORITHM, fmt.Errorf("no ECDSA algorithm for EC curve: %s",
+		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("no EC key type for EC curve: %s",
 			privateKey.Curve.Params().Name)
 	}
 }
 
-func generateECDSAKey(curve elliptic.Curve) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
+func generateRSAKey(bits int) (*rsa.PrivateKey, *rsa.PublicKey, error) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
+	if err != nil {
+		return nil, nil, err
+	}
+	return privateKey, &privateKey.PublicKey, nil
+}
+
+func generateECKey(curve elliptic.Curve) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
 	privateKey, err := ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
 		return nil, nil, err

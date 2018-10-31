@@ -3,6 +3,7 @@ package cryptoutil
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -32,11 +33,25 @@ func (s *KeyManagerSigner) Public() crypto.PublicKey {
 }
 
 func (s *KeyManagerSigner) SignContext(ctx context.Context, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	resp, err := s.km.SignData(ctx, &keymanager.SignDataRequest{
-		KeyId:         s.keyId,
-		Data:          digest,
-		HashAlgorithm: keymanager.HashAlgorithm(opts.HashFunc()),
-	})
+	req := &keymanager.SignDataRequest{
+		KeyId: s.keyId,
+		Data:  digest,
+	}
+	switch opts := opts.(type) {
+	case *rsa.PSSOptions:
+		req.SignerOpts = &keymanager.SignDataRequest_PssOptions{
+			PssOptions: &keymanager.PSSOptions{
+				SaltLength:    int32(opts.SaltLength),
+				HashAlgorithm: keymanager.HashAlgorithm(opts.Hash),
+			},
+		}
+	default:
+		req.SignerOpts = &keymanager.SignDataRequest_HashAlgorithm{
+			HashAlgorithm: keymanager.HashAlgorithm(opts.HashFunc()),
+		}
+	}
+
+	resp, err := s.km.SignData(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -53,10 +68,10 @@ func (s *KeyManagerSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOp
 	return s.SignContext(context.Background(), digest, opts)
 }
 
-func GenerateKeyRaw(ctx context.Context, km keymanager.KeyManager, keyId string, algorithm keymanager.KeyAlgorithm) ([]byte, error) {
+func GenerateKeyRaw(ctx context.Context, km keymanager.KeyManager, keyId string, keyType keymanager.KeyType) ([]byte, error) {
 	resp, err := km.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:        keyId,
-		KeyAlgorithm: algorithm,
+		KeyId:   keyId,
+		KeyType: keyType,
 	})
 	if err != nil {
 		return nil, err
@@ -67,8 +82,8 @@ func GenerateKeyRaw(ctx context.Context, km keymanager.KeyManager, keyId string,
 	return resp.PublicKey.PkixData, nil
 }
 
-func GenerateKey(ctx context.Context, km keymanager.KeyManager, keyId string, algorithm keymanager.KeyAlgorithm) (crypto.PublicKey, error) {
-	pkixData, err := GenerateKeyRaw(ctx, km, keyId, algorithm)
+func GenerateKey(ctx context.Context, km keymanager.KeyManager, keyId string, keyType keymanager.KeyType) (crypto.PublicKey, error) {
+	pkixData, err := GenerateKeyRaw(ctx, km, keyId, keyType)
 	if err != nil {
 		return nil, err
 	}
@@ -76,11 +91,12 @@ func GenerateKey(ctx context.Context, km keymanager.KeyManager, keyId string, al
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse public key pkix data: %v", err)
 	}
+
 	return publicKey, nil
 }
 
-func GenerateKeyAndSigner(ctx context.Context, km keymanager.KeyManager, keyId string, algorithm keymanager.KeyAlgorithm) (*KeyManagerSigner, error) {
-	publicKey, err := GenerateKey(ctx, km, keyId, algorithm)
+func GenerateKeyAndSigner(ctx context.Context, km keymanager.KeyManager, keyId string, keyType keymanager.KeyType) (*KeyManagerSigner, error) {
+	publicKey, err := GenerateKey(ctx, km, keyId, keyType)
 	if err != nil {
 		return nil, err
 	}
