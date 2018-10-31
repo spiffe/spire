@@ -116,7 +116,7 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 	bundle, err := manager.ReadBundle(a.c.BundleCachePath)
 	if err == manager.ErrNotCached {
-		bundle = bundleutil.BundleFromRootCAs(a.c.TrustDomain.String(), a.c.TrustBundle)
+		bundle = a.c.TrustBundle
 	} else if err != nil {
 		return nil, err
 	}
@@ -125,11 +125,11 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 		return nil, errors.New("load bundle: no bundle provided")
 	}
 
-	if len(bundle.RootCAs()) < 1 {
+	if len(bundle) < 1 {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
-	return bundle, nil
+	return bundleutil.BundleFromRootCAs(a.c.TrustDomain.String(), bundle), nil
 }
 
 func (a *attestor) fetchAttestationData(

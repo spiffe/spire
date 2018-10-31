@@ -63,7 +63,7 @@ func (s *NodeAttestorTestSuite) SetupTest() {
 	s.config = &Config{
 		Catalog:         s.catalog,
 		SVIDCachePath:   path.Join(tempDir, "agent_svid.der"),
-		BundleCachePath: path.Join(tempDir, "bundle.proto"),
+		BundleCachePath: path.Join(tempDir, "bundle.der"),
 		Log:             log,
 		TrustDomain: url.URL{
 			Scheme: "spiffe",
@@ -166,7 +166,7 @@ func (s *NodeAttestorTestSuite) linkAgentSVIDPath() {
 
 func (s *NodeAttestorTestSuite) linkBundle() {
 	err := os.Symlink(
-		path.Join(util.ProjectRoot(), "test/fixture/certs/bundle.proto"),
+		path.Join(util.ProjectRoot(), "test/fixture/certs/bundle.der"),
 		s.config.BundleCachePath)
 	s.Require().NoError(err)
 }

@@ -108,7 +108,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		t.Fatalf("bundle should have been saved in a file: %v", err)
 	}
 
-	if !bundle.RootCAs()[0].Equal(ca) {
+	if !bundle[0].Equal(ca) {
 		t.Fatal("bundle should have included CA certificate")
 	}
 }

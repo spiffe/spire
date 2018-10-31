@@ -31,13 +31,6 @@ type Agent struct {
 func (a *Agent) Run(ctx context.Context) error {
 	syscall.Umask(a.c.Umask)
 
-	// migrate from old file formats before starting up other subsystems
-	if err := manager.MigrateBundle(a.c.TrustDomain.String(),
-		a.oldBundleCachePath(),
-		a.bundleCachePath()); err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -191,10 +184,6 @@ func (a *Agent) newEndpoints(ctx context.Context, cat catalog.Catalog, tel telem
 }
 
 func (a *Agent) bundleCachePath() string {
-	return path.Join(a.c.DataDir, "bundle.proto")
-}
-
-func (a *Agent) oldBundleCachePath() string {
 	return path.Join(a.c.DataDir, "bundle.der")
 }
 

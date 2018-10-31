@@ -164,7 +164,11 @@ func (m *manager) storeSVID(svidChain []*x509.Certificate) {
 }
 
 func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
-	err := StoreBundle(m.bundleCachePath, bundle)
+	var rootCAs []*x509.Certificate
+	if bundle != nil {
+		rootCAs = bundle.RootCAs()
+	}
+	err := StoreBundle(m.bundleCachePath, rootCAs)
 	if err != nil {
 		m.c.Log.Errorf("could not store bundle: %v", err)
 	}
