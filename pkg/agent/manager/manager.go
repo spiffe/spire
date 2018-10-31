@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
@@ -155,15 +156,19 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 	}
 }
 
-func (m *manager) storeSVID(svid *x509.Certificate) {
-	err := StoreSVID(m.svidCachePath, svid)
+func (m *manager) storeSVID(svidChain []*x509.Certificate) {
+	err := StoreSVID(m.svidCachePath, svidChain)
 	if err != nil {
 		m.c.Log.Warnf("could not store SVID: %v", err)
 	}
 }
 
-func (m *manager) storeBundle(bundle []*x509.Certificate) {
-	err := StoreBundle(m.bundleCachePath, bundle)
+func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
+	var rootCAs []*x509.Certificate
+	if bundle != nil {
+		rootCAs = bundle.RootCAs()
+	}
+	err := StoreBundle(m.bundleCachePath, rootCAs)
 	if err != nil {
 		m.c.Log.Errorf("could not store bundle: %v", err)
 	}

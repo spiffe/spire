@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+
+	"github.com/spiffe/spire/pkg/common/diskutil"
 )
 
 // ReadBundle returns the bundle located at bundleCachePath. Returns nil
@@ -38,31 +40,34 @@ func StoreBundle(bundleCachePath string, bundle []*x509.Certificate) error {
 	}
 
 	// Write data to disk.
-	return ioutil.WriteFile(bundleCachePath, data.Bytes(), 0600)
+	return diskutil.AtomicWriteFile(bundleCachePath, data.Bytes(), 0600)
 }
 
 // ReadSVID returns the SVID located at svidCachePath. Returns nil
 // if there was some reason by which the SVID couldn't be loaded along
 // with the error reason.
-func ReadSVID(svidCachePath string) (*x509.Certificate, error) {
-	if _, err := os.Stat(svidCachePath); os.IsNotExist(err) {
-		return nil, ErrNotCached
-	}
-
+func ReadSVID(svidCachePath string) ([]*x509.Certificate, error) {
 	data, err := ioutil.ReadFile(svidCachePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNotCached
+		}
 		return nil, fmt.Errorf("error reading SVID at %s: %s", svidCachePath, err)
 	}
 
-	cert, err := x509.ParseCertificate(data)
+	certChain, err := x509.ParseCertificates(data)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing SVID at %s: %s", svidCachePath, err)
 	}
-	return cert, nil
+	return certChain, nil
 }
 
 // StoreSVID writes the specified svid to disk into svidCachePath. Returns nil if all went
-// fine, otherwise ir returns an error.
-func StoreSVID(svidCachePath string, svid *x509.Certificate) error {
-	return ioutil.WriteFile(svidCachePath, svid.Raw, 0600)
+// fine, otherwise it returns an error.
+func StoreSVID(svidCachePath string, svidChain []*x509.Certificate) error {
+	data := &bytes.Buffer{}
+	for _, cert := range svidChain {
+		data.Write(cert.Raw)
+	}
+	return diskutil.AtomicWriteFile(svidCachePath, data.Bytes(), 0600)
 }

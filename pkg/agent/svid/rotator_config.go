@@ -19,7 +19,7 @@ type RotatorConfig struct {
 	TrustDomain url.URL
 	ServerAddr  string
 	// Initial SVID and key
-	SVID    *x509.Certificate
+	SVID    []*x509.Certificate
 	SVIDKey *ecdsa.PrivateKey
 
 	BundleStream *cache.BundleStream
@@ -45,12 +45,16 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 		TrustDomain: c.TrustDomain,
 		Log:         c.Log,
 		Addr:        c.ServerAddr,
-		KeysAndBundle: func() (*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
+		KeysAndBundle: func() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
 			s := state.Value().(State)
 			bsm.RLock()
 			defer bsm.RUnlock()
 			bundles := c.BundleStream.Value()
-			return s.SVID, s.Key, bundles[c.TrustDomain.String()]
+			var rootCAs []*x509.Certificate
+			if bundle := bundles[c.TrustDomain.String()]; bundle != nil {
+				rootCAs = bundle.RootCAs()
+			}
+			return s.SVID, s.Key, rootCAs
 		},
 	}
 	client := client.New(cfg)

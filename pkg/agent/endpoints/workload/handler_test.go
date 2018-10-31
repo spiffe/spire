@@ -13,6 +13,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/workload"
@@ -147,15 +148,15 @@ func (s *HandlerTestSuite) TestComposeResponse() {
 
 	svidMsg := &workload.X509SVID{
 		SpiffeId:      "spiffe://example.org/foo",
-		X509Svid:      update.Entries[0].SVID.Raw,
+		X509Svid:      update.Entries[0].SVID[0].Raw,
 		X509SvidKey:   keyData,
-		Bundle:        update.Bundle[0].Raw,
+		Bundle:        update.Bundle.RootCAs()[0].Raw,
 		FederatesWith: []string{"spiffe://otherdomain.test"},
 	}
 	apiMsg := &workload.X509SVIDResponse{
 		Svids: []*workload.X509SVID{svidMsg},
 		FederatedBundles: map[string][]byte{
-			"spiffe://otherdomain.test": update.Bundle[0].Raw,
+			"spiffe://otherdomain.test": update.Bundle.RootCAs()[0].Raw,
 		},
 	}
 
@@ -201,7 +202,7 @@ func (s *HandlerTestSuite) workloadUpdate() *cache.WorkloadUpdate {
 	s.Require().NoError(err)
 
 	entry := cache.Entry{
-		SVID:       svid,
+		SVID:       []*x509.Certificate{svid},
 		PrivateKey: key,
 		RegistrationEntry: &common.RegistrationEntry{
 			SpiffeId:      "spiffe://example.org/foo",
@@ -210,9 +211,9 @@ func (s *HandlerTestSuite) workloadUpdate() *cache.WorkloadUpdate {
 	}
 	update := &cache.WorkloadUpdate{
 		Entries: []*cache.Entry{&entry},
-		Bundle:  []*x509.Certificate{ca},
-		FederatedBundles: map[string][]*x509.Certificate{
-			"spiffe://otherdomain.test": {ca},
+		Bundle:  bundleutil.BundleFromRootCA("spiffe://example.org", ca),
+		FederatedBundles: map[string]*bundleutil.Bundle{
+			"spiffe://otherdomain.test": bundleutil.BundleFromRootCA("spiffe://otherdomain.test", ca),
 		},
 	}
 

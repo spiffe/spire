@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"crypto/x509"
 	"sync"
 
 	"github.com/satori/go.uuid"
@@ -15,8 +14,8 @@ type Subscriber interface {
 
 type WorkloadUpdate struct {
 	Entries          []*Entry
-	Bundle           []*x509.Certificate
-	FederatedBundles map[string][]*x509.Certificate
+	Bundle           *Bundle
+	FederatedBundles map[string]*Bundle
 }
 
 type subscriber struct {

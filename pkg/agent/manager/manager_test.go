@@ -19,7 +19,9 @@ import (
 
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/util"
@@ -79,7 +81,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		TrustDomain:     trustDomainID,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
-		Bundle:          []*x509.Certificate{ca},
+		Bundle:          bundleutil.BundleFromRootCA("spiffe://"+trustDomain, ca),
 	}
 	m, err := New(c)
 	if err != nil {
@@ -90,8 +92,8 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		sub := m.SubscribeToBundleChanges()
 		bundles := sub.Value()
 		require.NotNil(t, bundles)
-		bundleCerts := bundles[trustDomainID.String()]
-		require.Equal(t, bundleCerts, []*x509.Certificate{ca})
+		bundle := bundles[trustDomainID.String()]
+		require.Equal(t, bundle.RootCAs(), []*x509.Certificate{ca})
 	})
 
 	err = m.Initialize(context.Background())
@@ -144,11 +146,11 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 
 	// Althought start failed, the SVID should have been saved, because it should be
 	// one of the first thing the manager does at initialization.
-	cert, err := ReadSVID(c.SVIDCachePath)
+	svid, err := ReadSVID(c.SVIDCachePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cert.Equal(baseSVID) {
+	if !svidsEqual(svid, baseSVID) {
 		t.Fatal("SVID was not correctly stored.")
 	}
 }
@@ -190,8 +192,8 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	m, closer := initializeAndRunNewManager(t, c)
 	defer closer()
 
-	cert := m.svid.State().SVID
-	if !cert.Equal(baseSVID) {
+	svid := m.svid.State().SVID
+	if !svidsEqual(svid, baseSVID) {
 		t.Fatal("SVID is not equals to configured one")
 	}
 
@@ -217,11 +219,11 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 			t.Fatal("expected 2 entries")
 		}
 
-		if len(u.Bundle) != 1 {
-			t.Fatal("expected 1 bundle")
+		if len(u.Bundle.RootCAs()) != 1 {
+			t.Fatal("expected 1 bundle root CA")
 		}
 
-		if !u.Bundle[0].Equal(apiHandler.bundle[0]) {
+		if !u.Bundle.EqualTo(apiHandler.bundle) {
 			t.Fatal("received bundle should be equals to the server bundle")
 		}
 
@@ -271,8 +273,8 @@ func TestSVIDRotation(t *testing.T) {
 	m, closer := initializeAndRunNewManager(t, c)
 	defer closer()
 
-	cert := m.svid.State().SVID
-	if !cert.Equal(baseSVID) {
+	svid := m.svid.State().SVID
+	if !svidsEqual(svid, baseSVID) {
 		t.Fatal("SVID is not equals to configured one")
 	}
 
@@ -287,9 +289,9 @@ func TestSVIDRotation(t *testing.T) {
 			// If manager's current SVID is not equals to the first one we generated
 			// it means it rotated, so we must exit the loop.
 			s := m.svid.State()
-			cert = s.SVID
+			svid = s.SVID
 			key = s.Key
-			if !cert.Equal(baseSVID) {
+			if !svidsEqual(svid, baseSVID) {
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
@@ -358,11 +360,11 @@ func TestSynchronization(t *testing.T) {
 			t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
 		}
 
-		if len(u.Bundle) != 1 {
-			t.Fatal("expected 1 bundle")
+		if len(u.Bundle.RootCAs()) != 1 {
+			t.Fatal("expected 1 bundle root CA")
 		}
 
-		if !u.Bundle[0].Equal(apiHandler.bundle[0]) {
+		if !u.Bundle.EqualTo(apiHandler.bundle) {
 			t.Fatal("received bundle should be equals to the server bundle")
 		}
 
@@ -405,11 +407,11 @@ func TestSynchronization(t *testing.T) {
 			t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
 		}
 
-		if len(u.Bundle) != 1 {
-			t.Fatal("expected 1 bundle")
+		if len(u.Bundle.RootCAs()) != 1 {
+			t.Fatal("expected 1 bundle root CA")
 		}
 
-		if !u.Bundle[0].Equal(apiHandler.bundle[0]) {
+		if !u.Bundle.EqualTo(apiHandler.bundle) {
 			t.Fatal("received bundle should be equals to the server bundle")
 		}
 
@@ -569,7 +571,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		TrustDomain:      trustDomainID,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
-		Bundle:           []*x509.Certificate{apiHandler.bundle[0]},
+		Bundle:           apiHandler.bundle,
 		Tel:              &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     1 * time.Hour,
@@ -584,14 +586,11 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	util.RunWithTimeout(t, 1*time.Second, func() {
 		// Update should contain a new bundle.
 		u := <-sub.Updates()
-		if len(u.Bundle) != 2 {
-			t.Fatalf("expected 2 bundles, got: %d", len(u.Bundle))
+		if len(u.Bundle.RootCAs()) != 2 {
+			t.Fatalf("expected 2 bundles, got: %d", len(u.Bundle.RootCAs()))
 		}
-		if !u.Bundle[0].Equal(c.Bundle[0]) {
-			t.Fatal("old bundles were expected to be equals")
-		}
-		if !u.Bundle[1].Equal(apiHandler.bundle[1]) {
-			t.Fatal("new bundles were expected to be equals")
+		if !u.Bundle.EqualTo(c.Bundle) {
+			t.Fatal("bundles were expected to be equal")
 		}
 	})
 }
@@ -628,7 +627,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		TrustDomain:      trustDomainID,
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
-		Bundle:           []*x509.Certificate{apiHandler.bundle[0]},
+		Bundle:           apiHandler.bundle,
 		Tel:              &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
 		// We want frequent synchronizations to speed up the test.
@@ -757,7 +756,7 @@ func fetchX509SVIDForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req
 	switch h.reqCount {
 	case 2:
 		ca, _ := createCA(h.c.t, h.c.trustDomain)
-		h.bundle = append(h.bundle, ca)
+		h.bundle.AppendRootCA(ca)
 	}
 
 	return fetchX509SVID(h, req, stream)
@@ -768,7 +767,7 @@ func fetchX509SVIDForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node.Fet
 	case 2:
 		ca, key := createCA(h.c.t, h.c.trustDomain)
 		h.cakey = key
-		h.bundle = append(h.bundle, ca)
+		h.bundle.AppendRootCA(ca)
 	case 5:
 		return fmt.Errorf("i'm an error")
 	}
@@ -776,9 +775,9 @@ func fetchX509SVIDForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node.Fet
 	return fetchX509SVID(h, req, stream)
 }
 
-func newFetchX509SVIDResponse(regEntriesKeys []string, svids svidMap, bundle []*x509.Certificate) *node.FetchX509SVIDResponse {
+func newFetchX509SVIDResponse(regEntriesKeys []string, svids svidMap, bundle *bundleutil.Bundle) *node.FetchX509SVIDResponse {
 	bundleBytes := &bytes.Buffer{}
-	for _, c := range bundle {
+	for _, c := range bundle.RootCAs() {
 		bundleBytes.Write(c.Raw)
 	}
 
@@ -793,11 +792,8 @@ func newFetchX509SVIDResponse(regEntriesKeys []string, svids svidMap, bundle []*
 		SvidUpdate: &node.X509SVIDUpdate{
 			RegistrationEntries: regEntries,
 			Svids:               svids,
-			DEPRECATEDBundles: map[string]*node.Bundle{
-				trustDomainID.String(): {
-					Id:      trustDomainID.String(),
-					CaCerts: bundleBytes.Bytes(),
-				},
+			Bundles: map[string]*common.Bundle{
+				bundle.TrustDomainID(): bundle.Proto(),
 			},
 		},
 	}
@@ -864,10 +860,10 @@ type mockNodeAPIHandlerConfig struct {
 type mockNodeAPIHandler struct {
 	c *mockNodeAPIHandlerConfig
 
-	bundle []*x509.Certificate
+	bundle *bundleutil.Bundle
 	cakey  *ecdsa.PrivateKey
 
-	svid    *x509.Certificate
+	svid    []*x509.Certificate
 	svidKey *ecdsa.PrivateKey
 
 	serverID string
@@ -884,7 +880,7 @@ func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig) *mockNodeAPIHandler
 
 	h := &mockNodeAPIHandler{
 		c:        config,
-		bundle:   []*x509.Certificate{ca},
+		bundle:   bundleutil.BundleFromRootCA("spiffe://"+config.trustDomain, ca),
 		cakey:    cakey,
 		serverID: "spiffe://" + config.trustDomain + "/spire/server",
 	}
@@ -903,13 +899,13 @@ func (h *mockNodeAPIHandler) makeSvids(csrs [][]byte) (svidMap, error) {
 	svids := make(svidMap)
 	for _, csr := range csrs {
 		svid := h.newSVIDFromCSR(csr)
-		spiffeID, err := getSpiffeIDFromSVID(svid)
+		spiffeID, err := getSpiffeIDFromSVID(svid[0])
 		if err != nil {
 			return nil, fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.reqCount)
 		}
 		svids[spiffeID] = &node.X509SVID{
-			DEPRECATEDCert: svid.Raw,
-			ExpiresAt:      svid.NotAfter.Unix(),
+			CertChain: x509util.DERFromCertificates(svid),
+			ExpiresAt: svid[0].NotAfter.Unix(),
 		}
 	}
 	return svids, nil
@@ -966,19 +962,24 @@ func (h *mockNodeAPIHandler) stop() {
 }
 
 func (h *mockNodeAPIHandler) ca() *x509.Certificate {
-	return h.bundle[len(h.bundle)-1]
+	rootCAs := h.bundle.RootCAs()
+	return rootCAs[len(rootCAs)-1]
 }
 
-func (h *mockNodeAPIHandler) newSVID(spiffeID string, ttl time.Duration) (*x509.Certificate, *ecdsa.PrivateKey) {
+func (h *mockNodeAPIHandler) newSVID(spiffeID string, ttl time.Duration) ([]*x509.Certificate, *ecdsa.PrivateKey) {
 	return createSVID(h.c.t, h.ca(), h.cakey, spiffeID, ttl)
 }
 
-func (h *mockNodeAPIHandler) newSVIDFromCSR(csr []byte) *x509.Certificate {
+func (h *mockNodeAPIHandler) newSVIDFromCSR(csr []byte) []*x509.Certificate {
 	return createSVIDFromCSR(h.c.t, h.ca(), h.cakey, csr, h.c.svidTTL)
 }
 
 func (h *mockNodeAPIHandler) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-	certChain := [][]byte{h.svid.Raw, h.ca().Raw}
+	certChain := [][]byte{}
+	for _, c := range h.svid {
+		certChain = append(certChain, c.Raw)
+	}
+	certChain = append(certChain, h.ca().Raw)
 	certs := []tls.Certificate{{
 		Certificate: certChain,
 		PrivateKey:  h.svidKey,
@@ -1039,7 +1040,7 @@ func createCA(t *testing.T, trustDomain string) (*x509.Certificate, *ecdsa.Priva
 	return ca, cakey
 }
 
-func createSVID(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID string, ttl time.Duration) (*x509.Certificate, *ecdsa.PrivateKey) {
+func createSVID(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID string, ttl time.Duration) ([]*x509.Certificate, *ecdsa.PrivateKey) {
 	tmpl, err := util.NewSVIDTemplate(spiffeID)
 	if err != nil {
 		t.Fatalf("cannot create svid template for %s: %v", spiffeID, err)
@@ -1051,10 +1052,10 @@ func createSVID(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spi
 	if err != nil {
 		t.Fatalf("cannot sign svid template for %s: %v", spiffeID, err)
 	}
-	return svid, svidkey
+	return []*x509.Certificate{svid}, svidkey
 }
 
-func createSVIDFromCSR(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateKey, csr []byte, ttl int) *x509.Certificate {
+func createSVIDFromCSR(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateKey, csr []byte, ttl int) []*x509.Certificate {
 	tmpl, err := util.NewSVIDTemplateFromCSR(csr, ca, ttl)
 	if err != nil {
 		t.Fatalf("cannot create svid template from CSR: %v", err)
@@ -1064,7 +1065,7 @@ func createSVIDFromCSR(t *testing.T, ca *x509.Certificate, cakey *ecdsa.PrivateK
 	if err != nil {
 		t.Fatalf("cannot sign svid template for CSR: %v", err)
 	}
-	return svid
+	return []*x509.Certificate{svid}
 }
 
 func newManager(t *testing.T, c *Config) *manager {
@@ -1103,4 +1104,16 @@ func initializeAndRunManager(t *testing.T, m *manager) (closer func()) {
 		cancel()
 		wg.Wait()
 	}
+}
+
+func svidsEqual(as, bs []*x509.Certificate) bool {
+	if len(as) != len(bs) {
+		return false
+	}
+	for i := range as {
+		if !as[i].Equal(bs[i]) {
+			return false
+		}
+	}
+	return true
 }

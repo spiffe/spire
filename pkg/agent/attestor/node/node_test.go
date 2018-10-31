@@ -97,7 +97,7 @@ func (s *NodeAttestorTestSuite) TestAttestLoadFromDisk() {
 
 	bundle, err := util.LoadBundleFixture()
 	s.Require().NoError(err)
-	s.Assert().Equal(as.Bundle, bundle)
+	s.Assert().Equal(as.Bundle.RootCAs(), bundle)
 }
 
 func (s *NodeAttestorTestSuite) TestAttestNode() {
@@ -113,8 +113,8 @@ func (s *NodeAttestorTestSuite) TestAttestNode() {
 	svid, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 
-	s.Assert().Equal(as.Key, key)
-	s.Assert().Equal(as.SVID, svid)
+	s.Assert().Equal(key, as.Key)
+	s.Assert().Equal([]*x509.Certificate{svid}, as.SVID)
 }
 
 func (s *NodeAttestorTestSuite) TestAttestNodeWithChallengeResponse() {
@@ -135,8 +135,8 @@ func (s *NodeAttestorTestSuite) TestAttestNodeWithChallengeResponse() {
 	svid, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 
-	s.Assert().Equal(as.Key, key)
-	s.Assert().Equal(as.SVID, svid)
+	s.Assert().Equal(key, as.Key)
+	s.Assert().Equal([]*x509.Certificate{svid}, as.SVID)
 }
 
 func (s *NodeAttestorTestSuite) TestAttestJoinToken() {
@@ -153,8 +153,8 @@ func (s *NodeAttestorTestSuite) TestAttestJoinToken() {
 	svid, key, err := util.LoadSVIDFixture()
 	s.Require().NoError(err)
 
-	s.Assert().Equal(as.Key, key)
-	s.Assert().Equal(as.SVID, svid)
+	s.Assert().Equal(key, as.Key)
+	s.Assert().Equal([]*x509.Certificate{svid}, as.SVID)
 }
 
 func (s *NodeAttestorTestSuite) linkAgentSVIDPath() {
@@ -252,14 +252,16 @@ func (s *NodeAttestorTestSuite) setAttestResponse(challenges []challengeResponse
 		SvidUpdate: &node.X509SVIDUpdate{
 			Svids: map[string]*node.X509SVID{
 				"spiffe://example.com/spire/agent/join_token/foobar": &node.X509SVID{
-					DEPRECATEDCert: svid.Raw,
-					ExpiresAt:      svid.NotAfter.Unix(),
+					CertChain: svid.Raw,
+					ExpiresAt: svid.NotAfter.Unix(),
 				},
 			},
-			DEPRECATEDBundles: map[string]*node.Bundle{
-				"spiffe://example.com": &node.Bundle{
-					Id:      "spiffe://example.com",
-					CaCerts: bundle[0].Raw,
+			Bundles: map[string]*common.Bundle{
+				"spiffe://example.com": &common.Bundle{
+					TrustDomainId: "spiffe://example.com",
+					RootCas: []*common.Certificate{
+						{DerBytes: bundle[0].Raw},
+					},
 				},
 			},
 		}}, nil)

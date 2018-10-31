@@ -34,7 +34,7 @@ type rotator struct {
 }
 
 type State struct {
-	SVID *x509.Certificate
+	SVID []*x509.Certificate
 	Key  *ecdsa.PrivateKey
 }
 
@@ -77,8 +77,8 @@ func (r *rotator) Subscribe() observer.Stream {
 func (r *rotator) shouldRotate() bool {
 	s := r.state.Value().(State)
 
-	ttl := time.Until(s.SVID.NotAfter)
-	watermark := s.SVID.NotAfter.Sub(s.SVID.NotBefore) / 2
+	ttl := time.Until(s.SVID[0].NotAfter)
+	watermark := s.SVID[0].NotAfter.Sub(s.SVID[0].NotBefore) / 2
 
 	return ttl < watermark
 }
@@ -110,7 +110,7 @@ func (r *rotator) rotateSVID(ctx context.Context) error {
 	if !ok {
 		return errors.New("it was not possible to get agent SVID from FetchX509SVID response")
 	}
-	cert, err := x509.ParseCertificate(svid.DEPRECATEDCert)
+	certs, err := x509.ParseCertificates(svid.CertChain)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (r *rotator) rotateSVID(ctx context.Context) error {
 	r.client.Release()
 
 	s := State{
-		SVID: cert,
+		SVID: certs,
 		Key:  key,
 	}
 

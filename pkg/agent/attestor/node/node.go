@@ -15,6 +15,7 @@ import (
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
@@ -26,9 +27,9 @@ import (
 )
 
 type AttestationResult struct {
-	SVID   *x509.Certificate
+	SVID   []*x509.Certificate
 	Key    *ecdsa.PrivateKey
-	Bundle []*x509.Certificate
+	Bundle *bundleutil.Bundle
 }
 
 type Attestor interface {
@@ -74,7 +75,7 @@ func (a *attestor) Attest(ctx context.Context) (*AttestationResult, error) {
 	return &AttestationResult{Bundle: bundle, SVID: svid, Key: key}, nil
 }
 
-func (a *attestor) loadSVID(ctx context.Context) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.PrivateKey, error) {
 	mgrs := a.c.Catalog.KeyManagers()
 	if len(mgrs) > 1 {
 		return nil, nil, errors.New("more than one key manager configured")
@@ -112,7 +113,7 @@ func (a *attestor) loadSVID(ctx context.Context) (*x509.Certificate, *ecdsa.Priv
 	return svid, key, nil
 }
 
-func (a *attestor) loadBundle() ([]*x509.Certificate, error) {
+func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 	bundle, err := manager.ReadBundle(a.c.BundleCachePath)
 	if err == manager.ErrNotCached {
 		bundle = a.c.TrustBundle
@@ -128,7 +129,7 @@ func (a *attestor) loadBundle() ([]*x509.Certificate, error) {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
-	return bundle, nil
+	return bundleutil.BundleFromRootCAs(a.c.TrustDomain.String(), bundle), nil
 }
 
 func (a *attestor) fetchAttestationData(
@@ -174,20 +175,20 @@ func (a *attestor) fetchAttestationData(
 
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
 // will be returned.
-func (a *attestor) readSVIDFromDisk() *x509.Certificate {
-	cert, err := manager.ReadSVID(a.c.SVIDCachePath)
+func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
+	svid, err := manager.ReadSVID(a.c.SVIDCachePath)
 	if err == manager.ErrNotCached {
 		a.c.Log.Debug("No pre-existing agent SVID found. Will perform node attestation")
 		return nil
 	} else if err != nil {
 		a.c.Log.Warnf("Could not get agent SVID from %s: %s", a.c.SVIDCachePath, err)
 	}
-	return cert
+	return svid
 }
 
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
-func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle []*x509.Certificate) (*x509.Certificate, []*x509.Certificate, error) {
+func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) ([]*x509.Certificate, *bundleutil.Bundle, error) {
 	// make sure all of the streams are cancelled if something goes awry
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -206,7 +207,7 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle []
 		}
 	}
 
-	conn, err := a.serverConn(ctx, bundle)
+	conn, err := a.serverConn(ctx, bundle.RootCAs())
 	if err != nil {
 		return nil, nil, fmt.Errorf("create attestation client: %v", err)
 	}
@@ -306,7 +307,7 @@ func (a *attestor) serverCredFunc(bundle []*x509.Certificate) func() (credential
 	return credFunc
 }
 
-func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) (*x509.Certificate, []*x509.Certificate, error) {
+func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) ([]*x509.Certificate, *bundleutil.Bundle, error) {
 	if r.SvidUpdate == nil {
 		return nil, nil, errors.New("response missing svid update")
 	}
@@ -319,26 +320,26 @@ func (a *attestor) parseAttestationResponse(id string, r *node.AttestResponse) (
 		return nil, nil, fmt.Errorf("incorrect svid: %s", id)
 	}
 
-	svid, err := x509.ParseCertificate(svidMsg.DEPRECATEDCert)
+	svid, err := x509.ParseCertificates(svidMsg.CertChain)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid svid: %v", err)
 	}
 
-	if r.SvidUpdate.DEPRECATEDBundles == nil {
+	if r.SvidUpdate.Bundles == nil {
 		return nil, nil, errors.New("missing bundles")
 	}
 
-	bundle := r.SvidUpdate.DEPRECATEDBundles[a.c.TrustDomain.String()]
-	if bundle == nil {
+	bundleProto := r.SvidUpdate.Bundles[a.c.TrustDomain.String()]
+	if bundleProto == nil {
 		return nil, nil, errors.New("missing bundle")
 	}
 
-	bundleCerts, err := x509.ParseCertificates(bundle.CaCerts)
+	bundle, err := bundleutil.BundleFromProto(bundleProto)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid bundle: %v", bundle)
+		return nil, nil, fmt.Errorf("invalid bundle: %v", err)
 	}
 
-	return svid, bundleCerts, nil
+	return svid, bundle, nil
 }
 
 func (a *attestor) serverID() *url.URL {

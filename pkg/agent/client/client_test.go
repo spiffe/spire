@@ -44,10 +44,12 @@ func TestFetchUpdates(t *testing.T) {
 					DEPRECATEDCert: []byte{11, 22, 33},
 				},
 			},
-			DEPRECATEDBundles: map[string]*node.Bundle{
+			Bundles: map[string]*common.Bundle{
 				"spiffe://example.org": {
-					Id:      "spiffe://example.org",
-					CaCerts: []byte{10, 20, 30, 40},
+					TrustDomainId: "spiffe://example.org",
+					RootCas: []*common.Certificate{
+						{DerBytes: []byte{10, 20, 30, 40}},
+					},
 				},
 			},
 		},
@@ -62,7 +64,7 @@ func TestFetchUpdates(t *testing.T) {
 	update, err := client.FetchUpdates(context.Background(), req)
 	require.Nil(t, err)
 
-	assert.Equal(t, res.SvidUpdate.DEPRECATEDBundles, update.Bundles)
+	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
 	assert.Equal(t, res.SvidUpdate.Svids, update.SVIDs)
 	for _, entry := range res.SvidUpdate.RegistrationEntries {
 		assert.Equal(t, entry, update.Entries[entry.EntryId])
