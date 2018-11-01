@@ -19,11 +19,13 @@ import (
 
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 
@@ -256,7 +258,11 @@ func TestSVIDRotation(t *testing.T) {
 	baseTTL := 3 * time.Second
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", baseTTL)
 
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(memory.New())
+
 	c := &Config{
+		Catalog:          cat,
 		ServerAddr:       l.Addr().String(),
 		SVID:             baseSVID,
 		SVIDKey:          baseSVIDKey,

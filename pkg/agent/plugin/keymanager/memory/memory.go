@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"sync"
 
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -13,9 +14,13 @@ import (
 
 type MemoryPlugin struct {
 	key *ecdsa.PrivateKey
+	mtx sync.RWMutex
 }
 
 func (m *MemoryPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (key *keymanager.GenerateKeyPairResponse, err error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	m.key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
@@ -35,6 +40,9 @@ func (m *MemoryPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyP
 }
 
 func (m *MemoryPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
 	if m.key == nil {
 		// No key set yet
 		return &keymanager.FetchPrivateKeyResponse{PrivateKey: []byte{}}, nil
