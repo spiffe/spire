@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 
@@ -15,6 +16,7 @@ import (
 )
 
 type RotatorConfig struct {
+	Catalog     catalog.Catalog
 	Log         logrus.FieldLogger
 	TrustDomain url.URL
 	ServerAddr  string

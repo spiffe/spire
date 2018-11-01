@@ -50,6 +50,7 @@ func New(c *Config) (*manager, error) {
 	cache := cache.New(c.Log, c.TrustDomain.String(), c.Bundle)
 
 	rotCfg := &svid.RotatorConfig{
+		Catalog:      c.Catalog,
 		Log:          c.Log,
 		SVID:         c.SVID,
 		SVIDKey:      c.SVIDKey,
