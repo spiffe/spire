@@ -35,9 +35,13 @@ func printX509SVID(msg *workload.X509SVID) {
 
 	// Parse SVID and CA bundle. If we encounter an error,
 	// simply print it and return so we can go to the next bundle
-	svid, err := x509.ParseCertificate(msg.X509Svid)
+	svid, err := x509.ParseCertificates(msg.X509Svid)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Could not parse SVID: %s\n", err)
+		return
+	}
+	if len(svid) == 0 {
+		fmt.Fprintf(os.Stderr, "ERROR: SVID has no certificates\n")
 		return
 	}
 
@@ -47,8 +51,13 @@ func printX509SVID(msg *workload.X509SVID) {
 		return
 	}
 
-	fmt.Printf("SVID Valid After:\t%v\n", svid.NotBefore)
-	fmt.Printf("SVID Valid Until:\t%v\n", svid.NotAfter)
+	fmt.Printf("SVID Valid After:\t%v\n", svid[0].NotBefore)
+	fmt.Printf("SVID Valid Until:\t%v\n", svid[0].NotAfter)
+	for i, intermediate := range svid[1:] {
+		num := i + 1
+		fmt.Printf("Intermediate #%v Valid After:\t%v\n", num, intermediate.NotBefore)
+		fmt.Printf("Intermediate #%v Valid Until:\t%v\n", num, intermediate.NotAfter)
+	}
 	for i, ca := range svidBundle {
 		num := i + 1
 		fmt.Printf("CA #%v Valid After:\t%v\n", num, ca.NotBefore)
