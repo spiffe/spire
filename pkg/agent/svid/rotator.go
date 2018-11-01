@@ -3,16 +3,16 @@ package svid
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/api/node"
 )
 
@@ -87,7 +87,7 @@ func (r *rotator) shouldRotate() bool {
 func (r *rotator) rotateSVID(ctx context.Context) error {
 	r.c.Log.Debug("Rotating agent SVID")
 
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	key, err := r.newKey(ctx)
 	if err != nil {
 		return err
 	}
@@ -127,4 +127,20 @@ func (r *rotator) rotateSVID(ctx context.Context) error {
 
 	r.state.Update(s)
 	return nil
+}
+
+// TODO: Refactor keymanager so we can recover if we generate a new key then fail
+// to get the SVID rotation fulfilled https://github.com/spiffe/spire/issues/613
+func (r *rotator) newKey(ctx context.Context) (*ecdsa.PrivateKey, error) {
+	mgrs := r.c.Catalog.KeyManagers()
+	if len(mgrs) > 1 {
+		return nil, errors.New("more than one key manager configured")
+	}
+
+	resp, err := mgrs[0].GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("generate key pair: %v", err)
+	}
+
+	return x509.ParseECPrivateKey(resp.PrivateKey)
 }

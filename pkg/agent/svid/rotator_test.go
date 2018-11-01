@@ -12,7 +12,10 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
+	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/mock/agent/client"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
@@ -44,12 +47,16 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.bundle = observer.NewProperty(b)
 
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(memory.New())
+
 	log, _ := test.NewNullLogger()
 	td := url.URL{
 		Scheme: "spiffe",
 		Host:   "example.org",
 	}
 	c := &RotatorConfig{
+		Catalog:      cat,
 		Log:          log,
 		TrustDomain:  td,
 		SpiffeID:     "spiffe://example.org/spire/agent/1234",
@@ -178,6 +185,14 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 	state := stream.Next().(State)
 	s.Require().Len(state.SVID, 1)
 	s.Assert().True(cert.Equal(state.SVID[0]))
+
+	// keymanager data matches state
+	mgr := s.r.c.Catalog.KeyManagers()[0]
+	kresp, err := mgr.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
+	s.Require().NoError(err)
+	storedKey, err := x509.ParseECPrivateKey(kresp.PrivateKey)
+	s.Require().NoError(err)
+	s.Assert().Equal(state.Key, storedKey)
 }
 
 // expectSVIDRotation sets the appropriate expectations for an SVID rotation, and returns
