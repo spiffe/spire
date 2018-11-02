@@ -106,7 +106,6 @@ Displays configured registration entries.
 | `-selector`   | A colon-delimeted type:value selector. Can be used more than once to specify multiple selectors. | |
 | `-serverAddr` | Address of the SPIRE server.                                       | localhost:8081 |
 | `-spiffeID`   | The SPIFFE ID of the records to show.                              |                |
-| `-selector`   | A TTL, in seconds, for any SVID issued as a result of this record. | 3600           |
 
 ### `spire-server bundle show`
 
