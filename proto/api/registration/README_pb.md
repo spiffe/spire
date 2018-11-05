@@ -1275,13 +1275,12 @@ A type that represents a SPIFFE Id.
 <a name="spire.api.registration.UpdateEntryRequest"/>
 
 ### UpdateEntryRequest
-A type with the id with want to update plus values to modify.
+A type used to update registration entries
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| id | [string](#string) |  | Id of the entry to update. |
-| entry | [.spire.common.RegistrationEntry](#spire.api.registration..spire.common.RegistrationEntry) |  | Values in the RegistrationEntry to update. |
+| entry | [.spire.common.RegistrationEntry](#spire.api.registration..spire.common.RegistrationEntry) |  | Registration entry to update |
 
 
 

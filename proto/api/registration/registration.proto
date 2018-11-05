@@ -27,13 +27,10 @@ message SpiffeID {
     string id = 1;
 }
 
-// A type with the id with want to update plus values to modify.
+// A type used to update registration entries
 message UpdateEntryRequest {
-    // Id of the entry to update.
-    string id = 1;
-
-    // Values in the RegistrationEntry to update.
-    spire.common.RegistrationEntry entry = 2;
+    // Registration entry to update
+    spire.common.RegistrationEntry entry = 1;
 }
 
 // A CA bundle for a different Trust Domain than the one used and managed by the Server.
