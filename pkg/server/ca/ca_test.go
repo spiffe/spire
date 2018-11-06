@@ -12,6 +12,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/proto/api/node"
@@ -68,7 +69,11 @@ func (s *CATestSuite) SetupTest() {
 	catalog := fakeservercatalog.New()
 	catalog.SetKeyManagers(km)
 
+	logger, err := log.NewLogger("DEBUG", "")
+	s.Require().NoError(err)
+
 	s.ca = newServerCA(serverCAConfig{
+		Log:     logger,
 		Catalog: catalog,
 		TrustDomain: url.URL{
 			Scheme: "spiffe",

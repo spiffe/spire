@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
@@ -24,6 +25,7 @@ const (
 )
 
 type serverCAConfig struct {
+	Log         logrus.FieldLogger
 	Catalog     catalog.Catalog
 	TrustDomain url.URL
 	DefaultTTL  time.Duration
@@ -94,6 +96,8 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 	if err != nil {
 		return nil, err
 	}
+
+	ca.c.Log.Debugf("Signed x509 SVID %q (expires %s)", cert.URIs[0].String(), cert.NotAfter.Format(time.RFC3339))
 
 	// build and return the certificate chain, starting with the newly signed cert and any
 	// intermediates back to the signing root of the keypair. the keypair chain
