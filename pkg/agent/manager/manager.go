@@ -133,8 +133,8 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.Workl
 func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (string, error) {
 	now := m.hooks.now()
 
-	cachedSVID := m.cache.GetJWTSVID(spiffeID, audience)
-	if cachedSVID != nil && !jwtSVIDExpiresSoon(cachedSVID, now) {
+	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
+	if ok && !jwtSVIDExpiresSoon(cachedSVID, now) {
 		return cachedSVID.Token, nil
 	}
 

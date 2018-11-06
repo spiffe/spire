@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -350,6 +351,7 @@ func TestFetchWorkloadUpdate(t *testing.T) {
 	// selectors match one
 	update = cache.FetchWorkloadUpdate(Selectors{{Type: "A", Value: "a"}})
 	require.NotNil(t, update)
+	sortCacheEntries(update.Entries)
 	assert.Equal(t, []*Entry{one}, update.Entries)
 	assert.NotNil(t, update.Bundle)
 	assert.Empty(t, update.FederatedBundles)
@@ -361,6 +363,7 @@ func TestFetchWorkloadUpdate(t *testing.T) {
 		{Type: "C", Value: "c"},
 	})
 	require.NotNil(t, update)
+	sortCacheEntries(update.Entries)
 	assert.Equal(t, []*Entry{one, two}, update.Entries)
 	assert.NotNil(t, update.Bundle)
 	assert.Len(t, update.FederatedBundles, 1)
@@ -374,11 +377,19 @@ func TestJWTSVID(t *testing.T) {
 	cache := New(logger, "spiffe://example.org", nil)
 
 	// JWT is not cached
-	actual := cache.GetJWTSVID("spiffe://example.org/blog", []string{"bar"})
+	actual, ok := cache.GetJWTSVID("spiffe://example.org/blog", []string{"bar"})
+	assert.False(t, ok)
 	assert.Nil(t, actual)
 
 	// JWT is cached
 	cache.SetJWTSVID("spiffe://example.org/blog", []string{"bar"}, expected)
-	actual = cache.GetJWTSVID("spiffe://example.org/blog", []string{"bar"})
+	actual, ok = cache.GetJWTSVID("spiffe://example.org/blog", []string{"bar"})
+	assert.True(t, ok)
 	assert.Equal(t, expected, actual)
+}
+
+func sortCacheEntries(entries []*Entry) {
+	sort.Slice(entries, func(a, b int) bool {
+		return entries[a].RegistrationEntry.EntryId < entries[b].RegistrationEntry.EntryId
+	})
 }

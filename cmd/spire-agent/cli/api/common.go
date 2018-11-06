@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	workload_dial "github.com/spiffe/spire/api/workload/dial"
 	"github.com/spiffe/spire/proto/api/workload"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -33,15 +33,14 @@ type workloadClient struct {
 	timeout time.Duration
 }
 
-type workloadClientMaker func(socketPath string, timeout time.Duration) (*workloadClient, error)
+type workloadClientMaker func(ctx context.Context, socketPath string, timeout time.Duration) (*workloadClient, error)
 
 // newClients is the default client maker
-func newWorkloadClient(socketPath string, timeout time.Duration) (*workloadClient, error) {
-	dialer := func(addr string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("unix", addr, timeout)
-	}
-	// Workload API is unauthenticated
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer))
+func newWorkloadClient(ctx context.Context, socketPath string, timeout time.Duration) (*workloadClient, error) {
+	conn, err := workload_dial.Dial(ctx, &net.UnixAddr{
+		Name: socketPath,
+		Net:  "unix",
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +105,7 @@ func (a *adapter) Run(args []string) int {
 		return 1
 	}
 
-	clients, err := a.clientsMaker(a.socketPath, time.Duration(a.timeout))
+	clients, err := a.clientsMaker(ctx, a.socketPath, time.Duration(a.timeout))
 	if err != nil {
 		fmt.Fprintln(a.env.stderr, err)
 		return 1

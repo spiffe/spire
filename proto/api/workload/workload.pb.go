@@ -34,7 +34,7 @@ func (m *X509SVIDRequest) Reset()         { *m = X509SVIDRequest{} }
 func (m *X509SVIDRequest) String() string { return proto.CompactTextString(m) }
 func (*X509SVIDRequest) ProtoMessage()    {}
 func (*X509SVIDRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_workload_9b684f4104ab33ac, []int{0}
+	return fileDescriptor_workload_0ebd5cdf8a7be855, []int{0}
 }
 func (m *X509SVIDRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_X509SVIDRequest.Unmarshal(m, b)
@@ -77,7 +77,7 @@ func (m *X509SVIDResponse) Reset()         { *m = X509SVIDResponse{} }
 func (m *X509SVIDResponse) String() string { return proto.CompactTextString(m) }
 func (*X509SVIDResponse) ProtoMessage()    {}
 func (*X509SVIDResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_workload_9b684f4104ab33ac, []int{1}
+	return fileDescriptor_workload_0ebd5cdf8a7be855, []int{1}
 }
 func (m *X509SVIDResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_X509SVIDResponse.Unmarshal(m, b)
@@ -143,7 +143,7 @@ func (m *X509SVID) Reset()         { *m = X509SVID{} }
 func (m *X509SVID) String() string { return proto.CompactTextString(m) }
 func (*X509SVID) ProtoMessage()    {}
 func (*X509SVID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_workload_9b684f4104ab33ac, []int{2}
+	return fileDescriptor_workload_0ebd5cdf8a7be855, []int{2}
 }
 func (m *X509SVID) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_X509SVID.Unmarshal(m, b)
@@ -198,7 +198,7 @@ func (m *X509SVID) GetFederatesWith() []string {
 	return nil
 }
 
-type JWTASVID struct {
+type JWTSVID struct {
 	SpiffeId string `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	// Encoded using JWS Compact Serialization
 	Svid                 string   `protobuf:"bytes,2,opt,name=svid,proto3" json:"svid,omitempty"`
@@ -207,45 +207,45 @@ type JWTASVID struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *JWTASVID) Reset()         { *m = JWTASVID{} }
-func (m *JWTASVID) String() string { return proto.CompactTextString(m) }
-func (*JWTASVID) ProtoMessage()    {}
-func (*JWTASVID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_workload_9b684f4104ab33ac, []int{3}
+func (m *JWTSVID) Reset()         { *m = JWTSVID{} }
+func (m *JWTSVID) String() string { return proto.CompactTextString(m) }
+func (*JWTSVID) ProtoMessage()    {}
+func (*JWTSVID) Descriptor() ([]byte, []int) {
+	return fileDescriptor_workload_0ebd5cdf8a7be855, []int{3}
 }
-func (m *JWTASVID) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_JWTASVID.Unmarshal(m, b)
+func (m *JWTSVID) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_JWTSVID.Unmarshal(m, b)
 }
-func (m *JWTASVID) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_JWTASVID.Marshal(b, m, deterministic)
+func (m *JWTSVID) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_JWTSVID.Marshal(b, m, deterministic)
 }
-func (dst *JWTASVID) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_JWTASVID.Merge(dst, src)
+func (dst *JWTSVID) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JWTSVID.Merge(dst, src)
 }
-func (m *JWTASVID) XXX_Size() int {
-	return xxx_messageInfo_JWTASVID.Size(m)
+func (m *JWTSVID) XXX_Size() int {
+	return xxx_messageInfo_JWTSVID.Size(m)
 }
-func (m *JWTASVID) XXX_DiscardUnknown() {
-	xxx_messageInfo_JWTASVID.DiscardUnknown(m)
+func (m *JWTSVID) XXX_DiscardUnknown() {
+	xxx_messageInfo_JWTSVID.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_JWTASVID proto.InternalMessageInfo
+var xxx_messageInfo_JWTSVID proto.InternalMessageInfo
 
-func (m *JWTASVID) GetSpiffeId() string {
+func (m *JWTSVID) GetSpiffeId() string {
 	if m != nil {
 		return m.SpiffeId
 	}
 	return ""
 }
 
-func (m *JWTASVID) GetSvid() string {
+func (m *JWTSVID) GetSvid() string {
 	if m != nil {
 		return m.Svid
 	}
 	return ""
 }
 
-type JWTASVIDRequest struct {
+type JWTSVIDRequest struct {
 	Audience []string `protobuf:"bytes,1,rep,name=audience,proto3" json:"audience,omitempty"`
 	// SPIFFE ID of the JWT being requested
 	// If not set, all IDs will be returned
@@ -255,113 +255,113 @@ type JWTASVIDRequest struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *JWTASVIDRequest) Reset()         { *m = JWTASVIDRequest{} }
-func (m *JWTASVIDRequest) String() string { return proto.CompactTextString(m) }
-func (*JWTASVIDRequest) ProtoMessage()    {}
-func (*JWTASVIDRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_workload_9b684f4104ab33ac, []int{4}
+func (m *JWTSVIDRequest) Reset()         { *m = JWTSVIDRequest{} }
+func (m *JWTSVIDRequest) String() string { return proto.CompactTextString(m) }
+func (*JWTSVIDRequest) ProtoMessage()    {}
+func (*JWTSVIDRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_workload_0ebd5cdf8a7be855, []int{4}
 }
-func (m *JWTASVIDRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_JWTASVIDRequest.Unmarshal(m, b)
+func (m *JWTSVIDRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_JWTSVIDRequest.Unmarshal(m, b)
 }
-func (m *JWTASVIDRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_JWTASVIDRequest.Marshal(b, m, deterministic)
+func (m *JWTSVIDRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_JWTSVIDRequest.Marshal(b, m, deterministic)
 }
-func (dst *JWTASVIDRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_JWTASVIDRequest.Merge(dst, src)
+func (dst *JWTSVIDRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JWTSVIDRequest.Merge(dst, src)
 }
-func (m *JWTASVIDRequest) XXX_Size() int {
-	return xxx_messageInfo_JWTASVIDRequest.Size(m)
+func (m *JWTSVIDRequest) XXX_Size() int {
+	return xxx_messageInfo_JWTSVIDRequest.Size(m)
 }
-func (m *JWTASVIDRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_JWTASVIDRequest.DiscardUnknown(m)
+func (m *JWTSVIDRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_JWTSVIDRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_JWTASVIDRequest proto.InternalMessageInfo
+var xxx_messageInfo_JWTSVIDRequest proto.InternalMessageInfo
 
-func (m *JWTASVIDRequest) GetAudience() []string {
+func (m *JWTSVIDRequest) GetAudience() []string {
 	if m != nil {
 		return m.Audience
 	}
 	return nil
 }
 
-func (m *JWTASVIDRequest) GetSpiffeId() string {
+func (m *JWTSVIDRequest) GetSpiffeId() string {
 	if m != nil {
 		return m.SpiffeId
 	}
 	return ""
 }
 
-type JWTASVIDResponse struct {
-	Svids                []*JWTASVID `protobuf:"bytes,1,rep,name=svids,proto3" json:"svids,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
+type JWTSVIDResponse struct {
+	Svids                []*JWTSVID `protobuf:"bytes,1,rep,name=svids,proto3" json:"svids,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
 }
 
-func (m *JWTASVIDResponse) Reset()         { *m = JWTASVIDResponse{} }
-func (m *JWTASVIDResponse) String() string { return proto.CompactTextString(m) }
-func (*JWTASVIDResponse) ProtoMessage()    {}
-func (*JWTASVIDResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_workload_9b684f4104ab33ac, []int{5}
+func (m *JWTSVIDResponse) Reset()         { *m = JWTSVIDResponse{} }
+func (m *JWTSVIDResponse) String() string { return proto.CompactTextString(m) }
+func (*JWTSVIDResponse) ProtoMessage()    {}
+func (*JWTSVIDResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_workload_0ebd5cdf8a7be855, []int{5}
 }
-func (m *JWTASVIDResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_JWTASVIDResponse.Unmarshal(m, b)
+func (m *JWTSVIDResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_JWTSVIDResponse.Unmarshal(m, b)
 }
-func (m *JWTASVIDResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_JWTASVIDResponse.Marshal(b, m, deterministic)
+func (m *JWTSVIDResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_JWTSVIDResponse.Marshal(b, m, deterministic)
 }
-func (dst *JWTASVIDResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_JWTASVIDResponse.Merge(dst, src)
+func (dst *JWTSVIDResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JWTSVIDResponse.Merge(dst, src)
 }
-func (m *JWTASVIDResponse) XXX_Size() int {
-	return xxx_messageInfo_JWTASVIDResponse.Size(m)
+func (m *JWTSVIDResponse) XXX_Size() int {
+	return xxx_messageInfo_JWTSVIDResponse.Size(m)
 }
-func (m *JWTASVIDResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_JWTASVIDResponse.DiscardUnknown(m)
+func (m *JWTSVIDResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_JWTSVIDResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_JWTASVIDResponse proto.InternalMessageInfo
+var xxx_messageInfo_JWTSVIDResponse proto.InternalMessageInfo
 
-func (m *JWTASVIDResponse) GetSvids() []*JWTASVID {
+func (m *JWTSVIDResponse) GetSvids() []*JWTSVID {
 	if m != nil {
 		return m.Svids
 	}
 	return nil
 }
 
-type JWTABundlesRequest struct {
+type JWTBundlesRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *JWTABundlesRequest) Reset()         { *m = JWTABundlesRequest{} }
-func (m *JWTABundlesRequest) String() string { return proto.CompactTextString(m) }
-func (*JWTABundlesRequest) ProtoMessage()    {}
-func (*JWTABundlesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_workload_9b684f4104ab33ac, []int{6}
+func (m *JWTBundlesRequest) Reset()         { *m = JWTBundlesRequest{} }
+func (m *JWTBundlesRequest) String() string { return proto.CompactTextString(m) }
+func (*JWTBundlesRequest) ProtoMessage()    {}
+func (*JWTBundlesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_workload_0ebd5cdf8a7be855, []int{6}
 }
-func (m *JWTABundlesRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_JWTABundlesRequest.Unmarshal(m, b)
+func (m *JWTBundlesRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_JWTBundlesRequest.Unmarshal(m, b)
 }
-func (m *JWTABundlesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_JWTABundlesRequest.Marshal(b, m, deterministic)
+func (m *JWTBundlesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_JWTBundlesRequest.Marshal(b, m, deterministic)
 }
-func (dst *JWTABundlesRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_JWTABundlesRequest.Merge(dst, src)
+func (dst *JWTBundlesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JWTBundlesRequest.Merge(dst, src)
 }
-func (m *JWTABundlesRequest) XXX_Size() int {
-	return xxx_messageInfo_JWTABundlesRequest.Size(m)
+func (m *JWTBundlesRequest) XXX_Size() int {
+	return xxx_messageInfo_JWTBundlesRequest.Size(m)
 }
-func (m *JWTABundlesRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_JWTABundlesRequest.DiscardUnknown(m)
+func (m *JWTBundlesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_JWTBundlesRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_JWTABundlesRequest proto.InternalMessageInfo
+var xxx_messageInfo_JWTBundlesRequest proto.InternalMessageInfo
 
-type JWTABundlesResponse struct {
+type JWTBundlesResponse struct {
 	// JWK sets, keyed by trust domain URI
 	Bundles              map[string][]byte `protobuf:"bytes,1,rep,name=bundles,proto3" json:"bundles,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
@@ -369,39 +369,39 @@ type JWTABundlesResponse struct {
 	XXX_sizecache        int32             `json:"-"`
 }
 
-func (m *JWTABundlesResponse) Reset()         { *m = JWTABundlesResponse{} }
-func (m *JWTABundlesResponse) String() string { return proto.CompactTextString(m) }
-func (*JWTABundlesResponse) ProtoMessage()    {}
-func (*JWTABundlesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_workload_9b684f4104ab33ac, []int{7}
+func (m *JWTBundlesResponse) Reset()         { *m = JWTBundlesResponse{} }
+func (m *JWTBundlesResponse) String() string { return proto.CompactTextString(m) }
+func (*JWTBundlesResponse) ProtoMessage()    {}
+func (*JWTBundlesResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_workload_0ebd5cdf8a7be855, []int{7}
 }
-func (m *JWTABundlesResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_JWTABundlesResponse.Unmarshal(m, b)
+func (m *JWTBundlesResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_JWTBundlesResponse.Unmarshal(m, b)
 }
-func (m *JWTABundlesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_JWTABundlesResponse.Marshal(b, m, deterministic)
+func (m *JWTBundlesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_JWTBundlesResponse.Marshal(b, m, deterministic)
 }
-func (dst *JWTABundlesResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_JWTABundlesResponse.Merge(dst, src)
+func (dst *JWTBundlesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JWTBundlesResponse.Merge(dst, src)
 }
-func (m *JWTABundlesResponse) XXX_Size() int {
-	return xxx_messageInfo_JWTABundlesResponse.Size(m)
+func (m *JWTBundlesResponse) XXX_Size() int {
+	return xxx_messageInfo_JWTBundlesResponse.Size(m)
 }
-func (m *JWTABundlesResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_JWTABundlesResponse.DiscardUnknown(m)
+func (m *JWTBundlesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_JWTBundlesResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_JWTABundlesResponse proto.InternalMessageInfo
+var xxx_messageInfo_JWTBundlesResponse proto.InternalMessageInfo
 
-func (m *JWTABundlesResponse) GetBundles() map[string][]byte {
+func (m *JWTBundlesResponse) GetBundles() map[string][]byte {
 	if m != nil {
 		return m.Bundles
 	}
 	return nil
 }
 
-type ValidateJWTASVIDRequest struct {
-	Audience []string `protobuf:"bytes,1,rep,name=audience,proto3" json:"audience,omitempty"`
+type ValidateJWTSVIDRequest struct {
+	Audience string `protobuf:"bytes,1,opt,name=audience,proto3" json:"audience,omitempty"`
 	// Encoded using JWS Compact Serialization
 	Svid                 string   `protobuf:"bytes,2,opt,name=svid,proto3" json:"svid,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -409,45 +409,45 @@ type ValidateJWTASVIDRequest struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *ValidateJWTASVIDRequest) Reset()         { *m = ValidateJWTASVIDRequest{} }
-func (m *ValidateJWTASVIDRequest) String() string { return proto.CompactTextString(m) }
-func (*ValidateJWTASVIDRequest) ProtoMessage()    {}
-func (*ValidateJWTASVIDRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_workload_9b684f4104ab33ac, []int{8}
+func (m *ValidateJWTSVIDRequest) Reset()         { *m = ValidateJWTSVIDRequest{} }
+func (m *ValidateJWTSVIDRequest) String() string { return proto.CompactTextString(m) }
+func (*ValidateJWTSVIDRequest) ProtoMessage()    {}
+func (*ValidateJWTSVIDRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_workload_0ebd5cdf8a7be855, []int{8}
 }
-func (m *ValidateJWTASVIDRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ValidateJWTASVIDRequest.Unmarshal(m, b)
+func (m *ValidateJWTSVIDRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ValidateJWTSVIDRequest.Unmarshal(m, b)
 }
-func (m *ValidateJWTASVIDRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ValidateJWTASVIDRequest.Marshal(b, m, deterministic)
+func (m *ValidateJWTSVIDRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ValidateJWTSVIDRequest.Marshal(b, m, deterministic)
 }
-func (dst *ValidateJWTASVIDRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ValidateJWTASVIDRequest.Merge(dst, src)
+func (dst *ValidateJWTSVIDRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ValidateJWTSVIDRequest.Merge(dst, src)
 }
-func (m *ValidateJWTASVIDRequest) XXX_Size() int {
-	return xxx_messageInfo_ValidateJWTASVIDRequest.Size(m)
+func (m *ValidateJWTSVIDRequest) XXX_Size() int {
+	return xxx_messageInfo_ValidateJWTSVIDRequest.Size(m)
 }
-func (m *ValidateJWTASVIDRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_ValidateJWTASVIDRequest.DiscardUnknown(m)
+func (m *ValidateJWTSVIDRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ValidateJWTSVIDRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ValidateJWTASVIDRequest proto.InternalMessageInfo
+var xxx_messageInfo_ValidateJWTSVIDRequest proto.InternalMessageInfo
 
-func (m *ValidateJWTASVIDRequest) GetAudience() []string {
+func (m *ValidateJWTSVIDRequest) GetAudience() string {
 	if m != nil {
 		return m.Audience
 	}
-	return nil
+	return ""
 }
 
-func (m *ValidateJWTASVIDRequest) GetSvid() string {
+func (m *ValidateJWTSVIDRequest) GetSvid() string {
 	if m != nil {
 		return m.Svid
 	}
 	return ""
 }
 
-type ValidateJWTASVIDResponse struct {
+type ValidateJWTSVIDResponse struct {
 	SpiffeId             string          `protobuf:"bytes,1,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	Claims               *_struct.Struct `protobuf:"bytes,2,opt,name=claims,proto3" json:"claims,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
@@ -455,38 +455,38 @@ type ValidateJWTASVIDResponse struct {
 	XXX_sizecache        int32           `json:"-"`
 }
 
-func (m *ValidateJWTASVIDResponse) Reset()         { *m = ValidateJWTASVIDResponse{} }
-func (m *ValidateJWTASVIDResponse) String() string { return proto.CompactTextString(m) }
-func (*ValidateJWTASVIDResponse) ProtoMessage()    {}
-func (*ValidateJWTASVIDResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_workload_9b684f4104ab33ac, []int{9}
+func (m *ValidateJWTSVIDResponse) Reset()         { *m = ValidateJWTSVIDResponse{} }
+func (m *ValidateJWTSVIDResponse) String() string { return proto.CompactTextString(m) }
+func (*ValidateJWTSVIDResponse) ProtoMessage()    {}
+func (*ValidateJWTSVIDResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_workload_0ebd5cdf8a7be855, []int{9}
 }
-func (m *ValidateJWTASVIDResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ValidateJWTASVIDResponse.Unmarshal(m, b)
+func (m *ValidateJWTSVIDResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ValidateJWTSVIDResponse.Unmarshal(m, b)
 }
-func (m *ValidateJWTASVIDResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ValidateJWTASVIDResponse.Marshal(b, m, deterministic)
+func (m *ValidateJWTSVIDResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ValidateJWTSVIDResponse.Marshal(b, m, deterministic)
 }
-func (dst *ValidateJWTASVIDResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ValidateJWTASVIDResponse.Merge(dst, src)
+func (dst *ValidateJWTSVIDResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ValidateJWTSVIDResponse.Merge(dst, src)
 }
-func (m *ValidateJWTASVIDResponse) XXX_Size() int {
-	return xxx_messageInfo_ValidateJWTASVIDResponse.Size(m)
+func (m *ValidateJWTSVIDResponse) XXX_Size() int {
+	return xxx_messageInfo_ValidateJWTSVIDResponse.Size(m)
 }
-func (m *ValidateJWTASVIDResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_ValidateJWTASVIDResponse.DiscardUnknown(m)
+func (m *ValidateJWTSVIDResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ValidateJWTSVIDResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ValidateJWTASVIDResponse proto.InternalMessageInfo
+var xxx_messageInfo_ValidateJWTSVIDResponse proto.InternalMessageInfo
 
-func (m *ValidateJWTASVIDResponse) GetSpiffeId() string {
+func (m *ValidateJWTSVIDResponse) GetSpiffeId() string {
 	if m != nil {
 		return m.SpiffeId
 	}
 	return ""
 }
 
-func (m *ValidateJWTASVIDResponse) GetClaims() *_struct.Struct {
+func (m *ValidateJWTSVIDResponse) GetClaims() *_struct.Struct {
 	if m != nil {
 		return m.Claims
 	}
@@ -498,14 +498,14 @@ func init() {
 	proto.RegisterType((*X509SVIDResponse)(nil), "X509SVIDResponse")
 	proto.RegisterMapType((map[string][]byte)(nil), "X509SVIDResponse.FederatedBundlesEntry")
 	proto.RegisterType((*X509SVID)(nil), "X509SVID")
-	proto.RegisterType((*JWTASVID)(nil), "JWTASVID")
-	proto.RegisterType((*JWTASVIDRequest)(nil), "JWTASVIDRequest")
-	proto.RegisterType((*JWTASVIDResponse)(nil), "JWTASVIDResponse")
-	proto.RegisterType((*JWTABundlesRequest)(nil), "JWTABundlesRequest")
-	proto.RegisterType((*JWTABundlesResponse)(nil), "JWTABundlesResponse")
-	proto.RegisterMapType((map[string][]byte)(nil), "JWTABundlesResponse.BundlesEntry")
-	proto.RegisterType((*ValidateJWTASVIDRequest)(nil), "ValidateJWTASVIDRequest")
-	proto.RegisterType((*ValidateJWTASVIDResponse)(nil), "ValidateJWTASVIDResponse")
+	proto.RegisterType((*JWTSVID)(nil), "JWTSVID")
+	proto.RegisterType((*JWTSVIDRequest)(nil), "JWTSVIDRequest")
+	proto.RegisterType((*JWTSVIDResponse)(nil), "JWTSVIDResponse")
+	proto.RegisterType((*JWTBundlesRequest)(nil), "JWTBundlesRequest")
+	proto.RegisterType((*JWTBundlesResponse)(nil), "JWTBundlesResponse")
+	proto.RegisterMapType((map[string][]byte)(nil), "JWTBundlesResponse.BundlesEntry")
+	proto.RegisterType((*ValidateJWTSVIDRequest)(nil), "ValidateJWTSVIDRequest")
+	proto.RegisterType((*ValidateJWTSVIDResponse)(nil), "ValidateJWTSVIDResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -521,9 +521,9 @@ const _ = grpc.SupportPackageIsVersion4
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type SpiffeWorkloadAPIClient interface {
 	// JWT-SVID Profile
-	FetchJWTASVID(ctx context.Context, in *JWTASVIDRequest, opts ...grpc.CallOption) (*JWTASVIDResponse, error)
-	FetchJWTABundles(ctx context.Context, in *JWTABundlesRequest, opts ...grpc.CallOption) (SpiffeWorkloadAPI_FetchJWTABundlesClient, error)
-	ValidateJWTASVID(ctx context.Context, in *ValidateJWTASVIDRequest, opts ...grpc.CallOption) (*ValidateJWTASVIDResponse, error)
+	FetchJWTSVID(ctx context.Context, in *JWTSVIDRequest, opts ...grpc.CallOption) (*JWTSVIDResponse, error)
+	FetchJWTBundles(ctx context.Context, in *JWTBundlesRequest, opts ...grpc.CallOption) (SpiffeWorkloadAPI_FetchJWTBundlesClient, error)
+	ValidateJWTSVID(ctx context.Context, in *ValidateJWTSVIDRequest, opts ...grpc.CallOption) (*ValidateJWTSVIDResponse, error)
 	// X.509-SVID Profile
 	// Fetch all SPIFFE identities the workload is entitled to, as
 	// well as related information like trust bundles and CRLs. As
@@ -539,21 +539,21 @@ func NewSpiffeWorkloadAPIClient(cc *grpc.ClientConn) SpiffeWorkloadAPIClient {
 	return &spiffeWorkloadAPIClient{cc}
 }
 
-func (c *spiffeWorkloadAPIClient) FetchJWTASVID(ctx context.Context, in *JWTASVIDRequest, opts ...grpc.CallOption) (*JWTASVIDResponse, error) {
-	out := new(JWTASVIDResponse)
-	err := c.cc.Invoke(ctx, "/SpiffeWorkloadAPI/FetchJWTASVID", in, out, opts...)
+func (c *spiffeWorkloadAPIClient) FetchJWTSVID(ctx context.Context, in *JWTSVIDRequest, opts ...grpc.CallOption) (*JWTSVIDResponse, error) {
+	out := new(JWTSVIDResponse)
+	err := c.cc.Invoke(ctx, "/SpiffeWorkloadAPI/FetchJWTSVID", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *spiffeWorkloadAPIClient) FetchJWTABundles(ctx context.Context, in *JWTABundlesRequest, opts ...grpc.CallOption) (SpiffeWorkloadAPI_FetchJWTABundlesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_SpiffeWorkloadAPI_serviceDesc.Streams[0], "/SpiffeWorkloadAPI/FetchJWTABundles", opts...)
+func (c *spiffeWorkloadAPIClient) FetchJWTBundles(ctx context.Context, in *JWTBundlesRequest, opts ...grpc.CallOption) (SpiffeWorkloadAPI_FetchJWTBundlesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_SpiffeWorkloadAPI_serviceDesc.Streams[0], "/SpiffeWorkloadAPI/FetchJWTBundles", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &spiffeWorkloadAPIFetchJWTABundlesClient{stream}
+	x := &spiffeWorkloadAPIFetchJWTBundlesClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -563,26 +563,26 @@ func (c *spiffeWorkloadAPIClient) FetchJWTABundles(ctx context.Context, in *JWTA
 	return x, nil
 }
 
-type SpiffeWorkloadAPI_FetchJWTABundlesClient interface {
-	Recv() (*JWTABundlesResponse, error)
+type SpiffeWorkloadAPI_FetchJWTBundlesClient interface {
+	Recv() (*JWTBundlesResponse, error)
 	grpc.ClientStream
 }
 
-type spiffeWorkloadAPIFetchJWTABundlesClient struct {
+type spiffeWorkloadAPIFetchJWTBundlesClient struct {
 	grpc.ClientStream
 }
 
-func (x *spiffeWorkloadAPIFetchJWTABundlesClient) Recv() (*JWTABundlesResponse, error) {
-	m := new(JWTABundlesResponse)
+func (x *spiffeWorkloadAPIFetchJWTBundlesClient) Recv() (*JWTBundlesResponse, error) {
+	m := new(JWTBundlesResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (c *spiffeWorkloadAPIClient) ValidateJWTASVID(ctx context.Context, in *ValidateJWTASVIDRequest, opts ...grpc.CallOption) (*ValidateJWTASVIDResponse, error) {
-	out := new(ValidateJWTASVIDResponse)
-	err := c.cc.Invoke(ctx, "/SpiffeWorkloadAPI/ValidateJWTASVID", in, out, opts...)
+func (c *spiffeWorkloadAPIClient) ValidateJWTSVID(ctx context.Context, in *ValidateJWTSVIDRequest, opts ...grpc.CallOption) (*ValidateJWTSVIDResponse, error) {
+	out := new(ValidateJWTSVIDResponse)
+	err := c.cc.Invoke(ctx, "/SpiffeWorkloadAPI/ValidateJWTSVID", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -624,9 +624,9 @@ func (x *spiffeWorkloadAPIFetchX509SVIDClient) Recv() (*X509SVIDResponse, error)
 // SpiffeWorkloadAPIServer is the server API for SpiffeWorkloadAPI service.
 type SpiffeWorkloadAPIServer interface {
 	// JWT-SVID Profile
-	FetchJWTASVID(context.Context, *JWTASVIDRequest) (*JWTASVIDResponse, error)
-	FetchJWTABundles(*JWTABundlesRequest, SpiffeWorkloadAPI_FetchJWTABundlesServer) error
-	ValidateJWTASVID(context.Context, *ValidateJWTASVIDRequest) (*ValidateJWTASVIDResponse, error)
+	FetchJWTSVID(context.Context, *JWTSVIDRequest) (*JWTSVIDResponse, error)
+	FetchJWTBundles(*JWTBundlesRequest, SpiffeWorkloadAPI_FetchJWTBundlesServer) error
+	ValidateJWTSVID(context.Context, *ValidateJWTSVIDRequest) (*ValidateJWTSVIDResponse, error)
 	// X.509-SVID Profile
 	// Fetch all SPIFFE identities the workload is entitled to, as
 	// well as related information like trust bundles and CRLs. As
@@ -638,59 +638,59 @@ func RegisterSpiffeWorkloadAPIServer(s *grpc.Server, srv SpiffeWorkloadAPIServer
 	s.RegisterService(&_SpiffeWorkloadAPI_serviceDesc, srv)
 }
 
-func _SpiffeWorkloadAPI_FetchJWTASVID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(JWTASVIDRequest)
+func _SpiffeWorkloadAPI_FetchJWTSVID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JWTSVIDRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SpiffeWorkloadAPIServer).FetchJWTASVID(ctx, in)
+		return srv.(SpiffeWorkloadAPIServer).FetchJWTSVID(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/SpiffeWorkloadAPI/FetchJWTASVID",
+		FullMethod: "/SpiffeWorkloadAPI/FetchJWTSVID",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SpiffeWorkloadAPIServer).FetchJWTASVID(ctx, req.(*JWTASVIDRequest))
+		return srv.(SpiffeWorkloadAPIServer).FetchJWTSVID(ctx, req.(*JWTSVIDRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SpiffeWorkloadAPI_FetchJWTABundles_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(JWTABundlesRequest)
+func _SpiffeWorkloadAPI_FetchJWTBundles_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(JWTBundlesRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(SpiffeWorkloadAPIServer).FetchJWTABundles(m, &spiffeWorkloadAPIFetchJWTABundlesServer{stream})
+	return srv.(SpiffeWorkloadAPIServer).FetchJWTBundles(m, &spiffeWorkloadAPIFetchJWTBundlesServer{stream})
 }
 
-type SpiffeWorkloadAPI_FetchJWTABundlesServer interface {
-	Send(*JWTABundlesResponse) error
+type SpiffeWorkloadAPI_FetchJWTBundlesServer interface {
+	Send(*JWTBundlesResponse) error
 	grpc.ServerStream
 }
 
-type spiffeWorkloadAPIFetchJWTABundlesServer struct {
+type spiffeWorkloadAPIFetchJWTBundlesServer struct {
 	grpc.ServerStream
 }
 
-func (x *spiffeWorkloadAPIFetchJWTABundlesServer) Send(m *JWTABundlesResponse) error {
+func (x *spiffeWorkloadAPIFetchJWTBundlesServer) Send(m *JWTBundlesResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _SpiffeWorkloadAPI_ValidateJWTASVID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ValidateJWTASVIDRequest)
+func _SpiffeWorkloadAPI_ValidateJWTSVID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateJWTSVIDRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SpiffeWorkloadAPIServer).ValidateJWTASVID(ctx, in)
+		return srv.(SpiffeWorkloadAPIServer).ValidateJWTSVID(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/SpiffeWorkloadAPI/ValidateJWTASVID",
+		FullMethod: "/SpiffeWorkloadAPI/ValidateJWTSVID",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SpiffeWorkloadAPIServer).ValidateJWTASVID(ctx, req.(*ValidateJWTASVIDRequest))
+		return srv.(SpiffeWorkloadAPIServer).ValidateJWTSVID(ctx, req.(*ValidateJWTSVIDRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -721,18 +721,18 @@ var _SpiffeWorkloadAPI_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*SpiffeWorkloadAPIServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "FetchJWTASVID",
-			Handler:    _SpiffeWorkloadAPI_FetchJWTASVID_Handler,
+			MethodName: "FetchJWTSVID",
+			Handler:    _SpiffeWorkloadAPI_FetchJWTSVID_Handler,
 		},
 		{
-			MethodName: "ValidateJWTASVID",
-			Handler:    _SpiffeWorkloadAPI_ValidateJWTASVID_Handler,
+			MethodName: "ValidateJWTSVID",
+			Handler:    _SpiffeWorkloadAPI_ValidateJWTSVID_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "FetchJWTABundles",
-			Handler:       _SpiffeWorkloadAPI_FetchJWTABundles_Handler,
+			StreamName:    "FetchJWTBundles",
+			Handler:       _SpiffeWorkloadAPI_FetchJWTBundles_Handler,
 			ServerStreams: true,
 		},
 		{
@@ -744,43 +744,43 @@ var _SpiffeWorkloadAPI_serviceDesc = grpc.ServiceDesc{
 	Metadata: "workload.proto",
 }
 
-func init() { proto.RegisterFile("workload.proto", fileDescriptor_workload_9b684f4104ab33ac) }
+func init() { proto.RegisterFile("workload.proto", fileDescriptor_workload_0ebd5cdf8a7be855) }
 
-var fileDescriptor_workload_9b684f4104ab33ac = []byte{
-	// 549 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x54, 0x6f, 0x6f, 0xd2, 0x40,
-	0x18, 0xcf, 0xd1, 0x81, 0xf4, 0x01, 0xb6, 0x72, 0x43, 0x57, 0xab, 0x89, 0xd8, 0xc4, 0xc8, 0xab,
-	0x83, 0x30, 0x67, 0xdc, 0xf6, 0xc2, 0xcc, 0x3f, 0x33, 0xcc, 0x37, 0xa6, 0x2c, 0xc3, 0x77, 0xa4,
-	0x70, 0xc7, 0x68, 0x56, 0x29, 0xf6, 0xae, 0x4c, 0x3e, 0x83, 0x89, 0x5f, 0xc3, 0xaf, 0xe5, 0x47,
-	0x31, 0xbd, 0x5e, 0xbb, 0x50, 0x40, 0xa3, 0xef, 0xee, 0xf9, 0x3d, 0xbf, 0xe7, 0xd7, 0xe7, 0x6f,
-	0x61, 0xf7, 0x36, 0x08, 0x6f, 0xfc, 0xc0, 0xa5, 0x64, 0x1e, 0x06, 0x22, 0xb0, 0x1e, 0x5f, 0x07,
-	0xc1, 0xb5, 0xcf, 0xda, 0xd2, 0x1a, 0x45, 0x93, 0x36, 0x17, 0x61, 0x34, 0x16, 0x89, 0xd7, 0xae,
-	0xc3, 0xde, 0xe7, 0xa3, 0xce, 0x71, 0xff, 0xaa, 0xf7, 0xce, 0x61, 0x5f, 0x23, 0xc6, 0x85, 0xfd,
-	0x0b, 0x81, 0x71, 0x87, 0xf1, 0x79, 0x30, 0xe3, 0x0c, 0x3f, 0x81, 0x22, 0x5f, 0x78, 0x94, 0x9b,
-	0xa8, 0xa9, 0xb5, 0x2a, 0x5d, 0x9d, 0x64, 0x8c, 0x04, 0xc7, 0x06, 0x68, 0xe3, 0xd0, 0x37, 0x0b,
-	0x4d, 0xad, 0x55, 0x75, 0xe2, 0x27, 0xbe, 0x84, 0xfa, 0x84, 0x51, 0x16, 0xba, 0x82, 0xd1, 0xe1,
-	0x28, 0x9a, 0x51, 0x9f, 0x71, 0x53, 0x93, 0xe1, 0xcf, 0x49, 0xfe, 0x03, 0xe4, 0x3c, 0xa5, 0xbe,
-	0x49, 0x98, 0xef, 0x67, 0x22, 0x5c, 0x3a, 0xc6, 0x24, 0x07, 0x5b, 0x6f, 0xe1, 0xfe, 0x46, 0x6a,
-	0x9c, 0xc0, 0x0d, 0x5b, 0x9a, 0xa8, 0x89, 0x5a, 0xba, 0x13, 0x3f, 0x71, 0x03, 0x8a, 0x0b, 0xd7,
-	0x8f, 0x98, 0x59, 0x68, 0xa2, 0x56, 0xd5, 0x49, 0x8c, 0x93, 0xc2, 0x2b, 0x64, 0xff, 0x44, 0x50,
-	0x4e, 0x33, 0xc0, 0x8f, 0x40, 0xe7, 0x73, 0x6f, 0x32, 0x61, 0x43, 0x8f, 0xaa, 0xf0, 0x72, 0x02,
-	0xf4, 0x68, 0xec, 0xfc, 0x76, 0xd4, 0x39, 0x1e, 0xc6, 0x45, 0x2a, 0x9d, 0x72, 0x0c, 0xf4, 0x17,
-	0x1e, 0xc5, 0x36, 0xd4, 0x32, 0xe7, 0x30, 0xfe, 0xb8, 0x26, 0x09, 0x95, 0x94, 0xf0, 0x91, 0x2d,
-	0xf1, 0x03, 0x28, 0x25, 0xb5, 0x9b, 0x3b, 0xd2, 0xa9, 0x2c, 0xfc, 0x0c, 0x76, 0xd3, 0xda, 0xf8,
-	0xf0, 0xd6, 0x13, 0x53, 0xb3, 0xd8, 0xd4, 0x5a, 0xba, 0x53, 0xcb, 0xd0, 0x81, 0x27, 0xa6, 0xf6,
-	0x29, 0x94, 0x2f, 0x06, 0x97, 0x67, 0x7f, 0x4f, 0x14, 0xc3, 0x4e, 0x96, 0xa3, 0xee, 0xc8, 0xb7,
-	0x7d, 0x01, 0x7b, 0x69, 0xb0, 0x1a, 0x2e, 0xb6, 0xa0, 0xec, 0x46, 0xd4, 0x63, 0xb3, 0x31, 0x93,
-	0xa3, 0xd4, 0x9d, 0xcc, 0x5e, 0xd5, 0x2f, 0xac, 0xea, 0xdb, 0x87, 0x60, 0xdc, 0x69, 0x6d, 0x5b,
-	0x8a, 0x8c, 0x91, 0xe0, 0x76, 0x03, 0x70, 0x0c, 0xa9, 0x39, 0xa5, 0x0b, 0xf6, 0x03, 0xc1, 0xfe,
-	0x0a, 0xac, 0xe4, 0x4e, 0xe1, 0x5e, 0xba, 0x26, 0x89, 0xe0, 0x53, 0xb2, 0x81, 0x46, 0x56, 0x16,
-	0x24, 0x8d, 0xb0, 0x4e, 0xa0, 0xfa, 0xdf, 0xeb, 0xd0, 0x83, 0x83, 0x2b, 0xd7, 0xf7, 0xa8, 0x2b,
-	0xd8, 0xbf, 0xf4, 0x6b, 0x53, 0xcb, 0xa7, 0x60, 0xae, 0x4b, 0xa9, 0xfa, 0xfe, 0x38, 0xbf, 0x36,
-	0x94, 0xc6, 0xbe, 0xeb, 0x7d, 0xe1, 0x52, 0xae, 0xd2, 0x3d, 0x20, 0xc9, 0xdd, 0x92, 0xf4, 0x6e,
-	0x49, 0x5f, 0xde, 0xad, 0xa3, 0x68, 0xdd, 0xef, 0x05, 0xa8, 0xf7, 0x65, 0xf4, 0x40, 0x1d, 0xfc,
-	0xd9, 0xa7, 0x1e, 0x7e, 0x01, 0xb5, 0x73, 0x26, 0xc6, 0xd3, 0x6c, 0x69, 0x0c, 0x92, 0x2b, 0xc9,
-	0xaa, 0x93, 0xb5, 0xcc, 0x5e, 0x83, 0x91, 0x45, 0xa9, 0x2e, 0xe2, 0x7d, 0xb2, 0x3e, 0x3a, 0xab,
-	0xb1, 0x69, 0x22, 0x1d, 0x84, 0x3f, 0x80, 0x91, 0x2f, 0x1b, 0x9b, 0x64, 0x4b, 0x53, 0xad, 0x87,
-	0x64, 0x6b, 0x8f, 0x5e, 0xaa, 0xfc, 0xb3, 0xeb, 0x34, 0x48, 0xee, 0xff, 0x64, 0xd5, 0xd7, 0x7e,
-	0x1e, 0x1d, 0x34, 0x2a, 0xc9, 0x36, 0x1d, 0xfe, 0x0e, 0x00, 0x00, 0xff, 0xff, 0xd8, 0x0d, 0x56,
-	0x31, 0xfe, 0x04, 0x00, 0x00,
+var fileDescriptor_workload_0ebd5cdf8a7be855 = []byte{
+	// 556 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x54, 0x5d, 0x8f, 0xd2, 0x4c,
+	0x14, 0xce, 0xd0, 0x85, 0xa5, 0x87, 0xef, 0xd9, 0xf7, 0x5d, 0x9a, 0x6a, 0xb4, 0x69, 0x62, 0xe4,
+	0x6a, 0x60, 0x31, 0x6b, 0x5c, 0xe2, 0x8d, 0xba, 0x6e, 0x64, 0xbd, 0x31, 0x85, 0x2c, 0xde, 0x91,
+	0x42, 0x07, 0x68, 0xb6, 0x52, 0x6c, 0xa7, 0xac, 0xdc, 0x7a, 0xed, 0xff, 0xf0, 0x6f, 0xf9, 0x53,
+	0x4c, 0xa7, 0x33, 0xd5, 0x16, 0x5c, 0x13, 0xef, 0xe6, 0x3c, 0xe7, 0x39, 0x4f, 0xcf, 0x67, 0xa1,
+	0x7e, 0xe7, 0x07, 0xb7, 0x9e, 0x6f, 0x3b, 0x64, 0x13, 0xf8, 0xcc, 0xd7, 0x1f, 0x2e, 0x7d, 0x7f,
+	0xe9, 0xd1, 0x2e, 0xb7, 0x66, 0xd1, 0xa2, 0x1b, 0xb2, 0x20, 0x9a, 0xb3, 0xc4, 0x6b, 0xb6, 0xa0,
+	0xf1, 0xf1, 0xbc, 0x77, 0x31, 0xba, 0x19, 0x5e, 0x5a, 0xf4, 0x73, 0x44, 0x43, 0x66, 0xfe, 0x40,
+	0xd0, 0xfc, 0x85, 0x85, 0x1b, 0x7f, 0x1d, 0x52, 0xfc, 0x18, 0x8a, 0xe1, 0xd6, 0x75, 0x42, 0x0d,
+	0x19, 0x4a, 0xa7, 0xd2, 0x57, 0x49, 0xca, 0x48, 0x70, 0xdc, 0x04, 0x65, 0x1e, 0x78, 0x5a, 0xc1,
+	0x50, 0x3a, 0x55, 0x2b, 0x7e, 0xe2, 0x31, 0xb4, 0x16, 0xd4, 0xa1, 0x81, 0xcd, 0xa8, 0x33, 0x9d,
+	0x45, 0x6b, 0xc7, 0xa3, 0xa1, 0xa6, 0xf0, 0xf0, 0xa7, 0x24, 0xff, 0x01, 0x72, 0x25, 0xa9, 0xaf,
+	0x13, 0xe6, 0xdb, 0x35, 0x0b, 0x76, 0x56, 0x73, 0x91, 0x83, 0xf5, 0x37, 0xf0, 0xff, 0x41, 0x6a,
+	0x9c, 0xc0, 0x2d, 0xdd, 0x69, 0xc8, 0x40, 0x1d, 0xd5, 0x8a, 0x9f, 0xf8, 0x3f, 0x28, 0x6e, 0x6d,
+	0x2f, 0xa2, 0x5a, 0xc1, 0x40, 0x9d, 0xaa, 0x95, 0x18, 0x83, 0xc2, 0x0b, 0x64, 0x7e, 0x47, 0x50,
+	0x96, 0x19, 0xe0, 0x07, 0xa0, 0x86, 0x1b, 0x77, 0xb1, 0xa0, 0x53, 0xd7, 0x11, 0xe1, 0xe5, 0x04,
+	0x18, 0x3a, 0xb1, 0xf3, 0xcb, 0x79, 0xef, 0x62, 0x1a, 0x17, 0x29, 0x74, 0xca, 0x31, 0x30, 0xda,
+	0xba, 0x0e, 0x36, 0xa1, 0x96, 0x3a, 0xa7, 0xf1, 0xc7, 0x15, 0x4e, 0xa8, 0x48, 0xc2, 0x7b, 0xba,
+	0xc3, 0xa7, 0x50, 0x4a, 0x6a, 0xd7, 0x8e, 0xb8, 0x53, 0x58, 0xf8, 0x09, 0xd4, 0x65, 0x6d, 0xe1,
+	0xf4, 0xce, 0x65, 0x2b, 0xad, 0x68, 0x28, 0x1d, 0xd5, 0xaa, 0xa5, 0xe8, 0xc4, 0x65, 0x2b, 0x73,
+	0x00, 0xc7, 0xd7, 0x93, 0xf1, 0xdf, 0xf3, 0xc4, 0x70, 0x94, 0xa6, 0xa8, 0x5a, 0xfc, 0x6d, 0x0e,
+	0xa1, 0x2e, 0x62, 0xc5, 0x68, 0xb1, 0x0e, 0x65, 0x3b, 0x72, 0x5c, 0xba, 0x9e, 0x53, 0x3e, 0x48,
+	0xd5, 0x4a, 0xed, 0xac, 0x7c, 0x21, 0x2b, 0x6f, 0x9e, 0x41, 0x23, 0x95, 0x12, 0x1b, 0xf1, 0x28,
+	0xbb, 0x11, 0x65, 0x22, 0x09, 0x09, 0x6c, 0x9e, 0x40, 0xeb, 0x7a, 0x32, 0x16, 0x23, 0x92, 0xbb,
+	0xf5, 0x0d, 0x01, 0xfe, 0x1d, 0x15, 0x5a, 0x03, 0x38, 0x96, 0x0b, 0x92, 0xa8, 0x19, 0x64, 0x9f,
+	0x45, 0x32, 0x9b, 0x21, 0x03, 0xf4, 0x01, 0x54, 0xff, 0x79, 0x0f, 0xde, 0xc1, 0xe9, 0x8d, 0xed,
+	0xb9, 0x8e, 0xcd, 0xe8, 0xbd, 0x9d, 0x42, 0x99, 0x4e, 0x1d, 0xea, 0xf5, 0x12, 0xda, 0x7b, 0x4a,
+	0xa2, 0xb8, 0x7b, 0xe7, 0xd6, 0x85, 0xd2, 0xdc, 0xb3, 0xdd, 0x4f, 0x21, 0x57, 0xab, 0xf4, 0xdb,
+	0x24, 0x39, 0x57, 0x22, 0xcf, 0x95, 0x8c, 0xf8, 0xb9, 0x5a, 0x82, 0xd6, 0xff, 0x5a, 0x80, 0xd6,
+	0x88, 0x47, 0x4f, 0xc4, 0x9d, 0xbf, 0xfa, 0x30, 0xc4, 0x67, 0x50, 0xbd, 0xa2, 0x6c, 0xbe, 0x92,
+	0xbb, 0xd2, 0x20, 0xd9, 0x7a, 0xf4, 0x26, 0xc9, 0xa7, 0xf5, 0x12, 0x1a, 0x32, 0x44, 0xf4, 0x0f,
+	0x63, 0xb2, 0x37, 0x31, 0xfd, 0xe4, 0xc0, 0x24, 0x7a, 0x08, 0x5f, 0x42, 0x23, 0x57, 0x2f, 0x6e,
+	0x93, 0xc3, 0xbd, 0xd4, 0x35, 0xf2, 0xa7, 0xd6, 0x3c, 0x87, 0x1a, 0xcf, 0x21, 0xbd, 0xc5, 0x26,
+	0xc9, 0xfd, 0x8d, 0xf4, 0xd6, 0xde, 0xaf, 0xa2, 0x87, 0x66, 0x25, 0xde, 0x9d, 0x67, 0x3f, 0x03,
+	0x00, 0x00, 0xff, 0xff, 0xb6, 0x6b, 0xd6, 0x93, 0xec, 0x04, 0x00, 0x00,
 }

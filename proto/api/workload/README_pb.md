@@ -15,14 +15,14 @@
   
 
 - [workload.proto](#workload.proto)
-    - [JWTABundlesRequest](#.JWTABundlesRequest)
-    - [JWTABundlesResponse](#.JWTABundlesResponse)
-    - [JWTABundlesResponse.BundlesEntry](#.JWTABundlesResponse.BundlesEntry)
-    - [JWTASVID](#.JWTASVID)
-    - [JWTASVIDRequest](#.JWTASVIDRequest)
-    - [JWTASVIDResponse](#.JWTASVIDResponse)
-    - [ValidateJWTASVIDRequest](#.ValidateJWTASVIDRequest)
-    - [ValidateJWTASVIDResponse](#.ValidateJWTASVIDResponse)
+    - [JWTBundlesRequest](#.JWTBundlesRequest)
+    - [JWTBundlesResponse](#.JWTBundlesResponse)
+    - [JWTBundlesResponse.BundlesEntry](#.JWTBundlesResponse.BundlesEntry)
+    - [JWTSVID](#.JWTSVID)
+    - [JWTSVIDRequest](#.JWTSVIDRequest)
+    - [JWTSVIDResponse](#.JWTSVIDResponse)
+    - [ValidateJWTSVIDRequest](#.ValidateJWTSVIDRequest)
+    - [ValidateJWTSVIDResponse](#.ValidateJWTSVIDResponse)
     - [X509SVID](#.X509SVID)
     - [X509SVIDRequest](#.X509SVIDRequest)
     - [X509SVIDResponse](#.X509SVIDResponse)
@@ -154,34 +154,34 @@ The JSON representation for `NullValue` is JSON `null`.
 
 
 
-<a name=".JWTABundlesRequest"/>
+<a name=".JWTBundlesRequest"/>
 
-### JWTABundlesRequest
-
-
+### JWTBundlesRequest
 
 
 
 
 
-<a name=".JWTABundlesResponse"/>
 
-### JWTABundlesResponse
+
+<a name=".JWTBundlesResponse"/>
+
+### JWTBundlesResponse
 
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| bundles | [.JWTABundlesResponse.BundlesEntry](#..JWTABundlesResponse.BundlesEntry) | repeated | JWK sets, keyed by trust domain URI |
+| bundles | [.JWTBundlesResponse.BundlesEntry](#..JWTBundlesResponse.BundlesEntry) | repeated | JWK sets, keyed by trust domain URI |
 
 
 
 
 
 
-<a name=".JWTABundlesResponse.BundlesEntry"/>
+<a name=".JWTBundlesResponse.BundlesEntry"/>
 
-### JWTABundlesResponse.BundlesEntry
+### JWTBundlesResponse.BundlesEntry
 
 
 
@@ -195,9 +195,9 @@ The JSON representation for `NullValue` is JSON `null`.
 
 
 
-<a name=".JWTASVID"/>
+<a name=".JWTSVID"/>
 
-### JWTASVID
+### JWTSVID
 
 
 
@@ -211,9 +211,9 @@ The JSON representation for `NullValue` is JSON `null`.
 
 
 
-<a name=".JWTASVIDRequest"/>
+<a name=".JWTSVIDRequest"/>
 
-### JWTASVIDRequest
+### JWTSVIDRequest
 
 
 
@@ -227,30 +227,30 @@ The JSON representation for `NullValue` is JSON `null`.
 
 
 
-<a name=".JWTASVIDResponse"/>
+<a name=".JWTSVIDResponse"/>
 
-### JWTASVIDResponse
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| svids | [.JWTASVID](#..JWTASVID) | repeated |  |
-
-
-
-
-
-
-<a name=".ValidateJWTASVIDRequest"/>
-
-### ValidateJWTASVIDRequest
+### JWTSVIDResponse
 
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| audience | [string](#string) | repeated |  |
+| svids | [.JWTSVID](#..JWTSVID) | repeated |  |
+
+
+
+
+
+
+<a name=".ValidateJWTSVIDRequest"/>
+
+### ValidateJWTSVIDRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| audience | [string](#string) |  |  |
 | svid | [string](#string) |  | Encoded using JWS Compact Serialization |
 
 
@@ -258,9 +258,9 @@ The JSON representation for `NullValue` is JSON `null`.
 
 
 
-<a name=".ValidateJWTASVIDResponse"/>
+<a name=".ValidateJWTSVIDResponse"/>
 
-### ValidateJWTASVIDResponse
+### ValidateJWTSVIDResponse
 
 
 
@@ -352,9 +352,9 @@ TTL to inform the workload when it should check back next.
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| FetchJWTASVID | [JWTASVIDRequest](#JWTASVIDRequest) | [JWTASVIDResponse](#JWTASVIDRequest) | JWT-SVID Profile |
-| FetchJWTABundles | [JWTABundlesRequest](#JWTABundlesRequest) | [JWTABundlesResponse](#JWTABundlesRequest) |  |
-| ValidateJWTASVID | [ValidateJWTASVIDRequest](#ValidateJWTASVIDRequest) | [ValidateJWTASVIDResponse](#ValidateJWTASVIDRequest) |  |
+| FetchJWTSVID | [JWTSVIDRequest](#JWTSVIDRequest) | [JWTSVIDResponse](#JWTSVIDRequest) | JWT-SVID Profile |
+| FetchJWTBundles | [JWTBundlesRequest](#JWTBundlesRequest) | [JWTBundlesResponse](#JWTBundlesRequest) |  |
+| ValidateJWTSVID | [ValidateJWTSVIDRequest](#ValidateJWTSVIDRequest) | [ValidateJWTSVIDResponse](#ValidateJWTSVIDRequest) |  |
 | FetchX509SVID | [X509SVIDRequest](#X509SVIDRequest) | [X509SVIDResponse](#X509SVIDRequest) | X.509-SVID Profile Fetch all SPIFFE identities the workload is entitled to, as well as related information like trust bundles and CRLs. As this information changes, subsequent messages will be sent. |
 
  

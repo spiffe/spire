@@ -153,15 +153,15 @@ func (m *mockHandler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload
 	return nil
 }
 
-func (m *mockHandler) FetchJWTASVID(context.Context, *workload.JWTASVIDRequest) (*workload.JWTASVIDResponse, error) {
+func (m *mockHandler) FetchJWTSVID(context.Context, *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
 	return nil, errors.New("unimplemented")
 }
 
-func (m *mockHandler) FetchJWTABundles(*workload.JWTABundlesRequest, workload.SpiffeWorkloadAPI_FetchJWTABundlesServer) error {
+func (m *mockHandler) FetchJWTBundles(*workload.JWTBundlesRequest, workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
 	return errors.New("unimplemented")
 }
 
-func (m *mockHandler) ValidateJWTASVID(context.Context, *workload.ValidateJWTASVIDRequest) (*workload.ValidateJWTASVIDResponse, error) {
+func (m *mockHandler) ValidateJWTSVID(context.Context, *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
 	return nil, errors.New("unimplemented")
 }
 

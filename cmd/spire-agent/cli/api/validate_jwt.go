@@ -6,10 +6,11 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/proto/api/workload"
-
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func NewValidateJWTCommand() cli.Command {
@@ -21,7 +22,7 @@ func newValidateJWTCommand(env *env, clientMaker workloadClientMaker) cli.Comman
 }
 
 type validateJWTCommand struct {
-	audience stringsFlag
+	audience string
 	svid     string
 }
 
@@ -34,12 +35,12 @@ func (*validateJWTCommand) synopsis() string {
 }
 
 func (c *validateJWTCommand) appendFlags(fs *flag.FlagSet) {
-	fs.Var(&c.audience, "audience", "comma separated list of audience values")
+	fs.StringVar(&c.audience, "audience", "", "expected audience value")
 	fs.StringVar(&c.svid, "svid", "", "JWT SVID")
 }
 
 func (c *validateJWTCommand) run(ctx context.Context, env *env, client *workloadClient) error {
-	if len(c.audience) == 0 {
+	if c.audience == "" {
 		return errors.New("audience must be specified")
 	}
 	if len(c.svid) == 0 {
@@ -48,7 +49,7 @@ func (c *validateJWTCommand) run(ctx context.Context, env *env, client *workload
 
 	resp, err := c.validateJWTSVID(ctx, client)
 	if err != nil {
-		return fmt.Errorf("unable to validate JWT SVID: %v", err)
+		return err
 	}
 
 	env.Println("SVID is valid.")
@@ -62,11 +63,18 @@ func (c *validateJWTCommand) run(ctx context.Context, env *env, client *workload
 	return nil
 }
 
-func (c *validateJWTCommand) validateJWTSVID(ctx context.Context, client *workloadClient) (*workload.ValidateJWTASVIDResponse, error) {
+func (c *validateJWTCommand) validateJWTSVID(ctx context.Context, client *workloadClient) (*workload.ValidateJWTSVIDResponse, error) {
 	ctx, cancel := client.prepareContext(ctx)
 	defer cancel()
-	return client.ValidateJWTASVID(ctx, &workload.ValidateJWTASVIDRequest{
+	resp, err := client.ValidateJWTSVID(ctx, &workload.ValidateJWTSVIDRequest{
 		Audience: c.audience,
 		Svid:     c.svid,
 	})
+	if err != nil {
+		if s := status.Convert(err); s.Code() == codes.InvalidArgument {
+			return nil, fmt.Errorf("SVID is not valid: %v", s.Message())
+		}
+		return nil, fmt.Errorf("Unable to validate JWT SVID: %v", err)
+	}
+	return resp, nil
 }

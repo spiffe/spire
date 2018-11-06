@@ -102,8 +102,8 @@ type Cache interface {
 
 	// GetJWTSVID retrieves a cached JWT SVID based on the subject and
 	// intended audience.
-	GetJWTSVID(spiffeID string, audience []string) *client.JWTSVID
-	//	SetJWTSVID caches a JWT SVID based on the subject and intended audience.
+	GetJWTSVID(spiffeID string, audience []string) (*client.JWTSVID, bool)
+	// SetJWTSVID caches a JWT SVID based on the subject and intended audience.
 	SetJWTSVID(spiffeID string, audience []string, svid *client.JWTSVID)
 }
 
@@ -298,11 +298,12 @@ func (c *cacheImpl) FetchWorkloadUpdate(selectors Selectors) *WorkloadUpdate {
 	return c.makeWorkloadUpdate(selectorsEntries(selectors, entries), bundles)
 }
 
-func (c *cacheImpl) GetJWTSVID(spiffeID string, audience []string) *client.JWTSVID {
+func (c *cacheImpl) GetJWTSVID(spiffeID string, audience []string) (*client.JWTSVID, bool) {
 	key := keyFromJWTSpiffeIDAndAudience(spiffeID, audience)
 	c.m.Lock()
 	defer c.m.Unlock()
-	return c.jwtSVIDS[key]
+	svid, ok := c.jwtSVIDS[key]
+	return svid, ok
 }
 
 func (c *cacheImpl) SetJWTSVID(spiffeID string, audience []string, svid *client.JWTSVID) {

@@ -45,14 +45,14 @@ message X509SVID {
 }
 
 
-message JWTASVID {
+message JWTSVID {
     string spiffe_id = 1;
 
     // Encoded using JWS Compact Serialization
     string svid = 2;
 }
 
-message JWTASVIDRequest {
+message JWTSVIDRequest {
     repeated string audience = 1;
 
     // SPIFFE ID of the JWT being requested
@@ -60,34 +60,34 @@ message JWTASVIDRequest {
     string spiffe_id = 2;
 }
 
-message JWTASVIDResponse {
-    repeated JWTASVID svids = 1;
+message JWTSVIDResponse {
+    repeated JWTSVID svids = 1;
 }
 
-message JWTABundlesRequest { }
+message JWTBundlesRequest { }
 
-message JWTABundlesResponse {
+message JWTBundlesResponse {
     // JWK sets, keyed by trust domain URI
     map<string, bytes> bundles = 1;
 }
 
-message ValidateJWTASVIDRequest {
-    repeated string audience = 1;
+message ValidateJWTSVIDRequest {
+    string audience = 1;
 
     // Encoded using JWS Compact Serialization
     string svid = 2;
 }
 
-message ValidateJWTASVIDResponse {
+message ValidateJWTSVIDResponse {
     string spiffe_id = 1;
     google.protobuf.Struct claims = 2;
 }
 
 service SpiffeWorkloadAPI {
     // JWT-SVID Profile
-    rpc FetchJWTASVID(JWTASVIDRequest) returns (JWTASVIDResponse);
-    rpc FetchJWTABundles(JWTABundlesRequest) returns (stream JWTABundlesResponse);
-    rpc ValidateJWTASVID(ValidateJWTASVIDRequest) returns (ValidateJWTASVIDResponse);
+    rpc FetchJWTSVID(JWTSVIDRequest) returns (JWTSVIDResponse);
+    rpc FetchJWTBundles(JWTBundlesRequest) returns (stream JWTBundlesResponse);
+    rpc ValidateJWTSVID(ValidateJWTSVIDRequest) returns (ValidateJWTSVIDResponse);
 
     // X.509-SVID Profile
     // Fetch all SPIFFE identities the workload is entitled to, as

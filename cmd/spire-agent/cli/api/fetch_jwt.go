@@ -61,19 +61,19 @@ func (c *fetchJWTCommand) appendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "SPIFFE ID subject (optional)")
 }
 
-func (c *fetchJWTCommand) fetchJWTSVID(ctx context.Context, client *workloadClient) (*workload.JWTASVIDResponse, error) {
+func (c *fetchJWTCommand) fetchJWTSVID(ctx context.Context, client *workloadClient) (*workload.JWTSVIDResponse, error) {
 	ctx, cancel := client.prepareContext(ctx)
 	defer cancel()
-	return client.FetchJWTASVID(ctx, &workload.JWTASVIDRequest{
+	return client.FetchJWTSVID(ctx, &workload.JWTSVIDRequest{
 		Audience: c.audience,
 		SpiffeId: c.spiffeID,
 	})
 }
 
-func (c *fetchJWTCommand) fetchJWTBundles(ctx context.Context, client *workloadClient) (*workload.JWTABundlesResponse, error) {
+func (c *fetchJWTCommand) fetchJWTBundles(ctx context.Context, client *workloadClient) (*workload.JWTBundlesResponse, error) {
 	ctx, cancel := client.prepareContext(ctx)
 	defer cancel()
-	stream, err := client.FetchJWTABundles(ctx, &workload.JWTABundlesRequest{})
+	stream, err := client.FetchJWTBundles(ctx, &workload.JWTBundlesRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to receive JWT bundles: %v", err)
 	}

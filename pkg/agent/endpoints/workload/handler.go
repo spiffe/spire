@@ -45,9 +45,9 @@ type Handler struct {
 	T       telemetry.Sink
 }
 
-func (h *Handler) FetchJWTASVID(ctx context.Context, req *workload.JWTASVIDRequest) (*workload.JWTASVIDResponse, error) {
+func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
 	if len(req.Audience) == 0 {
-		return nil, errs.New("audience cannot be empty")
+		return nil, errs.New("audience must be specified")
 	}
 
 	_, selectors, _, done, err := h.startCall(ctx)
@@ -66,13 +66,13 @@ func (h *Handler) FetchJWTASVID(ctx context.Context, req *workload.JWTASVIDReque
 		spiffeIDs = append(spiffeIDs, entry.RegistrationEntry.SpiffeId)
 	}
 
-	resp := new(workload.JWTASVIDResponse)
+	resp := new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
 		svid, err := h.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
 		if err != nil {
-			return nil, status.Errorf(codes.Unavailable, "could not fetch %q JWTASVID: %v", spiffeID, err)
+			return nil, status.Errorf(codes.Unavailable, "could not fetch %q JWTSVID: %v", spiffeID, err)
 		}
-		resp.Svids = append(resp.Svids, &workload.JWTASVID{
+		resp.Svids = append(resp.Svids, &workload.JWTSVID{
 			SpiffeId: spiffeID,
 			Svid:     svid,
 		})
@@ -81,7 +81,7 @@ func (h *Handler) FetchJWTASVID(ctx context.Context, req *workload.JWTASVIDReque
 	return resp, nil
 }
 
-func (h *Handler) FetchJWTABundles(req *workload.JWTABundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTABundlesServer) error {
+func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
 	ctx := stream.Context()
 
 	pid, selectors, tel, done, err := h.startCall(ctx)
@@ -100,7 +100,7 @@ func (h *Handler) FetchJWTABundles(req *workload.JWTABundlesRequest, stream work
 		case update := <-subscriber.Updates():
 			tel.IncrCounter([]string{workloadApi, "bundles_update"}, 1)
 			start := time.Now()
-			if err := h.sendJWTABundlesResponse(update, stream); err != nil {
+			if err := h.sendJWTBundlesResponse(update, stream); err != nil {
 				return err
 			}
 
@@ -108,7 +108,6 @@ func (h *Handler) FetchJWTABundles(req *workload.JWTABundlesRequest, stream work
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send JWT bundle to PID %v", time.Since(start).Seconds, pid)
 			}
-			return nil
 		case <-ctx.Done():
 			return nil
 		}
@@ -117,7 +116,14 @@ func (h *Handler) FetchJWTABundles(req *workload.JWTABundlesRequest, stream work
 	return nil
 }
 
-func (h *Handler) ValidateJWTASVID(ctx context.Context, req *workload.ValidateJWTASVIDRequest) (*workload.ValidateJWTASVIDResponse, error) {
+func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
+	if req.Audience == "" {
+		return nil, errs.New("audience must be specified")
+	}
+	if req.Svid == "" {
+		return nil, errs.New("svid must be specified")
+	}
+
 	_, selectors, tel, done, err := h.startCall(ctx)
 	if err != nil {
 		return nil, err
@@ -128,9 +134,9 @@ func (h *Handler) ValidateJWTASVID(ctx context.Context, req *workload.ValidateJW
 
 	keyStore := keyStoreFromBundles(h.getWorkloadBundles(selectors))
 
-	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, req.Audience)
+	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	s, err := structFromValues(claims)
@@ -138,7 +144,7 @@ func (h *Handler) ValidateJWTASVID(ctx context.Context, req *workload.ValidateJW
 		return nil, err
 	}
 
-	return &workload.ValidateJWTASVIDResponse{
+	return &workload.ValidateJWTSVIDResponse{
 		SpiffeId: spiffeID,
 		Claims:   s,
 	}, nil
@@ -224,12 +230,12 @@ func (h *Handler) composeX509SVIDResponse(update *cache.WorkloadUpdate) (*worklo
 	return resp, nil
 }
 
-func (h *Handler) sendJWTABundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTABundlesServer) error {
+func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
 	if len(update.Entries) == 0 {
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
-	resp, err := h.composeJWTABundlesResponse(update)
+	resp, err := h.composeJWTBundlesResponse(update)
 	if err != nil {
 		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
 	}
@@ -237,26 +243,27 @@ func (h *Handler) sendJWTABundlesResponse(update *cache.WorkloadUpdate, stream w
 	return stream.Send(resp)
 }
 
-func (h *Handler) composeJWTABundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTABundlesResponse, error) {
-	resp := &workload.JWTABundlesResponse{
-		Bundles: make(map[string][]byte),
-	}
-
-	jwksBytes, err := jwtJWKSBytesFromBundle(update.Bundle)
-	if err != nil {
-		return nil, err
-	}
-	resp.Bundles[update.Bundle.TrustDomainID()] = jwksBytes
-
-	for _, federatedBundle := range update.FederatedBundles {
+func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
+	bundles := make(map[string][]byte)
+	if update.Bundle != nil {
 		jwksBytes, err := jwtJWKSBytesFromBundle(update.Bundle)
 		if err != nil {
 			return nil, err
 		}
-		resp.Bundles[federatedBundle.TrustDomainID()] = jwksBytes
+		bundles[update.Bundle.TrustDomainID()] = jwksBytes
 	}
 
-	return resp, nil
+	for _, federatedBundle := range update.FederatedBundles {
+		jwksBytes, err := jwtJWKSBytesFromBundle(federatedBundle)
+		if err != nil {
+			return nil, err
+		}
+		bundles[federatedBundle.TrustDomainID()] = jwksBytes
+	}
+
+	return &workload.JWTBundlesResponse{
+		Bundles: bundles,
+	}, nil
 }
 
 func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, telemetry.Sink, func(), error) {
@@ -314,7 +321,9 @@ func (h *Handler) callerPID(ctx context.Context) (pid int32, err error) {
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*bundleutil.Bundle) {
 	update := h.Manager.FetchWorkloadUpdate(selectors)
 
-	bundles = append(bundles, update.Bundle)
+	if update.Bundle != nil {
+		bundles = append(bundles, update.Bundle)
+	}
 	for _, federatedBundle := range update.FederatedBundles {
 		bundles = append(bundles, federatedBundle)
 	}

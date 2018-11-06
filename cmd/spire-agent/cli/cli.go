@@ -13,6 +13,9 @@ func Run(args []string) int {
 	c := cli.NewCLI("spire-agent", version.Version())
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
+		"api fetch": func() (cli.Command, error) {
+			return api.NewFetchX509Command(), nil
+		},
 		"api fetch x509": func() (cli.Command, error) {
 			return api.NewFetchX509Command(), nil
 		},
