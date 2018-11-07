@@ -38,13 +38,15 @@ type TokenSuite struct {
 	suite.Suite
 
 	key    *ecdsa.PrivateKey
-	bundle TrustBundle
+	bundle KeyStore
 }
 
 func (s *TokenSuite) SetupTest() {
 	s.key = s.loadKey(keyPEM)
-	s.bundle = NewTrustBundle("example.org", map[string]crypto.PublicKey{
-		"kid": s.key.Public(),
+	s.bundle = NewKeyStore(map[string]map[string]crypto.PublicKey{
+		"spiffe://example.org": {
+			"kid": s.key.Public(),
+		},
 	})
 }
 
@@ -64,8 +66,9 @@ func (s *TokenSuite) TestSignAndValidate() {
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
-	claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0])
+	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0:1])
 	s.Require().NoError(err)
+	s.Require().Equal(fakeSpiffeID, spiffeID)
 	s.Require().NotEmpty(claims)
 }
 
@@ -74,8 +77,9 @@ func (s *TokenSuite) TestSignAndValidateWithAudienceList() {
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
-	claims, err := ValidateToken(ctx, token, s.bundle, fakeAudiences[0])
+	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, fakeAudiences[0:1])
 	s.Require().NoError(err)
+	s.Require().Equal(fakeSpiffeID, spiffeID)
 	s.Require().NotEmpty(claims)
 }
 
@@ -99,13 +103,19 @@ func (s *TokenSuite) TestSignNoAudience() {
 	s.Require().EqualError(err, "audience is required")
 }
 
+func (s *TokenSuite) TestSignEmptyAudience() {
+	_, err := SignToken(fakeSpiffeID, []string{""}, time.Now().Add(time.Hour), s.key, "kid")
+	s.Require().EqualError(err, "audience is required")
+}
+
 func (s *TokenSuite) TestValidateBadAlgorithm() {
 	token := jwt.New(jwt.SigningMethodHS256)
 	tokenString, err := token.SignedString([]byte("BLAH"))
 	s.Require().NoError(err)
 
-	claims, err := ValidateToken(ctx, tokenString, s.bundle, fakeAudience[0])
+	spiffeID, claims, err := ValidateToken(ctx, tokenString, s.bundle, fakeAudience[0:1])
 	s.Require().EqualError(err, "unexpected token signature algorithm: HS256")
+	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
 
@@ -114,8 +124,9 @@ func (s *TokenSuite) TestValidateMissingThumbprint() {
 	tokenString, err := token.SignedString(s.key)
 	s.Require().NoError(err)
 
-	claims, err := ValidateToken(ctx, tokenString, s.bundle, fakeAudience[0])
+	spiffeID, claims, err := ValidateToken(ctx, tokenString, s.bundle, fakeAudience[0:1])
 	s.Require().EqualError(err, "token missing key id")
+	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
 
@@ -124,8 +135,9 @@ func (s *TokenSuite) TestValidateExpiredToken() {
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
-	claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0])
+	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0:1])
 	s.Require().EqualError(err, "Token is expired")
+	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
 
@@ -135,8 +147,9 @@ func (s *TokenSuite) TestValidateNoSubject() {
 	tokenString, err := token.SignedString(s.key)
 	s.Require().NoError(err)
 
-	claims, err := ValidateToken(ctx, tokenString, s.bundle, "FOO")
+	spiffeID, claims, err := ValidateToken(ctx, tokenString, s.bundle, []string{"FOO"})
 	s.Require().EqualError(err, "token missing subject claim")
+	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
 
@@ -144,13 +157,14 @@ func (s *TokenSuite) TestValidateSubjectNotForDomain() {
 	token := jwt.New(jwt.SigningMethodES256)
 	token.Header["kid"] = "kid"
 	token.Claims = jwt.MapClaims{
-		"sub": "spiffe://other.org",
+		"sub": "spiffe://other.org/foo",
 	}
 	tokenString, err := token.SignedString(s.key)
 	s.Require().NoError(err)
 
-	claims, err := ValidateToken(ctx, tokenString, s.bundle, "FOO")
-	s.Require().EqualError(err, `token has in invalid subject claim: "spiffe://other.org" does not belong to trust domain "example.org"`)
+	spiffeID, claims, err := ValidateToken(ctx, tokenString, s.bundle, []string{"FOO"})
+	s.Require().EqualError(err, `no keys found for trust domain "spiffe://other.org"`)
+	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
 
@@ -163,8 +177,9 @@ func (s *TokenSuite) TestValidateNoAudience() {
 	tokenString, err := token.SignedString(s.key)
 	s.Require().NoError(err)
 
-	claims, err := ValidateToken(ctx, tokenString, s.bundle, "FOO")
+	spiffeID, claims, err := ValidateToken(ctx, tokenString, s.bundle, []string{"FOO"})
 	s.Require().EqualError(err, "token missing audience claim")
+	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
 
@@ -173,8 +188,9 @@ func (s *TokenSuite) TestValidateUnexpectedAudience() {
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
-	claims, err := ValidateToken(ctx, token, s.bundle, "FOO")
-	s.Require().EqualError(err, `expected audience "FOO" (audience="AUDIENCE")`)
+	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, []string{"FOO"})
+	s.Require().EqualError(err, `expected audience in ["FOO"] (audience="AUDIENCE")`)
+	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
 
@@ -183,18 +199,20 @@ func (s *TokenSuite) TestValidateUnexpectedAudienceList() {
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
-	claims, err := ValidateToken(ctx, token, s.bundle, "AUDIENCE3")
-	s.Require().EqualError(err, `expected audience "AUDIENCE3" (audience=["AUDIENCE1" "AUDIENCE2"])`)
+	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, []string{"AUDIENCE3"})
+	s.Require().EqualError(err, `expected audience in ["AUDIENCE3"] (audience=["AUDIENCE1" "AUDIENCE2"])`)
+	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
 
-func (s *TokenSuite) TestValidateCertificateNotFound() {
+func (s *TokenSuite) TestValidateKeyNotFound() {
 	token, err := SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), s.key, "whatever")
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
-	claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0])
-	s.Require().EqualError(err, "public key not found in trust bundle")
+	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0:1])
+	s.Require().EqualError(err, `public key "whatever" not found in trust domain "spiffe://example.org"`)
+	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
 

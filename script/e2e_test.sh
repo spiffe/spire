@@ -57,7 +57,7 @@ run_test() {
     sleep 2
 
     set +e
-    RESULT=$(./cmd/spire-agent/spire-agent api fetch)
+    RESULT=$(./cmd/spire-agent/spire-agent api fetch x509)
     echo $RESULT | grep "Received 1 bundle"
     if [ $? != 0 ]; then
         CODE=1

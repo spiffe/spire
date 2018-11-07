@@ -187,9 +187,9 @@ plugins {
 
 14. Simulate the workload API interaction and retrieve the workload SVID bundle by running the `api` subcommand in the agent. Run the command as user **_workload_** created in step #4 with uid 1000
 
-        su -c "./cmd/spire-agent/spire-agent api fetch" workload
+        su -c "./cmd/spire-agent/spire-agent api fetch x509 " workload
 
 15. Examine the output. Optionally, you may write the SVID and key to disk with `-write` in order to examine them in detail.
 
-        su -c "./cmd/spire-agent/spire-agent api fetch -write ./" workload
+        su -c "./cmd/spire-agent/spire-agent api fetch x509 -write ./" workload
         openssl x509 -in ~/go/src/github.com/spiffe/spire/svid.0.pem -text -noout

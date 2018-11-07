@@ -53,7 +53,7 @@ while [ "$RESULT" == "svid.0.pem: OK" ]; do
     fi
 
     sleep 1
-    ./cmd/spire-agent/spire-agent api fetch -write .
+    ./cmd/spire-agent/spire-agent api fetch x509 -write .
     echo "Current date: " $(date)
     RESULT=$(openssl verify -partial_chain -CAfile bundle.0.pem svid.0.pem)
     echo $RESULT

@@ -29,6 +29,7 @@ var (
 
 type JWTSVID struct {
 	Token     string
+	IssuedAt  time.Time
 	ExpiresAt time.Time
 }
 
@@ -179,10 +180,20 @@ func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, err
 	if svid == nil {
 		return nil, errors.New("JWTSVID response missing SVID")
 	}
+	if svid.IssuedAt == 0 {
+		return nil, errors.New("JWTSVID missing issued at")
+	}
+	if svid.ExpiresAt == 0 {
+		return nil, errors.New("JWTSVID missing expires at")
+	}
+	if svid.IssuedAt > svid.ExpiresAt {
+		return nil, errors.New("JWTSVID issued after it has expired")
+	}
 
 	return &JWTSVID{
 		Token:     svid.Token,
-		ExpiresAt: time.Unix(svid.ExpiresAt, 0),
+		IssuedAt:  time.Unix(svid.IssuedAt, 0).UTC(),
+		ExpiresAt: time.Unix(svid.ExpiresAt, 0).UTC(),
 	}, nil
 }
 
