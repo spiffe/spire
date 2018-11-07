@@ -118,10 +118,10 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 
 func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
 	if req.Audience == "" {
-		return nil, errs.New("audience must be specified")
+		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
 	}
 	if req.Svid == "" {
-		return nil, errs.New("svid must be specified")
+		return nil, status.Error(codes.InvalidArgument, "svid must be specified")
 	}
 
 	_, selectors, tel, done, err := h.startCall(ctx)
