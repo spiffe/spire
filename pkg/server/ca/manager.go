@@ -124,6 +124,7 @@ func NewManager(c *ManagerConfig) *manager {
 	m := &manager{
 		c: c,
 		ca: newServerCA(serverCAConfig{
+			Log:         c.Log,
 			Catalog:     c.Catalog,
 			TrustDomain: c.TrustDomain,
 			DefaultTTL:  c.SVIDTTL,
@@ -140,8 +141,6 @@ func NewManager(c *ManagerConfig) *manager {
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
-	m.c.Log.Debugf("TTL: CA=%s SVID=%s", m.c.CATTL, m.c.SVIDTTL)
-
 	if err := m.loadKeypairSets(ctx); err != nil {
 		return err
 	}
@@ -387,6 +386,7 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) error 
 	}
 	kps.jwtSigningKey = jwtSigningKey
 	m.writeKeypairSets()
+	m.c.Log.Debugf("Keypair set %q will expire %s", kps.slot, cert.NotAfter.Format(time.RFC3339))
 	return nil
 }
 
