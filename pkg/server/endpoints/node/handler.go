@@ -294,7 +294,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, err
 	}
 
-	expiresAt, err := jwtsvid.GetTokenExpiry(token)
+	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
 		return nil, err
 	}
@@ -302,6 +302,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	return &node.FetchJWTSVIDResponse{
 		Svid: &node.JWTSVID{
 			Token:     token,
+			IssuedAt:  issuedAt.Unix(),
 			ExpiresAt: expiresAt.Unix(),
 		},
 	}, nil

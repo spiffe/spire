@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 )
 
@@ -47,6 +49,13 @@ type Manager interface {
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
 	// selectors are included in the set of selectors passed as parameter.
 	MatchingEntries(selectors []*common.Selector) []*cache.Entry
+
+	// FetchWorkloadUpdates gets the latest workload update for the selectors
+	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
+
+	// FetchJWTSVID returns a JWT SVID for the specified SPIFFEID and audience. If there
+	// is no JWT cached, the manager will get one signed upstream.
+	FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (string, error)
 }
 
 type manager struct {
@@ -64,6 +73,10 @@ type manager struct {
 	bundleCachePath string
 
 	client client.Client
+
+	hooks struct {
+		now func() time.Time
+	}
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
@@ -110,6 +123,38 @@ func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []*cach
 		}
 	}
 	return entries
+}
+
+// FetchWorkloadUpdates gets the latest workload update for the selectors
+func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {
+	return m.cache.FetchWorkloadUpdate(selectors)
+}
+
+func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (string, error) {
+	now := m.hooks.now()
+
+	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
+	if ok && !jwtSVIDExpiresSoon(cachedSVID, now) {
+		return cachedSVID.Token, nil
+	}
+
+	newSVID, err := m.client.FetchJWTSVID(ctx, &node.JSR{
+		SpiffeId: spiffeID,
+		Audience: audience,
+	})
+	switch {
+	case err == nil:
+	case cachedSVID == nil:
+		return "", err
+	case jwtSVIDExpired(cachedSVID, now):
+		return "", fmt.Errorf("unable to renew JWT for %q (err=%v)", spiffeID, err)
+	default:
+		m.c.Log.Warnf("unable to renew JWT for %q; returning cached copy (err=%v)", spiffeID, err)
+		return cachedSVID.Token, nil
+	}
+
+	m.cache.SetJWTSVID(spiffeID, audience, newSVID)
+	return newSVID.Token, nil
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
@@ -172,4 +217,22 @@ func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
 	if err != nil {
 		m.c.Log.Errorf("could not store bundle: %v", err)
 	}
+}
+
+func jwtSVIDExpiresSoon(svid *client.JWTSVID, now time.Time) bool {
+	if jwtSVIDExpired(svid, now) {
+		return true
+	}
+
+	// if the SVID has less than half of its lifetime left, consider it
+	// as expiring soon
+	if !now.Before(svid.IssuedAt.Add(svid.ExpiresAt.Sub(svid.IssuedAt) / 2)) {
+		return true
+	}
+
+	return false
+}
+
+func jwtSVIDExpired(svid *client.JWTSVID, now time.Time) bool {
+	return !now.Before(svid.ExpiresAt)
 }

@@ -21,6 +21,7 @@ func New(trustDomainID string) *Bundle {
 		b: &common.Bundle{
 			TrustDomainId: trustDomainID,
 		},
+		jwtSigningKeys: make(map[string]crypto.PublicKey),
 	}
 }
 
@@ -89,7 +90,22 @@ func (b *Bundle) AppendRootCA(rootCA *x509.Certificate) {
 		DerBytes: rootCA.Raw,
 	})
 	b.rootCAs = append(b.rootCAs, rootCA)
+}
 
+func (b *Bundle) AppendJWTSigningKey(kid string, key crypto.PublicKey) error {
+	if _, ok := b.jwtSigningKeys[kid]; ok {
+		return errs.New("JWT Signing Key %q already exists", kid)
+	}
+	pkixBytes, err := x509.MarshalPKIXPublicKey(key)
+	if err != nil {
+		return errs.Wrap(err)
+	}
+	b.b.JwtSigningKeys = append(b.b.JwtSigningKeys, &common.PublicKey{
+		Kid:       kid,
+		PkixBytes: pkixBytes,
+	})
+	b.jwtSigningKeys[kid] = key
+	return nil
 }
 
 func BundleProtoFromRootCAsDER(trustDomainId string, derBytes []byte) (*common.Bundle, error) {

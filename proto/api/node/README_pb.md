@@ -347,6 +347,7 @@ JWTSVID is a signed JWT-SVID with fields lifted out for convenience.
 | ----- | ---- | ----- | ----------- |
 | token | [string](#string) |  | JWT-SVID JWT token |
 | expires_at | [int64](#int64) |  | SVID expiration timestamp (seconds since Unix epoch) |
+| issued_at | [int64](#int64) |  | SVID issuance timestamp (seconds since Unix epoch) |
 
 
 

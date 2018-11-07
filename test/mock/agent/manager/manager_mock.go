@@ -36,6 +36,31 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return m.recorder
 }
 
+// FetchJWTSVID mocks base method
+func (m *MockManager) FetchJWTSVID(arg0 context.Context, arg1 string, arg2 []string) (string, error) {
+	ret := m.ctrl.Call(m, "FetchJWTSVID", arg0, arg1, arg2)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchJWTSVID indicates an expected call of FetchJWTSVID
+func (mr *MockManagerMockRecorder) FetchJWTSVID(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTSVID", reflect.TypeOf((*MockManager)(nil).FetchJWTSVID), arg0, arg1, arg2)
+}
+
+// FetchWorkloadUpdate mocks base method
+func (m *MockManager) FetchWorkloadUpdate(arg0 []*common.Selector) *cache.WorkloadUpdate {
+	ret := m.ctrl.Call(m, "FetchWorkloadUpdate", arg0)
+	ret0, _ := ret[0].(*cache.WorkloadUpdate)
+	return ret0
+}
+
+// FetchWorkloadUpdate indicates an expected call of FetchWorkloadUpdate
+func (mr *MockManagerMockRecorder) FetchWorkloadUpdate(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWorkloadUpdate", reflect.TypeOf((*MockManager)(nil).FetchWorkloadUpdate), arg0)
+}
+
 // Initialize mocks base method
 func (m *MockManager) Initialize(arg0 context.Context) error {
 	ret := m.ctrl.Call(m, "Initialize", arg0)

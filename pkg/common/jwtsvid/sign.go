@@ -18,6 +18,8 @@ func SignToken(spiffeID string, audience []string, expires time.Time, signer cry
 		return "", err
 	}
 
+	audience = pruneEmptyValues(audience)
+
 	if expires.IsZero() {
 		return "", errors.New("expiration is required")
 	}
@@ -32,6 +34,7 @@ func SignToken(spiffeID string, audience []string, expires time.Time, signer cry
 		"sub": spiffeID,
 		"exp": expires.Unix(),
 		"aud": audienceClaim(audience),
+		"iat": time.Now().Unix(),
 	}
 
 	token := jwt.NewWithClaims(signingMethodES256, claims)
@@ -41,4 +44,14 @@ func SignToken(spiffeID string, audience []string, expires time.Time, signer cry
 		return "", err
 	}
 	return signedToken, nil
+}
+
+func pruneEmptyValues(values []string) []string {
+	pruned := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != "" {
+			pruned = append(pruned, value)
+		}
+	}
+	return pruned
 }

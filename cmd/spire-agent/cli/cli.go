@@ -14,7 +14,16 @@ func Run(args []string) int {
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
 		"api fetch": func() (cli.Command, error) {
-			return &api.FetchCLI{}, nil
+			return api.NewFetchX509Command(), nil
+		},
+		"api fetch x509": func() (cli.Command, error) {
+			return api.NewFetchX509Command(), nil
+		},
+		"api fetch jwt": func() (cli.Command, error) {
+			return api.NewFetchJWTCommand(), nil
+		},
+		"api validate jwt": func() (cli.Command, error) {
+			return api.NewValidateJWTCommand(), nil
 		},
 		"api watch": func() (cli.Command, error) {
 			return &api.WatchCLI{}, nil

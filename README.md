@@ -138,7 +138,7 @@ We will simulate the workload API interaction and retrieve the workload [SVID](h
 
 > **Note**: If you are running on Vagrant you will need to run `sudo -i` first.
 
-    $ su -c "spire-agent api fetch" workload
+    $ su -c "spire-agent api fetch x509" workload
     # SPIFFE ID:         spiffe://example.org/host/workload
     # SVID Valid After:  yyyy-MM-dd hh:mm:ss +0000 UTC
     # SVID Valid Until:  yyyy-MM-dd hh:mm:ss +0000 UTC
@@ -147,7 +147,7 @@ We will simulate the workload API interaction and retrieve the workload [SVID](h
 
 Optionally, you may write the SVID and key to disk with `-write` in order to examine them in detail with openssl.
 
-    $ su -c "spire-agent api fetch -write /opt/spire/" workload
+    $ su -c "spire-agent api fetch x509 -write /opt/spire/" workload
     $ openssl x509 -in /opt/spire/svid.0.pem -text -noout
     # Certificate:
     #     Data:

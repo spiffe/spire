@@ -72,6 +72,7 @@ func New(c *Config) (*manager, error) {
 		bundleCachePath: c.BundleCachePath,
 		client:          client,
 	}
+	m.hooks.now = time.Now
 
 	return m, nil
 }
