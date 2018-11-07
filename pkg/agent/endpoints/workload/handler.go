@@ -25,7 +25,6 @@ import (
 	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/zeebo/errs"
-	jose "gopkg.in/square/go-jose.v2"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -246,7 +245,7 @@ func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream wo
 func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
 	bundles := make(map[string][]byte)
 	if update.Bundle != nil {
-		jwksBytes, err := jwtJWKSBytesFromBundle(update.Bundle)
+		jwksBytes, err := bundleutil.JWTJWKSBytesFromBundle(update.Bundle)
 		if err != nil {
 			return nil, err
 		}
@@ -254,7 +253,7 @@ func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*work
 	}
 
 	for _, federatedBundle := range update.FederatedBundles {
-		jwksBytes, err := jwtJWKSBytesFromBundle(federatedBundle)
+		jwksBytes, err := bundleutil.JWTJWKSBytesFromBundle(federatedBundle)
 		if err != nil {
 			return nil, err
 		}
@@ -358,25 +357,4 @@ func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
 	}
 
 	return s, nil
-}
-
-func jwtJWKSBytesFromBundle(bundle *bundleutil.Bundle) ([]byte, error) {
-	jwksBytes, err := json.Marshal(jwtJWKSFromBundle(bundle))
-	if err != nil {
-		return nil, errs.Wrap(err)
-	}
-	return jwksBytes, nil
-}
-
-func jwtJWKSFromBundle(bundle *bundleutil.Bundle) *jose.JSONWebKeySet {
-	jwks := new(jose.JSONWebKeySet)
-	for keyID, jwtSigningKey := range bundle.JWTSigningKeys() {
-		jwks.Keys = append(jwks.Keys, jose.JSONWebKey{
-			Key:   jwtSigningKey,
-			KeyID: keyID,
-			// TODO: fill in with proper use value when it is known
-			Use: "JWT-SVID",
-		})
-	}
-	return jwks
 }

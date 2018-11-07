@@ -5,9 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"os"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -69,8 +66,8 @@ func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error 
 	}
 
 	bundle := &registration.FederatedBundle{
-		SpiffeId: id,
-		CaCerts:  caCerts,
+		DEPRECATEDSpiffeId: id,
+		DEPRECATEDCaCerts:  caCerts,
 	}
 
 	// pull the existing bundle to know if this should be a create or a update.
@@ -90,21 +87,4 @@ func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error 
 	}
 
 	return env.Println("bundle set.")
-}
-
-// loadParamData loads the data from a parameter. If the parameter is empty then
-// data is ready from "in", otherwise the parameter is used as a filename to
-// read file contents.
-func loadParamData(in io.Reader, fn string) ([]byte, error) {
-	r := in
-	if fn != "" {
-		f, err := os.Open(fn)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-		r = f
-	}
-
-	return ioutil.ReadAll(r)
 }

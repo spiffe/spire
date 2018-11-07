@@ -108,6 +108,13 @@ func (b *Bundle) AppendJWTSigningKey(kid string, key crypto.PublicKey) error {
 	return nil
 }
 
+func BundleProtoFromRootCADER(trustDomainId string, derBytes []byte) *common.Bundle {
+	return &common.Bundle{
+		TrustDomainId: trustDomainId,
+		RootCas:       []*common.Certificate{{DerBytes: derBytes}},
+	}
+}
+
 func BundleProtoFromRootCAsDER(trustDomainId string, derBytes []byte) (*common.Bundle, error) {
 	rootCAs, err := x509.ParseCertificates(derBytes)
 	if err != nil {

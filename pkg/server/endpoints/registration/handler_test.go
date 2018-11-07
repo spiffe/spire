@@ -13,6 +13,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -98,6 +99,43 @@ func (s *HandlerSuite) TearDownTest() {
 	s.server.Stop()
 }
 
+func (s *HandlerSuite) TestCreateFederatedBundleDeprecated() {
+	testCases := []struct {
+		TrustDomainId string
+		CaCerts       []byte
+		Err           string
+	}{
+		{TrustDomainId: "spiffe://example.org", CaCerts: nil, Err: "federated bundle id cannot match server trust domain"},
+		{TrustDomainId: "spiffe://otherdomain.org/spire/agent", CaCerts: nil, Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: ""},
+		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: "bundle already exists"},
+	}
+
+	for _, testCase := range testCases {
+		response, err := s.handler.CreateFederatedBundle(context.Background(), &registration.FederatedBundle{
+			DEPRECATEDSpiffeId: testCase.TrustDomainId,
+			DEPRECATEDCaCerts:  testCase.CaCerts,
+		})
+
+		if testCase.Err != "" {
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), testCase.Err)
+			continue
+		}
+		s.Require().NoError(err)
+		s.Require().Equal(&common.Empty{}, response)
+
+		// assert that the bundle was created in the datastore
+		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
+			TrustDomainId: testCase.TrustDomainId,
+		})
+		s.Require().NoError(err)
+		s.Require().Equal(resp.Bundle.TrustDomainId, testCase.TrustDomainId)
+		s.Require().Len(resp.Bundle.RootCas, 1)
+		s.Require().Equal(resp.Bundle.RootCas[0].DerBytes, testCase.CaCerts)
+	}
+}
+
 func (s *HandlerSuite) TestCreateFederatedBundle() {
 	testCases := []struct {
 		TrustDomainId string
@@ -112,8 +150,7 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 
 	for _, testCase := range testCases {
 		response, err := s.handler.CreateFederatedBundle(context.Background(), &registration.FederatedBundle{
-			SpiffeId: testCase.TrustDomainId,
-			CaCerts:  testCase.CaCerts,
+			Bundle: bundleutil.BundleProtoFromRootCADER(testCase.TrustDomainId, testCase.CaCerts),
 		})
 
 		if testCase.Err != "" {
@@ -173,8 +210,9 @@ func (s *HandlerSuite) TestFetchFederatedBundle() {
 		}
 		s.Require().NoError(err)
 		s.Require().NotNil(response)
-		s.Require().Equal(response.SpiffeId, testCase.TrustDomainId)
-		s.Require().Equal(string(response.CaCerts), testCase.CaCerts)
+		s.Require().Equal(testCase.TrustDomainId, response.DEPRECATEDSpiffeId)
+		s.Require().Equal(testCase.CaCerts, string(response.DEPRECATEDCaCerts))
+		s.Require().Equal(bundleutil.BundleProtoFromRootCADER(testCase.TrustDomainId, []byte(testCase.CaCerts)), response.Bundle)
 	}
 }
 
@@ -200,12 +238,65 @@ func (s *HandlerSuite) TestListFederatedBundles() {
 	bundle, err := stream.Recv()
 	s.Require().NoError(err)
 	s.Require().Equal(&registration.FederatedBundle{
-		SpiffeId: "spiffe://example2.org",
-		CaCerts:  []byte("EXAMPLE2"),
+		DEPRECATEDSpiffeId: "spiffe://example2.org",
+		DEPRECATEDCaCerts:  []byte("EXAMPLE2"),
+		Bundle: &datastore.Bundle{
+			TrustDomainId: "spiffe://example2.org",
+			RootCas: []*common.Certificate{
+				{DerBytes: []byte("EXAMPLE2")},
+			},
+		},
 	}, bundle)
 
 	_, err = stream.Recv()
 	s.Require().EqualError(err, "EOF")
+}
+
+func (s *HandlerSuite) TestUpdateFederatedBundleDeprecated() {
+	// create a bundle to be updated
+	s.createBundle(&datastore.Bundle{
+		TrustDomainId: "spiffe://otherdomain.org",
+		RootCas: []*common.Certificate{
+			{DerBytes: []byte("UPDATEME")},
+		},
+	})
+
+	testCases := []struct {
+		TrustDomainId string
+		CaCerts       []byte
+		Err           string
+	}{
+		{TrustDomainId: "spiffe://example.org", CaCerts: nil, Err: "federated bundle id cannot match server trust domain"},
+		{TrustDomainId: "spiffe://otherdomain.org/spire/agent", CaCerts: nil, Err: `"spiffe://otherdomain.org/spire/agent" is not a valid trust domain SPIFFE ID: path is not empty`},
+		{TrustDomainId: "spiffe://unknowndomain.org", CaCerts: rootCA1DER, Err: "no such bundle"},
+		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA1DER, Err: ""},
+		{TrustDomainId: "spiffe://otherdomain.org", CaCerts: rootCA2DER, Err: ""},
+	}
+
+	for _, testCase := range testCases {
+		s.T().Logf("case=%+v", testCase)
+		response, err := s.handler.UpdateFederatedBundle(context.Background(), &registration.FederatedBundle{
+			DEPRECATEDSpiffeId: testCase.TrustDomainId,
+			DEPRECATEDCaCerts:  testCase.CaCerts,
+		})
+
+		if testCase.Err != "" {
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), testCase.Err)
+			continue
+		}
+		s.Require().NoError(err)
+		s.Require().Equal(&common.Empty{}, response)
+
+		// assert that the bundle was created in the datastore
+		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
+			TrustDomainId: testCase.TrustDomainId,
+		})
+		s.Require().NoError(err)
+		s.Require().Equal(resp.Bundle.TrustDomainId, testCase.TrustDomainId)
+		s.Require().Len(resp.Bundle.RootCas, 1)
+		s.Require().Equal(resp.Bundle.RootCas[0].DerBytes, testCase.CaCerts)
+	}
 }
 
 func (s *HandlerSuite) TestUpdateFederatedBundle() {
@@ -232,8 +323,7 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 	for _, testCase := range testCases {
 		s.T().Logf("case=%+v", testCase)
 		response, err := s.handler.UpdateFederatedBundle(context.Background(), &registration.FederatedBundle{
-			SpiffeId: testCase.TrustDomainId,
-			CaCerts:  testCase.CaCerts,
+			Bundle: bundleutil.BundleProtoFromRootCADER(testCase.TrustDomainId, testCase.CaCerts),
 		})
 
 		if testCase.Err != "" {
@@ -697,7 +787,15 @@ func TestCreateJoinTokenWithoutToken(t *testing.T) {
 
 func TestFetchBundle(t *testing.T) {
 	request := &common.Empty{}
-	goodResponse := &registration.Bundle{CaCerts: []byte{1, 2, 3}}
+	goodResponse := &registration.Bundle{
+		DEPRECATEDCaCerts: []byte{1, 2, 3},
+		Bundle: &common.Bundle{
+			TrustDomainId: "spiffe://example.org",
+			RootCas: []*common.Certificate{
+				{DerBytes: []byte{1, 2, 3}},
+			},
+		},
+	}
 	var testCases = []struct {
 		request          *common.Empty
 		expectedResponse *registration.Bundle
@@ -885,6 +983,7 @@ func createFetchBundleExpectations(suite *handlerTestSuite) {
 		}).
 		Return(&datastore.FetchBundleResponse{
 			Bundle: &datastore.Bundle{
+				TrustDomainId: "spiffe://example.org",
 				RootCas: []*common.Certificate{
 					{DerBytes: []byte{1, 2, 3}},
 				},

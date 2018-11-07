@@ -217,18 +217,25 @@ func (h *Handler) CreateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	request.SpiffeId, err = idutil.NormalizeSpiffeID(request.SpiffeId, idutil.AllowAnyTrustDomain())
-	if err != nil {
-		return nil, err
+	bundle := request.Bundle
+	if bundle != nil {
+		bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		trustDomainID, err := idutil.NormalizeSpiffeID(request.DEPRECATEDSpiffeId, idutil.AllowAnyTrustDomain())
+		if err != nil {
+			return nil, err
+		}
+		bundle, err = bundleutil.BundleProtoFromRootCAsDER(trustDomainID, request.DEPRECATEDCaCerts)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if request.SpiffeId == h.TrustDomain.String() {
+	if bundle.TrustDomainId == h.TrustDomain.String() {
 		return nil, errors.New("federated bundle id cannot match server trust domain")
-	}
-
-	bundle, err := bundleutil.BundleProtoFromRootCAsDER(request.SpiffeId, request.CaCerts)
-	if err != nil {
-		return nil, err
 	}
 
 	ds := h.getDataStore()
@@ -266,8 +273,9 @@ func (h *Handler) FetchFederatedBundle(
 	}
 
 	return &registration.FederatedBundle{
-		SpiffeId: resp.Bundle.TrustDomainId,
-		CaCerts:  bundleutil.RootCAsDERFromBundleProto(resp.Bundle),
+		DEPRECATEDSpiffeId: resp.Bundle.TrustDomainId,
+		DEPRECATEDCaCerts:  bundleutil.RootCAsDERFromBundleProto(resp.Bundle),
+		Bundle:             resp.Bundle,
 	}, nil
 }
 
@@ -283,8 +291,9 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 			continue
 		}
 		if err := stream.Send(&registration.FederatedBundle{
-			SpiffeId: bundle.TrustDomainId,
-			CaCerts:  bundleutil.RootCAsDERFromBundleProto(bundle),
+			DEPRECATEDSpiffeId: bundle.TrustDomainId,
+			DEPRECATEDCaCerts:  bundleutil.RootCAsDERFromBundleProto(bundle),
+			Bundle:             bundle,
 		}); err != nil {
 			return err
 		}
@@ -297,18 +306,25 @@ func (h *Handler) UpdateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	request.SpiffeId, err = idutil.NormalizeSpiffeID(request.SpiffeId, idutil.AllowAnyTrustDomain())
-	if err != nil {
-		return nil, err
+	bundle := request.Bundle
+	if bundle != nil {
+		bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		trustDomainID, err := idutil.NormalizeSpiffeID(request.DEPRECATEDSpiffeId, idutil.AllowAnyTrustDomain())
+		if err != nil {
+			return nil, err
+		}
+		bundle, err = bundleutil.BundleProtoFromRootCAsDER(trustDomainID, request.DEPRECATEDCaCerts)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if request.SpiffeId == h.TrustDomain.String() {
+	if bundle.TrustDomainId == h.TrustDomain.String() {
 		return nil, errors.New("federated bundle id cannot match server trust domain")
-	}
-
-	bundle, err := bundleutil.BundleProtoFromRootCAsDER(request.SpiffeId, request.CaCerts)
-	if err != nil {
-		return nil, err
 	}
 
 	ds := h.getDataStore()
@@ -396,7 +412,8 @@ func (h *Handler) FetchBundle(
 	}
 
 	return &registration.Bundle{
-		CaCerts: bundleutil.RootCAsDERFromBundleProto(resp.Bundle),
+		DEPRECATEDCaCerts: bundleutil.RootCAsDERFromBundleProto(resp.Bundle),
+		Bundle:            resp.Bundle,
 	}, nil
 }
 
