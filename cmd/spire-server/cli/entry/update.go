@@ -50,6 +50,10 @@ func (rc *UpdateConfig) Validate() (err error) {
 		return nil
 	}
 
+	if rc.EntryID == "" {
+		return errors.New("entry ID is required")
+	}
+
 	if len(rc.Selectors) < 1 {
 		return errors.New("at least one selector is required")
 	}
