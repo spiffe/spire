@@ -75,32 +75,32 @@ func (c *fetchX509Command) fetchX509SVID(ctx context.Context, client *workloadCl
 
 func (c *fetchX509Command) writeResponse(resp *workload.X509SVIDResponse) error {
 	for i, svid := range resp.Svids {
-		svidName := fmt.Sprintf("svid.%v.pem", i)
-		keyName := fmt.Sprintf("svid.%v.key", i)
-		bundleName := fmt.Sprintf("bundle.%v.pem", i)
+		svidPath := path.Join(c.writePath, fmt.Sprintf("svid.%v.pem", i))
+		keyPath := path.Join(c.writePath, fmt.Sprintf("svid.%v.key", i))
+		bundlePath := path.Join(c.writePath, fmt.Sprintf("bundle.%v.pem", i))
 
-		fmt.Printf("Writing SVID #%v to file %v.\n", i, path.Join(c.writePath, svidName))
-		err := c.writeCerts(svidName, svid.X509Svid)
+		fmt.Printf("Writing SVID #%v to file %v.\n", i, svidPath)
+		err := c.writeCerts(svidPath, svid.X509Svid)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Writing key #%v to file %v.\n", i, path.Join(c.writePath, keyName))
-		err = c.writeKey(keyName, svid.X509SvidKey)
+		fmt.Printf("Writing key #%v to file %v.\n", i, keyPath)
+		err = c.writeKey(keyPath, svid.X509SvidKey)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Writing bundle #%v to file %v.\n", i, path.Join(c.writePath, bundleName))
-		err = c.writeCerts(bundleName, svid.Bundle)
+		fmt.Printf("Writing bundle #%v to file %v.\n", i, bundlePath)
+		err = c.writeCerts(bundlePath, svid.Bundle)
 		if err != nil {
 			return err
 		}
 
 		for j, trustDomain := range svid.FederatesWith {
-			federatedBundleName := fmt.Sprintf("federated_bundle.%v.%v.pem", j, i)
-			fmt.Printf("Writing federated bundle #%v for trust domain %v to file %v.\n", i, trustDomain, path.Join(c.writePath, federatedBundleName))
-			err = c.writeCerts(federatedBundleName, resp.FederatedBundles[trustDomain])
+			federatedBundlePath := path.Join(c.writePath, fmt.Sprintf("federated_bundle.%v.%v.pem", j, i))
+			fmt.Printf("Writing federated bundle #%v for trust domain %v to file %v.\n", i, trustDomain, federatedBundlePath)
+			err = c.writeCerts(federatedBundlePath, resp.FederatedBundles[trustDomain])
 			if err != nil {
 				return err
 			}
