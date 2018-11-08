@@ -30,6 +30,9 @@ func Run(args []string) int {
 		"entry create": func() (cli.Command, error) {
 			return &entry.CreateCLI{}, nil
 		},
+		"entry update": func() (cli.Command, error) {
+			return &entry.UpdateCLI{}, nil
+		},
 		"entry delete": func() (cli.Command, error) {
 			return &entry.DeleteCLI{}, nil
 		},

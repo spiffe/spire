@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
@@ -33,14 +34,7 @@ func (h *Handler) CreateEntry(
 	ctx context.Context, request *common.RegistrationEntry) (
 	response *registration.RegistrationEntryID, err error) {
 
-	request.ParentId, err = idutil.NormalizeSpiffeID(request.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain.Host))
-	if err != nil {
-		h.Log.Error(err)
-		return nil, err
-	}
-
-	// Validate Spiffe ID
-	request.SpiffeId, err = idutil.NormalizeSpiffeID(request.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	request, err = h.prepareRegistrationEntry(request, false)
 	if err != nil {
 		h.Log.Error(err)
 		return nil, err
@@ -119,11 +113,30 @@ func (h *Handler) FetchEntries(
 	}, nil
 }
 
-//TODO
 func (h *Handler) UpdateEntry(
 	ctx context.Context, request *registration.UpdateEntryRequest) (
 	response *common.RegistrationEntry, err error) {
-	return response, err
+
+	if request.Entry == nil {
+		return nil, errors.New("Request is missing entry to update")
+	}
+
+	request.Entry, err = h.prepareRegistrationEntry(request.Entry, true)
+	if err != nil {
+		h.Log.Error(err)
+		return nil, err
+	}
+
+	ds := h.getDataStore()
+	resp, err := ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
+		Entry: request.Entry,
+	})
+	if err != nil {
+		h.Log.Error(err)
+		return nil, fmt.Errorf("Failed to update registration entry: %v", err)
+	}
+
+	return resp.Entry, nil
 }
 
 //Returns all the Entries associated with the ParentID value
@@ -416,6 +429,31 @@ func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, ent
 
 func (h *Handler) getDataStore() datastore.DataStore {
 	return h.Catalog.DataStores()[0]
+}
+
+func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
+	entry = cloneRegistrationEntry(entry)
+	if forUpdate && entry.EntryId == "" {
+		return nil, errors.New("missing registration entry id")
+	}
+
+	var err error
+	entry.ParentId, err = idutil.NormalizeSpiffeID(entry.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain.Host))
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate Spiffe ID
+	entry.SpiffeId, err = idutil.NormalizeSpiffeID(entry.SpiffeId, idutil.AllowTrustDomainWorkload(h.TrustDomain.Host))
+	if err != nil {
+		return nil, err
+	}
+
+	return entry, nil
+}
+
+func cloneRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
+	return proto.Clone(entry).(*common.RegistrationEntry)
 }
 
 func convertDeleteBundleMode(in registration.DeleteFederatedBundleRequest_Mode) (datastore.DeleteBundleRequest_Mode, error) {

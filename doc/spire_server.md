@@ -86,6 +86,21 @@ Creates registration entries.
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
 | `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
 
+### `spire-server entry update`
+
+Updates registration entries.
+
+| Command          | Action                                                                 | Default        |
+|:-----------------|:-----------------------------------------------------------------------|:---------------|
+| `-entryID`       | The Registration Entry ID of the record to update                      |                |
+| `-data`          | Path to a file containing registration data in JSON format (optional). |                |
+| `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |
+| `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
+| `-serverAddr`    | Address of the SPIRE server.                                           | localhost:8081 |
+| `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
+| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
+| `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
+
 ### `spire-server entry delete`
 
 Deletes a specified registration entry.

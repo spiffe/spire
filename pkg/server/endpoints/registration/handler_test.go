@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/api/registration"
@@ -19,6 +20,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/mock/proto/server/datastore"
 	testutil "github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 )
@@ -294,11 +296,75 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 	}
 }
 
+func (s *HandlerSuite) TestUpdateEntry() {
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+
+	testCases := []struct {
+		Name  string
+		Entry *common.RegistrationEntry
+		Err   string
+	}{
+		{
+			Name:  "Parent ID is malformed",
+			Entry: &common.RegistrationEntry{EntryId: "X", ParentId: "FOO"},
+			Err:   `"FOO" is not a valid SPIFFE ID`,
+		},
+		{
+			Name:  "SPIFFE ID is malformed",
+			Entry: &common.RegistrationEntry{EntryId: "X", ParentId: "spiffe://example.org/parent", SpiffeId: "FOO"},
+			Err:   `"FOO" is not a valid workload SPIFFE ID`,
+		},
+		{
+			Name:  "Registration entry does not exist",
+			Entry: &common.RegistrationEntry{EntryId: "X", ParentId: "spiffe://example.org/parent", SpiffeId: "spiffe://example.org/child"},
+			Err:   "no such registration entry",
+		},
+		{
+			Name: "Success",
+			Entry: &common.RegistrationEntry{
+				EntryId:   entry.EntryId,
+				ParentId:  "spiffe://example.org/parent",
+				SpiffeId:  "spiffe://example.org/child",
+				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		s.T().Run(testCase.Name, func(t *testing.T) {
+			resp, err := s.handler.UpdateEntry(context.Background(), &registration.UpdateEntryRequest{
+				Entry: testCase.Entry,
+			})
+
+			if testCase.Err != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), testCase.Err)
+				return
+			}
+			require.NoError(t, err)
+			t.Logf("actual=%+v expected=%+v", resp, testCase.Entry)
+			require.True(t, proto.Equal(resp, testCase.Entry))
+		})
+	}
+}
+
 func (s *HandlerSuite) createBundle(bundle *datastore.Bundle) {
 	_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	})
 	s.Require().NoError(err)
+}
+
+func (s *HandlerSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
+	resp, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
+		Entry: entry,
+	})
+	s.Require().NoError(err)
+	return resp.Entry
 }
 
 type handlerTestSuite struct {
@@ -458,33 +524,6 @@ func TestFetchEntries(t *testing.T) {
 		suite.ctrl.Finish()
 	}
 
-}
-
-func TestUpdateEntry(t *testing.T) {
-	var testCases = []struct {
-		request          *registration.UpdateEntryRequest
-		expectedResponse *common.RegistrationEntry
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{nil, nil, nil, func(*handlerTestSuite) {}},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-		tt.setExpectations(suite)
-		response, err := suite.handler.UpdateEntry(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
 }
 
 func TestListByParentID(t *testing.T) {
