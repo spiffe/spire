@@ -61,7 +61,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	manager, err := a.newManager(ctx, tel, as)
+	manager, err := a.newManager(ctx, cat, tel, as)
 	if err != nil {
 		return err
 	}
@@ -146,11 +146,12 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog) (*attestor.Atte
 	return attestor.New(&config).Attest(ctx)
 }
 
-func (a *Agent) newManager(ctx context.Context, tel telemetry.Sink, as *attestor.AttestationResult) (manager.Manager, error) {
+func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, tel telemetry.Sink, as *attestor.AttestationResult) (manager.Manager, error) {
 	config := &manager.Config{
 		SVID:            as.SVID,
 		SVIDKey:         as.Key,
 		Bundle:          as.Bundle,
+		Catalog:         cat,
 		TrustDomain:     a.c.TrustDomain,
 		ServerAddr:      a.c.ServerAddress,
 		Log:             a.c.Log.WithField("subsystem_name", "manager"),
