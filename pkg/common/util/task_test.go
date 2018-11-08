@@ -3,6 +3,7 @@ package util
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -64,9 +65,9 @@ func TestRunTaskHandlesPanic(t *testing.T) {
 
 	// assert RunTasks() returns the panic error, that task1 was canceled, and
 	// that task2 returned the panic error.
-	assertErrorChan(t, wait, errPanic)
+	assertErrorChanContains(t, wait, errPanic.Error())
 	assertErrorChan(t, out1, context.Canceled)
-	assertErrorChan(t, out2, errPanic)
+	assertErrorChanContains(t, out2, errPanic.Error())
 }
 
 func TestRunTaskCancelsTasksIfContextCanceled(t *testing.T) {
@@ -124,6 +125,18 @@ func assertErrorChan(t *testing.T, ch chan error, expected error) {
 	case actual := <-ch:
 		if actual != expected {
 			t.Fatalf("expected %v; got %v", expected, actual)
+		}
+	}
+}
+
+func assertErrorChanContains(t *testing.T, ch chan error, contains string) {
+	timer := time.NewTimer(time.Second)
+	select {
+	case <-timer.C:
+		t.Fatalf("timed out waiting for result")
+	case actual := <-ch:
+		if !strings.Contains(actual.Error(), contains) {
+			t.Fatalf("expected error contains %s; got %v", contains, actual)
 		}
 	}
 }
