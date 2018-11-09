@@ -3,6 +3,7 @@ package util
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 )
 
@@ -27,11 +28,7 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 	runTask := func(task func(context.Context) error) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				if e, ok := r.(error); ok {
-					errch <- e
-				} else {
-					errch <- fmt.Errorf("panic: %v", r)
-				}
+				errch <- fmt.Errorf("panic: %v\n%s\n", r, string(debug.Stack()))
 			} else {
 				errch <- err
 			}
