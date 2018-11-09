@@ -2,13 +2,20 @@ package bundle
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/common"
+	"github.com/zeebo/errs"
 )
 
 var (
@@ -128,4 +135,66 @@ func (e *env) ErrPrintf(format string, args ...interface{}) error {
 func (e *env) ErrPrintln(args ...interface{}) error {
 	_, err := fmt.Fprintln(e.stderr, args...)
 	return err
+}
+
+// loadParamData loads the data from a parameter. If the parameter is empty then
+// data is ready from "in", otherwise the parameter is used as a filename to
+// read file contents.
+func loadParamData(in io.Reader, fn string) ([]byte, error) {
+	r := in
+	if fn != "" {
+		f, err := os.Open(fn)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		r = f
+	}
+
+	return ioutil.ReadAll(r)
+}
+
+func printCACertsPEM(out io.Writer, caCerts []byte) error {
+	certs, err := x509.ParseCertificates(caCerts)
+	if err != nil {
+		return fmt.Errorf("unable to parse certificates ASN.1 DER data: %v", err)
+	}
+
+	for _, cert := range certs {
+		if err := pem.Encode(out, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func parseBundle(jwksBytes []byte) (*common.Bundle, error) {
+	bundle, err := bundleutil.BundleFromJWKSBytes(jwksBytes)
+	if err != nil {
+		return nil, err
+	}
+	return bundle.Proto(), nil
+}
+
+func printBundle(out io.Writer, bundle *common.Bundle, header bool) error {
+	if header {
+		if _, err := fmt.Fprintf(out, headerFmt, bundle.TrustDomainId); err != nil {
+			return err
+		}
+	}
+	jwks, err := bundleutil.JWKSFromBundleProto(bundle)
+	if err != nil {
+		return err
+	}
+
+	jwksBytes, err := json.MarshalIndent(jwks, "", "\t")
+	if err != nil {
+		return errs.Wrap(err)
+	}
+
+	if _, err := fmt.Fprintln(out, string(jwksBytes)); err != nil {
+		return errs.Wrap(err)
+	}
+
+	return nil
 }

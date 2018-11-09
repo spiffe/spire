@@ -11,40 +11,33 @@ import (
 	"github.com/spiffe/spire/proto/common"
 )
 
-const (
-	headerFmt = `****************************************
-* %s
-****************************************
-`
-)
-
-// NewListCommand creates a new "list" subcommand for "bundle" command.
-func NewListCommand() cli.Command {
-	return newListCommand(defaultEnv, newClients)
+// NewExperimentalListCommand creates a new "list" subcommand for "bundle" command.
+func NewExperimentalListCommand() cli.Command {
+	return newExperimentalListCommand(defaultEnv, newClients)
 }
 
-func newListCommand(env *env, clientsMaker clientsMaker) cli.Command {
-	return adaptCommand(env, clientsMaker, new(listCommand))
+func newExperimentalListCommand(env *env, clientsMaker clientsMaker) cli.Command {
+	return adaptCommand(env, clientsMaker, new(experimentalListCommand))
 }
 
-type listCommand struct {
+type experimentalListCommand struct {
 	// SPIFFE ID of the trust bundle
 	id string
 }
 
-func (c *listCommand) name() string {
-	return "bundle list"
+func (c *experimentalListCommand) name() string {
+	return "experimental bundle list"
 }
 
-func (c *listCommand) synopsis() string {
+func (c *experimentalListCommand) synopsis() string {
 	return "Lists bundle data"
 }
 
-func (c *listCommand) appendFlags(fs *flag.FlagSet) {
+func (c *experimentalListCommand) appendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
 }
 
-func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error {
+func (c *experimentalListCommand) run(ctx context.Context, env *env, clients *clients) error {
 	if c.id != "" {
 		id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
 		if err != nil {
@@ -56,7 +49,7 @@ func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error
 		if err != nil {
 			return err
 		}
-		return printCACertsPEM(env.stdout, bundle.DEPRECATEDCaCerts)
+		return printBundle(env.stdout, bundle.Bundle, false)
 	}
 
 	stream, err := clients.r.ListFederatedBundles(ctx, &common.Empty{})
@@ -79,10 +72,7 @@ func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error
 			}
 		}
 
-		if err := env.Printf(headerFmt, bundle.DEPRECATEDSpiffeId); err != nil {
-			return err
-		}
-		if err := printCACertsPEM(env.stdout, bundle.DEPRECATEDCaCerts); err != nil {
+		if err := printBundle(env.stdout, bundle.Bundle, true); err != nil {
 			return err
 		}
 	}

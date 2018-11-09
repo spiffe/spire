@@ -156,6 +156,32 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 | `-id`         | The trust domain SPIFFE ID of the bundle to delete. | |
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict` |
 
+### `spire-server experimental bundle show`
+
+(Experimental) Displays the bundle for the trust domain of the server as a JWKS document
+
+| Command       |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-serverAddr` | Address of the SPIRE server.                                       | localhost:8081 |
+
+### `spire-server experimental bundle list`
+
+(Experimental) Displays bundles from other trust domains as JWKS documents
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-id`         | The trust domain SPIFFE ID of the bundle to show. If unset, all trust bundles are shown | |
+
+### `spire-server experimental bundle set`
+
+(Experimental) Creates or updates bundle data for a trust domain. This command cannot be used to alter the server trust domain bundle, only bundles for other trust domains.
+
+Bundle data read from stdin or the path is expected to be a JWKS document.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
+
 ## Architecture
 
 The server consists of a master process (spire-server) and five plugins - the CA, the Upstream CA,

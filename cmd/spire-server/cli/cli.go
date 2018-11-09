@@ -27,6 +27,15 @@ func Run(args []string) int {
 		"bundle delete": func() (cli.Command, error) {
 			return bundle.NewDeleteCommand(), nil
 		},
+		"experimental bundle show": func() (cli.Command, error) {
+			return bundle.NewExperimentalShowCommand(), nil
+		},
+		"experimental bundle list": func() (cli.Command, error) {
+			return bundle.NewExperimentalListCommand(), nil
+		},
+		"experimental bundle set": func() (cli.Command, error) {
+			return bundle.NewExperimentalSetCommand(), nil
+		},
 		"entry create": func() (cli.Command, error) {
 			return &entry.CreateCLI{}, nil
 		},
