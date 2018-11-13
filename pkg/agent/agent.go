@@ -56,7 +56,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	as, err := a.attest(ctx, cat)
+	as, err := a.attest(ctx, cat, metrics)
 	if err != nil {
 		return err
 	}
@@ -132,9 +132,10 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, cat catalog.Catalog) (*attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*attestor.AttestationResult, error) {
 	config := attestor.Config{
 		Catalog:         cat,
+		Metrics:         metrics,
 		JoinToken:       a.c.JoinToken,
 		TrustDomain:     a.c.TrustDomain,
 		TrustBundle:     a.c.TrustBundle,

@@ -13,6 +13,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -71,6 +72,7 @@ func (m *ManagerTestSuite) newManager() {
 	config := &ManagerConfig{
 		Catalog: m.catalog,
 		Log:     logger,
+		Metrics: telemetry.Blackhole{},
 		TrustDomain: url.URL{
 			Scheme: "spiffe",
 			Host:   "example.org",

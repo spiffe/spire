@@ -56,6 +56,7 @@ func TestInitializationFailure(t *testing.T) {
 		SVID:        baseSVID,
 		SVIDKey:     baseSVIDKey,
 		Log:         testLogger,
+		Metrics:     &telemetry.Blackhole{},
 		TrustDomain: trustDomainID,
 	}
 	m, err := New(c)
@@ -80,6 +81,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
+		Metrics:         &telemetry.Blackhole{},
 		TrustDomain:     trustDomainID,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
@@ -126,6 +128,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
+		Metrics:         &telemetry.Blackhole{},
 		TrustDomain:     trustDomainID,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),

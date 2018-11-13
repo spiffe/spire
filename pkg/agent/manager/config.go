@@ -52,6 +52,7 @@ func New(c *Config) (*manager, error) {
 	rotCfg := &svid.RotatorConfig{
 		Catalog:      c.Catalog,
 		Log:          c.Log,
+		Metrics:      c.Metrics,
 		SVID:         c.SVID,
 		SVIDKey:      c.SVIDKey,
 		SpiffeID:     spiffeID,

@@ -7,6 +7,7 @@ import (
 
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 
@@ -33,7 +34,8 @@ type Config struct {
 	// Server CA for signing SVIDs
 	ServerCA ca.ServerCA
 
-	Log logrus.FieldLogger
+	Log     logrus.FieldLogger
+	Metrics telemetry.Metrics
 }
 
 func New(c *Config) *endpoints {

@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
@@ -74,6 +75,7 @@ func (s *CATestSuite) SetupTest() {
 
 	s.ca = newServerCA(serverCAConfig{
 		Log:     logger,
+		Metrics: telemetry.Blackhole{},
 		Catalog: catalog,
 		TrustDomain: url.URL{
 			Scheme: "spiffe",

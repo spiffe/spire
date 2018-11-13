@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/api/node"
@@ -26,6 +27,7 @@ const (
 
 type serverCAConfig struct {
 	Log         logrus.FieldLogger
+	Metrics     telemetry.Metrics
 	Catalog     catalog.Catalog
 	TrustDomain url.URL
 	DefaultTTL  time.Duration
@@ -97,7 +99,14 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 		return nil, err
 	}
 
-	ca.c.Log.Debugf("Signed x509 SVID %q (expires %s)", cert.URIs[0].String(), cert.NotAfter.Format(time.RFC3339))
+	spiffeID := cert.URIs[0].String()
+	ca.c.Log.Debugf("Signed x509 SVID %q (expires %s)", spiffeID, cert.NotAfter.Format(time.RFC3339))
+	ca.c.Metrics.IncrCounterWithLabels([]string{"server_ca", "sign", "x509_svid"}, 1, []telemetry.Label{
+		{
+			Name:  "spiffe_id",
+			Value: spiffeID,
+		},
+	})
 
 	// build and return the certificate chain, starting with the newly signed
 	// cert all the way back to the signing root of the keypair. if an
@@ -131,5 +140,20 @@ func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, err
 	if err != nil {
 		return "", fmt.Errorf("unable to sign JWT-SVID: %v", err)
 	}
+
+	labels := []telemetry.Label{
+		{
+			Name:  "spiffe_id",
+			Value: jsr.SpiffeId,
+		},
+	}
+	for _, audience := range jsr.Audience {
+		labels = append(labels, telemetry.Label{
+			Name:  "audience",
+			Value: audience,
+		})
+	}
+	ca.c.Metrics.IncrCounterWithLabels([]string{"server_ca", "sign", "jwt_svid"}, 1, labels)
+
 	return token, nil
 }
