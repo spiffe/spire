@@ -2,7 +2,7 @@
 
 *Must be used in conjunction with the agent-side azure_msi plugin*
 
-The `azure_msi` plugin attests nodes running in Microsoft Azure that have 
+The `azure_msi` plugin attests nodes running in Microsoft Azure that have
 Managed Service Identity (MSI) enabled. Agent nodes acquire a signed MSI token
 which is passed to the server. The server validates the signed MSI token and
 extracts the Tenant ID and Principal ID to form the agent SPIFFE ID. The SPIFFE
@@ -37,9 +37,9 @@ A sample configuration:
         plugin_data {
             tenants = {
                 // Tenant configured with the default resource id (i.e. the resource manager)
-                "9E85E111-1103-48FC-A933-9533FE47DE05" : {}
+                "9E85E111-1103-48FC-A933-9533FE47DE05" = {}
                 // Tenant configured with a custom resource id
-                "DD14E835-679A-4703-B4DE-8F00A20C732E" : {
+                "DD14E835-679A-4703-B4DE-8F00A20C732E" = {
                     resource_id = "http://example.org/app/"
                 }
         }
