@@ -50,7 +50,7 @@ func (s *WorkloadAttestorTestSuite) SetupTest() {
 	s.attestor = newAttestor(&Config{
 		Catalog: catalog,
 		L:       log,
-		T:       telemetry.Blackhole{},
+		M:       telemetry.Blackhole{},
 	})
 }
 
