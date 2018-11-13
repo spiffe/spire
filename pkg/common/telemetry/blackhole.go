@@ -4,9 +4,11 @@ import (
 	"time"
 )
 
-// Blackhole implements the Sink interface, but throws away the metric data
-// Useful for satisfying the Sink interface when testing code which depends on it.
+// Blackhole implements the Metrics interface, but throws away the metric data
+// Useful for satisfying the Metrics interface when testing code which depends on it.
 type Blackhole struct{}
+
+var _ Metrics = Blackhole{}
 
 func (Blackhole) SetGauge(key []string, val float32)                                   {}
 func (Blackhole) SetGaugeWithLabels(key []string, val float32, labels []Label)         {}
