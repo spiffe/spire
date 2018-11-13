@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	ep_registration "github.com/spiffe/spire/pkg/server/endpoints/registration"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -47,6 +48,7 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 	catalog.SetDataStores(ds)
 	server := &ep_registration.Handler{
 		Catalog:     catalog,
+		Metrics:     telemetry.Blackhole{},
 		TrustDomain: *trustDomainURL,
 	}
 	registration.RegisterRegistrationServer(c.server, server)

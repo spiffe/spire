@@ -90,6 +90,7 @@ func (e *endpoints) createUDSServer(ctx context.Context) *grpc.Server {
 func (e *endpoints) registerNodeAPI(gs *grpc.Server) {
 	n := node.NewHandler(node.HandlerConfig{
 		Log:         e.c.Log.WithField("subsystem_name", "node_api"),
+		Metrics:     e.c.Metrics,
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
 		ServerCA:    e.c.ServerCA,
@@ -102,6 +103,7 @@ func (e *endpoints) registerNodeAPI(gs *grpc.Server) {
 func (e *endpoints) registerRegistrationAPI(hs *grpc.Server) {
 	r := &registration.Handler{
 		Log:         e.c.Log.WithField("subsystem_name", "registration_api"),
+		Metrics:     e.c.Metrics,
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
 	}

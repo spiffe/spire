@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/grpcutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
@@ -38,6 +39,7 @@ type Attestor interface {
 
 type Config struct {
 	Catalog         catalog.Catalog
+	Metrics         telemetry.Metrics
 	JoinToken       string
 	TrustDomain     url.URL
 	TrustBundle     []*x509.Certificate
@@ -56,7 +58,9 @@ func New(config *Config) Attestor {
 	return &attestor{c: config}
 }
 
-func (a *attestor) Attest(ctx context.Context) (*AttestationResult, error) {
+func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err error) {
+	defer telemetry.CountCall(a.c.Metrics, &err, "node", "attest")()
+
 	bundle, err := a.loadBundle()
 	if err != nil {
 		return nil, err
@@ -188,11 +192,15 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
-func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) ([]*x509.Certificate, *bundleutil.Bundle, error) {
+func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (newSVID []*x509.Certificate, newBundle *bundleutil.Bundle, err error) {
+	counter := telemetry.StartCall(a.c.Metrics, &err, "node", "attestor", "new_svid")
+	defer counter.Done()
+
 	// make sure all of the streams are cancelled if something goes awry
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	attestorName := "join_token"
 	var fetchStream nodeattestor.FetchAttestationData_Stream
 	if a.c.JoinToken == "" {
 		plugins := a.c.Catalog.NodeAttestors()
@@ -200,12 +208,15 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 			return nil, nil, errors.New("more than one node attestor configured")
 		}
 		attestor := plugins[0]
+		attestorName = attestor.Config().PluginName
 		var err error
 		fetchStream, err = attestor.FetchAttestationData(ctx)
 		if err != nil {
 			return nil, nil, fmt.Errorf("opening stream for fetching attestation: %v", err)
 		}
 	}
+
+	counter.AddLabel("type", attestorName)
 
 	conn, err := a.serverConn(ctx, bundle.RootCAs())
 	if err != nil {
@@ -260,6 +271,7 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 			break
 		}
 	}
+	counter.AddLabel("spiffe_id", spiffeID)
 
 	if fetchStream != nil {
 		fetchStream.CloseSend()

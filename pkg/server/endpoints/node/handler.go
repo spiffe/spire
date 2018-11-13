@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
@@ -31,6 +32,7 @@ import (
 
 type HandlerConfig struct {
 	Log         logrus.FieldLogger
+	Metrics     telemetry.Metrics
 	Catalog     catalog.Catalog
 	ServerCA    ca.ServerCA
 	TrustDomain url.URL
@@ -57,6 +59,9 @@ func NewHandler(config HandlerConfig) *Handler {
 
 //Attest attests the node and gets the base node SVID.
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
+	counter := telemetry.StartCall(h.c.Metrics, &err, "node_api", "attest")
+	defer counter.Done()
+
 	// make sure node attestor stream will be cancelled if things go awry
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -77,6 +82,8 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to get SpiffeId from CSR")
 	}
+
+	counter.AddLabel("spiffe_id", baseSpiffeIDFromCSR)
 
 	attestedBefore, err := h.isAttested(ctx, baseSpiffeIDFromCSR)
 	if err != nil {
@@ -172,6 +179,8 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
 func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error) {
+	counter := telemetry.StartCall(h.c.Metrics, &err, "node_api", "x509_svid", "fetch")
+	defer counter.Done()
 	for {
 		request, err := server.Recv()
 		if err == io.EOF {
@@ -218,6 +227,10 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return err
 		}
 
+		for spiffeID := range svids {
+			counter.AddLabel("spiffe_id", spiffeID)
+		}
+
 		// TODO: remove in 0.8, along with deprecated fields
 		ourBundle := bundles[h.c.TrustDomain.String()]
 
@@ -236,9 +249,11 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 	}
 }
 
-func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (*node.FetchJWTSVIDResponse, error) {
-	err := h.limiter.Limit(ctx, JSRMsg, 1)
-	if err != nil {
+func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (resp *node.FetchJWTSVIDResponse, err error) {
+	counter := telemetry.StartCall(h.c.Metrics, &err, "node_api", "jwt_svid", "fetch")
+	defer counter.Done()
+
+	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
@@ -257,6 +272,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	case len(req.Jsr.Audience) == 0:
 		return nil, errors.New("request missing audience")
 	}
+
+	counter.AddLabel("spiffe_id", req.Jsr.SpiffeId)
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
@@ -294,6 +311,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, audience := range req.Jsr.Audience {
+		counter.AddLabel("audience", audience)
 	}
 
 	return &node.FetchJWTSVIDResponse{

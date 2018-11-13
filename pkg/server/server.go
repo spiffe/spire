@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/profiling"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -116,6 +117,12 @@ func (s *Server) run(ctx context.Context) (err error) {
 		defer stopProfiling()
 	}
 
+	metrics := telemetry.NewMetrics(&telemetry.MetricsConfig{
+		Logger:      s.config.Log.WithField("subsystem_name", "telemetry").Writer(),
+		ServiceName: "spire_server",
+	})
+	defer metrics.Stop()
+
 	cat := s.newCatalog()
 	defer cat.Stop()
 
@@ -126,19 +133,19 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	// CA manager needs to be initialized before the rotator, otherwise the
 	// server CA plugin won't be able to sign CSRs
-	caManager, err := s.newCAManager(ctx, cat)
+	caManager, err := s.newCAManager(ctx, cat, metrics)
 	if err != nil {
 		return err
 	}
 
 	serverCA := caManager.CA()
 
-	svidRotator, err := s.newSVIDRotator(ctx, serverCA)
+	svidRotator, err := s.newSVIDRotator(ctx, serverCA, metrics)
 	if err != nil {
 		return err
 	}
 
-	endpointsServer := s.newEndpointsServer(cat, svidRotator, serverCA)
+	endpointsServer := s.newEndpointsServer(cat, svidRotator, serverCA, metrics)
 
 	err = util.RunTasks(ctx,
 		caManager.Run,
@@ -218,11 +225,12 @@ func (s *Server) newCatalog() *catalog.ServerCatalog {
 	})
 }
 
-func (s *Server) newCAManager(ctx context.Context, catalog catalog.Catalog) (ca.Manager, error) {
+func (s *Server) newCAManager(ctx context.Context, catalog catalog.Catalog, metrics telemetry.Metrics) (ca.Manager, error) {
 	caManager := ca.NewManager(&ca.ManagerConfig{
 		Catalog:        catalog,
 		TrustDomain:    s.config.TrustDomain,
 		Log:            s.config.Log.WithField("subsystem_name", "ca_manager"),
+		Metrics:        metrics,
 		UpstreamBundle: s.config.UpstreamBundle,
 		SVIDTTL:        s.config.SVIDTTL,
 		CATTL:          s.config.CATTL,
@@ -235,10 +243,11 @@ func (s *Server) newCAManager(ctx context.Context, catalog catalog.Catalog) (ca.
 	return caManager, nil
 }
 
-func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA) (svid.Rotator, error) {
+func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (svid.Rotator, error) {
 	svidRotator := svid.NewRotator(&svid.RotatorConfig{
 		ServerCA:    serverCA,
 		Log:         s.config.Log.WithField("subsystem_name", "svid_rotator"),
+		Metrics:     metrics,
 		TrustDomain: s.config.TrustDomain,
 	})
 	if err := svidRotator.Initialize(ctx); err != nil {
@@ -247,7 +256,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA) (svid
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Rotator, serverCA ca.ServerCA) endpoints.Server {
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Rotator, serverCA ca.ServerCA, metrics telemetry.Metrics) endpoints.Server {
 	return endpoints.New(&endpoints.Config{
 		GRPCAddr:    s.config.BindAddress,
 		UDSAddr:     s.config.BindUDSAddress,
@@ -256,6 +265,7 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Ro
 		Catalog:     catalog,
 		ServerCA:    serverCA,
 		Log:         s.config.Log.WithField("subsystem_name", "endpoints"),
+		Metrics:     metrics,
 	})
 }
 

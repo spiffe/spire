@@ -17,6 +17,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -80,6 +81,7 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 
 	suite.handler = NewHandler(HandlerConfig{
 		Log:         log,
+		Metrics:     telemetry.Blackhole{},
 		Catalog:     catalog,
 		ServerCA:    suite.mockServerCA,
 		TrustDomain: testTrustDomain,
@@ -789,6 +791,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		Catalog:     catalog,
 		ServerCA:    serverCA,
 		Log:         log,
+		Metrics:     telemetry.Blackhole{},
 		TrustDomain: testTrustDomain,
 	})
 

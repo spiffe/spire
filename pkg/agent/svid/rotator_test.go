@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
@@ -58,6 +59,7 @@ func (s *RotatorTestSuite) SetupTest() {
 	c := &RotatorConfig{
 		Catalog:      cat,
 		Log:          log,
+		Metrics:      telemetry.Blackhole{},
 		TrustDomain:  td,
 		SpiffeID:     "spiffe://example.org/spire/agent/1234",
 		BundleStream: cache.NewBundleStream(s.bundle.Observe()),

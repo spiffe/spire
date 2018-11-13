@@ -14,6 +14,7 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -74,6 +75,7 @@ func (s *HandlerSuite) SetupTest() {
 
 	handler := &Handler{
 		Log:         log,
+		Metrics:     telemetry.Blackhole{},
 		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
 		Catalog:     catalog,
 	}
@@ -476,6 +478,7 @@ func setupRegistrationTest(t *testing.T) *handlerTestSuite {
 
 	suite.handler = &Handler{
 		Log:         log,
+		Metrics:     telemetry.Blackhole{},
 		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
 		Catalog:     catalog,
 	}
