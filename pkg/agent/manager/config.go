@@ -24,7 +24,7 @@ type Config struct {
 	Catalog          catalog.Catalog
 	TrustDomain      url.URL
 	Log              logrus.FieldLogger
-	Tel              telemetry.Sink
+	Metrics          telemetry.Metrics
 	ServerAddr       string
 	SVIDCachePath    string
 	BundleCachePath  string

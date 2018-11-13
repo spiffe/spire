@@ -188,7 +188,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          apiHandler.bundle,
-		Tel:             &telemetry.Blackhole{},
+		Metrics:         &telemetry.Blackhole{},
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -271,7 +271,7 @@ func TestSVIDRotation(t *testing.T) {
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
-		Tel:              &telemetry.Blackhole{},
+		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: baseTTL / 2,
 		SyncInterval:     1 * time.Hour,
 	}
@@ -340,7 +340,7 @@ func TestSynchronization(t *testing.T) {
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
-		Tel:              &telemetry.Blackhole{},
+		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     3 * time.Second,
 	}
@@ -465,7 +465,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          apiHandler.bundle,
-		Tel:             &telemetry.Blackhole{},
+		Metrics:         &telemetry.Blackhole{},
 	}
 
 	m := newManager(t, c)
@@ -522,7 +522,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          apiHandler.bundle,
-		Tel:             &telemetry.Blackhole{},
+		Metrics:         &telemetry.Blackhole{},
 	}
 
 	m := newManager(t, c)
@@ -578,7 +578,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
-		Tel:              &telemetry.Blackhole{},
+		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     1 * time.Hour,
 	}
@@ -634,7 +634,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
-		Tel:              &telemetry.Blackhole{},
+		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
 		// We want frequent synchronizations to speed up the test.
 		SyncInterval: 1 * time.Second,
@@ -702,7 +702,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          apiHandler.bundle,
-		Tel:             &telemetry.Blackhole{},
+		Metrics:         &telemetry.Blackhole{},
 	}
 
 	now := time.Now()

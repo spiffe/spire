@@ -19,8 +19,8 @@ type Config struct {
 	Catalog catalog.Catalog
 	Manager manager.Manager
 
-	Log logrus.FieldLogger
-	Tel telemetry.Sink
+	Log     logrus.FieldLogger
+	Metrics telemetry.Metrics
 }
 
 func New(c *Config) *endpoints {
