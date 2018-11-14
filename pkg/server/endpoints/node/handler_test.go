@@ -695,12 +695,12 @@ func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
 	caCert, _, _ := util.LoadCAFixture()
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
-		DEPRECATEDBundle:    append(caCert.Raw, data.caCert.Raw...),
+		DEPRECATEDBundle:    caCert.Raw,
 		RegistrationEntries: registrationEntries,
 		DEPRECATEDBundles: map[string]*node.Bundle{
 			testTrustDomain.String(): {
 				Id:      testTrustDomain.String(),
-				CaCerts: append(caCert.Raw, data.caCert.Raw...),
+				CaCerts: caCert.Raw,
 			},
 			"spiffe://otherdomain.test": {
 				Id:      "spiffe://otherdomain.test",
@@ -712,7 +712,6 @@ func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
 				TrustDomainId: testTrustDomain.String(),
 				RootCas: []*common.Certificate{
 					{DerBytes: caCert.Raw},
-					{DerBytes: data.caCert.Raw},
 				},
 			},
 			"spiffe://otherdomain.test": {

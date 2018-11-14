@@ -213,11 +213,12 @@ func (m *ManagerTestSuite) TestUpstreamSigning() {
 	upstreamCert := upstreamCA.Cert()
 
 	// generate a keypair make sure it was signed up upstream and that
-	// the upstream cert is in the bundle
+	// the upstream cert is in the bundle. The server CA intermediate should
+	// also be in the bundle until SPIRE 0.8.0.
 	m.Require().NoError(m.m.Initialize(ctx))
 	a := m.m.getCurrentKeypairSet()
 	m.Require().Equal(upstreamCert.Subject, a.x509CA.cert.Issuer)
-	m.requireBundleRootCAs(upstreamCert)
+	m.requireBundleRootCAs(a.x509CA.cert, upstreamCert)
 }
 
 func (m *ManagerTestSuite) TestRotation() {
