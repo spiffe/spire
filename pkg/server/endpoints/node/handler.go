@@ -222,7 +222,6 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 
 		// TODO: remove in 0.8, along with deprecated fields
 		ourBundle := bundles[h.c.TrustDomain.String()]
-		addIntermediatesToBundle(ourBundle, svids)
 
 		err = server.Send(&node.FetchX509SVIDResponse{
 			SvidUpdate: &node.X509SVIDUpdate{
@@ -530,7 +529,6 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 
 	// TODO: remove in 0.8, along with deprecated fields
 	ourBundle := bundles[h.c.TrustDomain.String()]
-	addIntermediatesToBundle(ourBundle, svids)
 
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
@@ -703,35 +701,6 @@ func makeDeprecatedBundles(bs map[string]*common.Bundle) map[string]*node.Bundle
 		out[k] = makeDeprecatedBundle(v)
 	}
 	return out
-}
-
-// this function adds the intermediate certificates from the svids the the
-// bundle for the trust domain.
-// TODO: remove in SPIRE 0.8
-func addIntermediatesToBundle(bundle *common.Bundle, svids map[string]*node.X509SVID) {
-	for _, intermediate := range gatherIntermediateCerts(svids) {
-		bundle.RootCas = append(bundle.RootCas, &common.Certificate{
-			DerBytes: intermediate,
-		})
-	}
-}
-
-func gatherIntermediateCerts(svids map[string]*node.X509SVID) (intermediates [][]byte) {
-	included := make(map[string]bool)
-	for _, svid := range svids {
-		certs, _ := x509.ParseCertificates(svid.CertChain)
-		if len(certs) > 0 {
-			for _, cert := range certs[1:] {
-				key := string(cert.Raw)
-				if included[key] {
-					continue
-				}
-				included[key] = true
-				intermediates = append(intermediates, cert.Raw)
-			}
-		}
-	}
-	return intermediates
 }
 
 func getSpiffeIDFromCSR(csrBytes []byte) (string, error) {
