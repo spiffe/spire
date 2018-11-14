@@ -300,14 +300,21 @@ pruneRootCA:
 	return nil
 }
 
-func (m *manager) appendBundle(ctx context.Context, rootCA *x509.Certificate, jwtSigningKey *common.PublicKey) error {
+func (m *manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKey *common.PublicKey) error {
+	// TODO: SPIRE 0.8 should only add the "root" to the bundle, instead of
+	// all the intermediates.
+	var rootCAs []*common.Certificate
+	for _, caCert := range caChain {
+		rootCAs = append(rootCAs, &common.Certificate{
+			DerBytes: caCert.Raw,
+		})
+	}
+
 	ds := m.c.Catalog.DataStores()[0]
 	if _, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: &common.Bundle{
 			TrustDomainId: m.c.TrustDomain.String(),
-			RootCas: []*common.Certificate{
-				{DerBytes: rootCA.Raw},
-			},
+			RootCas:       rootCAs,
 			JwtSigningKeys: []*common.PublicKey{
 				jwtSigningKey,
 			},
@@ -369,14 +376,12 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) error 
 
 	// The root CA added to the bundle is either the upstream "root" or the
 	// newly signed server CA.
-	rootCA := cert
 	chain := []*x509.Certificate{cert}
 	if m.c.UpstreamBundle && len(upstreamBundle) > 0 {
-		rootCA = upstreamBundle[len(upstreamBundle)-1]
 		chain = append(chain, upstreamBundle...)
 	}
 
-	if err := m.appendBundle(ctx, rootCA, jwtSigningKey.PublicKey); err != nil {
+	if err := m.appendBundle(ctx, chain, jwtSigningKey.PublicKey); err != nil {
 		return err
 	}
 
