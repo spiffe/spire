@@ -131,22 +131,6 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return errors.New("Error trying to sign CSR")
 	}
 
-	if attestedBefore {
-		err = h.updateAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR)
-		if err != nil {
-			h.c.Log.Error(err)
-			return errors.New("Error trying to update attestation entry")
-		}
-
-	} else {
-		err = h.createAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR, request.AttestationData.Type)
-		if err != nil {
-			h.c.Log.Error(err)
-			return errors.New("Error trying to create attestation entry")
-		}
-
-	}
-
 	if err := h.updateNodeSelectors(ctx, baseSpiffeIDFromCSR, attestResponse); err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to get selectors for baseSpiffeID")
@@ -156,6 +140,20 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	if err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to compose response")
+	}
+
+	if attestedBefore {
+		err = h.updateAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR)
+		if err != nil {
+			h.c.Log.Error(err)
+			return errors.New("Error trying to update attestation entry")
+		}
+	} else {
+		err = h.createAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR, request.AttestationData.Type)
+		if err != nil {
+			h.c.Log.Error(err)
+			return errors.New("Error trying to create attestation entry")
+		}
 	}
 
 	p, ok := peer.FromContext(ctx)
