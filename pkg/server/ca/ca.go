@@ -99,11 +99,11 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 
 	ca.c.Log.Debugf("Signed x509 SVID %q (expires %s)", cert.URIs[0].String(), cert.NotAfter.Format(time.RFC3339))
 
-	// build and return the certificate chain, starting with the newly signed cert and any
-	// intermediates back to the signing root of the keypair. the keypair chain
-	// is a full chain from the ca back to the signing root, so all but the
-	// last element (i.e., the signing root) form the list of intermediates.
-	return append([]*x509.Certificate{cert}, kp.x509CA.chain[:len(kp.x509CA.chain)-1]...), nil
+	// build and return the certificate chain, starting with the newly signed
+	// cert all the way back to the signing root of the keypair. if an
+	// upstream ca was used, and upstream_bundle is true, this will include
+	// the upstream certificates, otherwise the root will be the server CA.
+	return append([]*x509.Certificate{cert}, kp.x509CA.chain...), nil
 }
 
 func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {

@@ -250,6 +250,7 @@ func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 			caPool.AddCert(cert)
 		}
 	}
+
 	tlsCert := tls.Certificate{
 		Certificate: certChain,
 		PrivateKey:  e.svidKey,
