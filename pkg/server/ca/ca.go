@@ -103,7 +103,8 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 	// intermediates back to the signing root of the keypair. the keypair chain
 	// is a full chain from the ca back to the signing root, so all but the
 	// last element (i.e., the signing root) form the list of intermediates.
-	return append([]*x509.Certificate{cert}, kp.x509CA.chain[:len(kp.x509CA.chain)-1]...), nil
+	//return append([]*x509.Certificate{cert}, kp.x509CA.chain[:len(kp.x509CA.chain)-1]...), nil
+	return append([]*x509.Certificate{cert}, kp.x509CA.chain...), nil
 }
 
 func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {

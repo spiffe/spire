@@ -732,7 +732,7 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 
 func makeX509SVID(svid []*x509.Certificate) *node.X509SVID {
 	var certChain []byte
-	for _, cert := range svid {
+	for _, cert := range svid[:len(svid)-1] {
 		certChain = append(certChain, cert.Raw...)
 	}
 	return &node.X509SVID{
