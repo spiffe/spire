@@ -131,6 +131,7 @@ func NewManager(c *ManagerConfig) *manager {
 			Catalog:     c.Catalog,
 			TrustDomain: c.TrustDomain,
 			DefaultTTL:  c.SVIDTTL,
+			CASubject:   c.CASubject,
 		}),
 		current: &keypairSet{
 			slot: "A",

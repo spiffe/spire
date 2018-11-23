@@ -82,6 +82,10 @@ func (s *CATestSuite) SetupTest() {
 			Host:   "example.org",
 		},
 		DefaultTTL: time.Minute,
+		CASubject: pkix.Name{
+			Country:      []string{"TEST"},
+			Organization: []string{"TEST"},
+		},
 	})
 	s.ca.setKeypairSet(keypairSet{
 		slot: "FOO",
@@ -216,6 +220,32 @@ func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
 	s.Require().EqualError(err, "unable to sign JWT-SVID: audience is required")
 }
 
+func (s *CATestSuite) TestNoX509KeypairSetCASVID() {
+	ca := newServerCA(s.ca.c)
+	_, err := ca.SignX509CASVID(ctx, s.generateCSR("example.org"), 0)
+	s.Require().EqualError(err, "no X509-SVID keypair available")
+}
+
+func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
+	svid, err := s.ca.SignX509CASVID(ctx, s.generateCSR("example.org"), 0)
+	s.Require().NoError(err)
+	s.Require().Len(svid, 2)
+	s.Require().Equal(s.now.Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.now.Add(time.Minute), svid[0].NotAfter)
+}
+
+func (s *CATestSuite) TestSignX509CASVIDWithDifferentSubject() {
+	subject := pkix.Name{
+		Country:      []string{"INVALID"},
+		Organization: []string{"INVALID"},
+	}
+	svid, err := s.ca.SignX509CASVID(ctx, s.generateCSRWithSubject("example.org", subject), 0)
+	s.Require().NoError(err)
+	s.Require().Len(svid, 2)
+	s.Require().Equal(svid[0].Subject.Country[0], "TEST")
+	s.Require().Equal(svid[0].Subject.Organization[0], "TEST")
+}
+
 func (s *CATestSuite) generateCSR(trustDomain string) []byte {
 	csr := &x509.CertificateRequest{
 		URIs: []*url.URL{makeSpiffeID(trustDomain)},
@@ -227,6 +257,15 @@ func (s *CATestSuite) signCSR(csr *x509.CertificateRequest) []byte {
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, s.signer)
 	s.Require().NoError(err)
 	return csrBytes
+}
+
+func (s *CATestSuite) generateCSRWithSubject(trustDomain string, subject pkix.Name) []byte {
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
+		Subject: subject,
+		URIs:    []*url.URL{makeSpiffeID(trustDomain)},
+	}, s.signer)
+	s.Require().NoError(err)
+	return csr
 }
 
 func (s *CATestSuite) generateJSR(trustDomain string, ttl time.Duration) *node.JSR {

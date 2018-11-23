@@ -28,6 +28,7 @@ type ShowConfig struct {
 	SpiffeID string
 
 	FederatesWith StringsFlag
+	Downstream    bool
 }
 
 // Validate ensures that the values in ShowConfig are valid
@@ -279,6 +280,7 @@ func (s *ShowCLI) loadConfig(args []string) error {
 	f.StringVar(&c.EntryID, "entryID", "", "The Entry ID of the records to show")
 	f.StringVar(&c.ParentID, "parentID", "", "The Parent ID of the records to show")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")
+	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value to enable signing CA CSR for heirarchical spire server")
 
 	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
 	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")

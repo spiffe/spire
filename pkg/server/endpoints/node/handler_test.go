@@ -668,6 +668,16 @@ func setFetchX509SVIDExpectations(
 	// begin FetchRegistrationEntries()
 
 	suite.mockDataStore.EXPECT().
+		ListRegistrationEntries(gomock.Any(), gomock.Eq(
+			&datastore.ListRegistrationEntriesRequest{
+				BySpiffeId: &wrappers.StringValue{
+					Value: data.baseSpiffeID,
+				},
+			})).
+		Return(&datastore.ListRegistrationEntriesResponse{
+			Entries: data.byParentIDEntries}, nil).AnyTimes()
+
+	suite.mockDataStore.EXPECT().
 		ListRegistrationEntries(gomock.Any(),
 			&datastore.ListRegistrationEntriesRequest{
 				ByParentId: &wrappers.StringValue{

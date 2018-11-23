@@ -103,6 +103,30 @@ func (c *ServerCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Dur
 	return append([]*x509.Certificate{cert}, c.certs[:len(c.certs)-1]...), nil
 }
 
+func (c *ServerCA) SignX509CASVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error) {
+	if ttl <= 0 {
+		ttl = c.options.DefaultTTL
+	}
+	now := c.options.Now()
+	c.sn++
+	template, err := ca.CreateServerCATemplate(csrDER, c.trustDomain, now, now.Add(ttl), big.NewInt(c.sn))
+	if err != nil {
+		return nil, err
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, c.certs[0], template.PublicKey, c.signer)
+	if err != nil {
+		return nil, err
+	}
+
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, err
+	}
+
+	return append([]*x509.Certificate{cert}, c.certs[:len(c.certs)-1]...), nil
+}
+
 func (c *ServerCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 	ttl := time.Duration(jsr.Ttl) * time.Second
 	if ttl <= 0 {
