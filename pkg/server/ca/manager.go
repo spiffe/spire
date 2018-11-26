@@ -233,7 +233,7 @@ func (m *manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 }
 
 func (m *manager) pruneBundle(ctx context.Context) (err error) {
-	defer telemetry.CountCall(m.c.Metrics, &err, "manager", "bundle", "prune")()
+	defer telemetry.CountCall(m.c.Metrics, "manager", "bundle", "prune")(&err)
 	ds := m.c.Catalog.DataStores()[0]
 
 	now := m.hooks.now().Add(-safetyThreshold)
@@ -332,7 +332,7 @@ func (m *manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 }
 
 func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err error) {
-	defer telemetry.CountCall(m.c.Metrics, &err, "manager", "keypair", "prepare")()
+	defer telemetry.CountCall(m.c.Metrics, "manager", "keypair", "prepare")(&err)
 	m.c.Log.Debugf("Preparing keypair set %q", kps.slot)
 	kps.Reset()
 

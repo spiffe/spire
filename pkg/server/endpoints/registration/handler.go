@@ -36,7 +36,7 @@ func (h *Handler) CreateEntry(
 	ctx context.Context, request *common.RegistrationEntry) (
 	response *registration.RegistrationEntryID, err error) {
 
-	defer telemetry.CountCall(h.Metrics, &err, "registration_api", "entry", "create")()
+	defer telemetry.CountCall(h.Metrics, "registration_api", "entry", "create")(&err)
 
 	request, err = h.prepareRegistrationEntry(request, false)
 	if err != nil {
@@ -73,7 +73,7 @@ func (h *Handler) DeleteEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
 
-	defer telemetry.CountCall(h.Metrics, &err, "registration_api", "entry", "delete")()
+	defer telemetry.CountCall(h.Metrics, "registration_api", "entry", "delete")(&err)
 
 	ds := h.getDataStore()
 	req := &datastore.DeleteRegistrationEntryRequest{
@@ -92,7 +92,7 @@ func (h *Handler) FetchEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
 
-	defer telemetry.CountCall(h.Metrics, &err, "registration_api", "entry", "fetch")()
+	defer telemetry.CountCall(h.Metrics, "registration_api", "entry", "fetch")(&err)
 
 	ds := h.getDataStore()
 	fetchResponse, err := ds.FetchRegistrationEntry(ctx,
@@ -109,7 +109,7 @@ func (h *Handler) FetchEntries(
 	ctx context.Context, request *common.Empty) (
 	response *common.RegistrationEntries, err error) {
 
-	defer telemetry.CountCall(h.Metrics, &err, "registration_api", "entry", "list")()
+	defer telemetry.CountCall(h.Metrics, "registration_api", "entry", "list")(&err)
 
 	ds := h.getDataStore()
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
@@ -126,7 +126,7 @@ func (h *Handler) UpdateEntry(
 	ctx context.Context, request *registration.UpdateEntryRequest) (
 	response *common.RegistrationEntry, err error) {
 
-	defer telemetry.CountCall(h.Metrics, &err, "registration_api", "entry", "update")()
+	defer telemetry.CountCall(h.Metrics, "registration_api", "entry", "update")(&err)
 
 	if request.Entry == nil {
 		return nil, errors.New("Request is missing entry to update")
@@ -157,8 +157,8 @@ func (h *Handler) ListByParentID(
 	ctx context.Context, request *registration.ParentID) (
 	response *common.RegistrationEntries, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, &err, "registration_api", "entry", "list")
-	defer counter.Done()
+	counter := telemetry.StartCall(h.Metrics, "registration_api", "entry", "list")
+	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
@@ -189,8 +189,8 @@ func (h *Handler) ListBySelector(
 	ctx context.Context, request *common.Selector) (
 	response *common.RegistrationEntries, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, &err, "registration_api", "entry", "list")
-	defer counter.Done()
+	counter := telemetry.StartCall(h.Metrics, "registration_api", "entry", "list")
+	defer counter.Done(&err)
 
 	counter.AddLabel("selector", fmt.Sprintf("%s:%s", request.Type, request.Value))
 
@@ -214,8 +214,8 @@ func (h *Handler) ListBySpiffeID(
 	ctx context.Context, request *registration.SpiffeID) (
 	response *common.RegistrationEntries, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, &err, "registration_api", "entry", "list")
-	defer counter.Done()
+	counter := telemetry.StartCall(h.Metrics, "registration_api", "entry", "list")
+	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
 	if err != nil {
@@ -245,8 +245,8 @@ func (h *Handler) CreateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, &err, "registration_api", "federated_bundle", "create")
-	defer counter.Done()
+	counter := telemetry.StartCall(h.Metrics, "registration_api", "federated_bundle", "create")
+	defer counter.Done(&err)
 
 	bundle := request.Bundle
 	if bundle != nil {
@@ -285,7 +285,7 @@ func (h *Handler) FetchFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundleID) (
 	response *registration.FederatedBundle, err error) {
 
-	defer telemetry.CountCall(h.Metrics, &err, "registration_api", "federated_bundle", "fetch")()
+	defer telemetry.CountCall(h.Metrics, "registration_api", "federated_bundle", "fetch")(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
@@ -315,7 +315,7 @@ func (h *Handler) FetchFederatedBundle(
 }
 
 func (h *Handler) ListFederatedBundles(request *common.Empty, stream registration.Registration_ListFederatedBundlesServer) (err error) {
-	defer telemetry.CountCall(h.Metrics, &err, "registration_api", "federated_bundle", "list")()
+	defer telemetry.CountCall(h.Metrics, "registration_api", "federated_bundle", "list")(&err)
 
 	ds := h.getDataStore()
 	resp, err := ds.ListBundles(stream.Context(), &datastore.ListBundlesRequest{})
@@ -343,8 +343,8 @@ func (h *Handler) UpdateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, &err, "registration_api", "federated_bundle", "update")
-	defer counter.Done()
+	counter := telemetry.StartCall(h.Metrics, "registration_api", "federated_bundle", "update")
+	defer counter.Done(&err)
 
 	bundle := request.Bundle
 	if bundle != nil {
@@ -383,8 +383,8 @@ func (h *Handler) DeleteFederatedBundle(
 	ctx context.Context, request *registration.DeleteFederatedBundleRequest) (
 	response *common.Empty, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, &err, "registration_api", "federated_bundle", "delete")
-	defer counter.Done()
+	counter := telemetry.StartCall(h.Metrics, "registration_api", "federated_bundle", "delete")
+	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
@@ -417,7 +417,7 @@ func (h *Handler) CreateJoinToken(
 	ctx context.Context, request *registration.JoinToken) (
 	token *registration.JoinToken, err error) {
 
-	defer telemetry.CountCall(h.Metrics, &err, "registration_api", "join_token", "create")()
+	defer telemetry.CountCall(h.Metrics, "registration_api", "join_token", "create")(&err)
 
 	if request.Ttl < 1 {
 		return nil, errors.New("Ttl is required, you must provide one")
@@ -450,7 +450,7 @@ func (h *Handler) FetchBundle(
 	ctx context.Context, request *common.Empty) (
 	response *registration.Bundle, err error) {
 
-	defer telemetry.CountCall(h.Metrics, &err, "registration_api", "bundle", "fetch")()
+	defer telemetry.CountCall(h.Metrics, "registration_api", "bundle", "fetch")(&err)
 
 	ds := h.getDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
