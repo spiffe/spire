@@ -101,7 +101,7 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 
 	spiffeID := cert.URIs[0].String()
 	ca.c.Log.Debugf("Signed x509 SVID %q (expires %s)", spiffeID, cert.NotAfter.Format(time.RFC3339))
-	ca.c.Metrics.IncrCounterWithLabels([]string{"server_ca", "sign", "x509_svid"}, 1, []telemetry.Label{
+	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_svid"}, 1, []telemetry.Label{
 		{
 			Name:  "spiffe_id",
 			Value: spiffeID,
