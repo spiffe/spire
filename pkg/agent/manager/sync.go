@@ -49,8 +49,8 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 }
 
 func (m *manager) fetchUpdates(ctx context.Context, entryRequests map[string]*entryRequest) (entries map[string]*common.RegistrationEntry, svids map[string]*node.X509SVID, err error) {
-	counter := telemetry.StartCall(m.c.Metrics, &err, "manager", "sync", "fetch_updates")
-	defer counter.Done()
+	counter := telemetry.StartCall(m.c.Metrics, "manager", "sync", "fetch_updates")
+	defer counter.Done(&err)
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	csrs := [][]byte{}
 	if entryRequests != nil {

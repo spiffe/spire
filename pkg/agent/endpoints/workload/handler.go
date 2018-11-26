@@ -55,7 +55,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 	defer done()
 
-	// TODO: telemetry
 	metrics.IncrCounter([]string{workloadApi, "fetch_jwt_svid"}, 1)
 
 	var spiffeIDs []string

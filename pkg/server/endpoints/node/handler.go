@@ -59,8 +59,8 @@ func NewHandler(config HandlerConfig) *Handler {
 
 //Attest attests the node and gets the base node SVID.
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
-	counter := telemetry.StartCall(h.c.Metrics, &err, "node_api", "attest")
-	defer counter.Done()
+	counter := telemetry.StartCall(h.c.Metrics, "node_api", "attest")
+	defer counter.Done(&err)
 
 	// make sure node attestor stream will be cancelled if things go awry
 	ctx, cancel := context.WithCancel(stream.Context())
@@ -179,8 +179,8 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
 func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error) {
-	counter := telemetry.StartCall(h.c.Metrics, &err, "node_api", "x509_svid", "fetch")
-	defer counter.Done()
+	counter := telemetry.StartCall(h.c.Metrics, "node_api", "x509_svid", "fetch")
+	defer counter.Done(&err)
 	for {
 		request, err := server.Recv()
 		if err == io.EOF {
@@ -250,8 +250,8 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 }
 
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (resp *node.FetchJWTSVIDResponse, err error) {
-	counter := telemetry.StartCall(h.c.Metrics, &err, "node_api", "jwt_svid", "fetch")
-	defer counter.Done()
+	counter := telemetry.StartCall(h.c.Metrics, "node_api", "jwt_svid", "fetch")
+	defer counter.Done(&err)
 
 	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
 		return nil, status.Error(codes.ResourceExhausted, err.Error())

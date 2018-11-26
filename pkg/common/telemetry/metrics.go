@@ -48,8 +48,7 @@ var _ Metrics = (*MetricsImpl)(nil)
 // NewMetrics returns a Metric implementation
 func NewMetrics(c *MetricsConfig) *MetricsImpl {
 	// Always create an in-memory sink
-	interval := 1 * time.Minute
-	//interval := 1 * time.Second
+	interval := 1 * time.Second
 	retention := 1 * time.Hour
 	inmemSink := metrics.NewInmemSink(interval, retention)
 
@@ -62,9 +61,8 @@ func NewMetrics(c *MetricsConfig) *MetricsImpl {
 	sinks = append(sinks, c.Sinks...)
 
 	conf := metrics.DefaultConfig(c.ServiceName)
-	conf.EnableHostname = true
+	conf.EnableHostname = false
 	conf.EnableHostnameLabel = true
-	//conf.ProfileInterval = time.Minute
 	m, _ := metrics.New(conf, sinks)
 
 	return &MetricsImpl{
