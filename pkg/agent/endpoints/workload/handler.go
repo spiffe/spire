@@ -49,13 +49,13 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		return nil, errs.New("audience must be specified")
 	}
 
-	_, selectors, _, done, err := h.startCall(ctx)
+	_, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer done()
 
-	// TODO: telemetry
+	metrics.IncrCounter([]string{workloadApi, "fetch_jwt_svid"}, 1)
 
 	var spiffeIDs []string
 	for _, entry := range h.Manager.MatchingEntries(selectors) {
@@ -89,7 +89,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	}
 	defer done()
 
-	// TODO: telemetry
+	metrics.IncrCounter([]string{workloadApi, "fetch_jwt_bundles"}, 1)
 
 	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
@@ -129,14 +129,29 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	}
 	defer done()
 
-	metrics.IncrCounter([]string{workloadApi, "validate_jwt"}, 1)
-
 	keyStore := keyStoreFromBundles(h.getWorkloadBundles(selectors))
 
 	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
+		metrics.IncrCounterWithLabels([]string{workloadApi, "validate_jwt_svid"}, 1, []telemetry.Label{
+			{
+				Name:  "error",
+				Value: err.Error(),
+			},
+		})
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+
+	metrics.IncrCounterWithLabels([]string{workloadApi, "validate_jwt_svid"}, 1, []telemetry.Label{
+		{
+			Name:  "subject",
+			Value: spiffeID,
+		},
+		{
+			Name:  "audience",
+			Value: req.Audience,
+		},
+	})
 
 	s, err := structFromValues(claims)
 	if err != nil {

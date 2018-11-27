@@ -59,7 +59,11 @@ func NewMetrics(c *MetricsConfig) *MetricsImpl {
 	// error and the implementation is currently no-fail.
 	sinks := metrics.FanoutSink{inmemSink}
 	sinks = append(sinks, c.Sinks...)
-	m, _ := metrics.New(metrics.DefaultConfig(c.ServiceName), sinks)
+
+	conf := metrics.DefaultConfig(c.ServiceName)
+	conf.EnableHostname = false
+	conf.EnableHostnameLabel = true
+	m, _ := metrics.New(conf, sinks)
 
 	return &MetricsImpl{
 		Metrics:     m,

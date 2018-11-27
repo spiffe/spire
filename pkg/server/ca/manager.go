@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -48,6 +49,7 @@ type ManagerConfig struct {
 	CASubject      pkix.Name
 	CertsPath      string
 	Log            logrus.FieldLogger
+	Metrics        telemetry.Metrics
 }
 
 type Manager interface {
@@ -125,6 +127,7 @@ func NewManager(c *ManagerConfig) *manager {
 		c: c,
 		ca: newServerCA(serverCAConfig{
 			Log:         c.Log,
+			Metrics:     c.Metrics,
 			Catalog:     c.Catalog,
 			TrustDomain: c.TrustDomain,
 			DefaultTTL:  c.SVIDTTL,
@@ -229,7 +232,8 @@ func (m *manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 	}
 }
 
-func (m *manager) pruneBundle(ctx context.Context) error {
+func (m *manager) pruneBundle(ctx context.Context) (err error) {
+	defer telemetry.CountCall(m.c.Metrics, "manager", "bundle", "prune")(&err)
 	ds := m.c.Catalog.DataStores()[0]
 
 	now := m.hooks.now().Add(-safetyThreshold)
@@ -289,6 +293,7 @@ pruneRootCA:
 	}
 
 	if changed {
+		m.c.Metrics.IncrCounter([]string{"manager", "bundle", "pruned"}, 1)
 		_, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
 			Bundle: newBundle,
 		})
@@ -326,7 +331,8 @@ func (m *manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 	return nil
 }
 
-func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) error {
+func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err error) {
+	defer telemetry.CountCall(m.c.Metrics, "manager", "keypair", "prepare")(&err)
 	m.c.Log.Debugf("Preparing keypair set %q", kps.slot)
 	kps.Reset()
 
@@ -502,6 +508,7 @@ func (m *manager) getNextKeypairSet() *keypairSet {
 
 func (m *manager) setKeypairSet() {
 	m.c.Log.Debugf("Activating keypair set %q", m.current.slot)
+	m.c.Metrics.IncrCounter([]string{"manager", "keypair", "activate"}, 1)
 	m.ca.setKeypairSet(*m.current)
 }
 

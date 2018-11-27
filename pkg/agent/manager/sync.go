@@ -11,6 +11,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
@@ -47,12 +48,15 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *manager) fetchUpdates(ctx context.Context, entryRequests map[string]*entryRequest) (map[string]*common.RegistrationEntry, map[string]*node.X509SVID, error) {
+func (m *manager) fetchUpdates(ctx context.Context, entryRequests map[string]*entryRequest) (entries map[string]*common.RegistrationEntry, svids map[string]*node.X509SVID, err error) {
+	counter := telemetry.StartCall(m.c.Metrics, "manager", "sync", "fetch_updates")
+	defer counter.Done(&err)
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	csrs := [][]byte{}
 	if entryRequests != nil {
 		for _, entryRequest := range entryRequests {
 			m.c.Log.Debugf("Requesting SVID for %v", entryRequest.entry.RegistrationEntry.SpiffeId)
+			counter.AddLabel("spiffe_id", entryRequest.entry.RegistrationEntry.SpiffeId)
 			csrs = append(csrs, entryRequest.CSR)
 		}
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/api/node"
@@ -62,6 +63,7 @@ func (s *NodeAttestorTestSuite) SetupTest() {
 
 	s.config = &Config{
 		Catalog:         s.catalog,
+		Metrics:         telemetry.Blackhole{},
 		SVIDCachePath:   path.Join(tempDir, "agent_svid.der"),
 		BundleCachePath: path.Join(tempDir, "bundle.der"),
 		Log:             log,
