@@ -8,7 +8,6 @@ import (
 )
 
 func MakeCSR(privateKey interface{}, spiffeId string) (csr []byte, err error) {
-
 	uriSANs, err := uri.MarshalUriSANs([]string{spiffeId})
 	if err != nil {
 		return csr, err
