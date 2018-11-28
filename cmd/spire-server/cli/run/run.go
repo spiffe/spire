@@ -35,25 +35,26 @@ type runConfig struct {
 }
 
 type serverConfig struct {
-	BindAddress         string `hcl:"bind_address"`
-	BindPort            int    `hcl:"bind_port"`
-	RegistrationUDSPath string `hcl:"registration_uds_path"`
-	DataDir             string `hcl:"data_dir"`
-	TrustDomain         string `hcl:"trust_domain"`
-	LogFile             string `hcl:"log_file"`
-	LogLevel            string `hcl:"log_level"`
-	BaseSVIDTtl         int    `hcl:"base_svid_ttl"`
-	ServerSVIDTtl       int    `hcl:"server_svid_ttl"`
-	ConfigPath          string
-	Umask               string           `hcl:"umask"`
-	UpstreamBundle      bool             `hcl:"upstream_bundle"`
-	ProfilingEnabled    bool             `hcl:"profiling_enabled"`
-	ProfilingPort       int              `hcl:"profiling_port"`
-	ProfilingFreq       int              `hcl:"profiling_freq"`
-	ProfilingNames      []string         `hcl:"profiling_names"`
-	SVIDTTL             string           `hcl:"svid_ttl"`
-	CATTL               string           `hcl:"ca_ttl"`
+	BindAddress         string           `hcl:"bind_address"`
+	BindPort            int              `hcl:"bind_port"`
 	CASubject           *caSubjectConfig `hcl:"ca_subject"`
+	CATTL               string           `hcl:"ca_ttl"`
+	DataDir             string           `hcl:"data_dir"`
+	LogFile             string           `hcl:"log_file"`
+	LogLevel            string           `hcl:"log_level"`
+	RegistrationUDSPath string           `hcl:"registration_uds_path"`
+	SVIDTTL             string           `hcl:"svid_ttl"`
+	TrustDomain         string           `hcl:"trust_domain"`
+	UpstreamBundle      bool             `hcl:"upstream_bundle"`
+
+	ConfigPath string
+
+	// Undocumented configurables
+	ProfilingEnabled bool     `hcl:"profiling_enabled"`
+	ProfilingPort    int      `hcl:"profiling_port"`
+	ProfilingFreq    int      `hcl:"profiling_freq"`
+	ProfilingNames   []string `hcl:"profiling_names"`
+	Umask            string   `hcl:"umask"`
 }
 
 type caSubjectConfig struct {
