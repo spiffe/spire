@@ -32,6 +32,16 @@ import (
 	_ "golang.org/x/net/trace"
 )
 
+const (
+	invalidTrustDomainAttestedNode = "An attested node with trust domain '%v' has been detected, " +
+		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
+		"please delete all existing attested nodes"
+
+	invalidTrustDomainRegistrationEntry = "A registration entry with trust domain '%v' has been detected, " +
+		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
+		"please delete all existing registration entries"
+)
+
 type Config struct {
 	// Configurations for server plugins
 	PluginConfigs common.PluginConfigMap
@@ -281,7 +291,7 @@ func (s *Server) caCertsPath() string {
 	return path.Join(s.config.DataDir, "certs.json")
 }
 
-func (s *Server) validateTrustDomain(ctx context.Context, ds *catalog.ManagedDataStore) error {
+func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
 	trustDomain := s.config.TrustDomain.Host
 
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
@@ -291,17 +301,20 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds *catalog.ManagedDat
 	}
 
 	for _, entry := range fetchResponse.Entries {
-		validateSpiffeId(entry.SpiffeId, trustDomain)
+		err = validateSpiffeId(entry.SpiffeId, trustDomain, invalidTrustDomainRegistrationEntry)
+		if err != nil {
+			return err
+		}
 	}
 
 	nodesResponse, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
 	if err != nil {
 		s.config.Log.Error(err)
-		return errors.New("error trying to node entries")
+		return errors.New("error trying to list attested nodes")
 	}
 
 	for _, node := range nodesResponse.Nodes {
-		err = validateSpiffeId(node.SpiffeId, trustDomain)
+		err = validateSpiffeId(node.SpiffeId, trustDomain, invalidTrustDomainAttestedNode)
 		if err != nil {
 			return err
 		}
@@ -309,16 +322,14 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds *catalog.ManagedDat
 	return nil
 }
 
-func validateSpiffeId(spiffeId string, trustDomain string) error {
+func validateSpiffeId(spiffeId string, trustDomain string, errMsg string) error {
 	id, err := url.Parse(spiffeId)
 	if err != nil {
 		return fmt.Errorf("could not parse SPIFFE ID: %v", err)
 	}
 
 	if id.Host != trustDomain {
-		return fmt.Errorf("A registration entry with trust domain '%v' has been detected, "+
-			"which does not match the configured trust domain of '%v'. If you want to change the trust domain, "+
-			"please delete all existing registration entries", id.Host, trustDomain)
+		return fmt.Errorf(errMsg, id.Host, trustDomain)
 	}
 
 	return nil
