@@ -26,6 +26,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/svid"
 	"google.golang.org/grpc"
 
+	"errors"
+
+	"github.com/spiffe/spire/proto/server/datastore"
 	_ "golang.org/x/net/trace"
 )
 
@@ -130,6 +133,11 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 	s.config.Log.Info("plugins started")
+
+	err = s.validateTrustDomain(ctx, cat.DataStores()[0])
+	if err != nil {
+		return err
+	}
 
 	// CA manager needs to be initialized before the rotator, otherwise the
 	// server CA plugin won't be able to sign CSRs
@@ -271,4 +279,47 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Ro
 
 func (s *Server) caCertsPath() string {
 	return path.Join(s.config.DataDir, "certs.json")
+}
+
+func (s *Server) validateTrustDomain(ctx context.Context, ds *catalog.ManagedDataStore) error {
+	trustDomain := s.config.TrustDomain.Host
+
+	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	if err != nil {
+		s.config.Log.Error(err)
+		return errors.New("error trying to fetch entries")
+	}
+
+	for _, entry := range fetchResponse.Entries {
+		validateSpiffeId(entry.SpiffeId, trustDomain)
+	}
+
+	nodesResponse, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
+	if err != nil {
+		s.config.Log.Error(err)
+		return errors.New("error trying to node entries")
+	}
+
+	for _, node := range nodesResponse.Nodes {
+		err = validateSpiffeId(node.SpiffeId, trustDomain)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSpiffeId(spiffeId string, trustDomain string) error {
+	id, err := url.Parse(spiffeId)
+	if err != nil {
+		return fmt.Errorf("could not parse SPIFFE ID: %v", err)
+	}
+
+	if id.Host != trustDomain {
+		return fmt.Errorf("A registration entry with trust domain '%v' has been detected, "+
+			"which does not match the configured trust domain of '%v'. If you want to change the trust domain, "+
+			"please delete all existing registration entries", id.Host, trustDomain)
+	}
+
+	return nil
 }
