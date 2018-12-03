@@ -24,18 +24,13 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"google.golang.org/grpc"
-
-	"errors"
-
 	"github.com/spiffe/spire/proto/server/datastore"
-	_ "golang.org/x/net/trace"
+	"google.golang.org/grpc"
 )
 
 const (
 	invalidTrustDomainAttestedNode = "An attested node with trust domain '%v' has been detected, " +
-		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
-		"please delete all existing attested nodes"
+		"which does not match the configured trust domain of '%v'. Agents may need to be reconfigured to use new trust domain"
 
 	invalidTrustDomainRegistrationEntry = "A registration entry with trust domain '%v' has been detected, " +
 		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
@@ -296,41 +291,36 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
 	if err != nil {
-		s.config.Log.Error(err)
-		return errors.New("error trying to fetch entries")
+		return err
 	}
 
 	for _, entry := range fetchResponse.Entries {
-		err = validateSpiffeId(entry.SpiffeId, trustDomain, invalidTrustDomainRegistrationEntry)
+		id, err := url.Parse(entry.SpiffeId)
 		if err != nil {
-			return err
+			return fmt.Errorf("registration entry with id %v is malformed because invalid spiffe id: %v", entry.EntryId, err)
+		}
+
+		if id.Host != trustDomain {
+			return fmt.Errorf(invalidTrustDomainRegistrationEntry, id.Host, trustDomain)
 		}
 	}
 
 	nodesResponse, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
 	if err != nil {
-		s.config.Log.Error(err)
-		return errors.New("error trying to list attested nodes")
+		return err
 	}
 
 	for _, node := range nodesResponse.Nodes {
-		err = validateSpiffeId(node.SpiffeId, trustDomain, invalidTrustDomainAttestedNode)
+		id, err := url.Parse(node.SpiffeId)
 		if err != nil {
-			return err
+			s.config.Log.Warn("could not parse SPIFFE ID from node: %v", err)
+			continue
+		}
+
+		if id.Host != trustDomain {
+			msg := fmt.Sprintf(invalidTrustDomainAttestedNode, id.Host, trustDomain)
+			s.config.Log.Warn(msg)
 		}
 	}
-	return nil
-}
-
-func validateSpiffeId(spiffeId string, trustDomain string, errMsg string) error {
-	id, err := url.Parse(spiffeId)
-	if err != nil {
-		return fmt.Errorf("could not parse SPIFFE ID: %v", err)
-	}
-
-	if id.Host != trustDomain {
-		return fmt.Errorf(errMsg, id.Host, trustDomain)
-	}
-
 	return nil
 }
