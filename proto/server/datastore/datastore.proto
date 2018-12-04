@@ -189,14 +189,21 @@ message BySelectors {
     MatchBehavior match = 2;
 }
 
+message Pagination {
+    uint32 token = 1;
+    int32 page_size = 2;
+}
+
 message ListRegistrationEntriesRequest {
     google.protobuf.StringValue by_parent_id = 1;
     BySelectors by_selectors = 2;
     google.protobuf.StringValue by_spiffe_id = 3;
+    Pagination pagination = 4;
 }
 
 message ListRegistrationEntriesResponse {
     repeated spire.common.RegistrationEntry entries = 1;
+    Pagination pagination = 2;
 }
 
 message UpdateRegistrationEntryRequest {

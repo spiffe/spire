@@ -35,6 +35,8 @@ const (
 	invalidTrustDomainRegistrationEntry = "A registration entry with trust domain '%v' has been detected, " +
 		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
 		"please delete all existing registration entries"
+
+	pageSize = 10
 )
 
 type Config struct {
@@ -289,20 +291,36 @@ func (s *Server) caCertsPath() string {
 func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
 	trustDomain := s.config.TrustDomain.Host
 
-	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-	if err != nil {
-		return err
-	}
+	var token uint32
+	// Repeat until no more results are returned
+	for {
+		fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+			Pagination: &datastore.Pagination{
+				Token:    token,
+				PageSize: pageSize,
+			}})
 
-	for _, entry := range fetchResponse.Entries {
-		id, err := url.Parse(entry.SpiffeId)
 		if err != nil {
-			return fmt.Errorf("registration entry with id %v is malformed because invalid spiffe id: %v", entry.EntryId, err)
+			return err
 		}
 
-		if id.Host != trustDomain {
-			return fmt.Errorf(invalidTrustDomainRegistrationEntry, id.Host, trustDomain)
+		// no entries, finish iteration
+		if len(fetchResponse.Entries) == 0 {
+			break
 		}
+
+		for _, entry := range fetchResponse.Entries {
+			id, err := url.Parse(entry.SpiffeId)
+			if err != nil {
+				return fmt.Errorf("registration entry with id %v is malformed because invalid spiffe id: %v", entry.EntryId, err)
+			}
+
+			if id.Host != trustDomain {
+				return fmt.Errorf(invalidTrustDomainRegistrationEntry, id.Host, trustDomain)
+			}
+		}
+
+		token = fetchResponse.Pagination.Token
 	}
 
 	nodesResponse, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})

@@ -9,8 +9,10 @@ import (
 
 	"fmt"
 
+	"bytes"
+
 	"github.com/golang/mock/gomock"
-	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -25,6 +27,7 @@ type ServerTestSuite struct {
 	catalog *mock_catalog.MockCatalog
 	upsCa   *mock_upstreamca.MockUpstreamCA
 	ds      *fakedatastore.DataStore
+	stdout  *bytes.Buffer
 
 	mockCtrl *gomock.Controller
 }
@@ -36,8 +39,14 @@ func (suite *ServerTestSuite) SetupTest() {
 	suite.ds = fakedatastore.New()
 	suite.upsCa = mock_upstreamca.NewMockUpstreamCA(suite.mockCtrl)
 
-	logger, err := log.NewLogger("DEBUG", "")
+	suite.stdout = new(bytes.Buffer)
+	logrusLevel, err := logrus.ParseLevel("DEBUG")
 	suite.Nil(err)
+
+	logger := logrus.New()
+	logger.Out = suite.stdout
+	logger.Level = logrusLevel
+
 	suite.server = New(Config{
 		Log: logger,
 		TrustDomain: url.URL{
@@ -116,7 +125,9 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 
 	// Update server's trust domain, error expected because invalid trust domain
 	err = suite.server.validateTrustDomain(ctx, ds)
-	suite.EqualError(err, fmt.Sprintf(invalidTrustDomainAttestedNode, "test.com", "new_test.com"))
+	// no error expected, warning is displaying in this case
+	suite.NoError(err)
+	suite.Require().Contains(suite.stdout.String(), fmt.Sprintf(invalidTrustDomainAttestedNode, "test.com", "new_test.com"))
 
 	// Back server's trust domain
 	suite.server.config.TrustDomain = *uri

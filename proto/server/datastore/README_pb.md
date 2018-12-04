@@ -83,6 +83,7 @@
     - [ListRegistrationEntriesRequest](#spire.server.datastore.ListRegistrationEntriesRequest)
     - [ListRegistrationEntriesResponse](#spire.server.datastore.ListRegistrationEntriesResponse)
     - [NodeSelectors](#spire.server.datastore.NodeSelectors)
+    - [Pagination](#spire.server.datastore.Pagination)
     - [PruneJoinTokensRequest](#spire.server.datastore.PruneJoinTokensRequest)
     - [PruneJoinTokensResponse](#spire.server.datastore.PruneJoinTokensResponse)
     - [SetNodeSelectorsRequest](#spire.server.datastore.SetNodeSelectorsRequest)
@@ -1073,6 +1074,7 @@ Represents a type with a list of Selector.
 | by_parent_id | [.google.protobuf.StringValue](#spire.server.datastore..google.protobuf.StringValue) |  |  |
 | by_selectors | [BySelectors](#spire.server.datastore.BySelectors) |  |  |
 | by_spiffe_id | [.google.protobuf.StringValue](#spire.server.datastore..google.protobuf.StringValue) |  |  |
+| pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
 
 
 
@@ -1088,6 +1090,7 @@ Represents a type with a list of Selector.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | entries | [.spire.common.RegistrationEntry](#spire.server.datastore..spire.common.RegistrationEntry) | repeated |  |
+| pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
 
 
 
@@ -1104,6 +1107,22 @@ Represents a type with a list of Selector.
 | ----- | ---- | ----- | ----------- |
 | spiffe_id | [string](#string) |  | Node SPIFFE ID |
 | selectors | [.spire.common.Selector](#spire.server.datastore..spire.common.Selector) | repeated | Node selectors |
+
+
+
+
+
+
+<a name="spire.server.datastore.Pagination"/>
+
+### Pagination
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| token | [uint32](#uint32) |  |  |
+| page_size | [int32](#int32) |  |  |
 
 
 

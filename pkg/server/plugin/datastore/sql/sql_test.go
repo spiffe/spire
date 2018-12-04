@@ -433,6 +433,185 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 	s.Equal(expectedResponse, resp)
 }
 
+func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type2", Value: "Value2"},
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId: "spiffe://example.org/foo",
+		ParentId: "spiffe://example.org/bar",
+		Ttl:      1,
+	})
+
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type3", Value: "Value3"},
+			{Type: "Type4", Value: "Value4"},
+			{Type: "Type5", Value: "Value5"},
+		},
+		SpiffeId: "spiffe://example.org/baz",
+		ParentId: "spiffe://example.org/bat",
+		Ttl:      2,
+	})
+
+	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type2", Value: "Value2"},
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId: "spiffe://example.org/tez",
+		ParentId: "spiffe://example.org/taz",
+		Ttl:      2,
+	})
+
+	selectors := []*common.Selector{
+		{Type: "Type1", Value: "Value1"},
+		{Type: "Type2", Value: "Value2"},
+		{Type: "Type3", Value: "Value3"},
+	}
+
+	tests := []struct {
+		name               string
+		pagination         *datastore.Pagination
+		selectors          []*common.Selector
+		expectedList       []*common.RegistrationEntry
+		expectedPagination *datastore.Pagination
+	}{
+		{
+			name: "pagination_not_null_but_page_size_is_zero",
+			pagination: &datastore.Pagination{
+				Token:    0,
+				PageSize: 0,
+			},
+			expectedList: []*common.RegistrationEntry{entry2, entry1, entry3},
+			expectedPagination: &datastore.Pagination{
+				Token:    0,
+				PageSize: 0,
+			},
+		},
+		{
+			name: "get_all_entries_first_page",
+			pagination: &datastore.Pagination{
+				Token:    0,
+				PageSize: 2,
+			},
+			expectedList: []*common.RegistrationEntry{entry2, entry1},
+			expectedPagination: &datastore.Pagination{
+				Token:    2,
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_all_entries_second_page",
+			pagination: &datastore.Pagination{
+				Token:    2,
+				PageSize: 2,
+			},
+			expectedList: []*common.RegistrationEntry{entry3},
+			expectedPagination: &datastore.Pagination{
+				Token:    3,
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_all_entries_third_page_no_results",
+			pagination: &datastore.Pagination{
+				Token:    3,
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				Token:    3,
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_entries_by_selector_get_only_page_fist_page",
+			pagination: &datastore.Pagination{
+				Token:    0,
+				PageSize: 2,
+			},
+			selectors:    selectors,
+			expectedList: []*common.RegistrationEntry{entry1, entry3},
+			expectedPagination: &datastore.Pagination{
+				Token:    3,
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_entries_by_selector_get_only_page_second_page_no_results",
+			pagination: &datastore.Pagination{
+				Token:    3,
+				PageSize: 2,
+			},
+			selectors: selectors,
+			expectedPagination: &datastore.Pagination{
+				Token:    3,
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_entries_by_selector_fist_page",
+			pagination: &datastore.Pagination{
+				Token:    0,
+				PageSize: 1,
+			},
+			selectors:    selectors,
+			expectedList: []*common.RegistrationEntry{entry1},
+			expectedPagination: &datastore.Pagination{
+				Token:    1,
+				PageSize: 1,
+			},
+		},
+		{
+			name: "get_entries_by_selector_second_page",
+			pagination: &datastore.Pagination{
+				Token:    1,
+				PageSize: 1,
+			},
+			selectors:    selectors,
+			expectedList: []*common.RegistrationEntry{entry3},
+			expectedPagination: &datastore.Pagination{
+				Token:    3,
+				PageSize: 1,
+			},
+		},
+		{
+			name: "get_entries_by_selector_third_page_no_results",
+			pagination: &datastore.Pagination{
+				Token:    3,
+				PageSize: 1,
+			},
+			selectors: selectors,
+			expectedPagination: &datastore.Pagination{
+				Token:    3,
+				PageSize: 1,
+			},
+		},
+	}
+	for _, test := range tests {
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				BySelectors: &datastore.BySelectors{
+					Selectors: test.selectors,
+				},
+				Pagination: test.pagination,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			expectedResponse := &datastore.ListRegistrationEntriesResponse{
+				Entries:    test.expectedList,
+				Pagination: test.expectedPagination,
+			}
+			require.Equal(t, expectedResponse, resp)
+			// s.Equal(expectedResponse, resp)
+		})
+	}
+}
+
 func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{

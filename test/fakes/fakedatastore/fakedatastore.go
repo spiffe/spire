@@ -347,6 +347,19 @@ func (s *DataStore) ListRegistrationEntries(ctx context.Context,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// no pagination allow for this fake, for now it return only one page
+	if req.Pagination != nil {
+		if req.Pagination.Token == 0 {
+			req.Pagination.Token = 1
+		} else {
+			// for now only 1 page is returned
+			return &datastore.ListRegistrationEntriesResponse{
+				Entries:    []*common.RegistrationEntry{},
+				Pagination: req.Pagination,
+			}, nil
+		}
+	}
+
 	// add the registration entries to the map
 	entriesSet := make(map[string]*common.RegistrationEntry)
 	for _, entry := range s.registrationEntries {
@@ -401,7 +414,8 @@ func (s *DataStore) ListRegistrationEntries(ctx context.Context,
 	util.SortRegistrationEntries(entries)
 
 	return &datastore.ListRegistrationEntriesResponse{
-		Entries: entries,
+		Entries:    entries,
+		Pagination: req.Pagination,
 	}, nil
 }
 
