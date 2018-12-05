@@ -16,8 +16,8 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/mock/proto/server/upstreamca"
-	"github.com/spiffe/spire/test/mock/server/catalog"
+	mock_upstreamca "github.com/spiffe/spire/test/mock/proto/server/upstreamca"
+	mock_catalog "github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -148,4 +148,37 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.server.config.TrustDomain = *newUri
 	err = suite.server.validateTrustDomain(ctx, ds)
 	suite.EqualError(err, fmt.Sprintf(invalidTrustDomainRegistrationEntry, "test.com", "new_test.com"))
+
+	// Create a registration entry with an invalid url
+	suite.server.config.TrustDomain = *uri
+	resp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
+		Entry: &common.RegistrationEntry{
+			SpiffeId:  "spiffe://inv%ild/test",
+			Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
+		},
+	})
+	suite.NoError(err)
+	err = suite.server.validateTrustDomain(ctx, ds)
+	expectedError := fmt.Sprintf(invalidSpiffeIDRegistrationEntry, resp.Entry.EntryId, "")
+	suite.Contains(err.Error(), expectedError)
+
+	// remove entry to solve error
+	ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
+		EntryId: resp.Entry.EntryId,
+	})
+
+	// create attested node with current trust domain
+	nodeResp, err := ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
+		Node: &datastore.AttestedNode{
+			SpiffeId:            "spiffe://inv%ild/host",
+			AttestationDataType: "fake_nodeattestor_1",
+			CertNotAfter:        1822684794,
+			CertSerialNumber:    "18392437442709699290",
+		},
+	})
+	suite.NoError(err)
+	// Attested now with same trust domain created, no error expected
+	err = suite.server.validateTrustDomain(ctx, ds)
+	suite.NoError(err)
+	suite.Require().Contains(suite.stdout.String(), fmt.Sprintf(invalidSpiffeIDAttestedNode, nodeResp.Node.SpiffeId, ""))
 }

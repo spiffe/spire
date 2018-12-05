@@ -31,10 +31,11 @@ import (
 const (
 	invalidTrustDomainAttestedNode = "An attested node with trust domain '%v' has been detected, " +
 		"which does not match the configured trust domain of '%v'. Agents may need to be reconfigured to use new trust domain"
-
 	invalidTrustDomainRegistrationEntry = "A registration entry with trust domain '%v' has been detected, " +
 		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
 		"please delete all existing registration entries"
+	invalidSpiffeIDRegistrationEntry = "registration entry with id %v is malformed because invalid SPIFFE ID: %v"
+	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID %v, from attested node: %v"
 
 	pageSize = 10
 )
@@ -312,7 +313,7 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 		for _, entry := range fetchResponse.Entries {
 			id, err := url.Parse(entry.SpiffeId)
 			if err != nil {
-				return fmt.Errorf("registration entry with id %v is malformed because invalid spiffe id: %v", entry.EntryId, err)
+				return fmt.Errorf(invalidSpiffeIDRegistrationEntry, entry.EntryId, err)
 			}
 
 			if id.Host != trustDomain {
@@ -331,7 +332,7 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 	for _, node := range nodesResponse.Nodes {
 		id, err := url.Parse(node.SpiffeId)
 		if err != nil {
-			s.config.Log.Warn("could not parse SPIFFE ID from node: %v", err)
+			s.config.Log.Warnf(invalidSpiffeIDAttestedNode, node.SpiffeId, err)
 			continue
 		}
 
