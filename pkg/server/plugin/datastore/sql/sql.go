@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -13,7 +14,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
@@ -931,12 +932,16 @@ func listRegistrationEntries(tx *gorm.DB,
 }
 
 // applyPagination  add order limit and token to current query
-func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) *gorm.DB {
+func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error) {
 	if p.Token == "" {
 		p.Token = "0"
 	}
 
-	return entryTx.Order("id asc").Limit(p.PageSize).Where("id > ?", p.Token)
+	id, err := strconv.ParseUint(p.Token, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse token '%v'", p.Token)
+	}
+	return entryTx.Order("id asc").Limit(p.PageSize).Where("id > ?", id), nil
 }
 
 // update pagination token based in last result in returned list
@@ -951,10 +956,15 @@ func updatePaginationToken(p *datastore.Pagination, entries []RegisteredEntry) {
 // find registered entries using pagination in case it is configured
 func findRegisteredEntries(entryTx *gorm.DB, p *datastore.Pagination) ([]RegisteredEntry, *datastore.Pagination, error) {
 	var entries []RegisteredEntry
+	var err error
 
 	// if pagination is not nil and page size is greater than 0, add pagination
 	if p != nil && p.PageSize > 0 {
-		entryTx = applyPagination(p, entryTx)
+		entryTx, err = applyPagination(p, entryTx)
+
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// find by results

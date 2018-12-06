@@ -618,9 +618,18 @@ func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
 				Pagination: test.expectedPagination,
 			}
 			require.Equal(t, expectedResponse, resp)
-			// s.Equal(expectedResponse, resp)
 		})
 	}
+
+	// with invalid token
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "invalid int",
+			PageSize: 10,
+		},
+	})
+	s.Require().Nil(resp)
+	s.Require().Error(err, "could not parse token 'invalid int'")
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntry() {
