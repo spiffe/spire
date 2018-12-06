@@ -89,6 +89,11 @@ func (x *x509Stream) stop() {
 	close(x.stopChan)
 }
 
+// current returns the currently-held SVID, useful for client dialers
+func (x *x509Stream) current() (*workload.X509SVIDResponse, error) {
+	return x.handler.current()
+}
+
 // updateChan returns a channel over which updates will be delivered.
 func (x *x509Stream) updateChan() <-chan *workload.X509SVIDResponse {
 	return x.handler.updateChan()
