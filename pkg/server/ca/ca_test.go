@@ -148,6 +148,18 @@ func (s *CATestSuite) TestSignX509SVIDValidatesCSR() {
 	s.Require().EqualError(err, `"spiffe://foo.com" does not belong to trust domain "example.org"`)
 }
 
+func (s *CATestSuite) TestSignX509SVIDWithEvilSubject() {
+	csr := &x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName: "mybank.example.org",
+		},
+		URIs: []*url.URL{makeSpiffeID("example.org")},
+	}
+	certs, err := s.ca.SignX509SVID(ctx, s.signCSR(csr), 0)
+	s.Require().NoError(err)
+	s.Assert().NotEqual("mybank.example.org", certs[0].Subject.CommonName)
+}
+
 func (s *CATestSuite) TestSignX509SVIDIncrementsSerialNumber() {
 	svid1, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
 	s.Require().NoError(err)
@@ -205,11 +217,16 @@ func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
 }
 
 func (s *CATestSuite) generateCSR(trustDomain string) []byte {
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
+	csr := &x509.CertificateRequest{
 		URIs: []*url.URL{makeSpiffeID(trustDomain)},
-	}, s.signer)
+	}
+	return s.signCSR(csr)
+}
+
+func (s *CATestSuite) signCSR(csr *x509.CertificateRequest) []byte {
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, s.signer)
 	s.Require().NoError(err)
-	return csr
+	return csrBytes
 }
 
 func (s *CATestSuite) generateJSR(trustDomain string, ttl time.Duration) *node.JSR {
