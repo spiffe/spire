@@ -133,8 +133,9 @@ func (c *fetchX509Command) writeCerts(filename string, data []byte) error {
 
 // writeKey takes a private key, formats as PEM, and writes it to filename
 func (c *fetchX509Command) writeKey(filename string, data []byte) error {
+	// key data is PKCS8 encoded
 	b := &pem.Block{
-		Type:  "EC PRIVATE KEY",
+		Type:  "PRIVATE KEY",
 		Bytes: data,
 	}
 
