@@ -292,7 +292,7 @@ func (s *Server) caCertsPath() string {
 func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
 	trustDomain := s.config.TrustDomain.Host
 
-	var token uint32
+	var token string
 	// Repeat until no more results are returned
 	for {
 		fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{

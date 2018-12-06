@@ -483,110 +483,110 @@ func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
 		{
 			name: "pagination_not_null_but_page_size_is_zero",
 			pagination: &datastore.Pagination{
-				Token:    0,
+				Token:    "0",
 				PageSize: 0,
 			},
 			expectedList: []*common.RegistrationEntry{entry2, entry1, entry3},
 			expectedPagination: &datastore.Pagination{
-				Token:    0,
+				Token:    "0",
 				PageSize: 0,
 			},
 		},
 		{
 			name: "get_all_entries_first_page",
 			pagination: &datastore.Pagination{
-				Token:    0,
+				Token:    "0",
 				PageSize: 2,
 			},
 			expectedList: []*common.RegistrationEntry{entry2, entry1},
 			expectedPagination: &datastore.Pagination{
-				Token:    2,
+				Token:    "2",
 				PageSize: 2,
 			},
 		},
 		{
 			name: "get_all_entries_second_page",
 			pagination: &datastore.Pagination{
-				Token:    2,
+				Token:    "2",
 				PageSize: 2,
 			},
 			expectedList: []*common.RegistrationEntry{entry3},
 			expectedPagination: &datastore.Pagination{
-				Token:    3,
+				Token:    "3",
 				PageSize: 2,
 			},
 		},
 		{
 			name: "get_all_entries_third_page_no_results",
 			pagination: &datastore.Pagination{
-				Token:    3,
+				Token:    "3",
 				PageSize: 2,
 			},
 			expectedPagination: &datastore.Pagination{
-				Token:    3,
+				Token:    "3",
 				PageSize: 2,
 			},
 		},
 		{
 			name: "get_entries_by_selector_get_only_page_fist_page",
 			pagination: &datastore.Pagination{
-				Token:    0,
+				Token:    "0",
 				PageSize: 2,
 			},
 			selectors:    selectors,
 			expectedList: []*common.RegistrationEntry{entry1, entry3},
 			expectedPagination: &datastore.Pagination{
-				Token:    3,
+				Token:    "3",
 				PageSize: 2,
 			},
 		},
 		{
 			name: "get_entries_by_selector_get_only_page_second_page_no_results",
 			pagination: &datastore.Pagination{
-				Token:    3,
+				Token:    "3",
 				PageSize: 2,
 			},
 			selectors: selectors,
 			expectedPagination: &datastore.Pagination{
-				Token:    3,
+				Token:    "3",
 				PageSize: 2,
 			},
 		},
 		{
 			name: "get_entries_by_selector_fist_page",
 			pagination: &datastore.Pagination{
-				Token:    0,
+				Token:    "0",
 				PageSize: 1,
 			},
 			selectors:    selectors,
 			expectedList: []*common.RegistrationEntry{entry1},
 			expectedPagination: &datastore.Pagination{
-				Token:    1,
+				Token:    "1",
 				PageSize: 1,
 			},
 		},
 		{
 			name: "get_entries_by_selector_second_page",
 			pagination: &datastore.Pagination{
-				Token:    1,
+				Token:    "1",
 				PageSize: 1,
 			},
 			selectors:    selectors,
 			expectedList: []*common.RegistrationEntry{entry3},
 			expectedPagination: &datastore.Pagination{
-				Token:    3,
+				Token:    "3",
 				PageSize: 1,
 			},
 		},
 		{
 			name: "get_entries_by_selector_third_page_no_results",
 			pagination: &datastore.Pagination{
-				Token:    3,
+				Token:    "3",
 				PageSize: 1,
 			},
 			selectors: selectors,
 			expectedPagination: &datastore.Pagination{
-				Token:    3,
+				Token:    "3",
 				PageSize: 1,
 			},
 		},

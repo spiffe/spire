@@ -1121,7 +1121,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| token | [uint32](#uint32) |  |  |
+| token | [string](#string) |  |  |
 | page_size | [int32](#int32) |  |  |
 
 

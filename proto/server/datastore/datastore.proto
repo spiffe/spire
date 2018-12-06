@@ -190,7 +190,7 @@ message BySelectors {
 }
 
 message Pagination {
-    uint32 token = 1;
+    string token = 1;
     int32 page_size = 2;
 }
 

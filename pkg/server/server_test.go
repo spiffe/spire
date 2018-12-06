@@ -1,15 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"testing"
-
-	"fmt"
-
-	"bytes"
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus"
