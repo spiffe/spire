@@ -481,6 +481,17 @@ func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
 		expectedPagination *datastore.Pagination
 	}{
 		{
+			name: "pagination_without_token",
+			pagination: &datastore.Pagination{
+				PageSize: 2,
+			},
+			expectedList: []*common.RegistrationEntry{entry2, entry1},
+			expectedPagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+		},
+		{
 			name: "pagination_not_null_but_page_size_is_zero",
 			pagination: &datastore.Pagination{
 				Token:    "0",

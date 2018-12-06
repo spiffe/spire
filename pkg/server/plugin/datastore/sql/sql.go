@@ -932,6 +932,10 @@ func listRegistrationEntries(tx *gorm.DB,
 
 // applyPagination  add order limit and token to current query
 func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) *gorm.DB {
+	if p.Token == "" {
+		p.Token = "0"
+	}
+
 	return entryTx.Order("id asc").Limit(p.PageSize).Where("id > ?", p.Token)
 }
 
