@@ -37,7 +37,7 @@ const (
 	invalidSpiffeIDRegistrationEntry = "registration entry with id %v is malformed because invalid SPIFFE ID: %v"
 	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID %v, from attested node: %v"
 
-	pageSize = 10
+	pageSize = 1
 )
 
 type Config struct {
@@ -292,39 +292,34 @@ func (s *Server) caCertsPath() string {
 func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
 	trustDomain := s.config.TrustDomain.Host
 
-	var token string
-	// Repeat until no more results are returned
-	for {
-		fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-			Pagination: &datastore.Pagination{
-				Token:    token,
-				PageSize: pageSize,
-			}})
+	// Get only first page with a single element
+	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: pageSize,
+		}})
 
-		if err != nil {
-			return err
-		}
-
-		// no entries, finish iteration
-		if len(fetchResponse.Entries) == 0 {
-			break
-		}
-
-		for _, entry := range fetchResponse.Entries {
-			id, err := url.Parse(entry.SpiffeId)
-			if err != nil {
-				return fmt.Errorf(invalidSpiffeIDRegistrationEntry, entry.EntryId, err)
-			}
-
-			if id.Host != trustDomain {
-				return fmt.Errorf(invalidTrustDomainRegistrationEntry, id.Host, trustDomain)
-			}
-		}
-
-		token = fetchResponse.Pagination.Token
+	if err != nil {
+		return err
 	}
 
-	nodesResponse, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
+	for _, entry := range fetchResponse.Entries {
+		id, err := url.Parse(entry.SpiffeId)
+		if err != nil {
+			return fmt.Errorf(invalidSpiffeIDRegistrationEntry, entry.EntryId, err)
+		}
+
+		if id.Host != trustDomain {
+			return fmt.Errorf(invalidTrustDomainRegistrationEntry, id.Host, trustDomain)
+		}
+	}
+
+	// Get only first page with a single element
+	nodesResponse, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: pageSize,
+		}})
 	if err != nil {
 		return err
 	}

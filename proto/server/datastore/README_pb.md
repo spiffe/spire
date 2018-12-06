@@ -1017,6 +1017,7 @@ Represents a type with a list of Selector.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | by_expires_before | [.google.protobuf.Int64Value](#spire.server.datastore..google.protobuf.Int64Value) |  |  |
+| pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
 
 
 
@@ -1032,6 +1033,7 @@ Represents a type with a list of Selector.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | nodes | [AttestedNode](#spire.server.datastore.AttestedNode) | repeated |  |
+| pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
 
 
 

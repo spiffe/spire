@@ -647,6 +647,16 @@ func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*d
 }
 
 func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
+	p := req.Pagination
+	var err error
+	if p != nil && p.PageSize > 0 {
+		tx, err = applyPagination(p, tx)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if req.ByExpiresBefore != nil {
 		tx = tx.Where("expires_at < ?", time.Unix(req.ByExpiresBefore.Value, 0))
 	}
@@ -656,8 +666,14 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 		return nil, sqlError.Wrap(err)
 	}
 
+	if p != nil && p.PageSize > 0 && len(models) > 0 {
+		lastEntry := (models)[len(models)-1]
+		p.Token = fmt.Sprint(lastEntry.ID)
+	}
+
 	resp := &datastore.ListAttestedNodesResponse{
-		Nodes: make([]*datastore.AttestedNode, 0, len(models)),
+		Nodes:      make([]*datastore.AttestedNode, 0, len(models)),
+		Pagination: p,
 	}
 
 	for _, model := range models {

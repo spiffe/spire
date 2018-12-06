@@ -133,10 +133,12 @@ message FetchAttestedNodeResponse {
 
 message ListAttestedNodesRequest {
     google.protobuf.Int64Value by_expires_before = 1;
+    Pagination pagination = 2;
 }
 
 message ListAttestedNodesResponse {
     repeated AttestedNode nodes = 1;
+    Pagination pagination = 2;
 }
 
 message UpdateAttestedNodeRequest {
