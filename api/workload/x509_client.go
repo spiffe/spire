@@ -11,6 +11,8 @@ import (
 type X509Client interface {
 	Start() error
 	Stop()
+
+	CurrentSVID() (*workload.X509SVIDResponse, error)
 	UpdateChan() <-chan *workload.X509SVIDResponse
 }
 
@@ -68,6 +70,10 @@ func (x *x509Client) Start() error {
 
 func (x *x509Client) Stop() {
 	close(x.stopChan)
+}
+
+func (x *x509Client) CurrentSVID() (*workload.X509SVIDResponse, error) {
+	return x.stream.current()
 }
 
 func (x *x509Client) UpdateChan() <-chan *workload.X509SVIDResponse {
