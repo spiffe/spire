@@ -216,7 +216,7 @@ The SPIFFE and SPIRE governance policies are detailed in
 # Roadmap
 
 In case you're wondering where this project is headed, here is the SPIRE major feature roadmap:
-- **JWT-SVID:** Support in SPIRE for generating JWT-based SVIDs through the Workload API. Pending finalization of the JWT-SVID specification in [SIG-Spec](https://github.com/spiffe/spiffe/blob/master/community/sig-spec/README.md). Target date: end of July 2018.
-- **Federation:** Support for federating trust domains by joining SPIRE servers together. Pending finalization of the Federation API specification in [SIG-Spec](https://github.com/spiffe/spiffe/blob/master/community/sig-spec/README.md). Target date: end of August 2018.
-- **High Availability:** Support for clustering multiple SPIRE servers together within a single trust domain. Target date: end of October 2018.
-- **Revocation:** Support for revoking X509-SVIDs through the use of CRLs delivered over the Workload API. Target date: end of November 2018.
+- ~~**JWT-SVID:** Support in SPIRE for generating JWT-based SVIDs through the Workload API. Pending finalization of the JWT-SVID specification in [SIG-Spec](https://github.com/spiffe/spiffe/blob/master/community/sig-spec/README.md). Target date: end of July 2018.~~ Done
+- ~~**High Availability:** Support for clustering multiple SPIRE servers together within a single trust domain. Target date: end of October 2018.~~ Done
+- **Federation:** Support for federating trust domains by joining SPIRE servers together. Pending finalization of the Federation API specification in [SIG-Spec](https://github.com/spiffe/spiffe/blob/master/community/sig-spec/README.md). Target date: end of ~~August 2018~~ March 2019. **Update:** Experimental functionality available now based on latest draft spec.
+- **Nested SPIRE:** Support for chaining SPIRE server clusters together. Target date: end of February 2019.
