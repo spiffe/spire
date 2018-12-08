@@ -40,7 +40,7 @@ The SPIRE server comprises five plugin types in addition to some core logic. The
 
 The following table outlines the configuration options for SPIRE server. These may be set in a top-level `server { ... }` section of the configuration file. Most options have a corresponding CLI flag which, if set, takes precedence over values defined in the file.
 
-SPIRE configuration files may be represented in either HCL or JSON. Please see the XXX section for a complete example.
+SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
 
 | Configuration               | Description                                                  | Default                       |
 |:----------------------------|:-------------------------------------------------------------|:------------------------------|
@@ -223,6 +223,49 @@ Bundle data read from stdin or the path is expected to be a JWKS document.
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
 | `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
+
+## Sample configuration file
+
+This section includes a sample configuration file for formatting and syntax reference
+
+```hcl
+server {
+    trust_domain = "example.org"
+
+    bind_address = "0.0.0.0"
+    bind_port = "8081"
+    log_level = "INFO"
+    data_dir = "/opt/spire/.data/"
+    registration_uds_path = "/opt/spire/registration.sock"
+    svid_ttl = "6h"
+    ca_ttl = "72h"
+    ca_subject = {
+        Country = ["US"],
+        Organization = ["SPIRE"],
+        CommonName = "",
+    }
+}
+
+plugins {
+    DataStore "sql" {
+        plugin_data {
+            database_type = "sqlite3"
+            connection_string = "/opt/spire/.data/datastore.sqlite3"
+        }
+    }
+    NodeAttestor "join_token" {
+        plugin_data {}
+    }
+    NodeResolver "noop" {
+        plugin_data {}
+    }
+    KeyManager "disk" {
+        plugin_data {
+            keys_path = "/opt/spire/.data/keys.json"
+        }
+    }
+}
+```
 
 ## Further reading
 
