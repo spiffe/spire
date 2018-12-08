@@ -1,13 +1,46 @@
 # SPIRE Server
 
-SPIRE Server is responsible for validating and signing all CSRs in the SPIFFE trust domain.
-Validation is performed through platform-specific Attestation plugins, as well as policy enforcement
-backed by the SPIRE Server datastore.
+SPIRE server implements a SPIFFE issuing authority, and is responsible for creating and signing all SVIDs in its configured SPIFFE trust domain. Requests for SVIDs are authenticated and authorized using a combination of platform-specific attestation plugins and user-defined policy in the form of "registration entries".
+
+## Architecture
+
+The SPIRE server comprises five plugin types in addition to some core logic. The plugin architecture affords SPIRE a great deal of flexibility, allowing it to be deployed in a myriad of environments and platforms. Plugins may either be built in or executed out-of-process.
+
+![spire agent architecture](images/SPIRE_server.png)
+
+## Plugin types
+
+| Type           | Description |
+|:---------------|:------------|
+| DataStore      | Provides persistent storage and HA features. |
+| KeyManager     | Implements both signing and key storage logic for the server's signing operations. Useful for leveraging hardware-based key operations. |
+| NodeAttestor   | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type. |
+| NodeResolver   | A plugin capable of discovering platform-specific metadata of nodes which have been successfully attested. Discovered metadata is stored as selectors and can be used when creating registration entries. |
+| UpstreamCA     | Allows SPIRE server to integrate with existing PKI systems. |
+
+## Built-in plugins
+
+| Type | Name | Description |
+| ---- | ---- | ----------- |
+| DataStore | [sql](/doc/plugin_server_datastore_sql.md) | An sql database storage for SQLite and PostgreSQL databases for the SPIRE datastore |
+| KeyManager  | [disk](/doc/plugin_server_keymanager_disk.md) | A disk-based key manager for signing SVIDs |
+| KeyManager  | [memory](/doc/plugin_server_keymanager_memory.md) | A key manager for signing SVIDs which only stores keys in memory and does not actually persist them anywhere |
+| NodeAttestor | [join_token](/doc/plugin_server_nodeattestor_jointoken.md) | A node attestor which validates agents attesting with server-generated join tokens |
+| NodeAttestor | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) | A node attestor which attests agent identity using an AWS Instance Identity Document |
+| NodeAttestor | [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) | A node attestor which attests agent identity using an Azure MSI token |
+| NodeAttestor | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md) | A node attestor which attests agent identity using a GCP Instance Identity Token |
+| NodeAttestor | [k8s_sat](/doc/plugin_server_nodeattestor_k8s.md) | A node attestor which attests agent identity using a Kubernetes Service Account token |
+| NodeAttestor | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
+| NodeResolver | [aws_iid](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) node attestor plugin to support selecting nodes based on additional properties (such as Security Group ID). |
+| NodeResolver | [azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
+| NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
+| UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
 
 ## Server configuration file
 
-The following details the configurations for the spire server. The configurations can be set through
-a .conf file or passed as command line args, the command line configurations takes precedence.
+The following table outlines the configuration options for SPIRE server. These may be set in a top-level `server { ... }` section of the configuration file. Most options have a corresponding CLI flag which, if set, takes precedence over values defined in the file.
+
+SPIRE configuration files may be represented in either HCL or JSON. Please see the XXX section for a complete example.
 
 | Configuration               | Description                                                  | Default                       |
 |:----------------------------|:-------------------------------------------------------------|:------------------------------|
@@ -31,8 +64,7 @@ a .conf file or passed as command line args, the command line configurations tak
 
 ## Plugin configuration
 
-The server configuration file also contains the configuration for the server plugins.
-Plugin configurations are under the `plugins { ... }` section, which has the following format:
+The server configuration file also contains a configuration section for the various SPIRE server plugins. Plugin configurations live inside the top-level `plugins { ... }` section, which has the following format:
 
 ```hcl
 plugins {
@@ -59,7 +91,7 @@ Please see the [built-in plugins](#built-in-plugins) section below for informati
 
 ### `spire-server run`
 
-All of the configuration file above options have identical command-line counterparts. In addition, the following flags are available.
+Most of the configuration file above options have identical command-line counterparts. In addition, the following flags are available.
 
 | Command          | Action                      | Default                 |
 |:-----------------|:----------------------------|:------------------------|
@@ -69,11 +101,11 @@ All of the configuration file above options have identical command-line counterp
 
 Generates one node join token and creates a registration entry for it. This token can be used to
 bootstrap one spire-agent installation. The optional `-spiffeID` can be used to give the token a
-human-readable registration entry name in addition to the token-based entry.
+human-readable registration entry name in addition to the token-based ID.
 
 | Command       | Action                                                    | Default        |
 |:--------------|:----------------------------------------------------------|:---------------|
-| `-serverAddr` | Address of the SPIRE server to register with              | localhost:8081 |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-spiffeID`   | Additional SPIFFE ID to assign the token owner (optional) |                |
 | `-ttl`        | Token TTL in seconds                                      | 600            |
 
@@ -85,8 +117,8 @@ Creates registration entries.
 |:-----------------|:-----------------------------------------------------------------------|:---------------|
 | `-data`          | Path to a file containing registration data in JSON format (optional). |                |
 | `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
-| `-serverAddr`    | Address of the SPIRE server.                                           | localhost:8081 |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
 | `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
@@ -100,8 +132,8 @@ Updates registration entries.
 | `-entryID`       | The Registration Entry ID of the record to update                      |                |
 | `-data`          | Path to a file containing registration data in JSON format (optional). |                |
 | `-parentID`      | The SPIFFE ID of this record's parent.                                 |                |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied. | |
-| `-serverAddr`    | Address of the SPIRE server.                                           | localhost:8081 |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | 3600           |
 | `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist | |
@@ -113,7 +145,7 @@ Deletes a specified registration entry.
 | Command       | Action                                             | Default        |
 |:--------------|:---------------------------------------------------|:---------------|
 | `-entryID`    | The Registration Entry ID of the record to delete  |                |
-| `-serverAddr` | Address of the SPIRE server                        | localhost:8081 |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 
 ### `spire-server entry show`
 
@@ -123,17 +155,17 @@ Displays configured registration entries.
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-entryID`    | The Entry ID of the record to show.                                |                |
 | `-parentID`   | The Parent ID of the records to show.                              |                |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 | `-selector`   | A colon-delimeted type:value selector. Can be used more than once to specify multiple selectors. | |
-| `-serverAddr` | Address of the SPIRE server.                                       | localhost:8081 |
 | `-spiffeID`   | The SPIFFE ID of the records to show.                              |                |
 
 ### `spire-server bundle show`
 
 Displays the bundle for the trust domain of the server.
 
-| Command       |
+| Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
-| `-serverAddr` | Address of the SPIRE server.                                       | localhost:8081 |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 
 ### `spire-server bundle list`
 
@@ -142,6 +174,7 @@ Displays bundles from other trust domains.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to show. If unset, all trust bundles are shown | |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 
 ### `spire-server bundle set`
 
@@ -151,6 +184,7 @@ Creates or updates bundle data for a trust domain. This command cannot be used t
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to set. | |
 | `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 
 ### `spire-server bundle delete`
 
@@ -160,6 +194,7 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to delete. | |
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict` |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 
 ### `spire-server experimental bundle show`
 
@@ -167,7 +202,7 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 
 | Command       |
 |:--------------|:-------------------------------------------------------------------|:---------------|
-| `-serverAddr` | Address of the SPIRE server.                                       | localhost:8081 |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 
 ### `spire-server experimental bundle list`
 
@@ -176,6 +211,7 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-id`         | The trust domain SPIFFE ID of the bundle to show. If unset, all trust bundles are shown | |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 
 ### `spire-server experimental bundle set`
 
@@ -186,40 +222,7 @@ Bundle data read from stdin or the path is expected to be a JWKS document.
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. | |
-
-## Architecture
-
-The server consists of a master process (spire-server) and five plugins - the CA, the Upstream CA,
-The Data Store, the Node Attestor, and the Node Resolver. The master process implements the Registration
-API and the Node API, with which agents communicate with the server.
-
-![spire agent architecture](images/SPIRE_server.png)
-
-## Plugin types
-
-| Type           | Description |
-|:---------------|:------------|
-| ServerCA       | Implements both signing and key storage logic for the server's CA operations. Useful for leveraging hardware-based key operations. |
-| DataStore      | Provides persistent storage and HA features. |
-| NodeAttestor   | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type. |
-| NodeResolver   | A plugin capable of discovering platform-specific metadata of nodes which have been successfully attested. Discovered metadata is stored as selectors and can be used when creating registration entries. |
-| UpstreamCA     | Allows SPIRE server to integrate with existing PKI systems. The ServerCA plugin generates CSRs for its signing authority, which are submitted to the upstream CA for signing. |
-
-## Built-in plugins
-
-| Type | Name | Description |
-| ---- | ---- | ----------- |
-| ServerCA  | [memory](/doc/plugin_server_ca_memory.md) | An in-memory CA for signing SVIDs |
-| DataStore | [sql](/doc/plugin_server_datastore_sql.md) | An sql database storage for SQLite and PostgreSQL databases for the SPIRE datastore |
-| NodeAttestor | [join_token](/doc/plugin_server_nodeattestor_jointoken.md) | A node attestor which validates agents attesting with server-generated join tokens |
-| NodeAttestor | [nodeattestor_aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) | A node attestor which validates agents attesting using the [aws_iid](/doc/plugin_agent_nodeattestor_aws_iid.md) node attestor plugin. |
-| NodeResolver | [noderesolver_aws_iid](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) node attestor plugin to support selecting nodes based on additional properties (such as Security Group ID). |
-| NodeAttestor | [nodeattestor_azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) | A node attestor which validates agents attesting using the [azure_msi](/doc/plugin_agent_nodeattestor_azure_msi.md) node attestor plugin. |
-| NodeResolver | [noderesolver_azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [nodeattestor_azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
-| NodeAttestor | [nodeattestor_gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md) | A node attestor which validates agents attesting using the [gcp_iit](/doc/plugin_agent_nodeattestor_gcp_iit.md) node attestor plugin. |
-| NodeAttestor | [nodeattestor_k8s_sat](/doc/plugin_server_nodeattestor_k8s.md) | A node attestor which validates agents using the [k8s_sat](/doc/plugin_agent_nodeattestor_k8s_sat.md) node attestor plugin. |
-| NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
-| UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to generate SPIRE server intermediate certificates for use in the ServerCA plugin |
+| `-registrationUDSPath` | Path to the SPIRE server registration api socket | /tmp/spire-registration.sock |
 
 ## Further reading
 
