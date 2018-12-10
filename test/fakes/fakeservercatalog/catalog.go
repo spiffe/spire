@@ -38,12 +38,12 @@ func (c *Catalog) DataStores() []*catalog.ManagedDataStore {
 	return c.dataStores
 }
 
-func (c *Catalog) SetNodeAttestors(nodeAttestors ...nodeattestor.NodeAttestor) {
+func (c *Catalog) SetNodeAttestors(baseName string, nodeAttestors ...nodeattestor.NodeAttestor) {
 	c.nodeAttestors = nil
 	for i, nodeAttestor := range nodeAttestors {
 		c.nodeAttestors = append(c.nodeAttestors, catalog.NewManagedNodeAttestor(
 			nodeAttestor, common.PluginConfig{
-				PluginName: pluginName("nodeattestor", i),
+				PluginName: pluginName(baseName, i),
 			}))
 	}
 }
@@ -52,12 +52,12 @@ func (c *Catalog) NodeAttestors() []*catalog.ManagedNodeAttestor {
 	return c.nodeAttestors
 }
 
-func (c *Catalog) SetNodeResolvers(nodeResolvers ...noderesolver.NodeResolver) {
+func (c *Catalog) SetNodeResolvers(baseName string, nodeResolvers ...noderesolver.NodeResolver) {
 	c.nodeResolvers = nil
 	for i, nodeResolver := range nodeResolvers {
 		c.nodeResolvers = append(c.nodeResolvers, catalog.NewManagedNodeResolver(
 			nodeResolver, common.PluginConfig{
-				PluginName: pluginName("noderesolver", i),
+				PluginName: pluginName(baseName, i),
 			}))
 	}
 }
