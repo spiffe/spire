@@ -60,7 +60,7 @@ type HandlerTestSuite struct {
 	now              time.Time
 }
 
-func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
+func SetupHandlerTest(t *testing.T, attestorBaseName, resolverBaseName string) *HandlerTestSuite {
 	suite := &HandlerTestSuite{}
 	suite.SetT(t)
 	mockCtrl := gomock.NewController(t)
@@ -76,8 +76,8 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStores(suite.mockDataStore)
-	catalog.SetNodeAttestors(suite.mockNodeAttestor)
-	catalog.SetNodeResolvers(suite.mockNodeResolver)
+	catalog.SetNodeAttestors(attestorBaseName, suite.mockNodeAttestor)
+	catalog.SetNodeResolvers(resolverBaseName, suite.mockNodeResolver)
 
 	suite.handler = NewHandler(HandlerConfig{
 		Log:         log,
@@ -131,7 +131,28 @@ func TestAttestWithNonMatchingNodeResolver(t *testing.T) {
 		SvidUpdate: expected,
 	}).AnyTimes()
 
-	setAttestExpectations(suite, data)
+	setAttestExpectations(suite, data, true)
+	suite.NoError(suite.handler.Attest(stream))
+	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
+}
+
+func TestAttestWithNonMatchingNodeResolver(t *testing.T) {
+	suite := SetupHandlerTest(t, "nodeattestor", "noderesolver")
+	defer suite.ctrl.Finish()
+
+	ctx := peer.NewContext(context.Background(), getFakePeer())
+	data := getAttestTestData()
+
+	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
+	stream.EXPECT().Context().Return(ctx).AnyTimes()
+	stream.EXPECT().Recv().Return(data.request, nil).AnyTimes()
+
+	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
+	stream.EXPECT().Send(&node.AttestResponse{
+		SvidUpdate: expected,
+	}).AnyTimes()
+
+	setAttestExpectations(suite, data, false)
 	suite.NoError(suite.handler.Attest(stream))
 	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
 }
@@ -158,7 +179,7 @@ func TestAttestWithEmptyNodeResolver(t *testing.T) {
 }
 
 func TestAttestChallengeResponse(t *testing.T) {
-	suite := SetupHandlerTest(t)
+	suite := SetupHandlerTest(t, "nodeattestor", "nodeattestor")
 	defer suite.ctrl.Finish()
 
 	data := getAttestTestData()
@@ -166,7 +187,7 @@ func TestAttestChallengeResponse(t *testing.T) {
 		{challenge: "1+1", response: "2"},
 		{challenge: "5+7", response: "12"},
 	}
-	setAttestExpectations(suite, data)
+	setAttestExpectations(suite, data, true)
 
 	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
 
@@ -193,7 +214,7 @@ func TestAttestChallengeResponse(t *testing.T) {
 }
 
 func TestFetchX509SVID(t *testing.T) {
-	suite := SetupHandlerTest(t)
+	suite := SetupHandlerTest(t, "nodeattestor", "noderesolver")
 	defer suite.ctrl.Finish()
 
 	data := getFetchX509SVIDTestData(t)
@@ -212,7 +233,7 @@ func TestFetchX509SVID(t *testing.T) {
 }
 
 func TestFetchX509SVIDWithRotation(t *testing.T) {
-	suite := SetupHandlerTest(t)
+	suite := SetupHandlerTest(t, "nodeattestor", "noderesolver")
 	defer suite.ctrl.Finish()
 
 	data := getFetchX509SVIDTestData(t)
@@ -377,7 +398,7 @@ func getAttestTestData() *fetchBaseSVIDData {
 }
 
 func setAttestExpectations(
-	suite *HandlerTestSuite, data *fetchBaseSVIDData) {
+	suite *HandlerTestSuite, data *fetchBaseSVIDData, matchingNodeResolver bool) {
 
 	stream := mock_nodeattestor.NewMockAttest_Stream(suite.ctrl)
 	stream.EXPECT().Send(&nodeattestor.AttestRequest{
@@ -423,23 +444,26 @@ func setAttestExpectations(
 			}}).
 		Return(nil, nil)
 
-	suite.mockNodeResolver.EXPECT().Resolve(gomock.Any(),
-		&noderesolver.ResolveRequest{
-			BaseSpiffeIdList: []string{data.baseSpiffeID},
-		}).
-		Return(&noderesolver.ResolveResponse{
-			Map: data.selectors,
-		}, nil)
+	var selectors []*common.Selector
+
+	if matchingNodeResolver {
+		suite.mockNodeResolver.EXPECT().Resolve(gomock.Any(),
+			&noderesolver.ResolveRequest{
+				BaseSpiffeIdList: []string{data.baseSpiffeID},
+			}).
+			Return(&noderesolver.ResolveResponse{
+				Map: data.selectors,
+			}, nil)
+
+		selectors = append(selectors, data.selector)
+	}
+	selectors = append(selectors, data.attestResponseSelectors[0], data.attestResponseSelectors[1])
 
 	suite.mockDataStore.EXPECT().SetNodeSelectors(gomock.Any(),
 		&datastore.SetNodeSelectorsRequest{
 			Selectors: &datastore.NodeSelectors{
-				SpiffeId: data.baseSpiffeID,
-				Selectors: []*common.Selector{
-					data.selector,
-					data.attestResponseSelectors[0],
-					data.attestResponseSelectors[1],
-				},
+				SpiffeId:  data.baseSpiffeID,
+				Selectors: selectors,
 			},
 		}).
 		Return(nil, nil)

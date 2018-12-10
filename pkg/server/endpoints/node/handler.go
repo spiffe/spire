@@ -138,7 +138,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return errors.New("Error trying to sign CSR")
 	}
 
-	if err := h.updateNodeSelectors(ctx, baseSpiffeIDFromCSR, attestResponse); err != nil {
+	if err := h.updateNodeSelectors(ctx, baseSpiffeIDFromCSR, attestResponse, request.AttestationData.Type); err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to get selectors for baseSpiffeID")
 	}
@@ -520,25 +520,39 @@ func (h *Handler) createAttestationEntry(ctx context.Context,
 }
 
 func (h *Handler) updateNodeSelectors(ctx context.Context,
-	baseSpiffeID string, attestResponse *nodeattestor.AttestResponse) error {
+	baseSpiffeID string, attestResponse *nodeattestor.AttestResponse, attestationType string) error {
 
-	nodeResolver := h.c.Catalog.NodeResolvers()[0]
-	//Call node resolver plugin to get a map of spiffeID=>Selector
-	response, err := nodeResolver.Resolve(ctx, &noderesolver.ResolveRequest{
-		BaseSpiffeIdList: []string{baseSpiffeID},
-	})
-	if err != nil {
-		return err
+	// Select node resolver based on request attestation type
+	var nodeResolver noderesolver.NodeResolver
+	for _, r := range h.c.Catalog.NodeResolvers() {
+		if r.Config().PluginName == attestationType {
+			nodeResolver = r
+			break
+		}
 	}
 
 	var selectors []*common.Selector
-	if resolved := response.Map[baseSpiffeID]; resolved != nil {
-		selectors = append(selectors, resolved.Entries...)
+	if nodeResolver == nil {
+		// If not matching node resolver found, skip adding additional selectors
+		h.c.Log.Debug("could not find node resolver type %s", attestationType)
+	} else {
+		//Call node resolver plugin to get a map of spiffeID=>Selector
+		response, err := nodeResolver.Resolve(ctx, &noderesolver.ResolveRequest{
+			BaseSpiffeIdList: []string{baseSpiffeID},
+		})
+		if err != nil {
+			return err
+		}
+
+		if resolved := response.Map[baseSpiffeID]; resolved != nil {
+			selectors = append(selectors, resolved.Entries...)
+		}
 	}
+
 	selectors = append(selectors, attestResponse.Selectors...)
 
 	dataStore := h.c.Catalog.DataStores()[0]
-	_, err = dataStore.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
+	_, err := dataStore.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
 			SpiffeId:  baseSpiffeID,
 			Selectors: selectors,
