@@ -21,6 +21,7 @@ func TestUpdateParseConfig(t *testing.T) {
 		Ttl:                 60,
 		Selectors:           StringsFlag{"unix:uid:1000", "unix:gid:1000"},
 		FederatesWith:       StringsFlag{"spiffe://domain1.test", "spiffe://domain2.test"},
+		Admin:               true,
 	}
 
 	entries, err := UpdateCLI{}.parseConfig(c)
@@ -38,6 +39,7 @@ func TestUpdateParseConfig(t *testing.T) {
 			"spiffe://domain1.test",
 			"spiffe://domain2.test",
 		},
+		Admin: true,
 	}
 
 	expectedEntries := []*common.RegistrationEntry{expectedEntry}
@@ -59,6 +61,7 @@ func TestUpdateParseFile(t *testing.T) {
 		SpiffeId: "spiffe://example.org/Blog",
 		ParentId: "spiffe://example.org/spire/agent/join_token/TokenBlog",
 		Ttl:      200,
+		Admin:    true,
 	}
 	entry2 := &common.RegistrationEntry{
 		Selectors: []*common.Selector{

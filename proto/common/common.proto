@@ -47,6 +47,10 @@ message RegistrationEntry {
     repeated string federates_with = 5;
     /** Entry ID */
     string entry_id = 6;
+    /** Whether or not the workload is an admin workload. Admin workloads
+    can use their SVID's to authenticate with the Registration API, for
+    example. */
+    bool admin = 7;
 }
 
 /** A list of registration entries. */

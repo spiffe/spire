@@ -1288,7 +1288,11 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Len(bundlesResp.Bundles[0].RootCas, 3)
 			s.Require().Equal("spiffe://otherdomain.test", bundlesResp.Bundles[1].TrustDomainId)
 			s.Require().Len(bundlesResp.Bundles[1].RootCas, 1)
-
+		case 4:
+			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().False(resp.Entries[0].Admin)
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}

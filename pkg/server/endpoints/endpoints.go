@@ -55,7 +55,7 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	hs := e.createUDSServer(ctx)
 
 	e.registerNodeAPI(gs)
-	e.registerRegistrationAPI(hs)
+	e.registerRegistrationAPI(gs, hs)
 
 	err := util.RunTasks(ctx,
 		func(ctx context.Context) error {
@@ -77,8 +77,7 @@ func (e *endpoints) createGRPCServer(ctx context.Context) *grpc.Server {
 		GetConfigForClient: e.getGRPCServerConfig(ctx),
 	}
 
-	opts := grpc.Creds(credentials.NewTLS(tlsConfig))
-	return grpc.NewServer(opts)
+	return grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 }
 
 func (e *endpoints) createUDSServer(ctx context.Context) *grpc.Server {
@@ -100,7 +99,7 @@ func (e *endpoints) registerNodeAPI(gs *grpc.Server) {
 
 // registerRegistrationAPI creates a Registration API handler and registers
 // it against the provided gRPC.
-func (e *endpoints) registerRegistrationAPI(hs *grpc.Server) {
+func (e *endpoints) registerRegistrationAPI(gs, hs *grpc.Server) {
 	r := &registration.Handler{
 		Log:         e.c.Log.WithField("subsystem_name", "registration_api"),
 		Metrics:     e.c.Metrics,
@@ -108,6 +107,7 @@ func (e *endpoints) registerRegistrationAPI(hs *grpc.Server) {
 		TrustDomain: e.c.TrustDomain,
 	}
 
+	registration_pb.RegisterRegistrationServer(gs, r)
 	registration_pb.RegisterRegistrationServer(hs, r)
 }
 

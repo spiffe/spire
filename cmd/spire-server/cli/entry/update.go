@@ -36,6 +36,9 @@ type UpdateConfig struct {
 
 	// List of SPIFFE IDs of trust domains the registration entry is federated with
 	FederatesWith StringsFlag
+
+	// Whether or not the registration entry is for an "admin" workload
+	Admin bool
 }
 
 // Perform basic validation, even on fields that we
@@ -161,6 +164,7 @@ func (c UpdateCLI) parseConfig(config *UpdateConfig) ([]*common.RegistrationEntr
 
 	e.Selectors = selectors
 	e.FederatesWith = config.FederatesWith
+	e.Admin = config.Admin
 	return []*common.RegistrationEntry{e}, nil
 }
 
@@ -209,6 +213,8 @@ func (UpdateCLI) newConfig(args []string) (*UpdateConfig, error) {
 
 	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
 	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
+
+	f.BoolVar(&c.Admin, "admin", false, "If true, the entry is for an admin workload")
 
 	return c, f.Parse(args)
 }

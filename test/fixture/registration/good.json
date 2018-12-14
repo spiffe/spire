@@ -9,7 +9,8 @@
             ],
             "spiffe_id": "spiffe://example.org/Blog",
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
-            "ttl": 200
+            "ttl": 200,
+            "admin": true
         },
         {
             "selectors": [
