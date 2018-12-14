@@ -1,10 +1,12 @@
 package fakeregistrationclient
 
 import (
+	"context"
 	"net"
 	"testing"
 	"time"
 
+	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ep_registration "github.com/spiffe/spire/pkg/server/endpoints/registration"
@@ -14,6 +16,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 type Client struct {
@@ -36,7 +39,7 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 	require.NoError(t, err)
 
 	c := &Client{
-		server:      grpc.NewServer(),
+		server:      grpc.NewServer(grpc.Creds(fakeTransportCreds{})),
 		nowFn:       nowFn,
 		trustDomain: trustDomain,
 	}
@@ -65,4 +68,28 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 
 func (c *Client) Close() {
 	c.server.Stop()
+}
+
+// fakeTransportCreds is simply used to supply "unix domain socket" auth info
+// to the registration handler.
+type fakeTransportCreds struct{}
+
+func (fakeTransportCreds) ClientHandshake(_ context.Context, _ string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+	return conn, nil, nil
+}
+
+func (fakeTransportCreds) ServerHandshake(conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+	return conn, auth.CallerInfo{}, nil
+}
+
+func (fakeTransportCreds) Info() credentials.ProtocolInfo {
+	return credentials.ProtocolInfo{}
+}
+
+func (fakeTransportCreds) Clone() credentials.TransportCredentials {
+	return fakeTransportCreds{}
+}
+
+func (fakeTransportCreds) OverrideServerName(string) error {
+	return nil
 }

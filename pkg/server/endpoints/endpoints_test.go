@@ -84,7 +84,7 @@ func (s *EndpointsTestSuite) TestRegisterNodeAPI() {
 }
 
 func (s *EndpointsTestSuite) TestRegisterRegistrationAPI() {
-	s.Assert().NotPanics(func() { s.e.registerRegistrationAPI(s.e.createUDSServer(ctx)) })
+	s.Assert().NotPanics(func() { s.e.registerRegistrationAPI(s.e.createGRPCServer(ctx), s.e.createUDSServer(ctx)) })
 }
 
 func (s *EndpointsTestSuite) TestListenAndServe() {
