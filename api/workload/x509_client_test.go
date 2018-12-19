@@ -35,6 +35,12 @@ func TestClient_StartAndStop(t *testing.T) {
 	}
 	c := NewX509Client(config)
 
+	// Current should return an error if there isn't an SVID yet
+	_, err := c.CurrentSVID()
+	if err == nil {
+		t.Error("wanted error, got nil")
+	}
+
 	// Test single update and clean shutdown
 	handler.setDelay(10 * time.Second)
 	errChan := make(chan error)
@@ -88,6 +94,15 @@ func TestClient_StartAndStop(t *testing.T) {
 		if !reflect.DeepEqual(u, handler.resp1()) {
 			t.Errorf("want %v; got %v", handler.resp1(), u)
 		}
+	}
+
+	// Current should always return the latest SVID
+	curr, err := c.CurrentSVID()
+	if err != nil {
+		t.Errorf("got error %v", err)
+	}
+	if !reflect.DeepEqual(curr, handler.resp1()) {
+		t.Errorf("want %v; got %v", handler.resp1(), curr)
 	}
 
 	c.Stop()

@@ -1,6 +1,7 @@
 package workload
 
 import (
+	"errors"
 	"reflect"
 	"sync"
 
@@ -57,6 +58,17 @@ func (x *x509Handler) update(u *workload.X509SVIDResponse) {
 	default:
 		break
 	}
+}
+
+func (x *x509Handler) current() (*workload.X509SVIDResponse, error) {
+	x.mtx.RLock()
+	defer x.mtx.RUnlock()
+
+	if x.latest == nil {
+		return nil, errors.New("no SVID received yet")
+	}
+
+	return x.latest, nil
 }
 
 // updateChan returns a channel on which a client will receive X509-SVID updates
