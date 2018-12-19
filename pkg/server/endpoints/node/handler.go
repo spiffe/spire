@@ -512,7 +512,7 @@ func (h *Handler) updateNodeSelectors(ctx context.Context,
 	var selectors []*common.Selector
 	if nodeResolver == nil {
 		// If not matching node resolver found, skip adding additional selectors
-		h.c.Log.Debug("could not find node resolver type %s", attestationType)
+		h.c.Log.Debug("could not find node resolver type %q", attestationType)
 	} else {
 		//Call node resolver plugin to get a map of spiffeID=>Selector
 		response, err := nodeResolver.Resolve(ctx, &noderesolver.ResolveRequest{
