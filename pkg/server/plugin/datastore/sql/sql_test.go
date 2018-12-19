@@ -244,6 +244,188 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 	s.Equal([]*datastore.AttestedNode{epast}, sresp.Nodes)
 }
 
+func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
+	// Create all necessary nodes
+	aNode1 := &datastore.AttestedNode{
+		SpiffeId:            "node1",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+	}
+
+	aNode2 := &datastore.AttestedNode{
+		SpiffeId:            "node2",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "deadbeef",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	}
+
+	aNode3 := &datastore.AttestedNode{
+		SpiffeId:            "node3",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+	}
+
+	aNode4 := &datastore.AttestedNode{
+		SpiffeId:            "node4",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+	}
+
+	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode1})
+	s.Require().NoError(err)
+
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode2})
+	s.Require().NoError(err)
+
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode3})
+	s.Require().NoError(err)
+
+	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode4})
+	s.Require().NoError(err)
+
+	tests := []struct {
+		name               string
+		pagination         *datastore.Pagination
+		byExpiresBefore    *wrappers.Int64Value
+		expectedList       []*datastore.AttestedNode
+		expectedPagination *datastore.Pagination
+	}{
+		{
+			name: "pagination_without_token",
+			pagination: &datastore.Pagination{
+				PageSize: 2,
+			},
+			expectedList: []*datastore.AttestedNode{aNode1, aNode2},
+			expectedPagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "pagination_not_null_but_page_size_is_zero",
+			pagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 0,
+			},
+			expectedList: []*datastore.AttestedNode{aNode1, aNode2, aNode3, aNode4},
+			expectedPagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 0,
+			},
+		},
+		{
+			name: "get_all_nodes_first_page",
+			pagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 2,
+			},
+			expectedList: []*datastore.AttestedNode{aNode1, aNode2},
+			expectedPagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_all_nodes_second_page",
+			pagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+			expectedList: []*datastore.AttestedNode{aNode3, aNode4},
+			expectedPagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+		},
+		{
+			name:         "get_all_nodes_third_page_no_results",
+			expectedList: []*datastore.AttestedNode{},
+			pagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_nodes_by_expire_before_get_only_page_fist_page",
+			pagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 2,
+			},
+			byExpiresBefore: &wrappers.Int64Value{
+				Value: time.Now().Unix(),
+			},
+			expectedList: []*datastore.AttestedNode{aNode1, aNode3},
+			expectedPagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_nodes_by_expire_before_get_only_page_second_page",
+			pagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 2,
+			},
+			byExpiresBefore: &wrappers.Int64Value{
+				Value: time.Now().Unix(),
+			},
+			expectedList: []*datastore.AttestedNode{aNode4},
+			expectedPagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_nodes_by_expire_before_get_only_page_third_page_no_resultds",
+			pagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+			byExpiresBefore: &wrappers.Int64Value{
+				Value: time.Now().Unix(),
+			},
+			expectedList: []*datastore.AttestedNode{},
+			expectedPagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+		},
+	}
+	for _, test := range tests {
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
+				ByExpiresBefore: test.byExpiresBefore,
+				Pagination:      test.pagination,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			expectedResponse := &datastore.ListAttestedNodesResponse{
+				Nodes:      test.expectedList,
+				Pagination: test.expectedPagination,
+			}
+			require.Equal(t, expectedResponse, resp)
+		})
+	}
+
+	// with invalid token
+	resp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "invalid int",
+			PageSize: 10,
+		},
+	})
+	s.Require().Nil(resp)
+	s.Require().Error(err, "could not parse token 'invalid int'")
+}
+
 func (s *PluginSuite) TestUpdateAttestedNode() {
 	node := &datastore.AttestedNode{
 		SpiffeId:            "foo",
@@ -431,6 +613,205 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		Entries: []*common.RegistrationEntry{entry2, entry1},
 	}
 	s.Equal(expectedResponse, resp)
+}
+
+func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type2", Value: "Value2"},
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId: "spiffe://example.org/foo",
+		ParentId: "spiffe://example.org/bar",
+		Ttl:      1,
+	})
+
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type3", Value: "Value3"},
+			{Type: "Type4", Value: "Value4"},
+			{Type: "Type5", Value: "Value5"},
+		},
+		SpiffeId: "spiffe://example.org/baz",
+		ParentId: "spiffe://example.org/bat",
+		Ttl:      2,
+	})
+
+	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type2", Value: "Value2"},
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId: "spiffe://example.org/tez",
+		ParentId: "spiffe://example.org/taz",
+		Ttl:      2,
+	})
+
+	selectors := []*common.Selector{
+		{Type: "Type1", Value: "Value1"},
+		{Type: "Type2", Value: "Value2"},
+		{Type: "Type3", Value: "Value3"},
+	}
+
+	tests := []struct {
+		name               string
+		pagination         *datastore.Pagination
+		selectors          []*common.Selector
+		expectedList       []*common.RegistrationEntry
+		expectedPagination *datastore.Pagination
+	}{
+		{
+			name: "pagination_without_token",
+			pagination: &datastore.Pagination{
+				PageSize: 2,
+			},
+			expectedList: []*common.RegistrationEntry{entry2, entry1},
+			expectedPagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "pagination_not_null_but_page_size_is_zero",
+			pagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 0,
+			},
+			expectedList: []*common.RegistrationEntry{entry2, entry1, entry3},
+			expectedPagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 0,
+			},
+		},
+		{
+			name: "get_all_entries_first_page",
+			pagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 2,
+			},
+			expectedList: []*common.RegistrationEntry{entry2, entry1},
+			expectedPagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_all_entries_second_page",
+			pagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+			expectedList: []*common.RegistrationEntry{entry3},
+			expectedPagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_all_entries_third_page_no_results",
+			pagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_entries_by_selector_get_only_page_fist_page",
+			pagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 2,
+			},
+			selectors:    selectors,
+			expectedList: []*common.RegistrationEntry{entry1, entry3},
+			expectedPagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_entries_by_selector_get_only_page_second_page_no_results",
+			pagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 2,
+			},
+			selectors: selectors,
+			expectedPagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_entries_by_selector_fist_page",
+			pagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 1,
+			},
+			selectors:    selectors,
+			expectedList: []*common.RegistrationEntry{entry1},
+			expectedPagination: &datastore.Pagination{
+				Token:    "1",
+				PageSize: 1,
+			},
+		},
+		{
+			name: "get_entries_by_selector_second_page",
+			pagination: &datastore.Pagination{
+				Token:    "1",
+				PageSize: 1,
+			},
+			selectors:    selectors,
+			expectedList: []*common.RegistrationEntry{entry3},
+			expectedPagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 1,
+			},
+		},
+		{
+			name: "get_entries_by_selector_third_page_no_results",
+			pagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 1,
+			},
+			selectors: selectors,
+			expectedPagination: &datastore.Pagination{
+				Token:    "3",
+				PageSize: 1,
+			},
+		},
+	}
+	for _, test := range tests {
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				BySelectors: &datastore.BySelectors{
+					Selectors: test.selectors,
+				},
+				Pagination: test.pagination,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			expectedResponse := &datastore.ListRegistrationEntriesResponse{
+				Entries:    test.expectedList,
+				Pagination: test.expectedPagination,
+			}
+			require.Equal(t, expectedResponse, resp)
+		})
+	}
+
+	// with invalid token
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "invalid int",
+			PageSize: 10,
+		},
+	})
+	s.Require().Nil(resp)
+	s.Require().Error(err, "could not parse token 'invalid int'")
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntry() {
