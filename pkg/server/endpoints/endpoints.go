@@ -200,7 +200,7 @@ func (e *endpoints) getGRPCServerConfig(ctx context.Context) func(*tls.ClientHel
 			// an SVID. In order to include the bootstrap endpoint
 			// in the same server as the rest of the Node API,
 			// request but don't require a client certificate
-			ClientAuth: tls.RequestClientCert,
+			ClientAuth: tls.VerifyClientCertIfGiven,
 
 			Certificates: certs,
 			ClientCAs:    roots,
