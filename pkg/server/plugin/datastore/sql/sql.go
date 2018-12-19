@@ -667,7 +667,7 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 	}
 
 	if p != nil && p.PageSize > 0 && len(models) > 0 {
-		lastEntry := (models)[len(models)-1]
+		lastEntry := models[len(models)-1]
 		p.Token = fmt.Sprint(lastEntry.ID)
 	}
 
