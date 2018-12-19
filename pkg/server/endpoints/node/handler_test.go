@@ -27,11 +27,11 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
-	"github.com/spiffe/spire/test/mock/proto/api/node"
-	"github.com/spiffe/spire/test/mock/proto/server/datastore"
-	"github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
-	"github.com/spiffe/spire/test/mock/proto/server/noderesolver"
-	"github.com/spiffe/spire/test/mock/server/ca"
+	mock_node "github.com/spiffe/spire/test/mock/proto/api/node"
+	mock_datastore "github.com/spiffe/spire/test/mock/proto/server/datastore"
+	mock_nodeattestor "github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
+	mock_noderesolver "github.com/spiffe/spire/test/mock/proto/server/noderesolver"
+	mock_ca "github.com/spiffe/spire/test/mock/server/ca"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -732,7 +732,7 @@ func getFakePeer() *peer.Peer {
 	parsedCert := loadCertFromPEM("base_cert.pem")
 
 	state := tls.ConnectionState{
-		PeerCertificates: []*x509.Certificate{parsedCert},
+		VerifiedChains: [][]*x509.Certificate{{parsedCert}},
 	}
 
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:12345")

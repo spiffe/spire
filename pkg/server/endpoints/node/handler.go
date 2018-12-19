@@ -570,11 +570,17 @@ func (h *Handler) getCertFromCtx(ctx context.Context) (certificate *x509.Certifi
 		return nil, errors.New("It was not posible to extract AuthInfo from request")
 	}
 
-	if len(tlsInfo.State.PeerCertificates) == 0 {
-		return nil, errors.New("PeerCertificates was empty")
+	if len(tlsInfo.State.VerifiedChains) == 0 {
+		return nil, errors.New("VerifiedChains was empty")
+	}
+	chain := tlsInfo.State.VerifiedChains[0]
+	if len(chain) == 0 {
+		// this shouldn't be possible with the tls package, but we should be
+		// defensive.
+		return nil, errors.New("VerifiedChain was empty")
 	}
 
-	return tlsInfo.State.PeerCertificates[0], nil
+	return chain[0], nil
 }
 
 func (h *Handler) signCSRs(ctx context.Context,

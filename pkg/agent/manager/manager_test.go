@@ -679,9 +679,6 @@ func TestFetchJWTSVID(t *testing.T) {
 	}
 	defer l.Close()
 
-	ca, cakey := createCA(t, trustDomain)
-	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
-
 	fetchResp := &node.FetchJWTSVIDResponse{}
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
@@ -693,6 +690,9 @@ func TestFetchJWTSVID(t *testing.T) {
 		},
 		svidTTL: 200,
 	})
+
+	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+
 	apiHandler.start()
 	defer apiHandler.stop()
 
@@ -1097,7 +1097,7 @@ func (h *mockNodeAPIHandler) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*t
 	roots.AddCert(h.ca())
 
 	c := &tls.Config{
-		ClientAuth:   tls.RequestClientCert,
+		ClientAuth:   tls.VerifyClientCertIfGiven,
 		Certificates: certs,
 		ClientCAs:    roots,
 	}
@@ -1116,11 +1116,18 @@ func (h *mockNodeAPIHandler) getCertFromCtx(ctx context.Context) (certificate *x
 		return nil, errors.New("It was not posible to extract AuthInfo from request")
 	}
 
-	if len(tlsInfo.State.PeerCertificates) == 0 {
-		return nil, errors.New("PeerCertificates was empty")
+	if len(tlsInfo.State.VerifiedChains) == 0 {
+		return nil, errors.New("VerifiedChains was empty")
 	}
 
-	return tlsInfo.State.PeerCertificates[0], nil
+	chain := tlsInfo.State.VerifiedChains[0]
+	if len(chain) == 0 {
+		// this shouldn't be possible with the tls package, but we should be
+		// defensive.
+		return nil, errors.New("VerifiedChain was empty")
+	}
+
+	return chain[0], nil
 }
 
 func createTempDir(t *testing.T) string {

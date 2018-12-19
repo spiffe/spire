@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/imkira/go-observer"
+	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -152,7 +152,7 @@ func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
 	tlsConfig, err := s.e.getGRPCServerConfig(ctx)(nil)
 	require.NoError(s.T(), err)
 
-	s.Assert().Equal(tls.RequestClientCert, tlsConfig.ClientAuth)
+	s.Assert().Equal(tls.VerifyClientCertIfGiven, tlsConfig.ClientAuth)
 	s.Assert().Equal(certs, tlsConfig.Certificates)
 	s.Assert().Equal(pool, tlsConfig.ClientCAs)
 }
