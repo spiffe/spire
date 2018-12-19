@@ -1,11 +1,42 @@
 # SPIRE Agent
 
-SPIRE Agent runs on every node and is responsible for requesting certificates from the spire server,
-attesting the validity of local workloads, and providing them SVIDs.
+SPIRE agent runs on every node and is responsible for requesting SVIDs from the SPIRE server,
+attesting the identity of local workloads, and providing them SVIDs via the workload API.
+
+## Architecture
+
+The SPIRE agent comprises three plugin types in addition to some core logic. The plugin architecture affords SPIRE a great deal of flexibility, allowing it to be deployed in a myriad of environments and platforms. Plugins may either be built in or executed out-of-process.
+
+![spire agent architecture](images/SPIRE_agent.png)
+
+## Plugin types
+
+| Type             | Description |
+| ---------------- | ----------- |
+| KeyManager       | Generates and stores the agent's private key. Useful for binding keys to hardware, etc. |
+| NodeAttestor     | Gathers information used to attest the agent's identity to the server. Generally paired with a server plugin of the same type. |
+| WorkloadAttestor | Introspects a workload to determine its properties, generating a set of selectors associated with it. |
+
+## Built-in plugins
+
+| Type             | Name | Description |
+| ---------------- | ---- | ----------- |
+| KeyManager       | [disk](/doc/plugin_agent_keymanager_disk.md) | A key manager which writes the private key to disk |
+| KeyManager       | [memory](/doc/plugin_agent_keymanager_memory.md) | An in-memory key manager which does not persist private keys (must re-attest after restarts) |
+| NodeAttestor     | [aws_iid](/doc/plugin_agent_nodeattestor_aws_iid.md) | A node attestor which attests agent identity using an AWS Instance Identity Document |
+| NodeAttestor     | [azure_msi](/doc/plugin_agent_nodeattestor_azure_msi.md) | A node attestor which attests agent identity using an Azure MSI token |
+| NodeAttestor     | [gcp_iit](/doc/plugin_agent_nodeattestor_gcp_iit.md) | A node attestor which attests agent identity using a GCP Instance Identity Token |
+| NodeAttestor     | [join_token](/doc/plugin_agent_nodeattestor_jointoken.md) | A node attestor which uses a server-generated join token |
+| NodeAttestor     | [k8s_sat](/doc/plugin_agent_nodeattestor_k8s_sat.md) | A node attestor which attests agent identity using a Kubernetes Service Account token |
+| NodeAttestor     | [x509_pop](/doc/plugin_agent_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
+| WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md) | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)|
+| WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md) | A workload attestor which generates unix-based selectors like `uid` and `gid` |
 
 ## Agent configuration file
 
-The following details the configurations for the spire agent. Agent specific configuration options are described under `agent { ... }`. The agent configurations can be set through .conf file or passed as command line args, the command line configurations takes precedence.
+The following table outlines the configuration options for SPIRE agent. These may be set in a top-level `agent { ... }` section of the configuration file. Most options have a corresponding CLI flag which, if set, takes precedence over values defined in the file.
+
+SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
 
 | Configuration      | Description                                                      | Default             |
 | ------------------ | --------------------------------------------------------------- | -------------------- |
@@ -43,7 +74,7 @@ The following configuration options are available to configure a plugin:
 | enabled         | Enable or disable the plugin (enabled by default)            |
 | plugin_data     | Plugin-specific data                     |
 
-Please see the [built-in plugins](#built-in-plugins) section below for information on plugins that are available out-of-the-box.
+Please see the [built-in plugins](#built-in-plugins) section for information on plugins that are available out-of-the-box.
 
 ## Command line options
 
@@ -54,38 +85,83 @@ the following flags are available:
 
 | Command          | Action                      | Default                 |
 | ---------------- | --------------------------- | ----------------------- |
-| `-config string` | Path to a SPIRE config file | conf/server/server.conf |
+| `-config` | Path to a SPIRE config file | conf/server/server.conf |
 
-## Architecture
+### `spire-agent api fetch`
 
-The agent consists of a master process (spire-agent) and three plugins - the Node Attestor, the
-Workload Attestor and the Key Manager. The master process implements the Workload API and
-communicates with spire-server via the Node API.
+Calls the workload API to fetch an X509-SVID. This command is aliased to `spire-agent api fetch x509`.
 
-![spire agent architecture](images/SPIRE_agent.png)
+| Command          | Action                      | Default                 |
+| ---------------- | --------------------------- | ----------------------- |
+| `-silent` | Suppress stdout | |
+| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-write` | Write SVID data to the specified path | |
 
-## Plugin types
+### `spire-agent api watch`
 
-| Type             | Description |
-| ---------------- | ----------- |
-| KeyManager       | Generates and stores the agent's private key. Useful for binding keys to hardware, etc. |
-| NodeAttestor     | Gathers information used to attest the agent's identity to the server. Generally paired with a server plugin of the same type. |
-| WorkloadAttestor | Introspects a workload to determine its properties, generating a set of selectors associated with it. |
+Attaches to the workload API and watches for X509-SVID updates, printing details when updates are received.
 
-## Built-in plugins
+| Command          | Action                      | Default                 |
+| ---------------- | --------------------------- | ----------------------- |
+| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
 
-| Type             | Name | Description |
-| ---------------- | ---- | ----------- |
-| KeyManager       | [memory](/doc/plugin_agent_keymanager_memory.md) | An in-memory key manager which does not persist private keys (must re-attest after restarts) |
-| KeyManager       | [disk](/doc/plugin_agent_keymanager_disk.md) | A key manager which writes the private key to disk |
-| NodeAttestor     | [join_token](/doc/plugin_agent_nodeattestor_jointoken.md) | A node attestor which uses a server-generated join token |
-| NodeAttestor     | [x509_pop](/doc/plugin_agent_nodeattestor_x509pop.md) | A node attestor which uses a pre-existing x.509 certificate and key |
-| NodeAttestor     | [aws_iid](/doc/plugin_agent_nodeattestor_aws_iid.md) | An AWS IID attestor that automatically attests EC2 instances using the AWS Instance Metadata API and the AWS Instance Identity document. |
-| NodeAttestor     | [azure_msi](/doc/plugin_agent_nodeattestor_azure_msi.md) | An Azure Node attestor that automatically attests Azure VMs using a signed Managed Service Identity (MSI) token. |
-| NodeAttestor     | [gcp_iit](/doc/plugin_agent_nodeattestor_gcp_iit.md) | An Google Compute Engine Node attestor that automatically attests GCE instances using a signed token from Google retrieved via the Compute Engine Metadata API. |
-| NodeAttestor     | [k8s_sat](/doc/plugin_agent_nodeattestor_k8s_sat.md) | A node attestor which attests agents using service account tokens inside of Kubernetes |
-| WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md) | A workload attestor which generates unix-based selectors like `uid` and `gid` |
-| WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md) | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)|
+### `spire-agent api fetch jwt`
+
+Calls the workload API to fetch a JWT-SVID.
+
+| Command          | Action                      | Default                 |
+| ---------------- | --------------------------- | ----------------------- |
+| `-audience` | A comma separated list of audience values | |
+| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-spiffeID` | The SPIFFE ID of the JWT being requested (optional) | |
+
+### `spire-agent api validate jwt`
+
+Calls the workload API to validate the supplied JWT-SVID.
+
+| Command          | Action                      | Default                 |
+| ---------------- | --------------------------- | ----------------------- |
+| `-audience` | A comma separated list of audience values | |
+| `-socketPath` | Path to the workload API socket | /tmp/agent.sock |
+| `-svid` | The JWT-SVID to be validated | |
+
+## Sample configuration file
+
+This section includes a sample configuration file for formatting and syntax reference
+
+```hcl
+agent {
+    trust_domain = "example.org"
+    trust_bundle_path = "/opt/spire/conf/initial_bundle.crt"
+
+    data_dir = "/opt/spire/.data"
+    log_level = "DEBUG"
+    server_address = "spire-server"
+    server_port = "8081"
+    socket_path ="/tmp/agent.sock"
+}
+
+plugins {
+    NodeAttestor "join_token" {
+        plugin_data {
+        }
+    }
+    KeyManager "disk" {
+        plugin_data {
+            directory = "/opt/spire/.data"
+        }
+    }
+    WorkloadAttestor "k8s" {
+        plugin_data {
+            kubelet_read_only_port = "10255"
+        }
+    }
+    WorkloadAttestor "unix" {
+        plugin_data {
+        }
+    }
+}
+```
 
 ## Further reading
 
