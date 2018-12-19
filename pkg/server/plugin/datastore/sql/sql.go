@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -13,7 +14,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
@@ -646,6 +647,16 @@ func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*d
 }
 
 func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
+	p := req.Pagination
+	var err error
+	if p != nil && p.PageSize > 0 {
+		tx, err = applyPagination(p, tx)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if req.ByExpiresBefore != nil {
 		tx = tx.Where("expires_at < ?", time.Unix(req.ByExpiresBefore.Value, 0))
 	}
@@ -655,8 +666,14 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 		return nil, sqlError.Wrap(err)
 	}
 
+	if p != nil && p.PageSize > 0 && len(models) > 0 {
+		lastEntry := models[len(models)-1]
+		p.Token = fmt.Sprint(lastEntry.ID)
+	}
+
 	resp := &datastore.ListAttestedNodesResponse{
-		Nodes: make([]*datastore.AttestedNode, 0, len(models)),
+		Nodes:      make([]*datastore.AttestedNode, 0, len(models)),
+		Pagination: p,
 	}
 
 	for _, model := range models {
@@ -822,6 +839,8 @@ func fetchRegistrationEntry(tx *gorm.DB,
 
 func listRegistrationEntries(tx *gorm.DB,
 	req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+	var p *datastore.Pagination
+	var err error
 
 	// list of selector sets to match against
 	var selectorsList [][]*common.Selector
@@ -851,7 +870,8 @@ func listRegistrationEntries(tx *gorm.DB,
 	if len(selectorsList) == 0 {
 		// no selectors to filter against.
 		var entries []RegisteredEntry
-		if err := entryTx.Find(&entries).Error; err != nil {
+		entries, p, err = findRegisteredEntries(entryTx, req.Pagination)
+		if err != nil {
 			return nil, sqlError.Wrap(err)
 		}
 
@@ -861,7 +881,8 @@ func listRegistrationEntries(tx *gorm.DB,
 		}
 
 		return &datastore.ListRegistrationEntriesResponse{
-			Entries: respEntries,
+			Entries:    respEntries,
+			Pagination: p,
 		}, nil
 	}
 
@@ -892,9 +913,11 @@ func listRegistrationEntries(tx *gorm.DB,
 
 		// fetch the entries in the id set, filtered by any parent/spiffe id filters
 		// applied globally
+		db := entryTx.Where(entryIDs)
 		var models []RegisteredEntry
-		if err := entryTx.Where(entryIDs).Find(&models).Error; err != nil {
-			return nil, sqlError.Wrap(err)
+		models, p, err = findRegisteredEntries(db, req.Pagination)
+		if err != nil {
+			return nil, err
 		}
 
 		for _, model := range models {
@@ -919,8 +942,57 @@ func listRegistrationEntries(tx *gorm.DB,
 	}
 
 	return &datastore.ListRegistrationEntriesResponse{
-		Entries: entries,
+		Entries:    entries,
+		Pagination: p,
 	}, nil
+}
+
+// applyPagination  add order limit and token to current query
+func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error) {
+	if p.Token == "" {
+		p.Token = "0"
+	}
+
+	id, err := strconv.ParseUint(p.Token, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse token '%v'", p.Token)
+	}
+	return entryTx.Order("id asc").Limit(p.PageSize).Where("id > ?", id), nil
+}
+
+// update pagination token based in last result in returned list
+func updatePaginationToken(p *datastore.Pagination, entries []RegisteredEntry) {
+	if len(entries) == 0 {
+		return
+	}
+	lastEntry := (entries)[len(entries)-1]
+	p.Token = fmt.Sprint(lastEntry.ID)
+}
+
+// find registered entries using pagination in case it is configured
+func findRegisteredEntries(entryTx *gorm.DB, p *datastore.Pagination) ([]RegisteredEntry, *datastore.Pagination, error) {
+	var entries []RegisteredEntry
+	var err error
+
+	// if pagination is not nil and page size is greater than 0, add pagination
+	if p != nil && p.PageSize > 0 {
+		entryTx, err = applyPagination(p, entryTx)
+
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	// find by results
+	if err := entryTx.Find(&entries).Error; err != nil {
+		return nil, nil, sqlError.Wrap(err)
+	}
+
+	if p != nil && p.PageSize > 0 {
+		updatePaginationToken(p, entries)
+	}
+
+	return entries, p, nil
 }
 
 func updateRegistrationEntry(tx *gorm.DB,

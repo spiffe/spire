@@ -24,9 +24,20 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/svid"
+	"github.com/spiffe/spire/proto/server/datastore"
 	"google.golang.org/grpc"
+)
 
-	_ "golang.org/x/net/trace"
+const (
+	invalidTrustDomainAttestedNode = "An attested node with trust domain '%v' has been detected, " +
+		"which does not match the configured trust domain of '%v'. Agents may need to be reconfigured to use new trust domain"
+	invalidTrustDomainRegistrationEntry = "A registration entry with trust domain '%v' has been detected, " +
+		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
+		"please delete all existing registration entries"
+	invalidSpiffeIDRegistrationEntry = "registration entry with id %v is malformed because invalid SPIFFE ID: %v"
+	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID %v, from attested node: %v"
+
+	pageSize = 1
 )
 
 type Config struct {
@@ -130,6 +141,11 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 	s.config.Log.Info("plugins started")
+
+	err = s.validateTrustDomain(ctx, cat.DataStores()[0])
+	if err != nil {
+		return err
+	}
 
 	// CA manager needs to be initialized before the rotator, otherwise the
 	// server CA plugin won't be able to sign CSRs
@@ -271,4 +287,54 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Ro
 
 func (s *Server) caCertsPath() string {
 	return path.Join(s.config.DataDir, "certs.json")
+}
+
+func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
+	trustDomain := s.config.TrustDomain.Host
+
+	// Get only first page with a single element
+	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: pageSize,
+		}})
+
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range fetchResponse.Entries {
+		id, err := url.Parse(entry.SpiffeId)
+		if err != nil {
+			return fmt.Errorf(invalidSpiffeIDRegistrationEntry, entry.EntryId, err)
+		}
+
+		if id.Host != trustDomain {
+			return fmt.Errorf(invalidTrustDomainRegistrationEntry, id.Host, trustDomain)
+		}
+	}
+
+	// Get only first page with a single element
+	nodesResponse, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: pageSize,
+		}})
+	if err != nil {
+		return err
+	}
+
+	for _, node := range nodesResponse.Nodes {
+		id, err := url.Parse(node.SpiffeId)
+		if err != nil {
+			s.config.Log.Warnf(invalidSpiffeIDAttestedNode, node.SpiffeId, err)
+			continue
+		}
+
+		if id.Host != trustDomain {
+			msg := fmt.Sprintf(invalidTrustDomainAttestedNode, id.Host, trustDomain)
+			s.config.Log.Warn(msg)
+		}
+	}
+	return nil
 }
