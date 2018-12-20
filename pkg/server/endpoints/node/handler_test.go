@@ -17,6 +17,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -26,11 +27,11 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
-	"github.com/spiffe/spire/test/mock/proto/api/node"
-	"github.com/spiffe/spire/test/mock/proto/server/datastore"
-	"github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
-	"github.com/spiffe/spire/test/mock/proto/server/noderesolver"
-	"github.com/spiffe/spire/test/mock/server/ca"
+	mock_node "github.com/spiffe/spire/test/mock/proto/api/node"
+	mock_datastore "github.com/spiffe/spire/test/mock/proto/server/datastore"
+	mock_nodeattestor "github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
+	mock_noderesolver "github.com/spiffe/spire/test/mock/proto/server/noderesolver"
+	mock_ca "github.com/spiffe/spire/test/mock/server/ca"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -80,6 +81,7 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 
 	suite.handler = NewHandler(HandlerConfig{
 		Log:         log,
+		Metrics:     telemetry.Blackhole{},
 		Catalog:     catalog,
 		ServerCA:    suite.mockServerCA,
 		TrustDomain: testTrustDomain,
@@ -695,12 +697,12 @@ func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
 	caCert, _, _ := util.LoadCAFixture()
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
-		DEPRECATEDBundle:    append(caCert.Raw, data.caCert.Raw...),
+		DEPRECATEDBundle:    caCert.Raw,
 		RegistrationEntries: registrationEntries,
 		DEPRECATEDBundles: map[string]*node.Bundle{
 			testTrustDomain.String(): {
 				Id:      testTrustDomain.String(),
-				CaCerts: append(caCert.Raw, data.caCert.Raw...),
+				CaCerts: caCert.Raw,
 			},
 			"spiffe://otherdomain.test": {
 				Id:      "spiffe://otherdomain.test",
@@ -712,7 +714,6 @@ func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
 				TrustDomainId: testTrustDomain.String(),
 				RootCas: []*common.Certificate{
 					{DerBytes: caCert.Raw},
-					{DerBytes: data.caCert.Raw},
 				},
 			},
 			"spiffe://otherdomain.test": {
@@ -731,7 +732,7 @@ func getFakePeer() *peer.Peer {
 	parsedCert := loadCertFromPEM("base_cert.pem")
 
 	state := tls.ConnectionState{
-		PeerCertificates: []*x509.Certificate{parsedCert},
+		VerifiedChains: [][]*x509.Certificate{{parsedCert}},
 	}
 
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:12345")
@@ -790,6 +791,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		Catalog:     catalog,
 		ServerCA:    serverCA,
 		Log:         log,
+		Metrics:     telemetry.Blackhole{},
 		TrustDomain: testTrustDomain,
 	})
 

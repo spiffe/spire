@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/imkira/go-observer"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
@@ -88,7 +89,8 @@ func (r *rotator) shouldRotate() bool {
 
 // rotateSVID cuts a new server SVID from the CA plugin and installs
 // it on the endpoints struct. Also updates the CA certificates.
-func (r *rotator) rotateSVID(ctx context.Context) error {
+func (r *rotator) rotateSVID(ctx context.Context) (err error) {
+	defer telemetry.CountCall(r.c.Metrics, "svid", "rotate")(&err)
 	r.c.Log.Debug("Rotating server SVID")
 
 	id := &url.URL{

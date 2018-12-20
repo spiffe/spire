@@ -56,6 +56,7 @@ func TestInitializationFailure(t *testing.T) {
 		SVID:        baseSVID,
 		SVIDKey:     baseSVIDKey,
 		Log:         testLogger,
+		Metrics:     &telemetry.Blackhole{},
 		TrustDomain: trustDomainID,
 	}
 	m, err := New(c)
@@ -80,6 +81,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
+		Metrics:         &telemetry.Blackhole{},
 		TrustDomain:     trustDomainID,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
@@ -126,6 +128,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		SVID:            baseSVID,
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
+		Metrics:         &telemetry.Blackhole{},
 		TrustDomain:     trustDomainID,
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
@@ -188,7 +191,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          apiHandler.bundle,
-		Tel:             &telemetry.Blackhole{},
+		Metrics:         &telemetry.Blackhole{},
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -271,7 +274,7 @@ func TestSVIDRotation(t *testing.T) {
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
-		Tel:              &telemetry.Blackhole{},
+		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: baseTTL / 2,
 		SyncInterval:     1 * time.Hour,
 	}
@@ -340,7 +343,7 @@ func TestSynchronization(t *testing.T) {
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
-		Tel:              &telemetry.Blackhole{},
+		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     3 * time.Second,
 	}
@@ -465,7 +468,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          apiHandler.bundle,
-		Tel:             &telemetry.Blackhole{},
+		Metrics:         &telemetry.Blackhole{},
 	}
 
 	m := newManager(t, c)
@@ -522,7 +525,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          apiHandler.bundle,
-		Tel:             &telemetry.Blackhole{},
+		Metrics:         &telemetry.Blackhole{},
 	}
 
 	m := newManager(t, c)
@@ -578,7 +581,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
-		Tel:              &telemetry.Blackhole{},
+		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     1 * time.Hour,
 	}
@@ -634,7 +637,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		SVIDCachePath:    path.Join(dir, "svid.der"),
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
-		Tel:              &telemetry.Blackhole{},
+		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
 		// We want frequent synchronizations to speed up the test.
 		SyncInterval: 1 * time.Second,
@@ -676,9 +679,6 @@ func TestFetchJWTSVID(t *testing.T) {
 	}
 	defer l.Close()
 
-	ca, cakey := createCA(t, trustDomain)
-	baseSVID, baseSVIDKey := createSVID(t, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
-
 	fetchResp := &node.FetchJWTSVIDResponse{}
 
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
@@ -690,6 +690,9 @@ func TestFetchJWTSVID(t *testing.T) {
 		},
 		svidTTL: 200,
 	})
+
+	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+
 	apiHandler.start()
 	defer apiHandler.stop()
 
@@ -702,7 +705,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          apiHandler.bundle,
-		Tel:             &telemetry.Blackhole{},
+		Metrics:         &telemetry.Blackhole{},
 	}
 
 	now := time.Now()
@@ -1094,7 +1097,7 @@ func (h *mockNodeAPIHandler) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*t
 	roots.AddCert(h.ca())
 
 	c := &tls.Config{
-		ClientAuth:   tls.RequestClientCert,
+		ClientAuth:   tls.VerifyClientCertIfGiven,
 		Certificates: certs,
 		ClientCAs:    roots,
 	}
@@ -1103,21 +1106,26 @@ func (h *mockNodeAPIHandler) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*t
 }
 
 func (h *mockNodeAPIHandler) getCertFromCtx(ctx context.Context) (certificate *x509.Certificate, err error) {
-
 	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, errors.New("It was not posible to extract peer from request")
+		return nil, errors.New("no peer information")
 	}
 	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
 	if !ok {
-		return nil, errors.New("It was not posible to extract AuthInfo from request")
+		return nil, errors.New("no TLS auth info for peer")
 	}
 
-	if len(tlsInfo.State.PeerCertificates) == 0 {
-		return nil, errors.New("PeerCertificates was empty")
+	if len(tlsInfo.State.VerifiedChains) == 0 {
+		return nil, errors.New("no verified client certificate presented by peer")
+	}
+	chain := tlsInfo.State.VerifiedChains[0]
+	if len(chain) == 0 {
+		// this shouldn't be possible with the tls package, but we should be
+		// defensive.
+		return nil, errors.New("verified client chain is missing certificates")
 	}
 
-	return tlsInfo.State.PeerCertificates[0], nil
+	return chain[0], nil
 }
 
 func createTempDir(t *testing.T) string {

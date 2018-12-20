@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
@@ -31,6 +32,7 @@ import (
 
 type HandlerConfig struct {
 	Log         logrus.FieldLogger
+	Metrics     telemetry.Metrics
 	Catalog     catalog.Catalog
 	ServerCA    ca.ServerCA
 	TrustDomain url.URL
@@ -57,6 +59,9 @@ func NewHandler(config HandlerConfig) *Handler {
 
 //Attest attests the node and gets the base node SVID.
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
+	counter := telemetry.StartCall(h.c.Metrics, "node_api", "attest")
+	defer counter.Done(&err)
+
 	// make sure node attestor stream will be cancelled if things go awry
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -77,6 +82,8 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to get SpiffeId from CSR")
 	}
+
+	counter.AddLabel("spiffe_id", baseSpiffeIDFromCSR)
 
 	attestedBefore, err := h.isAttested(ctx, baseSpiffeIDFromCSR)
 	if err != nil {
@@ -131,22 +138,6 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return errors.New("Error trying to sign CSR")
 	}
 
-	if attestedBefore {
-		err = h.updateAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR)
-		if err != nil {
-			h.c.Log.Error(err)
-			return errors.New("Error trying to update attestation entry")
-		}
-
-	} else {
-		err = h.createAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR, request.AttestationData.Type)
-		if err != nil {
-			h.c.Log.Error(err)
-			return errors.New("Error trying to create attestation entry")
-		}
-
-	}
-
 	if err := h.updateNodeSelectors(ctx, baseSpiffeIDFromCSR, attestResponse); err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to get selectors for baseSpiffeID")
@@ -156,6 +147,20 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	if err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to compose response")
+	}
+
+	if attestedBefore {
+		err = h.updateAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR)
+		if err != nil {
+			h.c.Log.Error(err)
+			return errors.New("Error trying to update attestation entry")
+		}
+	} else {
+		err = h.createAttestationEntry(ctx, svid[0], baseSpiffeIDFromCSR, request.AttestationData.Type)
+		if err != nil {
+			h.c.Log.Error(err)
+			return errors.New("Error trying to create attestation entry")
+		}
 	}
 
 	p, ok := peer.FromContext(ctx)
@@ -174,6 +179,8 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
 func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error) {
+	counter := telemetry.StartCall(h.c.Metrics, "node_api", "x509_svid", "fetch")
+	defer counter.Done(&err)
 	for {
 		request, err := server.Recv()
 		if err == io.EOF {
@@ -220,9 +227,12 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return err
 		}
 
+		for spiffeID := range svids {
+			counter.AddLabel("spiffe_id", spiffeID)
+		}
+
 		// TODO: remove in 0.8, along with deprecated fields
 		ourBundle := bundles[h.c.TrustDomain.String()]
-		addIntermediatesToBundle(ourBundle, svids)
 
 		err = server.Send(&node.FetchX509SVIDResponse{
 			SvidUpdate: &node.X509SVIDUpdate{
@@ -239,9 +249,11 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 	}
 }
 
-func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (*node.FetchJWTSVIDResponse, error) {
-	err := h.limiter.Limit(ctx, JSRMsg, 1)
-	if err != nil {
+func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (resp *node.FetchJWTSVIDResponse, err error) {
+	counter := telemetry.StartCall(h.c.Metrics, "node_api", "jwt_svid", "fetch")
+	defer counter.Done(&err)
+
+	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
@@ -260,6 +272,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	case len(req.Jsr.Audience) == 0:
 		return nil, errors.New("request missing audience")
 	}
+
+	counter.AddLabel("spiffe_id", req.Jsr.SpiffeId)
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
@@ -297,6 +311,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, audience := range req.Jsr.Audience {
+		counter.AddLabel("audience", audience)
 	}
 
 	return &node.FetchJWTSVIDResponse{
@@ -530,7 +548,6 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 
 	// TODO: remove in 0.8, along with deprecated fields
 	ourBundle := bundles[h.c.TrustDomain.String()]
-	addIntermediatesToBundle(ourBundle, svids)
 
 	svidUpdate := &node.X509SVIDUpdate{
 		Svids:               svids,
@@ -543,21 +560,26 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 }
 
 func (h *Handler) getCertFromCtx(ctx context.Context) (certificate *x509.Certificate, err error) {
-
 	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, errors.New("It was not posible to extract peer from request")
+		return nil, errors.New("no peer information")
 	}
 	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
 	if !ok {
-		return nil, errors.New("It was not posible to extract AuthInfo from request")
+		return nil, errors.New("no TLS auth info for peer")
 	}
 
-	if len(tlsInfo.State.PeerCertificates) == 0 {
-		return nil, errors.New("PeerCertificates was empty")
+	if len(tlsInfo.State.VerifiedChains) == 0 {
+		return nil, errors.New("no verified client certificate presented by peer")
+	}
+	chain := tlsInfo.State.VerifiedChains[0]
+	if len(chain) == 0 {
+		// this shouldn't be possible with the tls package, but we should be
+		// defensive.
+		return nil, errors.New("verified client chain is missing certificates")
 	}
 
-	return tlsInfo.State.PeerCertificates[0], nil
+	return chain[0], nil
 }
 
 func (h *Handler) signCSRs(ctx context.Context,
@@ -705,35 +727,6 @@ func makeDeprecatedBundles(bs map[string]*common.Bundle) map[string]*node.Bundle
 	return out
 }
 
-// this function adds the intermediate certificates from the svids the the
-// bundle for the trust domain.
-// TODO: remove in SPIRE 0.8
-func addIntermediatesToBundle(bundle *common.Bundle, svids map[string]*node.X509SVID) {
-	for _, intermediate := range gatherIntermediateCerts(svids) {
-		bundle.RootCas = append(bundle.RootCas, &common.Certificate{
-			DerBytes: intermediate,
-		})
-	}
-}
-
-func gatherIntermediateCerts(svids map[string]*node.X509SVID) (intermediates [][]byte) {
-	included := make(map[string]bool)
-	for _, svid := range svids {
-		certs, _ := x509.ParseCertificates(svid.CertChain)
-		if len(certs) > 0 {
-			for _, cert := range certs[1:] {
-				key := string(cert.Raw)
-				if included[key] {
-					continue
-				}
-				included[key] = true
-				intermediates = append(intermediates, cert.Raw)
-			}
-		}
-	}
-	return intermediates
-}
-
 func getSpiffeIDFromCSR(csrBytes []byte) (string, error) {
 	csr, err := x509.ParseCertificateRequest(csrBytes)
 	if err != nil {
@@ -763,7 +756,10 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 
 func makeX509SVID(svid []*x509.Certificate) *node.X509SVID {
 	var certChain []byte
-	for _, cert := range svid {
+	// The svid slice contains all of the certificates back to the signing
+	// root. We only want to return the SVID and intermediates necessary to
+	// chain back to the root, so skip the last element.
+	for _, cert := range svid[:len(svid)-1] {
 		certChain = append(certChain, cert.Raw...)
 	}
 	return &node.X509SVID{

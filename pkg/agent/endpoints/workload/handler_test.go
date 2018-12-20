@@ -70,7 +70,7 @@ func (s *HandlerTestSuite) SetupTest() {
 		Manager: s.manager,
 		Catalog: catalog,
 		L:       log,
-		T:       telemetry.Blackhole{},
+		M:       telemetry.Blackhole{},
 	}
 
 	s.h = h

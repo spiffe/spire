@@ -6,11 +6,13 @@ import (
 
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
 )
 
 type RotatorConfig struct {
 	Log         logrus.FieldLogger
+	Metrics     telemetry.Metrics
 	TrustDomain url.URL
 	ServerCA    ca.ServerCA
 

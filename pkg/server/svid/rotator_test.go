@@ -10,6 +10,7 @@ import (
 
 	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/stretchr/testify/suite"
 )
@@ -42,6 +43,7 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.r = NewRotator(&RotatorConfig{
 		ServerCA:    s.serverCA,
 		Log:         log,
+		Metrics:     telemetry.Blackhole{},
 		TrustDomain: td,
 		Interval:    10 * time.Millisecond,
 	})

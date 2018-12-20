@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
@@ -74,6 +75,7 @@ func (s *CATestSuite) SetupTest() {
 
 	s.ca = newServerCA(serverCAConfig{
 		Log:     logger,
+		Metrics: telemetry.Blackhole{},
 		Catalog: catalog,
 		TrustDomain: url.URL{
 			Scheme: "spiffe",
@@ -103,7 +105,7 @@ func (s *CATestSuite) TestNoX509KeypairSet() {
 func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLIfTTLUnspecified() {
 	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
 	s.Require().NoError(err)
-	s.Require().Len(svid, 1)
+	s.Require().Len(svid, 2)
 	s.Require().Equal(s.now.Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.now.Add(time.Minute), svid[0].NotAfter)
 }
@@ -111,7 +113,7 @@ func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLIfTTLUnspecified() {
 func (s *CATestSuite) TestSignX509SVIDReturnsEmptyIntermediatesIfServerCASelfSigned() {
 	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
 	s.Require().NoError(err)
-	s.Require().Len(svid, 1)
+	s.Require().Len(svid, 2)
 }
 
 func (s *CATestSuite) TestSignX509SVIDReturnsIntermediatesIfNotSelfSigned() {
@@ -121,14 +123,14 @@ func (s *CATestSuite) TestSignX509SVIDReturnsIntermediatesIfNotSelfSigned() {
 	kp.x509CA.chain = []*x509.Certificate{intermediate, kp.x509CA.chain[0]}
 	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
 	s.Require().NoError(err)
-	s.Require().Len(svid, 2)
+	s.Require().Len(svid, 3)
 	s.Require().Equal(intermediate, svid[1])
 }
 
 func (s *CATestSuite) TestSignX509SVIDUsesTTLIfSpecified() {
 	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), time.Minute+time.Second)
 	s.Require().NoError(err)
-	s.Require().Len(svid, 1)
+	s.Require().Len(svid, 2)
 	s.Require().Equal(s.now.Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.now.Add(time.Minute+time.Second), svid[0].NotAfter)
 }
@@ -136,7 +138,7 @@ func (s *CATestSuite) TestSignX509SVIDUsesTTLIfSpecified() {
 func (s *CATestSuite) TestSignX509SVIDCapsTTLToKeypairTTL() {
 	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), time.Hour)
 	s.Require().NoError(err)
-	s.Require().Len(svid, 1)
+	s.Require().Len(svid, 2)
 	s.Require().Equal(s.now.Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.now.Add(10*time.Minute), svid[0].NotAfter)
 }
@@ -149,11 +151,11 @@ func (s *CATestSuite) TestSignX509SVIDValidatesCSR() {
 func (s *CATestSuite) TestSignX509SVIDIncrementsSerialNumber() {
 	svid1, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
 	s.Require().NoError(err)
-	s.Require().Len(svid1, 1)
+	s.Require().Len(svid1, 2)
 	s.Require().Equal(0, svid1[0].SerialNumber.Cmp(big.NewInt(1)))
 	svid2, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
 	s.Require().NoError(err)
-	s.Require().Len(svid2, 1)
+	s.Require().Len(svid2, 2)
 	s.Require().Equal(0, svid2[0].SerialNumber.Cmp(big.NewInt(2)))
 }
 

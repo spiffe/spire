@@ -11,6 +11,7 @@ import (
 
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/api/node"
@@ -84,7 +85,11 @@ func (r *rotator) shouldRotate() bool {
 }
 
 // rotateSVID asks SPIRE's server for a new agent's SVID.
-func (r *rotator) rotateSVID(ctx context.Context) error {
+func (r *rotator) rotateSVID(ctx context.Context) (err error) {
+	counter := telemetry.StartCall(r.c.Metrics, "agent_svid", "rotate")
+	defer counter.Done(&err)
+
+	counter.AddLabel("spiffe_id", r.c.SpiffeID)
 	r.c.Log.Debug("Rotating agent SVID")
 
 	key, err := r.newKey(ctx)

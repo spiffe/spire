@@ -133,10 +133,12 @@ message FetchAttestedNodeResponse {
 
 message ListAttestedNodesRequest {
     google.protobuf.Int64Value by_expires_before = 1;
+    Pagination pagination = 2;
 }
 
 message ListAttestedNodesResponse {
     repeated AttestedNode nodes = 1;
+    Pagination pagination = 2;
 }
 
 message UpdateAttestedNodeRequest {
@@ -189,14 +191,21 @@ message BySelectors {
     MatchBehavior match = 2;
 }
 
+message Pagination {
+    string token = 1;
+    int32 page_size = 2;
+}
+
 message ListRegistrationEntriesRequest {
     google.protobuf.StringValue by_parent_id = 1;
     BySelectors by_selectors = 2;
     google.protobuf.StringValue by_spiffe_id = 3;
+    Pagination pagination = 4;
 }
 
 message ListRegistrationEntriesResponse {
     repeated spire.common.RegistrationEntry entries = 1;
+    Pagination pagination = 2;
 }
 
 message UpdateRegistrationEntryRequest {

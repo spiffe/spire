@@ -39,11 +39,11 @@ func (a *Agent) Run(ctx context.Context) error {
 		defer stopProfiling()
 	}
 
-	tel := telemetry.NewSink(&telemetry.SinkConfig{
+	metrics := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		Logger:      a.c.Log.WithField("subsystem_name", "telemetry").Writer(),
 		ServiceName: "spire_agent",
-		StopChan:    ctx.Done(),
 	})
+	defer metrics.Stop()
 
 	cat := catalog.New(&catalog.Config{
 		GlobalConfig:  a.c.GlobalConfig(),
@@ -56,17 +56,17 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	as, err := a.attest(ctx, cat)
+	as, err := a.attest(ctx, cat, metrics)
 	if err != nil {
 		return err
 	}
 
-	manager, err := a.newManager(ctx, cat, tel, as)
+	manager, err := a.newManager(ctx, cat, metrics, as)
 	if err != nil {
 		return err
 	}
 
-	endpoints := a.newEndpoints(ctx, cat, tel, manager)
+	endpoints := a.newEndpoints(ctx, cat, metrics, manager)
 
 	err = util.RunTasks(ctx,
 		manager.Run,
@@ -132,9 +132,10 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, cat catalog.Catalog) (*attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*attestor.AttestationResult, error) {
 	config := attestor.Config{
 		Catalog:         cat,
+		Metrics:         metrics,
 		JoinToken:       a.c.JoinToken,
 		TrustDomain:     a.c.TrustDomain,
 		TrustBundle:     a.c.TrustBundle,
@@ -146,7 +147,7 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog) (*attestor.Atte
 	return attestor.New(&config).Attest(ctx)
 }
 
-func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, tel telemetry.Sink, as *attestor.AttestationResult) (manager.Manager, error) {
+func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *attestor.AttestationResult) (manager.Manager, error) {
 	config := &manager.Config{
 		SVID:            as.SVID,
 		SVIDKey:         as.Key,
@@ -155,7 +156,7 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, tel telemet
 		TrustDomain:     a.c.TrustDomain,
 		ServerAddr:      a.c.ServerAddress,
 		Log:             a.c.Log.WithField("subsystem_name", "manager"),
-		Tel:             tel,
+		Metrics:         metrics,
 		BundleCachePath: a.bundleCachePath(),
 		SVIDCachePath:   a.agentSVIDPath(),
 	}
@@ -172,13 +173,13 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, tel telemet
 	return mgr, nil
 }
 
-func (a *Agent) newEndpoints(ctx context.Context, cat catalog.Catalog, tel telemetry.Sink, mgr manager.Manager) endpoints.Server {
+func (a *Agent) newEndpoints(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
 	config := &endpoints.Config{
 		BindAddr: a.c.BindAddress,
 		Catalog:  cat,
 		Manager:  mgr,
 		Log:      a.c.Log.WithField("subsystem_name", "endpoints"),
-		Tel:      tel,
+		Metrics:  metrics,
 	}
 
 	return endpoints.New(config)

@@ -24,7 +24,7 @@ type Config struct {
 	Catalog          catalog.Catalog
 	TrustDomain      url.URL
 	Log              logrus.FieldLogger
-	Tel              telemetry.Sink
+	Metrics          telemetry.Metrics
 	ServerAddr       string
 	SVIDCachePath    string
 	BundleCachePath  string
@@ -52,6 +52,7 @@ func New(c *Config) (*manager, error) {
 	rotCfg := &svid.RotatorConfig{
 		Catalog:      c.Catalog,
 		Log:          c.Log,
+		Metrics:      c.Metrics,
 		SVID:         c.SVID,
 		SVIDKey:      c.SVIDKey,
 		SpiffeID:     spiffeID,

@@ -60,7 +60,12 @@ func printEntry(e *common.RegistrationEntry) {
 	fmt.Printf("Entry ID:\t%s\n", e.EntryId)
 	fmt.Printf("SPIFFE ID:\t%s\n", e.SpiffeId)
 	fmt.Printf("Parent ID:\t%s\n", e.ParentId)
-	fmt.Printf("TTL:\t\t%v\n", e.Ttl)
+
+	if e.Ttl == 0 {
+		fmt.Printf("TTL:\t\t%v\n", "default")
+	} else {
+		fmt.Printf("TTL:\t\t%v\n", e.Ttl)
+	}
 
 	for _, s := range e.Selectors {
 		fmt.Printf("Selector:\t%s:%s\n", s.Type, s.Value)

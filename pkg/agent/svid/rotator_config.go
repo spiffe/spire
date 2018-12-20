@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
@@ -18,6 +19,7 @@ import (
 type RotatorConfig struct {
 	Catalog     catalog.Catalog
 	Log         logrus.FieldLogger
+	Metrics     telemetry.Metrics
 	TrustDomain url.URL
 	ServerAddr  string
 	// Initial SVID and key

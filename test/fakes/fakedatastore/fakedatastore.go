@@ -400,9 +400,51 @@ func (s *DataStore) ListRegistrationEntries(ctx context.Context,
 	}
 	util.SortRegistrationEntries(entries)
 
+	p := req.Pagination
+	// in case pagination is defined and page size greater than zero apply pagination
+	if p != nil && p.PageSize > 0 {
+		// as default start in first position
+		init := 0
+
+		// If token is defined set index of initial element
+		if p.Token != "" {
+			init = indexOf(p.Token, entries) + 1
+		}
+
+		// set end as initial element + page size, if end is greater to entries size use length as end
+		length := len(entries)
+		end := init + int(p.PageSize)
+		if end > length {
+			end = length
+		}
+
+		// create a new array with paged entries
+		pagedEntries := entries[init:end]
+		if len(pagedEntries) > 0 {
+			lastIndex := len(pagedEntries) - 1
+			// change token to latests element entryId
+			p.Token = pagedEntries[lastIndex].EntryId
+
+		}
+		return &datastore.ListRegistrationEntriesResponse{
+			Entries:    pagedEntries,
+			Pagination: p,
+		}, nil
+	}
+
 	return &datastore.ListRegistrationEntriesResponse{
-		Entries: entries,
+		Entries:    entries,
+		Pagination: p,
 	}, nil
+}
+
+func indexOf(element string, entries []*common.RegistrationEntry) int {
+	for k, e := range entries {
+		if element == e.EntryId {
+			return k
+		}
+	}
+	return -1
 }
 
 func (s DataStore) UpdateRegistrationEntry(ctx context.Context,

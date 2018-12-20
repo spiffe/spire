@@ -255,17 +255,15 @@ func loadServiceAccountKeys(path string) ([]crypto.PublicKey, error) {
 	for {
 		var pemBlock *pem.Block
 		pemBlock, pemBytes = pem.Decode(pemBytes)
-		if pemBlock != nil {
-			key, err := decodeKeyBlock(pemBlock)
-			if err != nil {
-				return nil, err
-			}
-			if key != nil {
-				keys = append(keys, key)
-			}
-		}
-		if len(pemBytes) == 0 {
+		if pemBlock == nil {
 			return keys, nil
+		}
+		key, err := decodeKeyBlock(pemBlock)
+		if err != nil {
+			return nil, err
+		}
+		if key != nil {
+			keys = append(keys, key)
 		}
 	}
 }

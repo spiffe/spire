@@ -31,7 +31,7 @@ func newAttestor(config *Config) *attestor {
 type Config struct {
 	Catalog catalog.Catalog
 	L       logrus.FieldLogger
-	T       telemetry.Sink
+	M       telemetry.Metrics
 }
 
 const (
@@ -44,7 +44,7 @@ const (
 // is encountered, it is logged and selectors from the failing plugin are discarded.
 func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 	tLabels := []telemetry.Label{{workloadPid, string(pid)}}
-	defer wla.c.T.MeasureSinceWithLabels([]string{workloadApi, workloadAttDur}, time.Now(), tLabels)
+	defer wla.c.M.MeasureSinceWithLabels([]string{workloadApi, workloadAttDur}, time.Now(), tLabels)
 
 	plugins := wla.c.Catalog.WorkloadAttestors()
 	sChan := make(chan []*common.Selector)
@@ -71,7 +71,7 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 		}
 	}
 
-	wla.c.T.AddSampleWithLabels([]string{workloadApi, "discovered_selectors"}, float32(len(selectors)), tLabels)
+	wla.c.M.AddSampleWithLabels([]string{workloadApi, "discovered_selectors"}, float32(len(selectors)), tLabels)
 	wla.c.L.Debugf("PID %v attested to have selectors %v", pid, selectors)
 	return selectors
 }
@@ -89,7 +89,7 @@ func (wla *attestor) invokeAttestor(ctx context.Context, a *catalog.ManagedWorkl
 	resp, err := a.Attest(ctx, req)
 
 	// Capture the attestor latency metrics regardless of whether an error condition was encountered or not
-	wla.c.T.MeasureSinceWithLabels([]string{workloadApi, "workload_attestor_latency"}, start, tLabels)
+	wla.c.M.MeasureSinceWithLabels([]string{workloadApi, "workload_attestor_latency"}, start, tLabels)
 	if err != nil {
 		return nil, fmt.Errorf("workload attestor %q failed: %v", attestorName, err)
 	}

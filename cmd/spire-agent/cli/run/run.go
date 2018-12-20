@@ -40,24 +40,24 @@ type runConfig struct {
 }
 
 type agentConfig struct {
+	DataDir         string `hcl:"data_dir"`
+	LogFile         string `hcl:"log_file"`
+	LogLevel        string `hcl:"log_level"`
 	ServerAddress   string `hcl:"server_address"`
 	ServerPort      int    `hcl:"server_port"`
-	TrustDomain     string `hcl:"trust_domain"`
+	SocketPath      string `hcl:"socket_path"`
 	TrustBundlePath string `hcl:"trust_bundle_path"`
+	TrustDomain     string `hcl:"trust_domain"`
 	JoinToken       string `hcl:"join_token"`
 
-	SocketPath string `hcl:"socket_path"`
-	DataDir    string `hcl:"data_dir"`
-	LogFile    string `hcl:"log_file"`
-	LogLevel   string `hcl:"log_level"`
-
 	ConfigPath string
-	Umask      string `hcl:"umask"`
 
+	// Undocumented configurables
 	ProfilingEnabled bool     `hcl:"profiling_enabled"`
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
+	Umask            string   `hcl:"umask"`
 }
 
 type RunCLI struct {

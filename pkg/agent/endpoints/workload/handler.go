@@ -41,7 +41,7 @@ type Handler struct {
 	Manager manager.Manager
 	Catalog catalog.Catalog
 	L       logrus.FieldLogger
-	T       telemetry.Sink
+	M       telemetry.Metrics
 }
 
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
@@ -49,13 +49,13 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		return nil, errs.New("audience must be specified")
 	}
 
-	_, selectors, _, done, err := h.startCall(ctx)
+	_, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer done()
 
-	// TODO: telemetry
+	metrics.IncrCounter([]string{workloadApi, "fetch_jwt_svid"}, 1)
 
 	var spiffeIDs []string
 	for _, entry := range h.Manager.MatchingEntries(selectors) {
@@ -83,13 +83,13 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
 	ctx := stream.Context()
 
-	pid, selectors, tel, done, err := h.startCall(ctx)
+	pid, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
 		return err
 	}
 	defer done()
 
-	// TODO: telemetry
+	metrics.IncrCounter([]string{workloadApi, "fetch_jwt_bundles"}, 1)
 
 	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
@@ -97,13 +97,13 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			tel.IncrCounter([]string{workloadApi, "bundles_update"}, 1)
+			metrics.IncrCounter([]string{workloadApi, "bundles_update"}, 1)
 			start := time.Now()
 			if err := h.sendJWTBundlesResponse(update, stream); err != nil {
 				return err
 			}
 
-			tel.MeasureSince([]string{workloadApi, "send_jwt_bundle_latency"}, start)
+			metrics.MeasureSince([]string{workloadApi, "send_jwt_bundle_latency"}, start)
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send JWT bundle to PID %v", time.Since(start).Seconds, pid)
 			}
@@ -123,20 +123,35 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 		return nil, status.Error(codes.InvalidArgument, "svid must be specified")
 	}
 
-	_, selectors, tel, done, err := h.startCall(ctx)
+	_, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer done()
 
-	tel.IncrCounter([]string{workloadApi, "validate_jwt"}, 1)
-
 	keyStore := keyStoreFromBundles(h.getWorkloadBundles(selectors))
 
 	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
+		metrics.IncrCounterWithLabels([]string{workloadApi, "validate_jwt_svid"}, 1, []telemetry.Label{
+			{
+				Name:  "error",
+				Value: err.Error(),
+			},
+		})
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+
+	metrics.IncrCounterWithLabels([]string{workloadApi, "validate_jwt_svid"}, 1, []telemetry.Label{
+		{
+			Name:  "subject",
+			Value: spiffeID,
+		},
+		{
+			Name:  "audience",
+			Value: req.Audience,
+		},
+	})
 
 	s, err := structFromValues(claims)
 	if err != nil {
@@ -153,7 +168,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
 	ctx := stream.Context()
 
-	pid, selectors, tel, done, err := h.startCall(ctx)
+	pid, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
 		return err
 	}
@@ -165,7 +180,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			tel.IncrCounter([]string{workloadApi, "update"}, 1)
+			metrics.IncrCounter([]string{workloadApi, "update"}, 1)
 
 			start := time.Now()
 			err := h.sendX509SVIDResponse(update, stream)
@@ -173,7 +188,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 				return err
 			}
 
-			tel.MeasureSince([]string{workloadApi, "update_latency"}, start)
+			metrics.MeasureSince([]string{workloadApi, "update_latency"}, start)
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send update to PID %v", time.Since(start).Seconds, pid)
 			}
@@ -265,7 +280,7 @@ func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*work
 	}, nil
 }
 
-func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, telemetry.Sink, func(), error) {
+func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, telemetry.Metrics, func(), error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok || len(md["workload.spiffe.io"]) != 1 || md["workload.spiffe.io"][0] != "true" {
 		return 0, nil, nil, nil, status.Errorf(codes.InvalidArgument, "Security header missing from request")
@@ -276,23 +291,23 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
-	tel := telemetry.WithLabels(h.T, []telemetry.Label{{workloadPid, string(pid)}})
-	tel.IncrCounter([]string{workloadApi, "connection"}, 1)
-	tel.IncrCounter([]string{workloadApi, "connections"}, 1)
+	metrics := telemetry.WithLabels(h.M, []telemetry.Label{{workloadPid, string(pid)}})
+	metrics.IncrCounter([]string{workloadApi, "connection"}, 1)
+	metrics.IncrCounter([]string{workloadApi, "connections"}, 1)
 
 	config := attestor.Config{
 		Catalog: h.Catalog,
 		L:       h.L,
-		T:       tel,
+		M:       metrics,
 	}
 
 	selectors := attestor.New(&config).Attest(ctx, pid)
 
 	done := func() {
-		defer tel.IncrCounter([]string{workloadApi, "connections"}, -1)
+		defer metrics.IncrCounter([]string{workloadApi, "connections"}, -1)
 	}
 
-	return pid, selectors, tel, done, nil
+	return pid, selectors, metrics, done, nil
 }
 
 // callerPID takes a grpc context, and returns the PID of the caller which has issued
