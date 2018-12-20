@@ -1106,25 +1106,23 @@ func (h *mockNodeAPIHandler) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*t
 }
 
 func (h *mockNodeAPIHandler) getCertFromCtx(ctx context.Context) (certificate *x509.Certificate, err error) {
-
 	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, errors.New("It was not posible to extract peer from request")
+		return nil, errors.New("no peer information")
 	}
 	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
 	if !ok {
-		return nil, errors.New("It was not posible to extract AuthInfo from request")
+		return nil, errors.New("no TLS auth info for peer")
 	}
 
 	if len(tlsInfo.State.VerifiedChains) == 0 {
-		return nil, errors.New("VerifiedChains was empty")
+		return nil, errors.New("no verified client certificate presented by peer")
 	}
-
 	chain := tlsInfo.State.VerifiedChains[0]
 	if len(chain) == 0 {
 		// this shouldn't be possible with the tls package, but we should be
 		// defensive.
-		return nil, errors.New("VerifiedChain was empty")
+		return nil, errors.New("verified client chain is missing certificates")
 	}
 
 	return chain[0], nil
