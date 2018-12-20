@@ -9,9 +9,8 @@ import (
 	"crypto/x509/pkix"
 	"math/big"
 	mrand "math/rand"
+	"net/url"
 	"time"
-
-	"github.com/spiffe/go-spiffe/uri"
 )
 
 // NewSVIDTemplate returns a default SVID template with the specified SPIFFE ID. Must
@@ -136,18 +135,11 @@ func defaultCATemplate() *x509.Certificate {
 // Create an x509 extension with the URI SAN of the given SPIFFE ID, and set it onto
 // the referenced certificate
 func addSpiffeExtension(spiffeID string, cert *x509.Certificate) error {
-	uriSANs, err := uri.MarshalUriSANs([]string{spiffeID})
+	u, err := url.Parse(spiffeID)
 	if err != nil {
 		return err
 	}
-
-	ext := []pkix.Extension{{
-		Id:       uri.OidExtensionSubjectAltName,
-		Value:    uriSANs,
-		Critical: true,
-	}}
-
-	cert.ExtraExtensions = ext
+	cert.URIs = append(cert.URIs, u)
 	return nil
 }
 
