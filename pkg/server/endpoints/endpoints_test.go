@@ -8,13 +8,16 @@ import (
 	"errors"
 	"net"
 	"net/url"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/imkira/go-observer"
+	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/server/svid"
+	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
@@ -152,7 +155,7 @@ func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
 	tlsConfig, err := s.e.getGRPCServerConfig(ctx)(nil)
 	require.NoError(s.T(), err)
 
-	s.Assert().Equal(tls.RequestClientCert, tlsConfig.ClientAuth)
+	s.Assert().Equal(tls.VerifyClientCertIfGiven, tlsConfig.ClientAuth)
 	s.Assert().Equal(certs, tlsConfig.Certificates)
 	s.Assert().Equal(pool, tlsConfig.ClientCAs)
 }
@@ -220,4 +223,108 @@ func (s *EndpointsTestSuite) configureBundle() ([]tls.Certificate, *x509.CertPoo
 			PrivateKey:  svidKey,
 		},
 	}, caPool
+}
+
+func (s *EndpointsTestSuite) TestClientCertificateVerification() {
+	caTmpl, err := util.NewCATemplate("example.org")
+	s.Require().NoError(err)
+	caCert, caKey, err := util.SelfSign(caTmpl)
+	s.Require().NoError(err)
+
+	serverTmpl, err := util.NewSVIDTemplate("spiffe://example.org/server")
+	s.Require().NoError(err)
+	serverTmpl.DNSNames = []string{"just-for-validation"}
+	serverCert, serverKey, err := util.Sign(serverTmpl, caCert, caKey)
+	s.Require().NoError(err)
+
+	clientTmpl, err := util.NewSVIDTemplate("spiffe://example.org/agent")
+	s.Require().NoError(err)
+	clientCert, clientKey, err := util.Sign(clientTmpl, caCert, caKey)
+	s.Require().NoError(err)
+
+	otherCaTmpl, err := util.NewCATemplate("example.org")
+	s.Require().NoError(err)
+	otherCaCert, otherCaKey, err := util.SelfSign(otherCaTmpl)
+	s.Require().NoError(err)
+
+	otherClientTmpl, err := util.NewSVIDTemplate("spiffe://example.org/agent")
+	s.Require().NoError(err)
+	otherClientCert, otherClientKey, err := util.Sign(otherClientTmpl, otherCaCert, otherCaKey)
+	s.Require().NoError(err)
+
+	rootCAs := x509.NewCertPool()
+	rootCAs.AddCert(caCert)
+
+	// set the trust bundle and plumb a CA certificate
+	_, err = s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
+		Bundle: &common.Bundle{
+			TrustDomainId: "spiffe://example.org",
+			RootCas: []*common.Certificate{
+				{DerBytes: caCert.Raw},
+			},
+		},
+	})
+	s.Require().NoError(err)
+	s.svidState.Update(svid.State{
+		SVID: []*x509.Certificate{serverCert},
+		Key:  serverKey,
+	})
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s.e.ListenAndServe(ctx)
+	}()
+
+	// This helper function attempts a TLS connection to the gRPC server. It
+	// uses the supplied client certificate, if any. It gives up the 2 seconds
+	// for the server to start listening, which is generous. Any non-dial
+	// related errors (i.e. TLS handshake failures) are returned.
+	try := func(cert *tls.Certificate) error {
+		tlsConfig := &tls.Config{
+			RootCAs: rootCAs,
+			// this override is just so we don't have to set up spiffe peer
+			// validation of the server by the client, which is outside the
+			// scope of this test.
+			ServerName: "just-for-validation",
+		}
+		if cert != nil {
+			tlsConfig.Certificates = append(tlsConfig.Certificates, *cert)
+		}
+		for i := 0; i < 20; i++ {
+			conn, err := tls.Dial("tcp", "127.0.0.1:8000", tlsConfig)
+			if err != nil {
+				if strings.HasPrefix(err.Error(), "dial") {
+					time.Sleep(time.Millisecond * 100)
+					continue
+				}
+				return err
+			}
+			conn.Close()
+			return nil
+		}
+		s.FailNow("unable to connect to server within 2 seconds")
+		return errors.New("unreachable")
+	}
+
+	err = try(nil)
+	s.Require().NoError(err, "client should be allowed if no cert presented")
+
+	err = try(&tls.Certificate{
+		Certificate: [][]byte{clientCert.Raw},
+		PrivateKey:  clientKey,
+	})
+	s.Require().NoError(err, "client should be allowed if proper cert presented")
+
+	err = try(&tls.Certificate{
+		Certificate: [][]byte{otherClientCert.Raw},
+		PrivateKey:  otherClientKey,
+	})
+	s.Require().Error(err, "client should NOT be allowed if cert presented is not trusted")
 }

@@ -560,21 +560,26 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 }
 
 func (h *Handler) getCertFromCtx(ctx context.Context) (certificate *x509.Certificate, err error) {
-
 	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, errors.New("It was not posible to extract peer from request")
+		return nil, errors.New("no peer information")
 	}
 	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
 	if !ok {
-		return nil, errors.New("It was not posible to extract AuthInfo from request")
+		return nil, errors.New("no TLS auth info for peer")
 	}
 
-	if len(tlsInfo.State.PeerCertificates) == 0 {
-		return nil, errors.New("PeerCertificates was empty")
+	if len(tlsInfo.State.VerifiedChains) == 0 {
+		return nil, errors.New("no verified client certificate presented by peer")
+	}
+	chain := tlsInfo.State.VerifiedChains[0]
+	if len(chain) == 0 {
+		// this shouldn't be possible with the tls package, but we should be
+		// defensive.
+		return nil, errors.New("verified client chain is missing certificates")
 	}
 
-	return tlsInfo.State.PeerCertificates[0], nil
+	return chain[0], nil
 }
 
 func (h *Handler) signCSRs(ctx context.Context,
