@@ -1,13 +1,14 @@
 ifeq ($(SPIRE_DEV_HOST), docker)
-	docker = docker run -v $(docker_volume) -it $(docker_image)
+	docker = docker run -v $(docker_volume_spire) -v $(docker_volume_gopath) -it $(docker_image)
 	container = container
 else
-	docker = 
-	container = 
+	docker =
+	container =
 endif
 
 binary_dirs := $(shell find cmd/* functional/tools/* -maxdepth 0 -type d)
-docker_volume := $(shell echo $${PWD%/src/*}):/root/go
+docker_volume_gopath := $(shell echo $${GOPATH}/pkg/mod):/root/go/pkg/mod # Links mod to preserve cache
+docker_volume_spire := $(shell echo $${PWD}):/root/spire # Copies spire
 docker_image = spire-dev:latest
 gopath := $(shell go env GOPATH)
 gittag := $(shell git tag --points-at)
@@ -52,7 +53,7 @@ vendor: Gopkg.toml Gopkg.lock
 	$(docker) dep ensure -vendor-only
 
 $(binary_dirs): noop
-	$(docker) /bin/sh -c "cd $@; go build -i -ldflags $(ldflags)"
+	$(docker) /bin/sh -c "cd $@; GO111MODULE=on go build -ldflags $(ldflags)"
 
 artifact:
 	$(docker) ./build.sh artifact
