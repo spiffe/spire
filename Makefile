@@ -2,9 +2,11 @@
 ifeq ($(SPIRE_DEV_HOST), docker)
 	docker = docker run -v $(docker_volume_spire) -v $(docker_volume_gopath) -it $(docker_image)
 	container = container
+	dev_host_status = "SET"
 else
 	docker =
 	container =
+	dev_host_status = "UNSET"
 endif
 
 # Enable go modules
@@ -104,3 +106,4 @@ noop:
 
 help: ## Show this help message.
 	@awk 'BEGIN {FS = ":.*##"; printf "\n$(bold)Usage:$(reset) make $(cyan)<target>$(reset)\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(cyan)%-$(target_max_char)s$(reset) %s\n", $$1, $$2 } /^##@/ { printf "\n $(bold)%s$(reset) \n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@printf "\n$(bold)Enviroment variables$(reset)\n  $(cyan)%-$(target_max_char)s $(reset) %s\n" SPIRE_DEV_HOST $(dev_host_status)

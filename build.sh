@@ -98,19 +98,6 @@ build_utils() {
 	go get github.com/mattn/goveralls
 }
 
-## Fetch all vendored dependancies and check if the lock file
-## is up-to-date
-build_vendor() {
-	eval $(build_env)
-
-	dep status 2>&1 | tee /tmp/dep.out
-	if grep -q "Lock inputs-digest mismatch" /tmp/dep.out; then
-		_exit_error "Gopkg.lock file may be out of date"
-	fi
-
-	make vendor 2>&1
-}
-
 ## Rebuild all .proto files, generated README, and generated gRPC/REST interfaces
 build_protobuf() {
 	local _n _d _dir _prefix="$1"
@@ -286,7 +273,6 @@ build_distclean() {
 
 build_all() {
 	build_setup
-	build_vendor
 	build_binaries
 	build_test
 }
@@ -296,7 +282,6 @@ case "$1" in
 	env) build_env ;;
 	setup) build_setup ;;
 	utils) build_utils ;;
-	vendor) build_vendor ;;
 	protobuf) build_protobuf ;;
 	protobuf_verify) build_protobuf_verify ;;
 	binaries|bin) build_binaries $2 ;;
