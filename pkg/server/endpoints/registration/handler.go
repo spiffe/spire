@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -425,7 +425,11 @@ func (h *Handler) CreateJoinToken(
 
 	// Generate a token if one wasn't specified
 	if request.Token == "" {
-		request.Token = uuid.NewV4().String()
+		u, err := uuid.NewV4()
+		if err != nil {
+			return nil, errors.New("Error generating uuid token: %v")
+		}
+		request.Token = u.String()
 	}
 
 	ds := h.getDataStore()
