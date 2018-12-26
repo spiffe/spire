@@ -116,8 +116,8 @@ func (s *SATAttestorSuite) TestGetPluginInfo() {
 
 func (s *SATAttestorSuite) newAttestor() {
 	attestor := NewSATAttestorPlugin()
-	attestor.hooks.newUUID = func() string {
-		return "UUID"
+	attestor.hooks.newUUID = func() (string, error) {
+		return "UUID", nil
 	}
 	s.attestor = nodeattestor.NewBuiltIn(attestor)
 }
