@@ -25,7 +25,7 @@
 #   unused-packages = true
 
 required = ["github.com/hashicorp/go-plugin",
-  "github.com/satori/go.uuid",
+  "github.com/gofrs/uuid",
   "github.com/golang/protobuf/protoc-gen-go",
   "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
   "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger",
@@ -88,8 +88,8 @@ required = ["github.com/hashicorp/go-plugin",
   version = "1.0.0"
 
 [[constraint]]
-  name = "github.com/satori/go.uuid"
-  version = "1.2.0"
+  name = "github.com/gofrs/uuid"
+  version = "3.1.2"
 
 [[constraint]]
   name = "github.com/shirou/gopsutil"

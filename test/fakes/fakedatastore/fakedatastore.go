@@ -7,9 +7,9 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	uuid "github.com/satori/go.uuid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -310,7 +310,10 @@ func (s *DataStore) CreateRegistrationEntry(ctx context.Context,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	entryID := newRegistrationEntryID()
+	entryID, err := newRegistrationEntryID()
+	if err != nil {
+		return nil, err
+	}
 
 	entry := cloneRegistrationEntry(req.Entry)
 	entry.EntryId = entryID
@@ -603,8 +606,12 @@ func cloneJoinToken(token *datastore.JoinToken) *datastore.JoinToken {
 	return proto.Clone(token).(*datastore.JoinToken)
 }
 
-func newRegistrationEntryID() string {
-	return uuid.NewV4().String()
+func newRegistrationEntryID() (string, error) {
+	u, err := uuid.NewV4()
+	if err != nil {
+		return "", err
+	}
+	return u.String(), nil
 }
 
 func containsSelectors(selectors, subset []*common.Selector) bool {
