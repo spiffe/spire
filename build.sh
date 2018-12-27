@@ -34,9 +34,6 @@ declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
 declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
 declare -r PROTOBUF_URL="https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}"
 declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-${OS2}-${ARCH1}.zip"
-declare -r DEP_VERSION=${DEP_VERSION:-0.5.0}
-declare -r DEP_URL="https://github.com/golang/dep/releases/download/v${DEP_VERSION}"
-declare -r DEP_BIN="dep-${OS1}-${ARCH2}"
 declare -r PROTOC_GEN_DOCS_VERSION=${PROTOC_GEN_DOCS_VERSION:-1.0.0}
 declare -r PROTOC_GEN_DOCS_URL="https://github.com/pseudomuto/protoc-gen-doc/releases/download/v${PROTOC_GEN_DOCS_VERSION}"
 declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}.${OS1}-${ARCH2}.go1.9.tar.gz"
@@ -77,10 +74,6 @@ build_setup() {
 
 	_fetch_url ${GO_URL} ${GO_TGZ}
 	tar --directory ${BUILD_DIR} --strip 1 -xf ${BUILD_CACHE}/${GO_TGZ}
-
-	_fetch_url ${DEP_URL} ${DEP_BIN}
-	cp ${BUILD_CACHE}/${DEP_BIN} ${BUILD_DIR}/bin/dep
-	chmod +x ${BUILD_DIR}/bin/dep
 
 	_fetch_url ${PROTOC_GEN_DOCS_URL} ${PROTOC_GEN_DOCS_TGZ}
 	tar --directory ${BUILD_DIR}/bin --strip 1 -xf ${BUILD_CACHE}/${PROTOC_GEN_DOCS_TGZ}

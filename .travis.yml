@@ -12,7 +12,6 @@ cache:
 
 script:
     - ./build.sh setup
-    - ./build.sh vendor
     - ./build.sh utils
     - ./build.sh protobuf_verify
     - ./build.sh test
@@ -42,8 +41,8 @@ deploy:
       on:
           tags: true
           condition: $GITHUB_TOKEN != ""
- 
+
 notifications:
     slack:
         secure: auV9VWkA50+tf4cKUUkMH/KqggKSJCBV9ruLSF1LVgqQYnK34rp/PPzx4gTiQYA07ltnu8Hi13XMoN5+OFsRfzVRCKP1tlGuTvVhpsoyMGiNxBY1Yw2OhZXRoSjCwJkuBsAkkaxAgsC58IEnxhKq+M83dDYx+WiybO+aQnQ6ExbGE4oUBhhBkYKrHy4Kt9/3yWLqicV/VXFtvwbXG5OG1zNNOYCUEud4Y8j6pcb0kyVqlHFjAjasLPsln0QSaTxOThLZCxMZD2zpbI1xxO5tBusqDe1QOMSgsyAbDaNk7wCb2kU+0hRKcfiuWShrswhECSJsYUImLq4c77WbdhrjRgscgY2779T/jaJHbG3Lx7GlDWYLSgFcM8VfZK+K5XPcm35F2qGPiEjtYEEAPS2qQM9PZyvTEVPxjNEc2PE3bINTjibcKbfATNa1ULQvJ6ixtSL9Ao8828iUfaR0mK4eaWnJckov5OaGvah+v6vh49JqZTEN3Or8XTUw0ra14euS6jR30XB2Y3S8/0NuvHY+ytJe36yQn9FdFM3asNpBuNP7F9v00WJr3+Lhg7KHMd0m19ulwtmXiWJYU25AVMk/oXp+aq+678AvhYkYZGaUzC3timsuTlAjH9DA9yxBW+8KE9y46Jq8vXHXhKTfdKDVVUyOFxKKGAjCA5QbeKx+5QU=
- 
+
