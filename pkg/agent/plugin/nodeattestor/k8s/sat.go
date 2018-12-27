@@ -6,8 +6,8 @@ import (
 	"io/ioutil"
 	"sync"
 
+	"github.com/gofrs/uuid"
 	"github.com/hashicorp/hcl"
-	uuid "github.com/satori/go.uuid"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common"
@@ -41,7 +41,7 @@ type SATAttestorPlugin struct {
 	config *satAttestorConfig
 
 	hooks struct {
-		newUUID func() string
+		newUUID func() (string, error)
 	}
 }
 
@@ -49,8 +49,12 @@ var _ nodeattestor.Plugin = (*SATAttestorPlugin)(nil)
 
 func NewSATAttestorPlugin() *SATAttestorPlugin {
 	p := &SATAttestorPlugin{}
-	p.hooks.newUUID = func() string {
-		return uuid.NewV4().String()
+	p.hooks.newUUID = func() (string, error) {
+		u, err := uuid.NewV4()
+		if err != nil {
+			return "", err
+		}
+		return u.String(), nil
 	}
 	return p
 }
@@ -61,7 +65,10 @@ func (p *SATAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 		return err
 	}
 
-	uuid := p.hooks.newUUID()
+	uuid, err := p.hooks.newUUID()
+	if err != nil {
+		return err
+	}
 
 	token, err := loadTokenFromFile(config.tokenPath)
 	if err != nil {

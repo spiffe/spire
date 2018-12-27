@@ -166,6 +166,14 @@
   version = "v1.2.1"
 
 [[projects]]
+  digest = "1:c594a691090b434d55c67f6cc8e326ef5ba49452abc059821bd5d4fd4cdef08c"
+  name = "github.com/gofrs/uuid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "7077aa61129615a0d7f45c49101cd011ab221c27"
+  version = "v3.1.2"
+
+[[projects]]
   branch = "master"
   digest = "1:1ba1d79f2810270045c328ae5d674321db34e3aae468eb4233883b473c5c0467"
   name = "github.com/golang/glog"
@@ -420,14 +428,6 @@
   version = "v1.1.2"
 
 [[projects]]
-  digest = "1:274f67cb6fed9588ea2521ecdac05a6d62a8c51c074c1fccc6a49a40ba80e925"
-  name = "github.com/satori/go.uuid"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
-  version = "v1.2.0"
-
-[[projects]]
   digest = "1:7395b855a6078ad2e6c40311402a057a91125fb9f32cf228e1b32cdc57c33538"
   name = "github.com/shirou/gopsutil"
   packages = [
@@ -660,12 +660,15 @@
     "github.com/aws/aws-sdk-go/service/ec2",
     "github.com/aws/aws-sdk-go/service/iam",
     "github.com/dgrijalva/jwt-go",
+    "github.com/gofrs/uuid",
     "github.com/golang/mock/gomock",
+    "github.com/golang/protobuf/jsonpb",
     "github.com/golang/protobuf/proto",
     "github.com/golang/protobuf/protoc-gen-go",
     "github.com/golang/protobuf/protoc-gen-go/descriptor",
     "github.com/golang/protobuf/protoc-gen-go/plugin",
     "github.com/golang/protobuf/ptypes/empty",
+    "github.com/golang/protobuf/ptypes/struct",
     "github.com/golang/protobuf/ptypes/wrappers",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger",
@@ -682,7 +685,6 @@
     "github.com/jinzhu/gorm/dialects/sqlite",
     "github.com/jteeuwen/go-bindata/go-bindata",
     "github.com/mitchellh/cli",
-    "github.com/satori/go.uuid",
     "github.com/shirou/gopsutil/process",
     "github.com/sirupsen/logrus",
     "github.com/sirupsen/logrus/hooks/test",
