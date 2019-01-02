@@ -58,6 +58,7 @@ type HandlerTestSuite struct {
 	mockNodeResolver *mock_noderesolver.MockNodeResolver
 	server           *mock_node.MockNode_FetchX509SVIDServer
 	now              time.Time
+	catalog          *fakeservercatalog.Catalog
 }
 
 func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
@@ -74,15 +75,14 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	suite.server = mock_node.NewMockNode_FetchX509SVIDServer(suite.ctrl)
 	suite.now = time.Now()
 
-	catalog := fakeservercatalog.New()
-	catalog.SetDataStores(suite.mockDataStore)
-	catalog.SetNodeAttestors(suite.mockNodeAttestor)
-	catalog.SetNodeResolvers(suite.mockNodeResolver)
+	suite.catalog = fakeservercatalog.New()
+	suite.catalog.SetDataStores(suite.mockDataStore)
+	suite.catalog.SetNodeAttestors(suite.mockNodeAttestor)
 
 	suite.handler = NewHandler(HandlerConfig{
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
-		Catalog:     catalog,
+		Catalog:     suite.catalog,
 		ServerCA:    suite.mockServerCA,
 		TrustDomain: testTrustDomain,
 	})
@@ -93,7 +93,51 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	return suite
 }
 
-func TestAttest(t *testing.T) {
+func TestAttestWithMatchingNodeResolver(t *testing.T) {
+	suite := SetupHandlerTest(t)
+	defer suite.ctrl.Finish()
+	suite.catalog.AddNodeResolverNamed("fake_nodeattestor_1", suite.mockNodeResolver)
+
+	ctx := peer.NewContext(context.Background(), getFakePeer())
+	data := getAttestTestData()
+
+	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
+	stream.EXPECT().Context().Return(ctx).AnyTimes()
+	stream.EXPECT().Recv().Return(data.request, nil).AnyTimes()
+
+	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
+	stream.EXPECT().Send(&node.AttestResponse{
+		SvidUpdate: expected,
+	}).AnyTimes()
+
+	setAttestExpectations(suite, data, true)
+	suite.NoError(suite.handler.Attest(stream))
+	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
+}
+
+func TestAttestWithNonMatchingNodeResolver(t *testing.T) {
+	suite := SetupHandlerTest(t)
+	defer suite.ctrl.Finish()
+	suite.catalog.AddNodeResolverNamed("non_matching_resolver", suite.mockNodeResolver)
+
+	ctx := peer.NewContext(context.Background(), getFakePeer())
+	data := getAttestTestData()
+
+	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
+	stream.EXPECT().Context().Return(ctx).AnyTimes()
+	stream.EXPECT().Recv().Return(data.request, nil).AnyTimes()
+
+	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
+	stream.EXPECT().Send(&node.AttestResponse{
+		SvidUpdate: expected,
+	}).AnyTimes()
+
+	setAttestExpectations(suite, data, false)
+	suite.NoError(suite.handler.Attest(stream))
+	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
+}
+
+func TestAttestWithEmptyNodeResolver(t *testing.T) {
 	suite := SetupHandlerTest(t)
 	defer suite.ctrl.Finish()
 
@@ -109,21 +153,21 @@ func TestAttest(t *testing.T) {
 		SvidUpdate: expected,
 	}).AnyTimes()
 
-	setAttestExpectations(suite, data)
+	setAttestExpectations(suite, data, false)
 	suite.NoError(suite.handler.Attest(stream))
 	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
 }
-
 func TestAttestChallengeResponse(t *testing.T) {
 	suite := SetupHandlerTest(t)
 	defer suite.ctrl.Finish()
+	suite.catalog.AddNodeResolverNamed("fake_nodeattestor_1", suite.mockNodeResolver)
 
 	data := getAttestTestData()
 	data.challenges = []challengeResponse{
 		{challenge: "1+1", response: "2"},
 		{challenge: "5+7", response: "12"},
 	}
-	setAttestExpectations(suite, data)
+	setAttestExpectations(suite, data, true)
 
 	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
 
@@ -296,7 +340,7 @@ func getAttestTestData() *fetchBaseSVIDData {
 }
 
 func setAttestExpectations(
-	suite *HandlerTestSuite, data *fetchBaseSVIDData) {
+	suite *HandlerTestSuite, data *fetchBaseSVIDData, matchingNodeResolver bool) {
 
 	stream := mock_nodeattestor.NewMockAttest_Stream(suite.ctrl)
 	stream.EXPECT().Send(&nodeattestor.AttestRequest{
@@ -342,23 +386,26 @@ func setAttestExpectations(
 			}}).
 		Return(nil, nil)
 
-	suite.mockNodeResolver.EXPECT().Resolve(gomock.Any(),
-		&noderesolver.ResolveRequest{
-			BaseSpiffeIdList: []string{data.baseSpiffeID},
-		}).
-		Return(&noderesolver.ResolveResponse{
-			Map: data.selectors,
-		}, nil)
+	var selectors []*common.Selector
+
+	if matchingNodeResolver {
+		suite.mockNodeResolver.EXPECT().Resolve(gomock.Any(),
+			&noderesolver.ResolveRequest{
+				BaseSpiffeIdList: []string{data.baseSpiffeID},
+			}).
+			Return(&noderesolver.ResolveResponse{
+				Map: data.selectors,
+			}, nil)
+
+		selectors = append(selectors, data.selector)
+	}
+	selectors = append(selectors, data.attestResponseSelectors[0], data.attestResponseSelectors[1])
 
 	suite.mockDataStore.EXPECT().SetNodeSelectors(gomock.Any(),
 		&datastore.SetNodeSelectorsRequest{
 			Selectors: &datastore.NodeSelectors{
-				SpiffeId: data.baseSpiffeID,
-				Selectors: []*common.Selector{
-					data.selector,
-					data.attestResponseSelectors[0],
-					data.attestResponseSelectors[1],
-				},
+				SpiffeId:  data.baseSpiffeID,
+				Selectors: selectors,
 			},
 		}).
 		Return(nil, nil)
