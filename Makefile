@@ -27,10 +27,11 @@ endif
 ldflags := '-X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)'
 
 utils = github.com/golang/protobuf/protoc-gen-go \
-		github.com/grpc-ecosystem/grpc-gateway \
 		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
 		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger \
-		github.com/jteeuwen/go-bindata/go-bindata
+		github.com/jteeuwen/go-bindata/go-bindata \
+		github.com/AlekSi/gocoverutil \
+		github.com/mattn/goveralls
 
 # Help message settings
 cyan := $(shell tput setaf 6)
@@ -91,9 +92,7 @@ cmd: ## Opens a shell in docker container
 utils: $(utils) ## Go-get SPIRE utils
 
 $(utils): noop
-	# some sources do not contain buildable go, hence || true
-	# Since 'go get' behaves differently in 'modules-mode', it is disabled to install tools globally.
-	$(docker) /bin/sh -c "GO111MODULE=off go get $@ || true"
+	$(docker) /bin/sh -c "cd utils; go install $@"
 
 # Vendor is not needed for building. It is just kept for compatibility with IDEs that does not support modules yet.
 vendor: ## Make vendored copy of dependencies.
