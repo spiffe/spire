@@ -28,6 +28,7 @@ declare -r BUILD_DIR=${BUILD_DIR:-$PWD/.build-${OS1}-${ARCH1}}
 declare -r BUILD_CACHE=${BUILD_CACHE:-$PWD/.cache}
 
 # versioned binaries that we need for builds
+export GO111MODULE=on
 declare -r GO_VERSION=${GO_VERSION:-1.11.4}
 declare -r GO_URL="https://storage.googleapis.com/golang"
 declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
@@ -87,8 +88,6 @@ build_utils() {
 	eval $(build_env)
 
 	make utils
-	go get github.com/AlekSi/gocoverutil
-	go get github.com/mattn/goveralls
 }
 
 ## Rebuild all .proto files, generated README, and generated gRPC/REST interfaces
@@ -106,19 +105,23 @@ build_protobuf() {
 		else
 			_d=${_dir}
 		fi
+
+		# Set path to right version of grpc-gateway repo
+		grpc_gateway_path=$(go list -f '{{ .Dir }}' -m github.com/grpc-ecosystem/grpc-gateway)/third_party/googleapis
+
 		_log_info "creating \"${_n%.proto}.pb.go\""
 		protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-			--proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+			--proto_path=$grpc_gateway_path \
 			--go_out=plugins=grpc:${_d} ${_n}
 		_log_info "creating \"${_d}/README_pb.md\""
 		protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-			--proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+			--proto_path=$grpc_gateway_path \
 			--doc_out=markdown,README_pb.md:${_d} ${_n}
 		# only build gateway code if necessary
 		if grep -q 'option (google.api.http)' ${_n}; then
 			_log_info "creating http gateway \"${_n%.proto}.pb.gw.go\""
 			protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-				--proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+				--proto_path=$grpc_gateway_path \
 				--grpc-gateway_out=logtostderr=true:${_d} ${_n}
 		fi
 		# only build the plugin interfaces for plugin protos
