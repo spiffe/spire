@@ -2,6 +2,7 @@ package ca
 
 import (
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"math/big"
 	"time"
 
@@ -32,8 +33,8 @@ func CreateServerCATemplate(csrDER []byte, trustDomain string, notBefore, notAft
 			x509.KeyUsageCertSign |
 			x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
-		IsCA:      true,
-		PublicKey: csr.PublicKey,
+		IsCA:                  true,
+		PublicKey:             csr.PublicKey,
 	}, nil
 }
 
@@ -43,6 +44,11 @@ func CreateX509SVIDTemplate(csrDER []byte, trustDomain string, notBefore, notAft
 		return nil, err
 	}
 
+	subject := pkix.Name{
+		Country:      []string{"US"},
+		Organization: []string{"SPIRE"},
+	}
+
 	keyID, err := x509util.GetSubjectKeyId(csr.PublicKey)
 	if err != nil {
 		return nil, err
@@ -50,7 +56,7 @@ func CreateX509SVIDTemplate(csrDER []byte, trustDomain string, notBefore, notAft
 
 	return &x509.Certificate{
 		SerialNumber: serialNumber,
-		Subject:      csr.Subject,
+		Subject:      subject,
 		URIs:         csr.URIs,
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
