@@ -1,6 +1,6 @@
 // +build tools
 
-package utils
+package tools
 
 import (
 	_ "github.com/AlekSi/gocoverutil"

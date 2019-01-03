@@ -95,8 +95,6 @@ build_protobuf() {
 	local _n _d _dir _prefix="$1"
 	eval $(build_env)
 
-	go install github.com/spiffe/spire/tools/protoc-gen-spireplugin
-
 	for _n in ${PROTO_FILES}; do
 		_dir="$(dirname ${_n})"
 		if [[ -n ${_prefix} ]]; then
