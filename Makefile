@@ -31,7 +31,8 @@ utils = github.com/golang/protobuf/protoc-gen-go \
 		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger \
 		github.com/jteeuwen/go-bindata/go-bindata \
 		github.com/AlekSi/gocoverutil \
-		github.com/mattn/goveralls
+		github.com/mattn/goveralls \
+		github.com/spiffe/spire/tools/protoc-gen-spireplugin
 
 # Help message settings
 cyan := $(shell tput setaf 6)
@@ -92,7 +93,7 @@ cmd: ## Opens a shell in docker container
 utils: $(utils) ## Go-get SPIRE utils
 
 $(utils): noop
-	$(docker) /bin/sh -c "cd utils; go install $@"
+	$(docker) /bin/sh -c "cd tools; go install $@"
 
 # Vendor is not needed for building. It is just kept for compatibility with IDEs that does not support modules yet.
 vendor: ## Make vendored copy of dependencies.

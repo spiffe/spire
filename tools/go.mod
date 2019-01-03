@@ -1,4 +1,4 @@
-module github.com/spiffe/spire/utils
+module github.com/spiffe/spire/tools
 
 require (
 	github.com/AlekSi/gocoverutil v0.2.0 // indirect
