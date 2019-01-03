@@ -6,6 +6,9 @@ import (
 	"net"
 	"os"
 
+	sds_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
+	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
+	"github.com/spiffe/spire/pkg/agent/endpoints/sds"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/common/auth"
 
@@ -26,6 +29,9 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	server := grpc.NewServer(grpc.Creds(auth.NewCredentials()))
 
 	e.registerWorkloadAPI(server)
+	if e.c.EnableSDS {
+		e.registerSecretDiscoveryService(server)
+	}
 
 	l, err := e.createUDSListener()
 	if err != nil {
@@ -65,6 +71,22 @@ func (e *endpoints) registerWorkloadAPI(server *grpc.Server) {
 	}
 
 	workload_pb.RegisterSpiffeWorkloadAPIServer(server, w)
+}
+
+func (e *endpoints) registerSecretDiscoveryService(server *grpc.Server) {
+	attestor := attestor.New(&attestor.Config{
+		Catalog: e.c.Catalog,
+		L:       e.c.Log,
+		M:       e.c.Metrics,
+	})
+
+	h := sds.NewHandler(sds.HandlerConfig{
+		Attestor: attestor,
+		Manager:  e.c.Manager,
+		Log:      e.c.Log.WithField("subsystem_name", "sds_api"),
+		Metrics:  e.c.Metrics,
+	})
+	sds_v2.RegisterSecretDiscoveryServiceServer(server, h)
 }
 
 func (e *endpoints) createUDSListener() (net.Listener, error) {
