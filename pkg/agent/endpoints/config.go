@@ -21,6 +21,9 @@ type Config struct {
 
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
+
+	// If true, an SDS server will be served over the UDS socket
+	EnableSDS bool
 }
 
 func New(c *Config) *endpoints {
