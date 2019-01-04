@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/pkg/agent/auth"
+	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ep_registration "github.com/spiffe/spire/pkg/server/endpoints/registration"

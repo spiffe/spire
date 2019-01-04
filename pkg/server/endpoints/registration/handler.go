@@ -11,7 +11,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/agent/auth"
+	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
@@ -590,14 +590,22 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 
 func (h *Handler) startCall(ctx context.Context, key string, keyn ...string) (*telemetry.CallCounter, error) {
 	counter := telemetry.StartCall(h.Metrics, key, keyn...)
-
-	if callerID, err := authorizeCaller(ctx, h.Catalog.DataStores()[0]); err != nil {
-		counter.Done(&err)
-		return nil, err
-	} else if callerID != "" {
+	if callerID := getCallerID(ctx); callerID != "" {
 		counter.AddLabel("caller_id", callerID)
 	}
 	return counter, nil
+}
+
+func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
+	// For the time being, authorization is not per-method. In other words, all or nothing.
+	callerID, err := authorizeCaller(ctx, h.Catalog.DataStores()[0])
+	if err != nil {
+		return nil, err
+	}
+	if callerID != "" {
+		ctx = withCallerID(ctx, callerID)
+	}
+	return ctx, nil
 }
 
 func cloneRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
@@ -652,7 +660,8 @@ func authorizeCaller(ctx context.Context, ds datastore.DataStore) (spiffeID stri
 		}
 	case auth.CallerInfo:
 		// The caller came over UDS and is therefore authorized but does not
-		// provide a spiffeID.
+		// provide a spiffeID. The file permissions on the UDS are restricted to
+		// processes belonging to the same user or group as the server.
 		return "", nil
 	default:
 		// The caller came over an unknown transport
@@ -675,4 +684,15 @@ func authorizeCaller(ctx context.Context, ds datastore.DataStore) (spiffeID stri
 	}
 
 	return "", status.Errorf(codes.PermissionDenied, "SPIFFE ID %q is not authorized", spiffeID)
+}
+
+type callerIDKey struct{}
+
+func withCallerID(ctx context.Context, callerID string) context.Context {
+	return context.WithValue(ctx, callerIDKey{}, callerID)
+}
+
+func getCallerID(ctx context.Context) string {
+	callerID, _ := ctx.Value(callerIDKey{}).(string)
+	return callerID
 }

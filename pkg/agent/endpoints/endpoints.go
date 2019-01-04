@@ -6,8 +6,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/spiffe/spire/pkg/agent/auth"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
+	"github.com/spiffe/spire/pkg/common/auth"
 
 	"google.golang.org/grpc"
 
