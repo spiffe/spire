@@ -60,7 +60,7 @@ func (s *EndpointsTestSuite) SetupTest() {
 
 	s.svidState = observer.NewProperty(svid.State{})
 	c := &Config{
-		GRPCAddr:    &net.TCPAddr{IP: ip, Port: 8000},
+		TCPAddr:     &net.TCPAddr{IP: ip, Port: 8000},
 		UDSAddr:     &net.UnixAddr{Name: "/tmp/spire-registration.sock", Net: "unix"},
 		SVIDStream:  s.svidState.Observe(),
 		TrustDomain: td,
@@ -71,8 +71,8 @@ func (s *EndpointsTestSuite) SetupTest() {
 	s.e = New(c)
 }
 
-func (s *EndpointsTestSuite) TestCreateGRPCServer() {
-	s.Assert().NotNil(s.e.createGRPCServer(ctx))
+func (s *EndpointsTestSuite) TestCreateTCPServer() {
+	s.Assert().NotNil(s.e.createTCPServer(ctx))
 }
 
 func (s *EndpointsTestSuite) TestCreateUDSServer() {
@@ -80,11 +80,11 @@ func (s *EndpointsTestSuite) TestCreateUDSServer() {
 }
 
 func (s *EndpointsTestSuite) TestRegisterNodeAPI() {
-	s.Assert().NotPanics(func() { s.e.registerNodeAPI(s.e.createGRPCServer(ctx)) })
+	s.Assert().NotPanics(func() { s.e.registerNodeAPI(s.e.createTCPServer(ctx)) })
 }
 
 func (s *EndpointsTestSuite) TestRegisterRegistrationAPI() {
-	s.Assert().NotPanics(func() { s.e.registerRegistrationAPI(s.e.createGRPCServer(ctx), s.e.createUDSServer(ctx)) })
+	s.Assert().NotPanics(func() { s.e.registerRegistrationAPI(s.e.createTCPServer(ctx), s.e.createUDSServer(ctx)) })
 }
 
 func (s *EndpointsTestSuite) TestListenAndServe() {
@@ -149,10 +149,10 @@ func (s *EndpointsTestSuite) TestGRPCHookFailure() {
 	}
 }
 
-func (s *EndpointsTestSuite) TestGetGRPCServerConfig() {
+func (s *EndpointsTestSuite) TestGetTLSConfig() {
 	certs, pool := s.configureBundle()
 
-	tlsConfig, err := s.e.getGRPCServerConfig(ctx)(nil)
+	tlsConfig, err := s.e.getTLSConfig(ctx)(nil)
 	require.NoError(s.T(), err)
 
 	s.Assert().Equal(tls.VerifyClientCertIfGiven, tlsConfig.ClientAuth)

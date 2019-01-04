@@ -5,16 +5,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"net"
 	"net/url"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/agent/auth"
+	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/api/registration"
@@ -22,8 +19,6 @@ import (
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
-	mock_datastore "github.com/spiffe/spire/test/mock/proto/server/datastore"
-	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
@@ -91,16 +86,7 @@ func (s *HandlerSuite) SetupTest() {
 	// we need to test a streaming API. without doing the same codegen we
 	// did with plugins, implementing the server or client side interfaces
 	// is a pain. start up a localhost server and test over that.
-	//
-	// the unary/stream interceptors are used to inject peer info on the context
-	// before passing it into the handler so we can easily test called
-	// authorization. otherwise we'd have to set up TCP+TLS and UDS listener
-	// infrastructure.
-	s.setAuthInfo(udsAuth)
-	s.server = grpc.NewServer(
-		grpc.UnaryInterceptor(s.unaryInterceptor),
-		grpc.StreamInterceptor(s.streamInterceptor),
-	)
+	s.server = grpc.NewServer()
 	registration.RegisterRegistrationServer(s.server, handler)
 
 	// start up a server over localhost
@@ -801,7 +787,12 @@ func (s *HandlerSuite) TestFetchBundle() {
 	}, resp)
 }
 
-func (s *HandlerSuite) TestAuthorizeCaller() {
+func (s *HandlerSuite) TestAuthorizeCall() {
+	catalog := fakeservercatalog.New()
+	catalog.SetDataStores(s.ds)
+	log, _ := test.NewNullLogger()
+	handler := &Handler{Log: log, Catalog: catalog}
+
 	makeTLSPeer := func(spiffeID string) *peer.Peer {
 		cert := &x509.Certificate{}
 		if spiffeID != "" {
@@ -826,7 +817,7 @@ func (s *HandlerSuite) TestAuthorizeCaller() {
 
 	testCases := []struct {
 		Peer     *peer.Peer
-		SpiffeID string
+		CallerID string
 		Err      string
 	}{
 		{
@@ -871,7 +862,7 @@ func (s *HandlerSuite) TestAuthorizeCaller() {
 		},
 		{
 			Peer:     makeTLSPeer("spiffe://example.org/admin"),
-			SpiffeID: "spiffe://example.org/admin",
+			CallerID: "spiffe://example.org/admin",
 		},
 	}
 
@@ -881,106 +872,15 @@ func (s *HandlerSuite) TestAuthorizeCaller() {
 		if testCase.Peer != nil {
 			ctx = peer.NewContext(ctx, testCase.Peer)
 		}
-		spiffeID, err := authorizeCaller(ctx, s.ds)
+		ctx, err := handler.AuthorizeCall(ctx, "SOMEMETHOD")
 		if testCase.Err != "" {
 			s.requireErrorContains(err, testCase.Err)
 			s.requireGRPCStatusCode(err, codes.PermissionDenied)
 			continue
 		}
 		s.Require().NoError(err)
-		s.Require().Equal(testCase.SpiffeID, spiffeID)
+		s.Require().Equal(testCase.CallerID, getCallerID(ctx), "Caller SPIFFE ID on context")
 	}
-}
-
-func (s *HandlerSuite) TestAuthorization() {
-	// Set up no authentication info on the peer and then call each method
-	s.setAuthInfo(nil)
-	_, err := s.handler.FetchBundle(context.Background(), &common.Empty{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.CreateEntry(context.Background(), &common.RegistrationEntry{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.DeleteEntry(context.Background(), &registration.RegistrationEntryID{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.FetchEntry(context.Background(), &registration.RegistrationEntryID{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.FetchEntries(context.Background(), &common.Empty{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.UpdateEntry(context.Background(), &registration.UpdateEntryRequest{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.ListByParentID(context.Background(), &registration.ParentID{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.ListBySelector(context.Background(), &common.Selector{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.ListBySpiffeID(context.Background(), &registration.SpiffeID{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.CreateFederatedBundle(context.Background(), &registration.FederatedBundle{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.FetchFederatedBundle(context.Background(), &registration.FederatedBundleID{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	ss, err := s.handler.ListFederatedBundles(context.Background(), &common.Empty{})
-	s.Require().NoError(err)
-	_, err = ss.Recv()
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.UpdateFederatedBundle(context.Background(), &registration.FederatedBundle{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.DeleteFederatedBundle(context.Background(), &registration.DeleteFederatedBundleRequest{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.FetchBundle(context.Background(), &common.Empty{})
-	s.requireGRPCStatusCode(err, codes.PermissionDenied)
-
-	// Set up TLS auth info with an authorized client certificate
-	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: "spiffe://example.org/parent",
-		SpiffeId: "spiffe://example.org/admin",
-		Admin:    true,
-	})
-	s.setAuthInfo(credentials.TLSInfo{
-		State: tls.ConnectionState{
-			VerifiedChains: [][]*x509.Certificate{
-				{
-					{
-						URIs: []*url.URL{{Scheme: "spiffe", Host: "example.org", Path: "admin"}},
-					},
-				},
-			},
-		},
-	})
-	_, err = s.handler.FetchBundle(context.Background(), &common.Empty{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.CreateEntry(context.Background(), &common.RegistrationEntry{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.DeleteEntry(context.Background(), &registration.RegistrationEntryID{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.FetchEntry(context.Background(), &registration.RegistrationEntryID{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.FetchEntries(context.Background(), &common.Empty{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.UpdateEntry(context.Background(), &registration.UpdateEntryRequest{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.ListByParentID(context.Background(), &registration.ParentID{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.ListBySelector(context.Background(), &common.Selector{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.ListBySpiffeID(context.Background(), &registration.SpiffeID{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.CreateFederatedBundle(context.Background(), &registration.FederatedBundle{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.FetchFederatedBundle(context.Background(), &registration.FederatedBundleID{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	ss, err = s.handler.ListFederatedBundles(context.Background(), &common.Empty{})
-	s.Require().NoError(err)
-	_, err = ss.Recv()
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.UpdateFederatedBundle(context.Background(), &registration.FederatedBundle{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.DeleteFederatedBundle(context.Background(), &registration.DeleteFederatedBundleRequest{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
-	_, err = s.handler.FetchBundle(context.Background(), &common.Empty{})
-	s.requireNotGRPCStatusCode(err, codes.PermissionDenied)
 }
 
 func (s *HandlerSuite) createBundle(bundle *datastore.Bundle) {
@@ -1008,234 +908,6 @@ func (s *HandlerSuite) requireGRPCStatusCode(err error, code codes.Code) {
 
 func (s *HandlerSuite) requireNotGRPCStatusCode(err error, code codes.Code) {
 	requireNotGRPCStatusCode(s.T(), err, code)
-}
-
-func (s *HandlerSuite) setAuthInfo(authInfo credentials.AuthInfo) {
-	s.peer = &peer.Peer{
-		AuthInfo: authInfo,
-	}
-}
-
-func (s *HandlerSuite) unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	return handler(peer.NewContext(ctx, s.peer), req)
-}
-
-func (s *HandlerSuite) streamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	return handler(srv, serverStream{
-		ServerStream: ss,
-		ctx:          peer.NewContext(ss.Context(), s.peer),
-	})
-}
-
-// used to override the context on a stream
-type serverStream struct {
-	grpc.ServerStream
-	ctx context.Context
-}
-
-func (s serverStream) Context() context.Context {
-	return s.ctx
-}
-
-type handlerTestSuite struct {
-	suite.Suite
-	ctrl          *gomock.Controller
-	handler       *Handler
-	mockDataStore *mock_datastore.MockDataStore
-}
-
-func setupRegistrationTest(t *testing.T) *handlerTestSuite {
-	suite := &handlerTestSuite{}
-	mockCtrl := gomock.NewController(t)
-	suite.ctrl = mockCtrl
-	log, _ := test.NewNullLogger()
-	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
-
-	catalog := fakeservercatalog.New()
-	catalog.SetDataStores(suite.mockDataStore)
-
-	suite.handler = &Handler{
-		Log:         log,
-		Metrics:     telemetry.Blackhole{},
-		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
-		Catalog:     catalog,
-	}
-	return suite
-}
-
-func noExpectations(*handlerTestSuite) {}
-
-func createEntryExpectations(suite *handlerTestSuite) {
-	entryIn := testutil.GetRegistrationEntries("good.json")[0]
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{BySpiffeId: &wrappers.StringValue{Value: entryIn.SpiffeId}}).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: []*common.RegistrationEntry{},
-		}, nil)
-
-	createRequest := &datastore.CreateRegistrationEntryRequest{
-		Entry: entryIn,
-	}
-
-	entryOut := *entryIn
-	entryOut.EntryId = "abcdefgh"
-	createResponse := &datastore.CreateRegistrationEntryResponse{
-		Entry: &entryOut,
-	}
-
-	suite.mockDataStore.EXPECT().
-		CreateRegistrationEntry(gomock.Any(), createRequest).
-		Return(createResponse, nil)
-}
-
-func createEntryErrorExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), gomock.Any()).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: []*common.RegistrationEntry{},
-		}, nil)
-
-	suite.mockDataStore.EXPECT().
-		CreateRegistrationEntry(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("foo"))
-}
-
-func createEntryNonUniqueExpectations(suite *handlerTestSuite) {
-	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{
-			BySpiffeId: &wrappers.StringValue{
-				Value: newRegEntry.SpiffeId,
-			},
-		}).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: []*common.RegistrationEntry{newRegEntry},
-		}, nil)
-}
-
-func fetchEntryExpectations(suite *handlerTestSuite) {
-	fetchRequest := &datastore.FetchRegistrationEntryRequest{
-		EntryId: "abcdefgh",
-	}
-	fetchResponse := &datastore.FetchRegistrationEntryResponse{
-		Entry: testutil.GetRegistrationEntries("good.json")[0],
-	}
-	suite.mockDataStore.EXPECT().
-		FetchRegistrationEntry(gomock.Any(), fetchRequest).
-		Return(fetchResponse, nil)
-}
-
-func fetchEntriesExpectations(suite *handlerTestSuite) {
-	fetchResponse := &datastore.ListRegistrationEntriesResponse{
-		Entries: testutil.GetRegistrationEntries("good.json"),
-	}
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{}).
-		Return(fetchResponse, nil)
-}
-
-func fetchEntryErrorExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		FetchRegistrationEntry(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("foo"))
-}
-
-func deleteEntryExpectations(suite *handlerTestSuite) {
-	resp := &datastore.DeleteRegistrationEntryResponse{
-		Entry: testutil.GetRegistrationEntries("good.json")[0],
-	}
-
-	suite.mockDataStore.EXPECT().
-		DeleteRegistrationEntry(gomock.Any(), gomock.Any()).
-		Return(resp, nil)
-}
-
-func listByParentIDExpectations(suite *handlerTestSuite) {
-	listRequest := &datastore.ListRegistrationEntriesRequest{
-		ByParentId: &wrappers.StringValue{
-			Value: "spiffe://example.org/spire/agent/join_token/TokenBlog",
-		},
-	}
-	listResponse := &datastore.ListRegistrationEntriesResponse{
-		Entries: testutil.GetRegistrationEntries("good.json"),
-	}
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), listRequest).
-		Return(listResponse, nil)
-}
-
-func listByParentIDErrorExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("foo"))
-}
-
-func listBySelectorExpectations(suite *handlerTestSuite) {
-	req := &datastore.ListRegistrationEntriesRequest{
-		BySelectors: &datastore.BySelectors{
-			Selectors: []*common.Selector{{Type: "unix", Value: "uid:1111"}},
-		},
-	}
-	resp := &datastore.ListRegistrationEntriesResponse{
-		Entries: testutil.GetRegistrationEntries("good.json"),
-	}
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), req).
-		Return(resp, nil)
-}
-
-func listBySpiffeIDExpectations(suite *handlerTestSuite) {
-	req := &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
-			Value: "spiffe://example.org/Blog",
-		},
-	}
-
-	resp := &datastore.ListRegistrationEntriesResponse{
-		Entries: testutil.GetRegistrationEntries("good.json")[0:1],
-	}
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), req).
-		Return(resp, nil)
-}
-
-func createJoinTokenExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		CreateJoinToken(gomock.Any(), gomock.Any()).
-		Return(&datastore.CreateJoinTokenResponse{}, nil)
-}
-
-func createJoinTokenErrorExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		CreateJoinToken(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("foo"))
-}
-
-func createFetchBundleExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomainId: "spiffe://example.org",
-		}).
-		Return(&datastore.FetchBundleResponse{
-			Bundle: &datastore.Bundle{
-				TrustDomainId: "spiffe://example.org",
-				RootCas: []*common.Certificate{
-					{DerBytes: []byte{1, 2, 3}},
-				},
-			},
-		}, nil)
-}
-
-func createFetchBundleErrorExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomainId: "spiffe://example.org",
-		}).
-		Return(nil, errors.New("bundle not found"))
 }
 
 func pemBytes(p []byte) []byte {
