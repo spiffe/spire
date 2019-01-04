@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v3"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"

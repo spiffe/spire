@@ -3,7 +3,7 @@ package cache
 import (
 	"sync"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v3"
 	"github.com/spiffe/spire/pkg/common/selector"
 )
 
