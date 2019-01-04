@@ -12,4 +12,4 @@ ENV GOROOT=/root/build
 ENV GOBIN=$GOPATH/bin/linux_amd64
 ENV PATH=$GOROOT/bin:$GOBIN:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RUN mkdir /root/go
-WORKDIR /root/go/src/github.com/spiffe/spire
+WORKDIR /root/spire

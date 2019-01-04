@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v3"
 	"github.com/golang/protobuf/proto"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
