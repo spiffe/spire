@@ -15,7 +15,7 @@ func TestUnaryAuthorizeCall(t *testing.T) {
 		Server:     nil,
 		FullMethod: "FOO",
 	}, nil)
-	require.EqualError(t, err, "rpc error: code = PermissionDenied desc = server unable to provide authorization")
+	require.EqualError(t, err, `rpc error: code = PermissionDenied desc = server unable to provide authorization for method "FOO"`)
 	require.Nil(t, resp)
 
 	// authorizer fails authorization
@@ -53,7 +53,7 @@ func TestStreamAuthorizeCall(t *testing.T) {
 
 	// server does not implement the Authorizer interface
 	err := StreamAuthorizeCall(nil, stream, info, nil)
-	require.EqualError(t, err, "rpc error: code = PermissionDenied desc = server unable to provide authorization")
+	require.EqualError(t, err, `rpc error: code = PermissionDenied desc = server unable to provide authorization for method "FOO"`)
 
 	// authorizer fails authorization
 	server := AuthorizerFunc(func(ctx context.Context, fullMethod string) (context.Context, error) {

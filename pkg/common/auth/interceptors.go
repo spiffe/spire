@@ -41,7 +41,7 @@ func StreamAuthorizeCall(srv interface{}, ss grpc.ServerStream, info *grpc.Strea
 func authorizeCall(ctx context.Context, srv interface{}, fullMethod string) (context.Context, error) {
 	authorizer, ok := srv.(Authorizer)
 	if !ok {
-		return nil, status.Error(codes.PermissionDenied, "server unable to provide authorization")
+		return nil, status.Errorf(codes.PermissionDenied, "server unable to provide authorization for method %q", fullMethod)
 	}
 	return authorizer.AuthorizeCall(ctx, fullMethod)
 }
