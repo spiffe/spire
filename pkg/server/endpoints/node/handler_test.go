@@ -98,7 +98,7 @@ func TestAttestWithMatchingNodeResolver(t *testing.T) {
 	defer suite.ctrl.Finish()
 	suite.catalog.AddNodeResolverNamed("fake_nodeattestor_1", suite.mockNodeResolver)
 
-	ctx := peer.NewContext(context.Background(), getFakePeer())
+	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
 	data := getAttestTestData()
 
 	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
@@ -120,7 +120,7 @@ func TestAttestWithNonMatchingNodeResolver(t *testing.T) {
 	defer suite.ctrl.Finish()
 	suite.catalog.AddNodeResolverNamed("non_matching_resolver", suite.mockNodeResolver)
 
-	ctx := peer.NewContext(context.Background(), getFakePeer())
+	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
 	data := getAttestTestData()
 
 	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
@@ -141,7 +141,7 @@ func TestAttestWithEmptyNodeResolver(t *testing.T) {
 	suite := SetupHandlerTest(t)
 	defer suite.ctrl.Finish()
 
-	ctx := peer.NewContext(context.Background(), getFakePeer())
+	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
 	data := getAttestTestData()
 
 	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
@@ -171,9 +171,9 @@ func TestAttestChallengeResponse(t *testing.T) {
 
 	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
 
-	ctx := peer.NewContext(context.Background(), getFakePeer())
+	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
 	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
-	stream.EXPECT().Context().Return(ctx)
+	stream.EXPECT().Context().Return(ctx).AnyTimes()
 	stream.EXPECT().Recv().Return(data.request, nil)
 	stream.EXPECT().Send(&node.AttestResponse{
 		Challenge: []byte("1+1"),
@@ -247,6 +247,44 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 
 	err := suite.handler.FetchX509SVID(suite.server)
 	suite.Require().NoError(err)
+}
+
+func TestAuthorizeCall(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	handler := NewHandler(HandlerConfig{Log: log})
+
+	peerCert := getFakePeerCertificate()
+	peerCtx := peer.NewContext(context.Background(), getFakePeer())
+
+	// unhandled method
+	ctx, err := handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Foo")
+	require.EqualError(t, err, `rpc error: code = PermissionDenied desc = authorization not implemented for method "/spire.api.node.Node/Foo"`)
+	require.Nil(t, ctx)
+
+	// Attest() is always authorized (context is not embellished)
+	ctx, err = handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Attest")
+	require.NoError(t, err)
+	require.Equal(t, context.Background(), ctx)
+
+	// FetchX509SVID() needs a verified peer certificate (context embellished with certificate)
+	ctx, err = handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/FetchX509SVID")
+	require.EqualError(t, err, "client SVID is required for this request")
+	require.Nil(t, ctx)
+	ctx, err = handler.AuthorizeCall(peerCtx, "/spire.api.node.Node/FetchX509SVID")
+	require.NoError(t, err)
+	actualCert, ok := getPeerCertificate(ctx)
+	require.True(t, ok, "context has peer certificate")
+	require.True(t, peerCert.Equal(actualCert), "peer certificate matches")
+
+	// FetchJWTSVID() needs a verified peer certificate (context embellished with certificate)
+	ctx, err = handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/FetchJWTSVID")
+	require.EqualError(t, err, "client SVID is required for this request")
+	require.Nil(t, ctx)
+	ctx, err = handler.AuthorizeCall(peerCtx, "/spire.api.node.Node/FetchJWTSVID")
+	require.NoError(t, err)
+	actualCert, ok = getPeerCertificate(ctx)
+	require.True(t, ok, "context has peer certificate")
+	require.True(t, peerCert.Equal(actualCert), "peer certificate matches")
 }
 
 func loadCertFromPEM(fileName string) *x509.Certificate {
@@ -623,8 +661,8 @@ func getFetchX509SVIDTestData(t *testing.T) *fetchSVIDData {
 func setFetchX509SVIDExpectations(
 	suite *HandlerTestSuite, data *fetchSVIDData) {
 
-	ctx := peer.NewContext(context.Background(), getFakePeer())
-	suite.server.EXPECT().Context().Return(ctx)
+	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
+	suite.server.EXPECT().Context().Return(ctx).AnyTimes()
 	suite.server.EXPECT().Recv().Return(data.request, nil)
 
 	// begin FetchRegistrationEntries()
@@ -775,11 +813,15 @@ func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
 	return svidUpdate
 }
 
+func getFakePeerCertificate() *x509.Certificate {
+	return loadCertFromPEM("base_cert.pem")
+}
+
 func getFakePeer() *peer.Peer {
-	parsedCert := loadCertFromPEM("base_cert.pem")
+	peerCert := getFakePeerCertificate()
 
 	state := tls.ConnectionState{
-		VerifiedChains: [][]*x509.Certificate{{parsedCert}},
+		VerifiedChains: [][]*x509.Certificate{{peerCert}},
 	}
 
 	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:12345")
@@ -796,7 +838,7 @@ func durationFromTTL(ttl int32) time.Duration {
 }
 
 func TestFetchJWTSVID(t *testing.T) {
-	ctx := peer.NewContext(context.Background(), getFakePeer())
+	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
 	log, _ := test.NewNullLogger()
 
 	dataStore := fakedatastore.New()
@@ -846,18 +888,17 @@ func TestFetchJWTSVID(t *testing.T) {
 	handler.limiter = limiter
 
 	// no peer certificate on context
-	badPeer := getFakePeer()
-	badPeer.AuthInfo = nil
-	badCtx := peer.NewContext(context.Background(), badPeer)
+	badCtx := context.Background()
 	resp, err := handler.FetchJWTSVID(badCtx, &node.FetchJWTSVIDRequest{})
-	require.Equal(t, 1, limiter.callsFor(JSRMsg))
 	require.EqualError(t, err, "client SVID is required for this request")
 	require.Nil(t, resp)
+	require.Equal(t, 1, limiter.callsFor(JSRMsg))
 
 	// missing JSR
 	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{})
 	require.EqualError(t, err, "request missing JSR")
 	require.Nil(t, resp)
+	require.Equal(t, 2, limiter.callsFor(JSRMsg))
 
 	// missing SPIFFE ID
 	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
@@ -865,6 +906,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	})
 	require.EqualError(t, err, "request missing SPIFFE ID")
 	require.Nil(t, resp)
+	require.Equal(t, 3, limiter.callsFor(JSRMsg))
 
 	// missing audiences
 	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
@@ -874,6 +916,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	})
 	require.EqualError(t, err, "request missing audience")
 	require.Nil(t, resp)
+	require.Equal(t, 4, limiter.callsFor(JSRMsg))
 
 	// not authorized for workload
 	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
@@ -884,6 +927,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	})
 	require.EqualError(t, err, `caller "spiffe://example.org/spire/agent/join_token/token" is not authorized for "spiffe://example.org/db"`)
 	require.Nil(t, resp)
+	require.Equal(t, 5, limiter.callsFor(JSRMsg))
 
 	// authorized against a registration entry
 	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
@@ -896,6 +940,9 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.NotNil(t, resp)
 	require.NotEmpty(t, resp.Svid.Token)
 	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
+	require.Equal(t, 6, limiter.callsFor(JSRMsg))
+
+	// not authorized for workload
 }
 
 type fakeLimiter struct {

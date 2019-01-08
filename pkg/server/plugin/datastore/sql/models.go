@@ -54,6 +54,7 @@ type RegisteredEntry struct {
 	TTL           int32
 	Selectors     []Selector
 	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
+	Admin         bool
 }
 
 // Keep time simple and easily comparable with UNIX time

@@ -1,6 +1,7 @@
 package registration
 
 import (
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
@@ -19,6 +21,10 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 //Service is used to register SPIFFE IDs, and the attestation logic that should
@@ -36,7 +42,11 @@ func (h *Handler) CreateEntry(
 	ctx context.Context, request *common.RegistrationEntry) (
 	response *registration.RegistrationEntryID, err error) {
 
-	defer telemetry.CountCall(h.Metrics, "registration_api", "entry", "create")(&err)
+	counter, err := h.startCall(ctx, "registration_api", "entry", "create")
+	if err != nil {
+		return nil, err
+	}
+	defer counter.Done(&err)
 
 	request, err = h.prepareRegistrationEntry(request, false)
 	if err != nil {
@@ -73,7 +83,11 @@ func (h *Handler) DeleteEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
 
-	defer telemetry.CountCall(h.Metrics, "registration_api", "entry", "delete")(&err)
+	counter, err := h.startCall(ctx, "registration_api", "entry", "delete")
+	if err != nil {
+		return nil, err
+	}
+	defer counter.Done(&err)
 
 	ds := h.getDataStore()
 	req := &datastore.DeleteRegistrationEntryRequest{
@@ -92,7 +106,11 @@ func (h *Handler) FetchEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
 
-	defer telemetry.CountCall(h.Metrics, "registration_api", "entry", "fetch")(&err)
+	counter, err := h.startCall(ctx, "registration_api", "entry", "fetch")
+	if err != nil {
+		return nil, err
+	}
+	defer counter.Done(&err)
 
 	ds := h.getDataStore()
 	fetchResponse, err := ds.FetchRegistrationEntry(ctx,
@@ -102,6 +120,9 @@ func (h *Handler) FetchEntry(
 		h.Log.Error(err)
 		return response, errors.New("Error trying to fetch entry")
 	}
+	if fetchResponse.Entry == nil {
+		return nil, errors.New("no such registration entry")
+	}
 	return fetchResponse.Entry, nil
 }
 
@@ -109,7 +130,11 @@ func (h *Handler) FetchEntries(
 	ctx context.Context, request *common.Empty) (
 	response *common.RegistrationEntries, err error) {
 
-	defer telemetry.CountCall(h.Metrics, "registration_api", "entry", "list")(&err)
+	counter, err := h.startCall(ctx, "registration_api", "entry", "list")
+	if err != nil {
+		return nil, err
+	}
+	defer counter.Done(&err)
 
 	ds := h.getDataStore()
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
@@ -126,7 +151,11 @@ func (h *Handler) UpdateEntry(
 	ctx context.Context, request *registration.UpdateEntryRequest) (
 	response *common.RegistrationEntry, err error) {
 
-	defer telemetry.CountCall(h.Metrics, "registration_api", "entry", "update")(&err)
+	counter, err := h.startCall(ctx, "registration_api", "entry", "update")
+	if err != nil {
+		return nil, err
+	}
+	defer counter.Done(&err)
 
 	if request.Entry == nil {
 		return nil, errors.New("Request is missing entry to update")
@@ -157,7 +186,10 @@ func (h *Handler) ListByParentID(
 	ctx context.Context, request *registration.ParentID) (
 	response *common.RegistrationEntries, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, "registration_api", "entry", "list")
+	counter, err := h.startCall(ctx, "registration_api", "entry", "list")
+	if err != nil {
+		return nil, err
+	}
 	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
@@ -189,7 +221,10 @@ func (h *Handler) ListBySelector(
 	ctx context.Context, request *common.Selector) (
 	response *common.RegistrationEntries, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, "registration_api", "entry", "list")
+	counter, err := h.startCall(ctx, "registration_api", "entry", "list")
+	if err != nil {
+		return nil, err
+	}
 	defer counter.Done(&err)
 
 	counter.AddLabel("selector", fmt.Sprintf("%s:%s", request.Type, request.Value))
@@ -214,7 +249,10 @@ func (h *Handler) ListBySpiffeID(
 	ctx context.Context, request *registration.SpiffeID) (
 	response *common.RegistrationEntries, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, "registration_api", "entry", "list")
+	counter, err := h.startCall(ctx, "registration_api", "entry", "list")
+	if err != nil {
+		return nil, err
+	}
 	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
@@ -245,7 +283,10 @@ func (h *Handler) CreateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, "registration_api", "federated_bundle", "create")
+	counter, err := h.startCall(ctx, "registration_api", "federated_bundle", "create")
+	if err != nil {
+		return nil, err
+	}
 	defer counter.Done(&err)
 
 	bundle := request.Bundle
@@ -285,7 +326,11 @@ func (h *Handler) FetchFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundleID) (
 	response *registration.FederatedBundle, err error) {
 
-	defer telemetry.CountCall(h.Metrics, "registration_api", "federated_bundle", "fetch")(&err)
+	counter, err := h.startCall(ctx, "registration_api", "federated_bundle", "fetch")
+	if err != nil {
+		return nil, err
+	}
+	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
 	if err != nil {
@@ -315,7 +360,11 @@ func (h *Handler) FetchFederatedBundle(
 }
 
 func (h *Handler) ListFederatedBundles(request *common.Empty, stream registration.Registration_ListFederatedBundlesServer) (err error) {
-	defer telemetry.CountCall(h.Metrics, "registration_api", "federated_bundle", "list")(&err)
+	counter, err := h.startCall(stream.Context(), "registration_api", "federated_bundle", "list")
+	if err != nil {
+		return err
+	}
+	defer counter.Done(&err)
 
 	ds := h.getDataStore()
 	resp, err := ds.ListBundles(stream.Context(), &datastore.ListBundlesRequest{})
@@ -343,7 +392,10 @@ func (h *Handler) UpdateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, "registration_api", "federated_bundle", "update")
+	counter, err := h.startCall(ctx, "registration_api", "federated_bundle", "update")
+	if err != nil {
+		return nil, err
+	}
 	defer counter.Done(&err)
 
 	bundle := request.Bundle
@@ -383,7 +435,10 @@ func (h *Handler) DeleteFederatedBundle(
 	ctx context.Context, request *registration.DeleteFederatedBundleRequest) (
 	response *common.Empty, err error) {
 
-	counter := telemetry.StartCall(h.Metrics, "registration_api", "federated_bundle", "delete")
+	counter, err := h.startCall(ctx, "registration_api", "federated_bundle", "delete")
+	if err != nil {
+		return nil, err
+	}
 	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
@@ -417,7 +472,11 @@ func (h *Handler) CreateJoinToken(
 	ctx context.Context, request *registration.JoinToken) (
 	token *registration.JoinToken, err error) {
 
-	defer telemetry.CountCall(h.Metrics, "registration_api", "join_token", "create")(&err)
+	counter, err := h.startCall(ctx, "registration_api", "join_token", "create")
+	if err != nil {
+		return nil, err
+	}
+	defer counter.Done(&err)
 
 	if request.Ttl < 1 {
 		return nil, errors.New("Ttl is required, you must provide one")
@@ -443,7 +502,7 @@ func (h *Handler) CreateJoinToken(
 	})
 	if err != nil {
 		h.Log.Error(err)
-		return nil, errors.New("Error trying to register your token")
+		return nil, errors.New("Failed to register token")
 	}
 
 	return request, nil
@@ -454,7 +513,11 @@ func (h *Handler) FetchBundle(
 	ctx context.Context, request *common.Empty) (
 	response *registration.Bundle, err error) {
 
-	defer telemetry.CountCall(h.Metrics, "registration_api", "bundle", "fetch")(&err)
+	counter, err := h.startCall(ctx, "registration_api", "bundle", "fetch")
+	if err != nil {
+		return nil, err
+	}
+	defer counter.Done(&err)
 
 	ds := h.getDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
@@ -525,6 +588,26 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	return entry, nil
 }
 
+func (h *Handler) startCall(ctx context.Context, key string, keyn ...string) (*telemetry.CallCounter, error) {
+	counter := telemetry.StartCall(h.Metrics, key, keyn...)
+	if callerID := getCallerID(ctx); callerID != "" {
+		counter.AddLabel("caller_id", callerID)
+	}
+	return counter, nil
+}
+
+func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
+	// For the time being, authorization is not per-method. In other words, all or nothing.
+	callerID, err := authorizeCaller(ctx, h.Catalog.DataStores()[0])
+	if err != nil {
+		return nil, err
+	}
+	if callerID != "" {
+		ctx = withCallerID(ctx, callerID)
+	}
+	return ctx, nil
+}
+
 func cloneRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
 	return proto.Clone(entry).(*common.RegistrationEntry)
 }
@@ -539,4 +622,77 @@ func convertDeleteBundleMode(in registration.DeleteFederatedBundleRequest_Mode) 
 		return datastore.DeleteBundleRequest_DELETE, nil
 	}
 	return datastore.DeleteBundleRequest_RESTRICT, fmt.Errorf("unhandled delete mode %q", in)
+}
+
+func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
+	if len(cert.URIs) == 0 {
+		return "", errors.New("no SPIFFE ID in certificate")
+	}
+	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
+	if err != nil {
+		return "", err
+	}
+	return spiffeID.String(), nil
+}
+
+func authorizeCaller(ctx context.Context, ds datastore.DataStore) (spiffeID string, err error) {
+	ctxPeer, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", status.Error(codes.PermissionDenied, "no peer information for caller")
+	}
+
+	switch authInfo := ctxPeer.AuthInfo.(type) {
+	case credentials.TLSInfo:
+		// The caller came over TLS and must present an authorized SPIFFE ID
+		if len(authInfo.State.VerifiedChains) == 0 {
+			return "", status.Errorf(codes.PermissionDenied, "no verified client certificate")
+		}
+		chain := authInfo.State.VerifiedChains[0]
+		if len(chain) == 0 {
+			// the tls package should never supply an empty verified chain, but
+			// we'll just be defensive here.
+			return "", status.Errorf(codes.PermissionDenied, "verified chain is empty")
+		}
+		cert := chain[0]
+		spiffeID, err = getSpiffeIDFromCert(cert)
+		if err != nil {
+			return "", status.Error(codes.PermissionDenied, err.Error())
+		}
+	case auth.CallerInfo:
+		// The caller came over UDS and is therefore authorized but does not
+		// provide a spiffeID. The file permissions on the UDS are restricted to
+		// processes belonging to the same user or group as the server.
+		return "", nil
+	default:
+		// The caller came over an unknown transport
+		return "", status.Errorf(codes.PermissionDenied, "unsupported peer auth info type (%T)", authInfo)
+	}
+
+	resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		BySpiffeId: &wrappers.StringValue{
+			Value: spiffeID,
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	for _, entry := range resp.Entries {
+		if entry.Admin {
+			return spiffeID, nil
+		}
+	}
+
+	return "", status.Errorf(codes.PermissionDenied, "SPIFFE ID %q is not authorized", spiffeID)
+}
+
+type callerIDKey struct{}
+
+func withCallerID(ctx context.Context, callerID string) context.Context {
+	return context.WithValue(ctx, callerIDKey{}, callerID)
+}
+
+func getCallerID(ctx context.Context) string {
+	callerID, _ := ctx.Value(callerIDKey{}).(string)
+	return callerID
 }
