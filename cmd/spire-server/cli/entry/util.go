@@ -57,21 +57,27 @@ func parseSelector(str string) (*common.Selector, error) {
 }
 
 func printEntry(e *common.RegistrationEntry) {
-	fmt.Printf("Entry ID:\t%s\n", e.EntryId)
-	fmt.Printf("SPIFFE ID:\t%s\n", e.SpiffeId)
-	fmt.Printf("Parent ID:\t%s\n", e.ParentId)
+	fmt.Printf("Entry ID      : %s\n", e.EntryId)
+	fmt.Printf("SPIFFE ID     : %s\n", e.SpiffeId)
+	fmt.Printf("Parent ID     : %s\n", e.ParentId)
 
 	if e.Ttl == 0 {
-		fmt.Printf("TTL:\t\t%v\n", "default")
+		fmt.Printf("TTL           : default\n")
 	} else {
-		fmt.Printf("TTL:\t\t%v\n", e.Ttl)
+		fmt.Printf("TTL           : %d\n", e.Ttl)
 	}
 
 	for _, s := range e.Selectors {
-		fmt.Printf("Selector:\t%s:%s\n", s.Type, s.Value)
+		fmt.Printf("Selector      : %s:%s\n", s.Type, s.Value)
 	}
 	for _, id := range e.FederatesWith {
-		fmt.Printf("FederatesWith:\t%s\n", id)
+		fmt.Printf("FederatesWith : %s\n", id)
+	}
+
+	// admin is rare, so only show admin if true to keep
+	// from muddying the output.
+	if e.Admin {
+		fmt.Printf("Admin         : %t\n", e.Admin)
 	}
 
 	fmt.Println()

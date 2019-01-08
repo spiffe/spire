@@ -274,7 +274,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 
 func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Rotator, serverCA ca.ServerCA, metrics telemetry.Metrics) endpoints.Server {
 	return endpoints.New(&endpoints.Config{
-		GRPCAddr:    s.config.BindAddress,
+		TCPAddr:     s.config.BindAddress,
 		UDSAddr:     s.config.BindUDSAddress,
 		SVIDStream:  svidRotator.Subscribe(),
 		TrustDomain: s.config.TrustDomain,
