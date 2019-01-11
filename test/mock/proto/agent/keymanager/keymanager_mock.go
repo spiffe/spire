@@ -61,6 +61,19 @@ func (mr *MockKeyManagerMockRecorder) GenerateKeyPair(arg0, arg1 interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateKeyPair", reflect.TypeOf((*MockKeyManager)(nil).GenerateKeyPair), arg0, arg1)
 }
 
+// StorePrivateKey mocks base method
+func (m *MockKeyManager) StorePrivateKey(arg0 context.Context, arg1 *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
+	ret := m.ctrl.Call(m, "StorePrivateKey", arg0, arg1)
+	ret0, _ := ret[0].(*keymanager.StorePrivateKeyResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StorePrivateKey indicates an expected call of StorePrivateKey
+func (mr *MockKeyManagerMockRecorder) StorePrivateKey(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorePrivateKey", reflect.TypeOf((*MockKeyManager)(nil).StorePrivateKey), arg0, arg1)
+}
+
 // MockPlugin is a mock of Plugin interface
 type MockPlugin struct {
 	ctrl     *gomock.Controller
@@ -134,4 +147,17 @@ func (m *MockPlugin) GetPluginInfo(arg0 context.Context, arg1 *plugin.GetPluginI
 // GetPluginInfo indicates an expected call of GetPluginInfo
 func (mr *MockPluginMockRecorder) GetPluginInfo(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPluginInfo", reflect.TypeOf((*MockPlugin)(nil).GetPluginInfo), arg0, arg1)
+}
+
+// StorePrivateKey mocks base method
+func (m *MockPlugin) StorePrivateKey(arg0 context.Context, arg1 *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
+	ret := m.ctrl.Call(m, "StorePrivateKey", arg0, arg1)
+	ret0, _ := ret[0].(*keymanager.StorePrivateKeyResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StorePrivateKey indicates an expected call of StorePrivateKey
+func (mr *MockPluginMockRecorder) StorePrivateKey(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorePrivateKey", reflect.TypeOf((*MockPlugin)(nil).StorePrivateKey), arg0, arg1)
 }

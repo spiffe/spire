@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/imkira/go-observer"
+	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -118,6 +118,18 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	certs, err := x509.ParseCertificates(svid.CertChain)
 	if err != nil {
 		return err
+	}
+
+	mgrs := r.c.Catalog.KeyManagers()
+	if len(mgrs) > 1 {
+		return errors.New("more than one key manager configured")
+	}
+	keyBytes, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return err
+	}
+	if _, err := mgrs[0].StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
+		return fmt.Errorf("generate key pair: %v", err)
 	}
 
 	// We must release the client because its underlaying connection is tied to an
