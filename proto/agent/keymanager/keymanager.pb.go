@@ -50,7 +50,7 @@ func (m *GenerateKeyPairRequest) Reset()         { *m = GenerateKeyPairRequest{}
 func (m *GenerateKeyPairRequest) String() string { return proto.CompactTextString(m) }
 func (*GenerateKeyPairRequest) ProtoMessage()    {}
 func (*GenerateKeyPairRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_keymanager_f3405305e933bdcd, []int{0}
+	return fileDescriptor_keymanager_af4d8576fb78f72c, []int{0}
 }
 func (m *GenerateKeyPairRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GenerateKeyPairRequest.Unmarshal(m, b)
@@ -85,7 +85,7 @@ func (m *GenerateKeyPairResponse) Reset()         { *m = GenerateKeyPairResponse
 func (m *GenerateKeyPairResponse) String() string { return proto.CompactTextString(m) }
 func (*GenerateKeyPairResponse) ProtoMessage()    {}
 func (*GenerateKeyPairResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_keymanager_f3405305e933bdcd, []int{1}
+	return fileDescriptor_keymanager_af4d8576fb78f72c, []int{1}
 }
 func (m *GenerateKeyPairResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GenerateKeyPairResponse.Unmarshal(m, b)
@@ -119,6 +119,77 @@ func (m *GenerateKeyPairResponse) GetPrivateKey() []byte {
 	return nil
 }
 
+// * Represents a private key
+type StorePrivateKeyRequest struct {
+	// * Private key
+	PrivateKey           []byte   `protobuf:"bytes,1,opt,name=privateKey,proto3" json:"privateKey,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *StorePrivateKeyRequest) Reset()         { *m = StorePrivateKeyRequest{} }
+func (m *StorePrivateKeyRequest) String() string { return proto.CompactTextString(m) }
+func (*StorePrivateKeyRequest) ProtoMessage()    {}
+func (*StorePrivateKeyRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_keymanager_af4d8576fb78f72c, []int{2}
+}
+func (m *StorePrivateKeyRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StorePrivateKeyRequest.Unmarshal(m, b)
+}
+func (m *StorePrivateKeyRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StorePrivateKeyRequest.Marshal(b, m, deterministic)
+}
+func (dst *StorePrivateKeyRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StorePrivateKeyRequest.Merge(dst, src)
+}
+func (m *StorePrivateKeyRequest) XXX_Size() int {
+	return xxx_messageInfo_StorePrivateKeyRequest.Size(m)
+}
+func (m *StorePrivateKeyRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_StorePrivateKeyRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StorePrivateKeyRequest proto.InternalMessageInfo
+
+func (m *StorePrivateKeyRequest) GetPrivateKey() []byte {
+	if m != nil {
+		return m.PrivateKey
+	}
+	return nil
+}
+
+// * Represents an empty response
+type StorePrivateKeyResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *StorePrivateKeyResponse) Reset()         { *m = StorePrivateKeyResponse{} }
+func (m *StorePrivateKeyResponse) String() string { return proto.CompactTextString(m) }
+func (*StorePrivateKeyResponse) ProtoMessage()    {}
+func (*StorePrivateKeyResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_keymanager_af4d8576fb78f72c, []int{3}
+}
+func (m *StorePrivateKeyResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StorePrivateKeyResponse.Unmarshal(m, b)
+}
+func (m *StorePrivateKeyResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StorePrivateKeyResponse.Marshal(b, m, deterministic)
+}
+func (dst *StorePrivateKeyResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StorePrivateKeyResponse.Merge(dst, src)
+}
+func (m *StorePrivateKeyResponse) XXX_Size() int {
+	return xxx_messageInfo_StorePrivateKeyResponse.Size(m)
+}
+func (m *StorePrivateKeyResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_StorePrivateKeyResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StorePrivateKeyResponse proto.InternalMessageInfo
+
 // * Represents an empty request
 type FetchPrivateKeyRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -130,7 +201,7 @@ func (m *FetchPrivateKeyRequest) Reset()         { *m = FetchPrivateKeyRequest{}
 func (m *FetchPrivateKeyRequest) String() string { return proto.CompactTextString(m) }
 func (*FetchPrivateKeyRequest) ProtoMessage()    {}
 func (*FetchPrivateKeyRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_keymanager_f3405305e933bdcd, []int{2}
+	return fileDescriptor_keymanager_af4d8576fb78f72c, []int{4}
 }
 func (m *FetchPrivateKeyRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchPrivateKeyRequest.Unmarshal(m, b)
@@ -152,7 +223,7 @@ var xxx_messageInfo_FetchPrivateKeyRequest proto.InternalMessageInfo
 
 // * Represents a private key
 type FetchPrivateKeyResponse struct {
-	// * Priavte key
+	// * Private key
 	PrivateKey           []byte   `protobuf:"bytes,1,opt,name=privateKey,proto3" json:"privateKey,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -163,7 +234,7 @@ func (m *FetchPrivateKeyResponse) Reset()         { *m = FetchPrivateKeyResponse
 func (m *FetchPrivateKeyResponse) String() string { return proto.CompactTextString(m) }
 func (*FetchPrivateKeyResponse) ProtoMessage()    {}
 func (*FetchPrivateKeyResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_keymanager_f3405305e933bdcd, []int{3}
+	return fileDescriptor_keymanager_af4d8576fb78f72c, []int{5}
 }
 func (m *FetchPrivateKeyResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchPrivateKeyResponse.Unmarshal(m, b)
@@ -193,6 +264,8 @@ func (m *FetchPrivateKeyResponse) GetPrivateKey() []byte {
 func init() {
 	proto.RegisterType((*GenerateKeyPairRequest)(nil), "spire.agent.keymanager.GenerateKeyPairRequest")
 	proto.RegisterType((*GenerateKeyPairResponse)(nil), "spire.agent.keymanager.GenerateKeyPairResponse")
+	proto.RegisterType((*StorePrivateKeyRequest)(nil), "spire.agent.keymanager.StorePrivateKeyRequest")
+	proto.RegisterType((*StorePrivateKeyResponse)(nil), "spire.agent.keymanager.StorePrivateKeyResponse")
 	proto.RegisterType((*FetchPrivateKeyRequest)(nil), "spire.agent.keymanager.FetchPrivateKeyRequest")
 	proto.RegisterType((*FetchPrivateKeyResponse)(nil), "spire.agent.keymanager.FetchPrivateKeyResponse")
 }
@@ -209,9 +282,11 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type KeyManagerClient interface {
-	// * Creates a key pair that is bound to hardware.
+	// * Creates a new key pair.
 	GenerateKeyPair(ctx context.Context, in *GenerateKeyPairRequest, opts ...grpc.CallOption) (*GenerateKeyPairResponse, error)
-	// * Returns previously generated private key. For use after node restarts.
+	// * Persists a private key to the key manager's storage system.
+	StorePrivateKey(ctx context.Context, in *StorePrivateKeyRequest, opts ...grpc.CallOption) (*StorePrivateKeyResponse, error)
+	// * Returns the most recently stored private key. For use after node restarts.
 	FetchPrivateKey(ctx context.Context, in *FetchPrivateKeyRequest, opts ...grpc.CallOption) (*FetchPrivateKeyResponse, error)
 	// * Applies the plugin configuration and returns configuration errors.
 	Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error)
@@ -230,6 +305,15 @@ func NewKeyManagerClient(cc *grpc.ClientConn) KeyManagerClient {
 func (c *keyManagerClient) GenerateKeyPair(ctx context.Context, in *GenerateKeyPairRequest, opts ...grpc.CallOption) (*GenerateKeyPairResponse, error) {
 	out := new(GenerateKeyPairResponse)
 	err := c.cc.Invoke(ctx, "/spire.agent.keymanager.KeyManager/GenerateKeyPair", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *keyManagerClient) StorePrivateKey(ctx context.Context, in *StorePrivateKeyRequest, opts ...grpc.CallOption) (*StorePrivateKeyResponse, error) {
+	out := new(StorePrivateKeyResponse)
+	err := c.cc.Invoke(ctx, "/spire.agent.keymanager.KeyManager/StorePrivateKey", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -265,9 +349,11 @@ func (c *keyManagerClient) GetPluginInfo(ctx context.Context, in *plugin.GetPlug
 
 // KeyManagerServer is the server API for KeyManager service.
 type KeyManagerServer interface {
-	// * Creates a key pair that is bound to hardware.
+	// * Creates a new key pair.
 	GenerateKeyPair(context.Context, *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
-	// * Returns previously generated private key. For use after node restarts.
+	// * Persists a private key to the key manager's storage system.
+	StorePrivateKey(context.Context, *StorePrivateKeyRequest) (*StorePrivateKeyResponse, error)
+	// * Returns the most recently stored private key. For use after node restarts.
 	FetchPrivateKey(context.Context, *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
 	// * Applies the plugin configuration and returns configuration errors.
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
@@ -293,6 +379,24 @@ func _KeyManager_GenerateKeyPair_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(KeyManagerServer).GenerateKeyPair(ctx, req.(*GenerateKeyPairRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _KeyManager_StorePrivateKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StorePrivateKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KeyManagerServer).StorePrivateKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/spire.agent.keymanager.KeyManager/StorePrivateKey",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KeyManagerServer).StorePrivateKey(ctx, req.(*StorePrivateKeyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -360,6 +464,10 @@ var _KeyManager_serviceDesc = grpc.ServiceDesc{
 			Handler:    _KeyManager_GenerateKeyPair_Handler,
 		},
 		{
+			MethodName: "StorePrivateKey",
+			Handler:    _KeyManager_StorePrivateKey_Handler,
+		},
+		{
 			MethodName: "FetchPrivateKey",
 			Handler:    _KeyManager_FetchPrivateKey_Handler,
 		},
@@ -376,28 +484,30 @@ var _KeyManager_serviceDesc = grpc.ServiceDesc{
 	Metadata: "keymanager.proto",
 }
 
-func init() { proto.RegisterFile("keymanager.proto", fileDescriptor_keymanager_f3405305e933bdcd) }
+func init() { proto.RegisterFile("keymanager.proto", fileDescriptor_keymanager_af4d8576fb78f72c) }
 
-var fileDescriptor_keymanager_f3405305e933bdcd = []byte{
-	// 311 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x92, 0x41, 0x4b, 0xc3, 0x40,
-	0x10, 0x85, 0x8d, 0x82, 0xd0, 0xa1, 0x52, 0xd9, 0x43, 0x1b, 0x8a, 0x88, 0x14, 0x14, 0xf5, 0xb0,
-	0x0b, 0x7a, 0xd1, 0xab, 0x82, 0x45, 0x82, 0x10, 0x7a, 0x11, 0x7a, 0x4b, 0xc2, 0x24, 0x5d, 0x6c,
-	0x76, 0xd7, 0xcd, 0x46, 0xc8, 0x3f, 0xf3, 0xe7, 0x89, 0xc9, 0xa6, 0xb1, 0x69, 0x82, 0x3d, 0x05,
-	0xe6, 0xbd, 0x99, 0x6f, 0xf6, 0x4d, 0xe0, 0xf4, 0x03, 0x8b, 0x34, 0x10, 0x41, 0x82, 0x9a, 0x2a,
-	0x2d, 0x8d, 0x24, 0xe3, 0x4c, 0x71, 0x8d, 0x34, 0x48, 0x50, 0x18, 0xda, 0xa8, 0xd3, 0x87, 0x84,
-	0x9b, 0x55, 0x1e, 0xd2, 0x48, 0xa6, 0x2c, 0x53, 0x3c, 0x8e, 0x91, 0x95, 0x4e, 0x56, 0xb6, 0xb1,
-	0x48, 0xa6, 0xa9, 0x14, 0x4c, 0xad, 0xf3, 0x84, 0xd7, 0x9f, 0x6a, 0xe2, 0xcc, 0x85, 0xf1, 0x1c,
-	0x05, 0xea, 0xc0, 0xa0, 0x87, 0x85, 0x1f, 0x70, 0xbd, 0xc0, 0xcf, 0x1c, 0x33, 0x33, 0x7b, 0x87,
-	0xc9, 0x8e, 0x92, 0x29, 0x29, 0x32, 0x24, 0x67, 0x30, 0x50, 0x79, 0xb8, 0xe6, 0x91, 0x87, 0x85,
-	0xeb, 0x5c, 0x38, 0xd7, 0xc3, 0x45, 0x53, 0x20, 0xe7, 0x00, 0x4a, 0xf3, 0xaf, 0xaa, 0xcf, 0x3d,
-	0x2c, 0xe5, 0x3f, 0x95, 0x5f, 0xe4, 0x0b, 0x9a, 0x68, 0xe5, 0x6f, 0x4a, 0x35, 0xf2, 0x11, 0x26,
-	0x3b, 0x8a, 0x45, 0x6e, 0x0f, 0x75, 0xda, 0x43, 0xef, 0xbe, 0x8f, 0x00, 0x3c, 0x2c, 0xde, 0xaa,
-	0x40, 0x88, 0x86, 0x51, 0x6b, 0x79, 0x42, 0x69, 0x77, 0x78, 0xb4, 0xfb, 0xfd, 0x53, 0xb6, 0xb7,
-	0xdf, 0xae, 0xa8, 0x61, 0xd4, 0xda, 0xbe, 0x9f, 0xd9, 0x1d, 0x40, 0x3f, 0xb3, 0x2f, 0x96, 0x25,
-	0x0c, 0x9e, 0xa5, 0x88, 0x79, 0x92, 0x6b, 0x24, 0x97, 0xb6, 0xbb, 0x3a, 0x37, 0xb5, 0x77, 0xde,
-	0xe8, 0x35, 0xe4, 0xea, 0x3f, 0x9b, 0x9d, 0x1d, 0xc3, 0xc9, 0x1c, 0x8d, 0x5f, 0xca, 0xaf, 0x22,
-	0x96, 0xe4, 0xa6, 0xb3, 0x71, 0xcb, 0x53, 0x33, 0x6e, 0xf7, 0xb1, 0x56, 0x9c, 0xa7, 0xe1, 0x12,
-	0x9a, 0x97, 0xfa, 0x07, 0xe1, 0x71, 0xf9, 0x67, 0xde, 0xff, 0x04, 0x00, 0x00, 0xff, 0xff, 0x7e,
-	0x36, 0x86, 0xac, 0xff, 0x02, 0x00, 0x00,
+var fileDescriptor_keymanager_af4d8576fb78f72c = []byte{
+	// 343 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0xc1, 0x4b, 0xc3, 0x30,
+	0x14, 0xc6, 0x9d, 0x88, 0xb0, 0xc7, 0x64, 0x92, 0xc3, 0x36, 0x87, 0x88, 0x14, 0x14, 0xf5, 0x90,
+	0x82, 0x5e, 0xe6, 0x55, 0xc1, 0x21, 0x43, 0x28, 0xf3, 0x20, 0xec, 0xd6, 0x95, 0xd7, 0x2e, 0xb8,
+	0x26, 0x31, 0x4d, 0x85, 0xfe, 0x4f, 0xfe, 0x91, 0xb2, 0x26, 0xdb, 0xb4, 0x6d, 0xd8, 0x4e, 0x85,
+	0xf7, 0xbd, 0xef, 0xfd, 0xf2, 0xbe, 0xa4, 0x70, 0xfa, 0x89, 0x45, 0x1a, 0xf2, 0x30, 0x41, 0x45,
+	0xa5, 0x12, 0x5a, 0x90, 0x5e, 0x26, 0x99, 0x42, 0x1a, 0x26, 0xc8, 0x35, 0xdd, 0xaa, 0xc3, 0x51,
+	0xc2, 0xf4, 0x22, 0x9f, 0xd3, 0x48, 0xa4, 0x7e, 0x26, 0x59, 0x1c, 0xa3, 0x5f, 0x76, 0xfa, 0xa5,
+	0xcd, 0x8f, 0x44, 0x9a, 0x0a, 0xee, 0xcb, 0x65, 0x9e, 0xb0, 0xf5, 0xc7, 0x4c, 0xf4, 0x06, 0xd0,
+	0x1b, 0x23, 0x47, 0x15, 0x6a, 0x9c, 0x60, 0x11, 0x84, 0x4c, 0x4d, 0xf1, 0x2b, 0xc7, 0x4c, 0x7b,
+	0x1f, 0xd0, 0xaf, 0x29, 0x99, 0x14, 0x3c, 0x43, 0x72, 0x0e, 0x6d, 0x99, 0xcf, 0x97, 0x2c, 0x9a,
+	0x60, 0x31, 0x68, 0x5d, 0xb6, 0x6e, 0x3a, 0xd3, 0x6d, 0x81, 0x5c, 0x00, 0x48, 0xc5, 0xbe, 0x8d,
+	0x6f, 0x70, 0x58, 0xca, 0x7f, 0x2a, 0xde, 0x08, 0x7a, 0xef, 0x5a, 0x28, 0x0c, 0x36, 0x25, 0x8b,
+	0xac, 0x38, 0x5b, 0x35, 0xe7, 0x19, 0xf4, 0x6b, 0x4e, 0x73, 0xa4, 0xd5, 0x1e, 0x2f, 0xa8, 0xa3,
+	0x45, 0x6d, 0xa8, 0xf7, 0x08, 0xfd, 0x9a, 0x62, 0xf7, 0xd8, 0xc1, 0xbb, 0xff, 0x39, 0x02, 0x98,
+	0x60, 0xf1, 0x66, 0x52, 0x26, 0x0a, 0xba, 0x95, 0x44, 0x08, 0xa5, 0xcd, 0x37, 0x42, 0x9b, 0x43,
+	0x1d, 0xfa, 0x7b, 0xf7, 0xdb, 0x23, 0x2a, 0xe8, 0x56, 0x56, 0x76, 0x33, 0x9b, 0x53, 0x75, 0x33,
+	0x1d, 0x59, 0xae, 0x98, 0x95, 0xc4, 0xdc, 0xcc, 0xe6, 0xd0, 0xdd, 0x4c, 0xd7, 0x55, 0xcc, 0xa0,
+	0xfd, 0x2c, 0x78, 0xcc, 0x92, 0x5c, 0x21, 0xb9, 0xb2, 0x6e, 0xf3, 0x6e, 0xa9, 0x7d, 0xb0, 0x1b,
+	0x7d, 0x0d, 0xb9, 0xde, 0xd5, 0x66, 0x67, 0xc7, 0x70, 0x32, 0x46, 0x1d, 0x94, 0xf2, 0x2b, 0x8f,
+	0x05, 0xb9, 0x6d, 0x34, 0xfe, 0xeb, 0x59, 0x33, 0xee, 0xf6, 0x69, 0x35, 0x9c, 0xa7, 0xce, 0x0c,
+	0xb6, 0x9b, 0x06, 0x07, 0xf3, 0xe3, 0xf2, 0x17, 0x7b, 0xf8, 0x0d, 0x00, 0x00, 0xff, 0xff, 0x5f,
+	0xc0, 0xc2, 0xe6, 0xc8, 0x03, 0x00, 0x00,
 }
