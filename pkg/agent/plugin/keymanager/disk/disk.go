@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -50,16 +51,15 @@ func (d *diskPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPai
 }
 
 func (d *diskPlugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
-	d.mtx.RLock()
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	if d.dir == "" {
-		d.mtx.RUnlock()
 		return nil, errors.New("path not configured")
 	}
-
 	keyPath := path.Join(d.dir, keyFileName)
-	d.mtx.RUnlock()
 
-	if err := ioutil.WriteFile(keyPath, req.PrivateKey, 0600); err != nil {
+	if err := diskutil.AtomicWriteFile(keyPath, req.PrivateKey, 0600); err != nil {
 		return nil, err
 	}
 
