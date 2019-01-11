@@ -120,16 +120,8 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	mgrs := r.c.Catalog.KeyManagers()
-	if len(mgrs) > 1 {
-		return errors.New("more than one key manager configured")
-	}
-	keyBytes, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
+	if err := r.storeKey(ctx, key); err != nil {
 		return err
-	}
-	if _, err := mgrs[0].StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
-		return fmt.Errorf("generate key pair: %v", err)
 	}
 
 	// We must release the client because its underlaying connection is tied to an
@@ -146,8 +138,6 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	return nil
 }
 
-// TODO: Refactor keymanager so we can recover if we generate a new key then fail
-// to get the SVID rotation fulfilled https://github.com/spiffe/spire/issues/613
 func (r *rotator) newKey(ctx context.Context) (*ecdsa.PrivateKey, error) {
 	mgrs := r.c.Catalog.KeyManagers()
 	if len(mgrs) > 1 {
@@ -160,4 +150,28 @@ func (r *rotator) newKey(ctx context.Context) (*ecdsa.PrivateKey, error) {
 	}
 
 	return x509.ParseECPrivateKey(resp.PrivateKey)
+}
+
+func (r *rotator) storeKey(ctx context.Context, key *ecdsa.PrivateKey) error {
+	mgrs := r.c.Catalog.KeyManagers()
+	if len(mgrs) > 1 {
+		return errors.New("more than one key manager configured")
+	}
+
+	keyBytes, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return err
+	}
+
+	if _, err := mgrs[0].StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
+		r.c.Log.Errorf("could not store new agent key pair: %v", err)
+		r.c.Log.Warn("Error encountered while storing new agent key pair. Is your KeyManager plugin is up-to-date?")
+
+		// This error is not returned, to preserve backwards-compability with KeyManagers that were built against the old interface.
+		// If the StorePrivateKey() method isn't avaiable on the plugin, we get a "not implemented" error, which we
+		// should ignore for now, but log an error and warning.
+		// return fmt.Errorf("store key pair: %v", err)
+	}
+
+	return nil
 }
