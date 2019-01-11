@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spire-agent
+  namespace: spire
+  labels:
+    app: spire-agent
+spec:
+  selector:
+    matchLabels:
+      app: spire-agent
+  template:
+    metadata:
+      namespace: spire
+      labels:
+        app: spire-agent
+    spec:
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      serviceAccountName: spire-agent
+      containers:
+        - name: spire-agent
+          image: gcr.io/spiffe-io/spire-agent:latest
+          imagePullPolicy: IfNotPresent
+          args: ["-config", "/run/spire/config/agent.conf"]
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: false
+          livenessProbe:
+            failureThreshold: 2
+            exec:
+              command:
+                - /opt/spire/bin/agent-healthcheck
+            initialDelaySeconds: 5
+            periodSeconds: 60
+            timeoutSeconds: 3
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-agent
+            items:
+              - key: agent.conf
+                path: agent.conf
+              - key: bootstrap.crt
+                path: bootstrap.crt
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: DirectoryOrCreate

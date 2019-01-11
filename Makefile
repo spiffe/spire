@@ -88,6 +88,18 @@ container-push: ## Push docker container image
 cmd: ## Opens a shell in docker container
 	$(docker) /bin/bash
 
+##@ SPIRE containers
+
+.PHONY: spire-containers
+spire-containers: spire-server-container spire-agent-container
+
+.PHONY: spire-server-container
+spire-server-container: Dockerfile.server
+	docker build -t gcr.io/spiffe-io/spire-server -f Dockerfile.server .
+
+.PHONY: spire-agent-container
+spire-agent-container: Dockerfile.agent
+	docker build -t gcr.io/spiffe-io/spire-agent -f Dockerfile.agent .
 
 ##@ Others
 utils: $(utils) ## Go-get SPIRE utils

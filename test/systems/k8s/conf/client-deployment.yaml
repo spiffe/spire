@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client
+  labels:
+    app: client
+spec:
+  selector:
+    matchLabels:
+      app: client
+  template:
+    metadata:
+      labels:
+        app: client
+    spec:
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: client
+          image: gcr.io/spiffe-io/spire-k8s
+          args: ["/bin/bash", "-c", "sleep infinity"]
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets/agent.sock
+              readOnly: true
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets/agent.sock
+            type: File

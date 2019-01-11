@@ -1,0 +1,15 @@
+# Build stage
+FROM golang:1.11-alpine as builder
+RUN apk add build-base git mercurial
+ADD . /spire
+RUN cd /spire && go build -v github.com/spiffe/spire/cmd/spire-agent
+
+# Image stage
+FROM alpine
+ARG binary
+RUN apk add dumb-init
+COPY --from=builder /spire/spire-agent /usr/local/bin/spire-agent
+RUN mkdir -p /opt/spire
+WORKDIR /opt/spire
+ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/spire-agent", "run"]
+CMD []

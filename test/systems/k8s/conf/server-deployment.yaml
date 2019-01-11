@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spire-server
+  namespace: spire
+  labels:
+    app: spire-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spire-server
+  template:
+    metadata:
+      namespace: spire
+      labels:
+        app: spire-server
+    spec:
+      serviceAccountName: spire-server
+      nodeSelector:
+          node-role.kubernetes.io/master: ""
+      tolerations:
+        # NOTE: Change this if the cluster has no accessible master node
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      containers:
+        - name: spire-server
+          image: gcr.io/spiffe-io/spire-server:latest
+          imagePullPolicy: IfNotPresent
+          args: ["-config", "/run/spire/config/server.conf"]
+          ports:
+            - containerPort: 8081
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-secrets
+              mountPath: /run/spire/secrets
+              readOnly: true
+            - name: spire-data
+              mountPath: /run/spire/data
+              readOnly: false
+            - name: k8s-sa-cert
+              mountPath: /run/k8s-certs/sa.pub
+              readOnly: true
+          livenessProbe:
+            failureThreshold: 2
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 60
+            timeoutSeconds: 3
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-server
+            items:
+              - key: server.conf
+                path: server.conf
+              - key: bootstrap.crt
+                path: bootstrap.crt
+        - name: spire-secrets
+          secret:
+              secretName: spire-server
+        - name: spire-data
+          hostPath:
+            # NOTE: This should be a persistent volume on the master node's host
+            path: /opt/spire/data
+            type: DirectoryOrCreate
+        - name: k8s-sa-cert
+          hostPath:
+            # NOTE: Change to the kube-apiserver's service account certificate
+            path: /var/lib/minikube/certs/sa.pub
+            type: File
