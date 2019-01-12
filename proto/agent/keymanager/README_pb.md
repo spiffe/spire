@@ -19,6 +19,8 @@
     - [FetchPrivateKeyResponse](#spire.agent.keymanager.FetchPrivateKeyResponse)
     - [GenerateKeyPairRequest](#spire.agent.keymanager.GenerateKeyPairRequest)
     - [GenerateKeyPairResponse](#spire.agent.keymanager.GenerateKeyPairResponse)
+    - [StorePrivateKeyRequest](#spire.agent.keymanager.StorePrivateKeyRequest)
+    - [StorePrivateKeyResponse](#spire.agent.keymanager.StorePrivateKeyResponse)
   
   
   
@@ -150,7 +152,7 @@ Represents a private key
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| privateKey | [bytes](#bytes) |  | Priavte key |
+| privateKey | [bytes](#bytes) |  | Private key |
 
 
 
@@ -182,6 +184,31 @@ Represents a public and private key pair
 
 
 
+
+<a name="spire.agent.keymanager.StorePrivateKeyRequest"/>
+
+### StorePrivateKeyRequest
+Represents a private key
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| privateKey | [bytes](#bytes) |  | Private key |
+
+
+
+
+
+
+<a name="spire.agent.keymanager.StorePrivateKeyResponse"/>
+
+### StorePrivateKeyResponse
+Represents an empty response
+
+
+
+
+
  
 
  
@@ -196,8 +223,9 @@ Represents a public and private key pair
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| GenerateKeyPair | [GenerateKeyPairRequest](#spire.agent.keymanager.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#spire.agent.keymanager.GenerateKeyPairRequest) | Creates a key pair that is bound to hardware. |
-| FetchPrivateKey | [FetchPrivateKeyRequest](#spire.agent.keymanager.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#spire.agent.keymanager.FetchPrivateKeyRequest) | Returns previously generated private key. For use after node restarts. |
+| GenerateKeyPair | [GenerateKeyPairRequest](#spire.agent.keymanager.GenerateKeyPairRequest) | [GenerateKeyPairResponse](#spire.agent.keymanager.GenerateKeyPairRequest) | Creates a new key pair. |
+| StorePrivateKey | [StorePrivateKeyRequest](#spire.agent.keymanager.StorePrivateKeyRequest) | [StorePrivateKeyResponse](#spire.agent.keymanager.StorePrivateKeyRequest) | Persists a private key to the key manager&#39;s storage system. |
+| FetchPrivateKey | [FetchPrivateKeyRequest](#spire.agent.keymanager.FetchPrivateKeyRequest) | [FetchPrivateKeyResponse](#spire.agent.keymanager.FetchPrivateKeyRequest) | Returns the most recently stored private key. For use after node restarts. |
 | Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Applies the plugin configuration and returns configuration errors. |
 | GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the plugin. |
 

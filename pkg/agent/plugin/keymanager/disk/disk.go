@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -30,26 +31,12 @@ type diskPlugin struct {
 }
 
 func (d *diskPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
-	d.mtx.RLock()
-	if d.dir == "" {
-		d.mtx.RUnlock()
-		return nil, errors.New("path not configured")
-	}
-
-	keyPath := path.Join(d.dir, keyFileName)
-	d.mtx.RUnlock()
-
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}
 
 	privData, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return nil, err
-	}
-
-	err = ioutil.WriteFile(keyPath, privData, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +48,22 @@ func (d *diskPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPai
 
 	resp := &keymanager.GenerateKeyPairResponse{PublicKey: pubData, PrivateKey: privData}
 	return resp, nil
+}
+
+func (d *diskPlugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	if d.dir == "" {
+		return nil, errors.New("path not configured")
+	}
+	keyPath := path.Join(d.dir, keyFileName)
+
+	if err := diskutil.AtomicWriteFile(keyPath, req.PrivateKey, 0600); err != nil {
+		return nil, err
+	}
+
+	return &keymanager.StorePrivateKeyResponse{}, nil
 }
 
 func (d *diskPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
