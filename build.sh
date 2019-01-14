@@ -104,26 +104,13 @@ build_protobuf() {
 			_d=${_dir}
 		fi
 
-		# Set path to right version of grpc-gateway repo
-		grpc_gateway_path=$(go list -f '{{ .Dir }}' -m github.com/grpc-ecosystem/grpc-gateway)/third_party/googleapis
-
 		_log_info "creating \"${_n%.proto}.pb.go\""
 		protoc --proto_path=${PWD} \
-			--proto_path=$grpc_gateway_path \
 			--go_out=plugins=grpc,paths=source_relative:. ${PWD}/${_n}
 
 		_log_info "creating \"${_d}/README_pb.md\""
 		protoc --proto_path=${PWD} \
-			--proto_path=$grpc_gateway_path \
 			--doc_out=markdown,README_pb.md:${_d} ${PWD}/${_n}
-
-		# only build gateway code if necessary
-		if grep -q 'option (google.api.http)' ${_n}; then
-			_log_info "creating http gateway \"${_n%.proto}.pb.gw.go\""
-			protoc --proto_path=${PWD} \
-				--proto_path=$grpc_gateway_path \
-				--grpc-gateway_out=logtostderr=true,paths=source_relative:. ${PWD}/${_n}
-		fi
 
 		# only build the plugin interfaces for plugin protos
 		if [[ ${_n} == "proto/agent/"* ]] ||

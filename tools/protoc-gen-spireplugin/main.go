@@ -34,7 +34,6 @@ func main() {
 
 	// parse parameters
 	options := parseOptions(req.GetParameter())
-	options = options
 
 	g := NewGenerator(req, options)
 	g.LearnTargets()

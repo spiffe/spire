@@ -6,7 +6,6 @@ syntax = "proto3";
 package spire.api.registration;
 option go_package = "github.com/spiffe/spire/proto/api/registration";
 
-import "google/api/annotations.proto";
 import "proto/common/common.proto";
 
 // A type that represents the id of an entry.
@@ -87,29 +86,15 @@ message Bundle {
 
 service Registration {
     // Creates an entry in the Registration table, used to assign SPIFFE IDs to nodes and workloads.
-    rpc CreateEntry(spire.common.RegistrationEntry) returns (RegistrationEntryID) {
-        option (google.api.http) = {
-			post: "/entry"
-			body: "*"
-		};
-    }
+    rpc CreateEntry(spire.common.RegistrationEntry) returns (RegistrationEntryID);
     // Deletes an entry and returns the deleted entry.
-    rpc DeleteEntry(RegistrationEntryID) returns (spire.common.RegistrationEntry) {
-        option (google.api.http).delete = "/entry";
-    }
+    rpc DeleteEntry(RegistrationEntryID) returns (spire.common.RegistrationEntry);
     // Retrieve a specific registered entry.
-    rpc FetchEntry(RegistrationEntryID) returns (spire.common.RegistrationEntry) {
-        option (google.api.http).get = "/entry/{id}";
-    }
+    rpc FetchEntry(RegistrationEntryID) returns (spire.common.RegistrationEntry);
     // Retrieve all registered entries.
-    rpc FetchEntries(spire.common.Empty) returns (spire.common.RegistrationEntries) {
-        option (google.api.http).get = "/entry";
-    }
-
+    rpc FetchEntries(spire.common.Empty) returns (spire.common.RegistrationEntries);
     // Updates a specific registered entry.
-    rpc UpdateEntry(UpdateEntryRequest) returns (spire.common.RegistrationEntry) {
-        option (google.api.http).put = "/entry";
-    }
+    rpc UpdateEntry(UpdateEntryRequest) returns (spire.common.RegistrationEntry);
     // Returns all the Entries associated with the ParentID value.
     rpc ListByParentID(ParentID) returns (spire.common.RegistrationEntries);
     // Returns all the entries associated with a selector value.

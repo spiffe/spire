@@ -27,8 +27,6 @@ endif
 ldflags := '-X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)'
 
 utils = github.com/golang/protobuf/protoc-gen-go \
-		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
-		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger \
 		github.com/jteeuwen/go-bindata/go-bindata \
 		github.com/AlekSi/gocoverutil \
 		github.com/mattn/goveralls \

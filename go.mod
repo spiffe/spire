@@ -21,7 +21,6 @@ require (
 	github.com/golang/protobuf v1.2.0
 	github.com/google/go-cmp v0.2.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181103185306-d547d1d9531e // indirect
-	github.com/grpc-ecosystem/grpc-gateway v1.6.4
 	github.com/hashicorp/go-hclog v0.0.0-20180828044259-75ecd6e6d645
 	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
 	github.com/hashicorp/go-plugin v0.0.0-20180111182130-e37881a3f1a0
@@ -54,7 +53,7 @@ require (
 	golang.org/x/sys v0.0.0-20180909124046-d0be0721c37e
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
 	google.golang.org/appengine v1.4.0 // indirect
-	google.golang.org/genproto v0.0.0-20180817151627-c66870c02cf8
+	google.golang.org/genproto v0.0.0-20180817151627-c66870c02cf8 // indirect
 	google.golang.org/grpc v1.14.0
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
 	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
