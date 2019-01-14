@@ -1,6 +1,6 @@
 syntax = "proto3";
 package spire.common;
-option go_package = "common";
+option go_package = "github.com/spiffe/spire/proto/common";
 
 /** Represents an empty message */
 message Empty {}

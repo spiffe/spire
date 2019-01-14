@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+option go_package = "github.com/spiffe/spire/proto/api/workload";
+
 import "google/protobuf/struct.proto";
 
 message X509SVIDRequest {  }

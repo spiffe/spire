@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"go/format"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -30,7 +32,11 @@ func main() {
 	req := new(plugin.CodeGeneratorRequest)
 	panice(proto.Unmarshal(reqData, req))
 
-	g := NewGenerator(req)
+	// parse parameters
+	options := parseOptions(req.GetParameter())
+	options = options
+
+	g := NewGenerator(req, options)
 	g.LearnTargets()
 	g.LearnPackages()
 	g.GenerateFiles()
@@ -42,19 +48,50 @@ func main() {
 	panice(err)
 }
 
+type Options struct {
+	SourceRelative bool
+}
+
+func parseOptions(parameters string) Options {
+	fs := flag.NewFlagSet("protoc-gen-spireplugin", flag.PanicOnError)
+	pathsFlag := fs.String("paths", "import", "where to place output files: import or source_relative")
+	for _, param := range strings.Split(parameters, ",") {
+		parts := strings.SplitN(param, "=", 2)
+		if len(parts) == 1 {
+			panice(fs.Set(parts[0], ""))
+			continue
+		}
+		panice(fs.Set(parts[0], parts[1]))
+	}
+	fs.Parse(nil)
+
+	options := Options{}
+	switch *pathsFlag {
+	case "", "import":
+	case "source_relative":
+		options.SourceRelative = true
+	default:
+		panic(fmt.Errorf("invalid paths value %q; expected \"import\" or \"source_relative\"", *pathsFlag))
+	}
+
+	return options
+}
+
 type Generator struct {
-	req  *plugin.CodeGeneratorRequest
-	resp *plugin.CodeGeneratorResponse
+	req     *plugin.CodeGeneratorRequest
+	resp    *plugin.CodeGeneratorResponse
+	options Options
 
 	targets  map[string]bool
 	imports  map[string]*ImportData
 	packages map[string]*PackageData
 }
 
-func NewGenerator(req *plugin.CodeGeneratorRequest) *Generator {
+func NewGenerator(req *plugin.CodeGeneratorRequest, options Options) *Generator {
 	return &Generator{
 		req:      req,
 		resp:     new(plugin.CodeGeneratorResponse),
+		options:  options,
 		targets:  make(map[string]bool),
 		imports:  make(map[string]*ImportData),
 		packages: make(map[string]*PackageData),
@@ -100,11 +137,11 @@ func (g *Generator) LearnPackages() {
 			importAs = goPkg
 		}
 		imp := &ImportData{
-			Path: filepath.Dir(protoFile.GetName()),
+			Path: goPkg,
 			As:   importAs,
 		}
 		g.imports[imp.Path] = imp
-		g.packages[fmt.Sprintf(".%s", protoFile.GetPackage())] = &PackageData{
+		g.packages[protoFile.GetPackage()] = &PackageData{
 			Import:    imp,
 			GoPackage: goPkg,
 		}
@@ -133,12 +170,19 @@ func (g *Generator) GenerateFile(protoFile *descriptor.FileDescriptorProto) {
 	goPackage := protoFile.GetOptions().GetGoPackage()
 	if goPackage == "" {
 		goPackage = filepath.Base(filepath.Dir(protoFile.GetName()))
-		return
+	}
+
+	var dir string
+	if g.options.SourceRelative {
+		dir = filepath.Dir(protoFile.GetName())
+	} else {
+		dir = goPackage
 	}
 
 	for _, serviceDesc := range protoFile.GetService() {
-		serviceData := g.BuildServiceData(serviceDesc)
-		serviceData.Package = goPackage
+		serviceData := g.BuildServiceData(protoFile, serviceDesc)
+		// go_package can be a single package name or a full import path
+		serviceData.Package = path.Base(goPackage)
 
 		content, err := renderServiceData(serviceData)
 		if g.setError(err) {
@@ -146,7 +190,7 @@ func (g *Generator) GenerateFile(protoFile *descriptor.FileDescriptorProto) {
 		}
 
 		g.resp.File = append(g.resp.File, &plugin.CodeGeneratorResponse_File{
-			Name:    proto.String(serviceData.Basename + ".go"),
+			Name:    proto.String(fmt.Sprintf("%s/%s.go", dir, serviceData.Basename)),
 			Content: proto.String(content),
 		})
 	}
@@ -179,7 +223,7 @@ type MethodData struct {
 	ForPlugin  bool
 }
 
-func (g *Generator) BuildServiceData(serviceDesc *descriptor.ServiceDescriptorProto) *ServiceData {
+func (g *Generator) BuildServiceData(protoFile *descriptor.FileDescriptorProto, serviceDesc *descriptor.ServiceDescriptorProto) *ServiceData {
 	service := new(ServiceData)
 	service.Name = serviceDesc.GetName()
 	service.Basename = strings.ToLower(serviceDesc.GetName())
@@ -194,8 +238,8 @@ func (g *Generator) BuildServiceData(serviceDesc *descriptor.ServiceDescriptorPr
 			method.ForPlugin = true
 		}
 
-		inputType, inputImport := g.GoType(methodDesc.GetInputType())
-		outputType, outputImport := g.GoType(methodDesc.GetOutputType())
+		inputType, inputImport := g.GoType(protoFile, methodDesc.GetInputType())
+		outputType, outputImport := g.GoType(protoFile, methodDesc.GetOutputType())
 		importNames[inputImport] = true
 		importNames[outputImport] = true
 
@@ -231,23 +275,35 @@ func (g *Generator) BuildServiceData(serviceDesc *descriptor.ServiceDescriptorPr
 	return service
 }
 
-func (g *Generator) GoType(t string) (string, string) {
+// GoType converts a protobuf message type t into a Go type and import path.
+// If the type is local to the current file being generated (i.e. protoFile)
+// then an empty import path is returned.
+func (g *Generator) GoType(protoFile *descriptor.FileDescriptorProto, t string) (string, string) {
+	protoPkg, protoMessage := g.parseProtoType(t)
+	pkg, ok := g.packages[protoPkg]
+	if !ok {
+		g.fail("package not found for %q", t)
+		return "", ""
+	}
+	if protoPkg != protoFile.GetPackage() {
+		return "*" + filepath.Base(pkg.GoPackage) + "." + protoMessage, pkg.Import.Path
+	} else {
+		return "*" + protoMessage, ""
+	}
+}
+
+// parseProtoType parses a protobuf type string into the proto package and
+// message name. For example, ".foo.bar.Baz" returns ("foo.bar", "Baz").
+func (g *Generator) parseProtoType(t string) (string, string) {
 	parts := strings.Split(t, ".")
 	if len(parts) < 2 {
 		g.fail("invalid proto type %q", t)
 		return "", ""
 	}
-	prefix := strings.Join(parts[:len(parts)-1], ".")
-	pkg, ok := g.packages[prefix]
-	if !ok {
-		g.fail("package not found for %q", t)
-		return "", ""
+	if parts[0] != "" {
+		g.fail("expected leading dot in type %q", t)
 	}
-	if pkg.Import.Path != "." {
-		return "*" + pkg.GoPackage + "." + parts[len(parts)-1], pkg.Import.Path
-	} else {
-		return "*" + parts[len(parts)-1], ""
-	}
+	return strings.Join(parts[1:len(parts)-1], "."), parts[len(parts)-1]
 }
 
 func renderServiceData(data *ServiceData) (string, error) {

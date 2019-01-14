@@ -4,10 +4,10 @@ Agent is authorized to run. */
 
 syntax = "proto3";
 package spire.server.noderesolver;
-option go_package = "noderesolver";
+option go_package = "github.com/spiffe/spire/proto/server/noderesolver";
 
-import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
-import public "github.com/spiffe/spire/proto/common/common.proto";
+import public "proto/common/plugin/plugin.proto";
+import public "proto/common/common.proto";
 
 /** Represents a request with a list of BaseSPIFFEIDs. */
 message ResolveRequest {

@@ -1,8 +1,8 @@
 syntax = "proto3";
 package spire.server.keymanager;
-option go_package = "keymanager";
+option go_package = "github.com/spiffe/spire/proto/server/keymanager";
 
-import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
+import public "proto/common/plugin/plugin.proto";
 
 
 enum KeyType {

@@ -6,9 +6,9 @@ interface for upstream CAs. */
 
 syntax = "proto3";
 package spire.server.upstreamca;
-option go_package = "upstreamca";
+option go_package = "github.com/spiffe/spire/proto/server/upstreamca";
 
-import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
+import public "proto/common/plugin/plugin.proto";
 
 message SubmitCSRRequest {
     /** Certificate signing request. */

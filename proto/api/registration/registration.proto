@@ -4,10 +4,10 @@
 
 syntax = "proto3";
 package spire.api.registration;
-option go_package = "registration";
+option go_package = "github.com/spiffe/spire/proto/api/registration";
 
 import "google/api/annotations.proto";
-import "github.com/spiffe/spire/proto/common/common.proto";
+import "proto/common/common.proto";
 
 // A type that represents the id of an entry.
 message RegistrationEntryID {

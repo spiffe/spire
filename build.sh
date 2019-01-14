@@ -59,7 +59,7 @@ _fetch_url() {
 build_env() {
 	local _gp _gr
 
-	_gp="${GOPATH:-$HOME/gopath}"
+	_gp="${GOPATH:-$HOME/go}"
 	_gr="${GOROOT:-$BUILD_DIR}"
 	echo "export GOPATH=${_gp}"
 	echo "export GOROOT=${_gr}"
@@ -108,27 +108,30 @@ build_protobuf() {
 		grpc_gateway_path=$(go list -f '{{ .Dir }}' -m github.com/grpc-ecosystem/grpc-gateway)/third_party/googleapis
 
 		_log_info "creating \"${_n%.proto}.pb.go\""
-		protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
+		protoc --proto_path=${PWD} \
 			--proto_path=$grpc_gateway_path \
-			--go_out=plugins=grpc:${_d} ${_n}
+			--go_out=plugins=grpc,paths=source_relative:. ${PWD}/${_n}
+
 		_log_info "creating \"${_d}/README_pb.md\""
-		protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
+		protoc --proto_path=${PWD} \
 			--proto_path=$grpc_gateway_path \
-			--doc_out=markdown,README_pb.md:${_d} ${_n}
+			--doc_out=markdown,README_pb.md:${_d} ${PWD}/${_n}
+
 		# only build gateway code if necessary
 		if grep -q 'option (google.api.http)' ${_n}; then
 			_log_info "creating http gateway \"${_n%.proto}.pb.gw.go\""
-			protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
+			protoc --proto_path=${PWD} \
 				--proto_path=$grpc_gateway_path \
-				--grpc-gateway_out=logtostderr=true:${_d} ${_n}
+				--grpc-gateway_out=logtostderr=true,paths=source_relative:. ${PWD}/${_n}
 		fi
+
 		# only build the plugin interfaces for plugin protos
 		if [[ ${_n} == "proto/agent/"* ]] ||
 			[[ ${_n} == "proto/server/"* ]] ||
 			[[ ${_n} == "proto/test/"* ]]; then
 			_log_info "creating plugin interface \"${_n%.proto}.go\""
-			protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-				--spireplugin_out=${_d} ${_n}
+			protoc --proto_path=${PWD} \
+				--spireplugin_out=paths=source_relative:. ${PWD}/${_n}
 		fi
 	done
 }

@@ -5,10 +5,10 @@ on the Server */
 
 syntax = "proto3";
 package spire.agent.nodeattestor;
-option go_package = "nodeattestor";
+option go_package = "github.com/spiffe/spire/proto/agent/nodeattestor";
 
-import public "github.com/spiffe/spire/proto/common/common.proto";
-import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
+import public "proto/common/common.proto";
+import public "proto/common/plugin/plugin.proto";
 
 /** Represents an empty request */
 message FetchAttestationDataRequest {

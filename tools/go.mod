@@ -4,7 +4,7 @@ require (
 	github.com/AlekSi/gocoverutil v0.2.0
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/golang/protobuf v1.2.0
-	github.com/grpc-ecosystem/grpc-gateway v1.4.1
+	github.com/grpc-ecosystem/grpc-gateway v1.6.4
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
 	github.com/mattn/goveralls v0.0.2
 	github.com/pborman/uuid v1.2.0 // indirect

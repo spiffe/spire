@@ -5,9 +5,9 @@ SVIDs by presenting certificate signing requests to the Spire Server. */
 
 syntax = "proto3";
 package spire.api.node;
-option go_package = "node";
+option go_package = "github.com/spiffe/spire/proto/api/node";
 
-import "github.com/spiffe/spire/proto/common/common.proto";
+import "proto/common/common.proto";
 
 /** Trust domain bundle */
 message Bundle {

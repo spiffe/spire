@@ -1,10 +1,10 @@
 syntax = "proto3";
 package spire.server.datastore;
-option go_package = "datastore";
+option go_package = "github.com/spiffe/spire/proto/server/datastore";
 
 import public "google/protobuf/wrappers.proto";
-import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
-import public "github.com/spiffe/spire/proto/common/common.proto";
+import public "proto/common/plugin/plugin.proto";
+import public "proto/common/common.proto";
 
 /////////////////////////////////////////////////////////////////////////////
 // Bundle Messages

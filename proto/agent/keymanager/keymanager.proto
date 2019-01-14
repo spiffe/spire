@@ -5,9 +5,9 @@ that identity across restarts/reboots */
 
 syntax = "proto3";
 package spire.agent.keymanager;
-option go_package = "keymanager";
+option go_package = "github.com/spiffe/spire/proto/agent/keymanager";
 
-import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
+import public "proto/common/plugin/plugin.proto";
 
 /** Represents an empty request */
 message GenerateKeyPairRequest {}

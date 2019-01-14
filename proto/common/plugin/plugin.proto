@@ -1,6 +1,6 @@
 syntax = "proto3";
 package spire.common.plugin;
-option go_package = "plugin";
+option go_package = "github.com/spiffe/spire/proto/common/plugin";
 
 /** Represents the plugin-specific configuration string. */
 message ConfigureRequest {
