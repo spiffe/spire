@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/pprof"
+	"os"
 	"path"
 	"runtime"
 	"sync"
@@ -30,6 +31,11 @@ type Agent struct {
 // and then blocks on the main event loop.
 func (a *Agent) Run(ctx context.Context) error {
 	syscall.Umask(a.c.Umask)
+
+	a.c.Log.Infof("data directory: %q", a.c.DataDir)
+	if err := os.MkdirAll(a.c.DataDir, 0755); err != nil {
+		return err
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
