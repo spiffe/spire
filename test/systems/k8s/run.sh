@@ -13,15 +13,18 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 MINIKUBEPROFILE="SPIRE-SYSTEMS-TEST"
 MINIKUBECMD="minikube -p ${MINIKUBEPROFILE}"
 CHECKINTERVAL=1
-if [ -n "${TRAVIS_EVENT_TYPE}" ]; then
+if [ -n "${TRAVIS}" ]; then
+	# Use the default profile inside of Travis
 	MINIKUBECMD="/usr/local/bin/minikube"
-	CHECKINTERVAL=10
+	# Travis is slow. Give our containers more time.
+	CHECKINTERVAL=5
 fi
 TMPDIR=$(mktemp -d)
 SERVERLOGS=${TMPDIR}/spire-server-logs.log
 
 start_minikube() {
-	if [ -z "${TRAVIS_EVENT_TYPE}" ]; then
+	# Travis will start up minikube (via .travis.yml)
+	if [ -z "${TRAVIS}" ]; then
 		echo "${bold}Starting minikube... ${norm}"
 		${MINIKUBECMD} start
 		eval $(${MINIKUBECMD} docker-env)
@@ -43,7 +46,8 @@ cleanup() {
 	kubectl delete secrets spire-server --namespace spire > /dev/null || true
 	kubectl delete serviceaccount spire-server --namespace spire > /dev/null || true
 	kubectl delete namespace spire > /dev/null || true
-	if [ -z "${TRAVIS_EVENT_TYPE}" ]; then
+	# Don't stop the minikube inside of travis
+	if [ -z "${TRAVIS}" ]; then
 		${MINIKUBECMD} stop > /dev/null || true
 	fi
 	echo "${green}ok${norm}."

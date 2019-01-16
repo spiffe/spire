@@ -270,11 +270,6 @@ build_containers() {
 }
 
 build_nightly() {
-	if [ -n "${TRAVIS_EVENT_TYPE}" ] && [ "${TRAVIS_EVENT_TYPE}" != "cron" ]; then
-		# don't execute the nightly from travis unless it is a "cron" job
-		echo "Skipping nightly for Travis event type ${TRAVIS_EVENT_TYPE}."
-		return
-	fi
 	${PWD}/test/systems/k8s/run.sh
 }
 
