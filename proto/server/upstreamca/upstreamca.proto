@@ -10,24 +10,36 @@ option go_package = "upstreamca";
 
 import public "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
 
+message SignedCertificate {
+    // Contains ASN.1 encoded certificates representing the signed certificate
+    // along with any intermediates necessary to chain the certificate back to
+    // a certificate present in the upstream_trust_bundle.
+    bytes cert_chain = 1;
+
+    // The upstream trust bundle.
+    bytes upstream_trust_bundle = 2;
+}
+
 message SubmitCSRRequest {
-    /** Certificate signing request. */
+    // Certificate signing request
     bytes csr = 1;
 }
 
 message SubmitCSRResponse {
-    /** Signed certificate */
-    bytes cert = 1;
-    /** Upstream trust bundle. */
-    bytes upstreamTrustBundle = 2;
+    // Signed certificate (DEPRECATED)
+    bytes DEPRECATED_cert = 1;
+    // Upstream trust bundle (DEPRECATED)
+    bytes DEPRECATED_upstreamTrustBundle = 2;
+
+    // Signed certificate
+    SignedCertificate signed_certificate = 3;
 }
 
 service UpstreamCA {
-    /** Responsible for configuration of the plugin. */
+    // Responsible for configuration of the plugin.
     rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
-    /** Returns the  version and related metadata of the installed plugin. */
+    // Returns the  version and related metadata of the installed plugin. */
     rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
-    /** Will take in a CSR and submit it to the upstream CA for signing
-    (“upstream” CA can be local self-signed root in simple case). */
+    // Signs a certificate from the request
     rpc SubmitCSR(SubmitCSRRequest) returns (SubmitCSRResponse);
 }

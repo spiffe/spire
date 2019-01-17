@@ -72,7 +72,7 @@ func (ca *serverCA) getKeypairSet() *keypairSet {
 
 func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error) {
 	kp := ca.getKeypairSet()
-	if kp == nil || kp.x509CA == nil || kp.x509CA.cert == nil {
+	if kp == nil || kp.x509CA == nil || len(kp.x509CA.chain) < 1 {
 		return nil, errors.New("no X509-SVID keypair available")
 	}
 
@@ -82,8 +82,8 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 	}
 	notBefore := now.Add(-backdate)
 	notAfter := now.Add(ttl)
-	if notAfter.After(kp.x509CA.cert.NotAfter) {
-		notAfter = kp.x509CA.cert.NotAfter
+	if notAfter.After(kp.x509CA.chain[0].NotAfter) {
+		notAfter = kp.x509CA.chain[0].NotAfter
 	}
 
 	serialNumber := big.NewInt(atomic.AddInt64(&ca.x509sn, 1))
@@ -94,7 +94,7 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 	}
 
 	km := ca.c.Catalog.KeyManagers()[0]
-	cert, err := x509util.CreateCertificate(ctx, km, template, kp.x509CA.cert, kp.X509CAKeyID(), template.PublicKey)
+	cert, err := x509util.CreateCertificate(ctx, km, template, kp.x509CA.chain[0], kp.X509CAKeyID(), template.PublicKey)
 	if err != nil {
 		return nil, err
 	}
