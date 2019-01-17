@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/test/mock/common/filesystem"
-	"github.com/spiffe/spire/test/mock/common/http"
+	filesystem_mock "github.com/spiffe/spire/test/mock/common/filesystem"
+	http_client_mock "github.com/spiffe/spire/test/mock/common/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +39,7 @@ var (
 	ctx = context.Background()
 )
 
-func InitPlugin(t *testing.T, client httpClient, fs fileSystem) workloadattestor.WorkloadAttestor {
+func InitPlugin(t *testing.T, client httpClient, fs cgroups.FileSystem) workloadattestor.WorkloadAttestor {
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: validConfig,
 	}
