@@ -58,13 +58,11 @@ func NewHandler(config HandlerConfig) *Handler {
 }
 
 func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_StreamSecretsServer) error {
-	_, selectors, metrics, done, err := h.startCall(stream.Context())
+	_, selectors, done, err := h.startCall(stream.Context())
 	if err != nil {
 		return err
 	}
 	defer done()
-
-	metrics = metrics
 
 	sub := h.c.Manager.SubscribeToCacheChanges(selectors)
 	defer sub.Finish()
@@ -94,14 +92,18 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 	for {
 		select {
 		case newReq := <-reqch:
-			h.c.Log.Debugf("stream-secrets: recv: res=%q ver=%q typ=%q nonce=%q", newReq.ResourceNames, newReq.VersionInfo, newReq.TypeUrl, newReq.ResponseNonce)
+			h.c.Log.WithFields(logrus.Fields{
+				"resource_names": newReq.ResourceNames,
+				"version_info":   newReq.VersionInfo,
+				"nonce":          newReq.ResponseNonce,
+			}).Debug("Received StreamSecrets request")
 			h.triggerReceivedHook()
 
 			// The nonce should be empty (if we've never sent a response) or
 			// match the last sent nonce, otherwise the request should be
 			// ignored.
-			if ((lastNonce == "") != (newReq.ResponseNonce == "")) || lastNonce != newReq.ResponseNonce {
-				h.c.Log.Warnf("unexpected nonce %q (expected %q); ignoring request", newReq.ResponseNonce, lastNonce)
+			if lastNonce != newReq.ResponseNonce {
+				h.c.Log.Warnf("Received unexpected nonce %q (expected %q); ignoring request", newReq.ResponseNonce, lastNonce)
 				continue
 			}
 
@@ -114,7 +116,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 			if req.ErrorDetail != nil {
 				// The caller has failed to apply the secrets. Wait until the
 				// next update to send down new info.
-				h.c.Log.Errorf("caller failed to apply secrets: %q", req.ErrorDetail.Message)
+				h.c.Log.Errorf("Envoy failed failed to apply secrets: %q", req.ErrorDetail.Message)
 				continue
 			}
 			if req.VersionInfo != "" && req.VersionInfo == versionInfo {
@@ -135,7 +137,11 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 			return err
 		}
 
-		h.c.Log.Debugf("stream-secrets: send: ver=%q typ=%q nonce=%q count=%d", resp.VersionInfo, resp.TypeUrl, resp.Nonce, len(resp.Resources))
+		h.c.Log.WithFields(logrus.Fields{
+			"version_info": resp.VersionInfo,
+			"nonce":        resp.Nonce,
+			"count":        len(resp.Resources),
+		}).Debug("Sending StreamSecrets response")
 		if err := stream.Send(resp); err != nil {
 			return err
 		}
@@ -148,24 +154,34 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 }
 
 func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
-	h.c.Log.Debugf("fetch-secrets: res=%q ver=%q typ=%q", req.ResourceNames, req.VersionInfo, req.TypeUrl)
-	_, selectors, metrics, done, err := h.startCall(ctx)
+	h.c.Log.WithFields(logrus.Fields{
+		"resource_names": req.ResourceNames,
+	}).Debug("Received FetchSecrets request")
+	_, selectors, done, err := h.startCall(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer done()
 
-	metrics = metrics
-
 	upd := h.c.Manager.FetchWorkloadUpdate(selectors)
 
-	return h.buildResponse("", req, upd)
+	resp, err := h.buildResponse("", req, upd)
+	if err != nil {
+		return nil, err
+	}
+
+	h.c.Log.WithFields(logrus.Fields{
+		"count": len(resp.Resources),
+	}).Debug("Sending FetchSecrets response")
+
+	return resp, nil
+
 }
 
-func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, telemetry.Metrics, func(), error) {
+func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, func(), error) {
 	pid, err := h.callerPID(ctx)
 	if err != nil {
-		return 0, nil, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
+		return 0, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
 	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: sdsPID, Value: fmt.Sprint(pid)}})
@@ -178,7 +194,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		defer metrics.IncrCounter([]string{sdsAPI, "connections"}, -1)
 	}
 
-	return pid, selectors, metrics, done, nil
+	return pid, selectors, done, nil
 }
 
 // callerPID takes a grpc context, and returns the PID of the caller which has issued
@@ -188,16 +204,16 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 func (h *Handler) callerPID(ctx context.Context) (pid int32, err error) {
 	info, ok := auth.CallerFromContext(ctx)
 	if !ok {
-		return 0, errors.New("Unable to fetch credentials from context")
+		return 0, errors.New("unable to fetch credentials from context")
 	}
 
 	if info.Err != nil {
-		return 0, fmt.Errorf("Unable to resolve caller PID: %s", info.Err)
+		return 0, fmt.Errorf("unable to resolve caller PID: %s", info.Err)
 	}
 
 	// If PID is 0, something is wrong...
 	if info.PID == 0 {
-		return 0, errors.New("Unable to resolve caller PID")
+		return 0, errors.New("unable to resolve caller PID")
 	}
 
 	return info.PID, nil
