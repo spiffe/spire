@@ -867,7 +867,9 @@ func TestFetchJWTSVID(t *testing.T) {
 		},
 	})
 
-	upstreamCA := fakeupstreamca.New(t, "example.org")
+	upstreamCA := fakeupstreamca.New(t, fakeupstreamca.Config{
+		TrustDomain: "example.org",
+	})
 	serverCA := fakeserverca.New(t, "example.org", &fakeserverca.Options{
 		UpstreamCA: upstreamCA,
 	})
