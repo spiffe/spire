@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"net"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -16,7 +15,7 @@ import (
 	sds_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/gogo/googleapis/google/rpc"
 	"github.com/gogo/protobuf/types"
-	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -124,10 +123,7 @@ type HandlerSuite struct {
 }
 
 func (s *HandlerSuite) SetupTest() {
-	//log, _ := test.NewNullLogger()
-	log := logrus.New()
-	log.SetOutput(os.Stdout)
-	log.SetLevel(logrus.DebugLevel)
+	log, _ := test.NewNullLogger()
 
 	s.manager = NewFakeManager(s.T())
 	handler := NewHandler(HandlerConfig{
