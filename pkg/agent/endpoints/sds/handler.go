@@ -116,7 +116,10 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 			if req.ErrorDetail != nil {
 				// The caller has failed to apply the secrets. Wait until the
 				// next update to send down new info.
-				h.c.Log.Errorf("Envoy failed failed to apply secrets: %q", req.ErrorDetail.Message)
+				h.c.Log.WithFields(logrus.Fields{
+					"resource_names": req.ResourceNames,
+					"error_detail":   req.ErrorDetail.Message,
+				}).Error("Envoy failed to apply secrets")
 				continue
 			}
 			if req.VersionInfo != "" && req.VersionInfo == versionInfo {
