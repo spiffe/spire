@@ -118,30 +118,9 @@ func TestAttestWithMatchingNodeResolver(t *testing.T) {
 func TestAttestWithNonMatchingNodeResolver(t *testing.T) {
 	suite := SetupHandlerTest(t)
 	defer suite.ctrl.Finish()
-
-	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
-	data := getAttestTestData()
-
-	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
-	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	stream.EXPECT().Recv().Return(data.request, nil).AnyTimes()
-
-	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
-	stream.EXPECT().Send(&node.AttestResponse{
-		SvidUpdate: expected,
-	}).AnyTimes()
-
-	setAttestExpectations(suite, data, true)
-	suite.NoError(suite.handler.Attest(stream))
-	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
-}
-
-func TestAttestWithNonMatchingNodeResolver(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	defer suite.ctrl.Finish()
 	suite.catalog.AddNodeResolverNamed("non_matching_resolver", suite.mockNodeResolver)
 
-	ctx := peer.NewContext(context.Background(), getFakePeer())
+	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
 	data := getAttestTestData()
 
 	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
@@ -178,7 +157,6 @@ func TestAttestWithEmptyNodeResolver(t *testing.T) {
 	suite.NoError(suite.handler.Attest(stream))
 	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
 }
-
 func TestAttestChallengeResponse(t *testing.T) {
 	suite := SetupHandlerTest(t)
 	defer suite.ctrl.Finish()
