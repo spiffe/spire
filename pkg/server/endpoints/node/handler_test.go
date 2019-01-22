@@ -50,6 +50,7 @@ var (
 type HandlerTestSuite struct {
 	suite.Suite
 	ctrl             *gomock.Controller
+	logHook          *test.Hook
 	handler          *Handler
 	limiter          *fakeLimiter
 	mockDataStore    *mock_datastore.MockDataStore
@@ -66,7 +67,8 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	suite.SetT(t)
 	mockCtrl := gomock.NewController(t)
 	suite.ctrl = mockCtrl
-	log, _ := test.NewNullLogger()
+	log, hook := test.NewNullLogger()
+	suite.logHook = hook
 	suite.limiter = new(fakeLimiter)
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
 	suite.mockServerCA = mock_ca.NewMockServerCA(mockCtrl)
@@ -247,6 +249,52 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 
 	err := suite.handler.FetchX509SVID(suite.server)
 	suite.Require().NoError(err)
+}
+
+func TestFetchX509SVIDForNodeWithNoAttestationRecord(t *testing.T) {
+	suite := SetupHandlerTest(t)
+	defer suite.ctrl.Finish()
+
+	// set up the node as the peer
+	ctx := withPeerCertificate(context.Background(), loadCertFromPEM("node_cert.pem"))
+
+	// request node CSR to be signed
+	suite.server.EXPECT().Context().Return(ctx).AnyTimes()
+	suite.server.EXPECT().Recv().Return(&node.FetchX509SVIDRequest{
+		Csrs: [][]byte{
+			getBytesFromPem("node_csr.pem"),
+		},
+	}, nil)
+
+	// no registration entries (not needed for this code path since a node is
+	// authorized to request a CSR for itself)
+	suite.mockDataStore.EXPECT().
+		ListRegistrationEntries(gomock.Any(), gomock.Any()).
+		Return(&datastore.ListRegistrationEntriesResponse{}, nil).
+		AnyTimes()
+
+	// no selectors (same reason as above)
+	suite.mockDataStore.EXPECT().
+		GetNodeSelectors(gomock.Any(), gomock.Any()).
+		Return(&datastore.GetNodeSelectorsResponse{
+			Selectors: &datastore.NodeSelectors{},
+		}, nil)
+
+	// return no record of the attested node.
+	suite.mockDataStore.EXPECT().
+		FetchAttestedNode(gomock.Any(), &datastore.FetchAttestedNodeRequest{
+			SpiffeId: "spiffe://example.org/spire/agent/join_token/tokenfoo",
+		}).
+		Return(&datastore.FetchAttestedNodeResponse{}, nil)
+
+	err := suite.handler.FetchX509SVID(suite.server)
+	suite.Require().EqualError(err, "Error trying to sign CSRs")
+
+	// The error message returned by the Node handler is purposefully very
+	// generic. Errors are logged for debuggability. We want a stronger
+	// assertion that the expected code path was executed. Inspect the log hook
+	// to make sure the expected error message is logged.
+	suite.Require().Equal("no record of attested node", suite.logHook.LastEntry().Message)
 }
 
 func TestAuthorizeCall(t *testing.T) {
