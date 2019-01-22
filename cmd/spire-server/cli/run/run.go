@@ -26,6 +26,7 @@ const (
 	defaultSocketPath = "/tmp/spire-registration.sock"
 	defaultLogLevel   = "INFO"
 	defaultUmask      = 0077
+	minimumUmask      = 0027
 )
 
 // runConfig represents available configurables for file and CLI options
@@ -299,6 +300,14 @@ func validateConfig(c *server.Config) error {
 
 	if c.DataDir == "" {
 		return errors.New("DataDir is required")
+	}
+
+	// Make sure the umask does not allow write by group and read/write/execute
+	// by everyone, since this is an unsafe default.
+	if (c.Umask & minimumUmask) != minimumUmask {
+		oldUmask := c.Umask
+		c.Umask = c.Umask | minimumUmask
+		c.Log.Warnf("Umask %#o is too permissive; using %#o.", oldUmask, c.Umask)
 	}
 
 	return nil
