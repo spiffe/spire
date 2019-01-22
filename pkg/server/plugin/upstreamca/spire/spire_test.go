@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"crypto/x509"
 	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	node_pb "github.com/spiffe/spire/proto/api/node"
@@ -34,10 +35,10 @@ const (
 	"server_port":"_test_data/keys/cert.pem",
 	"server_agent_address":"8090"
 }`
-	trustDomain           = "example.com"
-	key_file_path         = "_test_data/keys/private_key.pem"
-	cert_file_path        = "_test_data/keys/cert.pem"
-	server_cert_file_path = "_test_data/keys/server.pem"
+	trustDomain        = "example.com"
+	keyFilePath        = "_test_data/keys/private_key.pem"
+	certFilePath       = "_test_data/keys/cert.pem"
+	serverCertFilePath = "_test_data/keys/server.pem"
 )
 
 var (
@@ -46,10 +47,13 @@ var (
 
 type handler struct {
 	server *grpc.Server
+	addr   string
 }
 
 type whandler struct {
-	server *grpc.Server
+	dir        string
+	socketPath string
+	server     *grpc.Server
 }
 
 type testHandler struct {
@@ -57,37 +61,36 @@ type testHandler struct {
 	napiServer *handler
 }
 
-func (t *testHandler) startTestServers() {
-	t.wapiServer = &whandler{}
-	t.napiServer = &handler{}
-	t.napiServer.startNodeAPITestServer()
-	t.wapiServer.startWAPITestServer()
+func (h *testHandler) startTestServers(t *testing.T) {
+	h.wapiServer = &whandler{}
+	h.napiServer = &handler{}
+	h.napiServer.startNodeAPITestServer(t)
+	h.wapiServer.startWAPITestServer(t)
 }
 
-func (t *testHandler) stopTestServers() {
-	t.napiServer.server.Stop()
+func (h *testHandler) stopTestServers() {
+	h.napiServer.server.Stop()
+	os.RemoveAll(h.wapiServer.dir)
 }
 
-func (w *whandler) startWAPITestServer() error {
+func (w *whandler) startWAPITestServer(t *testing.T) {
+	dir, err := ioutil.TempDir("", "upstreamca-spire-test-")
+	require.NoError(t, err)
+	w.dir = dir
+	w.socketPath = filepath.Join(dir, "test.sock")
+
 	w.server = grpc.NewServer(grpc.Creds(auth.NewCredentials()))
 
 	w_pb.RegisterSpiffeWorkloadAPIServer(w.server, w)
 
-	os.Remove("./test.sock")
-
-	l, err := net.Listen("unix", "./test.sock")
-	if err != nil {
-		fmt.Println("error" + err.Error())
-		return nil
-	}
+	l, err := net.Listen("unix", w.socketPath)
+	require.NoError(t, err)
 
 	go func() { w.server.Serve(l) }()
-
-	return nil
 }
 
 func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
-	keyPEM, err := ioutil.ReadFile(key_file_path)
+	keyPEM, err := ioutil.ReadFile(keyFilePath)
 	if err != nil {
 		fmt.Println("error" + err.Error())
 		return nil
@@ -95,25 +98,21 @@ func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWork
 	keyblock, rest := pem.Decode(keyPEM)
 
 	if keyblock == nil {
-		fmt.Println("error : invalid key format")
-		return nil
+		return errors.New("error : invalid key format")
 	}
 
 	if len(rest) > 0 {
-		fmt.Println("error : invalid key format - too many keys")
-		return nil
+		return errors.New("error : invalid key format - too many keys")
 	}
 
-	certPEM, err := ioutil.ReadFile(cert_file_path)
+	certPEM, err := ioutil.ReadFile(certFilePath)
 	if err != nil {
-		fmt.Println("error : unable to read cert file")
-		return nil
+		return errors.New("error : unable to read cert file")
 	}
 
 	block, rest := pem.Decode(certPEM)
 	if block == nil {
-		fmt.Println("error : invalid cert format")
-		return nil
+		return errors.New("error : invalid cert format")
 	}
 
 	svid := &w_pb.X509SVID{
@@ -129,56 +128,36 @@ func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWork
 
 	err = stream.Send(resp)
 	if err != nil {
-		fmt.Println("error" + err.Error())
 		return err
 	}
 	return nil
 }
 
 func (w *whandler) ValidateJWTSVID(ctx context.Context, req *w_pb.ValidateJWTSVIDRequest) (*w_pb.ValidateJWTSVIDResponse, error) {
-	return nil, nil
+	return nil, errors.New("NOT IMPLEMENTED")
 }
 
 func (w *whandler) FetchJWTSVID(ctx context.Context, req *w_pb.JWTSVIDRequest) (*w_pb.JWTSVIDResponse, error) {
-	return nil, nil
+	return nil, errors.New("NOT IMPLEMENTED")
 }
 
 func (w *whandler) FetchJWTBundles(req *w_pb.JWTBundlesRequest, stream w_pb.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
-	return nil
+	return errors.New("NOT IMPLEMENTED")
 }
 
-func (h *handler) startNodeAPITestServer() error {
-	creds, err := credentials.NewServerTLSFromFile(server_cert_file_path, key_file_path)
-	if err != nil {
-		fmt.Println("error + ", err.Error())
-		return err
-	}
+func (h *handler) startNodeAPITestServer(t *testing.T) {
+	creds, err := credentials.NewServerTLSFromFile(serverCertFilePath, keyFilePath)
+	require.NoError(t, err)
+
 	opts := grpc.Creds(creds)
 	h.server = grpc.NewServer(opts)
 
 	node_pb.RegisterNodeServer(h.server, h)
 
-	err = h.runGRPCServer(ctx, h.server)
-	if err != nil {
-		fmt.Println("error + ", err.Error())
-		return err
-	}
-	return nil
-}
-
-// runGRPCServer will start the server and block until it exits or we are dying.
-func (h *handler) runGRPCServer(ctx context.Context, server *grpc.Server) error {
-
-	l, err := net.Listen("tcp", "127.0.0.1:8090")
-	if err != nil {
-		return err
-	}
-
-	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-
-	go func() { server.Serve(l) }()
-
-	return nil
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	h.addr = l.Addr().String()
+	go func() { h.server.Serve(l) }()
 }
 
 func (h *handler) FetchX509SVID(server node_pb.Node_FetchX509SVIDServer) error {
@@ -194,53 +173,14 @@ func (h *handler) FetchX509SVID(server node_pb.Node_FetchX509SVIDServer) error {
 
 		ctx := server.Context()
 
-		// read test certificate and key files
-		keyPEM, err := ioutil.ReadFile(key_file_path)
+		key, err := pemutil.LoadPrivateKey(keyFilePath)
 		if err != nil {
-			fmt.Println("error" + err.Error())
-			return nil
+			return fmt.Errorf("unable to load test CA key")
 		}
 
-		block, rest := pem.Decode(keyPEM)
-
-		if block == nil {
-			fmt.Println("error : invalid key format")
-			return nil
-		}
-
-		if len(rest) > 0 {
-			fmt.Println("error : invalid key format - too many keys")
-			return nil
-		}
-
-		key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		cert, err := pemutil.LoadCertificate(certFilePath)
 		if err != nil {
-			fmt.Println("error" + err.Error())
-			return nil
-		}
-
-		certPEM, err := ioutil.ReadFile(cert_file_path)
-		if err != nil {
-			fmt.Println("error : unable to read cert file")
-			return nil
-		}
-
-		block, rest = pem.Decode(certPEM)
-
-		if block == nil {
-			fmt.Println("error : invalid cert format")
-			return nil
-		}
-
-		if len(rest) > 0 {
-			fmt.Println("error : invalid cert format : too many certs")
-			return nil
-		}
-
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			fmt.Println("error" + err.Error())
-			return nil
+			return fmt.Errorf("unable to load test CA certificate")
 		}
 
 		// configure upstream ca
@@ -254,8 +194,7 @@ func (h *handler) FetchX509SVID(server node_pb.Node_FetchX509SVIDServer) error {
 		csr := request.Csrs[0]
 		cert, err = ca.SignCSR(ctx, csr)
 		if err != nil {
-			fmt.Println("error " + err.Error())
-			return nil
+			return fmt.Errorf("unable to sign CSR: %v", err)
 		}
 
 		svids := make(map[string]*node_pb.X509SVID, 1)
@@ -284,7 +223,7 @@ func (h *handler) FetchX509SVID(server node_pb.Node_FetchX509SVIDServer) error {
 			},
 		})
 		if err != nil {
-			fmt.Errorf("Error sending FetchX509SVIDResponse: %v", err)
+			return fmt.Errorf("unable to send FetchX509SVIDResponse: %v", err)
 		}
 	}
 
@@ -292,11 +231,11 @@ func (h *handler) FetchX509SVID(server node_pb.Node_FetchX509SVIDServer) error {
 }
 
 func (h *handler) FetchJWTSVID(ctx context.Context, req *node_pb.FetchJWTSVIDRequest) (*node_pb.FetchJWTSVIDResponse, error) {
-	return nil, nil
+	return nil, errors.New("NOT IMPLEMENTED")
 }
 
 func (h *handler) Attest(stream node_pb.Node_AttestServer) (err error) {
-	return nil
+	return errors.New("NOT IMPLEMENTED")
 }
 
 func TestSpirePlugin_Configure(t *testing.T) {
@@ -312,7 +251,7 @@ func TestSpirePlugin_Configure(t *testing.T) {
 }
 
 func TestSpirePlugin_GetPluginInfo(t *testing.T) {
-	m, err := newWithDefault()
+	m, err := newWithDefault("", "")
 	require.NoError(t, err)
 	res, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
@@ -321,10 +260,11 @@ func TestSpirePlugin_GetPluginInfo(t *testing.T) {
 
 func TestSpirePlugin_SubmitValidCSR(t *testing.T) {
 	server := testHandler{}
-	server.startTestServers()
+	server.startTestServers(t)
 	defer server.stopTestServers()
 
-	m, err := newWithDefault()
+	m, err := newWithDefault(server.napiServer.addr, server.wapiServer.socketPath)
+	require.NoError(t, err)
 
 	const testDataDir = "_test_data/csr_valid"
 	validCsrFiles, err := ioutil.ReadDir(testDataDir)
@@ -344,10 +284,11 @@ func TestSpirePlugin_SubmitValidCSR(t *testing.T) {
 
 func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 	server := testHandler{}
-	server.startTestServers()
+	server.startTestServers(t)
 	defer server.stopTestServers()
 
-	m, err := newWithDefault()
+	m, err := newWithDefault(server.napiServer.addr, server.wapiServer.socketPath)
+	require.NoError(t, err)
 
 	const testDataDir = "_test_data/csr_invalid"
 	validCsrFiles, err := ioutil.ReadDir(testDataDir)
@@ -365,11 +306,12 @@ func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 	}
 }
 
-func newWithDefault() (upstreamca.Plugin, error) {
+func newWithDefault(addr string, socketPath string) (upstreamca.Plugin, error) {
+	host, port, _ := net.SplitHostPort(addr)
 	config := Configuration{
-		ServerAddr:        "127.0.0.1",
-		ServerPort:        "8090",
-		WorkloadAPISocket: "./test.sock",
+		ServerAddr:        host,
+		ServerPort:        port,
+		WorkloadAPISocket: socketPath,
 	}
 
 	jsonConfig, err := json.Marshal(config)

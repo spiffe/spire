@@ -2,6 +2,7 @@ package spireplugin
 
 import (
 	"context"
+	"errors"
 	"net"
 	"time"
 
@@ -29,14 +30,17 @@ func (m *spirePlugin) getWorkloadSVID(ctx context.Context, config *Configuration
 		case svidResponse := <-updateChan:
 			return m.receiveUpdatedCerts(svidResponse)
 		case <-ctx.Done():
-			return []byte{}, []byte{}, []byte{}, ctx.Err()
+			return nil, nil, nil, ctx.Err()
 		case err := <-errorChan:
-			return []byte{}, []byte{}, []byte{}, err
+			return nil, nil, nil, err
 		}
 	}
 }
 
 func (m *spirePlugin) receiveUpdatedCerts(svidResponse *proto.X509SVIDResponse) ([]byte, []byte, []byte, error) {
+	if len(svidResponse.Svids) == 0 {
+		return nil, nil, nil, errors.New("no X509 SVID in response")
+	}
 	svid := svidResponse.Svids[0]
 	return svid.X509Svid, svid.X509SvidKey, svid.Bundle, nil
 }
