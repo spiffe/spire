@@ -1,7 +1,6 @@
 package k8s
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -36,7 +36,7 @@ type k8sPlugin struct {
 	maxPollAttempts     int
 	pollRetryInterval   time.Duration
 	httpClient          httpClient
-	fs                  fileSystem
+	fs                  cgroups.FileSystem
 	mtx                 *sync.RWMutex
 }
 
@@ -80,7 +80,7 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 
 	resp := workloadattestor.AttestResponse{}
 
-	cgroups, err := getCgroups(fmt.Sprintf("/proc/%v/cgroup", req.Pid), p.fs)
+	cgroups, err := cgroups.GetCgroups(req.Pid, p.fs)
 	if err != nil {
 		return &resp, err
 	}
@@ -89,13 +89,13 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	for _, cgroup := range cgroups {
 		// We are only interested in kube pods entries. Example entry:
 		// 11:hugetlb:/kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961
-		if len(cgroup[2]) < 9 {
+		if len(cgroup.GroupPath) < 9 {
 			continue
 		}
 
-		substring := cgroup[2][:9]
+		substring := cgroup.GroupPath[:9]
 		if substring == "/kubepods" {
-			parts := strings.Split(cgroup[2], "/")
+			parts := strings.Split(cgroup.GroupPath, "/")
 
 			if len(parts) < 5 {
 				log.Printf("Kube pod entry found, but without container id: %v", substring)
@@ -213,34 +213,6 @@ func lookUpContainerInPod(containerID string, status podStatus) containerLookup 
 	return containerNotInPod
 }
 
-func getCgroups(path string, fs fileSystem) (cgroups [][]string, err error) {
-	// http://man7.org/linux/man-pages/man7/cgroups.7.html
-	// https://www.kernel.org/doc/Documentation/cgroup-v2.txt
-
-	file, err := fs.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-
-	for scanner.Scan() {
-		token := scanner.Text()
-		substrings := strings.SplitN(token, ":", 3)
-		if len(substrings) < 3 {
-			return cgroups, fmt.Errorf("cgroup entry contains %v colons, but expected at least two colons: %v", len(substrings), token)
-		}
-		cgroups = append(cgroups, substrings)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return cgroups, err
-}
-
 func getSelectorsFromPodInfo(info *podInfo) []*common.Selector {
 	return []*common.Selector{
 		{Type: selectorType, Value: fmt.Sprintf("sa:%v", info.Spec.ServiceAccountName)},
@@ -298,6 +270,6 @@ func New() *k8sPlugin {
 	return &k8sPlugin{
 		mtx:        &sync.RWMutex{},
 		httpClient: &http.Client{},
-		fs:         osFS{},
+		fs:         cgroups.OSFileSystem{},
 	}
 }

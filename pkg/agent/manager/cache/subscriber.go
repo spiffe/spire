@@ -3,7 +3,7 @@ package cache
 import (
 	"sync"
 
-	"github.com/satori/go.uuid"
+	"github.com/gofrs/uuid/v3"
 	"github.com/spiffe/spire/pkg/common/selector"
 )
 
@@ -33,10 +33,14 @@ type subscribers struct {
 }
 
 func NewSubscriber(selectors Selectors) (*subscriber, error) {
+	u, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
 	return &subscriber{
 		c:      make(chan *WorkloadUpdate, 1),
 		sel:    selectors,
-		sid:    uuid.NewV4(),
+		sid:    u,
 		active: true,
 	}, nil
 }

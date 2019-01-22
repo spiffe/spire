@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gofrs/uuid/v3"
 	"github.com/golang/protobuf/proto"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	uuid "github.com/satori/go.uuid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
@@ -772,13 +772,17 @@ func createRegistrationEntry(tx *gorm.DB,
 		return nil, err
 	}
 
-	entryID := newRegistrationEntryID()
+	entryID, err := newRegistrationEntryID()
+	if err != nil {
+		return nil, err
+	}
 
 	newRegisteredEntry := RegisteredEntry{
 		EntryID:  entryID,
 		SpiffeID: req.Entry.SpiffeId,
 		ParentID: req.Entry.ParentId,
 		TTL:      req.Entry.Ttl,
+		Admin:    req.Entry.Admin,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -1031,6 +1035,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	entry.ParentID = req.Entry.ParentId
 	entry.TTL = req.Entry.Ttl
 	entry.Selectors = selectors
+	entry.Admin = req.Entry.Admin
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1232,11 +1237,16 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		ParentId:      model.ParentID,
 		Ttl:           model.TTL,
 		FederatesWith: federatesWith,
+		Admin:         model.Admin,
 	}, nil
 }
 
-func newRegistrationEntryID() string {
-	return uuid.NewV4().String()
+func newRegistrationEntryID() (string, error) {
+	u, err := uuid.NewV4()
+	if err != nil {
+		return "", err
+	}
+	return u.String(), nil
 }
 
 func modelToAttestedNode(model AttestedNode) *datastore.AttestedNode {

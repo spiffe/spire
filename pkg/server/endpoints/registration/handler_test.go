@@ -2,17 +2,16 @@ package registration
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"net"
 	"net/url"
-	"reflect"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/api/registration"
@@ -20,11 +19,13 @@ import (
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
-	"github.com/spiffe/spire/test/mock/proto/server/datastore"
-	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -50,6 +51,7 @@ zFHHu+k8dS32+KooMqtUp71bhMgtlvYIRay4OMD6VurfP70caOHkCVFPxibAW9o9
 NbyKVndd7aGvTed1PQ==
 -----END CERTIFICATE-----
 `))
+	udsAuth = auth.CallerInfo{}
 )
 
 func TestHandler(t *testing.T) {
@@ -59,6 +61,7 @@ func TestHandler(t *testing.T) {
 type HandlerSuite struct {
 	suite.Suite
 
+	peer   *peer.Peer
 	server *grpc.Server
 
 	ds      *fakedatastore.DataStore
@@ -89,11 +92,11 @@ func (s *HandlerSuite) SetupTest() {
 	// start up a server over localhost
 	listener, err := net.Listen("tcp", "localhost:0")
 	s.Require().NoError(err)
-	go s.server.Serve(listener)
 
 	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
 	s.Require().NoError(err)
 
+	go s.server.Serve(listener)
 	s.handler = registration.NewRegistrationClient(conn)
 }
 
@@ -120,8 +123,7 @@ func (s *HandlerSuite) TestCreateFederatedBundleDeprecated() {
 		})
 
 		if testCase.Err != "" {
-			s.Require().Error(err)
-			s.Require().Contains(err.Error(), testCase.Err)
+			s.requireErrorContains(err, testCase.Err)
 			continue
 		}
 		s.Require().NoError(err)
@@ -156,8 +158,7 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 		})
 
 		if testCase.Err != "" {
-			s.Require().Error(err)
-			s.Require().Contains(err.Error(), testCase.Err)
+			s.requireErrorContains(err, testCase.Err)
 			continue
 		}
 		s.Require().NoError(err)
@@ -206,8 +207,7 @@ func (s *HandlerSuite) TestFetchFederatedBundle() {
 		})
 
 		if testCase.Err != "" {
-			s.Require().Error(err)
-			s.Require().Contains(err.Error(), testCase.Err)
+			s.requireErrorContains(err, testCase.Err)
 			continue
 		}
 		s.Require().NoError(err)
@@ -283,8 +283,7 @@ func (s *HandlerSuite) TestUpdateFederatedBundleDeprecated() {
 		})
 
 		if testCase.Err != "" {
-			s.Require().Error(err)
-			s.Require().Contains(err.Error(), testCase.Err)
+			s.requireErrorContains(err, testCase.Err)
 			continue
 		}
 		s.Require().NoError(err)
@@ -329,8 +328,7 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 		})
 
 		if testCase.Err != "" {
-			s.Require().Error(err)
-			s.Require().Contains(err.Error(), testCase.Err)
+			s.requireErrorContains(err, testCase.Err)
 			continue
 		}
 		s.Require().NoError(err)
@@ -371,8 +369,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 		})
 
 		if testCase.Err != "" {
-			s.Require().Error(err)
-			s.Require().Contains(err.Error(), testCase.Err)
+			s.requireErrorContains(err, testCase.Err)
 			continue
 		}
 		s.Require().NoError(err)
@@ -388,6 +385,60 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 	}
 }
 
+func (s *HandlerSuite) TestCreateEntry() {
+	testCases := []struct {
+		Name  string
+		Entry *common.RegistrationEntry
+		Err   string
+	}{
+		{
+			Name:  "Parent ID is malformed",
+			Entry: &common.RegistrationEntry{ParentId: "FOO"},
+			Err:   `"FOO" is not a valid SPIFFE ID`,
+		},
+		{
+			Name:  "SPIFFE ID is malformed",
+			Entry: &common.RegistrationEntry{ParentId: "spiffe://example.org/parent", SpiffeId: "FOO"},
+			Err:   `"FOO" is not a valid workload SPIFFE ID`,
+		},
+		{
+			Name: "Success",
+			Entry: &common.RegistrationEntry{
+				ParentId:  "spiffe://example.org/parent",
+				SpiffeId:  "spiffe://example.org/child",
+				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+			},
+		},
+		{
+			Name: "AlreadyExists",
+			Entry: &common.RegistrationEntry{
+				ParentId:  "spiffe://example.org/parent",
+				SpiffeId:  "spiffe://example.org/child",
+				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+			},
+			Err: "Entry already exists",
+		},
+	}
+
+	for _, testCase := range testCases {
+		s.T().Run(testCase.Name, func(t *testing.T) {
+			resp, err := s.handler.CreateEntry(context.Background(), testCase.Entry)
+			if testCase.Err != "" {
+				requireErrorContains(t, err, testCase.Err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.Id)
+
+			entry, err := s.ds.FetchRegistrationEntry(context.Background(), &datastore.FetchRegistrationEntryRequest{
+				EntryId: resp.Id,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, entry)
+		})
+	}
+}
+
 func (s *HandlerSuite) TestUpdateEntry() {
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:  "spiffe://example.org/foo",
@@ -400,6 +451,10 @@ func (s *HandlerSuite) TestUpdateEntry() {
 		Entry *common.RegistrationEntry
 		Err   string
 	}{
+		{
+			Name: "Missing entry",
+			Err:  "missing entry to update",
+		},
 		{
 			Name:  "Parent ID is malformed",
 			Entry: &common.RegistrationEntry{EntryId: "X", ParentId: "FOO"},
@@ -433,14 +488,398 @@ func (s *HandlerSuite) TestUpdateEntry() {
 			})
 
 			if testCase.Err != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), testCase.Err)
+				requireErrorContains(t, err, testCase.Err)
 				return
 			}
 			require.NoError(t, err)
 			t.Logf("actual=%+v expected=%+v", resp, testCase.Entry)
 			require.True(t, proto.Equal(resp, testCase.Entry))
 		})
+	}
+}
+
+func (s *HandlerSuite) TestDeleteEntry() {
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+
+	testCases := []struct {
+		Name    string
+		EntryId string
+		Err     string
+	}{
+		{
+			Name:    "Success",
+			EntryId: entry.EntryId,
+		},
+		{
+			Name: "Registration entry does not exist",
+			Err:  "no such registration entry",
+		},
+	}
+
+	for _, testCase := range testCases {
+		s.T().Run(testCase.Name, func(t *testing.T) {
+			resp, err := s.handler.DeleteEntry(context.Background(), &registration.RegistrationEntryID{
+				Id: testCase.EntryId,
+			})
+
+			if testCase.Err != "" {
+				requireErrorContains(t, err, testCase.Err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, resp.EntryId, testCase.EntryId)
+		})
+	}
+}
+
+func (s *HandlerSuite) TestFetchEntry() {
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+
+	testCases := []struct {
+		Name    string
+		EntryId string
+		Err     string
+	}{
+		{
+			Name:    "Success",
+			EntryId: entry.EntryId,
+		},
+		{
+			Name: "Registration entry does not exist",
+			Err:  "no such registration entry",
+		},
+	}
+
+	for _, testCase := range testCases {
+		s.T().Run(testCase.Name, func(t *testing.T) {
+			resp, err := s.handler.FetchEntry(context.Background(), &registration.RegistrationEntryID{
+				Id: testCase.EntryId,
+			})
+
+			if testCase.Err != "" {
+				requireErrorContains(t, err, testCase.Err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, resp.EntryId, testCase.EntryId)
+		})
+	}
+}
+
+func (s *HandlerSuite) TestFetchEntries() {
+	// No entries
+	resp, err := s.handler.FetchEntries(context.Background(), &common.Empty{})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 0)
+
+	// One entry
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+	resp, err = s.handler.FetchEntries(context.Background(), &common.Empty{})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 1)
+	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
+
+	// More than one entry
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/baz",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+	resp, err = s.handler.FetchEntries(context.Background(), &common.Empty{})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 2)
+	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
+	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+}
+
+func (s *HandlerSuite) TestListByParentId() {
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/baz",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/buz",
+		SpiffeId:  "spiffe://example.org/fuz",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+
+	// Malformed ID
+	resp, err := s.handler.ListByParentID(context.Background(), &registration.ParentID{
+		Id: "whatever",
+	})
+	s.requireErrorContains(err, `"whatever" is not a valid SPIFFE ID`)
+	s.Require().Nil(resp)
+
+	// No entries
+	resp, err = s.handler.ListByParentID(context.Background(), &registration.ParentID{
+		Id: "spiffe://example.org/whatever",
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 0)
+
+	// One entry
+	resp, err = s.handler.ListByParentID(context.Background(), &registration.ParentID{
+		Id: "spiffe://example.org/buz",
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 1)
+	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+
+	// More than one entry
+	resp, err = s.handler.ListByParentID(context.Background(), &registration.ParentID{
+		Id: "spiffe://example.org/foo",
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 2)
+	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
+	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+}
+
+func (s *HandlerSuite) TestListBySelector() {
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/baz",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/buz",
+		SpiffeId:  "spiffe://example.org/fuz",
+		Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+	})
+
+	// No entries
+	resp, err := s.handler.ListBySelector(context.Background(), &common.Selector{Type: "C", Value: "c"})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 0)
+
+	// One entry
+	resp, err = s.handler.ListBySelector(context.Background(), &common.Selector{Type: "B", Value: "b"})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 1)
+	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+
+	// More than one entry
+	resp, err = s.handler.ListBySelector(context.Background(), &common.Selector{Type: "A", Value: "a"})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 2)
+	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
+	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+}
+
+func (s *HandlerSuite) TestListBySpiffeID() {
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/parent",
+		SpiffeId:  "spiffe://example.org/foo",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/parent",
+		SpiffeId:  "spiffe://example.org/foo",
+		Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+	})
+	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/parent",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}},
+	})
+
+	// Malformed ID
+	resp, err := s.handler.ListBySpiffeID(context.Background(), &registration.SpiffeID{
+		Id: "whatever",
+	})
+	s.requireErrorContains(err, `"whatever" is not a valid SPIFFE ID`)
+	s.Require().Nil(resp)
+
+	// No entries
+	resp, err = s.handler.ListBySpiffeID(context.Background(), &registration.SpiffeID{
+		Id: "spiffe://example.org/whatever",
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 0)
+
+	// One entry
+	resp, err = s.handler.ListBySpiffeID(context.Background(), &registration.SpiffeID{
+		Id: "spiffe://example.org/bar",
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 1)
+	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+
+	// More than one entry
+	resp, err = s.handler.ListBySpiffeID(context.Background(), &registration.SpiffeID{
+		Id: "spiffe://example.org/foo",
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 2)
+	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
+	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+}
+
+func (s *HandlerSuite) TestCreateJoinToken() {
+	// No ttl
+	resp, err := s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{Token: "foo"})
+	s.requireErrorContains(err, "Ttl is required")
+	s.Require().Nil(resp)
+
+	// No token specified (one will be generated)
+	resp, err = s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{Ttl: 1})
+	s.Require().NoError(err)
+	s.Require().NotEmpty(resp.Token)
+	s.Require().Equal(int32(1), resp.Ttl)
+
+	// Token specified
+	resp, err = s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{Token: "foo", Ttl: 1})
+	s.Require().NoError(err)
+	s.Require().Equal(resp, &registration.JoinToken{Token: "foo", Ttl: 1})
+
+	// Already exists
+	resp, err = s.handler.CreateJoinToken(context.Background(), &registration.JoinToken{Token: "foo", Ttl: 1})
+	s.requireErrorContains(err, "Failed to register token")
+	s.Require().Nil(resp)
+}
+
+func (s *HandlerSuite) TestFetchBundle() {
+	// No bundle
+	resp, err := s.handler.FetchBundle(context.Background(), &common.Empty{})
+	s.requireErrorContains(err, "bundle not found")
+	s.Require().Nil(resp)
+
+	// Success
+	s.createBundle(&datastore.Bundle{
+		TrustDomainId: "spiffe://example.org",
+		RootCas: []*common.Certificate{
+			{DerBytes: []byte("EXAMPLE")},
+		},
+	})
+	resp, err = s.handler.FetchBundle(context.Background(), &common.Empty{})
+	s.Require().NoError(err)
+	s.Require().Equal(&registration.Bundle{
+		DEPRECATEDCaCerts: []byte("EXAMPLE"),
+		Bundle: &common.Bundle{
+			TrustDomainId: "spiffe://example.org",
+			RootCas: []*common.Certificate{
+				{DerBytes: []byte("EXAMPLE")},
+			},
+		},
+	}, resp)
+}
+
+func (s *HandlerSuite) TestAuthorizeCall() {
+	catalog := fakeservercatalog.New()
+	catalog.SetDataStores(s.ds)
+	log, _ := test.NewNullLogger()
+	handler := &Handler{Log: log, Catalog: catalog}
+
+	makeTLSPeer := func(spiffeID string) *peer.Peer {
+		cert := &x509.Certificate{}
+		if spiffeID != "" {
+			u, err := url.Parse(spiffeID)
+			s.Require().NoError(err)
+			cert.URIs = append(cert.URIs, u)
+		}
+		return &peer.Peer{
+			AuthInfo: credentials.TLSInfo{
+				State: tls.ConnectionState{
+					VerifiedChains: [][]*x509.Certificate{{cert}},
+				},
+			},
+		}
+	}
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: "spiffe://example.org/parent",
+		SpiffeId: "spiffe://example.org/admin",
+		Admin:    true,
+	})
+
+	testCases := []struct {
+		Peer     *peer.Peer
+		CallerID string
+		Err      string
+	}{
+		{
+			Err: "no peer information for caller",
+		},
+		{
+			Peer: &peer.Peer{},
+			Err:  "unsupported peer auth info type",
+		},
+		{
+			Peer: &peer.Peer{
+				AuthInfo: auth.CallerInfo{},
+			},
+		},
+		{
+			Peer: &peer.Peer{
+				AuthInfo: credentials.TLSInfo{},
+			},
+			Err: "no verified client certificate",
+		},
+		{
+			Peer: &peer.Peer{
+				AuthInfo: credentials.TLSInfo{
+					State: tls.ConnectionState{
+						VerifiedChains: [][]*x509.Certificate{{}},
+					},
+				},
+			},
+			Err: "verified chain is empty",
+		},
+		{
+			Peer: makeTLSPeer(""),
+			Err:  "no SPIFFE ID in certificate",
+		},
+		{
+			Peer: makeTLSPeer("whatever://example.org"),
+			Err:  "not a valid SPIFFE ID",
+		},
+		{
+			Peer: makeTLSPeer("spiffe://example.org/not-admin"),
+			Err:  `SPIFFE ID "spiffe://example.org/not-admin" is not authorized`,
+		},
+		{
+			Peer:     makeTLSPeer("spiffe://example.org/admin"),
+			CallerID: "spiffe://example.org/admin",
+		},
+	}
+
+	for _, testCase := range testCases {
+		s.T().Logf("case=%+v", testCase)
+		ctx := context.Background()
+		if testCase.Peer != nil {
+			ctx = peer.NewContext(ctx, testCase.Peer)
+		}
+		ctx, err := handler.AuthorizeCall(ctx, "SOMEMETHOD")
+		if testCase.Err != "" {
+			s.requireErrorContains(err, testCase.Err)
+			s.requireGRPCStatusCode(err, codes.PermissionDenied)
+			continue
+		}
+		s.Require().NoError(err)
+		s.Require().Equal(testCase.CallerID, getCallerID(ctx), "Caller SPIFFE ID on context")
 	}
 }
 
@@ -459,547 +898,16 @@ func (s *HandlerSuite) createRegistrationEntry(entry *common.RegistrationEntry) 
 	return resp.Entry
 }
 
-type handlerTestSuite struct {
-	suite.Suite
-	ctrl          *gomock.Controller
-	handler       *Handler
-	mockDataStore *mock_datastore.MockDataStore
+func (s *HandlerSuite) requireErrorContains(err error, contains string) {
+	requireErrorContains(s.T(), err, contains)
 }
 
-func setupRegistrationTest(t *testing.T) *handlerTestSuite {
-	suite := &handlerTestSuite{}
-	mockCtrl := gomock.NewController(t)
-	suite.ctrl = mockCtrl
-	log, _ := test.NewNullLogger()
-	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
-
-	catalog := fakeservercatalog.New()
-	catalog.SetDataStores(suite.mockDataStore)
-
-	suite.handler = &Handler{
-		Log:         log,
-		Metrics:     telemetry.Blackhole{},
-		TrustDomain: url.URL{Scheme: "spiffe", Host: "example.org"},
-		Catalog:     catalog,
-	}
-	return suite
+func (s *HandlerSuite) requireGRPCStatusCode(err error, code codes.Code) {
+	requireGRPCStatusCode(s.T(), err, code)
 }
 
-func TestCreateEntry(t *testing.T) {
-
-	goodRequest := testutil.GetRegistrationEntries("good.json")[0]
-	goodResponse := &registration.RegistrationEntryID{
-		Id: "abcdefgh",
-	}
-	invalidRequest := testutil.GetRegistrationEntries("invalid.json")[0]
-
-	var testCases = []struct {
-		request          *common.RegistrationEntry
-		expectedResponse *registration.RegistrationEntryID
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{goodRequest, goodResponse, nil, createEntryExpectations},
-		{goodRequest, nil, errors.New("Error trying to create entry"), createEntryErrorExpectations},
-		{goodRequest, nil, errors.New("Entry already exists"), createEntryNonUniqueExpectations},
-		{invalidRequest, nil, errors.New(`"http://example.org/Blog" is not a valid workload SPIFFE ID: invalid scheme`), func(suite *handlerTestSuite) {}},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-
-		tt.setExpectations(suite)
-		response, err := suite.handler.CreateEntry(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-}
-
-func TestDeleteEntry(t *testing.T) {
-	goodResponse := testutil.GetRegistrationEntries("good.json")[0]
-	req := &registration.RegistrationEntryID{Id: "1234"}
-
-	var testCases = []struct {
-		request          *registration.RegistrationEntryID
-		expectedResponse *common.RegistrationEntry
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{req, goodResponse, nil, deleteEntryExpectations},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-		tt.setExpectations(suite)
-		response, err := suite.handler.DeleteEntry(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-}
-
-func TestFetchEntry(t *testing.T) {
-
-	goodRequest := &registration.RegistrationEntryID{Id: "abcdefgh"}
-	goodResponse := testutil.GetRegistrationEntries("good.json")[0]
-
-	var testCases = []struct {
-		request          *registration.RegistrationEntryID
-		expectedResponse *common.RegistrationEntry
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{goodRequest, goodResponse, nil, fetchEntryExpectations},
-		{goodRequest, nil, errors.New("Error trying to fetch entry"), fetchEntryErrorExpectations},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-
-		tt.setExpectations(suite)
-		response, err := suite.handler.FetchEntry(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-
-}
-
-func TestFetchEntries(t *testing.T) {
-	goodResponse := &common.RegistrationEntries{
-		Entries: testutil.GetRegistrationEntries("good.json"),
-	}
-
-	var testCases = []struct {
-		expectedResponse *common.RegistrationEntries
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{goodResponse, nil, fetchEntriesExpectations},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-
-		tt.setExpectations(suite)
-		response, err := suite.handler.FetchEntries(nil, &common.Empty{})
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-
-}
-
-func TestListByParentID(t *testing.T) {
-
-	goodRequest := &registration.ParentID{
-		Id: "spiffe://example.org/spire/agent/join_token/TokenBlog",
-	}
-	goodResponse := &common.RegistrationEntries{
-		Entries: testutil.GetRegistrationEntries("good.json"),
-	}
-	var testCases = []struct {
-		request          *registration.ParentID
-		expectedResponse *common.RegistrationEntries
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{goodRequest, goodResponse, nil, listByParentIDExpectations},
-		{goodRequest, nil, errors.New("Error trying to list entries by parent ID"), listByParentIDErrorExpectations},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-
-		tt.setExpectations(suite)
-		response, err := suite.handler.ListByParentID(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-
-}
-
-func TestListBySelector(t *testing.T) {
-	req := &common.Selector{Type: "unix", Value: "uid:1111"}
-	resp := &common.RegistrationEntries{
-		Entries: testutil.GetRegistrationEntries("good.json"),
-	}
-
-	var testCases = []struct {
-		request          *common.Selector
-		expectedResponse *common.RegistrationEntries
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{req, resp, nil, listBySelectorExpectations},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-		tt.setExpectations(suite)
-		response, err := suite.handler.ListBySelector(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-}
-
-func TestListBySpiffeID(t *testing.T) {
-	req := &registration.SpiffeID{
-		Id: "spiffe://example.org/Blog",
-	}
-	resp := &common.RegistrationEntries{
-		Entries: testutil.GetRegistrationEntries("good.json")[0:1],
-	}
-
-	var testCases = []struct {
-		request          *registration.SpiffeID
-		expectedResponse *common.RegistrationEntries
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{req, resp, nil, listBySpiffeIDExpectations},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-		tt.setExpectations(suite)
-		response, err := suite.handler.ListBySpiffeID(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-}
-
-func TestCreateJoinToken(t *testing.T) {
-	goodRequest := &registration.JoinToken{Token: "123abc", Ttl: 200}
-	goodResponse := goodRequest
-
-	var testCases = []struct {
-		request          *registration.JoinToken
-		expectedResponse *registration.JoinToken
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{goodRequest, goodResponse, nil, createJoinTokenExpectations},
-		{&registration.JoinToken{}, nil, errors.New("Ttl is required, you must provide one"), noExpectations},
-		{&registration.JoinToken{Token: "123abc"}, nil, errors.New("Ttl is required, you must provide one"), noExpectations},
-		{goodRequest, nil, errors.New("Error trying to register your token"), createJoinTokenErrorExpectations},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-
-		tt.setExpectations(suite)
-		response, err := suite.handler.CreateJoinToken(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-}
-
-//TODO: put this in the test table
-func TestCreateJoinTokenWithoutToken(t *testing.T) {
-	suite := setupRegistrationTest(t)
-	defer suite.ctrl.Finish()
-
-	request := &registration.JoinToken{Ttl: 200}
-
-	//expectations
-	suite.mockDataStore.EXPECT().
-		CreateJoinToken(gomock.Any(), gomock.Any()).
-		Return(&datastore.CreateJoinTokenResponse{}, nil)
-
-	//exercise
-	response, err := suite.handler.CreateJoinToken(nil, request)
-
-	//verification
-	if response.Token == "" {
-		t.Errorf("Response was incorrect\n Got: empty token\n Want: a token value\n")
-
-	}
-
-	if response.Ttl != 200 {
-		t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n",
-			response.Ttl, 200)
-
-	}
-
-	if err != nil {
-		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
-	}
-}
-
-func TestFetchBundle(t *testing.T) {
-	request := &common.Empty{}
-	goodResponse := &registration.Bundle{
-		DEPRECATEDCaCerts: []byte{1, 2, 3},
-		Bundle: &common.Bundle{
-			TrustDomainId: "spiffe://example.org",
-			RootCas: []*common.Certificate{
-				{DerBytes: []byte{1, 2, 3}},
-			},
-		},
-	}
-	var testCases = []struct {
-		request          *common.Empty
-		expectedResponse *registration.Bundle
-		expectedError    error
-		setExpectations  func(*handlerTestSuite)
-	}{
-		{request, goodResponse, nil, createFetchBundleExpectations},
-		{request, nil, errors.New("get bundle from datastore: bundle not found"), createFetchBundleErrorExpectations},
-	}
-
-	for _, tt := range testCases {
-		suite := setupRegistrationTest(t)
-
-		tt.setExpectations(suite)
-		response, err := suite.handler.FetchBundle(nil, tt.request)
-
-		//verification
-		if !reflect.DeepEqual(response, tt.expectedResponse) {
-			t.Errorf("Response was incorrect\n Got: %v\n Want: %v\n", response, tt.expectedResponse)
-		}
-
-		if !reflect.DeepEqual(err, tt.expectedError) {
-			t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, tt.expectedError)
-		}
-		suite.ctrl.Finish()
-	}
-}
-
-func noExpectations(*handlerTestSuite) {}
-
-func createEntryExpectations(suite *handlerTestSuite) {
-	entryIn := testutil.GetRegistrationEntries("good.json")[0]
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{BySpiffeId: &wrappers.StringValue{Value: entryIn.SpiffeId}}).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: []*common.RegistrationEntry{},
-		}, nil)
-
-	createRequest := &datastore.CreateRegistrationEntryRequest{
-		Entry: entryIn,
-	}
-
-	entryOut := *entryIn
-	entryOut.EntryId = "abcdefgh"
-	createResponse := &datastore.CreateRegistrationEntryResponse{
-		Entry: &entryOut,
-	}
-
-	suite.mockDataStore.EXPECT().
-		CreateRegistrationEntry(gomock.Any(), createRequest).
-		Return(createResponse, nil)
-}
-
-func createEntryErrorExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), gomock.Any()).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: []*common.RegistrationEntry{},
-		}, nil)
-
-	suite.mockDataStore.EXPECT().
-		CreateRegistrationEntry(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("foo"))
-}
-
-func createEntryNonUniqueExpectations(suite *handlerTestSuite) {
-	newRegEntry := testutil.GetRegistrationEntries("good.json")[0]
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{
-			BySpiffeId: &wrappers.StringValue{
-				Value: newRegEntry.SpiffeId,
-			},
-		}).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: []*common.RegistrationEntry{newRegEntry},
-		}, nil)
-}
-
-func fetchEntryExpectations(suite *handlerTestSuite) {
-	fetchRequest := &datastore.FetchRegistrationEntryRequest{
-		EntryId: "abcdefgh",
-	}
-	fetchResponse := &datastore.FetchRegistrationEntryResponse{
-		Entry: testutil.GetRegistrationEntries("good.json")[0],
-	}
-	suite.mockDataStore.EXPECT().
-		FetchRegistrationEntry(gomock.Any(), fetchRequest).
-		Return(fetchResponse, nil)
-}
-
-func fetchEntriesExpectations(suite *handlerTestSuite) {
-	fetchResponse := &datastore.ListRegistrationEntriesResponse{
-		Entries: testutil.GetRegistrationEntries("good.json"),
-	}
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{}).
-		Return(fetchResponse, nil)
-}
-
-func fetchEntryErrorExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		FetchRegistrationEntry(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("foo"))
-}
-
-func deleteEntryExpectations(suite *handlerTestSuite) {
-	resp := &datastore.DeleteRegistrationEntryResponse{
-		Entry: testutil.GetRegistrationEntries("good.json")[0],
-	}
-
-	suite.mockDataStore.EXPECT().
-		DeleteRegistrationEntry(gomock.Any(), gomock.Any()).
-		Return(resp, nil)
-}
-
-func listByParentIDExpectations(suite *handlerTestSuite) {
-	listRequest := &datastore.ListRegistrationEntriesRequest{
-		ByParentId: &wrappers.StringValue{
-			Value: "spiffe://example.org/spire/agent/join_token/TokenBlog",
-		},
-	}
-	listResponse := &datastore.ListRegistrationEntriesResponse{
-		Entries: testutil.GetRegistrationEntries("good.json"),
-	}
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), listRequest).
-		Return(listResponse, nil)
-}
-
-func listByParentIDErrorExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("foo"))
-}
-
-func listBySelectorExpectations(suite *handlerTestSuite) {
-	req := &datastore.ListRegistrationEntriesRequest{
-		BySelectors: &datastore.BySelectors{
-			Selectors: []*common.Selector{{Type: "unix", Value: "uid:1111"}},
-		},
-	}
-	resp := &datastore.ListRegistrationEntriesResponse{
-		Entries: testutil.GetRegistrationEntries("good.json"),
-	}
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), req).
-		Return(resp, nil)
-}
-
-func listBySpiffeIDExpectations(suite *handlerTestSuite) {
-	req := &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrappers.StringValue{
-			Value: "spiffe://example.org/Blog",
-		},
-	}
-
-	resp := &datastore.ListRegistrationEntriesResponse{
-		Entries: testutil.GetRegistrationEntries("good.json")[0:1],
-	}
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), req).
-		Return(resp, nil)
-}
-
-func createJoinTokenExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		CreateJoinToken(gomock.Any(), gomock.Any()).
-		Return(&datastore.CreateJoinTokenResponse{}, nil)
-}
-
-func createJoinTokenErrorExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		CreateJoinToken(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("foo"))
-}
-
-func createFetchBundleExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomainId: "spiffe://example.org",
-		}).
-		Return(&datastore.FetchBundleResponse{
-			Bundle: &datastore.Bundle{
-				TrustDomainId: "spiffe://example.org",
-				RootCas: []*common.Certificate{
-					{DerBytes: []byte{1, 2, 3}},
-				},
-			},
-		}, nil)
-}
-
-func createFetchBundleErrorExpectations(suite *handlerTestSuite) {
-	suite.mockDataStore.EXPECT().
-		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomainId: "spiffe://example.org",
-		}).
-		Return(nil, errors.New("bundle not found"))
+func (s *HandlerSuite) requireNotGRPCStatusCode(err error, code codes.Code) {
+	requireNotGRPCStatusCode(s.T(), err, code)
 }
 
 func pemBytes(p []byte) []byte {
@@ -1008,4 +916,19 @@ func pemBytes(p []byte) []byte {
 		return b.Bytes
 	}
 	return nil
+}
+
+func requireErrorContains(t *testing.T, err error, contains string) {
+	require.Error(t, err)
+	require.Contains(t, err.Error(), contains)
+}
+
+func requireGRPCStatusCode(t *testing.T, err error, code codes.Code) {
+	s := status.Convert(err)
+	require.Equal(t, code, s.Code(), "GRPC status code should be %v", code)
+}
+
+func requireNotGRPCStatusCode(t *testing.T, err error, code codes.Code) {
+	s := status.Convert(err)
+	require.NotEqual(t, code, s.Code(), "GRPC status code should not be %v", code)
 }

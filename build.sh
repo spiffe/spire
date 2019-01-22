@@ -28,15 +28,13 @@ declare -r BUILD_DIR=${BUILD_DIR:-$PWD/.build-${OS1}-${ARCH1}}
 declare -r BUILD_CACHE=${BUILD_CACHE:-$PWD/.cache}
 
 # versioned binaries that we need for builds
+export GO111MODULE=on
 declare -r GO_VERSION=${GO_VERSION:-1.11.4}
 declare -r GO_URL="https://storage.googleapis.com/golang"
 declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
 declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
 declare -r PROTOBUF_URL="https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}"
 declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-${OS2}-${ARCH1}.zip"
-declare -r DEP_VERSION=${DEP_VERSION:-0.5.0}
-declare -r DEP_URL="https://github.com/golang/dep/releases/download/v${DEP_VERSION}"
-declare -r DEP_BIN="dep-${OS1}-${ARCH2}"
 declare -r PROTOC_GEN_DOCS_VERSION=${PROTOC_GEN_DOCS_VERSION:-1.0.0}
 declare -r PROTOC_GEN_DOCS_URL="https://github.com/pseudomuto/protoc-gen-doc/releases/download/v${PROTOC_GEN_DOCS_VERSION}"
 declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}.${OS1}-${ARCH2}.go1.9.tar.gz"
@@ -78,10 +76,6 @@ build_setup() {
 	_fetch_url ${GO_URL} ${GO_TGZ}
 	tar --directory ${BUILD_DIR} --strip 1 -xf ${BUILD_CACHE}/${GO_TGZ}
 
-	_fetch_url ${DEP_URL} ${DEP_BIN}
-	cp ${BUILD_CACHE}/${DEP_BIN} ${BUILD_DIR}/bin/dep
-	chmod +x ${BUILD_DIR}/bin/dep
-
 	_fetch_url ${PROTOC_GEN_DOCS_URL} ${PROTOC_GEN_DOCS_TGZ}
 	tar --directory ${BUILD_DIR}/bin --strip 1 -xf ${BUILD_CACHE}/${PROTOC_GEN_DOCS_TGZ}
 
@@ -94,29 +88,12 @@ build_utils() {
 	eval $(build_env)
 
 	make utils
-	go get github.com/AlekSi/gocoverutil
-	go get github.com/mattn/goveralls
-}
-
-## Fetch all vendored dependancies and check if the lock file
-## is up-to-date
-build_vendor() {
-	eval $(build_env)
-
-	dep status 2>&1 | tee /tmp/dep.out
-	if grep -q "Lock inputs-digest mismatch" /tmp/dep.out; then
-		_exit_error "Gopkg.lock file may be out of date"
-	fi
-
-	make vendor 2>&1
 }
 
 ## Rebuild all .proto files, generated README, and generated gRPC/REST interfaces
 build_protobuf() {
 	local _n _d _dir _prefix="$1"
 	eval $(build_env)
-
-	go install github.com/spiffe/spire/tools/protoc-gen-spireplugin
 
 	for _n in ${PROTO_FILES}; do
 		_dir="$(dirname ${_n})"
@@ -126,19 +103,23 @@ build_protobuf() {
 		else
 			_d=${_dir}
 		fi
+
+		# Set path to right version of grpc-gateway repo
+		grpc_gateway_path=$(go list -f '{{ .Dir }}' -m github.com/grpc-ecosystem/grpc-gateway)/third_party/googleapis
+
 		_log_info "creating \"${_n%.proto}.pb.go\""
 		protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-			--proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+			--proto_path=$grpc_gateway_path \
 			--go_out=plugins=grpc:${_d} ${_n}
 		_log_info "creating \"${_d}/README_pb.md\""
 		protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-			--proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+			--proto_path=$grpc_gateway_path \
 			--doc_out=markdown,README_pb.md:${_d} ${_n}
 		# only build gateway code if necessary
 		if grep -q 'option (google.api.http)' ${_n}; then
 			_log_info "creating http gateway \"${_n%.proto}.pb.gw.go\""
 			protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-				--proto_path=${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+				--proto_path=$grpc_gateway_path \
 				--grpc-gateway_out=logtostderr=true:${_d} ${_n}
 		fi
 		# only build the plugin interfaces for plugin protos
@@ -286,7 +267,6 @@ build_distclean() {
 
 build_all() {
 	build_setup
-	build_vendor
 	build_binaries
 	build_test
 }
@@ -296,7 +276,6 @@ case "$1" in
 	env) build_env ;;
 	setup) build_setup ;;
 	utils) build_utils ;;
-	vendor) build_vendor ;;
 	protobuf) build_protobuf ;;
 	protobuf_verify) build_protobuf_verify ;;
 	binaries|bin) build_binaries $2 ;;

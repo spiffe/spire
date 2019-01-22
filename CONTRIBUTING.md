@@ -10,8 +10,7 @@ from the SPIFFE project.
 
 For basic development you will need:
 
-* **Go** (https://golang.org/dl/)
-* **Dep**, for managing third-party dependancies (https://github.com/golang/dep)
+* **Go 1.11** or higher (https://golang.org/dl/)
 
 For development that requires changes to the gRPC interfaces you will need:
 
@@ -22,13 +21,10 @@ For development that requires changes to the gRPC interfaces you will need:
 
 #  Building
 
-It is assumed that this repository lives in $GOPATH/src/github.com/spiffe/spire on your local disk,
-and that your GOPATH only contains one element.
+Since go modules are used, this repository can live in any folder on your local disk (it is not required to be in GOPATH).
 
-Because of the use of dep and the unusual layout of this repository a Makefile is provide for
-common actions.
+A Makefile is provided for common actions.
 
-* `dep ensure` - installs all the dependencies listed in Gopkg.toml
 * `make all` - installs 3rd-party dependencies, build all binaries, and run all tests
 * `make` - builds all binaries
 * `make cmd/spire-agent` - builds one binary
@@ -36,11 +32,12 @@ common actions.
 
 **Other Makefile targets**
 
-* `vendor` - installs 3rd-party dependencies using dep
+* `vendor` - Make vendored copy of dependencies using go mod
 * `race-test` - run `go test -race`
-* `clean` - cleans `vendor` directory, dep cache
+* `clean` - cleans `vendor` directory
 * `distclean` - removes caches in addition to `make clean`
 * `utils` - installs gRPC related development utilities
+* `help` - shows makefile targets and description
 
 ## Development in Docker
 
@@ -60,10 +57,7 @@ $ make container
 $ make cmd
 ```
 
-Because the docker container shares $GOPATH you will not have to re-install the go dependencies
-every time you run the container. NOTE: any binaries installed from within the container will be
-located in $GOPATH/bin/linux_amd64 to avoid conflicts with the host OS (Packages are automatically
-versioned by golang into `$GOPATH/pkg/<os>_<arch>`)
+Because the docker container shares `$GOPATH/pkg/mod` you will not have to re-install the go dependencies every time you run the container.
 
 ## CI
 
@@ -74,7 +68,6 @@ checks. It is also used to bootstrap the Go environment in the Docker container.
 * `protobuf` - regenerate the gRPC pb.go and README.md files
 * `protobuf_verify` - check that the checked-in generated code is up-to-date
 * `distclean` - calls `make distclean` and removes the directory `.build-<os>-<arch>`
-* `vendor` - calls `make vendor` and checks that the `Gopkg.lock` file is up-to-date
 * `artifact` - generate a `.tgz` containing all of the SPIFFE binaries
 * `test` - when called from within a Travis-CI build, runs coverage tests in addition to the
   regular tests

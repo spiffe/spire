@@ -13,7 +13,7 @@ import (
 
 const (
 	// version of the database in the code
-	codeVersion = 4
+	codeVersion = 5
 )
 
 func migrateDB(db *gorm.DB) (err error) {
@@ -108,6 +108,8 @@ func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
 		err = migrateToV3(tx)
 	case 3:
 		err = migrateToV4(tx)
+	case 4:
+		err = migrateToV5(tx)
 	default:
 		err = sqlError.New("no migration support for version %d", version)
 	}
@@ -202,7 +204,7 @@ func migrateToV3(tx *gorm.DB) (err error) {
 		}
 	}
 
-	var registeredEntries []*RegisteredEntry
+	var registeredEntries []*V4_RegisteredEntry
 	if err := tx.Find(&registeredEntries).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -268,6 +270,13 @@ func migrateToV4(tx *gorm.DB) error {
 	return nil
 }
 
+func migrateToV5(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
 type V3_Bundle struct {
 	Model
 
@@ -292,4 +301,19 @@ type V3_CACert struct {
 
 func (V3_CACert) TableName() string {
 	return "ca_certs"
+}
+
+type V4_RegisteredEntry struct {
+	Model
+
+	EntryID       string `gorm:"unique_index"`
+	SpiffeID      string
+	ParentID      string
+	TTL           int32
+	Selectors     []Selector
+	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
+}
+
+func (V4_RegisteredEntry) TableName() string {
+	return "registered_entries"
 }

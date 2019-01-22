@@ -138,7 +138,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return errors.New("Error trying to sign CSR")
 	}
 
-	if err := h.updateNodeSelectors(ctx, baseSpiffeIDFromCSR, attestResponse); err != nil {
+	if err := h.updateNodeSelectors(ctx, baseSpiffeIDFromCSR, attestResponse, request.AttestationData.Type); err != nil {
 		h.c.Log.Error(err)
 		return errors.New("Error trying to get selectors for baseSpiffeID")
 	}
@@ -181,6 +181,12 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error) {
 	counter := telemetry.StartCall(h.c.Metrics, "node_api", "x509_svid", "fetch")
 	defer counter.Done(&err)
+
+	peerCert, ok := getPeerCertificate(server.Context())
+	if !ok {
+		return errors.New("client SVID is required for this request")
+	}
+
 	for {
 		request, err := server.Recv()
 		if err == io.EOF {
@@ -195,12 +201,6 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		err = h.limiter.Limit(ctx, CSRMsg, len(request.Csrs))
 		if err != nil {
 			return status.Error(codes.ResourceExhausted, err.Error())
-		}
-
-		peerCert, err := h.getCertFromCtx(ctx)
-		if err != nil {
-			h.c.Log.Error(err)
-			return errors.New("An SVID is required for this request")
 		}
 
 		agentID, err := getSpiffeIDFromCert(peerCert)
@@ -257,9 +257,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
-	peerCert, err := h.getCertFromCtx(ctx)
-	if err != nil {
-		h.c.Log.Error(err)
+	peerCert, ok := getPeerCertificate(ctx)
+	if !ok {
 		return nil, errors.New("client SVID is required for this request")
 	}
 
@@ -324,6 +323,29 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 			ExpiresAt: expiresAt.Unix(),
 		},
 	}, nil
+}
+
+func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
+	switch fullMethod {
+	// no authn/authz is required for attestation
+	case "/spire.api.node.Node/Attest":
+
+	// peer certificate required for SVID fetching
+	case "/spire.api.node.Node/FetchX509SVID",
+		"/spire.api.node.Node/FetchJWTSVID":
+		peerCert, err := getPeerCertificateFromRequestContext(ctx)
+		if err != nil {
+			h.c.Log.Error(err)
+			return nil, errors.New("client SVID is required for this request")
+		}
+		ctx = withPeerCertificate(ctx, peerCert)
+
+	// method not handled
+	default:
+		return nil, status.Errorf(codes.PermissionDenied, "authorization not implemented for method %q", fullMethod)
+	}
+
+	return ctx, nil
 }
 
 func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, error) {
@@ -498,25 +520,39 @@ func (h *Handler) createAttestationEntry(ctx context.Context,
 }
 
 func (h *Handler) updateNodeSelectors(ctx context.Context,
-	baseSpiffeID string, attestResponse *nodeattestor.AttestResponse) error {
+	baseSpiffeID string, attestResponse *nodeattestor.AttestResponse, attestationType string) error {
 
-	nodeResolver := h.c.Catalog.NodeResolvers()[0]
-	//Call node resolver plugin to get a map of spiffeID=>Selector
-	response, err := nodeResolver.Resolve(ctx, &noderesolver.ResolveRequest{
-		BaseSpiffeIdList: []string{baseSpiffeID},
-	})
-	if err != nil {
-		return err
+	// Select node resolver based on request attestation type
+	var nodeResolver noderesolver.NodeResolver
+	for _, r := range h.c.Catalog.NodeResolvers() {
+		if r.Config().PluginName == attestationType {
+			nodeResolver = r
+			break
+		}
 	}
 
 	var selectors []*common.Selector
-	if resolved := response.Map[baseSpiffeID]; resolved != nil {
-		selectors = append(selectors, resolved.Entries...)
+	if nodeResolver == nil {
+		// If not matching node resolver found, skip adding additional selectors
+		h.c.Log.Debugf("could not find node resolver type %q", attestationType)
+	} else {
+		//Call node resolver plugin to get a map of spiffeID=>Selector
+		response, err := nodeResolver.Resolve(ctx, &noderesolver.ResolveRequest{
+			BaseSpiffeIdList: []string{baseSpiffeID},
+		})
+		if err != nil {
+			return err
+		}
+
+		if resolved := response.Map[baseSpiffeID]; resolved != nil {
+			selectors = append(selectors, resolved.Entries...)
+		}
 	}
+
 	selectors = append(selectors, attestResponse.Selectors...)
 
 	dataStore := h.c.Catalog.DataStores()[0]
-	_, err = dataStore.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
+	_, err := dataStore.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
 			SpiffeId:  baseSpiffeID,
 			Selectors: selectors,
@@ -557,29 +593,6 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 		Bundles:             bundles,
 	}
 	return &node.AttestResponse{SvidUpdate: svidUpdate}, nil
-}
-
-func (h *Handler) getCertFromCtx(ctx context.Context) (certificate *x509.Certificate, err error) {
-	ctxPeer, ok := peer.FromContext(ctx)
-	if !ok {
-		return nil, errors.New("no peer information")
-	}
-	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
-	if !ok {
-		return nil, errors.New("no TLS auth info for peer")
-	}
-
-	if len(tlsInfo.State.VerifiedChains) == 0 {
-		return nil, errors.New("no verified client certificate presented by peer")
-	}
-	chain := tlsInfo.State.VerifiedChains[0]
-	if len(chain) == 0 {
-		// this shouldn't be possible with the tls package, but we should be
-		// defensive.
-		return nil, errors.New("verified client chain is missing certificates")
-	}
-
-	return chain[0], nil
 }
 
 func (h *Handler) signCSRs(ctx context.Context,
@@ -712,6 +725,29 @@ func (h *Handler) getBundle(ctx context.Context, trustDomainId string) (*common.
 	return resp.Bundle, nil
 }
 
+func getPeerCertificateFromRequestContext(ctx context.Context) (cert *x509.Certificate, err error) {
+	ctxPeer, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, errors.New("no peer information")
+	}
+	tlsInfo, ok := ctxPeer.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return nil, errors.New("no TLS auth info for peer")
+	}
+
+	if len(tlsInfo.State.VerifiedChains) == 0 {
+		return nil, errors.New("no verified client certificate presented by peer")
+	}
+	chain := tlsInfo.State.VerifiedChains[0]
+	if len(chain) == 0 {
+		// this shouldn't be possible with the tls package, but we should be
+		// defensive.
+		return nil, errors.New("verified client chain is missing certificates")
+	}
+
+	return chain[0], nil
+}
+
 func makeDeprecatedBundle(b *common.Bundle) *node.Bundle {
 	return &node.Bundle{
 		Id:      b.TrustDomainId,
@@ -767,4 +803,15 @@ func makeX509SVID(svid []*x509.Certificate) *node.X509SVID {
 		CertChain:      certChain,
 		ExpiresAt:      svid[0].NotAfter.Unix(),
 	}
+}
+
+type peerCertificateKey struct{}
+
+func withPeerCertificate(ctx context.Context, peerCert *x509.Certificate) context.Context {
+	return context.WithValue(ctx, peerCertificateKey{}, peerCert)
+}
+
+func getPeerCertificate(ctx context.Context) (*x509.Certificate, bool) {
+	peerCert, ok := ctx.Value(peerCertificateKey{}).(*x509.Certificate)
+	return peerCert, ok
 }

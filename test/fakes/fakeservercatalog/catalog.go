@@ -41,11 +41,15 @@ func (c *Catalog) DataStores() []*catalog.ManagedDataStore {
 func (c *Catalog) SetNodeAttestors(nodeAttestors ...nodeattestor.NodeAttestor) {
 	c.nodeAttestors = nil
 	for i, nodeAttestor := range nodeAttestors {
-		c.nodeAttestors = append(c.nodeAttestors, catalog.NewManagedNodeAttestor(
-			nodeAttestor, common.PluginConfig{
-				PluginName: pluginName("nodeattestor", i),
-			}))
+		c.AddNodeAttestorNamed(pluginName("nodeattestor", i), nodeAttestor)
 	}
+}
+
+func (c *Catalog) AddNodeAttestorNamed(name string, nodeAttestor nodeattestor.NodeAttestor) {
+	c.nodeAttestors = append(c.nodeAttestors, catalog.NewManagedNodeAttestor(
+		nodeAttestor, common.PluginConfig{
+			PluginName: name,
+		}))
 }
 
 func (c *Catalog) NodeAttestors() []*catalog.ManagedNodeAttestor {
@@ -55,11 +59,15 @@ func (c *Catalog) NodeAttestors() []*catalog.ManagedNodeAttestor {
 func (c *Catalog) SetNodeResolvers(nodeResolvers ...noderesolver.NodeResolver) {
 	c.nodeResolvers = nil
 	for i, nodeResolver := range nodeResolvers {
-		c.nodeResolvers = append(c.nodeResolvers, catalog.NewManagedNodeResolver(
-			nodeResolver, common.PluginConfig{
-				PluginName: pluginName("noderesolver", i),
-			}))
+		c.AddNodeResolverNamed(pluginName("noderesolver", i), nodeResolver)
 	}
+}
+
+func (c *Catalog) AddNodeResolverNamed(name string, nodeResolver noderesolver.NodeResolver) {
+	c.nodeResolvers = append(c.nodeResolvers, catalog.NewManagedNodeResolver(
+		nodeResolver, common.PluginConfig{
+			PluginName: name,
+		}))
 }
 
 func (c *Catalog) NodeResolvers() []*catalog.ManagedNodeResolver {

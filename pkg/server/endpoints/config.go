@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/imkira/go-observer"
+	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
@@ -16,8 +16,8 @@ import (
 
 type Config struct {
 	// Addresses to bind the servers to
-	GRPCAddr *net.TCPAddr
-	UDSAddr  *net.UnixAddr
+	TCPAddr *net.TCPAddr
+	UDSAddr *net.UnixAddr
 
 	// A hook allowing the consumer to customize the gRPC server before it starts.
 	GRPCHook func(*grpc.Server) error

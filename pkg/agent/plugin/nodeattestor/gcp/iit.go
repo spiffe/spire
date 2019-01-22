@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	identityTokenURLHost  = "metadata"
+	identityTokenURLHost  = "metadata.google.internal"
 	identityTokenURLPath  = "/computeMetadata/v1/instance/service-accounts/default/identity"
 	identityTokenAudience = "spire-gcp-node-attestor"
 )

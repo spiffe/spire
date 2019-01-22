@@ -7,24 +7,21 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
-
 	node_pb "github.com/spiffe/spire/proto/api/node"
 	registration_pb "github.com/spiffe/spire/proto/api/registration"
 	datastore_pb "github.com/spiffe/spire/proto/server/datastore"
-
-	"golang.org/x/net/context"
-
-	"os"
-
-	"github.com/spiffe/spire/pkg/agent/auth"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -51,18 +48,18 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	e.updateSVID()
 
 	e.c.Log.Debug("Initializing API endpoints")
-	gs := e.createGRPCServer(ctx)
-	hs := e.createUDSServer(ctx)
+	tcpServer := e.createTCPServer(ctx)
+	udsServer := e.createUDSServer(ctx)
 
-	e.registerNodeAPI(gs)
-	e.registerRegistrationAPI(hs)
+	e.registerNodeAPI(tcpServer)
+	e.registerRegistrationAPI(tcpServer, udsServer)
 
 	err := util.RunTasks(ctx,
 		func(ctx context.Context) error {
-			return e.runGRPCServer(ctx, gs)
+			return e.runTCPServer(ctx, tcpServer)
 		},
 		func(ctx context.Context) error {
-			return e.runUDSServer(ctx, hs)
+			return e.runUDSServer(ctx, udsServer)
 		},
 		e.runSVIDObserver,
 	)
@@ -72,22 +69,27 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	return err
 }
 
-func (e *endpoints) createGRPCServer(ctx context.Context) *grpc.Server {
+func (e *endpoints) createTCPServer(ctx context.Context) *grpc.Server {
 	tlsConfig := &tls.Config{
-		GetConfigForClient: e.getGRPCServerConfig(ctx),
+		GetConfigForClient: e.getTLSConfig(ctx),
 	}
 
-	opts := grpc.Creds(credentials.NewTLS(tlsConfig))
-	return grpc.NewServer(opts)
+	return grpc.NewServer(
+		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
+		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
+		grpc.Creds(credentials.NewTLS(tlsConfig)))
 }
 
 func (e *endpoints) createUDSServer(ctx context.Context) *grpc.Server {
-	return grpc.NewServer(grpc.Creds(auth.NewCredentials()))
+	return grpc.NewServer(
+		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
+		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
+		grpc.Creds(auth.NewCredentials()))
 }
 
 // registerNodeAPI creates a Node API handler and registers it against
 // the provided gRPC server.
-func (e *endpoints) registerNodeAPI(gs *grpc.Server) {
+func (e *endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 	n := node.NewHandler(node.HandlerConfig{
 		Log:         e.c.Log.WithField("subsystem_name", "node_api"),
 		Metrics:     e.c.Metrics,
@@ -95,12 +97,12 @@ func (e *endpoints) registerNodeAPI(gs *grpc.Server) {
 		TrustDomain: e.c.TrustDomain,
 		ServerCA:    e.c.ServerCA,
 	})
-	node_pb.RegisterNodeServer(gs, n)
+	node_pb.RegisterNodeServer(tcpServer, n)
 }
 
 // registerRegistrationAPI creates a Registration API handler and registers
 // it against the provided gRPC.
-func (e *endpoints) registerRegistrationAPI(hs *grpc.Server) {
+func (e *endpoints) registerRegistrationAPI(tcpServer, udpServer *grpc.Server) {
 	r := &registration.Handler{
 		Log:         e.c.Log.WithField("subsystem_name", "registration_api"),
 		Metrics:     e.c.Metrics,
@@ -108,12 +110,13 @@ func (e *endpoints) registerRegistrationAPI(hs *grpc.Server) {
 		TrustDomain: e.c.TrustDomain,
 	}
 
-	registration_pb.RegisterRegistrationServer(hs, r)
+	registration_pb.RegisterRegistrationServer(tcpServer, r)
+	registration_pb.RegisterRegistrationServer(udpServer, r)
 }
 
-// runGRPCServer will start the server and block until it exits or we are dying.
-func (e *endpoints) runGRPCServer(ctx context.Context, server *grpc.Server) error {
-	l, err := net.Listen(e.c.GRPCAddr.Network(), e.c.GRPCAddr.String())
+// runTCPServer will start the server and block until it exits or we are dying.
+func (e *endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error {
+	l, err := net.Listen(e.c.TCPAddr.Network(), e.c.TCPAddr.String())
 	if err != nil {
 		return err
 	}
@@ -127,7 +130,7 @@ func (e *endpoints) runGRPCServer(ctx context.Context, server *grpc.Server) erro
 	}
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.c.Log.Infof("Starting gRPC server on %s", l.Addr())
+	e.c.Log.Infof("Starting TCP server on %s", l.Addr())
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
@@ -135,11 +138,11 @@ func (e *endpoints) runGRPCServer(ctx context.Context, server *grpc.Server) erro
 	case err = <-errChan:
 		return err
 	case <-ctx.Done():
-		e.c.Log.Info("Stopping gRPC server")
+		e.c.Log.Info("Stopping TCP server")
 		l.Close()
 		server.Stop()
 		<-errChan
-		e.c.Log.Info("gRPC server has stopped.")
+		e.c.Log.Info("TCP server has stopped.")
 		return nil
 	}
 }
@@ -151,8 +154,13 @@ func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 	if err != nil {
 		return err
 	}
-	os.Chmod(e.c.UDSAddr.String(), 0770)
 	defer l.Close()
+
+	// Restrict access to the UDS to processes running as the same user or
+	// group as the server.
+	if err := os.Chmod(e.c.UDSAddr.String(), 0770); err != nil {
+		return err
+	}
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
 	e.c.Log.Infof("Starting UDS server %s", l.Addr())
@@ -186,8 +194,8 @@ func (e *endpoints) runSVIDObserver(ctx context.Context) error {
 	}
 }
 
-// getGRPCServerConfig returns a TLS Config hook for the gRPC server
-func (e *endpoints) getGRPCServerConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+// getTLSConfig returns a TLS Config hook for the gRPC server
+func (e *endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
 		certs, roots, err := e.getCerts(ctx)
 		if err != nil {

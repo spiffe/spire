@@ -13,12 +13,14 @@ import (
 // KeyManager is the interface used by all non-catalog components.
 type KeyManager interface {
 	GenerateKeyPair(context.Context, *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
+	StorePrivateKey(context.Context, *StorePrivateKeyRequest) (*StorePrivateKeyResponse, error)
 	FetchPrivateKey(context.Context, *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
 }
 
 // Plugin is the interface implemented by plugin implementations
 type Plugin interface {
 	GenerateKeyPair(context.Context, *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error)
+	StorePrivateKey(context.Context, *StorePrivateKeyRequest) (*StorePrivateKeyResponse, error)
 	FetchPrivateKey(context.Context, *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error)
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
 	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
@@ -38,6 +40,14 @@ func NewBuiltIn(plugin Plugin) *BuiltIn {
 
 func (b BuiltIn) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
 	resp, err := b.plugin.GenerateKeyPair(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (b BuiltIn) StorePrivateKey(ctx context.Context, req *StorePrivateKeyRequest) (*StorePrivateKeyResponse, error) {
+	resp, err := b.plugin.StorePrivateKey(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +112,9 @@ type GRPCServer struct {
 func (s *GRPCServer) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
 	return s.Plugin.GenerateKeyPair(ctx, req)
 }
+func (s *GRPCServer) StorePrivateKey(ctx context.Context, req *StorePrivateKeyRequest) (*StorePrivateKeyResponse, error) {
+	return s.Plugin.StorePrivateKey(ctx, req)
+}
 func (s *GRPCServer) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
 	return s.Plugin.FetchPrivateKey(ctx, req)
 }
@@ -118,6 +131,9 @@ type GRPCClient struct {
 
 func (c *GRPCClient) GenerateKeyPair(ctx context.Context, req *GenerateKeyPairRequest) (*GenerateKeyPairResponse, error) {
 	return c.client.GenerateKeyPair(ctx, req)
+}
+func (c *GRPCClient) StorePrivateKey(ctx context.Context, req *StorePrivateKeyRequest) (*StorePrivateKeyResponse, error) {
+	return c.client.StorePrivateKey(ctx, req)
 }
 func (c *GRPCClient) FetchPrivateKey(ctx context.Context, req *FetchPrivateKeyRequest) (*FetchPrivateKeyResponse, error) {
 	return c.client.FetchPrivateKey(ctx, req)
