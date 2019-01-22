@@ -30,6 +30,8 @@ const (
 	defaultDataDir  = "."
 	defaultLogLevel = "INFO"
 	defaultUmask    = 0077
+
+	minimumUmask = 0027
 )
 
 // RunConfig represents the available configurables for file
@@ -284,6 +286,14 @@ func validateConfig(c *agent.Config) error {
 
 	if c.TrustBundle == nil {
 		return errors.New("TrustBundle is required")
+	}
+
+	// Make sure the umask does not allow write by group and read/write/execute
+	// by everyone, since this is an unsafe default.
+	if (c.Umask & minimumUmask) != minimumUmask {
+		oldUmask := c.Umask
+		c.Umask = c.Umask | minimumUmask
+		c.Log.Warnf("Umask %#o is too permissive; using %#o.", oldUmask, c.Umask)
 	}
 
 	return nil
