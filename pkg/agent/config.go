@@ -16,6 +16,9 @@ type Config struct {
 	// Directory to store runtime data
 	DataDir string
 
+	// If true, enables an Envoy SecretDiscoveryService server
+	EnableSDS bool
+
 	// Configurations for agent plugins
 	PluginConfigs catalog.PluginConfigMap
 

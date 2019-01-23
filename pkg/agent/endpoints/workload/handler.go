@@ -291,7 +291,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.M, []telemetry.Label{{workloadPid, string(pid)}})
+	metrics := telemetry.WithLabels(h.M, []telemetry.Label{{Name: workloadPid, Value: fmt.Sprint(pid)}})
 	metrics.IncrCounter([]string{workloadApi, "connection"}, 1)
 	metrics.IncrCounter([]string{workloadApi, "connections"}, 1)
 
