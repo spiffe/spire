@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.2] - 2019-01-23
+
+- Fix non-random UUID bug by moving to gofrs-maintained uuid pkg (#659)
+- Server now supports multiple node resolvers (#652)
+- Server no longer allows agent to specify X.509 Subject value (#663)
+- Registration API is now authenticated, can be reached remotely (#656)
+- Fixed debug log message in the Node API handler (#666)
+- Agent's KeyManager interface updated for better durability (#669)
+- Use FQDN in the GCP Node Attestor to prevent reliance on shortname resolution (#672)
+- Upgrade to Go 1.11.5 in response to CVE-2019-6486 (#690)
+
 ## [0.7.1] - 2018-12-20
 
 - Documentation updates for Azure plugins, agent, server (#629, #631, #642, #651, #654)
