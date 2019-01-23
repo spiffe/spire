@@ -11,8 +11,8 @@ require (
 	github.com/denisenkom/go-mssqldb v0.0.0-20181014144952-4e0d7dc8888f // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dimchansky/utfbom v1.0.0 // indirect
-	github.com/docker/distribution v2.7.0+incompatible // indirect
-	github.com/docker/docker v0.7.3-0.20190115220918-5ec31380a5d3
+	github.com/docker/distribution v2.7.1+incompatible // indirect
+	github.com/docker/docker v0.7.3-0.20190123085638-528ca931e6e5
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.3.3 // indirect
 	github.com/envoyproxy/go-control-plane v0.6.6
