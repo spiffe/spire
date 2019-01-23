@@ -36,3 +36,4 @@ test:
 
 clean:
 	docker-compose down
+	-rm *.log
