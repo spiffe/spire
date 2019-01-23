@@ -11,11 +11,14 @@ require (
 	github.com/denisenkom/go-mssqldb v0.0.0-20181014144952-4e0d7dc8888f // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dimchansky/utfbom v1.0.0 // indirect
+	github.com/envoyproxy/go-control-plane v0.6.6
 	github.com/erikstmartin/go-testdb v0.0.0-20160219214506-8d10e4a1bae5 // indirect
 	github.com/go-ini/ini v1.38.2 // indirect
 	github.com/go-ole/go-ole v1.2.1 // indirect
 	github.com/go-sql-driver/mysql v1.4.1 // indirect
 	github.com/gofrs/uuid/v3 v3.1.2
+	github.com/gogo/googleapis v1.1.0
+	github.com/gogo/protobuf v1.2.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/mock v1.1.1
 	github.com/golang/protobuf v1.2.0
@@ -33,6 +36,7 @@ require (
 	github.com/jinzhu/now v0.0.0-20181116074157-8ec929ed50c3 // indirect
 	github.com/jtolds/gls v4.2.1+incompatible // indirect
 	github.com/lib/pq v1.0.0 // indirect
+	github.com/lyft/protoc-gen-validate v0.0.12 // indirect
 	github.com/mattn/go-sqlite3 v1.9.0 // indirect
 	github.com/mitchellh/cli v1.0.0
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
