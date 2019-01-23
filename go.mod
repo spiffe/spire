@@ -3,7 +3,10 @@ module github.com/spiffe/spire
 require (
 	cloud.google.com/go v0.34.0 // indirect
 	github.com/Azure/azure-sdk-for-go v19.1.0+incompatible
+	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Azure/go-autorest v10.15.2+incompatible
+	github.com/Microsoft/go-winio v0.4.11 // indirect
+	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
 	github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78
 	github.com/armon/go-radix v1.0.0 // indirect
@@ -12,7 +15,7 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dimchansky/utfbom v1.0.0 // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
-	github.com/docker/docker v0.7.3-0.20190123085638-528ca931e6e5
+	github.com/docker/docker v0.7.3-0.20190123164140-de86ba27fbea
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.3.3 // indirect
 	github.com/envoyproxy/go-control-plane v0.6.6
@@ -28,6 +31,8 @@ require (
 	github.com/golang/protobuf v1.2.0
 	github.com/google/go-cmp v0.2.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181103185306-d547d1d9531e // indirect
+	github.com/gorilla/context v1.1.1 // indirect
+	github.com/gorilla/mux v1.6.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.4.1
 	github.com/hashicorp/go-hclog v0.0.0-20180828044259-75ecd6e6d645
 	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
@@ -72,4 +77,5 @@ require (
 	gopkg.in/ini.v1 v1.40.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.1.8
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
+	gotest.tools v2.2.0+incompatible // indirect
 )
