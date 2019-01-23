@@ -10,7 +10,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/spiffe/spire/pkg/agent/attestor/node"
+	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -175,11 +175,12 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 
 func (a *Agent) newEndpoints(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
 	config := &endpoints.Config{
-		BindAddr: a.c.BindAddress,
-		Catalog:  cat,
-		Manager:  mgr,
-		Log:      a.c.Log.WithField("subsystem_name", "endpoints"),
-		Metrics:  metrics,
+		BindAddr:  a.c.BindAddress,
+		Catalog:   cat,
+		Manager:   mgr,
+		Log:       a.c.Log.WithField("subsystem_name", "endpoints"),
+		Metrics:   metrics,
+		EnableSDS: a.c.EnableSDS,
 	}
 
 	return endpoints.New(config)
