@@ -19,7 +19,7 @@ var (
 	ctx = context.Background()
 )
 
-func TestMemory_GenerateKeyPair(t *testing.T) {
+func TestDisk_GenerateKeyPair(t *testing.T) {
 	plugin := New()
 	tempDir, err := ioutil.TempDir("", "km-disk-test")
 	require.NoError(t, err)
@@ -27,6 +27,8 @@ func TestMemory_GenerateKeyPair(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	genResp, err := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	require.NoError(t, err)
+	_, err = plugin.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: genResp.PrivateKey})
 	require.NoError(t, err)
 	_, err = os.Stat(path.Join(tempDir, keyFileName))
 	assert.False(t, os.IsNotExist(err))
@@ -40,7 +42,7 @@ func TestMemory_GenerateKeyPair(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestMemory_FetchPrivateKey(t *testing.T) {
+func TestDisk_FetchPrivateKey(t *testing.T) {
 	plugin := New()
 	tempDir, err := ioutil.TempDir("", "km-disk-test")
 	require.NoError(t, err)
@@ -49,13 +51,15 @@ func TestMemory_FetchPrivateKey(t *testing.T) {
 
 	genResp, err := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 	require.NoError(t, err)
+	_, err = plugin.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: genResp.PrivateKey})
+	require.NoError(t, err)
 
 	fetchResp, err := plugin.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, genResp.PrivateKey, fetchResp.PrivateKey)
 }
 
-func TestMemory_Configure(t *testing.T) {
+func TestDisk_Configure(t *testing.T) {
 	plugin := New()
 	cReq := &spi.ConfigureRequest{
 		Configuration: "directory = \"foo/bar\"",
@@ -65,7 +69,7 @@ func TestMemory_Configure(t *testing.T) {
 	assert.Equal(t, "foo/bar", plugin.dir)
 }
 
-func TestMemory_GetPluginInfo(t *testing.T) {
+func TestDisk_GetPluginInfo(t *testing.T) {
 	plugin := New()
 	_, e := plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, e)

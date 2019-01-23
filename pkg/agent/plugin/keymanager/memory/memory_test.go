@@ -20,6 +20,8 @@ func TestMemory_GenerateKeyPair(t *testing.T) {
 	plugin := New()
 	data, e := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 	require.NoError(t, e)
+	_, e = plugin.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: data.PrivateKey})
+	require.NoError(t, e)
 	priv, err := x509.ParseECPrivateKey(data.PrivateKey)
 	require.NoError(t, err)
 	assert.Equal(t, plugin.key, priv)
@@ -28,6 +30,8 @@ func TestMemory_GenerateKeyPair(t *testing.T) {
 func TestMemory_FetchPrivateKey(t *testing.T) {
 	plugin := New()
 	data, e := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	require.NoError(t, e)
+	_, e = plugin.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: data.PrivateKey})
 	require.NoError(t, e)
 
 	priv, e := plugin.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})

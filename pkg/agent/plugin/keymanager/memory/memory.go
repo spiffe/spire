@@ -17,19 +17,16 @@ type MemoryPlugin struct {
 	mtx sync.RWMutex
 }
 
-func (m *MemoryPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (key *keymanager.GenerateKeyPairResponse, err error) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	m.key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+func (m *MemoryPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}
-	privateKey, err := x509.MarshalECPrivateKey(m.key)
+	privateKey, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
 		return nil, err
 	}
-	publicKey, err := x509.MarshalPKIXPublicKey(&m.key.PublicKey)
+	publicKey, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -37,6 +34,19 @@ func (m *MemoryPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyP
 		PublicKey:  publicKey,
 		PrivateKey: privateKey,
 	}, nil
+}
+
+func (m *MemoryPlugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	key, err := x509.ParseECPrivateKey(req.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	m.key = key
+
+	return &keymanager.StorePrivateKeyResponse{}, nil
 }
 
 func (m *MemoryPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {

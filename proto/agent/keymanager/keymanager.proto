@@ -20,20 +20,31 @@ message GenerateKeyPairResponse {
     bytes privateKey = 2;
 }
 
+/** Represents a private key */
+message StorePrivateKeyRequest {
+    /** Private key */
+    bytes privateKey = 1;
+}
+
+/** Represents an empty response */
+message StorePrivateKeyResponse {}
+
 /** Represents an empty request */
 message FetchPrivateKeyRequest {}
 
 /** Represents a private key */
 message FetchPrivateKeyResponse {
-    /** Priavte key */
+    /** Private key */
     bytes privateKey = 1;
 }
 
 
 service KeyManager {
-    /** Creates a key pair that is bound to hardware. */
+    /** Creates a new key pair. */
     rpc GenerateKeyPair(GenerateKeyPairRequest) returns (GenerateKeyPairResponse);
-    /** Returns previously generated private key. For use after node restarts. */
+    /** Persists a private key to the key manager's storage system. */
+    rpc StorePrivateKey(StorePrivateKeyRequest) returns (StorePrivateKeyResponse);
+    /** Returns the most recently stored private key. For use after node restarts. */
     rpc FetchPrivateKey(FetchPrivateKeyRequest) returns (FetchPrivateKeyResponse);
     /** Applies the plugin configuration and returns configuration errors. */
     rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
