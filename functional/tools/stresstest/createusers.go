@@ -2,14 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"os/exec"
 	"sync"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
@@ -103,11 +101,9 @@ func (*CreateUsers) Synopsis() string {
 }
 
 func newRegistrationClient(address string) (registration.RegistrationClient, error) {
-	// TODO: Pass a bundle in here
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
 	}
-
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	return registration.NewRegistrationClient(conn), err
 }
