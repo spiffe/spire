@@ -39,14 +39,13 @@ func TestUmask(t *testing.T) {
 		// Desired umask is sufficient.
 		{
 			Initial: 0, Desired: 0027, Expected: 0027, Logs: []string{
-				"Setting umask via configuration is deprecated!",
-				"Setting umask 0027.",
+				"Setting umask 0027 via configuration (deprecated)",
 			},
 		},
 		// Desired umask is too permissive. Set to minimum.
 		{
 			Initial: 0, Desired: 0017, Expected: 0037, Logs: []string{
-				"Setting umask via configuration is deprecated!",
+				"Setting umask 0017 via configuration (deprecated)",
 				"Desired umask 0017 is too permissive; setting umask 0037.",
 			},
 		},
@@ -54,7 +53,7 @@ func TestUmask(t *testing.T) {
 		// are OR'd.
 		{
 			Initial: 0, Desired: 0017, Expected: 0037, Logs: []string{
-				"Setting umask via configuration is deprecated!",
+				"Setting umask 0017 via configuration (deprecated)",
 				"Desired umask 0017 is too permissive; setting umask 0037.",
 			},
 		},

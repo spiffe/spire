@@ -12,7 +12,7 @@ const minimumUmask = 0027
 // minimumUmask bits, if necessary.
 func SetUmask(log logrus.FieldLogger, desiredUmask int) {
 	if desiredUmask >= 0 {
-		log.Warn("Setting umask via configuration is deprecated!")
+		log.Warnf("Setting umask %#04o via configuration (deprecated)", desiredUmask)
 		if !umaskSupported {
 			log.Warn("Umask not supported on this platform.")
 			return
@@ -21,8 +21,6 @@ func SetUmask(log logrus.FieldLogger, desiredUmask int) {
 			badUmask := desiredUmask
 			desiredUmask |= minimumUmask
 			log.Warnf("Desired umask %#04o is too permissive; setting umask %#04o.", badUmask, desiredUmask)
-		} else {
-			log.Warnf("Setting umask %#04o.", desiredUmask)
 		}
 		setUmask(desiredUmask)
 		return
