@@ -217,7 +217,7 @@ func (UpdateCLI) newConfig(args []string) (*UpdateConfig, error) {
 	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
 
 	f.BoolVar(&c.Admin, "admin", false, "If true, the SPIFFE ID in this entry will be granted access to the Registration API")
-	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value to enable signing CA CSR for heirarchical spire server")
+	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 
 	return c, f.Parse(args)
 }

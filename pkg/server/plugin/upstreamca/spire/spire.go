@@ -2,12 +2,12 @@ package spireplugin
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"net/url"
 	"sync"
 
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/upstreamca"
@@ -80,22 +80,21 @@ func (m *spirePlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitC
 		return nil, err
 	}
 
-	trustBundle := m.createBundleCertificate(bundle)
-
 	return &upstreamca.SubmitCSRResponse{
-		Cert:                certChain[0].Raw,
-		UpstreamTrustBundle: trustBundle,
+		SignedCertificate: &upstreamca.SignedCertificate{
+			CertChain: certificatesDER(certChain),
+			Bundle:    certificatesDER(bundle.RootCAs()),
+		},
 	}, nil
-}
-
-func (m *spirePlugin) createBundleCertificate(bundles *bundleutil.Bundle) []byte {
-	bundle := []byte{}
-	for _, c := range bundles.RootCAs() {
-		bundle = append(bundle, c.Raw...)
-	}
-	return bundle
 }
 
 func New() (m upstreamca.Plugin) {
 	return &spirePlugin{}
+}
+
+func certificatesDER(certs []*x509.Certificate) (der []byte) {
+	for _, cert := range certs {
+		der = append(der, cert.Raw...)
+	}
+	return der
 }

@@ -608,9 +608,7 @@ func (h *Handler) getDownstreamEntry(ctx context.Context, callerID string) (*com
 		return nil, err
 	}
 
-	regEntriesMap := make(map[string]*common.RegistrationEntry)
 	for _, entry := range response.Entries {
-		regEntriesMap[entry.SpiffeId] = entry
 		if (entry.SpiffeId == callerID) && (entry.Downstream) {
 			return entry, nil
 		}
