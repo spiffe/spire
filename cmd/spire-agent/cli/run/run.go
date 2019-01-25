@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -29,19 +30,16 @@ const (
 	// TODO: Make my defaults sane
 	defaultDataDir  = "."
 	defaultLogLevel = "INFO"
-	defaultUmask    = 0077
-
-	minimumUmask = 0027
 )
 
 // RunConfig represents the available configurables for file
 // and CLI options
 type runConfig struct {
-	AgentConfig   agentConfig             `hcl:"agent"`
+	AgentConfig   agentRunConfig          `hcl:"agent"`
 	PluginConfigs catalog.PluginConfigMap `hcl:"plugins"`
 }
 
-type agentConfig struct {
+type agentRunConfig struct {
 	DataDir         string `hcl:"data_dir"`
 	EnableSDS       bool   `hcl:"enable_sds"`
 	LogFile         string `hcl:"log_file"`
@@ -61,6 +59,11 @@ type agentConfig struct {
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
 	Umask            string   `hcl:"umask"`
+}
+
+type agentConfig struct {
+	agent.Config
+	umask int
 }
 
 type RunCLI struct {
@@ -99,7 +102,9 @@ func (*RunCLI) Run(args []string) int {
 		fmt.Println(err.Error())
 	}
 
-	agt := agent.New(c)
+	cli.SetUmask(c.Log, c.umask)
+
+	agt := agent.New(&c.Config)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	util.SignalListener(ctx, cancel)
@@ -172,7 +177,7 @@ func parseFlags(args []string) (*runConfig, error) {
 	return c, nil
 }
 
-func mergeConfigs(c *agent.Config, fileConfig, cliConfig *runConfig) error {
+func mergeConfigs(c *agentConfig, fileConfig, cliConfig *runConfig) error {
 	// CLI > File, merge fileConfig first
 	err := mergeConfig(c, fileConfig)
 	if err != nil {
@@ -182,7 +187,7 @@ func mergeConfigs(c *agent.Config, fileConfig, cliConfig *runConfig) error {
 	return mergeConfig(c, cliConfig)
 }
 
-func mergeConfig(orig *agent.Config, cmd *runConfig) error {
+func mergeConfig(orig *agentConfig, cmd *runConfig) error {
 	if cmd.AgentConfig.ServerAddress != "" {
 		_, port, _ := net.SplitHostPort(orig.ServerAddress)
 		orig.ServerAddress = net.JoinHostPort(cmd.AgentConfig.ServerAddress, port)
@@ -247,7 +252,7 @@ func mergeConfig(orig *agent.Config, cmd *runConfig) error {
 		if err != nil {
 			return fmt.Errorf("Could not parse umask %s: %s", cmd.AgentConfig.Umask, err)
 		}
-		orig.Umask = int(umask)
+		orig.umask = int(umask)
 	}
 
 	if cmd.AgentConfig.ProfilingEnabled {
@@ -270,7 +275,7 @@ func mergeConfig(orig *agent.Config, cmd *runConfig) error {
 	return nil
 }
 
-func validateConfig(c *agent.Config) error {
+func validateConfig(c *agentConfig) error {
 	host, port, _ := net.SplitHostPort(c.ServerAddress)
 	if host == "" {
 		return errors.New("ServerAddress is required")
@@ -288,28 +293,22 @@ func validateConfig(c *agent.Config) error {
 		return errors.New("TrustBundle is required")
 	}
 
-	// Make sure the umask does not allow write by group and read/write/execute
-	// by everyone, since this is an unsafe default.
-	if (c.Umask & minimumUmask) != minimumUmask {
-		oldUmask := c.Umask
-		c.Umask = c.Umask | minimumUmask
-		c.Log.Warnf("Umask %#o is too permissive; using %#o.", oldUmask, c.Umask)
-	}
-
 	return nil
 }
 
-func newDefaultConfig() *agent.Config {
+func newDefaultConfig() *agentConfig {
 	bindAddr := &net.UnixAddr{Name: defaultSocketPath, Net: "unix"}
 
 	// log.NewLogger() cannot return error when using STDOUT
 	logger, _ := log.NewLogger(defaultLogLevel, "")
 
-	return &agent.Config{
-		BindAddress: bindAddr,
-		DataDir:     defaultDataDir,
-		Log:         logger,
-		Umask:       defaultUmask,
+	return &agentConfig{
+		Config: agent.Config{
+			BindAddress: bindAddr,
+			DataDir:     defaultDataDir,
+			Log:         logger,
+		},
+		umask: -1,
 	}
 }
 
