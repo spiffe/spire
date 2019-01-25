@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
 	"github.com/spiffe/spire/cmd/spire-server/cli/bundle"
 	"github.com/spiffe/spire/cmd/spire-server/cli/entry"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
@@ -15,6 +16,12 @@ func Run(args []string) int {
 	c := cli.NewCLI("spire-server", version.Version())
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
+		"agent evict": func() (cli.Command, error) {
+			return &agent.EvictCLI{}, nil
+		},
+		"agent list": func() (cli.Command, error) {
+			return &agent.ListCLI{}, nil
+		},
 		"bundle show": func() (cli.Command, error) {
 			return bundle.NewShowCommand(), nil
 		},
