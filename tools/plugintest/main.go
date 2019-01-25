@@ -59,5 +59,12 @@ func main() {
 		fatalf("Failed to attest pid %d: %v", pid, err)
 	}
 
-	fmt.Println(res)
+	if res.Selectors == nil || len(res.Selectors) == 0 {
+		fatalf("Attestation didn't return any selectors.")
+	}
+
+	fmt.Printf("Workload Attestion Results (Pid %d)\n", pid)
+	for _, s := range res.Selectors {
+		fmt.Printf("  %s:%s\n", s.Type, s.Value)
+	}
 }
