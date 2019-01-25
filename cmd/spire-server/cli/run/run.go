@@ -15,6 +15,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -31,11 +32,11 @@ const (
 
 // runConfig represents available configurables for file and CLI options
 type runConfig struct {
-	Server        serverConfig            `hcl:"server"`
+	Server        serverRunConfig         `hcl:"server"`
 	PluginConfigs catalog.PluginConfigMap `hcl:"plugins"`
 }
 
-type serverConfig struct {
+type serverRunConfig struct {
 	BindAddress         string           `hcl:"bind_address"`
 	BindPort            int              `hcl:"bind_port"`
 	CASubject           *caSubjectConfig `hcl:"ca_subject"`
@@ -64,6 +65,11 @@ type caSubjectConfig struct {
 	CommonName   string   `hcl:"common_name"`
 }
 
+type serverConfig struct {
+	server.Config
+	umask int
+}
+
 // Run CLI struct
 type RunCLI struct {
 }
@@ -78,13 +84,13 @@ func (*RunCLI) Help() string {
 func (*RunCLI) Run(args []string) int {
 	cliConfig, err := parseFlags(args)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
 	fileConfig, err := parseFile(cliConfig.Server.ConfigPath)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
@@ -95,17 +101,20 @@ func (*RunCLI) Run(args []string) int {
 
 	err = mergeConfigs(c, fileConfig, cliConfig)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
 	err = validateConfig(c)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	s := server.New(*c)
+	// set umask before starting up the server
+	cli.SetUmask(c.Log, c.umask)
+
+	s := server.New(c.Config)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -172,7 +181,7 @@ func parseFlags(args []string) (*runConfig, error) {
 	return c, nil
 }
 
-func mergeConfigs(c *server.Config, fileConfig, cliConfig *runConfig) error {
+func mergeConfigs(c *serverConfig, fileConfig, cliConfig *runConfig) error {
 	// CLI > File, merge fileConfig first
 	err := mergeConfig(c, fileConfig)
 	if err != nil {
@@ -182,7 +191,7 @@ func mergeConfigs(c *server.Config, fileConfig, cliConfig *runConfig) error {
 	return mergeConfig(c, cliConfig)
 }
 
-func mergeConfig(orig *server.Config, cmd *runConfig) error {
+func mergeConfig(orig *serverConfig, cmd *runConfig) error {
 	// Parse server address
 	if cmd.Server.BindAddress != "" {
 		ip := net.ParseIP(cmd.Server.BindAddress)
@@ -232,7 +241,7 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 		if err != nil {
 			return fmt.Errorf("Could not parse umask %s: %s", cmd.Server.Umask, err)
 		}
-		orig.Umask = int(umask)
+		orig.umask = int(umask)
 	}
 
 	// TODO: CLI should be able to override with `false` value
@@ -285,7 +294,7 @@ func mergeConfig(orig *server.Config, cmd *runConfig) error {
 	return nil
 }
 
-func validateConfig(c *server.Config) error {
+func validateConfig(c *serverConfig) error {
 	if c.BindAddress.IP == nil || c.BindAddress.Port == 0 {
 		return errors.New("BindAddress and BindPort are required")
 	}
@@ -302,27 +311,21 @@ func validateConfig(c *server.Config) error {
 		return errors.New("DataDir is required")
 	}
 
-	// Make sure the umask does not allow write by group and read/write/execute
-	// by everyone, since this is an unsafe default.
-	if (c.Umask & minimumUmask) != minimumUmask {
-		oldUmask := c.Umask
-		c.Umask = c.Umask | minimumUmask
-		c.Log.Warnf("Umask %#o is too permissive; using %#o.", oldUmask, c.Umask)
-	}
-
 	return nil
 }
 
-func newDefaultConfig() *server.Config {
+func newDefaultConfig() *serverConfig {
 	// log.NewLogger() cannot return error when using STDOUT
 	logger, _ := log.NewLogger(defaultLogLevel, "")
 	bindAddress := &net.TCPAddr{}
 	bindUDSAddress := &net.UnixAddr{Name: defaultSocketPath, Net: "unix"}
 
-	return &server.Config{
-		Log:            logger,
-		BindAddress:    bindAddress,
-		BindUDSAddress: bindUDSAddress,
-		Umask:          defaultUmask,
+	return &serverConfig{
+		Config: server.Config{
+			Log:            logger,
+			BindAddress:    bindAddress,
+			BindUDSAddress: bindUDSAddress,
+		},
+		umask: -1,
 	}
 }
