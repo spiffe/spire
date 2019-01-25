@@ -4,6 +4,8 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 )
 
@@ -61,6 +63,18 @@ func LoadECPrivateKey(path string) (*ecdsa.PrivateKey, error) {
 		return nil, err
 	}
 	return ecdsaPrivateKeyFromObject(block.Object)
+}
+
+func EncodePKCS8PrivateKey(privateKey interface{}) ([]byte, error) {
+	keyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyBytes,
+	}), nil
 }
 
 func ecdsaPrivateKeyFromObject(object interface{}) (*ecdsa.PrivateKey, error) {

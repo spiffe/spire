@@ -16,6 +16,9 @@ type Config struct {
 	// Directory to store runtime data
 	DataDir string
 
+	// If true, enables an Envoy SecretDiscoveryService server
+	EnableSDS bool
+
 	// Configurations for agent plugins
 	PluginConfigs catalog.PluginConfigMap
 
@@ -30,9 +33,6 @@ type Config struct {
 
 	// Join token to use for attestation, if needed
 	JoinToken string
-
-	// Umask value to use
-	Umask int
 
 	// If true enables profiling.
 	ProfilingEnabled bool

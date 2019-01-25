@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/pprof"
+	"os"
 	"path"
 	"runtime"
 	"sync"
-	"syscall"
 
-	"github.com/spiffe/spire/pkg/agent/attestor/node"
+	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -29,7 +29,10 @@ type Agent struct {
 // This method initializes the agent, including its plugins,
 // and then blocks on the main event loop.
 func (a *Agent) Run(ctx context.Context) error {
-	syscall.Umask(a.c.Umask)
+	a.c.Log.Infof("data directory: %q", a.c.DataDir)
+	if err := os.MkdirAll(a.c.DataDir, 0755); err != nil {
+		return err
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -175,11 +178,12 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 
 func (a *Agent) newEndpoints(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
 	config := &endpoints.Config{
-		BindAddr: a.c.BindAddress,
-		Catalog:  cat,
-		Manager:  mgr,
-		Log:      a.c.Log.WithField("subsystem_name", "endpoints"),
-		Metrics:  metrics,
+		BindAddr:  a.c.BindAddress,
+		Catalog:   cat,
+		Manager:   mgr,
+		Log:       a.c.Log.WithField("subsystem_name", "endpoints"),
+		Metrics:   metrics,
+		EnableSDS: a.c.EnableSDS,
 	}
 
 	return endpoints.New(config)

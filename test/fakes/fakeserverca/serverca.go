@@ -59,10 +59,8 @@ func New(t *testing.T, trustDomain string, options *Options) *ServerCA {
 	subject := pkix.Name{CommonName: "FAKE SERVER CA"}
 	var certs []*x509.Certificate
 	if options.UpstreamCA != nil {
-		cert, upstreamBundle, err := ca.UpstreamSignServerCACertificate(context.Background(), options.UpstreamCA, key, trustDomain, subject)
+		certs, _, err = ca.UpstreamSignServerCACertificate(context.Background(), options.UpstreamCA, key, trustDomain, subject)
 		require.NoError(t, err)
-		certs = append(certs, cert)
-		certs = append(certs, upstreamBundle...)
 	} else {
 		cert, err := ca.SelfSignServerCACertificate(
 			key, trustDomain, subject,
