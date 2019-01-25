@@ -1,8 +1,11 @@
 package pemutil
 
 import (
+	"bytes"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"io"
 )
 
 func ParseCertificate(pemBytes []byte) (*x509.Certificate, error) {
@@ -37,6 +40,20 @@ func LoadCertificates(path string) (certs []*x509.Certificate, err error) {
 	return certsFromBlocks(blocks)
 }
 
+func EncodeCertificates(certs []*x509.Certificate) []byte {
+	var buf bytes.Buffer
+	for _, cert := range certs {
+		encodeCertificate(&buf, cert)
+	}
+	return buf.Bytes()
+}
+
+func EncodeCertificate(cert *x509.Certificate) []byte {
+	var buf bytes.Buffer
+	encodeCertificate(&buf, cert)
+	return buf.Bytes()
+}
+
 func certFromObject(object interface{}) (*x509.Certificate, error) {
 	cert, ok := object.(*x509.Certificate)
 	if !ok {
@@ -54,4 +71,11 @@ func certsFromBlocks(blocks []Block) (certs []*x509.Certificate, err error) {
 		certs = append(certs, cert)
 	}
 	return certs, nil
+}
+
+func encodeCertificate(w io.Writer, cert *x509.Certificate) {
+	pem.Encode(w, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	})
 }

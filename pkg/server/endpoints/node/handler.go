@@ -246,7 +246,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		svids, err := h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
 		if err != nil {
 			h.c.Log.Error(err)
-			return errors.New("Error trying sign CSRs")
+			return errors.New("Error trying to sign CSRs")
 		}
 
 		bundles, err := h.getBundlesForEntries(ctx, regEntries)
@@ -671,7 +671,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 				return nil, err
 			}
 			if res.Node == nil {
-				return nil, fmt.Errorf("Rejecting CSR, node with ID: %q is not attested", spiffeID)
+				return nil, errors.New("no record of attested node")
 			}
 			if res.Node.CertSerialNumber != peerCert.SerialNumber.String() {
 				err := errors.New("SVID serial number does not match")

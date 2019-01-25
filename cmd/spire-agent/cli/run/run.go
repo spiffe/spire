@@ -41,6 +41,7 @@ type runConfig struct {
 
 type agentConfig struct {
 	DataDir         string `hcl:"data_dir"`
+	EnableSDS       bool   `hcl:"enable_sds"`
 	LogFile         string `hcl:"log_file"`
 	LogLevel        string `hcl:"log_level"`
 	ServerAddress   string `hcl:"server_address"`
@@ -218,6 +219,10 @@ func mergeConfig(orig *agent.Config, cmd *runConfig) error {
 
 	if cmd.AgentConfig.DataDir != "" {
 		orig.DataDir = cmd.AgentConfig.DataDir
+	}
+
+	if cmd.AgentConfig.EnableSDS {
+		orig.EnableSDS = cmd.AgentConfig.EnableSDS
 	}
 
 	// Handle log file and level
