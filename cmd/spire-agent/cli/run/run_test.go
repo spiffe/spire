@@ -78,14 +78,14 @@ func TestParseFlagsGood(t *testing.T) {
 }
 
 func TestMergeConfigGood(t *testing.T) {
-	ac := &agentConfig{
+	ac := &agentRunConfig{
 		DataDir:       ".",
 		LogLevel:      "INFO",
 		ServerAddress: "127.0.0.1",
 		ServerPort:    8081,
 		SocketPath:    "/tmp/agent.sock",
 		TrustDomain:   "example.org",
-		Umask:         "",
+		Umask:         "077",
 	}
 
 	c := &runConfig{
@@ -93,6 +93,8 @@ func TestMergeConfigGood(t *testing.T) {
 	}
 
 	orig := newDefaultConfig()
+	assert.Equal(t, orig.umask, -1)
+
 	err := mergeConfig(orig, c)
 	require.NoError(t, err)
 	assert.Equal(t, orig.ServerAddress, net.JoinHostPort("127.0.0.1", "8081"))
@@ -100,5 +102,5 @@ func TestMergeConfigGood(t *testing.T) {
 	assert.Equal(t, orig.TrustDomain.Host, "example.org")
 	assert.Equal(t, orig.GlobalConfig().TrustDomain, "example.org")
 	assert.Equal(t, orig.DataDir, ".")
-	assert.Equal(t, orig.Umask, 0077)
+	assert.Equal(t, orig.umask, 077)
 }
