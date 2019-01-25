@@ -1028,6 +1028,16 @@ func (h *mockNodeAPIHandler) Attest(stream node.Node_AttestServer) error {
 	return nil
 }
 
+func (h *mockNodeAPIHandler) Evict(ctx context.Context, evictRequest *node.EvictRequest) (*node.EvictResponse, error) {
+	h.c.t.Fatalf("unexpected call to Evict")
+	return nil, nil
+}
+
+func (h *mockNodeAPIHandler) List(ctx context.Context, empty *common.Empty) (*node.ListResponse, error) {
+	h.c.t.Fatalf("unexpected call to List")
+	return nil, nil
+}
+
 func (h *mockNodeAPIHandler) FetchX509SVID(stream node.Node_FetchX509SVIDServer) error {
 	h.countRequest()
 

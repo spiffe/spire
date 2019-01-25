@@ -8,6 +8,7 @@ import (
 	context "context"
 	gomock "github.com/golang/mock/gomock"
 	node "github.com/spiffe/spire/proto/api/node"
+	common "github.com/spiffe/spire/proto/common"
 	grpc "google.golang.org/grpc"
 	metadata "google.golang.org/grpc/metadata"
 	reflect "reflect"
@@ -54,6 +55,24 @@ func (mr *MockNodeClientMockRecorder) Attest(arg0 interface{}, arg1 ...interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Attest", reflect.TypeOf((*MockNodeClient)(nil).Attest), varargs...)
 }
 
+// Evict mocks base method
+func (m *MockNodeClient) Evict(arg0 context.Context, arg1 *node.EvictRequest, arg2 ...grpc.CallOption) (*node.EvictResponse, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Evict", varargs...)
+	ret0, _ := ret[0].(*node.EvictResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Evict indicates an expected call of Evict
+func (mr *MockNodeClientMockRecorder) Evict(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Evict", reflect.TypeOf((*MockNodeClient)(nil).Evict), varargs...)
+}
+
 // FetchJWTSVID mocks base method
 func (m *MockNodeClient) FetchJWTSVID(arg0 context.Context, arg1 *node.FetchJWTSVIDRequest, arg2 ...grpc.CallOption) (*node.FetchJWTSVIDResponse, error) {
 	varargs := []interface{}{arg0, arg1}
@@ -88,6 +107,24 @@ func (m *MockNodeClient) FetchX509SVID(arg0 context.Context, arg1 ...grpc.CallOp
 func (mr *MockNodeClientMockRecorder) FetchX509SVID(arg0 interface{}, arg1 ...interface{}) *gomock.Call {
 	varargs := append([]interface{}{arg0}, arg1...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchX509SVID", reflect.TypeOf((*MockNodeClient)(nil).FetchX509SVID), varargs...)
+}
+
+// List mocks base method
+func (m *MockNodeClient) List(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (*node.ListResponse, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "List", varargs...)
+	ret0, _ := ret[0].(*node.ListResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// List indicates an expected call of List
+func (mr *MockNodeClientMockRecorder) List(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockNodeClient)(nil).List), varargs...)
 }
 
 // MockNode_AttestClient is a mock of Node_AttestClient interface
@@ -485,6 +522,19 @@ func (mr *MockNodeServerMockRecorder) Attest(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Attest", reflect.TypeOf((*MockNodeServer)(nil).Attest), arg0)
 }
 
+// Evict mocks base method
+func (m *MockNodeServer) Evict(arg0 context.Context, arg1 *node.EvictRequest) (*node.EvictResponse, error) {
+	ret := m.ctrl.Call(m, "Evict", arg0, arg1)
+	ret0, _ := ret[0].(*node.EvictResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Evict indicates an expected call of Evict
+func (mr *MockNodeServerMockRecorder) Evict(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Evict", reflect.TypeOf((*MockNodeServer)(nil).Evict), arg0, arg1)
+}
+
 // FetchJWTSVID mocks base method
 func (m *MockNodeServer) FetchJWTSVID(arg0 context.Context, arg1 *node.FetchJWTSVIDRequest) (*node.FetchJWTSVIDResponse, error) {
 	ret := m.ctrl.Call(m, "FetchJWTSVID", arg0, arg1)
@@ -508,6 +558,19 @@ func (m *MockNodeServer) FetchX509SVID(arg0 node.Node_FetchX509SVIDServer) error
 // FetchX509SVID indicates an expected call of FetchX509SVID
 func (mr *MockNodeServerMockRecorder) FetchX509SVID(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchX509SVID", reflect.TypeOf((*MockNodeServer)(nil).FetchX509SVID), arg0)
+}
+
+// List mocks base method
+func (m *MockNodeServer) List(arg0 context.Context, arg1 *common.Empty) (*node.ListResponse, error) {
+	ret := m.ctrl.Call(m, "List", arg0, arg1)
+	ret0, _ := ret[0].(*node.ListResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// List indicates an expected call of List
+func (mr *MockNodeServerMockRecorder) List(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockNodeServer)(nil).List), arg0, arg1)
 }
 
 // MockNode_FetchX509SVIDServer is a mock of Node_FetchX509SVIDServer interface
