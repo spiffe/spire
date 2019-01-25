@@ -120,7 +120,7 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 
 func (ca *serverCA) SignX509CASVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error) {
 	kp := ca.getKeypairSet()
-	if kp == nil || kp.x509CA == nil || kp.x509CA.cert == nil {
+	if kp == nil || kp.x509CA == nil || len(kp.x509CA.chain) < 1 {
 		return nil, errors.New("no X509-SVID keypair available")
 	}
 
@@ -130,8 +130,8 @@ func (ca *serverCA) SignX509CASVID(ctx context.Context, csrDER []byte, ttl time.
 	}
 	notBefore := now.Add(-backdate)
 	notAfter := now.Add(ttl)
-	if notAfter.After(kp.x509CA.cert.NotAfter) {
-		notAfter = kp.x509CA.cert.NotAfter
+	if notAfter.After(kp.x509CA.chain[0].NotAfter) {
+		notAfter = kp.x509CA.chain[0].NotAfter
 	}
 
 	serialNumber := big.NewInt(atomic.AddInt64(&ca.x509sn, 1))
@@ -146,12 +146,19 @@ func (ca *serverCA) SignX509CASVID(ctx context.Context, csrDER []byte, ttl time.
 	template.Subject = ca.c.CASubject
 
 	km := ca.c.Catalog.KeyManagers()[0]
-	cert, err := x509util.CreateCertificate(ctx, km, template, kp.x509CA.cert, kp.X509CAKeyID(), template.PublicKey)
+	cert, err := x509util.CreateCertificate(ctx, km, template, kp.x509CA.chain[0], kp.X509CAKeyID(), template.PublicKey)
 	if err != nil {
 		return nil, err
 	}
 
-	ca.c.Log.Debugf("Signed x509 CA SVID %q (expires %s)", cert.URIs[0].String(), cert.NotAfter.Format(time.RFC3339))
+	spiffeID := cert.URIs[0].String()
+	ca.c.Log.Debugf("Signed x509 CA SVID %q (expires %s)", spiffeID, cert.NotAfter.Format(time.RFC3339))
+	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_ca_svid"}, 1, []telemetry.Label{
+		{
+			Name:  "spiffe_id",
+			Value: spiffeID,
+		},
+	})
 
 	// build and return the certificate chain, starting with the newly signed
 	// cert all the way back to the signing root of the keypair. if an
