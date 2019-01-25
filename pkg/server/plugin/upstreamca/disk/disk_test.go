@@ -71,7 +71,7 @@ func TestDisk_SubmitValidCSR(t *testing.T) {
 		require.Len(t, certs, 1)
 		require.Equal(t, "spiffe://localhost", certURI(certs[0]))
 
-		upstreamTrustBundle, err := x509.ParseCertificates(resp.SignedCertificate.UpstreamTrustBundle)
+		upstreamTrustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
 		require.NoError(t, err)
 		require.Len(t, upstreamTrustBundle, 1)
 		require.Equal(t, "spiffe://local", certURI(upstreamTrustBundle[0]))

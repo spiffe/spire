@@ -140,7 +140,7 @@ Represents the plugin metadata.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | cert_chain | [bytes](#bytes) |  | Contains ASN.1 encoded certificates representing the signed certificate along with any intermediates necessary to chain the certificate back to a certificate present in the upstream_trust_bundle. |
-| upstream_trust_bundle | [bytes](#bytes) |  | The upstream trust bundle. |
+| bundle | [bytes](#bytes) |  | The upstream trust bundle. |
 
 
 

@@ -17,7 +17,7 @@ message SignedCertificate {
     bytes cert_chain = 1;
 
     // The upstream trust bundle.
-    bytes upstream_trust_bundle = 2;
+    bytes bundle = 2;
 }
 
 message SubmitCSRRequest {

@@ -128,7 +128,7 @@ func (m *UpstreamCA) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCS
 			// Signed CA + intermediates
 			CertChain: certsDER(chain[:len(chain)-1]),
 			// Just the root
-			UpstreamTrustBundle: certsDER(chain[len(chain)-1:]),
+			Bundle: certsDER(chain[len(chain)-1:]),
 		},
 	}, nil
 }

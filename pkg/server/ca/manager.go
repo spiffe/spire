@@ -351,37 +351,37 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err e
 	}
 
 	// either self-sign or sign with the upstream CA
-	var certChain []*x509.Certificate
+	var certChainWithRoot []*x509.Certificate
 	var trustBundle []*x509.Certificate
 	if upstreamCAs := m.c.Catalog.UpstreamCAs(); len(upstreamCAs) > 0 {
-		certChain, trustBundle, err = UpstreamSignServerCACertificate(ctx, upstreamCAs[0], x509CASigner, m.c.TrustDomain.Host, m.c.CASubject)
+		certChain, upstreamBundle, err := UpstreamSignServerCACertificate(ctx, upstreamCAs[0], x509CASigner, m.c.TrustDomain.Host, m.c.CASubject)
 		if err != nil {
 			return err
 		}
 		if m.c.UpstreamBundle {
 			// the chain returned from upstream does not contain the root from
 			// the trust bundle, which the rest of the code expects. Find the
-			// root and add it to the chain.
-			certChain, err = buildFullChain(certChain, trustBundle)
+			// root and add it to the chain. This can be removed in SPIRE 0.8.
+			certChainWithRoot, err = addRootToChain(certChain, upstreamBundle)
 			if err != nil {
 				return err
 			}
 			// until SPIRE 0.8, the server CA must belong to the trust bundle
 			// for back-compat.
-			trustBundle = append(trustBundle, certChain[0])
+			trustBundle = append(upstreamBundle, certChainWithRoot[0])
 		} else {
 			// we don't want to join the upstream PKI. Use the server CA as the
 			// root, as if the upstreamCA was never configured.
-			certChain = certChain[:1]
-			trustBundle = certChain
+			certChainWithRoot = certChain[:1]
+			trustBundle = certChainWithRoot
 		}
 	} else {
 		cert, err := SelfSignServerCACertificate(x509CASigner, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
 		if err != nil {
 			return err
 		}
-		certChain = []*x509.Certificate{cert}
-		trustBundle = certChain
+		certChainWithRoot = []*x509.Certificate{cert}
+		trustBundle = certChainWithRoot
 	}
 
 	jwtSigningKeyPKIX, err := cryptoutil.GenerateKeyRaw(ctx, km, kps.JWTSignerKeyID(), keymanager.KeyType_EC_P256)
@@ -397,7 +397,7 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err e
 	jwtSigningKey, err := caPublicKeyFromPublicKey(&common.PublicKey{
 		PkixBytes: jwtSigningKeyPKIX,
 		Kid:       kid,
-		NotAfter:  certChain[0].NotAfter.Unix(),
+		NotAfter:  certChainWithRoot[0].NotAfter.Unix(),
 	})
 	if err != nil {
 		return err
@@ -408,11 +408,11 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err e
 	}
 
 	kps.x509CA = &caX509CA{
-		chain: certChain,
+		chain: certChainWithRoot,
 	}
 	kps.jwtSigningKey = jwtSigningKey
 	m.writeKeypairSets()
-	m.c.Log.Debugf("Keypair set %q will expire %s", kps.slot, certChain[0].NotAfter.Format(time.RFC3339))
+	m.c.Log.Debugf("Keypair set %q will expire %s", kps.slot, certChainWithRoot[0].NotAfter.Format(time.RFC3339))
 	return nil
 }
 
@@ -707,7 +707,7 @@ func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Cer
 		if err != nil {
 			return nil, nil, err
 		}
-		trustBundle, err := x509.ParseCertificates(resp.SignedCertificate.UpstreamTrustBundle)
+		trustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -875,7 +875,7 @@ func buildCertChain(cert *x509.Certificate, candidates []*x509.Certificate) (cha
 	return chain
 }
 
-func buildFullChain(certChain, trustBundle []*x509.Certificate) ([]*x509.Certificate, error) {
+func addRootToChain(certChain, trustBundle []*x509.Certificate) ([]*x509.Certificate, error) {
 	if len(certChain) == 0 {
 		return nil, errs.New("empty certificate chain")
 	}
@@ -896,8 +896,14 @@ func buildFullChain(certChain, trustBundle []*x509.Certificate) ([]*x509.Certifi
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	if len(chains) > 1 {
-		return nil, errs.New("ambiguous certificate chain (%d chains formed)", len(chains))
+
+	// If for some reason there is cross-signing upstream, we might end up with
+	// more than one chain. Take the longest chain.
+	longestChain := chains[0]
+	for _, chain := range chains[1:] {
+		if len(chain) > len(longestChain) {
+			longestChain = chain
+		}
 	}
-	return chains[0], nil
+	return longestChain, nil
 }
