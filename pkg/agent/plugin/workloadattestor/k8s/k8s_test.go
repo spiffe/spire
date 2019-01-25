@@ -39,7 +39,7 @@ var (
 	ctx = context.Background()
 )
 
-func InitPlugin(t *testing.T, client httpClient, fs cgroups.FileSystem) workloadattestor.WorkloadAttestor {
+func InitPlugin(t *testing.T, client httpClient, fs cgroups.FileSystem, opts ...func(*k8sPlugin)) workloadattestor.WorkloadAttestor {
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: validConfig,
 	}
@@ -54,6 +54,9 @@ func InitPlugin(t *testing.T, client httpClient, fs cgroups.FileSystem) workload
 	// the default retry config is much too long for tests.
 	p.pollRetryInterval = time.Millisecond
 	p.maxPollAttempts = 3
+	for _, opt := range opts {
+		opt(p)
+	}
 	return p
 }
 
@@ -144,6 +147,33 @@ func TestK8s_AttestPidInPodAfterRetry(t *testing.T) {
 	require.NotEmpty(t, resp.Selectors)
 }
 
+func TestK8s_AttestPidNotInPodCancelsEarly(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	podListNotRunning, err := ioutil.ReadFile(podListNotRunningFilePath)
+	require.NoError(t, err)
+
+	mockHttpClient := http_client_mock.NewMockhttpClient(mockCtrl)
+	mockHttpClient.EXPECT().Get(podsURL).Return(
+		&http.Response{
+			StatusCode: http.StatusOK,
+			Body:       ioutil.NopCloser(bytes.NewReader(podListNotRunning)),
+		}, nil)
+
+	mockFilesystem := filesystem_mock.NewMockfileSystem(mockCtrl)
+	mockFilesystem.EXPECT().Open(pidCgroupPath).Return(os.Open(cgPidInPodFilePath))
+
+	plugin := InitPlugin(t, mockHttpClient, mockFilesystem, func(p *k8sPlugin) { p.pollRetryInterval = time.Hour })
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+	req := workloadattestor.AttestRequest{Pid: int32(pid)}
+	resp, err := plugin.Attest(ctx, &req)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "k8s: no selectors found: context canceled")
+	require.Nil(t, resp)
+}
+
 func TestK8s_AttestPidNotInPodAfterRetry(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
@@ -175,7 +205,8 @@ func TestK8s_AttestPidNotInPodAfterRetry(t *testing.T) {
 	req := workloadattestor.AttestRequest{Pid: int32(pid)}
 	resp, err := plugin.Attest(ctx, &req)
 	require.Error(t, err)
-	require.Empty(t, resp.Selectors)
+	require.Contains(t, err.Error(), "k8s: no selectors found")
+	require.Nil(t, resp)
 }
 
 func TestK8s_AttestPidNotInPod(t *testing.T) {
@@ -207,13 +238,13 @@ func TestK8s_ConfigureValidConfig(t *testing.T) {
 }
 
 func TestK8s_ConfigureInvalidConfig(t *testing.T) {
-	assert := assert.New(t)
 	p := New()
-	r, err := p.Configure(ctx, &spi.ConfigureRequest{
+	res, err := p.Configure(ctx, &spi.ConfigureRequest{
 		Configuration: invalidConfig,
 	})
-	assert.Error(err)
-	assert.Equal(&spi.ConfigureResponse{ErrorList: []string{`strconv.ParseInt: parsing "invalid": invalid syntax`}}, r)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `k8s: strconv.ParseInt: parsing "invalid": invalid syntax`)
+	require.Nil(t, res)
 }
 
 func TestK8s_GetPluginInfo(t *testing.T) {
