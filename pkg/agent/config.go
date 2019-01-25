@@ -34,9 +34,6 @@ type Config struct {
 	// Join token to use for attestation, if needed
 	JoinToken string
 
-	// Umask value to use
-	Umask int
-
 	// If true enables profiling.
 	ProfilingEnabled bool
 
