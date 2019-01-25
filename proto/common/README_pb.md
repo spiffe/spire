@@ -5,6 +5,7 @@
 
 - [common.proto](#common.proto)
     - [AttestationData](#spire.common.AttestationData)
+    - [AttestedNode](#spire.common.AttestedNode)
     - [Bundle](#spire.common.Bundle)
     - [Certificate](#spire.common.Certificate)
     - [Empty](#spire.common.Empty)
@@ -39,6 +40,24 @@ A type which contains attestation data for specific platform.
 | ----- | ---- | ----- | ----------- |
 | type | [string](#string) |  | Type of attestation to perform. |
 | data | [bytes](#bytes) |  | The attestation data. |
+
+
+
+
+
+
+<a name="spire.common.AttestedNode"/>
+
+### AttestedNode
+Represents an attested SPIRE agent
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  | Node SPIFFE ID |
+| attestation_data_type | [string](#string) |  | Attestation data type |
+| cert_serial_number | [string](#string) |  | Node certificate serial number |
+| cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
 
 
 
