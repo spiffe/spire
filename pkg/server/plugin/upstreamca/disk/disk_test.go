@@ -2,6 +2,7 @@ package disk
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"io/ioutil"
@@ -63,6 +64,17 @@ func TestDisk_SubmitValidCSR(t *testing.T) {
 		resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
+		require.NotNil(t, resp.SignedCertificate)
+
+		certs, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
+		require.NoError(t, err)
+		require.Len(t, certs, 1)
+		require.Equal(t, "spiffe://localhost", certURI(certs[0]))
+
+		upstreamTrustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
+		require.NoError(t, err)
+		require.Len(t, upstreamTrustBundle, 1)
+		require.Equal(t, "spiffe://local", certURI(upstreamTrustBundle[0]))
 	}
 }
 
@@ -114,4 +126,11 @@ func newWithDefault(keyFilePath string, certFilePath string) (upstreamca.Plugin,
 	m := New()
 	_, err = m.Configure(ctx, pluginConfig)
 	return m, err
+}
+
+func certURI(cert *x509.Certificate) string {
+	if len(cert.URIs) == 1 {
+		return cert.URIs[0].String()
+	}
+	return ""
 }

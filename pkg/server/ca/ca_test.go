@@ -86,7 +86,6 @@ func (s *CATestSuite) SetupTest() {
 	s.ca.setKeypairSet(keypairSet{
 		slot: "FOO",
 		x509CA: &caX509CA{
-			cert:  cert,
 			chain: []*x509.Certificate{cert},
 		},
 		jwtSigningKey: jwtSigningKey,
