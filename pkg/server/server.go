@@ -12,7 +12,6 @@ import (
 	"path"
 	"runtime"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -58,10 +57,6 @@ type Config struct {
 	// Trust domain
 	TrustDomain url.URL
 
-	// Umask value to use
-	Umask int
-
-	// Include upstream CA certificates in the bundle
 	UpstreamBundle bool
 
 	// If true enables profiling.
@@ -107,8 +102,6 @@ func (c *Config) GlobalConfig() *common.GlobalConfig {
 // This method initializes the server, including its plugins,
 // and then blocks until it's shut down or an error is encountered.
 func (s *Server) Run(ctx context.Context) error {
-	s.prepareUmask()
-
 	if err := s.run(ctx); err != nil {
 		s.config.Log.Errorf("fatal: %v", err)
 		return err
@@ -226,11 +219,6 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		cancel()
 		wg.Wait()
 	}
-}
-
-func (s *Server) prepareUmask() {
-	s.config.Log.Debugf("Setting umask to %#o", s.config.Umask)
-	syscall.Umask(s.config.Umask)
 }
 
 func (s *Server) newCatalog() *catalog.ServerCatalog {
