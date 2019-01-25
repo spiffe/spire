@@ -180,13 +180,13 @@ func (h *Handler) Evict(ctx context.Context, evictRequest *node.EvictRequest) (*
 	spiffeID := evictRequest.GetSpiffeID()
 	err := h.deleteAttestationEntry(ctx, spiffeID)
 	if err != nil {
-		h.c.Log.Warnf("Fail to de-attested agent with ID: %v \n", spiffeID)
+		h.c.Log.Warnf("Fail to de-attested agent with ID: %q", spiffeID)
 		return &node.EvictResponse{
 			DeleteSucceed: false,
 		}, err
 	}
 
-	h.c.Log.Infof("Successfully de-attested agent with ID: %v \n", spiffeID)
+	h.c.Log.Infof("Successfully de-attested agent with ID: %q", spiffeID)
 	return &node.EvictResponse{
 		DeleteSucceed: true,
 	}, nil
