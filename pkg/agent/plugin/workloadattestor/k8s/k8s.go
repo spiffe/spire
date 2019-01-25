@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/zeebo/errs"
 )
 
 const (
@@ -30,6 +31,8 @@ const (
 	containerNotInPod
 	containerMaybeInPod
 )
+
+var k8sErr = errs.Class("k8s")
 
 type k8sPlugin struct {
 	kubeletReadOnlyPort int
@@ -78,11 +81,9 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
-	resp := workloadattestor.AttestResponse{}
-
 	cgroups, err := cgroups.GetCgroups(req.Pid, p.fs)
 	if err != nil {
-		return &resp, err
+		return nil, k8sErr.Wrap(err)
 	}
 
 	var containerID string
@@ -108,7 +109,7 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 
 	// Not a Kubernetes pod
 	if containerID == "" {
-		return &resp, nil
+		return &workloadattestor.AttestResponse{}, nil
 	}
 
 	// Poll pod information and search for the pod with the container. If
@@ -117,15 +118,16 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	for attempt := 1; ; attempt++ {
 		list, err := p.getPodListFromInsecureKubeletPort()
 		if err != nil {
-			return &resp, err
+			return nil, k8sErr.Wrap(err)
 		}
 
 		notAllContainersReady := false
 		for _, item := range list.Items {
 			switch lookUpContainerInPod(containerID, item.Status) {
 			case containerInPod:
-				resp.Selectors = getSelectorsFromPodInfo(item)
-				return &resp, nil
+				return &workloadattestor.AttestResponse{
+					Selectors: getSelectorsFromPodInfo(item),
+				}, nil
 			case containerMaybeInPod:
 				notAllContainersReady = true
 			case containerNotInPod:
@@ -136,14 +138,17 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 		// uninitialized containers, then the search is over.
 		if !notAllContainersReady || attempt >= p.maxPollAttempts {
 			log.Printf("container id %q not found (attempt %d of %d)", containerID, attempt, p.maxPollAttempts)
-			return &resp, fmt.Errorf("no selectors found")
+			return nil, k8sErr.New("no selectors found")
 		}
 
 		// wait a bit for containers to initialize before trying again.
 		log.Printf("container id %q not found (attempt %d of %d); trying again in %s", containerID, attempt, p.maxPollAttempts, p.pollRetryInterval)
 
-		// TODO: bail early via context cancelation
-		time.Sleep(p.pollRetryInterval)
+		select {
+		case <-time.After(p.pollRetryInterval):
+		case <-ctx.Done():
+			return nil, k8sErr.New("no selectors found: %v", ctx.Err())
+		}
 	}
 }
 
@@ -224,19 +229,10 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	resp := &spi.ConfigureResponse{}
-
 	// Parse HCL config payload into config struct
-	config := &k8sPluginConfig{}
-	hclTree, err := hcl.Parse(req.Configuration)
-	if err != nil {
-		resp.ErrorList = []string{err.Error()}
-		return resp, err
-	}
-	err = hcl.DecodeObject(&config, hclTree)
-	if err != nil {
-		resp.ErrorList = []string{err.Error()}
-		return resp, err
+	config := new(k8sPluginConfig)
+	if err := hcl.Decode(config, req.Configuration); err != nil {
+		return nil, k8sErr.Wrap(err)
 	}
 
 	// set up defaults
@@ -244,11 +240,12 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 		config.MaxPollAttempts = defaultMaxPollAttempts
 	}
 
+	var err error
 	var pollRetryInterval time.Duration
 	if config.PollRetryInterval != "" {
 		pollRetryInterval, err = time.ParseDuration(config.PollRetryInterval)
 		if err != nil {
-			return resp, err
+			return nil, k8sErr.Wrap(err)
 		}
 	}
 	if pollRetryInterval <= 0 {
