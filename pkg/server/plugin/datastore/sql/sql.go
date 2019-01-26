@@ -778,11 +778,12 @@ func createRegistrationEntry(tx *gorm.DB,
 	}
 
 	newRegisteredEntry := RegisteredEntry{
-		EntryID:  entryID,
-		SpiffeID: req.Entry.SpiffeId,
-		ParentID: req.Entry.ParentId,
-		TTL:      req.Entry.Ttl,
-		Admin:    req.Entry.Admin,
+		EntryID:    entryID,
+		SpiffeID:   req.Entry.SpiffeId,
+		ParentID:   req.Entry.ParentId,
+		TTL:        req.Entry.Ttl,
+		Admin:      req.Entry.Admin,
+		Downstream: req.Entry.Downstream,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -1036,6 +1037,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	entry.TTL = req.Entry.Ttl
 	entry.Selectors = selectors
 	entry.Admin = req.Entry.Admin
+	entry.Downstream = req.Entry.Downstream
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1238,6 +1240,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		Ttl:           model.TTL,
 		FederatesWith: federatesWith,
 		Admin:         model.Admin,
+		Downstream:    model.Downstream,
 	}, nil
 }
 

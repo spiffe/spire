@@ -161,6 +161,7 @@ manage the various registered nodes and workloads that are controlled by it.
 | federates_with | [string](#string) | repeated | A list of federated trust domain SPIFFE IDs. |
 | entry_id | [string](#string) |  | Entry ID |
 | admin | [bool](#bool) |  | Whether or not the workload is an admin workload. Admin workloads can use their SVID&#39;s to authenticate with the Registration API, for example. |
+| downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
 
 
 

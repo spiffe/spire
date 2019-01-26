@@ -3,6 +3,7 @@ package ca
 import (
 	"context"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"fmt"
 	"math/big"
@@ -31,10 +32,12 @@ type serverCAConfig struct {
 	Catalog     catalog.Catalog
 	TrustDomain url.URL
 	DefaultTTL  time.Duration
+	CASubject   pkix.Name
 }
 
 type ServerCA interface {
 	SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error)
+	SignX509CASVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error)
 	SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error)
 }
 
@@ -102,6 +105,55 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 	spiffeID := cert.URIs[0].String()
 	ca.c.Log.Debugf("Signed x509 SVID %q (expires %s)", spiffeID, cert.NotAfter.Format(time.RFC3339))
 	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_svid"}, 1, []telemetry.Label{
+		{
+			Name:  "spiffe_id",
+			Value: spiffeID,
+		},
+	})
+
+	// build and return the certificate chain, starting with the newly signed
+	// cert all the way back to the signing root of the keypair. if an
+	// upstream ca was used, and upstream_bundle is true, this will include
+	// the upstream certificates, otherwise the root will be the server CA.
+	return append([]*x509.Certificate{cert}, kp.x509CA.chain...), nil
+}
+
+func (ca *serverCA) SignX509CASVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error) {
+	kp := ca.getKeypairSet()
+	if kp == nil || kp.x509CA == nil || len(kp.x509CA.chain) < 1 {
+		return nil, errors.New("no X509-SVID keypair available")
+	}
+
+	now := ca.hooks.now()
+	if ttl <= 0 {
+		ttl = ca.c.DefaultTTL
+	}
+	notBefore := now.Add(-backdate)
+	notAfter := now.Add(ttl)
+	if notAfter.After(kp.x509CA.chain[0].NotAfter) {
+		notAfter = kp.x509CA.chain[0].NotAfter
+	}
+
+	serialNumber := big.NewInt(atomic.AddInt64(&ca.x509sn, 1))
+
+	template, err := CreateServerCATemplate(csrDER, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	// Avoid allowing dowstream server for using different subject
+	// replace template subject to use configured ca subject
+	template.Subject = ca.c.CASubject
+
+	km := ca.c.Catalog.KeyManagers()[0]
+	cert, err := x509util.CreateCertificate(ctx, km, template, kp.x509CA.chain[0], kp.X509CAKeyID(), template.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	spiffeID := cert.URIs[0].String()
+	ca.c.Log.Debugf("Signed x509 CA SVID %q (expires %s)", spiffeID, cert.NotAfter.Format(time.RFC3339))
+	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_ca_svid"}, 1, []telemetry.Label{
 		{
 			Name:  "spiffe_id",
 			Value: spiffeID,

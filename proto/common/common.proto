@@ -51,6 +51,8 @@ message RegistrationEntry {
     can use their SVID's to authenticate with the Registration API, for
     example. */
     bool admin = 7;
+    /** To enable signing CA CSR in upstream spire server  */
+    bool downstream = 8;
 }
 
 /** A list of registration entries. */
