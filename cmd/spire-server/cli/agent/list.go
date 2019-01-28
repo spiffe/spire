@@ -12,14 +12,14 @@ import (
 )
 
 type ListConfig struct {
-	// Socket path of node API
-	NodeUDSPath string
+	// Socket path of registration API
+	RegistrationUDSPath string
 }
 
 // Validate will perform a basic validation on config fields
 func (c *ListConfig) Validate() (err error) {
-	if c.NodeUDSPath == "" {
-		return errors.New("a socket path for node api is required")
+	if c.RegistrationUDSPath == "" {
+		return errors.New("a socket path for registration api is required")
 	}
 	return nil
 }
@@ -49,15 +49,15 @@ func (c ListCLI) Run(args []string) int {
 		return 1
 	}
 
-	nodeClient, err := util.NewNodeClient(config.NodeUDSPath)
+	registrationClient, err := util.NewRegistrationClient(config.RegistrationUDSPath)
 	if err != nil {
-		fmt.Printf("Error creating node client: %v \n", err)
+		fmt.Printf("Error creating registration client: %v \n", err)
 		return 1
 	}
 
-	listResponse, err := nodeClient.List(ctx, &common.Empty{})
+	listResponse, err := registrationClient.ListAgents(ctx, &common.Empty{})
 	if err != nil {
-		fmt.Printf("Error listing nodes: %v \n", err)
+		fmt.Printf("Error listing attested nodes: %v \n", err)
 		return 1
 	}
 
@@ -69,19 +69,22 @@ func (ListCLI) parseConfig(args []string) (*ListConfig, error) {
 	f := flag.NewFlagSet("agent list", flag.ContinueOnError)
 	c := &ListConfig{}
 
-	f.StringVar(&c.NodeUDSPath, "nodeUDSPath", util.DefaultSocketPath, "Node API UDS path")
+	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 
 	return c, f.Parse(args)
 }
 
 func printAttestedNodes(nodeList []*common.AttestedNode) {
+	msg := "Found %v attested "
+	msg = util.Pluralizer(msg, "agent", "agents", len(nodeList))
+	fmt.Printf(msg+":\n\n", len(nodeList))
+
 	if len(nodeList) == 0 {
-		fmt.Println("Found 0 attested agents")
 		return
 	}
 
-	fmt.Printf("Attested nodes:\n\n")
+	fmt.Println("Serial \t\t SpiffeID")
 	for _, node := range nodeList {
-		fmt.Println(node.SpiffeId)
+		fmt.Printf("%s \t\t %s\n", node.CertSerialNumber, node.SpiffeId)
 	}
 }

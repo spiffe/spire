@@ -4,7 +4,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/api/registration"
 	"google.golang.org/grpc"
 )
@@ -19,14 +18,6 @@ func NewRegistrationClient(socketPath string) (registration.RegistrationClient, 
 		return nil, err
 	}
 	return registration.NewRegistrationClient(conn), err
-}
-
-func NewNodeClient(socketPath string) (node.NodeClient, error) {
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithDialer(dialer))
-	if err != nil {
-		return nil, err
-	}
-	return node.NewNodeClient(conn), err
 }
 
 func dialer(addr string, timeout time.Duration) (net.Conn, error) {
