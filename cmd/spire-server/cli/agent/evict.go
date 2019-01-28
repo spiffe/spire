@@ -12,6 +12,7 @@ import (
 	"golang.org/x/net/context"
 )
 
+//EvictConfig holds configuration for EvictCLI
 type EvictConfig struct {
 	// Socket path of registration API
 	RegistrationUDSPath string
@@ -38,7 +39,10 @@ func (c *EvictConfig) Validate() (err error) {
 	return nil
 }
 
-type EvictCLI struct{}
+//EvictCLI command for node "de-attestation"
+type EvictCLI struct {
+	RegistrationClient registration.RegistrationClient
+}
 
 func (EvictCLI) Synopsis() string {
 	return "De-attest an agent givent its spiffeID"
@@ -49,6 +53,7 @@ func (c EvictCLI) Help() string {
 	return err.Error()
 }
 
+//Run will evict an agent given its spiffeID
 func (c EvictCLI) Run(args []string) int {
 	ctx := context.Background()
 
@@ -63,13 +68,14 @@ func (c EvictCLI) Run(args []string) int {
 		return 1
 	}
 
-	registrationClient, err := util.NewRegistrationClient(config.RegistrationUDSPath)
-	if err != nil {
-		fmt.Printf("Error creating registration client: %v \n", err)
-		return 1
+	if c.RegistrationClient == nil {
+		c.RegistrationClient, err = util.NewRegistrationClient(config.RegistrationUDSPath)
+		if err != nil {
+			fmt.Printf("Error creating registration client: %v \n", err)
+			return 1
+		}
 	}
-
-	evictResponse, err := registrationClient.EvictAgent(ctx, &registration.EvictAgentRequest{SpiffeID: config.SpiffeID})
+	evictResponse, err := c.RegistrationClient.EvictAgent(ctx, &registration.EvictAgentRequest{SpiffeID: config.SpiffeID})
 	if err != nil {
 		fmt.Printf("Error de-attesting agent: %v \n", err)
 		return 1

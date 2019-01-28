@@ -6,11 +6,13 @@ import (
 	"fmt"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 
 	"golang.org/x/net/context"
 )
 
+//ListConfig holds configuration for ListCLI
 type ListConfig struct {
 	// Socket path of registration API
 	RegistrationUDSPath string
@@ -24,7 +26,11 @@ func (c *ListConfig) Validate() (err error) {
 	return nil
 }
 
-type ListCLI struct{}
+//ListCLI command for listing attested nodes
+type ListCLI struct {
+	RegistrationClient registration.RegistrationClient
+	NodeList           []*common.AttestedNode
+}
 
 func (ListCLI) Synopsis() string {
 	return "List agent spiffeIDs"
@@ -35,7 +41,8 @@ func (c ListCLI) Help() string {
 	return err.Error()
 }
 
-func (c ListCLI) Run(args []string) int {
+//Run will lists attested agents
+func (c *ListCLI) Run(args []string) int {
 	ctx := context.Background()
 
 	config, err := c.parseConfig(args)
@@ -49,19 +56,21 @@ func (c ListCLI) Run(args []string) int {
 		return 1
 	}
 
-	registrationClient, err := util.NewRegistrationClient(config.RegistrationUDSPath)
-	if err != nil {
-		fmt.Printf("Error creating registration client: %v \n", err)
-		return 1
+	if c.RegistrationClient == nil {
+		c.RegistrationClient, err = util.NewRegistrationClient(config.RegistrationUDSPath)
+		if err != nil {
+			fmt.Printf("Error creating registration client: %v \n", err)
+			return 1
+		}
 	}
 
-	listResponse, err := registrationClient.ListAgents(ctx, &common.Empty{})
+	listResponse, err := c.RegistrationClient.ListAgents(ctx, &common.Empty{})
 	if err != nil {
 		fmt.Printf("Error listing attested nodes: %v \n", err)
 		return 1
 	}
-
-	printAttestedNodes(listResponse.Nodes)
+	c.NodeList = listResponse.Nodes
+	c.printAttestedNodes()
 	return 0
 }
 
@@ -74,17 +83,17 @@ func (ListCLI) parseConfig(args []string) (*ListConfig, error) {
 	return c, f.Parse(args)
 }
 
-func printAttestedNodes(nodeList []*common.AttestedNode) {
+func (c ListCLI) printAttestedNodes() {
 	msg := "Found %v attested "
-	msg = util.Pluralizer(msg, "agent", "agents", len(nodeList))
-	fmt.Printf(msg+":\n\n", len(nodeList))
+	msg = util.Pluralizer(msg, "agent", "agents", len(c.NodeList))
+	fmt.Printf(msg+":\n\n", len(c.NodeList))
 
-	if len(nodeList) == 0 {
+	if len(c.NodeList) == 0 {
 		return
 	}
 
 	fmt.Println("Serial \t\t SpiffeID")
-	for _, node := range nodeList {
+	for _, node := range c.NodeList {
 		fmt.Printf("%s \t\t %s\n", node.CertSerialNumber, node.SpiffeId)
 	}
 }
