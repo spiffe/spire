@@ -170,7 +170,7 @@ func (m *ManagerTestSuite) TestPersistence() {
 
 	// prepare the next keypair, "reload" the manager, and assert "current"
 	// and "next" are maintained.
-	m.setTime(preparationThreshold(current4.x509CA.cert).Add(time.Second))
+	m.setTime(preparationThreshold(current4.x509CA.cert()).Add(time.Second))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	current5 := m.m.getCurrentKeypairSet()
 	next5 := m.m.getNextKeypairSet()
@@ -185,7 +185,7 @@ func (m *ManagerTestSuite) TestPersistence() {
 
 	// activate the next keypair, "reload" the manager, and assert the new "current"
 	// is maintained and "next" is empty (since it hasn't been prepared yet)
-	m.setTime(activationThreshold(current6.x509CA.cert).Add(time.Second))
+	m.setTime(activationThreshold(current6.x509CA.cert()).Add(time.Second))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	current7 := m.m.getCurrentKeypairSet()
 	next7 := m.m.getNextKeypairSet()
@@ -204,23 +204,81 @@ func (m *ManagerTestSuite) TestSelfSigning() {
 	// the upstream cert is in the bundle
 	m.Require().NoError(m.m.Initialize(ctx))
 	a := m.m.getCurrentKeypairSet()
-	m.Require().Equal(a.x509CA.cert.Subject, a.x509CA.cert.Issuer)
-	m.requireBundleRootCAs(a.x509CA.cert)
+	m.Require().Equal(a.x509CA.cert().Subject, a.x509CA.cert().Issuer)
+	m.requireBundleRootCAs(a.x509CA.cert())
 	m.requireBundleJWTSigningKeys(a.jwtSigningKey)
 }
 
 func (m *ManagerTestSuite) TestUpstreamSigning() {
-	upstreamCA := fakeupstreamca.New(m.T(), "example.org")
+	upstreamCA := fakeupstreamca.New(m.T(), fakeupstreamca.Config{
+		TrustDomain: "example.org",
+	})
 	m.catalog.SetUpstreamCAs(upstreamCA)
-	upstreamCert := upstreamCA.Cert()
+	upstreamRoot := upstreamCA.Root()
 
-	// generate a keypair make sure it was signed up upstream and that
+	// generate a keypair make sure it was signed by upstream and that
 	// the upstream cert is in the bundle. The server CA intermediate should
 	// also be in the bundle until SPIRE 0.8.0.
 	m.Require().NoError(m.m.Initialize(ctx))
 	a := m.m.getCurrentKeypairSet()
-	m.Require().Equal(upstreamCert.Subject, a.x509CA.cert.Issuer)
-	m.requireBundleRootCAs(a.x509CA.cert, upstreamCert)
+	m.Require().Equal(upstreamRoot.Subject, a.x509CA.cert().Issuer)
+	m.requireBundleRootCAs(upstreamRoot, a.x509CA.cert())
+}
+
+func (m *ManagerTestSuite) TestUpstreamSigningWithIntermediate() {
+	upstreamCA := fakeupstreamca.New(m.T(), fakeupstreamca.Config{
+		TrustDomain:     "example.org",
+		UseIntermediate: true,
+	})
+	m.catalog.SetUpstreamCAs(upstreamCA)
+	upstreamIntermediate := upstreamCA.Intermediate()
+	upstreamRoot := upstreamCA.Root()
+
+	// generate a keypair make sure it was signed by the upstream intermediate
+	// and that the upstream root cert is in the bundle. The server CA
+	// intermediate should also be in the bundle until SPIRE 0.8.0.
+	m.Require().NoError(m.m.Initialize(ctx))
+	a := m.m.getCurrentKeypairSet()
+
+	m.Require().Equal(upstreamIntermediate.Subject, a.x509CA.cert().Issuer)
+	m.requireBundleRootCAs(upstreamRoot, a.x509CA.cert())
+}
+
+func (m *ManagerTestSuite) TestDeprecatedUpstreamSigning() {
+	upstreamCA := fakeupstreamca.New(m.T(), fakeupstreamca.Config{
+		TrustDomain:         "example.org",
+		UseDeprecatedFields: true,
+	})
+	m.catalog.SetUpstreamCAs(upstreamCA)
+	upstreamRoot := upstreamCA.Root()
+
+	// generate a keypair make sure it was signed by upstream and that
+	// the upstream cert is in the bundle. The server CA intermediate should
+	// also be in the bundle until SPIRE 0.8.0.
+	m.Require().NoError(m.m.Initialize(ctx))
+	a := m.m.getCurrentKeypairSet()
+	m.Require().Equal(upstreamRoot.Subject, a.x509CA.cert().Issuer)
+	m.requireBundleRootCAs(upstreamRoot, a.x509CA.cert())
+}
+
+func (m *ManagerTestSuite) TestDeprecatedUpstreamSigningWithIntermediate() {
+	upstreamCA := fakeupstreamca.New(m.T(), fakeupstreamca.Config{
+		TrustDomain:         "example.org",
+		UseDeprecatedFields: true,
+		UseIntermediate:     true,
+	})
+	m.catalog.SetUpstreamCAs(upstreamCA)
+	upstreamIntermediate := upstreamCA.Intermediate()
+	upstreamRoot := upstreamCA.Root()
+
+	// generate a keypair make sure it was signed by the upstream intermediate
+	// and that the upstream root cert is in the bundle. The server CA
+	// intermediate should also be in the bundle until SPIRE 0.8.0.
+	m.Require().NoError(m.m.Initialize(ctx))
+	a := m.m.getCurrentKeypairSet()
+
+	m.Require().Equal(upstreamIntermediate.Subject, a.x509CA.cert().Issuer)
+	m.requireBundleRootCAs(upstreamRoot, a.x509CA.cert())
 }
 
 func (m *ManagerTestSuite) TestRotation() {
@@ -233,14 +291,14 @@ func (m *ManagerTestSuite) TestRotation() {
 	m.Require().NotNil(a1)
 	m.Require().Nil(b1)
 	m.requireKeypairSet("A", a1)
-	m.requireBundleRootCAs(a1.x509CA.cert)
+	m.requireBundleRootCAs(a1.x509CA.cert())
 	m.requireBundleJWTSigningKeys(a1.jwtSigningKey)
 
 	// advance up to the preparation threshold and assert nothing changes
-	m.setTime(preparationThreshold(a1.x509CA.cert))
+	m.setTime(preparationThreshold(a1.x509CA.cert()))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	m.requireKeypairSet("A", a1)
-	m.requireBundleRootCAs(a1.x509CA.cert)
+	m.requireBundleRootCAs(a1.x509CA.cert())
 	m.requireBundleJWTSigningKeys(a1.jwtSigningKey)
 
 	// advance past the preparation threshold and assert that B has been created
@@ -252,14 +310,14 @@ func (m *ManagerTestSuite) TestRotation() {
 	m.Require().NotNil(b2)
 	m.Require().Equal(a2, a1)
 	m.requireKeypairSet("A", a1)
-	m.requireBundleRootCAs(a1.x509CA.cert, b2.x509CA.cert)
+	m.requireBundleRootCAs(a1.x509CA.cert(), b2.x509CA.cert())
 	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey)
 
 	// advance to the activation threshold and assert nothing changes
-	m.setTime(activationThreshold(a1.x509CA.cert))
+	m.setTime(activationThreshold(a1.x509CA.cert()))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	m.requireKeypairSet("A", a1)
-	m.requireBundleRootCAs(a1.x509CA.cert, b2.x509CA.cert)
+	m.requireBundleRootCAs(a1.x509CA.cert(), b2.x509CA.cert())
 	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey)
 
 	// advance past to the activation threshold and assert that B is active
@@ -271,20 +329,20 @@ func (m *ManagerTestSuite) TestRotation() {
 	m.Require().NotNil(b3)
 	m.Require().Equal(b3, b2)
 	m.requireKeypairSet("B", b2)
-	m.requireBundleRootCAs(a1.x509CA.cert, b2.x509CA.cert)
+	m.requireBundleRootCAs(a1.x509CA.cert(), b2.x509CA.cert())
 	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey)
 
 	// now advance past both the preparation and activation threshold to make
 	// sure B is rotated out and A is active. This makes sure that however
 	// unlikely, preparation and activation can happen in the same pass, if
 	// necessary.
-	m.setTime(activationThreshold(b2.x509CA.cert).Add(time.Second))
+	m.setTime(activationThreshold(b2.x509CA.cert()).Add(time.Second))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	a4, b4 := m.loadKeypairSets()
 	m.Require().NotNil(a4)
 	m.Require().Nil(b4)
 	m.requireKeypairSet("A", a4)
-	m.requireBundleRootCAs(a1.x509CA.cert, b2.x509CA.cert, a4.x509CA.cert)
+	m.requireBundleRootCAs(a1.x509CA.cert(), b2.x509CA.cert(), a4.x509CA.cert())
 	m.requireBundleJWTSigningKeys(a1.jwtSigningKey, b2.jwtSigningKey, a4.jwtSigningKey)
 }
 
@@ -292,40 +350,40 @@ func (m *ManagerTestSuite) TestPrune() {
 	// Initialize and prepare an extra keypair set
 	m.Require().NoError(m.m.Initialize(ctx))
 	a := m.m.getCurrentKeypairSet()
-	m.setTime(preparationThreshold(a.x509CA.cert).Add(time.Second))
+	m.setTime(preparationThreshold(a.x509CA.cert()).Add(time.Second))
 	m.Require().NoError(m.m.rotateCAs(ctx))
 	b := m.m.getNextKeypairSet()
 
 	// assert both certificates are in the bundle
-	m.requireBundleRootCAs(a.x509CA.cert, b.x509CA.cert)
+	m.requireBundleRootCAs(a.x509CA.cert(), b.x509CA.cert())
 	m.requireBundleJWTSigningKeys(a.jwtSigningKey, b.jwtSigningKey)
 
 	// prune and assert that nothing changed
 	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundleRootCAs(a.x509CA.cert, b.x509CA.cert)
+	m.requireBundleRootCAs(a.x509CA.cert(), b.x509CA.cert())
 	m.requireBundleJWTSigningKeys(a.jwtSigningKey, b.jwtSigningKey)
 
 	// advance after the expiration of the A, prune, and assert that nothing
 	// changed (since we don't prune until the certificate has been expired
 	// longer than the safety threshold)
-	m.setTime(a.x509CA.cert.NotAfter.Add(time.Second))
+	m.setTime(a.x509CA.cert().NotAfter.Add(time.Second))
 	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundleRootCAs(a.x509CA.cert, b.x509CA.cert)
+	m.requireBundleRootCAs(a.x509CA.cert(), b.x509CA.cert())
 	m.requireBundleJWTSigningKeys(a.jwtSigningKey, b.jwtSigningKey)
 
 	// advance beyond the safety threshold, prune, and assert that A has been
 	// pruned
-	m.setTime(a.x509CA.cert.NotAfter.Add(safetyThreshold))
+	m.setTime(a.x509CA.cert().NotAfter.Add(safetyThreshold))
 	m.Require().NoError(m.m.pruneBundle(ctx))
-	m.requireBundleRootCAs(b.x509CA.cert)
+	m.requireBundleRootCAs(b.x509CA.cert())
 	m.requireBundleJWTSigningKeys(b.jwtSigningKey)
 
 	// advance beyond the B's safety threshold and assert that prune fails
 	// because all certificates would be pruned and that B remains present
 	// in the bundle
-	m.setTime(b.x509CA.cert.NotAfter.Add(safetyThreshold))
+	m.setTime(b.x509CA.cert().NotAfter.Add(safetyThreshold))
 	m.Require().EqualError(m.m.pruneBundle(ctx), "would prune all certificates")
-	m.requireBundleRootCAs(b.x509CA.cert)
+	m.requireBundleRootCAs(b.x509CA.cert())
 	m.requireBundleJWTSigningKeys(b.jwtSigningKey)
 }
 
@@ -342,7 +400,7 @@ func (m *ManagerTestSuite) requireBundleRootCAs(expectedCerts ...*x509.Certifica
 	})
 	m.Require().NoError(err)
 	m.Require().NotNil(resp.Bundle, "missing bundle for domain %q", m.m.c.TrustDomain.String())
-	m.Require().Equal(expected, resp.Bundle.RootCas)
+	m.Require().Equal(expected, resp.Bundle.RootCas, "bundle root CAs as expected")
 }
 
 func (m *ManagerTestSuite) requireBundleJWTSigningKeys(expectedKeys ...*caPublicKey) {

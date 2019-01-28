@@ -592,6 +592,7 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		SpiffeId: "spiffe://example.org/foo",
 		ParentId: "spiffe://example.org/bar",
 		Ttl:      1,
+		Admin:    true,
 	})
 
 	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
@@ -600,9 +601,10 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 			{Type: "Type4", Value: "Value4"},
 			{Type: "Type5", Value: "Value5"},
 		},
-		SpiffeId: "spiffe://example.org/baz",
-		ParentId: "spiffe://example.org/bat",
-		Ttl:      2,
+		SpiffeId:   "spiffe://example.org/baz",
+		ParentId:   "spiffe://example.org/bat",
+		Ttl:        2,
+		Downstream: true,
 	})
 
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
@@ -827,6 +829,8 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	})
 
 	entry.Ttl = 2
+	entry.Admin = true
+	entry.Downstream = true
 	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
 		Entry: entry,
 	})
@@ -1293,6 +1297,33 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().NoError(err)
 			s.Require().Len(resp.Entries, 1)
 			s.Require().False(resp.Entries[0].Admin)
+
+			resp.Entries[0].Admin = true
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
+				Entry: resp.Entries[0],
+			})
+			s.Require().NoError(err)
+
+			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().True(resp.Entries[0].Admin)
+		case 5:
+			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().False(resp.Entries[0].Downstream)
+
+			resp.Entries[0].Downstream = true
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
+				Entry: resp.Entries[0],
+			})
+			s.Require().NoError(err)
+
+			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().True(resp.Entries[0].Downstream)
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}

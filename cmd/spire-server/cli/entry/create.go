@@ -31,6 +31,8 @@ type CreateConfig struct {
 	SpiffeID string
 	Ttl      int
 
+	Downstream bool
+
 	// List of SPIFFE IDs of trust domains the registration entry is federated with
 	FederatesWith StringsFlag
 
@@ -139,9 +141,10 @@ func (c CreateCLI) Run(args []string) int {
 // parseConfig builds a registration entry from the given config
 func (c CreateCLI) parseConfig(config *CreateConfig) ([]*common.RegistrationEntry, error) {
 	e := &common.RegistrationEntry{
-		ParentId: config.ParentID,
-		SpiffeId: config.SpiffeID,
-		Ttl:      int32(config.Ttl),
+		ParentId:   config.ParentID,
+		SpiffeId:   config.SpiffeID,
+		Ttl:        int32(config.Ttl),
+		Downstream: config.Downstream,
 	}
 
 	selectors := []*common.Selector{}
@@ -203,6 +206,7 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 
 	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
 	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
+	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 
 	f.BoolVar(&c.Admin, "admin", false, "If true, the SPIFFE ID in this entry will be granted access to the Registration API")
 

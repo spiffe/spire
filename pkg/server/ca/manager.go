@@ -65,13 +65,17 @@ type Manager interface {
 }
 
 type caX509CA struct {
-	// the CA certificate
-	cert *x509.Certificate
-
 	// this is the full chain of trust from the server CA back to the upstream
 	// CA. If the server CA is self-signed, this list will only contain the
 	// server CA certificate.
 	chain []*x509.Certificate
+}
+
+func (ca *caX509CA) cert() *x509.Certificate {
+	if len(ca.chain) > 0 {
+		return ca.chain[0]
+	}
+	return nil
 }
 
 type caPublicKey struct {
@@ -131,6 +135,7 @@ func NewManager(c *ManagerConfig) *manager {
 			Catalog:     c.Catalog,
 			TrustDomain: c.TrustDomain,
 			DefaultTTL:  c.SVIDTTL,
+			CASubject:   c.CASubject,
 		}),
 		current: &keypairSet{
 			slot: "A",
@@ -347,18 +352,37 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err e
 	}
 
 	// either self-sign or sign with the upstream CA
-	var cert *x509.Certificate
-	var upstreamBundle []*x509.Certificate
+	var certChainWithRoot []*x509.Certificate
+	var trustBundle []*x509.Certificate
 	if upstreamCAs := m.c.Catalog.UpstreamCAs(); len(upstreamCAs) > 0 {
-		cert, upstreamBundle, err = UpstreamSignServerCACertificate(ctx, upstreamCAs[0], x509CASigner, m.c.TrustDomain.Host, m.c.CASubject)
+		certChain, upstreamBundle, err := UpstreamSignServerCACertificate(ctx, upstreamCAs[0], x509CASigner, m.c.TrustDomain.Host, m.c.CASubject)
 		if err != nil {
 			return err
+		}
+		if m.c.UpstreamBundle {
+			// the chain returned from upstream does not contain the root from
+			// the trust bundle, which the rest of the code expects. Find the
+			// root and add it to the chain. This can be removed in SPIRE 0.8.
+			certChainWithRoot, err = addRootToChain(certChain, upstreamBundle)
+			if err != nil {
+				return err
+			}
+			// until SPIRE 0.8, the server CA must belong to the trust bundle
+			// for back-compat.
+			trustBundle = append(upstreamBundle, certChainWithRoot[0])
+		} else {
+			// we don't want to join the upstream PKI. Use the server CA as the
+			// root, as if the upstreamCA was never configured.
+			certChainWithRoot = certChain[:1]
+			trustBundle = certChainWithRoot
 		}
 	} else {
-		cert, err = SelfSignServerCACertificate(x509CASigner, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
+		cert, err := SelfSignServerCACertificate(x509CASigner, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
 		if err != nil {
 			return err
 		}
+		certChainWithRoot = []*x509.Certificate{cert}
+		trustBundle = certChainWithRoot
 	}
 
 	jwtSigningKeyPKIX, err := cryptoutil.GenerateKeyRaw(ctx, km, kps.JWTSignerKeyID(), keymanager.KeyType_EC_P256)
@@ -374,30 +398,22 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err e
 	jwtSigningKey, err := caPublicKeyFromPublicKey(&common.PublicKey{
 		PkixBytes: jwtSigningKeyPKIX,
 		Kid:       kid,
-		NotAfter:  cert.NotAfter.Unix(),
+		NotAfter:  certChainWithRoot[0].NotAfter.Unix(),
 	})
 	if err != nil {
 		return err
 	}
 
-	// The root CA added to the bundle is either the upstream "root" or the
-	// newly signed server CA.
-	chain := []*x509.Certificate{cert}
-	if m.c.UpstreamBundle && len(upstreamBundle) > 0 {
-		chain = append(chain, upstreamBundle...)
-	}
-
-	if err := m.appendBundle(ctx, chain, jwtSigningKey.PublicKey); err != nil {
+	if err := m.appendBundle(ctx, trustBundle, jwtSigningKey.PublicKey); err != nil {
 		return err
 	}
 
 	kps.x509CA = &caX509CA{
-		cert:  cert,
-		chain: chain,
+		chain: certChainWithRoot,
 	}
 	kps.jwtSigningKey = jwtSigningKey
 	m.writeKeypairSets()
-	m.c.Log.Debugf("Keypair set %q will expire %s", kps.slot, cert.NotAfter.Format(time.RFC3339))
+	m.c.Log.Debugf("Keypair set %q will expire %s", kps.slot, certChainWithRoot[0].NotAfter.Format(time.RFC3339))
 	return nil
 }
 
@@ -438,7 +454,7 @@ func (m *manager) loadKeypairSets(ctx context.Context) error {
 
 		x509CA := x509CAs[kps.X509CAKeyID()]
 		x509CAKMKey := keys[kps.X509CAKeyID()]
-		x509CAOK := x509CA != nil && x509CAKMKey != nil && certMatchesKey(x509CA.cert, x509CAKMKey)
+		x509CAOK := x509CA != nil && x509CAKMKey != nil && certMatchesKey(x509CA.cert(), x509CAKMKey)
 		jwtSigningKey := publicKeys[kps.JWTSignerKeyID()]
 		jwtSigningKMKey := keys[kps.JWTSignerKeyID()]
 		jwtSigningKeyOK := jwtSigningKey != nil && jwtSigningKMKey != nil && publicKeyEqual(jwtSigningKey.publicKey, jwtSigningKMKey)
@@ -485,7 +501,7 @@ func (m *manager) loadKeypairSets(ctx context.Context) error {
 	// if B (next) was loaded but A (current) was not, OR if B comes before
 	// A, then swap B into the current slot.
 	if nextValid && (!currentValid ||
-		m.current.x509CA.cert.NotBefore.After(m.next.x509CA.cert.NotBefore)) {
+		m.current.x509CA.cert().NotBefore.After(m.next.x509CA.cert().NotBefore)) {
 		m.current, m.next = m.next, m.current
 	}
 
@@ -536,11 +552,11 @@ func (m *manager) writeKeypairSets() {
 }
 
 func (m *manager) shouldPrepare() bool {
-	return m.current.x509CA == nil || m.hooks.now().After(preparationThreshold(m.current.x509CA.cert))
+	return m.current.x509CA == nil || m.hooks.now().After(preparationThreshold(m.current.x509CA.cert()))
 }
 
 func (m *manager) shouldActivate() bool {
-	return m.current.x509CA == nil || m.hooks.now().After(activationThreshold(m.current.x509CA.cert))
+	return m.current.x509CA == nil || m.hooks.now().After(activationThreshold(m.current.x509CA.cert()))
 }
 
 type keypairData struct {
@@ -575,7 +591,6 @@ func (m *manager) loadKeypairData(path string, bundleCerts []*x509.Certificate) 
 			continue
 		}
 		x509CAs[id] = &caX509CA{
-			cert:  certs[0],
 			chain: certs,
 		}
 	}
@@ -607,7 +622,6 @@ func (m *manager) loadKeypairData(path string, bundleCerts []*x509.Certificate) 
 		if strings.HasPrefix(id, "x509-CA-") {
 			certs := buildCertChain(cert, bundleCerts)
 			x509CAs[id] = &caX509CA{
-				cert:  certs[0],
 				chain: certs,
 			}
 		}
@@ -672,27 +686,64 @@ func GenerateServerCACSR(signer crypto.Signer, trustDomain string, subject pkix.
 	return csr, nil
 }
 
-func UpstreamSignServerCACertificate(ctx context.Context, upstreamCA upstreamca.UpstreamCA, signer crypto.Signer, trustDomain string, subject pkix.Name) (*x509.Certificate, []*x509.Certificate, error) {
+func UpstreamSignServerCACertificate(ctx context.Context, upstreamCA upstreamca.UpstreamCA, signer crypto.Signer, trustDomain string, subject pkix.Name) ([]*x509.Certificate, []*x509.Certificate, error) {
 	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	csrResp, err := upstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
+	resp, err := upstreamCA.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{
 		Csr: csr,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	cert, err := x509.ParseCertificate(csrResp.Cert)
+
+	return parseUpstreamCACSRResponse(resp)
+}
+
+func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
+	if resp.SignedCertificate != nil {
+		certChain, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
+		if err != nil {
+			return nil, nil, err
+		}
+		trustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
+		if err != nil {
+			return nil, nil, err
+		}
+		return certChain, trustBundle, nil
+	}
+
+	// This is an old response from the upstream CA. The assumption from the
+	// manager was that Cert contained a single certificate representing the
+	// newly signed CA certificate and UpstreamTrustBundle contained the rest
+	// of the full chain back to the upstream "root".
+	cert, err := x509.ParseCertificate(resp.DEPRECATEDCert)
 	if err != nil {
 		return nil, nil, err
 	}
-	upstream, err := x509.ParseCertificates(csrResp.UpstreamTrustBundle)
+	trustBundle, err := x509.ParseCertificates(resp.DEPRECATEDUpstreamTrustBundle)
 	if err != nil {
 		return nil, nil, err
 	}
-	return cert, upstream, nil
+
+	certChain := []*x509.Certificate{cert}
+
+	switch len(trustBundle) {
+	case 0:
+		return nil, nil, errors.New("upstream CA returned an empty trust bundle")
+	case 1:
+		return certChain, trustBundle, nil
+	default:
+		// append the "intermediates" at the start of the upstream bundle
+		certChain = append(certChain, trustBundle[:len(trustBundle)-1]...)
+		// only consider the "root" of the upstream bundle as part of the
+		// trust bundle
+		trustBundle = trustBundle[len(trustBundle)-1:]
+		return certChain, trustBundle, nil
+	}
+	return certChain, trustBundle, nil
 }
 
 func SelfSignServerCACertificate(signer crypto.Signer, trustDomain string, subject pkix.Name, notBefore, notAfter time.Time) (*x509.Certificate, error) {
@@ -823,4 +874,37 @@ func buildCertChain(cert *x509.Certificate, candidates []*x509.Certificate) (cha
 		}
 	}
 	return chain
+}
+
+func addRootToChain(certChain, trustBundle []*x509.Certificate) ([]*x509.Certificate, error) {
+	if len(certChain) == 0 {
+		return nil, errs.New("empty certificate chain")
+	}
+	intermediates := x509.NewCertPool()
+	for _, intermediate := range certChain[1:] {
+		intermediates.AddCert(intermediate)
+	}
+	roots := x509.NewCertPool()
+	for _, root := range trustBundle {
+		roots.AddCert(root)
+	}
+
+	chains, err := certChain[0].Verify(x509.VerifyOptions{
+		Intermediates: intermediates,
+		Roots:         roots,
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	})
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+
+	// If for some reason there is cross-signing upstream, we might end up with
+	// more than one chain. Take the longest chain.
+	longestChain := chains[0]
+	for _, chain := range chains[1:] {
+		if len(chain) > len(longestChain) {
+			longestChain = chain
+		}
+	}
+	return longestChain, nil
 }

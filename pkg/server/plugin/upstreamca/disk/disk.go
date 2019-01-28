@@ -125,8 +125,10 @@ func (m *diskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCS
 	}
 
 	return &upstreamca.SubmitCSRResponse{
-		Cert:                cert.Raw,
-		UpstreamTrustBundle: m.cert.Raw,
+		SignedCertificate: &upstreamca.SignedCertificate{
+			CertChain: cert.Raw,
+			Bundle:    m.cert.Raw,
+		},
 	}, nil
 }
 

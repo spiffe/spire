@@ -716,6 +716,16 @@ func setFetchX509SVIDExpectations(
 	// begin FetchRegistrationEntries()
 
 	suite.mockDataStore.EXPECT().
+		ListRegistrationEntries(gomock.Any(), gomock.Eq(
+			&datastore.ListRegistrationEntriesRequest{
+				BySpiffeId: &wrappers.StringValue{
+					Value: data.baseSpiffeID,
+				},
+			})).
+		Return(&datastore.ListRegistrationEntriesResponse{
+			Entries: data.byParentIDEntries}, nil).AnyTimes()
+
+	suite.mockDataStore.EXPECT().
 		ListRegistrationEntries(gomock.Any(),
 			&datastore.ListRegistrationEntriesRequest{
 				ByParentId: &wrappers.StringValue{
@@ -915,7 +925,9 @@ func TestFetchJWTSVID(t *testing.T) {
 		},
 	})
 
-	upstreamCA := fakeupstreamca.New(t, "example.org")
+	upstreamCA := fakeupstreamca.New(t, fakeupstreamca.Config{
+		TrustDomain: "example.org",
+	})
 	serverCA := fakeserverca.New(t, "example.org", &fakeserverca.Options{
 		UpstreamCA: upstreamCA,
 	})
