@@ -106,19 +106,6 @@ message AttestResponse {
     bytes challenge = 2;
 }
 
-// Represents an evict request
-message EvictRequest {
-    // Core identity of the agent to be de-attested.
-    // For example: "spiffe://example.org/spire/agent/join_token/feea6adc-3254-4052-9a18-5eeb74bf214f"
-    string spiffeID = 1;
-}
-
-// Represents an evict response
-message EvictResponse {
-    // If the entry is successfully deleted, deleteSucceed will be true
-    bool deleteSucceed = 1;
-}
-
 // Represents a request with a list of CSR.
 message FetchX509SVIDRequest {
     // A list of CSRs
@@ -143,21 +130,9 @@ message FetchJWTSVIDResponse {
     JWTSVID svid = 1;
 }
 
-// List response
-message ListResponse {
-    // List of all attested nodes
-    repeated spire.common.AttestedNode nodes = 1;
-}
-
 service Node {
     // Attest the node, get base node SVID.
     rpc Attest(stream AttestRequest) returns (stream AttestResponse);
-
-    // Evict removes (de-attest) an attestation entry from the attested nodes store
-    rpc Evict(EvictRequest) returns (EvictResponse);
-
-    // List all attested nodes
-    rpc List(spire.common.Empty) returns (ListResponse);
 
     // Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
     // Base Node SVID or the Registered Node SVID used for this call)

@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"io"
 	"io/ioutil"
 	"net"
@@ -194,74 +193,6 @@ func TestAttestChallengeResponse(t *testing.T) {
 		SvidUpdate: expected,
 	})
 	suite.NoError(suite.handler.Attest(stream))
-}
-
-func TestEvictSuccessCase(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_a"
-	evictRequest := &node.EvictRequest{SpiffeID: spiffeIDToRemove}
-	ctx := context.Background()
-
-	// Set Evict expectations
-	suite.mockDataStore.EXPECT().
-		DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: spiffeIDToRemove}).
-		Return(&datastore.DeleteAttestedNodeResponse{}, nil)
-
-	evictResponse, err := suite.handler.Evict(ctx, evictRequest)
-	suite.NoError(err)
-	suite.True(evictResponse.DeleteSucceed, "Evict did not remove spiffeID: %q", spiffeIDToRemove)
-}
-
-func TestEvictFailureCase(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_a"
-	evictRequest := &node.EvictRequest{SpiffeID: spiffeIDToRemove}
-	ctx := context.Background()
-
-	// Set Evict expectations
-	suite.mockDataStore.EXPECT().
-		DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: spiffeIDToRemove}).
-		Return(&datastore.DeleteAttestedNodeResponse{}, errors.New("Some error"))
-
-	evictResponse, err := suite.handler.Evict(ctx, evictRequest)
-	suite.Error(err, "Evict should have failed")
-	suite.False(evictResponse.DeleteSucceed, "Evict shouldn't have removed entry %q", spiffeIDToRemove)
-}
-func TestListSuccessCase(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	ctx := context.Background()
-	nodesList := []*common.AttestedNode{
-		{SpiffeId: "spiffe://example.org/spire/agent/join_token/token_a"},
-		{SpiffeId: "spiffe://example.org/spire/agent/join_token/token_b"},
-	}
-
-	// Set List expectations
-	suite.mockDataStore.EXPECT().
-		ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{}).
-		Return(&datastore.ListAttestedNodesResponse{Nodes: nodesList}, nil)
-
-	listResponse, err := suite.handler.List(ctx, &common.Empty{})
-	suite.NoError(err)
-	suite.Len(listResponse.Nodes, 2)
-	suite.Equal(listResponse.Nodes, nodesList)
-}
-
-func TestListFailureCase(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	ctx := context.Background()
-	nodesList := []*common.AttestedNode{
-		{SpiffeId: "spiffe://example.org/spire/agent/join_token/token_a"},
-		{SpiffeId: "spiffe://example.org/spire/agent/join_token/token_b"},
-	}
-
-	// Set List expectations
-	suite.mockDataStore.EXPECT().
-		ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{}).
-		Return(&datastore.ListAttestedNodesResponse{Nodes: nodesList}, errors.New("Some error"))
-
-	listResponse, err := suite.handler.List(ctx, &common.Empty{})
-	suite.Error(err)
-	suite.Nil(listResponse)
 }
 
 func TestFetchX509SVID(t *testing.T) {

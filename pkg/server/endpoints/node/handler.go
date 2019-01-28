@@ -175,34 +175,6 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	return nil
 }
 
-//Evict removes (de-attest) node from attested nodes store
-func (h *Handler) Evict(ctx context.Context, evictRequest *node.EvictRequest) (*node.EvictResponse, error) {
-	spiffeID := evictRequest.GetSpiffeID()
-	err := h.deleteAttestationEntry(ctx, spiffeID)
-	if err != nil {
-		h.c.Log.Warnf("Fail to de-attested agent with ID: %q", spiffeID)
-		return &node.EvictResponse{
-			DeleteSucceed: false,
-		}, err
-	}
-
-	h.c.Log.Infof("Successfully de-attested agent with ID: %q", spiffeID)
-	return &node.EvictResponse{
-		DeleteSucceed: true,
-	}, nil
-}
-
-//List returns the list of attested nodes
-func (h *Handler) List(ctx context.Context, empty *common.Empty) (*node.ListResponse, error) {
-	dataStore := h.c.Catalog.DataStores()[0]
-	listAttestedNodesRequest := &datastore.ListAttestedNodesRequest{}
-	listAttestedNodesResponse, err := dataStore.ListAttestedNodes(ctx, listAttestedNodesRequest)
-	if err != nil {
-		return nil, err
-	}
-	return &node.ListResponse{Nodes: listAttestedNodesResponse.Nodes}, nil
-}
-
 //FetchX509SVID gets Workload, Agent certs and CA trust bundles.
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
@@ -356,9 +328,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
 	switch fullMethod {
 	// no authn/authz is required for attestation
-	case "/spire.api.node.Node/Attest",
-		"/spire.api.node.Node/List",
-		"/spire.api.node.Node/Evict":
+	case "/spire.api.node.Node/Attest":
 
 	// peer certificate required for SVID fetching
 	case "/spire.api.node.Node/FetchX509SVID",
@@ -546,18 +516,6 @@ func (h *Handler) createAttestationEntry(ctx context.Context,
 		return err
 	}
 
-	return nil
-}
-
-func (h *Handler) deleteAttestationEntry(ctx context.Context, baseSPIFFEID string) error {
-	dataStore := h.c.Catalog.DataStores()[0]
-	deleteRequest := &datastore.DeleteAttestedNodeRequest{
-		SpiffeId: baseSPIFFEID,
-	}
-
-	if _, err := dataStore.DeleteAttestedNode(ctx, deleteRequest); err != nil {
-		return err
-	}
 	return nil
 }
 

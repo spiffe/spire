@@ -7,22 +7,22 @@ import (
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/api/registration"
 
 	"golang.org/x/net/context"
 )
 
 type EvictConfig struct {
-	// Socket path of node API
-	NodeUDSPath string
+	// Socket path of registration API
+	RegistrationUDSPath string
 	// SpiffeID of the agent being evicted
 	SpiffeID string
 }
 
 // Validate will perform a basic validation on config fields
 func (c *EvictConfig) Validate() (err error) {
-	if c.NodeUDSPath == "" {
-		return errors.New("a socket path for node api is required")
+	if c.RegistrationUDSPath == "" {
+		return errors.New("a socket path for registration api is required")
 	}
 
 	if c.SpiffeID == "" {
@@ -63,13 +63,13 @@ func (c EvictCLI) Run(args []string) int {
 		return 1
 	}
 
-	nodeClient, err := util.NewNodeClient(config.NodeUDSPath)
+	registrationClient, err := util.NewRegistrationClient(config.RegistrationUDSPath)
 	if err != nil {
-		fmt.Printf("Error creating node client: %v \n", err)
+		fmt.Printf("Error creating registration client: %v \n", err)
 		return 1
 	}
 
-	evictResponse, err := nodeClient.Evict(ctx, &node.EvictRequest{SpiffeID: config.SpiffeID})
+	evictResponse, err := registrationClient.EvictAgent(ctx, &registration.EvictAgentRequest{SpiffeID: config.SpiffeID})
 	if err != nil {
 		fmt.Printf("Error de-attesting agent: %v \n", err)
 		return 1
@@ -87,7 +87,7 @@ func (EvictCLI) parseConfig(args []string) (*EvictConfig, error) {
 	f := flag.NewFlagSet("agent evict", flag.ContinueOnError)
 	c := &EvictConfig{}
 
-	f.StringVar(&c.NodeUDSPath, "nodeUDSPath", util.DefaultSocketPath, "Node API UDS path")
+	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the agent to evict (core identity)")
 
 	return c, f.Parse(args)

@@ -126,6 +126,24 @@ func (mr *MockRegistrationClientMockRecorder) DeleteFederatedBundle(arg0, arg1 i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFederatedBundle", reflect.TypeOf((*MockRegistrationClient)(nil).DeleteFederatedBundle), varargs...)
 }
 
+// EvictAgent mocks base method
+func (m *MockRegistrationClient) EvictAgent(arg0 context.Context, arg1 *registration.EvictAgentRequest, arg2 ...grpc.CallOption) (*registration.EvictAgentResponse, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "EvictAgent", varargs...)
+	ret0, _ := ret[0].(*registration.EvictAgentResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EvictAgent indicates an expected call of EvictAgent
+func (mr *MockRegistrationClientMockRecorder) EvictAgent(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EvictAgent", reflect.TypeOf((*MockRegistrationClient)(nil).EvictAgent), varargs...)
+}
+
 // FetchBundle mocks base method
 func (m *MockRegistrationClient) FetchBundle(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (*registration.Bundle, error) {
 	varargs := []interface{}{arg0, arg1}
@@ -196,6 +214,24 @@ func (m *MockRegistrationClient) FetchFederatedBundle(arg0 context.Context, arg1
 func (mr *MockRegistrationClientMockRecorder) FetchFederatedBundle(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
 	varargs := append([]interface{}{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchFederatedBundle", reflect.TypeOf((*MockRegistrationClient)(nil).FetchFederatedBundle), varargs...)
+}
+
+// ListAgents mocks base method
+func (m *MockRegistrationClient) ListAgents(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (*registration.ListAgentsResponse, error) {
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListAgents", varargs...)
+	ret0, _ := ret[0].(*registration.ListAgentsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAgents indicates an expected call of ListAgents
+func (mr *MockRegistrationClientMockRecorder) ListAgents(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAgents", reflect.TypeOf((*MockRegistrationClient)(nil).ListAgents), varargs...)
 }
 
 // ListByParentID mocks base method
@@ -394,6 +430,19 @@ func (mr *MockRegistrationServerMockRecorder) DeleteFederatedBundle(arg0, arg1 i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFederatedBundle", reflect.TypeOf((*MockRegistrationServer)(nil).DeleteFederatedBundle), arg0, arg1)
 }
 
+// EvictAgent mocks base method
+func (m *MockRegistrationServer) EvictAgent(arg0 context.Context, arg1 *registration.EvictAgentRequest) (*registration.EvictAgentResponse, error) {
+	ret := m.ctrl.Call(m, "EvictAgent", arg0, arg1)
+	ret0, _ := ret[0].(*registration.EvictAgentResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EvictAgent indicates an expected call of EvictAgent
+func (mr *MockRegistrationServerMockRecorder) EvictAgent(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EvictAgent", reflect.TypeOf((*MockRegistrationServer)(nil).EvictAgent), arg0, arg1)
+}
+
 // FetchBundle mocks base method
 func (m *MockRegistrationServer) FetchBundle(arg0 context.Context, arg1 *common.Empty) (*registration.Bundle, error) {
 	ret := m.ctrl.Call(m, "FetchBundle", arg0, arg1)
@@ -444,6 +493,19 @@ func (m *MockRegistrationServer) FetchFederatedBundle(arg0 context.Context, arg1
 // FetchFederatedBundle indicates an expected call of FetchFederatedBundle
 func (mr *MockRegistrationServerMockRecorder) FetchFederatedBundle(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchFederatedBundle", reflect.TypeOf((*MockRegistrationServer)(nil).FetchFederatedBundle), arg0, arg1)
+}
+
+// ListAgents mocks base method
+func (m *MockRegistrationServer) ListAgents(arg0 context.Context, arg1 *common.Empty) (*registration.ListAgentsResponse, error) {
+	ret := m.ctrl.Call(m, "ListAgents", arg0, arg1)
+	ret0, _ := ret[0].(*registration.ListAgentsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAgents indicates an expected call of ListAgents
+func (mr *MockRegistrationServerMockRecorder) ListAgents(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAgents", reflect.TypeOf((*MockRegistrationServer)(nil).ListAgents), arg0, arg1)
 }
 
 // ListByParentID mocks base method

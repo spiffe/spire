@@ -23,15 +23,12 @@
     - [AttestRequest](#spire.api.node.AttestRequest)
     - [AttestResponse](#spire.api.node.AttestResponse)
     - [Bundle](#spire.api.node.Bundle)
-    - [EvictRequest](#spire.api.node.EvictRequest)
-    - [EvictResponse](#spire.api.node.EvictResponse)
     - [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest)
     - [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse)
     - [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest)
     - [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse)
     - [JSR](#spire.api.node.JSR)
     - [JWTSVID](#spire.api.node.JWTSVID)
-    - [ListResponse](#spire.api.node.ListResponse)
     - [X509SVID](#spire.api.node.X509SVID)
     - [X509SVIDUpdate](#spire.api.node.X509SVIDUpdate)
     - [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry)
@@ -282,36 +279,6 @@ Trust domain bundle
 
 
 
-<a name="spire.api.node.EvictRequest"/>
-
-### EvictRequest
-Represents an evict request
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffeID | [string](#string) |  | Core identity of the agent to be de-attested. For example: &#34;spiffe://example.org/spire/agent/join_token/feea6adc-3254-4052-9a18-5eeb74bf214f&#34; |
-
-
-
-
-
-
-<a name="spire.api.node.EvictResponse"/>
-
-### EvictResponse
-Represents an evict response
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| deleteSucceed | [bool](#bool) |  | If the entry is successfully deleted, deleteSucceed will be true |
-
-
-
-
-
-
 <a name="spire.api.node.FetchJWTSVIDRequest"/>
 
 ### FetchJWTSVIDRequest
@@ -401,21 +368,6 @@ JWTSVID is a signed JWT-SVID with fields lifted out for convenience.
 | token | [string](#string) |  | JWT-SVID JWT token |
 | expires_at | [int64](#int64) |  | SVID expiration timestamp (seconds since Unix epoch) |
 | issued_at | [int64](#int64) |  | SVID issuance timestamp (seconds since Unix epoch) |
-
-
-
-
-
-
-<a name="spire.api.node.ListResponse"/>
-
-### ListResponse
-List response
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| nodes | [.spire.common.AttestedNode](#spire.api.node..spire.common.AttestedNode) | repeated | List of all attested nodes |
 
 
 
@@ -522,8 +474,6 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
 | Attest | [AttestRequest](#spire.api.node.AttestRequest) | [AttestResponse](#spire.api.node.AttestRequest) | Attest the node, get base node SVID. |
-| Evict | [EvictRequest](#spire.api.node.EvictRequest) | [EvictResponse](#spire.api.node.EvictRequest) | Evict removes (de-attest) an attestation entry from the attested nodes store |
-| List | [spire.common.Empty](#spire.common.Empty) | [ListResponse](#spire.common.Empty) | List all attested nodes |
 | FetchX509SVID | [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest) | [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDRequest) | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
 | FetchJWTSVID | [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest) | [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDRequest) | Fetches a signed JWT-SVID for a workload intended for a specific audience. |
 
