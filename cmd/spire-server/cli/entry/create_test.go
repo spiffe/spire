@@ -46,6 +46,32 @@ func TestCreateParseConfig(t *testing.T) {
 	assert.Equal(t, expectedEntries, entries)
 }
 
+func TestCreateNodeParseConfig(t *testing.T) {
+	c := &CreateConfig{
+		RegistrationUDSPath: cmdutil.DefaultSocketPath,
+		SpiffeID:            "spiffe://example.org/bar",
+		Node:                true,
+		Ttl:                 60,
+		Selectors:           StringsFlag{"aws:sg:sg-12345"},
+	}
+
+	entries, err := CreateCLI{}.parseConfig(c)
+	require.NoError(t, err)
+
+	expectedEntry := &common.RegistrationEntry{
+		ParentId: "spiffe://example.org/spire/server",
+		SpiffeId: "spiffe://example.org/bar",
+		Ttl:      60,
+		Selectors: []*common.Selector{
+			{Type: "aws", Value: "sg:sg-12345"},
+		},
+		Admin:    false,
+	}
+
+	expectedEntries := []*common.RegistrationEntry{expectedEntry}
+	assert.Equal(t, expectedEntries, entries)
+}
+
 func TestRegisterParseFile(t *testing.T) {
 	p := path.Join(util.ProjectRoot(), "test/fixture/registration/good.json")
 	entries, err := CreateCLI{}.parseFile(p)
