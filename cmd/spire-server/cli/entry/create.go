@@ -225,7 +225,7 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
 	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
 
-	f.BoolVar(&c.Node, "node", false, "If set, this entry will be applied to matching nodes rather than workloas")
+	f.BoolVar(&c.Node, "node", false, "If set, this entry will be applied to matching nodes rather than workloads")
 	f.BoolVar(&c.Admin, "admin", false, "If set, the SPIFFE ID in this entry will be granted access to the Registration API")
 	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 
