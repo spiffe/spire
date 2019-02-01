@@ -1,0 +1,3 @@
+# Ignore build tools and cache
+.build-*
+.cache
