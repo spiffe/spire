@@ -7,7 +7,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gofrs/uuid/v3"
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
