@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -31,7 +32,7 @@ func (c *EvictConfig) Validate() (err error) {
 	}
 
 	// make sure SPIFFE ID is well formed
-	c.SpiffeID, err = idutil.NormalizeSpiffeID(c.SpiffeID, idutil.AllowAny())
+	c.SpiffeID, err = idutil.NormalizeSpiffeID(c.SpiffeID, idutil.AllowAnyTrustDomainAgent())
 	if err != nil {
 		return err
 	}
@@ -39,13 +40,13 @@ func (c *EvictConfig) Validate() (err error) {
 	return nil
 }
 
-//EvictCLI command for node "de-attestation"
+//EvictCLI command for node eviction
 type EvictCLI struct {
-	RegistrationClient registration.RegistrationClient
+	registrationClient registration.RegistrationClient
 }
 
 func (EvictCLI) Synopsis() string {
-	return "De-attest an agent givent its spiffeID"
+	return "Evicts an attested agent given its SPIFFE ID"
 }
 
 func (c EvictCLI) Help() string {
@@ -59,33 +60,34 @@ func (c EvictCLI) Run(args []string) int {
 
 	config, err := c.parseConfig(args)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
 	if err = config.Validate(); err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	if c.RegistrationClient == nil {
-		c.RegistrationClient, err = util.NewRegistrationClient(config.RegistrationUDSPath)
+	if c.registrationClient == nil {
+		c.registrationClient, err = util.NewRegistrationClient(config.RegistrationUDSPath)
 		if err != nil {
-			fmt.Printf("Error creating registration client: %v \n", err)
+			fmt.Fprintf(os.Stderr, "Error establishing connection to the Registration API: %v \n", err)
 			return 1
 		}
 	}
-	evictResponse, err := c.RegistrationClient.EvictAgent(ctx, &registration.EvictAgentRequest{SpiffeID: config.SpiffeID})
+	evictResponse, err := c.registrationClient.EvictAgent(ctx, &registration.EvictAgentRequest{SpiffeID: config.SpiffeID})
 	if err != nil {
-		fmt.Printf("Error de-attesting agent: %v \n", err)
+		fmt.Fprintf(os.Stderr, "Error evicting agent: %v \n", err)
 		return 1
 	}
 
-	if !evictResponse.DeleteSucceed {
-		fmt.Println("Failed to de-attest agent")
+	if evictResponse.Node == nil {
+		fmt.Fprintln(os.Stderr, "Failed to evict agent")
+		return 1
 	}
 
-	fmt.Println("Agent de-attested successfully")
+	fmt.Println("Agent evicted successfully")
 	return 0
 }
 
@@ -94,7 +96,7 @@ func (EvictCLI) parseConfig(args []string) (*EvictConfig, error) {
 	c := &EvictConfig{}
 
 	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
-	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the agent to evict (core identity)")
+	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the agent to evict (agent identity)")
 
 	return c, f.Parse(args)
 }

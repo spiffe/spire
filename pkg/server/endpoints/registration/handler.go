@@ -536,44 +536,48 @@ func (h *Handler) FetchBundle(
 	}, nil
 }
 
-//Evict removes (de-attest) node from attested nodes store
+//EvictAgent removes a node from the attested nodes store
 func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.EvictAgentRequest) (*registration.EvictAgentResponse, error) {
 	spiffeID := evictRequest.GetSpiffeID()
-	err := h.deleteAttestationEntry(ctx, spiffeID)
+	deletedNode, err := h.deleteAttestedNode(ctx, spiffeID)
 	if err != nil {
-		h.Log.Warnf("Fail to de-attested agent with ID: %q", spiffeID)
-		return &registration.EvictAgentResponse{
-			DeleteSucceed: false,
-		}, err
+		h.Log.Warnf("Fail to evict agent with SPIFFE ID: %q", spiffeID)
+		return nil, err
 	}
 
-	h.Log.Infof("Successfully de-attested agent with ID: %q", spiffeID)
+	h.Log.Debugf("Successfully evicted agent with SPIFFE ID: %q", spiffeID)
 	return &registration.EvictAgentResponse{
-		DeleteSucceed: true,
+		Node: deletedNode,
 	}, nil
 }
 
-//List returns the list of attested nodes
-func (h *Handler) ListAgents(ctx context.Context, empty *common.Empty) (*registration.ListAgentsResponse, error) {
+//ListAgents returns the list of attested nodes
+func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgentsRequest) (*registration.ListAgentsResponse, error) {
 	dataStore := h.Catalog.DataStores()[0]
-	listAttestedNodesRequest := &datastore.ListAttestedNodesRequest{}
-	listAttestedNodesResponse, err := dataStore.ListAttestedNodes(ctx, listAttestedNodesRequest)
+	req := &datastore.ListAttestedNodesRequest{}
+	resp, err := dataStore.ListAttestedNodes(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return &registration.ListAgentsResponse{Nodes: listAttestedNodesResponse.Nodes}, nil
+	return &registration.ListAgentsResponse{Nodes: resp.Nodes}, nil
 }
 
-func (h *Handler) deleteAttestationEntry(ctx context.Context, baseSPIFFEID string) error {
-	dataStore := h.Catalog.DataStores()[0]
-	deleteRequest := &datastore.DeleteAttestedNodeRequest{
-		SpiffeId: baseSPIFFEID,
+func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*common.AttestedNode, error) {
+	if agentID == "" {
+		return nil, errors.New("empty agent ID")
 	}
 
-	if _, err := dataStore.DeleteAttestedNode(ctx, deleteRequest); err != nil {
-		return err
+	dataStore := h.Catalog.DataStores()[0]
+	req := &datastore.DeleteAttestedNodeRequest{
+		SpiffeId: agentID,
 	}
-	return nil
+
+	resp, err := dataStore.DeleteAttestedNode(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Node, nil
 }
 
 func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (bool, error) {

@@ -51,7 +51,7 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	tcpServer := e.createTCPServer(ctx)
 	udsServer := e.createUDSServer(ctx)
 
-	e.registerNodeAPI(tcpServer, udsServer)
+	e.registerNodeAPI(tcpServer)
 	e.registerRegistrationAPI(tcpServer, udsServer)
 
 	err := util.RunTasks(ctx,
@@ -89,7 +89,7 @@ func (e *endpoints) createUDSServer(ctx context.Context) *grpc.Server {
 
 // registerNodeAPI creates a Node API handler and registers it against
 // the provided gRPC server.
-func (e *endpoints) registerNodeAPI(tcpServer *grpc.Server, udsServer *grpc.Server) {
+func (e *endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 	n := node.NewHandler(node.HandlerConfig{
 		Log:         e.c.Log.WithField("subsystem_name", "node_api"),
 		Metrics:     e.c.Metrics,
@@ -98,7 +98,6 @@ func (e *endpoints) registerNodeAPI(tcpServer *grpc.Server, udsServer *grpc.Serv
 		ServerCA:    e.c.ServerCA,
 	})
 	node_pb.RegisterNodeServer(tcpServer, n)
-	node_pb.RegisterNodeServer(udsServer, n)
 }
 
 // registerRegistrationAPI creates a Registration API handler and registers
