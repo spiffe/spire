@@ -15,7 +15,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
   - [Joining to the SPIRE server with a join token](#joining-to-the-spire-server-with-a-join-token)
   - [Workload Registration](#workload-registration)
   - [Workload SVID Retrieval](#workload-svid-retrieval)
-  - [Using SPIRE with Envoy](#using-spire-with-envoy)
+- [Using SPIRE with Envoy](#using-spire-with-envoy)
 - [Getting help](#getting-help)
 - [Community](#community)
 - [Roadmap](#roadmap)
@@ -201,11 +201,12 @@ Optionally, you may write the SVID and key to disk with `-write` in order to exa
     #          16:87:b2:97:2f:98:ed:80:2a:5e:62:f4:7f:87:82:ff:67:96:
     #          e6:2e:fa:a1
 
-## Using SPIRE with Envoy
+# Using SPIRE with Envoy
 
 SPIRE provides a **beta** implementation of the [Envoy](https://envoyproxy.io)
-[Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/secret) (SDS). SDS
-support can be enabled per [SPIRE Agent](/doc/spire_agent.md#agent-configuration-file).
+[Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/secret)
+(SDS). SDS can be used to transparently install and rotate TLS certificates and
+trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/spire_agent.md#agent-configuration-file) for more information.
 
 # Getting Help
 
