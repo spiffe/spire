@@ -173,7 +173,7 @@ When enabled, SDS is served over the same Unix domain socket as the Workload API
 resources containing X.509-SVIDs can be fetched using the SPIFFE ID of the workload as the resource name (e.g. `spiffe://example.org/database`).
 
 [`auth.CertificateValidationContext`](https://www.envoyproxy.io/docs/envoy/latest/api-v2/api/v2/auth/cert.proto#auth-certificatevalidationcontext)
-resources containing trusterd CA certificates from the trust bundle can be fetched using the SPIFFE ID of the desired trust domain as the resource name (e.g. `spiffe://example.org`).
+resources containing trusted CA certificates can be fetched using the SPIFFE ID of the desired trust domain as the resource name (e.g. `spiffe://example.org`).
 
 ## Further reading
 
