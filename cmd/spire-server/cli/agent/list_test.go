@@ -15,15 +15,19 @@ type ListTestSuite struct {
 	suite.Suite
 	cli        *ListCLI
 	mockClient *mock_registration.MockRegistrationClient
+	mockCtrl   *gomock.Controller
 }
 
 func (s *ListTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(s.T())
-	defer mockCtrl.Finish()
-	s.mockClient = mock_registration.NewMockRegistrationClient(mockCtrl)
+	s.mockCtrl = gomock.NewController(s.T())
+	s.mockClient = mock_registration.NewMockRegistrationClient(s.mockCtrl)
 	s.cli = &ListCLI{
-		RegistrationClient: s.mockClient,
+		registrationClient: s.mockClient,
 	}
+}
+
+func (s *ListTestSuite) TearDownTest() {
+	s.mockCtrl.Finish()
 }
 
 func TestListTestSuite(t *testing.T) {
@@ -31,7 +35,7 @@ func TestListTestSuite(t *testing.T) {
 }
 
 func (s *ListTestSuite) TestRun() {
-	req := &common.Empty{}
+	req := &registration.ListAgentsRequest{}
 	resp := &registration.ListAgentsResponse{
 		Nodes: []*common.AttestedNode{
 			&common.AttestedNode{SpiffeId: "spiffe://example.org/spire/agent/join_token/token_a"},
@@ -39,20 +43,20 @@ func (s *ListTestSuite) TestRun() {
 	}
 	s.mockClient.EXPECT().ListAgents(gomock.Any(), req).Return(resp, nil)
 	s.Require().Equal(0, s.cli.Run([]string{}))
-	s.Assert().Equal(resp.Nodes, s.cli.NodeList)
+	s.Assert().Equal(resp.Nodes, s.cli.nodeList)
 }
 
 func (s *ListTestSuite) TestRunWithNoAgentsInDatastore() {
-	req := &common.Empty{}
+	req := &registration.ListAgentsRequest{}
 	resp := &registration.ListAgentsResponse{}
 	s.mockClient.EXPECT().ListAgents(gomock.Any(), req).Return(resp, nil)
 	s.Require().Equal(0, s.cli.Run([]string{}))
-	s.Assert().Equal(resp.Nodes, s.cli.NodeList)
+	s.Assert().Equal(resp.Nodes, s.cli.nodeList)
 }
 
 func (s *ListTestSuite) TestRunExitsWithNonZeroCodeOnFailure() {
-	req := &common.Empty{}
+	req := &registration.ListAgentsRequest{}
 	s.mockClient.EXPECT().ListAgents(gomock.Any(), req).Return(nil, errors.New("Some error"))
 	s.Require().Equal(1, s.cli.Run([]string{}))
-	s.Assert().Nil(s.cli.NodeList)
+	s.Assert().Nil(s.cli.nodeList)
 }

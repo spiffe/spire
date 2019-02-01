@@ -791,17 +791,17 @@ func (s *HandlerSuite) TestEvictAgent() {
 	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_a"
 	evictRequest := &registration.EvictAgentRequest{SpiffeID: spiffeIDToRemove}
 	ctx := context.Background()
-	s.createAttestedNode(ctx, spiffeIDToRemove)
+	node := s.createAttestedNode(spiffeIDToRemove)
 	evictResponse, err := s.handler.EvictAgent(ctx, evictRequest)
-	s.NoError(err)
-	s.True(evictResponse.DeleteSucceed, "Evict did not remove spiffeID: %q", spiffeIDToRemove)
+	s.Require().NoError(err)
+	s.Equal(evictResponse.Node, node, "Evict did not remove spiffeID: %q", spiffeIDToRemove)
 }
 
 func (s *HandlerSuite) TestEvictAgentWithNonExistentId() {
 	spiffeIDToAdd := "spiffe://example.org/spire/agent/join_token/token_a"
 	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_b"
 	ctx := context.Background()
-	s.createAttestedNode(ctx, spiffeIDToAdd)
+	s.createAttestedNode(spiffeIDToAdd)
 	evictRequest := &registration.EvictAgentRequest{SpiffeID: spiffeIDToRemove}
 
 	// Trying to remove a non existent spiffeID
@@ -818,12 +818,12 @@ func (s *HandlerSuite) TestListAgents() {
 		{SpiffeId: spiffeID1},
 		{SpiffeId: spiffeID2},
 	}
-	s.createAttestedNode(ctx, spiffeID1)
-	s.createAttestedNode(ctx, spiffeID2)
+	s.createAttestedNode(spiffeID1)
+	s.createAttestedNode(spiffeID2)
 
 	// Listing agents
-	listResponse, err := s.handler.ListAgents(ctx, &common.Empty{})
-	s.NoError(err)
+	listResponse, err := s.handler.ListAgents(ctx, &registration.ListAgentsRequest{})
+	s.Require().NoError(err)
 	s.Len(listResponse.Nodes, 2)
 	s.Equal(listResponse.Nodes, expectedNodeList)
 }
@@ -833,18 +833,19 @@ func (s *HandlerSuite) TestListWithNoAgents() {
 	ctx := context.Background()
 
 	// Listing agents
-	listResponse, err := s.handler.ListAgents(ctx, &common.Empty{})
-	s.NoError(err)
+	listResponse, err := s.handler.ListAgents(ctx, &registration.ListAgentsRequest{})
+	s.Require().NoError(err)
 	s.Len(listResponse.Nodes, 0)
 }
 
-func (s *HandlerSuite) createAttestedNode(ctx context.Context, spiffeID string) {
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
+func (s *HandlerSuite) createAttestedNode(spiffeID string) *common.AttestedNode {
+	createResponse, err := s.ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
 		Node: &common.AttestedNode{
 			SpiffeId: spiffeID,
 		},
 	})
-	s.Nil(err, "Failed to create attested node")
+	s.Require().NoError(err, "Failed to create attested node")
+	return createResponse.Node
 }
 
 func (s *HandlerSuite) TestAuthorizeCall() {

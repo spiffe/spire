@@ -80,6 +80,7 @@
     - [FederatedBundle](#spire.api.registration.FederatedBundle)
     - [FederatedBundleID](#spire.api.registration.FederatedBundleID)
     - [JoinToken](#spire.api.registration.JoinToken)
+    - [ListAgentsRequest](#spire.api.registration.ListAgentsRequest)
     - [ListAgentsResponse](#spire.api.registration.ListAgentsResponse)
     - [ParentID](#spire.api.registration.ParentID)
     - [RegistrationEntryID](#spire.api.registration.RegistrationEntryID)
@@ -1212,7 +1213,7 @@ Represents an evict request
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| spiffeID | [string](#string) |  | Core identity of the agent to be de-attested. For example: &#34;spiffe://example.org/spire/agent/join_token/feea6adc-3254-4052-9a18-5eeb74bf214f&#34; |
+| spiffeID | [string](#string) |  | Agent identity of the node to be evicted. For example: &#34;spiffe://example.org/spire/agent/join_token/feea6adc-3254-4052-9a18-5eeb74bf214f&#34; |
 
 
 
@@ -1227,7 +1228,7 @@ Represents an evict response
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| deleteSucceed | [bool](#bool) |  | If the entry is successfully deleted, deleteSucceed will be true |
+| node | [.spire.common.AttestedNode](#spire.api.registration..spire.common.AttestedNode) |  | Node contains the evicted node |
 
 
 
@@ -1276,6 +1277,16 @@ JoinToken message is used for registering a new token
 | ----- | ---- | ----- | ----------- |
 | token | [string](#string) |  | The join token. If not set, one will be generated |
 | ttl | [int32](#int32) |  | TTL in seconds |
+
+
+
+
+
+
+<a name="spire.api.registration.ListAgentsRequest"/>
+
+### ListAgentsRequest
+Represents a ListAgents request
 
 
 
@@ -1399,8 +1410,8 @@ associated with the bundle (e.g. registration entries).
 | DeleteFederatedBundle | [DeleteFederatedBundleRequest](#spire.api.registration.DeleteFederatedBundleRequest) | [spire.common.Empty](#spire.api.registration.DeleteFederatedBundleRequest) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 | CreateJoinToken | [JoinToken](#spire.api.registration.JoinToken) | [JoinToken](#spire.api.registration.JoinToken) | Create a new join token |
 | FetchBundle | [spire.common.Empty](#spire.common.Empty) | [Bundle](#spire.common.Empty) | Retrieves the CA bundle. |
-| EvictAgent | [EvictAgentRequest](#spire.api.registration.EvictAgentRequest) | [EvictAgentResponse](#spire.api.registration.EvictAgentRequest) | Evict removes (de-attest) an attestation entry from the attested nodes store |
-| ListAgents | [spire.common.Empty](#spire.common.Empty) | [ListAgentsResponse](#spire.common.Empty) | List all attested nodes |
+| EvictAgent | [EvictAgentRequest](#spire.api.registration.EvictAgentRequest) | [EvictAgentResponse](#spire.api.registration.EvictAgentRequest) | EvictAgent removes an attestation entry from the attested nodes store |
+| ListAgents | [ListAgentsRequest](#spire.api.registration.ListAgentsRequest) | [ListAgentsResponse](#spire.api.registration.ListAgentsRequest) | ListAgents will list all attested nodes |
 
  
 

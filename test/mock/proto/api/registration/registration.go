@@ -217,7 +217,7 @@ func (mr *MockRegistrationClientMockRecorder) FetchFederatedBundle(arg0, arg1 in
 }
 
 // ListAgents mocks base method
-func (m *MockRegistrationClient) ListAgents(arg0 context.Context, arg1 *common.Empty, arg2 ...grpc.CallOption) (*registration.ListAgentsResponse, error) {
+func (m *MockRegistrationClient) ListAgents(arg0 context.Context, arg1 *registration.ListAgentsRequest, arg2 ...grpc.CallOption) (*registration.ListAgentsResponse, error) {
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
@@ -496,7 +496,7 @@ func (mr *MockRegistrationServerMockRecorder) FetchFederatedBundle(arg0, arg1 in
 }
 
 // ListAgents mocks base method
-func (m *MockRegistrationServer) ListAgents(arg0 context.Context, arg1 *common.Empty) (*registration.ListAgentsResponse, error) {
+func (m *MockRegistrationServer) ListAgents(arg0 context.Context, arg1 *registration.ListAgentsRequest) (*registration.ListAgentsResponse, error) {
 	ret := m.ctrl.Call(m, "ListAgents", arg0, arg1)
 	ret0, _ := ret[0].(*registration.ListAgentsResponse)
 	ret1, _ := ret[1].(error)

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/spiffe/spire/proto/common"
+
 	"github.com/spiffe/spire/proto/api/registration"
 
 	"github.com/golang/mock/gomock"
@@ -15,15 +17,19 @@ type EvictTestSuite struct {
 	suite.Suite
 	cli        *EvictCLI
 	mockClient *mock_registration.MockRegistrationClient
+	mockCtrl   *gomock.Controller
 }
 
 func (s *EvictTestSuite) SetupTest() {
-	mockCtrl := gomock.NewController(s.T())
-	defer mockCtrl.Finish()
-	s.mockClient = mock_registration.NewMockRegistrationClient(mockCtrl)
+	s.mockCtrl = gomock.NewController(s.T())
+	s.mockClient = mock_registration.NewMockRegistrationClient(s.mockCtrl)
 	s.cli = &EvictCLI{
-		RegistrationClient: s.mockClient,
+		registrationClient: s.mockClient,
 	}
+}
+
+func (s *EvictTestSuite) TearDownTest() {
+	s.mockCtrl.Finish()
 }
 
 func TestEvictTestSuite(t *testing.T) {
@@ -39,14 +45,14 @@ func (s *EvictTestSuite) TestRun() {
 	}
 
 	resp := &registration.EvictAgentResponse{
-		DeleteSucceed: true,
+		Node: &common.AttestedNode{SpiffeId: spiffeIDToRemove},
 	}
 
 	s.mockClient.EXPECT().EvictAgent(gomock.Any(), req).Return(resp, nil)
 	s.Require().Equal(0, s.cli.Run(args))
 }
 
-func (s *EvictTestSuite) TestRunExitsWithNonZeroCodeOnFailure() {
+func (s *EvictTestSuite) TestRunExitsWithNonZeroCodeOnError() {
 	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_a"
 	args := []string{"-spiffeID", spiffeIDToRemove}
 
@@ -54,11 +60,20 @@ func (s *EvictTestSuite) TestRunExitsWithNonZeroCodeOnFailure() {
 		SpiffeID: spiffeIDToRemove,
 	}
 
-	resp := &registration.EvictAgentResponse{
-		DeleteSucceed: false,
-	}
+	s.mockClient.EXPECT().EvictAgent(gomock.Any(), req).Return(nil, errors.New("Some error"))
+	s.Require().Equal(1, s.cli.Run(args))
+}
 
-	s.mockClient.EXPECT().EvictAgent(gomock.Any(), req).Return(resp, errors.New("Some error"))
+func (s *EvictTestSuite) TestRunExitsWithNonZeroCodeOnDeleteFailed() {
+	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_a"
+	args := []string{"-spiffeID", spiffeIDToRemove}
+
+	req := &registration.EvictAgentRequest{
+		SpiffeID: spiffeIDToRemove,
+	}
+	resp := &registration.EvictAgentResponse{}
+
+	s.mockClient.EXPECT().EvictAgent(gomock.Any(), req).Return(resp, nil)
 	s.Require().Equal(1, s.cli.Run(args))
 }
 
