@@ -10,6 +10,7 @@
 /artifacts
 /releases
 
+
 cmd/spire-agent/spire-agent
 cmd/spire-server/spire-server
 
@@ -27,6 +28,10 @@ functional/tools/workload/workload
 proto/test/dummy/dummyplugin/dummyplugin
 
 tools/protoc-gen-spireplugin/protoc-gen-spireplugin
+
+
+# Travis CI encrypted files decryption paths
+.travis/spire-travis-ci.json
 
 # Editor specific configuration
 .idea
