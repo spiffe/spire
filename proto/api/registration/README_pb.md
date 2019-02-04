@@ -58,6 +58,7 @@
 
 - [common.proto](#common.proto)
     - [AttestationData](#spire.common.AttestationData)
+    - [AttestedNode](#spire.common.AttestedNode)
     - [Bundle](#spire.common.Bundle)
     - [Certificate](#spire.common.Certificate)
     - [Empty](#spire.common.Empty)
@@ -74,9 +75,13 @@
 - [registration.proto](#registration.proto)
     - [Bundle](#spire.api.registration.Bundle)
     - [DeleteFederatedBundleRequest](#spire.api.registration.DeleteFederatedBundleRequest)
+    - [EvictAgentRequest](#spire.api.registration.EvictAgentRequest)
+    - [EvictAgentResponse](#spire.api.registration.EvictAgentResponse)
     - [FederatedBundle](#spire.api.registration.FederatedBundle)
     - [FederatedBundleID](#spire.api.registration.FederatedBundleID)
     - [JoinToken](#spire.api.registration.JoinToken)
+    - [ListAgentsRequest](#spire.api.registration.ListAgentsRequest)
+    - [ListAgentsResponse](#spire.api.registration.ListAgentsResponse)
     - [ParentID](#spire.api.registration.ParentID)
     - [RegistrationEntryID](#spire.api.registration.RegistrationEntryID)
     - [SpiffeID](#spire.api.registration.SpiffeID)
@@ -1006,6 +1011,24 @@ A type which contains attestation data for specific platform.
 
 
 
+<a name="spire.common.AttestedNode"/>
+
+### AttestedNode
+Represents an attested SPIRE agent
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  | Node SPIFFE ID |
+| attestation_data_type | [string](#string) |  | Attestation data type |
+| cert_serial_number | [string](#string) |  | Node certificate serial number |
+| cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
+
+
+
+
+
+
 <a name="spire.common.Bundle"/>
 
 ### Bundle
@@ -1183,6 +1206,36 @@ CA Bundle of the server
 
 
 
+<a name="spire.api.registration.EvictAgentRequest"/>
+
+### EvictAgentRequest
+Represents an evict request
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffeID | [string](#string) |  | Agent identity of the node to be evicted. For example: &#34;spiffe://example.org/spire/agent/join_token/feea6adc-3254-4052-9a18-5eeb74bf214f&#34; |
+
+
+
+
+
+
+<a name="spire.api.registration.EvictAgentResponse"/>
+
+### EvictAgentResponse
+Represents an evict response
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| node | [.spire.common.AttestedNode](#spire.api.registration..spire.common.AttestedNode) |  | Node contains the evicted node |
+
+
+
+
+
+
 <a name="spire.api.registration.FederatedBundle"/>
 
 ### FederatedBundle
@@ -1225,6 +1278,31 @@ JoinToken message is used for registering a new token
 | ----- | ---- | ----- | ----------- |
 | token | [string](#string) |  | The join token. If not set, one will be generated |
 | ttl | [int32](#int32) |  | TTL in seconds |
+
+
+
+
+
+
+<a name="spire.api.registration.ListAgentsRequest"/>
+
+### ListAgentsRequest
+Represents a ListAgents request
+
+
+
+
+
+
+<a name="spire.api.registration.ListAgentsResponse"/>
+
+### ListAgentsResponse
+Represents a ListAgents response
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| nodes | [.spire.common.AttestedNode](#spire.api.registration..spire.common.AttestedNode) | repeated | List of all attested agents |
 
 
 
@@ -1333,6 +1411,8 @@ associated with the bundle (e.g. registration entries).
 | DeleteFederatedBundle | [DeleteFederatedBundleRequest](#spire.api.registration.DeleteFederatedBundleRequest) | [spire.common.Empty](#spire.api.registration.DeleteFederatedBundleRequest) | Delete a particular Federated Bundle. Used to destroy inter-domain trust. |
 | CreateJoinToken | [JoinToken](#spire.api.registration.JoinToken) | [JoinToken](#spire.api.registration.JoinToken) | Create a new join token |
 | FetchBundle | [spire.common.Empty](#spire.common.Empty) | [Bundle](#spire.common.Empty) | Retrieves the CA bundle. |
+| EvictAgent | [EvictAgentRequest](#spire.api.registration.EvictAgentRequest) | [EvictAgentResponse](#spire.api.registration.EvictAgentRequest) | EvictAgent removes an attestation entry from the attested nodes store |
+| ListAgents | [ListAgentsRequest](#spire.api.registration.ListAgentsRequest) | [ListAgentsResponse](#spire.api.registration.ListAgentsRequest) | ListAgents will list all attested nodes |
 
  
 

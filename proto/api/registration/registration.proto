@@ -76,13 +76,37 @@ message JoinToken {
     int32 ttl = 2;
 }
 
-// CA Bundle of the server  
+// CA Bundle of the server
 message Bundle {
     // ASN.1 DER data of the bundle (deprecated).
     bytes DEPRECATED_ca_certs = 1;
 
     // Common bundle format
     common.Bundle bundle = 2;
+}
+
+// Represents a ListAgents request
+message ListAgentsRequest {
+
+}
+
+// Represents a ListAgents response
+message ListAgentsResponse {
+    // List of all attested agents
+    repeated spire.common.AttestedNode nodes = 1;
+}
+
+// Represents an evict request
+message EvictAgentRequest {
+    // Agent identity of the node to be evicted.
+    // For example: "spiffe://example.org/spire/agent/join_token/feea6adc-3254-4052-9a18-5eeb74bf214f"
+    string spiffeID = 1;
+}
+
+// Represents an evict response
+message EvictAgentResponse {
+    // Node contains the evicted node
+    spire.common.AttestedNode node = 1;
 }
 
 service Registration {
@@ -131,6 +155,11 @@ service Registration {
     // Create a new join token
     rpc CreateJoinToken(JoinToken) returns (JoinToken);
 
-    // Retrieves the CA bundle. 
+    // Retrieves the CA bundle.
     rpc FetchBundle(spire.common.Empty) returns (Bundle);
+
+    // EvictAgent removes an attestation entry from the attested nodes store
+    rpc EvictAgent(EvictAgentRequest) returns (EvictAgentResponse);
+    // ListAgents will list all attested nodes
+    rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
 }

@@ -101,26 +101,12 @@ message GetNodeSelectorsResponse {
 // AttestedNode Messages
 /////////////////////////////////////////////////////////////////////////////
 
-message AttestedNode {
-    // Node SPIFFE ID
-    string spiffe_id = 1;
-
-    // Attestation data type
-    string attestation_data_type = 2;
-
-    // Node certificate serial number
-    string cert_serial_number = 3;
-
-    // Node certificate not_after (seconds since unix epoch)
-    int64 cert_not_after = 4;
-}
-
 message CreateAttestedNodeRequest {
-    AttestedNode node = 1;
+    spire.common.AttestedNode node = 1;
 }
 
 message CreateAttestedNodeResponse {
-    AttestedNode node = 1;
+    spire.common.AttestedNode node = 1;
 }
 
 message FetchAttestedNodeRequest {
@@ -128,7 +114,7 @@ message FetchAttestedNodeRequest {
 }
 
 message FetchAttestedNodeResponse {
-    AttestedNode node = 1;
+    spire.common.AttestedNode node = 1;
 }
 
 message ListAttestedNodesRequest {
@@ -137,7 +123,7 @@ message ListAttestedNodesRequest {
 }
 
 message ListAttestedNodesResponse {
-    repeated AttestedNode nodes = 1;
+    repeated spire.common.AttestedNode nodes = 1;
     Pagination pagination = 2;
 }
 
@@ -150,7 +136,7 @@ message UpdateAttestedNodeRequest {
 }
 
 message UpdateAttestedNodeResponse {
-    AttestedNode node = 1;
+    spire.common.AttestedNode node = 1;
 }
 
 message DeleteAttestedNodeRequest {
@@ -158,7 +144,7 @@ message DeleteAttestedNodeRequest {
 }
 
 message DeleteAttestedNodeResponse {
-    AttestedNode node = 1;
+    spire.common.AttestedNode node = 1;
 }
 
 

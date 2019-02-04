@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gofrs/uuid/v3"
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
@@ -534,6 +534,50 @@ func (h *Handler) FetchBundle(
 		DEPRECATEDCaCerts: bundleutil.RootCAsDERFromBundleProto(resp.Bundle),
 		Bundle:            resp.Bundle,
 	}, nil
+}
+
+//EvictAgent removes a node from the attested nodes store
+func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.EvictAgentRequest) (*registration.EvictAgentResponse, error) {
+	spiffeID := evictRequest.GetSpiffeID()
+	deletedNode, err := h.deleteAttestedNode(ctx, spiffeID)
+	if err != nil {
+		h.Log.Warnf("Fail to evict agent with SPIFFE ID: %q", spiffeID)
+		return nil, err
+	}
+
+	h.Log.Debugf("Successfully evicted agent with SPIFFE ID: %q", spiffeID)
+	return &registration.EvictAgentResponse{
+		Node: deletedNode,
+	}, nil
+}
+
+//ListAgents returns the list of attested nodes
+func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgentsRequest) (*registration.ListAgentsResponse, error) {
+	dataStore := h.Catalog.DataStores()[0]
+	req := &datastore.ListAttestedNodesRequest{}
+	resp, err := dataStore.ListAttestedNodes(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return &registration.ListAgentsResponse{Nodes: resp.Nodes}, nil
+}
+
+func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*common.AttestedNode, error) {
+	if agentID == "" {
+		return nil, errors.New("empty agent ID")
+	}
+
+	dataStore := h.Catalog.DataStores()[0]
+	req := &datastore.DeleteAttestedNodeRequest{
+		SpiffeId: agentID,
+	}
+
+	resp, err := dataStore.DeleteAttestedNode(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Node, nil
 }
 
 func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (bool, error) {
