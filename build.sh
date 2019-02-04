@@ -160,9 +160,14 @@ build_binaries() {
 	make build
 }
 
+build_test() {
+	make test
+}
+
+
 ## Run coverate tests and send to coveralls if this CI build
 ## has been called by cron.
-build_test() {
+build_race_test() {
 	eval $(build_env)
 
 	if [[ -n ${COVERALLS_TOKEN} ]]; then
@@ -177,7 +182,7 @@ build_test() {
 		gocoverutil -coverprofile=test_results/cover.report merge test_results/*.out
 		goveralls -coverprofile=test_results/cover.report -service=ci
 	else
-		make test
+		make race-test
 	fi
 }
 
@@ -280,6 +285,7 @@ case "$1" in
 	protobuf_verify) build_protobuf_verify ;;
 	binaries|bin) build_binaries $2 ;;
 	test) build_test ;;
+	race-test) build_race_test ;;
 	integration) build_integration ;;
 	artifact) build_artifact ;;
 	release) build_release ;;

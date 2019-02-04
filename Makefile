@@ -18,6 +18,8 @@ docker_volume_gopath := $(shell echo $${GOPATH}/pkg/mod):/root/go/pkg/mod
 docker_volume_spire := $(shell echo $${PWD}):/root/spire
 docker_image = spire-dev:latest
 gopath := $(shell go env GOPATH)
+goversion := $(shell go version | cut -f3 -d' ')
+goversion-required := $(shell cat .go-version)
 gittag := $(shell git tag --points-at HEAD)
 gitdirty := $(shell git status -s)
 # don't provide the git tag if the git status is dirty.
@@ -35,20 +37,23 @@ utils = github.com/golang/protobuf/protoc-gen-go \
 		github.com/spiffe/spire/tools/protoc-gen-spireplugin
 
 # Help message settings
-cyan := $(shell tput setaf 6)
-reset := $(shell tput sgr0)
-bold  := $(shell tput bold)
+cyan := $(shell which tput > /dev/null && tput setaf 6 || echo "")
+reset := $(shell which tput > /dev/null && tput sgr0 || echo "")
+bold  := $(shell which tput > /dev/null && tput bold || echo "")
 target_max_char=25
 
 # Makefile options
-.PHONY: all utils container-push cmd build test race-test clean functional vendor help
+.PHONY: all utils container-push cmd go-check build test race-test clean functional vendor help
 
+# Makes sure the go version matches the expected version
+go-check:
+	@[ "$(goversion)" = "go$(goversion-required)" ] || (echo "Expecting go$(goversion-required); got $(goversion)" 1>&2 && exit 1)
 
 # Make targets
 ##@ Building
 build: $(binary_dirs) ## Build SPIRE binaries
 
-$(binary_dirs): noop
+$(binary_dirs): go-check 
 	$(docker) /bin/sh -c "cd $@; go build -ldflags $(ldflags)"
 
 all: $(container) build test ## Build and run tests
@@ -56,7 +61,7 @@ all: $(container) build test ## Build and run tests
 
 ##@ Testing
 test: ## Run tests
-	$(docker) go test -race -timeout 8m github.com/spiffe/spire/...
+	$(docker) go test github.com/spiffe/spire/...
 
 race-test: ## Run race tests
 	$(docker) go test -race github.com/spiffe/spire/...
@@ -88,6 +93,18 @@ container-push: ## Push docker container image
 cmd: ## Opens a shell in docker container
 	$(docker) /bin/bash
 
+##@ SPIRE images
+
+.PHONY: spire-images
+spire-images: spire-server-image spire-agent-image ## Builds SPIRE Server and Agent docker images
+
+.PHONY: spire-server-image
+spire-server-image: Dockerfile.server ## Builds SPIRE Server docker image
+	docker build --build-arg goversion=$(goversion-required) -t spire-server -f Dockerfile.server .
+
+.PHONY: spire-agent-image
+spire-agent-image: Dockerfile.agent ## Builds SPIRE Agent docker image
+	docker build --build-arg goversion=$(goversion-required) -t spire-agent -f Dockerfile.agent .
 
 ##@ Others
 utils: $(utils) ## Go-get SPIRE utils
