@@ -39,7 +39,7 @@ func (m *Bundle) Reset()         { *m = Bundle{} }
 func (m *Bundle) String() string { return proto.CompactTextString(m) }
 func (*Bundle) ProtoMessage()    {}
 func (*Bundle) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{0}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{0}
 }
 func (m *Bundle) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Bundle.Unmarshal(m, b)
@@ -92,7 +92,7 @@ func (m *X509SVID) Reset()         { *m = X509SVID{} }
 func (m *X509SVID) String() string { return proto.CompactTextString(m) }
 func (*X509SVID) ProtoMessage()    {}
 func (*X509SVID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{1}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{1}
 }
 func (m *X509SVID) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_X509SVID.Unmarshal(m, b)
@@ -160,7 +160,7 @@ func (m *X509SVIDUpdate) Reset()         { *m = X509SVIDUpdate{} }
 func (m *X509SVIDUpdate) String() string { return proto.CompactTextString(m) }
 func (*X509SVIDUpdate) ProtoMessage()    {}
 func (*X509SVIDUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{2}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{2}
 }
 func (m *X509SVIDUpdate) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_X509SVIDUpdate.Unmarshal(m, b)
@@ -233,7 +233,7 @@ func (m *JSR) Reset()         { *m = JSR{} }
 func (m *JSR) String() string { return proto.CompactTextString(m) }
 func (*JSR) ProtoMessage()    {}
 func (*JSR) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{3}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{3}
 }
 func (m *JSR) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_JSR.Unmarshal(m, b)
@@ -291,7 +291,7 @@ func (m *JWTSVID) Reset()         { *m = JWTSVID{} }
 func (m *JWTSVID) String() string { return proto.CompactTextString(m) }
 func (*JWTSVID) ProtoMessage()    {}
 func (*JWTSVID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{4}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{4}
 }
 func (m *JWTSVID) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_JWTSVID.Unmarshal(m, b)
@@ -349,7 +349,7 @@ func (m *AttestRequest) Reset()         { *m = AttestRequest{} }
 func (m *AttestRequest) String() string { return proto.CompactTextString(m) }
 func (*AttestRequest) ProtoMessage()    {}
 func (*AttestRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{5}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{5}
 }
 func (m *AttestRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AttestRequest.Unmarshal(m, b)
@@ -409,7 +409,7 @@ func (m *AttestResponse) Reset()         { *m = AttestResponse{} }
 func (m *AttestResponse) String() string { return proto.CompactTextString(m) }
 func (*AttestResponse) ProtoMessage()    {}
 func (*AttestResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{6}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{6}
 }
 func (m *AttestResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AttestResponse.Unmarshal(m, b)
@@ -456,7 +456,7 @@ func (m *FetchX509SVIDRequest) Reset()         { *m = FetchX509SVIDRequest{} }
 func (m *FetchX509SVIDRequest) String() string { return proto.CompactTextString(m) }
 func (*FetchX509SVIDRequest) ProtoMessage()    {}
 func (*FetchX509SVIDRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{7}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{7}
 }
 func (m *FetchX509SVIDRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchX509SVIDRequest.Unmarshal(m, b)
@@ -498,7 +498,7 @@ func (m *FetchX509SVIDResponse) Reset()         { *m = FetchX509SVIDResponse{} }
 func (m *FetchX509SVIDResponse) String() string { return proto.CompactTextString(m) }
 func (*FetchX509SVIDResponse) ProtoMessage()    {}
 func (*FetchX509SVIDResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{8}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{8}
 }
 func (m *FetchX509SVIDResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchX509SVIDResponse.Unmarshal(m, b)
@@ -537,7 +537,7 @@ func (m *FetchJWTSVIDRequest) Reset()         { *m = FetchJWTSVIDRequest{} }
 func (m *FetchJWTSVIDRequest) String() string { return proto.CompactTextString(m) }
 func (*FetchJWTSVIDRequest) ProtoMessage()    {}
 func (*FetchJWTSVIDRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{9}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{9}
 }
 func (m *FetchJWTSVIDRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchJWTSVIDRequest.Unmarshal(m, b)
@@ -576,7 +576,7 @@ func (m *FetchJWTSVIDResponse) Reset()         { *m = FetchJWTSVIDResponse{} }
 func (m *FetchJWTSVIDResponse) String() string { return proto.CompactTextString(m) }
 func (*FetchJWTSVIDResponse) ProtoMessage()    {}
 func (*FetchJWTSVIDResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_node_0de26cc1941fda25, []int{10}
+	return fileDescriptor_node_bac2d1ca7cb46d82, []int{10}
 }
 func (m *FetchJWTSVIDResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FetchJWTSVIDResponse.Unmarshal(m, b)
@@ -833,9 +833,9 @@ var _Node_serviceDesc = grpc.ServiceDesc{
 	Metadata: "node.proto",
 }
 
-func init() { proto.RegisterFile("node.proto", fileDescriptor_node_0de26cc1941fda25) }
+func init() { proto.RegisterFile("node.proto", fileDescriptor_node_bac2d1ca7cb46d82) }
 
-var fileDescriptor_node_0de26cc1941fda25 = []byte{
+var fileDescriptor_node_bac2d1ca7cb46d82 = []byte{
 	// 750 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x55, 0xdb, 0x4f, 0x1a, 0x4d,
 	0x14, 0xcf, 0xb2, 0x80, 0x70, 0x40, 0xd4, 0x91, 0xcf, 0x8f, 0x8f, 0xaf, 0x5a, 0xb3, 0xd5, 0x94,
