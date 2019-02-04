@@ -37,9 +37,9 @@ utils = github.com/golang/protobuf/protoc-gen-go \
 		github.com/spiffe/spire/tools/protoc-gen-spireplugin
 
 # Help message settings
-cyan := $(shell which tput && tput setaf 6 || echo "")
-reset := $(shell which tput && tput sgr0 || echo "")
-bold  := $(shell which tput && tput bold || echo "")
+cyan := $(shell which tput > /dev/null && tput setaf 6 || echo "")
+reset := $(shell which tput > /dev/null && tput sgr0 || echo "")
+bold  := $(shell which tput > /dev/null && tput bold || echo "")
 target_max_char=25
 
 # Makefile options
@@ -61,7 +61,7 @@ all: $(container) build test ## Build and run tests
 
 ##@ Testing
 test: ## Run tests
-	$(docker) go test -race -timeout 8m github.com/spiffe/spire/...
+	$(docker) go test github.com/spiffe/spire/...
 
 race-test: ## Run race tests
 	$(docker) go test -race github.com/spiffe/spire/...
@@ -96,15 +96,15 @@ cmd: ## Opens a shell in docker container
 ##@ SPIRE images
 
 .PHONY: spire-images
-spire-images: spire-server-image spire-agent-image
+spire-images: spire-server-image spire-agent-image ## Builds SPIRE Server and Agent docker images
 
 .PHONY: spire-server-image
-spire-server-image: Dockerfile.server
-	docker build --build-arg goversion=$(goversion-required) -t gcr.io/spiffe-io/spire-server -f Dockerfile.server .
+spire-server-image: Dockerfile.server ## Builds SPIRE Server docker image
+	docker build --build-arg goversion=$(goversion-required) -t spire-server -f Dockerfile.server .
 
 .PHONY: spire-agent-image
-spire-agent-image: Dockerfile.agent
-	docker build --build-arg goversion=$(goversion-required) -t gcr.io/spiffe-io/spire-agent -f Dockerfile.agent .
+spire-agent-image: Dockerfile.agent ## Builds SPIRE Agent docker image
+	docker build --build-arg goversion=$(goversion-required) -t spire-agent -f Dockerfile.agent .
 
 ##@ Others
 utils: $(utils) ## Go-get SPIRE utils

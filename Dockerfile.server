@@ -3,14 +3,13 @@ ARG goversion
 FROM golang:${goversion}-alpine as builder
 RUN apk add build-base git mercurial
 ADD . /spire
-RUN cd /spire && git clean -dffx
-RUN cd /spire && make build && make test
+RUN cd /spire && make test && make build
 
 # Image stage
 FROM alpine
 RUN apk add dumb-init
-COPY --from=builder /spire/cmd/spire-server/spire-server /usr/local/bin/spire-server
-RUN mkdir -p /opt/spire
+RUN mkdir -p /opt/spire/bin
+COPY --from=builder /spire/cmd/spire-server/spire-server /opt/spire/bin/spire-server
 WORKDIR /opt/spire
-ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/spire-server"]
+ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/spire-server"]
 CMD ["run"]
