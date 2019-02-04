@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"testing"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -267,6 +268,38 @@ func (s *IITAttestorSuite) TestGetPluginInfo() {
 	require.Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
+func (s *IITAttestorSuite) TestFailToRecvStream() {
+	p := NewIITAttestorPlugin()
+	_, err := p.ValidateIdentityAndExtractMetadata(&recvFailStream{}, gcp.PluginName)
+	s.Require().EqualError(err, "failed to recv from stream")
+}
+
+func (s *IITAttestorSuite) TestFailToSendStream() {
+	p := NewIITAttestorPlugin()
+	p.tokenKeyRetriever = &staticKeyRetriever{key: &s.rsaKey.PublicKey}
+	_, err := p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+projectid_whitelist = ["project-123"]
+`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.Require().NoError(err)
+
+	token := buildToken()
+	data := &common.AttestationData{
+		Type: gcp.PluginName,
+		Data: s.signToken(token),
+	}
+
+	req := &nodeattestor.AttestRequest{
+		AttestationData: data,
+	}
+	err = p.Attest(&sendFailStream{
+		req: req,
+	})
+	s.Require().EqualError(err, "failed to send to stream")
+}
+
 func (s *IITAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	stream, err := s.p.Attest(context.Background())
 	defer stream.CloseSend()
@@ -285,4 +318,28 @@ func (s *IITAttestorSuite) signToken(token *jwt.Token) []byte {
 func (s *IITAttestorSuite) requireErrorContains(err error, substring string) {
 	s.Require().Error(err)
 	s.Require().Contains(err.Error(), substring)
+}
+
+// Test helpers
+
+type recvFailStream struct {
+	nodeattestor.Attest_PluginStream
+}
+
+func (r *recvFailStream) Recv() (*nodeattestor.AttestRequest, error) {
+	return nil, errors.New("failed to recv from stream")
+}
+
+type sendFailStream struct {
+	nodeattestor.Attest_PluginStream
+
+	req *nodeattestor.AttestRequest
+}
+
+func (s *sendFailStream) Recv() (*nodeattestor.AttestRequest, error) {
+	return s.req, nil
+}
+
+func (s *sendFailStream) Send(*nodeattestor.AttestResponse) error {
+	return errors.New("failed to send to stream")
 }

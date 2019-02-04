@@ -19,68 +19,69 @@ const (
 	googleCertURL = "https://www.googleapis.com/oauth2/v1/certs"
 )
 
+// IITAttestorPlugin implements node attestation for agents running in GCP.
+type IITAttestorPlugin struct {
+	BaseIITAttestorPlugin
+
+	config *IITAttestorConfig
+	mtx    sync.Mutex
+}
+
+// BaseIITAttestorPlugin implements retrieving and validating an instance identity
+// document on GCP. It can be used to implement custom node attestation (e.g. custom
+// spiffeIDs) for GCP without reimplementing the interaction with GCP.
+type BaseIITAttestorPlugin struct {
+	tokenKeyRetriever tokenKeyRetriever
+}
+
 type tokenKeyRetriever interface {
 	retrieveKey(token *jwt.Token) (interface{}, error)
 }
 
+// IITAttestorConfig is the config for IITAttestorPlugin.
 type IITAttestorConfig struct {
 	trustDomain        string
 	ProjectIDWhitelist []string `hcl:"projectid_whitelist"`
 }
 
-type IITAttestorPlugin struct {
-	tokenKeyRetriever tokenKeyRetriever
-
-	mtx    sync.Mutex
-	config *IITAttestorConfig
+// NewIITAttestorPlugin creates a new IITAttestorPlugin.
+func NewIITAttestorPlugin() *IITAttestorPlugin {
+	return &IITAttestorPlugin{
+		BaseIITAttestorPlugin: NewBaseIITAttestorPlugin(),
+	}
 }
 
+// NewBaseIITAttestorPlugin creates a new BaseIITAttestorPlugin.
+func NewBaseIITAttestorPlugin() BaseIITAttestorPlugin {
+	return BaseIITAttestorPlugin{
+		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
+	}
+}
+
+// Attest implements the server side logic for the gcp iit node attestation plugin.
 func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err
 	}
 
-	req, err := stream.Recv()
+	identityMetadata, err := p.ValidateAttestationAndExtractIdentityMetadata(stream, gcp.PluginName)
 	if err != nil {
 		return err
 	}
 
-	attestationData := req.GetAttestationData()
-	if attestationData == nil {
-		return newError("request missing attestation data")
-	}
-
-	if attestationData.Type != gcp.PluginName {
-		return newErrorf("unexpected attestation data type %q", attestationData.Type)
-	}
-
-	if req.AttestedBefore {
-		return newError("instance ID has already been attested")
-	}
-
-	identityToken := &gcp.IdentityToken{}
-	_, err = jwt.ParseWithClaims(string(req.GetAttestationData().Data), identityToken, p.tokenKeyRetriever.retrieveKey)
-	if err != nil {
-		return newErrorf("unable to parse/validate the identity token: %v", err)
-	}
-
-	if identityToken.Audience != tokenAudience {
-		return newErrorf("unexpected identity token audience %q", identityToken.Audience)
-	}
-
 	projectIDMatchesWhitelist := false
 	for _, projectID := range c.ProjectIDWhitelist {
-		if identityToken.Google.ComputeEngine.ProjectID == projectID {
+		if identityMetadata.ProjectID == projectID {
 			projectIDMatchesWhitelist = true
 			break
 		}
 	}
 	if !projectIDMatchesWhitelist {
-		return newErrorf("identity token project ID %q is not in the whitelist", identityToken.Google.ComputeEngine.ProjectID)
+		return newErrorf("identity token project ID %q is not in the whitelist", identityMetadata.ProjectID)
 	}
 
-	spiffeID := gcp.MakeSpiffeID(c.trustDomain, identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID)
+	spiffeID := gcp.MakeSpiffeID(c.trustDomain, identityMetadata.ProjectID, identityMetadata.InstanceID)
 
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
@@ -94,6 +95,41 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 	return nil
 }
 
+// ValidateAttestationAndExtractIdentityMetadata validates the attestation data, as well as the GCP identity
+// document that contains and returns the contained gcp.ComputeEngine object.
+func (p *BaseIITAttestorPlugin) ValidateAttestationAndExtractIdentityMetadata(stream nodeattestor.Attest_PluginStream, pluginName string) (gcp.ComputeEngine, error) {
+	req, err := stream.Recv()
+	if err != nil {
+		return gcp.ComputeEngine{}, err
+	}
+
+	attestationData := req.GetAttestationData()
+	if attestationData == nil {
+		return gcp.ComputeEngine{}, newError("request missing attestation data")
+	}
+
+	if attestationData.Type != pluginName {
+		return gcp.ComputeEngine{}, newErrorf("unexpected attestation data type %q", attestationData.Type)
+	}
+
+	if req.AttestedBefore {
+		return gcp.ComputeEngine{}, newError("instance ID has already been attested")
+	}
+
+	identityToken := &gcp.IdentityToken{}
+	_, err = jwt.ParseWithClaims(string(req.GetAttestationData().Data), identityToken, p.tokenKeyRetriever.retrieveKey)
+	if err != nil {
+		return gcp.ComputeEngine{}, newErrorf("unable to parse/validate the identity token: %v", err)
+	}
+
+	if identityToken.Audience != tokenAudience {
+		return gcp.ComputeEngine{}, newErrorf("unexpected identity token audience %q", identityToken.Audience)
+	}
+
+	return identityToken.Google.ComputeEngine, nil
+}
+
+// Configure configures the IITAttestorPlugin.
 func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config := &IITAttestorConfig{}
 	if err := hcl.Decode(config, req.Configuration); err != nil {
@@ -121,16 +157,6 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
-}
-
-func NewIITAttestorPlugin() *IITAttestorPlugin {
-	return &IITAttestorPlugin{
-		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
-	}
-}
-
 func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
@@ -139,6 +165,11 @@ func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 		return nil, newError("not configured")
 	}
 	return p.config, nil
+}
+
+// GetPluginInfo returns the version and related metadata of the installed plugin.
+func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return &spi.GetPluginInfoResponse{}, nil
 }
 
 func newError(msg string) error {
