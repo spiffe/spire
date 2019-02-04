@@ -389,7 +389,7 @@ func TestSynchronization(t *testing.T) {
 		}
 	})
 
-	util.RunWithTimeout(t, 2*m.c.SyncInterval, func() {
+	util.RunWithTimeout(t, 3*m.c.SyncInterval, func() {
 		// There should be 3 updates after sync, because we are subcribed to selectors that
 		// matches with 3 entries that were renewed on the cache.
 		updates := sub.Updates()
