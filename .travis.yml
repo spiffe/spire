@@ -17,7 +17,7 @@ jobs:
         - ./build.sh setup
         - ./build.sh utils
         - ./build.sh protobuf_verify
-        - ./build.sh test
+        - ./build.sh race-test
         - ./build.sh binaries
         - ./build.sh integration
         - ./build.sh artifact
