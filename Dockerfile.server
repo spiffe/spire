@@ -11,5 +11,5 @@ RUN apk add dumb-init
 RUN mkdir -p /opt/spire/bin
 COPY --from=builder /spire/cmd/spire-server/spire-server /opt/spire/bin/spire-server
 WORKDIR /opt/spire
-ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/spire-server"]
-CMD ["run"]
+ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/spire-server", "run"]
+CMD []
