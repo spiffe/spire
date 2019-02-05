@@ -52,10 +52,21 @@ type k8sPluginConfig struct {
 type podInfo struct {
 	// We only care about namespace, serviceAccountName and containerID
 	Metadata struct {
-		Namespace string `json:"namespace"`
+		UID             string            `json:"uid"`
+		Namespace       string            `json:"namespace"`
+		Labels          map[string]string `json:"labels"`
+		OwnerReferences []struct {
+			Kind string `json:"kind"`
+			Name string `json:"name"`
+		} `json:"ownerReferences"`
 	} `json:"metadata"`
 	Spec struct {
 		ServiceAccountName string `json:"serviceAccountName"`
+		Containers         []struct {
+			Name  string `json:"name"`
+			Image string `json:"image"`
+		} `json:"containers"`
+		NodeName string `json:"nodeName"`
 	} `json:"spec"`
 	Status podStatus `json:"status"`
 }
@@ -66,9 +77,11 @@ type podList struct {
 
 type podStatus struct {
 	InitContainerStatuses []struct {
+		Name        string `json:"name"`
 		ContainerID string `json:"containerID"`
 	} `json:"initContainerStatuses"`
 	ContainerStatuses []struct {
+		Name        string `json:"name"`
 		ContainerID string `json:"containerID"`
 	} `json:"containerStatuses"`
 }
@@ -123,10 +136,11 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 
 		notAllContainersReady := false
 		for _, item := range list.Items {
-			switch lookUpContainerInPod(containerID, item.Status) {
+			name, lookup := lookUpContainerInPod(containerID, item.Status)
+			switch lookup {
 			case containerInPod:
 				return &workloadattestor.AttestResponse{
-					Selectors: getSelectorsFromPodInfo(item),
+					Selectors: getSelectorsFromPodInfo(item, name),
 				}, nil
 			case containerMaybeInPod:
 				notAllContainersReady = true
@@ -171,7 +185,7 @@ func (p *k8sPlugin) getPodListFromInsecureKubeletPort() (out *podList, err error
 	return out, nil
 }
 
-func lookUpContainerInPod(containerID string, status podStatus) containerLookup {
+func lookUpContainerInPod(containerID string, status podStatus) (string, containerLookup) {
 	notReady := false
 	for _, status := range status.ContainerStatuses {
 		// TODO: should we be keying off of the status or is the lack of a
@@ -188,7 +202,7 @@ func lookUpContainerInPod(containerID string, status podStatus) containerLookup 
 		}
 
 		if containerID == containerURL.Host {
-			return containerInPod
+			return status.Name, containerInPod
 		}
 	}
 
@@ -207,21 +221,51 @@ func lookUpContainerInPod(containerID string, status podStatus) containerLookup 
 		}
 
 		if containerID == containerURL.Host {
-			return containerInPod
+			return status.Name, containerInPod
 		}
 	}
 
 	if notReady {
-		return containerMaybeInPod
+		return "", containerMaybeInPod
 	}
 
-	return containerNotInPod
+	return "", containerNotInPod
 }
 
-func getSelectorsFromPodInfo(info *podInfo) []*common.Selector {
-	return []*common.Selector{
-		{Type: selectorType, Value: fmt.Sprintf("sa:%v", info.Spec.ServiceAccountName)},
-		{Type: selectorType, Value: fmt.Sprintf("ns:%v", info.Metadata.Namespace)},
+func getSelectorsFromPodInfo(info *podInfo, containerName string) []*common.Selector {
+	selectors := []*common.Selector{
+		makeSelector("sa:%s", info.Spec.ServiceAccountName),
+		makeSelector("ns:%s", info.Metadata.Namespace),
+		makeSelector("node-name:%s", info.Spec.NodeName),
+		makeSelector("pod-uid:%s", info.Metadata.UID),
+	}
+
+	for k, v := range info.Metadata.Labels {
+		selectors = append(selectors, makeSelector("pod-label:%s:%s", k, v))
+	}
+	for _, ownerReference := range info.Metadata.OwnerReferences {
+		selectors = append(selectors, makeSelector("pod-owner:%s:%s", ownerReference.Kind, ownerReference.Name))
+	}
+
+	for _, container := range info.Spec.Containers {
+		if container.Name != containerName {
+			continue
+		}
+
+		selectors = append(selectors,
+			makeSelector("container-name:%s", container.Name),
+			makeSelector("container-image:%s", container.Image),
+		)
+		break
+	}
+
+	return selectors
+}
+
+func makeSelector(format string, args ...interface{}) *common.Selector {
+	return &common.Selector{
+		Type:  selectorType,
+		Value: fmt.Sprintf(format, args...),
 	}
 }
 
