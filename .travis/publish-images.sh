@@ -32,20 +32,20 @@ make -C ${REPODIR} spire-images
 
 # Tag and push latest build by Git hash
 docker tag spire-server gcr.io/spiffe-io/spire-server:${TRAVIS_COMMIT}
-echo docker push gcr.io/spiffe-io/spire-server:${TRAVIS_COMMIT}
+docker push gcr.io/spiffe-io/spire-server:${TRAVIS_COMMIT}
 docker tag spire-agent gcr.io/spiffe-io/spire-agent:${TRAVIS_COMMIT}
-echo docker push gcr.io/spiffe-io/spire-agent:${TRAVIS_COMMIT}
+docker push gcr.io/spiffe-io/spire-agent:${TRAVIS_COMMIT}
 
 if [ -n "${TRAVIS_TAG}" ]; then
 	# This is a tagged build. Tag and push under the git tag.
 	docker tag spire-server gcr.io/spiffe-io/spire-server:${TRAVIS_TAG}
-	echo docker push gcr.io/spiffe-io/spire-server:${TRAVIS_TAG}
+	docker push gcr.io/spiffe-io/spire-server:${TRAVIS_TAG}
 	docker tag spire-agent gcr.io/spiffe-io/spire-agent:${TRAVIS_TAG}
-	echo docker push gcr.io/spiffe-io/spire-agent:${TRAVIS_TAG}
+	docker push gcr.io/spiffe-io/spire-agent:${TRAVIS_TAG}
 elif [ x"${TRAVIS_BRANCH}" = x"master" ]; then
 	# This is an untagged build for master. Tag and push as unstable
 	docker tag spire-server gcr.io/spiffe-io/spire-server:unstable
-	echo docker push gcr.io/spiffe-io/spire-server:unstable
+	docker push gcr.io/spiffe-io/spire-server:unstable
 	docker tag spire-agent gcr.io/spiffe-io/spire-agent:unstable
-	echo docker push gcr.io/spiffe-io/spire-agent:unstable
+	docker push gcr.io/spiffe-io/spire-agent:unstable
 fi
