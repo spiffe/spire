@@ -390,21 +390,6 @@ func testAuthorizeCallForCallsRequiringAgentSVID(t *testing.T, method string) {
 	require.Nil(t, ctx)
 	now = peerCert.NotAfter
 	peerCert.SerialNumber.Add(peerCert.SerialNumber, big.NewInt(-1))
-
-	// expiration does not match
-	_, err = ds.UpdateAttestedNode(context.Background(), &datastore.UpdateAttestedNodeRequest{
-		SpiffeId:         "spiffe://example.org/spire/agent/join_token/token",
-		CertSerialNumber: peerCert.SerialNumber.String(),
-		CertNotAfter:     peerCert.NotAfter.Unix() + 1,
-	})
-	peerCert.NotAfter = peerCert.NotAfter.Add(time.Second)
-	ctx, err = handler.AuthorizeCall(peerCtx, fullMethod)
-	require.EqualError(t, err, "agent is not attested or no longer valid")
-	require.Equal(t, "agent spiffe://example.org/spire/agent/join_token/token SVID does not match expected expiration", logHook.LastEntry().Message)
-	require.Nil(t, ctx)
-	now = peerCert.NotAfter
-	peerCert.NotAfter = peerCert.NotAfter.Add(-time.Second)
-
 }
 
 func loadCertFromPEM(fileName string) *x509.Certificate {

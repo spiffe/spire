@@ -405,9 +405,6 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	if node.CertSerialNumber != cert.SerialNumber.String() {
 		return fmt.Errorf("agent %s SVID does not match expected serial number", agentID)
 	}
-	if node.CertNotAfter != cert.NotAfter.Unix() {
-		return fmt.Errorf("agent %s SVID does not match expected expiration", agentID)
-	}
 
 	return nil
 }
