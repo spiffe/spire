@@ -6,7 +6,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
-	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -129,10 +128,11 @@ func (m *manager) clearStaleCacheEntries(regEntries map[string]*common.Registrat
 }
 
 func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
-	defer m.c.Metrics.MeasureSince([]string{"cache_manager", "expiry_check_duration"}, time.Now())
+	now := m.hooks.now()
+	defer m.c.Metrics.MeasureSince([]string{"cache_manager", "expiry_check_duration"}, now)
 
 	for _, entry := range m.cache.Entries() {
-		ttl := entry.SVID[0].NotAfter.Sub(time.Now())
+		ttl := entry.SVID[0].NotAfter.Sub(now)
 		lifetime := entry.SVID[0].NotAfter.Sub(entry.SVID[0].NotBefore)
 		// If the cached SVID has a remaining lifetime less than 50%, prepare a
 		// new entryRequest.

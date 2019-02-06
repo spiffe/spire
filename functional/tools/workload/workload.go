@@ -11,6 +11,7 @@ import (
 	"time"
 
 	workload "github.com/spiffe/spire/proto/api/workload"
+	"google.golang.org/grpc/metadata"
 )
 
 // Workload is the component that consumes Workload API and renews certs
@@ -39,6 +40,9 @@ func (w *Workload) RunDaemon(ctx context.Context) error {
 	// Create timer for timeout
 	timeoutTimer := time.NewTimer(time.Second * time.Duration(w.timeout))
 	defer timeoutTimer.Stop()
+
+	header := metadata.Pairs("workload.spiffe.io", "true")
+	ctx = metadata.NewOutgoingContext(ctx, header)
 
 	stream, err := w.workloadClient.FetchX509SVID(ctx, &workload.X509SVIDRequest{})
 	if err != nil {
@@ -84,26 +88,34 @@ func (w *Workload) validate(resp *workload.X509SVIDResponse) error {
 	}
 
 	for _, svid := range resp.Svids {
-		cert, err := x509.ParseCertificate(svid.X509Svid)
+		certs, err := x509.ParseCertificates(svid.X509Svid)
 		if err != nil {
 			return err
 		}
+		leaf := certs[0]
+		intermediates := certs[1:]
 
 		bundle, err := x509.ParseCertificates(svid.Bundle)
 		if err != nil {
 			return err
 		}
 
-		pool := x509.NewCertPool()
+		rootPool := x509.NewCertPool()
 		for _, c := range bundle {
-			pool.AddCert(c)
+			rootPool.AddCert(c)
+		}
+
+		intermediatePool := x509.NewCertPool()
+		for _, c := range intermediates {
+			intermediatePool.AddCert(c)
 		}
 
 		verifyOpts := x509.VerifyOptions{
-			Roots: pool,
+			Roots:         rootPool,
+			Intermediates: intermediatePool,
 		}
 
-		_, err = cert.Verify(verifyOpts)
+		_, err = leaf.Verify(verifyOpts)
 		if err != nil {
 			return err
 		}

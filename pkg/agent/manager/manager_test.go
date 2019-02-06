@@ -344,17 +344,26 @@ func TestSynchronization(t *testing.T) {
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Bundle:           apiHandler.bundle,
 		Metrics:          &telemetry.Blackhole{},
-		RotationInterval: 1 * time.Hour,
-		SyncInterval:     3 * time.Second,
+		RotationInterval: time.Hour,
+		SyncInterval:     time.Hour,
 	}
 
-	m, closer := initializeAndRunNewManager(t, c)
-	defer closer()
+	m := newManager(t, c)
+
+	now := time.Now().Truncate(time.Second)
+	m.hooks.now = func() time.Time {
+		return now
+	}
 
 	sub := m.SubscribeToCacheChanges(cache.Selectors{
-		&common.Selector{Type: "unix", Value: "uid:1111"},
-		&common.Selector{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"},
+		{Type: "unix", Value: "uid:1111"},
+		{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"},
 	})
+	defer sub.Finish()
+
+	if err := m.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 
 	// Before synchronization
 	entriesBefore := cacheEntriesAsMap(m.cache.Entries())
@@ -362,79 +371,88 @@ func TestSynchronization(t *testing.T) {
 		t.Fatalf("3 cached entries were expected; got %d", len(entriesBefore))
 	}
 
-	util.RunWithTimeout(t, 5*time.Second, func() {
-		u := <-sub.Updates()
+	// This is the initial update based on the selector set
+	u := <-sub.Updates()
+	if len(u.Entries) != 3 {
+		t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
+	}
 
-		if len(u.Entries) != 3 {
-			t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
+	if len(u.Bundle.RootCAs()) != 1 {
+		t.Fatal("expected 1 bundle root CA")
+	}
+
+	if !u.Bundle.EqualTo(apiHandler.bundle) {
+		t.Fatal("received bundle should be equals to the server bundle")
+	}
+
+	for key, eu := range cacheEntriesAsMap(u.Entries) {
+		eb, ok := entriesBefore[key]
+		if !ok {
+			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
 		}
-
-		if len(u.Bundle.RootCAs()) != 1 {
-			t.Fatal("expected 1 bundle root CA")
+		if eb != eu {
+			t.Fatal("entry received does not match entry on cache")
 		}
+	}
 
-		if !u.Bundle.EqualTo(apiHandler.bundle) {
-			t.Fatal("received bundle should be equals to the server bundle")
+	// SVIDs expire after 3 seconds, so we shouldn't expect any updates after
+	// 1 second has elapsed.
+	now = now.Add(time.Second)
+	require.NoError(t, m.synchronize(context.Background()))
+	select {
+	case <-sub.Updates():
+		t.Fatal("update unexpected after 1 second")
+	default:
+	}
+
+	// After advancing another second, the SVIDs should have been refreshed,
+	// since the half-time has been exceeded.
+	now = now.Add(time.Second)
+	require.NoError(t, m.synchronize(context.Background()))
+	select {
+	case u = <-sub.Updates():
+	default:
+		t.Fatal("update expected after 2 seconds")
+	}
+
+	// Make sure the update contains the updated entries and that the cache
+	// has a consistent view.
+	entriesAfter := cacheEntriesAsMap(m.cache.Entries())
+	if len(entriesAfter) != 3 {
+		t.Fatalf("expected 3 entries, got: %d", len(entriesAfter))
+	}
+
+	for key, eb := range entriesBefore {
+		ea, ok := entriesAfter[key]
+		if !ok {
+			t.Fatalf("expected entry with EntryId=%v after synchronization", key)
 		}
-
-		entriesUpdated := cacheEntriesAsMap(u.Entries)
-		for key, eu := range entriesUpdated {
-			eb, ok := entriesBefore[key]
-			if !ok {
-				t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
-			}
-			if eb != eu {
-				t.Fatal("entry received does not match entry on cache")
-			}
+		if ea == eb {
+			t.Fatalf("there is at least one entry that was not refreshed: %v", ea)
 		}
-	})
+	}
 
-	util.RunWithTimeout(t, 2*m.c.SyncInterval, func() {
-		// There should be 3 updates after sync, because we are subcribed to selectors that
-		// matches with 3 entries that were renewed on the cache.
-		updates := sub.Updates()
-		<-updates
-		<-updates
-		u := <-updates
+	if len(u.Entries) != 3 {
+		t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
+	}
 
-		entriesAfter := cacheEntriesAsMap(m.cache.Entries())
-		if len(entriesAfter) != 3 {
-			t.Fatal("3 cached entries were expected")
+	if len(u.Bundle.RootCAs()) != 1 {
+		t.Fatal("expected 1 bundle root CA")
+	}
+
+	if !u.Bundle.EqualTo(apiHandler.bundle) {
+		t.Fatal("received bundle should be equals to the server bundle")
+	}
+
+	for key, eu := range cacheEntriesAsMap(u.Entries) {
+		ea, ok := entriesAfter[key]
+		if !ok {
+			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
 		}
-
-		for key, eb := range entriesBefore {
-			ea, ok := entriesAfter[key]
-			if !ok {
-				t.Fatalf("expected entry with EntryId=%v after synchronization", key)
-			}
-			if ea == eb {
-				t.Fatalf("there is at least one entry that was not refreshed: %v", ea)
-			}
+		if ea != eu {
+			t.Fatal("entry received does not match entry on cache")
 		}
-
-		if len(u.Entries) != 3 {
-			t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
-		}
-
-		if len(u.Bundle.RootCAs()) != 1 {
-			t.Fatal("expected 1 bundle root CA")
-		}
-
-		if !u.Bundle.EqualTo(apiHandler.bundle) {
-			t.Fatal("received bundle should be equals to the server bundle")
-		}
-
-		entriesUpdated := cacheEntriesAsMap(u.Entries)
-		for key, eu := range entriesUpdated {
-			ea, ok := entriesAfter[key]
-			if !ok {
-				t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
-			}
-			if ea != eu {
-				t.Fatal("entry received does not match entry on cache")
-			}
-		}
-	})
+	}
 }
 
 func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {

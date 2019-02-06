@@ -52,6 +52,9 @@ type Selector = common.Selector
 // Selectors from public import github.com/spiffe/spire/proto/common/common.proto
 type Selectors = common.Selectors
 
+// AttestedNode from public import github.com/spiffe/spire/proto/common/common.proto
+type AttestedNode = common.AttestedNode
+
 // RegistrationEntry from public import github.com/spiffe/spire/proto/common/common.proto
 type RegistrationEntry = common.RegistrationEntry
 

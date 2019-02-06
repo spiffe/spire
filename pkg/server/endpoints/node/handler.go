@@ -218,7 +218,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		svids, err := h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
 		if err != nil {
 			h.c.Log.Error(err)
-			return errors.New("Error trying sign CSRs")
+			return errors.New("Error trying to sign CSRs")
 		}
 
 		bundles, err := h.getBundlesForEntries(ctx, regEntries)
@@ -336,8 +336,14 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
 			h.c.Log.Error(err)
-			return nil, errors.New("client SVID is required for this request")
+			return nil, errors.New("agent SVID is required for this request")
 		}
+
+		if err := h.validateAgentSVID(ctx, peerCert); err != nil {
+			h.c.Log.Error(err)
+			return nil, errors.New("agent is not attested or no longer valid")
+		}
+
 		ctx = withPeerCertificate(ctx, peerCert)
 
 	// method not handled
@@ -366,6 +372,41 @@ func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, er
 	}
 
 	return false, nil
+}
+
+func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate) error {
+	dataStore := h.c.Catalog.DataStores()[0]
+
+	agentID, err := getSpiffeIDFromCert(cert)
+	if err != nil {
+		return err
+	}
+
+	// agent SVIDs must be unexpired and a belong to the attested nodes.
+	// NOTE: gRPC will reuse connections from agents and therefore, we can't
+	// rely on TLS handshakes to verify certificate validity since the
+	// certificate on the connection could have expired after the initial
+	// handshake.
+	if h.hooks.now().After(cert.NotAfter) {
+		return fmt.Errorf("agent %s SVID has expired", agentID)
+	}
+
+	resp, err := dataStore.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
+		SpiffeId: agentID,
+	})
+	if err != nil {
+		return err
+	}
+
+	node := resp.Node
+	if node == nil {
+		return fmt.Errorf("agent %s is not attested", agentID)
+	}
+	if node.CertSerialNumber != cert.SerialNumber.String() {
+		return fmt.Errorf("agent %s SVID does not match expected serial number", agentID)
+	}
+
+	return nil
 }
 
 func (h *Handler) doAttestChallengeResponse(ctx context.Context,
@@ -627,6 +668,9 @@ func (h *Handler) signCSRs(ctx context.Context,
 			)
 			if err != nil {
 				return nil, err
+			}
+			if res.Node == nil {
+				return nil, errors.New("no record of attested node")
 			}
 			if res.Node.CertSerialNumber != peerCert.SerialNumber.String() {
 				err := errors.New("SVID serial number does not match")

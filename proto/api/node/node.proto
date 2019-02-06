@@ -39,7 +39,7 @@ message X509SVIDUpdate {
     // keys. Map[SPIFFE_ID] => SVID.
     map<string, X509SVID> svids = 1;
 
-    // DEPRECATED. Latest SPIRE Server bundle. 
+    // DEPRECATED. Latest SPIRE Server bundle.
     bytes DEPRECATED_bundle = 2;
 
     // A type representing a curated record that the Spire Server uses to set up
@@ -134,7 +134,7 @@ service Node {
     // Attest the node, get base node SVID.
     rpc Attest(stream AttestRequest) returns (stream AttestResponse);
 
-    // Get Workload, Node Agent certs and CA trust bundles. Also used for rotation 
+    // Get Workload, Node Agent certs and CA trust bundles. Also used for rotation
     // Base Node SVID or the Registered Node SVID used for this call)
     // List can be empty to allow Node Agent cache refresh).
     rpc FetchX509SVID(stream FetchX509SVIDRequest) returns (stream FetchX509SVIDResponse);

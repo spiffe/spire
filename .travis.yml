@@ -7,40 +7,49 @@ services:
 language: go
 
 cache:
-    directories:
-        - .cache
+  directories:
+    - .cache
 
-script:
-    - ./build.sh setup
-    - ./build.sh utils
-    - ./build.sh protobuf_verify
-    - ./build.sh test
-    - ./build.sh binaries
-    - ./build.sh integration
-    - ./build.sh artifact
-    - ./build.sh release
+jobs:
+  include:
+    - stage: build release
+      script:
+        - ./build.sh setup
+        - ./build.sh utils
+        - ./build.sh protobuf_verify
+        - ./build.sh race-test
+        - ./build.sh binaries
+        - ./build.sh integration
+        - ./build.sh artifact
+        - ./build.sh release
+      deploy:
+        - provider: s3
+          access_key_id: $AWS_ACCESS_KEY_ID
+          secret_access_key: $AWS_SECRET_ACCESS_KEY
+          bucket: scytale-artifacts
+          local-dir: artifacts
+          upload-dir: spire
+          acl: public_read
+          skip_cleanup: true
+          region: us-east-2
+          on:
+            all_branches: true
+            condition: $AWS_SECRET_ACCESS_KEY != ""
+        - provider: releases
+          api_key: $GITHUB_TOKEN
+          file_glob: true
+          file: releases/*
+          skip_cleanup: true
+          on:
+            tags: true
+            condition: $GITHUB_TOKEN != ""
 
-deploy:
-    - provider: s3
-      access_key_id: $AWS_ACCESS_KEY_ID
-      secret_access_key: $AWS_SECRET_ACCESS_KEY
-      bucket: scytale-artifacts
-      local-dir: artifacts
-      upload-dir: spire
-      acl: public_read
-      skip_cleanup: true
-      region: us-east-2
-      on:
-          all_branches: true
-          condition: $AWS_SECRET_ACCESS_KEY != ""
-    - provider: releases
-      api_key: $GITHUB_TOKEN
-      file_glob: true
-      file: releases/*
-      skip_cleanup: true
-      on:
-          tags: true
-          condition: $GITHUB_TOKEN != ""
+    - stage: publish images
+      if: type = push AND (env(TRAVIS_TAG) IS present OR branch = master)
+      before_script:
+        - openssl aes-256-cbc -K $encrypted_b48f9e852489_key -iv $encrypted_b48f9e852489_iv -in .travis/spire-travis-ci.json.enc -out .travis/spire-travis-ci.json -d
+      script:
+        - .travis/publish-images.sh
 
 notifications:
     slack:

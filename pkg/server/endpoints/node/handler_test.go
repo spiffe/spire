@@ -5,8 +5,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"math/big"
 	"net"
 	"net/url"
 	"path"
@@ -50,6 +52,7 @@ var (
 type HandlerTestSuite struct {
 	suite.Suite
 	ctrl             *gomock.Controller
+	logHook          *test.Hook
 	handler          *Handler
 	limiter          *fakeLimiter
 	mockDataStore    *mock_datastore.MockDataStore
@@ -66,7 +69,8 @@ func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
 	suite.SetT(t)
 	mockCtrl := gomock.NewController(t)
 	suite.ctrl = mockCtrl
-	log, _ := test.NewNullLogger()
+	log, hook := test.NewNullLogger()
+	suite.logHook = hook
 	suite.limiter = new(fakeLimiter)
 	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
 	suite.mockServerCA = mock_ca.NewMockServerCA(mockCtrl)
@@ -249,42 +253,143 @@ func TestFetchX509SVIDWithRotation(t *testing.T) {
 	suite.Require().NoError(err)
 }
 
-func TestAuthorizeCall(t *testing.T) {
+func TestFetchX509SVIDForNodeWithNoAttestationRecord(t *testing.T) {
+	suite := SetupHandlerTest(t)
+	defer suite.ctrl.Finish()
+
+	// set up the node as the peer
+	ctx := withPeerCertificate(context.Background(), loadCertFromPEM("node_cert.pem"))
+
+	// request node CSR to be signed
+	suite.server.EXPECT().Context().Return(ctx).AnyTimes()
+	suite.server.EXPECT().Recv().Return(&node.FetchX509SVIDRequest{
+		Csrs: [][]byte{
+			getBytesFromPem("node_csr.pem"),
+		},
+	}, nil)
+
+	// no registration entries (not needed for this code path since a node is
+	// authorized to request a CSR for itself)
+	suite.mockDataStore.EXPECT().
+		ListRegistrationEntries(gomock.Any(), gomock.Any()).
+		Return(&datastore.ListRegistrationEntriesResponse{}, nil).
+		AnyTimes()
+
+	// no selectors (same reason as above)
+	suite.mockDataStore.EXPECT().
+		GetNodeSelectors(gomock.Any(), gomock.Any()).
+		Return(&datastore.GetNodeSelectorsResponse{
+			Selectors: &datastore.NodeSelectors{},
+		}, nil)
+
+	// return no record of the attested node.
+	suite.mockDataStore.EXPECT().
+		FetchAttestedNode(gomock.Any(), &datastore.FetchAttestedNodeRequest{
+			SpiffeId: "spiffe://example.org/spire/agent/join_token/tokenfoo",
+		}).
+		Return(&datastore.FetchAttestedNodeResponse{}, nil)
+
+	err := suite.handler.FetchX509SVID(suite.server)
+	suite.Require().EqualError(err, "Error trying to sign CSRs")
+
+	// The error message returned by the Node handler is purposefully very
+	// generic. Errors are logged for debuggability. We want a stronger
+	// assertion that the expected code path was executed. Inspect the log hook
+	// to make sure the expected error message is logged.
+	suite.Require().Equal("no record of attested node", suite.logHook.LastEntry().Message)
+}
+
+func TestAuthorizeCallUnhandledMethod(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	handler := NewHandler(HandlerConfig{Log: log})
+
+	ctx, err := handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Foo")
+	require.EqualError(t, err, `rpc error: code = PermissionDenied desc = authorization not implemented for method "/spire.api.node.Node/Foo"`)
+	require.Nil(t, ctx)
+}
+
+func TestAuthorizeCallForAlwaysAuthorizedCalls(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	handler := NewHandler(HandlerConfig{Log: log})
+
+	// Attest() is always authorized (context is not embellished)
+	ctx, err := handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Attest")
+	require.NoError(t, err)
+	require.Equal(t, context.Background(), ctx)
+}
+
+func TestAuthorizeCallForCallsRequiringAgentSVID(t *testing.T) {
+	for _, method := range []string{"FetchX509SVID", "FetchJWTSVID"} {
+		testAuthorizeCallForCallsRequiringAgentSVID(t, method)
+	}
+}
+
+func testAuthorizeCallForCallsRequiringAgentSVID(t *testing.T, method string) {
+	t.Logf("testing authorization for %s", method)
 
 	peerCert := getFakePeerCertificate()
 	peerCtx := peer.NewContext(context.Background(), getFakePeer())
 
-	// unhandled method
-	ctx, err := handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Foo")
-	require.EqualError(t, err, `rpc error: code = PermissionDenied desc = authorization not implemented for method "/spire.api.node.Node/Foo"`)
+	ds := fakedatastore.New()
+	catalog := fakeservercatalog.New()
+	catalog.SetDataStores(ds)
+	log, logHook := test.NewNullLogger()
+	handler := NewHandler(HandlerConfig{Log: log, Catalog: catalog})
+
+	var now time.Time
+	handler.hooks.now = func() time.Time {
+		return now
+	}
+
+	fullMethod := fmt.Sprintf("/spire.api.node.Node/%s", method)
+
+	// no certificate
+	ctx, err := handler.AuthorizeCall(context.Background(), fullMethod)
+	require.EqualError(t, err, "agent SVID is required for this request")
 	require.Nil(t, ctx)
 
-	// Attest() is always authorized (context is not embellished)
-	ctx, err = handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Attest")
+	// no attested certificate with matching SPIFFE ID
+	ctx, err = handler.AuthorizeCall(peerCtx, fullMethod)
+	require.EqualError(t, err, "agent is not attested or no longer valid")
+	require.Equal(t, "agent spiffe://example.org/spire/agent/join_token/token is not attested", logHook.LastEntry().Message)
+	require.Nil(t, ctx)
+
+	// good certificate
+	_, err = ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
+		Node: &common.AttestedNode{
+			SpiffeId:         "spiffe://example.org/spire/agent/join_token/token",
+			CertSerialNumber: peerCert.SerialNumber.String(),
+			CertNotAfter:     peerCert.NotAfter.Unix(),
+		},
+	})
 	require.NoError(t, err)
-	require.Equal(t, context.Background(), ctx)
-
-	// FetchX509SVID() needs a verified peer certificate (context embellished with certificate)
-	ctx, err = handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/FetchX509SVID")
-	require.EqualError(t, err, "client SVID is required for this request")
-	require.Nil(t, ctx)
-	ctx, err = handler.AuthorizeCall(peerCtx, "/spire.api.node.Node/FetchX509SVID")
+	ctx, err = handler.AuthorizeCall(peerCtx, fullMethod)
 	require.NoError(t, err)
 	actualCert, ok := getPeerCertificate(ctx)
 	require.True(t, ok, "context has peer certificate")
 	require.True(t, peerCert.Equal(actualCert), "peer certificate matches")
 
-	// FetchJWTSVID() needs a verified peer certificate (context embellished with certificate)
-	ctx, err = handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/FetchJWTSVID")
-	require.EqualError(t, err, "client SVID is required for this request")
+	// expired certificate
+	now = peerCert.NotAfter.Add(time.Second)
+	ctx, err = handler.AuthorizeCall(peerCtx, fullMethod)
+	require.EqualError(t, err, "agent is not attested or no longer valid")
+	require.Equal(t, "agent spiffe://example.org/spire/agent/join_token/token SVID has expired", logHook.LastEntry().Message)
 	require.Nil(t, ctx)
-	ctx, err = handler.AuthorizeCall(peerCtx, "/spire.api.node.Node/FetchJWTSVID")
-	require.NoError(t, err)
-	actualCert, ok = getPeerCertificate(ctx)
-	require.True(t, ok, "context has peer certificate")
-	require.True(t, peerCert.Equal(actualCert), "peer certificate matches")
+	now = peerCert.NotAfter
+
+	// serial number does not match
+	_, err = ds.UpdateAttestedNode(context.Background(), &datastore.UpdateAttestedNodeRequest{
+		SpiffeId:         "spiffe://example.org/spire/agent/join_token/token",
+		CertSerialNumber: "SERIAL NUMBER",
+		CertNotAfter:     peerCert.NotAfter.Unix(),
+	})
+	peerCert.SerialNumber.Add(peerCert.SerialNumber, big.NewInt(1))
+	ctx, err = handler.AuthorizeCall(peerCtx, fullMethod)
+	require.EqualError(t, err, "agent is not attested or no longer valid")
+	require.Equal(t, "agent spiffe://example.org/spire/agent/join_token/token SVID does not match expected serial number", logHook.LastEntry().Message)
+	require.Nil(t, ctx)
+	now = peerCert.NotAfter
+	peerCert.SerialNumber.Add(peerCert.SerialNumber, big.NewInt(-1))
 }
 
 func loadCertFromPEM(fileName string) *x509.Certificate {
