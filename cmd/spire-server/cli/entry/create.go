@@ -81,10 +81,14 @@ func (rc *CreateConfig) Validate() (err error) {
 	if err != nil {
 		return err
 	}
-	rc.ParentID, err = idutil.NormalizeSpiffeID(rc.ParentID, idutil.AllowAny())
-	if err != nil {
-		return err
+
+	if rc.ParentID != "" {
+		rc.ParentID, err = idutil.NormalizeSpiffeID(rc.ParentID, idutil.AllowAny())
+		if err != nil {
+			return err
+		}
 	}
+
 	for i := range rc.FederatesWith {
 		rc.FederatesWith[i], err = idutil.NormalizeSpiffeID(rc.FederatesWith[i], idutil.AllowAny())
 		if err != nil {
