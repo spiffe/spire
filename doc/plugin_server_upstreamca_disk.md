@@ -12,3 +12,5 @@ The plugin accepts the following configuration options:
 | ttl            | The TTL for issued certificates       |
 | cert_file_path | Path to the "upstream" CA certificate |
 | key_file_path  | Path to the "upstream" CA key file    |
+
+Supported key types are:  EC, PKCS#1, PKCS#8.
