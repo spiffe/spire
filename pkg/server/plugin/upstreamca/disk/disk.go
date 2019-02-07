@@ -2,6 +2,7 @@ package disk
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -47,22 +48,7 @@ func (m *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		return nil, errors.New("trust_domain is required")
 	}
 
-	keyPEM, err := ioutil.ReadFile(config.KeyFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read %s: %s", config.KeyFilePath, err)
-	}
-
-	block, rest := pem.Decode(keyPEM)
-
-	if block == nil {
-		return nil, errors.New("invalid key format")
-	}
-
-	if len(rest) > 0 {
-		return nil, errors.New("invalid key format: too many keys")
-	}
-
-	key, err := x509.ParseECPrivateKey(block.Bytes)
+	key, err := parsePrivateKey(config.KeyFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +58,7 @@ func (m *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		return nil, fmt.Errorf("unable to read %s: %s", config.CertFilePath, err)
 	}
 
-	block, rest = pem.Decode(certPEM)
+	block, rest := pem.Decode(certPEM)
 
 	if block == nil {
 		return nil, errors.New("invalid cert format")
@@ -136,4 +122,39 @@ func New() (m upstreamca.Plugin) {
 	return &diskPlugin{
 		serialNumber: x509util.NewSerialNumber(),
 	}
+}
+
+func parsePrivateKey(keyFilePath string) (crypto.PrivateKey, error) {
+	keyPEM, err := ioutil.ReadFile(keyFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read %s: %s", keyFilePath, err)
+	}
+
+	block, rest := pem.Decode(keyPEM)
+
+	if block == nil {
+		return nil, errors.New("invalid key format")
+	}
+
+	if len(rest) > 0 {
+		return nil, errors.New("invalid key format: too many keys")
+	}
+
+	var key crypto.PrivateKey
+	switch block.Type {
+	case "EC PRIVATE KEY":
+		key, err = x509.ParseECPrivateKey(block.Bytes)
+	case "RSA PRIVATE KEY":
+		key, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+	case "PRIVATE KEY":
+		key, err = x509.ParsePKCS8PrivateKey(block.Bytes)
+	default:
+		err = fmt.Errorf("private key type not supported: %q", block.Type)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %s", err)
+	}
+
+	return key, nil
 }
