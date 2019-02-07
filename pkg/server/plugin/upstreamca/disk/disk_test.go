@@ -2,8 +2,6 @@ package disk
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -14,7 +12,6 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/upstreamca"
 	testutil "github.com/spiffe/spire/test/util"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,6 +52,11 @@ func TestDisk_ConfigureUsingPKCS1Key(t *testing.T) {
 func TestDisk_ConfigureUsingPKCS8Key(t *testing.T) {
 	_, err := newWithDefault("_test_data/keys/PKCS8/private_key.pem", "_test_data/keys/PKCS8/cert.pem")
 	require.NoError(t, err)
+}
+
+func TestDisk_ConfigureUsingNonMatchingKeyAndCert(t *testing.T) {
+	_, err := newWithDefault("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/PKCS8/cert.pem")
+	require.Error(t, err)
 }
 
 func TestDisk_ConfigureUsingEmptyKey(t *testing.T) {
@@ -135,35 +137,6 @@ func TestDisk_race(t *testing.T) {
 		m.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
 		m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
 	})
-}
-
-func TestDisk_ParsePrivateKeyParsesEC(t *testing.T) {
-	key, err := parsePrivateKey("_test_data/keys/EC/private_key.pem")
-	require.NoError(t, err)
-	assert.IsType(t, &ecdsa.PrivateKey{}, key)
-}
-
-func TestDisk_ParsePrivateKeyParsesPKCS1(t *testing.T) {
-	key, err := parsePrivateKey("_test_data/keys/PKCS1/private_key.pem")
-	require.NoError(t, err)
-	assert.IsType(t, &rsa.PrivateKey{}, key)
-}
-
-func TestDisk_ParsePrivateKeyParsesPKCS8(t *testing.T) {
-	key, err := parsePrivateKey("_test_data/keys/PKCS8/private_key.pem")
-	require.NoError(t, err)
-	assert.IsType(t, &rsa.PrivateKey{}, key)
-}
-func TestDisk_ParsePrivateKeyFailsIfKeyFormatIsUnknown(t *testing.T) {
-	key, err := parsePrivateKey("_test_data/keys/unknown/private_key.pem")
-	require.Error(t, err)
-	assert.Nil(t, key)
-}
-
-func TestDisk_ParsePrivateKeyFailsIfKeyIsEmpty(t *testing.T) {
-	key, err := parsePrivateKey("_test_data/keys/empty/private_key.pem")
-	require.Error(t, err)
-	assert.Nil(t, key)
 }
 
 func newWithDefault(keyFilePath string, certFilePath string) (upstreamca.Plugin, error) {

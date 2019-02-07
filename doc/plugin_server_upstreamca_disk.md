@@ -13,4 +13,4 @@ The plugin accepts the following configuration options:
 | cert_file_path | Path to the "upstream" CA certificate |
 | key_file_path  | Path to the "upstream" CA key file    |
 
-Supported key types are:  EC, PKCS#1, PKCS#8.
+Key files must contain a single PEM encoded key. The supported key types are EC (ASN.1 or PKCS8 encoded) or RSA (PKCS1 or PKCS8 encoded).
