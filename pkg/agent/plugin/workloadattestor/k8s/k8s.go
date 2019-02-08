@@ -245,8 +245,8 @@ func getSelectorsFromPodInfo(info *podInfo, containerName string) []*common.Sele
 		selectors = append(selectors, makeSelector("pod-label:%s:%s", k, v))
 	}
 	for _, ownerReference := range info.Metadata.OwnerReferences {
+		selectors = append(selectors, makeSelector("pod-owner:%s:%s", ownerReference.Kind, ownerReference.Name))
 		selectors = append(selectors, makeSelector("pod-owner-uid:%s:%s", ownerReference.Kind, ownerReference.UID))
-		selectors = append(selectors, makeSelector("pod-owner-name:%s:%s", ownerReference.Kind, ownerReference.Name))
 	}
 
 	for _, container := range info.Spec.Containers {

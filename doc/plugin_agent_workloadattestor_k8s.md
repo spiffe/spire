@@ -16,6 +16,6 @@ the kubelet for information about the pod.
 | k8s:container-name  | The name of the workload's container |
 | k8s:node-name       | The name of the workload's node |
 | k8s:pod-label       | A label given to the the workload's pod |
-| k8s:pod-owner-name  | The name of the workload's pod owner |
+| k8s:pod-owner       | The name of the workload's pod owner |
 | k8s:pod-owner-uid   | The UID of the workload's pod owner |
 | k8s:pod-uid         | The UID of the workload's pod |
