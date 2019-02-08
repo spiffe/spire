@@ -79,7 +79,6 @@ server {
         bind_port = "8081"
         registration_uds_path ="/tmp/spire-registration.sock"
         trust_domain = "example.org"
-        plugin_dir = "conf/server/plugin"
         log_level = "DEBUG"
         base_svid_ttl = 999999
         server_svid_ttl = 999999
