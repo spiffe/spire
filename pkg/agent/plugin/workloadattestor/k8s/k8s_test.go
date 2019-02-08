@@ -138,7 +138,8 @@ func (s *K8sAttestorSuite) TestAttestWithPidInPodAfterRetry() {
 		{Type: "k8s", Value: "ns:default"},
 		{Type: "k8s", Value: "pod-label:k8s-app:blog"},
 		{Type: "k8s", Value: "pod-label:version:v0"},
-		{Type: "k8s", Value: "pod-owner:ReplicationController:blog"},
+		{Type: "k8s", Value: "pod-owner-name:ReplicationController:blog"},
+		{Type: "k8s", Value: "pod-owner-uid:ReplicationController:2c401175-b29f-11e7-9350-020968147796"},
 		{Type: "k8s", Value: "pod-uid:2c48913c-b29f-11e7-9350-020968147796"},
 		{Type: "k8s", Value: "sa:default"},
 	}, resp.Selectors)
