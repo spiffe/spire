@@ -1,10 +1,12 @@
 package gcp
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"sync"
+	"text/template"
 
 	"github.com/hashicorp/hcl"
 
@@ -17,45 +19,43 @@ import (
 const (
 	tokenAudience = "spire-gcp-node-attestor"
 	googleCertURL = "https://www.googleapis.com/oauth2/v1/certs"
+	svidPrefix    = "spiffe://{{ .TrustDomain }}/spire/agent"
 )
 
-// IITAttestorPlugin implements node attestation for agents running in GCP.
-type IITAttestorPlugin struct {
-	BaseIITAttestorPlugin
-
-	config *IITAttestorConfig
-	mtx    sync.Mutex
-}
-
-// BaseIITAttestorPlugin implements retrieving and validating an instance identity
-// document on GCP. It can be used to implement custom node attestation (e.g. custom
-// spiffeIDs) for GCP without reimplementing the interaction with GCP.
-type BaseIITAttestorPlugin struct {
-	tokenKeyRetriever tokenKeyRetriever
-}
+var _defaultAgentSVIDTemplate = template.Must(template.New("agent-svid").Parse(fmt.Sprintf("%s/{{ .PluginName}}/{{ .ProjectID }}/{{ .InstanceID }}", svidPrefix)))
 
 type tokenKeyRetriever interface {
 	retrieveKey(token *jwt.Token) (interface{}, error)
+}
+
+// IITAttestorPlugin implements node attestation for agents running in GCP.
+type IITAttestorPlugin struct {
+	svidTemplate      *template.Template
+	config            *IITAttestorConfig
+	mtx               sync.Mutex
+	tokenKeyRetriever tokenKeyRetriever
 }
 
 // IITAttestorConfig is the config for IITAttestorPlugin.
 type IITAttestorConfig struct {
 	trustDomain        string
 	ProjectIDWhitelist []string `hcl:"projectid_whitelist"`
+	AgentSVIDTemplate  string   `hcl:"agent_svid_template"`
 }
 
 // NewIITAttestorPlugin creates a new IITAttestorPlugin.
 func NewIITAttestorPlugin() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
-		BaseIITAttestorPlugin: NewBaseIITAttestorPlugin(),
+		svidTemplate:      _defaultAgentSVIDTemplate,
+		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
 	}
 }
 
-// NewBaseIITAttestorPlugin creates a new BaseIITAttestorPlugin.
-func NewBaseIITAttestorPlugin() BaseIITAttestorPlugin {
-	return BaseIITAttestorPlugin{
-		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
-	}
+// templateData is the data passed to the agent SVID template.
+type templateData struct {
+	gcp.ComputeEngine
+	PluginName  string
+	TrustDomain string
 }
 
 // Attest implements the server side logic for the gcp iit node attestation plugin.
@@ -65,7 +65,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		return err
 	}
 
-	identityMetadata, err := p.ValidateAttestationAndExtractIdentityMetadata(stream, gcp.PluginName)
+	identityMetadata, err := p.validateAttestationAndExtractIdentityMetadata(stream, gcp.PluginName)
 	if err != nil {
 		return err
 	}
@@ -81,11 +81,18 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		return newErrorf("identity token project ID %q is not in the whitelist", identityMetadata.ProjectID)
 	}
 
-	spiffeID := gcp.MakeSpiffeID(c.trustDomain, identityMetadata.ProjectID, identityMetadata.InstanceID)
+	var spiffeID bytes.Buffer
+	if err := p.svidTemplate.Execute(&spiffeID, templateData{
+		ComputeEngine: identityMetadata,
+		TrustDomain:   c.trustDomain,
+		PluginName:    gcp.PluginName,
+	}); err != nil {
+		return newErrorf("failed to execute svid template in-memory: %v", err)
+	}
 
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: spiffeID,
+		BaseSPIFFEID: spiffeID.String(),
 	}
 
 	if err := stream.Send(resp); err != nil {
@@ -95,9 +102,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 	return nil
 }
 
-// ValidateAttestationAndExtractIdentityMetadata validates the attestation data, as well as the GCP identity
-// document that contains and returns the contained gcp.ComputeEngine object.
-func (p *BaseIITAttestorPlugin) ValidateAttestationAndExtractIdentityMetadata(stream nodeattestor.Attest_PluginStream, pluginName string) (gcp.ComputeEngine, error) {
+func (p *IITAttestorPlugin) validateAttestationAndExtractIdentityMetadata(stream nodeattestor.Attest_PluginStream, pluginName string) (gcp.ComputeEngine, error) {
 	req, err := stream.Recv()
 	if err != nil {
 		return gcp.ComputeEngine{}, err
@@ -147,6 +152,14 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 
 	if len(config.ProjectIDWhitelist) == 0 {
 		return nil, newError("projectid_whitelist is required")
+	}
+
+	if len(config.AgentSVIDTemplate) > 0 {
+		tmpl, err := template.New("agent-svid").Parse(fmt.Sprintf("%s/%s", svidPrefix, config.AgentSVIDTemplate))
+		if err != nil {
+			return nil, newErrorf("failed to parse agent svid template: %q", config.AgentSVIDTemplate)
+		}
+		p.svidTemplate = tmpl
 	}
 
 	p.mtx.Lock()

@@ -186,19 +186,6 @@ func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
 	s.requireErrorContains(err, `gcp-iit: identity token project ID "project-whatever" is not in the whitelist`)
 }
 
-func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequest() {
-	token := buildToken()
-
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: s.signToken(token),
-	}
-	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-	s.Require().True(res.Valid)
-}
-
 func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
 	token := buildToken()
 
@@ -211,6 +198,56 @@ func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
 
 	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
 	s.requireErrorContains(err, "gcp-iit: unable to parse/validate the identity token: token contains an invalid number of segments")
+}
+
+func (s *IITAttestorSuite) TestErrorOnBadSVIDTemplate() {
+	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+projectid_whitelist = ["project-123"]
+agent_svid_template = "{{ .InstanceID "
+`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.requireErrorContains(err, "failed to parse agent svid template")
+}
+
+func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequest() {
+	token := buildToken()
+	expectSVID := "spiffe://example.org/spire/agent/gcp_iit/project-123/instance-123"
+
+	data := &common.AttestationData{
+		Type: gcp.PluginName,
+		Data: s.signToken(token),
+	}
+	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Require().True(res.Valid)
+	s.Require().Equal(expectSVID, res.BaseSPIFFEID)
+}
+
+func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequestCustomSVID() {
+	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+projectid_whitelist = ["project-123"]
+agent_svid_template = "{{ .InstanceID }}"
+`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.Require().NoError(err)
+
+	token := buildToken()
+	expectSVID := "spiffe://example.org/spire/agent/instance-123"
+
+	data := &common.AttestationData{
+		Type: gcp.PluginName,
+		Data: s.signToken(token),
+	}
+	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Require().True(res.Valid)
+	s.Require().Equal(expectSVID, res.BaseSPIFFEID)
 }
 
 func (s *IITAttestorSuite) TestConfigure() {
@@ -270,7 +307,7 @@ func (s *IITAttestorSuite) TestGetPluginInfo() {
 
 func (s *IITAttestorSuite) TestFailToRecvStream() {
 	p := NewIITAttestorPlugin()
-	_, err := p.ValidateAttestationAndExtractIdentityMetadata(&recvFailStream{}, gcp.PluginName)
+	_, err := p.validateAttestationAndExtractIdentityMetadata(&recvFailStream{}, gcp.PluginName)
 	s.Require().EqualError(err, "failed to recv from stream")
 }
 
