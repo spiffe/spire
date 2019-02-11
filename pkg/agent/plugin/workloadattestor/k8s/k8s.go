@@ -64,6 +64,7 @@ type podInfo struct {
 	Spec struct {
 		ServiceAccountName string `json:"serviceAccountName"`
 		Containers         []struct {
+			UID   string `json:"uid"`
 			Name  string `json:"name"`
 			Image string `json:"image"`
 		} `json:"containers"`
@@ -76,15 +77,15 @@ type podList struct {
 	Items []*podInfo `json:"items"`
 }
 
+type containerStatus struct {
+	Name        string `json:"name"`
+	Image       string `json:"image"`
+	ContainerID string `json:"containerID"`
+}
+
 type podStatus struct {
-	InitContainerStatuses []struct {
-		Name        string `json:"name"`
-		ContainerID string `json:"containerID"`
-	} `json:"initContainerStatuses"`
-	ContainerStatuses []struct {
-		Name        string `json:"name"`
-		ContainerID string `json:"containerID"`
-	} `json:"containerStatuses"`
+	InitContainerStatuses []*containerStatus `json:"initContainerStatuses"`
+	ContainerStatuses     []*containerStatus `json:"containerStatuses"`
 }
 
 const (
@@ -137,11 +138,11 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 
 		notAllContainersReady := false
 		for _, item := range list.Items {
-			name, lookup := lookUpContainerInPod(containerID, item.Status)
+			status, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
 			case containerInPod:
 				return &workloadattestor.AttestResponse{
-					Selectors: getSelectorsFromPodInfo(item, name),
+					Selectors: getSelectorsFromPodInfo(item, status),
 				}, nil
 			case containerMaybeInPod:
 				notAllContainersReady = true
@@ -186,7 +187,7 @@ func (p *k8sPlugin) getPodListFromInsecureKubeletPort() (out *podList, err error
 	return out, nil
 }
 
-func lookUpContainerInPod(containerID string, status podStatus) (string, containerLookup) {
+func lookUpContainerInPod(containerID string, status podStatus) (*containerStatus, containerLookup) {
 	notReady := false
 	for _, status := range status.ContainerStatuses {
 		// TODO: should we be keying off of the status or is the lack of a
@@ -203,7 +204,7 @@ func lookUpContainerInPod(containerID string, status podStatus) (string, contain
 		}
 
 		if containerID == containerURL.Host {
-			return status.Name, containerInPod
+			return status, containerInPod
 		}
 	}
 
@@ -222,23 +223,25 @@ func lookUpContainerInPod(containerID string, status podStatus) (string, contain
 		}
 
 		if containerID == containerURL.Host {
-			return status.Name, containerInPod
+			return status, containerInPod
 		}
 	}
 
 	if notReady {
-		return "", containerMaybeInPod
+		return nil, containerMaybeInPod
 	}
 
-	return "", containerNotInPod
+	return nil, containerNotInPod
 }
 
-func getSelectorsFromPodInfo(info *podInfo, containerName string) []*common.Selector {
+func getSelectorsFromPodInfo(info *podInfo, status *containerStatus) []*common.Selector {
 	selectors := []*common.Selector{
 		makeSelector("sa:%s", info.Spec.ServiceAccountName),
 		makeSelector("ns:%s", info.Metadata.Namespace),
 		makeSelector("node-name:%s", info.Spec.NodeName),
 		makeSelector("pod-uid:%s", info.Metadata.UID),
+		makeSelector("container-name:%s", status.Name),
+		makeSelector("container-image:%s", status.Image),
 	}
 
 	for k, v := range info.Metadata.Labels {
@@ -247,18 +250,6 @@ func getSelectorsFromPodInfo(info *podInfo, containerName string) []*common.Sele
 	for _, ownerReference := range info.Metadata.OwnerReferences {
 		selectors = append(selectors, makeSelector("pod-owner:%s:%s", ownerReference.Kind, ownerReference.Name))
 		selectors = append(selectors, makeSelector("pod-owner-uid:%s:%s", ownerReference.Kind, ownerReference.UID))
-	}
-
-	for _, container := range info.Spec.Containers {
-		if container.Name != containerName {
-			continue
-		}
-
-		selectors = append(selectors,
-			makeSelector("container-name:%s", container.Name),
-			makeSelector("container-image:%s", container.Image),
-		)
-		break
 	}
 
 	return selectors
