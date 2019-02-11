@@ -7,7 +7,7 @@ RUN cd /spire && make test && make build
 
 # Image stage
 FROM alpine
-RUN apk add dumb-init
+RUN apk add dumb-init ca-certificates
 RUN mkdir -p /opt/spire/bin
 COPY --from=builder /spire/cmd/spire-agent/spire-agent /opt/spire/bin/spire-agent
 WORKDIR /opt/spire
