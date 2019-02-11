@@ -6,6 +6,7 @@ import (
 
 	go_plugin "github.com/hashicorp/go-plugin"
 	"github.com/spiffe/spire/proto/test/dummy"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,16 +54,34 @@ func newClient(t *testing.T) (dummy.Dummy, func()) {
 		Managed:          true,
 	}
 
-	client, err := go_plugin.NewClient(config).Client()
+	pluginClient := go_plugin.NewClient(config)
+
+	success := false
+	defer func() {
+		if !success {
+			pluginClient.Kill()
+		}
+	}()
+
+	grpcClient, err := pluginClient.Client()
 	require.NoError(err)
 
-	raw, err := client.Dispense("dummy")
-	require.NoError(err)
+	defer func() {
+		if !success {
+			grpcClient.Close()
+		}
+	}()
+
+	raw, err := grpcClient.Dispense("dummy")
+	require.NoError(err, "dispensing plugin interface")
 
 	plugin, ok := raw.(*dummy.GRPCClient)
-	require.True(ok)
+	require.True(ok, "implements dummy.GRPCClient interface")
+
+	success = true
 
 	return plugin, func() {
-		require.NoError(client.Close())
+		assert.NoError(t, grpcClient.Close())
+		pluginClient.Kill()
 	}
 }
