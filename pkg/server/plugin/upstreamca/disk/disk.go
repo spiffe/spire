@@ -3,15 +3,14 @@ package disk
 import (
 	"context"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/hcl"
 
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -47,45 +46,25 @@ func (m *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		return nil, errors.New("trust_domain is required")
 	}
 
-	keyPEM, err := ioutil.ReadFile(config.KeyFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read %s: %s", config.KeyFilePath, err)
-	}
-
-	block, rest := pem.Decode(keyPEM)
-
-	if block == nil {
-		return nil, errors.New("invalid key format")
-	}
-
-	if len(rest) > 0 {
-		return nil, errors.New("invalid key format: too many keys")
-	}
-
-	key, err := x509.ParseECPrivateKey(block.Bytes)
+	key, err := pemutil.LoadPrivateKey(config.KeyFilePath)
 	if err != nil {
 		return nil, err
 	}
 
-	certPEM, err := ioutil.ReadFile(config.CertFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read %s: %s", config.CertFilePath, err)
-	}
-
-	block, rest = pem.Decode(certPEM)
-
-	if block == nil {
-		return nil, errors.New("invalid cert format")
-	}
-
-	if len(rest) > 0 {
-		return nil, errors.New("invalid cert format: too many certs")
-	}
-
-	cert, err := x509.ParseCertificate(block.Bytes)
+	cert, err := pemutil.LoadCertificate(config.CertFilePath)
 	if err != nil {
 		return nil, err
 	}
+
+	// Validate cert matches private key
+	matched, err := x509util.CertificateMatchesPrivateKey(cert, key)
+	if err != nil {
+		return nil, err
+	}
+	if !matched {
+		return nil, errors.New("certificate and private key does not match")
+	}
+
 	ttl, err := time.ParseDuration(config.TTL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid TTL value: %v", err)
