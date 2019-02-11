@@ -1,7 +1,7 @@
 FROM ubuntu:xenial
 
 RUN apt-get update && apt-get -y install \
-    curl unzip git build-essential
+    curl unzip git build-essential ca-certificates
 
 COPY build.sh /root/
 ENV BUILD_DIR=/root/build
