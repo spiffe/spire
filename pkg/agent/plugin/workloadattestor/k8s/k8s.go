@@ -52,10 +52,23 @@ type k8sPluginConfig struct {
 type podInfo struct {
 	// We only care about namespace, serviceAccountName and containerID
 	Metadata struct {
-		Namespace string `json:"namespace"`
+		UID             string            `json:"uid"`
+		Namespace       string            `json:"namespace"`
+		Labels          map[string]string `json:"labels"`
+		OwnerReferences []struct {
+			Kind string `json:"kind"`
+			UID  string `json:"uid"`
+			Name string `json:"name"`
+		} `json:"ownerReferences"`
 	} `json:"metadata"`
 	Spec struct {
 		ServiceAccountName string `json:"serviceAccountName"`
+		Containers         []struct {
+			UID   string `json:"uid"`
+			Name  string `json:"name"`
+			Image string `json:"image"`
+		} `json:"containers"`
+		NodeName string `json:"nodeName"`
 	} `json:"spec"`
 	Status podStatus `json:"status"`
 }
@@ -64,13 +77,15 @@ type podList struct {
 	Items []*podInfo `json:"items"`
 }
 
+type containerStatus struct {
+	Name        string `json:"name"`
+	Image       string `json:"image"`
+	ContainerID string `json:"containerID"`
+}
+
 type podStatus struct {
-	InitContainerStatuses []struct {
-		ContainerID string `json:"containerID"`
-	} `json:"initContainerStatuses"`
-	ContainerStatuses []struct {
-		ContainerID string `json:"containerID"`
-	} `json:"containerStatuses"`
+	InitContainerStatuses []containerStatus `json:"initContainerStatuses"`
+	ContainerStatuses     []containerStatus `json:"containerStatuses"`
 }
 
 const (
@@ -123,10 +138,11 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 
 		notAllContainersReady := false
 		for _, item := range list.Items {
-			switch lookUpContainerInPod(containerID, item.Status) {
+			status, lookup := lookUpContainerInPod(containerID, item.Status)
+			switch lookup {
 			case containerInPod:
 				return &workloadattestor.AttestResponse{
-					Selectors: getSelectorsFromPodInfo(item),
+					Selectors: getSelectorsFromPodInfo(item, status),
 				}, nil
 			case containerMaybeInPod:
 				notAllContainersReady = true
@@ -171,7 +187,7 @@ func (p *k8sPlugin) getPodListFromInsecureKubeletPort() (out *podList, err error
 	return out, nil
 }
 
-func lookUpContainerInPod(containerID string, status podStatus) containerLookup {
+func lookUpContainerInPod(containerID string, status podStatus) (*containerStatus, containerLookup) {
 	notReady := false
 	for _, status := range status.ContainerStatuses {
 		// TODO: should we be keying off of the status or is the lack of a
@@ -188,7 +204,7 @@ func lookUpContainerInPod(containerID string, status podStatus) containerLookup 
 		}
 
 		if containerID == containerURL.Host {
-			return containerInPod
+			return &status, containerInPod
 		}
 	}
 
@@ -207,21 +223,42 @@ func lookUpContainerInPod(containerID string, status podStatus) containerLookup 
 		}
 
 		if containerID == containerURL.Host {
-			return containerInPod
+			return &status, containerInPod
 		}
 	}
 
 	if notReady {
-		return containerMaybeInPod
+		return nil, containerMaybeInPod
 	}
 
-	return containerNotInPod
+	return nil, containerNotInPod
 }
 
-func getSelectorsFromPodInfo(info *podInfo) []*common.Selector {
-	return []*common.Selector{
-		{Type: selectorType, Value: fmt.Sprintf("sa:%v", info.Spec.ServiceAccountName)},
-		{Type: selectorType, Value: fmt.Sprintf("ns:%v", info.Metadata.Namespace)},
+func getSelectorsFromPodInfo(info *podInfo, status *containerStatus) []*common.Selector {
+	selectors := []*common.Selector{
+		makeSelector("sa:%s", info.Spec.ServiceAccountName),
+		makeSelector("ns:%s", info.Metadata.Namespace),
+		makeSelector("node-name:%s", info.Spec.NodeName),
+		makeSelector("pod-uid:%s", info.Metadata.UID),
+		makeSelector("container-name:%s", status.Name),
+		makeSelector("container-image:%s", status.Image),
+	}
+
+	for k, v := range info.Metadata.Labels {
+		selectors = append(selectors, makeSelector("pod-label:%s:%s", k, v))
+	}
+	for _, ownerReference := range info.Metadata.OwnerReferences {
+		selectors = append(selectors, makeSelector("pod-owner:%s:%s", ownerReference.Kind, ownerReference.Name))
+		selectors = append(selectors, makeSelector("pod-owner-uid:%s:%s", ownerReference.Kind, ownerReference.UID))
+	}
+
+	return selectors
+}
+
+func makeSelector(format string, args ...interface{}) *common.Selector {
+	return &common.Selector{
+		Type:  selectorType,
+		Value: fmt.Sprintf(format, args...),
 	}
 }
 
