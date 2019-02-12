@@ -84,8 +84,8 @@ type containerStatus struct {
 }
 
 type podStatus struct {
-	InitContainerStatuses []*containerStatus `json:"initContainerStatuses"`
-	ContainerStatuses     []*containerStatus `json:"containerStatuses"`
+	InitContainerStatuses []containerStatus `json:"initContainerStatuses"`
+	ContainerStatuses     []containerStatus `json:"containerStatuses"`
 }
 
 const (
@@ -204,7 +204,7 @@ func lookUpContainerInPod(containerID string, status podStatus) (*containerStatu
 		}
 
 		if containerID == containerURL.Host {
-			return status, containerInPod
+			return &status, containerInPod
 		}
 	}
 
@@ -223,7 +223,7 @@ func lookUpContainerInPod(containerID string, status podStatus) (*containerStatu
 		}
 
 		if containerID == containerURL.Host {
-			return status, containerInPod
+			return &status, containerInPod
 		}
 	}
 
