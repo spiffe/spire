@@ -32,14 +32,12 @@ type Suite struct {
 }
 
 func (s *Suite) SetupTest() {
-	serviceAccount := "test-service-account"
-
 	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Metadata-Flavor") != "Google" {
 			http.Error(w, "unexpected flavor", http.StatusInternalServerError)
 			return
 		}
-		if req.URL.Path != fmt.Sprintf(identityTokenURLPathTemplate, serviceAccount) {
+		if req.URL.Path != fmt.Sprintf(identityTokenURLPathTemplate, testServiceAccount) {
 			http.Error(w, "unexpected path", http.StatusInternalServerError)
 			return
 		}
@@ -123,6 +121,36 @@ func (s *Suite) TestSuccessfulIdentityTokenProcessing() {
 	require.Equal(s.body, string(resp.AttestationData.Data))
 }
 
+func (s *Suite) TestSuccessfulIdentityTokenProcessingCustomSVIDTemplate() {
+	require := s.Require()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"google": gcp.Google{
+			ComputeEngine: gcp.ComputeEngine{
+				ProjectID:  "project-123",
+				InstanceID: "instance-123",
+			},
+		},
+	})
+	s.body = s.signToken(token)
+
+	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
+			TrustDomain: "example.org",
+		},
+		Configuration: fmt.Sprintf(`
+agent_svid_template = "{{ .InstanceID }}"
+service_account = "%s"
+`, testServiceAccount),
+	})
+
+	resp, err := s.fetchAttestationData()
+	require.NoError(err)
+	require.NotNil(resp)
+	require.Equal("spiffe://example.org/spire/agent/instance-123", resp.SpiffeId)
+	require.Equal(gcp.PluginName, resp.AttestationData.Type)
+	require.Equal(s.body, string(resp.AttestationData.Data))
+}
+
 func (s *Suite) TestFailToSendOnStream() {
 	require := s.Require()
 
@@ -170,6 +198,18 @@ func (s *Suite) TestConfigure() {
 	// missing trust domain
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
 	s.requireErrorContains(err, "gcp-iit: trust_domain is required")
+	require.Nil(resp)
+
+	// bad svid template
+	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
+			TrustDomain: "example.org",
+		},
+		Configuration: `
+agent_svid_template = "{{"
+`,
+	})
+	s.requireErrorContains(err, "failed to parse agent svid template")
 	require.Nil(resp)
 
 	// success
