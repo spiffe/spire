@@ -24,6 +24,10 @@ func ECDSAKeyMatches(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey) b
 	return ECDSAPublicKeyEqual(&privateKey.PublicKey, publicKey)
 }
 
+func RSAKeyMatches(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) bool {
+	return RSAPublicKeyEqual(&privateKey.PublicKey, publicKey)
+}
+
 func GetPublicKey(ctx context.Context, km keymanager.KeyManager, keyId string) (crypto.PublicKey, error) {
 	resp, err := km.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
 		KeyId: keyId,
@@ -51,5 +55,18 @@ func PublicKeyEqual(a, b crypto.PublicKey) (bool, error) {
 		return ok && ECDSAPublicKeyEqual(a, ecdsaPublicKey), nil
 	default:
 		return false, fmt.Errorf("unsupported public key type %T", a)
+	}
+}
+
+func KeyMatches(privateKey crypto.PrivateKey, publicKey crypto.PublicKey) (bool, error) {
+	switch privateKey := privateKey.(type) {
+	case *rsa.PrivateKey:
+		rsaPublicKey, ok := publicKey.(*rsa.PublicKey)
+		return ok && RSAKeyMatches(privateKey, rsaPublicKey), nil
+	case *ecdsa.PrivateKey:
+		ecdsaPublicKey, ok := publicKey.(*ecdsa.PublicKey)
+		return ok && ECDSAKeyMatches(privateKey, ecdsaPublicKey), nil
+	default:
+		return false, fmt.Errorf("unsupported private key type %T", privateKey)
 	}
 }

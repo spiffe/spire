@@ -10,8 +10,12 @@ import (
 	"github.com/spiffe/spire/proto/server/keymanager"
 )
 
-func CertificateMatchesKey(certificate *x509.Certificate, publicKey crypto.PublicKey) (bool, error) {
+func CertificateMatchesPublicKey(certificate *x509.Certificate, publicKey crypto.PublicKey) (bool, error) {
 	return cryptoutil.PublicKeyEqual(certificate.PublicKey, publicKey)
+}
+
+func CertificateMatchesPrivateKey(certificate *x509.Certificate, privateKey crypto.PrivateKey) (bool, error) {
+	return cryptoutil.KeyMatches(privateKey, certificate.PublicKey)
 }
 
 func CreateCertificate(ctx context.Context, km keymanager.KeyManager, template, parent *x509.Certificate, parentKeyId string, publicKey crypto.PublicKey) (*x509.Certificate, error) {

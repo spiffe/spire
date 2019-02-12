@@ -651,7 +651,7 @@ func (m *manager) loadKeypairData(path string, bundleCerts []*x509.Certificate) 
 }
 
 func certMatchesKey(certificate *x509.Certificate, publicKey crypto.PublicKey) bool {
-	matches, err := x509util.CertificateMatchesKey(certificate, publicKey)
+	matches, err := x509util.CertificateMatchesPublicKey(certificate, publicKey)
 	if err != nil {
 		return false
 	}
