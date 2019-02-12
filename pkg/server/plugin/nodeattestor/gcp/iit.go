@@ -22,7 +22,7 @@ const (
 	svidPrefix    = "spiffe://{{ .TrustDomain }}/spire/agent"
 )
 
-var _defaultAgentSVIDTemplate = template.Must(template.New("agent-svid").Parse(fmt.Sprintf("%s/{{ .PluginName}}/{{ .ProjectID }}/{{ .InstanceID }}", svidPrefix)))
+var defaultAgentSVIDTemplate = template.Must(template.New("agent-svid").Parse(fmt.Sprintf("%s/{{ .PluginName}}/{{ .ProjectID }}/{{ .InstanceID }}", svidPrefix)))
 
 type tokenKeyRetriever interface {
 	retrieveKey(token *jwt.Token) (interface{}, error)
@@ -46,7 +46,7 @@ type IITAttestorConfig struct {
 // NewIITAttestorPlugin creates a new IITAttestorPlugin.
 func NewIITAttestorPlugin() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
-		svidTemplate:      _defaultAgentSVIDTemplate,
+		svidTemplate:      defaultAgentSVIDTemplate,
 		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
 	}
 }
