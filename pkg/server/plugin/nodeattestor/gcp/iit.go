@@ -46,13 +46,6 @@ func NewIITAttestorPlugin() *IITAttestorPlugin {
 	}
 }
 
-// templateData is the data passed to the agent SVID template.
-type templateData struct {
-	gcp.ComputeEngine
-	PluginName  string
-	TrustDomain string
-}
-
 // Attest implements the server side logic for the gcp iit node attestation plugin.
 func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	c, err := p.getConfig()
@@ -60,7 +53,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		return err
 	}
 
-	identityMetadata, err := p.validateAttestationAndExtractIdentityMetadata(stream, gcp.PluginName)
+	identityMetadata, err := validateAttestationAndExtractIdentityMetadata(stream, gcp.PluginName, p.tokenKeyRetriever)
 	if err != nil {
 		return err
 	}
@@ -91,38 +84,6 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 	}
 
 	return nil
-}
-
-func (p *IITAttestorPlugin) validateAttestationAndExtractIdentityMetadata(stream nodeattestor.Attest_PluginStream, pluginName string) (gcp.ComputeEngine, error) {
-	req, err := stream.Recv()
-	if err != nil {
-		return gcp.ComputeEngine{}, err
-	}
-
-	attestationData := req.GetAttestationData()
-	if attestationData == nil {
-		return gcp.ComputeEngine{}, newError("request missing attestation data")
-	}
-
-	if attestationData.Type != pluginName {
-		return gcp.ComputeEngine{}, newErrorf("unexpected attestation data type %q", attestationData.Type)
-	}
-
-	if req.AttestedBefore {
-		return gcp.ComputeEngine{}, newError("instance ID has already been attested")
-	}
-
-	identityToken := &gcp.IdentityToken{}
-	_, err = jwt.ParseWithClaims(string(req.GetAttestationData().Data), identityToken, p.tokenKeyRetriever.retrieveKey)
-	if err != nil {
-		return gcp.ComputeEngine{}, newErrorf("unable to parse/validate the identity token: %v", err)
-	}
-
-	if identityToken.Audience != tokenAudience {
-		return gcp.ComputeEngine{}, newErrorf("unexpected identity token audience %q", identityToken.Audience)
-	}
-
-	return identityToken.Google.ComputeEngine, nil
 }
 
 // Configure configures the IITAttestorPlugin.
@@ -164,6 +125,11 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	return &spi.ConfigureResponse{}, nil
 }
 
+// GetPluginInfo returns the version and related metadata of the installed plugin.
+func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return &spi.GetPluginInfoResponse{}, nil
+}
+
 func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
@@ -174,9 +140,36 @@ func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	return p.config, nil
 }
 
-// GetPluginInfo returns the version and related metadata of the installed plugin.
-func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+func validateAttestationAndExtractIdentityMetadata(stream nodeattestor.Attest_PluginStream, pluginName string, tokenRetriever tokenKeyRetriever) (gcp.ComputeEngine, error) {
+	req, err := stream.Recv()
+	if err != nil {
+		return gcp.ComputeEngine{}, err
+	}
+
+	attestationData := req.GetAttestationData()
+	if attestationData == nil {
+		return gcp.ComputeEngine{}, newError("request missing attestation data")
+	}
+
+	if attestationData.Type != pluginName {
+		return gcp.ComputeEngine{}, newErrorf("unexpected attestation data type %q", attestationData.Type)
+	}
+
+	if req.AttestedBefore {
+		return gcp.ComputeEngine{}, newError("instance ID has already been attested")
+	}
+
+	identityToken := &gcp.IdentityToken{}
+	_, err = jwt.ParseWithClaims(string(req.GetAttestationData().Data), identityToken, tokenRetriever.retrieveKey)
+	if err != nil {
+		return gcp.ComputeEngine{}, newErrorf("unable to parse/validate the identity token: %v", err)
+	}
+
+	if identityToken.Audience != tokenAudience {
+		return gcp.ComputeEngine{}, newErrorf("unexpected identity token audience %q", identityToken.Audience)
+	}
+
+	return identityToken.Google.ComputeEngine, nil
 }
 
 func newError(msg string) error {

@@ -307,7 +307,7 @@ func (s *IITAttestorSuite) TestGetPluginInfo() {
 
 func (s *IITAttestorSuite) TestFailToRecvStream() {
 	p := NewIITAttestorPlugin()
-	_, err := p.validateAttestationAndExtractIdentityMetadata(&recvFailStream{}, gcp.PluginName)
+	_, err := validateAttestationAndExtractIdentityMetadata(&recvFailStream{}, gcp.PluginName, p.tokenKeyRetriever)
 	s.Require().EqualError(err, "failed to recv from stream")
 }
 
