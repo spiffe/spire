@@ -204,11 +204,11 @@ func (s *IITAttestorSuite) TestErrorOnBadSVIDTemplate() {
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
 projectid_whitelist = ["project-123"]
-agent_svid_template = "{{ .InstanceID "
+agent_path_template = "{{ .InstanceID "
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.requireErrorContains(err, "failed to parse agent svid template")
+	s.requireErrorContains(err, "failed to parse agent path template")
 }
 
 func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequest() {
@@ -230,7 +230,7 @@ func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequestCustomSVID() 
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
 projectid_whitelist = ["project-123"]
-agent_svid_template = "{{ .InstanceID }}"
+agent_path_template = "{{ .InstanceID }}"
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})

@@ -13,6 +13,7 @@ import (
 
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 )
@@ -117,7 +118,7 @@ func (m *spirePlugin) getGrpcTransportCreds(wCert []byte, wKey []byte, wBundle [
 	}
 
 	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{m.trustDomain.String() + "/spire/server"},
+		SpiffeIDs:  []string{idutil.ServerID(m.trustDomain.Host)},
 		TrustRoots: util.NewCertPool(bundle...),
 	}
 

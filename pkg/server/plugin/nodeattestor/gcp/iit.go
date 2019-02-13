@@ -1,7 +1,6 @@
 package gcp
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -19,10 +18,7 @@ import (
 const (
 	tokenAudience = "spire-gcp-node-attestor"
 	googleCertURL = "https://www.googleapis.com/oauth2/v1/certs"
-	svidPrefix    = "spiffe://{{ .TrustDomain }}/spire/agent"
 )
-
-var defaultAgentSVIDTemplate = template.Must(template.New("agent-svid").Parse(fmt.Sprintf("%s/{{ .PluginName}}/{{ .ProjectID }}/{{ .InstanceID }}", svidPrefix)))
 
 type tokenKeyRetriever interface {
 	retrieveKey(token *jwt.Token) (interface{}, error)
@@ -30,7 +26,6 @@ type tokenKeyRetriever interface {
 
 // IITAttestorPlugin implements node attestation for agents running in GCP.
 type IITAttestorPlugin struct {
-	svidTemplate      *template.Template
 	config            *IITAttestorConfig
 	mtx               sync.Mutex
 	tokenKeyRetriever tokenKeyRetriever
@@ -38,15 +33,15 @@ type IITAttestorPlugin struct {
 
 // IITAttestorConfig is the config for IITAttestorPlugin.
 type IITAttestorConfig struct {
+	idPathTemplate     *template.Template
 	trustDomain        string
 	ProjectIDWhitelist []string `hcl:"projectid_whitelist"`
-	AgentSVIDTemplate  string   `hcl:"agent_svid_template"`
+	AgentPathTemplate  string   `hcl:"agent_path_template"`
 }
 
 // NewIITAttestorPlugin creates a new IITAttestorPlugin.
 func NewIITAttestorPlugin() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
-		svidTemplate:      defaultAgentSVIDTemplate,
 		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
 	}
 }
@@ -81,18 +76,14 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		return newErrorf("identity token project ID %q is not in the whitelist", identityMetadata.ProjectID)
 	}
 
-	var spiffeID bytes.Buffer
-	if err := p.svidTemplate.Execute(&spiffeID, templateData{
-		ComputeEngine: identityMetadata,
-		TrustDomain:   c.trustDomain,
-		PluginName:    gcp.PluginName,
-	}); err != nil {
-		return newErrorf("failed to execute svid template in-memory: %v", err)
+	id, err := gcp.MakeSpiffeID(c.trustDomain, c.idPathTemplate, identityMetadata)
+	if err != nil {
+		return newErrorf("failed to create spiffe ID: %v", err)
 	}
 
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: spiffeID.String(),
+		BaseSPIFFEID: id.String(),
 	}
 
 	if err := stream.Send(resp); err != nil {
@@ -154,13 +145,16 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		return nil, newError("projectid_whitelist is required")
 	}
 
-	if len(config.AgentSVIDTemplate) > 0 {
-		tmpl, err := template.New("agent-svid").Parse(fmt.Sprintf("%s/%s", svidPrefix, config.AgentSVIDTemplate))
+	tmpl := gcp.DefaultAgentPathTemplate
+	if len(config.AgentPathTemplate) > 0 {
+		var err error
+		tmpl, err = template.New("agent-path").Parse(config.AgentPathTemplate)
 		if err != nil {
-			return nil, newErrorf("failed to parse agent svid template: %q", config.AgentSVIDTemplate)
+			return nil, newErrorf("failed to parse agent path template: %q", config.AgentPathTemplate)
 		}
-		p.svidTemplate = tmpl
 	}
+
+	config.idPathTemplate = tmpl
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"strings"
 )
 
@@ -284,4 +285,24 @@ func normalizeSpiffeIDURL(u *url.URL) *url.URL {
 	// SPIFFE ID's can't contain ports so don't bother handling that here.
 	c.Host = strings.ToLower(u.Hostname())
 	return &c
+}
+
+func AgentURI(trustDomain, p string) *url.URL {
+	return &url.URL{
+		Scheme: "spiffe",
+		Host:   trustDomain,
+		Path:   path.Join("spire", "agent", p),
+	}
+}
+
+func ServerID(trustDomain string) string {
+	return ServerURI(trustDomain).String()
+}
+
+func ServerURI(trustDomain string) *url.URL {
+	return &url.URL{
+		Scheme: "spiffe",
+		Host:   trustDomain,
+		Path:   path.Join("spire", "server"),
+	}
 }
