@@ -3,11 +3,13 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"path"
+	"strings"
 	"sync"
+	"text/template"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
@@ -20,52 +22,41 @@ import (
 )
 
 const (
-	iidPluginName               = "aws_iid"
-	defaultIdentityDocumentUrl  = "http://169.254.169.254/latest/dynamic/instance-identity/document"
-	defaultIdentitySignatureUrl = "http://169.254.169.254/latest/dynamic/instance-identity/signature"
+	defaultIdentityDocumentHost  = "169.254.169.254"
+	defaultIdentityDocumentPath  = "/latest/dynamic/instance-identity/document"
+	defaultIdentitySignatureHost = "169.254.169.254"
+	defaultIdentitySignaturePath = "/latest/dynamic/instance-identity/signature"
 )
 
+// IIDAttestorConfig configures a IIDAttestorPlugin.
 type IIDAttestorConfig struct {
-	IdentityDocumentUrl  string `hcl:"identity_document_url"`
-	IdentitySignatureUrl string `hcl:"identity_signature_url"`
-}
-
-type IIDAttestorPlugin struct {
+	IdentityDocumentURL  string `hcl:"identity_document_url"`
+	IdentitySignatureURL string `hcl:"identity_signature_url"`
+	AgentPathTemplate    string `hcl:"agent_path_template"`
 	trustDomain          string
-	identityDocumentUrl  string
-	identitySignatureUrl string
-
-	mtx *sync.RWMutex
+	pathTemplate         *template.Template
 }
 
-func (p *IIDAttestorPlugin) spiffeID(awsAccountId, awsRegion, awsInstanceId string) *url.URL {
-	spiffePath := path.Join("spire", "agent", iidPluginName, awsAccountId, awsRegion, awsInstanceId)
-	id := &url.URL{
-		Scheme: "spiffe",
-		Host:   p.trustDomain,
-		Path:   spiffePath,
-	}
-	return id
+// IIDAttestorPlugin implements aws nodeattestation in the agent.
+type IIDAttestorPlugin struct {
+	config *IIDAttestorConfig
+	mtx    sync.RWMutex
 }
 
-func httpGetBytes(url string) ([]byte, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	bytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return bytes, nil
+// NewIIDPlugin creates a new IIDAttestorPlugin.
+func NewIIDPlugin() *IIDAttestorPlugin {
+	return &IIDAttestorPlugin{}
 }
 
+// FetchAttestationData fetches attestation data from the aws metadata server and sends an attestation response
+// on given stream.
 func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
-	p.mtx.RLock()
-	defer p.mtx.RUnlock()
+	c, err := p.getConfig()
+	if err != nil {
+		return err
+	}
 
-	docBytes, err := httpGetBytes(p.identityDocumentUrl)
+	docBytes, err := httpGetBytes(identityURL(c.IdentityDocumentURL))
 	if err != nil {
 		err = aws.AttestationStepError("retrieving the IID from AWS", err)
 		return err
@@ -78,7 +69,7 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 		return err
 	}
 
-	sigBytes, err := httpGetBytes(p.identitySignatureUrl)
+	sigBytes, err := httpGetBytes(identityURL(c.IdentitySignatureURL))
 	if err != nil {
 		err = aws.AttestationStepError("retrieving the IID signature from AWS", err)
 		return err
@@ -98,20 +89,23 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 	// FIXME: NA should be the one dictating type of this message
 	// Change the proto to just take plain byte here
 	data := &common.AttestationData{
-		Type: iidPluginName,
+		Type: aws.PluginName,
 		Data: respData,
+	}
+
+	spiffeID, err := aws.MakeSpiffeID(c.trustDomain, c.pathTemplate, doc)
+	if err != nil {
+		return fmt.Errorf("failed to create spiffe ID: %v", err)
 	}
 
 	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
 		AttestationData: data,
-		SpiffeId:        aws.IIDAgentID(p.trustDomain, doc.AccountId, doc.Region, doc.InstanceId),
+		SpiffeId:        spiffeID.String(),
 	})
 }
 
+// Configure configures the IIDAttestorPlugin.
 func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
 	resp := &spi.ConfigureResponse{}
 
 	// Parse HCL config payload into config struct
@@ -139,29 +133,72 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		return resp, err
 	}
 	// Set local vars from config struct
-	p.trustDomain = req.GlobalConfig.TrustDomain
+	config.trustDomain = req.GlobalConfig.TrustDomain
 
-	if config.IdentityDocumentUrl != "" {
-		p.identityDocumentUrl = config.IdentityDocumentUrl
-	} else {
-		p.identityDocumentUrl = defaultIdentityDocumentUrl
+	if config.IdentityDocumentURL == "" {
+		config.IdentityDocumentURL = defaultIdentityDocumentHost + defaultIdentityDocumentPath
 	}
 
-	if config.IdentitySignatureUrl != "" {
-		p.identitySignatureUrl = config.IdentitySignatureUrl
-	} else {
-		p.identitySignatureUrl = defaultIdentitySignatureUrl
+	if config.IdentitySignatureURL == "" {
+		config.IdentitySignatureURL = defaultIdentitySignatureHost + defaultIdentitySignaturePath
 	}
+
+	config.pathTemplate = aws.DefaultAgentPathTemplate
+	if len(config.AgentPathTemplate) > 0 {
+		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse agent svid template: %q", config.AgentPathTemplate)
+		}
+		config.pathTemplate = tmpl
+	}
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	p.config = config
 
 	return resp, nil
 }
 
+// GetPluginInfo returns the version and other metadata of the plugin.
 func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func NewIID() nodeattestor.Plugin {
-	return &IIDAttestorPlugin{
-		mtx: &sync.RWMutex{},
+func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
+	if p.config == nil {
+		return nil, errors.New("not configured")
 	}
+	return p.config, nil
+}
+
+func identityURL(rawurl string) string {
+	spliturl := strings.SplitN(rawurl, "/", 2)
+	url := &url.URL{
+		Scheme: "http",
+		Host:   spliturl[0],
+		Path:   spliturl[1],
+	}
+	return url.String()
+}
+
+func httpGetBytes(url string) ([]byte, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	bytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return bytes, nil
 }
