@@ -3,7 +3,6 @@ package gcp
 import (
 	"bytes"
 	"net/url"
-	"path"
 	"text/template"
 
 	jwt "github.com/dgrijalva/jwt-go"
