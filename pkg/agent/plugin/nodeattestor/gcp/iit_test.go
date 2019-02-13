@@ -121,7 +121,7 @@ func (s *Suite) TestSuccessfulIdentityTokenProcessing() {
 	require.Equal(s.body, string(resp.AttestationData.Data))
 }
 
-func (s *Suite) TestSuccessfulIdentityTokenProcessingCustomSVIDTemplate() {
+func (s *Suite) TestSuccessfulIdentityTokenProcessingCustomPathTemplate() {
 	require := s.Require()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"google": gcp.Google{
@@ -138,7 +138,7 @@ func (s *Suite) TestSuccessfulIdentityTokenProcessingCustomSVIDTemplate() {
 			TrustDomain: "example.org",
 		},
 		Configuration: fmt.Sprintf(`
-agent_svid_template = "{{ .InstanceID }}"
+agent_path_template = "{{ .InstanceID }}"
 service_account = "%s"
 `, testServiceAccount),
 	})
@@ -200,16 +200,16 @@ func (s *Suite) TestConfigure() {
 	s.requireErrorContains(err, "gcp-iit: trust_domain is required")
 	require.Nil(resp)
 
-	// bad svid template
+	// bad path template
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
 			TrustDomain: "example.org",
 		},
 		Configuration: `
-agent_svid_template = "{{"
+agent_path_template = "{{"
 `,
 	})
-	s.requireErrorContains(err, "failed to parse agent svid template")
+	s.requireErrorContains(err, "failed to parse agent path template")
 	require.Nil(resp)
 
 	// success

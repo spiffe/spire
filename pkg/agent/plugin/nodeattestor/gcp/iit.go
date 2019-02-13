@@ -1,7 +1,6 @@
 package gcp
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -24,42 +23,30 @@ const (
 	identityTokenURLHost         = "metadata.google.internal"
 	identityTokenURLPathTemplate = "/computeMetadata/v1/instance/service-accounts/%s/identity"
 	identityTokenAudience        = "spire-gcp-node-attestor"
-	svidPrefix                   = "spiffe://{{ .TrustDomain }}/spire/agent"
-
-	defaultServiceAccount = "default"
+	defaultServiceAccount        = "default"
 )
-
-var defaultAgentSVIDTemplate = template.Must(template.New("agent-svid").Parse(fmt.Sprintf("%s/{{ .PluginName}}/{{ .ProjectID }}/{{ .InstanceID }}", svidPrefix)))
 
 // IITAttestorPlugin implements GCP nodeattestation in the agent.
 type IITAttestorPlugin struct {
 	tokenHost string
 
-	svidTemplate *template.Template
-	mtx          sync.RWMutex
-	config       *IITAttestorConfig
+	mtx    sync.RWMutex
+	config *IITAttestorConfig
 }
 
 // IITAttestorConfig configures a IITAttestorPlugin.
 type IITAttestorConfig struct {
 	trustDomain       string
+	idPathTemplate    *template.Template
 	ServiceAccount    string `hcl:"service_account"`
-	AgentSVIDTemplate string `hcl:"agent_svid_template"`
+	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
 // NewIITAttestorPlugin creates a new IITAttestorPlugin.
 func NewIITAttestorPlugin() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
-		svidTemplate: defaultAgentSVIDTemplate,
-		tokenHost:    identityTokenURLHost,
+		tokenHost: identityTokenURLHost,
 	}
-}
-
-// templateData is the data passed to the agent SVID template.
-type templateData struct {
-	gcp.ComputeEngine
-	PluginName  string
-	TrustDomain string
 }
 
 // FetchAttestationData fetches attestation data from the GCP metadata server and sends an attestation response
@@ -75,13 +62,9 @@ func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 		return newErrorf("unable to retrieve valid identity token: %v", err)
 	}
 
-	var spiffeID bytes.Buffer
-	if err := p.svidTemplate.Execute(&spiffeID, templateData{
-		ComputeEngine: identityToken.Google.ComputeEngine,
-		TrustDomain:   c.trustDomain,
-		PluginName:    gcp.PluginName,
-	}); err != nil {
-		return newErrorf("failed to execute svid template in-memory: %v", err)
+	spiffeID, err := gcp.MakeSpiffeID(c.trustDomain, c.idPathTemplate, identityToken.Google.ComputeEngine)
+	if err != nil {
+		return newErrorf("failed to create agent spiffe ID: %v", err)
 	}
 
 	resp := buildAttestationResponse(spiffeID.String(), gcp.PluginName, identityTokenBytes)
@@ -111,13 +94,15 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		config.ServiceAccount = defaultServiceAccount
 	}
 
-	if len(config.AgentSVIDTemplate) > 0 {
-		tmpl, err := template.New("agent-svid").Parse(fmt.Sprintf("%s/%s", svidPrefix, config.AgentSVIDTemplate))
+	tmpl := gcp.DefaultAgentPathTemplate
+	if len(config.AgentPathTemplate) > 0 {
+		var err error
+		tmpl, err = template.New("agent-path").Parse(config.AgentPathTemplate)
 		if err != nil {
-			return nil, newErrorf("failed to parse agent svid template: %q", config.AgentSVIDTemplate)
+			return nil, newErrorf("failed to parse agent path template: %q", config.AgentPathTemplate)
 		}
-		p.svidTemplate = tmpl
 	}
+	config.idPathTemplate = tmpl
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
@@ -141,7 +126,7 @@ func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	return p.config, nil
 }
 
-// BuildAttestationResponse creates an attestation response given a spiffe ID, the plugin name, and the raw bytes of the
+// buildAttestationResponse creates an attestation response given a spiffe ID, the plugin name, and the raw bytes of the
 // GCP identity document.
 func buildAttestationResponse(spiffeID string, pluginName string, identityTokenBytes []byte) *nodeattestor.FetchAttestationDataResponse {
 	data := &common.AttestationData{
