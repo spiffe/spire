@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"text/template"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/hashicorp/hcl"
@@ -19,15 +20,13 @@ import (
 )
 
 const (
-	identityTokenURLHost  = "metadata.google.internal"
-	identityTokenURLPath  = "/computeMetadata/v1/instance/service-accounts/default/identity"
-	identityTokenAudience = "spire-gcp-node-attestor"
+	identityTokenURLHost         = "metadata.google.internal"
+	identityTokenURLPathTemplate = "/computeMetadata/v1/instance/service-accounts/%s/identity"
+	identityTokenAudience        = "spire-gcp-node-attestor"
+	defaultServiceAccount        = "default"
 )
 
-type IITAttestorConfig struct {
-	trustDomain string
-}
-
+// IITAttestorPlugin implements GCP nodeattestation in the agent.
 type IITAttestorPlugin struct {
 	tokenHost string
 
@@ -35,17 +34,146 @@ type IITAttestorPlugin struct {
 	config *IITAttestorConfig
 }
 
-func identityTokenURL(host string) string {
+// IITAttestorConfig configures a IITAttestorPlugin.
+type IITAttestorConfig struct {
+	trustDomain       string
+	idPathTemplate    *template.Template
+	ServiceAccount    string `hcl:"service_account"`
+	AgentPathTemplate string `hcl:"agent_path_template"`
+}
+
+// NewIITAttestorPlugin creates a new IITAttestorPlugin.
+func NewIITAttestorPlugin() *IITAttestorPlugin {
+	return &IITAttestorPlugin{
+		tokenHost: identityTokenURLHost,
+	}
+}
+
+// FetchAttestationData fetches attestation data from the GCP metadata server and sends an attestation response
+// on given stream.
+func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
+	c, err := p.getConfig()
+	if err != nil {
+		return err
+	}
+
+	identityToken, identityTokenBytes, err := retrieveValidInstanceIdentityToken(identityTokenURL(p.tokenHost, c.ServiceAccount))
+	if err != nil {
+		return newErrorf("unable to retrieve valid identity token: %v", err)
+	}
+
+	spiffeID, err := gcp.MakeSpiffeID(c.trustDomain, c.idPathTemplate, identityToken.Google.ComputeEngine)
+	if err != nil {
+		return newErrorf("failed to create agent spiffe ID: %v", err)
+	}
+
+	resp := buildAttestationResponse(spiffeID.String(), gcp.PluginName, identityTokenBytes)
+
+	if err := stream.Send(resp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	config := &IITAttestorConfig{}
+	if err := hcl.Decode(config, req.Configuration); err != nil {
+		return nil, newErrorf("unable to decode configuration: %v", err)
+	}
+
+	if req.GlobalConfig == nil {
+		return nil, newError("global configuration is required")
+	}
+	if req.GlobalConfig.TrustDomain == "" {
+		return nil, newError("trust_domain is required")
+	}
+	config.trustDomain = req.GlobalConfig.TrustDomain
+
+	if config.ServiceAccount == "" {
+		config.ServiceAccount = defaultServiceAccount
+	}
+
+	tmpl := gcp.DefaultAgentPathTemplate
+	if len(config.AgentPathTemplate) > 0 {
+		var err error
+		tmpl, err = template.New("agent-path").Parse(config.AgentPathTemplate)
+		if err != nil {
+			return nil, newErrorf("failed to parse agent path template: %q", config.AgentPathTemplate)
+		}
+	}
+	config.idPathTemplate = tmpl
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.config = config
+
+	return &spi.ConfigureResponse{}, nil
+}
+
+// GetPluginInfo returns the version and other metadata of the plugin.
+func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return &spi.GetPluginInfoResponse{}, nil
+}
+
+func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	if p.config == nil {
+		return nil, newError("not configured")
+	}
+	return p.config, nil
+}
+
+// buildAttestationResponse creates an attestation response given a spiffe ID, the plugin name, and the raw bytes of the
+// GCP identity document.
+func buildAttestationResponse(spiffeID string, pluginName string, identityTokenBytes []byte) *nodeattestor.FetchAttestationDataResponse {
+	data := &common.AttestationData{
+		Type: pluginName,
+		Data: identityTokenBytes,
+	}
+
+	resp := &nodeattestor.FetchAttestationDataResponse{
+		AttestationData: data,
+		SpiffeId:        spiffeID,
+	}
+	return resp
+}
+
+// identityTokenURL creates the URL to find an instance identity document given the
+// host of the GCP metadata server and the service account the instance is running as.
+func identityTokenURL(host, serviceAccount string) string {
 	query := url.Values{}
 	query.Set("audience", identityTokenAudience)
 	query.Set("format", "full")
 	url := &url.URL{
 		Scheme:   "http",
 		Host:     host,
-		Path:     identityTokenURLPath,
+		Path:     fmt.Sprintf(identityTokenURLPathTemplate, serviceAccount),
 		RawQuery: query.Encode(),
 	}
 	return url.String()
+}
+
+// retrieveValidInstanceIdentityToken retrieves and validates a GCP identity token from
+// the given URL.
+func retrieveValidInstanceIdentityToken(url string) (*gcp.IdentityToken, []byte, error) {
+	identityTokenBytes, err := retrieveInstanceIdentityToken(url)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	identityToken := &gcp.IdentityToken{}
+	if _, _, err := new(jwt.Parser).ParseUnverified(string(identityTokenBytes), identityToken); err != nil {
+		return nil, nil, newErrorf("unable to parse identity token: %v", err)
+	}
+
+	if identityToken.Google == (gcp.Google{}) {
+		return nil, nil, newError("identity token is missing google claims")
+	}
+
+	return identityToken, identityTokenBytes, nil
 }
 
 func retrieveInstanceIdentityToken(url string) ([]byte, error) {
@@ -71,98 +199,6 @@ func retrieveInstanceIdentityToken(url string) ([]byte, error) {
 		return nil, err
 	}
 	return bytes, nil
-}
-
-func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
-	c, err := p.getConfig()
-	if err != nil {
-		return err
-	}
-
-	docBytes, err := retrieveInstanceIdentityToken(identityTokenURL(p.tokenHost))
-	if err != nil {
-		return newErrorf("unable to retrieve identity token: %v", err)
-	}
-
-	resp, err := p.buildAttestationResponse(c.trustDomain, docBytes)
-	if err != nil {
-		return err
-	}
-
-	if err := stream.Send(resp); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (p *IITAttestorPlugin) buildAttestationResponse(trustDomain string, identityTokenBytes []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
-	identityToken := &gcp.IdentityToken{}
-	_, _, err := new(jwt.Parser).ParseUnverified(string(identityTokenBytes), identityToken)
-	if err != nil {
-		return nil, newErrorf("unable to parse identity token: %v", err)
-	}
-
-	if identityToken.Google == (gcp.Google{}) {
-		return nil, newError("identity token is missing google claims")
-	}
-
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: identityTokenBytes,
-	}
-
-	spiffeID, err := gcp.MakeSpiffeID(trustDomain, gcp.DefaultAgentPathTemplate, identityToken.Google.ComputeEngine)
-	if err != nil {
-		return nil, newErrorf("failed to make agent id: %v", err)
-	}
-
-	resp := &nodeattestor.FetchAttestationDataResponse{
-		AttestationData: data,
-		SpiffeId:        spiffeID.String(),
-	}
-	return resp, nil
-}
-
-func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config := &IITAttestorConfig{}
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, newErrorf("unable to decode configuration: %v", err)
-	}
-
-	if req.GlobalConfig == nil {
-		return nil, newError("global configuration is required")
-	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, newError("trust_domain is required")
-	}
-
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-	config.trustDomain = req.GlobalConfig.TrustDomain
-	p.config = config
-
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
-}
-
-func NewIITAttestorPlugin() *IITAttestorPlugin {
-	return &IITAttestorPlugin{
-		tokenHost: identityTokenURLHost,
-	}
-}
-
-func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
-	if p.config == nil {
-		return nil, newError("gcp-iit: not configured")
-	}
-	return p.config, nil
 }
 
 func newError(msg string) error {

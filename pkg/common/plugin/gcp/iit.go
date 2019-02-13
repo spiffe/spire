@@ -41,6 +41,9 @@ type agentPathTemplateData struct {
 	PluginName string
 }
 
+// MakeSpiffeID makes an agent spiffe ID. The ID always has a host value equal to the given trust domain,
+// the path is created using the given agentPathTemplate which is given access to a fully populated
+// ComputeEngine object.
 func MakeSpiffeID(trustDomain string, agentPathTemplate *template.Template, computeEngine ComputeEngine) (*url.URL, error) {
 	var agentPath bytes.Buffer
 	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
