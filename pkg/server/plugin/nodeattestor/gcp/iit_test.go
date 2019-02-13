@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"testing"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -185,19 +186,6 @@ func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
 	s.requireErrorContains(err, `gcp-iit: identity token project ID "project-whatever" is not in the whitelist`)
 }
 
-func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequest() {
-	token := buildToken()
-
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: s.signToken(token),
-	}
-	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-	s.Require().True(res.Valid)
-}
-
 func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
 	token := buildToken()
 
@@ -210,6 +198,56 @@ func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
 
 	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
 	s.requireErrorContains(err, "gcp-iit: unable to parse/validate the identity token: token contains an invalid number of segments")
+}
+
+func (s *IITAttestorSuite) TestErrorOnBadSVIDTemplate() {
+	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+projectid_whitelist = ["project-123"]
+agent_path_template = "{{ .InstanceID "
+`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.requireErrorContains(err, "failed to parse agent path template")
+}
+
+func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequest() {
+	token := buildToken()
+	expectSVID := "spiffe://example.org/spire/agent/gcp_iit/project-123/instance-123"
+
+	data := &common.AttestationData{
+		Type: gcp.PluginName,
+		Data: s.signToken(token),
+	}
+	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Require().True(res.Valid)
+	s.Require().Equal(expectSVID, res.BaseSPIFFEID)
+}
+
+func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequestCustomSVID() {
+	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+projectid_whitelist = ["project-123"]
+agent_path_template = "{{ .InstanceID }}"
+`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.Require().NoError(err)
+
+	token := buildToken()
+	expectSVID := "spiffe://example.org/spire/agent/instance-123"
+
+	data := &common.AttestationData{
+		Type: gcp.PluginName,
+		Data: s.signToken(token),
+	}
+	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Require().True(res.Valid)
+	s.Require().Equal(expectSVID, res.BaseSPIFFEID)
 }
 
 func (s *IITAttestorSuite) TestConfigure() {
@@ -267,6 +305,38 @@ func (s *IITAttestorSuite) TestGetPluginInfo() {
 	require.Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
+func (s *IITAttestorSuite) TestFailToRecvStream() {
+	p := NewIITAttestorPlugin()
+	_, err := validateAttestationAndExtractIdentityMetadata(&recvFailStream{}, gcp.PluginName, p.tokenKeyRetriever)
+	s.Require().EqualError(err, "failed to recv from stream")
+}
+
+func (s *IITAttestorSuite) TestFailToSendStream() {
+	p := NewIITAttestorPlugin()
+	p.tokenKeyRetriever = &staticKeyRetriever{key: &s.rsaKey.PublicKey}
+	_, err := p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+projectid_whitelist = ["project-123"]
+`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.Require().NoError(err)
+
+	token := buildToken()
+	data := &common.AttestationData{
+		Type: gcp.PluginName,
+		Data: s.signToken(token),
+	}
+
+	req := &nodeattestor.AttestRequest{
+		AttestationData: data,
+	}
+	err = p.Attest(&sendFailStream{
+		req: req,
+	})
+	s.Require().EqualError(err, "failed to send to stream")
+}
+
 func (s *IITAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	stream, err := s.p.Attest(context.Background())
 	defer stream.CloseSend()
@@ -285,4 +355,28 @@ func (s *IITAttestorSuite) signToken(token *jwt.Token) []byte {
 func (s *IITAttestorSuite) requireErrorContains(err error, substring string) {
 	s.Require().Error(err)
 	s.Require().Contains(err.Error(), substring)
+}
+
+// Test helpers
+
+type recvFailStream struct {
+	nodeattestor.Attest_PluginStream
+}
+
+func (r *recvFailStream) Recv() (*nodeattestor.AttestRequest, error) {
+	return nil, errors.New("failed to recv from stream")
+}
+
+type sendFailStream struct {
+	nodeattestor.Attest_PluginStream
+
+	req *nodeattestor.AttestRequest
+}
+
+func (s *sendFailStream) Recv() (*nodeattestor.AttestRequest, error) {
+	return s.req, nil
+}
+
+func (s *sendFailStream) Send(*nodeattestor.AttestResponse) error {
+	return errors.New("failed to send to stream")
 }

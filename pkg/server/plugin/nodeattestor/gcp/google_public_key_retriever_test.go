@@ -67,6 +67,13 @@ func (s *GooglePublicKeyRetrieverSuite) TestTokenKidIsEmpty() {
 	s.Require().EqualError(err, "token has unexpected kid value")
 }
 
+func (s *GooglePublicKeyRetrieverSuite) TestInvalidSigningMethod() {
+	s.token = jwt.New(jwt.SigningMethodPS256)
+	s.token.Header["kid"] = "7ddf54d3032d1f0d48c3618892ca74c1ac30ad77"
+	_, err := s.retriever.retrieveKey(s.token)
+	s.Require().EqualError(err, "unexpected signing method: *jwt.SigningMethodRSAPSS")
+}
+
 func (s *GooglePublicKeyRetrieverSuite) TestUnexpectedStatusCode() {
 	s.status = http.StatusBadGateway
 	s.body = "{}"
@@ -133,4 +140,29 @@ func (s *GooglePublicKeyRetrieverSuite) TestCacheReplacedWhenRefreshed() {
 	key, err = s.retriever.retrieveKey(s.token)
 	s.Require().Nil(key)
 	s.Require().EqualError(err, "no public key found for kid")
+}
+
+func (s *GooglePublicKeyRetrieverSuite) TestFailToDownloadCertificates() {
+	s.retriever.url = ""
+	err := s.retriever.downloadCertificates()
+	s.requireErrorContains(err, "unsupported protocol scheme")
+}
+
+func (s *GooglePublicKeyRetrieverSuite) TestFailToReadCertificateBody() {
+	s.server = httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			header := w.Header()
+			header.Set("Expires", s.expires)
+			// Write a non-zero content length but no body
+			header.Set("Content-Length", "40")
+			w.WriteHeader(http.StatusOK)
+		}))
+	s.retriever = newGooglePublicKeyRetriever(s.server.URL)
+	err := s.retriever.downloadCertificates()
+	s.Require().EqualError(err, "unexpected EOF")
+}
+
+func (s *GooglePublicKeyRetrieverSuite) requireErrorContains(err error, substring string) {
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), substring)
 }

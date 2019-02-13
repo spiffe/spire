@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/api/node"
@@ -1008,7 +1009,7 @@ func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig) *mockNodeAPIHandler
 		c:        config,
 		bundle:   bundleutil.BundleFromRootCA("spiffe://"+config.trustDomain, ca),
 		cakey:    cakey,
-		serverID: "spiffe://" + config.trustDomain + "/spire/server",
+		serverID: idutil.ServerID(config.trustDomain),
 	}
 
 	h.svid, h.svidKey = h.newSVID(h.serverID, 1*time.Hour)

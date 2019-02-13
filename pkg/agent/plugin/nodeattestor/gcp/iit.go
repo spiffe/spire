@@ -112,11 +112,14 @@ func (p *IITAttestorPlugin) buildAttestationResponse(trustDomain string, identit
 		Data: identityTokenBytes,
 	}
 
-	spiffeID := gcp.MakeSpiffeID(trustDomain, identityToken.Google.ComputeEngine.ProjectID, identityToken.Google.ComputeEngine.InstanceID)
+	spiffeID, err := gcp.MakeSpiffeID(trustDomain, gcp.DefaultAgentPathTemplate, identityToken.Google.ComputeEngine)
+	if err != nil {
+		return nil, newErrorf("failed to make agent id: %v", err)
+	}
 
 	resp := &nodeattestor.FetchAttestationDataResponse{
 		AttestationData: data,
-		SpiffeId:        spiffeID,
+		SpiffeId:        spiffeID.String(),
 	}
 	return resp, nil
 }
