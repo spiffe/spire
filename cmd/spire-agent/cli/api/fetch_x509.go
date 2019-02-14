@@ -11,14 +11,15 @@ import (
 	"time"
 
 	"github.com/mitchellh/cli"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/proto/api/workload"
 )
 
 func NewFetchX509Command() cli.Command {
-	return newFetchX509Command(defaultEnv, newWorkloadClient)
+	return newFetchX509Command(common_cli.DefaultEnv, newWorkloadClient)
 }
 
-func newFetchX509Command(env *env, clientMaker workloadClientMaker) cli.Command {
+func newFetchX509Command(env *common_cli.Env, clientMaker workloadClientMaker) cli.Command {
 	return adaptCommand(env, clientMaker, new(fetchX509Command))
 }
 
@@ -35,7 +36,7 @@ func (*fetchX509Command) synopsis() string {
 	return "Fetches X509 SVIDs from the Workload API"
 }
 
-func (c *fetchX509Command) run(ctx context.Context, env *env, client *workloadClient) error {
+func (c *fetchX509Command) run(ctx context.Context, env *common_cli.Env, client *workloadClient) error {
 	start := time.Now()
 	resp, err := c.fetchX509SVID(ctx, client)
 	respTime := time.Now().Sub(start)
