@@ -139,13 +139,13 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	stream := mock_workload.NewMockSpiffeWorkloadAPI_FetchX509SVIDServer(s.ctrl)
 	emptyUpdate := new(cache.WorkloadUpdate)
 	stream.EXPECT().Send(gomock.Any()).Times(0)
-	err := s.h.sendX509SVIDResponse(emptyUpdate, stream)
+	err := s.h.sendX509SVIDResponse(emptyUpdate, stream, s.h.M, 10)
 	s.Assert().Error(err)
 
 	resp, err := s.h.composeX509SVIDResponse(s.workloadUpdate())
 	s.Require().NoError(err)
 	stream.EXPECT().Send(resp)
-	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream)
+	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream, s.h.M, 10)
 	s.Assert().NoError(err)
 }
 
