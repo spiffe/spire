@@ -38,6 +38,7 @@ type ServerCA struct {
 	sn          int64
 	signer      crypto.Signer
 	certs       []*x509.Certificate
+	bundle      []*x509.Certificate
 	options     *Options
 }
 
@@ -58,8 +59,9 @@ func New(t *testing.T, trustDomain string, options *Options) *ServerCA {
 	now := options.Now()
 	subject := pkix.Name{CommonName: "FAKE SERVER CA"}
 	var certs []*x509.Certificate
+	var bundle []*x509.Certificate
 	if options.UpstreamCA != nil {
-		certs, _, err = ca.UpstreamSignServerCACertificate(context.Background(), options.UpstreamCA, key, trustDomain, subject)
+		certs, bundle, err = ca.UpstreamSignServerCACertificate(context.Background(), options.UpstreamCA, key, trustDomain, subject)
 		require.NoError(t, err)
 	} else {
 		cert, err := ca.SelfSignServerCACertificate(
@@ -67,14 +69,25 @@ func New(t *testing.T, trustDomain string, options *Options) *ServerCA {
 			now, now.Add(time.Hour))
 		require.NoError(t, err)
 		certs = append(certs, cert)
+		bundle = append(bundle, cert)
 	}
 
+	// TODO: share most if not all code with real server CA implementation
 	return &ServerCA{
 		trustDomain: trustDomain,
 		signer:      key,
 		certs:       certs,
 		options:     options,
+		bundle:      bundle,
 	}
+}
+
+func (c *ServerCA) DefaultTTL() time.Duration {
+	return c.options.DefaultTTL
+}
+
+func (c *ServerCA) Bundle() []*x509.Certificate {
+	return c.bundle
 }
 
 func (c *ServerCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error) {
@@ -98,7 +111,7 @@ func (c *ServerCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Dur
 		return nil, err
 	}
 
-	return append([]*x509.Certificate{cert}, c.certs[:len(c.certs)-1]...), nil
+	return append([]*x509.Certificate{cert}, c.certs...), nil
 }
 
 func (c *ServerCA) SignX509CASVID(ctx context.Context, csrDER []byte, ttl time.Duration) ([]*x509.Certificate, error) {
@@ -122,7 +135,7 @@ func (c *ServerCA) SignX509CASVID(ctx context.Context, csrDER []byte, ttl time.D
 		return nil, err
 	}
 
-	return append([]*x509.Certificate{cert}, c.certs[:len(c.certs)-1]...), nil
+	return append([]*x509.Certificate{cert}, c.certs...), nil
 }
 
 func (c *ServerCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {

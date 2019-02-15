@@ -1,1071 +1,1068 @@
 package node
 
 import (
-	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
+	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"math/big"
 	"net"
-	"net/url"
-	"path"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakenoderesolver"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
-	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
-	mock_node "github.com/spiffe/spire/test/mock/proto/api/node"
-	mock_datastore "github.com/spiffe/spire/test/mock/proto/server/datastore"
-	mock_nodeattestor "github.com/spiffe/spire/test/mock/proto/server/nodeattestor"
-	mock_noderesolver "github.com/spiffe/spire/test/mock/proto/server/noderesolver"
-	mock_ca "github.com/spiffe/spire/test/mock/server/ca"
-	"github.com/spiffe/spire/test/util"
-	"github.com/stretchr/testify/require"
+	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
 	"github.com/stretchr/testify/suite"
-
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
+)
+
+const (
+	trustDomain   = "example.org"
+	trustDomainID = "spiffe://example.org"
+
+	otherDomainID = "spiffe://otherdomain.test"
+
+	serverID   = "spiffe://example.org/spire/server"
+	agentID    = "spiffe://example.org/spire/agent/test/id"
+	workloadID = "spiffe://example.org/workload"
 )
 
 var (
-	testTrustDomain = url.URL{
-		Scheme: "spiffe",
-		Host:   "example.org",
+	trustDomainURL, _ = idutil.ParseSpiffeID(trustDomainID, idutil.AllowAnyTrustDomain())
+
+	otherDomainBundle = &common.Bundle{
+		TrustDomainId: otherDomainID,
 	}
+
+	testKey, _ = pemutil.ParseECPrivateKey([]byte(`
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgUdF3LNDNZWKYQHFj
+UIs5TNt4LXDawuZFFj2J7D1T9mehRANCAASEhjkDbIFdNaZ9EneJaSXKfLiBDqt2
+l37cUGNqRvIYDhSH/IJycqxLTtvHoYMHLSV9N5UHIFgPJ/30RCBQiH3t
+-----END PRIVATE KEY-----
+`))
 )
 
-type HandlerTestSuite struct {
-	suite.Suite
-	ctrl             *gomock.Controller
-	logHook          *test.Hook
-	handler          *Handler
-	limiter          *fakeLimiter
-	mockDataStore    *mock_datastore.MockDataStore
-	mockServerCA     *mock_ca.MockServerCA
-	mockNodeAttestor *mock_nodeattestor.MockNodeAttestor
-	mockNodeResolver *mock_noderesolver.MockNodeResolver
-	server           *mock_node.MockNode_FetchX509SVIDServer
-	now              time.Time
-	catalog          *fakeservercatalog.Catalog
+func TestHandler(t *testing.T) {
+	suite.Run(t, new(HandlerSuite))
 }
 
-func SetupHandlerTest(t *testing.T) *HandlerTestSuite {
-	suite := &HandlerTestSuite{}
-	suite.SetT(t)
-	mockCtrl := gomock.NewController(t)
-	suite.ctrl = mockCtrl
-	log, hook := test.NewNullLogger()
-	suite.logHook = hook
-	suite.limiter = new(fakeLimiter)
-	suite.mockDataStore = mock_datastore.NewMockDataStore(mockCtrl)
-	suite.mockServerCA = mock_ca.NewMockServerCA(mockCtrl)
-	suite.mockNodeAttestor = mock_nodeattestor.NewMockNodeAttestor(mockCtrl)
-	suite.mockNodeResolver = mock_noderesolver.NewMockNodeResolver(mockCtrl)
-	suite.server = mock_node.NewMockNode_FetchX509SVIDServer(suite.ctrl)
-	suite.now = time.Now()
+type HandlerSuite struct {
+	suite.Suite
 
-	suite.catalog = fakeservercatalog.New()
-	suite.catalog.SetDataStores(suite.mockDataStore)
-	suite.catalog.SetNodeAttestors(suite.mockNodeAttestor)
+	server           *grpc.Server
+	logHook          *test.Hook
+	limiter          *fakeLimiter
+	handler          *Handler
+	unattestedClient node.NodeClient
+	attestedClient   node.NodeClient
+	ds               *fakedatastore.DataStore
+	catalog          *fakeservercatalog.Catalog
+	now              time.Time
+	bundle           *common.Bundle
+	agentSVID        []*x509.Certificate
+	serverCA         *fakeserverca.ServerCA
+}
 
-	suite.handler = NewHandler(HandlerConfig{
+func (s *HandlerSuite) SetupTest() {
+	s.now = time.Now()
+
+	log, logHook := test.NewNullLogger()
+	s.logHook = logHook
+
+	s.limiter = new(fakeLimiter)
+
+	s.ds = fakedatastore.New()
+	s.catalog = fakeservercatalog.New()
+	s.catalog.SetDataStores(s.ds)
+
+	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
+		Now: func() time.Time {
+			return s.now
+		},
+	})
+	s.bundle = bundleutil.BundleProtoFromRootCAs(trustDomainID, s.serverCA.Bundle())
+
+	s.createBundle(s.bundle)
+
+	// Create server and agent SVIDs for TLS communication
+	serverSVID := s.makeSVID(serverID)
+	s.agentSVID = s.makeSVID(agentID)
+
+	handler := NewHandler(HandlerConfig{
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
-		Catalog:     suite.catalog,
-		ServerCA:    suite.mockServerCA,
-		TrustDomain: testTrustDomain,
+		Catalog:     s.catalog,
+		ServerCA:    s.serverCA,
+		TrustDomain: *trustDomainURL,
 	})
-	suite.handler.hooks.now = func() time.Time {
-		return suite.now
-	}
-	suite.handler.limiter = suite.limiter
-	return suite
-}
-
-func TestAttestWithMatchingNodeResolver(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	defer suite.ctrl.Finish()
-	suite.catalog.AddNodeResolverNamed("fake_nodeattestor_1", suite.mockNodeResolver)
-
-	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
-	data := getAttestTestData()
-
-	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
-	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	stream.EXPECT().Recv().Return(data.request, nil).AnyTimes()
-
-	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
-	stream.EXPECT().Send(&node.AttestResponse{
-		SvidUpdate: expected,
-	}).AnyTimes()
-
-	setAttestExpectations(suite, data, true)
-	suite.NoError(suite.handler.Attest(stream))
-	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
-}
-
-func TestAttestWithNonMatchingNodeResolver(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	defer suite.ctrl.Finish()
-	suite.catalog.AddNodeResolverNamed("non_matching_resolver", suite.mockNodeResolver)
-
-	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
-	data := getAttestTestData()
-
-	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
-	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	stream.EXPECT().Recv().Return(data.request, nil).AnyTimes()
-
-	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
-	stream.EXPECT().Send(&node.AttestResponse{
-		SvidUpdate: expected,
-	}).AnyTimes()
-
-	setAttestExpectations(suite, data, false)
-	suite.NoError(suite.handler.Attest(stream))
-	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
-}
-
-func TestAttestWithEmptyNodeResolver(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	defer suite.ctrl.Finish()
-
-	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
-	data := getAttestTestData()
-
-	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
-	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	stream.EXPECT().Recv().Return(data.request, nil).AnyTimes()
-
-	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
-	stream.EXPECT().Send(&node.AttestResponse{
-		SvidUpdate: expected,
-	}).AnyTimes()
-
-	setAttestExpectations(suite, data, false)
-	suite.NoError(suite.handler.Attest(stream))
-	suite.Equal(1, suite.limiter.callsFor(AttestMsg))
-}
-func TestAttestChallengeResponse(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	defer suite.ctrl.Finish()
-	suite.catalog.AddNodeResolverNamed("fake_nodeattestor_1", suite.mockNodeResolver)
-
-	data := getAttestTestData()
-	data.challenges = []challengeResponse{
-		{challenge: "1+1", response: "2"},
-		{challenge: "5+7", response: "12"},
-	}
-	setAttestExpectations(suite, data, true)
-
-	expected := getExpectedAttest(suite, data.baseSpiffeID, data.generatedCert)
-
-	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
-	stream := mock_node.NewMockNode_AttestServer(suite.ctrl)
-	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	stream.EXPECT().Recv().Return(data.request, nil)
-	stream.EXPECT().Send(&node.AttestResponse{
-		Challenge: []byte("1+1"),
-	})
-	challenge1 := *data.request
-	challenge1.Response = []byte("2")
-	stream.EXPECT().Recv().Return(&challenge1, nil)
-	stream.EXPECT().Send(&node.AttestResponse{
-		Challenge: []byte("5+7"),
-	})
-	challenge2 := *data.request
-	challenge2.Response = []byte("12")
-	stream.EXPECT().Recv().Return(&challenge2, nil)
-	stream.EXPECT().Send(&node.AttestResponse{
-		SvidUpdate: expected,
-	})
-	suite.NoError(suite.handler.Attest(stream))
-}
-
-func TestFetchX509SVID(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	defer suite.ctrl.Finish()
-
-	data := getFetchX509SVIDTestData(t)
-	data.expectation = getExpectedFetchX509SVID(data)
-	setFetchX509SVIDExpectations(suite, data)
-
-	err := suite.handler.FetchX509SVID(suite.server)
-	if err != nil {
-		t.Errorf("Error was not expected\n Got: %v\n Want: %v\n", err, nil)
-	}
-
-	limiterCalls := suite.limiter.callsFor(CSRMsg)
-	if len(data.request.Csrs) != limiterCalls {
-		t.Errorf("expected %v calls to limiter; got %v", len(data.request.Csrs), limiterCalls)
-	}
-}
-
-func TestFetchX509SVIDWithRotation(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	defer suite.ctrl.Finish()
-
-	data := getFetchX509SVIDTestData(t)
-	data.request.Csrs = append(
-		data.request.Csrs, getBytesFromPem("base_rotated_csr.pem"))
-	data.generatedCerts = append(
-		data.generatedCerts, loadCertFromPEM("base_rotated_cert.pem"))
-
-	// Calculate expected TTL
-	cert := data.generatedCerts[3]
-
-	data.expectation = getExpectedFetchX509SVID(data)
-	data.expectation.Svids[data.baseSpiffeID] = makeX509SVIDN(cert)
-	setFetchX509SVIDExpectations(suite, data)
-
-	suite.mockDataStore.EXPECT().FetchAttestedNode(gomock.Any(),
-		&datastore.FetchAttestedNodeRequest{SpiffeId: data.baseSpiffeID},
-	).
-		Return(&datastore.FetchAttestedNodeResponse{
-			Node: &datastore.AttestedNode{
-				CertSerialNumber: "18392437442709699290",
-			},
-		}, nil)
-
-	suite.mockServerCA.EXPECT().
-		SignX509SVID(gomock.Any(), data.request.Csrs[3], time.Duration(0)).Return([]*x509.Certificate{cert}, nil)
-
-	suite.mockDataStore.EXPECT().
-		UpdateAttestedNode(gomock.Any(), gomock.Any()).
-		Return(&datastore.UpdateAttestedNodeResponse{}, nil)
-
-	err := suite.handler.FetchX509SVID(suite.server)
-	suite.Require().NoError(err)
-}
-
-func TestFetchX509SVIDForNodeWithNoAttestationRecord(t *testing.T) {
-	suite := SetupHandlerTest(t)
-	defer suite.ctrl.Finish()
-
-	// set up the node as the peer
-	ctx := withPeerCertificate(context.Background(), loadCertFromPEM("node_cert.pem"))
-
-	// request node CSR to be signed
-	suite.server.EXPECT().Context().Return(ctx).AnyTimes()
-	suite.server.EXPECT().Recv().Return(&node.FetchX509SVIDRequest{
-		Csrs: [][]byte{
-			getBytesFromPem("node_csr.pem"),
-		},
-	}, nil)
-
-	// no registration entries (not needed for this code path since a node is
-	// authorized to request a CSR for itself)
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), gomock.Any()).
-		Return(&datastore.ListRegistrationEntriesResponse{}, nil).
-		AnyTimes()
-
-	// no selectors (same reason as above)
-	suite.mockDataStore.EXPECT().
-		GetNodeSelectors(gomock.Any(), gomock.Any()).
-		Return(&datastore.GetNodeSelectorsResponse{
-			Selectors: &datastore.NodeSelectors{},
-		}, nil)
-
-	// return no record of the attested node.
-	suite.mockDataStore.EXPECT().
-		FetchAttestedNode(gomock.Any(), &datastore.FetchAttestedNodeRequest{
-			SpiffeId: "spiffe://example.org/spire/agent/join_token/tokenfoo",
-		}).
-		Return(&datastore.FetchAttestedNodeResponse{}, nil)
-
-	err := suite.handler.FetchX509SVID(suite.server)
-	suite.Require().EqualError(err, "Error trying to sign CSRs")
-
-	// The error message returned by the Node handler is purposefully very
-	// generic. Errors are logged for debuggability. We want a stronger
-	// assertion that the expected code path was executed. Inspect the log hook
-	// to make sure the expected error message is logged.
-	suite.Require().Equal("no record of attested node", suite.logHook.LastEntry().Message)
-}
-
-func TestAuthorizeCallUnhandledMethod(t *testing.T) {
-	log, _ := test.NewNullLogger()
-	handler := NewHandler(HandlerConfig{Log: log})
-
-	ctx, err := handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Foo")
-	require.EqualError(t, err, `rpc error: code = PermissionDenied desc = authorization not implemented for method "/spire.api.node.Node/Foo"`)
-	require.Nil(t, ctx)
-}
-
-func TestAuthorizeCallForAlwaysAuthorizedCalls(t *testing.T) {
-	log, _ := test.NewNullLogger()
-	handler := NewHandler(HandlerConfig{Log: log})
-
-	// Attest() is always authorized (context is not embellished)
-	ctx, err := handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Attest")
-	require.NoError(t, err)
-	require.Equal(t, context.Background(), ctx)
-}
-
-func TestAuthorizeCallForCallsRequiringAgentSVID(t *testing.T) {
-	for _, method := range []string{"FetchX509SVID", "FetchJWTSVID"} {
-		testAuthorizeCallForCallsRequiringAgentSVID(t, method)
-	}
-}
-
-func testAuthorizeCallForCallsRequiringAgentSVID(t *testing.T, method string) {
-	t.Logf("testing authorization for %s", method)
-
-	peerCert := getFakePeerCertificate()
-	peerCtx := peer.NewContext(context.Background(), getFakePeer())
-
-	ds := fakedatastore.New()
-	catalog := fakeservercatalog.New()
-	catalog.SetDataStores(ds)
-	log, logHook := test.NewNullLogger()
-	handler := NewHandler(HandlerConfig{Log: log, Catalog: catalog})
-
-	var now time.Time
 	handler.hooks.now = func() time.Time {
-		return now
+		return s.now
 	}
+	handler.limiter = s.limiter
+
+	// Streaming methods and auth are easier to test from the client point of view.
+	// TODO: share the setup done by the "endpoints" code so these don't go out
+	// of sync.
+	rootCAs := x509.NewCertPool()
+	for _, bundleCert := range s.serverCA.Bundle() {
+		rootCAs.AddCert(bundleCert)
+	}
+	var tlsCertificate [][]byte
+	for _, serverCert := range serverSVID {
+		tlsCertificate = append(tlsCertificate, serverCert.Raw)
+	}
+	server := grpc.NewServer(
+		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
+		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
+		grpc.Creds(credentials.NewTLS(&tls.Config{
+			Certificates: []tls.Certificate{
+				{
+					Certificate: tlsCertificate,
+					PrivateKey:  testKey,
+				},
+			},
+			ClientCAs:  rootCAs,
+			ClientAuth: tls.VerifyClientCertIfGiven,
+		})))
+	node.RegisterNodeServer(server, handler)
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	s.Require().NoError(err)
+	go server.Serve(listener)
+
+	unattestedConn, err := grpc.Dial(listener.Addr().String(),
+		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+			// skip verification of the server certificate. otherwise we'd
+			// need SANs to allow the connection over localhost. this isn't
+			// important for these tests.
+			InsecureSkipVerify: true,
+		})))
+	s.Require().NoError(err)
+
+	attestedConn, err := grpc.Dial(listener.Addr().String(),
+		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+			// skip verification of the server certificate. otherwise we'd
+			// need SANs to allow the connection over localhost. this isn't
+			// important for these tests.
+			InsecureSkipVerify:   true,
+			GetClientCertificate: s.getClientCertificate,
+		})))
+	s.Require().NoError(err)
+
+	s.handler = handler
+	s.server = server
+	s.unattestedClient = node.NewNodeClient(unattestedConn)
+	s.attestedClient = node.NewNodeClient(attestedConn)
+}
+
+func (s *HandlerSuite) TearDownTest() {
+	s.server.Stop()
+}
+
+func (s *HandlerSuite) TestAttestLimits() {
+	s.limiter.setNextError(errors.New("limit exceeded"))
+	s.requireAttestFailure(&node.AttestRequest{},
+		codes.ResourceExhausted, "limit exceeded")
+	// Attest always adds 1 count
+	s.Equal(1, s.limiter.callsFor(AttestMsg))
+}
+
+func (s *HandlerSuite) TestAttestWithNoAttestationData() {
+	s.requireAttestFailure(&node.AttestRequest{},
+		codes.InvalidArgument, "request missing attestation data")
+}
+
+func (s *HandlerSuite) TestAttestWithNoAttestationDataType() {
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: &common.AttestationData{},
+	}, codes.InvalidArgument, "request missing attestation data type")
+}
+
+func (s *HandlerSuite) TestAttestWithNoCSR() {
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", ""),
+	}, codes.InvalidArgument, "request missing CSR")
+}
+
+func (s *HandlerSuite) TestAttestWithMalformedCSR() {
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", ""),
+		Csr:             []byte("MALFORMED"),
+	}, codes.InvalidArgument, "request CSR is invalid: failed to parse CSR")
+}
+
+func (s *HandlerSuite) TestAttestWithCSRMissingURISAN() {
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
+	}, testKey)
+	s.Require().NoError(err)
+
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", ""),
+		Csr:             csr,
+	}, codes.InvalidArgument, "request CSR is invalid: the CSR must have exactly one URI SAN")
+}
+
+func (s *HandlerSuite) TestAttestWithAgentIDFromWrongTrustDomainInCSR() {
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", ""),
+		Csr:             s.makeCSR("spiffe://otherdomain.test/spire/agent/test/id"),
+	}, codes.InvalidArgument, `request CSR is invalid: "spiffe://otherdomain.test/spire/agent/test/id" does not belong to trust domain`)
+}
+
+func (s *HandlerSuite) TestAttestWithNonAgentIDInCSR() {
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", ""),
+		Csr:             s.makeCSR("spiffe://example.org"),
+	}, codes.InvalidArgument, `request CSR is invalid: "spiffe://example.org" is not a valid agent SPIFFE ID`)
+}
+
+func (s *HandlerSuite) TestAttestWhenAgentAlreadyAttested() {
+	s.addAttestor("test", fakeservernodeattestor.Config{})
+
+	s.createAttestedNode(&common.AttestedNode{
+		SpiffeId: "spiffe://example.org/spire/agent/test/id",
+	})
+
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", ""),
+		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/id"),
+	}, codes.Unknown, "reattestation is not permitted")
+}
+
+func (s *HandlerSuite) TestAttestWithUnknownAttestor() {
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", ""),
+		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/id"),
+	}, codes.Unknown, `could not find node attestor type "test"`)
+}
+
+func (s *HandlerSuite) TestAttestWithMismatchedAgentID() {
+	s.addAttestor("test", fakeservernodeattestor.Config{
+		Data: map[string]string{"data": "id"},
+	})
+
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/other"),
+	}, codes.Unknown, "attestor returned unexpected response")
+
+	s.assertLastLogMessage("attested SPIFFE ID does not match CSR")
+}
+
+func (s *HandlerSuite) TestAttestSuccess() {
+	// Create a federated bundle to return with the SVID update
+	s.createBundle(otherDomainBundle)
+
+	// Create a registration entry to return with the SVID update
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:      agentID,
+		SpiffeId:      workloadID,
+		FederatesWith: []string{otherDomainID},
+	})
+
+	s.addAttestor("test", fakeservernodeattestor.Config{
+		Data: map[string]string{"data": "id"},
+	})
+
+	upd := s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR(agentID),
+	})
+
+	// assert update contents
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd, otherDomainBundle)
+	svidChain := s.assertSVIDsInUpdate(upd, agentID)[0]
+
+	// Assert an attested node entry has been created
+	attestedNode := s.fetchAttestedNode(agentID)
+	s.Require().NotNil(attestedNode)
+	s.Equal("test", attestedNode.AttestationDataType)
+	s.Equal(agentID, attestedNode.SpiffeId)
+	s.Equal(svidChain[0].SerialNumber.String(), attestedNode.CertSerialNumber)
+	s.WithinDuration(svidChain[0].NotAfter, time.Unix(attestedNode.CertNotAfter, 0), 0)
+
+	// No selectors were returned and no resolvers were available, so the node
+	// selectors should be empty.
+	s.Empty(s.getNodeSelectors(agentID))
+}
+
+func (s *HandlerSuite) TestAttestReattestation() {
+	// Make sure reattestation is allowed by the attestor
+	s.addAttestor("test", fakeservernodeattestor.Config{
+		CanReattest: true,
+		Data:        map[string]string{"data": "id"},
+	})
+
+	// Create an attested node entry
+	s.createAttestedNode(&common.AttestedNode{
+		SpiffeId: agentID,
+	})
+
+	// Reattest
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR(agentID),
+	})
+
+	// Assert the attested node entry has been updated
+	attestedNode := s.fetchAttestedNode(agentID)
+	s.Require().NotNil(attestedNode)
+	s.Equal(agentID, attestedNode.SpiffeId)
+	s.NotEmpty(attestedNode.CertSerialNumber)
+	s.NotEqual(0, attestedNode.CertNotAfter)
+
+	// Attestation data type is NOT updatable
+	s.Equal("", attestedNode.AttestationDataType)
+}
+
+func (s *HandlerSuite) TestAttestChallengeResponseSuccess() {
+	// Make sure reattestation is allowed by the attestor
+	s.addAttestor("test", fakeservernodeattestor.Config{
+		Data: map[string]string{"data": "id"},
+		Challenges: map[string][]string{
+			"id": {"one", "two", "three"},
+		},
+	})
+
+	// Attest via challenge response
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR(agentID),
+	}, "one", "two", "three")
+}
+
+func (s *HandlerSuite) TestAttestWithUnknownJoinToken() {
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: &common.AttestationData{Type: "join_token", Data: []byte("TOKEN")},
+		Csr:             s.makeCSR("spiffe://example.org/spire/agent/join_token/TOKEN"),
+	}, codes.Unknown, "failed to attest: no such token")
+}
+
+func (s *HandlerSuite) TestAttestWithAlreadyUsedJoinToken() {
+	s.createAttestedNode(&common.AttestedNode{
+		SpiffeId: "spiffe://example.org/spire/agent/join_token/TOKEN",
+	})
+
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: &common.AttestationData{Type: "join_token", Data: []byte("TOKEN")},
+		Csr:             s.makeCSR("spiffe://example.org/spire/agent/join_token/TOKEN"),
+	}, codes.Unknown, "failed to attest: join token has already been used")
+}
+
+func (s *HandlerSuite) TestAttestWithExpiredJoinToken() {
+	s.createJoinToken("TOKEN", s.now.Add(-time.Second))
+
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("join_token", "TOKEN"),
+		Csr:             s.makeCSR("spiffe://example.org/spire/agent/join_token/TOKEN"),
+	}, codes.Unknown, "failed to attest: join token expired")
+
+	// join token should be removed from the datastore even if attestation failed
+	s.Nil(s.fetchJoinToken("TOKEN"))
+}
+
+func (s *HandlerSuite) TestAttestWithValidJoinToken() {
+	s.createJoinToken("TOKEN", s.now.Add(time.Second))
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("join_token", "TOKEN"),
+		Csr:             s.makeCSR("spiffe://example.org/spire/agent/join_token/TOKEN"),
+	})
+
+	// join token should be removed for successful attestation
+	s.Nil(s.fetchJoinToken("TOKEN"))
+}
+
+func (s *HandlerSuite) TestAttestWithOnlyAttestorSelectors() {
+	// configure the attestor to return selectors
+	s.addAttestor("test", fakeservernodeattestor.Config{
+		Data: map[string]string{"data": "id"},
+		Selectors: map[string][]string{
+			"id": {"test-attestor-value"},
+		},
+	})
+
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/id"),
+	})
+
+	s.Equal([]*common.Selector{
+		{Type: "test", Value: "test-attestor-value"},
+	}, s.getNodeSelectors("spiffe://example.org/spire/agent/test/id"))
+}
+
+func (s *HandlerSuite) TestAttestWithOnlyResolverSelectors() {
+	// configure the attestor to return selectors
+	s.addAttestor("test", fakeservernodeattestor.Config{
+		Data: map[string]string{"data": "id"},
+	})
+
+	// this resolver does not match the attestor type and should be ignored
+	s.addResolver("other", fakenoderesolver.Config{
+		Selectors: map[string][]string{
+			"spiffe://example.org/spire/agent/test/id": {"other-resolver-value"},
+		},
+	})
+
+	// this resolver matches the attestor type and should be used
+	s.addResolver("test", fakenoderesolver.Config{
+		Selectors: map[string][]string{
+			"spiffe://example.org/spire/agent/test/id": {"test-resolver-value"},
+		},
+	})
+
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/id"),
+	})
+
+	s.Equal([]*common.Selector{
+		{Type: "test", Value: "test-resolver-value"},
+	}, s.getNodeSelectors("spiffe://example.org/spire/agent/test/id"))
+}
+
+func (s *HandlerSuite) TestAttestWithBothAttestorAndResolverSelectors() {
+	// configure the attestor to return selectors
+	s.addAttestor("test", fakeservernodeattestor.Config{
+		Data: map[string]string{"data": "id"},
+		Selectors: map[string][]string{
+			"id": {"test-attestor-value"},
+		},
+	})
+
+	s.addResolver("test", fakenoderesolver.Config{
+		Selectors: map[string][]string{
+			"spiffe://example.org/spire/agent/test/id": {"test-resolver-value"},
+		},
+	})
+
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             s.makeCSR("spiffe://example.org/spire/agent/test/id"),
+	})
+
+	s.Equal([]*common.Selector{
+		{Type: "test", Value: "test-resolver-value"},
+		{Type: "test", Value: "test-attestor-value"},
+	}, s.getNodeSelectors("spiffe://example.org/spire/agent/test/id"))
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithUnattestedAgent() {
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{},
+		codes.PermissionDenied, "agent is not attested or no longer valid")
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDLimits() {
+	s.attestAgent()
+
+	// Test with no CSRs (no count should be added)
+	s.limiter.setNextError(errors.New("limit exceeded"))
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{},
+		codes.ResourceExhausted, "limit exceeded")
+	s.Equal(0, s.limiter.callsFor(CSRMsg))
+
+	// Test with 5 CSRs (5 count should be added)
+	s.limiter.setNextError(errors.New("limit exceeded"))
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{Csrs: make([][]byte, 5)},
+		codes.ResourceExhausted, "limit exceeded")
+	s.Equal(5, s.limiter.callsFor(CSRMsg))
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithNoRegistrationEntries() {
+	s.attestAgent()
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{})
+	s.assertBundlesInUpdate(upd)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithNoCSRs() {
+	s.attestAgent()
+
+	s.createBundle(otherDomainBundle)
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:      agentID,
+		SpiffeId:      workloadID,
+		FederatesWith: []string{otherDomainID},
+	})
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd, otherDomainBundle)
+	s.Empty(upd.Svids)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSR() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		Csrs: [][]byte{[]byte("MALFORMED")},
+	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains("failed to parse CSR")
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSR() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs(workloadID),
+	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains(`not entitled to sign CSR for "spiffe://example.org/workload"`)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
+	s.attestAgent()
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs(agentID),
+	})
+
+	s.Empty(upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	svidChain := s.assertSVIDsInUpdate(upd, agentID)[0]
+
+	// Assert an attested node entry has been updated
+	attestedNode := s.fetchAttestedNode(agentID)
+	s.Require().NotNil(attestedNode)
+	s.Equal("test", attestedNode.AttestationDataType)
+	s.Equal(agentID, attestedNode.SpiffeId)
+	s.Equal(svidChain[0].SerialNumber.String(), attestedNode.CertSerialNumber)
+	s.WithinDuration(svidChain[0].NotAfter, time.Unix(attestedNode.CertNotAfter, 0), 0)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithStaleAgent() {
+	// make a copy of the agent SVID and tweak the serial number
+	// before "attesting"
+	agentSVID := *s.agentSVID[0]
+	agentSVID.SerialNumber = big.NewInt(9999999999)
+	s.Require().NoError(createAttestationEntry(context.Background(), s.ds, &agentSVID, "test"))
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs(workloadID),
+	}, codes.PermissionDenied, "agent is not attested or no longer valid")
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedDownstreamCSR() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs("spiffe://example.org"),
+	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains(`"spiffe://example.org/spire/agent/test/id" is not an authorized downstream workload`)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   trustDomainID,
+		SpiffeId:   agentID,
+		Downstream: true,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs(trustDomainID),
+	})
+
+	// Downstream responses don't contain the downstream registration entry
+	// since downstream entries aren't intended for workloads.
+	s.Empty(upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	s.assertSVIDsInUpdate(upd, trustDomainID)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSR() {
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs(workloadID),
+	})
+
+	// Downstream responses don't contain the downstream registration entry
+	// since downstream entries aren't intended for workloads.
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	s.assertSVIDsInUpdate(upd, workloadID)
+}
+
+func (s *HandlerSuite) TestFetchJWTSVIDWithUnattestedAgent() {
+	s.requireFetchJWTSVIDFailure(&node.FetchJWTSVIDRequest{},
+		codes.PermissionDenied, "agent is not attested or no longer valid")
+}
+
+func (s *HandlerSuite) TestFetchJWTSVIDLimits() {
+	s.attestAgent()
+
+	s.limiter.setNextError(errors.New("limit exceeded"))
+	s.requireFetchJWTSVIDFailure(&node.FetchJWTSVIDRequest{},
+		codes.ResourceExhausted, "limit exceeded")
+	// FetchJWTSVID always adds 1 count
+	s.Equal(1, s.limiter.callsFor(JSRMsg))
+}
+
+func (s *HandlerSuite) TestFetchJWTSVIDWithMissingJSR() {
+	s.attestAgent()
+
+	s.requireFetchJWTSVIDFailure(&node.FetchJWTSVIDRequest{},
+		codes.InvalidArgument, "request missing JSR")
+}
+
+func (s *HandlerSuite) TestFetchJWTSVIDWithMissingSpiffeID() {
+	s.attestAgent()
+
+	s.requireFetchJWTSVIDFailure(&node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{
+			Audience: []string{"audience"},
+		},
+	}, codes.InvalidArgument, "request missing SPIFFE ID")
+}
+
+func (s *HandlerSuite) TestFetchJWTSVIDWithMissingAudience() {
+	s.attestAgent()
+
+	s.requireFetchJWTSVIDFailure(&node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: workloadID,
+		},
+	}, codes.InvalidArgument, "request missing audience")
+}
+
+func (s *HandlerSuite) TestFetchJWTSVIDWithAgentID() {
+	s.attestAgent()
+
+	s.requireFetchJWTSVIDFailure(&node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: agentID,
+			Audience: []string{"audience"},
+		},
+	}, codes.Unknown, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/spire/agent/test/id"`)
+}
+
+func (s *HandlerSuite) TestFetchJWTSVIDWithUnauthorizedSPIFFEID() {
+	s.attestAgent()
+
+	s.requireFetchJWTSVIDFailure(&node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: workloadID,
+			Audience: []string{"audience"},
+		},
+	}, codes.Unknown, `caller "spiffe://example.org/spire/agent/test/id" is not authorized for "spiffe://example.org/workload"`)
+}
+
+func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
+	s.attestAgent()
+
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+	})
+
+	svid := s.requireFetchJWTSVIDSuccess(&node.FetchJWTSVIDRequest{
+		Jsr: &node.JSR{
+			SpiffeId: workloadID,
+			Audience: []string{"audience"},
+		},
+	})
+
+	s.NotEmpty(svid.Token)
+	s.Equal(s.now.Unix(), svid.IssuedAt)
+	s.Equal(s.now.Add(s.serverCA.DefaultTTL()).Unix(), svid.ExpiresAt)
+}
+
+func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {
+	ctx, err := s.handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Foo")
+	s.Require().Error(err)
+	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.Equal(`authorization not implemented for method "/spire.api.node.Node/Foo"`, status.Convert(err).Message())
+	s.Require().Nil(ctx)
+}
+
+func (s *HandlerSuite) TestAuthorizeCallForAlwaysAuthorizedCalls() {
+	// Attest() is always authorized (context is not embellished)
+	ctx, err := s.handler.AuthorizeCall(context.Background(), "/spire.api.node.Node/Attest")
+	s.Require().NoError(err)
+	s.Require().Equal(context.Background(), ctx)
+}
+
+func (s *HandlerSuite) TestAuthorizeCallForFetchX509SVID() {
+	s.testAuthorizeCallRequiringAgentSVID("FetchX509SVID")
+}
+
+func (s *HandlerSuite) TestAuthorizeCallForFetchJWTSVID() {
+	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID")
+}
+
+func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
+	peerCert := s.agentSVID[0]
+	peerCtx := withPeerCert(context.Background(), s.agentSVID)
 
 	fullMethod := fmt.Sprintf("/spire.api.node.Node/%s", method)
 
-	// no certificate
-	ctx, err := handler.AuthorizeCall(context.Background(), fullMethod)
-	require.EqualError(t, err, "agent SVID is required for this request")
-	require.Nil(t, ctx)
+	// no peer context
+	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
+	s.Require().Error(err)
+	s.Equal("agent SVID is required for this request", status.Convert(err).Message())
+	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage("no peer information")
+
+	// non-TLS peer context
+	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
+	s.Require().Error(err)
+	s.Equal("agent SVID is required for this request", status.Convert(err).Message())
+	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage("no TLS auth info for peer")
+
+	// no verified chains on TLS peer context
+	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
+		AuthInfo: credentials.TLSInfo{},
+	}), fullMethod)
+	s.Require().Error(err)
+	s.Equal("agent SVID is required for this request", status.Convert(err).Message())
+	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage("no verified client certificate presented by peer")
 
 	// no attested certificate with matching SPIFFE ID
-	ctx, err = handler.AuthorizeCall(peerCtx, fullMethod)
-	require.EqualError(t, err, "agent is not attested or no longer valid")
-	require.Equal(t, "agent spiffe://example.org/spire/agent/join_token/token is not attested", logHook.LastEntry().Message)
-	require.Nil(t, ctx)
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.Require().Error(err)
+	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
+	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" is not attested`)
+	s.Require().Nil(ctx)
 
 	// good certificate
-	_, err = ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			SpiffeId:         "spiffe://example.org/spire/agent/join_token/token",
-			CertSerialNumber: peerCert.SerialNumber.String(),
-			CertNotAfter:     peerCert.NotAfter.Unix(),
-		},
-	})
-	require.NoError(t, err)
-	ctx, err = handler.AuthorizeCall(peerCtx, fullMethod)
-	require.NoError(t, err)
+	s.attestAgent()
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.Require().NoError(err)
 	actualCert, ok := getPeerCertificate(ctx)
-	require.True(t, ok, "context has peer certificate")
-	require.True(t, peerCert.Equal(actualCert), "peer certificate matches")
+	s.Require().True(ok, "context has peer certificate")
+	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
 
 	// expired certificate
-	now = peerCert.NotAfter.Add(time.Second)
-	ctx, err = handler.AuthorizeCall(peerCtx, fullMethod)
-	require.EqualError(t, err, "agent is not attested or no longer valid")
-	require.Equal(t, "agent spiffe://example.org/spire/agent/join_token/token SVID has expired", logHook.LastEntry().Message)
-	require.Nil(t, ctx)
-	now = peerCert.NotAfter
+	s.now = peerCert.NotAfter.Add(time.Second)
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.Require().Error(err)
+	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
+	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID has expired`)
+	s.Require().Nil(ctx)
+	s.now = peerCert.NotAfter
 
 	// serial number does not match
-	_, err = ds.UpdateAttestedNode(context.Background(), &datastore.UpdateAttestedNodeRequest{
-		SpiffeId:         "spiffe://example.org/spire/agent/join_token/token",
-		CertSerialNumber: "SERIAL NUMBER",
-		CertNotAfter:     peerCert.NotAfter.Unix(),
+	s.updateAttestedNode(agentID, "SERIAL NUMBER", peerCert.NotAfter)
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.Require().Error(err)
+	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
+	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
+}
+
+func (s *HandlerSuite) addAttestor(name string, config fakeservernodeattestor.Config) {
+	attestor := nodeattestor.NewBuiltIn(fakeservernodeattestor.New(name, config))
+	s.catalog.AddNodeAttestorNamed(name, attestor)
+}
+
+func (s *HandlerSuite) addResolver(name string, config fakenoderesolver.Config) {
+	resolver := noderesolver.NewBuiltIn(fakenoderesolver.New(name, config))
+	s.catalog.AddNodeResolverNamed(name, resolver)
+}
+
+func (s *HandlerSuite) createBundle(bundle *common.Bundle) {
+	_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
+		Bundle: bundle,
 	})
-	peerCert.SerialNumber.Add(peerCert.SerialNumber, big.NewInt(1))
-	ctx, err = handler.AuthorizeCall(peerCtx, fullMethod)
-	require.EqualError(t, err, "agent is not attested or no longer valid")
-	require.Equal(t, "agent spiffe://example.org/spire/agent/join_token/token SVID does not match expected serial number", logHook.LastEntry().Message)
-	require.Nil(t, ctx)
-	now = peerCert.NotAfter
-	peerCert.SerialNumber.Add(peerCert.SerialNumber, big.NewInt(-1))
+	s.Require().NoError(err)
 }
 
-func loadCertFromPEM(fileName string) *x509.Certificate {
-	certDER := getBytesFromPem(fileName)
-	cert, _ := x509.ParseCertificate(certDER)
-	return cert
-}
-
-func getBytesFromPem(fileName string) []byte {
-	pemFile, _ := ioutil.ReadFile(path.Join("../../../../test/fixture/certs", fileName))
-	decodedFile, _ := pem.Decode(pemFile)
-	return decodedFile.Bytes
-}
-
-type challengeResponse struct {
-	challenge string
-	response  string
-}
-
-type fetchBaseSVIDData struct {
-	request                 *node.AttestRequest
-	generatedCert           *x509.Certificate
-	baseSpiffeID            string
-	selector                *common.Selector
-	selectors               map[string]*common.Selectors
-	attestResponseSelectors []*common.Selector
-	regEntryParentIDList    []*common.RegistrationEntry
-	regEntrySelectorList    []*common.RegistrationEntry
-	challenges              []challengeResponse
-}
-
-func getAttestTestData() *fetchBaseSVIDData {
-	data := &fetchBaseSVIDData{}
-
-	data.request = &node.AttestRequest{
-		Csr: getBytesFromPem("base_csr.pem"),
-		AttestationData: &common.AttestationData{
-			Type: "fake_nodeattestor_1",
-			Data: []byte("fake attestation data"),
+func (s *HandlerSuite) createJoinToken(token string, expiresAt time.Time) {
+	_, err := s.ds.CreateJoinToken(context.Background(), &datastore.CreateJoinTokenRequest{
+		JoinToken: &datastore.JoinToken{
+			Token:  token,
+			Expiry: expiresAt.Unix(),
 		},
-	}
-
-	data.generatedCert = loadCertFromPEM("base_cert.pem")
-
-	data.baseSpiffeID = "spiffe://example.org/spire/agent/join_token/token"
-	data.selector = &common.Selector{Type: "foo", Value: "bar"}
-	data.selectors = make(map[string]*common.Selectors)
-	data.selectors[data.baseSpiffeID] = &common.Selectors{
-		Entries: []*common.Selector{data.selector},
-	}
-
-	data.regEntryParentIDList = []*common.RegistrationEntry{
-		{
-			Selectors: []*common.Selector{
-				{Type: "foo", Value: "bar"},
-			},
-			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://test1",
-		},
-		{
-			Selectors: []*common.Selector{
-				{Type: "foo", Value: "bar"},
-			},
-			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://repeated",
-		},
-	}
-
-	data.regEntrySelectorList = []*common.RegistrationEntry{
-		{
-			Selectors: []*common.Selector{
-				{Type: "foo", Value: "bar"},
-			},
-			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://repeated",
-		},
-		{
-			Selectors: []*common.Selector{
-				{Type: "foo", Value: "bar"},
-			},
-			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://test2",
-		},
-	}
-
-	data.attestResponseSelectors = []*common.Selector{
-		{Type: "type1", Value: "value1"},
-		{Type: "type2", Value: "value2"},
-	}
-	return data
-}
-
-func setAttestExpectations(
-	suite *HandlerTestSuite, data *fetchBaseSVIDData, matchingNodeResolver bool) {
-
-	stream := mock_nodeattestor.NewMockAttest_Stream(suite.ctrl)
-	stream.EXPECT().Send(&nodeattestor.AttestRequest{
-		AttestedBefore:  false,
-		AttestationData: data.request.AttestationData,
 	})
-	for _, challenge := range data.challenges {
-		stream.EXPECT().Recv().Return(&nodeattestor.AttestResponse{
-			Challenge: []byte(challenge.challenge),
-		}, nil)
-		stream.EXPECT().Send(&nodeattestor.AttestRequest{
-			AttestedBefore:  false,
-			AttestationData: data.request.AttestationData,
-			Response:        []byte(challenge.response),
-		})
+	s.Require().NoError(err)
+}
+
+func (s *HandlerSuite) fetchJoinToken(token string) *datastore.JoinToken {
+	resp, err := s.ds.FetchJoinToken(context.Background(), &datastore.FetchJoinTokenRequest{
+		Token: token,
+	})
+	s.Require().NoError(err)
+	return resp.JoinToken
+}
+
+func (s *HandlerSuite) attestAgent() {
+	s.Require().NoError(createAttestationEntry(context.Background(), s.ds, s.agentSVID[0], "test"))
+}
+
+func (s *HandlerSuite) createAttestedNode(n *common.AttestedNode) {
+	_, err := s.ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
+		Node: n,
+	})
+	s.Require().NoError(err)
+}
+
+func (s *HandlerSuite) updateAttestedNode(spiffeID, serialNumber string, notAfter time.Time) {
+	_, err := s.ds.UpdateAttestedNode(context.Background(), &datastore.UpdateAttestedNodeRequest{
+		SpiffeId:         spiffeID,
+		CertSerialNumber: serialNumber,
+		CertNotAfter:     notAfter.Unix(),
+	})
+	s.Require().NoError(err)
+}
+
+func (s *HandlerSuite) fetchAttestedNode(spiffeID string) *common.AttestedNode {
+	resp, err := s.ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
+		SpiffeId: spiffeID,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	return resp.Node
+}
+
+func (s *HandlerSuite) getNodeSelectors(spiffeID string) []*common.Selector {
+	resp, err := s.ds.GetNodeSelectors(context.Background(), &datastore.GetNodeSelectorsRequest{
+		SpiffeId: spiffeID,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().NotNil(resp.Selectors)
+	s.Require().Equal(spiffeID, resp.Selectors.SpiffeId)
+	return resp.Selectors.Selectors
+}
+
+func (s *HandlerSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
+	resp, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
+		Entry: entry,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp.Entry)
+	return resp.Entry
+}
+
+func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, responses ...string) *node.X509SVIDUpdate {
+	stream, err := s.unattestedClient.Attest(context.Background())
+	s.Require().NoError(err)
+	s.Require().NoError(stream.Send(req))
+	for _, response := range responses {
+		resp, err := stream.Recv()
+		s.Require().NoError(err)
+		s.Require().NotNil(resp)
+		s.Require().NotEmpty(resp.Challenge, "expected a challenge")
+		s.Require().Nil(resp.SvidUpdate, "expected a challenge, which shouldn't contain an update")
+
+		s.Require().NoError(stream.Send(&node.AttestRequest{
+			Response: []byte(response),
+		}))
 	}
-	stream.EXPECT().Recv().Return(&nodeattestor.AttestResponse{
-		BaseSPIFFEID: data.baseSpiffeID,
-		Valid:        true,
-		Selectors:    data.attestResponseSelectors,
-	}, nil)
-	stream.EXPECT().CloseSend()
-	stream.EXPECT().Recv().Return(nil, io.EOF)
+	stream.CloseSend()
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().NotNil(resp.SvidUpdate)
+	return resp.SvidUpdate
+}
 
-	suite.mockNodeAttestor.EXPECT().Attest(gomock.Any()).Return(stream, nil)
+func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, errorCode codes.Code, errorContains string) {
+	stream, err := s.unattestedClient.Attest(context.Background())
+	s.Require().NoError(err)
+	s.Require().NoError(stream.Send(req))
+	stream.CloseSend()
+	resp, err := stream.Recv()
+	s.requireErrorContains(err, errorContains)
+	s.Require().Equal(errorCode, status.Code(err))
+	s.Require().Nil(resp)
+}
 
-	suite.mockDataStore.EXPECT().FetchAttestedNode(gomock.Any(),
-		&datastore.FetchAttestedNodeRequest{
-			SpiffeId: data.baseSpiffeID,
-		}).
-		Return(&datastore.FetchAttestedNodeResponse{Node: nil}, nil)
-
-	suite.mockServerCA.EXPECT().SignX509SVID(
-		gomock.Any(), data.request.Csr, time.Duration(0)).Return([]*x509.Certificate{data.generatedCert}, nil)
-
-	suite.mockDataStore.EXPECT().CreateAttestedNode(gomock.Any(),
-		&datastore.CreateAttestedNodeRequest{
-			Node: &datastore.AttestedNode{
-				AttestationDataType: "fake_nodeattestor_1",
-				SpiffeId:            data.baseSpiffeID,
-				CertNotAfter:        1822684794,
-				CertSerialNumber:    "18392437442709699290",
-			}}).
-		Return(nil, nil)
-
-	var selectors []*common.Selector
-
-	if matchingNodeResolver {
-		suite.mockNodeResolver.EXPECT().Resolve(gomock.Any(),
-			&noderesolver.ResolveRequest{
-				BaseSpiffeIdList: []string{data.baseSpiffeID},
-			}).
-			Return(&noderesolver.ResolveResponse{
-				Map: data.selectors,
-			}, nil)
-
-		selectors = append(selectors, data.selector)
+func (s *HandlerSuite) getClientCertificate(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	c := &tls.Certificate{
+		PrivateKey: testKey,
 	}
-	selectors = append(selectors, data.attestResponseSelectors[0], data.attestResponseSelectors[1])
+	for _, cert := range s.agentSVID {
+		c.Certificate = append(c.Certificate, cert.Raw)
+	}
+	return c, nil
+}
 
-	suite.mockDataStore.EXPECT().SetNodeSelectors(gomock.Any(),
-		&datastore.SetNodeSelectorsRequest{
-			Selectors: &datastore.NodeSelectors{
-				SpiffeId:  data.baseSpiffeID,
-				Selectors: selectors,
-			},
-		}).
-		Return(nil, nil)
+func (s *HandlerSuite) requireFetchX509SVIDSuccess(req *node.FetchX509SVIDRequest) *node.X509SVIDUpdate {
+	stream, err := s.attestedClient.FetchX509SVID(context.Background())
+	s.Require().NoError(err)
+	s.Require().NoError(stream.Send(req))
+	stream.CloseSend()
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().NotNil(resp.SvidUpdate)
+	return resp.SvidUpdate
+}
 
-	// begin FetchRegistrationEntries(baseSpiffeID)
+func (s *HandlerSuite) requireFetchX509SVIDFailure(req *node.FetchX509SVIDRequest, errorCode codes.Code, errorContains string) {
+	stream, err := s.attestedClient.FetchX509SVID(context.Background())
+	s.Require().NoError(err)
+	s.Require().NoError(stream.Send(req))
+	stream.CloseSend()
+	resp, err := stream.Recv()
+	s.Require().Contains(errorContains, status.Convert(err).Message())
+	s.Require().Equal(errorCode, status.Code(err))
+	s.Require().Nil(resp)
+}
 
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(),
-			&datastore.ListRegistrationEntriesRequest{
-				ByParentId: &wrappers.StringValue{
-					Value: data.baseSpiffeID,
-				},
-			}).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: data.regEntryParentIDList}, nil)
+func (s *HandlerSuite) requireFetchJWTSVIDSuccess(req *node.FetchJWTSVIDRequest) *node.JWTSVID {
+	resp, err := s.attestedClient.FetchJWTSVID(context.Background(), req)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().NotNil(resp.Svid)
+	return resp.Svid
+}
 
-	suite.mockDataStore.EXPECT().
-		GetNodeSelectors(gomock.Any(), &datastore.GetNodeSelectorsRequest{
-			SpiffeId: data.baseSpiffeID,
-		}).
-		Return(&datastore.GetNodeSelectorsResponse{
-			Selectors: &datastore.NodeSelectors{
-				SpiffeId:  data.baseSpiffeID,
-				Selectors: []*common.Selector{data.selector},
-			},
-		}, nil)
+func (s *HandlerSuite) requireFetchJWTSVIDFailure(req *node.FetchJWTSVIDRequest, errorCode codes.Code, errorContains string) {
+	resp, err := s.attestedClient.FetchJWTSVID(context.Background(), req)
+	s.Require().Contains(errorContains, status.Convert(err).Message())
+	s.Require().Equal(errorCode, status.Code(err))
+	s.Require().Nil(resp)
+}
 
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{
-			BySelectors: &datastore.BySelectors{
-				Selectors: []*common.Selector{data.selector},
-				Match:     datastore.BySelectors_MATCH_SUBSET,
-			},
-		}).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: data.regEntrySelectorList,
-		}, nil)
+func (s *HandlerSuite) assertBundlesInUpdate(upd *node.X509SVIDUpdate, federatedBundles ...*common.Bundle) {
+	// DEPRECATEDBundle field should contain the trust domain bundle certs
+	s.Equal(upd.DEPRECATEDBundle, s.bundle.RootCas[0].DerBytes)
 
-	for _, entry := range data.regEntryParentIDList {
-		suite.mockDataStore.EXPECT().
-			ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{
-				ByParentId: &wrappers.StringValue{
-					Value: entry.SpiffeId,
-				},
-			}).
-			Return(&datastore.ListRegistrationEntriesResponse{}, nil)
-		suite.mockDataStore.EXPECT().
-			GetNodeSelectors(gomock.Any(), &datastore.GetNodeSelectorsRequest{
-				SpiffeId: entry.SpiffeId,
-			}).
-			Return(&datastore.GetNodeSelectorsResponse{
-				Selectors: &datastore.NodeSelectors{
-					SpiffeId: entry.SpiffeId,
-				},
-			}, nil)
+	// DEPRECATEDBundles should have an entry for the trust domain and each
+	// federated domain
+	s.Len(upd.DEPRECATEDBundles, 1+len(federatedBundles))
+	s.True(proto.Equal(upd.DEPRECATEDBundles[trustDomainID], &node.Bundle{
+		Id:      s.bundle.TrustDomainId,
+		CaCerts: s.bundle.RootCas[0].DerBytes,
+	}))
+	for _, federatedBundle := range federatedBundles {
+		s.True(proto.Equal(
+			upd.DEPRECATEDBundles[federatedBundle.TrustDomainId],
+			makeDeprecatedBundle(federatedBundle),
+		))
 	}
 
-	// none of the selector entries have children or node resolver entries.
-	// the "repeated" entry is not expected to be processed again since it was
-	// already processed as a child.
-	for _, entry := range data.regEntrySelectorList {
-		if entry.SpiffeId == "spiffe://repeated" {
+	// Bundles should have an entry for the trust domain and each federated domain
+	s.Len(upd.Bundles, 1+len(federatedBundles))
+	s.True(proto.Equal(upd.Bundles[trustDomainID], s.bundle))
+	for _, federatedBundle := range federatedBundles {
+		s.True(proto.Equal(
+			upd.Bundles[federatedBundle.TrustDomainId],
+			federatedBundle,
+		))
+	}
+}
+
+func (s *HandlerSuite) assertSVIDsInUpdate(upd *node.X509SVIDUpdate, spiffeIDs ...string) [][]*x509.Certificate {
+	s.Len(upd.Svids, len(spiffeIDs), "number of SVIDs in update")
+
+	var svidChains [][]*x509.Certificate
+	for _, spiffeID := range spiffeIDs {
+		svidEntry := upd.Svids[spiffeID]
+		if !s.NotNil(svidEntry, "svid entry") {
 			continue
 		}
-		suite.mockDataStore.EXPECT().
-			ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{
-				ByParentId: &wrappers.StringValue{
-					Value: entry.SpiffeId,
-				},
-			}).
-			Return(&datastore.ListRegistrationEntriesResponse{}, nil)
-		suite.mockDataStore.EXPECT().
-			GetNodeSelectors(gomock.Any(), &datastore.GetNodeSelectorsRequest{
-				SpiffeId: entry.SpiffeId,
-			}).
-			Return(&datastore.GetNodeSelectorsResponse{
-				Selectors: &datastore.NodeSelectors{
-					SpiffeId: entry.SpiffeId,
-				},
-			}, nil)
+
+		// Assert SVID chain is well formed
+		svidChain, err := x509.ParseCertificates(svidEntry.CertChain)
+		if !s.NoError(err, "parsing svid cert chain") {
+			continue
+		}
+
+		s.Len(svidChain, 1)
+
+		// DEPRECATEDCert should match first certificate in SVID chain
+		deprecatedCert, err := x509.ParseCertificate(svidEntry.DEPRECATEDCert)
+		if s.NoError(err, "parsing deprecated cert") {
+			s.True(svidChain[0].Equal(deprecatedCert))
+		}
+
+		// ExpiresAt should match NotAfter in first certificate in SVID chain
+		s.WithinDuration(svidChain[0].NotAfter, time.Unix(svidEntry.ExpiresAt, 0), 0)
+
+		svidChains = append(svidChains, svidChain)
 	}
 
-	// end FetchRegistrationEntries(baseSpiffeID)
-
-	caCert, _, err := util.LoadCAFixture()
-	require.NoError(suite.T(), err)
-
-	suite.mockDataStore.EXPECT().
-		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomainId: testTrustDomain.String()}).
-		Return(&datastore.FetchBundleResponse{
-			Bundle: &datastore.Bundle{
-				TrustDomainId: testTrustDomain.String(),
-				RootCas: []*common.Certificate{
-					{DerBytes: caCert.Raw},
-				},
-			},
-		}, nil)
+	s.Require().Len(svidChains, len(spiffeIDs), "# of good svids in update")
+	return svidChains
 }
 
-func getExpectedAttest(suite *HandlerTestSuite, baseSpiffeID string, cert *x509.Certificate) *node.X509SVIDUpdate {
-	expectedRegEntries := []*common.RegistrationEntry{
-		{
-			Selectors: []*common.Selector{
-				{Type: "foo", Value: "bar"},
-			},
-			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://repeated",
-		},
-		{
-			Selectors: []*common.Selector{
-				{Type: "foo", Value: "bar"},
-			},
-			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://test1",
-		},
-		{
-			Selectors: []*common.Selector{
-				{Type: "foo", Value: "bar"},
-			},
-			ParentId: "spiffe://example.org/path",
-			SpiffeId: "spiffe://test2",
-		},
-	}
-
-	svids := make(map[string]*node.X509SVID)
-	svids[baseSpiffeID] = makeX509SVIDN(cert)
-
-	caCert, _, _ := util.LoadCAFixture()
-	svidUpdate := &node.X509SVIDUpdate{
-		Svids:               svids,
-		DEPRECATEDBundle:    caCert.Raw,
-		RegistrationEntries: expectedRegEntries,
-		DEPRECATEDBundles: map[string]*node.Bundle{
-			testTrustDomain.String(): {
-				Id:      testTrustDomain.String(),
-				CaCerts: caCert.Raw,
-			},
-		},
-		Bundles: map[string]*common.Bundle{
-			testTrustDomain.String(): {
-				TrustDomainId: testTrustDomain.String(),
-				RootCas: []*common.Certificate{
-					{DerBytes: caCert.Raw},
-				},
-			},
-		},
-	}
-
-	return svidUpdate
+func (s *HandlerSuite) requireErrorContains(err error, contains string) {
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), contains)
 }
 
-type fetchSVIDData struct {
-	request            *node.FetchX509SVIDRequest
-	caCert             *x509.Certificate
-	baseSpiffeID       string
-	nodeSpiffeID       string
-	databaseSpiffeID   string
-	blogSpiffeID       string
-	generatedCerts     []*x509.Certificate
-	selector           *common.Selector
-	spiffeIDs          []string
-	nodeSelectors      []*common.Selector
-	bySelectorsEntries []*common.RegistrationEntry
-	byParentIDEntries  []*common.RegistrationEntry
-	expectation        *node.X509SVIDUpdate
+func (s *HandlerSuite) assertLastLogMessage(message string) {
+	entry := s.logHook.LastEntry()
+	if s.NotNil(entry) {
+		s.Equal(message, entry.Message)
+	}
 }
 
-func getFetchX509SVIDTestData(t *testing.T) *fetchSVIDData {
-	caCert, _, err := util.LoadCAFixture()
-	require.NoError(t, err)
-
-	data := &fetchSVIDData{}
-	data.caCert = caCert
-	data.spiffeIDs = []string{
-		"spiffe://example.org/database",
-		"spiffe://example.org/blog",
-		"spiffe://example.org/spire/agent/join_token/tokenfoo",
+func (s *HandlerSuite) assertLastLogMessageContains(contains string) {
+	entry := s.logHook.LastEntry()
+	if s.NotNil(entry) {
+		s.Contains(entry.Message, contains)
 	}
-	data.baseSpiffeID = "spiffe://example.org/spire/agent/join_token/token"
-	//TODO: get rid of this
-	data.nodeSpiffeID = "spiffe://example.org/spire/agent/join_token/tokenfoo"
-	data.databaseSpiffeID = "spiffe://example.org/database"
-	data.blogSpiffeID = "spiffe://example.org/blog"
-
-	data.request = &node.FetchX509SVIDRequest{}
-	data.request.Csrs = [][]byte{
-		getBytesFromPem("node_csr.pem"),
-		getBytesFromPem("database_csr.pem"),
-		getBytesFromPem("blog_csr.pem"),
-	}
-
-	data.generatedCerts = []*x509.Certificate{
-		loadCertFromPEM("node_cert.pem"),
-		loadCertFromPEM("database_cert.pem"),
-		loadCertFromPEM("blog_cert.pem"),
-	}
-
-	data.selector = &common.Selector{Type: "foo", Value: "bar"}
-	data.nodeSelectors = []*common.Selector{data.selector}
-
-	data.bySelectorsEntries = []*common.RegistrationEntry{
-		{SpiffeId: data.baseSpiffeID, Ttl: 1111, FederatesWith: []string{"spiffe://otherdomain.test"}},
-	}
-
-	data.byParentIDEntries = []*common.RegistrationEntry{
-		{SpiffeId: data.spiffeIDs[0], Ttl: 2222},
-		{SpiffeId: data.spiffeIDs[1], Ttl: 3333},
-		{SpiffeId: data.spiffeIDs[2], Ttl: 4444},
-	}
-
-	return data
 }
 
-func setFetchX509SVIDExpectations(
-	suite *HandlerTestSuite, data *fetchSVIDData) {
-
-	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
-	suite.server.EXPECT().Context().Return(ctx).AnyTimes()
-	suite.server.EXPECT().Recv().Return(data.request, nil)
-
-	// begin FetchRegistrationEntries()
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), gomock.Eq(
-			&datastore.ListRegistrationEntriesRequest{
-				BySpiffeId: &wrappers.StringValue{
-					Value: data.baseSpiffeID,
-				},
-			})).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: data.byParentIDEntries}, nil).AnyTimes()
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(),
-			&datastore.ListRegistrationEntriesRequest{
-				ByParentId: &wrappers.StringValue{
-					Value: data.baseSpiffeID,
-				},
-			}).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: data.byParentIDEntries}, nil)
-
-	suite.mockDataStore.EXPECT().
-		GetNodeSelectors(gomock.Any(), &datastore.GetNodeSelectorsRequest{
-			SpiffeId: data.baseSpiffeID,
-		}).
-		Return(&datastore.GetNodeSelectorsResponse{
-			Selectors: &datastore.NodeSelectors{
-				SpiffeId:  data.baseSpiffeID,
-				Selectors: data.nodeSelectors,
-			},
-		}, nil)
-
-	suite.mockDataStore.EXPECT().
-		ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{
-			BySelectors: &datastore.BySelectors{
-				Selectors: []*common.Selector{data.selector},
-				Match:     datastore.BySelectors_MATCH_SUBSET,
-			},
-		}).
-		Return(&datastore.ListRegistrationEntriesResponse{
-			Entries: data.bySelectorsEntries,
-		}, nil)
-
-	for _, entry := range data.byParentIDEntries {
-		suite.mockDataStore.EXPECT().
-			ListRegistrationEntries(gomock.Any(), &datastore.ListRegistrationEntriesRequest{
-				ByParentId: &wrappers.StringValue{
-					Value: entry.SpiffeId,
-				},
-			}).
-			Return(&datastore.ListRegistrationEntriesResponse{}, nil)
-		suite.mockDataStore.EXPECT().
-			GetNodeSelectors(gomock.Any(), &datastore.GetNodeSelectorsRequest{
-				SpiffeId: entry.SpiffeId,
-			}).
-			Return(&datastore.GetNodeSelectorsResponse{
-				Selectors: &datastore.NodeSelectors{
-					SpiffeId: entry.SpiffeId,
-				},
-			}, nil)
-	}
-
-	// end FetchRegistrationEntries(baseSpiffeID)
-
-	suite.mockDataStore.EXPECT().
-		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomainId: testTrustDomain.String()}).
-		Return(&datastore.FetchBundleResponse{
-			Bundle: &datastore.Bundle{
-				TrustDomainId: testTrustDomain.String(),
-				RootCas: []*common.Certificate{
-					{DerBytes: data.caCert.Raw},
-				},
-			},
-		}, nil)
-
-	suite.mockDataStore.EXPECT().
-		FetchBundle(gomock.Any(), &datastore.FetchBundleRequest{
-			TrustDomainId: "spiffe://otherdomain.test",
-		}).
-		Return(&datastore.FetchBundleResponse{
-			Bundle: &datastore.Bundle{
-				TrustDomainId: "spiffe://otherdomain.test",
-				RootCas: []*common.Certificate{
-					{DerBytes: data.caCert.Raw},
-				},
-			},
-		}, nil)
-
-	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
-		data.request.Csrs[0], durationFromTTL(data.byParentIDEntries[2].Ttl)).Return([]*x509.Certificate{data.generatedCerts[0], data.caCert}, nil)
-
-	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
-		data.request.Csrs[1], durationFromTTL(data.byParentIDEntries[0].Ttl)).Return([]*x509.Certificate{data.generatedCerts[1]}, nil)
-
-	suite.mockServerCA.EXPECT().SignX509SVID(gomock.Any(),
-		data.request.Csrs[2], durationFromTTL(data.byParentIDEntries[1].Ttl)).Return([]*x509.Certificate{data.generatedCerts[2]}, nil)
-
-	suite.server.EXPECT().Send(&node.FetchX509SVIDResponse{
-		SvidUpdate: data.expectation,
-	}).
-		Return(nil)
-
-	suite.server.EXPECT().Recv().Return(nil, io.EOF)
-
+func (s *HandlerSuite) makeSVID(spiffeID string) []*x509.Certificate {
+	svid, err := s.serverCA.SignX509SVID(context.Background(), s.makeCSR(spiffeID), 0)
+	s.Require().NoError(err)
+	return svid
 }
 
-func getExpectedFetchX509SVID(data *fetchSVIDData) *node.X509SVIDUpdate {
-	//TODO: improve this, put it in an array in data and iterate it
-	svids := map[string]*node.X509SVID{
-		data.nodeSpiffeID:     makeX509SVIDN(data.generatedCerts[0], data.caCert),
-		data.databaseSpiffeID: makeX509SVIDN(data.generatedCerts[1]),
-		data.blogSpiffeID:     makeX509SVIDN(data.generatedCerts[2]),
-	}
-
-	// returned in sorted order (according to sorting rules in util.SortRegistrationEntries)
-	registrationEntries := []*common.RegistrationEntry{
-		data.byParentIDEntries[1],
-		data.byParentIDEntries[0],
-		data.bySelectorsEntries[0],
-		data.byParentIDEntries[2],
-	}
-
-	caCert, _, _ := util.LoadCAFixture()
-	svidUpdate := &node.X509SVIDUpdate{
-		Svids:               svids,
-		DEPRECATEDBundle:    caCert.Raw,
-		RegistrationEntries: registrationEntries,
-		DEPRECATEDBundles: map[string]*node.Bundle{
-			testTrustDomain.String(): {
-				Id:      testTrustDomain.String(),
-				CaCerts: caCert.Raw,
-			},
-			"spiffe://otherdomain.test": {
-				Id:      "spiffe://otherdomain.test",
-				CaCerts: caCert.Raw,
-			},
-		},
-		Bundles: map[string]*common.Bundle{
-			testTrustDomain.String(): {
-				TrustDomainId: testTrustDomain.String(),
-				RootCas: []*common.Certificate{
-					{DerBytes: caCert.Raw},
-				},
-			},
-			"spiffe://otherdomain.test": {
-				TrustDomainId: "spiffe://otherdomain.test",
-				RootCas: []*common.Certificate{
-					{DerBytes: caCert.Raw},
-				},
-			},
-		},
-	}
-
-	return svidUpdate
+func (s *HandlerSuite) makeCSR(spiffeID string) []byte {
+	csr, err := util.MakeCSR(testKey, spiffeID)
+	s.Require().NoError(err)
+	return csr
 }
 
-func getFakePeerCertificate() *x509.Certificate {
-	return loadCertFromPEM("base_cert.pem")
-}
-
-func getFakePeer() *peer.Peer {
-	peerCert := getFakePeerCertificate()
-
-	state := tls.ConnectionState{
-		VerifiedChains: [][]*x509.Certificate{{peerCert}},
+func (s *HandlerSuite) makeCSRs(spiffeIDs ...string) [][]byte {
+	var csrs [][]byte
+	for _, spiffeID := range spiffeIDs {
+		csrs = append(csrs, s.makeCSR(spiffeID))
 	}
-
-	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:12345")
-	fakePeer := &peer.Peer{
-		Addr:     addr,
-		AuthInfo: credentials.TLSInfo{State: state},
-	}
-
-	return fakePeer
-}
-
-func durationFromTTL(ttl int32) time.Duration {
-	return time.Duration(ttl) * time.Second
-}
-
-func TestFetchJWTSVID(t *testing.T) {
-	ctx := withPeerCertificate(context.Background(), getFakePeerCertificate())
-	log, _ := test.NewNullLogger()
-
-	dataStore := fakedatastore.New()
-	dataStore.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &datastore.Bundle{
-			TrustDomainId: "spiffe://example.org",
-			RootCas: []*common.Certificate{
-				{DerBytes: []byte("EXAMPLE-CERTS")},
-			},
-		},
-	})
-	dataStore.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &datastore.Bundle{
-			TrustDomainId: "spiffe://otherdomain.test",
-			RootCas: []*common.Certificate{
-				{DerBytes: []byte("OTHERDOMAIN-CERTS")},
-			},
-		},
-	})
-	dataStore.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			ParentId:      "spiffe://example.org/spire/agent/join_token/token",
-			SpiffeId:      "spiffe://example.org/blog",
-			Ttl:           1,
-			FederatesWith: []string{"spiffe://otherdomain.test"},
-		},
-	})
-
-	upstreamCA := fakeupstreamca.New(t, fakeupstreamca.Config{
-		TrustDomain: "example.org",
-	})
-	serverCA := fakeserverca.New(t, "example.org", &fakeserverca.Options{
-		UpstreamCA: upstreamCA,
-	})
-
-	catalog := fakeservercatalog.New()
-	catalog.SetUpstreamCAs(upstreamCA)
-	catalog.SetDataStores(dataStore)
-
-	handler := NewHandler(HandlerConfig{
-		Catalog:     catalog,
-		ServerCA:    serverCA,
-		Log:         log,
-		Metrics:     telemetry.Blackhole{},
-		TrustDomain: testTrustDomain,
-	})
-
-	limiter := new(fakeLimiter)
-	handler.limiter = limiter
-
-	// no peer certificate on context
-	badCtx := context.Background()
-	resp, err := handler.FetchJWTSVID(badCtx, &node.FetchJWTSVIDRequest{})
-	require.EqualError(t, err, "client SVID is required for this request")
-	require.Nil(t, resp)
-	require.Equal(t, 1, limiter.callsFor(JSRMsg))
-
-	// missing JSR
-	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{})
-	require.EqualError(t, err, "request missing JSR")
-	require.Nil(t, resp)
-	require.Equal(t, 2, limiter.callsFor(JSRMsg))
-
-	// missing SPIFFE ID
-	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
-		Jsr: &node.JSR{},
-	})
-	require.EqualError(t, err, "request missing SPIFFE ID")
-	require.Nil(t, resp)
-	require.Equal(t, 3, limiter.callsFor(JSRMsg))
-
-	// missing audiences
-	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
-		Jsr: &node.JSR{
-			SpiffeId: "spiffe://example.org/blog",
-		},
-	})
-	require.EqualError(t, err, "request missing audience")
-	require.Nil(t, resp)
-	require.Equal(t, 4, limiter.callsFor(JSRMsg))
-
-	// not authorized for workload
-	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
-		Jsr: &node.JSR{
-			SpiffeId: "spiffe://example.org/db",
-			Audience: []string{"AUDIENCE"},
-		},
-	})
-	require.EqualError(t, err, `caller "spiffe://example.org/spire/agent/join_token/token" is not authorized for "spiffe://example.org/db"`)
-	require.Nil(t, resp)
-	require.Equal(t, 5, limiter.callsFor(JSRMsg))
-
-	// authorized against a registration entry
-	resp, err = handler.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
-		Jsr: &node.JSR{
-			SpiffeId: "spiffe://example.org/blog",
-			Audience: []string{"AUDIENCE"},
-		},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.NotEmpty(t, resp.Svid.Token)
-	require.NotEqual(t, 0, resp.Svid.ExpiresAt)
-	require.Equal(t, 6, limiter.callsFor(JSRMsg))
-
-	// not authorized for workload
+	return csrs
 }
 
 type fakeLimiter struct {
 	callsForAttest int
 	callsForCSR    int
 	callsForJSR    int
+
+	nextError error
 
 	mtx sync.Mutex
 }
@@ -1083,7 +1080,19 @@ func (fl *fakeLimiter) Limit(_ context.Context, msgType, count int) error {
 		fl.callsForJSR += count
 	}
 
+	if fl.nextError != nil {
+		err := fl.nextError
+		fl.nextError = nil
+		return err
+	}
+
 	return nil
+}
+
+func (fl *fakeLimiter) setNextError(err error) {
+	fl.mtx.Lock()
+	defer fl.mtx.Unlock()
+	fl.nextError = err
 }
 
 func (fl *fakeLimiter) callsFor(msgType int) int {
@@ -1102,6 +1111,18 @@ func (fl *fakeLimiter) callsFor(msgType int) int {
 	return 0
 }
 
-func makeX509SVIDN(svid ...*x509.Certificate) *node.X509SVID {
-	return makeX509SVID(svid)
+func makeAttestationData(typ, data string) *common.AttestationData {
+	return &common.AttestationData{Type: typ, Data: []byte(data)}
+}
+
+func withPeerCert(ctx context.Context, certChain []*x509.Certificate) context.Context {
+	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:12345")
+	return peer.NewContext(ctx, &peer.Peer{
+		Addr: addr,
+		AuthInfo: credentials.TLSInfo{
+			State: tls.ConnectionState{
+				VerifiedChains: [][]*x509.Certificate{certChain},
+			},
+		},
+	})
 }
