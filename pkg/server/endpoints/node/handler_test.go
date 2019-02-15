@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"math/big"
 	"net"
 	"sync"
 	"testing"
@@ -551,6 +552,18 @@ func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
 	s.Equal(agentID, attestedNode.SpiffeId)
 	s.Equal(svidChain[0].SerialNumber.String(), attestedNode.CertSerialNumber)
 	s.WithinDuration(svidChain[0].NotAfter, time.Unix(attestedNode.CertNotAfter, 0), 0)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithStaleAgent() {
+	// make a copy of the agent SVID and tweak the serial number
+	// before "attesting"
+	agentSVID := *s.agentSVID[0]
+	agentSVID.SerialNumber = big.NewInt(9999999999)
+	s.Require().NoError(createAttestationEntry(context.Background(), s.ds, &agentSVID, "test"))
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs(workloadID),
+	}, codes.PermissionDenied, "agent is not attested or no longer valid")
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedDownstreamCSR() {
