@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -49,13 +50,11 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		return nil, errs.New("audience must be specified")
 	}
 
-	_, selectors, metrics, done, err := h.startCall(ctx)
+	pid, selectors, metrics, done, err := h.startCall(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer done()
-
-	metrics.IncrCounter([]string{workloadApi, "fetch_jwt_svid"}, 1)
 
 	var spiffeIDs []string
 	for _, entry := range h.Manager.MatchingEntries(selectors) {
@@ -65,8 +64,11 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		spiffeIDs = append(spiffeIDs, entry.RegistrationEntry.SpiffeId)
 	}
 
+	// Keeps a comma separated list of all the SPIFFE IDs
+	spiffeIDsBuilder := &strings.Builder{}
+
 	resp := new(workload.JWTSVIDResponse)
-	for _, spiffeID := range spiffeIDs {
+	for i, spiffeID := range spiffeIDs {
 		svid, err := h.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
 		if err != nil {
 			return nil, status.Errorf(codes.Unavailable, "could not fetch %q JWTSVID: %v", spiffeID, err)
@@ -75,7 +77,19 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 			SpiffeId: spiffeID,
 			Svid:     svid,
 		})
+
+		spiffeIDsBuilder.WriteString(spiffeID)
+		if i < len(spiffeIDs)-1 {
+			spiffeIDsBuilder.WriteString(",")
+		}
 	}
+
+	metrics.IncrCounterWithLabels(
+		[]string{workloadApi, "fetch_jwt_svid"}, 1,
+		[]telemetry.Label{
+			{Name: "spiffe_id", Value: spiffeIDsBuilder.String()},
+			{Name: workloadPid, Value: fmt.Sprint(pid)},
+		})
 
 	return resp, nil
 }
@@ -180,10 +194,8 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			metrics.IncrCounter([]string{workloadApi, "update"}, 1)
-
 			start := time.Now()
-			err := h.sendX509SVIDResponse(update, stream)
+			err := h.sendX509SVIDResponse(update, stream, metrics, pid)
 			if err != nil {
 				return err
 			}
@@ -198,7 +210,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 }
 
-func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
+func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics, pid int32) error {
 	if len(update.Entries) == 0 {
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
@@ -208,7 +220,28 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
 	}
 
-	return stream.Send(resp)
+	err = stream.Send(resp)
+	if err != nil {
+		return err
+	}
+
+	// Build a comma separated list of all the SPIFFE IDs
+	spiffeIds := &strings.Builder{}
+	for i, svid := range resp.Svids {
+		spiffeIds.WriteString(svid.SpiffeId)
+		if i < len(resp.Svids)-1 {
+			spiffeIds.WriteString(",")
+		}
+	}
+
+	metrics.IncrCounterWithLabels(
+		[]string{workloadApi, "update"}, 1,
+		[]telemetry.Label{
+			{Name: "spiffe_id", Value: spiffeIds.String()},
+			{Name: workloadPid, Value: fmt.Sprint(pid)},
+		})
+
+	return nil
 }
 
 func (h *Handler) composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDResponse, error) {
