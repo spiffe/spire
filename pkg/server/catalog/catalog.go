@@ -26,6 +26,7 @@ import (
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	keymanager_disk "github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
 	keymanager_memory "github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
+	upstreamca_aws "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 	upstreamca_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
 )
 
@@ -72,7 +73,8 @@ var (
 			"azure_msi": noderesolver.NewBuiltIn(azure_nr.NewMSIResolverPlugin()),
 		},
 		UpstreamCAType: {
-			"disk": upstreamca.NewBuiltIn(upstreamca_disk.New()),
+			"disk":      upstreamca.NewBuiltIn(upstreamca_disk.New()),
+			"awssecret": upstreamca.NewBuiltIn(upstreamca_aws.New()),
 		},
 		KeyManagerType: {
 			"disk":   keymanager.NewBuiltIn(keymanager_disk.New()),
