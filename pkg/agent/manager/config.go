@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -30,6 +31,9 @@ type Config struct {
 	BundleCachePath  string
 	SyncInterval     time.Duration
 	RotationInterval time.Duration
+
+	// Clk is the clock the manager will use to get time
+	Clk clock.Clock
 }
 
 // New creates a cache manager based on c's configuration
@@ -47,6 +51,10 @@ func New(c *Config) (*manager, error) {
 		c.RotationInterval = 60 * time.Second
 	}
 
+	if c.Clk == nil {
+		c.Clk = clock.New()
+	}
+
 	cache := cache.New(c.Log, c.TrustDomain.String(), c.Bundle)
 
 	rotCfg := &svid.RotatorConfig{
@@ -60,6 +68,7 @@ func New(c *Config) (*manager, error) {
 		ServerAddr:   c.ServerAddr,
 		TrustDomain:  c.TrustDomain,
 		Interval:     c.RotationInterval,
+		Clk:          c.Clk,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 
@@ -72,8 +81,8 @@ func New(c *Config) (*manager, error) {
 		svidCachePath:   c.SVIDCachePath,
 		bundleCachePath: c.BundleCachePath,
 		client:          client,
+		clk:             c.Clk,
 	}
-	m.hooks.now = time.Now
 
 	return m, nil
 }

@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
+	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -29,6 +29,7 @@ type rotator struct {
 	client client.Client
 
 	state observer.Property
+	clk   clock.Clock
 
 	// Mutex used to protect access to c.BundleStream.
 	bsm *sync.RWMutex
@@ -42,7 +43,7 @@ type State struct {
 // Run runs the rotator. It monitors the server SVID for expiration and rotates
 // as necessary. It also watches for changes to the trust bundle.
 func (r *rotator) Run(ctx context.Context) error {
-	t := time.NewTicker(r.c.Interval)
+	t := r.clk.Ticker(r.c.Interval)
 	defer t.Stop()
 
 	for {
@@ -78,10 +79,10 @@ func (r *rotator) Subscribe() observer.Stream {
 func (r *rotator) shouldRotate() bool {
 	s := r.state.Value().(State)
 
-	ttl := time.Until(s.SVID[0].NotAfter)
+	ttl := s.SVID[0].NotAfter.Sub(r.clk.Now())
 	watermark := s.SVID[0].NotAfter.Sub(s.SVID[0].NotBefore) / 2
 
-	return ttl < watermark
+	return ttl <= watermark
 }
 
 // rotateSVID asks SPIRE's server for a new agent's SVID.

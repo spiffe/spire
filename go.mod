@@ -8,6 +8,7 @@ require (
 	github.com/Microsoft/go-winio v0.4.11 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
+	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go v1.15.24
@@ -64,6 +65,7 @@ require (
 	github.com/spiffe/go-spiffe v0.0.0-20170907221946-2bb3101d62b4
 	github.com/stretchr/testify v1.2.2
 	github.com/zeebo/errs v1.0.0
+	go.uber.org/atomic v1.3.2
 	golang.org/x/crypto v0.0.0-20180820150726-614d502a4dac // indirect
 	golang.org/x/net v0.0.0-20180906233101-161cd47e91fd
 	golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4 // indirect

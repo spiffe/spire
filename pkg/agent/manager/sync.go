@@ -128,7 +128,7 @@ func (m *manager) clearStaleCacheEntries(regEntries map[string]*common.Registrat
 }
 
 func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
-	now := m.hooks.now()
+	now := m.clk.Now()
 	defer m.c.Metrics.MeasureSince([]string{"cache_manager", "expiry_check_duration"}, now)
 
 	for _, entry := range m.cache.Entries() {

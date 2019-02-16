@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
 )
@@ -32,6 +33,9 @@ type RotatorConfig struct {
 
 	// How long to wait between expiry checks
 	Interval time.Duration
+
+	// Clk is the clock that the rotator will use to create a ticker
+	Clk clock.Clock
 }
 
 func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
@@ -67,6 +71,7 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 		c:      c,
 		client: client,
 		state:  state,
+		clk:    c.Clk,
 		bsm:    bsm,
 	}, client
 }

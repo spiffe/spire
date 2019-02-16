@@ -11,23 +11,26 @@ import (
 	mrand "math/rand"
 	"net/url"
 	"time"
+
+	"github.com/andres-erbsen/clock"
 )
 
 // NewSVIDTemplate returns a default SVID template with the specified SPIFFE ID. Must
 // be signed before it's valid.
-func NewSVIDTemplate(spiffeID string) (*x509.Certificate, error) {
-	cert := defaultSVIDTemplate()
+func NewSVIDTemplate(clk clock.Clock, spiffeID string) (*x509.Certificate, error) {
+	cert := defaultSVIDTemplate(clk)
 	err := addSpiffeExtension(spiffeID, cert)
 
 	return cert, err
 }
 
-func NewSVIDTemplateFromCSR(csr []byte, ca *x509.Certificate, ttl int) (*x509.Certificate, error) {
+func NewSVIDTemplateFromCSR(clk clock.Clock, csr []byte, ca *x509.Certificate, ttl int) (*x509.Certificate, error) {
 	cr, err := x509.ParseCertificateRequest(csr)
 	if err != nil {
 		return nil, err
 	}
 
+	now := clk.Now()
 	cert := &x509.Certificate{
 		Subject:            cr.Subject,
 		Issuer:             ca.Subject,
@@ -35,8 +38,8 @@ func NewSVIDTemplateFromCSR(csr []byte, ca *x509.Certificate, ttl int) (*x509.Ce
 		PublicKeyAlgorithm: cr.PublicKeyAlgorithm,
 		Signature:          cr.Signature,
 		SignatureAlgorithm: cr.SignatureAlgorithm,
-		NotBefore:          time.Now(),
-		NotAfter:           time.Now().Add(time.Duration(ttl) * time.Second),
+		NotBefore:          now,
+		NotAfter:           now.Add(time.Duration(ttl) * time.Second),
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageKeyAgreement |
 			x509.KeyUsageDigitalSignature,
@@ -49,8 +52,8 @@ func NewSVIDTemplateFromCSR(csr []byte, ca *x509.Certificate, ttl int) (*x509.Ce
 
 // NewCATemplate returns a default CA template with the specified trust domain. Must
 // be signed before it's valid.
-func NewCATemplate(trustDomain string) (*x509.Certificate, error) {
-	cert := defaultCATemplate()
+func NewCATemplate(clk clock.Clock, trustDomain string) (*x509.Certificate, error) {
+	cert := defaultCATemplate(clk)
 	err := addSpiffeExtension("spiffe://"+trustDomain, cert)
 
 	return cert, err
@@ -99,14 +102,14 @@ func Sign(req, parent *x509.Certificate, signerPrivateKey interface{}) (*x509.Ce
 
 // Returns an SVID template with many default values set. Should be overwritten prior to
 // generating a new test SVID
-func defaultSVIDTemplate() *x509.Certificate {
+func defaultSVIDTemplate(clk clock.Clock) *x509.Certificate {
 	return &x509.Certificate{
 		Subject: pkix.Name{
 			Country:      []string{"US"},
 			Organization: []string{"SPIRE"},
 		},
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(1 * time.Hour),
+		NotBefore: clk.Now(),
+		NotAfter:  clk.Now().Add(1 * time.Hour),
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageKeyAgreement |
 			x509.KeyUsageDigitalSignature,
@@ -116,7 +119,7 @@ func defaultSVIDTemplate() *x509.Certificate {
 }
 
 // Returns an CA template with many default values set.
-func defaultCATemplate() *x509.Certificate {
+func defaultCATemplate(clk clock.Clock) *x509.Certificate {
 	name := pkix.Name{
 		Country:      []string{"US"},
 		Organization: []string{"SPIRE"},
@@ -125,8 +128,8 @@ func defaultCATemplate() *x509.Certificate {
 		Subject:               name,
 		Issuer:                name,
 		IsCA:                  true,
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(1 * time.Hour),
+		NotBefore:             clk.Now(),
+		NotAfter:              clk.Now().Add(1 * time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}

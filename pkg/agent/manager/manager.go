@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -74,9 +75,7 @@ type manager struct {
 
 	client client.Client
 
-	hooks struct {
-		now func() time.Time
-	}
+	clk clock.Clock
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
@@ -131,7 +130,7 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.Workl
 }
 
 func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (string, error) {
-	now := m.hooks.now()
+	now := m.clk.Now()
 
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
 	if ok && !jwtSVIDExpiresSoon(cachedSVID, now) {
@@ -158,7 +157,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
-	t := time.NewTicker(m.c.SyncInterval)
+	t := m.clk.Ticker(m.c.SyncInterval)
 	defer t.Stop()
 
 	for {
