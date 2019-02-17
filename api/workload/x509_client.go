@@ -8,12 +8,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/api/workload/dial"
 	"github.com/spiffe/spire/proto/api/workload"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	DefaultTimeout    = 5 * time.Minute
+	DefaultBackoffCap = 30 * time.Second
+	backoffMin        = time.Second
 )
 
 type X509Client interface {
@@ -32,11 +39,19 @@ type X509ClientConfig struct {
 	// When true, the client will not attempt to reconnect on error
 	FailOnError bool
 
-	// The maximum number of seconds we should backoff for on dial and rpc calls
+	// The maximum time to wait before bailing if the workload API is failing.
+	// Defaults to 5 minutes if unset. Set to a negative value to disable (in
+	// which case the only way to return from Start() is via a call to stop.
 	Timeout time.Duration
+
+	// The maximum backoff value between retries. Defaults to 30 seconds.
+	BackoffCap time.Duration
 
 	// A logging interface which is satisfied by stdlib logger. Can be nil.
 	Log logrus.StdLogger
+
+	// Clock interface used for backoff timing. Can be nil.
+	Clock clock.Clock
 }
 
 func (c *X509ClientConfig) log(format string, args ...interface{}) {
@@ -46,28 +61,33 @@ func (c *X509ClientConfig) log(format string, args ...interface{}) {
 }
 
 // NewX509Client creates a new Workload API client for the X509SVID service.
-func NewX509Client(c *X509ClientConfig) *x509Client {
-	if c == nil {
-		c = new(X509ClientConfig)
-	}
+func NewX509Client(c *X509ClientConfig) X509Client {
+	return newX509Client(c)
+}
 
-	if c.Timeout == 0 {
-		c.Timeout = 300 * time.Second
-	}
-
-	return &x509Client{
-		c:          c,
+func newX509Client(c *X509ClientConfig) *x509Client {
+	client := &x509Client{
+		c:          setX509ClientConfigDefaults(c),
 		updateChan: make(chan *workload.X509SVIDResponse, 1),
 	}
+	client.hooks.streamX509SVID = StreamX509SVID
+	return client
 }
 
 type x509Client struct {
-	c          *X509ClientConfig
+	c *X509ClientConfig
+
+	// the following are for the duration of Start()
 	updateChan chan *workload.X509SVIDResponse
 	cancel     func()
 
+	// current is protected by the following mutex
 	mu      sync.RWMutex
 	current *workload.X509SVIDResponse
+
+	hooks struct {
+		streamX509SVID func(context.Context, *X509ClientConfig, chan<- *workload.X509SVIDResponse) error
+	}
 }
 
 func (x *x509Client) Start() error {
@@ -93,9 +113,14 @@ func (x *x509Client) Start() error {
 	// set up a channel to receive the updates, update the current
 	// update, and push it down the update channel. the channel will
 	// be closed when this function returns to terminate this goroutine.
+	var wg sync.WaitGroup
+	defer wg.Wait()
 	out := make(chan *workload.X509SVIDResponse)
 	defer close(out)
+
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for upd := range out {
 			// set the current update
 			x.mu.Lock()
@@ -108,16 +133,14 @@ func (x *x509Client) Start() error {
 			default:
 			}
 
-			// push the update down the channel
-			select {
-			case x.updateChan <- upd:
-			case <-ctx.Done():
-				return
-			}
+			// push the update down the channel (should never block since any
+			// unread update was drained from the channel and this is the only
+			// goroutine sending on the channel)
+			x.updateChan <- upd
 		}
 	}()
 
-	err := streamX509SVID(ctx, x.c, out)
+	err := x.hooks.streamX509SVID(ctx, x.c, out)
 	switch err {
 	case nil, context.Canceled:
 		return nil
@@ -127,11 +150,11 @@ func (x *x509Client) Start() error {
 }
 
 func (x *x509Client) Stop() {
-	x.mu.RLock()
+	x.mu.Lock()
 	if x.cancel != nil {
 		x.cancel()
 	}
-	x.mu.RUnlock()
+	x.mu.Unlock()
 }
 
 func (x *x509Client) CurrentSVID() (*workload.X509SVIDResponse, error) {
@@ -147,7 +170,8 @@ func (x *x509Client) UpdateChan() <-chan *workload.X509SVIDResponse {
 	return x.updateChan
 }
 
-func streamX509SVID(ctx context.Context, config *X509ClientConfig, out chan<- *workload.X509SVIDResponse) error {
+func StreamX509SVID(ctx context.Context, config *X509ClientConfig, out chan<- *workload.X509SVIDResponse) error {
+	config = setX509ClientConfigDefaults(config)
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("workload.spiffe.io", "true"))
 
 	conn, err := dial.Dial(ctx, config.Addr)
@@ -158,8 +182,9 @@ func streamX509SVID(ctx context.Context, config *X509ClientConfig, out chan<- *w
 	defer conn.Close()
 
 	// TODO: jitter?
-	const backoffMin = time.Second
 	backoff := backoffMin
+
+	lastSuccess := config.Clock.Now()
 
 	handleErr := func(ctx context.Context, op string, err error) error {
 		switch status.Code(err) {
@@ -173,8 +198,20 @@ func streamX509SVID(ctx context.Context, config *X509ClientConfig, out chan<- *w
 			return err
 		}
 
+		if config.Timeout > 0 {
+			elapsed := config.Clock.Now().Sub(lastSuccess)
+			timeoutLeft := config.Timeout - elapsed
+			if timeoutLeft <= 0 {
+				config.log("%s failed with %v; aborting due to timeout (last success %s ago)", op, err, elapsed)
+				return errors.New("timeout exceeded")
+			}
+			if backoff > timeoutLeft {
+				backoff = timeoutLeft
+			}
+		}
+
 		config.log("%s failed with %v; retrying in %s", op, err, backoff)
-		timer := time.NewTimer(backoff)
+		timer := config.Clock.Timer(backoff)
 		defer timer.Stop()
 		select {
 		case <-timer.C:
@@ -182,8 +219,8 @@ func streamX509SVID(ctx context.Context, config *X509ClientConfig, out chan<- *w
 			return ctx.Err()
 		}
 		backoff = time.Duration(float64(backoff) * 1.5)
-		if backoff > config.Timeout {
-			backoff = config.Timeout
+		if backoff > config.BackoffCap {
+			backoff = config.BackoffCap
 		}
 		return nil
 	}
@@ -209,6 +246,7 @@ retryLoop:
 				continue retryLoop
 			}
 			backoff = backoffMin
+			lastSuccess = config.Clock.Now()
 			select {
 			case out <- update:
 			case <-ctx.Done():
@@ -216,4 +254,28 @@ retryLoop:
 			}
 		}
 	}
+}
+
+func setX509ClientConfigDefaults(c *X509ClientConfig) *X509ClientConfig {
+	var out *X509ClientConfig
+	if c == nil {
+		out = new(X509ClientConfig)
+	} else {
+		dup := *c
+		out = &dup
+	}
+
+	if out.Timeout == 0 {
+		out.Timeout = DefaultTimeout
+	}
+	if out.BackoffCap <= 0 {
+		out.BackoffCap = DefaultBackoffCap
+	}
+	if out.BackoffCap < backoffMin {
+		out.BackoffCap = backoffMin
+	}
+	if out.Clock == nil {
+		out.Clock = clock.New()
+	}
+	return out
 }
