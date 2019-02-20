@@ -27,9 +27,9 @@ type Limiter interface {
 // Newlimiter returns a new node api rate.Limiter
 func NewLimiter(l logrus.FieldLogger) *limiter {
 	return &limiter{
-		attestRate:   1,
-		csrRate:      500,
-		jsrRate:      500,
+		attestRate:   rate.Limit(node.AttestLimit),
+		csrRate:      rate.Limit(node.CSRLimit),
+		jsrRate:      rate.Limit(node.JSRLimit),
 		lastNotified: make(map[string]time.Time),
 		limiters:     make(map[int]map[string]*rate.Limiter),
 		log:          l,
