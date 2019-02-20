@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/mock/agent/client"
 	"github.com/spiffe/spire/test/util"
@@ -37,6 +38,8 @@ type RotatorTestSuite struct {
 	bundle observer.Property
 
 	r *rotator
+
+	mockClock *clock.Mock
 }
 
 func (s *RotatorTestSuite) SetupTest() {
@@ -51,6 +54,8 @@ func (s *RotatorTestSuite) SetupTest() {
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManagers(memory.New())
 
+	s.mockClock = clock.NewMock(s.T())
+	s.mockClock.Set(time.Now())
 	log, _ := test.NewNullLogger()
 	td := url.URL{
 		Scheme: "spiffe",
@@ -63,6 +68,7 @@ func (s *RotatorTestSuite) SetupTest() {
 		TrustDomain:  td,
 		SpiffeID:     "spiffe://example.org/spire/agent/1234",
 		BundleStream: cache.NewBundleStream(s.bundle.Observe()),
+		Clk:          s.mockClock,
 	}
 	s.r, _ = NewRotator(c)
 	s.r.client = s.client
@@ -106,14 +112,14 @@ func (s *RotatorTestSuite) TestRun() {
 
 func (s *RotatorTestSuite) TestRunWithUpdates() {
 	// Cert that's valid for 1hr
-	temp, err := util.NewSVIDTemplate("spiffe://example.org/test")
+	temp, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/test")
 	s.Require().NoError(err)
 	goodCert, _, err := util.SelfSign(temp)
 	s.Require().NoError(err)
 
 	// Cert that's expiring
-	temp.NotBefore = time.Now().Add(-1 * time.Hour)
-	temp.NotAfter = time.Now()
+	temp.NotBefore = s.mockClock.Now().Add(-1 * time.Hour)
+	temp.NotAfter = s.mockClock.Now()
 	badCert, _, err := util.SelfSign(temp)
 	s.Require().NoError(err)
 
@@ -124,9 +130,6 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 
 	s.expectSVIDRotation(goodCert)
 
-	// Fast ticker so the tests complete quickly
-	s.r.c.Interval = 10 * time.Millisecond
-
 	stream := s.r.Subscribe()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -135,9 +138,12 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 		return s.r.Run(ctx)
 	})
 
+	s.mockClock.WaitForTicker(time.Second, "timed out waiting for rotator to create a ticker")
+	s.mockClock.Add(s.r.c.Interval)
+
 	select {
-	case <-time.NewTimer(5 * time.Second).C:
-		s.T().Error("SVID rotation timeout reached")
+	case <-time.After(time.Second):
+		s.T().Error("timed out while waiting for expected SVID rotation")
 	case <-stream.Changes():
 		state = stream.Next().(State)
 		s.Require().Len(state.SVID, 1)
@@ -150,7 +156,7 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 
 func (s *RotatorTestSuite) TestShouldRotate() {
 	// Cert that's valid for 1hr
-	temp, err := util.NewSVIDTemplate("spiffe://example.org/test")
+	temp, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/test")
 	s.Require().NoError(err)
 	goodCert, _, err := util.SelfSign(temp)
 	s.Require().NoError(err)
@@ -164,8 +170,8 @@ func (s *RotatorTestSuite) TestShouldRotate() {
 	s.Assert().False(s.r.shouldRotate())
 
 	// Cert that's almost expired
-	temp.NotBefore = time.Now().Add(-1 * time.Hour)
-	temp.NotAfter = time.Now().Add(1 * time.Minute)
+	temp.NotBefore = s.mockClock.Now().Add(-1 * time.Hour)
+	temp.NotAfter = s.mockClock.Now().Add(1 * time.Minute)
 	badCert, _, err := util.SelfSign(temp)
 	s.Require().NoError(err)
 
