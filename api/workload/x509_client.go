@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	DefaultTimeout    = 5 * time.Minute
-	DefaultBackoffCap = 30 * time.Second
+	defaultTimeout    = 5 * time.Minute
+	defaultBackoffCap = 30 * time.Second
 	backoffMin        = time.Second
 )
 
@@ -187,10 +187,8 @@ func StreamX509SVID(ctx context.Context, config *X509ClientConfig, out chan<- *w
 	lastSuccess := config.Clock.Now()
 
 	handleErr := func(ctx context.Context, op string, err error) error {
-		switch status.Code(err) {
-		case codes.DeadlineExceeded, codes.Canceled:
-			return ctx.Err()
-		case codes.InvalidArgument:
+		if status.Code(err) == codes.InvalidArgument {
+			// Workload API Endpoint specification says to bail on InvalidArgument
 			return err
 		}
 		if config.FailOnError {
@@ -198,6 +196,18 @@ func StreamX509SVID(ctx context.Context, config *X509ClientConfig, out chan<- *w
 			return err
 		}
 
+		// if the context is done, then don't bother setting up the timer.
+		// the select below would handle this case but would result in an
+		// errant log line (since there would be no retry).
+		select {
+		case <-ctx.Done():
+			config.log("%s failed with %v", op, err)
+			return ctx.Err()
+		default:
+		}
+
+		// Make sure the timeout hasn't been exceeded and cap the backoff to
+		// the remaining timeout.
 		if config.Timeout > 0 {
 			elapsed := config.Clock.Now().Sub(lastSuccess)
 			timeoutLeft := config.Timeout - elapsed
@@ -266,10 +276,10 @@ func setX509ClientConfigDefaults(c *X509ClientConfig) *X509ClientConfig {
 	}
 
 	if out.Timeout == 0 {
-		out.Timeout = DefaultTimeout
+		out.Timeout = defaultTimeout
 	}
 	if out.BackoffCap <= 0 {
-		out.BackoffCap = DefaultBackoffCap
+		out.BackoffCap = defaultBackoffCap
 	}
 	if out.BackoffCap < backoffMin {
 		out.BackoffCap = backoffMin

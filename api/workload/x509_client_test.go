@@ -33,7 +33,7 @@ var (
 	responseB = &workload.X509SVIDResponse{Svids: []*workload.X509SVID{{SpiffeId: "B"}}}
 	responseC = &workload.X509SVIDResponse{Svids: []*workload.X509SVID{{SpiffeId: "C"}}}
 
-	fakeError = errors.New("fake error")
+	errFake = errors.New("fake error")
 )
 
 func TestX509ClientProvidesConfigDefaults(t *testing.T) {
@@ -41,8 +41,8 @@ func TestX509ClientProvidesConfigDefaults(t *testing.T) {
 	client.hooks.streamX509SVID = func(_ context.Context, c *X509ClientConfig, _ chan<- *workload.X509SVIDResponse) error {
 		assert.Nil(t, c.Addr)
 		assert.False(t, c.FailOnError)
-		assert.Equal(t, DefaultTimeout, c.Timeout)
-		assert.Equal(t, DefaultBackoffCap, c.BackoffCap)
+		assert.Equal(t, defaultTimeout, c.Timeout)
+		assert.Equal(t, defaultBackoffCap, c.BackoffCap)
 		assert.Nil(t, c.Log)
 		assert.NotNil(t, c.Clock)
 		return nil
@@ -155,7 +155,7 @@ func TestStreamX509SVIDBackoffOnFetchFailure(t *testing.T) {
 }
 
 func TestStreamX509SVIDBackoffOnRecvFailure(t *testing.T) {
-	w := fakeworkloadapi.New(t, fakeworkloadapi.FetchX509SVIDErrorAlways(fakeError))
+	w := fakeworkloadapi.New(t, fakeworkloadapi.FetchX509SVIDErrorAlways(errFake))
 	defer w.Close()
 
 	testStreamX509SVIDBackoff(t, w.Addr())
@@ -204,8 +204,26 @@ func testStreamX509SVIDBackoff(t *testing.T, addr net.Addr) {
 	assert.EqualError(t, <-errch, "timeout exceeded")
 }
 
+func TestStreamX509SVIDFailsOnInvalidArgument(t *testing.T) {
+	w := fakeworkloadapi.New(t, fakeworkloadapi.FetchX509SVIDErrorOnce(
+		status.Error(codes.InvalidArgument, "invalid argument"),
+	))
+	defer w.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+
+	err := StreamX509SVID(ctx, &X509ClientConfig{
+		Addr: w.Addr(),
+	}, nil)
+
+	s := status.Convert(err)
+	assert.Equal(t, codes.InvalidArgument, s.Code())
+	assert.Equal(t, "invalid argument", s.Message())
+}
+
 func TestStreamX509SVIDFailOnError(t *testing.T) {
-	w := fakeworkloadapi.New(t, fakeworkloadapi.FetchX509SVIDErrorOnce(fakeError))
+	w := fakeworkloadapi.New(t, fakeworkloadapi.FetchX509SVIDErrorOnce(errFake))
 	defer w.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
