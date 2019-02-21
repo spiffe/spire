@@ -61,7 +61,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		{Name: "svid_type", Value: "jwt"},
 	}
 	var spiffeIDs []string
-	for _, entry := range h.Manager.MatchingEntries(selectors) {
+	entries := h.Manager.MatchingEntries(selectors)
+	for _, entry := range entries {
 		if req.SpiffeId != "" && entry.RegistrationEntry.SpiffeId != req.SpiffeId {
 			continue
 		}
@@ -74,6 +75,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 	// Add all the workload selectors to the labels array.
 	labels = appendSelectors(labels, selectors)
+	labels = append(labels, telemetry.Label{
+		Name:  "registered",
+		Value: strconv.FormatBool(len(entries) > 0),
+	})
 
 	resp := new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
@@ -239,7 +244,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	labels = appendSelectors(labels, selectors)
 
 	labels = append(labels, telemetry.Label{
-		Name:  "cache_hit",
+		Name:  "registered",
 		Value: strconv.FormatBool(len(update.Entries) > 0),
 	})
 
