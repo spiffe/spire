@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
-	"strings"
 	"sync"
 	"text/template"
 
@@ -22,10 +20,8 @@ import (
 )
 
 const (
-	defaultIdentityDocumentHost  = "169.254.169.254"
-	defaultIdentityDocumentPath  = "/latest/dynamic/instance-identity/document"
-	defaultIdentitySignatureHost = "169.254.169.254"
-	defaultIdentitySignaturePath = "/latest/dynamic/instance-identity/signature"
+	defaultIdentityDocumentURL  = "http://169.254.169.254/latest/dynamic/instance-identity/document"
+	defaultIdentitySignatureURL = "http://169.254.169.254/latest/dynamic/instance-identity/signature"
 )
 
 // IIDAttestorConfig configures a IIDAttestorPlugin.
@@ -56,7 +52,7 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 		return err
 	}
 
-	docBytes, err := httpGetBytes(identityURL(c.IdentityDocumentURL))
+	docBytes, err := httpGetBytes(c.IdentityDocumentURL)
 	if err != nil {
 		err = aws.AttestationStepError("retrieving the IID from AWS", err)
 		return err
@@ -69,7 +65,7 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 		return err
 	}
 
-	sigBytes, err := httpGetBytes(identityURL(c.IdentitySignatureURL))
+	sigBytes, err := httpGetBytes(c.IdentitySignatureURL)
 	if err != nil {
 		err = aws.AttestationStepError("retrieving the IID signature from AWS", err)
 		return err
@@ -136,11 +132,11 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	config.trustDomain = req.GlobalConfig.TrustDomain
 
 	if config.IdentityDocumentURL == "" {
-		config.IdentityDocumentURL = defaultIdentityDocumentHost + defaultIdentityDocumentPath
+		config.IdentityDocumentURL = defaultIdentityDocumentURL
 	}
 
 	if config.IdentitySignatureURL == "" {
-		config.IdentitySignatureURL = defaultIdentitySignatureHost + defaultIdentitySignaturePath
+		config.IdentitySignatureURL = defaultIdentitySignatureURL
 	}
 
 	config.pathTemplate = aws.DefaultAgentPathTemplate
@@ -173,16 +169,6 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 		return nil, errors.New("not configured")
 	}
 	return p.config, nil
-}
-
-func identityURL(rawurl string) string {
-	spliturl := strings.SplitN(rawurl, "/", 2)
-	url := &url.URL{
-		Scheme: "http",
-		Host:   spliturl[0],
-		Path:   spliturl[1],
-	}
-	return url.String()
 }
 
 func httpGetBytes(url string) ([]byte, error) {

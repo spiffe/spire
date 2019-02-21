@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
+	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
 
 	awssdk "github.com/aws/aws-sdk-go/aws"
@@ -60,6 +61,7 @@ type IIDAttestorSuite struct {
 	// built-in for full callstack
 	p      *nodeattestor.BuiltIn
 	rsaKey *rsa.PrivateKey
+	env    map[string]string
 }
 
 func (s *IIDAttestorSuite) SetupTest() {
@@ -67,7 +69,12 @@ func (s *IIDAttestorSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.rsaKey = rsaKey
 
+	s.env = make(map[string]string)
+
 	p := NewIIDPlugin()
+	p.hooks.getEnv = func(key string) string {
+		return s.env[key]
+	}
 	s.plugin = p
 	s.p = nodeattestor.NewBuiltIn(p)
 
@@ -249,14 +256,14 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 
 			ec2Client := mock_aws.NewMockEC2Client(mockCtl)
 
-			originalGetEC2Client := s.plugin.getClient
+			originalGetEC2Client := s.plugin.hooks.getClient
 			defer func() {
-				s.plugin.getClient = originalGetEC2Client
+				s.plugin.hooks.getClient = originalGetEC2Client
 			}()
 			mockGetEC2Client := func(p client.ConfigProvider, cfgs ...*awssdk.Config) EC2Client {
 				return ec2Client
 			}
-			s.plugin.getClient = mockGetEC2Client
+			s.plugin.hooks.getClient = mockGetEC2Client
 			if tt.mockExpect != nil {
 				tt.mockExpect(ec2Client)
 			}
@@ -266,7 +273,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				configStr = fmt.Sprintf(`agent_path_template = "%s"`, tt.replacementTemplate)
 			}
 			if tt.skipEC2 {
-				configStr = configStr + "\nskip_ec2_calling = true"
+				configStr = configStr + "\nskip_ec2_attest_calling = true"
 			}
 			if tt.skipBlockDev {
 				configStr = configStr + "\nskip_block_device = true"
@@ -340,7 +347,36 @@ func (s *IIDAttestorSuite) TestConfigure() {
 	s.requireErrorContains(err, "trust_domain is required")
 	require.Nil(resp)
 
-	// success
+	// fails with access id but no secret
+	resp, err = s.plugin.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+		access_key_id = "ACCESSKEYID"
+		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"}})
+	s.Require().EqualError(err, "configuration missing secret access key, but has access key id")
+	s.Require().Nil(resp)
+
+	// fails with secret but no access id
+	resp, err = s.plugin.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `
+		secret_access_key = "SECRETACCESSKEY"
+		`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"}})
+	s.Require().EqualError(err, "configuration missing access key id, but has secret access key")
+	s.Require().Nil(resp)
+
+	// success with envvars
+	s.env[caws.AccessKeyIDVarName] = "ACCESSKEYID"
+	s.env[caws.SecretAccessKeyVarName] = "SECRETACCESSKEY"
+	resp, err = s.plugin.Configure(context.Background(), &plugin.ConfigureRequest{
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+	delete(s.env, caws.AccessKeyIDVarName)
+	delete(s.env, caws.SecretAccessKeyVarName)
+
+	// success, no AWS keys
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: ``,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"}})

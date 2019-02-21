@@ -18,8 +18,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
@@ -30,9 +28,6 @@ import (
 
 const (
 	pluginName = "aws_iid"
-
-	accessKeyIDVarName     = "AWS_ACCESS_KEY_ID"
-	secretAccessKeyVarName = "AWS_SECRET_ACCESS_KEY"
 
 	maxSecondsBetweenDeviceAttachments int64 = 60
 )
@@ -57,33 +52,37 @@ C1haGgSI/A1uZUKs/Zfnph0oEI0/hu1IIJ/SKBDtN5lvmZ/IzbOPIJWirlsllQIQ
 7zvWbGd9c9+Rm3p04oTvhup99la7kZqevJK0QRdD/6NpCKsqP/0=
 -----END CERTIFICATE-----`
 
-// IIDAttestorConfig is the config for IIDAttestorPlugin.
-type IIDAttestorConfig struct {
-	AccessKeyID        string `hcl:"access_key_id"`
-	SecretAccessKey    string `hcl:"secret_access_key"`
-	SkipBlockDevice    bool   `hcl:"skip_block_device"`
-	SkipEC2Calling     bool   `hcl:"skip_ec2_calling"`
-	AgentPathTemplate  string `hcl:"agent_path_template"`
-	pathTemplate       *template.Template
-	trustDomain        string
-	awsCaCertPublicKey *rsa.PublicKey
-}
-
 // IIDAttestorPlugin implements node attestation for agents running in aws.
 type IIDAttestorPlugin struct {
 	config *IIDAttestorConfig
 	mtx    sync.RWMutex
-	// in test, this can be overridden to get mock client
-	getClient func(p client.ConfigProvider, cfgs ...*aws.Config) EC2Client
+	hooks  struct {
+		// in test, this can be overridden to get mock client
+		getClient func(p client.ConfigProvider, cfgs ...*aws.Config) EC2Client
+		// in test, this can be overridden to mock OS env
+		getEnv func(string) string
+	}
+}
+
+// IIDAttestorConfig holds hcl configuration for IID attestor plugin
+type IIDAttestorConfig struct {
+	caws.SessionConfig   `hcl:",squash"`
+	SkipBlockDevice      bool   `hcl:"skip_block_device"`
+	SkipEC2AttestCalling bool   `hcl:"skip_ec2_attest_calling"`
+	AgentPathTemplate    string `hcl:"agent_path_template"`
+	pathTemplate         *template.Template
+	trustDomain          string
+	awsCaCertPublicKey   *rsa.PublicKey
 }
 
 // NewIIDPlugin creates a new IITAttestorPlugin.
 func NewIIDPlugin() *IIDAttestorPlugin {
-	return &IIDAttestorPlugin{
-		getClient: func(p client.ConfigProvider, cfgs ...*aws.Config) EC2Client {
-			return ec2.New(p, cfgs...)
-		},
+	p := &IIDAttestorPlugin{}
+	p.hooks.getClient = func(p client.ConfigProvider, cfgs ...*aws.Config) EC2Client {
+		return ec2.New(p, cfgs...)
 	}
+	p.hooks.getEnv = os.Getenv
+	return p
 }
 
 // Attest implements the server side logic for the aws iid node attestation plugin.
@@ -136,8 +135,8 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 	}
 
 	// query AWS for additional information to verify?
-	if !c.SkipEC2Calling {
-		err = p.ec2Attestation(stream.Context(), c, doc)
+	if !c.SkipEC2AttestCalling {
+		err = p.ec2Attestation(stream.Context(), *c, doc)
 		if err != nil {
 			return fmt.Errorf("failed aws ec2 attestation: %v", err)
 		}
@@ -189,11 +188,18 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	config.awsCaCertPublicKey = awsCaCertPublicKey
 
 	if config.AccessKeyID == "" {
-		config.AccessKeyID = os.Getenv(accessKeyIDVarName)
+		config.AccessKeyID = p.hooks.getEnv(caws.AccessKeyIDVarName)
 	}
 
 	if config.SecretAccessKey == "" {
-		config.SecretAccessKey = os.Getenv(secretAccessKeyVarName)
+		config.SecretAccessKey = p.hooks.getEnv(caws.SecretAccessKeyVarName)
+	}
+
+	switch {
+	case config.AccessKeyID != "" && config.SecretAccessKey == "":
+		return nil, errors.New("configuration missing secret access key, but has access key id")
+	case config.AccessKeyID == "" && config.SecretAccessKey != "":
+		return nil, errors.New("configuration missing access key id, but has secret access key")
 	}
 
 	if req.GlobalConfig == nil {
@@ -232,20 +238,13 @@ func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoReque
 // meant to be called as part of Attest, and so uses the config from that call
 // for consistency rather than fetching a fresher (potentially altered) config.
 // returns nil on success
-func (p *IIDAttestorPlugin) ec2Attestation(ctx context.Context, c *IIDAttestorConfig, doc caws.InstanceIdentityDocument) error {
-	var awsConf *aws.Config
-	if c.SecretAccessKey != "" && c.AccessKeyID != "" {
-		creds := credentials.NewStaticCredentials(c.AccessKeyID, c.SecretAccessKey, "")
-		awsConf = &aws.Config{Credentials: creds, Region: &doc.Region}
-	} else {
-		awsConf = &aws.Config{Region: &doc.Region}
-	}
-	awsSession, err := session.NewSession(awsConf)
+func (p *IIDAttestorPlugin) ec2Attestation(ctx context.Context, c IIDAttestorConfig, doc caws.InstanceIdentityDocument) error {
+	awsSession, err := caws.NewAWSSession(c.AccessKeyID, c.SecretAccessKey, doc.Region)
 	if err != nil {
 		return caws.AttestationStepError("creating AWS session", err)
 	}
 
-	ec2Client := p.getClient(awsSession)
+	ec2Client := p.hooks.getClient(awsSession)
 
 	query := &ec2.DescribeInstancesInput{
 		InstanceIds: []*string{&doc.InstanceID},

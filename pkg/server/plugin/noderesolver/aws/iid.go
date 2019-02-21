@@ -8,14 +8,13 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/hashicorp/hcl"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -49,24 +48,21 @@ type awsClient interface {
 	GetInstanceProfileWithContext(aws.Context, *iam.GetInstanceProfileInput, ...request.Option) (*iam.GetInstanceProfileOutput, error)
 }
 
-type IIDResolverConfig struct {
-	AccessKeyID     string `hcl:"access_key_id"`
-	SecretAccessKey string `hcl:"secret_access_key"`
-}
-
+// IIDResolverPlugin implements node resolution for agents running in aws.
 type IIDResolverPlugin struct {
 	mu      sync.RWMutex
-	config  *IIDResolverConfig
+	config  *caws.SessionConfig
 	clients map[string]awsClient
 
 	hooks struct {
 		getenv    func(string) string
-		newClient func(config *IIDResolverConfig, region string) (awsClient, error)
+		newClient func(config *caws.SessionConfig, region string) (awsClient, error)
 	}
 }
 
 var _ noderesolver.Plugin = (*IIDResolverPlugin)(nil)
 
+// NewIIDResolverPlugin creates a new IIDResolverPlugin.
 func NewIIDResolverPlugin() *IIDResolverPlugin {
 	p := &IIDResolverPlugin{}
 	p.hooks.getenv = os.Getenv
@@ -74,29 +70,27 @@ func NewIIDResolverPlugin() *IIDResolverPlugin {
 	return p
 }
 
+// Configure configures the IIDResolverPlugin
 func (p *IIDResolverPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
-	config := new(IIDResolverConfig)
+	config := new(caws.SessionConfig)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, iidError.New("unable to decode configuration: %v", err)
 	}
 
 	// Set defaults from the environment
 	if config.AccessKeyID == "" {
-		config.AccessKeyID = p.hooks.getenv("AWS_ACCESS_KEY_ID")
+		config.AccessKeyID = p.hooks.getenv(caws.AccessKeyIDVarName)
 	}
 	if config.SecretAccessKey == "" {
-		config.SecretAccessKey = p.hooks.getenv("AWS_SECRET_ACCESS_KEY")
+		config.SecretAccessKey = p.hooks.getenv(caws.SecretAccessKeyVarName)
 	}
 
 	switch {
-	case config.AccessKeyID != "" && config.SecretAccessKey != "":
 	case config.AccessKeyID != "" && config.SecretAccessKey == "":
-		return nil, iidError.New("configuration missing secret access key")
+		return nil, iidError.New("configuration missing secret access key, but has access key id")
 	case config.AccessKeyID == "" && config.SecretAccessKey != "":
-		return nil, iidError.New("configuration missing access key id")
-	case config.AccessKeyID == "" && config.SecretAccessKey == "":
-		return nil, iidError.New("configuration missing both access key id and secret access key")
+		return nil, iidError.New("configuration missing access key id, but has secret access key")
 	}
 
 	// set the AWS configuration and reset clients
@@ -107,10 +101,12 @@ func (p *IIDResolverPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	return &spi.ConfigureResponse{}, nil
 }
 
+// GetPluginInfo returns the version and related metadata of the installed plugin.
 func (p *IIDResolverPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
+// Resolve handles the given resolve request
 func (p *IIDResolverPlugin) Resolve(ctx context.Context, req *noderesolver.ResolveRequest) (*noderesolver.ResolveResponse, error) {
 	resp := &noderesolver.ResolveResponse{
 		Map: make(map[string]*common.Selectors),
@@ -251,7 +247,7 @@ func resolveInstanceProfile(instanceProfile *iam.InstanceProfile) []string {
 	return values
 }
 
-func parseAgentID(spiffeID string) (accountID, region, instanceId string, err error) {
+func parseAgentID(spiffeID string) (accountID, region, instanceID string, err error) {
 	u, err := idutil.ParseSpiffeID(spiffeID, idutil.AllowAnyTrustDomainAgent())
 	if err != nil {
 		return "", "", "", errs.New("unable to parse agent id %q: %v", spiffeID, err)
@@ -263,12 +259,8 @@ func parseAgentID(spiffeID string) (accountID, region, instanceId string, err er
 	return m[1], m[2], m[3], nil
 }
 
-func newAWSClient(config *IIDResolverConfig, region string) (awsClient, error) {
-	conf := aws.NewConfig()
-	conf.Credentials = credentials.NewStaticCredentials(config.AccessKeyID, config.SecretAccessKey, "")
-	conf.Region = aws.String(region)
-
-	sess, err := session.NewSession(conf)
+func newAWSClient(config *caws.SessionConfig, region string) (awsClient, error) {
+	sess, err := caws.NewAWSSession(config.AccessKeyID, config.SecretAccessKey, region)
 	if err != nil {
 		return nil, iidError.Wrap(err)
 	}

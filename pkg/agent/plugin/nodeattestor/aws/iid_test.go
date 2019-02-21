@@ -20,6 +20,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+const (
+	defaultIdentityDocumentPath  = "/latest/dynamic/instance-identity/document"
+	defaultIdentitySignaturePath = "/latest/dynamic/instance-identity/signature"
+)
+
 var (
 	signingKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIBywIBAAJhAOn4rFLlxONpujl+q/h/kTQzZoqn1nQZbCKEyIPBWO6kkcSqIqON
@@ -51,14 +56,14 @@ type Suite struct {
 
 func (s *Suite) SetupTest() {
 	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(s.status)
-
 		switch path := req.URL.Path; path {
 		case defaultIdentityDocumentPath:
 			// write doc resp
+			w.WriteHeader(s.status)
 			w.Write([]byte(s.docBody))
 		case defaultIdentitySignaturePath:
 			// write sig resp
+			w.WriteHeader(s.status)
 			w.Write([]byte(s.sigBody))
 		default:
 			// unexpected path
@@ -71,8 +76,8 @@ func (s *Suite) SetupTest() {
 	s.p = nodeattestor.NewBuiltIn(p)
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
-identity_document_url = "%s%s"
-identity_signature_url = "%s%s"
+identity_document_url = "http://%s%s"
+identity_signature_url = "http://%s%s"
 `, s.server.Listener.Addr().String(), defaultIdentityDocumentPath, s.server.Listener.Addr().String(), defaultIdentitySignaturePath),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
 			TrustDomain: "example.org",
@@ -112,7 +117,7 @@ func (s *Suite) TestEmptyDoc() {
 func (s *Suite) TestErrorOnInvalidDoc() {
 	s.docBody = "invalid"
 	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "error occured unmarshaling the IID")
+	s.requireErrorContains(err, "error occurred unmarshaling the IID")
 }
 
 func (s *Suite) TestSuccessfulIdentityProcessing() {
@@ -138,8 +143,8 @@ func (s *Suite) TestSuccessfulIdentityProcessing() {
 	_, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
 agent_path_template = "{{ .AccountID }}/{{ .Region }}/{{ .InstanceID }}/{{ .PluginName}}"
-identity_document_url = "%s%s"
-identity_signature_url = "%s%s"
+identity_document_url = "http://%s%s"
+identity_signature_url = "http://%s%s"
 `, s.server.Listener.Addr().String(), defaultIdentityDocumentPath, s.server.Listener.Addr().String(), defaultIdentitySignaturePath),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
 			TrustDomain: "example.org",

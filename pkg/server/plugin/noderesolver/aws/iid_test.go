@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
+	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/noderesolver"
@@ -148,17 +149,17 @@ func (s *IIDResolverSuite) TestConfigure() {
 	s.requireErrorContains(err, "aws-iid: unable to decode configuration")
 	s.Require().Nil(resp)
 
-	// fails with no credentials
+	// succeeds with no credentials
 	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.Require().EqualError(err, "aws-iid: configuration missing both access key id and secret access key")
-	s.Require().Nil(resp)
+	s.Require().NoError(err)
+	s.Require().Equal(resp, &plugin.ConfigureResponse{})
 
 	// fails with access id but no secret
 	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
 		access_key_id = "ACCESSKEYID"
 		`})
-	s.Require().EqualError(err, "aws-iid: configuration missing secret access key")
+	s.Require().EqualError(err, "aws-iid: configuration missing secret access key, but has access key id")
 	s.Require().Nil(resp)
 
 	// fails with secret but no access id
@@ -166,17 +167,17 @@ func (s *IIDResolverSuite) TestConfigure() {
 		Configuration: `
 		secret_access_key = "SECRETACCESSKEY"
 		`})
-	s.Require().EqualError(err, "aws-iid: configuration missing access key id")
+	s.Require().EqualError(err, "aws-iid: configuration missing access key id, but has secret access key")
 	s.Require().Nil(resp)
 
 	// success with envvars
-	s.env["AWS_ACCESS_KEY_ID"] = "ACCESSKEYID"
-	s.env["AWS_SECRET_ACCESS_KEY"] = "SECRETACCESSKEY"
+	s.env[caws.AccessKeyIDVarName] = "ACCESSKEYID"
+	s.env[caws.SecretAccessKeyVarName] = "SECRETACCESSKEY"
 	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
-	delete(s.env, "AWS_ACCESS_KEY_ID")
-	delete(s.env, "AWS_SECRET_ACCESS_KEY")
+	delete(s.env, caws.AccessKeyIDVarName)
+	delete(s.env, caws.SecretAccessKeyVarName)
 
 	// success with access id/secret credentials
 	s.configureResolver()
@@ -193,13 +194,13 @@ func (s *IIDResolverSuite) newResolver() {
 	resolver.hooks.getenv = func(key string) string {
 		return s.env[key]
 	}
-	resolver.hooks.newClient = func(config *IIDResolverConfig, region string) (awsClient, error) {
+	resolver.hooks.newClient = func(config *caws.SessionConfig, region string) (awsClient, error) {
 		// assert that the right region is specified
 		s.Require().Equal("REGION", region)
 
 		// assert that the credentials are populated correctly
 		s.Require().NotNil(config)
-		s.Require().Equal(&IIDResolverConfig{
+		s.Require().Equal(&caws.SessionConfig{
 			AccessKeyID:     "ACCESSKEYID",
 			SecretAccessKey: "SECRETACCESSKEY",
 		}, config)
