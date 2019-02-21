@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -60,8 +59,28 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	labels := []telemetry.Label{
 		{Name: "svid_type", Value: "jwt"},
 	}
+	// Add all the workload selectors to the labels array.
+	labels = appendSelectors(labels, selectors)
+
 	var spiffeIDs []string
 	entries := h.Manager.MatchingEntries(selectors)
+	if len(entries) == 0 {
+		labels = append(labels, telemetry.Label{
+			Name:  "registered",
+			Value: "false",
+		})
+		metrics.IncrCounterWithLabels(
+			[]string{workloadApi, "fetch_jwt_svid"},
+			1,
+			labels)
+
+		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
+	}
+	labels = append(labels, telemetry.Label{
+		Name:  "registered",
+		Value: "true",
+	})
+
 	for _, entry := range entries {
 		if req.SpiffeId != "" && entry.RegistrationEntry.SpiffeId != req.SpiffeId {
 			continue
@@ -72,13 +91,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 			Value: entry.RegistrationEntry.SpiffeId,
 		})
 	}
-
-	// Add all the workload selectors to the labels array.
-	labels = appendSelectors(labels, selectors)
-	labels = append(labels, telemetry.Label{
-		Name:  "registered",
-		Value: strconv.FormatBool(len(entries) > 0),
-	})
 
 	resp := new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
@@ -215,9 +227,28 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 }
 
 func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics, selectors []*common.Selector) error {
+	labels := []telemetry.Label{
+		{Name: "svid_type", Value: "x509"},
+	}
+	// Add all the workload selectors to the labels array.
+	labels = appendSelectors(labels, selectors)
+
 	if len(update.Entries) == 0 {
+		labels = append(labels, telemetry.Label{
+			Name:  "registered",
+			Value: "false",
+		})
+		metrics.IncrCounterWithLabels(
+			[]string{workloadApi, "svid_response"},
+			1,
+			labels)
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
+
+	labels = append(labels, telemetry.Label{
+		Name:  "registered",
+		Value: "true",
+	})
 
 	resp, err := h.composeX509SVIDResponse(update)
 	if err != nil {
@@ -229,9 +260,6 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 		return err
 	}
 
-	labels := []telemetry.Label{
-		{Name: "svid_type", Value: "x509"},
-	}
 	// Add all the SPIFFE IDs to the labels array.
 	for _, svid := range resp.Svids {
 		labels = append(labels, telemetry.Label{
@@ -239,14 +267,6 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 			Value: svid.SpiffeId,
 		})
 	}
-
-	// Add all the workload selectors to the labels array.
-	labels = appendSelectors(labels, selectors)
-
-	labels = append(labels, telemetry.Label{
-		Name:  "registered",
-		Value: strconv.FormatBool(len(update.Entries) > 0),
-	})
 
 	metrics.IncrCounterWithLabels(
 		[]string{workloadApi, "svid_response"},
