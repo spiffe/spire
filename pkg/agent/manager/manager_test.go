@@ -21,12 +21,12 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/clock"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
@@ -259,7 +259,6 @@ func TestSVIDRotation(t *testing.T) {
 	defer l.Close()
 
 	mockClk := clock.NewMock(t)
-	mockClk.Set(time.Now().Truncate(time.Second))
 
 	baseTTL := 3
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
@@ -342,7 +341,6 @@ func TestSynchronization(t *testing.T) {
 	defer l.Close()
 
 	mockClk := clock.NewMock(t)
-	mockClk.Set(time.Now().Truncate(time.Second))
 	ttl := 3
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
@@ -657,7 +655,6 @@ func TestSurvivesCARotation(t *testing.T) {
 	defer l.Close()
 
 	mockClk := clock.NewMock(t)
-	mockClk.Set(time.Now().Truncate(time.Second))
 	ttl := 3
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:             t,
@@ -721,7 +718,6 @@ func TestFetchJWTSVID(t *testing.T) {
 	fetchResp := &node.FetchJWTSVIDResponse{}
 
 	mockClk := clock.NewMock(t)
-	mockClk.Set(time.Now().Truncate(time.Second))
 	apiHandler := newMockNodeAPIHandler(&mockNodeAPIHandlerConfig{
 		t:           t,
 		trustDomain: trustDomain,

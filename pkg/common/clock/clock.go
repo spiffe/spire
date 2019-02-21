@@ -28,13 +28,23 @@ type Mock struct {
 
 // NewMock creates a mock clock which can be precisely controlled
 func NewMock(t testing.TB) *Mock {
-	return &Mock{
+	m := &Mock{
 		Mock:    clock.NewMock(),
 		t:       t,
 		afterC:  make(chan struct{}, 1),
 		tickerC: make(chan struct{}, 1),
 		sleepC:  make(chan struct{}, 1),
 	}
+
+	// TLS verification is being done using a realtime clock so we set the mock clock to
+	// the current time, truncated to a second which is the granularity available to asn1.
+	// This ensures that when tests create a certificate with a lifetime of 3 seconds, it
+	// is exactly 3 seconds (relative to the mock clock).
+	//
+	// TODO: plumb the clock into the TLS configs. (Clock).Now should be passed to "crypto/tls".(Config).Time
+	// and then this can be removed as a clock could be use with a zero value at that point.
+	m.Set(time.Now().Truncate(time.Second))
+	return m
 }
 
 // WaitForAfter waits up to the specified timeout for After to be called on the clock.

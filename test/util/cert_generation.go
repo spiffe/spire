@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/andres-erbsen/clock"
+	"github.com/spiffe/spire/pkg/common/clock"
 )
 
 // NewSVIDTemplate returns a default SVID template with the specified SPIFFE ID. Must
