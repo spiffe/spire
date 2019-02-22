@@ -1,4 +1,4 @@
-package k8s
+package common
 
 import (
 	"context"
@@ -14,40 +14,40 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-func TestSATAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(SATAttestorSuite))
+func TestCommonAttestorPlugin(t *testing.T) {
+	suite.Run(t, new(CommonAttestorSuite))
 }
 
-type SATAttestorSuite struct {
+type CommonAttestorSuite struct {
 	suite.Suite
 
 	dir      string
 	attestor *nodeattestor.BuiltIn
 }
 
-func (s *SATAttestorSuite) SetupTest() {
+func (s *CommonAttestorSuite) SetupTest() {
 	var err error
-	s.dir, err = ioutil.TempDir("", "spire-k8s-sat-test-")
+	s.dir, err = ioutil.TempDir("", "spire-k8s-common-test-")
 	s.Require().NoError(err)
 
 	s.newAttestor()
-	s.configure(SATAttestorConfig{})
+	s.configure(CommonAttestorConfig{})
 }
 
-func (s *SATAttestorSuite) TestFetchAttestationDataNotConfigured() {
+func (s *CommonAttestorSuite) TestFetchAttestationDataNotConfigured() {
 	s.newAttestor()
 	s.requireFetchError("k8s-sat: not configured")
 }
 
-func (s *SATAttestorSuite) TestFetchAttestationDataNoToken() {
-	s.configure(SATAttestorConfig{
+func (s *CommonAttestorSuite) TestFetchAttestationDataNoToken() {
+	s.configure(CommonAttestorConfig{
 		TokenPath: s.joinPath("token"),
 	})
 	s.requireFetchError("unable to load token from")
 }
 
-func (s *SATAttestorSuite) TestFetchAttestationDataSuccess() {
-	s.configure(SATAttestorConfig{
+func (s *CommonAttestorSuite) TestFetchAttestationDataSuccess() {
+	s.configure(CommonAttestorConfig{
 		TokenPath: s.writeValue("token", "TOKEN"),
 	})
 
@@ -74,7 +74,7 @@ func (s *SATAttestorSuite) TestFetchAttestationDataSuccess() {
 	s.Require().Equal(io.EOF, err)
 }
 
-func (s *SATAttestorSuite) TestConfigure() {
+func (s *CommonAttestorSuite) TestConfigure() {
 	// malformed configuration
 	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
@@ -108,21 +108,21 @@ func (s *SATAttestorSuite) TestConfigure() {
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
 }
 
-func (s *SATAttestorSuite) TestGetPluginInfo() {
+func (s *CommonAttestorSuite) TestGetPluginInfo() {
 	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *SATAttestorSuite) newAttestor() {
-	attestor := NewSATAttestorPlugin()
+func (s *CommonAttestorSuite) newAttestor() {
+	attestor := NewCommonAttestorPlugin("k8s_sat", "/run/secrets/kubernetes.io/serviceaccount/token", "k8s-sat")
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
 	}
 	s.attestor = nodeattestor.NewBuiltIn(attestor)
 }
 
-func (s *SATAttestorSuite) configure(config SATAttestorConfig) {
+func (s *CommonAttestorSuite) configure(config CommonAttestorConfig) {
 	_, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
 			TrustDomain: "example.org",
@@ -134,11 +134,11 @@ func (s *SATAttestorSuite) configure(config SATAttestorConfig) {
 	s.Require().NoError(err)
 
 }
-func (s *SATAttestorSuite) joinPath(path string) string {
+func (s *CommonAttestorSuite) joinPath(path string) string {
 	return filepath.Join(s.dir, path)
 }
 
-func (s *SATAttestorSuite) writeValue(path, data string) string {
+func (s *CommonAttestorSuite) writeValue(path, data string) string {
 	valuePath := s.joinPath(path)
 	err := os.MkdirAll(filepath.Dir(valuePath), 0755)
 	s.Require().NoError(err)
@@ -147,7 +147,7 @@ func (s *SATAttestorSuite) writeValue(path, data string) string {
 	return valuePath
 }
 
-func (s *SATAttestorSuite) requireFetchError(contains string) {
+func (s *CommonAttestorSuite) requireFetchError(contains string) {
 	stream, err := s.attestor.FetchAttestationData(context.Background())
 	s.Require().NoError(err)
 	s.Require().NotNil(stream)
@@ -157,7 +157,7 @@ func (s *SATAttestorSuite) requireFetchError(contains string) {
 	s.Require().Nil(resp)
 }
 
-func (s *SATAttestorSuite) requireErrorContains(err error, contains string) {
+func (s *CommonAttestorSuite) requireErrorContains(err error, contains string) {
 	s.Require().Error(err)
 	s.Require().Contains(err.Error(), contains)
 }

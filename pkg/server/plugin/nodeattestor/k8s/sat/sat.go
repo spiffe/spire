@@ -1,4 +1,4 @@
-package k8s
+package sat
 
 import (
 	"context"
@@ -6,14 +6,13 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"sync"
 
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
+	sat_common "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/common"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
@@ -49,6 +48,7 @@ type satAttestorConfig struct {
 }
 
 type SATAttestorPlugin struct {
+	*sat_common.CommonAttestorPlugin
 	mu     sync.RWMutex
 	config *satAttestorConfig
 }
@@ -56,7 +56,9 @@ type SATAttestorPlugin struct {
 var _ nodeattestor.Plugin = (*SATAttestorPlugin)(nil)
 
 func NewSATAttestorPlugin() *SATAttestorPlugin {
-	return &SATAttestorPlugin{}
+	return &SATAttestorPlugin{
+		CommonAttestorPlugin: sat_common.NewCommonAttestorPlugin(pluginName),
+	}
 }
 
 func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
@@ -70,37 +72,9 @@ func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		return err
 	}
 
-	if req.AttestedBefore {
-		return satError.New("node has already attested")
-	}
-
-	if req.AttestationData == nil {
-		return satError.New("missing attestation data")
-	}
-
-	if dataType := req.AttestationData.Type; dataType != pluginName {
-		return satError.New("unexpected attestation data type %q", dataType)
-	}
-
-	if req.AttestationData.Data == nil {
-		return satError.New("missing attestation data payload")
-	}
-
-	attestationData := new(k8s.SATAttestationData)
-	if err := json.Unmarshal(req.AttestationData.Data, attestationData); err != nil {
-		return satError.New("failed to unmarshal data payload: %v", err)
-	}
-
-	if attestationData.Cluster == "" {
-		return satError.New("missing cluster in attestation data")
-	}
-
-	if attestationData.UUID == "" {
-		return satError.New("missing UUID in attestation data")
-	}
-
-	if attestationData.Token == "" {
-		return satError.New("missing token in attestation data")
+	attestationData, err := p.ValidateAttestReq(req)
+	if err != nil {
+		return satError.Wrap(err)
 	}
 
 	cluster := config.clusters[attestationData.Cluster]
@@ -141,25 +115,20 @@ func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 
 	return stream.Send(&nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: k8s.AgentID(config.trustDomain, attestationData.Cluster, attestationData.UUID),
+		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, attestationData.UUID),
 		Selectors: []*common.Selector{
-			makeSelector("cluster", attestationData.Cluster),
-			makeSelector("agent_ns", claims.Namespace),
-			makeSelector("agent_sa", claims.ServiceAccountName),
+			p.MakeSelector("cluster", attestationData.Cluster),
+			p.MakeSelector("agent_ns", claims.Namespace),
+			p.MakeSelector("agent_sa", claims.ServiceAccountName),
 		},
 	})
 }
 
 func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	hclConfig := new(SATAttestorConfig)
-	if err := hcl.Decode(hclConfig, req.Configuration); err != nil {
-		return nil, satError.New("unable to decode configuration: %v", err)
-	}
-	if req.GlobalConfig == nil {
-		return nil, satError.New("global configuration is required")
-	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, satError.New("global configuration missing trust domain")
+	err := p.ValidateConfigReq(hclConfig, req)
+	if err != nil {
+		return nil, satError.Wrap(err)
 	}
 
 	if len(hclConfig.Clusters) == 0 {
@@ -203,10 +172,6 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (p *SATAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
-}
-
 func (p *SATAttestorPlugin) getConfig() (*satAttestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -236,13 +201,6 @@ func verifyTokenSignature(cluster *clusterConfig, token *jwt.JSONWebToken) (clai
 		lastErr = satError.New("token signed by unknown authority")
 	}
 	return nil, lastErr
-}
-
-func makeSelector(kind, value string) *common.Selector {
-	return &common.Selector{
-		Type:  pluginName,
-		Value: fmt.Sprintf("%s:%s", kind, value),
-	}
 }
 
 func loadServiceAccountKeys(path string) ([]crypto.PublicKey, error) {

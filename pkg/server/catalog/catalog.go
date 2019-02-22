@@ -11,7 +11,8 @@ import (
 	azure_na "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
-	k8s_na "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s"
+	k8s_psat_na "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/psat"
+	k8s_sat_na "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/sat"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
 	aws_nr "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
 	azure_nr "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
@@ -64,7 +65,8 @@ var (
 			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
 			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
 			"azure_msi":  nodeattestor.NewBuiltIn(azure_na.NewMSIAttestorPlugin()),
-			"k8s_sat":    nodeattestor.NewBuiltIn(k8s_na.NewSATAttestorPlugin()),
+			"k8s_sat":    nodeattestor.NewBuiltIn(k8s_sat_na.NewSATAttestorPlugin()),
+			"k8s_psat":   nodeattestor.NewBuiltIn(k8s_psat_na.NewPSATAttestorPlugin()),
 		},
 		NodeResolverType: {
 			"noop":      noderesolver.NewBuiltIn(noop.New()),
