@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/clock"
+	"github.com/spiffe/spire/test/clock"
 )
 
 // NewSVIDTemplate returns a default SVID template with the specified SPIFFE ID. Must
@@ -103,13 +103,14 @@ func Sign(req, parent *x509.Certificate, signerPrivateKey interface{}) (*x509.Ce
 // Returns an SVID template with many default values set. Should be overwritten prior to
 // generating a new test SVID
 func defaultSVIDTemplate(clk clock.Clock) *x509.Certificate {
+	now := clk.Now()
 	return &x509.Certificate{
 		Subject: pkix.Name{
 			Country:      []string{"US"},
 			Organization: []string{"SPIRE"},
 		},
-		NotBefore: clk.Now(),
-		NotAfter:  clk.Now().Add(1 * time.Hour),
+		NotBefore: now,
+		NotAfter:  now.Add(1 * time.Hour),
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageKeyAgreement |
 			x509.KeyUsageDigitalSignature,
@@ -120,6 +121,7 @@ func defaultSVIDTemplate(clk clock.Clock) *x509.Certificate {
 
 // Returns an CA template with many default values set.
 func defaultCATemplate(clk clock.Clock) *x509.Certificate {
+	now := clk.Now()
 	name := pkix.Name{
 		Country:      []string{"US"},
 		Organization: []string{"SPIRE"},
@@ -128,8 +130,8 @@ func defaultCATemplate(clk clock.Clock) *x509.Certificate {
 		Subject:               name,
 		Issuer:                name,
 		IsCA:                  true,
-		NotBefore:             clk.Now(),
-		NotAfter:              clk.Now().Add(1 * time.Hour),
+		NotBefore:             now,
+		NotAfter:              now.Add(1 * time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
