@@ -34,7 +34,6 @@ import (
 
 const (
 	workloadApi = "workload_api"
-	workloadPid = "workload_pid"
 )
 
 // Handler implements the Workload API interface
@@ -59,8 +58,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	labels := []telemetry.Label{
 		{Name: "svid_type", Value: "jwt"},
 	}
-	// Add all the workload selectors to the labels array.
-	labels = appendSelectors(labels, selectors)
 
 	var spiffeIDs []string
 	entries := h.Manager.MatchingEntries(selectors)
@@ -230,8 +227,6 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	labels := []telemetry.Label{
 		{Name: "svid_type", Value: "x509"},
 	}
-	// Add all the workload selectors to the labels array.
-	labels = appendSelectors(labels, selectors)
 
 	if len(update.Entries) == 0 {
 		labels = append(labels, telemetry.Label{
@@ -356,20 +351,21 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.M, []telemetry.Label{{Name: workloadPid, Value: fmt.Sprint(pid)}})
-	metrics.IncrCounter([]string{workloadApi, "connection"}, 1)
-	metrics.IncrCounter([]string{workloadApi, "connections"}, 1)
+	h.M.IncrCounter([]string{workloadApi, "connections"}, 1)
 
 	config := attestor.Config{
 		Catalog: h.Catalog,
 		L:       h.L,
-		M:       metrics,
+		M:       h.M,
 	}
 
 	selectors := attestor.New(&config).Attest(ctx, pid)
 
+	metrics := telemetry.WithLabels(h.M, selectorsToLabels(selectors))
+	metrics.IncrCounter([]string{workloadApi, "connection"}, 1)
+
 	done := func() {
-		defer metrics.IncrCounter([]string{workloadApi, "connections"}, -1)
+		defer h.M.IncrCounter([]string{workloadApi, "connections"}, -1)
 	}
 
 	return pid, selectors, metrics, done, nil
@@ -439,7 +435,7 @@ func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
 	return s, nil
 }
 
-func appendSelectors(labels []telemetry.Label, selectors []*common.Selector) []telemetry.Label {
+func selectorsToLabels(selectors []*common.Selector) (labels []telemetry.Label) {
 	for _, selector := range selectors {
 		labels = append(labels, telemetry.Label{
 			Name:  "selector",
