@@ -52,9 +52,9 @@ func FetchX509SVIDResponses(responses ...*workload.X509SVIDResponse) Result {
 }
 
 type WorkloadAPI struct {
-	dir      string
-	listener net.Listener
-	server   *grpc.Server
+	dir    string
+	addr   *net.UnixAddr
+	server *grpc.Server
 
 	mu                   sync.Mutex
 	fetchX509SVIDResults []fetchX509SVIDResult
@@ -78,8 +78,12 @@ func New(t *testing.T, results ...Result) *WorkloadAPI {
 		w.Close()
 		require.NoError(t, err)
 	}
+	w.addr = &net.UnixAddr{
+		Net:  "unix",
+		Name: filepath.Join(w.dir, "agent.sock"),
+	}
 
-	w.listener, err = net.Listen("unix", filepath.Join(w.dir, "agent.sock"))
+	listener, err := net.Listen("unix", w.addr.Name)
 	if err != nil {
 		w.Close()
 		require.NoError(t, err)
@@ -87,7 +91,7 @@ func New(t *testing.T, results ...Result) *WorkloadAPI {
 
 	w.server = grpc.NewServer()
 	workload.RegisterSpiffeWorkloadAPIServer(w.server, w)
-	go w.server.Serve(w.listener)
+	go w.server.Serve(listener)
 	return w
 }
 
@@ -100,8 +104,8 @@ func (w *WorkloadAPI) Close() {
 	}
 }
 
-func (w *WorkloadAPI) Addr() net.Addr {
-	return w.listener.Addr()
+func (w *WorkloadAPI) Addr() *net.UnixAddr {
+	return w.addr
 }
 
 func (w *WorkloadAPI) FetchX509SVID(req *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
