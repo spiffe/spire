@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/imkira/go-observer"
+	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
