@@ -6,15 +6,12 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/stretchr/testify/suite"
-
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -31,6 +28,7 @@ import (
 	mock_workloadattestor "github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
 	mock_workload "github.com/spiffe/spire/test/mock/proto/api/workload"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/suite"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -123,7 +121,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 		{Name: "registered", Value: "true"},
 		{Name: "spiffe_id", Value: "spiffe://example.org/foo"},
 	}...)
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "svid_response"}, float32(1), labelsSvidResponse)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid"}, float32(1), labelsSvidResponse)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "svid_response_latency"}, gomock.Any(), labels)
 
 	go func() { result <- s.h.FetchX509SVID(nil, stream) }()
@@ -159,7 +157,7 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 		{Name: "svid_type", Value: "x509"},
 		{Name: "registered", Value: "false"},
 	}
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "svid_response"}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid"}, float32(1), labels)
 
 	err := s.h.sendX509SVIDResponse(emptyUpdate, stream, s.h.M, []*common.Selector{})
 	s.Assert().Error(err)
@@ -173,7 +171,7 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 		{Name: "registered", Value: "true"},
 		{Name: "spiffe_id", Value: "spiffe://example.org/foo"},
 	}
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "svid_response"}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid"}, float32(1), labels)
 
 	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream, s.h.M, []*common.Selector{})
 	s.Assert().NoError(err)
@@ -301,12 +299,11 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 }
 
 func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsLabels []telemetry.Label, pid int32) {
-	pidLabel := []telemetry.Label{{Name: "workload_pid", Value: fmt.Sprint(pid)}}
-	attestorLabels := append(pidLabel, telemetry.Label{"attestor_name", "fake_workloadattestor_1"})
+	attestorLabels := []telemetry.Label{{"attestor_name", "fake_workloadattestor_1"}}
 
 	metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "workload_attestor_latency"}, gomock.Any(), attestorLabels)
-	metrics.EXPECT().AddSampleWithLabels([]string{workloadApi, "discovered_selectors"}, float32(len(selectorsLabels)), pidLabel)
-	metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "workload_attestation_duration"}, gomock.Any(), pidLabel)
+	metrics.EXPECT().AddSample([]string{workloadApi, "discovered_selectors"}, float32(len(selectorsLabels)))
+	metrics.EXPECT().MeasureSince([]string{workloadApi, "workload_attestation_duration"}, gomock.Any())
 
 	metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "connection"}, float32(1), selectorsLabels)
 	metrics.EXPECT().IncrCounter([]string{workloadApi, "connections"}, float32(1))

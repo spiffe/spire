@@ -36,15 +36,13 @@ type Config struct {
 
 const (
 	workloadApi    = "workload_api"
-	workloadPid    = "workload_pid"
 	workloadAttDur = "workload_attestation_duration"
 )
 
 // Attest invokes all workload attestor plugins against the provided PID. If an error
 // is encountered, it is logged and selectors from the failing plugin are discarded.
 func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
-	tLabels := []telemetry.Label{{workloadPid, fmt.Sprint(pid)}}
-	defer wla.c.M.MeasureSinceWithLabels([]string{workloadApi, workloadAttDur}, time.Now(), tLabels)
+	defer wla.c.M.MeasureSince([]string{workloadApi, workloadAttDur}, time.Now())
 
 	plugins := wla.c.Catalog.WorkloadAttestors()
 	sChan := make(chan []*common.Selector)
@@ -71,7 +69,7 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 		}
 	}
 
-	wla.c.M.AddSampleWithLabels([]string{workloadApi, "discovered_selectors"}, float32(len(selectors)), tLabels)
+	wla.c.M.AddSample([]string{workloadApi, "discovered_selectors"}, float32(len(selectors)))
 	wla.c.L.Debugf("PID %v attested to have selectors %v", pid, selectors)
 	return selectors
 }
@@ -79,7 +77,7 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 // invokeAttestor invokes attestation against the supplied plugin. Should be called from a goroutine.
 func (wla *attestor) invokeAttestor(ctx context.Context, a *catalog.ManagedWorkloadAttestor, pid int32) ([]*common.Selector, error) {
 	attestorName := a.Config().PluginName
-	tLabels := []telemetry.Label{{workloadPid, fmt.Sprint(pid)}, {"attestor_name", attestorName}}
+	tLabels := []telemetry.Label{{"attestor_name", attestorName}}
 
 	req := &workloadattestor.AttestRequest{
 		Pid: pid,

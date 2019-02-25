@@ -234,7 +234,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 			Value: "false",
 		})
 		metrics.IncrCounterWithLabels(
-			[]string{workloadApi, "svid_response"},
+			[]string{workloadApi, "fetch_x509_svid"},
 			1,
 			labels)
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
@@ -264,7 +264,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	}
 
 	metrics.IncrCounterWithLabels(
-		[]string{workloadApi, "svid_response"},
+		[]string{workloadApi, "fetch_x509_svid"},
 		1,
 		labels)
 
