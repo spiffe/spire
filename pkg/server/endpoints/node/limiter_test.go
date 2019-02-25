@@ -19,7 +19,7 @@ func TestLimit(t *testing.T) {
 
 	// Messages under limit are processed "immediately" without logging
 	for i := 1; i <= node.AttestLimit; i++ {
-		ctx, cancel := context.WithTimeout(newTestContext(), 1*time.Millisecond)
+		ctx, cancel := context.WithTimeout(newTestContext(), 50*time.Millisecond)
 		err := l.Limit(ctx, AttestMsg, 1)
 		assert.NoError(t, err)
 
@@ -32,7 +32,7 @@ func TestLimit(t *testing.T) {
 
 	// Messages over the limit must wait
 	// Bucket exhausted by above loop
-	ctx, cancel := context.WithTimeout(newTestContext(), 1*time.Millisecond)
+	ctx, cancel := context.WithTimeout(newTestContext(), 50*time.Millisecond)
 	err := l.Limit(ctx, AttestMsg, 1)
 	assert.Error(t, err)
 
