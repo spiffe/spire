@@ -340,17 +340,21 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 	// peer certificate required for SVID fetching
 	case "/spire.api.node.Node/FetchX509SVID",
 		"/spire.api.node.Node/FetchJWTSVID":
+		fmt.Println("1")
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
+			fmt.Println("2", err)
 			h.c.Log.Error(err)
 			return nil, status.Error(codes.PermissionDenied, "agent SVID is required for this request")
 		}
 
 		if err := h.validateAgentSVID(ctx, peerCert); err != nil {
+			fmt.Println("3", err)
 			h.c.Log.Error(err)
 			return nil, status.Error(codes.PermissionDenied, "agent is not attested or no longer valid")
 		}
 
+		fmt.Println("4")
 		ctx = withPeerCertificate(ctx, peerCert)
 
 	// method not handled
@@ -386,6 +390,7 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 
 	agentID, err := getSpiffeIDFromCert(cert)
 	if err != nil {
+		fmt.Println("A", err)
 		return err
 	}
 
@@ -395,6 +400,7 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	// certificate on the connection could have expired after the initial
 	// handshake.
 	if h.hooks.now().After(cert.NotAfter) {
+		fmt.Println("B")
 		return fmt.Errorf("agent %q SVID has expired", agentID)
 	}
 
@@ -402,14 +408,17 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 		SpiffeId: agentID,
 	})
 	if err != nil {
+		fmt.Println("C", err)
 		return err
 	}
 
 	node := resp.Node
 	if node == nil {
+		fmt.Println("D")
 		return fmt.Errorf("agent %q is not attested", agentID)
 	}
 	if node.CertSerialNumber != cert.SerialNumber.String() {
+		fmt.Println("E")
 		return fmt.Errorf("agent %q SVID does not match expected serial number", agentID)
 	}
 

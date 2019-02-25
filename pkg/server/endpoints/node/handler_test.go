@@ -930,11 +930,17 @@ func (s *HandlerSuite) requireFetchX509SVIDSuccess(req *node.FetchX509SVIDReques
 }
 
 func (s *HandlerSuite) requireFetchX509SVIDFailure(req *node.FetchX509SVIDRequest, errorCode codes.Code, errorContains string) {
+	fmt.Println("Opening FetchX509SVID stream")
 	stream, err := s.attestedClient.FetchX509SVID(context.Background())
 	s.Require().NoError(err)
-	s.Require().NoError(stream.Send(req))
+	fmt.Println("Sending request over FetchX509SVID stream")
+	err = stream.Send(req)
+	fmt.Println("Done request over FetchX509SVID stream", err)
+	s.Require().NoError(err)
 	stream.CloseSend()
+	fmt.Println("Receiving request over FetchX509SVID stream")
 	resp, err := stream.Recv()
+	fmt.Println("Done receiving request over FetchX509SVID stream", err)
 	s.Require().Contains(errorContains, status.Convert(err).Message())
 	s.Require().Equal(errorCode, status.Code(err))
 	s.Require().Nil(resp)

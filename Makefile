@@ -62,7 +62,21 @@ test: ## Run tests
 	$(docker) go test github.com/spiffe/spire/...
 
 race-test: ## Run race tests
-	$(docker) go test -race github.com/spiffe/spire/...
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
+	$(docker) (cd pkg/server/endpoints/node && go test -race -testify.m Stale)
 
 integration: ## Run integration tests
 	$(docker) script/e2e_test.sh
