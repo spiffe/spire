@@ -46,7 +46,8 @@ Get the latest tarball from [here](https://github.com/spiffe/spire/releases) and
     $ sudo tar zvxf {your_downloaded_tarball.tar.gz}
     $ sudo cp -r spire-0.2/. /opt/spire/
     # Replace "spire-0.2" with the version downloaded
-    $ sudo chmod -R 777 /opt/spire/
+    $ sudo chmod -R 777 /opt/spire/spire-agent
+    $ sudo chmod -R 777 /opt/spire/spire-server
 
 Add **spire-server** and **spire-agent** to our $PATH for convenience:
 
