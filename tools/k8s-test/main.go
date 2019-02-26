@@ -9,9 +9,12 @@ import (
 )
 
 func main() {
+	const defaultInterval = time.Second * 2
+
 	var count int
 	var noWait bool
 	var timeout time.Duration
+	var interval time.Duration
 
 	// cancel the context
 	// note: have to run an unnamed function here so we cancel the latest
@@ -67,9 +70,10 @@ func main() {
 		Long:  "Wait for a deployment to be ready",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			runCmd(WaitForDeploymentCmd(ctx, args[0]))
+			runCmd(WaitForDeploymentCmd(ctx, args[0], interval))
 		},
 	}
+	waitDeploymentCmd.LocalFlags().DurationVarP(&interval, "interval", "i", defaultInterval, "polling interval for deployment status")
 	waitCmd.AddCommand(waitDeploymentCmd)
 
 	waitDaemonSetCmd := &cobra.Command{
@@ -78,9 +82,10 @@ func main() {
 		Long:  "Wait for a daemon set to be ready",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			runCmd(WaitForDaemonSetCmd(ctx, args[0]))
+			runCmd(WaitForDaemonSetCmd(ctx, args[0], interval))
 		},
 	}
+	waitDaemonSetCmd.LocalFlags().DurationVarP(&interval, "interval", "i", defaultInterval, "polling interval for daemon set status")
 	waitCmd.AddCommand(waitDaemonSetCmd)
 
 	waitNodeAttestationCmd := &cobra.Command{
@@ -99,10 +104,11 @@ func main() {
 		Use:  "apply",
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			runCmd(ApplyConfigCmd(ctx, args, !noWait))
+			runCmd(ApplyConfigCmd(ctx, args, !noWait, interval))
 		},
 	}
-	applyCmd.PersistentFlags().BoolVarP(&noWait, "nowait", "", false, "don't wait for all objects after applying")
+	applyCmd.LocalFlags().BoolVarP(&noWait, "nowait", "", false, "don't wait for all objects after applying")
+	applyCmd.LocalFlags().DurationVarP(&interval, "interval", "i", defaultInterval, "polling interval for object status")
 	root.AddCommand(applyCmd)
 
 	root.Execute()
@@ -129,12 +135,12 @@ func CleanCmd(ctx context.Context) error {
 	return nil
 }
 
-func WaitForDeploymentCmd(ctx context.Context, name string) error {
-	return WaitForDeployment(ctx, name)
+func WaitForDeploymentCmd(ctx context.Context, name string, interval time.Duration) error {
+	return WaitForDeployment(ctx, name, interval)
 }
 
-func WaitForDaemonSetCmd(ctx context.Context, name string) error {
-	return WaitForDaemonSet(ctx, name)
+func WaitForDaemonSetCmd(ctx context.Context, name string, interval time.Duration) error {
+	return WaitForDaemonSet(ctx, name, interval)
 }
 
 func WaitForNodeAttestationCmd(ctx context.Context, ident string, count int) error {
@@ -146,7 +152,7 @@ func WaitForNodeAttestationCmd(ctx context.Context, ident string, count int) err
 	return WaitForNodeAttestation(ctx, server, count)
 }
 
-func ApplyConfigCmd(ctx context.Context, paths []string, wait bool) error {
+func ApplyConfigCmd(ctx context.Context, paths []string, wait bool, interval time.Duration) error {
 	var all []Object
 
 	for _, path := range paths {
@@ -161,7 +167,7 @@ func ApplyConfigCmd(ctx context.Context, paths []string, wait bool) error {
 
 	if wait {
 		Infoln("waiting for configured objects...")
-		return WaitForObjects(ctx, all)
+		return WaitForObjects(ctx, all, interval)
 	}
 	return nil
 }

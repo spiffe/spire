@@ -18,17 +18,9 @@ func GetDaemonSet(ctx context.Context, name string) (*v1beta1.DaemonSet, error) 
 	return obj, nil
 }
 
-func GetDaemonSets(ctx context.Context) ([]v1beta1.DaemonSet, error) {
-	var list v1beta1.DaemonSetList
-	if err := getList(ctx, "ds", &list, nil); err != nil {
-		return nil, err
-	}
-	if len(list.Items) == 0 {
-		return nil, NotFound.New("no daemon sets")
-	}
-	return list.Items, nil
-}
-
 func CheckDaemonSetReady(ds *v1beta1.DaemonSet) error {
+	// Intentionally left blank for the time being. If there is something beyond
+	// DaemonSet pod readiness that we need to check that we can learn just
+	// from the DaemonSet status, it can be put here.
 	return nil
 }

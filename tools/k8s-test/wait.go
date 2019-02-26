@@ -3,37 +3,47 @@ package main
 import (
 	"context"
 	"time"
+
+	"github.com/zeebo/errs"
 )
 
-func WaitForObjects(ctx context.Context, objects []Object) error {
+func WaitForObjects(ctx context.Context, objects []Object, interval time.Duration) error {
 	for _, object := range objects {
 		switch object.Kind {
-		case "Deployment":
-			if err := WaitForDeployment(ctx, object.Name); err != nil {
+		case DeploymentKind:
+			if err := WaitForDeployment(ctx, object.Name, interval); err != nil {
 				return err
 			}
-		case "DaemonSet":
-			if err := WaitForDaemonSet(ctx, object.Name); err != nil {
+		case DaemonSetKind:
+			if err := WaitForDaemonSet(ctx, object.Name, interval); err != nil {
 				return err
 			}
+		case ConfigMapKind:
+		case SecretKind:
+		case ServiceKind:
+		case ServiceAccountKind:
+		default:
+			// The default case is just to make sure we conciously handle all
+			// objects that are configured, even if that means do nothing.
+			return errs.New("cannot wait on %q object %q", object.Kind, object.Name)
 		}
 	}
 	return nil
 }
 
-func WaitForDeployment(ctx context.Context, name string) error {
-	replicaSets, err := GetReplicaSetsByOwner(ctx, Object{Kind: "Deployment", Name: name})
+func WaitForDeployment(ctx context.Context, name string, interval time.Duration) error {
+	replicaSets, err := GetReplicaSetsByOwner(ctx, DeploymentObject(name))
 	if err != nil {
 		return err
 	}
 
 	for _, replicaSet := range replicaSets {
-		if err := WaitForReplicaSet(ctx, replicaSet.Name); err != nil {
+		if err := WaitForReplicaSet(ctx, replicaSet.Name, interval); err != nil {
 			return err
 		}
 	}
 
-	return waitFor(ctx, func(ctx context.Context) (bool, error) {
+	return waitFor(ctx, interval, func(ctx context.Context) (bool, error) {
 		deployment, err := GetDeployment(ctx, name)
 		if err != nil {
 			return false, err
@@ -47,19 +57,19 @@ func WaitForDeployment(ctx context.Context, name string) error {
 	})
 }
 
-func WaitForReplicaSet(ctx context.Context, name string) error {
-	pods, err := GetPodsByOwner(ctx, Object{Kind: "ReplicaSet", Name: name})
+func WaitForReplicaSet(ctx context.Context, name string, interval time.Duration) error {
+	pods, err := GetPodsByOwner(ctx, ReplicaSetObject(name))
 	if err != nil {
 		return err
 	}
 
 	for _, pod := range pods {
-		if err := WaitForPod(ctx, pod.Name); err != nil {
+		if err := WaitForPod(ctx, pod.Name, interval); err != nil {
 			return err
 		}
 	}
 
-	return waitFor(ctx, func(ctx context.Context) (bool, error) {
+	return waitFor(ctx, interval, func(ctx context.Context) (bool, error) {
 		replicaSet, err := GetReplicaSet(ctx, name)
 		if err != nil {
 			return false, err
@@ -73,19 +83,19 @@ func WaitForReplicaSet(ctx context.Context, name string) error {
 	})
 }
 
-func WaitForDaemonSet(ctx context.Context, name string) error {
-	pods, err := GetPodsByOwner(ctx, Object{Kind: "DaemonSet", Name: name})
+func WaitForDaemonSet(ctx context.Context, name string, interval time.Duration) error {
+	pods, err := GetPodsByOwner(ctx, DaemonSetObject(name))
 	if err != nil {
 		return err
 	}
 
 	for _, pod := range pods {
-		if err := WaitForPod(ctx, pod.Name); err != nil {
+		if err := WaitForPod(ctx, pod.Name, interval); err != nil {
 			return err
 		}
 	}
 
-	return waitFor(ctx, func(ctx context.Context) (bool, error) {
+	return waitFor(ctx, interval, func(ctx context.Context) (bool, error) {
 		ds, err := GetDaemonSet(ctx, name)
 		if err != nil {
 			return false, err
@@ -99,8 +109,8 @@ func WaitForDaemonSet(ctx context.Context, name string) error {
 	})
 }
 
-func WaitForPod(ctx context.Context, name string) error {
-	return waitFor(ctx, func(ctx context.Context) (bool, error) {
+func WaitForPod(ctx context.Context, name string, interval time.Duration) error {
+	return waitFor(ctx, interval, func(ctx context.Context) (bool, error) {
 		pod, err := GetPod(ctx, name)
 		if err != nil {
 			return false, err
@@ -114,8 +124,8 @@ func WaitForPod(ctx context.Context, name string) error {
 	})
 }
 
-func waitFor(ctx context.Context, fn func(context.Context) (bool, error)) error {
-	ticker := time.NewTicker(2 * time.Second)
+func waitFor(ctx context.Context, interval time.Duration, fn func(context.Context) (bool, error)) error {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {

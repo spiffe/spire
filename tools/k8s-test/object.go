@@ -6,6 +6,17 @@ import (
 	"strings"
 )
 
+const (
+	ConfigMapKind      = "ConfigMap"
+	DaemonSetKind      = "DaemonSet"
+	DeploymentKind     = "Deployment"
+	PodKind            = "Pod"
+	ReplicaSetKind     = "ReplicaSet"
+	SecretKind         = "Secret"
+	ServiceAccountKind = "ServiceAccount"
+	ServiceKind        = "Service"
+)
+
 type Object struct {
 	Kind string
 	Name string
@@ -13,6 +24,22 @@ type Object struct {
 
 func (o *Object) String() string {
 	return fmt.Sprintf("%s/%s", strings.ToLower(o.Kind), o.Name)
+}
+
+func DaemonSetObject(name string) Object {
+	return Object{Kind: DaemonSetKind, Name: name}
+}
+
+func DeploymentObject(name string) Object {
+	return Object{Kind: DeploymentKind, Name: name}
+}
+
+func ReplicaSetObject(name string) Object {
+	return Object{Kind: ReplicaSetKind, Name: name}
+}
+
+func PodObject(name string) Object {
+	return Object{Kind: PodKind, Name: name}
 }
 
 func ParseObject(s string) (Object, error) {
@@ -23,13 +50,13 @@ func ParseObject(s string) (Object, error) {
 	kind := strings.ToLower(parts[0])
 	switch kind {
 	case "ds", "daemonset":
-		return Object{Kind: "DaemonSet", Name: parts[1]}, nil
+		return DaemonSetObject(parts[1]), nil
 	case "deployment":
-		return Object{Kind: "Deployment", Name: parts[1]}, nil
+		return DeploymentObject(parts[1]), nil
 	case "rs", "replicaset":
-		return Object{Kind: "ReplicaSet", Name: parts[1]}, nil
+		return ReplicaSetObject(parts[1]), nil
 	case "pod":
-		return Object{Kind: "Pod", Name: parts[1]}, nil
+		return PodObject(parts[1]), nil
 	default:
 		return Object{}, fmt.Errorf("unknown object kind %q", parts[0])
 	}

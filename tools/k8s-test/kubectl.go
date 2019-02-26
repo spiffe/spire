@@ -100,7 +100,9 @@ func kubectlStreamLogs(ctx context.Context, object string, w io.Writer) error {
 
 	select {
 	case <-ctx.Done():
-		cmd.Process.Kill()
+		if err := cmd.Process.Kill(); err != nil {
+			Warnln("unable to kill kubectl: %v", err)
+		}
 		return ctx.Err()
 	case err := <-errch:
 		if stderr.Len() > 0 {
@@ -108,7 +110,6 @@ func kubectlStreamLogs(ctx context.Context, object string, w io.Writer) error {
 		}
 		return errs.Wrap(err)
 	}
-	return nil
 }
 
 func kubectlRun(args ...string) error {
