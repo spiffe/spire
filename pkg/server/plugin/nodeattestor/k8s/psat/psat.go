@@ -135,7 +135,8 @@ func (p *PSATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) err
 		return psatError.New("%q is not a whitelisted service account", serviceAccountName)
 	}
 
-	if !isPodWhitelisted(claims.K8s.Pod.Name, cluster) {
+	isWhitelisted, podPrefix := isPodWhitelisted(claims.K8s.Pod.Name, cluster)
+	if !isWhitelisted {
 		return psatError.New("%q has not a whitelisted pod name prefix", claims.K8s.Pod.Name)
 	}
 
@@ -151,7 +152,7 @@ func (p *PSATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) err
 			p.MakeSelector("cluster", attestationData.Cluster),
 			p.MakeSelector("agent_ns", claims.K8s.Namespace),
 			p.MakeSelector("agent_sa", claims.K8s.ServiceAccount.Name),
-			p.MakeSelector("agent_pod", claims.K8s.Pod.Name),
+			p.MakeSelector("agent_pod", podPrefix),
 			p.MakeSelector("agent_node", node),
 		},
 	})
@@ -231,11 +232,11 @@ func (p *PSATAttestorPlugin) setConfig(config *psatAttestorConfig) {
 	p.config = config
 }
 
-func isPodWhitelisted(podFullName string, cluster *clusterConfig) bool {
+func isPodWhitelisted(podFullName string, cluster *clusterConfig) (bool, string) {
 	for whitelistedPodPrefix := range cluster.pods {
 		if strings.HasPrefix(podFullName, whitelistedPodPrefix) {
-			return true
+			return true, whitelistedPodPrefix
 		}
 	}
-	return false
+	return false, ""
 }

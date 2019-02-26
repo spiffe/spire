@@ -7,7 +7,7 @@ import (
 
 const (
 	pluginName       = "k8s_psat"
-	defaultTokenPath = "/var/run/secrets/tokens/spire-token"
+	defaultTokenPath = "/var/run/secrets/tokens/psat"
 	satErrorName     = "k8s-psat"
 )
 
