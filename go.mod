@@ -7,6 +7,7 @@ require (
 	github.com/Microsoft/go-winio v0.4.11 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
+	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.0.0-20180713145231-3c58d8115a78
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go v1.15.24
@@ -74,11 +75,13 @@ require (
 	github.com/spiffe/go-spiffe v0.0.0-20170907221946-2bb3101d62b4
 	github.com/stretchr/testify v1.2.2
 	github.com/zeebo/errs v1.0.0
+	go.uber.org/atomic v1.3.2
 	golang.org/x/crypto v0.0.0-20180820150726-614d502a4dac // indirect
 	golang.org/x/net v0.0.0-20190108225652-1e06a53dbb7e
 	golang.org/x/oauth2 v0.0.0-20190220154721-9b3c75971fc9 // indirect
 	golang.org/x/sys v0.0.0-20180909124046-d0be0721c37e
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
+	google.golang.org/genproto v0.0.0-20180817151627-c66870c02cf8 // indirect
 	google.golang.org/genproto v0.0.0-20180817151627-c66870c02cf8 // indirect
 	google.golang.org/grpc v1.14.0
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect

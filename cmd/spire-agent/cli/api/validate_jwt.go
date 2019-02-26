@@ -8,16 +8,17 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/mitchellh/cli"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/proto/api/workload"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 func NewValidateJWTCommand() cli.Command {
-	return newValidateJWTCommand(defaultEnv, newWorkloadClient)
+	return newValidateJWTCommand(common_cli.DefaultEnv, newWorkloadClient)
 }
 
-func newValidateJWTCommand(env *env, clientMaker workloadClientMaker) cli.Command {
+func newValidateJWTCommand(env *common_cli.Env, clientMaker workloadClientMaker) cli.Command {
 	return adaptCommand(env, clientMaker, new(validateJWTCommand))
 }
 
@@ -39,7 +40,7 @@ func (c *validateJWTCommand) appendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.svid, "svid", "", "JWT SVID")
 }
 
-func (c *validateJWTCommand) run(ctx context.Context, env *env, client *workloadClient) error {
+func (c *validateJWTCommand) run(ctx context.Context, env *common_cli.Env, client *workloadClient) error {
 	if c.audience == "" {
 		return errors.New("audience must be specified")
 	}
