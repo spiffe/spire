@@ -34,7 +34,7 @@ type ClusterConfig struct {
 	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
 }
 
-type SATAttestorConfig struct {
+type AttestorConfig struct {
 	Clusters map[string]*ClusterConfig `hcl:"clusters"`
 }
 
@@ -43,23 +43,23 @@ type clusterConfig struct {
 	serviceAccounts    map[string]bool
 }
 
-type satAttestorConfig struct {
+type attestorConfig struct {
 	trustDomain string
 	clusters    map[string]*clusterConfig
 }
 
-type SATAttestorPlugin struct {
+type AttestorPlugin struct {
 	mu     sync.RWMutex
-	config *satAttestorConfig
+	config *attestorConfig
 }
 
-var _ nodeattestor.Plugin = (*SATAttestorPlugin)(nil)
+var _ nodeattestor.Plugin = (*AttestorPlugin)(nil)
 
-func NewSATAttestorPlugin() *SATAttestorPlugin {
-	return &SATAttestorPlugin{}
+func NewAttestorPlugin() *AttestorPlugin {
+	return &AttestorPlugin{}
 }
 
-func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+func (p *AttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return satError.Wrap(err)
@@ -150,8 +150,8 @@ func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 	})
 }
 
-func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	hclConfig := new(SATAttestorConfig)
+func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	hclConfig := new(AttestorConfig)
 	if err := hcl.Decode(hclConfig, req.Configuration); err != nil {
 		return nil, satError.New("unable to decode configuration: %v", err)
 	}
@@ -166,7 +166,7 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		return nil, satError.New("configuration must have at least one cluster")
 	}
 
-	config := &satAttestorConfig{
+	config := &attestorConfig{
 		trustDomain: req.GlobalConfig.TrustDomain,
 		clusters:    make(map[string]*clusterConfig),
 	}
@@ -203,11 +203,11 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (p *SATAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (p *AttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *SATAttestorPlugin) getConfig() (*satAttestorConfig, error) {
+func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
@@ -216,7 +216,7 @@ func (p *SATAttestorPlugin) getConfig() (*satAttestorConfig, error) {
 	return p.config, nil
 }
 
-func (p *SATAttestorPlugin) setConfig(config *satAttestorConfig) {
+func (p *AttestorPlugin) setConfig(config *attestorConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config

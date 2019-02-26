@@ -25,30 +25,30 @@ var (
 	satError = errs.Class("k8s-sat")
 )
 
-type SATAttestorConfig struct {
+type AttestorConfig struct {
 	Cluster   string `hcl:"cluster"`
 	TokenPath string `hcl:"token_path"`
 }
 
-type satAttestorConfig struct {
+type attestorConfig struct {
 	trustDomain string
 	cluster     string
 	tokenPath   string
 }
 
-type SATAttestorPlugin struct {
+type AttestorPlugin struct {
 	mu     sync.RWMutex
-	config *satAttestorConfig
+	config *attestorConfig
 
 	hooks struct {
 		newUUID func() (string, error)
 	}
 }
 
-var _ nodeattestor.Plugin = (*SATAttestorPlugin)(nil)
+var _ nodeattestor.Plugin = (*AttestorPlugin)(nil)
 
-func NewSATAttestorPlugin() *SATAttestorPlugin {
-	p := &SATAttestorPlugin{}
+func NewAttestorPlugin() *AttestorPlugin {
+	p := &AttestorPlugin{}
 	p.hooks.newUUID = func() (string, error) {
 		u, err := uuid.NewV4()
 		if err != nil {
@@ -59,7 +59,7 @@ func NewSATAttestorPlugin() *SATAttestorPlugin {
 	return p
 }
 
-func (p *SATAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
+func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
@@ -93,8 +93,8 @@ func (p *SATAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttest
 	})
 }
 
-func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
-	hclConfig := new(SATAttestorConfig)
+func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
+	hclConfig := new(AttestorConfig)
 	if err := hcl.Decode(hclConfig, req.Configuration); err != nil {
 		return nil, satError.New("unable to decode configuration: %v", err)
 	}
@@ -109,7 +109,7 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		return nil, satError.New("configuration missing cluster")
 	}
 
-	config := &satAttestorConfig{
+	config := &attestorConfig{
 		trustDomain: req.GlobalConfig.TrustDomain,
 		cluster:     hclConfig.Cluster,
 		tokenPath:   hclConfig.TokenPath,
@@ -122,11 +122,11 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (p *SATAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (p *AttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *SATAttestorPlugin) getConfig() (*satAttestorConfig, error) {
+func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
@@ -135,7 +135,7 @@ func (p *SATAttestorPlugin) getConfig() (*satAttestorConfig, error) {
 	return p.config, nil
 }
 
-func (p *SATAttestorPlugin) setConfig(config *satAttestorConfig) {
+func (p *AttestorPlugin) setConfig(config *attestorConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config

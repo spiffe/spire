@@ -65,7 +65,7 @@ var (
 			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
 			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
 			"azure_msi":  nodeattestor.NewBuiltIn(azure_na.NewMSIAttestorPlugin()),
-			"k8s_sat":    nodeattestor.NewBuiltIn(k8s_na_sat.NewSATAttestorPlugin()),
+			"k8s_sat":    nodeattestor.NewBuiltIn(k8s_na_sat.NewAttestorPlugin()),
 		},
 		NodeResolverType: {
 			"noop":      noderesolver.NewBuiltIn(noop.New()),
