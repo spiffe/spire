@@ -7,19 +7,20 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/proto/api/workload"
 )
 
 func NewFetchJWTCommand() cli.Command {
-	return newFetchJWTCommand(defaultEnv, newWorkloadClient)
+	return newFetchJWTCommand(common_cli.DefaultEnv, newWorkloadClient)
 }
 
-func newFetchJWTCommand(env *env, clientMaker workloadClientMaker) cli.Command {
+func newFetchJWTCommand(env *common_cli.Env, clientMaker workloadClientMaker) cli.Command {
 	return adaptCommand(env, clientMaker, new(fetchJWTCommand))
 }
 
 type fetchJWTCommand struct {
-	audience stringsFlag
+	audience common_cli.CommaStringsFlag
 	spiffeID string
 }
 
@@ -31,7 +32,7 @@ func (c *fetchJWTCommand) synopsis() string {
 	return "Fetches a JWT SVID from the Workload API"
 }
 
-func (c *fetchJWTCommand) run(ctx context.Context, env *env, client *workloadClient) error {
+func (c *fetchJWTCommand) run(ctx context.Context, env *common_cli.Env, client *workloadClient) error {
 	if len(c.audience) == 0 {
 		return errors.New("audience must be specified")
 	}
