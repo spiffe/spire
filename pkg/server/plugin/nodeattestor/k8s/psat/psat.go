@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
+	"github.com/spiffe/spire/pkg/common/plugin/k8s/client"
 	sat_common "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/common"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -23,21 +23,53 @@ const (
 )
 
 var (
-	psatError = errs.Class("k8s-psat")
+	psatError                     = errs.Class("k8s-psat")
+	_         nodeattestor.Plugin = (*PSATAttestorPlugin)(nil)
 )
 
-type ClusterConfig struct {
-	ApiServerCertFile       string   `hcl:"api_server_cert_file"`
-	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
-	PodNameWhitelist        []string `hcl:"pod_name_prefix_whitelist"`
+//PSATAttestorPlugin holds PSAT (Projected SAT) node attestor logic
+// SAT common functionality is encapsuled in CommonAttestorPlugin
+type PSATAttestorPlugin struct {
+	*sat_common.CommonAttestorPlugin
+	mu     sync.RWMutex
+	config *psatAttestorConfig
 }
 
+// NewPSATAttestorPlugin creates a new PSAT node attestor
+func NewPSATAttestorPlugin() *PSATAttestorPlugin {
+	return &PSATAttestorPlugin{
+		CommonAttestorPlugin: sat_common.NewCommonAttestorPlugin(pluginName),
+	}
+}
+
+// ClusterConfig holds a single cluster configuration
+type ClusterConfig struct {
+	// Kubernetes configuration file path
+	// This file is used to create a k8s client to query the API server.
+	KubeConfigFile string `hcl:"kube_config_file"`
+
+	// API server public key file path.
+	// Public key is used for token validation
+	APIServerKeyFile string `hcl:"api_server_key_file"`
+
+	// Array of withelisted service accounts names
+	// Attestation is denied if comming from a service account that is not in the list
+	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
+
+	// Array of withelisted pod names prefixes
+	// Attestation is denied if comming from a pod which prefix is not in the list
+	PodNameWhitelist []string `hcl:"pod_name_prefix_whitelist"`
+}
+
+// PSATAttestorConfig holds a map of clusters that uses cluster name as key
 type PSATAttestorConfig struct {
 	Clusters map[string]*ClusterConfig `hcl:"clusters"`
 }
 
 type clusterConfig struct {
-	apiServerKey    crypto.PublicKey
+	kubeConfigFile  string
+	k8sClient       client.K8SClient
+	keys            []crypto.PublicKey
 	serviceAccounts map[string]bool
 	pods            map[string]bool
 }
@@ -45,20 +77,6 @@ type clusterConfig struct {
 type psatAttestorConfig struct {
 	trustDomain string
 	clusters    map[string]*clusterConfig
-}
-
-type PSATAttestorPlugin struct {
-	*sat_common.CommonAttestorPlugin
-	mu     sync.RWMutex
-	config *psatAttestorConfig
-}
-
-var _ nodeattestor.Plugin = (*PSATAttestorPlugin)(nil)
-
-func NewPSATAttestorPlugin() *PSATAttestorPlugin {
-	return &PSATAttestorPlugin{
-		CommonAttestorPlugin: sat_common.NewCommonAttestorPlugin(pluginName),
-	}
 }
 
 func (p *PSATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
@@ -87,9 +105,10 @@ func (p *PSATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) err
 		return psatError.New("unable to parse token: %v", err)
 	}
 
-	claims, err := verifyTokenSignature(cluster, token)
+	claims := new(k8s.PSATClaims)
+	err = p.VerifyTokenSignature(cluster.keys, token, claims)
 	if err != nil {
-		return err
+		return psatError.Wrap(err)
 	}
 
 	if err := claims.Validate(jwt.Expected{
@@ -120,6 +139,11 @@ func (p *PSATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) err
 		return psatError.New("%q has not a whitelisted pod name prefix", claims.K8s.Pod.Name)
 	}
 
+	node, err := cluster.k8sClient.GetNode(claims.K8s.Namespace, claims.K8s.Pod.Name)
+	if err != nil {
+		return psatError.New("can't get node name from k8s api: %v", err)
+	}
+
 	return stream.Send(&nodeattestor.AttestResponse{
 		Valid:        true,
 		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, attestationData.UUID),
@@ -128,6 +152,7 @@ func (p *PSATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) err
 			p.MakeSelector("agent_ns", claims.K8s.Namespace),
 			p.MakeSelector("agent_sa", claims.K8s.ServiceAccount.Name),
 			p.MakeSelector("agent_pod", claims.K8s.Pod.Name),
+			p.MakeSelector("agent_node", node),
 		},
 	})
 }
@@ -150,18 +175,22 @@ func (p *PSATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRe
 	}
 
 	for name, cluster := range hclConfig.Clusters {
-		if cluster.ApiServerCertFile == "" {
-			return nil, psatError.New("cluster %q configuration missing api server certificate file", name)
+		if cluster.APIServerKeyFile == "" {
+			return nil, psatError.New("cluster %q configuration missing api server keys file", name)
 		}
 		if len(cluster.ServiceAccountWhitelist) == 0 {
 			return nil, psatError.New("cluster %q configuration must have at least one service account whitelisted", name)
 		}
-		cert, err := pemutil.LoadCertificate(cluster.ApiServerCertFile)
-		if err != nil {
-			return nil, psatError.New("failed to load cluster %q api server cert from %q: %v", name, cluster.ApiServerCertFile, err)
+		if len(cluster.PodNameWhitelist) == 0 {
+			return nil, psatError.New("cluster %q configuration must have at least one pod name prefix whitelisted", name)
 		}
-		if cert.PublicKey == nil {
-			return nil, psatError.New("nil public key in cluster %q apiserver certificate %q", name, cluster.ApiServerCertFile)
+
+		keys, err := p.LoadServiceAccountKeys(cluster.APIServerKeyFile)
+		if err != nil {
+			return nil, psatError.New("failed to load cluster %q api server keys from %q: %v", name, cluster.APIServerKeyFile, err)
+		}
+		if len(keys) == 0 {
+			return nil, psatError.New("cluster %q has no api server keys in %q", name, cluster.APIServerKeyFile)
 		}
 
 		serviceAccounts := make(map[string]bool)
@@ -175,7 +204,9 @@ func (p *PSATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRe
 		}
 
 		config.clusters[name] = &clusterConfig{
-			apiServerKey:    cert.PublicKey,
+			kubeConfigFile:  cluster.KubeConfigFile,
+			k8sClient:       client.NewK8SClient(cluster.KubeConfigFile),
+			keys:            keys,
 			serviceAccounts: serviceAccounts,
 			pods:            pods,
 		}
@@ -198,15 +229,6 @@ func (p *PSATAttestorPlugin) setConfig(config *psatAttestorConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
-}
-
-func verifyTokenSignature(cluster *clusterConfig, token *jwt.JSONWebToken) (*k8s.PSATClaims, error) {
-	claims := new(k8s.PSATClaims)
-	err := token.Claims(cluster.apiServerKey, claims)
-	if err != nil {
-		return nil, psatError.New("unable to verify token: %v", err)
-	}
-	return claims, nil
 }
 
 func isPodWhitelisted(podFullName string, cluster *clusterConfig) bool {
