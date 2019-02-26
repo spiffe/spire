@@ -16,6 +16,7 @@ import (
 	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -43,6 +44,8 @@ type EndpointsTestSuite struct {
 
 	svidState observer.Property
 	e         *endpoints
+
+	mockClock *clock.Mock
 }
 
 func (s *EndpointsTestSuite) SetupTest() {
@@ -54,6 +57,9 @@ func (s *EndpointsTestSuite) SetupTest() {
 		Scheme: "spiffe",
 		Host:   "example.org",
 	}
+
+	s.mockClock = clock.NewMock(s.T())
+	s.mockClock.Set(time.Now())
 
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStores(s.ds)
@@ -226,28 +232,28 @@ func (s *EndpointsTestSuite) configureBundle() ([]tls.Certificate, *x509.CertPoo
 }
 
 func (s *EndpointsTestSuite) TestClientCertificateVerification() {
-	caTmpl, err := util.NewCATemplate("example.org")
+	caTmpl, err := util.NewCATemplate(s.mockClock, "example.org")
 	s.Require().NoError(err)
 	caCert, caKey, err := util.SelfSign(caTmpl)
 	s.Require().NoError(err)
 
-	serverTmpl, err := util.NewSVIDTemplate("spiffe://example.org/server")
+	serverTmpl, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/server")
 	s.Require().NoError(err)
 	serverTmpl.DNSNames = []string{"just-for-validation"}
 	serverCert, serverKey, err := util.Sign(serverTmpl, caCert, caKey)
 	s.Require().NoError(err)
 
-	clientTmpl, err := util.NewSVIDTemplate("spiffe://example.org/agent")
+	clientTmpl, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/agent")
 	s.Require().NoError(err)
 	clientCert, clientKey, err := util.Sign(clientTmpl, caCert, caKey)
 	s.Require().NoError(err)
 
-	otherCaTmpl, err := util.NewCATemplate("example.org")
+	otherCaTmpl, err := util.NewCATemplate(s.mockClock, "example.org")
 	s.Require().NoError(err)
 	otherCaCert, otherCaKey, err := util.SelfSign(otherCaTmpl)
 	s.Require().NoError(err)
 
-	otherClientTmpl, err := util.NewSVIDTemplate("spiffe://example.org/agent")
+	otherClientTmpl, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/agent")
 	s.Require().NoError(err)
 	otherClientCert, otherClientKey, err := util.Sign(otherClientTmpl, otherCaCert, otherCaKey)
 	s.Require().NoError(err)

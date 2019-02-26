@@ -7,6 +7,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
 	"github.com/spiffe/spire/cmd/spire-server/cli/bundle"
 	"github.com/spiffe/spire/cmd/spire-server/cli/entry"
+	"github.com/spiffe/spire/cmd/spire-server/cli/healthcheck"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
 	"github.com/spiffe/spire/cmd/spire-server/cli/token"
 	"github.com/spiffe/spire/pkg/common/version"
@@ -60,6 +61,9 @@ func Run(args []string) int {
 		},
 		"token generate": func() (cli.Command, error) {
 			return &token.GenerateCLI{}, nil
+		},
+		"healthcheck": func() (cli.Command, error) {
+			return healthcheck.NewHealthCheckCommand(), nil
 		},
 	}
 
