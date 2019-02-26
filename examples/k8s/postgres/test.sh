@@ -13,6 +13,9 @@ trap cleanup EXIT
 # initialize the test environment (creates a clean spire namespace)
 k8s-test init
 
+# apply the postgres configuration (and waits until it is ready)
+k8s-test apply "${DIR}"/spire-database.yaml
+
 # apply the server configuration (and waits until it is ready)
 k8s-test apply "${DIR}"/spire-server.yaml
 
