@@ -20,4 +20,4 @@ k8s-test apply "${DIR}"/spire-server.yaml
 k8s-test apply "${DIR}"/spire-agent.yaml
 
 # wait for a node to attest
-k8s-test wait node-attestation deployment/spire-server
+k8s-test wait node-attestation statefulset/spire-server
