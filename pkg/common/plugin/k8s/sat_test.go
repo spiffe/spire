@@ -25,5 +25,5 @@ func TestSATTokenClaims(t *testing.T) {
 }
 
 func TestAgentID(t *testing.T) {
-	require.Equal(t, "spiffe://example.org/spire/agent/k8s_sat/production/1234", AgentID("example.org", "production", "1234"))
+	require.Equal(t, "spiffe://example.org/spire/agent/k8s_sat/production/1234", AgentID("k8s_sat", "example.org", "production", "1234"))
 }

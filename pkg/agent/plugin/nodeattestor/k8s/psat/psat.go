@@ -1,4 +1,4 @@
-package sat
+package psat
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/gofrs/uuid"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
@@ -16,17 +15,31 @@ import (
 )
 
 const (
-	pluginName = "k8s_sat"
-
-	defaultTokenPath = "/run/secrets/kubernetes.io/serviceaccount/token"
+	pluginName       = "k8s_psat"
+	defaultTokenPath = "/var/run/secrets/tokens/psat"
 )
 
 var (
-	satError = errs.Class("k8s-sat")
+	_         nodeattestor.Plugin = (*AttestorPlugin)(nil)
+	psatError                     = errs.Class("k8s-psat")
 )
 
+// NewAttestorPlugin creates a new PSAT attestor plugin
+func NewAttestorPlugin() *AttestorPlugin {
+	return &AttestorPlugin{}
+}
+
+// AttestorPlugin is a PSAT (projected SAT) attestor plugin
+type AttestorPlugin struct {
+	mu     sync.RWMutex
+	config *attestorConfig
+}
+
+// AttestorConfig holds JSON configuration for AttestorPlugin
 type AttestorConfig struct {
-	Cluster   string `hcl:"cluster"`
+	// Cluster name where the agent lives
+	Cluster string `hcl:"cluster"`
+	// File path of PSAT
 	TokenPath string `hcl:"token_path"`
 }
 
@@ -36,52 +49,24 @@ type attestorConfig struct {
 	tokenPath   string
 }
 
-type AttestorPlugin struct {
-	mu     sync.RWMutex
-	config *attestorConfig
-
-	hooks struct {
-		newUUID func() (string, error)
-	}
-}
-
-var _ nodeattestor.Plugin = (*AttestorPlugin)(nil)
-
-func NewAttestorPlugin() *AttestorPlugin {
-	p := &AttestorPlugin{}
-	p.hooks.newUUID = func() (string, error) {
-		u, err := uuid.NewV4()
-		if err != nil {
-			return "", err
-		}
-		return u.String(), nil
-	}
-	return p
-}
-
+// FetchAttestationData loads PSAT from the configured path and send it to server node attestor
 func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
 	}
 
-	uuid, err := p.hooks.newUUID()
-	if err != nil {
-		return err
-	}
-
 	token, err := loadTokenFromFile(config.tokenPath)
 	if err != nil {
-		return satError.New("unable to load token from %s: %v", config.tokenPath, err)
+		return psatError.New("unable to load token from %s: %v", config.tokenPath, err)
 	}
 
-	data, err := json.Marshal(k8s.SATAttestationData{
+	data, err := json.Marshal(k8s.PSATAttestationData{
 		Cluster: config.cluster,
-		UUID:    uuid,
 		Token:   token,
 	})
 	if err != nil {
-		return satError.Wrap(err)
+		return psatError.Wrap(err)
 	}
 
 	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
@@ -89,24 +74,24 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestati
 			Type: pluginName,
 			Data: data,
 		},
-		SpiffeId: k8s.AgentID(pluginName, config.trustDomain, config.cluster, uuid),
 	})
 }
 
+// Configure decodes JSON config from request and populates AttestorPlugin with it
 func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
 	hclConfig := new(AttestorConfig)
 	if err := hcl.Decode(hclConfig, req.Configuration); err != nil {
-		return nil, satError.New("unable to decode configuration: %v", err)
+		return nil, psatError.New("unable to decode configuration: %v", err)
 	}
 
 	if req.GlobalConfig == nil {
-		return nil, satError.New("global configuration is required")
+		return nil, psatError.New("global configuration is required")
 	}
 	if req.GlobalConfig.TrustDomain == "" {
-		return nil, satError.New("global configuration missing trust domain")
+		return nil, psatError.New("global configuration missing trust domain")
 	}
 	if hclConfig.Cluster == "" {
-		return nil, satError.New("configuration missing cluster")
+		return nil, psatError.New("configuration missing cluster")
 	}
 
 	config := &attestorConfig{
@@ -130,7 +115,7 @@ func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
-		return nil, satError.New("not configured")
+		return nil, psatError.New("not configured")
 	}
 	return p.config, nil
 }

@@ -28,11 +28,16 @@ type SATAttestationData struct {
 	Token   string `json:"token"`
 }
 
-func AgentID(trustDomain, cluster, uuid string) string {
+type PSATAttestationData struct {
+	Cluster string `json:"cluster"`
+	Token   string `json:"token"`
+}
+
+func AgentID(pluginName, trustDomain, cluster, uuid string) string {
 	u := url.URL{
 		Scheme: "spiffe",
 		Host:   trustDomain,
-		Path:   path.Join("spire", "agent", "k8s_sat", cluster, uuid),
+		Path:   path.Join("spire", "agent", pluginName, cluster, uuid),
 	}
 	return u.String()
 }

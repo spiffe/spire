@@ -141,7 +141,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 
 	return stream.Send(&nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: k8s.AgentID(config.trustDomain, attestationData.Cluster, attestationData.UUID),
+		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, attestationData.UUID),
 		Selectors: []*common.Selector{
 			makeSelector("cluster", attestationData.Cluster),
 			makeSelector("agent_ns", claims.Namespace),
