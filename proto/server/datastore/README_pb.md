@@ -31,6 +31,7 @@
 
 - [common.proto](#common.proto)
     - [AttestationData](#spire.common.AttestationData)
+    - [AttestedNode](#spire.common.AttestedNode)
     - [Bundle](#spire.common.Bundle)
     - [Certificate](#spire.common.Certificate)
     - [Empty](#spire.common.Empty)
@@ -47,7 +48,6 @@
 - [datastore.proto](#datastore.proto)
     - [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest)
     - [AppendBundleResponse](#spire.server.datastore.AppendBundleResponse)
-    - [AttestedNode](#spire.server.datastore.AttestedNode)
     - [BySelectors](#spire.server.datastore.BySelectors)
     - [CreateAttestedNodeRequest](#spire.server.datastore.CreateAttestedNodeRequest)
     - [CreateAttestedNodeResponse](#spire.server.datastore.CreateAttestedNodeResponse)
@@ -394,6 +394,24 @@ A type which contains attestation data for specific platform.
 
 
 
+<a name="spire.common.AttestedNode"/>
+
+### AttestedNode
+Represents an attested SPIRE agent
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| spiffe_id | [string](#string) |  | Node SPIFFE ID |
+| attestation_data_type | [string](#string) |  | Attestation data type |
+| cert_serial_number | [string](#string) |  | Node certificate serial number |
+| cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
+
+
+
+
+
+
 <a name="spire.common.Bundle"/>
 
 ### Bundle
@@ -484,6 +502,7 @@ manage the various registered nodes and workloads that are controlled by it.
 | federates_with | [string](#string) | repeated | A list of federated trust domain SPIFFE IDs. |
 | entry_id | [string](#string) |  | Entry ID |
 | admin | [bool](#bool) |  | Whether or not the workload is an admin workload. Admin workloads can use their SVID&#39;s to authenticate with the Registration API, for example. |
+| downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
 
 
 
@@ -568,24 +587,6 @@ Represents a type with a list of Selector.
 
 
 
-<a name="spire.server.datastore.AttestedNode"/>
-
-### AttestedNode
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| spiffe_id | [string](#string) |  | Node SPIFFE ID |
-| attestation_data_type | [string](#string) |  | Attestation data type |
-| cert_serial_number | [string](#string) |  | Node certificate serial number |
-| cert_not_after | [int64](#int64) |  | Node certificate not_after (seconds since unix epoch) |
-
-
-
-
-
-
 <a name="spire.server.datastore.BySelectors"/>
 
 ### BySelectors
@@ -610,7 +611,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [AttestedNode](#spire.server.datastore.AttestedNode) |  |  |
+| node | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) |  |  |
 
 
 
@@ -625,7 +626,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [AttestedNode](#spire.server.datastore.AttestedNode) |  |  |
+| node | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) |  |  |
 
 
 
@@ -745,7 +746,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [AttestedNode](#spire.server.datastore.AttestedNode) |  |  |
+| node | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) |  |  |
 
 
 
@@ -866,7 +867,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [AttestedNode](#spire.server.datastore.AttestedNode) |  |  |
+| node | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) |  |  |
 
 
 
@@ -1033,7 +1034,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| nodes | [AttestedNode](#spire.server.datastore.AttestedNode) | repeated |  |
+| nodes | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) | repeated |  |
 | pagination | [Pagination](#spire.server.datastore.Pagination) |  |  |
 
 
@@ -1207,7 +1208,7 @@ Represents a type with a list of Selector.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node | [AttestedNode](#spire.server.datastore.AttestedNode) |  |  |
+| node | [.spire.common.AttestedNode](#spire.server.datastore..spire.common.AttestedNode) |  |  |
 
 
 

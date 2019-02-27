@@ -2,6 +2,8 @@ package gcp
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,8 +12,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
+
+const testServiceAccount = "test-service-account"
 
 func TestIITAttestorPlugin(t *testing.T) {
 	suite.Run(t, new(Suite))
@@ -32,7 +37,7 @@ func (s *Suite) SetupTest() {
 			http.Error(w, "unexpected flavor", http.StatusInternalServerError)
 			return
 		}
-		if req.URL.Path != identityTokenURLPath {
+		if req.URL.Path != fmt.Sprintf(identityTokenURLPathTemplate, testServiceAccount) {
 			http.Error(w, "unexpected path", http.StatusInternalServerError)
 			return
 		}
@@ -56,6 +61,9 @@ func (s *Suite) SetupTest() {
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
 			TrustDomain: "example.org",
 		},
+		Configuration: fmt.Sprintf(`
+service_account = "%s"
+`, testServiceAccount),
 	})
 	s.Require().NoError(err)
 	s.status = http.StatusOK
@@ -78,7 +86,7 @@ func (s *Suite) TestUnexpectedStatus() {
 	s.status = http.StatusBadGateway
 	s.body = ""
 	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "gcp-iit: unable to retrieve identity token: unexpected status code: 502")
+	s.requireErrorContains(err, "gcp-iit: unable to retrieve valid identity token: unexpected status code: 502")
 }
 
 func (s *Suite) TestErrorOnInvalidToken() {
@@ -113,6 +121,64 @@ func (s *Suite) TestSuccessfulIdentityTokenProcessing() {
 	require.Equal(s.body, string(resp.AttestationData.Data))
 }
 
+func (s *Suite) TestSuccessfulIdentityTokenProcessingCustomPathTemplate() {
+	require := s.Require()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"google": gcp.Google{
+			ComputeEngine: gcp.ComputeEngine{
+				ProjectID:  "project-123",
+				InstanceID: "instance-123",
+			},
+		},
+	})
+	s.body = s.signToken(token)
+
+	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
+			TrustDomain: "example.org",
+		},
+		Configuration: fmt.Sprintf(`
+agent_path_template = "{{ .InstanceID }}"
+service_account = "%s"
+`, testServiceAccount),
+	})
+
+	resp, err := s.fetchAttestationData()
+	require.NoError(err)
+	require.NotNil(resp)
+	require.Equal("spiffe://example.org/spire/agent/instance-123", resp.SpiffeId)
+	require.Equal(gcp.PluginName, resp.AttestationData.Type)
+	require.Equal(s.body, string(resp.AttestationData.Data))
+}
+
+func (s *Suite) TestFailToSendOnStream() {
+	require := s.Require()
+
+	p := NewIITAttestorPlugin()
+	p.tokenHost = s.server.Listener.Addr().String()
+	_, err := p.Configure(context.Background(), &plugin.ConfigureRequest{
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
+			TrustDomain: "example.org",
+		},
+		Configuration: fmt.Sprintf(`
+service_account = "%s"
+`, testServiceAccount),
+	})
+	require.NoError(err)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"google": gcp.Google{
+			ComputeEngine: gcp.ComputeEngine{
+				ProjectID:  "project-123",
+				InstanceID: "instance-123",
+			},
+		},
+	})
+	s.body = s.signToken(token)
+	err = p.FetchAttestationData(&failSendStream{})
+	require.EqualError(err, "failed to send to stream")
+}
+
 func (s *Suite) TestConfigure() {
 	require := s.Require()
 
@@ -132,6 +198,18 @@ func (s *Suite) TestConfigure() {
 	// missing trust domain
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
 	s.requireErrorContains(err, "gcp-iit: trust_domain is required")
+	require.Nil(resp)
+
+	// bad path template
+	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
+			TrustDomain: "example.org",
+		},
+		Configuration: `
+agent_path_template = "{{"
+`,
+	})
+	s.requireErrorContains(err, "failed to parse agent path template")
 	require.Nil(resp)
 
 	// success
@@ -169,4 +247,56 @@ func (s *Suite) signToken(token *jwt.Token) string {
 func (s *Suite) requireErrorContains(err error, substring string) {
 	s.Require().Error(err)
 	s.Require().Contains(err.Error(), substring)
+}
+
+func TestRetrieveIdentity(t *testing.T) {
+	tests := []struct {
+		msg               string
+		url               string
+		handleFunc        func(w http.ResponseWriter, req *http.Request)
+		expectErrContains string
+	}{
+		{
+			msg:               "bad url",
+			url:               "::",
+			expectErrContains: "missing protocol scheme",
+		},
+		{
+			msg:               "invalid port",
+			url:               "http://0.0.0.0:70000",
+			expectErrContains: "invalid port",
+		},
+		{
+			msg: "fail to read body",
+			handleFunc: func(w http.ResponseWriter, req *http.Request) {
+				// Set a content length but don't write a body
+				w.Header().Set("Content-Length", "40")
+				w.WriteHeader(http.StatusOK)
+			},
+			expectErrContains: "unexpected EOF",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msg, func(t *testing.T) {
+			url := tt.url
+			if tt.handleFunc != nil {
+				server := httptest.NewServer(http.HandlerFunc(tt.handleFunc))
+				url = server.URL
+				defer server.Close()
+			}
+
+			_, err := retrieveInstanceIdentityToken(url)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.expectErrContains)
+		})
+	}
+}
+
+type failSendStream struct {
+	nodeattestor.FetchAttestationData_PluginStream
+}
+
+func (s *failSendStream) Send(*nodeattestor.FetchAttestationDataResponse) error {
+	return errors.New("failed to send to stream")
 }

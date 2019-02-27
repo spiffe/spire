@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 	spiffe_tls "github.com/spiffe/go-spiffe/tls"
 	"github.com/spiffe/spire/pkg/common/grpcutil"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
@@ -72,7 +73,7 @@ func (c *client) credsFunc() (credentials.TransportCredentials, error) {
 
 	svid, key, bundle := c.c.KeysAndBundle()
 	spiffePeer := &spiffe_tls.TLSPeer{
-		SpiffeIDs:  []string{"spiffe://" + c.c.TrustDomain.Host + "/spire/server"},
+		SpiffeIDs:  []string{idutil.ServerID(c.c.TrustDomain.Host)},
 		TrustRoots: util.NewCertPool(bundle...),
 	}
 	tlsCert := tls.Certificate{PrivateKey: key}

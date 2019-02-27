@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -33,7 +34,6 @@ import (
 
 const (
 	workloadApi = "workload_api"
-	workloadPid = "workload_pid"
 )
 
 // Handler implements the Workload API interface
@@ -55,14 +55,38 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 	defer done()
 
-	metrics.IncrCounter([]string{workloadApi, "fetch_jwt_svid"}, 1)
+	labels := []telemetry.Label{
+		{Name: "svid_type", Value: "jwt"},
+	}
 
 	var spiffeIDs []string
-	for _, entry := range h.Manager.MatchingEntries(selectors) {
+	entries := h.Manager.MatchingEntries(selectors)
+	if len(entries) == 0 {
+		labels = append(labels, telemetry.Label{
+			Name:  "registered",
+			Value: "false",
+		})
+		metrics.IncrCounterWithLabels(
+			[]string{workloadApi, "fetch_jwt_svid"},
+			1,
+			labels)
+
+		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
+	}
+	labels = append(labels, telemetry.Label{
+		Name:  "registered",
+		Value: "true",
+	})
+
+	for _, entry := range entries {
 		if req.SpiffeId != "" && entry.RegistrationEntry.SpiffeId != req.SpiffeId {
 			continue
 		}
 		spiffeIDs = append(spiffeIDs, entry.RegistrationEntry.SpiffeId)
+		labels = append(labels, telemetry.Label{
+			Name:  "spiffe_id",
+			Value: entry.RegistrationEntry.SpiffeId,
+		})
 	}
 
 	resp := new(workload.JWTSVIDResponse)
@@ -76,6 +100,11 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 			Svid:     svid,
 		})
 	}
+
+	metrics.IncrCounterWithLabels(
+		[]string{workloadApi, "fetch_jwt_svid"},
+		1,
+		labels)
 
 	return resp, nil
 }
@@ -111,8 +140,6 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 			return nil
 		}
 	}
-
-	return nil
 }
 
 func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
@@ -180,17 +207,15 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			metrics.IncrCounter([]string{workloadApi, "update"}, 1)
-
 			start := time.Now()
-			err := h.sendX509SVIDResponse(update, stream)
+			err := h.sendX509SVIDResponse(update, stream, metrics, selectors)
 			if err != nil {
 				return err
 			}
 
-			metrics.MeasureSince([]string{workloadApi, "update_latency"}, start)
+			metrics.MeasureSince([]string{workloadApi, "svid_response_latency"}, start)
 			if time.Since(start) > (1 * time.Second) {
-				h.L.Warnf("Took %v seconds to send update to PID %v", time.Since(start).Seconds, pid)
+				h.L.Warnf("Took %v seconds to send SVID response to PID %v", time.Since(start).Seconds, pid)
 			}
 		case <-ctx.Done():
 			return nil
@@ -198,17 +223,52 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 }
 
-func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
+func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics, selectors []*common.Selector) error {
+	labels := []telemetry.Label{
+		{Name: "svid_type", Value: "x509"},
+	}
+
 	if len(update.Entries) == 0 {
+		labels = append(labels, telemetry.Label{
+			Name:  "registered",
+			Value: "false",
+		})
+		metrics.IncrCounterWithLabels(
+			[]string{workloadApi, "fetch_x509_svid"},
+			1,
+			labels)
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
+
+	labels = append(labels, telemetry.Label{
+		Name:  "registered",
+		Value: "true",
+	})
 
 	resp, err := h.composeX509SVIDResponse(update)
 	if err != nil {
 		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
 	}
 
-	return stream.Send(resp)
+	err = stream.Send(resp)
+	if err != nil {
+		return err
+	}
+
+	// Add all the SPIFFE IDs to the labels array.
+	for _, svid := range resp.Svids {
+		labels = append(labels, telemetry.Label{
+			Name:  "spiffe_id",
+			Value: svid.SpiffeId,
+		})
+	}
+
+	metrics.IncrCounterWithLabels(
+		[]string{workloadApi, "fetch_x509_svid"},
+		1,
+		labels)
+
+	return nil
 }
 
 func (h *Handler) composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDResponse, error) {
@@ -291,20 +351,21 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.M, []telemetry.Label{{Name: workloadPid, Value: fmt.Sprint(pid)}})
-	metrics.IncrCounter([]string{workloadApi, "connection"}, 1)
-	metrics.IncrCounter([]string{workloadApi, "connections"}, 1)
+	h.M.IncrCounter([]string{workloadApi, "connections"}, 1)
 
 	config := attestor.Config{
 		Catalog: h.Catalog,
 		L:       h.L,
-		M:       metrics,
+		M:       h.M,
 	}
 
 	selectors := attestor.New(&config).Attest(ctx, pid)
 
+	metrics := telemetry.WithLabels(h.M, selectorsToLabels(selectors))
+	metrics.IncrCounter([]string{workloadApi, "connection"}, 1)
+
 	done := func() {
-		defer metrics.IncrCounter([]string{workloadApi, "connections"}, -1)
+		defer h.M.IncrCounter([]string{workloadApi, "connections"}, -1)
 	}
 
 	return pid, selectors, metrics, done, nil
@@ -372,4 +433,14 @@ func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
 	}
 
 	return s, nil
+}
+
+func selectorsToLabels(selectors []*common.Selector) (labels []telemetry.Label) {
+	for _, selector := range selectors {
+		labels = append(labels, telemetry.Label{
+			Name:  "selector",
+			Value: strings.Join([]string{selector.Type, selector.Value}, ":"),
+		})
+	}
+	return labels
 }

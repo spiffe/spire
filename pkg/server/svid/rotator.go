@@ -6,11 +6,10 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
-	"net/url"
-	"path"
 	"time"
 
 	"github.com/imkira/go-observer"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 )
@@ -93,11 +92,7 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	defer telemetry.CountCall(r.c.Metrics, "svid", "rotate")(&err)
 	r.c.Log.Debug("Rotating server SVID")
 
-	id := &url.URL{
-		Scheme: "spiffe",
-		Host:   r.c.TrustDomain.Host,
-		Path:   path.Join("spire", "server"),
-	}
+	id := idutil.ServerURI(r.c.TrustDomain.Host)
 
 	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {

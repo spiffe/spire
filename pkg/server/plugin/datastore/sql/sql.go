@@ -10,10 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofrs/uuid/v3"
+	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
+
+	// gorm sqlite dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -93,6 +95,7 @@ func (ds *sqlPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBund
 	return resp, nil
 }
 
+// AppendBundle append bundle contents to the existing bundle (by trust domain). If no existing one is present, create it.
 func (ds *sqlPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = appendBundle(tx, req)
@@ -136,8 +139,12 @@ func (ds *sqlPlugin) ListBundles(ctx context.Context, req *datastore.ListBundles
 	return resp, nil
 }
 
+// CreateAttestedNode stores the given attested node
 func (ds *sqlPlugin) CreateAttestedNode(ctx context.Context,
 	req *datastore.CreateAttestedNodeRequest) (resp *datastore.CreateAttestedNodeResponse, err error) {
+	if req.Node == nil {
+		return nil, sqlError.New("invalid request: missing attested node")
+	}
 
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = createAttestedNode(tx, req)
@@ -148,6 +155,7 @@ func (ds *sqlPlugin) CreateAttestedNode(ctx context.Context,
 	return resp, nil
 }
 
+// FetchAttestedNode fetches an existing attested node by SPIFFE ID
 func (ds *sqlPlugin) FetchAttestedNode(ctx context.Context,
 	req *datastore.FetchAttestedNodeRequest) (resp *datastore.FetchAttestedNodeResponse, err error) {
 
@@ -160,6 +168,7 @@ func (ds *sqlPlugin) FetchAttestedNode(ctx context.Context,
 	return resp, nil
 }
 
+// ListAttestedNodes lists all attested nodes (pagination available)
 func (ds *sqlPlugin) ListAttestedNodes(ctx context.Context,
 	req *datastore.ListAttestedNodesRequest) (resp *datastore.ListAttestedNodesResponse, err error) {
 
@@ -172,6 +181,7 @@ func (ds *sqlPlugin) ListAttestedNodes(ctx context.Context,
 	return resp, nil
 }
 
+// UpdateAttestedNode updates the given node's cert serial and expiration.
 func (ds *sqlPlugin) UpdateAttestedNode(ctx context.Context,
 	req *datastore.UpdateAttestedNodeRequest) (resp *datastore.UpdateAttestedNodeResponse, err error) {
 
@@ -184,6 +194,7 @@ func (ds *sqlPlugin) UpdateAttestedNode(ctx context.Context,
 	return resp, nil
 }
 
+// DeleteAttestedNode deletes the given attested node
 func (ds *sqlPlugin) DeleteAttestedNode(ctx context.Context,
 	req *datastore.DeleteAttestedNodeRequest) (resp *datastore.DeleteAttestedNodeResponse, err error) {
 
@@ -196,7 +207,12 @@ func (ds *sqlPlugin) DeleteAttestedNode(ctx context.Context,
 	return resp, nil
 }
 
+// SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
 func (ds *sqlPlugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (resp *datastore.SetNodeSelectorsResponse, err error) {
+	if req.Selectors == nil {
+		return nil, errors.New("invalid request: missing selectors")
+	}
+
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = setNodeSelectors(tx, req)
 		return err
@@ -206,6 +222,7 @@ func (ds *sqlPlugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNod
 	return resp, nil
 }
 
+// GetNodeSelectors gets node (agent) selectors by SPIFFE ID
 func (ds *sqlPlugin) GetNodeSelectors(ctx context.Context,
 	req *datastore.GetNodeSelectorsRequest) (resp *datastore.GetNodeSelectorsResponse, err error) {
 
@@ -218,8 +235,13 @@ func (ds *sqlPlugin) GetNodeSelectors(ctx context.Context,
 	return resp, nil
 }
 
+// CreateRegistrationEntry stores the given registration entry
 func (ds *sqlPlugin) CreateRegistrationEntry(ctx context.Context,
 	req *datastore.CreateRegistrationEntryRequest) (resp *datastore.CreateRegistrationEntryResponse, err error) {
+	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
+	if err := validateRegistrationEntry(req.Entry); err != nil {
+		return nil, err
+	}
 
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = createRegistrationEntry(tx, req)
@@ -230,6 +252,7 @@ func (ds *sqlPlugin) CreateRegistrationEntry(ctx context.Context,
 	return resp, nil
 }
 
+// FetchRegistrationEntry fetches an existing registration by entry ID
 func (ds *sqlPlugin) FetchRegistrationEntry(ctx context.Context,
 	req *datastore.FetchRegistrationEntryRequest) (resp *datastore.FetchRegistrationEntryResponse, err error) {
 
@@ -242,6 +265,7 @@ func (ds *sqlPlugin) FetchRegistrationEntry(ctx context.Context,
 	return resp, nil
 }
 
+// ListRegistrationEntries lists all registrations (pagination available)
 func (ds *sqlPlugin) ListRegistrationEntries(ctx context.Context,
 	req *datastore.ListRegistrationEntriesRequest) (resp *datastore.ListRegistrationEntriesResponse, err error) {
 
@@ -254,8 +278,12 @@ func (ds *sqlPlugin) ListRegistrationEntries(ctx context.Context,
 	return resp, nil
 }
 
-func (ds sqlPlugin) UpdateRegistrationEntry(ctx context.Context,
+// UpdateRegistrationEntry updates an existing registration entry
+func (ds *sqlPlugin) UpdateRegistrationEntry(ctx context.Context,
 	req *datastore.UpdateRegistrationEntryRequest) (resp *datastore.UpdateRegistrationEntryResponse, err error) {
+	if err := validateRegistrationEntry(req.Entry); err != nil {
+		return nil, err
+	}
 
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateRegistrationEntry(tx, req)
@@ -266,6 +294,7 @@ func (ds sqlPlugin) UpdateRegistrationEntry(ctx context.Context,
 	return resp, nil
 }
 
+// DeleteRegistrationEntry deletes the given registration
 func (ds *sqlPlugin) DeleteRegistrationEntry(ctx context.Context,
 	req *datastore.DeleteRegistrationEntryRequest) (resp *datastore.DeleteRegistrationEntryResponse, err error) {
 
@@ -280,6 +309,10 @@ func (ds *sqlPlugin) DeleteRegistrationEntry(ctx context.Context,
 
 // CreateJoinToken takes a Token message and stores it
 func (ds *sqlPlugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (resp *datastore.CreateJoinTokenResponse, err error) {
+	if req.JoinToken == nil || req.JoinToken.Token == "" || req.JoinToken.Expiry == 0 {
+		return nil, errors.New("token and expiry are required")
+	}
+
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = createJoinToken(tx, req)
 		return err
@@ -301,6 +334,7 @@ func (ds *sqlPlugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoi
 	return resp, nil
 }
 
+// DeleteJoinToken deletes the given join token
 func (ds *sqlPlugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (resp *datastore.DeleteJoinTokenResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = deleteJoinToken(tx, req)
@@ -323,8 +357,8 @@ func (ds *sqlPlugin) PruneJoinTokens(ctx context.Context, req *datastore.PruneJo
 	return resp, nil
 }
 
+// Configure parses HCL config payload into config struct, and opens new DB based on the result
 func (ds *sqlPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	// Parse HCL config payload into config struct
 	config := &configuration{}
 	if err := hcl.Decode(config, req.Configuration); err != nil {
 		return nil, err
@@ -366,7 +400,8 @@ func (ds *sqlPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (sqlPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+// GetPluginInfo returns the sql plugin
+func (*sqlPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &pluginInfo, nil
 }
 
@@ -611,16 +646,11 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 }
 
 func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
-	node := req.Node
-	if node == nil {
-		return nil, sqlError.New("invalid request: missing attested node")
-	}
-
 	model := AttestedNode{
-		SpiffeID:     node.SpiffeId,
-		DataType:     node.AttestationDataType,
-		SerialNumber: node.CertSerialNumber,
-		ExpiresAt:    time.Unix(node.CertNotAfter, 0),
+		SpiffeID:     req.Node.SpiffeId,
+		DataType:     req.Node.AttestationDataType,
+		SerialNumber: req.Node.CertSerialNumber,
+		ExpiresAt:    time.Unix(req.Node.CertNotAfter, 0),
 	}
 
 	if err := tx.Create(&model).Error; err != nil {
@@ -718,9 +748,6 @@ func deleteAttestedNode(tx *gorm.DB, req *datastore.DeleteAttestedNodeRequest) (
 }
 
 func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
-	if req.Selectors == nil {
-		return nil, errors.New("invalid request: missing selectors")
-	}
 	if err := tx.Delete(NodeSelector{}, "spiffe_id = ?", req.Selectors.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -763,26 +790,18 @@ func getNodeSelectors(tx *gorm.DB, req *datastore.GetNodeSelectorsRequest) (*dat
 func createRegistrationEntry(tx *gorm.DB,
 	req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
 
-	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
-	if req.Entry == nil {
-		return nil, sqlError.New("invalid request: missing registered entry")
-	}
-
-	if err := validateRegistrationEntry(req.Entry); err != nil {
-		return nil, err
-	}
-
 	entryID, err := newRegistrationEntryID()
 	if err != nil {
 		return nil, err
 	}
 
 	newRegisteredEntry := RegisteredEntry{
-		EntryID:  entryID,
-		SpiffeID: req.Entry.SpiffeId,
-		ParentID: req.Entry.ParentId,
-		TTL:      req.Entry.Ttl,
-		Admin:    req.Entry.Admin,
+		EntryID:    entryID,
+		SpiffeID:   req.Entry.SpiffeId,
+		ParentID:   req.Entry.ParentId,
+		TTL:        req.Entry.Ttl,
+		Admin:      req.Entry.Admin,
+		Downstream: req.Entry.Downstream,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -904,7 +923,7 @@ func listRegistrationEntries(tx *gorm.DB,
 			}
 		}
 
-		// exclude entry ids that don't have an exect number of selectors
+		// exclude entry ids that don't have an exact number of selectors
 		entryIDs := make([]uint, 0, len(refCount))
 		for id, count := range refCount {
 			if count == len(selectors) {
@@ -1001,15 +1020,6 @@ func findRegisteredEntries(entryTx *gorm.DB, p *datastore.Pagination) ([]Registe
 
 func updateRegistrationEntry(tx *gorm.DB,
 	req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
-
-	if req.Entry == nil {
-		return nil, sqlError.New("no registration entry provided")
-	}
-
-	if err := validateRegistrationEntry(req.Entry); err != nil {
-		return nil, err
-	}
-
 	// Get the existing entry
 	entry := RegisteredEntry{}
 	if err := tx.Find(&entry, "entry_id = ?", req.Entry.EntryId).Error; err != nil {
@@ -1036,6 +1046,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	entry.TTL = req.Entry.Ttl
 	entry.Selectors = selectors
 	entry.Admin = req.Entry.Admin
+	entry.Downstream = req.Entry.Downstream
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1082,10 +1093,6 @@ func deleteRegistrationEntry(tx *gorm.DB,
 }
 
 func createJoinToken(tx *gorm.DB, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
-	if req.JoinToken == nil || req.JoinToken.Token == "" || req.JoinToken.Expiry == 0 {
-		return nil, errors.New("token and expiry are required")
-	}
-
 	t := JoinToken{
 		Token:  req.JoinToken.Token,
 		Expiry: req.JoinToken.Expiry,
@@ -1149,6 +1156,10 @@ func modelToBundle(model *Bundle) (*datastore.Bundle, error) {
 }
 
 func validateRegistrationEntry(entry *common.RegistrationEntry) error {
+	if entry == nil {
+		return sqlError.New("invalid request: missing registered entry")
+	}
+
 	if entry.Selectors == nil || len(entry.Selectors) == 0 {
 		return sqlError.New("invalid registration entry: missing selector list")
 	}
@@ -1238,6 +1249,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		Ttl:           model.TTL,
 		FederatesWith: federatesWith,
 		Admin:         model.Admin,
+		Downstream:    model.Downstream,
 	}, nil
 }
 

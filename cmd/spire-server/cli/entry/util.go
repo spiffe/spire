@@ -61,6 +61,10 @@ func printEntry(e *common.RegistrationEntry) {
 	fmt.Printf("SPIFFE ID     : %s\n", e.SpiffeId)
 	fmt.Printf("Parent ID     : %s\n", e.ParentId)
 
+	if e.Downstream {
+		fmt.Printf("Downstream    : %t\n", e.Downstream)
+	}
+
 	if e.Ttl == 0 {
 		fmt.Printf("TTL           : default\n")
 	} else {

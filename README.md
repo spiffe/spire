@@ -15,6 +15,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
   - [Joining to the SPIRE server with a join token](#joining-to-the-spire-server-with-a-join-token)
   - [Workload Registration](#workload-registration)
   - [Workload SVID Retrieval](#workload-svid-retrieval)
+- [Using SPIRE with Envoy](#using-spire-with-envoy)
 - [Getting help](#getting-help)
 - [Community](#community)
 - [Roadmap](#roadmap)
@@ -200,6 +201,13 @@ Optionally, you may write the SVID and key to disk with `-write` in order to exa
     #          16:87:b2:97:2f:98:ed:80:2a:5e:62:f4:7f:87:82:ff:67:96:
     #          e6:2e:fa:a1
 
+# Using SPIRE with Envoy
+
+SPIRE provides a **beta** implementation of the [Envoy](https://envoyproxy.io)
+[Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/secret)
+(SDS). SDS can be used to transparently install and rotate TLS certificates and
+trust bundles in Envoy. Please see the [SPIRE Agent configuration guide](/doc/spire_agent.md#agent-configuration-file) for more information.
+
 # Getting Help
 
 If you have any questions about how SPIRE works, or how to get it up and running, the best place to ask questions is the [SPIFFE Slack Organization](https://slack.spiffe.io/). Most of the maintainers monitor the #spire channel there, and can help direct you to other channels if need be. Please feel free to drop by any time!
@@ -216,7 +224,12 @@ The SPIFFE and SPIRE governance policies are detailed in
 # Roadmap
 
 In case you're wondering where this project is headed, here is the SPIRE major feature roadmap:
-- ~~**JWT-SVID:** Support in SPIRE for generating JWT-based SVIDs through the Workload API. Pending finalization of the JWT-SVID specification in [SIG-Spec](https://github.com/spiffe/spiffe/blob/master/community/sig-spec/README.md). Target date: end of July 2018.~~ Done
-- ~~**High Availability:** Support for clustering multiple SPIRE servers together within a single trust domain. Target date: end of October 2018.~~ Done
-- **Federation:** Support for federating trust domains by joining SPIRE servers together. Pending finalization of the Federation API specification in [SIG-Spec](https://github.com/spiffe/spiffe/blob/master/community/sig-spec/README.md). Target date: end of ~~August 2018~~ March 2019. **Update:** Experimental functionality available now based on latest draft spec.
-- **Nested SPIRE:** Support for chaining SPIRE server clusters together. Target date: end of February 2019.
+
+![SPIRE 2019 Roadmap](doc/images/2019_roadmap.png)
+
+- **SDS Support:** SPIRE Agent can directly expose the Envoy SDS API allowing it to seamlessly install and rotate TLS certificates in Envoy instances.
+- **Low Friction K8s Deployment:** All of the documentation, YAML configuration, and helpers necessary to provide a robust, automated deployment of SPIRE in Kubernetes.
+- **Nested SPIRE:** SPIRE can use its UpstreamCA plugin to chain up to another SPIRE server in the same trust domain, allowing for topologies that provide strong availability and scalability characteristics.
+- **Federation API Support:** SPIRE Server fully supports SPIFFE federation, allowing it to track and distribute bundle updates in foreign trust domains, as well as publish its own bundle updates.
+- **HA as a First Class Citizen:** Strengthen support for HA configurations by adding functional test cases and providing templates for HA deployments e.g. via a Helm chart
+- **Secure Bootstrap:** Support for going from a single SPIRE Server to an HA deployment securely, allowing SPIRE Servers to attest each other in the process.

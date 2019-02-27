@@ -29,6 +29,21 @@ message Selectors {
     repeated Selector entries = 1;
 }
 
+/* Represents an attested SPIRE agent */
+message AttestedNode {
+    // Node SPIFFE ID
+    string spiffe_id = 1;
+
+    // Attestation data type
+    string attestation_data_type = 2;
+
+    // Node certificate serial number
+    string cert_serial_number = 3;
+
+    // Node certificate not_after (seconds since unix epoch)
+    int64 cert_not_after = 4;
+}
+
 /** This is a curated record that the Server uses to set up and
 manage the various registered nodes and workloads that are controlled by it. */
 message RegistrationEntry {
@@ -51,6 +66,8 @@ message RegistrationEntry {
     can use their SVID's to authenticate with the Registration API, for
     example. */
     bool admin = 7;
+    /** To enable signing CA CSR in upstream spire server  */
+    bool downstream = 8;
 }
 
 /** A list of registration entries. */

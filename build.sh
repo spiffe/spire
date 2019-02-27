@@ -92,8 +92,11 @@ build_utils() {
 
 ## Rebuild all .proto files, generated README, and generated gRPC/REST interfaces
 build_protobuf() {
-	local _n _d _dir _prefix="$1"
+	local _n _d _dir _prefix="$1" _tmp=$(mktemp -d)
 	eval $(build_env)
+
+	mkdir -p ${_tmp}/src/github.com/spiffe
+	ln -s ${PWD} ${_tmp}/src/github.com/spiffe/spire
 
 	for _n in ${PROTO_FILES}; do
 		_dir="$(dirname ${_n})"
@@ -104,33 +107,23 @@ build_protobuf() {
 			_d=${_dir}
 		fi
 
-		# Set path to right version of grpc-gateway repo
-		grpc_gateway_path=$(go list -f '{{ .Dir }}' -m github.com/grpc-ecosystem/grpc-gateway)/third_party/googleapis
-
 		_log_info "creating \"${_n%.proto}.pb.go\""
-		protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-			--proto_path=$grpc_gateway_path \
+		protoc --proto_path=${_dir} --proto_path=${_tmp}/src \
 			--go_out=plugins=grpc:${_d} ${_n}
 		_log_info "creating \"${_d}/README_pb.md\""
-		protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-			--proto_path=$grpc_gateway_path \
+		protoc --proto_path=${_dir} --proto_path=${_tmp}/src \
 			--doc_out=markdown,README_pb.md:${_d} ${_n}
-		# only build gateway code if necessary
-		if grep -q 'option (google.api.http)' ${_n}; then
-			_log_info "creating http gateway \"${_n%.proto}.pb.gw.go\""
-			protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
-				--proto_path=$grpc_gateway_path \
-				--grpc-gateway_out=logtostderr=true:${_d} ${_n}
-		fi
 		# only build the plugin interfaces for plugin protos
 		if [[ ${_n} == "proto/agent/"* ]] ||
 			[[ ${_n} == "proto/server/"* ]] ||
 			[[ ${_n} == "proto/test/"* ]]; then
 			_log_info "creating plugin interface \"${_n%.proto}.go\""
-			protoc --proto_path=${_dir} --proto_path=${GOPATH}/src \
+			protoc --proto_path=${_dir} --proto_path=${_tmp}/src \
 				--spireplugin_out=${_d} ${_n}
 		fi
 	done
+
+	rm -rf ${_tmp}
 }
 
 ## Create a private copy of generated code and compare it to
@@ -160,9 +153,14 @@ build_binaries() {
 	make build
 }
 
+build_test() {
+	make test
+}
+
+
 ## Run coverate tests and send to coveralls if this CI build
 ## has been called by cron.
-build_test() {
+build_race_test() {
 	eval $(build_env)
 
 	if [[ -n ${COVERALLS_TOKEN} ]]; then
@@ -177,7 +175,7 @@ build_test() {
 		gocoverutil -coverprofile=test_results/cover.report merge test_results/*.out
 		goveralls -coverprofile=test_results/cover.report -service=ci
 	else
-		make test
+		make race-test
 	fi
 }
 
@@ -280,6 +278,7 @@ case "$1" in
 	protobuf_verify) build_protobuf_verify ;;
 	binaries|bin) build_binaries $2 ;;
 	test) build_test ;;
+	race-test) build_race_test ;;
 	integration) build_integration ;;
 	artifact) build_artifact ;;
 	release) build_release ;;

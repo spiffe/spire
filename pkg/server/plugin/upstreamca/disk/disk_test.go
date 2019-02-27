@@ -2,6 +2,7 @@ package disk
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"io/ioutil"
@@ -17,8 +18,8 @@ import (
 const (
 	config = `{
 	"ttl":"1h",
-	"key_file_path":"_test_data/keys/private_key.pem",
-	"cert_file_path":"_test_data/keys/cert.pem"
+	"key_file_path":"_test_data/keys/EC/private_key.pem",
+	"cert_file_path":"_test_data/keys/EC/cert.pem"
 }`
 	trustDomain = "example.com"
 )
@@ -39,8 +40,37 @@ func TestDisk_Configure(t *testing.T) {
 	require.Equal(t, &spi.ConfigureResponse{}, resp)
 }
 
+func TestDisk_ConfigureUsingECKey(t *testing.T) {
+	_, err := newWithDefault("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
+	require.NoError(t, err)
+}
+func TestDisk_ConfigureUsingPKCS1Key(t *testing.T) {
+	_, err := newWithDefault("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/PKCS1/cert.pem")
+	require.NoError(t, err)
+}
+
+func TestDisk_ConfigureUsingPKCS8Key(t *testing.T) {
+	_, err := newWithDefault("_test_data/keys/PKCS8/private_key.pem", "_test_data/keys/PKCS8/cert.pem")
+	require.NoError(t, err)
+}
+
+func TestDisk_ConfigureUsingNonMatchingKeyAndCert(t *testing.T) {
+	_, err := newWithDefault("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/PKCS8/cert.pem")
+	require.Error(t, err)
+}
+
+func TestDisk_ConfigureUsingEmptyKey(t *testing.T) {
+	_, err := newWithDefault("_test_data/keys/empty/private_key.pem", "_test_data/keys/empty/cert.pem")
+	require.Error(t, err)
+}
+
+func TestDisk_ConfigureUsingUnknownKey(t *testing.T) {
+	_, err := newWithDefault("_test_data/keys/unknonw/private_key.pem", "_test_data/keys/unknown/cert.pem")
+	require.Error(t, err)
+}
+
 func TestDisk_GetPluginInfo(t *testing.T) {
-	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+	m, err := newWithDefault("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
 	require.NoError(t, err)
 	res, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
@@ -48,7 +78,7 @@ func TestDisk_GetPluginInfo(t *testing.T) {
 }
 
 func TestDisk_SubmitValidCSR(t *testing.T) {
-	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+	m, err := newWithDefault("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
 
 	const testDataDir = "_test_data/csr_valid"
 	validCsrFiles, err := ioutil.ReadDir(testDataDir)
@@ -63,11 +93,22 @@ func TestDisk_SubmitValidCSR(t *testing.T) {
 		resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
+		require.NotNil(t, resp.SignedCertificate)
+
+		certs, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
+		require.NoError(t, err)
+		require.Len(t, certs, 1)
+		require.Equal(t, "spiffe://localhost", certURI(certs[0]))
+
+		upstreamTrustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
+		require.NoError(t, err)
+		require.Len(t, upstreamTrustBundle, 1)
+		require.Equal(t, "spiffe://local", certURI(upstreamTrustBundle[0]))
 	}
 }
 
 func TestDisk_SubmitInvalidCSR(t *testing.T) {
-	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+	m, err := newWithDefault("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
 
 	const testDataDir = "_test_data/csr_invalid"
 	validCsrFiles, err := ioutil.ReadDir(testDataDir)
@@ -86,7 +127,7 @@ func TestDisk_SubmitInvalidCSR(t *testing.T) {
 }
 
 func TestDisk_race(t *testing.T) {
-	m, err := newWithDefault("_test_data/keys/private_key.pem", "_test_data/keys/cert.pem")
+	m, err := newWithDefault("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
 	require.NoError(t, err)
 
 	csr, err := ioutil.ReadFile("_test_data/csr_valid/csr_1.pem")
@@ -114,4 +155,11 @@ func newWithDefault(keyFilePath string, certFilePath string) (upstreamca.Plugin,
 	m := New()
 	_, err = m.Configure(ctx, pluginConfig)
 	return m, err
+}
+
+func certURI(cert *x509.Certificate) string {
+	if len(cert.URIs) == 1 {
+		return cert.URIs[0].String()
+	}
+	return ""
 }

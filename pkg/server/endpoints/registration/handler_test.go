@@ -787,6 +787,67 @@ func (s *HandlerSuite) TestFetchBundle() {
 	}, resp)
 }
 
+func (s *HandlerSuite) TestEvictAgent() {
+	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_a"
+	evictRequest := &registration.EvictAgentRequest{SpiffeID: spiffeIDToRemove}
+	ctx := context.Background()
+	node := s.createAttestedNode(spiffeIDToRemove)
+	evictResponse, err := s.handler.EvictAgent(ctx, evictRequest)
+	s.Require().NoError(err)
+	s.Equal(evictResponse.Node, node, "Evict did not remove spiffeID: %q", spiffeIDToRemove)
+}
+
+func (s *HandlerSuite) TestEvictAgentWithNonExistentId() {
+	spiffeIDToAdd := "spiffe://example.org/spire/agent/join_token/token_a"
+	spiffeIDToRemove := "spiffe://example.org/spire/agent/join_token/token_b"
+	ctx := context.Background()
+	s.createAttestedNode(spiffeIDToAdd)
+	evictRequest := &registration.EvictAgentRequest{SpiffeID: spiffeIDToRemove}
+
+	// Trying to remove a non existent spiffeID
+	_, err := s.handler.EvictAgent(ctx, evictRequest)
+	s.Error(err, "Evict should have failed")
+}
+
+func (s *HandlerSuite) TestListAgents() {
+	// Creating attested nodes list
+	ctx := context.Background()
+	spiffeID1 := "spiffe://example.org/spire/agent/join_token/token_a"
+	spiffeID2 := "spiffe://example.org/spire/agent/join_token/token_b"
+	expectedNodeList := []*common.AttestedNode{
+		{SpiffeId: spiffeID1},
+		{SpiffeId: spiffeID2},
+	}
+	s.createAttestedNode(spiffeID1)
+	s.createAttestedNode(spiffeID2)
+
+	// Listing agents
+	listResponse, err := s.handler.ListAgents(ctx, &registration.ListAgentsRequest{})
+	s.Require().NoError(err)
+	s.Len(listResponse.Nodes, 2)
+	s.Equal(listResponse.Nodes, expectedNodeList)
+}
+
+func (s *HandlerSuite) TestListWithNoAgents() {
+	// Creating attested nodes list
+	ctx := context.Background()
+
+	// Listing agents
+	listResponse, err := s.handler.ListAgents(ctx, &registration.ListAgentsRequest{})
+	s.Require().NoError(err)
+	s.Len(listResponse.Nodes, 0)
+}
+
+func (s *HandlerSuite) createAttestedNode(spiffeID string) *common.AttestedNode {
+	createResponse, err := s.ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
+		Node: &common.AttestedNode{
+			SpiffeId: spiffeID,
+		},
+	})
+	s.Require().NoError(err, "Failed to create attested node")
+	return createResponse.Node
+}
+
 func (s *HandlerSuite) TestAuthorizeCall() {
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStores(s.ds)

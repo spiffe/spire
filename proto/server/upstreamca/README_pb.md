@@ -15,6 +15,7 @@
   
 
 - [upstreamca.proto](#upstreamca.proto)
+    - [SignedCertificate](#spire.server.upstreamca.SignedCertificate)
     - [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest)
     - [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRResponse)
   
@@ -130,6 +131,22 @@ Represents the plugin metadata.
 
 
 
+<a name="spire.server.upstreamca.SignedCertificate"/>
+
+### SignedCertificate
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| cert_chain | [bytes](#bytes) |  | Contains ASN.1 encoded certificates representing the signed certificate along with any intermediates necessary to chain the certificate back to a certificate present in the upstream_trust_bundle. |
+| bundle | [bytes](#bytes) |  | The upstream trust bundle. |
+
+
+
+
+
+
 <a name="spire.server.upstreamca.SubmitCSRRequest"/>
 
 ### SubmitCSRRequest
@@ -138,7 +155,7 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| csr | [bytes](#bytes) |  | Certificate signing request. |
+| csr | [bytes](#bytes) |  | Certificate signing request |
 
 
 
@@ -153,8 +170,9 @@ Represents the plugin metadata.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| cert | [bytes](#bytes) |  | Signed certificate |
-| upstreamTrustBundle | [bytes](#bytes) |  | Upstream trust bundle. |
+| DEPRECATED_cert | [bytes](#bytes) |  | Signed certificate (DEPRECATED) |
+| DEPRECATED_upstreamTrustBundle | [bytes](#bytes) |  | Upstream trust bundle (DEPRECATED) |
+| signed_certificate | [SignedCertificate](#spire.server.upstreamca.SignedCertificate) |  | Signed certificate |
 
 
 
@@ -176,7 +194,7 @@ Represents the plugin metadata.
 | ----------- | ------------ | ------------- | ------------|
 | Configure | [spire.common.plugin.ConfigureRequest](#spire.common.plugin.ConfigureRequest) | [spire.common.plugin.ConfigureResponse](#spire.common.plugin.ConfigureRequest) | Responsible for configuration of the plugin. |
 | GetPluginInfo | [spire.common.plugin.GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest) | [spire.common.plugin.GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoRequest) | Returns the version and related metadata of the installed plugin. |
-| SubmitCSR | [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest) | [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRRequest) | Will take in a CSR and submit it to the upstream CA for signing (“upstream” CA can be local self-signed root in simple case). |
+| SubmitCSR | [SubmitCSRRequest](#spire.server.upstreamca.SubmitCSRRequest) | [SubmitCSRResponse](#spire.server.upstreamca.SubmitCSRRequest) | Signs a certificate from the request |
 
  
 

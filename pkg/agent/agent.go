@@ -9,7 +9,6 @@ import (
 	"path"
 	"runtime"
 	"sync"
-	"syscall"
 
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/catalog"
@@ -30,8 +29,6 @@ type Agent struct {
 // This method initializes the agent, including its plugins,
 // and then blocks on the main event loop.
 func (a *Agent) Run(ctx context.Context) error {
-	syscall.Umask(a.c.Umask)
-
 	a.c.Log.Infof("data directory: %q", a.c.DataDir)
 	if err := os.MkdirAll(a.c.DataDir, 0755); err != nil {
 		return err

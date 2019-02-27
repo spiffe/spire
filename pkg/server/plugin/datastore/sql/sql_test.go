@@ -37,7 +37,7 @@ type PluginSuite struct {
 	cacert *x509.Certificate
 	dir    string
 
-	nextId int
+	nextID int
 	ds     datastore.Plugin
 }
 
@@ -64,8 +64,8 @@ func (s *PluginSuite) TearDownSuite() {
 func (s *PluginSuite) newPlugin() datastore.Plugin {
 	p := newPlugin()
 
-	s.nextId++
-	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextId))
+	s.nextID++
+	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
 
 	_, err := p.Configure(context.Background(), &spi.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
@@ -527,7 +527,7 @@ func (s *PluginSuite) TestNodeSelectors() {
 
 func (s *PluginSuite) TestCreateRegistrationEntry() {
 	var validRegistrationEntries []*common.RegistrationEntry
-	s.getTestDataFromJsonFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
 		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: validRegistrationEntry})
@@ -542,7 +542,7 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 
 func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 	var invalidRegistrationEntries []*common.RegistrationEntry
-	s.getTestDataFromJsonFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
 
 	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
 		createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: invalidRegistrationEntry})
@@ -592,6 +592,7 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		SpiffeId: "spiffe://example.org/foo",
 		ParentId: "spiffe://example.org/bar",
 		Ttl:      1,
+		Admin:    true,
 	})
 
 	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
@@ -600,9 +601,10 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 			{Type: "Type4", Value: "Value4"},
 			{Type: "Type5", Value: "Value5"},
 		},
-		SpiffeId: "spiffe://example.org/baz",
-		ParentId: "spiffe://example.org/bat",
-		Ttl:      2,
+		SpiffeId:   "spiffe://example.org/baz",
+		ParentId:   "spiffe://example.org/bat",
+		Ttl:        2,
+		Downstream: true,
 	})
 
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
@@ -827,6 +829,8 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	})
 
 	entry.Ttl = 2
+	entry.Admin = true
+	entry.Downstream = true
 	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
 		Entry: entry,
 	})
@@ -1293,6 +1297,33 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().NoError(err)
 			s.Require().Len(resp.Entries, 1)
 			s.Require().False(resp.Entries[0].Admin)
+
+			resp.Entries[0].Admin = true
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
+				Entry: resp.Entries[0],
+			})
+			s.Require().NoError(err)
+
+			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().True(resp.Entries[0].Admin)
+		case 5:
+			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().False(resp.Entries[0].Downstream)
+
+			resp.Entries[0].Downstream = true
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
+				Entry: resp.Entries[0],
+			})
+			s.Require().NoError(err)
+
+			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().True(resp.Entries[0].Downstream)
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
@@ -1326,11 +1357,11 @@ func (s *PluginSuite) TestBindVar() {
 	s.Require().Equal("SELECT whatever FROM foo WHERE x = $1 AND y = $2", bound)
 }
 
-func (s *PluginSuite) getTestDataFromJsonFile(filePath string, jsonValue interface{}) {
-	invalidRegistrationEntriesJson, err := ioutil.ReadFile(filePath)
+func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interface{}) {
+	invalidRegistrationEntriesJSON, err := ioutil.ReadFile(filePath)
 	s.Require().NoError(err)
 
-	err = json.Unmarshal(invalidRegistrationEntriesJson, &jsonValue)
+	err = json.Unmarshal(invalidRegistrationEntriesJSON, &jsonValue)
 	s.Require().NoError(err)
 }
 

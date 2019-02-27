@@ -36,6 +36,12 @@ type CreateConfig struct {
 
 	// Whether or not the registration entry is for an "admin" workload
 	Admin bool
+
+	// Whether or not the entry is for a downstream SPIRE server
+	Downstream bool
+
+	// Whether or not the entry represents a node or group of nodes
+	Node bool
 }
 
 // Perform basic validation, even on fields that we
@@ -54,8 +60,12 @@ func (rc *CreateConfig) Validate() (err error) {
 		return errors.New("at least one selector is required")
 	}
 
-	if rc.ParentID == "" {
-		return errors.New("a parent ID is required")
+	if rc.Node && len(rc.FederatesWith) > 0 {
+		return errors.New("node entries can not federate")
+	}
+
+	if rc.ParentID == "" && !rc.Node {
+		return errors.New("a parent ID is required if the node flag is not set")
 	}
 
 	if rc.SpiffeID == "" {
@@ -71,10 +81,14 @@ func (rc *CreateConfig) Validate() (err error) {
 	if err != nil {
 		return err
 	}
-	rc.ParentID, err = idutil.NormalizeSpiffeID(rc.ParentID, idutil.AllowAny())
-	if err != nil {
-		return err
+
+	if rc.ParentID != "" {
+		rc.ParentID, err = idutil.NormalizeSpiffeID(rc.ParentID, idutil.AllowAny())
+		if err != nil {
+			return err
+		}
 	}
+
 	for i := range rc.FederatesWith {
 		rc.FederatesWith[i], err = idutil.NormalizeSpiffeID(rc.FederatesWith[i], idutil.AllowAny())
 		if err != nil {
@@ -139,9 +153,21 @@ func (c CreateCLI) Run(args []string) int {
 // parseConfig builds a registration entry from the given config
 func (c CreateCLI) parseConfig(config *CreateConfig) ([]*common.RegistrationEntry, error) {
 	e := &common.RegistrationEntry{
-		ParentId: config.ParentID,
-		SpiffeId: config.SpiffeID,
-		Ttl:      int32(config.Ttl),
+		ParentId:   config.ParentID,
+		SpiffeId:   config.SpiffeID,
+		Ttl:        int32(config.Ttl),
+		Downstream: config.Downstream,
+	}
+
+	// If the node flag is set, then set the Parent ID to the server's expected SPIFFE ID
+	if config.Node {
+		id, err := idutil.ParseSpiffeID(e.SpiffeId, idutil.AllowAny())
+		if err != nil {
+			return nil, err
+		}
+
+		id.Path = "/spire/server"
+		e.ParentId = id.String()
 	}
 
 	selectors := []*common.Selector{}
@@ -204,7 +230,9 @@ func (CreateCLI) newConfig(args []string) (*CreateConfig, error) {
 	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
 	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
 
-	f.BoolVar(&c.Admin, "admin", false, "If true, the SPIFFE ID in this entry will be granted access to the Registration API")
+	f.BoolVar(&c.Node, "node", false, "If set, this entry will be applied to matching nodes rather than workloads")
+	f.BoolVar(&c.Admin, "admin", false, "If set, the SPIFFE ID in this entry will be granted access to the Registration API")
+	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 
 	return c, f.Parse(args)
 }

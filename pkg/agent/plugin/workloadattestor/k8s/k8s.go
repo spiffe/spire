@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/zeebo/errs"
 )
 
 const (
@@ -30,6 +31,8 @@ const (
 	containerNotInPod
 	containerMaybeInPod
 )
+
+var k8sErr = errs.Class("k8s")
 
 type k8sPlugin struct {
 	kubeletReadOnlyPort int
@@ -49,10 +52,23 @@ type k8sPluginConfig struct {
 type podInfo struct {
 	// We only care about namespace, serviceAccountName and containerID
 	Metadata struct {
-		Namespace string `json:"namespace"`
+		UID             string            `json:"uid"`
+		Namespace       string            `json:"namespace"`
+		Labels          map[string]string `json:"labels"`
+		OwnerReferences []struct {
+			Kind string `json:"kind"`
+			UID  string `json:"uid"`
+			Name string `json:"name"`
+		} `json:"ownerReferences"`
 	} `json:"metadata"`
 	Spec struct {
 		ServiceAccountName string `json:"serviceAccountName"`
+		Containers         []struct {
+			UID   string `json:"uid"`
+			Name  string `json:"name"`
+			Image string `json:"image"`
+		} `json:"containers"`
+		NodeName string `json:"nodeName"`
 	} `json:"spec"`
 	Status podStatus `json:"status"`
 }
@@ -61,13 +77,15 @@ type podList struct {
 	Items []*podInfo `json:"items"`
 }
 
+type containerStatus struct {
+	Name        string `json:"name"`
+	Image       string `json:"image"`
+	ContainerID string `json:"containerID"`
+}
+
 type podStatus struct {
-	InitContainerStatuses []struct {
-		ContainerID string `json:"containerID"`
-	} `json:"initContainerStatuses"`
-	ContainerStatuses []struct {
-		ContainerID string `json:"containerID"`
-	} `json:"containerStatuses"`
+	InitContainerStatuses []containerStatus `json:"initContainerStatuses"`
+	ContainerStatuses     []containerStatus `json:"containerStatuses"`
 }
 
 const (
@@ -78,11 +96,9 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
-	resp := workloadattestor.AttestResponse{}
-
 	cgroups, err := cgroups.GetCgroups(req.Pid, p.fs)
 	if err != nil {
-		return &resp, err
+		return nil, k8sErr.Wrap(err)
 	}
 
 	var containerID string
@@ -108,7 +124,7 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 
 	// Not a Kubernetes pod
 	if containerID == "" {
-		return &resp, nil
+		return &workloadattestor.AttestResponse{}, nil
 	}
 
 	// Poll pod information and search for the pod with the container. If
@@ -117,15 +133,17 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	for attempt := 1; ; attempt++ {
 		list, err := p.getPodListFromInsecureKubeletPort()
 		if err != nil {
-			return &resp, err
+			return nil, k8sErr.Wrap(err)
 		}
 
 		notAllContainersReady := false
 		for _, item := range list.Items {
-			switch lookUpContainerInPod(containerID, item.Status) {
+			status, lookup := lookUpContainerInPod(containerID, item.Status)
+			switch lookup {
 			case containerInPod:
-				resp.Selectors = getSelectorsFromPodInfo(item)
-				return &resp, nil
+				return &workloadattestor.AttestResponse{
+					Selectors: getSelectorsFromPodInfo(item, status),
+				}, nil
 			case containerMaybeInPod:
 				notAllContainersReady = true
 			case containerNotInPod:
@@ -136,14 +154,17 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 		// uninitialized containers, then the search is over.
 		if !notAllContainersReady || attempt >= p.maxPollAttempts {
 			log.Printf("container id %q not found (attempt %d of %d)", containerID, attempt, p.maxPollAttempts)
-			return &resp, fmt.Errorf("no selectors found")
+			return nil, k8sErr.New("no selectors found")
 		}
 
 		// wait a bit for containers to initialize before trying again.
 		log.Printf("container id %q not found (attempt %d of %d); trying again in %s", containerID, attempt, p.maxPollAttempts, p.pollRetryInterval)
 
-		// TODO: bail early via context cancelation
-		time.Sleep(p.pollRetryInterval)
+		select {
+		case <-time.After(p.pollRetryInterval):
+		case <-ctx.Done():
+			return nil, k8sErr.New("no selectors found: %v", ctx.Err())
+		}
 	}
 }
 
@@ -166,7 +187,7 @@ func (p *k8sPlugin) getPodListFromInsecureKubeletPort() (out *podList, err error
 	return out, nil
 }
 
-func lookUpContainerInPod(containerID string, status podStatus) containerLookup {
+func lookUpContainerInPod(containerID string, status podStatus) (*containerStatus, containerLookup) {
 	notReady := false
 	for _, status := range status.ContainerStatuses {
 		// TODO: should we be keying off of the status or is the lack of a
@@ -183,7 +204,7 @@ func lookUpContainerInPod(containerID string, status podStatus) containerLookup 
 		}
 
 		if containerID == containerURL.Host {
-			return containerInPod
+			return &status, containerInPod
 		}
 	}
 
@@ -202,21 +223,42 @@ func lookUpContainerInPod(containerID string, status podStatus) containerLookup 
 		}
 
 		if containerID == containerURL.Host {
-			return containerInPod
+			return &status, containerInPod
 		}
 	}
 
 	if notReady {
-		return containerMaybeInPod
+		return nil, containerMaybeInPod
 	}
 
-	return containerNotInPod
+	return nil, containerNotInPod
 }
 
-func getSelectorsFromPodInfo(info *podInfo) []*common.Selector {
-	return []*common.Selector{
-		{Type: selectorType, Value: fmt.Sprintf("sa:%v", info.Spec.ServiceAccountName)},
-		{Type: selectorType, Value: fmt.Sprintf("ns:%v", info.Metadata.Namespace)},
+func getSelectorsFromPodInfo(info *podInfo, status *containerStatus) []*common.Selector {
+	selectors := []*common.Selector{
+		makeSelector("sa:%s", info.Spec.ServiceAccountName),
+		makeSelector("ns:%s", info.Metadata.Namespace),
+		makeSelector("node-name:%s", info.Spec.NodeName),
+		makeSelector("pod-uid:%s", info.Metadata.UID),
+		makeSelector("container-name:%s", status.Name),
+		makeSelector("container-image:%s", status.Image),
+	}
+
+	for k, v := range info.Metadata.Labels {
+		selectors = append(selectors, makeSelector("pod-label:%s:%s", k, v))
+	}
+	for _, ownerReference := range info.Metadata.OwnerReferences {
+		selectors = append(selectors, makeSelector("pod-owner:%s:%s", ownerReference.Kind, ownerReference.Name))
+		selectors = append(selectors, makeSelector("pod-owner-uid:%s:%s", ownerReference.Kind, ownerReference.UID))
+	}
+
+	return selectors
+}
+
+func makeSelector(format string, args ...interface{}) *common.Selector {
+	return &common.Selector{
+		Type:  selectorType,
+		Value: fmt.Sprintf(format, args...),
 	}
 }
 
@@ -224,19 +266,10 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	resp := &spi.ConfigureResponse{}
-
 	// Parse HCL config payload into config struct
-	config := &k8sPluginConfig{}
-	hclTree, err := hcl.Parse(req.Configuration)
-	if err != nil {
-		resp.ErrorList = []string{err.Error()}
-		return resp, err
-	}
-	err = hcl.DecodeObject(&config, hclTree)
-	if err != nil {
-		resp.ErrorList = []string{err.Error()}
-		return resp, err
+	config := new(k8sPluginConfig)
+	if err := hcl.Decode(config, req.Configuration); err != nil {
+		return nil, k8sErr.Wrap(err)
 	}
 
 	// set up defaults
@@ -244,11 +277,12 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 		config.MaxPollAttempts = defaultMaxPollAttempts
 	}
 
+	var err error
 	var pollRetryInterval time.Duration
 	if config.PollRetryInterval != "" {
 		pollRetryInterval, err = time.ParseDuration(config.PollRetryInterval)
 		if err != nil {
-			return resp, err
+			return nil, k8sErr.Wrap(err)
 		}
 	}
 	if pollRetryInterval <= 0 {

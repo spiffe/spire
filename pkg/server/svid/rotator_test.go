@@ -104,7 +104,7 @@ func (s *RotatorTestSuite) requireNewCert(stream observer.Stream, serialNumber i
 	select {
 	case <-stream.Changes():
 		state := stream.Next().(State)
-		s.Require().Len(state.SVID, 1)
+		s.Require().Len(state.SVID, 2) // SVID and server CA
 		s.Require().Equal(0, state.SVID[0].SerialNumber.Cmp(big.NewInt(serialNumber)))
 	case <-timer.C:
 		s.FailNow("timeout waiting from stream change")
