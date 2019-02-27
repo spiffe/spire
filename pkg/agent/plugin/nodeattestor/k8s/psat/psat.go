@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"sync"
 
+	"gopkg.in/square/go-jose.v2/jwt"
+
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
@@ -56,14 +58,30 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestati
 		return err
 	}
 
-	token, err := loadTokenFromFile(config.tokenPath)
+	tokenStr, err := loadTokenFromFile(config.tokenPath)
 	if err != nil {
 		return psatError.New("unable to load token from %s: %v", config.tokenPath, err)
 	}
 
+	token, err := jwt.ParseSigned(tokenStr)
+	if err != nil {
+		return psatError.New("error parsing token: %v", err)
+	}
+
+	// Since token validations are performed on the server side, UnsafeClaimsWithoutVerification is used
+	claims := new(k8s.PSATClaims)
+	err = token.UnsafeClaimsWithoutVerification(claims)
+	if err != nil {
+		return psatError.New("fail to get claims from token: %v", err)
+	}
+
+	if claims.K8s.Pod.UID == "" {
+		return psatError.New("token claim pod UID is empty")
+	}
+
 	data, err := json.Marshal(k8s.PSATAttestationData{
 		Cluster: config.cluster,
-		Token:   token,
+		Token:   tokenStr,
 	})
 	if err != nil {
 		return psatError.Wrap(err)
@@ -74,6 +92,7 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestati
 			Type: pluginName,
 			Data: data,
 		},
+		SpiffeId: k8s.AgentID(pluginName, config.trustDomain, config.cluster, claims.K8s.Pod.UID),
 	})
 }
 
