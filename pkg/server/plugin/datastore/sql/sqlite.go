@@ -4,6 +4,7 @@ import (
 	"net/url"
 
 	"github.com/jinzhu/gorm"
+	// gorm sqlite dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 

@@ -2,6 +2,7 @@ package sql
 
 import (
 	"github.com/jinzhu/gorm"
+	// gorm postgres dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
