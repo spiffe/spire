@@ -3,13 +3,8 @@ package sat
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"sync"
 
 	"github.com/hashicorp/hcl"
@@ -113,9 +108,10 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 		return satError.New("unable to parse token: %v", err)
 	}
 
-	claims, err := verifyTokenSignature(cluster, token)
+	claims := new(k8s.SATClaims)
+	err = k8s.VerifyTokenSignature(cluster.serviceAccountKeys, token, claims)
 	if err != nil {
-		return err
+		return satError.Wrap(err)
 	}
 
 	// TODO: service account tokens don't currently expire.... when they do, validate the time (with leeway)
@@ -143,9 +139,9 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 		Valid:        true,
 		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, attestationData.UUID),
 		Selectors: []*common.Selector{
-			makeSelector("cluster", attestationData.Cluster),
-			makeSelector("agent_ns", claims.Namespace),
-			makeSelector("agent_sa", claims.ServiceAccountName),
+			k8s.MakeSelector(pluginName, "cluster", attestationData.Cluster),
+			k8s.MakeSelector(pluginName, "agent_ns", claims.Namespace),
+			k8s.MakeSelector(pluginName, "agent_sa", claims.ServiceAccountName),
 		},
 	})
 }
@@ -179,7 +175,7 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 			return nil, satError.New("cluster %q configuration must have at least one service account whitelisted", name)
 		}
 
-		serviceAccountKeys, err := loadServiceAccountKeys(cluster.ServiceAccountKeyFile)
+		serviceAccountKeys, err := k8s.LoadServiceAccountKeys(cluster.ServiceAccountKeyFile)
 		if err != nil {
 			return nil, satError.New("failed to load cluster %q service account keys from %q: %v", name, cluster.ServiceAccountKeyFile, err)
 		}
@@ -220,92 +216,4 @@ func (p *AttestorPlugin) setConfig(config *attestorConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
-}
-
-func verifyTokenSignature(cluster *clusterConfig, token *jwt.JSONWebToken) (claims *k8s.SATClaims, err error) {
-	var lastErr error
-	for _, key := range cluster.serviceAccountKeys {
-		claims := new(k8s.SATClaims)
-		if err := token.Claims(key, claims); err != nil {
-			lastErr = satError.New("unable to verify token: %v", err)
-			continue
-		}
-		return claims, nil
-	}
-	if lastErr == nil {
-		lastErr = satError.New("token signed by unknown authority")
-	}
-	return nil, lastErr
-}
-
-func makeSelector(kind, value string) *common.Selector {
-	return &common.Selector{
-		Type:  pluginName,
-		Value: fmt.Sprintf("%s:%s", kind, value),
-	}
-}
-
-func loadServiceAccountKeys(path string) ([]crypto.PublicKey, error) {
-	pemBytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, satError.Wrap(err)
-	}
-
-	var keys []crypto.PublicKey
-	for {
-		var pemBlock *pem.Block
-		pemBlock, pemBytes = pem.Decode(pemBytes)
-		if pemBlock == nil {
-			return keys, nil
-		}
-		key, err := decodeKeyBlock(pemBlock)
-		if err != nil {
-			return nil, err
-		}
-		if key != nil {
-			keys = append(keys, key)
-		}
-	}
-}
-
-func decodeKeyBlock(block *pem.Block) (crypto.PublicKey, error) {
-	var key crypto.PublicKey
-	switch block.Type {
-	case "CERTIFICATE":
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, satError.Wrap(err)
-		}
-		key = cert.PublicKey
-	case "RSA PUBLIC KEY":
-		rsaKey, err := x509.ParsePKCS1PublicKey(block.Bytes)
-		if err != nil {
-			return nil, satError.Wrap(err)
-		}
-		key = rsaKey
-	case "PUBLIC KEY":
-		pkixKey, err := x509.ParsePKIXPublicKey(block.Bytes)
-		if err != nil {
-			return nil, satError.Wrap(err)
-		}
-		key = pkixKey
-	default:
-		return nil, nil
-	}
-
-	if !isSupportedKey(key) {
-		return nil, satError.New("unsupported %T in %s block", key, block.Type)
-	}
-	return key, nil
-}
-
-func isSupportedKey(key crypto.PublicKey) bool {
-	switch key.(type) {
-	case *rsa.PublicKey:
-		return true
-	case *ecdsa.PublicKey:
-		return true
-	default:
-		return false
-	}
 }

@@ -35,7 +35,7 @@ type AttestorPlugin struct {
 	config *attestorConfig
 }
 
-// AttestorConfig holds JSON configuration for AttestorPlugin
+// AttestorConfig holds configuration for AttestorPlugin
 type AttestorConfig struct {
 	// Cluster name where the agent lives
 	Cluster string `hcl:"cluster"`
