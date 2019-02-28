@@ -116,7 +116,7 @@ data:
 ---
 
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: spire-server
   namespace: spire
@@ -127,6 +127,7 @@ spec:
   selector:
     matchLabels:
       app: spire-server
+  serviceName: spire-server
   template:
     metadata:
       namespace: spire
@@ -154,6 +155,9 @@ spec:
             - name: spire-secrets
               mountPath: /run/spire/secrets
               readOnly: true
+            - name: spire-data
+              mountPath: /run/spire/data
+              readOnly: false
             - name: k8s-sa-cert
               mountPath: /run/k8s-certs/sa.pub
               readOnly: true
@@ -175,6 +179,16 @@ spec:
           hostPath:
             path: /var/lib/minikube/certs/sa.pub
             type: File
+  volumeClaimTemplates:
+    - metadata:
+        name: spire-data
+        namespace: spire
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
 
 ---
 

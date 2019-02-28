@@ -6,7 +6,8 @@ better resiliancy and allows for scaling up the number of SPIRE servers.
 
 + [postgres](spire-database.yaml) runs is a StatefulSet using a
   PersistentVolume.
-+ The SPIRE [server](spire-server.yaml) runs as a stateless Deployment.
++ The SPIRE [server](spire-server.yaml) runs as a StatefulSet using a
+  PersistentVolume for certificates and Postgres for shared state.
 + The SPIRE agent runs as a DaemonSet - note this configuration is a link to
   the [simple example](../simple/spire-agent.yaml).
 
@@ -16,9 +17,8 @@ namespace, using service accounts of **spire-database**, **spire-server**, and
 
 Compare the [simple server](../simple/spire-server.yaml) configuration with
 this [postgres backed server](spire-server.yaml) to see the differences, which
-consist of: a Deployment instead of a StatefulSet, a datastore plugin change,
-an InitContainer that waits for postgres to be up, and removal of the
-PersistentVolumeClaim.
+consist of a datastore plugin change and an InitContainer that waits for
+postgres to be up.
 
 ## Usage
 
@@ -33,7 +33,7 @@ Start the postgres StatefulSet:
 $ kubectl apply -f spire-database.yaml
 ```
 
-Start the server Deployment:
+Start the server StatefulSet:
 
 
 ```
