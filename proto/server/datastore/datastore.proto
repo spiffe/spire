@@ -210,6 +210,13 @@ message DeleteRegistrationEntryResponse {
     spire.common.RegistrationEntry entry = 1;
 }
 
+message PruneRegistrationEntriesRequest {
+    int64 expires_before = 1;
+}
+
+message PruneRegistrationEntriesResponse {
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // JoinToken Messages
 /////////////////////////////////////////////////////////////////////////////
@@ -298,6 +305,8 @@ service DataStore {
     rpc UpdateRegistrationEntry(UpdateRegistrationEntryRequest) returns (UpdateRegistrationEntryResponse);
     // Deletes a specific registration entry
     rpc DeleteRegistrationEntry(DeleteRegistrationEntryRequest) returns (DeleteRegistrationEntryResponse);
+    // Prunes all registration entries that expire before the specified timestamp
+    rpc PruneRegistrationEntries(PruneRegistrationEntriesRequest) returns (PruneRegistrationEntriesResponse);
 
     // Creates a join token
     rpc CreateJoinToken(CreateJoinTokenRequest) returns (CreateJoinTokenResponse);

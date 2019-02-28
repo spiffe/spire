@@ -68,6 +68,8 @@ message RegistrationEntry {
     bool admin = 7;
     /** To enable signing CA CSR in upstream spire server  */
     bool downstream = 8;
+    /** Expiration of this entry */
+    int64 expiry = 9;
 }
 
 /** A list of registration entries. */

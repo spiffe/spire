@@ -494,6 +494,19 @@ func (s *DataStore) DeleteRegistrationEntry(ctx context.Context,
 	}, nil
 }
 
+func (s *DataStore) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for key, entry := range s.registrationEntries {
+		if entry.Expiry != 0 && entry.Expiry < req.ExpiresBefore {
+			delete(s.registrationEntries, key)
+		}
+	}
+
+	return &datastore.PruneRegistrationEntriesResponse{}, nil
+}
+
 // CreateJoinToken takes a Token message and stores it
 func (s *DataStore) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
 	s.mu.Lock()
@@ -545,7 +558,7 @@ func (s *DataStore) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoi
 	defer s.mu.Unlock()
 
 	for key, token := range s.tokens {
-		if token.Expiry <= req.ExpiresBefore {
+		if token.Expiry < req.ExpiresBefore {
 			delete(s.tokens, key)
 		}
 	}

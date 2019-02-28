@@ -307,6 +307,18 @@ func (ds *sqlPlugin) DeleteRegistrationEntry(ctx context.Context,
 	return resp, nil
 }
 
+// PruneRegistrationEntries takes a registration entry message, and deletes all entries which have expired
+// before the date in the message
+func (ds *sqlPlugin) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (resp *datastore.PruneRegistrationEntriesResponse, err error) {
+	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = pruneRegistrationEntries(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 // CreateJoinToken takes a Token message and stores it
 func (ds *sqlPlugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (resp *datastore.CreateJoinTokenResponse, err error) {
 	if req.JoinToken == nil || req.JoinToken.Token == "" || req.JoinToken.Expiry == 0 {
@@ -802,6 +814,7 @@ func createRegistrationEntry(tx *gorm.DB,
 		TTL:        req.Entry.Ttl,
 		Admin:      req.Entry.Admin,
 		Downstream: req.Entry.Downstream,
+		Expiry:     req.Entry.Expiry,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -1047,6 +1060,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	entry.Selectors = selectors
 	entry.Admin = req.Entry.Admin
 	entry.Downstream = req.Entry.Downstream
+	entry.Expiry = req.Entry.Expiry
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1079,17 +1093,41 @@ func deleteRegistrationEntry(tx *gorm.DB,
 		return nil, err
 	}
 
-	if err := tx.Model(&entry).Association("FederatesWith").Clear().Error; err != nil {
+	err = deleteRegistrationEntrySupport(tx, entry)
+	if err != nil {
 		return nil, err
-	}
-
-	if err := tx.Delete(&entry).Error; err != nil {
-		return nil, sqlError.Wrap(err)
 	}
 
 	return &datastore.DeleteRegistrationEntryResponse{
 		Entry: respEntry,
 	}, nil
+}
+
+func deleteRegistrationEntrySupport(tx *gorm.DB, entry RegisteredEntry) error {
+	if err := tx.Model(&entry).Association("FederatesWith").Clear().Error; err != nil {
+		return err
+	}
+
+	if err := tx.Delete(&entry).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
+}
+
+func pruneRegistrationEntries(tx *gorm.DB, req *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {
+	var registrationEntries []RegisteredEntry
+	if err := tx.Where("expiry != 0").Where("expiry < ?", req.ExpiresBefore).Find(&registrationEntries).Error; err != nil {
+		return nil, err
+	}
+
+	for _, entry := range registrationEntries {
+		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
+			return nil, err
+		}
+	}
+
+	return &datastore.PruneRegistrationEntriesResponse{}, nil
 }
 
 func createJoinToken(tx *gorm.DB, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
@@ -1137,7 +1175,7 @@ func deleteJoinToken(tx *gorm.DB, req *datastore.DeleteJoinTokenRequest) (*datas
 }
 
 func pruneJoinTokens(tx *gorm.DB, req *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
-	if err := tx.Where("expiry <= ?", req.ExpiresBefore).Delete(&JoinToken{}).Error; err != nil {
+	if err := tx.Where("expiry < ?", req.ExpiresBefore).Delete(&JoinToken{}).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -1250,6 +1288,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		FederatesWith: federatesWith,
 		Admin:         model.Admin,
 		Downstream:    model.Downstream,
+		Expiry:        model.Expiry,
 	}, nil
 }
 
