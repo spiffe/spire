@@ -34,11 +34,11 @@ A sample configuration with the default token path:
 Its k8s volume definition:
 ```
 volumes:
-    - name: psat
+    - name: spire-agent
       projected:
         sources:
         - serviceAccountToken:
-            path: psat
+            path: spire-agent
             expirationSeconds: 600
             audience: spire-server
 ```
@@ -47,7 +47,7 @@ And volume mount:
 ```
 volumeMounts:
     - mountPath: /var/run/secrets/tokens
-      name: psat
+      name: spire-agent
 ```
 
 ## Considerations
