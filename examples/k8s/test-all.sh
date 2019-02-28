@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 bold=$(tput bold) || true
@@ -9,66 +7,39 @@ norm=$(tput sgr0) || true
 red=$(tput setaf 1) || true
 green=$(tput setaf 2) || true
 
-# run in a separate namespace
-if [ -z "$TRAVIS" ]; then
-	MINIKUBECMD="minikube -p spire-k8s-tests"
-else
-	MINIKUBECMD="minikube"
-fi
-
-prestart() {
-	# travis-only: mount root as rshared to fix an issue with kube-dns
-	[ -z "$TRAVIS" ] || sudo mount --make-rshared /
+fail() {
+	echo "${red}$*${norm}."
+	exit 1
 }
 
-verify_tools () {
-	# check for kubectl
-	if ! command -v kubectl > /dev/null; then
-		[ -n "$TRAVIS" ] || fail "minikube is required."
-		curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v1.13.2/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-	fi
+echo "${bold}Checking for kubectl...${norm}"
+command -v kubectl > /dev/null || fail "kubectl is required."
 
-	# check for minikube
-	if ! command -v minikube > /dev/null; then
-		[ -n "$TRAVIS" ] || fail "kubectl is required."
-		curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
-	fi
+echo "${bold}Checking minikube status...${norm}"
+minikube status || fail "minikube isn't running"
 
-	# install the k8s-test binary
-	( cd ${DIR}/../../tools/k8s-test && go install )
-}
-
-start_minikube() {
-	# start minikube if it isn't already running
-	if ! $MINIKUBECMD status > /dev/null; then
-		if [ -n "$TRAVIS" ]; then
-			sudo $MINIKUBECMD start --vm-driver=none --bootstrapper=kubeadm
-		else
-			$MINIKUBECMD start
-		fi
-	fi
-
-	# update context
-	$MINIKUBECMD update-context > /dev/null
-
-	# wait for minikube to run
-	JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
-}
-
-prestart
-verify_tools
-start_minikube
+echo "${bold}Installing k8s-test...${norm}"
+( cd "${DIR}"/../../tools/k8s-test && GO111MODULE=on go install ) || fail "unable to build k8s-test"
 
 # add GOPATH/bin to the PATH
-export PATH="$(go env GOPATH)"/bin:$PATH
+PATH="$(go env GOPATH)"/bin:$PATH
+export PATH
 
+echo "${bold}Running all tests...${norm}"
 for testdir in "${DIR}"/*; do
 	if [ -d "${testdir}" ]; then
 		testname=$(basename "$testdir")
-		prefix="${bold}($testname)${norm}"
-		echo "$prefix executing..."
-		LOGPREFIX=$testname "$testdir"/test.sh && \
-			echo "${prefix} ${green}success${norm}." || \
-			echo "${prefix} ${red}failed${norm}."
+		echo "${bold}Running \"$testname\" test...${norm}"
+		if LOGPREFIX=$testname "$testdir"/test.sh; then
+			echo "${green}\"$testname\" test succeeded${norm}"
+		else
+			echo "${red}\"$testname\" test failed${norm}"
+			FAILED=true
+		fi
 	fi
 done
+
+if [ -n "${FAILED}" ]; then
+	fail "There were test failures"
+fi
+echo "${bold}Done.${norm}"

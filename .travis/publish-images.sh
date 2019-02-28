@@ -10,25 +10,11 @@ echo "Travis Branch : ${TRAVIS_BRANCH}"
 echo "Travis Tag    : ${TRAVIS_TAG}"
 echo "Travis Commit : ${TRAVIS_COMMIT}"
 
-if [ x"${TRAVIS_EVENT_TYPE}" != x"push" ]; then
-	echo "Skipping; only push builds are published"
-	exit 0
-fi
-
-if [ -z "${TRAVIS_TAG}" ] && [ x"${TRAVIS_BRANCH}" != x"master" ]; then
-	echo "Skipping; only tagged builds or builds off master are published"
-	exit 0
-fi
-
 # Log in to gcr.io using a key file for the Travis CI service account. The key
 # file is NOT stored plaintext and is decrypted by Travis CI before this script
 # is run.
 echo "Logging into gcr.io..."
 cat "${DIR}/spire-travis-ci.json" | docker login -u _json_key --password-stdin https://gcr.io
-
-# Build the SPIRE server and agent images
-echo "Building images..."
-make -C ${REPODIR} spire-images
 
 # Tag and push latest build by Git hash
 docker tag spire-server gcr.io/spiffe-io/spire-server:${TRAVIS_COMMIT}

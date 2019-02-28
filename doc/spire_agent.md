@@ -1,13 +1,6 @@
-# SPIRE Agent
+# SPIRE Agent Configuration Reference
 
-SPIRE agent runs on every node and is responsible for requesting SVIDs from the SPIRE server,
-attesting the identity of local workloads, and providing them SVIDs via the workload API.
-
-## Architecture
-
-The SPIRE agent comprises three plugin types in addition to some core logic. The plugin architecture affords SPIRE a great deal of flexibility, allowing it to be deployed in a myriad of environments and platforms. Plugins may either be built in or executed out-of-process.
-
-![spire agent architecture](images/SPIRE_agent.png)
+This document is a configuration reference for SPIRE Agent. It includes information about plugin types, built-in plugins, the agent configuration file, plugin configuration, and command line options for `spire-agent` commands.
 
 ## Plugin types
 
