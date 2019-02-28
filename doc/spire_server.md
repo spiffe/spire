@@ -1,12 +1,6 @@
-# SPIRE Server
-
-SPIRE server implements a SPIFFE issuing authority, and is responsible for creating and signing all SVIDs in its configured SPIFFE trust domain. Requests for SVIDs are authenticated and authorized using a combination of platform-specific attestation plugins and user-defined policy in the form of "registration entries".
-
-## Architecture
-
-The SPIRE server comprises five plugin types in addition to some core logic. The plugin architecture affords SPIRE a great deal of flexibility, allowing it to be deployed in a myriad of environments and platforms. Plugins may either be built in or executed out-of-process.
-
-![spire agent architecture](images/SPIRE_server.png)
+# SPIRE Server Configuration Reference
+  
+This document is a configuration reference for SPIRE Server. It includes information about plugin types, built-in plugins, the server configuration file, plugin configuration, and command line options for `spire-server` commands.
 
 ## Plugin types
 
