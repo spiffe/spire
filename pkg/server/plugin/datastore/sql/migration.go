@@ -164,7 +164,7 @@ func migrateToV2(tx *gorm.DB) error {
 func migrateToV3(tx *gorm.DB) (err error) {
 	// need to normalize all of the SPIFFE IDs at rest.
 
-	var bundles []*V3_Bundle
+	var bundles []*V3Bundle
 	if err := tx.Find(&bundles).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -206,7 +206,7 @@ func migrateToV3(tx *gorm.DB) (err error) {
 		}
 	}
 
-	var registeredEntries []*V4_RegisteredEntry
+	var registeredEntries []*V4RegisteredEntry
 	if err := tx.Find(&registeredEntries).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -239,7 +239,7 @@ func migrateToV4(tx *gorm.DB) error {
 
 	for _, bundleModel := range bundleModels {
 		// load up all certs for the bundle
-		var caCerts []V3_CACert
+		var caCerts []V3CACert
 		if err := tx.Model(bundleModel).Related(&caCerts).Error; err != nil {
 			return sqlError.Wrap(err)
 		}
@@ -273,7 +273,7 @@ func migrateToV4(tx *gorm.DB) error {
 }
 
 func migrateToV5(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&V5_RegisteredEntry{}).Error; err != nil {
+	if err := tx.AutoMigrate(&V5RegisteredEntry{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil
@@ -286,20 +286,23 @@ func migrateToV6(tx *gorm.DB) error {
 	return nil
 }
 
-type V3_Bundle struct {
+// V3Bundle holds a version 3 trust bundle
+type V3Bundle struct {
 	Model
 
 	TrustDomain string `gorm:"not null;unique_index"`
-	CACerts     []V3_CACert
+	CACerts     []V3CACert
 
 	FederatedEntries []RegisteredEntry `gorm:"many2many:federated_registration_entries;"`
 }
 
-func (V3_Bundle) TableName() string {
+// TableName get table name for v3 bundle
+func (V3Bundle) TableName() string {
 	return "bundles"
 }
 
-type V3_CACert struct {
+// V3CACert holds a version 3 CA certificate
+type V3CACert struct {
 	Model
 
 	Cert   []byte    `gorm:"not null"`
@@ -308,11 +311,13 @@ type V3_CACert struct {
 	BundleID uint `gorm:"not null;index" sql:"type:integer REFERENCES bundles(id)"`
 }
 
-func (V3_CACert) TableName() string {
+// TableName gets table name for v3 bundle
+func (V3CACert) TableName() string {
 	return "ca_certs"
 }
 
-type V4_RegisteredEntry struct {
+// V4RegisteredEntry holds a version 4 registered entry
+type V4RegisteredEntry struct {
 	Model
 
 	EntryID       string `gorm:"unique_index"`
@@ -323,11 +328,13 @@ type V4_RegisteredEntry struct {
 	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
 }
 
-func (V4_RegisteredEntry) TableName() string {
+// TableName gets table name for v4 registered entry
+func (V4RegisteredEntry) TableName() string {
 	return "registered_entries"
 }
 
-type V5_RegisteredEntry struct {
+// V5RegisteredEntry holds a version 5 registered entry
+type V5RegisteredEntry struct {
 	Model
 
 	EntryID       string `gorm:"unique_index"`
@@ -339,6 +346,7 @@ type V5_RegisteredEntry struct {
 	Admin         bool
 }
 
-func (V5_RegisteredEntry) TableName() string {
+// TableName gets table name for v5 registered entry
+func (V5RegisteredEntry) TableName() string {
 	return "registered_entries"
 }
