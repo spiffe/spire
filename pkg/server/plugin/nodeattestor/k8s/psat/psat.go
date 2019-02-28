@@ -23,8 +23,9 @@ const (
 )
 
 var (
-	psatError                     = errs.Class("k8s-psat")
-	_         nodeattestor.Plugin = (*AttestorPlugin)(nil)
+	defaultAudience                     = []string{"spire-server"}
+	psatError                           = errs.Class("k8s-psat")
+	_               nodeattestor.Plugin = (*AttestorPlugin)(nil)
 )
 
 // NewAttestorPlugin creates a new PSAT node attestor plugin
@@ -42,11 +43,16 @@ type AttestorPlugin struct {
 type ClusterConfig struct {
 	// API server public key file path.
 	// Public key is used for token validation
-	APIServerKeyFile string `hcl:"api_server_key_file"`
+	APIServerKeyFile string `hcl:"service_account_key_file"`
 
-	// Array of withelisted service accounts names
+	// Array of whitelisted service accounts names
 	// Attestation is denied if comming from a service account that is not in the list
 	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
+
+	// Audience for PSAT token validation
+	// If audience is not configured, defaultAudience will be used
+	// If audience value is set to an empty slice, validation is skipped
+	Audience *[]string `hcl:"audience"`
 
 	// If true, the plugin queries k8s API Server for extra selectors
 	QueryAPIServer bool `hcl:"enable_api_server_queries"`
@@ -64,6 +70,7 @@ type AttestorConfig struct {
 type clusterConfig struct {
 	keys            []crypto.PublicKey
 	serviceAccounts map[string]bool
+	audience        []string
 	queryAPIServer  bool
 	k8sClient       client.K8SClient
 }
@@ -130,8 +137,9 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	}
 
 	if err := claims.Validate(jwt.Expected{
-		Issuer: "api",
-		Time:   time.Now(),
+		Issuer:   "api",
+		Time:     time.Now(),
+		Audience: cluster.audience,
 	}); err != nil {
 		return psatError.New("unable to validate token claims: %v", err)
 	}
@@ -192,7 +200,7 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 
 	for name, cluster := range hclConfig.Clusters {
 		if cluster.APIServerKeyFile == "" {
-			return nil, psatError.New("cluster %q configuration missing api server keys file", name)
+			return nil, psatError.New("cluster %q configuration missing service account keys file", name)
 		}
 		if len(cluster.ServiceAccountWhitelist) == 0 {
 			return nil, psatError.New("cluster %q configuration must have at least one service account whitelisted", name)
@@ -200,15 +208,20 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 
 		keys, err := k8s.LoadServiceAccountKeys(cluster.APIServerKeyFile)
 		if err != nil {
-			return nil, psatError.New("failed to load cluster %q api server keys from %q: %v", name, cluster.APIServerKeyFile, err)
+			return nil, psatError.New("failed to load cluster %q service account keys from %q: %v", name, cluster.APIServerKeyFile, err)
 		}
 		if len(keys) == 0 {
-			return nil, psatError.New("cluster %q has no api server keys in %q", name, cluster.APIServerKeyFile)
+			return nil, psatError.New("cluster %q has no service account keys in %q", name, cluster.APIServerKeyFile)
 		}
 
 		serviceAccounts := make(map[string]bool)
 		for _, serviceAccount := range cluster.ServiceAccountWhitelist {
 			serviceAccounts[serviceAccount] = true
+		}
+
+		var audience []string
+		if cluster.Audience == nil {
+			audience = defaultAudience
 		}
 
 		var k8sClient client.K8SClient
@@ -219,6 +232,7 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 		config.clusters[name] = &clusterConfig{
 			keys:            keys,
 			serviceAccounts: serviceAccounts,
+			audience:        audience,
 			queryAPIServer:  cluster.QueryAPIServer,
 			k8sClient:       k8sClient,
 		}
@@ -253,7 +267,8 @@ func makeSelectors(claims *k8s.PSATClaims, clusterName string, cluster *clusterC
 		k8s.MakeSelector(pluginName, "cluster", clusterName),
 		k8s.MakeSelector(pluginName, "agent_ns", claims.K8s.Namespace),
 		k8s.MakeSelector(pluginName, "agent_sa", claims.K8s.ServiceAccount.Name),
-		k8s.MakeSelector(pluginName, "agent_pod", claims.K8s.Pod.Name),
+		k8s.MakeSelector(pluginName, "agent_pod_name", claims.K8s.Pod.Name),
+		k8s.MakeSelector(pluginName, "agent_pod_uid", claims.K8s.Pod.UID),
 	}
 
 	// Additional selectors (only if query k8s api server is enabled)
@@ -262,7 +277,7 @@ func makeSelectors(claims *k8s.PSATClaims, clusterName string, cluster *clusterC
 		if err != nil {
 			return nil, psatError.New("can't get node name from k8s api: %v", err)
 		}
-		selectors = append(selectors, k8s.MakeSelector(pluginName, "agent_node", node))
+		selectors = append(selectors, k8s.MakeSelector(pluginName, "agent_node_name", node))
 	}
 
 	return selectors, nil

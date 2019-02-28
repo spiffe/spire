@@ -1,6 +1,8 @@
 package client
 
 import (
+	"sync"
+
 	"github.com/kubernetes/client-go/kubernetes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -16,6 +18,7 @@ type K8SClient interface {
 type k8sClient struct {
 	kubeConfigFilePath string
 	clientset          *kubernetes.Clientset
+	mu                 sync.RWMutex
 }
 
 // NewK8SClient creates a new K8SClient.
@@ -62,6 +65,8 @@ func (c *k8sClient) reloadConfig() error {
 		return err
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.clientset = clientset
 
 	return nil

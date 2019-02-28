@@ -18,7 +18,7 @@ import (
 
 const (
 	pluginName       = "k8s_psat"
-	defaultTokenPath = "/var/run/secrets/tokens/psat"
+	defaultTokenPath = "/var/run/secrets/tokens/spire-agent"
 )
 
 var (

@@ -72,6 +72,14 @@ type AttestorSuite struct {
 	mockCtrl  *gomock.Controller
 }
 
+type TokenData struct {
+	namespace          string
+	serviceAccountName string
+	podName            string
+	podUID             string
+	audience           []string
+}
+
 func (s *AttestorSuite) SetupSuite() {
 	var err error
 	s.fooKey, err = pemutil.ParseRSAPrivateKey(fooKeyPEM)
@@ -180,7 +188,7 @@ func (s *AttestorSuite) TestAttestFailsIfClusterNotConfigured() {
 
 func (s *AttestorSuite) TestAttestFailsWithBadSignature() {
 	// sign a token and replace the signature
-	token := s.signToken(s.fooSigner, "", "", "", "")
+	token := s.signToken(s.fooSigner, TokenData{})
 	parts := strings.Split(token, ".")
 	s.Require().Len(parts, 3)
 	parts[2] = "aaaa"
@@ -197,38 +205,69 @@ func (s *AttestorSuite) TestAttestFailsWithInvalidIssuer() {
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
-	token := s.signToken(s.fooSigner, "", "", "", "")
+	token := s.signToken(s.fooSigner, TokenData{})
 	s.requireAttestError(makeAttestRequest("FOO", token), "token missing namespace claim")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
-	token := s.signToken(s.fooSigner, "NAMESPACE", "", "PODNAME", "PODUID")
+	token := s.signToken(s.fooSigner,
+		TokenData{
+			namespace: "NAMESPACE",
+			podName:   "PODNAME",
+			podUID:    "PODUID",
+		})
 	s.requireAttestError(makeAttestRequest("FOO", token), "token missing service account name claim")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
-	token := s.signToken(s.fooSigner, "NAMESPACE", "SERVICEACCOUNTNAME", "", "PODUID")
+	token := s.signToken(s.fooSigner,
+		TokenData{
+			namespace:          "NAMESPACE",
+			serviceAccountName: "SERVICEACCOUNTNAME",
+			podUID:             "PODUID",
+		})
 	s.requireAttestError(makeAttestRequest("FOO", token), "token missing pod name claim")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
-	token := s.signToken(s.fooSigner, "NAMESPACE", "SERVICEACCOUNTNAME", "PODNAME", "")
+	token := s.signToken(s.fooSigner,
+		TokenData{
+			namespace:          "NAMESPACE",
+			serviceAccountName: "SERVICEACCOUNTNAME",
+			podName:            "PODNAME",
+		})
 	s.requireAttestError(makeAttestRequest("FOO", token), "token missing pod UID claim")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelisted() {
-	token := s.signToken(s.fooSigner, "NAMESPACE", "SERVICEACCOUNTNAME", "PODNAME", "PODUID")
+	token := s.signToken(s.fooSigner,
+		TokenData{
+			namespace:          "NAMESPACE",
+			serviceAccountName: "SERVICEACCOUNTNAME",
+			podName:            "PODNAME",
+			podUID:             "PODUID",
+		})
 	s.requireAttestError(makeAttestRequest("FOO", token), `"NAMESPACE:SERVICEACCOUNTNAME" is not a whitelisted service account`)
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenSignatureCannotBeVerifiedByCluster() {
-	token := s.signToken(s.bazSigner, "NAMESPACE", "SERVICEACCOUNTNAME", "PODNAME", "PODUID")
+	token := s.signToken(s.bazSigner, TokenData{
+		namespace:          "NAMESPACE",
+		serviceAccountName: "SERVICEACCOUNTNAME",
+		podName:            "PODNAME",
+		podUID:             "PODUID",
+	})
 	s.requireAttestError(makeAttestRequest("FOO", token), "k8s-psat: unable to verify token")
 }
 
 func (s *AttestorSuite) TestAttestSuccess() {
 	// Success with FOO signed token
-	resp, err := s.doAttest(s.signAttestRequest(s.fooSigner, "FOO", "NS1", "SA1", "podname-1", "poduid-1"))
+	resp, err := s.doAttest(s.signAttestRequest(s.fooSigner, "FOO", TokenData{
+		namespace:          "NS1",
+		serviceAccountName: "SA1",
+		podName:            "podname-1",
+		podUID:             "poduid-1",
+	}))
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().True(resp.Valid)
@@ -238,12 +277,20 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		{Type: "k8s_psat", Value: "cluster:FOO"},
 		{Type: "k8s_psat", Value: "agent_ns:NS1"},
 		{Type: "k8s_psat", Value: "agent_sa:SA1"},
-		{Type: "k8s_psat", Value: "agent_pod:podname-1"},
-		{Type: "k8s_psat", Value: "agent_node:node-1"},
+		{Type: "k8s_psat", Value: "agent_pod_name:podname-1"},
+		{Type: "k8s_psat", Value: "agent_pod_uid:poduid-1"},
+		{Type: "k8s_psat", Value: "agent_node_name:node-1"},
 	}, resp.Selectors)
 
 	// Success with BAR signed token
-	resp, err = s.doAttest(s.signAttestRequest(s.barSigner, "BAR", "NS2", "SA2", "podname-2", "poduid-2"))
+	resp, err = s.doAttest(s.signAttestRequest(s.barSigner, "BAR",
+		TokenData{
+			namespace:          "NS2",
+			serviceAccountName: "SA2",
+			podName:            "podname-2",
+			podUID:             "poduid-2",
+			audience:           []string{"spire-server"},
+		}))
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().True(resp.Valid)
@@ -253,7 +300,8 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		{Type: "k8s_psat", Value: "cluster:BAR"},
 		{Type: "k8s_psat", Value: "agent_ns:NS2"},
 		{Type: "k8s_psat", Value: "agent_sa:SA2"},
-		{Type: "k8s_psat", Value: "agent_pod:podname-2"},
+		{Type: "k8s_psat", Value: "agent_pod_name:podname-2"},
+		{Type: "k8s_psat", Value: "agent_pod_uid:poduid-2"},
 	}, resp.Selectors)
 }
 
@@ -290,14 +338,14 @@ func (s *AttestorSuite) TestConfigure() {
 		}`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.Require().EqualError(err, `k8s-psat: cluster "FOO" configuration missing api server keys file`)
+	s.Require().EqualError(err, `k8s-psat: cluster "FOO" configuration missing service account keys file`)
 	s.Require().Nil(resp)
 
 	// cluster missing service account whitelist
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`clusters = {
 			"FOO" = {
-				api_server_key_file = %q
+				service_account_key_file = %q
 			}
 		}`, s.fooCertPath()),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
@@ -309,13 +357,13 @@ func (s *AttestorSuite) TestConfigure() {
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`clusters = {
 			"FOO" = {
-				api_server_key_file = %q
+				service_account_key_file = %q
 				service_account_whitelist = ["A"]
 			}
 		}`, filepath.Join(s.dir, "missing.pem")),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.requireErrorContains(err, `k8s-psat: failed to load cluster "FOO" api server keys`)
+	s.requireErrorContains(err, `k8s-psat: failed to load cluster "FOO" service account keys`)
 	s.Require().Nil(resp)
 
 	// no keys in PEM file
@@ -323,13 +371,13 @@ func (s *AttestorSuite) TestConfigure() {
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`clusters = {
 			"FOO" = {
-				api_server_key_file = %q
+				service_account_key_file = %q
 				service_account_whitelist = ["A"]
 			}
 		}`, filepath.Join(s.dir, "nokeys.pem")),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.requireErrorContains(err, `k8s-psat: cluster "FOO" has no api server keys`)
+	s.requireErrorContains(err, `k8s-psat: cluster "FOO" has no service account keys`)
 	s.Require().Nil(resp)
 
 	// success with two CERT based key files
@@ -363,15 +411,15 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	_, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`clusters = {
 			"FOO-PKCS1" = {
-				api_server_key_file = %q
+				service_account_key_file = %q
 				service_account_whitelist = ["A"]
 			}
 			"FOO-PKIX" = {
-				api_server_key_file = %q
+				service_account_key_file = %q
 				service_account_whitelist = ["A"]
 			}
 			"BAR-PKIX" = {
-				api_server_key_file = %q
+				service_account_key_file = %q
 				service_account_whitelist = ["A"]
 			}
 		}`, fooPKCS1KeyPath, fooPKIXKeyPath, barPKIXKeyPath),
@@ -386,7 +434,7 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountName, podName, podUID string) string {
+func (s *AttestorSuite) signToken(signer jose.Signer, tokenData TokenData) string {
 	builder := jwt.Signed(signer)
 
 	// build up standard claims
@@ -394,12 +442,13 @@ func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountN
 	claims.Issuer = "api"
 	claims.NotBefore = jwt.NewNumericDate(time.Now().Add(-time.Minute))
 	claims.Expiry = jwt.NewNumericDate(time.Now().Add(time.Minute))
+	claims.Audience = tokenData.audience
 
 	// build up psat claims
-	claims.K8s.Namespace = namespace
-	claims.K8s.ServiceAccount.Name = serviceAccountName
-	claims.K8s.Pod.Name = podName
-	claims.K8s.Pod.UID = podUID
+	claims.K8s.Namespace = tokenData.namespace
+	claims.K8s.ServiceAccount.Name = tokenData.serviceAccountName
+	claims.K8s.Pod.Name = tokenData.podName
+	claims.K8s.Pod.UID = tokenData.podUID
 
 	builder = builder.Claims(claims)
 
@@ -408,8 +457,8 @@ func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountN
 	return token
 }
 
-func (s *AttestorSuite) signAttestRequest(signer jose.Signer, cluster, namespace, serviceAccountName, podName, podUID string) *nodeattestor.AttestRequest {
-	return makeAttestRequest(cluster, s.signToken(signer, namespace, serviceAccountName, podName, podUID))
+func (s *AttestorSuite) signAttestRequest(signer jose.Signer, cluster string, tokenData TokenData) *nodeattestor.AttestRequest {
+	return makeAttestRequest(cluster, s.signToken(signer, tokenData))
 }
 
 func (s *AttestorSuite) newAttestor() *nodeattestor.BuiltIn {
@@ -425,13 +474,14 @@ func (s *AttestorSuite) configureAttestor() *nodeattestor.BuiltIn {
 		Configuration: fmt.Sprintf(`
 		clusters = {
 			"FOO" = {
-				api_server_key_file = %q
+				service_account_key_file = %q
 				service_account_whitelist = ["NS1:SA1"]
 				enable_api_server_queries = true
 				kube_config_file = ""
+				audience = []
 			}
 			"BAR" = {
-				api_server_key_file = %q
+				service_account_key_file = %q
 				service_account_whitelist = ["NS2:SA2"]
 				enable_api_server_queries = false
 				kube_config_file= ""

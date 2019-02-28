@@ -28,6 +28,7 @@ The SPIRE agent comprises three plugin types in addition to some core logic. The
 | NodeAttestor     | [gcp_iit](/doc/plugin_agent_nodeattestor_gcp_iit.md) | A node attestor which attests agent identity using a GCP Instance Identity Token |
 | NodeAttestor     | [join_token](/doc/plugin_agent_nodeattestor_jointoken.md) | A node attestor which uses a server-generated join token |
 | NodeAttestor     | [k8s_sat](/doc/plugin_agent_nodeattestor_k8s_sat.md) | A node attestor which attests agent identity using a Kubernetes Service Account token |
+| NodeAttestor     | [k8s_psat](/doc/plugin_agent_nodeattestor_k8s_psat.md) | A node attestor which attests agent identity using a Kubernetes Projected Service Account token |
 | NodeAttestor     | [x509_pop](/doc/plugin_agent_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
 | WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md) | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)|
 | WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md) | A workload attestor which generates unix-based selectors like `uid` and `gid` |

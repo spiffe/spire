@@ -51,6 +51,10 @@ func (s *AttestorSuite) SetupTest() {
 	s.configure(AttestorConfig{})
 }
 
+func (s *AttestorSuite) TearDownTest() {
+	os.RemoveAll(s.dir)
+}
+
 func (s *AttestorSuite) TestFetchAttestationDataNotConfigured() {
 	s.newAttestor()
 	s.requireFetchError("k8s-psat: not configured")

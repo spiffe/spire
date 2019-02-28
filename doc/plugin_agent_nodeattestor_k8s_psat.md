@@ -18,7 +18,7 @@ The main configuration accepts the following values:
 | Configuration   | Description | Default                 |
 | --------------- | ----------- | ----------------------- |
 | `cluster`       | Name of the cluster. It must correspond to a cluster configured in the server plugin. | |
-| `token_path`    | Path to the projected service account token on disk | "/var/run/secrets/tokens/psat" |
+| `token_path`    | Path to the projected service account token on disk | "/var/run/secrets/tokens/spire-agent" |
 
 
 A sample configuration with the default token path:
@@ -52,4 +52,4 @@ volumeMounts:
 
 ## Considerations
 
-This attestor is based in two Kubernetes beta features (since k8s v1.12): Token Request and Token Request Projection. The first one allows a user to call the API Server to get a finely scoped service account token. The second one allows the user to specify a projection volume to automatically do the request and mount the token in a volume.
+This attestor is based in two Kubernetes beta features (since k8s v1.12): TokenRequest and TokenRequestProjection. TokenRequest exposes the ability to obtain finely scoped service account tokens from the Kubernetes API Server. TokenRequestProjection facilitates the automatic creation and mounting of such a token into a container.
