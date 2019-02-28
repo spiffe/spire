@@ -29,7 +29,7 @@ declare -r BUILD_CACHE=${BUILD_CACHE:-$PWD/.cache}
 
 # versioned binaries that we need for builds
 export GO111MODULE=on
-declare -r GO_VERSION=${GO_VERSION:-1.11.5}
+declare -r GO_VERSION=${GO_VERSION:-1.12}
 declare -r GO_URL="https://storage.googleapis.com/golang"
 declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
 declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
