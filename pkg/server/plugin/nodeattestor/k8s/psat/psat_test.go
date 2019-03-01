@@ -455,10 +455,10 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 
 func (s *AttestorSuite) signToken(signer jose.Signer, tokenData TokenData) string {
 	// Set default times for token when time is zero-valued
-	if (tokenData.notBefore == time.Time{}) {
+	if tokenData.notBefore.IsZero() {
 		tokenData.notBefore = time.Now().Add(-time.Minute)
 	}
-	if (tokenData.expiry == time.Time{}) {
+	if tokenData.expiry.IsZero() {
 		tokenData.expiry = time.Now().Add(time.Minute)
 	}
 
