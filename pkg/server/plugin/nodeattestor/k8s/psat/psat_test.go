@@ -79,6 +79,8 @@ type TokenData struct {
 	podUID             string
 	issuer             string
 	audience           []string
+	notBefore          time.Time
+	expiry             time.Time
 }
 
 func (s *AttestorSuite) SetupSuite() {
@@ -208,6 +210,19 @@ func (s *AttestorSuite) TestAttestFailsWithInvalidIssuer() {
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 	token := s.signToken(s.fooSigner, TokenData{})
 	s.requireAttestError(makeAttestRequest("FOO", token), "token missing namespace claim")
+}
+
+func (s *AttestorSuite) TestAttestFailsWithExpiredToken() {
+	token := s.signToken(s.fooSigner,
+		TokenData{
+			namespace:          "NAMESPACE",
+			podName:            "PODNAME",
+			podUID:             "PODUID",
+			serviceAccountName: "SERVICEACCOUNT",
+			notBefore:          time.Now().Add(-15 * time.Minute),
+			expiry:             time.Now().Add(-10 * time.Minute),
+		})
+	s.requireAttestError(makeAttestRequest("FOO", token), "token is expired")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
@@ -439,13 +454,19 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 }
 
 func (s *AttestorSuite) signToken(signer jose.Signer, tokenData TokenData) string {
-	builder := jwt.Signed(signer)
+	// Set default times for token when time is zero-valued
+	if (tokenData.notBefore == time.Time{}) {
+		tokenData.notBefore = time.Now().Add(-time.Minute)
+	}
+	if (tokenData.expiry == time.Time{}) {
+		tokenData.expiry = time.Now().Add(time.Minute)
+	}
 
 	// build up standard claims
 	claims := sat_common.PSATClaims{}
 	claims.Issuer = tokenData.issuer
-	claims.NotBefore = jwt.NewNumericDate(time.Now().Add(-time.Minute))
-	claims.Expiry = jwt.NewNumericDate(time.Now().Add(time.Minute))
+	claims.NotBefore = jwt.NewNumericDate(tokenData.notBefore)
+	claims.Expiry = jwt.NewNumericDate(tokenData.expiry)
 	claims.Audience = tokenData.audience
 
 	// build up psat claims
@@ -454,6 +475,7 @@ func (s *AttestorSuite) signToken(signer jose.Signer, tokenData TokenData) strin
 	claims.K8s.Pod.Name = tokenData.podName
 	claims.K8s.Pod.UID = tokenData.podUID
 
+	builder := jwt.Signed(signer)
 	builder = builder.Claims(claims)
 
 	token, err := builder.CompactSerialize()

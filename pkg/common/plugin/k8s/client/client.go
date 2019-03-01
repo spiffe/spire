@@ -1,8 +1,6 @@
 package client
 
 import (
-	"sync"
-
 	"github.com/kubernetes/client-go/kubernetes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -17,8 +15,6 @@ type K8SClient interface {
 
 type k8sClient struct {
 	kubeConfigFilePath string
-	clientset          *kubernetes.Clientset
-	mu                 sync.RWMutex
 }
 
 // NewK8SClient creates a new K8SClient.
@@ -33,13 +29,13 @@ func NewK8SClient(kubeConfigFilePath string) K8SClient {
 
 func (c *k8sClient) GetNode(namespace, podName string) (string, error) {
 	// Reload config
-	err := c.reloadConfig()
+	clientset, err := c.loadClient()
 	if err != nil {
 		return "", err
 	}
 
 	// Get pod
-	pod, err := c.clientset.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	pod, err := clientset.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -47,7 +43,7 @@ func (c *k8sClient) GetNode(namespace, podName string) (string, error) {
 	return pod.Spec.NodeName, nil
 }
 
-func (c *k8sClient) reloadConfig() error {
+func (c *k8sClient) loadClient() (*kubernetes.Clientset, error) {
 	var config *rest.Config
 	var err error
 
@@ -57,17 +53,13 @@ func (c *k8sClient) reloadConfig() error {
 		config, err = clientcmd.BuildConfigFromFlags("", c.kubeConfigFilePath)
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.clientset = clientset
-
-	return nil
+	return clientset, nil
 }

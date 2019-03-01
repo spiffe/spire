@@ -52,4 +52,4 @@ volumeMounts:
 
 ## Considerations
 
-This attestor is based in two Kubernetes beta features (since k8s v1.12): TokenRequest and TokenRequestProjection. TokenRequest exposes the ability to obtain finely scoped service account tokens from the Kubernetes API Server. TokenRequestProjection facilitates the automatic creation and mounting of such a token into a container.
+This attestor is based on two Kubernetes beta features (since k8s v1.12): TokenRequest and TokenRequestProjection. TokenRequest exposes the ability to obtain finely scoped service account tokens from the Kubernetes API Server. TokenRequestProjection facilitates the automatic creation and mounting of such a token into a container.
