@@ -24,6 +24,7 @@ const (
 
 var (
 	defaultAudience                     = []string{"spire-server"}
+	defaultIssuer                       = "api"
 	psatError                           = errs.Class("k8s-psat")
 	_               nodeattestor.Plugin = (*AttestorPlugin)(nil)
 )
@@ -49,6 +50,11 @@ type ClusterConfig struct {
 	// Attestation is denied if comming from a service account that is not in the list
 	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
 
+	// Issuer for PSAT token validation
+	// If issuer is not configured, defaultIssuer will be used
+	// If issuer is set to an empty string, validation is skipped
+	Issuer *string `hcl:"issuer"`
+
 	// Audience for PSAT token validation
 	// If audience is not configured, defaultAudience will be used
 	// If audience value is set to an empty slice, validation is skipped
@@ -70,6 +76,7 @@ type AttestorConfig struct {
 type clusterConfig struct {
 	keys            []crypto.PublicKey
 	serviceAccounts map[string]bool
+	issuer          string
 	audience        []string
 	queryAPIServer  bool
 	k8sClient       client.K8SClient
@@ -137,7 +144,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	}
 
 	if err := claims.Validate(jwt.Expected{
-		Issuer:   "api",
+		Issuer:   cluster.issuer,
 		Time:     time.Now(),
 		Audience: cluster.audience,
 	}); err != nil {
@@ -219,6 +226,11 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 			serviceAccounts[serviceAccount] = true
 		}
 
+		var issuer string
+		if cluster.Issuer == nil {
+			issuer = defaultIssuer
+		}
+
 		var audience []string
 		if cluster.Audience == nil {
 			audience = defaultAudience
@@ -232,6 +244,7 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 		config.clusters[name] = &clusterConfig{
 			keys:            keys,
 			serviceAccounts: serviceAccounts,
+			issuer:          issuer,
 			audience:        audience,
 			queryAPIServer:  cluster.QueryAPIServer,
 			k8sClient:       k8sClient,

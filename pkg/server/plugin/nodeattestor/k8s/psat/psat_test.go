@@ -77,6 +77,7 @@ type TokenData struct {
 	serviceAccountName string
 	podName            string
 	podUID             string
+	issuer             string
 	audience           []string
 }
 
@@ -199,9 +200,9 @@ func (s *AttestorSuite) TestAttestFailsWithBadSignature() {
 }
 
 func (s *AttestorSuite) TestAttestFailsWithInvalidIssuer() {
-	token, err := jwt.Signed(s.fooSigner).CompactSerialize()
+	token, err := jwt.Signed(s.barSigner).CompactSerialize()
 	s.Require().NoError(err)
-	s.requireAttestError(makeAttestRequest("FOO", token), "invalid issuer claim")
+	s.requireAttestError(makeAttestRequest("BAR", token), "invalid issuer claim")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
@@ -267,6 +268,8 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		serviceAccountName: "SA1",
 		podName:            "podname-1",
 		podUID:             "poduid-1",
+		issuer:             "any-issuer",
+		audience:           []string{"any-audience"},
 	}))
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
@@ -289,6 +292,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 			serviceAccountName: "SA2",
 			podName:            "podname-2",
 			podUID:             "poduid-2",
+			issuer:             "api",
 			audience:           []string{"spire-server"},
 		}))
 	s.Require().NoError(err)
@@ -439,7 +443,7 @@ func (s *AttestorSuite) signToken(signer jose.Signer, tokenData TokenData) strin
 
 	// build up standard claims
 	claims := sat_common.PSATClaims{}
-	claims.Issuer = "api"
+	claims.Issuer = tokenData.issuer
 	claims.NotBefore = jwt.NewNumericDate(time.Now().Add(-time.Minute))
 	claims.Expiry = jwt.NewNumericDate(time.Now().Add(time.Minute))
 	claims.Audience = tokenData.audience
@@ -478,6 +482,7 @@ func (s *AttestorSuite) configureAttestor() *nodeattestor.BuiltIn {
 				service_account_whitelist = ["NS1:SA1"]
 				enable_api_server_queries = true
 				kube_config_file = ""
+				issuer = ""
 				audience = []
 			}
 			"BAR" = {
