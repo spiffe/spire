@@ -48,9 +48,9 @@ spec:
             - name: postgres
               containerPort: 5432
           livenessProbe:
-            failureThreshold: 2
             tcpSocket:
               port: 5432
+            failureThreshold: 2
             initialDelaySeconds: 30
             periodSeconds: 60
             timeoutSeconds: 3

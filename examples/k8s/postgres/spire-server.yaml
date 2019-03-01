@@ -51,7 +51,7 @@ data:
       NodeAttestor "k8s_sat" {
         plugin_data {
           clusters = {
-            "example.org" = {
+            "demo-cluster" = {
               service_account_key_file = "/run/k8s-certs/sa.pub"
               service_account_whitelist = ["spire:spire-agent"]
             }
@@ -160,9 +160,9 @@ spec:
               mountPath: /run/k8s-certs/sa.pub
               readOnly: true
           livenessProbe:
-            failureThreshold: 2
             tcpSocket:
               port: 8081
+            failureThreshold: 2
             initialDelaySeconds: 15
             periodSeconds: 60
             timeoutSeconds: 3
@@ -172,7 +172,7 @@ spec:
             name: spire-server
         - name: spire-secrets
           secret:
-              secretName: spire-server
+            secretName: spire-server
         - name: k8s-sa-cert
           hostPath:
             path: /var/lib/minikube/certs/sa.pub

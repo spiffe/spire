@@ -26,7 +26,7 @@ data:
     plugins {
       NodeAttestor "k8s_sat" {
         plugin_data {
-          cluster = "example.org"
+          cluster = "demo-cluster"
         }
       }
 
@@ -102,24 +102,19 @@ spec:
               mountPath: /run/spire/sockets
               readOnly: false
           livenessProbe:
-            failureThreshold: 2
             exec:
               command:
                 - /bin/sh
                 - -c
                 - "/opt/spire/bin/spire-agent api fetch -socketPath /run/spire/sockets/agent.sock 2>&1 | grep -vqE 'connection refused|no such file or directory'"
-            initialDelaySeconds: 5
+            failureThreshold: 2
+            initialDelaySeconds: 15
             periodSeconds: 60
             timeoutSeconds: 3
       volumes:
         - name: spire-config
           configMap:
             name: spire-agent
-            items:
-              - key: agent.conf
-                path: agent.conf
-              - key: bootstrap.crt
-                path: bootstrap.crt
         - name: spire-agent-socket
           hostPath:
             path: /run/spire/sockets
