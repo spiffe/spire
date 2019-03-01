@@ -13,6 +13,7 @@ func main() {
 
 	var count int
 	var noWait bool
+	var noLocal bool
 	var timeout time.Duration
 	var interval time.Duration
 
@@ -104,10 +105,11 @@ func main() {
 		Use:  "apply",
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			runCmd(ApplyConfigCmd(ctx, args, !noWait, interval))
+			runCmd(ApplyConfigCmd(ctx, args, !noWait, !noLocal, interval))
 		},
 	}
-	applyCmd.LocalFlags().BoolVarP(&noWait, "nowait", "", false, "don't wait for all objects after applying")
+	applyCmd.LocalFlags().BoolVarP(&noWait, "no-wait", "", false, "don't wait for all objects after applying")
+	applyCmd.LocalFlags().BoolVarP(&noLocal, "no-local", "", false, "don't use locally built SPIRE images")
 	applyCmd.LocalFlags().DurationVarP(&interval, "interval", "i", defaultInterval, "polling interval for object status")
 	root.AddCommand(applyCmd)
 
@@ -152,11 +154,11 @@ func WaitForNodeAttestationCmd(ctx context.Context, ident string, count int) err
 	return WaitForNodeAttestation(ctx, server, count)
 }
 
-func ApplyConfigCmd(ctx context.Context, paths []string, wait bool, interval time.Duration) error {
+func ApplyConfigCmd(ctx context.Context, paths []string, wait, local bool, interval time.Duration) error {
 	var all []Object
 
 	for _, path := range paths {
-		objects, err := ApplyConfig(ctx, path)
+		objects, err := ApplyConfig(ctx, path, local)
 		if err != nil {
 			Alertln("failed to apply %s", path)
 			return err
