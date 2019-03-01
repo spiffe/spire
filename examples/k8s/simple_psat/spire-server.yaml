@@ -145,7 +145,7 @@ spec:
       serviceAccountName: spire-server
       containers:
         - name: spire-server
-          image: gcr.io/spiffe-io/spire-server:0.7.4
+          image: gcr.io/spiffe-io/spire-server:0.7.3
           args: ["-config", "/run/spire/config/server.conf"]
           ports:
             - containerPort: 8081
