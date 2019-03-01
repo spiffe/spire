@@ -1,15 +1,10 @@
-package k8s
+package sat
 
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"sync"
 
 	"github.com/hashicorp/hcl"
@@ -34,7 +29,7 @@ type ClusterConfig struct {
 	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
 }
 
-type SATAttestorConfig struct {
+type AttestorConfig struct {
 	Clusters map[string]*ClusterConfig `hcl:"clusters"`
 }
 
@@ -43,23 +38,23 @@ type clusterConfig struct {
 	serviceAccounts    map[string]bool
 }
 
-type satAttestorConfig struct {
+type attestorConfig struct {
 	trustDomain string
 	clusters    map[string]*clusterConfig
 }
 
-type SATAttestorPlugin struct {
+type AttestorPlugin struct {
 	mu     sync.RWMutex
-	config *satAttestorConfig
+	config *attestorConfig
 }
 
-var _ nodeattestor.Plugin = (*SATAttestorPlugin)(nil)
+var _ nodeattestor.Plugin = (*AttestorPlugin)(nil)
 
-func NewSATAttestorPlugin() *SATAttestorPlugin {
-	return &SATAttestorPlugin{}
+func NewAttestorPlugin() *AttestorPlugin {
+	return &AttestorPlugin{}
 }
 
-func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+func (p *AttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return satError.Wrap(err)
@@ -113,9 +108,10 @@ func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 		return satError.New("unable to parse token: %v", err)
 	}
 
-	claims, err := verifyTokenSignature(cluster, token)
+	claims := new(k8s.SATClaims)
+	err = k8s.VerifyTokenSignature(cluster.serviceAccountKeys, token, claims)
 	if err != nil {
-		return err
+		return satError.Wrap(err)
 	}
 
 	// TODO: service account tokens don't currently expire.... when they do, validate the time (with leeway)
@@ -141,17 +137,17 @@ func (p *SATAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) erro
 
 	return stream.Send(&nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: k8s.AgentID(config.trustDomain, attestationData.Cluster, attestationData.UUID),
+		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, attestationData.UUID),
 		Selectors: []*common.Selector{
-			makeSelector("cluster", attestationData.Cluster),
-			makeSelector("agent_ns", claims.Namespace),
-			makeSelector("agent_sa", claims.ServiceAccountName),
+			k8s.MakeSelector(pluginName, "cluster", attestationData.Cluster),
+			k8s.MakeSelector(pluginName, "agent_ns", claims.Namespace),
+			k8s.MakeSelector(pluginName, "agent_sa", claims.ServiceAccountName),
 		},
 	})
 }
 
-func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	hclConfig := new(SATAttestorConfig)
+func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	hclConfig := new(AttestorConfig)
 	if err := hcl.Decode(hclConfig, req.Configuration); err != nil {
 		return nil, satError.New("unable to decode configuration: %v", err)
 	}
@@ -166,7 +162,7 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 		return nil, satError.New("configuration must have at least one cluster")
 	}
 
-	config := &satAttestorConfig{
+	config := &attestorConfig{
 		trustDomain: req.GlobalConfig.TrustDomain,
 		clusters:    make(map[string]*clusterConfig),
 	}
@@ -179,7 +175,7 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 			return nil, satError.New("cluster %q configuration must have at least one service account whitelisted", name)
 		}
 
-		serviceAccountKeys, err := loadServiceAccountKeys(cluster.ServiceAccountKeyFile)
+		serviceAccountKeys, err := k8s.LoadServiceAccountKeys(cluster.ServiceAccountKeyFile)
 		if err != nil {
 			return nil, satError.New("failed to load cluster %q service account keys from %q: %v", name, cluster.ServiceAccountKeyFile, err)
 		}
@@ -203,11 +199,11 @@ func (p *SATAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (p *SATAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (p *AttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *SATAttestorPlugin) getConfig() (*satAttestorConfig, error) {
+func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
@@ -216,96 +212,8 @@ func (p *SATAttestorPlugin) getConfig() (*satAttestorConfig, error) {
 	return p.config, nil
 }
 
-func (p *SATAttestorPlugin) setConfig(config *satAttestorConfig) {
+func (p *AttestorPlugin) setConfig(config *attestorConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
-}
-
-func verifyTokenSignature(cluster *clusterConfig, token *jwt.JSONWebToken) (claims *k8s.SATClaims, err error) {
-	var lastErr error
-	for _, key := range cluster.serviceAccountKeys {
-		claims := new(k8s.SATClaims)
-		if err := token.Claims(key, claims); err != nil {
-			lastErr = satError.New("unable to verify token: %v", err)
-			continue
-		}
-		return claims, nil
-	}
-	if lastErr == nil {
-		lastErr = satError.New("token signed by unknown authority")
-	}
-	return nil, lastErr
-}
-
-func makeSelector(kind, value string) *common.Selector {
-	return &common.Selector{
-		Type:  pluginName,
-		Value: fmt.Sprintf("%s:%s", kind, value),
-	}
-}
-
-func loadServiceAccountKeys(path string) ([]crypto.PublicKey, error) {
-	pemBytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, satError.Wrap(err)
-	}
-
-	var keys []crypto.PublicKey
-	for {
-		var pemBlock *pem.Block
-		pemBlock, pemBytes = pem.Decode(pemBytes)
-		if pemBlock == nil {
-			return keys, nil
-		}
-		key, err := decodeKeyBlock(pemBlock)
-		if err != nil {
-			return nil, err
-		}
-		if key != nil {
-			keys = append(keys, key)
-		}
-	}
-}
-
-func decodeKeyBlock(block *pem.Block) (crypto.PublicKey, error) {
-	var key crypto.PublicKey
-	switch block.Type {
-	case "CERTIFICATE":
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, satError.Wrap(err)
-		}
-		key = cert.PublicKey
-	case "RSA PUBLIC KEY":
-		rsaKey, err := x509.ParsePKCS1PublicKey(block.Bytes)
-		if err != nil {
-			return nil, satError.Wrap(err)
-		}
-		key = rsaKey
-	case "PUBLIC KEY":
-		pkixKey, err := x509.ParsePKIXPublicKey(block.Bytes)
-		if err != nil {
-			return nil, satError.Wrap(err)
-		}
-		key = pkixKey
-	default:
-		return nil, nil
-	}
-
-	if !isSupportedKey(key) {
-		return nil, satError.New("unsupported %T in %s block", key, block.Type)
-	}
-	return key, nil
-}
-
-func isSupportedKey(key crypto.PublicKey) bool {
-	switch key.(type) {
-	case *rsa.PublicKey:
-		return true
-	case *ecdsa.PublicKey:
-		return true
-	default:
-		return false
-	}
 }

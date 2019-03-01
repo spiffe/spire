@@ -8,13 +8,13 @@ better resiliency and allows for scaling up the number of SPIRE servers.
   PersistentVolume.
 + The SPIRE [server](spire-server.yaml) runs as a stateless Deployment.
 + The SPIRE agent runs as a DaemonSet - note this configuration is a symlink
-  to the [simple example](../simple/spire-agent.yaml).
+  to the [simple sat example](../simple_sat/spire-agent.yaml).
 
 Both SPIRE agent and server, along with postgres, run in the **spire**
 namespace, using service accounts of **spire-database**, **spire-server**, and
 **spire-agent**.
 
-Compare the [simple server](../simple/spire-server.yaml) configuration with
+Compare the [simple sat server](../simple_sat/spire-server.yaml) configuration with
 this [postgres backed server](spire-server.yaml) to see the differences, which
 consist of: a Deployment instead of a StatefulSet, a datastore plugin change,
 an InitContainer that waits for postgres to be up, and removal of the
@@ -28,7 +28,7 @@ failures and scalability.
   `UpstreamCA` plugin needs to be used, and `upstream_bundle = true` needs to
   be set.
 + **stateful** - To run the SPIRE server stateful, the directory specified in
-  `data_dir` must be persistent (such as in the [simple example](../simple)
+  `data_dir` must be persistent (such as in the [simple sat example](../simple_sat)
   where a StatefulSet and PersistentVolumeClaim are used.
 
 In this example deployment, the SPIRE server is stateless, using the example

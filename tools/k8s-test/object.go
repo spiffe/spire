@@ -13,6 +13,8 @@ const (
 	NamespaceKind      = "Namespace"
 	PodKind            = "Pod"
 	ReplicaSetKind     = "ReplicaSet"
+	Role               = "Role"
+	RoleBinding        = "RoleBinding"
 	SecretKind         = "Secret"
 	ServiceAccountKind = "ServiceAccount"
 	ServiceKind        = "Service"
