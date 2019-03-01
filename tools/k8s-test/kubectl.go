@@ -48,12 +48,15 @@ func kubectlGet(ctx context.Context, typ, name string, obj interface{}) error {
 	if name != "" {
 		args = append(args, name, "--ignore-not-found")
 	}
-	return kubectlCmdJSON(ctx, obj, args...)
+	return kubectlCmdJSON(ctx, nil, obj, args...)
 }
 
-func kubectlCmdJSON(ctx context.Context, obj interface{}, args ...string) error {
+func kubectlCmdJSON(ctx context.Context, stdin io.Reader, obj interface{}, args ...string) error {
+	// TODO: support context cancellation
+
 	stderr := new(bytes.Buffer)
 	cmd := kubectlCmd(append([]string{"-o", "json"}, args...)...)
+	cmd.Stdin = stdin
 	cmd.Stderr = stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -85,6 +88,8 @@ func kubectlCmdJSON(ctx context.Context, obj interface{}, args ...string) error 
 }
 
 func kubectlStreamLogs(ctx context.Context, object string, w io.Writer) error {
+	// TODO: support context cancellation
+
 	stderr := new(bytes.Buffer)
 	cmd := kubectlCmd("logs", "-f", object)
 	cmd.Stdout = w
