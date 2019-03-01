@@ -19,6 +19,8 @@ func WaitForObjects(ctx context.Context, objects []Object, interval time.Duratio
 				return err
 			}
 		case ConfigMapKind:
+		case Role:
+		case RoleBinding:
 		case SecretKind:
 		case ServiceKind:
 		case ServiceAccountKind:
