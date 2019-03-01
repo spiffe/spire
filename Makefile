@@ -99,10 +99,16 @@ spire-images: spire-server-image spire-agent-image ## Builds SPIRE Server and Ag
 .PHONY: spire-server-image
 spire-server-image: Dockerfile.server ## Builds SPIRE Server docker image
 	docker build --build-arg goversion=$(goversion-required) -t spire-server -f Dockerfile.server .
+	# tag the image for local use (in systems tests, for example). "latest"
+	# isn't preferred since that can impact image pull policy (.e.g kubelet)
+	docker tag spire-server:latest spire-server:latest-local
 
 .PHONY: spire-agent-image
 spire-agent-image: Dockerfile.agent ## Builds SPIRE Agent docker image
 	docker build --build-arg goversion=$(goversion-required) -t spire-agent -f Dockerfile.agent .
+	# tag the image for local use (in systems tests, for example). "latest"
+	# isn't preferred since that can impact image pull policy (.e.g kubelet)
+	docker tag spire-agent:latest spire-agent:latest-local
 
 ##@ Others
 utils: $(utils) ## Go-get SPIRE utils
