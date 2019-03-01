@@ -10,6 +10,7 @@ const (
 	ConfigMapKind      = "ConfigMap"
 	DaemonSetKind      = "DaemonSet"
 	DeploymentKind     = "Deployment"
+	NamespaceKind      = "Namespace"
 	PodKind            = "Pod"
 	ReplicaSetKind     = "ReplicaSet"
 	Role               = "Role"
@@ -17,6 +18,7 @@ const (
 	SecretKind         = "Secret"
 	ServiceAccountKind = "ServiceAccount"
 	ServiceKind        = "Service"
+	StatefulSetKind    = "StatefulSet"
 )
 
 type Object struct {
@@ -44,6 +46,10 @@ func PodObject(name string) Object {
 	return Object{Kind: PodKind, Name: name}
 }
 
+func StatefulSetObject(name string) Object {
+	return Object{Kind: StatefulSetKind, Name: name}
+}
+
 func ParseObject(s string) (Object, error) {
 	parts := strings.Split(s, "/")
 	if len(parts) != 2 {
@@ -55,6 +61,8 @@ func ParseObject(s string) (Object, error) {
 		return DaemonSetObject(parts[1]), nil
 	case "deployment":
 		return DeploymentObject(parts[1]), nil
+	case "statefulset":
+		return StatefulSetObject(parts[1]), nil
 	case "rs", "replicaset":
 		return ReplicaSetObject(parts[1]), nil
 	case "pod":
