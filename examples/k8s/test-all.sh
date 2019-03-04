@@ -27,10 +27,10 @@ export PATH
 
 echo "${bold}Running all tests...${norm}"
 for testdir in "${DIR}"/*; do
-	if [ -d "${testdir}" ]; then
+	if [[ -x "${testdir}/test.sh" ]]; then
 		testname=$(basename "$testdir")
 		echo "${bold}Running \"$testname\" test...${norm}"
-		if LOGPREFIX=$testname "$testdir"/test.sh; then
+		if LOGPREFIX=$testname "${testdir}/test.sh"; then
 			echo "${green}\"$testname\" test succeeded${norm}"
 		else
 			echo "${red}\"$testname\" test failed${norm}"
