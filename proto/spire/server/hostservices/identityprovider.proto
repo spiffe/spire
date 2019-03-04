@@ -1,0 +1,22 @@
+syntax = "proto3";
+package spire.server.hostservices;
+option go_package = "github.com/spiffe/spire/proto/spire/server/hostservices";
+
+import "spire/common/common.proto";
+
+message X509Identity {
+    repeated bytes cert_chain = 1;
+    bytes private_key = 2;
+}
+
+message FetchX509IdentityRequest {
+}
+
+message FetchX509IdentityResponse {
+    X509Identity identity = 1;
+    spire.common.Bundle bundle = 2;
+}
+
+service IdentityProvider {
+    rpc FetchX509Identity(FetchX509IdentityRequest) returns (FetchX509IdentityResponse);
+}

@@ -155,10 +155,10 @@ func parseFile(filePath string) (*runConfig, error) {
 
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to read configuration: %v", err)
 	}
 	if err := hcl.Decode(&c, string(data)); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to decode configuration: %v", err)
 	}
 
 	return c, nil
