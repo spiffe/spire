@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"regexp"
 
@@ -25,7 +24,6 @@ func ApplyConfig(ctx context.Context, path string, useLocalImage bool) ([]Object
 
 	if useLocalImage {
 		configBytes = replaceSpireImageWithLocal(configBytes)
-		fmt.Println("APPLYING:\n", string(configBytes))
 	}
 
 	var raw json.RawMessage

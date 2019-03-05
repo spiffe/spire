@@ -62,5 +62,13 @@ func CheckPodReady(pod *v1.Pod) error {
 			return fmt.Errorf("container %q is has terminated (%s)", status.Name, t.Reason)
 		}
 	}
+	switch pod.Status.Phase {
+	case "Running", "Succeeded":
+	default:
+		if len(pod.Status.Conditions) > 0 {
+			return fmt.Errorf("not running or succeeded (phase=%q, condition=%q)", pod.Status.Phase, pod.Status.Conditions[0].Message)
+		}
+		return fmt.Errorf("not running or succeeded (phase=%q)", pod.Status.Phase)
+	}
 	return nil
 }
