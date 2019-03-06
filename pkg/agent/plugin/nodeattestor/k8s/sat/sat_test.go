@@ -1,4 +1,4 @@
-package k8s
+package sat
 
 import (
 	"context"
@@ -14,40 +14,44 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-func TestSATAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(SATAttestorSuite))
+func TestAttestorPlugin(t *testing.T) {
+	suite.Run(t, new(AttestorSuite))
 }
 
-type SATAttestorSuite struct {
+type AttestorSuite struct {
 	suite.Suite
 
 	dir      string
 	attestor *nodeattestor.BuiltIn
 }
 
-func (s *SATAttestorSuite) SetupTest() {
+func (s *AttestorSuite) SetupTest() {
 	var err error
 	s.dir, err = ioutil.TempDir("", "spire-k8s-sat-test-")
 	s.Require().NoError(err)
 
 	s.newAttestor()
-	s.configure(SATAttestorConfig{})
+	s.configure(AttestorConfig{})
 }
 
-func (s *SATAttestorSuite) TestFetchAttestationDataNotConfigured() {
+func (s *AttestorSuite) TearDownTest() {
+	os.RemoveAll(s.dir)
+}
+
+func (s *AttestorSuite) TestFetchAttestationDataNotConfigured() {
 	s.newAttestor()
 	s.requireFetchError("k8s-sat: not configured")
 }
 
-func (s *SATAttestorSuite) TestFetchAttestationDataNoToken() {
-	s.configure(SATAttestorConfig{
+func (s *AttestorSuite) TestFetchAttestationDataNoToken() {
+	s.configure(AttestorConfig{
 		TokenPath: s.joinPath("token"),
 	})
 	s.requireFetchError("unable to load token from")
 }
 
-func (s *SATAttestorSuite) TestFetchAttestationDataSuccess() {
-	s.configure(SATAttestorConfig{
+func (s *AttestorSuite) TestFetchAttestationDataSuccess() {
+	s.configure(AttestorConfig{
 		TokenPath: s.writeValue("token", "TOKEN"),
 	})
 
@@ -74,7 +78,7 @@ func (s *SATAttestorSuite) TestFetchAttestationDataSuccess() {
 	s.Require().Equal(io.EOF, err)
 }
 
-func (s *SATAttestorSuite) TestConfigure() {
+func (s *AttestorSuite) TestConfigure() {
 	// malformed configuration
 	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
@@ -108,21 +112,21 @@ func (s *SATAttestorSuite) TestConfigure() {
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
 }
 
-func (s *SATAttestorSuite) TestGetPluginInfo() {
+func (s *AttestorSuite) TestGetPluginInfo() {
 	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *SATAttestorSuite) newAttestor() {
-	attestor := NewSATAttestorPlugin()
+func (s *AttestorSuite) newAttestor() {
+	attestor := NewAttestorPlugin()
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
 	}
 	s.attestor = nodeattestor.NewBuiltIn(attestor)
 }
 
-func (s *SATAttestorSuite) configure(config SATAttestorConfig) {
+func (s *AttestorSuite) configure(config AttestorConfig) {
 	_, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
 			TrustDomain: "example.org",
@@ -134,11 +138,11 @@ func (s *SATAttestorSuite) configure(config SATAttestorConfig) {
 	s.Require().NoError(err)
 
 }
-func (s *SATAttestorSuite) joinPath(path string) string {
+func (s *AttestorSuite) joinPath(path string) string {
 	return filepath.Join(s.dir, path)
 }
 
-func (s *SATAttestorSuite) writeValue(path, data string) string {
+func (s *AttestorSuite) writeValue(path, data string) string {
 	valuePath := s.joinPath(path)
 	err := os.MkdirAll(filepath.Dir(valuePath), 0755)
 	s.Require().NoError(err)
@@ -147,7 +151,7 @@ func (s *SATAttestorSuite) writeValue(path, data string) string {
 	return valuePath
 }
 
-func (s *SATAttestorSuite) requireFetchError(contains string) {
+func (s *AttestorSuite) requireFetchError(contains string) {
 	stream, err := s.attestor.FetchAttestationData(context.Background())
 	s.Require().NoError(err)
 	s.Require().NotNil(stream)
@@ -157,7 +161,7 @@ func (s *SATAttestorSuite) requireFetchError(contains string) {
 	s.Require().Nil(resp)
 }
 
-func (s *SATAttestorSuite) requireErrorContains(err error, contains string) {
+func (s *AttestorSuite) requireErrorContains(err error, contains string) {
 	s.Require().Error(err)
 	s.Require().Contains(err.Error(), contains)
 }

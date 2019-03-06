@@ -1,12 +1,6 @@
-# SPIRE Server
-
-SPIRE server implements a SPIFFE issuing authority, and is responsible for creating and signing all SVIDs in its configured SPIFFE trust domain. Requests for SVIDs are authenticated and authorized using a combination of platform-specific attestation plugins and user-defined policy in the form of "registration entries".
-
-## Architecture
-
-The SPIRE server comprises five plugin types in addition to some core logic. The plugin architecture affords SPIRE a great deal of flexibility, allowing it to be deployed in a myriad of environments and platforms. Plugins may either be built in or executed out-of-process.
-
-![spire agent architecture](images/SPIRE_server.png)
+# SPIRE Server Configuration Reference
+  
+This document is a configuration reference for SPIRE Server. It includes information about plugin types, built-in plugins, the server configuration file, plugin configuration, and command line options for `spire-server` commands.
 
 ## Plugin types
 
@@ -30,11 +24,13 @@ The SPIRE server comprises five plugin types in addition to some core logic. The
 | NodeAttestor | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md) | A node attestor which attests agent identity using a GCP Instance Identity Token |
 | NodeAttestor | [join_token](/doc/plugin_server_nodeattestor_jointoken.md) | A node attestor which validates agents attesting with server-generated join tokens |
 | NodeAttestor | [k8s_sat](/doc/plugin_server_nodeattestor_k8s_sat.md) | A node attestor which attests agent identity using a Kubernetes Service Account token |
+| NodeAttestor | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md) | A node attestor which attests agent identity using a Kubernetes Projected Service Account token |
 | NodeAttestor | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
 | NodeResolver | [aws_iid](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) node attestor plugin to support selecting nodes based on additional properties (such as Security Group ID). |
 | NodeResolver | [azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
 | NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
 | UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
+| UpstreamCA | [awssecret](/doc/plugin_server_upstreamca_awssecret.md) | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates. |
 
 ## Server configuration file
 

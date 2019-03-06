@@ -1,4 +1,4 @@
-package k8s
+package sat
 
 import (
 	"context"
@@ -52,11 +52,11 @@ c4gThKYxugN3V398Eieoo2HTO2L7BBjTp5yh+EUtHQD52bFseBCnZT3d
 -----END PRIVATE KEY-----`)
 )
 
-func TestSATAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(SATAttestorSuite))
+func TestAttestorPlugin(t *testing.T) {
+	suite.Run(t, new(AttestorSuite))
 }
 
-type SATAttestorSuite struct {
+type AttestorSuite struct {
 	suite.Suite
 
 	dir       string
@@ -68,7 +68,7 @@ type SATAttestorSuite struct {
 	attestor  *nodeattestor.BuiltIn
 }
 
-func (s *SATAttestorSuite) SetupSuite() {
+func (s *AttestorSuite) SetupSuite() {
 	var err error
 	s.fooKey, err = pemutil.ParseRSAPrivateKey(fooKeyPEM)
 	s.Require().NoError(err)
@@ -99,32 +99,32 @@ func (s *SATAttestorSuite) SetupSuite() {
 	s.Require().NoError(createAndWriteSelfSignedCert("BAR", s.barKey, s.barCertPath()))
 }
 
-func (s *SATAttestorSuite) TearDownSuite() {
+func (s *AttestorSuite) TearDownSuite() {
 	os.RemoveAll(s.dir)
 }
 
-func (s *SATAttestorSuite) SetupTest() {
+func (s *AttestorSuite) SetupTest() {
 	s.attestor = s.newAttestor()
 	s.configureAttestor()
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWhenNotConfigured() {
+func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
 	resp, err := s.doAttestOnAttestor(s.newAttestor(), &nodeattestor.AttestRequest{})
 	s.Require().EqualError(err, "k8s-sat: not configured")
 	s.Require().Nil(resp)
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWhenAttestedBefore() {
+func (s *AttestorSuite) TestAttestFailsWhenAttestedBefore() {
 	s.requireAttestError(&nodeattestor.AttestRequest{AttestedBefore: true},
 		"k8s-sat: node has already attested")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithNoAttestationData() {
+func (s *AttestorSuite) TestAttestFailsWithNoAttestationData() {
 	s.requireAttestError(&nodeattestor.AttestRequest{},
 		"k8s-sat: missing attestation data")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithWrongAttestationDataType() {
+func (s *AttestorSuite) TestAttestFailsWithWrongAttestationDataType() {
 	s.requireAttestError(&nodeattestor.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "blah",
@@ -132,7 +132,7 @@ func (s *SATAttestorSuite) TestAttestFailsWithWrongAttestationDataType() {
 	}, `k8s-sat: unexpected attestation data type "blah"`)
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithNoAttestationDataPayload() {
+func (s *AttestorSuite) TestAttestFailsWithNoAttestationDataPayload() {
 	s.requireAttestError(&nodeattestor.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "k8s_sat",
@@ -140,7 +140,7 @@ func (s *SATAttestorSuite) TestAttestFailsWithNoAttestationDataPayload() {
 	}, "k8s-sat: missing attestation data payload")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithMalformedAttestationDataPayload() {
+func (s *AttestorSuite) TestAttestFailsWithMalformedAttestationDataPayload() {
 	s.requireAttestError(&nodeattestor.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "k8s_sat",
@@ -149,32 +149,32 @@ func (s *SATAttestorSuite) TestAttestFailsWithMalformedAttestationDataPayload() 
 	}, "k8s-sat: failed to unmarshal data payload")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithNoCluster() {
+func (s *AttestorSuite) TestAttestFailsWithNoCluster() {
 	s.requireAttestError(makeAttestRequest("", "UUID", "TOKEN"),
 		"k8s-sat: missing cluster in attestation data")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithNoUUID() {
+func (s *AttestorSuite) TestAttestFailsWithNoUUID() {
 	s.requireAttestError(makeAttestRequest("FOO", "", "TOKEN"),
 		"k8s-sat: missing UUID in attestation data")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithNoToken() {
+func (s *AttestorSuite) TestAttestFailsWithNoToken() {
 	s.requireAttestError(makeAttestRequest("FOO", "UUID", ""),
 		"k8s-sat: missing token in attestation data")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithMalformedToken() {
+func (s *AttestorSuite) TestAttestFailsWithMalformedToken() {
 	s.requireAttestError(makeAttestRequest("FOO", "UUID", "blah"),
 		"k8s-sat: unable to parse token")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsIfClusterNotConfigured() {
+func (s *AttestorSuite) TestAttestFailsIfClusterNotConfigured() {
 	s.requireAttestError(makeAttestRequest("CLUSTER", "UUID", "blah"),
 		`k8s-sat: not configured for cluster "CLUSTER"`)
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithBadSignature() {
+func (s *AttestorSuite) TestAttestFailsWithBadSignature() {
 	// sign a token and replace the signature
 	token := s.signToken(s.fooSigner, "", "")
 	parts := strings.Split(token, ".")
@@ -186,33 +186,33 @@ func (s *SATAttestorSuite) TestAttestFailsWithBadSignature() {
 		"unable to verify token")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithInvalidIssuer() {
+func (s *AttestorSuite) TestAttestFailsWithInvalidIssuer() {
 	token, err := jwt.Signed(s.fooSigner).CompactSerialize()
 	s.Require().NoError(err)
 	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "invalid issuer claim")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
+func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 	token := s.signToken(s.fooSigner, "", "")
 	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "token missing namespace claim")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
+func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 	token := s.signToken(s.fooSigner, "NAMESPACE", "")
 	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "token missing service account name claim")
 }
 
-func (s *SATAttestorSuite) TestAttestFailsIfNamespaceNotWhitelisted() {
+func (s *AttestorSuite) TestAttestFailsIfNamespaceNotWhitelisted() {
 	token := s.signToken(s.fooSigner, "NAMESPACE", "SERVICEACCOUNTNAME")
 	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), `"NAMESPACE:SERVICEACCOUNTNAME" is not a whitelisted service account`)
 }
 
-func (s *SATAttestorSuite) TestAttestFailsIfTokenSignatureCannotBeVerifiedByCluster() {
+func (s *AttestorSuite) TestAttestFailsIfTokenSignatureCannotBeVerifiedByCluster() {
 	token := s.signToken(s.bazSigner, "NAMESPACE", "SERVICEACCOUNTNAME")
 	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "k8s-sat: unable to verify token")
 }
 
-func (s *SATAttestorSuite) TestAttestSuccess() {
+func (s *AttestorSuite) TestAttestSuccess() {
 	// Success with FOO signed token
 	resp, err := s.doAttest(s.signAttestRequest(s.fooSigner, "FOO", "NS1", "SA1"))
 	s.Require().NoError(err)
@@ -240,7 +240,7 @@ func (s *SATAttestorSuite) TestAttestSuccess() {
 	}, resp.Selectors)
 }
 
-func (s *SATAttestorSuite) TestConfigure() {
+func (s *AttestorSuite) TestConfigure() {
 	// malformed configuration
 	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: "blah",
@@ -319,7 +319,7 @@ func (s *SATAttestorSuite) TestConfigure() {
 	s.configureAttestor()
 }
 
-func (s *SATAttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
+func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	fooPKCS1KeyPath := filepath.Join(s.dir, "foo-pkcs1.pem")
 	fooPKCS1Bytes := x509.MarshalPKCS1PublicKey(&s.fooKey.PublicKey)
 	s.Require().NoError(ioutil.WriteFile(fooPKCS1KeyPath, pem.EncodeToMemory(&pem.Block{
@@ -363,13 +363,13 @@ func (s *SATAttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	s.Require().NoError(err)
 }
 
-func (s *SATAttestorSuite) TestGetPluginInfo() {
+func (s *AttestorSuite) TestGetPluginInfo() {
 	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *SATAttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountName string) string {
+func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountName string) string {
 	builder := jwt.Signed(signer)
 
 	// build up standard claims
@@ -387,16 +387,16 @@ func (s *SATAttestorSuite) signToken(signer jose.Signer, namespace, serviceAccou
 	return token
 }
 
-func (s *SATAttestorSuite) signAttestRequest(signer jose.Signer, cluster, namespace, serviceAccountName string) *nodeattestor.AttestRequest {
+func (s *AttestorSuite) signAttestRequest(signer jose.Signer, cluster, namespace, serviceAccountName string) *nodeattestor.AttestRequest {
 	return makeAttestRequest(cluster, "UUID", s.signToken(signer, namespace, serviceAccountName))
 }
 
-func (s *SATAttestorSuite) newAttestor() *nodeattestor.BuiltIn {
-	attestor := NewSATAttestorPlugin()
+func (s *AttestorSuite) newAttestor() *nodeattestor.BuiltIn {
+	attestor := NewAttestorPlugin()
 	return nodeattestor.NewBuiltIn(attestor)
 }
 
-func (s *SATAttestorSuite) configureAttestor() {
+func (s *AttestorSuite) configureAttestor() {
 	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
 		clusters = {
@@ -416,11 +416,11 @@ func (s *SATAttestorSuite) configureAttestor() {
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
 }
 
-func (s *SATAttestorSuite) doAttest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (s *AttestorSuite) doAttest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	return s.doAttestOnAttestor(s.attestor, req)
 }
 
-func (s *SATAttestorSuite) doAttestOnAttestor(attestor *nodeattestor.BuiltIn, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (s *AttestorSuite) doAttestOnAttestor(attestor *nodeattestor.BuiltIn, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	stream, err := attestor.Attest(context.Background())
 	s.Require().NoError(err)
 
@@ -433,13 +433,13 @@ func (s *SATAttestorSuite) doAttestOnAttestor(attestor *nodeattestor.BuiltIn, re
 	return stream.Recv()
 }
 
-func (s *SATAttestorSuite) requireAttestError(req *nodeattestor.AttestRequest, contains string) {
+func (s *AttestorSuite) requireAttestError(req *nodeattestor.AttestRequest, contains string) {
 	resp, err := s.doAttest(req)
 	s.requireErrorContains(err, contains)
 	s.Require().Nil(resp)
 }
 
-func (s *SATAttestorSuite) requireErrorContains(err error, contains string) {
+func (s *AttestorSuite) requireErrorContains(err error, contains string) {
 	s.Require().Error(err)
 	s.Require().Contains(err.Error(), contains)
 }
@@ -453,11 +453,11 @@ func makeAttestRequest(cluster, uuid, token string) *nodeattestor.AttestRequest 
 	}
 }
 
-func (s *SATAttestorSuite) fooCertPath() string {
+func (s *AttestorSuite) fooCertPath() string {
 	return filepath.Join(s.dir, "foo.pem")
 }
 
-func (s *SATAttestorSuite) barCertPath() string {
+func (s *AttestorSuite) barCertPath() string {
 	return filepath.Join(s.dir, "bar.pem")
 }
 
