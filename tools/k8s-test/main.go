@@ -130,7 +130,7 @@ func InitCmd(ctx context.Context) error {
 
 func CleanCmd(ctx context.Context) error {
 	Infoln("cleaning test environment...")
-	if err := DeleteNamespaceIfExist(ctx, NamespaceName); err != nil {
+	if err := DeleteNamespaceIfExist(context.Background(), NamespaceName); err != nil {
 		return err
 	}
 	Infoln("cleaning done.")
