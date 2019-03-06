@@ -51,7 +51,7 @@ var (
 			"memory": keymanager.NewBuiltIn(memory.New()),
 		},
 		NodeAttestorType: {
-			"aws_iid":    nodeattestor.NewBuiltIn(aws.NewIID()),
+			"aws_iid":    nodeattestor.NewBuiltIn(aws.NewIIDPlugin()),
 			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
 			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
 			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),

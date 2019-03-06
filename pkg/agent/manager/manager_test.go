@@ -21,12 +21,12 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
@@ -806,16 +806,16 @@ func TestFetchJWTSVID(t *testing.T) {
 }
 
 func fetchX509SVIDForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
-	switch h.reqCount {
+	switch h.getCountRequest() {
 	case 1:
 		if len(req.Csrs) != 0 {
-			return fmt.Errorf("server expected 0 CRS, got: %d. reqCount: %d", len(req.Csrs), h.reqCount)
+			return fmt.Errorf("server expected 0 CRS, got: %d. reqCount: %d", len(req.Csrs), h.getCountRequest())
 		}
 
 		return stream.Send(newFetchX509SVIDResponse([]string{"resp1", "resp2"}, nil, h.bundle))
 	case 2:
 		if len(req.Csrs) != 3 {
-			return fmt.Errorf("server expected 3 CRS, got: %d. reqCount: %d", len(req.Csrs), h.reqCount)
+			return fmt.Errorf("server expected 3 CRS, got: %d. reqCount: %d", len(req.Csrs), h.getCountRequest())
 		}
 
 		svids, err := h.makeSvids(req.Csrs)
@@ -828,19 +828,19 @@ func fetchX509SVIDForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, 
 			svids,
 			h.bundle))
 	default:
-		return fmt.Errorf("server received unexpected call. reqCount: %d", h.reqCount)
+		return fmt.Errorf("server received unexpected call. reqCount: %d", h.getCountRequest())
 	}
 }
 
 func fetchX509SVID(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
 	svid, err := h.getCertFromCtx(stream.Context())
 	if err != nil {
-		return fmt.Errorf("cannot get SVID from stream context: %v. reqCount: %d", err, h.reqCount)
+		return fmt.Errorf("cannot get SVID from stream context: %v. reqCount: %d", err, h.getCountRequest())
 	}
 
 	spiffeID, err := getSpiffeIDFromSVID(svid)
 	if err != nil {
-		return fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.reqCount)
+		return fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.getCountRequest())
 	}
 
 	var resps []string
@@ -867,7 +867,7 @@ func fetchX509SVIDForStaleCacheTest(h *mockNodeAPIHandler, req *node.FetchX509SV
 		return err
 	}
 
-	switch h.reqCount {
+	switch h.getCountRequest() {
 	case 1:
 		return stream.Send(newFetchX509SVIDResponse([]string{"resp1", "resp2"}, nil, h.bundle))
 	case 2:
@@ -886,7 +886,7 @@ func fetchX509SVIDForRegistrationEntryUpdateTest(h *mockNodeAPIHandler, req *nod
 		return err
 	}
 
-	switch h.reqCount {
+	switch h.getCountRequest() {
 	case 1:
 		return stream.Send(newFetchX509SVIDResponse([]string{"resp2"}, nil, h.bundle))
 	case 2:
@@ -898,7 +898,7 @@ func fetchX509SVIDForRegistrationEntryUpdateTest(h *mockNodeAPIHandler, req *nod
 }
 
 func fetchX509SVIDForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
-	switch h.reqCount {
+	switch h.getCountRequest() {
 	case 2:
 		ca, _ := createCA(h.c.t, h.clk, h.c.trustDomain)
 		h.bundle.AppendRootCA(ca)
@@ -908,7 +908,7 @@ func fetchX509SVIDForTestSubscribersGetUpToDateBundle(h *mockNodeAPIHandler, req
 }
 
 func fetchX509SVIDForTestSurvivesCARotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {
-	switch h.reqCount {
+	switch h.getCountRequest() {
 	case 2:
 		ca, key := createCA(h.c.t, h.clk, h.c.trustDomain)
 		h.cakey = key
@@ -1020,6 +1020,8 @@ type mockNodeAPIHandler struct {
 	reqCount int
 
 	clk clock.Clock
+	// Lock for the count
+	mtx sync.RWMutex
 }
 
 func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig, clk clock.Clock) *mockNodeAPIHandler {
@@ -1049,7 +1051,7 @@ func (h *mockNodeAPIHandler) makeSvids(csrs [][]byte) (svidMap, error) {
 		svid := h.newSVIDFromCSR(csr)
 		spiffeID, err := getSpiffeIDFromSVID(svid[0])
 		if err != nil {
-			return nil, fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.reqCount)
+			return nil, fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.getCountRequest())
 		}
 		svids[spiffeID] = &node.X509SVID{
 			CertChain: x509util.DERFromCertificates(svid),
@@ -1059,7 +1061,15 @@ func (h *mockNodeAPIHandler) makeSvids(csrs [][]byte) (svidMap, error) {
 	return svids, nil
 }
 
+func (h *mockNodeAPIHandler) getCountRequest() int {
+	h.mtx.RLock()
+	defer h.mtx.RUnlock()
+	return h.reqCount
+}
+
 func (h *mockNodeAPIHandler) countRequest() {
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
 	h.reqCount++
 }
 
