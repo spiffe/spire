@@ -54,14 +54,17 @@ func (NodeSelector) TableName() string {
 type RegisteredEntry struct {
 	Model
 
-	EntryID       string `gorm:"unique_index"`
-	SpiffeID      string
-	ParentID      string
+	EntryID  string `gorm:"unique_index"`
+	SpiffeID string
+	ParentID string
+	// TTL of identities derived from this entry
 	TTL           int32
 	Selectors     []Selector
 	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
 	Admin         bool
 	Downstream    bool
+	// (optional) expiry of this entry
+	Expiry int64
 }
 
 // JoinToken holds a join token
