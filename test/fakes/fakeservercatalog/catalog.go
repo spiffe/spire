@@ -6,6 +6,7 @@ import (
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/bootstrapper"
 	"github.com/spiffe/spire/proto/server/keymanager"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
@@ -18,6 +19,7 @@ type Catalog struct {
 	nodeResolvers []*catalog.ManagedNodeResolver
 	upstreamCAs   []*catalog.ManagedUpstreamCA
 	keyManagers   []*catalog.ManagedKeyManager
+	eventHandlers []*catalog.ManagedBootstrapper
 }
 
 func New() *Catalog {
@@ -101,6 +103,21 @@ func (c *Catalog) SetKeyManagers(keyManagers ...keymanager.KeyManager) {
 func (c *Catalog) KeyManagers() []*catalog.ManagedKeyManager {
 	return c.keyManagers
 }
+
+func (c *Catalog) SetBootstrappers(eventHandlers ...bootstrapper.Bootstrapper) {
+	c.eventHandlers = nil
+	for i, eventHandlerr := range eventHandlers {
+		c.eventHandlers = append(c.eventHandlers, catalog.NewManagedBootstrapper(
+			eventHandlerr, common.PluginConfig{
+				PluginName: pluginName("keymanager", i),
+			}))
+	}
+}
+
+func (c *Catalog) Bootstrappers() []*catalog.ManagedBootstrapper {
+	return c.eventHandlers
+}
+
 func pluginName(kind string, i int) string {
 	return fmt.Sprintf("fake_%s_%d", kind, i+1)
 }

@@ -3,6 +3,7 @@ package catalog
 import (
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/server/bootstrapper"
 	"github.com/spiffe/spire/proto/server/keymanager"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
@@ -86,5 +87,21 @@ func NewManagedKeyManager(p keymanager.KeyManager, config common.PluginConfig) *
 }
 
 func (p *ManagedKeyManager) Config() common.PluginConfig {
+	return p.config
+}
+
+type ManagedBootstrapper struct {
+	config common.PluginConfig
+	bootstrapper.Bootstrapper
+}
+
+func NewManagedBootstrapper(p bootstrapper.Bootstrapper, config common.PluginConfig) *ManagedBootstrapper {
+	return &ManagedBootstrapper{
+		config:       config,
+		Bootstrapper: p,
+	}
+}
+
+func (p *ManagedBootstrapper) Config() common.PluginConfig {
 	return p.config
 }

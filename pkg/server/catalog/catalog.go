@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/server/plugin/bootstrapper/k8sbootstrapper"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	aws_na "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
 	azure_na "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azure"
@@ -17,6 +18,7 @@ import (
 	aws_nr "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
 	azure_nr "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
+	"github.com/spiffe/spire/proto/server/bootstrapper"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/keymanager"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
@@ -37,6 +39,7 @@ const (
 	NodeResolverType = "NodeResolver"
 	UpstreamCAType   = "UpstreamCA"
 	KeyManagerType   = "KeyManager"
+	BootstrapperType = "Bootstrapper"
 )
 
 type Catalog interface {
@@ -45,6 +48,7 @@ type Catalog interface {
 	NodeResolvers() []*ManagedNodeResolver
 	UpstreamCAs() []*ManagedUpstreamCA
 	KeyManagers() []*ManagedKeyManager
+	Bootstrappers() []*ManagedBootstrapper
 }
 
 var (
@@ -54,6 +58,7 @@ var (
 		NodeResolverType: &noderesolver.GRPCPlugin{},
 		UpstreamCAType:   &upstreamca.GRPCPlugin{},
 		KeyManagerType:   &keymanager.GRPCPlugin{},
+		BootstrapperType: &bootstrapper.GRPCPlugin{},
 	}
 
 	builtinPlugins = common.BuiltinPluginMap{
@@ -82,6 +87,9 @@ var (
 			"disk":   keymanager.NewBuiltIn(keymanager_disk.New()),
 			"memory": keymanager.NewBuiltIn(keymanager_memory.New()),
 		},
+		BootstrapperType: {
+			"k8s_bootstrapper": bootstrapper.NewBuiltIn(k8sbootstrapper.New()),
+		},
 	}
 )
 
@@ -101,6 +109,7 @@ type ServerCatalog struct {
 	nodeResolverPlugins []*ManagedNodeResolver
 	upstreamCAPlugins   []*ManagedUpstreamCA
 	keyManagerPlugins   []*ManagedKeyManager
+	bootstrapperPlugins []*ManagedBootstrapper
 }
 
 func New(c *Config) *ServerCatalog {
@@ -187,6 +196,13 @@ func (c *ServerCatalog) KeyManagers() []*ManagedKeyManager {
 	return append([]*ManagedKeyManager(nil), c.keyManagerPlugins...)
 }
 
+func (c *ServerCatalog) Bootstrappers() []*ManagedBootstrapper {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	return append([]*ManagedBootstrapper(nil), c.bootstrapperPlugins...)
+}
+
 // categorize iterates over all managed plugins and casts them into their
 // respective client types. This method is called during Run and Reload
 // to prevent the consumer from having to check for errors when fetching
@@ -231,7 +247,12 @@ func (c *ServerCatalog) categorize() error {
 				return fmt.Errorf("Plugin %s does not adhere to KeyManager interface", p.Config.PluginName)
 			}
 			c.keyManagerPlugins = append(c.keyManagerPlugins, NewManagedKeyManager(pl, p.Config))
-
+		case BootstrapperType:
+			pl, ok := p.Plugin.(bootstrapper.Bootstrapper)
+			if !ok {
+				return fmt.Errorf("Plugin %s does not adhere to Bootstrapper interface", p.Config.PluginName)
+			}
+			c.bootstrapperPlugins = append(c.bootstrapperPlugins, NewManagedBootstrapper(pl, p.Config))
 		default:
 			return fmt.Errorf("Unsupported plugin type %s", p.Config.PluginType)
 		}
@@ -247,6 +268,9 @@ func (c *ServerCatalog) categorize() error {
 		if c < 1 {
 			return fmt.Errorf("At least one plugin of type %s is required", t)
 		}
+	}
+	if len(c.bootstrapperPlugins) > 1 {
+		return fmt.Errorf("Only one Bootstrapper plugin can be enabled.")
 	}
 
 	return nil

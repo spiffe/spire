@@ -1,0 +1,40 @@
+syntax = "proto3";
+package spire.server.bootstrapper;
+option go_package = "bootstrapper";
+
+import "github.com/spiffe/spire/proto/common/common.proto";
+import "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
+
+message PublishBundleRequest {
+    spire.common.Bundle bundle = 1;
+}
+
+message PublishBundleResponse {}
+
+service Bootstrapper {
+    // PublishBundle is used by SPIRE to facilitate a read-modify-write cycle
+    // for publishing the trust bundle for bootstrapping. In an HA deployment,
+    // multiple SPIRE servers would be actively involved in publishing the
+    // bundle. As such it is important for bootstrappers to support conflict
+    // resolution. The publishing flow is as follows:
+    //
+    // 1) SPIRE opens a PublishBundle stream and waits to receive a response
+    // from Bootstrapper.
+    //
+    // 2) Bootstrapper does whatever it needs to do to successfully detect a
+    // conflict publishing the bundle (.e.g. reading the version number of the
+    // currently published bundle).  Once it is prepared to do the update, it
+    // sends a response to SPIRE.
+    //
+    // 3) SPIRE fetches the latest bundle and sends it to Bootstrapper and
+    // awaits a response.
+    //
+    // 4) Bootstrapper attempts to publish the bundle. If successful, it closes
+    // the stream. SPIRE receives the EOF as a signal that publishing is
+    // complete. On conflict, Bootstrapper sends a response back to SPIRE. The
+    // process is repeated starting at step #3.
+    rpc PublishBundle(stream PublishBundleRequest) returns (stream PublishBundleResponse);
+
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+}

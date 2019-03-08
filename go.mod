@@ -90,7 +90,7 @@ require (
 	gopkg.in/square/go-jose.v2 v2.1.8
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.0.0-20190111032252-67edc246be36 // indirect
+	k8s.io/api v0.0.0-20190111032252-67edc246be36
 	k8s.io/apimachinery v0.0.0-20190221093215-450d01ad5771
 	k8s.io/client-go v10.0.0+incompatible
 	k8s.io/klog v0.2.0 // indirect

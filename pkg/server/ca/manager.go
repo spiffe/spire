@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/big"
 	"net/url"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -27,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/server/bootstrapper"
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/keymanager"
 	"github.com/spiffe/spire/proto/server/upstreamca"
@@ -50,6 +53,7 @@ type ManagerConfig struct {
 	CertsPath      string
 	Log            logrus.FieldLogger
 	Metrics        telemetry.Metrics
+	Clock          clock.Clock
 }
 
 type Manager interface {
@@ -114,9 +118,7 @@ type manager struct {
 	current *keypairSet
 	next    *keypairSet
 
-	hooks struct {
-		now func() time.Time
-	}
+	bundleUpdatedCh chan struct{}
 }
 
 func NewManager(c *ManagerConfig) *manager {
@@ -126,8 +128,11 @@ func NewManager(c *ManagerConfig) *manager {
 	if c.CATTL <= 0 {
 		c.CATTL = DefaultCATTL
 	}
+	if c.Clock == nil {
+		c.Clock = clock.New()
+	}
 
-	m := &manager{
+	return &manager{
 		c: c,
 		ca: newServerCA(serverCAConfig{
 			Log:         c.Log,
@@ -136,6 +141,7 @@ func NewManager(c *ManagerConfig) *manager {
 			TrustDomain: c.TrustDomain,
 			DefaultTTL:  c.SVIDTTL,
 			CASubject:   c.CASubject,
+			Clock:       c.Clock,
 		}),
 		current: &keypairSet{
 			slot: "A",
@@ -143,9 +149,8 @@ func NewManager(c *ManagerConfig) *manager {
 		next: &keypairSet{
 			slot: "B",
 		},
+		bundleUpdatedCh: make(chan struct{}, 1),
 	}
-	m.hooks.now = time.Now
-	return m
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
@@ -153,6 +158,11 @@ func (m *manager) Initialize(ctx context.Context) error {
 		return err
 	}
 	if err := m.rotateCAs(ctx); err != nil {
+		return err
+	}
+
+	// publish the bundle on startup
+	if err := m.publishBundle(ctx); err != nil {
 		return err
 	}
 
@@ -166,7 +176,9 @@ func (m *manager) Run(ctx context.Context) error {
 		},
 		func(ctx context.Context) error {
 			return m.pruneBundleEvery(ctx, 6*time.Hour)
-		})
+		},
+		m.publishBundleOnUpdate,
+	)
 	if err == context.Canceled {
 		err = nil
 	}
@@ -178,7 +190,7 @@ func (m *manager) CA() ServerCA {
 }
 
 func (m *manager) rotateCAsEvery(ctx context.Context, interval time.Duration) error {
-	ticker := time.NewTicker(interval)
+	ticker := m.c.Clock.Ticker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -222,7 +234,7 @@ func (m *manager) rotateCAs(ctx context.Context) error {
 }
 
 func (m *manager) pruneBundleEvery(ctx context.Context, interval time.Duration) error {
-	ticker := time.NewTicker(interval)
+	ticker := m.c.Clock.Ticker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -241,7 +253,7 @@ func (m *manager) pruneBundle(ctx context.Context) (err error) {
 	defer telemetry.CountCall(m.c.Metrics, "manager", "bundle", "prune")(&err)
 	ds := m.c.Catalog.DataStores()[0]
 
-	now := m.hooks.now().Add(-safetyThreshold)
+	now := m.c.Clock.Now().Add(-safetyThreshold)
 
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: m.c.TrustDomain.String(),
@@ -305,9 +317,25 @@ pruneRootCA:
 		if err != nil {
 			return fmt.Errorf("write new bundle: %v", err)
 		}
+		m.bundleUpdated()
 	}
 
 	return nil
+}
+
+func (m *manager) publishBundleOnUpdate(ctx context.Context) error {
+	// publish bundle whenever there is a update
+	// TODO: consider adding a timer to periodically refresh the bundle.
+	for {
+		select {
+		case <-m.bundleUpdatedCh:
+			if err := m.publishBundle(ctx); err != nil {
+				m.c.Log.Error(err)
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
 }
 
 func (m *manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKey *common.PublicKey) error {
@@ -321,7 +349,7 @@ func (m *manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 	}
 
 	ds := m.c.Catalog.DataStores()[0]
-	if _, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
+	_, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: &common.Bundle{
 			TrustDomainId: m.c.TrustDomain.String(),
 			RootCas:       rootCAs,
@@ -329,10 +357,12 @@ func (m *manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 				jwtSigningKey,
 			},
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
+	m.bundleUpdated()
 	return nil
 }
 
@@ -341,7 +371,7 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err e
 	m.c.Log.Debugf("Preparing keypair set %q", kps.slot)
 	kps.Reset()
 
-	now := m.hooks.now()
+	now := m.c.Clock.Now()
 	notBefore := now.Add(-backdate)
 	notAfter := now.Add(m.c.CATTL)
 
@@ -415,6 +445,72 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err e
 	m.writeKeypairSets()
 	m.c.Log.Debugf("Keypair set %q will expire %s", kps.slot, certChainWithRoot[0].NotAfter.Format(time.RFC3339))
 	return nil
+}
+
+func (m *manager) publishBundle(ctx context.Context) error {
+	bss := m.c.Catalog.Bootstrappers()
+	if len(bss) == 0 {
+		// a bootstrapper is not configured. nothing to do.
+		return nil
+	}
+
+	bs := bss[0]
+	ds := m.c.Catalog.DataStores()[0]
+
+	m.c.Log.Info("Publishing bundle...")
+
+	stream, err := bs.PublishBundle(ctx)
+	if err != nil {
+		return err
+	}
+	defer stream.CloseSend()
+
+	// the bootstrapper will send back a response as soon as it is ready
+	// to publish.
+	if _, err = stream.Recv(); err != nil {
+		return err
+	}
+
+	for {
+		m.c.Log.Debug("Bootstrapper is ready to publish bundle.")
+
+		// fetch the latest bundle
+		resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+			TrustDomainId: m.c.TrustDomain.String(),
+		})
+		if err != nil {
+			return err
+		}
+
+		// send the latest bundle to the bootstrapper.
+		m.c.Log.Debug("Sending bundle to bootstrapper.")
+		if err := stream.Send(&bootstrapper.PublishBundleRequest{
+			Bundle: resp.Bundle,
+		}); err != nil {
+			return err
+		}
+
+		// if the bootstrapper successfully published the bundle, the stream
+		// will be closed and an EOF will be returned. if the bootstrapper had
+		// a conflict and needs to re-publish the latest bundle, then a normal
+		// response will be received and the process will be repeated with the
+		// latest bundle. if the bootstrapper failed to publish the bundle,
+		// then a non-EOF error will be returned.
+		if _, err := stream.Recv(); err != nil {
+			if err == io.EOF {
+				m.c.Log.Info("Bundle published successfully.")
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+func (m *manager) bundleUpdated() {
+	select {
+	case m.bundleUpdatedCh <- struct{}{}:
+	default:
+	}
 }
 
 func (m *manager) loadKeypairSets(ctx context.Context) error {
@@ -552,11 +648,11 @@ func (m *manager) writeKeypairSets() {
 }
 
 func (m *manager) shouldPrepare() bool {
-	return m.current.x509CA == nil || m.hooks.now().After(preparationThreshold(m.current.x509CA.cert()))
+	return m.current.x509CA == nil || m.c.Clock.Now().After(preparationThreshold(m.current.x509CA.cert()))
 }
 
 func (m *manager) shouldActivate() bool {
-	return m.current.x509CA == nil || m.hooks.now().After(activationThreshold(m.current.x509CA.cert()))
+	return m.current.x509CA == nil || m.c.Clock.Now().After(activationThreshold(m.current.x509CA.cert()))
 }
 
 type keypairData struct {

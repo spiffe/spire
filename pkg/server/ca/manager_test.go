@@ -7,16 +7,18 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/server/bootstrapper"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/fakes/fakebootstrapper"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
@@ -40,8 +42,7 @@ type ManagerTestSuite struct {
 	catalog    *fakeservercatalog.Catalog
 	m          *manager
 
-	mu  sync.Mutex
-	now time.Time
+	clock *clock.Mock
 }
 
 func (m *ManagerTestSuite) SetupTest() {
@@ -56,9 +57,8 @@ func (m *ManagerTestSuite) SetupTest() {
 	m.catalog.SetKeyManagers(m.keymanager)
 	m.catalog.SetDataStores(m.datastore)
 
+	m.clock = clock.NewMock(m.T())
 	m.newManager()
-	m.m.hooks.now = m.nowHook
-	m.now = time.Now().Truncate(time.Second).UTC()
 }
 
 func (m *ManagerTestSuite) TearDownTest() {
@@ -66,8 +66,7 @@ func (m *ManagerTestSuite) TearDownTest() {
 }
 
 func (m *ManagerTestSuite) newManager() {
-	logger, err := log.NewLogger("DEBUG", "")
-	m.NoError(err)
+	logger, _ := test.NewNullLogger()
 
 	config := &ManagerConfig{
 		Catalog: m.catalog,
@@ -79,32 +78,22 @@ func (m *ManagerTestSuite) newManager() {
 		},
 		UpstreamBundle: true,
 		CertsPath:      m.certsPath(),
+		Clock:          m.clock,
 	}
 
 	m.m = NewManager(config)
-	m.m.hooks.now = m.nowHook
 }
 
 func (m *ManagerTestSuite) certsPath() string {
 	return filepath.Join(m.tmpDir, "certs.json")
 }
 
-func (m *ManagerTestSuite) nowHook() time.Time {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.now
-}
-
 func (m *ManagerTestSuite) setTime(now time.Time) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.now = now
+	m.clock.Set(now)
 }
 
 func (m *ManagerTestSuite) advanceTime(d time.Duration) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.now = m.now.Add(d).Truncate(time.Second)
+	m.clock.Add(d)
 }
 
 func (m *ManagerTestSuite) loadKeypairSets() (a, b *keypairSet) {
@@ -385,6 +374,66 @@ func (m *ManagerTestSuite) TestPrune() {
 	m.Require().EqualError(m.m.pruneBundle(ctx), "would prune all certificates")
 	m.requireBundleRootCAs(b.x509CA.cert())
 	m.requireBundleJWTSigningKeys(b.jwtSigningKey)
+}
+
+func (m *ManagerTestSuite) TestBundlePublishedOnInitAndAfterRotationAndPruning() {
+	bootstrapper := m.addBootstrapper()
+
+	waitInit := bootstrapper.PublishNextBundle()
+	m.Require().NoError(m.m.Initialize(ctx))
+	waitInit(m.T())
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go m.m.publishBundleOnUpdate(ctx)
+
+	// advance far enough for the new CA to be prepared
+	waitRotation := bootstrapper.PublishNextBundle()
+	m.advanceTime(DefaultCATTL)
+	m.Require().NoError(m.m.rotateCAs(ctx))
+	waitRotation(m.T())
+
+	// advance far enough for the original CA to be pruned
+	waitPruning := bootstrapper.PublishNextBundle()
+	m.advanceTime(safetyThreshold)
+	m.Require().NoError(m.m.pruneBundle(ctx))
+	waitPruning(m.T())
+}
+
+func (m *ManagerTestSuite) TestBundlePublishWithConflict() {
+	m.Require().NoError(m.m.Initialize(ctx))
+
+	bootstrapper := m.addBootstrapper()
+
+	bootstrapper.PublishNextBundleAfterRetry(2)
+	m.Require().NoError(m.m.publishBundle(context.Background()))
+
+	m.Len(bootstrapper.UnpublishedBundles(), 2)
+	m.Len(bootstrapper.PublishedBundles(), 1)
+}
+
+func (m *ManagerTestSuite) TestInitializeFailsIfPublishBundleFails() {
+	// fake bootstrapper fails by default if not specifically configured
+	m.addBootstrapper()
+	err := m.m.Initialize(ctx)
+	m.EqualError(err, "fake bootstrapper not configured")
+}
+
+func (m *ManagerTestSuite) addBootstrapper() *fakebootstrapper.Bootstrapper {
+	b := fakebootstrapper.New()
+	m.catalog.SetBootstrappers(bootstrapper.NewBuiltIn(b))
+	return b
+}
+
+func (m *ManagerTestSuite) requireBundleMatchesCurrent(bundle *common.Bundle) {
+	resp, err := m.datastore.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: m.m.c.TrustDomain.String(),
+	})
+	m.Require().NoError(err)
+	m.T().Logf("actual=%+v", bundle)
+	m.T().Logf("expected=%+v", resp.Bundle)
+	m.Require().True(proto.Equal(resp.Bundle, bundle), "bundle matches current")
 }
 
 func (m *ManagerTestSuite) requireBundleRootCAs(expectedCerts ...*x509.Certificate) {
