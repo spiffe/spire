@@ -13,7 +13,7 @@ import (
 
 const (
 	// version of the database in the code
-	codeVersion = 6
+	codeVersion = 7
 )
 
 func migrateDB(db *gorm.DB) (err error) {
@@ -112,6 +112,8 @@ func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
 		err = migrateToV5(tx)
 	case 5:
 		err = migrateToV6(tx)
+	case 6:
+		err = migrateToV7(tx)
 	default:
 		err = sqlError.New("no migration support for version %d", version)
 	}
@@ -280,6 +282,13 @@ func migrateToV5(tx *gorm.DB) error {
 }
 
 func migrateToV6(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&V6RegisteredEntry{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
+func migrateToV7(tx *gorm.DB) error {
 	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -348,5 +357,24 @@ type V5RegisteredEntry struct {
 
 // TableName gets table name for v5 registered entry
 func (V5RegisteredEntry) TableName() string {
+	return "registered_entries"
+}
+
+// V6RegisteredEntry holds a version 6 registered entry
+type V6RegisteredEntry struct {
+	Model
+
+	EntryID       string `gorm:"unique_index"`
+	SpiffeID      string
+	ParentID      string
+	TTL           int32
+	Selectors     []Selector
+	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
+	Admin         bool
+	Downstream    bool
+}
+
+// TableName gets table name for v6 registered entry
+func (V6RegisteredEntry) TableName() string {
 	return "registered_entries"
 }

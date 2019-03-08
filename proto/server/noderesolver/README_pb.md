@@ -272,6 +272,7 @@ manage the various registered nodes and workloads that are controlled by it.
 | entry_id | [string](#string) |  | Entry ID |
 | admin | [bool](#bool) |  | Whether or not the workload is an admin workload. Admin workloads can use their SVID&#39;s to authenticate with the Registration API, for example. |
 | downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
+| expiry | [int64](#int64) |  | Expiration of this entry |
 
 
 
