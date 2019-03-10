@@ -139,7 +139,6 @@ func (e *endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		return err
 	case <-ctx.Done():
 		e.c.Log.Info("Stopping TCP server")
-		l.Close()
 		server.Stop()
 		<-errChan
 		e.c.Log.Info("TCP server has stopped.")
@@ -172,7 +171,6 @@ func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 		return err
 	case <-ctx.Done():
 		e.c.Log.Info("Stopping UDS server")
-		l.Close()
 		server.Stop()
 		<-errChan
 		e.c.Log.Info("UDS server has stopped.")
