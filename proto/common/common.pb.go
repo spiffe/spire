@@ -3,9 +3,11 @@
 
 package common
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -16,9 +18,9 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-// * Represents an empty message
+//* Represents an empty message
 type Empty struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -29,16 +31,17 @@ func (m *Empty) Reset()         { *m = Empty{} }
 func (m *Empty) String() string { return proto.CompactTextString(m) }
 func (*Empty) ProtoMessage()    {}
 func (*Empty) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_e5eaced0b45c1fa3, []int{0}
+	return fileDescriptor_555bd8c177793206, []int{0}
 }
+
 func (m *Empty) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Empty.Unmarshal(m, b)
 }
 func (m *Empty) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Empty.Marshal(b, m, deterministic)
 }
-func (dst *Empty) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Empty.Merge(dst, src)
+func (m *Empty) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Empty.Merge(m, src)
 }
 func (m *Empty) XXX_Size() int {
 	return xxx_messageInfo_Empty.Size(m)
@@ -49,11 +52,11 @@ func (m *Empty) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Empty proto.InternalMessageInfo
 
-// * A type which contains attestation data for specific platform.
+//* A type which contains attestation data for specific platform.
 type AttestationData struct {
-	// * Type of attestation to perform.
+	//* Type of attestation to perform.
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	// * The attestation data.
+	//* The attestation data.
 	Data                 []byte   `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -64,16 +67,17 @@ func (m *AttestationData) Reset()         { *m = AttestationData{} }
 func (m *AttestationData) String() string { return proto.CompactTextString(m) }
 func (*AttestationData) ProtoMessage()    {}
 func (*AttestationData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_e5eaced0b45c1fa3, []int{1}
+	return fileDescriptor_555bd8c177793206, []int{1}
 }
+
 func (m *AttestationData) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AttestationData.Unmarshal(m, b)
 }
 func (m *AttestationData) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_AttestationData.Marshal(b, m, deterministic)
 }
-func (dst *AttestationData) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AttestationData.Merge(dst, src)
+func (m *AttestationData) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AttestationData.Merge(m, src)
 }
 func (m *AttestationData) XXX_Size() int {
 	return xxx_messageInfo_AttestationData.Size(m)
@@ -98,13 +102,13 @@ func (m *AttestationData) GetData() []byte {
 	return nil
 }
 
-// * A type which describes the conditions under which a registration
-// entry is matched.
+//* A type which describes the conditions under which a registration
+//entry is matched.
 type Selector struct {
-	// * A selector type represents the type of attestation used in attesting
-	// the entity (Eg: AWS, K8).
+	//* A selector type represents the type of attestation used in attesting
+	//the entity (Eg: AWS, K8).
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	// * The value to be attested.
+	//* The value to be attested.
 	Value                string   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -115,16 +119,17 @@ func (m *Selector) Reset()         { *m = Selector{} }
 func (m *Selector) String() string { return proto.CompactTextString(m) }
 func (*Selector) ProtoMessage()    {}
 func (*Selector) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_e5eaced0b45c1fa3, []int{2}
+	return fileDescriptor_555bd8c177793206, []int{2}
 }
+
 func (m *Selector) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Selector.Unmarshal(m, b)
 }
 func (m *Selector) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Selector.Marshal(b, m, deterministic)
 }
-func (dst *Selector) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Selector.Merge(dst, src)
+func (m *Selector) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Selector.Merge(m, src)
 }
 func (m *Selector) XXX_Size() int {
 	return xxx_messageInfo_Selector.Size(m)
@@ -149,9 +154,9 @@ func (m *Selector) GetValue() string {
 	return ""
 }
 
-// * Represents a type with a list of Selector.
+//* Represents a type with a list of Selector.
 type Selectors struct {
-	// * A list of Selector.
+	//* A list of Selector.
 	Entries              []*Selector `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
@@ -162,16 +167,17 @@ func (m *Selectors) Reset()         { *m = Selectors{} }
 func (m *Selectors) String() string { return proto.CompactTextString(m) }
 func (*Selectors) ProtoMessage()    {}
 func (*Selectors) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_e5eaced0b45c1fa3, []int{3}
+	return fileDescriptor_555bd8c177793206, []int{3}
 }
+
 func (m *Selectors) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Selectors.Unmarshal(m, b)
 }
 func (m *Selectors) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Selectors.Marshal(b, m, deterministic)
 }
-func (dst *Selectors) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Selectors.Merge(dst, src)
+func (m *Selectors) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Selectors.Merge(m, src)
 }
 func (m *Selectors) XXX_Size() int {
 	return xxx_messageInfo_Selectors.Size(m)
@@ -208,16 +214,17 @@ func (m *AttestedNode) Reset()         { *m = AttestedNode{} }
 func (m *AttestedNode) String() string { return proto.CompactTextString(m) }
 func (*AttestedNode) ProtoMessage()    {}
 func (*AttestedNode) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_e5eaced0b45c1fa3, []int{4}
+	return fileDescriptor_555bd8c177793206, []int{4}
 }
+
 func (m *AttestedNode) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_AttestedNode.Unmarshal(m, b)
 }
 func (m *AttestedNode) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_AttestedNode.Marshal(b, m, deterministic)
 }
-func (dst *AttestedNode) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AttestedNode.Merge(dst, src)
+func (m *AttestedNode) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AttestedNode.Merge(m, src)
 }
 func (m *AttestedNode) XXX_Size() int {
 	return xxx_messageInfo_AttestedNode.Size(m)
@@ -256,31 +263,31 @@ func (m *AttestedNode) GetCertNotAfter() int64 {
 	return 0
 }
 
-// * This is a curated record that the Server uses to set up and
-// manage the various registered nodes and workloads that are controlled by it.
+//* This is a curated record that the Server uses to set up and
+//manage the various registered nodes and workloads that are controlled by it.
 type RegistrationEntry struct {
-	// * A list of selectors.
+	//* A list of selectors.
 	Selectors []*Selector `protobuf:"bytes,1,rep,name=selectors,proto3" json:"selectors,omitempty"`
-	// * The SPIFFE ID of an entity that is authorized to attest the validity
-	// of a selector
+	//* The SPIFFE ID of an entity that is authorized to attest the validity
+	//of a selector
 	ParentId string `protobuf:"bytes,2,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
-	// * The SPIFFE ID is a structured string used to identify a resource or
-	// caller. It is defined as a URI comprising a “trust domain” and an
-	// associated path.
+	//* The SPIFFE ID is a structured string used to identify a resource or
+	//caller. It is defined as a URI comprising a “trust domain” and an
+	//associated path.
 	SpiffeId string `protobuf:"bytes,3,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
-	// * Time to live.
+	//* Time to live.
 	Ttl int32 `protobuf:"varint,4,opt,name=ttl,proto3" json:"ttl,omitempty"`
-	// * A list of federated trust domain SPIFFE IDs.
+	//* A list of federated trust domain SPIFFE IDs.
 	FederatesWith []string `protobuf:"bytes,5,rep,name=federates_with,json=federatesWith,proto3" json:"federates_with,omitempty"`
-	// * Entry ID
+	//* Entry ID
 	EntryId string `protobuf:"bytes,6,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
-	// * Whether or not the workload is an admin workload. Admin workloads
-	// can use their SVID's to authenticate with the Registration API, for
-	// example.
+	//* Whether or not the workload is an admin workload. Admin workloads
+	//can use their SVID's to authenticate with the Registration API, for
+	//example.
 	Admin bool `protobuf:"varint,7,opt,name=admin,proto3" json:"admin,omitempty"`
-	// * To enable signing CA CSR in upstream spire server
+	//* To enable signing CA CSR in upstream spire server
 	Downstream bool `protobuf:"varint,8,opt,name=downstream,proto3" json:"downstream,omitempty"`
-	// * Expiration of this entry
+	//* Expiration of this entry
 	Expiry               int64    `protobuf:"varint,9,opt,name=expiry,proto3" json:"expiry,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -291,16 +298,17 @@ func (m *RegistrationEntry) Reset()         { *m = RegistrationEntry{} }
 func (m *RegistrationEntry) String() string { return proto.CompactTextString(m) }
 func (*RegistrationEntry) ProtoMessage()    {}
 func (*RegistrationEntry) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_e5eaced0b45c1fa3, []int{5}
+	return fileDescriptor_555bd8c177793206, []int{5}
 }
+
 func (m *RegistrationEntry) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RegistrationEntry.Unmarshal(m, b)
 }
 func (m *RegistrationEntry) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_RegistrationEntry.Marshal(b, m, deterministic)
 }
-func (dst *RegistrationEntry) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RegistrationEntry.Merge(dst, src)
+func (m *RegistrationEntry) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegistrationEntry.Merge(m, src)
 }
 func (m *RegistrationEntry) XXX_Size() int {
 	return xxx_messageInfo_RegistrationEntry.Size(m)
@@ -374,9 +382,9 @@ func (m *RegistrationEntry) GetExpiry() int64 {
 	return 0
 }
 
-// * A list of registration entries.
+//* A list of registration entries.
 type RegistrationEntries struct {
-	// * A list of RegistrationEntry.
+	//* A list of RegistrationEntry.
 	Entries              []*RegistrationEntry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
 	XXX_unrecognized     []byte               `json:"-"`
@@ -387,16 +395,17 @@ func (m *RegistrationEntries) Reset()         { *m = RegistrationEntries{} }
 func (m *RegistrationEntries) String() string { return proto.CompactTextString(m) }
 func (*RegistrationEntries) ProtoMessage()    {}
 func (*RegistrationEntries) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_e5eaced0b45c1fa3, []int{6}
+	return fileDescriptor_555bd8c177793206, []int{6}
 }
+
 func (m *RegistrationEntries) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RegistrationEntries.Unmarshal(m, b)
 }
 func (m *RegistrationEntries) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_RegistrationEntries.Marshal(b, m, deterministic)
 }
-func (dst *RegistrationEntries) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RegistrationEntries.Merge(dst, src)
+func (m *RegistrationEntries) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegistrationEntries.Merge(m, src)
 }
 func (m *RegistrationEntries) XXX_Size() int {
 	return xxx_messageInfo_RegistrationEntries.Size(m)
@@ -414,7 +423,7 @@ func (m *RegistrationEntries) GetEntries() []*RegistrationEntry {
 	return nil
 }
 
-// * Certificate represents a ASN.1/DER encoded X509 certificate
+//* Certificate represents a ASN.1/DER encoded X509 certificate
 type Certificate struct {
 	DerBytes             []byte   `protobuf:"bytes,1,opt,name=der_bytes,json=derBytes,proto3" json:"der_bytes,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -426,16 +435,17 @@ func (m *Certificate) Reset()         { *m = Certificate{} }
 func (m *Certificate) String() string { return proto.CompactTextString(m) }
 func (*Certificate) ProtoMessage()    {}
 func (*Certificate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_e5eaced0b45c1fa3, []int{7}
+	return fileDescriptor_555bd8c177793206, []int{7}
 }
+
 func (m *Certificate) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Certificate.Unmarshal(m, b)
 }
 func (m *Certificate) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Certificate.Marshal(b, m, deterministic)
 }
-func (dst *Certificate) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Certificate.Merge(dst, src)
+func (m *Certificate) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Certificate.Merge(m, src)
 }
 func (m *Certificate) XXX_Size() int {
 	return xxx_messageInfo_Certificate.Size(m)
@@ -453,13 +463,13 @@ func (m *Certificate) GetDerBytes() []byte {
 	return nil
 }
 
-// * PublicKey represents a PKIX encoded public key
+//* PublicKey represents a PKIX encoded public key
 type PublicKey struct {
-	// * PKIX encoded key data
+	//* PKIX encoded key data
 	PkixBytes []byte `protobuf:"bytes,1,opt,name=pkix_bytes,json=pkixBytes,proto3" json:"pkix_bytes,omitempty"`
-	// * key identifier
+	//* key identifier
 	Kid string `protobuf:"bytes,2,opt,name=kid,proto3" json:"kid,omitempty"`
-	// * not after (seconds since unix epoch, 0 means "never expires")
+	//* not after (seconds since unix epoch, 0 means "never expires")
 	NotAfter             int64    `protobuf:"varint,3,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -470,16 +480,17 @@ func (m *PublicKey) Reset()         { *m = PublicKey{} }
 func (m *PublicKey) String() string { return proto.CompactTextString(m) }
 func (*PublicKey) ProtoMessage()    {}
 func (*PublicKey) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_e5eaced0b45c1fa3, []int{8}
+	return fileDescriptor_555bd8c177793206, []int{8}
 }
+
 func (m *PublicKey) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PublicKey.Unmarshal(m, b)
 }
 func (m *PublicKey) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_PublicKey.Marshal(b, m, deterministic)
 }
-func (dst *PublicKey) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PublicKey.Merge(dst, src)
+func (m *PublicKey) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PublicKey.Merge(m, src)
 }
 func (m *PublicKey) XXX_Size() int {
 	return xxx_messageInfo_PublicKey.Size(m)
@@ -512,11 +523,11 @@ func (m *PublicKey) GetNotAfter() int64 {
 }
 
 type Bundle struct {
-	// * the SPIFFE ID of the trust domain the bundle belongs to
+	//* the SPIFFE ID of the trust domain the bundle belongs to
 	TrustDomainId string `protobuf:"bytes,1,opt,name=trust_domain_id,json=trustDomainId,proto3" json:"trust_domain_id,omitempty"`
-	// * list of root CA certificates
+	//* list of root CA certificates
 	RootCas []*Certificate `protobuf:"bytes,2,rep,name=root_cas,json=rootCas,proto3" json:"root_cas,omitempty"`
-	// * list of JWT signing keys
+	//* list of JWT signing keys
 	JwtSigningKeys       []*PublicKey `protobuf:"bytes,3,rep,name=jwt_signing_keys,json=jwtSigningKeys,proto3" json:"jwt_signing_keys,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
 	XXX_unrecognized     []byte       `json:"-"`
@@ -527,16 +538,17 @@ func (m *Bundle) Reset()         { *m = Bundle{} }
 func (m *Bundle) String() string { return proto.CompactTextString(m) }
 func (*Bundle) ProtoMessage()    {}
 func (*Bundle) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_e5eaced0b45c1fa3, []int{9}
+	return fileDescriptor_555bd8c177793206, []int{9}
 }
+
 func (m *Bundle) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Bundle.Unmarshal(m, b)
 }
 func (m *Bundle) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Bundle.Marshal(b, m, deterministic)
 }
-func (dst *Bundle) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Bundle.Merge(dst, src)
+func (m *Bundle) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Bundle.Merge(m, src)
 }
 func (m *Bundle) XXX_Size() int {
 	return xxx_messageInfo_Bundle.Size(m)
@@ -581,9 +593,9 @@ func init() {
 	proto.RegisterType((*Bundle)(nil), "spire.common.Bundle")
 }
 
-func init() { proto.RegisterFile("common.proto", fileDescriptor_common_e5eaced0b45c1fa3) }
+func init() { proto.RegisterFile("common.proto", fileDescriptor_555bd8c177793206) }
 
-var fileDescriptor_common_e5eaced0b45c1fa3 = []byte{
+var fileDescriptor_555bd8c177793206 = []byte{
 	// 601 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x54, 0x4d, 0x6f, 0xd3, 0x40,
 	0x10, 0x95, 0xeb, 0x26, 0xb1, 0xa7, 0xe9, 0x07, 0x5b, 0x28, 0xae, 0x10, 0x10, 0x59, 0x80, 0x22,
