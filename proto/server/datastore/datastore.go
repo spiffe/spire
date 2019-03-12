@@ -288,6 +288,8 @@ type GRPCPlugin struct {
 	ServerImpl DataStoreServer
 }
 
+var _ go_plugin.GRPCPlugin = (*GRPCPlugin)(nil)
+
 func (p GRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
@@ -296,12 +298,12 @@ func (p GRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, 
 	return empty.Empty{}, nil
 }
 
-func (p GRPCPlugin) GRPCServer(s *grpc.Server) error {
+func (p GRPCPlugin) GRPCServer(b *go_plugin.GRPCBroker, s *grpc.Server) error {
 	RegisterDataStoreServer(s, p.ServerImpl)
 	return nil
 }
 
-func (p GRPCPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+func (p GRPCPlugin) GRPCClient(ctx context.Context, b *go_plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
 	return &GRPCClient{client: NewDataStoreClient(c)}, nil
 }
 

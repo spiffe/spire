@@ -9,6 +9,8 @@ language: go
 cache:
   directories:
     - .cache
+    # cache the Go module cache
+    - $HOME/gopath/pkg/mod
 
 jobs:
   include:
