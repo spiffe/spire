@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -580,6 +581,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 		ParentId:   trustDomainID,
 		SpiffeId:   agentID,
 		Downstream: true,
+		DnsNames:   []string{"ca-dns1"},
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
@@ -590,7 +592,13 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 	// since downstream entries aren't intended for workloads.
 	s.Empty(upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
-	s.assertSVIDsInUpdate(upd, trustDomainID)
+	chains := s.assertSVIDsInUpdate(upd, trustDomainID)
+	for _, chain := range chains {
+		// CA certs should not have DNS names associated with them
+		s.Empty(chain[0].DNSNames)
+		// CA certs should not CN based on DNS names
+		s.Empty(chain[0].Subject.CommonName)
+	}
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSR() {
@@ -605,11 +613,53 @@ func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSR() {
 		Csrs: s.makeCSRs(workloadID),
 	})
 
-	// Downstream responses don't contain the downstream registration entry
-	// since downstream entries aren't intended for workloads.
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
 	s.assertSVIDsInUpdate(upd, workloadID)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithSingleDNS() {
+	dnsList := []string{"somehost1"}
+
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+		DnsNames: dnsList,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs(workloadID),
+	})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	chains := s.assertSVIDsInUpdate(upd, workloadID)
+	s.Equal(dnsList, chains[0][0].DNSNames)
+	s.Equal("somehost1", chains[0][0].Subject.CommonName)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithMultipleDNS() {
+	dnsList := []string{"somehost1", "somehost2", "somehost3"}
+
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+		DnsNames: dnsList,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs(workloadID),
+	})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	chains := s.assertSVIDsInUpdate(upd, workloadID)
+	s.Equal(dnsList, chains[0][0].DNSNames)
+	s.Equal("somehost1", chains[0][0].Subject.CommonName)
 }
 
 func (s *HandlerSuite) TestFetchJWTSVIDWithUnattestedAgent() {
@@ -1061,7 +1111,7 @@ func (s *HandlerSuite) assertLastLogMessageContains(contains string) {
 }
 
 func (s *HandlerSuite) makeSVID(spiffeID string) []*x509.Certificate {
-	svid, err := s.serverCA.SignX509SVID(context.Background(), s.makeCSR(spiffeID), 0)
+	svid, err := s.serverCA.SignX509SVID(context.Background(), s.makeCSR(spiffeID), ca.X509Params{})
 	s.Require().NoError(err)
 	return svid
 }

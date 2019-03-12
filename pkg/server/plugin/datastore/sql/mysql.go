@@ -5,6 +5,8 @@ import (
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
+
+	// gorm mysql dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 

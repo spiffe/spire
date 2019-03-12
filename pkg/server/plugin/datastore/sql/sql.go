@@ -846,6 +846,17 @@ func createRegistrationEntry(tx *gorm.DB,
 		}
 	}
 
+	for _, registeredDNS := range req.Entry.DnsNames {
+		newDNS := DNSName{
+			RegisteredEntryID: newRegisteredEntry.ID,
+			Value:             registeredDNS,
+		}
+
+		if err := tx.Create(&newDNS).Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+	}
+
 	entry, err := modelToEntry(tx, newRegisteredEntry)
 	if err != nil {
 		return nil, err
@@ -1059,6 +1070,20 @@ func updateRegistrationEntry(tx *gorm.DB,
 		selectors = append(selectors, selector)
 	}
 
+	// Delete existing DNSs - we will write new ones
+	if err := tx.Exec("DELETE FROM dns_names WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	dnsList := []DNSName{}
+	for _, d := range req.Entry.DnsNames {
+		dns := DNSName{
+			Value: d,
+		}
+
+		dnsList = append(dnsList, dns)
+	}
+
 	entry.SpiffeID = req.Entry.SpiffeId
 	entry.ParentID = req.Entry.ParentId
 	entry.TTL = req.Entry.Ttl
@@ -1066,6 +1091,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	entry.Admin = req.Entry.Admin
 	entry.Downstream = req.Entry.Downstream
 	entry.Expiry = req.Entry.EntryExpiry
+	entry.DNSList = dnsList
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1274,6 +1300,19 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		})
 	}
 
+	var fetchedDNSs []*DNSName
+	if err := tx.Model(&model).Related(&fetchedDNSs).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	var dnsList []string
+	if len(fetchedDNSs) > 0 {
+		dnsList = make([]string, 0, len(fetchedDNSs))
+		for _, fetchedDNS := range fetchedDNSs {
+			dnsList = append(dnsList, fetchedDNS.Value)
+		}
+	}
+
 	var fetchedBundles []*Bundle
 	if err := tx.Model(&model).Association("FederatesWith").Find(&fetchedBundles).Error; err != nil {
 		return nil, sqlError.Wrap(err)
@@ -1294,6 +1333,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		Admin:         model.Admin,
 		Downstream:    model.Downstream,
 		EntryExpiry:   model.Expiry,
+		DnsNames:      dnsList,
 	}, nil
 }
 

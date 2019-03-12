@@ -573,6 +573,10 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 		SpiffeId: "SpiffeId",
 		ParentId: "ParentId",
 		Ttl:      1,
+		DnsNames: []string{
+			"abcd.efg",
+			"somehost",
+		},
 	}
 
 	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
@@ -1290,7 +1294,7 @@ func (s *PluginSuite) TestMigration() {
 		dbPath := filepath.Join(s.dir, "migration-"+dbName)
 		dump := migrationDump(i)
 		s.Require().NotEmpty(dump, "no migration dump set up for version %d", i)
-		s.Require().NoError(dumpDB(dbPath, dump))
+		s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", i)
 
 		// configure the datastore to use the new database
 		_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
@@ -1394,6 +1398,7 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Len(resp.Entries, 1)
 			s.Require().True(resp.Entries[0].Downstream)
 		case 6:
+			// ensure implementation of new expiry field
 			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 			s.Require().NoError(err)
 			s.Require().Len(resp.Entries, 1)
@@ -1410,6 +1415,24 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().NoError(err)
 			s.Require().Len(resp.Entries, 1)
 			s.Require().Equal(expiryVal, resp.Entries[0].EntryExpiry)
+		case 7:
+			// ensure implementation of new dns field
+			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().Empty(resp.Entries[0].DnsNames)
+
+			resp.Entries[0].DnsNames = []string{"abcd.efg"}
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
+				Entry: resp.Entries[0],
+			})
+			s.Require().NoError(err)
+
+			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().Len(resp.Entries[0].DnsNames, 1)
+			s.Require().Equal("abcd.efg", resp.Entries[0].DnsNames[0])
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}

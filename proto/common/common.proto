@@ -70,6 +70,8 @@ message RegistrationEntry {
     bool downstream = 8;
     /** Expiration of this entry, in seconds from epoch */
     int64 entryExpiry = 9;
+    /** DNS entries */
+    repeated string dns_names = 10;
 }
 
 /** A list of registration entries. */
