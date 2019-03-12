@@ -120,8 +120,6 @@ github.com/json-iterator/go v1.1.5 h1:gL2yXlmiIo4+t+y32d4WGwOjKGYcGOuyrg46vadswD
 github.com/json-iterator/go v1.1.5/go.mod h1:+SdeFBvtyEkXs7REEP0seUULqWtbJapLOCVDaaPEHmU=
 github.com/jtolds/gls v4.2.1+incompatible h1:fSuqC+Gmlu6l/ZYAoZzx2pyucC8Xza35fpRVWLVmUEE=
 github.com/jtolds/gls v4.2.1+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
-github.com/kubernetes/client-go v10.0.0+incompatible h1:JyUQ2lK3g7vKdhEswzIYwJ7EkJ0J3A+uXbuRNAXhtbk=
-github.com/kubernetes/client-go v10.0.0+incompatible/go.mod h1:kszVi2i+FeqECZHhjpkV5h5zM0GnURfJv897YzgoAQ8=
 github.com/lib/pq v1.0.0 h1:X5PMW56eZitiTeO7tKzZxFCSpbFZJtkMMooicw2us9A=
 github.com/lib/pq v1.0.0/go.mod h1:5WUZQaWbwv1U+lTReE5YruASi9Al49XbQIvNi/34Woo=
 github.com/lyft/protoc-gen-validate v0.0.12 h1:4yfI8PSMdUqdTrQqjNIgjTJ7Vl3zFNqtgBGXsB7QJiw=

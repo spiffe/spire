@@ -50,7 +50,6 @@ require (
 	github.com/jinzhu/now v0.0.0-20181116074157-8ec929ed50c3 // indirect
 	github.com/json-iterator/go v1.1.5 // indirect
 	github.com/jtolds/gls v4.2.1+incompatible // indirect
-	github.com/kubernetes/client-go v10.0.0+incompatible
 	github.com/lib/pq v1.0.0 // indirect
 	github.com/lyft/protoc-gen-validate v0.0.12 // indirect
 	github.com/mattn/go-sqlite3 v1.9.0 // indirect
