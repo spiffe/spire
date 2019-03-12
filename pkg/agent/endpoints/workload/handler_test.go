@@ -491,7 +491,9 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	})
 	s.Require().NoError(err)
 
-	svid, err := jwtsvid.SignToken(
+	jwtSigner := jwtsvid.NewSigner(jwtsvid.SignerConfig{})
+
+	svid, err := jwtSigner.SignToken(
 		"spiffe://example.org/blog",
 		[]string{"audience"},
 		time.Now().Add(time.Minute),
