@@ -814,7 +814,7 @@ func createRegistrationEntry(tx *gorm.DB,
 		TTL:        req.Entry.Ttl,
 		Admin:      req.Entry.Admin,
 		Downstream: req.Entry.Downstream,
-		Expiry:     req.Entry.Expiry,
+		Expiry:     req.Entry.EntryExpiry,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -1060,7 +1060,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	entry.Selectors = selectors
 	entry.Admin = req.Entry.Admin
 	entry.Downstream = req.Entry.Downstream
-	entry.Expiry = req.Entry.Expiry
+	entry.Expiry = req.Entry.EntryExpiry
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1288,7 +1288,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		FederatesWith: federatesWith,
 		Admin:         model.Admin,
 		Downstream:    model.Downstream,
-		Expiry:        model.Expiry,
+		EntryExpiry:   model.Expiry,
 	}, nil
 }
 

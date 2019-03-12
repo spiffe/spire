@@ -282,7 +282,7 @@ func (s *ShowCLI) loadConfig(args []string) error {
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")
 	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 
-	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
+	f.Var(&c.Selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
 
 	err := f.Parse(args)

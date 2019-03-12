@@ -40,9 +40,12 @@ type UpdateConfig struct {
 
 	// Whether or not the registration entry is for an "admin" workload
 	Admin bool
+
+	// Expiry of entry
+	EntryExpiry int64
 }
 
-// Perform basic validation, even on fields that we
+// Validate performs basic validation, even on fields that we
 // have defaults defined for
 func (rc *UpdateConfig) Validate() (err error) {
 	if rc.RegistrationUDSPath == "" {
@@ -147,11 +150,12 @@ func (c UpdateCLI) Run(args []string) int {
 // parseConfig builds a registration entry from the given config
 func (c UpdateCLI) parseConfig(config *UpdateConfig) ([]*common.RegistrationEntry, error) {
 	e := &common.RegistrationEntry{
-		EntryId:    config.EntryID,
-		ParentId:   config.ParentID,
-		SpiffeId:   config.SpiffeID,
-		Ttl:        int32(config.Ttl),
-		Downstream: config.Downstream,
+		EntryId:     config.EntryID,
+		ParentId:    config.ParentID,
+		SpiffeId:    config.SpiffeID,
+		Ttl:         int32(config.Ttl),
+		Downstream:  config.Downstream,
+		EntryExpiry: config.EntryExpiry,
 	}
 
 	selectors := []*common.Selector{}
@@ -209,15 +213,17 @@ func (UpdateCLI) newConfig(args []string) (*UpdateConfig, error) {
 	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	f.StringVar(&c.ParentID, "parentID", "", "The SPIFFE ID of this record's parent")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
-	f.IntVar(&c.Ttl, "ttl", 3600, "A TTL, in seconds, for any SVID issued as a result of this record")
+	f.IntVar(&c.Ttl, "ttl", 3600, "The lifetime, in seconds, for SVIDs issued based on this registration entry")
 
 	f.StringVar(&c.Path, "data", "", "Path to a file containing registration JSON (optional)")
 
-	f.Var(&c.Selectors, "selector", "A colon-delimeted type:value selector. Can be used more than once")
+	f.Var(&c.Selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.FederatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
 
 	f.BoolVar(&c.Admin, "admin", false, "If true, the SPIFFE ID in this entry will be granted access to the Registration API")
 	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
+
+	f.Int64Var(&c.EntryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 
 	return c, f.Parse(args)
 }

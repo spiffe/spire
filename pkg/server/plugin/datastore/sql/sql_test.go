@@ -584,10 +584,10 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 			{Type: "Type2", Value: "Value2"},
 			{Type: "Type3", Value: "Value3"},
 		},
-		SpiffeId: "SpiffeId",
-		ParentId: "ParentId",
-		Ttl:      1,
-		Expiry:   now,
+		SpiffeId:    "SpiffeId",
+		ParentId:    "ParentId",
+		Ttl:         1,
+		EntryExpiry: now,
 	}
 	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
 	s.Require().NoError(err)
@@ -1387,10 +1387,10 @@ func (s *PluginSuite) TestMigration() {
 			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 			s.Require().NoError(err)
 			s.Require().Len(resp.Entries, 1)
-			s.Require().Zero(resp.Entries[0].Expiry)
+			s.Require().Zero(resp.Entries[0].EntryExpiry)
 
 			expiryVal := time.Now().Unix()
-			resp.Entries[0].Expiry = expiryVal
+			resp.Entries[0].EntryExpiry = expiryVal
 			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
 				Entry: resp.Entries[0],
 			})
@@ -1399,7 +1399,7 @@ func (s *PluginSuite) TestMigration() {
 			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 			s.Require().NoError(err)
 			s.Require().Len(resp.Entries, 1)
-			s.Require().Equal(expiryVal, resp.Entries[0].Expiry)
+			s.Require().Equal(expiryVal, resp.Entries[0].EntryExpiry)
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
