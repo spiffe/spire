@@ -6,7 +6,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
-	"time"
 
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -26,10 +25,6 @@ type rotator struct {
 	c *RotatorConfig
 
 	state observer.Property
-
-	hooks struct {
-		now func() time.Time
-	}
 }
 
 type State struct {
@@ -53,7 +48,7 @@ func (r *rotator) Subscribe() observer.Stream {
 // Run starts a ticker which monitors the server SVID
 // for expiration and rotates the SVID as necessary.
 func (r *rotator) Run(ctx context.Context) error {
-	t := time.NewTicker(r.c.Interval)
+	t := r.c.Clock.Ticker(r.c.Interval)
 	defer t.Stop()
 
 	for {
@@ -80,7 +75,7 @@ func (r *rotator) shouldRotate() bool {
 		return true
 	}
 
-	ttl := s.SVID[0].NotAfter.Sub(r.hooks.now())
+	ttl := s.SVID[0].NotAfter.Sub(r.c.Clock.Now())
 	watermark := s.SVID[0].NotAfter.Sub(s.SVID[0].NotBefore) / 2
 
 	return (ttl < watermark)
