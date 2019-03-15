@@ -55,38 +55,26 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 	defer done()
 
-	labels := []telemetry.Label{
-		{Name: "svid_type", Value: "jwt"},
-	}
+	counter := telemetry.StartCall(metrics, workloadApi, "fetch_jwt_svid")
+	defer counter.Done(&err)
+
+	counter.AddLabel("svid_type", "jwt")
 
 	var spiffeIDs []string
 	entries := h.Manager.MatchingEntries(selectors)
 	if len(entries) == 0 {
-		labels = append(labels, telemetry.Label{
-			Name:  "registered",
-			Value: "false",
-		})
-		metrics.IncrCounterWithLabels(
-			[]string{workloadApi, "fetch_jwt_svid"},
-			1,
-			labels)
-
+		counter.AddLabel("registered", "false")
 		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
-	labels = append(labels, telemetry.Label{
-		Name:  "registered",
-		Value: "true",
-	})
+
+	counter.AddLabel("registered", "true")
 
 	for _, entry := range entries {
 		if req.SpiffeId != "" && entry.RegistrationEntry.SpiffeId != req.SpiffeId {
 			continue
 		}
 		spiffeIDs = append(spiffeIDs, entry.RegistrationEntry.SpiffeId)
-		labels = append(labels, telemetry.Label{
-			Name:  "spiffe_id",
-			Value: entry.RegistrationEntry.SpiffeId,
-		})
+		counter.AddLabel("spiffe_id", entry.RegistrationEntry.SpiffeId)
 	}
 
 	resp := new(workload.JWTSVIDResponse)
@@ -97,14 +85,17 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		}
 		resp.Svids = append(resp.Svids, &workload.JWTSVID{
 			SpiffeId: spiffeID,
-			Svid:     svid,
+			Svid:     svid.Token,
 		})
-	}
 
-	metrics.IncrCounterWithLabels(
-		[]string{workloadApi, "fetch_jwt_svid"},
-		1,
-		labels)
+		ttl := time.Until(svid.ExpiresAt)
+		metrics.SetGaugeWithLabels(
+			[]string{workloadApi, "fetch_jwt_svid", "ttl"},
+			float32(ttl.Seconds()),
+			[]telemetry.Label{
+				{Name: "spiffe_id", Value: spiffeID},
+			})
+	}
 
 	return resp, nil
 }
@@ -213,7 +204,6 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 				return err
 			}
 
-			metrics.MeasureSince([]string{workloadApi, "svid_response_latency"}, start)
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send SVID response to PID %v", time.Since(start).Seconds, pid)
 			}
@@ -223,27 +213,18 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 }
 
-func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics, selectors []*common.Selector) error {
-	labels := []telemetry.Label{
-		{Name: "svid_type", Value: "x509"},
-	}
+func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics, selectors []*common.Selector) (err error) {
+	counter := telemetry.StartCall(metrics, workloadApi, "fetch_x509_svid")
+	defer counter.Done(&err)
+
+	counter.AddLabel("svid_type", "x509")
 
 	if len(update.Entries) == 0 {
-		labels = append(labels, telemetry.Label{
-			Name:  "registered",
-			Value: "false",
-		})
-		metrics.IncrCounterWithLabels(
-			[]string{workloadApi, "fetch_x509_svid"},
-			1,
-			labels)
+		counter.AddLabel("registered", "false")
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
-	labels = append(labels, telemetry.Label{
-		Name:  "registered",
-		Value: "true",
-	})
+	counter.AddLabel("registered", "true")
 
 	resp, err := h.composeX509SVIDResponse(update)
 	if err != nil {
@@ -256,17 +237,17 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	}
 
 	// Add all the SPIFFE IDs to the labels array.
-	for _, svid := range resp.Svids {
-		labels = append(labels, telemetry.Label{
-			Name:  "spiffe_id",
-			Value: svid.SpiffeId,
-		})
-	}
+	for i, svid := range resp.Svids {
+		counter.AddLabel("spiffe_id", svid.SpiffeId)
 
-	metrics.IncrCounterWithLabels(
-		[]string{workloadApi, "fetch_x509_svid"},
-		1,
-		labels)
+		ttl := time.Until(update.Entries[i].SVID[0].NotAfter)
+		metrics.SetGaugeWithLabels(
+			[]string{workloadApi, "fetch_x509_svid", "ttl"},
+			float32(ttl.Seconds()),
+			[]telemetry.Label{
+				{Name: "spiffe_id", Value: svid.SpiffeId},
+			})
+	}
 
 	return nil
 }
