@@ -250,7 +250,7 @@ func (p *IIDAttestorPlugin) ec2Attestation(ctx context.Context, c IIDAttestorCon
 		InstanceIds: []*string{&doc.InstanceID},
 	}
 
-	result, err := ec2Client.DescribeInstancesWithContext(ctx, query, nil)
+	result, err := ec2Client.DescribeInstancesWithContext(ctx, query)
 	if err != nil {
 		return caws.AttestationStepError("querying AWS via describe-instances", err)
 	}

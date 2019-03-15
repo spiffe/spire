@@ -10,6 +10,7 @@ import (
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -39,6 +40,7 @@ type TokenSuite struct {
 
 	key    *ecdsa.PrivateKey
 	bundle KeyStore
+	signer *Signer
 }
 
 func (s *TokenSuite) SetupTest() {
@@ -47,6 +49,9 @@ func (s *TokenSuite) SetupTest() {
 		"spiffe://example.org": {
 			"kid": s.key.Public(),
 		},
+	})
+	s.signer = NewSigner(SignerConfig{
+		Clock: clock.NewMock(s.T()),
 	})
 }
 
@@ -62,7 +67,7 @@ func (s *TokenSuite) loadKey(pemBytes []byte) *ecdsa.PrivateKey {
 }
 
 func (s *TokenSuite) TestSignAndValidate() {
-	token, err := SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), s.key, "kid")
+	token, err := s.signer.SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), s.key, "kid")
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
@@ -73,7 +78,7 @@ func (s *TokenSuite) TestSignAndValidate() {
 }
 
 func (s *TokenSuite) TestSignAndValidateWithAudienceList() {
-	token, err := SignToken(fakeSpiffeID, fakeAudiences, time.Now().Add(time.Hour), s.key, "kid")
+	token, err := s.signer.SignToken(fakeSpiffeID, fakeAudiences, time.Now().Add(time.Hour), s.key, "kid")
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
@@ -84,27 +89,27 @@ func (s *TokenSuite) TestSignAndValidateWithAudienceList() {
 }
 
 func (s *TokenSuite) TestSignWithNoExpiration() {
-	_, err := SignToken(fakeSpiffeID, fakeAudience, time.Time{}, s.key, "kid")
+	_, err := s.signer.SignToken(fakeSpiffeID, fakeAudience, time.Time{}, s.key, "kid")
 	s.Require().EqualError(err, "expiration is required")
 }
 
 func (s *TokenSuite) TestSignInvalidSpiffeID() {
 	// missing ID
-	_, err := SignToken("", fakeAudience, time.Now(), s.key, "kid")
+	_, err := s.signer.SignToken("", fakeAudience, time.Now(), s.key, "kid")
 	s.requireErrorContains(err, "is not a valid workload SPIFFE ID: SPIFFE ID is empty")
 
 	// not a spiffe ID
-	_, err = SignToken("sparfe://example.org", fakeAudience, time.Now(), s.key, "kid")
+	_, err = s.signer.SignToken("sparfe://example.org", fakeAudience, time.Now(), s.key, "kid")
 	s.requireErrorContains(err, "is not a valid workload SPIFFE ID: invalid scheme")
 }
 
 func (s *TokenSuite) TestSignNoAudience() {
-	_, err := SignToken(fakeSpiffeID, nil, time.Now().Add(time.Hour), s.key, "kid")
+	_, err := s.signer.SignToken(fakeSpiffeID, nil, time.Now().Add(time.Hour), s.key, "kid")
 	s.Require().EqualError(err, "audience is required")
 }
 
 func (s *TokenSuite) TestSignEmptyAudience() {
-	_, err := SignToken(fakeSpiffeID, []string{""}, time.Now().Add(time.Hour), s.key, "kid")
+	_, err := s.signer.SignToken(fakeSpiffeID, []string{""}, time.Now().Add(time.Hour), s.key, "kid")
 	s.Require().EqualError(err, "audience is required")
 }
 
@@ -131,7 +136,7 @@ func (s *TokenSuite) TestValidateMissingThumbprint() {
 }
 
 func (s *TokenSuite) TestValidateExpiredToken() {
-	token, err := SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(-time.Hour), s.key, "kid")
+	token, err := s.signer.SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(-time.Hour), s.key, "kid")
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
@@ -184,7 +189,7 @@ func (s *TokenSuite) TestValidateNoAudience() {
 }
 
 func (s *TokenSuite) TestValidateUnexpectedAudience() {
-	token, err := SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), s.key, "kid")
+	token, err := s.signer.SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), s.key, "kid")
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
@@ -195,7 +200,7 @@ func (s *TokenSuite) TestValidateUnexpectedAudience() {
 }
 
 func (s *TokenSuite) TestValidateUnexpectedAudienceList() {
-	token, err := SignToken(fakeSpiffeID, fakeAudiences, time.Now().Add(time.Hour), s.key, "kid")
+	token, err := s.signer.SignToken(fakeSpiffeID, fakeAudiences, time.Now().Add(time.Hour), s.key, "kid")
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 
@@ -206,7 +211,7 @@ func (s *TokenSuite) TestValidateUnexpectedAudienceList() {
 }
 
 func (s *TokenSuite) TestValidateKeyNotFound() {
-	token, err := SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), s.key, "whatever")
+	token, err := s.signer.SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), s.key, "whatever")
 	s.Require().NoError(err)
 	s.Require().NotEmpty(token)
 

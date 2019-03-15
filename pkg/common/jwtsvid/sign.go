@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/idutil"
 )
@@ -13,7 +14,24 @@ const (
 	keyIDHeader = "kid"
 )
 
-func SignToken(spiffeID string, audience []string, expires time.Time, signer crypto.Signer, kid string) (string, error) {
+type SignerConfig struct {
+	Clock clock.Clock
+}
+
+type Signer struct {
+	c SignerConfig
+}
+
+func NewSigner(config SignerConfig) *Signer {
+	if config.Clock == nil {
+		config.Clock = clock.New()
+	}
+	return &Signer{
+		c: config,
+	}
+}
+
+func (s *Signer) SignToken(spiffeID string, audience []string, expires time.Time, signer crypto.Signer, kid string) (string, error) {
 	if err := idutil.ValidateSpiffeID(spiffeID, idutil.AllowAnyTrustDomainWorkload()); err != nil {
 		return "", err
 	}
@@ -34,7 +52,7 @@ func SignToken(spiffeID string, audience []string, expires time.Time, signer cry
 		"sub": spiffeID,
 		"exp": expires.Unix(),
 		"aud": audienceClaim(audience),
-		"iat": time.Now().Unix(),
+		"iat": s.c.Clock.Now().Unix(),
 	}
 
 	token := jwt.NewWithClaims(signingMethodES256, claims)

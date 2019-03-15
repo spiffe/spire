@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -37,25 +38,22 @@ type HandlerConfig struct {
 	Catalog     catalog.Catalog
 	ServerCA    ca.ServerCA
 	TrustDomain url.URL
+	Clock       clock.Clock
 }
 
 type Handler struct {
 	c       HandlerConfig
 	limiter Limiter
-
-	// test hooks
-	hooks struct {
-		now func() time.Time
-	}
 }
 
 func NewHandler(config HandlerConfig) *Handler {
-	h := &Handler{
+	if config.Clock == nil {
+		config.Clock = clock.New()
+	}
+	return &Handler{
 		c:       config,
 		limiter: NewLimiter(config.Log),
 	}
-	h.hooks.now = time.Now
-	return h
 }
 
 //Attest attests the node and gets the base node SVID.
@@ -394,7 +392,7 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	// rely on TLS handshakes to verify certificate validity since the
 	// certificate on the connection could have expired after the initial
 	// handshake.
-	if h.hooks.now().After(cert.NotAfter) {
+	if h.c.Clock.Now().After(cert.NotAfter) {
 		return fmt.Errorf("agent %q SVID has expired", agentID)
 	}
 
@@ -500,7 +498,7 @@ func (h *Handler) attestToken(ctx context.Context,
 		return nil, err
 	}
 
-	if time.Unix(t.Expiry, 0).Before(h.hooks.now()) {
+	if time.Unix(t.Expiry, 0).Before(h.c.Clock.Now()) {
 		return nil, errors.New("join token expired")
 	}
 

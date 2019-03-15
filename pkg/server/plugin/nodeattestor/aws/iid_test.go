@@ -188,7 +188,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			mockExpect: func(mock *mock_aws.MockEC2Client) {
 				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
 					InstanceIds: []*string{&testInstance},
-				}, nil).Return(nil, errors.New("client error"))
+				}).Return(nil, errors.New("client error"))
 			},
 			expectErr: "client error",
 		},
@@ -200,7 +200,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &nonzeroDeviceIndex
 				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
 					InstanceIds: []*string{&testInstance},
-				}, nil).Return(&output, nil)
+				}).Return(&output, nil)
 			},
 			expectErr: "verifying the EC2 instance's NetworkInterface[0].DeviceIndex is 0",
 		},
@@ -212,7 +212,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
 				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
 					InstanceIds: []*string{&testInstance},
-				}, nil).Return(&output, nil)
+				}).Return(&output, nil)
 			},
 			skipBlockDev: true,
 			expectID:     "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
@@ -230,7 +230,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
 				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
 					InstanceIds: []*string{&testInstance},
-				}, nil).Return(&output, nil)
+				}).Return(&output, nil)
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
@@ -242,7 +242,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
 				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
 					InstanceIds: []*string{&testInstance},
-				}, nil).Return(&output, nil)
+				}).Return(&output, nil)
 			},
 			replacementTemplate: "{{ .PluginName}}/{{ .Region }}/{{ .AccountID }}/{{ .InstanceID }}",
 			expectID:            "spiffe://example.org/spire/agent/aws_iid/test-region/test-account/test-instance",
