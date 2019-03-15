@@ -120,7 +120,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	// Close the stream whether there was an error or not
 	stream.CloseSend()
 	if err != nil {
-		// TODO: should we try to create a new stream?
+		c.Release()
 		return nil, err
 	}
 
@@ -136,6 +136,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 		if err != nil {
 			// There was an error receiving a response, exit loop to return what we have.
 			logrus.Errorf("failed to consume entire SVID update stream: %v", err)
+			c.Release()
 			return nil, err
 		}
 
