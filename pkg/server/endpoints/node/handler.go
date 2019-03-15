@@ -142,7 +142,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	svid, err := h.c.ServerCA.SignX509SVID(ctx, request.Csr, ca.X509Params{})
 	if err != nil {
 		h.c.Log.Error(err)
-		return errors.New("failed to to sign CSR")
+		return errors.New("failed to sign CSR")
 	}
 
 	if err := h.updateNodeSelectors(ctx, agentID, attestResponse, request.AttestationData.Type); err != nil {
