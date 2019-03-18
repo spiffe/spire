@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/auth"
@@ -44,7 +45,7 @@ type Handler struct {
 	M       telemetry.Metrics
 }
 
-func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
+func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (resp *workload.JWTSVIDResponse, err error) {
 	if len(req.Audience) == 0 {
 		return nil, errs.New("audience must be specified")
 	}
@@ -77,9 +78,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		counter.AddLabel("spiffe_id", entry.RegistrationEntry.SpiffeId)
 	}
 
-	resp := new(workload.JWTSVIDResponse)
+	resp = new(workload.JWTSVIDResponse)
 	for _, spiffeID := range spiffeIDs {
-		svid, err := h.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
+		var svid *client.JWTSVID
+		svid, err = h.Manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
 		if err != nil {
 			return nil, status.Errorf(codes.Unavailable, "could not fetch %q JWTSVID: %v", spiffeID, err)
 		}
