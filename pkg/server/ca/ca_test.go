@@ -88,6 +88,7 @@ func (s *CATestSuite) SetupTest() {
 			Country:      []string{"TEST"},
 			Organization: []string{"TEST"},
 		},
+		Clock: s.clock,
 	})
 	s.ca.setKeypairSet(keypairSet{
 		slot: "FOO",
