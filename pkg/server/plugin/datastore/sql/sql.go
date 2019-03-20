@@ -39,6 +39,12 @@ var (
 	sqlError = errs.Class("datastore-sql")
 )
 
+const (
+	MySQL      = "mysql"
+	PostgreSQL = "postgres"
+	SQLite     = "sqlite3"
+)
+
 type configuration struct {
 	DatabaseType     string `hcl:"database_type" json:"database_type"`
 	ConnectionString string `hcl:"connection_string" json:"connection_string"`
@@ -376,12 +382,8 @@ func (ds *sqlPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		return nil, err
 	}
 
-	if config.DatabaseType == "" {
-		return nil, errors.New("database_type must be set")
-	}
-
-	if config.ConnectionString == "" {
-		return nil, errors.New("connection_string must be set")
+	if err := validateDBConfig(config); err != nil {
+		return nil, err
 	}
 
 	ds.mu.Lock()
@@ -430,7 +432,7 @@ func (ds *sqlPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 	db := ds.db
 	ds.mu.Unlock()
 
-	if db.databaseType == "sqlite3" && !readOnly {
+	if db.databaseType == SQLite && !readOnly {
 		// sqlite3 can only have one writer at a time. since we're in WAL mode,
 		// there can be concurrent reads and writes, so no lock is necessary
 		// over the read operations.
@@ -464,18 +466,21 @@ func openDB(databaseType, connectionString string) (*gorm.DB, error) {
 	var err error
 
 	switch databaseType {
-	case "sqlite3":
+	case SQLite:
 		db, err = sqlite{}.connect(connectionString)
-	case "postgres":
+	case PostgreSQL:
 		db, err = postgres{}.connect(connectionString)
+	case MySQL:
+		db, err = mysql{}.connect(connectionString)
 	default:
 		return nil, sqlError.New("unsupported database_type: %v", databaseType)
 	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	if err := migrateDB(db); err != nil {
+	if err := migrateDB(db, databaseType); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -1359,4 +1364,23 @@ func bindVarsFn(fn func(int) string, query string) string {
 	}
 	buf.WriteString(query)
 	return buf.String()
+}
+
+func validateDBConfig(cfg *configuration) error {
+	if cfg.DatabaseType == "" {
+		return errors.New("database_type must be set")
+	}
+
+	if cfg.ConnectionString == "" {
+		return errors.New("connection_string must be set")
+	}
+
+	switch cfg.DatabaseType {
+	case MySQL:
+		if err := validateMySQLConfig(cfg); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
