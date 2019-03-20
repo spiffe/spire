@@ -3,5 +3,5 @@ package k8s
 import "net/http"
 
 type httpClient interface {
-	Get(url string) (resp *http.Response, err error)
+	Do(req *http.Request) (resp *http.Response, err error)
 }

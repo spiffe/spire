@@ -2,11 +2,15 @@ package k8s
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +26,9 @@ import (
 const (
 	defaultMaxPollAttempts   = 5
 	defaultPollRetryInterval = time.Millisecond * 300
+	defaultKubeletSecurePort = 10250
+	defaultKubeletCaFile     = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	defaultKubeletToken      = "/run/secrets/kubernetes.io/serviceaccount/token"
 )
 
 type containerLookup int
@@ -35,16 +42,20 @@ const (
 var k8sErr = errs.Class("k8s")
 
 type k8sPlugin struct {
-	kubeletReadOnlyPort int
-	maxPollAttempts     int
-	pollRetryInterval   time.Duration
-	httpClient          httpClient
-	fs                  cgroups.FileSystem
-	mtx                 *sync.RWMutex
+	maxPollAttempts    int
+	pollRetryInterval  time.Duration
+	httpClient         httpClient
+	fs                 cgroups.FileSystem
+	mtx                *sync.RWMutex
+	kubeletURL         string
+	kubeletBearerToken string
 }
 
 type k8sPluginConfig struct {
 	KubeletReadOnlyPort int    `hcl:"kubelet_read_only_port"`
+	KubeletSecurePort   int    `hcl:"kubelet_secure_port"`
+	KubeletSecureCaFile string `hcl:"kubelet_secure_ca_file"`
+	KubeletTokenFile    string `hcl:"kubelet_token_file"`
 	MaxPollAttempts     int    `hcl:"max_poll_attempts"`
 	PollRetryInterval   string `hcl:"poll_retry_interval"`
 }
@@ -131,7 +142,7 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	// the pod is not found, and there are pods with containers that aren't
 	// fully initialized, delay for a little bit and try again.
 	for attempt := 1; ; attempt++ {
-		list, err := p.getPodListFromInsecureKubeletPort()
+		list, err := p.getPodListFromKubelet()
 		if err != nil {
 			return nil, k8sErr.Wrap(err)
 		}
@@ -168,8 +179,17 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	}
 }
 
-func (p *k8sPlugin) getPodListFromInsecureKubeletPort() (out *podList, err error) {
-	httpResp, err := p.httpClient.Get(fmt.Sprintf("http://localhost:%d/pods", p.kubeletReadOnlyPort))
+func (p *k8sPlugin) getPodListFromKubelet() (out *podList, err error) {
+	req, err := http.NewRequest("GET", p.kubeletURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if p.kubeletBearerToken != "" {
+		req.Header.Set("Authorization", p.kubeletBearerToken)
+	}
+
+	httpResp, err := p.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +296,45 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	if config.MaxPollAttempts <= 0 {
 		config.MaxPollAttempts = defaultMaxPollAttempts
 	}
+	if config.KubeletReadOnlyPort <= 0 && config.KubeletSecurePort <= 0 {
+		config.KubeletSecurePort = defaultKubeletSecurePort
+	}
+	if config.KubeletSecurePort != 0 {
+		if config.KubeletSecureCaFile == "" {
+			config.KubeletSecureCaFile = defaultKubeletCaFile
+		}
+		if config.KubeletTokenFile == "" {
+			config.KubeletTokenFile = defaultKubeletToken
+		}
+
+		token, err := ioutil.ReadFile(config.KubeletTokenFile)
+		if err != nil {
+			return nil, err
+		}
+
+		p.kubeletBearerToken = fmt.Sprintf("bearer %s", token)
+
+		caPem, err := ioutil.ReadFile(config.KubeletSecureCaFile)
+		if err != nil {
+			return nil, err
+		}
+		kubeletCA := x509.NewCertPool()
+		if ok := kubeletCA.AppendCertsFromPEM(caPem); !ok {
+			return nil, fmt.Errorf("didn't load any certificates from ca.crt")
+		}
+
+		// Use HOSTNAME instead of localhost, since that's what'll be in the DNS SAN on the kubelet's cert
+		hostname := os.Getenv("HOSTNAME")
+		p.kubeletURL = fmt.Sprintf("https://%s:%d/pods", hostname, config.KubeletSecurePort)
+
+		config := &tls.Config{
+			RootCAs: kubeletCA,
+		}
+		tr := &http.Transport{TLSClientConfig: config}
+		p.httpClient = &http.Client{Transport: tr}
+	} else {
+		p.kubeletURL = fmt.Sprintf("https://localhost:%d/pods", config.KubeletReadOnlyPort)
+	}
 
 	var err error
 	var pollRetryInterval time.Duration
@@ -290,7 +349,6 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*
 	}
 
 	// Set local vars from config struct
-	p.kubeletReadOnlyPort = config.KubeletReadOnlyPort
 	p.pollRetryInterval = pollRetryInterval
 	p.maxPollAttempts = config.MaxPollAttempts
 	return &spi.ConfigureResponse{}, nil
