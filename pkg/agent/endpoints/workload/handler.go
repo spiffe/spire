@@ -206,6 +206,10 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 				return err
 			}
 
+			// TODO: evaluate the possibility of removing the following metric at some point
+			// in the future because almost the same metric (with different labels and keys) is being
+			// taken by the CallCounter in sendX509SVIDResponse function.
+			metrics.MeasureSince([]string{workloadApi, "svid_response_latency"}, start)
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send SVID response to PID %v", time.Since(start).Seconds, pid)
 			}

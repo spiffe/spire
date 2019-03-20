@@ -130,6 +130,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 		}))
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid"}, float32(1), labelsSvidResponse)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_x509_svid", "elapsed_time"}, gomock.Any(), labelsSvidResponse)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "svid_response_latency"}, gomock.Any(), labels)
 
 	go func() { result <- s.h.FetchX509SVID(nil, stream) }()
 
@@ -249,8 +250,8 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 		{Name: "registered", Value: "false"},
 	}...)
 	setupMetricsCommonExpectations(s.metrics, selectorsLabels, 1)
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_jwt_svid"}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_jwt_svid", "elapsed_time"}, gomock.Any(), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_jwt_svid", "error"}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_jwt_svid", "error", "elapsed_time"}, gomock.Any(), labels)
 
 	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
 		Audience: audience,
