@@ -9,7 +9,7 @@
 # as a docker container. This database instance is then used to run the e2e test with PostgreSQL as a datastore.
 #
 # PLEASE NOTE: This script must be run from the project root, and will remove the
-# default datastore file before beginning in order to ensure accurate resutls.
+# default datastore file before beginning in order to ensure accurate results.
 #
 
 set -e
@@ -88,7 +88,8 @@ run_e2e_test "conf/server/server.conf"
 run_docker_test "test/configs/server/postgres.conf" "-e POSTGRES_PASSWORD=password -p 10864:5432 -d postgres"
 run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:8.0.15"
 
-if [ "$TEST_ALL_DB_VERSIONS" -eq "1" ]; then
+# Run these extra tests when running under Travis on the master branch or on a tagged commit
+if [ -n "$TRAVIS_TAG" ] || [ x"${TRAVIS_BRANCH}" = x"master" ]; then
     run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.5.62"
     run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.6.43"
     run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.7.25"

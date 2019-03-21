@@ -69,8 +69,6 @@ jobs:
       script:
         # Build spire images
         - eval $(minikube docker-env) && make spire-images
-        # Run integration tests against supported database versions
-        - TEST_ALL_DB_VERSIONS=1 script/e2e_test.sh
         # Run systems tests
         - examples/k8s/test-all.sh
         # Publish images
