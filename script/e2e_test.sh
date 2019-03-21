@@ -14,7 +14,6 @@
 
 set -e
 
-. ./script/e2e_helpers.sh
 
 run_e2e_test() {
     rm -f .data/datastore.sqlite3
@@ -23,6 +22,75 @@ run_e2e_test() {
     run_test $CONFIG_LOCATION
 }
 
+run_docker_test() {
+    CONFIG_LOCATION=$1
+    DOCKER_COMMAND=$2
+
+    output=$(docker version)
+    if [ $? -ne 0 ]; then
+        echo "No working docker installation found. Skipping e2e test for configuration file $CONFIG_LOCATION"
+        return
+    fi
+
+    echo "Starting container $DOCKER_COMMAND"
+    CONTAINER_ID=$(docker run $DOCKER_COMMAND)
+    sleep 15
+    run_test $CONFIG_LOCATION
+    docker rm -f $CONTAINER_ID
+}
+
+run_test() {
+    CONFIG_LOCATION=$1
+
+    ./cmd/spire-server/spire-server run -config $CONFIG_LOCATION &
+    SERVER_PID=$!
+    sleep 2
+
+    ./cmd/spire-server/spire-server entry create \
+    -spiffeID spiffe://example.org/test \
+    -parentID spiffe://example.org/agent \
+    -selector unix:uid:$(id -u)
+
+    TOKEN=$(./cmd/spire-server/spire-server token generate -spiffeID spiffe://example.org/agent | awk '{print $2}')
+    ./cmd/spire-agent/spire-agent run -joinToken $TOKEN &
+    AGENT_PID=$!
+    sleep 2
+
+    set +e
+    RESULT=$(./cmd/spire-agent/spire-agent api fetch x509)
+    echo $RESULT | grep "Received 1 bundle"
+    if [ $? != 0 ]; then
+        CODE=1
+        echo
+        echo
+        echo $RESULT
+        echo
+        echo "Test failed."
+        echo
+    else
+        CODE=0
+        echo
+        echo
+        echo "Test passed."
+        echo
+    fi
+
+    kill $AGENT_PID
+    kill $SERVER_PID
+    wait
+
+    if [ $CODE -ne "0" ]; then
+        exit $CODE
+    fi
+}
+
 run_e2e_test "conf/server/server.conf"
 run_docker_test "test/configs/server/postgres.conf" "-e POSTGRES_PASSWORD=password -p 10864:5432 -d postgres"
 run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:8.0.15"
+
+# Run these extra tests when running under Travis on the master branch or on a tagged commit
+if [ -n "$TRAVIS_TAG" ] || [ x"${TRAVIS_BRANCH}" = x"master" ]; then
+    run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.5.62"
+    run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.6.43"
+    run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.7.25"
+fi
