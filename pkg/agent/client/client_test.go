@@ -2,6 +2,9 @@ package client
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/x509"
+	"errors"
 	"io"
 	"testing"
 
@@ -19,18 +22,12 @@ var (
 )
 
 func TestFetchUpdates(t *testing.T) {
-	cfg := &Config{
-		Log: log,
-	}
-
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 	nodeClient := mock_node.NewMockNodeClient(ctrl)
 	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(ctrl)
+	client := createClient(t, nodeClient)
 
-	client := New(cfg)
-	client.newNodeClientCallback = func() (node.NodeClient, error) {
-		return nodeClient, nil
-	}
 	req := &node.FetchX509SVIDRequest{
 		Csrs: [][]byte{{1, 2, 3, 4}},
 	}
@@ -69,5 +66,78 @@ func TestFetchUpdates(t *testing.T) {
 	for _, entry := range res.SvidUpdate.RegistrationEntries {
 		assert.Equal(t, entry, update.Entries[entry.EntryId])
 	}
-	client.Release()
+	assert.NotNil(t, client.conn)
+}
+
+func TestFetchUpdatesReleaseConnectionIfItFailsToFetchX509SVID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	nodeClient := mock_node.NewMockNodeClient(ctrl)
+	nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nil, errors.New("an error"))
+	client := createClient(t, nodeClient)
+
+	update, err := client.FetchUpdates(context.Background(), &node.FetchX509SVIDRequest{})
+	assert.Nil(t, update)
+	assert.Error(t, err)
+	assert.Nil(t, client.conn, "Connection was not released")
+}
+
+func TestFetchUpdatesReleaseConnectionIfItFailsToSendRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	nodeClient := mock_node.NewMockNodeClient(ctrl)
+	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(ctrl)
+	req := &node.FetchX509SVIDRequest{}
+	nodeFsc.EXPECT().Send(req).Return(errors.New("an error"))
+	nodeFsc.EXPECT().CloseSend()
+	nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
+	client := createClient(t, nodeClient)
+
+	update, err := client.FetchUpdates(context.Background(), req)
+	assert.Nil(t, update)
+	assert.Error(t, err)
+	assert.Nil(t, client.conn, "Connection was not released")
+}
+
+func TestFetchUpdatesReleaseConnectionIfItFailsToReceiveResponse(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	nodeClient := mock_node.NewMockNodeClient(ctrl)
+	nodeFsc := mock_node.NewMockNode_FetchX509SVIDClient(ctrl)
+	req := &node.FetchX509SVIDRequest{}
+	nodeFsc.EXPECT().Send(req).Return(nil)
+	nodeFsc.EXPECT().CloseSend()
+	nodeFsc.EXPECT().Recv().Return(nil, errors.New("an error"))
+	nodeClient.EXPECT().FetchX509SVID(gomock.Any()).Return(nodeFsc, nil)
+	client := createClient(t, nodeClient)
+
+	update, err := client.FetchUpdates(context.Background(), req)
+	assert.Nil(t, update)
+	assert.Error(t, err)
+	assert.Nil(t, client.conn, "Connection was not released")
+}
+
+// Creates a sample client with mocked components for testing purposes
+func createClient(t *testing.T, nodeClient *mock_node.MockNodeClient) *client {
+	cfg := &Config{
+		Log:           log,
+		KeysAndBundle: keysAndBundle,
+	}
+	client := New(cfg)
+	client.newNodeClientCallback = func() (node.NodeClient, error) {
+		return nodeClient, nil
+	}
+
+	// Simulate a not nil connection
+	conn, err := client.dial(context.Background())
+	if err != nil {
+		assert.Fail(t, "Could not create connection")
+	}
+	client.conn = conn
+
+	return client
+}
+
+func keysAndBundle() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
+	return nil, nil, nil
 }

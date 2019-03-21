@@ -499,7 +499,7 @@ func (s *DataStore) PruneRegistrationEntries(ctx context.Context, req *datastore
 	defer s.mu.Unlock()
 
 	for key, entry := range s.registrationEntries {
-		if entry.Expiry != 0 && entry.Expiry < req.ExpiresBefore {
+		if entry.EntryExpiry != 0 && entry.EntryExpiry < req.ExpiresBefore {
 			delete(s.registrationEntries, key)
 		}
 	}

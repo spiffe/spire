@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakenoderesolver"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
@@ -85,14 +86,14 @@ type HandlerSuite struct {
 	attestedClient   node.NodeClient
 	ds               *fakedatastore.DataStore
 	catalog          *fakeservercatalog.Catalog
-	now              time.Time
+	clock            *clock.Mock
 	bundle           *common.Bundle
 	agentSVID        []*x509.Certificate
 	serverCA         *fakeserverca.ServerCA
 }
 
 func (s *HandlerSuite) SetupTest() {
-	s.now = time.Now()
+	s.clock = clock.NewMock(s.T())
 
 	log, logHook := test.NewNullLogger()
 	s.logHook = logHook
@@ -104,9 +105,7 @@ func (s *HandlerSuite) SetupTest() {
 	s.catalog.SetDataStores(s.ds)
 
 	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
-		Now: func() time.Time {
-			return s.now
-		},
+		Clock: s.clock,
 	})
 	s.bundle = bundleutil.BundleProtoFromRootCAs(trustDomainID, s.serverCA.Bundle())
 
@@ -122,10 +121,8 @@ func (s *HandlerSuite) SetupTest() {
 		Catalog:     s.catalog,
 		ServerCA:    s.serverCA,
 		TrustDomain: *trustDomainURL,
+		Clock:       s.clock,
 	})
-	handler.hooks.now = func() time.Time {
-		return s.now
-	}
 	handler.limiter = s.limiter
 
 	// Streaming methods and auth are easier to test from the client point of view.
@@ -380,7 +377,7 @@ func (s *HandlerSuite) TestAttestWithAlreadyUsedJoinToken() {
 }
 
 func (s *HandlerSuite) TestAttestWithExpiredJoinToken() {
-	s.createJoinToken("TOKEN", s.now.Add(-time.Second))
+	s.createJoinToken("TOKEN", s.clock.Now().Add(-time.Second))
 
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("join_token", "TOKEN"),
@@ -392,7 +389,7 @@ func (s *HandlerSuite) TestAttestWithExpiredJoinToken() {
 }
 
 func (s *HandlerSuite) TestAttestWithValidJoinToken() {
-	s.createJoinToken("TOKEN", s.now.Add(time.Second))
+	s.createJoinToken("TOKEN", s.clock.Now().Add(time.Second))
 	s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("join_token", "TOKEN"),
 		Csr:             s.makeCSR("spiffe://example.org/spire/agent/join_token/TOKEN"),
@@ -695,8 +692,8 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 	})
 
 	s.NotEmpty(svid.Token)
-	s.Equal(s.now.Unix(), svid.IssuedAt)
-	s.Equal(s.now.Add(s.serverCA.DefaultTTL()).Unix(), svid.ExpiresAt)
+	s.Equal(s.clock.Now().Unix(), svid.IssuedAt)
+	s.Equal(s.clock.Now().Add(s.serverCA.DefaultTTL()).Unix(), svid.ExpiresAt)
 }
 
 func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {
@@ -771,14 +768,14 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
 
 	// expired certificate
-	s.now = peerCert.NotAfter.Add(time.Second)
+	s.clock.Set(peerCert.NotAfter.Add(time.Second))
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.Require().Error(err)
 	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
 	s.Equal(codes.PermissionDenied, status.Code(err))
 	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID has expired`)
 	s.Require().Nil(ctx)
-	s.now = peerCert.NotAfter
+	s.clock.Set(peerCert.NotAfter)
 
 	// serial number does not match
 	s.updateAttestedNode(agentID, "SERIAL NUMBER", peerCert.NotAfter)

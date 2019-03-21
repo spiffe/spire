@@ -12,7 +12,7 @@ func main() {
 	go_plugin.Serve(&go_plugin.ServeConfig{
 		HandshakeConfig: dummy.Handshake,
 		Plugins: map[string]go_plugin.Plugin{
-			"dummy": &dummy.GRPCPlugin{
+			"dummy": dummy.GRPCPlugin{
 				ServerImpl: &dummy.GRPCServer{
 					Plugin: builtIn,
 				},

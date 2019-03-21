@@ -4,10 +4,15 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
+)
+
+const (
+	DefaultRotatorInterval = 30 * time.Second
 )
 
 type RotatorConfig struct {
@@ -15,6 +20,7 @@ type RotatorConfig struct {
 	Metrics     telemetry.Metrics
 	TrustDomain url.URL
 	ServerCA    ca.ServerCA
+	Clock       clock.Clock
 
 	// How long to wait between expiry checks
 	Interval time.Duration
@@ -22,13 +28,14 @@ type RotatorConfig struct {
 
 func NewRotator(c *RotatorConfig) *rotator {
 	if c.Interval == 0 {
-		c.Interval = 30 * time.Second
+		c.Interval = DefaultRotatorInterval
+	}
+	if c.Clock == nil {
+		c.Clock = clock.New()
 	}
 
-	r := &rotator{
+	return &rotator{
 		c:     c,
 		state: observer.NewProperty(State{}),
 	}
-	r.hooks.now = time.Now
-	return r
 }

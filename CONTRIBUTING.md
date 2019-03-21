@@ -16,7 +16,7 @@ For development that requires changes to the gRPC interfaces you will need:
 
 * The protobuf compiler (https://github.com/google/protobuf)
 * The protobuf documentation generator (https://github.com/pseudomuto/protoc-gen-doc)
-* protoc-gen-go, protoc-gen-grpc-gateway and protoc-gen-swagger (`make utils`)
+* protoc-gen-go and protoc-gen-spireplugin (`make utils`)
 
 
 #  Building

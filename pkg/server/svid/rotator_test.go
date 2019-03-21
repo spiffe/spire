@@ -11,8 +11,13 @@ import (
 	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/stretchr/testify/suite"
+)
+
+const (
+	testTTL = time.Minute * 10
 )
 
 func TestRotator(t *testing.T) {
@@ -25,8 +30,8 @@ type RotatorTestSuite struct {
 	r        *rotator
 	serverCA *fakeserverca.ServerCA
 
-	mu  sync.Mutex
-	now time.Time
+	mu    sync.Mutex
+	clock *clock.Mock
 }
 
 func (s *RotatorTestSuite) SetupTest() {
@@ -36,18 +41,18 @@ func (s *RotatorTestSuite) SetupTest() {
 		Host:   "example.org",
 	}
 
-	s.now = time.Now()
+	s.clock = clock.NewMock(s.T())
 	s.serverCA = fakeserverca.New(s.T(), "example.org", &fakeserverca.Options{
-		Now: s.nowHook,
+		Clock:      s.clock,
+		DefaultTTL: testTTL,
 	})
 	s.r = NewRotator(&RotatorConfig{
 		ServerCA:    s.serverCA,
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
 		TrustDomain: td,
-		Interval:    10 * time.Millisecond,
+		Clock:       s.clock,
 	})
-	s.r.hooks.now = s.nowHook
 }
 
 func (s *RotatorTestSuite) TestRotation() {
@@ -73,33 +78,26 @@ func (s *RotatorTestSuite) TestRotation() {
 		s.r.Run(ctx)
 	}()
 
+	s.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")
+
 	// "expire" the certificate and see that it rotates
-	s.advanceTime(time.Second * 30)
+	s.clock.Add(testTTL / 2)
+	s.clock.Add(DefaultRotatorInterval)
 	s.requireNewCert(stream, 2)
 
 	// one more time for good measure.
-	s.advanceTime(time.Second * 30)
+	s.clock.Add(testTTL / 2)
+	s.clock.Add(DefaultRotatorInterval)
 	s.requireNewCert(stream, 3)
 
 	// certificate just BARELY before the threshold, so it shouldn't rotate.
-	s.advanceTime(time.Second * 29)
+	s.clock.Add(testTTL/2 - time.Second)
+	s.clock.Add(DefaultRotatorInterval)
 	s.requireStateChangeTimeout(stream)
 }
 
-func (s *RotatorTestSuite) nowHook() time.Time {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.now
-}
-
-func (s *RotatorTestSuite) advanceTime(d time.Duration) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.now = s.now.Add(d)
-}
-
 func (s *RotatorTestSuite) requireNewCert(stream observer.Stream, serialNumber int64) {
-	timer := time.NewTimer(time.Second)
+	timer := time.NewTimer(time.Second * 10)
 	defer timer.Stop()
 	select {
 	case <-stream.Changes():

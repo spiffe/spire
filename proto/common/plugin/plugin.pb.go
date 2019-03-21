@@ -3,9 +3,11 @@
 
 package plugin
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -16,13 +18,13 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-// * Represents the plugin-specific configuration string.
+//* Represents the plugin-specific configuration string.
 type ConfigureRequest struct {
-	// * The configuration for the plugin.
+	//* The configuration for the plugin.
 	Configuration string `protobuf:"bytes,1,opt,name=configuration,proto3" json:"configuration,omitempty"`
-	// * Global configurations.
+	//* Global configurations.
 	GlobalConfig         *ConfigureRequest_GlobalConfig `protobuf:"bytes,2,opt,name=globalConfig,proto3" json:"globalConfig,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                       `json:"-"`
 	XXX_unrecognized     []byte                         `json:"-"`
@@ -33,16 +35,17 @@ func (m *ConfigureRequest) Reset()         { *m = ConfigureRequest{} }
 func (m *ConfigureRequest) String() string { return proto.CompactTextString(m) }
 func (*ConfigureRequest) ProtoMessage()    {}
 func (*ConfigureRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_plugin_525b1915ffcd6ce8, []int{0}
+	return fileDescriptor_22a625af4bc1cc87, []int{0}
 }
+
 func (m *ConfigureRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConfigureRequest.Unmarshal(m, b)
 }
 func (m *ConfigureRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ConfigureRequest.Marshal(b, m, deterministic)
 }
-func (dst *ConfigureRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ConfigureRequest.Merge(dst, src)
+func (m *ConfigureRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ConfigureRequest.Merge(m, src)
 }
 func (m *ConfigureRequest) XXX_Size() int {
 	return xxx_messageInfo_ConfigureRequest.Size(m)
@@ -67,7 +70,7 @@ func (m *ConfigureRequest) GetGlobalConfig() *ConfigureRequest_GlobalConfig {
 	return nil
 }
 
-// * Global configuration nested type.
+//* Global configuration nested type.
 type ConfigureRequest_GlobalConfig struct {
 	TrustDomain          string   `protobuf:"bytes,1,opt,name=trustDomain,proto3" json:"trustDomain,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -79,16 +82,17 @@ func (m *ConfigureRequest_GlobalConfig) Reset()         { *m = ConfigureRequest_
 func (m *ConfigureRequest_GlobalConfig) String() string { return proto.CompactTextString(m) }
 func (*ConfigureRequest_GlobalConfig) ProtoMessage()    {}
 func (*ConfigureRequest_GlobalConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_plugin_525b1915ffcd6ce8, []int{0, 0}
+	return fileDescriptor_22a625af4bc1cc87, []int{0, 0}
 }
+
 func (m *ConfigureRequest_GlobalConfig) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConfigureRequest_GlobalConfig.Unmarshal(m, b)
 }
 func (m *ConfigureRequest_GlobalConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ConfigureRequest_GlobalConfig.Marshal(b, m, deterministic)
 }
-func (dst *ConfigureRequest_GlobalConfig) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ConfigureRequest_GlobalConfig.Merge(dst, src)
+func (m *ConfigureRequest_GlobalConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ConfigureRequest_GlobalConfig.Merge(m, src)
 }
 func (m *ConfigureRequest_GlobalConfig) XXX_Size() int {
 	return xxx_messageInfo_ConfigureRequest_GlobalConfig.Size(m)
@@ -106,10 +110,10 @@ func (m *ConfigureRequest_GlobalConfig) GetTrustDomain() string {
 	return ""
 }
 
-// * Represents a list of configuration problems
-// found in the configuration string.
+//* Represents a list of configuration problems
+//found in the configuration string.
 type ConfigureResponse struct {
-	// * A list of errors
+	//* A list of errors
 	ErrorList            []string `protobuf:"bytes,1,rep,name=errorList,proto3" json:"errorList,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -120,16 +124,17 @@ func (m *ConfigureResponse) Reset()         { *m = ConfigureResponse{} }
 func (m *ConfigureResponse) String() string { return proto.CompactTextString(m) }
 func (*ConfigureResponse) ProtoMessage()    {}
 func (*ConfigureResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_plugin_525b1915ffcd6ce8, []int{1}
+	return fileDescriptor_22a625af4bc1cc87, []int{1}
 }
+
 func (m *ConfigureResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ConfigureResponse.Unmarshal(m, b)
 }
 func (m *ConfigureResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ConfigureResponse.Marshal(b, m, deterministic)
 }
-func (dst *ConfigureResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ConfigureResponse.Merge(dst, src)
+func (m *ConfigureResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ConfigureResponse.Merge(m, src)
 }
 func (m *ConfigureResponse) XXX_Size() int {
 	return xxx_messageInfo_ConfigureResponse.Size(m)
@@ -147,7 +152,7 @@ func (m *ConfigureResponse) GetErrorList() []string {
 	return nil
 }
 
-// * Represents an empty request.
+//* Represents an empty request.
 type GetPluginInfoRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -158,16 +163,17 @@ func (m *GetPluginInfoRequest) Reset()         { *m = GetPluginInfoRequest{} }
 func (m *GetPluginInfoRequest) String() string { return proto.CompactTextString(m) }
 func (*GetPluginInfoRequest) ProtoMessage()    {}
 func (*GetPluginInfoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_plugin_525b1915ffcd6ce8, []int{2}
+	return fileDescriptor_22a625af4bc1cc87, []int{2}
 }
+
 func (m *GetPluginInfoRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetPluginInfoRequest.Unmarshal(m, b)
 }
 func (m *GetPluginInfoRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_GetPluginInfoRequest.Marshal(b, m, deterministic)
 }
-func (dst *GetPluginInfoRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetPluginInfoRequest.Merge(dst, src)
+func (m *GetPluginInfoRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetPluginInfoRequest.Merge(m, src)
 }
 func (m *GetPluginInfoRequest) XXX_Size() int {
 	return xxx_messageInfo_GetPluginInfoRequest.Size(m)
@@ -178,7 +184,7 @@ func (m *GetPluginInfoRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_GetPluginInfoRequest proto.InternalMessageInfo
 
-// * Represents the plugin metadata.
+//* Represents the plugin metadata.
 type GetPluginInfoResponse struct {
 	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Category             string   `protobuf:"bytes,2,opt,name=category,proto3" json:"category,omitempty"`
@@ -198,16 +204,17 @@ func (m *GetPluginInfoResponse) Reset()         { *m = GetPluginInfoResponse{} }
 func (m *GetPluginInfoResponse) String() string { return proto.CompactTextString(m) }
 func (*GetPluginInfoResponse) ProtoMessage()    {}
 func (*GetPluginInfoResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_plugin_525b1915ffcd6ce8, []int{3}
+	return fileDescriptor_22a625af4bc1cc87, []int{3}
 }
+
 func (m *GetPluginInfoResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetPluginInfoResponse.Unmarshal(m, b)
 }
 func (m *GetPluginInfoResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_GetPluginInfoResponse.Marshal(b, m, deterministic)
 }
-func (dst *GetPluginInfoResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetPluginInfoResponse.Merge(dst, src)
+func (m *GetPluginInfoResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetPluginInfoResponse.Merge(m, src)
 }
 func (m *GetPluginInfoResponse) XXX_Size() int {
 	return xxx_messageInfo_GetPluginInfoResponse.Size(m)
@@ -289,9 +296,9 @@ func init() {
 	proto.RegisterType((*GetPluginInfoResponse)(nil), "spire.common.plugin.GetPluginInfoResponse")
 }
 
-func init() { proto.RegisterFile("plugin.proto", fileDescriptor_plugin_525b1915ffcd6ce8) }
+func init() { proto.RegisterFile("plugin.proto", fileDescriptor_22a625af4bc1cc87) }
 
-var fileDescriptor_plugin_525b1915ffcd6ce8 = []byte{
+var fileDescriptor_22a625af4bc1cc87 = []byte{
 	// 336 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x52, 0xcf, 0x4e, 0xf2, 0x40,
 	0x10, 0x4f, 0x81, 0xaf, 0xd0, 0x81, 0x2f, 0xd1, 0x55, 0xc9, 0x86, 0x78, 0x68, 0x1a, 0x0f, 0x9c,
