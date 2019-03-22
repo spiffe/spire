@@ -37,15 +37,9 @@ const (
 	cgInitPidInPodFilePath    = "testdata/cgroups_init_pid_in_pod.txt"
 	cgPidNotInPodFilePath     = "testdata/cgroups_pid_not_in_pod.txt"
 
-	kubeletCAPath = "kubelet-ca.pem"
-	certPath      = "cert.pem"
-	keyPath       = "key.pem"
+	certPath = "cert.pem"
+	keyPath  = "key.pem"
 )
-
-type attestResult struct {
-	resp *workloadattestor.AttestResponse
-	err  error
-}
 
 var (
 	pidCgroupPath = fmt.Sprintf("/proc/%v/cgroup", pid)
@@ -63,7 +57,42 @@ AyIlgLJ/QQypapKXYPr4kLuFWFShRANCAARFfHk9kz/bGtZfcIhJpzvnSnKbSvuK
 FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 -----END PRIVATE KEY-----
 `))
+
+	testHostname = "hostname.test"
+
+	testPodSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:localhost/spiffe/blog:latest"},
+		{Type: "k8s", Value: "container-name:blog"},
+		{Type: "k8s", Value: "node-name:k8s-node-1"},
+		{Type: "k8s", Value: "ns:default"},
+		{Type: "k8s", Value: "pod-label:k8s-app:blog"},
+		{Type: "k8s", Value: "pod-label:version:v0"},
+		{Type: "k8s", Value: "pod-owner-uid:ReplicationController:2c401175-b29f-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "pod-owner:ReplicationController:blog"},
+		{Type: "k8s", Value: "pod-uid:2c48913c-b29f-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "sa:default"},
+	}
+
+	testInitPodSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:quay.io/coreos/flannel:v0.9.0-amd64"},
+		{Type: "k8s", Value: "container-name:install-cni"},
+		{Type: "k8s", Value: "node-name:k8s-node-1"},
+		{Type: "k8s", Value: "ns:kube-system"},
+		{Type: "k8s", Value: "pod-label:app:flannel"},
+		{Type: "k8s", Value: "pod-label:controller-revision-hash:1846323910"},
+		{Type: "k8s", Value: "pod-label:pod-template-generation:1"},
+		{Type: "k8s", Value: "pod-label:tier:node"},
+		{Type: "k8s", Value: "pod-owner-uid:DaemonSet:2f0350fc-b29d-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "pod-owner:DaemonSet:kube-flannel-ds"},
+		{Type: "k8s", Value: "pod-uid:d488cae9-b2a0-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "sa:flannel"},
+	}
 )
+
+type attestResult struct {
+	resp *workloadattestor.AttestResponse
+	err  error
+}
 
 func TestK8sAttestor(t *testing.T) {
 	suite.Run(t, new(K8sAttestorSuite))
@@ -72,24 +101,33 @@ func TestK8sAttestor(t *testing.T) {
 type K8sAttestorSuite struct {
 	suite.Suite
 
-	dir    string
-	clock  *clock.Mock
-	server *httptest.Server
-	p      *k8sPlugin
+	dir   string
+	clock *clock.Mock
+	p     *k8sPlugin
 
 	podList [][]byte
+	env     map[string]string
+
+	// kubelet stuff
+	server      *httptest.Server
+	kubeletCert *x509.Certificate
+	clientCert  *x509.Certificate
 }
 
 func (s *K8sAttestorSuite) SetupTest() {
 	dir, err := ioutil.TempDir("", "k8s-workloadattestor-test")
 	s.Require().NoError(err)
 	s.dir = dir
+	s.writeFile(defaultTokenPath, "default-token")
 
 	s.clock = clock.NewMock(s.T())
 	s.server = nil
 
 	s.p = s.newPlugin()
 	s.podList = nil
+	s.env = map[string]string{
+		"HOSTNAME": testHostname,
+	}
 }
 
 func (s *K8sAttestorSuite) TearDownTest() {
@@ -98,56 +136,23 @@ func (s *K8sAttestorSuite) TearDownTest() {
 }
 
 func (s *K8sAttestorSuite) TestAttestWithPidInPod() {
+	s.startInsecureKubelet()
 	s.configureInsecure()
-	s.addPodListResponse(podListFilePath)
-	s.addCgroupsResponse(cgPidInPodFilePath)
 
-	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
-		Pid: int32(pid),
-	})
-	s.Require().NoError(err)
-	s.Require().NotEmpty(resp.Selectors)
-}
-
-func (s *K8sAttestorSuite) TestAttestWithPidInPodOverSecurePort() {
-	s.writeFile(defaultTokenPath, "default-token")
-	s.configureSecure("default-token")
-	s.addPodListResponse(podListFilePath)
-	s.addCgroupsResponse(cgPidInPodFilePath)
-
-	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
-		Pid: int32(pid),
-	})
-	s.Require().NoError(err)
-	s.Require().NotEmpty(resp.Selectors)
-}
-
-func (s *K8sAttestorSuite) TestAttestWithPidInPodOverSecurePortWithClientAuth() {
-	s.configureSecure("")
-	s.addPodListResponse(podListFilePath)
-	s.addCgroupsResponse(cgPidInPodFilePath)
-
-	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
-		Pid: int32(pid),
-	})
-	s.Require().NoError(err)
-	s.Require().NotEmpty(resp.Selectors)
+	s.requireAttestSuccessWithPod()
 }
 
 func (s *K8sAttestorSuite) TestAttestWithInitPidInPod() {
+	s.startInsecureKubelet()
 	s.configureInsecure()
-	s.addPodListResponse(podListFilePath)
-	s.addCgroupsResponse(cgInitPidInPodFilePath)
 
-	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
-		Pid: int32(pid),
-	})
-	s.Require().NoError(err)
-	s.Require().NotEmpty(resp.Selectors)
+	s.requireAttestSuccessWithInitPod()
 }
 
 func (s *K8sAttestorSuite) TestAttestWithPidInPodAfterRetry() {
+	s.startInsecureKubelet()
 	s.configureInsecure()
+
 	s.addPodListResponse(podListNotRunningFilePath)
 	s.addPodListResponse(podListNotRunningFilePath)
 	s.addPodListResponse(podListFilePath)
@@ -163,20 +168,7 @@ func (s *K8sAttestorSuite) TestAttestWithPidInPodAfterRetry() {
 	select {
 	case result := <-resultCh:
 		s.Require().Nil(result.err)
-		// assert the selectors (sorting for consistency)
-		util.SortSelectors(result.resp.Selectors)
-		s.Require().Equal([]*common.Selector{
-			{Type: "k8s", Value: "container-image:localhost/spiffe/blog:latest"},
-			{Type: "k8s", Value: "container-name:blog"},
-			{Type: "k8s", Value: "node-name:k8s-node-1"},
-			{Type: "k8s", Value: "ns:default"},
-			{Type: "k8s", Value: "pod-label:k8s-app:blog"},
-			{Type: "k8s", Value: "pod-label:version:v0"},
-			{Type: "k8s", Value: "pod-owner-uid:ReplicationController:2c401175-b29f-11e7-9350-020968147796"},
-			{Type: "k8s", Value: "pod-owner:ReplicationController:blog"},
-			{Type: "k8s", Value: "pod-uid:2c48913c-b29f-11e7-9350-020968147796"},
-			{Type: "k8s", Value: "sa:default"},
-		}, result.resp.Selectors)
+		s.requireSelectorsEqual(testPodSelectors, result.resp.Selectors)
 	case <-time.After(time.Minute):
 		s.FailNow("timed out waiting for attest response")
 	}
@@ -184,7 +176,9 @@ func (s *K8sAttestorSuite) TestAttestWithPidInPodAfterRetry() {
 }
 
 func (s *K8sAttestorSuite) TestAttestWithPidNotInPodCancelsEarly() {
+	s.startInsecureKubelet()
 	s.configureInsecure()
+
 	s.addPodListResponse(podListNotRunningFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
 
@@ -199,6 +193,7 @@ func (s *K8sAttestorSuite) TestAttestWithPidNotInPodCancelsEarly() {
 }
 
 func (s *K8sAttestorSuite) TestAttestWithPidNotInPodAfterRetry() {
+	s.startInsecureKubelet()
 	s.configureInsecure()
 	s.addPodListResponse(podListNotRunningFilePath)
 	s.addPodListResponse(podListNotRunningFilePath)
@@ -229,6 +224,67 @@ func (s *K8sAttestorSuite) TestAttestWithPidNotInPodAfterRetry() {
 }
 
 func (s *K8sAttestorSuite) TestAttestWithPidNotInPod() {
+	s.startInsecureKubelet()
+	s.configureInsecure()
+	s.addCgroupsResponse(cgPidNotInPodFilePath)
+
+	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
+		Pid: int32(pid),
+	})
+	s.Require().NoError(err)
+	s.Require().Empty(resp.Selectors)
+}
+
+func (s *K8sAttestorSuite) TestAttestOverSecurePortViaTokenAuth() {
+	// start up a secure kubelet with host networking and require token auth
+	s.startSecureKubelet(true, "default-token")
+
+	// use the service account token for auth
+	s.configureSecure(``)
+
+	s.requireAttestSuccessWithPod()
+}
+
+func (s *K8sAttestorSuite) TestAttestOverSecurePortViaClientAuth() {
+	// start up the secure kubelet with host networking and require client certs
+	s.startSecureKubelet(true, "")
+
+	// use client certificate for auth
+	s.configureSecure(`
+		certificate_path = "cert.pem"
+		private_key_path = "key.pem"
+	`)
+
+	s.requireAttestSuccessWithPod()
+}
+
+func (s *K8sAttestorSuite) TestAttestReachingKubeletViaNodeName() {
+	// start up a secure kubelet with "localhost" certificate and token auth
+	s.startSecureKubelet(false, "default-token")
+
+	// pick up the node name from the default env value
+	s.env["MY_NODE_NAME"] = "localhost"
+	s.configureSecure(``)
+	s.requireAttestSuccessWithPod()
+
+	// pick up the node name from explicit config (should override env)
+	s.env["MY_NODE_NAME"] = "bad-node-name"
+	s.configureSecure(`
+		node_name = "localhost"
+	`)
+	s.requireAttestSuccessWithPod()
+
+	// pick up the node name from the overriden env value
+	s.env["OVERRIDEN_NODE_NAME"] = "localhost"
+	s.configureSecure(`
+		node_name_env = "OVERRIDEN_NODE_NAME"
+	`)
+	s.requireAttestSuccessWithPod()
+
+}
+
+func (s *K8sAttestorSuite) TestAttestAgainstNodeOverride() {
+	s.startInsecureKubelet()
 	s.configureInsecure()
 	s.addCgroupsResponse(cgPidNotInPodFilePath)
 
@@ -240,13 +296,12 @@ func (s *K8sAttestorSuite) TestAttestWithPidNotInPod() {
 }
 
 func (s *K8sAttestorSuite) TestConfigure() {
-	// this test doesn't need the server but does need all of the certs/keys
-	// that are written to disk.
-	s.startSecureServer("")
+	s.generateCerts("")
 
 	s.writeFile(defaultTokenPath, "default-token")
 	s.writeFile("token", "other-token")
 	s.writeFile("bad-pem", "BAD PEM")
+	s.writeCert("some-other-ca", s.kubeletCert)
 
 	type config struct {
 		NoTLS             bool
@@ -278,9 +333,7 @@ func (s *K8sAttestorSuite) TestConfigure() {
 		},
 		{
 			name: "secure defaults",
-			hcl: `
-				kubelet_ca_path = "kubelet-ca.pem"
-			`,
+			hcl:  ``,
 			config: &config{
 				VerifyKubelet:     true,
 				Token:             "default-token",
@@ -290,15 +343,29 @@ func (s *K8sAttestorSuite) TestConfigure() {
 			},
 		},
 		{
-			name: "secure overrides and skipping kubelet verification",
+			name: "skip kubelet verification",
+			hcl: `
+				skip_kubelet_verification = true
+			`,
+			config: &config{
+				VerifyKubelet:     false,
+				Token:             "default-token",
+				KubeletURL:        "https://127.0.0.1:10250",
+				MaxPollAttempts:   defaultMaxPollAttempts,
+				PollRetryInterval: defaultPollRetryInterval,
+			},
+		},
+		{
+			name: "secure overrides",
 			hcl: `
 				kubelet_secure_port = 12345
-				skip_kubelet_verification = true
+				kubelet_ca_path = "some-other-ca"
 				token_path = "token"
 				max_poll_attempts = 1
 				poll_retry_interval = "2s"
 			`,
 			config: &config{
+				VerifyKubelet:     true,
 				Token:             "other-token",
 				KubeletURL:        "https://127.0.0.1:12345",
 				MaxPollAttempts:   1,
@@ -330,11 +397,6 @@ func (s *K8sAttestorSuite) TestConfigure() {
 				kubelet_secure_port = 10250
 			`,
 			err: "cannot use both the read-only and secure port",
-		},
-		{
-			name: "no kubelet ca path",
-			hcl:  ``,
-			err:  "kubelet CA path is required",
 		},
 		{
 			name: "non-existant kubelet ca",
@@ -469,10 +531,7 @@ func (s *K8sAttestorSuite) newPlugin() *k8sPlugin {
 	p.fs = testFS(s.dir)
 	p.clock = s.clock
 	p.getenv = func(key string) string {
-		if key == "HOSTNAME" {
-			return "kubelethost"
-		}
-		return os.Getenv(key)
+		return s.env[key]
 	}
 	return p
 }
@@ -501,55 +560,54 @@ func (s *K8sAttestorSuite) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	w.Write(podList)
 }
 
-func (s *K8sAttestorSuite) configureInsecure() {
-	s.startInsecureServer()
+func (s *K8sAttestorSuite) kubeletPort() int {
+	s.Require().NotNil(s.server, "kubelet must be started first")
+	tcpAddr, ok := s.server.Listener.Addr().(*net.TCPAddr)
+	s.Require().True(ok, "server not listening on TCP")
+	return tcpAddr.Port
+}
 
-	configuration := fmt.Sprintf(`
-		kubelet_read_only_port = %d
-`, s.server.Listener.Addr().(*net.TCPAddr).Port)
-
+func (s *K8sAttestorSuite) configure(configuration string) {
 	_, err := s.p.Configure(context.Background(), &spi.ConfigureRequest{
 		Configuration: configuration,
 	})
 	s.Require().NoError(err)
 }
 
-func (s *K8sAttestorSuite) startInsecureServer() {
+func (s *K8sAttestorSuite) configureInsecure() {
+	s.configure(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+`, s.kubeletPort()))
+}
+
+func (s *K8sAttestorSuite) startInsecureKubelet() {
 	s.setServer(httptest.NewServer(http.HandlerFunc(s.serveHTTP)))
 }
 
-func (s *K8sAttestorSuite) configureSecure(token string) {
-	s.startSecureServer(token)
+func (s *K8sAttestorSuite) generateCerts(nodeName string) {
+	s.kubeletCert = s.createKubeletCert(nodeName)
+	s.writeCert(defaultKubeletCAPath, s.kubeletCert)
 
-	configuration := fmt.Sprintf(`
-		kubelet_secure_port = %d
-		kubelet_ca_path = %q
-`, s.server.Listener.Addr().(*net.TCPAddr).Port, kubeletCAPath)
-
-	if token == "" {
-		configuration += fmt.Sprintf(`
-		certificate_path = %q
-		private_key_path = %q
-`, certPath, keyPath)
-	}
-
-	_, err := s.p.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: configuration,
-	})
-	s.Require().NoError(err)
+	s.clientCert = s.createClientCert()
+	s.writeKey(keyPath, clientKey)
+	s.writeCert(certPath, s.clientCert)
 }
 
-func (s *K8sAttestorSuite) startSecureServer(token string) {
-	kubeletCert := s.createKubeletCert()
-	s.writeCert(kubeletCAPath, kubeletCert)
-
-	clientCert := s.createClientCert()
-	s.writeKey(keyPath, clientKey)
-	s.writeCert(certPath, clientCert)
+func (s *K8sAttestorSuite) startSecureKubelet(hostNetworking bool, token string) {
+	// Use "localhost" in the DNS name unless we're using host networking. This
+	// allows us to use "localhost" as the host directly when configured to
+	// connect to the node name. Otherwise, we'll connect to 127.0.0.1 and use
+	// the hostname for server name verification.
+	dnsName := "localhost"
+	if hostNetworking {
+		dnsName = testHostname
+	}
+	s.generateCerts(dnsName)
 
 	clientCAs := x509.NewCertPool()
-	clientCAs.AddCert(clientCert)
-
+	if s.clientCert != nil {
+		clientCAs.AddCert(s.clientCert)
+	}
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if token == "" {
 			if len(req.TLS.VerifiedChains) == 0 {
@@ -573,7 +631,7 @@ func (s *K8sAttestorSuite) startSecureServer(token string) {
 	server.TLS = &tls.Config{
 		Certificates: []tls.Certificate{
 			{
-				Certificate: [][]byte{kubeletCert.Raw},
+				Certificate: [][]byte{s.kubeletCert.Raw},
 				PrivateKey:  kubeletKey,
 			},
 		},
@@ -584,7 +642,16 @@ func (s *K8sAttestorSuite) startSecureServer(token string) {
 	s.setServer(server)
 }
 
-func (s *K8sAttestorSuite) createKubeletCert() *x509.Certificate {
+func (s *K8sAttestorSuite) configureSecure(format string, args ...interface{}) {
+	configuration := fmt.Sprintf(`
+		kubelet_secure_port = %d
+	`, s.kubeletPort())
+	configuration += fmt.Sprintf(format, args...)
+
+	s.configure(configuration)
+}
+
+func (s *K8sAttestorSuite) createKubeletCert(dnsName string) *x509.Certificate {
 	now := time.Now()
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(0),
@@ -592,7 +659,7 @@ func (s *K8sAttestorSuite) createKubeletCert() *x509.Certificate {
 		Subject: pkix.Name{
 			CommonName: "whoknows",
 		},
-		DNSNames: []string{"kubelethost"},
+		DNSNames: []string{dnsName},
 	}
 	return s.createCert(tmpl, kubeletKey)
 }
@@ -627,6 +694,32 @@ func (s *K8sAttestorSuite) writeKey(path string, key *ecdsa.PrivateKey) {
 	s.writeFile(keyPath, string(pemBytes))
 }
 
+func (s *K8sAttestorSuite) requireAttestSuccessWithPod() {
+	s.addPodListResponse(podListFilePath)
+	s.addCgroupsResponse(cgPidInPodFilePath)
+	s.requireAttestSuccess(testPodSelectors)
+}
+
+func (s *K8sAttestorSuite) requireAttestSuccessWithInitPod() {
+	s.addPodListResponse(podListFilePath)
+	s.addCgroupsResponse(cgInitPidInPodFilePath)
+	s.requireAttestSuccess(testInitPodSelectors)
+}
+
+func (s *K8sAttestorSuite) requireAttestSuccess(expectedSelectors []*common.Selector) {
+	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
+		Pid: int32(pid),
+	})
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(expectedSelectors, resp.Selectors)
+}
+
+func (s *K8sAttestorSuite) requireSelectorsEqual(expected, actual []*common.Selector) {
+	// assert the selectors (sorting for consistency)
+	util.SortSelectors(actual)
+	s.Require().Equal(expected, actual)
+}
+
 func (s *K8sAttestorSuite) goAttest() <-chan attestResult {
 	resultCh := make(chan attestResult, 1)
 	go func() {
@@ -653,6 +746,7 @@ func (s *K8sAttestorSuite) addCgroupsResponse(fixturePath string) {
 	s.Require().NoError(err)
 	cgroupPath := filepath.Join(s.dir, pidCgroupPath)
 	s.Require().NoError(os.MkdirAll(filepath.Dir(cgroupPath), 0755))
+	os.Remove(cgroupPath)
 	s.Require().NoError(os.Symlink(filepath.Join(wd, fixturePath), cgroupPath))
 }
 

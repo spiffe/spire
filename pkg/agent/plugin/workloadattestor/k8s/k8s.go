@@ -32,7 +32,9 @@ const (
 	defaultMaxPollAttempts   = 5
 	defaultPollRetryInterval = time.Millisecond * 300
 	defaultSecureKubeletPort = 10250
+	defaultKubeletCAPath     = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	defaultTokenPath         = "/run/secrets/kubernetes.io/serviceaccount/token"
+	defaultNodeNameEnv       = "MY_NODE_NAME"
 )
 
 type containerLookup int
@@ -64,8 +66,8 @@ type k8sHCLConfig struct {
 	PollRetryInterval string `hcl:"poll_retry_interval"`
 
 	// KubeletCAPath is the path to the CA certificate for authenticating the
-	// kubelet over the secure port. Required if using the secure port unless
-	// SkipKubeletVerification is set.
+	// kubelet over the secure port. Required when using the secure port unless
+	// SkipKubeletVerification is set. Defaults to the cluster trust bundle.
 	KubeletCAPath string `hcl:"kubelet_ca_path"`
 
 	// SkipKubeletVerification controls whether or not the plugin will
@@ -84,6 +86,16 @@ type k8sHCLConfig struct {
 	// PrivateKeyPath is the path to a private key used for client
 	// authentication with the kubelet. Must be used with CertificatePath.
 	PrivateKeyPath string `hcl:"private_key_path"`
+
+	// NodeNameEnv is the environment variable used to determine the node name
+	// for contacting the kubelet. It defaults to "MY_NODE_NAME". If the
+	// environment variable is not set, and NodeName is not specified, the
+	// plugin will default to localhost (which requires host networking).
+	NodeNameEnv string `hcl:"node_name_env"`
+
+	// NodeName is the node name used when contacting the kubelet. If set, it
+	// takes precedence over NodeNameEnv.
+	NodeName string `hcl:"node_name"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -212,10 +224,8 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (r
 		scheme = "https"
 	}
 
-	kubeletURL := url.URL{
-		Scheme: scheme,
-		Host:   fmt.Sprintf("127.0.0.1:%d", kubeletPort),
-	}
+	// Determine the node name
+	nodeName := p.getNodeName(config.NodeName, config.NodeNameEnv)
 
 	// Configure the HTTP client
 	var token string
@@ -223,19 +233,19 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (r
 	if scheme == "https" {
 		// Formulate the kubelet URL.
 		tlsConfig = &tls.Config{}
-
 		if config.SkipKubeletVerification {
 			tlsConfig.InsecureSkipVerify = true
 		} else {
-			// the kubelet certificate has the hostname listed in the SAN
-			tlsConfig.ServerName, err = p.getHostname()
-			if err != nil {
-				return nil, err
+			if nodeName == "" {
+				// We're going to reach the kubelet via localhost but the
+				// certificate has a DNS SAN with the hostname. Use the
+				// hostname for validation.
+				tlsConfig.ServerName, err = p.getHostname()
+				if err != nil {
+					return nil, err
+				}
 			}
 
-			if config.KubeletCAPath == "" {
-				return nil, k8sErr.New("kubelet CA path is required")
-			}
 			tlsConfig.RootCAs, err = p.loadKubeletCA(config.KubeletCAPath)
 			if err != nil {
 				return nil, err
@@ -261,6 +271,11 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (r
 		}
 	}
 
+	kubeletHost := nodeName
+	if kubeletHost == "" {
+		kubeletHost = "127.0.0.1"
+	}
+
 	// Set the config
 	p.setConfig(&k8sConfig{
 		Transport: &http.Transport{
@@ -269,7 +284,10 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (r
 		Token:             token,
 		MaxPollAttempts:   maxPollAttempts,
 		PollRetryInterval: pollRetryInterval,
-		KubeletURL:        kubeletURL,
+		KubeletURL: url.URL{
+			Scheme: scheme,
+			Host:   fmt.Sprintf("%s:%d", kubeletHost, kubeletPort),
+		},
 	})
 
 	return &spi.ConfigureResponse{}, nil
@@ -334,6 +352,9 @@ func (p *k8sPlugin) getHostname() (string, error) {
 }
 
 func (p *k8sPlugin) loadKubeletCA(path string) (*x509.CertPool, error) {
+	if path == "" {
+		path = defaultKubeletCAPath
+	}
 	caPEM, err := p.readFile(path)
 	if err != nil {
 		return nil, k8sErr.New("unable to load kubelet CA: %v", err)
@@ -385,6 +406,17 @@ func (p *k8sPlugin) readFile(path string) ([]byte, error) {
 	}
 	defer f.Close()
 	return ioutil.ReadAll(f)
+}
+
+func (p *k8sPlugin) getNodeName(name string, env string) string {
+	switch {
+	case name != "":
+		return name
+	case env != "":
+		return p.getenv(env)
+	default:
+		return p.getenv(defaultNodeNameEnv)
+	}
 }
 
 func getPodListFromKubelet(tr *http.Transport, url url.URL, token string) (*corev1.PodList, error) {
