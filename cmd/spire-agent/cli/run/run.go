@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
@@ -37,6 +38,7 @@ const (
 type runConfig struct {
 	AgentConfig   agentRunConfig          `hcl:"agent"`
 	PluginConfigs catalog.PluginConfigMap `hcl:"plugins"`
+	Telemetry     telemetry.FileConfig    `hcl:"telemetry"`
 }
 
 type agentRunConfig struct {
@@ -89,8 +91,9 @@ func (*RunCLI) Run(args []string) int {
 
 	c := newDefaultConfig()
 
-	// Get the plugin configurations from the file
+	// Get the plugin and telemetry configurations from the file
 	c.PluginConfigs = fileConfig.PluginConfigs
+	c.Telemetry = fileConfig.Telemetry
 
 	err = mergeConfigs(c, fileConfig, cliConfig)
 	if err != nil {

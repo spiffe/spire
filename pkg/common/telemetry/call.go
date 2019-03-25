@@ -62,7 +62,7 @@ func (c *CallCounter) Done(errp *error) {
 		key = append(key, "error")
 	}
 	c.metrics.IncrCounterWithLabels(c.key, 1, c.labels)
-	c.metrics.MeasureSince(c.key, c.start)
+	c.metrics.MeasureSince(append(c.key, "time"), c.start)
 }
 
 func CountCall(metrics Metrics, key string, keyn ...string) func(*error) {

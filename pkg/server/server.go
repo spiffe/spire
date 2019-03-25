@@ -80,6 +80,9 @@ type Config struct {
 
 	// CASubject is the subject used in the CA certificate
 	CASubject pkix.Name
+
+	// Telemetry provides the configuration for metrics exporting
+	Telemetry telemetry.FileConfig
 }
 
 type Server struct {
@@ -121,11 +124,14 @@ func (s *Server) run(ctx context.Context) (err error) {
 		defer stopProfiling()
 	}
 
-	metrics := telemetry.NewMetrics(&telemetry.MetricsConfig{
-		Logger:      s.config.Log.WithField("subsystem_name", "telemetry").Writer(),
+	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
+		FileConfig:  s.config.Telemetry,
+		Logger:      s.config.Log.WithField("subsystem_name", "telemetry"),
 		ServiceName: "spire_server",
 	})
-	defer metrics.Stop()
+	if err != nil {
+		return err
+	}
 
 	cat := s.newCatalog()
 	defer cat.Stop()
@@ -160,6 +166,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		caManager.Run,
 		svidRotator.Run,
 		endpointsServer.ListenAndServe,
+		metrics.ListenAndServe,
 	)
 	if err == context.Canceled {
 		err = nil
