@@ -174,7 +174,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 
 func subListChanged(oldSubs []string, newSubs []string) (b bool) {
 	if len(oldSubs) != len(newSubs) {
-		return false
+		return true
 	}
 	var subMap = make(map[string]bool)
 	for _, sub := range oldSubs {
@@ -182,10 +182,10 @@ func subListChanged(oldSubs []string, newSubs []string) (b bool) {
 	}
 	for _, sub := range newSubs {
 		if !subMap[sub] {
-			return false
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
