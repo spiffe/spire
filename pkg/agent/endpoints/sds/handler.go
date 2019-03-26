@@ -23,7 +23,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
-	"reflect"
 	"strconv"
 )
 
@@ -129,7 +128,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 
 			// We need to send updates if the requested resource list has changed
 			// either explicitly, or implicitly because this is the first request.
-			var sendUpdates = lastReq == nil || !reflect.DeepEqual(lastReq.ResourceNames, newReq.ResourceNames)
+			var sendUpdates = lastReq == nil || subListChanged(lastReq.ResourceNames, newReq.ResourceNames)
 
 			// save request so that all future workload updates lead to SDS updates for the last request
 			lastReq = newReq
@@ -171,6 +170,22 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 		// remember the last nonce
 		lastNonce = resp.Nonce
 	}
+}
+
+func subListChanged(oldSubs []string, newSubs []string) (b bool) {
+	if len(oldSubs) != len(newSubs) {
+		return false
+	}
+	var subMap = make(map[string]bool)
+	for _, sub := range oldSubs {
+		subMap[sub] = true
+	}
+	for _, sub := range newSubs {
+		if !subMap[sub] {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
