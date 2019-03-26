@@ -316,19 +316,30 @@ func (s *HandlerSuite) TestStreamSecretsVersionHandling() {
 	s.requireSecrets(resp, workloadTLSCertificate1)
 }
 
+func (s *HandlerSuite) TestStreamSecretsAfterAgentRestart() {
+	stream, err := s.handler.StreamSecrets(context.Background())
+	s.Require().NoError(err)
+	defer stream.CloseSend()
+
+	// The request is gooed even though there is an unrecognized nonce.
+	// This simulates the scenario when the agent is restarted and envoy
+	// reconnects and sends the last nonce. The agent should only verify the
+	// nonce if it knows it has sent one.
+	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
+		ResponseNonce: "FOO",
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+	})
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.requireSecrets(resp, workloadTLSCertificate1)
+}
+
 func (s *HandlerSuite) TestStreamSecretsBadNonce() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
 	defer stream.CloseSend()
 
-	// The first request should be ignored because the nonce is set when it
-	// shouldn't be.
-	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
-		ResponseNonce: "FOO",
-		ResourceNames: []string{"spiffe://domain.test"},
-	})
-
-	// The second request should be good
+	// The first request should be good
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/workload"},
 	})
@@ -339,7 +350,7 @@ func (s *HandlerSuite) TestStreamSecretsBadNonce() {
 	// Now update the workload SVID
 	s.setWorkloadUpdate(workloadCert2)
 
-	// The third request should be ignored because the nonce isn't set to
+	// The second request should be ignored because the nonce isn't set to
 	// the value returned in the response.
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResponseNonce: "FOO",
@@ -347,7 +358,7 @@ func (s *HandlerSuite) TestStreamSecretsBadNonce() {
 		ResourceNames: []string{"spiffe://domain.test"},
 	})
 
-	// The fourth request should be good since the nonce matches that sent with
+	// The third request should be good since the nonce matches that sent with
 	// the last response.
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResponseNonce: resp.Nonce,

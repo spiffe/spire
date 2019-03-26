@@ -102,7 +102,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 			// The nonce should be empty (if we've never sent a response) or
 			// match the last sent nonce, otherwise the request should be
 			// ignored.
-			if lastNonce != newReq.ResponseNonce {
+			if lastNonce != "" && lastNonce != newReq.ResponseNonce {
 				h.c.Log.Warnf("Received unexpected nonce %q (expected %q); ignoring request", newReq.ResponseNonce, lastNonce)
 				continue
 			}
