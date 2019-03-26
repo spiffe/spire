@@ -121,7 +121,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 				if newReq.VersionInfo == "" || newReq.VersionInfo != versionInfo {
 					// The caller has failed to apply the secrets. Wait until the
 					// next update to send down new info.
-					h.c.Log.Errorf("Client rejected version {} and rolled back to {}", versionInfo, newReq.VersionInfo)
+					h.c.Log.Errorf("Client rejected version %q and rolled back to %q", versionInfo, newReq.VersionInfo)
 					continue
 				}
 
