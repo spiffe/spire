@@ -1,13 +1,33 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io/ioutil"
+	"regexp"
+
+	"github.com/zeebo/errs"
 )
 
-func ApplyConfig(ctx context.Context, path string) ([]Object, error) {
+var (
+	// multi-line, ungreedy match for a YAML configuration line for a non-local spire-* image
+	reSpireImage = regexp.MustCompile(`(?mU)^(\s*-?\s*image:\s*)gcr.io/spiffe-io/(spire-.+)(?::.*)?$`)
+)
+
+func ApplyConfig(ctx context.Context, path string, useLocalImage bool) ([]Object, error) {
+	// read the config file in so we can replace the image
+	configBytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+
+	if useLocalImage {
+		configBytes = replaceSpireImageWithLocal(configBytes)
+	}
+
 	var raw json.RawMessage
-	if err := kubectlCmdJSON(ctx, &raw, "apply", "-f", path); err != nil {
+	if err := kubectlCmdJSON(ctx, bytes.NewReader(configBytes), &raw, "apply", "-f", "-"); err != nil {
 		return nil, err
 	}
 
@@ -47,4 +67,8 @@ func ApplyConfig(ctx context.Context, path string) ([]Object, error) {
 	}
 
 	return objects, nil
+}
+
+func replaceSpireImageWithLocal(configBytes []byte) []byte {
+	return reSpireImage.ReplaceAll(configBytes, []byte("$1$2:latest-local"))
 }

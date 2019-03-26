@@ -6,10 +6,6 @@
 
 package auth
 
-import "net"
-
-func FromUDSConn(conn net.Conn) CallerInfo {
-	var info CallerInfo
-	info.Err = ErrUnsupportedPlatform
-	return info
+func getPeerPID(fd uintptr) (pid int32, err error) {
+	return 0, ErrUnsupportedPlatform
 }

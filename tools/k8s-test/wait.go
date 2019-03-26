@@ -18,7 +18,14 @@ func WaitForObjects(ctx context.Context, objects []Object, interval time.Duratio
 			if err := WaitForDaemonSet(ctx, object.Name, interval); err != nil {
 				return err
 			}
+		case StatefulSetKind:
+			if err := WaitForStatefulSet(ctx, object.Name, interval); err != nil {
+				return err
+			}
 		case ConfigMapKind:
+		case NamespaceKind:
+		case RoleBindingKind:
+		case RoleKind:
 		case SecretKind:
 		case ServiceKind:
 		case ServiceAccountKind:
@@ -53,6 +60,32 @@ func WaitForDeployment(ctx context.Context, name string, interval time.Duration)
 			return false, nil
 		}
 		Goodln("deployment %q is ready", name)
+		return true, nil
+	})
+}
+
+func WaitForStatefulSet(ctx context.Context, name string, interval time.Duration) error {
+	pods, err := GetPodsByOwner(ctx, StatefulSetObject(name))
+	if err != nil {
+		return err
+	}
+
+	for _, pod := range pods {
+		if err := WaitForPod(ctx, pod.Name, interval); err != nil {
+			return err
+		}
+	}
+
+	return waitFor(ctx, interval, func(ctx context.Context) (bool, error) {
+		statefulSet, err := GetStatefulSet(ctx, name)
+		if err != nil {
+			return false, err
+		}
+		if err := CheckStatefulSetReady(statefulSet); err != nil {
+			Warnln("stateful set %q is not ready yet: %v", name, err.Error())
+			return false, nil
+		}
+		Goodln("stateful set %q is ready", name)
 		return true, nil
 	})
 }

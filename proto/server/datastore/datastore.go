@@ -30,6 +30,7 @@ type DataStore interface {
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
 	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
+	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
 	CreateJoinToken(context.Context, *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error)
 	FetchJoinToken(context.Context, *FetchJoinTokenRequest) (*FetchJoinTokenResponse, error)
 	DeleteJoinToken(context.Context, *DeleteJoinTokenRequest) (*DeleteJoinTokenResponse, error)
@@ -56,6 +57,7 @@ type Plugin interface {
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
 	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
+	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
 	CreateJoinToken(context.Context, *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error)
 	FetchJoinToken(context.Context, *FetchJoinTokenRequest) (*FetchJoinTokenResponse, error)
 	DeleteJoinToken(context.Context, *DeleteJoinTokenRequest) (*DeleteJoinTokenResponse, error)
@@ -220,6 +222,14 @@ func (b BuiltIn) DeleteRegistrationEntry(ctx context.Context, req *DeleteRegistr
 	return resp, nil
 }
 
+func (b BuiltIn) PruneRegistrationEntries(ctx context.Context, req *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error) {
+	resp, err := b.plugin.PruneRegistrationEntries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func (b BuiltIn) CreateJoinToken(ctx context.Context, req *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error) {
 	resp, err := b.plugin.CreateJoinToken(ctx, req)
 	if err != nil {
@@ -278,6 +288,8 @@ type GRPCPlugin struct {
 	ServerImpl DataStoreServer
 }
 
+var _ go_plugin.GRPCPlugin = (*GRPCPlugin)(nil)
+
 func (p GRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
 	return empty.Empty{}, nil
 }
@@ -286,12 +298,12 @@ func (p GRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, 
 	return empty.Empty{}, nil
 }
 
-func (p GRPCPlugin) GRPCServer(s *grpc.Server) error {
+func (p GRPCPlugin) GRPCServer(b *go_plugin.GRPCBroker, s *grpc.Server) error {
 	RegisterDataStoreServer(s, p.ServerImpl)
 	return nil
 }
 
-func (p GRPCPlugin) GRPCClient(c *grpc.ClientConn) (interface{}, error) {
+func (p GRPCPlugin) GRPCClient(ctx context.Context, b *go_plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
 	return &GRPCClient{client: NewDataStoreClient(c)}, nil
 }
 
@@ -352,6 +364,9 @@ func (s *GRPCServer) UpdateRegistrationEntry(ctx context.Context, req *UpdateReg
 }
 func (s *GRPCServer) DeleteRegistrationEntry(ctx context.Context, req *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error) {
 	return s.Plugin.DeleteRegistrationEntry(ctx, req)
+}
+func (s *GRPCServer) PruneRegistrationEntries(ctx context.Context, req *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error) {
+	return s.Plugin.PruneRegistrationEntries(ctx, req)
 }
 func (s *GRPCServer) CreateJoinToken(ctx context.Context, req *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error) {
 	return s.Plugin.CreateJoinToken(ctx, req)
@@ -429,6 +444,9 @@ func (c *GRPCClient) UpdateRegistrationEntry(ctx context.Context, req *UpdateReg
 }
 func (c *GRPCClient) DeleteRegistrationEntry(ctx context.Context, req *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error) {
 	return c.client.DeleteRegistrationEntry(ctx, req)
+}
+func (c *GRPCClient) PruneRegistrationEntries(ctx context.Context, req *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error) {
+	return c.client.PruneRegistrationEntries(ctx, req)
 }
 func (c *GRPCClient) CreateJoinToken(ctx context.Context, req *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error) {
 	return c.client.CreateJoinToken(ctx, req)

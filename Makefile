@@ -28,11 +28,12 @@ ifneq ($(gitdirty),)
 endif
 ldflags := '-X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)'
 
-utils = github.com/golang/protobuf/protoc-gen-go \
+utils = github.com/spiffe/spire/tools/protoc-gen-spireplugin
+
+external_utils = github.com/golang/protobuf/protoc-gen-go \
 		github.com/jteeuwen/go-bindata/go-bindata \
 		github.com/AlekSi/gocoverutil \
-		github.com/mattn/goveralls \
-		github.com/spiffe/spire/tools/protoc-gen-spireplugin
+		github.com/mattn/goveralls
 
 # Help message settings
 cyan := $(shell which tput > /dev/null && tput setaf 6 || echo "")
@@ -99,16 +100,26 @@ spire-images: spire-server-image spire-agent-image ## Builds SPIRE Server and Ag
 .PHONY: spire-server-image
 spire-server-image: Dockerfile.server ## Builds SPIRE Server docker image
 	docker build --build-arg goversion=$(goversion-required) -t spire-server -f Dockerfile.server .
+	# tag the image for local use (in systems tests, for example). "latest"
+	# isn't preferred since that can impact image pull policy (.e.g kubelet)
+	docker tag spire-server:latest spire-server:latest-local
 
 .PHONY: spire-agent-image
 spire-agent-image: Dockerfile.agent ## Builds SPIRE Agent docker image
 	docker build --build-arg goversion=$(goversion-required) -t spire-agent -f Dockerfile.agent .
+	# tag the image for local use (in systems tests, for example). "latest"
+	# isn't preferred since that can impact image pull policy (.e.g kubelet)
+	docker tag spire-agent:latest spire-agent:latest-local
 
 ##@ Others
-utils: $(utils) ## Go-get SPIRE utils
+utils: $(utils) $(external_utils) ## Go-get SPIRE utils
 
 $(utils): noop
-	$(docker) /bin/sh -c "cd tools; go install $@"
+	$(docker) /bin/sh -c "go install $@"
+
+$(external_utils): noop
+	$(docker) /bin/sh -c "cd tools/external; go install $@"
+
 
 # Vendor is not needed for building. It is just kept for compatibility with IDEs that does not support modules yet.
 vendor: ## Make vendored copy of dependencies.

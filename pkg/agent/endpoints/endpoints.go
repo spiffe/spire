@@ -56,7 +56,6 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	case <-ctx.Done():
 		e.c.Log.Info("Stopping workload API")
 		server.Stop()
-		l.Close()
 		<-errChan
 		return nil
 	}

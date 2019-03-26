@@ -39,6 +39,12 @@ var (
 	sqlError = errs.Class("datastore-sql")
 )
 
+const (
+	MySQL      = "mysql"
+	PostgreSQL = "postgres"
+	SQLite     = "sqlite3"
+)
+
 type configuration struct {
 	DatabaseType     string `hcl:"database_type" json:"database_type"`
 	ConnectionString string `hcl:"connection_string" json:"connection_string"`
@@ -307,6 +313,18 @@ func (ds *sqlPlugin) DeleteRegistrationEntry(ctx context.Context,
 	return resp, nil
 }
 
+// PruneRegistrationEntries takes a registration entry message, and deletes all entries which have expired
+// before the date in the message
+func (ds *sqlPlugin) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (resp *datastore.PruneRegistrationEntriesResponse, err error) {
+	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = pruneRegistrationEntries(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 // CreateJoinToken takes a Token message and stores it
 func (ds *sqlPlugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (resp *datastore.CreateJoinTokenResponse, err error) {
 	if req.JoinToken == nil || req.JoinToken.Token == "" || req.JoinToken.Expiry == 0 {
@@ -364,12 +382,8 @@ func (ds *sqlPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		return nil, err
 	}
 
-	if config.DatabaseType == "" {
-		return nil, errors.New("database_type must be set")
-	}
-
-	if config.ConnectionString == "" {
-		return nil, errors.New("connection_string must be set")
+	if err := validateDBConfig(config); err != nil {
+		return nil, err
 	}
 
 	ds.mu.Lock()
@@ -418,7 +432,7 @@ func (ds *sqlPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 	db := ds.db
 	ds.mu.Unlock()
 
-	if db.databaseType == "sqlite3" && !readOnly {
+	if db.databaseType == SQLite && !readOnly {
 		// sqlite3 can only have one writer at a time. since we're in WAL mode,
 		// there can be concurrent reads and writes, so no lock is necessary
 		// over the read operations.
@@ -452,18 +466,21 @@ func openDB(databaseType, connectionString string) (*gorm.DB, error) {
 	var err error
 
 	switch databaseType {
-	case "sqlite3":
+	case SQLite:
 		db, err = sqlite{}.connect(connectionString)
-	case "postgres":
+	case PostgreSQL:
 		db, err = postgres{}.connect(connectionString)
+	case MySQL:
+		db, err = mysql{}.connect(connectionString)
 	default:
 		return nil, sqlError.New("unsupported database_type: %v", databaseType)
 	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	if err := migrateDB(db); err != nil {
+	if err := migrateDB(db, databaseType); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -802,6 +819,7 @@ func createRegistrationEntry(tx *gorm.DB,
 		TTL:        req.Entry.Ttl,
 		Admin:      req.Entry.Admin,
 		Downstream: req.Entry.Downstream,
+		Expiry:     req.Entry.EntryExpiry,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -1047,6 +1065,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	entry.Selectors = selectors
 	entry.Admin = req.Entry.Admin
 	entry.Downstream = req.Entry.Downstream
+	entry.Expiry = req.Entry.EntryExpiry
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1079,17 +1098,41 @@ func deleteRegistrationEntry(tx *gorm.DB,
 		return nil, err
 	}
 
-	if err := tx.Model(&entry).Association("FederatesWith").Clear().Error; err != nil {
+	err = deleteRegistrationEntrySupport(tx, entry)
+	if err != nil {
 		return nil, err
-	}
-
-	if err := tx.Delete(&entry).Error; err != nil {
-		return nil, sqlError.Wrap(err)
 	}
 
 	return &datastore.DeleteRegistrationEntryResponse{
 		Entry: respEntry,
 	}, nil
+}
+
+func deleteRegistrationEntrySupport(tx *gorm.DB, entry RegisteredEntry) error {
+	if err := tx.Model(&entry).Association("FederatesWith").Clear().Error; err != nil {
+		return err
+	}
+
+	if err := tx.Delete(&entry).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
+}
+
+func pruneRegistrationEntries(tx *gorm.DB, req *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {
+	var registrationEntries []RegisteredEntry
+	if err := tx.Where("expiry != 0").Where("expiry < ?", req.ExpiresBefore).Find(&registrationEntries).Error; err != nil {
+		return nil, err
+	}
+
+	for _, entry := range registrationEntries {
+		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
+			return nil, err
+		}
+	}
+
+	return &datastore.PruneRegistrationEntriesResponse{}, nil
 }
 
 func createJoinToken(tx *gorm.DB, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
@@ -1137,7 +1180,7 @@ func deleteJoinToken(tx *gorm.DB, req *datastore.DeleteJoinTokenRequest) (*datas
 }
 
 func pruneJoinTokens(tx *gorm.DB, req *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
-	if err := tx.Where("expiry <= ?", req.ExpiresBefore).Delete(&JoinToken{}).Error; err != nil {
+	if err := tx.Where("expiry < ?", req.ExpiresBefore).Delete(&JoinToken{}).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -1250,6 +1293,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		FederatesWith: federatesWith,
 		Admin:         model.Admin,
 		Downstream:    model.Downstream,
+		EntryExpiry:   model.Expiry,
 	}, nil
 }
 
@@ -1320,4 +1364,23 @@ func bindVarsFn(fn func(int) string, query string) string {
 	}
 	buf.WriteString(query)
 	return buf.String()
+}
+
+func validateDBConfig(cfg *configuration) error {
+	if cfg.DatabaseType == "" {
+		return errors.New("database_type must be set")
+	}
+
+	if cfg.ConnectionString == "" {
+		return errors.New("connection_string must be set")
+	}
+
+	switch cfg.DatabaseType {
+	case MySQL:
+		if err := validateMySQLConfig(cfg); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

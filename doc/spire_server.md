@@ -1,5 +1,5 @@
 # SPIRE Server Configuration Reference
-  
+
 This document is a configuration reference for SPIRE Server. It includes information about plugin types, built-in plugins, the server configuration file, plugin configuration, and command line options for `spire-server` commands.
 
 ## Plugin types
@@ -16,7 +16,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 
 | Type | Name | Description |
 | ---- | ---- | ----------- |
-| DataStore | [sql](/doc/plugin_server_datastore_sql.md) | An sql database storage for SQLite and PostgreSQL databases for the SPIRE datastore |
+| DataStore | [sql](/doc/plugin_server_datastore_sql.md) | An sql database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore |
 | KeyManager  | [disk](/doc/plugin_server_keymanager_disk.md) | A disk-based key manager for signing SVIDs |
 | KeyManager  | [memory](/doc/plugin_server_keymanager_memory.md) | A key manager for signing SVIDs which only stores keys in memory and does not actually persist them anywhere |
 | NodeAttestor | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) | A node attestor which attests agent identity using an AWS Instance Identity Document |
@@ -24,6 +24,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeAttestor | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md) | A node attestor which attests agent identity using a GCP Instance Identity Token |
 | NodeAttestor | [join_token](/doc/plugin_server_nodeattestor_jointoken.md) | A node attestor which validates agents attesting with server-generated join tokens |
 | NodeAttestor | [k8s_sat](/doc/plugin_server_nodeattestor_k8s_sat.md) | A node attestor which attests agent identity using a Kubernetes Service Account token |
+| NodeAttestor | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md) | A node attestor which attests agent identity using a Kubernetes Projected Service Account token |
 | NodeAttestor | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
 | NodeResolver | [aws_iid](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) node attestor plugin to support selecting nodes based on additional properties (such as Security Group ID). |
 | NodeResolver | [azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |

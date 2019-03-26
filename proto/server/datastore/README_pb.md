@@ -86,6 +86,8 @@
     - [Pagination](#spire.server.datastore.Pagination)
     - [PruneJoinTokensRequest](#spire.server.datastore.PruneJoinTokensRequest)
     - [PruneJoinTokensResponse](#spire.server.datastore.PruneJoinTokensResponse)
+    - [PruneRegistrationEntriesRequest](#spire.server.datastore.PruneRegistrationEntriesRequest)
+    - [PruneRegistrationEntriesResponse](#spire.server.datastore.PruneRegistrationEntriesResponse)
     - [SetNodeSelectorsRequest](#spire.server.datastore.SetNodeSelectorsRequest)
     - [SetNodeSelectorsResponse](#spire.server.datastore.SetNodeSelectorsResponse)
     - [UpdateAttestedNodeRequest](#spire.server.datastore.UpdateAttestedNodeRequest)
@@ -503,6 +505,7 @@ manage the various registered nodes and workloads that are controlled by it.
 | entry_id | [string](#string) |  | Entry ID |
 | admin | [bool](#bool) |  | Whether or not the workload is an admin workload. Admin workloads can use their SVID&#39;s to authenticate with the Registration API, for example. |
 | downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
+| entryExpiry | [int64](#int64) |  | Expiration of this entry, in seconds from epoch |
 
 
 
@@ -1158,6 +1161,31 @@ Represents a type with a list of Selector.
 
 
 
+<a name="spire.server.datastore.PruneRegistrationEntriesRequest"/>
+
+### PruneRegistrationEntriesRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| expires_before | [int64](#int64) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.PruneRegistrationEntriesResponse"/>
+
+### PruneRegistrationEntriesResponse
+
+
+
+
+
+
+
 <a name="spire.server.datastore.SetNodeSelectorsRequest"/>
 
 ### SetNodeSelectorsRequest
@@ -1332,6 +1360,7 @@ associated with the bundle (e.g. registration entries).
 | ListRegistrationEntries | [ListRegistrationEntriesRequest](#spire.server.datastore.ListRegistrationEntriesRequest) | [ListRegistrationEntriesResponse](#spire.server.datastore.ListRegistrationEntriesRequest) | Lists registration entries (optionally filtered) |
 | UpdateRegistrationEntry | [UpdateRegistrationEntryRequest](#spire.server.datastore.UpdateRegistrationEntryRequest) | [UpdateRegistrationEntryResponse](#spire.server.datastore.UpdateRegistrationEntryRequest) | Updates a specific registration entry |
 | DeleteRegistrationEntry | [DeleteRegistrationEntryRequest](#spire.server.datastore.DeleteRegistrationEntryRequest) | [DeleteRegistrationEntryResponse](#spire.server.datastore.DeleteRegistrationEntryRequest) | Deletes a specific registration entry |
+| PruneRegistrationEntries | [PruneRegistrationEntriesRequest](#spire.server.datastore.PruneRegistrationEntriesRequest) | [PruneRegistrationEntriesResponse](#spire.server.datastore.PruneRegistrationEntriesRequest) | Prunes all registration entries that expire before the specified timestamp |
 | CreateJoinToken | [CreateJoinTokenRequest](#spire.server.datastore.CreateJoinTokenRequest) | [CreateJoinTokenResponse](#spire.server.datastore.CreateJoinTokenRequest) | Creates a join token |
 | FetchJoinToken | [FetchJoinTokenRequest](#spire.server.datastore.FetchJoinTokenRequest) | [FetchJoinTokenResponse](#spire.server.datastore.FetchJoinTokenRequest) | Fetches a specific join token |
 | DeleteJoinToken | [DeleteJoinTokenRequest](#spire.server.datastore.DeleteJoinTokenRequest) | [DeleteJoinTokenResponse](#spire.server.datastore.DeleteJoinTokenRequest) | Delete a specific join token |

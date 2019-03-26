@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -33,6 +34,7 @@ type serverCAConfig struct {
 	TrustDomain url.URL
 	DefaultTTL  time.Duration
 	CASubject   pkix.Name
+	Clock       clock.Clock
 }
 
 type ServerCA interface {
@@ -48,17 +50,19 @@ type serverCA struct {
 	mu sync.RWMutex
 	kp *keypairSet
 
-	hooks struct {
-		now func() time.Time
-	}
+	jwtSigner *jwtsvid.Signer
 }
 
 func newServerCA(config serverCAConfig) *serverCA {
-	out := &serverCA{
-		c: config,
+	if config.Clock == nil {
+		config.Clock = clock.New()
 	}
-	out.hooks.now = time.Now
-	return out
+	return &serverCA{
+		c: config,
+		jwtSigner: jwtsvid.NewSigner(jwtsvid.SignerConfig{
+			Clock: config.Clock,
+		}),
+	}
 }
 
 func (ca *serverCA) setKeypairSet(kp keypairSet) {
@@ -79,7 +83,7 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, ttl time.Du
 		return nil, errors.New("no X509-SVID keypair available")
 	}
 
-	now := ca.hooks.now()
+	now := ca.c.Clock.Now()
 	if ttl <= 0 {
 		ttl = ca.c.DefaultTTL
 	}
@@ -124,7 +128,7 @@ func (ca *serverCA) SignX509CASVID(ctx context.Context, csrDER []byte, ttl time.
 		return nil, errors.New("no X509-SVID keypair available")
 	}
 
-	now := ca.hooks.now()
+	now := ca.c.Clock.Now()
 	if ttl <= 0 {
 		ttl = ca.c.DefaultTTL
 	}
@@ -181,14 +185,14 @@ func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, err
 	if ttl <= 0 {
 		ttl = DefaultJWTSVIDTTL
 	}
-	expiresAt := ca.hooks.now().Add(ttl)
+	expiresAt := ca.c.Clock.Now().Add(ttl)
 	if expiresAt.After(kp.jwtSigningKey.notAfter) {
 		expiresAt = kp.jwtSigningKey.notAfter
 	}
 
 	km := ca.c.Catalog.KeyManagers()[0]
 	signer := cryptoutil.NewKeyManagerSigner(km, kp.JWTSignerKeyID(), kp.jwtSigningKey.publicKey)
-	token, err := jwtsvid.SignToken(jsr.SpiffeId, jsr.Audience, expiresAt, signer, kp.jwtSigningKey.Kid)
+	token, err := ca.jwtSigner.SignToken(jsr.SpiffeId, jsr.Audience, expiresAt, signer, kp.jwtSigningKey.Kid)
 	if err != nil {
 		return "", fmt.Errorf("unable to sign JWT-SVID: %v", err)
 	}

@@ -103,6 +103,16 @@ func (s *PluginSuite) TestInvalidPluginConfiguration() {
 	s.Require().EqualError(err, "datastore-sql: unsupported database_type: wrong")
 }
 
+func (s *PluginSuite) TestInvalidMySQLConfiguration() {
+	_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
+		Configuration: `
+		database_type = "mysql"
+		connection_string = "username:@tcp(127.0.0.1)/spire_test"
+		`,
+	})
+	s.Require().EqualError(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
+}
+
 func (s *PluginSuite) TestBundleCRUD() {
 	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
@@ -574,6 +584,54 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 	s.Require().NoError(err)
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
+}
+
+func (s *PluginSuite) TestPruneRegistrationEntries() {
+	now := time.Now().Unix()
+	registeredEntry := &datastore.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type2", Value: "Value2"},
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId:    "SpiffeId",
+		ParentId:    "ParentId",
+		Ttl:         1,
+		EntryExpiry: now,
+	}
+	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
+	s.Require().NoError(err)
+	s.Require().NotNil(createRegistrationEntryResponse)
+	createdEntry := createRegistrationEntryResponse.Entry
+
+	// Ensure we don't prune valid entries, wind clock back 10s
+	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
+		ExpiresBefore: now - 10,
+	})
+	s.Require().NoError(err)
+	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	s.Require().NoError(err)
+	s.Require().NotNil(fetchRegistrationEntryResponse)
+	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
+
+	// Ensure we don't prune on the exact ExpiresBefore
+	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
+		ExpiresBefore: now,
+	})
+	s.Require().NoError(err)
+	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	s.Require().NoError(err)
+	s.Require().NotNil(fetchRegistrationEntryResponse)
+	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
+
+	// Ensure we prune old entries
+	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
+		ExpiresBefore: now + 10,
+	})
+	s.Require().NoError(err)
+	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	s.Require().NoError(err)
+	s.Nil(fetchRegistrationEntryResponse.Entry)
 }
 
 func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
@@ -1196,6 +1254,17 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Require().NoError(err)
 	s.Equal("foobar", resp.JoinToken.Token)
 
+	// Ensure we don't prune on the exact ExpiresBefore
+	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
+		ExpiresBefore: now,
+	})
+	s.Require().NoError(err)
+	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
+		Token: joinToken.Token,
+	})
+	s.Require().NoError(err)
+	s.Equal("foobar", resp.JoinToken.Token)
+
 	// Ensure we prune old tokens
 	joinToken.Expiry = (now + 10)
 	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
@@ -1324,6 +1393,23 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().NoError(err)
 			s.Require().Len(resp.Entries, 1)
 			s.Require().True(resp.Entries[0].Downstream)
+		case 6:
+			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().Zero(resp.Entries[0].EntryExpiry)
+
+			expiryVal := time.Now().Unix()
+			resp.Entries[0].EntryExpiry = expiryVal
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
+				Entry: resp.Entries[0],
+			})
+			s.Require().NoError(err)
+
+			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			s.Require().NoError(err)
+			s.Require().Len(resp.Entries, 1)
+			s.Require().Equal(expiryVal, resp.Entries[0].EntryExpiry)
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}

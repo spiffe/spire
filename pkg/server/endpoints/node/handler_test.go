@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakenoderesolver"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
@@ -48,6 +49,10 @@ const (
 	serverID   = "spiffe://example.org/spire/server"
 	agentID    = "spiffe://example.org/spire/agent/test/id"
 	workloadID = "spiffe://example.org/workload"
+
+	// used to cancel stream operations on test failure instead of blocking the
+	// full go test timeout period (i.e. 10 minutes)
+	testTimeout = time.Minute
 )
 
 var (
@@ -81,14 +86,14 @@ type HandlerSuite struct {
 	attestedClient   node.NodeClient
 	ds               *fakedatastore.DataStore
 	catalog          *fakeservercatalog.Catalog
-	now              time.Time
+	clock            *clock.Mock
 	bundle           *common.Bundle
 	agentSVID        []*x509.Certificate
 	serverCA         *fakeserverca.ServerCA
 }
 
 func (s *HandlerSuite) SetupTest() {
-	s.now = time.Now()
+	s.clock = clock.NewMock(s.T())
 
 	log, logHook := test.NewNullLogger()
 	s.logHook = logHook
@@ -100,9 +105,7 @@ func (s *HandlerSuite) SetupTest() {
 	s.catalog.SetDataStores(s.ds)
 
 	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
-		Now: func() time.Time {
-			return s.now
-		},
+		Clock: s.clock,
 	})
 	s.bundle = bundleutil.BundleProtoFromRootCAs(trustDomainID, s.serverCA.Bundle())
 
@@ -118,10 +121,8 @@ func (s *HandlerSuite) SetupTest() {
 		Catalog:     s.catalog,
 		ServerCA:    s.serverCA,
 		TrustDomain: *trustDomainURL,
+		Clock:       s.clock,
 	})
-	handler.hooks.now = func() time.Time {
-		return s.now
-	}
 	handler.limiter = s.limiter
 
 	// Streaming methods and auth are easier to test from the client point of view.
@@ -376,7 +377,7 @@ func (s *HandlerSuite) TestAttestWithAlreadyUsedJoinToken() {
 }
 
 func (s *HandlerSuite) TestAttestWithExpiredJoinToken() {
-	s.createJoinToken("TOKEN", s.now.Add(-time.Second))
+	s.createJoinToken("TOKEN", s.clock.Now().Add(-time.Second))
 
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("join_token", "TOKEN"),
@@ -388,7 +389,7 @@ func (s *HandlerSuite) TestAttestWithExpiredJoinToken() {
 }
 
 func (s *HandlerSuite) TestAttestWithValidJoinToken() {
-	s.createJoinToken("TOKEN", s.now.Add(time.Second))
+	s.createJoinToken("TOKEN", s.clock.Now().Add(time.Second))
 	s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("join_token", "TOKEN"),
 		Csr:             s.makeCSR("spiffe://example.org/spire/agent/join_token/TOKEN"),
@@ -474,8 +475,7 @@ func (s *HandlerSuite) TestAttestWithBothAttestorAndResolverSelectors() {
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithUnattestedAgent() {
-	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{},
-		codes.PermissionDenied, "agent is not attested or no longer valid")
+	s.requireFetchX509SVIDAuthFailure()
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDLimits() {
@@ -561,9 +561,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithStaleAgent() {
 	agentSVID.SerialNumber = big.NewInt(9999999999)
 	s.Require().NoError(createAttestationEntry(context.Background(), s.ds, &agentSVID, "test"))
 
-	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(workloadID),
-	}, codes.PermissionDenied, "agent is not attested or no longer valid")
+	s.requireFetchX509SVIDAuthFailure()
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedDownstreamCSR() {
@@ -694,8 +692,8 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 	})
 
 	s.NotEmpty(svid.Token)
-	s.Equal(s.now.Unix(), svid.IssuedAt)
-	s.Equal(s.now.Add(s.serverCA.DefaultTTL()).Unix(), svid.ExpiresAt)
+	s.Equal(s.clock.Now().Unix(), svid.IssuedAt)
+	s.Equal(s.clock.Now().Add(s.serverCA.DefaultTTL()).Unix(), svid.ExpiresAt)
 }
 
 func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {
@@ -770,14 +768,14 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
 
 	// expired certificate
-	s.now = peerCert.NotAfter.Add(time.Second)
+	s.clock.Set(peerCert.NotAfter.Add(time.Second))
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
 	s.Require().Error(err)
 	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
 	s.Equal(codes.PermissionDenied, status.Code(err))
 	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID has expired`)
 	s.Require().Nil(ctx)
-	s.now = peerCert.NotAfter
+	s.clock.Set(peerCert.NotAfter)
 
 	// serial number does not match
 	s.updateAttestedNode(agentID, "SERIAL NUMBER", peerCert.NotAfter)
@@ -874,7 +872,9 @@ func (s *HandlerSuite) createRegistrationEntry(entry *common.RegistrationEntry) 
 }
 
 func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, responses ...string) *node.X509SVIDUpdate {
-	stream, err := s.unattestedClient.Attest(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	stream, err := s.unattestedClient.Attest(ctx)
 	s.Require().NoError(err)
 	s.Require().NoError(stream.Send(req))
 	for _, response := range responses {
@@ -897,7 +897,9 @@ func (s *HandlerSuite) requireAttestSuccess(req *node.AttestRequest, responses .
 }
 
 func (s *HandlerSuite) requireAttestFailure(req *node.AttestRequest, errorCode codes.Code, errorContains string) {
-	stream, err := s.unattestedClient.Attest(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	stream, err := s.unattestedClient.Attest(ctx)
 	s.Require().NoError(err)
 	s.Require().NoError(stream.Send(req))
 	stream.CloseSend()
@@ -918,7 +920,9 @@ func (s *HandlerSuite) getClientCertificate(*tls.CertificateRequestInfo) (*tls.C
 }
 
 func (s *HandlerSuite) requireFetchX509SVIDSuccess(req *node.FetchX509SVIDRequest) *node.X509SVIDUpdate {
-	stream, err := s.attestedClient.FetchX509SVID(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	stream, err := s.attestedClient.FetchX509SVID(ctx)
 	s.Require().NoError(err)
 	s.Require().NoError(stream.Send(req))
 	stream.CloseSend()
@@ -930,7 +934,9 @@ func (s *HandlerSuite) requireFetchX509SVIDSuccess(req *node.FetchX509SVIDReques
 }
 
 func (s *HandlerSuite) requireFetchX509SVIDFailure(req *node.FetchX509SVIDRequest, errorCode codes.Code, errorContains string) {
-	stream, err := s.attestedClient.FetchX509SVID(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	stream, err := s.attestedClient.FetchX509SVID(ctx)
 	s.Require().NoError(err)
 	s.Require().NoError(stream.Send(req))
 	stream.CloseSend()
@@ -940,8 +946,23 @@ func (s *HandlerSuite) requireFetchX509SVIDFailure(req *node.FetchX509SVIDReques
 	s.Require().Nil(resp)
 }
 
+func (s *HandlerSuite) requireFetchX509SVIDAuthFailure() {
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	stream, err := s.attestedClient.FetchX509SVID(ctx)
+	s.Require().NoError(err)
+	// the auth failure will come back on the Recv(). we shouldn't have to send
+	// on the stream to get this to happen.
+	resp, err := stream.Recv()
+	s.Require().Contains("agent is not attested or no longer valid", status.Convert(err).Message())
+	s.Require().Equal(codes.PermissionDenied, status.Code(err))
+	s.Require().Nil(resp)
+}
+
 func (s *HandlerSuite) requireFetchJWTSVIDSuccess(req *node.FetchJWTSVIDRequest) *node.JWTSVID {
-	resp, err := s.attestedClient.FetchJWTSVID(context.Background(), req)
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	resp, err := s.attestedClient.FetchJWTSVID(ctx, req)
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().NotNil(resp.Svid)
@@ -949,7 +970,9 @@ func (s *HandlerSuite) requireFetchJWTSVIDSuccess(req *node.FetchJWTSVIDRequest)
 }
 
 func (s *HandlerSuite) requireFetchJWTSVIDFailure(req *node.FetchJWTSVIDRequest, errorCode codes.Code, errorContains string) {
-	resp, err := s.attestedClient.FetchJWTSVID(context.Background(), req)
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	resp, err := s.attestedClient.FetchJWTSVID(ctx, req)
 	s.Require().Contains(errorContains, status.Convert(err).Message())
 	s.Require().Equal(errorCode, status.Code(err))
 	s.Require().Nil(resp)

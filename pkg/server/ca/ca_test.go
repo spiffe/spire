@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/keymanager"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/stretchr/testify/suite"
 )
@@ -40,7 +41,7 @@ type CATestSuite struct {
 	suite.Suite
 
 	signer crypto.Signer
-	now    time.Time
+	clock  *clock.Mock
 	ca     *serverCA
 }
 
@@ -48,13 +49,14 @@ func (s *CATestSuite) SetupTest() {
 	key, err := pemutil.ParseECPrivateKey(keyPEM)
 	s.Require().NoError(err)
 	s.signer = key
-	s.now = time.Now().Truncate(time.Second).UTC()
+	s.clock = clock.NewMock(s.T())
+	s.clock.Set(time.Now().Truncate(time.Second).UTC())
 
 	km := memory.New()
 	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, "x509-CA-FOO", keymanager.KeyType_EC_P256)
 	s.Require().NoError(err)
 
-	cert, err := SelfSignServerCACertificate(x509CASigner, "example.org", pkix.Name{}, s.now, s.now.Add(time.Minute*10))
+	cert, err := SelfSignServerCACertificate(x509CASigner, "example.org", pkix.Name{}, s.clock.Now(), s.clock.Now().Add(time.Minute*10))
 	s.Require().NoError(err)
 
 	jwtSigningKeyPKIX, err := cryptoutil.GenerateKeyRaw(ctx, km, "JWT-Signer-FOO", keymanager.KeyType_EC_P256)
@@ -86,6 +88,7 @@ func (s *CATestSuite) SetupTest() {
 			Country:      []string{"TEST"},
 			Organization: []string{"TEST"},
 		},
+		Clock: s.clock,
 	})
 	s.ca.setKeypairSet(keypairSet{
 		slot: "FOO",
@@ -94,9 +97,6 @@ func (s *CATestSuite) SetupTest() {
 		},
 		jwtSigningKey: jwtSigningKey,
 	})
-	s.ca.hooks.now = func() time.Time {
-		return s.now
-	}
 }
 
 func (s *CATestSuite) TestNoX509KeypairSet() {
@@ -109,8 +109,8 @@ func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLIfTTLUnspecified() {
 	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
 	s.Require().NoError(err)
 	s.Require().Len(svid, 2)
-	s.Require().Equal(s.now.Add(-backdate), svid[0].NotBefore)
-	s.Require().Equal(s.now.Add(time.Minute), svid[0].NotAfter)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
 }
 
 func (s *CATestSuite) TestSignX509SVIDReturnsEmptyIntermediatesIfServerCASelfSigned() {
@@ -134,16 +134,16 @@ func (s *CATestSuite) TestSignX509SVIDUsesTTLIfSpecified() {
 	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), time.Minute+time.Second)
 	s.Require().NoError(err)
 	s.Require().Len(svid, 2)
-	s.Require().Equal(s.now.Add(-backdate), svid[0].NotBefore)
-	s.Require().Equal(s.now.Add(time.Minute+time.Second), svid[0].NotAfter)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(time.Minute+time.Second), svid[0].NotAfter)
 }
 
 func (s *CATestSuite) TestSignX509SVIDCapsTTLToKeypairTTL() {
 	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), time.Hour)
 	s.Require().NoError(err)
 	s.Require().Len(svid, 2)
-	s.Require().Equal(s.now.Add(-backdate), svid[0].NotBefore)
-	s.Require().Equal(s.now.Add(10*time.Minute), svid[0].NotAfter)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(10*time.Minute), svid[0].NotAfter)
 }
 
 func (s *CATestSuite) TestSignX509SVIDValidatesCSR() {
@@ -185,8 +185,8 @@ func (s *CATestSuite) TestSignJWTSVIDUsesDefaultTTLIfTTLUnspecified() {
 	s.Require().NoError(err)
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
-	s.Require().Equal(s.now, issuedAt)
-	s.Require().Equal(s.now.Add(DefaultJWTSVIDTTL), expiresAt)
+	s.Require().Equal(s.clock.Now(), issuedAt)
+	s.Require().Equal(s.clock.Now().Add(DefaultJWTSVIDTTL), expiresAt)
 }
 
 func (s *CATestSuite) TestSignJWTSVIDUsesTTLIfSpecified() {
@@ -194,8 +194,8 @@ func (s *CATestSuite) TestSignJWTSVIDUsesTTLIfSpecified() {
 	s.Require().NoError(err)
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
-	s.Require().Equal(s.now, issuedAt)
-	s.Require().Equal(s.now.Add(time.Minute+time.Second), expiresAt)
+	s.Require().Equal(s.clock.Now(), issuedAt)
+	s.Require().Equal(s.clock.Now().Add(time.Minute+time.Second), expiresAt)
 }
 
 func (s *CATestSuite) TestSignJWTSVIDCapsTTLToKeypairTTL() {
@@ -203,8 +203,8 @@ func (s *CATestSuite) TestSignJWTSVIDCapsTTLToKeypairTTL() {
 	s.Require().NoError(err)
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
-	s.Require().Equal(s.now, issuedAt)
-	s.Require().Equal(s.now.Add(10*time.Minute), expiresAt)
+	s.Require().Equal(s.clock.Now(), issuedAt)
+	s.Require().Equal(s.clock.Now().Add(10*time.Minute), expiresAt)
 }
 
 func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
@@ -229,8 +229,8 @@ func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
 	svid, err := s.ca.SignX509CASVID(ctx, s.generateCSR("example.org"), 0)
 	s.Require().NoError(err)
 	s.Require().Len(svid, 2)
-	s.Require().Equal(s.now.Add(-backdate), svid[0].NotBefore)
-	s.Require().Equal(s.now.Add(time.Minute), svid[0].NotAfter)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
 }
 
 func (s *CATestSuite) TestSignX509CASVIDWithDifferentSubject() {

@@ -269,6 +269,19 @@ func (mr *MockDataStoreMockRecorder) PruneJoinTokens(arg0, arg1 interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneJoinTokens", reflect.TypeOf((*MockDataStore)(nil).PruneJoinTokens), arg0, arg1)
 }
 
+// PruneRegistrationEntries mocks base method
+func (m *MockDataStore) PruneRegistrationEntries(arg0 context.Context, arg1 *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {
+	ret := m.ctrl.Call(m, "PruneRegistrationEntries", arg0, arg1)
+	ret0, _ := ret[0].(*datastore.PruneRegistrationEntriesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PruneRegistrationEntries indicates an expected call of PruneRegistrationEntries
+func (mr *MockDataStoreMockRecorder) PruneRegistrationEntries(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneRegistrationEntries", reflect.TypeOf((*MockDataStore)(nil).PruneRegistrationEntries), arg0, arg1)
+}
+
 // SetNodeSelectors mocks base method
 func (m *MockDataStore) SetNodeSelectors(arg0 context.Context, arg1 *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
 	ret := m.ctrl.Call(m, "SetNodeSelectors", arg0, arg1)
@@ -602,6 +615,19 @@ func (m *MockPlugin) PruneJoinTokens(arg0 context.Context, arg1 *datastore.Prune
 // PruneJoinTokens indicates an expected call of PruneJoinTokens
 func (mr *MockPluginMockRecorder) PruneJoinTokens(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneJoinTokens", reflect.TypeOf((*MockPlugin)(nil).PruneJoinTokens), arg0, arg1)
+}
+
+// PruneRegistrationEntries mocks base method
+func (m *MockPlugin) PruneRegistrationEntries(arg0 context.Context, arg1 *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {
+	ret := m.ctrl.Call(m, "PruneRegistrationEntries", arg0, arg1)
+	ret0, _ := ret[0].(*datastore.PruneRegistrationEntriesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PruneRegistrationEntries indicates an expected call of PruneRegistrationEntries
+func (mr *MockPluginMockRecorder) PruneRegistrationEntries(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneRegistrationEntries", reflect.TypeOf((*MockPlugin)(nil).PruneRegistrationEntries), arg0, arg1)
 }
 
 // SetNodeSelectors mocks base method

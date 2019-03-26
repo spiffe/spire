@@ -1,6 +1,6 @@
 # Server plugin: DataStore "sql"
 
-The `sql` plugin implements a sql based storage option for the SPIRE server using SQLite and PostgreSQL databases.
+The `sql` plugin implements a sql based storage option for the SPIRE server using SQLite, PostgreSQL or MySQL databases.
 
 | Configuration     | Description                                |
 | ------------------| ------------------------------------------ |
@@ -57,3 +57,26 @@ connection_string="dbname=postgres user=postgres password=password host=localhos
   the server was signed by a trusted CA and the server host name
   matches the one in the certificate)
 
+### `database_type = "mysql"`
+
+The `connection_string` for the MySQL database connection consists of the number of configuration options (optional parts marked by square brackets):
+
+````
+username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
+````
+
+#### example
+```
+connection_string="username:password@tcp(localhost:3306)/dbname?parseTime=true"
+```
+
+Read MySQL driver for more `connection_string` options [here](https://github.com/go-sql-driver/mysql#usage).
+
+#### Configuration Options
+* dbname - The name of the database to connect to
+* username - The user to sign in as
+* password - The user's password
+* address - The host to connect to. Values that start with / are for unix
+  domain sockets. (default is localhost)
+
+You can configure SSL/TLS mode via [tls](https://github.com/go-sql-driver/mysql#tls) params
