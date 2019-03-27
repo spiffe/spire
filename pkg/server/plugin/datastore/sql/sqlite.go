@@ -10,8 +10,8 @@ import (
 
 type sqlite struct{}
 
-func (s sqlite) connect(connectionString string) (*gorm.DB, error) {
-	embellished, err := embellishSQLite3ConnString(connectionString)
+func (s sqlite) connect(cfg *configuration) (*gorm.DB, error) {
+	embellished, err := embellishSQLite3ConnString(cfg.ConnectionString)
 	if err != nil {
 		return nil, err
 	}
