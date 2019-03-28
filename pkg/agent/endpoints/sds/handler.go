@@ -118,10 +118,9 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 				}
 
 				if newReq.VersionInfo == "" || newReq.VersionInfo != versionInfo {
-					// The caller has failed to apply the secrets. Wait until the
-					// next update to send down new info.
+					// The caller has failed to apply the last update.
+					// A NACK might also contain an update to the resource hint, so we need to continue processing.
 					h.c.Log.Errorf("Client rejected version %q and rolled back to %q", versionInfo, newReq.VersionInfo)
-					continue
 				}
 
 			}
