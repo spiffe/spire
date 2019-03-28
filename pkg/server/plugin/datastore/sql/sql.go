@@ -48,6 +48,9 @@ const (
 type configuration struct {
 	DatabaseType     string `hcl:"database_type" json:"database_type"`
 	ConnectionString string `hcl:"connection_string" json:"connection_string"`
+	RootCAPath       string `hcl:"root_ca_path" json:"root_ca_path"`
+	ClientCertPath   string `hcl:"client_cert_path" json:"client_cert_path"`
+	ClientKeyPath    string `hcl:"client_key_path" json:"client_key_path"`
 
 	// Undocumented flags
 	LogSQL bool `hcl:"log_sql" json:"log_sql"`
@@ -393,7 +396,7 @@ func (ds *sqlPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		config.ConnectionString != ds.db.connectionString ||
 		config.DatabaseType != ds.db.databaseType {
 
-		db, err := openDB(config.DatabaseType, config.ConnectionString)
+		db, err := openDB(config)
 		if err != nil {
 			return nil, err
 		}
@@ -461,26 +464,26 @@ func (ds *sqlPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 	return sqlError.Wrap(tx.Commit().Error)
 }
 
-func openDB(databaseType, connectionString string) (*gorm.DB, error) {
+func openDB(cfg *configuration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
-	switch databaseType {
+	switch cfg.DatabaseType {
 	case SQLite:
-		db, err = sqlite{}.connect(connectionString)
+		db, err = sqlite{}.connect(cfg)
 	case PostgreSQL:
-		db, err = postgres{}.connect(connectionString)
+		db, err = postgres{}.connect(cfg)
 	case MySQL:
-		db, err = mysql{}.connect(connectionString)
+		db, err = mysql{}.connect(cfg)
 	default:
-		return nil, sqlError.New("unsupported database_type: %v", databaseType)
+		return nil, sqlError.New("unsupported database_type: %v", cfg.DatabaseType)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	if err := migrateDB(db, databaseType); err != nil {
+	if err := migrateDB(db, cfg.DatabaseType); err != nil {
 		db.Close()
 		return nil, err
 	}
