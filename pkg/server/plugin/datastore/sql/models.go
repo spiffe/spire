@@ -66,6 +66,8 @@ type RegisteredEntry struct {
 	Downstream    bool
 	// (optional) expiry of this entry
 	Expiry int64
+	// (optional) DNS entries
+	DNSList []DNSName
 }
 
 // JoinToken holds a join token
@@ -82,6 +84,19 @@ type Selector struct {
 	RegisteredEntryID uint   `gorm:"unique_index:idx_selector_entry"`
 	Type              string `gorm:"unique_index:idx_selector_entry"`
 	Value             string `gorm:"unique_index:idx_selector_entry"`
+}
+
+// DNSName holds a DNS for a registration entry
+type DNSName struct {
+	Model
+
+	RegisteredEntryID uint   `gorm:"unique_index:idx_dns_entry"`
+	Value             string `gorm:"unique_index:idx_dns_entry"`
+}
+
+// TableName gets table name for DNS entries
+func (DNSName) TableName() string {
+	return "dns_names"
 }
 
 // Migration holds version information

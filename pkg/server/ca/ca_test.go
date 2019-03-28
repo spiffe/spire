@@ -101,20 +101,52 @@ func (s *CATestSuite) SetupTest() {
 
 func (s *CATestSuite) TestNoX509KeypairSet() {
 	ca := newServerCA(s.ca.c)
-	_, err := ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
+	_, err := ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
 	s.Require().EqualError(err, "no X509-SVID keypair available")
 }
 
 func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLIfTTLUnspecified() {
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 2)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
 }
 
+func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLAndNoCNDNS() {
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
+	s.Require().NoError(err)
+	s.Require().Len(svid, 2)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
+	s.Require().Empty(svid[0].DNSNames)
+	s.Require().Empty(svid[0].Subject.CommonName)
+}
+
+func (s *CATestSuite) TestSignX509SVIDSingleDNS() {
+	dnsList := []string{"somehost1"}
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{DNSList: dnsList})
+	s.Require().NoError(err)
+	s.Require().Len(svid, 2)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
+	s.Require().Equal(dnsList, svid[0].DNSNames)
+	s.Require().Equal("somehost1", svid[0].Subject.CommonName)
+}
+
+func (s *CATestSuite) TestSignX509SVIDMultipleDNS() {
+	dnsList := []string{"somehost1", "somehost2", "somehost3"}
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{DNSList: dnsList})
+	s.Require().NoError(err)
+	s.Require().Len(svid, 2)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
+	s.Require().Equal(dnsList, svid[0].DNSNames)
+	s.Require().Equal("somehost1", svid[0].Subject.CommonName)
+}
+
 func (s *CATestSuite) TestSignX509SVIDReturnsEmptyIntermediatesIfServerCASelfSigned() {
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 2)
 }
@@ -124,14 +156,14 @@ func (s *CATestSuite) TestSignX509SVIDReturnsIntermediatesIfNotSelfSigned() {
 
 	kp := s.ca.getKeypairSet()
 	kp.x509CA.chain = []*x509.Certificate{intermediate, kp.x509CA.chain[0]}
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 3)
 	s.Require().Equal(intermediate, svid[1])
 }
 
 func (s *CATestSuite) TestSignX509SVIDUsesTTLIfSpecified() {
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), time.Minute+time.Second)
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{TTL: time.Minute + time.Second})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 2)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
@@ -139,7 +171,7 @@ func (s *CATestSuite) TestSignX509SVIDUsesTTLIfSpecified() {
 }
 
 func (s *CATestSuite) TestSignX509SVIDCapsTTLToKeypairTTL() {
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), time.Hour)
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{TTL: time.Hour})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 2)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
@@ -147,7 +179,7 @@ func (s *CATestSuite) TestSignX509SVIDCapsTTLToKeypairTTL() {
 }
 
 func (s *CATestSuite) TestSignX509SVIDValidatesCSR() {
-	_, err := s.ca.SignX509SVID(ctx, s.generateCSR("foo.com"), 0)
+	_, err := s.ca.SignX509SVID(ctx, s.generateCSR("foo.com"), X509Params{})
 	s.Require().EqualError(err, `"spiffe://foo.com" does not belong to trust domain "example.org"`)
 }
 
@@ -158,17 +190,17 @@ func (s *CATestSuite) TestSignX509SVIDWithEvilSubject() {
 		},
 		URIs: []*url.URL{makeSpiffeID("example.org")},
 	}
-	certs, err := s.ca.SignX509SVID(ctx, s.signCSR(csr), 0)
+	certs, err := s.ca.SignX509SVID(ctx, s.signCSR(csr), X509Params{})
 	s.Require().NoError(err)
 	s.Assert().NotEqual("mybank.example.org", certs[0].Subject.CommonName)
 }
 
 func (s *CATestSuite) TestSignX509SVIDIncrementsSerialNumber() {
-	svid1, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
+	svid1, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid1, 2)
 	s.Require().Equal(0, svid1[0].SerialNumber.Cmp(big.NewInt(1)))
-	svid2, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), 0)
+	svid2, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid2, 2)
 	s.Require().Equal(0, svid2[0].SerialNumber.Cmp(big.NewInt(2)))
@@ -221,12 +253,12 @@ func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
 
 func (s *CATestSuite) TestNoX509KeypairSetCASVID() {
 	ca := newServerCA(s.ca.c)
-	_, err := ca.SignX509CASVID(ctx, s.generateCSR("example.org"), 0)
+	_, err := ca.SignX509CASVID(ctx, s.generateCSR("example.org"), X509Params{})
 	s.Require().EqualError(err, "no X509-SVID keypair available")
 }
 
 func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
-	svid, err := s.ca.SignX509CASVID(ctx, s.generateCSR("example.org"), 0)
+	svid, err := s.ca.SignX509CASVID(ctx, s.generateCSR("example.org"), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 2)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
@@ -238,7 +270,7 @@ func (s *CATestSuite) TestSignX509CASVIDWithDifferentSubject() {
 		Country:      []string{"INVALID"},
 		Organization: []string{"INVALID"},
 	}
-	svid, err := s.ca.SignX509CASVID(ctx, s.generateCSRWithSubject("example.org", subject), 0)
+	svid, err := s.ca.SignX509CASVID(ctx, s.generateCSRWithSubject("example.org", subject), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 2)
 	s.Require().Equal(svid[0].Subject.Country[0], "TEST")

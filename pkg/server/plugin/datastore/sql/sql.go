@@ -48,6 +48,9 @@ const (
 type configuration struct {
 	DatabaseType     string `hcl:"database_type" json:"database_type"`
 	ConnectionString string `hcl:"connection_string" json:"connection_string"`
+	RootCAPath       string `hcl:"root_ca_path" json:"root_ca_path"`
+	ClientCertPath   string `hcl:"client_cert_path" json:"client_cert_path"`
+	ClientKeyPath    string `hcl:"client_key_path" json:"client_key_path"`
 
 	// Undocumented flags
 	LogSQL bool `hcl:"log_sql" json:"log_sql"`
@@ -393,7 +396,7 @@ func (ds *sqlPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		config.ConnectionString != ds.db.connectionString ||
 		config.DatabaseType != ds.db.databaseType {
 
-		db, err := openDB(config.DatabaseType, config.ConnectionString)
+		db, err := openDB(config)
 		if err != nil {
 			return nil, err
 		}
@@ -461,26 +464,26 @@ func (ds *sqlPlugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, rea
 	return sqlError.Wrap(tx.Commit().Error)
 }
 
-func openDB(databaseType, connectionString string) (*gorm.DB, error) {
+func openDB(cfg *configuration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
-	switch databaseType {
+	switch cfg.DatabaseType {
 	case SQLite:
-		db, err = sqlite{}.connect(connectionString)
+		db, err = sqlite{}.connect(cfg)
 	case PostgreSQL:
-		db, err = postgres{}.connect(connectionString)
+		db, err = postgres{}.connect(cfg)
 	case MySQL:
-		db, err = mysql{}.connect(connectionString)
+		db, err = mysql{}.connect(cfg)
 	default:
-		return nil, sqlError.New("unsupported database_type: %v", databaseType)
+		return nil, sqlError.New("unsupported database_type: %v", cfg.DatabaseType)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	if err := migrateDB(db, databaseType); err != nil {
+	if err := migrateDB(db, cfg.DatabaseType); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -846,6 +849,17 @@ func createRegistrationEntry(tx *gorm.DB,
 		}
 	}
 
+	for _, registeredDNS := range req.Entry.DnsNames {
+		newDNS := DNSName{
+			RegisteredEntryID: newRegisteredEntry.ID,
+			Value:             registeredDNS,
+		}
+
+		if err := tx.Create(&newDNS).Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+	}
+
 	entry, err := modelToEntry(tx, newRegisteredEntry)
 	if err != nil {
 		return nil, err
@@ -1059,6 +1073,20 @@ func updateRegistrationEntry(tx *gorm.DB,
 		selectors = append(selectors, selector)
 	}
 
+	// Delete existing DNSs - we will write new ones
+	if err := tx.Exec("DELETE FROM dns_names WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	dnsList := []DNSName{}
+	for _, d := range req.Entry.DnsNames {
+		dns := DNSName{
+			Value: d,
+		}
+
+		dnsList = append(dnsList, dns)
+	}
+
 	entry.SpiffeID = req.Entry.SpiffeId
 	entry.ParentID = req.Entry.ParentId
 	entry.TTL = req.Entry.Ttl
@@ -1066,6 +1094,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 	entry.Admin = req.Entry.Admin
 	entry.Downstream = req.Entry.Downstream
 	entry.Expiry = req.Entry.EntryExpiry
+	entry.DNSList = dnsList
 	if err := tx.Save(&entry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1274,6 +1303,19 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		})
 	}
 
+	var fetchedDNSs []*DNSName
+	if err := tx.Model(&model).Related(&fetchedDNSs).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	var dnsList []string
+	if len(fetchedDNSs) > 0 {
+		dnsList = make([]string, 0, len(fetchedDNSs))
+		for _, fetchedDNS := range fetchedDNSs {
+			dnsList = append(dnsList, fetchedDNS.Value)
+		}
+	}
+
 	var fetchedBundles []*Bundle
 	if err := tx.Model(&model).Association("FederatesWith").Find(&fetchedBundles).Error; err != nil {
 		return nil, sqlError.Wrap(err)
@@ -1294,6 +1336,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		Admin:         model.Admin,
 		Downstream:    model.Downstream,
 		EntryExpiry:   model.Expiry,
+		DnsNames:      dnsList,
 	}, nil
 }
 

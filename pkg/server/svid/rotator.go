@@ -11,8 +11,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/ca"
 )
 
+// Rotator is an interface for a SVID rotator
 type Rotator interface {
 	Initialize(ctx context.Context) error
 	Run(ctx context.Context) error
@@ -27,6 +29,7 @@ type rotator struct {
 	state observer.Property
 }
 
+// State is the current SVID and key
 type State struct {
 	SVID []*x509.Certificate
 	Key  *ecdsa.PrivateKey
@@ -100,7 +103,7 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	}
 
 	// Sign the CSR
-	svid, err := r.c.ServerCA.SignX509SVID(ctx, csr, 0)
+	svid, err := r.c.ServerCA.SignX509SVID(ctx, csr, ca.X509Params{})
 	if err != nil {
 		return err
 	}
