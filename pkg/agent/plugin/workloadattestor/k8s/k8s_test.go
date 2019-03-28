@@ -58,8 +58,6 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 -----END PRIVATE KEY-----
 `))
 
-	testHostname = "hostname.test"
-
 	testPodSelectors = []*common.Selector{
 		{Type: "k8s", Value: "container-image:localhost/spiffe/blog:latest"},
 		{Type: "k8s", Value: "container-name:blog"},
@@ -125,9 +123,7 @@ func (s *K8sAttestorSuite) SetupTest() {
 
 	s.p = s.newPlugin()
 	s.podList = nil
-	s.env = map[string]string{
-		"HOSTNAME": testHostname,
-	}
+	s.env = map[string]string{}
 }
 
 func (s *K8sAttestorSuite) TearDownTest() {
@@ -243,6 +239,11 @@ func (s *K8sAttestorSuite) TestAttestOverSecurePortViaTokenAuth() {
 	s.configureSecure(``)
 
 	s.requireAttestSuccessWithPod()
+
+	// write out a different token and make sure it is picked up on reload
+	s.writeFile(defaultTokenPath, "bad-token")
+	s.clock.Add(defaultReloadInterval)
+	s.requireAttestFailure(`expected "Bearer default-token", got "Bearer bad-token"`)
 }
 
 func (s *K8sAttestorSuite) TestAttestOverSecurePortViaClientAuth() {
@@ -256,6 +257,13 @@ func (s *K8sAttestorSuite) TestAttestOverSecurePortViaClientAuth() {
 	`)
 
 	s.requireAttestSuccessWithPod()
+
+	// write out a different client cert and make sure it is picked up on reload
+	clientCert := s.createClientCert()
+	s.writeCert(certPath, clientCert)
+
+	s.clock.Add(defaultReloadInterval)
+	s.requireAttestFailure("tls: bad certificate")
 }
 
 func (s *K8sAttestorSuite) TestAttestReachingKubeletViaNodeName() {
@@ -304,12 +312,14 @@ func (s *K8sAttestorSuite) TestConfigure() {
 	s.writeCert("some-other-ca", s.kubeletCert)
 
 	type config struct {
-		NoTLS             bool
+		Insecure          bool
 		VerifyKubelet     bool
+		HasNodeName       bool
 		Token             string
 		KubeletURL        string
 		MaxPollAttempts   int
 		PollRetryInterval time.Duration
+		ReloadInterval    time.Duration
 	}
 
 	testCases := []struct {
@@ -325,10 +335,11 @@ func (s *K8sAttestorSuite) TestConfigure() {
 				kubelet_read_only_port = 12345
 			`,
 			config: &config{
-				NoTLS:             true,
+				Insecure:          true,
 				KubeletURL:        "http://127.0.0.1:12345",
 				MaxPollAttempts:   defaultMaxPollAttempts,
 				PollRetryInterval: defaultPollRetryInterval,
+				ReloadInterval:    defaultReloadInterval,
 			},
 		},
 		{
@@ -340,6 +351,7 @@ func (s *K8sAttestorSuite) TestConfigure() {
 				KubeletURL:        "https://127.0.0.1:10250",
 				MaxPollAttempts:   defaultMaxPollAttempts,
 				PollRetryInterval: defaultPollRetryInterval,
+				ReloadInterval:    defaultReloadInterval,
 			},
 		},
 		{
@@ -353,6 +365,7 @@ func (s *K8sAttestorSuite) TestConfigure() {
 				KubeletURL:        "https://127.0.0.1:10250",
 				MaxPollAttempts:   defaultMaxPollAttempts,
 				PollRetryInterval: defaultPollRetryInterval,
+				ReloadInterval:    defaultReloadInterval,
 			},
 		},
 		{
@@ -363,6 +376,7 @@ func (s *K8sAttestorSuite) TestConfigure() {
 				token_path = "token"
 				max_poll_attempts = 1
 				poll_retry_interval = "2s"
+				reload_interval = "3s"
 			`,
 			config: &config{
 				VerifyKubelet:     true,
@@ -370,6 +384,7 @@ func (s *K8sAttestorSuite) TestConfigure() {
 				KubeletURL:        "https://127.0.0.1:12345",
 				MaxPollAttempts:   1,
 				PollRetryInterval: 2 * time.Second,
+				ReloadInterval:    3 * time.Second,
 			},
 		},
 		{
@@ -383,8 +398,25 @@ func (s *K8sAttestorSuite) TestConfigure() {
 				KubeletURL:        "https://127.0.0.1:10250",
 				MaxPollAttempts:   defaultMaxPollAttempts,
 				PollRetryInterval: defaultPollRetryInterval,
+				ReloadInterval:    defaultReloadInterval,
 			},
 		},
+		{
+			name: "secure with node name",
+			hcl: `
+				node_name = "boo"
+			`,
+			config: &config{
+				VerifyKubelet:     true,
+				KubeletURL:        "https://boo:10250",
+				Token:             "default-token",
+				HasNodeName:       true,
+				MaxPollAttempts:   defaultMaxPollAttempts,
+				PollRetryInterval: defaultPollRetryInterval,
+				ReloadInterval:    defaultReloadInterval,
+			},
+		},
+
 		{
 			name: "invalid hcl",
 			hcl:  "bad",
@@ -427,6 +459,14 @@ func (s *K8sAttestorSuite) TestConfigure() {
 				poll_retry_interval = "blah"
 			`,
 			err: "unable to parse poll retry interval",
+		},
+		{
+			name: "invalid reload interval",
+			hcl: `
+				kubelet_read_only_port = 10255
+				reload_interval = "blah"
+			`,
+			err: "unable to parse reload interval",
 		},
 		{
 			name: "cert but no key",
@@ -503,19 +543,29 @@ func (s *K8sAttestorSuite) TestConfigure() {
 			require.NoError(t, err)
 
 			switch {
-			case !assert.NotNil(t, c.Transport):
-			case testCase.config.NoTLS:
-				assert.Nil(t, c.Transport.TLSClientConfig)
-			case !assert.NotNil(t, c.Transport.TLSClientConfig):
+			case testCase.config.Insecure:
+				assert.Nil(t, c.Client.Transport)
+			case !assert.NotNil(t, c.Client.Transport):
+			case !assert.NotNil(t, c.Client.Transport.TLSClientConfig):
 			case !testCase.config.VerifyKubelet:
-			case !assert.NotNil(t, c.Transport.TLSClientConfig.RootCAs):
+				assert.True(t, c.Client.Transport.TLSClientConfig.InsecureSkipVerify)
+				assert.Nil(t, c.Client.Transport.TLSClientConfig.VerifyPeerCertificate)
 			default:
-				assert.Len(t, c.Transport.TLSClientConfig.RootCAs.Subjects(), 1)
+				t.Logf("CONFIG: %#v", c.Client.Transport.TLSClientConfig)
+				if testCase.config.HasNodeName {
+					if assert.NotNil(t, c.Client.Transport.TLSClientConfig.RootCAs) {
+						assert.Len(t, c.Client.Transport.TLSClientConfig.RootCAs.Subjects(), 1)
+					}
+				} else {
+					assert.True(t, c.Client.Transport.TLSClientConfig.InsecureSkipVerify)
+					assert.NotNil(t, c.Client.Transport.TLSClientConfig.VerifyPeerCertificate)
+				}
 			}
-			assert.Equal(t, testCase.config.Token, c.Token)
-			assert.Equal(t, testCase.config.KubeletURL, c.KubeletURL.String())
+			assert.Equal(t, testCase.config.Token, c.Client.Token)
+			assert.Equal(t, testCase.config.KubeletURL, c.Client.URL.String())
 			assert.Equal(t, testCase.config.MaxPollAttempts, c.MaxPollAttempts)
 			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
+			assert.Equal(t, testCase.config.ReloadInterval, c.ReloadInterval)
 		})
 	}
 }
@@ -596,11 +646,11 @@ func (s *K8sAttestorSuite) generateCerts(nodeName string) {
 func (s *K8sAttestorSuite) startSecureKubelet(hostNetworking bool, token string) {
 	// Use "localhost" in the DNS name unless we're using host networking. This
 	// allows us to use "localhost" as the host directly when configured to
-	// connect to the node name. Otherwise, we'll connect to 127.0.0.1 and use
-	// the hostname for server name verification.
+	// connect to the node name. Otherwise, we'll connect to 127.0.0.1 and
+	// bypass server name verification.
 	dnsName := "localhost"
 	if hostNetworking {
-		dnsName = testHostname
+		dnsName = "this-name-should-never-be-validated"
 	}
 	s.generateCerts(dnsName)
 
@@ -712,6 +762,15 @@ func (s *K8sAttestorSuite) requireAttestSuccess(expectedSelectors []*common.Sele
 	})
 	s.Require().NoError(err)
 	s.requireSelectorsEqual(expectedSelectors, resp.Selectors)
+}
+
+func (s *K8sAttestorSuite) requireAttestFailure(contains string) {
+	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
+		Pid: int32(pid),
+	})
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), contains)
+	s.Require().Nil(resp)
 }
 
 func (s *K8sAttestorSuite) requireSelectorsEqual(expected, actual []*common.Selector) {

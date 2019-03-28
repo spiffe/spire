@@ -13,7 +13,7 @@ optional. The default is to verify, based on the certificate file passed via
 `kubelet_ca_path`. `skip_kubelet_verification` can be set to disable
 verification.
 
-The kubelet will contact the kubelet using the node name obtained via the
+The agent will contact the kubelet using the node name obtained via the
 `node_name_env` or `node_name` configurables. If a node name is not obtained,
 the kubelet is contacted over 127.0.0.1 (requires host networking to be
 enabled). In the latter case, the hostname is used to perform certificate 
@@ -91,7 +91,7 @@ To use the secure kubelet port, skip verification, and authenticate via some oth
 WorkloadAttestor "k8s" {
   plugin_data {
     skip_kubelet_verification = true
-	token_path = "/path/to/token"
+    token_path = "/path/to/token"
   }
 }
 ```

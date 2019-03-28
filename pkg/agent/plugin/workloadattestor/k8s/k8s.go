@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -35,6 +36,7 @@ const (
 	defaultKubeletCAPath     = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	defaultTokenPath         = "/run/secrets/kubernetes.io/serviceaccount/token"
 	defaultNodeNameEnv       = "MY_NODE_NAME"
+	defaultReloadInterval    = time.Minute
 )
 
 type containerLookup int
@@ -96,15 +98,28 @@ type k8sHCLConfig struct {
 	// NodeName is the node name used when contacting the kubelet. If set, it
 	// takes precedence over NodeNameEnv.
 	NodeName string `hcl:"node_name"`
+
+	// ReloadInterval controls how often TLS and token configuration is loaded
+	// from the disk.
+	ReloadInterval string `hcl:"reload_interval"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
 type k8sConfig struct {
-	Transport         *http.Transport
-	Token             string
-	KubeletURL        url.URL
-	MaxPollAttempts   int
-	PollRetryInterval time.Duration
+	Secure                  bool
+	Port                    int
+	MaxPollAttempts         int
+	PollRetryInterval       time.Duration
+	SkipKubeletVerification bool
+	TokenPath               string
+	CertificatePath         string
+	PrivateKeyPath          string
+	KubeletCAPath           string
+	NodeName                string
+	ReloadInterval          time.Duration
+
+	Client     *kubeletClient
+	LastReload time.Time
 }
 
 type k8sPlugin struct {
@@ -144,7 +159,7 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	// the pod is not found, and there are pods with containers that aren't
 	// fully initialized, delay for a little bit and try again.
 	for attempt := 1; ; attempt++ {
-		list, err := getPodListFromKubelet(config.Transport, config.KubeletURL, config.Token)
+		list, err := config.Client.GetPodList()
 		if err != nil {
 			return nil, err
 		}
@@ -206,6 +221,18 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (r
 		pollRetryInterval = defaultPollRetryInterval
 	}
 
+	// Determine reload interval
+	var reloadInterval time.Duration
+	if config.ReloadInterval != "" {
+		reloadInterval, err = time.ParseDuration(config.ReloadInterval)
+		if err != nil {
+			return nil, k8sErr.New("unable to parse reload interval: %v", err)
+		}
+	}
+	if reloadInterval <= 0 {
+		reloadInterval = defaultReloadInterval
+	}
+
 	// Determine which kubelet port to hit. Default to the secure port if none
 	// is specified (this is backwards compatible because the read-only-port
 	// config value has always been required, so it should already be set in
@@ -213,83 +240,40 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (r
 	if config.KubeletSecurePort > 0 && config.KubeletReadOnlyPort > 0 {
 		return nil, k8sErr.New("cannot use both the read-only and secure port")
 	}
-	kubeletPort := config.KubeletReadOnlyPort
-	scheme := "http"
-	if kubeletPort <= 0 {
-		kubeletPort = config.KubeletSecurePort
-		scheme = "https"
+	port := config.KubeletReadOnlyPort
+	secure := false
+	if port <= 0 {
+		port = config.KubeletSecurePort
+		secure = true
 	}
-	if kubeletPort <= 0 {
-		kubeletPort = defaultSecureKubeletPort
-		scheme = "https"
+	if port <= 0 {
+		port = defaultSecureKubeletPort
+		secure = true
 	}
 
 	// Determine the node name
 	nodeName := p.getNodeName(config.NodeName, config.NodeNameEnv)
 
-	// Configure the HTTP client
-	var token string
-	var tlsConfig *tls.Config
-	if scheme == "https" {
-		// Formulate the kubelet URL.
-		tlsConfig = &tls.Config{}
-		if config.SkipKubeletVerification {
-			tlsConfig.InsecureSkipVerify = true
-		} else {
-			if nodeName == "" {
-				// We're going to reach the kubelet via localhost but the
-				// certificate has a DNS SAN with the hostname. Use the
-				// hostname for validation.
-				tlsConfig.ServerName, err = p.getHostname()
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			tlsConfig.RootCAs, err = p.loadKubeletCA(config.KubeletCAPath)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		switch {
-		case config.CertificatePath != "" && config.PrivateKeyPath != "":
-			kp, err := p.loadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
-			if err != nil {
-				return nil, err
-			}
-			tlsConfig.Certificates = append(tlsConfig.Certificates, *kp)
-		case config.CertificatePath != "" && config.PrivateKeyPath == "":
-			return nil, k8sErr.New("the private key path is required with the certificate path")
-		case config.CertificatePath == "" && config.PrivateKeyPath != "":
-			return nil, k8sErr.New("the certificate path is required with the private key path")
-		case config.CertificatePath == "" && config.PrivateKeyPath == "":
-			token, err = p.loadToken(config.TokenPath)
-			if err != nil {
-				return nil, err
-			}
-		}
+	// Configure the kubelet client
+	c := &k8sConfig{
+		Secure:                  secure,
+		Port:                    port,
+		MaxPollAttempts:         maxPollAttempts,
+		PollRetryInterval:       pollRetryInterval,
+		SkipKubeletVerification: config.SkipKubeletVerification,
+		TokenPath:               config.TokenPath,
+		CertificatePath:         config.CertificatePath,
+		PrivateKeyPath:          config.PrivateKeyPath,
+		KubeletCAPath:           config.KubeletCAPath,
+		NodeName:                nodeName,
+		ReloadInterval:          reloadInterval,
 	}
-
-	kubeletHost := nodeName
-	if kubeletHost == "" {
-		kubeletHost = "127.0.0.1"
+	if err := p.reloadKubeletClient(c); err != nil {
+		return nil, err
 	}
 
 	// Set the config
-	p.setConfig(&k8sConfig{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-		Token:             token,
-		MaxPollAttempts:   maxPollAttempts,
-		PollRetryInterval: pollRetryInterval,
-		KubeletURL: url.URL{
-			Scheme: scheme,
-			Host:   fmt.Sprintf("%s:%d", kubeletHost, kubeletPort),
-		},
-	})
-
+	p.setConfig(c)
 	return &spi.ConfigureResponse{}, nil
 }
 
@@ -306,8 +290,12 @@ func (p *k8sPlugin) setConfig(config *k8sConfig) {
 func (p *k8sPlugin) getConfig() (*k8sConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
 	if p.config == nil {
 		return nil, k8sErr.New("not configured")
+	}
+	if err := p.reloadKubeletClient(p.config); err != nil {
+		// TODO: log error
 	}
 	return p.config, nil
 }
@@ -339,16 +327,107 @@ func (p *k8sPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
 	return "", nil
 }
 
-func (p *k8sPlugin) getHostname() (string, error) {
-	hostname := p.getenv("HOSTNAME")
-	if hostname != "" {
-		return hostname, nil
+func (p *k8sPlugin) reloadKubeletClient(config *k8sConfig) (err error) {
+	// The insecure client only needs to be loaded once.
+	if !config.Secure {
+		if config.Client == nil {
+			config.Client = &kubeletClient{
+				URL: url.URL{
+					Scheme: "http",
+					Host:   fmt.Sprintf("127.0.0.1:%d", config.Port),
+				},
+			}
+		}
+		return nil
 	}
-	hostname, err := os.Hostname()
-	if err != nil {
-		return "", k8sErr.New("unable to determine hostname: %v", err)
+
+	// Is the client still fresh?
+	if config.Client != nil && p.clock.Now().Sub(config.LastReload) < config.ReloadInterval {
+		return nil
 	}
-	return hostname, nil
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: config.SkipKubeletVerification,
+	}
+
+	var rootCAs *x509.CertPool
+	if !config.SkipKubeletVerification {
+		rootCAs, err = p.loadKubeletCA(config.KubeletCAPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	switch {
+	case config.SkipKubeletVerification:
+
+	// When contacting the kubelet over localhost, skip the hostname validation.
+	// Unfortunately Go does not make this straightforward. We disable
+	// verification but supply a VerifyPeerCertificate that will be called
+	// with the raw kubelet certs that we can verify directly.
+	case config.NodeName == "":
+		tlsConfig.InsecureSkipVerify = true
+		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			var certs []*x509.Certificate
+			for _, rawCert := range rawCerts {
+				cert, err := x509.ParseCertificate(rawCert)
+				if err != nil {
+					return err
+				}
+				certs = append(certs, cert)
+			}
+
+			// this is improbable.
+			if len(certs) == 0 {
+				return errors.New("no certs presented by kubelet")
+			}
+
+			_, err := certs[0].Verify(x509.VerifyOptions{
+				Roots:         rootCAs,
+				Intermediates: newCertPool(certs[1:]),
+			})
+			return err
+		}
+	default:
+		tlsConfig.RootCAs = rootCAs
+	}
+
+	var token string
+	switch {
+	case config.CertificatePath != "" && config.PrivateKeyPath != "":
+		kp, err := p.loadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
+		if err != nil {
+			return err
+		}
+		tlsConfig.Certificates = append(tlsConfig.Certificates, *kp)
+	case config.CertificatePath != "" && config.PrivateKeyPath == "":
+		return k8sErr.New("the private key path is required with the certificate path")
+	case config.CertificatePath == "" && config.PrivateKeyPath != "":
+		return k8sErr.New("the certificate path is required with the private key path")
+	case config.CertificatePath == "" && config.PrivateKeyPath == "":
+		token, err = p.loadToken(config.TokenPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	host := config.NodeName
+	if host == "" {
+		host = "127.0.0.1"
+	}
+
+	config.Client = &kubeletClient{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+		URL: url.URL{
+			Scheme: "https",
+			Host:   fmt.Sprintf("%s:%d", host, config.Port),
+		},
+		Token: token,
+	}
+	config.LastReload = p.clock.Now()
+	return nil
 }
 
 func (p *k8sPlugin) loadKubeletCA(path string) (*x509.CertPool, error) {
@@ -364,11 +443,7 @@ func (p *k8sPlugin) loadKubeletCA(path string) (*x509.CertPool, error) {
 		return nil, k8sErr.New("unable to parse kubelet CA: %v", err)
 	}
 
-	cas := x509.NewCertPool()
-	for _, cert := range certs {
-		cas.AddCert(cert)
-	}
-	return cas, nil
+	return newCertPool(certs), nil
 }
 
 func (p *k8sPlugin) loadX509KeyPair(cert, key string) (*tls.Certificate, error) {
@@ -419,18 +494,26 @@ func (p *k8sPlugin) getNodeName(name string, env string) string {
 	}
 }
 
-func getPodListFromKubelet(tr *http.Transport, url url.URL, token string) (*corev1.PodList, error) {
+type kubeletClient struct {
+	Transport *http.Transport
+	URL       url.URL
+	Token     string
+}
+
+func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
+	url := c.URL
 	url.Path = "/pods"
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return nil, k8sErr.New("unable to create request: %v", err)
 	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
 
-	client := &http.Client{
-		Transport: tr,
+	client := &http.Client{}
+	if c.Transport != nil {
+		client.Transport = c.Transport
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -529,4 +612,12 @@ func tryRead(r io.Reader) string {
 	buf := make([]byte, 1024)
 	n, _ := r.Read(buf)
 	return string(buf[:n])
+}
+
+func newCertPool(certs []*x509.Certificate) *x509.CertPool {
+	certPool := x509.NewCertPool()
+	for _, cert := range certs {
+		certPool.AddCert(cert)
+	}
+	return certPool
 }
