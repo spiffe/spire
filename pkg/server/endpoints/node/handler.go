@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	metrics "github.com/armon/go-metrics"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -235,16 +234,8 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return err
 		}
 
-		for spiffeID, svid := range svids {
+		for spiffeID := range svids {
 			counter.AddLabel("spiffe_id", spiffeID)
-
-			ttl := time.Until(time.Unix(svid.ExpiresAt, 0))
-			metrics.SetGaugeWithLabels(
-				[]string{"node_api", "x509_svid", "fetch", "ttl"},
-				float32(ttl.Seconds()),
-				[]telemetry.Label{
-					{Name: "spiffe_id", Value: spiffeID},
-				})
 		}
 
 		// TODO: remove in 0.8, along with deprecated fields
@@ -329,14 +320,6 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	for _, audience := range req.Jsr.Audience {
 		counter.AddLabel("audience", audience)
 	}
-
-	ttl := time.Until(expiresAt)
-	metrics.SetGaugeWithLabels(
-		[]string{"node_api", "jwt_svid", "fetch", "ttl"},
-		float32(ttl.Seconds()),
-		[]telemetry.Label{
-			{Name: "spiffe_id", Value: req.Jsr.SpiffeId},
-		})
 
 	return &node.FetchJWTSVIDResponse{
 		Svid: &node.JWTSVID{
