@@ -24,7 +24,7 @@ General selectors:
 | `unix:uid` | The user ID of the workload (e.g. `unix:uid:1000`) |
 | `unix:user` | The user name of the workload (e.g. `unix:user:nginx`) |
 | `unix:gid` | The group ID of the workload (e.g. `unix:gid:1000`) |
-| `unix:group` | The group name of the workload (e.g. `unix:gid:www-data`) |
+| `unix:group` | The group name of the workload (e.g. `unix:group:www-data`) |
 
 Workload path enabled selectors (available when configured with `discover_workload_path = true`):
 
