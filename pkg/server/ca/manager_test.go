@@ -53,8 +53,8 @@ func (m *ManagerTestSuite) SetupTest() {
 	m.datastore = fakedatastore.New()
 
 	m.catalog = fakeservercatalog.New()
-	m.catalog.SetKeyManagers(m.keymanager)
-	m.catalog.SetDataStores(m.datastore)
+	m.catalog.SetKeyManager(m.keymanager)
+	m.catalog.SetDataStore(m.datastore)
 
 	m.newManager()
 	m.m.hooks.now = m.nowHook
@@ -151,7 +151,7 @@ func (m *ManagerTestSuite) TestPersistence() {
 	m.requireEmptyKeypairSet(next2)
 
 	// drop the keys, "reload" the manager, and assert the keypairs are new
-	m.catalog.SetKeyManagers(memory.New())
+	m.catalog.SetKeyManager(memory.New())
 	m.newManager()
 	m.Require().NoError(m.m.Initialize(ctx))
 	current3 := m.m.getCurrentKeypairSet()
@@ -160,7 +160,7 @@ func (m *ManagerTestSuite) TestPersistence() {
 	m.requireEmptyKeypairSet(next3)
 
 	// load the old keys, "reload" the manager, and assert the keypairs are new
-	m.catalog.SetKeyManagers(m.keymanager)
+	m.catalog.SetKeyManager(m.keymanager)
 	m.newManager()
 	m.Require().NoError(m.m.Initialize(ctx))
 	current4 := m.m.getCurrentKeypairSet()
@@ -213,7 +213,7 @@ func (m *ManagerTestSuite) TestUpstreamSigning() {
 	upstreamCA := fakeupstreamca.New(m.T(), fakeupstreamca.Config{
 		TrustDomain: "example.org",
 	})
-	m.catalog.SetUpstreamCAs(upstreamCA)
+	m.catalog.SetUpstreamCA(upstreamCA)
 	upstreamRoot := upstreamCA.Root()
 
 	// generate a keypair make sure it was signed by upstream and that
@@ -230,7 +230,7 @@ func (m *ManagerTestSuite) TestUpstreamSigningWithIntermediate() {
 		TrustDomain:     "example.org",
 		UseIntermediate: true,
 	})
-	m.catalog.SetUpstreamCAs(upstreamCA)
+	m.catalog.SetUpstreamCA(upstreamCA)
 	upstreamIntermediate := upstreamCA.Intermediate()
 	upstreamRoot := upstreamCA.Root()
 
@@ -249,7 +249,7 @@ func (m *ManagerTestSuite) TestDeprecatedUpstreamSigning() {
 		TrustDomain:         "example.org",
 		UseDeprecatedFields: true,
 	})
-	m.catalog.SetUpstreamCAs(upstreamCA)
+	m.catalog.SetUpstreamCA(upstreamCA)
 	upstreamRoot := upstreamCA.Root()
 
 	// generate a keypair make sure it was signed by upstream and that
@@ -267,7 +267,7 @@ func (m *ManagerTestSuite) TestDeprecatedUpstreamSigningWithIntermediate() {
 		UseDeprecatedFields: true,
 		UseIntermediate:     true,
 	})
-	m.catalog.SetUpstreamCAs(upstreamCA)
+	m.catalog.SetUpstreamCA(upstreamCA)
 	upstreamIntermediate := upstreamCA.Intermediate()
 	upstreamRoot := upstreamCA.Root()
 

@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -32,7 +33,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/spiretest"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -73,11 +74,11 @@ l37cUGNqRvIYDhSH/IJycqxLTtvHoYMHLSV9N5UHIFgPJ/30RCBQiH3t
 )
 
 func TestHandler(t *testing.T) {
-	suite.Run(t, new(HandlerSuite))
+	spiretest.Run(t, new(HandlerSuite))
 }
 
 type HandlerSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	server           *grpc.Server
 	logHook          *test.Hook
@@ -103,7 +104,7 @@ func (s *HandlerSuite) SetupTest() {
 
 	s.ds = fakedatastore.New()
 	s.catalog = fakeservercatalog.New()
-	s.catalog.SetDataStores(s.ds)
+	s.catalog.SetDataStore(s.ds)
 
 	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
 		Clock: s.clock,
@@ -838,13 +839,19 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 }
 
 func (s *HandlerSuite) addAttestor(name string, config fakeservernodeattestor.Config) {
-	attestor := nodeattestor.NewBuiltIn(fakeservernodeattestor.New(name, config))
-	s.catalog.AddNodeAttestorNamed(name, attestor)
+	var p nodeattestor.NodeAttestor
+	s.LoadPlugin(catalog.Plugin{
+		Plugin: nodeattestor.PluginServer(fakeservernodeattestor.New(name, config)),
+	}, &p)
+	s.catalog.AddNodeAttestorNamed(name, p)
 }
 
 func (s *HandlerSuite) addResolver(name string, config fakenoderesolver.Config) {
-	resolver := noderesolver.NewBuiltIn(fakenoderesolver.New(name, config))
-	s.catalog.AddNodeResolverNamed(name, resolver)
+	var p noderesolver.NodeResolver
+	s.LoadPlugin(catalog.Plugin{
+		Plugin: noderesolver.PluginServer(fakenoderesolver.New(name, config)),
+	}, &p)
+	s.catalog.AddNodeResolverNamed(name, p)
 }
 
 func (s *HandlerSuite) createBundle(bundle *common.Bundle) {

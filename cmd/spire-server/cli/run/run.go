@@ -33,9 +33,9 @@ const (
 
 // runConfig represents available configurables for file and CLI options
 type runConfig struct {
-	Server        serverRunConfig         `hcl:"server"`
-	PluginConfigs catalog.PluginConfigMap `hcl:"plugins"`
-	Telemetry     telemetry.FileConfig    `hcl:"telemetry"`
+	Server        serverRunConfig            `hcl:"server"`
+	PluginConfigs catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry     telemetry.FileConfig       `hcl:"telemetry"`
 }
 
 type serverRunConfig struct {

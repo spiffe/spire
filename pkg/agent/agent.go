@@ -51,16 +51,17 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	cat := catalog.New(&catalog.Config{
-		GlobalConfig:  a.c.GlobalConfig(),
-		PluginConfigs: a.c.PluginConfigs,
-		Log:           a.c.Log.WithField("subsystem_name", "catalog"),
+	cat, err := catalog.Load(ctx, catalog.Config{
+		Log: a.c.Log.WithField("subsystem_name", "catalog"),
+		GlobalConfig: catalog.GlobalConfig{
+			TrustDomain: a.c.TrustDomain.Host,
+		},
+		PluginConfig: a.c.PluginConfigs,
 	})
-	defer cat.Stop()
-
-	if err := cat.Run(ctx); err != nil {
+	if err != nil {
 		return err
 	}
+	defer cat.Close()
 
 	as, err := a.attest(ctx, cat, metrics)
 	if err != nil {

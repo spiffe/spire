@@ -13,7 +13,8 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/noderesolver"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/spiretest"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -41,22 +42,22 @@ var (
 )
 
 func TestMSIResolver(t *testing.T) {
-	suite.Run(t, new(MSIResolverSuite))
+	spiretest.Run(t, new(MSIResolverSuite))
 }
 
 type MSIResolverSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	api *fakeAPIClient
 
-	resolver *noderesolver.BuiltIn
+	resolver noderesolver.Plugin
 }
 
 func (s *MSIResolverSuite) SetupTest() {
 	// set up the API with an initial view of the virtual machine
 	s.api = newFakeAPIClient(s.T())
 
-	resolver := NewMSIResolverPlugin()
+	resolver := New()
 	resolver.hooks.newClient = func(string, autorest.Authorizer) apiClient {
 		return s.api
 	}
@@ -67,7 +68,7 @@ func (s *MSIResolverSuite) SetupTest() {
 			},
 		}, nil
 	}
-	s.resolver = noderesolver.NewBuiltIn(resolver)
+	s.LoadPlugin(builtIn(resolver), &s.resolver)
 	s.configureResolverWithTenant()
 }
 
@@ -188,12 +189,12 @@ func (s *MSIResolverSuite) TestConfigure() {
 	resp, err := s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: "blah",
 	})
-	s.requireErrorContains(err, "azure-msi: unable to decode configuration")
+	s.RequireErrorContains(err, "azure-msi: unable to decode configuration")
 	s.Require().Nil(resp)
 
 	// no tenants (not using MSI)
 	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.Require().EqualError(err, "azure-msi: configuration must have at least one tenant when not using MSI")
+	s.RequireGRPCStatus(err, codes.Unknown, "azure-msi: configuration must have at least one tenant when not using MSI")
 	s.Require().Nil(resp)
 
 	// tenant missing subscription id
@@ -204,7 +205,7 @@ func (s *MSIResolverSuite) TestConfigure() {
 				app_secret = "APPSECRET"
 			}
 		}`})
-	s.Require().EqualError(err, `azure-msi: misconfigured tenant "TENANT": missing subscription id`)
+	s.RequireGRPCStatus(err, codes.Unknown, `azure-msi: misconfigured tenant "TENANT": missing subscription id`)
 	s.Require().Nil(resp)
 
 	// tenant missing app id
@@ -215,7 +216,7 @@ func (s *MSIResolverSuite) TestConfigure() {
 				app_secret = "APPSECRET"
 			}
 		}`})
-	s.Require().EqualError(err, `azure-msi: misconfigured tenant "TENANT": missing app id`)
+	s.RequireGRPCStatus(err, codes.Unknown, `azure-msi: misconfigured tenant "TENANT": missing app id`)
 	s.Require().Nil(resp)
 
 	// tenant missing app secret
@@ -226,7 +227,7 @@ func (s *MSIResolverSuite) TestConfigure() {
 				app_id = "APPID"
 			}
 		}`})
-	s.Require().EqualError(err, `azure-msi: misconfigured tenant "TENANT": missing app secret`)
+	s.RequireGRPCStatus(err, codes.Unknown, `azure-msi: misconfigured tenant "TENANT": missing app secret`)
 	s.Require().Nil(resp)
 
 	// success with tenant configuration
@@ -239,7 +240,7 @@ func (s *MSIResolverSuite) TestConfigure() {
 		tenants = {
 			TENANT = {}
 		}`})
-	s.Require().EqualError(err, "azure-msi: configuration cannot have tenants when using MSI")
+	s.RequireGRPCStatus(err, codes.Unknown, "azure-msi: configuration cannot have tenants when using MSI")
 	s.Require().Nil(resp)
 
 	// success using MSI configuration
@@ -303,7 +304,7 @@ func (s *MSIResolverSuite) assertResolveSuccess(selectorValueSets ...[]string) {
 
 func (s *MSIResolverSuite) assertResolveFailure(spiffeID, containsErr string) {
 	resp, err := s.doResolve(spiffeID)
-	s.requireErrorContains(err, containsErr)
+	s.RequireErrorContains(err, containsErr)
 	s.Require().Nil(resp)
 }
 
@@ -311,11 +312,6 @@ func (s *MSIResolverSuite) doResolve(spiffeID string) (*noderesolver.ResolveResp
 	return s.resolver.Resolve(context.Background(), &noderesolver.ResolveRequest{
 		BaseSpiffeIdList: []string{spiffeID},
 	})
-}
-
-func (s *MSIResolverSuite) requireErrorContains(err error, contains string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), contains)
 }
 
 func (s *MSIResolverSuite) addVirtualMachine() {

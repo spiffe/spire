@@ -9,7 +9,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
-	mock_catalog "github.com/spiffe/spire/test/mock/agent/catalog"
 	mock_manager "github.com/spiffe/spire/test/mock/agent/manager"
 	mock_keymanager "github.com/spiffe/spire/test/mock/proto/agent/keymanager"
 	mock_nodeattestor "github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
@@ -26,7 +25,6 @@ type AgentTestSuite struct {
 	ctrl *gomock.Controller
 
 	agent      *Agent
-	catalog    *mock_catalog.MockCatalog
 	attestor   *mock_nodeattestor.MockNodeAttestor
 	keyManager *mock_keymanager.MockKeyManager
 	manager    *mock_manager.MockManager
@@ -35,7 +33,6 @@ type AgentTestSuite struct {
 func (s *AgentTestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 
-	s.catalog = mock_catalog.NewMockCatalog(s.ctrl)
 	s.attestor = mock_nodeattestor.NewMockNodeAttestor(s.ctrl)
 	s.keyManager = mock_keymanager.NewMockKeyManager(s.ctrl)
 	s.manager = mock_manager.NewMockManager(s.ctrl)

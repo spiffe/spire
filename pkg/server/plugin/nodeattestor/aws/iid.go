@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
@@ -52,6 +53,16 @@ C1haGgSI/A1uZUKs/Zfnph0oEI0/hu1IIJ/SKBDtN5lvmZ/IzbOPIJWirlsllQIQ
 7zvWbGd9c9+Rm3p04oTvhup99la7kZqevJK0QRdD/6NpCKsqP/0=
 -----END CERTIFICATE-----`
 
+func BuiltIn() catalog.Plugin {
+	return builtIn(New())
+}
+
+func builtIn(p *IIDAttestorPlugin) catalog.Plugin {
+	return catalog.MakePlugin(caws.PluginName,
+		nodeattestor.PluginServer(p),
+	)
+}
+
 // IIDAttestorPlugin implements node attestation for agents running in aws.
 type IIDAttestorPlugin struct {
 	config *IIDAttestorConfig
@@ -75,8 +86,8 @@ type IIDAttestorConfig struct {
 	awsCaCertPublicKey   *rsa.PublicKey
 }
 
-// NewIIDPlugin creates a new IITAttestorPlugin.
-func NewIIDPlugin() *IIDAttestorPlugin {
+// New creates a new IITAttestorPlugin.
+func New() *IIDAttestorPlugin {
 	p := &IIDAttestorPlugin{}
 	p.hooks.getClient = func(p client.ConfigProvider, cfgs ...*aws.Config) EC2Client {
 		return ec2.New(p, cfgs...)
@@ -86,7 +97,7 @@ func NewIIDPlugin() *IIDAttestorPlugin {
 }
 
 // Attest implements the server side logic for the aws iid node attestation plugin.
-func (p *IIDAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err

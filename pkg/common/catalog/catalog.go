@@ -2,336 +2,224 @@ package catalog
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
-	"fmt"
-	"os/exec"
-	"sync"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/log"
-
-	goplugin "github.com/hashicorp/go-plugin"
-	pb "github.com/spiffe/spire/proto/common/plugin"
+	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/zeebo/errs"
 )
 
-type Catalog interface {
-	// Run reads all config files and initializes
-	// the plugins they define.
-	Run(ctx context.Context) error
-
-	// Stop terminates all plugin instances and
-	// resets the catalog
-	Stop()
-
-	// Reload re-reads all plugin config files and
-	// reconfigures the plugins accordingly
-	Reload(ctx context.Context) error
-
-	// Plugins returns all plugins managed by this catalog as
-	// the generic Plugin type
-	Plugins() []*ManagedPlugin
-
-	// ConfigFor finds the plugin configuration for the supplied plugin. If
-	// the plugin is not managed by the catalog, false is returned.
-	ConfigFor(interface{}) (*PluginConfig, bool)
-}
+type GlobalConfig = spi.ConfigureRequest_GlobalConfig
 
 type Config struct {
-	GlobalConfig     *GlobalConfig
-	PluginConfigs    PluginConfigMap
-	SupportedPlugins map[string]goplugin.Plugin
-	BuiltinPlugins   BuiltinPluginMap
-	Log              logrus.FieldLogger
+	Log logrus.FieldLogger
+
+	// GlobalConfig is passed to plugins during configuration.
+	GlobalConfig GlobalConfig
+
+	// PluginConfig is the configuration of plugins to load.
+	PluginConfig []PluginConfig
+
+	// KnownPlugins is the set of known external plugins.
+	KnownPlugins []PluginClient
+
+	// KnownServices is the set of known external services.
+	KnownServices []ServiceClient
+
+	// HostServices is a set of services offered by the host.
+	HostServices []HostServiceServer
+
+	// BuiltIns is the set of builtin plugins available to the host.
+	BuiltIns []Plugin
 }
 
-type catalog struct {
-	globalConfig     *GlobalConfig
-	pluginConfigs    PluginConfigMap
-	plugins          []*ManagedPlugin
-	supportedPlugins map[string]goplugin.Plugin
-	builtinPlugins   BuiltinPluginMap
+// Catalog provides a method to obtain clients to loaded plugins and services.
+type Catalog interface {
+	// Fill fills up a "catalog" with client interfaces to interface with
+	// the plugins and services offered by loaded plugins. The shape of the
+	// "catalog" determines the constraints and requirements of the plugins.
+	//
+	// The "catalog" can be a pointer to an interface:
+	//
+	//   // Fill() will fail if there are no plugins that implement NodeAttestor
+	//   var na nodeattestor.NodeAttestor
+	//   cat, _ := catalog.Load(...)
+	//   cat.Fill(&c)	//   catalog.Fill(&na)
+	//
+	// The "catalog can also be a pointer to a struct:
+	//
+	//    type TheCatalog struct {
+	//       // A required interface. Fill() fails if there is not exactly
+	//       // one plugin matching this interface.
+	//       RequiredPlugin nodeattestor.NodeAttestor
+	//
+	//       // An optional interface. Fill() fails if there are more than
+	//       // one plugin that match this interface.
+	//       OptionalPlugin *nodeattestor.NodeAttestor
+	//
+	//       // A slice of interfaces.
+	//       Plugins []nodeattestor.NodeAttestor
+	//
+	//       // A map from string to interfaces. The key of the map is the name
+	//       // of the plugin that matched.
+	//       PluginsByName map[string]nodeattestor.NodeAttestor
+	//
+	//       // A struct of interfaces. A plugin must satisfy all interfaces //
+	//       // within the struct to match. Fill() fails if there is not
+	//       // exactly one plugin that matches.
+	//       PluginStruct StructOfInterface
+	//
+	//       // A pointer to a struct of interfaces. A plugin must satisfy all
+	//       // interfaces within the struct to meet the criteria. Fill() fails
+	//       // if there are more than one plugin that matches.
+	//       PluginStruct *StructOfInterface
+	//
+	//       // A slice of a struct of interfaces.
+	//       Plugins []nodeattestor.NodeAttestor
+	//
+	//       // A map from string to struct of interfaces. The key of the map
+	//       // is the name of the plugin that matched.
+	//       PluginsByName map[string]nodeattestor.NodeAttestor
+	//   }
+	//
+	//   type StructOfInterface struct {
+	//       // The PluginInfo interface is special and is implemented on all
+	//       // plugins.
+	//       catalog.PluginInfo
+	//
+	//       nodeattestor.NodeAttestor
+	//   }
+	//
+	//   var c TheCatalog
+	//   cat, _ := catalog.Load(...)
+	//   cat.Fill(&c)
+	//
+	//   In addition, the slice and map struct fields support imposing minimum
+	//   and maximum constraints on the number of plugins to populate that
+	//   field. For example:
+	//
+	//   struct {
+	//       AtLeastTwo []nodeattestor.NodeAttestor `catalog:"min=2"`
+	//       AtMostTwo []nodeattestor.NodeAttestor `catalog:"max=2"`
+	//       BetweenThreeAndFive []nodeattestor.NodeAttestor `catalog:"min=3,max=5"`
+	//   }
+	//
+	Fill(x interface{}) error
 
-	l logrus.FieldLogger
-	m *sync.RWMutex
+	// Close() closes the catalog, shutting down servers and killing external
+	// plugin processes.
+	Close()
 }
 
-// BuiltinPluginMap organizes builtin plugin sets, accessed by
-// [plugin type][plugin name]
-type BuiltinPluginMap map[string]map[string]Plugin
-
-// PluginConfigMap maps plugin configurations, accessed by
-// [plugin type][plugin name]
-type PluginConfigMap map[string]map[string]HclPluginConfig
-
-func New(config *Config) Catalog {
-	return &catalog{
-		globalConfig:     config.GlobalConfig,
-		pluginConfigs:    config.PluginConfigs,
-		supportedPlugins: config.SupportedPlugins,
-		builtinPlugins:   config.BuiltinPlugins,
-		l:                config.Log,
-		m:                new(sync.RWMutex),
-	}
+type Closer interface {
+	Close()
 }
 
-type GlobalConfig struct {
-	TrustDomain string
-}
-
-func (c GlobalConfig) toMessage() *pb.ConfigureRequest_GlobalConfig {
-	return &pb.ConfigureRequest_GlobalConfig{TrustDomain: c.TrustDomain}
-}
-
-func (c *catalog) Run(ctx context.Context) error {
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.l.Info("Starting plugin catalog")
-
-	if c.plugins != nil {
-		return errors.New("plugins have already been started")
-	}
-
-	err := c.loadConfigs()
+func Fill(ctx context.Context, config Config, x interface{}) (Closer, error) {
+	c, err := Load(ctx, config)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	err = c.startPlugins()
-	if err != nil {
-		return err
+	if err := c.Fill(x); err != nil {
+		c.Close()
+		return nil, err
 	}
-
-	err = c.configurePlugins(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return c, nil
 }
 
-func (c *catalog) Stop() {
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.l.Info("Stopping plugin catalog")
-
-	goplugin.CleanupClients()
-	c.plugins = []*ManagedPlugin{}
-	return
-}
-
-func (c *catalog) Reload(ctx context.Context) error {
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.l.Info("Reloading plugin configurations")
-
-	err := c.loadConfigs()
-	if err != nil {
-		return err
+func Load(ctx context.Context, config Config) (_ Catalog, err error) {
+	if config.Log == nil {
+		config.Log = newDiscardingLogger()
 	}
 
-	err = c.configurePlugins(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Plugins takes a read lock to ensure consistency in our
-// plugin records, and then returns a copy of `plugins`
-func (c *catalog) Plugins() []*ManagedPlugin {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	var newSlice []*ManagedPlugin
-	for _, p := range c.plugins {
-		mp := &ManagedPlugin{
-			Config: p.Config,
-			Plugin: p.Plugin,
-		}
-		newSlice = append(newSlice, mp)
-	}
-	return newSlice
-}
-
-func (c *catalog) ConfigFor(plugin interface{}) (*PluginConfig, bool) {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	for _, p := range c.plugins {
-		if p.Plugin == plugin {
-			config := p.Config
-			return &config, true
-		}
-	}
-	return nil, false
-}
-
-func (c *catalog) loadConfigs() error {
-	for pluginType, plugins := range c.pluginConfigs {
-		for pluginName, pluginConfig := range plugins {
-			pluginConfig.PluginType = pluginType
-			pluginConfig.PluginName = pluginName
-			err := c.loadConfigFromHclConfig(pluginConfig)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (c *catalog) loadConfigFromHclConfig(hclPluginConfig HclPluginConfig) error {
-	config, err := parsePluginConfig(hclPluginConfig)
-	if err != nil {
-		return err
-	}
-
-	p := &ManagedPlugin{
-		Config: config,
-	}
-	c.plugins = append(c.plugins, p)
-
-	return nil
-}
-
-func (c *catalog) startPlugins() error {
-	for _, p := range c.plugins {
-		pluginType := p.Config.PluginType
-		pluginName := p.Config.PluginName
-
-		if !p.Config.Enabled {
-			c.l.Debugf("%s(%s): plugin is disabled and will not be started", pluginType, pluginName)
-			continue
-		}
-
-		builtin := c.builtins(p.Config.PluginType, p.Config.PluginName)
-		if builtin != nil {
-			p.Plugin = builtin
-			continue
-		}
-
-		config, err := c.newPluginConfig(p)
-		if err != nil {
-			return err
-		}
-
-		c.l.Debugf("%s(%s): starting plugin", pluginType, pluginName)
-		client, err := goplugin.NewClient(config).Client()
-		if err != nil {
-			return fmt.Errorf("%s(%s): unable to create plugin client: %v", pluginType, pluginName, err)
-		}
-
-		raw, err := client.Dispense(p.Config.PluginName)
-		if err != nil {
-			return fmt.Errorf("%s(%s): unable to start plugin instance: %v", pluginType, pluginName, err)
-		}
-
-		var ok bool
-		p.Plugin, ok = raw.(Plugin)
-		if !ok {
-			return fmt.Errorf("%s(%s): does not conform to the plugin interface", pluginType, pluginName)
-		}
-	}
-
-	return nil
-}
-
-func (c *catalog) configurePlugins(ctx context.Context) error {
-	for _, p := range c.plugins {
-		pluginType := p.Config.PluginType
-		pluginName := p.Config.PluginName
-
-		if !p.Config.Enabled {
-			c.l.Debugf("%s(%s): plugin is disabled and will not be configured", pluginType, pluginName)
-			continue
-		}
-
-		req := &pb.ConfigureRequest{
-			GlobalConfig:  c.globalConfig.toMessage(),
-			Configuration: p.Config.PluginData,
-		}
-
-		c.l.Debugf("%s(%s): configuring plugin", pluginType, pluginName)
-		_, err := p.Plugin.Configure(ctx, req)
-		if err != nil {
-			return fmt.Errorf("%s(%s): failed to configure plugin: %v", pluginType, pluginName, err)
-		}
-	}
-
-	return nil
-}
-
-// newPluginConfig generates a go-plugin client config, given a ManagedPlugin
-// struct. Useful when starting a plugin
-func (c *catalog) newPluginConfig(p *ManagedPlugin) (*goplugin.ClientConfig, error) {
-	secureConfig, err := c.secureConfig(p)
+	knownPluginsMap, err := makePluginsMap(config.KnownPlugins)
 	if err != nil {
 		return nil, err
 	}
 
-	// Build go-plugin client config struct
-	pluginType, ok := c.supportedPlugins[p.Config.PluginType]
-	if !ok {
-		return nil, fmt.Errorf("Plugin type %s is unsupported", p.Config.PluginType)
-	}
-	pluginMap := map[string]goplugin.Plugin{
-		p.Config.PluginName: pluginType,
-	}
-	l := c.l.WithField("plugin_type", p.Config.PluginType)
-	l = l.WithField("plugin_name", p.Config.PluginName)
-
-	config := &goplugin.ClientConfig{
-		HandshakeConfig: goplugin.HandshakeConfig{
-			ProtocolVersion:  1,
-			MagicCookieKey:   p.Config.PluginType,
-			MagicCookieValue: p.Config.PluginType,
-		},
-		Plugins:          pluginMap,
-		Cmd:              exec.Command(p.Config.PluginCmd),
-		AllowedProtocols: []goplugin.Protocol{goplugin.ProtocolGRPC},
-		Managed:          true,
-		SecureConfig:     secureConfig,
-		Logger:           &log.HCLogAdapter{Log: l, Name: "plugin"},
-	}
-
-	return config, nil
-}
-
-func (c *catalog) secureConfig(p *ManagedPlugin) (*goplugin.SecureConfig, error) {
-	if p.Config.PluginChecksum == "" {
-		c.l.Warnf("%s plugin %s not using secure config", p.Config.PluginType, p.Config.PluginName)
-		return nil, nil
-	}
-
-	sum, err := hex.DecodeString(p.Config.PluginChecksum)
+	builtInsMap, err := makeBuiltInsMap(config.BuiltIns)
 	if err != nil {
-		return nil, fmt.Errorf("decode plugin hash: %v", err)
+		return nil, err
 	}
 
-	config := &goplugin.SecureConfig{
-		Checksum: sum,
-		Hash:     sha256.New(),
+	// close the plugins if there is an error.
+	cat := new(catalog)
+	defer func() {
+		if err != nil {
+			cat.Close()
+		}
+	}()
+
+	for _, c := range config.PluginConfig {
+		// configure a logger for the plugin
+		pluginLog := config.Log.WithFields(logrus.Fields{
+			"name":     c.Name,
+			"type":     c.Type,
+			"built-in": c.Path == "",
+		})
+
+		if c.Disabled {
+			pluginLog.Debug("Not loading plugin; disabled.")
+			continue
+		}
+
+		var plugin *CatalogPlugin
+		if c.Path == "" {
+			builtIn, ok := builtInsMap.Lookup(c.Name, c.Type)
+			if !ok {
+				return nil, errs.New("no such %s builtin %q", c.Type, c.Name)
+			}
+			plugin, err = LoadBuiltInPlugin(ctx, BuiltInPlugin{
+				Log:          config.Log,
+				Plugin:       builtIn,
+				HostServices: config.HostServices,
+			})
+		} else {
+			extPlugin, ok := knownPluginsMap[c.Type]
+			if !ok {
+				return nil, errs.New("unknown plugin type %q", c.Type)
+			}
+
+			plugin, err = LoadExternalPlugin(ctx, ExternalPlugin{
+				Log:           config.Log,
+				Name:          c.Name,
+				Path:          c.Path,
+				Checksum:      c.Checksum,
+				Plugin:        extPlugin,
+				KnownServices: config.KnownServices,
+				HostServices:  config.HostServices,
+			})
+		}
+		if err != nil {
+			pluginLog.Error("Failed to load plugin.")
+			return nil, err
+		}
+
+		if err := plugin.Configure(ctx, &spi.ConfigureRequest{
+			GlobalConfig:  &config.GlobalConfig,
+			Configuration: c.Data,
+		}); err != nil {
+			pluginLog.Error("Failed to configure plugin.")
+			return nil, errs.New("unable to configure plugin %q: %v", c.Name, err)
+		}
+
+		pluginLog.WithField("services", plugin.serviceNames).Info("Plugin loaded.")
+		cat.plugins = append(cat.plugins, plugin)
 	}
 
-	return config, nil
+	return cat, nil
 }
 
-// builtins determines, given a configured plugin's name and type, if it is an
-// available builtin. Returns nil if it is not.
-func (c *catalog) builtins(pType, pName string) Plugin {
-	plugins, ok := c.builtinPlugins[pType]
-	if !ok {
-		return nil
-	}
+type catalog struct {
+	plugins []*CatalogPlugin
+}
 
-	plugin, ok := plugins[pName]
-	if !ok {
-		return nil
-	}
+func (c *catalog) Fill(x interface{}) (err error) {
+	f := newCatalogFiller(c.plugins)
+	return f.fill(x)
+}
 
-	return plugin
+func (c *catalog) Close() {
+	for _, p := range c.plugins {
+		p.Close()
+	}
 }

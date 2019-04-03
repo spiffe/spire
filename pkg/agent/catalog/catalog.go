@@ -2,212 +2,126 @@ package catalog
 
 import (
 	"context"
-	"fmt"
-	"sync"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/aws"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/azure"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/gcp"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/jointoken"
-	k8s_na_psat "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/k8s/psat"
-	k8s_na_sat "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/k8s/sat"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/x509pop"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker"
-	k8s_wa "github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/unix"
+	km_disk "github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
+	km_memory "github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
+	na_aws_iid "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/aws"
+	na_azure_msi "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/azure"
+	na_gcp_iit "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/gcp"
+	na_join_token "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/jointoken"
+	na_k8s_psat "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/k8s/psat"
+	na_k8s_sat "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/k8s/sat"
+	na_x509pop "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/x509pop"
+	wa_docker "github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker"
+	wa_k8s "github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
+	wa_unix "github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/unix"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
-
-	goplugin "github.com/hashicorp/go-plugin"
-	common "github.com/spiffe/spire/pkg/common/catalog"
-)
-
-const (
-	KeyManagerType       = "KeyManager"
-	NodeAttestorType     = "NodeAttestor"
-	WorkloadAttestorType = "WorkloadAttestor"
 )
 
 type Catalog interface {
-	KeyManagers() []*ManagedKeyManager
-	NodeAttestors() []*ManagedNodeAttestor
-	WorkloadAttestors() []*ManagedWorkloadAttestor
+	GetKeyManager() keymanager.KeyManager
+	GetNodeAttestor() NodeAttestor
+	GetWorkloadAttestors() []WorkloadAttestor
 }
 
-var (
-	supportedPlugins = map[string]goplugin.Plugin{
-		KeyManagerType:       &keymanager.GRPCPlugin{},
-		NodeAttestorType:     &nodeattestor.GRPCPlugin{},
-		WorkloadAttestorType: &workloadattestor.GRPCPlugin{},
-	}
+type CatalogCloser struct {
+	Catalog
+	catalog.Closer
+}
 
-	builtinPlugins = common.BuiltinPluginMap{
-		KeyManagerType: {
-			"disk":   keymanager.NewBuiltIn(disk.New()),
-			"memory": keymanager.NewBuiltIn(memory.New()),
-		},
-		NodeAttestorType: {
-			"aws_iid":    nodeattestor.NewBuiltIn(aws.NewIIDPlugin()),
-			"join_token": nodeattestor.NewBuiltIn(jointoken.New()),
-			"gcp_iit":    nodeattestor.NewBuiltIn(gcp.NewIITAttestorPlugin()),
-			"x509pop":    nodeattestor.NewBuiltIn(x509pop.New()),
-			"azure_msi":  nodeattestor.NewBuiltIn(azure.NewMSIAttestorPlugin()),
-			"k8s_sat":    nodeattestor.NewBuiltIn(k8s_na_sat.NewAttestorPlugin()),
-			"k8s_psat":   nodeattestor.NewBuiltIn(k8s_na_psat.NewAttestorPlugin()),
-		},
-		WorkloadAttestorType: {
-			"k8s":    workloadattestor.NewBuiltIn(k8s_wa.New()),
-			"unix":   workloadattestor.NewBuiltIn(unix.New()),
-			"docker": workloadattestor.NewBuiltIn(docker.New()),
-		},
+type GlobalConfig = catalog.GlobalConfig
+type HCLPluginConfig = catalog.HCLPluginConfig
+type HCLPluginConfigMap = catalog.HCLPluginConfigMap
+
+func KnownPlugins() []catalog.PluginClient {
+	return []catalog.PluginClient{
+		keymanager.PluginClient,
+		nodeattestor.PluginClient,
+		workloadattestor.PluginClient,
 	}
-)
+}
+
+func KnownServices() []catalog.ServiceClient {
+	return []catalog.ServiceClient{}
+}
+
+func BuiltIns() []catalog.Plugin {
+	return []catalog.Plugin{
+		km_disk.BuiltIn(),
+		km_memory.BuiltIn(),
+		na_aws_iid.BuiltIn(),
+		na_join_token.BuiltIn(),
+		na_gcp_iit.BuiltIn(),
+		na_x509pop.BuiltIn(),
+		na_azure_msi.BuiltIn(),
+		na_k8s_sat.BuiltIn(),
+		na_k8s_psat.BuiltIn(),
+		wa_k8s.BuiltIn(),
+		wa_unix.BuiltIn(),
+		wa_docker.BuiltIn(),
+	}
+}
+
+type NodeAttestor struct {
+	catalog.PluginInfo
+	nodeattestor.NodeAttestor
+}
+
+type WorkloadAttestor struct {
+	catalog.PluginInfo
+	workloadattestor.WorkloadAttestor
+}
+
+type Plugins struct {
+	KeyManager        keymanager.KeyManager
+	NodeAttestor      NodeAttestor
+	WorkloadAttestors []WorkloadAttestor `catalog:"min=1"`
+}
+
+var _ Catalog = (*Plugins)(nil)
+
+func (p *Plugins) GetKeyManager() keymanager.KeyManager {
+	return p.KeyManager
+}
+
+func (p *Plugins) GetNodeAttestor() NodeAttestor {
+	return p.NodeAttestor
+}
+
+func (p *Plugins) GetWorkloadAttestors() []WorkloadAttestor {
+	return p.WorkloadAttestors
+}
 
 type Config struct {
-	GlobalConfig  *common.GlobalConfig
-	PluginConfigs common.PluginConfigMap
-	Log           logrus.FieldLogger
+	Log          logrus.FieldLogger
+	GlobalConfig GlobalConfig
+	PluginConfig HCLPluginConfigMap
+	HostServices []catalog.HostServiceServer
 }
 
-type AgentCatalog struct {
-	com common.Catalog
-	m   *sync.RWMutex
-	log logrus.FieldLogger
-
-	keyManagerPlugins       []*ManagedKeyManager
-	nodeAttestorPlugins     []*ManagedNodeAttestor
-	workloadAttestorPlugins []*ManagedWorkloadAttestor
-}
-
-func New(c *Config) *AgentCatalog {
-	commonConfig := &common.Config{
-		GlobalConfig:     c.GlobalConfig,
-		PluginConfigs:    c.PluginConfigs,
-		SupportedPlugins: supportedPlugins,
-		BuiltinPlugins:   builtinPlugins,
-		Log:              c.Log,
-	}
-
-	return &AgentCatalog{
-		log: c.Log,
-		com: common.New(commonConfig),
-		m:   new(sync.RWMutex),
-	}
-}
-
-func (c *AgentCatalog) Run(ctx context.Context) error {
-	c.m.Lock()
-	defer c.m.Unlock()
-
-	err := c.com.Run(ctx)
+func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
+	pluginConfig, err := catalog.PluginConfigFromHCL(config.PluginConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return c.categorize()
-}
+	p := new(Plugins)
+	closer, err := catalog.Fill(ctx, catalog.Config{
+		Log:           config.Log,
+		GlobalConfig:  config.GlobalConfig,
+		PluginConfig:  pluginConfig,
+		KnownPlugins:  KnownPlugins(),
+		KnownServices: KnownServices(),
+		BuiltIns:      BuiltIns(),
+		HostServices:  config.HostServices,
+	}, p)
 
-func (c *AgentCatalog) Stop() {
-	c.m.Lock()
-	defer c.m.Unlock()
-
-	c.com.Stop()
-	c.reset()
-
-	return
-}
-
-func (c *AgentCatalog) Reload(ctx context.Context) error {
-	c.m.Lock()
-	defer c.m.Unlock()
-
-	err := c.com.Reload(ctx)
-	if err != nil {
-		return err
-	}
-
-	return c.categorize()
-}
-
-func (c *AgentCatalog) KeyManagers() []*ManagedKeyManager {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return append([]*ManagedKeyManager(nil), c.keyManagerPlugins...)
-}
-
-func (c *AgentCatalog) NodeAttestors() []*ManagedNodeAttestor {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return append([]*ManagedNodeAttestor(nil), c.nodeAttestorPlugins...)
-}
-
-func (c *AgentCatalog) WorkloadAttestors() []*ManagedWorkloadAttestor {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return append([]*ManagedWorkloadAttestor(nil), c.workloadAttestorPlugins...)
-}
-
-// categorize iterates over all managed plugins and casts them into their
-// respective client types. This method is called during Run and Reload
-// to prevent the consumer from having to check for errors when fetching
-// a client from the catalog
-func (c *AgentCatalog) categorize() error {
-	c.reset()
-
-	errMsg := "Plugin %s does not adhere to %s interface"
-	for _, p := range c.com.Plugins() {
-		if !p.Config.Enabled {
-			c.log.Debugf("%s plugin %s is disabled and will not be categorized", p.Config.PluginType, p.Config.PluginName)
-			continue
-		}
-
-		switch p.Config.PluginType {
-		case KeyManagerType:
-			pl, ok := p.Plugin.(keymanager.KeyManager)
-			if !ok {
-				return fmt.Errorf(errMsg, p.Config.PluginName, KeyManagerType)
-			}
-			c.keyManagerPlugins = append(c.keyManagerPlugins, NewManagedKeyManager(pl, p.Config))
-		case NodeAttestorType:
-			pl, ok := p.Plugin.(nodeattestor.NodeAttestor)
-			if !ok {
-				return fmt.Errorf(errMsg, p.Config.PluginName, NodeAttestorType)
-			}
-			c.nodeAttestorPlugins = append(c.nodeAttestorPlugins, NewManagedNodeAttestor(pl, p.Config))
-		case WorkloadAttestorType:
-			pl, ok := p.Plugin.(workloadattestor.WorkloadAttestor)
-			if !ok {
-				return fmt.Errorf(errMsg, p.Config.PluginName, WorkloadAttestorType)
-			}
-			c.workloadAttestorPlugins = append(c.workloadAttestorPlugins, NewManagedWorkloadAttestor(pl, p.Config))
-		default:
-			return fmt.Errorf("Unsupported plugin type %s", p.Config.PluginType)
-		}
-	}
-
-	// Guarantee we have at least one of each type
-	pluginCount := map[string]int{}
-	pluginCount[KeyManagerType] = len(c.keyManagerPlugins)
-	pluginCount[NodeAttestorType] = len(c.nodeAttestorPlugins)
-	pluginCount[WorkloadAttestorType] = len(c.workloadAttestorPlugins)
-	for t, c := range pluginCount {
-		if c < 1 {
-			return fmt.Errorf("At least one plugin of type %s is required", t)
-		}
-	}
-
-	return nil
-}
-
-func (c *AgentCatalog) reset() {
-	c.keyManagerPlugins = nil
-	c.nodeAttestorPlugins = nil
-	c.workloadAttestorPlugins = nil
+	return &CatalogCloser{
+		Catalog: p,
+		Closer:  closer,
+	}, nil
 }

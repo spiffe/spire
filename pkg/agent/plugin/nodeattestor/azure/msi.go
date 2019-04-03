@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common"
@@ -22,6 +23,14 @@ const (
 var (
 	msiError = errs.Class("azure-msi")
 )
+
+func BuiltIn() catalog.Plugin {
+	return builtIn(New())
+}
+
+func builtIn(p *MSIAttestorPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
+}
 
 type MSIAttestorConfig struct {
 	trustDomain string
@@ -44,15 +53,13 @@ type MSIAttestorPlugin struct {
 	}
 }
 
-var _ nodeattestor.Plugin = (*MSIAttestorPlugin)(nil)
-
-func NewMSIAttestorPlugin() *MSIAttestorPlugin {
+func New() *MSIAttestorPlugin {
 	p := &MSIAttestorPlugin{}
 	p.hooks.fetchMSIToken = azure.FetchMSIToken
 	return p
 }
 
-func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
+func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err

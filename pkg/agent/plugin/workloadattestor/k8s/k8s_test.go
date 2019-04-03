@@ -24,9 +24,10 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -93,15 +94,15 @@ type attestResult struct {
 }
 
 func TestK8sAttestor(t *testing.T) {
-	suite.Run(t, new(K8sAttestorSuite))
+	spiretest.Run(t, new(K8sAttestorSuite))
 }
 
 type K8sAttestorSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	dir   string
 	clock *clock.Mock
-	p     *k8sPlugin
+	p     workloadattestor.Plugin
 
 	podList [][]byte
 	env     map[string]string
@@ -113,15 +114,13 @@ type K8sAttestorSuite struct {
 }
 
 func (s *K8sAttestorSuite) SetupTest() {
-	dir, err := ioutil.TempDir("", "k8s-workloadattestor-test")
-	s.Require().NoError(err)
-	s.dir = dir
+	s.dir = s.TempDir()
 	s.writeFile(defaultTokenPath, "default-token")
 
 	s.clock = clock.NewMock(s.T())
 	s.server = nil
 
-	s.p = s.newPlugin()
+	_, s.p = s.newPlugin()
 	s.podList = nil
 	s.env = map[string]string{}
 }
@@ -183,8 +182,7 @@ func (s *K8sAttestorSuite) TestAttestWithPidNotInPodCancelsEarly() {
 	resp, err := s.p.Attest(ctx, &workloadattestor.AttestRequest{
 		Pid: int32(pid),
 	})
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), "k8s: no selectors found: context canceled")
+	s.RequireGRPCStatus(err, codes.Canceled, "context canceled")
 	s.Require().Nil(resp)
 }
 
@@ -212,8 +210,7 @@ func (s *K8sAttestorSuite) TestAttestWithPidNotInPodAfterRetry() {
 	select {
 	case result := <-resultCh:
 		s.Require().Nil(result.resp)
-		s.Require().Error(result.err)
-		s.Require().Contains(result.err.Error(), "k8s: no selectors found")
+		s.RequireErrorContains(result.err, "k8s: no selectors found")
 	case <-time.After(time.Minute):
 		s.FailNow("timed out waiting for attest response")
 	}
@@ -524,14 +521,12 @@ func (s *K8sAttestorSuite) TestConfigure() {
 
 	for _, testCase := range testCases {
 		s.T().Run(testCase.name, func(t *testing.T) {
-			p := s.newPlugin()
-			resp, err := p.Configure(context.Background(), &spi.ConfigureRequest{
+			p, wp := s.newPlugin()
+			resp, err := wp.Configure(context.Background(), &spi.ConfigureRequest{
 				Configuration: testCase.hcl,
 			})
 			if testCase.err != "" {
-				if assert.Error(t, err) {
-					assert.Contains(t, err.Error(), testCase.err)
-				}
+				s.AssertErrorContains(err, testCase.err)
 				return
 			}
 			require.NotNil(t, testCase.config, "test case missing expected config")
@@ -576,14 +571,17 @@ func (s *K8sAttestorSuite) TestGetPluginInfo() {
 	s.Equal(&spi.GetPluginInfoResponse{}, resp)
 }
 
-func (s *K8sAttestorSuite) newPlugin() *k8sPlugin {
+func (s *K8sAttestorSuite) newPlugin() (*K8SPlugin, workloadattestor.Plugin) {
 	p := New()
 	p.fs = testFS(s.dir)
 	p.clock = s.clock
 	p.getenv = func(key string) string {
 		return s.env[key]
 	}
-	return p
+
+	var wp workloadattestor.Plugin
+	s.LoadPlugin(builtIn(p), &wp)
+	return p, wp
 }
 
 func (s *K8sAttestorSuite) setServer(server *httptest.Server) {
@@ -768,8 +766,7 @@ func (s *K8sAttestorSuite) requireAttestFailure(contains string) {
 	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
 		Pid: int32(pid),
 	})
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), contains)
+	s.RequireGRPCStatusContains(err, codes.Unknown, contains)
 	s.Require().Nil(resp)
 }
 

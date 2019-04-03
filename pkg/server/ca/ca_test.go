@@ -70,7 +70,7 @@ func (s *CATestSuite) SetupTest() {
 	s.Require().NoError(err)
 
 	catalog := fakeservercatalog.New()
-	catalog.SetKeyManagers(km)
+	catalog.SetKeyManager(km)
 
 	logger, err := log.NewLogger("DEBUG", "")
 	s.Require().NoError(err)

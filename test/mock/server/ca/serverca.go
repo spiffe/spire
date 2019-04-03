@@ -38,6 +38,7 @@ func (m *MockServerCA) EXPECT() *MockServerCAMockRecorder {
 
 // SignJWTSVID mocks base method
 func (m *MockServerCA) SignJWTSVID(arg0 context.Context, arg1 *node.JSR) (string, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SignJWTSVID", arg0, arg1)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
@@ -46,11 +47,13 @@ func (m *MockServerCA) SignJWTSVID(arg0 context.Context, arg1 *node.JSR) (string
 
 // SignJWTSVID indicates an expected call of SignJWTSVID
 func (mr *MockServerCAMockRecorder) SignJWTSVID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignJWTSVID", reflect.TypeOf((*MockServerCA)(nil).SignJWTSVID), arg0, arg1)
 }
 
 // SignX509CASVID mocks base method
 func (m *MockServerCA) SignX509CASVID(arg0 context.Context, arg1 []byte, arg2 time.Duration) ([]*x509.Certificate, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SignX509CASVID", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]*x509.Certificate)
 	ret1, _ := ret[1].(error)
@@ -59,11 +62,13 @@ func (m *MockServerCA) SignX509CASVID(arg0 context.Context, arg1 []byte, arg2 ti
 
 // SignX509CASVID indicates an expected call of SignX509CASVID
 func (mr *MockServerCAMockRecorder) SignX509CASVID(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignX509CASVID", reflect.TypeOf((*MockServerCA)(nil).SignX509CASVID), arg0, arg1, arg2)
 }
 
 // SignX509SVID mocks base method
 func (m *MockServerCA) SignX509SVID(arg0 context.Context, arg1 []byte, arg2 time.Duration) ([]*x509.Certificate, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SignX509SVID", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]*x509.Certificate)
 	ret1, _ := ret[1].(error)
@@ -72,5 +77,6 @@ func (m *MockServerCA) SignX509SVID(arg0 context.Context, arg1 []byte, arg2 time
 
 // SignX509SVID indicates an expected call of SignX509SVID
 func (mr *MockServerCAMockRecorder) SignX509SVID(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignX509SVID", reflect.TypeOf((*MockServerCA)(nil).SignX509SVID), arg0, arg1, arg2)
 }

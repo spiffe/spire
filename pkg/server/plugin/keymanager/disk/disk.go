@@ -10,10 +10,20 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/server/keymanager"
 )
+
+func BuiltIn() catalog.Plugin {
+	return builtIn(New())
+}
+
+func builtIn(p *KeyManager) catalog.Plugin {
+	return catalog.MakePlugin("disk", keymanager.PluginServer(p))
+}
 
 type configuration struct {
 	KeysPath string `hcl:"keys_path"`

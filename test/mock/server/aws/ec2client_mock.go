@@ -5,7 +5,7 @@
 package mock_aws
 
 import (
-	aws "github.com/aws/aws-sdk-go/aws"
+	context "context"
 	request "github.com/aws/aws-sdk-go/aws/request"
 	ec2 "github.com/aws/aws-sdk-go/service/ec2"
 	gomock "github.com/golang/mock/gomock"
@@ -36,7 +36,8 @@ func (m *MockEC2Client) EXPECT() *MockEC2ClientMockRecorder {
 }
 
 // DescribeInstancesWithContext mocks base method
-func (m *MockEC2Client) DescribeInstancesWithContext(arg0 aws.Context, arg1 *ec2.DescribeInstancesInput, arg2 ...request.Option) (*ec2.DescribeInstancesOutput, error) {
+func (m *MockEC2Client) DescribeInstancesWithContext(arg0 context.Context, arg1 *ec2.DescribeInstancesInput, arg2 ...request.Option) (*ec2.DescribeInstancesOutput, error) {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
@@ -49,6 +50,7 @@ func (m *MockEC2Client) DescribeInstancesWithContext(arg0 aws.Context, arg1 *ec2
 
 // DescribeInstancesWithContext indicates an expected call of DescribeInstancesWithContext
 func (mr *MockEC2ClientMockRecorder) DescribeInstancesWithContext(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeInstancesWithContext", reflect.TypeOf((*MockEC2Client)(nil).DescribeInstancesWithContext), varargs...)
 }

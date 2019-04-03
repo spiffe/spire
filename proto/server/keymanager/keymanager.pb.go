@@ -38,6 +38,12 @@ type GetPluginInfoRequest = plugin.GetPluginInfoRequest
 // GetPluginInfoResponse from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
 type GetPluginInfoResponse = plugin.GetPluginInfoResponse
 
+// InitRequest from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
+type InitRequest = plugin.InitRequest
+
+// InitResponse from public import github.com/spiffe/spire/proto/common/plugin/plugin.proto
+type InitResponse = plugin.InitResponse
+
 type KeyType int32
 
 const (

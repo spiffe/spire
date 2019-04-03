@@ -18,8 +18,10 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/common"
@@ -29,7 +31,7 @@ import (
 )
 
 const (
-	selectorType             = "k8s"
+	pluginName               = "k8s"
 	defaultMaxPollAttempts   = 5
 	defaultPollRetryInterval = time.Millisecond * 300
 	defaultSecureKubeletPort = 10250
@@ -48,6 +50,14 @@ const (
 )
 
 var k8sErr = errs.Class("k8s")
+
+func BuiltIn() catalog.Plugin {
+	return builtIn(New())
+}
+
+func builtIn(p *K8SPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
+}
 
 // k8sHCLConfig holds the configuration parsed from HCL
 type k8sHCLConfig struct {
@@ -122,7 +132,8 @@ type k8sConfig struct {
 	LastReload time.Time
 }
 
-type k8sPlugin struct {
+type K8SPlugin struct {
+	log    hclog.Logger
 	fs     cgroups.FileSystem
 	clock  clock.Clock
 	getenv func(string) string
@@ -131,15 +142,19 @@ type k8sPlugin struct {
 	config *k8sConfig
 }
 
-func New() *k8sPlugin {
-	return &k8sPlugin{
+func New() *K8SPlugin {
+	return &K8SPlugin{
 		fs:     cgroups.OSFileSystem{},
 		clock:  clock.New(),
 		getenv: os.Getenv,
 	}
 }
 
-func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (p *K8SPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
+}
+
+func (p *K8SPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
@@ -181,12 +196,12 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 		// if the container was not located and there were no pods with
 		// uninitialized containers, then the search is over.
 		if !notAllContainersReady || attempt >= config.MaxPollAttempts {
-			log.Printf("container id %q not found (attempt %d of %d)", containerID, attempt, config.MaxPollAttempts)
+			p.log.Warn("container id not found; giving up", "container_id", containerID, "attempt", attempt)
 			return nil, k8sErr.New("no selectors found")
 		}
 
 		// wait a bit for containers to initialize before trying again.
-		log.Printf("container id %q not found (attempt %d of %d); trying again in %s", containerID, attempt, config.MaxPollAttempts, config.PollRetryInterval)
+		p.log.Warn("container id not found", "container_id", containerID, "attempt", attempt, "retry_interval", config.PollRetryInterval)
 
 		select {
 		case <-p.clock.After(config.PollRetryInterval):
@@ -196,7 +211,7 @@ func (p *k8sPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequ
 	}
 }
 
-func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
+func (p *K8SPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
 	// Parse HCL config payload into config struct
 	config := new(k8sHCLConfig)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
@@ -277,17 +292,17 @@ func (p *k8sPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (r
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*k8sPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*K8SPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *k8sPlugin) setConfig(config *k8sConfig) {
+func (p *K8SPlugin) setConfig(config *k8sConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
 }
 
-func (p *k8sPlugin) getConfig() (*k8sConfig, error) {
+func (p *K8SPlugin) getConfig() (*k8sConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -300,7 +315,7 @@ func (p *k8sPlugin) getConfig() (*k8sConfig, error) {
 	return p.config, nil
 }
 
-func (p *k8sPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
+func (p *K8SPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
 	cgroups, err := cgroups.GetCgroups(pid, p.fs)
 	if err != nil {
 		return "", k8sErr.Wrap(err)
@@ -327,7 +342,7 @@ func (p *k8sPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
 	return "", nil
 }
 
-func (p *k8sPlugin) reloadKubeletClient(config *k8sConfig) (err error) {
+func (p *K8SPlugin) reloadKubeletClient(config *k8sConfig) (err error) {
 	// The insecure client only needs to be loaded once.
 	if !config.Secure {
 		if config.Client == nil {
@@ -430,7 +445,7 @@ func (p *k8sPlugin) reloadKubeletClient(config *k8sConfig) (err error) {
 	return nil
 }
 
-func (p *k8sPlugin) loadKubeletCA(path string) (*x509.CertPool, error) {
+func (p *K8SPlugin) loadKubeletCA(path string) (*x509.CertPool, error) {
 	if path == "" {
 		path = defaultKubeletCAPath
 	}
@@ -446,7 +461,7 @@ func (p *k8sPlugin) loadKubeletCA(path string) (*x509.CertPool, error) {
 	return newCertPool(certs), nil
 }
 
-func (p *k8sPlugin) loadX509KeyPair(cert, key string) (*tls.Certificate, error) {
+func (p *K8SPlugin) loadX509KeyPair(cert, key string) (*tls.Certificate, error) {
 	certPEM, err := p.readFile(cert)
 	if err != nil {
 		return nil, k8sErr.New("unable to load certificate: %v", err)
@@ -462,7 +477,7 @@ func (p *k8sPlugin) loadX509KeyPair(cert, key string) (*tls.Certificate, error) 
 	return &kp, nil
 }
 
-func (p *k8sPlugin) loadToken(path string) (string, error) {
+func (p *K8SPlugin) loadToken(path string) (string, error) {
 	if path == "" {
 		path = defaultTokenPath
 	}
@@ -474,7 +489,7 @@ func (p *k8sPlugin) loadToken(path string) (string, error) {
 }
 
 // readFile reads the contents of a file through the filesystem interface
-func (p *k8sPlugin) readFile(path string) ([]byte, error) {
+func (p *K8SPlugin) readFile(path string) ([]byte, error) {
 	f, err := p.fs.Open(path)
 	if err != nil {
 		return nil, err
@@ -483,7 +498,7 @@ func (p *k8sPlugin) readFile(path string) ([]byte, error) {
 	return ioutil.ReadAll(f)
 }
 
-func (p *k8sPlugin) getNodeName(name string, env string) string {
+func (p *K8SPlugin) getNodeName(name string, env string) string {
 	switch {
 	case name != "":
 		return name
@@ -603,7 +618,7 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 
 func makeSelector(format string, args ...interface{}) *common.Selector {
 	return &common.Selector{
-		Type:  selectorType,
+		Type:  pluginName,
 		Value: fmt.Sprintf(format, args...),
 	}
 }
