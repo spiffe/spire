@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
@@ -111,6 +112,10 @@ func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *Catalo
 		Name: "external",
 	}
 
+	hcPlugin := &hcClientPlugin{
+		ext: ext,
+	}
+
 	// start the external plugin. ensure it is killed if there is an error.
 	pluginClient := goplugin.NewClient(&goplugin.ClientConfig{
 		HandshakeConfig: goplugin.HandshakeConfig{
@@ -123,9 +128,7 @@ func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *Catalo
 		//AutoMTLS:         true,
 		AllowedProtocols: []goplugin.Protocol{goplugin.ProtocolGRPC},
 		Plugins: map[string]goplugin.Plugin{
-			"external": &hcClientPlugin{
-				ext: ext,
-			},
+			"external": hcPlugin,
 		},
 		Logger:       logger.Named(ext.Name),
 		SecureConfig: secureConfig,
@@ -155,7 +158,10 @@ func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *Catalo
 	}
 
 	// Kill also closes the gRPC client
-	plugin.closer = pluginClient.Kill
+	plugin.closer = func() {
+		pluginClient.Kill()
+		hcPlugin.WaitUntilBrokerDone()
+	}
 
 	return plugin, nil
 }
@@ -175,6 +181,7 @@ func buildSecureConfig(checksum string) (*goplugin.SecureConfig, error) {
 type hcClientPlugin struct {
 	goplugin.NetRPCUnsupportedPlugin
 	ext ExternalPlugin
+	wg  sync.WaitGroup
 }
 
 var _ goplugin.GRPCPlugin = (*hcClientPlugin)(nil)
@@ -184,10 +191,28 @@ func (p *hcClientPlugin) GRPCServer(b *goplugin.GRPCBroker, s *grpc.Server) erro
 }
 
 func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	// kick off a goroutine that serves the host services to the plugin
-	go b.AcceptAndServe(hostServicesID, func(opts []grpc.ServerOption) *grpc.Server {
-		return NewHostServer(p.ext.Name, opts, p.ext.HostServices)
-	})
+	// Manually start up the server via b.Accept since b.AcceptAndServe does
+	// some logging we don't care for. Although b.AcceptAndServe is currently
+	// the only way to feed the TLS config to the brokered connection, AutoMTLS
+	// does not work yet anyway, so it is a moot point.
+	listener, err := b.Accept(hostServicesID)
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+	server := NewHostServer(p.ext.Name, nil, p.ext.HostServices)
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		if err := server.Serve(listener); err != nil {
+			p.ext.Log.Error("host services server failed: %v", err)
+		}
+	}()
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		<-ctx.Done()
+		server.Stop()
+	}()
 
 	plugin, err := newCatalogPlugin(ctx, c, catalogPluginConfig{
 		Log:           p.ext.Log,
@@ -200,4 +225,8 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 		return nil, err
 	}
 	return plugin, nil
+}
+
+func (p *hcClientPlugin) WaitUntilBrokerDone() {
+	p.wg.Wait()
 }
