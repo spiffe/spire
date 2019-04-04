@@ -13,19 +13,23 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/util"
@@ -54,6 +58,8 @@ func TestInitializationFailure(t *testing.T) {
 	clk := clock.New()
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(memory.New())
 
 	c := &Config{
 		SVID:        baseSVID,
@@ -62,6 +68,7 @@ func TestInitializationFailure(t *testing.T) {
 		Metrics:     &telemetry.Blackhole{},
 		TrustDomain: trustDomainID,
 		Clk:         clk,
+		Catalog:     cat,
 	}
 	m, err := New(c)
 	if err != nil {
@@ -81,6 +88,8 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	clk := clock.New()
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(disk.New())
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -92,6 +101,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          bundleutil.BundleFromRootCA("spiffe://"+trustDomain, ca),
 		Clk:             clk,
+		Catalog:         cat,
 	}
 	m, err := New(c)
 	if err != nil {
@@ -130,6 +140,8 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	clk := clock.New()
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(disk.New())
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -140,6 +152,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		SVIDCachePath:   path.Join(dir, "svid.der"),
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Clk:             clk,
+		Catalog:         cat,
 	}
 
 	_, err := ReadSVID(c.SVIDCachePath)
@@ -168,6 +181,67 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	}
 }
 
+func TestStoreKeyOnStartup(t *testing.T) {
+	dir := createTempDir(t)
+	defer removeTempDir(dir)
+
+	clk := clock.New()
+	ca, cakey := createCA(t, clk, trustDomain)
+	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
+
+	cat := fakeagentcatalog.New()
+	diskPlugin := disk.New()
+	diskPlugin.Configure(context.Background(), &plugin.ConfigureRequest{Configuration: fmt.Sprintf("directory = \"%s\"", dir)})
+	cat.SetKeyManagers(diskPlugin)
+
+	c := &Config{
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		Metrics:         &telemetry.Blackhole{},
+		TrustDomain:     trustDomainID,
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Clk:             clk,
+		Catalog:         cat,
+	}
+
+	mgr := c.Catalog.KeyManagers()[0]
+	kresp, err := mgr.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
+	if err != nil {
+		t.Fatalf("No error expected but got: %v", err)
+	}
+	if len(kresp.PrivateKey) != 0 {
+		t.Fatalf("No key expected but got: %v", kresp.PrivateKey)
+	}
+
+	m, err := New(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = m.Initialize(context.Background())
+	if err == nil {
+		t.Fatal("manager was expected to fail during initialization")
+	}
+
+	// Althought start failed, the SVID key should have been saved, because it should be
+	// one of the first thing the manager does at initialization.
+	kresp, err = mgr.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
+	if err != nil {
+		t.Fatalf("No error expected but got: %v", err)
+	}
+
+	storedKey, err := x509.ParseECPrivateKey(kresp.PrivateKey)
+	if err != nil {
+		t.Fatalf("No error expected but got: %v", err)
+	}
+
+	if !reflect.DeepEqual(storedKey, baseSVIDKey) {
+		t.Fatal("stored key is different than provided")
+	}
+}
+
 func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	dir := createTempDir(t)
 	defer removeTempDir(dir)
@@ -190,6 +264,8 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	defer apiHandler.stop()
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(disk.New())
 
 	c := &Config{
 		ServerAddr:      l.Addr().String(),
@@ -202,6 +278,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		Bundle:          apiHandler.bundle,
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
+		Catalog:         cat,
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -353,6 +430,8 @@ func TestSynchronization(t *testing.T) {
 	defer apiHandler.stop()
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(disk.New())
 
 	c := &Config{
 		ServerAddr:       l.Addr().String(),
@@ -367,6 +446,7 @@ func TestSynchronization(t *testing.T) {
 		RotationInterval: time.Hour,
 		SyncInterval:     time.Hour,
 		Clk:              mockClk,
+		Catalog:          cat,
 	}
 
 	m := newManager(t, c)
@@ -493,6 +573,8 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	defer apiHandler.stop()
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(disk.New())
 
 	c := &Config{
 		ServerAddr:      l.Addr().String(),
@@ -505,6 +587,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		Bundle:          apiHandler.bundle,
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
+		Catalog:         cat,
 	}
 
 	m := newManager(t, c)
@@ -552,6 +635,8 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	defer apiHandler.stop()
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(disk.New())
 
 	c := &Config{
 		ServerAddr:      l.Addr().String(),
@@ -564,6 +649,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		Bundle:          apiHandler.bundle,
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
+		Catalog:         cat,
 	}
 
 	m := newManager(t, c)
@@ -610,6 +696,8 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	defer apiHandler.stop()
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(disk.New())
 
 	c := &Config{
 		ServerAddr:       l.Addr().String(),
@@ -624,6 +712,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     1 * time.Hour,
 		Clk:              clk,
+		Catalog:          cat,
 	}
 
 	m := newManager(t, c)
@@ -669,6 +758,8 @@ func TestSurvivesCARotation(t *testing.T) {
 	defer apiHandler.stop()
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManagers(disk.New())
 
 	ttlSeconds := time.Duration(ttl) * time.Second
 	syncInterval := ttlSeconds / 2
@@ -685,6 +776,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     syncInterval,
 		Clk:              mockClk,
+		Catalog:          cat,
 	}
 
 	m := newManager(t, c)

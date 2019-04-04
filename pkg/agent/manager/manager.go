@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common"
 )
@@ -81,6 +83,11 @@ type manager struct {
 func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID)
 	m.storeBundle(m.cache.Bundle())
+
+	err := m.storePrivateKey(ctx, m.c.SVIDKey)
+	if err != nil {
+		return fmt.Errorf("fail to store private key: %v", err)
+	}
 
 	return m.synchronize(ctx)
 }
@@ -182,6 +189,13 @@ func (m *manager) runSVIDObserver(ctx context.Context) error {
 			return nil
 		case <-svidStream.Changes():
 			s := svidStream.Next().(svid.State)
+
+			err := m.storePrivateKey(ctx, s.Key)
+			if err != nil {
+				m.c.Log.Errorf("failed to store private key: %v", err)
+				continue
+			}
+
 			m.storeSVID(s.SVID)
 		}
 	}
@@ -216,6 +230,30 @@ func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
 	if err != nil {
 		m.c.Log.Errorf("could not store bundle: %v", err)
 	}
+}
+
+func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) error {
+	mgrs := m.c.Catalog.KeyManagers()
+	if len(mgrs) > 1 {
+		return errors.New("more than one key manager configured")
+	}
+
+	keyBytes, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return err
+	}
+
+	if _, err := mgrs[0].StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
+		m.c.Log.Errorf("could not store new agent key pair: %v", err)
+		m.c.Log.Warn("Error encountered while storing new agent key pair. Is your KeyManager plugin is up-to-date?")
+
+		// This error is not returned, to preserve backwards-compability with KeyManagers that were built against the old interface.
+		// If the StorePrivateKey() method isn't avaiable on the plugin, we get a "not implemented" error, which we
+		// should ignore for now, but log an error and warning.
+		// return fmt.Errorf("store key pair: %v", err)
+	}
+
+	return nil
 }
 
 func jwtSVIDExpiresSoon(svid *client.JWTSVID, now time.Time) bool {
