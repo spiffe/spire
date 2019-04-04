@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 
 	sds_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
@@ -89,6 +90,13 @@ func (e *endpoints) registerSecretDiscoveryService(server *grpc.Server) {
 }
 
 func (e *endpoints) createUDSListener() (net.Listener, error) {
+	// Create uds dir and parents if not exists
+	dir := filepath.Dir(e.c.BindAddr.String())
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+
+	// Remove uds if already exists
 	os.Remove(e.c.BindAddr.String())
 
 	l, err := net.Listen(e.c.BindAddr.Network(), e.c.BindAddr.String())
