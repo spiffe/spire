@@ -16,7 +16,6 @@ set -e
 
 
 run_e2e_test() {
-    rm -f .data/datastore.sqlite3
     CONFIG_LOCATION=$1
 
     run_test $CONFIG_LOCATION
@@ -40,6 +39,12 @@ run_docker_test() {
 }
 
 run_test() {
+    # Removes files from previous executions
+    rm -f .data/datastore.sqlite3
+    rm -f .data/agent_svid.der
+    rm -f .data/bundle.der
+    rm -f .data/svid.key
+
     CONFIG_LOCATION=$1
 
     ./cmd/spire-server/spire-server run -config $CONFIG_LOCATION &
@@ -57,13 +62,21 @@ run_test() {
     sleep 2
 
     set +e
-    RESULT=$(./cmd/spire-agent/spire-agent api fetch x509)
-    echo $RESULT | grep "Received 1 bundle"
-    if [ $? != 0 ]; then
+    # Check svid.key was stored
+    ls .data/svid.key > /dev/null
+    KEY_OK=$?
+
+    # Check bundle was received
+    FETCH_RESULT=$(./cmd/spire-agent/spire-agent api fetch x509)
+    echo $FETCH_RESULT | grep "Received 1 bundle"
+    FETCH_OK=$?
+
+    if [ $FETCH_OK != 0 ] || [ $KEY_OK != 0 ]; then
         CODE=1
         echo
         echo
-        echo $RESULT
+        echo "Store key status:    $KEY_OK"
+        echo "Fetch bundle status: $FETCH_OK. Details: $FETCH_RESULT"
         echo
         echo "Test failed."
         echo
