@@ -6,11 +6,13 @@ package mock_manager
 
 import (
 	context "context"
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	go_observer "github.com/imkira/go-observer"
+	client "github.com/spiffe/spire/pkg/agent/client"
 	cache "github.com/spiffe/spire/pkg/agent/manager/cache"
 	common "github.com/spiffe/spire/proto/common"
-	reflect "reflect"
 )
 
 // MockManager is a mock of Manager interface
@@ -37,9 +39,9 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 }
 
 // FetchJWTSVID mocks base method
-func (m *MockManager) FetchJWTSVID(arg0 context.Context, arg1 string, arg2 []string) (string, error) {
+func (m *MockManager) FetchJWTSVID(arg0 context.Context, arg1 string, arg2 []string) (*client.JWTSVID, error) {
 	ret := m.ctrl.Call(m, "FetchJWTSVID", arg0, arg1, arg2)
-	ret0, _ := ret[0].(string)
+	ret0, _ := ret[0].(*client.JWTSVID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

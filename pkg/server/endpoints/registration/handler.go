@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -26,6 +28,8 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
+
+var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchString
 
 //Service is used to register SPIFFE IDs, and the attestation logic that should
 //be performed on a workload before those IDs can be issued.
@@ -618,6 +622,13 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	}
 
 	var err error
+	for _, dns := range entry.DnsNames {
+		err = validateDNS(dns)
+		if err != nil {
+			return nil, fmt.Errorf("dns name %v failed validation: %v", dns, err)
+		}
+	}
+
 	entry.ParentId, err = idutil.NormalizeSpiffeID(entry.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain.Host))
 	if err != nil {
 		return nil, err
@@ -739,4 +750,46 @@ func withCallerID(ctx context.Context, callerID string) context.Context {
 func getCallerID(ctx context.Context) string {
 	callerID, _ := ctx.Value(callerIDKey{}).(string)
 	return callerID
+}
+
+func validateDNS(dns string) error {
+	// follow https://tools.ietf.org/html/rfc5280#section-4.2.1.6
+	// do not allow empty or the technically valid DNS " "
+	dns = strings.TrimSpace(dns)
+	if len(dns) == 0 {
+		return errors.New("empty or only whitespace")
+	}
+
+	// handle up to 255 characters
+	if len(dns) > 255 {
+		return errors.New("length exceeded")
+	}
+
+	// a DNS is split into labels by "."
+	splitDNS := strings.Split(dns, ".")
+	for _, label := range splitDNS {
+		if err := validateDNSLabel(label); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateDNSLabel(label string) error {
+	// follow https://tools.ietf.org/html/rfc5280#section-4.2.1.6 guidance
+	// <label> ::= <let-dig> [ [ <ldh-str> ] <let-dig> ]
+	// <ldh-str> ::= <let-dig-hyp> | <let-dig-hyp> <ldh-str>
+	if len(label) == 0 {
+		return errors.New("label is empty")
+	}
+	if len(label) > 63 {
+		return fmt.Errorf("label length exceeded: %v", label)
+	}
+
+	if match := isDNSLabel(label); !match {
+		return fmt.Errorf("label does not match regex: %v", label)
+	}
+
+	return nil
 }

@@ -177,6 +177,7 @@ manage the various registered nodes and workloads that are controlled by it.
 | admin | [bool](#bool) |  | Whether or not the workload is an admin workload. Admin workloads can use their SVID&#39;s to authenticate with the Registration API, for example. |
 | downstream | [bool](#bool) |  | To enable signing CA CSR in upstream spire server |
 | entryExpiry | [int64](#int64) |  | Expiration of this entry, in seconds from epoch |
+| dns_names | [string](#string) | repeated | DNS entries |
 
 
 
