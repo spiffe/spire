@@ -1,0 +1,41 @@
+syntax = "proto3";
+option go_package = "ca";
+
+message X509CAEntry {
+    // Which X509 CA slot this entry occupied.
+    string slot_id = 1;
+
+    // When the CA was issued (unix epoch in seconds)
+    int64 issued_at = 2;
+
+    // DER encoded CA certificate
+    repeated bytes chain = 3;
+
+    // Whether or not the CA is considered an "intermediate" back to the trust
+    // bundle. This is only true when the CA is signed by an upstream CA and
+    // when the upstream bundle has been included in the trust bundle (see
+    // upstream_bundle configurable).
+    bool is_intermediate = 4;
+}
+
+message JWTKeyEntry {
+    // Which JWT Key slot this entry occupied.
+    string slot_id = 1;
+
+    // When the key was issued (unix epoch in seconds)
+    int64 issued_at = 2;
+
+    // When the key expires unix epoch in seconds)
+    int64 not_after = 3;
+
+    // JWT key id (i.e. "kid" claim)
+    string kid = 4;
+
+    // PKIX encoded public key
+    bytes public_key = 5;
+}
+
+message JournalEntries {
+    repeated X509CAEntry x509CAs = 1;
+    repeated JWTKeyEntry jwtKeys = 2;
+}

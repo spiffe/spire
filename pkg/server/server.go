@@ -9,7 +9,6 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
-	"path"
 	"runtime"
 	"sync"
 	"time"
@@ -147,14 +146,14 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	serverCA := s.newCA(metrics)
+
 	// CA manager needs to be initialized before the rotator, otherwise the
 	// server CA plugin won't be able to sign CSRs
-	caManager, err := s.newCAManager(ctx, cat, metrics)
+	caManager, err := s.newCAManager(ctx, cat, metrics, serverCA)
 	if err != nil {
 		return err
 	}
-
-	serverCA := caManager.CA()
 
 	svidRotator, err := s.newSVIDRotator(ctx, serverCA, metrics)
 	if err != nil {
@@ -239,17 +238,26 @@ func (s *Server) loadCatalog(ctx context.Context) (*catalog.CatalogCloser, error
 	})
 }
 
-func (s *Server) newCAManager(ctx context.Context, catalog catalog.Catalog, metrics telemetry.Metrics) (ca.Manager, error) {
-	caManager := ca.NewManager(&ca.ManagerConfig{
-		Catalog:        catalog,
+func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
+	return ca.NewCA(ca.CAConfig{
+		Log:         s.config.Log.WithField("subsystem_name", "ca"),
+		Metrics:     metrics,
+		X509SVIDTTL: s.config.SVIDTTL,
+		TrustDomain: s.config.TrustDomain,
+	})
+}
+
+func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA) (*ca.Manager, error) {
+	caManager := ca.NewManager(ca.ManagerConfig{
+		CA:             serverCA,
+		Catalog:        cat,
 		TrustDomain:    s.config.TrustDomain,
 		Log:            s.config.Log.WithField("subsystem_name", "ca_manager"),
 		Metrics:        metrics,
 		UpstreamBundle: s.config.UpstreamBundle,
-		SVIDTTL:        s.config.SVIDTTL,
 		CATTL:          s.config.CATTL,
 		CASubject:      s.config.CASubject,
-		CertsPath:      s.caCertsPath(),
+		Dir:            s.config.DataDir,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err
@@ -283,10 +291,6 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Ro
 
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
 	})
-}
-
-func (s *Server) caCertsPath() string {
-	return path.Join(s.config.DataDir, "certs.json")
 }
 
 func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
