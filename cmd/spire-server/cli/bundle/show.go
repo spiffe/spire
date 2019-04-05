@@ -32,9 +32,9 @@ func (c *showCommand) appendFlags(fs *flag.FlagSet) {
 }
 
 func (c *showCommand) run(ctx context.Context, env *env, clients *clients) error {
-	bundle, err := clients.r.FetchBundle(ctx, &common.Empty{})
+	resp, err := clients.r.FetchBundle(ctx, &common.Empty{})
 	if err != nil {
 		return err
 	}
-	return printCACertsPEM(env.stdout, bundle.DEPRECATEDCaCerts)
+	return printCertificates(env.stdout, resp.Bundle.RootCas)
 }

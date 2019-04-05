@@ -43,7 +43,6 @@ CA Bundle of the server
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| DEPRECATED_ca_certs | [bytes](#bytes) |  | ASN.1 DER data of the bundle (deprecated). |
 | bundle | [spire.common.Bundle](#spire.common.Bundle) |  | Common bundle format |
 
 
@@ -105,8 +104,6 @@ A CA bundle for a different Trust Domain than the one used and managed by the Se
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| DEPRECATED_spiffe_id | [string](#string) |  | A SPIFFE ID that has a Federated Bundle (deprecated) |
-| DEPRECATED_ca_certs | [bytes](#bytes) |  | ASN.1 DER data of the bundle (deprecated) |
 | bundle | [spire.common.Bundle](#spire.common.Bundle) |  | Common bundle format |
 
 

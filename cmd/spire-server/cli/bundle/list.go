@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"io"
 
@@ -50,13 +51,13 @@ func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error
 		if err != nil {
 			return err
 		}
-		bundle, err := clients.r.FetchFederatedBundle(ctx, &registration.FederatedBundleID{
+		resp, err := clients.r.FetchFederatedBundle(ctx, &registration.FederatedBundleID{
 			Id: id,
 		})
 		if err != nil {
 			return err
 		}
-		return printCACertsPEM(env.stdout, bundle.DEPRECATEDCaCerts)
+		return printCertificates(env.stdout, resp.Bundle.RootCas)
 	}
 
 	stream, err := clients.r.ListFederatedBundles(ctx, &common.Empty{})
@@ -65,12 +66,16 @@ func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error
 	}
 
 	for i := 0; ; i++ {
-		bundle, err := stream.Recv()
+		resp, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			return err
+		}
+		bundle := resp.Bundle
+		if bundle == nil {
+			return errors.New("response missing bundle")
 		}
 
 		if i != 0 {
@@ -79,10 +84,10 @@ func (c *listCommand) run(ctx context.Context, env *env, clients *clients) error
 			}
 		}
 
-		if err := env.Printf(headerFmt, bundle.DEPRECATEDSpiffeId); err != nil {
+		if err := env.Printf(headerFmt, bundle.TrustDomainId); err != nil {
 			return err
 		}
-		if err := printCACertsPEM(env.stdout, bundle.DEPRECATEDCaCerts); err != nil {
+		if err := printCertificates(env.stdout, bundle.RootCas); err != nil {
 			return err
 		}
 	}

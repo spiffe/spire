@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/proto/spire/api/registration"
@@ -51,29 +52,24 @@ func (c *setCommand) run(ctx context.Context, env *env, clients *clients) error 
 		return err
 	}
 
-	caCertsData, err := loadParamData(env.stdin, c.path)
+	rootCAsPEM, err := loadParamData(env.stdin, c.path)
 	if err != nil {
 		return fmt.Errorf("unable to load bundle data: %v", err)
 	}
 
-	certs, err := pemutil.ParseCertificates(caCertsData)
+	rootCAs, err := pemutil.ParseCertificates(rootCAsPEM)
 	if err != nil {
-		return fmt.Errorf("invalid bundle data: %v", err)
-	}
-	var caCerts []byte
-	for _, cert := range certs {
-		caCerts = append(caCerts, cert.Raw...)
+		return fmt.Errorf("unable to parse bundle data: %v", err)
 	}
 
 	bundle := &registration.FederatedBundle{
-		DEPRECATEDSpiffeId: id,
-		DEPRECATEDCaCerts:  caCerts,
+		Bundle: bundleutil.BundleProtoFromRootCAs(id, rootCAs),
 	}
 
 	// pull the existing bundle to know if this should be a create or a update.
 	// at some point it might be nice to have a create-or-update style API.
 	_, err = clients.r.FetchFederatedBundle(ctx, &registration.FederatedBundleID{
-		Id: c.id,
+		Id: id,
 	})
 
 	// assume that an error is because the bundle does not exist
