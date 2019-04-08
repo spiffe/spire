@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire/pkg/common/catalog/interfaces"
+	"github.com/spiffe/spire/pkg/common/catalog/internal"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,7 +24,7 @@ func (s *testPlugin) SetLogger(log hclog.Logger) {
 	s.log = log.ResetNamed("pluginimpl")
 }
 
-func (s *testPlugin) BrokerHostServices(broker interfaces.HostServiceBroker) error {
+func (s *testPlugin) BrokerHostServices(broker internal.HostServiceBroker) error {
 	has, err := broker.GetHostService(TestHostServiceHostServiceClient(&s.hs))
 	if err != nil {
 		return err

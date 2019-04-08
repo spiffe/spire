@@ -23,7 +23,11 @@ func LoadBuiltInPlugin(ctx context.Context, builtIn BuiltInPlugin) (plugin *Cata
 		builtIn.Log = newDiscardingLogger()
 	}
 
+	// The stutter on this statement is unforgivable but it is the only
+	// statement where this happens and renaming the fields would break
+	// consistency with other field names.
 	pluginClient := builtIn.Plugin.Plugin.PluginClient()
+
 	knownServices := make([]ServiceClient, 0, len(builtIn.Plugin.Services))
 	for _, service := range builtIn.Plugin.Services {
 		knownServices = append(knownServices, service.ServiceClient())

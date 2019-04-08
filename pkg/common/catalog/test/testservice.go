@@ -6,7 +6,7 @@ package test
 import (
 	"context"
 
-	"github.com/spiffe/spire/pkg/common/catalog/interfaces"
+	"github.com/spiffe/spire/pkg/common/catalog/internal"
 	"google.golang.org/grpc"
 )
 
@@ -20,7 +20,7 @@ type TestService interface {
 }
 
 // TestServiceServiceServer returns a catalog ServiceServer implementation for the TestService plugin.
-func TestServiceServiceServer(server TestServiceServer) interfaces.ServiceServer {
+func TestServiceServiceServer(server TestServiceServer) internal.ServiceServer {
 	return &testServiceServiceServer{
 		server: server,
 	}
@@ -34,7 +34,7 @@ func (s testServiceServiceServer) ServiceType() string {
 	return TestServiceType
 }
 
-func (s testServiceServiceServer) ServiceClient() interfaces.ServiceClient {
+func (s testServiceServiceServer) ServiceClient() internal.ServiceClient {
 	return TestServiceServiceClient
 }
 
@@ -44,7 +44,7 @@ func (s testServiceServiceServer) RegisterServiceServer(server *grpc.Server) int
 }
 
 // TestServiceServiceClient is a catalog ServiceClient implementation for the TestService plugin.
-var TestServiceServiceClient interfaces.ServiceClient = testServiceServiceClient{}
+var TestServiceServiceClient internal.ServiceClient = testServiceServiceClient{}
 
 type testServiceServiceClient struct{}
 

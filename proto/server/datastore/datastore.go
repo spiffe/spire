@@ -6,7 +6,7 @@ package datastore
 import (
 	"context"
 
-	"github.com/spiffe/spire/pkg/common/catalog/interfaces"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"google.golang.org/grpc"
 )
@@ -72,7 +72,7 @@ type Plugin interface {
 }
 
 // PluginServer returns a catalog PluginServer implementation for the DataStore plugin.
-func PluginServer(server DataStoreServer) interfaces.PluginServer {
+func PluginServer(server DataStoreServer) catalog.PluginServer {
 	return &pluginServer{
 		server: server,
 	}
@@ -86,7 +86,7 @@ func (s pluginServer) PluginType() string {
 	return Type
 }
 
-func (s pluginServer) PluginClient() interfaces.PluginClient {
+func (s pluginServer) PluginClient() catalog.PluginClient {
 	return PluginClient
 }
 
@@ -96,7 +96,7 @@ func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
 }
 
 // PluginClient is a catalog PluginClient implementation for the DataStore plugin.
-var PluginClient interfaces.PluginClient = pluginClient{}
+var PluginClient catalog.PluginClient = pluginClient{}
 
 type pluginClient struct{}
 

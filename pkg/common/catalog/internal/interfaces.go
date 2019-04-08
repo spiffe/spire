@@ -1,8 +1,4 @@
-// This package contains the interfaces used by both the catalog and generated
-// plugin/service/hostservice code. It needs to live in a separate package so
-// that we don't get cyclic dependencies using generated code for unit tests
-// in the catalog package
-package interfaces
+package internal
 
 import (
 	"google.golang.org/grpc"

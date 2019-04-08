@@ -483,10 +483,8 @@ func (s *AttestorSuite) signAttestRequest(signer jose.Signer, cluster string, to
 }
 
 func (s *AttestorSuite) newAttestor() nodeattestor.Plugin {
-	attestor := New()
-
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(builtIn(attestor), &plugin)
+	s.LoadPlugin(BuiltIn(), &plugin)
 	return plugin
 }
 

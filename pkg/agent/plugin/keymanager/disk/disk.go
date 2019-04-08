@@ -20,14 +20,18 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
-const keyFileName = "svid.key"
+const (
+	pluginName = "disk"
+
+	keyFileName = "svid.key"
+)
 
 func BuiltIn() catalog.Plugin {
 	return builtIn(New())
 }
 
 func builtIn(p *DiskPlugin) catalog.Plugin {
-	return catalog.MakePlugin("disk", keymanager.PluginServer(p))
+	return catalog.MakePlugin(pluginName, keymanager.PluginServer(p))
 }
 
 type pluginConfig struct {

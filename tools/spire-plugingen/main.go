@@ -240,7 +240,7 @@ func (g *generator) generate() (err error) {
 	}
 
 	imports := []goImport{
-		{Path: "github.com/spiffe/spire/pkg/common/catalog/interfaces"},
+		{Path: "github.com/spiffe/spire/pkg/common/catalog"},
 		{Path: "google.golang.org/grpc"},
 	}
 	for typeImport := range typeImports {

@@ -56,7 +56,7 @@ type {{ $pluginIntf }} interface {
 }
 
 // {{ $pluginServerFunc }} returns a catalog PluginServer implementation for the {{ $c.Name }} plugin.
-func {{ $pluginServerFunc }}(server {{ $c.ServerType }}) interfaces.PluginServer {
+func {{ $pluginServerFunc }}(server {{ $c.ServerType }}) catalog.PluginServer {
 	return &{{ $pluginServerImpl }}{
 		server: server,
 	}
@@ -70,7 +70,7 @@ func (s  {{ $pluginServerImpl }}) PluginType() string {
 	return {{ $typeConst }}
 }
 
-func (s  {{ $pluginServerImpl }}) PluginClient() interfaces.PluginClient {
+func (s  {{ $pluginServerImpl }}) PluginClient() catalog.PluginClient {
 	return {{ $pluginClientVar }}
 }
 
@@ -80,7 +80,7 @@ func (s {{ $pluginServerImpl }}) RegisterPluginServer(server *grpc.Server) inter
 }
 
 // {{ $pluginClientVar }} is a catalog PluginClient implementation for the {{ $c.Name }} plugin.
-var {{ $pluginClientVar }} interfaces.PluginClient = {{ $pluginClientImpl }}{}
+var {{ $pluginClientVar }} catalog.PluginClient = {{ $pluginClientImpl }}{}
 
 type {{ $pluginClientImpl }} struct {}
 
@@ -110,7 +110,7 @@ func (a {{ $pluginClientAdapterImpl }}) {{ .Name }}({{ range $i,$v := .Params }}
 {{- else if eq .Mode "service" }}
 
 // {{ $serviceServerFunc }} returns a catalog ServiceServer implementation for the {{ $c.Name }} plugin.
-func {{ $serviceServerFunc }}(server {{ $c.ServerType }}) interfaces.ServiceServer {
+func {{ $serviceServerFunc }}(server {{ $c.ServerType }}) catalog.ServiceServer {
 	return &{{ $serviceServerImpl }}{
 		server: server,
 	}
@@ -124,7 +124,7 @@ func (s  {{ $serviceServerImpl }}) ServiceType() string {
 	return {{ $typeConst }}
 }
 
-func (s  {{ $serviceServerImpl }}) ServiceClient() interfaces.ServiceClient {
+func (s  {{ $serviceServerImpl }}) ServiceClient() catalog.ServiceClient {
 	return {{ $serviceClientVar }}
 }
 
@@ -134,7 +134,7 @@ func (s {{ $serviceServerImpl }}) RegisterServiceServer(server *grpc.Server) int
 }
 
 // {{ $serviceClientVar }} is a catalog ServiceClient implementation for the {{ $c.Name }} plugin.
-var {{ $serviceClientVar }} interfaces.ServiceClient = {{ $serviceClientImpl }}{}
+var {{ $serviceClientVar }} catalog.ServiceClient = {{ $serviceClientImpl }}{}
 
 type {{ $serviceClientImpl }} struct {}
 
@@ -164,7 +164,7 @@ func (a {{ $serviceClientAdapterImpl }}) {{ .Name }}({{ range $i,$v := .Params }
 {{- else }}
 
 // {{ $hostServerFunc }} returns a catalog HostServiceServer implementation for the {{ $c.Name }} plugin.
-func {{ $hostServerFunc }}(server {{ $c.ServerType }}) interfaces.HostServiceServer {
+func {{ $hostServerFunc }}(server {{ $c.ServerType }}) catalog.HostServiceServer {
 	return &{{ $hostServerImpl }}{
 		server: server,
 	}
@@ -183,7 +183,7 @@ func (s {{ $hostServerImpl }}) RegisterHostServiceServer(server *grpc.Server) {
 }
 
 // {{ $hostServerFunc }} returns a catalog HostServiceServer implementation for the {{ $c.Name }} plugin.
-func {{ $hostClientFunc }}(client *{{ $c.ClientType }}) interfaces.HostServiceClient {
+func {{ $hostClientFunc }}(client *{{ $c.ClientType }}) catalog.HostServiceClient {
 	return &{{ $hostClientImpl }}{
 		client: client,
 	}

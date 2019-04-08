@@ -840,17 +840,13 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 
 func (s *HandlerSuite) addAttestor(name string, config fakeservernodeattestor.Config) {
 	var p nodeattestor.NodeAttestor
-	s.LoadPlugin(catalog.Plugin{
-		Plugin: nodeattestor.PluginServer(fakeservernodeattestor.New(name, config)),
-	}, &p)
+	s.LoadPlugin(catalog.MakePlugin(name, nodeattestor.PluginServer(fakeservernodeattestor.New(name, config))), &p)
 	s.catalog.AddNodeAttestorNamed(name, p)
 }
 
 func (s *HandlerSuite) addResolver(name string, config fakenoderesolver.Config) {
 	var p noderesolver.NodeResolver
-	s.LoadPlugin(catalog.Plugin{
-		Plugin: noderesolver.PluginServer(fakenoderesolver.New(name, config)),
-	}, &p)
+	s.LoadPlugin(catalog.MakePlugin(name, noderesolver.PluginServer(fakenoderesolver.New(name, config))), &p)
 	s.catalog.AddNodeResolverNamed(name, p)
 }
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire/pkg/common/catalog/interfaces"
+	"github.com/spiffe/spire/pkg/common/catalog/internal"
 )
 
 func NewTestService() TestService {
@@ -21,7 +21,7 @@ func (s *testService) SetLogger(log hclog.Logger) {
 	s.log = log.Named("serviceimpl")
 }
 
-func (s *testService) BrokerHostServices(broker interfaces.HostServiceBroker) error {
+func (s *testService) BrokerHostServices(broker internal.HostServiceBroker) error {
 	has, err := broker.GetHostService(TestHostServiceHostServiceClient(&s.hs))
 	if err != nil {
 		return err

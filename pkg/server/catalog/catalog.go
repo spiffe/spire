@@ -141,6 +141,9 @@ func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
 		BuiltIns:      BuiltIns(),
 		HostServices:  config.HostServices,
 	}, p)
+	if err != nil {
+		return nil, err
+	}
 
 	return &CatalogCloser{
 		Catalog: p,

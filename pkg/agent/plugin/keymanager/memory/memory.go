@@ -13,12 +13,16 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
+const (
+	pluginName = "memory"
+)
+
 func BuiltIn() catalog.Plugin {
 	return builtIn(New())
 }
 
 func builtIn(p *MemoryPlugin) catalog.Plugin {
-	return catalog.MakePlugin("memory", keymanager.PluginServer(p))
+	return catalog.MakePlugin(pluginName, keymanager.PluginServer(p))
 }
 
 type MemoryPlugin struct {

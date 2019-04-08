@@ -6,7 +6,7 @@ package test
 import (
 	"context"
 
-	"github.com/spiffe/spire/pkg/common/catalog/interfaces"
+	"github.com/spiffe/spire/pkg/common/catalog/internal"
 	"google.golang.org/grpc"
 )
 
@@ -20,7 +20,7 @@ type TestHostService interface {
 }
 
 // TestHostServiceHostServiceServer returns a catalog HostServiceServer implementation for the TestHostService plugin.
-func TestHostServiceHostServiceServer(server TestHostServiceServer) interfaces.HostServiceServer {
+func TestHostServiceHostServiceServer(server TestHostServiceServer) internal.HostServiceServer {
 	return &testHostServiceHostServiceServer{
 		server: server,
 	}
@@ -39,7 +39,7 @@ func (s testHostServiceHostServiceServer) RegisterHostServiceServer(server *grpc
 }
 
 // TestHostServiceHostServiceServer returns a catalog HostServiceServer implementation for the TestHostService plugin.
-func TestHostServiceHostServiceClient(client *TestHostServiceClient) interfaces.HostServiceClient {
+func TestHostServiceHostServiceClient(client *TestHostServiceClient) internal.HostServiceClient {
 	return &testHostServiceHostServiceClient{
 		client: client,
 	}
