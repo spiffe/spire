@@ -26,10 +26,10 @@ var (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *AttestorPlugin) catalog.Plugin {
+func builtin(p *AttestorPlugin) catalog.Plugin {
 	return catalog.MakePlugin("k8s_sat",
 		nodeattestor.PluginServer(p),
 	)

@@ -52,10 +52,10 @@ const (
 var k8sErr = errs.Class("k8s")
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *K8SPlugin) catalog.Plugin {
+func builtin(p *K8SPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
 }
 

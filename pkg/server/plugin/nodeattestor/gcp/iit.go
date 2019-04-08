@@ -22,10 +22,10 @@ const (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *IITAttestorPlugin) catalog.Plugin {
+func builtin(p *IITAttestorPlugin) catalog.Plugin {
 	return catalog.MakePlugin("gcp_iit",
 		nodeattestor.PluginServer(p),
 	)

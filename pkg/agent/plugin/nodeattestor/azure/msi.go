@@ -25,10 +25,10 @@ var (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *MSIAttestorPlugin) catalog.Plugin {
+func builtin(p *MSIAttestorPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
 }
 

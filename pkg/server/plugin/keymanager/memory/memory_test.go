@@ -19,5 +19,5 @@ func makeKeyManager(t *testing.T) catalog.Plugin {
 	resp, err := m.Configure(context.Background(), &plugin.ConfigureRequest{})
 	require.NoError(t, err)
 	require.Equal(t, &plugin.ConfigureResponse{}, resp)
-	return builtIn(m)
+	return builtin(m)
 }

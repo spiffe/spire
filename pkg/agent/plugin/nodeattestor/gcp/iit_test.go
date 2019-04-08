@@ -224,7 +224,7 @@ func (s *Suite) newPlugin() nodeattestor.Plugin {
 	p.tokenHost = s.server.Listener.Addr().String()
 
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(builtIn(p), &plugin)
+	s.LoadPlugin(builtin(p), &plugin)
 	return plugin
 }
 

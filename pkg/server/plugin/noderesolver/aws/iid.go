@@ -45,10 +45,10 @@ var (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *IIDResolverPlugin) catalog.Plugin {
+func builtin(p *IIDResolverPlugin) catalog.Plugin {
 	return catalog.MakePlugin(iidPluginName,
 		noderesolver.PluginServer(p),
 	)

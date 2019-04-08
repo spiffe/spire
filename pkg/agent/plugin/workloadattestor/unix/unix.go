@@ -28,10 +28,10 @@ var (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *UnixPlugin) catalog.Plugin {
+func builtin(p *UnixPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
 }
 

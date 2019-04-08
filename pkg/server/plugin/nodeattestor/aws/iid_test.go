@@ -76,7 +76,7 @@ func (s *IIDAttestorSuite) SetupTest() {
 		return s.env[key]
 	}
 	s.plugin = p
-	s.LoadPlugin(builtIn(s.plugin), &s.p)
+	s.LoadPlugin(builtin(s.plugin), &s.p)
 }
 
 func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {

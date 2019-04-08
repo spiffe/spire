@@ -18,18 +18,18 @@ type BuiltInPlugin struct {
 }
 
 // LoadBuiltIn loads a builtin plugin.
-func LoadBuiltInPlugin(ctx context.Context, builtIn BuiltInPlugin) (plugin *CatalogPlugin, err error) {
-	if builtIn.Log == nil {
-		builtIn.Log = newDiscardingLogger()
+func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *CatalogPlugin, err error) {
+	if builtin.Log == nil {
+		builtin.Log = newDiscardingLogger()
 	}
 
 	// The stutter on this statement is unforgivable but it is the only
 	// statement where this happens and renaming the fields would break
 	// consistency with other field names.
-	pluginClient := builtIn.Plugin.Plugin.PluginClient()
+	pluginClient := builtin.Plugin.Plugin.PluginClient()
 
-	knownServices := make([]ServiceClient, 0, len(builtIn.Plugin.Services))
-	for _, service := range builtIn.Plugin.Services {
+	knownServices := make([]ServiceClient, 0, len(builtin.Plugin.Services))
+	for _, service := range builtin.Plugin.Services {
 		knownServices = append(knownServices, service.ServiceClient())
 	}
 
@@ -43,7 +43,7 @@ func LoadBuiltInPlugin(ctx context.Context, builtIn BuiltInPlugin) (plugin *Cata
 	}()
 
 	// create a host server to serve host services.
-	hostServer := NewHostServer(builtIn.Plugin.Name, nil, builtIn.HostServices)
+	hostServer := NewHostServer(builtin.Plugin.Name, nil, builtin.HostServices)
 	defer func() {
 		if err != nil {
 			hostServer.Stop()
@@ -68,65 +68,65 @@ func LoadBuiltInPlugin(ctx context.Context, builtIn BuiltInPlugin) (plugin *Cata
 	}()
 
 	// create a pipe from the host to the builtin
-	builtInNet := NewPipeNet()
+	builtinNet := NewPipeNet()
 	defer func() {
 		if err != nil {
-			builtInNet.Close()
+			builtinNet.Close()
 		}
 	}()
 
 	// create a gRPC server to serve the plugin and services over
-	builtInServer := newBuiltInServer()
+	builtinServer := newBuiltInServer()
 	defer func() {
 		if err != nil {
-			builtInServer.Stop()
+			builtinServer.Stop()
 		}
 	}()
 
 	logger := (&log.HCLogAdapter{
-		Log:  builtIn.Log,
+		Log:  builtin.Log,
 		Name: "builtin",
-	}).Named(builtIn.Plugin.Name)
+	}).Named(builtin.Plugin.Name)
 
 	initPluginServer(
-		builtInServer,
-		&builtInDialer{hostConn: hostConn},
+		builtinServer,
+		&builtinDialer{hostConn: hostConn},
 		logger,
-		builtIn.Plugin.Plugin,
-		builtIn.Plugin.Services,
+		builtin.Plugin.Plugin,
+		builtin.Plugin.Services,
 	)
 
 	// now start the built in server
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		builtInServer.Serve(builtInNet)
+		builtinServer.Serve(builtinNet)
 	}()
 
 	// dial the builtin. the address is ignored.
-	builtInConn, err := grpc.Dial("builtin", grpc.WithInsecure(), grpc.WithDialer(builtInNet.Dial))
+	builtinConn, err := grpc.Dial("builtin", grpc.WithInsecure(), grpc.WithDialer(builtinNet.Dial))
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
 	defer func() {
 		if err != nil {
-			builtInConn.Close()
+			builtinConn.Close()
 		}
 	}()
 
-	plugin, err = newCatalogPlugin(ctx, builtInConn, catalogPluginConfig{
-		Log:           builtIn.Log,
-		Name:          builtIn.Plugin.Name,
+	plugin, err = newCatalogPlugin(ctx, builtinConn, catalogPluginConfig{
+		Log:           builtin.Log,
+		Name:          builtin.Plugin.Name,
 		Plugin:        pluginClient,
 		KnownServices: knownServices,
-		HostServices:  builtIn.HostServices,
+		HostServices:  builtin.HostServices,
 	})
 	if err != nil {
 		return nil, err
 	}
 	plugin.closer = func() {
-		builtInConn.Close()
-		builtInServer.Stop()
+		builtinConn.Close()
+		builtinServer.Stop()
 		hostConn.Close()
 		hostServer.Stop()
 		wg.Wait()
@@ -141,10 +141,10 @@ func newBuiltInServer() *grpc.Server {
 	)
 }
 
-type builtInDialer struct {
+type builtinDialer struct {
 	hostConn *grpc.ClientConn
 }
 
-func (d *builtInDialer) DialHost() (*grpc.ClientConn, error) {
+func (d *builtinDialer) DialHost() (*grpc.ClientConn, error) {
 	return d.hostConn, nil
 }

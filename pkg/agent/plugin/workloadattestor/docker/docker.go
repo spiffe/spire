@@ -28,10 +28,10 @@ const (
 var defaultContainerIndex = 1
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *DockerPlugin) catalog.Plugin {
+func builtin(p *DockerPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
 }
 

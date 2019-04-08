@@ -25,10 +25,10 @@ const (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *AWSSecretPlugin) catalog.Plugin {
+func builtin(p *AWSSecretPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
 		upstreamca.PluginServer(p),
 	)

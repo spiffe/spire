@@ -21,10 +21,10 @@ const (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *X509PoPPlugin) catalog.Plugin {
+func builtin(p *X509PoPPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
 		nodeattestor.PluginServer(p),
 	)

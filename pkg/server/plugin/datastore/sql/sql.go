@@ -48,10 +48,10 @@ const (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *SQLPlugin) catalog.Plugin {
+func builtin(p *SQLPlugin) catalog.Plugin {
 	return catalog.MakePlugin("sql",
 		datastore.PluginServer(p),
 	)

@@ -40,7 +40,7 @@ type DiskSuite struct {
 func (s *DiskSuite) SetupTest() {
 	p := New()
 
-	s.LoadPlugin(builtIn(p), &s.p)
+	s.LoadPlugin(builtin(p), &s.p)
 	s.configure()
 }
 

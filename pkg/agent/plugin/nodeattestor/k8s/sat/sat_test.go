@@ -122,7 +122,7 @@ func (s *AttestorSuite) newAttestor() {
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
 	}
-	s.LoadPlugin(builtIn(attestor), &s.attestor)
+	s.LoadPlugin(builtin(attestor), &s.attestor)
 }
 
 func (s *AttestorSuite) configure(config AttestorConfig) {

@@ -213,7 +213,7 @@ func (s *IIDResolverSuite) newResolver() {
 
 		return s.client, nil
 	}
-	s.LoadPlugin(builtIn(resolver), &s.resolver)
+	s.LoadPlugin(builtin(resolver), &s.resolver)
 }
 
 func (s *IIDResolverSuite) configureResolver() {

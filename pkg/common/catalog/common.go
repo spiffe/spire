@@ -67,26 +67,26 @@ func makeHostServiceTypes(hostServices []HostServiceServer) ([]string, error) {
 	return types, nil
 }
 
-type builtInKey struct {
+type builtinKey struct {
 	Name string
 	Type string
 }
 
-type builtInsMap map[builtInKey]Plugin
+type builtinsMap map[builtinKey]Plugin
 
-func (m builtInsMap) Lookup(name, typ string) (Plugin, bool) {
-	v, ok := m[builtInKey{Name: name, Type: typ}]
+func (m builtinsMap) Lookup(name, typ string) (Plugin, bool) {
+	v, ok := m[builtinKey{Name: name, Type: typ}]
 	return v, ok
 }
 
-func makeBuiltInsMap(builtIns []Plugin) (builtInsMap, error) {
-	m := builtInsMap{}
-	for _, builtIn := range builtIns {
-		k := builtInKey{Name: builtIn.Name, Type: builtIn.Plugin.PluginType()}
+func makeBuiltInsMap(builtins []Plugin) (builtinsMap, error) {
+	m := builtinsMap{}
+	for _, builtin := range builtins {
+		k := builtinKey{Name: builtin.Name, Type: builtin.Plugin.PluginType()}
 		if _, ok := m[k]; ok {
 			return nil, fmt.Errorf("duplicate %s builtin %q", k.Type, k.Name)
 		}
-		m[k] = builtIn
+		m[k] = builtin
 	}
 	return m, nil
 }

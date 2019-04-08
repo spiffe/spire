@@ -136,7 +136,7 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 		return nil, err
 	}
 
-	builtInsMap, err := makeBuiltInsMap(config.BuiltIns)
+	builtinsMap, err := makeBuiltInsMap(config.BuiltIns)
 	if err != nil {
 		return nil, err
 	}
@@ -164,13 +164,13 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 
 		var plugin *CatalogPlugin
 		if c.Path == "" {
-			builtIn, ok := builtInsMap.Lookup(c.Name, c.Type)
+			builtin, ok := builtinsMap.Lookup(c.Name, c.Type)
 			if !ok {
 				return nil, errs.New("no such %s builtin %q", c.Type, c.Name)
 			}
 			plugin, err = LoadBuiltInPlugin(ctx, BuiltInPlugin{
 				Log:          config.Log,
-				Plugin:       builtIn,
+				Plugin:       builtin,
 				HostServices: config.HostServices,
 			})
 		} else {

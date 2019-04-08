@@ -14,10 +14,10 @@ const (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *JoinTokenPlugin) catalog.Plugin {
+func builtin(p *JoinTokenPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
 }
 

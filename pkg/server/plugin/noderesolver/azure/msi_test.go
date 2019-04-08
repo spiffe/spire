@@ -68,7 +68,7 @@ func (s *MSIResolverSuite) SetupTest() {
 			},
 		}, nil
 	}
-	s.LoadPlugin(builtIn(resolver), &s.resolver)
+	s.LoadPlugin(builtin(resolver), &s.resolver)
 	s.configureResolverWithTenant()
 }
 

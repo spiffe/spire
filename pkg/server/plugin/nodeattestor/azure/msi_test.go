@@ -316,7 +316,7 @@ func (s *MSIAttestorSuite) newAttestor() nodeattestor.Plugin {
 		return s.jwks, nil
 	})
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(builtIn(attestor), &plugin)
+	s.LoadPlugin(builtin(attestor), &plugin)
 	return plugin
 }
 

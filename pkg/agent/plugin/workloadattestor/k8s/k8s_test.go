@@ -580,7 +580,7 @@ func (s *K8sAttestorSuite) newPlugin() (*K8SPlugin, workloadattestor.Plugin) {
 	}
 
 	var wp workloadattestor.Plugin
-	s.LoadPlugin(builtIn(p), &wp)
+	s.LoadPlugin(builtin(p), &wp)
 	return p, wp
 }
 

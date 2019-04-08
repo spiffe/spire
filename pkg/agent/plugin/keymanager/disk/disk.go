@@ -27,10 +27,10 @@ const (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *DiskPlugin) catalog.Plugin {
+func builtin(p *DiskPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName, keymanager.PluginServer(p))
 }
 

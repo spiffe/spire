@@ -9,10 +9,10 @@ import (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *NoOp) catalog.Plugin {
+func builtin(p *NoOp) catalog.Plugin {
 	return catalog.MakePlugin("noop",
 		noderesolver.PluginServer(p),
 	)

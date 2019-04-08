@@ -54,7 +54,7 @@ type CatalogSuite struct {
 	pluginConfig  []PluginConfig
 	knownPlugins  []PluginClient
 	knownServices []ServiceClient
-	builtIns      []Plugin
+	builtins      []Plugin
 	hostServices  []HostServiceServer
 }
 
@@ -106,7 +106,7 @@ func (s *CatalogSuite) SetupTest() {
 	s.hostServices = []HostServiceServer{
 		test.TestHostServiceHostServiceServer(test.NewTestHostService()),
 	}
-	s.builtIns = nil
+	s.builtins = nil
 	s.pluginConfig = nil
 }
 
@@ -228,7 +228,7 @@ func (s *CatalogSuite) TestDisabledPlugin() {
 }
 
 func (s *CatalogSuite) TestUnknownBuiltIn() {
-	s.pluginConfig = s.builtInConfig()
+	s.pluginConfig = s.builtinConfig()
 
 	s.assertFillCatalogFails(`no such TestPlugin builtin "testbuiltin"`)
 }
@@ -258,7 +258,7 @@ func (s *CatalogSuite) TestDuplicateKnownServices() {
 }
 
 func (s *CatalogSuite) TestDuplicateBuiltIns() {
-	s.builtIns = []Plugin{
+	s.builtins = []Plugin{
 		testBuiltIn(),
 		testBuiltIn(),
 	}
@@ -267,9 +267,9 @@ func (s *CatalogSuite) TestDuplicateBuiltIns() {
 
 func (s *CatalogSuite) TestPluginsFill() {
 	// use a builtin w/o a service
-	s.builtIns = []Plugin{testBuiltInNoService()}
+	s.builtins = []Plugin{testBuiltInNoService()}
 	// ask for the external and built in service
-	s.pluginConfig = append(s.extPluginConfig(), s.builtInConfig()...)
+	s.pluginConfig = append(s.extPluginConfig(), s.builtinConfig()...)
 	ps := s.loadCatalog()
 	defer ps.Close()
 
@@ -687,7 +687,7 @@ func (s *CatalogSuite) fillCatalog(c interface{}) (Closer, error) {
 		PluginConfig:  s.pluginConfig,
 		KnownPlugins:  s.knownPlugins,
 		KnownServices: s.knownServices,
-		BuiltIns:      s.builtIns,
+		BuiltIns:      s.builtins,
 		HostServices:  s.hostServices,
 	}, c)
 }
@@ -702,7 +702,7 @@ func (s *CatalogSuite) loadCatalog() Catalog {
 		KnownPlugins:  s.knownPlugins,
 		KnownServices: s.knownServices,
 		HostServices:  s.hostServices,
-		BuiltIns:      s.builtIns,
+		BuiltIns:      s.builtins,
 	})
 	s.Require().NoError(err)
 	return cat
@@ -720,7 +720,7 @@ func (s *CatalogSuite) extPluginConfig() []PluginConfig {
 	}
 }
 
-func (s *CatalogSuite) builtInConfig() []PluginConfig {
+func (s *CatalogSuite) builtinConfig() []PluginConfig {
 	return []PluginConfig{
 		{
 			Name: "testbuiltin",
@@ -799,9 +799,9 @@ func testBuiltIns() []Plugin {
 }
 
 func testBuiltIn() Plugin {
-	builtIn := testBuiltInNoService()
-	builtIn.Services = append(builtIn.Services, test.TestServiceServiceServer(test.NewTestService()))
-	return builtIn
+	builtin := testBuiltInNoService()
+	builtin.Services = append(builtin.Services, test.TestServiceServiceServer(test.NewTestService()))
+	return builtin
 }
 
 func testBuiltInNoService() Plugin {

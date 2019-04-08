@@ -142,7 +142,7 @@ func (s *MSIAttestorSuite) newAttestor() {
 		s.T().Logf("RETURNING %v %v", s.token, s.tokenErr)
 		return s.token, s.tokenErr
 	}
-	s.LoadPlugin(builtIn(attestor), &s.attestor)
+	s.LoadPlugin(builtin(attestor), &s.attestor)
 }
 
 func (s *MSIAttestorSuite) requireFetchError(contains string) {

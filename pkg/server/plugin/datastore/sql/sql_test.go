@@ -58,7 +58,7 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	p := New()
 
 	var ds datastore.Plugin
-	s.LoadPlugin(builtIn(p), &ds)
+	s.LoadPlugin(builtin(p), &ds)
 
 	s.nextID++
 	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))

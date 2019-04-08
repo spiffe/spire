@@ -61,9 +61,9 @@ func (s *Suite) TempDir() string {
 	return dir
 }
 
-func (s *Suite) LoadPlugin(builtIn catalog.Plugin, x interface{}, opts ...PluginOption) {
+func (s *Suite) LoadPlugin(builtin catalog.Plugin, x interface{}, opts ...PluginOption) {
 	s.T().Helper()
-	closer := LoadPlugin(s.T(), builtIn, x, opts...)
+	closer := LoadPlugin(s.T(), builtin, x, opts...)
 	s.appendCloser(closer)
 }
 

@@ -164,6 +164,6 @@ func (as *AWSSecretSuite) newAWSUpstreamCA() upstreamca.Plugin {
 	as.Require().NoError(err)
 
 	var plugin upstreamca.Plugin
-	as.LoadPlugin(builtIn(m), &plugin)
+	as.LoadPlugin(builtin(m), &plugin)
 	return plugin
 }

@@ -260,7 +260,7 @@ func (s *IITAttestorSuite) newPlugin() nodeattestor.Plugin {
 	p.tokenKeyRetriever = testKeyRetriever{}
 
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(builtIn(p), &plugin)
+	s.LoadPlugin(builtin(p), &plugin)
 	return plugin
 }
 

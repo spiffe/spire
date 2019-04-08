@@ -235,14 +235,14 @@ func TestDockerConfigDefault(t *testing.T) {
 
 func doAttest(t *testing.T, p *DockerPlugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	var wp workloadattestor.Plugin
-	done := spiretest.LoadPlugin(t, builtIn(p), &wp)
+	done := spiretest.LoadPlugin(t, builtin(p), &wp)
 	defer done()
 	return wp.Attest(context.Background(), req)
 }
 
 func doConfigure(t *testing.T, p *DockerPlugin, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	var wp workloadattestor.Plugin
-	done := spiretest.LoadPlugin(t, builtIn(p), &wp)
+	done := spiretest.LoadPlugin(t, builtin(p), &wp)
 	defer done()
 	return wp.Configure(context.Background(), req)
 }

@@ -156,7 +156,7 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 
 func (s *AttestorSuite) newAttestor() {
 	attestor := New()
-	s.LoadPlugin(builtIn(attestor), &s.attestor)
+	s.LoadPlugin(builtin(attestor), &s.attestor)
 }
 
 func (s *AttestorSuite) configure(config AttestorConfig) {

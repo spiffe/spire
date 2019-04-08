@@ -524,7 +524,7 @@ func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 	attestor.config.clusters["BAR"].k8sClient = barMock
 
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(builtIn(attestor), &plugin)
+	s.LoadPlugin(builtin(attestor), &plugin)
 	return plugin
 }
 

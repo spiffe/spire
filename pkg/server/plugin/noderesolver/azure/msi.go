@@ -40,10 +40,10 @@ var (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *MSIResolverPlugin) catalog.Plugin {
+func builtin(p *MSIResolverPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
 		noderesolver.PluginServer(p),
 	)

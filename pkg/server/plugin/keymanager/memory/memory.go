@@ -11,10 +11,10 @@ import (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *KeyManager) catalog.Plugin {
+func builtin(p *KeyManager) catalog.Plugin {
 	return catalog.MakePlugin("memory", keymanager.PluginServer(p))
 }
 

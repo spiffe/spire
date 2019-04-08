@@ -54,10 +54,10 @@ C1haGgSI/A1uZUKs/Zfnph0oEI0/hu1IIJ/SKBDtN5lvmZ/IzbOPIJWirlsllQIQ
 -----END CERTIFICATE-----`
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *IIDAttestorPlugin) catalog.Plugin {
+func builtin(p *IIDAttestorPlugin) catalog.Plugin {
 	return catalog.MakePlugin(caws.PluginName,
 		nodeattestor.PluginServer(p),
 	)

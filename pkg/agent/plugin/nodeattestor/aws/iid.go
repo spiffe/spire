@@ -26,10 +26,10 @@ const (
 )
 
 func BuiltIn() catalog.Plugin {
-	return builtIn(New())
+	return builtin(New())
 }
 
-func builtIn(p *IIDAttestorPlugin) catalog.Plugin {
+func builtin(p *IIDAttestorPlugin) catalog.Plugin {
 	return catalog.MakePlugin(aws.PluginName, nodeattestor.PluginServer(p))
 }
 

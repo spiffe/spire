@@ -74,7 +74,7 @@ func (s *Suite) TestGeneralFunctionality() {
 		})
 		require.NoError(t, err)
 		require.Equal(t, &plugin.ConfigureResponse{}, resp)
-		return builtIn(m)
+		return builtin(m)
 	})
 }
 

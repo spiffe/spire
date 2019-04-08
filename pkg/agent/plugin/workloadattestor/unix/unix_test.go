@@ -40,7 +40,7 @@ func (s *Suite) SetupTest() {
 	}
 	p.hooks.lookupUserById = fakeLookupUserById
 	p.hooks.lookupGroupById = fakeLookupGroupById
-	s.LoadPlugin(builtIn(p), &s.p)
+	s.LoadPlugin(builtin(p), &s.p)
 
 	s.configure("")
 }
