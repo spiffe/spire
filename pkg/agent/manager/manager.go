@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/node"
@@ -56,7 +56,7 @@ type Manager interface {
 
 	// FetchJWTSVID returns a JWT SVID for the specified SPIFFEID and audience. If there
 	// is no JWT cached, the manager will get one signed upstream.
-	FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (string, error)
+	FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error)
 }
 
 type manager struct {
@@ -129,12 +129,12 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.Workl
 	return m.cache.FetchWorkloadUpdate(selectors)
 }
 
-func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (string, error) {
+func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error) {
 	now := m.clk.Now()
 
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
 	if ok && !jwtSVIDExpiresSoon(cachedSVID, now) {
-		return cachedSVID.Token, nil
+		return cachedSVID, nil
 	}
 
 	newSVID, err := m.client.FetchJWTSVID(ctx, &node.JSR{
@@ -144,16 +144,16 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
-		return "", err
+		return nil, err
 	case jwtSVIDExpired(cachedSVID, now):
-		return "", fmt.Errorf("unable to renew JWT for %q (err=%v)", spiffeID, err)
+		return nil, fmt.Errorf("unable to renew JWT for %q (err=%v)", spiffeID, err)
 	default:
 		m.c.Log.Warnf("unable to renew JWT for %q; returning cached copy (err=%v)", spiffeID, err)
-		return cachedSVID.Token, nil
+		return cachedSVID, nil
 	}
 
 	m.cache.SetJWTSVID(spiffeID, audience, newSVID)
-	return newSVID.Token, nil
+	return newSVID, nil
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {

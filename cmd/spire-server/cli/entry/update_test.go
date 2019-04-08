@@ -14,8 +14,8 @@ import (
 
 // TODO: Test additional scenarios
 
-// also tests that ordering is preserved in Selectors and Federates
-// rather than sorted in some way
+// also tests that ordering is preserved in Selectors, Federates,
+// and DNS rather than sorted in some way
 func TestUpdateCLI(t *testing.T) {
 	updatedConfig, err := UpdateCLI{}.newConfig([]string{
 		"-parentID", "spiffe://example.org/foo",
@@ -31,6 +31,10 @@ func TestUpdateCLI(t *testing.T) {
 		"-federatesWith", "spiffe://domainB.test",
 		"-admin",
 		"-entryExpiry", "1552410266",
+		"-dns", "unu1000",
+		"-dns", "ung1000",
+		"-dns", "aa2000",
+		"-dns", "zz2000",
 	})
 	require.NoError(t, err)
 
@@ -38,11 +42,12 @@ func TestUpdateCLI(t *testing.T) {
 		RegistrationUDSPath: cmdutil.DefaultSocketPath,
 		ParentID:            "spiffe://example.org/foo",
 		SpiffeID:            "spiffe://example.org/bar",
-		Ttl:                 60,
+		TTL:                 60,
 		Selectors:           StringsFlag{"unix:uid:1000", "unix:gid:1000", "alpha:alpha:2000", "zebra:zebra:2000"},
 		FederatesWith:       StringsFlag{"spiffe://domainA.test", "spiffe://domain1.test", "spiffe://domain2.test", "spiffe://domainB.test"},
 		Admin:               true,
 		EntryExpiry:         1552410266,
+		DNSNames:            StringsFlag{"unu1000", "ung1000", "aa2000", "zz2000"},
 	}
 
 	assert.Equal(t, updatedConfig, c)
@@ -53,7 +58,7 @@ func TestUpdateParseConfig(t *testing.T) {
 		RegistrationUDSPath: cmdutil.DefaultSocketPath,
 		ParentID:            "spiffe://example.org/foo",
 		SpiffeID:            "spiffe://example.org/bar",
-		Ttl:                 60,
+		TTL:                 60,
 		Selectors:           StringsFlag{"unix:uid:1000", "unix:gid:1000"},
 		FederatesWith:       StringsFlag{"spiffe://domain1.test", "spiffe://domain2.test"},
 		Admin:               true,

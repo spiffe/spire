@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/auth"
@@ -402,11 +404,22 @@ func (s *HandlerSuite) TestCreateEntry() {
 			Err:   `"FOO" is not a valid workload SPIFFE ID`,
 		},
 		{
+			Name: "Bad DNS",
+			Entry: &common.RegistrationEntry{
+				ParentId:  "spiffe://example.org/parent",
+				SpiffeId:  "spiffe://example.org/child",
+				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+				DnsNames:  []string{" "},
+			},
+			Err: "empty or only whitespace",
+		},
+		{
 			Name: "Success",
 			Entry: &common.RegistrationEntry{
 				ParentId:  "spiffe://example.org/parent",
 				SpiffeId:  "spiffe://example.org/child",
 				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+				DnsNames:  []string{"abcd.ef"},
 			},
 		},
 		{
@@ -435,6 +448,10 @@ func (s *HandlerSuite) TestCreateEntry() {
 			})
 			require.NoError(t, err)
 			require.NotNil(t, entry)
+			// set ID (unknown before fetch) to do comparison
+			testCase.Entry.EntryId = entry.Entry.EntryId
+			t.Logf("actual=%+v expected=%+v", entry.Entry, testCase.Entry)
+			require.True(t, proto.Equal(entry.Entry, testCase.Entry))
 		})
 	}
 }
@@ -471,12 +488,24 @@ func (s *HandlerSuite) TestUpdateEntry() {
 			Err:   "no such registration entry",
 		},
 		{
+			Name: "Bad DNS",
+			Entry: &common.RegistrationEntry{
+				EntryId:   entry.EntryId,
+				ParentId:  "spiffe://example.org/parent",
+				SpiffeId:  "spiffe://example.org/child",
+				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+				DnsNames:  []string{" "},
+			},
+			Err: "empty or only whitespace",
+		},
+		{
 			Name: "Success",
 			Entry: &common.RegistrationEntry{
 				EntryId:   entry.EntryId,
 				ParentId:  "spiffe://example.org/parent",
 				SpiffeId:  "spiffe://example.org/child",
 				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
+				DnsNames:  []string{"wxyz.2-a"},
 			},
 		},
 	}
@@ -941,6 +970,90 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 		}
 		s.Require().NoError(err)
 		s.Require().Equal(testCase.CallerID, getCallerID(ctx), "Caller SPIFFE ID on context")
+	}
+}
+
+func TestDNSValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		dns  string
+		err  string
+	}{
+		{
+			name: "empty dns",
+			dns:  "",
+			err:  "empty or only whitespace",
+		},
+		{
+			name: "whitespace dns",
+			dns:  " ",
+			err:  "empty or only whitespace",
+		},
+		{
+			name: "too long dns",
+			dns: `BE3a7lf7WXVVf3ZyIJanGE7EhNxeAXEqCtSHXIxs3WRS5TXhmL1gzh2
+KeW2wxmM5kVCi7KXYRha9iiULyrrzkL8mmaxdd05KoHwFuvSL7EUkWfhzzBQ65ZbK8VX
+KpAxWdCD5cd2Vwzgz1ndMTt0aQUqfQiTvi0xXoe18ksShkOboNoEIWoaRoAwnSwbF01S
+INk16I343I4FortWWCEV9nprutN3KQCZiIhHGkK4zQ6iyH7mTGc5bOfPIqE4aLynK`,
+			err: "length exceeded",
+		},
+		{
+			name: "dot only dns",
+			dns:  ".",
+			err:  "label is empty",
+		},
+		{
+			name: "ending dot dns",
+			dns:  "abcd.",
+			err:  "label is empty",
+		},
+		{
+			name: "too long label",
+			dns:  "lFU37hAAULjx5LpB32MGe03GfrPqnQqLWBiWkkUYYJbIRBt7QlqahDbeshsd9JhP",
+			err:  "label length exceeded: lFU37hAAULjx5LpB32MGe03GfrPqnQqLWBiWkkUYYJbIRBt7QlqahDbeshsd9JhP",
+		},
+		{
+			name: "ending hyphen",
+			dns:  "abc-",
+			err:  "label does not match regex: abc-",
+		},
+		{
+			name: "starting hyphen",
+			dns:  "-abc",
+			err:  "label does not match regex: -abc",
+		},
+		{
+			name: "invalid character",
+			dns:  "abc.df0f&",
+			err:  "label does not match regex: df0f&",
+		},
+		{
+			name: "consecutive hyphens",
+			dns:  "abc.df--0f",
+			err:  "",
+		},
+		{
+			name: "series of hyphens",
+			dns:  "abc.df--0------f",
+			err:  "",
+		},
+		{
+			name: "no hyphens",
+			dns:  "abc.df0f.fa247d",
+			err:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateDNS(tt.dns)
+
+			if tt.err == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.Contains(t, err.Error(), tt.err)
+			}
+		})
 	}
 }
 

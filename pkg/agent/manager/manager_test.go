@@ -758,14 +758,19 @@ func TestFetchJWTSVID(t *testing.T) {
 
 	now := mockClk.Now()
 	// fetch succeeds
+	tokenA := "A"
+	issuedAtA := now.Unix()
+	expiresAtA := now.Add(time.Minute).Unix()
 	fetchResp.Svid = &node.JWTSVID{
-		Token:     "A",
-		IssuedAt:  now.Unix(),
-		ExpiresAt: now.Add(time.Minute).Unix(),
+		Token:     tokenA,
+		IssuedAt:  issuedAtA,
+		ExpiresAt: expiresAtA,
 	}
 	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
 	require.NoError(t, err)
-	require.Equal(t, "A", svid)
+	require.Equal(t, tokenA, svid.Token)
+	require.Equal(t, issuedAtA, svid.IssuedAt.Unix())
+	require.Equal(t, expiresAtA, svid.ExpiresAt.Unix())
 
 	// assert cached JWT is returned w/o trying to fetch (since cached version does not expire soon)
 	fetchResp.Svid = &node.JWTSVID{
@@ -775,19 +780,26 @@ func TestFetchJWTSVID(t *testing.T) {
 	}
 	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
 	require.NoError(t, err)
-	require.Equal(t, "A", svid)
+	require.Equal(t, tokenA, svid.Token)
+	require.Equal(t, issuedAtA, svid.IssuedAt.Unix())
+	require.Equal(t, expiresAtA, svid.ExpiresAt.Unix())
 
 	// expire the cached JWT soon and make sure new JWT is fetched
 	mockClk.Add(time.Second * 30)
 	now = mockClk.Now()
+	tokenC := "C"
+	issuedAtC := now.Unix()
+	expiresAtC := now.Add(time.Minute).Unix()
 	fetchResp.Svid = &node.JWTSVID{
-		Token:     "C",
-		IssuedAt:  now.Unix(),
-		ExpiresAt: now.Add(time.Minute).Unix(),
+		Token:     tokenC,
+		IssuedAt:  issuedAtC,
+		ExpiresAt: expiresAtC,
 	}
 	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
 	require.NoError(t, err)
-	require.Equal(t, "C", svid)
+	require.Equal(t, tokenC, svid.Token)
+	require.Equal(t, issuedAtC, svid.IssuedAt.Unix())
+	require.Equal(t, expiresAtC, svid.ExpiresAt.Unix())
 
 	// expire the JWT soon, fail the fetch, and make sure cached JWT is returned
 	mockClk.Add(time.Second * 30)
@@ -795,14 +807,16 @@ func TestFetchJWTSVID(t *testing.T) {
 	fetchResp.Svid = nil
 	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
 	require.NoError(t, err)
-	require.Equal(t, "C", svid)
+	require.Equal(t, tokenC, svid.Token)
+	require.Equal(t, issuedAtC, svid.IssuedAt.Unix())
+	require.Equal(t, expiresAtC, svid.ExpiresAt.Unix())
 
 	// now completely expire the JWT and make sure an error is returned, since
 	// the fetch fails and the cached version is expired.
 	mockClk.Add(time.Second * 30)
 	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
 	require.Error(t, err)
-	require.Empty(t, svid)
+	require.Nil(t, svid)
 }
 
 func fetchX509SVIDForTestHappyPathWithoutSyncNorRotation(h *mockNodeAPIHandler, req *node.FetchX509SVIDRequest, stream node.Node_FetchX509SVIDServer) error {

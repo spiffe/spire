@@ -20,8 +20,8 @@ require (
 	github.com/docker/go-units v0.3.3 // indirect
 	github.com/envoyproxy/go-control-plane v0.6.9
 	github.com/erikstmartin/go-testdb v0.0.0-20160219214506-8d10e4a1bae5 // indirect
-	github.com/go-ole/go-ole v1.2.4 // indirect
-	github.com/go-sql-driver/mysql v1.4.1 // indirect
+	github.com/go-ole/go-ole v1.2.1 // indirect
+	github.com/go-sql-driver/mysql v1.4.1
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/gogo/googleapis v1.1.0
 	github.com/gogo/protobuf v1.2.1
@@ -74,7 +74,7 @@ require (
 	gopkg.in/square/go-jose.v2 v2.3.0
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.0.0-20190222213804-5cb15d344471 // indirect
+	k8s.io/api v0.0.0-20190222213804-5cb15d344471
 	k8s.io/apimachinery v0.0.0-20190221213512-86fb29eff628
 	k8s.io/client-go v10.0.0+incompatible
 	k8s.io/klog v0.2.0 // indirect
