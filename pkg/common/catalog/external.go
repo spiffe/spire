@@ -104,7 +104,7 @@ func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *Catalo
 			return nil, err
 		}
 	} else {
-		ext.Log.Warn("Plugin not using secure ext")
+		ext.Log.Warn("Plugin checksum not configured")
 	}
 
 	logger := log.HCLogAdapter{
@@ -125,7 +125,8 @@ func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *Catalo
 		},
 		Cmd: cmd,
 		// TODO: enable AutoMTLS if it is fixed to work with brokering.
-		//AutoMTLS:         true,
+		// See https://github.com/hashicorp/go-plugin/issues/109
+		AutoMTLS:         false,
 		AllowedProtocols: []goplugin.Protocol{goplugin.ProtocolGRPC},
 		Plugins: map[string]goplugin.Plugin{
 			"external": hcPlugin,
@@ -205,6 +206,7 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 		defer p.wg.Done()
 		if err := server.Serve(listener); err != nil {
 			p.ext.Log.Error("host services server failed: %v", err)
+			c.Close()
 		}
 	}()
 	p.wg.Add(1)

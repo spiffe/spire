@@ -62,7 +62,6 @@ func (cf *catalogFiller) fillStruct(sv reflect.Value) error {
 			continue
 		}
 
-		// TODO: parse tags
 		if err := cf.fillStructField(fv, ft); err != nil {
 			return errs.New("unable to set catalog field %q: %v", ft.Name, err)
 		}

@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"io"
 	"sync"
 
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
@@ -33,22 +34,24 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Cata
 		knownServices = append(knownServices, service.ServiceClient())
 	}
 
+	// set up a group of closers we'll build as we go. if there is an error
+	// we'll close everything so far, otherwise it will be used as the
+	// closer for the catalog plugin.
 	var wg sync.WaitGroup
-	// create a pipe from the builtin to the host
-	hostNet := NewPipeNet()
+	closers := newCloserGroup(wg.Wait)
 	defer func() {
 		if err != nil {
-			hostNet.Close()
+			closers.Close()
 		}
 	}()
 
+	// create a pipe from the builtin to the host
+	hostNet := NewPipeNet()
+	closers.AddCloser(hostNet)
+
 	// create a host server to serve host services.
 	hostServer := NewHostServer(builtin.Plugin.Name, nil, builtin.HostServices)
-	defer func() {
-		if err != nil {
-			hostServer.Stop()
-		}
-	}()
+	closers.AddFunc(hostServer.Stop)
 
 	wg.Add(1)
 	go func() {
@@ -61,27 +64,15 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Cata
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	defer func() {
-		if err != nil {
-			hostConn.Close()
-		}
-	}()
+	closers.AddCloser(hostConn)
 
 	// create a pipe from the host to the builtin
 	builtinNet := NewPipeNet()
-	defer func() {
-		if err != nil {
-			builtinNet.Close()
-		}
-	}()
+	closers.AddCloser(builtinNet)
 
 	// create a gRPC server to serve the plugin and services over
 	builtinServer := newBuiltInServer()
-	defer func() {
-		if err != nil {
-			builtinServer.Stop()
-		}
-	}()
+	closers.AddFunc(builtinServer.Stop)
 
 	logger := (&log.HCLogAdapter{
 		Log:  builtin.Log,
@@ -108,11 +99,7 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Cata
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	defer func() {
-		if err != nil {
-			builtinConn.Close()
-		}
-	}()
+	closers.AddCloser(builtinConn)
 
 	plugin, err = newCatalogPlugin(ctx, builtinConn, catalogPluginConfig{
 		Log:           builtin.Log,
@@ -124,13 +111,8 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Cata
 	if err != nil {
 		return nil, err
 	}
-	plugin.closer = func() {
-		builtinConn.Close()
-		builtinServer.Stop()
-		hostConn.Close()
-		hostServer.Stop()
-		wg.Wait()
-	}
+
+	plugin.closer = closers.Close
 	return plugin, nil
 }
 
@@ -147,4 +129,32 @@ type builtinDialer struct {
 
 func (d *builtinDialer) DialHost() (*grpc.ClientConn, error) {
 	return d.hostConn, nil
+}
+
+type closerGroup struct {
+	closers []func()
+}
+
+func newCloserGroup(closers ...func()) *closerGroup {
+	return &closerGroup{
+		closers: closers,
+	}
+}
+
+func (cg *closerGroup) AddFunc(closer func()) {
+	cg.closers = append(cg.closers, closer)
+}
+
+func (cg *closerGroup) AddCloser(closer io.Closer) {
+	cg.AddFunc(func() {
+		// purposefully discard the error
+		closer.Close()
+	})
+}
+
+func (cg *closerGroup) Close() {
+	// close in reverse order
+	for i := len(cg.closers) - 1; i >= 0; i-- {
+		cg.closers[i]()
+	}
 }

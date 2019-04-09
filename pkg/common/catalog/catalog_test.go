@@ -217,7 +217,7 @@ func (s *CatalogSuite) TestHostServiceAvailable() {
 		"service(hostservice[plugin=testext](hello-to-service))",
 	)
 
-	s.assertLogEntriesMatch(extInitLogs("pluginimpl"))
+	s.assertHasLogEntries(extInitLogs("pluginimpl"))
 }
 
 func (s *CatalogSuite) TestDisabledPlugin() {
@@ -747,39 +747,6 @@ func (s *CatalogSuite) assertHasLogEntry(e testLogEntry) bool {
 		}
 	}
 	return s.Failf("no such log entry", "level=%q message=%q data=%q", e.Level, e.Message, e.Data)
-}
-
-func (s *CatalogSuite) assertLogEntriesMatch(expectedEntries []testLogEntry) bool {
-	actualEntries := s.logHook.AllEntries()
-
-	n := len(expectedEntries)
-	if len(actualEntries) < n {
-		n = len(actualEntries)
-	}
-
-	ok := true
-	for i := 0; i < n; i++ {
-		e := expectedEntries[i]
-		a := actualEntries[i]
-
-		if !s.Equal(e, testLogEntryFromEntry(a), "entry %d mismatched", i) {
-			ok = false
-		}
-	}
-
-	for i := n; i < len(expectedEntries); i++ {
-		e := expectedEntries[i]
-		s.Failf("missing expected entry", "n=%d level=%q message=%q data=%q", n, e.Level, e.Message, e.Data)
-		ok = false
-	}
-
-	for i := n; i < len(actualEntries); i++ {
-		a := actualEntries[i]
-		s.Failf("had unexpected entry", "n=%d level=%q message=%q data=%q", n, a.Level, a.Message, a.Data)
-		ok = false
-	}
-
-	return ok
 }
 
 func testLogEntryFromEntry(entry *logrus.Entry) testLogEntry {

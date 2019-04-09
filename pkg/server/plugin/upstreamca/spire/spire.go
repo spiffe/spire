@@ -8,10 +8,15 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/upstreamca"
 	"google.golang.org/grpc/credentials"
+)
+
+const (
+	pluginName = "spire"
 )
 
 type Configuration struct {
@@ -20,12 +25,20 @@ type Configuration struct {
 	WorkloadAPISocket string `hcl:"workload_api_socket" json:"workload_api_socket"`
 }
 
+func BuiltIn() catalog.Plugin {
+	return catalog.MakePlugin(pluginName, upstreamca.PluginServer(New()))
+}
+
 type spirePlugin struct {
 	mtx   sync.RWMutex
 	creds credentials.TransportCredentials
 
 	trustDomain url.URL
 	config      *Configuration
+}
+
+func New() upstreamca.Plugin {
+	return &spirePlugin{}
 }
 
 func (m *spirePlugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
@@ -86,10 +99,6 @@ func (m *spirePlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitC
 			Bundle:    certificatesDER(bundle.RootCAs()),
 		},
 	}, nil
-}
-
-func New() (m upstreamca.Plugin) {
-	return &spirePlugin{}
 }
 
 func certificatesDER(certs []*x509.Certificate) (der []byte) {
