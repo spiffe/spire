@@ -71,6 +71,30 @@ The following configuration options are available to configure a plugin:
 
 Please see the [built-in plugins](#built-in-plugins) section for information on plugins that are available out-of-the-box.
 
+## Telemetry configuration
+
+If telemetry is desired, it may be configured by using a dedicated `telemetry { ... }` section. Prometheus, Statsd, and DogStatsd are currently supported. You may use all, some, or none. Statsd and DogStatsd both support multiple declarations in the event that you want to send metrics to more than one collector. Here is a sample configuration:
+
+```hcl
+telemetry {
+        Prometheus {
+                port = 9988
+        }
+
+        DogStatsd {
+                address = "localhost:8125"
+        }
+
+        Statsd {
+                address = "localhost:1337"
+        }
+
+        Statsd {
+                address = "collector.example.org:8125"
+        }
+}
+```
+
 ## Command line options
 
 ### `spire-agent run`
