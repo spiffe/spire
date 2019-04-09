@@ -45,7 +45,7 @@ type Catalog interface {
 	//   cat, _ := catalog.Load(...)
 	//   cat.Fill(&c)	//   catalog.Fill(&na)
 	//
-	// The "catalog can also be a pointer to a struct:
+	// The "catalog" can also be a pointer to a struct:
 	//
 	//    type TheCatalog struct {
 	//       // A required interface. Fill() fails if there is not exactly
@@ -56,29 +56,29 @@ type Catalog interface {
 	//       // one plugin that match this interface.
 	//       OptionalPlugin *nodeattestor.NodeAttestor
 	//
-	//       // A slice of internal.
+	//       // A slice of interfaces.
 	//       Plugins []nodeattestor.NodeAttestor
 	//
-	//       // A map from string to internal. The key of the map is the name
+	//       // A map from string to interface. The key of the map is the name
 	//       // of the plugin that matched.
 	//       PluginsByName map[string]nodeattestor.NodeAttestor
 	//
-	//       // A struct of internal. A plugin must satisfy all interfaces //
+	//       // A struct of interfaces. A plugin must satisfy all interfaces //
 	//       // within the struct to match. Fill() fails if there is not
 	//       // exactly one plugin that matches.
-	//       PluginStruct StructOfInterface
+	//       RequiredPluginStruct StructOfInterface
 	//
-	//       // A pointer to a struct of internal. A plugin must satisfy all
+	//       // A pointer to a struct of interfaces. A plugin must satisfy all
 	//       // interfaces within the struct to meet the criteria. Fill() fails
 	//       // if there are more than one plugin that matches.
-	//       PluginStruct *StructOfInterface
+	//       OptionalPluginStruct *StructOfInterface
 	//
-	//       // A slice of a struct of internal.
-	//       Plugins []nodeattestor.NodeAttestor
+	//       // A slice of a struct of interfaces.
+	//       PluginStructs []StructOfInterface
 	//
-	//       // A map from string to struct of internal. The key of the map
+	//       // A map from string to struct of interfaces. The key of the map
 	//       // is the name of the plugin that matched.
-	//       PluginsByName map[string]nodeattestor.NodeAttestor
+	//       PluginStructsByName map[string]StructOfInterface
 	//   }
 	//
 	//   type StructOfInterface struct {
