@@ -42,11 +42,14 @@ func (a *Agent) Run(ctx context.Context) error {
 		defer stopProfiling()
 	}
 
-	metrics := telemetry.NewMetrics(&telemetry.MetricsConfig{
-		Logger:      a.c.Log.WithField("subsystem_name", "telemetry").Writer(),
+	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
+		FileConfig:  a.c.Telemetry,
+		Logger:      a.c.Log.WithField("subsystem_name", "telemetry"),
 		ServiceName: "spire_agent",
 	})
-	defer metrics.Stop()
+	if err != nil {
+		return err
+	}
 
 	cat := catalog.New(&catalog.Config{
 		GlobalConfig:  a.c.GlobalConfig(),
@@ -74,6 +77,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	err = util.RunTasks(ctx,
 		manager.Run,
 		endpoints.ListenAndServe,
+		metrics.ListenAndServe,
 	)
 	if err == context.Canceled {
 		err = nil
