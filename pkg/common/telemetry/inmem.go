@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
@@ -22,10 +21,6 @@ type inmemRunner struct {
 
 func newInmemRunner(c *MetricsConfig) (sinkRunner, error) {
 	runner := &inmemRunner{}
-
-	if c.Logger == nil {
-		return nil, errors.New("logger must be configured")
-	}
 
 	if entry, ok := c.Logger.(*logrus.Entry); ok {
 		runner.log = entry

@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -24,10 +23,6 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	runner := &prometheusRunner{
 		c:   c.FileConfig.Prometheus,
 		log: c.Logger,
-	}
-
-	if runner.log == nil {
-		return nil, errors.New("logger must be configured")
 	}
 
 	if runner.c == nil {

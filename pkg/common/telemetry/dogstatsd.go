@@ -16,7 +16,7 @@ func newDogStatsdRunner(c *MetricsConfig) (sinkRunner, error) {
 	for _, dc := range c.FileConfig.DogStatsd {
 		sink, err := datadog.NewDogStatsdSink(dc.Address, "")
 		if err != nil {
-			return runner, err
+			return nil, err
 		}
 
 		runner.loadedSinks = append(runner.loadedSinks, sink)

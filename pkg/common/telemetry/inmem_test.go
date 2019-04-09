@@ -12,10 +12,6 @@ func TestNewInmemRunner(t *testing.T) {
 	config := testInmemConfig()
 	_, err := newInmemRunner(config)
 	assert.Nil(t, err)
-
-	config.Logger = nil
-	_, err = newInmemRunner(config)
-	assert.NotNil(t, err)
 }
 
 func TestInmemSinks(t *testing.T) {

@@ -23,12 +23,6 @@ func TestNewPrometheusRunner(t *testing.T) {
 	pr, err = newTestPrometheusRunner(config)
 	assert.Nil(t, err)
 	assert.NotNil(t, pr)
-
-	// It breaks if no logger is set
-	config.Logger = nil
-	pr, err = newTestPrometheusRunner(config)
-	assert.NotNil(t, err)
-	assert.Nil(t, pr)
 }
 
 func TestIsConfigured(t *testing.T) {

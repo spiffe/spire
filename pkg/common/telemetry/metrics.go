@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/armon/go-metrics"
@@ -43,6 +44,10 @@ var _ Metrics = (*MetricsImpl)(nil)
 
 // NewMetrics returns a Metric implementation
 func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
+	if c.Logger == nil {
+		return nil, errors.New("logger must be configured")
+	}
+
 	impl := &MetricsImpl{c: c}
 	fanout := metrics.FanoutSink{}
 	fanout = append(fanout, c.Sinks...)
@@ -65,7 +70,11 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 
 	var err error
 	impl.Metrics, err = metrics.New(conf, fanout)
-	return impl, err
+	if err != nil {
+		return nil, err
+	}
+
+	return impl, nil
 }
 
 func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
