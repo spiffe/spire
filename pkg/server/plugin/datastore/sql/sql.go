@@ -22,7 +22,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -1293,7 +1292,6 @@ func modelsToEntries(tx *gorm.DB, fetchedRegisteredEntries []RegisteredEntry) (r
 	if err != nil {
 		return nil, err
 	}
-	util.SortRegistrationEntries(entries)
 	return entries, nil
 }
 

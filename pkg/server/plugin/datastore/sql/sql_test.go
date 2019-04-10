@@ -13,6 +13,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
@@ -672,6 +673,8 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 	expectedResponse := &datastore.ListRegistrationEntriesResponse{
 		Entries: []*common.RegistrationEntry{entry2, entry1},
 	}
+	util.SortRegistrationEntries(expectedResponse.Entries)
+	util.SortRegistrationEntries(resp.Entries)
 	s.Equal(expectedResponse, resp)
 }
 
@@ -859,6 +862,8 @@ func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
 				Entries:    test.expectedList,
 				Pagination: test.expectedPagination,
 			}
+			util.SortRegistrationEntries(expectedResponse.Entries)
+			util.SortRegistrationEntries(resp.Entries)
 			require.Equal(t, expectedResponse, resp)
 		})
 	}
@@ -1072,6 +1077,8 @@ func (s *PluginSuite) TestListMatchingEntries() {
 				},
 			})
 			s.Require().NoError(err)
+			util.SortRegistrationEntries(test.expectedList)
+			util.SortRegistrationEntries(result.Entries)
 			s.RequireProtoListEqual(test.expectedList, result.Entries)
 		})
 	}
@@ -1346,6 +1353,7 @@ func (s *PluginSuite) TestMigration() {
 			entriesResp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 			s.Require().NoError(err)
 			s.Require().Len(entriesResp.Entries, 2)
+			util.SortRegistrationEntries(entriesResp.Entries)
 			s.Require().Equal("spiffe://example.org/nODe", entriesResp.Entries[0].ParentId)
 			s.Require().Equal("spiffe://example.org/bLOg", entriesResp.Entries[0].SpiffeId)
 			s.Require().Len(entriesResp.Entries[0].FederatesWith, 1)
