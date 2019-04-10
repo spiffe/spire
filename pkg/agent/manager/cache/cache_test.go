@@ -154,13 +154,13 @@ func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
 	}
 	cache.SetEntry(e2)
 
-	sub1, err := NewSubscriber(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
-	assert.Nil(t, err)
+	subs := newSubscribers()
+	sub1 := subs.add(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	defer sub1.Finish()
+	sub2 := subs.add(Selectors{&common.Selector{Type: "unix", Value: "uid:1000"}})
+	defer sub2.Finish()
 
-	sub2, err := NewSubscriber(Selectors{&common.Selector{Type: "unix", Value: "uid:1000"}})
-	assert.Nil(t, err)
-
-	cache.notifySubscribers([]*subscriber{sub1, sub2})
+	cache.notifySubscribers(sub1, sub2)
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
 		wu := <-sub2.Updates()
@@ -199,13 +199,14 @@ func TestNotifySubscribersDoesntPileUpGoroutines(t *testing.T) {
 	}
 	cache.SetEntry(e2)
 
-	sub1, err := NewSubscriber(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
-	assert.Nil(t, err)
+	subs := newSubscribers()
+	sub := subs.add(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	defer sub.Finish()
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
 		ng := runtime.NumGoroutine()
 		for i := 0; i < 1000; i++ {
-			cache.notifySubscribers([]*subscriber{sub1})
+			cache.notifySubscribers(sub)
 			assert.True(t, runtime.NumGoroutine() <= ng)
 		}
 	})
@@ -281,7 +282,8 @@ func TestSubscriberFinish(t *testing.T) {
 	sub := cache.Subscribe(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
 
 	// Comsume the update sent by Subscribe function.
-	<-sub.Updates()
+	_, ok := <-sub.Updates()
+	require.True(t, ok, "initial update wasn't received")
 
 	sub.Finish()
 

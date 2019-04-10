@@ -129,7 +129,7 @@ func New(log logrus.FieldLogger, trustDomain string, bundle *Bundle) *cacheImpl 
 		log:         log.WithField("subsystem_name", "cache"),
 		trustDomain: trustDomain,
 		bundles:     observer.NewProperty(bundles),
-		subscribers: NewSubscribers(),
+		subscribers: newSubscribers(),
 		jwtSVIDS:    make(map[string]*client.JWTSVID),
 	}
 }
@@ -163,7 +163,7 @@ func (c *cacheImpl) SetBundles(newBundles map[string]*Bundle) {
 	if changed {
 		c.bundles.Update(bundles)
 		subs := c.subscribers.getAll()
-		c.notifySubscribers(subs)
+		c.notifySubscribers(subs...)
 	}
 }
 
@@ -193,12 +193,8 @@ func (c *cacheImpl) Subscribe(selectors Selectors) Subscriber {
 	// creates a subscriber
 	// adds it to the manager
 	// returns the added subscriber
-	sub, err := NewSubscriber(selectors)
-	if err != nil {
-		c.log.Error(err)
-	}
-	c.subscribers.add(sub)
-	c.notifySubscribers([]*subscriber{sub})
+	sub := c.subscribers.add(selectors)
+	c.notifySubscribers(sub)
 	return sub
 }
 
@@ -217,10 +213,10 @@ func (c *cacheImpl) SetEntry(entry *Entry) {
 	c.m.Unlock()
 
 	subs := c.subscribers.get(entry.RegistrationEntry.Selectors)
-	c.notifySubscribers(subs)
+	c.notifySubscribers(subs...)
 }
 
-func (c *cacheImpl) notifySubscribers(subs []*subscriber) {
+func (c *cacheImpl) notifySubscribers(subs ...*subscriber) {
 	if subs == nil {
 		return
 	}
@@ -232,27 +228,9 @@ func (c *cacheImpl) notifySubscribers(subs []*subscriber) {
 	bundles := c.Bundles()
 
 	for _, sub := range subs {
-		sub.m.Lock()
-		// If subscriber is not active any more, remove it.
-		if !sub.active {
-			c.subscribers.remove(sub)
-			sub.m.Unlock()
-			continue
-		}
-
-		select {
-		case <-sub.c:
-			// Discard current update if there is one.
-		default:
-			// To prevent blocking if there is no update available.
-		}
-
 		subEntries := subscriberEntries(sub, entries)
-
 		update := c.makeWorkloadUpdate(subEntries, bundles)
-
-		sub.c <- update
-		sub.m.Unlock()
+		sub.sendUpdate(update)
 	}
 }
 
@@ -286,7 +264,7 @@ func (c *cacheImpl) DeleteEntry(regEntry *common.RegistrationEntry) (deleted boo
 	c.m.Unlock()
 
 	if deleted {
-		c.notifySubscribers(subs)
+		c.notifySubscribers(subs...)
 	}
 	return
 }
@@ -295,7 +273,7 @@ func (c *cacheImpl) FetchWorkloadUpdate(selectors Selectors) *WorkloadUpdate {
 	entries := c.Entries()
 	bundles := c.Bundles()
 
-	return c.makeWorkloadUpdate(selectorsEntries(selectors, entries), bundles)
+	return c.makeWorkloadUpdate(selectorsEntries(selector.NewSetFromRaw(selectors), entries), bundles)
 }
 
 func (c *cacheImpl) GetJWTSVID(spiffeID string, audience []string) (*client.JWTSVID, bool) {
@@ -315,13 +293,13 @@ func (c *cacheImpl) SetJWTSVID(spiffeID string, audience []string, svid *client.
 }
 
 func subscriberEntries(sub *subscriber, entries []*Entry) (subentries []*Entry) {
-	return selectorsEntries(sub.sel, entries)
+	return selectorsEntries(sub.selSet, entries)
 }
 
-func selectorsEntries(selectors Selectors, entries []*Entry) (subentries []*Entry) {
+func selectorsEntries(selectors selector.Set, entries []*Entry) (subentries []*Entry) {
 	for _, e := range entries {
 		regEntrySelectors := selector.NewSetFromRaw(e.RegistrationEntry.Selectors)
-		if selector.NewSetFromRaw(selectors).IncludesSet(regEntrySelectors) {
+		if selectors.IncludesSet(regEntrySelectors) {
 			subentries = append(subentries, e)
 		}
 	}

@@ -3,7 +3,6 @@ package cache
 import (
 	"sync"
 
-	"github.com/gofrs/uuid"
 	"github.com/spiffe/spire/pkg/common/selector"
 )
 
@@ -18,125 +17,137 @@ type WorkloadUpdate struct {
 	FederatedBundles map[string]*Bundle
 }
 
-type subscriber struct {
-	c      chan *WorkloadUpdate
-	m      sync.Mutex
-	sel    Selectors
-	sid    uuid.UUID
-	active bool
-}
-
 type subscribers struct {
-	selMap map[string][]uuid.UUID // map of selector to UID
-	sidMap map[uuid.UUID]*subscriber
-	m      sync.Mutex
+	m     sync.Mutex
+	bySel map[string]map[*subscriber]struct{}
+	byPtr map[*subscriber]struct{}
 }
 
-func NewSubscriber(selectors Selectors) (*subscriber, error) {
-	u, err := uuid.NewV4()
-	if err != nil {
-		return nil, err
+func newSubscribers() *subscribers {
+	return &subscribers{
+		bySel: make(map[string]map[*subscriber]struct{}),
+		byPtr: make(map[*subscriber]struct{}),
 	}
+}
+
+func (s *subscribers) add(sel Selectors) *subscriber {
+	sub := newSubscriber(s, sel)
+
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	s.byPtr[sub] = struct{}{}
+
+	for sel := range sub.selSet.Power() {
+		selKey := sel.String()
+		subs, ok := s.bySel[selKey]
+		if !ok {
+			subs = make(map[*subscriber]struct{})
+			s.bySel[selKey] = subs
+		}
+		subs[sub] = struct{}{}
+	}
+
+	return sub
+}
+
+func (s *subscribers) get(sels Selectors) []*subscriber {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	selSet := selector.NewSetFromRaw(sels)
+
+	var subs []*subscriber
+	for sel := range selSet.Power() {
+		for sub := range s.bySel[sel.String()] {
+			subs = append(subs, sub)
+		}
+	}
+
+	return dedupe(subs)
+}
+
+func (s *subscribers) getAll() []*subscriber {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	subs := make([]*subscriber, 0, len(s.byPtr))
+	for sub := range s.byPtr {
+		subs = append(subs, sub)
+	}
+
+	return subs
+}
+
+func (s *subscribers) remove(sub *subscriber) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	delete(s.byPtr, sub)
+	for k, subs := range s.bySel {
+		delete(subs, sub)
+		if len(subs) == 0 {
+			delete(s.bySel, k)
+		}
+	}
+}
+
+type subscriber struct {
+	selSet selector.Set
+	parent *subscribers
+
+	m          sync.Mutex
+	closed     bool
+	updateChan chan *WorkloadUpdate
+}
+
+func newSubscriber(parent *subscribers, sel Selectors) *subscriber {
 	return &subscriber{
-		c:      make(chan *WorkloadUpdate, 1),
-		sel:    selectors,
-		sid:    u,
-		active: true,
-	}, nil
+		selSet:     selector.NewSetFromRaw(sel),
+		parent:     parent,
+		updateChan: make(chan *WorkloadUpdate, 1),
+	}
+}
+
+func (sub *subscriber) sendUpdate(upd *WorkloadUpdate) {
+	sub.m.Lock()
+	defer sub.m.Unlock()
+	if sub.closed {
+		return
+	}
+	// drain any existing event
+	select {
+	case <-sub.updateChan:
+	default:
+	}
+	sub.updateChan <- upd
 }
 
 // Updates returns the channel where the updates are received.
 func (sub *subscriber) Updates() <-chan *WorkloadUpdate {
-	return sub.c
+	return sub.updateChan
 }
 
 // Finish finishes subscriber's updates subscription. Hence no more updates
 // will be received on Updates() channel.
 func (sub *subscriber) Finish() {
 	sub.m.Lock()
-	defer sub.m.Unlock()
-	sub.active = false
-	close(sub.c)
+	if !sub.closed {
+		sub.closed = true
+		close(sub.updateChan)
+	}
+	sub.m.Unlock()
+
+	sub.parent.remove(sub)
 }
 
-func (s *subscribers) add(sub *subscriber) error {
-	s.m.Lock()
-	defer s.m.Unlock()
-	s.sidMap[sub.sid] = sub
-
-	selSet := selector.NewSetFromRaw(sub.sel)
-	selPSet := selSet.Power()
-	for sel := range selPSet {
-		selStr := sel.String()
-		s.selMap[selStr] = append(s.selMap[selStr], sub.sid)
+func dedupe(subs []*subscriber) (deduped []*subscriber) {
+	set := map[*subscriber]struct{}{}
+	for _, sub := range subs {
+		set[sub] = struct{}{}
 	}
-
-	return nil
-}
-
-func (s *subscribers) get(sels Selectors) (subs []*subscriber) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	sids := s.getSubIds(sels)
-	for _, id := range sids {
-		subs = append(subs, s.sidMap[id])
+	for sub := range set {
+		deduped = append(deduped, sub)
 	}
-	return
-}
-
-func (s *subscribers) getAll() (subs []*subscriber) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	for _, sub := range s.sidMap {
-		subs = append(subs, sub)
-	}
-	return
-}
-
-func (s *subscribers) remove(sub *subscriber) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	delete(s.sidMap, sub.sid)
-	for sel, sids := range s.selMap {
-		for i, uid := range sids {
-			if uid == sub.sid {
-				s.selMap[sel] = append(sids[:i], sids[i+1:]...)
-			}
-		}
-	}
-}
-
-func (s *subscribers) getSubIds(sels Selectors) []uuid.UUID {
-	subIds := []uuid.UUID{}
-
-	selSet := selector.NewSetFromRaw(sels)
-	selPSet := selSet.Power()
-
-	for sel := range selPSet {
-		selStr := sel.String()
-		subIds = append(subIds, s.selMap[selStr]...)
-	}
-
-	subIds = dedupe(subIds)
-
-	return subIds
-}
-
-func NewSubscribers() *subscribers {
-	return &subscribers{
-		selMap: make(map[string][]uuid.UUID),
-		sidMap: make(map[uuid.UUID]*subscriber),
-	}
-}
-
-func dedupe(ids []uuid.UUID) (deduped []uuid.UUID) {
-	uniqueMap := map[uuid.UUID]bool{}
-	for i := range ids {
-		uniqueMap[ids[i]] = true
-	}
-	for key := range uniqueMap {
-		deduped = append(deduped, key)
-	}
-	return
+	return deduped
 }
