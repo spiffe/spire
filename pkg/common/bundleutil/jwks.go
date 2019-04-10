@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	jose "gopkg.in/square/go-jose.v2"
 )

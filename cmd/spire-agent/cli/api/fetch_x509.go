@@ -12,7 +12,7 @@ import (
 
 	"github.com/mitchellh/cli"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/api/workload"
+	"github.com/spiffe/spire/proto/spire/api/workload"
 )
 
 func NewFetchX509Command() cli.Command {

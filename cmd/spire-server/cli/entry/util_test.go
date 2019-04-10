@@ -3,7 +3,7 @@ package entry
 import (
 	"testing"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/assert"
 )
 

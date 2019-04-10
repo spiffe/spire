@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/registration"
 )
 
 // NewExperimentalSetCommand creates a new "set" subcommand for "bundle" command.

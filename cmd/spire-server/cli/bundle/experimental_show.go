@@ -5,7 +5,7 @@ import (
 	"flag"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 // NewExperimentalShowCommand creates a new "show" subcommand for "bundle" command.

@@ -5,9 +5,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/api/registration"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/test/mock/proto/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/common"
+	mock_registration "github.com/spiffe/spire/test/mock/proto/api/registration"
 	"github.com/stretchr/testify/suite"
 )
 

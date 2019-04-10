@@ -3,7 +3,7 @@ package selector
 import (
 	"bytes"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 type Set interface {

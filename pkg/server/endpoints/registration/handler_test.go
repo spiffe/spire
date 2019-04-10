@@ -16,9 +16,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/api/registration"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/stretchr/testify/require"
@@ -179,13 +179,13 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 
 func (s *HandlerSuite) TestFetchFederatedBundle() {
 	// Create three bundles
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://example.org",
 		RootCas: []*common.Certificate{
 			{DerBytes: []byte("EXAMPLE")},
 		},
 	})
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://otherdomain.org",
 		RootCas: []*common.Certificate{
 			{DerBytes: []byte("OTHERDOMAIN")},
@@ -221,13 +221,13 @@ func (s *HandlerSuite) TestFetchFederatedBundle() {
 }
 
 func (s *HandlerSuite) TestListFederatedBundles() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://example.org",
 		RootCas: []*common.Certificate{
 			{DerBytes: []byte("EXAMPLE")},
 		},
 	})
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://example2.org",
 		RootCas: []*common.Certificate{
 			{DerBytes: []byte("EXAMPLE2")},
@@ -244,7 +244,7 @@ func (s *HandlerSuite) TestListFederatedBundles() {
 	s.Require().Equal(&registration.FederatedBundle{
 		DEPRECATEDSpiffeId: "spiffe://example2.org",
 		DEPRECATEDCaCerts:  []byte("EXAMPLE2"),
-		Bundle: &datastore.Bundle{
+		Bundle: &common.Bundle{
 			TrustDomainId: "spiffe://example2.org",
 			RootCas: []*common.Certificate{
 				{DerBytes: []byte("EXAMPLE2")},
@@ -258,7 +258,7 @@ func (s *HandlerSuite) TestListFederatedBundles() {
 
 func (s *HandlerSuite) TestUpdateFederatedBundleDeprecated() {
 	// create a bundle to be updated
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://otherdomain.org",
 		RootCas: []*common.Certificate{
 			{DerBytes: []byte("UPDATEME")},
@@ -304,7 +304,7 @@ func (s *HandlerSuite) TestUpdateFederatedBundleDeprecated() {
 
 func (s *HandlerSuite) TestUpdateFederatedBundle() {
 	// create a bundle to be updated
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://otherdomain.org",
 		RootCas: []*common.Certificate{
 			{DerBytes: []byte("UPDATEME")},
@@ -358,7 +358,7 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 		{TrustDomainId: "spiffe://otherdomain.org", Err: "no such bundle"},
 	}
 
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://otherdomain.org",
 		RootCas: []*common.Certificate{
 			{DerBytes: []byte("BLAH")},
@@ -797,7 +797,7 @@ func (s *HandlerSuite) TestFetchBundle() {
 	s.Require().Nil(resp)
 
 	// Success
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://example.org",
 		RootCas: []*common.Certificate{
 			{DerBytes: []byte("EXAMPLE")},
@@ -1057,7 +1057,7 @@ INk16I343I4FortWWCEV9nprutN3KQCZiIhHGkK4zQ6iyH7mTGc5bOfPIqE4aLynK`,
 	}
 }
 
-func (s *HandlerSuite) createBundle(bundle *datastore.Bundle) {
+func (s *HandlerSuite) createBundle(bundle *common.Bundle) {
 	_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	})

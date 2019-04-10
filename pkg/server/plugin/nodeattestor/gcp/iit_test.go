@@ -8,9 +8,9 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
@@ -60,7 +60,7 @@ func (s *IITAttestorSuite) TestErrorOnInvalidToken() {
 
 func (s *IITAttestorSuite) TestErrorOnInvalidType() {
 	_, err := s.attest(&nodeattestor.AttestRequest{
-		AttestationData: &nodeattestor.AttestationData{
+		AttestationData: &common.AttestationData{
 			Type: "foo",
 		},
 	})

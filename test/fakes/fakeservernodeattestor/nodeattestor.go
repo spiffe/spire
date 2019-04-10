@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/zeebo/errs"
 )
 

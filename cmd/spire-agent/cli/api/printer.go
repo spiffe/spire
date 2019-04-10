@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/spiffe/spire/proto/api/workload"
+	"github.com/spiffe/spire/proto/spire/api/workload"
 )
 
 func printX509SVIDResponse(resp *workload.X509SVIDResponse, respTime time.Duration) {

@@ -8,7 +8,7 @@ import (
 	context "context"
 	x509 "crypto/x509"
 	gomock "github.com/golang/mock/gomock"
-	node "github.com/spiffe/spire/proto/api/node"
+	node "github.com/spiffe/spire/proto/spire/api/node"
 	reflect "reflect"
 	time "time"
 )

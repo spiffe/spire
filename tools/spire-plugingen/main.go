@@ -331,7 +331,7 @@ func loadPackage(path string, ignoreErrors bool) (*types.Package, error) {
 
 func pkgAs(path string) string {
 	switch path {
-	case "github.com/spiffe/spire/proto/common/plugin":
+	case "github.com/spiffe/spire/proto/spire/common/plugin":
 		return "spi"
 	}
 	return ""

@@ -13,8 +13,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
-	"github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/keymanager"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
 )
 
 func BuiltIn() catalog.Plugin {

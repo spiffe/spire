@@ -14,9 +14,9 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/common"
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
@@ -191,7 +191,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 }
 
 func (s *PluginSuite) TestCreateAttestedNode() {
-	node := &datastore.AttestedNode{
+	node := &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
@@ -222,14 +222,14 @@ func (s *PluginSuite) TestFetchAttestedNodeMissing() {
 }
 
 func (s *PluginSuite) TestFetchStaleNodes() {
-	efuture := &datastore.AttestedNode{
+	efuture := &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	epast := &datastore.AttestedNode{
+	epast := &common.AttestedNode{
 		SpiffeId:            "bar",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "deadbeef",
@@ -248,33 +248,33 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 		},
 	})
 	s.Require().NoError(err)
-	s.RequireProtoListEqual([]*datastore.AttestedNode{epast}, sresp.Nodes)
+	s.RequireProtoListEqual([]*common.AttestedNode{epast}, sresp.Nodes)
 }
 
 func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 	// Create all necessary nodes
-	aNode1 := &datastore.AttestedNode{
+	aNode1 := &common.AttestedNode{
 		SpiffeId:            "node1",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
 	}
 
-	aNode2 := &datastore.AttestedNode{
+	aNode2 := &common.AttestedNode{
 		SpiffeId:            "node2",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "deadbeef",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	aNode3 := &datastore.AttestedNode{
+	aNode3 := &common.AttestedNode{
 		SpiffeId:            "node3",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
 	}
 
-	aNode4 := &datastore.AttestedNode{
+	aNode4 := &common.AttestedNode{
 		SpiffeId:            "node4",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
@@ -297,7 +297,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		name               string
 		pagination         *datastore.Pagination
 		byExpiresBefore    *wrappers.Int64Value
-		expectedList       []*datastore.AttestedNode
+		expectedList       []*common.AttestedNode
 		expectedPagination *datastore.Pagination
 	}{
 		{
@@ -305,7 +305,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			pagination: &datastore.Pagination{
 				PageSize: 2,
 			},
-			expectedList: []*datastore.AttestedNode{aNode1, aNode2},
+			expectedList: []*common.AttestedNode{aNode1, aNode2},
 			expectedPagination: &datastore.Pagination{
 				Token:    "2",
 				PageSize: 2,
@@ -317,7 +317,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				Token:    "0",
 				PageSize: 0,
 			},
-			expectedList: []*datastore.AttestedNode{aNode1, aNode2, aNode3, aNode4},
+			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3, aNode4},
 			expectedPagination: &datastore.Pagination{
 				Token:    "0",
 				PageSize: 0,
@@ -329,7 +329,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				Token:    "0",
 				PageSize: 2,
 			},
-			expectedList: []*datastore.AttestedNode{aNode1, aNode2},
+			expectedList: []*common.AttestedNode{aNode1, aNode2},
 			expectedPagination: &datastore.Pagination{
 				Token:    "2",
 				PageSize: 2,
@@ -341,7 +341,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				Token:    "2",
 				PageSize: 2,
 			},
-			expectedList: []*datastore.AttestedNode{aNode3, aNode4},
+			expectedList: []*common.AttestedNode{aNode3, aNode4},
 			expectedPagination: &datastore.Pagination{
 				Token:    "4",
 				PageSize: 2,
@@ -349,7 +349,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		},
 		{
 			name:         "get_all_nodes_third_page_no_results",
-			expectedList: []*datastore.AttestedNode{},
+			expectedList: []*common.AttestedNode{},
 			pagination: &datastore.Pagination{
 				Token:    "4",
 				PageSize: 2,
@@ -368,7 +368,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			byExpiresBefore: &wrappers.Int64Value{
 				Value: time.Now().Unix(),
 			},
-			expectedList: []*datastore.AttestedNode{aNode1, aNode3},
+			expectedList: []*common.AttestedNode{aNode1, aNode3},
 			expectedPagination: &datastore.Pagination{
 				Token:    "3",
 				PageSize: 2,
@@ -383,7 +383,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			byExpiresBefore: &wrappers.Int64Value{
 				Value: time.Now().Unix(),
 			},
-			expectedList: []*datastore.AttestedNode{aNode4},
+			expectedList: []*common.AttestedNode{aNode4},
 			expectedPagination: &datastore.Pagination{
 				Token:    "4",
 				PageSize: 2,
@@ -398,7 +398,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			byExpiresBefore: &wrappers.Int64Value{
 				Value: time.Now().Unix(),
 			},
-			expectedList: []*datastore.AttestedNode{},
+			expectedList: []*common.AttestedNode{},
 			expectedPagination: &datastore.Pagination{
 				Token:    "4",
 				PageSize: 2,
@@ -434,7 +434,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 }
 
 func (s *PluginSuite) TestUpdateAttestedNode() {
-	node := &datastore.AttestedNode{
+	node := &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
@@ -475,7 +475,7 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 }
 
 func (s *PluginSuite) TestDeleteAttestedNode() {
-	entry := &datastore.AttestedNode{
+	entry := &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
@@ -589,7 +589,7 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 
 func (s *PluginSuite) TestPruneRegistrationEntries() {
 	now := time.Now().Unix()
-	registeredEntry := &datastore.RegistrationEntry{
+	registeredEntry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -1448,7 +1448,7 @@ func (s *PluginSuite) TestRace() {
 	exp := time.Now().Add(time.Hour).Unix()
 
 	testutil.RaceTest(s.T(), func(t *testing.T) {
-		node := &datastore.AttestedNode{
+		node := &common.AttestedNode{
 			SpiffeId:            fmt.Sprintf("foo%d", atomic.AddInt64(&next, 1)),
 			AttestationDataType: "aws-tag",
 			CertSerialNumber:    "badcafe",

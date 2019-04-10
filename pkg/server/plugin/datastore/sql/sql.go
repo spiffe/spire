@@ -22,9 +22,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
-	"github.com/spiffe/spire/proto/common"
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/zeebo/errs"
 )
 
@@ -740,7 +740,7 @@ func listAttestedNodes(tx *gorm.DB, req *datastore.ListAttestedNodesRequest) (*d
 	}
 
 	resp := &datastore.ListAttestedNodesResponse{
-		Nodes:      make([]*datastore.AttestedNode, 0, len(models)),
+		Nodes:      make([]*common.AttestedNode, 0, len(models)),
 		Pagination: p,
 	}
 
@@ -1236,8 +1236,8 @@ func pruneJoinTokens(tx *gorm.DB, req *datastore.PruneJoinTokensRequest) (*datas
 
 // modelToBundle converts the given bundle model to a Protobuf bundle message. It will also
 // include any embedded CACert models.
-func modelToBundle(model *Bundle) (*datastore.Bundle, error) {
-	bundle := new(datastore.Bundle)
+func modelToBundle(model *Bundle) (*common.Bundle, error) {
+	bundle := new(common.Bundle)
 	if err := proto.Unmarshal(model.Data, bundle); err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1267,7 +1267,7 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 
 // bundleToModel converts the given Protobuf bundle message to a database model. It
 // performs validation, and fully parses certificates to form CACert embedded models.
-func bundleToModel(pb *datastore.Bundle) (*Bundle, error) {
+func bundleToModel(pb *common.Bundle) (*Bundle, error) {
 	if pb == nil {
 		return nil, sqlError.New("missing bundle in request")
 	}
@@ -1365,8 +1365,8 @@ func newRegistrationEntryID() (string, error) {
 	return u.String(), nil
 }
 
-func modelToAttestedNode(model AttestedNode) *datastore.AttestedNode {
-	return &datastore.AttestedNode{
+func modelToAttestedNode(model AttestedNode) *common.AttestedNode {
+	return &common.AttestedNode{
 		SpiffeId:            model.SpiffeID,
 		AttestationDataType: model.DataType,
 		CertSerialNumber:    model.SerialNumber,

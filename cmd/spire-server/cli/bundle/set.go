@@ -9,7 +9,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/registration"
 )
 
 // NewSetCommand creates a new "set" subcommand for "bundle" command.

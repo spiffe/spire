@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/stretchr/testify/require"
 )
 

@@ -12,7 +12,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/server/keymanager"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
