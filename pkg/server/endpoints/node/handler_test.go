@@ -47,9 +47,10 @@ const (
 
 	otherDomainID = "spiffe://otherdomain.test"
 
-	serverID   = "spiffe://example.org/spire/server"
-	agentID    = "spiffe://example.org/spire/agent/test/id"
-	workloadID = "spiffe://example.org/workload"
+	serverID    = "spiffe://example.org/spire/server"
+	agentID     = "spiffe://example.org/spire/agent/test/id"
+	agentlessID = "spiffe://example.org/test/id"
+	workloadID  = "spiffe://example.org/workload"
 
 	// used to cancel stream operations on test failure instead of blocking the
 	// full go test timeout period (i.e. 10 minutes)
@@ -312,6 +313,36 @@ func (s *HandlerSuite) TestAttestSuccess() {
 	// No selectors were returned and no resolvers were available, so the node
 	// selectors should be empty.
 	s.Empty(s.getNodeSelectors(agentID))
+}
+
+func (s *HandlerSuite) TestAttestAgentless() {
+	//  Create a registration entry to return with the SVID update
+	s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentlessID,
+		SpiffeId: workloadID,
+	})
+
+	attestor := fakeservernodeattestor.Config{
+		Data:          map[string]string{"data": agentlessID},
+		ReturnLiteral: true,
+	}
+
+	agentlessCrt := s.makeCSR(agentlessID)
+
+	// By default "/spire/agent/* is expected for attestation calls
+	s.addAttestor("test", attestor)
+	s.False(s.handler.c.AllowAgentlessNodeAttestors)
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             agentlessCrt,
+	}, codes.InvalidArgument, "expecting \"/spire/agent/*\"")
+
+	// If allow agentless is enabled attestation will run successfully
+	s.handler.c.AllowAgentlessNodeAttestors = true
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             agentlessCrt,
+	})
 }
 
 func (s *HandlerSuite) TestAttestReattestation() {

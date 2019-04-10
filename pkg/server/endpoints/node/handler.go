@@ -39,6 +39,9 @@ type HandlerConfig struct {
 	ServerCA    ca.ServerCA
 	TrustDomain url.URL
 	Clock       clock.Clock
+
+	// Allow agentless spiffeIds when doing node attestation
+	AllowAgentlessNodeAttestors bool
 }
 
 type Handler struct {
@@ -87,7 +90,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return status.Error(codes.InvalidArgument, "request missing CSR")
 	}
 
-	agentID, err := getSpiffeIDFromCSR(request.Csr, idutil.AllowTrustDomainAgent(h.c.TrustDomain.Host))
+	agentID, err := getSpiffeIDFromCSR(request.Csr, h.getNodeAttestationValidationMode())
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "request CSR is invalid: %v", err)
 	}
@@ -180,6 +183,13 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	return nil
+}
+
+func (h *Handler) getNodeAttestationValidationMode() idutil.ValidationMode {
+	if h.c.AllowAgentlessNodeAttestors {
+		return idutil.AllowAnyInTrustDomain(h.c.TrustDomain.Host)
+	}
+	return idutil.AllowTrustDomainAgent(h.c.TrustDomain.Host)
 }
 
 //FetchX509SVID gets Workload, Agent certs and CA trust bundles.

@@ -30,6 +30,7 @@ type Config struct {
 	// spiffe://<trustdomain>/spire/agent/<name>/<ID>
 	//
 	// For example, "spiffe://example.org/spire/agent/foo/bar"
+	// In case ReturnLiteral is true value will be returned as base id
 	Data map[string]string
 
 	// Challenges is a map from ID to a list of echo challenges. The response
@@ -38,6 +39,9 @@ type Config struct {
 
 	// Selectors is a map from ID to a list of selector values to return with that id.
 	Selectors map[string][]string
+
+	// Return literal from Data map
+	ReturnLiteral bool
 }
 
 type NodeAttestor struct {
@@ -100,7 +104,7 @@ func (p *NodeAttestor) Attest(stream nodeattestor.Attest_PluginStream) (err erro
 
 	resp := &nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: fmt.Sprintf("spiffe://%s/spire/agent/%s/%s", p.config.TrustDomain, p.name, id),
+		BaseSPIFFEID: p.getBaseSPIFFEID(id),
 	}
 
 	for _, value := range p.config.Selectors[id] {
@@ -115,6 +119,14 @@ func (p *NodeAttestor) Attest(stream nodeattestor.Attest_PluginStream) (err erro
 	}
 
 	return nil
+}
+
+func (p *NodeAttestor) getBaseSPIFFEID(id string) string {
+	if p.config.ReturnLiteral {
+		return id
+	}
+
+	return fmt.Sprintf("spiffe://%s/spire/agent/%s/%s", p.config.TrustDomain, p.name, id)
 }
 
 func (p *NodeAttestor) Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {

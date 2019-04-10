@@ -59,6 +59,9 @@ type Config struct {
 
 	UpstreamBundle bool
 
+	// Skip agent id validation in node attestation
+	Experimental ExperimentalConfig
+
 	// If true enables profiling.
 	ProfilingEnabled bool
 
@@ -84,6 +87,11 @@ type Config struct {
 
 type Server struct {
 	config Config
+}
+
+type ExperimentalConfig struct {
+	// Skip agent id validation in node attestation
+	AllowAgentlessNodeAttestors bool
 }
 
 func New(config Config) *Server {
@@ -270,6 +278,8 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Ro
 		ServerCA:    serverCA,
 		Log:         s.config.Log.WithField("subsystem_name", "endpoints"),
 		Metrics:     metrics,
+
+		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
 	})
 }
 
