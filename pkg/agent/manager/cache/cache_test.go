@@ -1,395 +1,584 @@
 package cache
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/x509"
 	"fmt"
 	"runtime"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	testlog "github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
-	privateKey, _ = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	logger        logrus.FieldLogger
+	bundleV1      = bundleutil.BundleFromRootCA("spiffe://domain.test", &x509.Certificate{Raw: []byte{1}})
+	bundleV2      = bundleutil.BundleFromRootCA("spiffe://domain.test", &x509.Certificate{Raw: []byte{2}})
+	bundleV3      = bundleutil.BundleFromRootCA("spiffe://domain.test", &x509.Certificate{Raw: []byte{3}})
+	otherBundleV1 = bundleutil.BundleFromRootCA("spiffe://otherdomain.test", &x509.Certificate{Raw: []byte{2}})
+	otherBundleV2 = bundleutil.BundleFromRootCA("spiffe://otherdomain.test", &x509.Certificate{Raw: []byte{1}})
 )
 
-func init() {
-	l, _ := testlog.NewNullLogger()
-	logger = l.WithField("subsystem_name", "manager")
-}
-
-func TestCacheImpl_Valid(t *testing.T) {
-	cache := New(logger, "spiffe://example.org", nil)
-	tests := []struct {
-		name string
-		ce   *Entry
-	}{
-		{name: "test_single_selector",
-			ce: &Entry{
-				RegistrationEntry: &common.RegistrationEntry{
-					Selectors: Selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
-					ParentId:  "spiffe:parent",
-					SpiffeId:  "spiffe:test",
-				},
-				SVID:       []*x509.Certificate{{}},
-				PrivateKey: privateKey,
-			}},
-
-		{name: "test_multiple_selectors_sort_same_type",
-			ce: &Entry{
-				RegistrationEntry: &common.RegistrationEntry{
-					Selectors: Selectors{&common.Selector{Type: "testtype3", Value: "testValue1"},
-						&common.Selector{Type: "testtype1", Value: "testValue2"},
-						&common.Selector{Type: "testtype1", Value: "testValue3"}},
-					ParentId: "spiffe:parent",
-					SpiffeId: "spiffe:test"},
-				SVID:       []*x509.Certificate{{}},
-				PrivateKey: privateKey,
-			}}}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			cache.SetEntry(test.ce)
-			actual := cache.FetchEntry(test.ce.RegistrationEntry.EntryId)
-			assert.Equal(t, actual, test.ce)
-
-		})
-	}
-}
-
-func TestCacheImpl_DeleteEntry(t *testing.T) {
-	cache := New(logger, "spiffe://example.org", nil)
-	tests := []struct {
-		name string
-		ce   *Entry
-	}{
-		{name: "test_single_selector",
-			ce: &Entry{
-				RegistrationEntry: &common.RegistrationEntry{
-					Selectors: Selectors{&common.Selector{Type: "testtype", Value: "testValue"}},
-					ParentId:  "spiffe:parent",
-					SpiffeId:  "spiffe:test"},
-				SVID:       []*x509.Certificate{{}},
-				PrivateKey: privateKey,
-			}},
-
-		{name: "test_multiple_selectors",
-			ce: &Entry{
-				RegistrationEntry: &common.RegistrationEntry{
-					Selectors: Selectors{&common.Selector{Type: "testtype3", Value: "testValue1"},
-						&common.Selector{Type: "testtype2", Value: "testValue2"},
-						&common.Selector{Type: "testtype1", Value: "testValue3"}},
-					ParentId: "spiffe:parent",
-					SpiffeId: "spiffe:test"},
-				SVID:       []*x509.Certificate{{}},
-				PrivateKey: privateKey,
-			}}}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			cache.SetEntry(test.ce)
-			deleted := cache.DeleteEntry(test.ce.RegistrationEntry)
-			assert.True(t, deleted)
-			entry := cache.FetchEntry(test.ce.RegistrationEntry.EntryId)
-			assert.Empty(t, entry)
-			deleted = cache.DeleteEntry(test.ce.RegistrationEntry)
-			assert.False(t, deleted)
-
-		})
-	}
-}
-
-func TestNotifySubscribersDoesntBlockOnSubscriberWrite(t *testing.T) {
-	cache := New(logger, "spiffe://example.org", nil)
-
-	exampleBundle := bundleutil.BundleFromRootCAs("spiffe://example.org", []*x509.Certificate{{Raw: []byte("EXAMPLE.ORG")}})
-	otherDomainBundle := bundleutil.BundleFromRootCAs("spiffe://otherdomain.test", []*x509.Certificate{{Raw: []byte("OTHERDOMAIN.TEST")}})
-
-	cache.SetBundles(map[string]*Bundle{
-		"spiffe://example.org":      exampleBundle,
-		"spiffe://otherdomain.test": otherDomainBundle,
-	})
-
-	e1 := &Entry{
-		RegistrationEntry: &common.RegistrationEntry{
-			Selectors: Selectors{
-				&common.Selector{Type: "unix", Value: "uid:1000"},
-			},
-			ParentId: "spiffe:parent1",
-			SpiffeId: "spiffe:test1",
-			EntryId:  "00000000-0000-0000-0000-000000000001",
-		},
-		SVID:       []*x509.Certificate{{}},
-		PrivateKey: privateKey,
-	}
-	cache.SetEntry(e1)
-
-	e2 := &Entry{
-		RegistrationEntry: &common.RegistrationEntry{
-			Selectors: Selectors{
-				&common.Selector{Type: "unix", Value: "uid:1111"},
-			},
-			ParentId:      "spiffe:parent2",
-			SpiffeId:      "spiffe:test2",
-			EntryId:       "00000000-0000-0000-0000-000000000002",
-			FederatesWith: []string{"spiffe://otherdomain.test"},
-		},
-		SVID:       []*x509.Certificate{{}},
-		PrivateKey: privateKey,
-	}
-	cache.SetEntry(e2)
-
-	sub1, err := NewSubscriber(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
-	assert.Nil(t, err)
-
-	sub2, err := NewSubscriber(Selectors{&common.Selector{Type: "unix", Value: "uid:1000"}})
-	assert.Nil(t, err)
-
-	cache.notifySubscribers([]*subscriber{sub1, sub2})
-
-	util.RunWithTimeout(t, 5*time.Second, func() {
-		wu := <-sub2.Updates()
-		assert.Equal(t, 1, len(wu.Entries))
-		assert.Equal(t, e1, wu.Entries[0])
-		assert.Equal(t, exampleBundle, wu.Bundle)
-	})
-
-	// The second registration entry federates with otherdomain.test. The
-	// WorkloadUpdate should include that bundle.
-	util.RunWithTimeout(t, 5*time.Second, func() {
-		wu := <-sub1.Updates()
-		assert.Equal(t, 1, len(wu.Entries))
-		assert.Equal(t, e2, wu.Entries[0])
-		assert.Equal(t, exampleBundle, wu.Bundle)
-		assert.Equal(t, map[string]*Bundle{
-			"spiffe://otherdomain.test": otherDomainBundle,
-		}, wu.FederatedBundles)
-	})
-}
-
-func TestNotifySubscribersDoesntPileUpGoroutines(t *testing.T) {
-	cache := New(logger, "spiffe://example.org", nil)
-
-	e2 := &Entry{
-		RegistrationEntry: &common.RegistrationEntry{
-			Selectors: Selectors{
-				&common.Selector{Type: "unix", Value: "uid:1111"},
-			},
-			ParentId: "spiffe:parent2",
-			SpiffeId: "spiffe:test2",
-			EntryId:  "00000000-0000-0000-0000-000000000002",
-		},
-		SVID:       []*x509.Certificate{{}},
-		PrivateKey: privateKey,
-	}
-	cache.SetEntry(e2)
-
-	sub1, err := NewSubscriber(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
-	assert.Nil(t, err)
-
-	util.RunWithTimeout(t, 5*time.Second, func() {
-		ng := runtime.NumGoroutine()
-		for i := 0; i < 1000; i++ {
-			cache.notifySubscribers([]*subscriber{sub1})
-			assert.True(t, runtime.NumGoroutine() <= ng)
-		}
-	})
-}
-
-func TestNotifySubscribersNotifiesLatestUpdatesToSlowSubscriber(t *testing.T) {
-	cache := New(logger, "spiffe://example.org", nil)
-
-	sub := cache.Subscribe(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
-
-	var wg sync.WaitGroup
-	// Shared counter to keep track of number of updates made.
-	var i int32
-
-	// This go routine send updates notifications as fast as it can.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		// Use of atomic functions to avoid race condition.
-		for atomic.StoreInt32(&i, 0); atomic.LoadInt32(&i) < 1000; atomic.AddInt32(&i, 1) {
-			e := &Entry{
-				RegistrationEntry: &common.RegistrationEntry{
-					Selectors: Selectors{
-						&common.Selector{Type: "unix", Value: "uid:1111"},
-					},
-					ParentId: "spiffe:parent2",
-					// We set a numeric (crescent by 1) suffix to the spiffe id to know at
-					// the receiver if we are getting updates in the correct order.
-					SpiffeId: fmt.Sprintf("spiffe:test2_%d", i),
-					EntryId:  "00000000-0000-0000-0000-000000000002",
-				},
-				SVID:       []*x509.Certificate{{}},
-				PrivateKey: privateKey,
-			}
-			// SetEntry updates the cache entry and fires a notification for the subscribers
-			// that match the entry's selectors.
-			cache.SetEntry(e)
-		}
-	}()
-
-	// This go routine reads the updates slowly and checks if it receives the updates
-	// in order.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var lastSuffix int = -1
-		// Loop while the writer didn't finished writing updates or there are some update
-		// left. This way we ensure this go routine will read the last update sent by the writer.
-		for atomic.LoadInt32(&i) != 1000 || len(sub.Updates()) != 0 {
-			wu := <-sub.Updates()
-			if len(wu.Entries) == 1 {
-				// Get the SpiffeId's numeric suffix
-				parts := strings.Split(wu.Entries[0].RegistrationEntry.SpiffeId, "_")
-				currentSuffix, _ := strconv.Atoi(parts[1])
-				// SpiffeId suffixes should be always increasing, if they aren't
-				// it means we are receiving unordered updates.
-				assert.True(t, lastSuffix < currentSuffix)
-				lastSuffix = currentSuffix
-				// We sleep a bit to make this a slow reader.
-				time.Sleep(2 * time.Millisecond)
-			}
-		}
-		// Assert that we got the last update
-		assert.Equal(t, 999, lastSuffix)
-	}()
-
-	wg.Wait()
-}
-
-func TestSubscriberFinish(t *testing.T) {
-	cache := New(logger, "spiffe://example.org", nil)
-
-	sub := cache.Subscribe(Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
-
-	// Comsume the update sent by Subscribe function.
-	<-sub.Updates()
-
-	sub.Finish()
-
-	// This read shouldn't block.
-	util.RunWithTimeout(t, 5*time.Second, func() {
-		wu := <-sub.Updates()
-		assert.Nil(t, wu)
-	})
-
-	// SetEntry will notify updates, but our subscriber shouldn't get any because it is finished.
-	cache.SetEntry(&Entry{
-		RegistrationEntry: &common.RegistrationEntry{
-			Selectors: Selectors{
-				&common.Selector{Type: "unix", Value: "uid:1111"},
-			},
-			ParentId: "spiffe:parent2",
-			SpiffeId: "spiffe:test2",
-			EntryId:  "00000000-0000-0000-0000-000000000002",
-		},
-		SVID:       []*x509.Certificate{{}},
-		PrivateKey: privateKey,
-	})
-
-	util.RunWithTimeout(t, 5*time.Second, func() {
-		wu := <-sub.Updates()
-		assert.Nil(t, wu)
-	})
-}
-
 func TestFetchWorkloadUpdate(t *testing.T) {
-	one := &Entry{
-		RegistrationEntry: &common.RegistrationEntry{
-			EntryId:   "1",
-			Selectors: Selectors{{Type: "A", Value: "a"}},
-			ParentId:  "spiffe:parent",
-			SpiffeId:  "spiffe:id1",
-		},
+	cache := newTestCache()
+	// populate the cache with FOO and BAR without SVIDS
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "B")
+	bar.FederatesWith = makeFederatesWith(otherBundleV1)
+	update := &CacheUpdate{
+		Bundles:             makeBundles(bundleV1, otherBundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
 	}
-	two := &Entry{
-		RegistrationEntry: &common.RegistrationEntry{
-			EntryId: "2",
-			Selectors: Selectors{
-				{Type: "A", Value: "a"},
-				{Type: "B", Value: "b"},
-				{Type: "C", Value: "c"},
-			},
-			ParentId:      "spiffe:parent",
-			SpiffeId:      "spiffe:id2",
-			FederatesWith: []string{"spiffe://bar.test"},
+	cache.Update(update, nil)
+
+	workloadUpdate := cache.FetchWorkloadUpdate(makeSelectors("A", "B"))
+	assert.Len(t, workloadUpdate.Entries, 0, "entries should not be returned that don't have SVIDs")
+
+	update.X509SVIDs = makeX509SVIDs(foo, bar)
+	cache.Update(update, nil)
+
+	workloadUpdate = cache.FetchWorkloadUpdate(makeSelectors("A", "B"))
+	assert.Equal(t, &WorkloadUpdate{
+		Bundle:           bundleV1,
+		FederatedBundles: makeBundles(otherBundleV1),
+		Entries: []Entry{
+			{RegistrationEntry: bar},
+			{RegistrationEntry: foo},
 		},
-	}
-
-	cache := New(logger, "spiffe://example.org", nil)
-	cache.SetBundles(map[string]*Bundle{
-		"spiffe://example.org": {},
-		"spiffe://foo.test":    {},
-		"spiffe://bar.test":    {},
-	})
-	cache.SetEntry(one)
-	cache.SetEntry(two)
-
-	// selectors don't match anything
-	update := cache.FetchWorkloadUpdate(Selectors{})
-	require.NotNil(t, update)
-	assert.Empty(t, update.Entries)
-
-	// selectors match one
-	update = cache.FetchWorkloadUpdate(Selectors{{Type: "A", Value: "a"}})
-	require.NotNil(t, update)
-	sortCacheEntries(update.Entries)
-	assert.Equal(t, []*Entry{one}, update.Entries)
-	assert.NotNil(t, update.Bundle)
-	assert.Empty(t, update.FederatedBundles)
-
-	// selectors match one and two
-	update = cache.FetchWorkloadUpdate(Selectors{
-		{Type: "A", Value: "a"},
-		{Type: "B", Value: "b"},
-		{Type: "C", Value: "c"},
-	})
-	require.NotNil(t, update)
-	sortCacheEntries(update.Entries)
-	assert.Equal(t, []*Entry{one, two}, update.Entries)
-	assert.NotNil(t, update.Bundle)
-	assert.Len(t, update.FederatedBundles, 1)
-	assert.NotNil(t, update.FederatedBundles["spiffe://bar.test"])
+	}, workloadUpdate)
 }
 
-func TestJWTSVID(t *testing.T) {
-	now := time.Now()
-	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+func TestMatchingEntries(t *testing.T) {
+	cache := newTestCache()
 
-	cache := New(logger, "spiffe://example.org", nil)
+	// populate the cache with FOO and BAR without SVIDS
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "B")
+	update := &CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}
+	cache.Update(update, nil)
 
-	// JWT is not cached
-	actual, ok := cache.GetJWTSVID("spiffe://example.org/blog", []string{"bar"})
-	assert.False(t, ok)
-	assert.Nil(t, actual)
+	entries := cache.MatchingEntries(makeSelectors("A", "B"))
+	assert.Len(t, entries, 0, "entries should not be returned that don't have SVIDs")
 
-	// JWT is cached
-	cache.SetJWTSVID("spiffe://example.org/blog", []string{"bar"}, expected)
-	actual, ok = cache.GetJWTSVID("spiffe://example.org/blog", []string{"bar"})
-	assert.True(t, ok)
-	assert.Equal(t, expected, actual)
+	update.X509SVIDs = makeX509SVIDs(foo, bar)
+	cache.Update(update, nil)
+
+	entries = cache.MatchingEntries(makeSelectors("A", "B"))
+	assert.Equal(t, []Entry{
+		{RegistrationEntry: bar},
+		{RegistrationEntry: foo},
+	}, entries)
 }
 
-func sortCacheEntries(entries []*Entry) {
-	sort.Slice(entries, func(a, b int) bool {
-		return entries[a].RegistrationEntry.EntryId < entries[b].RegistrationEntry.EntryId
+func TestBundleChanges(t *testing.T) {
+	cache := newTestCache()
+
+	bundleStream := cache.SubscribeToBundleChanges()
+	assert.Equal(t, makeBundles(bundleV1), bundleStream.Value())
+
+	cache.Update(&CacheUpdate{
+		Bundles: makeBundles(bundleV1, otherBundleV1),
+	}, nil)
+	if assert.True(t, bundleStream.HasNext(), "has new bundle value after adding bundle") {
+		bundleStream.Next()
+		assert.Equal(t, makeBundles(bundleV1, otherBundleV1), bundleStream.Value())
+	}
+
+	cache.Update(&CacheUpdate{
+		Bundles: makeBundles(bundleV1),
+	}, nil)
+
+	if assert.True(t, bundleStream.HasNext(), "has new bundle value after removing bundle") {
+		bundleStream.Next()
+		assert.Equal(t, makeBundles(bundleV1), bundleStream.Value())
+	}
+}
+
+func TestAllSubscribersNotifiedOnBundleChange(t *testing.T) {
+	cache := newTestCache()
+
+	// create some subscribers and assert they get the initial bundle
+	subA := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
+	defer subA.Finish()
+	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{Bundle: bundleV1})
+
+	subB := cache.SubscribeToWorkloadUpdates(makeSelectors("B"))
+	defer subB.Finish()
+	assertWorkloadUpdateEqual(t, subB, &WorkloadUpdate{Bundle: bundleV1})
+
+	// update the bundle and assert all subscribers gets the updated bundle
+	cache.Update(&CacheUpdate{
+		Bundles: makeBundles(bundleV2),
+	}, nil)
+	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{Bundle: bundleV2})
+	assertWorkloadUpdateEqual(t, subB, &WorkloadUpdate{Bundle: bundleV2})
+}
+
+func TestSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
+	cache := newTestCache()
+
+	// initialize the cache with an entry FOO that has a valid SVID and
+	// selector "A"
+	foo := makeRegistrationEntry("FOO", "A")
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+		X509SVIDs:           makeX509SVIDs(foo),
+	}, nil)
+
+	// subscribe to A and B and assert initial updates are received.
+	subA := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
+	defer subA.Finish()
+	assertAnyWorkloadUpdate(t, subA)
+
+	subB := cache.SubscribeToWorkloadUpdates(makeSelectors("B"))
+	defer subB.Finish()
+	assertAnyWorkloadUpdate(t, subB)
+
+	// add the federated bundle with no registration entries federating with
+	// it and make sure nobody is notified.
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1, otherBundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, nil)
+	assertNoWorkloadUpdate(t, subA)
+	assertNoWorkloadUpdate(t, subB)
+
+	// update FOO to federate with otherdomain.test and make sure subA is
+	// notified but not subB.
+	foo = makeRegistrationEntry("FOO", "A")
+	foo.FederatesWith = makeFederatesWith(otherBundleV1)
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1, otherBundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, nil)
+	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
+		Bundle:           bundleV1,
+		FederatedBundles: makeBundles(otherBundleV1),
+		Entries:          []Entry{{RegistrationEntry: foo}},
 	})
+	assertNoWorkloadUpdate(t, subB)
+
+	// now change the federated bundle and make sure subA gets notified, but
+	// again, not subB.
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1, otherBundleV2),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, nil)
+	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
+		Bundle:           bundleV1,
+		FederatedBundles: makeBundles(otherBundleV2),
+		Entries:          []Entry{{RegistrationEntry: foo}},
+	})
+	assertNoWorkloadUpdate(t, subB)
+
+	// now drop the federation and make sure subA is again notified and no
+	// longer has the federated bundle.
+	foo = makeRegistrationEntry("FOO", "A")
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1, otherBundleV2),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, nil)
+	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
+		Bundle:  bundleV1,
+		Entries: []Entry{{RegistrationEntry: foo}},
+	})
+	assertNoWorkloadUpdate(t, subB)
+}
+
+func TestSubscribersGetEntriesWithSelectorSubsets(t *testing.T) {
+	cache := newTestCache()
+
+	// create subscribers for each combination of selectors
+	subA := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
+	defer subA.Finish()
+	subB := cache.SubscribeToWorkloadUpdates(makeSelectors("B"))
+	defer subB.Finish()
+	subAB := cache.SubscribeToWorkloadUpdates(makeSelectors("A", "B"))
+	defer subAB.Finish()
+
+	// assert all subscribers get the initial update
+	initialUpdate := &WorkloadUpdate{Bundle: bundleV1}
+	assertWorkloadUpdateEqual(t, subA, initialUpdate)
+	assertWorkloadUpdateEqual(t, subB, initialUpdate)
+	assertWorkloadUpdateEqual(t, subAB, initialUpdate)
+
+	// create entry FOO that will target any subscriber with containing (A)
+	foo := makeRegistrationEntry("FOO", "A")
+
+	// create entry BAR that will target any subscriber with containing (A,C)
+	bar := makeRegistrationEntry("BAR", "A", "C")
+
+	// update the cache with foo and bar
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+		X509SVIDs:           makeX509SVIDs(foo, bar),
+	}, nil)
+
+	// subA selector set contains (A), but not (A, C), so it should only get FOO
+	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
+		Bundle:  bundleV1,
+		Entries: []Entry{{RegistrationEntry: foo}},
+	})
+
+	// subB selector set does not contain either (A) or (A,C) so it isn't even
+	// notified.
+	assertNoWorkloadUpdate(t, subB)
+
+	// subAB selector set contains (A) but not (A, C), so it should get FOO
+	assertWorkloadUpdateEqual(t, subAB, &WorkloadUpdate{
+		Bundle:  bundleV1,
+		Entries: []Entry{{RegistrationEntry: foo}},
+	})
+}
+
+func TestSubscriberIsNotNotifiedIfNothingChanges(t *testing.T) {
+	cache := newTestCache()
+
+	foo := makeRegistrationEntry("FOO", "A")
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+		X509SVIDs:           makeX509SVIDs(foo),
+	}, nil)
+
+	sub := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
+	defer sub.Finish()
+	assertAnyWorkloadUpdate(t, sub)
+
+	// Second update is the same (other than X509SVIDs, which, when set,
+	// always constitute a "change" for the impacted registration entries.
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, nil)
+
+	assertNoWorkloadUpdate(t, sub)
+}
+
+func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
+	cache := newTestCache()
+
+	// initialize the cache with a FOO entry with selector A and an SVID
+	foo := makeRegistrationEntry("FOO", "A")
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+		X509SVIDs:           makeX509SVIDs(foo),
+	}, nil)
+
+	// create subscribers for A and make sure the initial update has FOO
+	sub := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
+	defer sub.Finish()
+	assertWorkloadUpdateEqual(t, sub, &WorkloadUpdate{
+		Bundle:  bundleV1,
+		Entries: []Entry{{RegistrationEntry: foo}},
+	})
+
+	// update FOO to have selectors (A,B) and make sure the subscriber loses
+	// FOO, since (A,B) is not a subset of the subscriber set (A).
+	foo = makeRegistrationEntry("FOO", "A", "B")
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+		X509SVIDs:           makeX509SVIDs(foo),
+	}, nil)
+	assertWorkloadUpdateEqual(t, sub, &WorkloadUpdate{
+		Bundle: bundleV1,
+	})
+
+	// update FOO to drop B and make sure the subscriber regains FOO
+	foo = makeRegistrationEntry("FOO", "A")
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+		X509SVIDs:           makeX509SVIDs(foo),
+	}, nil)
+	assertWorkloadUpdateEqual(t, sub, &WorkloadUpdate{
+		Bundle:  bundleV1,
+		Entries: []Entry{{RegistrationEntry: foo}},
+	})
+}
+
+func newTestCache() *Cache {
+	log, _ := test.NewNullLogger()
+	return New(log, "spiffe://domain.test", bundleV1)
+}
+
+func TestSubcriberNotifiedWhenEntryDropped(t *testing.T) {
+	cache := newTestCache()
+
+	subA := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
+	defer subA.Finish()
+	assertAnyWorkloadUpdate(t, subA)
+
+	// subB's job here is to just make sure we don't notify unrelated
+	// subscribers when dropping registration entries
+	subB := cache.SubscribeToWorkloadUpdates(makeSelectors("B"))
+	defer subB.Finish()
+	assertAnyWorkloadUpdate(t, subB)
+
+	foo := makeRegistrationEntry("FOO", "A")
+	update := &CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+		X509SVIDs:           makeX509SVIDs(foo),
+	}
+	cache.Update(update, nil)
+
+	// make sure subA gets notified with FOO but not subB
+	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
+		Bundle:  bundleV1,
+		Entries: []Entry{{RegistrationEntry: foo}},
+	})
+	assertNoWorkloadUpdate(t, subB)
+
+	// drop FOO and make sure subA gets notified but not subB
+	update.RegistrationEntries = nil
+	cache.Update(update, nil)
+	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
+		Bundle: bundleV1,
+	})
+	assertNoWorkloadUpdate(t, subB)
+}
+
+func TestSubcriberOnlyGetsEntriesWithSVID(t *testing.T) {
+	cache := newTestCache()
+
+	foo := makeRegistrationEntry("FOO", "A")
+	update := &CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}
+	cache.Update(update, nil)
+
+	sub := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
+	defer sub.Finish()
+
+	// workload update does not include the entry because it has no SVID.
+	assertWorkloadUpdateEqual(t, sub, &WorkloadUpdate{
+		Bundle: bundleV1,
+	})
+
+	// update to include the SVID and now we should get the update
+	update.X509SVIDs = makeX509SVIDs(foo)
+	cache.Update(update, nil)
+	assertWorkloadUpdateEqual(t, sub, &WorkloadUpdate{
+		Bundle:  bundleV1,
+		Entries: []Entry{{RegistrationEntry: foo}},
+	})
+}
+
+func TestSubscribersDoNotBlockNotifications(t *testing.T) {
+	cache := newTestCache()
+
+	sub := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
+	defer sub.Finish()
+
+	cache.Update(&CacheUpdate{
+		Bundles: makeBundles(bundleV2),
+	}, nil)
+
+	cache.Update(&CacheUpdate{
+		Bundles: makeBundles(bundleV3),
+	}, nil)
+
+	assertWorkloadUpdateEqual(t, sub, &WorkloadUpdate{
+		Bundle: bundleV3,
+	})
+}
+
+func TestCheckSVIDCallback(t *testing.T) {
+	cache := newTestCache()
+
+	// no calls because there are no entries
+	cache.Update(&CacheUpdate{
+		Bundles: makeBundles(bundleV2),
+	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
+		assert.Fail(t, "should not be called if there are no registration entries")
+	})
+
+	foo := makeRegistrationEntry("FOO")
+
+	// called once for FOO with no SVID
+	callCount := 0
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV2),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
+		callCount++
+		assert.Equal(t, "FOO", entry.EntryId)
+		assert.Nil(t, svid)
+	})
+	assert.Equal(t, 1, callCount)
+
+	// called once for FOO with new SVID
+	callCount = 0
+	svids := makeX509SVIDs(foo)
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV2),
+		RegistrationEntries: makeRegistrationEntries(foo),
+		X509SVIDs:           svids,
+	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
+		callCount++
+		assert.Equal(t, "FOO", entry.EntryId)
+		if assert.NotNil(t, svid) {
+			assert.Exactly(t, svids["FOO"], svid)
+		}
+	})
+	assert.Equal(t, 1, callCount)
+
+	// called once for FOO with existing SVID
+	callCount = 0
+	cache.Update(&CacheUpdate{
+		Bundles:             makeBundles(bundleV2),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
+		callCount++
+		assert.Equal(t, "FOO", entry.EntryId)
+		if assert.NotNil(t, svid) {
+			assert.Exactly(t, svids["FOO"], svid)
+		}
+	})
+	assert.Equal(t, 1, callCount)
+}
+
+func BenchmarkCacheGlobalNotification(b *testing.B) {
+	cache := newTestCache()
+
+	const numEntries = 1000
+	const numWorkloads = 1000
+	const selectorsPerEntry = 3
+	const selectorsPerWorkload = 10
+
+	// build a set of 1000 registration entries with distinct selectors
+	bundlesV1 := makeBundles(bundleV1)
+	bundlesV2 := makeBundles(bundleV2)
+	update := &CacheUpdate{
+		Bundles:             bundlesV1,
+		RegistrationEntries: make(map[string]*common.RegistrationEntry, numEntries),
+		X509SVIDs:           make(map[string]*X509SVID, numEntries),
+	}
+	for i := 0; i < numEntries; i++ {
+		entryID := fmt.Sprintf("00000000-0000-0000-0000-%012d", i)
+		update.RegistrationEntries[entryID] = &common.RegistrationEntry{
+			EntryId:   entryID,
+			ParentId:  "spiffe://domain.test/node",
+			SpiffeId:  fmt.Sprintf("spiffe://domain.test/workload-%d", i),
+			Selectors: distinctSelectors(i, selectorsPerEntry),
+		}
+	}
+
+	cache.Update(update, nil)
+	update.X509SVIDs = nil
+
+	for i := 0; i < numWorkloads; i++ {
+		selectors := distinctSelectors(i, selectorsPerWorkload)
+		cache.SubscribeToWorkloadUpdates(selectors)
+	}
+
+	runtime.GC()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if i%2 == 0 {
+			update.Bundles = bundlesV2
+		} else {
+			update.Bundles = bundlesV1
+		}
+		cache.Update(update, nil)
+	}
+}
+
+func distinctSelectors(id, n int) []*common.Selector {
+	out := make([]*common.Selector, 0, n)
+	for i := 0; i < n; i++ {
+		out = append(out, &common.Selector{
+			Type:  "test",
+			Value: fmt.Sprintf("id:%d:n:%d", id, i),
+		})
+	}
+	return out
+}
+
+func assertNoWorkloadUpdate(t *testing.T, sub Subscriber) {
+	select {
+	case update := <-sub.Updates():
+		assert.FailNow(t, "unexpected workload update", update)
+	default:
+	}
+}
+
+func assertAnyWorkloadUpdate(t *testing.T, sub Subscriber) {
+	select {
+	case <-sub.Updates():
+	case <-time.After(time.Minute):
+		assert.FailNow(t, "timed out waiting for any workload update")
+	}
+}
+
+func assertWorkloadUpdateEqual(t *testing.T, sub Subscriber, expected *WorkloadUpdate) {
+	select {
+	case actual := <-sub.Updates():
+		assert.NotNil(t, actual.Bundle, "bundle is not set")
+		assert.True(t, actual.Bundle.EqualTo(expected.Bundle), "bundles don't match")
+		assert.Equal(t, expected.Entries, actual.Entries, "entries don't match")
+	case <-time.After(time.Minute):
+		assert.FailNow(t, "timed out waiting for workload update")
+	}
+}
+
+func makeBundles(bundles ...*Bundle) map[string]*Bundle {
+	out := make(map[string]*Bundle)
+	for _, bundle := range bundles {
+		out[bundle.TrustDomainID()] = bundle
+	}
+	return out
+}
+
+func makeX509SVIDs(entries ...*common.RegistrationEntry) map[string]*X509SVID {
+	out := make(map[string]*X509SVID)
+	for _, entry := range entries {
+		out[entry.EntryId] = &X509SVID{}
+	}
+	return out
+}
+
+func makeRegistrationEntry(id string, selectors ...string) *common.RegistrationEntry {
+	return &common.RegistrationEntry{
+		EntryId:   id,
+		SpiffeId:  "spiffe://domain.test/" + id,
+		Selectors: makeSelectors(selectors...),
+	}
+}
+
+func makeRegistrationEntries(entries ...*common.RegistrationEntry) map[string]*common.RegistrationEntry {
+	out := make(map[string]*common.RegistrationEntry)
+	for _, entry := range entries {
+		out[entry.EntryId] = entry
+	}
+	return out
+}
+
+func makeSelectors(values ...string) []*common.Selector {
+	var out []*common.Selector
+	for _, value := range values {
+		out = append(out, &common.Selector{Type: "test", Value: value})
+	}
+	return out
+}
+
+func makeFederatesWith(bundles ...*Bundle) []string {
+	var out []string
+	for _, bundle := range bundles {
+		out = append(out, bundle.TrustDomainID())
+	}
+	return out
 }

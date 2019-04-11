@@ -81,10 +81,10 @@ func (mr *MockManagerMockRecorder) Initialize(arg0 interface{}) *gomock.Call {
 }
 
 // MatchingEntries mocks base method
-func (m *MockManager) MatchingEntries(arg0 []*common.Selector) []*cache.Entry {
+func (m *MockManager) MatchingEntries(arg0 []*common.Selector) []cache.Entry {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchingEntries", arg0)
-	ret0, _ := ret[0].([]*cache.Entry)
+	ret0, _ := ret[0].([]cache.Entry)
 	return ret0
 }
 

@@ -15,7 +15,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"
 	"github.com/spiffe/spire/proto/spire/api/node"
@@ -51,7 +50,7 @@ type Manager interface {
 	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
 	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
 	// selectors are included in the set of selectors passed as parameter.
-	MatchingEntries(selectors []*common.Selector) []*cache.Entry
+	MatchingEntries(selectors []*common.Selector) []cache.Entry
 
 	// FetchWorkloadUpdates gets the latest workload update for the selectors
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
@@ -67,7 +66,7 @@ type manager struct {
 	// Fields protected by mtx mutex.
 	mtx *sync.RWMutex
 
-	cache cache.Cache
+	cache *cache.Cache
 	svid  svid.Rotator
 
 	spiffeID string
@@ -110,7 +109,7 @@ func (m *manager) Run(ctx context.Context) error {
 }
 
 func (m *manager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
-	return m.cache.Subscribe(selectors)
+	return m.cache.SubscribeToWorkloadUpdates(selectors)
 }
 
 func (m *manager) SubscribeToSVIDChanges() observer.Stream {
@@ -121,14 +120,8 @@ func (m *manager) SubscribeToBundleChanges() *cache.BundleStream {
 	return m.cache.SubscribeToBundleChanges()
 }
 
-func (m *manager) MatchingEntries(selectors []*common.Selector) (entries []*cache.Entry) {
-	for _, entry := range m.cache.Entries() {
-		regEntrySelectors := selector.NewSetFromRaw(entry.RegistrationEntry.Selectors)
-		if selector.NewSetFromRaw(selectors).IncludesSet(regEntrySelectors) {
-			entries = append(entries, entry)
-		}
-	}
-	return entries
+func (m *manager) MatchingEntries(selectors []*common.Selector) []cache.Entry {
+	return m.cache.MatchingEntries(selectors)
 }
 
 // FetchWorkloadUpdates gets the latest workload update for the selectors

@@ -294,7 +294,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
-	me := m.MatchingEntries(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	me := m.MatchingEntries(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	if len(me) != 2 {
 		t.Fatal("expected 2 entries")
 	}
@@ -304,7 +304,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		[]*common.RegistrationEntry{me[0].RegistrationEntry, me[1].RegistrationEntry})
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+		sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 		u := <-sub.Updates()
 
 		if len(u.Entries) != 2 {
@@ -486,9 +486,7 @@ func TestSynchronization(t *testing.T) {
 		if !ok {
 			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
 		}
-		if eb != eu {
-			t.Fatal("entry received does not match entry on cache")
-		}
+		require.Equal(t, eb, eu, "entry received does not match entry on cache")
 	}
 
 	// SVIDs expire after 3 seconds, so we shouldn't expect any updates after
@@ -523,9 +521,7 @@ func TestSynchronization(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected entry with EntryId=%v after synchronization", key)
 		}
-		if ea == eb {
-			t.Fatalf("there is at least one entry that was not refreshed: %v", ea)
-		}
+		require.NotEqual(t, eb, ea, "there is at least one entry that was not refreshed: %v", ea)
 	}
 
 	if len(u.Entries) != 3 {
@@ -545,9 +541,7 @@ func TestSynchronization(t *testing.T) {
 		if !ok {
 			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
 		}
-		if ea != eu {
-			t.Fatal("entry received does not match entry on cache")
-		}
+		require.Equal(t, eu, ea, "entry received does not match entry on cache")
 	}
 }
 
@@ -717,7 +711,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	m := newManager(t, c)
 
-	sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 
 	defer initializeAndRunManager(t, m)()
 
@@ -781,7 +775,7 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	m := newManager(t, c)
 
-	sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	// This should be the update received when Subscribe function was called.
 	updates := sub.Updates()
 	initialUpdate := <-updates
@@ -1058,15 +1052,15 @@ func regEntriesAsMap(res []*common.RegistrationEntry) (result map[string]*common
 	return result
 }
 
-func cacheEntriesAsMap(ces []*cache.Entry) (result map[string]*cache.Entry) {
-	result = map[string]*cache.Entry{}
+func cacheEntriesAsMap(ces []cache.Entry) (result map[string]cache.Entry) {
+	result = map[string]cache.Entry{}
 	for _, ce := range ces {
 		result[ce.RegistrationEntry.EntryId] = ce
 	}
 	return result
 }
 
-func regEntriesFromCacheEntries(ces []*cache.Entry) (result []*common.RegistrationEntry) {
+func regEntriesFromCacheEntries(ces []cache.Entry) (result []*common.RegistrationEntry) {
 	for _, ce := range ces {
 		result = append(result, ce.RegistrationEntry)
 	}

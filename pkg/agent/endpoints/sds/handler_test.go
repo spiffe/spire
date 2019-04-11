@@ -409,7 +409,7 @@ func (s *HandlerSuite) setWorkloadUpdate(workloadCert *x509.Certificate) {
 	var workloadUpdate *cache.WorkloadUpdate
 	if workloadCert != nil {
 		workloadUpdate = &cache.WorkloadUpdate{
-			Entries: []*cache.Entry{
+			Entries: []cache.Entry{
 				{
 					RegistrationEntry: &common.RegistrationEntry{
 						SpiffeId: "spiffe://domain.test/workload",

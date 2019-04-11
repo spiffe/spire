@@ -259,7 +259,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	s.Require().Nil(resp)
 
 	// fetch SVIDs for all SPIFFE IDs
-	entries := []*cache.Entry{
+	entries := []cache.Entry{
 		{
 			RegistrationEntry: &common.RegistrationEntry{
 				SpiffeId: "spiffe://example.org/one",
@@ -676,7 +676,7 @@ func (s *HandlerTestSuite) workloadUpdate() *cache.WorkloadUpdate {
 	}
 
 	update := &cache.WorkloadUpdate{
-		Entries: []*cache.Entry{&entry},
+		Entries: []cache.Entry{entry},
 		Bundle:  bundleutil.BundleFromRootCA("spiffe://example.org", ca),
 		FederatedBundles: map[string]*bundleutil.Bundle{
 			"spiffe://otherdomain.test": bundleutil.BundleFromRootCA("spiffe://otherdomain.test", ca),

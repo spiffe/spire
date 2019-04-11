@@ -32,7 +32,8 @@ func EqualSet(a, b *set) bool {
 
 // Includes determines whether a given selector is present in a set
 func Includes(set *set, item *Selector) bool {
-	return (*set)[*item] == item
+	in, ok := (*set)[*item]
+	return ok && (*item) == (*in)
 }
 
 // IncludesSet returns true if s2 is included in s1. This is, all the s2 selectors

@@ -6,13 +6,16 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
+
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/agent/attestor/workload"
+	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -22,8 +25,6 @@ import (
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"io"
-	"strconv"
 )
 
 const (
@@ -311,7 +312,7 @@ func (h *Handler) triggerReceivedHook() {
 	}
 }
 
-func buildTLSCertificate(entry *cache.Entry) (*types.Any, error) {
+func buildTLSCertificate(entry cache.Entry) (*types.Any, error) {
 	keyPEM, err := pemutil.EncodePKCS8PrivateKey(entry.PrivateKey)
 	if err != nil {
 		return nil, err
