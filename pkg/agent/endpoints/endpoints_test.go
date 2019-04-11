@@ -38,17 +38,17 @@ func TestUnknownServiceHandler(t *testing.T) {
 	_, err = sdsClient.FetchSecrets(context.Background(), &api_v2.DiscoveryRequest{})
 	s := status.Convert(err)
 	assert.Equal(codes.Unimplemented, s.Code())
-	assert.Equal("Envoy SDS support has not been enabled on the agent", s.Message())
+	assert.Equal("Envoy SDS support has not been enabled on the agent (see `enable_sds` configurable)", s.Message())
 	entries := hook.AllEntries()
 	if assert.Len(entries, 1, "the first SDS RPC should be logged") {
-		assert.Equal("Incoming RPC for Envoy SDS but it is not enabled", entries[0].Message)
+		assert.Equal("Incoming RPC for Envoy SDS but it is not enabled (via `enable_sds` configurable)", entries[0].Message)
 	}
 	hook.Reset()
 
 	_, err = sdsClient.FetchSecrets(context.Background(), &api_v2.DiscoveryRequest{})
 	s = status.Convert(err)
 	assert.Equal(codes.Unimplemented, s.Code())
-	assert.Equal("Envoy SDS support has not been enabled on the agent", s.Message())
+	assert.Equal("Envoy SDS support has not been enabled on the agent (see `enable_sds` configurable)", s.Message())
 	assert.Len(hook.AllEntries(), 0, "the second SDS RPC should not be logged")
 
 	// Assert handler returns generic message for non-SDS and does no logging

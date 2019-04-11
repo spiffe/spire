@@ -122,10 +122,10 @@ func UnknownServiceHandler(log logrus.FieldLogger) grpc.StreamHandler {
 		method, ok := grpc.MethodFromServerStream(stream)
 		if ok && strings.HasPrefix(method, sdsMethodPrefix) {
 			if !logged {
-				log.Warn("Incoming RPC for Envoy SDS but it is not enabled")
+				log.Warn("Incoming RPC for Envoy SDS but it is not enabled (via `enable_sds` configurable)")
 				logged = true
 			}
-			return status.Error(codes.Unimplemented, "Envoy SDS support has not been enabled on the agent")
+			return status.Error(codes.Unimplemented, "Envoy SDS support has not been enabled on the agent (see `enable_sds` configurable)")
 		}
 		return status.Errorf(codes.Unimplemented, "unknown method %s", method)
 	}
