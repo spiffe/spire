@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -251,8 +252,9 @@ func TestSpirePlugin_Configure(t *testing.T) {
 }
 
 func TestSpirePlugin_GetPluginInfo(t *testing.T) {
-	m, err := newWithDefault("", "")
-	require.NoError(t, err)
+	m, done := newWithDefault(t, "", "")
+	defer done()
+
 	res, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, res)
@@ -263,8 +265,8 @@ func TestSpirePlugin_SubmitValidCSR(t *testing.T) {
 	server.startTestServers(t)
 	defer server.stopTestServers()
 
-	m, err := newWithDefault(server.napiServer.addr, server.wapiServer.socketPath)
-	require.NoError(t, err)
+	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
+	defer done()
 
 	const testDataDir = "_test_data/csr_valid"
 	validCsrFiles, err := ioutil.ReadDir(testDataDir)
@@ -287,8 +289,8 @@ func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 	server.startTestServers(t)
 	defer server.stopTestServers()
 
-	m, err := newWithDefault(server.napiServer.addr, server.wapiServer.socketPath)
-	require.NoError(t, err)
+	m, done := newWithDefault(t, server.napiServer.addr, server.wapiServer.socketPath)
+	defer done()
 
 	const testDataDir = "_test_data/csr_invalid"
 	validCsrFiles, err := ioutil.ReadDir(testDataDir)
@@ -306,8 +308,9 @@ func TestSpirePlugin_SubmitInvalidCSR(t *testing.T) {
 	}
 }
 
-func newWithDefault(addr string, socketPath string) (upstreamca.Plugin, error) {
+func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamca.Plugin, func()) {
 	host, port, _ := net.SplitHostPort(addr)
+
 	config := Configuration{
 		ServerAddr:        host,
 		ServerPort:        port,
@@ -315,12 +318,18 @@ func newWithDefault(addr string, socketPath string) (upstreamca.Plugin, error) {
 	}
 
 	jsonConfig, err := json.Marshal(config)
+	require.NoError(t, err)
+
 	pluginConfig := &spi.ConfigureRequest{
 		Configuration: string(jsonConfig),
 		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
 	}
 
-	m := New()
-	_, err = m.Configure(ctx, pluginConfig)
-	return m, err
+	var plugin upstreamca.Plugin
+	done := spiretest.LoadPlugin(t, BuiltIn(), &plugin)
+	if _, err = plugin.Configure(ctx, pluginConfig); err != nil {
+		done()
+		require.NoError(t, err)
+	}
+	return plugin, done
 }

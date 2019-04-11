@@ -14,7 +14,7 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/spiretest"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -40,13 +40,13 @@ const (
 )
 
 func TestMSIAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(MSIAttestorSuite))
+	spiretest.Run(t, new(MSIAttestorSuite))
 }
 
 type MSIAttestorSuite struct {
-	suite.Suite
+	spiretest.Suite
 
-	attestor *nodeattestor.BuiltIn
+	attestor nodeattestor.Plugin
 	key      *rsa.PrivateKey
 	jwks     *jose.JSONWebKeySet
 	now      time.Time
@@ -65,8 +65,9 @@ func (s *MSIAttestorSuite) SetupTest() {
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWhenNotConfigured() {
-	resp, err := s.doAttestOnAttestor(s.newAttestor(), &nodeattestor.AttestRequest{})
-	s.Require().EqualError(err, "azure-msi: not configured")
+	attestor := s.newAttestor()
+	resp, err := s.doAttestOnAttestor(attestor, &nodeattestor.AttestRequest{})
+	s.requireErrorContains(err, "azure-msi: not configured")
 	s.Require().Nil(resp)
 }
 
@@ -227,12 +228,12 @@ func (s *MSIAttestorSuite) TestConfigure() {
 
 	// missing global configuration
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.Require().EqualError(err, "azure-msi: global configuration is required")
+	s.requireErrorContains(err, "azure-msi: global configuration is required")
 	s.Require().Nil(resp)
 
 	// missing trust domain
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.Require().EqualError(err, "azure-msi: global configuration missing trust domain")
+	s.requireErrorContains(err, "azure-msi: global configuration missing trust domain")
 	s.Require().Nil(resp)
 
 	// missing tenants
@@ -240,7 +241,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		Configuration: ``,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.Require().EqualError(err, "azure-msi: configuration must have at least one tenant")
+	s.requireErrorContains(err, "azure-msi: configuration must have at least one tenant")
 	s.Require().Nil(resp)
 
 	// success
@@ -306,15 +307,17 @@ func (s *MSIAttestorSuite) addKey(keyID string) {
 	})
 }
 
-func (s *MSIAttestorSuite) newAttestor() *nodeattestor.BuiltIn {
-	attestor := NewMSIAttestorPlugin()
+func (s *MSIAttestorSuite) newAttestor() nodeattestor.Plugin {
+	attestor := New()
 	attestor.hooks.now = func() time.Time {
 		return s.now
 	}
 	attestor.hooks.keySetProvider = jwtutil.KeySetProviderFunc(func(ctx context.Context) (*jose.JSONWebKeySet, error) {
 		return s.jwks, nil
 	})
-	return nodeattestor.NewBuiltIn(attestor)
+	var plugin nodeattestor.Plugin
+	s.LoadPlugin(builtin(attestor), &plugin)
+	return plugin
 }
 
 func (s *MSIAttestorSuite) configureAttestor() {
@@ -337,7 +340,7 @@ func (s *MSIAttestorSuite) doAttest(req *nodeattestor.AttestRequest) (*nodeattes
 	return s.doAttestOnAttestor(s.attestor, req)
 }
 
-func (s *MSIAttestorSuite) doAttestOnAttestor(attestor *nodeattestor.BuiltIn, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (s *MSIAttestorSuite) doAttestOnAttestor(attestor nodeattestor.NodeAttestor, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	stream, err := attestor.Attest(context.Background())
 	s.Require().NoError(err)
 

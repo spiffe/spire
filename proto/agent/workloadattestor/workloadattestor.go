@@ -1,116 +1,85 @@
+// Provides interfaces and adapters for the WorkloadAttestor service
+//
+// Generated code. Do not modify by hand.
 package workloadattestor
 
 import (
 	"context"
-	"net/rpc"
 
-	"github.com/golang/protobuf/ptypes/empty"
-	go_plugin "github.com/hashicorp/go-plugin"
-	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	spi "github.com/spiffe/spire/proto/common/plugin"
 	"google.golang.org/grpc"
 )
 
-// WorkloadAttestor is the interface used by all non-catalog components.
+const (
+	Type = "WorkloadAttestor"
+)
+
+// WorkloadAttestor is the client interface for the service type WorkloadAttestor interface.
 type WorkloadAttestor interface {
 	Attest(context.Context, *AttestRequest) (*AttestResponse, error)
 }
 
-// Plugin is the interface implemented by plugin implementations
+// Plugin is the client interface for the service with the plugin related methods used by the catalog to initialize the plugin.
 type Plugin interface {
 	Attest(context.Context, *AttestRequest) (*AttestResponse, error)
-	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
-	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
+	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
 }
 
-type BuiltIn struct {
-	plugin Plugin
-}
-
-var _ WorkloadAttestor = (*BuiltIn)(nil)
-
-func NewBuiltIn(plugin Plugin) *BuiltIn {
-	return &BuiltIn{
-		plugin: plugin,
+// PluginServer returns a catalog PluginServer implementation for the WorkloadAttestor plugin.
+func PluginServer(server WorkloadAttestorServer) catalog.PluginServer {
+	return &pluginServer{
+		server: server,
 	}
 }
 
-func (b BuiltIn) Attest(ctx context.Context, req *AttestRequest) (*AttestResponse, error) {
-	resp, err := b.plugin.Attest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
+type pluginServer struct {
+	server WorkloadAttestorServer
 }
 
-func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	resp, err := b.plugin.Configure(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
+func (s pluginServer) PluginType() string {
+	return Type
 }
 
-func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	resp, err := b.plugin.GetPluginInfo(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
+func (s pluginServer) PluginClient() catalog.PluginClient {
+	return PluginClient
 }
 
-var Handshake = go_plugin.HandshakeConfig{
-	ProtocolVersion:  1,
-	MagicCookieKey:   "WorkloadAttestor",
-	MagicCookieValue: "WorkloadAttestor",
+func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
+	RegisterWorkloadAttestorServer(server, s.server)
+	return s.server
 }
 
-type GRPCPlugin struct {
-	ServerImpl WorkloadAttestorServer
+// PluginClient is a catalog PluginClient implementation for the WorkloadAttestor plugin.
+var PluginClient catalog.PluginClient = pluginClient{}
+
+type pluginClient struct{}
+
+func (pluginClient) PluginType() string {
+	return Type
 }
 
-var _ go_plugin.GRPCPlugin = (*GRPCPlugin)(nil)
-
-func (p GRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
-	return empty.Empty{}, nil
+func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+	return AdaptPluginClient(NewWorkloadAttestorClient(conn))
 }
 
-func (p GRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
-	return empty.Empty{}, nil
+func AdaptPluginClient(client WorkloadAttestorClient) WorkloadAttestor {
+	return pluginClientAdapter{client: client}
 }
 
-func (p GRPCPlugin) GRPCServer(b *go_plugin.GRPCBroker, s *grpc.Server) error {
-	RegisterWorkloadAttestorServer(s, p.ServerImpl)
-	return nil
-}
-
-func (p GRPCPlugin) GRPCClient(ctx context.Context, b *go_plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: NewWorkloadAttestorClient(c)}, nil
-}
-
-type GRPCServer struct {
-	Plugin Plugin
-}
-
-func (s *GRPCServer) Attest(ctx context.Context, req *AttestRequest) (*AttestResponse, error) {
-	return s.Plugin.Attest(ctx, req)
-}
-func (s *GRPCServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return s.Plugin.Configure(ctx, req)
-}
-func (s *GRPCServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return s.Plugin.GetPluginInfo(ctx, req)
-}
-
-type GRPCClient struct {
+type pluginClientAdapter struct {
 	client WorkloadAttestorClient
 }
 
-func (c *GRPCClient) Attest(ctx context.Context, req *AttestRequest) (*AttestResponse, error) {
-	return c.client.Attest(ctx, req)
+func (a pluginClientAdapter) Attest(ctx context.Context, in *AttestRequest) (*AttestResponse, error) {
+	return a.client.Attest(ctx, in)
 }
-func (c *GRPCClient) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return c.client.Configure(ctx, req)
+
+func (a pluginClientAdapter) Configure(ctx context.Context, in *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	return a.client.Configure(ctx, in)
 }
-func (c *GRPCClient) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return c.client.GetPluginInfo(ctx, req)
+
+func (a pluginClientAdapter) GetPluginInfo(ctx context.Context, in *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return a.client.GetPluginInfo(ctx, in)
 }

@@ -24,9 +24,12 @@
     - [ConfigureResponse](#spire.common.plugin.ConfigureResponse)
     - [GetPluginInfoRequest](#spire.common.plugin.GetPluginInfoRequest)
     - [GetPluginInfoResponse](#spire.common.plugin.GetPluginInfoResponse)
+    - [InitRequest](#spire.common.plugin.InitRequest)
+    - [InitResponse](#spire.common.plugin.InitResponse)
   
   
   
+    - [PluginInit](#spire.common.plugin.PluginInit)
   
 
 - [common.proto](#common.proto)
@@ -363,11 +366,51 @@ Represents the plugin metadata.
 
 
 
- 
+
+<a name="spire.common.plugin.InitRequest"/>
+
+### InitRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| host_services | [string](#string) | repeated |  |
+
+
+
+
+
+
+<a name="spire.common.plugin.InitResponse"/>
+
+### InitResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| plugin_services | [string](#string) | repeated |  |
+
+
+
+
 
  
 
  
+
+ 
+
+
+<a name="spire.common.plugin.PluginInit"/>
+
+### PluginInit
+
+
+| Method Name | Request Type | Response Type | Description |
+| ----------- | ------------ | ------------- | ------------|
+| Init | [InitRequest](#spire.common.plugin.InitRequest) | [InitResponse](#spire.common.plugin.InitRequest) |  |
 
  
 

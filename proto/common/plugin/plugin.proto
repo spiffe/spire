@@ -38,3 +38,16 @@ message GetPluginInfoResponse {
     string author = 8;
     string company = 9;
 }
+
+
+message InitRequest {
+    repeated string host_services = 1;
+}
+
+message InitResponse {
+    repeated string plugin_services = 1;
+}
+
+service PluginInit {
+    rpc Init(InitRequest) returns (InitResponse);
+}

@@ -21,7 +21,7 @@ type Config struct {
 	EnableSDS bool
 
 	// Configurations for agent plugins
-	PluginConfigs catalog.PluginConfigMap
+	PluginConfigs catalog.HCLPluginConfigMap
 
 	Log logrus.FieldLogger
 
@@ -54,11 +54,5 @@ type Config struct {
 func New(c *Config) *Agent {
 	return &Agent{
 		c: c,
-	}
-}
-
-func (c *Config) GlobalConfig() *catalog.GlobalConfig {
-	return &catalog.GlobalConfig{
-		TrustDomain: c.TrustDomain.Host,
 	}
 }

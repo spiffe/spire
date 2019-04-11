@@ -3,22 +3,23 @@ package docker
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
 const (
-	selectorType        = "docker"
+	pluginName          = "docker"
 	subselectorLabel    = "label"
 	subselectorImageID  = "image_id"
 	defaultCgroupPrefix = "/docker"
@@ -26,17 +27,33 @@ const (
 
 var defaultContainerIndex = 1
 
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *DockerPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
+}
+
 // DockerClient is a subset of the docker client functionality, useful for mocking.
 type DockerClient interface {
 	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
 }
 
-type dockerPlugin struct {
+type DockerPlugin struct {
+	log                  hclog.Logger
 	docker               DockerClient
 	cgroupPrefix         string
 	cgroupContainerIndex int
 	fs                   cgroups.FileSystem
 	mtx                  *sync.RWMutex
+}
+
+func New() *DockerPlugin {
+	return &DockerPlugin{
+		mtx: &sync.RWMutex{},
+		fs:  cgroups.OSFileSystem{},
+	}
 }
 
 type dockerPluginConfig struct {
@@ -51,7 +68,11 @@ type dockerPluginConfig struct {
 	CgroupContainerIndex *int `hcl:"cgroup_container_index"`
 }
 
-func (p *dockerPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (p *DockerPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
+}
+
+func (p *DockerPlugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
@@ -73,7 +94,7 @@ func (p *dockerPlugin) Attest(ctx context.Context, req *workloadattestor.AttestR
 		parts := strings.Split(cgroup.GroupPath, "/")
 
 		if len(parts) <= p.cgroupContainerIndex+1 {
-			log.Printf("Docker entry found, but is missing the container id: %v", cgroup.GroupPath)
+			p.log.Warn("Docker entry found, but is missing the container id", "cgroup_path", cgroup.GroupPath)
 			continue
 		}
 		containerID = parts[p.cgroupContainerIndex+1]
@@ -103,20 +124,20 @@ func getSelectorsFromConfig(cfg *container.Config) []*common.Selector {
 	var selectors []*common.Selector
 	for label, value := range cfg.Labels {
 		selectors = append(selectors, &common.Selector{
-			Type:  selectorType,
+			Type:  pluginName,
 			Value: fmt.Sprintf("%s:%s:%s", subselectorLabel, label, value),
 		})
 	}
 	if cfg.Image != "" {
 		selectors = append(selectors, &common.Selector{
-			Type:  selectorType,
+			Type:  pluginName,
 			Value: fmt.Sprintf("%s:%s", subselectorImageID, cfg.Image),
 		})
 	}
 	return selectors
 }
 
-func (p *dockerPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *DockerPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -149,13 +170,6 @@ func (p *dockerPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest)
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*dockerPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*DockerPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
-}
-
-func New() *dockerPlugin {
-	return &dockerPlugin{
-		mtx: &sync.RWMutex{},
-		fs:  cgroups.OSFileSystem{},
-	}
 }

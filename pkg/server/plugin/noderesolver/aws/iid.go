@@ -11,8 +11,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -43,6 +44,16 @@ var (
 	}
 )
 
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *IIDResolverPlugin) catalog.Plugin {
+	return catalog.MakePlugin(iidPluginName,
+		noderesolver.PluginServer(p),
+	)
+}
+
 type awsClient interface {
 	DescribeInstancesWithContext(aws.Context, *ec2.DescribeInstancesInput, ...request.Option) (*ec2.DescribeInstancesOutput, error)
 	GetInstanceProfileWithContext(aws.Context, *iam.GetInstanceProfileInput, ...request.Option) (*iam.GetInstanceProfileOutput, error)
@@ -50,6 +61,7 @@ type awsClient interface {
 
 // IIDResolverPlugin implements node resolution for agents running in aws.
 type IIDResolverPlugin struct {
+	log     hclog.Logger
 	mu      sync.RWMutex
 	config  *caws.SessionConfig
 	clients map[string]awsClient
@@ -60,14 +72,16 @@ type IIDResolverPlugin struct {
 	}
 }
 
-var _ noderesolver.Plugin = (*IIDResolverPlugin)(nil)
-
-// NewIIDResolverPlugin creates a new IIDResolverPlugin.
-func NewIIDResolverPlugin() *IIDResolverPlugin {
+// New creates a new IIDResolverPlugin.
+func New() *IIDResolverPlugin {
 	p := &IIDResolverPlugin{}
 	p.hooks.getenv = os.Getenv
 	p.hooks.newClient = newAWSClient
 	return p
+}
+
+func (p *IIDResolverPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 // Configure configures the IIDResolverPlugin
@@ -124,7 +138,7 @@ func (p *IIDResolverPlugin) Resolve(ctx context.Context, req *noderesolver.Resol
 func (p *IIDResolverPlugin) resolveSpiffeID(ctx context.Context, spiffeID string) (*common.Selectors, error) {
 	_, region, instanceID, err := parseAgentID(spiffeID)
 	if err != nil {
-		logrus.Warnf("unrecognized Agent ID: %s: %v", spiffeID, err)
+		p.log.Warn("Unrecognized agent ID", "agent_id", spiffeID)
 		return nil, nil
 	}
 

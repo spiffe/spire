@@ -16,10 +16,10 @@ import (
 	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/util"
@@ -62,7 +62,7 @@ func (s *EndpointsTestSuite) SetupTest() {
 	s.mockClock.Set(time.Now())
 
 	catalog := fakeservercatalog.New()
-	catalog.SetDataStores(s.ds)
+	catalog.SetDataStore(s.ds)
 
 	s.svidState = observer.NewProperty(svid.State{})
 	c := &Config{

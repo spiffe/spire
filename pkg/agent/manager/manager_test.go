@@ -275,7 +275,7 @@ func TestSVIDRotation(t *testing.T) {
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", baseTTLSeconds)
 
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(memory.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(memory.New()))
 
 	c := &Config{
 		Catalog:          cat,

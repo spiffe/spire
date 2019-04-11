@@ -4,9 +4,19 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/server/keymanager"
 )
+
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *KeyManager) catalog.Plugin {
+	return catalog.MakePlugin("memory", keymanager.PluginServer(p))
+}
 
 type KeyManager struct {
 	*base.Base

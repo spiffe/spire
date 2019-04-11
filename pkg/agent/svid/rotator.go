@@ -140,12 +140,8 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 }
 
 func (r *rotator) newKey(ctx context.Context) (*ecdsa.PrivateKey, error) {
-	mgrs := r.c.Catalog.KeyManagers()
-	if len(mgrs) > 1 {
-		return nil, errors.New("more than one key manager configured")
-	}
-
-	resp, err := mgrs[0].GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	km := r.c.Catalog.GetKeyManager()
+	resp, err := km.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("generate key pair: %v", err)
 	}
@@ -154,17 +150,14 @@ func (r *rotator) newKey(ctx context.Context) (*ecdsa.PrivateKey, error) {
 }
 
 func (r *rotator) storeKey(ctx context.Context, key *ecdsa.PrivateKey) error {
-	mgrs := r.c.Catalog.KeyManagers()
-	if len(mgrs) > 1 {
-		return errors.New("more than one key manager configured")
-	}
+	km := r.c.Catalog.GetKeyManager()
 
 	keyBytes, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
 		return err
 	}
 
-	if _, err := mgrs[0].StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
+	if _, err := km.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
 		r.c.Log.Errorf("could not store new agent key pair: %v", err)
 		r.c.Log.Warn("Error encountered while storing new agent key pair. Is your KeyManager plugin is up-to-date?")
 

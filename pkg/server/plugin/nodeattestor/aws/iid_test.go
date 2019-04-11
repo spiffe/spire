@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
+	"github.com/spiffe/spire/test/spiretest"
 
 	awssdk "github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
@@ -25,7 +26,6 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/stretchr/testify/suite"
 )
 
 const (
@@ -50,16 +50,16 @@ var (
 )
 
 func TestIIDAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(IIDAttestorSuite))
+	spiretest.Run(t, new(IIDAttestorSuite))
 }
 
 type IIDAttestorSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	// original plugin, for modifications on mock
 	plugin *IIDAttestorPlugin
 	// built-in for full callstack
-	p      *nodeattestor.BuiltIn
+	p      nodeattestor.Plugin
 	rsaKey *rsa.PrivateKey
 	env    map[string]string
 }
@@ -71,63 +71,63 @@ func (s *IIDAttestorSuite) SetupTest() {
 
 	s.env = make(map[string]string)
 
-	p := NewIIDPlugin()
+	p := New()
 	p.hooks.getEnv = func(key string) string {
 		return s.env[key]
 	}
 	s.plugin = p
-	s.p = nodeattestor.NewBuiltIn(p)
-
-	_, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: ``,
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.Require().NoError(err)
+	s.LoadPlugin(builtin(s.plugin), &s.p)
 }
 
 func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
-	p := nodeattestor.NewBuiltIn(NewIIDPlugin())
-	stream, err := p.Attest(context.Background())
-	defer stream.CloseSend()
-	resp, err := stream.Recv()
-	s.requireErrorContains(err, "not configured")
-	s.Require().Nil(resp)
+	_, err := s.attest(&nodeattestor.AttestRequest{})
+	s.RequireErrorContains(err, "not configured")
 }
 
 func (s *IIDAttestorSuite) TestErrorOnEmptyRequest() {
+	s.configure()
+
 	_, err := s.attest(&nodeattestor.AttestRequest{})
-	s.requireErrorContains(err, "request missing attestation data")
+	s.RequireErrorContains(err, "request missing attestation data")
 }
 
 func (s *IIDAttestorSuite) TestErrorOnInvalidType() {
+	s.configure()
+
 	_, err := s.attest(&nodeattestor.AttestRequest{
 		AttestationData: &nodeattestor.AttestationData{
 			Type: "foo",
 		},
 	})
-	s.requireErrorContains(err, `unexpected attestation data type "foo"`)
+	s.RequireErrorContains(err, `unexpected attestation data type "foo"`)
 }
 
 func (s *IIDAttestorSuite) TestErrorOnMissingData() {
+	s.configure()
+
 	data := &common.AttestationData{
 		Type: aws.PluginName,
 	}
 
 	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
-	s.requireErrorContains(err, "unexpected end of JSON input")
+	s.RequireErrorContains(err, "unexpected end of JSON input")
 }
 
 func (s *IIDAttestorSuite) TestErrorOnBadData() {
+	s.configure()
+
 	data := &common.AttestationData{
 		Type: aws.PluginName,
 		Data: make([]byte, 0),
 	}
 
 	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
-	s.requireErrorContains(err, "unexpected end of JSON input")
+	s.RequireErrorContains(err, "unexpected end of JSON input")
 }
 
 func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
+	s.configure()
+
 	data := &common.AttestationData{
 		Type: aws.PluginName,
 		Data: s.iidAttestationDataToBytes(*s.buildDefaultIIDAttestationData()),
@@ -137,10 +137,12 @@ func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
 		AttestationData: data,
 		AttestedBefore:  true,
 	})
-	s.requireErrorContains(err, "the IID has been used and is no longer valid")
+	s.RequireErrorContains(err, "the IID has been used and is no longer valid")
 }
 
 func (s *IIDAttestorSuite) TestErrorOnBadSignature() {
+	s.configure()
+
 	iid := s.buildDefaultIIDAttestationData()
 	iid.Signature = "bad sig"
 	data := &common.AttestationData{
@@ -151,10 +153,12 @@ func (s *IIDAttestorSuite) TestErrorOnBadSignature() {
 	_, err := s.attest(&nodeattestor.AttestRequest{
 		AttestationData: data,
 	})
-	s.requireErrorContains(err, "illegal base64 data at input byte")
+	s.RequireErrorContains(err, "illegal base64 data at input byte")
 }
 
 func (s *IIDAttestorSuite) TestErrorOnNoSignature() {
+	s.configure()
+
 	iid := s.buildDefaultIIDAttestationData()
 	iid.Signature = ""
 	data := &common.AttestationData{
@@ -165,7 +169,7 @@ func (s *IIDAttestorSuite) TestErrorOnNoSignature() {
 	_, err := s.attest(&nodeattestor.AttestRequest{
 		AttestationData: data,
 	})
-	s.requireErrorContains(err, "verifying the cryptographic signature")
+	s.RequireErrorContains(err, "verifying the cryptographic signature")
 }
 
 func (s *IIDAttestorSuite) TestClientAndIDReturns() {
@@ -303,7 +307,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 
 			if tt.expectErr != "" {
 				s.Nil(resp)
-				s.requireErrorContains(err, tt.expectErr)
+				s.RequireErrorContains(err, tt.expectErr)
 				return
 			}
 
@@ -320,7 +324,7 @@ agent_path_template = "{{ .InstanceID "
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.requireErrorContains(err, "failed to parse agent svid template")
+	s.RequireErrorContains(err, "failed to parse agent svid template")
 }
 
 func (s *IIDAttestorSuite) TestConfigure() {
@@ -331,20 +335,20 @@ func (s *IIDAttestorSuite) TestConfigure() {
 		Configuration: `trust_domain`,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.requireErrorContains(err, "expected start of object")
+	s.RequireErrorContains(err, "expected start of object")
 	require.Nil(resp)
 
 	// missing global configuration
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: ``})
-	s.requireErrorContains(err, "global configuration is required")
+	s.RequireErrorContains(err, "global configuration is required")
 	require.Nil(resp)
 
 	// missing trust domain
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: ``,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{}})
-	s.requireErrorContains(err, "trust_domain is required")
+	s.RequireErrorContains(err, "trust_domain is required")
 	require.Nil(resp)
 
 	// fails with access id but no secret
@@ -393,28 +397,12 @@ func (s *IIDAttestorSuite) TestGetPluginInfo() {
 	require.Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
-// Test helpers
-
-type recvFailStream struct {
-	nodeattestor.Attest_PluginStream
-}
-
-func (r *recvFailStream) Recv() (*nodeattestor.AttestRequest, error) {
-	return nil, errors.New("failed to recv from stream")
-}
-
-type sendFailStream struct {
-	nodeattestor.Attest_PluginStream
-
-	req *nodeattestor.AttestRequest
-}
-
-func (s *sendFailStream) Recv() (*nodeattestor.AttestRequest, error) {
-	return s.req, nil
-}
-
-func (s *sendFailStream) Send(*nodeattestor.AttestResponse) error {
-	return errors.New("failed to send to stream")
+func (s *IIDAttestorSuite) configure() {
+	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: ``,
+		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.Require().NoError(err)
 }
 
 // get a DescribeInstancesOutput with essential structs created, but no values
@@ -444,11 +432,6 @@ func (s *IIDAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattesto
 	err = stream.Send(req)
 	s.Require().NoError(err)
 	return stream.Recv()
-}
-
-func (s *IIDAttestorSuite) requireErrorContains(err error, substring string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), substring)
 }
 
 func (s *IIDAttestorSuite) buildIIDAttestationData(instanceID, accountID, region string) *aws.IIDAttestationData {

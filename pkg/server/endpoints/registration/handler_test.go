@@ -76,7 +76,7 @@ func (s *HandlerSuite) SetupTest() {
 	s.ds = fakedatastore.New()
 
 	catalog := fakeservercatalog.New()
-	catalog.SetDataStores(s.ds)
+	catalog.SetDataStore(s.ds)
 
 	handler := &Handler{
 		Log:         log,
@@ -879,7 +879,7 @@ func (s *HandlerSuite) createAttestedNode(spiffeID string) *common.AttestedNode 
 
 func (s *HandlerSuite) TestAuthorizeCall() {
 	catalog := fakeservercatalog.New()
-	catalog.SetDataStores(s.ds)
+	catalog.SetDataStore(s.ds)
 	log, _ := test.NewNullLogger()
 	handler := &Handler{Log: log, Catalog: catalog}
 

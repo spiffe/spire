@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/hashicorp/go-hclog"
 	"github.com/jinzhu/gorm"
-	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 )
@@ -16,14 +16,14 @@ const (
 	codeVersion = 8
 )
 
-func migrateDB(db *gorm.DB, dbType string) (err error) {
+func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 	isNew := !db.HasTable(&Bundle{})
 	if err := db.Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
 	if isNew {
-		return initDB(db, dbType)
+		return initDB(db, dbType, log)
 	}
 
 	if err := db.AutoMigrate(&Migration{}).Error; err != nil {
@@ -38,7 +38,7 @@ func migrateDB(db *gorm.DB, dbType string) (err error) {
 
 	if version > codeVersion {
 		err = sqlError.New("backwards migration not supported! (current=%d, code=%d)", version, codeVersion)
-		logrus.Error(err)
+		log.Error(err.Error())
 		return err
 	}
 
@@ -46,13 +46,13 @@ func migrateDB(db *gorm.DB, dbType string) (err error) {
 		return nil
 	}
 
-	logrus.Infof("running migrations...")
+	log.Info("running migrations...")
 	for version < codeVersion {
 		tx := db.Begin()
 		if err := tx.Error; err != nil {
 			return sqlError.Wrap(err)
 		}
-		version, err = migrateVersion(tx, version)
+		version, err = migrateVersion(tx, version, log)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -62,12 +62,12 @@ func migrateDB(db *gorm.DB, dbType string) (err error) {
 		}
 	}
 
-	logrus.Infof("done running migrations.")
+	log.Info("done running migrations.")
 	return nil
 }
 
-func initDB(db *gorm.DB, dbType string) (err error) {
-	logrus.Infof("initializing database.")
+func initDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
+	log.Info("initializing database.")
 	tx := db.Begin()
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)
@@ -111,8 +111,8 @@ func tableOptionsForDialect(tx *gorm.DB, dbType string) *gorm.DB {
 	return tx
 }
 
-func migrateVersion(tx *gorm.DB, version int) (versionOut int, err error) {
-	logrus.Infof("migrating from version %d", version)
+func migrateVersion(tx *gorm.DB, version int, log hclog.Logger) (versionOut int, err error) {
+	log.Info("migrating from version %d", version)
 
 	// When a new version is added an entry must be included here that knows
 	// how to bring the previous version up. The migrations are run

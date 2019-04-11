@@ -19,14 +19,13 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/api/workload"
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
+	"github.com/spiffe/spire/test/fakes/fakeworkloadattestor"
 	mock_manager "github.com/spiffe/spire/test/mock/agent/manager"
 	mock_cache "github.com/spiffe/spire/test/mock/agent/manager/cache"
 	mock_telemetry "github.com/spiffe/spire/test/mock/common/telemetry"
-	mock_workloadattestor "github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
 	mock_workload "github.com/spiffe/spire/test/mock/proto/api/workload"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
@@ -45,13 +44,17 @@ KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
 -----END PRIVATE KEY-----`)
 )
 
+func TestHandler(t *testing.T) {
+	suite.Run(t, new(HandlerTestSuite))
+}
+
 type HandlerTestSuite struct {
 	suite.Suite
 
 	h    *Handler
 	ctrl *gomock.Controller
 
-	attestor *mock_workloadattestor.MockWorkloadAttestor
+	attestor *fakeworkloadattestor.WorkloadAttestor
 	cache    *mock_cache.MockCache
 	manager  *mock_manager.MockManager
 	metrics  *mock_telemetry.MockMetrics
@@ -61,13 +64,13 @@ func (s *HandlerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
 	log, _ := test.NewNullLogger()
 
-	s.attestor = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
+	s.attestor = fakeworkloadattestor.New()
 	s.cache = mock_cache.NewMockCache(mockCtrl)
 	s.manager = mock_manager.NewMockManager(mockCtrl)
 	s.metrics = mock_telemetry.NewMockMetrics(mockCtrl)
 
 	catalog := fakeagentcatalog.New()
-	catalog.SetWorkloadAttestors(s.attestor)
+	catalog.SetWorkloadAttestors(fakeagentcatalog.WorkloadAttestor("fake", s.attestor))
 
 	h := &Handler{
 		Manager: s.manager,
@@ -78,10 +81,6 @@ func (s *HandlerTestSuite) SetupTest() {
 
 	s.h = h
 	s.ctrl = mockCtrl
-}
-
-func TestWorkloadServer(t *testing.T) {
-	suite.Run(t, new(HandlerTestSuite))
 }
 
 func (s *HandlerTestSuite) TearDownTest() {
@@ -111,7 +110,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	subscriber.EXPECT().Finish()
 	result := make(chan error, 1)
 	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor.SetSelectors(1, selectors)
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	stream.EXPECT().Send(gomock.Any())
 
@@ -241,7 +240,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 
 	// no identity issued
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor.SetSelectors(1, selectors)
 	s.manager.EXPECT().MatchingEntries(selectors).Return(nil)
 
 	selectorsLabels := selectorsToLabels(selectors)
@@ -272,7 +271,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 			},
 		},
 	}
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor.SetSelectors(1, selectors)
 	s.manager.EXPECT().MatchingEntries(selectors).Return(entries)
 	ONE := &client.JWTSVID{Token: "ONE"}
 	TWO := &client.JWTSVID{Token: "TWO"}
@@ -320,7 +319,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	}, resp)
 
 	// fetch SVIDs for specific SPIFFE ID
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor.SetSelectors(1, selectors)
 	s.manager.EXPECT().MatchingEntries(selectors).Return(entries)
 	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
 
@@ -356,7 +355,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 }
 
 func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsLabels []telemetry.Label, pid int32) {
-	attestorLabels := []telemetry.Label{{"attestor_name", "fake_workloadattestor_1"}}
+	attestorLabels := []telemetry.Label{{"attestor_name", "fake"}}
 
 	metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "workload_attestor_latency"}, gomock.Any(), attestorLabels)
 	metrics.EXPECT().AddSample([]string{workloadApi, "discovered_selectors"}, float32(len(selectorsLabels)))
@@ -390,7 +389,7 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	subscriber.EXPECT().Finish()
 	result := make(chan error, 1)
 	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor.SetSelectors(1, selectors)
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	stream.EXPECT().Send(&workload.JWTBundlesResponse{
 		Bundles: map[string][]byte{
@@ -509,7 +508,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 
 	// set up attestation
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil).AnyTimes()
+	s.attestor.SetSelectors(1, selectors)
 
 	// token validation failed
 	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{})

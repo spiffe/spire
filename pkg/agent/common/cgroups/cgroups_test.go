@@ -34,7 +34,7 @@ func TestCgroups(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
-	mockFileSystem := filesystem_mock.NewMockfileSystem(mockCtrl)
+	mockFileSystem := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockFileSystem.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgSimple))
 
 	cgroups, err := GetCgroups(123, mockFileSystem)
@@ -47,7 +47,7 @@ func TestCgroupsBadFormat(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
-	mockFileSystem := filesystem_mock.NewMockfileSystem(mockCtrl)
+	mockFileSystem := filesystem_mock.NewMockFileSystem(mockCtrl)
 	mockFileSystem.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgBadFormat))
 
 	cgroups, err := GetCgroups(123, mockFileSystem)

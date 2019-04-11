@@ -1,5 +1,7 @@
 github.com/AlekSi/gocoverutil v0.2.0 h1:lpfoGyib/qbTh7PajsBL6Upv3Fnn2o3A6Mn0naFR0E8=
 github.com/AlekSi/gocoverutil v0.2.0/go.mod h1:/SQ8potkEzPK7N0+EyZi8sPtf/nK3BnHjw7tVmlDdUs=
+github.com/golang/mock v1.2.0 h1:28o5sBqPkBsMGnC6b4MvE2TzSr5/AT4c/1fLqVGIwlk=
+github.com/golang/mock v1.2.0/go.mod h1:oTYuIxOrZwtPieC+H1uAHpcLFnEyAGVDL/k47Jfbm0A=
 github.com/golang/protobuf v1.3.0 h1:kbxbvI4Un1LUWKxufD+BiE6AEExYYgkQLQmLFqA1LFk=
 github.com/golang/protobuf v1.3.0/go.mod h1:Qd/q+1AKNOZr9uGQzbzCmRO6sUih6GTPZv6a1/R87v0=
 github.com/google/uuid v1.0.0 h1:b4Gk+7WdP/d3HZH8EJsZpvV7EtDOgaZLtnaNGIu1adA=
