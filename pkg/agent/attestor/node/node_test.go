@@ -230,7 +230,7 @@ func (s *NodeAttestorTestSuite) setCatalog(usesNodeAttestor bool) {
 	if usesNodeAttestor {
 		s.catalog.SetNodeAttestor(fakeagentcatalog.NodeAttestor("fake", s.nodeAttestor))
 	}
-	s.catalog.SetKeyManager(s.keyManager)
+	s.catalog.SetKeyManager(fakeagentcatalog.KeyManager(s.keyManager))
 }
 
 func (s *NodeAttestorTestSuite) setAttestResponse(challenges []challengeResponse) {

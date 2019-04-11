@@ -15,7 +15,7 @@ func New() *Catalog {
 	return &Catalog{}
 }
 
-func (c *Catalog) SetKeyManager(keyManager keymanager.KeyManager) {
+func (c *Catalog) SetKeyManager(keyManager catalog.KeyManager) {
 	c.KeyManager = keyManager
 }
 
@@ -25,6 +25,12 @@ func (c *Catalog) SetNodeAttestor(nodeAttestor catalog.NodeAttestor) {
 
 func (c *Catalog) SetWorkloadAttestors(workloadAttestors ...catalog.WorkloadAttestor) {
 	c.WorkloadAttestors = workloadAttestors
+}
+
+func KeyManager(keyManager keymanager.KeyManager) catalog.KeyManager {
+	return catalog.KeyManager{
+		KeyManager: keyManager,
+	}
 }
 
 func NodeAttestor(name string, nodeAttestor nodeattestor.NodeAttestor) catalog.NodeAttestor {

@@ -23,7 +23,7 @@ import (
 )
 
 type Catalog interface {
-	GetKeyManager() keymanager.KeyManager
+	GetKeyManager() KeyManager
 	GetNodeAttestor() NodeAttestor
 	GetWorkloadAttestors() []WorkloadAttestor
 }
@@ -66,6 +66,10 @@ func BuiltIns() []catalog.Plugin {
 	}
 }
 
+type KeyManager struct {
+	keymanager.KeyManager
+}
+
 type NodeAttestor struct {
 	catalog.PluginInfo
 	nodeattestor.NodeAttestor
@@ -77,14 +81,14 @@ type WorkloadAttestor struct {
 }
 
 type Plugins struct {
-	KeyManager        keymanager.KeyManager
+	KeyManager        KeyManager
 	NodeAttestor      NodeAttestor
 	WorkloadAttestors []WorkloadAttestor `catalog:"min=1"`
 }
 
 var _ Catalog = (*Plugins)(nil)
 
-func (p *Plugins) GetKeyManager() keymanager.KeyManager {
+func (p *Plugins) GetKeyManager() KeyManager {
 	return p.KeyManager
 }
 

@@ -52,7 +52,7 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.bundle = observer.NewProperty(b)
 
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(memory.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(memory.New()))
 
 	s.mockClock = clock.NewMock(s.T())
 	s.mockClock.Set(time.Now())

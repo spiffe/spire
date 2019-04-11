@@ -26,9 +26,6 @@ type HCLPluginConfig struct {
 	PluginChecksum string   `hcl:"plugin_checksum"`
 	PluginData     ast.Node `hcl:"plugin_data"`
 	Enabled        *bool    `hcl:"enabled"`
-
-	// Deprecated fields
-	DEPRECATEDVersion string `hcl:"version"`
 }
 
 func (c HCLPluginConfig) IsEnabled() bool {
