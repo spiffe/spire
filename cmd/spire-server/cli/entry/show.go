@@ -7,6 +7,7 @@ import (
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/api/registration"
 	"github.com/spiffe/spire/proto/common"
 
@@ -127,6 +128,7 @@ func (s *ShowCLI) Run(args []string) int {
 		return 1
 	}
 
+	commonutil.SortRegistrationEntries(s.Entries)
 	s.filterEntries()
 	s.printEntries()
 	return 0
