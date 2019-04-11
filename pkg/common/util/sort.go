@@ -1,7 +1,6 @@
 package util
 
 import (
-	"reflect"
 	"sort"
 	"strings"
 
@@ -20,7 +19,7 @@ func DedupRegistrationEntries(entries []*common.RegistrationEntry) []*common.Reg
 	deduped := make([]*common.RegistrationEntry, 0, len(entries))
 	deduped = append(deduped, entries[0])
 	for _, entry := range entries[1:] {
-		if !reflect.DeepEqual(deduped[len(deduped)-1], entry) {
+		if compareRegistrationEntries(deduped[len(deduped)-1], entry) != 0 {
 			deduped = append(deduped, entry)
 		}
 	}
@@ -62,13 +61,6 @@ func compareRegistrationEntries(a, b *common.RegistrationEntry) int {
 	case a.Ttl < b.Ttl:
 		return -1
 	case a.Ttl > b.Ttl:
-		return 1
-	}
-
-	switch {
-	case len(a.Selectors) < len(b.Selectors):
-		return -1
-	case len(a.Selectors) > len(b.Selectors):
 		return 1
 	}
 
