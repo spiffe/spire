@@ -14,7 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/agent/keymanager"
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
@@ -193,14 +192,6 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 	state := stream.Next().(State)
 	s.Require().Len(state.SVID, 1)
 	s.Assert().True(cert.Equal(state.SVID[0]))
-
-	// keymanager data matches state
-	km := s.r.c.Catalog.GetKeyManager()
-	kresp, err := km.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
-	s.Require().NoError(err)
-	storedKey, err := x509.ParseECPrivateKey(kresp.PrivateKey)
-	s.Require().NoError(err)
-	s.Assert().Equal(state.Key, storedKey)
 }
 
 // expectSVIDRotation sets the appropriate expectations for an SVID rotation, and returns
