@@ -36,9 +36,9 @@ const (
 // RunConfig represents the available configurables for file
 // and CLI options
 type runConfig struct {
-	AgentConfig   agentRunConfig          `hcl:"agent"`
-	PluginConfigs catalog.PluginConfigMap `hcl:"plugins"`
-	Telemetry     telemetry.FileConfig    `hcl:"telemetry"`
+	AgentConfig   agentRunConfig             `hcl:"agent"`
+	PluginConfigs catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry     telemetry.FileConfig       `hcl:"telemetry"`
 }
 
 type agentRunConfig struct {

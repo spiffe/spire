@@ -1,174 +1,85 @@
+// Provides interfaces and adapters for the NodeAttestor service
+//
+// Generated code. Do not modify by hand.
 package nodeattestor
 
 import (
 	"context"
-	"net/rpc"
 
-	"github.com/golang/protobuf/ptypes/empty"
-	go_plugin "github.com/hashicorp/go-plugin"
-	"github.com/spiffe/spire/proto/builtin"
-	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	spi "github.com/spiffe/spire/proto/common/plugin"
 	"google.golang.org/grpc"
 )
 
-// NodeAttestor is the interface used by all non-catalog components.
+const (
+	Type = "NodeAttestor"
+)
+
+// NodeAttestor is the client interface for the service type NodeAttestor interface.
 type NodeAttestor interface {
-	Attest(context.Context) (Attest_Stream, error)
+	Attest(context.Context) (NodeAttestor_AttestClient, error)
 }
 
-// Plugin is the interface implemented by plugin implementations
+// Plugin is the client interface for the service with the plugin related methods used by the catalog to initialize the plugin.
 type Plugin interface {
-	Attest(Attest_PluginStream) error
-	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
-	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
+	Attest(context.Context) (NodeAttestor_AttestClient, error)
+	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
 }
 
-type Attest_Stream interface {
-	Context() context.Context
-	Send(*AttestRequest) error
-	Recv() (*AttestResponse, error)
-	CloseSend() error
-}
-
-type attest_Stream struct {
-	stream builtin.BidiStreamClient
-}
-
-func (s attest_Stream) Context() context.Context {
-	return s.stream.Context()
-}
-
-func (s attest_Stream) Send(m *AttestRequest) error {
-	return s.stream.Send(m)
-}
-
-func (s attest_Stream) Recv() (*AttestResponse, error) {
-	m, err := s.stream.Recv()
-	if err != nil {
-		return nil, err
-	}
-	return m.(*AttestResponse), nil
-}
-
-func (s attest_Stream) CloseSend() error {
-	return s.stream.CloseSend()
-}
-
-type Attest_PluginStream interface {
-	Context() context.Context
-	Send(*AttestResponse) error
-	Recv() (*AttestRequest, error)
-}
-
-type attest_PluginStream struct {
-	stream builtin.BidiStreamServer
-}
-
-func (s attest_PluginStream) Context() context.Context {
-	return s.stream.Context()
-}
-
-func (s attest_PluginStream) Send(m *AttestResponse) error {
-	return s.stream.Send(m)
-}
-
-func (s attest_PluginStream) Recv() (*AttestRequest, error) {
-	m, err := s.stream.Recv()
-	if err != nil {
-		return nil, err
-	}
-	return m.(*AttestRequest), nil
-}
-
-type BuiltIn struct {
-	plugin Plugin
-}
-
-var _ NodeAttestor = (*BuiltIn)(nil)
-
-func NewBuiltIn(plugin Plugin) *BuiltIn {
-	return &BuiltIn{
-		plugin: plugin,
+// PluginServer returns a catalog PluginServer implementation for the NodeAttestor plugin.
+func PluginServer(server NodeAttestorServer) catalog.PluginServer {
+	return &pluginServer{
+		server: server,
 	}
 }
 
-func (b BuiltIn) Attest(ctx context.Context) (Attest_Stream, error) {
-	clientStream, serverStream := builtin.BidiStreamPipe(ctx)
-	go func() {
-		serverStream.Close(b.plugin.Attest(attest_PluginStream{stream: serverStream}))
-	}()
-	return attest_Stream{stream: clientStream}, nil
+type pluginServer struct {
+	server NodeAttestorServer
 }
 
-func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	resp, err := b.plugin.Configure(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
+func (s pluginServer) PluginType() string {
+	return Type
 }
 
-func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	resp, err := b.plugin.GetPluginInfo(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
+func (s pluginServer) PluginClient() catalog.PluginClient {
+	return PluginClient
 }
 
-var Handshake = go_plugin.HandshakeConfig{
-	ProtocolVersion:  1,
-	MagicCookieKey:   "NodeAttestor",
-	MagicCookieValue: "NodeAttestor",
+func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
+	RegisterNodeAttestorServer(server, s.server)
+	return s.server
 }
 
-type GRPCPlugin struct {
-	ServerImpl NodeAttestorServer
+// PluginClient is a catalog PluginClient implementation for the NodeAttestor plugin.
+var PluginClient catalog.PluginClient = pluginClient{}
+
+type pluginClient struct{}
+
+func (pluginClient) PluginType() string {
+	return Type
 }
 
-var _ go_plugin.GRPCPlugin = (*GRPCPlugin)(nil)
-
-func (p GRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
-	return empty.Empty{}, nil
+func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+	return AdaptPluginClient(NewNodeAttestorClient(conn))
 }
 
-func (p GRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
-	return empty.Empty{}, nil
+func AdaptPluginClient(client NodeAttestorClient) NodeAttestor {
+	return pluginClientAdapter{client: client}
 }
 
-func (p GRPCPlugin) GRPCServer(b *go_plugin.GRPCBroker, s *grpc.Server) error {
-	RegisterNodeAttestorServer(s, p.ServerImpl)
-	return nil
-}
-
-func (p GRPCPlugin) GRPCClient(ctx context.Context, b *go_plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: NewNodeAttestorClient(c)}, nil
-}
-
-type GRPCServer struct {
-	Plugin Plugin
-}
-
-func (s *GRPCServer) Attest(stream NodeAttestor_AttestServer) error {
-	return s.Plugin.Attest(stream)
-}
-func (s *GRPCServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return s.Plugin.Configure(ctx, req)
-}
-func (s *GRPCServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return s.Plugin.GetPluginInfo(ctx, req)
-}
-
-type GRPCClient struct {
+type pluginClientAdapter struct {
 	client NodeAttestorClient
 }
 
-func (c *GRPCClient) Attest(ctx context.Context) (Attest_Stream, error) {
-	return c.client.Attest(ctx)
+func (a pluginClientAdapter) Attest(ctx context.Context) (NodeAttestor_AttestClient, error) {
+	return a.client.Attest(ctx)
 }
-func (c *GRPCClient) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return c.client.Configure(ctx, req)
+
+func (a pluginClientAdapter) Configure(ctx context.Context, in *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	return a.client.Configure(ctx, in)
 }
-func (c *GRPCClient) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return c.client.GetPluginInfo(ctx, req)
+
+func (a pluginClientAdapter) GetPluginInfo(ctx context.Context, in *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return a.client.GetPluginInfo(ctx, in)
 }

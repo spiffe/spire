@@ -10,32 +10,33 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/server/keymanager"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 var (
 	ctx = context.Background()
 )
 
-type Maker func(t *testing.T) keymanager.Plugin
+type Maker func(t *testing.T) catalog.Plugin
 
 // the maker function is called. the returned key manager is expected to be
 // already configured.
 func Run(t *testing.T, maker Maker) {
-	suite.Run(t, &baseSuite{maker: maker})
+	spiretest.Run(t, &baseSuite{maker: maker})
 }
 
 type baseSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	maker Maker
-	m     *keymanager.BuiltIn
+	m     keymanager.Plugin
 }
 
 func (s *baseSuite) SetupTest() {
-	s.m = keymanager.NewBuiltIn(s.maker(s.T()))
+	s.LoadPlugin(s.maker(s.T()), &s.m)
 }
 
 func (s *baseSuite) TestGenerateKeyMissingKeyId() {

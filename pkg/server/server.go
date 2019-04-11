@@ -41,7 +41,7 @@ const (
 
 type Config struct {
 	// Configurations for server plugins
-	PluginConfigs common.PluginConfigMap
+	PluginConfigs common.HCLPluginConfigMap
 
 	Log logrus.FieldLogger
 
@@ -95,12 +95,6 @@ func New(config Config) *Server {
 	}
 }
 
-func (c *Config) GlobalConfig() *common.GlobalConfig {
-	return &common.GlobalConfig{
-		TrustDomain: c.TrustDomain.Host,
-	}
-}
-
 // Run the server
 // This method initializes the server, including its plugins,
 // and then blocks until it's shut down or an error is encountered.
@@ -133,15 +127,15 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	cat := s.newCatalog()
-	defer cat.Stop()
-
-	if err := cat.Run(ctx); err != nil {
+	cat, err := s.loadCatalog(ctx)
+	if err != nil {
 		return err
 	}
+	defer cat.Close()
+
 	s.config.Log.Info("plugins started")
 
-	err = s.validateTrustDomain(ctx, cat.DataStores()[0])
+	err = s.validateTrustDomain(ctx, cat.GetDataStore())
 	if err != nil {
 		return err
 	}
@@ -228,11 +222,13 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) newCatalog() *catalog.ServerCatalog {
-	return catalog.New(&catalog.Config{
-		GlobalConfig:  s.config.GlobalConfig(),
-		PluginConfigs: s.config.PluginConfigs,
-		Log:           s.config.Log.WithField("subsystem_name", "catalog"),
+func (s *Server) loadCatalog(ctx context.Context) (*catalog.CatalogCloser, error) {
+	return catalog.Load(ctx, catalog.Config{
+		Log: s.config.Log.WithField("subsystem_name", "catalog"),
+		GlobalConfig: catalog.GlobalConfig{
+			TrustDomain: s.config.TrustDomain.Host,
+		},
+		PluginConfig: s.config.PluginConfigs,
 	})
 }
 

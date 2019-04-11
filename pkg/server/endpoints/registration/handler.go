@@ -557,9 +557,9 @@ func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.Evi
 
 //ListAgents returns the list of attested nodes
 func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgentsRequest) (*registration.ListAgentsResponse, error) {
-	dataStore := h.Catalog.DataStores()[0]
+	ds := h.Catalog.GetDataStore()
 	req := &datastore.ListAttestedNodesRequest{}
-	resp, err := dataStore.ListAttestedNodes(ctx, req)
+	resp, err := ds.ListAttestedNodes(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -571,12 +571,12 @@ func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*comm
 		return nil, errors.New("empty agent ID")
 	}
 
-	dataStore := h.Catalog.DataStores()[0]
+	ds := h.Catalog.GetDataStore()
 	req := &datastore.DeleteAttestedNodeRequest{
 		SpiffeId: agentID,
 	}
 
-	resp, err := dataStore.DeleteAttestedNode(ctx, req)
+	resp, err := ds.DeleteAttestedNode(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -612,7 +612,7 @@ func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, ent
 }
 
 func (h *Handler) getDataStore() datastore.DataStore {
-	return h.Catalog.DataStores()[0]
+	return h.Catalog.GetDataStore()
 }
 
 func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
@@ -653,7 +653,7 @@ func (h *Handler) startCall(ctx context.Context, key string, keyn ...string) (*t
 
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
 	// For the time being, authorization is not per-method. In other words, all or nothing.
-	callerID, err := authorizeCaller(ctx, h.Catalog.DataStores()[0])
+	callerID, err := authorizeCaller(ctx, h.getDataStore())
 	if err != nil {
 		return nil, err
 	}

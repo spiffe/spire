@@ -13,17 +13,15 @@ import (
 	"github.com/spiffe/spire/proto/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	mock_upstreamca "github.com/spiffe/spire/test/mock/proto/server/upstreamca"
-	mock_catalog "github.com/spiffe/spire/test/mock/server/catalog"
 	"github.com/stretchr/testify/suite"
 )
 
 type ServerTestSuite struct {
 	suite.Suite
-	server  *Server
-	catalog *mock_catalog.MockCatalog
-	upsCa   *mock_upstreamca.MockUpstreamCA
-	ds      *fakedatastore.DataStore
-	stdout  *bytes.Buffer
+	server *Server
+	upsCa  *mock_upstreamca.MockUpstreamCA
+	ds     *fakedatastore.DataStore
+	stdout *bytes.Buffer
 
 	mockCtrl *gomock.Controller
 }
@@ -31,7 +29,6 @@ type ServerTestSuite struct {
 func (suite *ServerTestSuite) SetupTest() {
 	suite.mockCtrl = gomock.NewController(suite.T())
 
-	suite.catalog = mock_catalog.NewMockCatalog(suite.mockCtrl)
 	suite.ds = fakedatastore.New()
 	suite.upsCa = mock_upstreamca.NewMockUpstreamCA(suite.mockCtrl)
 

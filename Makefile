@@ -28,10 +28,11 @@ ifneq ($(gitdirty),)
 endif
 ldflags := '-X github.com/spiffe/spire/pkg/common/version.gittag=$(gittag)'
 
-utils = github.com/spiffe/spire/tools/protoc-gen-spireplugin
+utils = github.com/spiffe/spire/tools/spire-plugingen
 
 external_utils = github.com/golang/protobuf/protoc-gen-go \
 		github.com/jteeuwen/go-bindata/go-bindata \
+		github.com/golang/mock/mockgen \
 		github.com/AlekSi/gocoverutil \
 		github.com/mattn/goveralls
 

@@ -17,7 +17,7 @@ import (
 	"github.com/spiffe/spire/proto/api/node"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
-	"github.com/spiffe/spire/test/mock/agent/client"
+	mock_client "github.com/spiffe/spire/test/mock/agent/client"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
 	tomb "gopkg.in/tomb.v2"
@@ -51,7 +51,7 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.bundle = observer.NewProperty(b)
 
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(memory.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(memory.New()))
 
 	s.mockClock = clock.NewMock(s.T())
 	s.mockClock.Set(time.Now())

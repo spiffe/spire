@@ -1,0 +1,29 @@
+syntax = "proto3";
+package test;
+option go_package = "test";
+
+import "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
+
+message Request {
+    string in = 1;
+}
+
+message Response {
+    string out = 1;
+}
+
+// TestPlugin is a toy plugin interface for testing
+service TestPlugin {
+    rpc CallPlugin(Request) returns (Response);
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+}
+
+// BarService is a toy plugin interface for testing
+service TestService {
+    rpc CallService(Request) returns (Response);
+}
+
+// BazHostService is a toy host service interface for testing
+service TestHostService {
+    rpc CallHostService(Request) returns (Response);
+}

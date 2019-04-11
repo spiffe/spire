@@ -13,24 +13,43 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
-const keyFileName = "svid.key"
+const (
+	pluginName = "disk"
+
+	keyFileName = "svid.key"
+)
+
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *DiskPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName, keymanager.PluginServer(p))
+}
 
 type pluginConfig struct {
 	Directory string `hcl:"directory" json:"directory"`
 }
 
-type diskPlugin struct {
+type DiskPlugin struct {
 	mtx *sync.RWMutex
 	dir string
 }
 
-func (d *diskPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
+func New() *DiskPlugin {
+	return &DiskPlugin{
+		mtx: new(sync.RWMutex),
+	}
+}
+
+func (d *DiskPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
@@ -50,7 +69,7 @@ func (d *diskPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPai
 	return resp, nil
 }
 
-func (d *diskPlugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
+func (d *DiskPlugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
@@ -66,7 +85,7 @@ func (d *diskPlugin) StorePrivateKey(ctx context.Context, req *keymanager.StoreP
 	return &keymanager.StorePrivateKeyResponse{}, nil
 }
 
-func (d *diskPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
+func (d *DiskPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
 	// Start with empty response
 	resp := &keymanager.FetchPrivateKeyResponse{PrivateKey: []byte{}}
 
@@ -92,7 +111,7 @@ func (d *diskPlugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKe
 	return resp, nil
 }
 
-func (d *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (d *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config := &pluginConfig{}
 	hclTree, err := hcl.Parse(req.Configuration)
 	if err != nil {
@@ -109,12 +128,6 @@ func (d *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (d *diskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (d *DiskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
-}
-
-func New() *diskPlugin {
-	return &diskPlugin{
-		mtx: new(sync.RWMutex),
-	}
 }

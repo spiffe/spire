@@ -239,7 +239,7 @@ func (m *manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 
 func (m *manager) pruneBundle(ctx context.Context) (err error) {
 	defer telemetry.CountCall(m.c.Metrics, "manager", "bundle", "prune")(&err)
-	ds := m.c.Catalog.DataStores()[0]
+	ds := m.c.Catalog.GetDataStore()
 
 	now := m.hooks.now().Add(-safetyThreshold)
 
@@ -320,7 +320,7 @@ func (m *manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 		})
 	}
 
-	ds := m.c.Catalog.DataStores()[0]
+	ds := m.c.Catalog.GetDataStore()
 	if _, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: &common.Bundle{
 			TrustDomainId: m.c.TrustDomain.String(),
@@ -345,7 +345,7 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err e
 	notBefore := now.Add(-backdate)
 	notAfter := now.Add(m.c.CATTL)
 
-	km := m.c.Catalog.KeyManagers()[0]
+	km := m.c.Catalog.GetKeyManager()
 	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, kps.X509CAKeyID(), keymanager.KeyType_EC_P384)
 	if err != nil {
 		return err
@@ -354,8 +354,8 @@ func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err e
 	// either self-sign or sign with the upstream CA
 	var certChainWithRoot []*x509.Certificate
 	var trustBundle []*x509.Certificate
-	if upstreamCAs := m.c.Catalog.UpstreamCAs(); len(upstreamCAs) > 0 {
-		certChain, upstreamBundle, err := UpstreamSignServerCACertificate(ctx, upstreamCAs[0], x509CASigner, m.c.TrustDomain.Host, m.c.CASubject)
+	if upstreamCA, ok := m.c.Catalog.GetUpstreamCA(); ok {
+		certChain, upstreamBundle, err := UpstreamSignServerCACertificate(ctx, upstreamCA, x509CASigner, m.c.TrustDomain.Host, m.c.CASubject)
 		if err != nil {
 			return err
 		}
@@ -422,13 +422,13 @@ func (m *manager) loadKeypairSets(ctx context.Context) error {
 		return nil
 	}
 
-	km := m.c.Catalog.KeyManagers()[0]
+	km := m.c.Catalog.GetKeyManager()
 	keys, err := loadKeyManagerKeys(ctx, km)
 	if err != nil {
 		return err
 	}
 
-	ds := m.c.Catalog.DataStores()[0]
+	ds := m.c.Catalog.GetDataStore()
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: m.c.TrustDomain.String(),
 	})

@@ -136,12 +136,8 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 }
 
 func (r *rotator) newKey(ctx context.Context) (*ecdsa.PrivateKey, error) {
-	mgrs := r.c.Catalog.KeyManagers()
-	if len(mgrs) > 1 {
-		return nil, errors.New("more than one key manager configured")
-	}
-
-	resp, err := mgrs[0].GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	km := r.c.Catalog.GetKeyManager()
+	resp, err := km.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("generate key pair: %v", err)
 	}

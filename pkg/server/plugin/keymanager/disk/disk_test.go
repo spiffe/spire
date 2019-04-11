@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/proto/common/plugin"
@@ -63,7 +64,7 @@ func (s *Suite) keysPath() string {
 }
 
 func (s *Suite) TestGeneralFunctionality() {
-	test.Run(s.T(), func(t *testing.T) keymanager.Plugin {
+	test.Run(s.T(), func(t *testing.T) catalog.Plugin {
 		caseDir, err := ioutil.TempDir(s.tmpDir, "testcase-")
 		require.NoError(t, err)
 
@@ -73,7 +74,7 @@ func (s *Suite) TestGeneralFunctionality() {
 		})
 		require.NoError(t, err)
 		require.Equal(t, &plugin.ConfigureResponse{}, resp)
-		return m
+		return builtin(m)
 	})
 }
 
