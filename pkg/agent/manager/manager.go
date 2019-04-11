@@ -233,17 +233,13 @@ func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
 }
 
 func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) error {
-	mgrs := m.c.Catalog.KeyManagers()
-	if len(mgrs) > 1 {
-		return errors.New("more than one key manager configured")
-	}
-
+	km := m.c.Catalog.GetKeyManager()
 	keyBytes, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
 		return err
 	}
 
-	if _, err := mgrs[0].StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
+	if _, err := km.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
 		m.c.Log.Errorf("could not store new agent key pair: %v", err)
 		m.c.Log.Warn("Error encountered while storing new agent key pair. Is your KeyManager plugin is up-to-date?")
 

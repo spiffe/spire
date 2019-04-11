@@ -59,7 +59,7 @@ func TestInitializationFailure(t *testing.T) {
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(memory.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(memory.New()))
 
 	c := &Config{
 		SVID:        baseSVID,
@@ -89,7 +89,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(disk.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -141,7 +141,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	ca, cakey := createCA(t, clk, trustDomain)
 	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, "spiffe://"+trustDomain+"/agent", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(disk.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -192,7 +192,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 	cat := fakeagentcatalog.New()
 	diskPlugin := disk.New()
 	diskPlugin.Configure(context.Background(), &plugin.ConfigureRequest{Configuration: fmt.Sprintf("directory = \"%s\"", dir)})
-	cat.SetKeyManagers(diskPlugin)
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(diskPlugin))
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -206,8 +206,8 @@ func TestStoreKeyOnStartup(t *testing.T) {
 		Catalog:         cat,
 	}
 
-	mgr := c.Catalog.KeyManagers()[0]
-	kresp, err := mgr.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
+	km := cat.GetKeyManager()
+	kresp, err := km.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
 	if err != nil {
 		t.Fatalf("No error expected but got: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 
 	// Althought start failed, the SVID key should have been saved, because it should be
 	// one of the first thing the manager does at initialization.
-	kresp, err = mgr.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
+	kresp, err = km.FetchPrivateKey(context.Background(), &keymanager.FetchPrivateKeyRequest{})
 	if err != nil {
 		t.Fatalf("No error expected but got: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(disk.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
 
 	c := &Config{
 		ServerAddr:      l.Addr().String(),
@@ -431,7 +431,7 @@ func TestSynchronization(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(disk.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
 
 	c := &Config{
 		ServerAddr:       l.Addr().String(),
@@ -574,7 +574,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(disk.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
 
 	c := &Config{
 		ServerAddr:      l.Addr().String(),
@@ -636,7 +636,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(disk.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
 
 	c := &Config{
 		ServerAddr:      l.Addr().String(),
@@ -697,7 +697,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(disk.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
 
 	c := &Config{
 		ServerAddr:       l.Addr().String(),
@@ -759,7 +759,7 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	baseSVID, baseSVIDKey := apiHandler.newSVID("spiffe://"+trustDomain+"/spire/agent/join_token/abcd", 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManagers(disk.New())
+	cat.SetKeyManager(fakeagentcatalog.KeyManager(disk.New()))
 
 	ttlSeconds := time.Duration(ttl) * time.Second
 	syncInterval := ttlSeconds / 2
