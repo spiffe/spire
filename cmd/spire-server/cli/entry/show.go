@@ -83,48 +83,8 @@ func (s *ShowCLI) Run(args []string) int {
 		}
 	}
 
-	// If an Entry ID was specified, look it up directly then exit
-	if s.Config.EntryID != "" {
-		err = s.fetchByEntryID(ctx, s.Config.EntryID)
-		if err != nil {
-			fmt.Printf("Error fetching entry ID %s: %s\n", s.Config.EntryID, err)
-			return 1
-		}
-
-		s.printEntries()
-		return 0
-	}
-
-	// If we didn't get any args, fetch everything then exit
-	if s.Config.ParentID == "" && s.Config.SpiffeID == "" && len(s.Config.Selectors) == 0 {
-		err = s.fetchAllEntries(ctx)
-		if err != nil {
-			fmt.Printf("Error fetching entries: %s\n", err)
-			return 1
-		}
-
-		s.filterEntries()
-		s.printEntries()
-		return 0
-	}
-
-	// Fetch all records matching each constraint, then find and
-	// print the intersection at the end.
-	err = s.fetchByParentID(ctx)
+	err = s.fetchEntries(ctx)
 	if err != nil {
-		fmt.Printf("Error fetching by parent ID: %s", err)
-		return 1
-	}
-
-	err = s.fetchBySpiffeID(ctx)
-	if err != nil {
-		fmt.Printf("Error fetching by SPIFFE ID: %s", err)
-		return 1
-	}
-
-	err = s.fetchBySelectors(ctx)
-	if err != nil {
-		fmt.Printf("Error fetching by selectors: %s", err)
 		return 1
 	}
 
@@ -132,6 +92,50 @@ func (s *ShowCLI) Run(args []string) int {
 	s.filterEntries()
 	s.printEntries()
 	return 0
+}
+
+func (s *ShowCLI) fetchEntries(ctx context.Context) error {
+	// If an Entry ID was specified, look it up directly
+	if s.Config.EntryID != "" {
+		err := s.fetchByEntryID(ctx, s.Config.EntryID)
+		if err != nil {
+			fmt.Printf("Error fetching entry ID %s: %s\n", s.Config.EntryID, err)
+			return err
+		}
+		return nil
+	}
+
+	// If we didn't get any args, fetch everything
+	if s.Config.ParentID == "" && s.Config.SpiffeID == "" && len(s.Config.Selectors) == 0 {
+		err := s.fetchAllEntries(ctx)
+		if err != nil {
+			fmt.Printf("Error fetching entries: %s\n", err)
+			return err
+		}
+
+		return nil
+	}
+
+	// Otherwise, fetch all records matching each constraint
+	err := s.fetchByParentID(ctx)
+	if err != nil {
+		fmt.Printf("Error fetching by parent ID: %s", err)
+		return err
+	}
+
+	err = s.fetchBySpiffeID(ctx)
+	if err != nil {
+		fmt.Printf("Error fetching by SPIFFE ID: %s", err)
+		return err
+	}
+
+	err = s.fetchBySelectors(ctx)
+	if err != nil {
+		fmt.Printf("Error fetching by selectors: %s", err)
+		return err
+	}
+
+	return nil
 }
 
 func (s *ShowCLI) fetchAllEntries(ctx context.Context) error {
