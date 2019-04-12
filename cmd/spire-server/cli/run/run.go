@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
 )
@@ -30,8 +31,9 @@ const (
 
 // runConfig represents available configurables for file and CLI options
 type runConfig struct {
-	Server        serverRunConfig         `hcl:"server"`
-	PluginConfigs catalog.PluginConfigMap `hcl:"plugins"`
+	Server        serverRunConfig            `hcl:"server"`
+	PluginConfigs catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry     telemetry.FileConfig       `hcl:"telemetry"`
 }
 
 type serverRunConfig struct {
@@ -99,8 +101,9 @@ func (*RunCLI) Run(args []string) int {
 
 	c := newDefaultConfig()
 
-	// Get the plugin configurations from the file
+	// Get the plugin and telemetry configurations from the file
 	c.PluginConfigs = fileConfig.PluginConfigs
+	c.Telemetry = fileConfig.Telemetry
 
 	err = mergeConfigs(c, fileConfig, cliConfig)
 	if err != nil {

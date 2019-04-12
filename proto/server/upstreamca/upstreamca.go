@@ -1,116 +1,85 @@
+// Provides interfaces and adapters for the UpstreamCA service
+//
+// Generated code. Do not modify by hand.
 package upstreamca
 
 import (
 	"context"
-	"net/rpc"
 
-	"github.com/golang/protobuf/ptypes/empty"
-	go_plugin "github.com/hashicorp/go-plugin"
-	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	spi "github.com/spiffe/spire/proto/common/plugin"
 	"google.golang.org/grpc"
 )
 
-// UpstreamCA is the interface used by all non-catalog components.
+const (
+	Type = "UpstreamCA"
+)
+
+// UpstreamCA is the client interface for the service type UpstreamCA interface.
 type UpstreamCA interface {
 	SubmitCSR(context.Context, *SubmitCSRRequest) (*SubmitCSRResponse, error)
 }
 
-// Plugin is the interface implemented by plugin implementations
+// Plugin is the client interface for the service with the plugin related methods used by the catalog to initialize the plugin.
 type Plugin interface {
-	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
-	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
+	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
 	SubmitCSR(context.Context, *SubmitCSRRequest) (*SubmitCSRResponse, error)
 }
 
-type BuiltIn struct {
-	plugin Plugin
-}
-
-var _ UpstreamCA = (*BuiltIn)(nil)
-
-func NewBuiltIn(plugin Plugin) *BuiltIn {
-	return &BuiltIn{
-		plugin: plugin,
+// PluginServer returns a catalog PluginServer implementation for the UpstreamCA plugin.
+func PluginServer(server UpstreamCAServer) catalog.PluginServer {
+	return &pluginServer{
+		server: server,
 	}
 }
 
-func (b BuiltIn) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	resp, err := b.plugin.Configure(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
+type pluginServer struct {
+	server UpstreamCAServer
 }
 
-func (b BuiltIn) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	resp, err := b.plugin.GetPluginInfo(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
+func (s pluginServer) PluginType() string {
+	return Type
 }
 
-func (b BuiltIn) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
-	resp, err := b.plugin.SubmitCSR(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
+func (s pluginServer) PluginClient() catalog.PluginClient {
+	return PluginClient
 }
 
-var Handshake = go_plugin.HandshakeConfig{
-	ProtocolVersion:  1,
-	MagicCookieKey:   "UpstreamCA",
-	MagicCookieValue: "UpstreamCA",
+func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
+	RegisterUpstreamCAServer(server, s.server)
+	return s.server
 }
 
-type GRPCPlugin struct {
-	ServerImpl UpstreamCAServer
+// PluginClient is a catalog PluginClient implementation for the UpstreamCA plugin.
+var PluginClient catalog.PluginClient = pluginClient{}
+
+type pluginClient struct{}
+
+func (pluginClient) PluginType() string {
+	return Type
 }
 
-var _ go_plugin.GRPCPlugin = (*GRPCPlugin)(nil)
-
-func (p GRPCPlugin) Server(*go_plugin.MuxBroker) (interface{}, error) {
-	return empty.Empty{}, nil
+func (pluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
+	return AdaptPluginClient(NewUpstreamCAClient(conn))
 }
 
-func (p GRPCPlugin) Client(b *go_plugin.MuxBroker, c *rpc.Client) (interface{}, error) {
-	return empty.Empty{}, nil
+func AdaptPluginClient(client UpstreamCAClient) UpstreamCA {
+	return pluginClientAdapter{client: client}
 }
 
-func (p GRPCPlugin) GRPCServer(b *go_plugin.GRPCBroker, s *grpc.Server) error {
-	RegisterUpstreamCAServer(s, p.ServerImpl)
-	return nil
-}
-
-func (p GRPCPlugin) GRPCClient(ctx context.Context, b *go_plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return &GRPCClient{client: NewUpstreamCAClient(c)}, nil
-}
-
-type GRPCServer struct {
-	Plugin Plugin
-}
-
-func (s *GRPCServer) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return s.Plugin.Configure(ctx, req)
-}
-func (s *GRPCServer) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return s.Plugin.GetPluginInfo(ctx, req)
-}
-func (s *GRPCServer) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
-	return s.Plugin.SubmitCSR(ctx, req)
-}
-
-type GRPCClient struct {
+type pluginClientAdapter struct {
 	client UpstreamCAClient
 }
 
-func (c *GRPCClient) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return c.client.Configure(ctx, req)
+func (a pluginClientAdapter) Configure(ctx context.Context, in *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	return a.client.Configure(ctx, in)
 }
-func (c *GRPCClient) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return c.client.GetPluginInfo(ctx, req)
+
+func (a pluginClientAdapter) GetPluginInfo(ctx context.Context, in *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return a.client.GetPluginInfo(ctx, in)
 }
-func (c *GRPCClient) SubmitCSR(ctx context.Context, req *SubmitCSRRequest) (*SubmitCSRResponse, error) {
-	return c.client.SubmitCSR(ctx, req)
+
+func (a pluginClientAdapter) SubmitCSR(ctx context.Context, in *SubmitCSRRequest) (*SubmitCSRResponse, error) {
+	return a.client.SubmitCSR(ctx, in)
 }

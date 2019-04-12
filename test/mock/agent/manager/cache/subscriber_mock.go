@@ -35,16 +35,19 @@ func (m *MockSubscriber) EXPECT() *MockSubscriberMockRecorder {
 
 // Finish mocks base method
 func (m *MockSubscriber) Finish() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Finish")
 }
 
 // Finish indicates an expected call of Finish
 func (mr *MockSubscriberMockRecorder) Finish() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finish", reflect.TypeOf((*MockSubscriber)(nil).Finish))
 }
 
 // Updates mocks base method
 func (m *MockSubscriber) Updates() <-chan *cache.WorkloadUpdate {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Updates")
 	ret0, _ := ret[0].(<-chan *cache.WorkloadUpdate)
 	return ret0
@@ -52,5 +55,6 @@ func (m *MockSubscriber) Updates() <-chan *cache.WorkloadUpdate {
 
 // Updates indicates an expected call of Updates
 func (mr *MockSubscriberMockRecorder) Updates() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Updates", reflect.TypeOf((*MockSubscriber)(nil).Updates))
 }

@@ -115,7 +115,7 @@ func (ca *serverCA) SignX509SVID(ctx context.Context, csrDER []byte, params X509
 		template.DNSNames = params.DNSList
 	}
 
-	km := ca.c.Catalog.KeyManagers()[0]
+	km := ca.c.Catalog.GetKeyManager()
 	cert, err := x509util.CreateCertificate(ctx, km, template, kp.x509CA.chain[0], kp.X509CAKeyID(), template.PublicKey)
 	if err != nil {
 		return nil, err
@@ -166,7 +166,7 @@ func (ca *serverCA) SignX509CASVID(ctx context.Context, csrDER []byte, params X5
 
 	// CA SVID does not use DNS SAN/CN
 
-	km := ca.c.Catalog.KeyManagers()[0]
+	km := ca.c.Catalog.GetKeyManager()
 	cert, err := x509util.CreateCertificate(ctx, km, template, kp.x509CA.chain[0], kp.X509CAKeyID(), template.PublicKey)
 	if err != nil {
 		return nil, err
@@ -207,7 +207,7 @@ func (ca *serverCA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, err
 		expiresAt = kp.jwtSigningKey.notAfter
 	}
 
-	km := ca.c.Catalog.KeyManagers()[0]
+	km := ca.c.Catalog.GetKeyManager()
 	signer := cryptoutil.NewKeyManagerSigner(km, kp.JWTSignerKeyID(), kp.jwtSigningKey.publicKey)
 	token, err := ca.jwtSigner.SignToken(jsr.SpiffeId, jsr.Audience, expiresAt, signer, kp.jwtSigningKey.Kid)
 	if err != nil {

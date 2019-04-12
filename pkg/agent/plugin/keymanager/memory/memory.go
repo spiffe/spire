@@ -8,13 +8,30 @@ import (
 	"crypto/x509"
 	"sync"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/agent/keymanager"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 )
 
+const (
+	pluginName = "memory"
+)
+
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *MemoryPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName, keymanager.PluginServer(p))
+}
+
 type MemoryPlugin struct {
 	key *ecdsa.PrivateKey
 	mtx sync.RWMutex
+}
+
+func New() *MemoryPlugin {
+	return &MemoryPlugin{}
 }
 
 func (m *MemoryPlugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
@@ -72,8 +89,4 @@ func (m *MemoryPlugin) Configure(context.Context, *spi.ConfigureRequest) (*spi.C
 
 func (m *MemoryPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
-}
-
-func New() *MemoryPlugin {
-	return &MemoryPlugin{}
 }

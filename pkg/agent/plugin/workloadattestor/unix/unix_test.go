@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"os/user"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc/codes"
 
 	"github.com/spiffe/spire/proto/agent/workloadattestor"
 	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 var (
@@ -21,20 +21,18 @@ var (
 )
 
 func TestUnixPlugin(t *testing.T) {
-	suite.Run(t, new(Suite))
+	spiretest.Run(t, new(Suite))
 }
 
 type Suite struct {
-	suite.Suite
+	spiretest.Suite
 
 	dir string
-	p   *workloadattestor.BuiltIn
+	p   workloadattestor.Plugin
 }
 
 func (s *Suite) SetupTest() {
-	var err error
-	s.dir, err = ioutil.TempDir("", "unix-workload-attestor-test-")
-	s.Require().NoError(err)
+	s.dir = s.TempDir()
 
 	p := New()
 	p.hooks.newProcess = func(pid int32) (processInfo, error) {
@@ -42,12 +40,9 @@ func (s *Suite) SetupTest() {
 	}
 	p.hooks.lookupUserById = fakeLookupUserById
 	p.hooks.lookupGroupById = fakeLookupGroupById
-	s.p = workloadattestor.NewBuiltIn(p)
-	s.configure("")
-}
+	s.LoadPlugin(builtin(p), &s.p)
 
-func (s *Suite) TearDownTest() {
-	os.RemoveAll(s.dir)
+	s.configure("")
 }
 
 func (s *Suite) TestAttest() {
@@ -151,7 +146,7 @@ func (s *Suite) TestAttest() {
 				Pid: testCase.pid,
 			})
 			if testCase.err != "" {
-				require.EqualError(t, err, testCase.err)
+				spiretest.RequireGRPCStatus(t, err, codes.Unknown, testCase.err)
 				require.Nil(t, resp)
 				return
 			}

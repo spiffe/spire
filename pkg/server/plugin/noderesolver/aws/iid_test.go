@@ -14,8 +14,9 @@ import (
 	"github.com/spiffe/spire/proto/common"
 	"github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/noderesolver"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -23,15 +24,15 @@ const (
 )
 
 func TestIIDResolver(t *testing.T) {
-	suite.Run(t, new(IIDResolverSuite))
+	spiretest.Run(t, new(IIDResolverSuite))
 }
 
 type IIDResolverSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	env      map[string]string
 	client   *fakeAWSClient
-	resolver *noderesolver.BuiltIn
+	resolver noderesolver.Plugin
 }
 
 func (s *IIDResolverSuite) SetupTest() {
@@ -146,7 +147,7 @@ func (s *IIDResolverSuite) TestConfigure() {
 	resp, err := s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: "blah",
 	})
-	s.requireErrorContains(err, "aws-iid: unable to decode configuration")
+	s.RequireGRPCStatusContains(err, codes.Unknown, "aws-iid: unable to decode configuration")
 	s.Require().Nil(resp)
 
 	// succeeds with no credentials
@@ -159,7 +160,7 @@ func (s *IIDResolverSuite) TestConfigure() {
 		Configuration: `
 		access_key_id = "ACCESSKEYID"
 		`})
-	s.Require().EqualError(err, "aws-iid: configuration missing secret access key, but has access key id")
+	s.RequireGRPCStatus(err, codes.Unknown, "aws-iid: configuration missing secret access key, but has access key id")
 	s.Require().Nil(resp)
 
 	// fails with secret but no access id
@@ -167,7 +168,7 @@ func (s *IIDResolverSuite) TestConfigure() {
 		Configuration: `
 		secret_access_key = "SECRETACCESSKEY"
 		`})
-	s.Require().EqualError(err, "aws-iid: configuration missing access key id, but has secret access key")
+	s.RequireGRPCStatus(err, codes.Unknown, "aws-iid: configuration missing access key id, but has secret access key")
 	s.Require().Nil(resp)
 
 	// success with envvars
@@ -190,7 +191,7 @@ func (s *IIDResolverSuite) TestGetPluginInfo() {
 }
 
 func (s *IIDResolverSuite) newResolver() {
-	resolver := NewIIDResolverPlugin()
+	resolver := New()
 	resolver.hooks.getenv = func(key string) string {
 		return s.env[key]
 	}
@@ -212,7 +213,7 @@ func (s *IIDResolverSuite) newResolver() {
 
 		return s.client, nil
 	}
-	s.resolver = noderesolver.NewBuiltIn(resolver)
+	s.LoadPlugin(builtin(resolver), &s.resolver)
 }
 
 func (s *IIDResolverSuite) configureResolver() {
@@ -223,11 +224,6 @@ func (s *IIDResolverSuite) configureResolver() {
 		`})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
-}
-
-func (s *IIDResolverSuite) requireErrorContains(err error, contains string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), contains)
 }
 
 func (s *IIDResolverSuite) assertResolveSuccess(selectorValueSets ...[]string) {
@@ -257,7 +253,7 @@ func (s *IIDResolverSuite) assertResolveSuccess(selectorValueSets ...[]string) {
 
 func (s *IIDResolverSuite) assertResolveFailure(spiffeID, containsErr string) {
 	resp, err := s.doResolve(spiffeID)
-	s.requireErrorContains(err, containsErr)
+	s.RequireErrorContains(err, containsErr)
 	s.Require().Nil(resp)
 }
 

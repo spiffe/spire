@@ -100,7 +100,6 @@ func TestMergeConfigGood(t *testing.T) {
 	assert.Equal(t, orig.ServerAddress, net.JoinHostPort("127.0.0.1", "8081"))
 	assert.Equal(t, orig.TrustDomain.Scheme, "spiffe")
 	assert.Equal(t, orig.TrustDomain.Host, "example.org")
-	assert.Equal(t, orig.GlobalConfig().TrustDomain, "example.org")
 	assert.Equal(t, orig.DataDir, ".")
 	assert.Equal(t, orig.umask, 077)
 }

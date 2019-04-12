@@ -6,21 +6,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/common"
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
 var (
@@ -28,15 +27,16 @@ var (
 )
 
 func TestPlugin(t *testing.T) {
-	suite.Run(t, new(PluginSuite))
+	spiretest.Run(t, new(PluginSuite))
 }
 
 type PluginSuite struct {
-	suite.Suite
+	spiretest.Suite
+
 	cert   *x509.Certificate
 	cacert *x509.Certificate
-	dir    string
 
+	dir    string
 	nextID int
 	ds     datastore.Plugin
 }
@@ -48,26 +48,23 @@ func (s *PluginSuite) SetupSuite() {
 
 	s.cacert, _, err = testutil.LoadCAFixture()
 	s.Require().NoError(err)
-
-	s.dir, err = ioutil.TempDir("", "spire-datastore-sql-tests")
-	s.Require().NoError(err)
 }
 
 func (s *PluginSuite) SetupTest() {
+	s.dir = s.TempDir()
 	s.ds = s.newPlugin()
 }
 
-func (s *PluginSuite) TearDownSuite() {
-	os.RemoveAll(s.dir)
-}
-
 func (s *PluginSuite) newPlugin() datastore.Plugin {
-	p := newPlugin()
+	p := New()
+
+	var ds datastore.Plugin
+	s.LoadPlugin(builtin(p), &ds)
 
 	s.nextID++
 	dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
 
-	_, err := p.Configure(context.Background(), &spi.ConfigureRequest{
+	_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
 		database_type = "sqlite3"
 		log_sql = true
@@ -90,7 +87,7 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
 	s.Require().Equal(fk.ForeignKeys, "1")
 
-	return p
+	return ds
 }
 
 func (s *PluginSuite) TestInvalidPluginConfiguration() {
@@ -100,7 +97,7 @@ func (s *PluginSuite) TestInvalidPluginConfiguration() {
 		connection_string = "bad"
 		`,
 	})
-	s.Require().EqualError(err, "datastore-sql: unsupported database_type: wrong")
+	s.RequireErrorContains(err, "datastore-sql: unsupported database_type: wrong")
 }
 
 func (s *PluginSuite) TestInvalidMySQLConfiguration() {
@@ -110,7 +107,7 @@ func (s *PluginSuite) TestInvalidMySQLConfiguration() {
 		connection_string = "username:@tcp(127.0.0.1)/spire_test"
 		`,
 	})
-	s.Require().EqualError(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
+	s.RequireErrorContains(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
 }
 
 func (s *PluginSuite) TestBundleCRUD() {
@@ -131,13 +128,13 @@ func (s *PluginSuite) TestBundleCRUD() {
 	// fetch
 	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
 	s.Require().NoError(err)
-	s.True(proto.Equal(bundle, fresp.Bundle))
+	s.AssertProtoEqual(bundle, fresp.Bundle)
 
 	// list
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
-	s.True(proto.Equal(bundle, lresp.Bundles[0]))
+	s.AssertProtoEqual(bundle, lresp.Bundles[0])
 
 	bundle2 := bundleutil.BundleProtoFromRootCA(bundle.TrustDomainId, s.cacert)
 	appendedBundle := bundleutil.BundleProtoFromRootCAs(bundle.TrustDomainId,
@@ -149,7 +146,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(aresp.Bundle)
-	s.True(proto.Equal(appendedBundle, aresp.Bundle))
+	s.AssertProtoEqual(appendedBundle, aresp.Bundle)
 
 	// append identical
 	aresp, err = s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
@@ -157,7 +154,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(aresp.Bundle)
-	s.True(proto.Equal(appendedBundle, aresp.Bundle))
+	s.AssertProtoEqual(appendedBundle, aresp.Bundle)
 
 	// append on a new bundle
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cacert)
@@ -165,32 +162,32 @@ func (s *PluginSuite) TestBundleCRUD() {
 		Bundle: bundle3,
 	})
 	s.Require().NoError(err)
-	s.True(proto.Equal(bundle3, anresp.Bundle))
+	s.AssertProtoEqual(bundle3, anresp.Bundle)
 
 	// update
 	uresp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
 		Bundle: bundle2,
 	})
 	s.Require().NoError(err)
-	s.Equal(bundle2, uresp.Bundle)
+	s.AssertProtoEqual(bundle2, uresp.Bundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
 	s.Equal(2, len(lresp.Bundles))
-	s.True(proto.Equal(bundle2, lresp.Bundles[0]))
-	s.True(proto.Equal(bundle3, lresp.Bundles[1]))
+	s.AssertProtoEqual(bundle2, lresp.Bundles[0])
+	s.AssertProtoEqual(bundle3, lresp.Bundles[1])
 
 	// delete
 	dresp, err := s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
 		TrustDomainId: bundle.TrustDomainId,
 	})
 	s.Require().NoError(err)
-	s.True(proto.Equal(bundle2, dresp.Bundle))
+	s.AssertProtoEqual(bundle2, dresp.Bundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
-	s.True(proto.Equal(bundle3, lresp.Bundles[0]))
+	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
 }
 
 func (s *PluginSuite) TestCreateAttestedNode() {
@@ -203,11 +200,11 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 
 	cresp, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
 	s.Require().NoError(err)
-	s.Equal(node, cresp.Node)
+	s.AssertProtoEqual(node, cresp.Node)
 
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
 	s.Require().NoError(err)
-	s.Equal(node, fresp.Node)
+	s.AssertProtoEqual(node, fresp.Node)
 
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrappers.Int64Value{
@@ -251,7 +248,7 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 		},
 	})
 	s.Require().NoError(err)
-	s.Equal([]*datastore.AttestedNode{epast}, sresp.Nodes)
+	s.RequireProtoListEqual([]*datastore.AttestedNode{epast}, sresp.Nodes)
 }
 
 func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
@@ -421,7 +418,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				Nodes:      test.expectedList,
 				Pagination: test.expectedPagination,
 			}
-			require.Equal(t, expectedResponse, resp)
+			spiretest.RequireProtoEqual(t, expectedResponse, resp)
 		})
 	}
 
@@ -490,7 +487,7 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 
 	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
-	s.Equal(entry, dresp.Node)
+	s.AssertProtoEqual(entry, dresp.Node)
 
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: entry.SpiffeId})
 	s.Require().NoError(err)
@@ -518,12 +515,12 @@ func (s *PluginSuite) TestNodeSelectors() {
 
 	// get foo selectors
 	selectors = s.getNodeSelectors("foo")
-	s.Require().Equal(foo1, selectors)
+	s.RequireProtoListEqual(foo1, selectors)
 
 	// replace foo selectors
 	s.setNodeSelectors("foo", foo2)
 	selectors = s.getNodeSelectors("foo")
-	s.Require().Equal(foo2, selectors)
+	s.RequireProtoListEqual(foo2, selectors)
 
 	// delete foo selectors
 	s.setNodeSelectors("foo", nil)
@@ -532,7 +529,7 @@ func (s *PluginSuite) TestNodeSelectors() {
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
 	selectors = s.getNodeSelectors("bar")
-	s.Require().Equal(bar, selectors)
+	s.RequireProtoListEqual(bar, selectors)
 }
 
 func (s *PluginSuite) TestCreateRegistrationEntry() {
@@ -546,7 +543,7 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 		s.Require().NotNil(resp.Entry)
 		s.NotEmpty(resp.Entry.EntryId)
 		resp.Entry.EntryId = ""
-		s.Require().Equal(resp.Entry, validRegistrationEntry)
+		s.RequireProtoEqual(resp.Entry, validRegistrationEntry)
 	}
 }
 
@@ -676,6 +673,8 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 	expectedResponse := &datastore.ListRegistrationEntriesResponse{
 		Entries: []*common.RegistrationEntry{entry2, entry1},
 	}
+	util.SortRegistrationEntries(expectedResponse.Entries)
+	util.SortRegistrationEntries(resp.Entries)
 	s.Equal(expectedResponse, resp)
 }
 
@@ -863,6 +862,8 @@ func (s *PluginSuite) TestFetchRegistrationEntriesWithPagination() {
 				Entries:    test.expectedList,
 				Pagination: test.expectedPagination,
 			}
+			util.SortRegistrationEntries(expectedResponse.Entries)
+			util.SortRegistrationEntries(resp.Entries)
 			require.Equal(t, expectedResponse, resp)
 		})
 	}
@@ -904,7 +905,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	s.Require().NotNil(fetchRegistrationEntryResponse)
 
 	expectedResponse := &datastore.FetchRegistrationEntryResponse{Entry: entry}
-	s.Equal(expectedResponse, fetchRegistrationEntryResponse)
+	s.RequireProtoEqual(expectedResponse, fetchRegistrationEntryResponse)
 }
 
 func (s *PluginSuite) TestDeleteRegistrationEntry() {
@@ -974,7 +975,7 @@ func (s *PluginSuite) TestListParentIDEntries() {
 				},
 			})
 			s.Require().NoError(err)
-			s.Equal(test.expectedList, result.Entries)
+			s.RequireProtoListEqual(test.expectedList, result.Entries)
 		})
 	}
 }
@@ -1022,7 +1023,7 @@ func (s *PluginSuite) TestListSelectorEntries() {
 				},
 			})
 			require.NoError(t, err)
-			require.Equal(t, test.expectedList, result.Entries)
+			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
 		})
 	}
 }
@@ -1076,7 +1077,9 @@ func (s *PluginSuite) TestListMatchingEntries() {
 				},
 			})
 			s.Require().NoError(err)
-			s.Equal(test.expectedList, result.Entries)
+			util.SortRegistrationEntries(test.expectedList)
+			util.SortRegistrationEntries(result.Entries)
+			s.RequireProtoListEqual(test.expectedList, result.Entries)
 		})
 	}
 }
@@ -1086,7 +1089,7 @@ func (s *PluginSuite) TestRegistrationEntriesFederatesWithAgainstMissingBundle()
 	_, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
 		Entry: makeFederatedRegistrationEntry(),
 	})
-	s.Require().EqualError(err, `unable to find federated bundle "spiffe://otherdomain.org"`)
+	s.RequireErrorContains(err, `unable to find federated bundle "spiffe://otherdomain.org"`)
 }
 
 func (s *PluginSuite) TestRegistrationEntriesFederatesWithSuccess() {
@@ -1099,7 +1102,7 @@ func (s *PluginSuite) TestRegistrationEntriesFederatesWithSuccess() {
 	expected := s.createRegistrationEntry(makeFederatedRegistrationEntry())
 	// fetch the entry and make sure the federated trust ids come back
 	actual := s.fetchRegistrationEntry(expected.EntryId)
-	s.Require().Equal(expected, actual)
+	s.RequireProtoEqual(expected, actual)
 }
 
 func (s *PluginSuite) TestDeleteBundleRestrictedByRegistrationEntries() {
@@ -1111,7 +1114,7 @@ func (s *PluginSuite) TestDeleteBundleRestrictedByRegistrationEntries() {
 	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
 		TrustDomainId: "spiffe://otherdomain.org",
 	})
-	s.Require().EqualError(err, "datastore-sql: cannot delete bundle; federated with 1 registration entries")
+	s.RequireErrorContains(err, "datastore-sql: cannot delete bundle; federated with 1 registration entries")
 }
 
 func (s *PluginSuite) TestDeleteBundleDeleteRegistrationEntries() {
@@ -1233,7 +1236,7 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 		Token: joinToken2.Token,
 	})
 	s.Require().NoError(err)
-	s.Equal(joinToken2, resp.JoinToken)
+	s.AssertProtoEqual(joinToken2, resp.JoinToken)
 }
 
 func (s *PluginSuite) TestPruneJoinTokens() {
@@ -1350,6 +1353,7 @@ func (s *PluginSuite) TestMigration() {
 			entriesResp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 			s.Require().NoError(err)
 			s.Require().Len(entriesResp.Entries, 2)
+			util.SortRegistrationEntries(entriesResp.Entries)
 			s.Require().Equal("spiffe://example.org/nODe", entriesResp.Entries[0].ParentId)
 			s.Require().Equal("spiffe://example.org/bLOg", entriesResp.Entries[0].SpiffeId)
 			s.Require().Len(entriesResp.Entries[0].FederatesWith, 1)
@@ -1530,5 +1534,5 @@ func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Sele
 		},
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.SetNodeSelectorsResponse{}, resp)
+	s.RequireProtoEqual(&datastore.SetNodeSelectorsResponse{}, resp)
 }

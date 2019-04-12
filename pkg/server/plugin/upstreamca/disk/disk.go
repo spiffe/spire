@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -17,13 +18,23 @@ import (
 	"github.com/spiffe/spire/proto/server/upstreamca"
 )
 
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *DiskPlugin) catalog.Plugin {
+	return catalog.MakePlugin("disk",
+		upstreamca.PluginServer(p),
+	)
+}
+
 type Configuration struct {
 	TTL          string `hcl:"ttl" json:"ttl"` // time to live for generated certs
 	CertFilePath string `hcl:"cert_file_path" json:"cert_file_path"`
 	KeyFilePath  string `hcl:"key_file_path" json:"key_file_path"`
 }
 
-type diskPlugin struct {
+type DiskPlugin struct {
 	serialNumber x509util.SerialNumber
 
 	mtx        sync.RWMutex
@@ -31,7 +42,13 @@ type diskPlugin struct {
 	upstreamCA *x509svid.UpstreamCA
 }
 
-func (m *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func New() *DiskPlugin {
+	return &DiskPlugin{
+		serialNumber: x509util.NewSerialNumber(),
+	}
+}
+
+func (m *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := &Configuration{}
 	if err := hcl.Decode(&config, req.Configuration); err != nil {
@@ -86,11 +103,11 @@ func (m *diskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (*diskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+func (*DiskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (m *diskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+func (m *DiskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -109,10 +126,4 @@ func (m *diskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCS
 			Bundle:    m.cert.Raw,
 		},
 	}, nil
-}
-
-func New() (m upstreamca.Plugin) {
-	return &diskPlugin{
-		serialNumber: x509util.NewSerialNumber(),
-	}
 }

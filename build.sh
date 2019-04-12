@@ -7,7 +7,6 @@ declare -r ARTIFACT_DIRS="$(find cmd/* functional/* -maxdepth 0 -type d 2>/dev/n
 declare -r RELEASE_DIRS="$(find cmd/* -maxdepth 0 -type d 2>/dev/null)"
 declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... 2>/dev/null)"
 declare -r RELEASE_FILES="LICENSE README.md conf"
-declare -r PROTO_FILES="$(find proto -name '*.proto' 2>/dev/null)"
 
 case $(uname) in
 	Darwin) declare -r OS1="darwin"
@@ -59,7 +58,7 @@ _fetch_url() {
 build_env() {
 	local _gp _gr
 
-	_gp="${GOPATH:-$HOME/gopath}"
+	_gp="${GOPATH:-$(go env GOPATH)}"
 	_gr="${GOROOT:-$BUILD_DIR}"
 	echo "export GOPATH=${_gp}"
 	echo "export GOROOT=${_gr}"
@@ -98,7 +97,10 @@ build_protobuf() {
 	mkdir -p ${_tmp}/src/github.com/spiffe
 	ln -s ${PWD} ${_tmp}/src/github.com/spiffe/spire
 
-	for _n in ${PROTO_FILES}; do
+	# Generate the gRPC protobuf code and associated README for each proto
+	# in the protos/ folder.
+	declare -r PROTO_PROTOS="$(find proto -name '*.proto' 2>/dev/null)"
+	for _n in ${PROTO_PROTOS}; do
 		_dir="$(dirname ${_n})"
 		if [[ -n ${_prefix} ]]; then
 			_d=${_prefix}/${_dir}
@@ -113,14 +115,23 @@ build_protobuf() {
 		_log_info "creating \"${_d}/README_pb.md\""
 		protoc --proto_path=${_dir} --proto_path=${_tmp}/src \
 			--doc_out=markdown,README_pb.md:${_d} ${_n}
-		# only build the plugin interfaces for plugin protos
-		if [[ ${_n} == "proto/agent/"* ]] ||
-			[[ ${_n} == "proto/server/"* ]] ||
-			[[ ${_n} == "proto/test/"* ]]; then
-			_log_info "creating plugin interface \"${_n%.proto}.go\""
-			protoc --proto_path=${_dir} --proto_path=${_tmp}/src \
-				--spireplugin_out=${_d} ${_n}
+	done
+
+	# Proto's in the pkg/ directory are for testing and don't need a
+	# README.md for documentation.
+	declare -r PKG_PROTOS="$(find pkg -name '*.proto' 2>/dev/null)"
+	for _n in ${PKG_PROTOS}; do
+		_dir="$(dirname ${_n})"
+		if [[ -n ${_prefix} ]]; then
+			_d=${_prefix}/${_dir}
+			mkdir -p ${_d}
+		else
+			_d=${_dir}
 		fi
+
+		_log_info "creating \"${_n%.proto}.pb.go\""
+		protoc --proto_path=${_dir} --proto_path=${_tmp}/src \
+			--go_out=plugins=grpc:${_d} ${_n}
 	done
 
 	rm -rf ${_tmp}

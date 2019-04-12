@@ -1,3 +1,3 @@
 package filesystem_mock
 
-//go:generate mockgen -source ../../../../pkg/agent/plugin/workloadattestor/k8s/filesystem.go -destination filesystem.go -package filesystem_mock
+//go:generate $GOPATH/bin/mockgen -source ../../../../pkg/agent/common/cgroups/cgroups.go -destination filesystem.go -package filesystem_mock

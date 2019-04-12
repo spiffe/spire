@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/client"
 	"github.com/spiffe/spire/proto/common"
@@ -23,21 +24,24 @@ const (
 )
 
 var (
-	defaultAudience                     = []string{"spire-server"}
-	defaultIssuer                       = "api"
-	psatError                           = errs.Class("k8s-psat")
-	_               nodeattestor.Plugin = (*AttestorPlugin)(nil)
+	defaultAudience = []string{"spire-server"}
+	defaultIssuer   = "api"
+	psatError       = errs.Class("k8s-psat")
 )
 
-// NewAttestorPlugin creates a new PSAT node attestor plugin
-func NewAttestorPlugin() *AttestorPlugin {
-	return &AttestorPlugin{}
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
 }
 
-//AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
-type AttestorPlugin struct {
-	mu     sync.RWMutex
-	config *attestorConfig
+func builtin(p *AttestorPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName,
+		nodeattestor.PluginServer(p),
+	)
+}
+
+// AttestorConfig contains a map of clusters that uses cluster name as key
+type AttestorConfig struct {
+	Clusters map[string]*ClusterConfig `hcl:"clusters"`
 }
 
 // ClusterConfig holds a single cluster configuration
@@ -68,9 +72,9 @@ type ClusterConfig struct {
 	KubeConfigFile string `hcl:"kube_config_file"`
 }
 
-// AttestorConfig contains a map of clusters that uses cluster name as key
-type AttestorConfig struct {
-	Clusters map[string]*ClusterConfig `hcl:"clusters"`
+type attestorConfig struct {
+	trustDomain string
+	clusters    map[string]*clusterConfig
 }
 
 type clusterConfig struct {
@@ -82,12 +86,20 @@ type clusterConfig struct {
 	k8sClient       client.K8SClient
 }
 
-type attestorConfig struct {
-	trustDomain string
-	clusters    map[string]*clusterConfig
+//AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
+type AttestorPlugin struct {
+	mu     sync.RWMutex
+	config *attestorConfig
 }
 
-func (p *AttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+// NewAttestorPlugin creates a new PSAT node attestor plugin
+func New() *AttestorPlugin {
+	return &AttestorPlugin{}
+}
+
+var _ nodeattestor.NodeAttestorServer = (*AttestorPlugin)(nil)
+
+func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return psatError.Wrap(err)

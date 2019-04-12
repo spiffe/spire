@@ -13,7 +13,8 @@ import (
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common/plugin"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/spiretest"
+	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -32,14 +33,14 @@ pG3eEhiqPxE++QHpwU78O+F1GznOPBvpZOB3GfyjNQ==
 -----END RSA PRIVATE KEY-----`)
 
 func TestAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(AttestorSuite))
+	spiretest.Run(t, new(AttestorSuite))
 }
 
 type AttestorSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	dir      string
-	attestor *nodeattestor.BuiltIn
+	attestor nodeattestor.Plugin
 }
 
 func (s *AttestorSuite) SetupTest() {
@@ -119,23 +120,23 @@ func (s *AttestorSuite) TestConfigure() {
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
 		Configuration: "blah",
 	})
-	s.requireErrorContains(err, "k8s-psat: unable to decode configuration")
+	s.RequireGRPCStatusContains(err, codes.Unknown, "k8s-psat: unable to decode configuration")
 	s.Require().Nil(resp)
 
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.requireErrorContains(err, "k8s-psat: global configuration is required")
+	s.RequireGRPCStatusContains(err, codes.Unknown, "k8s-psat: global configuration is required")
 	s.Require().Nil(resp)
 
 	// missing trust domain
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.Require().EqualError(err, "k8s-psat: global configuration missing trust domain")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-psat: global configuration missing trust domain")
 	s.Require().Nil(resp)
 
 	// missing cluster
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.Require().EqualError(err, "k8s-psat: configuration missing cluster")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-psat: configuration missing cluster")
 	s.Require().Nil(resp)
 
 	// success
@@ -154,8 +155,8 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 }
 
 func (s *AttestorSuite) newAttestor() {
-	attestor := NewAttestorPlugin()
-	s.attestor = nodeattestor.NewBuiltIn(attestor)
+	attestor := New()
+	s.LoadPlugin(builtin(attestor), &s.attestor)
 }
 
 func (s *AttestorSuite) configure(config AttestorConfig) {
@@ -189,13 +190,8 @@ func (s *AttestorSuite) requireFetchError(contains string) {
 	s.Require().NotNil(stream)
 
 	resp, err := stream.Recv()
-	s.requireErrorContains(err, contains)
+	s.RequireErrorContains(err, contains)
 	s.Require().Nil(resp)
-}
-
-func (s *AttestorSuite) requireErrorContains(err error, contains string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), contains)
 }
 
 // Creates a PSAT using the given podUID (just for testing)

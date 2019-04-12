@@ -48,7 +48,7 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 	require.NoError(t, err)
 
 	catalog := fakeservercatalog.New()
-	catalog.SetDataStores(ds)
+	catalog.SetDataStore(ds)
 	server := &ep_registration.Handler{
 		Catalog:     catalog,
 		Metrics:     telemetry.Blackhole{},

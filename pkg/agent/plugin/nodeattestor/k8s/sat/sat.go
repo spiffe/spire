@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common"
@@ -24,6 +25,14 @@ const (
 var (
 	satError = errs.Class("k8s-sat")
 )
+
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *AttestorPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
+}
 
 type AttestorConfig struct {
 	Cluster   string `hcl:"cluster"`
@@ -45,9 +54,7 @@ type AttestorPlugin struct {
 	}
 }
 
-var _ nodeattestor.Plugin = (*AttestorPlugin)(nil)
-
-func NewAttestorPlugin() *AttestorPlugin {
+func New() *AttestorPlugin {
 	p := &AttestorPlugin{}
 	p.hooks.newUUID = func() (string, error) {
 		u, err := uuid.NewV4()
@@ -59,7 +66,7 @@ func NewAttestorPlugin() *AttestorPlugin {
 	return p
 }
 
-func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
+func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err

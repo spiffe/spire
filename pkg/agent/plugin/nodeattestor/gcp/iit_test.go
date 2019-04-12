@@ -12,20 +12,20 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
 const testServiceAccount = "test-service-account"
 
 func TestIITAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(Suite))
+	spiretest.Run(t, new(Suite))
 }
 
 type Suite struct {
-	suite.Suite
+	spiretest.Suite
 
-	p      *nodeattestor.BuiltIn
+	p      nodeattestor.Plugin
 	server *httptest.Server
 	status int
 	body   string
@@ -53,20 +53,8 @@ func (s *Suite) SetupTest() {
 		w.Write([]byte(s.body))
 	}))
 
-	p := NewIITAttestorPlugin()
-	p.tokenHost = s.server.Listener.Addr().String()
-
-	s.p = nodeattestor.NewBuiltIn(p)
-	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-		Configuration: fmt.Sprintf(`
-service_account = "%s"
-`, testServiceAccount),
-	})
-	s.Require().NoError(err)
-	s.status = http.StatusOK
+	s.p = s.newPlugin()
+	s.configure()
 }
 
 func (s *Suite) TearDownTest() {
@@ -74,7 +62,7 @@ func (s *Suite) TearDownTest() {
 }
 
 func (s *Suite) TestErrorWhenNotConfigured() {
-	p := nodeattestor.NewBuiltIn(NewIITAttestorPlugin())
+	p := s.newPlugin()
 	stream, err := p.FetchAttestationData(context.Background())
 	defer stream.CloseSend()
 	resp, err := stream.Recv()
@@ -154,7 +142,7 @@ service_account = "%s"
 func (s *Suite) TestFailToSendOnStream() {
 	require := s.Require()
 
-	p := NewIITAttestorPlugin()
+	p := New()
 	p.tokenHost = s.server.Listener.Addr().String()
 	_, err := p.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
@@ -231,6 +219,28 @@ func (s *Suite) TestGetPluginInfo() {
 	require.Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
+func (s *Suite) newPlugin() nodeattestor.Plugin {
+	p := New()
+	p.tokenHost = s.server.Listener.Addr().String()
+
+	var plugin nodeattestor.Plugin
+	s.LoadPlugin(builtin(p), &plugin)
+	return plugin
+}
+
+func (s *Suite) configure() {
+	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
+			TrustDomain: "example.org",
+		},
+		Configuration: fmt.Sprintf(`
+service_account = "%s"
+`, testServiceAccount),
+	})
+	s.Require().NoError(err)
+	s.status = http.StatusOK
+}
+
 func (s *Suite) fetchAttestationData() (*nodeattestor.FetchAttestationDataResponse, error) {
 	stream, err := s.p.FetchAttestationData(context.Background())
 	s.NoError(err)
@@ -294,7 +304,7 @@ func TestRetrieveIdentity(t *testing.T) {
 }
 
 type failSendStream struct {
-	nodeattestor.FetchAttestationData_PluginStream
+	nodeattestor.NodeAttestor_FetchAttestationDataServer
 }
 
 func (s *failSendStream) Send(*nodeattestor.FetchAttestationDataResponse) error {

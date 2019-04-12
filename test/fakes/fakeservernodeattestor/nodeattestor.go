@@ -49,8 +49,6 @@ type NodeAttestor struct {
 	config Config
 }
 
-var _ nodeattestor.Plugin = (*NodeAttestor)(nil)
-
 func New(name string, config Config) *NodeAttestor {
 	if config.TrustDomain == "" {
 		config.TrustDomain = defaultTrustDomain
@@ -61,7 +59,7 @@ func New(name string, config Config) *NodeAttestor {
 	}
 }
 
-func (p *NodeAttestor) Attest(stream nodeattestor.Attest_PluginStream) (err error) {
+func (p *NodeAttestor) Attest(stream nodeattestor.NodeAttestor_AttestServer) (err error) {
 	req, err := stream.Recv()
 	if err != nil {
 		return errs.Wrap(err)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 type Config struct {
@@ -20,7 +21,7 @@ type Config struct {
 	EnableSDS bool
 
 	// Configurations for agent plugins
-	PluginConfigs catalog.PluginConfigMap
+	PluginConfigs catalog.HCLPluginConfigMap
 
 	Log logrus.FieldLogger
 
@@ -45,16 +46,13 @@ type Config struct {
 
 	// Array of profiles names that will be generated on each profiling tick.
 	ProfilingNames []string
+
+	// Telemetry provides the configuration for metrics exporting
+	Telemetry telemetry.FileConfig
 }
 
 func New(c *Config) *Agent {
 	return &Agent{
 		c: c,
-	}
-}
-
-func (c *Config) GlobalConfig() *catalog.GlobalConfig {
-	return &catalog.GlobalConfig{
-		TrustDomain: c.TrustDomain.Host,
 	}
 }

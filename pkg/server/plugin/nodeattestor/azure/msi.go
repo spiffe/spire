@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	spi "github.com/spiffe/spire/proto/common/plugin"
@@ -32,6 +33,16 @@ var (
 	msiError = errs.Class("azure-msi")
 )
 
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *MSIAttestorPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName,
+		nodeattestor.PluginServer(p),
+	)
+}
+
 type TenantConfig struct {
 	ResourceID string `hcl:"resource_id"`
 }
@@ -51,16 +62,16 @@ type MSIAttestorPlugin struct {
 	}
 }
 
-var _ nodeattestor.Plugin = (*MSIAttestorPlugin)(nil)
+var _ nodeattestor.NodeAttestorServer = (*MSIAttestorPlugin)(nil)
 
-func NewMSIAttestorPlugin() *MSIAttestorPlugin {
+func New() *MSIAttestorPlugin {
 	p := &MSIAttestorPlugin{}
 	p.hooks.now = time.Now
 	p.hooks.keySetProvider = jwtutil.NewCachingKeySetProvider(jwtutil.OIDCIssuer(azureOIDCIssuer), keySetRefreshInterval)
 	return p
 }
 
-func (p *MSIAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+func (p *MSIAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return msiError.Wrap(err)

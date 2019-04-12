@@ -1,78 +1,49 @@
 package catalog
 
 import (
-	"bytes"
 	"context"
+	"sync"
 
-	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/hcl/hcl/printer"
-	pb "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/sirupsen/logrus"
+	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/zeebo/errs"
 )
 
-type Plugin interface {
-	Configure(context.Context, *pb.ConfigureRequest) (*pb.ConfigureResponse, error)
-	GetPluginInfo(context.Context, *pb.GetPluginInfoRequest) (*pb.GetPluginInfoResponse, error)
+type CatalogPlugin struct {
+	name         string
+	log          logrus.FieldLogger
+	plugin       interface{}
+	all          []interface{}
+	serviceNames []string
+
+	closeOnce sync.Once
+	closer    func()
 }
 
-type PluginConfig struct {
-	Version        string `hcl:"version"`
-	PluginName     string
-	PluginCmd      string `hcl:"plugin_cmd"`
-	PluginChecksum string `hcl:"plugin_checksum"`
-
-	PluginData string `hcl:"plugin_data"`
-	PluginType string
-	Enabled    bool `hcl:"enabled"`
+func (p *CatalogPlugin) Name() string {
+	return p.name
 }
 
-// HclPluginConfig serves as an intermediary struct. We pass this to the
-// HCL library for parsing, except the parser won't parse pluginData
-// as a string.
-type HclPluginConfig struct {
-	Version        string `hcl:"version"`
-	PluginName     string
-	PluginCmd      string `hcl:"plugin_cmd"`
-	PluginChecksum string `hcl:"plugin_checksum"`
-
-	PluginData ast.Node `hcl:"plugin_data"`
-	PluginType string
-	Enabled    *bool `hcl:"enabled"`
-}
-
-func (c HclPluginConfig) IsEnabled() bool {
-	if c.Enabled == nil {
-		return true
+func (p *CatalogPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) error {
+	type configurable interface {
+		Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
 	}
-
-	return *c.Enabled
-}
-
-type ManagedPlugin struct {
-	Config PluginConfig
-	Plugin Plugin
-}
-
-func parsePluginConfig(hclPluginConfig HclPluginConfig) (PluginConfig, error) {
-	var pluginConfig PluginConfig
-	var data bytes.Buffer
-
-	err := printer.DefaultConfig.Fprint(&data, hclPluginConfig.PluginData)
+	c, ok := p.plugin.(configurable)
+	if !ok {
+		return errs.New("plugin interface %T is not configurable", p.plugin)
+	}
+	_, err := c.Configure(ctx, req)
 	if err != nil {
-		return pluginConfig, err
+		return errs.Wrap(err)
 	}
+	return nil
+}
 
-	pluginConfig = PluginConfig{
-		Version:        hclPluginConfig.Version,
-		PluginName:     hclPluginConfig.PluginName,
-		PluginCmd:      hclPluginConfig.PluginCmd,
-		PluginChecksum: hclPluginConfig.PluginChecksum,
-		PluginType:     hclPluginConfig.PluginType,
-		Enabled:        hclPluginConfig.IsEnabled(),
+func (p *CatalogPlugin) Fill(x interface{}) (err error) {
+	cf := newPluginFiller(p)
+	return cf.fill(x)
+}
 
-		// Handle PluginData as opaque string. This gets fed
-		// to the plugin, whos job it is to parse it.
-		PluginData: data.String(),
-	}
-
-	return pluginConfig, nil
+func (p *CatalogPlugin) Close() {
+	p.closeOnce.Do(p.closer)
 }

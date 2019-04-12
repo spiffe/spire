@@ -103,16 +103,10 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	// Pick the right node attestor
-	var attestStream nodeattestor.Attest_Stream
+	var attestStream nodeattestor.NodeAttestor_AttestClient
 	if request.AttestationData.Type != "join_token" {
-		var nodeAttestor nodeattestor.NodeAttestor
-		for _, a := range h.c.Catalog.NodeAttestors() {
-			if a.Config().PluginName == request.AttestationData.Type {
-				nodeAttestor = a
-				break
-			}
-		}
-		if nodeAttestor == nil {
+		nodeAttestor, ok := h.c.Catalog.GetNodeAttestorNamed(request.AttestationData.Type)
+		if !ok {
 			return fmt.Errorf("could not find node attestor type %q", request.AttestationData.Type)
 		}
 
@@ -226,7 +220,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return err
 		}
 
-		regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.DataStores()[0], agentID)
+		regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.GetDataStore(), agentID)
 		if err != nil {
 			h.c.Log.Error(err)
 			return errors.New("failed to fetch agent registration entries")
@@ -297,8 +291,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, err
 	}
 
-	dataStore := h.c.Catalog.DataStores()[0]
-	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, dataStore, agentID)
+	ds := h.c.Catalog.GetDataStore()
+	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, ds, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -370,13 +364,12 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 }
 
 func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, error) {
-
-	dataStore := h.c.Catalog.DataStores()[0]
+	ds := h.c.Catalog.GetDataStore()
 
 	fetchRequest := &datastore.FetchAttestedNodeRequest{
 		SpiffeId: baseSpiffeID,
 	}
-	fetchResponse, err := dataStore.FetchAttestedNode(ctx, fetchRequest)
+	fetchResponse, err := ds.FetchAttestedNode(ctx, fetchRequest)
 	if err != nil {
 		return false, err
 	}
@@ -390,7 +383,7 @@ func (h *Handler) isAttested(ctx context.Context, baseSpiffeID string) (bool, er
 }
 
 func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate) error {
-	dataStore := h.c.Catalog.DataStores()[0]
+	ds := h.c.Catalog.GetDataStore()
 
 	agentID, err := getSpiffeIDFromCert(cert)
 	if err != nil {
@@ -406,7 +399,7 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 		return fmt.Errorf("agent %q SVID has expired", agentID)
 	}
 
-	resp, err := dataStore.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
+	resp, err := ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
 		SpiffeId: agentID,
 	})
 	if err != nil {
@@ -426,7 +419,7 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 
 func (h *Handler) doAttestChallengeResponse(ctx context.Context,
 	nodeStream node.Node_AttestServer,
-	attestStream nodeattestor.Attest_Stream,
+	attestStream nodeattestor.NodeAttestor_AttestClient,
 	request *node.AttestRequest, attestedBefore bool) (*nodeattestor.AttestResponse, error) {
 	// challenge/response loop
 	for {
@@ -455,7 +448,7 @@ func (h *Handler) doAttestChallengeResponse(ctx context.Context,
 }
 
 func (h *Handler) attest(ctx context.Context,
-	attestStream nodeattestor.Attest_Stream,
+	attestStream nodeattestor.NodeAttestor_AttestClient,
 	nodeRequest *node.AttestRequest, attestedBefore bool) (
 	response *nodeattestor.AttestResponse, err error) {
 
@@ -485,7 +478,7 @@ func (h *Handler) attestToken(ctx context.Context,
 
 	tokenValue := string(attestationData.Data)
 
-	ds := h.c.Catalog.DataStores()[0]
+	ds := h.c.Catalog.GetDataStore()
 	resp, err := ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
 		Token: tokenValue,
 	})
@@ -539,7 +532,7 @@ func (h *Handler) validateAttestation(
 }
 
 func (h *Handler) updateAttestationEntry(ctx context.Context, cert *x509.Certificate) error {
-	ds := h.c.Catalog.DataStores()[0]
+	ds := h.c.Catalog.GetDataStore()
 
 	spiffeID, err := getSpiffeIDFromCert(cert)
 	if err != nil {
@@ -559,27 +552,18 @@ func (h *Handler) updateAttestationEntry(ctx context.Context, cert *x509.Certifi
 }
 
 func (h *Handler) createAttestationEntry(ctx context.Context, cert *x509.Certificate, attestationType string) error {
-	ds := h.c.Catalog.DataStores()[0]
+	ds := h.c.Catalog.GetDataStore()
 	return createAttestationEntry(ctx, ds, cert, attestationType)
 }
 
 func (h *Handler) updateNodeSelectors(ctx context.Context,
 	baseSpiffeID string, attestResponse *nodeattestor.AttestResponse, attestationType string) error {
 
-	// Select node resolver based on request attestation type
-	var nodeResolver noderesolver.NodeResolver
-	for _, r := range h.c.Catalog.NodeResolvers() {
-		if r.Config().PluginName == attestationType {
-			nodeResolver = r
-			break
-		}
-	}
-
 	var selectors []*common.Selector
-	if nodeResolver == nil {
-		// If not matching node resolver found, skip adding additional selectors
-		h.c.Log.Debugf("could not find node resolver type %q", attestationType)
-	} else {
+
+	// Select node resolver based on request attestation type
+	nodeResolver, ok := h.c.Catalog.GetNodeResolverNamed(attestationType)
+	if ok {
 		//Call node resolver plugin to get a map of spiffeID=>Selector
 		response, err := nodeResolver.Resolve(ctx, &noderesolver.ResolveRequest{
 			BaseSpiffeIdList: []string{baseSpiffeID},
@@ -591,12 +575,14 @@ func (h *Handler) updateNodeSelectors(ctx context.Context,
 		if resolved := response.Map[baseSpiffeID]; resolved != nil {
 			selectors = append(selectors, resolved.Entries...)
 		}
+	} else {
+		h.c.Log.Debugf("could not find node resolver type %q", attestationType)
 	}
 
 	selectors = append(selectors, attestResponse.Selectors...)
 
-	dataStore := h.c.Catalog.DataStores()[0]
-	_, err := dataStore.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
+	ds := h.c.Catalog.GetDataStore()
+	_, err := ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
 			SpiffeId:  baseSpiffeID,
 			Selectors: selectors,
@@ -616,7 +602,7 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 	svids := make(map[string]*node.X509SVID)
 	svids[baseSpiffeID] = makeX509SVID(svid)
 
-	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.DataStores()[0], baseSpiffeID)
+	regEntries, err := regentryutil.FetchRegistrationEntries(ctx, h.c.Catalog.GetDataStore(), baseSpiffeID)
 	if err != nil {
 		return nil, err
 	}
@@ -640,7 +626,7 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 }
 
 func (h *Handler) getDownstreamEntry(ctx context.Context, callerID string) (*common.RegistrationEntry, error) {
-	ds := h.c.Catalog.DataStores()[0]
+	ds := h.c.Catalog.GetDataStore()
 	response, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		BySpiffeId: &wrappers.StringValue{
 			Value: callerID,
@@ -675,7 +661,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 		regEntriesMap[entry.SpiffeId] = entry
 	}
 
-	dataStore := h.c.Catalog.DataStores()[0]
+	ds := h.c.Catalog.GetDataStore()
 	svids = make(map[string]*node.X509SVID)
 	//iterate the CSRs and sign them
 	for _, csr := range csrs {
@@ -687,7 +673,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", h.c.TrustDomain.String())
 
 		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
-			res, err := dataStore.FetchAttestedNode(ctx,
+			res, err := ds.FetchAttestedNode(ctx,
 				&datastore.FetchAttestedNodeRequest{SpiffeId: spiffeID},
 			)
 			if err != nil {
@@ -812,7 +798,7 @@ func (h *Handler) getBundlesForEntries(ctx context.Context, regEntries []*common
 
 // getBundle fetches a bundle from the datastore, by trust domain
 func (h *Handler) getBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error) {
-	ds := h.c.Catalog.DataStores()[0]
+	ds := h.c.Catalog.GetDataStore()
 
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: trustDomainID,
