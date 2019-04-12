@@ -27,8 +27,6 @@ const (
 	defaultConfigPath = "conf/server/server.conf"
 	defaultSocketPath = "/tmp/spire-registration.sock"
 	defaultLogLevel   = "INFO"
-	defaultUmask      = 0077
-	minimumUmask      = 0027
 )
 
 // runConfig represents available configurables for file and CLI options
@@ -39,17 +37,18 @@ type runConfig struct {
 }
 
 type serverRunConfig struct {
-	BindAddress         string           `hcl:"bind_address"`
-	BindPort            int              `hcl:"bind_port"`
-	CASubject           *caSubjectConfig `hcl:"ca_subject"`
-	CATTL               string           `hcl:"ca_ttl"`
-	DataDir             string           `hcl:"data_dir"`
-	LogFile             string           `hcl:"log_file"`
-	LogLevel            string           `hcl:"log_level"`
-	RegistrationUDSPath string           `hcl:"registration_uds_path"`
-	SVIDTTL             string           `hcl:"svid_ttl"`
-	TrustDomain         string           `hcl:"trust_domain"`
-	UpstreamBundle      bool             `hcl:"upstream_bundle"`
+	BindAddress         string             `hcl:"bind_address"`
+	BindPort            int                `hcl:"bind_port"`
+	CASubject           *caSubjectConfig   `hcl:"ca_subject"`
+	CATTL               string             `hcl:"ca_ttl"`
+	DataDir             string             `hcl:"data_dir"`
+	LogFile             string             `hcl:"log_file"`
+	LogLevel            string             `hcl:"log_level"`
+	RegistrationUDSPath string             `hcl:"registration_uds_path"`
+	SVIDTTL             string             `hcl:"svid_ttl"`
+	TrustDomain         string             `hcl:"trust_domain"`
+	UpstreamBundle      bool               `hcl:"upstream_bundle"`
+	Experimental        experimentalConfig `hcl:"experimental"`
 
 	ConfigPath string
 
@@ -59,6 +58,10 @@ type serverRunConfig struct {
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
 	Umask            string   `hcl:"umask"`
+}
+
+type experimentalConfig struct {
+	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
 }
 
 type caSubjectConfig struct {
@@ -250,6 +253,10 @@ func mergeConfig(orig *serverConfig, cmd *runConfig) error {
 	// TODO: CLI should be able to override with `false` value
 	if cmd.Server.UpstreamBundle {
 		orig.UpstreamBundle = cmd.Server.UpstreamBundle
+	}
+
+	if cmd.Server.Experimental.AllowAgentlessNodeAttestors {
+		orig.Experimental.AllowAgentlessNodeAttestors = cmd.Server.Experimental.AllowAgentlessNodeAttestors
 	}
 
 	if cmd.Server.ProfilingEnabled {

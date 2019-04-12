@@ -315,6 +315,30 @@ func (s *HandlerSuite) TestAttestSuccess() {
 	s.Empty(s.getNodeSelectors(agentID))
 }
 
+func (s *HandlerSuite) TestAttestAgentless() {
+	attestor := fakeservernodeattestor.Config{
+		Data:          map[string]string{"data": workloadID},
+		ReturnLiteral: true,
+	}
+
+	agentlessCSR := s.makeCSR(workloadID)
+
+	// By default "/spire/agent/* is expected for attestation calls
+	s.addAttestor("test", attestor)
+	s.False(s.handler.c.AllowAgentlessNodeAttestors)
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             agentlessCSR,
+	}, codes.InvalidArgument, "expecting \"/spire/agent/*\"")
+
+	// If allow agentless is enabled attestation will run successfully
+	s.handler.c.AllowAgentlessNodeAttestors = true
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             agentlessCSR,
+	})
+}
+
 func (s *HandlerSuite) TestAttestReattestation() {
 	// Make sure reattestation is allowed by the attestor
 	s.addAttestor("test", fakeservernodeattestor.Config{
