@@ -59,7 +59,6 @@ type Config struct {
 
 	UpstreamBundle bool
 
-	// Skip agent id validation in node attestation
 	Experimental ExperimentalConfig
 
 	// If true enables profiling.
