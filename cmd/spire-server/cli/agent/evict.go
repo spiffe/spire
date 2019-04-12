@@ -8,7 +8,7 @@ import (
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/registration"
 
 	"golang.org/x/net/context"
 )

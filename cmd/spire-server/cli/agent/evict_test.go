@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 
-	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/registration"
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/test/mock/proto/api/registration"

@@ -10,8 +10,8 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"

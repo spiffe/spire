@@ -26,10 +26,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/datastore"
-	"github.com/spiffe/spire/proto/server/keymanager"
-	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/zeebo/errs"
 )
 
@@ -255,7 +255,7 @@ func (m *manager) pruneBundle(ctx context.Context) (err error) {
 		return nil
 	}
 
-	newBundle := &datastore.Bundle{
+	newBundle := &common.Bundle{
 		TrustDomainId: oldBundle.TrustDomainId,
 	}
 	changed := false

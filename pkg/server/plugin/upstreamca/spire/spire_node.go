@@ -15,7 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/spire/api/node"
 )
 
 func (m *spirePlugin) submitCSRUpstreamCA(ctx context.Context, nodeClient node.NodeClient, csr []byte) ([]*x509.Certificate, *bundleutil.Bundle, error) {

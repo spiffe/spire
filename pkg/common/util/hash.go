@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"hash"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 func DeriveRegEntryhash(entry *common.RegistrationEntry) (key string) {

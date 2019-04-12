@@ -10,8 +10,8 @@ import (
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )

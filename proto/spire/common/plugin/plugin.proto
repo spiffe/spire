@@ -1,0 +1,53 @@
+syntax = "proto3";
+package spire.common.plugin;
+option go_package = "github.com/spiffe/spire/proto/spire/common/plugin";
+
+/** Represents the plugin-specific configuration string. */
+message ConfigureRequest {
+    /** Global configuration nested type. */
+    message GlobalConfig {
+        string trustDomain = 1;
+    }
+
+    /** The configuration for the plugin. */
+    string configuration = 1;
+
+    /** Global configurations. */
+    GlobalConfig globalConfig = 2;
+}
+
+/** Represents a list of configuration problems
+found in the configuration string. */
+message ConfigureResponse {
+    /** A list of errors */
+    repeated string errorList = 1;
+}
+
+/** Represents an empty request. */
+message GetPluginInfoRequest {}
+
+/** Represents the plugin metadata. */
+message GetPluginInfoResponse {
+    string name = 1;
+    string category = 2;
+    string type = 3;
+    string description = 4;
+    string dateCreated = 5;
+    string location = 6;
+    string version = 7;
+    string author = 8;
+    string company = 9;
+}
+
+
+message InitRequest {
+    repeated string host_services = 1;
+}
+
+message InitResponse {
+    repeated string plugin_services = 1;
+}
+
+service PluginInit {
+    rpc Init(InitRequest) returns (InitResponse);
+}

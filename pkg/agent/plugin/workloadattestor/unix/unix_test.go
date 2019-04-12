@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	"github.com/spiffe/spire/proto/agent/workloadattestor"
-	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 )
 

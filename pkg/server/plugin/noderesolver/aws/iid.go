@@ -17,9 +17,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/common"
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 	"github.com/zeebo/errs"
 )
 

@@ -16,8 +16,8 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
 const (

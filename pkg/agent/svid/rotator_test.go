@@ -14,7 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	mock_client "github.com/spiffe/spire/test/mock/agent/client"

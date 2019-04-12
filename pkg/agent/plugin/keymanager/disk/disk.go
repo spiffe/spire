@@ -15,9 +15,9 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
-	"github.com/spiffe/spire/proto/agent/keymanager"
+	"github.com/spiffe/spire/proto/spire/agent/keymanager"
 
-	spi "github.com/spiffe/spire/proto/common/plugin"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
 const (

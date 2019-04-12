@@ -6,7 +6,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
-	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/stretchr/testify/require"
 )
 

@@ -9,7 +9,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 func NewHealthCheckCommand() cli.Command {

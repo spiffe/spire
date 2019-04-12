@@ -7,7 +7,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/sirupsen/logrus"
-	spi "github.com/spiffe/spire/proto/common/plugin"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

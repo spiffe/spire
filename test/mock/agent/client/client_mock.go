@@ -8,7 +8,7 @@ import (
 	context "context"
 	gomock "github.com/golang/mock/gomock"
 	client "github.com/spiffe/spire/pkg/agent/client"
-	node "github.com/spiffe/spire/proto/api/node"
+	node "github.com/spiffe/spire/proto/spire/api/node"
 	reflect "reflect"
 )
 

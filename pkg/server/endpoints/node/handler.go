@@ -20,11 +20,11 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
-	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/datastore"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -841,7 +841,7 @@ func createAttestationEntry(ctx context.Context, ds datastore.DataStore, cert *x
 		return err
 	}
 	req := &datastore.CreateAttestedNodeRequest{
-		Node: &datastore.AttestedNode{
+		Node: &common.AttestedNode{
 			AttestationDataType: attestationType,
 			SpiffeId:            spiffeID,
 			CertNotAfter:        cert.NotAfter.Unix(),

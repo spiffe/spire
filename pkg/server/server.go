@@ -23,7 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"google.golang.org/grpc"
 )
 

@@ -11,8 +11,8 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeregistrationclient"
 	"github.com/stretchr/testify/suite"
@@ -126,7 +126,7 @@ func (s *ExperimentalBundleSuite) TestShowHelp() {
 }
 
 func (s *ExperimentalBundleSuite) TestShow() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://example.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert1.Raw},
@@ -169,7 +169,7 @@ func (s *ExperimentalBundleSuite) TestSetCreatesBundle() {
 }
 
 func (s *ExperimentalBundleSuite) TestSetUpdatesBundle() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://otherdomain.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: []byte("BOGUSCERTS")},
@@ -207,7 +207,7 @@ func (s *ExperimentalBundleSuite) TestListHelp() {
 }
 
 func (s *ExperimentalBundleSuite) TestListAll() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://domain1.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert1.Raw},
@@ -216,7 +216,7 @@ func (s *ExperimentalBundleSuite) TestListAll() {
 			{Kid: "KID", PkixBytes: s.key1Pkix},
 		},
 	})
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://domain2.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert2.Raw},
@@ -274,13 +274,13 @@ func (s *ExperimentalBundleSuite) TestListAll() {
 }
 
 func (s *ExperimentalBundleSuite) TestListOne() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://domain1.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert1.Raw},
 		},
 	})
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://domain2.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert2.Raw},
@@ -326,7 +326,7 @@ func (s *ExperimentalBundleSuite) assertBundleSet(args ...string) {
 	s.Require().Equal(s.key1Pkix, resp.Bundle.JwtSigningKeys[0].PkixBytes)
 }
 
-func (s *ExperimentalBundleSuite) createBundle(bundle *datastore.Bundle) {
+func (s *ExperimentalBundleSuite) createBundle(bundle *common.Bundle) {
 	_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	})

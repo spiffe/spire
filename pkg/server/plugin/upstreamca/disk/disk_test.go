@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/upstreamca"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
 )

@@ -20,7 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/spire/api/node"
 )
 
 const (
