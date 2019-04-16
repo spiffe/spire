@@ -2,11 +2,11 @@ package psat
 
 import (
 	"context"
-	"crypto"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
-	"time"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -16,7 +16,8 @@ import (
 	spi "github.com/spiffe/spire/proto/common/plugin"
 	"github.com/spiffe/spire/proto/server/nodeattestor"
 	"github.com/zeebo/errs"
-	"gopkg.in/square/go-jose.v2/jwt"
+
+	k8s_auth "k8s.io/api/authentication/v1"
 )
 
 const (
@@ -46,29 +47,17 @@ type AttestorConfig struct {
 
 // ClusterConfig holds a single cluster configuration
 type ClusterConfig struct {
-	// API server public key file path.
-	// Public key is used for token validation
-	APIServerKeyFile string `hcl:"service_account_key_file"`
-
 	// Array of whitelisted service accounts names
 	// Attestation is denied if comming from a service account that is not in the list
 	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
 
-	// Issuer for PSAT token validation
-	// If issuer is not configured, defaultIssuer will be used
-	// If issuer is set to an empty string, validation is skipped
-	Issuer *string `hcl:"issuer"`
-
 	// Audience for PSAT token validation
 	// If audience is not configured, defaultAudience will be used
-	// If audience value is set to an empty slice, validation is skipped
+	// If audience value is set to an empty slice, k8s apiserver audience will be used
 	Audience *[]string `hcl:"audience"`
 
-	// If true, the plugin queries k8s API Server for extra selectors
-	QueryAPIServer bool `hcl:"enable_api_server_queries"`
-
-	// Kubernetes configuration file path (only used if QueryAPIServer is enabled)
-	// Used to create a k8s client to query the API server.
+	// Kubernetes configuration file path
+	// Used to create a k8s client to query the API server. If path is empty, 'InClusterConfig' is used
 	KubeConfigFile string `hcl:"kube_config_file"`
 }
 
@@ -78,11 +67,8 @@ type attestorConfig struct {
 }
 
 type clusterConfig struct {
-	keys            []crypto.PublicKey
 	serviceAccounts map[string]bool
-	issuer          string
 	audience        []string
-	queryAPIServer  bool
 	k8sClient       client.K8SClient
 }
 
@@ -92,7 +78,7 @@ type AttestorPlugin struct {
 	config *attestorConfig
 }
 
-// NewAttestorPlugin creates a new PSAT node attestor plugin
+// New creates a new PSAT node attestor plugin
 func New() *AttestorPlugin {
 	return &AttestorPlugin{}
 }
@@ -144,54 +130,52 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return psatError.New("not configured for cluster %q", attestationData.Cluster)
 	}
 
-	token, err := jwt.ParseSigned(attestationData.Token)
+	tokenStatus, err := cluster.k8sClient.ValidateToken(attestationData.Token, cluster.audience)
 	if err != nil {
-		return psatError.New("unable to parse token: %v", err)
+		return psatError.New("unable to validate token with TokenReview API: %v", err)
 	}
 
-	claims := new(k8s.PSATClaims)
-	err = k8s.VerifyTokenSignature(cluster.keys, token, claims)
+	if !tokenStatus.Authenticated {
+		return psatError.New("token not authenticated according to TokenReview API")
+	}
+
+	namespace, serviceAccountName, err := getNamesFromTokenStatus(tokenStatus)
 	if err != nil {
-		return psatError.Wrap(err)
+		return psatError.New("fail to parse username from token review status: %v", err)
+	}
+	fullServiceAccountName := fmt.Sprintf("%v:%v", namespace, serviceAccountName)
+
+	if !cluster.serviceAccounts[fullServiceAccountName] {
+		return psatError.New("%q is not a whitelisted service account", fullServiceAccountName)
 	}
 
-	if err := claims.Validate(jwt.Expected{
-		Issuer:   cluster.issuer,
-		Time:     time.Now(),
-		Audience: cluster.audience,
-	}); err != nil {
-		return psatError.New("unable to validate token claims: %v", err)
-	}
-
-	if claims.K8s.Namespace == "" {
-		return psatError.New("token missing namespace claim")
-	}
-
-	if claims.K8s.ServiceAccount.Name == "" {
-		return psatError.New("token missing service account name claim")
-	}
-
-	if claims.K8s.Pod.Name == "" {
-		return psatError.New("token missing pod name claim")
-	}
-
-	if claims.K8s.Pod.UID == "" {
-		return psatError.New("token missing pod UID claim")
-	}
-
-	serviceAccountName := fmt.Sprintf("%s:%s", claims.K8s.Namespace, claims.K8s.ServiceAccount.Name)
-	if !cluster.serviceAccounts[serviceAccountName] {
-		return psatError.New("%q is not a whitelisted service account", serviceAccountName)
-	}
-
-	selectors, err := makeSelectors(claims, attestationData.Cluster, cluster)
+	podName, err := getPodNameFromTokenStatus(tokenStatus)
 	if err != nil {
-		return err
+		return psatError.New("fail to get pod name from token review status: %v", err)
+	}
+
+	podUID, err := getPodUIDFromTokenStatus(tokenStatus)
+	if err != nil {
+		return psatError.New("fail to get pod UID from token review status: %v", err)
+	}
+
+	node, err := cluster.k8sClient.GetNode(namespace, podName)
+	if err != nil {
+		return psatError.New("fail to get node name from k8s api: %v", err)
+	}
+
+	selectors := []*common.Selector{
+		k8s.MakeSelector(pluginName, "cluster", attestationData.Cluster),
+		k8s.MakeSelector(pluginName, "agent_ns", namespace),
+		k8s.MakeSelector(pluginName, "agent_sa", serviceAccountName),
+		k8s.MakeSelector(pluginName, "agent_pod_name", podName),
+		k8s.MakeSelector(pluginName, "agent_pod_uid", podUID),
+		k8s.MakeSelector(pluginName, "agent_node_name", node),
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, claims.K8s.Pod.UID),
+		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, node),
 		Selectors:    selectors,
 	})
 }
@@ -218,19 +202,8 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 	}
 
 	for name, cluster := range hclConfig.Clusters {
-		if cluster.APIServerKeyFile == "" {
-			return nil, psatError.New("cluster %q configuration missing service account keys file", name)
-		}
 		if len(cluster.ServiceAccountWhitelist) == 0 {
 			return nil, psatError.New("cluster %q configuration must have at least one service account whitelisted", name)
-		}
-
-		keys, err := k8s.LoadServiceAccountKeys(cluster.APIServerKeyFile)
-		if err != nil {
-			return nil, psatError.New("failed to load cluster %q service account keys from %q: %v", name, cluster.APIServerKeyFile, err)
-		}
-		if len(keys) == 0 {
-			return nil, psatError.New("cluster %q has no service account keys in %q", name, cluster.APIServerKeyFile)
 		}
 
 		serviceAccounts := make(map[string]bool)
@@ -238,28 +211,17 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 			serviceAccounts[serviceAccount] = true
 		}
 
-		var issuer string
-		if cluster.Issuer == nil {
-			issuer = defaultIssuer
-		}
-
 		var audience []string
 		if cluster.Audience == nil {
 			audience = defaultAudience
-		}
-
-		var k8sClient client.K8SClient
-		if cluster.QueryAPIServer {
-			k8sClient = client.NewK8SClient(cluster.KubeConfigFile)
+		} else {
+			audience = *cluster.Audience
 		}
 
 		config.clusters[name] = &clusterConfig{
-			keys:            keys,
 			serviceAccounts: serviceAccounts,
-			issuer:          issuer,
 			audience:        audience,
-			queryAPIServer:  cluster.QueryAPIServer,
-			k8sClient:       k8sClient,
+			k8sClient:       client.NewK8SClient(cluster.KubeConfigFile),
 		}
 	}
 
@@ -286,24 +248,62 @@ func (p *AttestorPlugin) setConfig(config *attestorConfig) {
 	p.config = config
 }
 
-func makeSelectors(claims *k8s.PSATClaims, clusterName string, cluster *clusterConfig) ([]*common.Selector, error) {
-	// Common selectors
-	selectors := []*common.Selector{
-		k8s.MakeSelector(pluginName, "cluster", clusterName),
-		k8s.MakeSelector(pluginName, "agent_ns", claims.K8s.Namespace),
-		k8s.MakeSelector(pluginName, "agent_sa", claims.K8s.ServiceAccount.Name),
-		k8s.MakeSelector(pluginName, "agent_pod_name", claims.K8s.Pod.Name),
-		k8s.MakeSelector(pluginName, "agent_pod_uid", claims.K8s.Pod.UID),
+// getNamesFromTokenStatus parses a fully qualified k8s username like: 'system:serviceaccount:spire:spire-agent'
+// from tokenStatus. The string is splitted and the last two names are returned: namespace and service account name
+func getNamesFromTokenStatus(tokenStatus *k8s_auth.TokenReviewStatus) (string, string, error) {
+	username := tokenStatus.User.Username
+	if username == "" {
+		return "", "", errors.New("empty username")
 	}
 
-	// Additional selectors (only if query k8s api server is enabled)
-	if cluster.queryAPIServer {
-		node, err := cluster.k8sClient.GetNode(claims.K8s.Namespace, claims.K8s.Pod.Name)
-		if err != nil {
-			return nil, psatError.New("can't get node name from k8s api: %v", err)
-		}
-		selectors = append(selectors, k8s.MakeSelector(pluginName, "agent_node_name", node))
+	names := strings.Split(username, ":")
+	if len(names) != 4 {
+		return "", "", fmt.Errorf("unexpected username format: %v", username)
 	}
 
-	return selectors, nil
+	if names[2] == "" {
+		return "", "", fmt.Errorf("missing namespace")
+	}
+
+	if names[3] == "" {
+		return "", "", fmt.Errorf("missing service account name")
+	}
+
+	return names[2], names[3], nil
+}
+
+// getPodNameFromTokenStatus extracts pod name from a tokenReviewStatus type
+func getPodNameFromTokenStatus(tokenStatus *k8s_auth.TokenReviewStatus) (string, error) {
+	podName, ok := tokenStatus.User.Extra["authentication.kubernetes.io/pod-name"]
+	if !ok {
+		return "", errors.New("missing pod name")
+	}
+
+	if len(podName) != 1 {
+		return "", fmt.Errorf("expected 1 name but got: %d", len(podName))
+	}
+
+	if podName[0] == "" {
+		return "", errors.New("pod name is empty")
+	}
+
+	return podName[0], nil
+}
+
+// getPodUIDFromTokenStatus extracts pod UID from a tokenReviewStatus type
+func getPodUIDFromTokenStatus(tokenStatus *k8s_auth.TokenReviewStatus) (string, error) {
+	podUID, ok := tokenStatus.User.Extra["authentication.kubernetes.io/pod-uid"]
+	if !ok {
+		return "", errors.New("missing pod UID")
+	}
+
+	if len(podUID) != 1 {
+		return "", fmt.Errorf("expected 1 UID but got: %d", len(podUID))
+	}
+
+	if podUID[0] == "" {
+		return "", errors.New("pod UID is empty")
+	}
+
+	return podUID[0], nil
 }

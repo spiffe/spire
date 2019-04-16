@@ -1,6 +1,10 @@
 package client
 
 import (
+	"errors"
+
+	k8s_auth "k8s.io/api/authentication/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -11,6 +15,9 @@ import (
 type K8SClient interface {
 	//GetNode returns the node name in which a given pod lives
 	GetNode(namespace, podName string) (string, error)
+
+	// ValidateToken queries k8s token review API and returns information about the given token
+	ValidateToken(token string, audiences []string) (*k8s_auth.TokenReviewStatus, error)
 }
 
 type k8sClient struct {
@@ -40,7 +47,44 @@ func (c *k8sClient) GetNode(namespace, podName string) (string, error) {
 		return "", err
 	}
 
+	if pod.Spec.NodeName == "" {
+		return "", errors.New("empty node name")
+	}
+
 	return pod.Spec.NodeName, nil
+}
+
+func (c *k8sClient) ValidateToken(token string, audiences []string) (*k8s_auth.TokenReviewStatus, error) {
+	// Reload config
+	clientset, err := c.loadClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create token review request
+	req := &k8s_auth.TokenReview{
+		Spec: k8s_auth.TokenReviewSpec{
+			Token:     token,
+			Audiences: audiences,
+		},
+	}
+
+	// Do request
+	resp, err := clientset.AuthenticationV1().TokenReviews().Create(req)
+	if resp == nil {
+		return nil, errors.New("token review API response is nil")
+	}
+
+	// Evaluate token review response (review server will populate TokenReview.Status field)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.Status.Error != "" {
+		return nil, errors.New(resp.Status.Error)
+	}
+
+	return &resp.Status, nil
 }
 
 func (c *k8sClient) loadClient() (*kubernetes.Clientset, error) {

@@ -2,6 +2,7 @@ package psat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -9,10 +10,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/proto/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/common/plugin"
+	k8s_cli_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/client"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
@@ -39,8 +42,10 @@ func TestAttestorPlugin(t *testing.T) {
 type AttestorSuite struct {
 	spiretest.Suite
 
-	dir      string
-	attestor nodeattestor.Plugin
+	dir           string
+	attestor      nodeattestor.Plugin
+	mockCtrl      *gomock.Controller
+	k8sClientMock *k8s_cli_mock.MockK8SClient
 }
 
 func (s *AttestorSuite) SetupTest() {
@@ -48,11 +53,13 @@ func (s *AttestorSuite) SetupTest() {
 	s.dir, err = ioutil.TempDir("", "spire-k8s-psat-test-")
 	s.Require().NoError(err)
 
+	s.mockCtrl = gomock.NewController(s.T())
 	s.newAttestor()
 	s.configure(AttestorConfig{})
 }
 
 func (s *AttestorSuite) TearDownTest() {
+	s.mockCtrl.Finish()
 	os.RemoveAll(s.dir)
 }
 
@@ -75,22 +82,44 @@ func (s *AttestorSuite) TestFetchAttestationWrongTokenFormat() {
 	s.requireFetchError("error parsing token")
 }
 
-func (s *AttestorSuite) TestFetchAttestationEmptyPodUID() {
-	token, err := createPSAT("")
+func (s *AttestorSuite) TestFetchAttestationEmptyNamespace() {
+	token, err := createPSAT("", "POD-NAME")
 	s.Require().NoError(err)
 	s.configure(AttestorConfig{
 		TokenPath: s.writeValue("token", token),
 	})
-	s.requireFetchError("token claim pod UID is empty")
+	s.requireFetchError("token claim namespace is empty")
+}
+
+func (s *AttestorSuite) TestFetchAttestationEmptyPodName() {
+	token, err := createPSAT("NAMESPACE", "")
+	s.Require().NoError(err)
+	s.configure(AttestorConfig{
+		TokenPath: s.writeValue("token", token),
+	})
+	s.requireFetchError("token claim pod name is empty")
+}
+
+func (s *AttestorSuite) TestFetchAttestationFailToGetNodeName() {
+	token, err := createPSAT("NAMESPACE", "POD-NAME")
+	s.Require().NoError(err)
+	s.configure(AttestorConfig{
+		TokenPath: s.writeValue("token", token),
+	})
+
+	s.k8sClientMock.EXPECT().GetNode("NAMESPACE", "POD-NAME").Times(1).Return("", errors.New("an error"))
+	s.requireFetchError("fail to get node name from apiserver")
 }
 
 func (s *AttestorSuite) TestFetchAttestationDataSuccess() {
-	token, err := createPSAT("POD-UID")
+	token, err := createPSAT("NAMESPACE", "POD-NAME")
 	s.Require().NoError(err)
 
 	s.configure(AttestorConfig{
 		TokenPath: s.writeValue("token", token),
 	})
+
+	s.k8sClientMock.EXPECT().GetNode("NAMESPACE", "POD-NAME").Times(1).Return("NODE-NAME", nil)
 
 	stream, err := s.attestor.FetchAttestationData(context.Background())
 	s.Require().NoError(err)
@@ -101,7 +130,7 @@ func (s *AttestorSuite) TestFetchAttestationDataSuccess() {
 	s.Require().NotNil(resp)
 
 	// assert attestation data
-	s.Require().Equal("spiffe://example.org/spire/agent/k8s_psat/production/POD-UID", resp.SpiffeId)
+	s.Require().Equal("spiffe://example.org/spire/agent/k8s_psat/production/NODE-NAME", resp.SpiffeId)
 	s.Require().NotNil(resp.AttestationData)
 	s.Require().Equal("k8s_psat", resp.AttestationData.Type)
 	s.Require().JSONEq(fmt.Sprintf(`{
@@ -156,6 +185,8 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 
 func (s *AttestorSuite) newAttestor() {
 	attestor := New()
+	s.k8sClientMock = k8s_cli_mock.NewMockK8SClient(s.mockCtrl)
+	attestor.k8sClient = s.k8sClientMock
 	s.LoadPlugin(builtin(attestor), &s.attestor)
 }
 
@@ -194,15 +225,16 @@ func (s *AttestorSuite) requireFetchError(contains string) {
 	s.Require().Nil(resp)
 }
 
-// Creates a PSAT using the given podUID (just for testing)
-func createPSAT(podUID string) (string, error) {
+// Creates a PSAT using the given namespace and podName (just for testing)
+func createPSAT(namespace, podName string) (string, error) {
 	// Create a jwt builder
 	s, err := createSigner()
 	builder := jwt.Signed(s)
 
 	// Set useful claims for testing
 	claims := sat_common.PSATClaims{}
-	claims.K8s.Pod.UID = podUID
+	claims.K8s.Namespace = namespace
+	claims.K8s.Pod.Name = podName
 	builder = builder.Claims(claims)
 
 	// Serialize and return token

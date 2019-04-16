@@ -6,6 +6,7 @@ package mock_k8s_client
 
 import (
 	gomock "github.com/golang/mock/gomock"
+	v1 "k8s.io/api/authentication/v1"
 	reflect "reflect"
 )
 
@@ -43,4 +44,17 @@ func (m *MockK8SClient) GetNode(arg0, arg1 string) (string, error) {
 // GetNode indicates an expected call of GetNode
 func (mr *MockK8SClientMockRecorder) GetNode(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNode", reflect.TypeOf((*MockK8SClient)(nil).GetNode), arg0, arg1)
+}
+
+// ValidateToken mocks base method
+func (m *MockK8SClient) ValidateToken(arg0 string, arg1 []string) (*v1.TokenReviewStatus, error) {
+	ret := m.ctrl.Call(m, "ValidateToken", arg0, arg1)
+	ret0, _ := ret[0].(*v1.TokenReviewStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ValidateToken indicates an expected call of ValidateToken
+func (mr *MockK8SClientMockRecorder) ValidateToken(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateToken", reflect.TypeOf((*MockK8SClient)(nil).ValidateToken), arg0, arg1)
 }
