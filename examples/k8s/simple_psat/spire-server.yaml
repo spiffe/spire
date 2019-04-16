@@ -13,6 +13,40 @@ metadata:
 
 ---
 
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: spire
+  name: spire-server-role
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  verbs: ["get"]
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["get", "create"]
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["subjectaccessreviews "]
+  verbs: ["get", "create"]
+
+---
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-server-role-binding
+  namespace: spire
+subjects:
+- kind: ServiceAccount
+  name: spire-server
+  namespace: spire
+roleRef:
+  kind: ClusterRole #this must be Role or ClusterRole
+  name: spire-server-role # this must match the name of the Role or ClusterRole you wish to bind to
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -57,9 +91,7 @@ data:
         plugin_data {
           clusters = {
             "demo-cluster" = {
-              service_account_key_file = "/run/k8s-certs/apiserver.crt"
               service_account_whitelist = ["spire:spire-agent"]
-              enable_api_server_queries = true
             }
           }
         }
@@ -135,9 +167,6 @@ spec:
             - name: spire-data
               mountPath: /run/spire/data
               readOnly: false
-            - name: k8s-sa-cert
-              mountPath: /run/k8s-certs/apiserver.crt
-              readOnly: true
           livenessProbe:
             tcpSocket:
               port: 8081
@@ -152,10 +181,6 @@ spec:
         - name: spire-secrets
           secret:
             secretName: spire-server
-        - name: k8s-sa-cert
-          hostPath:
-            path: /var/lib/minikube/certs/apiserver.crt
-            type: File
   volumeClaimTemplates:
     - metadata:
         name: spire-data
