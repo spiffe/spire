@@ -274,10 +274,12 @@ func TestRespondToChallenge(t *testing.T) {
 			_, err := c.RespondToChallenge(tt.challengeReq)
 			if tt.expectErr == "" {
 				require.NoError(t, err)
+				require.Equal(t, stateRespondedToChallenge, c.state)
 				return
 			}
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.expectErr)
+			require.Equal(t, stateProvidedAttestationData, c.state)
 		})
 	}
 }

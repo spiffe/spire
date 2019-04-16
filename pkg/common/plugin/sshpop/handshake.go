@@ -99,11 +99,15 @@ func (c *ClientHandshake) RespondToChallenge(req []byte) ([]byte, error) {
 	if err != nil {
 		return nil, Errorf("failed to sign data: %v", err)
 	}
-	c.state = stateRespondedToChallenge
-	return json.Marshal(challengeResponse{
+	b, err := json.Marshal(challengeResponse{
 		Nonce:     nonce,
 		Signature: sig,
 	})
+	if err != nil {
+		return nil, Errorf("failed to marshal response: %v", err)
+	}
+	c.state = stateRespondedToChallenge
+	return b, nil
 }
 
 func (s *ServerHandshake) VerifyAttestationData(data []byte) error {

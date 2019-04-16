@@ -8,6 +8,7 @@ import (
 	"text/template"
 
 	"github.com/hashicorp/hcl"
+	"github.com/zeebo/errs"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -20,8 +21,13 @@ const (
 	nonceLen            = 32
 )
 
-// DefaultAgentPathTemplate is the default text/template.
-var DefaultAgentPathTemplate = template.Must(template.New("agent-path").Parse("{{ .PluginName}}/{{ .Fingerprint }}"))
+var (
+	// DefaultAgentPathTemplate is the default text/template.
+	DefaultAgentPathTemplate = template.Must(template.New("agent-path").Parse("{{ .PluginName}}/{{ .Fingerprint }}"))
+
+	// sshpop-specific error class
+	errClass = errs.Class(PluginName)
+)
 
 // agentPathTemplateData is used to hydrate the agent path template used in generating spiffe ids.
 type agentPathTemplateData struct {
@@ -182,5 +188,5 @@ func (s *Server) NewHandshake() *ServerHandshake {
 
 // Errorf is a ssh plugin specific error.
 func Errorf(format string, a ...interface{}) error {
-	return fmt.Errorf("sshpop: "+format, a...)
+	return errClass.New(format, a...)
 }
