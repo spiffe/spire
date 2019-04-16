@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 func DedupRegistrationEntries(entries []*common.RegistrationEntry) []*common.RegistrationEntry {

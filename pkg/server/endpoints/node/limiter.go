@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/spire/api/node"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc/peer"
 )

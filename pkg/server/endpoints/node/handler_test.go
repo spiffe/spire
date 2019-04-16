@@ -22,11 +22,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/datastore"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakenoderesolver"
@@ -313,6 +313,30 @@ func (s *HandlerSuite) TestAttestSuccess() {
 	// No selectors were returned and no resolvers were available, so the node
 	// selectors should be empty.
 	s.Empty(s.getNodeSelectors(agentID))
+}
+
+func (s *HandlerSuite) TestAttestAgentless() {
+	attestor := fakeservernodeattestor.Config{
+		Data:          map[string]string{"data": workloadID},
+		ReturnLiteral: true,
+	}
+
+	agentlessCSR := s.makeCSR(workloadID)
+
+	// By default "/spire/agent/* is expected for attestation calls
+	s.addAttestor("test", attestor)
+	s.False(s.handler.c.AllowAgentlessNodeAttestors)
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             agentlessCSR,
+	}, codes.InvalidArgument, "expecting \"/spire/agent/*\"")
+
+	// If allow agentless is enabled attestation will run successfully
+	s.handler.c.AllowAgentlessNodeAttestors = true
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             agentlessCSR,
+	})
 }
 
 func (s *HandlerSuite) TestAttestReattestation() {

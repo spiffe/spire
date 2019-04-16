@@ -3,8 +3,8 @@ package client
 import (
 	"testing"
 
-	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/util"
 )
 

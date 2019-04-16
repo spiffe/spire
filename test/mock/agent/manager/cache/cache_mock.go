@@ -9,7 +9,7 @@ import (
 	client "github.com/spiffe/spire/pkg/agent/client"
 	cache "github.com/spiffe/spire/pkg/agent/manager/cache"
 	bundleutil "github.com/spiffe/spire/pkg/common/bundleutil"
-	common "github.com/spiffe/spire/proto/common"
+	common "github.com/spiffe/spire/proto/spire/common"
 	reflect "reflect"
 )
 

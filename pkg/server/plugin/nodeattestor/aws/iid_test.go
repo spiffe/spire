@@ -23,9 +23,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/golang/mock/gomock"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 )
 
 const (
@@ -95,7 +95,7 @@ func (s *IIDAttestorSuite) TestErrorOnInvalidType() {
 	s.configure()
 
 	_, err := s.attest(&nodeattestor.AttestRequest{
-		AttestationData: &nodeattestor.AttestationData{
+		AttestationData: &common.AttestationData{
 			Type: "foo",
 		},
 	})

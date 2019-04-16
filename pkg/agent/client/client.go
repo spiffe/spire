@@ -17,8 +17,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/common"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

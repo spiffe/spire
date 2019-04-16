@@ -10,7 +10,7 @@ import (
 	go_observer "github.com/imkira/go-observer"
 	client "github.com/spiffe/spire/pkg/agent/client"
 	cache "github.com/spiffe/spire/pkg/agent/manager/cache"
-	common "github.com/spiffe/spire/proto/common"
+	common "github.com/spiffe/spire/proto/spire/common"
 	reflect "reflect"
 )
 

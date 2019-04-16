@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/noderesolver"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 )
 
 func BuiltIn() catalog.Plugin {

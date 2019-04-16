@@ -13,8 +13,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/stretchr/testify/require"
 )

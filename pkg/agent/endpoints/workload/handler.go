@@ -24,8 +24,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/api/workload"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/api/workload"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 
 	"google.golang.org/grpc/codes"

@@ -34,6 +34,9 @@ type Config struct {
 	// Server CA for signing SVIDs
 	ServerCA ca.ServerCA
 
+	// Allow agentless spiffeIds when doing node attestation
+	AllowAgentlessNodeAttestors bool
+
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
 }

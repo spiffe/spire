@@ -2,11 +2,11 @@ package fakeservercatalog
 
 import (
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/proto/server/datastore"
-	"github.com/spiffe/spire/proto/server/keymanager"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/proto/server/noderesolver"
-	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 )
 
 type Catalog struct {

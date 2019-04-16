@@ -3,7 +3,7 @@
 package selector
 
 import (
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 type Selector struct {

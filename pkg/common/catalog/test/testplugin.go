@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog/internal"
-	spi "github.com/spiffe/spire/proto/common/plugin"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc"
 )
 

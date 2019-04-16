@@ -1,0 +1,324 @@
+syntax = "proto3";
+package spire.server.datastore;
+option go_package = "github.com/spiffe/spire/proto/spire/server/datastore";
+
+import "google/protobuf/wrappers.proto";
+import "spire/common/plugin/plugin.proto";
+import "spire/common/common.proto";
+
+/////////////////////////////////////////////////////////////////////////////
+// Bundle Messages
+/////////////////////////////////////////////////////////////////////////////
+
+message CreateBundleRequest {
+    spire.common.Bundle bundle = 1;
+}
+
+message CreateBundleResponse {
+    spire.common.Bundle bundle = 1;
+}
+
+message FetchBundleRequest {
+    string trust_domain_id = 1;
+}
+
+message FetchBundleResponse {
+    spire.common.Bundle bundle = 1;
+}
+
+message ListBundlesRequest {
+}
+
+message ListBundlesResponse {
+    repeated spire.common.Bundle bundles = 1;
+}
+
+message UpdateBundleRequest {
+    spire.common.Bundle bundle = 1;
+}
+
+message UpdateBundleResponse {
+    spire.common.Bundle bundle = 1;
+}
+
+message AppendBundleRequest {
+    spire.common.Bundle bundle = 1;
+}
+
+message AppendBundleResponse {
+    spire.common.Bundle bundle = 1;
+}
+
+message DeleteBundleRequest {
+    // Mode controls the delete behavior if there are other records
+    // associated with the bundle (e.g. registration entries).
+    enum Mode {
+        // RESTRICT prevents the bundle from being deleted in the presence of associated entries
+        RESTRICT = 0;
+        // DELETE deletes the bundle and associated entries
+        DELETE = 1;
+        // DISSOCIATE deletes the bundle and dissociates associated entries
+        DISSOCIATE = 2;
+    }
+
+    string trust_domain_id = 1;
+    Mode mode = 2;
+}
+
+message DeleteBundleResponse {
+    spire.common.Bundle bundle = 1;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// NodeSelector Messages
+/////////////////////////////////////////////////////////////////////////////
+
+message NodeSelectors {
+    // Node SPIFFE ID
+    string spiffe_id = 1;
+
+    // Node selectors
+    repeated spire.common.Selector selectors = 2;
+}
+
+message SetNodeSelectorsRequest {
+    NodeSelectors selectors = 1;
+}
+
+message SetNodeSelectorsResponse {
+}
+
+message GetNodeSelectorsRequest{
+    string spiffe_id = 1;
+}
+
+message GetNodeSelectorsResponse {
+    NodeSelectors selectors = 1;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// AttestedNode Messages
+/////////////////////////////////////////////////////////////////////////////
+
+message CreateAttestedNodeRequest {
+    spire.common.AttestedNode node = 1;
+}
+
+message CreateAttestedNodeResponse {
+    spire.common.AttestedNode node = 1;
+}
+
+message FetchAttestedNodeRequest {
+    string spiffe_id = 1;
+}
+
+message FetchAttestedNodeResponse {
+    spire.common.AttestedNode node = 1;
+}
+
+message ListAttestedNodesRequest {
+    google.protobuf.Int64Value by_expires_before = 1;
+    Pagination pagination = 2;
+}
+
+message ListAttestedNodesResponse {
+    repeated spire.common.AttestedNode nodes = 1;
+    Pagination pagination = 2;
+}
+
+message UpdateAttestedNodeRequest {
+    string spiffe_id = 1;
+
+    string cert_serial_number = 2;
+
+    int64 cert_not_after = 3;
+}
+
+message UpdateAttestedNodeResponse {
+    spire.common.AttestedNode node = 1;
+}
+
+message DeleteAttestedNodeRequest {
+    string spiffe_id = 1;
+}
+
+message DeleteAttestedNodeResponse {
+    spire.common.AttestedNode node = 1;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Registration Entries
+/////////////////////////////////////////////////////////////////////////////
+
+message CreateRegistrationEntryRequest {
+    spire.common.RegistrationEntry entry = 1;
+}
+
+message CreateRegistrationEntryResponse {
+    spire.common.RegistrationEntry entry = 1;
+}
+
+message FetchRegistrationEntryRequest {
+    string entry_id = 1;
+}
+
+message FetchRegistrationEntryResponse {
+    spire.common.RegistrationEntry entry = 1;
+}
+
+message BySelectors {
+    enum MatchBehavior {
+        MATCH_EXACT = 0;
+        MATCH_SUBSET = 1;
+    }
+    repeated spire.common.Selector selectors = 1;
+    MatchBehavior match = 2;
+}
+
+message Pagination {
+    string token = 1;
+    int32 page_size = 2;
+}
+
+message ListRegistrationEntriesRequest {
+    google.protobuf.StringValue by_parent_id = 1;
+    BySelectors by_selectors = 2;
+    google.protobuf.StringValue by_spiffe_id = 3;
+    Pagination pagination = 4;
+}
+
+message ListRegistrationEntriesResponse {
+    repeated spire.common.RegistrationEntry entries = 1;
+    Pagination pagination = 2;
+}
+
+message UpdateRegistrationEntryRequest {
+    spire.common.RegistrationEntry entry = 1;
+}
+
+message UpdateRegistrationEntryResponse {
+    spire.common.RegistrationEntry entry = 1;
+}
+
+message DeleteRegistrationEntryRequest {
+    string entry_id = 1;
+}
+
+message DeleteRegistrationEntryResponse {
+    spire.common.RegistrationEntry entry = 1;
+}
+
+message PruneRegistrationEntriesRequest {
+    int64 expires_before = 1;
+}
+
+message PruneRegistrationEntriesResponse {
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// JoinToken Messages
+/////////////////////////////////////////////////////////////////////////////
+
+message JoinToken {
+    // Token value
+    string token = 1;
+
+    // Expiration in seconds since unix epoch
+    int64 expiry = 2;
+}
+
+message CreateJoinTokenRequest {
+    JoinToken join_token = 1;
+}
+
+message CreateJoinTokenResponse {
+    JoinToken join_token = 1;
+}
+
+message FetchJoinTokenRequest {
+    string token = 1;
+}
+
+message FetchJoinTokenResponse {
+    JoinToken join_token = 1;
+}
+
+message DeleteJoinTokenRequest {
+    string token = 1;
+}
+
+message DeleteJoinTokenResponse {
+    JoinToken join_token = 1;
+}
+
+message PruneJoinTokensRequest {
+    int64 expires_before = 1;
+}
+
+message PruneJoinTokensResponse {
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Service Definition
+/////////////////////////////////////////////////////////////////////////////
+
+service DataStore {
+    // Creates a bundle
+    rpc CreateBundle(CreateBundleRequest) returns (CreateBundleResponse);
+    // Fetches a specific bundle
+    rpc FetchBundle(FetchBundleRequest) returns (FetchBundleResponse);
+    // Lists bundles (optionally filtered)
+    rpc ListBundles(ListBundlesRequest) returns (ListBundlesResponse);
+    // Updates a specific bundle
+    rpc UpdateBundle(UpdateBundleRequest) returns (UpdateBundleResponse);
+    // Appends contents from a specific bundle (creates if it does not exist)
+    rpc AppendBundle(AppendBundleRequest) returns (AppendBundleResponse);
+    // Deletes a specific bundle
+    rpc DeleteBundle(DeleteBundleRequest) returns (DeleteBundleResponse);
+
+    // Creates an attested node
+    rpc CreateAttestedNode(CreateAttestedNodeRequest) returns (CreateAttestedNodeResponse);
+    // Fetches a specific attested node
+    rpc FetchAttestedNode(FetchAttestedNodeRequest) returns (FetchAttestedNodeResponse);
+    // Lists attested nodes (optionally filtered)
+    rpc ListAttestedNodes(ListAttestedNodesRequest) returns (ListAttestedNodesResponse);
+    // Updates a specific attested node
+    rpc UpdateAttestedNode(UpdateAttestedNodeRequest) returns (UpdateAttestedNodeResponse);
+    // Deletes a specific attested node
+    rpc DeleteAttestedNode(DeleteAttestedNodeRequest) returns (DeleteAttestedNodeResponse);
+
+    // Sets the set of selectors for a specific node id
+    rpc SetNodeSelectors(SetNodeSelectorsRequest) returns (SetNodeSelectorsResponse);
+    // Gets the set of node selectors for a specific node id
+    rpc GetNodeSelectors(GetNodeSelectorsRequest) returns (GetNodeSelectorsResponse);
+
+    // Creates a registration entry
+    rpc CreateRegistrationEntry(CreateRegistrationEntryRequest) returns (CreateRegistrationEntryResponse);
+    // Fetches a specific registration entry
+    rpc FetchRegistrationEntry(FetchRegistrationEntryRequest) returns (FetchRegistrationEntryResponse);
+    // Lists registration entries (optionally filtered)
+    rpc ListRegistrationEntries(ListRegistrationEntriesRequest) returns (ListRegistrationEntriesResponse);
+    // Updates a specific registration entry
+    rpc UpdateRegistrationEntry(UpdateRegistrationEntryRequest) returns (UpdateRegistrationEntryResponse);
+    // Deletes a specific registration entry
+    rpc DeleteRegistrationEntry(DeleteRegistrationEntryRequest) returns (DeleteRegistrationEntryResponse);
+    // Prunes all registration entries that expire before the specified timestamp
+    rpc PruneRegistrationEntries(PruneRegistrationEntriesRequest) returns (PruneRegistrationEntriesResponse);
+
+    // Creates a join token
+    rpc CreateJoinToken(CreateJoinTokenRequest) returns (CreateJoinTokenResponse);
+    // Fetches a specific join token
+    rpc FetchJoinToken(FetchJoinTokenRequest) returns (FetchJoinTokenResponse);
+    // Delete a specific join token
+    rpc DeleteJoinToken(DeleteJoinTokenRequest) returns (DeleteJoinTokenResponse);
+    // Prunes all join tokens that expire before the specified timestamp
+    rpc PruneJoinTokens(PruneJoinTokensRequest) returns (PruneJoinTokensResponse);
+
+    // Applies the plugin configuration
+    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
+    // Returns the version and related metadata of the installed plugin
+    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
+}

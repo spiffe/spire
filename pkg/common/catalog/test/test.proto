@@ -1,8 +1,8 @@
 syntax = "proto3";
 package test;
-option go_package = "test";
+option go_package = "github.com/spiffe/spire/pkg/common/catalog/test";
 
-import "github.com/spiffe/spire/proto/common/plugin/plugin.proto";
+import "spire/common/plugin/plugin.proto";
 
 message Request {
     string in = 1;

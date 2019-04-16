@@ -19,9 +19,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
-	node_pb "github.com/spiffe/spire/proto/api/node"
-	registration_pb "github.com/spiffe/spire/proto/api/registration"
-	datastore_pb "github.com/spiffe/spire/proto/server/datastore"
+	node_pb "github.com/spiffe/spire/proto/spire/api/node"
+	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
+	datastore_pb "github.com/spiffe/spire/proto/spire/server/datastore"
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -96,6 +96,8 @@ func (e *endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
 		ServerCA:    e.c.ServerCA,
+
+		AllowAgentlessNodeAttestors: e.c.AllowAgentlessNodeAttestors,
 	})
 	node_pb.RegisterNodeServer(tcpServer, n)
 }

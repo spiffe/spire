@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 // ProjectRoot returns the absolute path to the SPIRE project root

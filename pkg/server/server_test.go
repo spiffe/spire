@@ -9,8 +9,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	mock_upstreamca "github.com/spiffe/spire/test/mock/proto/server/upstreamca"
 	"github.com/stretchr/testify/suite"
@@ -81,7 +81,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 
 	// create attested node with current trust domain
 	ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-		Node: &datastore.AttestedNode{
+		Node: &common.AttestedNode{
 			SpiffeId:            "spiffe://test.com/host",
 			AttestationDataType: "fake_nodeattestor_1",
 			CertNotAfter:        1822684794,
@@ -142,7 +142,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 
 	// create attested node with current trust domain
 	nodeResp, err := ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-		Node: &datastore.AttestedNode{
+		Node: &common.AttestedNode{
 			SpiffeId:            "spiffe://inv%ild/host",
 			AttestationDataType: "fake_nodeattestor_1",
 			CertNotAfter:        1822684794,

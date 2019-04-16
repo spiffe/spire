@@ -20,11 +20,11 @@ import (
 	nr_noop "github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
-	"github.com/spiffe/spire/proto/server/datastore"
-	"github.com/spiffe/spire/proto/server/keymanager"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/proto/server/noderesolver"
-	"github.com/spiffe/spire/proto/server/upstreamca"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 )
 
 type Catalog interface {

@@ -20,11 +20,11 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
-	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/datastore"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -39,6 +39,9 @@ type HandlerConfig struct {
 	ServerCA    ca.ServerCA
 	TrustDomain url.URL
 	Clock       clock.Clock
+
+	// Allow agentless spiffeIds when doing node attestation
+	AllowAgentlessNodeAttestors bool
 }
 
 type Handler struct {
@@ -87,7 +90,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		return status.Error(codes.InvalidArgument, "request missing CSR")
 	}
 
-	agentID, err := getSpiffeIDFromCSR(request.Csr, idutil.AllowTrustDomainAgent(h.c.TrustDomain.Host))
+	agentID, err := getSpiffeIDFromCSR(request.Csr, h.getNodeAttestationValidationMode())
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "request CSR is invalid: %v", err)
 	}
@@ -174,6 +177,13 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	}
 
 	return nil
+}
+
+func (h *Handler) getNodeAttestationValidationMode() idutil.ValidationMode {
+	if h.c.AllowAgentlessNodeAttestors {
+		return idutil.AllowAnyInTrustDomain(h.c.TrustDomain.Host)
+	}
+	return idutil.AllowTrustDomainAgent(h.c.TrustDomain.Host)
 }
 
 //FetchX509SVID gets Workload, Agent certs and CA trust bundles.
@@ -831,7 +841,7 @@ func createAttestationEntry(ctx context.Context, ds datastore.DataStore, cert *x
 		return err
 	}
 	req := &datastore.CreateAttestedNodeRequest{
-		Node: &datastore.AttestedNode{
+		Node: &common.AttestedNode{
 			AttestationDataType: attestationType,
 			SpiffeId:            spiffeID,
 			CertNotAfter:        cert.NotAfter.Unix(),

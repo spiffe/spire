@@ -11,8 +11,8 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeregistrationclient"
 	"github.com/stretchr/testify/suite"
@@ -115,7 +115,7 @@ func (s *BundleSuite) TestShowHelp() {
 }
 
 func (s *BundleSuite) TestShow() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://example.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert1.Raw},
@@ -172,7 +172,7 @@ func (s *BundleSuite) TestSetCreatesBundle() {
 }
 
 func (s *BundleSuite) TestSetUpdatesBundle() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://otherdomain.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: []byte("BOGUSCERTS")},
@@ -210,13 +210,13 @@ func (s *BundleSuite) TestListHelp() {
 }
 
 func (s *BundleSuite) TestListAll() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://domain1.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert1.Raw},
 		},
 	})
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://domain2.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert2.Raw},
@@ -254,13 +254,13 @@ diIqWtxAqBLFrx8zNS4=
 }
 
 func (s *BundleSuite) TestListOne() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://domain1.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert1.Raw},
 		},
 	})
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://domain2.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert2.Raw},
@@ -307,7 +307,7 @@ func (s *BundleSuite) TestDeleteWithUnsupportedMode() {
 }
 
 func (s *BundleSuite) TestDelete() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://domain1.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert1.Raw},
@@ -326,13 +326,13 @@ func (s *BundleSuite) TestDelete() {
 }
 
 func (s *BundleSuite) TestDeleteWithRestrictMode() {
-	s.createBundle(&datastore.Bundle{
+	s.createBundle(&common.Bundle{
 		TrustDomainId: "spiffe://domain1.test",
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert1.Raw},
 		},
 	})
-	s.createRegistrationEntry(&datastore.RegistrationEntry{
+	s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:      "spiffe://example.test/spire/agent/foo",
 		SpiffeId:      "spiffe://example.test/blog",
 		Selectors:     []*common.Selector{{Type: "foo", Value: "bar"}},
@@ -364,7 +364,7 @@ func (s *BundleSuite) assertBundleSet(extraArgs ...string) {
 	s.Require().Equal(s.cert1.Raw, resp.Bundle.RootCas[0].DerBytes)
 }
 
-func (s *BundleSuite) createBundle(bundle *datastore.Bundle) {
+func (s *BundleSuite) createBundle(bundle *common.Bundle) {
 	_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
 		Bundle: bundle,
 	})
