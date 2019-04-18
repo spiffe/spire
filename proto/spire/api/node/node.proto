@@ -21,9 +21,6 @@ message Bundle {
 // A type which contains the "Spiffe Verifiable Identity Document" and
 // a TTL indicating when the SVID expires.
 message X509SVID {
-    // X509 SVID (ASN.1 encoding)
-    bytes DEPRECATED_cert = 1;
-
     // X509 SVID and intermediates necessary to form a chain of trust back
     // to a root CA in the bundle.
     bytes cert_chain = 3;
@@ -39,15 +36,9 @@ message X509SVIDUpdate {
     // keys. Map[SPIFFE_ID] => SVID.
     map<string, X509SVID> svids = 1;
 
-    // DEPRECATED. Latest SPIRE Server bundle.
-    bytes DEPRECATED_bundle = 2;
-
     // A type representing a curated record that the Spire Server uses to set up
     // and manage the various registered nodes and workloads that are controlled by it.
     repeated spire.common.RegistrationEntry registration_entries = 3;
-
-    // DEPRECATED. See bundles.
-    map<string, Bundle> DEPRECATED_bundles = 4;
 
     // Trust bundles associated with the SVIDs, keyed by trust domain SPIFFE
     // ID. Bundles included are the trust bundle for the server trust domain
