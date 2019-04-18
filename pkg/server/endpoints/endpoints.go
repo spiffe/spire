@@ -19,9 +19,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
-	node_pb "github.com/spiffe/spire/proto/api/node"
-	registration_pb "github.com/spiffe/spire/proto/api/registration"
-	datastore_pb "github.com/spiffe/spire/proto/server/datastore"
+	node_pb "github.com/spiffe/spire/proto/spire/api/node"
+	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
+	datastore_pb "github.com/spiffe/spire/proto/spire/server/datastore"
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -96,6 +96,8 @@ func (e *endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
 		ServerCA:    e.c.ServerCA,
+
+		AllowAgentlessNodeAttestors: e.c.AllowAgentlessNodeAttestors,
 	})
 	node_pb.RegisterNodeServer(tcpServer, n)
 }
@@ -218,7 +220,7 @@ func (e *endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 // getCerts queries the datastore and returns a TLS serving certificate(s) plus
 // the current CA root bundle.
 func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
-	ds := e.c.Catalog.DataStores()[0]
+	ds := e.c.Catalog.GetDataStore()
 
 	resp, err := ds.FetchBundle(ctx, &datastore_pb.FetchBundleRequest{
 		TrustDomainId: e.c.TrustDomain.String(),

@@ -9,26 +9,25 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/common/plugin"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
+	"google.golang.org/grpc/codes"
 )
 
 func TestAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(AttestorSuite))
+	spiretest.Run(t, new(AttestorSuite))
 }
 
 type AttestorSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	dir      string
-	attestor *nodeattestor.BuiltIn
+	attestor nodeattestor.Plugin
 }
 
 func (s *AttestorSuite) SetupTest() {
-	var err error
-	s.dir, err = ioutil.TempDir("", "spire-k8s-sat-test-")
-	s.Require().NoError(err)
+	s.dir = s.TempDir()
 
 	s.newAttestor()
 	s.configure(AttestorConfig{})
@@ -84,23 +83,23 @@ func (s *AttestorSuite) TestConfigure() {
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
 		Configuration: "blah",
 	})
-	s.requireErrorContains(err, "k8s-sat: unable to decode configuration")
+	s.RequireGRPCStatusContains(err, codes.Unknown, "k8s-sat: unable to decode configuration")
 	s.Require().Nil(resp)
 
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.requireErrorContains(err, "k8s-sat: global configuration is required")
+	s.RequireGRPCStatusContains(err, codes.Unknown, "k8s-sat: global configuration is required")
 	s.Require().Nil(resp)
 
 	// missing trust domain
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.Require().EqualError(err, "k8s-sat: global configuration missing trust domain")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: global configuration missing trust domain")
 	s.Require().Nil(resp)
 
 	// missing cluster
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.Require().EqualError(err, "k8s-sat: configuration missing cluster")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: configuration missing cluster")
 	s.Require().Nil(resp)
 
 	// success
@@ -119,11 +118,11 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 }
 
 func (s *AttestorSuite) newAttestor() {
-	attestor := NewAttestorPlugin()
+	attestor := New()
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
 	}
-	s.attestor = nodeattestor.NewBuiltIn(attestor)
+	s.LoadPlugin(builtin(attestor), &s.attestor)
 }
 
 func (s *AttestorSuite) configure(config AttestorConfig) {
@@ -157,11 +156,6 @@ func (s *AttestorSuite) requireFetchError(contains string) {
 	s.Require().NotNil(stream)
 
 	resp, err := stream.Recv()
-	s.requireErrorContains(err, contains)
+	s.RequireErrorContains(err, contains)
 	s.Require().Nil(resp)
-}
-
-func (s *AttestorSuite) requireErrorContains(err error, contains string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), contains)
 }

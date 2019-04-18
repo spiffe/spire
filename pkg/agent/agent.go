@@ -42,22 +42,26 @@ func (a *Agent) Run(ctx context.Context) error {
 		defer stopProfiling()
 	}
 
-	metrics := telemetry.NewMetrics(&telemetry.MetricsConfig{
-		Logger:      a.c.Log.WithField("subsystem_name", "telemetry").Writer(),
+	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
+		FileConfig:  a.c.Telemetry,
+		Logger:      a.c.Log.WithField("subsystem_name", "telemetry"),
 		ServiceName: "spire_agent",
 	})
-	defer metrics.Stop()
-
-	cat := catalog.New(&catalog.Config{
-		GlobalConfig:  a.c.GlobalConfig(),
-		PluginConfigs: a.c.PluginConfigs,
-		Log:           a.c.Log.WithField("subsystem_name", "catalog"),
-	})
-	defer cat.Stop()
-
-	if err := cat.Run(ctx); err != nil {
+	if err != nil {
 		return err
 	}
+
+	cat, err := catalog.Load(ctx, catalog.Config{
+		Log: a.c.Log.WithField("subsystem_name", "catalog"),
+		GlobalConfig: catalog.GlobalConfig{
+			TrustDomain: a.c.TrustDomain.Host,
+		},
+		PluginConfig: a.c.PluginConfigs,
+	})
+	if err != nil {
+		return err
+	}
+	defer cat.Close()
 
 	as, err := a.attest(ctx, cat, metrics)
 	if err != nil {
@@ -74,6 +78,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	err = util.RunTasks(ctx,
 		manager.Run,
 		endpoints.ListenAndServe,
+		metrics.ListenAndServe,
 	)
 	if err == context.Canceled {
 		err = nil

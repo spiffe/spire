@@ -10,8 +10,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

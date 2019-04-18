@@ -10,22 +10,24 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/spiffe/spire/test/fixture"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
-	"github.com/stretchr/testify/suite"
 )
 
 func TestX509PoP(t *testing.T) {
-	suite.Run(t, new(Suite))
+	spiretest.Run(t, new(Suite))
 }
 
 type Suite struct {
-	suite.Suite
+	spiretest.Suite
 
-	p                *nodeattestor.BuiltIn
+	p nodeattestor.Plugin
+
+	rootCertPath     string
 	leafBundle       [][]byte
 	leafKey          crypto.PrivateKey
 	leafCert         *x509.Certificate
@@ -36,18 +38,11 @@ type Suite struct {
 func (s *Suite) SetupTest() {
 	require := s.Require()
 
-	rootCertPath := fixture.Join("nodeattestor", "x509pop", "root-crt.pem")
+	s.rootCertPath = fixture.Join("nodeattestor", "x509pop", "root-crt.pem")
 	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
 	leafKeyPath := fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
 
-	s.p = nodeattestor.NewBuiltIn(New())
-	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-ca_bundle_path = %q`, rootCertPath),
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	require.NoError(err)
-	require.Equal(resp, &plugin.ConfigureResponse{})
+	s.LoadPlugin(BuiltIn(), &s.p)
 
 	kp, err := tls.LoadX509KeyPair(leafCertPath, leafKeyPath)
 	require.NoError(err)
@@ -57,11 +52,13 @@ ca_bundle_path = %q`, rootCertPath),
 	require.NoError(err)
 	s.intermediateCert, err = x509.ParseCertificate(s.leafBundle[1])
 	require.NoError(err)
-	s.rootCert, err = util.LoadCert(rootCertPath)
+	s.rootCert, err = util.LoadCert(s.rootCertPath)
 	require.NoError(err)
 }
 
 func (s *Suite) TestAttestSuccess() {
+	s.configure()
+
 	require := s.Require()
 
 	stream, done := s.attest()
@@ -158,12 +155,11 @@ func (s *Suite) TestAttestFailure() {
 	}
 
 	// not configured yet
-	stream, err := nodeattestor.NewBuiltIn(New()).Attest(context.Background())
-	require.NoError(err)
-	defer stream.CloseSend()
-	require.NoError(stream.Send(&nodeattestor.AttestRequest{}))
-	_, err = stream.Recv()
-	require.EqualError(err, "x509pop: not configured")
+	attestFails(&common.AttestationData{},
+		"x509pop: not configured")
+
+	// now configure
+	s.configure()
 
 	// unexpected data type
 	attestFails(&common.AttestationData{Type: "foo"},
@@ -258,7 +254,18 @@ func (s *Suite) TestGetPluginInfo() {
 	require.Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *Suite) attest() (nodeattestor.Attest_Stream, func()) {
+func (s *Suite) configure() {
+	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: fmt.Sprintf(`
+ca_bundle_path = %q
+`, s.rootCertPath),
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(resp, &plugin.ConfigureResponse{})
+}
+
+func (s *Suite) attest() (nodeattestor.NodeAttestor_AttestClient, func()) {
 	stream, err := s.p.Attest(context.Background())
 	s.Require().NoError(err)
 	return stream, func() {

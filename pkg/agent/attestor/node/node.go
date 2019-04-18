@@ -19,10 +19,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/grpcutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/agent/keymanager"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/agent/keymanager"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -80,13 +80,8 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 }
 
 func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.PrivateKey, error) {
-	mgrs := a.c.Catalog.KeyManagers()
-	if len(mgrs) > 1 {
-		return nil, nil, errors.New("more than one key manager configured")
-	}
-
-	mgr := mgrs[0]
-	fResp, err := mgr.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
+	km := a.c.Catalog.GetKeyManager()
+	fResp, err := km.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("load private key: %v", err)
 	}
@@ -100,7 +95,7 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 	if len(fResp.PrivateKey) > 0 && svid != nil {
 		keyData = fResp.PrivateKey
 	} else {
-		gResp, err := mgr.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+		gResp, err := km.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 		if err != nil {
 			return nil, nil, fmt.Errorf("generate key pair: %s", err)
 		}
@@ -137,7 +132,7 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 }
 
 func (a *attestor) fetchAttestationData(
-	fetchStream nodeattestor.FetchAttestationData_Stream,
+	fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient,
 	challenge []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
 
 	// the stream should only be nil if this node attestation is via a join
@@ -201,14 +196,10 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 	defer cancel()
 
 	attestorName := "join_token"
-	var fetchStream nodeattestor.FetchAttestationData_Stream
+	var fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient
 	if a.c.JoinToken == "" {
-		plugins := a.c.Catalog.NodeAttestors()
-		if len(plugins) > 1 {
-			return nil, nil, errors.New("more than one node attestor configured")
-		}
-		attestor := plugins[0]
-		attestorName = attestor.Config().PluginName
+		attestor := a.c.Catalog.GetNodeAttestor()
+		attestorName = attestor.Name()
 		var err error
 		fetchStream, err = attestor.FetchAttestationData(ctx)
 		if err != nil {

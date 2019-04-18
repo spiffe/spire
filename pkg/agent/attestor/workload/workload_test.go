@@ -2,19 +2,14 @@ package attestor
 
 import (
 	"context"
-	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/agent/catalog"
-	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/agent/workloadattestor"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
-	"github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
+	"github.com/spiffe/spire/test/fakes/fakeworkloadattestor"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -29,23 +24,22 @@ func TestWorkloadAttestor(t *testing.T) {
 type WorkloadAttestorTestSuite struct {
 	suite.Suite
 
-	ctrl *gomock.Controller
-
 	attestor  *attestor
-	attestor1 *mock_workloadattestor.MockWorkloadAttestor
-	attestor2 *mock_workloadattestor.MockWorkloadAttestor
+	attestor1 *fakeworkloadattestor.WorkloadAttestor
+	attestor2 *fakeworkloadattestor.WorkloadAttestor
 }
 
 func (s *WorkloadAttestorTestSuite) SetupTest() {
-	s.ctrl = gomock.NewController(s.T())
-
-	s.attestor1 = mock_workloadattestor.NewMockWorkloadAttestor(s.ctrl)
-	s.attestor2 = mock_workloadattestor.NewMockWorkloadAttestor(s.ctrl)
+	s.attestor1 = fakeworkloadattestor.New()
+	s.attestor2 = fakeworkloadattestor.New()
 
 	log, _ := test.NewNullLogger()
 
 	catalog := fakeagentcatalog.New()
-	catalog.SetWorkloadAttestors(s.attestor1, s.attestor2)
+	catalog.SetWorkloadAttestors(
+		fakeagentcatalog.WorkloadAttestor("fake1", s.attestor1),
+		fakeagentcatalog.WorkloadAttestor("fake2", s.attestor2),
+	)
 
 	s.attestor = newAttestor(&Config{
 		Catalog: catalog,
@@ -54,43 +48,33 @@ func (s *WorkloadAttestorTestSuite) SetupTest() {
 	})
 }
 
-func (s *WorkloadAttestorTestSuite) TearDownTest() {
-	s.ctrl.Finish()
-}
-
 func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
-	sel1 := []*common.Selector{{Type: "foo", Value: "bar"}}
-	sel2 := []*common.Selector{{Type: "bat", Value: "baz"}}
-	s.attestor1.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel1}, nil)
-	s.attestor2.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
+	selectors1 := []*common.Selector{{Type: "foo", Value: "bar"}}
+	selectors2 := []*common.Selector{{Type: "bat", Value: "baz"}}
+	combined := append(selectors1, selectors2...)
+	util.SortSelectors(combined)
 
-	// Use selector package to work around sort ordering
-	expected := selector.NewSetFromRaw([]*common.Selector{sel1[0], sel2[0]})
-	result := s.attestor.Attest(ctx, 1)
-	s.Assert().Equal(expected, selector.NewSetFromRaw(result))
+	// both attestors succeed but with no selectors
+	s.attestor1.SetSelectors(1, nil)
+	s.attestor2.SetSelectors(1, nil)
+	selectors := s.attestor.Attest(ctx, 1)
+	s.Empty(selectors)
 
-	s.attestor1.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(nil, errors.New("i'm an error"))
-	s.attestor2.EXPECT().Attest(gomock.Any(), gomock.Any()).Return(&workloadattestor.AttestResponse{Selectors: sel2}, nil)
+	// attestor1 has selectors, but not attestor2
+	s.attestor1.SetSelectors(2, selectors1)
+	s.attestor2.SetSelectors(2, nil)
+	selectors = s.attestor.Attest(ctx, 2)
+	s.Equal(selectors1, selectors)
 
-	s.Assert().Equal(sel2, s.attestor.Attest(ctx, 1))
-}
+	// attestor2 has selectors, attestor1 fails
+	s.attestor2.SetSelectors(3, selectors2)
+	selectors = s.attestor.Attest(ctx, 3)
+	s.Equal(selectors2, selectors)
 
-func (s *WorkloadAttestorTestSuite) TestInvokeAttestor() {
-	req := &workloadattestor.AttestRequest{Pid: 1}
-	sel := []*common.Selector{{Type: "foo", Value: "bar"}}
-	resp := &workloadattestor.AttestResponse{Selectors: sel}
-	s.attestor1.EXPECT().Attest(gomock.Any(), req).Return(resp, nil)
-
-	managedAttestor := catalog.NewManagedWorkloadAttestor(s.attestor1, common_catalog.PluginConfig{
-		PluginName: "foo",
-	})
-
-	result, err := s.attestor.invokeAttestor(ctx, managedAttestor, 1)
-	s.Require().NoError(err)
-	s.Require().Equal(sel, result)
-
-	s.attestor1.EXPECT().Attest(gomock.Any(), req).Return(nil, errors.New("i'm an error"))
-	result, err = s.attestor.invokeAttestor(ctx, managedAttestor, 1)
-	s.Require().EqualError(err, `workload attestor "foo" failed: i'm an error`)
-	s.Require().Nil(result)
+	// both have selectors
+	s.attestor1.SetSelectors(4, selectors1)
+	s.attestor2.SetSelectors(4, selectors2)
+	selectors = s.attestor.Attest(ctx, 4)
+	util.SortSelectors(selectors)
+	s.Equal(combined, selectors)
 }

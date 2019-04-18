@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 

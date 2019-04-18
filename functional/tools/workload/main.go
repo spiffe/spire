@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	workload "github.com/spiffe/spire/proto/api/workload"
+	workload "github.com/spiffe/spire/proto/spire/api/workload"
 	"google.golang.org/grpc"
 )
 

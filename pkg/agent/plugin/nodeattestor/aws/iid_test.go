@@ -13,11 +13,11 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/test/spiretest"
 
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/common/plugin"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
 const (
@@ -41,13 +41,13 @@ t61Ol/Q+OqWFX74JwsUU56FqPFm3Y9k7HxDILdedoQ==
 )
 
 func TestIIDAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(Suite))
+	spiretest.Run(t, new(Suite))
 }
 
 type Suite struct {
-	suite.Suite
+	spiretest.Suite
 
-	p       *nodeattestor.BuiltIn
+	p       nodeattestor.Plugin
 	server  *httptest.Server
 	status  int
 	docBody string
@@ -71,9 +71,8 @@ func (s *Suite) SetupTest() {
 		}
 	}))
 
-	p := NewIIDPlugin()
+	s.p = s.newPlugin()
 
-	s.p = nodeattestor.NewBuiltIn(p)
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`
 identity_document_url = "http://%s%s"
@@ -93,11 +92,11 @@ func (s *Suite) TearDownTest() {
 }
 
 func (s *Suite) TestErrorWhenNotConfigured() {
-	p := nodeattestor.NewBuiltIn(NewIIDPlugin())
+	p := s.newPlugin()
 	stream, err := p.FetchAttestationData(context.Background())
 	defer stream.CloseSend()
 	resp, err := stream.Recv()
-	s.requireErrorContains(err, "not configured")
+	s.RequireErrorContains(err, "not configured")
 	s.Require().Nil(resp)
 }
 
@@ -105,19 +104,19 @@ func (s *Suite) TestUnexpectedStatus() {
 	s.status = http.StatusBadGateway
 	s.docBody = ""
 	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "unexpected status code: 502")
+	s.RequireErrorContains(err, "unexpected status code: 502")
 }
 
 func (s *Suite) TestEmptyDoc() {
 	s.docBody = ""
 	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "unexpected end of JSON input")
+	s.RequireErrorContains(err, "unexpected end of JSON input")
 }
 
 func (s *Suite) TestErrorOnInvalidDoc() {
 	s.docBody = "invalid"
 	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "error occurred unmarshaling the IID")
+	s.RequireErrorContains(err, "error occurred unmarshaling the IID")
 }
 
 func (s *Suite) TestSuccessfulIdentityProcessing() {
@@ -177,12 +176,12 @@ func (s *Suite) TestConfigure() {
 
 	// global configuration not provided
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.requireErrorContains(err, "global configuration is required")
+	s.RequireErrorContains(err, "global configuration is required")
 	require.Nil(resp)
 
 	// missing trust domain
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.requireErrorContains(err, "global configuration missing trust domain")
+	s.RequireErrorContains(err, "global configuration missing trust domain")
 	require.Nil(resp)
 
 	// success
@@ -204,16 +203,17 @@ func (s *Suite) TestGetPluginInfo() {
 	require.Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
+func (s *Suite) newPlugin() nodeattestor.Plugin {
+	var p nodeattestor.Plugin
+	s.LoadPlugin(BuiltIn(), &p)
+	return p
+}
+
 func (s *Suite) fetchAttestationData() (*nodeattestor.FetchAttestationDataResponse, error) {
 	stream, err := s.p.FetchAttestationData(context.Background())
 	s.NoError(err)
 	s.NoError(stream.CloseSend())
 	return stream.Recv()
-}
-
-func (s *Suite) requireErrorContains(err error, substring string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), substring)
 }
 
 func (s *Suite) buildDefaultIIDDocAndSig() (docBytes []byte, sigBytes []byte) {

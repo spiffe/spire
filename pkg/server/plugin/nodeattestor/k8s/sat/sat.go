@@ -8,10 +8,11 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
-	"github.com/spiffe/spire/proto/common"
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/zeebo/errs"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -23,6 +24,16 @@ const (
 var (
 	satError = errs.Class("k8s-sat")
 )
+
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *AttestorPlugin) catalog.Plugin {
+	return catalog.MakePlugin("k8s_sat",
+		nodeattestor.PluginServer(p),
+	)
+}
 
 type ClusterConfig struct {
 	ServiceAccountKeyFile   string   `hcl:"service_account_key_file"`
@@ -48,13 +59,13 @@ type AttestorPlugin struct {
 	config *attestorConfig
 }
 
-var _ nodeattestor.Plugin = (*AttestorPlugin)(nil)
+var _ nodeattestor.NodeAttestorServer = (*AttestorPlugin)(nil)
 
-func NewAttestorPlugin() *AttestorPlugin {
+func New() *AttestorPlugin {
 	return &AttestorPlugin{}
 }
 
-func (p *AttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return satError.Wrap(err)

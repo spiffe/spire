@@ -9,7 +9,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/gogo/protobuf/proto"
-	"github.com/spiffe/spire/proto/api/workload"
+	"github.com/spiffe/spire/proto/spire/api/workload"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

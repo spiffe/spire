@@ -5,16 +5,21 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 
 	sds_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
+	"github.com/sirupsen/logrus"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sds"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/common/auth"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
-	workload_pb "github.com/spiffe/spire/proto/api/workload"
+	workload_pb "github.com/spiffe/spire/proto/spire/api/workload"
 )
 
 type Server interface {
@@ -26,7 +31,10 @@ type endpoints struct {
 }
 
 func (e *endpoints) ListenAndServe(ctx context.Context) error {
-	server := grpc.NewServer(grpc.Creds(auth.NewCredentials()))
+	server := grpc.NewServer(
+		grpc.Creds(auth.NewCredentials()),
+		grpc.UnknownServiceHandler(UnknownServiceHandler(e.c.Log)),
+	)
 
 	e.registerWorkloadAPI(server)
 	if e.c.EnableSDS {
@@ -89,6 +97,13 @@ func (e *endpoints) registerSecretDiscoveryService(server *grpc.Server) {
 }
 
 func (e *endpoints) createUDSListener() (net.Listener, error) {
+	// Create uds dir and parents if not exists
+	dir := filepath.Dir(e.c.BindAddr.String())
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+
+	// Remove uds if already exists
 	os.Remove(e.c.BindAddr.String())
 
 	l, err := net.Listen(e.c.BindAddr.Network(), e.c.BindAddr.String())
@@ -98,4 +113,20 @@ func (e *endpoints) createUDSListener() (net.Listener, error) {
 
 	os.Chmod(e.c.BindAddr.String(), os.ModePerm)
 	return l, nil
+}
+
+func UnknownServiceHandler(log logrus.FieldLogger) grpc.StreamHandler {
+	const sdsMethodPrefix = "/envoy.service.discovery.v2.SecretDiscoveryService/"
+	logged := false
+	return func(srv interface{}, stream grpc.ServerStream) error {
+		method, ok := grpc.MethodFromServerStream(stream)
+		if ok && strings.HasPrefix(method, sdsMethodPrefix) {
+			if !logged {
+				log.Warn("Incoming RPC for Envoy SDS but it is not enabled (via `enable_sds` configurable)")
+				logged = true
+			}
+			return status.Error(codes.Unimplemented, "Envoy SDS support has not been enabled on the agent (see `enable_sds` configurable)")
+		}
+		return status.Errorf(codes.Unimplemented, "unknown method %s", method)
+	}
 }

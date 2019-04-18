@@ -11,9 +11,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/upstreamca"
-	"github.com/stretchr/testify/suite"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 var (
@@ -34,11 +34,11 @@ const (
 )
 
 func TestAWSSecret(t *testing.T) {
-	suite.Run(t, new(AWSSecretSuite))
+	spiretest.Run(t, new(AWSSecretSuite))
 }
 
 type AWSSecretSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	client        secretsManagerClient
 	awsUpstreamCA upstreamca.Plugin
@@ -162,5 +162,8 @@ func (as *AWSSecretSuite) newAWSUpstreamCA() upstreamca.Plugin {
 	m := newPlugin(newFakeSecretsManagerClient)
 	_, err = m.Configure(ctx, pluginConfig)
 	as.Require().NoError(err)
-	return m
+
+	var plugin upstreamca.Plugin
+	as.LoadPlugin(builtin(m), &plugin)
+	return plugin
 }

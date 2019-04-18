@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/upstreamca"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/upstreamca"
+	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -21,140 +21,145 @@ const (
 	"key_file_path":"_test_data/keys/EC/private_key.pem",
 	"cert_file_path":"_test_data/keys/EC/cert.pem"
 }`
-	trustDomain = "example.com"
 )
 
 var (
 	ctx = context.Background()
 )
 
-func TestDisk_Configure(t *testing.T) {
-	pluginConfig := &spi.ConfigureRequest{
+func TestDisk(t *testing.T) {
+	spiretest.Run(t, new(DiskSuite))
+}
+
+type DiskSuite struct {
+	spiretest.Suite
+
+	p upstreamca.Plugin
+}
+
+func (s *DiskSuite) SetupTest() {
+	p := New()
+
+	s.LoadPlugin(builtin(p), &s.p)
+	s.configure()
+}
+
+func (s *DiskSuite) configure() {
+	resp, err := s.p.Configure(ctx, &spi.ConfigureRequest{
 		Configuration: config,
-		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: trustDomain},
-	}
-
-	m := New()
-	resp, err := m.Configure(ctx, pluginConfig)
-	require.NoError(t, err)
-	require.Equal(t, &spi.ConfigureResponse{}, resp)
+		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(&spi.ConfigureResponse{}, resp)
 }
 
-func TestDisk_ConfigureUsingECKey(t *testing.T) {
-	_, err := newWithDefault("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
-	require.NoError(t, err)
+func (s *DiskSuite) TestConfigureUsingECKey() {
+	err := s.configureWith("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
+	s.Require().NoError(err)
 }
-func TestDisk_ConfigureUsingPKCS1Key(t *testing.T) {
-	_, err := newWithDefault("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/PKCS1/cert.pem")
-	require.NoError(t, err)
-}
-
-func TestDisk_ConfigureUsingPKCS8Key(t *testing.T) {
-	_, err := newWithDefault("_test_data/keys/PKCS8/private_key.pem", "_test_data/keys/PKCS8/cert.pem")
-	require.NoError(t, err)
+func (s *DiskSuite) TestConfigureUsingPKCS1Key() {
+	err := s.configureWith("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/PKCS1/cert.pem")
+	s.Require().NoError(err)
 }
 
-func TestDisk_ConfigureUsingNonMatchingKeyAndCert(t *testing.T) {
-	_, err := newWithDefault("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/PKCS8/cert.pem")
-	require.Error(t, err)
+func (s *DiskSuite) TestConfigureUsingPKCS8Key() {
+	err := s.configureWith("_test_data/keys/PKCS8/private_key.pem", "_test_data/keys/PKCS8/cert.pem")
+	s.Require().NoError(err)
 }
 
-func TestDisk_ConfigureUsingEmptyKey(t *testing.T) {
-	_, err := newWithDefault("_test_data/keys/empty/private_key.pem", "_test_data/keys/empty/cert.pem")
-	require.Error(t, err)
+func (s *DiskSuite) TestConfigureUsingNonMatchingKeyAndCert() {
+	err := s.configureWith("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/PKCS8/cert.pem")
+	s.Require().Error(err)
 }
 
-func TestDisk_ConfigureUsingUnknownKey(t *testing.T) {
-	_, err := newWithDefault("_test_data/keys/unknonw/private_key.pem", "_test_data/keys/unknown/cert.pem")
-	require.Error(t, err)
+func (s *DiskSuite) TestConfigureUsingEmptyKey() {
+	err := s.configureWith("_test_data/keys/empty/private_key.pem", "_test_data/keys/empty/cert.pem")
+	s.Require().Error(err)
 }
 
-func TestDisk_GetPluginInfo(t *testing.T) {
-	m, err := newWithDefault("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
-	require.NoError(t, err)
-	res, err := m.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
-	require.NoError(t, err)
-	require.NotNil(t, res)
+func (s *DiskSuite) TestConfigureUsingUnknownKey() {
+	err := s.configureWith("_test_data/keys/unknonw/private_key.pem", "_test_data/keys/unknown/cert.pem")
+	s.Require().Error(err)
 }
 
-func TestDisk_SubmitValidCSR(t *testing.T) {
-	m, err := newWithDefault("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
+func (s *DiskSuite) TestGetPluginInfo() {
+	res, err := s.p.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+}
+
+func (s *DiskSuite) TestSubmitValidCSR() {
+	require := s.Require()
 
 	const testDataDir = "_test_data/csr_valid"
-	validCsrFiles, err := ioutil.ReadDir(testDataDir)
-	require.NoError(t, err)
+	csrFiles, err := ioutil.ReadDir(testDataDir)
+	require.NoError(err)
 
-	for _, validCsrFile := range validCsrFiles {
-		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
-		require.NoError(t, err)
+	for _, csrFile := range csrFiles {
+		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, csrFile.Name()))
+		require.NoError(err)
 		block, rest := pem.Decode(csrPEM)
-		require.Len(t, rest, 0)
+		require.Len(rest, 0)
 
-		resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		require.NotNil(t, resp.SignedCertificate)
+		resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
+		require.NoError(err)
+		require.NotNil(resp)
+		require.NotNil(resp.SignedCertificate)
 
 		certs, err := x509.ParseCertificates(resp.SignedCertificate.CertChain)
-		require.NoError(t, err)
-		require.Len(t, certs, 1)
-		require.Equal(t, "spiffe://localhost", certURI(certs[0]))
+		require.NoError(err)
+		require.Len(certs, 1)
+		require.Equal("spiffe://localhost", certURI(certs[0]))
 
 		upstreamTrustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
-		require.NoError(t, err)
-		require.Len(t, upstreamTrustBundle, 1)
-		require.Equal(t, "spiffe://local", certURI(upstreamTrustBundle[0]))
+		require.NoError(err)
+		require.Len(upstreamTrustBundle, 1)
+		require.Equal("spiffe://local", certURI(upstreamTrustBundle[0]))
 	}
 }
 
-func TestDisk_SubmitInvalidCSR(t *testing.T) {
-	m, err := newWithDefault("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
+func (s *DiskSuite) TestSubmitInvalidCSR() {
+	require := s.Require()
 
 	const testDataDir = "_test_data/csr_invalid"
-	validCsrFiles, err := ioutil.ReadDir(testDataDir)
-	require.NoError(t, err)
+	csrFiles, err := ioutil.ReadDir(testDataDir)
+	require.NoError(err)
 
-	for _, validCsrFile := range validCsrFiles {
-		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, validCsrFile.Name()))
-		require.NoError(t, err)
+	for _, csrFile := range csrFiles {
+		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, csrFile.Name()))
+		require.NoError(err)
 		block, rest := pem.Decode(csrPEM)
-		require.Len(t, rest, 0)
+		require.Len(rest, 0)
 
-		resp, err := m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
-		require.Error(t, err)
-		require.Nil(t, resp)
+		resp, err := s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: block.Bytes})
+		require.Error(err)
+		require.Nil(resp)
 	}
 }
 
-func TestDisk_race(t *testing.T) {
-	m, err := newWithDefault("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
-	require.NoError(t, err)
-
+func (s *DiskSuite) TestRace() {
 	csr, err := ioutil.ReadFile("_test_data/csr_valid/csr_1.pem")
-	require.NoError(t, err)
+	s.Require().NoError(err)
 
-	testutil.RaceTest(t, func(t *testing.T) {
-		m.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
-		m.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
+	testutil.RaceTest(s.T(), func(t *testing.T) {
+		s.p.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
+		s.p.SubmitCSR(ctx, &upstreamca.SubmitCSRRequest{Csr: csr})
 	})
 }
 
-func newWithDefault(keyFilePath string, certFilePath string) (upstreamca.Plugin, error) {
-	config := Configuration{
+func (s *DiskSuite) configureWith(keyFilePath string, certFilePath string) error {
+	config, err := json.Marshal(Configuration{
 		KeyFilePath:  keyFilePath,
 		CertFilePath: certFilePath,
 		TTL:          "1h",
-	}
+	})
+	s.Require().NoError(err)
 
-	jsonConfig, err := json.Marshal(config)
-	pluginConfig := &spi.ConfigureRequest{
-		Configuration: string(jsonConfig),
+	_, err = s.p.Configure(ctx, &spi.ConfigureRequest{
+		Configuration: string(config),
 		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
-	}
-
-	m := New()
-	_, err = m.Configure(ctx, pluginConfig)
-	return m, err
+	})
+	return err
 }
 
 func certURI(cert *x509.Certificate) string {

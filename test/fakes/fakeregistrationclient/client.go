@@ -10,8 +10,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ep_registration "github.com/spiffe/spire/pkg/server/endpoints/registration"
-	"github.com/spiffe/spire/proto/api/registration"
-	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ func New(t *testing.T, trustDomain string, ds datastore.DataStore, nowFn func() 
 	require.NoError(t, err)
 
 	catalog := fakeservercatalog.New()
-	catalog.SetDataStores(ds)
+	catalog.SetDataStore(ds)
 	server := &ep_registration.Handler{
 		Catalog:     catalog,
 		Metrics:     telemetry.Blackhole{},

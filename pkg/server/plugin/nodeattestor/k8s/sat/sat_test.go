@@ -19,10 +19,11 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/test/spiretest"
+	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -53,11 +54,11 @@ c4gThKYxugN3V398Eieoo2HTO2L7BBjTp5yh+EUtHQD52bFseBCnZT3d
 )
 
 func TestAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(AttestorSuite))
+	spiretest.Run(t, new(AttestorSuite))
 }
 
 type AttestorSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	dir       string
 	fooKey    *rsa.PrivateKey
@@ -65,7 +66,7 @@ type AttestorSuite struct {
 	barKey    *ecdsa.PrivateKey
 	barSigner jose.Signer
 	bazSigner jose.Signer
-	attestor  *nodeattestor.BuiltIn
+	attestor  nodeattestor.Plugin
 }
 
 func (s *AttestorSuite) SetupSuite() {
@@ -110,7 +111,7 @@ func (s *AttestorSuite) SetupTest() {
 
 func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
 	resp, err := s.doAttestOnAttestor(s.newAttestor(), &nodeattestor.AttestRequest{})
-	s.Require().EqualError(err, "k8s-sat: not configured")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: not configured")
 	s.Require().Nil(resp)
 }
 
@@ -245,17 +246,17 @@ func (s *AttestorSuite) TestConfigure() {
 	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: "blah",
 	})
-	s.requireErrorContains(err, "k8s-sat: unable to decode configuration")
+	s.RequireErrorContains(err, "k8s-sat: unable to decode configuration")
 	s.Require().Nil(resp)
 
 	// missing global configuration
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.Require().EqualError(err, "k8s-sat: global configuration is required")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: global configuration is required")
 	s.Require().Nil(resp)
 
 	// missing trust domain
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.Require().EqualError(err, "k8s-sat: global configuration missing trust domain")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: global configuration missing trust domain")
 	s.Require().Nil(resp)
 
 	// missing clusters
@@ -263,7 +264,7 @@ func (s *AttestorSuite) TestConfigure() {
 		Configuration: ``,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.Require().EqualError(err, "k8s-sat: configuration must have at least one cluster")
+	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: configuration must have at least one cluster")
 	s.Require().Nil(resp)
 
 	// cluster missing service account key file
@@ -273,7 +274,7 @@ func (s *AttestorSuite) TestConfigure() {
 		}`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.Require().EqualError(err, `k8s-sat: cluster "FOO" configuration missing service account key file`)
+	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "FOO" configuration missing service account key file`)
 	s.Require().Nil(resp)
 
 	// cluster missing service account whitelist
@@ -285,7 +286,7 @@ func (s *AttestorSuite) TestConfigure() {
 		}`, s.fooCertPath()),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.Require().EqualError(err, `k8s-sat: cluster "FOO" configuration must have at least one service account whitelisted`)
+	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "FOO" configuration must have at least one service account whitelisted`)
 	s.Require().Nil(resp)
 
 	// unable to load cluster service account keys
@@ -298,7 +299,7 @@ func (s *AttestorSuite) TestConfigure() {
 		}`, filepath.Join(s.dir, "missing.pem")),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.requireErrorContains(err, `k8s-sat: failed to load cluster "FOO" service account keys`)
+	s.RequireErrorContains(err, `k8s-sat: failed to load cluster "FOO" service account keys`)
 	s.Require().Nil(resp)
 
 	// no keys in PEM file
@@ -312,7 +313,7 @@ func (s *AttestorSuite) TestConfigure() {
 		}`, filepath.Join(s.dir, "nokeys.pem")),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.requireErrorContains(err, `k8s-sat: cluster "FOO" has no service account keys in`)
+	s.RequireErrorContains(err, `k8s-sat: cluster "FOO" has no service account keys in`)
 	s.Require().Nil(resp)
 
 	// success with two CERT based key files
@@ -391,9 +392,10 @@ func (s *AttestorSuite) signAttestRequest(signer jose.Signer, cluster, namespace
 	return makeAttestRequest(cluster, "UUID", s.signToken(signer, namespace, serviceAccountName))
 }
 
-func (s *AttestorSuite) newAttestor() *nodeattestor.BuiltIn {
-	attestor := NewAttestorPlugin()
-	return nodeattestor.NewBuiltIn(attestor)
+func (s *AttestorSuite) newAttestor() nodeattestor.Plugin {
+	var plugin nodeattestor.Plugin
+	s.LoadPlugin(BuiltIn(), &plugin)
+	return plugin
 }
 
 func (s *AttestorSuite) configureAttestor() {
@@ -420,7 +422,7 @@ func (s *AttestorSuite) doAttest(req *nodeattestor.AttestRequest) (*nodeattestor
 	return s.doAttestOnAttestor(s.attestor, req)
 }
 
-func (s *AttestorSuite) doAttestOnAttestor(attestor *nodeattestor.BuiltIn, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (s *AttestorSuite) doAttestOnAttestor(attestor nodeattestor.Plugin, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	stream, err := attestor.Attest(context.Background())
 	s.Require().NoError(err)
 
@@ -435,13 +437,8 @@ func (s *AttestorSuite) doAttestOnAttestor(attestor *nodeattestor.BuiltIn, req *
 
 func (s *AttestorSuite) requireAttestError(req *nodeattestor.AttestRequest, contains string) {
 	resp, err := s.doAttest(req)
-	s.requireErrorContains(err, contains)
+	s.RequireErrorContains(err, contains)
 	s.Require().Nil(resp)
-}
-
-func (s *AttestorSuite) requireErrorContains(err error, contains string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), contains)
 }
 
 func makeAttestRequest(cluster, uuid, token string) *nodeattestor.AttestRequest {

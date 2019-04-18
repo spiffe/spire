@@ -20,6 +20,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
 	assert.Equal(t, c.Server.Umask, "")
+	assert.Equal(t, c.Server.Experimental.AllowAgentlessNodeAttestors, true)
 
 	// Check for plugins configurations
 	expectedData := "join_token = \"PLUGIN-SERVER-NOT-A-SECRET\""
@@ -96,6 +97,5 @@ func TestMergeConfigGood(t *testing.T) {
 	assert.Equal(t, orig.BindAddress.Port, 8081)
 	assert.Equal(t, orig.TrustDomain.Scheme, "spiffe")
 	assert.Equal(t, orig.TrustDomain.Host, "example.org")
-	assert.Equal(t, orig.GlobalConfig().TrustDomain, "example.org")
 	assert.Equal(t, orig.umask, 0077)
 }

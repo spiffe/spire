@@ -14,7 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 type Selectors []*common.Selector

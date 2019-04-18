@@ -6,25 +6,24 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
-	"time"
-
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus"
-	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
+	"github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"io"
+	"strconv"
 )
 
 const (
@@ -85,10 +84,11 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 		}
 	}()
 
-	var versionInfo string
+	var versionCounter int64 = 0
+	var versionInfo = strconv.FormatInt(versionCounter, 10)
 	var lastNonce string
 	var upd *cache.WorkloadUpdate
-	var req *api_v2.DiscoveryRequest
+	var lastReq *api_v2.DiscoveryRequest
 	for {
 		select {
 		case newReq := <-reqch:
@@ -99,35 +99,52 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 			}).Debug("Received StreamSecrets request")
 			h.triggerReceivedHook()
 
-			// The nonce should be empty (if we've never sent a response) or
-			// match the last sent nonce, otherwise the request should be
-			// ignored.
-			if lastNonce != newReq.ResponseNonce {
-				h.c.Log.Warnf("Received unexpected nonce %q (expected %q); ignoring request", newReq.ResponseNonce, lastNonce)
-				continue
+			// If there's error detail, always log it
+			if newReq.ErrorDetail != nil {
+				h.c.Log.WithFields(logrus.Fields{
+					"resource_names": newReq.ResourceNames,
+					"error_detail":   newReq.ErrorDetail.Message,
+				}).Error("Envoy reported errors applying secrets")
 			}
 
-			req = newReq
+			// If we've previously sent a nonce, this must be a reply
+			if lastNonce != "" {
+
+				// The nonce should match the last sent nonce, otherwise
+				// it's stale and the request should be ignored.
+				if lastNonce != newReq.ResponseNonce {
+					h.c.Log.Warnf("Received unexpected nonce %q (expected %q); ignoring request", newReq.ResponseNonce, lastNonce)
+					continue
+				}
+
+				if newReq.VersionInfo == "" || newReq.VersionInfo != versionInfo {
+					// The caller has failed to apply the last update.
+					// A NACK might also contain an update to the resource hint, so we need to continue processing.
+					h.c.Log.Errorf("Client rejected version %q and rolled back to %q", versionInfo, newReq.VersionInfo)
+				}
+
+			}
+
+			// We need to send updates if the requested resource list has changed
+			// either explicitly, or implicitly because this is the first request.
+			var sendUpdates = lastReq == nil || subListChanged(lastReq.ResourceNames, newReq.ResourceNames)
+
+			// save request so that all future workload updates lead to SDS updates for the last request
+			lastReq = newReq
+
+			if !sendUpdates {
+				continue
+			}
 
 			if upd == nil {
-				// Workload update has not been received yet.
+				// Workload update has not been received yet, defer sending updates until then
 				continue
 			}
-			if req.ErrorDetail != nil {
-				// The caller has failed to apply the secrets. Wait until the
-				// next update to send down new info.
-				h.c.Log.WithFields(logrus.Fields{
-					"resource_names": req.ResourceNames,
-					"error_detail":   req.ErrorDetail.Message,
-				}).Error("Envoy failed to apply secrets")
-				continue
-			}
-			if req.VersionInfo != "" && req.VersionInfo == versionInfo {
-				continue
-			}
+
 		case upd = <-updch:
-			versionInfo = time.Now().UTC().Format(time.RFC3339Nano)
-			if req == nil {
+			versionCounter++
+			versionInfo = strconv.FormatInt(versionCounter, 10)
+			if lastReq == nil {
 				// Nothing has been requested yet.
 				continue
 			}
@@ -135,7 +152,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 			return err
 		}
 
-		resp, err := h.buildResponse(versionInfo, req, upd)
+		resp, err := h.buildResponse(versionInfo, lastReq, upd)
 		if err != nil {
 			return err
 		}
@@ -149,11 +166,25 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 			return err
 		}
 
-		// remember the last nonce and reset the request, preventing another
-		// response until the next request comes in.
+		// remember the last nonce
 		lastNonce = resp.Nonce
-		req = nil
 	}
+}
+
+func subListChanged(oldSubs []string, newSubs []string) (b bool) {
+	if len(oldSubs) != len(newSubs) {
+		return true
+	}
+	var subMap = make(map[string]bool)
+	for _, sub := range oldSubs {
+		subMap[sub] = true
+	}
+	for _, sub := range newSubs {
+		if !subMap[sub] {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {

@@ -7,8 +7,9 @@ import (
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/api/registration"
-	"github.com/spiffe/spire/proto/common"
+	commonutil "github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/common"
 
 	"golang.org/x/net/context"
 )
@@ -82,54 +83,59 @@ func (s *ShowCLI) Run(args []string) int {
 		}
 	}
 
-	// If an Entry ID was specified, look it up directly then exit
+	err = s.fetchEntries(ctx)
+	if err != nil {
+		return 1
+	}
+
+	commonutil.SortRegistrationEntries(s.Entries)
+	s.filterEntries()
+	s.printEntries()
+	return 0
+}
+
+func (s *ShowCLI) fetchEntries(ctx context.Context) error {
+	// If an Entry ID was specified, look it up directly
 	if s.Config.EntryID != "" {
-		err = s.fetchByEntryID(ctx, s.Config.EntryID)
+		err := s.fetchByEntryID(ctx, s.Config.EntryID)
 		if err != nil {
 			fmt.Printf("Error fetching entry ID %s: %s\n", s.Config.EntryID, err)
-			return 1
+			return err
 		}
-
-		s.printEntries()
-		return 0
+		return nil
 	}
 
-	// If we didn't get any args, fetch everything then exit
+	// If we didn't get any args, fetch everything
 	if s.Config.ParentID == "" && s.Config.SpiffeID == "" && len(s.Config.Selectors) == 0 {
-		err = s.fetchAllEntries(ctx)
+		err := s.fetchAllEntries(ctx)
 		if err != nil {
 			fmt.Printf("Error fetching entries: %s\n", err)
-			return 1
+			return err
 		}
 
-		s.filterEntries()
-		s.printEntries()
-		return 0
+		return nil
 	}
 
-	// Fetch all records matching each constraint, then find and
-	// print the intersection at the end.
-	err = s.fetchByParentID(ctx)
+	// Otherwise, fetch all records matching each constraint
+	err := s.fetchByParentID(ctx)
 	if err != nil {
 		fmt.Printf("Error fetching by parent ID: %s", err)
-		return 1
+		return err
 	}
 
 	err = s.fetchBySpiffeID(ctx)
 	if err != nil {
 		fmt.Printf("Error fetching by SPIFFE ID: %s", err)
-		return 1
+		return err
 	}
 
 	err = s.fetchBySelectors(ctx)
 	if err != nil {
 		fmt.Printf("Error fetching by selectors: %s", err)
-		return 1
+		return err
 	}
 
-	s.filterEntries()
-	s.printEntries()
-	return 0
+	return nil
 }
 
 func (s *ShowCLI) fetchAllEntries(ctx context.Context) error {

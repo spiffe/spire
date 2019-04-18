@@ -61,8 +61,8 @@ func (c *CallCounter) Done(errp *error) {
 	if errp != nil && *errp != nil {
 		key = append(key, "error")
 	}
-	c.metrics.IncrCounterWithLabels(c.key, 1, c.labels)
-	c.metrics.MeasureSince(c.key, c.start)
+	c.metrics.IncrCounterWithLabels(key, 1, c.labels)
+	c.metrics.MeasureSinceWithLabels(append(key, "elapsed_time"), c.start, c.labels)
 }
 
 func CountCall(metrics Metrics, key string, keyn ...string) func(*error) {

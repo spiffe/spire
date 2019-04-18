@@ -16,22 +16,24 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/datastore"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
-	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakenoderesolver"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/spiretest"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -72,11 +74,11 @@ l37cUGNqRvIYDhSH/IJycqxLTtvHoYMHLSV9N5UHIFgPJ/30RCBQiH3t
 )
 
 func TestHandler(t *testing.T) {
-	suite.Run(t, new(HandlerSuite))
+	spiretest.Run(t, new(HandlerSuite))
 }
 
 type HandlerSuite struct {
-	suite.Suite
+	spiretest.Suite
 
 	server           *grpc.Server
 	logHook          *test.Hook
@@ -102,7 +104,7 @@ func (s *HandlerSuite) SetupTest() {
 
 	s.ds = fakedatastore.New()
 	s.catalog = fakeservercatalog.New()
-	s.catalog.SetDataStores(s.ds)
+	s.catalog.SetDataStore(s.ds)
 
 	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
 		Clock: s.clock,
@@ -311,6 +313,30 @@ func (s *HandlerSuite) TestAttestSuccess() {
 	// No selectors were returned and no resolvers were available, so the node
 	// selectors should be empty.
 	s.Empty(s.getNodeSelectors(agentID))
+}
+
+func (s *HandlerSuite) TestAttestAgentless() {
+	attestor := fakeservernodeattestor.Config{
+		Data:          map[string]string{"data": workloadID},
+		ReturnLiteral: true,
+	}
+
+	agentlessCSR := s.makeCSR(workloadID)
+
+	// By default "/spire/agent/* is expected for attestation calls
+	s.addAttestor("test", attestor)
+	s.False(s.handler.c.AllowAgentlessNodeAttestors)
+	s.requireAttestFailure(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             agentlessCSR,
+	}, codes.InvalidArgument, "expecting \"/spire/agent/*\"")
+
+	// If allow agentless is enabled attestation will run successfully
+	s.handler.c.AllowAgentlessNodeAttestors = true
+	s.requireAttestSuccess(&node.AttestRequest{
+		AttestationData: makeAttestationData("test", "data"),
+		Csr:             agentlessCSR,
+	})
 }
 
 func (s *HandlerSuite) TestAttestReattestation() {
@@ -580,6 +606,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 		ParentId:   trustDomainID,
 		SpiffeId:   agentID,
 		Downstream: true,
+		DnsNames:   []string{"ca-dns1"},
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
@@ -590,7 +617,13 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 	// since downstream entries aren't intended for workloads.
 	s.Empty(upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
-	s.assertSVIDsInUpdate(upd, trustDomainID)
+	chains := s.assertSVIDsInUpdate(upd, trustDomainID)
+	for _, chain := range chains {
+		// CA certs should not have DNS names associated with them
+		s.Empty(chain[0].DNSNames)
+		// CA certs should not CN based on DNS names
+		s.Empty(chain[0].Subject.CommonName)
+	}
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSR() {
@@ -605,11 +638,53 @@ func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSR() {
 		Csrs: s.makeCSRs(workloadID),
 	})
 
-	// Downstream responses don't contain the downstream registration entry
-	// since downstream entries aren't intended for workloads.
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
 	s.assertSVIDsInUpdate(upd, workloadID)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithSingleDNS() {
+	dnsList := []string{"somehost1"}
+
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+		DnsNames: dnsList,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs(workloadID),
+	})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	chains := s.assertSVIDsInUpdate(upd, workloadID)
+	s.Equal(dnsList, chains[0][0].DNSNames)
+	s.Equal("somehost1", chains[0][0].Subject.CommonName)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithMultipleDNS() {
+	dnsList := []string{"somehost1", "somehost2", "somehost3"}
+
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+		DnsNames: dnsList,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		Csrs: s.makeCSRs(workloadID),
+	})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	chains := s.assertSVIDsInUpdate(upd, workloadID)
+	s.Equal(dnsList, chains[0][0].DNSNames)
+	s.Equal("somehost1", chains[0][0].Subject.CommonName)
 }
 
 func (s *HandlerSuite) TestFetchJWTSVIDWithUnattestedAgent() {
@@ -788,13 +863,15 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 }
 
 func (s *HandlerSuite) addAttestor(name string, config fakeservernodeattestor.Config) {
-	attestor := nodeattestor.NewBuiltIn(fakeservernodeattestor.New(name, config))
-	s.catalog.AddNodeAttestorNamed(name, attestor)
+	var p nodeattestor.NodeAttestor
+	s.LoadPlugin(catalog.MakePlugin(name, nodeattestor.PluginServer(fakeservernodeattestor.New(name, config))), &p)
+	s.catalog.AddNodeAttestorNamed(name, p)
 }
 
 func (s *HandlerSuite) addResolver(name string, config fakenoderesolver.Config) {
-	resolver := noderesolver.NewBuiltIn(fakenoderesolver.New(name, config))
-	s.catalog.AddNodeResolverNamed(name, resolver)
+	var p noderesolver.NodeResolver
+	s.LoadPlugin(catalog.MakePlugin(name, noderesolver.PluginServer(fakenoderesolver.New(name, config))), &p)
+	s.catalog.AddNodeResolverNamed(name, p)
 }
 
 func (s *HandlerSuite) createBundle(bundle *common.Bundle) {
@@ -1061,7 +1138,7 @@ func (s *HandlerSuite) assertLastLogMessageContains(contains string) {
 }
 
 func (s *HandlerSuite) makeSVID(spiffeID string) []*x509.Certificate {
-	svid, err := s.serverCA.SignX509SVID(context.Background(), s.makeCSR(spiffeID), 0)
+	svid, err := s.serverCA.SignX509SVID(context.Background(), s.makeCSR(spiffeID), ca.X509Params{})
 	s.Require().NoError(err)
 	return svid
 }

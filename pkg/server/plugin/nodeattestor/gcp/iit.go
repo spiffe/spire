@@ -10,15 +10,26 @@ import (
 	"github.com/hashicorp/hcl"
 
 	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 )
 
 const (
 	tokenAudience = "spire-gcp-node-attestor"
 	googleCertURL = "https://www.googleapis.com/oauth2/v1/certs"
 )
+
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *IITAttestorPlugin) catalog.Plugin {
+	return catalog.MakePlugin("gcp_iit",
+		nodeattestor.PluginServer(p),
+	)
+}
 
 type tokenKeyRetriever interface {
 	retrieveKey(token *jwt.Token) (interface{}, error)
@@ -39,15 +50,15 @@ type IITAttestorConfig struct {
 	AgentPathTemplate  string   `hcl:"agent_path_template"`
 }
 
-// NewIITAttestorPlugin creates a new IITAttestorPlugin.
-func NewIITAttestorPlugin() *IITAttestorPlugin {
+// New creates a new IITAttestorPlugin.
+func New() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
 		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
 	}
 }
 
 // Attest implements the server side logic for the gcp iit node attestation plugin.
-func (p *IITAttestorPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err
@@ -140,7 +151,7 @@ func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	return p.config, nil
 }
 
-func validateAttestationAndExtractIdentityMetadata(stream nodeattestor.Attest_PluginStream, pluginName string, tokenRetriever tokenKeyRetriever) (gcp.ComputeEngine, error) {
+func validateAttestationAndExtractIdentityMetadata(stream nodeattestor.NodeAttestor_AttestServer, pluginName string, tokenRetriever tokenKeyRetriever) (gcp.ComputeEngine, error) {
 	req, err := stream.Recv()
 	if err != nil {
 		return gcp.ComputeEngine{}, err

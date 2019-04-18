@@ -9,8 +9,8 @@ import (
 
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/api/registration"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/common"
 
 	"golang.org/x/net/context"
 )
@@ -33,7 +33,7 @@ type UpdateConfig struct {
 	ParentID   string
 	SpiffeID   string
 	Downstream bool
-	Ttl        int
+	TTL        int
 
 	// List of SPIFFE IDs of trust domains the registration entry is federated with
 	FederatesWith StringsFlag
@@ -43,6 +43,9 @@ type UpdateConfig struct {
 
 	// Expiry of entry
 	EntryExpiry int64
+
+	// DNSNames entries for SVIDs based on this entry
+	DNSNames StringsFlag
 }
 
 // Validate performs basic validation, even on fields that we
@@ -73,7 +76,7 @@ func (rc *UpdateConfig) Validate() (err error) {
 		return errors.New("a SPIFFE ID is required")
 	}
 
-	if rc.Ttl < 0 {
+	if rc.TTL < 0 {
 		return errors.New("a TTL is required")
 	}
 
@@ -153,9 +156,10 @@ func (c UpdateCLI) parseConfig(config *UpdateConfig) ([]*common.RegistrationEntr
 		EntryId:     config.EntryID,
 		ParentId:    config.ParentID,
 		SpiffeId:    config.SpiffeID,
-		Ttl:         int32(config.Ttl),
+		Ttl:         int32(config.TTL),
 		Downstream:  config.Downstream,
 		EntryExpiry: config.EntryExpiry,
+		DnsNames:    config.DNSNames,
 	}
 
 	selectors := []*common.Selector{}
@@ -213,7 +217,7 @@ func (UpdateCLI) newConfig(args []string) (*UpdateConfig, error) {
 	f.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", util.DefaultSocketPath, "Registration API UDS path")
 	f.StringVar(&c.ParentID, "parentID", "", "The SPIFFE ID of this record's parent")
 	f.StringVar(&c.SpiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
-	f.IntVar(&c.Ttl, "ttl", 3600, "The lifetime, in seconds, for SVIDs issued based on this registration entry")
+	f.IntVar(&c.TTL, "ttl", 3600, "The lifetime, in seconds, for SVIDs issued based on this registration entry")
 
 	f.StringVar(&c.Path, "data", "", "Path to a file containing registration JSON (optional)")
 
@@ -224,6 +228,8 @@ func (UpdateCLI) newConfig(args []string) (*UpdateConfig, error) {
 	f.BoolVar(&c.Downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 
 	f.Int64Var(&c.EntryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
+
+	f.Var(&c.DNSNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
 
 	return c, f.Parse(args)
 }

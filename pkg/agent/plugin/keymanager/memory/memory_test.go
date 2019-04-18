@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/spiffe/spire/proto/agent/keymanager"
-	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/spire/agent/keymanager"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
 var (

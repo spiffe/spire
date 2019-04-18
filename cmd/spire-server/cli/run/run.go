@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
 )
@@ -26,28 +27,28 @@ const (
 	defaultConfigPath = "conf/server/server.conf"
 	defaultSocketPath = "/tmp/spire-registration.sock"
 	defaultLogLevel   = "INFO"
-	defaultUmask      = 0077
-	minimumUmask      = 0027
 )
 
 // runConfig represents available configurables for file and CLI options
 type runConfig struct {
-	Server        serverRunConfig         `hcl:"server"`
-	PluginConfigs catalog.PluginConfigMap `hcl:"plugins"`
+	Server        serverRunConfig            `hcl:"server"`
+	PluginConfigs catalog.HCLPluginConfigMap `hcl:"plugins"`
+	Telemetry     telemetry.FileConfig       `hcl:"telemetry"`
 }
 
 type serverRunConfig struct {
-	BindAddress         string           `hcl:"bind_address"`
-	BindPort            int              `hcl:"bind_port"`
-	CASubject           *caSubjectConfig `hcl:"ca_subject"`
-	CATTL               string           `hcl:"ca_ttl"`
-	DataDir             string           `hcl:"data_dir"`
-	LogFile             string           `hcl:"log_file"`
-	LogLevel            string           `hcl:"log_level"`
-	RegistrationUDSPath string           `hcl:"registration_uds_path"`
-	SVIDTTL             string           `hcl:"svid_ttl"`
-	TrustDomain         string           `hcl:"trust_domain"`
-	UpstreamBundle      bool             `hcl:"upstream_bundle"`
+	BindAddress         string             `hcl:"bind_address"`
+	BindPort            int                `hcl:"bind_port"`
+	CASubject           *caSubjectConfig   `hcl:"ca_subject"`
+	CATTL               string             `hcl:"ca_ttl"`
+	DataDir             string             `hcl:"data_dir"`
+	LogFile             string             `hcl:"log_file"`
+	LogLevel            string             `hcl:"log_level"`
+	RegistrationUDSPath string             `hcl:"registration_uds_path"`
+	SVIDTTL             string             `hcl:"svid_ttl"`
+	TrustDomain         string             `hcl:"trust_domain"`
+	UpstreamBundle      bool               `hcl:"upstream_bundle"`
+	Experimental        experimentalConfig `hcl:"experimental"`
 
 	ConfigPath string
 
@@ -57,6 +58,10 @@ type serverRunConfig struct {
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
 	Umask            string   `hcl:"umask"`
+}
+
+type experimentalConfig struct {
+	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
 }
 
 type caSubjectConfig struct {
@@ -96,8 +101,9 @@ func (*RunCLI) Run(args []string) int {
 
 	c := newDefaultConfig()
 
-	// Get the plugin configurations from the file
+	// Get the plugin and telemetry configurations from the file
 	c.PluginConfigs = fileConfig.PluginConfigs
+	c.Telemetry = fileConfig.Telemetry
 
 	err = mergeConfigs(c, fileConfig, cliConfig)
 	if err != nil {
@@ -247,6 +253,10 @@ func mergeConfig(orig *serverConfig, cmd *runConfig) error {
 	// TODO: CLI should be able to override with `false` value
 	if cmd.Server.UpstreamBundle {
 		orig.UpstreamBundle = cmd.Server.UpstreamBundle
+	}
+
+	if cmd.Server.Experimental.AllowAgentlessNodeAttestors {
+		orig.Experimental.AllowAgentlessNodeAttestors = cmd.Server.Experimental.AllowAgentlessNodeAttestors
 	}
 
 	if cmd.Server.ProfilingEnabled {

@@ -13,10 +13,11 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/hashicorp/hcl"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/common"
-	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
 const (
@@ -25,6 +26,14 @@ const (
 	identityTokenAudience        = "spire-gcp-node-attestor"
 	defaultServiceAccount        = "default"
 )
+
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *IITAttestorPlugin) catalog.Plugin {
+	return catalog.MakePlugin(gcp.PluginName, nodeattestor.PluginServer(p))
+}
 
 // IITAttestorPlugin implements GCP nodeattestation in the agent.
 type IITAttestorPlugin struct {
@@ -43,7 +52,7 @@ type IITAttestorConfig struct {
 }
 
 // NewIITAttestorPlugin creates a new IITAttestorPlugin.
-func NewIITAttestorPlugin() *IITAttestorPlugin {
+func New() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
 		tokenHost: identityTokenURLHost,
 	}
@@ -51,7 +60,7 @@ func NewIITAttestorPlugin() *IITAttestorPlugin {
 
 // FetchAttestationData fetches attestation data from the GCP metadata server and sends an attestation response
 // on given stream.
-func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
+func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err

@@ -11,9 +11,10 @@ import (
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
 	gomock "github.com/golang/mock/gomock"
-	"github.com/spiffe/spire/proto/agent/workloadattestor"
-	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	filesystem_mock "github.com/spiffe/spire/test/mock/common/filesystem"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,7 +73,7 @@ func TestDockerLabels(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 			mockDocker := NewMockDockerClient(mockCtrl)
-			mockFS := filesystem_mock.NewMockfileSystem(mockCtrl)
+			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
 			p := New()
 			p.docker = mockDocker
@@ -135,7 +136,7 @@ func TestDockerCgroupFormatErrors(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
-			mockFS := filesystem_mock.NewMockfileSystem(mockCtrl)
+			mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
 			p := New()
 			p.fs = mockFS
@@ -144,10 +145,9 @@ func TestDockerCgroupFormatErrors(t *testing.T) {
 
 			cgroupFile, cleanup := newTestFile(t, tt.mockCgroupEntries)
 			defer cleanup()
-			ctx := context.Background()
 			mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
 
-			res, err := p.Attest(ctx, &workloadattestor.AttestRequest{Pid: 123})
+			res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)
@@ -164,14 +164,14 @@ func TestDockerCgroupFormatErrors(t *testing.T) {
 func TestCgroupFileNotFound(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockFS := filesystem_mock.NewMockfileSystem(mockCtrl)
+	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
 	p := New()
 	p.fs = mockFS
 
 	mockFS.EXPECT().Open("/proc/123/cgroup").Return(nil, errors.New("no proc exists"))
 
-	res, err := p.Attest(context.Background(), &workloadattestor.AttestRequest{Pid: 123})
+	res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no proc exists")
 	require.Nil(t, res)
@@ -181,7 +181,7 @@ func TestDockerError(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockDocker := NewMockDockerClient(mockCtrl)
-	mockFS := filesystem_mock.NewMockfileSystem(mockCtrl)
+	mockFS := filesystem_mock.NewMockFileSystem(mockCtrl)
 
 	p := New()
 	p.docker = mockDocker
@@ -189,11 +189,12 @@ func TestDockerError(t *testing.T) {
 
 	cgroupFile, cleanup := newTestFile(t, "1:foo:/bar")
 	defer cleanup()
-	ctx := context.Background()
 	mockFS.EXPECT().Open("/proc/123/cgroup").Return(os.Open(cgroupFile))
-	mockDocker.EXPECT().ContainerInspect(ctx, "bar").Return(types.ContainerJSON{}, errors.New("docker error"))
+	mockDocker.EXPECT().
+		ContainerInspect(gomock.Any(), "bar").
+		Return(types.ContainerJSON{}, errors.New("docker error"))
 
-	res, err := p.Attest(ctx, &workloadattestor.AttestRequest{Pid: 123})
+	res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "docker error")
 	require.Nil(t, res)
@@ -209,7 +210,7 @@ cgroup_prefix = "prefix"
 cgroup_container_index = 8
 `,
 	}
-	res, err := p.Configure(context.Background(), cfg)
+	res, err := doConfigure(t, p, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, p.docker)
@@ -222,7 +223,7 @@ cgroup_container_index = 8
 func TestDockerConfigDefault(t *testing.T) {
 	p := New()
 	cfg := &spi.ConfigureRequest{}
-	res, err := p.Configure(context.Background(), cfg)
+	res, err := doConfigure(t, p, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, p.docker)
@@ -230,4 +231,18 @@ func TestDockerConfigDefault(t *testing.T) {
 	require.Equal(t, "1.40", p.docker.(*dockerclient.Client).ClientVersion())
 	require.Equal(t, "/docker", p.cgroupPrefix)
 	require.Equal(t, 1, p.cgroupContainerIndex)
+}
+
+func doAttest(t *testing.T, p *DockerPlugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+	var wp workloadattestor.Plugin
+	done := spiretest.LoadPlugin(t, builtin(p), &wp)
+	defer done()
+	return wp.Attest(context.Background(), req)
+}
+
+func doConfigure(t *testing.T, p *DockerPlugin, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+	var wp workloadattestor.Plugin
+	done := spiretest.LoadPlugin(t, builtin(p), &wp)
+	defer done()
+	return wp.Configure(context.Background(), req)
 }

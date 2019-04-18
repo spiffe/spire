@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spiffe/spire/proto/api/registration"
+	"github.com/spiffe/spire/proto/spire/api/registration"
 	"google.golang.org/grpc"
 )
 

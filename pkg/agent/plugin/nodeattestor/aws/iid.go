@@ -10,19 +10,28 @@ import (
 	"text/template"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common"
 
 	"errors"
 
-	spi "github.com/spiffe/spire/proto/common/plugin"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
 const (
 	defaultIdentityDocumentURL  = "http://169.254.169.254/latest/dynamic/instance-identity/document"
 	defaultIdentitySignatureURL = "http://169.254.169.254/latest/dynamic/instance-identity/signature"
 )
+
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *IIDAttestorPlugin) catalog.Plugin {
+	return catalog.MakePlugin(aws.PluginName, nodeattestor.PluginServer(p))
+}
 
 // IIDAttestorConfig configures a IIDAttestorPlugin.
 type IIDAttestorConfig struct {
@@ -39,14 +48,14 @@ type IIDAttestorPlugin struct {
 	mtx    sync.RWMutex
 }
 
-// NewIIDPlugin creates a new IIDAttestorPlugin.
-func NewIIDPlugin() *IIDAttestorPlugin {
+// New creates a new IIDAttestorPlugin.
+func New() *IIDAttestorPlugin {
 	return &IIDAttestorPlugin{}
 }
 
 // FetchAttestationData fetches attestation data from the aws metadata server and sends an attestation response
 // on given stream.
-func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
+func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err

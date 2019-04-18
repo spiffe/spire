@@ -13,15 +13,16 @@ import (
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/network/mgmt/network"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/sirupsen/logrus"
 	"github.com/zeebo/errs"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
-	"github.com/spiffe/spire/proto/common"
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/noderesolver"
+	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/noderesolver"
 )
 
 const (
@@ -38,6 +39,16 @@ var (
 	reVirtualNetworkSubnetID = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/virtualNetworks/([^/]+)/subnets/([^/]+)$`)
 )
 
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *MSIResolverPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName,
+		noderesolver.PluginServer(p),
+	)
+}
+
 type TenantConfig struct {
 	SubscriptionId string `hcl:"subscription_id" json:"subscription_id"`
 	AppId          string `hcl:"app_id" json:"app_id"`
@@ -50,6 +61,7 @@ type MSIResolverConfig struct {
 }
 
 type MSIResolverPlugin struct {
+	log           hclog.Logger
 	mu            sync.RWMutex
 	msiClient     apiClient
 	tenantClients map[string]apiClient
@@ -60,13 +72,15 @@ type MSIResolverPlugin struct {
 	}
 }
 
-var _ noderesolver.Plugin = (*MSIResolverPlugin)(nil)
-
-func NewMSIResolverPlugin() *MSIResolverPlugin {
+func New() *MSIResolverPlugin {
 	p := &MSIResolverPlugin{}
 	p.hooks.newClient = newAzureClient
 	p.hooks.fetchInstanceMetadata = azure.FetchInstanceMetadata
 	return p
+}
+
+func (p *MSIResolverPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 func (p *MSIResolverPlugin) Resolve(ctx context.Context, req *noderesolver.ResolveRequest) (*noderesolver.ResolveResponse, error) {
@@ -173,7 +187,7 @@ func (p *MSIResolverPlugin) resolveSpiffeID(ctx context.Context, spiffeID string
 
 	tenantID, principalID, err := parseAgentIDPath(u.Path)
 	if err != nil {
-		logrus.Warnf("unrecognized Agent ID %q", spiffeID)
+		p.log.Warn("Unrecognized agent ID", "agent_id", spiffeID)
 		return nil, nil
 	}
 

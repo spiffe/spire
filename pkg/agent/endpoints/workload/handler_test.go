@@ -12,20 +12,20 @@ import (
 	"github.com/golang/mock/gomock"
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/agent/workloadattestor"
-	"github.com/spiffe/spire/proto/api/workload"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/api/workload"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
+	"github.com/spiffe/spire/test/fakes/fakeworkloadattestor"
 	mock_manager "github.com/spiffe/spire/test/mock/agent/manager"
 	mock_cache "github.com/spiffe/spire/test/mock/agent/manager/cache"
 	mock_telemetry "github.com/spiffe/spire/test/mock/common/telemetry"
-	mock_workloadattestor "github.com/spiffe/spire/test/mock/proto/agent/workloadattestor"
 	mock_workload "github.com/spiffe/spire/test/mock/proto/api/workload"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
@@ -44,13 +44,17 @@ KfDQqPUcYWUMm2JbwFyHxQfhJfSf+Mla5C4FnJG6Ksa7pWjITPf5KbHi
 -----END PRIVATE KEY-----`)
 )
 
+func TestHandler(t *testing.T) {
+	suite.Run(t, new(HandlerTestSuite))
+}
+
 type HandlerTestSuite struct {
 	suite.Suite
 
 	h    *Handler
 	ctrl *gomock.Controller
 
-	attestor *mock_workloadattestor.MockWorkloadAttestor
+	attestor *fakeworkloadattestor.WorkloadAttestor
 	cache    *mock_cache.MockCache
 	manager  *mock_manager.MockManager
 	metrics  *mock_telemetry.MockMetrics
@@ -60,13 +64,13 @@ func (s *HandlerTestSuite) SetupTest() {
 	mockCtrl := gomock.NewController(s.T())
 	log, _ := test.NewNullLogger()
 
-	s.attestor = mock_workloadattestor.NewMockWorkloadAttestor(mockCtrl)
+	s.attestor = fakeworkloadattestor.New()
 	s.cache = mock_cache.NewMockCache(mockCtrl)
 	s.manager = mock_manager.NewMockManager(mockCtrl)
 	s.metrics = mock_telemetry.NewMockMetrics(mockCtrl)
 
 	catalog := fakeagentcatalog.New()
-	catalog.SetWorkloadAttestors(s.attestor)
+	catalog.SetWorkloadAttestors(fakeagentcatalog.WorkloadAttestor("fake", s.attestor))
 
 	h := &Handler{
 		Manager: s.manager,
@@ -77,10 +81,6 @@ func (s *HandlerTestSuite) SetupTest() {
 
 	s.h = h
 	s.ctrl = mockCtrl
-}
-
-func TestWorkloadServer(t *testing.T) {
-	suite.Run(t, new(HandlerTestSuite))
 }
 
 func (s *HandlerTestSuite) TearDownTest() {
@@ -110,7 +110,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	subscriber.EXPECT().Finish()
 	result := make(chan error, 1)
 	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor.SetSelectors(1, selectors)
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	stream.EXPECT().Send(gomock.Any())
 
@@ -121,7 +121,14 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 		{Name: "registered", Value: "true"},
 		{Name: "spiffe_id", Value: "spiffe://example.org/foo"},
 	}...)
+	s.metrics.EXPECT().SetGaugeWithLabels(
+		[]string{workloadApi, "fetch_x509_svid", "ttl"},
+		gomock.Any(),
+		append(labels, telemetry.Label{
+			Name: "spiffe_id", Value: "spiffe://example.org/foo",
+		}))
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid"}, float32(1), labelsSvidResponse)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_x509_svid", "elapsed_time"}, gomock.Any(), labelsSvidResponse)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "svid_response_latency"}, gomock.Any(), labels)
 
 	go func() { result <- s.h.FetchX509SVID(nil, stream) }()
@@ -157,7 +164,8 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 		{Name: "svid_type", Value: "x509"},
 		{Name: "registered", Value: "false"},
 	}
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid"}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid", "error"}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_x509_svid", "error", "elapsed_time"}, gomock.Any(), labels)
 
 	err := s.h.sendX509SVIDResponse(emptyUpdate, stream, s.h.M, []*common.Selector{})
 	s.Assert().Error(err)
@@ -171,7 +179,14 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 		{Name: "registered", Value: "true"},
 		{Name: "spiffe_id", Value: "spiffe://example.org/foo"},
 	}
+	s.metrics.EXPECT().SetGaugeWithLabels(
+		[]string{workloadApi, "fetch_x509_svid", "ttl"},
+		gomock.Any(),
+		[]telemetry.Label{
+			{Name: "spiffe_id", Value: "spiffe://example.org/foo"},
+		})
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid"}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_x509_svid", "elapsed_time"}, gomock.Any(), labels)
 
 	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream, s.h.M, []*common.Selector{})
 	s.Assert().NoError(err)
@@ -223,8 +238,27 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	s.requireErrorContains(err, "Unable to fetch credentials from context")
 	s.Require().Nil(resp)
 
-	// fetch SVIDs for all SPIFFE IDs
+	// no identity issued
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
+	s.attestor.SetSelectors(1, selectors)
+	s.manager.EXPECT().MatchingEntries(selectors).Return(nil)
+
+	selectorsLabels := selectorsToLabels(selectors)
+	labels := append(selectorsLabels, []telemetry.Label{
+		{Name: "svid_type", Value: "jwt"},
+		{Name: "registered", Value: "false"},
+	}...)
+	setupMetricsCommonExpectations(s.metrics, selectorsLabels, 1)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_jwt_svid", "error"}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_jwt_svid", "error", "elapsed_time"}, gomock.Any(), labels)
+
+	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
+		Audience: audience,
+	})
+	s.requireErrorContains(err, "no identity issued")
+	s.Require().Nil(resp)
+
+	// fetch SVIDs for all SPIFFE IDs
 	entries := []*cache.Entry{
 		{
 			RegistrationEntry: &common.RegistrationEntry{
@@ -237,20 +271,35 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 			},
 		},
 	}
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor.SetSelectors(1, selectors)
 	s.manager.EXPECT().MatchingEntries(selectors).Return(entries)
-	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/one", audience).Return("ONE", nil)
-	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return("TWO", nil)
+	ONE := &client.JWTSVID{Token: "ONE"}
+	TWO := &client.JWTSVID{Token: "TWO"}
+	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/one", audience).Return(ONE, nil)
+	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
 
-	labels := selectorsToLabels(selectors)
-	setupMetricsCommonExpectations(s.metrics, labels, 1)
-	labels = append(labels, []telemetry.Label{
+	setupMetricsCommonExpectations(s.metrics, selectorsLabels, 1)
+	labels = append(selectorsLabels, []telemetry.Label{
 		{Name: "svid_type", Value: "jwt"},
 		{Name: "registered", Value: "true"},
 		{Name: "spiffe_id", Value: "spiffe://example.org/one"},
 		{Name: "spiffe_id", Value: "spiffe://example.org/two"},
 	}...)
+
+	s.metrics.EXPECT().SetGaugeWithLabels(
+		[]string{workloadApi, "fetch_jwt_svid", "ttl"},
+		gomock.Any(),
+		append(selectorsLabels, telemetry.Label{
+			Name: "spiffe_id", Value: "spiffe://example.org/one",
+		}))
+	s.metrics.EXPECT().SetGaugeWithLabels(
+		[]string{workloadApi, "fetch_jwt_svid", "ttl"},
+		gomock.Any(),
+		append(selectorsLabels, telemetry.Label{
+			Name: "spiffe_id", Value: "spiffe://example.org/two",
+		}))
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_jwt_svid"}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_jwt_svid", "elapsed_time"}, gomock.Any(), labels)
 
 	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
 		Audience: audience,
@@ -270,18 +319,25 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	}, resp)
 
 	// fetch SVIDs for specific SPIFFE ID
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor.SetSelectors(1, selectors)
 	s.manager.EXPECT().MatchingEntries(selectors).Return(entries)
-	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return("TWO", nil)
+	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
 
-	labels = selectorsToLabels(selectors)
-	setupMetricsCommonExpectations(s.metrics, labels, 1)
-	labels = append(labels, []telemetry.Label{
+	selectorsLabels = selectorsToLabels(selectors)
+	setupMetricsCommonExpectations(s.metrics, selectorsLabels, 1)
+	labels = append(selectorsLabels, []telemetry.Label{
 		{Name: "svid_type", Value: "jwt"},
 		{Name: "registered", Value: "true"},
 		{Name: "spiffe_id", Value: "spiffe://example.org/two"},
 	}...)
+	s.metrics.EXPECT().SetGaugeWithLabels(
+		[]string{workloadApi, "fetch_jwt_svid", "ttl"},
+		gomock.Any(),
+		append(selectorsLabels, telemetry.Label{
+			Name: "spiffe_id", Value: "spiffe://example.org/two",
+		}))
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_jwt_svid"}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_jwt_svid", "elapsed_time"}, gomock.Any(), labels)
 
 	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
 		SpiffeId: "spiffe://example.org/two",
@@ -299,7 +355,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 }
 
 func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsLabels []telemetry.Label, pid int32) {
-	attestorLabels := []telemetry.Label{{"attestor_name", "fake_workloadattestor_1"}}
+	attestorLabels := []telemetry.Label{{"attestor_name", "fake"}}
 
 	metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "workload_attestor_latency"}, gomock.Any(), attestorLabels)
 	metrics.EXPECT().AddSample([]string{workloadApi, "discovered_selectors"}, float32(len(selectorsLabels)))
@@ -333,7 +389,7 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	subscriber.EXPECT().Finish()
 	result := make(chan error, 1)
 	stream.EXPECT().Context().Return(ctx).AnyTimes()
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil)
+	s.attestor.SetSelectors(1, selectors)
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	stream.EXPECT().Send(&workload.JWTBundlesResponse{
 		Bundles: map[string][]byte{
@@ -452,7 +508,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 
 	// set up attestation
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
-	s.attestor.EXPECT().Attest(gomock.Any(), &workloadattestor.AttestRequest{Pid: int32(1)}).Return(&workloadattestor.AttestResponse{Selectors: selectors}, nil).AnyTimes()
+	s.attestor.SetSelectors(1, selectors)
 
 	// token validation failed
 	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{})

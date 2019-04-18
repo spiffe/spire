@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
-	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/agent/keymanager"
-	"github.com/spiffe/spire/proto/api/node"
+	"github.com/spiffe/spire/proto/spire/agent/keymanager"
+	"github.com/spiffe/spire/proto/spire/api/node"
 )
 
 type Rotator interface {
@@ -121,10 +121,6 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := r.storeKey(ctx, key); err != nil {
-		return err
-	}
-
 	// We must release the client because its underlaying connection is tied to an
 	// expired SVID, so next time the client is used, it will get a new connection with
 	// the most up-to-date SVID.
@@ -140,39 +136,11 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 }
 
 func (r *rotator) newKey(ctx context.Context) (*ecdsa.PrivateKey, error) {
-	mgrs := r.c.Catalog.KeyManagers()
-	if len(mgrs) > 1 {
-		return nil, errors.New("more than one key manager configured")
-	}
-
-	resp, err := mgrs[0].GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	km := r.c.Catalog.GetKeyManager()
+	resp, err := km.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("generate key pair: %v", err)
 	}
 
 	return x509.ParseECPrivateKey(resp.PrivateKey)
-}
-
-func (r *rotator) storeKey(ctx context.Context, key *ecdsa.PrivateKey) error {
-	mgrs := r.c.Catalog.KeyManagers()
-	if len(mgrs) > 1 {
-		return errors.New("more than one key manager configured")
-	}
-
-	keyBytes, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return err
-	}
-
-	if _, err := mgrs[0].StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
-		r.c.Log.Errorf("could not store new agent key pair: %v", err)
-		r.c.Log.Warn("Error encountered while storing new agent key pair. Is your KeyManager plugin is up-to-date?")
-
-		// This error is not returned, to preserve backwards-compability with KeyManagers that were built against the old interface.
-		// If the StorePrivateKey() method isn't avaiable on the plugin, we get a "not implemented" error, which we
-		// should ignore for now, but log an error and warning.
-		// return fmt.Errorf("store key pair: %v", err)
-	}
-
-	return nil
 }

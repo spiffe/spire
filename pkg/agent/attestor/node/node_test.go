@@ -13,14 +13,14 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/agent/keymanager"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/api/node"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/agent/keymanager"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
-	"github.com/spiffe/spire/test/mock/proto/agent/keymanager"
-	"github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/test/mock/proto/api/node"
+	mock_keymanager "github.com/spiffe/spire/test/mock/proto/agent/keymanager"
+	mock_nodeattestor "github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
+	mock_node "github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -189,7 +189,7 @@ func (s *NodeAttestorTestSuite) setFetchAttestationDataResponse(challenges []cha
 		SpiffeId:        "spiffe://example.com/spire/agent/join_token/foobar",
 	}
 
-	stream := mock_nodeattestor.NewMockFetchAttestationData_Stream(s.ctrl)
+	stream := mock_nodeattestor.NewMockNodeAttestor_FetchAttestationDataClient(s.ctrl)
 	stream.EXPECT().Recv().Return(fa, nil)
 	for _, challenge := range challenges {
 		stream.EXPECT().Send(&nodeattestor.FetchAttestationDataRequest{
@@ -228,11 +228,9 @@ func (s *NodeAttestorTestSuite) setGenerateKeyPairResponse() {
 
 func (s *NodeAttestorTestSuite) setCatalog(usesNodeAttestor bool) {
 	if usesNodeAttestor {
-		s.catalog.SetNodeAttestors(s.nodeAttestor)
-	} else {
-		s.catalog.SetNodeAttestors(nil)
+		s.catalog.SetNodeAttestor(fakeagentcatalog.NodeAttestor("fake", s.nodeAttestor))
 	}
-	s.catalog.SetKeyManagers(s.keyManager)
+	s.catalog.SetKeyManager(fakeagentcatalog.KeyManager(s.keyManager))
 }
 
 func (s *NodeAttestorTestSuite) setAttestResponse(challenges []challengeResponse) {

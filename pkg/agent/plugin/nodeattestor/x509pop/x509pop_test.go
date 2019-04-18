@@ -10,20 +10,21 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/fixture"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/spiretest"
+	"google.golang.org/grpc/codes"
 )
 
 func TestX509PoP(t *testing.T) {
-	suite.Run(t, new(Suite))
+	spiretest.Run(t, new(Suite))
 }
 
 type Suite struct {
-	suite.Suite
+	spiretest.Suite
 
-	p          *nodeattestor.BuiltIn
+	p          nodeattestor.Plugin
 	leafBundle [][]byte
 	leafCert   *x509.Certificate
 }
@@ -31,8 +32,14 @@ type Suite struct {
 func (s *Suite) SetupTest() {
 	leafKeyPath := fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
 	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
-	s.p = nodeattestor.NewBuiltIn(New())
+	s.p = s.newPlugin()
 	s.configure(leafKeyPath, leafCertPath, "")
+}
+
+func (s *Suite) newPlugin() nodeattestor.Plugin {
+	var p nodeattestor.Plugin
+	s.LoadPlugin(BuiltIn(), &p)
+	return p
 }
 
 func (s *Suite) configure(privateKeyPath, certificatePath, intermediatesPath string) {
@@ -137,16 +144,16 @@ func (s *Suite) TestFetchAttestationDataFailure() {
 		}))
 
 		resp, err = stream.Recv()
-		s.errorContains(err, expected)
+		s.RequireErrorContains(err, expected)
 		require.Nil(resp)
 	}
 
 	// not configured
-	stream, err := nodeattestor.NewBuiltIn(New()).FetchAttestationData(context.Background())
+	stream, err := s.newPlugin().FetchAttestationData(context.Background())
 	require.NoError(err)
 	defer stream.CloseSend()
 	resp, err := stream.Recv()
-	s.errorContains(err, "x509pop: not configured")
+	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: not configured")
 	require.Nil(resp)
 
 	// malformed challenge
@@ -163,7 +170,7 @@ func (s *Suite) TestConfigure() {
 	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `bad juju`,
 	})
-	s.errorContains(err, "x509pop: unable to decode configuration")
+	s.RequireGRPCStatusContains(err, codes.Unknown, "x509pop: unable to decode configuration")
 	require.Nil(resp)
 
 	// missing global configuration
@@ -173,7 +180,7 @@ func (s *Suite) TestConfigure() {
 		certificate_path = "blah"
 		`,
 	})
-	require.EqualError(err, "x509pop: global configuration is required")
+	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: global configuration is required")
 	require.Nil(resp)
 
 	// missing trust_domain
@@ -184,7 +191,7 @@ func (s *Suite) TestConfigure() {
 		`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{},
 	})
-	require.EqualError(err, "x509pop: trust_domain is required")
+	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: trust_domain is required")
 	require.Nil(resp)
 
 	// missing private_key_path
@@ -194,7 +201,7 @@ func (s *Suite) TestConfigure() {
 		`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
 	})
-	require.EqualError(err, "x509pop: private_key_path is required")
+	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: private_key_path is required")
 	require.Nil(resp)
 
 	// missing certificate_path
@@ -204,7 +211,7 @@ func (s *Suite) TestConfigure() {
 		`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
 	})
-	require.EqualError(err, "x509pop: certificate_path is required")
+	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: certificate_path is required")
 	require.Nil(resp)
 
 	// cannot load keypair
@@ -215,7 +222,7 @@ func (s *Suite) TestConfigure() {
 		`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
 	})
-	s.errorContains(err, "x509pop: unable to load keypair")
+	s.RequireGRPCStatusContains(err, codes.Unknown, "x509pop: unable to load keypair")
 	require.Nil(resp)
 
 	// cannot load intermediates
@@ -228,20 +235,19 @@ func (s *Suite) TestConfigure() {
 			intermediates_path = "blah"`, leafKeyPath, leafCertPath),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
 	})
-	s.errorContains(err, "x509pop: unable to load intermediate certificates")
+	s.RequireGRPCStatusContains(err, codes.Unknown, "x509pop: unable to load intermediate certificates")
 	require.Nil(resp)
 }
 
 func (s *Suite) TestGetPluginInfo() {
 	require := s.Require()
 
-	p := New()
-	resp, err := p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
+	resp, err := s.p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	require.NoError(err)
 	require.Equal(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *Suite) fetchAttestationData() (nodeattestor.FetchAttestationData_Stream, func()) {
+func (s *Suite) fetchAttestationData() (nodeattestor.NodeAttestor_FetchAttestationDataClient, func()) {
 	stream, err := s.p.FetchAttestationData(context.Background())
 	s.Require().NoError(err)
 	return stream, func() {
@@ -257,9 +263,4 @@ func (s *Suite) marshal(obj interface{}) []byte {
 
 func (s *Suite) unmarshal(data []byte, obj interface{}) {
 	s.Require().NoError(json.Unmarshal(data, obj))
-}
-
-func (s *Suite) errorContains(err error, substring string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), substring)
 }

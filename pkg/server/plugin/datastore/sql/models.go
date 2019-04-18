@@ -4,7 +4,8 @@ import (
 	"time"
 )
 
-// Model is used as a base for other models. Similar to gorm.Model without `DeletedAt`. We don't want soft-delete support.
+// Model is used as a base for other models. Similar to gorm.Model without `DeletedAt`.
+// We don't want soft-delete support.
 type Model struct {
 	ID        uint `gorm:"primary_key"`
 	CreatedAt time.Time
@@ -16,7 +17,7 @@ type Bundle struct {
 	Model
 
 	TrustDomain string `gorm:"not null;unique_index"`
-	Data        []byte
+	Data        []byte `gorm:"size:16777215"` // make MySQL to use MEDIUMBLOB (max 24MB) - doesn't affect PostgreSQL/SQLite
 
 	FederatedEntries []RegisteredEntry `gorm:"many2many:federated_registration_entries;"`
 }
@@ -65,6 +66,8 @@ type RegisteredEntry struct {
 	Downstream    bool
 	// (optional) expiry of this entry
 	Expiry int64
+	// (optional) DNS entries
+	DNSList []DNSName
 }
 
 // JoinToken holds a join token
@@ -75,13 +78,25 @@ type JoinToken struct {
 	Expiry int64
 }
 
-// Selector holds a selector by registered entry ID
 type Selector struct {
 	Model
 
 	RegisteredEntryID uint   `gorm:"unique_index:idx_selector_entry"`
 	Type              string `gorm:"unique_index:idx_selector_entry"`
 	Value             string `gorm:"unique_index:idx_selector_entry"`
+}
+
+// DNSName holds a DNS for a registration entry
+type DNSName struct {
+	Model
+
+	RegisteredEntryID uint   `gorm:"unique_index:idx_dns_entry"`
+	Value             string `gorm:"unique_index:idx_dns_entry"`
+}
+
+// TableName gets table name for DNS entries
+func (DNSName) TableName() string {
+	return "dns_names"
 }
 
 // Migration holds version information

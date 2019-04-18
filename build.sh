@@ -7,7 +7,6 @@ declare -r ARTIFACT_DIRS="$(find cmd/* functional/* -maxdepth 0 -type d 2>/dev/n
 declare -r RELEASE_DIRS="$(find cmd/* -maxdepth 0 -type d 2>/dev/null)"
 declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... 2>/dev/null)"
 declare -r RELEASE_FILES="LICENSE README.md conf"
-declare -r PROTO_FILES="$(find proto -name '*.proto' 2>/dev/null)"
 
 case $(uname) in
 	Darwin) declare -r OS1="darwin"
@@ -35,9 +34,6 @@ declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
 declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
 declare -r PROTOBUF_URL="https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}"
 declare -r PROTOBUF_TGZ="protoc-${PROTOBUF_VERSION}-${OS2}-${ARCH1}.zip"
-declare -r PROTOC_GEN_DOCS_VERSION=${PROTOC_GEN_DOCS_VERSION:-1.0.0}
-declare -r PROTOC_GEN_DOCS_URL="https://github.com/pseudomuto/protoc-gen-doc/releases/download/v${PROTOC_GEN_DOCS_VERSION}"
-declare -r PROTOC_GEN_DOCS_TGZ="protoc-gen-doc-${PROTOC_GEN_DOCS_VERSION}.${OS1}-${ARCH2}.go1.9.tar.gz"
 
 [[ -n $TRAVIS ]] && unset GOPATH GOROOT
 
@@ -59,7 +55,7 @@ _fetch_url() {
 build_env() {
 	local _gp _gr
 
-	_gp="${GOPATH:-$HOME/gopath}"
+	_gp="${GOPATH:-$(go env GOPATH)}"
 	_gr="${GOROOT:-$BUILD_DIR}"
 	echo "export GOPATH=${_gp}"
 	echo "export GOROOT=${_gr}"
@@ -76,9 +72,6 @@ build_setup() {
 	_fetch_url ${GO_URL} ${GO_TGZ}
 	tar --directory ${BUILD_DIR} --strip 1 -xf ${BUILD_CACHE}/${GO_TGZ}
 
-	_fetch_url ${PROTOC_GEN_DOCS_URL} ${PROTOC_GEN_DOCS_TGZ}
-	tar --directory ${BUILD_DIR}/bin --strip 1 -xf ${BUILD_CACHE}/${PROTOC_GEN_DOCS_TGZ}
-
 	_fetch_url ${PROTOBUF_URL} ${PROTOBUF_TGZ}
 	unzip -qod ${BUILD_DIR} ${BUILD_CACHE}/${PROTOBUF_TGZ}
 }
@@ -90,40 +83,34 @@ build_utils() {
 	make utils
 }
 
-## Rebuild all .proto files, generated README, and generated gRPC/REST interfaces
+## Rebuild all .proto files and associated README's
 build_protobuf() {
-	local _n _d _dir _prefix="$1" _tmp=$(mktemp -d)
-	eval $(build_env)
+	local _protofile _protofiles _outdir _srcdir _out="$1"
+	eval "$(build_env)"
 
-	mkdir -p ${_tmp}/src/github.com/spiffe
-	ln -s ${PWD} ${_tmp}/src/github.com/spiffe/spire
-
-	for _n in ${PROTO_FILES}; do
-		_dir="$(dirname ${_n})"
-		if [[ -n ${_prefix} ]]; then
-			_d=${_prefix}/${_dir}
-			mkdir -p ${_d}
-		else
-			_d=${_dir}
+	# Generate protobufs in the proto/ and pkg/ subdirectories. README markdown
+	# will also be generated for protobufs in proto/. Unless an "_out" argument
+	# has been set the output will sit alongside the proto files. 
+	_proto_files="$(find proto pkg -name '*.proto' 2>/dev/null)"
+	for _protofile in ${_proto_files}; do
+		_srcdir="$(dirname "${_protofile}")"
+		_outdir="${_srcdir}"
+		if [[ -n ${_out} ]]; then
+			_outdir=${_out}/${_srcdir}
+			mkdir -p "${_outdir}"
 		fi
 
-		_log_info "creating \"${_n%.proto}.pb.go\""
-		protoc --proto_path=${_dir} --proto_path=${_tmp}/src \
-			--go_out=plugins=grpc:${_d} ${_n}
-		_log_info "creating \"${_d}/README_pb.md\""
-		protoc --proto_path=${_dir} --proto_path=${_tmp}/src \
-			--doc_out=markdown,README_pb.md:${_d} ${_n}
-		# only build the plugin interfaces for plugin protos
-		if [[ ${_n} == "proto/agent/"* ]] ||
-			[[ ${_n} == "proto/server/"* ]] ||
-			[[ ${_n} == "proto/test/"* ]]; then
-			_log_info "creating plugin interface \"${_n%.proto}.go\""
-			protoc --proto_path=${_dir} --proto_path=${_tmp}/src \
-				--spireplugin_out=${_d} ${_n}
+		_log_info "creating \"${_protofile%.proto}.pb.go\""
+		protoc --proto_path="${_srcdir}" --proto_path=proto \
+			--go_out=paths=source_relative,plugins=grpc:"${_outdir}" "${_protofile}"
+
+		# generate markdown for all proto's in the proto/ directory
+		if [[ ${_protofile} == "proto/"* ]]; then
+			_log_info "creating \"${_outdir}/README_pb.md\""
+			protoc --proto_path="${_srcdir}" --proto_path=proto \
+				--doc_out=markdown,README_pb.md:"${_outdir}" "${_protofile}"
 		fi
 	done
-
-	rm -rf ${_tmp}
 }
 
 ## Create a private copy of generated code and compare it to

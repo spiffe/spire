@@ -11,7 +11,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/api/workload/dial"
-	"github.com/spiffe/spire/proto/api/workload"
+	"github.com/spiffe/spire/proto/spire/api/workload"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"

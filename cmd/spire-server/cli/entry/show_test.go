@@ -4,9 +4,10 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/spiffe/spire/proto/api/registration"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/test/mock/proto/api/registration"
+	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/common"
+	mock_registration "github.com/spiffe/spire/test/mock/proto/api/registration"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -64,6 +65,8 @@ func (s *ShowTestSuite) TestRunWithParentID() {
 	s.mockClient.EXPECT().ListByParentID(gomock.Any(), req).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
+
+	util.SortRegistrationEntries(entries)
 	s.Assert().Equal(entries, s.cli.Entries)
 }
 
@@ -97,6 +100,8 @@ func (s *ShowTestSuite) TestRunWithSelector() {
 	s.mockClient.EXPECT().ListBySelector(gomock.Any(), req).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
+
+	util.SortRegistrationEntries(entries)
 	s.Assert().Equal(entries, s.cli.Entries)
 }
 
@@ -141,7 +146,10 @@ func (s *ShowTestSuite) TestRunWithParentIDAndSelectors() {
 	s.mockClient.EXPECT().ListBySelector(gomock.Any(), req2).Return(resp, nil)
 
 	s.Require().Equal(0, s.cli.Run(args))
-	s.Assert().Equal(entries[0:1], s.cli.Entries)
+
+	expectEntries := entries[0:1]
+	util.SortRegistrationEntries(expectEntries)
+	s.Assert().Equal(expectEntries, s.cli.Entries)
 }
 
 func (s *ShowTestSuite) TestRunWithFederatesWith() {
@@ -156,7 +164,10 @@ func (s *ShowTestSuite) TestRunWithFederatesWith() {
 	}
 
 	s.Require().Equal(0, s.cli.Run(args))
-	s.Assert().Equal(s.registrationEntries(4)[2:3], s.cli.Entries)
+
+	expectEntries := s.registrationEntries(4)[2:3]
+	util.SortRegistrationEntries(expectEntries)
+	s.Assert().Equal(expectEntries, s.cli.Entries)
 }
 
 // registrationEntries returns `count` registration entry records. At most 4.
@@ -169,13 +180,13 @@ func (ShowTestSuite) registrationEntries(count int) []*common.RegistrationEntry 
 	entries := []*common.RegistrationEntry{
 		{
 			ParentId:  "spiffe://example.org/father",
-			SpiffeId:  "spiffe://example.org/daughter",
+			SpiffeId:  "spiffe://example.org/son",
 			Selectors: []*common.Selector{selectors[0]},
 			EntryId:   "00000000-0000-0000-0000-000000000000",
 		},
 		{
 			ParentId:  "spiffe://example.org/father",
-			SpiffeId:  "spiffe://example.org/son",
+			SpiffeId:  "spiffe://example.org/daughter",
 			Selectors: []*common.Selector{selectors[0], selectors[1]},
 			EntryId:   "00000000-0000-0000-0000-000000000001",
 		},

@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/spiffe/spire/proto/server/keymanager"
+	"github.com/spiffe/spire/proto/spire/server/keymanager"
 )
 
 func RSAPublicKeyEqual(a, b *rsa.PublicKey) bool {

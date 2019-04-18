@@ -8,16 +8,27 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/common"
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 )
 
 const (
 	pluginName = "x509pop"
 )
+
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *X509PoPPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName,
+		nodeattestor.PluginServer(p),
+	)
+}
 
 type configuration struct {
 	trustDomain string
@@ -37,7 +48,7 @@ func New() *X509PoPPlugin {
 	return &X509PoPPlugin{}
 }
 
-func (p *X509PoPPlugin) Attest(stream nodeattestor.Attest_PluginStream) error {
+func (p *X509PoPPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return err

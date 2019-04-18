@@ -21,7 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
@@ -234,11 +234,6 @@ func (s *HandlerSuite) TestStreamSecretsStreaming() {
 
 	s.setWorkloadUpdate(workloadCert2)
 
-	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
-		VersionInfo:   resp.VersionInfo,
-		ResponseNonce: resp.Nonce,
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
 	resp, err = stream.Recv()
 	s.Require().NoError(err)
 	s.requireSecrets(resp, workloadTLSCertificate2)
@@ -249,15 +244,26 @@ func (s *HandlerSuite) TestStreamSecretsApplicationDoesNotSpin() {
 	s.Require().NoError(err)
 	defer stream.CloseSend()
 
-	// Request ignored until the next update since it signifies an error.
+	// Subscribe to some updates
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+	})
+
+	resp, err := stream.Recv()
+	s.Require().NoError(err)
+	s.requireSecrets(resp, workloadTLSCertificate1)
+
+	// Reject the update
+	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
+		ResponseNonce: resp.Nonce,
+		VersionInfo:   "OHNO",
 		ErrorDetail:   &rpc.Status{Message: "OHNO!"},
 		ResourceNames: []string{"spiffe://domain.test/workload"},
 	})
 
 	s.setWorkloadUpdate(workloadCert2)
 
-	resp, err := stream.Recv()
+	resp, err = stream.Recv()
 	s.Require().NoError(err)
 	s.requireSecrets(resp, workloadTLSCertificate2)
 }
@@ -280,7 +286,7 @@ func (s *HandlerSuite) TestStreamSecretsRequestReceivedBeforeWorkloadUpdate() {
 	s.requireSecrets(resp, workloadTLSCertificate2)
 }
 
-func (s *HandlerSuite) TestStreamSecretsVersionHandling() {
+func (s *HandlerSuite) TestStreamSecretsSubChanged() {
 	stream, err := s.handler.StreamSecrets(context.Background())
 	s.Require().NoError(err)
 	defer stream.CloseSend()
@@ -293,27 +299,23 @@ func (s *HandlerSuite) TestStreamSecretsVersionHandling() {
 	s.Require().NoError(err)
 	s.requireSecrets(resp, workloadTLSCertificate1)
 
-	// Send another request with the same version info (shouldn't yield a
-	// result since nothing has changed)
+	// Ack the response
+	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
+		ResponseNonce: resp.Nonce,
+		VersionInfo:   resp.VersionInfo,
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+	})
+
+	// Send another request for different resources.
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResponseNonce: resp.Nonce,
 		VersionInfo:   resp.VersionInfo,
 		ResourceNames: []string{"spiffe://domain.test"},
 	})
 
-	// Send another request with different version info, which should yield a
-	// result. NOTE: Envoy does send another request with the same nonce like
-	// this, but it is a convenient way to make sure the previous request was
-	// ignored.
-	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
-		ResponseNonce: resp.Nonce,
-		VersionInfo:   "NOT-THE-SAME-VERSION",
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-
 	resp, err = stream.Recv()
 	s.Require().NoError(err)
-	s.requireSecrets(resp, workloadTLSCertificate1)
+	s.requireSecrets(resp, tdValidationContext)
 }
 
 func (s *HandlerSuite) TestStreamSecretsBadNonce() {
@@ -321,14 +323,7 @@ func (s *HandlerSuite) TestStreamSecretsBadNonce() {
 	s.Require().NoError(err)
 	defer stream.CloseSend()
 
-	// The first request should be ignored because the nonce is set when it
-	// shouldn't be.
-	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
-		ResponseNonce: "FOO",
-		ResourceNames: []string{"spiffe://domain.test"},
-	})
-
-	// The second request should be good
+	// The first request should be good
 	s.sendAndWait(stream, &api_v2.DiscoveryRequest{
 		ResourceNames: []string{"spiffe://domain.test/workload"},
 	})

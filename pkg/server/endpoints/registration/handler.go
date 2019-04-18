@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -17,15 +19,17 @@ import (
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/proto/api/registration"
-	"github.com/spiffe/spire/proto/common"
-	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
+
+var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchString
 
 //Service is used to register SPIFFE IDs, and the attestation logic that should
 //be performed on a workload before those IDs can be issued.
@@ -553,9 +557,9 @@ func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.Evi
 
 //ListAgents returns the list of attested nodes
 func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgentsRequest) (*registration.ListAgentsResponse, error) {
-	dataStore := h.Catalog.DataStores()[0]
+	ds := h.Catalog.GetDataStore()
 	req := &datastore.ListAttestedNodesRequest{}
-	resp, err := dataStore.ListAttestedNodes(ctx, req)
+	resp, err := ds.ListAttestedNodes(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -567,12 +571,12 @@ func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*comm
 		return nil, errors.New("empty agent ID")
 	}
 
-	dataStore := h.Catalog.DataStores()[0]
+	ds := h.Catalog.GetDataStore()
 	req := &datastore.DeleteAttestedNodeRequest{
 		SpiffeId: agentID,
 	}
 
-	resp, err := dataStore.DeleteAttestedNode(ctx, req)
+	resp, err := ds.DeleteAttestedNode(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -608,7 +612,7 @@ func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, ent
 }
 
 func (h *Handler) getDataStore() datastore.DataStore {
-	return h.Catalog.DataStores()[0]
+	return h.Catalog.GetDataStore()
 }
 
 func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
@@ -618,6 +622,13 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	}
 
 	var err error
+	for _, dns := range entry.DnsNames {
+		err = validateDNS(dns)
+		if err != nil {
+			return nil, fmt.Errorf("dns name %v failed validation: %v", dns, err)
+		}
+	}
+
 	entry.ParentId, err = idutil.NormalizeSpiffeID(entry.ParentId, idutil.AllowAnyInTrustDomain(h.TrustDomain.Host))
 	if err != nil {
 		return nil, err
@@ -642,7 +653,7 @@ func (h *Handler) startCall(ctx context.Context, key string, keyn ...string) (*t
 
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
 	// For the time being, authorization is not per-method. In other words, all or nothing.
-	callerID, err := authorizeCaller(ctx, h.Catalog.DataStores()[0])
+	callerID, err := authorizeCaller(ctx, h.getDataStore())
 	if err != nil {
 		return nil, err
 	}
@@ -739,4 +750,46 @@ func withCallerID(ctx context.Context, callerID string) context.Context {
 func getCallerID(ctx context.Context) string {
 	callerID, _ := ctx.Value(callerIDKey{}).(string)
 	return callerID
+}
+
+func validateDNS(dns string) error {
+	// follow https://tools.ietf.org/html/rfc5280#section-4.2.1.6
+	// do not allow empty or the technically valid DNS " "
+	dns = strings.TrimSpace(dns)
+	if len(dns) == 0 {
+		return errors.New("empty or only whitespace")
+	}
+
+	// handle up to 255 characters
+	if len(dns) > 255 {
+		return errors.New("length exceeded")
+	}
+
+	// a DNS is split into labels by "."
+	splitDNS := strings.Split(dns, ".")
+	for _, label := range splitDNS {
+		if err := validateDNSLabel(label); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateDNSLabel(label string) error {
+	// follow https://tools.ietf.org/html/rfc5280#section-4.2.1.6 guidance
+	// <label> ::= <let-dig> [ [ <ldh-str> ] <let-dig> ]
+	// <ldh-str> ::= <let-dig-hyp> | <let-dig-hyp> <ldh-str>
+	if len(label) == 0 {
+		return errors.New("label is empty")
+	}
+	if len(label) > 63 {
+		return fmt.Errorf("label length exceeded: %v", label)
+	}
+
+	if match := isDNSLabel(label); !match {
+		return fmt.Errorf("label does not match regex: %v", label)
+	}
+
+	return nil
 }

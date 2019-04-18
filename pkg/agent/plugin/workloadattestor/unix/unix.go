@@ -12,19 +12,28 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/shirou/gopsutil/process"
-	"github.com/spiffe/spire/proto/agent/workloadattestor"
-	"github.com/spiffe/spire/proto/common"
-	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
+	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 )
 
 const (
-	selectorType = "unix"
+	pluginName = "unix"
 )
 
 var (
 	unixErr = errs.Class("unix")
 )
+
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *UnixPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
+}
 
 type processInfo interface {
 	Uids() ([]int32, error)
@@ -234,7 +243,7 @@ func getSHA256Digest(path string, limit int64) (string, error) {
 
 func makeSelector(kind, value string) *common.Selector {
 	return &common.Selector{
-		Type:  selectorType,
+		Type:  pluginName,
 		Value: fmt.Sprintf("%s:%s", kind, value),
 	}
 }

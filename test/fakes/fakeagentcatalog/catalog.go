@@ -1,67 +1,61 @@
 package fakeagentcatalog
 
 import (
-	"fmt"
-
 	"github.com/spiffe/spire/pkg/agent/catalog"
-	common "github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/agent/keymanager"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/agent/workloadattestor"
+	"github.com/spiffe/spire/proto/spire/agent/keymanager"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 )
 
 type Catalog struct {
-	keyManagers       []*catalog.ManagedKeyManager
-	nodeAttestors     []*catalog.ManagedNodeAttestor
-	workloadAttestors []*catalog.ManagedWorkloadAttestor
+	catalog.Plugins
 }
 
 func New() *Catalog {
 	return &Catalog{}
 }
 
-func (c *Catalog) SetKeyManagers(keyManagers ...keymanager.KeyManager) {
-	c.keyManagers = nil
-	for i, keyManager := range keyManagers {
-		c.keyManagers = append(c.keyManagers, catalog.NewManagedKeyManager(
-			keyManager, common.PluginConfig{
-				PluginName: pluginName("keymanager", i),
-			}))
+func (c *Catalog) SetKeyManager(keyManager catalog.KeyManager) {
+	c.KeyManager = keyManager
+}
+
+func (c *Catalog) SetNodeAttestor(nodeAttestor catalog.NodeAttestor) {
+	c.NodeAttestor = nodeAttestor
+}
+
+func (c *Catalog) SetWorkloadAttestors(workloadAttestors ...catalog.WorkloadAttestor) {
+	c.WorkloadAttestors = workloadAttestors
+}
+
+func KeyManager(keyManager keymanager.KeyManager) catalog.KeyManager {
+	return catalog.KeyManager{
+		KeyManager: keyManager,
 	}
 }
 
-func (c *Catalog) KeyManagers() []*catalog.ManagedKeyManager {
-	return c.keyManagers
-}
-
-func (c *Catalog) SetNodeAttestors(nodeAttestors ...nodeattestor.NodeAttestor) {
-	c.nodeAttestors = nil
-	for i, nodeAttestor := range nodeAttestors {
-		c.nodeAttestors = append(c.nodeAttestors, catalog.NewManagedNodeAttestor(
-			nodeAttestor, common.PluginConfig{
-				PluginName: pluginName("nodeattestor", i),
-			}))
+func NodeAttestor(name string, nodeAttestor nodeattestor.NodeAttestor) catalog.NodeAttestor {
+	return catalog.NodeAttestor{
+		PluginInfo:   pluginInfo{name: name, typ: nodeattestor.Type},
+		NodeAttestor: nodeAttestor,
 	}
 }
 
-func (c *Catalog) NodeAttestors() []*catalog.ManagedNodeAttestor {
-	return c.nodeAttestors
-}
-
-func (c *Catalog) SetWorkloadAttestors(workloadAttestors ...workloadattestor.WorkloadAttestor) {
-	c.workloadAttestors = nil
-	for i, workloadAttestor := range workloadAttestors {
-		c.workloadAttestors = append(c.workloadAttestors, catalog.NewManagedWorkloadAttestor(
-			workloadAttestor, common.PluginConfig{
-				PluginName: pluginName("workloadattestor", i),
-			}))
+func WorkloadAttestor(name string, workloadAttestor workloadattestor.WorkloadAttestor) catalog.WorkloadAttestor {
+	return catalog.WorkloadAttestor{
+		PluginInfo:       pluginInfo{name: name, typ: workloadattestor.Type},
+		WorkloadAttestor: workloadAttestor,
 	}
 }
 
-func (c *Catalog) WorkloadAttestors() []*catalog.ManagedWorkloadAttestor {
-	return c.workloadAttestors
+type pluginInfo struct {
+	name string
+	typ  string
 }
 
-func pluginName(kind string, i int) string {
-	return fmt.Sprintf("fake_%s_%d", kind, i+1)
+func (pi pluginInfo) Name() string {
+	return pi.name
+}
+
+func (pi pluginInfo) Type() string {
+	return pi.typ
 }

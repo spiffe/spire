@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/spiffe/spire/proto/common"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 // hasSelectors takes a registration entry and a selector flag set. It returns

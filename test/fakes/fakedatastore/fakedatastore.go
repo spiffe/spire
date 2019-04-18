@@ -13,9 +13,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/common"
-	spi "github.com/spiffe/spire/proto/common/plugin"
-	"github.com/spiffe/spire/proto/server/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 )
 
 const (
@@ -35,10 +35,10 @@ var (
 type DataStore struct {
 	mu sync.Mutex
 
-	bundles             map[string]*datastore.Bundle
-	attestedNodes       map[string]*datastore.AttestedNode
+	bundles             map[string]*common.Bundle
+	attestedNodes       map[string]*common.AttestedNode
 	nodeSelectors       map[string][]*common.Selector
-	registrationEntries map[string]*datastore.RegistrationEntry
+	registrationEntries map[string]*common.RegistrationEntry
 	tokens              map[string]*datastore.JoinToken
 
 	// relates bundles with entries that federate with them
@@ -49,10 +49,10 @@ var _ datastore.DataStore = (*DataStore)(nil)
 
 func New() *DataStore {
 	return &DataStore{
-		bundles:             make(map[string]*datastore.Bundle),
-		attestedNodes:       make(map[string]*datastore.AttestedNode),
+		bundles:             make(map[string]*common.Bundle),
+		attestedNodes:       make(map[string]*common.AttestedNode),
 		nodeSelectors:       make(map[string][]*common.Selector),
-		registrationEntries: make(map[string]*datastore.RegistrationEntry),
+		registrationEntries: make(map[string]*common.RegistrationEntry),
 		tokens:              make(map[string]*datastore.JoinToken),
 		bundleEntries:       make(map[string]map[string]bool),
 	}
@@ -599,20 +599,20 @@ func cloneBytes(bytes []byte) []byte {
 	return append([]byte(nil), bytes...)
 }
 
-func cloneBundle(bundle *datastore.Bundle) *datastore.Bundle {
-	return proto.Clone(bundle).(*datastore.Bundle)
+func cloneBundle(bundle *common.Bundle) *common.Bundle {
+	return proto.Clone(bundle).(*common.Bundle)
 }
 
-func cloneAttestedNode(attestedNodeEntry *datastore.AttestedNode) *datastore.AttestedNode {
-	return proto.Clone(attestedNodeEntry).(*datastore.AttestedNode)
+func cloneAttestedNode(attestedNodeEntry *common.AttestedNode) *common.AttestedNode {
+	return proto.Clone(attestedNodeEntry).(*common.AttestedNode)
 }
 
 func cloneSelectors(selectors []*common.Selector) []*common.Selector {
 	return proto.Clone(&common.Selectors{Entries: selectors}).(*common.Selectors).Entries
 }
 
-func cloneRegistrationEntry(registrationEntry *datastore.RegistrationEntry) *datastore.RegistrationEntry {
-	return proto.Clone(registrationEntry).(*datastore.RegistrationEntry)
+func cloneRegistrationEntry(registrationEntry *common.RegistrationEntry) *common.RegistrationEntry {
+	return proto.Clone(registrationEntry).(*common.RegistrationEntry)
 }
 
 func cloneJoinToken(token *datastore.JoinToken) *datastore.JoinToken {

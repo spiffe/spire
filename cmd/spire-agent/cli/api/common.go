@@ -9,7 +9,7 @@ import (
 	workload_dial "github.com/spiffe/spire/api/workload/dial"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/api/workload"
+	"github.com/spiffe/spire/proto/spire/api/workload"
 	"google.golang.org/grpc/metadata"
 )
 

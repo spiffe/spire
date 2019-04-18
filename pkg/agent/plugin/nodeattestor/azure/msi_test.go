@@ -9,21 +9,22 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/common/plugin"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
+	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 func TestMSIAttestorPlugin(t *testing.T) {
-	suite.Run(t, new(MSIAttestorSuite))
+	spiretest.Run(t, new(MSIAttestorSuite))
 }
 
 type MSIAttestorSuite struct {
-	suite.Suite
+	spiretest.Suite
 
-	attestor *nodeattestor.BuiltIn
+	attestor nodeattestor.Plugin
 
 	expectedResource string
 	token            string
@@ -103,16 +104,16 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		Configuration: "blah",
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
 	})
-	s.requireErrorContains(err, "azure-msi: unable to decode configuration")
+	s.RequireGRPCStatusContains(err, codes.Unknown, "azure-msi: unable to decode configuration")
 	s.Require().Nil(resp)
 
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.requireErrorContains(err, "azure-msi: global configuration is required")
+	s.RequireGRPCStatusContains(err, codes.Unknown, "azure-msi: global configuration is required")
 	s.Require().Nil(resp)
 
 	// missing trust domain
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.Require().EqualError(err, "azure-msi: global configuration missing trust domain")
+	s.RequireGRPCStatus(err, codes.Unknown, "azure-msi: global configuration missing trust domain")
 	s.Require().Nil(resp)
 
 	// success
@@ -130,7 +131,7 @@ func (s *MSIAttestorSuite) TestGetPluginInfo() {
 }
 
 func (s *MSIAttestorSuite) newAttestor() {
-	attestor := NewMSIAttestorPlugin()
+	attestor := New()
 	attestor.hooks.fetchMSIToken = func(ctx context.Context, httpClient azure.HTTPClient, resource string) (string, error) {
 		if httpClient != http.DefaultClient {
 			return "", errors.New("unexpected http client")
@@ -141,7 +142,7 @@ func (s *MSIAttestorSuite) newAttestor() {
 		s.T().Logf("RETURNING %v %v", s.token, s.tokenErr)
 		return s.token, s.tokenErr
 	}
-	s.attestor = nodeattestor.NewBuiltIn(attestor)
+	s.LoadPlugin(builtin(attestor), &s.attestor)
 }
 
 func (s *MSIAttestorSuite) requireFetchError(contains string) {
@@ -150,13 +151,8 @@ func (s *MSIAttestorSuite) requireFetchError(contains string) {
 	s.Require().NotNil(stream)
 
 	resp, err := stream.Recv()
-	s.requireErrorContains(err, contains)
+	s.RequireErrorContains(err, contains)
 	s.Require().Nil(resp)
-}
-
-func (s *MSIAttestorSuite) requireErrorContains(err error, contains string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), contains)
 }
 
 func (s *MSIAttestorSuite) makeAccessToken(principalID, tenantID string) string {

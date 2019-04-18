@@ -9,10 +9,11 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
-	"github.com/spiffe/spire/proto/agent/nodeattestor"
-	"github.com/spiffe/spire/proto/common"
-	spi "github.com/spiffe/spire/proto/common/plugin"
+	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	"github.com/spiffe/spire/proto/spire/common"
+	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 )
 
@@ -22,12 +23,19 @@ const (
 )
 
 var (
-	_         nodeattestor.Plugin = (*AttestorPlugin)(nil)
-	psatError                     = errs.Class("k8s-psat")
+	psatError = errs.Class("k8s-psat")
 )
 
-// NewAttestorPlugin creates a new PSAT attestor plugin
-func NewAttestorPlugin() *AttestorPlugin {
+func BuiltIn() catalog.Plugin {
+	return builtin(New())
+}
+
+func builtin(p *AttestorPlugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
+}
+
+// New creates a new PSAT attestor plugin
+func New() *AttestorPlugin {
 	return &AttestorPlugin{}
 }
 
@@ -52,7 +60,7 @@ type attestorConfig struct {
 }
 
 // FetchAttestationData loads PSAT from the configured path and send it to server node attestor
-func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.FetchAttestationData_PluginStream) error {
+func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
