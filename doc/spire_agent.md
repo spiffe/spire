@@ -32,11 +32,12 @@ The following table outlines the configuration options for SPIRE agent. These ma
 
 SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
 
-| Configuration      | Description                                                      | Default             |
-| ------------------ | --------------------------------------------------------------- | -------------------- |
+| Configuration       | Description                                                    | Default              |
+| ------------------- | -------------------------------------------------------------- | -------------------- |
 | `data_dir`          | A directory the agent can use for its runtime data             | $PWD                 |
 | `log_file`          | File to write logs to                                          |                      |
 | `log_level`         | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>            | INFO                 |
+| `log_format`        | Format of logs, \<Text\|Json\>                                 | Text                 |
 | `server_address`    | DNS name or IP address of the SPIRE server                     |                      |
 | `server_port`       | Port number of the SPIRE server                                |                      |
 | `socket_path`       | Location to bind the workload API socket                       | $PWD/spire_api       |

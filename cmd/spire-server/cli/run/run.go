@@ -44,6 +44,7 @@ type serverRunConfig struct {
 	DataDir             string             `hcl:"data_dir"`
 	LogFile             string             `hcl:"log_file"`
 	LogLevel            string             `hcl:"log_level"`
+	LogFormat           string             `hcl:"log_format"`
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
 	SVIDTTL             string             `hcl:"svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
@@ -174,6 +175,7 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.StringVar(&c.Server.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.StringVar(&c.Server.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
+	flags.StringVar(&c.Server.LogFormat, "logFormat", "", "Text or Json")
 	flags.StringVar(&c.Server.DataDir, "dataDir", "", "Directory to store runtime data to")
 	flags.StringVar(&c.Server.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
 	flags.StringVar(&c.Server.Umask, "umask", "", "Umask value to use for new files")
@@ -228,13 +230,13 @@ func mergeConfig(orig *serverConfig, cmd *runConfig) error {
 	}
 
 	// Handle log file and level
-	if cmd.Server.LogFile != "" || cmd.Server.LogLevel != "" {
+	if cmd.Server.LogFile != "" || cmd.Server.LogLevel != "" || cmd.Server.LogFormat != "" {
 		logLevel := defaultLogLevel
 		if cmd.Server.LogLevel != "" {
 			logLevel = cmd.Server.LogLevel
 		}
 
-		logger, err := log.NewLogger(logLevel, cmd.Server.LogFile)
+		logger, err := log.NewLogger(logLevel, cmd.Server.LogFormat, cmd.Server.LogFile)
 		if err != nil {
 			return fmt.Errorf("Could not open log file %s: %s", cmd.Server.LogFile, err)
 		}
@@ -326,7 +328,7 @@ func validateConfig(c *serverConfig) error {
 
 func newDefaultConfig() *serverConfig {
 	// log.NewLogger() cannot return error when using STDOUT
-	logger, _ := log.NewLogger(defaultLogLevel, "")
+	logger, _ := log.NewLogger(defaultLogLevel, log.DefaultFormat, "")
 	bindAddress := &net.TCPAddr{}
 	bindUDSAddress := &net.UnixAddr{Name: defaultSocketPath, Net: "unix"}
 

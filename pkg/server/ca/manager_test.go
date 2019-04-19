@@ -66,7 +66,7 @@ func (m *ManagerTestSuite) TearDownTest() {
 }
 
 func (m *ManagerTestSuite) newManager() {
-	logger, err := log.NewLogger("DEBUG", "")
+	logger, err := log.NewLogger("DEBUG", "", "")
 	m.NoError(err)
 
 	config := &ManagerConfig{

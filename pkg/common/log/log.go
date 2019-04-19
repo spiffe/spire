@@ -1,13 +1,20 @@
 package log
 
 import (
+	"fmt"
 	"io"
 	"os"
 
 	"github.com/sirupsen/logrus"
 )
 
-func NewLogger(logLevel string, fileName string) (logrus.FieldLogger, error) {
+const (
+	DefaultFormat = ""
+	JSONFormat    = "Json"
+	TextFormat    = "Text"
+)
+
+func NewLogger(logLevel, format, fileName string) (logrus.FieldLogger, error) {
 	var fd io.Writer
 	var err error
 
@@ -28,6 +35,17 @@ func NewLogger(logLevel string, fileName string) (logrus.FieldLogger, error) {
 	logger := logrus.New()
 	logger.Out = fd
 	logger.Level = logrusLevel
+
+	switch format {
+	case DefaultFormat:
+		// Logrus has a default formatter set up in logrus.New(), so we don't change it
+	case JSONFormat:
+		logger.Formatter = &logrus.JSONFormatter{}
+	case TextFormat:
+		logger.Formatter = &logrus.TextFormatter{}
+	default:
+		return nil, fmt.Errorf("unknown logger format: '%s'", format)
+	}
 
 	return logger, nil
 }

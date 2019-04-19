@@ -46,6 +46,7 @@ type agentRunConfig struct {
 	EnableSDS       bool   `hcl:"enable_sds"`
 	LogFile         string `hcl:"log_file"`
 	LogLevel        string `hcl:"log_level"`
+	LogFormat       string `hcl:"log_format"`
 	ServerAddress   string `hcl:"server_address"`
 	ServerPort      int    `hcl:"server_port"`
 	SocketPath      string `hcl:"socket_path"`
@@ -168,6 +169,7 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.StringVar(&c.AgentConfig.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
 	flags.StringVar(&c.AgentConfig.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.AgentConfig.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
+	flags.StringVar(&c.AgentConfig.LogFormat, "logFormat", "", "Text or Json")
 
 	flags.StringVar(&c.AgentConfig.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
 	flags.StringVar(&c.AgentConfig.Umask, "umask", "", "Umask value to use for new files")
@@ -236,13 +238,13 @@ func mergeConfig(orig *agentConfig, cmd *runConfig) error {
 	}
 
 	// Handle log file and level
-	if cmd.AgentConfig.LogFile != "" || cmd.AgentConfig.LogLevel != "" {
+	if cmd.AgentConfig.LogFile != "" || cmd.AgentConfig.LogLevel != "" || cmd.AgentConfig.LogFormat != "" {
 		logLevel := defaultLogLevel
 		if cmd.AgentConfig.LogLevel != "" {
 			logLevel = cmd.AgentConfig.LogLevel
 		}
 
-		logger, err := log.NewLogger(logLevel, cmd.AgentConfig.LogFile)
+		logger, err := log.NewLogger(logLevel, cmd.AgentConfig.LogFormat, cmd.AgentConfig.LogFile)
 		if err != nil {
 			return fmt.Errorf("Could not open log file %s: %s", cmd.AgentConfig.LogFile, err)
 		}
@@ -303,7 +305,7 @@ func newDefaultConfig() *agentConfig {
 	bindAddr := &net.UnixAddr{Name: defaultSocketPath, Net: "unix"}
 
 	// log.NewLogger() cannot return error when using STDOUT
-	logger, _ := log.NewLogger(defaultLogLevel, "")
+	logger, _ := log.NewLogger(defaultLogLevel, log.DefaultFormat, "")
 
 	return &agentConfig{
 		Config: agent.Config{

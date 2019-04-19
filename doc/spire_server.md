@@ -47,6 +47,7 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 | `data_dir`                  | A directory the server can use for its runtime               |                               |
 | `log_file`                  | File to write logs to                                        |                               |
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>          | INFO                          |
+| `log_format`                | Format of logs, \<Text\|Json\>                               | Text                              |
 | `registration_uds_path`     | Location to bind the registration API socket                 | /tmp/spire-registration.sock  |
 | `svid_ttl`                  | The default SVID TTL                                         | 1h                            |
 | `trust_domain`              | The trust domain that this server belongs to                 |                               |
