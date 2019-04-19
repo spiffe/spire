@@ -101,9 +101,11 @@ run_e2e_test "conf/server/server.conf"
 run_docker_test "test/configs/server/postgres.conf" "-e POSTGRES_PASSWORD=password -p 10864:5432 -d postgres"
 run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:8.0.15"
 
-# Run these extra tests when running under Travis on the master branch or on a tagged commit
-if [ -n "$TRAVIS_TAG" ] || [ x"${TRAVIS_BRANCH}" = x"master" ]; then
-    run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.5.62"
-    run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.6.43"
-    run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.7.25"
+# Run these extra tests when Travis pushes on the master branch or on a tagged commit
+if [ x"${TRAVIS_EVENT_TYPE}" = x"push" ]; then
+	if [ -n "$TRAVIS_TAG" ] || [ x"${TRAVIS_BRANCH}" = x"master" ]; then
+		run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.5.62"
+		run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.6.43"
+		run_docker_test "test/configs/server/mysql.conf" "-e MYSQL_PASSWORD=password -e MYSQL_DATABASE=mysql -e MYSQL_USER=mysql -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 6612:3306 -d mysql:5.7.25"
+	fi
 fi
