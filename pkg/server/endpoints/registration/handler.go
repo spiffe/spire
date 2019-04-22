@@ -240,7 +240,37 @@ func (h *Handler) ListBySelector(
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
-		return &common.RegistrationEntries{}, err
+		return nil, err
+	}
+
+	return &common.RegistrationEntries{
+		Entries: resp.Entries,
+	}, nil
+}
+
+func (h *Handler) ListBySelectors(
+	ctx context.Context, request *common.Selectors) (
+	response *common.RegistrationEntries, err error) {
+
+	counter, err := h.startCall(ctx, "registration_api", "entry", "list")
+	if err != nil {
+		return nil, err
+	}
+	defer counter.Done(&err)
+
+	for _, selector := range request.Entries {
+		counter.AddLabel("selector", fmt.Sprintf("%s:%s", selector.Type, selector.Value))
+	}
+
+	ds := h.getDataStore()
+	req := &datastore.ListRegistrationEntriesRequest{
+		BySelectors: &datastore.BySelectors{
+			Selectors: request.Entries,
+		},
+	}
+	resp, err := ds.ListRegistrationEntries(ctx, req)
+	if err != nil {
+		return nil, err
 	}
 
 	return &common.RegistrationEntries{

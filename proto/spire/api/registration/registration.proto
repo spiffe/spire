@@ -114,6 +114,8 @@ service Registration {
     rpc ListByParentID(ParentID) returns (spire.common.RegistrationEntries);
     // Returns all the entries associated with a selector value.
     rpc ListBySelector(spire.common.Selector) returns (spire.common.RegistrationEntries);
+    // Returns all the entries associated with a set of selector values
+    rpc ListBySelectors(spire.common.Selectors) returns (spire.common.RegistrationEntries);
     // Return all registration entries for which SPIFFE ID matches.
     rpc ListBySpiffeID(SpiffeID) returns (spire.common.RegistrationEntries);
 

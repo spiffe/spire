@@ -97,7 +97,7 @@ cmd: ## Opens a shell in docker container
 ##@ SPIRE images
 
 .PHONY: spire-images
-spire-images: spire-server-image spire-agent-image ## Builds SPIRE Server and Agent docker images
+spire-images: spire-server-image spire-agent-image spire-adm-webhook-image ## Builds SPIRE Server and Agent docker images
 
 .PHONY: spire-server-image
 spire-server-image: Dockerfile.server ## Builds SPIRE Server docker image
@@ -112,6 +112,15 @@ spire-agent-image: Dockerfile.agent ## Builds SPIRE Agent docker image
 	# tag the image for local use (in systems tests, for example). "latest"
 	# isn't preferred since that can impact image pull policy (.e.g kubelet)
 	docker tag spire-agent:latest spire-agent:latest-local
+
+.PHONY: spire-adm-webhook-image
+spire-adm-webhook-image: Dockerfile.adm-webhook ## Builds SPIRE K8S Admin Webhook docker image
+	docker build --build-arg goversion=$(goversion-required) -t spire-adm-webhook -f Dockerfile.adm-webhook .
+	# tag the image for local use (in systems tests, for example). "latest"
+	# isn't preferred since that can impact image pull policy (.e.g kubelet)
+	docker tag spire-adm-webhook:latest spire-adm-webhook:latest-local
+
+
 
 ##@ Others
 utils: $(utils) $(external_utils) ## Go-get SPIRE utils

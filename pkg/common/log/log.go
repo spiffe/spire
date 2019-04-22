@@ -7,27 +7,38 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func NewLogger(logLevel string, fileName string) (logrus.FieldLogger, error) {
-	var fd io.Writer
-	var err error
+type Logger struct {
+	logrus.FieldLogger
+	io.Closer
+}
 
-	if fileName != "" {
-		fd, err = os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		fd = os.Stdout
-	}
-
-	logrusLevel, err := logrus.ParseLevel(logLevel)
+func NewLogger(logLevel string, fileName string) (*Logger, error) {
+	level, err := logrus.ParseLevel(logLevel)
 	if err != nil {
 		return nil, err
 	}
 
-	logger := logrus.New()
-	logger.Out = fd
-	logger.Level = logrusLevel
+	var out io.Writer = os.Stdout
+	var closer io.Closer = nopCloser{}
+	if fileName != "" {
+		fd, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+		if err != nil {
+			return nil, err
+		}
+		out = fd
+		closer = fd
+	}
 
-	return logger, nil
+	logger := logrus.New()
+	logger.SetOutput(out)
+	logger.SetLevel(level)
+
+	return &Logger{
+		FieldLogger: logger,
+		Closer:      closer,
+	}, nil
 }
+
+type nopCloser struct{}
+
+func (nopCloser) Close() error { return nil }

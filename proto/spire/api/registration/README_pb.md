@@ -261,6 +261,7 @@ associated with the bundle (e.g. registration entries).
 | UpdateEntry | [UpdateEntryRequest](#spire.api.registration.UpdateEntryRequest) | [.spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | Updates a specific registered entry. |
 | ListByParentID | [ParentID](#spire.api.registration.ParentID) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Returns all the Entries associated with the ParentID value. |
 | ListBySelector | [.spire.common.Selector](#spire.common.Selector) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Returns all the entries associated with a selector value. |
+| ListBySelectors | [.spire.common.Selectors](#spire.common.Selectors) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Returns all the entries associated with a set of selector values |
 | ListBySpiffeID | [SpiffeID](#spire.api.registration.SpiffeID) | [.spire.common.RegistrationEntries](#spire.common.RegistrationEntries) | Return all registration entries for which SPIFFE ID matches. |
 | CreateFederatedBundle | [FederatedBundle](#spire.api.registration.FederatedBundle) | [.spire.common.Empty](#spire.common.Empty) | Creates an entry in the Federated bundle table to store the mappings of Federated SPIFFE IDs and their associated CA bundle. |
 | FetchFederatedBundle | [FederatedBundleID](#spire.api.registration.FederatedBundleID) | [FederatedBundle](#spire.api.registration.FederatedBundle) | Retrieves a single federated bundle |

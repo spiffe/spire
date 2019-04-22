@@ -296,6 +296,26 @@ func (mr *MockRegistrationClientMockRecorder) ListBySelector(arg0, arg1 interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBySelector", reflect.TypeOf((*MockRegistrationClient)(nil).ListBySelector), varargs...)
 }
 
+// ListBySelectors mocks base method
+func (m *MockRegistrationClient) ListBySelectors(arg0 context.Context, arg1 *common.Selectors, arg2 ...grpc.CallOption) (*common.RegistrationEntries, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListBySelectors", varargs...)
+	ret0, _ := ret[0].(*common.RegistrationEntries)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListBySelectors indicates an expected call of ListBySelectors
+func (mr *MockRegistrationClientMockRecorder) ListBySelectors(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBySelectors", reflect.TypeOf((*MockRegistrationClient)(nil).ListBySelectors), varargs...)
+}
+
 // ListBySpiffeID mocks base method
 func (m *MockRegistrationClient) ListBySpiffeID(arg0 context.Context, arg1 *registration.SpiffeID, arg2 ...grpc.CallOption) (*common.RegistrationEntries, error) {
 	m.ctrl.T.Helper()
@@ -592,6 +612,21 @@ func (m *MockRegistrationServer) ListBySelector(arg0 context.Context, arg1 *comm
 func (mr *MockRegistrationServerMockRecorder) ListBySelector(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBySelector", reflect.TypeOf((*MockRegistrationServer)(nil).ListBySelector), arg0, arg1)
+}
+
+// ListBySelectors mocks base method
+func (m *MockRegistrationServer) ListBySelectors(arg0 context.Context, arg1 *common.Selectors) (*common.RegistrationEntries, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListBySelectors", arg0, arg1)
+	ret0, _ := ret[0].(*common.RegistrationEntries)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListBySelectors indicates an expected call of ListBySelectors
+func (mr *MockRegistrationServerMockRecorder) ListBySelectors(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBySelectors", reflect.TypeOf((*MockRegistrationServer)(nil).ListBySelectors), arg0, arg1)
 }
 
 // ListBySpiffeID mocks base method

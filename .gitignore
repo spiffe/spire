@@ -13,6 +13,7 @@
 
 cmd/spire-agent/spire-agent
 cmd/spire-server/spire-server
+support/k8s/spire-adm-webhook/spire-adm-webhook
 
 plugin/agent/keymanager-memory/keymanager-memory
 plugin/agent/nodeattestor-jointoken/nodeattestor-jointoken
