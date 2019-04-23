@@ -18,3 +18,30 @@ spiffe://<trust-domain>/spire/agent/sshpop/<fingerprint>
 | Configuration | Description | Default                 |
 | ------------- | ----------- | ----------------------- |
 | `cert_authorities` | A list of trusted CAs in ssh `authorized_keys` format. | |
+| `cert_authorities_path` | A file that contains a list of trusted CAs in ssh `authorized_keys` format. | |
+
+If both `cert_authorities` and `cert_authorities_path` are configured, the resulting set of authorized keys is the union of both sets.
+
+### Example Config
+
+##### agent.conf
+
+```
+    NodeAttestor "sshpop" {
+        plugin_data {
+            host_cert_path = "./conf/agent/dummy_agent_ssh_key-cert.pub"
+            host_key_path = "./conf/agent/dummy_agent_ssh_key"
+        }
+    }
+```
+
+##### server.conf
+
+```
+    NodeAttestor "sshpop" {
+        plugin_data {
+            cert_authorities = ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAWPAsKJ/qMYUIBeH7BLMRCE/bkUvMHX+7OZhANk45S"]
+            cert_authorities_path = "./conf/server/dummy_ssh_cert_authority.pub"
+        }
+    }
+```
