@@ -2,17 +2,17 @@ package sshpop
 
 import (
 	"context"
+	"sync"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
-	"github.com/spiffe/spire/pkg/common/util/atomic"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 )
 
 type Plugin struct {
-	configured *atomic.Bool
-	sshserver  *sshpop.Server
+	mu        sync.RWMutex
+	sshserver *sshpop.Server
 }
 
 func BuiltIn() catalog.Plugin {
@@ -24,13 +24,14 @@ func builtin(p *Plugin) catalog.Plugin {
 }
 
 func New() *Plugin {
-	return &Plugin{
-		configured: atomic.NewBool(false),
-	}
+	return &Plugin{}
 }
 
 func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
-	if !p.configured.Get() {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.sshserver == nil {
 		return sshpop.Errorf("not configured")
 	}
 	req, err := stream.Recv()
@@ -85,8 +86,9 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	if err != nil {
 		return nil, err
 	}
+	p.mu.Lock()
 	p.sshserver = sshserver
-	p.configured.Set(true)
+	p.mu.Unlock()
 	return &plugin.ConfigureResponse{}, nil
 
 }

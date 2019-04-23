@@ -2,18 +2,18 @@ package sshpop
 
 import (
 	"context"
+	"sync"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
-	"github.com/spiffe/spire/pkg/common/util/atomic"
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
 type Plugin struct {
-	configured *atomic.Bool
-	sshclient  *sshpop.Client
+	mu        sync.RWMutex
+	sshclient *sshpop.Client
 }
 
 func BuiltIn() catalog.Plugin {
@@ -25,13 +25,14 @@ func builtin(p *Plugin) catalog.Plugin {
 }
 
 func New() *Plugin {
-	return &Plugin{
-		configured: atomic.NewBool(false),
-	}
+	return &Plugin{}
 }
 
 func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) (err error) {
-	if !p.configured.Get() {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.sshclient == nil {
 		return sshpop.Errorf("not configured")
 	}
 	handshaker := p.sshclient.NewHandshake()
@@ -78,8 +79,9 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	if err != nil {
 		return nil, err
 	}
+	p.mu.Lock()
 	p.sshclient = sshclient
-	p.configured.Set(true)
+	p.mu.Unlock()
 	return &plugin.ConfigureResponse{}, nil
 }
 
