@@ -154,6 +154,19 @@ func loadParamData(in io.Reader, fn string) ([]byte, error) {
 	return ioutil.ReadAll(r)
 }
 
+func printCertificates(out io.Writer, certs []*common.Certificate) error {
+	for _, cert := range certs {
+		if err := printCertificate(out, cert); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printCertificate(out io.Writer, cert *common.Certificate) error {
+	return printCACertsPEM(out, cert.DerBytes)
+}
+
 func printCACertsPEM(out io.Writer, caCerts []byte) error {
 	certs, err := x509.ParseCertificates(caCerts)
 	if err != nil {

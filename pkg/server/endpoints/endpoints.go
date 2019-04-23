@@ -250,15 +250,8 @@ func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 	defer e.mtx.RUnlock()
 
 	certChain := [][]byte{}
-	for i, cert := range e.svid {
+	for _, cert := range e.svid {
 		certChain = append(certChain, cert.Raw)
-		// add the intermediates into the root CA pool since we need to
-		// validate old agents that don't present intermediates with the
-		// certificate request.
-		// TODO: remove this hack in 0.8
-		if i > 0 {
-			caPool.AddCert(cert)
-		}
 	}
 
 	tlsCert := tls.Certificate{

@@ -12,7 +12,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/test/mock/proto/api/node"
+	mock_node "github.com/spiffe/spire/test/mock/proto/api/node"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +38,7 @@ func TestFetchUpdates(t *testing.T) {
 			}},
 			Svids: map[string]*node.X509SVID{
 				"someSpiffeId": {
-					DEPRECATEDCert: []byte{11, 22, 33},
+					CertChain: []byte{11, 22, 33},
 				},
 			},
 			Bundles: map[string]*common.Bundle{
