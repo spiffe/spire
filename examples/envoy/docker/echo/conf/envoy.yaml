@@ -1,0 +1,123 @@
+node:
+  id: "id_01"
+  cluster: "cluster_01"
+static_resources:
+  listeners:
+  - name: listener-sds-mtls
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8001
+    filter_chains:
+    - filters:
+      - name: envoy.http_connection_manager
+        config:
+          idle_timeout: 1s
+          forward_client_cert_details: sanitize_set
+          set_current_client_cert_details:
+              uri: true
+          codec_type: auto
+          access_log:
+          - name: envoy.file_access_log
+            config:
+              path: "/tmp/envoy-access-8001.log"
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: local_service
+              domains: ["*"]
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: echo_server
+          http_filters:
+          - name: envoy.router
+      tls_context:
+        common_tls_context:
+          tls_certificate_sds_secret_configs:
+          - name: "spiffe://domain.test/echo-server"
+            sds_config:
+              api_config_source:
+                api_type: GRPC
+                grpc_services:
+                  envoy_grpc:
+                    cluster_name: spire_agent
+          combined_validation_context:
+            # validate the SPIFFE ID of incoming clients (optionally)
+            default_validation_context:
+              verify_subject_alt_name:
+                - "spiffe://domain.test/web-server"
+            # obtain the trust bundle from SDS
+            validation_context_sds_secret_config:
+              name: "spiffe://domain.test"
+              sds_config:
+                api_config_source:
+                  api_type: GRPC
+                  grpc_services:
+                    envoy_grpc:
+                      cluster_name: spire_agent
+          tls_params:
+           ecdh_curves:
+             - X25519:P-256:P-521:P-384
+  - name: listener-sds-tls
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8002
+    filter_chains:
+    - filters:
+      - name: envoy.http_connection_manager
+        config:
+          idle_timeout: 1s
+          forward_client_cert_details: sanitize_set
+          set_current_client_cert_details:
+              uri: true
+          codec_type: auto
+          access_log:
+          - name: envoy.file_access_log
+            config:
+              path: "/tmp/envoy-access-8002.log"
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: local_service
+              domains: ["*"]
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: echo_server
+          http_filters:
+          - name: envoy.router
+      tls_context:
+        common_tls_context:
+          tls_certificate_sds_secret_configs:
+          - name: "spiffe://domain.test/echo-server"
+            sds_config:
+              api_config_source:
+                api_type: GRPC
+                grpc_services:
+                  envoy_grpc:
+                    cluster_name: spire_agent
+          tls_params:
+             ecdh_curves:
+               - X25519:P-256:P-521:P-384
+
+  clusters:
+  - name: spire_agent
+    connect_timeout: 0.25s
+    http2_protocol_options: {}
+    hosts:
+      - pipe:
+          path: /tmp/agent.sock
+  - name: echo_server
+    connect_timeout: 0.25s
+    type: strict_dns
+    lb_policy: ROUND_ROBIN
+    hosts:
+      - socket_address:
+          address: 127.0.0.1
+          port_value: 8081
