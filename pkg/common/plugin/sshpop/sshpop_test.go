@@ -8,8 +8,14 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// from testdata/dummy_ssh_cert_authority.pub
-var testCertAuthority = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAWPAsKJ/qMYUIBeH7BLMRCE/bkUvMHX+7OZhANk45S"
+var (
+	// from testdata/dummy_ssh_cert_authority.pub
+	testCertAuthority = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAWPAsKJ/qMYUIBeH7BLMRCE/bkUvMHX+7OZhANk45S"
+	// from testdata/many_ssh_cert_authorities.pub
+	testCertAuthority2 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIItL+PtmvrTxqrUt3GtgoQEoIFzNb4xpVwtOXa5WLCOQ"
+	// from nowhere
+	testCertAuthority3 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL9zEd6mtBjOIG+lWt0cxmrE4Sp7LwpLEXLa3CbSuxKu"
+)
 
 func TestNewClient(t *testing.T) {
 	tests := []struct {
@@ -128,6 +134,24 @@ func TestNewServer(t *testing.T) {
 				require.True(t, s.certChecker.IsHostAuthority(pubkey, ""))
 			},
 		},
+		{
+			desc: "success merge config",
+			configString: fmt.Sprintf(`cert_authorities = [%q]
+									   cert_authorities_path = "./testdata/many_ssh_cert_authorities.pub"
+									   agent_path_template = "{{ .PluginName}}/{{ .Fingerprint }}"`, testCertAuthority),
+			trustDomain: "foo.test",
+			requireServer: func(t *testing.T, s *Server) {
+				require.NotNil(t, s)
+				require.Equal(t, "foo.test", s.trustDomain)
+				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
+				pubkey := requireParsePubkey(t, testCertAuthority)
+				pubkey2 := requireParsePubkey(t, testCertAuthority2)
+				pubkey3 := requireParsePubkey(t, testCertAuthority3)
+				require.True(t, s.certChecker.IsHostAuthority(pubkey, ""))
+				require.True(t, s.certChecker.IsHostAuthority(pubkey2, ""))
+				require.False(t, s.certChecker.IsHostAuthority(pubkey3, ""))
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -140,6 +164,58 @@ func TestNewServer(t *testing.T) {
 			}
 			require.NoError(t, err)
 			tt.requireServer(t, s)
+		})
+	}
+}
+
+func requireParsePubkey(t *testing.T, pubkeyString string) ssh.PublicKey {
+	pubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(pubkeyString))
+	require.NoError(t, err)
+	return pubkey
+}
+
+func TestPubkeysFromPath(t *testing.T) {
+	tests := []struct {
+		desc          string
+		pubkeyPath    string
+		expectPubkeys []string
+		expectErr     string
+	}{
+		{
+			desc:       "nonexistent file",
+			pubkeyPath: "blahblahblah",
+			expectErr:  "open blahblahblah: no such file or directory",
+		},
+		{
+			desc:       "empty file",
+			pubkeyPath: "./testdata/empty_ssh_cert_authority.pub",
+			expectErr:  "no data found in file: \"./testdata/empty_ssh_cert_authority.pub\"",
+		},
+		{
+			desc:          "single pubkey",
+			pubkeyPath:    "./testdata/dummy_ssh_cert_authority.pub",
+			expectPubkeys: []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAWPAsKJ/qMYUIBeH7BLMRCE/bkUvMHX+7OZhANk45S"},
+		},
+		{
+			desc:       "many pubkeys",
+			pubkeyPath: "./testdata/many_ssh_cert_authorities.pub",
+			expectPubkeys: []string{
+				"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAWPAsKJ/qMYUIBeH7BLMRCE/bkUvMHX+7OZhANk45S",
+				"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIItL+PtmvrTxqrUt3GtgoQEoIFzNb4xpVwtOXa5WLCOQ",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			pubkeys, err := pubkeysFromPath(tt.pubkeyPath)
+			if tt.expectErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectPubkeys, pubkeys)
 		})
 	}
 }
