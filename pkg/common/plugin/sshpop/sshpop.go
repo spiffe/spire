@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"text/template"
 
 	"github.com/hashicorp/hcl"
@@ -60,8 +61,9 @@ type ClientConfig struct {
 
 // ServerConfig configures the server.
 type ServerConfig struct {
-	CertAuthorities   []string `hcl:"cert_authorities"`
-	AgentPathTemplate string   `hcl:"agent_path_template"`
+	CertAuthorities     []string `hcl:"cert_authorities"`
+	CertAuthoritiesPath string   `hcl:"cert_authorities_path"`
+	AgentPathTemplate   string   `hcl:"agent_path_template"`
 }
 
 func NewClient(trustDomain, configString string) (*Client, error) {
@@ -133,10 +135,21 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 	if err := hcl.Decode(config, configString); err != nil {
 		return nil, Errorf("failed to decode configuration: %v", err)
 	}
-	if config.CertAuthorities == nil {
-		return nil, Errorf("missing required config value for \"cert_authorities\"")
+	if config.CertAuthorities == nil && config.CertAuthoritiesPath == "" {
+		return nil, Errorf("missing required config value for \"cert_authorities\" or \"cert_authorities_path\"")
 	}
-	certChecker, err := certCheckerFromPubkeys(config.CertAuthorities)
+	var certAuthorities []string
+	if config.CertAuthorities != nil {
+		certAuthorities = append(certAuthorities, config.CertAuthorities...)
+	}
+	if config.CertAuthoritiesPath != "" {
+		fileCertAuthorities, err := pubkeysFromPath(config.CertAuthoritiesPath)
+		if err != nil {
+			return nil, Errorf("failed to get cert authorities from file: %v", err)
+		}
+		certAuthorities = append(certAuthorities, fileCertAuthorities...)
+	}
+	certChecker, err := certCheckerFromPubkeys(certAuthorities)
 	if err != nil {
 		return nil, Errorf("failed to create cert checker: %v", err)
 	}
@@ -153,6 +166,25 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 		agentPathTemplate: agentPathTemplate,
 		trustDomain:       trustDomain,
 	}, nil
+}
+
+func pubkeysFromPath(pubkeysPath string) ([]string, error) {
+	pubkeysBytes, err := ioutil.ReadFile(pubkeysPath)
+	if err != nil {
+		return nil, err
+	}
+	splitPubkeys := strings.Split(string(pubkeysBytes), "\n")
+	var pubkeys []string
+	for _, pubkey := range splitPubkeys {
+		if pubkey == "" {
+			continue
+		}
+		pubkeys = append(pubkeys, pubkey)
+	}
+	if pubkeys == nil {
+		return nil, fmt.Errorf("no data found in file: %q", pubkeysPath)
+	}
+	return pubkeys, nil
 }
 
 func certCheckerFromPubkeys(certAuthorities []string) (*ssh.CertChecker, error) {
