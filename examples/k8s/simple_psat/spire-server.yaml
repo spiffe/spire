@@ -25,9 +25,6 @@ rules:
 - apiGroups: ["authentication.k8s.io"]
   resources: ["tokenreviews"]
   verbs: ["get", "create"]
-- apiGroups: ["authentication.k8s.io"]
-  resources: ["subjectaccessreviews "]
-  verbs: ["get", "create"]
 
 ---
 

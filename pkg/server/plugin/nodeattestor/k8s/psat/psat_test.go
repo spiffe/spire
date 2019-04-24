@@ -130,11 +130,6 @@ func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
 	s.Require().Nil(resp)
 }
 
-func (s *AttestorSuite) TestAttestFailsWhenAttestedBefore() {
-	s.requireAttestError(&nodeattestor.AttestRequest{AttestedBefore: true},
-		"k8s-psat: node has already attested")
-}
-
 func (s *AttestorSuite) TestAttestFailsWithNoAttestationData() {
 	s.requireAttestError(&nodeattestor.AttestRequest{},
 		"k8s-psat: missing attestation data")

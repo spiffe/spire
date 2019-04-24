@@ -96,10 +96,6 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return psatError.Wrap(err)
 	}
 
-	if req.AttestedBefore {
-		return psatError.New("node has already attested")
-	}
-
 	if req.AttestationData == nil {
 		return psatError.New("missing attestation data")
 	}

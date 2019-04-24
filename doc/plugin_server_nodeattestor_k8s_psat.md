@@ -51,7 +51,7 @@ This plugin generates the following selectors:
 | `k8s_psat:agent_sa`        | `k8s_psat:agent_sa:spire-agent`        | Service Account the agent is running under                                      |
 | `k8s_psat:agent_pod_name`  | `k8s_psat:agent_pod_name:pod-name`     | Name of the pod in which the agent is running                                   |
 | `k8s_psat:agent_pod_uid`   | `k8s_psat:agent_pod_uid:pod-uid`       | UID of the pod in which the agent is running                                    |
-| `k8s_psat:agent_node_name` | `k8s_psat:agent_node_name:node-1`      | Name of the node in which the agent is runnig                                   |
+| `k8s_psat:agent_node_name` | `k8s_psat:agent_node_name:node-1`      | Name of the node in which the agent is running                                  |
 
 
 A full example of this attestor is provided [here](../examples/k8s/simple_psat/README.md).

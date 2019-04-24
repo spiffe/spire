@@ -14,7 +14,7 @@ Also RBAC authorization policies are set in order to guarantee access to certain
 
 ### Configuration
 
-The following flags must be passed to API server to properly run this PSAT attestor example:
+The following flags must be passed to the Kubernetes API server to properly run this PSAT attestor example:
 + `service-account-signing-key-file`
 + `service-account-key-file`
 + `service-account-issuer`
