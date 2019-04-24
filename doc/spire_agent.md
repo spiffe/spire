@@ -116,7 +116,6 @@ the following flags are available:
 | `-socketPath` | Location to bind the workload API socket | |
 | `-trustBundle` | Path to the SPIRE server CA bundle | |
 | `-trustDomain` | The trust domain that this agent belongs to | |
-| `-umask` | Umask value to use for new files | |
 
 ### `spire-agent api fetch`
 
