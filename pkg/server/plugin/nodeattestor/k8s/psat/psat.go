@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
-	"github.com/spiffe/spire/pkg/common/plugin/k8s/client"
+	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
@@ -69,7 +69,7 @@ type attestorConfig struct {
 type clusterConfig struct {
 	serviceAccounts map[string]bool
 	audience        []string
-	k8sClient       client.K8SClient
+	client          apiserver.Client
 }
 
 //AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
@@ -126,7 +126,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return psatError.New("not configured for cluster %q", attestationData.Cluster)
 	}
 
-	tokenStatus, err := cluster.k8sClient.ValidateToken(attestationData.Token, cluster.audience)
+	tokenStatus, err := cluster.client.ValidateToken(attestationData.Token, cluster.audience)
 	if err != nil {
 		return psatError.New("unable to validate token with TokenReview API: %v", err)
 	}
@@ -155,7 +155,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return psatError.New("fail to get pod UID from token review status: %v", err)
 	}
 
-	node, err := cluster.k8sClient.GetNode(namespace, podName)
+	node, err := cluster.client.GetNode(namespace, podName)
 	if err != nil {
 		return psatError.New("fail to get node name from k8s api: %v", err)
 	}
@@ -217,7 +217,7 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 		config.clusters[name] = &clusterConfig{
 			serviceAccounts: serviceAccounts,
 			audience:        audience,
-			k8sClient:       client.NewK8SClient(cluster.KubeConfigFile),
+			client:          apiserver.New(cluster.KubeConfigFile),
 		}
 	}
 

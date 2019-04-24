@@ -23,7 +23,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
-	k8s_cli_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/client"
+	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
@@ -63,15 +63,15 @@ func TestAttestorPlugin(t *testing.T) {
 type AttestorSuite struct {
 	spiretest.Suite
 
-	dir           string
-	fooKey        *rsa.PrivateKey
-	fooSigner     jose.Signer
-	barKey        *ecdsa.PrivateKey
-	barSigner     jose.Signer
-	bazSigner     jose.Signer
-	attestor      nodeattestor.Plugin
-	mockCtrl      *gomock.Controller
-	mockK8SClient *k8s_cli_mock.MockK8SClient
+	dir        string
+	fooKey     *rsa.PrivateKey
+	fooSigner  jose.Signer
+	barKey     *ecdsa.PrivateKey
+	barSigner  jose.Signer
+	bazSigner  jose.Signer
+	attestor   nodeattestor.Plugin
+	mockCtrl   *gomock.Controller
+	mockClient *k8s_apiserver_mock.MockClient
 }
 
 type TokenData struct {
@@ -183,7 +183,7 @@ func (s *AttestorSuite) TestAttestFailsIfTokenReviewAPIFails() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockK8SClient.EXPECT().ValidateToken(token, defaultAudience).Return(nil, errors.New("an error"))
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(nil, errors.New("an error"))
 	s.requireAttestError(makeAttestRequest("FOO", token), "unable to validate token with TokenReview API")
 }
 
@@ -195,7 +195,7 @@ func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockK8SClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, false), nil)
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, false), nil)
 	s.requireAttestError(makeAttestRequest("FOO", token), "token not authenticated")
 }
 
@@ -206,7 +206,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockK8SClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
 	s.requireAttestError(makeAttestRequest("FOO", token), "missing namespace")
 }
 
@@ -217,7 +217,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 		podUID:    "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockK8SClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
 	s.requireAttestError(makeAttestRequest("FOO", token), "missing service account name")
 }
 
@@ -228,7 +228,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockK8SClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
 	s.requireAttestError(makeAttestRequest("FOO", token), "pod name is empty")
 }
 
@@ -239,7 +239,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
 		podName:            "PODNAME",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockK8SClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
 	s.requireAttestError(makeAttestRequest("FOO", token), "pod UID is empty")
 }
 
@@ -251,7 +251,7 @@ func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelisted() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockK8SClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
 	s.requireAttestError(makeAttestRequest("FOO", token), `"NS1:SERVICEACCOUNTNAME" is not a whitelisted service account`)
 }
 
@@ -263,8 +263,8 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockK8SClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockK8SClient.EXPECT().GetNode("NS1", "PODNAME").Return("", errors.New("an error"))
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.mockClient.EXPECT().GetNode("NS1", "PODNAME").Return("", errors.New("an error"))
 	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get node name from k8s api")
 }
 
@@ -277,8 +277,8 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		podUID:             "PODUID-1",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockK8SClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockK8SClient.EXPECT().GetNode("NS1", "PODNAME-1").Return("NODENAME-1", nil).AnyTimes()
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.mockClient.EXPECT().GetNode("NS1", "PODNAME-1").Return("NODENAME-1", nil).AnyTimes()
 
 	resp, err := s.doAttest(makeAttestRequest("FOO", token))
 	s.Require().NoError(err)
@@ -303,8 +303,8 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		podUID:             "PODUID-2",
 	}
 	token = s.signToken(s.barSigner, tokenData)
-	s.mockK8SClient.EXPECT().ValidateToken(token, []string{"AUDIENCE"}).Return(createTokenStatus(tokenData, true), nil)
-	s.mockK8SClient.EXPECT().GetNode("NS2", "PODNAME-2").Return("NODENAME-2", nil).AnyTimes()
+	s.mockClient.EXPECT().ValidateToken(token, []string{"AUDIENCE"}).Return(createTokenStatus(tokenData, true), nil)
+	s.mockClient.EXPECT().GetNode("NS2", "PODNAME-2").Return("NODENAME-2", nil).AnyTimes()
 
 	// Success with FOO signed token
 	resp, err = s.doAttest(makeAttestRequest("BAR", token))
@@ -429,9 +429,9 @@ func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
 
-	s.mockK8SClient = k8s_cli_mock.NewMockK8SClient(s.mockCtrl)
-	attestor.config.clusters["FOO"].k8sClient = s.mockK8SClient
-	attestor.config.clusters["BAR"].k8sClient = s.mockK8SClient
+	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
+	attestor.config.clusters["FOO"].client = s.mockClient
+	attestor.config.clusters["BAR"].client = s.mockClient
 
 	var plugin nodeattestor.Plugin
 	s.LoadPlugin(builtin(attestor), &plugin)

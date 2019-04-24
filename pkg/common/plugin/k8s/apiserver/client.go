@@ -1,4 +1,4 @@
-package client
+package apiserver
 
 import (
 	"errors"
@@ -11,8 +11,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// K8SClient is a client for querying k8s API server
-type K8SClient interface {
+// Client is a client for querying k8s API server
+type Client interface {
 	//GetNode returns the node name in which a given pod lives
 	GetNode(namespace, podName string) (string, error)
 
@@ -20,21 +20,21 @@ type K8SClient interface {
 	ValidateToken(token string, audiences []string) (*k8s_auth.TokenReviewStatus, error)
 }
 
-type k8sClient struct {
+type client struct {
 	kubeConfigFilePath string
 }
 
-// NewK8SClient creates a new K8SClient.
+// New creates a new Client.
 // There are two cases:
 // - If a kubeConfigFilePath is provided, config is taken from that file -> use for clients running out of a k8s cluster
 // - If not (empty kubeConfigFilePath), InClusterConfig is used          -> use for clients running in a k8s cluster
-func NewK8SClient(kubeConfigFilePath string) K8SClient {
-	return &k8sClient{
+func New(kubeConfigFilePath string) Client {
+	return &client{
 		kubeConfigFilePath: kubeConfigFilePath,
 	}
 }
 
-func (c *k8sClient) GetNode(namespace, podName string) (string, error) {
+func (c *client) GetNode(namespace, podName string) (string, error) {
 	// Reload config
 	clientset, err := c.loadClient()
 	if err != nil {
@@ -54,7 +54,7 @@ func (c *k8sClient) GetNode(namespace, podName string) (string, error) {
 	return pod.Spec.NodeName, nil
 }
 
-func (c *k8sClient) ValidateToken(token string, audiences []string) (*k8s_auth.TokenReviewStatus, error) {
+func (c *client) ValidateToken(token string, audiences []string) (*k8s_auth.TokenReviewStatus, error) {
 	// Reload config
 	clientset, err := c.loadClient()
 	if err != nil {
@@ -87,7 +87,7 @@ func (c *k8sClient) ValidateToken(token string, audiences []string) (*k8s_auth.T
 	return &resp.Status, nil
 }
 
-func (c *k8sClient) loadClient() (*kubernetes.Clientset, error) {
+func (c *client) loadClient() (*kubernetes.Clientset, error) {
 	var config *rest.Config
 	var err error
 
