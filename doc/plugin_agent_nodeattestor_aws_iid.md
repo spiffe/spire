@@ -1,4 +1,4 @@
-# Server plugin: NodeAttestor "aws_iid"
+# Agent plugin: NodeAttestor "aws_iid"
 
 *Must be used in conjunction with the server-side aws_iid plugin*
 
