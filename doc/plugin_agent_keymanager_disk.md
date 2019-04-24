@@ -7,3 +7,13 @@ for long enough for its certificate to expire, attestation will need to be re-pe
 | Configuration | Description |
 | ------------- | ----------- |
 | directory     | The directory in which to store the private key. |
+
+A sample configuration:
+
+```
+	KeyManager "disk" {
+		plugin_data {
+			directory = "/opt/spire/data/agent"
+		}
+	}
+```

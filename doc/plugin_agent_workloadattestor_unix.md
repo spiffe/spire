@@ -5,7 +5,7 @@ The `unix` plugin generates unix-based selectors for workloads calling the agent
 | Configuration | Description | Default |
 | ------------- | ----------- | ------- |
 | `discover_workload_path` | If true, the workload path will be discovered by the plugin and used to provide additional selectors | false |
-| `workload_size_limit` | The limit of workload binary sizes when calculating certain selectors (e.g. sha256). If zero, no limit is enforced. | 0 | 
+| `workload_size_limit` | The limit of workload binary sizes when calculating certain selectors (e.g. sha256). If zero, no limit is enforced. | 0 |
 
 If configured with `discover_workload_path = true`, the plugin will discover
 the workload path to provide additional selectors. If the plugin cannot
@@ -43,3 +43,12 @@ plugin is willing to hash. The same attack could be performed by spawning a
 bunch of processes under the limit. The workload API does not yet support rate
 limiting, but when it does, this attack can be mitigated by using rate limiting
 in conjunction with `workload_size_limit`.
+
+A sample configuration:
+
+```
+	WorkloadAttestor "unix" {
+		plugin_data {
+		}
+	}
+```

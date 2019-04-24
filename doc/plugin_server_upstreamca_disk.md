@@ -14,3 +14,15 @@ The plugin accepts the following configuration options:
 | key_file_path  | Path to the "upstream" CA key file    |
 
 Key files must contain a single PEM encoded key. The supported key types are EC (ASN.1 or PKCS8 encoded) or RSA (PKCS1 or PKCS8 encoded).
+
+A sample configuration:
+
+```
+    UpstreamCA "disk" {
+        plugin_data {
+            ttl = "1h"
+            cert_file_path = "conf/server/dummy_upstream_ca.crt"
+            key_file_path = "conf/server/dummy_upstream_ca.key"
+        }
+    }
+```

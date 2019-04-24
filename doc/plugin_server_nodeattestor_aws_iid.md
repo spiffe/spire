@@ -17,3 +17,14 @@ attested by the aws_iid attestor will be issued a SPIFFE ID like
 The user or role identified by the credentials must have permissions for `ec2:DescribeInstances`.
 
 For more information on security credentials, see https://docs.aws.amazon.com/general/latest/gr/aws-security-credentials.html.
+
+A sample configuration:
+
+```
+    NodeResolver "aws_iid" {
+        plugin_data {
+			access_key_id = "ACCESS_KEY_ID"
+			secret_access_key = "SECRET_ACCESS_KEY"
+        }
+    }
+```
