@@ -16,7 +16,6 @@
     - [X509SVID](#spire.api.node.X509SVID)
     - [X509SVIDUpdate](#spire.api.node.X509SVIDUpdate)
     - [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry)
-    - [X509SVIDUpdate.DEPRECATEDBundlesEntry](#spire.api.node.X509SVIDUpdate.DEPRECATEDBundlesEntry)
     - [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry)
   
   
@@ -189,7 +188,6 @@ a TTL indicating when the SVID expires.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| DEPRECATED_cert | [bytes](#bytes) |  | X509 SVID (ASN.1 encoding) |
 | cert_chain | [bytes](#bytes) |  | X509 SVID and intermediates necessary to form a chain of trust back to a root CA in the bundle. |
 | expires_at | [int64](#int64) |  | SVID expiration timestamp (in seconds since Unix epoch) |
 
@@ -208,9 +206,7 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | svids | [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry) | repeated | A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] =&gt; SVID. |
-| DEPRECATED_bundle | [bytes](#bytes) |  | DEPRECATED. Latest SPIRE Server bundle. |
 | registration_entries | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it. |
-| DEPRECATED_bundles | [X509SVIDUpdate.DEPRECATEDBundlesEntry](#spire.api.node.X509SVIDUpdate.DEPRECATEDBundlesEntry) | repeated | DEPRECATED. See bundles. |
 | bundles | [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry) | repeated | Trust bundles associated with the SVIDs, keyed by trust domain SPIFFE ID. Bundles included are the trust bundle for the server trust domain and any federated trust domain bundles applicable to the SVIDs. Supersedes the deprecated `bundle` field. |
 
 
@@ -228,22 +224,6 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
 | value | [spire.common.Bundle](#spire.common.Bundle) |  |  |
-
-
-
-
-
-
-<a name="spire.api.node.X509SVIDUpdate.DEPRECATEDBundlesEntry"></a>
-
-### X509SVIDUpdate.DEPRECATEDBundlesEntry
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| key | [string](#string) |  |  |
-| value | [Bundle](#spire.api.node.Bundle) |  |  |
 
 
 

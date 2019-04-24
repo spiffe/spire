@@ -13,7 +13,6 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -242,15 +241,10 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			counter.AddLabel("spiffe_id", spiffeID)
 		}
 
-		// TODO: remove in 0.8, along with deprecated fields
-		ourBundle := bundles[h.c.TrustDomain.String()]
-
 		err = server.Send(&node.FetchX509SVIDResponse{
 			SvidUpdate: &node.X509SVIDUpdate{
 				Svids:               svids,
-				DEPRECATEDBundle:    makeDeprecatedBundle(ourBundle).CaCerts,
 				RegistrationEntries: regEntries,
-				DEPRECATEDBundles:   makeDeprecatedBundles(bundles),
 				Bundles:             bundles,
 			},
 		})
@@ -612,17 +606,13 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 		return nil, err
 	}
 
-	// TODO: remove in 0.8, along with deprecated fields
-	ourBundle := bundles[h.c.TrustDomain.String()]
-
-	svidUpdate := &node.X509SVIDUpdate{
-		Svids:               svids,
-		DEPRECATEDBundle:    makeDeprecatedBundle(ourBundle).CaCerts,
-		RegistrationEntries: regEntries,
-		DEPRECATEDBundles:   makeDeprecatedBundles(bundles),
-		Bundles:             bundles,
-	}
-	return &node.AttestResponse{SvidUpdate: svidUpdate}, nil
+	return &node.AttestResponse{
+		SvidUpdate: &node.X509SVIDUpdate{
+			Svids:               svids,
+			RegistrationEntries: regEntries,
+			Bundles:             bundles,
+		},
+	}, nil
 }
 
 func (h *Handler) getDownstreamEntry(ctx context.Context, callerID string) (*common.RegistrationEntry, error) {
@@ -854,21 +844,6 @@ func createAttestationEntry(ctx context.Context, ds datastore.DataStore, cert *x
 	return nil
 }
 
-func makeDeprecatedBundle(b *common.Bundle) *node.Bundle {
-	return &node.Bundle{
-		Id:      b.TrustDomainId,
-		CaCerts: bundleutil.RootCAsDERFromBundleProto(b),
-	}
-}
-
-func makeDeprecatedBundles(bs map[string]*common.Bundle) map[string]*node.Bundle {
-	out := make(map[string]*node.Bundle)
-	for k, v := range bs {
-		out[k] = makeDeprecatedBundle(v)
-	}
-	return out
-}
-
 func getSpiffeIDFromCSR(csrBytes []byte, mode idutil.ValidationMode) (string, error) {
 	csr, err := x509.ParseCertificateRequest(csrBytes)
 	if err != nil {
@@ -905,9 +880,8 @@ func makeX509SVID(svid []*x509.Certificate) *node.X509SVID {
 		certChain = append(certChain, cert.Raw...)
 	}
 	return &node.X509SVID{
-		DEPRECATEDCert: svid[0].Raw,
-		CertChain:      certChain,
-		ExpiresAt:      svid[0].NotAfter.Unix(),
+		CertChain: certChain,
+		ExpiresAt: svid[0].NotAfter.Unix(),
 	}
 }
 
