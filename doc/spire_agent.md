@@ -22,7 +22,9 @@ This document is a configuration reference for SPIRE Agent. It includes informat
 | NodeAttestor     | [join_token](/doc/plugin_agent_nodeattestor_jointoken.md) | A node attestor which uses a server-generated join token |
 | NodeAttestor     | [k8s_sat](/doc/plugin_agent_nodeattestor_k8s_sat.md) | A node attestor which attests agent identity using a Kubernetes Service Account token |
 | NodeAttestor     | [k8s_psat](/doc/plugin_agent_nodeattestor_k8s_psat.md) | A node attestor which attests agent identity using a Kubernetes Projected Service Account token |
-| NodeAttestor     | [x509_pop](/doc/plugin_agent_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
+| NodeAttestor     | [sshpop](/doc/plugin_agent_nodeattestor_sshpop.md) | A node attestor which attests agent identity using an existing ssh certificate |
+| NodeAttestor     | [x509pop](/doc/plugin_agent_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
+| WorkloadAttestor | [docker](/doc/plugin_agent_workloadattestor_docker.md) | A workload attestor which allows selectors based on docker constructs such `label` and `image_id`|
 | WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md) | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)|
 | WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md) | A workload attestor which generates unix-based selectors like `uid` and `gid` |
 
