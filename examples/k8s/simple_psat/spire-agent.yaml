@@ -6,14 +6,15 @@ metadata:
 
 ---
 
+# Required role to allow SPIRE agent to query the kubelet
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   namespace: spire
   name: spire-agent-role
 rules:
-- apiGroups: [""] # "" indicates the core API group
-  resources: ["pods"]
+- apiGroups: [""]
+  resources: ["nodes/proxy"]
   verbs: ["get"]
 
 ---
@@ -28,8 +29,8 @@ subjects:
   name: spire-agent
   namespace: spire
 roleRef:
-  kind: Role #this must be Role or ClusterRole
-  name: spire-agent-role # this must match the name of the Role or ClusterRole you wish to bind to
+  kind: Role
+  name: spire-agent-role
   apiGroup: rbac.authorization.k8s.io
 
 ---
@@ -55,6 +56,8 @@ data:
       NodeAttestor "k8s_psat" {
         plugin_data {
           cluster = "demo-cluster"
+          # Since minikube doesn't make the kubelet cert available in the cluster CA bundle, validation is skipped for this example
+          skip_kubelet_verification = true
         }
       }
 
