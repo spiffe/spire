@@ -25,6 +25,17 @@ Save database in memory
 connection_string=":memory:"
 ```
 
+#### Sample configuration
+
+```
+    DataStore "sql" {
+        plugin_data {
+            database_type = "sqlite3"
+            connection_string = "./.data/datastore.sqlite3"
+        }
+    }
+```
+
 ### `database_type = "postgres"`
 
 The `connection_string` for the PostreSQL database connection consists of the number of configuration options separated by spaces.
@@ -60,6 +71,17 @@ connection_string="dbname=postgres user=postgres password=password host=localhos
   the server was signed by a trusted CA and the server host name
   matches the one in the certificate)
 
+#### Sample configuration
+
+```
+    DataStore "sql" {
+        plugin_data {
+            database_type = "postgres"
+            connection_string = "dbname=spire_development user=spire host=127.0.0.1 sslmode=disable"
+        }
+    }
+```
+
 ### `database_type = "mysql"`
 
 The `connection_string` for the MySQL database connection consists of the number of configuration options (optional parts marked by square brackets):
@@ -83,3 +105,14 @@ Read MySQL driver for more `connection_string` options [here](https://github.com
   domain sockets. (default is localhost)
 
 If you need to use custom Root CA, just specify `root_ca_path` in the plugin config. Similarly, if you need to use client certificates, specify `client_key_path` and `client_cert_path`. Other options can be configured via [tls](https://github.com/go-sql-driver/mysql#tls) params in the `connection_string` options.
+
+#### Sample configuration
+
+```
+    DataStore "sql" {
+        plugin_data {
+            database_type = "mysql"
+            connection_string = "spire:@tcp(127.0.0.1)/spire_development?parseTime=true"
+        }
+    }
+```

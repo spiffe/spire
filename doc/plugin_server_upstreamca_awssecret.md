@@ -17,3 +17,18 @@ The plugin accepts the following configuration options:
 | secret_access_key       | AWS secret access key                 |
 | secret_token            | AWS secret token                      |
 
+A sample configuration:
+
+```
+    NodeAttestor "awssecret" {
+        plugin_data {
+            ttl = "1h",
+            region = "us-west-2",
+            cert_file_arn = "cert",
+            key_file_arn = "key",
+            access_key_id = "ACCESS_KEY_ID",
+            secret_access_key = "SECRET_ACCESS_KEY",
+            secret_token = "SECRET_TOKEN"
+        }
+    }
+```

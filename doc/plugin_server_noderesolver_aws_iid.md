@@ -26,6 +26,25 @@ of selectors.
 The user or role identified by the credentials must have permissions for
 `ec2:DescribeInstances` and `iam:GetInstanceProfile`.
 
+The following is an example for a IAM policy needed to get instance's info from AWS.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeInstances",
+                "iam:GetInstanceProfile"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
 For more information on security credentials, see https://docs.aws.amazon.com/general/latest/gr/aws-security-credentials.html.
 
 A sample configuration:
