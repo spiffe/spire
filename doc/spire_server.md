@@ -124,7 +124,6 @@ Most of the configuration file above options have identical command-line counter
 | `-registrationUDSPath` | UDS Path to bind registration API | |
 | `-serverPort` | Port number of the SPIRE server | |
 | `-trustDomain` | The trust domain that this server belongs to | |
-| `-umask` | Umask value to use for new files | |
 | `-upstreamBundle` | Include upstream CA certificates in the bundle | |
 
 ### `spire-server token generate`
