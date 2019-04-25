@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -42,6 +43,10 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 			// no SVID
 		case len(svid.Chain) == 0:
 			// SVID has an empty chain. this is not expected to happen.
+			m.c.Log.WithFields(logrus.Fields{
+				"entry_id":  entry.EntryId,
+				"spiffe_id": entry.SpiffeId,
+			}).Warn("cached X509 SVID is empty")
 		case isSVIDStale(m.c.Clk.Now(), svid.Chain[0]):
 			// SVID has expired
 			expiresAt = svid.Chain[0].NotAfter
@@ -89,14 +94,15 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		if !csr.ExpiresAt.IsZero() {
 			log = log.WithField("expires_at", csr.ExpiresAt.Format(time.RFC3339))
 		}
-		log.Info("Renewing X509-SVID")
 		counter.AddLabel("spiffe_id", csr.SpiffeID)
 
 		// Skip CSR for the same SPIFFE ID... for now (see above TODO)
 		if _, ok := privateKeys[csr.SpiffeID]; ok {
+			log.Debug("Ignoring duplicate X509-SVID renewal")
 			continue
 		}
 
+		log.Info("Renewing X509-SVID")
 		privateKey, csrBytes, err := newCSR(csr.SpiffeID)
 		if err != nil {
 			return nil, err

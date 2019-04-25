@@ -60,7 +60,7 @@ type X509SVID struct {
 // 2) the trust bundle for the agent trust domain is updated
 //
 // When notified, the subscriber is given a WorkloadUpdate containing
-//.registration entries with their corresponding SVIDs and private keys along
+// registration entries with their corresponding SVIDs and private keys along
 // with all related trust bundles.
 //
 // The cache does this efficiently by building an index for each unique
@@ -86,7 +86,7 @@ type X509SVID struct {
 // revelant objects for each subscriber causes HUGE amounts of memory pressure
 // which adds non-trivial amounts of latency and causes a giant memory spike
 // that could OOM the agent on smaller VMs. For this reason, the cache is
-// presumed to own ALL data passing in and out of the cache. Produces MUST NOT
+// presumed to own ALL data passing in and out of the cache. Producers and
 // consumers MUST NOT mutate the data.
 type Cache struct {
 	*BundleCache
@@ -233,10 +233,12 @@ func (c *Cache) Update(update *CacheUpdate, checkSVID func(*common.RegistrationE
 		// Now figure out if something related to the entry has changed so
 		// interested subscribers can be notified.
 		federatedBundlesChanged := fedAdd > 0 || fedRem > 0
-		for _, id := range regEntry.FederatesWith {
-			if bundleChanged[id] {
-				federatedBundlesChanged = true
-				break
+		if !federatedBundlesChanged {
+			for _, id := range regEntry.FederatesWith {
+				if bundleChanged[id] {
+					federatedBundlesChanged = true
+					break
+				}
 			}
 		}
 
@@ -382,6 +384,8 @@ func (c *Cache) addSelectorIndexEntry(s selector, entry *cacheEntry) {
 	index.entries[entry] = struct{}{}
 }
 
+// delSelectorIndexEntry removes the cache entry from the selector index. if
+// the selector index is empty afterwards, it is also removed.
 func (c *Cache) delSelectorIndexEntry(s selector, entry *cacheEntry) {
 	index, ok := c.selectors[s]
 	if ok {
@@ -397,6 +401,8 @@ func (c *Cache) addSelectorIndexSub(s selector, sub *subscriber) {
 	index.subs[sub] = struct{}{}
 }
 
+// delSelectorIndexSub removes the subscription from the selector index. if
+// the selector index is empty afterwards, it is also removed.
 func (c *Cache) delSelectorIndexSub(s selector, sub *subscriber) {
 	index, ok := c.selectors[s]
 	if ok {
@@ -480,6 +486,12 @@ func (c *Cache) buildWorkloadUpdate(set selectorSet) *WorkloadUpdate {
 		for _, federatesWith := range entry.RegistrationEntry.FederatesWith {
 			if federatedBundle := c.bundles[federatesWith]; federatedBundle != nil {
 				w.FederatedBundles[federatesWith] = federatedBundle
+			} else {
+				c.log.WithFields(logrus.Fields{
+					"entry_id":  entry.RegistrationEntry.EntryId,
+					"spiffe_id": entry.RegistrationEntry.SpiffeId,
+					"bundle_id": federatesWith,
+				}).Warn("federated bundle contents missing")
 			}
 		}
 	}
