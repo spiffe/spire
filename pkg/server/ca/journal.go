@@ -72,17 +72,12 @@ func (j *Journal) AppendX509CA(slotID string, issuedAt time.Time, x509CA *X509CA
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
-	var chain [][]byte
-	for _, cert := range x509CA.Chain {
-		chain = append(chain, cert.Raw)
-	}
-
 	backup := j.entries.X509CAs
 	j.entries.X509CAs = append(j.entries.X509CAs, &X509CAEntry{
-		SlotId:         slotID,
-		IssuedAt:       issuedAt.Unix(),
-		IsIntermediate: x509CA.IsIntermediate,
-		Chain:          chain,
+		SlotId:        slotID,
+		IssuedAt:      issuedAt.Unix(),
+		Certificate:   x509CA.Certificate.Raw,
+		UpstreamChain: chainDER(x509CA.UpstreamChain),
 	})
 
 	exceeded := len(j.entries.X509CAs) - journalCap
@@ -196,21 +191,18 @@ func migrateJSONFile(from, to string) (bool, error) {
 		// The ca should only be considered an "intermediate" in case #3, so a
 		// check for more than one cert should be sufficient for that. However
 		// we don't want the the root in the chain anymore, so remove it.
-		isIntermediate := len(chain) > 1
+		certificate := chain[0].Raw
+		var upstreamChain [][]byte
 		if len(chain) > 1 {
-			chain = chain[:len(chain)-1]
+			upstreamChain = chainDER(chain[:len(chain)-1])
 		}
 
-		var chainDER [][]byte
-		for _, cert := range chain {
-			chainDER = append(chainDER, cert.Raw)
-		}
 		return &X509CAEntry{
 			SlotId: slotID,
 			// Using NotBefore as IssuedAt is a close enough estimation.
-			IssuedAt:       chain[0].NotBefore.Unix(),
-			Chain:          chainDER,
-			IsIntermediate: isIntermediate,
+			IssuedAt:      chain[0].NotBefore.Unix(),
+			Certificate:   certificate,
+			UpstreamChain: upstreamChain,
 		}, nil
 	}
 
@@ -287,4 +279,12 @@ func migrateJSONFile(from, to string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func chainDER(chain []*x509.Certificate) [][]byte {
+	var der [][]byte
+	for _, cert := range chain {
+		der = append(der, cert.Raw)
+	}
+	return der
 }

@@ -244,6 +244,7 @@ func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
 		Metrics:     metrics,
 		X509SVIDTTL: s.config.SVIDTTL,
 		TrustDomain: s.config.TrustDomain,
+		CASubject:   s.config.CASubject,
 	})
 }
 

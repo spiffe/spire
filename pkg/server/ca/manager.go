@@ -168,17 +168,22 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 	slot.Reset()
 
 	now := m.c.Clock.Now()
-	notBefore := now.Add(-backdate)
-	notAfter := now.Add(m.c.CATTL)
-
 	km := m.c.Catalog.GetKeyManager()
 	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, slot.KmKeyID(), keymanager.KeyType_EC_P384)
 	if err != nil {
 		return err
 	}
 
-	upstreamCA, _ := m.c.Catalog.GetUpstreamCA()
-	x509CA, trustBundle, err := SignX509CA(ctx, signer, upstreamCA, m.c.UpstreamBundle, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
+	var x509CA *X509CA
+	var trustBundle []*x509.Certificate
+	upstreamCA, useUpstream := m.c.Catalog.GetUpstreamCA()
+	if useUpstream {
+		x509CA, trustBundle, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, upstreamCA, m.c.UpstreamBundle)
+	} else {
+		notBefore := now.Add(-backdate)
+		notAfter := now.Add(m.c.CATTL)
+		x509CA, trustBundle, err = SelfSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
+	}
 	if err != nil {
 		return err
 	}
@@ -197,9 +202,9 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 	m.c.Log.WithFields(logrus.Fields{
 		"slot":            slot.id,
 		"issued_at":       timeField(slot.issuedAt),
-		"not_after":       timeField(slot.x509CA.Chain[0].NotAfter),
-		"self_signed":     upstreamCA == nil,
-		"is_intermediate": slot.x509CA.IsIntermediate,
+		"not_after":       timeField(slot.x509CA.Certificate.NotAfter),
+		"self_signed":     !useUpstream,
+		"upstream_bundle": m.c.UpstreamBundle,
 	}).Info("X509 CA prepared")
 	return nil
 }
@@ -208,7 +213,7 @@ func (m *Manager) activateX509CA() {
 	m.c.Log.WithFields(logrus.Fields{
 		"slot":      m.currentX509CA.id,
 		"issued_at": timeField(m.currentX509CA.issuedAt),
-		"not_after": timeField(m.currentX509CA.x509CA.Chain[0].NotAfter),
+		"not_after": timeField(m.currentX509CA.x509CA.Certificate.NotAfter),
 	}).Info("X509 CA activated")
 	m.c.Metrics.IncrCounter([]string{"manager", "x509_ca", "activate"}, 1)
 	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
@@ -288,6 +293,16 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 	return nil
 }
 
+func (m *Manager) activateJWTKey() {
+	m.c.Log.WithFields(logrus.Fields{
+		"slot":      m.currentJWTKey.id,
+		"issued_at": timeField(m.currentJWTKey.issuedAt),
+		"not_after": timeField(m.currentJWTKey.jwtKey.NotAfter),
+	}).Info("JWT key activated")
+	m.c.Metrics.IncrCounter([]string{"manager", "jwt_key", "activate"}, 1)
+	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
+}
+
 func (m *Manager) pruneBundleEvery(ctx context.Context, interval time.Duration) error {
 	ticker := m.c.Clock.Ticker(interval)
 	defer ticker.Stop()
@@ -302,16 +317,6 @@ func (m *Manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 			return nil
 		}
 	}
-}
-
-func (m *Manager) activateJWTKey() {
-	m.c.Log.WithFields(logrus.Fields{
-		"slot":      m.currentJWTKey.id,
-		"issued_at": timeField(m.currentJWTKey.issuedAt),
-		"not_after": timeField(m.currentJWTKey.jwtKey.NotAfter),
-	}).Info("JWT key activated")
-	m.c.Metrics.IncrCounter([]string{"manager", "jwt_key", "activate"}, 1)
-	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
 }
 
 func (m *Manager) pruneBundle(ctx context.Context) (err error) {
@@ -535,16 +540,18 @@ func (m *Manager) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntr
 		return nil, "no slot id", nil
 	}
 
-	chain := make([]*x509.Certificate, 0, len(entry.Chain))
-	for _, certDER := range entry.Chain {
+	cert, err := x509.ParseCertificate(entry.Certificate)
+	if err != nil {
+		return nil, "", errs.New("unable to parse CA certificate: %v", err)
+	}
+
+	var upstreamChain []*x509.Certificate
+	for _, certDER := range entry.UpstreamChain {
 		cert, err := x509.ParseCertificate(certDER)
 		if err != nil {
-			return nil, "", errs.New("unable to parse chain: %v", err)
+			return nil, "", errs.New("unable to parse upstream chain certificate: %v", err)
 		}
-		chain = append(chain, cert)
-	}
-	if len(chain) == 0 {
-		return nil, "no certificates in chain", nil
+		upstreamChain = append(upstreamChain, cert)
 	}
 
 	signer, err := m.makeSigner(ctx, x509CAKmKeyId(entry.SlotId))
@@ -555,7 +562,7 @@ func (m *Manager) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntr
 	switch {
 	case signer == nil:
 		return nil, "no key manager key", nil
-	case !publicKeyEqual(chain[0].PublicKey, signer.Public()):
+	case !publicKeyEqual(cert.PublicKey, signer.Public()):
 		return nil, "public key does not match key manager key", nil
 	}
 
@@ -563,9 +570,9 @@ func (m *Manager) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntr
 		id:       entry.SlotId,
 		issuedAt: time.Unix(entry.IssuedAt, 0),
 		x509CA: &X509CA{
-			Signer:         signer,
-			Chain:          chain,
-			IsIntermediate: entry.IsIntermediate,
+			Signer:        signer,
+			Certificate:   cert,
+			UpstreamChain: upstreamChain,
 		},
 	}, "", nil
 }
@@ -676,11 +683,11 @@ func (s *x509CASlot) Reset() {
 }
 
 func (s *x509CASlot) ShouldPrepareNext(now time.Time) bool {
-	return s.x509CA != nil && now.After(preparationThreshold(s.issuedAt, s.x509CA.Chain[0].NotAfter))
+	return s.x509CA != nil && now.After(preparationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
 }
 
 func (s *x509CASlot) ShouldActivateNext(now time.Time) bool {
-	return s.x509CA != nil && now.After(activationThreshold(s.issuedAt, s.x509CA.Chain[0].NotAfter))
+	return s.x509CA != nil && now.After(activationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
 }
 
 type jwtKeySlot struct {
@@ -750,41 +757,36 @@ func GenerateServerCACSR(signer crypto.Signer, trustDomain string, subject pkix.
 	return csr, nil
 }
 
-func SignX509CA(ctx context.Context, signer crypto.Signer, upstreamCA upstreamca.UpstreamCA, upstreamBundle bool, trustDomain string, subject pkix.Name, notBefore, notAfter time.Time) (*X509CA, []*x509.Certificate, error) {
-	// either self-sign or sign with the upstream CA
-	var caChain []*x509.Certificate
-	var trustBundle []*x509.Certificate
-	var isIntermediate bool
-	var err error
-	if upstreamCA != nil {
-		caChain, trustBundle, err = UpstreamSignServerCACertificate(ctx, upstreamCA, signer, trustDomain, subject)
-		if err != nil {
-			return nil, nil, err
-		}
-		isIntermediate = upstreamBundle
-		if !isIntermediate {
-			// we don't want to join the upstream PKI. Use the server CA as the
-			// root, as if the upstreamCA was never configured.
-			caChain = caChain[:1]
-			trustBundle = caChain
-		}
-	} else {
-		cert, err := SelfSignServerCACertificate(signer, trustDomain, subject, notBefore, notAfter)
-		if err != nil {
-			return nil, nil, err
-		}
-		caChain = []*x509.Certificate{cert}
-		trustBundle = caChain
+func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, notBefore, notAfter time.Time) (*X509CA, []*x509.Certificate, error) {
+	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
+	if err != nil {
+		return nil, nil, err
 	}
 
+	template, err := CreateServerCATemplate(csr, trustDomain, notBefore, notAfter, big.NewInt(0))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, signer.Public(), signer)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	trustBundle := []*x509.Certificate{cert}
+
 	return &X509CA{
-		Signer:         signer,
-		Chain:          caChain,
-		IsIntermediate: isIntermediate,
+		Signer:      signer,
+		Certificate: cert,
 	}, trustBundle, nil
 }
 
-func UpstreamSignServerCACertificate(ctx context.Context, upstreamCA upstreamca.UpstreamCA, signer crypto.Signer, trustDomain string, subject pkix.Name) ([]*x509.Certificate, []*x509.Certificate, error) {
+func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamCA upstreamca.UpstreamCA, upstreamBundle bool) (*X509CA, []*x509.Certificate, error) {
 	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
 	if err != nil {
 		return nil, nil, err
@@ -797,7 +799,25 @@ func UpstreamSignServerCACertificate(ctx context.Context, upstreamCA upstreamca.
 		return nil, nil, err
 	}
 
-	return parseUpstreamCACSRResponse(resp)
+	caChain, trustBundle, err := parseUpstreamCACSRResponse(resp)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var upstreamChain []*x509.Certificate
+	if upstreamBundle {
+		upstreamChain = caChain
+	} else {
+		// we don't want to join the upstream PKI. Use the server CA as the
+		// root, as if the upstreamCA was never configured.
+		trustBundle = caChain[:1]
+	}
+
+	return &X509CA{
+		Signer:        signer,
+		Certificate:   caChain[0],
+		UpstreamChain: upstreamChain,
+	}, trustBundle, nil
 }
 
 func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
@@ -806,9 +826,15 @@ func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Cer
 		if err != nil {
 			return nil, nil, err
 		}
+		if len(certChain) == 0 {
+			return nil, nil, errs.New("upstream CA returned an empty cert chain")
+		}
 		trustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
 		if err != nil {
 			return nil, nil, err
+		}
+		if len(trustBundle) == 0 {
+			return nil, nil, errs.New("upstream CA returned an empty trust bundle")
 		}
 		return certChain, trustBundle, nil
 	}
@@ -842,27 +868,6 @@ func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Cer
 		return certChain, trustBundle, nil
 	}
 	return certChain, trustBundle, nil
-}
-
-func SelfSignServerCACertificate(signer crypto.Signer, trustDomain string, subject pkix.Name, notBefore, notAfter time.Time) (*x509.Certificate, error) {
-	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
-	if err != nil {
-		return nil, err
-	}
-
-	template, err := CreateServerCATemplate(csr, trustDomain, notBefore, notAfter, big.NewInt(0))
-	if err != nil {
-		return nil, err
-	}
-	certDER, err := x509.CreateCertificate(rand.Reader, template, template, signer.Public(), signer)
-	if err != nil {
-		return nil, err
-	}
-	cert, err := x509.ParseCertificate(certDER)
-	if err != nil {
-		return nil, err
-	}
-	return cert, nil
 }
 
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {

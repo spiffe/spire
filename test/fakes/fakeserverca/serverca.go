@@ -57,7 +57,14 @@ func New(t *testing.T, trustDomain string, options *Options) *CA {
 	notBefore := options.Clock.Now()
 	notAfter := notBefore.Add(time.Hour)
 
-	x509CA, bundle, err := ca.SignX509CA(context.Background(), signer, options.UpstreamCA, options.UpstreamBundle, trustDomain, subject, notBefore, notAfter)
+	var x509CA *ca.X509CA
+	var bundle []*x509.Certificate
+	var err error
+	if options.UpstreamCA != nil {
+		x509CA, bundle, err = ca.UpstreamSignX509CA(context.Background(), signer, trustDomain, subject, options.UpstreamCA, options.UpstreamBundle)
+	} else {
+		x509CA, bundle, err = ca.SelfSignX509CA(context.Background(), signer, trustDomain, subject, notBefore, notAfter)
+	}
 	require.NoError(t, err)
 
 	serverCA := ca.NewCA(ca.CAConfig{

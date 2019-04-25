@@ -140,9 +140,9 @@ func (s *JournalSuite) TestPersistence() {
 	journal := s.loadJournal()
 
 	err := journal.AppendX509CA("A", now, &X509CA{
-		Signer:         testSigner,
-		Chain:          testChain,
-		IsIntermediate: true,
+		Signer:        testSigner,
+		Certificate:   testChain[0],
+		UpstreamChain: testChain,
 	})
 	s.Require().NoError(err)
 
@@ -164,9 +164,8 @@ func (s *JournalSuite) TestX509CAOverflow() {
 	for i := 0; i < (journalCap + 1); i++ {
 		now = now.Add(time.Minute)
 		err := journal.AppendX509CA("A", now, &X509CA{
-			Signer:         testSigner,
-			Chain:          testChain,
-			IsIntermediate: true,
+			Signer:      testSigner,
+			Certificate: testChain[0],
 		})
 		s.Require().NoError(err)
 
@@ -262,26 +261,26 @@ func (s *JournalSuite) TestX509CAChainMigration() {
 	// self signed
 	entries := s.migrateThenLoad(jsonX509CASelfSigned)
 	s.Require().Len(entries.X509CAs, 1)
-	s.Len(entries.X509CAs[0].Chain, 1)
-	s.False(entries.X509CAs[0].IsIntermediate)
+	s.NotNil(entries.X509CAs[0].Certificate)
+	s.Empty(entries.X509CAs[0].UpstreamChain)
 
 	// signed by upstream intermediate but upstream bundle not used
 	entries = s.migrateThenLoad(jsonX509CAUpstreamNoBundle)
 	s.Require().Len(entries.X509CAs, 1)
-	s.Len(entries.X509CAs[0].Chain, 1)
-	s.False(entries.X509CAs[0].IsIntermediate)
+	s.NotNil(entries.X509CAs[0].Certificate)
+	s.Empty(entries.X509CAs[0].UpstreamChain)
 
 	// signed by upstream root and upstream bundle is used
 	entries = s.migrateThenLoad(jsonX509CAUpstreamRootWithBundle)
 	s.Require().Len(entries.X509CAs, 1)
-	s.Len(entries.X509CAs[0].Chain, 1)
-	s.True(entries.X509CAs[0].IsIntermediate)
+	s.NotNil(entries.X509CAs[0].Certificate)
+	s.Len(entries.X509CAs[0].UpstreamChain, 1)
 
 	// signed by upstream intermediate and upstream bundle is used
 	entries = s.migrateThenLoad(jsonX509CAUpstreamIntWithBundle)
 	s.Require().Len(entries.X509CAs, 1)
-	s.Len(entries.X509CAs[0].Chain, 2)
-	s.True(entries.X509CAs[0].IsIntermediate)
+	s.NotNil(entries.X509CAs[0].Certificate)
+	s.Len(entries.X509CAs[0].UpstreamChain, 2)
 }
 
 func (s *JournalSuite) loadJournal() *Journal {

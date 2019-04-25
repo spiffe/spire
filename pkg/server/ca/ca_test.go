@@ -66,6 +66,9 @@ func (s *CATestSuite) SetupTest() {
 		},
 		X509SVIDTTL: time.Minute,
 		Clock:       s.clock,
+		CASubject: pkix.Name{
+			CommonName: "TESTCA",
+		},
 	})
 	s.setX509CA(false)
 	s.setJWTKey()
@@ -75,6 +78,35 @@ func (s *CATestSuite) TestNoX509CASet() {
 	s.ca.SetX509CA(nil)
 	_, err := s.ca.SignX509CASVID(ctx, s.generateCSR("example.org"), X509Params{})
 	s.Require().EqualError(err, "X509 CA is not available for signing")
+}
+
+func (s *CATestSuite) TestSignX509SVID() {
+	subject := pkix.Name{
+		Country:      []string{"IGNORE ME"},
+		Organization: []string{"IGNORE ME"},
+	}
+
+	svidChain, err := s.ca.SignX509SVID(ctx, s.generateCSRWithSubject("example.org", subject), X509Params{})
+	s.Require().NoError(err)
+	s.Require().Len(svidChain, 1)
+
+	svid := svidChain[0]
+
+	s.False(svid.NotBefore.IsZero(), "NotBefore is not set")
+	s.False(svid.NotAfter.IsZero(), "NotAfter is not set")
+	s.NotEmpty(svid.SubjectKeyId, "SubjectKeyId is not set")
+	s.Equal(x509.KeyUsageKeyEncipherment|x509.KeyUsageKeyAgreement|x509.KeyUsageDigitalSignature, svid.KeyUsage, "key usage does not match")
+	s.Equal([]x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}, svid.ExtKeyUsage, "ext key usage does not match")
+	s.False(svid.IsCA, "CA bit is set")
+	s.True(svid.BasicConstraintsValid, "Basic constraints are not valid")
+
+	// SPIFFE ID should be set to that of the trust domain
+	if s.Len(svid.URIs, 1, "has no URIs") {
+		s.Equal("spiffe://example.org", svid.URIs[0].String())
+	}
+
+	// Subject is hard coded by the CA and should not be pulled from the CSR.
+	s.Equal("O=SPIRE,C=US", svid.Subject.String())
 }
 
 func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLIfTTLUnspecified() {
@@ -216,6 +248,34 @@ func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
 	s.Require().EqualError(err, "unable to sign JWT SVID: audience is required")
 }
 
+func (s *CATestSuite) TestSignX509CASVID() {
+	subject := pkix.Name{
+		Country:      []string{"IGNORE ME"},
+		Organization: []string{"IGNORE ME"},
+	}
+	svidChain, err := s.ca.SignX509CASVID(ctx, s.generateCSRWithSubject("example.org", subject), X509Params{})
+	s.Require().NoError(err)
+	s.Require().Len(svidChain, 1)
+
+	svid := svidChain[0]
+
+	s.False(svid.NotBefore.IsZero(), "NotBefore is not set")
+	s.False(svid.NotAfter.IsZero(), "NotAfter is not set")
+	s.NotEmpty(svid.SubjectKeyId, "SubjectKeyId is not set")
+	s.Equal(x509.KeyUsageDigitalSignature|x509.KeyUsageCertSign|x509.KeyUsageCRLSign, svid.KeyUsage, "key usage does not match")
+	s.True(svid.IsCA, "CA bit is not set")
+	s.True(svid.BasicConstraintsValid, "Basic constraints are not valid")
+
+	// SPIFFE ID should be set to that of the trust domain
+	if s.Len(svid.URIs, 1, "has no URIs") {
+		s.Equal("spiffe://example.org", svid.URIs[0].String())
+	}
+
+	// Subject is controlled exclusively by the CA and should not be pulled from
+	// the CSR.
+	s.Equal("CN=TESTCA", svid.Subject.String())
+}
+
 func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
 	svid, err := s.ca.SignX509CASVID(ctx, s.generateCSR("example.org"), X509Params{})
 	s.Require().NoError(err)
@@ -224,22 +284,15 @@ func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
 	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
 }
 
-func (s *CATestSuite) TestSignX509CASVIDWithDifferentSubject() {
-	subject := pkix.Name{
-		Country:      []string{"INVALID"},
-		Organization: []string{"INVALID"},
+func (s *CATestSuite) setX509CA(upstreamBundle bool) {
+	var upstreamChain []*x509.Certificate
+	if upstreamBundle {
+		upstreamChain = []*x509.Certificate{s.caCert, s.upstreamCert}
 	}
-	svid, err := s.ca.SignX509CASVID(ctx, s.generateCSRWithSubject("example.org", subject), X509Params{})
-	s.Require().NoError(err)
-	s.Require().Len(svid, 1)
-	s.Require().Equal("O=SPIRE,C=US", svid[0].Subject.String())
-}
-
-func (s *CATestSuite) setX509CA(isIntermediate bool) {
 	s.ca.SetX509CA(&X509CA{
-		Signer:         testSigner,
-		Chain:          []*x509.Certificate{s.caCert, s.upstreamCert},
-		IsIntermediate: isIntermediate,
+		Signer:        testSigner,
+		Certificate:   s.caCert,
+		UpstreamChain: upstreamChain,
 	})
 }
 

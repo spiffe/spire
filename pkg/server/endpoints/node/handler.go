@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"path"
 	"strings"
@@ -672,9 +673,15 @@ func (h *Handler) signCSRs(ctx context.Context,
 
 		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", h.c.TrustDomain.String())
 
+		sourceAddress := "unknown"
+		if peerAddress, ok := getPeerAddress(ctx); ok {
+			sourceAddress = peerAddress.String()
+		}
+
 		signLog := h.c.Log.WithFields(logrus.Fields{
-			"caller_id": callerID,
-			"spiffe_id": spiffeID,
+			"caller_id":      callerID,
+			"spiffe_id":      spiffeID,
+			"source_address": sourceAddress,
 		})
 
 		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
@@ -696,7 +703,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 				return nil, errors.New("SVID serial number does not match")
 			}
 
-			signLog.Debug("Signing SVID for caller")
+			signLog.Debug("Renewing agent SVID")
 			svid, svidCert, err := h.buildBaseSVID(ctx, csr)
 			if err != nil {
 				return nil, err
@@ -708,7 +715,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 			}
 
 		} else if spiffeID == h.c.TrustDomain.String() {
-			signLog.Debug("Signing downstream SVID for caller")
+			signLog.Debug("Signing downstream CA SVID")
 			e, err := h.getDownstreamEntry(ctx, callerID)
 			if err != nil {
 				return nil, err
@@ -724,7 +731,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 			}
 			svids[spiffeID] = svid
 		} else {
-			signLog.Debug("Signing SVID for caller")
+			signLog.Debug("Signing SVID")
 			svid, err := h.buildSVID(ctx, spiffeID, regEntriesMap, csr)
 			if err != nil {
 				return nil, err
@@ -922,4 +929,12 @@ func withPeerCertificate(ctx context.Context, peerCert *x509.Certificate) contex
 func getPeerCertificate(ctx context.Context) (*x509.Certificate, bool) {
 	peerCert, ok := ctx.Value(peerCertificateKey{}).(*x509.Certificate)
 	return peerCert, ok
+}
+
+func getPeerAddress(ctx context.Context) (addr net.Addr, ok bool) {
+	p, ok := peer.FromContext(ctx)
+	if ok {
+		return p.Addr, true
+	}
+	return nil, false
 }

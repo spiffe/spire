@@ -5,7 +5,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
-	"fmt"
+	"crypto/x509/pkix"
 	"math/big"
 	"net/url"
 	"sync"
@@ -50,23 +50,17 @@ type X509Params struct {
 }
 
 type X509CA struct {
-	// The signer used to create child certificates
+	// Signer is used to sign child certificates.
 	Signer crypto.Signer
 
-	// Chain contains the certificate chain of the CA. It will be a single
-	// certificate when self signed or when it has been signed by an Upstream
-	// CA but the upstream trust bundle was not included in the SPIRE trust
-	// bundle (see upstream_bundle configurable). Otherwise it will contain
-	// the CA certificate and any intermediates necessary to chain back to the
-	// upstream trust bundle.
-	Chain []*x509.Certificate
+	// Certificate is the CA certificate.
+	Certificate *x509.Certificate
 
-	// IsIntermediate is true if the CA certificate is considered an
-	// intermediate to another certificate in the trust bundle. This is the
-	// case when it has been signed by an Upstream CA and the upstream trust
-	// bundle was included in the SPIRE trust bundle (see the upstream_bundle
-	// configurable).
-	IsIntermediate bool
+	// UpstreamChain contains the CA certificate and intermediates necessary
+	// to chain back to the upstream trust bundle. It is only set if the CA
+	// is signed by an UpstreamCA and the upstream trust bundle is included in
+	// the SPIRE trust bundle (see the upstream_bundle configurable).
+	UpstreamChain []*x509.Certificate
 }
 
 type JWTKey struct {
@@ -86,6 +80,7 @@ type CAConfig struct {
 	TrustDomain url.URL
 	X509SVIDTTL time.Duration
 	Clock       clock.Clock
+	CASubject   pkix.Name
 }
 
 type CA struct {
@@ -140,11 +135,93 @@ func (ca *CA) SetJWTKey(jwtKey *JWTKey) {
 }
 
 func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error) {
-	return ca.signX509SVID(ctx, csrDER, params, false)
+	x509CA := ca.X509CA()
+	if x509CA == nil {
+		return nil, errs.New("X509 CA is not available for signing")
+	}
+
+	if params.TTL <= 0 {
+		params.TTL = ca.c.X509SVIDTTL
+	}
+
+	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
+	serialNumber := ca.nextSerialNumber()
+
+	template, err := CreateX509SVIDTemplate(csrDER, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	// for non-CA certificates, add DNS names to certificate. the first DNS
+	// name is also added as the common name.
+	if len(params.DNSList) > 0 {
+		template.Subject.CommonName = params.DNSList[0]
+		template.DNSNames = params.DNSList
+	}
+
+	cert, err := createCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
+	if err != nil {
+		return nil, errs.New("unable to create X509 SVID: %v", err)
+	}
+
+	spiffeID := cert.URIs[0].String()
+
+	ca.c.Log.WithFields(logrus.Fields{
+		"spiffe_id":  spiffeID,
+		"expires_at": cert.NotAfter.Format(time.RFC3339),
+	}).Debug("Signed X509 SVID")
+
+	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_svid"}, 1, []telemetry.Label{
+		{
+			Name:  "spiffe_id",
+			Value: spiffeID,
+		},
+	})
+
+	return makeSVIDCertChain(x509CA, cert), nil
 }
 
 func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error) {
-	return ca.signX509SVID(ctx, csrDER, params, true)
+	x509CA := ca.X509CA()
+	if x509CA == nil {
+		return nil, errs.New("X509 CA is not available for signing")
+	}
+
+	if params.TTL <= 0 {
+		params.TTL = ca.c.X509SVIDTTL
+	}
+
+	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
+	serialNumber := ca.nextSerialNumber()
+
+	template, err := CreateServerCATemplate(csrDER, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber)
+	if err != nil {
+		return nil, err
+	}
+	// Don't allow the downstream server to control the subject of the CA
+	// certificate.
+	template.Subject = ca.c.CASubject
+
+	cert, err := createCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
+	if err != nil {
+		return nil, errs.New("unable to create X509 CA SVID: %v", err)
+	}
+
+	spiffeID := cert.URIs[0].String()
+
+	ca.c.Log.WithFields(logrus.Fields{
+		"spiffe_id":  spiffeID,
+		"expires_at": cert.NotAfter.Format(time.RFC3339),
+	}).Debug("Signed X509 CA SVID")
+
+	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_ca_svid"}, 1, []telemetry.Label{
+		{
+			Name:  "spiffe_id",
+			Value: spiffeID,
+		},
+	})
+
+	return makeSVIDCertChain(x509CA, cert), nil
 }
 
 func (ca *CA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
@@ -161,7 +238,7 @@ func (ca *CA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 	if ttl <= 0 {
 		ttl = DefaultJWTSVIDTTL
 	}
-	_, expiresAt := ca.calculateLifetime(ttl, jwtKey.NotAfter)
+	_, expiresAt := ca.capLifetime(ttl, jwtKey.NotAfter)
 
 	token, err := ca.jwtSigner.SignToken(jsr.SpiffeId, jsr.Audience, expiresAt, jwtKey.Signer, jwtKey.Kid)
 	if err != nil {
@@ -185,68 +262,11 @@ func (ca *CA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 	return token, nil
 }
 
-func (ca *CA) signX509SVID(ctx context.Context, csrDER []byte, params X509Params, isCA bool) ([]*x509.Certificate, error) {
-	x509CA := ca.X509CA()
-	if x509CA == nil {
-		return nil, errs.New("X509 CA is not available for signing")
-	}
-
-	if params.TTL <= 0 {
-		params.TTL = ca.c.X509SVIDTTL
-	}
-
-	notBefore, notAfter := ca.calculateLifetime(params.TTL, x509CA.Chain[0].NotAfter)
-	serialNumber := ca.nextSerialNumber()
-
-	template, err := CreateX509SVIDTemplate(csrDER, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber)
-	if err != nil {
-		return nil, err
-	}
-
-	// for non-CA certificates, add DNS names to certificate. the first DNS
-	// name is also added as the common name.
-	if !isCA && len(params.DNSList) > 0 {
-		template.Subject.CommonName = params.DNSList[0]
-		template.DNSNames = params.DNSList
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, template, x509CA.Chain[0], template.PublicKey, x509CA.Signer)
-	if err != nil {
-		return nil, errs.New("unable to create X509 SVID: %v", err)
-	}
-
-	cert, err := x509.ParseCertificate(certDER)
-	if err != nil {
-		return nil, err
-	}
-
-	spiffeID := cert.URIs[0].String()
-
-	ca.c.Log.WithFields(logrus.Fields{
-		"is_ca":      isCA,
-		"spiffe_id":  spiffeID,
-		"expires_at": cert.NotAfter.Format(time.RFC3339),
-	}).Debug("Signed X509 SVID")
-
-	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_svid"}, 1, []telemetry.Label{
-		{
-			Name:  "spiffe_id",
-			Value: spiffeID,
-		},
-		{
-			Name:  "is_ca",
-			Value: fmt.Sprint(isCA),
-		},
-	})
-
-	return makeSVIDCertChain(x509CA, cert), nil
-}
-
 func (ca *CA) nextSerialNumber() *big.Int {
 	return big.NewInt(atomic.AddInt64(&ca.x509sn, 1))
 }
 
-func (ca *CA) calculateLifetime(ttl time.Duration, expirationCap time.Time) (notBefore, notAfter time.Time) {
+func (ca *CA) capLifetime(ttl time.Duration, expirationCap time.Time) (notBefore, notAfter time.Time) {
 	now := ca.c.Clock.Now()
 	notBefore = now.Add(-backdate)
 	notAfter = now.Add(ttl)
@@ -257,9 +277,14 @@ func (ca *CA) calculateLifetime(ttl time.Duration, expirationCap time.Time) (not
 }
 
 func makeSVIDCertChain(x509CA *X509CA, cert *x509.Certificate) []*x509.Certificate {
-	chain := []*x509.Certificate{cert}
-	if x509CA.IsIntermediate {
-		chain = append(chain, x509CA.Chain...)
+	return append([]*x509.Certificate{cert}, x509CA.UpstreamChain...)
+}
+
+func createCertificate(template, parent *x509.Certificate, pub, priv interface{}) (*x509.Certificate, error) {
+	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, pub, priv)
+	if err != nil {
+		return nil, errs.New("unable to create X509 SVID: %v", err)
 	}
-	return chain
+
+	return x509.ParseCertificate(certDER)
 }

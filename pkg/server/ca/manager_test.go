@@ -128,9 +128,10 @@ func (s *ManagerSuite) TestSelfSigning() {
 
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
-	s.False(x509CA.IsIntermediate)
-	s.Len(x509CA.Chain, 1)
-	s.Equal(x509CA.Chain[0].Subject, x509CA.Chain[0].Issuer)
+	if s.NotNil(x509CA.Certificate) {
+		s.Equal(x509CA.Certificate.Subject, x509CA.Certificate.Issuer)
+	}
+	s.Empty(x509CA.UpstreamChain)
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithoutUpstreamBundle() {
@@ -152,12 +153,13 @@ func (s *ManagerSuite) testUpstreamSignedWithoutUpstreamBundle(useDeprecatedFiel
 	// contain itself.
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
-	s.False(x509CA.IsIntermediate)
-	s.Len(x509CA.Chain, 1)
-	s.NotEqual(x509CA.Chain[0].Subject, x509CA.Chain[0].Issuer)
+	if s.NotNil(x509CA.Certificate) {
+		s.NotEqual(x509CA.Certificate.Subject, x509CA.Certificate.Issuer)
+	}
+	s.Empty(x509CA.UpstreamChain)
 
 	// The trust bundle should contain the CA cert itself
-	s.requireBundleRootCAs(x509CA.Chain[0])
+	s.requireBundleRootCAs(x509CA.Certificate)
 }
 
 func (s *ManagerSuite) TestUpstreamSignedWithUpstreamBundle() {
@@ -179,9 +181,12 @@ func (s *ManagerSuite) testUpstreamSignedWithUpstreamBundle(useDeprecatedFields 
 	// in the chain since it was signed directly by the upstream root.
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
-	s.True(x509CA.IsIntermediate)
-	s.Len(x509CA.Chain, 1)
-	s.Equal(upstreamCA.Root().Subject, x509CA.Chain[0].Issuer)
+	if s.NotNil(x509CA.Certificate) {
+		s.Equal(upstreamCA.Root().Subject, x509CA.Certificate.Issuer)
+	}
+	if s.Len(x509CA.UpstreamChain, 1) {
+		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
+	}
 
 	// The trust bundle should contain the upstream root
 	s.requireBundleRootCAs(upstreamCA.Root())
@@ -207,10 +212,13 @@ func (s *ManagerSuite) testUpstreamIntermediateSignedWithUpstreamBundle(useDepre
 	// its chain: itself and the upstream intermediate that signed it.
 	x509CA := s.currentX509CA()
 	s.NotNil(x509CA.Signer)
-	s.True(x509CA.IsIntermediate)
-	s.Len(x509CA.Chain, 2)
-	s.Equal(upstreamCA.Intermediate().Subject, x509CA.Chain[0].Issuer)
-	s.Equal(upstreamCA.Intermediate().Subject, x509CA.Chain[1].Subject)
+	if s.NotNil(x509CA.Certificate) {
+		s.Equal(upstreamCA.Intermediate().Subject, x509CA.Certificate.Issuer)
+	}
+	if s.Len(x509CA.UpstreamChain, 2) {
+		s.Equal(x509CA.Certificate, x509CA.UpstreamChain[0])
+		s.Equal(upstreamCA.Intermediate(), x509CA.UpstreamChain[1])
+	}
 
 	// The trust bundle should contain the upstream root
 	s.requireBundleRootCAs(upstreamCA.Root())
@@ -230,13 +238,13 @@ func (s *ManagerSuite) TestX509CARotation() {
 	// after initialization, we should have a current X509CA but no next.
 	first := s.currentX509CA()
 	s.Nil(s.nextX509CA(), "second X509CA should not be prepared yet")
-	s.requireBundleRootCAs(first.Chain[0])
+	s.requireBundleRootCAs(first.Certificate)
 
 	// move up to the preparation mark. nothing should change
 	s.setTimeAndRotate(preparationTime1)
 	s.requireX509CAEqual(first, s.currentX509CA())
 	s.Nil(s.nextX509CA(), "second X509CA should not be prepared yet")
-	s.requireBundleRootCAs(first.Chain[0])
+	s.requireBundleRootCAs(first.Certificate)
 
 	// move just past the preparation mark. the current X509CA should stay
 	// the same but the next X509CA should have been prepared and added to
@@ -245,7 +253,7 @@ func (s *ManagerSuite) TestX509CARotation() {
 	s.requireX509CAEqual(first, s.currentX509CA())
 	second := s.nextX509CA()
 	s.NotNil(second, "second X509CA should have been prepared")
-	s.requireBundleRootCAs(first.Chain[0], second.Chain[0])
+	s.requireBundleRootCAs(first.Certificate, second.Certificate)
 
 	// move up to the activation mark. nothing should change.
 	s.setTimeAndRotate(activationTime1)
@@ -265,7 +273,7 @@ func (s *ManagerSuite) TestX509CARotation() {
 	s.requireX509CAEqual(second, s.currentX509CA())
 	third := s.nextX509CA()
 	s.NotNil(second, "third X509CA should have been prepared")
-	s.requireBundleRootCAs(first.Chain[0], second.Chain[0], third.Chain[0])
+	s.requireBundleRootCAs(first.Certificate, second.Certificate, third.Certificate)
 
 	// move past to 2nd activation mark. "next" should become "current" and
 	// "next" should be reset.
@@ -346,26 +354,26 @@ func (s *ManagerSuite) TestPrune() {
 	firstJWTKey := s.currentJWTKey()
 	secondX509CA := s.nextX509CA()
 	secondJWTKey := s.nextJWTKey()
-	s.requireBundleRootCAs(firstX509CA.Chain[0], secondX509CA.Chain[0])
+	s.requireBundleRootCAs(firstX509CA.Certificate, secondX509CA.Certificate)
 	s.requireBundleJWTKeys(firstJWTKey, secondJWTKey)
 
 	// advance just past the expiration time of the first and prune. nothing
 	// should change.
 	s.setTimeAndPrune(firstExpiresTime.Add(time.Minute))
-	s.requireBundleRootCAs(firstX509CA.Chain[0], secondX509CA.Chain[0])
+	s.requireBundleRootCAs(firstX509CA.Certificate, secondX509CA.Certificate)
 	s.requireBundleJWTKeys(firstJWTKey, secondJWTKey)
 
 	// advance beyond the safety threshold of the first, prune, and assert that
 	// the first has been pruned
 	s.addTimeAndPrune(safetyThreshold)
-	s.requireBundleRootCAs(secondX509CA.Chain[0])
+	s.requireBundleRootCAs(secondX509CA.Certificate)
 	s.requireBundleJWTKeys(secondJWTKey)
 
 	// advance beyond the second expiration time, prune, and assert nothing
 	// changes because we can't prune out the whole bundle.
 	s.clock.Set(secondExpiresTime.Add(time.Minute + safetyThreshold))
 	s.Require().EqualError(s.m.pruneBundle(context.Background()), "would prune all certificates")
-	s.requireBundleRootCAs(secondX509CA.Chain[0])
+	s.requireBundleRootCAs(secondX509CA.Certificate)
 	s.requireBundleJWTKeys(secondJWTKey)
 }
 
@@ -427,9 +435,9 @@ func (s *ManagerSuite) requireJWTKeyNotEqual(expected, actual *JWTKey, msgAndArg
 }
 
 type x509CAInfo struct {
-	Signer         signerInfo
-	Chain          []*x509.Certificate
-	IsIntermediate bool
+	Signer        signerInfo
+	Certificate   *x509.Certificate
+	UpstreamChain []*x509.Certificate
 }
 
 type jwtKeyInfo struct {
@@ -445,9 +453,9 @@ type signerInfo struct {
 
 func (s *ManagerSuite) getX509CAInfo(x509CA *X509CA) x509CAInfo {
 	return x509CAInfo{
-		Signer:         s.getSignerInfo(x509CA.Signer),
-		Chain:          x509CA.Chain,
-		IsIntermediate: x509CA.IsIntermediate,
+		Signer:        s.getSignerInfo(x509CA.Signer),
+		Certificate:   x509CA.Certificate,
+		UpstreamChain: x509CA.UpstreamChain,
 	}
 }
 

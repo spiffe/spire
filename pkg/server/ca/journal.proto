@@ -9,13 +9,11 @@ message X509CAEntry {
     int64 issued_at = 2;
 
     // DER encoded CA certificate
-    repeated bytes chain = 3;
+    bytes certificate = 3;
 
-    // Whether or not the CA is considered an "intermediate" back to the trust
-    // bundle. This is only true when the CA is signed by an upstream CA and
-    // when the upstream bundle has been included in the trust bundle (see
-    // upstream_bundle configurable).
-    bool is_intermediate = 4;
+    // DER encoded upstream CA chain. This will also contain the CA certificate.
+    // See the X509CA struct for details.
+    repeated bytes upstream_chain = 4;
 }
 
 message JWTKeyEntry {
