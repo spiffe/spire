@@ -34,12 +34,6 @@ message UpdateEntryRequest {
 
 // A CA bundle for a different Trust Domain than the one used and managed by the Server.
 message FederatedBundle {
-    // A SPIFFE ID that has a Federated Bundle (deprecated)
-    string DEPRECATED_spiffe_id = 1;
-
-    // ASN.1 DER data of the bundle (deprecated)
-    bytes DEPRECATED_ca_certs = 2;
-
     // Common bundle format
     spire.common.Bundle bundle = 3;
 }
@@ -77,9 +71,6 @@ message JoinToken {
 
 // CA Bundle of the server
 message Bundle {
-    // ASN.1 DER data of the bundle (deprecated).
-    bytes DEPRECATED_ca_certs = 1;
-
     // Common bundle format
     common.Bundle bundle = 2;
 }

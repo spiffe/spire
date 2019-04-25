@@ -14,7 +14,6 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/auth"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -294,26 +293,18 @@ func (h *Handler) CreateFederatedBundle(
 	defer counter.Done(&err)
 
 	bundle := request.Bundle
-	if bundle != nil {
-		bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		trustDomainID, err := idutil.NormalizeSpiffeID(request.DEPRECATEDSpiffeId, idutil.AllowAnyTrustDomain())
-		if err != nil {
-			return nil, err
-		}
-		bundle, err = bundleutil.BundleProtoFromRootCAsDER(trustDomainID, request.DEPRECATEDCaCerts)
-		if err != nil {
-			return nil, err
-		}
+	if bundle == nil {
+		return nil, status.Error(codes.InvalidArgument, "bundle field is required")
+	}
+	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	counter.AddLabel("trust_domain_id", bundle.TrustDomainId)
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
-		return nil, errors.New("federated bundle id cannot match server trust domain")
+		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
 	ds := h.getDataStore()
@@ -357,9 +348,7 @@ func (h *Handler) FetchFederatedBundle(
 	}
 
 	return &registration.FederatedBundle{
-		DEPRECATEDSpiffeId: resp.Bundle.TrustDomainId,
-		DEPRECATEDCaCerts:  bundleutil.RootCAsDERFromBundleProto(resp.Bundle),
-		Bundle:             resp.Bundle,
+		Bundle: resp.Bundle,
 	}, nil
 }
 
@@ -381,9 +370,7 @@ func (h *Handler) ListFederatedBundles(request *common.Empty, stream registratio
 			continue
 		}
 		if err := stream.Send(&registration.FederatedBundle{
-			DEPRECATEDSpiffeId: bundle.TrustDomainId,
-			DEPRECATEDCaCerts:  bundleutil.RootCAsDERFromBundleProto(bundle),
-			Bundle:             bundle,
+			Bundle: bundle,
 		}); err != nil {
 			return err
 		}
@@ -403,26 +390,18 @@ func (h *Handler) UpdateFederatedBundle(
 	defer counter.Done(&err)
 
 	bundle := request.Bundle
-	if bundle != nil {
-		bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		trustDomainID, err := idutil.NormalizeSpiffeID(request.DEPRECATEDSpiffeId, idutil.AllowAnyTrustDomain())
-		if err != nil {
-			return nil, err
-		}
-		bundle, err = bundleutil.BundleProtoFromRootCAsDER(trustDomainID, request.DEPRECATEDCaCerts)
-		if err != nil {
-			return nil, err
-		}
+	if bundle == nil {
+		return nil, status.Error(codes.InvalidArgument, "bundle field is required")
+	}
+	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	counter.AddLabel("trust_domain_id", bundle.TrustDomainId)
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
-		return nil, errors.New("federated bundle id cannot match server trust domain")
+		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
 	}
 
 	ds := h.getDataStore()
@@ -535,8 +514,7 @@ func (h *Handler) FetchBundle(
 	}
 
 	return &registration.Bundle{
-		DEPRECATEDCaCerts: bundleutil.RootCAsDERFromBundleProto(resp.Bundle),
-		Bundle:            resp.Bundle,
+		Bundle: resp.Bundle,
 	}, nil
 }
 

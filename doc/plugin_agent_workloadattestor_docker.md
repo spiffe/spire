@@ -17,6 +17,15 @@ Instead, each of the container's labels are used in creating the list of selecto
 | `docker:label`    | `docker:label:com.example.name:foo` | The key:value pair of each of the container's labels. |
 | `docker:image_id` | `docker:image_id:77af4d6b9913`      | The image id of the container.                        |
 
+A sample configuration:
+
+```
+    WorkloadAttestor "docker" {
+        plugin_data {
+        }
+    }
+```
+
 ## Example
 ### Labels
 If a workload container is started with `docker run --label com.example.name=foo [...]`, then workload registration would occur as:
