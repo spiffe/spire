@@ -343,7 +343,7 @@ func (s *HandlerSuite) TestCreateEntry() {
 				SpiffeId:  "spiffe://example.org/child",
 				Selectors: []*common.Selector{{Type: "B", Value: "b"}},
 			},
-			Err: "Entry already exists",
+			Err: status.Error(codes.AlreadyExists, "entry already exists").Error(),
 		},
 	}
 
