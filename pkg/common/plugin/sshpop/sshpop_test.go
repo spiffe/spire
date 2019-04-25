@@ -1,8 +1,10 @@
 package sshpop
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
+	"text/template"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -64,7 +66,7 @@ func TestNewClient(t *testing.T) {
 			requireClient: func(t *testing.T, c *Client) {
 				require.NotNil(t, c)
 				require.Equal(t, "foo.test", c.trustDomain)
-				require.Equal(t, DefaultAgentPathTemplate, c.agentPathTemplate)
+				require.Equal(t, DefaultAgentPathTemplate.DefinedTemplates(), c.agentPathTemplate.DefinedTemplates())
 				require.Equal(t, c.signer.PublicKey(), c.cert.Key)
 				require.Equal(t, "foo-host", c.cert.KeyId)
 			},
@@ -128,7 +130,7 @@ func TestNewServer(t *testing.T) {
 			requireServer: func(t *testing.T, s *Server) {
 				require.NotNil(t, s)
 				require.Equal(t, "foo.test", s.trustDomain)
-				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
+				require.Equal(t, DefaultAgentPathTemplate.DefinedTemplates(), s.agentPathTemplate.DefinedTemplates())
 				pubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(testCertAuthority))
 				require.NoError(t, err)
 				require.True(t, s.certChecker.IsHostAuthority(pubkey, ""))
@@ -143,7 +145,7 @@ func TestNewServer(t *testing.T) {
 			requireServer: func(t *testing.T, s *Server) {
 				require.NotNil(t, s)
 				require.Equal(t, "foo.test", s.trustDomain)
-				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
+				require.Equal(t, DefaultAgentPathTemplate.DefinedTemplates(), s.agentPathTemplate.DefinedTemplates())
 				pubkey := requireParsePubkey(t, testCertAuthority)
 				pubkey2 := requireParsePubkey(t, testCertAuthority2)
 				pubkey3 := requireParsePubkey(t, testCertAuthority3)
@@ -218,4 +220,59 @@ func TestPubkeysFromPath(t *testing.T) {
 			require.Equal(t, tt.expectPubkeys, pubkeys)
 		})
 	}
+}
+
+func TestTemplateFuncs(t *testing.T) {
+	tests := []struct {
+		desc           string
+		templateData   interface{}
+		templateString string
+		expectRes      string
+		expectErr      string
+	}{
+		{
+			templateData:   []string{"foo", "bar"},
+			templateString: `{{ .  | pipeindex 1 }}`,
+			expectRes:      "bar",
+		},
+		{
+			templateData:   []string{""},
+			templateString: `{{ .  | pipeindex 1 }}`,
+			expectErr:      "error calling pipeindex: runtime error: index out of range",
+		},
+		{
+			templateString: `{{ "foo.bar.baz" | split "." }}`,
+			expectRes:      "[foo bar baz]",
+		},
+		{
+			templateString: `{{ "foo" | split "." | pipeindex 0 }}`,
+			expectRes:      "foo",
+		},
+		{
+			templateString: `{{ "foo.bar.baz" | split "." | pipeindex 0 }}`,
+			expectRes:      "foo",
+		},
+		{
+			templateString: `{{ "foo.bar.baz" | split "." | pipeindex 2 }}`,
+			expectRes:      "baz",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			tmpl, err := template.New("test-funcs").Funcs(customFuncs).Parse(tt.templateString)
+			require.NoError(t, err)
+
+			var result bytes.Buffer
+			err = tmpl.Execute(&result, tt.templateData)
+			if tt.expectErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectRes, result.String())
+		})
+	}
+
 }

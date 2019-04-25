@@ -13,6 +13,13 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+var customFuncs template.FuncMap = map[string]interface{}{
+	// allows indexing into a string list within a pipeline
+	"pipeindex": func(i int, list []string) interface{} { return list[i] },
+	// allows splitting a string within a pipeline
+	"split": func(sep, s string) []string { return strings.Split(s, sep) },
+}
+
 const (
 	// PluginName is used for identifying this plugin type for protobuf blobs.
 	PluginName = "sshpop"
@@ -24,7 +31,7 @@ const (
 
 var (
 	// DefaultAgentPathTemplate is the default text/template.
-	DefaultAgentPathTemplate = template.Must(template.New("agent-path").Parse("{{ .PluginName}}/{{ .Fingerprint }}"))
+	DefaultAgentPathTemplate = template.Must(template.New("agent-path").Funcs(customFuncs).Parse("{{ .PluginName}}/{{ .Fingerprint }}"))
 
 	// sshpop-specific error class
 	errClass = errs.Class(PluginName)
@@ -88,13 +95,9 @@ func NewClient(trustDomain, configString string) (*Client, error) {
 	if err != nil {
 		return nil, Errorf("failed to get cert and signer from pem: %v", err)
 	}
-	agentPathTemplate := DefaultAgentPathTemplate
-	if len(config.AgentPathTemplate) > 0 {
-		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
-		if err != nil {
-			return nil, Errorf("failed to parse agent svid template: %q", config.AgentPathTemplate)
-		}
-		agentPathTemplate = tmpl
+	agentPathTemplate, err := newAgentTemplate(config.AgentPathTemplate)
+	if err != nil {
+		return nil, err
 	}
 	return &Client{
 		cert:              cert,
@@ -127,6 +130,17 @@ func getCertAndSignerFromBytes(certBytes, keyBytes []byte) (*ssh.Certificate, ss
 	return cert, signer, nil
 }
 
+func newAgentTemplate(templateString string) (*template.Template, error) {
+	if templateString == "" {
+		return DefaultAgentPathTemplate, nil
+	}
+	tmpl, err := template.New("agent-path").Funcs(customFuncs).Parse(templateString)
+	if err != nil {
+		return nil, Errorf("failed to parse agent svid template: %q", templateString)
+	}
+	return tmpl, nil
+}
+
 func NewServer(trustDomain, configString string) (*Server, error) {
 	if trustDomain == "" {
 		return nil, Errorf("trust_domain global configuration is required")
@@ -153,13 +167,9 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 	if err != nil {
 		return nil, Errorf("failed to create cert checker: %v", err)
 	}
-	agentPathTemplate := DefaultAgentPathTemplate
-	if len(config.AgentPathTemplate) > 0 {
-		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse agent svid template: %q", config.AgentPathTemplate)
-		}
-		agentPathTemplate = tmpl
+	agentPathTemplate, err := newAgentTemplate(config.AgentPathTemplate)
+	if err != nil {
+		return nil, err
 	}
 	return &Server{
 		certChecker:       certChecker,
