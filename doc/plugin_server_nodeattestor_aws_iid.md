@@ -16,4 +16,31 @@ attested by the aws_iid attestor will be issued a SPIFFE ID like
 
 The user or role identified by the credentials must have permissions for `ec2:DescribeInstances`.
 
+The following is an example for a IAM policy needed to get instance's info from AWS.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": "ec2:DescribeInstances",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
 For more information on security credentials, see https://docs.aws.amazon.com/general/latest/gr/aws-security-credentials.html.
+
+A sample configuration:
+
+```
+    NodeResolver "aws_iid" {
+        plugin_data {
+			access_key_id = "ACCESS_KEY_ID"
+			secret_access_key = "SECRET_ACCESS_KEY"
+        }
+    }
+```

@@ -16,11 +16,11 @@ verification.
 The agent will contact the kubelet using the node name obtained via the
 `node_name_env` or `node_name` configurables. If a node name is not obtained,
 the kubelet is contacted over 127.0.0.1 (requires host networking to be
-enabled). In the latter case, the hostname is used to perform certificate 
+enabled). In the latter case, the hostname is used to perform certificate
 server name validation against the kubelet certificate.
 
 **Note** kubelet authentication via bearer token requires that the kubelet be
-started with the the `--authentication-token-webhook` flag. See [Kubelet authentication/authorization](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-authentication-authorization/)
+started with the `--authentication-token-webhook` flag. See [Kubelet authentication/authorization](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-authentication-authorization/)
 for details.
 
 **Note** The kubelet uses the TokenReview API to validate bearer tokens. This
