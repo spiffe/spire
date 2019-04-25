@@ -68,6 +68,7 @@ func New(t *testing.T, config Config) *UpstreamCA {
 	key := rootKey
 
 	if config.UseIntermediate {
+		template.Subject.CommonName = "FAKEUPSTREAMCA-INT"
 		intKey, err := pemutil.ParseECPrivateKey(intKeyPEM)
 		require.NoError(t, err, "unable to parse intermediate key")
 

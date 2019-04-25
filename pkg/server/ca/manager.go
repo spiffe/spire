@@ -7,24 +7,18 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"net/url"
-	"os"
-	"strings"
+	"path/filepath"
 	"time"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
-	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -34,138 +28,74 @@ import (
 )
 
 const (
-	DefaultSVIDTTL  = time.Hour
 	DefaultCATTL    = 24 * time.Hour
 	backdate        = time.Second * 10
+	rotateInterval  = time.Minute
+	pruneInterval   = 6 * time.Hour
 	safetyThreshold = 24 * time.Hour
 )
 
+type CASetter interface {
+	SetX509CA(*X509CA)
+	SetJWTKey(*JWTKey)
+}
+
 type ManagerConfig struct {
+	CA             CASetter
 	Catalog        catalog.Catalog
 	TrustDomain    url.URL
 	UpstreamBundle bool
-	SVIDTTL        time.Duration
 	CATTL          time.Duration
 	CASubject      pkix.Name
-	CertsPath      string
+	Dir            string
 	Log            logrus.FieldLogger
 	Metrics        telemetry.Metrics
+	Clock          clock.Clock
 }
 
-type Manager interface {
-	// Initializes the CA manager. Must be called before a call to Run().
-	Initialize(ctx context.Context) error
+type Manager struct {
+	c  ManagerConfig
+	ca ServerCA
 
-	// Run runs the CA manager. It blocks until a failure or the context is
-	// canceled.
-	Run(ctx context.Context) error
+	currentX509CA *x509CASlot
+	nextX509CA    *x509CASlot
+	currentJWTKey *jwtKeySlot
+	nextJWTKey    *jwtKeySlot
 
-	// Returns the CA being managed
-	CA() ServerCA
+	journal *Journal
 }
 
-type caX509CA struct {
-	// this is the full chain of trust from the server CA back to the upstream
-	// CA. If the server CA is self-signed, this list will only contain the
-	// server CA certificate.
-	chain []*x509.Certificate
-}
-
-func (ca *caX509CA) cert() *x509.Certificate {
-	if len(ca.chain) > 0 {
-		return ca.chain[0]
-	}
-	return nil
-}
-
-type caPublicKey struct {
-	*common.PublicKey
-
-	// public key parsed from the common.PublicKey message
-	publicKey crypto.PublicKey
-
-	// parsed "notAfter" time from the common.PublicKey message
-	notAfter time.Time
-}
-
-type keypairSet struct {
-	slot          string
-	x509CA        *caX509CA
-	jwtSigningKey *caPublicKey
-}
-
-func (k *keypairSet) X509CAKeyID() string {
-	return fmt.Sprintf("x509-CA-%s", k.slot)
-}
-
-func (k *keypairSet) JWTSignerKeyID() string {
-	return fmt.Sprintf("JWT-Signer-%s", k.slot)
-}
-
-func (k *keypairSet) Reset() {
-	k.x509CA = nil
-	k.jwtSigningKey = nil
-}
-
-type manager struct {
-	c  *ManagerConfig
-	ca *serverCA
-
-	current *keypairSet
-	next    *keypairSet
-
-	hooks struct {
-		now func() time.Time
-	}
-}
-
-func NewManager(c *ManagerConfig) *manager {
-	if c.SVIDTTL <= 0 {
-		c.SVIDTTL = DefaultSVIDTTL
-	}
+func NewManager(c ManagerConfig) *Manager {
 	if c.CATTL <= 0 {
 		c.CATTL = DefaultCATTL
 	}
-
-	m := &manager{
-		c: c,
-		ca: newServerCA(serverCAConfig{
-			Log:         c.Log,
-			Metrics:     c.Metrics,
-			Catalog:     c.Catalog,
-			TrustDomain: c.TrustDomain,
-			DefaultTTL:  c.SVIDTTL,
-			CASubject:   c.CASubject,
-		}),
-		current: &keypairSet{
-			slot: "A",
-		},
-		next: &keypairSet{
-			slot: "B",
-		},
+	if c.Clock == nil {
+		c.Clock = clock.New()
 	}
-	m.hooks.now = time.Now
-	return m
+
+	return &Manager{
+		c: c,
+	}
 }
 
-func (m *manager) Initialize(ctx context.Context) error {
-	if err := m.loadKeypairSets(ctx); err != nil {
+func (m *Manager) Initialize(ctx context.Context) error {
+	if err := m.loadJournal(ctx); err != nil {
 		return err
 	}
-	if err := m.rotateCAs(ctx); err != nil {
+	if err := m.rotate(ctx); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (m *manager) Run(ctx context.Context) error {
+func (m *Manager) Run(ctx context.Context) error {
 	err := util.RunTasks(ctx,
 		func(ctx context.Context) error {
-			return m.rotateCAsEvery(ctx, 1*time.Minute)
+			return m.rotateEvery(ctx, rotateInterval)
 		},
 		func(ctx context.Context) error {
-			return m.pruneBundleEvery(ctx, 6*time.Hour)
+			return m.pruneBundleEvery(ctx, pruneInterval)
 		})
 	if err == context.Canceled {
 		err = nil
@@ -173,56 +103,208 @@ func (m *manager) Run(ctx context.Context) error {
 	return err
 }
 
-func (m *manager) CA() ServerCA {
-	return m.ca
-}
-
-func (m *manager) rotateCAsEvery(ctx context.Context, interval time.Duration) error {
-	ticker := time.NewTicker(interval)
+func (m *Manager) rotateEvery(ctx context.Context, interval time.Duration) error {
+	ticker := m.c.Clock.Ticker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			err := m.rotateCAs(ctx)
-			if err != nil {
-				m.c.Log.Errorf("Unable to rotate CAs: %v", err)
-			}
+			m.rotate(ctx)
 		case <-ctx.Done():
 			return nil
 		}
 	}
 }
 
-func (m *manager) rotateCAs(ctx context.Context) error {
+func (m *Manager) rotate(ctx context.Context) error {
+	x509CAErr := m.rotateX509CA(ctx)
+	if x509CAErr != nil {
+		m.c.Log.Error("unable to rotate X509 CA: %v", x509CAErr)
+	}
+
+	jwtKeyErr := m.rotateJWTKey(ctx)
+	if jwtKeyErr != nil {
+		m.c.Log.Error("unable to rotate JWT key: %v", jwtKeyErr)
+	}
+
+	return errs.Combine(x509CAErr, jwtKeyErr)
+}
+
+func (m *Manager) rotateX509CA(ctx context.Context) error {
+	now := m.c.Clock.Now()
+
 	// if there is no current keypair set, generate one
-	if m.current.x509CA == nil {
-		if err := m.prepareKeypairSet(ctx, m.current); err != nil {
+	if m.currentX509CA.IsEmpty() {
+		if err := m.prepareX509CA(ctx, m.currentX509CA); err != nil {
 			return err
 		}
-		m.setKeypairSet()
+		m.activateX509CA()
 	}
 
 	// if there is no next keypair set and the current is within the
 	// preparation threshold, generate one.
-	if m.next.x509CA == nil && m.shouldPrepare() {
-		if err := m.prepareKeypairSet(ctx, m.next); err != nil {
+	if m.nextX509CA.IsEmpty() && m.currentX509CA.ShouldPrepareNext(now) {
+		if err := m.prepareX509CA(ctx, m.nextX509CA); err != nil {
 			return err
 		}
 	}
 
-	if m.shouldActivate() {
-		m.current.Reset()
-		m.current, m.next = m.next, m.current
-		m.writeKeypairSets()
-		m.setKeypairSet()
+	if m.currentX509CA.ShouldActivateNext(now) {
+		m.currentX509CA, m.nextX509CA = m.nextX509CA, m.currentX509CA
+		m.nextX509CA.Reset()
+		m.activateX509CA()
 	}
 
 	return nil
 }
 
-func (m *manager) pruneBundleEvery(ctx context.Context, interval time.Duration) error {
-	ticker := time.NewTicker(interval)
+func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err error) {
+	defer telemetry.CountCall(m.c.Metrics, "manager", "x509_ca", "prepare")(&err)
+
+	log := m.c.Log.WithField("slot", slot.id)
+	log.Debug("Preparing X509 CA")
+
+	slot.Reset()
+
+	now := m.c.Clock.Now()
+	km := m.c.Catalog.GetKeyManager()
+	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, slot.KmKeyID(), keymanager.KeyType_EC_P384)
+	if err != nil {
+		return err
+	}
+
+	var x509CA *X509CA
+	var trustBundle []*x509.Certificate
+	upstreamCA, useUpstream := m.c.Catalog.GetUpstreamCA()
+	if useUpstream {
+		x509CA, trustBundle, err = UpstreamSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, upstreamCA, m.c.UpstreamBundle)
+	} else {
+		notBefore := now.Add(-backdate)
+		notAfter := now.Add(m.c.CATTL)
+		x509CA, trustBundle, err = SelfSignX509CA(ctx, signer, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
+	}
+	if err != nil {
+		return err
+	}
+
+	if err := m.appendBundle(ctx, trustBundle, nil); err != nil {
+		return err
+	}
+
+	slot.issuedAt = now
+	slot.x509CA = x509CA
+
+	if err := m.journal.AppendX509CA(slot.id, slot.issuedAt, slot.x509CA); err != nil {
+		log.WithField("err", err.Error()).Error("Unable to append X509 CA to journal")
+	}
+
+	m.c.Log.WithFields(logrus.Fields{
+		"slot":            slot.id,
+		"issued_at":       timeField(slot.issuedAt),
+		"not_after":       timeField(slot.x509CA.Certificate.NotAfter),
+		"self_signed":     !useUpstream,
+		"upstream_bundle": m.c.UpstreamBundle,
+	}).Info("X509 CA prepared")
+	return nil
+}
+
+func (m *Manager) activateX509CA() {
+	m.c.Log.WithFields(logrus.Fields{
+		"slot":      m.currentX509CA.id,
+		"issued_at": timeField(m.currentX509CA.issuedAt),
+		"not_after": timeField(m.currentX509CA.x509CA.Certificate.NotAfter),
+	}).Info("X509 CA activated")
+	m.c.Metrics.IncrCounter([]string{"manager", "x509_ca", "activate"}, 1)
+	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
+}
+
+func (m *Manager) rotateJWTKey(ctx context.Context) error {
+	now := m.c.Clock.Now()
+
+	// if there is no current keypair set, generate one
+	if m.currentJWTKey.IsEmpty() {
+		if err := m.prepareJWTKey(ctx, m.currentJWTKey); err != nil {
+			return err
+		}
+		m.activateJWTKey()
+	}
+
+	// if there is no next keypair set and the current is within the
+	// preparation threshold, generate one.
+	if m.nextJWTKey.IsEmpty() && m.currentJWTKey.ShouldPrepareNext(now) {
+		if err := m.prepareJWTKey(ctx, m.nextJWTKey); err != nil {
+			return err
+		}
+	}
+
+	if m.currentJWTKey.ShouldActivateNext(now) {
+		m.currentJWTKey, m.nextJWTKey = m.nextJWTKey, m.currentJWTKey
+		m.nextJWTKey.Reset()
+		m.activateJWTKey()
+	}
+
+	return nil
+}
+
+func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err error) {
+	defer telemetry.CountCall(m.c.Metrics, "manager", "jwt_key", "prepare")(&err)
+
+	log := m.c.Log.WithField("slot", slot.id)
+	log.Debug("Preparing JWT key")
+
+	slot.Reset()
+
+	now := m.c.Clock.Now()
+	notAfter := now.Add(m.c.CATTL)
+
+	km := m.c.Catalog.GetKeyManager()
+	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, slot.KmKeyID(), keymanager.KeyType_EC_P256)
+	if err != nil {
+		return err
+	}
+
+	jwtKey, err := newJWTKey(signer, notAfter)
+	if err != nil {
+		return err
+	}
+
+	publicKey, err := publicKeyFromJWTKey(jwtKey)
+	if err != nil {
+		return err
+	}
+
+	if err := m.appendBundle(ctx, nil, publicKey); err != nil {
+		return err
+	}
+
+	slot.issuedAt = now
+	slot.jwtKey = jwtKey
+
+	if err := m.journal.AppendJWTKey(slot.id, slot.issuedAt, slot.jwtKey); err != nil {
+		log.WithField("err", err.Error()).Error("Unable to append JWT key to journal")
+	}
+
+	m.c.Log.WithFields(logrus.Fields{
+		"slot":      slot.id,
+		"issued_at": timeField(slot.issuedAt),
+		"not_after": timeField(slot.jwtKey.NotAfter),
+	}).Info("JWT key prepared")
+	return nil
+}
+
+func (m *Manager) activateJWTKey() {
+	m.c.Log.WithFields(logrus.Fields{
+		"slot":      m.currentJWTKey.id,
+		"issued_at": timeField(m.currentJWTKey.issuedAt),
+		"not_after": timeField(m.currentJWTKey.jwtKey.NotAfter),
+	}).Info("JWT key activated")
+	m.c.Metrics.IncrCounter([]string{"manager", "jwt_key", "activate"}, 1)
+	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
+}
+
+func (m *Manager) pruneBundleEvery(ctx context.Context, interval time.Duration) error {
+	ticker := m.c.Clock.Ticker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -237,11 +319,11 @@ func (m *manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 	}
 }
 
-func (m *manager) pruneBundle(ctx context.Context) (err error) {
+func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	defer telemetry.CountCall(m.c.Metrics, "manager", "bundle", "prune")(&err)
 	ds := m.c.Catalog.GetDataStore()
 
-	now := m.hooks.now().Add(-safetyThreshold)
+	now := m.c.Clock.Now().Add(-safetyThreshold)
 
 	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 		TrustDomainId: m.c.TrustDomain.String(),
@@ -310,9 +392,7 @@ pruneRootCA:
 	return nil
 }
 
-func (m *manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKey *common.PublicKey) error {
-	// TODO: SPIRE 0.8 should only add the "root" to the bundle, instead of
-	// all the intermediates.
+func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKey *common.PublicKey) error {
 	var rootCAs []*common.Certificate
 	for _, caCert := range caChain {
 		rootCAs = append(rootCAs, &common.Certificate{
@@ -320,14 +400,17 @@ func (m *manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 		})
 	}
 
+	var jwtSigningKeys []*common.PublicKey
+	if jwtSigningKey != nil {
+		jwtSigningKeys = append(jwtSigningKeys, jwtSigningKey)
+	}
+
 	ds := m.c.Catalog.GetDataStore()
 	if _, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
 		Bundle: &common.Bundle{
-			TrustDomainId: m.c.TrustDomain.String(),
-			RootCas:       rootCAs,
-			JwtSigningKeys: []*common.PublicKey{
-				jwtSigningKey,
-			},
+			TrustDomainId:  m.c.TrustDomain.String(),
+			RootCas:        rootCAs,
+			JwtSigningKeys: jwtSigningKeys,
 		},
 	}); err != nil {
 		return err
@@ -336,326 +419,314 @@ func (m *manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 	return nil
 }
 
-func (m *manager) prepareKeypairSet(ctx context.Context, kps *keypairSet) (err error) {
-	defer telemetry.CountCall(m.c.Metrics, "manager", "keypair", "prepare")(&err)
-	m.c.Log.Debugf("Preparing keypair set %q", kps.slot)
-	kps.Reset()
+func (m *Manager) loadJournal(ctx context.Context) error {
+	jsonPath := filepath.Join(m.c.Dir, "certs.json")
+	if ok, err := migrateJSONFile(jsonPath, m.journalPath()); err != nil {
+		return errs.New("failed to migrate old JSON data: %v", err)
+	} else if ok {
+		m.c.Log.Info("Migrated data to journal")
+	}
 
-	now := m.hooks.now()
-	notBefore := now.Add(-backdate)
-	notAfter := now.Add(m.c.CATTL)
+	// Load the journal and see if we can figure out the next and current
+	// X509CA and JWTKey entries, if any.
+	m.c.Log.WithField("path", m.journalPath()).Debug("Loading journal")
 
-	km := m.c.Catalog.GetKeyManager()
-	x509CASigner, err := cryptoutil.GenerateKeyAndSigner(ctx, km, kps.X509CAKeyID(), keymanager.KeyType_EC_P384)
+	journal, err := LoadJournal(m.journalPath())
 	if err != nil {
 		return err
 	}
 
-	// either self-sign or sign with the upstream CA
-	var certChainWithRoot []*x509.Certificate
-	var trustBundle []*x509.Certificate
-	if upstreamCA, ok := m.c.Catalog.GetUpstreamCA(); ok {
-		certChain, upstreamBundle, err := UpstreamSignServerCACertificate(ctx, upstreamCA, x509CASigner, m.c.TrustDomain.Host, m.c.CASubject)
+	m.journal = journal
+
+	entries := journal.Entries()
+
+	now := m.c.Clock.Now()
+
+	m.c.Log.WithFields(logrus.Fields{
+		"x509cas":  len(entries.X509CAs),
+		"jwt_keys": len(entries.JwtKeys),
+	}).Info("Journal loaded")
+
+	if len(entries.X509CAs) > 0 {
+		m.nextX509CA, err = m.tryLoadX509CASlotFromEntry(ctx, entries.X509CAs[len(entries.X509CAs)-1])
 		if err != nil {
 			return err
 		}
-		if m.c.UpstreamBundle {
-			// the chain returned from upstream does not contain the root from
-			// the trust bundle, which the rest of the code expects. Find the
-			// root and add it to the chain. This can be removed in SPIRE 0.8.
-			certChainWithRoot, err = addRootToChain(certChain, upstreamBundle)
+		// if the last entry is ok, then consider the next entry
+		if m.nextX509CA != nil && len(entries.X509CAs) > 1 {
+			m.currentX509CA, err = m.tryLoadX509CASlotFromEntry(ctx, entries.X509CAs[len(entries.X509CAs)-2])
 			if err != nil {
 				return err
 			}
-			// until SPIRE 0.8, the server CA must belong to the trust bundle
-			// for back-compat.
-			trustBundle = append(upstreamBundle, certChainWithRoot[0])
-		} else {
-			// we don't want to join the upstream PKI. Use the server CA as the
-			// root, as if the upstreamCA was never configured.
-			certChainWithRoot = certChain[:1]
-			trustBundle = certChainWithRoot
 		}
-	} else {
-		cert, err := SelfSignServerCACertificate(x509CASigner, m.c.TrustDomain.Host, m.c.CASubject, notBefore, notAfter)
+	}
+	switch {
+	case m.currentX509CA != nil:
+		// both current and next are set
+	case m.nextX509CA != nil:
+		// next is set but not current. swap them and initialize next with an empty slot.
+		m.currentX509CA, m.nextX509CA = m.nextX509CA, newX509CASlot(otherSlotID(m.nextX509CA.id))
+	default:
+		// neither are set. initialize them with empty slots.
+		m.currentX509CA = newX509CASlot("A")
+		m.nextX509CA = newX509CASlot("B")
+	}
+
+	if !m.currentX509CA.IsEmpty() && !m.currentX509CA.ShouldActivateNext(now) {
+		// activate the X509CA immediately if it is set and not within
+		// activation time of the next X509CA.
+		m.activateX509CA()
+	}
+
+	if len(entries.JwtKeys) > 0 {
+		m.nextJWTKey, err = m.tryLoadJWTKeySlotFromEntry(ctx, entries.JwtKeys[len(entries.JwtKeys)-1])
 		if err != nil {
 			return err
 		}
-		certChainWithRoot = []*x509.Certificate{cert}
-		trustBundle = certChainWithRoot
-	}
-
-	jwtSigningKeyPKIX, err := cryptoutil.GenerateKeyRaw(ctx, km, kps.JWTSignerKeyID(), keymanager.KeyType_EC_P256)
-	if err != nil {
-		return err
-	}
-
-	kid, err := newKeyID()
-	if err != nil {
-		return err
-	}
-
-	jwtSigningKey, err := caPublicKeyFromPublicKey(&common.PublicKey{
-		PkixBytes: jwtSigningKeyPKIX,
-		Kid:       kid,
-		NotAfter:  certChainWithRoot[0].NotAfter.Unix(),
-	})
-	if err != nil {
-		return err
-	}
-
-	if err := m.appendBundle(ctx, trustBundle, jwtSigningKey.PublicKey); err != nil {
-		return err
-	}
-
-	kps.x509CA = &caX509CA{
-		chain: certChainWithRoot,
-	}
-	kps.jwtSigningKey = jwtSigningKey
-	m.writeKeypairSets()
-	m.c.Log.Debugf("Keypair set %q will expire %s", kps.slot, certChainWithRoot[0].NotAfter.Format(time.RFC3339))
-	return nil
-}
-
-func (m *manager) loadKeypairSets(ctx context.Context) error {
-	if m.c.CertsPath == "" {
-		return nil
-	}
-
-	km := m.c.Catalog.GetKeyManager()
-	keys, err := loadKeyManagerKeys(ctx, km)
-	if err != nil {
-		return err
-	}
-
-	ds := m.c.Catalog.GetDataStore()
-	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: m.c.TrustDomain.String(),
-	})
-	if err != nil {
-		return errs.Wrap(err)
-	}
-
-	var rootCAs []*x509.Certificate
-	if resp.Bundle != nil {
-		rootCAs, err = bundleutil.RootCAsFromBundleProto(resp.Bundle)
-		if err != nil {
-			return err
-		}
-	}
-
-	x509CAs, publicKeys, err := m.loadKeypairData(m.c.CertsPath, rootCAs)
-	if err != nil {
-		return err
-	}
-
-	populateKeypairSet := func(kps *keypairSet) bool {
-		kps.Reset()
-
-		x509CA := x509CAs[kps.X509CAKeyID()]
-		x509CAKMKey := keys[kps.X509CAKeyID()]
-		x509CAOK := x509CA != nil && x509CAKMKey != nil && certMatchesKey(x509CA.cert(), x509CAKMKey)
-		jwtSigningKey := publicKeys[kps.JWTSignerKeyID()]
-		jwtSigningKMKey := keys[kps.JWTSignerKeyID()]
-		jwtSigningKeyOK := jwtSigningKey != nil && jwtSigningKMKey != nil && publicKeyEqual(jwtSigningKey.publicKey, jwtSigningKMKey)
-
-		if !(x509CAOK && jwtSigningKeyOK) {
-			if x509CA == nil && jwtSigningKey == nil {
-				// this is a normal condition when launching the server for the
-				// first time
-				m.c.Log.Debugf("Keypair set %q does not exist", kps.slot)
-				return false
-			}
-			if x509CA != nil && jwtSigningKey != nil && x509CAKMKey == nil && jwtSigningKMKey == nil {
-				m.c.Log.Infof("Private keys for keypair set %q not in keymanager", kps.slot)
-				return false
-			}
-			switch {
-			case x509CA == nil:
-				m.c.Log.Warnf("Keypair set %q unusable: corresponding x509 CA certificate not found in %s", kps.slot, m.c.CertsPath)
-			case x509CAKMKey == nil:
-				m.c.Log.Warnf("keypair set %q unusable: x509 CA private key not found in keymanager", kps.slot)
-			case !x509CAOK:
-				m.c.Log.Warnf("Keypair set %q unusable: x509 CA certificate does not match private key in keymanager", kps.slot)
-			}
-			switch {
-			case jwtSigningKey == nil:
-				m.c.Log.Warnf("Keypair set %q unusable: corresponding JWT signing public key not found in %s", kps.slot, m.c.CertsPath)
-			case jwtSigningKMKey == nil:
-				m.c.Log.Warnf("Keypair set %q unusable: JWT signing private key not found in keymanager", kps.slot)
-			case !jwtSigningKeyOK:
-				m.c.Log.Warnf("Keypair set %q unusable: JWT signing public key does not match private key in keymanager", kps.slot)
-			}
-			return false
-		}
-
-		m.c.Log.Debugf("Loaded keypair set %q", kps.slot)
-		kps.x509CA = x509CA
-		kps.jwtSigningKey = jwtSigningKey
-		return true
-	}
-
-	currentValid := populateKeypairSet(m.current)
-	nextValid := populateKeypairSet(m.next)
-
-	// if B (next) was loaded but A (current) was not, OR if B comes before
-	// A, then swap B into the current slot.
-	if nextValid && (!currentValid ||
-		m.current.x509CA.cert().NotBefore.After(m.next.x509CA.cert().NotBefore)) {
-		m.current, m.next = m.next, m.current
-	}
-
-	m.c.Log.Debugf("Loaded keypair sets")
-	if m.current.x509CA != nil {
-		m.setKeypairSet()
-	}
-	return nil
-}
-
-func (m *manager) getCurrentKeypairSet() *keypairSet {
-	copy := *m.current
-	return &copy
-}
-
-func (m *manager) getNextKeypairSet() *keypairSet {
-	copy := *m.next
-	return &copy
-}
-
-func (m *manager) setKeypairSet() {
-	m.c.Log.Debugf("Activating keypair set %q", m.current.slot)
-	m.c.Metrics.IncrCounter([]string{"manager", "keypair", "activate"}, 1)
-	m.ca.setKeypairSet(*m.current)
-}
-
-func (m *manager) writeKeypairSets() {
-	if m.c.CertsPath == "" {
-		return
-	}
-	x509CAs := make(map[string]*caX509CA)
-	publicKeys := make(map[string]*caPublicKey)
-	if m.current.x509CA != nil {
-		x509CAs[m.current.X509CAKeyID()] = m.current.x509CA
-	}
-	if m.current.jwtSigningKey != nil {
-		publicKeys[m.current.JWTSignerKeyID()] = m.current.jwtSigningKey
-	}
-	if m.next.x509CA != nil {
-		x509CAs[m.next.X509CAKeyID()] = m.next.x509CA
-	}
-	if m.next.jwtSigningKey != nil {
-		publicKeys[m.next.JWTSignerKeyID()] = m.next.jwtSigningKey
-	}
-	if err := writeKeypairData(m.c.CertsPath, x509CAs, publicKeys); err != nil {
-		m.c.Log.Errorf("unable to write keypair sets: %v", err)
-	}
-}
-
-func (m *manager) shouldPrepare() bool {
-	return m.current.x509CA == nil || m.hooks.now().After(preparationThreshold(m.current.x509CA.cert()))
-}
-
-func (m *manager) shouldActivate() bool {
-	return m.current.x509CA == nil || m.hooks.now().After(activationThreshold(m.current.x509CA.cert()))
-}
-
-type keypairData struct {
-	DEPRECATEDCerts map[string][]byte `json:"certs"`
-	CAs             map[string][]byte `json:"cas"`
-	PublicKeys      map[string][]byte `json:"public_keys"`
-}
-
-func (m *manager) loadKeypairData(path string, bundleCerts []*x509.Certificate) (map[string]*caX509CA, map[string]*caPublicKey, error) {
-	x509CAs := make(map[string]*caX509CA)
-	publicKeys := make(map[string]*caPublicKey)
-
-	jsonBytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return x509CAs, publicKeys, nil
-		}
-		return nil, nil, err
-	}
-
-	data := new(keypairData)
-	if err := json.Unmarshal(jsonBytes, data); err != nil {
-		return nil, nil, fmt.Errorf("unable to decode certificate JSON: %v", err)
-	}
-
-	for id, caBytes := range data.CAs {
-		certs, err := x509.ParseCertificates(caBytes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("unable to parse certificate %q: %v", id, err)
-		}
-		if len(certs) == 0 {
-			continue
-		}
-		x509CAs[id] = &caX509CA{
-			chain: certs,
-		}
-	}
-
-	for id, publicKeyBytes := range data.PublicKeys {
-		publicKey := new(common.PublicKey)
-		if err := proto.Unmarshal(publicKeyBytes, publicKey); err != nil {
-			return nil, nil, fmt.Errorf("unable to parse public key %q: %v", id, err)
-		}
-		mpk, err := caPublicKeyFromPublicKey(publicKey)
-		if err != nil {
-			return nil, nil, err
-		}
-		publicKeys[id] = mpk
-	}
-
-	for id, certBytes := range data.DEPRECATEDCerts {
-		// skip items that already exist (should never happen)
-		if x509CAs[id] != nil || publicKeys[id] != nil {
-			m.c.Log.Warnf("skipping deprecated cert %q in keypair data; already exists", id)
-			continue
-		}
-
-		cert, err := x509.ParseCertificate(certBytes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("unable to parse deprecated cert %q: %v", id, err)
-		}
-
-		if strings.HasPrefix(id, "x509-CA-") {
-			certs := buildCertChain(cert, bundleCerts)
-			x509CAs[id] = &caX509CA{
-				chain: certs,
-			}
-		}
-
-		if strings.HasPrefix(id, "JWT-Signer-") {
-			// converting the JWT cert to key is trivial. Just pull out
-			// the public key and expiration from the cert and generate
-			// a deterministic key id.
-			pkixBytes, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+		// if the last entry is ok, then consider the next entry
+		if m.nextJWTKey != nil && len(entries.JwtKeys) > 1 {
+			m.currentJWTKey, err = m.tryLoadJWTKeySlotFromEntry(ctx, entries.JwtKeys[len(entries.JwtKeys)-2])
 			if err != nil {
-				return nil, nil, fmt.Errorf("unable to marshal public key from deprecated cert %q: %v", id, err)
-			}
-
-			publicKeys[id] = &caPublicKey{
-				PublicKey: &common.PublicKey{
-					Kid:       keyIDFromBytes(cert.Signature),
-					PkixBytes: pkixBytes,
-					NotAfter:  cert.NotAfter.Unix(),
-				},
-				publicKey: cert.PublicKey,
-				notAfter:  cert.NotAfter,
+				return err
 			}
 		}
 	}
+	switch {
+	case m.currentJWTKey != nil:
+		// both current and next are set
+	case m.nextJWTKey != nil:
+		// next is set but not current. swap them and initialize next with an empty slot.
+		m.currentJWTKey, m.nextJWTKey = m.nextJWTKey, newJWTKeySlot(otherSlotID(m.nextJWTKey.id))
+	default:
+		// neither are set. initialize them with empty slots.
+		m.currentJWTKey = newJWTKeySlot("A")
+		m.nextJWTKey = newJWTKeySlot("B")
+	}
 
-	return x509CAs, publicKeys, nil
+	if !m.currentJWTKey.IsEmpty() && !m.currentJWTKey.ShouldActivateNext(now) {
+		// activate the JWT key immediately if it is set and not within
+		// activation time of the next JWT key.
+		m.activateJWTKey()
+	}
+
+	return nil
 }
 
-func certMatchesKey(certificate *x509.Certificate, publicKey crypto.PublicKey) bool {
-	matches, err := x509util.CertificateMatchesPublicKey(certificate, publicKey)
+func (m *Manager) journalPath() string {
+	return filepath.Join(m.c.Dir, "journal.pem")
+}
+
+func (m *Manager) tryLoadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntry) (*x509CASlot, error) {
+	slot, badReason, err := m.loadX509CASlotFromEntry(ctx, entry)
 	if err != nil {
-		return false
+		m.c.Log.WithFields(logrus.Fields{
+			"slot_id": entry.SlotId,
+			"error":   err.Error(),
+		}).Error("X509CA slot failed to load")
+		return nil, err
 	}
-	return matches
+	if badReason != "" {
+		m.c.Log.WithFields(logrus.Fields{
+			"slot_id": entry.SlotId,
+			"reason":  badReason,
+		}).Warn("X509CA slot unusable")
+		return nil, nil
+	}
+	return slot, nil
+}
+
+func (m *Manager) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntry) (*x509CASlot, string, error) {
+	if entry.SlotId == "" {
+		return nil, "no slot id", nil
+	}
+
+	cert, err := x509.ParseCertificate(entry.Certificate)
+	if err != nil {
+		return nil, "", errs.New("unable to parse CA certificate: %v", err)
+	}
+
+	var upstreamChain []*x509.Certificate
+	for _, certDER := range entry.UpstreamChain {
+		cert, err := x509.ParseCertificate(certDER)
+		if err != nil {
+			return nil, "", errs.New("unable to parse upstream chain certificate: %v", err)
+		}
+		upstreamChain = append(upstreamChain, cert)
+	}
+
+	signer, err := m.makeSigner(ctx, x509CAKmKeyId(entry.SlotId))
+	if err != nil {
+		return nil, "", err
+	}
+
+	switch {
+	case signer == nil:
+		return nil, "no key manager key", nil
+	case !publicKeyEqual(cert.PublicKey, signer.Public()):
+		return nil, "public key does not match key manager key", nil
+	}
+
+	return &x509CASlot{
+		id:       entry.SlotId,
+		issuedAt: time.Unix(entry.IssuedAt, 0),
+		x509CA: &X509CA{
+			Signer:        signer,
+			Certificate:   cert,
+			UpstreamChain: upstreamChain,
+		},
+	}, "", nil
+}
+
+func (m *Manager) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyEntry) (*jwtKeySlot, error) {
+	slot, badReason, err := m.loadJWTKeySlotFromEntry(ctx, entry)
+	if err != nil {
+		m.c.Log.WithFields(logrus.Fields{
+			"slot_id": entry.SlotId,
+			"error":   err.Error(),
+		}).Error("JWT key slot failed to load")
+		return nil, err
+	}
+	if badReason != "" {
+		m.c.Log.WithFields(logrus.Fields{
+			"slot_id": entry.SlotId,
+			"reason":  badReason,
+		}).Warn("JWT key slot unusable")
+		return nil, nil
+	}
+	return slot, nil
+}
+
+func (m *Manager) loadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyEntry) (*jwtKeySlot, string, error) {
+	if entry.SlotId == "" {
+		return nil, "no slot id", nil
+	}
+
+	publicKey, err := x509.ParsePKIXPublicKey(entry.PublicKey)
+	if err != nil {
+		return nil, "", errs.Wrap(err)
+	}
+
+	signer, err := m.makeSigner(ctx, jwtKeyKmKeyId(entry.SlotId))
+	if err != nil {
+		return nil, "", err
+	}
+
+	switch {
+	case signer == nil:
+		return nil, "no key manager key", nil
+	case !publicKeyEqual(publicKey, signer.Public()):
+		return nil, "public key does not match key manager key", nil
+	}
+
+	return &jwtKeySlot{
+		id:       entry.SlotId,
+		issuedAt: time.Unix(entry.IssuedAt, 0),
+		jwtKey: &JWTKey{
+			Signer:   signer,
+			NotAfter: time.Unix(entry.NotAfter, 0),
+			Kid:      entry.Kid,
+		},
+	}, "", nil
+}
+
+func (m *Manager) makeSigner(ctx context.Context, keyID string) (crypto.Signer, error) {
+	km := m.c.Catalog.GetKeyManager()
+	resp, err := km.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
+		KeyId: keyID,
+	})
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+
+	if resp.PublicKey == nil {
+		return nil, nil
+	}
+
+	publicKey, err := x509.ParsePKIXPublicKey(resp.PublicKey.PkixData)
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+
+	return cryptoutil.NewKeyManagerSigner(km, keyID, publicKey), nil
+}
+
+func x509CAKmKeyId(id string) string {
+	return fmt.Sprintf("x509-CA-%s", id)
+}
+
+func jwtKeyKmKeyId(id string) string {
+	return fmt.Sprintf("JWT-Signer-%s", id)
+}
+
+type x509CASlot struct {
+	id       string
+	issuedAt time.Time
+	x509CA   *X509CA
+}
+
+func newX509CASlot(id string) *x509CASlot {
+	return &x509CASlot{
+		id: id,
+	}
+}
+
+func (s *x509CASlot) KmKeyID() string {
+	return x509CAKmKeyId(s.id)
+}
+
+func (s *x509CASlot) IsEmpty() bool {
+	return s.x509CA == nil
+}
+
+func (s *x509CASlot) Reset() {
+	s.x509CA = nil
+}
+
+func (s *x509CASlot) ShouldPrepareNext(now time.Time) bool {
+	return s.x509CA != nil && now.After(preparationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
+}
+
+func (s *x509CASlot) ShouldActivateNext(now time.Time) bool {
+	return s.x509CA != nil && now.After(activationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
+}
+
+type jwtKeySlot struct {
+	id       string
+	issuedAt time.Time
+	jwtKey   *JWTKey
+}
+
+func newJWTKeySlot(id string) *jwtKeySlot {
+	return &jwtKeySlot{
+		id: id,
+	}
+}
+
+func (s *jwtKeySlot) KmKeyID() string {
+	return jwtKeyKmKeyId(s.id)
+}
+
+func (s *jwtKeySlot) IsEmpty() bool {
+	return s.jwtKey == nil
+}
+
+func (s *jwtKeySlot) Reset() {
+	s.jwtKey = nil
+}
+
+func (s *jwtKeySlot) ShouldPrepareNext(now time.Time) bool {
+	return s.jwtKey == nil || now.After(preparationThreshold(s.issuedAt, s.jwtKey.NotAfter))
+}
+
+func (s *jwtKeySlot) ShouldActivateNext(now time.Time) bool {
+	return s.jwtKey == nil || now.After(activationThreshold(s.issuedAt, s.jwtKey.NotAfter))
+}
+
+func otherSlotID(id string) string {
+	if id == "A" {
+		return "B"
+	}
+	return "A"
 }
 
 func publicKeyEqual(a, b crypto.PublicKey) bool {
@@ -686,7 +757,36 @@ func GenerateServerCACSR(signer crypto.Signer, trustDomain string, subject pkix.
 	return csr, nil
 }
 
-func UpstreamSignServerCACertificate(ctx context.Context, upstreamCA upstreamca.UpstreamCA, signer crypto.Signer, trustDomain string, subject pkix.Name) ([]*x509.Certificate, []*x509.Certificate, error) {
+func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, notBefore, notAfter time.Time) (*X509CA, []*x509.Certificate, error) {
+	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	template, err := CreateServerCATemplate(csr, trustDomain, notBefore, notAfter, big.NewInt(0))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, signer.Public(), signer)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	trustBundle := []*x509.Certificate{cert}
+
+	return &X509CA{
+		Signer:      signer,
+		Certificate: cert,
+	}, trustBundle, nil
+}
+
+func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain string, subject pkix.Name, upstreamCA upstreamca.UpstreamCA, upstreamBundle bool) (*X509CA, []*x509.Certificate, error) {
 	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
 	if err != nil {
 		return nil, nil, err
@@ -699,7 +799,25 @@ func UpstreamSignServerCACertificate(ctx context.Context, upstreamCA upstreamca.
 		return nil, nil, err
 	}
 
-	return parseUpstreamCACSRResponse(resp)
+	caChain, trustBundle, err := parseUpstreamCACSRResponse(resp)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var upstreamChain []*x509.Certificate
+	if upstreamBundle {
+		upstreamChain = caChain
+	} else {
+		// we don't want to join the upstream PKI. Use the server CA as the
+		// root, as if the upstreamCA was never configured.
+		trustBundle = caChain[:1]
+	}
+
+	return &X509CA{
+		Signer:        signer,
+		Certificate:   caChain[0],
+		UpstreamChain: upstreamChain,
+	}, trustBundle, nil
 }
 
 func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
@@ -708,9 +826,15 @@ func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Cer
 		if err != nil {
 			return nil, nil, err
 		}
+		if len(certChain) == 0 {
+			return nil, nil, errs.New("upstream CA returned an empty cert chain")
+		}
 		trustBundle, err := x509.ParseCertificates(resp.SignedCertificate.Bundle)
 		if err != nil {
 			return nil, nil, err
+		}
+		if len(trustBundle) == 0 {
+			return nil, nil, errs.New("upstream CA returned an empty trust bundle")
 		}
 		return certChain, trustBundle, nil
 	}
@@ -746,112 +870,40 @@ func parseUpstreamCACSRResponse(resp *upstreamca.SubmitCSRResponse) ([]*x509.Cer
 	return certChain, trustBundle, nil
 }
 
-func SelfSignServerCACertificate(signer crypto.Signer, trustDomain string, subject pkix.Name, notBefore, notAfter time.Time) (*x509.Certificate, error) {
-	csr, err := GenerateServerCACSR(signer, trustDomain, subject)
+func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
+	lifetime := notAfter.Sub(issuedAt)
+	return notAfter.Add(-lifetime / 2)
+}
+
+func activationThreshold(issuedAt, notAfter time.Time) time.Time {
+	lifetime := notAfter.Sub(issuedAt)
+	return notAfter.Add(-lifetime / 6)
+}
+
+func newJWTKey(signer crypto.Signer, expiresAt time.Time) (*JWTKey, error) {
+	kid, err := newKeyID()
 	if err != nil {
 		return nil, err
 	}
 
-	template, err := CreateServerCATemplate(csr, trustDomain, notBefore, notAfter, big.NewInt(0))
-	if err != nil {
-		return nil, err
-	}
-	certDER, err := x509.CreateCertificate(rand.Reader, template, template, signer.Public(), signer)
-	if err != nil {
-		return nil, err
-	}
-	cert, err := x509.ParseCertificate(certDER)
-	if err != nil {
-		return nil, err
-	}
-	return cert, nil
-}
-
-func loadKeyManagerKeys(ctx context.Context, km keymanager.KeyManager) (map[string]crypto.PublicKey, error) {
-	resp, err := km.GetPublicKeys(ctx, &keymanager.GetPublicKeysRequest{})
-	if err != nil {
-		return nil, err
-	}
-
-	publicKeys := make(map[string]crypto.PublicKey)
-	for _, publicKey := range resp.PublicKeys {
-		x, err := x509.ParsePKIXPublicKey(publicKey.PkixData)
-		if err != nil {
-			return nil, err
-		}
-		publicKeys[publicKey.Id] = x
-	}
-
-	return publicKeys, nil
-}
-
-func writeKeypairData(path string, x509CAs map[string]*caX509CA, publicKeys map[string]*caPublicKey) error {
-	data := &keypairData{
-		CAs:        make(map[string][]byte),
-		PublicKeys: make(map[string][]byte),
-	}
-	for id, x509CA := range x509CAs {
-		var raw []byte
-		for _, cert := range x509CA.chain {
-			raw = append(raw, cert.Raw...)
-		}
-		data.CAs[id] = raw
-	}
-
-	for id, publicKey := range publicKeys {
-		publicKeyBytes, err := proto.Marshal(publicKey.PublicKey)
-		if err != nil {
-			return errs.Wrap(err)
-		}
-		data.PublicKeys[id] = publicKeyBytes
-	}
-
-	jsonBytes, err := json.MarshalIndent(data, "", "\t")
-	if err != nil {
-		return errs.Wrap(err)
-	}
-
-	return diskutil.AtomicWriteFile(path, jsonBytes, 0644)
-}
-
-func preparationThreshold(cert *x509.Certificate) time.Time {
-	lifetime := cert.NotAfter.Sub(cert.NotBefore)
-	return cert.NotAfter.Add(-lifetime / 2)
-}
-
-func activationThreshold(cert *x509.Certificate) time.Time {
-	lifetime := cert.NotAfter.Sub(cert.NotBefore)
-	return cert.NotAfter.Add(-lifetime / 6)
-}
-
-func caPublicKeyFromPublicKey(pbPublicKey *common.PublicKey) (*caPublicKey, error) {
-	publicKey, err := x509.ParsePKIXPublicKey(pbPublicKey.PkixBytes)
-	if err != nil {
-		return nil, errs.Wrap(err)
-	}
-	var notAfter time.Time
-	if pbPublicKey.NotAfter != 0 {
-		notAfter = time.Unix(pbPublicKey.NotAfter, 0)
-	}
-	return &caPublicKey{
-		PublicKey: pbPublicKey,
-		publicKey: publicKey,
-		notAfter:  notAfter,
+	return &JWTKey{
+		Signer:   signer,
+		Kid:      kid,
+		NotAfter: expiresAt,
 	}, nil
 }
 
-func cloneBundle(bundle *common.Bundle) *common.Bundle {
-	return proto.Clone(bundle).(*common.Bundle)
-}
-
-const keyIDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-func keyIDFromBytes(choices []byte) string {
-	buf := new(bytes.Buffer)
-	for _, choice := range choices {
-		buf.WriteByte(keyIDAlphabet[int(choice)%len(keyIDAlphabet)])
+func publicKeyFromJWTKey(jwtKey *JWTKey) (*common.PublicKey, error) {
+	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtKey.Signer.Public())
+	if err != nil {
+		return nil, errs.Wrap(err)
 	}
-	return buf.String()
+
+	return &common.PublicKey{
+		PkixBytes: pkixBytes,
+		Kid:       jwtKey.Kid,
+		NotAfter:  jwtKey.NotAfter.Unix(),
+	}, nil
 }
 
 func newKeyID() (string, error) {
@@ -863,48 +915,15 @@ func newKeyID() (string, error) {
 	return keyIDFromBytes(choices), nil
 }
 
-func buildCertChain(cert *x509.Certificate, candidates []*x509.Certificate) (chain []*x509.Certificate) {
-	chain = append(chain, cert)
-	for _, candidate := range candidates {
-		if cert.CheckSignatureFrom(candidate) == nil {
-			if !cert.Equal(candidate) {
-				chain = append(chain, buildCertChain(candidate, candidates)...)
-			}
-			break
-		}
+func keyIDFromBytes(choices []byte) string {
+	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	buf := new(bytes.Buffer)
+	for _, choice := range choices {
+		buf.WriteByte(alphabet[int(choice)%len(alphabet)])
 	}
-	return chain
+	return buf.String()
 }
 
-func addRootToChain(certChain, trustBundle []*x509.Certificate) ([]*x509.Certificate, error) {
-	if len(certChain) == 0 {
-		return nil, errs.New("empty certificate chain")
-	}
-	intermediates := x509.NewCertPool()
-	for _, intermediate := range certChain[1:] {
-		intermediates.AddCert(intermediate)
-	}
-	roots := x509.NewCertPool()
-	for _, root := range trustBundle {
-		roots.AddCert(root)
-	}
-
-	chains, err := certChain[0].Verify(x509.VerifyOptions{
-		Intermediates: intermediates,
-		Roots:         roots,
-		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
-	})
-	if err != nil {
-		return nil, errs.Wrap(err)
-	}
-
-	// If for some reason there is cross-signing upstream, we might end up with
-	// more than one chain. Take the longest chain.
-	longestChain := chains[0]
-	for _, chain := range chains[1:] {
-		if len(chain) > len(longestChain) {
-			longestChain = chain
-		}
-	}
-	return longestChain, nil
+func timeField(t time.Time) string {
+	return t.UTC().Format(time.RFC3339)
 }

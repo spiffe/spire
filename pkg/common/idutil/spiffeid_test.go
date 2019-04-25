@@ -80,9 +80,10 @@ func TestValidateSpiffeID(t *testing.T) {
 		},
 		// AllowAnyInTrustDomain() mode
 		{
-			name:     "test_allow_any_in_trust_domain_good_with_trust_domain_id",
-			spiffeID: "spiffe://test.com",
-			mode:     AllowAnyInTrustDomain("test.com"),
+			name:          "test_allow_any_in_trust_domain_invalid_with_trust_domain_id",
+			spiffeID:      "spiffe://test.com",
+			mode:          AllowAnyInTrustDomain("test.com"),
+			expectedError: `"spiffe://test.com" is not a valid trust domain member SPIFFE ID: path is empty`,
 		},
 		{
 			name:     "test_allow_any_in_trust_domain_good_with_workload_id",

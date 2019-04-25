@@ -2,6 +2,7 @@ package svid
 
 import (
 	"context"
+	"crypto/x509"
 	"math/big"
 	"net/url"
 	"sync"
@@ -28,7 +29,7 @@ type RotatorTestSuite struct {
 	suite.Suite
 
 	r        *rotator
-	serverCA *fakeserverca.ServerCA
+	serverCA *fakeserverca.CA
 
 	mu    sync.Mutex
 	clock *clock.Mock
@@ -43,8 +44,8 @@ func (s *RotatorTestSuite) SetupTest() {
 
 	s.clock = clock.NewMock(s.T())
 	s.serverCA = fakeserverca.New(s.T(), "example.org", &fakeserverca.Options{
-		Clock:      s.clock,
-		DefaultTTL: testTTL,
+		Clock:       s.clock,
+		X509SVIDTTL: testTTL,
 	})
 	s.r = NewRotator(&RotatorConfig{
 		ServerCA:    s.serverCA,
@@ -68,7 +69,7 @@ func (s *RotatorTestSuite) TestRotation() {
 	s.Require().NoError(err)
 
 	// The call to initialize should do the first rotation
-	s.requireNewCert(stream, 1)
+	cert := s.requireNewCert(stream, 1)
 
 	// Run should rotate whenever the certificate is within half of its
 	// remaining lifetime.
@@ -81,31 +82,34 @@ func (s *RotatorTestSuite) TestRotation() {
 	s.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")
 
 	// "expire" the certificate and see that it rotates
-	s.clock.Add(testTTL / 2)
+	s.clock.Set(certHalfLife(cert))
 	s.clock.Add(DefaultRotatorInterval)
-	s.requireNewCert(stream, 2)
+	cert = s.requireNewCert(stream, 2)
 
 	// one more time for good measure.
-	s.clock.Add(testTTL / 2)
+	s.clock.Set(certHalfLife(cert))
 	s.clock.Add(DefaultRotatorInterval)
-	s.requireNewCert(stream, 3)
+	cert = s.requireNewCert(stream, 3)
 
 	// certificate just BARELY before the threshold, so it shouldn't rotate.
-	s.clock.Add(testTTL/2 - time.Second)
+	s.clock.Set(certHalfLife(cert).Add(-time.Minute))
 	s.clock.Add(DefaultRotatorInterval)
 	s.requireStateChangeTimeout(stream)
 }
 
-func (s *RotatorTestSuite) requireNewCert(stream observer.Stream, serialNumber int64) {
+func (s *RotatorTestSuite) requireNewCert(stream observer.Stream, serialNumber int64) *x509.Certificate {
 	timer := time.NewTimer(time.Second * 10)
 	defer timer.Stop()
 	select {
 	case <-stream.Changes():
 		state := stream.Next().(State)
-		s.Require().Len(state.SVID, 2) // SVID and server CA
+		s.Require().Len(state.SVID, 1)
 		s.Require().Equal(0, state.SVID[0].SerialNumber.Cmp(big.NewInt(serialNumber)))
+		return state.SVID[0]
 	case <-timer.C:
 		s.FailNow("timeout waiting from stream change")
+		// unreachable
+		return nil
 	}
 }
 

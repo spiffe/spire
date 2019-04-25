@@ -91,7 +91,7 @@ type HandlerSuite struct {
 	clock            *clock.Mock
 	bundle           *common.Bundle
 	agentSVID        []*x509.Certificate
-	serverCA         *fakeserverca.ServerCA
+	serverCA         *fakeserverca.CA
 }
 
 func (s *HandlerSuite) SetupTest() {
@@ -768,7 +768,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 
 	s.NotEmpty(svid.Token)
 	s.Equal(s.clock.Now().Unix(), svid.IssuedAt)
-	s.Equal(s.clock.Now().Add(s.serverCA.DefaultTTL()).Unix(), svid.ExpiresAt)
+	s.Equal(s.clock.Now().Add(ca.DefaultJWTSVIDTTL).Unix(), svid.ExpiresAt)
 }
 
 func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {

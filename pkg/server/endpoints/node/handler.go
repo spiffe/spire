@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"path"
 	"strings"
@@ -662,6 +663,17 @@ func (h *Handler) signCSRs(ctx context.Context,
 
 		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", h.c.TrustDomain.String())
 
+		sourceAddress := "unknown"
+		if peerAddress, ok := getPeerAddress(ctx); ok {
+			sourceAddress = peerAddress.String()
+		}
+
+		signLog := h.c.Log.WithFields(logrus.Fields{
+			"caller_id":      callerID,
+			"spiffe_id":      spiffeID,
+			"source_address": sourceAddress,
+		})
+
 		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
 			res, err := ds.FetchAttestedNode(ctx,
 				&datastore.FetchAttestedNodeRequest{SpiffeId: spiffeID},
@@ -681,7 +693,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 				return nil, errors.New("SVID serial number does not match")
 			}
 
-			h.c.Log.Debugf("Signing SVID for %v on request by %v", spiffeID, callerID)
+			signLog.Debug("Renewing agent SVID")
 			svid, svidCert, err := h.buildBaseSVID(ctx, csr)
 			if err != nil {
 				return nil, err
@@ -693,7 +705,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 			}
 
 		} else if spiffeID == h.c.TrustDomain.String() {
-			h.c.Log.Debugf("Signing downstream SVID for %v on request by %v", spiffeID, callerID)
+			signLog.Debug("Signing downstream CA SVID")
 			e, err := h.getDownstreamEntry(ctx, callerID)
 			if err != nil {
 				return nil, err
@@ -709,7 +721,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 			}
 			svids[spiffeID] = svid
 		} else {
-			h.c.Log.Debugf("Signing SVID for %v on request by %v", spiffeID, callerID)
+			signLog.Debug("Signing SVID")
 			svid, err := h.buildSVID(ctx, spiffeID, regEntriesMap, csr)
 			if err != nil {
 				return nil, err
@@ -873,10 +885,7 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 
 func makeX509SVID(svid []*x509.Certificate) *node.X509SVID {
 	var certChain []byte
-	// The svid slice contains all of the certificates back to the signing
-	// root. We only want to return the SVID and intermediates necessary to
-	// chain back to the root, so skip the last element.
-	for _, cert := range svid[:len(svid)-1] {
+	for _, cert := range svid {
 		certChain = append(certChain, cert.Raw...)
 	}
 	return &node.X509SVID{
@@ -894,4 +903,12 @@ func withPeerCertificate(ctx context.Context, peerCert *x509.Certificate) contex
 func getPeerCertificate(ctx context.Context) (*x509.Certificate, bool) {
 	peerCert, ok := ctx.Value(peerCertificateKey{}).(*x509.Certificate)
 	return peerCert, ok
+}
+
+func getPeerAddress(ctx context.Context) (addr net.Addr, ok bool) {
+	p, ok := peer.FromContext(ctx)
+	if ok {
+		return p.Addr, true
+	}
+	return nil, false
 }
