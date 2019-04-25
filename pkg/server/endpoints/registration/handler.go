@@ -66,7 +66,7 @@ func (h *Handler) CreateEntry(
 	}
 
 	if !unique {
-		err = errors.New("Entry already exists")
+		err = status.Error(codes.AlreadyExists, "entry already exists")
 		h.Log.Error(err)
 		return nil, err
 	}
