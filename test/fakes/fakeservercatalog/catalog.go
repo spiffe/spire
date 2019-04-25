@@ -35,7 +35,11 @@ func (c *Catalog) AddNodeResolverNamed(name string, nodeResolver noderesolver.No
 }
 
 func (c *Catalog) SetUpstreamCA(upstreamCA upstreamca.UpstreamCA) {
-	c.UpstreamCA = &upstreamCA
+	if upstreamCA == nil {
+		c.UpstreamCA = nil
+	} else {
+		c.UpstreamCA = &upstreamCA
+	}
 }
 
 func (c *Catalog) SetKeyManager(keyManager keymanager.KeyManager) {

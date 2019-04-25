@@ -13,6 +13,7 @@ type idType int
 const (
 	anyId idType = iota
 	trustDomainId
+	memberId
 	workloadId
 	agentId
 	serverId
@@ -48,6 +49,8 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 		switch options.idType {
 		case trustDomainId:
 			kind = "trust domain "
+		case memberId:
+			kind = "trust domain member "
 		case workloadId:
 			kind = "workload "
 		case serverId:
@@ -95,6 +98,10 @@ func ValidateSpiffeIDURL(id *url.URL, mode ValidationMode) error {
 	case trustDomainId:
 		if id.Path != "" {
 			return validationError("path is not empty")
+		}
+	case memberId:
+		if id.Path == "" {
+			return validationError("path is empty")
 		}
 	case workloadId:
 		if id.Path == "" {
@@ -174,12 +181,14 @@ func AllowAny() ValidationMode {
 	return validationMode{}
 }
 
-// Allows any well-formed SPIFFE ID either for, or belonging to, a specific trust domain.
+// Allows any well-formed SPIFFE ID belonging to a specific trust domain,
+// excluding the trust domain ID itself.
 func AllowAnyInTrustDomain(trustDomain string) ValidationMode {
 	return validationMode{
 		options: validationOptions{
 			trustDomain:         trustDomain,
 			trustDomainRequired: true,
+			idType:              memberId,
 		},
 	}
 }

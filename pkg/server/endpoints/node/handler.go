@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"path"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -242,15 +242,10 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			counter.AddLabel("spiffe_id", spiffeID)
 		}
 
-		// TODO: remove in 0.8, along with deprecated fields
-		ourBundle := bundles[h.c.TrustDomain.String()]
-
 		err = server.Send(&node.FetchX509SVIDResponse{
 			SvidUpdate: &node.X509SVIDUpdate{
 				Svids:               svids,
-				DEPRECATEDBundle:    makeDeprecatedBundle(ourBundle).CaCerts,
 				RegistrationEntries: regEntries,
-				DEPRECATEDBundles:   makeDeprecatedBundles(bundles),
 				Bundles:             bundles,
 			},
 		})
@@ -612,17 +607,13 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 		return nil, err
 	}
 
-	// TODO: remove in 0.8, along with deprecated fields
-	ourBundle := bundles[h.c.TrustDomain.String()]
-
-	svidUpdate := &node.X509SVIDUpdate{
-		Svids:               svids,
-		DEPRECATEDBundle:    makeDeprecatedBundle(ourBundle).CaCerts,
-		RegistrationEntries: regEntries,
-		DEPRECATEDBundles:   makeDeprecatedBundles(bundles),
-		Bundles:             bundles,
-	}
-	return &node.AttestResponse{SvidUpdate: svidUpdate}, nil
+	return &node.AttestResponse{
+		SvidUpdate: &node.X509SVIDUpdate{
+			Svids:               svids,
+			RegistrationEntries: regEntries,
+			Bundles:             bundles,
+		},
+	}, nil
 }
 
 func (h *Handler) getDownstreamEntry(ctx context.Context, callerID string) (*common.RegistrationEntry, error) {
@@ -672,6 +663,17 @@ func (h *Handler) signCSRs(ctx context.Context,
 
 		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", h.c.TrustDomain.String())
 
+		sourceAddress := "unknown"
+		if peerAddress, ok := getPeerAddress(ctx); ok {
+			sourceAddress = peerAddress.String()
+		}
+
+		signLog := h.c.Log.WithFields(logrus.Fields{
+			"caller_id":      callerID,
+			"spiffe_id":      spiffeID,
+			"source_address": sourceAddress,
+		})
+
 		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
 			res, err := ds.FetchAttestedNode(ctx,
 				&datastore.FetchAttestedNodeRequest{SpiffeId: spiffeID},
@@ -691,7 +693,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 				return nil, errors.New("SVID serial number does not match")
 			}
 
-			h.c.Log.Debugf("Signing SVID for %v on request by %v", spiffeID, callerID)
+			signLog.Debug("Renewing agent SVID")
 			svid, svidCert, err := h.buildBaseSVID(ctx, csr)
 			if err != nil {
 				return nil, err
@@ -703,7 +705,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 			}
 
 		} else if spiffeID == h.c.TrustDomain.String() {
-			h.c.Log.Debugf("Signing downstream SVID for %v on request by %v", spiffeID, callerID)
+			signLog.Debug("Signing downstream CA SVID")
 			e, err := h.getDownstreamEntry(ctx, callerID)
 			if err != nil {
 				return nil, err
@@ -719,7 +721,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 			}
 			svids[spiffeID] = svid
 		} else {
-			h.c.Log.Debugf("Signing SVID for %v on request by %v", spiffeID, callerID)
+			signLog.Debug("Signing SVID")
 			svid, err := h.buildSVID(ctx, spiffeID, regEntriesMap, csr)
 			if err != nil {
 				return nil, err
@@ -854,21 +856,6 @@ func createAttestationEntry(ctx context.Context, ds datastore.DataStore, cert *x
 	return nil
 }
 
-func makeDeprecatedBundle(b *common.Bundle) *node.Bundle {
-	return &node.Bundle{
-		Id:      b.TrustDomainId,
-		CaCerts: bundleutil.RootCAsDERFromBundleProto(b),
-	}
-}
-
-func makeDeprecatedBundles(bs map[string]*common.Bundle) map[string]*node.Bundle {
-	out := make(map[string]*node.Bundle)
-	for k, v := range bs {
-		out[k] = makeDeprecatedBundle(v)
-	}
-	return out
-}
-
 func getSpiffeIDFromCSR(csrBytes []byte, mode idutil.ValidationMode) (string, error) {
 	csr, err := x509.ParseCertificateRequest(csrBytes)
 	if err != nil {
@@ -898,16 +885,12 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 
 func makeX509SVID(svid []*x509.Certificate) *node.X509SVID {
 	var certChain []byte
-	// The svid slice contains all of the certificates back to the signing
-	// root. We only want to return the SVID and intermediates necessary to
-	// chain back to the root, so skip the last element.
-	for _, cert := range svid[:len(svid)-1] {
+	for _, cert := range svid {
 		certChain = append(certChain, cert.Raw...)
 	}
 	return &node.X509SVID{
-		DEPRECATEDCert: svid[0].Raw,
-		CertChain:      certChain,
-		ExpiresAt:      svid[0].NotAfter.Unix(),
+		CertChain: certChain,
+		ExpiresAt: svid[0].NotAfter.Unix(),
 	}
 }
 
@@ -920,4 +903,12 @@ func withPeerCertificate(ctx context.Context, peerCert *x509.Certificate) contex
 func getPeerCertificate(ctx context.Context) (*x509.Certificate, bool) {
 	peerCert, ok := ctx.Value(peerCertificateKey{}).(*x509.Certificate)
 	return peerCert, ok
+}
+
+func getPeerAddress(ctx context.Context) (addr net.Addr, ok bool) {
+	p, ok := peer.FromContext(ctx)
+	if ok {
+		return p.Addr, true
+	}
+	return nil, false
 }

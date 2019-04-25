@@ -163,7 +163,7 @@ func (s *BundleSuite) TestSetWithInvalidTrustDomainID() {
 func (s *BundleSuite) TestSetWithBadBundleData() {
 	rc := s.setCmd.Run([]string{"-id", "spiffe://otherdomain.test"})
 	s.Require().Equal(1, rc)
-	s.Require().Equal("invalid bundle data: no PEM blocks\n", s.stderr.String())
+	s.Require().Equal("unable to parse bundle data: no PEM blocks\n", s.stderr.String())
 }
 
 func (s *BundleSuite) TestSetCreatesBundle() {

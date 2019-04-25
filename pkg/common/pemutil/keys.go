@@ -25,6 +25,22 @@ func LoadPrivateKey(path string) (crypto.PrivateKey, error) {
 	return block.Object, nil
 }
 
+func ParseSigner(pemBytes []byte) (crypto.Signer, error) {
+	privateKey, err := ParsePrivateKey(pemBytes)
+	if err != nil {
+		return nil, err
+	}
+	return signerFromPrivateKey(privateKey)
+}
+
+func LoadSigner(path string) (crypto.Signer, error) {
+	privateKey, err := LoadPrivateKey(path)
+	if err != nil {
+		return nil, err
+	}
+	return signerFromPrivateKey(privateKey)
+}
+
 func ParseRSAPrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 	block, err := parseBlock(pemBytes, privateKeyType, rsaPrivateKeyType)
 	if err != nil {
@@ -83,4 +99,12 @@ func ecdsaPrivateKeyFromObject(object interface{}) (*ecdsa.PrivateKey, error) {
 		return nil, fmt.Errorf("expected %T; got %T", key, object)
 	}
 	return key, nil
+}
+
+func signerFromPrivateKey(privateKey crypto.PrivateKey) (crypto.Signer, error) {
+	signer, ok := privateKey.(crypto.Signer)
+	if !ok {
+		return nil, fmt.Errorf("expected crypto.Signer; got %T", privateKey)
+	}
+	return signer, nil
 }

@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"google.golang.org/grpc/codes"
 
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
@@ -80,8 +82,21 @@ func (s *IIDAttestorSuite) SetupTest() {
 }
 
 func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
-	_, err := s.attest(&nodeattestor.AttestRequest{})
-	s.RequireErrorContains(err, "not configured")
+	// the stream should open but the plugin should immediately return an error
+	stream, err := s.p.Attest(context.Background())
+	s.Require().NoError(err)
+	defer stream.CloseSend()
+
+	// Send() will either succeed or return EOF if the gRPC stream has already
+	// been torn down due to the plugin-side failure.
+	err = stream.Send(&nodeattestor.AttestRequest{})
+	if err != nil && err != io.EOF {
+		s.Require().NoError(err)
+	}
+
+	// Recv() should fail.
+	_, err = stream.Recv()
+	s.RequireGRPCStatus(err, codes.Unknown, "not configured")
 }
 
 func (s *IIDAttestorSuite) TestErrorOnEmptyRequest() {
@@ -427,8 +442,8 @@ func getDefaultDescribeInstancesOutput() ec2.DescribeInstancesOutput {
 
 func (s *IIDAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
 	stream, err := s.p.Attest(context.Background())
-	defer stream.CloseSend()
 	s.Require().NoError(err)
+	defer stream.CloseSend()
 	err = stream.Send(req)
 	s.Require().NoError(err)
 	return stream.Recv()

@@ -91,7 +91,7 @@ type HandlerSuite struct {
 	clock            *clock.Mock
 	bundle           *common.Bundle
 	agentSVID        []*x509.Certificate
-	serverCA         *fakeserverca.ServerCA
+	serverCA         *fakeserverca.CA
 }
 
 func (s *HandlerSuite) SetupTest() {
@@ -768,7 +768,7 @@ func (s *HandlerSuite) TestFetchJWTSVIDWithWorkloadID() {
 
 	s.NotEmpty(svid.Token)
 	s.Equal(s.clock.Now().Unix(), svid.IssuedAt)
-	s.Equal(s.clock.Now().Add(s.serverCA.DefaultTTL()).Unix(), svid.ExpiresAt)
+	s.Equal(s.clock.Now().Add(ca.DefaultJWTSVIDTTL).Unix(), svid.ExpiresAt)
 }
 
 func (s *HandlerSuite) TestAuthorizeCallUnhandledMethod() {
@@ -1056,23 +1056,6 @@ func (s *HandlerSuite) requireFetchJWTSVIDFailure(req *node.FetchJWTSVIDRequest,
 }
 
 func (s *HandlerSuite) assertBundlesInUpdate(upd *node.X509SVIDUpdate, federatedBundles ...*common.Bundle) {
-	// DEPRECATEDBundle field should contain the trust domain bundle certs
-	s.Equal(upd.DEPRECATEDBundle, s.bundle.RootCas[0].DerBytes)
-
-	// DEPRECATEDBundles should have an entry for the trust domain and each
-	// federated domain
-	s.Len(upd.DEPRECATEDBundles, 1+len(federatedBundles))
-	s.True(proto.Equal(upd.DEPRECATEDBundles[trustDomainID], &node.Bundle{
-		Id:      s.bundle.TrustDomainId,
-		CaCerts: s.bundle.RootCas[0].DerBytes,
-	}))
-	for _, federatedBundle := range federatedBundles {
-		s.True(proto.Equal(
-			upd.DEPRECATEDBundles[federatedBundle.TrustDomainId],
-			makeDeprecatedBundle(federatedBundle),
-		))
-	}
-
 	// Bundles should have an entry for the trust domain and each federated domain
 	s.Len(upd.Bundles, 1+len(federatedBundles))
 	s.True(proto.Equal(upd.Bundles[trustDomainID], s.bundle))
@@ -1101,12 +1084,6 @@ func (s *HandlerSuite) assertSVIDsInUpdate(upd *node.X509SVIDUpdate, spiffeIDs .
 		}
 
 		s.Len(svidChain, 1)
-
-		// DEPRECATEDCert should match first certificate in SVID chain
-		deprecatedCert, err := x509.ParseCertificate(svidEntry.DEPRECATEDCert)
-		if s.NoError(err, "parsing deprecated cert") {
-			s.True(svidChain[0].Equal(deprecatedCert))
-		}
 
 		// ExpiresAt should match NotAfter in first certificate in SVID chain
 		s.WithinDuration(svidChain[0].NotAfter, time.Unix(svidEntry.ExpiresAt, 0), 0)
