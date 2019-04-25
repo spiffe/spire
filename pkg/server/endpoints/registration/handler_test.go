@@ -310,7 +310,7 @@ func (s *HandlerSuite) TestCreateEntry() {
 		{
 			Name:  "Parent ID is malformed",
 			Entry: &common.RegistrationEntry{ParentId: "FOO"},
-			Err:   `"FOO" is not a valid SPIFFE ID`,
+			Err:   `"FOO" is not a valid trust domain member SPIFFE ID`,
 		},
 		{
 			Name:  "SPIFFE ID is malformed",
@@ -389,7 +389,7 @@ func (s *HandlerSuite) TestUpdateEntry() {
 		{
 			Name:  "Parent ID is malformed",
 			Entry: &common.RegistrationEntry{EntryId: "X", ParentId: "FOO"},
-			Err:   `"FOO" is not a valid SPIFFE ID`,
+			Err:   `"FOO" is not a valid trust domain member SPIFFE ID`,
 		},
 		{
 			Name:  "SPIFFE ID is malformed",

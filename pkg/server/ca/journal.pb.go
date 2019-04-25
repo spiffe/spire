@@ -27,8 +27,7 @@ type X509CAEntry struct {
 	IssuedAt int64 `protobuf:"varint,2,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`
 	// DER encoded CA certificate
 	Certificate []byte `protobuf:"bytes,3,opt,name=certificate,proto3" json:"certificate,omitempty"`
-	// DER encoded upstream CA chain. This will also contain the CA certificate.
-	// See the X509CA struct for details.
+	// DER encoded upstream CA chain. See the X509CA struct for details.
 	UpstreamChain        [][]byte `protobuf:"bytes,4,rep,name=upstream_chain,json=upstreamChain,proto3" json:"upstream_chain,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

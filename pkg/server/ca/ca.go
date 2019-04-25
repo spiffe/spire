@@ -56,10 +56,10 @@ type X509CA struct {
 	// Certificate is the CA certificate.
 	Certificate *x509.Certificate
 
-	// UpstreamChain contains the CA certificate and intermediates necessary
-	// to chain back to the upstream trust bundle. It is only set if the CA
-	// is signed by an UpstreamCA and the upstream trust bundle is included in
-	// the SPIRE trust bundle (see the upstream_bundle configurable).
+	// UpstreamChain contains the CA certificate and intermediates necessary to
+	// chain back to the upstream trust bundle. It is only set if the CA is
+	// signed by an UpstreamCA and the upstream trust bundle *is* the SPIRE
+	// trust bundle (see the upstream_bundle configurable).
 	UpstreamChain []*x509.Certificate
 }
 

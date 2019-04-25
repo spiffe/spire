@@ -11,8 +11,7 @@ message X509CAEntry {
     // DER encoded CA certificate
     bytes certificate = 3;
 
-    // DER encoded upstream CA chain. This will also contain the CA certificate.
-    // See the X509CA struct for details.
+    // DER encoded upstream CA chain. See the X509CA struct for details.
     repeated bytes upstream_chain = 4;
 }
 

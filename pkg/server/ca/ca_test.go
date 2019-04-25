@@ -76,17 +76,12 @@ func (s *CATestSuite) SetupTest() {
 
 func (s *CATestSuite) TestNoX509CASet() {
 	s.ca.SetX509CA(nil)
-	_, err := s.ca.SignX509CASVID(ctx, s.generateCSR("example.org"), X509Params{})
+	_, err := s.ca.SignX509CASVID(ctx, s.generateCSR(), X509Params{})
 	s.Require().EqualError(err, "X509 CA is not available for signing")
 }
 
 func (s *CATestSuite) TestSignX509SVID() {
-	subject := pkix.Name{
-		Country:      []string{"IGNORE ME"},
-		Organization: []string{"IGNORE ME"},
-	}
-
-	svidChain, err := s.ca.SignX509SVID(ctx, s.generateCSRWithSubject("example.org", subject), X509Params{})
+	svidChain, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svidChain, 1)
 
@@ -102,15 +97,23 @@ func (s *CATestSuite) TestSignX509SVID() {
 
 	// SPIFFE ID should be set to that of the trust domain
 	if s.Len(svid.URIs, 1, "has no URIs") {
-		s.Equal("spiffe://example.org", svid.URIs[0].String())
+		s.Equal("spiffe://example.org/workload", svid.URIs[0].String())
 	}
 
 	// Subject is hard coded by the CA and should not be pulled from the CSR.
 	s.Equal("O=SPIRE,C=US", svid.Subject.String())
 }
 
+func (s *CATestSuite) TestSignX509SVIDCannotSignTrustDomainID() {
+	csr := s.createCSR(&x509.CertificateRequest{
+		URIs: []*url.URL{makeTrustDomainID("example.org")},
+	})
+	_, err := s.ca.SignX509SVID(ctx, csr, X509Params{})
+	s.Require().EqualError(err, `"spiffe://example.org" is not a valid trust domain member SPIFFE ID: path is empty`)
+}
+
 func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLIfTTLUnspecified() {
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
@@ -118,7 +121,7 @@ func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLIfTTLUnspecified() {
 }
 
 func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLAndNoCNDNS() {
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
@@ -129,7 +132,7 @@ func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLAndNoCNDNS() {
 
 func (s *CATestSuite) TestSignX509SVIDSingleDNS() {
 	dnsList := []string{"somehost1"}
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{DNSList: dnsList})
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{DNSList: dnsList})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
@@ -140,7 +143,7 @@ func (s *CATestSuite) TestSignX509SVIDSingleDNS() {
 
 func (s *CATestSuite) TestSignX509SVIDMultipleDNS() {
 	dnsList := []string{"somehost1", "somehost2", "somehost3"}
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{DNSList: dnsList})
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{DNSList: dnsList})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
@@ -151,7 +154,7 @@ func (s *CATestSuite) TestSignX509SVIDMultipleDNS() {
 
 func (s *CATestSuite) TestSignX509SVIDReturnsChainIfIntermediate() {
 	s.setX509CA(true)
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 3)
 	s.Require().NotNil(svid[0])
@@ -160,7 +163,7 @@ func (s *CATestSuite) TestSignX509SVIDReturnsChainIfIntermediate() {
 }
 
 func (s *CATestSuite) TestSignX509SVIDUsesTTLIfSpecified() {
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{TTL: time.Minute + time.Second})
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{TTL: time.Minute + time.Second})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
@@ -168,16 +171,16 @@ func (s *CATestSuite) TestSignX509SVIDUsesTTLIfSpecified() {
 }
 
 func (s *CATestSuite) TestSignX509SVIDCapsTTLToCATTL() {
-	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{TTL: time.Hour})
+	svid, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{TTL: time.Hour})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.clock.Now().Add(10*time.Minute), svid[0].NotAfter)
 }
 
-func (s *CATestSuite) TestSignX509SVIDValidatesCSR() {
-	_, err := s.ca.SignX509SVID(ctx, s.generateCSR("foo.com"), X509Params{})
-	s.Require().EqualError(err, `"spiffe://foo.com" does not belong to trust domain "example.org"`)
+func (s *CATestSuite) TestSignX509SVIDValidatesTrustDomain() {
+	_, err := s.ca.SignX509SVID(ctx, s.generateCSRInDomain("foo.com"), X509Params{})
+	s.Require().EqualError(err, `"spiffe://foo.com/workload" does not belong to trust domain "example.org"`)
 }
 
 func (s *CATestSuite) TestSignX509SVIDWithEvilSubject() {
@@ -185,7 +188,7 @@ func (s *CATestSuite) TestSignX509SVIDWithEvilSubject() {
 		Subject: pkix.Name{
 			CommonName: "mybank.example.org",
 		},
-		URIs: []*url.URL{makeSpiffeID("example.org")},
+		URIs: []*url.URL{makeWorkloadID("example.org")},
 	}
 	certs, err := s.ca.SignX509SVID(ctx, s.createCSR(csr), X509Params{})
 	s.Require().NoError(err)
@@ -193,11 +196,11 @@ func (s *CATestSuite) TestSignX509SVIDWithEvilSubject() {
 }
 
 func (s *CATestSuite) TestSignX509SVIDIncrementsSerialNumber() {
-	svid1, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
+	svid1, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid1, 1)
 	s.Require().Equal(0, svid1[0].SerialNumber.Cmp(big.NewInt(1)))
-	svid2, err := s.ca.SignX509SVID(ctx, s.generateCSR("example.org"), X509Params{})
+	svid2, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid2, 1)
 	s.Require().Equal(0, svid2[0].SerialNumber.Cmp(big.NewInt(2)))
@@ -249,11 +252,7 @@ func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
 }
 
 func (s *CATestSuite) TestSignX509CASVID() {
-	subject := pkix.Name{
-		Country:      []string{"IGNORE ME"},
-		Organization: []string{"IGNORE ME"},
-	}
-	svidChain, err := s.ca.SignX509CASVID(ctx, s.generateCSRWithSubject("example.org", subject), X509Params{})
+	svidChain, err := s.ca.SignX509CASVID(ctx, s.generateCACSR("example.org"), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svidChain, 1)
 
@@ -277,11 +276,16 @@ func (s *CATestSuite) TestSignX509CASVID() {
 }
 
 func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
-	svid, err := s.ca.SignX509CASVID(ctx, s.generateCSR("example.org"), X509Params{})
+	svid, err := s.ca.SignX509CASVID(ctx, s.generateCACSR("example.org"), X509Params{})
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
+}
+
+func (s *CATestSuite) TestSignCAX509SVIDValidatesTrustDomain() {
+	_, err := s.ca.SignX509SVID(ctx, s.generateCACSR("foo.com"), X509Params{})
+	s.Require().EqualError(err, `"spiffe://foo.com" does not belong to trust domain "example.org"`)
 }
 
 func (s *CATestSuite) setX509CA(upstreamBundle bool) {
@@ -304,16 +308,27 @@ func (s *CATestSuite) setJWTKey() {
 	})
 }
 
-func (s *CATestSuite) generateCSR(trustDomain string) []byte {
+func (s *CATestSuite) generateCSR() []byte {
+	return s.generateCSRInDomain("example.org")
+}
+
+func (s *CATestSuite) generateCSRInDomain(trustDomain string) []byte {
 	return s.createCSR(&x509.CertificateRequest{
-		URIs: []*url.URL{makeSpiffeID(trustDomain)},
+		Subject: pkix.Name{
+			Country:      []string{"IGNORE ME"},
+			Organization: []string{"IGNORE ME"},
+		},
+		URIs: []*url.URL{makeWorkloadID(trustDomain)},
 	})
 }
 
-func (s *CATestSuite) generateCSRWithSubject(trustDomain string, subject pkix.Name) []byte {
+func (s *CATestSuite) generateCACSR(trustDomain string) []byte {
 	return s.createCSR(&x509.CertificateRequest{
-		Subject: subject,
-		URIs:    []*url.URL{makeSpiffeID(trustDomain)},
+		Subject: pkix.Name{
+			Country:      []string{"IGNORE ME"},
+			Organization: []string{"IGNORE ME"},
+		},
+		URIs: []*url.URL{makeTrustDomainID(trustDomain)},
 	})
 }
 
@@ -324,7 +339,7 @@ func (s *CATestSuite) createCSR(csr *x509.CertificateRequest) []byte {
 }
 
 func (s *CATestSuite) generateJSR(trustDomain string, ttl time.Duration) *node.JSR {
-	workloadId := makeSpiffeID(trustDomain)
+	workloadId := makeWorkloadID(trustDomain)
 	workloadId.Path = "foo"
 	return &node.JSR{
 		SpiffeId: workloadId.String(),
@@ -353,6 +368,10 @@ func (s *CATestSuite) createCACertificate(cn string, parent *x509.Certificate) *
 	return cert
 }
 
-func makeSpiffeID(trustDomain string) *url.URL {
+func makeWorkloadID(trustDomain string) *url.URL {
+	return &url.URL{Scheme: "spiffe", Host: trustDomain, Path: "/workload"}
+}
+
+func makeTrustDomainID(trustDomain string) *url.URL {
 	return &url.URL{Scheme: "spiffe", Host: trustDomain}
 }
