@@ -82,11 +82,10 @@ server {
         log_level = "DEBUG"
         base_svid_ttl = 999999
         server_svid_ttl = 999999
-        umask = ""
 }
 
 plugins {
-        ServerCA "memory" { 
+        ServerCA "memory" {
         plugin_data {
                 key_size = 2048,
                 backdate_seconds = 1,
@@ -153,7 +152,6 @@ plugins {
         socket_path ="/tmp/agent.sock"
         trust_bundle_path = "conf/agent/dummy_root_ca.crt"
         trust_domain = "example.org"
-        umask = ""
     }
 
     plugins {
