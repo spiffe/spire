@@ -16,7 +16,6 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -60,12 +59,10 @@ type agentRunConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
-	Umask            string   `hcl:"umask"`
 }
 
 type agentConfig struct {
 	agent.Config
-	umask int
 }
 
 type RunCLI struct {
@@ -104,8 +101,6 @@ func (*RunCLI) Run(args []string) int {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-
-	cli.SetUmask(c.Log, c.umask)
 
 	agt := agent.New(&c.Config)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -170,7 +165,6 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.StringVar(&c.AgentConfig.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
 
 	flags.StringVar(&c.AgentConfig.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
-	flags.StringVar(&c.AgentConfig.Umask, "umask", "", "Umask value to use for new files")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -250,14 +244,6 @@ func mergeConfig(orig *agentConfig, cmd *runConfig) error {
 		orig.Log = logger
 	}
 
-	if cmd.AgentConfig.Umask != "" {
-		umask, err := strconv.ParseInt(cmd.AgentConfig.Umask, 0, 0)
-		if err != nil {
-			return fmt.Errorf("Could not parse umask %s: %s", cmd.AgentConfig.Umask, err)
-		}
-		orig.umask = int(umask)
-	}
-
 	if cmd.AgentConfig.ProfilingEnabled {
 		orig.ProfilingEnabled = cmd.AgentConfig.ProfilingEnabled
 	}
@@ -311,7 +297,6 @@ func newDefaultConfig() *agentConfig {
 			DataDir:     defaultDataDir,
 			Log:         logger,
 		},
-		umask: -1,
 	}
 }
 
