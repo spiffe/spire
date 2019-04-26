@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -112,6 +113,9 @@ func (*RunCLI) Run(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+
+	// set umask before starting up the server
+	cli.SetUmask(c.Log)
 
 	s := server.New(c.Config)
 

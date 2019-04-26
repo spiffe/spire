@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -101,6 +102,8 @@ func (*RunCLI) Run(args []string) int {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
+
+	cli.SetUmask(c.Log)
 
 	agt := agent.New(&c.Config)
 	ctx, cancel := context.WithCancel(context.Background())
