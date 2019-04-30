@@ -2,7 +2,7 @@
 
 ## Overview
 
-This walkthrough will guide you through the steps needed to setup a running example of a SPIRE Server and SPIRE Agent. Interaction with the [Workload API](../proto/api/workload/workload.proto) will be simulated via a command line tool.
+This walkthrough will guide you through the steps needed to setup a running example of a SPIRE Server and SPIRE Agent. Interaction with the [Workload API](../proto/spire/api/workload/workload.proto) will be simulated via a command line tool.
 
 
  ![SPIRE101](images/SPIRE101.png)
