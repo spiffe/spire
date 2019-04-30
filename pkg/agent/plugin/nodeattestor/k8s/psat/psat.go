@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
-	"github.com/spiffe/spire/pkg/common/plugin/k8s/client"
+	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -38,15 +38,15 @@ func builtin(p *AttestorPlugin) catalog.Plugin {
 // New creates a new PSAT attestor plugin
 func New() *AttestorPlugin {
 	return &AttestorPlugin{
-		k8sClient: client.NewK8SClient(""),
+		client: apiserver.New(""),
 	}
 }
 
 // AttestorPlugin is a PSAT (projected SAT) attestor plugin
 type AttestorPlugin struct {
-	mu        sync.RWMutex
-	config    *attestorConfig
-	k8sClient client.K8SClient
+	mu     sync.RWMutex
+	config *attestorConfig
+	client apiserver.Client
 }
 
 // AttestorConfig holds configuration for AttestorPlugin
@@ -95,7 +95,7 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 		return psatError.New("token claim pod name is empty")
 	}
 
-	nodeName, err := p.k8sClient.GetNode(claims.K8s.Namespace, claims.K8s.Pod.Name)
+	nodeName, err := p.client.GetNode(claims.K8s.Namespace, claims.K8s.Pod.Name)
 	if err != nil {
 		return psatError.New("fail to get node name from apiserver: %v", err)
 	}

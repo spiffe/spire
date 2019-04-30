@@ -15,7 +15,7 @@ import (
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	k8s_cli_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/client"
+	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
@@ -42,10 +42,10 @@ func TestAttestorPlugin(t *testing.T) {
 type AttestorSuite struct {
 	spiretest.Suite
 
-	dir           string
-	attestor      nodeattestor.Plugin
-	mockCtrl      *gomock.Controller
-	k8sClientMock *k8s_cli_mock.MockK8SClient
+	dir        string
+	attestor   nodeattestor.Plugin
+	mockCtrl   *gomock.Controller
+	mockClient *k8s_apiserver_mock.MockClient
 }
 
 func (s *AttestorSuite) SetupTest() {
@@ -107,7 +107,7 @@ func (s *AttestorSuite) TestFetchAttestationFailToGetNodeName() {
 		TokenPath: s.writeValue("token", token),
 	})
 
-	s.k8sClientMock.EXPECT().GetNode("NAMESPACE", "POD-NAME").Times(1).Return("", errors.New("an error"))
+	s.mockClient.EXPECT().GetNode("NAMESPACE", "POD-NAME").Times(1).Return("", errors.New("an error"))
 	s.requireFetchError("fail to get node name from apiserver")
 }
 
@@ -119,7 +119,7 @@ func (s *AttestorSuite) TestFetchAttestationDataSuccess() {
 		TokenPath: s.writeValue("token", token),
 	})
 
-	s.k8sClientMock.EXPECT().GetNode("NAMESPACE", "POD-NAME").Times(1).Return("NODE-NAME", nil)
+	s.mockClient.EXPECT().GetNode("NAMESPACE", "POD-NAME").Times(1).Return("NODE-NAME", nil)
 
 	stream, err := s.attestor.FetchAttestationData(context.Background())
 	s.Require().NoError(err)
@@ -185,8 +185,8 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 
 func (s *AttestorSuite) newAttestor() {
 	attestor := New()
-	s.k8sClientMock = k8s_cli_mock.NewMockK8SClient(s.mockCtrl)
-	attestor.k8sClient = s.k8sClientMock
+	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
+	attestor.client = s.mockClient
 	s.LoadPlugin(builtin(attestor), &s.attestor)
 }
 
