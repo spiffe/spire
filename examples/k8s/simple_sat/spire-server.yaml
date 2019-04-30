@@ -38,6 +38,7 @@ data:
       data_dir = "/run/spire/data"
       log_level = "DEBUG"
       svid_ttl = "1h"
+      upstream_bundle = true
       ca_subject = {
         Country = ["US"],
         Organization = ["SPIFFE"],
