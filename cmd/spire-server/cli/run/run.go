@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/hashicorp/hcl"
@@ -57,7 +56,6 @@ type serverRunConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
-	Umask            string   `hcl:"umask"`
 }
 
 type experimentalConfig struct {
@@ -72,7 +70,6 @@ type caSubjectConfig struct {
 
 type serverConfig struct {
 	server.Config
-	umask int
 }
 
 // Run CLI struct
@@ -118,7 +115,7 @@ func (*RunCLI) Run(args []string) int {
 	}
 
 	// set umask before starting up the server
-	cli.SetUmask(c.Log, c.umask)
+	cli.SetUmask(c.Log)
 
 	s := server.New(c.Config)
 
@@ -176,7 +173,6 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.StringVar(&c.Server.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
 	flags.StringVar(&c.Server.DataDir, "dataDir", "", "Directory to store runtime data to")
 	flags.StringVar(&c.Server.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
-	flags.StringVar(&c.Server.Umask, "umask", "", "Umask value to use for new files")
 	flags.BoolVar(&c.Server.UpstreamBundle, "upstreamBundle", false, "Include upstream CA certificates in the bundle")
 
 	err := flags.Parse(args)
@@ -240,14 +236,6 @@ func mergeConfig(orig *serverConfig, cmd *runConfig) error {
 		}
 
 		orig.Log = logger
-	}
-
-	if cmd.Server.Umask != "" {
-		umask, err := strconv.ParseInt(cmd.Server.Umask, 0, 0)
-		if err != nil {
-			return fmt.Errorf("Could not parse umask %s: %s", cmd.Server.Umask, err)
-		}
-		orig.umask = int(umask)
 	}
 
 	// TODO: CLI should be able to override with `false` value
@@ -336,6 +324,5 @@ func newDefaultConfig() *serverConfig {
 			BindAddress:    bindAddress,
 			BindUDSAddress: bindUDSAddress,
 		},
-		umask: -1,
 	}
 }
