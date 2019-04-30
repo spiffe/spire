@@ -11,7 +11,7 @@ The plugin queries Kubernetes API server to obtain the node in which the agent i
 In this way, it generates SPIFFE IDs with the form:
 
 ```
-spiffe://<trust domain>/spire/agent/k8s_psat/<cluster>/<node name>
+spiffe://<trust domain>/spire/agent/k8s_psat/<cluster>/<node UID>
 ```
 
 The main configuration accepts the following values:

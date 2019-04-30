@@ -5,10 +5,10 @@
 The `k8s_psat` plugin attests nodes running inside of Kubernetes. The server
 validates the signed projected service account token provided by the agent.
 This validation is performed using Kubernetes [Token Review API](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.10/#tokenreview-v1-authentication-k8s-io). In addition to validation, this API provides other useful information (namespace, service account name and pod name) that SPIRE server uses to build selectors.
-Kubernetes API server is also queried to get extra data like node name, which is used to generate a SPIFFE ID with the form:
+Kubernetes API server is also queried to get extra data like node UID, which is used to generate a SPIFFE ID with the form:
 
 ```
-spiffe://<trust domain>/spire/agent/k8s_psat/<cluster>/<node name>
+spiffe://<trust domain>/spire/agent/k8s_psat/<cluster>/<node UID>
 ```
 
 The server does not need to be running in Kubernetes in order to perform node
@@ -44,14 +44,15 @@ A sample configuration for SPIRE server running inside k8s cluster:
 
 This plugin generates the following selectors:
 
-| Selector                   | Example                                | Description                                                                     |
-| -------------------------- | ---------------------------------------| --------------------------------------------------------------------------------|
-| `k8s_psat:cluster`         | `k8s_psat:cluster:MyCluster`           | Name of the cluster (from the plugin config) used to verify the token signature |
-| `k8s_psat:agent_ns`        | `k8s_psat:agent_ns:production`         | Namespace that the agent is running under                                       |
-| `k8s_psat:agent_sa`        | `k8s_psat:agent_sa:spire-agent`        | Service Account the agent is running under                                      |
-| `k8s_psat:agent_pod_name`  | `k8s_psat:agent_pod_name:pod-name`     | Name of the pod in which the agent is running                                   |
-| `k8s_psat:agent_pod_uid`   | `k8s_psat:agent_pod_uid:pod-uid`       | UID of the pod in which the agent is running                                    |
-| `k8s_psat:agent_node_name` | `k8s_psat:agent_node_name:node-1`      | Name of the node in which the agent is running                                  |
+| Selector                   | Example                                                        | Description                                                                     |
+| -------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------|
+| `k8s_psat:cluster`         | `k8s_psat:cluster:MyCluster`                                   | Name of the cluster (from the plugin config) used to verify the token signature |
+| `k8s_psat:agent_ns`        | `k8s_psat:agent_ns:production`                                 | Namespace that the agent is running under                                       |
+| `k8s_psat:agent_sa`        | `k8s_psat:agent_sa:spire-agent`                                | Service Account the agent is running under                                      |
+| `k8s_psat:agent_pod_name`  | `k8s_psat:agent_pod_name:spire-agent-v5wgr`                    | Name of the pod in which the agent is running                                   |
+| `k8s_psat:agent_pod_uid`   | `k8s_psat:agent_pod_uid:79261129-6b60-11e9-9054-0800277ac80f`  | UID of the pod in which the agent is running                                    |
+| `k8s_psat:agent_node_name` | `k8s_psat:agent_node_name:minikube`                            | Name of the node in which the agent is running                                  |
+| `k8s_psat:agent_node_uid`  | `k8s_psat:agent_node_uid:5dbb7b21-65fe-11e9-b1b0-0800277ac80f` | UID of the node in which the agent is running                                   |
 
 
 A full example of this attestor is provided [here](../examples/k8s/simple_psat/README.md).

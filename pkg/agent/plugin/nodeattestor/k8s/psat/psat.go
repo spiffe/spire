@@ -87,17 +87,19 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 		return psatError.New("fail to get claims from token: %v", err)
 	}
 
-	if claims.K8s.Namespace == "" {
-		return psatError.New("token claim namespace is empty")
-	}
-
-	if claims.K8s.Pod.Name == "" {
-		return psatError.New("token claim pod name is empty")
-	}
-
-	nodeName, err := p.client.GetNode(claims.K8s.Namespace, claims.K8s.Pod.Name)
+	pod, err := p.client.GetPod(claims.K8s.Namespace, claims.K8s.Pod.Name)
 	if err != nil {
-		return psatError.New("fail to get node name from apiserver: %v", err)
+		return psatError.New("fail to get pod from k8s API server: %v", err)
+	}
+
+	node, err := p.client.GetNode(pod.Spec.NodeName)
+	if err != nil {
+		return psatError.New("fail to get node from k8s API server: %v", err)
+	}
+
+	nodeUID := string(node.UID)
+	if nodeUID == "" {
+		return psatError.New("node UID is empty")
 	}
 
 	data, err := json.Marshal(k8s.PSATAttestationData{
@@ -113,7 +115,7 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 			Type: pluginName,
 			Data: data,
 		},
-		SpiffeId: k8s.AgentID(pluginName, config.trustDomain, config.cluster, nodeName),
+		SpiffeId: k8s.AgentID(pluginName, config.trustDomain, config.cluster, nodeUID),
 	})
 }
 

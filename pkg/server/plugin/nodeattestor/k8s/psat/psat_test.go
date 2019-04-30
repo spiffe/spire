@@ -29,6 +29,8 @@ import (
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 	k8s_auth "k8s.io/api/authentication/v1"
+	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var (
@@ -255,6 +257,19 @@ func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelisted() {
 	s.requireAttestError(makeAttestRequest("FOO", token), `"NS1:SERVICEACCOUNTNAME" is not a whitelisted service account`)
 }
 
+func (s *AttestorSuite) TestAttestFailsIfCannotGetPod() {
+	tokenData := &TokenData{
+		namespace:          "NS1",
+		serviceAccountName: "SA1",
+		podName:            "PODNAME",
+		podUID:             "PODUID",
+	}
+	token := s.signToken(s.fooSigner, tokenData)
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.mockClient.EXPECT().GetPod("NS1", "PODNAME").Return(nil, errors.New("an error"))
+	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get pod from k8s API server")
+}
+
 func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
 	tokenData := &TokenData{
 		namespace:          "NS1",
@@ -264,8 +279,23 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetNode("NS1", "PODNAME").Return("", errors.New("an error"))
-	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get node name from k8s api")
+	s.mockClient.EXPECT().GetPod("NS1", "PODNAME").Return(createPod("NODENAME"), nil)
+	s.mockClient.EXPECT().GetNode("NODENAME").Return(nil, errors.New("an error"))
+	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get node from k8s API server")
+}
+
+func (s *AttestorSuite) TestAttestFailsIfNodeUIDIsEmpty() {
+	tokenData := &TokenData{
+		namespace:          "NS1",
+		serviceAccountName: "SA1",
+		podName:            "PODNAME",
+		podUID:             "PODUID",
+	}
+	token := s.signToken(s.fooSigner, tokenData)
+	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.mockClient.EXPECT().GetPod("NS1", "PODNAME").Return(createPod("NODENAME"), nil)
+	s.mockClient.EXPECT().GetNode("NODENAME").Return(createNode(""), nil)
+	s.requireAttestError(makeAttestRequest("FOO", token), "node UID is empty")
 }
 
 func (s *AttestorSuite) TestAttestSuccess() {
@@ -278,13 +308,14 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetNode("NS1", "PODNAME-1").Return("NODENAME-1", nil).AnyTimes()
+	s.mockClient.EXPECT().GetPod("NS1", "PODNAME-1").Return(createPod("NODENAME-1"), nil)
+	s.mockClient.EXPECT().GetNode("NODENAME-1").Return(createNode("NODEUID-1"), nil)
 
 	resp, err := s.doAttest(makeAttestRequest("FOO", token))
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().True(resp.Valid)
-	s.Require().Equal(resp.BaseSPIFFEID, "spiffe://example.org/spire/agent/k8s_psat/FOO/NODENAME-1")
+	s.Require().Equal(resp.BaseSPIFFEID, "spiffe://example.org/spire/agent/k8s_psat/FOO/NODEUID-1")
 	s.Require().Nil(resp.Challenge)
 	s.Require().Equal([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:FOO"},
@@ -293,6 +324,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		{Type: "k8s_psat", Value: "agent_pod_name:PODNAME-1"},
 		{Type: "k8s_psat", Value: "agent_pod_uid:PODUID-1"},
 		{Type: "k8s_psat", Value: "agent_node_name:NODENAME-1"},
+		{Type: "k8s_psat", Value: "agent_node_uid:NODEUID-1"},
 	}, resp.Selectors)
 
 	// Success with BAR signed token
@@ -304,14 +336,15 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	}
 	token = s.signToken(s.barSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(token, []string{"AUDIENCE"}).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetNode("NS2", "PODNAME-2").Return("NODENAME-2", nil).AnyTimes()
+	s.mockClient.EXPECT().GetPod("NS2", "PODNAME-2").Return(createPod("NODENAME-2"), nil)
+	s.mockClient.EXPECT().GetNode("NODENAME-2").Return(createNode("NODEUID-2"), nil)
 
 	// Success with FOO signed token
 	resp, err = s.doAttest(makeAttestRequest("BAR", token))
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().True(resp.Valid)
-	s.Require().Equal(resp.BaseSPIFFEID, "spiffe://example.org/spire/agent/k8s_psat/BAR/NODENAME-2")
+	s.Require().Equal(resp.BaseSPIFFEID, "spiffe://example.org/spire/agent/k8s_psat/BAR/NODEUID-2")
 	s.Require().Nil(resp.Challenge)
 	s.Require().Equal([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:BAR"},
@@ -320,6 +353,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		{Type: "k8s_psat", Value: "agent_pod_name:PODNAME-2"},
 		{Type: "k8s_psat", Value: "agent_pod_uid:PODUID-2"},
 		{Type: "k8s_psat", Value: "agent_node_name:NODENAME-2"},
+		{Type: "k8s_psat", Value: "agent_node_uid:NODEUID-2"},
 	}, resp.Selectors)
 }
 
@@ -507,4 +541,18 @@ func createTokenStatus(tokenData *TokenData, authenticated bool) *k8s_auth.Token
 			Extra:    values,
 		},
 	}
+}
+
+func createPod(nodeName string) *v1.Pod {
+	return &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: nodeName,
+		},
+	}
+}
+
+func createNode(nodeUID string) *v1.Node {
+	node := &v1.Node{}
+	node.UID = types.UID(nodeUID)
+	return node
 }

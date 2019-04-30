@@ -2,9 +2,10 @@ package apiserver
 
 import (
 	"errors"
+	"fmt"
 
 	k8s_auth "k8s.io/api/authentication/v1"
-
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -13,8 +14,11 @@ import (
 
 // Client is a client for querying k8s API server
 type Client interface {
-	//GetNode returns the node name in which a given pod lives
-	GetNode(namespace, podName string) (string, error)
+	// GetNode returns the node object for the given node name
+	GetNode(nodeName string) (*v1.Node, error)
+
+	// GetPod returns the pod object for the given pod name and namespace
+	GetPod(namespace, podName string) (*v1.Pod, error)
 
 	// ValidateToken queries k8s token review API and returns information about the given token
 	ValidateToken(token string, audiences []string) (*k8s_auth.TokenReviewStatus, error)
@@ -34,24 +38,57 @@ func New(kubeConfigFilePath string) Client {
 	}
 }
 
-func (c *client) GetNode(namespace, podName string) (string, error) {
+func (c *client) GetPod(namespace, podName string) (*v1.Pod, error) {
+	// Validate inputs
+	if namespace == "" {
+		return nil, errors.New("empty namespace")
+	}
+	if podName == "" {
+		return nil, errors.New("empty pod name")
+	}
+
 	// Reload config
 	clientset, err := c.loadClient()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Get pod
 	pod, err := clientset.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	if pod.Spec.NodeName == "" {
-		return "", errors.New("empty node name")
+	if pod == nil {
+		return nil, fmt.Errorf("got nil pod for pod with name: %v", podName)
 	}
 
-	return pod.Spec.NodeName, nil
+	return pod, nil
+}
+
+func (c *client) GetNode(nodeName string) (*v1.Node, error) {
+	// Validate inputs
+	if nodeName == "" {
+		return nil, errors.New("empty node name")
+	}
+
+	// Reload config
+	clientset, err := c.loadClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get node
+	node, err := clientset.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	if node == nil {
+		return nil, fmt.Errorf("got nil node for node with name: %v", nodeName)
+	}
+
+	return node, nil
 }
 
 func (c *client) ValidateToken(token string, audiences []string) (*k8s_auth.TokenReviewStatus, error) {

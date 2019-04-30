@@ -7,6 +7,7 @@ package mock_apiserver_client
 import (
 	gomock "github.com/golang/mock/gomock"
 	v1 "k8s.io/api/authentication/v1"
+	v10 "k8s.io/api/core/v1"
 	reflect "reflect"
 )
 
@@ -34,16 +35,29 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // GetNode mocks base method
-func (m *MockClient) GetNode(arg0, arg1 string) (string, error) {
-	ret := m.ctrl.Call(m, "GetNode", arg0, arg1)
-	ret0, _ := ret[0].(string)
+func (m *MockClient) GetNode(arg0 string) (*v10.Node, error) {
+	ret := m.ctrl.Call(m, "GetNode", arg0)
+	ret0, _ := ret[0].(*v10.Node)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetNode indicates an expected call of GetNode
-func (mr *MockClientMockRecorder) GetNode(arg0, arg1 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNode", reflect.TypeOf((*MockClient)(nil).GetNode), arg0, arg1)
+func (mr *MockClientMockRecorder) GetNode(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNode", reflect.TypeOf((*MockClient)(nil).GetNode), arg0)
+}
+
+// GetPod mocks base method
+func (m *MockClient) GetPod(arg0, arg1 string) (*v10.Pod, error) {
+	ret := m.ctrl.Call(m, "GetPod", arg0, arg1)
+	ret0, _ := ret[0].(*v10.Pod)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPod indicates an expected call of GetPod
+func (mr *MockClientMockRecorder) GetPod(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPod", reflect.TypeOf((*MockClient)(nil).GetPod), arg0, arg1)
 }
 
 // ValidateToken mocks base method

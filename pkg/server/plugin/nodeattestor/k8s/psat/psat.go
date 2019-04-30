@@ -155,9 +155,19 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return psatError.New("fail to get pod UID from token review status: %v", err)
 	}
 
-	node, err := cluster.client.GetNode(namespace, podName)
+	pod, err := cluster.client.GetPod(namespace, podName)
 	if err != nil {
-		return psatError.New("fail to get node name from k8s api: %v", err)
+		return psatError.New("fail to get pod from k8s API server: %v", err)
+	}
+
+	node, err := cluster.client.GetNode(pod.Spec.NodeName)
+	if err != nil {
+		return psatError.New("fail to get node from k8s API server: %v", err)
+	}
+
+	nodeUID := string(node.UID)
+	if nodeUID == "" {
+		return psatError.New("node UID is empty")
 	}
 
 	selectors := []*common.Selector{
@@ -166,12 +176,13 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		k8s.MakeSelector(pluginName, "agent_sa", serviceAccountName),
 		k8s.MakeSelector(pluginName, "agent_pod_name", podName),
 		k8s.MakeSelector(pluginName, "agent_pod_uid", podUID),
-		k8s.MakeSelector(pluginName, "agent_node_name", node),
+		k8s.MakeSelector(pluginName, "agent_node_name", pod.Spec.NodeName),
+		k8s.MakeSelector(pluginName, "agent_node_uid", nodeUID),
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
 		Valid:        true,
-		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, node),
+		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, nodeUID),
 		Selectors:    selectors,
 	})
 }
