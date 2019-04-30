@@ -60,12 +60,10 @@ type agentRunConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
-	Umask            string   `hcl:"umask"`
 }
 
 type agentConfig struct {
 	agent.Config
-	umask int
 }
 
 type RunCLI struct {
@@ -105,7 +103,7 @@ func (*RunCLI) Run(args []string) int {
 		fmt.Println(err.Error())
 	}
 
-	cli.SetUmask(c.Log, c.umask)
+	cli.SetUmask(c.Log)
 
 	agt := agent.New(&c.Config)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -170,7 +168,6 @@ func parseFlags(args []string) (*runConfig, error) {
 	flags.StringVar(&c.AgentConfig.LogLevel, "logLevel", "", "DEBUG, INFO, WARN or ERROR")
 
 	flags.StringVar(&c.AgentConfig.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
-	flags.StringVar(&c.AgentConfig.Umask, "umask", "", "Umask value to use for new files")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -250,14 +247,6 @@ func mergeConfig(orig *agentConfig, cmd *runConfig) error {
 		orig.Log = logger
 	}
 
-	if cmd.AgentConfig.Umask != "" {
-		umask, err := strconv.ParseInt(cmd.AgentConfig.Umask, 0, 0)
-		if err != nil {
-			return fmt.Errorf("Could not parse umask %s: %s", cmd.AgentConfig.Umask, err)
-		}
-		orig.umask = int(umask)
-	}
-
 	if cmd.AgentConfig.ProfilingEnabled {
 		orig.ProfilingEnabled = cmd.AgentConfig.ProfilingEnabled
 	}
@@ -311,7 +300,6 @@ func newDefaultConfig() *agentConfig {
 			DataDir:     defaultDataDir,
 			Log:         logger,
 		},
-		umask: -1,
 	}
 }
 
