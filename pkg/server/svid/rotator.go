@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"time"
 
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -78,10 +79,7 @@ func (r *rotator) shouldRotate() bool {
 		return true
 	}
 
-	ttl := s.SVID[0].NotAfter.Sub(r.c.Clock.Now())
-	watermark := s.SVID[0].NotAfter.Sub(s.SVID[0].NotBefore) / 2
-
-	return (ttl < watermark)
+	return r.c.Clock.Now().After(certHalfLife(s.SVID[0]))
 }
 
 // rotateSVID cuts a new server SVID from the CA plugin and installs
@@ -115,4 +113,8 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 
 	r.state.Update(s)
 	return nil
+}
+
+func certHalfLife(cert *x509.Certificate) time.Time {
+	return cert.NotBefore.Add(cert.NotAfter.Sub(cert.NotBefore) / 2)
 }
