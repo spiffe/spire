@@ -20,17 +20,13 @@ The following flags must be passed to the Kubernetes API server to properly run 
 + `service-account-issuer`
 + `service-account-api-audiences`
 
-The following flags must be passed to the kubelet to properly run this PSAT attestor example:
-+ `authentication-token-webhook=true`
-
 If you are using minikube, make sure it is started as follows:
 ```
 minikube start --extra-config=apiserver.authorization-mode=RBAC \
                --extra-config=apiserver.service-account-signing-key-file=/var/lib/minikube/certs/sa.key \
                --extra-config=apiserver.service-account-key-file=/var/lib/minikube/certs/sa.pub \
                --extra-config=apiserver.service-account-issuer=api \
-               --extra-config=apiserver.service-account-api-audiences=api,spire-server \
-               --extra-config=kubelet.authentication-token-webhook=true
+               --extra-config=apiserver.service-account-api-audiences=api
 ```
 
 ### Deployment

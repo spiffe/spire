@@ -3,8 +3,6 @@ package psat
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io/ioutil"
 	"sync"
 
@@ -13,7 +11,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
-	"github.com/spiffe/spire/pkg/common/plugin/k8s/kubelet"
+	"github.com/spiffe/spire/pkg/common/plugin/k8s/client"
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -39,45 +37,30 @@ func builtin(p *AttestorPlugin) catalog.Plugin {
 
 // New creates a new PSAT attestor plugin
 func New() *AttestorPlugin {
-	return &AttestorPlugin{}
+	return &AttestorPlugin{
+		k8sClient: client.NewK8SClient(""),
+	}
 }
 
 // AttestorPlugin is a PSAT (projected SAT) attestor plugin
 type AttestorPlugin struct {
-	mu            sync.RWMutex
-	config        *attestorConfig
-	kubeletClient kubelet.Client
+	mu        sync.RWMutex
+	config    *attestorConfig
+	k8sClient client.K8SClient
 }
 
 // AttestorConfig holds configuration for AttestorPlugin
 type AttestorConfig struct {
 	// Cluster name where the agent lives
 	Cluster string `hcl:"cluster"`
-
 	// File path of PSAT
 	TokenPath string `hcl:"token_path"`
-
-	// KubeletCAPath is the path to the CA certificate for authenticating the
-	// kubelet over the secure port. Required when using the secure port unless
-	// SkipKubeletVerification is set. Defaults to the cluster trust bundle.
-	KubeletCAPath string `hcl:"kubelet_ca_path"`
-
-	// SkipKubeletVerification controls whether or not the plugin will
-	// verify the certificate presented by the kubelet.
-	SkipKubeletVerification bool `hcl:"skip_kubelet_verification"`
-
-	// KubeletSecurePort defines the secure port for the kubelet
-	// If empty it is set to default 10250
-	KubeletSecurePort int `hcl:"kubelet_secure_port"`
 }
 
 type attestorConfig struct {
-	trustDomain             string
-	cluster                 string
-	tokenPath               string
-	kubeletCAPath           string
-	skipKubeletVerification bool
-	kubeletSecurePort       int
+	trustDomain string
+	cluster     string
+	tokenPath   string
 }
 
 // FetchAttestationData loads PSAT from the configured path and send it to server node attestor
@@ -104,14 +87,17 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 		return psatError.New("fail to get claims from token: %v", err)
 	}
 
-	if claims.K8s.Pod.UID == "" {
-		return psatError.New("token claim pod UID is empty")
+	if claims.K8s.Namespace == "" {
+		return psatError.New("token claim namespace is empty")
 	}
 
-	// Get node name from kubelet
-	nodeName, err := getNodeNameFromKubelet(config, p.kubeletClient, claims.K8s.Pod.UID)
+	if claims.K8s.Pod.Name == "" {
+		return psatError.New("token claim pod name is empty")
+	}
+
+	nodeName, err := p.k8sClient.GetNode(claims.K8s.Namespace, claims.K8s.Pod.Name)
 	if err != nil {
-		return psatError.New("unable to get node name: %v", err)
+		return psatError.New("fail to get node name from apiserver: %v", err)
 	}
 
 	data, err := json.Marshal(k8s.PSATAttestationData{
@@ -149,12 +135,9 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 	}
 
 	config := &attestorConfig{
-		trustDomain:             req.GlobalConfig.TrustDomain,
-		cluster:                 hclConfig.Cluster,
-		tokenPath:               hclConfig.TokenPath,
-		kubeletCAPath:           hclConfig.KubeletCAPath,
-		skipKubeletVerification: hclConfig.SkipKubeletVerification,
-		kubeletSecurePort:       hclConfig.KubeletSecurePort,
+		trustDomain: req.GlobalConfig.TrustDomain,
+		cluster:     hclConfig.Cluster,
+		tokenPath:   hclConfig.TokenPath,
 	}
 	if config.tokenPath == "" {
 		config.tokenPath = defaultTokenPath
@@ -192,38 +175,4 @@ func loadTokenFromFile(path string) (string, error) {
 		return "", errs.New("%q is empty", path)
 	}
 	return string(data), nil
-}
-
-func getNodeNameFromKubelet(config *attestorConfig, kubeletClient kubelet.Client, podUID string) (string, error) {
-	kubeletCliConf := &kubelet.ClientConfig{
-		Secure:                  true,
-		Port:                    config.kubeletSecurePort,
-		KubeletCAPath:           config.kubeletCAPath,
-		SkipKubeletVerification: config.skipKubeletVerification,
-		TokenPath:               config.tokenPath,
-	}
-
-	var err error
-	if kubeletClient == nil {
-		kubeletClient, err = kubelet.LoadClient(kubeletCliConf)
-		if err != nil {
-			return "", fmt.Errorf("fail to load kubelet client: %v", err)
-		}
-	}
-
-	podlist, err := kubeletClient.GetPodList()
-	if err != nil {
-		return "", fmt.Errorf("fail to get pod list from kubelet: %v", err)
-	}
-
-	for _, pod := range podlist.Items {
-		if string(pod.UID) == podUID {
-			nodeName := podlist.Items[0].Spec.NodeName
-			if nodeName == "" {
-				return "", errors.New("empty node name received from kubelet")
-			}
-			return nodeName, nil
-		}
-	}
-	return "", fmt.Errorf("pod with UID: %q not found", podUID)
 }

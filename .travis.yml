@@ -58,7 +58,7 @@ jobs:
         # Download latest minikube
         - curl -s -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
         # Start up minikube
-        - sudo minikube start --vm-driver=none --extra-config=apiserver.service-account-signing-key-file=/var/lib/minikube/certs/sa.key --extra-config=apiserver.service-account-key-file=/var/lib/minikube/certs/sa.pub --extra-config=apiserver.service-account-issuer=api --extra-config=apiserver.service-account-api-audiences=api,spire-server --extra-config=apiserver.authorization-mode=RBAC --extra-config=kubelet.authentication-token-webhook=true
+        - sudo minikube start --vm-driver=none --extra-config=apiserver.service-account-signing-key-file=/var/lib/minikube/certs/sa.key --extra-config=apiserver.service-account-key-file=/var/lib/minikube/certs/sa.pub --extra-config=apiserver.service-account-issuer=api --extra-config=apiserver.service-account-api-audiences=api --extra-config=apiserver.authorization-mode=RBAC
 
         # Make sure kubectl configuration is up to date
         - sudo chown -R $USER.$USER ~/.kube

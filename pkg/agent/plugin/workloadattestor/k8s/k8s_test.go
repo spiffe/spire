@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/common/plugin/k8s/kubelet"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -116,7 +115,7 @@ type K8sAttestorSuite struct {
 
 func (s *K8sAttestorSuite) SetupTest() {
 	s.dir = s.TempDir()
-	s.writeFile(kubelet.DefaultTokenPath, "default-token")
+	s.writeFile(defaultTokenPath, "default-token")
 
 	s.clock = clock.NewMock(s.T())
 	s.server = nil
@@ -239,7 +238,7 @@ func (s *K8sAttestorSuite) TestAttestOverSecurePortViaTokenAuth() {
 	s.requireAttestSuccessWithPod()
 
 	// write out a different token and make sure it is picked up on reload
-	s.writeFile(kubelet.DefaultTokenPath, "bad-token")
+	s.writeFile(defaultTokenPath, "bad-token")
 	s.clock.Add(defaultReloadInterval)
 	s.requireAttestFailure(`expected "Bearer default-token", got "Bearer bad-token"`)
 }
@@ -304,7 +303,7 @@ func (s *K8sAttestorSuite) TestAttestAgainstNodeOverride() {
 func (s *K8sAttestorSuite) TestConfigure() {
 	s.generateCerts("")
 
-	s.writeFile(kubelet.DefaultTokenPath, "default-token")
+	s.writeFile(defaultTokenPath, "default-token")
 	s.writeFile("token", "other-token")
 	s.writeFile("bad-pem", "BAD PEM")
 	s.writeCert("some-other-ca", s.kubeletCert)
@@ -540,26 +539,25 @@ func (s *K8sAttestorSuite) TestConfigure() {
 
 			switch {
 			case testCase.config.Insecure:
-				assert.Nil(t, c.Client.GetTransport())
-			case !assert.NotNil(t, c.Client.GetTransport()):
-			case !assert.NotNil(t, c.Client.GetTransport().TLSClientConfig):
+				assert.Nil(t, c.Client.Transport)
+			case !assert.NotNil(t, c.Client.Transport):
+			case !assert.NotNil(t, c.Client.Transport.TLSClientConfig):
 			case !testCase.config.VerifyKubelet:
-				assert.True(t, c.Client.GetTransport().TLSClientConfig.InsecureSkipVerify)
-				assert.Nil(t, c.Client.GetTransport().TLSClientConfig.VerifyPeerCertificate)
+				assert.True(t, c.Client.Transport.TLSClientConfig.InsecureSkipVerify)
+				assert.Nil(t, c.Client.Transport.TLSClientConfig.VerifyPeerCertificate)
 			default:
-				t.Logf("CONFIG: %#v", c.Client.GetTransport().TLSClientConfig)
+				t.Logf("CONFIG: %#v", c.Client.Transport.TLSClientConfig)
 				if testCase.config.HasNodeName {
-					if assert.NotNil(t, c.Client.GetTransport().TLSClientConfig.RootCAs) {
-						assert.Len(t, c.Client.GetTransport().TLSClientConfig.RootCAs.Subjects(), 1)
+					if assert.NotNil(t, c.Client.Transport.TLSClientConfig.RootCAs) {
+						assert.Len(t, c.Client.Transport.TLSClientConfig.RootCAs.Subjects(), 1)
 					}
 				} else {
-					assert.True(t, c.Client.GetTransport().TLSClientConfig.InsecureSkipVerify)
-					assert.NotNil(t, c.Client.GetTransport().TLSClientConfig.VerifyPeerCertificate)
+					assert.True(t, c.Client.Transport.TLSClientConfig.InsecureSkipVerify)
+					assert.NotNil(t, c.Client.Transport.TLSClientConfig.VerifyPeerCertificate)
 				}
 			}
-			assert.Equal(t, testCase.config.Token, c.Client.GetToken())
-			clientURL := c.Client.GetURL()
-			assert.Equal(t, testCase.config.KubeletURL, clientURL.String())
+			assert.Equal(t, testCase.config.Token, c.Client.Token)
+			assert.Equal(t, testCase.config.KubeletURL, c.Client.URL.String())
 			assert.Equal(t, testCase.config.MaxPollAttempts, c.MaxPollAttempts)
 			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
 			assert.Equal(t, testCase.config.ReloadInterval, c.ReloadInterval)
@@ -636,7 +634,7 @@ func (s *K8sAttestorSuite) startInsecureKubelet() {
 
 func (s *K8sAttestorSuite) generateCerts(nodeName string) {
 	s.kubeletCert = s.createKubeletCert(nodeName)
-	s.writeCert(kubelet.DefaultKubeletCAPath, s.kubeletCert)
+	s.writeCert(defaultKubeletCAPath, s.kubeletCert)
 
 	s.clientCert = s.createClientCert()
 	s.writeKey(keyPath, clientKey)

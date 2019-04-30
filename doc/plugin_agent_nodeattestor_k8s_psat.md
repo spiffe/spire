@@ -7,7 +7,7 @@ reads and provides the signed projected service account token (PSAT) to the serv
 In addition to service account data, PSAT embeds the pod name and UID on its claims. This allows
 SPIRE to create more fine-grained attestation policies for agents.
 
-The plugin queries the local kubelet to obtain the node in which the agent is running on.
+The plugin queries Kubernetes API server to obtain the node in which the agent is running on.
 In this way, it generates SPIFFE IDs with the form:
 
 ```
@@ -16,16 +16,13 @@ spiffe://<trust domain>/spire/agent/k8s_psat/<cluster>/<node name>
 
 The main configuration accepts the following values:
 
-| Configuration               | Description | Default                 |
-| ----------------------------| ----------- | ----------------------- |
-| `cluster`                   | Name of the cluster. It must correspond to a cluster configured in the server plugin. | |
-| `token_path`                | Path to the projected service account token on disk                                   | "/var/run/secrets/tokens/spire-agent" |
-| `kubelet_ca_path`           | The path on disk to a file containing CA certificates used to verify the kubelet certificate. Required unless `skip_kubelet_verification` is set | "/run/secrets/kubernetes.io/serviceaccount/ca.crt" |
-| `skip_kubelet_verification` | If true, kubelet certificate verification is skipped                                  | false |
-| `kubelet_secure_port`       | The port used to query kubelet                                                        | 10250 |
+| Configuration   | Description | Default                 |
+| --------------- | ----------- | ----------------------- |
+| `cluster`       | Name of the cluster. It must correspond to a cluster configured in the server plugin. | |
+| `token_path`    | Path to the projected service account token on disk | "/var/run/secrets/tokens/spire-agent" |
 
 
-A sample configuration with the default token path, port and kubelet validation certificates:
+A sample configuration with the default token path:
 
 ```
     NodeAttestor "k8s_psat" {

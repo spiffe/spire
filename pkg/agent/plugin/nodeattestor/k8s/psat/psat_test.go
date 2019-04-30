@@ -15,13 +15,11 @@ import (
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	kubelet_cli_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/kubelet"
+	k8s_cli_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/client"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 var sampleKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
@@ -44,10 +42,10 @@ func TestAttestorPlugin(t *testing.T) {
 type AttestorSuite struct {
 	spiretest.Suite
 
-	dir               string
-	attestor          nodeattestor.Plugin
-	mockCtrl          *gomock.Controller
-	kubeletClientMock *kubelet_cli_mock.MockClient
+	dir           string
+	attestor      nodeattestor.Plugin
+	mockCtrl      *gomock.Controller
+	k8sClientMock *k8s_cli_mock.MockK8SClient
 }
 
 func (s *AttestorSuite) SetupTest() {
@@ -84,58 +82,44 @@ func (s *AttestorSuite) TestFetchAttestationWrongTokenFormat() {
 	s.requireFetchError("error parsing token")
 }
 
-func (s *AttestorSuite) TestFetchAttestationEmptyPodUID() {
-	token, err := createPSAT("NAMESPACE", "PODNAME", "")
+func (s *AttestorSuite) TestFetchAttestationEmptyNamespace() {
+	token, err := createPSAT("", "POD-NAME")
 	s.Require().NoError(err)
 	s.configure(AttestorConfig{
 		TokenPath: s.writeValue("token", token),
 	})
-	s.requireFetchError("token claim pod UID is empty")
+	s.requireFetchError("token claim namespace is empty")
 }
 
-func (s *AttestorSuite) TestFetchAttestationFailToGetPodList() {
-	token, err := createPSAT("NAMESPACE", "POD-NAME", "POD-UID")
+func (s *AttestorSuite) TestFetchAttestationEmptyPodName() {
+	token, err := createPSAT("NAMESPACE", "")
 	s.Require().NoError(err)
 	s.configure(AttestorConfig{
 		TokenPath: s.writeValue("token", token),
 	})
-
-	s.kubeletClientMock.EXPECT().GetPodList().Times(1).Return(nil, errors.New("an error"))
-	s.requireFetchError("unable to get node name: fail to get pod list")
+	s.requireFetchError("token claim pod name is empty")
 }
 
-func (s *AttestorSuite) TestFetchAttestationFailEmptyNodeName() {
-	token, err := createPSAT("NAMESPACE", "POD-NAME", "POD-UID")
+func (s *AttestorSuite) TestFetchAttestationFailToGetNodeName() {
+	token, err := createPSAT("NAMESPACE", "POD-NAME")
 	s.Require().NoError(err)
 	s.configure(AttestorConfig{
 		TokenPath: s.writeValue("token", token),
 	})
 
-	s.kubeletClientMock.EXPECT().GetPodList().Times(1).Return(getPodList("", "POD-UID"), nil)
-	s.requireFetchError("unable to get node name: empty node name")
-}
-
-func (s *AttestorSuite) TestFetchAttestationFailPodNotFound() {
-	token, err := createPSAT("NAMESPACE", "POD-NAME", "POD-UID")
-	s.Require().NoError(err)
-	s.configure(AttestorConfig{
-		TokenPath: s.writeValue("token", token),
-	})
-
-	s.kubeletClientMock.EXPECT().GetPodList().Times(1).Return(getPodList("NODE-NAME", "OTHER-POD-UID"), nil)
-	s.requireFetchError("unable to get node name: pod with UID: \"POD-UID\" not found")
+	s.k8sClientMock.EXPECT().GetNode("NAMESPACE", "POD-NAME").Times(1).Return("", errors.New("an error"))
+	s.requireFetchError("fail to get node name from apiserver")
 }
 
 func (s *AttestorSuite) TestFetchAttestationDataSuccess() {
-	token, err := createPSAT("NAMESPACE", "POD-NAME", "POD-UID")
+	token, err := createPSAT("NAMESPACE", "POD-NAME")
 	s.Require().NoError(err)
 
 	s.configure(AttestorConfig{
-		TokenPath:               s.writeValue("token", token),
-		SkipKubeletVerification: true,
+		TokenPath: s.writeValue("token", token),
 	})
 
-	s.kubeletClientMock.EXPECT().GetPodList().Times(1).Return(getPodList("NODE-NAME", "POD-UID"), nil)
+	s.k8sClientMock.EXPECT().GetNode("NAMESPACE", "POD-NAME").Times(1).Return("NODE-NAME", nil)
 
 	stream, err := s.attestor.FetchAttestationData(context.Background())
 	s.Require().NoError(err)
@@ -201,8 +185,8 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 
 func (s *AttestorSuite) newAttestor() {
 	attestor := New()
-	s.kubeletClientMock = kubelet_cli_mock.NewMockClient(s.mockCtrl)
-	attestor.kubeletClient = s.kubeletClientMock
+	s.k8sClientMock = k8s_cli_mock.NewMockK8SClient(s.mockCtrl)
+	attestor.k8sClient = s.k8sClientMock
 	s.LoadPlugin(builtin(attestor), &s.attestor)
 }
 
@@ -242,7 +226,7 @@ func (s *AttestorSuite) requireFetchError(contains string) {
 }
 
 // Creates a PSAT using the given namespace and podName (just for testing)
-func createPSAT(namespace, podName, podUID string) (string, error) {
+func createPSAT(namespace, podName string) (string, error) {
 	// Create a jwt builder
 	s, err := createSigner()
 	builder := jwt.Signed(s)
@@ -251,7 +235,6 @@ func createPSAT(namespace, podName, podUID string) (string, error) {
 	claims := sat_common.PSATClaims{}
 	claims.K8s.Namespace = namespace
 	claims.K8s.Pod.Name = podName
-	claims.K8s.Pod.UID = podUID
 	builder = builder.Claims(claims)
 
 	// Serialize and return token
@@ -280,19 +263,4 @@ func createSigner() (jose.Signer, error) {
 	}
 
 	return sampleSigner, nil
-}
-
-func getPodList(nodeName, podUID string) *corev1.PodList {
-	podList := &corev1.PodList{
-		Items: []corev1.Pod{
-			{
-				Spec: corev1.PodSpec{
-					NodeName: nodeName,
-				},
-			},
-		},
-	}
-	podList.Items[0].UID = types.UID(podUID)
-
-	return podList
 }
