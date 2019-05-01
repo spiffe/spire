@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -19,9 +20,11 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/notifier"
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakenotifier"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
 	"github.com/spiffe/spire/test/spiretest"
@@ -45,14 +48,15 @@ func TestManager(t *testing.T) {
 type ManagerSuite struct {
 	spiretest.Suite
 
-	clock   *clock.Mock
-	ca      *fakeCA
-	log     logrus.FieldLogger
-	logHook *test.Hook
-	dir     string
-	km      *memory.KeyManager
-	ds      *fakedatastore.DataStore
-	cat     *fakeservercatalog.Catalog
+	clock    *clock.Mock
+	ca       *fakeCA
+	log      logrus.FieldLogger
+	logHook  *test.Hook
+	dir      string
+	km       *memory.KeyManager
+	ds       *fakedatastore.DataStore
+	notifier *fakenotifier.Notifier
+	cat      *fakeservercatalog.Catalog
 
 	m *Manager
 }
@@ -225,7 +229,16 @@ func (s *ManagerSuite) testUpstreamIntermediateSignedWithUpstreamBundle(useDepre
 }
 
 func (s *ManagerSuite) TestX509CARotation() {
+	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	s.setNotifier(notifier)
 	s.initSelfSignedManager()
+
+	// kick off a goroutine to service bundle update notifications. This is
+	// typically handled by Run() but using it would complicate the test.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	s.m.dropBundleUpdated() // drop bundle update message produce by initialization
+	go s.m.notifyOnBundleUpdate(ctx)
 
 	// CA TTL is an hour so we should be preparing after thirty minutes and
 	// activating after 50 minutes.
@@ -241,7 +254,7 @@ func (s *ManagerSuite) TestX509CARotation() {
 	s.requireBundleRootCAs(first.Certificate)
 
 	// move up to the preparation mark. nothing should change
-	s.setTimeAndRotate(preparationTime1)
+	s.setTimeAndRotateX509CA(preparationTime1)
 	s.requireX509CAEqual(first, s.currentX509CA())
 	s.Nil(s.nextX509CA(), "second X509CA should not be prepared yet")
 	s.requireBundleRootCAs(first.Certificate)
@@ -249,41 +262,56 @@ func (s *ManagerSuite) TestX509CARotation() {
 	// move just past the preparation mark. the current X509CA should stay
 	// the same but the next X509CA should have been prepared and added to
 	// the trust bundle.
-	s.addTimeAndRotate(time.Minute)
+	s.addTimeAndRotateX509CA(time.Minute)
 	s.requireX509CAEqual(first, s.currentX509CA())
 	second := s.nextX509CA()
 	s.NotNil(second, "second X509CA should have been prepared")
 	s.requireBundleRootCAs(first.Certificate, second.Certificate)
 
+	// we should now have a bundle update notification due to the preparation
+	s.waitForBundleUpdatedNotification(notifyCh)
+
 	// move up to the activation mark. nothing should change.
-	s.setTimeAndRotate(activationTime1)
+	s.setTimeAndRotateX509CA(activationTime1)
 	s.requireX509CAEqual(first, s.currentX509CA())
 	s.requireX509CAEqual(second, s.nextX509CA())
 
 	// move up to the activation mark. "next" should become "current" and
 	// "next" should be reset.
-	s.addTimeAndRotate(time.Minute)
+	s.addTimeAndRotateX509CA(time.Minute)
 	s.requireX509CAEqual(second, s.currentX509CA())
 	s.Nil(s.nextX509CA())
 
 	// move past the 2nd preparation mark. the current X509CA should stay
 	// the same but the next X509CA should have been prepared and added to
 	// the trust bundle.
-	s.setTimeAndRotate(preparationTime2.Add(time.Minute))
+	s.setTimeAndRotateX509CA(preparationTime2.Add(time.Minute))
 	s.requireX509CAEqual(second, s.currentX509CA())
 	third := s.nextX509CA()
 	s.NotNil(second, "third X509CA should have been prepared")
 	s.requireBundleRootCAs(first.Certificate, second.Certificate, third.Certificate)
 
+	// we should now have another bundle update notification due to the preparation
+	s.waitForBundleUpdatedNotification(notifyCh)
+
 	// move past to 2nd activation mark. "next" should become "current" and
 	// "next" should be reset.
-	s.setTimeAndRotate(activationTime2.Add(time.Minute))
+	s.setTimeAndRotateX509CA(activationTime2.Add(time.Minute))
 	s.requireX509CAEqual(third, s.currentX509CA())
 	s.Nil(s.nextX509CA())
 }
 
 func (s *ManagerSuite) TestJWTKeyRotation() {
+	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	s.setNotifier(notifier)
 	s.initSelfSignedManager()
+
+	// kick off a goroutine to service bundle update notifications. This is
+	// typically handled by Run() but using it would complicate the test.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	s.m.dropBundleUpdated() // drop bundle update message produce by initialization
+	go s.m.notifyOnBundleUpdate(ctx)
 
 	// CA TTL is an hour so we should be preparing after thirty minutes and
 	// activating after 50 minutes.
@@ -299,7 +327,7 @@ func (s *ManagerSuite) TestJWTKeyRotation() {
 	s.requireBundleJWTKeys(first)
 
 	// move up to the preparation mark. nothing should change
-	s.setTimeAndRotate(preparationTime1)
+	s.setTimeAndRotateJWTKey(preparationTime1)
 	s.requireJWTKeyEqual(first, s.currentJWTKey())
 	s.Nil(s.nextJWTKey(), "second JWTKey should not be prepared yet")
 	s.requireBundleJWTKeys(first)
@@ -307,40 +335,48 @@ func (s *ManagerSuite) TestJWTKeyRotation() {
 	// move just past the preparation mark. the current JWTKey should stay
 	// the same but the next JWTKey should have been prepared and added to
 	// the trust bundle.
-	s.addTimeAndRotate(time.Minute)
+	s.addTimeAndRotateJWTKey(time.Minute)
 	s.requireJWTKeyEqual(first, s.currentJWTKey())
 	second := s.nextJWTKey()
 	s.NotNil(second, "second JWTKey should have been prepared")
 	s.requireBundleJWTKeys(first, second)
 
+	// we should now have a bundle update notification due to the preparation
+	s.waitForBundleUpdatedNotification(notifyCh)
+
 	// move up to the activation mark. nothing should change.
-	s.setTimeAndRotate(activationTime1)
+	s.setTimeAndRotateJWTKey(activationTime1)
 	s.requireJWTKeyEqual(first, s.currentJWTKey())
 	s.requireJWTKeyEqual(second, s.nextJWTKey())
 
 	// move up to the activation mark. "next" should become "current" and
 	// "next" should be reset.
-	s.addTimeAndRotate(time.Minute)
+	s.addTimeAndRotateJWTKey(time.Minute)
 	s.requireJWTKeyEqual(second, s.currentJWTKey())
 	s.Nil(s.nextJWTKey())
 
 	// move past the 2nd preparation mark. the current JWTKey should stay
 	// the same but the next JWTKey should have been prepared and added to
 	// the trust bundle.
-	s.setTimeAndRotate(preparationTime2.Add(time.Minute))
+	s.setTimeAndRotateJWTKey(preparationTime2.Add(time.Minute))
 	s.requireJWTKeyEqual(second, s.currentJWTKey())
 	third := s.nextJWTKey()
 	s.NotNil(second, "third JWTKey should have been prepared")
 	s.requireBundleJWTKeys(first, second, third)
 
+	// we should now have a bundle update notification due to the preparation
+	s.waitForBundleUpdatedNotification(notifyCh)
+
 	// move past to 2nd activation mark. "next" should become "current" and
 	// "next" should be reset.
-	s.setTimeAndRotate(activationTime2.Add(time.Minute))
+	s.setTimeAndRotateJWTKey(activationTime2.Add(time.Minute))
 	s.requireJWTKeyEqual(third, s.currentJWTKey())
 	s.Nil(s.nextJWTKey())
 }
 
 func (s *ManagerSuite) TestPrune() {
+	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	s.setNotifier(notifier)
 	s.initSelfSignedManager()
 
 	initTime := s.clock.Now()
@@ -357,6 +393,13 @@ func (s *ManagerSuite) TestPrune() {
 	s.requireBundleRootCAs(firstX509CA.Certificate, secondX509CA.Certificate)
 	s.requireBundleJWTKeys(firstJWTKey, secondJWTKey)
 
+	// kick off a goroutine to service bundle update notifications. This is
+	// typically handled by Run() but using it would complicate the test.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	s.m.dropBundleUpdated() // drop bundle update message produce by initialization
+	go s.m.notifyOnBundleUpdate(ctx)
+
 	// advance just past the expiration time of the first and prune. nothing
 	// should change.
 	s.setTimeAndPrune(firstExpiresTime.Add(time.Minute))
@@ -368,6 +411,9 @@ func (s *ManagerSuite) TestPrune() {
 	s.addTimeAndPrune(safetyThreshold)
 	s.requireBundleRootCAs(secondX509CA.Certificate)
 	s.requireBundleJWTKeys(secondJWTKey)
+
+	// we should now have a bundle update notification due to the pruning
+	s.waitForBundleUpdatedNotification(notifyCh)
 
 	// advance beyond the second expiration time, prune, and assert nothing
 	// changes because we can't prune out the whole bundle.
@@ -387,6 +433,55 @@ func (s *ManagerSuite) TestMigration() {
 	s.RequireErrorContains(err, "failed to migrate old JSON data: unable to decode JSON")
 }
 
+func (s *ManagerSuite) TestRunNotifiesBundleLoaded() {
+	s.initSelfSignedManager()
+
+	// time out in a minute if the bundle loaded never happens
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	var actual *common.Bundle
+	s.setNotifier(fakenotifier.New(fakenotifier.Config{
+		OnNotifyAndAdvise: func(req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
+			if event, ok := req.Event.(*notifier.NotifyAndAdviseRequest_BundleLoaded); ok {
+				actual = event.BundleLoaded.Bundle
+			}
+			// cancel immediately
+			cancel()
+			return &notifier.NotifyAndAdviseResponse{}, nil
+		},
+	}))
+
+	s.Require().NoError(s.m.Run(ctx))
+
+	// make sure the event contained the bundle
+	expected := s.fetchBundle()
+	s.RequireProtoEqual(expected, actual)
+}
+
+func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
+	s.m = NewManager(s.selfSignedConfig())
+	s.setNotifier(fakenotifier.New(fakenotifier.Config{
+		OnNotifyAndAdvise: func(req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
+			return nil, errors.New("OH NO!")
+		},
+	}))
+
+	err := s.m.Initialize(ctx)
+	s.Require().NoError(err)
+
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	err = s.m.Run(ctx)
+	s.Require().EqualError(err, "one or more notifiers returned an error: OH NO!")
+
+	entry := s.logHook.LastEntry()
+	s.Equal("fake", entry.Data["notifier"])
+	s.Equal("bundle loaded", entry.Data["event"])
+	s.Equal("OH NO!", entry.Data["err"])
+	s.Equal("Notifier failed to handle event", entry.Message)
+}
+
 func (s *ManagerSuite) initSelfSignedManager() {
 	s.cat.SetUpstreamCA(nil)
 	s.m = NewManager(s.selfSignedConfig())
@@ -400,6 +495,10 @@ func (s *ManagerSuite) initUpstreamSignedManager(upstreamCA upstreamca.UpstreamC
 	c.UpstreamBundle = upstreamBundle
 	s.m = NewManager(c)
 	s.NoError(s.m.Initialize(context.Background()))
+}
+
+func (s *ManagerSuite) setNotifier(notifier notifier.Notifier) {
+	s.cat.AddNotifier(fakeservercatalog.Notifier("fake", notifier))
 }
 
 func (s *ManagerSuite) selfSignedConfig() ManagerConfig {
@@ -508,11 +607,15 @@ func (s *ManagerSuite) requireBundleJWTKeys(jwtKeys ...*JWTKey) {
 }
 
 func (s *ManagerSuite) fetchBundle() *common.Bundle {
+	return s.fetchBundleForTrustDomain(testTrustDomainURL.String())
+}
+
+func (s *ManagerSuite) fetchBundleForTrustDomain(trustDomainId string) *common.Bundle {
 	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: testTrustDomainURL.String(),
+		TrustDomainId: trustDomainId,
 	})
 	s.Require().NoError(err)
-	s.Require().NotNil(resp.Bundle, "missing bundle for domain %q", testTrustDomainURL)
+	s.Require().NotNil(resp.Bundle, "missing bundle for trust domain %q", trustDomainId)
 	return resp.Bundle
 }
 
@@ -545,6 +648,26 @@ func (s *ManagerSuite) addTimeAndRotate(d time.Duration) {
 	s.Require().NoError(s.m.rotate(context.Background()))
 }
 
+func (s *ManagerSuite) setTimeAndRotateX509CA(t time.Time) {
+	s.clock.Set(t)
+	s.Require().NoError(s.m.rotateX509CA(context.Background()))
+}
+
+func (s *ManagerSuite) addTimeAndRotateX509CA(d time.Duration) {
+	s.clock.Add(d)
+	s.Require().NoError(s.m.rotateX509CA(context.Background()))
+}
+
+func (s *ManagerSuite) setTimeAndRotateJWTKey(t time.Time) {
+	s.clock.Set(t)
+	s.Require().NoError(s.m.rotateJWTKey(context.Background()))
+}
+
+func (s *ManagerSuite) addTimeAndRotateJWTKey(d time.Duration) {
+	s.clock.Add(d)
+	s.Require().NoError(s.m.rotateJWTKey(context.Background()))
+}
+
 func (s *ManagerSuite) setTimeAndPrune(t time.Time) {
 	s.clock.Set(t)
 	s.Require().NoError(s.m.pruneBundle(context.Background()))
@@ -557,6 +680,19 @@ func (s *ManagerSuite) addTimeAndPrune(d time.Duration) {
 
 func (s *ManagerSuite) wipeJournal() {
 	s.Require().NoError(os.Remove(s.m.journalPath()))
+}
+
+func (s *ManagerSuite) waitForBundleUpdatedNotification(ch <-chan *notifier.NotifyRequest) {
+	select {
+	case <-time.After(time.Minute):
+		s.FailNow("timed out waiting for bundle update notification")
+	case req := <-ch:
+		event, ok := req.Event.(*notifier.NotifyRequest_BundleUpdated)
+		s.Require().True(ok, "expected a bundle updated notification")
+		actual := event.BundleUpdated.Bundle
+		expected := s.fetchBundle()
+		s.RequireProtoEqual(expected, actual)
+	}
 }
 
 type fakeCA struct {
