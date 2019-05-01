@@ -108,13 +108,13 @@ func (c *client) ValidateToken(token string, audiences []string) (*k8s_auth.Toke
 
 	// Do request
 	resp, err := clientset.AuthenticationV1().TokenReviews().Create(req)
-	if resp == nil {
-		return nil, errors.New("token review API response is nil")
+	if err != nil {
+		return nil, err
 	}
 
 	// Evaluate token review response (review server will populate TokenReview.Status field)
-	if err != nil {
-		return nil, err
+	if resp == nil {
+		return nil, errors.New("token review API response is nil")
 	}
 
 	if resp.Status.Error != "" {

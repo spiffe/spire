@@ -256,7 +256,7 @@ func (p *AttestorPlugin) setConfig(config *attestorConfig) {
 }
 
 // getNamesFromTokenStatus parses a fully qualified k8s username like: 'system:serviceaccount:spire:spire-agent'
-// from tokenStatus. The string is splitted and the last two names are returned: namespace and service account name
+// from tokenStatus. The string is split and the last two names are returned: namespace and service account name
 func getNamesFromTokenStatus(tokenStatus *k8s_auth.TokenReviewStatus) (string, string, error) {
 	username := tokenStatus.User.Username
 	if username == "" {
