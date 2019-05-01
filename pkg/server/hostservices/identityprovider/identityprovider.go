@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"errors"
 	"sync"
 
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -54,10 +55,17 @@ func New(config Config) *IdentityProvider {
 	}
 }
 
-func (s *IdentityProvider) SetDeps(deps Deps) {
+func (s *IdentityProvider) SetDeps(deps Deps) error {
+	switch {
+	case deps.DataStore == nil:
+		return errors.New("DataStore is required")
+	case deps.X509IdentityFetcher == nil:
+		return errors.New("X509IdentityFetcher is required")
+	}
 	s.mu.Lock()
 	s.deps = &deps
 	s.mu.Unlock()
+	return nil
 }
 
 func (s *IdentityProvider) getDeps() (*Deps, error) {

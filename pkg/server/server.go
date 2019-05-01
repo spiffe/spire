@@ -174,7 +174,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	endpointsServer := s.newEndpointsServer(cat, svidRotator, serverCA, metrics)
 
 	// Set the identity provider dependencies
-	identityProvider.SetDeps(identityprovider.Deps{
+	if err := identityProvider.SetDeps(identityprovider.Deps{
 		DataStore: cat.GetDataStore(),
 		X509IdentityFetcher: identityprovider.X509IdentityFetcherFunc(func(context.Context) (*identityprovider.X509Identity, error) {
 			// Return the server identity itself
@@ -184,7 +184,9 @@ func (s *Server) run(ctx context.Context) (err error) {
 				PrivateKey: state.Key,
 			}, nil
 		}),
-	})
+	}); err != nil {
+		return fmt.Errorf("failed setting IdentityProvider deps: %v", err)
+	}
 
 	err = util.RunTasks(ctx,
 		caManager.Run,

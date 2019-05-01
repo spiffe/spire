@@ -748,7 +748,7 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 				m.c.Log.WithFields(logrus.Fields{
 					"notifier": n.Name(),
 					"event":    event,
-				}).Debugf("Notifier handled event")
+				}).Debug("Notifier handled event")
 			} else {
 				f := m.c.Log.WithFields(logrus.Fields{
 					"notifier": n.Name(),
@@ -756,9 +756,9 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 					"err":      err.Error(),
 				})
 				if advise {
-					f.Errorf("Notifier failed to handle event")
+					f.Error("Notifier failed to handle event")
 				} else {
-					f.Warnf("Notifier failed to handle event")
+					f.Warn("Notifier failed to handle event")
 				}
 			}
 			errsCh <- err

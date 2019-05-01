@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -54,6 +55,7 @@ type pluginConfig struct {
 
 type Plugin struct {
 	mu               sync.RWMutex
+	log              hclog.Logger
 	config           *pluginConfig
 	identityProvider hostservices.IdentityProviderClient
 
@@ -66,6 +68,10 @@ func New() *Plugin {
 	p := &Plugin{}
 	p.hooks.newKubeClient = newKubeClient
 	return p
+}
+
+func (p *Plugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
@@ -193,6 +199,7 @@ func (p *Plugin) updateBundleConfigMap(ctx context.Context, c *pluginConfig) (er
 			// If there is a conflict then some other server won the race updating
 			// the ConfigMap. We need to retrieve the latest bundle and try again.
 			if s, ok := err.(k8serrors.APIStatus); ok && s.Status().Code == http.StatusConflict {
+				p.log.Debug("Conflict detected patching configmap", "version", configMap.ResourceVersion)
 				continue
 			}
 			return k8sErr.New("unable to update config map %s/%s: %v", c.Namespace, c.ConfigMap, err)
@@ -240,7 +247,7 @@ func (c kubeClientset) PatchConfigMap(ctx context.Context, namespace, configMap 
 	return err
 }
 
-// bundleData formts the bundle data for inclusion in the config map
+// bundleData formats the bundle data for inclusion in the config map
 func bundleData(bundle *common.Bundle) string {
 	bundleData := new(bytes.Buffer)
 	for _, rootCA := range bundle.RootCas {
