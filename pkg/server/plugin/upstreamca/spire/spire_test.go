@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -80,7 +79,7 @@ func (w *whandler) startWAPITestServer(t *testing.T) {
 	w.dir = dir
 	w.socketPath = filepath.Join(dir, "test.sock")
 
-	w.server = grpc.NewServer(grpc.Creds(auth.NewCredentials()))
+	w.server = grpc.NewServer()
 
 	w_pb.RegisterSpiffeWorkloadAPIServer(w.server, w)
 
