@@ -48,14 +48,14 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 }
 
 func (m *manager) fetchUpdates(ctx context.Context, entryRequests map[string]*entryRequest) (entries map[string]*common.RegistrationEntry, svids map[string]*node.X509SVID, err error) {
-	counter := telemetry.StartCall(m.c.Metrics, "manager", "sync", "fetch_updates")
+	counter := telemetry.StartCall(m.c.Metrics, telemetry.Manager, telemetry.Sync, telemetry.FetchUpdates)
 	defer counter.Done(&err)
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	csrs := [][]byte{}
 	if entryRequests != nil {
 		for _, entryRequest := range entryRequests {
 			m.c.Log.Debugf("Requesting SVID for %v", entryRequest.entry.RegistrationEntry.SpiffeId)
-			counter.AddLabel("spiffe_id", entryRequest.entry.RegistrationEntry.SpiffeId)
+			counter.AddLabel(telemetry.SPIFFEID, entryRequest.entry.RegistrationEntry.SpiffeId)
 			csrs = append(csrs, entryRequest.CSR)
 		}
 	}
@@ -129,7 +129,7 @@ func (m *manager) clearStaleCacheEntries(regEntries map[string]*common.Registrat
 
 func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
 	now := m.clk.Now()
-	defer m.c.Metrics.MeasureSince([]string{"cache_manager", "expiry_check_duration"}, now)
+	defer m.c.Metrics.MeasureSince([]string{telemetry.CacheManager, telemetry.ExpiryCheckDuration}, now)
 
 	for _, entry := range m.cache.Entries() {
 		ttl := entry.SVID[0].NotAfter.Sub(now)
@@ -152,7 +152,7 @@ func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
 		}
 	}
 
-	m.c.Metrics.AddSample([]string{"cache_manager", "expiring_svids"}, float32(len(cEntryRequests)))
+	m.c.Metrics.AddSample([]string{telemetry.CacheManager, telemetry.ExpiringSVIDs}, float32(len(cEntryRequests)))
 	return nil
 }
 

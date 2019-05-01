@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc"
 )
 
+// Config is a configuration for endpoints
 type Config struct {
 	// Addresses to bind the servers to
 	TCPAddr *net.TCPAddr
@@ -41,6 +42,7 @@ type Config struct {
 	Metrics telemetry.Metrics
 }
 
+// New creates new endpoints struct
 func New(c *Config) *endpoints {
 	return &endpoints{
 		c:   c,

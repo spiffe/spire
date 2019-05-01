@@ -116,19 +116,19 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 	labels := selectorsToLabels(selectors)
 	setupMetricsCommonExpectations(s.metrics, labels, 1)
 	labelsSvidResponse := append(labels, []telemetry.Label{
-		{Name: "svid_type", Value: "x509"},
-		{Name: "registered", Value: "true"},
-		{Name: "spiffe_id", Value: "spiffe://example.org/foo"},
+		{Name: telemetry.SVIDType, Value: telemetry.X509},
+		{Name: telemetry.Registered, Value: "true"},
+		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
 	}...)
 	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{workloadApi, "fetch_x509_svid", "ttl"},
+		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
 		gomock.Any(),
 		append(labels, telemetry.Label{
-			Name: "spiffe_id", Value: "spiffe://example.org/foo",
+			Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo",
 		}))
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid"}, float32(1), labelsSvidResponse)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_x509_svid", "elapsed_time"}, gomock.Any(), labelsSvidResponse)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "svid_response_latency"}, gomock.Any(), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labelsSvidResponse)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labelsSvidResponse)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.SVIDResponseLatency}, gomock.Any(), labels)
 
 	go func() { result <- s.h.FetchX509SVID(nil, stream) }()
 
@@ -160,11 +160,11 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	stream.EXPECT().Send(gomock.Any()).Times(0)
 
 	labels := []telemetry.Label{
-		{Name: "svid_type", Value: "x509"},
-		{Name: "registered", Value: "false"},
+		{Name: telemetry.SVIDType, Value: telemetry.X509},
+		{Name: telemetry.Registered, Value: "false"},
 	}
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid", "error"}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_x509_svid", "error", "elapsed_time"}, gomock.Any(), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.Error}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.Error, telemetry.ElapsedTime}, gomock.Any(), labels)
 
 	err := s.h.sendX509SVIDResponse(emptyUpdate, stream, s.h.M, []*common.Selector{})
 	s.Assert().Error(err)
@@ -174,18 +174,18 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	stream.EXPECT().Send(resp)
 
 	labels = []telemetry.Label{
-		{Name: "svid_type", Value: "x509"},
-		{Name: "registered", Value: "true"},
-		{Name: "spiffe_id", Value: "spiffe://example.org/foo"},
+		{Name: telemetry.SVIDType, Value: telemetry.X509},
+		{Name: telemetry.Registered, Value: "true"},
+		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
 	}
 	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{workloadApi, "fetch_x509_svid", "ttl"},
+		[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
 		gomock.Any(),
 		[]telemetry.Label{
-			{Name: "spiffe_id", Value: "spiffe://example.org/foo"},
+			{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/foo"},
 		})
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_x509_svid"}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_x509_svid", "elapsed_time"}, gomock.Any(), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
 	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream, s.h.M, []*common.Selector{})
 	s.Assert().NoError(err)
@@ -244,12 +244,12 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 
 	selectorsLabels := selectorsToLabels(selectors)
 	labels := append(selectorsLabels, []telemetry.Label{
-		{Name: "svid_type", Value: "jwt"},
-		{Name: "registered", Value: "false"},
+		{Name: telemetry.SVIDType, Value: telemetry.JWT},
+		{Name: telemetry.Registered, Value: "false"},
 	}...)
 	setupMetricsCommonExpectations(s.metrics, selectorsLabels, 1)
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_jwt_svid", "error"}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_jwt_svid", "error", "elapsed_time"}, gomock.Any(), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.Error}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.Error, telemetry.ElapsedTime}, gomock.Any(), labels)
 
 	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
 		Audience: audience,
@@ -279,26 +279,26 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 
 	setupMetricsCommonExpectations(s.metrics, selectorsLabels, 1)
 	labels = append(selectorsLabels, []telemetry.Label{
-		{Name: "svid_type", Value: "jwt"},
-		{Name: "registered", Value: "true"},
-		{Name: "spiffe_id", Value: "spiffe://example.org/one"},
-		{Name: "spiffe_id", Value: "spiffe://example.org/two"},
+		{Name: telemetry.SVIDType, Value: telemetry.JWT},
+		{Name: telemetry.Registered, Value: "true"},
+		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/one"},
+		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/two"},
 	}...)
 
 	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{workloadApi, "fetch_jwt_svid", "ttl"},
+		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
 		gomock.Any(),
 		append(selectorsLabels, telemetry.Label{
-			Name: "spiffe_id", Value: "spiffe://example.org/one",
+			Name: telemetry.SPIFFEID, Value: "spiffe://example.org/one",
 		}))
 	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{workloadApi, "fetch_jwt_svid", "ttl"},
+		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
 		gomock.Any(),
 		append(selectorsLabels, telemetry.Label{
-			Name: "spiffe_id", Value: "spiffe://example.org/two",
+			Name: telemetry.SPIFFEID, Value: "spiffe://example.org/two",
 		}))
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_jwt_svid"}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_jwt_svid", "elapsed_time"}, gomock.Any(), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
 	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
 		Audience: audience,
@@ -325,18 +325,18 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	selectorsLabels = selectorsToLabels(selectors)
 	setupMetricsCommonExpectations(s.metrics, selectorsLabels, 1)
 	labels = append(selectorsLabels, []telemetry.Label{
-		{Name: "svid_type", Value: "jwt"},
-		{Name: "registered", Value: "true"},
-		{Name: "spiffe_id", Value: "spiffe://example.org/two"},
+		{Name: telemetry.SVIDType, Value: telemetry.JWT},
+		{Name: telemetry.Registered, Value: "true"},
+		{Name: telemetry.SPIFFEID, Value: "spiffe://example.org/two"},
 	}...)
 	s.metrics.EXPECT().SetGaugeWithLabels(
-		[]string{workloadApi, "fetch_jwt_svid", "ttl"},
+		[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
 		gomock.Any(),
 		append(selectorsLabels, telemetry.Label{
-			Name: "spiffe_id", Value: "spiffe://example.org/two",
+			Name: telemetry.SPIFFEID, Value: "spiffe://example.org/two",
 		}))
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_jwt_svid"}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "fetch_jwt_svid", "elapsed_time"}, gomock.Any(), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
 	resp, err = s.h.FetchJWTSVID(makeContext(1), &workload.JWTSVIDRequest{
 		SpiffeId: "spiffe://example.org/two",
@@ -354,15 +354,15 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 }
 
 func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsLabels []telemetry.Label, pid int32) {
-	attestorLabels := []telemetry.Label{{"attestor_name", "fake"}}
+	attestorLabels := []telemetry.Label{{telemetry.AttestorName, "fake"}}
 
-	metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "workload_attestor_latency"}, gomock.Any(), attestorLabels)
-	metrics.EXPECT().AddSample([]string{workloadApi, "discovered_selectors"}, float32(len(selectorsLabels)))
-	metrics.EXPECT().MeasureSince([]string{workloadApi, "workload_attestation_duration"}, gomock.Any())
+	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency}, gomock.Any(), attestorLabels)
+	metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(len(selectorsLabels)))
+	metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestationDuration}, gomock.Any())
 
-	metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "connection"}, float32(1), selectorsLabels)
-	metrics.EXPECT().IncrCounter([]string{workloadApi, "connections"}, float32(1))
-	metrics.EXPECT().IncrCounter([]string{workloadApi, "connections"}, float32(-1))
+	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.Connection}, float32(1), selectorsLabels)
+	metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(1))
+	metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(-1))
 }
 
 func (s *HandlerTestSuite) TestFetchJWTBundles() {
@@ -399,9 +399,9 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 
 	labels := selectorsToLabels(selectors)
 	setupMetricsCommonExpectations(s.metrics, labels, 1)
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "fetch_jwt_bundles"}, float32(1), labels)
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "bundles_update"}, float32(1), labels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{workloadApi, "send_jwt_bundle_latency"}, gomock.Any(), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate}, float32(1), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.SendJWTBundleLatency}, gomock.Any(), labels)
 
 	go func() { result <- s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream) }()
 
@@ -515,9 +515,9 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	labels := selectorsToLabels(selectors)
 	setupMetricsCommonExpectations(s.metrics, labels, 1)
 	labels = append(labels, []telemetry.Label{
-		{Name: "error", Value: "token contains an invalid number of segments"},
+		{Name: telemetry.Error, Value: "token contains an invalid number of segments"},
 	}...)
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "validate_jwt_svid"}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), labels)
 
 	resp, err = s.h.ValidateJWTSVID(makeContext(1), &workload.ValidateJWTSVIDRequest{
 		Audience: "audience",
@@ -560,10 +560,10 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	labels = selectorsToLabels(selectors)
 	setupMetricsCommonExpectations(s.metrics, labels, 1)
 	labels = append(labels, []telemetry.Label{
-		{Name: "subject", Value: "spiffe://example.org/blog"},
-		{Name: "audience", Value: "audience"},
+		{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
+		{Name: telemetry.Audience, Value: "audience"},
 	}...)
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "validate_jwt_svid"}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), labels)
 
 	// token validated by bundle
 	s.manager.EXPECT().FetchWorkloadUpdate(selectors).Return(&cache.WorkloadUpdate{
@@ -589,10 +589,10 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 	labels = selectorsToLabels(selectors)
 	setupMetricsCommonExpectations(s.metrics, labels, 1)
 	labels = append(labels, []telemetry.Label{
-		{Name: "subject", Value: "spiffe://example.org/blog"},
-		{Name: "audience", Value: "audience"},
+		{Name: telemetry.Subject, Value: "spiffe://example.org/blog"},
+		{Name: telemetry.Audience, Value: "audience"},
 	}...)
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{workloadApi, "validate_jwt_svid"}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, float32(1), labels)
 
 	resp, err = s.h.ValidateJWTSVID(makeContext(1), &workload.ValidateJWTSVIDRequest{
 		Audience: "audience",
