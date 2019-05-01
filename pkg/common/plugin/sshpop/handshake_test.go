@@ -129,7 +129,7 @@ func TestServerSpiffeID(t *testing.T) {
 }
 
 func newTestHandshake(t *testing.T) (*ClientHandshake, *ServerHandshake) {
-	tt := newTest(t, principal("ec2abcdef-uswest1"))
+	tt := newTest(t, principal("ec2abcdef-uswest1.test.internal"))
 	trustDomain := "foo.local"
 	c := &Client{
 		signer:            tt.Signer,
@@ -156,9 +156,11 @@ func TestVerifyAttestationData(t *testing.T) {
 	c, s := newTestHandshake(t)
 
 	tests := []struct {
-		desc            string
-		attestationData []byte
-		expectErr       string
+		desc                  string
+		attestationData       []byte
+		serverCanonicalDomain string
+		expectErr             string
+		expectHostname        string
 	}{
 		{
 			desc:            "bad format",
@@ -202,14 +204,33 @@ func TestVerifyAttestationData(t *testing.T) {
 		{
 			desc:            "cert is signed by a known authority",
 			attestationData: marshalAttestationData(t, c.c.cert.Marshal()),
+			expectHostname:  "ec2abcdef-uswest1.test.internal",
+		},
+		{
+			desc:                  "cert is signed by a known authority with canonicalized domain",
+			attestationData:       marshalAttestationData(t, c.c.cert.Marshal()),
+			serverCanonicalDomain: "test.internal",
+			expectHostname:        "ec2abcdef-uswest1",
+		},
+		{
+			desc:                  "cert is signed by a known authority with bad canonicalized domain",
+			attestationData:       marshalAttestationData(t, c.c.cert.Marshal()),
+			serverCanonicalDomain: "foo.internal",
+			expectHostname:        "ec2abcdef-uswest1.test.internal",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
+			s.state = stateServerInit
+			s.s.canonicalDomain = tt.serverCanonicalDomain
+
 			err := s.VerifyAttestationData(tt.attestationData)
 			if tt.expectErr == "" {
 				require.NoError(t, err)
+				if tt.expectHostname != "" {
+					require.Equal(t, tt.expectHostname, s.hostname)
+				}
 				return
 			}
 			require.Error(t, err)
