@@ -7,10 +7,11 @@ reads and provides the signed projected service account token (PSAT) to the serv
 In addition to service account data, PSAT embeds the pod name and UID on its claims. This allows
 SPIRE to create more fine-grained attestation policies for agents.
 
-The plugin generates SPIFFE IDs with the form:
+The plugin queries Kubernetes API server to obtain the node in which the agent is running on.
+In this way, it generates SPIFFE IDs with the form:
 
 ```
-spiffe://<trust domain>/spire/agent/k8s_psat/<cluster>/<POD UID>
+spiffe://<trust domain>/spire/agent/k8s_psat/<cluster>/<node UID>
 ```
 
 The main configuration accepts the following values:
@@ -49,6 +50,9 @@ volumeMounts:
     - mountPath: /var/run/secrets/tokens
       name: spire-agent
 ```
+
+A full example of this attestor is provided [here](../examples/k8s/simple_psat/README.md).
+
 
 ## Considerations
 

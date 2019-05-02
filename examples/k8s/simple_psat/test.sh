@@ -16,9 +16,6 @@ k8s-test init
 # apply the server configuration (and waits until it is ready)
 k8s-test apply "${DIR}"/spire-server.yaml
 
-# Apply authorization configuration (so server can query k8s API)
-k8s-test apply "${DIR}"/authorization.yaml
-
 # apply the agent configuration (and waits until it is ready)
 k8s-test apply "${DIR}"/spire-agent.yaml
 

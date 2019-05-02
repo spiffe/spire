@@ -20,7 +20,6 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.AgentConfig.SocketPath, "/tmp/agent.sock")
 	assert.Equal(t, c.AgentConfig.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.AgentConfig.TrustDomain, "example.org")
-	assert.Equal(t, c.AgentConfig.Umask, "")
 
 	// Check for plugins configurations
 	expectedData := "join_token = \"PLUGIN-AGENT-NOT-A-SECRET\""
@@ -64,7 +63,6 @@ func TestParseFlagsGood(t *testing.T) {
 		"-socketPath=/tmp/agent.sock",
 		"-trustBundle=conf/agent/dummy_root_ca.crt",
 		"-trustDomain=example.org",
-		"-umask=",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, c.AgentConfig.DataDir, ".")
@@ -74,7 +72,6 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, c.AgentConfig.SocketPath, "/tmp/agent.sock")
 	assert.Equal(t, c.AgentConfig.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.AgentConfig.TrustDomain, "example.org")
-	assert.Equal(t, c.AgentConfig.Umask, "")
 }
 
 func TestMergeConfigGood(t *testing.T) {
@@ -85,7 +82,6 @@ func TestMergeConfigGood(t *testing.T) {
 		ServerPort:    8081,
 		SocketPath:    "/tmp/agent.sock",
 		TrustDomain:   "example.org",
-		Umask:         "077",
 	}
 
 	c := &runConfig{
@@ -93,7 +89,6 @@ func TestMergeConfigGood(t *testing.T) {
 	}
 
 	orig := newDefaultConfig()
-	assert.Equal(t, orig.umask, -1)
 
 	err := mergeConfig(orig, c)
 	require.NoError(t, err)
@@ -101,5 +96,4 @@ func TestMergeConfigGood(t *testing.T) {
 	assert.Equal(t, orig.TrustDomain.Scheme, "spiffe")
 	assert.Equal(t, orig.TrustDomain.Host, "example.org")
 	assert.Equal(t, orig.DataDir, ".")
-	assert.Equal(t, orig.umask, 077)
 }

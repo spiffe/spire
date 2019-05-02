@@ -21,8 +21,10 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"google.golang.org/grpc"
 )
 
@@ -133,7 +135,16 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	cat, err := s.loadCatalog(ctx)
+	// Create the identity provider host service. It will not be functional
+	// until the call to SetDeps() below. There is some tricky initialization
+	// stuff going on since the identity provider host service requires plugins
+	// to do its job. RPC's from plugins to the identity provider before
+	// SetDeps() has been called will fail with a PreCondition status.
+	identityProvider := identityprovider.New(identityprovider.Config{
+		TrustDomainID: s.config.TrustDomain.String(),
+	})
+
+	cat, err := s.loadCatalog(ctx, identityProvider)
 	if err != nil {
 		return err
 	}
@@ -161,6 +172,21 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}
 
 	endpointsServer := s.newEndpointsServer(cat, svidRotator, serverCA, metrics)
+
+	// Set the identity provider dependencies
+	if err := identityProvider.SetDeps(identityprovider.Deps{
+		DataStore: cat.GetDataStore(),
+		X509IdentityFetcher: identityprovider.X509IdentityFetcherFunc(func(context.Context) (*identityprovider.X509Identity, error) {
+			// Return the server identity itself
+			state := svidRotator.State()
+			return &identityprovider.X509Identity{
+				CertChain:  state.SVID,
+				PrivateKey: state.Key,
+			}, nil
+		}),
+	}); err != nil {
+		return fmt.Errorf("failed setting IdentityProvider deps: %v", err)
+	}
 
 	err = util.RunTasks(ctx,
 		caManager.Run,
@@ -228,13 +254,14 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context) (*catalog.CatalogCloser, error) {
+func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider) (*catalog.CatalogCloser, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField("subsystem_name", "catalog"),
 		GlobalConfig: catalog.GlobalConfig{
 			TrustDomain: s.config.TrustDomain.Host,
 		},
-		PluginConfig: s.config.PluginConfigs,
+		PluginConfig:     s.config.PluginConfigs,
+		IdentityProvider: identityProvider,
 	})
 }
 
