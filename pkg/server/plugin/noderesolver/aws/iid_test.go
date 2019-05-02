@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	awsAgentID = "spiffe://example.org/spire/agent/aws_iid/ACCOUNT/REGION/INSTANCE"
+	awsAgentID              = "spiffe://example.org/spire/agent/aws_iid/ACCOUNT/REGION/INSTANCE"
+	testInstanceProfileArn  = "arn:aws:iam::123412341234:instance-profile/nodes.test.k8s.local"
+	testInstanceProfileName = "nodes.test.k8s.local"
 )
 
 func TestIIDResolver(t *testing.T) {
@@ -127,7 +129,7 @@ func (s *IIDResolverSuite) TestResolve() {
 	// instance with IAM role
 	s.client.SetInstance(&ec2.Instance{
 		IamInstanceProfile: &ec2.IamInstanceProfile{
-			Arn: aws.String("INSTANCEPROFILE"),
+			Arn: aws.String(testInstanceProfileArn),
 		},
 	})
 	s.client.SetInstanceProfile(&iam.InstanceProfile{
@@ -188,6 +190,20 @@ func (s *IIDResolverSuite) TestGetPluginInfo() {
 	resp, err := s.resolver.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.GetPluginInfoResponse{})
+}
+
+func (s *IIDResolverSuite) TestInstanceProfileArnParsing() {
+	// not an ARN
+	_, err := instanceProfileNameFromArn("not-an-arn")
+	s.Require().EqualError(err, "aws-iid: arn: invalid prefix")
+
+	// not an instance profile ARN
+	_, err = instanceProfileNameFromArn("arn:aws:elasticbeanstalk:us-east-1:123456789012:environment/My App/MyEnvironment")
+	s.Require().EqualError(err, "aws-iid: arn is not for an instance profile")
+
+	name, err := instanceProfileNameFromArn(testInstanceProfileArn)
+	s.Require().NoError(err)
+	s.Require().Equal(testInstanceProfileName, name)
 }
 
 func (s *IIDResolverSuite) newResolver() {
@@ -306,7 +322,7 @@ func (c *fakeAWSClient) GetInstanceProfileWithContext(_ aws.Context, input *iam.
 		return nil, errs.New("bad request: instance profile name is nil")
 	case (*input.InstanceProfileName) == "":
 		return nil, errs.New("bad request: instance profile name id empty")
-	case (*input.InstanceProfileName) != "INSTANCEPROFILE":
+	case (*input.InstanceProfileName) != testInstanceProfileName:
 		return nil, errs.New("instance profile not found")
 	case c.instanceProfile == nil:
 		return nil, errs.New("misconfigured test: instance profile is nil")
