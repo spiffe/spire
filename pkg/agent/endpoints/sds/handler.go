@@ -213,7 +213,7 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 }
 
 func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, func(), error) {
-	watcher, err := h.peerWatcher(ctx)
+	watcher, err := peerWatcher(ctx)
 	if err != nil {
 		return 0, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
@@ -236,19 +236,6 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	}
 
 	return watcher.PID(), selectors, done, nil
-}
-
-// peerWatcher takes a grpc context, and returns a Watcher representing the caller which
-// has issued the request. Returns an error if the call was not made locally, if the necessary
-// syscalls aren't unsupported, or if the transport security was not properly configured.
-// See the peertracker package for more information.
-func (h *Handler) peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
-	watcher, ok := peertracker.WatcherFromContext(ctx)
-	if !ok {
-		return nil, errors.New("unable to fetch watcher from context")
-	}
-
-	return watcher, nil
 }
 
 func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest, upd *cache.WorkloadUpdate) (resp *api_v2.DiscoveryResponse, err error) {
@@ -307,6 +294,19 @@ func (h *Handler) triggerReceivedHook() {
 	if h.hooks.received != nil {
 		h.hooks.received <- struct{}{}
 	}
+}
+
+// peerWatcher takes a grpc context, and returns a Watcher representing the caller which
+// has issued the request. Returns an error if the call was not made locally, if the necessary
+// syscalls aren't unsupported, or if the transport security was not properly configured.
+// See the peertracker package for more information.
+func peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
+	watcher, ok := peertracker.WatcherFromContext(ctx)
+	if !ok {
+		return nil, errors.New("unable to fetch watcher from context")
+	}
+
+	return watcher, nil
 }
 
 func buildTLSCertificate(entry *cache.Entry) (*types.Any, error) {

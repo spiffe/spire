@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"sync"
 	"syscall"
 )
 
@@ -28,6 +29,7 @@ func (linuxTracker) Close() {
 type linuxWatcher struct {
 	gid       uint32
 	pid       int32
+	mtx       sync.Mutex
 	procfh    *os.File
 	starttime string
 	uid       uint32
@@ -60,11 +62,21 @@ func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
 }
 
 func (l *linuxWatcher) Close() {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
+	if l.procfh == nil {
+		return
+	}
+
 	l.procfh.Close()
 	l.procfh = nil
 }
 
 func (l *linuxWatcher) IsAlive() error {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
 	if l.procfh == nil {
 		return errors.New("caller is no longer being watched")
 	}

@@ -42,8 +42,7 @@ func main() {
 			os.Exit(3)
 		}
 
-		foreverCh := make(chan struct{})
-		<-foreverCh
+		select {}
 	}
 
 	if socketPath == "" {

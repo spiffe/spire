@@ -49,14 +49,23 @@ func (p *PeerTrackerTestSuite) SetupTest() {
 }
 
 func (p *PeerTrackerTestSuite) TearDownTest() {
-	err := p.ul.Close()
-	p.NoError(err)
+	// only close the listener if we haven't already
+	if p.ul != nil {
+		err := p.ul.Close()
+		p.NoError(err)
+	}
 
-	err = os.Remove(p.childPath)
+	err := os.Remove(p.childPath)
 	p.NoError(err)
 
 	err = os.Remove(p.tempDir)
 	p.NoError(err)
+}
+
+func (p *PeerTrackerTestSuite) TestTrackerClose() {
+	p.ul.Tracker.Close()
+	_, err := p.ul.Tracker.NewWatcher(CallerInfo{})
+	p.Error(err)
 }
 
 func (p *PeerTrackerTestSuite) TestUDSListener() {
@@ -113,10 +122,15 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	peer.connectFromForkingChild(p.unixAddr, p.childPath, doneCh)
 
 	rawConn, err = p.ul.Accept()
-	p.Require().NoError(err)
 
 	// Unblock child connect goroutine
 	<-doneCh
+
+	// Check for Accept() error only after unblocking
+	// the child so we can be sure that we that we can
+	// clean up correctly
+	defer peer.killGrandchild()
+	p.Require().NoError(err)
 
 	conn, ok = rawConn.(*Conn)
 	p.Require().True(ok)
@@ -132,8 +146,13 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	p.Require().NoError(err)
 	p.Equal(expectedSign, theSign)
 
-	peer.killGrandchild()
 	conn.Close()
+
+	// Check that IsAlive doesn't freak out if called after
+	// the tracker has been closed
+	p.ul.Close()
+	p.ul = nil
+	p.Error(conn.Info.Watcher.IsAlive())
 }
 
 type fakeUDSPeer struct {

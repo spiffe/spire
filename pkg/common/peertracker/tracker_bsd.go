@@ -129,8 +129,7 @@ func (b *bsdTracker) receiveKevents(kqfd int) {
 		}
 
 		b.mtx.Lock()
-		for i := 0; i < num; i++ {
-			kevent := receive[i]
+		for _, kevent := range receive[:num] {
 			if kevent.Filter == syscall.EVFILT_PROC && (kevent.Fflags&syscall.NOTE_EXIT) > 0 {
 				pid := int(kevent.Ident)
 				done, ok := b.watchedPIDs[pid]
@@ -141,10 +140,6 @@ func (b *bsdTracker) receiveKevents(kqfd int) {
 			}
 		}
 		b.mtx.Unlock()
-
-		if b.ctx.Err() != nil {
-			return
-		}
 	}
 }
 
@@ -178,6 +173,7 @@ func (b *bsdWatcher) Close() {
 func (b *bsdWatcher) IsAlive() error {
 	b.mtx.Lock()
 	if b.closed {
+		b.mtx.Unlock()
 		return errors.New("caller is no longer being watched")
 	}
 	b.mtx.Unlock()

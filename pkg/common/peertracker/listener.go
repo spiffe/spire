@@ -19,6 +19,7 @@ func ListenUnix(network string, laddr *net.UnixAddr) (*Listener, error) {
 
 	tracker, err := NewTracker()
 	if err != nil {
+		l.Close()
 		return nil, err
 	}
 
