@@ -61,7 +61,7 @@ func (l *Listener) Accept() (net.Conn, error) {
 	}
 
 	wrappedConn := &Conn{
-		c: conn,
+		Conn: conn,
 		Info: AuthInfo{
 			Caller:  caller,
 			Watcher: watcher,
