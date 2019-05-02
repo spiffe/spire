@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/base64"
-	"errors"
 	"testing"
 	"time"
 
@@ -14,9 +13,9 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/api/workload"
@@ -235,7 +234,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	resp, err = s.h.FetchJWTSVID(makeContext(0), &workload.JWTSVIDRequest{
 		Audience: audience,
 	})
-	s.requireErrorContains(err, "Unable to fetch credentials from context")
+	s.requireErrorContains(err, "Unable to fetch watcher from context")
 	s.Require().Nil(resp)
 
 	// no identity issued
@@ -377,7 +376,7 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	// missing peer info
 	stream.EXPECT().Context().Return(makeContext(0))
 	err = s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream)
-	s.requireErrorContains(err, "Unable to fetch credentials from context")
+	s.requireErrorContains(err, "Unable to fetch watcher from context")
 
 	// success
 	ctx, cancel := context.WithCancel(makeContext(1))
@@ -503,7 +502,7 @@ func (s *HandlerTestSuite) TestValidateJWTSVID() {
 		Audience: "audience",
 		Svid:     "svid",
 	})
-	s.requireErrorContains(err, "Unable to fetch credentials from context")
+	s.requireErrorContains(err, "Unable to fetch watcher from context")
 	s.Require().Nil(resp)
 
 	// set up attestation
@@ -630,33 +629,22 @@ func (s *HandlerTestSuite) TestStructFromValues() {
 	s.Require().Equal(expected, actual)
 }
 
-func (s *HandlerTestSuite) TestCallerPID() {
+func (s *HandlerTestSuite) TestPeerWatcher() {
 	p := &peer.Peer{
-		AuthInfo: auth.CallerInfo{
-			PID: 1,
+		AuthInfo: peertracker.AuthInfo{
+			Watcher: FakeWatcher{},
 		},
 	}
 	ctx := peer.NewContext(context.Background(), p)
 
-	pid, err := s.h.callerPID(ctx)
+	watcher, err := s.h.peerWatcher(ctx)
 	s.Assert().NoError(err)
-	s.Assert().Equal(int32(1), pid)
-
-	// Couldn't get PID via socket opt
-	p = &peer.Peer{
-		AuthInfo: auth.CallerInfo{
-			PID: 0,
-			Err: errors.New("i'm an error"),
-		},
-	}
-	ctx = peer.NewContext(context.Background(), p)
-	_, err = s.h.callerPID(ctx)
-	s.Assert().Error(err)
+	s.Assert().Equal(int32(1), watcher.PID())
 
 	// Implementation error - custom auth creds not in use
 	p.AuthInfo = nil
 	ctx = peer.NewContext(context.Background(), p)
-	_, err = s.h.callerPID(ctx)
+	_, err = s.h.peerWatcher(ctx)
 	s.Assert().Error(err)
 }
 
@@ -698,11 +686,19 @@ func makeContext(pid int) context.Context {
 
 	if pid > 0 {
 		ctx = peer.NewContext(ctx, &peer.Peer{
-			AuthInfo: auth.CallerInfo{
-				PID: 1,
+			AuthInfo: peertracker.AuthInfo{
+				Watcher: FakeWatcher{},
 			},
 		})
 	}
 
 	return ctx
 }
+
+type FakeWatcher struct{}
+
+func (w FakeWatcher) Close() {}
+
+func (w FakeWatcher) IsAlive() error { return nil }
+
+func (w FakeWatcher) PID() int32 { return 1 }

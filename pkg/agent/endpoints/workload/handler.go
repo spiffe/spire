@@ -19,9 +19,9 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/api/workload"
@@ -333,7 +333,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.InvalidArgument, "Security header missing from request")
 	}
 
-	pid, err := h.callerPID(ctx)
+	watcher, err := h.peerWatcher(ctx)
 	if err != nil {
 		return 0, nil, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
@@ -346,7 +346,14 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		M:       h.M,
 	}
 
-	selectors := attestor.New(&config).Attest(ctx, pid)
+	selectors := attestor.New(&config).Attest(ctx, watcher.PID())
+
+	// Ensure that the original caller is still alive so that we know we didn't
+	// attest some other process that happened to be assigned the original PID
+	err = watcher.IsAlive()
+	if err != nil {
+		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
+	}
 
 	metrics := telemetry.WithLabels(h.M, selectorsToLabels(selectors))
 	metrics.IncrCounter([]string{workloadApi, "connection"}, 1)
@@ -355,29 +362,20 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		defer h.M.IncrCounter([]string{workloadApi, "connections"}, -1)
 	}
 
-	return pid, selectors, metrics, done, nil
+	return watcher.PID(), selectors, metrics, done, nil
 }
 
-// callerPID takes a grpc context, and returns the PID of the caller which has issued
-// the request. Returns an error if the call was not made locally, if the necessary
+// peerWatcher takes a grpc context, and returns a Watcher representing the caller which
+// has issued the request. Returns an error if the call was not made locally, if the necessary
 // syscalls aren't unsupported, or if the transport security was not properly configured.
-// See the auth package for more information.
-func (h *Handler) callerPID(ctx context.Context) (pid int32, err error) {
-	info, ok := auth.CallerFromContext(ctx)
+// See the peertracker package for more information.
+func (h *Handler) peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
+	watcher, ok := peertracker.WatcherFromContext(ctx)
 	if !ok {
-		return 0, errors.New("Unable to fetch credentials from context")
+		return nil, errors.New("Unable to fetch watcher from context")
 	}
 
-	if info.Err != nil {
-		return 0, fmt.Errorf("Unable to resolve caller PID: %s", info.Err)
-	}
-
-	// If PID is 0, something is wrong...
-	if info.PID == 0 {
-		return 0, errors.New("Unable to resolve caller PID")
-	}
-
-	return info.PID, nil
+	return watcher, nil
 }
 
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*bundleutil.Bundle) {
