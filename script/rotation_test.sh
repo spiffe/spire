@@ -18,6 +18,12 @@ END=$(($START + $TIMEOUT))
 set -e
 
 rm -f .data/datastore.sqlite3
+rm -f .data/datastore.sqlite3-shm
+rm -f .data/datastore.sqlite3-wal
+rm -f .data/agent_svid.der
+rm -f .data/bundle.der
+rm -f .data/svid.key
+
 ./cmd/spire-server/spire-server run &
 sleep 2
 
@@ -55,7 +61,7 @@ while [ "$RESULT" == "svid.0.pem: OK" ]; do
     sleep 1
     ./cmd/spire-agent/spire-agent api fetch x509 -write .
     echo "Current date: " $(date)
-    RESULT=$(openssl verify -partial_chain -CAfile bundle.0.pem svid.0.pem)
+    RESULT=$(openssl verify -partial_chain -CAfile bundle.0.pem -untrusted svid.0.pem svid.0.pem)
     echo $RESULT
 done
 
