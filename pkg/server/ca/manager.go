@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/proto/spire/server/keymanager"
+	"github.com/spiffe/spire/proto/spire/server/notifier"
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/zeebo/errs"
 )
@@ -54,8 +55,9 @@ type ManagerConfig struct {
 }
 
 type Manager struct {
-	c  ManagerConfig
-	ca ServerCA
+	c               ManagerConfig
+	ca              ServerCA
+	bundleUpdatedCh chan struct{}
 
 	currentX509CA *x509CASlot
 	nextX509CA    *x509CASlot
@@ -74,7 +76,8 @@ func NewManager(c ManagerConfig) *Manager {
 	}
 
 	return &Manager{
-		c: c,
+		c:               c,
+		bundleUpdatedCh: make(chan struct{}, 1),
 	}
 }
 
@@ -85,18 +88,22 @@ func (m *Manager) Initialize(ctx context.Context) error {
 	if err := m.rotate(ctx); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (m *Manager) Run(ctx context.Context) error {
+	if err := m.notifyBundleLoaded(ctx); err != nil {
+		return err
+	}
 	err := util.RunTasks(ctx,
 		func(ctx context.Context) error {
 			return m.rotateEvery(ctx, rotateInterval)
 		},
 		func(ctx context.Context) error {
 			return m.pruneBundleEvery(ctx, pruneInterval)
-		})
+		},
+		m.notifyOnBundleUpdate,
+	)
 	if err == context.Canceled {
 		err = nil
 	}
@@ -325,13 +332,10 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 
 	now := m.c.Clock.Now().Add(-safetyThreshold)
 
-	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: m.c.TrustDomain.String(),
-	})
+	oldBundle, err := m.fetchOptionalBundle(ctx)
 	if err != nil {
-		return errs.Wrap(err)
+		return err
 	}
-	oldBundle := resp.Bundle
 	if oldBundle == nil {
 		// no bundle to prune
 		return nil
@@ -387,6 +391,7 @@ pruneRootCA:
 		if err != nil {
 			return fmt.Errorf("write new bundle: %v", err)
 		}
+		m.bundleUpdated()
 	}
 
 	return nil
@@ -416,6 +421,7 @@ func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 		return err
 	}
 
+	m.bundleUpdated()
 	return nil
 }
 
@@ -430,7 +436,6 @@ func (m *Manager) loadJournal(ctx context.Context) error {
 	// Load the journal and see if we can figure out the next and current
 	// X509CA and JWTKey entries, if any.
 	m.c.Log.WithField("path", m.journalPath()).Debug("Loading journal")
-
 	journal, err := LoadJournal(m.journalPath())
 	if err != nil {
 		return err
@@ -648,6 +653,152 @@ func (m *Manager) makeSigner(ctx context.Context, keyID string) (crypto.Signer, 
 	}
 
 	return cryptoutil.NewKeyManagerSigner(km, keyID, publicKey), nil
+}
+
+func (m *Manager) bundleUpdated() {
+	select {
+	case m.bundleUpdatedCh <- struct{}{}:
+	default:
+	}
+}
+
+func (m *Manager) dropBundleUpdated() {
+	select {
+	case <-m.bundleUpdatedCh:
+	default:
+	}
+}
+
+func (m *Manager) notifyOnBundleUpdate(ctx context.Context) error {
+	for {
+		select {
+		case <-m.bundleUpdatedCh:
+			if err := m.notifyBundleUpdated(ctx); err != nil {
+				m.c.Log.Warnf("failed to notify on bundle update: %v", err)
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (m *Manager) notifyBundleLoaded(ctx context.Context) error {
+	// if initialization has triggered a "bundle updated" event (e.g. server CA
+	// was rotated), we want to drain it now as we're about to emit the initial
+	// bundle loaded event.  otherwise, plugins will get an immediate "bundle
+	// updated" event right after "bundle loaded".
+	m.dropBundleUpdated()
+
+	var bundle *common.Bundle
+	return m.notify(ctx, "bundle loaded", true,
+		func(ctx context.Context) (err error) {
+			bundle, err = m.fetchRequiredBundle(ctx)
+			return err
+		},
+		func(ctx context.Context, n notifier.Notifier) error {
+			_, err := n.NotifyAndAdvise(ctx, &notifier.NotifyAndAdviseRequest{
+				Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
+					BundleLoaded: &notifier.BundleLoaded{
+						Bundle: bundle,
+					},
+				},
+			})
+			return err
+		},
+	)
+}
+
+func (m *Manager) notifyBundleUpdated(ctx context.Context) error {
+	var bundle *common.Bundle
+	return m.notify(ctx, "bundle updated", false,
+		func(ctx context.Context) (err error) {
+			bundle, err = m.fetchRequiredBundle(ctx)
+			return err
+		},
+		func(ctx context.Context, n notifier.Notifier) error {
+			_, err := n.Notify(ctx, &notifier.NotifyRequest{
+				Event: &notifier.NotifyRequest_BundleUpdated{
+					BundleUpdated: &notifier.BundleUpdated{
+						Bundle: bundle,
+					},
+				},
+			})
+			return err
+		},
+	)
+}
+
+func (m *Manager) notify(ctx context.Context, event string, advise bool, pre func(context.Context) error, do func(context.Context, notifier.Notifier) error) error {
+	notifiers := m.c.Catalog.GetNotifiers()
+	if len(notifiers) == 0 {
+		return nil
+	}
+
+	if pre != nil {
+		if err := pre(ctx); err != nil {
+			return err
+		}
+	}
+
+	errsCh := make(chan error, len(notifiers))
+	for _, n := range notifiers {
+		go func(n catalog.Notifier) {
+			err := do(ctx, n)
+			if err == nil {
+				m.c.Log.WithFields(logrus.Fields{
+					"notifier": n.Name(),
+					"event":    event,
+				}).Debug("Notifier handled event")
+			} else {
+				f := m.c.Log.WithFields(logrus.Fields{
+					"notifier": n.Name(),
+					"event":    event,
+					"err":      err.Error(),
+				})
+				if advise {
+					f.Error("Notifier failed to handle event")
+				} else {
+					f.Warn("Notifier failed to handle event")
+				}
+			}
+			errsCh <- err
+		}(n)
+	}
+
+	var allErrs errs.Group
+	for i := 0; i < len(notifiers); i++ {
+		// don't select on the ctx here as we can rely on the plugins to
+		// respond to context cancelation and return an error.
+		if err := <-errsCh; err != nil {
+			allErrs.Add(err)
+		}
+	}
+	if err := allErrs.Err(); err != nil {
+		return errs.New("one or more notifiers returned an error: %v", err)
+	}
+	return nil
+}
+
+func (m *Manager) fetchRequiredBundle(ctx context.Context) (*common.Bundle, error) {
+	bundle, err := m.fetchOptionalBundle(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if bundle == nil {
+		return nil, errs.New("trust domain bundle is missing")
+	}
+	return bundle, nil
+}
+
+func (m *Manager) fetchOptionalBundle(ctx context.Context) (*common.Bundle, error) {
+	ds := m.c.Catalog.GetDataStore()
+	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: m.c.TrustDomain.String(),
+	})
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+	return resp.Bundle, nil
 }
 
 func x509CAKmKeyId(id string) string {

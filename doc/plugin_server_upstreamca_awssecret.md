@@ -20,7 +20,7 @@ The plugin accepts the following configuration options:
 A sample configuration:
 
 ```
-    NodeAttestor "awssecret" {
+    UpstreamCA "awssecret" {
         plugin_data {
             ttl = "1h",
             region = "us-west-2",

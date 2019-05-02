@@ -22,6 +22,8 @@ func WaitForObjects(ctx context.Context, objects []Object, interval time.Duratio
 			if err := WaitForStatefulSet(ctx, object.Name, interval); err != nil {
 				return err
 			}
+		case ClusterRoleKind:
+		case ClusterRoleBindingKind:
 		case ConfigMapKind:
 		case NamespaceKind:
 		case RoleBindingKind:

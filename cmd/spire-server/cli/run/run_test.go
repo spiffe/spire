@@ -19,7 +19,6 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.RegistrationUDSPath, "/tmp/server.sock")
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
-	assert.Equal(t, c.Server.Umask, "")
 	assert.Equal(t, c.Server.Experimental.AllowAgentlessNodeAttestors, true)
 
 	// Check for plugins configurations
@@ -62,14 +61,12 @@ func TestParseFlagsGood(t *testing.T) {
 		"-registrationUDSPath=/tmp/flag.sock",
 		"-trustDomain=example.org",
 		"-logLevel=INFO",
-		"-umask=",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, c.Server.BindAddress, "127.0.0.1")
 	assert.Equal(t, c.Server.RegistrationUDSPath, "/tmp/flag.sock")
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
-	assert.Equal(t, c.Server.Umask, "")
 }
 
 func TestMergeConfigGood(t *testing.T) {
@@ -79,7 +76,6 @@ func TestMergeConfigGood(t *testing.T) {
 		RegistrationUDSPath: "/tmp/server.sock",
 		TrustDomain:         "example.org",
 		LogLevel:            "INFO",
-		Umask:               "077",
 	}
 
 	c := &runConfig{
@@ -87,7 +83,6 @@ func TestMergeConfigGood(t *testing.T) {
 	}
 
 	orig := newDefaultConfig()
-	assert.Equal(t, orig.umask, -1)
 
 	err := mergeConfig(orig, c)
 	require.NoError(t, err)
@@ -97,5 +92,4 @@ func TestMergeConfigGood(t *testing.T) {
 	assert.Equal(t, orig.BindAddress.Port, 8081)
 	assert.Equal(t, orig.TrustDomain.Scheme, "spiffe")
 	assert.Equal(t, orig.TrustDomain.Host, "example.org")
-	assert.Equal(t, orig.umask, 0077)
 }
