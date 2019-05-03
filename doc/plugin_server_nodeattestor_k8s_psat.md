@@ -27,9 +27,9 @@ Each cluster in the main configuration requires the following configuration:
 | ------------- | ----------- | ----------------------- |
 | `service_account_whitelist` | A list of service account names, qualified by namespace (for example, "default:blog" or "production:web") to allow for node attestation. Attestation will be rejected for tokens bound to service accounts that aren't in the whitelist. | |
 | `audience` | Audience for token validation. If it is set to an empty array (`[]`), Kubernetes API server audience is used | ["spire-server"] |
-| `kube_config_file` | Path to a k8s configuration file for API Server authentication. A kubernetes configuration file must be specified if SPIRE server runs outside of the k8s cluster. If empty, SPIRE server is assumed to be running inside the cluster and InClusterConfig is used. | ""|
+| `kube_config_file` | Path to a k8s configuration file for API Server authentication. A kubernetes configuration file must be specified if SPIRE server runs outside of the k8s cluster. If empty, SPIRE server is assumed to be running inside the cluster and in-cluster configuration is used. | ""|
 
-A sample configuration for SPIRE server running inside k8s cluster:
+A sample configuration for SPIRE server running inside of a kubernetes cluster:
 
 ```
     NodeAttestor "k8s_psat" {
@@ -37,6 +37,20 @@ A sample configuration for SPIRE server running inside k8s cluster:
             clusters = {
                 "MyCluster" = {
                     service_account_whitelist = ["production:spire-agent"]
+                }
+        }
+    }
+```
+
+A sample configuration for SPIRE server running outside of a kubernetes cluster:
+
+```
+    NodeAttestor "k8s_psat" {
+        plugin_data {
+            clusters = {
+                "MyCluster" = {
+                    service_account_whitelist = ["production:spire-agent"]
+                    kube_config_file = "path/to/kubeconfig/file"
                 }
         }
     }

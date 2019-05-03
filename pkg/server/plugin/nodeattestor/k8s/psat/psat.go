@@ -53,7 +53,7 @@ type ClusterConfig struct {
 	Audience *[]string `hcl:"audience"`
 
 	// Kubernetes configuration file path
-	// Used to create a k8s client to query the API server. If path is empty, 'InClusterConfig' is used
+	// Used to create a k8s client to query the API server. If string is empty, in-cluster configuration is used
 	KubeConfigFile string `hcl:"kube_config_file"`
 }
 
