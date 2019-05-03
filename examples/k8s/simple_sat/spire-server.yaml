@@ -58,7 +58,6 @@ data:
         plugin_data {
           clusters = {
             "demo-cluster" = {
-              service_account_key_file = "/run/k8s-certs/sa.pub"
               service_account_whitelist = ["spire:spire-agent"]
             }
           }
@@ -135,9 +134,6 @@ spec:
             - name: spire-data
               mountPath: /run/spire/data
               readOnly: false
-            - name: k8s-sa-cert
-              mountPath: /run/k8s-certs/sa.pub
-              readOnly: true
           livenessProbe:
             tcpSocket:
               port: 8081
@@ -152,10 +148,6 @@ spec:
         - name: spire-secrets
           secret:
             secretName: spire-server
-        - name: k8s-sa-cert
-          hostPath:
-            path: /var/lib/minikube/certs/sa.pub
-            type: File
   volumeClaimTemplates:
     - metadata:
         name: spire-data

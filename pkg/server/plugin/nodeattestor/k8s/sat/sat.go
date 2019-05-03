@@ -38,7 +38,7 @@ type ClusterConfig struct {
 	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
 
 	// Kubernetes configuration file path
-	// Used to create a client to query the Kubernetes API server. If empty string, 'InClusterConfig' is used
+	// Used to create a client to query the Kubernetes API server. If string is empty, in-cluster configuration is used
 	KubeConfigFile string `hcl:"kube_config_file"`
 }
 

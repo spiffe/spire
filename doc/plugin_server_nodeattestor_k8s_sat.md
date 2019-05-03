@@ -3,9 +3,9 @@
 *Must be used in conjunction with the agent-side k8s_sat plugin*
 
 The `k8s_sat` plugin attests nodes running in inside of Kubernetes. The server
-validates the signed service account token provided by the agent. It extracts
-the service account name and namespace from the token claims. The server uses a
-one-time UUID provided by the agent to generate a SPIFFE ID with the form:
+validates the signed service account token provided by the agent. This validation is performed using the Kubernetes [Token Review API](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.10/#tokenreview-v1-authentication-k8s-io), from where the attestor also obtains the namespace and service account name.
+
+The server uses a one-time UUID provided by the agent to generate a SPIFFE ID with the form:
 
 ```
 spiffe://<trust domain>/spire/agent/k8s_sat/<cluster>/<UUID>
@@ -25,18 +25,31 @@ Each cluster in the main configuration requires the following configuration:
 
 | Configuration | Description | Default                 |
 | ------------- | ----------- | ----------------------- |
-| `service_account_key_file` | Path on disk to a PEM encoded file containing public keys used in validating tokens for that cluster. RSA and ECDSA keys are supported. For RSA, X509 certificates, PKCS1, and PKIX encoded public keys are accepted. For ECDSA, X509 certificates, and PKIX encoded public keys are accepted. | |
+| `kube_config_file` | Path to a k8s configuration file for API Server authentication. A kubernetes configuration file must be specified if SPIRE server runs outside of the k8s cluster. If empty, SPIRE server is assumed to be running inside the cluster and in-cluster configuration is used. | "" |
 | `service_account_whitelist` | A list of service account names, qualified by namespace (for example, "default:blog" or "production:web") to allow for node attestation. Attestation will be rejected for tokens bound to service accounts that aren't in the whitelist. | |
 
-A sample configuration:
+A sample configuration for SPIRE server running inside of a Kubernetes cluster:
 
 ```
     NodeAttestor "k8s_sat" {
         plugin_data {
             clusters = {
                 "MyCluster" = {
-                    service_account_key_file = "/path/to/key/file"
                     service_account_whitelist = ["production:spire-agent"]
+                }
+        }
+    }
+```
+
+A sample configuration for SPIRE server running outside of a Kubernetes cluster:
+
+```
+    NodeAttestor "k8s_sat" {
+        plugin_data {
+            clusters = {
+                "MyCluster" = {
+                    service_account_whitelist = ["production:spire-agent"]
+                    kube_config_file = "path/to/kubeconfig/file"
                 }
         }
     }

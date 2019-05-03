@@ -14,9 +14,6 @@ accounts of **spire-server** and **spire-agent**.
 ### Configuration
 
 + Set trust_domain and the cluster name for the k8s SAT NodeAttestor.
-+ Modify the path in the *k8s-sa-cert* volume for SPIRE server as appropriate
-  for your deployment - this is the certificate used to verify service accounts
-  in the cluster. This example assumes minikube.
 
 ### Deployment
 
