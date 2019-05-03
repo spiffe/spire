@@ -2,7 +2,6 @@ package sat
 
 import (
 	"context"
-	"crypto"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -10,11 +9,11 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
+	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/zeebo/errs"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -36,8 +35,11 @@ func builtin(p *AttestorPlugin) catalog.Plugin {
 }
 
 type ClusterConfig struct {
-	ServiceAccountKeyFile   string   `hcl:"service_account_key_file"`
 	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
+
+	// Kubernetes configuration file path
+	// Used to create a client to query the Kubernetes API server. If empty string, 'InClusterConfig' is used
+	KubeConfigFile string `hcl:"kube_config_file"`
 }
 
 type AttestorConfig struct {
@@ -45,8 +47,8 @@ type AttestorConfig struct {
 }
 
 type clusterConfig struct {
-	serviceAccountKeys []crypto.PublicKey
-	serviceAccounts    map[string]bool
+	serviceAccounts map[string]bool
+	client          apiserver.Client
 }
 
 type attestorConfig struct {
@@ -114,36 +116,24 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return satError.New("not configured for cluster %q", attestationData.Cluster)
 	}
 
-	token, err := jwt.ParseSigned(attestationData.Token)
+	// Empty audience is used since SAT does not support audiences
+	tokenStatus, err := cluster.client.ValidateToken(attestationData.Token, []string{})
 	if err != nil {
-		return satError.New("unable to parse token: %v", err)
+		return satError.New("unable to validate token with TokenReview API: %v", err)
 	}
 
-	claims := new(k8s.SATClaims)
-	err = k8s.VerifyTokenSignature(cluster.serviceAccountKeys, token, claims)
+	if !tokenStatus.Authenticated {
+		return satError.New("token not authenticated according to TokenReview API")
+	}
+
+	namespace, serviceAccountName, err := k8s.GetNamesFromTokenStatus(tokenStatus)
 	if err != nil {
-		return satError.Wrap(err)
+		return satError.New("fail to parse username from token review status: %v", err)
 	}
+	fullServiceAccountName := fmt.Sprintf("%v:%v", namespace, serviceAccountName)
 
-	// TODO: service account tokens don't currently expire.... when they do, validate the time (with leeway)
-	if err := claims.Validate(jwt.Expected{
-		Issuer: "kubernetes/serviceaccount",
-	}); err != nil {
-		return satError.New("unable to validate token claims: %v", err)
-	}
-
-	if claims.Namespace == "" {
-		return satError.New("token missing namespace claim")
-	}
-
-	if claims.ServiceAccountName == "" {
-		return satError.New("token missing service account name claim")
-	}
-
-	serviceAccountName := fmt.Sprintf("%s:%s", claims.Namespace, claims.ServiceAccountName)
-
-	if !cluster.serviceAccounts[serviceAccountName] {
-		return satError.New("%q is not a whitelisted service account", serviceAccountName)
+	if !cluster.serviceAccounts[fullServiceAccountName] {
+		return satError.New("%q is not a whitelisted service account", fullServiceAccountName)
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
@@ -151,8 +141,8 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, attestationData.UUID),
 		Selectors: []*common.Selector{
 			k8s.MakeSelector(pluginName, "cluster", attestationData.Cluster),
-			k8s.MakeSelector(pluginName, "agent_ns", claims.Namespace),
-			k8s.MakeSelector(pluginName, "agent_sa", claims.ServiceAccountName),
+			k8s.MakeSelector(pluginName, "agent_ns", namespace),
+			k8s.MakeSelector(pluginName, "agent_sa", serviceAccountName),
 		},
 	})
 }
@@ -179,20 +169,8 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 	}
 	config.trustDomain = req.GlobalConfig.TrustDomain
 	for name, cluster := range hclConfig.Clusters {
-		if cluster.ServiceAccountKeyFile == "" {
-			return nil, satError.New("cluster %q configuration missing service account key file", name)
-		}
 		if len(cluster.ServiceAccountWhitelist) == 0 {
 			return nil, satError.New("cluster %q configuration must have at least one service account whitelisted", name)
-		}
-
-		serviceAccountKeys, err := k8s.LoadServiceAccountKeys(cluster.ServiceAccountKeyFile)
-		if err != nil {
-			return nil, satError.New("failed to load cluster %q service account keys from %q: %v", name, cluster.ServiceAccountKeyFile, err)
-		}
-
-		if len(serviceAccountKeys) == 0 {
-			return nil, satError.New("cluster %q has no service account keys in %q", name, cluster.ServiceAccountKeyFile)
 		}
 
 		serviceAccounts := make(map[string]bool)
@@ -201,8 +179,8 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 		}
 
 		config.clusters[name] = &clusterConfig{
-			serviceAccountKeys: serviceAccountKeys,
-			serviceAccounts:    serviceAccounts,
+			serviceAccounts: serviceAccounts,
+			client:          apiserver.New(cluster.KubeConfigFile),
 		}
 	}
 
