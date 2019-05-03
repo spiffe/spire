@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
-	k8s_auth "k8s.io/api/authentication/v1"
+	authv1 "k8s.io/api/authentication/v1"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -209,7 +209,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), "missing namespace")
+	s.requireAttestError(makeAttestRequest("FOO", token), "fail to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
@@ -220,7 +220,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), "missing service account name")
+	s.requireAttestError(makeAttestRequest("FOO", token), "fail to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
@@ -231,7 +231,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), "pod name is empty")
+	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get pod name from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
@@ -242,7 +242,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), "pod UID is empty")
+	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get pod UID from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelisted() {
@@ -385,11 +385,9 @@ func (s *AttestorSuite) TestConfigure() {
 
 	// cluster missing service account whitelist
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf(`clusters = {
-			"FOO" = {
-				service_account_key_file = %q
-			}
-		}`, s.fooCertPath()),
+		Configuration: fmt.Sprint(`clusters = {
+			"FOO" = {}
+		}`),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.RequireGRPCStatus(err, codes.Unknown, `k8s-psat: cluster "FOO" configuration must have at least one service account whitelisted`)
@@ -530,13 +528,13 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	return nil
 }
 
-func createTokenStatus(tokenData *TokenData, authenticated bool) *k8s_auth.TokenReviewStatus {
-	values := make(map[string]k8s_auth.ExtraValue)
-	values["authentication.kubernetes.io/pod-name"] = k8s_auth.ExtraValue([]string{tokenData.podName})
-	values["authentication.kubernetes.io/pod-uid"] = k8s_auth.ExtraValue([]string{tokenData.podUID})
-	return &k8s_auth.TokenReviewStatus{
+func createTokenStatus(tokenData *TokenData, authenticated bool) *authv1.TokenReviewStatus {
+	values := make(map[string]authv1.ExtraValue)
+	values["authentication.kubernetes.io/pod-name"] = authv1.ExtraValue([]string{tokenData.podName})
+	values["authentication.kubernetes.io/pod-uid"] = authv1.ExtraValue([]string{tokenData.podUID})
+	return &authv1.TokenReviewStatus{
 		Authenticated: authenticated,
-		User: k8s_auth.UserInfo{
+		User: authv1.UserInfo{
 			Username: fmt.Sprintf("system:serviceaccount:%s:%s", tokenData.namespace, tokenData.serviceAccountName),
 			Extra:    values,
 		},
