@@ -15,6 +15,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/policy"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
@@ -121,8 +122,12 @@ func (s *Server) run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	policyEngine, err := policy.NewEngine(s.config.PolicyEngineConfig)
+	if err != nil {
+		return err
+	}
 
-	endpointsServer, err := s.newEndpointsServer(ctx, cat, svidRotator, serverCA, metrics, caManager)
+	endpointsServer, err := s.newEndpointsServer(ctx, cat, svidRotator, serverCA, metrics, caManager, policyEngine)
 	if err != nil {
 		return err
 	}
@@ -297,7 +302,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager) (endpoints.Server, error) {
+func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager, policyEngine *policy.Engine) (endpoints.Server, error) {
 	config := endpoints.Config{
 		TCPAddr:             s.config.BindAddress,
 		UDSAddr:             s.config.BindUDSAddress,
@@ -313,6 +318,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Clock:               clock.New(),
 		CacheReloadInterval: s.config.CacheReloadInterval,
 		AuditLogEnabled:     s.config.AuditLogEnabled,
+		PolicyEngine:        policyEngine,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

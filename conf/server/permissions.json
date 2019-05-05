@@ -1,0 +1,20 @@
+{
+	"roles": [
+		{
+			"full_method": "/spire.api.registration.Registration/CreateEntry",
+			"name": "registrar"
+		}
+	],
+	"bindings": [
+		{
+			"role": "registrar",
+			"user": "spiffe://example.org/schedulers/stateless",
+			"namespace": "spiffe://example.org/stateless/"
+		},
+		{
+			"role": "registrar",
+			"user": "spiffe://example.org/schedulers/batch",
+			"namespace": "spiffe://example.org/batch/"
+		}
+	]
+}

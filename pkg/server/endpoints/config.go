@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/policy"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	agentv1 "github.com/spiffe/spire/pkg/server/api/agent/v1"
@@ -54,6 +55,9 @@ type Config struct {
 	// CA Manager
 	Manager *ca.Manager
 
+	// Makes policy decisions
+	PolicyEngine *policy.Engine
+
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
 
@@ -72,11 +76,12 @@ type Config struct {
 
 func (c *Config) makeOldAPIServers() OldAPIServers {
 	registrationHandler := &registration.Handler{
-		Log:         c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
-		Metrics:     c.Metrics,
-		Catalog:     c.Catalog,
-		TrustDomain: c.TrustDomain,
-		ServerCA:    c.ServerCA,
+		Log:          c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
+		Metrics:      c.Metrics,
+		Catalog:      c.Catalog,
+		TrustDomain:  c.TrustDomain,
+		ServerCA:     c.ServerCA,
+        PolicyEngine: c.PolicyEngine,
 	}
 
 	return OldAPIServers{
