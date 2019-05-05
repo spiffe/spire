@@ -15,6 +15,7 @@ require (
 	github.com/InVisionApp/go-health v2.1.0+incompatible
 	github.com/InVisionApp/go-logger v1.0.1
 	github.com/Microsoft/go-winio v0.4.14 // indirect
+	github.com/OneOfOne/xxhash v1.2.5 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.3.2
@@ -33,12 +34,14 @@ require (
 	github.com/go-logr/logr v0.1.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
+	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.5.1
 	github.com/google/go-cmp v0.5.5
 	github.com/google/go-tpm v0.3.2
 	github.com/google/go-tpm-tools v0.2.1
+	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/hashicorp/go-hclog v0.15.0
 	github.com/hashicorp/go-plugin v1.4.0
 	github.com/hashicorp/golang-lru v0.5.1
@@ -53,9 +56,11 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/mitchellh/cli v1.0.0
 	github.com/morikuni/aec v1.0.0 // indirect
+	github.com/open-policy-agent/opa v0.10.7
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/prometheus/client_golang v1.7.1
+	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/shirou/gopsutil v2.18.12+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sirupsen/logrus v1.4.2
@@ -64,6 +69,7 @@ require (
 	github.com/spiffe/spire-plugin-sdk v1.0.0
 	github.com/stretchr/testify v1.7.0
 	github.com/uber-go/tally v3.3.12+incompatible
+	github.com/yashtewari/glob-intersection v0.0.0-20180916065949-5c77d914dd0b // indirect
 	github.com/zeebo/errs v1.2.2
 	go.uber.org/atomic v1.5.0
 	go.uber.org/goleak v0.10.0
