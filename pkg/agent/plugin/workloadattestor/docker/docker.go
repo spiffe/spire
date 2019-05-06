@@ -9,7 +9,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/hashicorp/go-hclog"
+	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -47,12 +47,14 @@ type DockerPlugin struct {
 	cgroupContainerIndex int
 	fs                   cgroups.FileSystem
 	mtx                  *sync.RWMutex
+	retryer              *retryer
 }
 
 func New() *DockerPlugin {
 	return &DockerPlugin{
-		mtx: &sync.RWMutex{},
-		fs:  cgroups.OSFileSystem{},
+		mtx:     &sync.RWMutex{},
+		fs:      cgroups.OSFileSystem{},
+		retryer: newRetryer(),
 	}
 }
 
@@ -110,7 +112,14 @@ func (p *DockerPlugin) Attest(ctx context.Context, req *workloadattestor.AttestR
 		return nil, fmt.Errorf("workloadattestor/docker: no cgroup %q entries found at index %d", p.cgroupPrefix, p.cgroupContainerIndex)
 	}
 
-	container, err := p.docker.ContainerInspect(ctx, containerID)
+	var container types.ContainerJSON
+	p.retryer.Retry(ctx, func() error {
+		container, err = p.docker.ContainerInspect(ctx, containerID)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +163,7 @@ func (p *DockerPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest)
 	if config.DockerVersion != "" {
 		opts = append(opts, dockerclient.WithVersion(config.DockerVersion))
 	}
+	opts = append(opts, dockerclient.WithHTTPClient(newHTTPClient()))
 	p.docker, err = dockerclient.NewClientWithOpts(opts...)
 	if err != nil {
 		return nil, err
