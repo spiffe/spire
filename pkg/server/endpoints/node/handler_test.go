@@ -590,40 +590,49 @@ func (s *HandlerSuite) TestFetchX509SVIDWithStaleAgent() {
 	s.requireFetchX509SVIDAuthFailure()
 }
 
-func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedDownstreamCSR() {
+func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 	s.attestAgent()
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs("spiffe://example.org"),
+		Csrs: s.makeCSRs(trustDomainID),
 	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains(`not entitled to sign CSR for "spiffe://example.org"`)
+}
+
+func (s *HandlerSuite) TestFetchX509CASVIDWithUnauthorizedDownstreamCSR() {
+	s.attestAgent()
+
+	_, err := s.attestedClient.FetchX509CASVID(context.Background(), &node.FetchX509CASVIDRequest{
+		Csr: s.makeCSR(trustDomainID),
+	})
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
 	s.assertLastLogMessageContains(`"spiffe://example.org/spire/agent/test/id" is not an authorized downstream workload`)
 }
 
-func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
+func (s *HandlerSuite) TestFetchX509CASVID() {
 	s.attestAgent()
 
 	s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:   trustDomainID,
 		SpiffeId:   agentID,
 		Downstream: true,
-		DnsNames:   []string{"ca-dns1"},
+		// add a DNS name. we'll assert it does not influence the CA certificate.
+		DnsNames: []string{"ca-dns1"},
 	})
 
-	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(trustDomainID),
+	resp, err := s.attestedClient.FetchX509CASVID(context.Background(), &node.FetchX509CASVIDRequest{
+		Csr: s.makeCSR(trustDomainID),
 	})
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().NotNil(resp.Svid)
+	s.Require().NotNil(resp.Bundle)
 
-	// Downstream responses don't contain the downstream registration entry
-	// since downstream entries aren't intended for workloads.
-	s.Empty(upd.RegistrationEntries)
-	s.assertBundlesInUpdate(upd)
-	chains := s.assertSVIDsInUpdate(upd, trustDomainID)
-	for _, chain := range chains {
-		// CA certs should not have DNS names associated with them
-		s.Empty(chain[0].DNSNames)
-		// CA certs should not CN based on DNS names
-		s.Empty(chain[0].Subject.CommonName)
-	}
+	chain, err := x509.ParseCertificates(resp.Svid.CertChain)
+	s.Require().NoError(err)
+	s.Require().Len(chain, 1)
+	s.Empty(chain[0].DNSNames)
+	s.Equal("CN=FAKE SERVER CA,OU=DOWNSTREAM-1", chain[0].Subject.String())
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSR() {

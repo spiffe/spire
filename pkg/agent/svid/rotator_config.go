@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 
 	"github.com/imkira/go-observer"

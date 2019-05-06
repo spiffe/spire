@@ -127,12 +127,12 @@ func (m *Manager) rotateEvery(ctx context.Context, interval time.Duration) error
 func (m *Manager) rotate(ctx context.Context) error {
 	x509CAErr := m.rotateX509CA(ctx)
 	if x509CAErr != nil {
-		m.c.Log.Error("unable to rotate X509 CA: %v", x509CAErr)
+		m.c.Log.WithError(x509CAErr).Error("Unable to rotate X509 CA")
 	}
 
 	jwtKeyErr := m.rotateJWTKey(ctx)
 	if jwtKeyErr != nil {
-		m.c.Log.Error("unable to rotate JWT key: %v", jwtKeyErr)
+		m.c.Log.WithError(jwtKeyErr).Error("Unable to rotate JWT key")
 	}
 
 	return errs.Combine(x509CAErr, jwtKeyErr)
@@ -947,7 +947,7 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 		Csr: csr,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errs.New("upstream CA failed with %v", err)
 	}
 
 	caChain, trustBundle, err := parseUpstreamCACSRResponse(resp)
