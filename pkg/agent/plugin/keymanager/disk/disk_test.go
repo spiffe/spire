@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,15 +62,20 @@ func TestDisk_FetchPrivateKey(t *testing.T) {
 }
 
 func TestDisk_Configure(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "km-disk-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	keysDir := filepath.Join(tempDir, "keys")
+
 	plugin := New()
-	tmpdir := os.TempDir()
 	cReq := &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf("directory = \"%s\"", tmpdir),
+		Configuration: fmt.Sprintf("directory = \"%s\"", keysDir),
 	}
 	_, e := plugin.Configure(ctx, cReq)
 	assert.NoError(t, e)
-	assert.Equal(t, tmpdir, plugin.dir)
-	assert.DirExists(t, tmpdir)
+	assert.Equal(t, keysDir, plugin.dir)
+	assert.DirExists(t, keysDir)
 }
 
 func TestDisk_GetPluginInfo(t *testing.T) {
