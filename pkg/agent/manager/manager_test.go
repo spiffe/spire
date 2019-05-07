@@ -1205,6 +1205,10 @@ func (h *mockNodeAPIHandler) FetchJWTSVID(ctx context.Context, req *node.FetchJW
 	return nil, errors.New("oh noes")
 }
 
+func (h *mockNodeAPIHandler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVIDRequest) (*node.FetchX509CASVIDResponse, error) {
+	return nil, errors.New("oh noes")
+}
+
 func (h *mockNodeAPIHandler) start() {
 	s := grpc.NewServer(h.creds)
 	node.RegisterNodeServer(s, h)

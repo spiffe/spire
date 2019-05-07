@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"math/big"
 	"net/url"
 	"sync"
@@ -151,6 +152,9 @@ func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params
 	if err != nil {
 		return nil, err
 	}
+	// Explicity set the AKI on the signed certificate, otherwise it won't be
+	// added if the subject and issuer match name match (however unlikely).
+	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
 
 	// for non-CA certificates, add DNS names to certificate. the first DNS
 	// name is also added as the common name.
@@ -198,9 +202,16 @@ func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Para
 	if err != nil {
 		return nil, err
 	}
+	// Explicity set the AKI on the signed certificate, otherwise it won't be
+	// added if the subject and issuer match name matches (unlikely due to the
+	// OU override below, but just to be safe).
+	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
+
 	// Don't allow the downstream server to control the subject of the CA
-	// certificate.
-	template.Subject = ca.c.CASubject
+	// certificate. Additionally, set the OU to a 1-based downstream "level"
+	// for soft debugging support.
+	template.Subject = x509CA.Certificate.Subject
+	template.Subject.OrganizationalUnit = []string{fmt.Sprintf("DOWNSTREAM-%d", 1+len(x509CA.UpstreamChain))}
 
 	cert, err := createCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
 	if err != nil {
