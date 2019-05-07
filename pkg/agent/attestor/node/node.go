@@ -59,7 +59,7 @@ func New(config *Config) Attestor {
 }
 
 func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err error) {
-	defer telemetry.CountCall(a.c.Metrics, "node", "attest")(&err)
+	defer telemetry.CountCall(a.c.Metrics, telemetry.Node, telemetry.Attest)(&err)
 
 	bundle, err := a.loadBundle()
 	if err != nil {
@@ -188,7 +188,7 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
 func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (newSVID []*x509.Certificate, newBundle *bundleutil.Bundle, err error) {
-	counter := telemetry.StartCall(a.c.Metrics, "node", "attestor", "new_svid")
+	counter := telemetry.StartCall(a.c.Metrics, telemetry.Node, telemetry.Attestor, telemetry.NewSVID)
 	defer counter.Done(&err)
 
 	// make sure all of the streams are cancelled if something goes awry
@@ -262,7 +262,7 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 			break
 		}
 	}
-	counter.AddLabel("spiffe_id", spiffeID)
+	counter.AddLabel(telemetry.SPIFFEID, spiffeID)
 
 	if fetchStream != nil {
 		fetchStream.CloseSend()

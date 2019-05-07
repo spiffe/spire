@@ -179,8 +179,6 @@ func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 		e.c.Log.Info("UDS server has stopped.")
 		return nil
 	}
-
-	return nil
 }
 
 func (e *endpoints) runSVIDObserver(ctx context.Context) error {
