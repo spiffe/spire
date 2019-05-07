@@ -3,6 +3,7 @@ package disk
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -61,14 +62,14 @@ func TestDisk_FetchPrivateKey(t *testing.T) {
 
 func TestDisk_Configure(t *testing.T) {
 	plugin := New()
+	tmpdir := os.TempDir()
 	cReq := &spi.ConfigureRequest{
-		Configuration: "directory = \"foo/bar\"",
+		Configuration: fmt.Sprintf("directory = \"%s\"", tmpdir),
 	}
 	_, e := plugin.Configure(ctx, cReq)
 	assert.NoError(t, e)
-	assert.Equal(t, "foo/bar", plugin.dir)
-	assert.DirExists(t, "foo/bar")
-	os.RemoveAll("foo")
+	assert.Equal(t, tmpdir, plugin.dir)
+	assert.DirExists(t, tmpdir)
 }
 
 func TestDisk_GetPluginInfo(t *testing.T) {
