@@ -48,9 +48,10 @@ const (
 
 	otherDomainID = "spiffe://otherdomain.test"
 
-	serverID   = "spiffe://example.org/spire/server"
-	agentID    = "spiffe://example.org/spire/agent/test/id"
-	workloadID = "spiffe://example.org/workload"
+	serverID     = "spiffe://example.org/spire/server"
+	agentID      = "spiffe://example.org/spire/agent/test/id"
+	downstreamID = "spiffe://example.org/downstream"
+	workloadID   = "spiffe://example.org/workload"
 
 	// used to cancel stream operations on test failure instead of blocking the
 	// full go test timeout period (i.e. 10 minutes)
@@ -91,6 +92,7 @@ type HandlerSuite struct {
 	clock            *clock.Mock
 	bundle           *common.Bundle
 	agentSVID        []*x509.Certificate
+	downstreamSVID   []*x509.Certificate
 	serverCA         *fakeserverca.CA
 }
 
@@ -116,6 +118,7 @@ func (s *HandlerSuite) SetupTest() {
 	// Create server and agent SVIDs for TLS communication
 	serverSVID := s.makeSVID(serverID)
 	s.agentSVID = s.makeSVID(agentID)
+	s.downstreamSVID = s.makeSVID(downstreamID)
 
 	handler := NewHandler(HandlerConfig{
 		Log:         log,
@@ -803,6 +806,57 @@ func (s *HandlerSuite) TestAuthorizeCallForFetchJWTSVID() {
 	s.testAuthorizeCallRequiringAgentSVID("FetchJWTSVID")
 }
 
+func (s *HandlerSuite) TestAuthorizeCallForFetchX509CASVID() {
+	peerCert := s.downstreamSVID[0]
+	peerCtx := withPeerCert(context.Background(), s.downstreamSVID)
+
+	const fullMethod = "/spire.api.node.Node/FetchX509CASVID"
+
+	// no peer context
+	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage("no peer information")
+
+	// non-TLS peer context
+	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage("no TLS auth info for peer")
+
+	// no verified chains on TLS peer context
+	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
+		AuthInfo: credentials.TLSInfo{},
+	}), fullMethod)
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "downstream SVID is required for this request")
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage("no verified client certificate presented by peer")
+
+	// no downstream registration entry
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
+	s.Require().Nil(ctx)
+	s.assertLastLogMessage(`"spiffe://example.org/downstream" is not an authorized downstream workload`)
+
+	// good certificate
+	downstreamEntry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:   agentID,
+		SpiffeId:   downstreamID,
+		Downstream: true,
+	})
+	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
+	s.Require().NoError(err)
+
+	actualCert, ok := getPeerCertificate(ctx)
+	s.Require().True(ok, "context has peer certificate")
+	s.Require().True(peerCert.Equal(actualCert), "peer certificate matches")
+
+	actualEntry, ok := getDownstreamEntry(ctx)
+	s.Require().True(ok, "context has downstream entry")
+	s.RequireProtoEqual(downstreamEntry, actualEntry)
+
+}
+
 func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	peerCert := s.agentSVID[0]
 	peerCtx := withPeerCert(context.Background(), s.agentSVID)
@@ -811,17 +865,13 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 
 	// no peer context
 	ctx, err := s.handler.AuthorizeCall(context.Background(), fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent SVID is required for this request", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage("no peer information")
 
 	// non-TLS peer context
 	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{}), fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent SVID is required for this request", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage("no TLS auth info for peer")
 
@@ -829,19 +879,15 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	ctx, err = s.handler.AuthorizeCall(peer.NewContext(context.Background(), &peer.Peer{
 		AuthInfo: credentials.TLSInfo{},
 	}), fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent SVID is required for this request", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.RequireGRPCStatus(err, codes.Unauthenticated, "agent SVID is required for this request")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage("no verified client certificate presented by peer")
 
 	// no attested certificate with matching SPIFFE ID
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
-	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" is not attested`)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
+	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" is not attested`)
 
 	// good certificate
 	s.attestAgent()
@@ -854,19 +900,15 @@ func (s *HandlerSuite) testAuthorizeCallRequiringAgentSVID(method string) {
 	// expired certificate
 	s.clock.Set(peerCert.NotAfter.Add(time.Second))
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
-	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID has expired`)
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
+	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID has expired`)
 	s.clock.Set(peerCert.NotAfter)
 
 	// serial number does not match
 	s.updateAttestedNode(agentID, "SERIAL NUMBER", peerCert.NotAfter)
 	ctx, err = s.handler.AuthorizeCall(peerCtx, fullMethod)
-	s.Require().Error(err)
-	s.Equal("agent is not attested or no longer valid", status.Convert(err).Message())
-	s.Equal(codes.PermissionDenied, status.Code(err))
+	s.RequireGRPCStatus(err, codes.PermissionDenied, "agent is not attested or no longer valid")
 	s.Require().Nil(ctx)
 	s.assertLastLogMessage(`agent "spiffe://example.org/spire/agent/test/id" SVID does not match expected serial number`)
 }

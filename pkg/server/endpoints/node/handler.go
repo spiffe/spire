@@ -261,12 +261,12 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 
 	peerCert, ok := getPeerCertificate(ctx)
 	if !ok {
-		return nil, errors.New("downstream SVID is required for this request")
+		return nil, status.Error(codes.Unauthenticated, "downstream SVID is required for this request")
 	}
 
 	entry, ok := getDownstreamEntry(ctx)
 	if !ok {
-		return nil, errors.New("downstream entry is required for this request")
+		return nil, status.Error(codes.PermissionDenied, "downstream entry is required for this request")
 	}
 
 	err = h.limiter.Limit(ctx, CSRMsg, 1)
@@ -274,7 +274,7 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
-	agentID, err := getSpiffeIDFromCert(peerCert)
+	downstreamID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
 		h.c.Log.Error(err)
 		return nil, err
@@ -286,7 +286,7 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 	}
 
 	signLog := h.c.Log.WithFields(logrus.Fields{
-		"caller_id":      agentID,
+		"caller_id":      downstreamID,
 		"source_address": sourceAddress,
 	})
 
@@ -394,7 +394,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
 			h.c.Log.Error(err)
-			return nil, status.Error(codes.PermissionDenied, "agent SVID is required for this request")
+			return nil, status.Error(codes.Unauthenticated, "agent SVID is required for this request")
 		}
 
 		if err := h.validateAgentSVID(ctx, peerCert); err != nil {
@@ -407,7 +407,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
 			h.c.Log.Error(err)
-			return nil, status.Error(codes.PermissionDenied, "a downstream SVID is required for this request")
+			return nil, status.Error(codes.Unauthenticated, "downstream SVID is required for this request")
 		}
 		entry, err := h.validateDownstreamSVID(ctx, peerCert)
 		if err != nil {
