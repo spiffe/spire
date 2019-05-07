@@ -22,6 +22,7 @@ import (
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
+	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamca/spire"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/keymanager"
@@ -84,6 +85,7 @@ func BuiltIns() []catalog.Plugin {
 		// UpstreamCAs
 		up_disk.BuiltIn(),
 		up_awssecret.BuiltIn(),
+		up_spire.BuiltIn(),
 		// KeyManagers
 		km_disk.BuiltIn(),
 		km_memory.BuiltIn(),

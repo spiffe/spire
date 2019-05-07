@@ -6,13 +6,16 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
+
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/agent/attestor/workload"
+	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
@@ -22,13 +25,6 @@ import (
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"io"
-	"strconv"
-)
-
-const (
-	sdsAPI = "sds_api"
-	sdsPID = "sds_pid"
 )
 
 type Manager interface {
@@ -218,9 +214,9 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 		return 0, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: sdsPID, Value: fmt.Sprint(watcher.PID())}})
-	metrics.IncrCounter([]string{sdsAPI, "connection"}, 1)
-	metrics.IncrCounter([]string{sdsAPI, "connections"}, 1)
+	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: telemetry.SDSPID, Value: fmt.Sprint(watcher.PID())}})
+	metrics.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connection}, 1)
+	metrics.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connections}, 1)
 
 	selectors := h.c.Attestor.Attest(ctx, watcher.PID())
 
@@ -232,7 +228,7 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	}
 
 	done := func() {
-		defer metrics.IncrCounter([]string{sdsAPI, "connections"}, -1)
+		defer metrics.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connections}, -1)
 	}
 
 	return watcher.PID(), selectors, done, nil

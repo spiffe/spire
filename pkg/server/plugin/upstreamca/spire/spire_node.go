@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -19,57 +18,30 @@ import (
 )
 
 func (m *spirePlugin) submitCSRUpstreamCA(ctx context.Context, nodeClient node.NodeClient, csr []byte) ([]*x509.Certificate, *bundleutil.Bundle, error) {
-	nodeRequest := &node.FetchX509SVIDRequest{
-		Csrs: [][]byte{csr},
-	}
-
-	stream, err := nodeClient.FetchX509SVID(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	err = stream.Send(nodeRequest)
+	resp, err := nodeClient.FetchX509CASVID(ctx, &node.FetchX509CASVIDRequest{
+		Csr: csr,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	stream.CloseSend()
-
-	nodeResponse, err := stream.Recv()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return m.getCertFromResponse(nodeResponse)
+	return m.getCertFromResponse(resp)
 }
 
-func (m *spirePlugin) getCertFromResponse(response *node.FetchX509SVIDResponse) ([]*x509.Certificate, *bundleutil.Bundle, error) {
-	if response.SvidUpdate == nil {
-		return nil, nil, errors.New("response missing svid update")
+func (m *spirePlugin) getCertFromResponse(response *node.FetchX509CASVIDResponse) ([]*x509.Certificate, *bundleutil.Bundle, error) {
+	if response.Svid == nil {
+		return nil, nil, errors.New("response missing svid")
 	}
-	if len(response.SvidUpdate.Svids) < 1 {
-		return nil, nil, errors.New("no svid received")
-	}
-
-	svidMsg, ok := response.SvidUpdate.Svids[m.trustDomain.String()]
-	if !ok {
-		return nil, nil, fmt.Errorf("no svid for %v received", m.trustDomain.String())
+	if response.Bundle == nil {
+		return nil, nil, errors.New("missing bundle")
 	}
 
-	svid, err := x509.ParseCertificates(svidMsg.CertChain)
+	svid, err := x509.ParseCertificates(response.Svid.CertChain)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid svid: %v", err)
 	}
 
-	if response.SvidUpdate.Bundles == nil {
-		return nil, nil, errors.New("missing bundles")
-	}
-
-	bundleProto := response.SvidUpdate.Bundles[m.trustDomain.String()]
-	if bundleProto == nil {
-		return nil, nil, errors.New("missing bundle")
-	}
-
-	bundle, err := bundleutil.BundleFromProto(bundleProto)
+	bundle, err := bundleutil.BundleFromProto(response.Bundle)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid bundle: %v", err)
 	}
@@ -82,9 +54,6 @@ func (m *spirePlugin) newNodeClientConn(ctx context.Context, wCert []byte, wKey 
 }
 
 func (m *spirePlugin) dialNodeAPI(ctx context.Context, wCert []byte, wKey []byte, wBundle []byte) (*grpc.ClientConn, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second) // TODO: Make this timeout configurable?
-	defer cancel()
-
 	serverAddr := fmt.Sprintf("%s:%s", m.config.ServerAddr, m.config.ServerPort)
 	tc, err := m.getGrpcTransportCreds(wCert, wKey, wBundle)
 	if err != nil {

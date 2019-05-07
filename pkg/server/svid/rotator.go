@@ -85,7 +85,7 @@ func (r *rotator) shouldRotate() bool {
 // rotateSVID cuts a new server SVID from the CA plugin and installs
 // it on the endpoints struct. Also updates the CA certificates.
 func (r *rotator) rotateSVID(ctx context.Context) (err error) {
-	defer telemetry.CountCall(r.c.Metrics, "svid", "rotate")(&err)
+	defer telemetry.CountCall(r.c.Metrics, telemetry.SVID, telemetry.Rotate)(&err)
 	r.c.Log.Debug("Rotating server SVID")
 
 	id := idutil.ServerURI(r.c.TrustDomain.Host)

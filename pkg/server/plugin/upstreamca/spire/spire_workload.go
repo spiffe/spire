@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"time"
 
 	"github.com/spiffe/spire/api/workload"
 	proto "github.com/spiffe/spire/proto/spire/api/workload"
@@ -13,8 +12,7 @@ import (
 func (m *spirePlugin) getWorkloadSVID(ctx context.Context, config *Configuration) ([]byte, []byte, []byte, error) {
 	errorChan := make(chan error, 1)
 
-	duration := time.Duration(2 * time.Second) // TODO: Make this timeout configurable?
-	wapiClient := m.newWorkloadAPIClient(config.WorkloadAPISocket, duration)
+	wapiClient := m.newWorkloadAPIClient(config.WorkloadAPISocket)
 	updateChan := wapiClient.UpdateChan()
 	go func() {
 		err := wapiClient.Start()
@@ -46,14 +44,13 @@ func (m *spirePlugin) receiveUpdatedCerts(svidResponse *proto.X509SVIDResponse) 
 }
 
 //newWorkloadAPIClient creates a workload.X509Client
-func (m *spirePlugin) newWorkloadAPIClient(agentAddress string, timeout time.Duration) workload.X509Client {
+func (m *spirePlugin) newWorkloadAPIClient(agentAddress string) workload.X509Client {
 	addr := &net.UnixAddr{
 		Net:  "unix",
 		Name: agentAddress,
 	}
 	config := &workload.X509ClientConfig{
-		Addr:    addr,
-		Timeout: timeout,
+		Addr: addr,
 	}
 	return workload.NewX509Client(config)
 }

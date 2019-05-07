@@ -76,6 +76,26 @@ func (mr *MockNodeClientMockRecorder) FetchJWTSVID(arg0, arg1 interface{}, arg2 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTSVID", reflect.TypeOf((*MockNodeClient)(nil).FetchJWTSVID), varargs...)
 }
 
+// FetchX509CASVID mocks base method
+func (m *MockNodeClient) FetchX509CASVID(arg0 context.Context, arg1 *node.FetchX509CASVIDRequest, arg2 ...grpc.CallOption) (*node.FetchX509CASVIDResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "FetchX509CASVID", varargs...)
+	ret0, _ := ret[0].(*node.FetchX509CASVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchX509CASVID indicates an expected call of FetchX509CASVID
+func (mr *MockNodeClientMockRecorder) FetchX509CASVID(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchX509CASVID", reflect.TypeOf((*MockNodeClient)(nil).FetchX509CASVID), varargs...)
+}
+
 // FetchX509SVID mocks base method
 func (m *MockNodeClient) FetchX509SVID(arg0 context.Context, arg1 ...grpc.CallOption) (node.Node_FetchX509SVIDClient, error) {
 	m.ctrl.T.Helper()
@@ -554,6 +574,21 @@ func (m *MockNodeServer) FetchJWTSVID(arg0 context.Context, arg1 *node.FetchJWTS
 func (mr *MockNodeServerMockRecorder) FetchJWTSVID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchJWTSVID", reflect.TypeOf((*MockNodeServer)(nil).FetchJWTSVID), arg0, arg1)
+}
+
+// FetchX509CASVID mocks base method
+func (m *MockNodeServer) FetchX509CASVID(arg0 context.Context, arg1 *node.FetchX509CASVIDRequest) (*node.FetchX509CASVIDResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchX509CASVID", arg0, arg1)
+	ret0, _ := ret[0].(*node.FetchX509CASVIDResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchX509CASVID indicates an expected call of FetchX509CASVID
+func (mr *MockNodeServerMockRecorder) FetchX509CASVID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchX509CASVID", reflect.TypeOf((*MockNodeServer)(nil).FetchX509CASVID), arg0, arg1)
 }
 
 // FetchX509SVID mocks base method
