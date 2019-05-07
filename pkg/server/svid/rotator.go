@@ -11,7 +11,6 @@ import (
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
 )
 
@@ -88,20 +87,16 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	defer telemetry.CountCall(r.c.Metrics, telemetry.SVID, telemetry.Rotate)(&err)
 	r.c.Log.Debug("Rotating server SVID")
 
-	id := idutil.ServerURI(r.c.TrustDomain.Host)
-
 	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
 		return err
 	}
 
-	csr, err := util.MakeCSR(key, id.String())
-	if err != nil {
-		return err
-	}
-
 	// Sign the CSR
-	svid, err := r.c.ServerCA.SignX509SVID(ctx, csr, ca.X509Params{})
+	svid, err := r.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
+		SpiffeID:  idutil.ServerID(r.c.TrustDomain.Host),
+		PublicKey: key.Public(),
+	})
 	if err != nil {
 		return err
 	}

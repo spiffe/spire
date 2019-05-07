@@ -93,8 +93,7 @@ func (s *Suite) TestAttestSuccess() {
 	// receive and parse challenge
 	resp, err := stream.Recv()
 	require.NoError(err)
-	require.Equal("", resp.BaseSPIFFEID)
-	s.False(resp.Valid)
+	require.Equal("", resp.AgentId)
 	s.NotEmpty(resp.Challenge)
 
 	// calculate and send the response
@@ -108,10 +107,7 @@ func (s *Suite) TestAttestSuccess() {
 	// receive the attestation result
 	resp, err = stream.Recv()
 	require.NoError(err)
-	s.True(resp.Valid)
-	spiffeid, err := client.SpiffeID()
-	require.NoError(err)
-	require.Equal(spiffeid, resp.BaseSPIFFEID)
+	require.Equal("spiffe://example.org/spire/agent/sshpop/SHA256:21Aic/muK032oJMhLfU1/CMNcGmfAnvESeuH5zyFw/g", resp.AgentId)
 	require.Nil(resp.Challenge)
 	require.Len(resp.Selectors, 0)
 }

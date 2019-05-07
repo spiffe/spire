@@ -1,7 +1,6 @@
 package node
 
 import (
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -221,34 +220,24 @@ func (s *HandlerSuite) TestAttestWithMalformedCSR() {
 	}, codes.InvalidArgument, "request CSR is invalid: failed to parse CSR")
 }
 
-func (s *HandlerSuite) TestAttestWithCSRMissingURISAN() {
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
-		SignatureAlgorithm: x509.ECDSAWithSHA256,
-	}, testKey)
-	s.Require().NoError(err)
-
-	s.requireAttestFailure(&node.AttestRequest{
-		AttestationData: makeAttestationData("test", ""),
-		Csr:             csr,
-	}, codes.InvalidArgument, "request CSR is invalid: the CSR must have exactly one URI SAN")
-}
-
 func (s *HandlerSuite) TestAttestWithAgentIDFromWrongTrustDomainInCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
 		Csr:             s.makeCSR("spiffe://otherdomain.test/spire/agent/test/id"),
-	}, codes.InvalidArgument, `request CSR is invalid: "spiffe://otherdomain.test/spire/agent/test/id" does not belong to trust domain`)
+	}, codes.InvalidArgument, `request CSR is invalid: invalid SPIFFE ID: "spiffe://otherdomain.test/spire/agent/test/id" does not belong to trust domain`)
 }
 
 func (s *HandlerSuite) TestAttestWithNonAgentIDInCSR() {
 	s.requireAttestFailure(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", ""),
 		Csr:             s.makeCSR("spiffe://example.org"),
-	}, codes.InvalidArgument, `request CSR is invalid: "spiffe://example.org" is not a valid agent SPIFFE ID`)
+	}, codes.InvalidArgument, `request CSR is invalid: invalid SPIFFE ID: "spiffe://example.org" is not a valid agent SPIFFE ID`)
 }
 
-func (s *HandlerSuite) TestAttestWhenAgentAlreadyAttested() {
-	s.addAttestor("test", fakeservernodeattestor.Config{})
+func (s *HandlerSuite) TestAttestWhenAgentAlreadyAttestedWithDeprecatedCSR() {
+	s.addAttestor("test", fakeservernodeattestor.Config{
+		DisallowReattestation: true,
+	})
 
 	s.createAttestedNode(&common.AttestedNode{
 		SpiffeId: "spiffe://example.org/spire/agent/test/id",
@@ -267,7 +256,7 @@ func (s *HandlerSuite) TestAttestWithUnknownAttestor() {
 	}, codes.Unknown, `could not find node attestor type "test"`)
 }
 
-func (s *HandlerSuite) TestAttestWithMismatchedAgentID() {
+func (s *HandlerSuite) TestAttestWithMismatchedAgentIDWithDeprecatedCSR() {
 	s.addAttestor("test", fakeservernodeattestor.Config{
 		Data: map[string]string{"data": "id"},
 	})
@@ -281,6 +270,14 @@ func (s *HandlerSuite) TestAttestWithMismatchedAgentID() {
 }
 
 func (s *HandlerSuite) TestAttestSuccess() {
+	s.testAttestSuccess(s.makeCSR(""))
+}
+
+func (s *HandlerSuite) TestAttestSuccessWithDeprecatedCSR() {
+	s.testAttestSuccess(s.makeCSR(agentID))
+}
+
+func (s *HandlerSuite) testAttestSuccess(csr []byte) {
 	// Create a federated bundle to return with the SVID update
 	s.createBundle(otherDomainBundle)
 
@@ -297,7 +294,7 @@ func (s *HandlerSuite) TestAttestSuccess() {
 
 	upd := s.requireAttestSuccess(&node.AttestRequest{
 		AttestationData: makeAttestationData("test", "data"),
-		Csr:             s.makeCSR(agentID),
+		Csr:             csr,
 	})
 
 	// assert update contents
@@ -345,8 +342,8 @@ func (s *HandlerSuite) TestAttestAgentless() {
 func (s *HandlerSuite) TestAttestReattestation() {
 	// Make sure reattestation is allowed by the attestor
 	s.addAttestor("test", fakeservernodeattestor.Config{
-		CanReattest: true,
-		Data:        map[string]string{"data": "id"},
+		//CanReattest: true,
+		Data: map[string]string{"data": "id"},
 	})
 
 	// Create an attested node entry
@@ -1166,7 +1163,10 @@ func (s *HandlerSuite) assertLastLogMessageContains(contains string) {
 }
 
 func (s *HandlerSuite) makeSVID(spiffeID string) []*x509.Certificate {
-	svid, err := s.serverCA.SignX509SVID(context.Background(), s.makeCSR(spiffeID), ca.X509Params{})
+	svid, err := s.serverCA.SignX509SVID(context.Background(), ca.X509SVIDParams{
+		SpiffeID:  spiffeID,
+		PublicKey: testKey.Public(),
+	})
 	s.Require().NoError(err)
 	return svid
 }

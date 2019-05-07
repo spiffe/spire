@@ -145,6 +145,7 @@ type Config struct {
 	PluginConfig HCLPluginConfigMap
 
 	IdentityProvider hostservices.IdentityProvider
+	AgentStore       hostservices.AgentStore
 }
 
 func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
@@ -163,6 +164,7 @@ func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
 		BuiltIns:      BuiltIns(),
 		HostServices: []catalog.HostServiceServer{
 			hostservices.IdentityProviderHostServiceServer(config.IdentityProvider),
+			hostservices.AgentStoreHostServiceServer(config.AgentStore),
 		},
 	}, p)
 	if err != nil {

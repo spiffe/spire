@@ -177,9 +177,8 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 	}
 
 	return stream.Send(&nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, nodeUID),
-		Selectors:    selectors,
+		AgentId:   k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, nodeUID),
+		Selectors: selectors,
 	})
 }
 

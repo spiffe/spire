@@ -6,12 +6,9 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"gopkg.in/square/go-jose.v2/jwt"
-
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
-	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -37,16 +34,13 @@ func builtin(p *AttestorPlugin) catalog.Plugin {
 
 // New creates a new PSAT attestor plugin
 func New() *AttestorPlugin {
-	return &AttestorPlugin{
-		client: apiserver.New(""),
-	}
+	return &AttestorPlugin{}
 }
 
 // AttestorPlugin is a PSAT (projected SAT) attestor plugin
 type AttestorPlugin struct {
 	mu     sync.RWMutex
 	config *attestorConfig
-	client apiserver.Client
 }
 
 // AttestorConfig holds configuration for AttestorPlugin
@@ -70,41 +64,14 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 		return err
 	}
 
-	tokenStr, err := loadTokenFromFile(config.tokenPath)
+	token, err := loadTokenFromFile(config.tokenPath)
 	if err != nil {
 		return psatError.New("unable to load token from %s: %v", config.tokenPath, err)
 	}
 
-	token, err := jwt.ParseSigned(tokenStr)
-	if err != nil {
-		return psatError.New("error parsing token: %v", err)
-	}
-
-	// Since token validations are performed on the server side, UnsafeClaimsWithoutVerification is used
-	claims := new(k8s.PSATClaims)
-	err = token.UnsafeClaimsWithoutVerification(claims)
-	if err != nil {
-		return psatError.New("fail to get claims from token: %v", err)
-	}
-
-	pod, err := p.client.GetPod(claims.K8s.Namespace, claims.K8s.Pod.Name)
-	if err != nil {
-		return psatError.New("fail to get pod from k8s API server: %v", err)
-	}
-
-	node, err := p.client.GetNode(pod.Spec.NodeName)
-	if err != nil {
-		return psatError.New("fail to get node from k8s API server: %v", err)
-	}
-
-	nodeUID := string(node.UID)
-	if nodeUID == "" {
-		return psatError.New("node UID is empty")
-	}
-
 	data, err := json.Marshal(k8s.PSATAttestationData{
 		Cluster: config.cluster,
-		Token:   tokenStr,
+		Token:   token,
 	})
 	if err != nil {
 		return psatError.Wrap(err)
@@ -115,7 +82,6 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 			Type: pluginName,
 			Data: data,
 		},
-		SpiffeId: k8s.AgentID(pluginName, config.trustDomain, config.cluster, nodeUID),
 	})
 }
 

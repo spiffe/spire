@@ -46,8 +46,8 @@ Represents the attested data and base SPIFFE ID
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| attestationData | [spire.common.AttestationData](#spire.common.AttestationData) |  | A type which contains attestation data for specific platform |
-| spiffeId | [string](#string) |  | SPIFFE ID |
+| attestation_data | [spire.common.AttestationData](#spire.common.AttestationData) |  | A type which contains attestation data for specific platform |
+| DEPRECATED_spiffe_id | [string](#string) |  | SPIFFE ID for the agent. This field is deprecated and should no longer be set by implementers. The server-side plugin is now solely in charge of determining the SPIFFE ID for the agent |
 | response | [bytes](#bytes) |  | response to the challenge (if challenge was present) * |
 
 

@@ -18,9 +18,13 @@ message FetchAttestationDataRequest {
 /** Represents the attested data and base SPIFFE ID */
 message FetchAttestationDataResponse {
     /** A type which contains attestation data for specific platform */
-    spire.common.AttestationData attestationData = 1;
-    /** SPIFFE ID */
-    string spiffeId = 2;
+    spire.common.AttestationData attestation_data = 1;
+
+    /** SPIFFE ID for the agent. This field is deprecated and should no longer
+        be set by implementers. The server-side plugin is now solely in charge
+        of determining the SPIFFE ID for the agent */
+    string DEPRECATED_spiffe_id = 2;
+
 	/** response to the challenge (if challenge was present) **/
 	bytes response = 3;
 }

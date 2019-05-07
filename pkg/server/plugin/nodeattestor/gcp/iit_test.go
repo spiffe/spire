@@ -10,7 +10,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
@@ -36,10 +38,12 @@ func TestIITAttestorPlugin(t *testing.T) {
 type IITAttestorSuite struct {
 	spiretest.Suite
 
-	p nodeattestor.Plugin
+	agentStore *fakeagentstore.AgentStore
+	p          nodeattestor.Plugin
 }
 
 func (s *IITAttestorSuite) SetupTest() {
+	s.agentStore = fakeagentstore.New()
 	s.p = s.newPlugin()
 	s.configure()
 }
@@ -115,8 +119,13 @@ func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
 		Data: s.signToken(token),
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data, AttestedBefore: true})
-	s.RequireErrorContains(err, "gcp-iit: instance ID has already been attested")
+	agentID := "spiffe://example.org/spire/agent/gcp_iit/project-123/instance-123"
+	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
+		AgentId: agentID,
+	})
+
+	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	s.RequireErrorContains(err, "gcp-iit: IIT has already been used to attest an agent")
 }
 
 func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
@@ -167,8 +176,7 @@ func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequest() {
 	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
 	s.Require().NoError(err)
 	s.Require().NotNil(res)
-	s.Require().True(res.Valid)
-	s.Require().Equal(expectSVID, res.BaseSPIFFEID)
+	s.Require().Equal(expectSVID, res.AgentId)
 }
 
 func (s *IITAttestorSuite) TestSuccesfullyProcessAttestationRequestCustomSVID() {
@@ -191,8 +199,7 @@ agent_path_template = "{{ .InstanceID }}"
 	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
 	s.Require().NoError(err)
 	s.Require().NotNil(res)
-	s.Require().True(res.Valid)
-	s.Require().Equal(expectSVID, res.BaseSPIFFEID)
+	s.Require().Equal(expectSVID, res.AgentId)
 }
 
 func (s *IITAttestorSuite) TestConfigure() {
@@ -260,7 +267,9 @@ func (s *IITAttestorSuite) newPlugin() nodeattestor.Plugin {
 	p.tokenKeyRetriever = testKeyRetriever{}
 
 	var plugin nodeattestor.Plugin
-	s.LoadPlugin(builtin(p), &plugin)
+	s.LoadPlugin(builtin(p), &plugin,
+		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+	)
 	return plugin
 }
 

@@ -78,8 +78,6 @@ func (s *Suite) TestFetchAttestationDataSuccess() {
 	stream, done := s.fetchAttestationData()
 	defer done()
 
-	spiffeID, err := client.SpiffeID()
-	require.NoError(err)
 	attesetationData, err := client.AttestationData()
 	require.NoError(err)
 
@@ -87,7 +85,6 @@ func (s *Suite) TestFetchAttestationDataSuccess() {
 	resp, err := stream.Recv()
 	require.NoError(err)
 	require.NotNil(resp)
-	require.Equal(spiffeID, resp.SpiffeId)
 	require.Equal("sshpop", resp.AttestationData.Type)
 	require.JSONEq(string(attesetationData), string(resp.AttestationData.Data))
 	require.Nil(resp.Response)
@@ -105,7 +102,6 @@ func (s *Suite) TestFetchAttestationDataSuccess() {
 	// recv the response
 	resp, err = stream.Recv()
 	require.NoError(err)
-	require.Equal(spiffeID, resp.SpiffeId)
 	require.Nil(resp.AttestationData)
 	require.NotEmpty(resp.Response)
 

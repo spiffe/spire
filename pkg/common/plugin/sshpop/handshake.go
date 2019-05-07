@@ -63,14 +63,6 @@ type challengeResponse struct {
 	Signature *ssh.Signature
 }
 
-func (c *ClientHandshake) SpiffeID() (string, error) {
-	hostname, err := decanonicalizeHostname(c.c.cert.ValidPrincipals[0], c.c.canonicalDomain)
-	if err != nil {
-		return "", err
-	}
-	return makeSpiffeID(c.c.trustDomain, c.c.agentPathTemplate, c.c.cert, hostname)
-}
-
 func (c *ClientHandshake) AttestationData() ([]byte, error) {
 	if c.state != stateClientInit {
 		return nil, Errorf("client must be in init state to provide attestation data")
@@ -201,8 +193,8 @@ func (s *ServerHandshake) VerifyChallengeResponse(res []byte) error {
 	return nil
 }
 
-func (s *ServerHandshake) SpiffeID() (string, error) {
-	return makeSpiffeID(s.s.trustDomain, s.s.agentPathTemplate, s.cert, s.hostname)
+func (s *ServerHandshake) AgentID() (string, error) {
+	return makeAgentID(s.s.trustDomain, s.s.agentPathTemplate, s.cert, s.hostname)
 }
 
 func newNonce() ([]byte, error) {
@@ -226,7 +218,7 @@ func combineNonces(challenge, response []byte) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func makeSpiffeID(trustDomain string, agentPathTemplate *template.Template, cert *ssh.Certificate, hostname string) (string, error) {
+func makeAgentID(trustDomain string, agentPathTemplate *template.Template, cert *ssh.Certificate, hostname string) (string, error) {
 	var agentPath bytes.Buffer
 	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
 		Certificate: cert,

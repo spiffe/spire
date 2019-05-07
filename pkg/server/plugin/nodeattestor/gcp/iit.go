@@ -2,18 +2,22 @@ package gcp
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sync"
 	"text/template"
 
 	"github.com/hashicorp/hcl"
+	"github.com/zeebo/errs"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
+	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
+)
+
+var (
+	pluginErr = errs.Class("gcp-iit")
 )
 
 const (
@@ -37,6 +41,7 @@ type tokenKeyRetriever interface {
 
 // IITAttestorPlugin implements node attestation for agents running in GCP.
 type IITAttestorPlugin struct {
+	nodeattestorbase.Base
 	config            *IITAttestorConfig
 	mtx               sync.Mutex
 	tokenKeyRetriever tokenKeyRetriever
@@ -85,9 +90,16 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return newErrorf("failed to create spiffe ID: %v", err)
 	}
 
+	attested, err := p.IsAttested(stream.Context(), id.String())
+	switch {
+	case err != nil:
+		return pluginErr.Wrap(err)
+	case attested:
+		return pluginErr.New("IIT has already been used to attest an agent")
+	}
+
 	resp := &nodeattestor.AttestResponse{
-		Valid:        true,
-		BaseSPIFFEID: id.String(),
+		AgentId: id.String(),
 	}
 
 	if err := stream.Send(resp); err != nil {
@@ -166,10 +178,6 @@ func validateAttestationAndExtractIdentityMetadata(stream nodeattestor.NodeAttes
 		return gcp.ComputeEngine{}, newErrorf("unexpected attestation data type %q", attestationData.Type)
 	}
 
-	if req.AttestedBefore {
-		return gcp.ComputeEngine{}, newError("instance ID has already been attested")
-	}
-
 	identityToken := &gcp.IdentityToken{}
 	_, err = jwt.ParseWithClaims(string(req.GetAttestationData().Data), identityToken, tokenRetriever.retrieveKey)
 	if err != nil {
@@ -184,9 +192,9 @@ func validateAttestationAndExtractIdentityMetadata(stream nodeattestor.NodeAttes
 }
 
 func newError(msg string) error {
-	return errors.New("gcp-iit: " + msg)
+	return pluginErr.New("%s", msg)
 }
 
 func newErrorf(format string, args ...interface{}) error {
-	return fmt.Errorf("gcp-iit: "+format, args...)
+	return pluginErr.New(format, args...)
 }

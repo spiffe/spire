@@ -29,7 +29,7 @@ import (
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 	authv1 "k8s.io/api/authentication/v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -314,8 +314,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	resp, err := s.doAttest(makeAttestRequest("FOO", token))
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().True(resp.Valid)
-	s.Require().Equal(resp.BaseSPIFFEID, "spiffe://example.org/spire/agent/k8s_psat/FOO/NODEUID-1")
+	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/k8s_psat/FOO/NODEUID-1")
 	s.Require().Nil(resp.Challenge)
 	s.Require().Equal([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:FOO"},
@@ -343,8 +342,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	resp, err = s.doAttest(makeAttestRequest("BAR", token))
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
-	s.Require().True(resp.Valid)
-	s.Require().Equal(resp.BaseSPIFFEID, "spiffe://example.org/spire/agent/k8s_psat/BAR/NODEUID-2")
+	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/k8s_psat/BAR/NODEUID-2")
 	s.Require().Nil(resp.Challenge)
 	s.Require().Equal([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:BAR"},

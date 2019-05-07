@@ -2,271 +2,506 @@ package attestor
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
-	"io"
+	"errors"
 	"io/ioutil"
+	"math/big"
+	"net"
 	"net/url"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
+	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"
-	"github.com/spiffe/spire/proto/spire/agent/nodeattestor"
+	agentnodeattestor "github.com/spiffe/spire/proto/spire/agent/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
+	servernodeattestor "github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
-	mock_keymanager "github.com/spiffe/spire/test/mock/proto/agent/keymanager"
-	mock_nodeattestor "github.com/spiffe/spire/test/mock/proto/agent/nodeattestor"
-	mock_node "github.com/spiffe/spire/test/mock/proto/api/node"
-	"github.com/spiffe/spire/test/util"
-	"github.com/stretchr/testify/suite"
+	"github.com/spiffe/spire/test/fakes/fakeagentnodeattestor"
+	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
+	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 var (
-	ctx = context.Background()
+	testKey, _ = pemutil.ParseSigner([]byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgy8ps3oQaBaSUFpfd
+XM13o+VSA0tcZteyTvbOdIQNVnKhRANCAAT4dPIORBjghpL5O4h+9kyzZZUAFV9F
+qNV3lKIL59N7G2B4ojbhfSNneSIIpP448uPxUnaunaQZ+/m7+x9oobIp
+-----END PRIVATE KEY-----
+`))
 )
 
-func TestNodeAttestorTestSuite(t *testing.T) {
-	suite.Run(t, new(NodeAttestorTestSuite))
-}
+func TestAttestor(t *testing.T) {
+	// create CA and server certificates
+	caCert := createCACertificate(t)
+	serverCert := createServerCertificate(t, caCert)
+	agentCert := createAgentCertificate(t, caCert, "/test/foo")
 
-type NodeAttestorTestSuite struct {
-	suite.Suite
-
-	ctrl    *gomock.Controller
-	tempDir string
-
-	attestor     Attestor
-	catalog      *fakeagentcatalog.Catalog
-	nodeAttestor *mock_nodeattestor.MockNodeAttestor
-	keyManager   *mock_keymanager.MockKeyManager
-	nodeClient   *mock_node.MockNodeClient
-	config       *Config
-}
-
-func (s *NodeAttestorTestSuite) SetupTest() {
-	s.ctrl = gomock.NewController(s.T())
-
-	s.nodeAttestor = mock_nodeattestor.NewMockNodeAttestor(s.ctrl)
-	s.keyManager = mock_keymanager.NewMockKeyManager(s.ctrl)
-	s.nodeClient = mock_node.NewMockNodeClient(s.ctrl)
-
-	s.catalog = fakeagentcatalog.New()
-
-	log, _ := test.NewNullLogger()
-	tempDir, err := ioutil.TempDir("", "spire-test")
-	s.Require().NoError(err)
-	s.tempDir = tempDir
-
-	s.config = &Config{
-		Catalog:         s.catalog,
-		Metrics:         telemetry.Blackhole{},
-		SVIDCachePath:   path.Join(tempDir, "agent_svid.der"),
-		BundleCachePath: path.Join(tempDir, "bundle.der"),
-		Log:             log,
-		TrustDomain: url.URL{
-			Scheme: "spiffe",
-			Host:   "example.com",
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{serverCert.Raw},
+				PrivateKey:  testKey,
+			},
 		},
-		NodeClient: s.nodeClient,
 	}
 
-	s.attestor = New(s.config)
-}
-
-func (s *NodeAttestorTestSuite) TearDownTest() {
-	os.RemoveAll(s.tempDir)
-	s.ctrl.Finish()
-}
-
-func (s *NodeAttestorTestSuite) TestAttestLoadFromDisk() {
-	s.linkBundle()
-	s.linkAgentSVIDPath()
-
-	s.setCatalog(false)
-	s.setFetchPrivateKeyResponse()
-
-	as, err := s.attestor.Attest(ctx)
-	s.Require().NoError(err)
-
-	_, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
-	s.Assert().Equal(as.Key, key)
-
-	bundle, err := util.LoadBundleFixture()
-	s.Require().NoError(err)
-	s.Assert().Equal(as.Bundle.RootCAs(), bundle)
-}
-
-func (s *NodeAttestorTestSuite) TestAttestNode() {
-	s.linkBundle()
-	s.setCatalog(true)
-	s.setFetchPrivateKeyResponse()
-	s.setGenerateKeyPairResponse()
-	s.setFetchAttestationDataResponse(nil)
-	s.setAttestResponse(nil)
-	as, err := s.attestor.Attest(ctx)
-	s.Require().NoError(err)
-
-	svid, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
-	s.Assert().Equal(key, as.Key)
-	s.Assert().Equal([]*x509.Certificate{svid}, as.SVID)
-}
-
-func (s *NodeAttestorTestSuite) TestAttestNodeWithChallengeResponse() {
-	challenges := []challengeResponse{
-		{challenge: "1+1", response: "2"},
-		{challenge: "5+7", response: "12"},
-	}
-
-	s.linkBundle()
-	s.setCatalog(true)
-	s.setFetchPrivateKeyResponse()
-	s.setGenerateKeyPairResponse()
-	s.setFetchAttestationDataResponse(challenges)
-	s.setAttestResponse(challenges)
-	as, err := s.attestor.Attest(ctx)
-	s.Require().NoError(err)
-
-	svid, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
-	s.Assert().Equal(key, as.Key)
-	s.Assert().Equal([]*x509.Certificate{svid}, as.SVID)
-}
-
-func (s *NodeAttestorTestSuite) TestAttestJoinToken() {
-	s.config.JoinToken = "foobar"
-	s.linkBundle()
-	s.setCatalog(false)
-	s.setFetchPrivateKeyResponse()
-	s.setGenerateKeyPairResponse()
-	s.setAttestResponse(nil)
-
-	as, err := s.attestor.Attest(ctx)
-	s.Require().NoError(err)
-
-	svid, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
-	s.Assert().Equal(key, as.Key)
-	s.Assert().Equal([]*x509.Certificate{svid}, as.SVID)
-}
-
-func (s *NodeAttestorTestSuite) linkAgentSVIDPath() {
-	err := os.Symlink(
-		path.Join(util.ProjectRoot(), "test/fixture/certs/agent_svid.der"),
-		s.config.SVIDCachePath)
-	s.Require().NoError(err)
-}
-
-func (s *NodeAttestorTestSuite) linkBundle() {
-	err := os.Symlink(
-		path.Join(util.ProjectRoot(), "test/fixture/certs/bundle.der"),
-		s.config.BundleCachePath)
-	s.Require().NoError(err)
-}
-
-type challengeResponse struct {
-	challenge string
-	response  string
-}
-
-func (s *NodeAttestorTestSuite) setFetchAttestationDataResponse(challenges []challengeResponse) {
-	attestationData := &common.AttestationData{
-		Type: "join_token",
-		Data: []byte("foobar"),
-	}
-
-	fa := &nodeattestor.FetchAttestationDataResponse{
-		AttestationData: attestationData,
-		SpiffeId:        "spiffe://example.com/spire/agent/join_token/foobar",
-	}
-
-	stream := mock_nodeattestor.NewMockNodeAttestor_FetchAttestationDataClient(s.ctrl)
-	stream.EXPECT().Recv().Return(fa, nil)
-	for _, challenge := range challenges {
-		stream.EXPECT().Send(&nodeattestor.FetchAttestationDataRequest{
-			Challenge: []byte(challenge.challenge),
-		})
-		fa := *fa
-		fa.Response = []byte(challenge.response)
-		stream.EXPECT().Recv().Return(&fa, nil)
-	}
-	stream.EXPECT().CloseSend()
-	stream.EXPECT().Recv().Return(nil, io.EOF)
-	s.nodeAttestor.EXPECT().FetchAttestationData(gomock.Any()).Return(stream, nil)
-}
-
-func (s *NodeAttestorTestSuite) setFetchPrivateKeyResponse() {
-	_, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
-	keyDer, err := x509.MarshalECPrivateKey(key)
-	s.Require().NoError(err)
-
-	s.keyManager.EXPECT().FetchPrivateKey(gomock.Any(), gomock.Any()).Return(
-		&keymanager.FetchPrivateKeyResponse{PrivateKey: keyDer}, nil)
-}
-
-func (s *NodeAttestorTestSuite) setGenerateKeyPairResponse() {
-	svid, key, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
-	keyDer, err := x509.MarshalECPrivateKey(key)
-	s.Require().NoError(err)
-
-	s.keyManager.EXPECT().GenerateKeyPair(gomock.Any(), gomock.Any()).Return(
-		&keymanager.GenerateKeyPairResponse{PublicKey: svid.RawSubjectPublicKeyInfo, PrivateKey: keyDer}, nil)
-}
-
-func (s *NodeAttestorTestSuite) setCatalog(usesNodeAttestor bool) {
-	if usesNodeAttestor {
-		s.catalog.SetNodeAttestor(fakeagentcatalog.NodeAttestor("fake", s.nodeAttestor))
-	}
-	s.catalog.SetKeyManager(fakeagentcatalog.KeyManager(s.keyManager))
-}
-
-func (s *NodeAttestorTestSuite) setAttestResponse(challenges []challengeResponse) {
-	svid, _, err := util.LoadSVIDFixture()
-	s.Require().NoError(err)
-
-	bundle, err := util.LoadBundleFixture()
-	s.Require().NoError(err)
-
-	stream := mock_node.NewMockNode_AttestClient(s.ctrl)
-	stream.EXPECT().Send(gomock.Any())
-	for _, challenge := range challenges {
-		stream.EXPECT().Send(gomock.Any())
-		stream.EXPECT().Recv().Return(&node.AttestResponse{
-			Challenge: []byte(challenge.challenge),
-		}, nil)
-	}
-	stream.EXPECT().Recv().Return(&node.AttestResponse{
-		SvidUpdate: &node.X509SVIDUpdate{
-			Svids: map[string]*node.X509SVID{
-				"spiffe://example.com/spire/agent/join_token/foobar": &node.X509SVID{
-					CertChain: svid.Raw,
-					ExpiresAt: svid.NotAfter.Unix(),
+	testCases := []struct {
+		name                        string
+		deprecatedAgentID           string
+		challengeResponses          []string
+		bootstrapBundle             *x509.Certificate
+		cachedBundle                []byte
+		cachedSVID                  []byte
+		joinToken                   string
+		err                         string
+		omitSVIDUpdate              bool
+		overrideSVIDUpdate          *node.X509SVIDUpdate
+		storeKey                    crypto.PrivateKey
+		failFetchingAttestationData bool
+		failAttestCall              bool
+	}{
+		{
+			name: "no bundle available",
+			err:  "load bundle: no bundle available",
+		},
+		{
+			name:         "cached bundle empty",
+			cachedBundle: []byte(""),
+			err:          "load bundle: no certs in bundle",
+		},
+		{
+			name:         "cached bundle malformed",
+			cachedBundle: []byte("INVALID DER BYTES"),
+			err:          "load bundle: error parsing bundle",
+		},
+		{
+			name:                        "fail fetching attestation data",
+			bootstrapBundle:             caCert,
+			err:                         "fetching attestation data purposefully failed",
+			failFetchingAttestationData: true,
+		},
+		{
+			name:            "response missing svid update",
+			bootstrapBundle: caCert,
+			omitSVIDUpdate:  true,
+			err:             "failed to parse attestation response: missing svid update",
+		},
+		{
+			name:            "response has more than one svid",
+			bootstrapBundle: caCert,
+			overrideSVIDUpdate: &node.X509SVIDUpdate{
+				Svids: map[string]*node.X509SVID{
+					"spiffe://domain.test/not/used":      {},
+					"spiffe://domain.test/also/not/used": {},
 				},
 			},
-			Bundles: map[string]*common.Bundle{
-				"spiffe://example.com": &common.Bundle{
-					TrustDomainId: "spiffe://example.com",
-					RootCas: []*common.Certificate{
-						{DerBytes: bundle[0].Raw},
+			err: "failed to parse attestation response: expected 1 svid; got 2",
+		},
+		{
+			name:            "response svid has invalid cert chain",
+			bootstrapBundle: caCert,
+			overrideSVIDUpdate: &node.X509SVIDUpdate{
+				Svids: map[string]*node.X509SVID{
+					"spiffe://domain.test/not/used": {CertChain: []byte("INVALID")},
+				},
+			},
+			err: "failed to parse attestation response: invalid svid cert chain",
+		},
+		{
+			name:            "response svid has empty cert chain",
+			bootstrapBundle: caCert,
+			overrideSVIDUpdate: &node.X509SVIDUpdate{
+				Svids: map[string]*node.X509SVID{
+					"spiffe://domain.test/not/used": {},
+				},
+			},
+			err: "failed to parse attestation response: empty svid cert chain",
+		},
+		{
+			name:            "response missing trust domain bundle",
+			bootstrapBundle: caCert,
+			overrideSVIDUpdate: &node.X509SVIDUpdate{
+				Svids: map[string]*node.X509SVID{
+					"spiffe://domain.test/not/used": {CertChain: agentCert.Raw},
+				},
+			},
+			err: "failed to parse attestation response: missing trust domain bundle",
+		},
+		{
+			name:            "response has malformed trust domain bundle",
+			bootstrapBundle: caCert,
+			overrideSVIDUpdate: &node.X509SVIDUpdate{
+				Svids: map[string]*node.X509SVID{
+					"spiffe://domain.test/not/used": {CertChain: agentCert.Raw},
+				},
+				Bundles: map[string]*common.Bundle{
+					"spiffe://domain.test": {
+						RootCas: []*common.Certificate{
+							{DerBytes: []byte("INVALID")},
+						},
 					},
 				},
 			},
-		}}, nil)
-	stream.EXPECT().CloseSend()
-	stream.EXPECT().Recv().Return(nil, io.EOF)
+			err: "failed to parse attestation response: invalid trust domain bundle",
+		},
+		{
+			name:            "success with bootstrap bundle",
+			bootstrapBundle: caCert,
+		},
+		{
+			name:         "success with cached bundle",
+			cachedBundle: caCert.Raw,
+		},
+		{
+			name:            "success with join token",
+			bootstrapBundle: caCert,
+			joinToken:       "JOINTOKEN",
+		},
+		{
+			name:              "success with old plugin",
+			bootstrapBundle:   caCert,
+			deprecatedAgentID: "spiffe://domain.test/spire/agent/test/foo",
+		},
+		{
+			name:              "old plugin returns mismatched SPIFFE ID",
+			bootstrapBundle:   caCert,
+			deprecatedAgentID: "spiffe://domain.test/spire/agent/test/bar",
+			err:               `server returned inconsistent SPIFFE ID: expected "spiffe://domain.test/spire/agent/test/bar"; got "spiffe://domain.test/spire/agent/test/foo"`,
+		},
+		{
+			name:               "success with challenge response",
+			bootstrapBundle:    caCert,
+			challengeResponses: []string{"FOO", "BAR", "BAZ"},
+		},
+		{
+			name:            "success with cached svid and private key",
+			bootstrapBundle: caCert,
+			cachedSVID:      agentCert.Raw,
+			storeKey:        testKey,
+			failAttestCall:  true,
+		},
+		{
+			name:            "malformed cached svid ignored",
+			bootstrapBundle: caCert,
+			cachedSVID:      []byte("INVALID"),
+			storeKey:        testKey,
+			failAttestCall:  true,
+			err:             "attestation has been purposefully failed",
+		},
+		{
+			name:            "missing key in keymanager ignored",
+			bootstrapBundle: caCert,
+			cachedSVID:      agentCert.Raw,
+			failAttestCall:  true,
+			err:             "attestation has been purposefully failed",
+		},
+	}
 
-	s.nodeClient.EXPECT().Attest(gomock.Any()).Return(stream, nil)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			require := require.New(t)
+
+			// prepare the temp directory holding the cached bundle/svid
+			dir, err := ioutil.TempDir("", "spire-agent-node-attestor-")
+			require.NoError(err)
+			svidCachePath := filepath.Join(dir, "svid.der")
+			bundleCachePath := filepath.Join(dir, "bundle.der")
+			if testCase.cachedBundle != nil {
+				writeFile(t, bundleCachePath, testCase.cachedBundle, 0644)
+			}
+			if testCase.cachedSVID != nil {
+				writeFile(t, svidCachePath, testCase.cachedSVID, 0644)
+			}
+
+			// load up the fake agent-side node attestor
+			var agentNA agentnodeattestor.NodeAttestor
+			agentNADone := spiretest.LoadPlugin(t, catalog.MakePlugin("test",
+				agentnodeattestor.PluginServer(fakeagentnodeattestor.New(fakeagentnodeattestor.Config{
+					Fail:              testCase.failFetchingAttestationData,
+					DeprecatedAgentID: testCase.deprecatedAgentID,
+					Responses:         testCase.challengeResponses,
+				})),
+			), &agentNA)
+			defer agentNADone()
+
+			// load up the fake server-side node attestor
+			var serverNA servernodeattestor.NodeAttestor
+			serverNADone := spiretest.LoadPlugin(t, catalog.MakePlugin("test",
+				servernodeattestor.PluginServer(fakeservernodeattestor.New("test", fakeservernodeattestor.Config{
+					TrustDomain: "domain.test",
+					Data: map[string]string{
+						"TEST": "foo",
+					},
+					Challenges: map[string][]string{
+						"foo": testCase.challengeResponses,
+					},
+				})),
+			), &serverNA)
+			defer serverNADone()
+
+			// load up an in-memory key manager
+			var km keymanager.KeyManager
+			kmDone := spiretest.LoadPlugin(t, memory.BuiltIn(), &km)
+			defer kmDone()
+			if testCase.storeKey != nil {
+				storePrivateKey(t, km, testCase.storeKey)
+			}
+
+			// initialize the catalog
+			catalog := fakeagentcatalog.New()
+			catalog.SetNodeAttestor(fakeagentcatalog.NodeAttestor("test", agentNA))
+			catalog.SetKeyManager(fakeagentcatalog.KeyManager(km))
+
+			// kick off the gRPC server serving the node API
+			listener, err := net.Listen("tcp", "localhost:0")
+			require.NoError(err)
+			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+			node.RegisterNodeServer(server, newFakeNodeAPI(fakeNodeAPIConfig{
+				CACert:             caCert,
+				Attestor:           serverNA,
+				OmitSVIDUpdate:     testCase.omitSVIDUpdate,
+				OverrideSVIDUpdate: testCase.overrideSVIDUpdate,
+				FailAttestCall:     testCase.failAttestCall,
+			}))
+			defer server.Stop()
+			go server.Serve(listener)
+
+			// create the attestor
+			var trustBundle []*x509.Certificate
+			if testCase.bootstrapBundle != nil {
+				trustBundle = append(trustBundle, testCase.bootstrapBundle)
+			}
+			log, _ := test.NewNullLogger()
+			attestor := New(&Config{
+				Catalog:         catalog,
+				Metrics:         telemetry.Blackhole{},
+				JoinToken:       testCase.joinToken,
+				SVIDCachePath:   svidCachePath,
+				BundleCachePath: bundleCachePath,
+				Log:             log,
+				TrustDomain: url.URL{
+					Scheme: "spiffe",
+					Host:   "domain.test",
+				},
+				TrustBundle:   trustBundle,
+				ServerAddress: listener.Addr().String(),
+			})
+
+			// perform attestation
+			result, err := attestor.Attest(context.Background())
+			if testCase.err != "" {
+				spiretest.RequireErrorContains(t, err, testCase.err)
+				return
+			}
+			require.NoError(err)
+			require.NotNil(result)
+			require.Len(result.SVID, 1)
+			require.Len(result.SVID[0].URIs, 1)
+			if testCase.joinToken != "" {
+				require.Equal("spiffe://domain.test/spire/agent/join_token/"+testCase.joinToken, result.SVID[0].URIs[0].String())
+			} else {
+				require.Equal("spiffe://domain.test/spire/agent/test/foo", result.SVID[0].URIs[0].String())
+			}
+			require.NotNil(result.Key)
+			require.NotNil(result.Bundle)
+
+			rootCAs := result.Bundle.RootCAs()
+			require.Len(rootCAs, 1)
+			require.Equal(rootCAs[0].Raw, caCert.Raw)
+		})
+	}
+}
+
+type fakeNodeAPIConfig struct {
+	CACert             *x509.Certificate
+	Attestor           servernodeattestor.NodeAttestor
+	OmitSVIDUpdate     bool
+	OverrideSVIDUpdate *node.X509SVIDUpdate
+	FailAttestCall     bool
+}
+
+type fakeNodeAPI struct {
+	node.NodeServer
+	c fakeNodeAPIConfig
+}
+
+func newFakeNodeAPI(config fakeNodeAPIConfig) *fakeNodeAPI {
+	return &fakeNodeAPI{
+		c: config,
+	}
+}
+
+func (n *fakeNodeAPI) Attest(stream node.Node_AttestServer) error {
+	// ensure streams are cleaned up
+	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
+
+	attestorStream, err := n.c.Attestor.Attest(ctx)
+	if err != nil {
+		return err
+	}
+
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+
+		if n.c.FailAttestCall {
+			return errors.New("attestation has been purposefully failed")
+		}
+
+		csr, err := x509.ParseCertificateRequest(req.Csr)
+		if err != nil {
+			return err
+		}
+
+		if req.AttestationData.Type == "join_token" {
+			resp, err := n.createAttestResponse(csr, idutil.AgentID("domain.test", "/join_token/"+string(req.AttestationData.Data)))
+			if err != nil {
+				return err
+			}
+
+			return stream.Send(resp)
+		}
+
+		if err := attestorStream.Send(&servernodeattestor.AttestRequest{
+			AttestationData: req.AttestationData,
+			Response:        req.Response,
+		}); err != nil {
+			return err
+		}
+
+		attestResp, err := attestorStream.Recv()
+		if err != nil {
+			return err
+		}
+
+		if attestResp.Challenge != nil {
+			if err := stream.Send(&node.AttestResponse{
+				Challenge: attestResp.Challenge,
+			}); err != nil {
+				return err
+			}
+			continue
+		}
+
+		resp, err := n.createAttestResponse(csr, attestResp.AgentId)
+		if err != nil {
+			return err
+		}
+
+		return stream.Send(resp)
+	}
+}
+
+func (n *fakeNodeAPI) createAttestResponse(csr *x509.CertificateRequest, agentID string) (*node.AttestResponse, error) {
+	uri, err := idutil.ParseSpiffeID(agentID, idutil.AllowAnyTrustDomainAgent())
+	if err != nil {
+		return nil, err
+	}
+
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(0),
+		URIs:         []*url.URL{uri},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, n.c.CACert, csr.PublicKey, testKey)
+	if err != nil {
+		return nil, err
+	}
+
+	svidUpdate := &node.X509SVIDUpdate{
+		Svids: map[string]*node.X509SVID{
+			agentID: &node.X509SVID{
+				CertChain: certDER,
+			},
+		},
+		Bundles: map[string]*common.Bundle{
+			"spiffe://domain.test": &common.Bundle{
+				TrustDomainId: "spiffe://domain.test",
+				RootCas: []*common.Certificate{
+					{DerBytes: n.c.CACert.Raw},
+				},
+			},
+		},
+	}
+
+	if n.c.OverrideSVIDUpdate != nil {
+		svidUpdate = n.c.OverrideSVIDUpdate
+	}
+
+	resp := &node.AttestResponse{}
+	if !n.c.OmitSVIDUpdate {
+		resp.SvidUpdate = svidUpdate
+	}
+
+	return resp, nil
+}
+
+func writeFile(t *testing.T, path string, data []byte, mode os.FileMode) {
+	require.NoError(t, ioutil.WriteFile(path, data, mode))
+}
+
+func createCACertificate(t *testing.T) *x509.Certificate {
+	tmpl := &x509.Certificate{
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		URIs:                  []*url.URL{idutil.TrustDomainURI("domain.test")},
+	}
+	return createCertificate(t, tmpl, tmpl)
+}
+
+func createServerCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certificate {
+	tmpl := &x509.Certificate{
+		URIs:     []*url.URL{idutil.ServerURI("domain.test")},
+		DNSNames: []string{"localhost"},
+	}
+	return createCertificate(t, tmpl, caCert)
+}
+
+func createAgentCertificate(t *testing.T, caCert *x509.Certificate, path string) *x509.Certificate {
+	tmpl := &x509.Certificate{
+		URIs: []*url.URL{idutil.AgentURI("domain.test", path)},
+	}
+	return createCertificate(t, tmpl, caCert)
+}
+
+func createCertificate(t *testing.T, tmpl, parent *x509.Certificate) *x509.Certificate {
+	now := time.Now()
+	tmpl.SerialNumber = big.NewInt(0)
+	tmpl.NotBefore = now
+	tmpl.NotAfter = now.Add(time.Hour)
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, parent, testKey.Public(), testKey)
+	require.NoError(t, err)
+	cert, err := x509.ParseCertificate(certDER)
+	require.NoError(t, err)
+	return cert
+}
+
+func storePrivateKey(t *testing.T, km keymanager.KeyManager, privateKey crypto.PrivateKey) {
+	ecKey, ok := privateKey.(*ecdsa.PrivateKey)
+	require.True(t, ok, "not an EC key")
+	keyBytes, err := x509.MarshalECPrivateKey(ecKey)
+	require.NoError(t, err)
+	_, err = km.StorePrivateKey(context.Background(), &keymanager.StorePrivateKeyRequest{
+		PrivateKey: keyBytes,
+	})
+	require.NoError(t, err)
 }

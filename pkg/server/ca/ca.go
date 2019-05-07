@@ -34,20 +34,39 @@ const (
 
 // ServerCA is an interface for Server CAs
 type ServerCA interface {
-	SignX509SVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error)
-	SignX509CASVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error)
+	SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.Certificate, error)
+	SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x509.Certificate, error)
 	SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error)
 }
 
-// X509Params are parameters relevant to X509 SVID creation
-type X509Params struct {
+// X509SVIDParams are parameters relevant to X509 SVID creation
+type X509SVIDParams struct {
+	// SPIFFE ID of the SVID
+	SpiffeID string
+
+	// Public Key
+	PublicKey crypto.PublicKey
+
 	// TTL is the desired time-to-live of the SVID. Regardless of the TTL, the
 	// lifetime of the certificate will be capped to that of the signing cert.
 	TTL time.Duration
 
 	// DNSList is used to add DNS SAN's to the X509 SVID. The first entry
-	// is also added as the CN. DNSList is ignored when signing CA X509 SVIDs.
+	// is also added as the CN.
 	DNSList []string
+}
+
+// X509CASVIDParams are parameters relevant to X509 CA SVID creation
+type X509CASVIDParams struct {
+	// SPIFFE ID of the SVID
+	SpiffeID string
+
+	// Public Key
+	PublicKey crypto.PublicKey
+
+	// TTL is the desired time-to-live of the SVID. Regardless of the TTL, the
+	// lifetime of the certificate will be capped to that of the signing cert.
+	TTL time.Duration
 }
 
 type X509CA struct {
@@ -135,7 +154,7 @@ func (ca *CA) SetJWTKey(jwtKey *JWTKey) {
 	ca.jwtKey = jwtKey
 }
 
-func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error) {
+func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.Certificate, error) {
 	x509CA := ca.X509CA()
 	if x509CA == nil {
 		return nil, errs.New("X509 CA is not available for signing")
@@ -148,7 +167,7 @@ func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params
 	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
 	serialNumber := ca.nextSerialNumber()
 
-	template, err := CreateX509SVIDTemplate(csrDER, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber)
+	template, err := CreateX509SVIDTemplate(params.SpiffeID, params.PublicKey, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +204,7 @@ func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params
 	return makeSVIDCertChain(x509CA, cert), nil
 }
 
-func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error) {
+func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x509.Certificate, error) {
 	x509CA := ca.X509CA()
 	if x509CA == nil {
 		return nil, errs.New("X509 CA is not available for signing")
@@ -198,7 +217,13 @@ func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Para
 	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
 	serialNumber := ca.nextSerialNumber()
 
-	template, err := CreateServerCATemplate(csrDER, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber)
+	// Don't allow the downstream server to control the subject of the CA
+	// certificate. Additionally, set the OU to a 1-based downstream "level"
+	// for soft debugging support.
+	subject := x509CA.Certificate.Subject
+	subject.OrganizationalUnit = []string{fmt.Sprintf("DOWNSTREAM-%d", 1+len(x509CA.UpstreamChain))}
+
+	template, err := CreateServerCATemplate(params.SpiffeID, params.PublicKey, ca.c.TrustDomain.Host, notBefore, notAfter, serialNumber, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -206,12 +231,6 @@ func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Para
 	// added if the subject and issuer match name matches (unlikely due to the
 	// OU override below, but just to be safe).
 	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
-
-	// Don't allow the downstream server to control the subject of the CA
-	// certificate. Additionally, set the OU to a 1-based downstream "level"
-	// for soft debugging support.
-	template.Subject = x509CA.Certificate.Subject
-	template.Subject.OrganizationalUnit = []string{fmt.Sprintf("DOWNSTREAM-%d", 1+len(x509CA.UpstreamChain))}
 
 	cert, err := createCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
 	if err != nil {
