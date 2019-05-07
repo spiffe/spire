@@ -47,10 +47,9 @@ type Manager interface {
 	// bundle changes.
 	SubscribeToBundleChanges() *cache.BundleStream
 
-	// MatchingEntries takes a slice of selectors, and iterates over all the in force entries
-	// in order to find matching cache entries. A cache entry is matched when its RegistrationEntry's
-	// selectors are included in the set of selectors passed as parameter.
-	MatchingEntries(selectors []*common.Selector) []cache.Entry
+	// MatchingIdentities returns all of the cached identities whose
+	// registration entry selectors are a subset of the passed selectors.
+	MatchingIdentities(selectors []*common.Selector) []cache.Identity
 
 	// FetchWorkloadUpdates gets the latest workload update for the selectors
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
@@ -120,8 +119,8 @@ func (m *manager) SubscribeToBundleChanges() *cache.BundleStream {
 	return m.cache.SubscribeToBundleChanges()
 }
 
-func (m *manager) MatchingEntries(selectors []*common.Selector) []cache.Entry {
-	return m.cache.MatchingEntries(selectors)
+func (m *manager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {
+	return m.cache.MatchingIdentities(selectors)
 }
 
 // FetchWorkloadUpdates gets the latest workload update for the selectors

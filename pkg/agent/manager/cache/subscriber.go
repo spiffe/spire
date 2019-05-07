@@ -12,8 +12,9 @@ type Subscriber interface {
 }
 
 type subscriber struct {
-	cache *Cache
-	set   selectorSet
+	cache   *Cache
+	set     selectorSet
+	setFree func()
 
 	mu   sync.Mutex
 	c    chan *WorkloadUpdate
@@ -21,10 +22,12 @@ type subscriber struct {
 }
 
 func newSubscriber(cache *Cache, selectors []*common.Selector) *subscriber {
+	set, setFree := allocSelectorSet(selectors...)
 	return &subscriber{
-		cache: cache,
-		set:   allocSelectorSet(selectors...),
-		c:     make(chan *WorkloadUpdate, 1),
+		cache:   cache,
+		set:     set,
+		setFree: setFree,
+		c:       make(chan *WorkloadUpdate, 1),
 	}
 }
 
@@ -42,6 +45,8 @@ func (s *subscriber) Finish() {
 	s.mu.Unlock()
 	if !done {
 		s.cache.unsubscribe(s)
+		s.setFree()
+		s.set = nil
 	}
 }
 

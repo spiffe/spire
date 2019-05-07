@@ -18,9 +18,9 @@ import (
 )
 
 type csrRequest struct {
-	EntryID   string
-	SpiffeID  string
-	ExpiresAt time.Time
+	EntryID              string
+	SpiffeID             string
+	CurrentSVIDExpiresAt time.Time
 }
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
@@ -58,9 +58,9 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		// we've exceeded the CSR limit, don't make any more CSRs
 		if len(csrs) < node.CSRLimit {
 			csrs = append(csrs, csrRequest{
-				EntryID:   entry.EntryId,
-				SpiffeID:  entry.SpiffeId,
-				ExpiresAt: expiresAt,
+				EntryID:              entry.EntryId,
+				SpiffeID:             entry.SpiffeId,
+				CurrentSVIDExpiresAt: expiresAt,
 			})
 		}
 	})
@@ -91,8 +91,8 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 	privateKeys := make(map[string]*ecdsa.PrivateKey, len(csrs))
 	for _, csr := range csrs {
 		log := m.c.Log.WithField("spiffe_id", csr.SpiffeID)
-		if !csr.ExpiresAt.IsZero() {
-			log = log.WithField("expires_at", csr.ExpiresAt.Format(time.RFC3339))
+		if !csr.CurrentSVIDExpiresAt.IsZero() {
+			log = log.WithField("expires_at", csr.CurrentSVIDExpiresAt.Format(time.RFC3339))
 		}
 		counter.AddLabel("spiffe_id", csr.SpiffeID)
 

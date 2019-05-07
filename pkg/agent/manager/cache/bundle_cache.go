@@ -50,8 +50,7 @@ func NewBundleStream(stream observer.Stream) *BundleStream {
 
 // Value returns the current value for this stream.
 func (b *BundleStream) Value() map[string]*Bundle {
-	value, _ := b.stream.Value().(map[string]*Bundle)
-	return value
+	return b.stream.Value().(map[string]*Bundle)
 }
 
 // Changes returns the channel that is closed when a new value is available.

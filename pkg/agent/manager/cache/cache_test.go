@@ -34,7 +34,7 @@ func TestFetchWorkloadUpdate(t *testing.T) {
 	cache.Update(update, nil)
 
 	workloadUpdate := cache.FetchWorkloadUpdate(makeSelectors("A", "B"))
-	assert.Len(t, workloadUpdate.Entries, 0, "entries should not be returned that don't have SVIDs")
+	assert.Len(t, workloadUpdate.Identities, 0, "identities should not be returned that don't have SVIDs")
 
 	update.X509SVIDs = makeX509SVIDs(foo, bar)
 	cache.Update(update, nil)
@@ -43,14 +43,14 @@ func TestFetchWorkloadUpdate(t *testing.T) {
 	assert.Equal(t, &WorkloadUpdate{
 		Bundle:           bundleV1,
 		FederatedBundles: makeBundles(otherBundleV1),
-		Entries: []Entry{
-			{RegistrationEntry: bar},
-			{RegistrationEntry: foo},
+		Identities: []Identity{
+			{Entry: bar},
+			{Entry: foo},
 		},
 	}, workloadUpdate)
 }
 
-func TestMatchingEntries(t *testing.T) {
+func TestMatchingIdentities(t *testing.T) {
 	cache := newTestCache()
 
 	// populate the cache with FOO and BAR without SVIDS
@@ -62,17 +62,17 @@ func TestMatchingEntries(t *testing.T) {
 	}
 	cache.Update(update, nil)
 
-	entries := cache.MatchingEntries(makeSelectors("A", "B"))
-	assert.Len(t, entries, 0, "entries should not be returned that don't have SVIDs")
+	identities := cache.MatchingIdentities(makeSelectors("A", "B"))
+	assert.Len(t, identities, 0, "identities should not be returned that don't have SVIDs")
 
 	update.X509SVIDs = makeX509SVIDs(foo, bar)
 	cache.Update(update, nil)
 
-	entries = cache.MatchingEntries(makeSelectors("A", "B"))
-	assert.Equal(t, []Entry{
-		{RegistrationEntry: bar},
-		{RegistrationEntry: foo},
-	}, entries)
+	identities = cache.MatchingIdentities(makeSelectors("A", "B"))
+	assert.Equal(t, []Identity{
+		{Entry: bar},
+		{Entry: foo},
+	}, identities)
 }
 
 func TestBundleChanges(t *testing.T) {
@@ -160,7 +160,7 @@ func TestSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
 	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
 		Bundle:           bundleV1,
 		FederatedBundles: makeBundles(otherBundleV1),
-		Entries:          []Entry{{RegistrationEntry: foo}},
+		Identities:       []Identity{{Entry: foo}},
 	})
 	assertNoWorkloadUpdate(t, subB)
 
@@ -173,7 +173,7 @@ func TestSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
 	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
 		Bundle:           bundleV1,
 		FederatedBundles: makeBundles(otherBundleV2),
-		Entries:          []Entry{{RegistrationEntry: foo}},
+		Identities:       []Identity{{Entry: foo}},
 	})
 	assertNoWorkloadUpdate(t, subB)
 
@@ -185,8 +185,8 @@ func TestSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, nil)
 	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
-		Bundle:  bundleV1,
-		Entries: []Entry{{RegistrationEntry: foo}},
+		Bundle:     bundleV1,
+		Identities: []Identity{{Entry: foo}},
 	})
 	assertNoWorkloadUpdate(t, subB)
 }
@@ -223,8 +223,8 @@ func TestSubscribersGetEntriesWithSelectorSubsets(t *testing.T) {
 
 	// subA selector set contains (A), but not (A, C), so it should only get FOO
 	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
-		Bundle:  bundleV1,
-		Entries: []Entry{{RegistrationEntry: foo}},
+		Bundle:     bundleV1,
+		Identities: []Identity{{Entry: foo}},
 	})
 
 	// subB selector set does not contain either (A) or (A,C) so it isn't even
@@ -233,8 +233,8 @@ func TestSubscribersGetEntriesWithSelectorSubsets(t *testing.T) {
 
 	// subAB selector set contains (A) but not (A, C), so it should get FOO
 	assertWorkloadUpdateEqual(t, subAB, &WorkloadUpdate{
-		Bundle:  bundleV1,
-		Entries: []Entry{{RegistrationEntry: foo}},
+		Bundle:     bundleV1,
+		Identities: []Identity{{Entry: foo}},
 	})
 }
 
@@ -277,8 +277,8 @@ func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
 	sub := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
 	defer sub.Finish()
 	assertWorkloadUpdateEqual(t, sub, &WorkloadUpdate{
-		Bundle:  bundleV1,
-		Entries: []Entry{{RegistrationEntry: foo}},
+		Bundle:     bundleV1,
+		Identities: []Identity{{Entry: foo}},
 	})
 
 	// update FOO to have selectors (A,B) and make sure the subscriber loses
@@ -301,8 +301,8 @@ func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
 		X509SVIDs:           makeX509SVIDs(foo),
 	}, nil)
 	assertWorkloadUpdateEqual(t, sub, &WorkloadUpdate{
-		Bundle:  bundleV1,
-		Entries: []Entry{{RegistrationEntry: foo}},
+		Bundle:     bundleV1,
+		Identities: []Identity{{Entry: foo}},
 	})
 }
 
@@ -334,8 +334,8 @@ func TestSubcriberNotifiedWhenEntryDropped(t *testing.T) {
 
 	// make sure subA gets notified with FOO but not subB
 	assertWorkloadUpdateEqual(t, subA, &WorkloadUpdate{
-		Bundle:  bundleV1,
-		Entries: []Entry{{RegistrationEntry: foo}},
+		Bundle:     bundleV1,
+		Identities: []Identity{{Entry: foo}},
 	})
 	assertNoWorkloadUpdate(t, subB)
 
@@ -361,7 +361,7 @@ func TestSubcriberOnlyGetsEntriesWithSVID(t *testing.T) {
 	sub := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
 	defer sub.Finish()
 
-	// workload update does not include the entry because it has no SVID.
+	// workload update does not include the identity because it has no SVID.
 	assertWorkloadUpdateEqual(t, sub, &WorkloadUpdate{
 		Bundle: bundleV1,
 	})
@@ -370,8 +370,8 @@ func TestSubcriberOnlyGetsEntriesWithSVID(t *testing.T) {
 	update.X509SVIDs = makeX509SVIDs(foo)
 	cache.Update(update, nil)
 	assertWorkloadUpdateEqual(t, sub, &WorkloadUpdate{
-		Bundle:  bundleV1,
-		Entries: []Entry{{RegistrationEntry: foo}},
+		Bundle:     bundleV1,
+		Identities: []Identity{{Entry: foo}},
 	})
 }
 
@@ -397,7 +397,7 @@ func TestSubscribersDoNotBlockNotifications(t *testing.T) {
 func TestCheckSVIDCallback(t *testing.T) {
 	cache := newTestCache()
 
-	// no calls because there are no entries
+	// no calls because there are no registration entries
 	cache.Update(&CacheUpdate{
 		Bundles: makeBundles(bundleV2),
 	}, func(entry *common.RegistrationEntry, svid *X509SVID) {
@@ -529,7 +529,7 @@ func assertWorkloadUpdateEqual(t *testing.T, sub Subscriber, expected *WorkloadU
 	case actual := <-sub.Updates():
 		assert.NotNil(t, actual.Bundle, "bundle is not set")
 		assert.True(t, actual.Bundle.EqualTo(expected.Bundle), "bundles don't match")
-		assert.Equal(t, expected.Entries, actual.Entries, "entries don't match")
+		assert.Equal(t, expected.Identities, actual.Identities, "identities don't match")
 	case <-time.After(time.Minute):
 		assert.FailNow(t, "timed out waiting for workload update")
 	}

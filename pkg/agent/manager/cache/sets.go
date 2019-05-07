@@ -25,9 +25,9 @@ var (
 		},
 	}
 
-	entriesSetPool = sync.Pool{
+	recordSetPool = sync.Pool{
 		New: func() interface{} {
-			return make(entriesSet)
+			return make(recordSet)
 		},
 	}
 )
@@ -35,17 +35,19 @@ var (
 // unique set of strings, allocated from a pool
 type stringSet map[string]struct{}
 
-func allocStringSet(ss ...string) stringSet {
+func allocStringSet(ss ...string) (stringSet, func()) {
 	set := stringSetPool.Get().(stringSet)
 	set.Merge(ss...)
-	return set
+	return set, func() {
+		clearStringSet(set)
+		stringSetPool.Put(set)
+	}
 }
 
-func freeStringSet(set stringSet) {
+func clearStringSet(set stringSet) {
 	for k := range set {
 		delete(set, k)
 	}
-	stringSetPool.Put(set)
 }
 
 func (set stringSet) Merge(ss ...string) {
@@ -57,15 +59,18 @@ func (set stringSet) Merge(ss ...string) {
 // unique set of subscribers, allocated from a pool
 type subscriberSet map[*subscriber]struct{}
 
-func allocSubscriberSet() subscriberSet {
-	return subscriberSetPool.Get().(subscriberSet)
+func allocSubscriberSet() (subscriberSet, func()) {
+	set := subscriberSetPool.Get().(subscriberSet)
+	return set, func() {
+		clearSubscriberSet(set)
+		subscriberSetPool.Put(set)
+	}
 }
 
-func freeSubscriberSet(set subscriberSet) {
+func clearSubscriberSet(set subscriberSet) {
 	for k := range set {
 		delete(set, k)
 	}
-	subscriberSetPool.Put(set)
 }
 
 // unique set of selectors, allocated from a pool
@@ -83,22 +88,24 @@ func makeSelector(s *common.Selector) selector {
 
 type selectorSet map[selector]struct{}
 
-func allocSelectorSet(ss ...*common.Selector) selectorSet {
+func allocSelectorSet(ss ...*common.Selector) (selectorSet, func()) {
 	set := selectorSetPool.Get().(selectorSet)
 	set.Merge(ss...)
-	return set
+	return set, func() {
+		clearSelectorSet(set)
+		selectorSetPool.Put(set)
+	}
 }
 
-func freeSelectorSet(set selectorSet) {
+func clearSelectorSet(set selectorSet) {
 	for k := range set {
 		delete(set, k)
 	}
-	selectorSetPool.Put(set)
 }
 
 func (set selectorSet) Merge(ss ...*common.Selector) {
 	for _, s := range ss {
-		set[selector{Type: s.Type, Value: s.Value}] = struct{}{}
+		set[makeSelector(s)] = struct{}{}
 	}
 }
 
@@ -117,16 +124,19 @@ func (set selectorSet) In(ss ...*common.Selector) bool {
 	return true
 }
 
-// unique set of cache entries, allocated from a pool
-type entriesSet map[*cacheEntry]struct{}
+// unique set of cache records, allocated from a pool
+type recordSet map[*cacheRecord]struct{}
 
-func allocEntriesSet() entriesSet {
-	return entriesSetPool.Get().(entriesSet)
+func allocRecordSet() (recordSet, func()) {
+	set := recordSetPool.Get().(recordSet)
+	return set, func() {
+		clearRecordSet(set)
+		recordSetPool.Put(set)
+	}
 }
 
-func freeEntriesSet(set entriesSet) {
+func clearRecordSet(set recordSet) {
 	for k := range set {
 		delete(set, k)
 	}
-	entriesSetPool.Put(set)
 }

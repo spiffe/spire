@@ -41,7 +41,7 @@ func (c *JWTSVIDCache) SetJWTSVID(spiffeID string, audience []string, svid *clie
 func jwtSVIDKey(spiffeID string, audience []string) string {
 	h := sha1.New()
 
-	// duplicate and sort the audience slice before sorting
+	// duplicate and sort the audience slice
 	audience = append([]string(nil), audience...)
 	sort.Strings(audience)
 
