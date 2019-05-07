@@ -124,7 +124,13 @@ func (d *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
+
+	// Create directory in which to store the private key if not exists
+	if err := os.MkdirAll(config.Directory, 0755); err != nil {
+		return nil, err
+	}
 	d.dir = config.Directory
+
 	return &spi.ConfigureResponse{}, nil
 }
 

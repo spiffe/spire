@@ -175,9 +175,9 @@ func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params
 		"expires_at": cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 SVID")
 
-	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_svid"}, 1, []telemetry.Label{
+	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.CA, telemetry.Sign, telemetry.X509SVID}, 1, []telemetry.Label{
 		{
-			Name:  "spiffe_id",
+			Name:  telemetry.SPIFFEID,
 			Value: spiffeID,
 		},
 	})
@@ -225,9 +225,9 @@ func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Para
 		"expires_at": cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 CA SVID")
 
-	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_ca_svid"}, 1, []telemetry.Label{
+	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.CA, telemetry.Sign, telemetry.X509CASVID}, 1, []telemetry.Label{
 		{
-			Name:  "spiffe_id",
+			Name:  telemetry.SPIFFEID,
 			Value: spiffeID,
 		},
 	})
@@ -258,17 +258,17 @@ func (ca *CA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 
 	labels := []telemetry.Label{
 		{
-			Name:  "spiffe_id",
+			Name:  telemetry.SPIFFEID,
 			Value: jsr.SpiffeId,
 		},
 	}
 	for _, audience := range jsr.Audience {
 		labels = append(labels, telemetry.Label{
-			Name:  "audience",
+			Name:  telemetry.Audience,
 			Value: audience,
 		})
 	}
-	ca.c.Metrics.IncrCounterWithLabels([]string{"server_ca", "sign", "jwt_svid"}, 1, labels)
+	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.JWTSVID}, 1, labels)
 
 	return token, nil
 }
