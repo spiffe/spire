@@ -64,7 +64,10 @@ type challengeResponse struct {
 }
 
 func (c *ClientHandshake) SpiffeID() (string, error) {
-	hostname := decanonicalizeHostname(c.c.cert.ValidPrincipals[0], c.c.canonicalDomain)
+	hostname, err := decanonicalizeHostname(c.c.cert.ValidPrincipals[0], c.c.canonicalDomain)
+	if err != nil {
+		return "", err
+	}
 	return makeSpiffeID(c.c.trustDomain, c.c.agentPathTemplate, c.c.cert, hostname)
 }
 
@@ -139,17 +142,24 @@ func (s *ServerHandshake) VerifyAttestationData(data []byte) error {
 	if err := s.s.certChecker.CheckHostKey(addr, &net.IPAddr{}, cert); err != nil {
 		return Errorf("failed to check host key: %v", err)
 	}
+	s.hostname, err = decanonicalizeHostname(cert.ValidPrincipals[0], s.s.canonicalDomain)
+	if err != nil {
+		return Errorf("failed to decanonicalize hostname: %v", err)
+	}
 	s.cert = cert
-	s.hostname = decanonicalizeHostname(cert.ValidPrincipals[0], s.s.canonicalDomain)
 	s.state = stateAttestationDataVerified
 	return nil
 }
 
-func decanonicalizeHostname(fqdn, domain string) string {
+func decanonicalizeHostname(fqdn, domain string) (string, error) {
 	if domain == "" {
-		return fqdn
+		return fqdn, nil
 	}
-	return strings.TrimSuffix(fqdn, "."+domain)
+	suffix := "." + domain
+	if !strings.HasSuffix(fqdn, suffix) {
+		return "", fmt.Errorf("cert principal is not in domain %q", suffix)
+	}
+	return strings.TrimSuffix(fqdn, suffix), nil
 }
 
 func (s *ServerHandshake) IssueChallenge() ([]byte, error) {

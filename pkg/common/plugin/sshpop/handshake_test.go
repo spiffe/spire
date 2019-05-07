@@ -216,7 +216,7 @@ func TestVerifyAttestationData(t *testing.T) {
 			desc:                  "cert is signed by a known authority with bad canonicalized domain",
 			attestationData:       marshalAttestationData(t, c.c.cert.Marshal()),
 			serverCanonicalDomain: "foo.internal",
-			expectHostname:        "ec2abcdef-uswest1.test.internal",
+			expectErr:             `sshpop: failed to decanonicalize hostname: cert principal is not in domain ".foo.internal"`,
 		},
 	}
 
@@ -364,6 +364,54 @@ func TestVerifyChallengeResponse(t *testing.T) {
 			}
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.expectErr)
+		})
+	}
+}
+
+func TestDecanonicalizeHostname(t *testing.T) {
+	tests := []struct {
+		desc           string
+		fqdn           string
+		domain         string
+		expectHostname string
+		expectErr      string
+	}{
+		{
+			desc:           "success 1",
+			fqdn:           "foo.bar.internal",
+			domain:         "bar.internal",
+			expectHostname: "foo",
+		},
+		{
+			desc:      "bad wrong canonical domain",
+			fqdn:      "foo.bar.baz.internal",
+			domain:    "bar.internal",
+			expectErr: `cert principal is not in domain ".bar.internal"`,
+		},
+		{
+			desc:      "bad wrong canonical domain 2",
+			fqdn:      "foo.internal",
+			domain:    "foo.internal",
+			expectErr: `cert principal is not in domain ".foo.internal"`,
+		},
+		{
+			desc:           "no configured domain",
+			fqdn:           "foo.bar.internal",
+			domain:         "",
+			expectHostname: "foo.bar.internal",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			hostname, err := decanonicalizeHostname(tt.fqdn, tt.domain)
+			if tt.expectErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectHostname, hostname)
 		})
 	}
 }
