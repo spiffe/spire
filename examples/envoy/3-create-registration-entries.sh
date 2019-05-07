@@ -6,7 +6,10 @@ bb=$(tput bold)
 nn=$(tput sgr0)
 
 fingerprint() {
-	cat $1 | openssl x509 -outform DER | openssl sha1
+	# calculate the SHA1 digest of the DER bytes of the certificate using the
+	# "coreutils" output format (`-r`) to provide uniform output from
+	# `openssl sha1` on macOS and linux.
+	cat $1 | openssl x509 -outform DER | openssl sha1 -r | awk '{print $1}'
 }
 
 WEB_AGENT_FINGERPRINT=$(fingerprint docker/web/conf/agent.crt.pem)
