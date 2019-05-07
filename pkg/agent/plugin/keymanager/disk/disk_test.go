@@ -67,6 +67,8 @@ func TestDisk_Configure(t *testing.T) {
 	_, e := plugin.Configure(ctx, cReq)
 	assert.NoError(t, e)
 	assert.Equal(t, "foo/bar", plugin.dir)
+	assert.DirExists(t, "foo/bar")
+	os.RemoveAll("foo")
 }
 
 func TestDisk_GetPluginInfo(t *testing.T) {
