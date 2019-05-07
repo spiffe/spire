@@ -14,33 +14,13 @@ import (
 )
 
 func main() {
-	var descriptor int
 	var socketPath string
-	flag.IntVar(&descriptor, "descriptor", 0, "send a bit of data on the fd and then block forever")
 	flag.StringVar(&socketPath, "socketPath", "", "path to peertracker socket")
 	flag.Parse()
 
 	// We are a grandchild - send a sign then sleep forever
-	if descriptor != 0 {
-		fd := uintptr(descriptor)
-		fh := os.NewFile(fd, "socket")
-		if fh == nil {
-			fmt.Fprintf(os.Stderr, "could not open descriptor")
-			os.Exit(1)
-		}
-
-		conn, err := net.FileConn(fh)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "could not get conn from descriptor: %v", err)
-			os.Exit(2)
-		}
-
-		theSign := []byte("i'm alive!")
-		_, err = conn.Write(theSign)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "could not write to conn: %v", err)
-			os.Exit(3)
-		}
+	if socketPath == "" {
+		fmt.Fprintf(os.Stdout, "i'm alive!")
 
 		select {}
 	}
@@ -71,11 +51,11 @@ func main() {
 	procattr := &syscall.ProcAttr{
 		Files: []uintptr{
 			os.Stdin.Fd(),
-			fd.Fd(), // descriptor 1
+			fd.Fd(),
 		},
 	}
 
-	pid, err := syscall.ForkExec(os.Args[0], []string{os.Args[0], "-descriptor", "1"}, procattr)
+	pid, err := syscall.ForkExec(os.Args[0], []string{os.Args[0]}, procattr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to produce grandchild: %v", err)
 		os.Exit(7)
