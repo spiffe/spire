@@ -19,9 +19,9 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/api/workload"
@@ -33,10 +33,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	workloadApi = "workload_api"
-)
-
 // Handler implements the Workload API interface
 type Handler struct {
 	Manager manager.Manager
@@ -45,6 +41,7 @@ type Handler struct {
 	M       telemetry.Metrics
 }
 
+// FetchJWTSVID processes request for a JWT SVID
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (resp *workload.JWTSVIDResponse, err error) {
 	if len(req.Audience) == 0 {
 		return nil, errs.New("audience must be specified")
@@ -56,26 +53,26 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 	defer done()
 
-	counter := telemetry.StartCall(metrics, workloadApi, "fetch_jwt_svid")
+	counter := telemetry.StartCall(metrics, telemetry.WorkloadAPI, telemetry.FetchJWTSVID)
 	defer counter.Done(&err)
 
-	counter.AddLabel("svid_type", "jwt")
+	counter.AddLabel(telemetry.SVIDType, telemetry.JWT)
 
 	var spiffeIDs []string
 	entries := h.Manager.MatchingEntries(selectors)
 	if len(entries) == 0 {
-		counter.AddLabel("registered", "false")
+		counter.AddLabel(telemetry.Registered, "false")
 		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
-	counter.AddLabel("registered", "true")
+	counter.AddLabel(telemetry.Registered, "true")
 
 	for _, entry := range entries {
 		if req.SpiffeId != "" && entry.RegistrationEntry.SpiffeId != req.SpiffeId {
 			continue
 		}
 		spiffeIDs = append(spiffeIDs, entry.RegistrationEntry.SpiffeId)
-		counter.AddLabel("spiffe_id", entry.RegistrationEntry.SpiffeId)
+		counter.AddLabel(telemetry.SPIFFEID, entry.RegistrationEntry.SpiffeId)
 	}
 
 	resp = new(workload.JWTSVIDResponse)
@@ -92,16 +89,17 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 		ttl := time.Until(svid.ExpiresAt)
 		metrics.SetGaugeWithLabels(
-			[]string{workloadApi, "fetch_jwt_svid", "ttl"},
+			[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
 			float32(ttl.Seconds()),
 			[]telemetry.Label{
-				{Name: "spiffe_id", Value: spiffeID},
+				{Name: telemetry.SPIFFEID, Value: spiffeID},
 			})
 	}
 
 	return resp, nil
 }
 
+// FetchJWTBundles processes request for JWT bundles
 func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
 	ctx := stream.Context()
 
@@ -111,7 +109,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	}
 	defer done()
 
-	metrics.IncrCounter([]string{workloadApi, "fetch_jwt_bundles"}, 1)
+	metrics.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, 1)
 
 	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
@@ -119,13 +117,13 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			metrics.IncrCounter([]string{workloadApi, "bundles_update"}, 1)
+			metrics.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate}, 1)
 			start := time.Now()
 			if err := h.sendJWTBundlesResponse(update, stream); err != nil {
 				return err
 			}
 
-			metrics.MeasureSince([]string{workloadApi, "send_jwt_bundle_latency"}, start)
+			metrics.MeasureSince([]string{telemetry.WorkloadAPI, telemetry.SendJWTBundleLatency}, start)
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send JWT bundle to PID %v", time.Since(start).Seconds, pid)
 			}
@@ -135,6 +133,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	}
 }
 
+// ValidateJWTSVID processes request for JWT SVID validation
 func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
 	if req.Audience == "" {
 		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
@@ -153,22 +152,22 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
-		metrics.IncrCounterWithLabels([]string{workloadApi, "validate_jwt_svid"}, 1, []telemetry.Label{
+		metrics.IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1, []telemetry.Label{
 			{
-				Name:  "error",
+				Name:  telemetry.Error,
 				Value: err.Error(),
 			},
 		})
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	metrics.IncrCounterWithLabels([]string{workloadApi, "validate_jwt_svid"}, 1, []telemetry.Label{
+	metrics.IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1, []telemetry.Label{
 		{
-			Name:  "subject",
+			Name:  telemetry.Subject,
 			Value: spiffeID,
 		},
 		{
-			Name:  "audience",
+			Name:  telemetry.Audience,
 			Value: req.Audience,
 		},
 	})
@@ -185,6 +184,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 }
 
+// FetchX509SVID processes request for an x509 SVID
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
 	ctx := stream.Context()
 
@@ -209,7 +209,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 			// TODO: evaluate the possibility of removing the following metric at some point
 			// in the future because almost the same metric (with different labels and keys) is being
 			// taken by the CallCounter in sendX509SVIDResponse function.
-			metrics.MeasureSince([]string{workloadApi, "svid_response_latency"}, start)
+			metrics.MeasureSince([]string{telemetry.WorkloadAPI, telemetry.SVIDResponseLatency}, start)
 			if time.Since(start) > (1 * time.Second) {
 				h.L.Warnf("Took %v seconds to send SVID response to PID %v", time.Since(start).Seconds, pid)
 			}
@@ -220,17 +220,17 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 }
 
 func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics, selectors []*common.Selector) (err error) {
-	counter := telemetry.StartCall(metrics, workloadApi, "fetch_x509_svid")
+	counter := telemetry.StartCall(metrics, telemetry.WorkloadAPI, telemetry.FetchX509SVID)
 	defer counter.Done(&err)
 
-	counter.AddLabel("svid_type", "x509")
+	counter.AddLabel(telemetry.SVIDType, telemetry.X509)
 
 	if len(update.Entries) == 0 {
-		counter.AddLabel("registered", "false")
+		counter.AddLabel(telemetry.Registered, "false")
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
-	counter.AddLabel("registered", "true")
+	counter.AddLabel(telemetry.Registered, "true")
 
 	resp, err := h.composeX509SVIDResponse(update)
 	if err != nil {
@@ -244,14 +244,14 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 	// Add all the SPIFFE IDs to the labels array.
 	for i, svid := range resp.Svids {
-		counter.AddLabel("spiffe_id", svid.SpiffeId)
+		counter.AddLabel(telemetry.SPIFFEID, svid.SpiffeId)
 
 		ttl := time.Until(update.Entries[i].SVID[0].NotAfter)
 		metrics.SetGaugeWithLabels(
-			[]string{workloadApi, "fetch_x509_svid", "ttl"},
+			[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
 			float32(ttl.Seconds()),
 			[]telemetry.Label{
-				{Name: "spiffe_id", Value: svid.SpiffeId},
+				{Name: telemetry.SPIFFEID, Value: svid.SpiffeId},
 			})
 	}
 
@@ -333,12 +333,12 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.InvalidArgument, "Security header missing from request")
 	}
 
-	pid, err := h.callerPID(ctx)
+	watcher, err := h.peerWatcher(ctx)
 	if err != nil {
 		return 0, nil, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
-	h.M.IncrCounter([]string{workloadApi, "connections"}, 1)
+	h.M.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connections}, 1)
 
 	config := attestor.Config{
 		Catalog: h.Catalog,
@@ -346,38 +346,36 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		M:       h.M,
 	}
 
-	selectors := attestor.New(&config).Attest(ctx, pid)
+	selectors := attestor.New(&config).Attest(ctx, watcher.PID())
+
+	// Ensure that the original caller is still alive so that we know we didn't
+	// attest some other process that happened to be assigned the original PID
+	err = watcher.IsAlive()
+	if err != nil {
+		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
+	}
 
 	metrics := telemetry.WithLabels(h.M, selectorsToLabels(selectors))
-	metrics.IncrCounter([]string{workloadApi, "connection"}, 1)
+	metrics.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connection}, 1)
 
 	done := func() {
-		defer h.M.IncrCounter([]string{workloadApi, "connections"}, -1)
+		defer h.M.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connections}, -1)
 	}
 
-	return pid, selectors, metrics, done, nil
+	return watcher.PID(), selectors, metrics, done, nil
 }
 
-// callerPID takes a grpc context, and returns the PID of the caller which has issued
-// the request. Returns an error if the call was not made locally, if the necessary
+// peerWatcher takes a grpc context, and returns a Watcher representing the caller which
+// has issued the request. Returns an error if the call was not made locally, if the necessary
 // syscalls aren't unsupported, or if the transport security was not properly configured.
-// See the auth package for more information.
-func (h *Handler) callerPID(ctx context.Context) (pid int32, err error) {
-	info, ok := auth.CallerFromContext(ctx)
+// See the peertracker package for more information.
+func (h *Handler) peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
+	watcher, ok := peertracker.WatcherFromContext(ctx)
 	if !ok {
-		return 0, errors.New("Unable to fetch credentials from context")
+		return nil, errors.New("Unable to fetch watcher from context")
 	}
 
-	if info.Err != nil {
-		return 0, fmt.Errorf("Unable to resolve caller PID: %s", info.Err)
-	}
-
-	// If PID is 0, something is wrong...
-	if info.PID == 0 {
-		return 0, errors.New("Unable to resolve caller PID")
-	}
-
-	return info.PID, nil
+	return watcher, nil
 }
 
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*bundleutil.Bundle) {
@@ -425,7 +423,7 @@ func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
 func selectorsToLabels(selectors []*common.Selector) (labels []telemetry.Label) {
 	for _, selector := range selectors {
 		labels = append(labels, telemetry.Label{
-			Name:  "selector",
+			Name:  telemetry.Selector,
 			Value: strings.Join([]string{selector.Type, selector.Value}, ":"),
 		})
 	}

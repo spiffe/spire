@@ -82,13 +82,11 @@ func (c *client) credsFunc() (credentials.TransportCredentials, error) {
 	}
 	tlsCerts = append(tlsCerts, tlsCert)
 	tlsConfig = spiffePeer.NewTLSConfig(tlsCerts)
+
 	return credentials.NewTLS(tlsConfig), nil
 }
 
 func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second) // TODO: Make this timeout configurable?
-	defer cancel()
-
 	config := grpcutil.GRPCDialerConfig{
 		Log:      grpcutil.LoggerFromFieldLogger(c.c.Log),
 		CredFunc: c.credsFunc,

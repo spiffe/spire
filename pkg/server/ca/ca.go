@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"math/big"
 	"net/url"
 	"sync"
@@ -151,6 +152,9 @@ func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params
 	if err != nil {
 		return nil, err
 	}
+	// Explicity set the AKI on the signed certificate, otherwise it won't be
+	// added if the subject and issuer match name match (however unlikely).
+	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
 
 	// for non-CA certificates, add DNS names to certificate. the first DNS
 	// name is also added as the common name.
@@ -171,9 +175,9 @@ func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params
 		"expires_at": cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 SVID")
 
-	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_svid"}, 1, []telemetry.Label{
+	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.CA, telemetry.Sign, telemetry.X509SVID}, 1, []telemetry.Label{
 		{
-			Name:  "spiffe_id",
+			Name:  telemetry.SPIFFEID,
 			Value: spiffeID,
 		},
 	})
@@ -198,9 +202,16 @@ func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Para
 	if err != nil {
 		return nil, err
 	}
+	// Explicity set the AKI on the signed certificate, otherwise it won't be
+	// added if the subject and issuer match name matches (unlikely due to the
+	// OU override below, but just to be safe).
+	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
+
 	// Don't allow the downstream server to control the subject of the CA
-	// certificate.
-	template.Subject = ca.c.CASubject
+	// certificate. Additionally, set the OU to a 1-based downstream "level"
+	// for soft debugging support.
+	template.Subject = x509CA.Certificate.Subject
+	template.Subject.OrganizationalUnit = []string{fmt.Sprintf("DOWNSTREAM-%d", 1+len(x509CA.UpstreamChain))}
 
 	cert, err := createCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
 	if err != nil {
@@ -214,9 +225,9 @@ func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Para
 		"expires_at": cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 CA SVID")
 
-	ca.c.Metrics.IncrCounterWithLabels([]string{"ca", "sign", "x509_ca_svid"}, 1, []telemetry.Label{
+	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.CA, telemetry.Sign, telemetry.X509CASVID}, 1, []telemetry.Label{
 		{
-			Name:  "spiffe_id",
+			Name:  telemetry.SPIFFEID,
 			Value: spiffeID,
 		},
 	})
@@ -247,17 +258,17 @@ func (ca *CA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 
 	labels := []telemetry.Label{
 		{
-			Name:  "spiffe_id",
+			Name:  telemetry.SPIFFEID,
 			Value: jsr.SpiffeId,
 		},
 	}
 	for _, audience := range jsr.Audience {
 		labels = append(labels, telemetry.Label{
-			Name:  "audience",
+			Name:  telemetry.Audience,
 			Value: audience,
 		})
 	}
-	ca.c.Metrics.IncrCounterWithLabels([]string{"server_ca", "sign", "jwt_svid"}, 1, labels)
+	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.JWTSVID}, 1, labels)
 
 	return token, nil
 }

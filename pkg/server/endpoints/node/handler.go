@@ -61,7 +61,7 @@ func NewHandler(config HandlerConfig) *Handler {
 
 //Attest attests the node and gets the base node SVID.
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
-	counter := telemetry.StartCall(h.c.Metrics, "node_api", "attest")
+	counter := telemetry.StartCall(h.c.Metrics, telemetry.NodeAPI, telemetry.Attest)
 	defer counter.Done(&err)
 
 	// make sure node attestor stream will be cancelled if things go awry
@@ -94,7 +94,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "request CSR is invalid: %v", err)
 	}
-	counter.AddLabel("spiffe_id", agentID)
+	counter.AddLabel(telemetry.SPIFFEID, agentID)
 
 	attestedBefore, err := h.isAttested(ctx, agentID)
 	if err != nil {
@@ -190,7 +190,7 @@ func (h *Handler) getNodeAttestationValidationMode() idutil.ValidationMode {
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
 func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error) {
-	counter := telemetry.StartCall(h.c.Metrics, "node_api", "x509_svid", "fetch")
+	counter := telemetry.StartCall(h.c.Metrics, telemetry.NodeAPI, telemetry.X509SVID, telemetry.Fetch)
 	defer counter.Done(&err)
 
 	peerCert, ok := getPeerCertificate(server.Context())
@@ -239,7 +239,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		}
 
 		for spiffeID := range svids {
-			counter.AddLabel("spiffe_id", spiffeID)
+			counter.AddLabel(telemetry.SPIFFEID, spiffeID)
 		}
 
 		err = server.Send(&node.FetchX509SVIDResponse{
@@ -255,8 +255,62 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 	}
 }
 
+func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVIDRequest) (_ *node.FetchX509CASVIDResponse, err error) {
+	counter := telemetry.StartCall(h.c.Metrics, "node_api", "x509_ca_svid", "fetch")
+	defer counter.Done(&err)
+
+	peerCert, ok := getPeerCertificate(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "downstream SVID is required for this request")
+	}
+
+	entry, ok := getDownstreamEntry(ctx)
+	if !ok {
+		return nil, status.Error(codes.PermissionDenied, "downstream entry is required for this request")
+	}
+
+	err = h.limiter.Limit(ctx, CSRMsg, 1)
+	if err != nil {
+		return nil, status.Error(codes.ResourceExhausted, err.Error())
+	}
+
+	downstreamID, err := getSpiffeIDFromCert(peerCert)
+	if err != nil {
+		h.c.Log.Error(err)
+		return nil, err
+	}
+
+	sourceAddress := "unknown"
+	if peerAddress, ok := getPeerAddress(ctx); ok {
+		sourceAddress = peerAddress.String()
+	}
+
+	signLog := h.c.Log.WithFields(logrus.Fields{
+		"caller_id":      downstreamID,
+		"source_address": sourceAddress,
+	})
+
+	signLog.Debug("Signing downstream CA SVID")
+	svid, err := h.buildCASVID(ctx, req.Csr, ca.X509Params{
+		TTL: time.Duration(entry.Ttl) * time.Second,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	bundle, err := h.getBundle(ctx, h.c.TrustDomain.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return &node.FetchX509CASVIDResponse{
+		Svid:   svid,
+		Bundle: bundle,
+	}, nil
+}
+
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (resp *node.FetchJWTSVIDResponse, err error) {
-	counter := telemetry.StartCall(h.c.Metrics, "node_api", "jwt_svid", "fetch")
+	counter := telemetry.StartCall(h.c.Metrics, telemetry.NodeAPI, telemetry.JWTSVID, telemetry.Fetch)
 	defer counter.Done(&err)
 
 	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
@@ -278,7 +332,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, status.Error(codes.InvalidArgument, "request missing audience")
 	}
 
-	counter.AddLabel("spiffe_id", req.Jsr.SpiffeId)
+	counter.AddLabel(telemetry.SPIFFEID, req.Jsr.SpiffeId)
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
@@ -317,7 +371,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 	}
 
 	for _, audience := range req.Jsr.Audience {
-		counter.AddLabel("audience", audience)
+		counter.AddLabel(telemetry.Audience, audience)
 	}
 
 	return &node.FetchJWTSVIDResponse{
@@ -340,7 +394,7 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		peerCert, err := getPeerCertificateFromRequestContext(ctx)
 		if err != nil {
 			h.c.Log.Error(err)
-			return nil, status.Error(codes.PermissionDenied, "agent SVID is required for this request")
+			return nil, status.Error(codes.Unauthenticated, "agent SVID is required for this request")
 		}
 
 		if err := h.validateAgentSVID(ctx, peerCert); err != nil {
@@ -349,7 +403,20 @@ func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context
 		}
 
 		ctx = withPeerCertificate(ctx, peerCert)
+	case "/spire.api.node.Node/FetchX509CASVID":
+		peerCert, err := getPeerCertificateFromRequestContext(ctx)
+		if err != nil {
+			h.c.Log.Error(err)
+			return nil, status.Error(codes.Unauthenticated, "downstream SVID is required for this request")
+		}
+		entry, err := h.validateDownstreamSVID(ctx, peerCert)
+		if err != nil {
+			h.c.Log.Error(err)
+			return nil, status.Error(codes.PermissionDenied, "peer is not a valid downstream SPIRE server")
+		}
 
+		ctx = withPeerCertificate(ctx, peerCert)
+		ctx = withDownstreamEntry(ctx, entry)
 	// method not handled
 	default:
 		return nil, status.Errorf(codes.PermissionDenied, "authorization not implemented for method %q", fullMethod)
@@ -410,6 +477,20 @@ func (h *Handler) validateAgentSVID(ctx context.Context, cert *x509.Certificate)
 	}
 
 	return nil
+}
+
+func (h *Handler) validateDownstreamSVID(ctx context.Context, cert *x509.Certificate) (*common.RegistrationEntry, error) {
+	peerID, err := getSpiffeIDFromCert(cert)
+	if err != nil {
+		return nil, err
+	}
+
+	// peer SVIDs must be unexpired and have a corresponding downstream entry
+	if h.c.Clock.Now().After(cert.NotAfter) {
+		return nil, fmt.Errorf("peer %q SVID has expired", peerID)
+	}
+
+	return h.getDownstreamEntry(ctx, peerID)
 }
 
 func (h *Handler) doAttestChallengeResponse(ctx context.Context,
@@ -703,23 +784,6 @@ func (h *Handler) signCSRs(ctx context.Context,
 			if err := h.updateAttestationEntry(ctx, svidCert); err != nil {
 				return nil, err
 			}
-
-		} else if spiffeID == h.c.TrustDomain.String() {
-			signLog.Debug("Signing downstream CA SVID")
-			e, err := h.getDownstreamEntry(ctx, callerID)
-			if err != nil {
-				return nil, err
-			}
-			svid, err := h.buildCASVID(ctx, csr,
-				ca.X509Params{
-					TTL: time.Duration(e.Ttl) * time.Second,
-					// CA SVID does not use DNSs
-				},
-			)
-			if err != nil {
-				return nil, err
-			}
-			svids[spiffeID] = svid
 		} else {
 			signLog.Debug("Signing SVID")
 			svid, err := h.buildSVID(ctx, spiffeID, regEntriesMap, csr)
@@ -903,6 +967,17 @@ func withPeerCertificate(ctx context.Context, peerCert *x509.Certificate) contex
 func getPeerCertificate(ctx context.Context) (*x509.Certificate, bool) {
 	peerCert, ok := ctx.Value(peerCertificateKey{}).(*x509.Certificate)
 	return peerCert, ok
+}
+
+type downstreamEntryKey struct{}
+
+func withDownstreamEntry(ctx context.Context, entry *common.RegistrationEntry) context.Context {
+	return context.WithValue(ctx, downstreamEntryKey{}, entry)
+}
+
+func getDownstreamEntry(ctx context.Context) (*common.RegistrationEntry, bool) {
+	entry, ok := ctx.Value(downstreamEntryKey{}).(*common.RegistrationEntry)
+	return entry, ok
 }
 
 func getPeerAddress(ctx context.Context) (addr net.Addr, ok bool) {
