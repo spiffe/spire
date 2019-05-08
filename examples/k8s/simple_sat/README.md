@@ -83,3 +83,10 @@ image: gcr.io/spiffe-io/spire-agent:unstable
             readOnly: true
 ...
 ```
+
++ Remove the `service_account_key_file` configuration form SAT node attestor in the [server configuration file](spire-server.yaml):
+```
+...
+service_account_key_file = "/run/k8s-certs/sa.pub"
+...
+```

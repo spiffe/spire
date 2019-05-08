@@ -86,6 +86,7 @@ data:
         plugin_data {
           clusters = {
             "demo-cluster" = {
+              service_account_key_file = "/run/k8s-certs/sa.pub"
               service_account_whitelist = ["spire:spire-agent"]
             }
           }

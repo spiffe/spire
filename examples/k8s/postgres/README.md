@@ -44,6 +44,9 @@ of this example - there are a number of ways to achieve this.
 ### Configuration
 
 + Set trust_domain and the cluster name for the k8s NodeAttestor.
++ Modify the path in the *k8s-sa-cert* volume for SPIRE server as appropriate
+  for your deployment - this is the certificate used to verify service accounts
+  in the cluster. This example assumes minikube.
 + Replace `MYSECRET` in both **spire-database.yaml** and **spire-server.yaml**.
   This is the password for the Postgres account used by the SPIRE server's
   datastore.
