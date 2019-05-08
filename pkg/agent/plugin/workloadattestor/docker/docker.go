@@ -163,7 +163,6 @@ func (p *DockerPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest)
 	if config.DockerVersion != "" {
 		opts = append(opts, dockerclient.WithVersion(config.DockerVersion))
 	}
-	opts = append(opts, dockerclient.WithHTTPClient(newHTTPClient()))
 	p.docker, err = dockerclient.NewClientWithOpts(opts...)
 	if err != nil {
 		return nil, err
