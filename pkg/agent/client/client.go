@@ -53,17 +53,18 @@ type Config struct {
 }
 
 type client struct {
-	c    *Config
-	conn *grpc.ClientConn
-	m    sync.Mutex
-	// Callback to be used for testing purposes.
-	newNodeClientCallback func() (node.NodeClient, error)
+	c        *Config
+	nodeConn *nodeConn
+	m        sync.Mutex
+	// Constructor to be used for testing purposes.
+	createNewNodeClient func(*grpc.ClientConn) node.NodeClient
 }
 
 // New creates a new client struct with the configuration provided
 func New(c *Config) *client {
 	return &client{
-		c: c,
+		c:                   c,
+		createNewNodeClient: node.NewNodeClient,
 	}
 }
 
@@ -100,15 +101,16 @@ func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 }
 
 func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest) (*Update, error) {
-	nodeClient, err := c.newNodeClient(ctx)
+	nodeClient, releaser, err := c.newNodeClient(ctx)
 	if err != nil {
 		return nil, err
 	}
+	defer releaser.Release()
 
 	stream, err := nodeClient.FetchX509SVID(ctx)
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
-		c.Release()
+		releaser.MarkDead()
 		c.c.Log.Errorf("Failure fetching X509 SVID. %v: %v", ErrUnableToGetStream, err)
 		return nil, ErrUnableToGetStream
 	}
@@ -118,7 +120,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	// Close the stream whether there was an error or not
 	stream.CloseSend()
 	if err != nil {
-		c.Release()
+		releaser.MarkDead()
 		return nil, err
 	}
 
@@ -132,9 +134,8 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 			break
 		}
 		if err != nil {
-			// There was an error receiving a response, exit loop to return what we have.
 			logrus.Errorf("failed to consume entire SVID update stream: %v", err)
-			c.Release()
+			releaser.MarkDead()
 			return nil, err
 		}
 
@@ -161,17 +162,18 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 }
 
 func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, error) {
-	nodeClient, err := c.newNodeClient(ctx)
+	nodeClient, releaser, err := c.newNodeClient(ctx)
 	if err != nil {
 		return nil, err
 	}
+	defer releaser.Release()
 
 	response, err := nodeClient.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
 		Jsr: jsr,
 	})
 	// We weren't able to make the request...close the client and return the error.
 	if err != nil {
-		c.Release()
+		releaser.MarkDead()
 		c.c.Log.Errorf("Failure fetching JWT SVID. %v: %v", ErrUnableToGetStream, err)
 		return nil, ErrUnableToGetStream
 	}
@@ -197,30 +199,33 @@ func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, err
 	}, nil
 }
 
+// Release the underlying connection.
 func (c *client) Release() {
 	c.m.Lock()
 	defer c.m.Unlock()
-
-	if c.conn != nil {
-		c.conn.Close()
-		c.conn = nil
+	if c.nodeConn != nil {
+		c.nodeConn.Release()
+		c.nodeConn = nil
 	}
 }
 
-func (c *client) newNodeClient(ctx context.Context) (node.NodeClient, error) {
-	if c.newNodeClientCallback != nil {
-		return c.newNodeClientCallback()
-	}
+type releaser interface {
+	Release()
+	MarkDead()
+}
 
+func (c *client) newNodeClient(ctx context.Context) (node.NodeClient, releaser, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	if c.conn == nil {
+	// open a new connection
+	if c.nodeConn == nil {
 		conn, err := c.dial(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		c.conn = conn
+		c.nodeConn = newNodeConn(conn)
 	}
-	return node.NewNodeClient(c.conn), nil
+	c.nodeConn.AddRef()
+	return c.createNewNodeClient(c.nodeConn.conn), c.nodeConn, nil
 }
