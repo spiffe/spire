@@ -15,6 +15,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,50 +171,92 @@ func (s *AttestorSuite) TestAttestFailsWithNoToken() {
 		"k8s-sat: missing token in attestation data")
 }
 
+func (s *AttestorSuite) TestAttestFailsWithMalformedToken() {
+	s.requireAttestError(makeAttestRequest("FOO", "UUID", "blah"),
+		"k8s-sat: unable to parse token")
+}
+
 func (s *AttestorSuite) TestAttestFailsIfClusterNotConfigured() {
 	s.requireAttestError(makeAttestRequest("CLUSTER", "UUID", "blah"),
 		`k8s-sat: not configured for cluster "CLUSTER"`)
 }
 
+func (s *AttestorSuite) TestAttestFailsWithBadSignature() {
+	// sign a token and replace the signature
+	token := s.signToken(s.fooSigner, "", "")
+	parts := strings.Split(token, ".")
+	s.Require().Len(parts, 3)
+	parts[2] = "aaaa"
+	token = strings.Join(parts, ".")
+
+	s.requireAttestError(makeAttestRequest("FOO", "UUID", token),
+		"unable to verify token")
+}
+
 func (s *AttestorSuite) TestAttestFailsIfTokenReviewAPIFails() {
-	token := s.signToken(s.fooSigner, "NS1", "SA1")
+	token := s.signToken(s.barSigner, "NS2", "SA2")
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(nil, errors.New("an error"))
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "unable to validate token with TokenReview API")
+	s.requireAttestError(makeAttestRequest("BAR", "UUID", token), "unable to validate token with TokenReview API")
+}
+
+func (s *AttestorSuite) TestAttestFailsWithInvalidIssuer() {
+	token, err := jwt.Signed(s.fooSigner).CompactSerialize()
+	s.Require().NoError(err)
+	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "invalid issuer claim")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
-	token := s.signToken(s.fooSigner, "NS1", "SA1")
-	status := createTokenStatus("NS1", "SA1", false)
+	token := s.signToken(s.barSigner, "NS2", "SA2")
+	status := createTokenStatus("NS2", "SA2", false)
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "token not authenticated")
+	s.requireAttestError(makeAttestRequest("BAR", "UUID", token), "token not authenticated")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
-	token := s.signToken(s.fooSigner, "", "SA1")
-	status := createTokenStatus("", "SA1", true)
+	token := s.signToken(s.fooSigner, "", "")
+	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "token missing namespace claim")
+}
+
+func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceFromTokenStatus() {
+	token := s.signToken(s.barSigner, "", "SA2")
+	status := createTokenStatus("", "SA2", true)
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "fail to parse username from token review status")
+	s.requireAttestError(makeAttestRequest("BAR", "UUID", token), "fail to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
-	token := s.signToken(s.fooSigner, "NS1", "")
-	status := createTokenStatus("NS1", "", true)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
-	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "fail to parse username from token review status")
+	token := s.signToken(s.fooSigner, "NAMESPACE", "")
+	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "token missing service account name claim")
 }
 
-func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelisted() {
-	token := s.signToken(s.fooSigner, "NS1", "NO-WHITHELISTED-SA")
-	status := createTokenStatus("NS1", "NO-WHITHELISTED-SA", true)
+func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameFromTokenStatus() {
+	token := s.signToken(s.barSigner, "NS2", "")
+	status := createTokenStatus("NS2", "", true)
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.requireAttestError(makeAttestRequest("BAR", "UUID", token), "fail to parse username from token review status")
+}
+
+func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenClaim() {
+	token := s.signToken(s.fooSigner, "NS1", "NO-WHITHELISTED-SA")
 	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), `"NS1:NO-WHITHELISTED-SA" is not a whitelisted service account`)
 }
 
+func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenStatus() {
+	token := s.signToken(s.barSigner, "NS2", "NO-WHITHELISTED-SA")
+	status := createTokenStatus("NS2", "NO-WHITHELISTED-SA", true)
+	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
+	s.requireAttestError(makeAttestRequest("BAR", "UUID", token), `"NS2:NO-WHITHELISTED-SA" is not a whitelisted service account`)
+}
+
+func (s *AttestorSuite) TestAttestFailsIfTokenSignatureCannotBeVerifiedByCluster() {
+	token := s.signToken(s.bazSigner, "NAMESPACE", "SERVICEACCOUNTNAME")
+	s.requireAttestError(makeAttestRequest("FOO", "UUID", token), "k8s-sat: unable to verify token")
+}
+
 func (s *AttestorSuite) TestAttestSuccess() {
-	// Success with FOO signed token
+	// Success with FOO signed token (local validation)
 	token := s.signToken(s.fooSigner, "NS1", "SA1")
 	status := createTokenStatus("NS1", "SA1", true)
-	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
 	resp, err := s.doAttest(makeAttestRequest("FOO", "UUID", token))
 
 	s.Require().NoError(err)
@@ -227,7 +270,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		{Type: "k8s_sat", Value: "agent_sa:SA1"},
 	}, resp.Selectors)
 
-	// Success with BAR signed token
+	// Success with BAR signed token (token review API validation)
 	token = s.signToken(s.barSigner, "NS2", "SA2")
 	status = createTokenStatus("NS2", "SA2", true)
 	s.mockClient.EXPECT().ValidateToken(token, []string{}).Return(status, nil).Times(1)
@@ -254,6 +297,16 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireErrorContains(err, "k8s-sat: unable to decode configuration")
 	s.Require().Nil(resp)
 
+	// cluster missing service account key file
+	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: `clusters = {
+				"FOO" = {}
+			}`,
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "FOO" configuration missing service account key file`)
+	s.Require().Nil(resp)
+
 	// missing global configuration
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
 	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: global configuration is required")
@@ -272,14 +325,55 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: configuration must have at least one cluster")
 	s.Require().Nil(resp)
 
-	// cluster missing service account whitelist
+	// cluster missing service account whitelist (local validation config)
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprint(`clusters = {
-			"FOO" = {}
-		}`),
+		Configuration: fmt.Sprintf(`clusters = {
+			"FOO" = {
+				service_account_key_file = %q
+			}
+		}`, s.fooCertPath()),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "FOO" configuration must have at least one service account whitelisted`)
+	s.Require().Nil(resp)
+
+	// cluster missing service account whitelist (token review validation config)
+	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: fmt.Sprint(`clusters = {
+				"BAR" = {
+					use_token_review_api_validation = true
+				}
+			}`),
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "BAR" configuration must have at least one service account whitelisted`)
+	s.Require().Nil(resp)
+
+	// unable to load cluster service account keys
+	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: fmt.Sprintf(`clusters = {
+				"FOO" = {
+					service_account_key_file = %q
+					service_account_whitelist = ["A"]
+				}
+			}`, filepath.Join(s.dir, "missing.pem")),
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.RequireErrorContains(err, `k8s-sat: failed to load cluster "FOO" service account keys`)
+	s.Require().Nil(resp)
+
+	// no keys in PEM file
+	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0644))
+	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
+		Configuration: fmt.Sprintf(`clusters = {
+				"FOO" = {
+					service_account_key_file = %q
+					service_account_whitelist = ["A"]
+				}
+			}`, filepath.Join(s.dir, "nokeys.pem")),
+		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	})
+	s.RequireErrorContains(err, `k8s-sat: cluster "FOO" has no service account keys in`)
 	s.Require().Nil(resp)
 
 	// success with two CERT based key files
@@ -311,17 +405,20 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	}), 0644))
 
 	_, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprint(`clusters = {
+		Configuration: fmt.Sprintf(`clusters = {
 			"FOO-PKCS1" = {
+				service_account_key_file = %q
 				service_account_whitelist = ["A"]
 			}
 			"FOO-PKIX" = {
+				service_account_key_file = %q
 				service_account_whitelist = ["A"]
 			}
 			"BAR-PKIX" = {
+				service_account_key_file = %q
 				service_account_whitelist = ["A"]
 			}
-		}`),
+		}`, fooPKCS1KeyPath, fooPKIXKeyPath, barPKIXKeyPath),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
@@ -365,23 +462,24 @@ func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 	attestor := New()
 
 	resp, err := attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprint(`
+		Configuration: fmt.Sprintf(`
 		clusters = {
 			"FOO" = {
+				service_account_key_file = %q
 				service_account_whitelist = ["NS1:SA1"]
 			}
 			"BAR" = {
+				use_token_review_api_validation = true
 				service_account_whitelist = ["NS2:SA2"]
 			}
 		}
-		`),
+		`, s.fooCertPath()),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(resp, &plugin.ConfigureResponse{})
 
 	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
-	attestor.config.clusters["FOO"].client = s.mockClient
 	attestor.config.clusters["BAR"].client = s.mockClient
 
 	var plugin nodeattestor.Plugin
