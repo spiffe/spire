@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -34,12 +35,14 @@ func TestDisk(t *testing.T) {
 type DiskSuite struct {
 	spiretest.Suite
 
-	p upstreamca.Plugin
+	rawPlugin *DiskPlugin
+	p         upstreamca.Plugin
 }
 
 func (s *DiskSuite) SetupTest() {
 	p := New()
 
+	s.rawPlugin = p
 	s.LoadPlugin(builtin(p), &s.p)
 	s.configure()
 }
@@ -95,7 +98,7 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 	csrFiles, err := ioutil.ReadDir(testDataDir)
 	require.NoError(err)
 
-	for _, csrFile := range csrFiles {
+	testCSR := func(csrFile os.FileInfo) {
 		csrPEM, err := ioutil.ReadFile(filepath.Join(testDataDir, csrFile.Name()))
 		require.NoError(err)
 		block, rest := pem.Decode(csrPEM)
@@ -115,6 +118,21 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 		require.NoError(err)
 		require.Len(upstreamTrustBundle, 1)
 		require.Equal("spiffe://local", certURI(upstreamTrustBundle[0]))
+	}
+
+	for _, csrFile := range csrFiles {
+		testCSR(csrFile)
+	}
+
+	// Modify the cert and key file paths. The CSR will still be
+	// signed by the cached upstreamCA.
+	s.rawPlugin.mtx.Lock()
+	s.rawPlugin.config.CertFilePath = "invalid-file"
+	s.rawPlugin.config.KeyFilePath = "invalid-file"
+	s.rawPlugin.mtx.Unlock()
+
+	for _, csrFile := range csrFiles {
+		testCSR(csrFile)
 	}
 }
 
