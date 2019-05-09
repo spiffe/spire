@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -64,7 +65,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 			})
 		}
 	})
-	m.c.Metrics.AddSample([]string{"cache_manager", "expiring_svids"}, float32(expiring))
+	telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, float32(expiring))
 
 	if len(csrs) > 0 {
 		update, err := m.fetchUpdates(ctx, csrs)
@@ -78,7 +79,8 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 }
 
 func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache.CacheUpdate, err error) {
-	counter := telemetry.StartCall(m.c.Metrics, telemetry.Manager, telemetry.Sync, telemetry.FetchUpdates)
+	// Put all the CSRs in an array to make just one call with all the CSRs.
+	counter := telemetry_agent.StartManagerFetchUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
 
 	req := &node.FetchX509SVIDRequest{}

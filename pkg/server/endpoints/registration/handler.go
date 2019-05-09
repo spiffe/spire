@@ -17,6 +17,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
+	telemetry_registrationapi "github.com/spiffe/spire/pkg/common/telemetry/server/registrationapi"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -45,11 +47,9 @@ func (h *Handler) CreateEntry(
 	ctx context.Context, request *common.RegistrationEntry) (
 	response *registration.RegistrationEntryID, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.Create)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartCreateEntryCall(h.Metrics)
 	defer counter.Done(&err)
+	addCallerIDLabel(ctx, counter)
 
 	request, err = h.prepareRegistrationEntry(request, false)
 	if err != nil {
@@ -86,10 +86,8 @@ func (h *Handler) DeleteEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.Delete)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartDeleteEntryCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	ds := h.getDataStore()
@@ -109,10 +107,8 @@ func (h *Handler) FetchEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.Fetch)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartFetchEntryCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	ds := h.getDataStore()
@@ -133,10 +129,8 @@ func (h *Handler) FetchEntries(
 	ctx context.Context, request *common.Empty) (
 	response *common.RegistrationEntries, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.List)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	ds := h.getDataStore()
@@ -154,10 +148,8 @@ func (h *Handler) UpdateEntry(
 	ctx context.Context, request *registration.UpdateEntryRequest) (
 	response *common.RegistrationEntry, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.Update)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartUpdateEntryCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	if request.Entry == nil {
@@ -179,7 +171,7 @@ func (h *Handler) UpdateEntry(
 		return nil, fmt.Errorf("Failed to update registration entry: %v", err)
 	}
 
-	h.Metrics.IncrCounter([]string{telemetry.RegistrationAPI, telemetry.Entry, telemetry.Updated}, 1)
+	telemetry_registrationapi.IncrRegistrationAPIUpdatedEntryCounter(h.Metrics)
 
 	return resp.Entry, nil
 }
@@ -189,10 +181,8 @@ func (h *Handler) ListByParentID(
 	ctx context.Context, request *registration.ParentID) (
 	response *common.RegistrationEntries, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.List)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
@@ -224,10 +214,8 @@ func (h *Handler) ListBySelector(
 	ctx context.Context, request *common.Selector) (
 	response *common.RegistrationEntries, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.List)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	counter.AddLabel(telemetry.Selector, fmt.Sprintf("%s:%s", request.Type, request.Value))
@@ -252,10 +240,8 @@ func (h *Handler) ListBySpiffeID(
 	ctx context.Context, request *registration.SpiffeID) (
 	response *common.RegistrationEntries, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.List)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAny())
@@ -264,7 +250,7 @@ func (h *Handler) ListBySpiffeID(
 		return nil, err
 	}
 
-	counter.AddLabel(telemetry.SPIFFEID, request.Id)
+	telemetry_common.AddSPIFFEID(counter, request.Id)
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
@@ -286,10 +272,8 @@ func (h *Handler) CreateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.Create)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartCreateFedBundleCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	bundle := request.Bundle
@@ -321,10 +305,8 @@ func (h *Handler) FetchFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundleID) (
 	response *registration.FederatedBundle, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.Fetch)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartFetchFedBundleCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
@@ -353,10 +335,8 @@ func (h *Handler) FetchFederatedBundle(
 }
 
 func (h *Handler) ListFederatedBundles(request *common.Empty, stream registration.Registration_ListFederatedBundlesServer) (err error) {
-	counter, err := h.startCall(stream.Context(), telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.List)
-	if err != nil {
-		return err
-	}
+	counter := telemetry_registrationapi.StartListFedBundlesCall(h.Metrics)
+	addCallerIDLabel(stream.Context(), counter)
 	defer counter.Done(&err)
 
 	ds := h.getDataStore()
@@ -383,10 +363,8 @@ func (h *Handler) UpdateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.Update)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartUpdateFedBundleCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	bundle := request.Bundle
@@ -418,10 +396,8 @@ func (h *Handler) DeleteFederatedBundle(
 	ctx context.Context, request *registration.DeleteFederatedBundleRequest) (
 	response *common.Empty, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.Delete)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartDeleteFedBundleCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	request.Id, err = idutil.NormalizeSpiffeID(request.Id, idutil.AllowAnyTrustDomain())
@@ -455,10 +431,8 @@ func (h *Handler) CreateJoinToken(
 	ctx context.Context, request *registration.JoinToken) (
 	token *registration.JoinToken, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.JoinToken, telemetry.Create)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartCreateJoinTokenCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	if request.Ttl < 1 {
@@ -496,10 +470,8 @@ func (h *Handler) FetchBundle(
 	ctx context.Context, request *common.Empty) (
 	response *registration.Bundle, err error) {
 
-	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Bundle, telemetry.Fetch)
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartFetchBundleCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	ds := h.getDataStore()
@@ -621,14 +593,6 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	return entry, nil
 }
 
-func (h *Handler) startCall(ctx context.Context, key string, keyn ...string) (*telemetry.CallCounter, error) {
-	counter := telemetry.StartCall(h.Metrics, key, keyn...)
-	if callerID := getCallerID(ctx); callerID != "" {
-		counter.AddLabel(telemetry.CallerID, callerID)
-	}
-	return counter, nil
-}
-
 func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
 	// For the time being, authorization is not per-method. In other words, all or nothing.
 	callerID, err := authorizeCaller(ctx, h.getDataStore())
@@ -728,6 +692,12 @@ func withCallerID(ctx context.Context, callerID string) context.Context {
 func getCallerID(ctx context.Context) string {
 	callerID, _ := ctx.Value(callerIDKey{}).(string)
 	return callerID
+}
+
+func addCallerIDLabel(ctx context.Context, counter *telemetry.CallCounter) {
+	if callerID := getCallerID(ctx); callerID != "" {
+		telemetry_common.AddCallerID(counter, callerID)
+	}
 }
 
 func validateDNS(dns string) error {
