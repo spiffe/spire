@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -81,7 +82,17 @@ func (s *DiskSuite) TestConfigureUsingEmptyKey() {
 }
 
 func (s *DiskSuite) TestConfigureUsingUnknownKey() {
-	err := s.configureWith("_test_data/keys/unknonw/private_key.pem", "_test_data/keys/unknown/cert.pem")
+	err := s.configureWith("_test_data/keys/unknonw/private_key.pem", "_test_data/keys/unknonw/cert.pem")
+	s.Require().Error(err)
+}
+
+func (s *DiskSuite) TestConfigureUsingBadCert() {
+	err := s.configureWith("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/unknonw/cert.pem")
+	s.Require().Error(err)
+}
+
+func (s *DiskSuite) TestConfigureWithMismatchedCertKey() {
+	err := s.configureWith("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/EC/cert.pem")
 	s.Require().Error(err)
 }
 
@@ -185,4 +196,46 @@ func certURI(cert *x509.Certificate) string {
 		return cert.URIs[0].String()
 	}
 	return ""
+}
+
+func TestInvalidConfigs(t *testing.T) {
+	tests := []struct {
+		msg               string
+		inputConfig       string
+		trustDomain       string
+		expectErrContains string
+	}{
+		{
+			msg:               "fail to decode",
+			trustDomain:       "trust.domain",
+			inputConfig:       `this is :[ invalid ^^^ hcl`,
+			expectErrContains: "illegal char",
+		},
+		{
+			msg:               "no trust domain",
+			expectErrContains: "trust_domain is required",
+		},
+		{
+			msg:         "invalid ttl",
+			trustDomain: "trust.domain",
+			inputConfig: `{
+  "key_file_path": "path",
+  "cert_file_path": "path",
+  "ttl": "monday",
+}`,
+			expectErrContains: "invalid duration monday",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msg, func(t *testing.T) {
+			p := New()
+
+			_, err := p.Configure(ctx, &spi.ConfigureRequest{
+				Configuration: tt.inputConfig,
+				GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: tt.trustDomain},
+			})
+			assert.Contains(t, err.Error(), tt.expectErrContains)
+		})
+	}
 }

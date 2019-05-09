@@ -40,7 +40,7 @@ type Configuration struct {
 type DiskPlugin struct {
 	serialNumber x509util.SerialNumber
 
-	mtx        sync.RWMutex
+	mtx        sync.Mutex
 	cert       *x509.Certificate
 	config     *Configuration
 	upstreamCA *x509svid.UpstreamCA
@@ -91,6 +91,48 @@ func (p *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 	return &spi.ConfigureResponse{}, nil
 }
 
+func (*DiskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
+	return &spi.GetPluginInfoResponse{}, nil
+}
+
+func (p *DiskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+	upstreamCA, upstreamCert, err := p.reloadCA()
+	if err != nil {
+		return nil, err
+	}
+
+	cert, err := upstreamCA.SignCSR(ctx, request.Csr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &upstreamca.SubmitCSRResponse{
+		SignedCertificate: &upstreamca.SignedCertificate{
+			CertChain: cert.Raw,
+			Bundle:    upstreamCert.Raw,
+		},
+	}, nil
+}
+
+func (p *DiskPlugin) reloadCA() (*x509svid.UpstreamCA, *x509.Certificate, error) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	upstreamCA, upstreamCert, err := p.loadUpstreamCAAndCert(p.config)
+	switch {
+	case err == nil:
+		p.upstreamCA = upstreamCA
+		p.cert = upstreamCert
+	case p.upstreamCA != nil:
+		upstreamCA = p.upstreamCA
+		upstreamCert = p.cert
+	default:
+		return nil, nil, fmt.Errorf("no cached CA and failed to laod CA: %v", err)
+	}
+
+	return upstreamCA, upstreamCert, nil
+}
+
 func (p *DiskPlugin) loadUpstreamCAAndCert(config *Configuration) (*x509svid.UpstreamCA, *x509.Certificate, error) {
 	key, err := pemutil.LoadPrivateKey(config.KeyFilePath)
 	if err != nil {
@@ -119,34 +161,4 @@ func (p *DiskPlugin) loadUpstreamCAAndCert(config *Configuration) (*x509svid.Ups
 			TTL:          config.ttl,
 		},
 	), cert, nil
-}
-
-func (*DiskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
-}
-
-func (p *DiskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
-	p.mtx.RLock()
-	defer p.mtx.RUnlock()
-
-	upstreamCA, upstreamCert, err := p.loadUpstreamCAAndCert(p.config)
-	if err != nil && p.upstreamCA == nil {
-		return nil, fmt.Errorf("no cached CA and failed to load CA: %v", err)
-	}
-	if err == nil {
-		p.upstreamCA = upstreamCA
-		p.cert = upstreamCert
-	}
-
-	cert, err := p.upstreamCA.SignCSR(ctx, request.Csr)
-	if err != nil {
-		return nil, err
-	}
-
-	return &upstreamca.SubmitCSRResponse{
-		SignedCertificate: &upstreamca.SignedCertificate{
-			CertChain: cert.Raw,
-			Bundle:    p.cert.Raw,
-		},
-	}, nil
 }
