@@ -127,7 +127,7 @@ func (p *DiskPlugin) reloadCA() (*x509svid.UpstreamCA, *x509.Certificate, error)
 		upstreamCA = p.upstreamCA
 		upstreamCert = p.cert
 	default:
-		return nil, nil, fmt.Errorf("no cached CA and failed to laod CA: %v", err)
+		return nil, nil, fmt.Errorf("no cached CA and failed to load CA: %v", err)
 	}
 
 	return upstreamCA, upstreamCert, nil
