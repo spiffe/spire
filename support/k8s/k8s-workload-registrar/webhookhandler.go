@@ -8,21 +8,21 @@ import (
 	admv1beta1 "k8s.io/api/admission/v1beta1"
 )
 
-type AdmissionWebhook interface {
+type AdmissionController interface {
 	ReviewAdmission(context.Context, *admv1beta1.AdmissionRequest) (*admv1beta1.AdmissionResponse, error)
 }
 
-type Handler struct {
-	webhook AdmissionWebhook
+type WebhookHandler struct {
+	controller AdmissionController
 }
 
-func NewHandler(webhook AdmissionWebhook) *Handler {
-	return &Handler{
-		webhook: webhook,
+func NewWebhookHandler(controller AdmissionController) *WebhookHandler {
+	return &WebhookHandler{
+		controller: controller,
 	}
 }
 
-func (h *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path != "/validate" {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
@@ -49,7 +49,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	out, err := h.webhook.ReviewAdmission(req.Context(), in.Request)
+	out, err := h.controller.ReviewAdmission(req.Context(), in.Request)
 	if err != nil {
 		http.Error(w, "Request could not be processed", http.StatusInternalServerError)
 		return

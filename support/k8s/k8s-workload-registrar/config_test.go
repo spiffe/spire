@@ -37,12 +37,11 @@ func TestLoadConfig(t *testing.T) {
 	require.NoError(err)
 
 	require.Equal(&Config{
-		Log: LogConfig{
-			Level: defaultLogLevel,
-		},
+		LogLevel:         defaultLogLevel,
 		Addr:             ":8443",
 		CertPath:         defaultCertPath,
 		KeyPath:          defaultKeyPath,
+		CaCertPath:       defaultCaCertPath,
 		ServerSocketPath: "SOCKETPATH",
 		TrustDomain:      "TRUSTDOMAIN",
 		Cluster:          "CLUSTER",
@@ -60,42 +59,44 @@ func TestParseConfig(t *testing.T) {
 			name: "defaults",
 			in:   testMinimalConfig,
 			out: &Config{
-				Log: LogConfig{
-					Level: defaultLogLevel,
-				},
-				Addr:             ":8443",
-				CertPath:         defaultCertPath,
-				KeyPath:          defaultKeyPath,
-				ServerSocketPath: "SOCKETPATH",
-				TrustDomain:      "TRUSTDOMAIN",
-				Cluster:          "CLUSTER",
+				LogLevel:               defaultLogLevel,
+				Addr:                   ":8443",
+				CertPath:               defaultCertPath,
+				KeyPath:                defaultKeyPath,
+				CaCertPath:             defaultCaCertPath,
+				SkipClientVerification: false,
+				ServerSocketPath:       "SOCKETPATH",
+				TrustDomain:            "TRUSTDOMAIN",
+				Cluster:                "CLUSTER",
 			},
 		},
 		{
 			name: "overrides",
 			in: `
-				log {
-					level = "LEVELOVERRIDE"
-					path = "PATHOVERRIDE"
-				}
+				log_level = "LEVELOVERRIDE"
+				log_path = "PATHOVERRIDE"
 				addr = ":1234"
 				cert_path = "CERTOVERRIDE"
 				key_path = "KEYOVERRIDE"
+				cacert_path = "CACERTOVERRIDE"
+				skip_client_verification = true
 				server_socket_path = "SOCKETPATHOVERRIDE"
 				trust_domain = "TRUSTDOMAINOVERRIDE"
 				cluster = "CLUSTEROVERRIDE"
+				pod_label = "PODLABEL"
 			`,
 			out: &Config{
-				Log: LogConfig{
-					Level: "LEVELOVERRIDE",
-					Path:  "PATHOVERRIDE",
-				},
-				Addr:             ":1234",
-				CertPath:         "CERTOVERRIDE",
-				KeyPath:          "KEYOVERRIDE",
-				ServerSocketPath: "SOCKETPATHOVERRIDE",
-				TrustDomain:      "TRUSTDOMAINOVERRIDE",
-				Cluster:          "CLUSTEROVERRIDE",
+				LogLevel:               "LEVELOVERRIDE",
+				LogPath:                "PATHOVERRIDE",
+				Addr:                   ":1234",
+				CertPath:               "CERTOVERRIDE",
+				KeyPath:                "KEYOVERRIDE",
+				CaCertPath:             "CACERTOVERRIDE",
+				SkipClientVerification: true,
+				ServerSocketPath:       "SOCKETPATHOVERRIDE",
+				TrustDomain:            "TRUSTDOMAINOVERRIDE",
+				Cluster:                "CLUSTEROVERRIDE",
+				PodLabel:               "PODLABEL",
 			},
 		},
 		{

@@ -50,16 +50,16 @@ var (
 `
 )
 
-func TestWebhookInitialization(t *testing.T) {
-	webhook, r := newTestWebhook("")
+func TestControllerInitialization(t *testing.T) {
+	controller, r := newTestController("")
 
 	// Initialize should create the registration entry for the cluster nodes
-	require.NoError(t, webhook.Initialize(context.Background()))
+	require.NoError(t, controller.Initialize(context.Background()))
 	requireEntriesEqual(t, []*common.RegistrationEntry{
 		{
 			EntryId:  "00000001",
 			ParentId: "spiffe://domain.test/spire/server",
-			SpiffeId: "spiffe://domain.test/node",
+			SpiffeId: "spiffe://domain.test/k8s-workload-registrar/CLUSTER/node",
 			Selectors: []*common.Selector{
 				{Type: "k8s_psat", Value: "cluster:CLUSTER"},
 			},
@@ -67,11 +67,11 @@ func TestWebhookInitialization(t *testing.T) {
 	}, r.GetEntries())
 }
 
-func TestWebhookIgnoresKubeNamespaces(t *testing.T) {
-	webhook, r := newTestWebhook("")
+func TestControllerIgnoresKubeNamespaces(t *testing.T) {
+	controller, r := newTestController("")
 
 	for _, namespace := range []string{"kube-system", "kube-public"} {
-		requireReviewAdmissionSuccess(t, webhook, &admv1beta1.AdmissionRequest{
+		requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 			UID: "uid",
 			Kind: metav1.GroupVersionKind{
 				Version: "v1",
@@ -88,10 +88,10 @@ func TestWebhookIgnoresKubeNamespaces(t *testing.T) {
 	}
 }
 
-func TestWebhookIgnoresNonPods(t *testing.T) {
-	webhook, r := newTestWebhook("")
+func TestControllerIgnoresNonPods(t *testing.T) {
+	controller, r := newTestController("")
 
-	requireReviewAdmissionSuccess(t, webhook, &admv1beta1.AdmissionRequest{
+	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -104,10 +104,10 @@ func TestWebhookIgnoresNonPods(t *testing.T) {
 	require.Empty(t, r.GetEntries(), 0)
 }
 
-func TestWebhookFailsIfPodUnparsable(t *testing.T) {
-	webhook, _ := newTestWebhook("")
+func TestControllerFailsIfPodUnparsable(t *testing.T) {
+	controller, _ := newTestController("")
 
-	requireReviewAdmissionFailure(t, webhook, &admv1beta1.AdmissionRequest{
+	requireReviewAdmissionFailure(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -119,10 +119,10 @@ func TestWebhookFailsIfPodUnparsable(t *testing.T) {
 	}, "unable to unmarshal v1/Pod object")
 }
 
-func TestWebhookIgnoresPodOperationsOtherThanCreateAndDelete(t *testing.T) {
-	webhook, _ := newTestWebhook("")
+func TestControllerIgnoresPodOperationsOtherThanCreateAndDelete(t *testing.T) {
+	controller, _ := newTestController("")
 
-	requireReviewAdmissionSuccess(t, webhook, &admv1beta1.AdmissionRequest{
+	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -134,11 +134,11 @@ func TestWebhookIgnoresPodOperationsOtherThanCreateAndDelete(t *testing.T) {
 	})
 }
 
-func TestWebhookServiceAccountBasedRegistration(t *testing.T) {
-	webhook, r := newTestWebhook("")
+func TestControllerServiceAccountBasedRegistration(t *testing.T) {
+	controller, r := newTestController("")
 
 	// Send in a POD CREATE and assert that it will be admitted
-	requireReviewAdmissionSuccess(t, webhook, &admv1beta1.AdmissionRequest{
+	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -156,7 +156,7 @@ func TestWebhookServiceAccountBasedRegistration(t *testing.T) {
 	requireEntriesEqual(t, []*common.RegistrationEntry{
 		{
 			EntryId:  "00000001",
-			ParentId: "spiffe://domain.test/node",
+			ParentId: "spiffe://domain.test/k8s-workload-registrar/CLUSTER/node",
 			SpiffeId: "spiffe://domain.test/ns/NAMESPACE/sa/SERVICEACCOUNT",
 			Selectors: []*common.Selector{
 				{Type: "k8s", Value: "ns:NAMESPACE"},
@@ -166,8 +166,8 @@ func TestWebhookServiceAccountBasedRegistration(t *testing.T) {
 	}, r.GetEntries())
 }
 
-func TestWebhookCleansUpOnPodDeletion(t *testing.T) {
-	webhook, r := newTestWebhook("")
+func TestControllerCleansUpOnPodDeletion(t *testing.T) {
+	controller, r := newTestController("")
 
 	// create an entry for the POD in one service account
 	r.CreateEntry(context.Background(), &common.RegistrationEntry{
@@ -186,7 +186,7 @@ func TestWebhookCleansUpOnPodDeletion(t *testing.T) {
 		},
 	})
 
-	requireReviewAdmissionSuccess(t, webhook, &admv1beta1.AdmissionRequest{
+	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -209,11 +209,11 @@ func TestWebhookCleansUpOnPodDeletion(t *testing.T) {
 	}, r.GetEntries())
 }
 
-func TestWebhookLabelBasedRegistration(t *testing.T) {
-	webhook, r := newTestWebhook("spire-workload")
+func TestControllerLabelBasedRegistration(t *testing.T) {
+	controller, r := newTestController("spire-workload")
 
 	// Send in a POD CREATE and assert that it will be admitted
-	requireReviewAdmissionSuccess(t, webhook, &admv1beta1.AdmissionRequest{
+	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -231,7 +231,7 @@ func TestWebhookLabelBasedRegistration(t *testing.T) {
 	requireEntriesEqual(t, []*common.RegistrationEntry{
 		{
 			EntryId:  "00000001",
-			ParentId: "spiffe://domain.test/node",
+			ParentId: "spiffe://domain.test/k8s-workload-registrar/CLUSTER/node",
 			SpiffeId: "spiffe://domain.test/WORKLOAD",
 			Selectors: []*common.Selector{
 				{Type: "k8s", Value: "ns:NAMESPACE"},
@@ -241,11 +241,11 @@ func TestWebhookLabelBasedRegistration(t *testing.T) {
 	}, r.GetEntries())
 }
 
-func TestWebhookLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
-	webhook, r := newTestWebhook("spire-workload")
+func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
+	controller, r := newTestController("spire-workload")
 
 	// Send in a POD CREATE and assert that it will be admitted
-	requireReviewAdmissionSuccess(t, webhook, &admv1beta1.AdmissionRequest{
+	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -263,10 +263,10 @@ func TestWebhookLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
 	require.Len(t, r.GetEntries(), 0)
 }
 
-func newTestWebhook(podLabel string) (*Webhook, *fakeRegistrationClient) {
+func newTestController(podLabel string) (*Controller, *fakeRegistrationClient) {
 	log, _ := test.NewNullLogger()
 	r := newFakeRegistrationClient()
-	return NewWebhook(WebhookConfig{
+	return NewController(ControllerConfig{
 		Log:         log,
 		R:           r,
 		TrustDomain: "domain.test",
@@ -275,8 +275,8 @@ func newTestWebhook(podLabel string) (*Webhook, *fakeRegistrationClient) {
 	}), r
 }
 
-func requireReviewAdmissionSuccess(t *testing.T, webhook *Webhook, req *admv1beta1.AdmissionRequest) {
-	resp, err := webhook.ReviewAdmission(context.Background(), req)
+func requireReviewAdmissionSuccess(t *testing.T, controller *Controller, req *admv1beta1.AdmissionRequest) {
+	resp, err := controller.ReviewAdmission(context.Background(), req)
 	require.NoError(t, err)
 	require.Equal(t, &admv1beta1.AdmissionResponse{
 		UID:     req.UID,
@@ -284,8 +284,8 @@ func requireReviewAdmissionSuccess(t *testing.T, webhook *Webhook, req *admv1bet
 	}, resp)
 }
 
-func requireReviewAdmissionFailure(t *testing.T, webhook *Webhook, req *admv1beta1.AdmissionRequest, contains string) {
-	resp, err := webhook.ReviewAdmission(context.Background(), req)
+func requireReviewAdmissionFailure(t *testing.T, controller *Controller, req *admv1beta1.AdmissionRequest, contains string) {
+	resp, err := controller.ReviewAdmission(context.Background(), req)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), contains)
 	require.Nil(t, resp)

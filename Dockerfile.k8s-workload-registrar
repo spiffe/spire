@@ -6,15 +6,15 @@ RUN apk add build-base git mercurial
 ADD go.mod /spire/go.mod
 ADD go.sum /spire/go.sum
 RUN cd /spire && go mod download
-# Build admission webhook
+# Build K8s Workload Registrar
 ADD . /spire
-RUN cd /spire/support/k8s/spire-adm-webhook && go test && go build
+RUN cd /spire/support/k8s/k8s-workload-registrar && go test && go build
 
 # Image stage
 FROM alpine
-RUN apk add dumb-init ca-certificates
+RUN apk add dumb-init
 RUN mkdir -p /opt/spire/bin
-COPY --from=builder /spire/support/k8s/spire-adm-webhook/spire-adm-webhook /opt/spire/bin/spire-adm-webhook
+COPY --from=builder /spire/support/k8s/k8s-workload-registrar/k8s-workload-registrar /opt/spire/bin/k8s-workload-registrar
 WORKDIR /opt/spire
-ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/spire-adm-webhook"]
+ENTRYPOINT ["/usr/bin/dumb-init", "/opt/spire/bin/k8s-workload-registrar"]
 CMD []

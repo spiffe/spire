@@ -691,7 +691,7 @@ type RegistrationClient interface {
 	ListByParentID(ctx context.Context, in *ParentID, opts ...grpc.CallOption) (*common.RegistrationEntries, error)
 	// Returns all the entries associated with a selector value.
 	ListBySelector(ctx context.Context, in *common.Selector, opts ...grpc.CallOption) (*common.RegistrationEntries, error)
-	// Returns all the entries associated with a set of selector values
+	// Returns all the entries matching the set of selectors
 	ListBySelectors(ctx context.Context, in *common.Selectors, opts ...grpc.CallOption) (*common.RegistrationEntries, error)
 	// Return all registration entries for which SPIFFE ID matches.
 	ListBySpiffeID(ctx context.Context, in *SpiffeID, opts ...grpc.CallOption) (*common.RegistrationEntries, error)
@@ -924,7 +924,7 @@ type RegistrationServer interface {
 	ListByParentID(context.Context, *ParentID) (*common.RegistrationEntries, error)
 	// Returns all the entries associated with a selector value.
 	ListBySelector(context.Context, *common.Selector) (*common.RegistrationEntries, error)
-	// Returns all the entries associated with a set of selector values
+	// Returns all the entries matching the set of selectors
 	ListBySelectors(context.Context, *common.Selectors) (*common.RegistrationEntries, error)
 	// Return all registration entries for which SPIFFE ID matches.
 	ListBySpiffeID(context.Context, *SpiffeID) (*common.RegistrationEntries, error)

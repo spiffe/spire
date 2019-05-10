@@ -97,7 +97,7 @@ cmd: ## Opens a shell in docker container
 ##@ SPIRE images
 
 .PHONY: spire-images
-spire-images: spire-server-image spire-agent-image spire-adm-webhook-image ## Builds SPIRE Server and Agent docker images
+spire-images: spire-server-image spire-agent-image k8s-workload-registrar-image ## Builds SPIRE Server and Agent docker images
 
 .PHONY: spire-server-image
 spire-server-image: Dockerfile.server ## Builds SPIRE Server docker image
@@ -113,12 +113,12 @@ spire-agent-image: Dockerfile.agent ## Builds SPIRE Agent docker image
 	# isn't preferred since that can impact image pull policy (.e.g kubelet)
 	docker tag spire-agent:latest spire-agent:latest-local
 
-.PHONY: spire-adm-webhook-image
-spire-adm-webhook-image: Dockerfile.adm-webhook ## Builds SPIRE K8S Admin Webhook docker image
-	docker build --build-arg goversion=$(goversion-required) -t spire-adm-webhook -f Dockerfile.adm-webhook .
+.PHONY: k8s-workload-registrar-image
+k8s-workload-registrar-image: Dockerfile.k8s-workload-registrar ## Builds SPIRE K8S Workload Registrar docker image
+	docker build --build-arg goversion=$(goversion-required) -t k8s-workload-registrar -f Dockerfile.k8s-workload-registrar .
 	# tag the image for local use (in systems tests, for example). "latest"
 	# isn't preferred since that can impact image pull policy (.e.g kubelet)
-	docker tag spire-adm-webhook:latest spire-adm-webhook:latest-local
+	docker tag k8s-workload-registrar:latest k8s-workload-registrar:latest-local
 
 
 

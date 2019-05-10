@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 
 	"github.com/spiffe/spire/pkg/common/log"
@@ -14,7 +13,7 @@ import (
 )
 
 var (
-	configFlag = flag.String("config", "spire-adm-webhook.conf", "configuration file")
+	configFlag = flag.String("config", "k8s-workload-registrar.conf", "configuration file")
 )
 
 func main() {
@@ -31,7 +30,7 @@ func run(ctx context.Context, configPath string) error {
 		return err
 	}
 
-	log, err := log.NewLogger(config.Log.Level, config.Log.Path)
+	log, err := log.NewLogger(config.LogLevel, config.LogPath)
 	if err != nil {
 		return err
 	}
@@ -44,7 +43,7 @@ func run(ctx context.Context, configPath string) error {
 	}
 	defer serverConn.Close()
 
-	webhook := NewWebhook(WebhookConfig{
+	controller := NewController(ControllerConfig{
 		Log:         log,
 		R:           registration.NewRegistrationClient(serverConn),
 		TrustDomain: config.TrustDomain,
@@ -52,11 +51,22 @@ func run(ctx context.Context, configPath string) error {
 		PodLabel:    config.PodLabel,
 	})
 
-	log.Info("Initializing webhook")
-	if err := webhook.Initialize(ctx); err != nil {
+	log.Info("Initializing registrar")
+	if err := controller.Initialize(ctx); err != nil {
 		return err
 	}
 
-	log.WithField("addr", config.Addr).Info("Serving webhook")
-	return http.ListenAndServeTLS(config.Addr, config.CertPath, config.KeyPath, NewHandler(webhook))
+	server, err := NewServer(ServerConfig{
+		Log:                    log,
+		Addr:                   config.Addr,
+		Handler:                NewWebhookHandler(controller),
+		CertPath:               config.CertPath,
+		KeyPath:                config.KeyPath,
+		CaCertPath:             config.CaCertPath,
+		SkipClientVerification: config.SkipClientVerification,
+	})
+	if err != nil {
+		return err
+	}
+	return server.Run(ctx)
 }

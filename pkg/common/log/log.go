@@ -8,7 +8,7 @@ import (
 )
 
 type Logger struct {
-	logrus.FieldLogger
+	*logrus.Logger
 	io.Closer
 }
 
@@ -34,8 +34,8 @@ func NewLogger(logLevel string, fileName string) (*Logger, error) {
 	logger.SetLevel(level)
 
 	return &Logger{
-		FieldLogger: logger,
-		Closer:      closer,
+		Logger: logger,
+		Closer: closer,
 	}, nil
 }
 

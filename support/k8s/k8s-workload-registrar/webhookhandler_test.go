@@ -16,8 +16,8 @@ import (
 )
 
 func TestHandler(t *testing.T) {
-	webhook := newFakeWebhook()
-	handler := NewHandler(webhook)
+	controller := newFakeController()
+	handler := NewWebhookHandler(controller)
 
 	testCases := []struct {
 		name       string
@@ -124,13 +124,13 @@ func TestHandler(t *testing.T) {
 	}
 }
 
-type fakeWebhook struct{}
+type fakeController struct{}
 
-func newFakeWebhook() *fakeWebhook {
-	return &fakeWebhook{}
+func newFakeController() *fakeController {
+	return &fakeController{}
 }
 
-func (w *fakeWebhook) ReviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) (*admv1beta1.AdmissionResponse, error) {
+func (*fakeController) ReviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) (*admv1beta1.AdmissionResponse, error) {
 	if req.UID == "FAILME" {
 		return nil, errors.New("OHNO!")
 	}

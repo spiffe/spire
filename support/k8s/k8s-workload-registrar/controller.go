@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type WebhookConfig struct {
+type ControllerConfig struct {
 	Log         logrus.FieldLogger
 	R           registration.RegistrationClient
 	TrustDomain string
@@ -28,29 +28,29 @@ type WebhookConfig struct {
 	PodLabel    string
 }
 
-type Webhook struct {
-	c WebhookConfig
+type Controller struct {
+	c ControllerConfig
 }
 
-func NewWebhook(config WebhookConfig) *Webhook {
-	return &Webhook{
+func NewController(config ControllerConfig) *Controller {
+	return &Controller{
 		c: config,
 	}
 }
 
-func (w *Webhook) Initialize(ctx context.Context) error {
+func (c *Controller) Initialize(ctx context.Context) error {
 	// ensure there is a node registration entry for PSAT nodes in the cluster.
-	return w.createEntry(ctx, &common.RegistrationEntry{
-		ParentId: idutil.ServerID(w.c.TrustDomain),
-		SpiffeId: w.nodeID(),
+	return c.createEntry(ctx, &common.RegistrationEntry{
+		ParentId: idutil.ServerID(c.c.TrustDomain),
+		SpiffeId: c.nodeID(),
 		Selectors: []*common.Selector{
-			{Type: "k8s_psat", Value: fmt.Sprintf("cluster:%s", w.c.Cluster)},
+			{Type: "k8s_psat", Value: fmt.Sprintf("cluster:%s", c.c.Cluster)},
 		},
 	})
 }
 
-func (w *Webhook) ReviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) (*admv1beta1.AdmissionResponse, error) {
-	w.c.Log.WithFields(logrus.Fields{
+func (c *Controller) ReviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) (*admv1beta1.AdmissionResponse, error) {
+	c.c.Log.WithFields(logrus.Fields{
 		"namespace": req.Namespace,
 		"name":      req.Name,
 		"kind":      req.Kind.Kind,
@@ -58,7 +58,7 @@ func (w *Webhook) ReviewAdmission(ctx context.Context, req *admv1beta1.Admission
 		"operation": req.Operation,
 	}).Debug("ReviewAdmission called")
 
-	if err := w.reviewAdmission(ctx, req); err != nil {
+	if err := c.reviewAdmission(ctx, req); err != nil {
 		return nil, err
 	}
 
@@ -70,16 +70,18 @@ func (w *Webhook) ReviewAdmission(ctx context.Context, req *admv1beta1.Admission
 
 // reviewAdmission handles CREATE and DELETE requests for pods in
 // non-kubernetes namespaces. Ideally the ValidatingAdmissionWebhook
-// configuration has filters in place that prevent the webhook from being
-// called for requests other than these but just in case, we filter here as
-// well.
-func (w *Webhook) reviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) error {
+// configuration has filters in place to restrict the admission requests.
+func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) error {
 	switch req.Namespace {
 	case metav1.NamespacePublic, metav1.NamespaceSystem:
 		return nil
 	}
 
 	if req.Kind != (metav1.GroupVersionKind{Version: "v1", Kind: "Pod"}) {
+		c.c.Log.WithFields(logrus.Fields{
+			"version": req.Kind.Version,
+			"kind":    req.Kind.Kind,
+		}).Warn("Admission request received for unhandled object; check filters")
 		return nil
 	}
 
@@ -89,34 +91,38 @@ func (w *Webhook) reviewAdmission(ctx context.Context, req *admv1beta1.Admission
 		if err := json.Unmarshal(req.Object.Raw, pod); err != nil {
 			return errs.New("unable to unmarshal %s/%s object: %v", req.Kind.Version, req.Kind.Kind, err)
 		}
-		return w.createPodEntry(ctx, pod)
+		return c.createPodEntry(ctx, pod)
 	case admv1beta1.Delete:
-		return w.deletePodEntry(ctx, req.Namespace, req.Name)
+		return c.deletePodEntry(ctx, req.Namespace, req.Name)
+	default:
+		c.c.Log.WithFields(logrus.Fields{
+			"operation": req.Operation,
+		}).Warn("Admission request received for unhandled pod operation; check filters")
 	}
 
 	return nil
 }
 
-func (w *Webhook) createPodEntry(ctx context.Context, pod *corev1.Pod) error {
-	if w.c.PodLabel != "" {
-		// the webhook has been been configured with a pod label. if the pod
+func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error {
+	if c.c.PodLabel != "" {
+		// the controller has been been configured with a pod label. if the pod
 		// has that label, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
-		if labelValue, ok := pod.Labels[w.c.PodLabel]; ok {
-			return w.createPodEntryByLabel(ctx, pod, w.c.PodLabel, labelValue)
+		if labelValue, ok := pod.Labels[c.c.PodLabel]; ok {
+			return c.createPodEntryByLabel(ctx, pod, c.c.PodLabel, labelValue)
 		}
 		return nil
 	}
 
-	// the webhook has not been configured with a pod label. create an entry
+	// the controller has not been configured with a pod label. create an entry
 	// based on the service account.
-	return w.createPodEntryByServiceAccount(ctx, pod)
+	return c.createPodEntryByServiceAccount(ctx, pod)
 }
 
-func (w *Webhook) createPodEntryByLabel(ctx context.Context, pod *corev1.Pod, labelKey, labelValue string) error {
-	return w.createEntry(ctx, &common.RegistrationEntry{
-		ParentId: w.nodeID(),
-		SpiffeId: w.makeID("%s", labelValue),
+func (c *Controller) createPodEntryByLabel(ctx context.Context, pod *corev1.Pod, labelKey, labelValue string) error {
+	return c.createEntry(ctx, &common.RegistrationEntry{
+		ParentId: c.nodeID(),
+		SpiffeId: c.makeID("%s", labelValue),
 		Selectors: []*common.Selector{
 			namespaceSelector(pod.Namespace),
 			podNameSelector(pod.Name),
@@ -124,10 +130,10 @@ func (w *Webhook) createPodEntryByLabel(ctx context.Context, pod *corev1.Pod, la
 	})
 }
 
-func (w *Webhook) createPodEntryByServiceAccount(ctx context.Context, pod *corev1.Pod) error {
-	return w.createEntry(ctx, &common.RegistrationEntry{
-		ParentId: w.nodeID(),
-		SpiffeId: w.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName),
+func (c *Controller) createPodEntryByServiceAccount(ctx context.Context, pod *corev1.Pod) error {
+	return c.createEntry(ctx, &common.RegistrationEntry{
+		ParentId: c.nodeID(),
+		SpiffeId: c.makeID("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName),
 		Selectors: []*common.Selector{
 			namespaceSelector(pod.Namespace),
 			podNameSelector(pod.Name),
@@ -135,13 +141,13 @@ func (w *Webhook) createPodEntryByServiceAccount(ctx context.Context, pod *corev
 	})
 }
 
-func (w *Webhook) deletePodEntry(ctx context.Context, namespace, name string) error {
-	log := w.c.Log.WithFields(logrus.Fields{
+func (c *Controller) deletePodEntry(ctx context.Context, namespace, name string) error {
+	log := c.c.Log.WithFields(logrus.Fields{
 		"ns":  namespace,
 		"pod": name,
 	})
 
-	entries, err := w.c.R.ListBySelectors(ctx, &common.Selectors{
+	entries, err := c.c.R.ListBySelectors(ctx, &common.Selectors{
 		Entries: []*common.Selector{
 			namespaceSelector(namespace),
 			podNameSelector(name),
@@ -151,48 +157,51 @@ func (w *Webhook) deletePodEntry(ctx context.Context, namespace, name string) er
 		return errs.New("unable to list by pod entries: %v", err)
 	}
 
-	log.WithField("count", len(entries.Entries)).Debug("Deleting entries")
+	log.Info("Deleting pod entries")
+	if len(entries.Entries) > 1 {
+		log.WithField("count", len(entries.Entries)).Warn("Multiple pod entries found to delete")
+	}
 
 	var errGroup errs.Group
 	for _, entry := range entries.Entries {
-		_, err := w.c.R.DeleteEntry(ctx, &registration.RegistrationEntryID{
+		_, err := c.c.R.DeleteEntry(ctx, &registration.RegistrationEntryID{
 			Id: entry.EntryId,
 		})
 		if err != nil {
-			log.WithField("err", err.Error()).Debug("Failed deleting pod entry")
+			log.WithError(err).Error("Failed deleting pod entry")
 			errGroup.Add(errs.New("unable to delete entry %q: %v", entry.EntryId, err))
 		}
 	}
 	return errGroup.Err()
 }
 
-func (w *Webhook) nodeID() string {
-	return w.makeID("node")
+func (c *Controller) nodeID() string {
+	return c.makeID("k8s-workload-registrar/%s/node", c.c.Cluster)
 }
 
-func (w *Webhook) makeID(pathFmt string, pathArgs ...interface{}) string {
+func (c *Controller) makeID(pathFmt string, pathArgs ...interface{}) string {
 	id := url.URL{
 		Scheme: "spiffe",
-		Host:   w.c.TrustDomain,
+		Host:   c.c.TrustDomain,
 		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
 	}
 	return id.String()
 }
 
-func (w *Webhook) createEntry(ctx context.Context, entry *common.RegistrationEntry) error {
+func (c *Controller) createEntry(ctx context.Context, entry *common.RegistrationEntry) error {
 	// ensure there is a node registration entry for PSAT nodes in the cluster.
-	log := w.c.Log.WithFields(logrus.Fields{
+	log := c.c.Log.WithFields(logrus.Fields{
 		"parent_id": entry.ParentId,
 		"spiffe_id": entry.SpiffeId,
 		"selectors": selectorsField(entry.Selectors),
 	})
-	_, err := w.c.R.CreateEntry(ctx, entry)
+	_, err := c.c.R.CreateEntry(ctx, entry)
 	switch status.Code(err) {
 	case codes.OK, codes.AlreadyExists:
-		log.Debug("Created entry")
+		log.Info("Created pod entry")
 		return nil
 	default:
-		log.WithField("err", err).Debug("Failed to create entry")
+		log.WithError(err).Error("Failed to create pod entry")
 		return errs.Wrap(err)
 	}
 }
