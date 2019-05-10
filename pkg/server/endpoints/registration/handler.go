@@ -13,8 +13,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -45,7 +45,7 @@ func (h *Handler) CreateEntry(
 	ctx context.Context, request *common.RegistrationEntry) (
 	response *registration.RegistrationEntryID, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "entry", "create")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.Create)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (h *Handler) DeleteEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "entry", "delete")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.Delete)
 	if err != nil {
 		return nil, err
 	}
@@ -104,12 +104,12 @@ func (h *Handler) DeleteEntry(
 	return resp.Entry, nil
 }
 
-//Retrieves a specific registered entry
+//FetchEntry Retrieves a specific registered entry
 func (h *Handler) FetchEntry(
 	ctx context.Context, request *registration.RegistrationEntryID) (
 	response *common.RegistrationEntry, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "entry", "fetch")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.Fetch)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (h *Handler) FetchEntries(
 	ctx context.Context, request *common.Empty) (
 	response *common.RegistrationEntries, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "entry", "list")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.List)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (h *Handler) UpdateEntry(
 	ctx context.Context, request *registration.UpdateEntryRequest) (
 	response *common.RegistrationEntry, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "entry", "update")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.Update)
 	if err != nil {
 		return nil, err
 	}
@@ -179,17 +179,17 @@ func (h *Handler) UpdateEntry(
 		return nil, fmt.Errorf("Failed to update registration entry: %v", err)
 	}
 
-	h.Metrics.IncrCounter([]string{"registration_api", "entry", "updated"}, 1)
+	h.Metrics.IncrCounter([]string{telemetry.RegistrationAPI, telemetry.Entry, telemetry.Updated}, 1)
 
 	return resp.Entry, nil
 }
 
-//Returns all the Entries associated with the ParentID value
+//ListByParentID Returns all the Entries associated with the ParentID value
 func (h *Handler) ListByParentID(
 	ctx context.Context, request *registration.ParentID) (
 	response *common.RegistrationEntries, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "entry", "list")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.List)
 	if err != nil {
 		return nil, err
 	}
@@ -224,13 +224,13 @@ func (h *Handler) ListBySelector(
 	ctx context.Context, request *common.Selector) (
 	response *common.RegistrationEntries, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "entry", "list")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.List)
 	if err != nil {
 		return nil, err
 	}
 	defer counter.Done(&err)
 
-	counter.AddLabel("selector", fmt.Sprintf("%s:%s", request.Type, request.Value))
+	counter.AddLabel(telemetry.Selector, fmt.Sprintf("%s:%s", request.Type, request.Value))
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
@@ -252,7 +252,7 @@ func (h *Handler) ListBySpiffeID(
 	ctx context.Context, request *registration.SpiffeID) (
 	response *common.RegistrationEntries, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "entry", "list")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Entry, telemetry.List)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +264,7 @@ func (h *Handler) ListBySpiffeID(
 		return nil, err
 	}
 
-	counter.AddLabel("spiffe_id", request.Id)
+	counter.AddLabel(telemetry.SPIFFEID, request.Id)
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
@@ -286,7 +286,7 @@ func (h *Handler) CreateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "federated_bundle", "create")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.Create)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +301,7 @@ func (h *Handler) CreateFederatedBundle(
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	counter.AddLabel("trust_domain_id", bundle.TrustDomainId)
+	counter.AddLabel(telemetry.TrustDomainID, bundle.TrustDomainId)
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
@@ -321,7 +321,7 @@ func (h *Handler) FetchFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundleID) (
 	response *registration.FederatedBundle, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "federated_bundle", "fetch")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.Fetch)
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +353,7 @@ func (h *Handler) FetchFederatedBundle(
 }
 
 func (h *Handler) ListFederatedBundles(request *common.Empty, stream registration.Registration_ListFederatedBundlesServer) (err error) {
-	counter, err := h.startCall(stream.Context(), "registration_api", "federated_bundle", "list")
+	counter, err := h.startCall(stream.Context(), telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.List)
 	if err != nil {
 		return err
 	}
@@ -383,7 +383,7 @@ func (h *Handler) UpdateFederatedBundle(
 	ctx context.Context, request *registration.FederatedBundle) (
 	response *common.Empty, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "federated_bundle", "update")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.Update)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +398,7 @@ func (h *Handler) UpdateFederatedBundle(
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	counter.AddLabel("trust_domain_id", bundle.TrustDomainId)
+	counter.AddLabel(telemetry.TrustDomainID, bundle.TrustDomainId)
 
 	if bundle.TrustDomainId == h.TrustDomain.String() {
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
@@ -418,7 +418,7 @@ func (h *Handler) DeleteFederatedBundle(
 	ctx context.Context, request *registration.DeleteFederatedBundleRequest) (
 	response *common.Empty, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "federated_bundle", "delete")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.FederatedBundle, telemetry.Delete)
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +429,7 @@ func (h *Handler) DeleteFederatedBundle(
 		return nil, err
 	}
 
-	counter.AddLabel("trust_domain_id", request.Id)
+	counter.AddLabel(telemetry.TrustDomainID, request.Id)
 
 	if request.Id == h.TrustDomain.String() {
 		return nil, errors.New("federated bundle id cannot match server trust domain")
@@ -455,7 +455,7 @@ func (h *Handler) CreateJoinToken(
 	ctx context.Context, request *registration.JoinToken) (
 	token *registration.JoinToken, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "join_token", "create")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.JoinToken, telemetry.Create)
 	if err != nil {
 		return nil, err
 	}
@@ -496,7 +496,7 @@ func (h *Handler) FetchBundle(
 	ctx context.Context, request *common.Empty) (
 	response *registration.Bundle, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "bundle", "fetch")
+	counter, err := h.startCall(ctx, telemetry.RegistrationAPI, telemetry.Bundle, telemetry.Fetch)
 	if err != nil {
 		return nil, err
 	}
@@ -624,7 +624,7 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 func (h *Handler) startCall(ctx context.Context, key string, keyn ...string) (*telemetry.CallCounter, error) {
 	counter := telemetry.StartCall(h.Metrics, key, keyn...)
 	if callerID := getCallerID(ctx); callerID != "" {
-		counter.AddLabel("caller_id", callerID)
+		counter.AddLabel(telemetry.CallerID, callerID)
 	}
 	return counter, nil
 }
@@ -691,7 +691,7 @@ func authorizeCaller(ctx context.Context, ds datastore.DataStore) (spiffeID stri
 		if err != nil {
 			return "", status.Error(codes.PermissionDenied, err.Error())
 		}
-	case auth.CallerInfo:
+	case peertracker.AuthInfo:
 		// The caller came over UDS and is therefore authorized but does not
 		// provide a spiffeID. The file permissions on the UDS are restricted to
 		// processes belonging to the same user or group as the server.

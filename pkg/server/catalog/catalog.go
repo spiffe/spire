@@ -19,12 +19,16 @@ import (
 	nr_aws_iid "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
 	nr_azure_msi "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
 	nr_noop "github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
+	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamca/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamca/disk"
+	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamca/spire"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
+	"github.com/spiffe/spire/proto/spire/server/hostservices"
 	"github.com/spiffe/spire/proto/spire/server/keymanager"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/server/noderesolver"
+	"github.com/spiffe/spire/proto/spire/server/notifier"
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 )
 
@@ -34,6 +38,7 @@ type Catalog interface {
 	GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool)
 	GetUpstreamCA() (upstreamca.UpstreamCA, bool)
 	GetKeyManager() keymanager.KeyManager
+	GetNotifiers() []Notifier
 }
 
 type CatalogCloser struct {
@@ -52,6 +57,7 @@ func KnownPlugins() []catalog.PluginClient {
 		noderesolver.PluginClient,
 		upstreamca.PluginClient,
 		keymanager.PluginClient,
+		notifier.PluginClient,
 	}
 }
 
@@ -79,10 +85,18 @@ func BuiltIns() []catalog.Plugin {
 		// UpstreamCAs
 		up_disk.BuiltIn(),
 		up_awssecret.BuiltIn(),
+		up_spire.BuiltIn(),
 		// KeyManagers
 		km_disk.BuiltIn(),
 		km_memory.BuiltIn(),
+		// Notifiers
+		no_k8sbundle.BuiltIn(),
 	}
+}
+
+type Notifier struct {
+	catalog.PluginInfo
+	notifier.Notifier
 }
 
 type Plugins struct {
@@ -91,6 +105,7 @@ type Plugins struct {
 	NodeResolvers map[string]noderesolver.NodeResolver
 	UpstreamCA    *upstreamca.UpstreamCA
 	KeyManager    keymanager.KeyManager
+	Notifiers     []Notifier
 }
 
 var _ Catalog = (*Plugins)(nil)
@@ -120,11 +135,16 @@ func (p *Plugins) GetKeyManager() keymanager.KeyManager {
 	return p.KeyManager
 }
 
+func (p *Plugins) GetNotifiers() []Notifier {
+	return p.Notifiers
+}
+
 type Config struct {
 	Log          logrus.FieldLogger
 	GlobalConfig GlobalConfig
 	PluginConfig HCLPluginConfigMap
-	HostServices []catalog.HostServiceServer
+
+	IdentityProvider hostservices.IdentityProvider
 }
 
 func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
@@ -141,12 +161,13 @@ func Load(ctx context.Context, config Config) (*CatalogCloser, error) {
 		KnownPlugins:  KnownPlugins(),
 		KnownServices: KnownServices(),
 		BuiltIns:      BuiltIns(),
-		HostServices:  config.HostServices,
+		HostServices: []catalog.HostServiceServer{
+			hostservices.IdentityProviderHostServiceServer(config.IdentityProvider),
+		},
 	}, p)
 	if err != nil {
 		return nil, err
 	}
-
 	return &CatalogCloser{
 		Catalog: p,
 		Closer:  closer,

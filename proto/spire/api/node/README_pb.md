@@ -9,6 +9,8 @@
     - [Bundle](#spire.api.node.Bundle)
     - [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest)
     - [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse)
+    - [FetchX509CASVIDRequest](#spire.api.node.FetchX509CASVIDRequest)
+    - [FetchX509CASVIDResponse](#spire.api.node.FetchX509CASVIDResponse)
     - [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest)
     - [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse)
     - [JSR](#spire.api.node.JSR)
@@ -108,6 +110,37 @@ Trust domain bundle
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | svid | [JWTSVID](#spire.api.node.JWTSVID) |  | The signed JWT-SVID |
+
+
+
+
+
+
+<a name="spire.api.node.FetchX509CASVIDRequest"></a>
+
+### FetchX509CASVIDRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| csr | [bytes](#bytes) |  |  |
+
+
+
+
+
+
+<a name="spire.api.node.FetchX509CASVIDResponse"></a>
+
+### FetchX509CASVIDResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| svid | [X509SVID](#spire.api.node.X509SVID) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
 
 
 
@@ -262,6 +295,7 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | Attest | [AttestRequest](#spire.api.node.AttestRequest) stream | [AttestResponse](#spire.api.node.AttestResponse) stream | Attest the node, get base node SVID. |
 | FetchX509SVID | [FetchX509SVIDRequest](#spire.api.node.FetchX509SVIDRequest) stream | [FetchX509SVIDResponse](#spire.api.node.FetchX509SVIDResponse) stream | Get Workload, Node Agent certs and CA trust bundles. Also used for rotation Base Node SVID or the Registered Node SVID used for this call) List can be empty to allow Node Agent cache refresh). |
 | FetchJWTSVID | [FetchJWTSVIDRequest](#spire.api.node.FetchJWTSVIDRequest) | [FetchJWTSVIDResponse](#spire.api.node.FetchJWTSVIDResponse) | Fetches a signed JWT-SVID for a workload intended for a specific audience. |
+| FetchX509CASVID | [FetchX509CASVIDRequest](#spire.api.node.FetchX509CASVIDRequest) | [FetchX509CASVIDResponse](#spire.api.node.FetchX509CASVIDResponse) | Fetches an X509 CA SVID for a downstream SPIRE server. |
 
  
 

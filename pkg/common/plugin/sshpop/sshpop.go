@@ -35,6 +35,7 @@ type agentPathTemplateData struct {
 	*ssh.Certificate
 	PluginName  string
 	Fingerprint string
+	Hostname    string
 }
 
 // Client is a factory for generating client handshake objects.
@@ -43,6 +44,7 @@ type Client struct {
 	signer            ssh.Signer
 	agentPathTemplate *template.Template
 	trustDomain       string
+	canonicalDomain   string
 }
 
 // Server is a factory for generating server handshake objects.
@@ -50,12 +52,16 @@ type Server struct {
 	certChecker       *ssh.CertChecker
 	agentPathTemplate *template.Template
 	trustDomain       string
+	canonicalDomain   string
 }
 
 // ClientConfig configures the client.
 type ClientConfig struct {
-	HostKeyPath       string `hcl:"host_key_path"`
-	HostCertPath      string `hcl:"host_cert_path"`
+	HostKeyPath  string `hcl:"host_key_path"`
+	HostCertPath string `hcl:"host_cert_path"`
+	// CanonicalDomain specifies the domain suffix for validating the hostname against
+	// the certificate's valid principals. See CanonicalDomains in ssh_config(5).
+	CanonicalDomain   string `hcl:"canonical_domain"`
 	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
@@ -63,7 +69,10 @@ type ClientConfig struct {
 type ServerConfig struct {
 	CertAuthorities     []string `hcl:"cert_authorities"`
 	CertAuthoritiesPath string   `hcl:"cert_authorities_path"`
-	AgentPathTemplate   string   `hcl:"agent_path_template"`
+	// CanonicalDomain specifies the domain suffix for validating the hostname against
+	// the certificate's valid principals. See CanonicalDomains in ssh_config(5).
+	CanonicalDomain   string `hcl:"canonical_domain"`
+	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
 func NewClient(trustDomain, configString string) (*Client, error) {
@@ -101,6 +110,7 @@ func NewClient(trustDomain, configString string) (*Client, error) {
 		signer:            signer,
 		agentPathTemplate: agentPathTemplate,
 		trustDomain:       trustDomain,
+		canonicalDomain:   config.CanonicalDomain,
 	}, nil
 }
 
@@ -165,6 +175,7 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 		certChecker:       certChecker,
 		agentPathTemplate: agentPathTemplate,
 		trustDomain:       trustDomain,
+		canonicalDomain:   config.CanonicalDomain,
 	}, nil
 }
 

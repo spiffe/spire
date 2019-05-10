@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ep_registration "github.com/spiffe/spire/pkg/server/endpoints/registration"
 	"github.com/spiffe/spire/proto/spire/api/registration"
@@ -79,7 +79,7 @@ func (fakeTransportCreds) ClientHandshake(_ context.Context, _ string, conn net.
 }
 
 func (fakeTransportCreds) ServerHandshake(conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
-	return conn, auth.CallerInfo{}, nil
+	return conn, peertracker.AuthInfo{}, nil
 }
 
 func (fakeTransportCreds) Info() credentials.ProtocolInfo {

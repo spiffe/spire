@@ -7,18 +7,20 @@ import (
 )
 
 const (
-	ConfigMapKind      = "ConfigMap"
-	DaemonSetKind      = "DaemonSet"
-	DeploymentKind     = "Deployment"
-	NamespaceKind      = "Namespace"
-	PodKind            = "Pod"
-	ReplicaSetKind     = "ReplicaSet"
-	RoleBindingKind    = "RoleBinding"
-	RoleKind           = "Role"
-	SecretKind         = "Secret"
-	ServiceAccountKind = "ServiceAccount"
-	ServiceKind        = "Service"
-	StatefulSetKind    = "StatefulSet"
+	ClusterRoleKind        = "ClusterRole"
+	ClusterRoleBindingKind = "ClusterRoleBinding"
+	ConfigMapKind          = "ConfigMap"
+	DaemonSetKind          = "DaemonSet"
+	DeploymentKind         = "Deployment"
+	NamespaceKind          = "Namespace"
+	PodKind                = "Pod"
+	ReplicaSetKind         = "ReplicaSet"
+	RoleBindingKind        = "RoleBinding"
+	RoleKind               = "Role"
+	SecretKind             = "Secret"
+	ServiceAccountKind     = "ServiceAccount"
+	ServiceKind            = "Service"
+	StatefulSetKind        = "StatefulSet"
 )
 
 type Object struct {

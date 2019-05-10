@@ -121,6 +121,16 @@ message FetchJWTSVIDResponse {
     JWTSVID svid = 1;
 }
 
+message FetchX509CASVIDRequest {
+    bytes csr = 1;
+}
+
+message FetchX509CASVIDResponse {
+    X509SVID svid = 1;
+
+    spire.common.Bundle bundle = 2;
+}
+
 service Node {
     // Attest the node, get base node SVID.
     rpc Attest(stream AttestRequest) returns (stream AttestResponse);
@@ -132,4 +142,7 @@ service Node {
 
     // Fetches a signed JWT-SVID for a workload intended for a specific audience.
     rpc FetchJWTSVID(FetchJWTSVIDRequest) returns (FetchJWTSVIDResponse);
+
+    // Fetches an X509 CA SVID for a downstream SPIRE server.
+    rpc FetchX509CASVID(FetchX509CASVIDRequest) returns (FetchX509CASVIDResponse);
 }

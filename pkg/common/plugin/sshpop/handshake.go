@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"text/template"
 
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -42,10 +43,11 @@ type ClientHandshake struct {
 //
 // The handshake comprises a state machine that is not goroutine safe.
 type ServerHandshake struct {
-	s     *Server
-	cert  *ssh.Certificate
-	nonce []byte
-	state serverHandshakeState
+	s        *Server
+	cert     *ssh.Certificate
+	hostname string
+	nonce    []byte
+	state    serverHandshakeState
 }
 
 type attestationData struct {
@@ -62,7 +64,11 @@ type challengeResponse struct {
 }
 
 func (c *ClientHandshake) SpiffeID() (string, error) {
-	return makeSpiffeID(c.c.trustDomain, c.c.agentPathTemplate, c.c.cert)
+	hostname, err := decanonicalizeHostname(c.c.cert.ValidPrincipals[0], c.c.canonicalDomain)
+	if err != nil {
+		return "", err
+	}
+	return makeSpiffeID(c.c.trustDomain, c.c.agentPathTemplate, c.c.cert, hostname)
 }
 
 func (c *ClientHandshake) AttestationData() ([]byte, error) {
@@ -136,9 +142,24 @@ func (s *ServerHandshake) VerifyAttestationData(data []byte) error {
 	if err := s.s.certChecker.CheckHostKey(addr, &net.IPAddr{}, cert); err != nil {
 		return Errorf("failed to check host key: %v", err)
 	}
+	s.hostname, err = decanonicalizeHostname(cert.ValidPrincipals[0], s.s.canonicalDomain)
+	if err != nil {
+		return Errorf("failed to decanonicalize hostname: %v", err)
+	}
 	s.cert = cert
 	s.state = stateAttestationDataVerified
 	return nil
+}
+
+func decanonicalizeHostname(fqdn, domain string) (string, error) {
+	if domain == "" {
+		return fqdn, nil
+	}
+	suffix := "." + domain
+	if !strings.HasSuffix(fqdn, suffix) {
+		return "", fmt.Errorf("cert principal is not in domain %q", suffix)
+	}
+	return strings.TrimSuffix(fqdn, suffix), nil
 }
 
 func (s *ServerHandshake) IssueChallenge() ([]byte, error) {
@@ -181,7 +202,7 @@ func (s *ServerHandshake) VerifyChallengeResponse(res []byte) error {
 }
 
 func (s *ServerHandshake) SpiffeID() (string, error) {
-	return makeSpiffeID(s.s.trustDomain, s.s.agentPathTemplate, s.cert)
+	return makeSpiffeID(s.s.trustDomain, s.s.agentPathTemplate, s.cert, s.hostname)
 }
 
 func newNonce() ([]byte, error) {
@@ -205,12 +226,13 @@ func combineNonces(challenge, response []byte) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func makeSpiffeID(trustDomain string, agentPathTemplate *template.Template, cert *ssh.Certificate) (string, error) {
+func makeSpiffeID(trustDomain string, agentPathTemplate *template.Template, cert *ssh.Certificate, hostname string) (string, error) {
 	var agentPath bytes.Buffer
 	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
 		Certificate: cert,
 		PluginName:  PluginName,
 		Fingerprint: ssh.FingerprintSHA256(cert),
+		Hostname:    hostname,
 	}); err != nil {
 		return "", err
 	}

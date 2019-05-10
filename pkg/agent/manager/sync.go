@@ -78,7 +78,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 }
 
 func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache.CacheUpdate, err error) {
-	counter := telemetry.StartCall(m.c.Metrics, "manager", "sync", "fetch_updates")
+	counter := telemetry.StartCall(m.c.Metrics, telemetry.Manager, telemetry.Sync, telemetry.FetchUpdates)
 	defer counter.Done(&err)
 
 	req := &node.FetchX509SVIDRequest{}
@@ -94,7 +94,7 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 		if !csr.CurrentSVIDExpiresAt.IsZero() {
 			log = log.WithField("expires_at", csr.CurrentSVIDExpiresAt.Format(time.RFC3339))
 		}
-		counter.AddLabel("spiffe_id", csr.SpiffeID)
+		counter.AddLabel(telemetry.SPIFFEID, csr.SpiffeID)
 
 		// Skip CSR for the same SPIFFE ID... for now (see above TODO)
 		if _, ok := privateKeys[csr.SpiffeID]; ok {

@@ -17,8 +17,8 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -547,7 +547,7 @@ func (c FakeCreds) ClientHandshake(_ context.Context, _ string, conn net.Conn) (
 }
 
 func (c FakeCreds) ServerHandshake(conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
-	return conn, auth.CallerInfo{PID: 123}, nil
+	return conn, peertracker.AuthInfo{Watcher: FakeWatcher{}}, nil
 }
 
 func (c FakeCreds) Info() credentials.ProtocolInfo {
@@ -565,3 +565,11 @@ func (c FakeCreds) Clone() credentials.TransportCredentials {
 func (c FakeCreds) OverrideServerName(_ string) error {
 	return nil
 }
+
+type FakeWatcher struct{}
+
+func (w FakeWatcher) Close() {}
+
+func (w FakeWatcher) IsAlive() error { return nil }
+
+func (w FakeWatcher) PID() int32 { return 123 }

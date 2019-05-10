@@ -41,6 +41,8 @@ run_docker_test() {
 run_test() {
     # Removes files from previous executions
     rm -f .data/datastore.sqlite3
+    rm -f .data/datastore.sqlite3-shm
+    rm -f .data/datastore.sqlite3-wal
     rm -f .data/agent_svid.der
     rm -f .data/bundle.der
     rm -f .data/svid.key

@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
@@ -84,7 +85,7 @@ func (e *endpoints) createUDSServer(ctx context.Context) *grpc.Server {
 	return grpc.NewServer(
 		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
 		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
-		grpc.Creds(auth.NewCredentials()))
+		grpc.Creds(peertracker.NewCredentials()))
 }
 
 // registerNodeAPI creates a Node API handler and registers it against
@@ -151,7 +152,7 @@ func (e *endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 // runUDSServer  will start the server and block until it exits or we are dying.
 func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
 	os.Remove(e.c.UDSAddr.String())
-	l, err := net.Listen(e.c.UDSAddr.Network(), e.c.UDSAddr.String())
+	l, err := peertracker.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
 	if err != nil {
 		return err
 	}
@@ -178,8 +179,6 @@ func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 		e.c.Log.Info("UDS server has stopped.")
 		return nil
 	}
-
-	return nil
 }
 
 func (e *endpoints) runSVIDObserver(ctx context.Context) error {

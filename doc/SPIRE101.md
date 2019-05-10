@@ -2,7 +2,7 @@
 
 ## Overview
 
-This walkthrough will guide you through the steps needed to setup a running example of a SPIRE Server and SPIRE Agent. Interaction with the [Workload API](../proto/api/workload/workload.proto) will be simulated via a command line tool.
+This walkthrough will guide you through the steps needed to setup a running example of a SPIRE Server and SPIRE Agent. Interaction with the [Workload API](../proto/spire/api/workload/workload.proto) will be simulated via a command line tool.
 
 
  ![SPIRE101](images/SPIRE101.png)
@@ -82,11 +82,10 @@ server {
         log_level = "DEBUG"
         base_svid_ttl = 999999
         server_svid_ttl = 999999
-        umask = ""
 }
 
 plugins {
-        ServerCA "memory" { 
+        ServerCA "memory" {
         plugin_data {
                 key_size = 2048,
                 backdate_seconds = 1,
@@ -153,7 +152,6 @@ plugins {
         socket_path ="/tmp/agent.sock"
         trust_bundle_path = "conf/agent/dummy_root_ca.crt"
         trust_domain = "example.org"
-        umask = ""
     }
 
     plugins {
