@@ -273,9 +273,9 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 		}
 	}
 
-	for _, entry := range upd.Entries {
-		if len(names) == 0 || names[entry.RegistrationEntry.SpiffeId] {
-			tlsCertificate, err := buildTLSCertificate(entry)
+	for _, identity := range upd.Identities {
+		if len(names) == 0 || names[identity.Entry.SpiffeId] {
+			tlsCertificate, err := buildTLSCertificate(identity)
 			if err != nil {
 				return nil, err
 			}
@@ -305,16 +305,16 @@ func peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
 	return watcher, nil
 }
 
-func buildTLSCertificate(entry *cache.Entry) (*types.Any, error) {
-	keyPEM, err := pemutil.EncodePKCS8PrivateKey(entry.PrivateKey)
+func buildTLSCertificate(identity cache.Identity) (*types.Any, error) {
+	keyPEM, err := pemutil.EncodePKCS8PrivateKey(identity.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	certsPEM := pemutil.EncodeCertificates(entry.SVID)
+	certsPEM := pemutil.EncodeCertificates(identity.SVID)
 
 	return types.MarshalAny(&auth_v2.Secret{
-		Name: entry.RegistrationEntry.SpiffeId,
+		Name: identity.Entry.SpiffeId,
 		Type: &auth_v2.Secret_TlsCertificate{
 			TlsCertificate: &auth_v2.TlsCertificate{
 				CertificateChain: &core.DataSource{

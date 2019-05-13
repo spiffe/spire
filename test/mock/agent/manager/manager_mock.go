@@ -80,18 +80,18 @@ func (mr *MockManagerMockRecorder) Initialize(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Initialize", reflect.TypeOf((*MockManager)(nil).Initialize), arg0)
 }
 
-// MatchingEntries mocks base method
-func (m *MockManager) MatchingEntries(arg0 []*common.Selector) []*cache.Entry {
+// MatchingIdentities mocks base method
+func (m *MockManager) MatchingIdentities(arg0 []*common.Selector) []cache.Identity {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MatchingEntries", arg0)
-	ret0, _ := ret[0].([]*cache.Entry)
+	ret := m.ctrl.Call(m, "MatchingIdentities", arg0)
+	ret0, _ := ret[0].([]cache.Identity)
 	return ret0
 }
 
-// MatchingEntries indicates an expected call of MatchingEntries
-func (mr *MockManagerMockRecorder) MatchingEntries(arg0 interface{}) *gomock.Call {
+// MatchingIdentities indicates an expected call of MatchingIdentities
+func (mr *MockManagerMockRecorder) MatchingIdentities(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchingEntries", reflect.TypeOf((*MockManager)(nil).MatchingEntries), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchingIdentities", reflect.TypeOf((*MockManager)(nil).MatchingIdentities), arg0)
 }
 
 // Run mocks base method
