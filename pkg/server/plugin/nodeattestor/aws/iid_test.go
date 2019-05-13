@@ -199,8 +199,9 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 		expectID            string
 		expectErr           string
 		replacementTemplate string
-		skipEC2             bool
+		allowList           []string
 		skipBlockDev        bool
+		skipEC2Block        bool
 	}{
 		{
 			desc: "error on call",
@@ -237,9 +238,34 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			expectID:     "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
 		{
-			desc:     "success, no client call, default template",
-			skipEC2:  true,
-			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+			desc: "success, client, no block device, other allowed acct, default template",
+			mockExpect: func(mock *mock_aws.MockEC2Client) {
+				output := getDefaultDescribeInstancesOutput()
+				output.Reservations[0].Instances[0].RootDeviceType = &ebsStoreType
+				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &zeroDeviceIndex
+				mock.EXPECT().DescribeInstancesWithContext(gomock.Any(), &ec2.DescribeInstancesInput{
+					InstanceIds: []*string{&testInstance},
+				}).Return(&output, nil)
+			},
+			skipBlockDev: true,
+			allowList:    []string{"someOtherAccount"},
+			expectID:     "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+		},
+		{
+			desc:      "success, no client call, default template",
+			allowList: []string{testAccount},
+			expectID:  "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+		},
+		{
+			desc:      "success, no client call, extra allowed acct, default template",
+			allowList: []string{testAccount, "someOtherAccount"},
+			expectID:  "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+		},
+		{
+			desc:         "success, despite deprecated ec2 skip",
+			allowList:    []string{testAccount},
+			skipEC2Block: true,
+			expectID:     "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 		},
 		{
 			desc: "success, client + block device, default template",
@@ -291,11 +317,18 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			if tt.replacementTemplate != "" {
 				configStr = fmt.Sprintf(`agent_path_template = "%s"`, tt.replacementTemplate)
 			}
-			if tt.skipEC2 {
-				configStr = configStr + "\nskip_ec2_attest_calling = true"
+			if len(tt.allowList) > 0 {
+				configStr = configStr + "\naccount_ids_for_local_validation = [\n"
+				for _, id := range tt.allowList {
+					configStr = `  ` + configStr + `"` + id + `",`
+				}
+				configStr = configStr + "\n]"
 			}
 			if tt.skipBlockDev {
 				configStr = configStr + "\nskip_block_device = true"
+			}
+			if tt.skipEC2Block {
+				configStr = configStr + "\nskip_ec2_attest_calling = true"
 			}
 
 			_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
