@@ -115,6 +115,10 @@ func (s *AttestorSuite) SetupTest() {
 	s.attestor = s.configureAttestor()
 }
 
+func (s *AttestorSuite) TearDownTest() {
+	s.mockCtrl.Finish()
+}
+
 func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
 	resp, err := s.doAttestOnAttestor(s.newAttestor(), &nodeattestor.AttestRequest{})
 	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: not configured")

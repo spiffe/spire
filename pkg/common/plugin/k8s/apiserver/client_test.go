@@ -9,7 +9,12 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	mock_apiserver_interface "github.com/spiffe/spire/test/mock/common/plugin/k8s/interface"
+	mock_clientset "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset"
+	mock_authv1 "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset/authenticationv1"
+	mock_tokenreview "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset/authenticationv1/tokenreview"
+	mock_corev1 "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset/corev1"
+	mock_node "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset/corev1/node"
+	mock_pod "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset/corev1/pod"
 	"github.com/spiffe/spire/test/spiretest"
 	authv1 "k8s.io/api/authentication/v1"
 	"k8s.io/api/core/v1"
@@ -113,33 +118,26 @@ func TestAPIServerClient(t *testing.T) {
 	spiretest.Run(t, new(ClientSuite))
 }
 
-// Mocks for this test suite were generated with mockgen follows:
-//   mockgen -destination=test/mock/common/plugin/k8s/interface/clientset.go -package=mock_apiserver_interface k8s.io/client-go/kubernetes Interface
-//   mockgen -destination=test/mock/common/plugin/k8s/interface/corev1.go -package=mock_apiserver_interface k8s.io/client-go/kubernetes/typed/core/v1 CoreV1Interface
-//   mockgen -destination=test/mock/common/plugin/k8s/interface/pod.go -package=mock_apiserver_interface k8s.io/client-go/kubernetes/typed/core/v1 PodInterface
-//   mockgen -destination=test/mock/common/plugin/k8s/interface/node.go -package=mock_apiserver_interface k8s.io/client-go/kubernetes/typed/core/v1 NodeInterface
-//   mockgen -destination=test/mock/common/plugin/k8s/interface/authenticationv1.go -package=mock_apiserver_interface k8s.io/client-go/kubernetes/typed/authentication/v1 AuthenticationV1Interface
-//   mockgen -destination=test/mock/common/plugin/k8s/interface/tokenreview.go -package=mock_apiserver_interface k8s.io/client-go/kubernetes/typed/authentication/v1 TokenReviewInterface
 type ClientSuite struct {
 	spiretest.Suite
 	dir              string
 	mockCtrl         *gomock.Controller
-	mockClientset    *mock_apiserver_interface.MockInterface
-	mockCoreV1       *mock_apiserver_interface.MockCoreV1Interface
-	mockPods         *mock_apiserver_interface.MockPodInterface
-	mockNodes        *mock_apiserver_interface.MockNodeInterface
-	mockAuthV1       *mock_apiserver_interface.MockAuthenticationV1Interface
-	mockTokenReviews *mock_apiserver_interface.MockTokenReviewInterface
+	mockClientset    *mock_clientset.MockInterface
+	mockCoreV1       *mock_corev1.MockCoreV1Interface
+	mockPods         *mock_pod.MockPodInterface
+	mockNodes        *mock_node.MockNodeInterface
+	mockAuthV1       *mock_authv1.MockAuthenticationV1Interface
+	mockTokenReviews *mock_tokenreview.MockTokenReviewInterface
 }
 
 func (s *ClientSuite) SetupTest() {
 	s.mockCtrl = gomock.NewController(s.T())
-	s.mockClientset = mock_apiserver_interface.NewMockInterface(s.mockCtrl)
-	s.mockCoreV1 = mock_apiserver_interface.NewMockCoreV1Interface(s.mockCtrl)
-	s.mockPods = mock_apiserver_interface.NewMockPodInterface(s.mockCtrl)
-	s.mockNodes = mock_apiserver_interface.NewMockNodeInterface(s.mockCtrl)
-	s.mockAuthV1 = mock_apiserver_interface.NewMockAuthenticationV1Interface(s.mockCtrl)
-	s.mockTokenReviews = mock_apiserver_interface.NewMockTokenReviewInterface(s.mockCtrl)
+	s.mockClientset = mock_clientset.NewMockInterface(s.mockCtrl)
+	s.mockCoreV1 = mock_corev1.NewMockCoreV1Interface(s.mockCtrl)
+	s.mockPods = mock_pod.NewMockPodInterface(s.mockCtrl)
+	s.mockNodes = mock_node.NewMockNodeInterface(s.mockCtrl)
+	s.mockAuthV1 = mock_authv1.NewMockAuthenticationV1Interface(s.mockCtrl)
+	s.mockTokenReviews = mock_tokenreview.NewMockTokenReviewInterface(s.mockCtrl)
 
 	var err error
 	s.dir, err = ioutil.TempDir("", "spire-k8s-client-test-")
