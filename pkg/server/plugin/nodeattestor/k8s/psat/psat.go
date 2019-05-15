@@ -3,9 +3,7 @@ package psat
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/hashicorp/hcl"
@@ -16,8 +14,6 @@ import (
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/nodeattestor"
 	"github.com/zeebo/errs"
-
-	k8s_auth "k8s.io/api/authentication/v1"
 )
 
 const (
@@ -57,7 +53,7 @@ type ClusterConfig struct {
 	Audience *[]string `hcl:"audience"`
 
 	// Kubernetes configuration file path
-	// Used to create a k8s client to query the API server. If path is empty, 'InClusterConfig' is used
+	// Used to create a k8s client to query the API server. If string is empty, in-cluster configuration is used
 	KubeConfigFile string `hcl:"kube_config_file"`
 }
 
@@ -135,7 +131,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return psatError.New("token not authenticated according to TokenReview API")
 	}
 
-	namespace, serviceAccountName, err := getNamesFromTokenStatus(tokenStatus)
+	namespace, serviceAccountName, err := k8s.GetNamesFromTokenStatus(tokenStatus)
 	if err != nil {
 		return psatError.New("fail to parse username from token review status: %v", err)
 	}
@@ -145,12 +141,12 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return psatError.New("%q is not a whitelisted service account", fullServiceAccountName)
 	}
 
-	podName, err := getPodNameFromTokenStatus(tokenStatus)
+	podName, err := k8s.GetPodNameFromTokenStatus(tokenStatus)
 	if err != nil {
 		return psatError.New("fail to get pod name from token review status: %v", err)
 	}
 
-	podUID, err := getPodUIDFromTokenStatus(tokenStatus)
+	podUID, err := k8s.GetPodUIDFromTokenStatus(tokenStatus)
 	if err != nil {
 		return psatError.New("fail to get pod UID from token review status: %v", err)
 	}
@@ -253,64 +249,4 @@ func (p *AttestorPlugin) setConfig(config *attestorConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
-}
-
-// getNamesFromTokenStatus parses a fully qualified k8s username like: 'system:serviceaccount:spire:spire-agent'
-// from tokenStatus. The string is split and the last two names are returned: namespace and service account name
-func getNamesFromTokenStatus(tokenStatus *k8s_auth.TokenReviewStatus) (string, string, error) {
-	username := tokenStatus.User.Username
-	if username == "" {
-		return "", "", errors.New("empty username")
-	}
-
-	names := strings.Split(username, ":")
-	if len(names) != 4 {
-		return "", "", fmt.Errorf("unexpected username format: %v", username)
-	}
-
-	if names[2] == "" {
-		return "", "", fmt.Errorf("missing namespace")
-	}
-
-	if names[3] == "" {
-		return "", "", fmt.Errorf("missing service account name")
-	}
-
-	return names[2], names[3], nil
-}
-
-// getPodNameFromTokenStatus extracts pod name from a tokenReviewStatus type
-func getPodNameFromTokenStatus(tokenStatus *k8s_auth.TokenReviewStatus) (string, error) {
-	podName, ok := tokenStatus.User.Extra["authentication.kubernetes.io/pod-name"]
-	if !ok {
-		return "", errors.New("missing pod name")
-	}
-
-	if len(podName) != 1 {
-		return "", fmt.Errorf("expected 1 name but got: %d", len(podName))
-	}
-
-	if podName[0] == "" {
-		return "", errors.New("pod name is empty")
-	}
-
-	return podName[0], nil
-}
-
-// getPodUIDFromTokenStatus extracts pod UID from a tokenReviewStatus type
-func getPodUIDFromTokenStatus(tokenStatus *k8s_auth.TokenReviewStatus) (string, error) {
-	podUID, ok := tokenStatus.User.Extra["authentication.kubernetes.io/pod-uid"]
-	if !ok {
-		return "", errors.New("missing pod UID")
-	}
-
-	if len(podUID) != 1 {
-		return "", fmt.Errorf("expected 1 UID but got: %d", len(podUID))
-	}
-
-	if podUID[0] == "" {
-		return "", errors.New("pod UID is empty")
-	}
-
-	return podUID[0], nil
 }

@@ -1,19 +1,20 @@
 package k8s
 
 import (
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/spiffe/spire/proto/spire/common"
 	"gopkg.in/square/go-jose.v2/jwt"
+	authv1 "k8s.io/api/authentication/v1"
+)
+
+const (
+	k8sPodNameKey = "authentication.kubernetes.io/pod-name"
+	k8sPodUIDKey  = "authentication.kubernetes.io/pod-uid"
 )
 
 // SATClaims represents claims in a service account token, for example:
@@ -90,44 +91,6 @@ func AgentID(pluginName, trustDomain, cluster, uuid string) string {
 	return u.String()
 }
 
-func VerifyTokenSignature(keys []crypto.PublicKey, token *jwt.JSONWebToken, claims interface{}) (err error) {
-	var lastErr error
-	for _, key := range keys {
-		if err := token.Claims(key, claims); err != nil {
-			lastErr = fmt.Errorf("unable to verify token: %v", err)
-			continue
-		}
-		return nil
-	}
-	if lastErr == nil {
-		lastErr = errors.New("token signed by unknown authority")
-	}
-	return lastErr
-}
-
-func LoadServiceAccountKeys(path string) ([]crypto.PublicKey, error) {
-	pemBytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var keys []crypto.PublicKey
-	for {
-		var pemBlock *pem.Block
-		pemBlock, pemBytes = pem.Decode(pemBytes)
-		if pemBlock == nil {
-			return keys, nil
-		}
-		key, err := decodeKeyBlock(pemBlock)
-		if err != nil {
-			return nil, err
-		}
-		if key != nil {
-			keys = append(keys, key)
-		}
-	}
-}
-
 func MakeSelector(pluginName, kind, value string) *common.Selector {
 	return &common.Selector{
 		Type:  pluginName,
@@ -135,44 +98,62 @@ func MakeSelector(pluginName, kind, value string) *common.Selector {
 	}
 }
 
-func decodeKeyBlock(block *pem.Block) (crypto.PublicKey, error) {
-	var key crypto.PublicKey
-	switch block.Type {
-	case "CERTIFICATE":
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, err
-		}
-		key = cert.PublicKey
-	case "RSA PUBLIC KEY":
-		rsaKey, err := x509.ParsePKCS1PublicKey(block.Bytes)
-		if err != nil {
-			return nil, err
-		}
-		key = rsaKey
-	case "PUBLIC KEY":
-		pkixKey, err := x509.ParsePKIXPublicKey(block.Bytes)
-		if err != nil {
-			return nil, err
-		}
-		key = pkixKey
-	default:
-		return nil, nil
+// GetNamesFromTokenStatus parses a fully qualified k8s username like: 'system:serviceaccount:spire:spire-agent'
+// from tokenStatus. The string is split and the last two names are returned: namespace and service account name
+func GetNamesFromTokenStatus(tokenStatus *authv1.TokenReviewStatus) (string, string, error) {
+	username := tokenStatus.User.Username
+	if username == "" {
+		return "", "", errors.New("empty username")
 	}
 
-	if !isSupportedKey(key) {
-		return nil, fmt.Errorf("unsupported %T in %s block", key, block.Type)
+	names := strings.Split(username, ":")
+	if len(names) != 4 {
+		return "", "", fmt.Errorf("unexpected username format: %v", username)
 	}
-	return key, nil
+
+	if names[2] == "" {
+		return "", "", fmt.Errorf("missing namespace")
+	}
+
+	if names[3] == "" {
+		return "", "", fmt.Errorf("missing service account name")
+	}
+
+	return names[2], names[3], nil
 }
 
-func isSupportedKey(key crypto.PublicKey) bool {
-	switch key.(type) {
-	case *rsa.PublicKey:
-		return true
-	case *ecdsa.PublicKey:
-		return true
-	default:
-		return false
+// GetPodNameFromTokenStatus extracts pod name from a tokenReviewStatus type
+func GetPodNameFromTokenStatus(tokenStatus *authv1.TokenReviewStatus) (string, error) {
+	podName, ok := tokenStatus.User.Extra[k8sPodNameKey]
+	if !ok {
+		return "", errors.New("missing pod name")
 	}
+
+	if len(podName) != 1 {
+		return "", fmt.Errorf("expected 1 name but got: %d", len(podName))
+	}
+
+	if podName[0] == "" {
+		return "", errors.New("pod name is empty")
+	}
+
+	return podName[0], nil
+}
+
+// GetPodUIDFromTokenStatus extracts pod UID from a tokenReviewStatus type
+func GetPodUIDFromTokenStatus(tokenStatus *authv1.TokenReviewStatus) (string, error) {
+	podUID, ok := tokenStatus.User.Extra[k8sPodUIDKey]
+	if !ok {
+		return "", errors.New("missing pod UID")
+	}
+
+	if len(podUID) != 1 {
+		return "", fmt.Errorf("expected 1 UID but got: %d", len(podUID))
+	}
+
+	if podUID[0] == "" {
+		return "", errors.New("pod UID is empty")
+	}
+
+	return podUID[0], nil
 }
