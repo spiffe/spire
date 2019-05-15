@@ -33,16 +33,16 @@ func newTestConn(t *testing.T) *grpc.ClientConn {
 	return conn
 }
 
-func TestNewNodeMarkDead(t *testing.T) {
+func TestNewNodeAddRelease(t *testing.T) {
 	conn := newTestConn(t)
 	nodeConn := newNodeConn(conn)
 	nodeConn.AddRef()
-	require.False(t, nodeConn.IsDead())
-	nodeConn.MarkDead()
-	require.True(t, nodeConn.IsDead())
-	require.False(t, nodeConn.IsReleased())
 	nodeConn.Release()
-	require.True(t, nodeConn.IsReleased())
+	require.NotNil(t, nodeConn.Conn())
+	nodeConn.Release()
+	require.Nil(t, nodeConn.Conn())
+	nodeConn.Release()
+	require.Nil(t, nodeConn.Conn())
 }
 
 func TestNewNodeMany(t *testing.T) {

@@ -46,7 +46,7 @@ func TestFetchUpdates(t *testing.T) {
 	for _, entry := range res.SvidUpdate.RegistrationEntries {
 		assert.Equal(t, entry, update.Entries[entry.EntryId])
 	}
-	assert.False(t, client.nodeConn.IsReleased(), "client should not be released")
+	assertNodeConnIsNotNil(t, client)
 }
 
 func newTestFetchX509SVIDRequest() *node.FetchX509SVIDRequest {
@@ -121,7 +121,7 @@ func TestNewNodeClientRelease(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		_, r, err := client.newNodeClient(context.Background())
 		require.NoError(t, err)
-		assert.False(t, client.nodeConn.IsReleased(), "Connection is released already.")
+		assertNodeConnIsNotNil(t, client)
 
 		r.Release()
 		client.Release()
@@ -132,17 +132,17 @@ func TestNewNodeClientRelease(t *testing.T) {
 	}
 }
 
-func TestNewNodeClientMarkDeaed(t *testing.T) {
+func TestNewNodeInternalClientRelease(t *testing.T) {
 	client := createClient(t, nil)
 
 	for i := 0; i < 3; i++ {
-		_, r, err := client.newNodeClient(context.Background())
+		_, nodeConn, err := client.newNodeClient(context.Background())
 		require.NoError(t, err)
-		assert.False(t, client.nodeConn.IsReleased(), "Connection is released already.")
+		assertNodeConnIsNotNil(t, client)
 
-		r.MarkDead()
-		r.Release()
-		assert.True(t, client.nodeConn.IsReleased(), "Connection was not released")
+		client.release(nodeConn)
+		nodeConn.Release()
+		assertNodeConnIsNil(t, client)
 	}
 }
 
@@ -156,7 +156,7 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToFetchX509SVID(t *testing.T) {
 	update, err := client.FetchUpdates(context.Background(), &node.FetchX509SVIDRequest{})
 	assert.Nil(t, update)
 	assert.Error(t, err)
-	assert.True(t, client.nodeConn.IsReleased(), "Connection was not released")
+	assertNodeConnIsNil(t, client)
 }
 
 func TestFetchUpdatesReleaseConnectionIfItFailsToSendRequest(t *testing.T) {
@@ -173,7 +173,7 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToSendRequest(t *testing.T) {
 	update, err := client.FetchUpdates(context.Background(), req)
 	assert.Nil(t, update)
 	assert.Error(t, err)
-	assert.True(t, client.nodeConn.IsReleased(), "Connection was not released")
+	assertNodeConnIsNil(t, client)
 }
 
 func TestFetchUpdatesReleaseConnectionIfItFailsToReceiveResponse(t *testing.T) {
@@ -191,7 +191,7 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToReceiveResponse(t *testing.T) {
 	update, err := client.FetchUpdates(context.Background(), req)
 	assert.Nil(t, update)
 	assert.Error(t, err)
-	assert.True(t, client.nodeConn.IsReleased(), "Connection was not released")
+	assertNodeConnIsNil(t, client)
 }
 
 // Creates a sample client with mocked components for testing purposes
@@ -212,6 +212,12 @@ func keysAndBundle() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificat
 
 func assertNodeConnIsNil(t *testing.T, client *client) {
 	client.m.Lock()
-	assert.Nil(t, client.nodeConn, "Connection was not released")
+	assert.Nil(t, client.nodeConn, "Connection should be released")
+	client.m.Unlock()
+}
+
+func assertNodeConnIsNotNil(t *testing.T, client *client) {
+	client.m.Lock()
+	assert.NotNil(t, client.nodeConn, "Connection should not be released")
 	client.m.Unlock()
 }

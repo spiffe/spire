@@ -101,16 +101,16 @@ func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 }
 
 func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDRequest) (*Update, error) {
-	nodeClient, releaser, err := c.newNodeClient(ctx)
+	nodeClient, nodeConn, err := c.newNodeClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer releaser.Release()
+	defer nodeConn.Release()
 
 	stream, err := nodeClient.FetchX509SVID(ctx)
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
-		releaser.MarkDead()
+		c.release(nodeConn)
 		c.c.Log.Errorf("Failure fetching X509 SVID. %v: %v", ErrUnableToGetStream, err)
 		return nil, ErrUnableToGetStream
 	}
@@ -120,7 +120,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	// Close the stream whether there was an error or not
 	stream.CloseSend()
 	if err != nil {
-		releaser.MarkDead()
+		c.release(nodeConn)
 		return nil, err
 	}
 
@@ -135,7 +135,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 		}
 		if err != nil {
 			logrus.Errorf("failed to consume entire SVID update stream: %v", err)
-			releaser.MarkDead()
+			c.release(nodeConn)
 			return nil, err
 		}
 
@@ -162,18 +162,18 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 }
 
 func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, error) {
-	nodeClient, releaser, err := c.newNodeClient(ctx)
+	nodeClient, nodeConn, err := c.newNodeClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer releaser.Release()
+	defer nodeConn.Release()
 
 	response, err := nodeClient.FetchJWTSVID(ctx, &node.FetchJWTSVIDRequest{
 		Jsr: jsr,
 	})
 	// We weren't able to make the request...close the client and return the error.
 	if err != nil {
-		releaser.MarkDead()
+		c.release(nodeConn)
 		c.c.Log.Errorf("Failure fetching JWT SVID. %v: %v", ErrUnableToGetStream, err)
 		return nil, ErrUnableToGetStream
 	}
@@ -201,25 +201,24 @@ func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, err
 
 // Release the underlying connection.
 func (c *client) Release() {
+	c.release(nil)
+}
+
+func (c *client) release(conn *nodeConn) {
 	c.m.Lock()
 	defer c.m.Unlock()
-	if c.nodeConn != nil {
+	if c.nodeConn != nil && (conn == nil || conn == c.nodeConn) {
 		c.nodeConn.Release()
 		c.nodeConn = nil
 	}
 }
 
-type releaser interface {
-	Release()
-	MarkDead()
-}
-
-func (c *client) newNodeClient(ctx context.Context) (node.NodeClient, releaser, error) {
+func (c *client) newNodeClient(ctx context.Context) (node.NodeClient, *nodeConn, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
 	// open a new connection
-	if c.nodeConn == nil || c.nodeConn.IsDead() {
+	if c.nodeConn == nil {
 		conn, err := c.dial(ctx)
 		if err != nil {
 			return nil, nil, err
