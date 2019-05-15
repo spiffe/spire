@@ -219,7 +219,7 @@ func (c *client) newNodeClient(ctx context.Context) (node.NodeClient, releaser, 
 	defer c.m.Unlock()
 
 	// open a new connection
-	if c.nodeConn == nil {
+	if c.nodeConn == nil || c.nodeConn.IsDead() {
 		conn, err := c.dial(ctx)
 		if err != nil {
 			return nil, nil, err

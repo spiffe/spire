@@ -57,9 +57,6 @@ func (c *nodeConn) IsDead() bool {
 }
 
 func (c *nodeConn) IsReleased() bool {
-	if c == nil {
-		return true
-	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.conn == nil

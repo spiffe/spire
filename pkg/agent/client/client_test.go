@@ -112,9 +112,7 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 		assert.Equal(t, entry, update.Entries[entry.EntryId])
 	}
 	<-waitForRelease
-	client.m.Lock()
-	assert.True(t, client.nodeConn.IsReleased(), "Connection was not released")
-	client.m.Unlock()
+	assertNodeConnIsNil(t, client)
 }
 
 func TestNewNodeClientRelease(t *testing.T) {
@@ -127,9 +125,23 @@ func TestNewNodeClientRelease(t *testing.T) {
 
 		r.Release()
 		client.Release()
-		assert.True(t, client.nodeConn.IsReleased(), "Connection was not released")
+		assertNodeConnIsNil(t, client)
 		// test that release is idempotent
 		client.Release()
+		assertNodeConnIsNil(t, client)
+	}
+}
+
+func TestNewNodeClientMarkDeaed(t *testing.T) {
+	client := createClient(t, nil)
+
+	for i := 0; i < 3; i++ {
+		_, r, err := client.newNodeClient(context.Background())
+		require.NoError(t, err)
+		assert.False(t, client.nodeConn.IsReleased(), "Connection is released already.")
+
+		r.MarkDead()
+		r.Release()
 		assert.True(t, client.nodeConn.IsReleased(), "Connection was not released")
 	}
 }
@@ -196,4 +208,10 @@ func createClient(t *testing.T, nodeClient *mock_node.MockNodeClient) *client {
 
 func keysAndBundle() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
 	return nil, nil, nil
+}
+
+func assertNodeConnIsNil(t *testing.T, client *client) {
+	client.m.Lock()
+	assert.Nil(t, client.nodeConn, "Connection was not released")
+	client.m.Unlock()
 }
