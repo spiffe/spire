@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	identityTokenURLHost         = "metadata.google.internal"
+	defaultIdentityTokenHost     = "metadata.google.internal"
 	identityTokenURLPathTemplate = "/computeMetadata/v1/instance/service-accounts/%s/identity"
 	identityTokenAudience        = "spire-gcp-node-attestor"
 	defaultServiceAccount        = "default"
@@ -37,8 +37,6 @@ func builtin(p *IITAttestorPlugin) catalog.Plugin {
 
 // IITAttestorPlugin implements GCP nodeattestation in the agent.
 type IITAttestorPlugin struct {
-	tokenHost string
-
 	mtx    sync.RWMutex
 	config *IITAttestorConfig
 }
@@ -47,15 +45,14 @@ type IITAttestorPlugin struct {
 type IITAttestorConfig struct {
 	trustDomain       string
 	idPathTemplate    *template.Template
+	IdentityTokenHost string `hcl:"identity_token_host"`
 	ServiceAccount    string `hcl:"service_account"`
 	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
 // NewIITAttestorPlugin creates a new IITAttestorPlugin.
 func New() *IITAttestorPlugin {
-	return &IITAttestorPlugin{
-		tokenHost: identityTokenURLHost,
-	}
+	return &IITAttestorPlugin{}
 }
 
 // FetchAttestationData fetches attestation data from the GCP metadata server and sends an attestation response
@@ -66,7 +63,7 @@ func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 		return err
 	}
 
-	identityToken, identityTokenBytes, err := retrieveValidInstanceIdentityToken(identityTokenURL(p.tokenHost, c.ServiceAccount))
+	identityToken, identityTokenBytes, err := retrieveValidInstanceIdentityToken(identityTokenURL(c.IdentityTokenHost, c.ServiceAccount))
 	if err != nil {
 		return newErrorf("unable to retrieve valid identity token: %v", err)
 	}
@@ -101,6 +98,10 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 
 	if config.ServiceAccount == "" {
 		config.ServiceAccount = defaultServiceAccount
+	}
+
+	if config.IdentityTokenHost == "" {
+		config.IdentityTokenHost = defaultIdentityTokenHost
 	}
 
 	tmpl := gcp.DefaultAgentPathTemplate
