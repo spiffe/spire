@@ -6,189 +6,154 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"time"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/zeebo/errs"
 )
+
+type csrRequest struct {
+	EntryID              string
+	SpiffeID             string
+	CurrentSVIDExpiresAt time.Time
+}
 
 // synchronize hits the node api, checks for entries we haven't fetched yet, and fetches them.
 func (m *manager) synchronize(ctx context.Context) (err error) {
-	var regEntries map[string]*common.RegistrationEntry
-	var cEntryRequests = entryRequests{}
-
-	regEntries, _, err = m.fetchUpdates(ctx, nil)
+	update, err := m.fetchUpdates(ctx, nil)
 	if err != nil {
 		return err
 	}
 
-	m.clearStaleCacheEntries(regEntries)
-
-	err = m.checkExpiredCacheEntries(cEntryRequests)
-	if err != nil {
-		return err
-	}
-
-	err = m.checkForNewCacheEntries(regEntries, cEntryRequests)
-	if err != nil {
-		return err
-	}
-
-	err = m.processEntryRequests(ctx, cEntryRequests)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *manager) fetchUpdates(ctx context.Context, entryRequests map[string]*entryRequest) (entries map[string]*common.RegistrationEntry, svids map[string]*node.X509SVID, err error) {
-	counter := telemetry.StartCall(m.c.Metrics, telemetry.Manager, telemetry.Sync, telemetry.FetchUpdates)
-	defer counter.Done(&err)
-	// Put all the CSRs in an array to make just one call with all the CSRs.
-	csrs := [][]byte{}
-	if entryRequests != nil {
-		for _, entryRequest := range entryRequests {
-			m.c.Log.Debugf("Requesting SVID for %v", entryRequest.entry.RegistrationEntry.SpiffeId)
-			counter.AddLabel(telemetry.SPIFFEID, entryRequest.entry.RegistrationEntry.SpiffeId)
-			csrs = append(csrs, entryRequest.CSR)
+	// update the cache and build a list of CSRs that need to be processed
+	// in this interval.
+	//
+	// the values in `update` now belong to the cache. DO NOT MODIFY.
+	var csrs []csrRequest
+	var expiring int
+	m.cache.Update(update, func(entry *common.RegistrationEntry, svid *cache.X509SVID) {
+		var expiresAt time.Time
+		switch {
+		case svid == nil:
+			// no SVID
+		case len(svid.Chain) == 0:
+			// SVID has an empty chain. this is not expected to happen.
+			m.c.Log.WithFields(logrus.Fields{
+				"entry_id":  entry.EntryId,
+				"spiffe_id": entry.SpiffeId,
+			}).Warn("cached X509 SVID is empty")
+		case isSVIDStale(m.c.Clk.Now(), svid.Chain[0]):
+			// SVID has expired
+			expiresAt = svid.Chain[0].NotAfter
+			expiring++
+		default:
+			// SVID is good
+			return
 		}
-	}
-
-	update, err := m.client.FetchUpdates(ctx, &node.FetchX509SVIDRequest{Csrs: csrs})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if update.Bundles != nil {
-		bundles, err := parseBundles(update.Bundles)
-		if err != nil {
-			return nil, nil, err
+		// we've exceeded the CSR limit, don't make any more CSRs
+		if len(csrs) < node.CSRLimit {
+			csrs = append(csrs, csrRequest{
+				EntryID:              entry.EntryId,
+				SpiffeID:             entry.SpiffeId,
+				CurrentSVIDExpiresAt: expiresAt,
+			})
 		}
-		m.cache.SetBundles(bundles)
-	}
+	})
+	m.c.Metrics.AddSample([]string{"cache_manager", "expiring_svids"}, float32(expiring))
 
-	return update.Entries, update.SVIDs, nil
-}
-
-func (m *manager) processEntryRequests(ctx context.Context, entryRequests entryRequests) error {
-	if len(entryRequests) == 0 {
-		return nil
-	}
-
-	// Truncate the number of entry requests we are making if it exceeds the CSR
-	// burst limit. The rest of the requests will be made on the next pass
-	if len(entryRequests) > node.CSRLimit {
-		entryRequests.truncate(node.CSRLimit)
-	}
-
-	_, svids, err := m.fetchUpdates(ctx, entryRequests)
-	if err != nil {
-		return err
-	}
-
-	if err := m.updateEntriesSVIDs(entryRequests, svids); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *manager) updateEntriesSVIDs(entryRequestsMap map[string]*entryRequest, svids map[string]*node.X509SVID) error {
-	for _, entryRequest := range entryRequestsMap {
-		ce := entryRequest.entry
-		svid, ok := svids[ce.RegistrationEntry.SpiffeId]
-		if ok {
-			certs, err := x509.ParseCertificates(svid.CertChain)
-			if err != nil {
-				return err
-			}
-			if len(certs) == 0 {
-				return errs.New("no certs in SVID")
-			}
-			// Complete the pre-built cache entry with the SVID and put it on the cache.
-			ce.SVID = certs
-			m.cache.SetEntry(ce)
-		}
-	}
-	return nil
-}
-
-func (m *manager) clearStaleCacheEntries(regEntries map[string]*common.RegistrationEntry) {
-	for _, entry := range m.cache.Entries() {
-		if _, ok := regEntries[entry.RegistrationEntry.EntryId]; !ok {
-			m.cache.DeleteEntry(entry.RegistrationEntry)
-		}
-	}
-}
-
-func (m *manager) checkExpiredCacheEntries(cEntryRequests entryRequests) error {
-	now := m.clk.Now()
-	defer m.c.Metrics.MeasureSince([]string{telemetry.CacheManager, telemetry.ExpiryCheckDuration}, now)
-
-	for _, entry := range m.cache.Entries() {
-		ttl := entry.SVID[0].NotAfter.Sub(now)
-		lifetime := entry.SVID[0].NotAfter.Sub(entry.SVID[0].NotBefore)
-		// If the cached SVID has a remaining lifetime less than 50%, prepare a
-		// new entryRequest.
-		if ttl < lifetime/2 {
-			m.c.Log.Debugf("cache entry ttl for spiffeId %s is less than a half its lifetime", entry.RegistrationEntry.SpiffeId)
-			privateKey, csr, err := m.newCSR(entry.RegistrationEntry.SpiffeId)
-			if err != nil {
-				return err
-			}
-
-			cacheEntry := &cache.Entry{
-				RegistrationEntry: entry.RegistrationEntry,
-				SVID:              nil,
-				PrivateKey:        privateKey,
-			}
-			cEntryRequests.add(&entryRequest{csr, cacheEntry})
-		}
-	}
-
-	m.c.Metrics.AddSample([]string{telemetry.CacheManager, telemetry.ExpiringSVIDs}, float32(len(cEntryRequests)))
-	return nil
-}
-
-func (m *manager) checkForNewCacheEntries(regEntries map[string]*common.RegistrationEntry, cEntryRequests entryRequests) error {
-	for _, regEntry := range regEntries {
-		existingEntry := m.cache.FetchEntry(regEntry.EntryId)
-		if existingEntry != nil {
-			// entry exists. if the registration entry has changed, then
-			// update the cache and move on.
-			if !proto.Equal(existingEntry.RegistrationEntry, regEntry) {
-				m.cache.SetEntry(&cache.Entry{
-					RegistrationEntry: regEntry,
-					SVID:              existingEntry.SVID,
-					PrivateKey:        existingEntry.PrivateKey,
-				})
-			}
-			continue
-		}
-
-		privateKey, csr, err := m.newCSR(regEntry.SpiffeId)
+	if len(csrs) > 0 {
+		update, err := m.fetchUpdates(ctx, csrs)
 		if err != nil {
 			return err
 		}
-
-		cacheEntry := &cache.Entry{
-			RegistrationEntry: regEntry,
-			SVID:              nil,
-			PrivateKey:        privateKey,
-		}
-		cEntryRequests.add(&entryRequest{csr, cacheEntry})
+		// the values in `update` now belong to the cache. DO NOT MODIFY.
+		m.cache.Update(update, nil)
 	}
-
 	return nil
 }
 
-func (m *manager) newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err error) {
+func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache.CacheUpdate, err error) {
+	counter := telemetry.StartCall(m.c.Metrics, telemetry.Manager, telemetry.Sync, telemetry.FetchUpdates)
+	defer counter.Done(&err)
+
+	req := &node.FetchX509SVIDRequest{}
+
+	// TODO: The node API is currently insufficient to handle multiple
+	// registration entries mapping to the same SPIFFE ID (since results are
+	// keyed by SPIFFE ID). This code will use the same SVID for any
+	// registration entry sharing a SPIFFE ID and should be fixed when
+	// the node API is fixed.
+	privateKeys := make(map[string]*ecdsa.PrivateKey, len(csrs))
+	for _, csr := range csrs {
+		log := m.c.Log.WithField("spiffe_id", csr.SpiffeID)
+		if !csr.CurrentSVIDExpiresAt.IsZero() {
+			log = log.WithField("expires_at", csr.CurrentSVIDExpiresAt.Format(time.RFC3339))
+		}
+		counter.AddLabel(telemetry.SPIFFEID, csr.SpiffeID)
+
+		// Skip CSR for the same SPIFFE ID... for now (see above TODO)
+		if _, ok := privateKeys[csr.SpiffeID]; ok {
+			log.Debug("Ignoring duplicate X509-SVID renewal")
+			continue
+		}
+
+		log.Info("Renewing X509-SVID")
+		privateKey, csrBytes, err := newCSR(csr.SpiffeID)
+		if err != nil {
+			return nil, err
+		}
+		privateKeys[csr.SpiffeID] = privateKey
+		req.Csrs = append(req.Csrs, csrBytes)
+	}
+
+	update, err := m.client.FetchUpdates(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	bundles, err := parseBundles(update.Bundles)
+	if err != nil {
+		return nil, err
+	}
+
+	bySpiffeID := make(map[string]*cache.X509SVID, len(update.SVIDs))
+	for spiffeID, svid := range update.SVIDs {
+		privateKey, ok := privateKeys[spiffeID]
+		if !ok {
+			continue
+		}
+		chain, err := x509.ParseCertificates(svid.CertChain)
+		if err != nil {
+			return nil, err
+		}
+		bySpiffeID[spiffeID] = &cache.X509SVID{
+			Chain:      chain,
+			PrivateKey: privateKey,
+		}
+	}
+
+	byEntryID := make(map[string]*cache.X509SVID, len(bySpiffeID))
+	for _, entry := range update.Entries {
+		svid, ok := bySpiffeID[entry.SpiffeId]
+		if !ok {
+			continue
+		}
+		byEntryID[entry.EntryId] = svid
+	}
+
+	return &cache.CacheUpdate{
+		Bundles:             bundles,
+		RegistrationEntries: update.Entries,
+		X509SVIDs:           byEntryID,
+	}, nil
+}
+
+func newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err error) {
 	pk, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return
@@ -200,35 +165,8 @@ func (m *manager) newCSR(spiffeID string) (pk *ecdsa.PrivateKey, csr []byte, err
 	return
 }
 
-// entryRequest holds a CSR and a pre-built cache entry for the RegistrationEntry
-// contained in the entry field.
-type entryRequest struct {
-	CSR   []byte
-	entry *cache.Entry
-}
-
-// entryRequests is a map keyed by Registration Entry ID of entryRequest that
-// should be processed using the SVID and PrivateKey created for it.
-type entryRequests map[string]*entryRequest
-
-func (er entryRequests) add(e *entryRequest) {
-	entryID := e.entry.RegistrationEntry.EntryId
-	er[entryID] = e
-}
-
-func (er entryRequests) truncate(limit int) {
-	counter := 1
-	for id := range er {
-		if counter > limit {
-			delete(er, id)
-		}
-
-		counter++
-	}
-}
-
 func parseBundles(bundles map[string]*common.Bundle) (map[string]*cache.Bundle, error) {
-	out := make(map[string]*cache.Bundle)
+	out := make(map[string]*cache.Bundle, len(bundles))
 	for _, bundle := range bundles {
 		bundle, err := bundleutil.BundleFromProto(bundle)
 		if err != nil {
@@ -237,4 +175,10 @@ func parseBundles(bundles map[string]*common.Bundle) (map[string]*cache.Bundle, 
 		out[bundle.TrustDomainID()] = bundle
 	}
 	return out, nil
+}
+
+func isSVIDStale(now time.Time, svid *x509.Certificate) bool {
+	ttl := svid.NotAfter.Sub(now)
+	lifetime := svid.NotAfter.Sub(svid.NotBefore)
+	return ttl < lifetime/2
 }

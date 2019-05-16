@@ -5,23 +5,12 @@ metadata:
 
 ---
 
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: spire-server
-  namespace: spire
-
----
-
-# Required cluster role to allow spire-server to query k8s API server
+# ClusterRole to allow spire-server node attestor to query Token Review API
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: spire-server-cluster-role
 rules:
-- apiGroups: [""]
-  resources: ["pods", "nodes"]
-  verbs: ["get"]
 - apiGroups: ["authentication.k8s.io"]
   resources: ["tokenreviews"]
   verbs: ["create"]
@@ -41,6 +30,14 @@ roleRef:
   kind: ClusterRole
   name: spire-server-cluster-role
   apiGroup: rbac.authorization.k8s.io
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-server
+  namespace: spire
 
 ---
 
@@ -85,11 +82,12 @@ data:
         }
       }
 
-      NodeAttestor "k8s_psat" {
+      NodeAttestor "k8s_sat" {
         plugin_data {
           clusters = {
             "demo-cluster" = {
               service_account_whitelist = ["spire:spire-agent"]
+              use_token_review_api_validation = true
             }
           }
         }
@@ -151,7 +149,7 @@ spec:
       serviceAccountName: spire-server
       containers:
         - name: spire-server
-          image: gcr.io/spiffe-io/spire-server:0.7.3
+          image: gcr.io/spiffe-io/spire-server:unstable
           args: ["-config", "/run/spire/config/server.conf"]
           ports:
             - containerPort: 8081

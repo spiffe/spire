@@ -59,20 +59,20 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	counter.AddLabel(telemetry.SVIDType, telemetry.JWT)
 
 	var spiffeIDs []string
-	entries := h.Manager.MatchingEntries(selectors)
-	if len(entries) == 0 {
+	identities := h.Manager.MatchingIdentities(selectors)
+	if len(identities) == 0 {
 		counter.AddLabel(telemetry.Registered, "false")
 		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
 	counter.AddLabel(telemetry.Registered, "true")
 
-	for _, entry := range entries {
-		if req.SpiffeId != "" && entry.RegistrationEntry.SpiffeId != req.SpiffeId {
+	for _, identity := range identities {
+		if req.SpiffeId != "" && identity.Entry.SpiffeId != req.SpiffeId {
 			continue
 		}
-		spiffeIDs = append(spiffeIDs, entry.RegistrationEntry.SpiffeId)
-		counter.AddLabel(telemetry.SPIFFEID, entry.RegistrationEntry.SpiffeId)
+		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
+		counter.AddLabel(telemetry.SPIFFEID, identity.Entry.SpiffeId)
 	}
 
 	resp = new(workload.JWTSVIDResponse)
@@ -225,7 +225,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 	counter.AddLabel(telemetry.SVIDType, telemetry.X509)
 
-	if len(update.Entries) == 0 {
+	if len(update.Identities) == 0 {
 		counter.AddLabel(telemetry.Registered, "false")
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
@@ -246,7 +246,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	for i, svid := range resp.Svids {
 		counter.AddLabel(telemetry.SPIFFEID, svid.SpiffeId)
 
-		ttl := time.Until(update.Entries[i].SVID[0].NotAfter)
+		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		metrics.SetGaugeWithLabels(
 			[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
 			float32(ttl.Seconds()),
@@ -269,20 +269,20 @@ func (h *Handler) composeX509SVIDResponse(update *cache.WorkloadUpdate) (*worklo
 		resp.FederatedBundles[id] = marshalBundle(federatedBundle.RootCAs())
 	}
 
-	for _, e := range update.Entries {
-		id := e.RegistrationEntry.SpiffeId
+	for _, identity := range update.Identities {
+		id := identity.Entry.SpiffeId
 
-		keyData, err := x509.MarshalPKCS8PrivateKey(e.PrivateKey)
+		keyData, err := x509.MarshalPKCS8PrivateKey(identity.PrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("marshal key for %v: %v", id, err)
 		}
 
 		svid := &workload.X509SVID{
 			SpiffeId:      id,
-			X509Svid:      x509util.DERFromCertificates(e.SVID),
+			X509Svid:      x509util.DERFromCertificates(identity.SVID),
 			X509SvidKey:   keyData,
 			Bundle:        bundle,
-			FederatesWith: e.RegistrationEntry.FederatesWith,
+			FederatesWith: identity.Entry.FederatesWith,
 		}
 
 		resp.Svids = append(resp.Svids, svid)
@@ -292,7 +292,7 @@ func (h *Handler) composeX509SVIDResponse(update *cache.WorkloadUpdate) (*worklo
 }
 
 func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
-	if len(update.Entries) == 0 {
+	if len(update.Identities) == 0 {
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
