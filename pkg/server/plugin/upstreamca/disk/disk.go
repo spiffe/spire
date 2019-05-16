@@ -2,6 +2,7 @@ package disk
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"sync"
@@ -38,7 +39,8 @@ type Configuration struct {
 }
 
 type DiskPlugin struct {
-	serialNumber x509util.SerialNumber
+	serialNumber          x509util.SerialNumber
+	_testOnlyShouldVerify bool
 
 	mtx        sync.Mutex
 	config     *Configuration
@@ -53,7 +55,8 @@ type caCerts struct {
 
 func New() *DiskPlugin {
 	return &DiskPlugin{
-		serialNumber: x509util.NewSerialNumber(),
+		serialNumber:          x509util.NewSerialNumber(),
+		_testOnlyShouldVerify: true,
 	}
 }
 
@@ -151,22 +154,25 @@ func (p *DiskPlugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Up
 	// pemutil guarantees at least 1 cert
 	caCert := certs[0]
 
-	var trustBundle []byte
+	var trustBundle []*x509.Certificate
 	if config.BundleFilePath == "" {
 		// If there is no bundle path configured then we assume the chain
 		// including the root comes from cert_file_path. The final cert
 		// is the root that should be trusted. Additionally, it can be dropped
 		// from the cert chain to avoid wastefully distributing it in the chain
 		// of an SVID as well as the trust bundle.
-		trustBundle = certs[len(certs)-1].Raw
-		certs = certs[:len(certs)-1]
+		if len(certs) != 1 {
+			return nil, nil, errors.New("with no bundle_file_path configured only self-signed CAs are supported")
+		}
+		trustBundle = certs
+		certs = nil
 	} else {
 		bundleCerts, err := pemutil.LoadCertificates(config.BundleFilePath)
 		if err != nil {
 			return nil, nil, err
 		}
 		for _, c := range bundleCerts {
-			trustBundle = append(trustBundle, c.Raw...)
+			trustBundle = append(trustBundle, c)
 		}
 	}
 
@@ -179,11 +185,32 @@ func (p *DiskPlugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Up
 		return nil, nil, errors.New("certificate and private key does not match")
 	}
 
+	if p._testOnlyShouldVerify {
+		intermediates := x509.NewCertPool()
+		roots := x509.NewCertPool()
+		for _, c := range certs {
+			intermediates.AddCert(c)
+		}
+		for _, c := range trustBundle {
+			roots.AddCert(c)
+		}
+		selfVerifyOpts := x509.VerifyOptions{
+			Intermediates: intermediates,
+			Roots:         roots,
+		}
+		_, err = caCert.Verify(selfVerifyOpts)
+		if err != nil {
+			return nil, nil, errors.New("certificate cannot be validated with the provided bundle or is not self-signed")
+		}
+	}
+
 	caCerts := &caCerts{}
 	for _, cert := range certs {
 		caCerts.certChain = append(caCerts.certChain, cert.Raw...)
 	}
-	caCerts.trustBundle = trustBundle
+	for _, cert := range trustBundle {
+		caCerts.trustBundle = append(caCerts.trustBundle, cert.Raw...)
+	}
 
 	return x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(caCert, key),
