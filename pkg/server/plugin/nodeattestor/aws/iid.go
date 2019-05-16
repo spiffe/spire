@@ -16,6 +16,8 @@ import (
 	"sync"
 	"text/template"
 
+	"github.com/hashicorp/go-hclog"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -73,17 +75,21 @@ type IIDAttestorPlugin struct {
 		// in test, this can be overridden to mock OS env
 		getEnv func(string) string
 	}
+	log hclog.Logger
 }
 
 // IIDAttestorConfig holds hcl configuration for IID attestor plugin
 type IIDAttestorConfig struct {
-	caws.SessionConfig   `hcl:",squash"`
-	SkipBlockDevice      bool   `hcl:"skip_block_device"`
-	SkipEC2AttestCalling bool   `hcl:"skip_ec2_attest_calling"`
-	AgentPathTemplate    string `hcl:"agent_path_template"`
-	pathTemplate         *template.Template
-	trustDomain          string
-	awsCaCertPublicKey   *rsa.PublicKey
+	caws.SessionConfig `hcl:",squash"`
+	SkipBlockDevice    bool     `hcl:"skip_block_device"`
+	LocalValidAcctIDs  []string `hcl:"account_ids_for_local_validation"`
+	AgentPathTemplate  string   `hcl:"agent_path_template"`
+	pathTemplate       *template.Template
+	trustDomain        string
+	awsCaCertPublicKey *rsa.PublicKey
+
+	// Deprecated, use LocalValidAcctIDs
+	SkipEC2AttestCalling bool `hcl:"skip_ec2_attest_calling"`
 }
 
 // New creates a new IITAttestorPlugin.
@@ -145,8 +151,17 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		return caws.AttestationStepError("verifying the cryptographic signature", err)
 	}
 
-	// query AWS for additional information to verify?
-	if !c.SkipEC2AttestCalling {
+	inTrustAcctList := false
+	for _, id := range c.LocalValidAcctIDs {
+		if doc.AccountID == id {
+			inTrustAcctList = true
+			break
+		}
+	}
+
+	// query AWS for additional information if account ID was not in
+	// allowed list
+	if !inTrustAcctList {
 		err = p.ec2Attestation(stream.Context(), *c, doc)
 		if err != nil {
 			return fmt.Errorf("failed aws ec2 attestation: %v", err)
@@ -181,6 +196,11 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	if err != nil {
 		err := fmt.Errorf("Error decoding AWS IID Attestor configuration: %v", err)
 		return resp, err
+	}
+
+	if config.SkipEC2AttestCalling {
+		p.log.Warn("skip_ec2_attest_calling is a deprecated flag and will be ignored." +
+			" Use account_ids_for_local_validation instead.")
 	}
 
 	block, _ := pem.Decode([]byte(awsCaCertPEM))
@@ -243,6 +263,11 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 // GetPluginInfo returns the version and related metadata of the installed plugin.
 func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
+}
+
+// SetLogger sets this plugin's logger
+func (p *IIDAttestorPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 // perform attestation backed by returns from AWS EC2 call(s)
