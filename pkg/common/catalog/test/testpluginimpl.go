@@ -17,7 +17,7 @@ func NewTestPlugin() TestPluginPlugin {
 
 type testPlugin struct {
 	log hclog.Logger
-	hs  TestHostServiceClient
+	hs  TestHostService
 }
 
 func (s *testPlugin) SetLogger(log hclog.Logger) {

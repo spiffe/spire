@@ -346,12 +346,12 @@ func dumpLined(w io.Writer, r io.Reader) {
 	}
 }
 
-func mkexpname(prefix, name string) string {
-	return prefix + name
+func mkexpname(parts ...string) string {
+	return strings.Join(parts, "")
 }
 
-func mkname(prefix, name string) string {
-	s := mkexpname(prefix, name)
+func mkname(parts ...string) string {
+	s := mkexpname(parts...)
 	if len(s) == 0 {
 		return s
 	}
