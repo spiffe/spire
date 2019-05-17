@@ -160,6 +160,17 @@ func (ds *SQLPlugin) ListBundles(ctx context.Context, req *datastore.ListBundles
 	return resp, nil
 }
 
+// PruneBundle removes expired certs and keys from a bundle
+func (ds *SQLPlugin) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (resp *datastore.PruneBundleResponse, err error) {
+	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = pruneBundle(tx, req, ds.log)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 // CreateAttestedNode stores the given attested node
 func (ds *SQLPlugin) CreateAttestedNode(ctx context.Context,
 	req *datastore.CreateAttestedNodeRequest) (resp *datastore.CreateAttestedNodeResponse, err error) {
@@ -681,6 +692,41 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 	}
 
 	return resp, nil
+}
+
+func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log hclog.Logger) (*datastore.PruneBundleResponse, error) {
+	// Get current bundle
+	current, err := fetchBundle(tx, &datastore.FetchBundleRequest{TrustDomainId: req.TrustDomainId})
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch current bundle: %v", err)
+	}
+
+	if current.Bundle == nil {
+		// No bundle to prune
+		return &datastore.PruneBundleResponse{}, nil
+	}
+
+	// Prune
+	newBundle, err := bundleutil.PruneBundle(current.Bundle, req.ExpiresBefore, log)
+	if err != nil {
+		return nil, fmt.Errorf("prune failed: %v", err)
+	}
+
+	// Update only if bundle was modified
+	changed := false
+	if len(newBundle.RootCas) != len(current.Bundle.RootCas) ||
+		len(newBundle.JwtSigningKeys) != len(current.Bundle.JwtSigningKeys) {
+
+		changed = true
+		_, err := updateBundle(tx, &datastore.UpdateBundleRequest{
+			Bundle: newBundle,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to write new bundle: %v", err)
+		}
+	}
+
+	return &datastore.PruneBundleResponse{BundleChanged: changed}, nil
 }
 
 func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {

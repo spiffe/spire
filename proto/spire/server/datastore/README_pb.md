@@ -42,6 +42,8 @@
     - [ListRegistrationEntriesResponse](#spire.server.datastore.ListRegistrationEntriesResponse)
     - [NodeSelectors](#spire.server.datastore.NodeSelectors)
     - [Pagination](#spire.server.datastore.Pagination)
+    - [PruneBundleRequest](#spire.server.datastore.PruneBundleRequest)
+    - [PruneBundleResponse](#spire.server.datastore.PruneBundleResponse)
     - [PruneJoinTokensRequest](#spire.server.datastore.PruneJoinTokensRequest)
     - [PruneJoinTokensResponse](#spire.server.datastore.PruneJoinTokensResponse)
     - [PruneRegistrationEntriesRequest](#spire.server.datastore.PruneRegistrationEntriesRequest)
@@ -649,6 +651,37 @@
 
 
 
+<a name="spire.server.datastore.PruneBundleRequest"></a>
+
+### PruneBundleRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| trust_domain_id | [string](#string) |  | Trust domain of the bundle to prune |
+| expires_before | [int64](#int64) |  | Expiration time |
+
+
+
+
+
+
+<a name="spire.server.datastore.PruneBundleResponse"></a>
+
+### PruneBundleResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle_changed | [bool](#bool) |  |  |
+
+
+
+
+
+
 <a name="spire.server.datastore.PruneJoinTokensRequest"></a>
 
 ### PruneJoinTokensRequest
@@ -861,6 +894,7 @@ associated with the bundle (e.g. registration entries).
 | UpdateBundle | [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest) | [UpdateBundleResponse](#spire.server.datastore.UpdateBundleResponse) | Updates a specific bundle |
 | AppendBundle | [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest) | [AppendBundleResponse](#spire.server.datastore.AppendBundleResponse) | Appends contents from a specific bundle (creates if it does not exist) |
 | DeleteBundle | [DeleteBundleRequest](#spire.server.datastore.DeleteBundleRequest) | [DeleteBundleResponse](#spire.server.datastore.DeleteBundleResponse) | Deletes a specific bundle |
+| PruneBundle | [PruneBundleRequest](#spire.server.datastore.PruneBundleRequest) | [PruneBundleResponse](#spire.server.datastore.PruneBundleResponse) | Prunes all expired certificates and JWT signing keys from a bundle |
 | CreateAttestedNode | [CreateAttestedNodeRequest](#spire.server.datastore.CreateAttestedNodeRequest) | [CreateAttestedNodeResponse](#spire.server.datastore.CreateAttestedNodeResponse) | Creates an attested node |
 | FetchAttestedNode | [FetchAttestedNodeRequest](#spire.server.datastore.FetchAttestedNodeRequest) | [FetchAttestedNodeResponse](#spire.server.datastore.FetchAttestedNodeResponse) | Fetches a specific attested node |
 | ListAttestedNodes | [ListAttestedNodesRequest](#spire.server.datastore.ListAttestedNodesRequest) | [ListAttestedNodesResponse](#spire.server.datastore.ListAttestedNodesResponse) | Lists attested nodes (optionally filtered) |
