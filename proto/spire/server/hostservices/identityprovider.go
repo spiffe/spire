@@ -39,14 +39,14 @@ func (s identityProviderHostServiceServer) RegisterHostServiceServer(server *grp
 }
 
 // IdentityProviderHostServiceServer returns a catalog HostServiceServer implementation for the IdentityProvider plugin.
-func IdentityProviderHostServiceClient(client *IdentityProviderClient) catalog.HostServiceClient {
+func IdentityProviderHostServiceClient(client *IdentityProvider) catalog.HostServiceClient {
 	return &identityProviderHostServiceClient{
 		client: client,
 	}
 }
 
 type identityProviderHostServiceClient struct {
-	client *IdentityProviderClient
+	client *IdentityProvider
 }
 
 func (c *identityProviderHostServiceClient) HostServiceType() string {
@@ -54,5 +54,17 @@ func (c *identityProviderHostServiceClient) HostServiceType() string {
 }
 
 func (c *identityProviderHostServiceClient) InitHostServiceClient(conn *grpc.ClientConn) {
-	*c.client = NewIdentityProviderClient(conn)
+	*c.client = AdaptIdentityProviderHostServiceClient(NewIdentityProviderClient(conn))
+}
+
+func AdaptIdentityProviderHostServiceClient(client IdentityProviderClient) IdentityProvider {
+	return identityProviderHostServiceClientAdapter{client: client}
+}
+
+type identityProviderHostServiceClientAdapter struct {
+	client IdentityProviderClient
+}
+
+func (a identityProviderHostServiceClientAdapter) FetchX509Identity(ctx context.Context, in *FetchX509IdentityRequest) (*FetchX509IdentityResponse, error) {
+	return a.client.FetchX509Identity(ctx, in)
 }
