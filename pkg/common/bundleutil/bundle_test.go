@@ -13,24 +13,24 @@ import (
 	"github.com/spiffe/spire/test/util"
 )
 
-func TestBundleUtilTestSuite(t *testing.T) {
-	spiretest.Run(t, new(BundleUtilTestSuite))
+func TestBundleUtilSuite(t *testing.T) {
+	spiretest.Run(t, new(BundleUtilSuite))
 }
 
-type BundleUtilTestSuite struct {
+type BundleUtilSuite struct {
 	spiretest.Suite
-	currentTime      int64
+	currentTime      time.Time
 	certNotExpired   *x509.Certificate
 	certExpired      *x509.Certificate
 	jwtKeyExpired    *common.PublicKey
 	jwtKeyNotExpired *common.PublicKey
 }
 
-func (s *BundleUtilTestSuite) SetupTest() {
+func (s *BundleUtilSuite) SetupTest() {
 	// currentTime is a point in time between expired and not-expired certs and keys
-	parsedTime, err := time.Parse(time.RFC3339, "2018-02-10T01:35:00+00:00")
+	var err error
+	s.currentTime, err = time.Parse(time.RFC3339, "2018-02-10T01:35:00+00:00")
 	s.Require().NoError(err)
-	s.currentTime = parsedTime.Unix()
 
 	s.certNotExpired, _, err = util.LoadSVIDFixture()
 	s.Require().NoError(err)
@@ -47,46 +47,50 @@ func (s *BundleUtilTestSuite) SetupTest() {
 	s.jwtKeyNotExpired = &common.PublicKey{NotAfter: nonExpiredKeyTime.Unix()}
 }
 
-func (s *BundleUtilTestSuite) TestPruneBundleFailIfNilBundle() {
-	newBundle, err := PruneBundle(nil, 0, hclog.NewNullLogger())
+func (s *BundleUtilSuite) TestPruneBundleFailIfNilBundle() {
+	newBundle, changed, err := PruneBundle(nil, time.Now(), hclog.NewNullLogger())
 	s.AssertErrorContains(err, "current bundle is nil")
 	s.Nil(newBundle)
+	s.False(changed)
 }
 
-func (s *BundleUtilTestSuite) TestPruneBundleFailIfTimeIsZero() {
+func (s *BundleUtilSuite) TestPruneBundleFailIfTimeIsZero() {
 	bundle := s.createBundle(
 		[]*x509.Certificate{s.certNotExpired, s.certExpired},
 		[]*common.PublicKey{s.jwtKeyNotExpired, s.jwtKeyExpired},
 	)
 
-	newBundle, err := PruneBundle(bundle, 0, hclog.NewNullLogger())
-	s.AssertErrorContains(err, "expiration time is 0")
+	newBundle, changed, err := PruneBundle(bundle, time.Time{}, hclog.NewNullLogger())
+	s.AssertErrorContains(err, "expiration time is zero value")
 	s.Nil(newBundle)
+	s.False(changed)
 }
 
-func (s *BundleUtilTestSuite) TestPruneBundleFailIfAllCertExpired() {
+func (s *BundleUtilSuite) TestPruneBundleFailIfAllCertExpired() {
 	bundle := s.createBundle(
 		[]*x509.Certificate{s.certExpired},
 		[]*common.PublicKey{s.jwtKeyNotExpired, s.jwtKeyExpired},
 	)
 
-	newBundle, err := PruneBundle(bundle, s.currentTime, hclog.NewNullLogger())
+	newBundle, changed, err := PruneBundle(bundle, s.currentTime, hclog.NewNullLogger())
 	s.AssertErrorContains(err, "would prune all certificates")
 	s.Nil(newBundle)
+	s.False(changed)
 }
 
-func (s *BundleUtilTestSuite) TestPruneBundleFailIfAllJWTExpired() {
+func (s *BundleUtilSuite) TestPruneBundleFailIfAllJWTExpired() {
 	bundle := s.createBundle(
 		[]*x509.Certificate{s.certNotExpired, s.certExpired},
 		[]*common.PublicKey{s.jwtKeyExpired},
 	)
 
-	newBundle, err := PruneBundle(bundle, s.currentTime, hclog.NewNullLogger())
+	newBundle, changed, err := PruneBundle(bundle, s.currentTime, hclog.NewNullLogger())
 	s.AssertErrorContains(err, "would prune all JWT signing keys")
 	s.Nil(newBundle)
+	s.False(changed)
 }
 
-func (s *BundleUtilTestSuite) TestPruneBundleSucceeds() {
+func (s *BundleUtilSuite) TestPruneBundleSucceeds() {
 	bundle := s.createBundle(
 		[]*x509.Certificate{s.certNotExpired, s.certExpired},
 		[]*common.PublicKey{s.jwtKeyNotExpired, s.jwtKeyExpired},
@@ -97,12 +101,13 @@ func (s *BundleUtilTestSuite) TestPruneBundleSucceeds() {
 		[]*common.PublicKey{s.jwtKeyNotExpired},
 	)
 
-	newBundle, err := PruneBundle(bundle, s.currentTime, hclog.NewNullLogger())
+	newBundle, changed, err := PruneBundle(bundle, s.currentTime, hclog.NewNullLogger())
 	s.NoError(err)
 	s.Equal(expectedBundle, newBundle)
+	s.True(changed)
 }
 
-func (s *BundleUtilTestSuite) createBundle(certs []*x509.Certificate, jwtKeys []*common.PublicKey) *common.Bundle {
+func (s *BundleUtilSuite) createBundle(certs []*x509.Certificate, jwtKeys []*common.PublicKey) *common.Bundle {
 	bundle := BundleProtoFromRootCAs("spiffe://foo", certs)
 	bundle.JwtSigningKeys = jwtKeys
 	return bundle

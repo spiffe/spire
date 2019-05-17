@@ -707,17 +707,13 @@ func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log hclog.Logge
 	}
 
 	// Prune
-	newBundle, err := bundleutil.PruneBundle(current.Bundle, req.ExpiresBefore, log)
+	newBundle, changed, err := bundleutil.PruneBundle(current.Bundle, time.Unix(req.ExpiresBefore, 0), log)
 	if err != nil {
 		return nil, fmt.Errorf("prune failed: %v", err)
 	}
 
 	// Update only if bundle was modified
-	changed := false
-	if len(newBundle.RootCas) != len(current.Bundle.RootCas) ||
-		len(newBundle.JwtSigningKeys) != len(current.Bundle.JwtSigningKeys) {
-
-		changed = true
+	if changed {
 		_, err := updateBundle(tx, &datastore.UpdateBundleRequest{
 			Bundle: newBundle,
 		})

@@ -329,11 +329,11 @@ func (m *Manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	defer telemetry.CountCall(m.c.Metrics, telemetry.Manager, telemetry.Bundle, telemetry.Prune)(&err)
 	ds := m.c.Catalog.GetDataStore()
-	now := m.c.Clock.Now().Add(-safetyThreshold)
+	expiresBefore := m.c.Clock.Now().Add(-safetyThreshold)
 
 	resp, err := ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
 		TrustDomainId: m.c.TrustDomain.String(),
-		ExpiresBefore: now.Unix(),
+		ExpiresBefore: expiresBefore.Unix(),
 	})
 
 	if err != nil {

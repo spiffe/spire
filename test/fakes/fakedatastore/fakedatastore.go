@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -195,16 +196,13 @@ func (s *DataStore) PruneBundle(ctx context.Context, req *datastore.PruneBundleR
 		return &datastore.PruneBundleResponse{}, nil
 	}
 
-	newBundle, err := bundleutil.PruneBundle(oldBundle, req.ExpiresBefore, hclog.NewNullLogger())
+	newBundle, changed, err := bundleutil.PruneBundle(oldBundle, time.Unix(req.ExpiresBefore, 0), hclog.NewNullLogger())
 	if err != nil {
 		return nil, fmt.Errorf("prune failed: %v", err)
 	}
 
 	// If any cert was pruned, then update the bundle
-	changed := false
-	if len(newBundle.RootCas) != len(oldBundle.RootCas) ||
-		len(newBundle.JwtSigningKeys) != len(oldBundle.JwtSigningKeys) {
-		changed = true
+	if changed {
 		s.bundles[req.TrustDomainId] = newBundle
 	}
 
