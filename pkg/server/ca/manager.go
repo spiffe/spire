@@ -329,68 +329,19 @@ func (m *Manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	defer telemetry.CountCall(m.c.Metrics, telemetry.Manager, telemetry.Bundle, telemetry.Prune)(&err)
 	ds := m.c.Catalog.GetDataStore()
+	expiresBefore := m.c.Clock.Now().Add(-safetyThreshold)
 
-	now := m.c.Clock.Now().Add(-safetyThreshold)
+	resp, err := ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
+		TrustDomainId: m.c.TrustDomain.String(),
+		ExpiresBefore: expiresBefore.Unix(),
+	})
 
-	oldBundle, err := m.fetchOptionalBundle(ctx)
 	if err != nil {
-		return err
-	}
-	if oldBundle == nil {
-		// no bundle to prune
-		return nil
+		return fmt.Errorf("unable to prune bundle: %v", err)
 	}
 
-	newBundle := &common.Bundle{
-		TrustDomainId: oldBundle.TrustDomainId,
-	}
-	changed := false
-pruneRootCA:
-	for _, rootCA := range oldBundle.RootCas {
-		certs, err := x509.ParseCertificates(rootCA.DerBytes)
-		if err != nil {
-			return errs.Wrap(err)
-		}
-		// if any cert in the chain has expired beyond the safety
-		// threshhold, throw the whole chain out
-		for _, cert := range certs {
-			if !cert.NotAfter.After(now) {
-				m.c.Log.Infof("Pruning CA certificate number %v with expiry date %v", cert.SerialNumber, cert.NotAfter)
-				changed = true
-				continue pruneRootCA
-			}
-		}
-		newBundle.RootCas = append(newBundle.RootCas, rootCA)
-	}
-
-	for _, jwtSigningKey := range oldBundle.JwtSigningKeys {
-		notAfter := time.Unix(jwtSigningKey.NotAfter, 0)
-		if !notAfter.After(now) {
-			m.c.Log.Infof("Pruning JWT signing key %q with expiry date %v", jwtSigningKey.Kid, notAfter)
-			changed = true
-			continue
-		}
-		newBundle.JwtSigningKeys = append(newBundle.JwtSigningKeys, jwtSigningKey)
-	}
-
-	if len(newBundle.RootCas) == 0 {
-		m.c.Log.Warn("Pruning halted; all known CA certificates have expired")
-		return errors.New("would prune all certificates")
-	}
-
-	if len(newBundle.JwtSigningKeys) == 0 {
-		m.c.Log.Warn("Pruning halted; all known JWT signing keys have expired")
-		return errors.New("would prune all JWT signing keys")
-	}
-
-	if changed {
+	if resp.BundleChanged {
 		m.c.Metrics.IncrCounter([]string{telemetry.Manager, telemetry.Bundle, telemetry.Pruned}, 1)
-		_, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-			Bundle: newBundle,
-		})
-		if err != nil {
-			return fmt.Errorf("write new bundle: %v", err)
-		}
 		m.bundleUpdated()
 	}
 
