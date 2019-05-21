@@ -22,12 +22,16 @@ The plugin accepts the following configuration options:
 | bundle_file_path| Path to the trust bundle that signed the upstream CA |
 
 The `disk` plugin is able to function as either a root CA, or join an existing PKI.
-When joining an existing PKI, the trust bundle for that PKI may be set explicitly
-using the `bundle_file_path` option; this must contain the certificates of the trusted
+
+When joining an existing PKI, the trust bundle for that PKI MUST be set explicitly
+using the `bundle_file_path` option; this MUST contain the certificates of the trusted
 roots for the PKI being joined in PEM format. When using the `bundle_file_path` option
-`cert_file_path` must contain a chain of certificates, in PEM format, up to the trusted 
-root. Alternatively, `cert_file_path` may contain a chain of certificates, in PEM format,
-up to and including a trusted root, and the `bundle_file_path` may be elided.
+`cert_file_path` MUST contain a chain of certificates, in PEM format, up to the trusted 
+root. 
+
+When functioning as a root CA, the trust bundle is unused. The `cert_file_path` MUST contain
+exactly one certificate which is self-signed and `key_file_path` MUST contain the key for
+that certificate.
 
 Key files must contain a single PEM encoded key. The supported key types are EC (ASN.1 or PKCS8 encoded) or RSA (PKCS1 or PKCS8 encoded).
 
