@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
@@ -180,6 +183,30 @@ func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesR
 	}
 
 	return resp, nil
+}
+
+// PruneBundle removes expired certs from a bundle
+func (s *DataStore) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (*datastore.PruneBundleResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldBundle, ok := s.bundles[req.TrustDomainId]
+	if !ok {
+		// No bundle to prune
+		return &datastore.PruneBundleResponse{}, nil
+	}
+
+	newBundle, changed, err := bundleutil.PruneBundle(oldBundle, time.Unix(req.ExpiresBefore, 0), hclog.NewNullLogger())
+	if err != nil {
+		return nil, fmt.Errorf("prune failed: %v", err)
+	}
+
+	// If any cert was pruned, then update the bundle
+	if changed {
+		s.bundles[req.TrustDomainId] = newBundle
+	}
+
+	return &datastore.PruneBundleResponse{BundleChanged: changed}, nil
 }
 
 func (s *DataStore) CreateAttestedNode(ctx context.Context,

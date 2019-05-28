@@ -6,7 +6,7 @@ package test
 import (
 	"context"
 
-	"github.com/spiffe/spire/pkg/common/catalog/internal"
+	catalog "github.com/spiffe/spire/pkg/common/catalog/internal"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc"
 )
@@ -27,7 +27,7 @@ type TestPluginPlugin interface {
 }
 
 // TestPluginPluginServer returns a catalog PluginServer implementation for the TestPlugin plugin.
-func TestPluginPluginServer(server TestPluginServer) internal.PluginServer {
+func TestPluginPluginServer(server TestPluginServer) catalog.PluginServer {
 	return &testPluginPluginServer{
 		server: server,
 	}
@@ -41,7 +41,7 @@ func (s testPluginPluginServer) PluginType() string {
 	return TestPluginType
 }
 
-func (s testPluginPluginServer) PluginClient() internal.PluginClient {
+func (s testPluginPluginServer) PluginClient() catalog.PluginClient {
 	return TestPluginPluginClient
 }
 
@@ -51,7 +51,7 @@ func (s testPluginPluginServer) RegisterPluginServer(server *grpc.Server) interf
 }
 
 // TestPluginPluginClient is a catalog PluginClient implementation for the TestPlugin plugin.
-var TestPluginPluginClient internal.PluginClient = testPluginPluginClient{}
+var TestPluginPluginClient catalog.PluginClient = testPluginPluginClient{}
 
 type testPluginPluginClient struct{}
 
@@ -60,10 +60,10 @@ func (testPluginPluginClient) PluginType() string {
 }
 
 func (testPluginPluginClient) NewPluginClient(conn *grpc.ClientConn) interface{} {
-	return AdaptPluginClientTestPlugin(NewTestPluginClient(conn))
+	return AdaptTestPluginPluginClient(NewTestPluginClient(conn))
 }
 
-func AdaptPluginClientTestPlugin(client TestPluginClient) TestPlugin {
+func AdaptTestPluginPluginClient(client TestPluginClient) TestPlugin {
 	return testPluginPluginClientAdapter{client: client}
 }
 

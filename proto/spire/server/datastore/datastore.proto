@@ -69,6 +69,16 @@ message DeleteBundleResponse {
     spire.common.Bundle bundle = 1;
 }
 
+message PruneBundleRequest {
+    // Trust domain of the bundle to prune
+    string trust_domain_id = 1;
+    // Expiration time
+    int64 expires_before = 2;
+}
+
+message PruneBundleResponse {
+    bool bundle_changed = 1;
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // NodeSelector Messages
@@ -278,6 +288,8 @@ service DataStore {
     rpc AppendBundle(AppendBundleRequest) returns (AppendBundleResponse);
     // Deletes a specific bundle
     rpc DeleteBundle(DeleteBundleRequest) returns (DeleteBundleResponse);
+    // Prunes all expired certificates and JWT signing keys from a bundle
+    rpc PruneBundle(PruneBundleRequest) returns (PruneBundleResponse);
 
     // Creates an attested node
     rpc CreateAttestedNode(CreateAttestedNodeRequest) returns (CreateAttestedNodeResponse);
