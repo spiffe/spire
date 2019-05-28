@@ -103,7 +103,15 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	update, err := r.client.FetchUpdates(ctx, &node.FetchX509SVIDRequest{Csrs: [][]byte{csr}})
+	update, err := r.client.FetchUpdates(ctx,
+		&node.FetchX509SVIDRequest{
+			// CSRS are expected to be keyed by entryID. Since it does not
+			// exist an entry ID for the agent spiffeID, the `r.c.SpiffeID`
+			// is used as a key in this particular case
+			Csrs: map[string][]byte{
+				r.c.SpiffeID: csr,
+			},
+		})
 	if err != nil {
 		return err
 	}

@@ -147,11 +147,11 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 		for _, re := range resp.SvidUpdate.RegistrationEntries {
 			regEntries[re.EntryId] = re
 		}
-		for spiffeid, svid := range resp.SvidUpdate.Svids {
-			svids[spiffeid] = svid
+		for entryID, svid := range resp.SvidUpdate.Svids {
+			svids[entryID] = svid
 		}
-		for spiffeid, bundle := range resp.SvidUpdate.Bundles {
-			bundles[spiffeid] = bundle
+		for trustDomainID, bundle := range resp.SvidUpdate.Bundles {
+			bundles[trustDomainID] = bundle
 		}
 	}
 	return &Update{

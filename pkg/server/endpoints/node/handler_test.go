@@ -303,7 +303,7 @@ func (s *HandlerSuite) TestAttestSuccess() {
 	// assert update contents
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd, otherDomainBundle)
-	svidChain := s.assertSVIDsInUpdate(upd, agentID)[0]
+	svidChain := s.assertSVIDsInUpdate(upd, map[string]string{agentID: agentID})[0]
 
 	// Assert an attested node entry has been created
 	attestedNode := s.fetchAttestedNode(agentID)
@@ -507,6 +507,15 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnattestedAgent() {
 	s.requireFetchX509SVIDAuthFailure()
 }
 
+func (s *HandlerSuite) TestFetchX509SVIDWithCurrentAndLegacyCSRs() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		Csrs:           map[string][]byte{"an-entry-id": []byte("MALFORMED")},
+		DEPRECATEDCsrs: [][]byte{[]byte{1, 2, 3}},
+	}, codes.Unknown, "cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
+}
+
 func (s *HandlerSuite) TestFetchX509SVIDLimits() {
 	s.attestAgent()
 
@@ -518,7 +527,24 @@ func (s *HandlerSuite) TestFetchX509SVIDLimits() {
 
 	// Test with 5 CSRs (5 count should be added)
 	s.limiter.setNextError(errors.New("limit exceeded"))
-	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{Csrs: make([][]byte, 5)},
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{Csrs: map[string][]byte{
+		"foo": []byte{1}, "bar": []byte{2}, "boo": []byte{3}, "far": []byte{4}, "bor": []byte{5}},
+	}, codes.ResourceExhausted, "limit exceeded")
+	s.Equal(5, s.limiter.callsFor(CSRMsg))
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDLimitsLegacy() {
+	s.attestAgent()
+
+	// Test with no CSRs (no count should be added)
+	s.limiter.setNextError(errors.New("limit exceeded"))
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{},
+		codes.ResourceExhausted, "limit exceeded")
+	s.Equal(0, s.limiter.callsFor(CSRMsg))
+
+	// Test with 5 deprecated CSRs(5 count should be added)
+	s.limiter.setNextError(errors.New("limit exceeded"))
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{DEPRECATEDCsrs: make([][]byte, 5)},
 		codes.ResourceExhausted, "limit exceeded")
 	s.Equal(5, s.limiter.callsFor(CSRMsg))
 }
@@ -549,7 +575,16 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSR() {
 	s.attestAgent()
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
-		Csrs: [][]byte{[]byte("MALFORMED")},
+		Csrs: map[string][]byte{"an-entry-id": []byte("MALFORMED")},
+	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains("failed to parse CSR")
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithMalformedCSRLegacy() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: [][]byte{[]byte("MALFORMED")},
 	}, codes.Unknown, "failed to sign CSRs")
 	s.assertLastLogMessageContains("failed to parse CSR")
 }
@@ -558,7 +593,16 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSR() {
 	s.attestAgent()
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(workloadID),
+		Csrs: s.makeCSRs("an-entry-id", workloadID),
+	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains(`not entitled to sign CSR for "an-entry-id"`)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
 	}, codes.Unknown, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`not entitled to sign CSR for "spiffe://example.org/workload"`)
 }
@@ -567,12 +611,33 @@ func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
 	s.attestAgent()
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(agentID),
+		// Since there is not a registration entry for the agent ID, spiffeID is used as key
+		Csrs: s.makeCSRs(agentID, agentID),
 	})
 
 	s.Empty(upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
-	svidChain := s.assertSVIDsInUpdate(upd, agentID)[0]
+	svidChain := s.assertSVIDsInUpdate(upd, map[string]string{agentID: agentID})[0]
+
+	// Assert an attested node entry has been updated
+	attestedNode := s.fetchAttestedNode(agentID)
+	s.Require().NotNil(attestedNode)
+	s.Equal("test", attestedNode.AttestationDataType)
+	s.Equal(agentID, attestedNode.SpiffeId)
+	s.Equal(svidChain[0].SerialNumber.String(), attestedNode.CertSerialNumber)
+	s.WithinDuration(svidChain[0].NotAfter, time.Unix(attestedNode.CertNotAfter, 0), 0)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSRLegacy() {
+	s.attestAgent()
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(agentID),
+	})
+
+	s.Empty(upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	svidChain := s.assertSVIDsInUpdateLegacy(upd, agentID)[0]
 
 	// Assert an attested node entry has been updated
 	attestedNode := s.fetchAttestedNode(agentID)
@@ -597,7 +662,16 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 	s.attestAgent()
 
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(trustDomainID),
+		Csrs: s.makeCSRs("an-entry-id", trustDomainID),
+	}, codes.Unknown, "failed to sign CSRs")
+	s.assertLastLogMessageContains(`not entitled to sign CSR for "an-entry-id"`)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSRLegacy() {
+	s.attestAgent()
+
+	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(trustDomainID),
 	}, codes.Unknown, "failed to sign CSRs")
 	s.assertLastLogMessageContains(`not entitled to sign CSR for "spiffe://example.org"`)
 }
@@ -647,12 +721,29 @@ func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSR() {
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(workloadID),
+		Csrs: s.makeCSRs(entry.EntryId, workloadID),
 	})
 
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
-	s.assertSVIDsInUpdate(upd, workloadID)
+	s.assertSVIDsInUpdate(upd, map[string]string{entry.EntryId: workloadID})
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithWorkloadCSRLegacy() {
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
+	})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	s.assertSVIDsInUpdateLegacy(upd, workloadID)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithSingleDNS() {
@@ -667,12 +758,34 @@ func (s *HandlerSuite) TestFetchX509SVIDWithSingleDNS() {
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(workloadID),
+		Csrs: s.makeCSRs(entry.EntryId, workloadID),
 	})
 
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
-	chains := s.assertSVIDsInUpdate(upd, workloadID)
+	chains := s.assertSVIDsInUpdate(upd, map[string]string{entry.EntryId: workloadID})
+	s.Equal(dnsList, chains[0][0].DNSNames)
+	s.Equal("somehost1", chains[0][0].Subject.CommonName)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithSingleDNSLegacy() {
+	dnsList := []string{"somehost1"}
+
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+		DnsNames: dnsList,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
+	})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	chains := s.assertSVIDsInUpdateLegacy(upd, workloadID)
 	s.Equal(dnsList, chains[0][0].DNSNames)
 	s.Equal("somehost1", chains[0][0].Subject.CommonName)
 }
@@ -689,12 +802,34 @@ func (s *HandlerSuite) TestFetchX509SVIDWithMultipleDNS() {
 	})
 
 	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
-		Csrs: s.makeCSRs(workloadID),
+		Csrs: s.makeCSRs(entry.EntryId, workloadID),
 	})
 
 	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
 	s.assertBundlesInUpdate(upd)
-	chains := s.assertSVIDsInUpdate(upd, workloadID)
+	chains := s.assertSVIDsInUpdate(upd, map[string]string{entry.EntryId: workloadID})
+	s.Equal(dnsList, chains[0][0].DNSNames)
+	s.Equal("somehost1", chains[0][0].Subject.CommonName)
+}
+
+func (s *HandlerSuite) TestFetchX509SVIDWithMultipleDNSLegacy() {
+	dnsList := []string{"somehost1", "somehost2", "somehost3"}
+
+	s.attestAgent()
+
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId: agentID,
+		SpiffeId: workloadID,
+		DnsNames: dnsList,
+	})
+
+	upd := s.requireFetchX509SVIDSuccess(&node.FetchX509SVIDRequest{
+		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
+	})
+
+	s.Equal([]*common.RegistrationEntry{entry}, upd.RegistrationEntries)
+	s.assertBundlesInUpdate(upd)
+	chains := s.assertSVIDsInUpdateLegacy(upd, workloadID)
 	s.Equal(dnsList, chains[0][0].DNSNames)
 	s.Equal("somehost1", chains[0][0].Subject.CommonName)
 }
@@ -1118,12 +1253,40 @@ func (s *HandlerSuite) assertBundlesInUpdate(upd *node.X509SVIDUpdate, federated
 	}
 }
 
-func (s *HandlerSuite) assertSVIDsInUpdate(upd *node.X509SVIDUpdate, spiffeIDs ...string) [][]*x509.Certificate {
+func (s *HandlerSuite) assertSVIDsInUpdateLegacy(upd *node.X509SVIDUpdate, spiffeIDs ...string) [][]*x509.Certificate {
 	s.Len(upd.Svids, len(spiffeIDs), "number of SVIDs in update")
 
 	var svidChains [][]*x509.Certificate
 	for _, spiffeID := range spiffeIDs {
 		svidEntry := upd.Svids[spiffeID]
+		if !s.NotNil(svidEntry, "svid entry") {
+			continue
+		}
+
+		// Assert SVID chain is well formed
+		svidChain, err := x509.ParseCertificates(svidEntry.CertChain)
+		if !s.NoError(err, "parsing svid cert chain") {
+			continue
+		}
+
+		s.Len(svidChain, 1)
+
+		// ExpiresAt should match NotAfter in first certificate in SVID chain
+		s.WithinDuration(svidChain[0].NotAfter, time.Unix(svidEntry.ExpiresAt, 0), 0)
+
+		svidChains = append(svidChains, svidChain)
+	}
+
+	s.Require().Len(svidChains, len(spiffeIDs), "# of good svids in update")
+	return svidChains
+}
+
+func (s *HandlerSuite) assertSVIDsInUpdate(upd *node.X509SVIDUpdate, spiffeIDs map[string]string) [][]*x509.Certificate {
+	s.Len(upd.Svids, len(spiffeIDs), "number of SVIDs in update")
+
+	var svidChains [][]*x509.Certificate
+	for entryID := range spiffeIDs {
+		svidEntry := upd.Svids[entryID]
 		if !s.NotNil(svidEntry, "svid entry") {
 			continue
 		}
@@ -1177,11 +1340,17 @@ func (s *HandlerSuite) makeCSR(spiffeID string) []byte {
 	return csr
 }
 
-func (s *HandlerSuite) makeCSRs(spiffeIDs ...string) [][]byte {
+func (s *HandlerSuite) makeCSRsLegacy(spiffeIDs ...string) [][]byte {
 	var csrs [][]byte
 	for _, spiffeID := range spiffeIDs {
 		csrs = append(csrs, s.makeCSR(spiffeID))
 	}
+	return csrs
+}
+
+func (s *HandlerSuite) makeCSRs(entryID, spiffeID string) map[string][]byte {
+	csrs := make(map[string][]byte)
+	csrs[entryID] = s.makeCSR(spiffeID)
 	return csrs
 }
 
