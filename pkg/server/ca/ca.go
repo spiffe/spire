@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/zeebo/errs"
 )
@@ -175,12 +176,7 @@ func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params
 		"expires_at": cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 SVID")
 
-	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.CA, telemetry.Sign, telemetry.X509SVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: spiffeID,
-		},
-	})
+	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics, spiffeID)
 
 	return makeSVIDCertChain(x509CA, cert), nil
 }
@@ -225,12 +221,7 @@ func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Para
 		"expires_at": cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 CA SVID")
 
-	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.CA, telemetry.Sign, telemetry.X509CASVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: spiffeID,
-		},
-	})
+	telemetry_server.IncrServerCASignX509CACounter(ca.c.Metrics, spiffeID)
 
 	return makeSVIDCertChain(x509CA, cert), nil
 }
@@ -256,19 +247,7 @@ func (ca *CA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 		return "", errs.New("unable to sign JWT SVID: %v", err)
 	}
 
-	labels := []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: jsr.SpiffeId,
-		},
-	}
-	for _, audience := range jsr.Audience {
-		labels = append(labels, telemetry.Label{
-			Name:  telemetry.Audience,
-			Value: audience,
-		})
-	}
-	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.JWTSVID}, 1, labels)
+	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics, jsr.SpiffeId, jsr.Audience...)
 
 	return token, nil
 }

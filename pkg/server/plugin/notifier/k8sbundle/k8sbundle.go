@@ -57,7 +57,7 @@ type Plugin struct {
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider hostservices.IdentityProviderClient
+	identityProvider hostservices.IdentityProvider
 
 	hooks struct {
 		newKubeClient func(configPath string) (kubeClient, error)

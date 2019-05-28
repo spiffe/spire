@@ -418,7 +418,7 @@ func (s *ManagerSuite) TestPrune() {
 	// advance beyond the second expiration time, prune, and assert nothing
 	// changes because we can't prune out the whole bundle.
 	s.clock.Set(secondExpiresTime.Add(time.Minute + safetyThreshold))
-	s.Require().EqualError(s.m.pruneBundle(context.Background()), "would prune all certificates")
+	s.Require().EqualError(s.m.pruneBundle(context.Background()), "unable to prune bundle: prune failed: would prune all certificates")
 	s.requireBundleRootCAs(secondX509CA.Certificate)
 	s.requireBundleJWTKeys(secondJWTKey)
 }
