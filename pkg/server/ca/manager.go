@@ -164,6 +164,9 @@ func (m *Manager) rotateX509CA(ctx context.Context) error {
 		m.activateX509CA()
 	}
 
+	ttl := time.Until(m.currentX509CA.x509CA.Certificate.NotAfter)
+	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
+
 	return nil
 }
 
