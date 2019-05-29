@@ -129,6 +129,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 
 	// Expect selectors from both attestors
 	selectors := s.attestor.Attest(ctx, 2)
+	util.SortSelectors(selectors)
 	s.Equal(combined, selectors)
 
 	// Create mocks for error scenario
