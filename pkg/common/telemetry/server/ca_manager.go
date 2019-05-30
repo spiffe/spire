@@ -23,6 +23,10 @@ func StartServerCAManagerPrepareX509CACall(m telemetry.Metrics) *telemetry.CallC
 	return telemetry.StartCall(m, telemetry.CA, telemetry.Manager, telemetry.X509CA, telemetry.Prepare)
 }
 
+// End Call Counters
+
+// Gauge (remember previous value set)
+
 // SetX509CARotateGauge set gauge for X509 CA rotation,
 // TTL of CA for a specific TrustDomain
 func SetX509CARotateGauge(m telemetry.Metrics, trustDomain string, val float32) {
@@ -34,7 +38,7 @@ func SetX509CARotateGauge(m telemetry.Metrics, trustDomain string, val float32) 
 		})
 }
 
-// End Call Counters
+// End Gauge
 
 // Counters (literal increments, not call counters)
 
