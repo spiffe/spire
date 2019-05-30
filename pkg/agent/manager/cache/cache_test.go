@@ -7,9 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
+	mock_telemetry "github.com/spiffe/spire/test/mock/common/telemetry"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -73,6 +76,45 @@ func TestMatchingIdentities(t *testing.T) {
 		{Entry: bar},
 		{Entry: foo},
 	}, identities)
+}
+
+func TestRegistrationEntryMetrics(t *testing.T) {
+	mockCtl := gomock.NewController(t)
+	defer mockCtl.Finish()
+	metrics := mock_telemetry.NewMockMetrics(mockCtl)
+
+	log, _ := test.NewNullLogger()
+	cache := New(log, "spiffe://domain.test", bundleV1, metrics)
+
+	// populate the cache with FOO and BAR without SVIDS
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "B")
+	update := &CacheUpdate{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}
+
+	// Add two new entries
+	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Create}, gomock.Any(),
+		[]telemetry.Label{{Name: telemetry.SPIFFEID, Value: foo.SpiffeId}})
+	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Create}, gomock.Any(),
+		[]telemetry.Label{{Name: telemetry.SPIFFEID, Value: bar.SpiffeId}})
+
+	cache.Update(update, nil)
+
+	// Update foo
+	foo.Selectors = makeSelectors("C")
+	// delete bar
+	delete(update.RegistrationEntries, bar.EntryId)
+
+	// Update registration entry metric created
+	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Update}, gomock.Any(),
+		[]telemetry.Label{{Name: telemetry.SPIFFEID, Value: foo.SpiffeId}})
+	// Delete registration entry metric created
+	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Delete}, gomock.Any(),
+		[]telemetry.Label{{Name: telemetry.SPIFFEID, Value: bar.SpiffeId}})
+
+	cache.Update(update, nil)
 }
 
 func TestBundleChanges(t *testing.T) {
@@ -308,7 +350,7 @@ func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
 
 func newTestCache() *Cache {
 	log, _ := test.NewNullLogger()
-	return New(log, "spiffe://domain.test", bundleV1)
+	return New(log, "spiffe://domain.test", bundleV1, telemetry.Blackhole{})
 }
 
 func TestSubcriberNotifiedWhenEntryDropped(t *testing.T) {
