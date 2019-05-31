@@ -42,7 +42,7 @@ type AWSSecretConfiguration struct {
 	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
 	SecurityToken   string `hcl:"secret_token" json:"secret_token"`
-	AssumeRoleARN   string `hcl:"assumerole_arn" json:"assumerole_arn"`
+	AssumeRoleARN   string `hcl:"assume_role_arn" json:"assume_role_arn"`
 }
 
 type AWSSecretPlugin struct {
