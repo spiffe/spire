@@ -25,6 +25,7 @@ const (
 	"ttl":"1h",
 	"key_file_arn":"key",
 	"cert_file_arn":"cert",
+	"assumerole_arn":"role",
 	"access_key_id":"keyid",
 	"region":"us-west-2",
 	"secret_access_key":"accesskey"
