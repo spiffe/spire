@@ -81,6 +81,14 @@ func (s *CATestSuite) TestNoX509CASet() {
 	s.Require().EqualError(err, "X509 CA is not available for signing")
 }
 
+func (s *CATestSuite) TestSignServerX509SVID() {
+	svidChain, err := s.ca.SignServerX509SVID(ctx, s.generateCSR(), X509Params{})
+	s.Require().NoError(err)
+	s.Require().Len(svidChain, 2)
+
+	s.Equal(s.ca.x509CA.Certificate, svidChain[1])
+}
+
 func (s *CATestSuite) TestSignX509SVID() {
 	svidChain, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{})
 	s.Require().NoError(err)
