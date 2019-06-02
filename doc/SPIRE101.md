@@ -92,7 +92,7 @@ plugins {
                 cert_subject = {
                         Country = ["US"],
                         Organization = ["SPIFFE"],
-                        CommonName = "",
+                        common_name = "",
                         }
                 }
         }

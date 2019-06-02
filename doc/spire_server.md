@@ -311,7 +311,7 @@ server {
     ca_subject = {
         Country = ["US"],
         Organization = ["SPIRE"],
-        CommonName = "",
+        common_name = "",
     }
 }
 
