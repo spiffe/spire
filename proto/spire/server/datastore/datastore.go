@@ -34,6 +34,7 @@ type DataStore interface {
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
+	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
 	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
 	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
@@ -63,6 +64,7 @@ type Plugin interface {
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
+	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
 	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
 	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
@@ -190,6 +192,10 @@ func (a pluginClientAdapter) ListBundles(ctx context.Context, in *ListBundlesReq
 
 func (a pluginClientAdapter) ListRegistrationEntries(ctx context.Context, in *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error) {
 	return a.client.ListRegistrationEntries(ctx, in)
+}
+
+func (a pluginClientAdapter) PruneBundle(ctx context.Context, in *PruneBundleRequest) (*PruneBundleResponse, error) {
+	return a.client.PruneBundle(ctx, in)
 }
 
 func (a pluginClientAdapter) PruneJoinTokens(ctx context.Context, in *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error) {

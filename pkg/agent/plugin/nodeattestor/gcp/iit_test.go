@@ -128,7 +128,8 @@ func (s *Suite) TestSuccessfulIdentityTokenProcessingCustomPathTemplate() {
 		Configuration: fmt.Sprintf(`
 agent_path_template = "{{ .InstanceID }}"
 service_account = "%s"
-`, testServiceAccount),
+identity_token_host = "%s"
+`, testServiceAccount, s.server.Listener.Addr().String()),
 	})
 
 	resp, err := s.fetchAttestationData()
@@ -143,14 +144,14 @@ func (s *Suite) TestFailToSendOnStream() {
 	require := s.Require()
 
 	p := New()
-	p.tokenHost = s.server.Listener.Addr().String()
 	_, err := p.Configure(context.Background(), &plugin.ConfigureRequest{
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
 			TrustDomain: "example.org",
 		},
 		Configuration: fmt.Sprintf(`
 service_account = "%s"
-`, testServiceAccount),
+identity_token_host = "%s"
+`, testServiceAccount, s.server.Listener.Addr().String()),
 	})
 	require.NoError(err)
 
@@ -221,7 +222,6 @@ func (s *Suite) TestGetPluginInfo() {
 
 func (s *Suite) newPlugin() nodeattestor.Plugin {
 	p := New()
-	p.tokenHost = s.server.Listener.Addr().String()
 
 	var plugin nodeattestor.Plugin
 	s.LoadPlugin(builtin(p), &plugin)
@@ -235,7 +235,8 @@ func (s *Suite) configure() {
 		},
 		Configuration: fmt.Sprintf(`
 service_account = "%s"
-`, testServiceAccount),
+identity_token_host = "%s"
+`, testServiceAccount, s.server.Listener.Addr().String()),
 	})
 	s.Require().NoError(err)
 	s.status = http.StatusOK

@@ -90,7 +90,7 @@ build_protobuf() {
 
 	# Generate protobufs in the proto/ and pkg/ subdirectories. README markdown
 	# will also be generated for protobufs in proto/. Unless an "_out" argument
-	# has been set the output will sit alongside the proto files. 
+	# has been set the output will sit alongside the proto files.
 	_proto_files="$(find proto pkg -name '*.proto' 2>/dev/null)"
 	for _protofile in ${_proto_files}; do
 		_srcdir="$(dirname "${_protofile}")"

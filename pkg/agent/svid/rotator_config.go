@@ -50,16 +50,19 @@ func NewRotator(c *RotatorConfig) (*rotator, client.Client) {
 		Key:  c.SVIDKey,
 	})
 
-	bsm := &sync.RWMutex{}
+	bsm := new(sync.RWMutex)
+
 	cfg := &client.Config{
 		TrustDomain: c.TrustDomain,
 		Log:         c.Log,
 		Addr:        c.ServerAddr,
 		KeysAndBundle: func() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
 			s := state.Value().(State)
+
 			bsm.RLock()
-			defer bsm.RUnlock()
 			bundles := c.BundleStream.Value()
+			bsm.RUnlock()
+
 			var rootCAs []*x509.Certificate
 			if bundle := bundles[c.TrustDomain.String()]; bundle != nil {
 				rootCAs = bundle.RootCAs()

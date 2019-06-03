@@ -10,7 +10,7 @@ import (
 
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca"
 )
@@ -85,7 +85,8 @@ func (r *rotator) shouldRotate() bool {
 // rotateSVID cuts a new server SVID from the CA plugin and installs
 // it on the endpoints struct. Also updates the CA certificates.
 func (r *rotator) rotateSVID(ctx context.Context) (err error) {
-	defer telemetry.CountCall(r.c.Metrics, telemetry.SVID, telemetry.Rotate)(&err)
+	counter := telemetry_server.StartRotateServerSVIDCall(r.c.Metrics)
+	defer counter.Done(&err)
 	r.c.Log.Debug("Rotating server SVID")
 
 	id := idutil.ServerURI(r.c.TrustDomain.Host)
@@ -101,7 +102,7 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	}
 
 	// Sign the CSR
-	svid, err := r.c.ServerCA.SignX509SVID(ctx, csr, ca.X509Params{})
+	svid, err := r.c.ServerCA.SignServerX509SVID(ctx, csr, ca.X509Params{})
 	if err != nil {
 		return err
 	}

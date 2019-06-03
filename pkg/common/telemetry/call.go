@@ -64,8 +64,3 @@ func (c *CallCounter) Done(errp *error) {
 	c.metrics.IncrCounterWithLabels(key, 1, c.labels)
 	c.metrics.MeasureSinceWithLabels(append(key, ElapsedTime), c.start, c.labels)
 }
-
-func CountCall(metrics Metrics, key string, keyn ...string) func(*error) {
-	counter := StartCall(metrics, key, keyn...)
-	return counter.Done
-}

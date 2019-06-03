@@ -54,7 +54,6 @@ type HandlerTestSuite struct {
 	ctrl *gomock.Controller
 
 	attestor *fakeworkloadattestor.WorkloadAttestor
-	cache    *mock_cache.MockCache
 	manager  *mock_manager.MockManager
 	metrics  *mock_telemetry.MockMetrics
 }
@@ -64,7 +63,6 @@ func (s *HandlerTestSuite) SetupTest() {
 	log, _ := test.NewNullLogger()
 
 	s.attestor = fakeworkloadattestor.New()
-	s.cache = mock_cache.NewMockCache(mockCtrl)
 	s.manager = mock_manager.NewMockManager(mockCtrl)
 	s.metrics = mock_telemetry.NewMockMetrics(mockCtrl)
 
@@ -128,7 +126,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 		}))
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labelsSvidResponse)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labelsSvidResponse)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.SVIDResponseLatency}, gomock.Any(), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.SVIDResponseLatency, telemetry.Fetch}, gomock.Any(), labels)
 
 	go func() { result <- s.h.FetchX509SVID(nil, stream) }()
 
@@ -193,12 +191,12 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 
 func (s *HandlerTestSuite) TestComposeX509Response() {
 	update := s.workloadUpdate()
-	keyData, err := x509.MarshalPKCS8PrivateKey(update.Entries[0].PrivateKey)
+	keyData, err := x509.MarshalPKCS8PrivateKey(update.Identities[0].PrivateKey)
 	s.Require().NoError(err)
 
 	svidMsg := &workload.X509SVID{
 		SpiffeId:      "spiffe://example.org/foo",
-		X509Svid:      update.Entries[0].SVID[0].Raw,
+		X509Svid:      update.Identities[0].SVID[0].Raw,
 		X509SvidKey:   keyData,
 		Bundle:        update.Bundle.RootCAs()[0].Raw,
 		FederatesWith: []string{"spiffe://otherdomain.test"},
@@ -240,7 +238,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	// no identity issued
 	selectors := []*common.Selector{{Type: "foo", Value: "bar"}}
 	s.attestor.SetSelectors(1, selectors)
-	s.manager.EXPECT().MatchingEntries(selectors).Return(nil)
+	s.manager.EXPECT().MatchingIdentities(selectors).Return(nil)
 
 	selectorsLabels := selectorsToLabels(selectors)
 	labels := append(selectorsLabels, []telemetry.Label{
@@ -258,20 +256,20 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 	s.Require().Nil(resp)
 
 	// fetch SVIDs for all SPIFFE IDs
-	entries := []*cache.Entry{
+	identities := []cache.Identity{
 		{
-			RegistrationEntry: &common.RegistrationEntry{
+			Entry: &common.RegistrationEntry{
 				SpiffeId: "spiffe://example.org/one",
 			},
 		},
 		{
-			RegistrationEntry: &common.RegistrationEntry{
+			Entry: &common.RegistrationEntry{
 				SpiffeId: "spiffe://example.org/two",
 			},
 		},
 	}
 	s.attestor.SetSelectors(1, selectors)
-	s.manager.EXPECT().MatchingEntries(selectors).Return(entries)
+	s.manager.EXPECT().MatchingIdentities(selectors).Return(identities)
 	ONE := &client.JWTSVID{Token: "ONE"}
 	TWO := &client.JWTSVID{Token: "TWO"}
 	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/one", audience).Return(ONE, nil)
@@ -319,7 +317,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 
 	// fetch SVIDs for specific SPIFFE ID
 	s.attestor.SetSelectors(1, selectors)
-	s.manager.EXPECT().MatchingEntries(selectors).Return(entries)
+	s.manager.EXPECT().MatchingIdentities(selectors).Return(identities)
 	s.manager.EXPECT().FetchJWTSVID(gomock.Any(), "spiffe://example.org/two", audience).Return(TWO, nil)
 
 	selectorsLabels = selectorsToLabels(selectors)
@@ -354,7 +352,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 }
 
 func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsLabels []telemetry.Label, pid int32) {
-	attestorLabels := []telemetry.Label{{telemetry.AttestorName, "fake"}}
+	attestorLabels := []telemetry.Label{{telemetry.Attestor, "fake"}}
 
 	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency}, gomock.Any(), attestorLabels)
 	metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(len(selectorsLabels)))
@@ -400,7 +398,7 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	labels := selectorsToLabels(selectors)
 	setupMetricsCommonExpectations(s.metrics, labels, 1)
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, float32(1), labels)
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate, telemetry.JWT}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.SendJWTBundleLatency}, gomock.Any(), labels)
 
 	go func() { result <- s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream) }()
@@ -654,18 +652,18 @@ func (s *HandlerTestSuite) workloadUpdate() *cache.WorkloadUpdate {
 	ca, _, err := util.LoadCAFixture()
 	s.Require().NoError(err)
 
-	entry := cache.Entry{
+	identity := cache.Identity{
 		SVID:       []*x509.Certificate{svid},
 		PrivateKey: key,
-		RegistrationEntry: &common.RegistrationEntry{
+		Entry: &common.RegistrationEntry{
 			SpiffeId:      "spiffe://example.org/foo",
 			FederatesWith: []string{"spiffe://otherdomain.test"},
 		},
 	}
 
 	update := &cache.WorkloadUpdate{
-		Entries: []*cache.Entry{&entry},
-		Bundle:  bundleutil.BundleFromRootCA("spiffe://example.org", ca),
+		Identities: []cache.Identity{identity},
+		Bundle:     bundleutil.BundleFromRootCA("spiffe://example.org", ca),
 		FederatedBundles: map[string]*bundleutil.Bundle{
 			"spiffe://otherdomain.test": bundleutil.BundleFromRootCA("spiffe://otherdomain.test", ca),
 		},
