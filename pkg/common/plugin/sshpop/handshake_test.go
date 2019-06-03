@@ -54,7 +54,7 @@ func newTest(t *testing.T, opts ...func(*ssh.Certificate)) *testParams {
 		Signer:      signer,
 		Certificate: certificate,
 		CertChecker: certChecker,
-		Fingerprint: ssh.FingerprintSHA256(certificate),
+		Fingerprint: urlSafeSSHFingerprintSHA256(certificate),
 	}
 }
 
