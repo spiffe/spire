@@ -46,7 +46,7 @@ func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 		return nil
 	}
 
-	log.Info("running migrations...")
+	log.Info("Running migrations...")
 	for version < codeVersion {
 		tx := db.Begin()
 		if err := tx.Error; err != nil {
@@ -62,12 +62,12 @@ func migrateDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
 		}
 	}
 
-	log.Info("done running migrations.")
+	log.Info("Done running migrations.")
 	return nil
 }
 
 func initDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
-	log.Info("initializing database.")
+	log.Info("Initializing database.")
 	tx := db.Begin()
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)
@@ -112,7 +112,7 @@ func tableOptionsForDialect(tx *gorm.DB, dbType string) *gorm.DB {
 }
 
 func migrateVersion(tx *gorm.DB, version int, log hclog.Logger) (versionOut int, err error) {
-	log.Info("migrating from version %d", version)
+	log.Info(fmt.Sprintf("Migrating from version %d", version))
 
 	// When a new version is added an entry must be included here that knows
 	// how to bring the previous version up. The migrations are run
