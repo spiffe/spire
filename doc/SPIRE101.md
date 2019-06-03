@@ -90,8 +90,8 @@ plugins {
                 key_size = 2048,
                 backdate_seconds = 1,
                 cert_subject = {
-                        Country = ["US"],
-                        Organization = ["SPIFFE"],
+                        country = ["US"],
+                        organization = ["SPIFFE"],
                         common_name = "",
                         }
                 }

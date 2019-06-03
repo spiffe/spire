@@ -309,8 +309,8 @@ server {
     svid_ttl = "6h"
     ca_ttl = "72h"
     ca_subject = {
-        Country = ["US"],
-        Organization = ["SPIRE"],
+        country = ["US"],
+        organization = ["SPIRE"],
         common_name = "",
     }
 }
