@@ -83,9 +83,9 @@ Note: If you don't already have Docker installed, please follow these [installat
         upstream_bundle = true
         svid_ttl = "1h"
         ca_subject = {
-            Country = ["US"],
-            Organization = ["SPIFFE"],
-            CommonName = "",
+            country = ["US"],
+            organization = ["SPIFFE"],
+            common_name = "",
         }
     }
 
