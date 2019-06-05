@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -167,8 +168,12 @@ func (p *IIDResolverPlugin) resolveSpiffeID(ctx context.Context, spiffeID string
 			addSelectors(resolveTags(instance.Tags))
 			addSelectors(resolveSecurityGroups(instance.SecurityGroups))
 			if instance.IamInstanceProfile != nil && instance.IamInstanceProfile.Arn != nil {
+				instanceProfileName, err := instanceProfileNameFromArn(*instance.IamInstanceProfile.Arn)
+				if err != nil {
+					return nil, err
+				}
 				output, err := client.GetInstanceProfileWithContext(ctx, &iam.GetInstanceProfileInput{
-					InstanceProfileName: instance.IamInstanceProfile.Arn,
+					InstanceProfileName: aws.String(instanceProfileName),
 				})
 				if err != nil {
 					return nil, iidError.Wrap(err)
@@ -286,4 +291,19 @@ func newAWSClient(config *caws.SessionConfig, region string) (awsClient, error) 
 		IAM: iam.New(sess),
 		EC2: ec2.New(sess),
 	}, nil
+}
+
+var reInstanceProfileARNResource = regexp.MustCompile(`instance-profile[/:](.+)`)
+
+func instanceProfileNameFromArn(profileArn string) (string, error) {
+	a, err := arn.Parse(profileArn)
+	if err != nil {
+		return "", iidError.Wrap(err)
+	}
+	m := reInstanceProfileARNResource.FindStringSubmatch(a.Resource)
+	if m == nil {
+		return "", iidError.New("arn is not for an instance profile")
+	}
+
+	return m[1], nil
 }

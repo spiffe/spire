@@ -12,5 +12,5 @@ services:
     container_name: spire-dev
     tty: true
     volumes:
-      - .:/root/go/src/github.com/spiffe/spire
+      - .:/root/spire
 

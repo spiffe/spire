@@ -13,8 +13,8 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -53,7 +53,7 @@ zFHHu+k8dS32+KooMqtUp71bhMgtlvYIRay4OMD6VurfP70caOHkCVFPxibAW9o9
 NbyKVndd7aGvTed1PQ==
 -----END CERTIFICATE-----
 `))
-	udsAuth = auth.CallerInfo{}
+	udsAuth = peertracker.AuthInfo{}
 )
 
 func TestHandler(t *testing.T) {
@@ -883,7 +883,7 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 		},
 		{
 			Peer: &peer.Peer{
-				AuthInfo: auth.CallerInfo{},
+				AuthInfo: peertracker.AuthInfo{},
 			},
 		},
 		{

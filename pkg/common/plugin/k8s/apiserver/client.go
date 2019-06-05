@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	k8s_auth "k8s.io/api/authentication/v1"
+	authv1 "k8s.io/api/authentication/v1"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -21,11 +21,14 @@ type Client interface {
 	GetPod(namespace, podName string) (*v1.Pod, error)
 
 	// ValidateToken queries k8s token review API and returns information about the given token
-	ValidateToken(token string, audiences []string) (*k8s_auth.TokenReviewStatus, error)
+	ValidateToken(token string, audiences []string) (*authv1.TokenReviewStatus, error)
 }
 
 type client struct {
 	kubeConfigFilePath string
+
+	// loadClientHook is used to inject a fake loadClient on tests
+	loadClientHook func(string) (kubernetes.Interface, error)
 }
 
 // New creates a new Client.
@@ -35,6 +38,7 @@ type client struct {
 func New(kubeConfigFilePath string) Client {
 	return &client{
 		kubeConfigFilePath: kubeConfigFilePath,
+		loadClientHook:     loadClient,
 	}
 }
 
@@ -48,19 +52,19 @@ func (c *client) GetPod(namespace, podName string) (*v1.Pod, error) {
 	}
 
 	// Reload config
-	clientset, err := c.loadClient()
+	clientset, err := c.loadClientHook(c.kubeConfigFilePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get clientset: %v", err)
 	}
 
 	// Get pod
 	pod, err := clientset.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to query pods API: %v", err)
 	}
 
 	if pod == nil {
-		return nil, fmt.Errorf("got nil pod for pod with name: %v", podName)
+		return nil, fmt.Errorf("got nil pod for pod name: %v", podName)
 	}
 
 	return pod, nil
@@ -73,34 +77,34 @@ func (c *client) GetNode(nodeName string) (*v1.Node, error) {
 	}
 
 	// Reload config
-	clientset, err := c.loadClient()
+	clientset, err := c.loadClientHook(c.kubeConfigFilePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get clientset: %v", err)
 	}
 
 	// Get node
 	node, err := clientset.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to query nodes API: %v", err)
 	}
 
 	if node == nil {
-		return nil, fmt.Errorf("got nil node for node with name: %v", nodeName)
+		return nil, fmt.Errorf("got nil node for node name: %v", nodeName)
 	}
 
 	return node, nil
 }
 
-func (c *client) ValidateToken(token string, audiences []string) (*k8s_auth.TokenReviewStatus, error) {
+func (c *client) ValidateToken(token string, audiences []string) (*authv1.TokenReviewStatus, error) {
 	// Reload config
-	clientset, err := c.loadClient()
+	clientset, err := c.loadClientHook(c.kubeConfigFilePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get clientset: %v", err)
 	}
 
 	// Create token review request
-	req := &k8s_auth.TokenReview{
-		Spec: k8s_auth.TokenReviewSpec{
+	req := &authv1.TokenReview{
+		Spec: authv1.TokenReviewSpec{
 			Token:     token,
 			Audiences: audiences,
 		},
@@ -109,7 +113,7 @@ func (c *client) ValidateToken(token string, audiences []string) (*k8s_auth.Toke
 	// Do request
 	resp, err := clientset.AuthenticationV1().TokenReviews().Create(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to query token review API: %v", err)
 	}
 
 	// Evaluate token review response (review server will populate TokenReview.Status field)
@@ -118,28 +122,28 @@ func (c *client) ValidateToken(token string, audiences []string) (*k8s_auth.Toke
 	}
 
 	if resp.Status.Error != "" {
-		return nil, errors.New(resp.Status.Error)
+		return nil, fmt.Errorf("token review API response contains an error: %v", resp.Status.Error)
 	}
 
 	return &resp.Status, nil
 }
 
-func (c *client) loadClient() (*kubernetes.Clientset, error) {
+func loadClient(kubeConfigFilePath string) (kubernetes.Interface, error) {
 	var config *rest.Config
 	var err error
 
-	if c.kubeConfigFilePath == "" {
+	if kubeConfigFilePath == "" {
 		config, err = rest.InClusterConfig()
 	} else {
-		config, err = clientcmd.BuildConfigFromFlags("", c.kubeConfigFilePath)
+		config, err = clientcmd.BuildConfigFromFlags("", kubeConfigFilePath)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to create client config: %v", err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to create clientset for the given config: %v", err)
 	}
 
 	return clientset, nil

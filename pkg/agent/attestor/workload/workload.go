@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_workload "github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
 	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -34,15 +35,10 @@ type Config struct {
 	M       telemetry.Metrics
 }
 
-const (
-	workloadApi    = "workload_api"
-	workloadAttDur = "workload_attestation_duration"
-)
-
 // Attest invokes all workload attestor plugins against the provided PID. If an error
 // is encountered, it is logged and selectors from the failing plugin are discarded.
 func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
-	defer wla.c.M.MeasureSince([]string{workloadApi, workloadAttDur}, time.Now())
+	defer telemetry_workload.MeasureAttestDuration(wla.c.M, time.Now())
 
 	plugins := wla.c.Catalog.GetWorkloadAttestors()
 	sChan := make(chan []*common.Selector)
@@ -69,15 +65,13 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 		}
 	}
 
-	wla.c.M.AddSample([]string{workloadApi, "discovered_selectors"}, float32(len(selectors)))
+	telemetry_workload.AddDiscoveredSelectorsSample(wla.c.M, float32(len(selectors)))
 	wla.c.L.Debugf("PID %v attested to have selectors %v", pid, selectors)
 	return selectors
 }
 
 // invokeAttestor invokes attestation against the supplied plugin. Should be called from a goroutine.
 func (wla *attestor) invokeAttestor(ctx context.Context, a catalog.WorkloadAttestor, pid int32) ([]*common.Selector, error) {
-	tLabels := []telemetry.Label{{"attestor_name", a.Name()}}
-
 	req := &workloadattestor.AttestRequest{
 		Pid: pid,
 	}
@@ -86,7 +80,7 @@ func (wla *attestor) invokeAttestor(ctx context.Context, a catalog.WorkloadAttes
 	resp, err := a.Attest(ctx, req)
 
 	// Capture the attestor latency metrics regardless of whether an error condition was encountered or not
-	wla.c.M.MeasureSinceWithLabels([]string{workloadApi, "workload_attestor_latency"}, start, tLabels)
+	telemetry_workload.MeasureAttestorLatency(wla.c.M, start, a.Name())
 	if err != nil {
 		return nil, fmt.Errorf("workload attestor %q failed: %v", a.Name(), err)
 	}

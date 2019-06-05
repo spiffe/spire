@@ -9,6 +9,9 @@
 /test_results
 /artifacts
 /releases
+bundle.*.pem
+svid.*.key
+svid.*.pem
 
 
 cmd/spire-agent/spire-agent

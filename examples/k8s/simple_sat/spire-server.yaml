@@ -40,9 +40,9 @@ data:
       svid_ttl = "1h"
       upstream_bundle = true
       ca_subject = {
-        Country = ["US"],
-        Organization = ["SPIFFE"],
-        CommonName = "",
+        country = ["US"],
+        organization = ["SPIFFE"],
+        common_name = "",
       }
     }
 

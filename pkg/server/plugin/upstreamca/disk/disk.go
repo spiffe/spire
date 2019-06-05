@@ -29,26 +29,38 @@ func builtin(p *DiskPlugin) catalog.Plugin {
 }
 
 type Configuration struct {
-	TTL          string `hcl:"ttl" json:"ttl"` // time to live for generated certs
-	CertFilePath string `hcl:"cert_file_path" json:"cert_file_path"`
-	KeyFilePath  string `hcl:"key_file_path" json:"key_file_path"`
+	trustDomain string
+	ttl         time.Duration
+
+	TTL            string `hcl:"ttl" json:"ttl"` // time to live for generated certs
+	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path"`
+	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path"`
+	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path"`
 }
 
 type DiskPlugin struct {
-	serialNumber x509util.SerialNumber
+	serialNumber          x509util.SerialNumber
+	_testOnlyShouldVerify bool
 
-	mtx        sync.RWMutex
-	cert       *x509.Certificate
+	mtx        sync.Mutex
+	config     *Configuration
+	certs      *caCerts
 	upstreamCA *x509svid.UpstreamCA
+}
+
+type caCerts struct {
+	certChain   []byte
+	trustBundle []byte
 }
 
 func New() *DiskPlugin {
 	return &DiskPlugin{
-		serialNumber: x509util.NewSerialNumber(),
+		serialNumber:          x509util.NewSerialNumber(),
+		_testOnlyShouldVerify: true,
 	}
 }
 
-func (m *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := &Configuration{}
 	if err := hcl.Decode(&config, req.Configuration); err != nil {
@@ -63,42 +75,26 @@ func (m *DiskPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (
 		return nil, errors.New("trust_domain is required")
 	}
 
-	key, err := pemutil.LoadPrivateKey(config.KeyFilePath)
-	if err != nil {
-		return nil, err
-	}
-
-	cert, err := pemutil.LoadCertificate(config.CertFilePath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate cert matches private key
-	matched, err := x509util.CertificateMatchesPrivateKey(cert, key)
-	if err != nil {
-		return nil, err
-	}
-	if !matched {
-		return nil, errors.New("certificate and private key does not match")
-	}
-
 	ttl, err := time.ParseDuration(config.TTL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid TTL value: %v", err)
 	}
 
-	// Set local vars from config struct
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
+	config.ttl = ttl
+	config.trustDomain = req.GlobalConfig.TrustDomain
 
-	m.cert = cert
-	m.upstreamCA = x509svid.NewUpstreamCA(
-		x509util.NewMemoryKeypair(cert, key),
-		req.GlobalConfig.TrustDomain,
-		x509svid.UpstreamCAOptions{
-			SerialNumber: m.serialNumber,
-			TTL:          ttl,
-		})
+	upstreamCA, certs, err := p.loadUpstreamCAAndCerts(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load upstream CA: %v", err)
+	}
+
+	// Set local vars from config struct
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	p.config = config
+	p.certs = certs
+	p.upstreamCA = upstreamCA
 
 	return &spi.ConfigureResponse{}, nil
 }
@@ -107,23 +103,120 @@ func (*DiskPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*s
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (m *DiskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-
-	if m.upstreamCA == nil {
-		return nil, errors.New("invalid state: not configured")
+func (p *DiskPlugin) SubmitCSR(ctx context.Context, request *upstreamca.SubmitCSRRequest) (*upstreamca.SubmitCSRResponse, error) {
+	upstreamCA, upstreamCerts, err := p.reloadCA()
+	if err != nil {
+		return nil, err
 	}
 
-	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr)
+	cert, err := upstreamCA.SignCSR(ctx, request.Csr)
 	if err != nil {
 		return nil, err
 	}
 
 	return &upstreamca.SubmitCSRResponse{
 		SignedCertificate: &upstreamca.SignedCertificate{
-			CertChain: cert.Raw,
-			Bundle:    m.cert.Raw,
+			CertChain: append(cert.Raw, upstreamCerts.certChain...),
+			Bundle:    upstreamCerts.trustBundle,
 		},
 	}, nil
+}
+
+func (p *DiskPlugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	upstreamCA, upstreamCerts, err := p.loadUpstreamCAAndCerts(p.config)
+	switch {
+	case err == nil:
+		p.upstreamCA = upstreamCA
+		p.certs = upstreamCerts
+	case p.upstreamCA != nil:
+		upstreamCA = p.upstreamCA
+		upstreamCerts = p.certs
+	default:
+		return nil, nil, fmt.Errorf("no cached CA and failed to load CA: %v", err)
+	}
+
+	return upstreamCA, upstreamCerts, nil
+}
+
+func (p *DiskPlugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.UpstreamCA, *caCerts, error) {
+	key, err := pemutil.LoadPrivateKey(config.KeyFilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	certs, err := pemutil.LoadCertificates(config.CertFilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	// pemutil guarantees at least 1 cert
+	caCert := certs[0]
+
+	var trustBundle []*x509.Certificate
+	if config.BundleFilePath == "" {
+		// If there is no bundle path configured then we assume we have
+		// a self signed cert. We enforce this by requiring that there is
+		// exactly one cert. This cert is reused for the trust bundle and
+		// config.BundleFilePath is ignored
+		if len(certs) != 1 {
+			return nil, nil, errors.New("with no bundle_file_path configured only self-signed CAs are supported")
+		}
+		trustBundle = certs
+		certs = nil
+	} else {
+		bundleCerts, err := pemutil.LoadCertificates(config.BundleFilePath)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, c := range bundleCerts {
+			trustBundle = append(trustBundle, c)
+		}
+	}
+
+	// Validate cert matches private key
+	matched, err := x509util.CertificateMatchesPrivateKey(caCert, key)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !matched {
+		return nil, nil, errors.New("certificate and private key does not match")
+	}
+
+	if p._testOnlyShouldVerify {
+		intermediates := x509.NewCertPool()
+		roots := x509.NewCertPool()
+		for _, c := range certs {
+			intermediates.AddCert(c)
+		}
+		for _, c := range trustBundle {
+			roots.AddCert(c)
+		}
+		selfVerifyOpts := x509.VerifyOptions{
+			Intermediates: intermediates,
+			Roots:         roots,
+		}
+		_, err = caCert.Verify(selfVerifyOpts)
+		if err != nil {
+			return nil, nil, errors.New("certificate cannot be validated with the provided bundle or is not self-signed")
+		}
+	}
+
+	caCerts := &caCerts{}
+	for _, cert := range certs {
+		caCerts.certChain = append(caCerts.certChain, cert.Raw...)
+	}
+	for _, cert := range trustBundle {
+		caCerts.trustBundle = append(caCerts.trustBundle, cert.Raw...)
+	}
+
+	return x509svid.NewUpstreamCA(
+		x509util.NewMemoryKeypair(caCert, key),
+		config.trustDomain,
+		x509svid.UpstreamCAOptions{
+			SerialNumber: p.serialNumber,
+			TTL:          config.ttl,
+		},
+	), caCerts, nil
 }

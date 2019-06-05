@@ -6,7 +6,7 @@ package test
 import (
 	"context"
 
-	"github.com/spiffe/spire/pkg/common/catalog/internal"
+	catalog "github.com/spiffe/spire/pkg/common/catalog/internal"
 	"google.golang.org/grpc"
 )
 
@@ -20,7 +20,7 @@ type TestHostService interface {
 }
 
 // TestHostServiceHostServiceServer returns a catalog HostServiceServer implementation for the TestHostService plugin.
-func TestHostServiceHostServiceServer(server TestHostServiceServer) internal.HostServiceServer {
+func TestHostServiceHostServiceServer(server TestHostServiceServer) catalog.HostServiceServer {
 	return &testHostServiceHostServiceServer{
 		server: server,
 	}
@@ -39,14 +39,14 @@ func (s testHostServiceHostServiceServer) RegisterHostServiceServer(server *grpc
 }
 
 // TestHostServiceHostServiceServer returns a catalog HostServiceServer implementation for the TestHostService plugin.
-func TestHostServiceHostServiceClient(client *TestHostServiceClient) internal.HostServiceClient {
+func TestHostServiceHostServiceClient(client *TestHostService) catalog.HostServiceClient {
 	return &testHostServiceHostServiceClient{
 		client: client,
 	}
 }
 
 type testHostServiceHostServiceClient struct {
-	client *TestHostServiceClient
+	client *TestHostService
 }
 
 func (c *testHostServiceHostServiceClient) HostServiceType() string {
@@ -54,5 +54,17 @@ func (c *testHostServiceHostServiceClient) HostServiceType() string {
 }
 
 func (c *testHostServiceHostServiceClient) InitHostServiceClient(conn *grpc.ClientConn) {
-	*c.client = NewTestHostServiceClient(conn)
+	*c.client = AdaptTestHostServiceHostServiceClient(NewTestHostServiceClient(conn))
+}
+
+func AdaptTestHostServiceHostServiceClient(client TestHostServiceClient) TestHostService {
+	return testHostServiceHostServiceClientAdapter{client: client}
+}
+
+type testHostServiceHostServiceClientAdapter struct {
+	client TestHostServiceClient
+}
+
+func (a testHostServiceHostServiceClientAdapter) CallHostService(ctx context.Context, in *Request) (*Response, error) {
+	return a.client.CallHostService(ctx, in)
 }

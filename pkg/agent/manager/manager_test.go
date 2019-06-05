@@ -294,20 +294,20 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
-	me := m.MatchingEntries(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
-	if len(me) != 2 {
-		t.Fatal("expected 2 entries")
+	matches := m.MatchingIdentities(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	if len(matches) != 2 {
+		t.Fatal("expected 2 identities")
 	}
 
 	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
-		[]*common.RegistrationEntry{me[0].RegistrationEntry, me[1].RegistrationEntry})
+		[]*common.RegistrationEntry{matches[0].Entry, matches[1].Entry})
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+		sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 		u := <-sub.Updates()
 
-		if len(u.Entries) != 2 {
+		if len(u.Identities) != 2 {
 			t.Fatal("expected 2 entries")
 		}
 
@@ -321,7 +321,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 
 		compareRegistrationEntries(t,
 			regEntriesMap["resp2"],
-			[]*common.RegistrationEntry{u.Entries[0].RegistrationEntry, u.Entries[1].RegistrationEntry})
+			[]*common.RegistrationEntry{u.Identities[0].Entry, u.Identities[1].Entry})
 	})
 }
 
@@ -462,15 +462,15 @@ func TestSynchronization(t *testing.T) {
 	}
 
 	// Before synchronization
-	entriesBefore := cacheEntriesAsMap(m.cache.Entries())
-	if len(entriesBefore) != 3 {
-		t.Fatalf("3 cached entries were expected; got %d", len(entriesBefore))
+	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	if len(identitiesBefore) != 3 {
+		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
 
 	// This is the initial update based on the selector set
 	u := <-sub.Updates()
-	if len(u.Entries) != 3 {
-		t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
+	if len(u.Identities) != 3 {
+		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
 	}
 
 	if len(u.Bundle.RootCAs()) != 1 {
@@ -481,14 +481,12 @@ func TestSynchronization(t *testing.T) {
 		t.Fatal("received bundle should be equals to the server bundle")
 	}
 
-	for key, eu := range cacheEntriesAsMap(u.Entries) {
-		eb, ok := entriesBefore[key]
+	for key, eu := range identitiesByEntryID(u.Identities) {
+		eb, ok := identitiesBefore[key]
 		if !ok {
 			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
 		}
-		if eb != eu {
-			t.Fatal("entry received does not match entry on cache")
-		}
+		require.Equal(t, eb, eu, "identity received does not match identity on cache")
 	}
 
 	// SVIDs expire after 3 seconds, so we shouldn't expect any updates after
@@ -513,23 +511,21 @@ func TestSynchronization(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	entriesAfter := cacheEntriesAsMap(m.cache.Entries())
-	if len(entriesAfter) != 3 {
-		t.Fatalf("expected 3 entries, got: %d", len(entriesAfter))
+	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	if len(identitiesAfter) != 3 {
+		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
 
-	for key, eb := range entriesBefore {
-		ea, ok := entriesAfter[key]
+	for key, eb := range identitiesBefore {
+		ea, ok := identitiesAfter[key]
 		if !ok {
-			t.Fatalf("expected entry with EntryId=%v after synchronization", key)
+			t.Fatalf("expected identity with EntryId=%v after synchronization", key)
 		}
-		if ea == eb {
-			t.Fatalf("there is at least one entry that was not refreshed: %v", ea)
-		}
+		require.NotEqual(t, eb, ea, "there is at least one identity that was not refreshed: %v", ea)
 	}
 
-	if len(u.Entries) != 3 {
-		t.Fatalf("expected 3 entries, got: %d", len(u.Entries))
+	if len(u.Identities) != 3 {
+		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
 	}
 
 	if len(u.Bundle.RootCAs()) != 1 {
@@ -540,14 +536,12 @@ func TestSynchronization(t *testing.T) {
 		t.Fatal("received bundle should be equals to the server bundle")
 	}
 
-	for key, eu := range cacheEntriesAsMap(u.Entries) {
-		ea, ok := entriesAfter[key]
+	for key, eu := range identitiesByEntryID(u.Identities) {
+		ea, ok := identitiesAfter[key]
 		if !ok {
 			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
 		}
-		if ea != eu {
-			t.Fatal("entry received does not match entry on cache")
-		}
+		require.Equal(t, eu, ea, "entry received does not match entry on cache")
 	}
 }
 
@@ -600,7 +594,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// entries.
 	compareRegistrationEntries(t,
 		append(regEntriesMap["resp1"], regEntriesMap["resp2"]...),
-		regEntriesFromCacheEntries(m.cache.Entries()))
+		regEntriesFromIdentities(m.cache.Identities()))
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -610,7 +604,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// now the cache should have entries from resp2 removed
 	compareRegistrationEntries(t,
 		regEntriesMap["resp1"],
-		regEntriesFromCacheEntries(m.cache.Entries()))
+		regEntriesFromIdentities(m.cache.Identities()))
 }
 
 func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
@@ -661,7 +655,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// after initialization, the cache should contain resp2 entries
 	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
-		regEntriesFromCacheEntries(m.cache.Entries()))
+		regEntriesFromIdentities(m.cache.Identities()))
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -671,7 +665,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// now the cache should have the updated entries from resp3
 	compareRegistrationEntries(t,
 		regEntriesMap["resp3"],
-		regEntriesFromCacheEntries(m.cache.Entries()))
+		regEntriesFromIdentities(m.cache.Identities()))
 }
 
 func TestSubscribersGetUpToDateBundle(t *testing.T) {
@@ -717,7 +711,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	m := newManager(t, c)
 
-	sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 
 	defer initializeAndRunManager(t, m)()
 
@@ -781,7 +775,7 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	m := newManager(t, c)
 
-	sub := m.SubscribeToCacheChanges(cache.Selectors{&common.Selector{Type: "unix", Value: "uid:1111"}})
+	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	// This should be the update received when Subscribe function was called.
 	updates := sub.Updates()
 	initialUpdate := <-updates
@@ -1058,17 +1052,17 @@ func regEntriesAsMap(res []*common.RegistrationEntry) (result map[string]*common
 	return result
 }
 
-func cacheEntriesAsMap(ces []*cache.Entry) (result map[string]*cache.Entry) {
-	result = map[string]*cache.Entry{}
+func identitiesByEntryID(ces []cache.Identity) (result map[string]cache.Identity) {
+	result = map[string]cache.Identity{}
 	for _, ce := range ces {
-		result[ce.RegistrationEntry.EntryId] = ce
+		result[ce.Entry.EntryId] = ce
 	}
 	return result
 }
 
-func regEntriesFromCacheEntries(ces []*cache.Entry) (result []*common.RegistrationEntry) {
+func regEntriesFromIdentities(ces []cache.Identity) (result []*common.RegistrationEntry) {
 	for _, ce := range ces {
-		result = append(result, ce.RegistrationEntry)
+		result = append(result, ce.Entry)
 	}
 	return result
 }
@@ -1202,6 +1196,10 @@ func (h *mockNodeAPIHandler) FetchJWTSVID(ctx context.Context, req *node.FetchJW
 	if h.c.fetchJWTSVID != nil {
 		return h.c.fetchJWTSVID(h, req)
 	}
+	return nil, errors.New("oh noes")
+}
+
+func (h *mockNodeAPIHandler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVIDRequest) (*node.FetchX509CASVIDResponse, error) {
 	return nil, errors.New("oh noes")
 }
 

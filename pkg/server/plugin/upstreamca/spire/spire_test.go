@@ -6,7 +6,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -14,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/proto/spire/api/node"
 	node_pb "github.com/spiffe/spire/proto/spire/api/node"
 	w_pb "github.com/spiffe/spire/proto/spire/api/workload"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -80,7 +79,7 @@ func (w *whandler) startWAPITestServer(t *testing.T) {
 	w.dir = dir
 	w.socketPath = filepath.Join(dir, "test.sock")
 
-	w.server = grpc.NewServer(grpc.Creds(auth.NewCredentials()))
+	w.server = grpc.NewServer()
 
 	w_pb.RegisterSpiffeWorkloadAPIServer(w.server, w)
 
@@ -162,73 +161,46 @@ func (h *handler) startNodeAPITestServer(t *testing.T) {
 }
 
 func (h *handler) FetchX509SVID(server node_pb.Node_FetchX509SVIDServer) error {
+	return errors.New("NOT IMPLEMENTED")
+}
 
-	for {
-		request, err := server.Recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-
-		ctx := server.Context()
-
-		key, err := pemutil.LoadPrivateKey(keyFilePath)
-		if err != nil {
-			return fmt.Errorf("unable to load test CA key")
-		}
-
-		cert, err := pemutil.LoadCertificate(certFilePath)
-		if err != nil {
-			return fmt.Errorf("unable to load test CA certificate")
-		}
-
-		// configure upstream ca
-		ca := x509svid.NewUpstreamCA(
-			x509util.NewMemoryKeypair(cert, key),
-			"localhost",
-			x509svid.UpstreamCAOptions{
-				SerialNumber: x509util.NewSerialNumber(),
-				TTL:          30 * time.Minute,
-			})
-		csr := request.Csrs[0]
-		cert, err = ca.SignCSR(ctx, csr)
-		if err != nil {
-			return fmt.Errorf("unable to sign CSR: %v", err)
-		}
-
-		svids := make(map[string]*node_pb.X509SVID, 1)
-		svid := &node_pb.X509SVID{
-			CertChain: cert.Raw,
-			ExpiresAt: cert.NotAfter.Unix(),
-		}
-		svids["spiffe://localhost"] = svid
-
-		var rootCAs []*common.Certificate
-		certificate := &common.Certificate{
-			DerBytes: cert.Raw,
-		}
-		rootCAs = append(rootCAs, certificate)
-
-		bundles := make(map[string]*common.Bundle, 1)
-		bundle := &common.Bundle{
-			TrustDomainId: "spiffe://localhost",
-			RootCas:       rootCAs,
-		}
-		bundles["spiffe://localhost"] = bundle
-		err = server.Send(&node_pb.FetchX509SVIDResponse{
-			SvidUpdate: &node_pb.X509SVIDUpdate{
-				Svids:   svids,
-				Bundles: bundles,
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("unable to send FetchX509SVIDResponse: %v", err)
-		}
+func (h *handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVIDRequest) (*node.FetchX509CASVIDResponse, error) {
+	caKey, err := pemutil.LoadPrivateKey(keyFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load test CA key")
 	}
 
-	return nil
+	caCert, err := pemutil.LoadCertificate(certFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load test CA certificate")
+	}
+
+	// configure upstream ca
+	ca := x509svid.NewUpstreamCA(
+		x509util.NewMemoryKeypair(caCert, caKey),
+		"localhost",
+		x509svid.UpstreamCAOptions{
+			SerialNumber: x509util.NewSerialNumber(),
+			TTL:          30 * time.Minute,
+		})
+
+	cert, err := ca.SignCSR(ctx, req.Csr)
+	if err != nil {
+		return nil, fmt.Errorf("unable to sign CSR: %v", err)
+	}
+
+	return &node.FetchX509CASVIDResponse{
+		Svid: &node_pb.X509SVID{
+			CertChain: cert.Raw,
+			ExpiresAt: cert.NotAfter.Unix(),
+		},
+		Bundle: &common.Bundle{
+			TrustDomainId: "spiffe://localhost",
+			RootCas: []*common.Certificate{
+				{DerBytes: cert.Raw},
+			},
+		},
+	}, nil
 }
 
 func (h *handler) FetchJWTSVID(ctx context.Context, req *node_pb.FetchJWTSVIDRequest) (*node_pb.FetchJWTSVIDResponse, error) {

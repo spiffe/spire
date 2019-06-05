@@ -13,7 +13,7 @@ import (
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sds"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
-	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -32,7 +32,7 @@ type endpoints struct {
 
 func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	server := grpc.NewServer(
-		grpc.Creds(auth.NewCredentials()),
+		grpc.Creds(peertracker.NewCredentials()),
 		grpc.UnknownServiceHandler(UnknownServiceHandler(e.c.Log)),
 	)
 
@@ -106,7 +106,7 @@ func (e *endpoints) createUDSListener() (net.Listener, error) {
 	// Remove uds if already exists
 	os.Remove(e.c.BindAddr.String())
 
-	l, err := net.Listen(e.c.BindAddr.Network(), e.c.BindAddr.String())
+	l, err := peertracker.ListenUnix(e.c.BindAddr.Network(), e.c.BindAddr)
 	if err != nil {
 		return nil, fmt.Errorf("create UDS listener: %s", err)
 	}

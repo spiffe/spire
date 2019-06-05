@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/stretchr/testify/suite"
@@ -80,6 +81,14 @@ func (s *CATestSuite) TestNoX509CASet() {
 	s.Require().EqualError(err, "X509 CA is not available for signing")
 }
 
+func (s *CATestSuite) TestSignServerX509SVID() {
+	svidChain, err := s.ca.SignServerX509SVID(ctx, s.generateCSR(), X509Params{})
+	s.Require().NoError(err)
+	s.Require().Len(svidChain, 2)
+
+	s.Equal(s.ca.x509CA.Certificate, svidChain[1])
+}
+
 func (s *CATestSuite) TestSignX509SVID() {
 	svidChain, err := s.ca.SignX509SVID(ctx, s.generateCSR(), X509Params{})
 	s.Require().NoError(err)
@@ -90,6 +99,7 @@ func (s *CATestSuite) TestSignX509SVID() {
 	s.False(svid.NotBefore.IsZero(), "NotBefore is not set")
 	s.False(svid.NotAfter.IsZero(), "NotAfter is not set")
 	s.NotEmpty(svid.SubjectKeyId, "SubjectKeyId is not set")
+	s.NotEmpty(svid.AuthorityKeyId, "AuthorityKeyId is not set")
 	s.Equal(x509.KeyUsageKeyEncipherment|x509.KeyUsageKeyAgreement|x509.KeyUsageDigitalSignature, svid.KeyUsage, "key usage does not match")
 	s.Equal([]x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}, svid.ExtKeyUsage, "ext key usage does not match")
 	s.False(svid.IsCA, "CA bit is set")
@@ -261,6 +271,7 @@ func (s *CATestSuite) TestSignX509CASVID() {
 	s.False(svid.NotBefore.IsZero(), "NotBefore is not set")
 	s.False(svid.NotAfter.IsZero(), "NotAfter is not set")
 	s.NotEmpty(svid.SubjectKeyId, "SubjectKeyId is not set")
+	s.NotEmpty(svid.AuthorityKeyId, "AuthorityKeyId is not set")
 	s.Equal(x509.KeyUsageDigitalSignature|x509.KeyUsageCertSign|x509.KeyUsageCRLSign, svid.KeyUsage, "key usage does not match")
 	s.True(svid.IsCA, "CA bit is not set")
 	s.True(svid.BasicConstraintsValid, "Basic constraints are not valid")
@@ -271,8 +282,8 @@ func (s *CATestSuite) TestSignX509CASVID() {
 	}
 
 	// Subject is controlled exclusively by the CA and should not be pulled from
-	// the CSR.
-	s.Equal("CN=TESTCA", svid.Subject.String())
+	// the CSR. The DOWNSTREAM OU should be appended.
+	s.Equal("CN=CA,OU=DOWNSTREAM-1", svid.Subject.String())
 }
 
 func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
@@ -349,6 +360,9 @@ func (s *CATestSuite) generateJSR(trustDomain string, ttl time.Duration) *node.J
 }
 
 func (s *CATestSuite) createCACertificate(cn string, parent *x509.Certificate) *x509.Certificate {
+	keyID, err := x509util.GetSubjectKeyId(testSigner.Public())
+	s.Require().NoError(err)
+
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(0),
 		Subject: pkix.Name{
@@ -357,6 +371,7 @@ func (s *CATestSuite) createCACertificate(cn string, parent *x509.Certificate) *
 		IsCA:                  true,
 		BasicConstraintsValid: true,
 		NotAfter:              s.clock.Now().Add(10 * time.Minute),
+		SubjectKeyId:          keyID,
 	}
 	if parent == nil {
 		parent = template

@@ -14,7 +14,7 @@ func NewTestService() TestService {
 
 type testService struct {
 	log hclog.Logger
-	hs  TestHostServiceClient
+	hs  TestHostService
 }
 
 func (s *testService) SetLogger(log hclog.Logger) {

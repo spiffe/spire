@@ -6,29 +6,26 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
+
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/agent/attestor/workload"
+	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"io"
-	"strconv"
-)
-
-const (
-	sdsAPI = "sds_api"
-	sdsPID = "sds_pid"
 )
 
 type Manager interface {
@@ -212,45 +209,34 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 
 }
 
+// From context, parse out peer watcher PID and selectors. Attest against the PID. Add selectors as labels to
+// to a new metrics object. Return this information to the caller so it can emit further metrics.
+// If no error, callers must call the output func() to decrement current connections count.
 func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, func(), error) {
-	pid, err := h.callerPID(ctx)
+	watcher, err := peerWatcher(ctx)
 	if err != nil {
 		return 0, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: sdsPID, Value: fmt.Sprint(pid)}})
-	metrics.IncrCounter([]string{sdsAPI, "connection"}, 1)
-	metrics.IncrCounter([]string{sdsAPI, "connections"}, 1)
+	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: telemetry.SDSPID, Value: fmt.Sprint(watcher.PID())}})
+	telemetry_agent.IncrSDSAPIConnectionCounter(metrics)
+	telemetry_agent.IncrSDSAPIConnectionTotalCounter(metrics)
 
-	selectors := h.c.Attestor.Attest(ctx, pid)
+	selectors := h.c.Attestor.Attest(ctx, watcher.PID())
+
+	// Ensure that the original caller is still alive so that we know we didn't
+	// attest some other process that happened to be assigned the original PID
+	err = watcher.IsAlive()
+	if err != nil {
+		telemetry_agent.DecrSDSAPIConnectionTotalCounter(metrics)
+		return 0, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
+	}
 
 	done := func() {
-		defer metrics.IncrCounter([]string{sdsAPI, "connections"}, -1)
+		defer telemetry_agent.DecrSDSAPIConnectionTotalCounter(metrics)
 	}
 
-	return pid, selectors, done, nil
-}
-
-// callerPID takes a grpc context, and returns the PID of the caller which has issued
-// the request. Returns an error if the call was not made locally, if the necessary
-// syscalls aren't unsupported, or if the transport security was not properly configured.
-// See the auth package for more information.
-func (h *Handler) callerPID(ctx context.Context) (pid int32, err error) {
-	info, ok := auth.CallerFromContext(ctx)
-	if !ok {
-		return 0, errors.New("unable to fetch credentials from context")
-	}
-
-	if info.Err != nil {
-		return 0, fmt.Errorf("unable to resolve caller PID: %s", info.Err)
-	}
-
-	// If PID is 0, something is wrong...
-	if info.PID == 0 {
-		return 0, errors.New("unable to resolve caller PID")
-	}
-
-	return info.PID, nil
+	return watcher.PID(), selectors, done, nil
 }
 
 func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest, upd *cache.WorkloadUpdate) (resp *api_v2.DiscoveryResponse, err error) {
@@ -292,9 +278,9 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 		}
 	}
 
-	for _, entry := range upd.Entries {
-		if len(names) == 0 || names[entry.RegistrationEntry.SpiffeId] {
-			tlsCertificate, err := buildTLSCertificate(entry)
+	for _, identity := range upd.Identities {
+		if len(names) == 0 || names[identity.Entry.SpiffeId] {
+			tlsCertificate, err := buildTLSCertificate(identity)
 			if err != nil {
 				return nil, err
 			}
@@ -311,16 +297,29 @@ func (h *Handler) triggerReceivedHook() {
 	}
 }
 
-func buildTLSCertificate(entry *cache.Entry) (*types.Any, error) {
-	keyPEM, err := pemutil.EncodePKCS8PrivateKey(entry.PrivateKey)
+// peerWatcher takes a grpc context, and returns a Watcher representing the caller which
+// has issued the request. Returns an error if the call was not made locally, if the necessary
+// syscalls aren't unsupported, or if the transport security was not properly configured.
+// See the peertracker package for more information.
+func peerWatcher(ctx context.Context) (watcher peertracker.Watcher, err error) {
+	watcher, ok := peertracker.WatcherFromContext(ctx)
+	if !ok {
+		return nil, errors.New("unable to fetch watcher from context")
+	}
+
+	return watcher, nil
+}
+
+func buildTLSCertificate(identity cache.Identity) (*types.Any, error) {
+	keyPEM, err := pemutil.EncodePKCS8PrivateKey(identity.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	certsPEM := pemutil.EncodeCertificates(entry.SVID)
+	certsPEM := pemutil.EncodeCertificates(identity.SVID)
 
 	return types.MarshalAny(&auth_v2.Secret{
-		Name: entry.RegistrationEntry.SpiffeId,
+		Name: identity.Entry.SpiffeId,
 		Type: &auth_v2.Secret_TlsCertificate{
 			TlsCertificate: &auth_v2.TlsCertificate{
 				CertificateChain: &core.DataSource{
