@@ -16,6 +16,7 @@ svid.*.pem
 
 cmd/spire-agent/spire-agent
 cmd/spire-server/spire-server
+support/k8s/k8s-workload-registrar/k8s-workload-registrar
 
 plugin/agent/keymanager-memory/keymanager-memory
 plugin/agent/nodeattestor-jointoken/nodeattestor-jointoken

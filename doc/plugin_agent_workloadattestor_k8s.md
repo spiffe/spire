@@ -53,6 +53,7 @@ that can impact permission revocation.
 | k8s:pod-owner       | The name of the workload's pod owner |
 | k8s:pod-owner-uid   | The UID of the workload's pod owner |
 | k8s:pod-uid         | The UID of the workload's pod |
+| k8s:pod-name        | The name of the workload's pod |
 
 ## Examples
 
