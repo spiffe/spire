@@ -28,7 +28,7 @@ The configuration file is a **required** by the registrar. It contains
 | `cert_path`                | string  | required | Path on disk to the PEM-encoded server TLS certificate | `"cert.pem"` |
 | `key_path`                 | string  | required | Path on disk to the PEM-encoded server TLS key |  `"key.pem"` |
 | `cacert_path`              | string  | required | Path on disk to the CA certificate used to verify the client (i.e. API server) | `"cacert.pem"` |
-| `skip_client_verification` | boolean | required | If true, skips client certificate verification (in which case `cacert_path` is ignored) | `false` |
+| `insecure_skip_client_verification` | boolean | required | If true, skips client certificate verification (in which case `cacert_path` is ignored) | `false` |
 | `trust_domain`             | string  | required | Trust domain of the SPIRE server | |
 | `server_socket_path`       | string  | required | Path to the Unix domain socket of the SPIRE server | |
 | `cluster`                  | string  | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
@@ -117,7 +117,7 @@ The following K8S objects are required to set up the validating admission contro
 * `Service` pointing to the registrar port within the spire-server container
 * `ValidatingWebhookConfiguration` configuring the registrar as a validating admission controller.
 
-Additionally, unless you disable client authentication (`--insecure-skip-verification`), you will need:
+Additionally, unless you disable client authentication (`insecure_skip_client_verification`), you will need:
 * `Config` with a user entry for the registrar service client containing the client certificate/key the API server should use to authenticate with the registrar.
 * `AdmissionConfiguration` describing where the API server can locate the file containing the `Config`. This file is passed to the API server via the `--admission-control-config-file` flag.
 
@@ -128,3 +128,12 @@ material and relevant Kubernetes configuration YAML.
 $ go run generate-config.go
 .... YAML configuration dump ....
 ```
+
+## Security Considerations
+
+The registrar authenticates clients by default. This is a very important aspect
+of the overall security of the registrar since the registrar can be used to
+provide indirectly access the SPIRE server registration API, albeit scoped. It
+is *NOT* recommended to skip client verification (via the
+`insecure_skip_client_verification` configurable) unless you fully understand
+the risks.

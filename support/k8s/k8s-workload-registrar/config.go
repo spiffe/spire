@@ -16,17 +16,17 @@ const (
 )
 
 type Config struct {
-	LogLevel               string `hcl:"log_level"`
-	LogPath                string `hcl:"log_path"`
-	Addr                   string `hcl:"addr"`
-	CertPath               string `hcl:"cert_path"`
-	KeyPath                string `hcl:"key_path"`
-	CaCertPath             string `hcl:"cacert_path"`
-	SkipClientVerification bool   `hcl:"skip_client_verification"`
-	TrustDomain            string `hcl:"trust_domain"`
-	ServerSocketPath       string `hcl:"server_socket_path"`
-	Cluster                string `hcl:"cluster"`
-	PodLabel               string `hcl:"pod_label"`
+	LogLevel                       string `hcl:"log_level"`
+	LogPath                        string `hcl:"log_path"`
+	Addr                           string `hcl:"addr"`
+	CertPath                       string `hcl:"cert_path"`
+	KeyPath                        string `hcl:"key_path"`
+	CaCertPath                     string `hcl:"cacert_path"`
+	InsecureSkipClientVerification bool   `hcl:"insecure_skip_client_verification"`
+	TrustDomain                    string `hcl:"trust_domain"`
+	ServerSocketPath               string `hcl:"server_socket_path"`
+	Cluster                        string `hcl:"cluster"`
+	PodLabel                       string `hcl:"pod_label"`
 }
 
 func LoadConfig(path string) (*Config, error) {

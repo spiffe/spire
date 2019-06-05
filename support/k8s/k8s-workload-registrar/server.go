@@ -14,13 +14,13 @@ import (
 )
 
 type ServerConfig struct {
-	Log                    logrus.FieldLogger
-	Handler                http.Handler
-	Addr                   string
-	CertPath               string
-	KeyPath                string
-	CaCertPath             string
-	SkipClientVerification bool
+	Log                            logrus.FieldLogger
+	Handler                        http.Handler
+	Addr                           string
+	CertPath                       string
+	KeyPath                        string
+	CaCertPath                     string
+	InsecureSkipClientVerification bool
 }
 
 type Server struct {
@@ -38,7 +38,7 @@ func NewServer(config ServerConfig) (*Server, error) {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 	}
-	if !config.SkipClientVerification {
+	if !config.InsecureSkipClientVerification {
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 		var err error
@@ -72,7 +72,7 @@ func (s *Server) Addr() net.Addr {
 func (s *Server) Run(ctx context.Context) error {
 	s.config.Log.WithFields(logrus.Fields{
 		"addr":                     s.listener.Addr(),
-		"skip_client_verification": s.config.SkipClientVerification,
+		"skip_client_verification": s.config.InsecureSkipClientVerification,
 	}).Info("Serving HTTPS")
 
 	errCh := make(chan error, 1)

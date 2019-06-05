@@ -57,13 +57,13 @@ func run(ctx context.Context, configPath string) error {
 	}
 
 	server, err := NewServer(ServerConfig{
-		Log:                    log,
-		Addr:                   config.Addr,
-		Handler:                NewWebhookHandler(controller),
-		CertPath:               config.CertPath,
-		KeyPath:                config.KeyPath,
-		CaCertPath:             config.CaCertPath,
-		SkipClientVerification: config.SkipClientVerification,
+		Log:                            log,
+		Addr:                           config.Addr,
+		Handler:                        NewWebhookHandler(controller),
+		CertPath:                       config.CertPath,
+		KeyPath:                        config.KeyPath,
+		CaCertPath:                     config.CaCertPath,
+		InsecureSkipClientVerification: config.InsecureSkipClientVerification,
 	})
 	if err != nil {
 		return err
