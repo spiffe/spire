@@ -133,7 +133,7 @@ $ go run generate-config.go
 
 The registrar authenticates clients by default. This is a very important aspect
 of the overall security of the registrar since the registrar can be used to
-provide indirectly access the SPIRE server registration API, albeit scoped. It
+provide indirect access to the SPIRE server registration API, albeit scoped. It
 is *NOT* recommended to skip client verification (via the
 `insecure_skip_client_verification` configurable) unless you fully understand
 the risks.
