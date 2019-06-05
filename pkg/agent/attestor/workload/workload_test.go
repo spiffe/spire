@@ -47,8 +47,8 @@ func (s *WorkloadAttestorTestSuite) SetupTest() {
 
 	s.attestor = newAttestor(&Config{
 		Catalog: catalog,
-		L:       log,
-		M:       telemetry.Blackhole{},
+		Log:     log,
+		Metrics: telemetry.Blackhole{},
 	})
 }
 
@@ -93,7 +93,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	// Use fake metrics
 	metrics := fakemetrics.New()
 
-	s.attestor.c.M = metrics
+	s.attestor.c.Metrics = metrics
 	s.attestor.c.Catalog = catalog
 
 	// Create context with life limit
@@ -120,7 +120,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 
 	// Clean metrics to try it again
 	metrics = fakemetrics.New()
-	s.attestor.c.M = metrics
+	s.attestor.c.Metrics = metrics
 
 	// No selectors expected
 	selectors = s.attestor.Attest(ctx, 1)

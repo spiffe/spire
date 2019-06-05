@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -501,7 +502,7 @@ func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
 	entry := s.logHook.LastEntry()
 	s.Equal("fake", entry.Data["notifier"])
 	s.Equal("bundle loaded", entry.Data["event"])
-	s.Equal("OH NO!", entry.Data["err"])
+	s.Equal("OH NO!", fmt.Sprintf("%v", entry.Data["error"]))
 	s.Equal("Notifier failed to handle event", entry.Message)
 }
 

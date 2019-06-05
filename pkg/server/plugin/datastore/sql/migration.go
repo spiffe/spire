@@ -9,6 +9,7 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 const (
@@ -112,7 +113,7 @@ func tableOptionsForDialect(tx *gorm.DB, dbType string) *gorm.DB {
 }
 
 func migrateVersion(tx *gorm.DB, version int, log hclog.Logger) (versionOut int, err error) {
-	log.Info(fmt.Sprintf("Migrating from version %d", version))
+	log.Info("migrating version", telemetry.VersionInfo, version)
 
 	// When a new version is added an entry must be included here that knows
 	// how to bring the previous version up. The migrations are run

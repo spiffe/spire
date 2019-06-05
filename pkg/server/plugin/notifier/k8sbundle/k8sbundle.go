@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/hostservices"
@@ -199,7 +200,7 @@ func (p *Plugin) updateBundleConfigMap(ctx context.Context, c *pluginConfig) (er
 			// If there is a conflict then some other server won the race updating
 			// the ConfigMap. We need to retrieve the latest bundle and try again.
 			if s, ok := err.(k8serrors.APIStatus); ok && s.Status().Code == http.StatusConflict {
-				p.log.Debug("Conflict detected patching configmap", "version", configMap.ResourceVersion)
+				p.log.Debug("Conflict detected patching configmap", telemetry.VersionInfo, configMap.ResourceVersion)
 				continue
 			}
 			return k8sErr.New("unable to update config map %s/%s: %v", c.Namespace, c.ConfigMap, err)

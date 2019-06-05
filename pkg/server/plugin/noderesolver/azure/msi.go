@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/noderesolver"
@@ -187,7 +188,7 @@ func (p *MSIResolverPlugin) resolveSpiffeID(ctx context.Context, spiffeID string
 
 	tenantID, principalID, err := parseAgentIDPath(u.Path)
 	if err != nil {
-		p.log.Warn("Unrecognized agent ID", "agent_id", spiffeID)
+		p.log.Warn("Unrecognized agent ID", telemetry.SPIFFEID, spiffeID)
 		return nil, nil
 	}
 
