@@ -28,7 +28,7 @@ The configuration file is a **required** by the registrar. It contains
 | `cert_path`                | string  | required | Path on disk to the PEM-encoded server TLS certificate | `"cert.pem"` |
 | `key_path`                 | string  | required | Path on disk to the PEM-encoded server TLS key |  `"key.pem"` |
 | `cacert_path`              | string  | required | Path on disk to the CA certificate used to verify the client (i.e. API server) | `"cacert.pem"` |
-| `insecure_skip_client_verification` | boolean | required | If true, skips client certificate verification (in which case `cacert_path` is ignored) | `false` |
+| `insecure_skip_client_verification` | boolean | required | If true, skips client certificate verification (in which case `cacert_path` is ignored). See [Security Considerations](#security-considerations) for more details. | `false` |
 | `trust_domain`             | string  | required | Trust domain of the SPIRE server | |
 | `server_socket_path`       | string  | required | Path to the Unix domain socket of the SPIRE server | |
 | `cluster`                  | string  | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
