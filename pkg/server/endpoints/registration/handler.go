@@ -240,10 +240,8 @@ func (h *Handler) ListBySelectors(
 	ctx context.Context, request *common.Selectors) (
 	response *common.RegistrationEntries, err error) {
 
-	counter, err := h.startCall(ctx, "registration_api", "entry", "list")
-	if err != nil {
-		return nil, err
-	}
+	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
+	addCallerIDLabel(ctx, counter)
 	defer counter.Done(&err)
 
 	for _, selector := range request.Entries {
