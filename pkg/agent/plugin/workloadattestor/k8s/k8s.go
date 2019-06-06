@@ -335,7 +335,9 @@ func (p *K8SPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
 				log.Printf("Kube pod entry found, but without container id: %v", substring)
 				continue
 			}
-			return parts[4], nil
+			id := strings.TrimSuffix(parts[4], ".scope")
+			id = strings.TrimPrefix(id, "docker-")
+			return id, nil
 		}
 	}
 
