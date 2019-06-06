@@ -2,12 +2,14 @@ package endpoints
 
 import (
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
 	"os"
+	"sync"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -36,7 +38,12 @@ type Server interface {
 }
 
 type endpoints struct {
-	c *Config
+	c            *Config
+	mtx          *sync.RWMutex
+	unixListener *peertracker.ListenerFactory
+
+	svid    []*x509.Certificate
+	svidKey *ecdsa.PrivateKey
 }
 
 // ListenAndServe starts all maintenance routines and endpoints, then blocks
@@ -181,7 +188,7 @@ func (e *endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 // runUDSServer  will start the server and block until it exits or we are dying.
 func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
 	os.Remove(e.c.UDSAddr.String())
-	l, err := peertracker.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
+	l, err := e.unixListener.ListenUnix(e.c.UDSAddr.Network(), e.c.UDSAddr)
 	if err != nil {
 		return err
 	}

@@ -28,7 +28,8 @@ type Server interface {
 }
 
 type endpoints struct {
-	c *Config
+	c            *Config
+	unixListener *peertracker.ListenerFactory
 }
 
 func (e *endpoints) ListenAndServe(ctx context.Context) error {
@@ -107,7 +108,7 @@ func (e *endpoints) createUDSListener() (net.Listener, error) {
 	// Remove uds if already exists
 	os.Remove(e.c.BindAddr.String())
 
-	l, err := peertracker.ListenUnix(e.c.BindAddr.Network(), e.c.BindAddr)
+	l, err := e.unixListener.ListenUnix(e.c.BindAddr.Network(), e.c.BindAddr)
 	if err != nil {
 		return nil, fmt.Errorf("create UDS listener: %s", err)
 	}

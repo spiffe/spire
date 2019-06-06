@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 
 	"google.golang.org/grpc"
@@ -29,5 +30,8 @@ type Config struct {
 func New(c *Config) *endpoints {
 	return &endpoints{
 		c: c,
+		unixListener: &peertracker.ListenerFactory{
+			Log: c.Log,
+		},
 	}
 }
