@@ -95,6 +95,12 @@ type Server struct {
 type ExperimentalConfig struct {
 	// Skip agent id validation in node attestation
 	AllowAgentlessNodeAttestors bool
+
+	// BundleEndpointEnabled, if true, enables the federation bundle endpoint
+	BundleEndpointEnabled bool
+
+	// BundleEndpointAddress is the address on which to serve the federation bundle endpoint.
+	BundleEndpointAddress *net.TCPAddr
 }
 
 func New(config Config) *Server {
@@ -307,18 +313,21 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 }
 
 func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Rotator, serverCA ca.ServerCA, metrics telemetry.Metrics) endpoints.Server {
-	return endpoints.New(&endpoints.Config{
-		TCPAddr:     s.config.BindAddress,
-		UDSAddr:     s.config.BindUDSAddress,
-		SVIDStream:  svidRotator.Subscribe(),
-		TrustDomain: s.config.TrustDomain,
-		Catalog:     catalog,
-		ServerCA:    serverCA,
-		Log:         s.config.Log.WithField("subsystem_name", "endpoints"),
-		Metrics:     metrics,
-
+	config := &endpoints.Config{
+		TCPAddr:                     s.config.BindAddress,
+		UDSAddr:                     s.config.BindUDSAddress,
+		SVIDRotator:                 svidRotator,
+		TrustDomain:                 s.config.TrustDomain,
+		Catalog:                     catalog,
+		ServerCA:                    serverCA,
+		Log:                         s.config.Log.WithField("subsystem_name", "endpoints"),
+		Metrics:                     metrics,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
-	})
+	}
+	if s.config.Experimental.BundleEndpointEnabled {
+		config.BundleEndpointAddress = s.config.Experimental.BundleEndpointAddress
+	}
+	return endpoints.New(config)
 }
 
 func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {

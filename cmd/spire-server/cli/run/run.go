@@ -23,9 +23,10 @@ import (
 )
 
 const (
-	defaultConfigPath = "conf/server/server.conf"
-	defaultSocketPath = "/tmp/spire-registration.sock"
-	defaultLogLevel   = "INFO"
+	defaultConfigPath         = "conf/server/server.conf"
+	defaultSocketPath         = "/tmp/spire-registration.sock"
+	defaultLogLevel           = "INFO"
+	defaultBundleEndpointPort = 443
 )
 
 // runConfig represents available configurables for file and CLI options
@@ -60,6 +61,10 @@ type serverRunConfig struct {
 
 type experimentalConfig struct {
 	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
+
+	BundleEndpointEnabled bool   `hcl:"bundle_endpoint_enabled"`
+	BundleEndpointAddress string `hcl:"bundle_endpoint_address"`
+	BundleEndpointPort    int    `hcl:"bundle_endpoint_port"`
 }
 
 type caSubjectConfig struct {
@@ -247,6 +252,20 @@ func mergeConfig(orig *serverConfig, cmd *runConfig) error {
 		orig.Experimental.AllowAgentlessNodeAttestors = cmd.Server.Experimental.AllowAgentlessNodeAttestors
 	}
 
+	if cmd.Server.Experimental.BundleEndpointEnabled {
+		orig.Experimental.BundleEndpointEnabled = cmd.Server.Experimental.BundleEndpointEnabled
+	}
+	if cmd.Server.Experimental.BundleEndpointAddress != "" {
+		ip := net.ParseIP(cmd.Server.BindAddress)
+		if ip == nil {
+			return fmt.Errorf("BundleEndpointAddress is not well-formed")
+		}
+		orig.Experimental.BundleEndpointAddress.IP = ip
+	}
+	if cmd.Server.Experimental.BundleEndpointPort != 0 {
+		orig.Experimental.BundleEndpointAddress.Port = cmd.Server.Experimental.BundleEndpointPort
+	}
+
 	if cmd.Server.ProfilingEnabled {
 		orig.ProfilingEnabled = cmd.Server.ProfilingEnabled
 	}
@@ -323,6 +342,9 @@ func newDefaultConfig() *serverConfig {
 			Log:            logger,
 			BindAddress:    bindAddress,
 			BindUDSAddress: bindUDSAddress,
+			Experimental: server.ExperimentalConfig{
+				BundleEndpointAddress: &net.TCPAddr{Port: defaultBundleEndpointPort},
+			},
 		},
 	}
 }
