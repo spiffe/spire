@@ -336,7 +336,11 @@ func (p *K8SPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
 				continue
 			}
 			id := strings.TrimSuffix(parts[4], ".scope")
-			id = strings.TrimPrefix(id, "docker-")
+			// Trim the id of any container runtime prefixes.  Ex "docker-" or "crio-"
+			dash := strings.Index(id, "-")
+			if dash > -1 {
+				id = id[dash+1:]
+			}
 			return id, nil
 		}
 	}
