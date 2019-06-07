@@ -632,6 +632,57 @@ func (s *HandlerSuite) TestListBySelector() {
 	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
 }
 
+func (s *HandlerSuite) TestListBySelectors() {
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}, {Type: "Z", Value: "z"}},
+	})
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/foo",
+		SpiffeId:  "spiffe://example.org/baz",
+		Selectors: []*common.Selector{{Type: "A", Value: "a"}, {Type: "Z", Value: "z"}},
+	})
+	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
+		ParentId:  "spiffe://example.org/buz",
+		SpiffeId:  "spiffe://example.org/fuz",
+		Selectors: []*common.Selector{{Type: "B", Value: "b"}, {Type: "Z", Value: "z"}},
+	})
+
+	// No entries
+	resp, err := s.handler.ListBySelectors(context.Background(), &common.Selectors{
+		Entries: []*common.Selector{
+			{Type: "C", Value: "c"},
+			{Type: "Z", Value: "z"},
+		},
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 0)
+
+	// One entry
+	resp, err = s.handler.ListBySelectors(context.Background(), &common.Selectors{
+		Entries: []*common.Selector{
+			{Type: "B", Value: "b"},
+			{Type: "Z", Value: "z"},
+		},
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 1)
+	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+
+	// More than one entry
+	resp, err = s.handler.ListBySelectors(context.Background(), &common.Selectors{
+		Entries: []*common.Selector{
+			{Type: "A", Value: "a"},
+			{Type: "Z", Value: "z"},
+		},
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Entries, 2)
+	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
+	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+}
+
 func (s *HandlerSuite) TestListBySpiffeID() {
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		ParentId:  "spiffe://example.org/parent",

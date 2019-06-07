@@ -102,7 +102,7 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	}
 
 	// Sign the CSR
-	svid, err := r.c.ServerCA.SignX509SVID(ctx, csr, ca.X509Params{})
+	svid, err := r.c.ServerCA.SignServerX509SVID(ctx, csr, ca.X509Params{})
 	if err != nil {
 		return err
 	}

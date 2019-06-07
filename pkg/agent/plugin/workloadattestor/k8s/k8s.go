@@ -601,6 +601,7 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 		makeSelector("ns:%s", pod.Namespace),
 		makeSelector("node-name:%s", pod.Spec.NodeName),
 		makeSelector("pod-uid:%s", pod.UID),
+		makeSelector("pod-name:%s", pod.Name),
 		makeSelector("container-name:%s", status.Name),
 		makeSelector("container-image:%s", status.Image),
 	}
