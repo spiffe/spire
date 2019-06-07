@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
+
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
-	mock_telemetry "github.com/spiffe/spire/test/mock/common/telemetry"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -79,12 +80,9 @@ func TestMatchingIdentities(t *testing.T) {
 }
 
 func TestRegistrationEntryMetrics(t *testing.T) {
-	mockCtl := gomock.NewController(t)
-	defer mockCtl.Finish()
-	metrics := mock_telemetry.NewMockMetrics(mockCtl)
-
 	log, _ := test.NewNullLogger()
-	cache := New(log, "spiffe://domain.test", bundleV1, metrics)
+	actual := fakemetrics.New()
+	cache := New(log, "spiffe://domain.test", bundleV1, actual)
 
 	// populate the cache with FOO and BAR without SVIDS
 	foo := makeRegistrationEntry("FOO", "A")
@@ -95,11 +93,6 @@ func TestRegistrationEntryMetrics(t *testing.T) {
 	}
 
 	// Add two new entries
-	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Create}, gomock.Any(),
-		[]telemetry.Label{{Name: telemetry.SPIFFEID, Value: foo.SpiffeId}})
-	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Create}, gomock.Any(),
-		[]telemetry.Label{{Name: telemetry.SPIFFEID, Value: bar.SpiffeId}})
-
 	cache.Update(update, nil)
 
 	// Update foo
@@ -107,14 +100,16 @@ func TestRegistrationEntryMetrics(t *testing.T) {
 	// delete bar
 	delete(update.RegistrationEntries, bar.EntryId)
 
-	// Update registration entry metric created
-	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Update}, gomock.Any(),
-		[]telemetry.Label{{Name: telemetry.SPIFFEID, Value: foo.SpiffeId}})
-	// Delete registration entry metric created
-	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.CacheManager, telemetry.RegistrationEntry, telemetry.Delete}, gomock.Any(),
-		[]telemetry.Label{{Name: telemetry.SPIFFEID, Value: bar.SpiffeId}})
-
+	// Update cache to update foo and delete bars
 	cache.Update(update, nil)
+
+	expected := fakemetrics.New()
+	telemetry_agent.IncrRegistrationEntryCreatedCounter(expected, foo.SpiffeId)
+	telemetry_agent.IncrRegistrationEntryCreatedCounter(expected, bar.SpiffeId)
+	telemetry_agent.IncrRegistrationEntryDeletedCounter(expected, bar.SpiffeId)
+	telemetry_agent.IncrRegistrationEntryUpdatedCounter(expected, foo.SpiffeId)
+
+	assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 }
 
 func TestBundleChanges(t *testing.T) {
