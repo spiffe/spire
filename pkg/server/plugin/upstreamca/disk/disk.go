@@ -156,11 +156,10 @@ func (p *DiskPlugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Up
 
 	var trustBundle []*x509.Certificate
 	if config.BundleFilePath == "" {
-		// If there is no bundle path configured then we assume the chain
-		// including the root comes from cert_file_path. The final cert
-		// is the root that should be trusted. Additionally, it can be dropped
-		// from the cert chain to avoid wastefully distributing it in the chain
-		// of an SVID as well as the trust bundle.
+		// If there is no bundle path configured then we assume we have
+		// a self signed cert. We enforce this by requiring that there is
+		// exactly one cert. This cert is reused for the trust bundle and
+		// config.BundleFilePath is ignored
 		if len(certs) != 1 {
 			return nil, nil, errors.New("with no bundle_file_path configured only self-signed CAs are supported")
 		}

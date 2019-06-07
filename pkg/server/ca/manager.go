@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -167,7 +168,8 @@ func (m *Manager) rotateX509CA(ctx context.Context) error {
 }
 
 func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err error) {
-	defer telemetry.CountCall(m.c.Metrics, telemetry.Manager, telemetry.X509CA, telemetry.Prepare)(&err)
+	counter := telemetry_server.StartServerCAManagerPrepareX509CACall(m.c.Metrics)
+	defer counter.Done(&err)
 
 	log := m.c.Log.WithField("slot", slot.id)
 	log.Debug("Preparing X509 CA")
@@ -222,7 +224,7 @@ func (m *Manager) activateX509CA() {
 		"issued_at": timeField(m.currentX509CA.issuedAt),
 		"not_after": timeField(m.currentX509CA.x509CA.Certificate.NotAfter),
 	}).Info("X509 CA activated")
-	m.c.Metrics.IncrCounter([]string{telemetry.Manager, telemetry.X509CA, telemetry.Activate}, 1)
+	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
 	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
 }
 
@@ -255,7 +257,8 @@ func (m *Manager) rotateJWTKey(ctx context.Context) error {
 }
 
 func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err error) {
-	defer telemetry.CountCall(m.c.Metrics, telemetry.Manager, telemetry.JWTKey, telemetry.Prepare)(&err)
+	counter := telemetry_server.StartServerCAManagerPrepareJWTKeyCall(m.c.Metrics)
+	defer counter.Done(&err)
 
 	log := m.c.Log.WithField("slot", slot.id)
 	log.Debug("Preparing JWT key")
@@ -306,7 +309,7 @@ func (m *Manager) activateJWTKey() {
 		"issued_at": timeField(m.currentJWTKey.issuedAt),
 		"not_after": timeField(m.currentJWTKey.jwtKey.NotAfter),
 	}).Info("JWT key activated")
-	m.c.Metrics.IncrCounter([]string{telemetry.Manager, telemetry.JWTKey, telemetry.Activate}, 1)
+	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
 	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
 }
 
@@ -327,7 +330,9 @@ func (m *Manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 }
 
 func (m *Manager) pruneBundle(ctx context.Context) (err error) {
-	defer telemetry.CountCall(m.c.Metrics, telemetry.Manager, telemetry.Bundle, telemetry.Prune)(&err)
+	counter := telemetry_server.StartCAManagerPruneBundleCall(m.c.Metrics)
+	defer counter.Done(&err)
+
 	ds := m.c.Catalog.GetDataStore()
 	expiresBefore := m.c.Clock.Now().Add(-safetyThreshold)
 
@@ -341,7 +346,7 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	}
 
 	if resp.BundleChanged {
-		m.c.Metrics.IncrCounter([]string{telemetry.Manager, telemetry.Bundle, telemetry.Pruned}, 1)
+		telemetry_server.IncrManagerPrunedBundleCounter(m.c.Metrics)
 		m.bundleUpdated()
 	}
 

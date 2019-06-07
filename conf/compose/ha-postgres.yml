@@ -17,7 +17,7 @@ services:
     hostname: spire-server
     tty: true
     volumes:
-      - ../../:/root/go/src/github.com/spiffe/spire
+      - ../../:/root/spire
     depends_on:
       - datastore
     entrypoint:
@@ -29,7 +29,7 @@ services:
     hostname: spire-agent
     tty: true
     volumes:
-      - ../../:/root/go/src/github.com/spiffe/spire
+      - ../../:/root/spire
     depends_on:
       - spire-server
     entrypoint:

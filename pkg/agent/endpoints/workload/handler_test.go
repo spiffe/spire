@@ -126,7 +126,7 @@ func (s *HandlerTestSuite) TestFetchX509SVID() {
 		}))
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labelsSvidResponse)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labelsSvidResponse)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.SVIDResponseLatency}, gomock.Any(), labels)
+	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.SVIDResponseLatency, telemetry.Fetch}, gomock.Any(), labels)
 
 	go func() { result <- s.h.FetchX509SVID(nil, stream) }()
 
@@ -352,7 +352,7 @@ func (s *HandlerTestSuite) TestFetchJWTSVID() {
 }
 
 func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selectorsLabels []telemetry.Label, pid int32) {
-	attestorLabels := []telemetry.Label{{telemetry.AttestorName, "fake"}}
+	attestorLabels := []telemetry.Label{{telemetry.Attestor, "fake"}}
 
 	metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency}, gomock.Any(), attestorLabels)
 	metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(len(selectorsLabels)))
@@ -398,7 +398,7 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	labels := selectorsToLabels(selectors)
 	setupMetricsCommonExpectations(s.metrics, labels, 1)
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, float32(1), labels)
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate}, float32(1), labels)
+	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate, telemetry.JWT}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.SendJWTBundleLatency}, gomock.Any(), labels)
 
 	go func() { result <- s.h.FetchJWTBundles(&workload.JWTBundlesRequest{}, stream) }()

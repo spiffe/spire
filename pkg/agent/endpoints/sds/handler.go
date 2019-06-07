@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -208,6 +209,9 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 
 }
 
+// From context, parse out peer watcher PID and selectors. Attest against the PID. Add selectors as labels to
+// to a new metrics object. Return this information to the caller so it can emit further metrics.
+// If no error, callers must call the output func() to decrement current connections count.
 func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, func(), error) {
 	watcher, err := peerWatcher(ctx)
 	if err != nil {
@@ -215,8 +219,8 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	}
 
 	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: telemetry.SDSPID, Value: fmt.Sprint(watcher.PID())}})
-	metrics.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connection}, 1)
-	metrics.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connections}, 1)
+	telemetry_agent.IncrSDSAPIConnectionCounter(metrics)
+	telemetry_agent.IncrSDSAPIConnectionTotalCounter(metrics)
 
 	selectors := h.c.Attestor.Attest(ctx, watcher.PID())
 
@@ -224,11 +228,12 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	// attest some other process that happened to be assigned the original PID
 	err = watcher.IsAlive()
 	if err != nil {
+		telemetry_agent.DecrSDSAPIConnectionTotalCounter(metrics)
 		return 0, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
 	done := func() {
-		defer metrics.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connections}, -1)
+		defer telemetry_agent.DecrSDSAPIConnectionTotalCounter(metrics)
 	}
 
 	return watcher.PID(), selectors, done, nil

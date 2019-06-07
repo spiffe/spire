@@ -50,7 +50,7 @@ Note: If you don't already have Docker installed, please follow these [installat
 
         docker-compose exec spire-dev bash
 
-4.  Create a user with uid 1000. The uid will be registered as a selector of the workload's SPIFFE ID. During kernel based attestation the workload process will be interogated for the registered uid.
+4.  Create a user with uid 1000. The uid will be registered as a selector of the workload's SPIFFE ID. During kernel based attestation the workload process will be interrogated for the registered uid.
 
 	    useradd -u 1000 workload
 
@@ -72,63 +72,59 @@ Note: If you don't already have Docker installed, please follow these [installat
 
     The default SPIRE Server configurations are shown below. A detailed description of each of the SPIRE Server configuration options is [here](/doc/spire_server.md)
 
-```hcl
-
-server {
+    ```hcl
+    server {
         bind_address = "127.0.0.1"
         bind_port = "8081"
-        registration_uds_path ="/tmp/spire-registration.sock"
+        registration_uds_path = "/tmp/spire-registration.sock"
         trust_domain = "example.org"
+        data_dir = "./.data"
         log_level = "DEBUG"
-        base_svid_ttl = 999999
-        server_svid_ttl = 999999
-}
-
-plugins {
-        ServerCA "memory" {
-        plugin_data {
-                key_size = 2048,
-                backdate_seconds = 1,
-                cert_subject = {
-                        Country = ["US"],
-                        Organization = ["SPIFFE"],
-                        CommonName = "",
-                        }
-                }
+        upstream_bundle = true
+        svid_ttl = "1h"
+        ca_subject = {
+            country = ["US"],
+            organization = ["SPIFFE"],
+            common_name = "",
         }
+    }
 
-        DataStore "datastore" {
-                plugin_data {
-                        database_type = "sqlite3"
-                        connection_string = "./.data/datastore.sqlite3"
-                }
+    plugins {
+        DataStore "sql" {
+            plugin_data {
+                database_type = "sqlite3"
+                connection_string = "./.data/datastore.sqlite3"
+            }
         }
 
         NodeAttestor "join_token" {
-                plugin_data {
-                }
+            plugin_data {
+            }
         }
 
         NodeResolver "noop" {
-                plugin_data {}
+            plugin_data {}
+        }
+
+        KeyManager "memory" {
+            plugin_data = {}
         }
 
         UpstreamCA "disk" {
-                plugin_data {
-                        ttl = "1h"
-                        key_file_path = "conf/server/dummy_upstream_ca.key"
-                        cert_file_path = "conf/server/dummy_upstream_ca.crt"
-                }
+            plugin_data {
+                ttl = "1h"
+                key_file_path = "./conf/server/dummy_upstream_ca.key"
+                cert_file_path = "./conf/server/dummy_upstream_ca.crt"
+            }
         }
-}
-
-```
+    }
+    ```
 
 9.  Start the SPIRE Server as a background process by running the following command.
 
         ./cmd/spire-server/spire-server run &
 
-10. Generate a one time Join Token via **spire-server token generate** sub commmand. Use the **-spiffeID** option to associate the Join Token with **spiffe://example.org/host** SPIFFE ID. Save the generated join token in your copy buffer.
+10. Generate a one time Join Token via **spire-server token generate** sub command. Use the **-spiffeID** option to associate the Join Token with **spiffe://example.org/host** SPIFFE ID. Save the generated join token in your copy buffer.
 
 	    ./cmd/spire-server/spire-server token generate -spiffeID spiffe://example.org/host
 
@@ -141,16 +137,14 @@ plugins {
         cat conf/agent/agent.conf
 
     The default SPIRE Agent configurations are shown below. A detailed description of each of the SPIRE Agent configuration options is [here](/doc/spire_agent.md)
-    ```
+    ```hcl
     agent {
-        bind_address = "127.0.0.1"
-        bind_port = "8088"
-        data_dir = "."
-        log_level = "INFO"
+        data_dir = "./.data"
+        log_level = "DEBUG"
         server_address = "127.0.0.1"
         server_port = "8081"
         socket_path ="/tmp/agent.sock"
-        trust_bundle_path = "conf/agent/dummy_root_ca.crt"
+        trust_bundle_path = "./conf/agent/dummy_root_ca.crt"
         trust_domain = "example.org"
     }
 
@@ -159,11 +153,21 @@ plugins {
             plugin_data {
             }
         }
-        KeyManager "memory" {
+        KeyManager "disk" {
             plugin_data {
+                directory = "./.data"
+            }
+        }
+        WorkloadAttestor "k8s" {
+            plugin_data {
+                kubelet_read_only_port = "10255"
             }
         }
         WorkloadAttestor "unix" {
+            plugin_data {
+            }
+        }
+        WorkloadAttestor "docker" {
             plugin_data {
             }
         }
@@ -189,4 +193,4 @@ plugins {
 15. Examine the output. Optionally, you may write the SVID and key to disk with `-write` in order to examine them in detail.
 
         su -c "./cmd/spire-agent/spire-agent api fetch x509 -write ./" workload
-        openssl x509 -in ~/go/src/github.com/spiffe/spire/svid.0.pem -text -noout
+        openssl x509 -in ./svid.0.pem -text -noout

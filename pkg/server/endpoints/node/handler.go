@@ -17,6 +17,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
@@ -61,7 +63,7 @@ func NewHandler(config HandlerConfig) *Handler {
 
 //Attest attests the node and gets the base node SVID.
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
-	counter := telemetry.StartCall(h.c.Metrics, telemetry.NodeAPI, telemetry.Attest)
+	counter := telemetry_server.StartNodeAPIAttestCall(h.c.Metrics)
 	defer counter.Done(&err)
 
 	// make sure node attestor stream will be cancelled if things go awry
@@ -94,7 +96,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "request CSR is invalid: %v", err)
 	}
-	counter.AddLabel(telemetry.SPIFFEID, agentID)
+	telemetry_common.AddSPIFFEID(counter, agentID)
 
 	attestedBefore, err := h.isAttested(ctx, agentID)
 	if err != nil {
@@ -190,7 +192,7 @@ func (h *Handler) getNodeAttestationValidationMode() idutil.ValidationMode {
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
 func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error) {
-	counter := telemetry.StartCall(h.c.Metrics, telemetry.NodeAPI, telemetry.X509SVID, telemetry.Fetch)
+	counter := telemetry_server.StartNodeAPIFetchX509SVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
 
 	peerCert, ok := getPeerCertificate(server.Context())
@@ -259,7 +261,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		}
 
 		for spiffeID := range svids {
-			counter.AddLabel(telemetry.SPIFFEID, spiffeID)
+			telemetry_common.AddSPIFFEID(counter, spiffeID)
 		}
 
 		err = server.Send(&node.FetchX509SVIDResponse{
@@ -330,7 +332,7 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 }
 
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (resp *node.FetchJWTSVIDResponse, err error) {
-	counter := telemetry.StartCall(h.c.Metrics, telemetry.NodeAPI, telemetry.JWTSVID, telemetry.Fetch)
+	counter := telemetry_server.StartNodeAPIFetchJWTSVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
 
 	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
@@ -352,7 +354,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, status.Error(codes.InvalidArgument, "request missing audience")
 	}
 
-	counter.AddLabel(telemetry.SPIFFEID, req.Jsr.SpiffeId)
+	telemetry_common.AddSPIFFEID(counter, req.Jsr.SpiffeId)
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
@@ -390,9 +392,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, err
 	}
 
-	for _, audience := range req.Jsr.Audience {
-		counter.AddLabel(telemetry.Audience, audience)
-	}
+	telemetry_common.AddAudience(counter, req.Jsr.Audience...)
 
 	return &node.FetchJWTSVIDResponse{
 		Svid: &node.JWTSVID{
