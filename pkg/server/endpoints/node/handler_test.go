@@ -595,7 +595,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSR() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: s.makeCSRs("an-entry-id", workloadID),
 	}, codes.Unknown, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for "an-entry-id"`)
+	s.assertLastLogMessageContains(`not entitled to sign CSR for registration entry ID "an-entry-id"`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
@@ -604,7 +604,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithUnauthorizedCSRLegacy() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(workloadID),
 	}, codes.Unknown, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for "spiffe://example.org/workload"`)
+	s.assertLastLogMessageContains(`not entitled to sign CSR for SPIFFE ID "spiffe://example.org/workload"`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithAgentCSR() {
@@ -664,7 +664,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSR() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		Csrs: s.makeCSRs("an-entry-id", trustDomainID),
 	}, codes.Unknown, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for "an-entry-id"`)
+	s.assertLastLogMessageContains(`not entitled to sign CSR for registration entry ID "an-entry-id"`)
 }
 
 func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSRLegacy() {
@@ -673,7 +673,7 @@ func (s *HandlerSuite) TestFetchX509SVIDWithDownstreamCSRLegacy() {
 	s.requireFetchX509SVIDFailure(&node.FetchX509SVIDRequest{
 		DEPRECATEDCsrs: s.makeCSRsLegacy(trustDomainID),
 	}, codes.Unknown, "failed to sign CSRs")
-	s.assertLastLogMessageContains(`not entitled to sign CSR for "spiffe://example.org"`)
+	s.assertLastLogMessageContains(`not entitled to sign CSR for SPIFFE ID "spiffe://example.org"`)
 }
 
 func (s *HandlerSuite) TestFetchX509CASVIDWithUnauthorizedDownstreamCSR() {

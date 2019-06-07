@@ -904,11 +904,15 @@ func (h *Handler) buildSVID(ctx context.Context,
 	ID string, regEntries map[string]*common.RegistrationEntry, csr []byte) (
 	*node.X509SVID, error) {
 
-	//TODO: Validate that other fields are not populated https://github.com/spiffe/spire/issues/161
-	//validate that is present in the registration entries, otherwise we shouldn't sign
 	entry, ok := regEntries[ID]
 	if !ok {
-		return nil, fmt.Errorf("not entitled to sign CSR for %q", ID)
+		var IDType string
+		if strings.HasPrefix(ID, "spiffe://") {
+			IDType = "SPIFFE ID"
+		} else {
+			IDType = "registration entry ID"
+		}
+		return nil, fmt.Errorf("not entitled to sign CSR for %s %q", IDType, ID)
 	}
 
 	svid, err := h.c.ServerCA.SignX509SVID(ctx, csr,
