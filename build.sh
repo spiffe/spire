@@ -3,9 +3,9 @@
 set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
 
-declare -r ARTIFACT_DIRS="$(find cmd/* functional/* -maxdepth 0 -type d 2>/dev/null)"
-declare -r RELEASE_DIRS="$(find cmd/* -maxdepth 0 -type d 2>/dev/null)"
-declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... 2>/dev/null)"
+declare -r ARTIFACT_DIRS="$(find cmd/* functional/* support/k8s/* -maxdepth 0 -type d 2>/dev/null)"
+declare -r RELEASE_DIRS="$(find cmd/* support/k8s/* -maxdepth 0 -type d 2>/dev/null)"
+declare -r SOURCE_PKGS="$(go list ./cmd/... ./pkg/... ./support/... 2>/dev/null)"
 declare -r RELEASE_FILES="LICENSE README.md conf"
 
 case $(uname) in
