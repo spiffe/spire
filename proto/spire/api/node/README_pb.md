@@ -19,7 +19,6 @@
     - [X509SVID](#spire.api.node.X509SVID)
     - [X509SVIDUpdate](#spire.api.node.X509SVIDUpdate)
     - [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry)
-    - [X509SVIDUpdate.DEPRECATEDSvidsEntry](#spire.api.node.X509SVIDUpdate.DEPRECATEDSvidsEntry)
     - [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry)
   
   
@@ -257,7 +256,6 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| DEPRECATED_svids | [X509SVIDUpdate.DEPRECATEDSvidsEntry](#spire.api.node.X509SVIDUpdate.DEPRECATEDSvidsEntry) | repeated | A map containing SVID values and corresponding SPIFFE IDs as the keys. Map[SPIFFE_ID] =&gt; SVID. Used for responses to legacy agents. |
 | svids | [X509SVIDUpdate.SvidsEntry](#spire.api.node.X509SVIDUpdate.SvidsEntry) | repeated | A map containing SVID values keyed by: - SPIFFE ID in message &#39;AttestResponse&#39; (Map[SPIFFE_ID] =&gt; SVID) - Entry ID in message &#39;FetchX509SVIDResponse&#39; (Map[Entry_ID] =&gt; SVID) |
 | registration_entries | [spire.common.RegistrationEntry](#spire.common.RegistrationEntry) | repeated | A type representing a curated record that the Spire Server uses to set up and manage the various registered nodes and workloads that are controlled by it. |
 | bundles | [X509SVIDUpdate.BundlesEntry](#spire.api.node.X509SVIDUpdate.BundlesEntry) | repeated | Trust bundles associated with the SVIDs, keyed by trust domain SPIFFE ID. Bundles included are the trust bundle for the server trust domain and any federated trust domain bundles applicable to the SVIDs. Supersedes the deprecated `bundle` field. |
@@ -277,22 +275,6 @@ a list of all current Registration Entries which are relevant to the caller SPIF
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
 | value | [spire.common.Bundle](#spire.common.Bundle) |  |  |
-
-
-
-
-
-
-<a name="spire.api.node.X509SVIDUpdate.DEPRECATEDSvidsEntry"></a>
-
-### X509SVIDUpdate.DEPRECATEDSvidsEntry
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| key | [string](#string) |  |  |
-| value | [X509SVID](#spire.api.node.X509SVID) |  |  |
 
 
 

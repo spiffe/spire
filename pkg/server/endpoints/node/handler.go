@@ -232,7 +232,6 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 
 		// Select how to sign the SVIDs based on the agent version
 		var svids map[string]*node.X509SVID
-		var svidsLegacy map[string]*node.X509SVID
 
 		// Only one of 'CSRs', 'DEPRECATEDCSRs' must be populated
 		if csrsLen != 0 && csrsLenDeprecated != 0 {
@@ -244,11 +243,10 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			svids, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
 		} else if csrsLenDeprecated != 0 {
 			// Legacy agent, use legacy SignCSRs
-			svidsLegacy, err = h.signCSRsLegacy(ctx, peerCert, request.DEPRECATEDCsrs, regEntries)
+			svids, err = h.signCSRsLegacy(ctx, peerCert, request.DEPRECATEDCsrs, regEntries)
 		} else {
 			// If both are zero, there is not CSR to sign -> assign an empty map
 			svids, err = make(map[string]*node.X509SVID), nil
-			svidsLegacy, err = make(map[string]*node.X509SVID), nil
 		}
 
 		if err != nil {
@@ -269,7 +267,6 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		err = server.Send(&node.FetchX509SVIDResponse{
 			SvidUpdate: &node.X509SVIDUpdate{
 				Svids:               svids,
-				DEPRECATEDSvids:     svidsLegacy,
 				RegistrationEntries: regEntries,
 				Bundles:             bundles,
 			},
@@ -714,7 +711,6 @@ func (h *Handler) getAttestResponse(ctx context.Context,
 	return &node.AttestResponse{
 		SvidUpdate: &node.X509SVIDUpdate{
 			Svids:               svids,
-			DEPRECATEDSvids:     svids,
 			RegistrationEntries: regEntries,
 			Bundles:             bundles,
 		},
