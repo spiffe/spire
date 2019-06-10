@@ -408,7 +408,7 @@ func (s *DataStore) ListRegistrationEntries(ctx context.Context,
 		for entryID, entry := range entriesSet {
 			matchesOne := false
 			for _, selectors := range selectorsList {
-				if !containsSelectors(entry.Selectors, selectors) {
+				if !matchesSelectors(entry.Selectors, selectors) {
 					continue
 				}
 				if len(entry.Selectors) != len(selectors) {
@@ -654,15 +654,18 @@ func newRegistrationEntryID() (string, error) {
 	return u.String(), nil
 }
 
-func containsSelectors(selectors, subset []*common.Selector) bool {
-nextSelector:
-	for _, candidate := range subset {
-		for _, selector := range selectors {
-			if candidate.Type == selector.Type && candidate.Value == selector.Value {
-				break nextSelector
-			}
-		}
+func matchesSelectors(a, b []*common.Selector) bool {
+	a = append([]*common.Selector{}, a...)
+	util.SortSelectors(a)
+	b = append([]*common.Selector{}, b...)
+	util.SortSelectors(b)
+	if len(a) != len(b) {
 		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if !proto.Equal(a[i], b[i]) {
+			return false
+		}
 	}
 	return true
 }
