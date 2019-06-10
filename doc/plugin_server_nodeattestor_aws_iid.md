@@ -37,7 +37,7 @@ For more information on security credentials, see https://docs.aws.amazon.com/ge
 A sample configuration:
 
 ```
-    NodeResolver "aws_iid" {
+    NodeAttestor "aws_iid" {
         plugin_data {
 			access_key_id = "ACCESS_KEY_ID"
 			secret_access_key = "SECRET_ACCESS_KEY"
