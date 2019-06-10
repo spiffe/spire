@@ -335,7 +335,13 @@ func (p *K8SPlugin) getContainerIDFromCGroups(pid int32) (string, error) {
 				log.Printf("Kube pod entry found, but without container id: %v", substring)
 				continue
 			}
-			return parts[4], nil
+			id := strings.TrimSuffix(parts[4], ".scope")
+			// Trim the id of any container runtime prefixes.  Ex "docker-" or "crio-"
+			dash := strings.Index(id, "-")
+			if dash > -1 {
+				id = id[dash+1:]
+			}
+			return id, nil
 		}
 	}
 
@@ -601,6 +607,7 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 		makeSelector("ns:%s", pod.Namespace),
 		makeSelector("node-name:%s", pod.Spec.NodeName),
 		makeSelector("pod-uid:%s", pod.UID),
+		makeSelector("pod-name:%s", pod.Name),
 		makeSelector("container-name:%s", status.Name),
 		makeSelector("container-image:%s", status.Image),
 	}

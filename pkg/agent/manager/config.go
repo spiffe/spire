@@ -55,7 +55,7 @@ func New(c *Config) (*manager, error) {
 		c.Clk = clock.New()
 	}
 
-	cache := cache.New(c.Log.WithField("subsystem_name", "cache"), c.TrustDomain.String(), c.Bundle)
+	cache := cache.New(c.Log.WithField("subsystem_name", "cache"), c.TrustDomain.String(), c.Bundle, c.Metrics)
 
 	rotCfg := &svid.RotatorConfig{
 		Catalog:      c.Catalog,
