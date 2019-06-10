@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -24,6 +25,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakenotifier"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
@@ -299,6 +301,26 @@ func (s *ManagerSuite) TestX509CARotation() {
 	s.setTimeAndRotateX509CA(activationTime2.Add(time.Minute))
 	s.requireX509CAEqual(third, s.currentX509CA())
 	s.Nil(s.nextX509CA())
+}
+
+func (s *ManagerSuite) TestX509CARotationMetric() {
+	s.initSelfSignedManager()
+
+	// use fake metric
+	metrics := fakemetrics.New()
+	s.m.c.Metrics = metrics
+
+	initTime := s.clock.Now()
+	preparationTime1 := initTime.Add(prepareAfter)
+
+	// rotate to preparation mark
+	s.setTimeAndRotateX509CA(preparationTime1)
+
+	expected := fakemetrics.New()
+	ttl := s.currentX509CA().Certificate.NotAfter.Sub(s.clock.Now())
+	telemetry_server.SetX509CARotateGauge(expected, s.m.c.TrustDomain.String(), float32(ttl.Seconds()))
+
+	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
 }
 
 func (s *ManagerSuite) TestJWTKeyRotation() {
