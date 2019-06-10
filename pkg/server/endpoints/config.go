@@ -13,16 +13,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-type SVIDRotator interface {
-	State() svid.State
-}
-
-type SVIDRotatorFunc func() svid.State
-
-func (fn SVIDRotatorFunc) State() svid.State {
-	return fn()
-}
-
 // Config is a configuration for endpoints
 type Config struct {
 	// Addresses to bind the servers to
@@ -33,7 +23,7 @@ type Config struct {
 	GRPCHook func(*grpc.Server) error
 
 	// The svid rotator used to obtain the latest server credentials
-	SVIDRotator SVIDRotator
+	SVIDObserver svid.Observer
 
 	// The server's configured trust domain. Used for validation, server SVID, etc.
 	TrustDomain url.URL

@@ -1,4 +1,4 @@
-package federation
+package bundle
 
 import (
 	"crypto/x509"
@@ -9,14 +9,8 @@ import (
 	"gopkg.in/square/go-jose.v2"
 )
 
-type bundleDoc struct {
-	jose.JSONWebKeySet
-	Sequence    uint64 `json:"spiffe_sequence,omitempty"`
-	RefreshHint int64  `json:"spiffe_refresh_hint,omitempty"`
-}
-
 type marshalConfig struct {
-	refreshHint int64
+	refreshHint int
 	sequence    uint64
 }
 
@@ -32,7 +26,7 @@ func (o marshalOption) configure(c *marshalConfig) error {
 
 func WithRefreshHint(value time.Duration) MarshalOption {
 	return marshalOption(func(c *marshalConfig) error {
-		c.refreshHint = int64(value / time.Second)
+		c.refreshHint = int(value / time.Second)
 		return nil
 	})
 }
@@ -44,7 +38,7 @@ func WithSequence(value uint64) MarshalOption {
 	})
 }
 
-func MarshalBundle(bundle *bundleutil.Bundle, opts ...MarshalOption) ([]byte, error) {
+func Marshal(bundle *bundleutil.Bundle, opts ...MarshalOption) ([]byte, error) {
 	c := new(marshalConfig)
 	for _, opt := range opts {
 		if err := opt.configure(c); err != nil {
@@ -61,14 +55,14 @@ func MarshalBundle(bundle *bundleutil.Bundle, opts ...MarshalOption) ([]byte, er
 		doc.Keys = append(doc.Keys, jose.JSONWebKey{
 			Key:          rootCA.PublicKey,
 			Certificates: []*x509.Certificate{rootCA},
-			Use:          "x509-svid",
+			Use:          x509SVIDUse,
 		})
 	}
 	for keyID, jwtSigningKey := range bundle.JWTSigningKeys() {
 		doc.Keys = append(doc.Keys, jose.JSONWebKey{
 			Key:   jwtSigningKey,
 			KeyID: keyID,
-			Use:   "jwt-svid",
+			Use:   jwtSVIDUse,
 		})
 	}
 

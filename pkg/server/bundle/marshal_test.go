@@ -1,7 +1,6 @@
-package federation
+package bundle
 
 import (
-	"encoding/base64"
 	"fmt"
 	"testing"
 	"time"
@@ -10,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMarshalBundle(t *testing.T) {
+func TestMarshal(t *testing.T) {
 	rootCA := createCACertificate(t)
 
 	testCases := []struct {
@@ -63,7 +62,7 @@ func TestMarshalBundle(t *testing.T) {
 						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
 					}
 				]
-			}`, base64.StdEncoding.EncodeToString(rootCA.Raw)),
+			}`, x5c(rootCA)),
 		},
 	}
 
@@ -74,7 +73,7 @@ func TestMarshalBundle(t *testing.T) {
 				bundle.AppendRootCA(rootCA)
 				bundle.AppendJWTSigningKey("FOO", testKey.Public())
 			}
-			bundleBytes, err := MarshalBundle(bundle, testCase.opts...)
+			bundleBytes, err := Marshal(bundle, testCase.opts...)
 			require.NoError(t, err)
 			require.JSONEq(t, testCase.out, string(bundleBytes))
 		})

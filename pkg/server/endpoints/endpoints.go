@@ -17,9 +17,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
-	"github.com/spiffe/spire/pkg/server/federation"
 	node_pb "github.com/spiffe/spire/proto/spire/api/node"
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -58,8 +58,8 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 		},
 	}
 
-	if fedServer, enabled := e.createFederationServer(); enabled {
-		tasks = append(tasks, fedServer.Run)
+	if bundleServer, enabled := e.createBundleEndpointServer(); enabled {
+		tasks = append(tasks, bundleServer.Run)
 	}
 
 	err := util.RunTasks(ctx, tasks...)
@@ -87,16 +87,17 @@ func (e *endpoints) createUDSServer(ctx context.Context) *grpc.Server {
 		grpc.Creds(peertracker.NewCredentials()))
 }
 
-func (e *endpoints) createFederationServer() (*federation.Server, bool) {
+func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 	if e.c.BundleEndpointAddress == nil {
 		return nil, false
 	}
+	e.c.Log.WithField("addr", e.c.BundleEndpointAddress).Info("Serving bundle endpoint")
 
 	ds := e.c.Catalog.GetDataStore()
-	return federation.NewServer(federation.ServerConfig{
-		Log:     e.c.Log.WithField("subsystem_name", "federation"),
+	return bundle.NewServer(bundle.ServerConfig{
+		Log:     e.c.Log.WithField("subsystem_name", "bundle_endpoint"),
 		Address: e.c.BundleEndpointAddress.String(),
-		BundleGetter: federation.BundleGetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
+		BundleGetter: bundle.BundleGetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
 			resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
 				TrustDomainId: e.c.TrustDomain.String(),
 			})
@@ -108,8 +109,8 @@ func (e *endpoints) createFederationServer() (*federation.Server, bool) {
 			}
 			return bundleutil.BundleFromProto(resp.Bundle)
 		}),
-		CredsGetter: federation.ServerCredsGetterFunc(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
-			state := e.c.SVIDRotator.State()
+		CredsGetter: bundle.ServerCredsGetterFunc(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
+			state := e.c.SVIDObserver.State()
 			return state.SVID, state.Key, nil
 		}),
 	}), true
@@ -260,7 +261,7 @@ func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 		caPool.AddCert(c)
 	}
 
-	svidState := e.c.SVIDRotator.State()
+	svidState := e.c.SVIDObserver.State()
 
 	certChain := [][]byte{}
 	for _, cert := range svidState.SVID {

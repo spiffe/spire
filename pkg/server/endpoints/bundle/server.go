@@ -1,4 +1,4 @@
-package federation
+package bundle
 
 import (
 	"context"
@@ -7,17 +7,11 @@ import (
 	"crypto/x509"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-)
-
-const (
-	// defaultRefreshHint is the default refresh hint returned from the bundle
-	// endpoint. Hard coding for now until we have a grasp on the right
-	// strategy.
-	defaultRefreshHint = time.Minute * 10
+	"github.com/spiffe/spire/pkg/server/bundle"
+	"github.com/zeebo/errs"
 )
 
 type BundleGetter interface {
@@ -68,7 +62,7 @@ func (s *Server) Run(ctx context.Context) error {
 	// it gives us the ability to use/inspect an ephemeral port during testing.
 	listener, err := s.c.listen("tcp", s.c.Address)
 	if err != nil {
-		return err
+		return errs.Wrap(err)
 	}
 
 	server := &http.Server{
@@ -80,7 +74,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- server.ServeTLS(listener, "", "")
+		errCh <- errs.Wrap(server.ServeTLS(listener, "", ""))
 	}()
 
 	select {
@@ -102,27 +96,28 @@ func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	bundle, err := s.c.BundleGetter.GetBundle(req.Context())
+	b, err := s.c.BundleGetter.GetBundle(req.Context())
 	if err != nil {
-		s.c.Log.WithError(err).Error("unable to retrieve bundle")
-		http.Error(w, "500 unable to retrieve bundle", http.StatusInternalServerError)
+		s.c.Log.WithError(err).Error("unable to retrieve local bundle")
+		http.Error(w, "500 unable to retrieve local bundle", http.StatusInternalServerError)
 		return
 	}
 
+	// TODO: configurable refresh hint?
 	// TODO: bundle sequence number?
-	opts := []MarshalOption{
-		WithRefreshHint(defaultRefreshHint),
+	opts := []bundle.MarshalOption{
+		bundle.WithRefreshHint(bundle.DefaultRefreshHint),
 	}
 
-	bundleBytes, err := MarshalBundle(bundle, opts...)
+	jsonBytes, err := bundle.Marshal(b, opts...)
 	if err != nil {
-		s.c.Log.WithError(err).Error("unable to marshal bundle")
-		http.Error(w, "500 unable to marshal bundle", http.StatusInternalServerError)
+		s.c.Log.WithError(err).Error("unable to marshal local bundle")
+		http.Error(w, "500 unable to marshal local bundle", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(bundleBytes)
+	w.Write(jsonBytes)
 }
 
 func (s *Server) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {

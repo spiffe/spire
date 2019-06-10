@@ -1,4 +1,4 @@
-package federation
+package bundle
 
 import (
 	"context"
@@ -8,19 +8,23 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"net"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
 func TestServer(t *testing.T) {
 	bundle := bundleutil.New("spiffe://domain.test")
-	serverCert := createServerCertificate(t)
+	serverCert, serverKey := createServerCertificate(t)
 
 	// even though this will be SPIFFE authentication in production, there is
 	// no functional change in the code based on the server certificate
@@ -76,7 +80,7 @@ func TestServer(t *testing.T) {
 			method:     "GET",
 			path:       "/",
 			status:     http.StatusInternalServerError,
-			body:       "500 unable to retrieve bundle\n",
+			body:       "500 unable to retrieve local bundle\n",
 			serverCert: serverCert,
 		},
 		{
@@ -105,7 +109,7 @@ func TestServer(t *testing.T) {
 				Log:          log,
 				Address:      "localhost:0",
 				BundleGetter: testBundleGetter(testCase.bundle),
-				CredsGetter:  testServerCredsGetter(testCase.serverCert),
+				CredsGetter:  testServerCredsGetter(testCase.serverCert, serverKey),
 				listen:       listen,
 			})
 
@@ -159,11 +163,21 @@ func testBundleGetter(bundle *bundleutil.Bundle) BundleGetter {
 	})
 }
 
-func testServerCredsGetter(cert *x509.Certificate) ServerCredsGetter {
+func testServerCredsGetter(cert *x509.Certificate, key crypto.Signer) ServerCredsGetter {
 	return ServerCredsGetterFunc(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
 		if cert == nil {
 			return nil, nil, errors.New("no server certificate")
 		}
-		return []*x509.Certificate{cert}, testKey, nil
+		return []*x509.Certificate{cert}, key, nil
+	})
+}
+
+func createServerCertificate(t *testing.T) (*x509.Certificate, crypto.Signer) {
+	return spiretest.SelfSignCertificate(t, &x509.Certificate{
+		SerialNumber: big.NewInt(0),
+		DNSNames:     []string{"localhost"},
+		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
+		NotAfter:     time.Now().Add(time.Hour),
+		URIs:         []*url.URL{idutil.ServerURI("domain.test")},
 	})
 }

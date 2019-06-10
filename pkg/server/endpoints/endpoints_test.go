@@ -66,7 +66,7 @@ func (s *EndpointsTestSuite) SetupTest() {
 	c := &Config{
 		TCPAddr: &net.TCPAddr{IP: ip, Port: 8000},
 		UDSAddr: &net.UnixAddr{Name: "/tmp/spire-registration.sock", Net: "unix"},
-		SVIDRotator: SVIDRotatorFunc(func() svid.State {
+		SVIDObserver: svid.ObserverFunc(func() svid.State {
 			return s.svidState
 		}),
 		TrustDomain: td,

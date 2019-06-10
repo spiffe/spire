@@ -1,10 +1,10 @@
-package federation
+package bundle
 
 import (
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/base64"
 	"math/big"
-	"net"
 	"testing"
 	"time"
 
@@ -29,19 +29,14 @@ func createCACertificate(t *testing.T) *x509.Certificate {
 	})
 }
 
-func createServerCertificate(t *testing.T) *x509.Certificate {
-	return createCertificate(t, &x509.Certificate{
-		SerialNumber: big.NewInt(0),
-		DNSNames:     []string{"localhost"},
-		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
-		NotAfter:     time.Now().Add(time.Hour),
-	})
-}
-
 func createCertificate(t *testing.T, tmpl *x509.Certificate) *x509.Certificate {
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, testKey.Public(), testKey)
 	require.NoError(t, err)
 	cert, err := x509.ParseCertificate(certDER)
 	require.NoError(t, err)
 	return cert
+}
+
+func x5c(cert *x509.Certificate) string {
+	return base64.StdEncoding.EncodeToString(cert.Raw)
 }
