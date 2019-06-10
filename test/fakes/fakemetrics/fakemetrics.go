@@ -36,10 +36,9 @@ type MetricItem struct {
 	Start  time.Time
 }
 
-func New(clk clock.Clock) *FakeMetrics {
+func New() *FakeMetrics {
 	return &FakeMetrics{
-		mu:  &sync.Mutex{},
-		clk: clk,
+		mu: &sync.Mutex{},
 	}
 }
 
@@ -95,15 +94,13 @@ func (m *FakeMetrics) AddSampleWithLabels(key []string, val float32, labels []te
 func (m *FakeMetrics) MeasureSince(key []string, start time.Time) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	// TODO: refactor MeasureSince to use get start from clock.Clock,
-	// for now ignoring provided start and using clock.Now()
-	m.metrics = append(m.metrics, MetricItem{Type: MeasureSinceType, Key: key, Start: m.clk.Now()})
+	// TODO: record `start` when it is convenient to thread a clock through all the telemetry helpers
+	m.metrics = append(m.metrics, MetricItem{Type: MeasureSinceType, Key: key})
 }
 
 func (m *FakeMetrics) MeasureSinceWithLabels(key []string, start time.Time, labels []telemetry.Label) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	// TODO: refactor MeasureSince to use get start from clock.Clock,
-	// for now ignoring provided start and using clock.Now()
-	m.metrics = append(m.metrics, MetricItem{Type: MeasureSinceWithLabelsType, Key: key, Start: m.clk.Now(), Labels: labels})
+	// TODO: record `start` when it is convenient to thread a clock through all the telemetry helpers
+	m.metrics = append(m.metrics, MetricItem{Type: MeasureSinceWithLabelsType, Key: key, Labels: labels})
 }

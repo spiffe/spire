@@ -11,7 +11,6 @@ import (
 	telemetry_workload "github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadattestor"
@@ -89,9 +88,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 
 func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	// Use fake metrics
-	clk := clock.NewMock(s.T())
-	clk.Set(time.Now())
-	metrics := fakemetrics.New(clk)
+	metrics := fakemetrics.New()
 	s.attestor.c.M = metrics
 
 	// Create context with life limit
@@ -114,19 +111,18 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	s.Equal(combined, selectors)
 
 	// Create expected metrics
-	expected := fakemetrics.New(clk)
+	expected := fakemetrics.New()
 	counter := telemetry_workload.StartAttestorLatencyCall(expected, "fake2")
 	counter.Done(nil)
 	counter2 := telemetry_workload.StartAttestorLatencyCall(expected, "fake1")
 	counter2.Done(nil)
 	telemetry_workload.AddDiscoveredSelectorsSample(expected, float32(len(selectors)))
-	telemetry_workload.MeasureAttestDuration(expected, clk.Now())
+	telemetry_workload.MeasureAttestDuration(expected, time.Now())
 
 	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
 
 	// Clean metrics to try it again
-	clk.Set(time.Now())
-	metrics = fakemetrics.New(clk)
+	metrics = fakemetrics.New()
 	s.attestor.c.M = metrics
 
 	// No selectors expected
@@ -134,14 +130,14 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	s.Empty(selectors)
 
 	// Create expected metrics with error key
-	expected = fakemetrics.New(clk)
+	expected = fakemetrics.New()
 	err := errors.New("some error")
 	counter = telemetry_workload.StartAttestorLatencyCall(expected, "fake2")
 	counter.Done(&err)
 	counter2 = telemetry_workload.StartAttestorLatencyCall(expected, "fake1")
 	counter2.Done(&err)
 	telemetry_workload.AddDiscoveredSelectorsSample(expected, float32(0))
-	telemetry_workload.MeasureAttestDuration(expected, clk.Now())
+	telemetry_workload.MeasureAttestDuration(expected, time.Now())
 
 	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
 }
