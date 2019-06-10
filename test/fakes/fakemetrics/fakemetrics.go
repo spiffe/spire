@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -25,7 +24,6 @@ const (
 type FakeMetrics struct {
 	metrics []MetricItem
 	mu      *sync.Mutex
-	clk     clock.Clock
 }
 
 type MetricItem struct {

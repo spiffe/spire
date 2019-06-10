@@ -52,9 +52,6 @@ func (s *WorkloadAttestorTestSuite) SetupTest() {
 	})
 }
 
-func (s *WorkloadAttestorTestSuite) TearDownTest() {
-}
-
 func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 	selectors1 := []*common.Selector{{Type: "foo", Value: "bar"}}
 	selectors2 := []*common.Selector{{Type: "bat", Value: "baz"}}
