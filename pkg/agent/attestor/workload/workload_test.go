@@ -2,17 +2,19 @@ package attestor
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_workload "github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadattestor"
-	mock_telemetry "github.com/spiffe/spire/test/mock/common/telemetry"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -30,17 +32,11 @@ type WorkloadAttestorTestSuite struct {
 	attestor  *attestor
 	attestor1 *fakeworkloadattestor.WorkloadAttestor
 	attestor2 *fakeworkloadattestor.WorkloadAttestor
-
-	metrics *mock_telemetry.MockMetrics
-	ctrl    *gomock.Controller
 }
 
 func (s *WorkloadAttestorTestSuite) SetupTest() {
 	s.attestor1 = fakeworkloadattestor.New()
 	s.attestor2 = fakeworkloadattestor.New()
-
-	s.ctrl = gomock.NewController(s.T())
-	s.metrics = mock_telemetry.NewMockMetrics(s.ctrl)
 
 	log, _ := test.NewNullLogger()
 
@@ -58,7 +54,6 @@ func (s *WorkloadAttestorTestSuite) SetupTest() {
 }
 
 func (s *WorkloadAttestorTestSuite) TearDownTest() {
-	s.ctrl.Finish()
 }
 
 func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
@@ -93,8 +88,11 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 }
 
 func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
-	// Use metrics mocks
-	s.attestor.c.M = s.metrics
+	// Use fake metrics
+	clk := clock.NewMock(s.T())
+	clk.Set(time.Now())
+	metrics := fakemetrics.New(clk)
+	s.attestor.c.M = metrics
 
 	// Create context with life limit
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
@@ -110,44 +108,40 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	s.attestor1.SetSelectors(2, selectors1)
 	s.attestor2.SetSelectors(2, selectors2)
 
-	// Attestor labels
-	attestorLabels := []telemetry.Label{{telemetry.Attestor, "fake1"}}
-	attestorLabels2 := []telemetry.Label{{telemetry.Attestor, "fake2"}}
-
-	// Create mocks for success scenario
-	s.metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestationDuration}, gomock.Any())
-	// A sample metric is created with the amount of returned selectors
-	s.metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(len(combined)))
-
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency}, float32(1), attestorLabels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency, telemetry.ElapsedTime},
-		gomock.Any(), attestorLabels)
-
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency}, float32(1), attestorLabels2)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency, telemetry.ElapsedTime},
-		gomock.Any(), attestorLabels2)
-
 	// Expect selectors from both attestors
 	selectors := s.attestor.Attest(ctx, 2)
 	util.SortSelectors(selectors)
 	s.Equal(combined, selectors)
 
-	// Create mocks for error scenario
-	s.metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestationDuration}, gomock.Any())
-	// A sample metric is created with empty discovered selectors
-	s.metrics.EXPECT().AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(0))
+	// Create expected metrics
+	expected := fakemetrics.New(clk)
+	counter := telemetry_workload.StartAttestorLatencyCall(expected, "fake2")
+	counter.Done(nil)
+	counter2 := telemetry_workload.StartAttestorLatencyCall(expected, "fake1")
+	counter2.Done(nil)
+	telemetry_workload.AddDiscoveredSelectorsSample(expected, float32(len(selectors)))
+	telemetry_workload.MeasureAttestDuration(expected, clk.Now())
 
-	// Error key is added to metric when error happens attesting a workload
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency, telemetry.Error}, float32(1), attestorLabels)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency, telemetry.Error, telemetry.ElapsedTime},
-		gomock.Any(), attestorLabels)
+	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
 
-	// Error key is added to metric when error happens attesting a workload
-	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency, telemetry.Error}, float32(1), attestorLabels2)
-	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency, telemetry.Error, telemetry.ElapsedTime},
-		gomock.Any(), attestorLabels2)
+	// Clean metrics to try it again
+	clk.Set(time.Now())
+	metrics = fakemetrics.New(clk)
+	s.attestor.c.M = metrics
 
 	// No selectors expected
 	selectors = s.attestor.Attest(ctx, 1)
 	s.Empty(selectors)
+
+	// Create expected metrics with error key
+	expected = fakemetrics.New(clk)
+	err := errors.New("some error")
+	counter = telemetry_workload.StartAttestorLatencyCall(expected, "fake2")
+	counter.Done(&err)
+	counter2 = telemetry_workload.StartAttestorLatencyCall(expected, "fake1")
+	counter2.Done(&err)
+	telemetry_workload.AddDiscoveredSelectorsSample(expected, float32(0))
+	telemetry_workload.MeasureAttestDuration(expected, clk.Now())
+
+	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
 }
