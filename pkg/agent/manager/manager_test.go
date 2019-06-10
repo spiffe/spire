@@ -1145,15 +1145,11 @@ func newMockNodeAPIHandler(config *mockNodeAPIHandlerConfig, clk clock.Clock) *m
 	return h
 }
 
-func (h *mockNodeAPIHandler) makeSvids(csrs [][]byte) (svidMap, error) {
+func (h *mockNodeAPIHandler) makeSvids(csrs map[string][]byte) (svidMap, error) {
 	svids := make(svidMap)
-	for _, csr := range csrs {
+	for entryID, csr := range csrs {
 		svid := h.newSVIDFromCSR(csr)
-		spiffeID, err := getSpiffeIDFromSVID(svid[0])
-		if err != nil {
-			return nil, fmt.Errorf("cannot get spiffeID from SVID: %v. reqCount: %d", err, h.getCountRequest())
-		}
-		svids[spiffeID] = &node.X509SVID{
+		svids[entryID] = &node.X509SVID{
 			CertChain: x509util.DERFromCertificates(svid),
 			ExpiresAt: svid[0].NotAfter.Unix(),
 		}
