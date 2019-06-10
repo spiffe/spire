@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -231,10 +232,17 @@ func makeSpiffeID(trustDomain string, agentPathTemplate *template.Template, cert
 	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
 		Certificate: cert,
 		PluginName:  PluginName,
-		Fingerprint: ssh.FingerprintSHA256(cert),
+		Fingerprint: urlSafeSSHFingerprintSHA256(cert),
 		Hostname:    hostname,
 	}); err != nil {
 		return "", err
 	}
 	return idutil.AgentURI(trustDomain, agentPath.String()).String(), nil
+}
+
+// urlSafeSSHFingerprintSHA256 is a modified version of ssh.FingerprintSHA256
+// that returns an unpadded, url-safe version of the fingerprint.
+func urlSafeSSHFingerprintSHA256(pubKey ssh.PublicKey) string {
+	sha256sum := sha256.Sum256(pubKey.Marshal())
+	return base64.RawURLEncoding.EncodeToString(sha256sum[:])
 }
