@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -167,7 +168,8 @@ func (m *Manager) rotateX509CA(ctx context.Context) error {
 }
 
 func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err error) {
-	defer telemetry.CountCall(m.c.Metrics, telemetry.Manager, telemetry.X509CA, telemetry.Prepare)(&err)
+	counter := telemetry_server.StartServerCAManagerPrepareX509CACall(m.c.Metrics)
+	defer counter.Done(&err)
 
 	log := m.c.Log.WithField("slot", slot.id)
 	log.Debug("Preparing X509 CA")
@@ -222,7 +224,7 @@ func (m *Manager) activateX509CA() {
 		"issued_at": timeField(m.currentX509CA.issuedAt),
 		"not_after": timeField(m.currentX509CA.x509CA.Certificate.NotAfter),
 	}).Info("X509 CA activated")
-	m.c.Metrics.IncrCounter([]string{telemetry.Manager, telemetry.X509CA, telemetry.Activate}, 1)
+	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
 	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
 }
 
@@ -255,7 +257,8 @@ func (m *Manager) rotateJWTKey(ctx context.Context) error {
 }
 
 func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err error) {
-	defer telemetry.CountCall(m.c.Metrics, telemetry.Manager, telemetry.JWTKey, telemetry.Prepare)(&err)
+	counter := telemetry_server.StartServerCAManagerPrepareJWTKeyCall(m.c.Metrics)
+	defer counter.Done(&err)
 
 	log := m.c.Log.WithField("slot", slot.id)
 	log.Debug("Preparing JWT key")
@@ -306,7 +309,7 @@ func (m *Manager) activateJWTKey() {
 		"issued_at": timeField(m.currentJWTKey.issuedAt),
 		"not_after": timeField(m.currentJWTKey.jwtKey.NotAfter),
 	}).Info("JWT key activated")
-	m.c.Metrics.IncrCounter([]string{telemetry.Manager, telemetry.JWTKey, telemetry.Activate}, 1)
+	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
 	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
 }
 
@@ -327,70 +330,23 @@ func (m *Manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 }
 
 func (m *Manager) pruneBundle(ctx context.Context) (err error) {
-	defer telemetry.CountCall(m.c.Metrics, telemetry.Manager, telemetry.Bundle, telemetry.Prune)(&err)
+	counter := telemetry_server.StartCAManagerPruneBundleCall(m.c.Metrics)
+	defer counter.Done(&err)
+
 	ds := m.c.Catalog.GetDataStore()
+	expiresBefore := m.c.Clock.Now().Add(-safetyThreshold)
 
-	now := m.c.Clock.Now().Add(-safetyThreshold)
+	resp, err := ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
+		TrustDomainId: m.c.TrustDomain.String(),
+		ExpiresBefore: expiresBefore.Unix(),
+	})
 
-	oldBundle, err := m.fetchOptionalBundle(ctx)
 	if err != nil {
-		return err
-	}
-	if oldBundle == nil {
-		// no bundle to prune
-		return nil
+		return fmt.Errorf("unable to prune bundle: %v", err)
 	}
 
-	newBundle := &common.Bundle{
-		TrustDomainId: oldBundle.TrustDomainId,
-	}
-	changed := false
-pruneRootCA:
-	for _, rootCA := range oldBundle.RootCas {
-		certs, err := x509.ParseCertificates(rootCA.DerBytes)
-		if err != nil {
-			return errs.Wrap(err)
-		}
-		// if any cert in the chain has expired beyond the safety
-		// threshhold, throw the whole chain out
-		for _, cert := range certs {
-			if !cert.NotAfter.After(now) {
-				m.c.Log.Infof("Pruning CA certificate number %v with expiry date %v", cert.SerialNumber, cert.NotAfter)
-				changed = true
-				continue pruneRootCA
-			}
-		}
-		newBundle.RootCas = append(newBundle.RootCas, rootCA)
-	}
-
-	for _, jwtSigningKey := range oldBundle.JwtSigningKeys {
-		notAfter := time.Unix(jwtSigningKey.NotAfter, 0)
-		if !notAfter.After(now) {
-			m.c.Log.Infof("Pruning JWT signing key %q with expiry date %v", jwtSigningKey.Kid, notAfter)
-			changed = true
-			continue
-		}
-		newBundle.JwtSigningKeys = append(newBundle.JwtSigningKeys, jwtSigningKey)
-	}
-
-	if len(newBundle.RootCas) == 0 {
-		m.c.Log.Warn("Pruning halted; all known CA certificates have expired")
-		return errors.New("would prune all certificates")
-	}
-
-	if len(newBundle.JwtSigningKeys) == 0 {
-		m.c.Log.Warn("Pruning halted; all known JWT signing keys have expired")
-		return errors.New("would prune all JWT signing keys")
-	}
-
-	if changed {
-		m.c.Metrics.IncrCounter([]string{telemetry.Manager, telemetry.Bundle, telemetry.Pruned}, 1)
-		_, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-			Bundle: newBundle,
-		})
-		if err != nil {
-			return fmt.Errorf("write new bundle: %v", err)
-		}
+	if resp.BundleChanged {
+		telemetry_server.IncrManagerPrunedBundleCounter(m.c.Metrics)
 		m.bundleUpdated()
 	}
 

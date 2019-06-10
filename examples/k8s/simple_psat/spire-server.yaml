@@ -71,9 +71,9 @@ data:
       svid_ttl = "1h"
       upstream_bundle = true
       ca_subject = {
-        Country = ["US"],
-        Organization = ["SPIFFE"],
-        CommonName = "",
+        country = ["US"],
+        organization = ["SPIFFE"],
+        common_name = "",
       }
     }
 
@@ -151,7 +151,7 @@ spec:
       serviceAccountName: spire-server
       containers:
         - name: spire-server
-          image: gcr.io/spiffe-io/spire-server:0.7.3
+          image: gcr.io/spiffe-io/spire-server:0.8.0
           args: ["-config", "/run/spire/config/server.conf"]
           ports:
             - containerPort: 8081

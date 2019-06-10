@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/zeebo/errs"
 )
@@ -37,6 +38,30 @@ type ServerCA interface {
 	SignX509SVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error)
 	SignX509CASVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error)
 	SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error)
+
+	// Sign an SVID used to serve SPIRE server TLS endpoints
+	// This is required because in some cases, an UpstreamCA root is used to bootstrap
+	// agents while upstream_bundle is false. This allows the trust domain roots to be
+	// isolated to those managed by SPIRE, but at the same time allows leveraging a stable
+	// upstream root for the sole purpose of bootstrapping agents.
+	//
+	// This should probably not be supported in the long run because simply omitting higher
+	// order CA certificates is 1) not a sufficient isolation mechanism [1] and 2) not supported
+	// by most X.509 validators without a special flag set [2].
+	//
+	// All known instances requiring this use case are isolated to demos and other convenience
+	// functions, meaning that the UpstreamCA signer is always the root. To support this specific
+	// use case, while also minimizing disruption to the CA implementation and interfaces, this
+	// method will always return the CA certificate managed by SPIRE as the 2nd element in the
+	// certificate chain. No effort will be made to support this use case when the UpstreamCA
+	// signer is not the root.
+	//
+	// TODO: Change the upstream_ca configurable to default to true. Evaluate whether this use
+	// case should be supported in the long term.
+	//
+	// [1]: https://acmccs.github.io/papers/p1407-acerA.pdf
+	// [2]: https://www.openssl.org/docs/man1.1.0/man1/openssl-verify.html
+	SignServerX509SVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error)
 }
 
 // X509Params are parameters relevant to X509 SVID creation
@@ -136,7 +161,29 @@ func (ca *CA) SetJWTKey(jwtKey *JWTKey) {
 }
 
 func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error) {
+	return ca.signX509SVID(ctx, csrDER, params, ca.X509CA())
+}
+
+func (ca *CA) SignServerX509SVID(ctx context.Context, csrDER []byte, params X509Params) ([]*x509.Certificate, error) {
 	x509CA := ca.X509CA()
+
+	certs, err := ca.signX509SVID(ctx, csrDER, params, x509CA)
+	if err != nil {
+		return nil, err
+	}
+
+	// If we don't have an upstream chain, always add our local CA cert to
+	// the chain in order to support use cases in which an UpstreamCA is used
+	// for bootstrapping only. Don't worry if an UpstreamCA is actually set or
+	// not because the cost of transmitting the extra cert is relatively low.
+	if len(x509CA.UpstreamChain) == 0 {
+		certs = append(certs, x509CA.Certificate)
+	}
+
+	return certs, nil
+}
+
+func (ca *CA) signX509SVID(ctx context.Context, csrDER []byte, params X509Params, x509CA *X509CA) ([]*x509.Certificate, error) {
 	if x509CA == nil {
 		return nil, errs.New("X509 CA is not available for signing")
 	}
@@ -175,12 +222,7 @@ func (ca *CA) SignX509SVID(ctx context.Context, csrDER []byte, params X509Params
 		"expires_at": cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 SVID")
 
-	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.CA, telemetry.Sign, telemetry.X509SVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: spiffeID,
-		},
-	})
+	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics, spiffeID)
 
 	return makeSVIDCertChain(x509CA, cert), nil
 }
@@ -225,12 +267,7 @@ func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Para
 		"expires_at": cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 CA SVID")
 
-	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.CA, telemetry.Sign, telemetry.X509CASVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: spiffeID,
-		},
-	})
+	telemetry_server.IncrServerCASignX509CACounter(ca.c.Metrics, spiffeID)
 
 	return makeSVIDCertChain(x509CA, cert), nil
 }
@@ -256,19 +293,7 @@ func (ca *CA) SignJWTSVID(ctx context.Context, jsr *node.JSR) (string, error) {
 		return "", errs.New("unable to sign JWT SVID: %v", err)
 	}
 
-	labels := []telemetry.Label{
-		{
-			Name:  telemetry.SPIFFEID,
-			Value: jsr.SpiffeId,
-		},
-	}
-	for _, audience := range jsr.Audience {
-		labels = append(labels, telemetry.Label{
-			Name:  telemetry.Audience,
-			Value: audience,
-		})
-	}
-	ca.c.Metrics.IncrCounterWithLabels([]string{telemetry.ServerCA, telemetry.Sign, telemetry.JWTSVID}, 1, labels)
+	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics, jsr.SpiffeId, jsr.Audience...)
 
 	return token, nil
 }

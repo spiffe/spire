@@ -34,9 +34,9 @@ data:
       ca_ttl = "12h"
       upstream_bundle = true
       ca_subject = {
-        Country = ["US"],
-        Organization = ["SPIFFE"],
-        CommonName = "",
+        country = ["US"],
+        organization = ["SPIFFE"],
+        common_name = "",
       }
     }
 

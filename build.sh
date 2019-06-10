@@ -28,7 +28,7 @@ declare -r BUILD_CACHE=${BUILD_CACHE:-$PWD/.cache}
 
 # versioned binaries that we need for builds
 export GO111MODULE=on
-declare -r GO_VERSION=${GO_VERSION:-1.12.1}
+declare -r GO_VERSION=${GO_VERSION:-1.12.5}
 declare -r GO_URL="https://storage.googleapis.com/golang"
 declare -r GO_TGZ="go${GO_VERSION}.${OS1}-${ARCH2}.tar.gz"
 declare -r PROTOBUF_VERSION=${PROTOBUF_VERSION:-3.3.0}
@@ -90,7 +90,7 @@ build_protobuf() {
 
 	# Generate protobufs in the proto/ and pkg/ subdirectories. README markdown
 	# will also be generated for protobufs in proto/. Unless an "_out" argument
-	# has been set the output will sit alongside the proto files. 
+	# has been set the output will sit alongside the proto files.
 	_proto_files="$(find proto pkg -name '*.proto' 2>/dev/null)"
 	for _protofile in ${_proto_files}; do
 		_srcdir="$(dirname "${_protofile}")"

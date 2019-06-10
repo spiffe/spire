@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
+
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang/protobuf/proto"
@@ -180,6 +183,30 @@ func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesR
 	}
 
 	return resp, nil
+}
+
+// PruneBundle removes expired certs from a bundle
+func (s *DataStore) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (*datastore.PruneBundleResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldBundle, ok := s.bundles[req.TrustDomainId]
+	if !ok {
+		// No bundle to prune
+		return &datastore.PruneBundleResponse{}, nil
+	}
+
+	newBundle, changed, err := bundleutil.PruneBundle(oldBundle, time.Unix(req.ExpiresBefore, 0), hclog.NewNullLogger())
+	if err != nil {
+		return nil, fmt.Errorf("prune failed: %v", err)
+	}
+
+	// If any cert was pruned, then update the bundle
+	if changed {
+		s.bundles[req.TrustDomainId] = newBundle
+	}
+
+	return &datastore.PruneBundleResponse{BundleChanged: changed}, nil
 }
 
 func (s *DataStore) CreateAttestedNode(ctx context.Context,
@@ -381,7 +408,7 @@ func (s *DataStore) ListRegistrationEntries(ctx context.Context,
 		for entryID, entry := range entriesSet {
 			matchesOne := false
 			for _, selectors := range selectorsList {
-				if !containsSelectors(entry.Selectors, selectors) {
+				if !matchesSelectors(entry.Selectors, selectors) {
 					continue
 				}
 				if len(entry.Selectors) != len(selectors) {
@@ -627,15 +654,18 @@ func newRegistrationEntryID() (string, error) {
 	return u.String(), nil
 }
 
-func containsSelectors(selectors, subset []*common.Selector) bool {
-nextSelector:
-	for _, candidate := range subset {
-		for _, selector := range selectors {
-			if candidate.Type == selector.Type && candidate.Value == selector.Value {
-				break nextSelector
-			}
-		}
+func matchesSelectors(a, b []*common.Selector) bool {
+	a = append([]*common.Selector{}, a...)
+	util.SortSelectors(a)
+	b = append([]*common.Selector{}, b...)
+	util.SortSelectors(b)
+	if len(a) != len(b) {
 		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if !proto.Equal(a[i], b[i]) {
+			return false
+		}
 	}
 	return true
 }

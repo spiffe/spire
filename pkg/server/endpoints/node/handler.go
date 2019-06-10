@@ -17,6 +17,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
@@ -61,7 +63,7 @@ func NewHandler(config HandlerConfig) *Handler {
 
 //Attest attests the node and gets the base node SVID.
 func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
-	counter := telemetry.StartCall(h.c.Metrics, telemetry.NodeAPI, telemetry.Attest)
+	counter := telemetry_server.StartNodeAPIAttestCall(h.c.Metrics)
 	defer counter.Done(&err)
 
 	// make sure node attestor stream will be cancelled if things go awry
@@ -94,7 +96,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "request CSR is invalid: %v", err)
 	}
-	counter.AddLabel(telemetry.SPIFFEID, agentID)
+	telemetry_common.AddSPIFFEID(counter, agentID)
 
 	attestedBefore, err := h.isAttested(ctx, agentID)
 	if err != nil {
@@ -190,7 +192,7 @@ func (h *Handler) getNodeAttestationValidationMode() idutil.ValidationMode {
 //Also used for rotation Base Node SVID or the Registered Node SVID used for this call.
 //List can be empty to allow Node Agent cache refresh).
 func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error) {
-	counter := telemetry.StartCall(h.c.Metrics, telemetry.NodeAPI, telemetry.X509SVID, telemetry.Fetch)
+	counter := telemetry_server.StartNodeAPIFetchX509SVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
 
 	peerCert, ok := getPeerCertificate(server.Context())
@@ -208,8 +210,10 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		}
 
 		ctx := server.Context()
+		csrsLenDeprecated := len(request.DEPRECATEDCsrs)
+		csrsLen := len(request.Csrs)
 
-		err = h.limiter.Limit(ctx, CSRMsg, len(request.Csrs))
+		err = h.limiter.Limit(ctx, CSRMsg, max(csrsLen, csrsLenDeprecated))
 		if err != nil {
 			return status.Error(codes.ResourceExhausted, err.Error())
 		}
@@ -226,7 +230,25 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return errors.New("failed to fetch agent registration entries")
 		}
 
-		svids, err := h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
+		// Select how to sign the SVIDs based on the agent version
+		var svids map[string]*node.X509SVID
+
+		// Only one of 'CSRs', 'DEPRECATEDCSRs' must be populated
+		if csrsLen != 0 && csrsLenDeprecated != 0 {
+			return errors.New("cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
+		}
+
+		if csrsLen != 0 {
+			// Current agent, use regular signCSRs
+			svids, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
+		} else if csrsLenDeprecated != 0 {
+			// Legacy agent, use legacy SignCSRs
+			svids, err = h.signCSRsLegacy(ctx, peerCert, request.DEPRECATEDCsrs, regEntries)
+		} else {
+			// If both are zero, there is not CSR to sign -> assign an empty map
+			svids, err = make(map[string]*node.X509SVID), nil
+		}
+
 		if err != nil {
 			h.c.Log.Error(err)
 			return errors.New("failed to sign CSRs")
@@ -239,7 +261,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 		}
 
 		for spiffeID := range svids {
-			counter.AddLabel(telemetry.SPIFFEID, spiffeID)
+			telemetry_common.AddSPIFFEID(counter, spiffeID)
 		}
 
 		err = server.Send(&node.FetchX509SVIDResponse{
@@ -310,7 +332,7 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 }
 
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDRequest) (resp *node.FetchJWTSVIDResponse, err error) {
-	counter := telemetry.StartCall(h.c.Metrics, telemetry.NodeAPI, telemetry.JWTSVID, telemetry.Fetch)
+	counter := telemetry_server.StartNodeAPIFetchJWTSVIDCall(h.c.Metrics)
 	defer counter.Done(&err)
 
 	if err := h.limiter.Limit(ctx, JSRMsg, 1); err != nil {
@@ -332,7 +354,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, status.Error(codes.InvalidArgument, "request missing audience")
 	}
 
-	counter.AddLabel(telemetry.SPIFFEID, req.Jsr.SpiffeId)
+	telemetry_common.AddSPIFFEID(counter, req.Jsr.SpiffeId)
 
 	agentID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
@@ -370,9 +392,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *node.FetchJWTSVIDReques
 		return nil, err
 	}
 
-	for _, audience := range req.Jsr.Audience {
-		counter.AddLabel(telemetry.Audience, audience)
-	}
+	telemetry_common.AddAudience(counter, req.Jsr.Audience...)
 
 	return &node.FetchJWTSVIDResponse{
 		Svid: &node.JWTSVID{
@@ -718,7 +738,11 @@ func (h *Handler) getDownstreamEntry(ctx context.Context, callerID string) (*com
 	return nil, fmt.Errorf("%q is not an authorized downstream workload", callerID)
 }
 
-func (h *Handler) signCSRs(ctx context.Context,
+// signCSRsLegacy receives CSRs as a slice of []bytes in contrast with 'SignCSRs'.
+// This function is used to handle legacy agents request that use
+// the 'DEPRECATED_csrs' field of the 'FetchX509SVIDRequest' message.
+// TODO: remove this function when 'DEPRECATED_csrs' gets removed
+func (h *Handler) signCSRsLegacy(ctx context.Context,
 	peerCert *x509.Certificate, csrs [][]byte, regEntries []*common.RegistrationEntry) (
 	svids map[string]*node.X509SVID, err error) {
 
@@ -797,15 +821,98 @@ func (h *Handler) signCSRs(ctx context.Context,
 	return svids, nil
 }
 
+func (h *Handler) signCSRs(ctx context.Context,
+	peerCert *x509.Certificate, csrs map[string][]byte, regEntries []*common.RegistrationEntry) (
+	svids map[string]*node.X509SVID, err error) {
+
+	callerID, err := getSpiffeIDFromCert(peerCert)
+	if err != nil {
+		return nil, err
+	}
+
+	//convert registration entries into a map for easy lookup
+	regEntriesMap := make(map[string]*common.RegistrationEntry)
+	for _, entry := range regEntries {
+		regEntriesMap[entry.EntryId] = entry
+	}
+
+	ds := h.c.Catalog.GetDataStore()
+	svids = make(map[string]*node.X509SVID)
+	//iterate the CSRs and sign them
+	for entryID, csr := range csrs {
+		spiffeID, err := getSpiffeIDFromCSR(csr, idutil.AllowAny())
+		if err != nil {
+			return nil, err
+		}
+
+		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", h.c.TrustDomain.String())
+
+		sourceAddress := "unknown"
+		if peerAddress, ok := getPeerAddress(ctx); ok {
+			sourceAddress = peerAddress.String()
+		}
+
+		signLog := h.c.Log.WithFields(logrus.Fields{
+			"caller_id":      callerID,
+			"spiffe_id":      spiffeID,
+			"source_address": sourceAddress,
+		})
+
+		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
+			res, err := ds.FetchAttestedNode(ctx,
+				&datastore.FetchAttestedNodeRequest{SpiffeId: spiffeID},
+			)
+			if err != nil {
+				return nil, err
+			}
+			// attested node discrepancies are not likely since the agent
+			// certificate is checked against the attested nodes during the
+			// authentication step. however, it is possible that an agent is
+			// evicted between authentication and here so these checks should
+			// remain.
+			if res.Node == nil {
+				return nil, errors.New("no record of attested node")
+			}
+			if res.Node.CertSerialNumber != peerCert.SerialNumber.String() {
+				return nil, errors.New("SVID serial number does not match")
+			}
+
+			signLog.Debug("Renewing agent SVID")
+			svid, svidCert, err := h.buildBaseSVID(ctx, csr)
+			if err != nil {
+				return nil, err
+			}
+			svids[entryID] = svid
+
+			if err := h.updateAttestationEntry(ctx, svidCert); err != nil {
+				return nil, err
+			}
+		} else {
+			signLog.Debug("Signing SVID")
+			svid, err := h.buildSVID(ctx, entryID, regEntriesMap, csr)
+			if err != nil {
+				return nil, err
+			}
+			svids[entryID] = svid
+		}
+	}
+
+	return svids, nil
+}
+
 func (h *Handler) buildSVID(ctx context.Context,
-	spiffeID string, regEntries map[string]*common.RegistrationEntry, csr []byte) (
+	id string, regEntries map[string]*common.RegistrationEntry, csr []byte) (
 	*node.X509SVID, error) {
 
-	//TODO: Validate that other fields are not populated https://github.com/spiffe/spire/issues/161
-	//validate that is present in the registration entries, otherwise we shouldn't sign
-	entry, ok := regEntries[spiffeID]
+	entry, ok := regEntries[id]
 	if !ok {
-		return nil, fmt.Errorf("not entitled to sign CSR for %q", spiffeID)
+		var idType string
+		if strings.HasPrefix(id, "spiffe://") {
+			idType = "SPIFFE ID"
+		} else {
+			idType = "registration entry ID"
+		}
+		return nil, fmt.Errorf("not entitled to sign CSR for %s %q", idType, id)
 	}
 
 	svid, err := h.c.ServerCA.SignX509SVID(ctx, csr,
@@ -986,4 +1093,12 @@ func getPeerAddress(ctx context.Context) (addr net.Addr, ok bool) {
 		return p.Addr, true
 	}
 	return nil, false
+}
+
+// max returns the larger of x or y.
+func max(x, y int) int {
+	if x < y {
+		return y
+	}
+	return x
 }
