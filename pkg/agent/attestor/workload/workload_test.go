@@ -84,9 +84,17 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 }
 
 func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
+
+	// Add only one attestor
+	catalog := fakeagentcatalog.New()
+	catalog.SetWorkloadAttestors(
+		fakeagentcatalog.WorkloadAttestor("fake1", s.attestor1),
+	)
 	// Use fake metrics
 	metrics := fakemetrics.New()
+
 	s.attestor.c.M = metrics
+	s.attestor.c.Catalog = catalog
 
 	// Create context with life limit
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
@@ -94,23 +102,15 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 
 	// Without the security header
 	selectors1 := []*common.Selector{{Type: "foo", Value: "bar"}}
-	selectors2 := []*common.Selector{{Type: "bat", Value: "baz"}}
-	combined := append(selectors1, selectors2...)
-	util.SortSelectors(combined)
 
 	// attestor1 has selectors, but not attestor2
 	s.attestor1.SetSelectors(2, selectors1)
-	s.attestor2.SetSelectors(2, selectors2)
 
 	// Expect selectors from both attestors
 	selectors := s.attestor.Attest(ctx, 2)
-	util.SortSelectors(selectors)
-	s.Equal(combined, selectors)
 
 	// Create expected metrics
 	expected := fakemetrics.New()
-	counter := telemetry_workload.StartAttestorLatencyCall(expected, "fake2")
-	counter.Done(nil)
 	counter2 := telemetry_workload.StartAttestorLatencyCall(expected, "fake1")
 	counter2.Done(nil)
 	telemetry_workload.AddDiscoveredSelectorsSample(expected, float32(len(selectors)))
@@ -129,8 +129,6 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	// Create expected metrics with error key
 	expected = fakemetrics.New()
 	err := errors.New("some error")
-	counter = telemetry_workload.StartAttestorLatencyCall(expected, "fake2")
-	counter.Done(&err)
 	counter2 = telemetry_workload.StartAttestorLatencyCall(expected, "fake1")
 	counter2.Done(&err)
 	telemetry_workload.AddDiscoveredSelectorsSample(expected, float32(0))
