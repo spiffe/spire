@@ -37,6 +37,7 @@ const (
 	cgPidInPodFilePath        = "testdata/cgroups_pid_in_pod.txt"
 	cgInitPidInPodFilePath    = "testdata/cgroups_init_pid_in_pod.txt"
 	cgPidNotInPodFilePath     = "testdata/cgroups_pid_not_in_pod.txt"
+	cgSystemdPidInPodFilePath = "testdata/systemd_cgroups_pid_in_pod.txt"
 
 	certPath = "cert.pem"
 	keyPath  = "key.pem"
@@ -137,6 +138,13 @@ func (s *K8sAttestorSuite) TestAttestWithPidInPod() {
 	s.configureInsecure()
 
 	s.requireAttestSuccessWithPod()
+}
+
+func (s *K8sAttestorSuite) TestAttestWithPidInPodSystemdCgroups() {
+	s.startInsecureKubelet()
+	s.configureInsecure()
+
+	s.requireAttestSuccessWithPodSystemdCgroups()
 }
 
 func (s *K8sAttestorSuite) TestAttestWithInitPidInPod() {
@@ -747,6 +755,12 @@ func (s *K8sAttestorSuite) writeKey(path string, key *ecdsa.PrivateKey) {
 func (s *K8sAttestorSuite) requireAttestSuccessWithPod() {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
+	s.requireAttestSuccess(testPodSelectors)
+}
+
+func (s *K8sAttestorSuite) requireAttestSuccessWithPodSystemdCgroups() {
+	s.addPodListResponse(podListFilePath)
+	s.addCgroupsResponse(cgSystemdPidInPodFilePath)
 	s.requireAttestSuccess(testPodSelectors)
 }
 
