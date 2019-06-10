@@ -8,6 +8,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -66,7 +68,7 @@ type X509SVID struct {
 // selector it encounters. Each selector index tracks the subscribers (i.e
 // workloads) and registration entries that have that selector.
 //
-// When registration entries are added/updated/removed, the set of revelant
+// When registration entries are added/updated/removed, the set of relevant
 // selectors are gathered and the indexes for those selectors are combed for
 // all relevant subscribers.
 //
@@ -94,6 +96,8 @@ type Cache struct {
 	log           logrus.FieldLogger
 	trustDomainID string
 
+	metrics telemetry.Metrics
+
 	mu sync.RWMutex
 
 	// records holds the records for registration entries, keyed by registration entry ID
@@ -106,12 +110,13 @@ type Cache struct {
 	bundles map[string]*bundleutil.Bundle
 }
 
-func New(log logrus.FieldLogger, trustDomainID string, bundle *Bundle) *Cache {
+func New(log logrus.FieldLogger, trustDomainID string, bundle *Bundle, metrics telemetry.Metrics) *Cache {
 	return &Cache{
 		BundleCache:  NewBundleCache(trustDomainID, bundle),
 		JWTSVIDCache: NewJWTSVIDCache(),
 
 		log:           log,
+		metrics:       metrics,
 		trustDomainID: trustDomainID,
 		records:       make(map[string]*cacheRecord),
 		selectors:     make(map[selector]*selectorIndex),
@@ -239,6 +244,7 @@ func (c *Cache) Update(update *CacheUpdate, checkSVID func(*common.RegistrationE
 			c.delSelectorIndicesRecord(selRem, record)
 			notifySet.MergeSet(selRem)
 			delete(c.records, id)
+			telemetry_agent.IncrRegistrationEntryDeletedCounter(c.metrics, record.entry.SpiffeId)
 		}
 	}
 
@@ -250,6 +256,13 @@ func (c *Cache) Update(update *CacheUpdate, checkSVID func(*common.RegistrationE
 		clearStringSet(fedRem)
 
 		record, existingEntry := c.updateOrCreateRecord(newEntry)
+
+		// existingEntry is nil in case of a new registration entry
+		if existingEntry != nil {
+			telemetry_agent.IncrRegistrationEntryUpdatedCounter(c.metrics, record.entry.SpiffeId)
+		} else {
+			telemetry_agent.IncrRegistrationEntryCreatedCounter(c.metrics, record.entry.SpiffeId)
+		}
 
 		// Calculate the difference in selectors, add/remove the record
 		// from impacted selector indices, and add the selector diff to the
