@@ -1254,11 +1254,11 @@ func (s *HandlerSuite) assertBundlesInUpdate(upd *node.X509SVIDUpdate, federated
 }
 
 func (s *HandlerSuite) assertSVIDsInUpdateLegacy(upd *node.X509SVIDUpdate, spiffeIDs ...string) [][]*x509.Certificate {
-	s.Len(upd.Svids, len(spiffeIDs), "number of SVIDs in update")
+	s.Len(upd.DEPRECATEDSvids, len(spiffeIDs), "number of SVIDs in update")
 
 	var svidChains [][]*x509.Certificate
 	for _, spiffeID := range spiffeIDs {
-		svidEntry := upd.Svids[spiffeID]
+		svidEntry := upd.DEPRECATEDSvids[spiffeID]
 		if !s.NotNil(svidEntry, "svid entry") {
 			continue
 		}

@@ -32,10 +32,14 @@ message X509SVID {
 // A message returned by the Spire Server, which includes a map of signed SVIDs and
 //a list of all current Registration Entries which are relevant to the caller SPIFFE ID.
 message X509SVIDUpdate {
+    // A map containing SVID values and corresponding SPIFFE IDs as the
+    // keys. Map[SPIFFE_ID] => SVID. Used for responses to legacy agents.
+    map<string, X509SVID> DEPRECATED_svids = 1;
+
     // A map containing SVID values keyed by:
     //  - SPIFFE ID in message 'AttestResponse'        (Map[SPIFFE_ID] => SVID)
     //  - Entry  ID in message 'FetchX509SVIDResponse' (Map[Entry_ID]  => SVID)
-    map<string, X509SVID> svids = 1;
+    map<string, X509SVID> svids = 2;
 
     // A type representing a curated record that the Spire Server uses to set up
     // and manage the various registered nodes and workloads that are controlled by it.
