@@ -901,18 +901,18 @@ func (h *Handler) signCSRs(ctx context.Context,
 }
 
 func (h *Handler) buildSVID(ctx context.Context,
-	ID string, regEntries map[string]*common.RegistrationEntry, csr []byte) (
+	id string, regEntries map[string]*common.RegistrationEntry, csr []byte) (
 	*node.X509SVID, error) {
 
-	entry, ok := regEntries[ID]
+	entry, ok := regEntries[id]
 	if !ok {
-		var IDType string
-		if strings.HasPrefix(ID, "spiffe://") {
-			IDType = "SPIFFE ID"
+		var idType string
+		if strings.HasPrefix(id, "spiffe://") {
+			idType = "SPIFFE ID"
 		} else {
-			IDType = "registration entry ID"
+			idType = "registration entry ID"
 		}
-		return nil, fmt.Errorf("not entitled to sign CSR for %s %q", IDType, ID)
+		return nil, fmt.Errorf("not entitled to sign CSR for %s %q", idType, id)
 	}
 
 	svid, err := h.c.ServerCA.SignX509SVID(ctx, csr,
