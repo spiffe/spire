@@ -32,8 +32,9 @@ message X509SVID {
 // A message returned by the Spire Server, which includes a map of signed SVIDs and
 //a list of all current Registration Entries which are relevant to the caller SPIFFE ID.
 message X509SVIDUpdate {
-    // A map containing SVID values and corresponding SPIFFE IDs as the
-    // keys. Map[SPIFFE_ID] => SVID.
+    // A map containing SVID values keyed by:
+    //  - SPIFFE ID in message 'AttestResponse'        (Map[SPIFFE_ID] => SVID)
+    //  - Entry  ID in message 'FetchX509SVIDResponse' (Map[Entry_ID]  => SVID)
     map<string, X509SVID> svids = 1;
 
     // A type representing a curated record that the Spire Server uses to set up
@@ -99,8 +100,11 @@ message AttestResponse {
 
 // Represents a request with a list of CSR.
 message FetchX509SVIDRequest {
-    // A list of CSRs
-    repeated bytes csrs = 2;
+    // A list of CSRs (deprecated, use `csrs` map instead)
+    repeated bytes DEPRECATED_csrs = 2;
+
+    // A map of CSRs keyed by entry ID
+    map<string, bytes> csrs = 3;
 }
 
 // Represents a response that contains  map of signed SVIDs and an array
