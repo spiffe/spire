@@ -71,16 +71,15 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 }
 
 // invokeAttestor invokes attestation against the supplied plugin. Should be called from a goroutine.
-func (wla *attestor) invokeAttestor(ctx context.Context, a catalog.WorkloadAttestor, pid int32) ([]*common.Selector, error) {
+func (wla *attestor) invokeAttestor(ctx context.Context, a catalog.WorkloadAttestor, pid int32) (selectors []*common.Selector, err error) {
 	req := &workloadattestor.AttestRequest{
 		Pid: pid,
 	}
 
-	start := time.Now()
-	resp, err := a.Attest(ctx, req)
+	counter := telemetry_workload.StartAttestorLatencyCall(wla.c.M, a.Name())
+	defer counter.Done(&err)
 
-	// Capture the attestor latency metrics regardless of whether an error condition was encountered or not
-	telemetry_workload.MeasureAttestorLatency(wla.c.M, start, a.Name())
+	resp, err := a.Attest(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("workload attestor %q failed: %v", a.Name(), err)
 	}
