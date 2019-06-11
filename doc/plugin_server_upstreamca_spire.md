@@ -1,7 +1,6 @@
 # Server plugin: UpstreamCA "spire"
 
-The `spire` plugin loads root CA credentials from upstream SPIRE server in the same trust domain, using
-them to generate intermediate signing certificates for the server's signing authority.
+The `spire` plugin uses credentials fetched from the Workload API to call an upstream SPIRE server in the same trust domain, requesting an intermediate signing certificate to use as the server's X.509 signing authority.
 
 The plugin accepts the following configuration options:
 
