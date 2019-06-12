@@ -98,6 +98,9 @@ const (
 	// either true or false
 	Registered = "registered"
 
+	// RegistrationEntry tags a registration entry
+	RegistrationEntry = "registration_entry"
+
 	// Selector tags some registration selector
 	Selector = "selector"
 
