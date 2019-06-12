@@ -10,8 +10,8 @@ import (
 
 const (
 	DefaultFormat = ""
-	JSONFormat    = "Json"
-	TextFormat    = "Text"
+	JSONFormat    = "JSON"
+	TextFormat    = "TEXT"
 )
 
 func NewLogger(logLevel, format, fileName string) (logrus.FieldLogger, error) {
