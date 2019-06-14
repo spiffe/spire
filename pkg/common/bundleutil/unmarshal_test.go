@@ -1,10 +1,9 @@
-package bundle
+package bundleutil
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -12,17 +11,15 @@ func TestUnmarshal(t *testing.T) {
 	rootCA := createCACertificate(t)
 
 	testCases := []struct {
-		name     string
-		doc      string
-		err      string
-		bundle   *bundleutil.Bundle
-		metadata *Metadata
+		name   string
+		doc    string
+		err    string
+		bundle *Bundle
 	}{
 		{
-			name:     "empty bundle",
-			doc:      "{}",
-			bundle:   bundleutil.New("spiffe://domain.test"),
-			metadata: &Metadata{},
+			name:   "empty bundle",
+			doc:    "{}",
+			bundle: New("spiffe://domain.test"),
 		},
 		{
 			name: "entry missing use",
@@ -106,14 +103,13 @@ func TestUnmarshal(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bundle, metadata, err := Unmarshal("spiffe://domain.test", []byte(testCase.doc))
+			bundle, err := Unmarshal("spiffe://domain.test", []byte(testCase.doc))
 			if testCase.err != "" {
 				require.EqualError(t, err, testCase.err)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, testCase.bundle, bundle)
-			require.Equal(t, testCase.metadata, metadata)
 		})
 	}
 }

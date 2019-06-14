@@ -11,7 +11,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/bundle"
 	"github.com/zeebo/errs"
 )
 
@@ -33,7 +32,7 @@ type ClientConfig struct {
 
 // Client is used to fetch a bundle and metadata from a bundle endpoint
 type Client interface {
-	FetchBundle(context.Context) (*bundleutil.Bundle, *bundle.Metadata, error)
+	FetchBundle(context.Context) (*bundleutil.Bundle, error)
 }
 
 type client struct {
@@ -60,23 +59,23 @@ func NewClient(config ClientConfig) Client {
 	}
 }
 
-func (c *client) FetchBundle(ctx context.Context) (*bundleutil.Bundle, *bundle.Metadata, error) {
+func (c *client) FetchBundle(ctx context.Context) (*bundleutil.Bundle, error) {
 	resp, err := c.client.Get(fmt.Sprintf("https://%s", c.c.EndpointAddress))
 	if err != nil {
-		return nil, nil, errs.New("failed to fetch bundle: %v", err)
+		return nil, errs.New("failed to fetch bundle: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, errs.New("unexpected status %d fetching bundle: %s", resp.StatusCode, tryRead(resp.Body))
+		return nil, errs.New("unexpected status %d fetching bundle: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
-	b, m, err := bundle.Decode(idutil.TrustDomainID(c.c.TrustDomain), resp.Body)
+	b, err := bundleutil.Decode(idutil.TrustDomainID(c.c.TrustDomain), resp.Body)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return b, m, nil
+	return b, nil
 }
 
 func tryRead(r io.Reader) string {

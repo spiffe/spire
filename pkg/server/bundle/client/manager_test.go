@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/server/bundle"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/stretchr/testify/require"
@@ -31,13 +31,13 @@ func TestManager(t *testing.T) {
 		{
 			name:         "default refresh hint used ",
 			refreshHint:  0,
-			refreshAfter: bundle.DefaultRefreshHint,
+			refreshAfter: bundleutil.DefaultRefreshHint,
 		},
 		{
 			name:         "refresh hint unchanged on error ",
 			refreshHint:  time.Minute,
 			refreshErr:   errors.New("OHNO!"),
-			refreshAfter: bundle.DefaultRefreshHint,
+			refreshAfter: bundleutil.DefaultRefreshHint,
 		},
 	}
 
@@ -69,23 +69,21 @@ func startManager(t *testing.T, clock clock.Clock, updater BundleUpdater) func()
 	trustDomainConfig := TrustDomainConfig{
 		EndpointAddress:  "ENDPOINT_ADDRESS",
 		EndpointSpiffeID: "ENDPOINT_SPIFFEID",
-		BootstrapBundle:  "BOOTSTRAP_BUNDLE",
 	}
 
-	manager, err := NewManager(context.Background(), ManagerConfig{
+	manager := NewManager(ManagerConfig{
 		Log:       log,
 		DataStore: ds,
 		Clock:     clock,
 		TrustDomains: map[string]TrustDomainConfig{
 			"domain.test": trustDomainConfig,
 		},
-		newBundleUpdater: func(ctx context.Context, config BundleUpdaterConfig) (BundleUpdater, error) {
+		newBundleUpdater: func(config BundleUpdaterConfig) BundleUpdater {
 			assert.Equal(t, trustDomainConfig, config.TrustDomainConfig)
 			assert.Equal(t, "domain.test", config.TrustDomain)
-			return updater, nil
+			return updater
 		},
 	})
-	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)

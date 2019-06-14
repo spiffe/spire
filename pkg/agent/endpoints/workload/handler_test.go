@@ -391,8 +391,8 @@ func (s *HandlerTestSuite) TestFetchJWTBundles() {
 	s.manager.EXPECT().SubscribeToCacheChanges(cache.Selectors{selectors[0]}).Return(subscriber)
 	stream.EXPECT().Send(&workload.JWTBundlesResponse{
 		Bundles: map[string][]byte{
-			"spiffe://example.org":      []byte(`{"keys":null}`),
-			"spiffe://otherdomain.test": []byte(`{"keys":null}`),
+			"spiffe://example.org":      []byte("{\n    \"keys\": null\n}"),
+			"spiffe://otherdomain.test": []byte("{\n    \"keys\": null\n}"),
 		},
 	})
 
@@ -462,7 +462,7 @@ func (s *HandlerTestSuite) TestComposeJWTBundlesResponse() {
 		"keys": [
 			{
 				"kid":"kid",
-				"use":"spiffe-jwt",
+				"use":"jwt-svid",
 				"kty":"EC",
 				"crv":"P-256",
 				"x":"YSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw-5WKJwngEL0",

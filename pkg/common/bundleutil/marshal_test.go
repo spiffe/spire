@@ -1,11 +1,10 @@
-package bundle
+package bundleutil
 
 import (
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,26 +20,59 @@ func TestMarshal(t *testing.T) {
 		{
 			name:  "empty bundle",
 			empty: true,
-			out:   `{"keys":null}`,
+			out:   `{"keys":null, "spiffe_refresh_hint": 60}`,
 		},
 		{
-			name:  "with refresh hint",
+			name:  "with refresh hint override",
 			empty: true,
 			opts: []MarshalOption{
-				WithRefreshHint(time.Second * 10),
+				OverrideRefreshHint(time.Second * 10),
 			},
 			out: `{"keys":null, "spiffe_refresh_hint": 10}`,
 		},
 		{
-			name:  "with sequence",
-			empty: true,
+			name: "without X509 SVID keys",
 			opts: []MarshalOption{
-				WithSequence(39),
+				NoX509SVIDKeys(),
 			},
-			out: `{"keys":null, "spiffe_sequence": 39}`,
+			out: `{
+				"keys": [
+					{
+						"use": "jwt-svid",
+						"kid": "FOO",
+						"kty": "EC",
+						"crv": "P-256",
+						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
+					}
+				],
+				"spiffe_refresh_hint": 60
+			}`,
+		},
+
+		{
+			name: "without JWT SVID keys",
+			opts: []MarshalOption{
+				NoJWTSVIDKeys(),
+			},
+			out: fmt.Sprintf(`{
+				"keys": [
+					{
+						"use": "x509-svid",
+						"kty": "EC",
+						"crv": "P-256",
+						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA",
+						"x5c": [
+							"%s"
+						]
+					}
+				],
+				"spiffe_refresh_hint": 60
+			}`, x5c(rootCA)),
 		},
 		{
-			name: "with root CA and JWT signing key",
+			name: "with X509 and JWT SVID keys",
 			out: fmt.Sprintf(`{
 				"keys": [
 					{
@@ -61,14 +93,16 @@ func TestMarshal(t *testing.T) {
 						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
 						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
 					}
-				]
+				],
+				"spiffe_refresh_hint": 60
 			}`, x5c(rootCA)),
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bundle := bundleutil.New("spiffe://domain.test")
+			bundle := New("spiffe://domain.test")
+			bundle.SetRefreshHint(time.Minute)
 			if !testCase.empty {
 				bundle.AppendRootCA(rootCA)
 				bundle.AppendJWTSigningKey("FOO", testKey.Public())

@@ -1,4 +1,4 @@
-package bundle
+package bundleutil
 
 import (
 	"time"
@@ -15,11 +15,6 @@ const (
 	x509SVIDUse = "x509-svid"
 	jwtSVIDUse  = "jwt-svid"
 )
-
-type Metadata struct {
-	Sequence    uint64
-	RefreshHint time.Duration
-}
 
 type bundleDoc struct {
 	jose.JSONWebKeySet

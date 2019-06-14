@@ -281,7 +281,7 @@ func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream wo
 func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
 	bundles := make(map[string][]byte)
 	if update.Bundle != nil {
-		jwksBytes, err := bundleutil.JWTJWKSBytesFromBundle(update.Bundle)
+		jwksBytes, err := bundleutil.Marshal(update.Bundle, bundleutil.NoX509SVIDKeys())
 		if err != nil {
 			return nil, err
 		}
@@ -289,7 +289,7 @@ func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*work
 	}
 
 	for _, federatedBundle := range update.FederatedBundles {
-		jwksBytes, err := bundleutil.JWTJWKSBytesFromBundle(federatedBundle)
+		jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys())
 		if err != nil {
 			return nil, err
 		}

@@ -79,7 +79,7 @@ func TestClient(t *testing.T) {
 				RootCAs:          []*x509.Certificate{serverCert},
 			})
 
-			bundle, metadata, err := client.FetchBundle(context.Background())
+			bundle, err := client.FetchBundle(context.Background())
 			if testCase.errContains != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), testCase.errContains)
@@ -88,8 +88,7 @@ func TestClient(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, bundle)
 			require.Equal(t, "spiffe://domain.test", bundle.TrustDomainID())
-			require.NotNil(t, metadata)
-			require.Equal(t, 10*time.Second, metadata.RefreshHint)
+			require.Equal(t, 10*time.Second, bundle.RefreshHint())
 		})
 	}
 }

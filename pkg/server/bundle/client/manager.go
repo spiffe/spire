@@ -6,15 +6,14 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/bundle"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
 )
 
 type TrustDomainConfig struct {
 	EndpointAddress  string
 	EndpointSpiffeID string
-	BootstrapBundle  string
 }
 
 type ManagerConfig struct {
@@ -24,7 +23,7 @@ type ManagerConfig struct {
 	TrustDomains map[string]TrustDomainConfig
 
 	// newBundleUpdater is a test hook to inject updater behavior
-	newBundleUpdater func(context.Context, BundleUpdaterConfig) (BundleUpdater, error)
+	newBundleUpdater func(BundleUpdaterConfig) BundleUpdater
 }
 
 type Manager struct {
@@ -32,7 +31,7 @@ type Manager struct {
 	updaters []BundleUpdater
 }
 
-func NewManager(ctx context.Context, config ManagerConfig) (*Manager, error) {
+func NewManager(config ManagerConfig) *Manager {
 	if config.Clock == nil {
 		config.Clock = clock.New()
 	}
@@ -42,22 +41,18 @@ func NewManager(ctx context.Context, config ManagerConfig) (*Manager, error) {
 
 	var updaters []BundleUpdater
 	for trustDomain, trustDomainConfig := range config.TrustDomains {
-		updater, err := config.newBundleUpdater(ctx, BundleUpdaterConfig{
+		updaters = append(updaters, config.newBundleUpdater(BundleUpdaterConfig{
 			TrustDomainConfig: trustDomainConfig,
 			TrustDomain:       trustDomain,
 			Log:               config.Log.WithField("trust_domain", trustDomain),
 			DataStore:         config.DataStore,
-		})
-		if err != nil {
-			return nil, err
-		}
-		updaters = append(updaters, updater)
+		}))
 	}
 
 	return &Manager{
 		clock:    config.Clock,
 		updaters: updaters,
-	}, nil
+	}
 }
 
 func (m *Manager) Run(ctx context.Context) error {
@@ -90,7 +85,7 @@ func (m *Manager) runUpdater(ctx context.Context, updater BundleUpdater) {
 
 func (m *Manager) newRefreshTimer(refreshHint time.Duration) *clock.Timer {
 	if refreshHint == 0 {
-		refreshHint = bundle.DefaultRefreshHint
+		refreshHint = bundleutil.DefaultRefreshHint
 	}
 	return m.clock.Timer(refreshHint)
 }

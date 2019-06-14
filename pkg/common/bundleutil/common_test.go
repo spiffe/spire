@@ -1,4 +1,4 @@
-package bundle
+package bundleutil
 
 import (
 	"crypto/rand"

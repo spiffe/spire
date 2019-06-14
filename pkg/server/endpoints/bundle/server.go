@@ -10,7 +10,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/server/bundle"
 	"github.com/zeebo/errs"
 )
 
@@ -105,11 +104,11 @@ func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// TODO: configurable refresh hint?
 	// TODO: bundle sequence number?
-	opts := []bundle.MarshalOption{
-		bundle.WithRefreshHint(bundle.DefaultRefreshHint),
+	opts := []bundleutil.MarshalOption{
+		bundleutil.OverrideRefreshHint(bundleutil.DefaultRefreshHint),
 	}
 
-	jsonBytes, err := bundle.Marshal(b, opts...)
+	jsonBytes, err := bundleutil.Marshal(b, opts...)
 	if err != nil {
 		s.c.Log.WithError(err).Error("unable to marshal local bundle")
 		http.Error(w, "500 unable to marshal local bundle", http.StatusInternalServerError)

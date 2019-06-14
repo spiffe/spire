@@ -18,7 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
-	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
+	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
@@ -102,7 +102,7 @@ type ExperimentalConfig struct {
 
 	// FederatesWith holds the federation configuration for trust domains this
 	// server federates with.
-	FederatesWith map[string]bundleClient.TrustDomainConfig
+	FederatesWith map[string]bundle_client.TrustDomainConfig
 }
 
 type Server struct {
@@ -200,10 +200,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return fmt.Errorf("failed setting IdentityProvider deps: %v", err)
 	}
 
-	bundleManager, err := s.newBundleManager(ctx, cat)
-	if err != nil {
-		return fmt.Errorf("failed to initialize bundle manager: %v", err)
-	}
+	bundleManager := s.newBundleManager(cat)
 
 	err = util.RunTasks(ctx,
 		caManager.Run,
@@ -342,8 +339,8 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.O
 	return endpoints.New(config)
 }
 
-func (s *Server) newBundleManager(ctx context.Context, cat catalog.Catalog) (*bundleClient.Manager, error) {
-	return bundleClient.NewManager(ctx, bundleClient.ManagerConfig{
+func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
+	return bundle_client.NewManager(bundle_client.ManagerConfig{
 		Log:          s.config.Log.WithField("subsystem_name", "bundle_client"),
 		DataStore:    cat.GetDataStore(),
 		TrustDomains: s.config.Experimental.FederatesWith,

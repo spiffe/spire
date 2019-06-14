@@ -88,6 +88,17 @@ func (b *Bundle) JWTSigningKeys() map[string]crypto.PublicKey {
 	return b.jwtSigningKeys
 }
 
+// RefreshHint returns the bundle refresh hint.
+func (b *Bundle) RefreshHint() time.Duration {
+	return time.Second * time.Duration(b.b.RefreshHint)
+}
+
+// SetRefreshHint sets the bundle refresh hint to the given duration. It is
+// rounded up to the nearest second.
+func (b *Bundle) SetRefreshHint(d time.Duration) {
+	b.b.RefreshHint = int64((d + (time.Second - 1)) / time.Second)
+}
+
 func (b *Bundle) AppendRootCA(rootCA *x509.Certificate) {
 	b.b.RootCas = append(b.b.RootCas, &common.Certificate{
 		DerBytes: rootCA.Raw,

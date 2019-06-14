@@ -79,7 +79,6 @@ type federatesWithConfig struct {
 	BundleEndpointAddress  string `hcl:"bundle_endpoint_address"`
 	BundleEndpointPort     int    `hcl:"bundle_endpoint_port"`
 	BundleEndpointSpiffeID string `hcl:"bundle_endpoint_spiffe_id"`
-	BootstrapBundle        string `hcl:"bootstrap_bundle"`
 }
 
 type serverConfig struct {
@@ -288,7 +287,6 @@ func mergeConfig(orig *serverConfig, cmd *runConfig) error {
 			federatesWith[trustDomain] = bundleClient.TrustDomainConfig{
 				EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpointAddress, port),
 				EndpointSpiffeID: config.BundleEndpointSpiffeID,
-				BootstrapBundle:  config.BootstrapBundle,
 			}
 		}
 		orig.Experimental.FederatesWith = federatesWith
