@@ -98,6 +98,20 @@ func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundl
 	}, nil
 }
 
+// SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
+func (s *DataStore) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	bundle := req.Bundle
+
+	s.bundles[bundle.TrustDomainId] = cloneBundle(bundle)
+
+	return &datastore.SetBundleResponse{
+		Bundle: cloneBundle(bundle),
+	}, nil
+}
+
 // AppendBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
 func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
