@@ -50,8 +50,8 @@ func (s *caSuite) createCA(key *ecdsa.PrivateKey, ttl time.Duration) *x509.Certi
 	template := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		BasicConstraintsValid: true,
-		IsCA:     true,
-		NotAfter: time.Now().Add(ttl),
+		IsCA:                  true,
+		NotAfter:              time.Now().Add(ttl),
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
 	s.Require().NoError(err)

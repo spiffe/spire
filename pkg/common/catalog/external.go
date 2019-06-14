@@ -14,6 +14,7 @@ import (
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 )
@@ -109,7 +110,7 @@ func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *Catalo
 
 	logger := log.HCLogAdapter{
 		Log:  ext.Log,
-		Name: "external",
+		Name: telemetry.PluginExternal,
 	}
 
 	hcPlugin := &hcClientPlugin{
@@ -205,7 +206,7 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 	go func() {
 		defer p.wg.Done()
 		if err := server.Serve(listener); err != nil {
-			p.ext.Log.Error("host services server failed: %v", err)
+			p.ext.Log.WithError(err).Error("host services server failed")
 			c.Close()
 		}
 	}()

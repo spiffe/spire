@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 )
@@ -152,9 +153,9 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 	for _, c := range config.PluginConfig {
 		// configure a logger for the plugin
 		pluginLog := config.Log.WithFields(logrus.Fields{
-			"name":     c.Name,
-			"type":     c.Type,
-			"built-in": c.Path == "",
+			telemetry.PluginName:    c.Name,
+			telemetry.PluginType:    c.Type,
+			telemetry.PluginBuiltIn: c.Path == "",
 		})
 
 		if c.Disabled {
@@ -190,7 +191,7 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 			})
 		}
 		if err != nil {
-			pluginLog.Error("Failed to load plugin.")
+			pluginLog.WithError(err).Error("Failed to load plugin.")
 			return nil, err
 		}
 
@@ -198,11 +199,11 @@ func Load(ctx context.Context, config Config) (_ Catalog, err error) {
 			GlobalConfig:  &config.GlobalConfig,
 			Configuration: c.Data,
 		}); err != nil {
-			pluginLog.Error("Failed to configure plugin.")
+			pluginLog.WithError(err).Error("Failed to configure plugin.")
 			return nil, errs.New("unable to configure plugin %q: %v", c.Name, err)
 		}
 
-		pluginLog.WithField("services", plugin.serviceNames).Info("Plugin loaded.")
+		pluginLog.WithField(telemetry.PluginServices, plugin.serviceNames).Info("Plugin loaded.")
 		cat.plugins = append(cat.plugins, plugin)
 	}
 

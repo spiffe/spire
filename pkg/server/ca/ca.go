@@ -218,8 +218,8 @@ func (ca *CA) signX509SVID(ctx context.Context, csrDER []byte, params X509Params
 	spiffeID := cert.URIs[0].String()
 
 	ca.c.Log.WithFields(logrus.Fields{
-		"spiffe_id":  spiffeID,
-		"expires_at": cert.NotAfter.Format(time.RFC3339),
+		telemetry.SPIFFEID:   spiffeID,
+		telemetry.Expiration: cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 SVID")
 
 	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics, spiffeID)
@@ -263,8 +263,8 @@ func (ca *CA) SignX509CASVID(ctx context.Context, csrDER []byte, params X509Para
 	spiffeID := cert.URIs[0].String()
 
 	ca.c.Log.WithFields(logrus.Fields{
-		"spiffe_id":  spiffeID,
-		"expires_at": cert.NotAfter.Format(time.RFC3339),
+		telemetry.SPIFFEID:   spiffeID,
+		telemetry.Expiration: cert.NotAfter.Format(time.RFC3339),
 	}).Debug("Signed X509 CA SVID")
 
 	telemetry_server.IncrServerCASignX509CACounter(ca.c.Metrics, spiffeID)

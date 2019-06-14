@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/catalog/test"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -174,7 +175,7 @@ func (s *CatalogSuite) TestNoKnownService() {
 		Level:   logrus.WarnLevel,
 		Message: "Unknown service type.",
 		Data: logrus.Fields{
-			"service": "TestService",
+			telemetry.PluginService: "TestService",
 		},
 	})
 }
@@ -196,7 +197,7 @@ func (s *CatalogSuite) TestHostServiceNotAvailable() {
 			Data: logrus.Fields{
 				"@module":        "pluginimpl",
 				"hostservice":    "TestHostService",
-				"subsystem_name": "external.testext.pluginbin",
+				"subsystem_name": "external_plugin.testext.pluginbin",
 			},
 		},
 		{
@@ -205,7 +206,7 @@ func (s *CatalogSuite) TestHostServiceNotAvailable() {
 			Data: logrus.Fields{
 				"@module":        "serviceimpl",
 				"hostservice":    "TestHostService",
-				"subsystem_name": "external.testext.pluginbin",
+				"subsystem_name": "external_plugin.testext.pluginbin",
 			},
 		},
 	})
@@ -796,20 +797,20 @@ func extInitLogs(module string) []testLogEntry {
 			Level:   logrus.InfoLevel,
 			Message: "Configure called.",
 			Data: logrus.Fields{
-				"@module":        module,
-				"config":         "CONFIG",
-				"subsystem_name": "external.testext.pluginbin",
-				"trustdomain":    "domain.test",
+				"@module":               module,
+				"config":                "CONFIG",
+				telemetry.SubsystemName: "external_plugin.testext.pluginbin",
+				"trustdomain":           "domain.test",
 			},
 		},
 		{
 			Level:   logrus.InfoLevel,
 			Message: "Plugin loaded.",
 			Data: logrus.Fields{
-				"built-in": false,
-				"name":     "testext",
-				"services": []string{"TestService"},
-				"type":     "TestPlugin",
+				telemetry.PluginBuiltIn:  false,
+				telemetry.PluginName:     "testext",
+				telemetry.PluginServices: []string{"TestService"},
+				telemetry.PluginType:     "TestPlugin",
 			},
 		},
 	}
