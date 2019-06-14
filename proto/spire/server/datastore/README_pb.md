@@ -48,6 +48,8 @@
     - [PruneJoinTokensResponse](#spire.server.datastore.PruneJoinTokensResponse)
     - [PruneRegistrationEntriesRequest](#spire.server.datastore.PruneRegistrationEntriesRequest)
     - [PruneRegistrationEntriesResponse](#spire.server.datastore.PruneRegistrationEntriesResponse)
+    - [SetBundleRequest](#spire.server.datastore.SetBundleRequest)
+    - [SetBundleResponse](#spire.server.datastore.SetBundleResponse)
     - [SetNodeSelectorsRequest](#spire.server.datastore.SetNodeSelectorsRequest)
     - [SetNodeSelectorsResponse](#spire.server.datastore.SetNodeSelectorsResponse)
     - [UpdateAttestedNodeRequest](#spire.server.datastore.UpdateAttestedNodeRequest)
@@ -732,6 +734,36 @@
 
 
 
+<a name="spire.server.datastore.SetBundleRequest"></a>
+
+### SetBundleRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
+
+
+
+
+
+
+<a name="spire.server.datastore.SetBundleResponse"></a>
+
+### SetBundleResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
+
+
+
+
+
+
 <a name="spire.server.datastore.SetNodeSelectorsRequest"></a>
 
 ### SetNodeSelectorsRequest
@@ -892,6 +924,7 @@ associated with the bundle (e.g. registration entries).
 | FetchBundle | [FetchBundleRequest](#spire.server.datastore.FetchBundleRequest) | [FetchBundleResponse](#spire.server.datastore.FetchBundleResponse) | Fetches a specific bundle |
 | ListBundles | [ListBundlesRequest](#spire.server.datastore.ListBundlesRequest) | [ListBundlesResponse](#spire.server.datastore.ListBundlesResponse) | Lists bundles (optionally filtered) |
 | UpdateBundle | [UpdateBundleRequest](#spire.server.datastore.UpdateBundleRequest) | [UpdateBundleResponse](#spire.server.datastore.UpdateBundleResponse) | Updates a specific bundle |
+| SetBundle | [SetBundleRequest](#spire.server.datastore.SetBundleRequest) | [SetBundleResponse](#spire.server.datastore.SetBundleResponse) | Sets bundle contents (creates if it does not exist) |
 | AppendBundle | [AppendBundleRequest](#spire.server.datastore.AppendBundleRequest) | [AppendBundleResponse](#spire.server.datastore.AppendBundleResponse) | Appends contents from a specific bundle (creates if it does not exist) |
 | DeleteBundle | [DeleteBundleRequest](#spire.server.datastore.DeleteBundleRequest) | [DeleteBundleResponse](#spire.server.datastore.DeleteBundleResponse) | Deletes a specific bundle |
 | PruneBundle | [PruneBundleRequest](#spire.server.datastore.PruneBundleRequest) | [PruneBundleResponse](#spire.server.datastore.PruneBundleResponse) | Prunes all expired certificates and JWT signing keys from a bundle |
