@@ -112,11 +112,11 @@ func (*RunCLI) Run(args []string) int {
 
 	err = agt.Run(ctx)
 	if err != nil {
-		c.Log.Errorf("agent crashed: %v", err)
+		c.Log.WithError(err).Error("agent crashed")
 		return 1
 	}
 
-	c.Log.Infof("Agent stopped gracefully")
+	c.Log.Info("Agent stopped gracefully")
 	return 0
 }
 

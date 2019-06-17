@@ -36,7 +36,7 @@ const (
 		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
 		"please delete all existing registration entries"
 	invalidSpiffeIDRegistrationEntry = "registration entry with id %v is malformed because invalid SPIFFE ID: %v"
-	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID %v, from attested node: %v"
+	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID, from attested node"
 
 	pageSize = 1
 )
@@ -109,7 +109,7 @@ func New(config Config) *Server {
 // and then blocks until it's shut down or an error is encountered.
 func (s *Server) Run(ctx context.Context) error {
 	if err := s.run(ctx); err != nil {
-		s.config.Log.Errorf("fatal: %v", err)
+		s.config.Log.WithError(err).Error("fatal run error")
 		return err
 	}
 	return nil
@@ -129,7 +129,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  s.config.Telemetry,
-		Logger:      s.config.Log.WithField("subsystem_name", "telemetry"),
+		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: "spire_server",
 	})
 	if err != nil {
@@ -233,7 +233,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			if err := server.ListenAndServe(); err != nil {
-				s.config.Log.Warnf("unable to serve profiling server: %v", err)
+				s.config.Log.WithError(err).Warn("unable to serve profiling server")
 			}
 		}()
 		wg.Add(1)
@@ -255,7 +255,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		go func() {
 			defer wg.Done()
 			if err := profiling.Run(ctx, c); err != nil {
-				s.config.Log.Warnf("Failed to run profiling: %v", err)
+				s.config.Log.WithError(err).Warn("Failed to run profiling")
 			}
 		}()
 	}
@@ -268,7 +268,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 
 func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore) (*catalog.CatalogCloser, error) {
 	return catalog.Load(ctx, catalog.Config{
-		Log: s.config.Log.WithField("subsystem_name", "catalog"),
+		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: catalog.GlobalConfig{
 			TrustDomain: s.config.TrustDomain.Host,
 		},
@@ -280,7 +280,7 @@ func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.
 
 func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
 	return ca.NewCA(ca.CAConfig{
-		Log:         s.config.Log.WithField("subsystem_name", "ca"),
+		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
 		Metrics:     metrics,
 		X509SVIDTTL: s.config.SVIDTTL,
 		TrustDomain: s.config.TrustDomain,
@@ -293,7 +293,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		CA:             serverCA,
 		Catalog:        cat,
 		TrustDomain:    s.config.TrustDomain,
-		Log:            s.config.Log.WithField("subsystem_name", "ca_manager"),
+		Log:            s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
 		Metrics:        metrics,
 		UpstreamBundle: s.config.UpstreamBundle,
 		CATTL:          s.config.CATTL,
@@ -309,7 +309,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (svid.Rotator, error) {
 	svidRotator := svid.NewRotator(&svid.RotatorConfig{
 		ServerCA:    serverCA,
-		Log:         s.config.Log.WithField("subsystem_name", "svid_rotator"),
+		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
 		Metrics:     metrics,
 		TrustDomain: s.config.TrustDomain,
 	})
@@ -327,7 +327,7 @@ func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Ro
 		TrustDomain: s.config.TrustDomain,
 		Catalog:     catalog,
 		ServerCA:    serverCA,
-		Log:         s.config.Log.WithField("subsystem_name", "endpoints"),
+		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:     metrics,
 
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
@@ -372,7 +372,7 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 	for _, node := range nodesResponse.Nodes {
 		id, err := url.Parse(node.SpiffeId)
 		if err != nil {
-			s.config.Log.Warnf(invalidSpiffeIDAttestedNode, node.SpiffeId, err)
+			s.config.Log.WithError(err).WithField(telemetry.SPIFFEID, node.SpiffeId).Warn(invalidSpiffeIDAttestedNode)
 			continue
 		}
 

@@ -174,7 +174,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 	counter := telemetry_server.StartServerCAManagerPrepareX509CACall(m.c.Metrics)
 	defer counter.Done(&err)
 
-	log := m.c.Log.WithField("slot", slot.id)
+	log := m.c.Log.WithField(telemetry.Slot, slot.id)
 	log.Debug("Preparing X509 CA")
 
 	slot.Reset()
@@ -208,24 +208,24 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 	slot.x509CA = x509CA
 
 	if err := m.journal.AppendX509CA(slot.id, slot.issuedAt, slot.x509CA); err != nil {
-		log.WithField("err", err.Error()).Error("Unable to append X509 CA to journal")
+		log.WithError(err).Error("Unable to append X509 CA to journal")
 	}
 
 	m.c.Log.WithFields(logrus.Fields{
-		"slot":            slot.id,
-		"issued_at":       timeField(slot.issuedAt),
-		"not_after":       timeField(slot.x509CA.Certificate.NotAfter),
-		"self_signed":     !useUpstream,
-		"upstream_bundle": m.c.UpstreamBundle,
+		telemetry.Slot:           slot.id,
+		telemetry.IssuedAt:       timeField(slot.issuedAt),
+		telemetry.Expiration:     timeField(slot.x509CA.Certificate.NotAfter),
+		telemetry.SelfSigned:     !useUpstream,
+		telemetry.UpstreamBundle: m.c.UpstreamBundle,
 	}).Info("X509 CA prepared")
 	return nil
 }
 
 func (m *Manager) activateX509CA() {
 	m.c.Log.WithFields(logrus.Fields{
-		"slot":      m.currentX509CA.id,
-		"issued_at": timeField(m.currentX509CA.issuedAt),
-		"not_after": timeField(m.currentX509CA.x509CA.Certificate.NotAfter),
+		telemetry.Slot:       m.currentX509CA.id,
+		telemetry.IssuedAt:   timeField(m.currentX509CA.issuedAt),
+		telemetry.Expiration: timeField(m.currentX509CA.x509CA.Certificate.NotAfter),
 	}).Info("X509 CA activated")
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
 	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
@@ -263,7 +263,7 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 	counter := telemetry_server.StartServerCAManagerPrepareJWTKeyCall(m.c.Metrics)
 	defer counter.Done(&err)
 
-	log := m.c.Log.WithField("slot", slot.id)
+	log := m.c.Log.WithField(telemetry.Slot, slot.id)
 	log.Debug("Preparing JWT key")
 
 	slot.Reset()
@@ -295,22 +295,22 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 	slot.jwtKey = jwtKey
 
 	if err := m.journal.AppendJWTKey(slot.id, slot.issuedAt, slot.jwtKey); err != nil {
-		log.WithField("err", err.Error()).Error("Unable to append JWT key to journal")
+		log.WithError(err).Error("Unable to append JWT key to journal")
 	}
 
 	m.c.Log.WithFields(logrus.Fields{
-		"slot":      slot.id,
-		"issued_at": timeField(slot.issuedAt),
-		"not_after": timeField(slot.jwtKey.NotAfter),
+		telemetry.Slot:       slot.id,
+		telemetry.IssuedAt:   timeField(slot.issuedAt),
+		telemetry.Expiration: timeField(slot.jwtKey.NotAfter),
 	}).Info("JWT key prepared")
 	return nil
 }
 
 func (m *Manager) activateJWTKey() {
 	m.c.Log.WithFields(logrus.Fields{
-		"slot":      m.currentJWTKey.id,
-		"issued_at": timeField(m.currentJWTKey.issuedAt),
-		"not_after": timeField(m.currentJWTKey.jwtKey.NotAfter),
+		telemetry.Slot:       m.currentJWTKey.id,
+		telemetry.IssuedAt:   timeField(m.currentJWTKey.issuedAt),
+		telemetry.Expiration: timeField(m.currentJWTKey.jwtKey.NotAfter),
 	}).Info("JWT key activated")
 	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
 	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
@@ -324,7 +324,7 @@ func (m *Manager) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 		select {
 		case <-ticker.C:
 			if err := m.pruneBundle(ctx); err != nil {
-				m.c.Log.Errorf("Could not prune CA certificates: %v", err)
+				m.c.Log.WithError(err).Error("Could not prune CA certificates")
 			}
 		case <-ctx.Done():
 			return nil
@@ -394,7 +394,7 @@ func (m *Manager) loadJournal(ctx context.Context) error {
 
 	// Load the journal and see if we can figure out the next and current
 	// X509CA and JWTKey entries, if any.
-	m.c.Log.WithField("path", m.journalPath()).Debug("Loading journal")
+	m.c.Log.WithField(telemetry.Path, m.journalPath()).Debug("Loading journal")
 	journal, err := LoadJournal(m.journalPath())
 	if err != nil {
 		return err
@@ -407,8 +407,8 @@ func (m *Manager) loadJournal(ctx context.Context) error {
 	now := m.c.Clock.Now()
 
 	m.c.Log.WithFields(logrus.Fields{
-		"x509cas":  len(entries.X509CAs),
-		"jwt_keys": len(entries.JwtKeys),
+		telemetry.X509CAs: len(entries.X509CAs),
+		telemetry.JWTKeys: len(entries.JwtKeys),
 	}).Info("Journal loaded")
 
 	if len(entries.X509CAs) > 0 {
@@ -483,16 +483,14 @@ func (m *Manager) journalPath() string {
 func (m *Manager) tryLoadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntry) (*x509CASlot, error) {
 	slot, badReason, err := m.loadX509CASlotFromEntry(ctx, entry)
 	if err != nil {
-		m.c.Log.WithFields(logrus.Fields{
-			"slot_id": entry.SlotId,
-			"error":   err.Error(),
+		m.c.Log.WithError(err).WithFields(logrus.Fields{
+			telemetry.Slot: entry.SlotId,
 		}).Error("X509CA slot failed to load")
 		return nil, err
 	}
 	if badReason != "" {
-		m.c.Log.WithFields(logrus.Fields{
-			"slot_id": entry.SlotId,
-			"reason":  badReason,
+		m.c.Log.WithError(errors.New(badReason)).WithFields(logrus.Fields{
+			telemetry.Slot: entry.SlotId,
 		}).Warn("X509CA slot unusable")
 		return nil, nil
 	}
@@ -544,16 +542,14 @@ func (m *Manager) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntr
 func (m *Manager) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyEntry) (*jwtKeySlot, error) {
 	slot, badReason, err := m.loadJWTKeySlotFromEntry(ctx, entry)
 	if err != nil {
-		m.c.Log.WithFields(logrus.Fields{
-			"slot_id": entry.SlotId,
-			"error":   err.Error(),
+		m.c.Log.WithError(err).WithFields(logrus.Fields{
+			telemetry.Slot: entry.SlotId,
 		}).Error("JWT key slot failed to load")
 		return nil, err
 	}
 	if badReason != "" {
-		m.c.Log.WithFields(logrus.Fields{
-			"slot_id": entry.SlotId,
-			"reason":  badReason,
+		m.c.Log.WithError(errors.New(badReason)).WithFields(logrus.Fields{
+			telemetry.Slot: entry.SlotId,
 		}).Warn("JWT key slot unusable")
 		return nil, nil
 	}
@@ -633,7 +629,7 @@ func (m *Manager) notifyOnBundleUpdate(ctx context.Context) error {
 		select {
 		case <-m.bundleUpdatedCh:
 			if err := m.notifyBundleUpdated(ctx); err != nil {
-				m.c.Log.Warnf("failed to notify on bundle update: %v", err)
+				m.c.Log.WithError(err).Warn("failed to notify on bundle update")
 			}
 		case <-ctx.Done():
 			return nil
@@ -703,17 +699,14 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 	for _, n := range notifiers {
 		go func(n catalog.Notifier) {
 			err := do(ctx, n)
+			f := m.c.Log.WithFields(logrus.Fields{
+				telemetry.Notifier: n.Name(),
+				telemetry.Event:    event,
+			})
 			if err == nil {
-				m.c.Log.WithFields(logrus.Fields{
-					"notifier": n.Name(),
-					"event":    event,
-				}).Debug("Notifier handled event")
+				f.Debug("Notifier handled event")
 			} else {
-				f := m.c.Log.WithFields(logrus.Fields{
-					"notifier": n.Name(),
-					"event":    event,
-					"err":      err.Error(),
-				})
+				f := f.WithError(err)
 				if advise {
 					f.Error("Notifier failed to handle event")
 				} else {
