@@ -116,6 +116,17 @@ func (ds *SQLPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBund
 	return resp, nil
 }
 
+// SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
+func (ds *SQLPlugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
+	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = setBundle(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 // AppendBundle append bundle contents to the existing bundle (by trust domain). If no existing one is present, create it.
 func (ds *SQLPlugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -553,6 +564,36 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 
 	return &datastore.UpdateBundleResponse{
 		Bundle: req.Bundle,
+	}, nil
+}
+
+func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
+	newModel, err := bundleToModel(req.Bundle)
+	if err != nil {
+		return nil, err
+	}
+
+	// fetch existing or create new
+	model := &Bundle{}
+	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
+	if result.RecordNotFound() {
+		resp, err := createBundle(tx, &datastore.CreateBundleRequest{Bundle: req.Bundle})
+		if err != nil {
+			return nil, err
+		}
+		return &datastore.SetBundleResponse{
+			Bundle: resp.Bundle,
+		}, nil
+	} else if result.Error != nil {
+		return nil, sqlError.Wrap(result.Error)
+	}
+
+	resp, err := updateBundle(tx, &datastore.UpdateBundleRequest{Bundle: req.Bundle})
+	if err != nil {
+		return nil, err
+	}
+	return &datastore.SetBundleResponse{
+		Bundle: resp.Bundle,
 	}, nil
 }
 
