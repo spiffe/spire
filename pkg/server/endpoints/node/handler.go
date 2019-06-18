@@ -238,6 +238,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 
 		// Select how to sign the SVIDs based on the agent version
 		var svids map[string]*node.X509SVID
+		telemetryAddID := func(*telemetry.CallCounter, string) {}
 
 		// Only one of 'CSRs', 'DEPRECATEDCSRs' must be populated
 		if csrsLen != 0 && csrsLenDeprecated != 0 {
@@ -246,9 +247,11 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 
 		if csrsLen != 0 {
 			// Current agent, use regular signCSRs
+			telemetryAddID = telemetry_common.AddSPIFFEID
 			svids, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
 		} else if csrsLenDeprecated != 0 {
 			// Legacy agent, use legacy SignCSRs
+			telemetryAddID = telemetry_common.AddRegistrationID
 			svids, err = h.signCSRsLegacy(ctx, peerCert, request.DEPRECATEDCsrs, regEntries)
 		} else {
 			// If both are zero, there is not CSR to sign -> assign an empty map
@@ -266,8 +269,8 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return err
 		}
 
-		for spiffeID := range svids {
-			telemetry_common.AddSPIFFEID(counter, spiffeID)
+		for id := range svids {
+			telemetryAddID(counter, id)
 		}
 
 		err = server.Send(&node.FetchX509SVIDResponse{
