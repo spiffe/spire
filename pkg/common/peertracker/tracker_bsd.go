@@ -124,6 +124,10 @@ func (b *bsdTracker) receiveKevents(kqfd int) {
 				return
 			}
 
+			if err == syscall.EINTR {
+				continue
+			}
+
 			panicMsg := fmt.Sprintf("unrecoverable error while reading from kqueue: %v", err)
 			panic(panicMsg)
 		}
