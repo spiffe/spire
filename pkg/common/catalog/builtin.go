@@ -8,6 +8,7 @@ import (
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 )
@@ -76,7 +77,7 @@ func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *Cata
 
 	logger := (&log.HCLogAdapter{
 		Log:  builtin.Log,
-		Name: "builtin",
+		Name: telemetry.PluginBuiltIn,
 	}).Named(builtin.Plugin.Name)
 
 	initPluginServer(

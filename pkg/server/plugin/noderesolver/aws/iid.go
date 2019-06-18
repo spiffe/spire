@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -139,7 +140,7 @@ func (p *IIDResolverPlugin) Resolve(ctx context.Context, req *noderesolver.Resol
 func (p *IIDResolverPlugin) resolveSpiffeID(ctx context.Context, spiffeID string) (*common.Selectors, error) {
 	_, region, instanceID, err := parseAgentID(spiffeID)
 	if err != nil {
-		p.log.Warn("Unrecognized agent ID", "agent_id", spiffeID)
+		p.log.Warn("Unrecognized agent ID", telemetry.SPIFFEID, spiffeID)
 		return nil, nil
 	}
 

@@ -39,8 +39,8 @@ import (
 type Handler struct {
 	Manager manager.Manager
 	Catalog catalog.Catalog
-	L       logrus.FieldLogger
-	M       telemetry.Metrics
+	Log     logrus.FieldLogger
+	Metrics telemetry.Metrics
 }
 
 // FetchJWTSVID processes request for a JWT SVID
@@ -120,7 +120,10 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 
 			telemetry_workload.MeasureSendJWTBundleLatency(metrics, start)
 			if time.Since(start) > (1 * time.Second) {
-				h.L.Warnf("Took %v seconds to send JWT bundle to PID %v", time.Since(start).Seconds, pid)
+				h.Log.WithFields(logrus.Fields{
+					telemetry.Seconds: time.Since(start).Seconds,
+					telemetry.PID:     pid,
+				}).Warn("Took >1 second to send JWT bundle to PID")
 			}
 		case <-ctx.Done():
 			return nil
@@ -192,7 +195,10 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 			// taken by the CallCounter in sendX509SVIDResponse function.
 			telemetry_workload.MeasureFetchX509SVIDLatency(metrics, start)
 			if time.Since(start) > (1 * time.Second) {
-				h.L.Warnf("Took %v seconds to send SVID response to PID %v", time.Since(start).Seconds, pid)
+				h.Log.WithFields(logrus.Fields{
+					telemetry.Seconds: time.Since(start).Seconds,
+					telemetry.PID:     pid,
+				}).Warn("Took >1 second to send SVID response to PID")
 			}
 		case <-ctx.Done():
 			return nil
@@ -316,12 +322,12 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 	}
 
 	// add to count of current
-	telemetry_workload.IncrConnectionTotalCounter(h.M)
+	telemetry_workload.IncrConnectionTotalCounter(h.Metrics)
 
 	config := attestor.Config{
 		Catalog: h.Catalog,
-		L:       h.L,
-		M:       h.M,
+		Log:     h.Log,
+		Metrics: h.Metrics,
 	}
 
 	selectors := attestor.New(&config).Attest(ctx, watcher.PID())
@@ -331,16 +337,16 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 	err = watcher.IsAlive()
 	if err != nil {
 		// error, decrement count of current connections
-		telemetry_workload.DecrConnectionTotalCounter(h.M)
+		telemetry_workload.DecrConnectionTotalCounter(h.Metrics)
 		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.M, selectorsToLabels(selectors))
+	metrics := telemetry.WithLabels(h.Metrics, selectorsToLabels(selectors))
 	telemetry_workload.IncrConnectionCounter(metrics)
 
 	done := func() {
 		// rely on caller to decrement count of current connections
-		telemetry_workload.DecrConnectionTotalCounter(h.M)
+		telemetry_workload.DecrConnectionTotalCounter(h.Metrics)
 	}
 
 	return watcher.PID(), selectors, metrics, done, nil

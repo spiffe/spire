@@ -66,6 +66,8 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	counter := telemetry_server.StartNodeAPIAttestCall(h.c.Metrics)
 	defer counter.Done(&err)
 
+	log := h.c.Log
+
 	// make sure node attestor stream will be cancelled if things go awry
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -100,7 +102,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 
 	attestedBefore, err := h.isAttested(ctx, agentID)
 	if err != nil {
-		h.c.Log.Error(err)
+		log.Error(err)
 		return errors.New("failed to determine if agent has already attested")
 	}
 
@@ -128,50 +130,54 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 			return err
 		}
 		if _, err := attestStream.Recv(); err != io.EOF {
-			h.c.Log.Warnf("expected EOF on attestation stream; got %v", err)
+			log.WithError(err).Warn("expected EOF on attestation stream")
 		}
 	}
 
 	if err := h.validateAttestation(agentID, attestResponse); err != nil {
-		h.c.Log.Error(err)
+		log.Error(err)
 		return errors.New("attestor returned unexpected response")
 	}
 
-	h.c.Log.Debugf("Signing CSR for Agent SVID %v", agentID)
+	log = log.WithField(telemetry.SPIFFEID, agentID)
+	log.Debug("Signing CSR for Agent SVID")
 	svid, err := h.c.ServerCA.SignX509SVID(ctx, request.Csr, ca.X509Params{})
 	if err != nil {
-		h.c.Log.Error(err)
+		log.Error(err)
 		return errors.New("failed to sign CSR")
 	}
 
 	if err := h.updateNodeSelectors(ctx, agentID, attestResponse, request.AttestationData.Type); err != nil {
-		h.c.Log.Error(err)
+		log.Error(err)
 		return errors.New("failed to update node selectors")
 	}
 
 	response, err := h.getAttestResponse(ctx, agentID, svid)
 	if err != nil {
-		h.c.Log.Error(err)
+		log.Error(err)
 		return errors.New("failed to compose response")
 	}
 
 	if attestedBefore {
 		err = h.updateAttestationEntry(ctx, svid[0])
 		if err != nil {
-			h.c.Log.Error(err)
+			log.Error(err)
 			return errors.New("failed to update attestation entry")
 		}
 	} else {
 		err = h.createAttestationEntry(ctx, svid[0], request.AttestationData.Type)
 		if err != nil {
-			h.c.Log.Error(err)
+			log.Error(err)
 			return errors.New("failed to create attestation entry")
 		}
 	}
 
 	p, ok := peer.FromContext(ctx)
 	if ok {
-		h.c.Log.Infof("Node attestation request from %v completed using strategy %v", p.Addr, request.AttestationData.Type)
+		log.WithFields(logrus.Fields{
+			telemetry.Attestor: request.AttestationData.Type,
+			telemetry.Address:  p.Addr,
+		}).Info("Node attestation request completed")
 	}
 
 	if err := stream.Send(response); err != nil {
@@ -272,7 +278,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			},
 		})
 		if err != nil {
-			h.c.Log.Errorf("Error sending FetchX509SVIDResponse: %v", err)
+			h.c.Log.WithError(err).Error("Error sending FetchX509SVIDResponse")
 		}
 	}
 }
@@ -308,8 +314,8 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 	}
 
 	signLog := h.c.Log.WithFields(logrus.Fields{
-		"caller_id":      downstreamID,
-		"source_address": sourceAddress,
+		telemetry.CallerID: downstreamID,
+		telemetry.Address:  sourceAddress,
 	})
 
 	signLog.Debug("Signing downstream CA SVID")
@@ -672,7 +678,7 @@ func (h *Handler) updateNodeSelectors(ctx context.Context,
 			selectors = append(selectors, resolved.Entries...)
 		}
 	} else {
-		h.c.Log.Debugf("could not find node resolver type %q", attestationType)
+		h.c.Log.WithField(telemetry.Attestor, attestationType).Debug("could not find node resolver")
 	}
 
 	selectors = append(selectors, attestResponse.Selectors...)
@@ -774,9 +780,9 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 		}
 
 		signLog := h.c.Log.WithFields(logrus.Fields{
-			"caller_id":      callerID,
-			"spiffe_id":      spiffeID,
-			"source_address": sourceAddress,
+			telemetry.CallerID: callerID,
+			telemetry.SPIFFEID: spiffeID,
+			telemetry.Address:  sourceAddress,
 		})
 
 		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {

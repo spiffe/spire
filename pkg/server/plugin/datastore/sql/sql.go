@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/selector"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -109,6 +110,17 @@ func (ds *SQLPlugin) CreateBundle(ctx context.Context, req *datastore.CreateBund
 func (ds *SQLPlugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
 	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = updateBundle(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
+func (ds *SQLPlugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
+	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = setBundle(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -491,7 +503,7 @@ func (ds *SQLPlugin) openDB(cfg *configuration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
-	ds.log.Info("Opening SQL database", "dbtype", cfg.DatabaseType)
+	ds.log.Info("Opening SQL database", telemetry.DatabaseType, cfg.DatabaseType)
 	switch cfg.DatabaseType {
 	case SQLite:
 		db, err = sqlite{}.connect(cfg)
@@ -553,6 +565,36 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 
 	return &datastore.UpdateBundleResponse{
 		Bundle: req.Bundle,
+	}, nil
+}
+
+func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
+	newModel, err := bundleToModel(req.Bundle)
+	if err != nil {
+		return nil, err
+	}
+
+	// fetch existing or create new
+	model := &Bundle{}
+	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
+	if result.RecordNotFound() {
+		resp, err := createBundle(tx, &datastore.CreateBundleRequest{Bundle: req.Bundle})
+		if err != nil {
+			return nil, err
+		}
+		return &datastore.SetBundleResponse{
+			Bundle: resp.Bundle,
+		}, nil
+	} else if result.Error != nil {
+		return nil, sqlError.Wrap(result.Error)
+	}
+
+	resp, err := updateBundle(tx, &datastore.UpdateBundleRequest{Bundle: req.Bundle})
+	if err != nil {
+		return nil, err
+	}
+	return &datastore.SetBundleResponse{
+		Bundle: resp.Bundle,
 	}, nil
 }
 

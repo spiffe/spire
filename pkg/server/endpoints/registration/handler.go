@@ -521,13 +521,14 @@ func (h *Handler) FetchBundle(
 //EvictAgent removes a node from the attested nodes store
 func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.EvictAgentRequest) (*registration.EvictAgentResponse, error) {
 	spiffeID := evictRequest.GetSpiffeID()
+	log := h.Log.WithField(telemetry.SPIFFEID, spiffeID)
 	deletedNode, err := h.deleteAttestedNode(ctx, spiffeID)
 	if err != nil {
-		h.Log.Warnf("Fail to evict agent with SPIFFE ID: %q", spiffeID)
+		log.Warn("Fail to evict agent")
 		return nil, err
 	}
 
-	h.Log.Debugf("Successfully evicted agent with SPIFFE ID: %q", spiffeID)
+	log.Debug("Successfully evicted agent")
 	return &registration.EvictAgentResponse{
 		Node: deletedNode,
 	}, nil

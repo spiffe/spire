@@ -41,6 +41,14 @@ message UpdateBundleResponse {
     spire.common.Bundle bundle = 1;
 }
 
+message SetBundleRequest {
+    spire.common.Bundle bundle = 1;
+}
+
+message SetBundleResponse {
+    spire.common.Bundle bundle = 1;
+}
+
 message AppendBundleRequest {
     spire.common.Bundle bundle = 1;
 }
@@ -284,6 +292,8 @@ service DataStore {
     rpc ListBundles(ListBundlesRequest) returns (ListBundlesResponse);
     // Updates a specific bundle
     rpc UpdateBundle(UpdateBundleRequest) returns (UpdateBundleResponse);
+    // Sets bundle contents (creates if it does not exist)
+    rpc SetBundle(SetBundleRequest) returns (SetBundleResponse);
     // Appends contents from a specific bundle (creates if it does not exist)
     rpc AppendBundle(AppendBundleRequest) returns (AppendBundleResponse);
     // Deletes a specific bundle

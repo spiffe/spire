@@ -178,12 +178,14 @@ func (a *attestor) fetchAttestationData(
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
 // will be returned.
 func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
+	log := a.c.Log.WithField(telemetry.Path, a.c.SVIDCachePath)
+
 	svid, err := manager.ReadSVID(a.c.SVIDCachePath)
 	if err == manager.ErrNotCached {
-		a.c.Log.Debug("No pre-existing agent SVID found. Will perform node attestation")
+		log.Debug("No pre-existing agent SVID found. Will perform node attestation")
 		return nil
 	} else if err != nil {
-		a.c.Log.Warnf("Could not get agent SVID from %s: %s", a.c.SVIDCachePath, err)
+		log.WithError(err).Warn("Could not get agent SVID from path")
 	}
 	return svid
 }
@@ -270,12 +272,12 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 	if fetchStream != nil {
 		fetchStream.CloseSend()
 		if _, err := fetchStream.Recv(); err != io.EOF {
-			a.c.Log.Warnf("received unexpected result on trailing recv: %v", err)
+			a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
 		}
 	}
 	attestStream.CloseSend()
 	if _, err := attestStream.Recv(); err != io.EOF {
-		a.c.Log.Warnf("received unexpected result on trailing recv: %v", err)
+		a.c.Log.WithError(err).Warn("received unexpected result on trailing recv")
 	}
 
 	svid, bundle, err := a.parseAttestationResponse(spiffeID, attestResp)

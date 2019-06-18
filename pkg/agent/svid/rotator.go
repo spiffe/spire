@@ -55,7 +55,7 @@ func (r *rotator) Run(ctx context.Context) error {
 		case <-t.C:
 			if r.shouldRotate() {
 				if err := r.rotateSVID(ctx); err != nil {
-					r.c.Log.Errorf("Could not rotate agent SVID: %v", err)
+					r.c.Log.WithError(err).Error("Could not rotate agent SVID")
 				}
 			}
 		case <-r.c.BundleStream.Changes():

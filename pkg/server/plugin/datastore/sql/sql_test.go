@@ -190,6 +190,30 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
 }
 
+func (s *PluginSuite) TestSetBundle() {
+	// create a couple of bundles for tests. the contents don't really matter
+	// as long as they are for the same trust domain but have different contents.
+	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
+	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
+
+	// ensure the bundle does not exist (it shouldn't)
+	s.Require().Nil(s.fetchBundle("spiffe://foo"))
+
+	// set the bundle and make sure it is created
+	_, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
+		Bundle: bundle,
+	})
+	s.Require().NoError(err)
+	s.RequireProtoEqual(bundle, s.fetchBundle("spiffe://foo"))
+
+	// set the bundle and make sure it is updated
+	_, err = s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
+		Bundle: bundle2,
+	})
+	s.Require().NoError(err)
+	s.RequireProtoEqual(bundle2, s.fetchBundle("spiffe://foo"))
+}
+
 func (s *PluginSuite) TestBundlePrune() {
 	// Setup
 	// Create new bundle with two cert (one valid and one expired)
@@ -1537,9 +1561,17 @@ func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interfa
 	s.Require().NoError(err)
 }
 
-func (s *PluginSuite) createBundle(trustDomain string) {
+func (s *PluginSuite) fetchBundle(trustDomainID string) *common.Bundle {
+	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+		TrustDomainId: trustDomainID,
+	})
+	s.Require().NoError(err)
+	return resp.Bundle
+}
+
+func (s *PluginSuite) createBundle(trustDomainID string) {
 	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundleutil.BundleProtoFromRootCA(trustDomain, s.cert),
+		Bundle: bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert),
 	})
 	s.Require().NoError(err)
 }

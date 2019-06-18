@@ -84,7 +84,7 @@ func (c *CachingKeySetProvider) GetKeySet(ctx context.Context) (*jose.JSONWebKey
 		c.jwks = jwks
 		c.updated = now
 	} else {
-		logrus.Warnf("unable to refresh key set: %v", err)
+		logrus.WithError(err).Warn("unable to refresh key set")
 		if c.jwks == nil {
 			return nil, errs.Wrap(err)
 		}

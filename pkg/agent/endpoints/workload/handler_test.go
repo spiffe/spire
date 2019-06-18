@@ -72,8 +72,8 @@ func (s *HandlerTestSuite) SetupTest() {
 	h := &Handler{
 		Manager: s.manager,
 		Catalog: catalog,
-		L:       log,
-		M:       s.metrics,
+		Log:     log,
+		Metrics: s.metrics,
 	}
 
 	s.h = h
@@ -164,7 +164,7 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.Error}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.Error, telemetry.ElapsedTime}, gomock.Any(), labels)
 
-	err := s.h.sendX509SVIDResponse(emptyUpdate, stream, s.h.M, []*common.Selector{})
+	err := s.h.sendX509SVIDResponse(emptyUpdate, stream, s.h.Metrics, []*common.Selector{})
 	s.Assert().Error(err)
 
 	resp, err := s.h.composeX509SVIDResponse(s.workloadUpdate())
@@ -185,7 +185,7 @@ func (s *HandlerTestSuite) TestSendX509Response() {
 	s.metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID}, float32(1), labels)
 	s.metrics.EXPECT().MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.ElapsedTime}, gomock.Any(), labels)
 
-	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream, s.h.M, []*common.Selector{})
+	err = s.h.sendX509SVIDResponse(s.workloadUpdate(), stream, s.h.Metrics, []*common.Selector{})
 	s.Assert().NoError(err)
 }
 
