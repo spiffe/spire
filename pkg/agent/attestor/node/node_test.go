@@ -7,10 +7,8 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"io/ioutil"
 	"math/big"
-	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -33,8 +31,6 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 var (
@@ -218,50 +214,32 @@ func TestAttestor(t *testing.T) {
 			require := require.New(t)
 
 			// prepare the temp directory holding the cached bundle/svid
-			dir, err := ioutil.TempDir("", "spire-agent-node-attestor-")
-			require.NoError(err)
-			svidCachePath := filepath.Join(dir, "svid.der")
-			bundleCachePath := filepath.Join(dir, "bundle.der")
-			if testCase.cachedBundle != nil {
-				writeFile(t, bundleCachePath, testCase.cachedBundle, 0644)
-			}
-			if testCase.cachedSVID != nil {
-				writeFile(t, svidCachePath, testCase.cachedSVID, 0644)
-			}
+			svidCachePath, bundleCachePath, removeDir := prepareTestDir(t, testCase.cachedSVID, testCase.cachedBundle)
+			defer removeDir()
 
 			// load up the fake agent-side node attestor
-			var agentNA agentnodeattestor.NodeAttestor
-			agentNADone := spiretest.LoadPlugin(t, catalog.MakePlugin("test",
-				agentnodeattestor.PluginServer(fakeagentnodeattestor.New(fakeagentnodeattestor.Config{
-					Fail:              testCase.failFetchingAttestationData,
-					DeprecatedAgentID: testCase.deprecatedAgentID,
-					Responses:         testCase.challengeResponses,
-				})),
-			), &agentNA)
+			agentNA, agentNADone := prepareAgentNA(t, fakeagentnodeattestor.Config{
+				Fail:              testCase.failFetchingAttestationData,
+				DeprecatedAgentID: testCase.deprecatedAgentID,
+				Responses:         testCase.challengeResponses,
+			})
 			defer agentNADone()
 
 			// load up the fake server-side node attestor
-			var serverNA servernodeattestor.NodeAttestor
-			serverNADone := spiretest.LoadPlugin(t, catalog.MakePlugin("test",
-				servernodeattestor.PluginServer(fakeservernodeattestor.New("test", fakeservernodeattestor.Config{
-					TrustDomain: "domain.test",
-					Data: map[string]string{
-						"TEST": "foo",
-					},
-					Challenges: map[string][]string{
-						"foo": testCase.challengeResponses,
-					},
-				})),
-			), &serverNA)
+			serverNA, serverNADone := prepareServerNA(t, fakeservernodeattestor.Config{
+				TrustDomain: "domain.test",
+				Data: map[string]string{
+					"TEST": "foo",
+				},
+				Challenges: map[string][]string{
+					"foo": testCase.challengeResponses,
+				},
+			})
 			defer serverNADone()
 
 			// load up an in-memory key manager
-			var km keymanager.KeyManager
-			kmDone := spiretest.LoadPlugin(t, memory.BuiltIn(), &km)
+			km, kmDone := prepareKeyManager(t, testCase.storeKey)
 			defer kmDone()
-			if testCase.storeKey != nil {
-				storePrivateKey(t, km, testCase.storeKey)
-			}
 
 			// initialize the catalog
 			catalog := fakeagentcatalog.New()
@@ -269,24 +247,16 @@ func TestAttestor(t *testing.T) {
 			catalog.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 			// kick off the gRPC server serving the node API
-			listener, err := net.Listen("tcp", "localhost:0")
-			require.NoError(err)
-			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
-			node.RegisterNodeServer(server, newFakeNodeAPI(fakeNodeAPIConfig{
+			serverAddr, serverDone := startNodeServer(t, tlsConfig, fakeNodeAPIConfig{
 				CACert:             caCert,
 				Attestor:           serverNA,
 				OmitSVIDUpdate:     testCase.omitSVIDUpdate,
 				OverrideSVIDUpdate: testCase.overrideSVIDUpdate,
 				FailAttestCall:     testCase.failAttestCall,
-			}))
-			defer server.Stop()
-			go server.Serve(listener)
+			})
+			defer serverDone()
 
 			// create the attestor
-			var trustBundle []*x509.Certificate
-			if testCase.bootstrapBundle != nil {
-				trustBundle = append(trustBundle, testCase.bootstrapBundle)
-			}
 			log, _ := test.NewNullLogger()
 			attestor := New(&Config{
 				Catalog:         catalog,
@@ -299,8 +269,8 @@ func TestAttestor(t *testing.T) {
 					Scheme: "spiffe",
 					Host:   "domain.test",
 				},
-				TrustBundle:   trustBundle,
-				ServerAddress: listener.Addr().String(),
+				TrustBundle:   makeTrustBundle(testCase.bootstrapBundle),
+				ServerAddress: serverAddr,
 			})
 
 			// perform attestation
@@ -328,131 +298,65 @@ func TestAttestor(t *testing.T) {
 	}
 }
 
-type fakeNodeAPIConfig struct {
-	CACert             *x509.Certificate
-	Attestor           servernodeattestor.NodeAttestor
-	OmitSVIDUpdate     bool
-	OverrideSVIDUpdate *node.X509SVIDUpdate
-	FailAttestCall     bool
-}
+func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, string, func()) {
+	dir, err := ioutil.TempDir("", "spire-agent-node-attestor-")
+	require.NoError(t, err)
 
-type fakeNodeAPI struct {
-	node.NodeServer
-	c fakeNodeAPIConfig
-}
+	ok := false
+	defer func() {
+		if !ok {
+			os.RemoveAll(dir)
+		}
+	}()
 
-func newFakeNodeAPI(config fakeNodeAPIConfig) *fakeNodeAPI {
-	return &fakeNodeAPI{
-		c: config,
+	svidCachePath := filepath.Join(dir, "svid.der")
+	bundleCachePath := filepath.Join(dir, "bundle.der")
+	if cachedSVID != nil {
+		writeFile(t, svidCachePath, cachedSVID, 0644)
 	}
-}
-
-func (n *fakeNodeAPI) Attest(stream node.Node_AttestServer) error {
-	// ensure streams are cleaned up
-	ctx, cancel := context.WithCancel(stream.Context())
-	defer cancel()
-
-	attestorStream, err := n.c.Attestor.Attest(ctx)
-	if err != nil {
-		return err
+	if cachedBundle != nil {
+		writeFile(t, bundleCachePath, cachedBundle, 0644)
 	}
 
-	for {
-		req, err := stream.Recv()
-		if err != nil {
-			return err
-		}
-
-		if n.c.FailAttestCall {
-			return errors.New("attestation has been purposefully failed")
-		}
-
-		csr, err := x509.ParseCertificateRequest(req.Csr)
-		if err != nil {
-			return err
-		}
-
-		if req.AttestationData.Type == "join_token" {
-			resp, err := n.createAttestResponse(csr, idutil.AgentID("domain.test", "/join_token/"+string(req.AttestationData.Data)))
-			if err != nil {
-				return err
-			}
-
-			return stream.Send(resp)
-		}
-
-		if err := attestorStream.Send(&servernodeattestor.AttestRequest{
-			AttestationData: req.AttestationData,
-			Response:        req.Response,
-		}); err != nil {
-			return err
-		}
-
-		attestResp, err := attestorStream.Recv()
-		if err != nil {
-			return err
-		}
-
-		if attestResp.Challenge != nil {
-			if err := stream.Send(&node.AttestResponse{
-				Challenge: attestResp.Challenge,
-			}); err != nil {
-				return err
-			}
-			continue
-		}
-
-		resp, err := n.createAttestResponse(csr, attestResp.AgentId)
-		if err != nil {
-			return err
-		}
-
-		return stream.Send(resp)
+	ok = true
+	return svidCachePath, bundleCachePath, func() {
+		os.RemoveAll(dir)
 	}
 }
 
-func (n *fakeNodeAPI) createAttestResponse(csr *x509.CertificateRequest, agentID string) (*node.AttestResponse, error) {
-	uri, err := idutil.ParseSpiffeID(agentID, idutil.AllowAnyTrustDomainAgent())
-	if err != nil {
-		return nil, err
+func prepareAgentNA(t *testing.T, config fakeagentnodeattestor.Config) (agentnodeattestor.NodeAttestor, func()) {
+	var agentNA agentnodeattestor.NodeAttestor
+	agentNADone := spiretest.LoadPlugin(t, catalog.MakePlugin("test",
+		agentnodeattestor.PluginServer(fakeagentnodeattestor.New(config)),
+	), &agentNA)
+	return agentNA, agentNADone
+}
+
+func prepareServerNA(t *testing.T, config fakeservernodeattestor.Config) (servernodeattestor.NodeAttestor, func()) {
+	var serverNA servernodeattestor.NodeAttestor
+	serverNADone := spiretest.LoadPlugin(t, catalog.MakePlugin("test",
+		servernodeattestor.PluginServer(fakeservernodeattestor.New("test", config)),
+	), &serverNA)
+	return serverNA, serverNADone
+}
+
+func prepareKeyManager(t *testing.T, key crypto.PrivateKey) (keymanager.KeyManager, func()) {
+	var km keymanager.KeyManager
+	kmDone := spiretest.LoadPlugin(t, memory.BuiltIn(), &km)
+
+	ok := false
+	defer func() {
+		if !ok {
+			kmDone()
+		}
+	}()
+
+	if key != nil {
+		storePrivateKey(t, km, key)
 	}
 
-	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(0),
-		URIs:         []*url.URL{uri},
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, n.c.CACert, csr.PublicKey, testKey)
-	if err != nil {
-		return nil, err
-	}
-
-	svidUpdate := &node.X509SVIDUpdate{
-		Svids: map[string]*node.X509SVID{
-			agentID: &node.X509SVID{
-				CertChain: certDER,
-			},
-		},
-		Bundles: map[string]*common.Bundle{
-			"spiffe://domain.test": &common.Bundle{
-				TrustDomainId: "spiffe://domain.test",
-				RootCas: []*common.Certificate{
-					{DerBytes: n.c.CACert.Raw},
-				},
-			},
-		},
-	}
-
-	if n.c.OverrideSVIDUpdate != nil {
-		svidUpdate = n.c.OverrideSVIDUpdate
-	}
-
-	resp := &node.AttestResponse{}
-	if !n.c.OmitSVIDUpdate {
-		resp.SvidUpdate = svidUpdate
-	}
-
-	return resp, nil
+	ok = true
+	return km, kmDone
 }
 
 func writeFile(t *testing.T, path string, data []byte, mode os.FileMode) {
@@ -504,4 +408,12 @@ func storePrivateKey(t *testing.T, km keymanager.KeyManager, privateKey crypto.P
 		PrivateKey: keyBytes,
 	})
 	require.NoError(t, err)
+}
+
+func makeTrustBundle(bootstrapCert *x509.Certificate) []*x509.Certificate {
+	var trustBundle []*x509.Certificate
+	if bootstrapCert != nil {
+		trustBundle = append(trustBundle, bootstrapCert)
+	}
+	return trustBundle
 }
