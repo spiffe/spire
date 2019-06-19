@@ -108,7 +108,7 @@ func TestRegistrationEntryMetrics(t *testing.T) {
 	telemetry_agent.IncrRegistrationEntryDeletedCounter(expected, bar.SpiffeId)
 	telemetry_agent.IncrRegistrationEntryUpdatedCounter(expected, foo.SpiffeId)
 
-	assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
+	assert.ElementsMatch(t, expected.AllMetrics(), actual.AllMetrics())
 }
 
 func TestBundleChanges(t *testing.T) {
