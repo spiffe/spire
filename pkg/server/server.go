@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -144,7 +145,11 @@ func (s *Server) run(ctx context.Context) (err error) {
 		TrustDomainID: s.config.TrustDomain.String(),
 	})
 
-	cat, err := s.loadCatalog(ctx, identityProvider)
+	// Create the agent store host service. It will not be functional
+	// until the call to SetDeps() below.
+	agentStore := agentstore.New()
+
+	cat, err := s.loadCatalog(ctx, identityProvider, agentStore)
 	if err != nil {
 		return err
 	}
@@ -186,6 +191,13 @@ func (s *Server) run(ctx context.Context) (err error) {
 		}),
 	}); err != nil {
 		return fmt.Errorf("failed setting IdentityProvider deps: %v", err)
+	}
+
+	// Set the agent store dependencies
+	if err := agentStore.SetDeps(agentstore.Deps{
+		DataStore: cat.GetDataStore(),
+	}); err != nil {
+		return fmt.Errorf("failed setting AgentStore deps: %v", err)
 	}
 
 	err = util.RunTasks(ctx,
@@ -254,7 +266,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider) (*catalog.CatalogCloser, error) {
+func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.IdentityProvider, agentStore hostservices.AgentStore) (*catalog.CatalogCloser, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: catalog.GlobalConfig{
@@ -262,6 +274,7 @@ func (s *Server) loadCatalog(ctx context.Context, identityProvider hostservices.
 		},
 		PluginConfig:     s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
+		AgentStore:       agentStore,
 	})
 }
 
