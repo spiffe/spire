@@ -360,8 +360,8 @@ func setupMetricsCommonExpectations(metrics *mock_telemetry.MockMetrics, selecto
 	metrics.EXPECT().MeasureSince([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestationDuration}, gomock.Any())
 
 	metrics.EXPECT().IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.Connection}, float32(1), selectorsLabels)
-	metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(1))
-	metrics.EXPECT().IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(-1))
+	metrics.EXPECT().SetGauge([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(1))
+	metrics.EXPECT().SetGauge([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(0))
 }
 
 func (s *HandlerTestSuite) TestFetchJWTBundles() {

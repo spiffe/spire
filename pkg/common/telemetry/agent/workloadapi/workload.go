@@ -43,16 +43,9 @@ func IncrConnectionCounter(m telemetry.Metrics) {
 	m.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connection}, 1)
 }
 
-// DecrConnectionTotalCounter indicate one less
-// Workload API active connection (active in that moment)
-func DecrConnectionTotalCounter(m telemetry.Metrics) {
-	m.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connections}, -1)
-}
-
-// IncrConnectionTotalCounter indicate one more
-// Workload API active connection (active in that moment)
-func IncrConnectionTotalCounter(m telemetry.Metrics) {
-	m.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connections}, 1)
+// SetConnectionTotalGauge sets the number of active Workload API connections
+func SetConnectionTotalGauge(m telemetry.Metrics, connections int32) {
+	m.SetGauge([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(connections))
 }
 
 // IncrFetchJWTBundlesCounter indicate call to Workload

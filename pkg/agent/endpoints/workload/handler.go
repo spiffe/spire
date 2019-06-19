@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -41,6 +42,9 @@ type Handler struct {
 	Catalog catalog.Catalog
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
+
+	// tracks the number of outstanding connections
+	connections int32
 }
 
 // FetchJWTSVID processes request for a JWT SVID
@@ -322,7 +326,11 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 	}
 
 	// add to count of current
-	telemetry_workload.IncrConnectionTotalCounter(h.Metrics)
+	telemetry_workload.SetConnectionTotalGauge(h.Metrics, atomic.AddInt32(&h.connections, 1))
+	done := func() {
+		// rely on caller to decrement count of current connections
+		telemetry_workload.SetConnectionTotalGauge(h.Metrics, atomic.AddInt32(&h.connections, -1))
+	}
 
 	config := attestor.Config{
 		Catalog: h.Catalog,
@@ -334,20 +342,13 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 
 	// Ensure that the original caller is still alive so that we know we didn't
 	// attest some other process that happened to be assigned the original PID
-	err = watcher.IsAlive()
-	if err != nil {
-		// error, decrement count of current connections
-		telemetry_workload.DecrConnectionTotalCounter(h.Metrics)
+	if err := watcher.IsAlive(); err != nil {
+		done()
 		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
 	metrics := telemetry.WithLabels(h.Metrics, selectorsToLabels(selectors))
 	telemetry_workload.IncrConnectionCounter(metrics)
-
-	done := func() {
-		// rely on caller to decrement count of current connections
-		telemetry_workload.DecrConnectionTotalCounter(h.Metrics)
-	}
 
 	return watcher.PID(), selectors, metrics, done, nil
 }
