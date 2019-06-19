@@ -85,32 +85,43 @@ build_utils() {
 
 ## Rebuild all .proto files and associated README's
 build_protobuf() {
-	local _protofile _protofiles _outdir _srcdir _out="$1"
+	local _proto_file _proto_files _proto_dir _proto_dirs _outdir _srcdir _out="$1"
 	eval "$(build_env)"
 
 	# Generate protobufs in the proto/ and pkg/ subdirectories. README markdown
 	# will also be generated for protobufs in proto/. Unless an "_out" argument
 	# has been set the output will sit alongside the proto files.
 	_proto_files="$(find proto pkg -name '*.proto' 2>/dev/null)"
-	for _protofile in ${_proto_files}; do
-		_srcdir="$(dirname "${_protofile}")"
+	for _proto_file in ${_proto_files}; do
+		_srcdir="$(dirname "${_proto_file}")"
 		_outdir="${_srcdir}"
 		if [[ -n ${_out} ]]; then
 			_outdir=${_out}/${_srcdir}
 			mkdir -p "${_outdir}"
 		fi
 
-		_log_info "creating \"${_protofile%.proto}.pb.go\""
+		_log_info "creating \"${_proto_file%.proto}.pb.go\""
 		protoc --proto_path="${_srcdir}" --proto_path=proto \
-			--go_out=paths=source_relative,plugins=grpc:"${_outdir}" "${_protofile}"
+			--go_out=paths=source_relative,plugins=grpc:"${_outdir}" "${_proto_file}"
+	done
 
-		# generate markdown for all proto's in the proto/ directory
-		if [[ ${_protofile} == "proto/"* ]]; then
+	_proto_dirs="$(find proto -type d 2>/dev/null)"
+	for _proto_dir in ${_proto_dirs}; do
+		_outdir="${_proto_dir}"
+		if [[ -n ${_out} ]]; then
+			_outdir=${_out}/${_proto_dir}
+			mkdir -p "${_outdir}"
+		fi
+
+
+		_proto_files=(`find ${_proto_dir} -maxdepth 1 -name "*.proto"`)
+		if [ ${#_proto_files[@]} -gt 0 ]; then 
 			_log_info "creating \"${_outdir}/README_pb.md\""
-			protoc --proto_path="${_srcdir}" --proto_path=proto \
-				--doc_out=markdown,README_pb.md:"${_outdir}" "${_protofile}"
+			protoc --proto_path="${_proto_dir}" --proto_path=proto \
+				--doc_out=markdown,README_pb.md:"${_outdir}" "${_proto_files[@]}"
 		fi
 	done
+	
 }
 
 ## Create a private copy of generated code and compare it to
