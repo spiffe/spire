@@ -228,13 +228,13 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 		// in the CSR. We should log when this is the case and ensure the
 		// SPIFFE ID remains consistent throughout attestation.
 		//
-		// TODO: remove support in 0.9
+		// TODO: remove support in 0.10
 		switch {
 		case deprecatedAgentID == "":
 			if data.DEPRECATEDSpiffeId != "" {
 				a.c.Log.WithFields(logrus.Fields{
-					"spiffe_id": data.DEPRECATEDSpiffeId,
-					"attestor":  attestorName,
+					"spiffe_id":     data.DEPRECATEDSpiffeId,
+					"node_attestor": attestorName,
 				}).Warn("Attestor returned a deprecated SPIFFE ID")
 				deprecatedAgentID = data.DEPRECATEDSpiffeId
 			}
@@ -245,7 +245,11 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 		}
 
 		if csr == nil {
-			csr, err = util.MakeCSR(key, deprecatedAgentID)
+			if deprecatedAgentID != "" {
+				csr, err = util.MakeCSR(key, deprecatedAgentID)
+			} else {
+				csr, err = util.MakeCSRWithoutSAN(key)
+			}
 			if err != nil {
 				return nil, nil, fmt.Errorf("generate CSR for agent SVID: %v", err)
 			}

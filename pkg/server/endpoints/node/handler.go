@@ -109,7 +109,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 		// that the agent has already attested to prevent old plugins from
 		// re-attesting unsafely.
 		//
-		// TODO: remove in SPIRE 0.9
+		// TODO: remove in SPIRE 0.10
 		attestedBefore := true
 		if csr.SpiffeID != "" {
 			attestedBefore, err = h.isAttested(ctx, csr.SpiffeID)

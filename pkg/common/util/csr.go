@@ -11,13 +11,9 @@ import (
 )
 
 func MakeCSR(privateKey interface{}, spiffeID string) ([]byte, error) {
-	var uris []*url.URL
-	if spiffeID != "" {
-		uri, err := idutil.ParseSpiffeID(spiffeID, idutil.AllowAny())
-		if err != nil {
-			return nil, err
-		}
-		uris = append(uris, uri)
+	uri, err := idutil.ParseSpiffeID(spiffeID, idutil.AllowAny())
+	if err != nil {
+		return nil, err
 	}
 	return makeCSR(privateKey, &x509.CertificateRequest{
 		Subject: pkix.Name{
@@ -25,7 +21,17 @@ func MakeCSR(privateKey interface{}, spiffeID string) ([]byte, error) {
 			Organization: []string{"SPIRE"},
 		},
 		SignatureAlgorithm: x509.ECDSAWithSHA256,
-		URIs:               uris,
+		URIs:               []*url.URL{uri},
+	})
+}
+
+func MakeCSRWithoutSAN(privateKey interface{}) ([]byte, error) {
+	return makeCSR(privateKey, &x509.CertificateRequest{
+		Subject: pkix.Name{
+			Country:      []string{"US"},
+			Organization: []string{"SPIRE"},
+		},
+		SignatureAlgorithm: x509.ECDSAWithSHA256,
 	})
 }
 
