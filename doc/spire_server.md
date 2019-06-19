@@ -11,6 +11,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeAttestor   | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type. |
 | NodeResolver   | A plugin capable of discovering platform-specific metadata of nodes which have been successfully attested. Discovered metadata is stored as selectors and can be used when creating registration entries. |
 | UpstreamCA     | Allows SPIRE server to integrate with existing PKI systems. |
+| Notifier       | Notified by SPIRE server for certain events that are happening or have happened. For events that are happening, the notifier can advise SPIRE server on the outcome. |
 
 ## Built-in plugins
 
@@ -30,8 +31,10 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeResolver | [aws_iid](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) node attestor plugin to support selecting nodes based on additional properties (such as Security Group ID). |
 | NodeResolver | [azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
 | NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
+| Notifier   | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md) | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap. |
 | UpstreamCA | [disk](/doc/plugin_server_upstreamca_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
 | UpstreamCA | [awssecret](/doc/plugin_server_upstreamca_awssecret.md) | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates. |
+| UpstreamCA | [spire](/doc/plugin_server_upstreamca_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
 
 ## Server configuration file
 
@@ -307,9 +310,9 @@ server {
     svid_ttl = "6h"
     ca_ttl = "72h"
     ca_subject = {
-        Country = ["US"],
-        Organization = ["SPIRE"],
-        CommonName = "",
+        country = ["US"],
+        organization = ["SPIRE"],
+        common_name = "",
     }
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -80,7 +81,7 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 		}
 	}()
 
-	var versionCounter int64 = 0
+	var versionCounter int64
 	var versionInfo = strconv.FormatInt(versionCounter, 10)
 	var lastNonce string
 	var upd *cache.WorkloadUpdate
@@ -89,17 +90,17 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 		select {
 		case newReq := <-reqch:
 			h.c.Log.WithFields(logrus.Fields{
-				"resource_names": newReq.ResourceNames,
-				"version_info":   newReq.VersionInfo,
-				"nonce":          newReq.ResponseNonce,
+				telemetry.ResourceNames: newReq.ResourceNames,
+				telemetry.VersionInfo:   newReq.VersionInfo,
+				telemetry.Nonce:         newReq.ResponseNonce,
 			}).Debug("Received StreamSecrets request")
 			h.triggerReceivedHook()
 
 			// If there's error detail, always log it
 			if newReq.ErrorDetail != nil {
 				h.c.Log.WithFields(logrus.Fields{
-					"resource_names": newReq.ResourceNames,
-					"error_detail":   newReq.ErrorDetail.Message,
+					telemetry.ResourceNames: newReq.ResourceNames,
+					telemetry.Error:         newReq.ErrorDetail.Message,
 				}).Error("Envoy reported errors applying secrets")
 			}
 
@@ -109,14 +110,20 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 				// The nonce should match the last sent nonce, otherwise
 				// it's stale and the request should be ignored.
 				if lastNonce != newReq.ResponseNonce {
-					h.c.Log.Warnf("Received unexpected nonce %q (expected %q); ignoring request", newReq.ResponseNonce, lastNonce)
+					h.c.Log.WithFields(logrus.Fields{
+						telemetry.Nonce:  newReq.ResponseNonce,
+						telemetry.Expect: lastNonce,
+					}).Warn("Received unexpected nonce; ignoring request")
 					continue
 				}
 
 				if newReq.VersionInfo == "" || newReq.VersionInfo != versionInfo {
 					// The caller has failed to apply the last update.
 					// A NACK might also contain an update to the resource hint, so we need to continue processing.
-					h.c.Log.Errorf("Client rejected version %q and rolled back to %q", versionInfo, newReq.VersionInfo)
+					h.c.Log.WithFields(logrus.Fields{
+						telemetry.VersionInfo: newReq.VersionInfo,
+						telemetry.Expect:      versionInfo,
+					}).Error("Client rejected expected version and rolled back")
 				}
 
 			}
@@ -154,9 +161,9 @@ func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_Strea
 		}
 
 		h.c.Log.WithFields(logrus.Fields{
-			"version_info": resp.VersionInfo,
-			"nonce":        resp.Nonce,
-			"count":        len(resp.Resources),
+			telemetry.VersionInfo: resp.VersionInfo,
+			telemetry.Nonce:       resp.Nonce,
+			telemetry.Count:       len(resp.Resources),
 		}).Debug("Sending StreamSecrets response")
 		if err := stream.Send(resp); err != nil {
 			return err
@@ -185,7 +192,7 @@ func subListChanged(oldSubs []string, newSubs []string) (b bool) {
 
 func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
 	h.c.Log.WithFields(logrus.Fields{
-		"resource_names": req.ResourceNames,
+		telemetry.ResourceNames: req.ResourceNames,
 	}).Debug("Received FetchSecrets request")
 	_, selectors, done, err := h.startCall(ctx)
 	if err != nil {
@@ -201,13 +208,16 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest
 	}
 
 	h.c.Log.WithFields(logrus.Fields{
-		"count": len(resp.Resources),
+		telemetry.Count: len(resp.Resources),
 	}).Debug("Sending FetchSecrets response")
 
 	return resp, nil
 
 }
 
+// From context, parse out peer watcher PID and selectors. Attest against the PID. Add selectors as labels to
+// to a new metrics object. Return this information to the caller so it can emit further metrics.
+// If no error, callers must call the output func() to decrement current connections count.
 func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, func(), error) {
 	watcher, err := peerWatcher(ctx)
 	if err != nil {
@@ -215,8 +225,8 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	}
 
 	metrics := telemetry.WithLabels(h.c.Metrics, []telemetry.Label{{Name: telemetry.SDSPID, Value: fmt.Sprint(watcher.PID())}})
-	metrics.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connection}, 1)
-	metrics.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connections}, 1)
+	telemetry_agent.IncrSDSAPIConnectionCounter(metrics)
+	telemetry_agent.IncrSDSAPIConnectionTotalCounter(metrics)
 
 	selectors := h.c.Attestor.Attest(ctx, watcher.PID())
 
@@ -224,11 +234,12 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, fun
 	// attest some other process that happened to be assigned the original PID
 	err = watcher.IsAlive()
 	if err != nil {
+		telemetry_agent.DecrSDSAPIConnectionTotalCounter(metrics)
 		return 0, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
 	done := func() {
-		defer metrics.IncrCounter([]string{telemetry.SDSAPI, telemetry.Connections}, -1)
+		defer telemetry_agent.DecrSDSAPIConnectionTotalCounter(metrics)
 	}
 
 	return watcher.PID(), selectors, done, nil

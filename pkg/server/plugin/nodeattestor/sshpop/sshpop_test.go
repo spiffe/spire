@@ -107,7 +107,7 @@ func (s *Suite) TestAttestSuccess() {
 	// receive the attestation result
 	resp, err = stream.Recv()
 	require.NoError(err)
-	require.Equal("spiffe://example.org/spire/agent/sshpop/SHA256:21Aic/muK032oJMhLfU1/CMNcGmfAnvESeuH5zyFw/g", resp.AgentId)
+	require.Equal("spiffe://example.org/spire/agent/sshpop/21Aic_muK032oJMhLfU1_CMNcGmfAnvESeuH5zyFw_g", resp.AgentId)
 	require.Nil(resp.Challenge)
 	require.Len(resp.Selectors, 0)
 }

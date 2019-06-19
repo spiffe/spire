@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -23,6 +24,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_workload "github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
+	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/api/workload"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -37,8 +40,11 @@ import (
 type Handler struct {
 	Manager manager.Manager
 	Catalog catalog.Catalog
-	L       logrus.FieldLogger
-	M       telemetry.Metrics
+	Log     logrus.FieldLogger
+	Metrics telemetry.Metrics
+
+	// tracks the number of outstanding connections
+	connections int32
 }
 
 // FetchJWTSVID processes request for a JWT SVID
@@ -53,26 +59,24 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 	defer done()
 
-	counter := telemetry.StartCall(metrics, telemetry.WorkloadAPI, telemetry.FetchJWTSVID)
+	counter := telemetry_workload.StartFetchJWTSVIDCall(metrics)
 	defer counter.Done(&err)
-
-	counter.AddLabel(telemetry.SVIDType, telemetry.JWT)
 
 	var spiffeIDs []string
 	identities := h.Manager.MatchingIdentities(selectors)
 	if len(identities) == 0 {
-		counter.AddLabel(telemetry.Registered, "false")
+		telemetry_common.AddRegistered(counter, false)
 		return nil, status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
-	counter.AddLabel(telemetry.Registered, "true")
+	telemetry_common.AddRegistered(counter, true)
 
 	for _, identity := range identities {
 		if req.SpiffeId != "" && identity.Entry.SpiffeId != req.SpiffeId {
 			continue
 		}
 		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
-		counter.AddLabel(telemetry.SPIFFEID, identity.Entry.SpiffeId)
+		telemetry_common.AddSPIFFEID(counter, identity.Entry.SpiffeId)
 	}
 
 	resp = new(workload.JWTSVIDResponse)
@@ -88,12 +92,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		})
 
 		ttl := time.Until(svid.ExpiresAt)
-		metrics.SetGaugeWithLabels(
-			[]string{telemetry.WorkloadAPI, telemetry.FetchJWTSVID, telemetry.TTL},
-			float32(ttl.Seconds()),
-			[]telemetry.Label{
-				{Name: telemetry.SPIFFEID, Value: spiffeID},
-			})
+		telemetry_workload.SetFetchJWTSVIDTTLGauge(metrics, spiffeID, float32(ttl.Seconds()))
 	}
 
 	return resp, nil
@@ -109,7 +108,7 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	}
 	defer done()
 
-	metrics.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.FetchJWTBundles}, 1)
+	telemetry_workload.IncrFetchJWTBundlesCounter(metrics)
 
 	subscriber := h.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
@@ -117,15 +116,18 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			metrics.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.BundlesUpdate}, 1)
+			telemetry_workload.IncrUpdateJWTBundlesCounter(metrics)
 			start := time.Now()
 			if err := h.sendJWTBundlesResponse(update, stream); err != nil {
 				return err
 			}
 
-			metrics.MeasureSince([]string{telemetry.WorkloadAPI, telemetry.SendJWTBundleLatency}, start)
+			telemetry_workload.MeasureSendJWTBundleLatency(metrics, start)
 			if time.Since(start) > (1 * time.Second) {
-				h.L.Warnf("Took %v seconds to send JWT bundle to PID %v", time.Since(start).Seconds, pid)
+				h.Log.WithFields(logrus.Fields{
+					telemetry.Seconds: time.Since(start).Seconds,
+					telemetry.PID:     pid,
+				}).Warn("Took >1 second to send JWT bundle to PID")
 			}
 		case <-ctx.Done():
 			return nil
@@ -152,25 +154,11 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
-		metrics.IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1, []telemetry.Label{
-			{
-				Name:  telemetry.Error,
-				Value: err.Error(),
-			},
-		})
+		telemetry_workload.IncrValidJWTSVIDErrCounter(metrics, err.Error())
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	metrics.IncrCounterWithLabels([]string{telemetry.WorkloadAPI, telemetry.ValidateJWTSVID}, 1, []telemetry.Label{
-		{
-			Name:  telemetry.Subject,
-			Value: spiffeID,
-		},
-		{
-			Name:  telemetry.Audience,
-			Value: req.Audience,
-		},
-	})
+	telemetry_workload.IncrValidJWTSVIDCounter(metrics, spiffeID, req.Audience)
 
 	s, err := structFromValues(claims)
 	if err != nil {
@@ -209,9 +197,12 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 			// TODO: evaluate the possibility of removing the following metric at some point
 			// in the future because almost the same metric (with different labels and keys) is being
 			// taken by the CallCounter in sendX509SVIDResponse function.
-			metrics.MeasureSince([]string{telemetry.WorkloadAPI, telemetry.SVIDResponseLatency}, start)
+			telemetry_workload.MeasureFetchX509SVIDLatency(metrics, start)
 			if time.Since(start) > (1 * time.Second) {
-				h.L.Warnf("Took %v seconds to send SVID response to PID %v", time.Since(start).Seconds, pid)
+				h.Log.WithFields(logrus.Fields{
+					telemetry.Seconds: time.Since(start).Seconds,
+					telemetry.PID:     pid,
+				}).Warn("Took >1 second to send SVID response to PID")
 			}
 		case <-ctx.Done():
 			return nil
@@ -220,17 +211,15 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 }
 
 func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, metrics telemetry.Metrics, selectors []*common.Selector) (err error) {
-	counter := telemetry.StartCall(metrics, telemetry.WorkloadAPI, telemetry.FetchX509SVID)
+	counter := telemetry_workload.StartFetchX509SVIDCall(metrics)
 	defer counter.Done(&err)
 
-	counter.AddLabel(telemetry.SVIDType, telemetry.X509)
-
 	if len(update.Identities) == 0 {
-		counter.AddLabel(telemetry.Registered, "false")
+		telemetry_common.AddRegistered(counter, false)
 		return status.Errorf(codes.PermissionDenied, "no identity issued")
 	}
 
-	counter.AddLabel(telemetry.Registered, "true")
+	telemetry_common.AddRegistered(counter, true)
 
 	resp, err := h.composeX509SVIDResponse(update)
 	if err != nil {
@@ -244,15 +233,10 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 
 	// Add all the SPIFFE IDs to the labels array.
 	for i, svid := range resp.Svids {
-		counter.AddLabel(telemetry.SPIFFEID, svid.SpiffeId)
+		telemetry_common.AddSPIFFEID(counter, svid.SpiffeId)
 
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
-		metrics.SetGaugeWithLabels(
-			[]string{telemetry.WorkloadAPI, telemetry.FetchX509SVID, telemetry.TTL},
-			float32(ttl.Seconds()),
-			[]telemetry.Label{
-				{Name: telemetry.SPIFFEID, Value: svid.SpiffeId},
-			})
+		telemetry_workload.SetFetchX509SVIDTTLGauge(metrics, svid.SpiffeId, float32(ttl.Seconds()))
 	}
 
 	return nil
@@ -327,6 +311,9 @@ func (h *Handler) composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*work
 	}, nil
 }
 
+// From context, parse out peer watcher PID and selectors. Attest against the PID. Add selectors as labels to
+// to a new metrics object. Return this information to the caller so it can emit further metrics.
+// If no error, callers must call the output func() to decrement current connections count.
 func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, telemetry.Metrics, func(), error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok || len(md["workload.spiffe.io"]) != 1 || md["workload.spiffe.io"][0] != "true" {
@@ -338,29 +325,30 @@ func (h *Handler) startCall(ctx context.Context) (int32, []*common.Selector, tel
 		return 0, nil, nil, nil, status.Errorf(codes.Internal, "Is this a supported system? Please report this bug: %v", err)
 	}
 
-	h.M.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connections}, 1)
+	// add to count of current
+	telemetry_workload.SetConnectionTotalGauge(h.Metrics, atomic.AddInt32(&h.connections, 1))
+	done := func() {
+		// rely on caller to decrement count of current connections
+		telemetry_workload.SetConnectionTotalGauge(h.Metrics, atomic.AddInt32(&h.connections, -1))
+	}
 
 	config := attestor.Config{
 		Catalog: h.Catalog,
-		L:       h.L,
-		M:       h.M,
+		Log:     h.Log,
+		Metrics: h.Metrics,
 	}
 
 	selectors := attestor.New(&config).Attest(ctx, watcher.PID())
 
 	// Ensure that the original caller is still alive so that we know we didn't
 	// attest some other process that happened to be assigned the original PID
-	err = watcher.IsAlive()
-	if err != nil {
+	if err := watcher.IsAlive(); err != nil {
+		done()
 		return 0, nil, nil, nil, status.Errorf(codes.Unauthenticated, "Could not verify existence of the original caller: %v", err)
 	}
 
-	metrics := telemetry.WithLabels(h.M, selectorsToLabels(selectors))
-	metrics.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connection}, 1)
-
-	done := func() {
-		defer h.M.IncrCounter([]string{telemetry.WorkloadAPI, telemetry.Connections}, -1)
-	}
+	metrics := telemetry.WithLabels(h.Metrics, selectorsToLabels(selectors))
+	telemetry_workload.IncrConnectionCounter(metrics)
 
 	return watcher.PID(), selectors, metrics, done, nil
 }

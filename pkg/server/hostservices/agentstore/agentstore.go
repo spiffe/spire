@@ -12,7 +12,7 @@ import (
 )
 
 type Deps struct {
-	// DataStore is used to retrieve the lastest bundle. It MUST be set.
+	// DataStore is used to retrieve agent information. It MUST be set.
 	DataStore datastore.DataStore
 }
 

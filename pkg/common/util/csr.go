@@ -25,7 +25,7 @@ func MakeCSR(privateKey interface{}, spiffeID string) ([]byte, error) {
 	})
 }
 
-func MakeCSRWithoutSAN(privateKey interface{}) ([]byte, error) {
+func MakeCSRWithoutURISAN(privateKey interface{}) ([]byte, error) {
 	return makeCSR(privateKey, &x509.CertificateRequest{
 		Subject: pkix.Name{
 			Country:      []string{"US"},

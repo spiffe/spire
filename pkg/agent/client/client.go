@@ -111,7 +111,7 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 	// We weren't able to get a stream...close the client and return the error.
 	if err != nil {
 		c.release(nodeConn)
-		c.c.Log.Errorf("Failure fetching X509 SVID. %v: %v", ErrUnableToGetStream, err)
+		c.c.Log.WithError(err).Errorf("Failure fetching X509 SVID. %v", ErrUnableToGetStream)
 		return nil, ErrUnableToGetStream
 	}
 
@@ -147,11 +147,11 @@ func (c *client) FetchUpdates(ctx context.Context, req *node.FetchX509SVIDReques
 		for _, re := range resp.SvidUpdate.RegistrationEntries {
 			regEntries[re.EntryId] = re
 		}
-		for spiffeid, svid := range resp.SvidUpdate.Svids {
-			svids[spiffeid] = svid
+		for entryID, svid := range resp.SvidUpdate.Svids {
+			svids[entryID] = svid
 		}
-		for spiffeid, bundle := range resp.SvidUpdate.Bundles {
-			bundles[spiffeid] = bundle
+		for trustDomainID, bundle := range resp.SvidUpdate.Bundles {
+			bundles[trustDomainID] = bundle
 		}
 	}
 	return &Update{
@@ -174,7 +174,7 @@ func (c *client) FetchJWTSVID(ctx context.Context, jsr *node.JSR) (*JWTSVID, err
 	// We weren't able to make the request...close the client and return the error.
 	if err != nil {
 		c.release(nodeConn)
-		c.c.Log.Errorf("Failure fetching JWT SVID. %v: %v", ErrUnableToGetStream, err)
+		c.c.Log.WithError(err).Errorf("Failure fetching JWT SVID. %v", ErrUnableToGetStream)
 		return nil, ErrUnableToGetStream
 	}
 

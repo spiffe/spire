@@ -12,7 +12,8 @@ RUN cd /spire && make test && make cmd/spire-server
 
 # Image stage
 FROM alpine
-RUN apk add dumb-init ca-certificates
+RUN apk add dumb-init 
+RUN apk add ca-certificates
 RUN mkdir -p /opt/spire/bin
 COPY --from=builder /spire/cmd/spire-server/spire-server /opt/spire/bin/spire-server
 WORKDIR /opt/spire

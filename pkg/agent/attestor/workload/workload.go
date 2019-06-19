@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_workload "github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
 	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -30,14 +31,15 @@ func newAttestor(config *Config) *attestor {
 
 type Config struct {
 	Catalog catalog.Catalog
-	L       logrus.FieldLogger
-	M       telemetry.Metrics
+	Log     logrus.FieldLogger
+	Metrics telemetry.Metrics
 }
 
 // Attest invokes all workload attestor plugins against the provided PID. If an error
 // is encountered, it is logged and selectors from the failing plugin are discarded.
 func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
-	defer wla.c.M.MeasureSince([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestationDuration}, time.Now())
+	defer telemetry_workload.MeasureAttestDuration(wla.c.Metrics, time.Now())
+	log := wla.c.Log.WithField(telemetry.PID, pid)
 
 	plugins := wla.c.Catalog.GetWorkloadAttestors()
 	sChan := make(chan []*common.Selector)
@@ -60,28 +62,25 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 		case s := <-sChan:
 			selectors = append(selectors, s...)
 		case err := <-errChan:
-			wla.c.L.Errorf("Failed to collect all selectors for PID %v: %v", pid, err)
+			log.WithError(err).Error("Failed to collect all selectors for PID")
 		}
 	}
 
-	wla.c.M.AddSample([]string{telemetry.WorkloadAPI, telemetry.DiscoveredSelectors}, float32(len(selectors)))
-	wla.c.L.Debugf("PID %v attested to have selectors %v", pid, selectors)
+	telemetry_workload.AddDiscoveredSelectorsSample(wla.c.Metrics, float32(len(selectors)))
+	log.WithField(telemetry.Selectors, selectors).Debug("PID attested to have selectors")
 	return selectors
 }
 
 // invokeAttestor invokes attestation against the supplied plugin. Should be called from a goroutine.
-func (wla *attestor) invokeAttestor(ctx context.Context, a catalog.WorkloadAttestor, pid int32) ([]*common.Selector, error) {
-	tLabels := []telemetry.Label{{telemetry.AttestorName, a.Name()}}
-
+func (wla *attestor) invokeAttestor(ctx context.Context, a catalog.WorkloadAttestor, pid int32) (selectors []*common.Selector, err error) {
 	req := &workloadattestor.AttestRequest{
 		Pid: pid,
 	}
 
-	start := time.Now()
-	resp, err := a.Attest(ctx, req)
+	counter := telemetry_workload.StartAttestorLatencyCall(wla.c.Metrics, a.Name())
+	defer counter.Done(&err)
 
-	// Capture the attestor latency metrics regardless of whether an error condition was encountered or not
-	wla.c.M.MeasureSinceWithLabels([]string{telemetry.WorkloadAPI, telemetry.WorkloadAttestorLatency}, start, tLabels)
+	resp, err := a.Attest(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("workload attestor %q failed: %v", a.Name(), err)
 	}

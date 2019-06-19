@@ -11,7 +11,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
-	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/agent/keymanager"
 	"github.com/spiffe/spire/proto/spire/api/node"
@@ -55,7 +55,7 @@ func (r *rotator) Run(ctx context.Context) error {
 		case <-t.C:
 			if r.shouldRotate() {
 				if err := r.rotateSVID(ctx); err != nil {
-					r.c.Log.Errorf("Could not rotate agent SVID: %v", err)
+					r.c.Log.WithError(err).Error("Could not rotate agent SVID")
 				}
 			}
 		case <-r.c.BundleStream.Changes():
@@ -87,10 +87,9 @@ func (r *rotator) shouldRotate() bool {
 
 // rotateSVID asks SPIRE's server for a new agent's SVID.
 func (r *rotator) rotateSVID(ctx context.Context) (err error) {
-	counter := telemetry.StartCall(r.c.Metrics, telemetry.AgentSVID, telemetry.Rotate)
+	counter := telemetry_agent.StartRotateAgentSVIDCall(r.c.Metrics, r.c.SpiffeID)
 	defer counter.Done(&err)
 
-	counter.AddLabel(telemetry.SPIFFEID, r.c.SpiffeID)
 	r.c.Log.Debug("Rotating agent SVID")
 
 	key, err := r.newKey(ctx)
@@ -103,7 +102,15 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	update, err := r.client.FetchUpdates(ctx, &node.FetchX509SVIDRequest{Csrs: [][]byte{csr}})
+	update, err := r.client.FetchUpdates(ctx,
+		&node.FetchX509SVIDRequest{
+			// CSRS are expected to be keyed by entryID. Since it does not
+			// exist an entry ID for the agent spiffeID, the `r.c.SpiffeID`
+			// is used as a key in this particular case
+			Csrs: map[string][]byte{
+				r.c.SpiffeID: csr,
+			},
+		})
 	if err != nil {
 		return err
 	}

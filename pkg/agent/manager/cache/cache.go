@@ -8,6 +8,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -66,7 +68,7 @@ type X509SVID struct {
 // selector it encounters. Each selector index tracks the subscribers (i.e
 // workloads) and registration entries that have that selector.
 //
-// When registration entries are added/updated/removed, the set of revelant
+// When registration entries are added/updated/removed, the set of relevant
 // selectors are gathered and the indexes for those selectors are combed for
 // all relevant subscribers.
 //
@@ -94,6 +96,8 @@ type Cache struct {
 	log           logrus.FieldLogger
 	trustDomainID string
 
+	metrics telemetry.Metrics
+
 	mu sync.RWMutex
 
 	// records holds the records for registration entries, keyed by registration entry ID
@@ -106,12 +110,13 @@ type Cache struct {
 	bundles map[string]*bundleutil.Bundle
 }
 
-func New(log logrus.FieldLogger, trustDomainID string, bundle *Bundle) *Cache {
+func New(log logrus.FieldLogger, trustDomainID string, bundle *Bundle, metrics telemetry.Metrics) *Cache {
 	return &Cache{
 		BundleCache:  NewBundleCache(trustDomainID, bundle),
 		JWTSVIDCache: NewJWTSVIDCache(),
 
 		log:           log,
+		metrics:       metrics,
 		trustDomainID: trustDomainID,
 		records:       make(map[string]*cacheRecord),
 		selectors:     make(map[selector]*selectorIndex),
@@ -183,7 +188,7 @@ func (c *Cache) Update(update *CacheUpdate, checkSVID func(*common.RegistrationE
 		if _, ok := update.Bundles[id]; !ok && id != c.trustDomainID {
 			bundleRemoved = true
 			// bundle no longer exists.
-			c.log.WithField("id", id).Debug("Bundle removed")
+			c.log.WithField(telemetry.TrustDomainID, id).Debug("Bundle removed")
 			delete(c.bundles, id)
 		}
 	}
@@ -196,9 +201,9 @@ func (c *Cache) Update(update *CacheUpdate, checkSVID func(*common.RegistrationE
 		existing, ok := c.bundles[id]
 		if !(ok && existing.EqualTo(bundle)) {
 			if !ok {
-				c.log.WithField("id", id).Debug("Bundle added")
+				c.log.WithField(telemetry.TrustDomainID, id).Debug("Bundle added")
 			} else {
-				c.log.WithField("id", id).Debug("Bundle updated")
+				c.log.WithField(telemetry.TrustDomainID, id).Debug("Bundle updated")
 			}
 			bundleChanged[id] = true
 			c.bundles[id] = bundle
@@ -227,8 +232,8 @@ func (c *Cache) Update(update *CacheUpdate, checkSVID func(*common.RegistrationE
 	for id, record := range c.records {
 		if _, ok := update.RegistrationEntries[id]; !ok {
 			c.log.WithFields(logrus.Fields{
-				"entry_id":  id,
-				"spiffe_id": record.entry.SpiffeId,
+				telemetry.Entry:    id,
+				telemetry.SPIFFEID: record.entry.SpiffeId,
 			}).Debug("Entry removed")
 
 			// built a set of selectors for the record being removed, drop the
@@ -239,6 +244,7 @@ func (c *Cache) Update(update *CacheUpdate, checkSVID func(*common.RegistrationE
 			c.delSelectorIndicesRecord(selRem, record)
 			notifySet.MergeSet(selRem)
 			delete(c.records, id)
+			telemetry_agent.IncrRegistrationEntryDeletedCounter(c.metrics, record.entry.SpiffeId)
 		}
 	}
 
@@ -250,6 +256,13 @@ func (c *Cache) Update(update *CacheUpdate, checkSVID func(*common.RegistrationE
 		clearStringSet(fedRem)
 
 		record, existingEntry := c.updateOrCreateRecord(newEntry)
+
+		// existingEntry is nil in case of a new registration entry
+		if existingEntry != nil {
+			telemetry_agent.IncrRegistrationEntryUpdatedCounter(c.metrics, record.entry.SpiffeId)
+		} else {
+			telemetry_agent.IncrRegistrationEntryCreatedCounter(c.metrics, record.entry.SpiffeId)
+		}
 
 		// Calculate the difference in selectors, add/remove the record
 		// from impacted selector indices, and add the selector diff to the
@@ -296,23 +309,23 @@ func (c *Cache) Update(update *CacheUpdate, checkSVID func(*common.RegistrationE
 		// when the cache implementation has stabilized.
 		if len(selAdd) > 0 || len(selRem) > 0 || len(fedAdd) > 0 || len(fedRem) > 0 || svidUpdated {
 			log := c.log.WithFields(logrus.Fields{
-				"entry_id":  newEntry.EntryId,
-				"spiffe_id": newEntry.SpiffeId,
+				telemetry.Entry:    newEntry.EntryId,
+				telemetry.SPIFFEID: newEntry.SpiffeId,
 			})
 			if svidUpdated {
-				log = log.WithField("svid_updated", svidUpdated)
+				log = log.WithField(telemetry.SVIDUpdated, svidUpdated)
 			}
 			if len(selAdd) > 0 {
-				log = log.WithField("sel_add", len(selAdd))
+				log = log.WithField(telemetry.SelectorsAdded, len(selAdd))
 			}
 			if len(selRem) > 0 {
-				log = log.WithField("sel_rem", len(selRem))
+				log = log.WithField(telemetry.SelectorsRemoved, len(selRem))
 			}
 			if len(fedAdd) > 0 {
-				log = log.WithField("fed_add", len(fedAdd))
+				log = log.WithField(telemetry.FederatedAdded, len(fedAdd))
 			}
 			if len(fedRem) > 0 {
-				log = log.WithField("fed_rem", len(fedRem))
+				log = log.WithField(telemetry.FederatedRemoved, len(fedRem))
 			}
 			if existingEntry != nil {
 				log.Debug("Entry updated")
@@ -516,9 +529,9 @@ func (c *Cache) buildWorkloadUpdate(set selectorSet) *WorkloadUpdate {
 				w.FederatedBundles[federatesWith] = federatedBundle
 			} else {
 				c.log.WithFields(logrus.Fields{
-					"entry_id":  identity.Entry.EntryId,
-					"spiffe_id": identity.Entry.SpiffeId,
-					"bundle_id": federatesWith,
+					telemetry.RegistrationID:  identity.Entry.EntryId,
+					telemetry.SPIFFEID:        identity.Entry.SpiffeId,
+					telemetry.FederatedBundle: federatesWith,
 				}).Warn("federated bundle contents missing")
 			}
 		}

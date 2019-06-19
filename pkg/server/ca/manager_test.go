@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/server/datastore"
@@ -24,6 +26,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/server/upstreamca"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakenotifier"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamca"
@@ -301,6 +304,27 @@ func (s *ManagerSuite) TestX509CARotation() {
 	s.Nil(s.nextX509CA())
 }
 
+func (s *ManagerSuite) TestX509CARotationMetric() {
+	s.initSelfSignedManager()
+
+	// use fake metric
+	metrics := fakemetrics.New()
+	s.m.c.Metrics = metrics
+
+	initTime := s.clock.Now()
+	preparationTime1 := initTime.Add(prepareAfter)
+
+	// rotate CA to preparation mark
+	s.setTimeAndRotateX509CA(preparationTime1)
+
+	// create expected metrics with ttl from certificate
+	expected := fakemetrics.New()
+	ttl := s.currentX509CA().Certificate.NotAfter.Sub(s.clock.Now())
+	telemetry_server.SetX509CARotateGauge(expected, s.m.c.TrustDomain.String(), float32(ttl.Seconds()))
+
+	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
+}
+
 func (s *ManagerSuite) TestJWTKeyRotation() {
 	notifier, notifyCh := fakenotifier.NotifyWaiter()
 	s.setNotifier(notifier)
@@ -418,7 +442,7 @@ func (s *ManagerSuite) TestPrune() {
 	// advance beyond the second expiration time, prune, and assert nothing
 	// changes because we can't prune out the whole bundle.
 	s.clock.Set(secondExpiresTime.Add(time.Minute + safetyThreshold))
-	s.Require().EqualError(s.m.pruneBundle(context.Background()), "would prune all certificates")
+	s.Require().EqualError(s.m.pruneBundle(context.Background()), "unable to prune bundle: prune failed: would prune all certificates")
 	s.requireBundleRootCAs(secondX509CA.Certificate)
 	s.requireBundleJWTKeys(secondJWTKey)
 }
@@ -478,7 +502,7 @@ func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
 	entry := s.logHook.LastEntry()
 	s.Equal("fake", entry.Data["notifier"])
 	s.Equal("bundle loaded", entry.Data["event"])
-	s.Equal("OH NO!", entry.Data["err"])
+	s.Equal("OH NO!", fmt.Sprintf("%v", entry.Data["error"]))
 	s.Equal("Notifier failed to handle event", entry.Message)
 }
 

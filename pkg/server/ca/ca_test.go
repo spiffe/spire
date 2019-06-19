@@ -81,6 +81,21 @@ func (s *CATestSuite) TestSignX509SVIDNoCASet() {
 	s.Require().EqualError(err, "X509 CA is not available for signing")
 }
 
+func (s *CATestSuite) TestSignServerX509SVID() {
+	svidChain, err := s.ca.SignServerX509SVID(ctx, s.createServerX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svidChain, 2)
+
+	// SPIFFE ID should be set to that of the trust domain
+	svid := svidChain[0]
+	if s.Len(svid.URIs, 1, "has no URIs") {
+		s.Equal("spiffe://example.org/spire/server", svid.URIs[0].String())
+	}
+
+	// Chain MUST include the CA cert
+	s.Equal(s.ca.x509CA.Certificate, svidChain[1])
+}
+
 func (s *CATestSuite) TestSignX509SVID() {
 	svidChain, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
 	s.Require().NoError(err)
@@ -327,6 +342,12 @@ func (s *CATestSuite) createX509SVIDParamsInDomain(trustDomain string) X509SVIDP
 func (s *CATestSuite) createX509CASVIDParams(trustDomain string) X509CASVIDParams {
 	return X509CASVIDParams{
 		SpiffeID:  makeTrustDomainID(trustDomain),
+		PublicKey: testSigner.Public(),
+	}
+}
+
+func (s *CATestSuite) createServerX509SVIDParams() ServerX509SVIDParams {
+	return ServerX509SVIDParams{
 		PublicKey: testSigner.Public(),
 	}
 }

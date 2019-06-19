@@ -3,6 +3,16 @@
 
 ## Table of Contents
 
+- [identityprovider.proto](#identityprovider.proto)
+    - [FetchX509IdentityRequest](#spire.server.hostservices.FetchX509IdentityRequest)
+    - [FetchX509IdentityResponse](#spire.server.hostservices.FetchX509IdentityResponse)
+    - [X509Identity](#spire.server.hostservices.X509Identity)
+  
+  
+  
+    - [IdentityProvider](#spire.server.hostservices.IdentityProvider)
+  
+
 - [agentstore.proto](#agentstore.proto)
     - [AgentInfo](#spire.server.hostservices.AgentInfo)
     - [GetAgentInfoRequest](#spire.server.hostservices.GetAgentInfoRequest)
@@ -14,6 +24,74 @@
   
 
 - [Scalar Value Types](#scalar-value-types)
+
+
+
+<a name="identityprovider.proto"></a>
+<p align="right"><a href="#top">Top</a></p>
+
+## identityprovider.proto
+
+
+
+<a name="spire.server.hostservices.FetchX509IdentityRequest"></a>
+
+### FetchX509IdentityRequest
+
+
+
+
+
+
+
+<a name="spire.server.hostservices.FetchX509IdentityResponse"></a>
+
+### FetchX509IdentityResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| identity | [X509Identity](#spire.server.hostservices.X509Identity) |  |  |
+| bundle | [spire.common.Bundle](#spire.common.Bundle) |  |  |
+
+
+
+
+
+
+<a name="spire.server.hostservices.X509Identity"></a>
+
+### X509Identity
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| cert_chain | [bytes](#bytes) | repeated |  |
+| private_key | [bytes](#bytes) |  |  |
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+
+<a name="spire.server.hostservices.IdentityProvider"></a>
+
+### IdentityProvider
+
+
+| Method Name | Request Type | Response Type | Description |
+| ----------- | ------------ | ------------- | ------------|
+| FetchX509Identity | [FetchX509IdentityRequest](#spire.server.hostservices.FetchX509IdentityRequest) | [FetchX509IdentityResponse](#spire.server.hostservices.FetchX509IdentityResponse) |  |
+
+ 
 
 
 

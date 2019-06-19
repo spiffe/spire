@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
@@ -53,7 +54,7 @@ func newCatalogPlugin(ctx context.Context, c *grpc.ClientConn, config catalogPlu
 		for _, typ := range resp.PluginServices {
 			service, ok := servicesMap[typ]
 			if !ok {
-				config.Log.WithField("service", typ).Warn("Unknown service type.")
+				config.Log.WithField(telemetry.PluginService, typ).Warn("Unknown service type.")
 				continue
 			}
 			serviceImpls = append(serviceImpls, service.NewServiceClient(c))
