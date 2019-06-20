@@ -59,15 +59,14 @@ func (m *Manager) Run(ctx context.Context) error {
 	var tasks []func(context.Context) error
 	for _, updater := range m.updaters {
 		tasks = append(tasks, func(ctx context.Context) error {
-			m.runUpdater(ctx, updater)
-			return nil
+			return m.runUpdater(ctx, updater)
 		})
 	}
 
 	return util.RunTasks(ctx, tasks...)
 }
 
-func (m *Manager) runUpdater(ctx context.Context, updater BundleUpdater) {
+func (m *Manager) runUpdater(ctx context.Context, updater BundleUpdater) error {
 	var refreshHint time.Duration
 	for {
 		if r, err := updater.UpdateBundle(ctx); err == nil {
@@ -78,7 +77,7 @@ func (m *Manager) runUpdater(ctx context.Context, updater BundleUpdater) {
 		case <-timer.C:
 		case <-ctx.Done():
 			timer.Stop()
-			return
+			return ctx.Err()
 		}
 	}
 }
