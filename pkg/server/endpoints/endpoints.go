@@ -1,28 +1,29 @@
 package endpoints
 
 import (
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
 	"os"
-	"sync"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
-	"github.com/spiffe/spire/pkg/server/svid"
 	node_pb "github.com/spiffe/spire/proto/spire/api/node"
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
+	"github.com/spiffe/spire/proto/spire/server/datastore"
 	datastore_pb "github.com/spiffe/spire/proto/spire/server/datastore"
 )
 
@@ -35,20 +36,13 @@ type Server interface {
 }
 
 type endpoints struct {
-	c   *Config
-	mtx *sync.RWMutex
-
-	svid    []*x509.Certificate
-	svidKey *ecdsa.PrivateKey
+	c *Config
 }
 
 // ListenAndServe starts all maintenance routines and endpoints, then blocks
 // until the context is cancelled or there is an error encountered listening
 // on one of the servers.
 func (e *endpoints) ListenAndServe(ctx context.Context) error {
-	// Certs must be ready before anything else
-	e.updateSVID()
-
 	e.c.Log.Debug("Initializing API endpoints")
 	tcpServer := e.createTCPServer(ctx)
 	udsServer := e.createUDSServer(ctx)
@@ -56,15 +50,20 @@ func (e *endpoints) ListenAndServe(ctx context.Context) error {
 	e.registerNodeAPI(tcpServer)
 	e.registerRegistrationAPI(tcpServer, udsServer)
 
-	err := util.RunTasks(ctx,
+	tasks := []func(context.Context) error{
 		func(ctx context.Context) error {
 			return e.runTCPServer(ctx, tcpServer)
 		},
 		func(ctx context.Context) error {
 			return e.runUDSServer(ctx, udsServer)
 		},
-		e.runSVIDObserver,
-	)
+	}
+
+	if bundleServer, enabled := e.createBundleEndpointServer(); enabled {
+		tasks = append(tasks, bundleServer.Run)
+	}
+
+	err := util.RunTasks(ctx, tasks...)
 	if err == context.Canceled {
 		err = nil
 	}
@@ -87,6 +86,35 @@ func (e *endpoints) createUDSServer(ctx context.Context) *grpc.Server {
 		grpc.UnaryInterceptor(auth.UnaryAuthorizeCall),
 		grpc.StreamInterceptor(auth.StreamAuthorizeCall),
 		grpc.Creds(peertracker.NewCredentials()))
+}
+
+func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
+	if e.c.BundleEndpointAddress == nil {
+		return nil, false
+	}
+	e.c.Log.WithField("addr", e.c.BundleEndpointAddress).Info("Serving bundle endpoint")
+
+	ds := e.c.Catalog.GetDataStore()
+	return bundle.NewServer(bundle.ServerConfig{
+		Log:     e.c.Log.WithField("subsystem_name", "bundle_endpoint"),
+		Address: e.c.BundleEndpointAddress.String(),
+		BundleGetter: bundle.BundleGetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
+			resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
+				TrustDomainId: e.c.TrustDomain.String(),
+			})
+			if err != nil {
+				return nil, err
+			}
+			if resp.Bundle == nil {
+				return nil, errors.New("trust domain bundle not found")
+			}
+			return bundleutil.BundleFromProto(resp.Bundle)
+		}),
+		CredsGetter: bundle.ServerCredsGetterFunc(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
+			state := e.c.SVIDObserver.State()
+			return state.SVID, state.Key, nil
+		}),
+	}), true
 }
 
 // registerNodeAPI creates a Node API handler and registers it against
@@ -182,18 +210,6 @@ func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 	}
 }
 
-func (e *endpoints) runSVIDObserver(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-e.c.SVIDStream.Changes():
-			e.c.SVIDStream.Next()
-			e.updateSVID()
-		}
-	}
-}
-
 // getTLSConfig returns a TLS Config hook for the gRPC server
 func (e *endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
@@ -246,36 +262,17 @@ func (e *endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 		caPool.AddCert(c)
 	}
 
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
+	svidState := e.c.SVIDObserver.State()
 
 	certChain := [][]byte{}
-	for _, cert := range e.svid {
+	for _, cert := range svidState.SVID {
 		certChain = append(certChain, cert.Raw)
 	}
 
 	tlsCert := tls.Certificate{
 		Certificate: certChain,
-		PrivateKey:  e.svidKey,
+		PrivateKey:  svidState.Key,
 	}
 
 	return []tls.Certificate{tlsCert}, caPool, nil
-}
-
-func (e *endpoints) updateSVID() {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-
-	state := e.c.SVIDStream.Value().(svid.State)
-	e.svid = state.SVID
-	e.svidKey = state.Key
-}
-
-func (e *endpoints) getSVIDState() svid.State {
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
-	return svid.State{
-		SVID: e.svid,
-		Key:  e.svidKey,
-	}
 }
