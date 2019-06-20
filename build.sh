@@ -119,9 +119,9 @@ build_protobuf() {
 
 
         _proto_files=()
-        while read -r file ; do
+        while read -r -d $'\0' file ; do
             _proto_files+=("$file")
-        done < <(find "${_proto_dir}" -maxdepth 1 -name '*.proto')
+        done < <(find "${_proto_dir}" -maxdepth 1 -name '*.proto' -print0)
 		if [ ${#_proto_files[@]} -gt 0 ]; then 
 			_log_info "creating \"${_outdir}/README_pb.md\""
 			protoc --proto_path="${_proto_dir}" --proto_path=proto \
