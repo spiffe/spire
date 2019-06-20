@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	hclog "github.com/hashicorp/go-hclog"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 )
@@ -237,7 +238,7 @@ pruneRootCA:
 		// if any cert in the chain has expired, throw the whole chain out
 		for _, cert := range certs {
 			if !cert.NotAfter.After(expiration) {
-				log.Info(fmt.Sprintf("Pruning CA certificate number %v with expiry date %v", cert.SerialNumber, cert.NotAfter))
+				log.Info("Pruning CA certificate due to expiration", telemetry.SerialNumber, cert.SerialNumber, telemetry.Expiration, cert.NotAfter)
 				changed = true
 				continue pruneRootCA
 			}
@@ -248,7 +249,7 @@ pruneRootCA:
 	for _, jwtSigningKey := range bundle.JwtSigningKeys {
 		notAfter := time.Unix(jwtSigningKey.NotAfter, 0)
 		if !notAfter.After(expiration) {
-			log.Info(fmt.Sprintf("Pruning JWT signing key %q with expiry date %v", jwtSigningKey.Kid, notAfter))
+			log.Info("Pruning JWT signing key due to expiration", telemetry.Kid, jwtSigningKey.Kid, telemetry.Expiration, notAfter)
 			changed = true
 			continue
 		}

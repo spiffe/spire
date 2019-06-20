@@ -66,6 +66,8 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 	counter := telemetry_server.StartNodeAPIAttestCall(h.c.Metrics)
 	defer counter.Done(&err)
 
+	log := h.c.Log
+
 	// make sure node attestor stream will be cancelled if things go awry
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -100,7 +102,7 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 
 	attestedBefore, err := h.isAttested(ctx, agentID)
 	if err != nil {
-		h.c.Log.Error(err)
+		log.Error(err)
 		return errors.New("failed to determine if agent has already attested")
 	}
 
@@ -128,50 +130,54 @@ func (h *Handler) Attest(stream node.Node_AttestServer) (err error) {
 			return err
 		}
 		if _, err := attestStream.Recv(); err != io.EOF {
-			h.c.Log.Warnf("expected EOF on attestation stream; got %v", err)
+			log.WithError(err).Warn("expected EOF on attestation stream")
 		}
 	}
 
 	if err := h.validateAttestation(agentID, attestResponse); err != nil {
-		h.c.Log.Error(err)
+		log.Error(err)
 		return errors.New("attestor returned unexpected response")
 	}
 
-	h.c.Log.Debugf("Signing CSR for Agent SVID %v", agentID)
+	log = log.WithField(telemetry.SPIFFEID, agentID)
+	log.Debug("Signing CSR for Agent SVID")
 	svid, err := h.c.ServerCA.SignX509SVID(ctx, request.Csr, ca.X509Params{})
 	if err != nil {
-		h.c.Log.Error(err)
+		log.Error(err)
 		return errors.New("failed to sign CSR")
 	}
 
 	if err := h.updateNodeSelectors(ctx, agentID, attestResponse, request.AttestationData.Type); err != nil {
-		h.c.Log.Error(err)
+		log.Error(err)
 		return errors.New("failed to update node selectors")
 	}
 
 	response, err := h.getAttestResponse(ctx, agentID, svid)
 	if err != nil {
-		h.c.Log.Error(err)
+		log.Error(err)
 		return errors.New("failed to compose response")
 	}
 
 	if attestedBefore {
 		err = h.updateAttestationEntry(ctx, svid[0])
 		if err != nil {
-			h.c.Log.Error(err)
+			log.Error(err)
 			return errors.New("failed to update attestation entry")
 		}
 	} else {
 		err = h.createAttestationEntry(ctx, svid[0], request.AttestationData.Type)
 		if err != nil {
-			h.c.Log.Error(err)
+			log.Error(err)
 			return errors.New("failed to create attestation entry")
 		}
 	}
 
 	p, ok := peer.FromContext(ctx)
 	if ok {
-		h.c.Log.Infof("Node attestation request from %v completed using strategy %v", p.Addr, request.AttestationData.Type)
+		log.WithFields(logrus.Fields{
+			telemetry.Attestor: request.AttestationData.Type,
+			telemetry.Address:  p.Addr,
+		}).Info("Node attestation request completed")
 	}
 
 	if err := stream.Send(response); err != nil {
@@ -230,38 +236,52 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			return errors.New("failed to fetch agent registration entries")
 		}
 
-		// Select how to sign the SVIDs based on the agent version
-		var svids map[string]*node.X509SVID
-
 		// Only one of 'CSRs', 'DEPRECATEDCSRs' must be populated
 		if csrsLen != 0 && csrsLenDeprecated != 0 {
 			return errors.New("cannot use 'Csrs' and 'DeprecatedCsrs' on the same 'FetchX509Request'")
 		}
 
+		// Select how to sign the SVIDs based on the agent version
+		var svids map[string]*node.X509SVID
+		var spiffeIDs []string
+
 		if csrsLen != 0 {
-			// Current agent, use regular signCSRs
-			svids, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
+			// Current agent, use regular signCSRs (it returns svids keyed by entryID)
+			svids, spiffeIDs, err = h.signCSRs(ctx, peerCert, request.Csrs, regEntries)
+			if err != nil {
+				h.c.Log.Error(err)
+				return errors.New("failed to sign CSRs")
+			}
+
+			// Add entryID and spiffeID to counter
+			for entryID := range svids {
+				telemetry_common.AddRegistrationID(counter, entryID)
+			}
+			for _, spiffeID := range spiffeIDs {
+				telemetry_common.AddSPIFFEID(counter, spiffeID)
+			}
+
 		} else if csrsLenDeprecated != 0 {
-			// Legacy agent, use legacy SignCSRs
+			// Legacy agent, use legacy SignCSRs (it returns svids keyed by spiffeID)
 			svids, err = h.signCSRsLegacy(ctx, peerCert, request.DEPRECATEDCsrs, regEntries)
+			if err != nil {
+				h.c.Log.Error(err)
+				return errors.New("failed to sign CSRs")
+			}
+
+			// Add spiffeID to counter (entryID is not available)
+			for spiffeID := range svids {
+				telemetry_common.AddSPIFFEID(counter, spiffeID)
+			}
 		} else {
 			// If both are zero, there is not CSR to sign -> assign an empty map
-			svids, err = make(map[string]*node.X509SVID), nil
-		}
-
-		if err != nil {
-			h.c.Log.Error(err)
-			return errors.New("failed to sign CSRs")
+			svids = make(map[string]*node.X509SVID)
 		}
 
 		bundles, err := h.getBundlesForEntries(ctx, regEntries)
 		if err != nil {
 			h.c.Log.Error(err)
 			return err
-		}
-
-		for spiffeID := range svids {
-			telemetry_common.AddSPIFFEID(counter, spiffeID)
 		}
 
 		err = server.Send(&node.FetchX509SVIDResponse{
@@ -272,7 +292,7 @@ func (h *Handler) FetchX509SVID(server node.Node_FetchX509SVIDServer) (err error
 			},
 		})
 		if err != nil {
-			h.c.Log.Errorf("Error sending FetchX509SVIDResponse: %v", err)
+			h.c.Log.WithError(err).Error("Error sending FetchX509SVIDResponse")
 		}
 	}
 }
@@ -308,8 +328,8 @@ func (h *Handler) FetchX509CASVID(ctx context.Context, req *node.FetchX509CASVID
 	}
 
 	signLog := h.c.Log.WithFields(logrus.Fields{
-		"caller_id":      downstreamID,
-		"source_address": sourceAddress,
+		telemetry.CallerID: downstreamID,
+		telemetry.Address:  sourceAddress,
 	})
 
 	signLog.Debug("Signing downstream CA SVID")
@@ -672,7 +692,7 @@ func (h *Handler) updateNodeSelectors(ctx context.Context,
 			selectors = append(selectors, resolved.Entries...)
 		}
 	} else {
-		h.c.Log.Debugf("could not find node resolver type %q", attestationType)
+		h.c.Log.WithField(telemetry.Attestor, attestationType).Debug("could not find node resolver")
 	}
 
 	selectors = append(selectors, attestResponse.Selectors...)
@@ -774,9 +794,9 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 		}
 
 		signLog := h.c.Log.WithFields(logrus.Fields{
-			"caller_id":      callerID,
-			"spiffe_id":      spiffeID,
-			"source_address": sourceAddress,
+			telemetry.CallerID: callerID,
+			telemetry.SPIFFEID: spiffeID,
+			telemetry.Address:  sourceAddress,
 		})
 
 		if spiffeID == callerID && strings.HasPrefix(callerID, baseSpiffeIDPrefix) {
@@ -823,11 +843,11 @@ func (h *Handler) signCSRsLegacy(ctx context.Context,
 
 func (h *Handler) signCSRs(ctx context.Context,
 	peerCert *x509.Certificate, csrs map[string][]byte, regEntries []*common.RegistrationEntry) (
-	svids map[string]*node.X509SVID, err error) {
+	svids map[string]*node.X509SVID, spiffeIDs []string, err error) {
 
 	callerID, err := getSpiffeIDFromCert(peerCert)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	//convert registration entries into a map for easy lookup
@@ -842,7 +862,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 	for entryID, csr := range csrs {
 		spiffeID, err := getSpiffeIDFromCSR(csr, idutil.AllowAny())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		baseSpiffeIDPrefix := fmt.Sprintf("%s/spire/agent", h.c.TrustDomain.String())
@@ -863,7 +883,7 @@ func (h *Handler) signCSRs(ctx context.Context,
 				&datastore.FetchAttestedNodeRequest{SpiffeId: spiffeID},
 			)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			// attested node discrepancies are not likely since the agent
 			// certificate is checked against the attested nodes during the
@@ -871,33 +891,35 @@ func (h *Handler) signCSRs(ctx context.Context,
 			// evicted between authentication and here so these checks should
 			// remain.
 			if res.Node == nil {
-				return nil, errors.New("no record of attested node")
+				return nil, nil, errors.New("no record of attested node")
 			}
 			if res.Node.CertSerialNumber != peerCert.SerialNumber.String() {
-				return nil, errors.New("SVID serial number does not match")
+				return nil, nil, errors.New("SVID serial number does not match")
 			}
 
 			signLog.Debug("Renewing agent SVID")
 			svid, svidCert, err := h.buildBaseSVID(ctx, csr)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			svids[entryID] = svid
 
 			if err := h.updateAttestationEntry(ctx, svidCert); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		} else {
 			signLog.Debug("Signing SVID")
 			svid, err := h.buildSVID(ctx, entryID, regEntriesMap, csr)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			svids[entryID] = svid
 		}
+
+		spiffeIDs = append(spiffeIDs, spiffeID)
 	}
 
-	return svids, nil
+	return svids, spiffeIDs, nil
 }
 
 func (h *Handler) buildSVID(ctx context.Context,

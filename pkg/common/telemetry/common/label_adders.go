@@ -37,3 +37,9 @@ func AddRegistered(cc *telemetry.CallCounter, reg bool) {
 func AddSPIFFEID(cc *telemetry.CallCounter, id string) {
 	cc.AddLabel(telemetry.SPIFFEID, id)
 }
+
+// AddRegistrationID add RegistrationID label to the given counter
+// from the given ID
+func AddRegistrationID(cc *telemetry.CallCounter, id string) {
+	cc.AddLabel(telemetry.RegistrationID, id)
+}

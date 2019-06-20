@@ -84,7 +84,7 @@ func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte) (*x509.Certifi
 			x509.KeyUsageCertSign |
 			x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
-		IsCA: true,
+		IsCA:                  true,
 	}
 
 	certDER, err := ca.keypair.CreateCertificate(ctx, template, csr.PublicKey)

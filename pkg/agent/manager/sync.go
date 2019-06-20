@@ -45,8 +45,8 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		case len(svid.Chain) == 0:
 			// SVID has an empty chain. this is not expected to happen.
 			m.c.Log.WithFields(logrus.Fields{
-				"entry_id":  entry.EntryId,
-				"spiffe_id": entry.SpiffeId,
+				telemetry.RegistrationID: entry.EntryId,
+				telemetry.SPIFFEID:       entry.SpiffeId,
 			}).Warn("cached X509 SVID is empty")
 		case isSVIDStale(m.c.Clk.Now(), svid.Chain[0]):
 			// SVID has expired
@@ -94,6 +94,7 @@ func (m *manager) fetchUpdates(ctx context.Context, csrs []csrRequest) (_ *cache
 			log = log.WithField("expires_at", csr.CurrentSVIDExpiresAt.Format(time.RFC3339))
 		}
 		counter.AddLabel(telemetry.SPIFFEID, csr.SpiffeID)
+		counter.AddLabel(telemetry.RegistrationID, csr.EntryID)
 
 		// Since entryIDs are unique, this shouldn't happen. Log just in case
 		if _, ok := privateKeys[csr.EntryID]; ok {

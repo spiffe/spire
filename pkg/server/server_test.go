@@ -141,7 +141,8 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	})
 
 	// create attested node with current trust domain
-	nodeResp, err := ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
+	// drop resp
+	_, err = ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
 		Node: &common.AttestedNode{
 			SpiffeId:            "spiffe://inv%ild/host",
 			AttestationDataType: "fake_nodeattestor_1",
@@ -153,5 +154,5 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	// Attested now with same trust domain created, no error expected
 	err = suite.server.validateTrustDomain(ctx, ds)
 	suite.NoError(err)
-	suite.Require().Contains(suite.stdout.String(), fmt.Sprintf(invalidSpiffeIDAttestedNode, nodeResp.Node.SpiffeId, ""))
+	suite.Require().Contains(suite.stdout.String(), invalidSpiffeIDAttestedNode)
 }

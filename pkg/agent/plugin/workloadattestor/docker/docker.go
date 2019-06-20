@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/agent/workloadattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -96,7 +97,7 @@ func (p *DockerPlugin) Attest(ctx context.Context, req *workloadattestor.AttestR
 		parts := strings.Split(cgroup.GroupPath, "/")
 
 		if len(parts) <= p.cgroupContainerIndex+1 {
-			p.log.Warn("Docker entry found, but is missing the container id", "cgroup_path", cgroup.GroupPath)
+			p.log.Warn("Docker entry found, but is missing the container id", telemetry.CGroupPath, cgroup.GroupPath)
 			continue
 		}
 		containerID = parts[p.cgroupContainerIndex+1]

@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/endpoints/node"
@@ -120,7 +121,7 @@ func (e *endpoints) createBundleEndpointServer() (*bundle.Server, bool) {
 // the provided gRPC server.
 func (e *endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 	n := node.NewHandler(node.HandlerConfig{
-		Log:         e.c.Log.WithField("subsystem_name", "node_api"),
+		Log:         e.c.Log.WithField(telemetry.SubsystemName, telemetry.NodeAPI),
 		Metrics:     e.c.Metrics,
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
@@ -135,7 +136,7 @@ func (e *endpoints) registerNodeAPI(tcpServer *grpc.Server) {
 // it against the provided gRPC.
 func (e *endpoints) registerRegistrationAPI(tcpServer, udpServer *grpc.Server) {
 	r := &registration.Handler{
-		Log:         e.c.Log.WithField("subsystem_name", "registration_api"),
+		Log:         e.c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
 		Metrics:     e.c.Metrics,
 		Catalog:     e.c.Catalog,
 		TrustDomain: e.c.TrustDomain,
@@ -161,7 +162,7 @@ func (e *endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 	}
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.c.Log.Infof("Starting TCP server on %s", l.Addr())
+	e.c.Log.WithField(telemetry.Address, l.Addr()).Info("Starting TCP server")
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
@@ -193,7 +194,7 @@ func (e *endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 	}
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.c.Log.Infof("Starting UDS server %s", l.Addr())
+	e.c.Log.WithField(telemetry.Address, l.Addr()).Info("Starting UDS server")
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
@@ -214,7 +215,7 @@ func (e *endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
 		certs, roots, err := e.getCerts(ctx)
 		if err != nil {
-			e.c.Log.Errorf("Could not generate TLS config for gRPC client %v: %v", hello.Conn.RemoteAddr(), err)
+			e.c.Log.WithError(err).WithField(telemetry.Address, hello.Conn.RemoteAddr()).Error("Could not generate TLS config for gRPC client")
 			return nil, err
 		}
 
