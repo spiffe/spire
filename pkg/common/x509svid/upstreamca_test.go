@@ -39,7 +39,7 @@ func (s *UpstreamCASuite) TestSignCSRWithInvalidCSR() {
 
 func (s *UpstreamCASuite) TestSignCSRWithBadCSRSignature() {
 	csr := s.makeCSR("spiffe://example.org")
-	csr[len(csr)-1] ^= csr[len(csr)-1]
+	csr[len(csr)-1]++
 	cert, err := s.upstreamCA.SignCSR(context.Background(), csr)
 	s.requireErrorContains(err, "CSR signature check failed")
 	s.Require().Nil(cert)
