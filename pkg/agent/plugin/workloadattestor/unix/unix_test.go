@@ -66,7 +66,11 @@ func (s *Suite) TestAttest() {
 		{
 			name: "user lookup fails",
 			pid:  3,
-			err:  "unix: user lookup: no user with UID 1999",
+			selectors: []string{
+				"uid:1999",
+				"gid:2000",
+				"group:g2000",
+			},
 		},
 		{
 			name: "pid with no gids",
@@ -81,7 +85,11 @@ func (s *Suite) TestAttest() {
 		{
 			name: "group lookup fails",
 			pid:  6,
-			err:  "unix: group lookup: no group with GID 2999",
+			selectors: []string{
+				"uid:1000",
+				"user:u1000",
+				"gid:2999",
+			},
 		},
 		{
 			name: "primary user and gid",
@@ -216,7 +224,7 @@ func (p fakeProcess) Gids() ([]int32, error) {
 		return nil, fmt.Errorf("unable to get GIDs for PID %d", p.pid)
 	case 6:
 		return []int32{2999}, nil
-	case 7, 9, 10, 11, 12:
+	case 3, 7, 9, 10, 11, 12:
 		return []int32{2000}, nil
 	case 8:
 		return []int32{2000, 2100}, nil
