@@ -7,9 +7,11 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -72,9 +74,9 @@ func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {
 	p.ul, err = lf.ListenUnix(p.unixAddr.Network(), p.unixAddr)
 	p.Require().NoError(err)
 
-	// Connect to ourselves
 	clientDone := make(chan struct{})
 	serverDone := make(chan struct{})
+	gotLog := make(chan struct{})
 	peer := newFakeUDSPeer(p.T())
 
 	peer.connect(p.unixAddr, clientDone)
@@ -82,24 +84,31 @@ func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {
 	go func() {
 		conn, err := p.ul.Accept()
 		p.Require().Error(err)
+		p.Require().Contains(err.Error(), "use of closed network connection")
 		p.Require().Nil(conn)
 		close(serverDone)
 	}()
 
-	// wait for client to connect
-	<-clientDone
+	go func() {
+		for {
+			logEntry := hook.LastEntry()
+			if logEntry == nil {
+				time.Sleep(time.Millisecond)
+				continue
+			}
+			p.Require().Equal("Connection failed during accept.", logEntry.Message)
+			logErr := logEntry.Data["error"]
+			p.Require().IsType(errors.New(""), logErr)
+			p.Require().EqualError(logErr.(error), "create new watcher failed")
+			close(gotLog)
+			break
+		}
+	}()
+	waitForChannelWithTimeout(p.Require(), gotLog, "waited too long for logs")
 
-	// wait for server to shut down
 	p.Require().NoError(p.ul.Close())
 	p.ul = nil
-	<-serverDone
-
-	logEntry := hook.LastEntry()
-	p.Require().NotNil(logEntry)
-	p.Require().Equal("Connection failed during accept.", logEntry.Message)
-	logErr := logEntry.Data["error"]
-	p.Require().IsType(errors.New(""), logErr)
-	p.Require().EqualError(logErr.(error), "create new watcher failed")
+	waitForChannelWithTimeout(p.Require(), gotLog, "waited too long for server to close")
 }
 
 func (p *ListenerTestSuite) TestAcceptFailsWhenUnderlyingAcceptFails() {
@@ -117,4 +126,12 @@ func (p *ListenerTestSuite) TestAcceptFailsWhenUnderlyingAcceptFails() {
 // returns an empty unix listener that will fail any call to Accept()
 func newFailingMockListenUnix(network string, laddr *net.UnixAddr) (*net.UnixListener, error) {
 	return &net.UnixListener{}, nil
+}
+
+func waitForChannelWithTimeout(require *require.Assertions, ch chan struct{}, failMsg string) {
+	select {
+	case <-ch:
+	case <-time.After(time.Second):
+		require.Fail(failMsg)
+	}
 }
