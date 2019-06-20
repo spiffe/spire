@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
@@ -89,13 +90,24 @@ type Config struct {
 	Telemetry telemetry.FileConfig
 }
 
-type Server struct {
-	config Config
-}
-
 type ExperimentalConfig struct {
 	// Skip agent id validation in node attestation
 	AllowAgentlessNodeAttestors bool
+
+	// BundleEndpointEnabled, if true, enables the federation bundle endpoint
+	BundleEndpointEnabled bool
+
+	// BundleEndpointAddress is the address on which to serve the federation
+	// bundle endpoint.
+	BundleEndpointAddress *net.TCPAddr
+
+	// FederatesWith holds the federation configuration for trust domains this
+	// server federates with.
+	FederatesWith map[string]bundle_client.TrustDomainConfig
+}
+
+type Server struct {
+	config Config
 }
 
 func New(config Config) *Server {
@@ -200,11 +212,14 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return fmt.Errorf("failed setting AgentStore deps: %v", err)
 	}
 
+	bundleManager := s.newBundleManager(cat)
+
 	err = util.RunTasks(ctx,
 		caManager.Run,
 		svidRotator.Run,
 		endpointsServer.ListenAndServe,
 		metrics.ListenAndServe,
+		bundleManager.Run,
 	)
 	if err == context.Canceled {
 		err = nil
@@ -319,18 +334,29 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidRotator svid.Rotator, serverCA ca.ServerCA, metrics telemetry.Metrics) endpoints.Server {
-	return endpoints.New(&endpoints.Config{
-		TCPAddr:     s.config.BindAddress,
-		UDSAddr:     s.config.BindUDSAddress,
-		SVIDStream:  svidRotator.Subscribe(),
-		TrustDomain: s.config.TrustDomain,
-		Catalog:     catalog,
-		ServerCA:    serverCA,
-		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
-		Metrics:     metrics,
-
+func (s *Server) newEndpointsServer(catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics) endpoints.Server {
+	config := &endpoints.Config{
+		TCPAddr:                     s.config.BindAddress,
+		UDSAddr:                     s.config.BindUDSAddress,
+		SVIDObserver:                svidObserver,
+		TrustDomain:                 s.config.TrustDomain,
+		Catalog:                     catalog,
+		ServerCA:                    serverCA,
+		Log:                         s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
+		Metrics:                     metrics,
 		AllowAgentlessNodeAttestors: s.config.Experimental.AllowAgentlessNodeAttestors,
+	}
+	if s.config.Experimental.BundleEndpointEnabled {
+		config.BundleEndpointAddress = s.config.Experimental.BundleEndpointAddress
+	}
+	return endpoints.New(config)
+}
+
+func (s *Server) newBundleManager(cat catalog.Catalog) *bundle_client.Manager {
+	return bundle_client.NewManager(bundle_client.ManagerConfig{
+		Log:          s.config.Log.WithField("subsystem_name", "bundle_client"),
+		DataStore:    cat.GetDataStore(),
+		TrustDomains: s.config.Experimental.FederatesWith,
 	})
 }
 
