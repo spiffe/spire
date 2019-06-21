@@ -72,7 +72,7 @@ func New() *IITAttestorPlugin {
 }
 
 // Attest implements the server side logic for the gcp iit node attestation plugin.
-func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) (err error) {
+func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err
