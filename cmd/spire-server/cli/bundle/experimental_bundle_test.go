@@ -20,27 +20,26 @@ import (
 
 const (
 	otherDomainJWKS = `{
-	"keys": [
-		{
-			"use": "spiffe-x509",
-			"kty": "EC",
-			"crv": "P-256",
-			"x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-			"y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
-			"x5c": [
-				"MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
-			]
-		},
-		{
-			"use": "spiffe-jwt",
-			"kty": "EC",
-			"kid": "KID",
-			"crv": "P-256",
-			"x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-			"y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
-		}
-	],
-	"spiffe-td": "spiffe://otherdomain.test"
+    "keys": [
+        {
+            "use": "x509-svid",
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
+            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
+            "x5c": [
+                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
+            ]
+        },
+        {
+            "use": "jwt-svid",
+            "kty": "EC",
+            "kid": "KID",
+            "crv": "P-256",
+            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
+            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
+        }
+    ]
 }
 `
 )
@@ -131,24 +130,25 @@ func (s *ExperimentalBundleSuite) TestShow() {
 		RootCas: []*common.Certificate{
 			{DerBytes: s.cert1.Raw},
 		},
+		RefreshHint: 60,
 	})
 
 	s.Require().Equal(0, s.showCmd.Run([]string{}))
 
 	s.Require().Equal(`{
-	"keys": [
-		{
-			"use": "spiffe-x509",
-			"kty": "EC",
-			"crv": "P-256",
-			"x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-			"y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
-			"x5c": [
-				"MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
-			]
-		}
-	],
-	"spiffe-td": "spiffe://example.test"
+    "keys": [
+        {
+            "use": "x509-svid",
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
+            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
+            "x5c": [
+                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
+            ]
+        }
+    ],
+    "spiffe_refresh_hint": 60
 }
 `, s.stdout.String())
 }
@@ -156,6 +156,8 @@ func (s *ExperimentalBundleSuite) TestShow() {
 func (s *ExperimentalBundleSuite) TestSetHelp() {
 	s.setCmd.Help()
 	s.Require().Equal(`Usage of experimental bundle set:
+  -id string
+    	SPIFFE ID of the trust domain
   -path string
     	Path to the bundle data
   -registrationUDSPath string
@@ -165,7 +167,7 @@ func (s *ExperimentalBundleSuite) TestSetHelp() {
 
 func (s *ExperimentalBundleSuite) TestSetCreatesBundle() {
 	s.stdin.WriteString(otherDomainJWKS)
-	s.assertBundleSet()
+	s.assertBundleSet("-id", "spiffe://otherdomain.test")
 }
 
 func (s *ExperimentalBundleSuite) TestSetUpdatesBundle() {
@@ -176,11 +178,17 @@ func (s *ExperimentalBundleSuite) TestSetUpdatesBundle() {
 		},
 	})
 	s.stdin.WriteString(otherDomainJWKS)
-	s.assertBundleSet()
+	s.assertBundleSet("-id", "spiffe://otherdomain.test")
+}
+
+func (s *ExperimentalBundleSuite) TestSetRequiresIDFlag() {
+	rc := s.setCmd.Run([]string{})
+	s.Require().Equal(1, rc)
+	s.Require().Equal("id flag is required\n", s.stderr.String())
 }
 
 func (s *ExperimentalBundleSuite) TestSetCannotLoadBundleFromFile() {
-	rc := s.setCmd.Run([]string{"-path", "/not/a/real/path/to/a/bundle"})
+	rc := s.setCmd.Run([]string{"-id", "spiffe://otherdomain.test", "-path", "/not/a/real/path/to/a/bundle"})
 	s.Require().Equal(1, rc)
 	s.Require().Equal("unable to load bundle data: open /not/a/real/path/to/a/bundle: no such file or directory\n", s.stderr.String())
 }
@@ -193,7 +201,7 @@ func (s *ExperimentalBundleSuite) TestSetCreatesBundleFromFile() {
 	bundlePath := filepath.Join(tmpDir, "bundle.pem")
 
 	s.Require().NoError(ioutil.WriteFile(bundlePath, []byte(otherDomainJWKS), 0644))
-	s.assertBundleSet("-path", bundlePath)
+	s.assertBundleSet("-id", "spiffe://otherdomain.test", "-path", bundlePath)
 }
 
 func (s *ExperimentalBundleSuite) TestListHelp() {
@@ -229,46 +237,44 @@ func (s *ExperimentalBundleSuite) TestListAll() {
 * spiffe://domain1.test
 ****************************************
 {
-	"keys": [
-		{
-			"use": "spiffe-x509",
-			"kty": "EC",
-			"crv": "P-256",
-			"x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-			"y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
-			"x5c": [
-				"MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
-			]
-		},
-		{
-			"use": "spiffe-jwt",
-			"kty": "EC",
-			"kid": "KID",
-			"crv": "P-256",
-			"x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
-			"y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
-		}
-	],
-	"spiffe-td": "spiffe://domain1.test"
+    "keys": [
+        {
+            "use": "x509-svid",
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
+            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
+            "x5c": [
+                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
+            ]
+        },
+        {
+            "use": "jwt-svid",
+            "kty": "EC",
+            "kid": "KID",
+            "crv": "P-256",
+            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
+            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
+        }
+    ]
 }
 
 ****************************************
 * spiffe://domain2.test
 ****************************************
 {
-	"keys": [
-		{
-			"use": "spiffe-x509",
-			"kty": "EC",
-			"crv": "P-256",
-			"x": "HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c",
-			"y": "SFd_uVlwYNkXrh0219eHUSD4o-4RGXoiMFJKysw5GK4",
-			"x5c": [
-				"MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8VbmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYtq+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcggdiIqWtxAqBLFrx8zNS4="
-			]
-		}
-	],
-	"spiffe-td": "spiffe://domain2.test"
+    "keys": [
+        {
+            "use": "x509-svid",
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c",
+            "y": "SFd_uVlwYNkXrh0219eHUSD4o-4RGXoiMFJKysw5GK4",
+            "x5c": [
+                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8VbmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYtq+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcggdiIqWtxAqBLFrx8zNS4="
+            ]
+        }
+    ]
 }
 `, s.stdout.String())
 }
@@ -290,19 +296,18 @@ func (s *ExperimentalBundleSuite) TestListOne() {
 	s.Require().Equal(0, s.listCmd.Run([]string{"-id", "spiffe://domain2.test"}))
 
 	s.Require().Equal(`{
-	"keys": [
-		{
-			"use": "spiffe-x509",
-			"kty": "EC",
-			"crv": "P-256",
-			"x": "HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c",
-			"y": "SFd_uVlwYNkXrh0219eHUSD4o-4RGXoiMFJKysw5GK4",
-			"x5c": [
-				"MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8VbmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYtq+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcggdiIqWtxAqBLFrx8zNS4="
-			]
-		}
-	],
-	"spiffe-td": "spiffe://domain2.test"
+    "keys": [
+        {
+            "use": "x509-svid",
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c",
+            "y": "SFd_uVlwYNkXrh0219eHUSD4o-4RGXoiMFJKysw5GK4",
+            "x5c": [
+                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABB8VbmlJ8YIuN9RuQ94PYanmkIRG7MkGV5mmrO6rFAv3SFd/uVlwYNkXrh0219eHUSD4o+4RGXoiMFJKysw5GK6jODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMi50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIQDMKwYtq+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcggdiIqWtxAqBLFrx8zNS4="
+            ]
+        }
+    ]
 }
 `, s.stdout.String())
 }

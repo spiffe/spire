@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 
@@ -19,6 +20,9 @@ func newExperimentalSetCommand(env *env, clientsMaker clientsMaker) cli.Command 
 }
 
 type experimentalSetCommand struct {
+	// The trust domain ID of the bundle being set.
+	id string
+
 	// Path to the bundle on disk (optional). If empty, reads from stdin.
 	path string
 }
@@ -32,16 +36,20 @@ func (c *experimentalSetCommand) synopsis() string {
 }
 
 func (c *experimentalSetCommand) appendFlags(fs *flag.FlagSet) {
+	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
 	fs.StringVar(&c.path, "path", "", "Path to the bundle data")
 }
 
 func (c *experimentalSetCommand) run(ctx context.Context, env *env, clients *clients) error {
+	if c.id == "" {
+		return errors.New("id flag is required")
+	}
 	jwksBytes, err := loadParamData(env.stdin, c.path)
 	if err != nil {
 		return fmt.Errorf("unable to load bundle data: %v", err)
 	}
 
-	bundle, err := parseBundle(jwksBytes)
+	bundle, err := parseBundle(c.id, jwksBytes)
 	if err != nil {
 		return err
 	}

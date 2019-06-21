@@ -13,6 +13,16 @@
     - [IdentityProvider](#spire.server.hostservices.IdentityProvider)
   
 
+- [agentstore.proto](#agentstore.proto)
+    - [AgentInfo](#spire.server.hostservices.AgentInfo)
+    - [GetAgentInfoRequest](#spire.server.hostservices.GetAgentInfoRequest)
+    - [GetAgentInfoResponse](#spire.server.hostservices.GetAgentInfoResponse)
+  
+  
+  
+    - [AgentStore](#spire.server.hostservices.AgentStore)
+  
+
 - [Scalar Value Types](#scalar-value-types)
 
 
@@ -80,6 +90,77 @@
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
 | FetchX509Identity | [FetchX509IdentityRequest](#spire.server.hostservices.FetchX509IdentityRequest) | [FetchX509IdentityResponse](#spire.server.hostservices.FetchX509IdentityResponse) |  |
+
+ 
+
+
+
+<a name="agentstore.proto"></a>
+<p align="right"><a href="#top">Top</a></p>
+
+## agentstore.proto
+
+
+
+<a name="spire.server.hostservices.AgentInfo"></a>
+
+### AgentInfo
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| agent_id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.hostservices.GetAgentInfoRequest"></a>
+
+### GetAgentInfoRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| agent_id | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="spire.server.hostservices.GetAgentInfoResponse"></a>
+
+### GetAgentInfoResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| info | [AgentInfo](#spire.server.hostservices.AgentInfo) |  |  |
+
+
+
+
+
+ 
+
+ 
+
+ 
+
+
+<a name="spire.server.hostservices.AgentStore"></a>
+
+### AgentStore
+
+
+| Method Name | Request Type | Response Type | Description |
+| ----------- | ------------ | ------------- | ------------|
+| GetAgentInfo | [GetAgentInfoRequest](#spire.server.hostservices.GetAgentInfoRequest) | [GetAgentInfoResponse](#spire.server.hostservices.GetAgentInfoResponse) |  |
 
  
 
