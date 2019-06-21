@@ -1,4 +1,5 @@
 #!/bin/bash
+# vim: set noet:
 
 set -o errexit
 [[ -n $DEBUG ]] && set -o xtrace
@@ -96,8 +97,8 @@ build_protobuf() {
 	# will also be generated for protobufs in proto/. Unless an "_out" argument
 	# has been set the output will sit alongside the proto files.
 	_all_proto_files="$(find proto pkg -name '*.proto' 2>/dev/null)"
-	for _proto_file in ${_proto_files}; do
-		_srcdir="$(dirname "${_all_proto_file}")"
+	for _proto_file in ${_all_proto_files}; do
+		_srcdir="$(dirname "${_all_proto_files}")"
 		_outdir="${_srcdir}"
 		if [[ -n ${_out} ]]; then
 			_outdir=${_out}/${_srcdir}
@@ -118,10 +119,10 @@ build_protobuf() {
 		fi
 
 
-        _proto_files=()
-        while read -r -d $'\0' file ; do
-            _proto_files+=("$file")
-        done < <(find "${_proto_dir}" -maxdepth 1 -name '*.proto' -print0)
+		_proto_files=()
+		while read -r -d $'\0' file ; do
+			_proto_files+=("$file")
+		done < <(find "${_proto_dir}" -maxdepth 1 -name '*.proto' -print0)
 		if [ ${#_proto_files[@]} -gt 0 ]; then 
 			_log_info "creating \"${_outdir}/README_pb.md\""
 			protoc --proto_path="${_proto_dir}" --proto_path=proto \
@@ -135,7 +136,7 @@ build_protobuf() {
 ## what's checked in. Fail if there's a difference
 build_protobuf_verify() {
 	local _n _result _tmp
-    _tmp="$(mktemp -d)"
+	_tmp="$(mktemp -d)"
 
 	eval "$(build_env)"
 
@@ -205,7 +206,7 @@ build_artifact() {
 	local _libc _tgz _sum _binaries _n _tmp _tar_opts
 
 	[[ -z "$_dirs" ]] && _dirs="$ARTIFACT_DIRS"
-    IFS=" " read -r -a _dirs_array <<< "$_dirs"
+	IFS=" " read -r -a _dirs_array <<< "$_dirs"
 	_binaries="$(find "${_dirs_array[@]}" -perm -u=x -a -type f)"
 
 
