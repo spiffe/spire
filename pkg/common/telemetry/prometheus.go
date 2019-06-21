@@ -40,8 +40,12 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	}
 	handler := promhttp.HandlerFor(prometheus.DefaultGatherer, handlerOpts)
 
+	if runner.c.Host == "" {
+		runner.c.Host = "localhost"
+	}
+
 	runner.server = &http.Server{
-		Addr:    fmt.Sprintf("localhost:%d", runner.c.Port),
+		Addr:    fmt.Sprintf("%s:%d", runner.c.Host, runner.c.Port),
 		Handler: handler,
 	}
 
